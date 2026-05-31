@@ -1,0 +1,104 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// Entidade central do TRACEFLOW.
+// TODO: Revisar os campos durante a implementacao de RF01, RF02, RF21 e RF22.
+model Project {
+  id           Int      @id @default(autoincrement())
+  name         String
+  description  String?
+  githubOwner  String?
+  githubRepo   String?
+  githubUrl    String?
+  status       String   @default("ATIVO")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  requirements Requirement[]
+  tasks        Task[]
+  artifacts    GithubArtifact[]
+  traceLinks   TraceLink[]
+}
+
+// Requisito funcional ou necessidade cadastrada no projeto.
+// TODO: Implementar futuramente a cadeia Requirement -> Task -> GithubArtifact.
+model Requirement {
+  id          Int      @id @default(autoincrement())
+  projectId   Int
+  title       String
+  description String?
+  type        String?
+  status      String   @default("PENDENTE")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id])
+  tasks   Task[]
+}
+
+// Unidade de trabalho e elo entre planejamento e implementacao.
+// TODO: Definir validacoes de status, prioridade e esforco durante a implementacao.
+model Task {
+  id              Int      @id @default(autoincrement())
+  projectId       Int
+  requirementId   Int?
+  title           String
+  description     String?
+  priority        String?
+  status          String   @default("A_FAZER")
+  deadline        DateTime?
+  estimatedEffort Float?
+  actualEffort    Float?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  project     Project      @relation(fields: [projectId], references: [id])
+  requirement Requirement? @relation(fields: [requirementId], references: [id])
+}
+
+// Generalizacao de Commit, PullRequest e Issue no MVP.
+// TODO: Restringir type a COMMIT, PULL_REQUEST ou ISSUE na camada de servico.
+model GithubArtifact {
+  id             Int       @id @default(autoincrement())
+  projectId      Int
+  type           String
+  externalId     String?
+  sha            String?
+  title          String?
+  description    String?
+  author         String?
+  status         String?
+  branch         String?
+  url            String?
+  createdAtGithub DateTime?
+  closedAtGithub  DateTime?
+  importedAt      DateTime  @default(now())
+
+  project Project @relation(fields: [projectId], references: [id])
+
+  @@unique([projectId, type, externalId])
+}
+
+// Vinculo manual de rastreabilidade entre os elementos do MVP.
+// TODO: Implementar Requirement -> Task e Task -> GithubArtifact.
+model TraceLink {
+  id         Int      @id @default(autoincrement())
+  projectId  Int
+  sourceType String
+  sourceId   Int
+  targetType String
+  targetId   Int
+  linkType   String   @default("RELATED_TO")
+  createdAt  DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id])
+}
+
+// TODO: Avaliar em evolucoes futuras User, Sprint, TestCase, Defect, Alert,
+// Notification, Report, Indicator e Comment. Essas entidades ficam fora do MVP.

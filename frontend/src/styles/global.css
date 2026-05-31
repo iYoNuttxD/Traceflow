@@ -1,0 +1,32 @@
+/* Estilos globais minimos para manter os placeholders legiveis. */
+/* TODO: Definir identidade visual e componentes de interface em commits futuros. */
+:root {
+  font-family: Arial, sans-serif;
+  color: #1f2937;
+}
+
+body {
+  margin: 0;
+}
+
+nav,
+main {
+  padding: 1rem;
+}
+
+nav {
+  display: flex;
+  gap: 1rem;
+  border-bottom: 1px solid #d1d5db;
+}
+
+.kanban-board {
+  display: flex;
+  gap: 1rem;
+}
+
+.kanban-column,
+.card {
+  padding: 1rem;
+  border: 1px solid #d1d5db;
+}

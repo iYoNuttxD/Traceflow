@@ -1,0 +1,16 @@
+# Dependencias e configuracoes locais.
+# TODO: Revisar esta lista quando novas ferramentas forem adicionadas.
+node_modules/
+.env
+.env.local
+dist/
+build/
+coverage/
+.DS_Store
+*.log
+
+backend/node_modules/
+frontend/node_modules/
+
+backend/.env
+frontend/.env
