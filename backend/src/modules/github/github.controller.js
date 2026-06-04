@@ -19,6 +19,19 @@ export const githubController = {
     }
   },
 
+  async listRepositories(req, res) {
+    try {
+      const repositories = await githubService.listRepositories();
+
+      return res.json({ repositories });
+    } catch (error) {
+      return res.status(500).json({
+        message: 'Erro ao acessar GitHub.',
+        error: error.message
+      });
+    }
+  },
+
   async notImplemented(req, res) {
     return res.status(501).json({ message: 'GitHub endpoint prepared for future development.' });
   }

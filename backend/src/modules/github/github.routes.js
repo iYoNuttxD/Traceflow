@@ -7,6 +7,7 @@ const router = Router();
 const placeholder = githubController.notImplemented;
 
 router.get('/github/auth/check', githubController.checkAuthentication);
+router.get('/github/repositories', githubController.listRepositories);
 router.post('/projects/:projectId/github/sync', placeholder);
 router.get('/projects/:projectId/github/artifacts', placeholder);
 

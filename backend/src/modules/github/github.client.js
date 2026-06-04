@@ -34,3 +34,10 @@ export async function checkGithubAuthentication() {
     type: response.data.type
   };
 }
+
+export async function getGithubRepository(owner, repo) {
+  const github = getGithubClient();
+  const response = await github.rest.repos.get({ owner, repo });
+
+  return response.data;
+}

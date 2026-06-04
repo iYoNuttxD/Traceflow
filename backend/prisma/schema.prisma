@@ -10,20 +10,30 @@ datasource db {
 // Entidade central do TRACEFLOW.
 // TODO: Revisar os campos durante a implementacao de RF01, RF02, RF21 e RF22.
 model Project {
-  id           Int      @id @default(autoincrement())
-  name         String
-  description  String?
-  githubOwner  String?
-  githubRepo   String?
-  githubUrl    String?
-  status       String   @default("ATIVO")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                       Int       @id @default(autoincrement())
+  name                     String
+  description              String?
+  githubOwner              String?
+  githubRepo               String?
+  githubUrl                String?
+  githubRepositoryId       String?
+  githubRepositoryName     String?
+  githubRepositoryFullName String?
+  githubRepositoryUrl      String?
+  githubDefaultBranch      String?
+  githubIsPrivate          Boolean?
+  githubIntegratedAt       DateTime?
+  status                   String    @default("ATIVO")
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
 
   requirements Requirement[]
   tasks        Task[]
   artifacts    GithubArtifact[]
   traceLinks   TraceLink[]
+
+  @@unique([githubRepositoryId])
+  @@unique([githubRepositoryFullName])
 }
 
 // Requisito funcional ou necessidade cadastrada no projeto.
