@@ -33,6 +33,7 @@ model Project {
   traceLinks   TraceLink[]
   commits      Commit[]
   pullRequests PullRequest[]
+  issues       Issue[]
 
   @@unique([githubRepositoryId])
   @@unique([githubRepositoryFullName])
@@ -153,6 +154,33 @@ model PullRequest {
   projectId       Int
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, githubId])
+  @@unique([projectId, number])
+}
+
+// Issue importada do repositorio GitHub vinculado ao projeto.
+// TODO: Relacionar issues a tarefas e requisitos quando a rastreabilidade evoluir.
+model Issue {
+  id               Int       @id @default(autoincrement())
+  githubId         String
+  number           Int
+  title            String
+  description      String?   @db.Text
+  state            String?
+  authorUsername   String?
+  assigneeUsername String?
+  labels           Json?
+  milestone        String?
+  githubUrl        String?
+  createdAtGithub  DateTime?
+  updatedAtGithub  DateTime?
+  closedAtGithub   DateTime?
+  projectId        Int
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 

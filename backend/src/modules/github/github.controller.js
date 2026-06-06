@@ -1,9 +1,10 @@
 // Controller da integracao GitHub. Recebe HTTP e delega a comunicacao ao service.
-// TODO: Preparar RF05, RF06 e RF50 sem implementar issues ou dashboard aqui.
+// TODO: Preparar RF06 e RF50 sem implementar dashboard ou indicadores aqui.
 import { githubService } from './github.service.js';
 import { githubSyncService } from './githubSync.service.js';
 import { commitService } from '../commits/commit.service.js';
 import { pullRequestService } from '../pullRequests/pullRequest.service.js';
+import { issueService } from '../issues/issue.service.js';
 
 export const githubController = {
   async checkAuthentication(req, res) {
@@ -72,6 +73,19 @@ export const githubController = {
     } catch (error) {
       return res.status(error.statusCode || 500).json({
         message: error.statusCode ? error.message : 'Erro ao listar pull requests importados.',
+        error: error.statusCode ? undefined : error.message
+      });
+    }
+  },
+
+  async listProjectIssues(req, res) {
+    try {
+      const issues = await issueService.listProjectIssues(req.params.projectId);
+
+      return res.json({ issues });
+    } catch (error) {
+      return res.status(error.statusCode || 500).json({
+        message: error.statusCode ? error.message : 'Erro ao listar issues importadas.',
         error: error.statusCode ? undefined : error.message
       });
     }
