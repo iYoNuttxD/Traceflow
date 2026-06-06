@@ -1,8 +1,9 @@
 // Controller da integracao GitHub. Recebe HTTP e delega a comunicacao ao service.
-// TODO: Preparar RF04, RF05, RF06 e RF50 sem implementar PRs, issues ou dashboard aqui.
+// TODO: Preparar RF05, RF06 e RF50 sem implementar issues ou dashboard aqui.
 import { githubService } from './github.service.js';
 import { githubSyncService } from './githubSync.service.js';
 import { commitService } from '../commits/commit.service.js';
+import { pullRequestService } from '../pullRequests/pullRequest.service.js';
 
 export const githubController = {
   async checkAuthentication(req, res) {
@@ -44,7 +45,7 @@ export const githubController = {
       });
     } catch (error) {
       return res.status(error.statusCode || 500).json({
-        message: error.statusCode ? error.message : 'Erro ao sincronizar commits do GitHub.',
+        message: error.statusCode ? error.message : 'Erro ao sincronizar artefatos do GitHub.',
         error: error.statusCode ? undefined : error.message
       });
     }
@@ -58,6 +59,19 @@ export const githubController = {
     } catch (error) {
       return res.status(error.statusCode || 500).json({
         message: error.statusCode ? error.message : 'Erro ao listar commits importados.',
+        error: error.statusCode ? undefined : error.message
+      });
+    }
+  },
+
+  async listProjectPullRequests(req, res) {
+    try {
+      const pullRequests = await pullRequestService.listProjectPullRequests(req.params.projectId);
+
+      return res.json({ pullRequests });
+    } catch (error) {
+      return res.status(error.statusCode || 500).json({
+        message: error.statusCode ? error.message : 'Erro ao listar pull requests importados.',
         error: error.statusCode ? undefined : error.message
       });
     }

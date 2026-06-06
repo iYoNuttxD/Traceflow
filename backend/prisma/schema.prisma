@@ -32,6 +32,7 @@ model Project {
   artifacts    GithubArtifact[]
   traceLinks   TraceLink[]
   commits      Commit[]
+  pullRequests PullRequest[]
 
   @@unique([githubRepositoryId])
   @@unique([githubRepositoryFullName])
@@ -130,6 +131,33 @@ model Commit {
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, hash])
+}
+
+// Pull Request importado do repositorio GitHub vinculado ao projeto.
+// TODO: Relacionar pull requests a tarefas quando a rastreabilidade tecnica evoluir.
+model PullRequest {
+  id              Int       @id @default(autoincrement())
+  githubId        String
+  number          Int
+  title           String
+  description     String?   @db.Text
+  state           String?
+  authorUsername  String?
+  sourceBranch    String?
+  targetBranch    String?
+  githubUrl       String?
+  createdAtGithub DateTime?
+  updatedAtGithub DateTime?
+  closedAtGithub  DateTime?
+  mergedAtGithub  DateTime?
+  projectId       Int
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, githubId])
+  @@unique([projectId, number])
 }
 
 // TODO: Avaliar em evolucoes futuras User, Sprint, TestCase, Defect, Alert,

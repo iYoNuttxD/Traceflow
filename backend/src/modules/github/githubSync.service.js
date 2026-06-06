@@ -1,10 +1,11 @@
 // Service de sincronizacao de artefatos GitHub.
 // No MVP, a sincronizacao e acionada manualmente. Futuramente, este servico podera
 // ser chamado por um job agendado ou webhook.
-// TODO: Evoluir este servico para pull requests e issues sem misturar a persistencia.
+// TODO: Evoluir este servico para issues sem misturar a persistencia.
 import { getGithubClient } from './github.client.js';
 import { projectRepository } from '../projects/project.repository.js';
 import { commitRepository } from '../commits/commit.repository.js';
+import { pullRequestRepository } from '../pullRequests/pullRequest.repository.js';
 
 class GithubSyncError extends Error {
   constructor(message, statusCode = 400) {
@@ -56,6 +57,25 @@ function mapGithubCommit(item, project, branch) {
   };
 }
 
+function mapGithubPullRequest(item, project) {
+  return {
+    githubId: String(item.id),
+    number: item.number,
+    title: item.title,
+    description: item.body,
+    state: item.state,
+    authorUsername: item.user?.login,
+    sourceBranch: item.head?.ref,
+    targetBranch: item.base?.ref,
+    githubUrl: item.html_url,
+    createdAtGithub: item.created_at ? new Date(item.created_at) : null,
+    updatedAtGithub: item.updated_at ? new Date(item.updated_at) : null,
+    closedAtGithub: item.closed_at ? new Date(item.closed_at) : null,
+    mergedAtGithub: item.merged_at ? new Date(item.merged_at) : null,
+    projectId: project.id
+  };
+}
+
 async function syncCommits(project) {
   const { owner, repo, defaultBranch } = validateGithubLinkedProject(project);
   const github = getGithubClient();
@@ -88,6 +108,35 @@ async function syncCommits(project) {
   }
 }
 
+async function syncPullRequests(project) {
+  const { owner, repo } = validateGithubLinkedProject(project);
+  const github = getGithubClient();
+
+  try {
+    const response = await github.rest.pulls.list({
+      owner,
+      repo,
+      state: 'all',
+      per_page: 100
+    });
+
+    const mappedPullRequests = response.data.map((item) => mapGithubPullRequest(item, project));
+    const result = await pullRequestRepository.upsertMany(mappedPullRequests);
+
+    return {
+      found: mappedPullRequests.length,
+      created: result.created,
+      updated: result.updated
+    };
+  } catch (error) {
+    if (error.status === 404) {
+      throw new GithubSyncError('Repositorio GitHub nao encontrado ou sem permissao de acesso.', 404);
+    }
+
+    throw error;
+  }
+}
+
 export const githubSyncService = {
   async syncGithubArtifacts(projectId) {
     const parsedProjectId = parseProjectId(projectId);
@@ -96,9 +145,11 @@ export const githubSyncService = {
     validateGithubLinkedProject(project);
 
     const commitSummary = await syncCommits(project);
+    const pullRequestSummary = await syncPullRequests(project);
 
     return {
-      commits: commitSummary
+      commits: commitSummary,
+      pullRequests: pullRequestSummary
     };
   }
 };
