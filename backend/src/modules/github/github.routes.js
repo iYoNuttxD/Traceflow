@@ -1,5 +1,5 @@
-// Rotas do modulo GitHub. Apenas a checagem de autenticacao chama a API externa nesta etapa.
-// TODO: Conectar sincronizacao real durante a implementacao de RF03 a RF06 e RF50.
+// Rotas do modulo GitHub e dos artefatos importados.
+// TODO: Evoluir a sincronizacao para pull requests e issues em RF04 e RF05.
 import { Router } from 'express';
 import { githubController } from './github.controller.js';
 
@@ -8,7 +8,8 @@ const placeholder = githubController.notImplemented;
 
 router.get('/github/auth/check', githubController.checkAuthentication);
 router.get('/github/repositories', githubController.listRepositories);
-router.post('/projects/:projectId/github/sync', placeholder);
+router.post('/projects/:projectId/github/sync', githubController.syncProjectGithubArtifacts);
+router.get('/projects/:projectId/commits', githubController.listProjectCommits);
 router.get('/projects/:projectId/github/artifacts', placeholder);
 
 export default router;

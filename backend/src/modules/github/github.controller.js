@@ -1,6 +1,8 @@
 // Controller da integracao GitHub. Recebe HTTP e delega a comunicacao ao service.
-// TODO: Preparar RF03, RF04, RF05, RF06 e RF50 sem implementar importacao completa aqui.
+// TODO: Preparar RF04, RF05, RF06 e RF50 sem implementar PRs, issues ou dashboard aqui.
 import { githubService } from './github.service.js';
+import { githubSyncService } from './githubSync.service.js';
+import { commitService } from '../commits/commit.service.js';
 
 export const githubController = {
   async checkAuthentication(req, res) {
@@ -28,6 +30,35 @@ export const githubController = {
       return res.status(500).json({
         message: 'Erro ao acessar GitHub.',
         error: error.message
+      });
+    }
+  },
+
+  async syncProjectGithubArtifacts(req, res) {
+    try {
+      const summary = await githubSyncService.syncGithubArtifacts(req.params.projectId);
+
+      return res.json({
+        message: 'Sincronizacao com GitHub concluida.',
+        summary
+      });
+    } catch (error) {
+      return res.status(error.statusCode || 500).json({
+        message: error.statusCode ? error.message : 'Erro ao sincronizar commits do GitHub.',
+        error: error.statusCode ? undefined : error.message
+      });
+    }
+  },
+
+  async listProjectCommits(req, res) {
+    try {
+      const commits = await commitService.listProjectCommits(req.params.projectId);
+
+      return res.json({ commits });
+    } catch (error) {
+      return res.status(error.statusCode || 500).json({
+        message: error.statusCode ? error.message : 'Erro ao listar commits importados.',
+        error: error.statusCode ? undefined : error.message
       });
     }
   },

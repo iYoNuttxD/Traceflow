@@ -31,6 +31,7 @@ model Project {
   tasks        Task[]
   artifacts    GithubArtifact[]
   traceLinks   TraceLink[]
+  commits      Commit[]
 
   @@unique([githubRepositoryId])
   @@unique([githubRepositoryFullName])
@@ -108,6 +109,27 @@ model TraceLink {
   createdAt  DateTime @default(now())
 
   project Project @relation(fields: [projectId], references: [id])
+}
+
+// Commit importado do repositorio GitHub vinculado ao projeto.
+// TODO: Relacionar commits a tarefas quando o fluxo de rastreabilidade evoluir.
+model Commit {
+  id             Int       @id @default(autoincrement())
+  hash           String
+  message        String?   @db.Text
+  authorName     String?
+  authorEmail    String?
+  authorUsername String?
+  date           DateTime?
+  branch         String?
+  githubUrl      String?
+  projectId      Int
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, hash])
 }
 
 // TODO: Avaliar em evolucoes futuras User, Sprint, TestCase, Defect, Alert,

@@ -3,6 +3,12 @@
 import { prisma } from '../../database/prismaClient.js';
 
 export const projectRepository = {
+  async findById(id) {
+    return prisma.project.findUnique({
+      where: { id }
+    });
+  },
+
   async findByGithubRepositoryId(githubRepositoryId) {
     return prisma.project.findFirst({
       where: { githubRepositoryId }
