@@ -1,5 +1,4 @@
-// Service de projetos: concentra regras do RF02 antes de persistir no banco.
-// TODO: Implementar demais fluxos de RF01, RF21 e RF22 em tarefas futuras.
+// Service de projetos: concentra as regras de negocio dos fluxos de projeto.
 import { getGithubRepository } from '../github/github.client.js';
 import { projectRepository } from './project.repository.js';
 
@@ -19,6 +18,64 @@ const requiredGithubFields = [
   'githubRepositoryUrl',
   'githubDefaultBranch'
 ];
+
+const allowedStatuses = new Set(['ATIVO', 'INATIVO', 'ARQUIVADO']);
+const editableFields = [
+  'name',
+  'description',
+  'githubOwner',
+  'githubRepo',
+  'githubUrl',
+  'status'
+];
+
+function validateProjectName(name, required = false) {
+  if (required && (typeof name !== 'string' || !name.trim())) {
+    throw new ProjectServiceError('O nome do projeto é obrigatório.', 400);
+  }
+
+  if (name !== undefined && (typeof name !== 'string' || !name.trim())) {
+    throw new ProjectServiceError('O nome do projeto é obrigatório.', 400);
+  }
+}
+
+function validateProjectStatus(status) {
+  if (status !== undefined && !allowedStatuses.has(status)) {
+    throw new ProjectServiceError('Status inválido. Use ATIVO, INATIVO ou ARQUIVADO.', 400);
+  }
+}
+
+function normalizeOptionalText(value) {
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  const normalizedValue = value.trim();
+  return normalizedValue || null;
+}
+
+function buildEditableProjectData(data, isCreate = false) {
+  const payload = data && typeof data === 'object' ? data : {};
+
+  validateProjectName(payload.name, isCreate);
+  validateProjectStatus(payload.status);
+
+  return editableFields.reduce((projectData, field) => {
+    if (payload[field] === undefined) {
+      return projectData;
+    }
+
+    if (field === 'name') {
+      projectData.name = payload.name.trim();
+    } else if (field === 'status') {
+      projectData.status = payload.status;
+    } else {
+      projectData[field] = normalizeOptionalText(payload[field]);
+    }
+
+    return projectData;
+  }, {});
+}
 
 function validateGithubRepositoryData(data) {
   const missingField = requiredGithubFields.find((field) => !data[field]);
@@ -101,7 +158,7 @@ function parseProjectId(projectId) {
   const parsedProjectId = Number(projectId);
 
   if (!Number.isInteger(parsedProjectId) || parsedProjectId <= 0) {
-    throw new ProjectServiceError('ProjectId invalido.', 400);
+    throw new ProjectServiceError('ID do projeto inválido.', 400);
   }
 
   return parsedProjectId;
@@ -126,15 +183,42 @@ function ensureGithubLinkedProject(project) {
 }
 
 export const projectService = {
+  async createProject(data) {
+    const projectData = buildEditableProjectData(data, true);
+
+    return projectRepository.createProject(projectData);
+  },
+
+  async findAllProjects() {
+    return projectRepository.findAllProjects();
+  },
+
   async getProjectById(projectId) {
     const parsedProjectId = parseProjectId(projectId);
-    const project = await projectRepository.findById(parsedProjectId);
+    const project = await projectRepository.findProjectById(parsedProjectId);
 
     if (!project) {
-      throw new ProjectServiceError('Projeto nao encontrado.', 404);
+      throw new ProjectServiceError('Projeto não encontrado.', 404);
     }
 
     return project;
+  },
+
+  async updateProject(projectId, data) {
+    const parsedProjectId = parseProjectId(projectId);
+    const project = await projectRepository.findProjectById(parsedProjectId);
+
+    if (!project) {
+      throw new ProjectServiceError('Projeto não encontrado.', 404);
+    }
+
+    const projectData = buildEditableProjectData(data);
+
+    if (Object.keys(projectData).length === 0) {
+      return project;
+    }
+
+    return projectRepository.updateProject(parsedProjectId, projectData);
   },
 
   async createProjectFromGithubRepository(data) {

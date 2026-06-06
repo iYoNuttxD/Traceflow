@@ -10,12 +10,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@vitejs/plugin-react": "^latest",
-    "axios": "^latest",
-    "vite": "^latest",
-    "react": "^latest",
-    "react-dom": "^latest",
-    "react-router-dom": "^latest"
+    "@vitejs/plugin-react": "latest",
+    "axios": "latest",
+    "vite": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "react-router-dom": "latest"
   },
   "devDependencies": {}
 }

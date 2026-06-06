@@ -1,19 +1,63 @@
-// Controller de projetos. Recebe HTTP e delega regras ao service.
-// TODO: Implementar RF01 e RF22 completos sem colocar regras de negocio neste arquivo.
+// Controller de projetos. Recebe HTTP, chama o service e monta a resposta.
 import { projectService } from './project.service.js';
 
 export const projectController = {
-  async getById(req, res) {
+  async create(req, res) {
+    try {
+      const project = await projectService.createProject(req.body);
+
+      return res.status(201).json({
+        message: 'Projeto cadastrado com sucesso.',
+        project
+      });
+    } catch (error) {
+      return res.status(error.statusCode || 500).json({
+        message: error.statusCode ? error.message : 'Erro interno ao processar projeto.'
+      });
+    }
+  },
+
+  async findAll(req, res) {
+    try {
+      const projects = await projectService.findAllProjects();
+
+      return res.json({ projects });
+    } catch (error) {
+      return res.status(500).json({
+        message: 'Erro interno ao processar projeto.'
+      });
+    }
+  },
+
+  async findById(req, res) {
     try {
       const project = await projectService.getProjectById(req.params.id);
 
       return res.json({ project });
     } catch (error) {
       return res.status(error.statusCode || 500).json({
-        message: error.statusCode ? error.message : 'Erro ao consultar projeto.',
-        error: error.statusCode ? undefined : error.message
+        message: error.statusCode ? error.message : 'Erro interno ao processar projeto.'
       });
     }
+  },
+
+  async update(req, res) {
+    try {
+      const project = await projectService.updateProject(req.params.id, req.body);
+
+      return res.json({
+        message: 'Projeto atualizado com sucesso.',
+        project
+      });
+    } catch (error) {
+      return res.status(error.statusCode || 500).json({
+        message: error.statusCode ? error.message : 'Erro interno ao processar projeto.'
+      });
+    }
+  },
+
+  async getById(req, res) {
+    return projectController.findById(req, res);
   },
 
   async createFromGithub(req, res) {
@@ -49,6 +93,8 @@ export const projectController = {
   },
 
   async notImplemented(req, res) {
-    return res.status(501).json({ message: 'Project endpoint prepared for future development.' });
+    return res.status(501).json({
+      message: 'Endpoint de projeto preparado para desenvolvimento futuro.'
+    });
   }
 };

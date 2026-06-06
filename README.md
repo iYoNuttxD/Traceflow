@@ -45,6 +45,5 @@ Routes -> Controller -> Service -> Repository -> Database
 
 ## Status do projeto
 
-Este commit prepara apenas a estrutura inicial do projeto. As funcionalidades serao implementadas posteriormente.
-
-> TODO: Atualizar este README conforme o desenvolvimento incremental do MVP.
+O RF01 esta implementado com cadastro, listagem, consulta e edicao de projetos
+no backend e no frontend.

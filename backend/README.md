@@ -20,8 +20,21 @@ src/
 Routes -> Controller -> Service -> Repository -> Database
 ```
 
-## Observacao
+## Modulo de projetos
 
-Este backend ainda nao implementa regras de negocio. A estrutura esta preparada para desenvolvimento futuro.
+O RF01 disponibiliza os endpoints:
 
-> TODO: Documentar comandos de configuracao local conforme a infraestrutura for definida.
+```txt
+POST /api/projects
+GET  /api/projects
+GET  /api/projects/:id
+PUT  /api/projects/:id
+```
+
+Para preparar o banco:
+
+```bash
+npm install
+npx prisma generate
+npx prisma migrate dev
+```

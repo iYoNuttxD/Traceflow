@@ -16,8 +16,7 @@ src/
 `-- main.jsx
 ```
 
-## Observacao
+## Modulo de projetos
 
-As paginas ainda sao placeholders. A implementacao das telas sera feita em commits futuros.
-
-> TODO: Documentar os fluxos da interface conforme forem implementados.
+O RF01 implementa cadastro, listagem, consulta e edicao de projetos nas rotas
+`/projects` e `/projects/:id`.

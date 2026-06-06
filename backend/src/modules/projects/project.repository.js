@@ -1,8 +1,30 @@
 // Repository de projetos: concentra o acesso a Project no MySQL via Prisma.
-// TODO: Implementar o CRUD completo de projetos em tarefas futuras.
 import { prisma } from '../../database/prismaClient.js';
 
 export const projectRepository = {
+  async createProject(data) {
+    return prisma.project.create({ data });
+  },
+
+  async findAllProjects() {
+    return prisma.project.findMany({
+      orderBy: { createdAt: 'desc' }
+    });
+  },
+
+  async findProjectById(id) {
+    return prisma.project.findUnique({
+      where: { id }
+    });
+  },
+
+  async updateProject(id, data) {
+    return prisma.project.update({
+      where: { id },
+      data
+    });
+  },
+
   async findById(id) {
     return prisma.project.findUnique({
       where: { id }
