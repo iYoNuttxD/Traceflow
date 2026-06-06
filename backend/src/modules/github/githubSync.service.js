@@ -207,6 +207,8 @@ export const githubSyncService = {
     const pullRequestSummary = await syncPullRequests(project);
     const issueSummary = await syncIssues(project);
 
+    await projectRepository.updateGithubLastSyncAt(parsedProjectId, new Date());
+
     return {
       commits: commitSummary,
       pullRequests: pullRequestSummary,

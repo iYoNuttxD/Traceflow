@@ -3,6 +3,19 @@
 import { projectService } from './project.service.js';
 
 export const projectController = {
+  async getById(req, res) {
+    try {
+      const project = await projectService.getProjectById(req.params.id);
+
+      return res.json({ project });
+    } catch (error) {
+      return res.status(error.statusCode || 500).json({
+        message: error.statusCode ? error.message : 'Erro ao consultar projeto.',
+        error: error.statusCode ? undefined : error.message
+      });
+    }
+  },
+
   async createFromGithub(req, res) {
     try {
       const project = await projectService.createProjectFromGithubRepository(req.body);
@@ -14,6 +27,22 @@ export const projectController = {
     } catch (error) {
       return res.status(error.statusCode || 500).json({
         message: error.statusCode ? error.message : 'Erro ao criar projeto a partir do repositorio GitHub.',
+        error: error.statusCode ? undefined : error.message
+      });
+    }
+  },
+
+  async updateGithubSyncSettings(req, res) {
+    try {
+      const project = await projectService.updateGithubSyncSettings(req.params.projectId, req.body);
+
+      return res.json({
+        message: 'Configuracao de sincronizacao GitHub atualizada com sucesso.',
+        project
+      });
+    } catch (error) {
+      return res.status(error.statusCode || 500).json({
+        message: error.statusCode ? error.message : 'Erro ao atualizar configuracao de sincronizacao GitHub.',
         error: error.statusCode ? undefined : error.message
       });
     }

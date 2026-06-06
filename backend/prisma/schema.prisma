@@ -23,6 +23,8 @@ model Project {
   githubDefaultBranch      String?
   githubIsPrivate          Boolean?
   githubIntegratedAt       DateTime?
+  githubAutoSyncEnabled    Boolean   @default(false)
+  githubLastSyncAt         DateTime?
   status                   String    @default("ATIVO")
   createdAt                DateTime  @default(now())
   updatedAt                DateTime  @updatedAt

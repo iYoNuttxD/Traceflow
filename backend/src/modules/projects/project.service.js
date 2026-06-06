@@ -76,6 +76,7 @@ async function verifyGithubRepositoryAccess(data) {
 function buildProjectData(data, repository) {
   const projectName = data.name || data.nome || data.githubRepositoryName;
   const description = data.description ?? repository.description;
+  const githubAutoSyncEnabled = data.githubAutoSyncEnabled === true;
 
   return {
     name: projectName,
@@ -90,11 +91,52 @@ function buildProjectData(data, repository) {
     githubRepositoryUrl: repository.html_url,
     githubDefaultBranch: repository.default_branch,
     githubIsPrivate: repository.private,
-    githubIntegratedAt: new Date()
+    githubIntegratedAt: new Date(),
+    githubAutoSyncEnabled,
+    githubLastSyncAt: null
   };
 }
 
+function parseProjectId(projectId) {
+  const parsedProjectId = Number(projectId);
+
+  if (!Number.isInteger(parsedProjectId) || parsedProjectId <= 0) {
+    throw new ProjectServiceError('ProjectId invalido.', 400);
+  }
+
+  return parsedProjectId;
+}
+
+function validateGithubAutoSyncEnabled(value) {
+  if (typeof value !== 'boolean') {
+    throw new ProjectServiceError('githubAutoSyncEnabled deve ser um valor booleano.', 400);
+  }
+}
+
+function ensureGithubLinkedProject(project) {
+  if (!project) {
+    throw new ProjectServiceError('Projeto nao encontrado.', 404);
+  }
+
+  const repositoryName = project.githubRepositoryName || project.githubRepo;
+
+  if (!project.githubOwner || !repositoryName || !project.githubDefaultBranch) {
+    throw new ProjectServiceError('Projeto nao possui repositorio GitHub vinculado.', 400);
+  }
+}
+
 export const projectService = {
+  async getProjectById(projectId) {
+    const parsedProjectId = parseProjectId(projectId);
+    const project = await projectRepository.findById(parsedProjectId);
+
+    if (!project) {
+      throw new ProjectServiceError('Projeto nao encontrado.', 404);
+    }
+
+    return project;
+  },
+
   async createProjectFromGithubRepository(data) {
     validateGithubRepositoryData(data);
     const repository = await verifyGithubRepositoryAccess(data);
@@ -103,5 +145,18 @@ export const projectService = {
     await ensureRepositoryIsNotLinked(projectData);
 
     return projectRepository.createFromGithub(projectData);
+  },
+
+  async updateGithubSyncSettings(projectId, data) {
+    const parsedProjectId = parseProjectId(projectId);
+    validateGithubAutoSyncEnabled(data.githubAutoSyncEnabled);
+
+    const project = await projectRepository.findById(parsedProjectId);
+    ensureGithubLinkedProject(project);
+
+    return projectRepository.updateGithubSyncSettings(
+      parsedProjectId,
+      data.githubAutoSyncEnabled
+    );
   }
 };

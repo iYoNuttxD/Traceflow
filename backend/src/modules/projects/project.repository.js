@@ -23,5 +23,19 @@ export const projectRepository = {
 
   async createFromGithub(data) {
     return prisma.project.create({ data });
+  },
+
+  async updateGithubSyncSettings(id, githubAutoSyncEnabled) {
+    return prisma.project.update({
+      where: { id },
+      data: { githubAutoSyncEnabled }
+    });
+  },
+
+  async updateGithubLastSyncAt(id, githubLastSyncAt) {
+    return prisma.project.update({
+      where: { id },
+      data: { githubLastSyncAt }
+    });
   }
 };
