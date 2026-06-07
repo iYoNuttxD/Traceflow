@@ -65,3 +65,29 @@ export const projectMembersApi = {
     return api.post('/projects/join', data);
   }
 };
+
+export const requirementsApi = {
+  create(projectId, data) {
+    return api.post(`/projects/${projectId}/requirements`, data);
+  },
+
+  listByProject(projectId) {
+    return api.get(`/projects/${projectId}/requirements`);
+  },
+
+  getById(requirementId) {
+    return api.get(`/requirements/${requirementId}`);
+  },
+
+  update(requirementId, data) {
+    return api.put(`/requirements/${requirementId}`, data);
+  },
+
+  updateStatus(requirementId, status) {
+    return api.patch(`/requirements/${requirementId}/status`, { status });
+  },
+
+  listTasks(requirementId) {
+    return api.get(`/requirements/${requirementId}/tasks`);
+  }
+};

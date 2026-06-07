@@ -1,9 +1,98 @@
-// Controller de requisitos. Requisitos sao cards simples ligados a um projeto.
-// TODO: Delegar ao service os fluxos de RF48 e RF49.
+// Controller do modulo de requisitos. Recebe HTTP e delega regras ao service.
+import { requirementService } from './requirement.service.js';
+
+function sendError(res, error, fallbackMessage = 'Erro interno ao processar requisito.') {
+  if (!error.statusCode) {
+    console.error(fallbackMessage, error);
+  }
+
+  return res.status(error.statusCode || 500).json({
+    message: error.statusCode ? error.message : fallbackMessage
+  });
+}
+
 export const requirementController = {
-  async notImplemented(req, res) {
-    return res.status(501).json({
-      message: 'Endpoint de requisitos preparado para desenvolvimento futuro.'
-    });
+  async create(req, res) {
+    try {
+      const requirement = await requirementService.createRequirement(
+        req.params.projectId,
+        req.body
+      );
+
+      return res.status(201).json({
+        message: 'Requisito cadastrado com sucesso.',
+        requirement
+      });
+    } catch (error) {
+      return sendError(res, error);
+    }
+  },
+
+  async findByProject(req, res) {
+    try {
+      const requirements = await requirementService.findRequirementsByProject(
+        req.params.projectId
+      );
+
+      return res.json({
+        total: requirements.length,
+        requirements
+      });
+    } catch (error) {
+      return sendError(res, error);
+    }
+  },
+
+  async findById(req, res) {
+    try {
+      const requirement = await requirementService.getRequirementById(req.params.id);
+
+      return res.json({ requirement });
+    } catch (error) {
+      return sendError(res, error);
+    }
+  },
+
+  async update(req, res) {
+    try {
+      const requirement = await requirementService.updateRequirement(req.params.id, req.body);
+
+      return res.json({
+        message: 'Requisito atualizado com sucesso.',
+        requirement
+      });
+    } catch (error) {
+      return sendError(res, error);
+    }
+  },
+
+  async updateStatus(req, res) {
+    try {
+      const requirement = await requirementService.updateRequirementStatus(
+        req.params.id,
+        req.body.status
+      );
+
+      return res.json({
+        message: 'Status do requisito atualizado com sucesso.',
+        requirement
+      });
+    } catch (error) {
+      return sendError(res, error);
+    }
+  },
+
+  async findTasksByRequirement(req, res) {
+    try {
+      const tasks = await requirementService.findTasksByRequirement(req.params.id);
+
+      return res.json({
+        requirementId: Number(req.params.id),
+        total: tasks.length,
+        tasks
+      });
+    } catch (error) {
+      return sendError(res, error);
+    }
   }
 };

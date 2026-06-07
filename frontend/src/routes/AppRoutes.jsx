@@ -19,7 +19,7 @@ export function AppRoutes() {
       <Route path="/join/:accessCode" element={<JoinProjectPage />} />
       <Route path="/projects" element={<ProjectsPage />} />
       <Route path="/projects/:id" element={<ProjectDetailsPage />} />
-      <Route path="/projects/:id/requirements" element={<RequirementsPage />} />
+      <Route path="/projects/:projectId/requirements" element={<RequirementsPage />} />
       <Route path="/projects/:projectId/tasks" element={<TasksPage />} />
       <Route path="/projects/:projectId/kanban" element={<KanbanPage />} />
       <Route path="/projects/:projectId/repository" element={<RepositoryInfoPage />} />

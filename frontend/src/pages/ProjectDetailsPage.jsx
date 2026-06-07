@@ -264,6 +264,12 @@ export function ProjectDetailsPage() {
           <Link className="button button-secondary link-button" to={`/projects/${project.id}/tasks`}>
             Ver tarefas do projeto
           </Link>
+          <Link
+            className="button button-secondary link-button"
+            to={`/projects/${project.id}/requirements`}
+          >
+            Ver requisitos do projeto
+          </Link>
           <Link className="button button-secondary link-button" to={`/projects/${project.id}/kanban`}>
             Ver Kanban
           </Link>

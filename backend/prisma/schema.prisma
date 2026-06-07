@@ -53,7 +53,7 @@ model Requirement {
   projectId   Int
   title       String
   description String?
-  type        String?
+  type        String   @default("FUNCIONAL")
   status      String   @default("PENDENTE")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
