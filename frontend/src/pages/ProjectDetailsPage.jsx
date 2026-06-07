@@ -4,7 +4,9 @@ import { api } from '../api/api.js';
 import { Card } from '../components/Card.jsx';
 import {
   ProjectForm,
+  applyRepositoryToProjectForm,
   emptyProjectForm,
+  normalizeRepository,
   updateProjectForm
 } from '../components/ProjectForm.jsx';
 
@@ -27,9 +29,12 @@ function getErrorMessage(error, fallback) {
 export function ProjectDetailsPage() {
   const { id } = useParams();
   const [project, setProject] = useState(null);
+  const [repositories, setRepositories] = useState([]);
   const [formData, setFormData] = useState(emptyProjectForm);
   const [loading, setLoading] = useState(true);
+  const [loadingRepositories, setLoadingRepositories] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [repositoriesError, setRepositoriesError] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -52,8 +57,46 @@ export function ProjectDetailsPage() {
     loadProject();
   }, [id]);
 
+  useEffect(() => {
+    async function loadRepositories() {
+      setLoadingRepositories(true);
+      setRepositoriesError('');
+
+      try {
+        const response = await api.get('/github/repositories');
+        const validRepositories = (response.data.repositories || [])
+          .map(normalizeRepository)
+          .filter(
+            (repository) =>
+              repository.owner &&
+              repository.name &&
+              repository.fullName &&
+              repository.url
+          );
+        setRepositories(validRepositories);
+      } catch {
+        setRepositories([]);
+        setRepositoriesError('Não foi possível carregar os repositórios do GitHub.');
+      } finally {
+        setLoadingRepositories(false);
+      }
+    }
+
+    loadRepositories();
+  }, []);
+
   function handleChange(name, value) {
     setFormData((current) => updateProjectForm(current, name, value));
+  }
+
+  function handleRepositoryChange(fullName) {
+    const selectedRepository = repositories.find(
+      (repository) => normalizeRepository(repository).fullName === fullName
+    );
+
+    if (selectedRepository) {
+      setFormData((current) => applyRepositoryToProjectForm(current, selectedRepository));
+    }
   }
 
   async function handleSubmit(event) {
@@ -117,7 +160,11 @@ export function ProjectDetailsPage() {
         <Card title="Editar dados do projeto">
           <ProjectForm
             formData={formData}
+            repositories={repositories}
+            loadingRepositories={loadingRepositories}
+            repositoriesError={repositoriesError}
             onChange={handleChange}
+            onRepositoryChange={handleRepositoryChange}
             onSubmit={handleSubmit}
             submitLabel="Salvar alterações"
             submitting={submitting}

@@ -171,6 +171,17 @@ a {
   cursor: default;
 }
 
+.field-help {
+  margin: -0.25rem 0 0;
+  color: #667085;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.field-error {
+  color: #9f2d2d;
+}
+
 .form-actions {
   display: flex;
   justify-content: flex-end;

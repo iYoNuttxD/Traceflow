@@ -59,46 +59,50 @@ function validateResponsibleTeam(responsibleTeam, required = false) {
   }
 }
 
-function parseGithubRepositoryUrl(githubUrl, required = false) {
-  if (required && (typeof githubUrl !== 'string' || !githubUrl.trim())) {
-    throw new ProjectServiceError('A URL do repositório GitHub é obrigatória.', 400);
-  }
+function normalizeGithubRepository(data, required = false) {
+  const repositoryFields = ['githubOwner', 'githubRepo', 'githubUrl'];
+  const hasRepositoryField = repositoryFields.some((field) => data[field] !== undefined);
 
-  if (githubUrl === undefined) {
+  if (!required && !hasRepositoryField) {
     return null;
   }
 
-  if (typeof githubUrl !== 'string' || !githubUrl.trim()) {
-    throw new ProjectServiceError('A URL do repositório GitHub é obrigatória.', 400);
+  const githubOwner = normalizeOptionalText(data.githubOwner);
+  const githubRepo = normalizeOptionalText(data.githubRepo);
+  const githubUrl = normalizeOptionalText(data.githubUrl);
+
+  if (!githubOwner || !githubRepo || !githubUrl) {
+    throw new ProjectServiceError(
+      'Selecione um repositório GitHub válido para o projeto.',
+      400
+    );
   }
 
   try {
-    const parsedUrl = new URL(githubUrl.trim());
+    const parsedUrl = new URL(githubUrl);
     const hostname = parsedUrl.hostname.toLowerCase();
     const pathParts = parsedUrl.pathname.split('/').filter(Boolean);
+    const urlOwner = pathParts[0];
+    const urlRepo = pathParts[1]?.replace(/\.git$/i, '');
+    const normalizedRepo = githubRepo.replace(/\.git$/i, '');
 
     if (
       !['github.com', 'www.github.com'].includes(hostname) ||
-      pathParts.length !== 2
+      pathParts.length !== 2 ||
+      urlOwner.toLowerCase() !== githubOwner.toLowerCase() ||
+      urlRepo.toLowerCase() !== normalizedRepo.toLowerCase()
     ) {
-      throw new Error('Invalid GitHub repository URL');
-    }
-
-    const githubOwner = pathParts[0];
-    const githubRepo = pathParts[1].replace(/\.git$/i, '');
-
-    if (!githubOwner || !githubRepo) {
       throw new Error('Invalid GitHub repository URL');
     }
 
     return {
       githubOwner,
-      githubRepo,
-      githubUrl: `https://github.com/${githubOwner}/${githubRepo}`
+      githubRepo: normalizedRepo,
+      githubUrl: `https://github.com/${githubOwner}/${normalizedRepo}`
     };
   } catch {
     throw new ProjectServiceError(
-      'Informe uma URL válida de repositório GitHub.',
+      'Selecione um repositório GitHub válido para o projeto.',
       400
     );
   }
@@ -136,7 +140,7 @@ function buildEditableProjectData(data, isCreate = false) {
     return normalizedData;
   }, {});
 
-  const githubRepository = parseGithubRepositoryUrl(payload.githubUrl, isCreate);
+  const githubRepository = normalizeGithubRepository(payload, isCreate);
 
   if (githubRepository) {
     Object.assign(projectData, githubRepository);

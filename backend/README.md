@@ -31,8 +31,9 @@ GET  /api/projects/:id
 PUT  /api/projects/:id
 ```
 
-O cadastro recebe nome, descricao, equipe responsavel e URL do repositorio
-GitHub. O owner e o nome do repositorio sao derivados automaticamente da URL.
+O cadastro recebe nome, descricao, equipe responsavel e os dados do repositorio
+selecionado no GitHub. O frontend usa `GET /api/github/repositories` para
+carregar os repositorios vinculados ao token configurado.
 O campo `createdAt` permite contabilizar novos projetos por periodo.
 
 Para preparar o banco:
