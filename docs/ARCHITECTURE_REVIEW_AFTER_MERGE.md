@@ -207,3 +207,48 @@ Status final desta revisao:
 - RF08 compativel com Kanban, TaskMovement e ProjectMember.
 - Base preparada para RF06 sem implementar RF06 nesta etapa.
 - Pendencia operacional: aplicar as migrations mergeadas no banco local com um usuario MySQL que tenha permissoes suficientes para o fluxo de shadow database do Prisma, ou usar o fluxo adequado de deploy/resolution para o ambiente.
+
+## 11. Correcoes complementares apos revisao do Copilot
+
+Problemas confirmados e correcoes aplicadas:
+
+- Casing da tabela `Task` corrigido nas migrations que ainda usavam `task` em minusculo.
+- Backfill de `inviteLink` com `http://localhost:5173` removido da migration `20260607170000_adjust_kanban_project_members`; a migration preserva apenas o `accessCode`, e a aplicacao monta novos links com `FRONTEND_URL`.
+- `JoinProjectPage` agora sincroniza o `accessCode` vindo de `/join/:accessCode` com o estado do formulario via `useEffect`.
+- `JoinProjectPage` normaliza o codigo para uppercase no campo e no envio.
+- Dependencias `"latest"` removidas de `frontend/package.json`, usando ranges baseados nas versoes resolvidas pelo `package-lock.json`.
+- Definicoes duplicadas de `.kanban-empty` consolidadas em um unico bloco.
+- Placeholder `notImplemented` de projetos conferido em portugues: `"Endpoint de projeto preparado para desenvolvimento futuro."`
+
+Arquivos alterados nesta rodada:
+
+- `backend/prisma/migrations/20260607021903_add_task_module/migration.sql`
+- `backend/prisma/migrations/20260607024213_use_integer_task_effort/migration.sql`
+- `backend/prisma/migrations/20260607170000_adjust_kanban_project_members/migration.sql`
+- `frontend/package.json`
+- `frontend/package-lock.json`
+- `frontend/src/pages/JoinProjectPage.jsx`
+- `frontend/src/styles/global.css`
+- `docs/ARCHITECTURE_REVIEW_AFTER_MERGE.md`
+
+Validacoes executadas nesta rodada:
+
+```txt
+npm exec prisma -- validate --schema prisma/schema.prisma
+npm exec prisma -- generate --schema prisma/schema.prisma
+npm exec prisma -- migrate status --schema prisma/schema.prisma
+node --check src/modules/projects/project.controller.js
+node --check src/modules/projects/project.service.js
+npm install
+npm run build
+git diff --check
+```
+
+Status final apos as correcoes:
+
+- Nenhuma migration referencia `Task` como `task`.
+- Nenhuma migration persiste `http://localhost:5173` em `inviteLink`.
+- `prisma validate`, `prisma generate` e `prisma migrate status` passaram; a pendencia operacional anterior de migrations foi revalidada e o banco local esta em dia.
+- `node --check`, `git diff --check` e `npm run build` passaram.
+- Frontend continua compilando.
+- RF06 segue nao implementado.

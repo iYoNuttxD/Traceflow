@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { projectMembersApi } from '../api/api.js';
 import { Card } from '../components/Card.jsx';
@@ -8,9 +8,9 @@ function getErrorMessage(error, fallback) {
 }
 
 export function JoinProjectPage() {
-  const { accessCode } = useParams();
+  const { accessCode: routeAccessCode } = useParams();
   const [formData, setFormData] = useState({
-    accessCode: accessCode || '',
+    accessCode: routeAccessCode?.toUpperCase() || '',
     name: '',
     email: ''
   });
@@ -19,8 +19,18 @@ export function JoinProjectPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  useEffect(() => {
+    setFormData((current) => ({
+      ...current,
+      accessCode: routeAccessCode?.toUpperCase() || ''
+    }));
+  }, [routeAccessCode]);
+
   function handleChange(name, value) {
-    setFormData((current) => ({ ...current, [name]: value }));
+    setFormData((current) => ({
+      ...current,
+      [name]: name === 'accessCode' ? value.toUpperCase() : value
+    }));
   }
 
   async function handleSubmit(event) {
@@ -30,7 +40,10 @@ export function JoinProjectPage() {
     setSuccess('');
 
     try {
-      const response = await projectMembersApi.joinProject(formData);
+      const response = await projectMembersApi.joinProject({
+        ...formData,
+        accessCode: formData.accessCode.toUpperCase()
+      });
       setJoinedProject(response.data.project);
       setSuccess(response.data.message);
     } catch (requestError) {

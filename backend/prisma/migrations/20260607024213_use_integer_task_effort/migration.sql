@@ -1,3 +1,3 @@
 -- AlterTable
-ALTER TABLE `task` MODIFY `estimatedEffort` INTEGER NULL,
+ALTER TABLE `Task` MODIFY `estimatedEffort` INTEGER NULL,
     MODIFY `actualEffort` INTEGER NULL;

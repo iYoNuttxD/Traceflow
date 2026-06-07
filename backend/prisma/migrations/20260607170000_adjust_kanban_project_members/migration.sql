@@ -2,10 +2,10 @@
 ALTER TABLE `Project` ADD COLUMN `accessCode` VARCHAR(191) NULL,
     ADD COLUMN `inviteLink` VARCHAR(191) NULL;
 
--- Backfill existing projects with deterministic invite data.
+-- Backfill existing projects with deterministic access codes.
+-- inviteLink remains nullable because the application builds links using FRONTEND_URL.
 UPDATE `Project`
-SET `accessCode` = CONCAT('TRC-', LPAD(`id`, 6, '0')),
-    `inviteLink` = CONCAT('http://localhost:5173/join/', CONCAT('TRC-', LPAD(`id`, 6, '0')))
+SET `accessCode` = CONCAT('TRC-', LPAD(`id`, 6, '0'))
 WHERE `accessCode` IS NULL;
 
 -- CreateIndex
