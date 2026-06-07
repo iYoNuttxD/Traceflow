@@ -22,17 +22,29 @@ export function taskToFormData(task) {
   };
 }
 
+function normalizeNumberField(value) {
+  if (value === '' || value === null || value === undefined) {
+    return null;
+  }
+
+  const parsedValue = Number(value);
+
+  if (!Number.isFinite(parsedValue)) {
+    return String(value);
+  }
+
+  return parsedValue;
+}
+
 export function taskFormToPayload(formData, editing = false) {
   const payload = {
     ...formData,
     deadline: formData.deadline || null,
-    estimatedEffort:
-      formData.estimatedEffort === '' ? null : Number(formData.estimatedEffort)
+    estimatedEffort: normalizeNumberField(formData.estimatedEffort)
   };
 
   if (editing) {
-    payload.actualEffort =
-      formData.actualEffort === '' ? null : Number(formData.actualEffort);
+    payload.actualEffort = normalizeNumberField(formData.actualEffort);
   } else {
     delete payload.actualEffort;
   }

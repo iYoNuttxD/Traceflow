@@ -1,8 +1,8 @@
 # TRACEFLOW
 
-TRACEFLOW e uma plataforma de apoio a rastreabilidade e acompanhamento da evolucao de projetos de software.
+TRACEFLOW é uma plataforma de apoio à rastreabilidade e ao acompanhamento da evolução de projetos de software.
 
-O MVP tem como foco integrar requisitos, tarefas e artefatos tecnicos importados do GitHub.
+O MVP tem como foco integrar requisitos, tarefas e artefatos técnicos importados do GitHub.
 
 ## Cadeia principal do MVP
 
@@ -35,7 +35,7 @@ Routes -> Controller -> Service -> Repository -> Database
 ## Fluxo principal do MVP
 
 1. Cadastrar projeto.
-2. Vincular repositorio GitHub.
+2. Vincular repositório GitHub.
 3. Sincronizar commits, pull requests e issues.
 4. Cadastrar requisitos.
 5. Cadastrar tarefas.
@@ -45,5 +45,5 @@ Routes -> Controller -> Service -> Repository -> Database
 
 ## Status do projeto
 
-O RF01 esta implementado com cadastro, listagem, consulta e edicao de projetos
+O RF01 está implementado com cadastro, listagem, consulta e edição de projetos
 no backend e no frontend.

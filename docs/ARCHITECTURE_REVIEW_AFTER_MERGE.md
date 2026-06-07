@@ -225,6 +225,11 @@ Problemas confirmados e correcoes aplicadas:
 - `buildCreatedAtFilter` ajustado para avancar `endDate` com `setUTCDate`/`getUTCDate`.
 - `buildMovedAtFilter` ajustado para avancar `endDate` com `setUTCDate`/`getUTCDate`.
 - Endpoints GitHub de autenticacao e listagem de repositorios deixam de expor `error.message` ao cliente.
+- `selectedProjectMemberId` agora e validado contra a lista de membros do projeto atual no Kanban.
+- `estimatedEffort` e `actualEffort` nao transformam valores invalidos em `NaN` no payload; valores nao numericos sao preservados para validacao do backend.
+- Handlers de erro inesperado relacionados a GitHub, artefatos e criacao via GitHub nao expõem `error.message` ao cliente.
+- Placeholders `notImplemented` revisados para portugues nos controllers de projetos, GitHub, requisitos e rastreabilidade.
+- READMEs revisados para acentuacao e clareza nos trechos recentes.
 
 Arquivos alterados nesta rodada:
 
@@ -238,6 +243,14 @@ Arquivos alterados nesta rodada:
 - `backend/src/modules/projects/project.service.js`
 - `backend/src/modules/tasks/task.service.js`
 - `backend/src/modules/github/github.controller.js`
+- `backend/src/modules/projects/project.controller.js`
+- `backend/src/modules/requirements/requirement.controller.js`
+- `backend/src/modules/traceability/traceability.controller.js`
+- `frontend/src/pages/KanbanPage.jsx`
+- `frontend/src/components/TaskForm.jsx`
+- `README.md`
+- `backend/README.md`
+- `frontend/README.md`
 - `docs/ARCHITECTURE_REVIEW_AFTER_MERGE.md`
 
 Validacoes executadas nesta rodada:
@@ -250,6 +263,10 @@ node --check src/modules/projects/project.controller.js
 node --check src/modules/projects/project.service.js
 node --check src/modules/tasks/task.service.js
 node --check src/modules/github/github.controller.js
+node --check src/modules/projects/project.controller.js
+node --check src/modules/tasks/task.controller.js
+node --check src/modules/requirements/requirement.controller.js
+node --check src/modules/traceability/traceability.controller.js
 npm install
 npm run build
 git diff --check
@@ -263,6 +280,10 @@ Status final apos as correcoes:
 - `normalizeOptionalText` nao retorna numeros, booleanos ou objetos diretamente para campos textuais opcionais.
 - Filtros de metricas/historico baseados em `YYYY-MM-DD` usam UTC para evitar deslocamento por timezone local.
 - `GET /api/github/auth/check` e `GET /api/github/repositories` retornam mensagens genericas em erro, sem expor detalhes internos do Octokit ou configuracao.
+- O membro responsavel por movimentacao no Kanban nao fica preservado se nao existir no projeto atual.
+- Campos de esforco no frontend nao serializam `NaN` como `null` silenciosamente.
+- `createFromGithub`, listagens de commits, pull requests e issues usam mensagens genericas em erros inesperados.
+- READMEs mantem portugues acentuado e texto mais claro nos trechos revisados.
 - `prisma validate`, `prisma generate` e `prisma migrate status` passaram; a pendencia operacional anterior de migrations foi revalidada e o banco local esta em dia.
 - `node --check`, `git diff --check` e `npm run build` passaram.
 - Frontend continua compilando.

@@ -16,11 +16,11 @@ src/
 `-- main.jsx
 ```
 
-## Modulo de projetos
+## Módulo de projetos
 
-O RF01 implementa cadastro, listagem, consulta e edicao de projetos nas rotas
+O RF01 implementa cadastro, listagem, consulta e edição de projetos nas rotas
 `/projects` e `/projects/:id`.
 
-O formulario carrega os repositorios por `GET /api/github/repositories`.
-O usuario seleciona um repositorio e o frontend envia owner, nome e URL para
-o backend, sem digitacao manual desses campos.
+O formulário carrega os repositórios por `GET /api/github/repositories`.
+O usuário seleciona um repositório e o frontend envia owner, nome e URL ao
+backend, sem digitação manual desses campos.

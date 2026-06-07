@@ -115,6 +115,21 @@ export function KanbanPage() {
     loadKanban();
   }, [loadKanban]);
 
+  useEffect(() => {
+    if (projectMembers.length === 0) {
+      setSelectedProjectMemberId('');
+      return;
+    }
+
+    const selectedStillExists = projectMembers.some(
+      (member) => String(member.id) === String(selectedProjectMemberId)
+    );
+
+    if (!selectedStillExists) {
+      setSelectedProjectMemberId(String(projectMembers[0].id));
+    }
+  }, [projectMembers, selectedProjectMemberId]);
+
   async function refreshKanban(params = buildPeriodParams(period)) {
     const [boardResponse, metricsResponse, movementsResponse] = await Promise.all([
       kanbanApi.getBoard(projectId),

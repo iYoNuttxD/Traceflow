@@ -20,7 +20,7 @@ src/
 Routes -> Controller -> Service -> Repository -> Database
 ```
 
-## Modulo de projetos
+## Módulo de projetos
 
 O RF01 disponibiliza os endpoints:
 
@@ -31,10 +31,10 @@ GET  /api/projects/:id
 PUT  /api/projects/:id
 ```
 
-O cadastro recebe nome, descricao, equipe responsavel e os dados do repositorio
+O cadastro recebe nome, descrição, equipe responsável e os dados do repositório
 selecionado no GitHub. O frontend usa `GET /api/github/repositories` para
-carregar os repositorios vinculados ao token configurado.
-O campo `createdAt` permite contabilizar novos projetos por periodo.
+carregar os repositórios vinculados ao token configurado.
+O campo `createdAt` permite contabilizar novos projetos por período.
 
 Para preparar o banco:
 

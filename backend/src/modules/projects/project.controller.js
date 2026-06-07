@@ -1,6 +1,16 @@
 // Controller de projetos. Recebe HTTP, chama o service e monta a resposta.
 import { projectService } from './project.service.js';
 
+function sendProjectError(res, error, fallbackMessage) {
+  if (!error.statusCode) {
+    console.error(fallbackMessage, error);
+  }
+
+  return res.status(error.statusCode || 500).json({
+    message: error.statusCode ? error.message : fallbackMessage
+  });
+}
+
 export const projectController = {
   async create(req, res) {
     try {
@@ -115,10 +125,11 @@ export const projectController = {
         project
       });
     } catch (error) {
-      return res.status(error.statusCode || 500).json({
-        message: error.statusCode ? error.message : 'Erro ao criar projeto a partir do repositorio GitHub.',
-        error: error.statusCode ? undefined : error.message
-      });
+      return sendProjectError(
+        res,
+        error,
+        'Não foi possível criar o projeto a partir do GitHub.'
+      );
     }
   },
 
@@ -131,10 +142,11 @@ export const projectController = {
         project
       });
     } catch (error) {
-      return res.status(error.statusCode || 500).json({
-        message: error.statusCode ? error.message : 'Erro ao atualizar configuracao de sincronizacao GitHub.',
-        error: error.statusCode ? undefined : error.message
-      });
+      return sendProjectError(
+        res,
+        error,
+        'Erro ao atualizar configuracao de sincronizacao GitHub.'
+      );
     }
   },
 

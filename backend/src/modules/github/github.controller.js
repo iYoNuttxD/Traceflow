@@ -6,6 +6,16 @@ import { commitService } from '../commits/commit.service.js';
 import { pullRequestService } from '../pullRequests/pullRequest.service.js';
 import { issueService } from '../issues/issue.service.js';
 
+function sendGithubError(res, error, fallbackMessage) {
+  if (!error.statusCode) {
+    console.error(fallbackMessage, error);
+  }
+
+  return res.status(error.statusCode || 500).json({
+    message: error.statusCode ? error.message : fallbackMessage
+  });
+}
+
 export const githubController = {
   async checkAuthentication(req, res) {
     try {
@@ -47,10 +57,7 @@ export const githubController = {
         summary
       });
     } catch (error) {
-      return res.status(error.statusCode || 500).json({
-        message: error.statusCode ? error.message : 'Erro ao sincronizar artefatos do GitHub.',
-        error: error.statusCode ? undefined : error.message
-      });
+      return sendGithubError(res, error, 'Erro ao sincronizar artefatos do GitHub.');
     }
   },
 
@@ -60,10 +67,7 @@ export const githubController = {
 
       return res.json({ commits });
     } catch (error) {
-      return res.status(error.statusCode || 500).json({
-        message: error.statusCode ? error.message : 'Erro ao listar commits importados.',
-        error: error.statusCode ? undefined : error.message
-      });
+      return sendGithubError(res, error, 'Não foi possível listar os commits do projeto.');
     }
   },
 
@@ -73,10 +77,7 @@ export const githubController = {
 
       return res.json({ pullRequests });
     } catch (error) {
-      return res.status(error.statusCode || 500).json({
-        message: error.statusCode ? error.message : 'Erro ao listar pull requests importados.',
-        error: error.statusCode ? undefined : error.message
-      });
+      return sendGithubError(res, error, 'Não foi possível listar os pull requests do projeto.');
     }
   },
 
@@ -86,14 +87,13 @@ export const githubController = {
 
       return res.json({ issues });
     } catch (error) {
-      return res.status(error.statusCode || 500).json({
-        message: error.statusCode ? error.message : 'Erro ao listar issues importadas.',
-        error: error.statusCode ? undefined : error.message
-      });
+      return sendGithubError(res, error, 'Não foi possível listar as issues do projeto.');
     }
   },
 
   async notImplemented(req, res) {
-    return res.status(501).json({ message: 'GitHub endpoint prepared for future development.' });
+    return res.status(501).json({
+      message: 'Endpoint GitHub preparado para desenvolvimento futuro.'
+    });
   }
 };
