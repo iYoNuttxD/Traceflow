@@ -138,12 +138,16 @@ function normalizeGithubRepository(data, required = false) {
 }
 
 function normalizeOptionalText(value) {
-  if (value === undefined || value === null) {
+  if (value === undefined) {
     return undefined;
   }
 
+  if (value === null) {
+    return null;
+  }
+
   const normalizedValue = String(value).trim();
-  return normalizedValue || undefined;
+  return normalizedValue || null;
 }
 
 function normalizeOptionalEmail(value) {
@@ -336,7 +340,7 @@ export const projectService = {
 
   async getProjectById(projectId) {
     const parsedProjectId = parseProjectId(projectId);
-    const project = await projectRepository.findProjectById(parsedProjectId);
+    const project = await projectRepository.findById(parsedProjectId);
 
     if (!project) {
       throw new ProjectServiceError('Projeto não encontrado.', 404);
@@ -347,7 +351,7 @@ export const projectService = {
 
   async listProjectMembers(projectId) {
     const parsedProjectId = parseProjectId(projectId);
-    const project = await projectRepository.findProjectById(parsedProjectId);
+    const project = await projectRepository.findById(parsedProjectId);
 
     if (!project) {
       throw new ProjectServiceError('Projeto não encontrado.', 404);
@@ -358,7 +362,7 @@ export const projectService = {
 
   async addProjectMember(projectId, data, defaultRole = 'MEMBRO') {
     const parsedProjectId = parseProjectId(projectId);
-    const project = await projectRepository.findProjectById(parsedProjectId);
+    const project = await projectRepository.findById(parsedProjectId);
 
     if (!project) {
       throw new ProjectServiceError('Projeto não encontrado.', 404);
@@ -407,7 +411,7 @@ export const projectService = {
 
   async updateProject(projectId, data) {
     const parsedProjectId = parseProjectId(projectId);
-    const project = await projectRepository.findProjectById(parsedProjectId);
+    const project = await projectRepository.findById(parsedProjectId);
 
     if (!project) {
       throw new ProjectServiceError('Projeto não encontrado.', 404);

@@ -230,6 +230,8 @@ Problemas confirmados e correcoes aplicadas:
 - Handlers de erro inesperado relacionados a GitHub, artefatos e criacao via GitHub nao expõem `error.message` ao cliente.
 - Placeholders `notImplemented` revisados para portugues nos controllers de projetos, GitHub, requisitos e rastreabilidade.
 - READMEs revisados para acentuacao e clareza nos trechos recentes.
+- Repository de projetos padronizado para usar `findById`, evitando duplicacao com `findProjectById`.
+- `normalizeOptionalText` ajustada para permitir limpar campos opcionais de projeto com `null` ou string vazia sem tratar campo omitido como limpeza.
 
 Arquivos alterados nesta rodada:
 
@@ -244,6 +246,8 @@ Arquivos alterados nesta rodada:
 - `backend/src/modules/tasks/task.service.js`
 - `backend/src/modules/github/github.controller.js`
 - `backend/src/modules/projects/project.controller.js`
+- `backend/src/modules/projects/project.repository.js`
+- `backend/src/modules/projects/project.service.js`
 - `backend/src/modules/requirements/requirement.controller.js`
 - `backend/src/modules/traceability/traceability.controller.js`
 - `frontend/src/pages/KanbanPage.jsx`
@@ -264,6 +268,8 @@ node --check src/modules/projects/project.service.js
 node --check src/modules/tasks/task.service.js
 node --check src/modules/github/github.controller.js
 node --check src/modules/projects/project.controller.js
+node --check src/modules/projects/project.repository.js
+node --check src/modules/projects/project.service.js
 node --check src/modules/tasks/task.controller.js
 node --check src/modules/requirements/requirement.controller.js
 node --check src/modules/traceability/traceability.controller.js
@@ -284,6 +290,8 @@ Status final apos as correcoes:
 - Campos de esforco no frontend nao serializam `NaN` como `null` silenciosamente.
 - `createFromGithub`, listagens de commits, pull requests e issues usam mensagens genericas em erros inesperados.
 - READMEs mantem portugues acentuado e texto mais claro nos trechos revisados.
+- Busca de projeto por id usa um unico metodo no repository de projetos.
+- Campos opcionais de projeto podem ser limpos em edicao com `null`, `""` ou texto em branco; campos omitidos permanecem sem alteracao.
 - `prisma validate`, `prisma generate` e `prisma migrate status` passaram; a pendencia operacional anterior de migrations foi revalidada e o banco local esta em dia.
 - `node --check`, `git diff --check` e `npm run build` passaram.
 - Frontend continua compilando.

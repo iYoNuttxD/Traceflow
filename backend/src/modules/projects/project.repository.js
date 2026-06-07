@@ -12,12 +12,6 @@ export const projectRepository = {
     });
   },
 
-  async findProjectById(id) {
-    return prisma.project.findUnique({
-      where: { id }
-    });
-  },
-
   async findProjectByAccessCode(accessCode) {
     return prisma.project.findUnique({
       where: { accessCode }
