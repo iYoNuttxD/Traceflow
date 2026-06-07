@@ -20,8 +20,26 @@ src/
 Routes -> Controller -> Service -> Repository -> Database
 ```
 
-## Observacao
+## Módulo de projetos
 
-Este backend ainda nao implementa regras de negocio. A estrutura esta preparada para desenvolvimento futuro.
+O RF01 disponibiliza os endpoints:
 
-> TODO: Documentar comandos de configuracao local conforme a infraestrutura for definida.
+```txt
+POST /api/projects
+GET  /api/projects
+GET  /api/projects/:id
+PUT  /api/projects/:id
+```
+
+O cadastro recebe nome, descrição, equipe responsável e os dados do repositório
+selecionado no GitHub. O frontend usa `GET /api/github/repositories` para
+carregar os repositórios vinculados ao token configurado.
+O campo `createdAt` permite contabilizar novos projetos por período.
+
+Para preparar o banco:
+
+```bash
+npm install
+npx prisma generate
+npx prisma migrate dev
+```

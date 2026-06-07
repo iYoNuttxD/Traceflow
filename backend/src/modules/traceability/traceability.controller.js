@@ -2,6 +2,8 @@
 // TODO: Preparar RF09, RF11, RF12, RF48, RF49, RF52 e RF53.
 export const traceabilityController = {
   async notImplemented(req, res) {
-    return res.status(501).json({ message: 'Traceability endpoint prepared for future development.' });
+    return res.status(501).json({
+      message: 'Endpoint de rastreabilidade preparado para desenvolvimento futuro.'
+    });
   }
 };

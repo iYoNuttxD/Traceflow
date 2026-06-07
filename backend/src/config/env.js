@@ -7,5 +7,6 @@ dotenv.config();
 export const env = {
   port: process.env.PORT || 3001,
   databaseUrl: process.env.DATABASE_URL,
-  githubToken: process.env.GITHUB_TOKEN
+  githubToken: process.env.GITHUB_TOKEN,
+  frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173'
 };

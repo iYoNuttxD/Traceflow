@@ -1,7 +1,130 @@
-// Controller de tarefas. A tarefa sera o elo entre planejamento e implementacao.
-// TODO: Delegar ao service os fluxos de RF07, RF08, RF33, RF38 e RF52.
+// Controller do modulo de tarefas. Recebe HTTP e delega regras ao service.
+import { taskService } from './task.service.js';
+
+function sendError(res, error, fallbackMessage = 'Erro interno ao processar tarefa.') {
+  return res.status(error.statusCode || 500).json({
+    message: error.statusCode ? error.message : fallbackMessage
+  });
+}
+
 export const taskController = {
-  async notImplemented(req, res) {
-    return res.status(501).json({ message: 'Task endpoint prepared for future development.' });
+  async create(req, res) {
+    try {
+      const task = await taskService.createTask(req.params.projectId, req.body);
+
+      return res.status(201).json({
+        message: 'Tarefa cadastrada com sucesso.',
+        task
+      });
+    } catch (error) {
+      return sendError(res, error);
+    }
+  },
+
+  async findByProject(req, res) {
+    try {
+      const tasks = await taskService.findTasksByProject(req.params.projectId);
+
+      return res.json({
+        total: tasks.length,
+        tasks
+      });
+    } catch (error) {
+      return sendError(res, error);
+    }
+  },
+
+  async findById(req, res) {
+    try {
+      const task = await taskService.getTaskById(req.params.id);
+
+      return res.json({ task });
+    } catch (error) {
+      return sendError(res, error);
+    }
+  },
+
+  async update(req, res) {
+    try {
+      const task = await taskService.updateTask(req.params.id, req.body);
+
+      return res.json({
+        message: 'Tarefa atualizada com sucesso.',
+        task
+      });
+    } catch (error) {
+      return sendError(res, error);
+    }
+  },
+
+  async updateStatus(req, res) {
+    try {
+      const task = await taskService.updateTaskStatus(req.params.id, req.body.status);
+
+      return res.json({
+        message: 'Status da tarefa atualizado com sucesso.',
+        task
+      });
+    } catch (error) {
+      return sendError(res, error);
+    }
+  },
+
+  async getKanbanBoard(req, res) {
+    try {
+      const kanban = await taskService.getKanbanBoard(req.params.projectId);
+
+      return res.json(kanban);
+    } catch (error) {
+      return sendError(res, error, 'Erro interno ao processar Kanban.');
+    }
+  },
+
+  async moveTask(req, res) {
+    try {
+      const result = await taskService.moveTask(req.params.id, req.body);
+
+      return res.json({
+        message: 'Tarefa movida com sucesso.',
+        task: result.task,
+        movement: result.movement
+      });
+    } catch (error) {
+      return sendError(res, error, 'Erro interno ao processar Kanban.');
+    }
+  },
+
+  async listMovements(req, res) {
+    try {
+      const movements = await taskService.listMovements(req.params.projectId, req.query);
+
+      return res.json(movements);
+    } catch (error) {
+      return sendError(res, error, 'Erro interno ao processar Kanban.');
+    }
+  },
+
+  async getKanbanMetrics(req, res) {
+    try {
+      const metrics = await taskService.getKanbanMetrics(req.params.projectId, req.query);
+
+      return res.json(metrics);
+    } catch (error) {
+      return sendError(res, error, 'Erro interno ao processar Kanban.');
+    }
+  },
+
+  async getMetrics(req, res) {
+    try {
+      const metrics = await taskService.getTaskMetrics(
+        req.params.projectId,
+        req.query.startDate,
+        req.query.endDate
+      );
+
+      return res.json(metrics);
+    } catch (error) {
+      return sendError(res, error);
+    }
   }
 };

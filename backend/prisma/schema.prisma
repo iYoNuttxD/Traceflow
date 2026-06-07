@@ -10,20 +10,40 @@ datasource db {
 // Entidade central do TRACEFLOW.
 // TODO: Revisar os campos durante a implementacao de RF01, RF02, RF21 e RF22.
 model Project {
-  id           Int      @id @default(autoincrement())
-  name         String
-  description  String?
-  githubOwner  String?
-  githubRepo   String?
-  githubUrl    String?
-  status       String   @default("ATIVO")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                       Int       @id @default(autoincrement())
+  name                     String
+  description              String?
+  responsibleTeam          String
+  githubOwner              String?
+  githubRepo               String?
+  githubUrl                String?
+  githubRepositoryId       String?
+  githubRepositoryName     String?
+  githubRepositoryFullName String?
+  githubRepositoryUrl      String?
+  githubDefaultBranch      String?
+  githubIsPrivate          Boolean?
+  githubIntegratedAt       DateTime?
+  githubAutoSyncEnabled    Boolean   @default(false)
+  githubLastSyncAt         DateTime?
+  status                   String    @default("ATIVO")
+  accessCode               String?   @unique
+  inviteLink               String?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
 
   requirements Requirement[]
   tasks        Task[]
+  members      ProjectMember[]
+  taskMovements TaskMovement[]
   artifacts    GithubArtifact[]
   traceLinks   TraceLink[]
+  commits      Commit[]
+  pullRequests PullRequest[]
+  issues       Issue[]
+
+  @@unique([githubRepositoryId])
+  @@unique([githubRepositoryFullName])
 }
 
 // Requisito funcional ou necessidade cadastrada no projeto.
@@ -43,23 +63,66 @@ model Requirement {
 }
 
 // Unidade de trabalho e elo entre planejamento e implementacao.
-// TODO: Definir validacoes de status, prioridade e esforco durante a implementacao.
 model Task {
-  id              Int      @id @default(autoincrement())
+  id              Int       @id @default(autoincrement())
   projectId       Int
   requirementId   Int?
   title           String
   description     String?
-  priority        String?
-  status          String   @default("A_FAZER")
+  priority        String    @default("MEDIA")
+  responsible     String?
+  status          String    @default("A_FAZER")
   deadline        DateTime?
-  estimatedEffort Float?
-  actualEffort    Float?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  estimatedEffort Int?
+  actualEffort    Int?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   project     Project      @relation(fields: [projectId], references: [id])
   requirement Requirement? @relation(fields: [requirementId], references: [id])
+  movements   TaskMovement[]
+}
+
+// Membro interno de um projeto no TRACEFLOW.
+model ProjectMember {
+  id        Int      @id @default(autoincrement())
+  projectId Int
+  name      String
+  email     String?
+  role      String   @default("MEMBRO")
+  isActive  Boolean  @default(true)
+  joinedAt  DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project   Project        @relation(fields: [projectId], references: [id])
+  movements TaskMovement[]
+
+  @@unique([projectId, email])
+  @@index([projectId])
+}
+
+// Historico de movimentacoes do quadro Kanban do RF08.
+model TaskMovement {
+  id         Int      @id @default(autoincrement())
+  projectId  Int
+  taskId     Int
+  fromStatus String
+  toStatus   String
+  movedBy    String
+  projectMemberId Int?
+  movedAt    DateTime @default(now())
+  sprintId   Int?
+  createdAt  DateTime @default(now())
+
+  project       Project        @relation(fields: [projectId], references: [id])
+  task          Task           @relation(fields: [taskId], references: [id])
+  projectMember ProjectMember? @relation(fields: [projectMemberId], references: [id])
+
+  @@index([projectId])
+  @@index([taskId])
+  @@index([projectMemberId])
+  @@index([movedAt])
 }
 
 // Generalizacao de Commit, PullRequest e Issue no MVP.
@@ -98,6 +161,81 @@ model TraceLink {
   createdAt  DateTime @default(now())
 
   project Project @relation(fields: [projectId], references: [id])
+}
+
+// Commit importado do repositorio GitHub vinculado ao projeto.
+// TODO: Relacionar commits a tarefas quando o fluxo de rastreabilidade evoluir.
+model Commit {
+  id             Int       @id @default(autoincrement())
+  hash           String
+  message        String?   @db.Text
+  authorName     String?
+  authorEmail    String?
+  authorUsername String?
+  date           DateTime?
+  branch         String?
+  githubUrl      String?
+  projectId      Int
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, hash])
+}
+
+// Pull Request importado do repositorio GitHub vinculado ao projeto.
+// TODO: Relacionar pull requests a tarefas quando a rastreabilidade tecnica evoluir.
+model PullRequest {
+  id              Int       @id @default(autoincrement())
+  githubId        String
+  number          Int
+  title           String
+  description     String?   @db.Text
+  state           String?
+  authorUsername  String?
+  sourceBranch    String?
+  targetBranch    String?
+  githubUrl       String?
+  createdAtGithub DateTime?
+  updatedAtGithub DateTime?
+  closedAtGithub  DateTime?
+  mergedAtGithub  DateTime?
+  projectId       Int
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, githubId])
+  @@unique([projectId, number])
+}
+
+// Issue importada do repositorio GitHub vinculado ao projeto.
+// TODO: Relacionar issues a tarefas e requisitos quando a rastreabilidade evoluir.
+model Issue {
+  id               Int       @id @default(autoincrement())
+  githubId         String
+  number           Int
+  title            String
+  description      String?   @db.Text
+  state            String?
+  authorUsername   String?
+  assigneeUsername String?
+  labels           Json?
+  milestone        String?
+  githubUrl        String?
+  createdAtGithub  DateTime?
+  updatedAtGithub  DateTime?
+  closedAtGithub   DateTime?
+  projectId        Int
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, githubId])
+  @@unique([projectId, number])
 }
 
 // TODO: Avaliar em evolucoes futuras User, Sprint, TestCase, Defect, Alert,

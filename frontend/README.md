@@ -16,8 +16,11 @@ src/
 `-- main.jsx
 ```
 
-## Observacao
+## Módulo de projetos
 
-As paginas ainda sao placeholders. A implementacao das telas sera feita em commits futuros.
+O RF01 implementa cadastro, listagem, consulta e edição de projetos nas rotas
+`/projects` e `/projects/:id`.
 
-> TODO: Documentar os fluxos da interface conforme forem implementados.
+O formulário carrega os repositórios por `GET /api/github/repositories`.
+O usuário seleciona um repositório e o frontend envia owner, nome e URL ao
+backend, sem digitação manual desses campos.
