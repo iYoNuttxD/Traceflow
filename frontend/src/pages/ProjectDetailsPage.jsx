@@ -29,12 +29,16 @@ function getErrorMessage(error, fallback) {
 export function ProjectDetailsPage() {
   const { id } = useParams();
   const [project, setProject] = useState(null);
+  const [members, setMembers] = useState([]);
+  const [memberForm, setMemberForm] = useState({ name: '', email: '', role: 'MEMBRO' });
   const [repositories, setRepositories] = useState([]);
   const [formData, setFormData] = useState(emptyProjectForm);
   const [loading, setLoading] = useState(true);
   const [loadingRepositories, setLoadingRepositories] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [submittingMember, setSubmittingMember] = useState(false);
   const [repositoriesError, setRepositoriesError] = useState('');
+  const [membersError, setMembersError] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -42,11 +46,22 @@ export function ProjectDetailsPage() {
     async function loadProject() {
       setLoading(true);
       setError('');
+      setMembersError('');
 
       try {
-        const response = await api.get(`/projects/${id}`);
-        setProject(response.data.project);
-        setFormData(toFormData(response.data.project));
+        const [projectResponse, membersResponse] = await Promise.all([
+          api.get(`/projects/${id}`),
+          api.get(`/projects/${id}/members`).catch((requestError) => {
+            setMembersError(
+              getErrorMessage(requestError, 'Não foi possível carregar os membros do projeto.')
+            );
+            return { data: { members: [] } };
+          })
+        ]);
+
+        setProject(projectResponse.data.project);
+        setFormData(toFormData(projectResponse.data.project));
+        setMembers(membersResponse.data.members || []);
       } catch (requestError) {
         setError(getErrorMessage(requestError, 'Não foi possível carregar o projeto.'));
       } finally {
@@ -89,6 +104,10 @@ export function ProjectDetailsPage() {
     setFormData((current) => updateProjectForm(current, name, value));
   }
 
+  function handleMemberChange(name, value) {
+    setMemberForm((current) => ({ ...current, [name]: value }));
+  }
+
   function handleRepositoryChange(fullName) {
     const selectedRepository = repositories.find(
       (repository) => normalizeRepository(repository).fullName === fullName
@@ -117,6 +136,28 @@ export function ProjectDetailsPage() {
     }
   }
 
+  async function handleMemberSubmit(event) {
+    event.preventDefault();
+    setSubmittingMember(true);
+    setMembersError('');
+    setSuccess('');
+
+    try {
+      const response = await api.post(`/projects/${id}/members`, memberForm);
+      setMembers((current) =>
+        [...current, response.data.member].sort((a, b) => a.name.localeCompare(b.name))
+      );
+      setMemberForm({ name: '', email: '', role: 'MEMBRO' });
+      setSuccess(response.data.message);
+    } catch (requestError) {
+      setMembersError(
+        getErrorMessage(requestError, 'Não foi possível adicionar o membro ao projeto.')
+      );
+    } finally {
+      setSubmittingMember(false);
+    }
+  }
+
   if (loading) {
     return (
       <main className="page-container">
@@ -139,7 +180,7 @@ export function ProjectDetailsPage() {
   return (
     <main className="page-container">
       <Link className="back-link" to="/projects">
-        ← Voltar para projetos
+        Voltar para projetos
       </Link>
 
       <header className="page-header project-details-header">
@@ -162,6 +203,7 @@ export function ProjectDetailsPage() {
       </header>
 
       {error && <div className="message message-error">{error}</div>}
+      {membersError && <div className="message message-error">{membersError}</div>}
       {success && <div className="message message-success">{success}</div>}
 
       <div className="details-layout">
@@ -180,6 +222,68 @@ export function ProjectDetailsPage() {
         </Card>
 
         <aside className="details-sidebar">
+          <Card title="Acesso ao projeto">
+            <dl className="details-list">
+              <div>
+                <dt>Código de acesso</dt>
+                <dd>{project.accessCode || 'Não informado'}</dd>
+              </div>
+              <div>
+                <dt>Link de convite rápido</dt>
+                <dd>{project.inviteLink || 'Não informado'}</dd>
+              </div>
+            </dl>
+          </Card>
+
+          <Card title="Membros do projeto">
+            {members.length === 0 ? (
+              <p className="empty-state">Nenhum membro interno cadastrado neste projeto.</p>
+            ) : (
+              <div className="member-list">
+                {members.map((member) => (
+                  <article className="member-item" key={member.id}>
+                    <strong>{member.name}</strong>
+                    <span>{member.email || 'Sem email'}</span>
+                    <span>{member.role}</span>
+                  </article>
+                ))}
+              </div>
+            )}
+
+            <form className="member-form" onSubmit={handleMemberSubmit}>
+              <label className="field">
+                <span>Nome</span>
+                <input
+                  type="text"
+                  value={memberForm.name}
+                  onChange={(event) => handleMemberChange('name', event.target.value)}
+                  placeholder="Nome do membro"
+                />
+              </label>
+              <label className="field">
+                <span>Email</span>
+                <input
+                  type="email"
+                  value={memberForm.email}
+                  onChange={(event) => handleMemberChange('email', event.target.value)}
+                  placeholder="email@exemplo.com"
+                />
+              </label>
+              <label className="field">
+                <span>Papel</span>
+                <input
+                  type="text"
+                  value={memberForm.role}
+                  onChange={(event) => handleMemberChange('role', event.target.value)}
+                  placeholder="DESENVOLVEDOR"
+                />
+              </label>
+              <button className="button button-secondary" type="submit" disabled={submittingMember}>
+                {submittingMember ? 'Adicionando...' : 'Adicionar membro'}
+              </button>
+            </form>
+          </Card>
+
           <Card title="Responsabilidade">
             <dl className="details-list">
               <div>

@@ -36,19 +36,6 @@ export const githubController = {
     }
   },
 
-  async listProjectRepositoryMembers(req, res) {
-    try {
-      const members = await githubService.listProjectRepositoryMembers(req.params.projectId);
-
-      return res.json({ members });
-    } catch (error) {
-      return res.status(error.statusCode || 500).json({
-        message: error.statusCode ? error.message : 'Erro ao listar integrantes do GitHub.',
-        error: error.statusCode ? undefined : error.message
-      });
-    }
-  },
-
   async syncProjectGithubArtifacts(req, res) {
     try {
       const summary = await githubSyncService.syncGithubArtifacts(req.params.projectId);

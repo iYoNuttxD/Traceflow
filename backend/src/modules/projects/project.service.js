@@ -27,6 +27,24 @@ const editableFields = [
   'status'
 ];
 
+function generateAccessCode() {
+  const randomPart = Math.random().toString(36).slice(2, 8).toUpperCase();
+  return `TRC-${randomPart}`;
+}
+
+function buildInviteLink(accessCode) {
+  return `http://localhost:5173/join/${accessCode}`;
+}
+
+function buildProjectInviteData() {
+  const accessCode = generateAccessCode();
+
+  return {
+    accessCode,
+    inviteLink: buildInviteLink(accessCode)
+  };
+}
+
 function validateProjectName(name, required = false) {
   if (required && (typeof name !== 'string' || !name.trim())) {
     throw new ProjectServiceError('O nome do projeto é obrigatório.', 400);
@@ -115,6 +133,30 @@ function normalizeOptionalText(value) {
 
   const normalizedValue = value.trim();
   return normalizedValue || null;
+}
+
+function normalizeOptionalEmail(value) {
+  const email = normalizeOptionalText(value);
+
+  return typeof email === 'string' ? email.toLowerCase() : email;
+}
+
+function validateMemberName(name) {
+  if (typeof name !== 'string' || !name.trim()) {
+    throw new ProjectServiceError('O nome do membro é obrigatório.', 400);
+  }
+}
+
+function buildMemberData(data, defaultRole = 'MEMBRO') {
+  const payload = data && typeof data === 'object' ? data : {};
+
+  validateMemberName(payload.name);
+
+  return {
+    name: payload.name.trim(),
+    email: normalizeOptionalEmail(payload.email),
+    role: normalizeOptionalText(payload.role) || defaultRole
+  };
 }
 
 function buildEditableProjectData(data, isCreate = false) {
@@ -223,7 +265,8 @@ function buildProjectData(data, repository) {
     githubIsPrivate: repository.private,
     githubIntegratedAt: new Date(),
     githubAutoSyncEnabled,
-    githubLastSyncAt: null
+    githubLastSyncAt: null,
+    ...buildProjectInviteData()
   };
 }
 
@@ -257,7 +300,10 @@ function ensureGithubLinkedProject(project) {
 
 export const projectService = {
   async createProject(data) {
-    const projectData = buildEditableProjectData(data, true);
+    const projectData = {
+      ...buildEditableProjectData(data, true),
+      ...buildProjectInviteData()
+    };
 
     return projectRepository.createProject(projectData);
   },
@@ -275,6 +321,66 @@ export const projectService = {
     }
 
     return project;
+  },
+
+  async listProjectMembers(projectId) {
+    const parsedProjectId = parseProjectId(projectId);
+    const project = await projectRepository.findProjectById(parsedProjectId);
+
+    if (!project) {
+      throw new ProjectServiceError('Projeto não encontrado.', 404);
+    }
+
+    return projectRepository.findActiveMembersByProject(parsedProjectId);
+  },
+
+  async addProjectMember(projectId, data, defaultRole = 'MEMBRO') {
+    const parsedProjectId = parseProjectId(projectId);
+    const project = await projectRepository.findProjectById(parsedProjectId);
+
+    if (!project) {
+      throw new ProjectServiceError('Projeto não encontrado.', 404);
+    }
+
+    const memberData = buildMemberData(data, defaultRole);
+
+    if (memberData.email) {
+      const existingMember = await projectRepository.findMemberByProjectEmail(
+        parsedProjectId,
+        memberData.email
+      );
+
+      if (existingMember) {
+        throw new ProjectServiceError('Este membro já está vinculado ao projeto.', 409);
+      }
+    }
+
+    return projectRepository.createProjectMember(parsedProjectId, memberData);
+  },
+
+  async joinProject(data) {
+    const payload = data && typeof data === 'object' ? data : {};
+    const accessCode = normalizeOptionalText(payload.accessCode);
+
+    if (!accessCode) {
+      throw new ProjectServiceError('Informe o código de acesso do projeto.', 400);
+    }
+
+    const project = await projectRepository.findProjectByAccessCode(accessCode);
+
+    if (!project) {
+      throw new ProjectServiceError('Projeto não encontrado.', 404);
+    }
+
+    const member = await projectService.addProjectMember(project.id, payload);
+
+    return {
+      project: {
+        id: project.id,
+        name: project.name
+      },
+      member
+    };
   },
 
   async updateProject(projectId, data) {

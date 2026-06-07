@@ -18,6 +18,12 @@ export const projectRepository = {
     });
   },
 
+  async findProjectByAccessCode(accessCode) {
+    return prisma.project.findUnique({
+      where: { accessCode }
+    });
+  },
+
   async updateProject(id, data) {
     return prisma.project.update({
       where: { id },
@@ -58,6 +64,34 @@ export const projectRepository = {
     return prisma.project.update({
       where: { id },
       data: { githubLastSyncAt }
+    });
+  },
+
+  async findActiveMembersByProject(projectId) {
+    return prisma.projectMember.findMany({
+      where: {
+        projectId,
+        isActive: true
+      },
+      orderBy: { name: 'asc' }
+    });
+  },
+
+  async findMemberByProjectEmail(projectId, email) {
+    return prisma.projectMember.findFirst({
+      where: {
+        projectId,
+        email
+      }
+    });
+  },
+
+  async createProjectMember(projectId, data) {
+    return prisma.projectMember.create({
+      data: {
+        ...data,
+        projectId
+      }
     });
   }
 };

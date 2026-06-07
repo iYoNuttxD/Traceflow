@@ -24,8 +24,16 @@ export const kanbanApi = {
   }
 };
 
-export const githubApi = {
+export const projectMembersApi = {
   listProjectMembers(projectId) {
-    return api.get(`/projects/${projectId}/github/members`);
+    return api.get(`/projects/${projectId}/members`);
+  },
+
+  addProjectMember(projectId, data) {
+    return api.post(`/projects/${projectId}/members`, data);
+  },
+
+  joinProject(data) {
+    return api.post('/projects/join', data);
   }
 };

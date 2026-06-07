@@ -30,6 +30,12 @@ export const taskRepository = {
     });
   },
 
+  async findProjectMemberById(id) {
+    return prisma.projectMember.findUnique({
+      where: { id }
+    });
+  },
+
   async updateTask(id, data) {
     return prisma.task.update({
       where: { id },
@@ -58,6 +64,9 @@ export const taskRepository = {
           fromStatus: task.status,
           toStatus: data.toStatus,
           movedBy: data.movedBy,
+          ...(data.projectMemberId !== undefined
+            ? { projectMemberId: data.projectMemberId }
+            : {}),
           ...(data.sprintId !== undefined ? { sprintId: data.sprintId } : {})
         }
       });

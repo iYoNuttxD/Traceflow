@@ -27,11 +27,14 @@ model Project {
   githubAutoSyncEnabled    Boolean   @default(false)
   githubLastSyncAt         DateTime?
   status                   String    @default("ATIVO")
+  accessCode               String?   @unique
+  inviteLink               String?
   createdAt                DateTime  @default(now())
   updatedAt                DateTime  @updatedAt
 
   requirements Requirement[]
   tasks        Task[]
+  members      ProjectMember[]
   taskMovements TaskMovement[]
   artifacts    GithubArtifact[]
   traceLinks   TraceLink[]
@@ -80,6 +83,25 @@ model Task {
   movements   TaskMovement[]
 }
 
+// Membro interno de um projeto no TRACEFLOW.
+model ProjectMember {
+  id        Int      @id @default(autoincrement())
+  projectId Int
+  name      String
+  email     String?
+  role      String   @default("MEMBRO")
+  isActive  Boolean  @default(true)
+  joinedAt  DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project   Project        @relation(fields: [projectId], references: [id])
+  movements TaskMovement[]
+
+  @@unique([projectId, email])
+  @@index([projectId])
+}
+
 // Historico de movimentacoes do quadro Kanban do RF08.
 model TaskMovement {
   id         Int      @id @default(autoincrement())
@@ -88,15 +110,18 @@ model TaskMovement {
   fromStatus String
   toStatus   String
   movedBy    String
+  projectMemberId Int?
   movedAt    DateTime @default(now())
   sprintId   Int?
   createdAt  DateTime @default(now())
 
-  project Project @relation(fields: [projectId], references: [id])
-  task    Task    @relation(fields: [taskId], references: [id])
+  project       Project        @relation(fields: [projectId], references: [id])
+  task          Task           @relation(fields: [taskId], references: [id])
+  projectMember ProjectMember? @relation(fields: [projectMemberId], references: [id])
 
   @@index([projectId])
   @@index([taskId])
+  @@index([projectMemberId])
   @@index([movedAt])
 }
 

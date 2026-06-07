@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { api, githubApi, kanbanApi } from '../api/api.js';
+import { api, kanbanApi, projectMembersApi } from '../api/api.js';
 import { KanbanColumn } from '../components/KanbanColumn.jsx';
 
 const KANBAN_COLUMNS = [
@@ -56,25 +56,15 @@ function buildPeriodParams(period) {
   return params;
 }
 
-function findSuggestedMovedBy(board, project) {
-  const taskResponsible = KANBAN_COLUMNS.flatMap(
-    (column) => board?.columns?.[column.status] || []
-  ).find((task) => task.responsible)?.responsible;
-
-  return taskResponsible || project?.responsibleTeam || '';
-}
-
 export function KanbanPage() {
   const { projectId } = useParams();
   const [project, setProject] = useState(null);
   const [board, setBoard] = useState(null);
   const [metrics, setMetrics] = useState(null);
   const [movements, setMovements] = useState([]);
-  const [repositoryMembers, setRepositoryMembers] = useState([]);
-  const [membersError, setMembersError] = useState('');
+  const [projectMembers, setProjectMembers] = useState([]);
+  const [selectedProjectMemberId, setSelectedProjectMemberId] = useState('');
   const [moveTargets, setMoveTargets] = useState({});
-  const [movedBy, setMovedBy] = useState('');
-  const [manualMovedBy, setManualMovedBy] = useState('');
   const [period, setPeriod] = useState({ startDate: '', endDate: '' });
   const [loading, setLoading] = useState(true);
   const [movingTaskId, setMovingTaskId] = useState(null);
@@ -93,7 +83,6 @@ export function KanbanPage() {
     async (params = {}) => {
       setLoading(true);
       setError('');
-      setMembersError('');
 
       try {
         const [projectResponse, boardResponse, metricsResponse, movementsResponse, membersResponse] =
@@ -102,15 +91,7 @@ export function KanbanPage() {
             kanbanApi.getBoard(projectId),
             kanbanApi.getMetrics(projectId, params),
             kanbanApi.listMovements(projectId, params),
-            githubApi.listProjectMembers(projectId).catch((memberError) => {
-              setMembersError(
-                getErrorMessage(
-                  memberError,
-                  'Não foi possível carregar os integrantes do repositório.'
-                )
-              );
-              return { data: { members: [] } };
-            })
+            projectMembersApi.listProjectMembers(projectId)
           ]);
 
         const members = membersResponse.data.members || [];
@@ -118,12 +99,8 @@ export function KanbanPage() {
         setBoard(boardResponse.data);
         setMetrics(metricsResponse.data);
         setMovements(movementsResponse.data.movements || []);
-        setRepositoryMembers(members);
-        setMovedBy((current) =>
-          current.trim() ||
-          members[0]?.login ||
-          findSuggestedMovedBy(boardResponse.data, projectResponse.data.project)
-        );
+        setProjectMembers(members);
+        setSelectedProjectMemberId((current) => current || String(members[0]?.id || ''));
         setMoveTargets({});
       } catch (requestError) {
         setError(getErrorMessage(requestError, 'Não foi possível carregar o Kanban.'));
@@ -153,10 +130,9 @@ export function KanbanPage() {
 
   async function handleMoveTask(task) {
     const toStatus = moveTargets[task.id] || task.status;
-    const responsible = movedBy === '__manual__' ? manualMovedBy.trim() : movedBy.trim();
 
-    if (!responsible) {
-      setError('Informe o responsável pela movimentação.');
+    if (!selectedProjectMemberId) {
+      setError('Selecione um membro do projeto responsável pela movimentação.');
       setSuccess('');
       return;
     }
@@ -174,7 +150,7 @@ export function KanbanPage() {
     try {
       const response = await kanbanApi.moveTask(task.id, {
         toStatus,
-        movedBy: responsible
+        projectMemberId: Number(selectedProjectMemberId)
       });
 
       setSuccess(response.data.message);
@@ -239,40 +215,28 @@ export function KanbanPage() {
       ) : (
         <>
           <section className="kanban-toolbar">
-            <label className="field kanban-owner-field">
+            <div className="field kanban-owner-field">
               <span>Responsável pela movimentação</span>
-              {repositoryMembers.length > 0 ? (
-                <>
-                  <select
-                    value={movedBy}
-                    onChange={(event) => setMovedBy(event.target.value)}
-                  >
-                    {repositoryMembers.map((member) => (
-                      <option key={member.login} value={member.login}>
-                        {member.name || member.login}
-                      </option>
-                    ))}
-                    <option value="__manual__">Informar outro responsável</option>
-                  </select>
-                  {movedBy === '__manual__' && (
-                    <input
-                      type="text"
-                      value={manualMovedBy}
-                      onChange={(event) => setManualMovedBy(event.target.value)}
-                      placeholder="Nome ou email"
-                    />
-                  )}
-                </>
+              {projectMembers.length > 0 ? (
+                <select
+                  value={selectedProjectMemberId}
+                  onChange={(event) => setSelectedProjectMemberId(event.target.value)}
+                >
+                  {projectMembers.map((member) => (
+                    <option key={member.id} value={member.id}>
+                      {member.name} {member.role ? `- ${member.role}` : ''}
+                    </option>
+                  ))}
+                </select>
               ) : (
-                <input
-                  type="text"
-                  value={movedBy}
-                  onChange={(event) => setMovedBy(event.target.value)}
-                  placeholder="Nome ou email"
-                />
+                <div className="kanban-members-empty">
+                  <strong>Nenhum membro interno cadastrado neste projeto.</strong>
+                  <span>Adicione membros usando o código de acesso ou o link de convite do projeto.</span>
+                  {project?.accessCode && <span>Código de acesso: {project.accessCode}</span>}
+                  {project?.inviteLink && <span>Link de convite: {project.inviteLink}</span>}
+                </div>
               )}
-              {membersError && <small className="field-help field-error">{membersError}</small>}
-            </label>
+            </div>
 
             <div className="kanban-metric-panel">
               <span className="eyebrow">{metrics?.indicator}</span>
@@ -348,7 +312,7 @@ export function KanbanPage() {
                               <button
                                 className="button button-primary"
                                 type="button"
-                                disabled={movingTaskId === task.id}
+                                disabled={movingTaskId === task.id || projectMembers.length === 0}
                                 onClick={() => handleMoveTask(task)}
                               >
                                 {movingTaskId === task.id ? 'Movendo...' : 'Mover'}

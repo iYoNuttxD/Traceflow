@@ -41,6 +41,52 @@ export const projectController = {
     }
   },
 
+  async listMembers(req, res) {
+    try {
+      const members = await projectService.listProjectMembers(req.params.projectId);
+
+      return res.json({
+        projectId: Number(req.params.projectId),
+        members
+      });
+    } catch (error) {
+      return res.status(error.statusCode || 500).json({
+        message: error.statusCode ? error.message : 'Erro interno ao processar membros do projeto.'
+      });
+    }
+  },
+
+  async addMember(req, res) {
+    try {
+      const member = await projectService.addProjectMember(req.params.projectId, req.body);
+
+      return res.status(201).json({
+        message: 'Membro adicionado ao projeto com sucesso.',
+        member
+      });
+    } catch (error) {
+      return res.status(error.statusCode || 500).json({
+        message: error.statusCode ? error.message : 'Erro interno ao processar membros do projeto.'
+      });
+    }
+  },
+
+  async join(req, res) {
+    try {
+      const result = await projectService.joinProject(req.body);
+
+      return res.status(201).json({
+        message: 'Entrada no projeto realizada com sucesso.',
+        project: result.project,
+        member: result.member
+      });
+    } catch (error) {
+      return res.status(error.statusCode || 500).json({
+        message: error.statusCode ? error.message : 'Erro interno ao entrar no projeto.'
+      });
+    }
+  },
+
   async update(req, res) {
     try {
       const project = await projectService.updateProject(req.params.id, req.body);

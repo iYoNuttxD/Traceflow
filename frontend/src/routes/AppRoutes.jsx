@@ -8,11 +8,14 @@ import { TasksPage } from '../pages/TasksPage.jsx';
 import { KanbanPage } from '../pages/KanbanPage.jsx';
 import { GithubArtifactsPage } from '../pages/GithubArtifactsPage.jsx';
 import { TraceabilityPage } from '../pages/TraceabilityPage.jsx';
+import { JoinProjectPage } from '../pages/JoinProjectPage.jsx';
 
 export function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<Navigate to="/projects" replace />} />
+      <Route path="/join" element={<JoinProjectPage />} />
+      <Route path="/join/:accessCode" element={<JoinProjectPage />} />
       <Route path="/projects" element={<ProjectsPage />} />
       <Route path="/projects/:id" element={<ProjectDetailsPage />} />
       <Route path="/projects/:id/requirements" element={<RequirementsPage />} />

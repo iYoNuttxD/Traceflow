@@ -45,6 +45,10 @@ function parseTaskId(taskId) {
   return parsePositiveInteger(taskId, 'da tarefa');
 }
 
+function parseProjectMemberId(projectMemberId) {
+  return parsePositiveInteger(projectMemberId, 'do membro do projeto');
+}
+
 function normalizeOptionalText(value) {
   if (value === undefined) {
     return undefined;
@@ -341,10 +345,41 @@ function parseOptionalTaskId(taskId) {
 
 function normalizeMovedBy(movedBy) {
   if (typeof movedBy !== 'string' || !movedBy.trim()) {
-    throw new TaskServiceError('Informe o responsável pela movimentação.', 400);
+    throw new TaskServiceError(
+      'Selecione um membro do projeto responsável pela movimentação.',
+      400
+    );
   }
 
   return movedBy.trim();
+}
+
+async function resolveMovementResponsible(task, payload) {
+  if (
+    payload.projectMemberId !== undefined &&
+    payload.projectMemberId !== null &&
+    payload.projectMemberId !== ''
+  ) {
+    const parsedProjectMemberId = parseProjectMemberId(payload.projectMemberId);
+    const projectMember = await taskRepository.findProjectMemberById(parsedProjectMemberId);
+
+    if (!projectMember || projectMember.projectId !== task.projectId) {
+      throw new TaskServiceError('Membro do projeto não encontrado.', 404);
+    }
+
+    if (!projectMember.isActive) {
+      throw new TaskServiceError('Membro inativo não pode movimentar tarefas.', 400);
+    }
+
+    return {
+      projectMemberId: projectMember.id,
+      movedBy: projectMember.name
+    };
+  }
+
+  return {
+    movedBy: normalizeMovedBy(payload.movedBy)
+  };
 }
 
 function buildMovementFilters(query = {}) {
@@ -362,6 +397,7 @@ function formatMovement(movement) {
     taskTitle: movement.task?.title || null,
     fromStatus: movement.fromStatus,
     toStatus: movement.toStatus,
+    projectMemberId: movement.projectMemberId,
     movedBy: movement.movedBy,
     movedAt: movement.movedAt,
     ...(movement.sprintId ? { sprintId: movement.sprintId } : {})
@@ -438,7 +474,7 @@ export const taskService = {
 
     const payload = data && typeof data === 'object' ? data : {};
     validateStatus(payload.toStatus);
-    const movedBy = normalizeMovedBy(payload.movedBy);
+    const movementResponsible = await resolveMovementResponsible(task, payload);
 
     if (task.status === payload.toStatus) {
       throw new TaskServiceError('A tarefa já está nesta coluna.', 400);
@@ -446,7 +482,7 @@ export const taskService = {
 
     return taskRepository.moveTask(task, {
       toStatus: payload.toStatus,
-      movedBy
+      ...movementResponsible
     });
   },
 
