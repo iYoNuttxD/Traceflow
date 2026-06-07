@@ -196,6 +196,12 @@ export function ProjectDetailsPage() {
           <Link className="button button-secondary link-button" to={`/projects/${project.id}/kanban`}>
             Ver Kanban
           </Link>
+          <Link
+            className="button button-secondary link-button"
+            to={`/projects/${project.id}/repository`}
+          >
+            Informações do Repositório
+          </Link>
           <span className={`status-badge status-${project.status.toLowerCase()}`}>
             {project.status}
           </span>

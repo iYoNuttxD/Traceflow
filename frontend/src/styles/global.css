@@ -765,6 +765,119 @@ a {
   font-size: 0.9rem;
 }
 
+.repository-summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.repository-summary-card {
+  display: grid;
+  gap: 0.45rem;
+  padding: 1rem;
+  border: 1px solid #e2e7f0;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 12px 32px rgba(30, 50, 90, 0.04);
+}
+
+.repository-summary-card span {
+  color: #667085;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.repository-summary-card strong {
+  color: #183b86;
+  font-size: 1.9rem;
+  line-height: 1;
+}
+
+.repository-filters {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.9fr) repeat(2, minmax(160px, 0.7fr)) auto;
+  gap: 1rem;
+  align-items: end;
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  border: 1px solid #e2e7f0;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.repository-filter-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.repository-table-wrapper {
+  overflow-x: auto;
+  border: 1px solid #e2e7f0;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 12px 32px rgba(30, 50, 90, 0.04);
+}
+
+.repository-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 860px;
+}
+
+.repository-table th,
+.repository-table td {
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid #eef1f6;
+  text-align: left;
+  vertical-align: top;
+}
+
+.repository-table th {
+  color: #667085;
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.repository-table td {
+  color: #172033;
+  line-height: 1.45;
+}
+
+.repository-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.repository-table a {
+  color: #315bce;
+  font-weight: 700;
+}
+
+.repository-badge {
+  display: inline-flex;
+  border-radius: 999px;
+  padding: 0.28rem 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.repository-badge-commit {
+  color: #315bce;
+  background: #e7edff;
+}
+
+.repository-badge-pull_request {
+  color: #875a13;
+  background: #fff0cd;
+}
+
+.repository-badge-issue {
+  color: #17643b;
+  background: #dcf4e7;
+}
+
 @media (max-width: 860px) {
   .projects-layout,
   .details-layout,
@@ -772,7 +885,9 @@ a {
   .task-summary,
   .kanban-toolbar,
   .kanban-section-header,
-  .kanban-board {
+  .kanban-board,
+  .repository-summary,
+  .repository-filters {
     grid-template-columns: 1fr;
   }
 
@@ -786,6 +901,10 @@ a {
 
   .movement-item {
     grid-template-columns: 1fr;
+  }
+
+  .repository-filter-actions {
+    flex-wrap: wrap;
   }
 }
 
@@ -831,5 +950,49 @@ a {
     width: 100%;
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .repository-table {
+    min-width: 0;
+  }
+
+  .repository-table thead {
+    display: none;
+  }
+
+  .repository-table,
+  .repository-table tbody,
+  .repository-table tr,
+  .repository-table td {
+    display: block;
+  }
+
+  .repository-table tr {
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #eef1f6;
+  }
+
+  .repository-table tr:last-child {
+    border-bottom: 0;
+  }
+
+  .repository-table td {
+    display: grid;
+    grid-template-columns: 120px minmax(0, 1fr);
+    gap: 0.75rem;
+    border-bottom: 0;
+    padding: 0.45rem 1rem;
+  }
+
+  .repository-table td::before {
+    content: attr(data-label);
+    color: #667085;
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+
+  .repository-filter-actions {
+    flex-direction: column;
   }
 }
