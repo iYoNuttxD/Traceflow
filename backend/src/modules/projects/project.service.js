@@ -1,5 +1,6 @@
 // Service de projetos: concentra as regras de negocio dos fluxos de projeto.
 import { getGithubRepository } from '../github/github.client.js';
+import { env } from '../../config/env.js';
 import { projectRepository } from './project.repository.js';
 
 class ProjectServiceError extends Error {
@@ -33,16 +34,26 @@ function generateAccessCode() {
 }
 
 function buildInviteLink(accessCode) {
-  return `http://localhost:5173/join/${accessCode}`;
+  const frontendUrl = env.frontendUrl.replace(/\/+$/, '');
+  return `${frontendUrl}/join/${accessCode}`;
 }
 
-function buildProjectInviteData() {
-  const accessCode = generateAccessCode();
+async function buildProjectInviteData() {
+  const maxAttempts = 5;
 
-  return {
-    accessCode,
-    inviteLink: buildInviteLink(accessCode)
-  };
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const accessCode = generateAccessCode();
+    const existingProject = await projectRepository.findProjectByAccessCode(accessCode);
+
+    if (!existingProject) {
+      return {
+        accessCode,
+        inviteLink: buildInviteLink(accessCode)
+      };
+    }
+  }
+
+  throw new ProjectServiceError('Não foi possível gerar um código de acesso único.', 500);
 }
 
 function validateProjectName(name, required = false) {
@@ -139,6 +150,12 @@ function normalizeOptionalEmail(value) {
   const email = normalizeOptionalText(value);
 
   return typeof email === 'string' ? email.toLowerCase() : email;
+}
+
+function normalizeAccessCode(value) {
+  const accessCode = normalizeOptionalText(value);
+
+  return typeof accessCode === 'string' ? accessCode.toUpperCase() : accessCode;
 }
 
 function validateMemberName(name) {
@@ -265,8 +282,7 @@ function buildProjectData(data, repository) {
     githubIsPrivate: repository.private,
     githubIntegratedAt: new Date(),
     githubAutoSyncEnabled,
-    githubLastSyncAt: null,
-    ...buildProjectInviteData()
+    githubLastSyncAt: null
   };
 }
 
@@ -286,6 +302,12 @@ function validateGithubAutoSyncEnabled(value) {
   }
 }
 
+function validateOptionalGithubAutoSyncEnabled(value) {
+  if (value !== undefined) {
+    validateGithubAutoSyncEnabled(value);
+  }
+}
+
 function ensureGithubLinkedProject(project) {
   if (!project) {
     throw new ProjectServiceError('Projeto nao encontrado.', 404);
@@ -302,7 +324,7 @@ export const projectService = {
   async createProject(data) {
     const projectData = {
       ...buildEditableProjectData(data, true),
-      ...buildProjectInviteData()
+      ...(await buildProjectInviteData())
     };
 
     return projectRepository.createProject(projectData);
@@ -360,7 +382,7 @@ export const projectService = {
 
   async joinProject(data) {
     const payload = data && typeof data === 'object' ? data : {};
-    const accessCode = normalizeOptionalText(payload.accessCode);
+    const accessCode = normalizeAccessCode(payload.accessCode);
 
     if (!accessCode) {
       throw new ProjectServiceError('Informe o código de acesso do projeto.', 400);
@@ -402,12 +424,17 @@ export const projectService = {
 
   async createProjectFromGithubRepository(data) {
     validateGithubRepositoryData(data);
+    validateOptionalGithubAutoSyncEnabled(data.githubAutoSyncEnabled);
     const repository = await verifyGithubRepositoryAccess(data);
     const projectData = buildProjectData(data, repository);
+    const inviteData = await buildProjectInviteData();
 
     await ensureRepositoryIsNotLinked(projectData);
 
-    return projectRepository.createFromGithub(projectData);
+    return projectRepository.createFromGithub({
+      ...projectData,
+      ...inviteData
+    });
   },
 
   async updateGithubSyncSettings(projectId, data) {
