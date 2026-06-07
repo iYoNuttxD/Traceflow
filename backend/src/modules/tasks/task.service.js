@@ -145,11 +145,11 @@ function parseEffort(value, fieldName) {
 
   const effort = Number(value);
 
-  if (!Number.isFinite(effort) || effort < 0) {
+  if (!Number.isInteger(effort) || effort < 0) {
     const message =
       fieldName === 'estimatedEffort'
-        ? 'O esforço estimado deve ser um número maior ou igual a zero.'
-        : 'O esforço realizado deve ser um número maior ou igual a zero.';
+        ? 'O esforço estimado deve ser um número inteiro maior ou igual a zero.'
+        : 'O esforço realizado deve ser um número inteiro maior ou igual a zero.';
     throw new TaskServiceError(message, 400);
   }
 
@@ -162,6 +162,18 @@ function buildTaskData(data, isCreate = false) {
   validateTitle(payload.title, isCreate);
   validatePriority(payload.priority);
 
+  if (
+    isCreate &&
+    payload.actualEffort !== undefined &&
+    payload.actualEffort !== null &&
+    payload.actualEffort !== ''
+  ) {
+    throw new TaskServiceError(
+      'O esforço realizado só pode ser informado na edição da tarefa.',
+      400
+    );
+  }
+
   if (payload.status !== undefined) {
     validateStatus(payload.status);
   }
@@ -170,6 +182,10 @@ function buildTaskData(data, isCreate = false) {
 
   for (const field of editableFields) {
     if (payload[field] === undefined) {
+      continue;
+    }
+
+    if (isCreate && field === 'actualEffort') {
       continue;
     }
 
@@ -219,7 +235,31 @@ function parseMetricDate(value) {
     return undefined;
   }
 
-  return parseDateOnly(value);
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+
+  if (!match) {
+    return null;
+  }
+
+  const [, yearText, monthText, dayText] = match;
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const date = new Date(year, month - 1, day);
+
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return null;
+  }
+
+  return date;
 }
 
 function buildCreatedAtFilter(startDate, endDate) {
@@ -249,7 +289,7 @@ function buildCreatedAtFilter(startDate, endDate) {
 
   if (parsedEndDate) {
     const exclusiveEndDate = new Date(parsedEndDate);
-    exclusiveEndDate.setUTCDate(exclusiveEndDate.getUTCDate() + 1);
+    exclusiveEndDate.setDate(exclusiveEndDate.getDate() + 1);
     createdAt.lt = exclusiveEndDate;
   }
 

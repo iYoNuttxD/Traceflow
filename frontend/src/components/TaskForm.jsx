@@ -22,14 +22,22 @@ export function taskToFormData(task) {
   };
 }
 
-export function taskFormToPayload(formData) {
-  return {
+export function taskFormToPayload(formData, editing = false) {
+  const payload = {
     ...formData,
     deadline: formData.deadline || null,
     estimatedEffort:
-      formData.estimatedEffort === '' ? null : Number(formData.estimatedEffort),
-    actualEffort: formData.actualEffort === '' ? null : Number(formData.actualEffort)
+      formData.estimatedEffort === '' ? null : Number(formData.estimatedEffort)
   };
+
+  if (editing) {
+    payload.actualEffort =
+      formData.actualEffort === '' ? null : Number(formData.actualEffort);
+  } else {
+    delete payload.actualEffort;
+  }
+
+  return payload;
 }
 
 export function TaskForm({
@@ -112,7 +120,7 @@ export function TaskForm({
         <input
           type="number"
           min="0"
-          step="0.5"
+          step="1"
           name="estimatedEffort"
           value={formData.estimatedEffort}
           onChange={handleChange}
@@ -120,18 +128,20 @@ export function TaskForm({
         />
       </label>
 
-      <label className="field">
-        <span>Esforço realizado</span>
-        <input
-          type="number"
-          min="0"
-          step="0.5"
-          name="actualEffort"
-          value={formData.actualEffort}
-          onChange={handleChange}
-          placeholder="Horas"
-        />
-      </label>
+      {editing && (
+        <label className="field">
+          <span>Esforço realizado</span>
+          <input
+            type="number"
+            min="0"
+            step="1"
+            name="actualEffort"
+            value={formData.actualEffort}
+            onChange={handleChange}
+            placeholder="Horas"
+          />
+        </label>
+      )}
 
       <div className="form-actions field-full">
         {editing && (

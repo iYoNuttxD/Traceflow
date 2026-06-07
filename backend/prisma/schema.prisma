@@ -69,8 +69,8 @@ model Task {
   responsible     String?
   status          String    @default("A_FAZER")
   deadline        DateTime?
-  estimatedEffort Float?
-  actualEffort    Float?
+  estimatedEffort Int?
+  actualEffort    Int?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 

@@ -94,7 +94,7 @@ export function TasksPage() {
     setSuccess('');
 
     try {
-      const payload = taskFormToPayload(formData);
+      const payload = taskFormToPayload(formData, Boolean(editingTaskId));
       const response = editingTaskId
         ? await api.put(`/tasks/${editingTaskId}`, payload)
         : await api.post(`/projects/${projectId}/tasks`, payload);
@@ -155,6 +155,18 @@ export function TasksPage() {
     }
   }
 
+  async function clearMetricsPeriod() {
+    setPeriod({ startDate: '', endDate: '' });
+    setError('');
+
+    try {
+      const response = await api.get(`/projects/${projectId}/tasks/metrics`);
+      setMetrics(response.data);
+    } catch (requestError) {
+      setError(getErrorMessage(requestError, 'Não foi possível consultar a métrica.'));
+    }
+  }
+
   if (loading) {
     return (
       <main className="page-container">
@@ -194,7 +206,11 @@ export function TasksPage() {
 
         <Card title="Volume de planejamento">
           <strong className="metric-value">{metrics?.totalTasksCreated ?? 0}</strong>
-          <p className="metric-description">Quantidade de tarefas cadastradas no período.</p>
+          <p className="metric-description">
+            {metrics?.startDate || metrics?.endDate
+              ? `Tarefas criadas entre ${metrics.startDate || 'o início'} e ${metrics.endDate || 'hoje'}.`
+              : 'Quantidade total de tarefas cadastradas no projeto.'}
+          </p>
           <form className="metrics-form" onSubmit={handleMetricsSubmit}>
             <label className="field">
               <span>Data inicial</span>
@@ -219,6 +235,15 @@ export function TasksPage() {
             <button className="button button-secondary" type="submit">
               Consultar período
             </button>
+            {(metrics?.startDate || metrics?.endDate) && (
+              <button
+                className="button button-secondary metrics-clear"
+                type="button"
+                onClick={clearMetricsPeriod}
+              >
+                Limpar período
+              </button>
+            )}
           </form>
         </Card>
       </div>
@@ -268,6 +293,10 @@ export function TasksPage() {
                     <div>
                       <dt>Esforço estimado</dt>
                       <dd>{task.estimatedEffort ?? 'Não informado'}</dd>
+                    </div>
+                    <div>
+                      <dt>Esforço realizado</dt>
+                      <dd>{task.actualEffort ?? 'Não informado'}</dd>
                     </div>
                     <div>
                       <dt>Criada em</dt>
