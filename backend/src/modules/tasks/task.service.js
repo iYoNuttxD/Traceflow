@@ -11,6 +11,7 @@ class TaskServiceError extends Error {
 
 const allowedPriorities = new Set(['BAIXA', 'MEDIA', 'ALTA', 'CRITICA']);
 const allowedStatuses = new Set(['A_FAZER', 'EM_ANDAMENTO', 'CONCLUIDO']);
+const kanbanStatuses = ['A_FAZER', 'EM_ANDAMENTO', 'CONCLUIDO'];
 const editableFields = [
   'title',
   'description',
@@ -296,6 +297,77 @@ function buildCreatedAtFilter(startDate, endDate) {
   return createdAt;
 }
 
+function buildMovedAtFilter(startDate, endDate) {
+  if (startDate === undefined && endDate === undefined) {
+    return undefined;
+  }
+
+  const parsedStartDate = parseMetricDate(startDate);
+  const parsedEndDate = parseMetricDate(endDate);
+
+  if (
+    (startDate !== undefined && !parsedStartDate) ||
+    (endDate !== undefined && !parsedEndDate) ||
+    (parsedStartDate && parsedEndDate && parsedStartDate > parsedEndDate)
+  ) {
+    throw new TaskServiceError(
+      'Período inválido. Informe startDate e endDate em formato de data válido.',
+      400
+    );
+  }
+
+  const movedAt = {};
+
+  if (parsedStartDate) {
+    movedAt.gte = parsedStartDate;
+  }
+
+  if (parsedEndDate) {
+    const exclusiveEndDate = new Date(parsedEndDate);
+    exclusiveEndDate.setDate(exclusiveEndDate.getDate() + 1);
+    movedAt.lt = exclusiveEndDate;
+  }
+
+  return movedAt;
+}
+
+function parseOptionalTaskId(taskId) {
+  if (taskId === undefined || taskId === '') {
+    return undefined;
+  }
+
+  return parseTaskId(taskId);
+}
+
+function normalizeMovedBy(movedBy) {
+  if (typeof movedBy !== 'string' || !movedBy.trim()) {
+    throw new TaskServiceError('Informe o responsável pela movimentação.', 400);
+  }
+
+  return movedBy.trim();
+}
+
+function buildMovementFilters(query = {}) {
+  return {
+    movedAt: buildMovedAtFilter(query.startDate, query.endDate),
+    taskId: parseOptionalTaskId(query.taskId),
+    movedBy: normalizeOptionalText(query.movedBy) || undefined
+  };
+}
+
+function formatMovement(movement) {
+  return {
+    id: movement.id,
+    taskId: movement.taskId,
+    taskTitle: movement.task?.title || null,
+    fromStatus: movement.fromStatus,
+    toStatus: movement.toStatus,
+    movedBy: movement.movedBy,
+    movedAt: movement.movedAt,
+    ...(movement.sprintId ? { sprintId: movement.sprintId } : {})
+  };
+}
+
 export const taskService = {
   async createTask(projectId, data) {
     const parsedProjectId = parseProjectId(projectId);
@@ -335,6 +407,81 @@ export const taskService = {
     validateStatus(status);
 
     return taskRepository.updateTaskStatus(parsedTaskId, status);
+  },
+
+  async getKanbanBoard(projectId) {
+    const parsedProjectId = parseProjectId(projectId);
+    await ensureProjectExists(parsedProjectId);
+
+    const tasks = await taskRepository.findTasksByProject(parsedProjectId);
+    const columns = kanbanStatuses.reduce((groupedColumns, status) => {
+      groupedColumns[status] = tasks.filter((task) => task.status === status);
+      return groupedColumns;
+    }, {});
+
+    return {
+      projectId: parsedProjectId,
+      columns,
+      totals: {
+        A_FAZER: columns.A_FAZER.length,
+        EM_ANDAMENTO: columns.EM_ANDAMENTO.length,
+        CONCLUIDO: columns.CONCLUIDO.length,
+        total: tasks.length
+      }
+    };
+  },
+
+  async moveTask(taskId, data) {
+    const parsedTaskId = parseTaskId(taskId);
+    const task = await ensureTaskExists(parsedTaskId);
+    await ensureProjectExists(task.projectId);
+
+    const payload = data && typeof data === 'object' ? data : {};
+    validateStatus(payload.toStatus);
+    const movedBy = normalizeMovedBy(payload.movedBy);
+
+    if (task.status === payload.toStatus) {
+      throw new TaskServiceError('A tarefa já está nesta coluna.', 400);
+    }
+
+    return taskRepository.moveTask(task, {
+      toStatus: payload.toStatus,
+      movedBy
+    });
+  },
+
+  async listMovements(projectId, query = {}) {
+    const parsedProjectId = parseProjectId(projectId);
+    await ensureProjectExists(parsedProjectId);
+
+    const filters = buildMovementFilters(query);
+    const movements = await taskRepository.findMovementsByProject(parsedProjectId, filters);
+
+    return {
+      projectId: parsedProjectId,
+      total: movements.length,
+      movements: movements.map(formatMovement)
+    };
+  },
+
+  async getKanbanMetrics(projectId, query = {}) {
+    const parsedProjectId = parseProjectId(projectId);
+    await ensureProjectExists(parsedProjectId);
+
+    const filters = buildMovementFilters(query);
+    const totalMovements = await taskRepository.countMovementsByProject(
+      parsedProjectId,
+      filters
+    );
+
+    return {
+      projectId: parsedProjectId,
+      indicator: 'Fluxo de trabalho das tarefas',
+      metric: 'Número de movimentações entre colunas',
+      ...(query.startDate !== undefined ? { startDate: query.startDate } : {}),
+      ...(query.endDate !== undefined ? { endDate: query.endDate } : {}),
+      totalMovements
+    };
   },
 
   async getTaskMetrics(projectId, startDate, endDate) {

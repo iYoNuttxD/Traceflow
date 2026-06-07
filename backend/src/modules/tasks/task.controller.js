@@ -1,9 +1,9 @@
 // Controller do modulo de tarefas. Recebe HTTP e delega regras ao service.
 import { taskService } from './task.service.js';
 
-function sendError(res, error) {
+function sendError(res, error, fallbackMessage = 'Erro interno ao processar tarefa.') {
   return res.status(error.statusCode || 500).json({
-    message: error.statusCode ? error.message : 'Erro interno ao processar tarefa.'
+    message: error.statusCode ? error.message : fallbackMessage
   });
 }
 
@@ -67,6 +67,50 @@ export const taskController = {
       });
     } catch (error) {
       return sendError(res, error);
+    }
+  },
+
+  async getKanbanBoard(req, res) {
+    try {
+      const kanban = await taskService.getKanbanBoard(req.params.projectId);
+
+      return res.json(kanban);
+    } catch (error) {
+      return sendError(res, error, 'Erro interno ao processar Kanban.');
+    }
+  },
+
+  async moveTask(req, res) {
+    try {
+      const result = await taskService.moveTask(req.params.id, req.body);
+
+      return res.json({
+        message: 'Tarefa movida com sucesso.',
+        task: result.task,
+        movement: result.movement
+      });
+    } catch (error) {
+      return sendError(res, error, 'Erro interno ao processar Kanban.');
+    }
+  },
+
+  async listMovements(req, res) {
+    try {
+      const movements = await taskService.listMovements(req.params.projectId, req.query);
+
+      return res.json(movements);
+    } catch (error) {
+      return sendError(res, error, 'Erro interno ao processar Kanban.');
+    }
+  },
+
+  async getKanbanMetrics(req, res) {
+    try {
+      const metrics = await taskService.getKanbanMetrics(req.params.projectId, req.query);
+
+      return res.json(metrics);
+    } catch (error) {
+      return sendError(res, error, 'Erro interno ao processar Kanban.');
     }
   },
 

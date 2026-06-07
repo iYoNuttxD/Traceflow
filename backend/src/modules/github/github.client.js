@@ -41,3 +41,15 @@ export async function getGithubRepository(owner, repo) {
 
   return response.data;
 }
+
+export async function listGithubRepositoryCollaborators(owner, repo) {
+  const github = getGithubClient();
+  const response = await github.rest.repos.listCollaborators({
+    owner,
+    repo,
+    affiliation: 'all',
+    per_page: 100
+  });
+
+  return response.data;
+}

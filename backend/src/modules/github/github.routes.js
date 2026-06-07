@@ -8,6 +8,7 @@ const placeholder = githubController.notImplemented;
 
 router.get('/github/auth/check', githubController.checkAuthentication);
 router.get('/github/repositories', githubController.listRepositories);
+router.get('/projects/:projectId/github/members', githubController.listProjectRepositoryMembers);
 router.post('/projects/:projectId/github/sync', githubController.syncProjectGithubArtifacts);
 router.get('/projects/:projectId/commits', githubController.listProjectCommits);
 router.get('/projects/:projectId/pull-requests', githubController.listProjectPullRequests);
