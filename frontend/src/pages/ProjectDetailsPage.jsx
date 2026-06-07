@@ -148,9 +148,17 @@ export function ProjectDetailsPage() {
           <h1>{project.name}</h1>
           <p>{project.description || 'Sem descrição cadastrada.'}</p>
         </div>
-        <span className={`status-badge status-${project.status.toLowerCase()}`}>
-          {project.status}
-        </span>
+        <div className="project-header-actions">
+          <Link className="button button-secondary link-button" to={`/projects/${project.id}/tasks`}>
+            Ver tarefas do projeto
+          </Link>
+          <Link className="button button-secondary link-button" to={`/projects/${project.id}/kanban`}>
+            Ver Kanban
+          </Link>
+          <span className={`status-badge status-${project.status.toLowerCase()}`}>
+            {project.status}
+          </span>
+        </div>
       </header>
 
       {error && <div className="message message-error">{error}</div>}

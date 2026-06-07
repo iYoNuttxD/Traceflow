@@ -1,16 +1,14 @@
-// Rotas placeholder do modulo de tarefas.
-// TODO: Conectar controllers reais durante a implementacao de RF07 e RF08.
+// Rotas do modulo de tarefas. Regras de negocio ficam no service.
 import { Router } from 'express';
 import { taskController } from './task.controller.js';
 
 const router = Router();
-const placeholder = taskController.notImplemented;
 
-router.get('/projects/:projectId/tasks', placeholder);
-router.post('/projects/:projectId/tasks', placeholder);
-router.get('/tasks/:id', placeholder);
-router.put('/tasks/:id', placeholder);
-router.patch('/tasks/:id/status', placeholder);
-router.delete('/tasks/:id', placeholder);
+router.post('/projects/:projectId/tasks', taskController.create);
+router.get('/projects/:projectId/tasks', taskController.findByProject);
+router.get('/projects/:projectId/tasks/metrics', taskController.getMetrics);
+router.get('/tasks/:id', taskController.findById);
+router.put('/tasks/:id', taskController.update);
+router.patch('/tasks/:id/status', taskController.updateStatus);
 
 export default router;

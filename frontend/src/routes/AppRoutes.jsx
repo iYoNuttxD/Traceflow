@@ -16,8 +16,8 @@ export function AppRoutes() {
       <Route path="/projects" element={<ProjectsPage />} />
       <Route path="/projects/:id" element={<ProjectDetailsPage />} />
       <Route path="/projects/:id/requirements" element={<RequirementsPage />} />
-      <Route path="/projects/:id/tasks" element={<TasksPage />} />
-      <Route path="/projects/:id/kanban" element={<KanbanPage />} />
+      <Route path="/projects/:projectId/tasks" element={<TasksPage />} />
+      <Route path="/projects/:projectId/kanban" element={<KanbanPage />} />
       <Route path="/projects/:id/github-artifacts" element={<GithubArtifactsPage />} />
       <Route path="/projects/:id/traceability" element={<TraceabilityPage />} />
     </Routes>
