@@ -16,9 +16,10 @@ export const githubController = {
         githubUser
       });
     } catch (error) {
+      console.error('Erro ao verificar autenticacao com GitHub:', error);
+
       return res.status(500).json({
-        message: 'Erro ao autenticar com GitHub.',
-        error: error.message
+        message: 'Não foi possível verificar a autenticação com o GitHub.'
       });
     }
   },
@@ -29,9 +30,10 @@ export const githubController = {
 
       return res.json({ repositories });
     } catch (error) {
+      console.error('Erro ao listar repositorios do GitHub:', error);
+
       return res.status(500).json({
-        message: 'Erro ao acessar GitHub.',
-        error: error.message
+        message: 'Não foi possível listar os repositórios do GitHub.'
       });
     }
   },

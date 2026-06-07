@@ -221,6 +221,10 @@ Problemas confirmados e correcoes aplicadas:
 - Placeholder `notImplemented` de projetos conferido em portugues: `"Endpoint de projeto preparado para desenvolvimento futuro."`
 - Regra CSS invalida com `min(100% - 1rem, ...)` corrigida para `min(calc(100% - 1rem), ...)`.
 - `normalizeOptionalText` corrigida para tratar `undefined`/`null` como ausencia e converter valores nao-string para texto antes do `trim()`.
+- `parseMetricDate` ajustado para interpretar `YYYY-MM-DD` em UTC com `Date.UTC` e getters UTC.
+- `buildCreatedAtFilter` ajustado para avancar `endDate` com `setUTCDate`/`getUTCDate`.
+- `buildMovedAtFilter` ajustado para avancar `endDate` com `setUTCDate`/`getUTCDate`.
+- Endpoints GitHub de autenticacao e listagem de repositorios deixam de expor `error.message` ao cliente.
 
 Arquivos alterados nesta rodada:
 
@@ -232,6 +236,8 @@ Arquivos alterados nesta rodada:
 - `frontend/src/pages/JoinProjectPage.jsx`
 - `frontend/src/styles/global.css`
 - `backend/src/modules/projects/project.service.js`
+- `backend/src/modules/tasks/task.service.js`
+- `backend/src/modules/github/github.controller.js`
 - `docs/ARCHITECTURE_REVIEW_AFTER_MERGE.md`
 
 Validacoes executadas nesta rodada:
@@ -242,6 +248,8 @@ npm exec prisma -- generate --schema prisma/schema.prisma
 npm exec prisma -- migrate status --schema prisma/schema.prisma
 node --check src/modules/projects/project.controller.js
 node --check src/modules/projects/project.service.js
+node --check src/modules/tasks/task.service.js
+node --check src/modules/github/github.controller.js
 npm install
 npm run build
 git diff --check
@@ -253,6 +261,8 @@ Status final apos as correcoes:
 - Nenhuma migration persiste `http://localhost:5173` em `inviteLink`.
 - Nenhuma regra CSS usa `min(100% - 1rem, ...)` sem `calc()`.
 - `normalizeOptionalText` nao retorna numeros, booleanos ou objetos diretamente para campos textuais opcionais.
+- Filtros de metricas/historico baseados em `YYYY-MM-DD` usam UTC para evitar deslocamento por timezone local.
+- `GET /api/github/auth/check` e `GET /api/github/repositories` retornam mensagens genericas em erro, sem expor detalhes internos do Octokit ou configuracao.
 - `prisma validate`, `prisma generate` e `prisma migrate status` passaram; a pendencia operacional anterior de migrations foi revalidada e o banco local esta em dia.
 - `node --check`, `git diff --check` e `npm run build` passaram.
 - Frontend continua compilando.

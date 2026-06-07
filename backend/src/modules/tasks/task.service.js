@@ -254,12 +254,12 @@ function parseMetricDate(value) {
   const year = Number(yearText);
   const month = Number(monthText);
   const day = Number(dayText);
-  const date = new Date(year, month - 1, day);
+  const date = new Date(Date.UTC(year, month - 1, day));
 
   if (
-    date.getFullYear() !== year ||
-    date.getMonth() !== month - 1 ||
-    date.getDate() !== day
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
   ) {
     return null;
   }
@@ -294,7 +294,7 @@ function buildCreatedAtFilter(startDate, endDate) {
 
   if (parsedEndDate) {
     const exclusiveEndDate = new Date(parsedEndDate);
-    exclusiveEndDate.setDate(exclusiveEndDate.getDate() + 1);
+    exclusiveEndDate.setUTCDate(exclusiveEndDate.getUTCDate() + 1);
     createdAt.lt = exclusiveEndDate;
   }
 
@@ -328,7 +328,7 @@ function buildMovedAtFilter(startDate, endDate) {
 
   if (parsedEndDate) {
     const exclusiveEndDate = new Date(parsedEndDate);
-    exclusiveEndDate.setDate(exclusiveEndDate.getDate() + 1);
+    exclusiveEndDate.setUTCDate(exclusiveEndDate.getUTCDate() + 1);
     movedAt.lt = exclusiveEndDate;
   }
 
