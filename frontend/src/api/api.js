@@ -6,6 +6,34 @@ export const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
 });
 
+export async function getProjectArtifacts(projectId, filters = {}) {
+  const params = new URLSearchParams();
+
+  if (filters.type) {
+    params.set('type', filters.type);
+  }
+
+  if (filters.startDate) {
+    params.set('startDate', filters.startDate);
+  }
+
+  if (filters.endDate) {
+    params.set('endDate', filters.endDate);
+  }
+
+  const queryString = params.toString();
+  const url = `/projects/${projectId}/artifacts${queryString ? `?${queryString}` : ''}`;
+  const response = await api.get(url);
+
+  return response.data;
+}
+
+export async function syncProjectGithub(projectId) {
+  const response = await api.post(`/projects/${projectId}/github/sync`);
+
+  return response.data;
+}
+
 export const kanbanApi = {
   getBoard(projectId) {
     return api.get(`/projects/${projectId}/kanban`);
