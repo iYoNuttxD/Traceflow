@@ -97,12 +97,12 @@ export function ProjectForm({
       </label>
 
       <label className="field field-full">
-        <span>Equipe responsável *</span>
+        <span>Área ou equipe responsável *</span>
         <input
           name="responsibleTeam"
           value={formData.responsibleTeam}
           onChange={(event) => onChange(event.target.name, event.target.value)}
-          placeholder="Ex.: Equipe de Engenharia de Software"
+          placeholder="Ex.: Equipe de desenvolvimento, Squad acadêmica, Grupo TCC"
           required
         />
       </label>

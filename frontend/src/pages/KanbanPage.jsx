@@ -244,12 +244,10 @@ export function KanbanPage() {
                   ))}
                 </select>
               ) : (
-                <div className="kanban-members-empty">
-                  <strong>Nenhum membro interno cadastrado neste projeto.</strong>
-                  <span>Adicione membros usando o código de acesso ou o link de convite do projeto.</span>
-                  {project?.accessCode && <span>Código de acesso: {project.accessCode}</span>}
-                  {project?.inviteLink && <span>Link de convite: {project.inviteLink}</span>}
-                </div>
+                <p className="kanban-members-empty">
+                  Nenhum membro interno cadastrado. Cadastre membros no projeto para atribuir
+                  responsáveis às tarefas.
+                </p>
               )}
             </div>
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { api } from '../api/api.js';
+import { api, syncProjectGithub } from '../api/api.js';
 import { Card } from '../components/Card.jsx';
 import {
   ProjectForm,
@@ -26,6 +26,45 @@ function getErrorMessage(error, fallback) {
   return error.response?.data?.message || fallback;
 }
 
+function formatDateTime(value) {
+  if (!value) {
+    return 'Ainda não realizada.';
+  }
+
+  return new Intl.DateTimeFormat('pt-BR', {
+    dateStyle: 'short',
+    timeStyle: 'short'
+  }).format(new Date(value));
+}
+
+function formatSyncSummary(summary) {
+  if (!summary) {
+    return '';
+  }
+
+  const parts = [];
+
+  if (summary.commits) {
+    parts.push(
+      `Commits: ${summary.commits.found ?? 0} encontrados, ${summary.commits.created ?? 0} novos.`
+    );
+  }
+
+  if (summary.pullRequests) {
+    parts.push(
+      `Pull requests: ${summary.pullRequests.found ?? 0} encontrados, ${summary.pullRequests.created ?? 0} novos, ${summary.pullRequests.updated ?? 0} atualizados.`
+    );
+  }
+
+  if (summary.issues) {
+    parts.push(
+      `Issues: ${summary.issues.found ?? 0} encontradas, ${summary.issues.created ?? 0} novas, ${summary.issues.updated ?? 0} atualizadas.`
+    );
+  }
+
+  return parts.join(' ');
+}
+
 export function ProjectDetailsPage() {
   const { id } = useParams();
   const [project, setProject] = useState(null);
@@ -37,6 +76,7 @@ export function ProjectDetailsPage() {
   const [loadingRepositories, setLoadingRepositories] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [submittingMember, setSubmittingMember] = useState(false);
+  const [syncingGithub, setSyncingGithub] = useState(false);
   const [repositoriesError, setRepositoriesError] = useState('');
   const [membersError, setMembersError] = useState('');
   const [error, setError] = useState('');
@@ -158,6 +198,37 @@ export function ProjectDetailsPage() {
     }
   }
 
+  async function handleGithubSync() {
+    setSyncingGithub(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await syncProjectGithub(id);
+      const syncSummary = formatSyncSummary(response.summary);
+
+      setProject((current) =>
+        current
+          ? {
+              ...current,
+              githubLastSyncAt: new Date().toISOString()
+            }
+          : current
+      );
+      setSuccess(
+        syncSummary
+          ? `Sincronização GitHub concluída com sucesso. ${syncSummary}`
+          : response.message || 'Sincronização GitHub concluída com sucesso.'
+      );
+    } catch (requestError) {
+      setError(
+        getErrorMessage(requestError, 'Não foi possível sincronizar o repositório GitHub.')
+      );
+    } finally {
+      setSyncingGithub(false);
+    }
+  }
+
   if (loading) {
     return (
       <main className="page-container">
@@ -202,6 +273,14 @@ export function ProjectDetailsPage() {
           >
             Informações do Repositório
           </Link>
+          <button
+            className="button button-primary"
+            type="button"
+            onClick={handleGithubSync}
+            disabled={syncingGithub}
+          >
+            {syncingGithub ? 'Sincronizando...' : 'Sincronizar GitHub'}
+          </button>
           <span className={`status-badge status-${project.status.toLowerCase()}`}>
             {project.status}
           </span>
@@ -211,6 +290,41 @@ export function ProjectDetailsPage() {
       {error && <div className="message message-error">{error}</div>}
       {membersError && <div className="message message-error">{membersError}</div>}
       {success && <div className="message message-success">{success}</div>}
+
+      <section className="project-overview">
+        <Card title="Visão geral do projeto">
+          <dl className="overview-grid">
+            <div>
+              <dt>Status</dt>
+              <dd>
+                <span className={`status-badge status-${project.status.toLowerCase()}`}>
+                  {project.status}
+                </span>
+              </dd>
+            </div>
+            <div>
+              <dt>Repositório GitHub</dt>
+              <dd>
+                {project.githubOwner && project.githubRepo
+                  ? `${project.githubOwner}/${project.githubRepo}`
+                  : 'Não informado'}
+              </dd>
+            </div>
+            <div>
+              <dt>Última sincronização</dt>
+              <dd>{formatDateTime(project.githubLastSyncAt)}</dd>
+            </div>
+            <div>
+              <dt>Membros</dt>
+              <dd>{members.length}</dd>
+            </div>
+            <div>
+              <dt>Código de acesso</dt>
+              <dd>{project.accessCode || 'Não informado'}</dd>
+            </div>
+          </dl>
+        </Card>
+      </section>
 
       <div className="details-layout">
         <Card title="Editar dados do projeto">
@@ -293,7 +407,7 @@ export function ProjectDetailsPage() {
           <Card title="Responsabilidade">
             <dl className="details-list">
               <div>
-                <dt>Equipe responsável</dt>
+                <dt>Área ou equipe responsável</dt>
                 <dd>{project.responsibleTeam}</dd>
               </div>
             </dl>

@@ -54,3 +54,9 @@ git diff --check
 ## Limitações conhecidas
 
 Esta etapa não implementa dashboard, gráficos, relatórios, edição de artefatos ou vínculo entre tarefas e artefatos. O frontend apenas consome e exibe os dados normalizados pelo backend do RF06.
+
+## Ajustes complementares de fluxo
+
+- Botão de sincronização manual GitHub adicionado à página de detalhes do projeto.
+- A página de detalhes do projeto passou a destacar uma visão geral antes do formulário de edição.
+- O aviso de ausência de membros no Kanban foi reduzido para uma mensagem curta, sem exibir código de acesso ou link de convite.

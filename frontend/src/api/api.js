@@ -28,6 +28,12 @@ export async function getProjectArtifacts(projectId, filters = {}) {
   return response.data;
 }
 
+export async function syncProjectGithub(projectId) {
+  const response = await api.post(`/projects/${projectId}/github/sync`);
+
+  return response.data;
+}
+
 export const kanbanApi = {
   getBoard(projectId) {
     return api.get(`/projects/${projectId}/kanban`);
