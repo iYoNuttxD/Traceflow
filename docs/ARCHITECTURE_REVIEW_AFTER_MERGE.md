@@ -219,6 +219,8 @@ Problemas confirmados e correcoes aplicadas:
 - Dependencias `"latest"` removidas de `frontend/package.json`, usando ranges baseados nas versoes resolvidas pelo `package-lock.json`.
 - Definicoes duplicadas de `.kanban-empty` consolidadas em um unico bloco.
 - Placeholder `notImplemented` de projetos conferido em portugues: `"Endpoint de projeto preparado para desenvolvimento futuro."`
+- Regra CSS invalida com `min(100% - 1rem, ...)` corrigida para `min(calc(100% - 1rem), ...)`.
+- `normalizeOptionalText` corrigida para tratar `undefined`/`null` como ausencia e converter valores nao-string para texto antes do `trim()`.
 
 Arquivos alterados nesta rodada:
 
@@ -229,6 +231,7 @@ Arquivos alterados nesta rodada:
 - `frontend/package-lock.json`
 - `frontend/src/pages/JoinProjectPage.jsx`
 - `frontend/src/styles/global.css`
+- `backend/src/modules/projects/project.service.js`
 - `docs/ARCHITECTURE_REVIEW_AFTER_MERGE.md`
 
 Validacoes executadas nesta rodada:
@@ -248,6 +251,8 @@ Status final apos as correcoes:
 
 - Nenhuma migration referencia `Task` como `task`.
 - Nenhuma migration persiste `http://localhost:5173` em `inviteLink`.
+- Nenhuma regra CSS usa `min(100% - 1rem, ...)` sem `calc()`.
+- `normalizeOptionalText` nao retorna numeros, booleanos ou objetos diretamente para campos textuais opcionais.
 - `prisma validate`, `prisma generate` e `prisma migrate status` passaram; a pendencia operacional anterior de migrations foi revalidada e o banco local esta em dia.
 - `node --check`, `git diff --check` e `npm run build` passaram.
 - Frontend continua compilando.

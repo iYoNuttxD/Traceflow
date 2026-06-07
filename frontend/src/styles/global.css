@@ -791,7 +791,7 @@ a {
 
 @media (max-width: 560px) {
   .page-container {
-    width: min(100% - 1rem, 1180px);
+    width: min(calc(100% - 1rem), 1180px);
     padding-top: 2rem;
   }
 

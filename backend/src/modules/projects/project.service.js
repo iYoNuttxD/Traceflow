@@ -138,12 +138,12 @@ function normalizeGithubRepository(data, required = false) {
 }
 
 function normalizeOptionalText(value) {
-  if (typeof value !== 'string') {
-    return value;
+  if (value === undefined || value === null) {
+    return undefined;
   }
 
-  const normalizedValue = value.trim();
-  return normalizedValue || null;
+  const normalizedValue = String(value).trim();
+  return normalizedValue || undefined;
 }
 
 function normalizeOptionalEmail(value) {
