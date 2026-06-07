@@ -1,12 +1,14 @@
 // Rotas do modulo de projetos. Regras de negocio ficam no service.
 import { Router } from 'express';
 import { projectController } from './project.controller.js';
+import artifactRoutes from '../artifacts/artifact.routes.js';
 
 const router = Router();
 
 router.post('/from-github', projectController.createFromGithub);
 router.post('/join', projectController.join);
 router.patch('/:projectId/github/sync-settings', projectController.updateGithubSyncSettings);
+router.use('/', artifactRoutes);
 router.get('/:projectId/members', projectController.listMembers);
 router.post('/:projectId/members', projectController.addMember);
 router.post('/', projectController.create);
