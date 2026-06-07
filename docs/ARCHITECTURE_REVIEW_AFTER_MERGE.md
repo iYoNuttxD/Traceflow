@@ -232,6 +232,10 @@ Problemas confirmados e correcoes aplicadas:
 - READMEs revisados para acentuacao e clareza nos trechos recentes.
 - Repository de projetos padronizado para usar `findById`, evitando duplicacao com `findProjectById`.
 - `normalizeOptionalText` ajustada para permitir limpar campos opcionais de projeto com `null` ou string vazia sem tratar campo omitido como limpeza.
+- `githubDefaultBranch` deixou de ser obrigatorio para considerar projeto vinculado ao GitHub; projetos manuais com owner/repo seguem validos.
+- Sincronizacao de commits passa a enviar `sha` somente quando ha branch definido, deixando a API GitHub usar o branch padrao quando ausente.
+- Atualizacao de `githubAutoSyncEnabled` passa a funcionar para projetos manuais vinculados por `githubOwner` e `githubRepo`.
+- Mensagens expostas pela API em projetos e GitHub foram revisadas com acentuacao em portugues.
 
 Arquivos alterados nesta rodada:
 
@@ -245,6 +249,8 @@ Arquivos alterados nesta rodada:
 - `backend/src/modules/projects/project.service.js`
 - `backend/src/modules/tasks/task.service.js`
 - `backend/src/modules/github/github.controller.js`
+- `backend/src/modules/github/github.client.js`
+- `backend/src/modules/github/githubSync.service.js`
 - `backend/src/modules/projects/project.controller.js`
 - `backend/src/modules/projects/project.repository.js`
 - `backend/src/modules/projects/project.service.js`
@@ -267,6 +273,8 @@ node --check src/modules/projects/project.controller.js
 node --check src/modules/projects/project.service.js
 node --check src/modules/tasks/task.service.js
 node --check src/modules/github/github.controller.js
+node --check src/modules/github/github.client.js
+node --check src/modules/github/githubSync.service.js
 node --check src/modules/projects/project.controller.js
 node --check src/modules/projects/project.repository.js
 node --check src/modules/projects/project.service.js
@@ -292,6 +300,10 @@ Status final apos as correcoes:
 - READMEs mantem portugues acentuado e texto mais claro nos trechos revisados.
 - Busca de projeto por id usa um unico metodo no repository de projetos.
 - Campos opcionais de projeto podem ser limpos em edicao com `null`, `""` ou texto em branco; campos omitidos permanecem sem alteracao.
+- Projetos criados manualmente com `githubOwner` e `githubRepo` sao reconhecidos como vinculados ao GitHub mesmo sem `githubDefaultBranch`.
+- Sync de commits nao envia `sha` indefinido para a API GitHub.
+- Configuracao de sincronizacao GitHub aceita projetos manuais com owner/repo.
+- Mensagens de resposta revisadas mantem acentuacao em portugues.
 - `prisma validate`, `prisma generate` e `prisma migrate status` passaram; a pendencia operacional anterior de migrations foi revalidada e o banco local esta em dia.
 - `node --check`, `git diff --check` e `npm run build` passaram.
 - Frontend continua compilando.

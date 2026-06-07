@@ -12,7 +12,7 @@ export function getGithubClient() {
 
     if (!token) {
       throw new Error(
-        'GITHUB_TOKEN nao configurado. Defina a variavel no arquivo .env para usar a integracao com GitHub.'
+        'GITHUB_TOKEN não configurado. Defina a variável no arquivo .env para usar a integração com GitHub.'
       );
     }
 

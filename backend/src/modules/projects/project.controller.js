@@ -121,7 +121,7 @@ export const projectController = {
       const project = await projectService.createProjectFromGithubRepository(req.body);
 
       return res.status(201).json({
-        message: 'Projeto criado a partir do repositorio GitHub com sucesso.',
+        message: 'Projeto criado a partir do repositório GitHub com sucesso.',
         project
       });
     } catch (error) {
@@ -138,14 +138,14 @@ export const projectController = {
       const project = await projectService.updateGithubSyncSettings(req.params.projectId, req.body);
 
       return res.json({
-        message: 'Configuracao de sincronizacao GitHub atualizada com sucesso.',
+        message: 'Configuração de sincronização GitHub atualizada com sucesso.',
         project
       });
     } catch (error) {
       return sendProjectError(
         res,
         error,
-        'Erro ao atualizar configuracao de sincronizacao GitHub.'
+        'Erro ao atualizar configuração de sincronização GitHub.'
       );
     }
   },

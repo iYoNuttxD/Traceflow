@@ -22,11 +22,11 @@ export const githubController = {
       const githubUser = await githubService.checkAuthentication();
 
       return res.json({
-        message: 'Autenticacao com GitHub realizada com sucesso.',
+        message: 'Autenticação com GitHub realizada com sucesso.',
         githubUser
       });
     } catch (error) {
-      console.error('Erro ao verificar autenticacao com GitHub:', error);
+      console.error('Erro ao verificar autenticação com GitHub:', error);
 
       return res.status(500).json({
         message: 'Não foi possível verificar a autenticação com o GitHub.'
@@ -40,7 +40,7 @@ export const githubController = {
 
       return res.json({ repositories });
     } catch (error) {
-      console.error('Erro ao listar repositorios do GitHub:', error);
+      console.error('Erro ao listar repositórios do GitHub:', error);
 
       return res.status(500).json({
         message: 'Não foi possível listar os repositórios do GitHub.'
@@ -53,7 +53,7 @@ export const githubController = {
       const summary = await githubSyncService.syncGithubArtifacts(req.params.projectId);
 
       return res.json({
-        message: 'Sincronizacao com GitHub concluida.',
+        message: 'Sincronização com GitHub concluída.',
         summary
       });
     } catch (error) {

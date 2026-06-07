@@ -216,7 +216,7 @@ function validateGithubRepositoryData(data) {
   const missingField = requiredGithubFields.find((field) => !data[field]);
 
   if (missingField) {
-    throw new ProjectServiceError('Dados do repositorio GitHub incompletos.', 400);
+    throw new ProjectServiceError('Dados do repositório GitHub incompletos.', 400);
   }
 }
 
@@ -224,7 +224,7 @@ async function ensureRepositoryIsNotLinked(data) {
   const projectById = await projectRepository.findByGithubRepositoryId(data.githubRepositoryId);
 
   if (projectById) {
-    throw new ProjectServiceError('Ja existe um projeto vinculado a este repositorio GitHub.', 409);
+    throw new ProjectServiceError('Já existe um projeto vinculado a este repositório GitHub.', 409);
   }
 
   const projectByFullName = await projectRepository.findByGithubRepositoryFullName(
@@ -232,7 +232,7 @@ async function ensureRepositoryIsNotLinked(data) {
   );
 
   if (projectByFullName) {
-    throw new ProjectServiceError('Ja existe um projeto vinculado a este repositorio GitHub.', 409);
+    throw new ProjectServiceError('Já existe um projeto vinculado a este repositório GitHub.', 409);
   }
 }
 
@@ -246,7 +246,7 @@ async function verifyGithubRepositoryAccess(data) {
       repository.full_name !== data.githubRepositoryFullName
     ) {
       throw new ProjectServiceError(
-        'Dados do repositorio GitHub nao correspondem ao repositorio acessivel.',
+        'Dados do repositório GitHub não correspondem ao repositório acessível.',
         400
       );
     }
@@ -258,7 +258,7 @@ async function verifyGithubRepositoryAccess(data) {
     }
 
     if (error.status === 404) {
-      throw new ProjectServiceError('Repositorio GitHub nao encontrado ou sem permissao de acesso.', 404);
+      throw new ProjectServiceError('Repositório GitHub não encontrado ou sem permissão de acesso.', 404);
     }
 
     throw error;
@@ -314,13 +314,13 @@ function validateOptionalGithubAutoSyncEnabled(value) {
 
 function ensureGithubLinkedProject(project) {
   if (!project) {
-    throw new ProjectServiceError('Projeto nao encontrado.', 404);
+    throw new ProjectServiceError('Projeto não encontrado.', 404);
   }
 
   const repositoryName = project.githubRepositoryName || project.githubRepo;
 
-  if (!project.githubOwner || !repositoryName || !project.githubDefaultBranch) {
-    throw new ProjectServiceError('Projeto nao possui repositorio GitHub vinculado.', 400);
+  if (!project.githubOwner || !repositoryName) {
+    throw new ProjectServiceError('Projeto não possui repositório GitHub vinculado.', 400);
   }
 }
 

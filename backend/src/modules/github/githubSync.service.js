@@ -20,7 +20,7 @@ function parseProjectId(projectId) {
   const parsedProjectId = Number(projectId);
 
   if (!Number.isInteger(parsedProjectId) || parsedProjectId <= 0) {
-    throw new GithubSyncError('ProjectId invalido.', 400);
+    throw new GithubSyncError('ID do projeto inválido.', 400);
   }
 
   return parsedProjectId;
@@ -28,19 +28,19 @@ function parseProjectId(projectId) {
 
 function validateGithubLinkedProject(project) {
   if (!project) {
-    throw new GithubSyncError('Projeto nao encontrado.', 404);
+    throw new GithubSyncError('Projeto não encontrado.', 404);
   }
 
   const repositoryName = project.githubRepositoryName || project.githubRepo;
 
-  if (!project.githubOwner || !repositoryName || !project.githubDefaultBranch) {
-    throw new GithubSyncError('Projeto nao possui repositorio GitHub vinculado.', 400);
+  if (!project.githubOwner || !repositoryName) {
+    throw new GithubSyncError('Projeto não possui repositório GitHub vinculado.', 400);
   }
 
   return {
     owner: project.githubOwner,
     repo: repositoryName,
-    defaultBranch: project.githubDefaultBranch
+    defaultBranch: project.githubDefaultBranch || null
   };
 }
 
@@ -108,14 +108,18 @@ function mapGithubIssue(item, project) {
 async function syncCommits(project) {
   const { owner, repo, defaultBranch } = validateGithubLinkedProject(project);
   const github = getGithubClient();
+  const listCommitsParams = {
+    owner,
+    repo,
+    per_page: 100
+  };
+
+  if (defaultBranch) {
+    listCommitsParams.sha = defaultBranch;
+  }
 
   try {
-    const response = await github.rest.repos.listCommits({
-      owner,
-      repo,
-      sha: defaultBranch,
-      per_page: 100
-    });
+    const response = await github.rest.repos.listCommits(listCommitsParams);
 
     const mappedCommits = response.data.map((item) => mapGithubCommit(item, project, defaultBranch));
     const existingHashes = new Set(await commitRepository.findHashesByProjectId(project.id));
@@ -130,7 +134,7 @@ async function syncCommits(project) {
     };
   } catch (error) {
     if (error.status === 404) {
-      throw new GithubSyncError('Repositorio GitHub nao encontrado ou sem permissao de acesso.', 404);
+      throw new GithubSyncError('Repositório GitHub não encontrado ou sem permissão de acesso.', 404);
     }
 
     throw error;
@@ -159,7 +163,7 @@ async function syncPullRequests(project) {
     };
   } catch (error) {
     if (error.status === 404) {
-      throw new GithubSyncError('Repositorio GitHub nao encontrado ou sem permissao de acesso.', 404);
+      throw new GithubSyncError('Repositório GitHub não encontrado ou sem permissão de acesso.', 404);
     }
 
     throw error;
@@ -189,7 +193,7 @@ async function syncIssues(project) {
     };
   } catch (error) {
     if (error.status === 404) {
-      throw new GithubSyncError('Repositorio GitHub nao encontrado ou sem permissao de acesso.', 404);
+      throw new GithubSyncError('Repositório GitHub não encontrado ou sem permissão de acesso.', 404);
     }
 
     throw error;
