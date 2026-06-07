@@ -2,7 +2,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/api.js';
 import { Card } from '../components/Card.jsx';
-import { ProjectForm, emptyProjectForm } from '../components/ProjectForm.jsx';
+import {
+  ProjectForm,
+  emptyProjectForm,
+  updateProjectForm
+} from '../components/ProjectForm.jsx';
 
 function getErrorMessage(error, fallback) {
   return error.response?.data?.message || fallback;
@@ -34,9 +38,8 @@ export function ProjectsPage() {
     loadProjects();
   }, [loadProjects]);
 
-  function handleChange(event) {
-    const { name, value } = event.target;
-    setFormData((current) => ({ ...current, [name]: value }));
+  function handleChange(name, value) {
+    setFormData((current) => updateProjectForm(current, name, value));
   }
 
   async function handleSubmit(event) {
@@ -101,6 +104,7 @@ export function ProjectsPage() {
                   </div>
 
                   <div className="project-meta">
+                    <span>Equipe: {project.responsibleTeam}</span>
                     <span>
                       Repositório:{' '}
                       {project.githubOwner && project.githubRepo

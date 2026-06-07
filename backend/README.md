@@ -31,6 +31,10 @@ GET  /api/projects/:id
 PUT  /api/projects/:id
 ```
 
+O cadastro recebe nome, descricao, equipe responsavel e URL do repositorio
+GitHub. O owner e o nome do repositorio sao derivados automaticamente da URL.
+O campo `createdAt` permite contabilizar novos projetos por periodo.
+
 Para preparar o banco:
 
 ```bash

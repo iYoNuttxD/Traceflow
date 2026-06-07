@@ -23,9 +23,7 @@ const allowedStatuses = new Set(['ATIVO', 'INATIVO', 'ARQUIVADO']);
 const editableFields = [
   'name',
   'description',
-  'githubOwner',
-  'githubRepo',
-  'githubUrl',
+  'responsibleTeam',
   'status'
 ];
 
@@ -45,6 +43,67 @@ function validateProjectStatus(status) {
   }
 }
 
+function validateResponsibleTeam(responsibleTeam, required = false) {
+  if (
+    required &&
+    (typeof responsibleTeam !== 'string' || !responsibleTeam.trim())
+  ) {
+    throw new ProjectServiceError('A equipe responsável é obrigatória.', 400);
+  }
+
+  if (
+    responsibleTeam !== undefined &&
+    (typeof responsibleTeam !== 'string' || !responsibleTeam.trim())
+  ) {
+    throw new ProjectServiceError('A equipe responsável é obrigatória.', 400);
+  }
+}
+
+function parseGithubRepositoryUrl(githubUrl, required = false) {
+  if (required && (typeof githubUrl !== 'string' || !githubUrl.trim())) {
+    throw new ProjectServiceError('A URL do repositório GitHub é obrigatória.', 400);
+  }
+
+  if (githubUrl === undefined) {
+    return null;
+  }
+
+  if (typeof githubUrl !== 'string' || !githubUrl.trim()) {
+    throw new ProjectServiceError('A URL do repositório GitHub é obrigatória.', 400);
+  }
+
+  try {
+    const parsedUrl = new URL(githubUrl.trim());
+    const hostname = parsedUrl.hostname.toLowerCase();
+    const pathParts = parsedUrl.pathname.split('/').filter(Boolean);
+
+    if (
+      !['github.com', 'www.github.com'].includes(hostname) ||
+      pathParts.length !== 2
+    ) {
+      throw new Error('Invalid GitHub repository URL');
+    }
+
+    const githubOwner = pathParts[0];
+    const githubRepo = pathParts[1].replace(/\.git$/i, '');
+
+    if (!githubOwner || !githubRepo) {
+      throw new Error('Invalid GitHub repository URL');
+    }
+
+    return {
+      githubOwner,
+      githubRepo,
+      githubUrl: `https://github.com/${githubOwner}/${githubRepo}`
+    };
+  } catch {
+    throw new ProjectServiceError(
+      'Informe uma URL válida de repositório GitHub.',
+      400
+    );
+  }
+}
+
 function normalizeOptionalText(value) {
   if (typeof value !== 'string') {
     return value;
@@ -58,23 +117,32 @@ function buildEditableProjectData(data, isCreate = false) {
   const payload = data && typeof data === 'object' ? data : {};
 
   validateProjectName(payload.name, isCreate);
+  validateResponsibleTeam(payload.responsibleTeam, isCreate);
   validateProjectStatus(payload.status);
 
-  return editableFields.reduce((projectData, field) => {
+  const projectData = editableFields.reduce((normalizedData, field) => {
     if (payload[field] === undefined) {
-      return projectData;
+      return normalizedData;
     }
 
-    if (field === 'name') {
-      projectData.name = payload.name.trim();
+    if (field === 'name' || field === 'responsibleTeam') {
+      normalizedData[field] = payload[field].trim();
     } else if (field === 'status') {
-      projectData.status = payload.status;
+      normalizedData.status = payload.status;
     } else {
-      projectData[field] = normalizeOptionalText(payload[field]);
+      normalizedData[field] = normalizeOptionalText(payload[field]);
     }
 
-    return projectData;
+    return normalizedData;
   }, {});
+
+  const githubRepository = parseGithubRepositoryUrl(payload.githubUrl, isCreate);
+
+  if (githubRepository) {
+    Object.assign(projectData, githubRepository);
+  }
+
+  return projectData;
 }
 
 function validateGithubRepositoryData(data) {
@@ -138,6 +206,7 @@ function buildProjectData(data, repository) {
   return {
     name: projectName,
     description,
+    responsibleTeam: normalizeOptionalText(data.responsibleTeam) || 'Não informada',
     status: 'ATIVO',
     githubOwner: repository.owner.login,
     githubRepo: repository.name,

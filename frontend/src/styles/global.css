@@ -165,6 +165,12 @@ a {
   box-shadow: 0 0 0 3px rgba(49, 91, 206, 0.12);
 }
 
+.field input[readonly] {
+  color: #667085;
+  background: #f2f4f7;
+  cursor: default;
+}
+
 .form-actions {
   display: flex;
   justify-content: flex-end;
@@ -243,6 +249,8 @@ a {
 }
 
 .project-meta {
+  display: grid;
+  gap: 0.25rem;
   margin: 0.85rem 0;
   color: #475467;
   font-size: 0.86rem;

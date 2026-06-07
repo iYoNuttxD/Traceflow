@@ -7,11 +7,46 @@ const statusOptions = [
 export const emptyProjectForm = {
   name: '',
   description: '',
+  responsibleTeam: '',
   githubOwner: '',
   githubRepo: '',
   githubUrl: '',
   status: 'ATIVO'
 };
+
+function deriveGithubRepository(githubUrl) {
+  try {
+    const parsedUrl = new URL(githubUrl);
+    const hostname = parsedUrl.hostname.toLowerCase();
+    const pathParts = parsedUrl.pathname.split('/').filter(Boolean);
+
+    if (
+      !['github.com', 'www.github.com'].includes(hostname) ||
+      pathParts.length !== 2
+    ) {
+      return { githubOwner: '', githubRepo: '' };
+    }
+
+    return {
+      githubOwner: pathParts[0],
+      githubRepo: pathParts[1].replace(/\.git$/i, '')
+    };
+  } catch {
+    return { githubOwner: '', githubRepo: '' };
+  }
+}
+
+export function updateProjectForm(currentForm, name, value) {
+  if (name !== 'githubUrl') {
+    return { ...currentForm, [name]: value };
+  }
+
+  return {
+    ...currentForm,
+    githubUrl: value,
+    ...deriveGithubRepository(value)
+  };
+}
 
 export function ProjectForm({
   formData,
@@ -27,7 +62,7 @@ export function ProjectForm({
         <input
           name="name"
           value={formData.name}
-          onChange={onChange}
+          onChange={(event) => onChange(event.target.name, event.target.value)}
           placeholder="Ex.: TRACEFLOW"
           required
         />
@@ -38,9 +73,32 @@ export function ProjectForm({
         <textarea
           name="description"
           value={formData.description}
-          onChange={onChange}
+          onChange={(event) => onChange(event.target.name, event.target.value)}
           rows="4"
           placeholder="Descreva brevemente o objetivo do projeto"
+        />
+      </label>
+
+      <label className="field field-full">
+        <span>Equipe responsável *</span>
+        <input
+          name="responsibleTeam"
+          value={formData.responsibleTeam}
+          onChange={(event) => onChange(event.target.name, event.target.value)}
+          placeholder="Ex.: Equipe de Engenharia de Software"
+          required
+        />
+      </label>
+
+      <label className="field field-full">
+        <span>URL do repositório GitHub *</span>
+        <input
+          name="githubUrl"
+          type="url"
+          value={formData.githubUrl}
+          onChange={(event) => onChange(event.target.name, event.target.value)}
+          placeholder="https://github.com/owner/repositorio"
+          required
         />
       </label>
 
@@ -49,8 +107,8 @@ export function ProjectForm({
         <input
           name="githubOwner"
           value={formData.githubOwner}
-          onChange={onChange}
-          placeholder="Ex.: joaovitor"
+          placeholder="Preenchido pela URL"
+          readOnly
         />
       </label>
 
@@ -59,25 +117,18 @@ export function ProjectForm({
         <input
           name="githubRepo"
           value={formData.githubRepo}
-          onChange={onChange}
-          placeholder="Ex.: traceflow"
-        />
-      </label>
-
-      <label className="field field-full">
-        <span>URL do repositório GitHub</span>
-        <input
-          name="githubUrl"
-          type="url"
-          value={formData.githubUrl}
-          onChange={onChange}
-          placeholder="https://github.com/owner/repositorio"
+          placeholder="Preenchido pela URL"
+          readOnly
         />
       </label>
 
       <label className="field">
         <span>Status</span>
-        <select name="status" value={formData.status} onChange={onChange}>
+        <select
+          name="status"
+          value={formData.status}
+          onChange={(event) => onChange(event.target.name, event.target.value)}
+        >
           {statusOptions.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}

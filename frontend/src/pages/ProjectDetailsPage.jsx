@@ -2,12 +2,17 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../api/api.js';
 import { Card } from '../components/Card.jsx';
-import { ProjectForm, emptyProjectForm } from '../components/ProjectForm.jsx';
+import {
+  ProjectForm,
+  emptyProjectForm,
+  updateProjectForm
+} from '../components/ProjectForm.jsx';
 
 function toFormData(project) {
   return {
     name: project.name || '',
     description: project.description || '',
+    responsibleTeam: project.responsibleTeam || '',
     githubOwner: project.githubOwner || '',
     githubRepo: project.githubRepo || '',
     githubUrl: project.githubUrl || '',
@@ -47,9 +52,8 @@ export function ProjectDetailsPage() {
     loadProject();
   }, [id]);
 
-  function handleChange(event) {
-    const { name, value } = event.target;
-    setFormData((current) => ({ ...current, [name]: value }));
+  function handleChange(name, value) {
+    setFormData((current) => updateProjectForm(current, name, value));
   }
 
   async function handleSubmit(event) {
@@ -121,6 +125,15 @@ export function ProjectDetailsPage() {
         </Card>
 
         <aside className="details-sidebar">
+          <Card title="Responsabilidade">
+            <dl className="details-list">
+              <div>
+                <dt>Equipe responsável</dt>
+                <dd>{project.responsibleTeam}</dd>
+              </div>
+            </dl>
+          </Card>
+
           <Card title="Repositório GitHub">
             <dl className="details-list">
               <div>
