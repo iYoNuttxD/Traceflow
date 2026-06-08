@@ -357,7 +357,7 @@ a {
 
 .overview-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 1rem;
   margin: 0;
 }
@@ -383,6 +383,45 @@ a {
   color: #172033;
   font-weight: 700;
   overflow-wrap: anywhere;
+}
+
+.overview-grid a {
+  color: #315bce;
+  text-decoration: none;
+}
+
+.overview-grid a:hover {
+  text-decoration: underline;
+}
+
+.overview-value-with-action {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.copy-invite-button {
+  border: 1px solid #cfd6e4;
+  border-radius: 999px;
+  padding: 0.35rem 0.65rem;
+  color: #315bce;
+  background: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.copy-invite-button:hover {
+  border-color: #315bce;
+  background: #eef4ff;
+}
+
+.project-details-stack {
+  display: grid;
+  gap: 1.5rem;
+  max-width: 960px;
 }
 
 .details-list {
@@ -420,6 +459,10 @@ a {
   margin-bottom: 1rem;
 }
 
+.member-list-wide {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
 .member-item {
   display: grid;
   gap: 0.2rem;
@@ -437,6 +480,11 @@ a {
 .member-form {
   display: grid;
   gap: 0.75rem;
+}
+
+.member-form-wide {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  align-items: end;
 }
 
 .join-page {
@@ -1087,6 +1135,7 @@ a {
   .kanban-section-header,
   .kanban-board,
   .overview-grid,
+  .member-form-wide,
   .repository-summary,
   .repository-filters {
     grid-template-columns: 1fr;

@@ -55,14 +55,15 @@ export function applyRepositoryToProjectForm(currentForm, repository) {
 
 export function ProjectForm({
   formData,
-  repositories,
-  loadingRepositories,
-  repositoriesError,
+  repositories = [],
+  loadingRepositories = false,
+  repositoriesError = '',
   onChange,
   onRepositoryChange,
   onSubmit,
   submitLabel,
-  submitting
+  submitting,
+  showRepositoryField = true
 }) {
   const currentRepositoryFullName =
     formData.githubOwner && formData.githubRepo
@@ -107,48 +108,52 @@ export function ProjectForm({
         />
       </label>
 
-      <label className="field field-full">
-        <span>Repositório GitHub *</span>
-        <select
-          name="githubRepository"
-          value={currentRepositoryFullName}
-          onChange={(event) => onRepositoryChange(event.target.value)}
-          disabled={loadingRepositories || Boolean(repositoriesError)}
-          required
-        >
-          <option value="">
-            {loadingRepositories
-              ? 'Carregando repositórios...'
-              : 'Selecione um repositório'}
-          </option>
-          {!hasCurrentRepository && currentRepositoryFullName && (
-            <option value={currentRepositoryFullName}>{currentRepositoryFullName}</option>
-          )}
-          {repositories.map((repository) => {
-            const normalizedRepository = normalizeRepository(repository);
-
-            return (
-              <option key={normalizedRepository.id} value={normalizedRepository.fullName}>
-                {normalizedRepository.fullName}
-                {normalizedRepository.private ? ' (privado)' : ''}
+      {showRepositoryField && (
+        <>
+          <label className="field field-full">
+            <span>Repositório GitHub *</span>
+            <select
+              name="githubRepository"
+              value={currentRepositoryFullName}
+              onChange={(event) => onRepositoryChange(event.target.value)}
+              disabled={loadingRepositories || Boolean(repositoriesError)}
+              required
+            >
+              <option value="">
+                {loadingRepositories
+                  ? 'Carregando repositórios...'
+                  : 'Selecione um repositório'}
               </option>
-            );
-          })}
-        </select>
-      </label>
+              {!hasCurrentRepository && currentRepositoryFullName && (
+                <option value={currentRepositoryFullName}>{currentRepositoryFullName}</option>
+              )}
+              {repositories.map((repository) => {
+                const normalizedRepository = normalizeRepository(repository);
 
-      {repositoriesError && (
-        <p className="field-help field-error field-full">{repositoriesError}</p>
-      )}
-      {!loadingRepositories && !repositoriesError && repositories.length === 0 && (
-        <p className="field-help field-full">
-          Nenhum repositório GitHub encontrado para este usuário.
-        </p>
-      )}
-      {formData.githubUrl && (
-        <p className="field-help field-full">
-          Repositório selecionado: <strong>{currentRepositoryFullName}</strong>
-        </p>
+                return (
+                  <option key={normalizedRepository.id} value={normalizedRepository.fullName}>
+                    {normalizedRepository.fullName}
+                    {normalizedRepository.private ? ' (privado)' : ''}
+                  </option>
+                );
+              })}
+            </select>
+          </label>
+
+          {repositoriesError && (
+            <p className="field-help field-error field-full">{repositoriesError}</p>
+          )}
+          {!loadingRepositories && !repositoriesError && repositories.length === 0 && (
+            <p className="field-help field-full">
+              Nenhum repositório GitHub encontrado para este usuário.
+            </p>
+          )}
+          {formData.githubUrl && (
+            <p className="field-help field-full">
+              Repositório selecionado: <strong>{currentRepositoryFullName}</strong>
+            </p>
+          )}
+        </>
       )}
 
       <label className="field">
