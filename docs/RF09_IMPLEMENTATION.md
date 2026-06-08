@@ -48,4 +48,6 @@ Se o projeto não possuir tarefas, a cobertura retornada é `0`.
 
 Foi corrigido o fluxo de movimentação de tarefas no Kanban após a inclusão do vínculo tarefa–pull request. A tela atualiza o card movido com a resposta do endpoint, mantém o PR vinculado no card e libera o estado de loading mesmo se o refresh completo de quadro, métricas ou histórico demorar ou falhar.
 
+Também foi corrigido o estado do botão de movimentação para habilitar quando uma coluna diferente é selecionada e evitar desabilitação incorreta fora de uma requisição real de movimento.
+
 Melhoria futura: permitir arrastar e soltar cards entre colunas do Kanban.

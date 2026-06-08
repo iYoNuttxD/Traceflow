@@ -344,6 +344,8 @@ export function KanbanPage() {
                       {columnTasks.map((task) => {
                         const selectedStatus = moveTargets[task.id] || task.status;
                         const priority = task.priority || 'MEDIA';
+                        const isMovingThisTask = movingTaskId === task.id;
+                        const hasStatusChange = selectedStatus !== task.status;
 
                         return (
                           <article className="kanban-task" key={task.id}>
@@ -413,10 +415,10 @@ export function KanbanPage() {
                               <button
                                 className="button button-primary"
                                 type="button"
-                                disabled={movingTaskId === task.id || projectMembers.length === 0}
+                                disabled={isMovingThisTask || !hasStatusChange}
                                 onClick={() => handleMoveTask(task)}
                               >
-                                {movingTaskId === task.id ? 'Movendo...' : 'Mover'}
+                                {isMovingThisTask ? 'Movendo...' : 'Mover'}
                               </button>
                             </div>
                           </article>
