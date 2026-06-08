@@ -56,6 +56,39 @@ function buildPeriodParams(period) {
   return params;
 }
 
+function updateBoardWithMovedTask(board, movedTask) {
+  if (!board?.columns || !movedTask?.status) {
+    return board;
+  }
+
+  const columns = KANBAN_COLUMNS.reduce((updatedColumns, column) => {
+    updatedColumns[column.status] = (board.columns[column.status] || []).filter(
+      (task) => task.id !== movedTask.id
+    );
+    return updatedColumns;
+  }, {});
+
+  if (!columns[movedTask.status]) {
+    columns[movedTask.status] = [];
+  }
+
+  columns[movedTask.status] = [movedTask, ...columns[movedTask.status]];
+
+  return {
+    ...board,
+    columns,
+    totals: {
+      A_FAZER: columns.A_FAZER?.length || 0,
+      EM_ANDAMENTO: columns.EM_ANDAMENTO?.length || 0,
+      CONCLUIDO: columns.CONCLUIDO?.length || 0,
+      total: KANBAN_COLUMNS.reduce(
+        (total, column) => total + (columns[column.status]?.length || 0),
+        0
+      )
+    }
+  };
+}
+
 export function KanbanPage() {
   const { projectId } = useParams();
   const [project, setProject] = useState(null);
@@ -167,9 +200,44 @@ export function KanbanPage() {
         toStatus,
         projectMemberId: Number(selectedProjectMemberId)
       });
+      const movedTask = response.data.task;
 
       setSuccess(response.data.message);
-      await refreshKanban();
+      setBoard((currentBoard) => updateBoardWithMovedTask(currentBoard, movedTask));
+      setMoveTargets((current) => {
+        const nextTargets = { ...current };
+        delete nextTargets[task.id];
+        return nextTargets;
+      });
+
+      if (response.data.movement) {
+        setMovements((current) => [
+          {
+            ...response.data.movement,
+            taskTitle: movedTask?.title || task.title
+          },
+          ...current
+        ]);
+        setMetrics((current) =>
+          current
+            ? {
+                ...current,
+                totalMovements: (current.totalMovements || 0) + 1
+              }
+            : current
+        );
+      }
+
+      setMovingTaskId(null);
+
+      refreshKanban().catch((requestError) => {
+        setError(
+          getErrorMessage(
+            requestError,
+            'A tarefa foi movida, mas não foi possível atualizar o Kanban.'
+          )
+        );
+      });
     } catch (requestError) {
       setError(getErrorMessage(requestError, 'Não foi possível mover a tarefa.'));
     } finally {

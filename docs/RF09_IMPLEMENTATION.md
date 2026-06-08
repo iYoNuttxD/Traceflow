@@ -43,3 +43,9 @@ Se o projeto não possuir tarefas, a cobertura retornada é `0`.
 - Não há vínculo com commits ou issues neste requisito.
 - Não há sugestão automática de vínculo.
 - O RF09 usa pull requests já importados pela sincronização GitHub existente.
+
+## Correção no Kanban
+
+Foi corrigido o fluxo de movimentação de tarefas no Kanban após a inclusão do vínculo tarefa–pull request. A tela atualiza o card movido com a resposta do endpoint, mantém o PR vinculado no card e libera o estado de loading mesmo se o refresh completo de quadro, métricas ou histórico demorar ou falhar.
+
+Melhoria futura: permitir arrastar e soltar cards entre colunas do Kanban.
