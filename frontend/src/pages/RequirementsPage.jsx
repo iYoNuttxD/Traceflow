@@ -197,8 +197,8 @@ export function RequirementsPage() {
           <h1>Requisitos do projeto</h1>
           <p>
             {project
-              ? `Cadastre e acompanhe os requisitos funcionais de ${project.name}.`
-              : 'Cadastre e acompanhe os requisitos funcionais associados ao projeto.'}
+              ? `Cadastre e acompanhe os requisitos de ${project.name}.`
+              : 'Cadastre e acompanhe os requisitos associados ao projeto.'}
           </p>
         </div>
         <Link className="button button-secondary link-button" to={`/projects/${projectId}/tasks`}>
@@ -218,7 +218,7 @@ export function RequirementsPage() {
                 type="text"
                 value={formData.title}
                 onChange={(event) => handleFormChange('title', event.target.value)}
-                placeholder="RF15 - Cadastrar requisitos funcionais"
+                placeholder="Informe o título do requisito"
               />
             </label>
 

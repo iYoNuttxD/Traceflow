@@ -74,6 +74,12 @@ function updateBoardWithMovedTask(board, movedTask) {
   }
 
   columns[movedTask.status] = [movedTask, ...columns[movedTask.status]];
+  const calculatedTotal = KANBAN_COLUMNS.reduce(
+    (total, column) => total + (columns[column.status]?.length || 0),
+    0
+  );
+  const total =
+    typeof board.totals?.total === 'number' ? board.totals.total : calculatedTotal;
 
   return {
     ...board,
@@ -82,10 +88,7 @@ function updateBoardWithMovedTask(board, movedTask) {
       A_FAZER: columns.A_FAZER?.length || 0,
       EM_ANDAMENTO: columns.EM_ANDAMENTO?.length || 0,
       CONCLUIDO: columns.CONCLUIDO?.length || 0,
-      total: KANBAN_COLUMNS.reduce(
-        (total, column) => total + (columns[column.status]?.length || 0),
-        0
-      )
+      total
     }
   };
 }
