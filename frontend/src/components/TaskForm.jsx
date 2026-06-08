@@ -6,7 +6,8 @@ export const emptyTaskForm = {
   status: 'A_FAZER',
   deadline: '',
   estimatedEffort: '',
-  actualEffort: ''
+  actualEffort: '',
+  pullRequestId: ''
 };
 
 export function taskToFormData(task) {
@@ -18,7 +19,8 @@ export function taskToFormData(task) {
     status: task.status || 'A_FAZER',
     deadline: task.deadline ? task.deadline.slice(0, 10) : '',
     estimatedEffort: task.estimatedEffort ?? '',
-    actualEffort: task.actualEffort ?? ''
+    actualEffort: task.actualEffort ?? '',
+    pullRequestId: task.pullRequestId ? String(task.pullRequestId) : ''
   };
 }
 
@@ -36,6 +38,14 @@ function normalizeNumberField(value) {
   return parsedValue;
 }
 
+function formatMemberName(member) {
+  return member.name || member.email || 'Membro sem nome';
+}
+
+function normalizeText(value) {
+  return String(value || '').trim();
+}
+
 export function taskFormToPayload(formData, editing = false) {
   const payload = {
     ...formData,
@@ -49,6 +59,8 @@ export function taskFormToPayload(formData, editing = false) {
     delete payload.actualEffort;
   }
 
+  delete payload.pullRequestId;
+
   return payload;
 }
 
@@ -58,8 +70,18 @@ export function TaskForm({
   onSubmit,
   onCancel,
   submitting,
-  editing
+  editing,
+  pullRequests = [],
+  projectMembers = []
 }) {
+  const hasMembers = projectMembers.length > 0;
+  const normalizedResponsible = normalizeText(formData.responsible);
+  const hasLegacyResponsible =
+    normalizedResponsible &&
+    !projectMembers.some(
+      (member) => normalizeText(formatMemberName(member)) === normalizedResponsible
+    );
+
   function handleChange(event) {
     onChange(event.target.name, event.target.value);
   }
@@ -100,12 +122,33 @@ export function TaskForm({
 
       <label className="field">
         <span>Responsável</span>
-        <input
+        <select
           name="responsible"
           value={formData.responsible}
           onChange={handleChange}
-          placeholder="Nome do responsável"
-        />
+          disabled={!hasMembers && !hasLegacyResponsible}
+        >
+          <option value="">
+            {hasMembers
+              ? 'Selecione um responsável'
+              : 'Nenhum membro cadastrado'}
+          </option>
+          {hasLegacyResponsible && (
+            <option value={formData.responsible}>
+              Responsável atual: {formData.responsible}
+            </option>
+          )}
+          {projectMembers.map((member) => (
+            <option key={member.id} value={formatMemberName(member)}>
+              {formatMemberName(member)}
+            </option>
+          ))}
+        </select>
+        {!hasMembers && (
+          <small className="field-help">
+            Cadastre membros no projeto para atribuir responsáveis às tarefas.
+          </small>
+        )}
       </label>
 
       <label className="field">
@@ -154,6 +197,28 @@ export function TaskForm({
           />
         </label>
       )}
+
+      <label className="field field-full">
+        <span>Pull request vinculado</span>
+        <select
+          name="pullRequestId"
+          value={formData.pullRequestId}
+          onChange={handleChange}
+        >
+          <option value="">Nenhum pull request vinculado</option>
+          {pullRequests.map((pullRequest) => (
+            <option key={pullRequest.id} value={pullRequest.id}>
+              #{pullRequest.number} — {pullRequest.title}
+            </option>
+          ))}
+        </select>
+        {pullRequests.length === 0 && (
+          <small className="field-help">
+            Nenhum pull request importado. Sincronize o GitHub do projeto antes de
+            vincular PRs às tarefas.
+          </small>
+        )}
+      </label>
 
       <div className="form-actions field-full">
         {editing && (

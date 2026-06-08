@@ -49,6 +49,10 @@ function parseProjectMemberId(projectMemberId) {
   return parsePositiveInteger(projectMemberId, 'do membro do projeto');
 }
 
+function parsePullRequestId(pullRequestId) {
+  return parsePositiveInteger(pullRequestId, 'do pull request');
+}
+
 function normalizeOptionalText(value) {
   if (value === undefined) {
     return undefined;
@@ -233,6 +237,16 @@ async function ensureTaskExists(taskId) {
   }
 
   return task;
+}
+
+async function ensurePullRequestExists(pullRequestId) {
+  const pullRequest = await taskRepository.findPullRequestById(pullRequestId);
+
+  if (!pullRequest) {
+    throw new TaskServiceError('Pull request não encontrado.', 404);
+  }
+
+  return pullRequest;
 }
 
 function parseMetricDate(value) {
@@ -445,6 +459,35 @@ export const taskService = {
     return taskRepository.updateTaskStatus(parsedTaskId, status);
   },
 
+  async linkPullRequest(taskId, data) {
+    const parsedTaskId = parseTaskId(taskId);
+    const task = await ensureTaskExists(parsedTaskId);
+    const payload = data && typeof data === 'object' ? data : {};
+
+    if (payload.pullRequestId === null || payload.pullRequestId === '') {
+      return taskRepository.updateTaskPullRequest(parsedTaskId, null);
+    }
+
+    const parsedPullRequestId = parsePullRequestId(payload.pullRequestId);
+    const pullRequest = await ensurePullRequestExists(parsedPullRequestId);
+
+    if (pullRequest.projectId !== task.projectId) {
+      throw new TaskServiceError(
+        'O pull request informado não pertence ao mesmo projeto da tarefa.',
+        400
+      );
+    }
+
+    return taskRepository.updateTaskPullRequest(parsedTaskId, parsedPullRequestId);
+  },
+
+  async unlinkPullRequest(taskId) {
+    const parsedTaskId = parseTaskId(taskId);
+    await ensureTaskExists(parsedTaskId);
+
+    return taskRepository.updateTaskPullRequest(parsedTaskId, null);
+  },
+
   async getKanbanBoard(projectId) {
     const parsedProjectId = parseProjectId(projectId);
     await ensureProjectExists(parsedProjectId);
@@ -537,6 +580,25 @@ export const taskService = {
       ...(startDate !== undefined ? { startDate } : {}),
       ...(endDate !== undefined ? { endDate } : {}),
       totalTasksCreated
+    };
+  },
+
+  async getPullRequestCoverage(projectId) {
+    const parsedProjectId = parseProjectId(projectId);
+    await ensureProjectExists(parsedProjectId);
+
+    const [totalTasks, linkedTasks] = await Promise.all([
+      taskRepository.countTasksByProject(parsedProjectId),
+      taskRepository.countTasksWithPullRequestByProject(parsedProjectId)
+    ]);
+    const coveragePercentage =
+      totalTasks === 0 ? 0 : Number(((linkedTasks / totalTasks) * 100).toFixed(2));
+
+    return {
+      projectId: parsedProjectId,
+      totalTasks,
+      linkedTasks,
+      coveragePercentage
     };
   }
 };

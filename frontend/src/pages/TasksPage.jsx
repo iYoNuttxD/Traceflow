@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { api } from '../api/api.js';
+import {
+  api,
+  getProjectPullRequestCoverage,
+  getProjectPullRequests,
+  linkTaskPullRequest,
+  projectMembersApi,
+  unlinkTaskPullRequest
+} from '../api/api.js';
 import { Card } from '../components/Card.jsx';
 import {
   TaskForm,
@@ -38,11 +45,22 @@ function formatDateTime(value) {
   return new Date(value).toLocaleString('pt-BR');
 }
 
+function formatPullRequestLabel(pullRequest) {
+  if (!pullRequest) {
+    return 'Sem PR vinculado';
+  }
+
+  return `#${pullRequest.number} — ${pullRequest.title}`;
+}
+
 export function TasksPage() {
   const { projectId } = useParams();
   const [project, setProject] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [metrics, setMetrics] = useState(null);
+  const [pullRequests, setPullRequests] = useState([]);
+  const [pullRequestCoverage, setPullRequestCoverage] = useState(null);
+  const [projectMembers, setProjectMembers] = useState([]);
   const [formData, setFormData] = useState(emptyTaskForm);
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [period, setPeriod] = useState({ startDate: '', endDate: '' });
@@ -56,15 +74,36 @@ export function TasksPage() {
     setError('');
 
     try {
-      const [projectResponse, tasksResponse, metricsResponse] = await Promise.all([
+      const [
+        projectResponse,
+        tasksResponse,
+        metricsResponse,
+        pullRequestsResponse,
+        coverageResponse,
+        membersResponse
+      ] = await Promise.all([
         api.get(`/projects/${projectId}`),
         api.get(`/projects/${projectId}/tasks`),
-        api.get(`/projects/${projectId}/tasks/metrics`)
+        api.get(`/projects/${projectId}/tasks/metrics`),
+        getProjectPullRequests(projectId),
+        getProjectPullRequestCoverage(projectId),
+        projectMembersApi.listProjectMembers(projectId).catch((requestError) => {
+          setError(
+            getErrorMessage(
+              requestError,
+              'Não foi possível carregar os membros do projeto.'
+            )
+          );
+          return { data: { members: [] } };
+        })
       ]);
 
       setProject(projectResponse.data.project);
       setTasks(tasksResponse.data.tasks);
       setMetrics(metricsResponse.data);
+      setPullRequests(pullRequestsResponse.pullRequests || []);
+      setPullRequestCoverage(coverageResponse);
+      setProjectMembers(membersResponse.data.members || []);
     } catch (requestError) {
       setError(
         getErrorMessage(requestError, 'Não foi possível carregar as tarefas do projeto.')
@@ -94,15 +133,42 @@ export function TasksPage() {
     setSuccess('');
 
     try {
+      const selectedPullRequestId = formData.pullRequestId
+        ? Number(formData.pullRequestId)
+        : null;
+      const editingTask = editingTaskId
+        ? tasks.find((task) => String(task.id) === String(editingTaskId))
+        : null;
+      const hadPullRequestLinked = Boolean(
+        editingTask?.pullRequestId || editingTask?.pullRequest
+      );
       const payload = taskFormToPayload(formData, Boolean(editingTaskId));
       const response = editingTaskId
         ? await api.put(`/tasks/${editingTaskId}`, payload)
         : await api.post(`/projects/${projectId}/tasks`, payload);
+      const savedTask = response.data.task;
+      let pullRequestWarning = '';
+
+      try {
+        if (selectedPullRequestId) {
+          await linkTaskPullRequest(savedTask.id, selectedPullRequestId);
+        } else if (hadPullRequestLinked) {
+          await unlinkTaskPullRequest(savedTask.id);
+        }
+      } catch (pullRequestError) {
+        pullRequestWarning = getErrorMessage(
+          pullRequestError,
+          'Tarefa salva, mas não foi possível atualizar o vínculo com o pull request.'
+        );
+      }
 
       setSuccess(response.data.message);
       setPeriod({ startDate: '', endDate: '' });
       resetForm();
       await loadTaskData();
+      if (pullRequestWarning) {
+        setError(pullRequestWarning);
+      }
     } catch (requestError) {
       setError(getErrorMessage(requestError, 'Não foi possível salvar a tarefa.'));
     } finally {
@@ -118,18 +184,18 @@ export function TasksPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  async function handleStatusChange(taskId, status) {
+  async function handleUnlinkPullRequest(taskId) {
     setError('');
     setSuccess('');
 
     try {
-      const response = await api.patch(`/tasks/${taskId}/status`, { status });
-      setSuccess(response.data.message);
-      setTasks((current) =>
-        current.map((task) => (task.id === taskId ? response.data.task : task))
-      );
+      const response = await unlinkTaskPullRequest(taskId);
+      setSuccess(response.message || 'Pull request removido da tarefa.');
+      await loadTaskData();
     } catch (requestError) {
-      setError(getErrorMessage(requestError, 'Não foi possível alterar o status.'));
+      setError(
+        getErrorMessage(requestError, 'Não foi possível remover o vínculo com o pull request.')
+      );
     }
   }
 
@@ -211,7 +277,7 @@ export function TasksPage() {
               ? `Tarefas criadas entre ${metrics.startDate || 'o início'} e ${metrics.endDate || 'hoje'}.`
               : 'Quantidade total de tarefas cadastradas no projeto.'}
           </p>
-          <form className="metrics-form" onSubmit={handleMetricsSubmit}>
+          <form className="metrics-form task-period-filter" onSubmit={handleMetricsSubmit}>
             <label className="field">
               <span>Data inicial</span>
               <input
@@ -246,6 +312,17 @@ export function TasksPage() {
             )}
           </form>
         </Card>
+
+        <Card title="Cobertura com Pull Requests">
+          <strong className="metric-value">
+            {pullRequestCoverage?.coveragePercentage ?? 0}%
+          </strong>
+          <p className="metric-description">
+            {pullRequestCoverage
+              ? `${pullRequestCoverage.linkedTasks} de ${pullRequestCoverage.totalTasks} tarefas possuem PR vinculado.`
+              : 'Percentual de tarefas vinculadas a pull requests.'}
+          </p>
+        </Card>
       </div>
 
       <div className="tasks-layout">
@@ -257,6 +334,8 @@ export function TasksPage() {
             onCancel={resetForm}
             submitting={submitting}
             editing={Boolean(editingTaskId)}
+            pullRequests={pullRequests}
+            projectMembers={projectMembers}
           />
         </Card>
 
@@ -304,6 +383,38 @@ export function TasksPage() {
                     </div>
                   </dl>
 
+                  <div className="task-pr-card">
+                    <span>Pull request vinculado</span>
+                    {task.pullRequest ? (
+                      <>
+                        {task.pullRequest.githubUrl ? (
+                          <a
+                            className="task-pr-link"
+                            href={task.pullRequest.githubUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            {formatPullRequestLabel(task.pullRequest)}
+                          </a>
+                        ) : (
+                          <strong>{formatPullRequestLabel(task.pullRequest)}</strong>
+                        )}
+                        <p className="task-pr-meta">
+                          Status: {task.pullRequest.state || 'não informado'}
+                        </p>
+                        <button
+                          className="text-button"
+                          type="button"
+                          onClick={() => handleUnlinkPullRequest(task.id)}
+                        >
+                          Remover PR
+                        </button>
+                      </>
+                    ) : (
+                      <p className="task-pr-meta">Sem PR vinculado.</p>
+                    )}
+                  </div>
+
                   <div className="task-actions">
                     <button
                       className="button button-secondary"
@@ -312,17 +423,6 @@ export function TasksPage() {
                     >
                       Editar
                     </button>
-                    <label className="inline-status">
-                      <span>Alterar status</span>
-                      <select
-                        value={task.status}
-                        onChange={(event) => handleStatusChange(task.id, event.target.value)}
-                      >
-                        <option value="A_FAZER">A Fazer</option>
-                        <option value="EM_ANDAMENTO">Em Andamento</option>
-                        <option value="CONCLUIDO">Concluído</option>
-                      </select>
-                    </label>
                   </div>
                 </article>
               ))}

@@ -34,6 +34,34 @@ export async function syncProjectGithub(projectId) {
   return response.data;
 }
 
+export async function getProjectPullRequests(projectId) {
+  const response = await api.get(`/projects/${projectId}/pull-requests`);
+
+  return response.data;
+}
+
+export async function linkTaskPullRequest(taskId, pullRequestId) {
+  const response = await api.patch(`/tasks/${taskId}/pull-request`, {
+    pullRequestId
+  });
+
+  return response.data;
+}
+
+export async function unlinkTaskPullRequest(taskId) {
+  const response = await api.delete(`/tasks/${taskId}/pull-request`);
+
+  return response.data;
+}
+
+export async function getProjectPullRequestCoverage(projectId) {
+  const response = await api.get(
+    `/projects/${projectId}/traceability/pull-request-coverage`
+  );
+
+  return response.data;
+}
+
 export const kanbanApi = {
   getBoard(projectId) {
     return api.get(`/projects/${projectId}/kanban`);
@@ -63,5 +91,31 @@ export const projectMembersApi = {
 
   joinProject(data) {
     return api.post('/projects/join', data);
+  }
+};
+
+export const requirementsApi = {
+  create(projectId, data) {
+    return api.post(`/projects/${projectId}/requirements`, data);
+  },
+
+  listByProject(projectId) {
+    return api.get(`/projects/${projectId}/requirements`);
+  },
+
+  getById(requirementId) {
+    return api.get(`/requirements/${requirementId}`);
+  },
+
+  update(requirementId, data) {
+    return api.put(`/requirements/${requirementId}`, data);
+  },
+
+  updateStatus(requirementId, status) {
+    return api.patch(`/requirements/${requirementId}/status`, { status });
+  },
+
+  listTasks(requirementId) {
+    return api.get(`/requirements/${requirementId}/tasks`);
   }
 };

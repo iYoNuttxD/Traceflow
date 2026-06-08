@@ -76,6 +76,7 @@ export function RepositoryInfoPage() {
         setRepositoryData(data);
         setAppliedFilters(nextFilters);
       } catch (requestError) {
+        setRepositoryData(null);
         setError(
           getErrorMessage(
             requestError,

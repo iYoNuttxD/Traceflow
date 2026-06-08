@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api, kanbanApi, projectMembersApi } from '../api/api.js';
 import { KanbanColumn } from '../components/KanbanColumn.jsx';
@@ -21,6 +21,7 @@ const priorityLabels = {
   ALTA: 'Alta',
   CRITICA: 'Crítica'
 };
+const MOVEMENTS_PER_PAGE = 10;
 
 function getErrorMessage(error, fallback) {
   return error.response?.data?.message || fallback;
@@ -56,6 +57,42 @@ function buildPeriodParams(period) {
   return params;
 }
 
+function updateBoardWithMovedTask(board, movedTask) {
+  if (!board?.columns || !movedTask?.status) {
+    return board;
+  }
+
+  const columns = KANBAN_COLUMNS.reduce((updatedColumns, column) => {
+    updatedColumns[column.status] = (board.columns[column.status] || []).filter(
+      (task) => task.id !== movedTask.id
+    );
+    return updatedColumns;
+  }, {});
+
+  if (!columns[movedTask.status]) {
+    columns[movedTask.status] = [];
+  }
+
+  columns[movedTask.status] = [movedTask, ...columns[movedTask.status]];
+  const calculatedTotal = KANBAN_COLUMNS.reduce(
+    (total, column) => total + (columns[column.status]?.length || 0),
+    0
+  );
+  const total =
+    typeof board.totals?.total === 'number' ? board.totals.total : calculatedTotal;
+
+  return {
+    ...board,
+    columns,
+    totals: {
+      A_FAZER: columns.A_FAZER?.length || 0,
+      EM_ANDAMENTO: columns.EM_ANDAMENTO?.length || 0,
+      CONCLUIDO: columns.CONCLUIDO?.length || 0,
+      total
+    }
+  };
+}
+
 export function KanbanPage() {
   const { projectId } = useParams();
   const [project, setProject] = useState(null);
@@ -64,12 +101,17 @@ export function KanbanPage() {
   const [movements, setMovements] = useState([]);
   const [projectMembers, setProjectMembers] = useState([]);
   const [selectedProjectMemberId, setSelectedProjectMemberId] = useState('');
-  const [moveTargets, setMoveTargets] = useState({});
   const [period, setPeriod] = useState({ startDate: '', endDate: '' });
+  const [movementMemberFilter, setMovementMemberFilter] = useState('');
+  const [movementPage, setMovementPage] = useState(1);
+  const [selectedTask, setSelectedTask] = useState(null);
   const [loading, setLoading] = useState(true);
   const [movingTaskId, setMovingTaskId] = useState(null);
+  const [draggingTaskId, setDraggingTaskId] = useState(null);
+  const [dragOverStatus, setDragOverStatus] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const suppressTaskClickRef = useRef(false);
 
   const allTasks = useMemo(() => {
     if (!board?.columns) {
@@ -78,6 +120,41 @@ export function KanbanPage() {
 
     return KANBAN_COLUMNS.flatMap((column) => board.columns[column.status] || []);
   }, [board]);
+
+  const filteredMovements = useMemo(() => {
+    if (!movementMemberFilter) {
+      return movements;
+    }
+
+    const selectedMember = projectMembers.find(
+      (member) => String(member.id) === String(movementMemberFilter)
+    );
+
+    return movements.filter((movement) => {
+      if (movement.projectMemberId !== undefined && movement.projectMemberId !== null) {
+        return String(movement.projectMemberId) === String(movementMemberFilter);
+      }
+
+      return selectedMember ? movement.movedBy === selectedMember.name : false;
+    });
+  }, [movementMemberFilter, movements, projectMembers]);
+
+  const totalMovementPages = Math.max(
+    1,
+    Math.ceil(filteredMovements.length / MOVEMENTS_PER_PAGE)
+  );
+  const currentMovementPage = Math.min(movementPage, totalMovementPages);
+  const movementStartIndex = (currentMovementPage - 1) * MOVEMENTS_PER_PAGE;
+  const paginatedMovements = filteredMovements.slice(
+    movementStartIndex,
+    movementStartIndex + MOVEMENTS_PER_PAGE
+  );
+  const movementRangeStart =
+    filteredMovements.length === 0 ? 0 : movementStartIndex + 1;
+  const movementRangeEnd = Math.min(
+    movementStartIndex + MOVEMENTS_PER_PAGE,
+    filteredMovements.length
+  );
 
   const loadKanban = useCallback(
     async (params = {}) => {
@@ -101,7 +178,6 @@ export function KanbanPage() {
         setMovements(movementsResponse.data.movements || []);
         setProjectMembers(members);
         setSelectedProjectMemberId((current) => current || String(members[0]?.id || ''));
-        setMoveTargets({});
       } catch (requestError) {
         setError(getErrorMessage(requestError, 'Não foi possível carregar o Kanban.'));
       } finally {
@@ -130,6 +206,10 @@ export function KanbanPage() {
     }
   }, [projectMembers, selectedProjectMemberId]);
 
+  useEffect(() => {
+    setMovementPage(1);
+  }, [movementMemberFilter, movements]);
+
   async function refreshKanban(params = buildPeriodParams(period)) {
     const [boardResponse, metricsResponse, movementsResponse] = await Promise.all([
       kanbanApi.getBoard(projectId),
@@ -140,21 +220,16 @@ export function KanbanPage() {
     setBoard(boardResponse.data);
     setMetrics(metricsResponse.data);
     setMovements(movementsResponse.data.movements || []);
-    setMoveTargets({});
   }
 
-  async function handleMoveTask(task) {
-    const toStatus = moveTargets[task.id] || task.status;
-
+  async function moveTaskToStatus(task, toStatus) {
     if (!selectedProjectMemberId) {
-      setError('Selecione um membro do projeto responsável pela movimentação.');
+      setError('Selecione o responsável pela movimentação antes de mover a tarefa.');
       setSuccess('');
       return;
     }
 
     if (toStatus === task.status) {
-      setError('A tarefa já está nesta coluna.');
-      setSuccess('');
       return;
     }
 
@@ -167,9 +242,39 @@ export function KanbanPage() {
         toStatus,
         projectMemberId: Number(selectedProjectMemberId)
       });
+      const movedTask = response.data.task;
 
       setSuccess(response.data.message);
-      await refreshKanban();
+      setBoard((currentBoard) => updateBoardWithMovedTask(currentBoard, movedTask));
+
+      if (response.data.movement) {
+        setMovements((current) => [
+          {
+            ...response.data.movement,
+            taskTitle: movedTask?.title || task.title
+          },
+          ...current
+        ]);
+        setMetrics((current) =>
+          current
+            ? {
+                ...current,
+                totalMovements: (current.totalMovements || 0) + 1
+              }
+            : current
+        );
+      }
+
+      setMovingTaskId(null);
+
+      refreshKanban().catch((requestError) => {
+        setError(
+          getErrorMessage(
+            requestError,
+            'A tarefa foi movida, mas não foi possível atualizar o Kanban.'
+          )
+        );
+      });
     } catch (requestError) {
       setError(getErrorMessage(requestError, 'Não foi possível mover a tarefa.'));
     } finally {
@@ -177,10 +282,68 @@ export function KanbanPage() {
     }
   }
 
+  function handleTaskDragStart(event, task) {
+    if (movingTaskId === task.id) {
+      event.preventDefault();
+      return;
+    }
+
+    suppressTaskClickRef.current = true;
+    setDraggingTaskId(task.id);
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', String(task.id));
+  }
+
+  function handleTaskDragEnd() {
+    setDraggingTaskId(null);
+    setDragOverStatus('');
+
+    window.setTimeout(() => {
+      suppressTaskClickRef.current = false;
+    }, 0);
+  }
+
+  function handleColumnDragOver(event, status) {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    setDragOverStatus(status);
+  }
+
+  function handleColumnDragLeave(event, status) {
+    if (event.currentTarget.contains(event.relatedTarget)) {
+      return;
+    }
+
+    setDragOverStatus((current) => (current === status ? '' : current));
+  }
+
+  async function handleColumnDrop(event, targetStatus) {
+    event.preventDefault();
+    setDragOverStatus('');
+
+    const draggedTaskId = event.dataTransfer.getData('text/plain') || draggingTaskId;
+    const task = allTasks.find((candidate) => String(candidate.id) === String(draggedTaskId));
+
+    if (!task || task.status === targetStatus) {
+      return;
+    }
+
+    await moveTaskToStatus(task, targetStatus);
+  }
+
+  function handleTaskClick(task) {
+    if (suppressTaskClickRef.current) {
+      return;
+    }
+
+    setSelectedTask(task);
+  }
+
   async function handlePeriodSubmit(event) {
     event.preventDefault();
     setError('');
     setSuccess('');
+    setMovementPage(1);
 
     try {
       await refreshKanban(buildPeriodParams(period));
@@ -191,6 +354,8 @@ export function KanbanPage() {
 
   async function clearPeriod() {
     setPeriod({ startDate: '', endDate: '' });
+    setMovementMemberFilter('');
+    setMovementPage(1);
     setError('');
     setSuccess('');
 
@@ -268,25 +433,47 @@ export function KanbanPage() {
                 <KanbanColumn
                   key={column.status}
                   title={`${column.label} (${board?.totals?.[column.status] ?? 0})`}
+                  className={
+                    dragOverStatus === column.status ? 'kanban-column--drag-over' : ''
+                  }
+                  onDragOver={(event) => handleColumnDragOver(event, column.status)}
+                  onDragLeave={(event) => handleColumnDragLeave(event, column.status)}
+                  onDrop={(event) => handleColumnDrop(event, column.status)}
                 >
                   {columnTasks.length === 0 ? (
                     <p className="kanban-empty">Nenhuma tarefa nesta etapa.</p>
                   ) : (
                     <div className="kanban-task-list">
                       {columnTasks.map((task) => {
-                        const selectedStatus = moveTargets[task.id] || task.status;
                         const priority = task.priority || 'MEDIA';
+                        const isMovingThisTask = movingTaskId === task.id;
+                        const isDraggingThisTask = draggingTaskId === task.id;
 
                         return (
-                          <article className="kanban-task" key={task.id}>
+                          <article
+                            className={`kanban-task ${
+                              isDraggingThisTask ? 'kanban-task--dragging' : ''
+                            } ${isMovingThisTask ? 'kanban-task--moving' : ''}`.trim()}
+                            key={task.id}
+                            role="button"
+                            tabIndex={0}
+                            draggable={!isMovingThisTask}
+                            onClick={() => handleTaskClick(task)}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault();
+                                setSelectedTask(task);
+                              }
+                            }}
+                            onDragStart={(event) => handleTaskDragStart(event, task)}
+                            onDragEnd={handleTaskDragEnd}
+                          >
                             <div className="kanban-task-header">
                               <strong>{task.title}</strong>
                               <span className={`priority-badge priority-${priority.toLowerCase()}`}>
                                 {priorityLabels[priority] || priority}
                               </span>
                             </div>
-
-                            <p>{task.description || 'Sem descrição cadastrada.'}</p>
 
                             <dl className="kanban-task-details">
                               <div>
@@ -298,39 +485,31 @@ export function KanbanPage() {
                                 <dd>{formatDate(task.deadline)}</dd>
                               </div>
                               <div>
-                                <dt>Status atual</dt>
-                                <dd>{statusLabels[task.status] || task.status}</dd>
+                                <dt>Rastreabilidade</dt>
+                                <dd>
+                                  {task.pullRequest ? (
+                                    task.pullRequest.githubUrl ? (
+                                      <a
+                                        href={task.pullRequest.githubUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        onClick={(event) => event.stopPropagation()}
+                                      >
+                                        PR #{task.pullRequest.number} — {task.pullRequest.title}
+                                      </a>
+                                    ) : (
+                                      `PR #${task.pullRequest.number} — ${task.pullRequest.title}`
+                                    )
+                                  ) : (
+                                    'Sem PR vinculado'
+                                  )}
+                                </dd>
                               </div>
                             </dl>
 
-                            <div className="kanban-move-actions">
-                              <label className="inline-status">
-                                <span>Nova coluna</span>
-                                <select
-                                  value={selectedStatus}
-                                  onChange={(event) =>
-                                    setMoveTargets((current) => ({
-                                      ...current,
-                                      [task.id]: event.target.value
-                                    }))
-                                  }
-                                >
-                                  {KANBAN_COLUMNS.map((option) => (
-                                    <option key={option.status} value={option.status}>
-                                      {option.label}
-                                    </option>
-                                  ))}
-                                </select>
-                              </label>
-                              <button
-                                className="button button-primary"
-                                type="button"
-                                disabled={movingTaskId === task.id || projectMembers.length === 0}
-                                onClick={() => handleMoveTask(task)}
-                              >
-                                {movingTaskId === task.id ? 'Movendo...' : 'Mover'}
-                              </button>
-                            </div>
+                            {isMovingThisTask && (
+                              <span className="kanban-task-moving-label">Movendo...</span>
+                            )}
                           </article>
                         );
                       })}
@@ -345,10 +524,14 @@ export function KanbanPage() {
             <div className="kanban-section-header">
               <div>
                 <h2>Histórico de movimentações</h2>
-                <p>Total no período: {movements.length}</p>
+                <p>Total filtrado: {filteredMovements.length}</p>
+                <p>
+                  Exibindo {movementRangeStart}–{movementRangeEnd} de{' '}
+                  {filteredMovements.length}
+                </p>
               </div>
 
-              <form className="metrics-form kanban-period-form" onSubmit={handlePeriodSubmit}>
+              <form className="kanban-history-filters" onSubmit={handlePeriodSubmit}>
                 <label className="field">
                   <span>Data inicial</span>
                   <input
@@ -369,10 +552,24 @@ export function KanbanPage() {
                     }
                   />
                 </label>
+                <label className="field">
+                  <span>Membro</span>
+                  <select
+                    value={movementMemberFilter}
+                    onChange={(event) => setMovementMemberFilter(event.target.value)}
+                  >
+                    <option value="">Todos os membros</option>
+                    {projectMembers.map((member) => (
+                      <option key={member.id} value={member.id}>
+                        {member.name || member.email || 'Membro sem nome'}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <button className="button button-secondary" type="submit">
                   Filtrar
                 </button>
-                {(metrics?.startDate || metrics?.endDate) && (
+                {(metrics?.startDate || metrics?.endDate || movementMemberFilter) && (
                   <button
                     className="button button-secondary metrics-clear"
                     type="button"
@@ -384,28 +581,149 @@ export function KanbanPage() {
               </form>
             </div>
 
-            {movements.length === 0 ? (
+            {filteredMovements.length === 0 ? (
               <p className="empty-state">Nenhuma movimentação registrada.</p>
             ) : (
-              <div className="movement-list">
-                {movements.map((movement) => (
-                  <article className="movement-item" key={movement.id}>
-                    <strong>{movement.taskTitle || `Tarefa #${movement.taskId}`}</strong>
+              <>
+                <div className="movement-list">
+                  {paginatedMovements.map((movement) => (
+                    <article className="movement-item" key={movement.id}>
+                      <strong>{movement.taskTitle || `Tarefa #${movement.taskId}`}</strong>
+                      <span>
+                        {statusLabels[movement.fromStatus] || movement.fromStatus} para{' '}
+                        {statusLabels[movement.toStatus] || movement.toStatus}
+                      </span>
+                      <span>{movement.movedBy}</span>
+                      <time dateTime={movement.movedAt}>{formatDateTime(movement.movedAt)}</time>
+                    </article>
+                  ))}
+                </div>
+
+                {filteredMovements.length > MOVEMENTS_PER_PAGE && (
+                  <div className="movement-pagination">
+                    <button
+                      className="button button-secondary"
+                      type="button"
+                      disabled={currentMovementPage === 1}
+                      onClick={() =>
+                        setMovementPage((current) => Math.max(1, current - 1))
+                      }
+                    >
+                      Anterior
+                    </button>
                     <span>
-                      {statusLabels[movement.fromStatus] || movement.fromStatus} para{' '}
-                      {statusLabels[movement.toStatus] || movement.toStatus}
+                      Página {currentMovementPage} de {totalMovementPages}
                     </span>
-                    <span>{movement.movedBy}</span>
-                    <time dateTime={movement.movedAt}>{formatDateTime(movement.movedAt)}</time>
-                  </article>
-                ))}
-              </div>
+                    <button
+                      className="button button-secondary"
+                      type="button"
+                      disabled={currentMovementPage === totalMovementPages}
+                      onClick={() =>
+                        setMovementPage((current) =>
+                          Math.min(totalMovementPages, current + 1)
+                        )
+                      }
+                    >
+                      Próxima
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </section>
 
           {allTasks.length !== board?.totals?.total && (
             <div className="message message-error">
               Existem tarefas com status fora do padrão do Kanban.
+            </div>
+          )}
+
+          {selectedTask && (
+            <div
+              className="task-detail-overlay"
+              role="presentation"
+              onClick={() => setSelectedTask(null)}
+            >
+              <section
+                className="task-detail-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="task-detail-title"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="task-detail-header">
+                  <div>
+                    <span className="eyebrow">Detalhes da tarefa</span>
+                    <h2 id="task-detail-title">{selectedTask.title}</h2>
+                  </div>
+                  <button
+                    className="text-button"
+                    type="button"
+                    onClick={() => setSelectedTask(null)}
+                  >
+                    Fechar
+                  </button>
+                </div>
+
+                <p className="task-detail-description">
+                  {selectedTask.description || 'Sem descrição cadastrada.'}
+                </p>
+
+                <dl className="task-detail-grid">
+                  <div>
+                    <dt>Prioridade</dt>
+                    <dd>{priorityLabels[selectedTask.priority] || selectedTask.priority}</dd>
+                  </div>
+                  <div>
+                    <dt>Responsável</dt>
+                    <dd>{selectedTask.responsible || 'Não informado'}</dd>
+                  </div>
+                  <div>
+                    <dt>Prazo</dt>
+                    <dd>{formatDate(selectedTask.deadline)}</dd>
+                  </div>
+                  <div>
+                    <dt>Status atual</dt>
+                    <dd>{statusLabels[selectedTask.status] || selectedTask.status}</dd>
+                  </div>
+                  <div>
+                    <dt>Esforço estimado</dt>
+                    <dd>{selectedTask.estimatedEffort ?? 'Não informado'}</dd>
+                  </div>
+                  <div>
+                    <dt>Esforço realizado</dt>
+                    <dd>{selectedTask.actualEffort ?? 'Não informado'}</dd>
+                  </div>
+                  <div>
+                    <dt>Data de criação</dt>
+                    <dd>{formatDateTime(selectedTask.createdAt)}</dd>
+                  </div>
+                </dl>
+
+                <div className="task-detail-traceability">
+                  <span>Pull request vinculado</span>
+                  {selectedTask.pullRequest ? (
+                    <>
+                      <strong>
+                        #{selectedTask.pullRequest.number} — {selectedTask.pullRequest.title}
+                      </strong>
+                      <p>Status: {selectedTask.pullRequest.state || 'não informado'}</p>
+                      <p>Autor: {selectedTask.pullRequest.authorUsername || 'não informado'}</p>
+                      {selectedTask.pullRequest.githubUrl && (
+                        <a
+                          href={selectedTask.pullRequest.githubUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Abrir no GitHub
+                        </a>
+                      )}
+                    </>
+                  ) : (
+                    <p>Sem PR vinculado.</p>
+                  )}
+                </div>
+              </section>
             </div>
           )}
         </>

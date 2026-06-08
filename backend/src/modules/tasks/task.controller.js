@@ -70,6 +70,40 @@ export const taskController = {
     }
   },
 
+  async linkPullRequest(req, res) {
+    try {
+      const task = await taskService.linkPullRequest(req.params.id, req.body);
+
+      return res.json({
+        message: 'Pull request vinculado à tarefa com sucesso.',
+        task
+      });
+    } catch (error) {
+      return sendError(
+        res,
+        error,
+        'Erro interno ao vincular pull request à tarefa.'
+      );
+    }
+  },
+
+  async unlinkPullRequest(req, res) {
+    try {
+      const task = await taskService.unlinkPullRequest(req.params.id);
+
+      return res.json({
+        message: 'Pull request removido da tarefa.',
+        task
+      });
+    } catch (error) {
+      return sendError(
+        res,
+        error,
+        'Erro interno ao remover pull request da tarefa.'
+      );
+    }
+  },
+
   async getKanbanBoard(req, res) {
     try {
       const kanban = await taskService.getKanbanBoard(req.params.projectId);
@@ -125,6 +159,20 @@ export const taskController = {
       return res.json(metrics);
     } catch (error) {
       return sendError(res, error);
+    }
+  },
+
+  async getPullRequestCoverage(req, res) {
+    try {
+      const coverage = await taskService.getPullRequestCoverage(req.params.projectId);
+
+      return res.json(coverage);
+    } catch (error) {
+      return sendError(
+        res,
+        error,
+        'Erro interno ao calcular cobertura com pull requests.'
+      );
     }
   }
 };
