@@ -1033,7 +1033,7 @@ a {
 
 .kanban-section-header {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(360px, 0.9fr);
+  grid-template-columns: 1fr;
   gap: 1rem;
   align-items: start;
   margin-bottom: 1rem;
@@ -1052,18 +1052,23 @@ a {
 
 .kanban-history-filters {
   display: grid;
-  grid-template-columns:
-    minmax(150px, 1fr)
-    minmax(150px, 1fr)
-    minmax(240px, 1.5fr)
-    auto;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 0.75rem;
   align-items: end;
+  max-width: 100%;
   margin: 0;
 }
 
+.kanban-history-filters input,
+.kanban-history-filters select,
+.kanban-history-filters button {
+  width: 100%;
+  min-width: 0;
+}
+
 .kanban-history-filters .button {
-  min-width: 110px;
+  min-width: 0;
+  white-space: nowrap;
 }
 
 .task-detail-overlay {
