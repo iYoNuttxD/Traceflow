@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { api } from '../api/api.js';
+import {
+  api,
+  getProjectPullRequestCoverage,
+  getProjectPullRequests,
+  linkTaskPullRequest,
+  unlinkTaskPullRequest
+} from '../api/api.js';
 import { Card } from '../components/Card.jsx';
 import {
   TaskForm,
@@ -38,11 +44,21 @@ function formatDateTime(value) {
   return new Date(value).toLocaleString('pt-BR');
 }
 
+function formatPullRequestLabel(pullRequest) {
+  if (!pullRequest) {
+    return 'Sem PR vinculado';
+  }
+
+  return `#${pullRequest.number} — ${pullRequest.title}`;
+}
+
 export function TasksPage() {
   const { projectId } = useParams();
   const [project, setProject] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [metrics, setMetrics] = useState(null);
+  const [pullRequests, setPullRequests] = useState([]);
+  const [pullRequestCoverage, setPullRequestCoverage] = useState(null);
   const [formData, setFormData] = useState(emptyTaskForm);
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [period, setPeriod] = useState({ startDate: '', endDate: '' });
@@ -56,15 +72,25 @@ export function TasksPage() {
     setError('');
 
     try {
-      const [projectResponse, tasksResponse, metricsResponse] = await Promise.all([
+      const [
+        projectResponse,
+        tasksResponse,
+        metricsResponse,
+        pullRequestsResponse,
+        coverageResponse
+      ] = await Promise.all([
         api.get(`/projects/${projectId}`),
         api.get(`/projects/${projectId}/tasks`),
-        api.get(`/projects/${projectId}/tasks/metrics`)
+        api.get(`/projects/${projectId}/tasks/metrics`),
+        getProjectPullRequests(projectId),
+        getProjectPullRequestCoverage(projectId)
       ]);
 
       setProject(projectResponse.data.project);
       setTasks(tasksResponse.data.tasks);
       setMetrics(metricsResponse.data);
+      setPullRequests(pullRequestsResponse.pullRequests || []);
+      setPullRequestCoverage(coverageResponse);
     } catch (requestError) {
       setError(
         getErrorMessage(requestError, 'Não foi possível carregar as tarefas do projeto.')
@@ -94,10 +120,20 @@ export function TasksPage() {
     setSuccess('');
 
     try {
+      const selectedPullRequestId = formData.pullRequestId
+        ? Number(formData.pullRequestId)
+        : null;
       const payload = taskFormToPayload(formData, Boolean(editingTaskId));
       const response = editingTaskId
         ? await api.put(`/tasks/${editingTaskId}`, payload)
         : await api.post(`/projects/${projectId}/tasks`, payload);
+      const savedTask = response.data.task;
+
+      if (selectedPullRequestId) {
+        await linkTaskPullRequest(savedTask.id, selectedPullRequestId);
+      } else if (editingTaskId || savedTask.pullRequestId) {
+        await unlinkTaskPullRequest(savedTask.id);
+      }
 
       setSuccess(response.data.message);
       setPeriod({ startDate: '', endDate: '' });
@@ -130,6 +166,21 @@ export function TasksPage() {
       );
     } catch (requestError) {
       setError(getErrorMessage(requestError, 'Não foi possível alterar o status.'));
+    }
+  }
+
+  async function handleUnlinkPullRequest(taskId) {
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await unlinkTaskPullRequest(taskId);
+      setSuccess(response.message || 'Pull request removido da tarefa.');
+      await loadTaskData();
+    } catch (requestError) {
+      setError(
+        getErrorMessage(requestError, 'Não foi possível remover o vínculo com o pull request.')
+      );
     }
   }
 
@@ -246,6 +297,17 @@ export function TasksPage() {
             )}
           </form>
         </Card>
+
+        <Card title="Cobertura com Pull Requests">
+          <strong className="metric-value">
+            {pullRequestCoverage?.coveragePercentage ?? 0}%
+          </strong>
+          <p className="metric-description">
+            {pullRequestCoverage
+              ? `${pullRequestCoverage.linkedTasks} de ${pullRequestCoverage.totalTasks} tarefas possuem PR vinculado.`
+              : 'Percentual de tarefas vinculadas a pull requests.'}
+          </p>
+        </Card>
       </div>
 
       <div className="tasks-layout">
@@ -257,6 +319,7 @@ export function TasksPage() {
             onCancel={resetForm}
             submitting={submitting}
             editing={Boolean(editingTaskId)}
+            pullRequests={pullRequests}
           />
         </Card>
 
@@ -303,6 +366,38 @@ export function TasksPage() {
                       <dd>{formatDateTime(task.createdAt)}</dd>
                     </div>
                   </dl>
+
+                  <div className="task-pr-card">
+                    <span>Pull request vinculado</span>
+                    {task.pullRequest ? (
+                      <>
+                        {task.pullRequest.githubUrl ? (
+                          <a
+                            className="task-pr-link"
+                            href={task.pullRequest.githubUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            {formatPullRequestLabel(task.pullRequest)}
+                          </a>
+                        ) : (
+                          <strong>{formatPullRequestLabel(task.pullRequest)}</strong>
+                        )}
+                        <p className="task-pr-meta">
+                          Status: {task.pullRequest.state || 'não informado'}
+                        </p>
+                        <button
+                          className="text-button"
+                          type="button"
+                          onClick={() => handleUnlinkPullRequest(task.id)}
+                        >
+                          Remover PR
+                        </button>
+                      </>
+                    ) : (
+                      <p className="task-pr-meta">Sem PR vinculado.</p>
+                    )}
+                  </div>
 
                   <div className="task-actions">
                     <button

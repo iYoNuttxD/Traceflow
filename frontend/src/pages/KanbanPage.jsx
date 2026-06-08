@@ -303,6 +303,26 @@ export function KanbanPage() {
                               </div>
                             </dl>
 
+                            {task.pullRequest && (
+                              <div className="kanban-pr-link">
+                                {task.pullRequest.githubUrl ? (
+                                  <a
+                                    href={task.pullRequest.githubUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                  >
+                                    PR #{task.pullRequest.number} —{' '}
+                                    {task.pullRequest.state || 'sem status'}
+                                  </a>
+                                ) : (
+                                  <span>
+                                    PR #{task.pullRequest.number} —{' '}
+                                    {task.pullRequest.state || 'sem status'}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+
                             <div className="kanban-move-actions">
                               <label className="inline-status">
                                 <span>Nova coluna</span>

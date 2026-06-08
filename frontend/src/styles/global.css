@@ -453,7 +453,7 @@ a {
 
 .task-summary {
   display: grid;
-  grid-template-columns: minmax(220px, 0.35fr) minmax(0, 1fr);
+  grid-template-columns: repeat(3, minmax(220px, 1fr));
   gap: 1.5rem;
   margin-bottom: 1.5rem;
 }
@@ -683,6 +683,53 @@ a {
   margin: 0;
 }
 
+.task-pr-card {
+  display: grid;
+  gap: 0.35rem;
+  margin: 1rem 0;
+  padding: 0.85rem;
+  border: 1px solid #dce2ec;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.task-pr-card > span {
+  color: #667085;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.task-pr-link {
+  color: #315bce;
+  font-weight: 800;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.task-pr-link:hover,
+.kanban-pr-link a:hover,
+.text-button:hover {
+  text-decoration: underline;
+}
+
+.task-pr-meta {
+  margin: 0;
+  color: #667085;
+  font-size: 0.9rem;
+}
+
+.text-button {
+  width: fit-content;
+  padding: 0;
+  border: 0;
+  color: #315bce;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+}
+
 .task-actions {
   display: flex;
   align-items: end;
@@ -809,6 +856,20 @@ a {
   margin: 0;
   color: #172033;
   overflow-wrap: anywhere;
+}
+
+.kanban-pr-link {
+  padding: 0.55rem 0.65rem;
+  border-radius: 8px;
+  color: #315bce;
+  background: #eef4ff;
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.kanban-pr-link a {
+  color: inherit;
+  text-decoration: none;
 }
 
 .kanban-move-actions {

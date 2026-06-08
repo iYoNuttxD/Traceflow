@@ -15,7 +15,7 @@ function parseProjectId(projectId) {
   const parsedProjectId = Number(projectId);
 
   if (!Number.isInteger(parsedProjectId) || parsedProjectId <= 0) {
-    throw new PullRequestServiceError('ProjectId invalido.', 400);
+    throw new PullRequestServiceError('ID do projeto inválido.', 400);
   }
 
   return parsedProjectId;
@@ -27,7 +27,7 @@ export const pullRequestService = {
     const project = await projectRepository.findById(parsedProjectId);
 
     if (!project) {
-      throw new PullRequestServiceError('Projeto nao encontrado.', 404);
+      throw new PullRequestServiceError('Projeto não encontrado.', 404);
     }
 
     return pullRequestRepository.listByProjectId(parsedProjectId);

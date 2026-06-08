@@ -6,7 +6,8 @@ export const emptyTaskForm = {
   status: 'A_FAZER',
   deadline: '',
   estimatedEffort: '',
-  actualEffort: ''
+  actualEffort: '',
+  pullRequestId: ''
 };
 
 export function taskToFormData(task) {
@@ -18,7 +19,8 @@ export function taskToFormData(task) {
     status: task.status || 'A_FAZER',
     deadline: task.deadline ? task.deadline.slice(0, 10) : '',
     estimatedEffort: task.estimatedEffort ?? '',
-    actualEffort: task.actualEffort ?? ''
+    actualEffort: task.actualEffort ?? '',
+    pullRequestId: task.pullRequestId ? String(task.pullRequestId) : ''
   };
 }
 
@@ -49,6 +51,8 @@ export function taskFormToPayload(formData, editing = false) {
     delete payload.actualEffort;
   }
 
+  delete payload.pullRequestId;
+
   return payload;
 }
 
@@ -58,7 +62,8 @@ export function TaskForm({
   onSubmit,
   onCancel,
   submitting,
-  editing
+  editing,
+  pullRequests = []
 }) {
   function handleChange(event) {
     onChange(event.target.name, event.target.value);
@@ -154,6 +159,28 @@ export function TaskForm({
           />
         </label>
       )}
+
+      <label className="field field-full">
+        <span>Pull request vinculado</span>
+        <select
+          name="pullRequestId"
+          value={formData.pullRequestId}
+          onChange={handleChange}
+        >
+          <option value="">Nenhum pull request vinculado</option>
+          {pullRequests.map((pullRequest) => (
+            <option key={pullRequest.id} value={pullRequest.id}>
+              #{pullRequest.number} — {pullRequest.title}
+            </option>
+          ))}
+        </select>
+        {pullRequests.length === 0 && (
+          <small className="field-help">
+            Nenhum pull request importado. Sincronize o GitHub do projeto antes de
+            vincular PRs às tarefas.
+          </small>
+        )}
+      </label>
 
       <div className="form-actions field-full">
         {editing && (

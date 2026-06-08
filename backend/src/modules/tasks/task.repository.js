@@ -1,6 +1,22 @@
 // Repository do modulo de tarefas. Todo acesso ao banco passa pelo Prisma.
 import { prisma } from '../../database/prismaClient.js';
 
+const taskPullRequestSelect = {
+  id: true,
+  number: true,
+  title: true,
+  state: true,
+  authorUsername: true,
+  githubUrl: true,
+  createdAtGithub: true
+};
+
+const taskInclude = {
+  pullRequest: {
+    select: taskPullRequestSelect
+  }
+};
+
 export const taskRepository = {
   async findProjectById(projectId) {
     return prisma.project.findUnique({
@@ -13,20 +29,33 @@ export const taskRepository = {
       data: {
         ...data,
         projectId
-      }
+      },
+      include: taskInclude
     });
   },
 
   async findTasksByProject(projectId) {
     return prisma.task.findMany({
       where: { projectId },
+      include: taskInclude,
       orderBy: { createdAt: 'desc' }
     });
   },
 
   async findTaskById(id) {
     return prisma.task.findUnique({
-      where: { id }
+      where: { id },
+      include: taskInclude
+    });
+  },
+
+  async findPullRequestById(id) {
+    return prisma.pullRequest.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        projectId: true
+      }
     });
   },
 
@@ -39,14 +68,24 @@ export const taskRepository = {
   async updateTask(id, data) {
     return prisma.task.update({
       where: { id },
-      data
+      data,
+      include: taskInclude
     });
   },
 
   async updateTaskStatus(id, status) {
     return prisma.task.update({
       where: { id },
-      data: { status }
+      data: { status },
+      include: taskInclude
+    });
+  },
+
+  async updateTaskPullRequest(id, pullRequestId) {
+    return prisma.task.update({
+      where: { id },
+      data: { pullRequestId },
+      include: taskInclude
     });
   },
 
@@ -54,7 +93,8 @@ export const taskRepository = {
     return prisma.$transaction(async (tx) => {
       const updatedTask = await tx.task.update({
         where: { id: task.id },
-        data: { status: data.toStatus }
+        data: { status: data.toStatus },
+        include: taskInclude
       });
 
       const movement = await tx.taskMovement.create({
@@ -112,6 +152,17 @@ export const taskRepository = {
       where: {
         projectId,
         ...(createdAt ? { createdAt } : {})
+      }
+    });
+  },
+
+  async countTasksWithPullRequestByProject(projectId) {
+    return prisma.task.count({
+      where: {
+        projectId,
+        pullRequestId: {
+          not: null
+        }
       }
     });
   }

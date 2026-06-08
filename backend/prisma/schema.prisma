@@ -75,12 +75,16 @@ model Task {
   deadline        DateTime?
   estimatedEffort Int?
   actualEffort    Int?
+  pullRequestId   Int?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
   project     Project      @relation(fields: [projectId], references: [id])
   requirement Requirement? @relation(fields: [requirementId], references: [id])
+  pullRequest PullRequest? @relation(fields: [pullRequestId], references: [id], onDelete: SetNull)
   movements   TaskMovement[]
+
+  @@index([pullRequestId])
 }
 
 // Membro interno de um projeto no TRACEFLOW.
@@ -206,6 +210,7 @@ model PullRequest {
   updatedAt       DateTime  @updatedAt
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks   Task[]
 
   @@unique([projectId, githubId])
   @@unique([projectId, number])
