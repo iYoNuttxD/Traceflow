@@ -50,4 +50,6 @@ Foi corrigido o fluxo de movimentação de tarefas no Kanban após a inclusão d
 
 Também foi corrigido o estado do botão de movimentação para habilitar quando uma coluna diferente é selecionada e evitar desabilitação incorreta fora de uma requisição real de movimento.
 
+A experiência do select/botão foi ajustada para começar em "Selecione a nova coluna" e diferenciar visualmente estado desabilitado de carregamento real.
+
 Melhoria futura: permitir arrastar e soltar cards entre colunas do Kanban.

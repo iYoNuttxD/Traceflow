@@ -342,10 +342,11 @@ export function KanbanPage() {
                   ) : (
                     <div className="kanban-task-list">
                       {columnTasks.map((task) => {
-                        const selectedStatus = moveTargets[task.id] || task.status;
+                        const selectedStatus = moveTargets[task.id] || '';
                         const priority = task.priority || 'MEDIA';
                         const isMovingThisTask = movingTaskId === task.id;
-                        const hasStatusChange = selectedStatus !== task.status;
+                        const hasStatusChange =
+                          Boolean(selectedStatus) && selectedStatus !== task.status;
 
                         return (
                           <article className="kanban-task" key={task.id}>
@@ -405,6 +406,7 @@ export function KanbanPage() {
                                     }))
                                   }
                                 >
+                                  <option value="">Selecione a nova coluna</option>
                                   {KANBAN_COLUMNS.map((option) => (
                                     <option key={option.status} value={option.status}>
                                       {option.label}
