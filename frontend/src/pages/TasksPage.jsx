@@ -136,6 +136,12 @@ export function TasksPage() {
       const selectedPullRequestId = formData.pullRequestId
         ? Number(formData.pullRequestId)
         : null;
+      const editingTask = editingTaskId
+        ? tasks.find((task) => String(task.id) === String(editingTaskId))
+        : null;
+      const hadPullRequestLinked = Boolean(
+        editingTask?.pullRequestId || editingTask?.pullRequest
+      );
       const payload = taskFormToPayload(formData, Boolean(editingTaskId));
       const response = editingTaskId
         ? await api.put(`/tasks/${editingTaskId}`, payload)
@@ -144,7 +150,7 @@ export function TasksPage() {
 
       if (selectedPullRequestId) {
         await linkTaskPullRequest(savedTask.id, selectedPullRequestId);
-      } else if (editingTaskId || savedTask.pullRequestId) {
+      } else if (hadPullRequestLinked) {
         await unlinkTaskPullRequest(savedTask.id);
       }
 

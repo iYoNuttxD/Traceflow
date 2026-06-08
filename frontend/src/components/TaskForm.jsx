@@ -42,6 +42,10 @@ function formatMemberName(member) {
   return member.name || member.email || 'Membro sem nome';
 }
 
+function normalizeText(value) {
+  return String(value || '').trim();
+}
+
 export function taskFormToPayload(formData, editing = false) {
   const payload = {
     ...formData,
@@ -71,9 +75,12 @@ export function TaskForm({
   projectMembers = []
 }) {
   const hasMembers = projectMembers.length > 0;
+  const normalizedResponsible = normalizeText(formData.responsible);
   const hasLegacyResponsible =
-    formData.responsible &&
-    !projectMembers.some((member) => member.name === formData.responsible);
+    normalizedResponsible &&
+    !projectMembers.some(
+      (member) => normalizeText(formatMemberName(member)) === normalizedResponsible
+    );
 
   function handleChange(event) {
     onChange(event.target.name, event.target.value);
