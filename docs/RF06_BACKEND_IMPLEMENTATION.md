@@ -121,3 +121,8 @@ git diff --check
 ## Próximo passo
 
 Implementar o frontend do RF06 para visualizar os artefatos e aplicar filtros de projeto, tipo e intervalo de datas.
+
+## Ajustes finais de qualidade
+
+- Consultas do RF06 usam `select` no Prisma para buscar apenas campos usados na resposta normalizada.
+- Campos grandes não exibidos, como descrições de pull requests e issues, não são buscados na listagem consolidada.
