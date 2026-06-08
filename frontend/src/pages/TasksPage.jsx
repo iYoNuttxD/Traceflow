@@ -167,21 +167,6 @@ export function TasksPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  async function handleStatusChange(taskId, status) {
-    setError('');
-    setSuccess('');
-
-    try {
-      const response = await api.patch(`/tasks/${taskId}/status`, { status });
-      setSuccess(response.data.message);
-      setTasks((current) =>
-        current.map((task) => (task.id === taskId ? response.data.task : task))
-      );
-    } catch (requestError) {
-      setError(getErrorMessage(requestError, 'Não foi possível alterar o status.'));
-    }
-  }
-
   async function handleUnlinkPullRequest(taskId) {
     setError('');
     setSuccess('');
@@ -421,17 +406,6 @@ export function TasksPage() {
                     >
                       Editar
                     </button>
-                    <label className="inline-status">
-                      <span>Alterar status</span>
-                      <select
-                        value={task.status}
-                        onChange={(event) => handleStatusChange(task.id, event.target.value)}
-                      >
-                        <option value="A_FAZER">A Fazer</option>
-                        <option value="EM_ANDAMENTO">Em Andamento</option>
-                        <option value="CONCLUIDO">Concluído</option>
-                      </select>
-                    </label>
                   </div>
                 </article>
               ))}
