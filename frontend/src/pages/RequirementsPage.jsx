@@ -158,6 +158,9 @@ export function RequirementsPage() {
     setLoadingTasksId(requirementId);
     setError('');
     setSuccess('');
+    setSelectedRequirement(
+      requirements.find((requirement) => requirement.id === requirementId) || null
+    );
 
     try {
       const response = await requirementsApi.listTasks(requirementId);

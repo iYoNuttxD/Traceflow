@@ -147,17 +147,28 @@ export function TasksPage() {
         ? await api.put(`/tasks/${editingTaskId}`, payload)
         : await api.post(`/projects/${projectId}/tasks`, payload);
       const savedTask = response.data.task;
+      let pullRequestWarning = '';
 
-      if (selectedPullRequestId) {
-        await linkTaskPullRequest(savedTask.id, selectedPullRequestId);
-      } else if (hadPullRequestLinked) {
-        await unlinkTaskPullRequest(savedTask.id);
+      try {
+        if (selectedPullRequestId) {
+          await linkTaskPullRequest(savedTask.id, selectedPullRequestId);
+        } else if (hadPullRequestLinked) {
+          await unlinkTaskPullRequest(savedTask.id);
+        }
+      } catch (pullRequestError) {
+        pullRequestWarning = getErrorMessage(
+          pullRequestError,
+          'Tarefa salva, mas não foi possível atualizar o vínculo com o pull request.'
+        );
       }
 
       setSuccess(response.data.message);
       setPeriod({ startDate: '', endDate: '' });
       resetForm();
       await loadTaskData();
+      if (pullRequestWarning) {
+        setError(pullRequestWarning);
+      }
     } catch (requestError) {
       setError(getErrorMessage(requestError, 'Não foi possível salvar a tarefa.'));
     } finally {

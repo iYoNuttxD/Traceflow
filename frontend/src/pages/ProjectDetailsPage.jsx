@@ -90,6 +90,10 @@ function getRepositoryUrl(project) {
 }
 
 function buildInviteUrl(project) {
+  if (project.inviteLink) {
+    return project.inviteLink;
+  }
+
   if (!project.accessCode) {
     return '';
   }
