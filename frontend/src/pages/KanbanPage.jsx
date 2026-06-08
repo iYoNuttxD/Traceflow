@@ -21,6 +21,7 @@ const priorityLabels = {
   ALTA: 'Alta',
   CRITICA: 'Crítica'
 };
+const MOVEMENTS_PER_PAGE = 10;
 
 function getErrorMessage(error, fallback) {
   return error.response?.data?.message || fallback;
@@ -99,6 +100,7 @@ export function KanbanPage() {
   const [selectedProjectMemberId, setSelectedProjectMemberId] = useState('');
   const [period, setPeriod] = useState({ startDate: '', endDate: '' });
   const [movementMemberFilter, setMovementMemberFilter] = useState('');
+  const [movementPage, setMovementPage] = useState(1);
   const [selectedTask, setSelectedTask] = useState(null);
   const [loading, setLoading] = useState(true);
   const [movingTaskId, setMovingTaskId] = useState(null);
@@ -133,6 +135,23 @@ export function KanbanPage() {
       return selectedMember ? movement.movedBy === selectedMember.name : false;
     });
   }, [movementMemberFilter, movements, projectMembers]);
+
+  const totalMovementPages = Math.max(
+    1,
+    Math.ceil(filteredMovements.length / MOVEMENTS_PER_PAGE)
+  );
+  const currentMovementPage = Math.min(movementPage, totalMovementPages);
+  const movementStartIndex = (currentMovementPage - 1) * MOVEMENTS_PER_PAGE;
+  const paginatedMovements = filteredMovements.slice(
+    movementStartIndex,
+    movementStartIndex + MOVEMENTS_PER_PAGE
+  );
+  const movementRangeStart =
+    filteredMovements.length === 0 ? 0 : movementStartIndex + 1;
+  const movementRangeEnd = Math.min(
+    movementStartIndex + MOVEMENTS_PER_PAGE,
+    filteredMovements.length
+  );
 
   const loadKanban = useCallback(
     async (params = {}) => {
@@ -183,6 +202,10 @@ export function KanbanPage() {
       setSelectedProjectMemberId(String(projectMembers[0].id));
     }
   }, [projectMembers, selectedProjectMemberId]);
+
+  useEffect(() => {
+    setMovementPage(1);
+  }, [movementMemberFilter, movements]);
 
   async function refreshKanban(params = buildPeriodParams(period)) {
     const [boardResponse, metricsResponse, movementsResponse] = await Promise.all([
@@ -317,6 +340,7 @@ export function KanbanPage() {
     event.preventDefault();
     setError('');
     setSuccess('');
+    setMovementPage(1);
 
     try {
       await refreshKanban(buildPeriodParams(period));
@@ -328,6 +352,7 @@ export function KanbanPage() {
   async function clearPeriod() {
     setPeriod({ startDate: '', endDate: '' });
     setMovementMemberFilter('');
+    setMovementPage(1);
     setError('');
     setSuccess('');
 
@@ -496,10 +521,14 @@ export function KanbanPage() {
             <div className="kanban-section-header">
               <div>
                 <h2>Histórico de movimentações</h2>
-                <p>Total exibido: {filteredMovements.length}</p>
+                <p>Total filtrado: {filteredMovements.length}</p>
+                <p>
+                  Exibindo {movementRangeStart}–{movementRangeEnd} de{' '}
+                  {filteredMovements.length}
+                </p>
               </div>
 
-              <form className="metrics-form kanban-period-form" onSubmit={handlePeriodSubmit}>
+              <form className="kanban-history-filters" onSubmit={handlePeriodSubmit}>
                 <label className="field">
                   <span>Data inicial</span>
                   <input
@@ -552,19 +581,51 @@ export function KanbanPage() {
             {filteredMovements.length === 0 ? (
               <p className="empty-state">Nenhuma movimentação registrada.</p>
             ) : (
-              <div className="movement-list">
-                {filteredMovements.map((movement) => (
-                  <article className="movement-item" key={movement.id}>
-                    <strong>{movement.taskTitle || `Tarefa #${movement.taskId}`}</strong>
+              <>
+                <div className="movement-list">
+                  {paginatedMovements.map((movement) => (
+                    <article className="movement-item" key={movement.id}>
+                      <strong>{movement.taskTitle || `Tarefa #${movement.taskId}`}</strong>
+                      <span>
+                        {statusLabels[movement.fromStatus] || movement.fromStatus} para{' '}
+                        {statusLabels[movement.toStatus] || movement.toStatus}
+                      </span>
+                      <span>{movement.movedBy}</span>
+                      <time dateTime={movement.movedAt}>{formatDateTime(movement.movedAt)}</time>
+                    </article>
+                  ))}
+                </div>
+
+                {filteredMovements.length > MOVEMENTS_PER_PAGE && (
+                  <div className="movement-pagination">
+                    <button
+                      className="button button-secondary"
+                      type="button"
+                      disabled={currentMovementPage === 1}
+                      onClick={() =>
+                        setMovementPage((current) => Math.max(1, current - 1))
+                      }
+                    >
+                      Anterior
+                    </button>
                     <span>
-                      {statusLabels[movement.fromStatus] || movement.fromStatus} para{' '}
-                      {statusLabels[movement.toStatus] || movement.toStatus}
+                      Página {currentMovementPage} de {totalMovementPages}
                     </span>
-                    <span>{movement.movedBy}</span>
-                    <time dateTime={movement.movedAt}>{formatDateTime(movement.movedAt)}</time>
-                  </article>
-                ))}
-              </div>
+                    <button
+                      className="button button-secondary"
+                      type="button"
+                      disabled={currentMovementPage === totalMovementPages}
+                      onClick={() =>
+                        setMovementPage((current) =>
+                          Math.min(totalMovementPages, current + 1)
+                        )
+                      }
+                    >
+                      Próxima
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </section>
 

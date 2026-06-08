@@ -59,3 +59,5 @@ O histórico de movimentações passou a permitir filtro por membro responsável
 ## Melhoria no Kanban
 
 A movimentação de tarefas no Kanban passou a ser realizada por drag and drop. A alteração reutiliza o endpoint existente de movimentação, preserva o registro do responsável pela movimentação e mantém a exibição da rastreabilidade com pull requests vinculados.
+
+O histórico de movimentações do Kanban passou a exibir até 10 registros por página, com navegação entre páginas, mantendo os filtros por período e membro.

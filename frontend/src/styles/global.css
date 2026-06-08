@@ -1050,9 +1050,20 @@ a {
   color: #667085;
 }
 
-.kanban-period-form {
-  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+.kanban-history-filters {
+  display: grid;
+  grid-template-columns:
+    minmax(150px, 1fr)
+    minmax(150px, 1fr)
+    minmax(240px, 1.5fr)
+    auto;
+  gap: 0.75rem;
+  align-items: end;
   margin: 0;
+}
+
+.kanban-history-filters .button {
+  min-width: 110px;
 }
 
 .task-detail-overlay {
@@ -1137,6 +1148,16 @@ a {
 .movement-list {
   display: grid;
   gap: 0.75rem;
+}
+
+.movement-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.85rem;
+  margin-top: 1rem;
+  color: #475467;
+  font-weight: 800;
 }
 
 .movement-item {
@@ -1300,6 +1321,10 @@ a {
   .repository-filter-actions {
     flex-wrap: wrap;
   }
+
+  .kanban-history-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 560px) {
@@ -1316,6 +1341,7 @@ a {
   .task-form,
   .requirement-form,
   .metrics-form,
+  .kanban-history-filters,
   .task-details,
   .task-detail-grid,
   .requirement-details {
@@ -1337,6 +1363,10 @@ a {
 
   .form-actions .button {
     width: 100%;
+  }
+
+  .movement-pagination {
+    flex-direction: column;
   }
 
   .form-actions,
