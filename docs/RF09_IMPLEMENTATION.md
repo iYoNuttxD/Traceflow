@@ -52,4 +52,8 @@ Também foi corrigido o estado do botão de movimentação para habilitar quando
 
 A experiência do select/botão foi ajustada para começar em "Selecione a nova coluna" e diferenciar visualmente estado desabilitado de carregamento real.
 
+A visualização do Kanban foi ajustada para exibir cards resumidos com título, prioridade, responsável, prazo e rastreabilidade. Os detalhes completos da tarefa ficam disponíveis ao clicar no card.
+
+O histórico de movimentações passou a permitir filtro por membro responsável pela movimentação.
+
 Melhoria futura: permitir arrastar e soltar cards entre colunas do Kanban.

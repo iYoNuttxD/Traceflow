@@ -99,6 +99,8 @@ export function KanbanPage() {
   const [selectedProjectMemberId, setSelectedProjectMemberId] = useState('');
   const [moveTargets, setMoveTargets] = useState({});
   const [period, setPeriod] = useState({ startDate: '', endDate: '' });
+  const [movementMemberFilter, setMovementMemberFilter] = useState('');
+  const [selectedTask, setSelectedTask] = useState(null);
   const [loading, setLoading] = useState(true);
   const [movingTaskId, setMovingTaskId] = useState(null);
   const [error, setError] = useState('');
@@ -111,6 +113,24 @@ export function KanbanPage() {
 
     return KANBAN_COLUMNS.flatMap((column) => board.columns[column.status] || []);
   }, [board]);
+
+  const filteredMovements = useMemo(() => {
+    if (!movementMemberFilter) {
+      return movements;
+    }
+
+    const selectedMember = projectMembers.find(
+      (member) => String(member.id) === String(movementMemberFilter)
+    );
+
+    return movements.filter((movement) => {
+      if (movement.projectMemberId !== undefined && movement.projectMemberId !== null) {
+        return String(movement.projectMemberId) === String(movementMemberFilter);
+      }
+
+      return selectedMember ? movement.movedBy === selectedMember.name : false;
+    });
+  }, [movementMemberFilter, movements, projectMembers]);
 
   const loadKanban = useCallback(
     async (params = {}) => {
@@ -259,6 +279,7 @@ export function KanbanPage() {
 
   async function clearPeriod() {
     setPeriod({ startDate: '', endDate: '' });
+    setMovementMemberFilter('');
     setError('');
     setSuccess('');
 
@@ -349,15 +370,25 @@ export function KanbanPage() {
                           Boolean(selectedStatus) && selectedStatus !== task.status;
 
                         return (
-                          <article className="kanban-task" key={task.id}>
+                          <article
+                            className="kanban-task"
+                            key={task.id}
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => setSelectedTask(task)}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault();
+                                setSelectedTask(task);
+                              }
+                            }}
+                          >
                             <div className="kanban-task-header">
                               <strong>{task.title}</strong>
                               <span className={`priority-badge priority-${priority.toLowerCase()}`}>
                                 {priorityLabels[priority] || priority}
                               </span>
                             </div>
-
-                            <p>{task.description || 'Sem descrição cadastrada.'}</p>
 
                             <dl className="kanban-task-details">
                               <div>
@@ -369,32 +400,32 @@ export function KanbanPage() {
                                 <dd>{formatDate(task.deadline)}</dd>
                               </div>
                               <div>
-                                <dt>Status atual</dt>
-                                <dd>{statusLabels[task.status] || task.status}</dd>
+                                <dt>Rastreabilidade</dt>
+                                <dd>
+                                  {task.pullRequest ? (
+                                    task.pullRequest.githubUrl ? (
+                                      <a
+                                        href={task.pullRequest.githubUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        onClick={(event) => event.stopPropagation()}
+                                      >
+                                        PR #{task.pullRequest.number} — {task.pullRequest.title}
+                                      </a>
+                                    ) : (
+                                      `PR #${task.pullRequest.number} — ${task.pullRequest.title}`
+                                    )
+                                  ) : (
+                                    'Sem PR vinculado'
+                                  )}
+                                </dd>
                               </div>
                             </dl>
 
-                            {task.pullRequest && (
-                              <div className="kanban-pr-link">
-                                {task.pullRequest.githubUrl ? (
-                                  <a
-                                    href={task.pullRequest.githubUrl}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                  >
-                                    PR #{task.pullRequest.number} —{' '}
-                                    {task.pullRequest.state || 'sem status'}
-                                  </a>
-                                ) : (
-                                  <span>
-                                    PR #{task.pullRequest.number} —{' '}
-                                    {task.pullRequest.state || 'sem status'}
-                                  </span>
-                                )}
-                              </div>
-                            )}
-
-                            <div className="kanban-move-actions">
+                            <div
+                              className="kanban-move-actions"
+                              onClick={(event) => event.stopPropagation()}
+                            >
                               <label className="inline-status">
                                 <span>Nova coluna</span>
                                 <select
@@ -437,7 +468,7 @@ export function KanbanPage() {
             <div className="kanban-section-header">
               <div>
                 <h2>Histórico de movimentações</h2>
-                <p>Total no período: {movements.length}</p>
+                <p>Total exibido: {filteredMovements.length}</p>
               </div>
 
               <form className="metrics-form kanban-period-form" onSubmit={handlePeriodSubmit}>
@@ -461,10 +492,24 @@ export function KanbanPage() {
                     }
                   />
                 </label>
+                <label className="field">
+                  <span>Membro</span>
+                  <select
+                    value={movementMemberFilter}
+                    onChange={(event) => setMovementMemberFilter(event.target.value)}
+                  >
+                    <option value="">Todos os membros</option>
+                    {projectMembers.map((member) => (
+                      <option key={member.id} value={member.id}>
+                        {member.name || member.email || 'Membro sem nome'}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <button className="button button-secondary" type="submit">
                   Filtrar
                 </button>
-                {(metrics?.startDate || metrics?.endDate) && (
+                {(metrics?.startDate || metrics?.endDate || movementMemberFilter) && (
                   <button
                     className="button button-secondary metrics-clear"
                     type="button"
@@ -476,11 +521,11 @@ export function KanbanPage() {
               </form>
             </div>
 
-            {movements.length === 0 ? (
+            {filteredMovements.length === 0 ? (
               <p className="empty-state">Nenhuma movimentação registrada.</p>
             ) : (
               <div className="movement-list">
-                {movements.map((movement) => (
+                {filteredMovements.map((movement) => (
                   <article className="movement-item" key={movement.id}>
                     <strong>{movement.taskTitle || `Tarefa #${movement.taskId}`}</strong>
                     <span>
@@ -498,6 +543,95 @@ export function KanbanPage() {
           {allTasks.length !== board?.totals?.total && (
             <div className="message message-error">
               Existem tarefas com status fora do padrão do Kanban.
+            </div>
+          )}
+
+          {selectedTask && (
+            <div
+              className="task-detail-overlay"
+              role="presentation"
+              onClick={() => setSelectedTask(null)}
+            >
+              <section
+                className="task-detail-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="task-detail-title"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="task-detail-header">
+                  <div>
+                    <span className="eyebrow">Detalhes da tarefa</span>
+                    <h2 id="task-detail-title">{selectedTask.title}</h2>
+                  </div>
+                  <button
+                    className="text-button"
+                    type="button"
+                    onClick={() => setSelectedTask(null)}
+                  >
+                    Fechar
+                  </button>
+                </div>
+
+                <p className="task-detail-description">
+                  {selectedTask.description || 'Sem descrição cadastrada.'}
+                </p>
+
+                <dl className="task-detail-grid">
+                  <div>
+                    <dt>Prioridade</dt>
+                    <dd>{priorityLabels[selectedTask.priority] || selectedTask.priority}</dd>
+                  </div>
+                  <div>
+                    <dt>Responsável</dt>
+                    <dd>{selectedTask.responsible || 'Não informado'}</dd>
+                  </div>
+                  <div>
+                    <dt>Prazo</dt>
+                    <dd>{formatDate(selectedTask.deadline)}</dd>
+                  </div>
+                  <div>
+                    <dt>Status atual</dt>
+                    <dd>{statusLabels[selectedTask.status] || selectedTask.status}</dd>
+                  </div>
+                  <div>
+                    <dt>Esforço estimado</dt>
+                    <dd>{selectedTask.estimatedEffort ?? 'Não informado'}</dd>
+                  </div>
+                  <div>
+                    <dt>Esforço realizado</dt>
+                    <dd>{selectedTask.actualEffort ?? 'Não informado'}</dd>
+                  </div>
+                  <div>
+                    <dt>Data de criação</dt>
+                    <dd>{formatDateTime(selectedTask.createdAt)}</dd>
+                  </div>
+                </dl>
+
+                <div className="task-detail-traceability">
+                  <span>Pull request vinculado</span>
+                  {selectedTask.pullRequest ? (
+                    <>
+                      <strong>
+                        #{selectedTask.pullRequest.number} — {selectedTask.pullRequest.title}
+                      </strong>
+                      <p>Status: {selectedTask.pullRequest.state || 'não informado'}</p>
+                      <p>Autor: {selectedTask.pullRequest.authorUsername || 'não informado'}</p>
+                      {selectedTask.pullRequest.githubUrl && (
+                        <a
+                          href={selectedTask.pullRequest.githubUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Abrir no GitHub
+                        </a>
+                      )}
+                    </>
+                  ) : (
+                    <p>Sem PR vinculado.</p>
+                  )}
+                </div>
+              </section>
             </div>
           )}
         </>

@@ -882,6 +882,13 @@ a {
   border: 1px solid #e2e7f0;
   border-radius: 10px;
   background: #fff;
+  cursor: pointer;
+  text-align: left;
+}
+
+.kanban-task:hover {
+  border-color: #b7c5e7;
+  box-shadow: 0 10px 24px rgba(30, 50, 90, 0.08);
 }
 
 .kanban-task-header {
@@ -925,6 +932,16 @@ a {
   overflow-wrap: anywhere;
 }
 
+.kanban-task-details a {
+  color: #315bce;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.kanban-task-details a:hover {
+  text-decoration: underline;
+}
+
 .kanban-pr-link {
   padding: 0.55rem 0.65rem;
   border-radius: 8px;
@@ -944,6 +961,7 @@ a {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 0.75rem;
   align-items: end;
+  cursor: default;
 }
 
 .kanban-task .priority-badge {
@@ -1006,7 +1024,87 @@ a {
 }
 
 .kanban-period-form {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
   margin: 0;
+}
+
+.task-detail-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(16, 24, 40, 0.48);
+}
+
+.task-detail-modal {
+  width: min(760px, 100%);
+  max-height: min(86vh, 820px);
+  overflow-y: auto;
+  padding: 1.5rem;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 24px 64px rgba(16, 24, 40, 0.24);
+}
+
+.task-detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.task-detail-header h2 {
+  margin: 0.25rem 0 0;
+  color: #101828;
+}
+
+.task-detail-description {
+  margin: 0 0 1rem;
+  color: #667085;
+  line-height: 1.6;
+}
+
+.task-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+  margin: 0 0 1rem;
+}
+
+.task-detail-grid div,
+.task-detail-traceability {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.8rem;
+  border: 1px solid #eef1f6;
+  border-radius: 10px;
+  background: #fbfcfe;
+}
+
+.task-detail-grid dt,
+.task-detail-traceability span {
+  color: #667085;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.task-detail-grid dd {
+  margin: 0;
+  color: #172033;
+}
+
+.task-detail-traceability p {
+  margin: 0;
+  color: #667085;
+}
+
+.task-detail-traceability a {
+  color: #315bce;
+  font-weight: 800;
 }
 
 .movement-list {
@@ -1192,6 +1290,7 @@ a {
   .requirement-form,
   .metrics-form,
   .task-details,
+  .task-detail-grid,
   .requirement-details {
     grid-template-columns: 1fr;
   }
