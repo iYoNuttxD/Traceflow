@@ -56,4 +56,6 @@ A visualização do Kanban foi ajustada para exibir cards resumidos com título,
 
 O histórico de movimentações passou a permitir filtro por membro responsável pela movimentação.
 
-Melhoria futura: permitir arrastar e soltar cards entre colunas do Kanban.
+## Melhoria no Kanban
+
+A movimentação de tarefas no Kanban passou a ser realizada por drag and drop. A alteração reutiliza o endpoint existente de movimentação, preserva o registro do responsável pela movimentação e mantém a exibição da rastreabilidade com pull requests vinculados.

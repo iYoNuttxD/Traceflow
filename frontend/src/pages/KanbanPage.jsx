@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api, kanbanApi, projectMembersApi } from '../api/api.js';
 import { KanbanColumn } from '../components/KanbanColumn.jsx';
@@ -97,14 +97,16 @@ export function KanbanPage() {
   const [movements, setMovements] = useState([]);
   const [projectMembers, setProjectMembers] = useState([]);
   const [selectedProjectMemberId, setSelectedProjectMemberId] = useState('');
-  const [moveTargets, setMoveTargets] = useState({});
   const [period, setPeriod] = useState({ startDate: '', endDate: '' });
   const [movementMemberFilter, setMovementMemberFilter] = useState('');
   const [selectedTask, setSelectedTask] = useState(null);
   const [loading, setLoading] = useState(true);
   const [movingTaskId, setMovingTaskId] = useState(null);
+  const [draggingTaskId, setDraggingTaskId] = useState(null);
+  const [dragOverStatus, setDragOverStatus] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const suppressTaskClickRef = useRef(false);
 
   const allTasks = useMemo(() => {
     if (!board?.columns) {
@@ -154,7 +156,6 @@ export function KanbanPage() {
         setMovements(movementsResponse.data.movements || []);
         setProjectMembers(members);
         setSelectedProjectMemberId((current) => current || String(members[0]?.id || ''));
-        setMoveTargets({});
       } catch (requestError) {
         setError(getErrorMessage(requestError, 'Não foi possível carregar o Kanban.'));
       } finally {
@@ -193,21 +194,16 @@ export function KanbanPage() {
     setBoard(boardResponse.data);
     setMetrics(metricsResponse.data);
     setMovements(movementsResponse.data.movements || []);
-    setMoveTargets({});
   }
 
-  async function handleMoveTask(task) {
-    const toStatus = moveTargets[task.id] || task.status;
-
+  async function moveTaskToStatus(task, toStatus) {
     if (!selectedProjectMemberId) {
-      setError('Selecione um membro do projeto responsável pela movimentação.');
+      setError('Selecione o responsável pela movimentação antes de mover a tarefa.');
       setSuccess('');
       return;
     }
 
     if (toStatus === task.status) {
-      setError('A tarefa já está nesta coluna.');
-      setSuccess('');
       return;
     }
 
@@ -224,11 +220,6 @@ export function KanbanPage() {
 
       setSuccess(response.data.message);
       setBoard((currentBoard) => updateBoardWithMovedTask(currentBoard, movedTask));
-      setMoveTargets((current) => {
-        const nextTargets = { ...current };
-        delete nextTargets[task.id];
-        return nextTargets;
-      });
 
       if (response.data.movement) {
         setMovements((current) => [
@@ -263,6 +254,63 @@ export function KanbanPage() {
     } finally {
       setMovingTaskId(null);
     }
+  }
+
+  function handleTaskDragStart(event, task) {
+    if (movingTaskId === task.id) {
+      event.preventDefault();
+      return;
+    }
+
+    suppressTaskClickRef.current = true;
+    setDraggingTaskId(task.id);
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', String(task.id));
+  }
+
+  function handleTaskDragEnd() {
+    setDraggingTaskId(null);
+    setDragOverStatus('');
+
+    window.setTimeout(() => {
+      suppressTaskClickRef.current = false;
+    }, 0);
+  }
+
+  function handleColumnDragOver(event, status) {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    setDragOverStatus(status);
+  }
+
+  function handleColumnDragLeave(event, status) {
+    if (event.currentTarget.contains(event.relatedTarget)) {
+      return;
+    }
+
+    setDragOverStatus((current) => (current === status ? '' : current));
+  }
+
+  async function handleColumnDrop(event, targetStatus) {
+    event.preventDefault();
+    setDragOverStatus('');
+
+    const draggedTaskId = event.dataTransfer.getData('text/plain') || draggingTaskId;
+    const task = allTasks.find((candidate) => String(candidate.id) === String(draggedTaskId));
+
+    if (!task || task.status === targetStatus) {
+      return;
+    }
+
+    await moveTaskToStatus(task, targetStatus);
+  }
+
+  function handleTaskClick(task) {
+    if (suppressTaskClickRef.current) {
+      return;
+    }
+
+    setSelectedTask(task);
   }
 
   async function handlePeriodSubmit(event) {
@@ -357,31 +405,40 @@ export function KanbanPage() {
                 <KanbanColumn
                   key={column.status}
                   title={`${column.label} (${board?.totals?.[column.status] ?? 0})`}
+                  className={
+                    dragOverStatus === column.status ? 'kanban-column--drag-over' : ''
+                  }
+                  onDragOver={(event) => handleColumnDragOver(event, column.status)}
+                  onDragLeave={(event) => handleColumnDragLeave(event, column.status)}
+                  onDrop={(event) => handleColumnDrop(event, column.status)}
                 >
                   {columnTasks.length === 0 ? (
                     <p className="kanban-empty">Nenhuma tarefa nesta etapa.</p>
                   ) : (
                     <div className="kanban-task-list">
                       {columnTasks.map((task) => {
-                        const selectedStatus = moveTargets[task.id] || '';
                         const priority = task.priority || 'MEDIA';
                         const isMovingThisTask = movingTaskId === task.id;
-                        const hasStatusChange =
-                          Boolean(selectedStatus) && selectedStatus !== task.status;
+                        const isDraggingThisTask = draggingTaskId === task.id;
 
                         return (
                           <article
-                            className="kanban-task"
+                            className={`kanban-task ${
+                              isDraggingThisTask ? 'kanban-task--dragging' : ''
+                            } ${isMovingThisTask ? 'kanban-task--moving' : ''}`.trim()}
                             key={task.id}
                             role="button"
                             tabIndex={0}
-                            onClick={() => setSelectedTask(task)}
+                            draggable={!isMovingThisTask}
+                            onClick={() => handleTaskClick(task)}
                             onKeyDown={(event) => {
                               if (event.key === 'Enter' || event.key === ' ') {
                                 event.preventDefault();
                                 setSelectedTask(task);
                               }
                             }}
+                            onDragStart={(event) => handleTaskDragStart(event, task)}
+                            onDragEnd={handleTaskDragEnd}
                           >
                             <div className="kanban-task-header">
                               <strong>{task.title}</strong>
@@ -422,38 +479,9 @@ export function KanbanPage() {
                               </div>
                             </dl>
 
-                            <div
-                              className="kanban-move-actions"
-                              onClick={(event) => event.stopPropagation()}
-                            >
-                              <label className="inline-status">
-                                <span>Nova coluna</span>
-                                <select
-                                  value={selectedStatus}
-                                  onChange={(event) =>
-                                    setMoveTargets((current) => ({
-                                      ...current,
-                                      [task.id]: event.target.value
-                                    }))
-                                  }
-                                >
-                                  <option value="">Selecione a nova coluna</option>
-                                  {KANBAN_COLUMNS.map((option) => (
-                                    <option key={option.status} value={option.status}>
-                                      {option.label}
-                                    </option>
-                                  ))}
-                                </select>
-                              </label>
-                              <button
-                                className="button button-primary"
-                                type="button"
-                                disabled={isMovingThisTask || !hasStatusChange}
-                                onClick={() => handleMoveTask(task)}
-                              >
-                                {isMovingThisTask ? 'Movendo...' : 'Mover'}
-                              </button>
-                            </div>
+                            {isMovingThisTask && (
+                              <span className="kanban-task-moving-label">Movendo...</span>
+                            )}
                           </article>
                         );
                       })}

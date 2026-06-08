@@ -868,6 +868,12 @@ a {
   border: 1px solid #dce2ec;
   border-radius: 14px;
   background: #eef2f8;
+  transition: border-color 160ms ease, background 160ms ease;
+}
+
+.kanban-column--drag-over {
+  border-color: #315bce;
+  background: #e7edff;
 }
 
 .kanban-column h2 {
@@ -882,13 +888,32 @@ a {
   border: 1px solid #e2e7f0;
   border-radius: 10px;
   background: #fff;
-  cursor: pointer;
+  cursor: grab;
   text-align: left;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    opacity 160ms ease,
+    transform 160ms ease;
 }
 
 .kanban-task:hover {
   border-color: #b7c5e7;
   box-shadow: 0 10px 24px rgba(30, 50, 90, 0.08);
+}
+
+.kanban-task:active {
+  cursor: grabbing;
+}
+
+.kanban-task--dragging {
+  opacity: 0.55;
+  transform: scale(0.98);
+}
+
+.kanban-task--moving {
+  cursor: wait;
+  opacity: 0.7;
 }
 
 .kanban-task-header {
@@ -956,12 +981,14 @@ a {
   text-decoration: none;
 }
 
-.kanban-move-actions {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.75rem;
-  align-items: end;
-  cursor: default;
+.kanban-task-moving-label {
+  width: fit-content;
+  border-radius: 999px;
+  padding: 0.25rem 0.55rem;
+  color: #315bce;
+  background: #eef4ff;
+  font-size: 0.78rem;
+  font-weight: 800;
 }
 
 .kanban-task .priority-badge {
@@ -1306,10 +1333,6 @@ a {
   .requirement-item-header,
   .task-actions {
     flex-direction: column;
-  }
-
-  .kanban-move-actions {
-    grid-template-columns: 1fr;
   }
 
   .form-actions .button {
