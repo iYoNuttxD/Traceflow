@@ -63,8 +63,14 @@ export function TaskForm({
   onCancel,
   submitting,
   editing,
-  pullRequests = []
+  pullRequests = [],
+  projectMembers = []
 }) {
+  const hasMembers = projectMembers.length > 0;
+  const hasLegacyResponsible =
+    formData.responsible &&
+    !projectMembers.some((member) => member.name === formData.responsible);
+
   function handleChange(event) {
     onChange(event.target.name, event.target.value);
   }
@@ -105,12 +111,34 @@ export function TaskForm({
 
       <label className="field">
         <span>Responsável</span>
-        <input
+        <select
           name="responsible"
           value={formData.responsible}
           onChange={handleChange}
-          placeholder="Nome do responsável"
-        />
+          disabled={!hasMembers && !hasLegacyResponsible}
+        >
+          <option value="">
+            {hasMembers
+              ? 'Selecione um responsável'
+              : 'Nenhum membro cadastrado'}
+          </option>
+          {hasLegacyResponsible && (
+            <option value={formData.responsible}>
+              Responsável atual: {formData.responsible}
+            </option>
+          )}
+          {projectMembers.map((member) => (
+            <option key={member.id} value={member.name}>
+              {member.name}
+              {member.email ? ` — ${member.email}` : ''}
+            </option>
+          ))}
+        </select>
+        {!hasMembers && (
+          <small className="field-help">
+            Cadastre membros no projeto para atribuir responsáveis às tarefas.
+          </small>
+        )}
       </label>
 
       <label className="field">

@@ -5,6 +5,7 @@ import {
   getProjectPullRequestCoverage,
   getProjectPullRequests,
   linkTaskPullRequest,
+  projectMembersApi,
   unlinkTaskPullRequest
 } from '../api/api.js';
 import { Card } from '../components/Card.jsx';
@@ -59,6 +60,7 @@ export function TasksPage() {
   const [metrics, setMetrics] = useState(null);
   const [pullRequests, setPullRequests] = useState([]);
   const [pullRequestCoverage, setPullRequestCoverage] = useState(null);
+  const [projectMembers, setProjectMembers] = useState([]);
   const [formData, setFormData] = useState(emptyTaskForm);
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [period, setPeriod] = useState({ startDate: '', endDate: '' });
@@ -77,13 +79,23 @@ export function TasksPage() {
         tasksResponse,
         metricsResponse,
         pullRequestsResponse,
-        coverageResponse
+        coverageResponse,
+        membersResponse
       ] = await Promise.all([
         api.get(`/projects/${projectId}`),
         api.get(`/projects/${projectId}/tasks`),
         api.get(`/projects/${projectId}/tasks/metrics`),
         getProjectPullRequests(projectId),
-        getProjectPullRequestCoverage(projectId)
+        getProjectPullRequestCoverage(projectId),
+        projectMembersApi.listProjectMembers(projectId).catch((requestError) => {
+          setError(
+            getErrorMessage(
+              requestError,
+              'Não foi possível carregar os membros do projeto.'
+            )
+          );
+          return { data: { members: [] } };
+        })
       ]);
 
       setProject(projectResponse.data.project);
@@ -91,6 +103,7 @@ export function TasksPage() {
       setMetrics(metricsResponse.data);
       setPullRequests(pullRequestsResponse.pullRequests || []);
       setPullRequestCoverage(coverageResponse);
+      setProjectMembers(membersResponse.data.members || []);
     } catch (requestError) {
       setError(
         getErrorMessage(requestError, 'Não foi possível carregar as tarefas do projeto.')
@@ -262,7 +275,7 @@ export function TasksPage() {
               ? `Tarefas criadas entre ${metrics.startDate || 'o início'} e ${metrics.endDate || 'hoje'}.`
               : 'Quantidade total de tarefas cadastradas no projeto.'}
           </p>
-          <form className="metrics-form" onSubmit={handleMetricsSubmit}>
+          <form className="metrics-form task-period-filter" onSubmit={handleMetricsSubmit}>
             <label className="field">
               <span>Data inicial</span>
               <input
@@ -320,6 +333,7 @@ export function TasksPage() {
             submitting={submitting}
             editing={Boolean(editingTaskId)}
             pullRequests={pullRequests}
+            projectMembers={projectMembers}
           />
         </Card>
 

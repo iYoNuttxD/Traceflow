@@ -627,6 +627,18 @@ a {
   grid-column: 1 / -1;
 }
 
+.task-period-filter {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.task-period-filter .button {
+  width: 100%;
+}
+
+.task-period-filter .button[type='submit'] {
+  grid-column: 1 / -1;
+}
+
 .tasks-layout {
   display: grid;
   grid-template-columns: minmax(340px, 0.8fr) minmax(0, 1.2fr);
