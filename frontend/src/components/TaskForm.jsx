@@ -38,6 +38,10 @@ function normalizeNumberField(value) {
   return parsedValue;
 }
 
+function formatMemberName(member) {
+  return member.name || member.email || 'Membro sem nome';
+}
+
 export function taskFormToPayload(formData, editing = false) {
   const payload = {
     ...formData,
@@ -128,9 +132,8 @@ export function TaskForm({
             </option>
           )}
           {projectMembers.map((member) => (
-            <option key={member.id} value={member.name}>
-              {member.name}
-              {member.email ? ` — ${member.email}` : ''}
+            <option key={member.id} value={formatMemberName(member)}>
+              {formatMemberName(member)}
             </option>
           ))}
         </select>

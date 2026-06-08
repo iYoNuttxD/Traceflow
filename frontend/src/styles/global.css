@@ -145,6 +145,7 @@ a {
 .field textarea,
 .field select {
   width: 100%;
+  min-width: 0;
   border: 1px solid #cfd6e4;
   border-radius: 9px;
   padding: 0.75rem 0.85rem;
@@ -153,6 +154,12 @@ a {
   font: inherit;
   outline: none;
   transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.field select {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .field textarea {
