@@ -64,6 +64,21 @@ export async function getProjectCommits(projectId, filters = {}) {
   return response.data;
 }
 
+export async function getProjectIssues(projectId, filters = {}) {
+  const params = new URLSearchParams();
+
+  if (filters.search) {
+    params.set('search', filters.search);
+  }
+
+  const queryString = params.toString();
+  const response = await api.get(
+    `/projects/${projectId}/issues${queryString ? `?${queryString}` : ''}`
+  );
+
+  return response.data;
+}
+
 export async function linkTaskPullRequest(taskId, pullRequestId) {
   const response = await api.patch(`/tasks/${taskId}/pull-request`, {
     pullRequestId
@@ -98,6 +113,26 @@ export async function unlinkTaskCommit(taskId, commitId) {
   return response.data;
 }
 
+export async function getTaskIssues(taskId) {
+  const response = await api.get(`/tasks/${taskId}/issues`);
+
+  return response.data;
+}
+
+export async function linkTaskIssue(taskId, issueId) {
+  const response = await api.post(`/tasks/${taskId}/issues`, {
+    issueId
+  });
+
+  return response.data;
+}
+
+export async function unlinkTaskIssue(taskId, issueId) {
+  const response = await api.delete(`/tasks/${taskId}/issues/${issueId}`);
+
+  return response.data;
+}
+
 export async function getProjectPullRequestCoverage(projectId) {
   const response = await api.get(
     `/projects/${projectId}/traceability/pull-request-coverage`
@@ -108,6 +143,12 @@ export async function getProjectPullRequestCoverage(projectId) {
 
 export async function getProjectCommitCoverage(projectId) {
   const response = await api.get(`/projects/${projectId}/traceability/commit-coverage`);
+
+  return response.data;
+}
+
+export async function getProjectIssueCoverage(projectId) {
+  const response = await api.get(`/projects/${projectId}/traceability/issue-coverage`);
 
   return response.data;
 }

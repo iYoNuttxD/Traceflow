@@ -5,6 +5,7 @@ import {
   kanbanApi,
   projectMembersApi,
   unlinkTaskCommit,
+  unlinkTaskIssue,
   unlinkTaskPullRequest
 } from '../api/api.js';
 import { KanbanColumn } from '../components/KanbanColumn.jsx';
@@ -69,13 +70,39 @@ function formatCommitLabel(commit) {
   return `${shortHash} — ${commit.message || 'Sem mensagem'}`;
 }
 
+function formatIssueLabel(issue) {
+  return `#${issue.number} — ${issue.title}`;
+}
+
+function formatIssueLabels(labels) {
+  if (!labels) {
+    return 'sem labels';
+  }
+
+  if (Array.isArray(labels)) {
+    return labels.length > 0 ? labels.join(', ') : 'sem labels';
+  }
+
+  if (typeof labels === 'string') {
+    return labels || 'sem labels';
+  }
+
+  return 'sem labels';
+}
+
 function getTraceabilitySummary(task) {
   const commitsCount = task.commits?.length || 0;
+  const issuesCount = task.issues?.length || 0;
   const pullRequestText = task.pullRequest ? `PR #${task.pullRequest.number}` : '';
   const commitText =
     commitsCount > 0 ? `${commitsCount} ${commitsCount === 1 ? 'commit' : 'commits'}` : '';
+  const issueText =
+    issuesCount > 0 ? `${issuesCount} ${issuesCount === 1 ? 'issue' : 'issues'}` : '';
 
-  return [pullRequestText, commitText].filter(Boolean).join(' · ') || 'Sem rastreabilidade';
+  return (
+    [pullRequestText, commitText, issueText].filter(Boolean).join(' · ') ||
+    'Sem rastreabilidade'
+  );
 }
 
 function updateTaskInBoard(board, taskId, updater) {
@@ -433,6 +460,33 @@ export function KanbanPage() {
       );
     } catch (requestError) {
       setError(getErrorMessage(requestError, 'Não foi possível remover o commit da tarefa.'));
+    }
+  }
+
+  async function handleUnlinkSelectedTaskIssue(taskId, issueId) {
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await unlinkTaskIssue(taskId, issueId);
+      const issues = response.issues || [];
+      setSuccess(response.message || 'Issue removida da tarefa.');
+      setBoard((currentBoard) =>
+        updateTaskInBoard(currentBoard, taskId, (task) => ({
+          ...task,
+          issues
+        }))
+      );
+      setSelectedTask((current) =>
+        current && String(current.id) === String(taskId)
+          ? {
+              ...current,
+              issues
+            }
+          : current
+      );
+    } catch (requestError) {
+      setError(getErrorMessage(requestError, 'Não foi possível remover a issue da tarefa.'));
     }
   }
 
@@ -854,6 +908,42 @@ export function KanbanPage() {
                       </div>
                     ) : (
                       <p>Sem commits vinculados.</p>
+                    )}
+                  </div>
+
+                  <div className="task-detail-traceability-section">
+                    <strong>Issues</strong>
+                    {selectedTask.issues?.length ? (
+                      <div className="task-detail-commit-list">
+                        {selectedTask.issues.map((issue) => (
+                          <div className="task-detail-traceability-item" key={issue.id}>
+                            <div>
+                              <strong>{formatIssueLabel(issue)}</strong>
+                              <p>Status: {issue.state || 'não informado'}</p>
+                              <p>Autor: {issue.authorUsername || 'não informado'}</p>
+                              <p>Labels: {formatIssueLabels(issue.labels)}</p>
+                              {issue.githubUrl && (
+                                <a href={issue.githubUrl} target="_blank" rel="noreferrer">
+                                  Abrir no GitHub
+                                </a>
+                              )}
+                            </div>
+                            <button
+                              className="traceability-remove-button"
+                              type="button"
+                              onClick={() =>
+                                handleUnlinkSelectedTaskIssue(selectedTask.id, issue.id)
+                              }
+                              aria-label="Remover issue vinculada"
+                              title="Remover issue"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p>Sem issues vinculadas.</p>
                     )}
                   </div>
                 </div>

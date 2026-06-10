@@ -4,12 +4,16 @@ import {
   api,
   getProjectCommitCoverage,
   getProjectCommits,
+  getProjectIssueCoverage,
+  getProjectIssues,
   getProjectPullRequestCoverage,
   getProjectPullRequests,
   linkTaskCommit,
+  linkTaskIssue,
   linkTaskPullRequest,
   projectMembersApi,
   unlinkTaskCommit,
+  unlinkTaskIssue,
   unlinkTaskPullRequest
 } from '../api/api.js';
 import { Card } from '../components/Card.jsx';
@@ -63,6 +67,14 @@ function formatCommitLabel(commit) {
   return `${shortHash} — ${commit.message || 'Sem mensagem'}`;
 }
 
+function formatIssueLabel(issue) {
+  if (!issue) {
+    return 'Issue não encontrada';
+  }
+
+  return `#${issue.number} — ${issue.title}`;
+}
+
 export function TasksPage() {
   const { projectId } = useParams();
   const [project, setProject] = useState(null);
@@ -71,8 +83,11 @@ export function TasksPage() {
   const [pullRequestOptions, setPullRequestOptions] = useState([]);
   const [commitResults, setCommitResults] = useState([]);
   const [commitOptions, setCommitOptions] = useState([]);
+  const [issueResults, setIssueResults] = useState([]);
+  const [issueOptions, setIssueOptions] = useState([]);
   const [pullRequestCoverage, setPullRequestCoverage] = useState(null);
   const [commitCoverage, setCommitCoverage] = useState(null);
+  const [issueCoverage, setIssueCoverage] = useState(null);
   const [projectMembers, setProjectMembers] = useState([]);
   const [formData, setFormData] = useState(emptyTaskForm);
   const [editingTaskId, setEditingTaskId] = useState(null);
@@ -91,6 +106,7 @@ export function TasksPage() {
         tasksResponse,
         pullRequestsResponse,
         commitCoverageResponse,
+        issueCoverageResponse,
         coverageResponse,
         membersResponse
       ] = await Promise.all([
@@ -98,6 +114,7 @@ export function TasksPage() {
         api.get(`/projects/${projectId}/tasks`),
         getProjectPullRequests(projectId),
         getProjectCommitCoverage(projectId),
+        getProjectIssueCoverage(projectId),
         getProjectPullRequestCoverage(projectId),
         projectMembersApi.listProjectMembers(projectId).catch((requestError) => {
           setError(
@@ -115,6 +132,7 @@ export function TasksPage() {
       setPullRequests(pullRequestsResponse.pullRequests || []);
       setPullRequestOptions(pullRequestsResponse.pullRequests || []);
       setCommitCoverage(commitCoverageResponse);
+      setIssueCoverage(issueCoverageResponse);
       setPullRequestCoverage(coverageResponse);
       setProjectMembers(membersResponse.data.members || []);
     } catch (requestError) {
@@ -178,6 +196,29 @@ export function TasksPage() {
     [projectId]
   );
 
+  const searchIssues = useCallback(
+    async (search) => {
+      try {
+        const response = await getProjectIssues(projectId, { search });
+        setIssueResults(response.issues || []);
+        setIssueOptions((current) => {
+          const nextOptions = [...current];
+
+          for (const issue of response.issues || []) {
+            if (!nextOptions.some((item) => String(item.id) === String(issue.id))) {
+              nextOptions.push(issue);
+            }
+          }
+
+          return nextOptions;
+        });
+      } catch (requestError) {
+        setError(getErrorMessage(requestError, 'Não foi possível carregar as issues do projeto.'));
+      }
+    },
+    [projectId]
+  );
+
   function handleFormChange(name, value) {
     setFormData((current) => ({ ...current, [name]: value }));
   }
@@ -219,6 +260,35 @@ export function TasksPage() {
     });
   }
 
+  function handleSelectIssue(issue) {
+    setIssueOptions((current) =>
+      current.some((item) => String(item.id) === String(issue.id))
+        ? current
+        : [issue, ...current]
+    );
+    setFormData((current) => {
+      const issueIds = current.issueIds || [];
+
+      if (issueIds.some((issueId) => String(issueId) === String(issue.id))) {
+        return current;
+      }
+
+      return {
+        ...current,
+        issueIds: [...issueIds, String(issue.id)]
+      };
+    });
+  }
+
+  function handleRemoveIssueFromForm(issueId) {
+    setFormData((current) => ({
+      ...current,
+      issueIds: (current.issueIds || []).filter(
+        (currentIssueId) => String(currentIssueId) !== String(issueId)
+      )
+    }));
+  }
+
   function handleRemoveCommitFromForm(commitId) {
     setFormData((current) => ({
       ...current,
@@ -244,6 +314,7 @@ export function TasksPage() {
         ? Number(formData.pullRequestId)
         : null;
       const selectedCommitIds = (formData.commitIds || []).map(Number);
+      const selectedIssueIds = (formData.issueIds || []).map(Number);
       const editingTask = editingTaskId
         ? tasks.find((task) => String(task.id) === String(editingTaskId))
         : null;
@@ -251,6 +322,7 @@ export function TasksPage() {
         editingTask?.pullRequestId || editingTask?.pullRequest
       );
       const previousCommitIds = (editingTask?.commits || []).map((commit) => commit.id);
+      const previousIssueIds = (editingTask?.issues || []).map((issue) => issue.id);
       const payload = taskFormToPayload(formData, Boolean(editingTaskId));
       const response = editingTaskId
         ? await api.put(`/tasks/${editingTaskId}`, payload)
@@ -258,6 +330,7 @@ export function TasksPage() {
       const savedTask = response.data.task;
       let pullRequestWarning = '';
       let commitWarning = '';
+      let issueWarning = '';
 
       try {
         if (selectedPullRequestId) {
@@ -294,11 +367,35 @@ export function TasksPage() {
         );
       }
 
+      try {
+        const issuesToLink = selectedIssueIds.filter(
+          (issueId) => !previousIssueIds.includes(issueId)
+        );
+        const issuesToUnlink = previousIssueIds.filter(
+          (issueId) => !selectedIssueIds.includes(issueId)
+        );
+
+        for (const issueId of issuesToLink) {
+          await linkTaskIssue(savedTask.id, issueId);
+        }
+
+        for (const issueId of issuesToUnlink) {
+          await unlinkTaskIssue(savedTask.id, issueId);
+        }
+      } catch (issueError) {
+        issueWarning = getErrorMessage(
+          issueError,
+          'Tarefa salva, mas não foi possível atualizar os vínculos com issues.'
+        );
+      }
+
       setSuccess(response.data.message);
       resetForm();
       await loadTaskData();
-      if (pullRequestWarning || commitWarning) {
-        setError([pullRequestWarning, commitWarning].filter(Boolean).join(' '));
+      if (pullRequestWarning || commitWarning || issueWarning) {
+        setError(
+          [pullRequestWarning, commitWarning, issueWarning].filter(Boolean).join(' ')
+        );
       }
     } catch (requestError) {
       setError(getErrorMessage(requestError, 'Não foi possível salvar a tarefa.'));
@@ -324,6 +421,19 @@ export function TasksPage() {
         }
 
         return nextCommits;
+      });
+    }
+    if (task.issues?.length) {
+      setIssueOptions((current) => {
+        const nextIssues = [...current];
+
+        for (const issue of task.issues) {
+          if (!nextIssues.some((item) => String(item.id) === String(issue.id))) {
+            nextIssues.unshift(issue);
+          }
+        }
+
+        return nextIssues;
       });
     }
     setError('');
@@ -359,6 +469,19 @@ export function TasksPage() {
     }
   }
 
+  async function handleUnlinkIssue(taskId, issueId) {
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await unlinkTaskIssue(taskId, issueId);
+      setSuccess(response.message || 'Issue removida da tarefa.');
+      await loadTaskData();
+    } catch (requestError) {
+      setError(getErrorMessage(requestError, 'Não foi possível remover a issue da tarefa.'));
+    }
+  }
+
   const editingTask = editingTaskId
     ? tasks.find((task) => String(task.id) === String(editingTaskId))
     : null;
@@ -373,6 +496,13 @@ export function TasksPage() {
       (commitId) =>
         commitOptions.find((commit) => String(commit.id) === String(commitId)) ||
         editingTask?.commits?.find((commit) => String(commit.id) === String(commitId))
+    )
+    .filter(Boolean);
+  const selectedIssues = (formData.issueIds || [])
+    .map(
+      (issueId) =>
+        issueOptions.find((issue) => String(issue.id) === String(issueId)) ||
+        editingTask?.issues?.find((issue) => String(issue.id) === String(issueId))
     )
     .filter(Boolean);
 
@@ -432,6 +562,15 @@ export function TasksPage() {
               : 'Percentual de tarefas vinculadas a commits.'}
           </p>
         </Card>
+
+        <Card title="Cobertura com issues">
+          <strong className="metric-value">{issueCoverage?.coveragePercentage ?? 0}%</strong>
+          <p className="metric-description">
+            {issueCoverage
+              ? `${issueCoverage.linkedTasks} de ${issueCoverage.totalTasks} tarefas possuem pelo menos uma issue vinculada.`
+              : 'Percentual de tarefas vinculadas a issues.'}
+          </p>
+        </Card>
       </div>
 
       <div className="tasks-layout">
@@ -447,13 +586,18 @@ export function TasksPage() {
             projectMembers={projectMembers}
             selectedPullRequest={selectedPullRequest}
             selectedCommits={selectedCommits}
+            selectedIssues={selectedIssues}
             commitResults={commitResults}
+            issueResults={issueResults}
             onPullRequestSearch={searchPullRequests}
             onCommitSearch={searchCommits}
+            onIssueSearch={searchIssues}
             onSelectPullRequest={handleSelectPullRequest}
             onClearPullRequest={handleClearPullRequest}
             onSelectCommit={handleSelectCommit}
             onRemoveCommit={handleRemoveCommitFromForm}
+            onSelectIssue={handleSelectIssue}
+            onRemoveIssue={handleRemoveIssueFromForm}
           />
         </Card>
       </div>
@@ -568,6 +712,41 @@ export function TasksPage() {
                         </div>
                       ) : (
                         <p className="task-pr-meta">Sem commits vinculados.</p>
+                      )}
+                    </div>
+
+                    <div className="task-traceability-group">
+                      <strong>Issues</strong>
+                      {task.issues?.length ? (
+                        <div className="task-traceability-list">
+                          {task.issues.map((issue) => (
+                            <div className="task-traceability-item" key={issue.id}>
+                              {issue.githubUrl ? (
+                                <a
+                                  className="task-pr-link"
+                                  href={issue.githubUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  {formatIssueLabel(issue)}
+                                </a>
+                              ) : (
+                                <span>{formatIssueLabel(issue)}</span>
+                              )}
+                              <button
+                                className="traceability-remove-button"
+                                type="button"
+                                onClick={() => handleUnlinkIssue(task.id, issue.id)}
+                                aria-label="Remover issue vinculada"
+                                title="Remover issue"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="task-pr-meta">Sem issues vinculadas.</p>
                       )}
                     </div>
                   </div>

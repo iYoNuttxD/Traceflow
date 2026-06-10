@@ -10,7 +10,8 @@ export const emptyTaskForm = {
   estimatedEffort: '',
   actualEffort: '',
   pullRequestId: '',
-  commitIds: []
+  commitIds: [],
+  issueIds: []
 };
 
 export function taskToFormData(task) {
@@ -24,7 +25,8 @@ export function taskToFormData(task) {
     estimatedEffort: task.estimatedEffort ?? '',
     actualEffort: task.actualEffort ?? '',
     pullRequestId: task.pullRequestId ? String(task.pullRequestId) : '',
-    commitIds: (task.commits || []).map((commit) => String(commit.id))
+    commitIds: (task.commits || []).map((commit) => String(commit.id)),
+    issueIds: (task.issues || []).map((issue) => String(issue.id))
   };
 }
 
@@ -64,6 +66,14 @@ function formatCommitLabel(commit) {
   return `${shortHash} — ${commit.message || 'Sem mensagem'}`;
 }
 
+function formatIssueLabel(issue) {
+  if (!issue) {
+    return 'Issue selecionada';
+  }
+
+  return `#${issue.number} — ${issue.title}`;
+}
+
 function normalizeText(value) {
   return String(value || '').trim();
 }
@@ -83,6 +93,7 @@ export function taskFormToPayload(formData, editing = false) {
 
   delete payload.pullRequestId;
   delete payload.commitIds;
+  delete payload.issueIds;
 
   return payload;
 }
@@ -98,16 +109,22 @@ export function TaskForm({
   projectMembers = [],
   selectedPullRequest = null,
   selectedCommits = [],
+  selectedIssues = [],
   commitResults = [],
+  issueResults = [],
   onPullRequestSearch,
   onCommitSearch,
+  onIssueSearch,
   onSelectPullRequest,
   onClearPullRequest,
   onSelectCommit,
-  onRemoveCommit
+  onRemoveCommit,
+  onSelectIssue,
+  onRemoveIssue
 }) {
   const [pullRequestSearch, setPullRequestSearch] = useState('');
   const [commitSearch, setCommitSearch] = useState('');
+  const [issueSearch, setIssueSearch] = useState('');
   const hasMembers = projectMembers.length > 0;
   const normalizedResponsible = normalizeText(formData.responsible);
   const hasLegacyResponsible =
@@ -116,9 +133,12 @@ export function TaskForm({
       (member) => normalizeText(formatMemberName(member)) === normalizedResponsible
     );
   const linkedCommitIds = new Set((formData.commitIds || []).map(String));
+  const linkedIssueIds = new Set((formData.issueIds || []).map(String));
   const normalizedPullRequestSearch = normalizeText(pullRequestSearch).toLowerCase();
   const pullRequestNumericSearch = normalizedPullRequestSearch.replace(/\D/g, '');
   const normalizedCommitSearch = normalizeText(commitSearch).toLowerCase();
+  const normalizedIssueSearch = normalizeText(issueSearch).toLowerCase();
+  const issueNumericSearch = normalizedIssueSearch.replace(/\D/g, '');
   const availableCommitResults = commitResults.filter(
     (commit) =>
       !linkedCommitIds.has(String(commit.id)) &&
@@ -137,6 +157,17 @@ export function TaskForm({
     const matchesTitle = pullRequest.title
       ?.toLowerCase()
       .includes(normalizedPullRequestSearch);
+
+    return Boolean(matchesNumber || matchesTitle);
+  });
+  const availableIssueResults = issueResults.filter((issue) => {
+    if (linkedIssueIds.has(String(issue.id))) {
+      return false;
+    }
+
+    const matchesNumber =
+      issueNumericSearch && Number(issue.number) === Number(issueNumericSearch);
+    const matchesTitle = issue.title?.toLowerCase().includes(normalizedIssueSearch);
 
     return Boolean(matchesNumber || matchesTitle);
   });
@@ -170,6 +201,21 @@ export function TaskForm({
     return () => window.clearTimeout(timeoutId);
   }, [commitSearch, onCommitSearch]);
 
+  useEffect(() => {
+    const query = issueSearch.trim();
+    const hasNumericSearch = /\d/.test(query);
+
+    if ((!hasNumericSearch && query.length < 2) || !onIssueSearch) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      onIssueSearch(query);
+    }, 300);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [issueSearch, onIssueSearch]);
+
   function handleChange(event) {
     onChange(event.target.name, event.target.value);
   }
@@ -182,6 +228,11 @@ export function TaskForm({
   function handleSelectCommit(commit) {
     onSelectCommit?.(commit);
     setCommitSearch('');
+  }
+
+  function handleSelectIssue(issue) {
+    onSelectIssue?.(issue);
+    setIssueSearch('');
   }
 
   return (
@@ -329,7 +380,7 @@ export function TaskForm({
             onChange={(event) => setPullRequestSearch(event.target.value)}
             placeholder="Pesquisar por número ou título do PR..."
           />
-          {pullRequestSearch.trim().length >= 2 && (
+          {pullRequestSearch.trim().length >= 2 || /\d/.test(pullRequestSearch) ? (
             <div className="traceability-results">
               {availablePullRequests.length === 0 ? (
                 <p>Nenhum pull request encontrado.</p>
@@ -345,7 +396,7 @@ export function TaskForm({
                 ))
               )}
             </div>
-          )}
+          ) : null}
         </div>
 
         <div className="traceability-picker">
@@ -391,6 +442,51 @@ export function TaskForm({
               )}
             </div>
           )}
+        </div>
+
+        <div className="traceability-picker">
+          <span>Issues vinculadas</span>
+          {selectedIssues.length > 0 && (
+            <div className="traceability-selected-list">
+              {selectedIssues.map((issue) => (
+                <div className="traceability-selected-item" key={issue.id}>
+                  <strong>{formatIssueLabel(issue)}</strong>
+                  <button
+                    className="traceability-remove-button"
+                    type="button"
+                    onClick={() => onRemoveIssue?.(issue.id)}
+                    aria-label="Remover issue vinculada"
+                    title="Remover issue"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <input
+            type="search"
+            value={issueSearch}
+            onChange={(event) => setIssueSearch(event.target.value)}
+            placeholder="Pesquisar issue por número ou título..."
+          />
+          {issueSearch.trim().length >= 2 || /\d/.test(issueSearch) ? (
+            <div className="traceability-results">
+              {availableIssueResults.length === 0 ? (
+                <p>Nenhuma issue encontrada.</p>
+              ) : (
+                availableIssueResults.map((issue) => (
+                  <button
+                    key={issue.id}
+                    type="button"
+                    onClick={() => handleSelectIssue(issue)}
+                  >
+                    {formatIssueLabel(issue)}
+                  </button>
+                ))
+              )}
+            </div>
+          ) : null}
         </div>
       </section>
 

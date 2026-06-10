@@ -25,9 +25,9 @@ No MVP, uma tarefa pode ter vários commits vinculados. Um commit também pode e
 - Vinculação de múltiplos commits por tarefa.
 - Remoção individual de vínculos com commits.
 - Busca dinâmica de pull requests por número ou título, mantendo PR único por tarefa.
-- Exibição de PR e commits vinculados na tela de tarefas.
+- Exibição de PR, commits e issues vinculados na tela de tarefas após a evolução do RF12.
 - Exibição resumida da rastreabilidade no Kanban.
-- Exibição detalhada de PR e commits no detalhe da tarefa no Kanban.
+- Exibição detalhada de PR, commits e issues no detalhe da tarefa no Kanban após a evolução do RF12.
 - Indicador simples de cobertura com commits na tela de tarefas.
 
 ## Métrica
@@ -37,5 +37,5 @@ No MVP, uma tarefa pode ter vários commits vinculados. Um commit também pode e
 ## Limitações
 
 - Não há vínculo automático com commits.
-- Não há vínculo com issues neste requisito.
+- O vínculo com issues é tratado separadamente pelo RF12.
 - Não há sugestão automática por branch, mensagem de commit ou IA.
