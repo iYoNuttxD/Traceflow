@@ -2,10 +2,14 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   api,
+  getProjectCommitCoverage,
+  getProjectCommits,
   getProjectPullRequestCoverage,
   getProjectPullRequests,
+  linkTaskCommit,
   linkTaskPullRequest,
   projectMembersApi,
+  unlinkTaskCommit,
   unlinkTaskPullRequest
 } from '../api/api.js';
 import { Card } from '../components/Card.jsx';
@@ -53,13 +57,23 @@ function formatPullRequestLabel(pullRequest) {
   return `#${pullRequest.number} — ${pullRequest.title}`;
 }
 
+function formatCommitLabel(commit) {
+  const shortHash = commit.shortHash || commit.hash?.slice(0, 7) || `#${commit.id}`;
+
+  return `${shortHash} — ${commit.message || 'Sem mensagem'}`;
+}
+
 export function TasksPage() {
   const { projectId } = useParams();
   const [project, setProject] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [metrics, setMetrics] = useState(null);
   const [pullRequests, setPullRequests] = useState([]);
+  const [pullRequestOptions, setPullRequestOptions] = useState([]);
+  const [commitResults, setCommitResults] = useState([]);
+  const [commitOptions, setCommitOptions] = useState([]);
   const [pullRequestCoverage, setPullRequestCoverage] = useState(null);
+  const [commitCoverage, setCommitCoverage] = useState(null);
   const [projectMembers, setProjectMembers] = useState([]);
   const [formData, setFormData] = useState(emptyTaskForm);
   const [editingTaskId, setEditingTaskId] = useState(null);
@@ -79,6 +93,7 @@ export function TasksPage() {
         tasksResponse,
         metricsResponse,
         pullRequestsResponse,
+        commitCoverageResponse,
         coverageResponse,
         membersResponse
       ] = await Promise.all([
@@ -86,6 +101,7 @@ export function TasksPage() {
         api.get(`/projects/${projectId}/tasks`),
         api.get(`/projects/${projectId}/tasks/metrics`),
         getProjectPullRequests(projectId),
+        getProjectCommitCoverage(projectId),
         getProjectPullRequestCoverage(projectId),
         projectMembersApi.listProjectMembers(projectId).catch((requestError) => {
           setError(
@@ -102,6 +118,8 @@ export function TasksPage() {
       setTasks(tasksResponse.data.tasks);
       setMetrics(metricsResponse.data);
       setPullRequests(pullRequestsResponse.pullRequests || []);
+      setPullRequestOptions(pullRequestsResponse.pullRequests || []);
+      setCommitCoverage(commitCoverageResponse);
       setPullRequestCoverage(coverageResponse);
       setProjectMembers(membersResponse.data.members || []);
     } catch (requestError) {
@@ -117,8 +135,102 @@ export function TasksPage() {
     loadTaskData();
   }, [loadTaskData]);
 
+  const searchPullRequests = useCallback(
+    async (search) => {
+      try {
+        const response = await getProjectPullRequests(projectId, { search });
+        setPullRequests(response.pullRequests || []);
+        setPullRequestOptions((current) => {
+          const nextOptions = [...current];
+
+          for (const pullRequest of response.pullRequests || []) {
+            if (!nextOptions.some((item) => String(item.id) === String(pullRequest.id))) {
+              nextOptions.push(pullRequest);
+            }
+          }
+
+          return nextOptions;
+        });
+      } catch (requestError) {
+        setError(
+          getErrorMessage(requestError, 'Não foi possível carregar os pull requests do projeto.')
+        );
+      }
+    },
+    [projectId]
+  );
+
+  const searchCommits = useCallback(
+    async (search) => {
+      try {
+        const response = await getProjectCommits(projectId, { search });
+        setCommitResults(response.commits || []);
+        setCommitOptions((current) => {
+          const nextOptions = [...current];
+
+          for (const commit of response.commits || []) {
+            if (!nextOptions.some((item) => String(item.id) === String(commit.id))) {
+              nextOptions.push(commit);
+            }
+          }
+
+          return nextOptions;
+        });
+      } catch (requestError) {
+        setError(getErrorMessage(requestError, 'Não foi possível carregar os commits do projeto.'));
+      }
+    },
+    [projectId]
+  );
+
   function handleFormChange(name, value) {
     setFormData((current) => ({ ...current, [name]: value }));
+  }
+
+  function addPullRequestOption(pullRequest) {
+    setPullRequestOptions((current) =>
+      current.some((item) => String(item.id) === String(pullRequest.id))
+        ? current
+        : [pullRequest, ...current]
+    );
+  }
+
+  function handleSelectPullRequest(pullRequest) {
+    addPullRequestOption(pullRequest);
+    handleFormChange('pullRequestId', String(pullRequest.id));
+  }
+
+  function handleClearPullRequest() {
+    handleFormChange('pullRequestId', '');
+  }
+
+  function handleSelectCommit(commit) {
+    setCommitOptions((current) =>
+      current.some((item) => String(item.id) === String(commit.id))
+        ? current
+        : [commit, ...current]
+    );
+    setFormData((current) => {
+      const commitIds = current.commitIds || [];
+
+      if (commitIds.some((commitId) => String(commitId) === String(commit.id))) {
+        return current;
+      }
+
+      return {
+        ...current,
+        commitIds: [...commitIds, String(commit.id)]
+      };
+    });
+  }
+
+  function handleRemoveCommitFromForm(commitId) {
+    setFormData((current) => ({
+      ...current,
+      commitIds: (current.commitIds || []).filter(
+        (currentCommitId) => String(currentCommitId) !== String(commitId)
+      )
+    }));
   }
 
   function resetForm() {
@@ -136,18 +248,21 @@ export function TasksPage() {
       const selectedPullRequestId = formData.pullRequestId
         ? Number(formData.pullRequestId)
         : null;
+      const selectedCommitIds = (formData.commitIds || []).map(Number);
       const editingTask = editingTaskId
         ? tasks.find((task) => String(task.id) === String(editingTaskId))
         : null;
       const hadPullRequestLinked = Boolean(
         editingTask?.pullRequestId || editingTask?.pullRequest
       );
+      const previousCommitIds = (editingTask?.commits || []).map((commit) => commit.id);
       const payload = taskFormToPayload(formData, Boolean(editingTaskId));
       const response = editingTaskId
         ? await api.put(`/tasks/${editingTaskId}`, payload)
         : await api.post(`/projects/${projectId}/tasks`, payload);
       const savedTask = response.data.task;
       let pullRequestWarning = '';
+      let commitWarning = '';
 
       try {
         if (selectedPullRequestId) {
@@ -162,12 +277,34 @@ export function TasksPage() {
         );
       }
 
+      try {
+        const commitsToLink = selectedCommitIds.filter(
+          (commitId) => !previousCommitIds.includes(commitId)
+        );
+        const commitsToUnlink = previousCommitIds.filter(
+          (commitId) => !selectedCommitIds.includes(commitId)
+        );
+
+        for (const commitId of commitsToLink) {
+          await linkTaskCommit(savedTask.id, commitId);
+        }
+
+        for (const commitId of commitsToUnlink) {
+          await unlinkTaskCommit(savedTask.id, commitId);
+        }
+      } catch (commitError) {
+        commitWarning = getErrorMessage(
+          commitError,
+          'Tarefa salva, mas não foi possível atualizar os vínculos com commits.'
+        );
+      }
+
       setSuccess(response.data.message);
       setPeriod({ startDate: '', endDate: '' });
       resetForm();
       await loadTaskData();
-      if (pullRequestWarning) {
-        setError(pullRequestWarning);
+      if (pullRequestWarning || commitWarning) {
+        setError([pullRequestWarning, commitWarning].filter(Boolean).join(' '));
       }
     } catch (requestError) {
       setError(getErrorMessage(requestError, 'Não foi possível salvar a tarefa.'));
@@ -179,6 +316,22 @@ export function TasksPage() {
   function startEditing(task) {
     setEditingTaskId(task.id);
     setFormData(taskToFormData(task));
+    if (task.pullRequest) {
+      addPullRequestOption(task.pullRequest);
+    }
+    if (task.commits?.length) {
+      setCommitOptions((current) => {
+        const nextCommits = [...current];
+
+        for (const commit of task.commits) {
+          if (!nextCommits.some((item) => String(item.id) === String(commit.id))) {
+            nextCommits.unshift(commit);
+          }
+        }
+
+        return nextCommits;
+      });
+    }
     setError('');
     setSuccess('');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -196,6 +349,19 @@ export function TasksPage() {
       setError(
         getErrorMessage(requestError, 'Não foi possível remover o vínculo com o pull request.')
       );
+    }
+  }
+
+  async function handleUnlinkCommit(taskId, commitId) {
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await unlinkTaskCommit(taskId, commitId);
+      setSuccess(response.message || 'Commit removido da tarefa.');
+      await loadTaskData();
+    } catch (requestError) {
+      setError(getErrorMessage(requestError, 'Não foi possível remover o commit da tarefa.'));
     }
   }
 
@@ -232,6 +398,23 @@ export function TasksPage() {
       setError(getErrorMessage(requestError, 'Não foi possível consultar a métrica.'));
     }
   }
+
+  const editingTask = editingTaskId
+    ? tasks.find((task) => String(task.id) === String(editingTaskId))
+    : null;
+  const selectedPullRequest =
+    pullRequestOptions.find(
+      (pullRequest) => String(pullRequest.id) === String(formData.pullRequestId)
+    ) ||
+    editingTask?.pullRequest ||
+    null;
+  const selectedCommits = (formData.commitIds || [])
+    .map(
+      (commitId) =>
+        commitOptions.find((commit) => String(commit.id) === String(commitId)) ||
+        editingTask?.commits?.find((commit) => String(commit.id) === String(commitId))
+    )
+    .filter(Boolean);
 
   if (loading) {
     return (
@@ -323,6 +506,15 @@ export function TasksPage() {
               : 'Percentual de tarefas vinculadas a pull requests.'}
           </p>
         </Card>
+
+        <Card title="Cobertura com commits">
+          <strong className="metric-value">{commitCoverage?.coveragePercentage ?? 0}%</strong>
+          <p className="metric-description">
+            {commitCoverage
+              ? `${commitCoverage.linkedTasks} de ${commitCoverage.totalTasks} tarefas possuem pelo menos um commit vinculado.`
+              : 'Percentual de tarefas vinculadas a commits.'}
+          </p>
+        </Card>
       </div>
 
       <div className="tasks-layout">
@@ -336,6 +528,15 @@ export function TasksPage() {
             editing={Boolean(editingTaskId)}
             pullRequests={pullRequests}
             projectMembers={projectMembers}
+            selectedPullRequest={selectedPullRequest}
+            selectedCommits={selectedCommits}
+            commitResults={commitResults}
+            onPullRequestSearch={searchPullRequests}
+            onCommitSearch={searchCommits}
+            onSelectPullRequest={handleSelectPullRequest}
+            onClearPullRequest={handleClearPullRequest}
+            onSelectCommit={handleSelectCommit}
+            onRemoveCommit={handleRemoveCommitFromForm}
           />
         </Card>
 
@@ -384,35 +585,70 @@ export function TasksPage() {
                   </dl>
 
                   <div className="task-pr-card">
-                    <span>Pull request vinculado</span>
-                    {task.pullRequest ? (
-                      <>
-                        {task.pullRequest.githubUrl ? (
-                          <a
-                            className="task-pr-link"
-                            href={task.pullRequest.githubUrl}
-                            target="_blank"
-                            rel="noreferrer"
+                    <span>Rastreabilidade</span>
+                    <div className="task-traceability-group">
+                      <strong>Pull request</strong>
+                      {task.pullRequest ? (
+                        <div className="task-traceability-item">
+                          {task.pullRequest.githubUrl ? (
+                            <a
+                              className="task-pr-link"
+                              href={task.pullRequest.githubUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              {formatPullRequestLabel(task.pullRequest)}
+                            </a>
+                          ) : (
+                            <span>{formatPullRequestLabel(task.pullRequest)}</span>
+                          )}
+                          <button
+                            className="traceability-remove-button"
+                            type="button"
+                            onClick={() => handleUnlinkPullRequest(task.id)}
+                            aria-label="Remover pull request vinculado"
                           >
-                            {formatPullRequestLabel(task.pullRequest)}
-                          </a>
-                        ) : (
-                          <strong>{formatPullRequestLabel(task.pullRequest)}</strong>
-                        )}
-                        <p className="task-pr-meta">
-                          Status: {task.pullRequest.state || 'não informado'}
-                        </p>
-                        <button
-                          className="text-button"
-                          type="button"
-                          onClick={() => handleUnlinkPullRequest(task.id)}
-                        >
-                          Remover PR
-                        </button>
-                      </>
-                    ) : (
-                      <p className="task-pr-meta">Sem PR vinculado.</p>
-                    )}
+                            Remover
+                          </button>
+                        </div>
+                      ) : (
+                        <p className="task-pr-meta">Sem PR vinculado.</p>
+                      )}
+                    </div>
+
+                    <div className="task-traceability-group">
+                      <strong>Commits</strong>
+                      {task.commits?.length ? (
+                        <div className="task-traceability-list">
+                          {task.commits.map((commit) => (
+                            <div className="task-traceability-item" key={commit.id}>
+                              {commit.githubUrl ? (
+                                <a
+                                  className="task-pr-link"
+                                  href={commit.githubUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  {formatCommitLabel(commit)}
+                                </a>
+                              ) : (
+                                <span>{formatCommitLabel(commit)}</span>
+                              )}
+                              <button
+                                className="traceability-remove-button"
+                                type="button"
+                                onClick={() => handleUnlinkCommit(task.id, commit.id)}
+                                aria-label="Remover commit vinculado"
+                              >
+                                Remover
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="task-pr-meta">Sem commits vinculados.</p>
+                      )}
+                    </div>
                   </div>
 
                   <div className="task-actions">

@@ -74,9 +74,24 @@ export const pullRequestRepository = {
     return { created, updated };
   },
 
-  async listByProjectId(projectId) {
+  async listByProjectId(projectId, filters = {}) {
+    const pullRequestNumber = Number(String(filters.search || '').replace(/^#/, ''));
+
     return prisma.pullRequest.findMany({
-      where: { projectId },
+      where: {
+        projectId,
+        ...(filters.search
+          ? {
+              OR: [
+                { title: { contains: filters.search } },
+                { authorUsername: { contains: filters.search } },
+                ...(Number.isInteger(pullRequestNumber)
+                  ? [{ number: pullRequestNumber }]
+                  : [])
+              ]
+            }
+          : {})
+      },
       orderBy: [{ updatedAtGithub: 'desc' }, { createdAtGithub: 'desc' }, { createdAt: 'desc' }]
     });
   }

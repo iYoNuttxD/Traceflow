@@ -104,6 +104,49 @@ export const taskController = {
     }
   },
 
+  async listCommits(req, res) {
+    try {
+      const commits = await taskService.listTaskCommits(req.params.id);
+
+      return res.json({
+        total: commits.length,
+        commits
+      });
+    } catch (error) {
+      return sendError(
+        res,
+        error,
+        'Erro interno ao listar commits vinculados à tarefa.'
+      );
+    }
+  },
+
+  async linkCommit(req, res) {
+    try {
+      const commits = await taskService.linkCommit(req.params.id, req.body);
+
+      return res.status(201).json({
+        message: 'Commit vinculado à tarefa com sucesso.',
+        commits
+      });
+    } catch (error) {
+      return sendError(res, error, 'Erro interno ao vincular commit à tarefa.');
+    }
+  },
+
+  async unlinkCommit(req, res) {
+    try {
+      const commits = await taskService.unlinkCommit(req.params.id, req.params.commitId);
+
+      return res.json({
+        message: 'Commit removido da tarefa.',
+        commits
+      });
+    } catch (error) {
+      return sendError(res, error, 'Erro interno ao remover commit da tarefa.');
+    }
+  },
+
   async getKanbanBoard(req, res) {
     try {
       const kanban = await taskService.getKanbanBoard(req.params.projectId);
@@ -172,6 +215,20 @@ export const taskController = {
         res,
         error,
         'Erro interno ao calcular cobertura com pull requests.'
+      );
+    }
+  },
+
+  async getCommitCoverage(req, res) {
+    try {
+      const coverage = await taskService.getCommitCoverage(req.params.projectId);
+
+      return res.json(coverage);
+    } catch (error) {
+      return sendError(
+        res,
+        error,
+        'Erro interno ao calcular cobertura com commits.'
       );
     }
   }

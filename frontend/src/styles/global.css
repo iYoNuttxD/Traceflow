@@ -166,6 +166,110 @@ a {
   resize: vertical;
 }
 
+.form-section-title {
+  display: block;
+  color: #172033;
+  font-size: 0.95rem;
+  font-weight: 900;
+}
+
+.task-traceability-form {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid #dce2ec;
+  border-radius: 12px;
+  background: #fbfcfe;
+}
+
+.traceability-picker {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.traceability-picker > span {
+  color: #344054;
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.traceability-picker input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #cfd6e4;
+  border-radius: 9px;
+  padding: 0.75rem 0.85rem;
+  color: #172033;
+  background: #fff;
+  font: inherit;
+}
+
+.traceability-results,
+.traceability-selected-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.traceability-results {
+  max-height: 220px;
+  overflow: auto;
+}
+
+.traceability-results button,
+.traceability-selected-item {
+  width: 100%;
+  min-width: 0;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #e2e7f0;
+  border-radius: 9px;
+  background: #fff;
+  color: #172033;
+  text-align: left;
+}
+
+.traceability-results button {
+  cursor: pointer;
+  font: inherit;
+}
+
+.traceability-results button:hover {
+  border-color: #9db4ff;
+  background: #f4f7ff;
+}
+
+.traceability-results p {
+  margin: 0;
+  color: #667085;
+}
+
+.traceability-selected-item {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.traceability-selected-item strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.traceability-remove-button {
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  color: #b42318;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.traceability-remove-button:hover {
+  text-decoration: underline;
+}
+
 .field input:focus,
 .field textarea:focus,
 .field select:focus {
@@ -786,6 +890,31 @@ a {
   font-size: 0.9rem;
 }
 
+.task-traceability-group,
+.task-traceability-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.task-traceability-group > strong {
+  color: #344054;
+  font-size: 0.82rem;
+}
+
+.task-traceability-item {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.task-traceability-item span,
+.task-traceability-item a {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .text-button {
   width: fit-content;
   padding: 0;
@@ -1148,6 +1277,37 @@ a {
 .task-detail-traceability a {
   color: #315bce;
   font-weight: 800;
+}
+
+.task-detail-traceability-section,
+.task-detail-commit-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.task-detail-traceability-section {
+  margin-top: 0.5rem;
+}
+
+.task-detail-traceability-item {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 0.75rem;
+  border: 1px solid #e2e7f0;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.task-detail-traceability-item > div {
+  display: grid;
+  min-width: 0;
+  gap: 0.2rem;
+}
+
+.task-detail-traceability-item strong {
+  overflow-wrap: anywhere;
 }
 
 .movement-list {

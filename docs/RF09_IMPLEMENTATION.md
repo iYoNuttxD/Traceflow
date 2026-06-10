@@ -28,6 +28,8 @@ No MVP, cada tarefa pode ter no máximo um pull request vinculado.
 - O Kanban mostra o pull request vinculado em formato compacto.
 - A tela de tarefas permite remover o vínculo com o pull request.
 - A tela de tarefas exibe a cobertura de rastreabilidade com pull requests.
+- A seleção de pull requests passou a usar busca dinâmica por número ou título.
+- A remoção visual do PR vinculado usa ação discreta, mantendo o vínculo único por tarefa.
 
 ## Métrica
 

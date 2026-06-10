@@ -15,21 +15,33 @@ function parseProjectId(projectId) {
   const parsedProjectId = Number(projectId);
 
   if (!Number.isInteger(parsedProjectId) || parsedProjectId <= 0) {
-    throw new CommitServiceError('ProjectId invalido.', 400);
+    throw new CommitServiceError('ID do projeto inválido.', 400);
   }
 
   return parsedProjectId;
 }
 
+function normalizeSearch(search) {
+  if (search === undefined || search === null) {
+    return undefined;
+  }
+
+  const normalizedSearch = String(search).trim();
+
+  return normalizedSearch || undefined;
+}
+
 export const commitService = {
-  async listProjectCommits(projectId) {
+  async listProjectCommits(projectId, query = {}) {
     const parsedProjectId = parseProjectId(projectId);
     const project = await projectRepository.findById(parsedProjectId);
 
     if (!project) {
-      throw new CommitServiceError('Projeto nao encontrado.', 404);
+      throw new CommitServiceError('Projeto não encontrado.', 404);
     }
 
-    return commitRepository.listByProjectId(parsedProjectId);
+    return commitRepository.listByProjectId(parsedProjectId, {
+      search: normalizeSearch(query.search)
+    });
   }
 };

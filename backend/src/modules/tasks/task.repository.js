@@ -11,9 +11,30 @@ const taskPullRequestSelect = {
   createdAtGithub: true
 };
 
+const taskCommitSelect = {
+  id: true,
+  hash: true,
+  message: true,
+  authorName: true,
+  authorUsername: true,
+  date: true,
+  branch: true,
+  githubUrl: true
+};
+
 const taskInclude = {
   pullRequest: {
     select: taskPullRequestSelect
+  },
+  commitLinks: {
+    select: {
+      commit: {
+        select: taskCommitSelect
+      }
+    },
+    orderBy: {
+      createdAt: 'desc'
+    }
   }
 };
 
@@ -55,6 +76,68 @@ export const taskRepository = {
       select: {
         id: true,
         projectId: true
+      }
+    });
+  },
+
+  async findCommitById(id) {
+    return prisma.commit.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        projectId: true
+      }
+    });
+  },
+
+  async findTaskCommit(taskId, commitId) {
+    return prisma.taskCommit.findUnique({
+      where: {
+        taskId_commitId: {
+          taskId,
+          commitId
+        }
+      }
+    });
+  },
+
+  async findTaskCommits(taskId) {
+    const links = await prisma.taskCommit.findMany({
+      where: { taskId },
+      select: {
+        commit: {
+          select: taskCommitSelect
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    return links.map((link) => link.commit);
+  },
+
+  async createTaskCommit(taskId, commitId) {
+    return prisma.taskCommit.create({
+      data: {
+        taskId,
+        commitId
+      },
+      select: {
+        commit: {
+          select: taskCommitSelect
+        }
+      }
+    });
+  },
+
+  async deleteTaskCommit(taskId, commitId) {
+    return prisma.taskCommit.delete({
+      where: {
+        taskId_commitId: {
+          taskId,
+          commitId
+        }
       }
     });
   },
@@ -162,6 +245,17 @@ export const taskRepository = {
         projectId,
         pullRequestId: {
           not: null
+        }
+      }
+    });
+  },
+
+  async countTasksWithCommitByProject(projectId) {
+    return prisma.task.count({
+      where: {
+        projectId,
+        commitLinks: {
+          some: {}
         }
       }
     });

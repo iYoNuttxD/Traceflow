@@ -53,6 +53,10 @@ function parsePullRequestId(pullRequestId) {
   return parsePositiveInteger(pullRequestId, 'do pull request');
 }
 
+function parseCommitId(commitId) {
+  return parsePositiveInteger(commitId, 'do commit');
+}
+
 function normalizeOptionalText(value) {
   if (value === undefined) {
     return undefined;
@@ -249,6 +253,40 @@ async function ensurePullRequestExists(pullRequestId) {
   return pullRequest;
 }
 
+async function ensureCommitExists(commitId) {
+  const commit = await taskRepository.findCommitById(commitId);
+
+  if (!commit) {
+    throw new TaskServiceError('Commit não encontrado.', 404);
+  }
+
+  return commit;
+}
+
+function formatCommit(commit) {
+  if (!commit) {
+    return null;
+  }
+
+  return {
+    ...commit,
+    shortHash: commit.hash ? commit.hash.slice(0, 7) : null
+  };
+}
+
+function formatTask(task) {
+  if (!task) {
+    return task;
+  }
+
+  const { commitLinks = [], ...taskData } = task;
+
+  return {
+    ...taskData,
+    commits: commitLinks.map((link) => formatCommit(link.commit)).filter(Boolean)
+  };
+}
+
 function parseMetricDate(value) {
   if (value === undefined) {
     return undefined;
@@ -424,19 +462,25 @@ export const taskService = {
     await ensureProjectExists(parsedProjectId);
 
     const taskData = buildTaskData(data, true);
-    return taskRepository.createTask(parsedProjectId, taskData);
+    const task = await taskRepository.createTask(parsedProjectId, taskData);
+
+    return formatTask(task);
   },
 
   async findTasksByProject(projectId) {
     const parsedProjectId = parseProjectId(projectId);
     await ensureProjectExists(parsedProjectId);
 
-    return taskRepository.findTasksByProject(parsedProjectId);
+    const tasks = await taskRepository.findTasksByProject(parsedProjectId);
+
+    return tasks.map(formatTask);
   },
 
   async getTaskById(taskId) {
     const parsedTaskId = parseTaskId(taskId);
-    return ensureTaskExists(parsedTaskId);
+    const task = await ensureTaskExists(parsedTaskId);
+
+    return formatTask(task);
   },
 
   async updateTask(taskId, data) {
@@ -445,10 +489,12 @@ export const taskService = {
     const taskData = buildTaskData(data);
 
     if (Object.keys(taskData).length === 0) {
-      return currentTask;
+      return formatTask(currentTask);
     }
 
-    return taskRepository.updateTask(parsedTaskId, taskData);
+    const task = await taskRepository.updateTask(parsedTaskId, taskData);
+
+    return formatTask(task);
   },
 
   async updateTaskStatus(taskId, status) {
@@ -456,7 +502,9 @@ export const taskService = {
     await ensureTaskExists(parsedTaskId);
     validateStatus(status);
 
-    return taskRepository.updateTaskStatus(parsedTaskId, status);
+    const task = await taskRepository.updateTaskStatus(parsedTaskId, status);
+
+    return formatTask(task);
   },
 
   async linkPullRequest(taskId, data) {
@@ -465,7 +513,9 @@ export const taskService = {
     const payload = data && typeof data === 'object' ? data : {};
 
     if (payload.pullRequestId === null || payload.pullRequestId === '') {
-      return taskRepository.updateTaskPullRequest(parsedTaskId, null);
+      const updatedTask = await taskRepository.updateTaskPullRequest(parsedTaskId, null);
+
+      return formatTask(updatedTask);
     }
 
     const parsedPullRequestId = parsePullRequestId(payload.pullRequestId);
@@ -478,14 +528,71 @@ export const taskService = {
       );
     }
 
-    return taskRepository.updateTaskPullRequest(parsedTaskId, parsedPullRequestId);
+    const updatedTask = await taskRepository.updateTaskPullRequest(
+      parsedTaskId,
+      parsedPullRequestId
+    );
+
+    return formatTask(updatedTask);
   },
 
   async unlinkPullRequest(taskId) {
     const parsedTaskId = parseTaskId(taskId);
     await ensureTaskExists(parsedTaskId);
 
-    return taskRepository.updateTaskPullRequest(parsedTaskId, null);
+    const task = await taskRepository.updateTaskPullRequest(parsedTaskId, null);
+
+    return formatTask(task);
+  },
+
+  async listTaskCommits(taskId) {
+    const parsedTaskId = parseTaskId(taskId);
+    await ensureTaskExists(parsedTaskId);
+    const commits = await taskRepository.findTaskCommits(parsedTaskId);
+
+    return commits.map(formatCommit);
+  },
+
+  async linkCommit(taskId, data) {
+    const parsedTaskId = parseTaskId(taskId);
+    const task = await ensureTaskExists(parsedTaskId);
+    const payload = data && typeof data === 'object' ? data : {};
+    const parsedCommitId = parseCommitId(payload.commitId);
+    const commit = await ensureCommitExists(parsedCommitId);
+
+    if (commit.projectId !== task.projectId) {
+      throw new TaskServiceError(
+        'O commit informado não pertence ao mesmo projeto da tarefa.',
+        400
+      );
+    }
+
+    const existingLink = await taskRepository.findTaskCommit(parsedTaskId, parsedCommitId);
+
+    if (existingLink) {
+      throw new TaskServiceError('Este commit já está vinculado à tarefa.', 409);
+    }
+
+    await taskRepository.createTaskCommit(parsedTaskId, parsedCommitId);
+    const commits = await taskRepository.findTaskCommits(parsedTaskId);
+
+    return commits.map(formatCommit);
+  },
+
+  async unlinkCommit(taskId, commitId) {
+    const parsedTaskId = parseTaskId(taskId);
+    const parsedCommitId = parseCommitId(commitId);
+    await ensureTaskExists(parsedTaskId);
+    const existingLink = await taskRepository.findTaskCommit(parsedTaskId, parsedCommitId);
+
+    if (!existingLink) {
+      throw new TaskServiceError('Vínculo entre tarefa e commit não encontrado.', 404);
+    }
+
+    await taskRepository.deleteTaskCommit(parsedTaskId, parsedCommitId);
+    const commits = await taskRepository.findTaskCommits(parsedTaskId);
+
+    return commits.map(formatCommit);
   },
 
   async getKanbanBoard(projectId) {
@@ -493,8 +600,9 @@ export const taskService = {
     await ensureProjectExists(parsedProjectId);
 
     const tasks = await taskRepository.findTasksByProject(parsedProjectId);
+    const formattedTasks = tasks.map(formatTask);
     const columns = kanbanStatuses.reduce((groupedColumns, status) => {
-      groupedColumns[status] = tasks.filter((task) => task.status === status);
+      groupedColumns[status] = formattedTasks.filter((task) => task.status === status);
       return groupedColumns;
     }, {});
 
@@ -505,7 +613,7 @@ export const taskService = {
         A_FAZER: columns.A_FAZER.length,
         EM_ANDAMENTO: columns.EM_ANDAMENTO.length,
         CONCLUIDO: columns.CONCLUIDO.length,
-        total: tasks.length
+        total: formattedTasks.length
       }
     };
   },
@@ -523,10 +631,15 @@ export const taskService = {
       throw new TaskServiceError('A tarefa já está nesta coluna.', 400);
     }
 
-    return taskRepository.moveTask(task, {
+    const result = await taskRepository.moveTask(task, {
       toStatus: payload.toStatus,
       ...movementResponsible
     });
+
+    return {
+      ...result,
+      task: formatTask(result.task)
+    };
   },
 
   async listMovements(projectId, query = {}) {
@@ -590,6 +703,25 @@ export const taskService = {
     const [totalTasks, linkedTasks] = await Promise.all([
       taskRepository.countTasksByProject(parsedProjectId),
       taskRepository.countTasksWithPullRequestByProject(parsedProjectId)
+    ]);
+    const coveragePercentage =
+      totalTasks === 0 ? 0 : Number(((linkedTasks / totalTasks) * 100).toFixed(2));
+
+    return {
+      projectId: parsedProjectId,
+      totalTasks,
+      linkedTasks,
+      coveragePercentage
+    };
+  },
+
+  async getCommitCoverage(projectId) {
+    const parsedProjectId = parseProjectId(projectId);
+    await ensureProjectExists(parsedProjectId);
+
+    const [totalTasks, linkedTasks] = await Promise.all([
+      taskRepository.countTasksByProject(parsedProjectId),
+      taskRepository.countTasksWithCommitByProject(parsedProjectId)
     ]);
     const coveragePercentage =
       totalTasks === 0 ? 0 : Number(((linkedTasks / totalTasks) * 100).toFixed(2));
