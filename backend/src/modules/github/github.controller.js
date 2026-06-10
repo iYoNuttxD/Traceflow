@@ -86,7 +86,7 @@ export const githubController = {
 
   async listProjectIssues(req, res) {
     try {
-      const issues = await issueService.listProjectIssues(req.params.projectId);
+      const issues = await issueService.listProjectIssues(req.params.projectId, req.query);
 
       return res.json({ issues });
     } catch (error) {

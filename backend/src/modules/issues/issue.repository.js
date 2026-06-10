@@ -1,5 +1,4 @@
 // Repository de Issues importadas do GitHub.
-// TODO: Expandir consultas quando issues forem vinculadas a tarefas e requisitos.
 import { prisma } from '../../database/prismaClient.js';
 
 function buildIssueUpdate(data) {
@@ -63,9 +62,26 @@ export const issueRepository = {
     return { created, updated };
   },
 
-  async listByProjectId(projectId) {
+  async listByProjectId(projectId, filters = {}) {
+    const search = typeof filters.search === 'string' ? filters.search.trim() : '';
+    const numericSearch = search.replace(/\D/g, '');
+    const issueNumber = numericSearch ? Number(numericSearch) : null;
+
     return prisma.issue.findMany({
-      where: { projectId },
+      where: {
+        projectId,
+        ...(search
+          ? {
+              OR: [
+                { title: { contains: search } },
+                { authorUsername: { contains: search } },
+                ...(Number.isInteger(issueNumber) && issueNumber > 0
+                  ? [{ number: issueNumber }]
+                  : [])
+              ]
+            }
+          : {})
+      },
       orderBy: [{ updatedAtGithub: 'desc' }, { createdAtGithub: 'desc' }, { createdAt: 'desc' }]
     });
   }

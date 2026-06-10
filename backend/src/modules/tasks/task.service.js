@@ -57,6 +57,10 @@ function parseCommitId(commitId) {
   return parsePositiveInteger(commitId, 'do commit');
 }
 
+function parseIssueId(issueId) {
+  return parsePositiveInteger(issueId, 'da issue');
+}
+
 function normalizeOptionalText(value) {
   if (value === undefined) {
     return undefined;
@@ -263,6 +267,16 @@ async function ensureCommitExists(commitId) {
   return commit;
 }
 
+async function ensureIssueExists(issueId) {
+  const issue = await taskRepository.findIssueById(issueId);
+
+  if (!issue) {
+    throw new TaskServiceError('Issue não encontrada.', 404);
+  }
+
+  return issue;
+}
+
 function formatCommit(commit) {
   if (!commit) {
     return null;
@@ -274,16 +288,25 @@ function formatCommit(commit) {
   };
 }
 
+function formatIssue(issue) {
+  if (!issue) {
+    return null;
+  }
+
+  return issue;
+}
+
 function formatTask(task) {
   if (!task) {
     return task;
   }
 
-  const { commitLinks = [], ...taskData } = task;
+  const { commitLinks = [], issueLinks = [], ...taskData } = task;
 
   return {
     ...taskData,
-    commits: commitLinks.map((link) => formatCommit(link.commit)).filter(Boolean)
+    commits: commitLinks.map((link) => formatCommit(link.commit)).filter(Boolean),
+    issues: issueLinks.map((link) => formatIssue(link.issue)).filter(Boolean)
   };
 }
 
@@ -595,6 +618,56 @@ export const taskService = {
     return commits.map(formatCommit);
   },
 
+  async listTaskIssues(taskId) {
+    const parsedTaskId = parseTaskId(taskId);
+    await ensureTaskExists(parsedTaskId);
+    const issues = await taskRepository.findTaskIssues(parsedTaskId);
+
+    return issues.map(formatIssue);
+  },
+
+  async linkIssue(taskId, data) {
+    const parsedTaskId = parseTaskId(taskId);
+    const task = await ensureTaskExists(parsedTaskId);
+    const payload = data && typeof data === 'object' ? data : {};
+    const parsedIssueId = parseIssueId(payload.issueId);
+    const issue = await ensureIssueExists(parsedIssueId);
+
+    if (issue.projectId !== task.projectId) {
+      throw new TaskServiceError(
+        'A issue informada não pertence ao mesmo projeto da tarefa.',
+        400
+      );
+    }
+
+    const existingLink = await taskRepository.findTaskIssue(parsedTaskId, parsedIssueId);
+
+    if (existingLink) {
+      throw new TaskServiceError('Esta issue já está vinculada à tarefa.', 409);
+    }
+
+    await taskRepository.createTaskIssue(parsedTaskId, parsedIssueId);
+    const issues = await taskRepository.findTaskIssues(parsedTaskId);
+
+    return issues.map(formatIssue);
+  },
+
+  async unlinkIssue(taskId, issueId) {
+    const parsedTaskId = parseTaskId(taskId);
+    const parsedIssueId = parseIssueId(issueId);
+    await ensureTaskExists(parsedTaskId);
+    const existingLink = await taskRepository.findTaskIssue(parsedTaskId, parsedIssueId);
+
+    if (!existingLink) {
+      throw new TaskServiceError('Vínculo entre tarefa e issue não encontrado.', 404);
+    }
+
+    await taskRepository.deleteTaskIssue(parsedTaskId, parsedIssueId);
+    const issues = await taskRepository.findTaskIssues(parsedTaskId);
+
+    return issues.map(formatIssue);
+  },
+
   async getKanbanBoard(projectId) {
     const parsedProjectId = parseProjectId(projectId);
     await ensureProjectExists(parsedProjectId);
@@ -722,6 +795,25 @@ export const taskService = {
     const [totalTasks, linkedTasks] = await Promise.all([
       taskRepository.countTasksByProject(parsedProjectId),
       taskRepository.countTasksWithCommitByProject(parsedProjectId)
+    ]);
+    const coveragePercentage =
+      totalTasks === 0 ? 0 : Number(((linkedTasks / totalTasks) * 100).toFixed(2));
+
+    return {
+      projectId: parsedProjectId,
+      totalTasks,
+      linkedTasks,
+      coveragePercentage
+    };
+  },
+
+  async getIssueCoverage(projectId) {
+    const parsedProjectId = parseProjectId(projectId);
+    await ensureProjectExists(parsedProjectId);
+
+    const [totalTasks, linkedTasks] = await Promise.all([
+      taskRepository.countTasksByProject(parsedProjectId),
+      taskRepository.countTasksWithIssueByProject(parsedProjectId)
     ]);
     const coveragePercentage =
       totalTasks === 0 ? 0 : Number(((linkedTasks / totalTasks) * 100).toFixed(2));

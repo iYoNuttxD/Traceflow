@@ -15,6 +15,10 @@ router.get(
   '/projects/:projectId/traceability/commit-coverage',
   taskController.getCommitCoverage
 );
+router.get(
+  '/projects/:projectId/traceability/issue-coverage',
+  taskController.getIssueCoverage
+);
 router.get('/projects/:projectId/kanban', taskController.getKanbanBoard);
 router.get('/projects/:projectId/kanban/movements', taskController.listMovements);
 router.get('/projects/:projectId/kanban/metrics', taskController.getKanbanMetrics);
@@ -26,6 +30,9 @@ router.delete('/tasks/:id/pull-request', taskController.unlinkPullRequest);
 router.get('/tasks/:id/commits', taskController.listCommits);
 router.post('/tasks/:id/commits', taskController.linkCommit);
 router.delete('/tasks/:id/commits/:commitId', taskController.unlinkCommit);
+router.get('/tasks/:id/issues', taskController.listIssues);
+router.post('/tasks/:id/issues', taskController.linkIssue);
+router.delete('/tasks/:id/issues/:issueId', taskController.unlinkIssue);
 router.patch('/tasks/:id/move', taskController.moveTask);
 
 export default router;

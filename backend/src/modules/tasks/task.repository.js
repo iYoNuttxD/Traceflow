@@ -22,6 +22,18 @@ const taskCommitSelect = {
   githubUrl: true
 };
 
+const taskIssueSelect = {
+  id: true,
+  number: true,
+  title: true,
+  state: true,
+  authorUsername: true,
+  labels: true,
+  githubUrl: true,
+  createdAtGithub: true,
+  closedAtGithub: true
+};
+
 const taskInclude = {
   pullRequest: {
     select: taskPullRequestSelect
@@ -30,6 +42,16 @@ const taskInclude = {
     select: {
       commit: {
         select: taskCommitSelect
+      }
+    },
+    orderBy: {
+      createdAt: 'desc'
+    }
+  },
+  issueLinks: {
+    select: {
+      issue: {
+        select: taskIssueSelect
       }
     },
     orderBy: {
@@ -90,6 +112,16 @@ export const taskRepository = {
     });
   },
 
+  async findIssueById(id) {
+    return prisma.issue.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        projectId: true
+      }
+    });
+  },
+
   async findTaskCommit(taskId, commitId) {
     return prisma.taskCommit.findUnique({
       where: {
@@ -117,6 +149,33 @@ export const taskRepository = {
     return links.map((link) => link.commit);
   },
 
+  async findTaskIssue(taskId, issueId) {
+    return prisma.taskIssue.findUnique({
+      where: {
+        taskId_issueId: {
+          taskId,
+          issueId
+        }
+      }
+    });
+  },
+
+  async findTaskIssues(taskId) {
+    const links = await prisma.taskIssue.findMany({
+      where: { taskId },
+      select: {
+        issue: {
+          select: taskIssueSelect
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    return links.map((link) => link.issue);
+  },
+
   async createTaskCommit(taskId, commitId) {
     return prisma.taskCommit.create({
       data: {
@@ -131,12 +190,37 @@ export const taskRepository = {
     });
   },
 
+  async createTaskIssue(taskId, issueId) {
+    return prisma.taskIssue.create({
+      data: {
+        taskId,
+        issueId
+      },
+      select: {
+        issue: {
+          select: taskIssueSelect
+        }
+      }
+    });
+  },
+
   async deleteTaskCommit(taskId, commitId) {
     return prisma.taskCommit.delete({
       where: {
         taskId_commitId: {
           taskId,
           commitId
+        }
+      }
+    });
+  },
+
+  async deleteTaskIssue(taskId, issueId) {
+    return prisma.taskIssue.delete({
+      where: {
+        taskId_issueId: {
+          taskId,
+          issueId
         }
       }
     });
@@ -255,6 +339,17 @@ export const taskRepository = {
       where: {
         projectId,
         commitLinks: {
+          some: {}
+        }
+      }
+    });
+  },
+
+  async countTasksWithIssueByProject(projectId) {
+    return prisma.task.count({
+      where: {
+        projectId,
+        issueLinks: {
           some: {}
         }
       }
