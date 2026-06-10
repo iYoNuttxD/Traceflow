@@ -67,7 +67,6 @@ export function TasksPage() {
   const { projectId } = useParams();
   const [project, setProject] = useState(null);
   const [tasks, setTasks] = useState([]);
-  const [metrics, setMetrics] = useState(null);
   const [pullRequests, setPullRequests] = useState([]);
   const [pullRequestOptions, setPullRequestOptions] = useState([]);
   const [commitResults, setCommitResults] = useState([]);
@@ -77,7 +76,6 @@ export function TasksPage() {
   const [projectMembers, setProjectMembers] = useState([]);
   const [formData, setFormData] = useState(emptyTaskForm);
   const [editingTaskId, setEditingTaskId] = useState(null);
-  const [period, setPeriod] = useState({ startDate: '', endDate: '' });
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -91,7 +89,6 @@ export function TasksPage() {
       const [
         projectResponse,
         tasksResponse,
-        metricsResponse,
         pullRequestsResponse,
         commitCoverageResponse,
         coverageResponse,
@@ -99,7 +96,6 @@ export function TasksPage() {
       ] = await Promise.all([
         api.get(`/projects/${projectId}`),
         api.get(`/projects/${projectId}/tasks`),
-        api.get(`/projects/${projectId}/tasks/metrics`),
         getProjectPullRequests(projectId),
         getProjectCommitCoverage(projectId),
         getProjectPullRequestCoverage(projectId),
@@ -116,7 +112,6 @@ export function TasksPage() {
 
       setProject(projectResponse.data.project);
       setTasks(tasksResponse.data.tasks);
-      setMetrics(metricsResponse.data);
       setPullRequests(pullRequestsResponse.pullRequests || []);
       setPullRequestOptions(pullRequestsResponse.pullRequests || []);
       setCommitCoverage(commitCoverageResponse);
@@ -300,7 +295,6 @@ export function TasksPage() {
       }
 
       setSuccess(response.data.message);
-      setPeriod({ startDate: '', endDate: '' });
       resetForm();
       await loadTaskData();
       if (pullRequestWarning || commitWarning) {
@@ -365,40 +359,6 @@ export function TasksPage() {
     }
   }
 
-  async function handleMetricsSubmit(event) {
-    event.preventDefault();
-    setError('');
-
-    try {
-      const params = {};
-
-      if (period.startDate) {
-        params.startDate = period.startDate;
-      }
-
-      if (period.endDate) {
-        params.endDate = period.endDate;
-      }
-
-      const response = await api.get(`/projects/${projectId}/tasks/metrics`, { params });
-      setMetrics(response.data);
-    } catch (requestError) {
-      setError(getErrorMessage(requestError, 'Não foi possível consultar a métrica.'));
-    }
-  }
-
-  async function clearMetricsPeriod() {
-    setPeriod({ startDate: '', endDate: '' });
-    setError('');
-
-    try {
-      const response = await api.get(`/projects/${projectId}/tasks/metrics`);
-      setMetrics(response.data);
-    } catch (requestError) {
-      setError(getErrorMessage(requestError, 'Não foi possível consultar a métrica.'));
-    }
-  }
-
   const editingTask = editingTaskId
     ? tasks.find((task) => String(task.id) === String(editingTaskId))
     : null;
@@ -451,53 +411,6 @@ export function TasksPage() {
       <div className="task-summary">
         <Card title="Total de tarefas cadastradas">
           <strong className="metric-value">{tasks.length}</strong>
-        </Card>
-
-        <Card title="Volume de planejamento">
-          <strong className="metric-value">{metrics?.totalTasksCreated ?? 0}</strong>
-          <p className="metric-description">
-            {metrics?.startDate || metrics?.endDate
-              ? `Tarefas criadas entre ${metrics.startDate || 'o início'} e ${metrics.endDate || 'hoje'}.`
-              : 'Quantidade total de tarefas cadastradas no projeto.'}
-          </p>
-          <form className="metrics-form task-period-filter" onSubmit={handleMetricsSubmit}>
-            <label className="field">
-              <span>Data inicial</span>
-              <input
-                type="date"
-                value={period.startDate}
-                onChange={(event) =>
-                  setPeriod((current) => ({ ...current, startDate: event.target.value }))
-                }
-              />
-            </label>
-            <label className="field">
-              <span>Data final</span>
-              <input
-                type="date"
-                value={period.endDate}
-                onChange={(event) =>
-                  setPeriod((current) => ({ ...current, endDate: event.target.value }))
-                }
-              />
-            </label>
-            <button
-              className="button button-secondary"
-              type="submit"
-              aria-label="Consultar período"
-            >
-              Consultar
-            </button>
-            {(metrics?.startDate || metrics?.endDate) && (
-              <button
-                className="button button-secondary metrics-clear"
-                type="button"
-                onClick={clearMetricsPeriod}
-              >
-                Limpar período
-              </button>
-            )}
-          </form>
         </Card>
 
         <Card title="Cobertura com Pull Requests">
