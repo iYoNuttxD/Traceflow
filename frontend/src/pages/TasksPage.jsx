@@ -481,8 +481,12 @@ export function TasksPage() {
                 }
               />
             </label>
-            <button className="button button-secondary" type="submit">
-              Consultar período
+            <button
+              className="button button-secondary"
+              type="submit"
+              aria-label="Consultar período"
+            >
+              Consultar
             </button>
             {(metrics?.startDate || metrics?.endDate) && (
               <button
@@ -539,12 +543,14 @@ export function TasksPage() {
             onRemoveCommit={handleRemoveCommitFromForm}
           />
         </Card>
+      </div>
 
+      <section className="tasks-list-section">
         <Card title="Tarefas cadastradas">
           {tasks.length === 0 ? (
             <p className="empty-state">Nenhuma tarefa cadastrada ainda.</p>
           ) : (
-            <div className="task-list">
+            <div className="task-list tasks-list-grid">
               {tasks.map((task) => (
                 <article className="task-item" key={task.id}>
                   <div className="task-item-header">
@@ -607,8 +613,9 @@ export function TasksPage() {
                             type="button"
                             onClick={() => handleUnlinkPullRequest(task.id)}
                             aria-label="Remover pull request vinculado"
+                            title="Remover pull request"
                           >
-                            Remover
+                            ×
                           </button>
                         </div>
                       ) : (
@@ -639,8 +646,9 @@ export function TasksPage() {
                                 type="button"
                                 onClick={() => handleUnlinkCommit(task.id, commit.id)}
                                 aria-label="Remover commit vinculado"
+                                title="Remover commit"
                               >
-                                Remover
+                                ×
                               </button>
                             </div>
                           ))}
@@ -665,7 +673,7 @@ export function TasksPage() {
             </div>
           )}
         </Card>
-      </div>
+      </section>
     </main>
   );
 }

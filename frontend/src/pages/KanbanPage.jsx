@@ -811,8 +811,9 @@ export function KanbanPage() {
                           type="button"
                           onClick={() => handleUnlinkSelectedTaskPullRequest(selectedTask.id)}
                           aria-label="Remover pull request vinculado"
+                          title="Remover pull request"
                         >
-                          Remover
+                          ×
                         </button>
                       </div>
                     ) : (
@@ -844,8 +845,9 @@ export function KanbanPage() {
                                 handleUnlinkSelectedTaskCommit(selectedTask.id, commit.id)
                               }
                               aria-label="Remover commit vinculado"
+                              title="Remover commit"
                             >
-                              Remover
+                              ×
                             </button>
                           </div>
                         ))}

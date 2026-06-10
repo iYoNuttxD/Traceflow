@@ -75,7 +75,8 @@ export const pullRequestRepository = {
   },
 
   async listByProjectId(projectId, filters = {}) {
-    const pullRequestNumber = Number(String(filters.search || '').replace(/^#/, ''));
+    const numericSearch = String(filters.search || '').replace(/\D/g, '');
+    const pullRequestNumber = Number(numericSearch);
 
     return prisma.pullRequest.findMany({
       where: {
@@ -85,7 +86,7 @@ export const pullRequestRepository = {
               OR: [
                 { title: { contains: filters.search } },
                 { authorUsername: { contains: filters.search } },
-                ...(Number.isInteger(pullRequestNumber)
+                ...(numericSearch && Number.isInteger(pullRequestNumber)
                   ? [{ number: pullRequestNumber }]
                   : [])
               ]

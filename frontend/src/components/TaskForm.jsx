@@ -117,6 +117,7 @@ export function TaskForm({
     );
   const linkedCommitIds = new Set((formData.commitIds || []).map(String));
   const normalizedPullRequestSearch = normalizeText(pullRequestSearch).toLowerCase();
+  const pullRequestNumericSearch = normalizedPullRequestSearch.replace(/\D/g, '');
   const normalizedCommitSearch = normalizeText(commitSearch).toLowerCase();
   const availableCommitResults = commitResults.filter(
     (commit) =>
@@ -125,17 +126,26 @@ export function TaskForm({
         commit.shortHash?.toLowerCase().includes(normalizedCommitSearch) ||
         commit.message?.toLowerCase().includes(normalizedCommitSearch))
   );
-  const availablePullRequests = pullRequests.filter(
-    (pullRequest) =>
-      String(pullRequest.id) !== String(formData.pullRequestId) &&
-      (`${pullRequest.number}`.includes(normalizedPullRequestSearch) ||
-        pullRequest.title?.toLowerCase().includes(normalizedPullRequestSearch))
-  );
+  const availablePullRequests = pullRequests.filter((pullRequest) => {
+    if (String(pullRequest.id) === String(formData.pullRequestId)) {
+      return false;
+    }
+
+    const matchesNumber =
+      pullRequestNumericSearch &&
+      Number(pullRequest.number) === Number(pullRequestNumericSearch);
+    const matchesTitle = pullRequest.title
+      ?.toLowerCase()
+      .includes(normalizedPullRequestSearch);
+
+    return Boolean(matchesNumber || matchesTitle);
+  });
 
   useEffect(() => {
     const query = pullRequestSearch.trim();
+    const hasNumericSearch = /\d/.test(query);
 
-    if (query.length < 2 || !onPullRequestSearch) {
+    if ((!hasNumericSearch && query.length < 2) || !onPullRequestSearch) {
       return undefined;
     }
 
@@ -307,8 +317,9 @@ export function TaskForm({
                   setPullRequestSearch('');
                 }}
                 aria-label="Remover pull request vinculado"
+                title="Remover pull request"
               >
-                Remover
+                ×
               </button>
             </div>
           ) : null}
@@ -349,8 +360,9 @@ export function TaskForm({
                     type="button"
                     onClick={() => onRemoveCommit?.(commit.id)}
                     aria-label="Remover commit vinculado"
+                    title="Remover commit"
                   >
-                    Remover
+                    ×
                   </button>
                 </div>
               ))}
