@@ -1140,3 +1140,150 @@ a {
     flex-direction: column;
   }
 }
+
+/* RF16 — Relacionar Requisito a Tarefa */
+
+.linked-tasks-inline {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #eef1f6;
+}
+
+.linked-tasks-inline h4 {
+  margin: 0 0 0.6rem;
+  color: #344054;
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.linked-task-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.6rem 0.85rem;
+  border: 1px solid #e2e7f0;
+  border-radius: 9px;
+  background: #f9fbfe;
+}
+
+.linked-task-info {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.linked-task-info strong {
+  color: #172033;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.task-responsible {
+  color: #667085;
+  font-size: 0.78rem;
+}
+
+.empty-state-small {
+  margin: 0.25rem 0 0;
+  color: #9cabbe;
+  font-size: 0.85rem;
+}
+
+.linked-tasks-inline .linked-task-item span:not(.status-badge) {
+  color: #667085;
+  font-size: 0.78rem;
+  font-weight: 400;
+  text-transform: none;
+}
+
+.button-danger-small {
+  flex: none;
+  border: 1px solid #f3b9b9;
+  border-radius: 7px;
+  padding: 0.35rem 0.65rem;
+  color: #9f2d2d;
+  background: #fff2f2;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.button-danger-small:hover {
+  background: #ffe1e1;
+}
+
+/* Traceability page */
+
+.traceability-list {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.traceability-item {
+  padding: 1rem 1.25rem;
+  border: 1px solid #e2e7f0;
+  border-radius: 12px;
+  background: #fbfcfe;
+}
+
+.traceability-requirement {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.traceability-label {
+  color: #315bce;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  background: #e7edff;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+}
+
+.traceability-requirement strong {
+  color: #101828;
+}
+
+.traceability-tasks {
+  display: grid;
+  gap: 0.5rem;
+  padding-left: 1rem;
+  border-left: 2px solid #dce2ec;
+}
+
+.traceability-task {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.traceability-arrow {
+  color: #315bce;
+  font-weight: 800;
+}
+
+.traceability-task-title {
+  color: #344054;
+  font-size: 0.9rem;
+}
+
+.traceability-empty {
+  margin: 0;
+  padding-left: 1rem;
+  color: #9cabbe;
+  font-size: 0.85rem;
+  font-style: italic;
+}

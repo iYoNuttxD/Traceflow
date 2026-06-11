@@ -89,5 +89,21 @@ export const requirementsApi = {
 
   listTasks(requirementId) {
     return api.get(`/requirements/${requirementId}/tasks`);
+  },
+
+  linkTask(requirementId, taskId) {
+    return api.post(`/requirements/${requirementId}/tasks/${taskId}/link`);
+  },
+
+  unlinkTask(requirementId, taskId) {
+    return api.delete(`/requirements/${requirementId}/tasks/${taskId}/link`);
+  },
+
+  getRequirementByTask(taskId) {
+    return api.get(`/tasks/${taskId}/requirement`);
+  },
+
+  getRequirementsWithTasks(projectId) {
+    return api.get(`/projects/${projectId}/requirements-with-tasks`);
   }
 };

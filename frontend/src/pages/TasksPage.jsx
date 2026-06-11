@@ -43,6 +43,7 @@ export function TasksPage() {
   const [project, setProject] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [metrics, setMetrics] = useState(null);
+  const [requirementsMap, setRequirementsMap] = useState({});
   const [formData, setFormData] = useState(emptyTaskForm);
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [period, setPeriod] = useState({ startDate: '', endDate: '' });
@@ -56,15 +57,23 @@ export function TasksPage() {
     setError('');
 
     try {
-      const [projectResponse, tasksResponse, metricsResponse] = await Promise.all([
-        api.get(`/projects/${projectId}`),
-        api.get(`/projects/${projectId}/tasks`),
-        api.get(`/projects/${projectId}/tasks/metrics`)
-      ]);
+      const [projectResponse, tasksResponse, metricsResponse, requirementsResponse] =
+        await Promise.all([
+          api.get(`/projects/${projectId}`),
+          api.get(`/projects/${projectId}/tasks`),
+          api.get(`/projects/${projectId}/tasks/metrics`),
+          api.get(`/projects/${projectId}/requirements`)
+        ]);
 
       setProject(projectResponse.data.project);
       setTasks(tasksResponse.data.tasks);
       setMetrics(metricsResponse.data);
+
+      const map = {};
+      for (const requirement of requirementsResponse.data.requirements || []) {
+        map[requirement.id] = requirement;
+      }
+      setRequirementsMap(map);
     } catch (requestError) {
       setError(
         getErrorMessage(requestError, 'Não foi possível carregar as tarefas do projeto.')
@@ -282,6 +291,14 @@ export function TasksPage() {
                   <p>{task.description || 'Sem descrição cadastrada.'}</p>
 
                   <dl className="task-details">
+                    <div>
+                      <dt>Requisito vinculado</dt>
+                      <dd>
+                        {task.requirementId && requirementsMap[task.requirementId]
+                          ? requirementsMap[task.requirementId].title
+                          : 'Nenhum requisito vinculado.'}
+                      </dd>
+                    </div>
                     <div>
                       <dt>Responsável</dt>
                       <dd>{task.responsible || 'Não informado'}</dd>

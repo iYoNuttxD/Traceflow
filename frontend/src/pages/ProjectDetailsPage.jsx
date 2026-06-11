@@ -275,6 +275,12 @@ export function ProjectDetailsPage() {
           </Link>
           <Link
             className="button button-secondary link-button"
+            to={`/projects/${project.id}/traceability`}
+          >
+            Ver rastreabilidade
+          </Link>
+          <Link
+            className="button button-secondary link-button"
             to={`/projects/${project.id}/repository`}
           >
             Informações do Repositório

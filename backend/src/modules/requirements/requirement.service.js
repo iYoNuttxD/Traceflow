@@ -35,6 +35,10 @@ function parseRequirementId(requirementId) {
   return parsePositiveInteger(requirementId, 'do requisito');
 }
 
+function parseTaskId(taskId) {
+  return parsePositiveInteger(taskId, 'da tarefa');
+}
+
 function normalizeOptionalText(value) {
   if (value === undefined) {
     return undefined;
@@ -143,6 +147,16 @@ async function ensureRequirementExists(requirementId) {
   return requirement;
 }
 
+async function ensureTaskExists(taskId) {
+  const task = await requirementRepository.findTaskById(taskId);
+
+  if (!task) {
+    throw new RequirementServiceError('Tarefa não encontrada.', 404);
+  }
+
+  return task;
+}
+
 export const requirementService = {
   async createRequirement(projectId, data) {
     const parsedProjectId = parseProjectId(projectId);
@@ -200,5 +214,67 @@ export const requirementService = {
     await ensureRequirementExists(parsedRequirementId);
 
     return requirementRepository.findTasksByRequirement(parsedRequirementId);
+  },
+
+  async linkTaskToRequirement(requirementId, taskId) {
+    const parsedRequirementId = parseRequirementId(requirementId);
+    const parsedTaskId = parseTaskId(taskId);
+
+    const requirement = await ensureRequirementExists(parsedRequirementId);
+    const task = await ensureTaskExists(parsedTaskId);
+
+    if (task.projectId !== requirement.projectId) {
+      throw new RequirementServiceError(
+        'O requisito e a tarefa devem pertencer ao mesmo projeto.',
+        400
+      );
+    }
+
+    if (task.requirementId === parsedRequirementId) {
+      throw new RequirementServiceError('A tarefa já está vinculada a este requisito.', 400);
+    }
+
+    const updatedTask = await requirementRepository.linkTaskToRequirement(
+      parsedTaskId,
+      parsedRequirementId
+    );
+
+    return { requirement, task: updatedTask };
+  },
+
+  async unlinkTaskFromRequirement(requirementId, taskId) {
+    const parsedRequirementId = parseRequirementId(requirementId);
+    const parsedTaskId = parseTaskId(taskId);
+
+    await ensureRequirementExists(parsedRequirementId);
+    const task = await ensureTaskExists(parsedTaskId);
+
+    if (task.requirementId !== parsedRequirementId) {
+      throw new RequirementServiceError('A tarefa não está vinculada a este requisito.', 400);
+    }
+
+    return requirementRepository.unlinkTaskFromRequirement(parsedTaskId);
+  },
+
+  async findRequirementByTask(taskId) {
+    const parsedTaskId = parseTaskId(taskId);
+    const task = await requirementRepository.findTaskWithRequirement(parsedTaskId);
+
+    if (!task) {
+      throw new RequirementServiceError('Tarefa não encontrada.', 404);
+    }
+
+    return { taskId: parsedTaskId, requirement: task.requirement || null };
+  },
+
+  async findRequirementsWithTasksByProject(projectId) {
+    const parsedProjectId = parseProjectId(projectId);
+    await ensureProjectExists(parsedProjectId);
+
+    const requirements = await requirementRepository.findRequirementsWithTasksByProject(
+      parsedProjectId
+    );
+
+    return { projectId: parsedProjectId, requirements };
   }
 };

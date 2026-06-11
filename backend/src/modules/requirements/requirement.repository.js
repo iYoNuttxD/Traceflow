@@ -62,5 +62,59 @@ export const requirementRepository = {
       where: { requirementId },
       orderBy: { createdAt: 'desc' }
     });
+  },
+
+  async findTaskById(id) {
+    return prisma.task.findUnique({ where: { id } });
+  },
+
+  async findTaskWithRequirement(id) {
+    return prisma.task.findUnique({
+      where: { id },
+      include: {
+        requirement: {
+          select: {
+            id: true,
+            projectId: true,
+            title: true,
+            description: true,
+            type: true,
+            status: true
+          }
+        }
+      }
+    });
+  },
+
+  async linkTaskToRequirement(taskId, requirementId) {
+    return prisma.task.update({
+      where: { id: taskId },
+      data: { requirementId }
+    });
+  },
+
+  async unlinkTaskFromRequirement(taskId) {
+    return prisma.task.update({
+      where: { id: taskId },
+      data: { requirementId: null }
+    });
+  },
+
+  async findRequirementsWithTasksByProject(projectId) {
+    return prisma.requirement.findMany({
+      where: { projectId },
+      include: {
+        tasks: {
+          select: {
+            id: true,
+            title: true,
+            status: true,
+            responsible: true
+          },
+          orderBy: { createdAt: 'desc' }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
   }
 };
