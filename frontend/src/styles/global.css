@@ -634,11 +634,25 @@ a {
   font-size: 0.95rem;
 }
 
+.requirements-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.9rem;
+  margin-bottom: 1.5rem;
+}
+
+.requirements-summary .card {
+  padding: 1rem;
+}
+
+.requirements-summary .card h2 {
+  margin-bottom: 0.75rem;
+  font-size: 0.95rem;
+}
+
 .requirements-layout {
   display: grid;
-  grid-template-columns: minmax(320px, 0.8fr) minmax(0, 1.2fr);
   gap: 1.5rem;
-  align-items: start;
 }
 
 .requirements-stack,
@@ -646,6 +660,10 @@ a {
 .linked-task-list {
   display: grid;
   gap: 1rem;
+}
+
+.requirements-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .requirement-form {
@@ -661,6 +679,12 @@ a {
   border-radius: 12px;
   padding: 1rem;
   background: #fbfcfe;
+}
+
+.requirement-item {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
 }
 
 .requirement-item-header {
@@ -683,6 +707,10 @@ a {
   margin: 0.75rem 0;
   color: #667085;
   line-height: 1.5;
+}
+
+.requirement-item p {
+  overflow-wrap: anywhere;
 }
 
 .requirement-details {
@@ -709,11 +737,17 @@ a {
   overflow-wrap: anywhere;
 }
 
+.requirement-detail-grid,
+.linked-task-details {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .requirement-actions {
   display: flex;
   align-items: end;
   gap: 0.75rem;
   flex-wrap: wrap;
+  margin-top: auto;
 }
 
 .linked-tasks-panel {
@@ -952,15 +986,6 @@ a {
   gap: 1rem;
 }
 
-.inline-status {
-  display: grid;
-  gap: 0.3rem;
-  color: #344054;
-  font-size: 0.78rem;
-  font-weight: 700;
-}
-
-.inline-status select,
 .kanban-task select {
   border: 1px solid #cfd6e4;
   border-radius: 8px;
@@ -1479,6 +1504,7 @@ a {
   .details-layout,
   .tasks-layout,
   .requirements-layout,
+  .requirements-summary,
   .task-summary,
   .kanban-toolbar,
   .kanban-section-header,
@@ -1491,6 +1517,10 @@ a {
   }
 
   .tasks-list-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .requirements-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -1524,6 +1554,11 @@ a {
   .task-details,
   .task-detail-grid,
   .requirement-details {
+    grid-template-columns: 1fr;
+  }
+
+  .requirements-grid,
+  .requirements-summary {
     grid-template-columns: 1fr;
   }
 

@@ -23,7 +23,7 @@ export const taskController = {
 
   async findByProject(req, res) {
     try {
-      const tasks = await taskService.findTasksByProject(req.params.projectId);
+      const tasks = await taskService.findTasksByProject(req.params.projectId, req.query);
 
       return res.json({
         total: tasks.length,
@@ -101,6 +101,32 @@ export const taskController = {
         error,
         'Erro interno ao remover pull request da tarefa.'
       );
+    }
+  },
+
+  async linkRequirement(req, res) {
+    try {
+      const task = await taskService.linkRequirement(req.params.id, req.body);
+
+      return res.json({
+        message: 'Requisito vinculado à tarefa.',
+        task
+      });
+    } catch (error) {
+      return sendError(res, error, 'Erro interno ao vincular requisito à tarefa.');
+    }
+  },
+
+  async unlinkRequirement(req, res) {
+    try {
+      const task = await taskService.unlinkRequirement(req.params.id);
+
+      return res.json({
+        message: 'Vínculo com requisito removido.',
+        task
+      });
+    } catch (error) {
+      return sendError(res, error, 'Erro interno ao remover requisito da tarefa.');
     }
   },
 

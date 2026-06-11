@@ -31,7 +31,8 @@ export const requirementController = {
   async findByProject(req, res) {
     try {
       const requirements = await requirementService.findRequirementsByProject(
-        req.params.projectId
+        req.params.projectId,
+        req.query
       );
 
       return res.json({
@@ -93,6 +94,35 @@ export const requirementController = {
       });
     } catch (error) {
       return sendError(res, error);
+    }
+  },
+
+  async confirmCompletion(req, res) {
+    try {
+      const requirement = await requirementService.confirmCompletion(req.params.id);
+
+      return res.json({
+        message: 'Requisito concluído com sucesso.',
+        requirement
+      });
+    } catch (error) {
+      return sendError(res, error);
+    }
+  },
+
+  async getTaskCoverage(req, res) {
+    try {
+      const coverage = await requirementService.getRequirementTaskCoverage(
+        req.params.projectId
+      );
+
+      return res.json(coverage);
+    } catch (error) {
+      return sendError(
+        res,
+        error,
+        'Erro interno ao calcular cobertura de requisitos com tarefas.'
+      );
     }
   }
 };

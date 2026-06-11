@@ -5,10 +5,10 @@ export const emptyTaskForm = {
   description: '',
   priority: 'MEDIA',
   responsible: '',
-  status: 'A_FAZER',
   deadline: '',
   estimatedEffort: '',
   actualEffort: '',
+  requirementId: '',
   pullRequestId: '',
   commitIds: [],
   issueIds: []
@@ -20,10 +20,10 @@ export function taskToFormData(task) {
     description: task.description || '',
     priority: task.priority || 'MEDIA',
     responsible: task.responsible || '',
-    status: task.status || 'A_FAZER',
     deadline: task.deadline ? task.deadline.slice(0, 10) : '',
     estimatedEffort: task.estimatedEffort ?? '',
     actualEffort: task.actualEffort ?? '',
+    requirementId: task.requirementId ? String(task.requirementId) : '',
     pullRequestId: task.pullRequestId ? String(task.pullRequestId) : '',
     commitIds: (task.commits || []).map((commit) => String(commit.id)),
     issueIds: (task.issues || []).map((issue) => String(issue.id))
@@ -54,6 +54,14 @@ function formatPullRequestLabel(pullRequest) {
   }
 
   return `#${pullRequest.number} — ${pullRequest.title}`;
+}
+
+function formatRequirementLabel(requirement) {
+  if (!requirement) {
+    return 'Requisito selecionado';
+  }
+
+  return `${requirement.title}`;
 }
 
 function formatCommitLabel(commit) {
@@ -92,6 +100,8 @@ export function taskFormToPayload(formData, editing = false) {
   }
 
   delete payload.pullRequestId;
+  delete payload.requirementId;
+  delete payload.status;
   delete payload.commitIds;
   delete payload.issueIds;
 
@@ -107,14 +117,19 @@ export function TaskForm({
   editing,
   pullRequests = [],
   projectMembers = [],
+  requirements = [],
+  selectedRequirement = null,
   selectedPullRequest = null,
   selectedCommits = [],
   selectedIssues = [],
   commitResults = [],
   issueResults = [],
+  onRequirementSearch,
   onPullRequestSearch,
   onCommitSearch,
   onIssueSearch,
+  onSelectRequirement,
+  onClearRequirement,
   onSelectPullRequest,
   onClearPullRequest,
   onSelectCommit,
@@ -122,6 +137,7 @@ export function TaskForm({
   onSelectIssue,
   onRemoveIssue
 }) {
+  const [requirementSearch, setRequirementSearch] = useState('');
   const [pullRequestSearch, setPullRequestSearch] = useState('');
   const [commitSearch, setCommitSearch] = useState('');
   const [issueSearch, setIssueSearch] = useState('');
@@ -134,11 +150,27 @@ export function TaskForm({
     );
   const linkedCommitIds = new Set((formData.commitIds || []).map(String));
   const linkedIssueIds = new Set((formData.issueIds || []).map(String));
+  const normalizedRequirementSearch = normalizeText(requirementSearch).toLowerCase();
   const normalizedPullRequestSearch = normalizeText(pullRequestSearch).toLowerCase();
   const pullRequestNumericSearch = normalizedPullRequestSearch.replace(/\D/g, '');
   const normalizedCommitSearch = normalizeText(commitSearch).toLowerCase();
   const normalizedIssueSearch = normalizeText(issueSearch).toLowerCase();
   const issueNumericSearch = normalizedIssueSearch.replace(/\D/g, '');
+  const availableRequirements = requirements.filter((requirement) => {
+    if (String(requirement.id) === String(formData.requirementId)) {
+      return false;
+    }
+
+    const matchesTitle = requirement.title
+      ?.toLowerCase()
+      .includes(normalizedRequirementSearch);
+    const matchesType = requirement.type?.toLowerCase().includes(normalizedRequirementSearch);
+    const matchesStatus = requirement.status
+      ?.toLowerCase()
+      .includes(normalizedRequirementSearch);
+
+    return Boolean(matchesTitle || matchesType || matchesStatus);
+  });
   const availableCommitResults = commitResults.filter(
     (commit) =>
       !linkedCommitIds.has(String(commit.id)) &&
@@ -171,6 +203,20 @@ export function TaskForm({
 
     return Boolean(matchesNumber || matchesTitle);
   });
+
+  useEffect(() => {
+    const query = requirementSearch.trim();
+
+    if (query.length < 2 || !onRequirementSearch) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      onRequirementSearch(query);
+    }, 300);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [onRequirementSearch, requirementSearch]);
 
   useEffect(() => {
     const query = pullRequestSearch.trim();
@@ -223,6 +269,11 @@ export function TaskForm({
   function handleSelectPullRequest(pullRequest) {
     onSelectPullRequest?.(pullRequest);
     setPullRequestSearch('');
+  }
+
+  function handleSelectRequirement(requirement) {
+    onSelectRequirement?.(requirement);
+    setRequirementSearch('');
   }
 
   function handleSelectCommit(commit) {
@@ -301,15 +352,6 @@ export function TaskForm({
       </label>
 
       <label className="field">
-        <span>Status</span>
-        <select name="status" value={formData.status} onChange={handleChange}>
-          <option value="A_FAZER">A Fazer</option>
-          <option value="EM_ANDAMENTO">Em Andamento</option>
-          <option value="CONCLUIDO">Concluído</option>
-        </select>
-      </label>
-
-      <label className="field">
         <span>Prazo</span>
         <input
           type="date"
@@ -353,6 +395,50 @@ export function TaskForm({
           <p className="field-help">
             Vincule a tarefa aos artefatos importados do GitHub.
           </p>
+        </div>
+
+        <div className="traceability-picker">
+          <span>Requisito vinculado</span>
+          {formData.requirementId ? (
+            <div className="traceability-selected-item">
+              <strong>{formatRequirementLabel(selectedRequirement)}</strong>
+              <button
+                className="traceability-remove-button"
+                type="button"
+                onClick={() => {
+                  onClearRequirement?.();
+                  setRequirementSearch('');
+                }}
+                aria-label="Remover requisito vinculado"
+                title="Remover requisito"
+              >
+                ×
+              </button>
+            </div>
+          ) : null}
+          <input
+            type="search"
+            value={requirementSearch}
+            onChange={(event) => setRequirementSearch(event.target.value)}
+            placeholder="Pesquisar requisito por título..."
+          />
+          {requirementSearch.trim().length >= 2 ? (
+            <div className="traceability-results">
+              {availableRequirements.length === 0 ? (
+                <p>Nenhum requisito encontrado.</p>
+              ) : (
+                availableRequirements.map((requirement) => (
+                  <button
+                    key={requirement.id}
+                    type="button"
+                    onClick={() => handleSelectRequirement(requirement)}
+                  >
+                    {formatRequirementLabel(requirement)}
+                  </button>
+                ))
+              )}
+            </div>
+          ) : null}
         </div>
 
         <div className="traceability-picker">

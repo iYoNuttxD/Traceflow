@@ -79,6 +79,20 @@ export async function getProjectIssues(projectId, filters = {}) {
   return response.data;
 }
 
+export async function linkTaskRequirement(taskId, requirementId) {
+  const response = await api.patch(`/tasks/${taskId}/requirement`, {
+    requirementId
+  });
+
+  return response.data;
+}
+
+export async function unlinkTaskRequirement(taskId) {
+  const response = await api.delete(`/tasks/${taskId}/requirement`);
+
+  return response.data;
+}
+
 export async function linkTaskPullRequest(taskId, pullRequestId) {
   const response = await api.patch(`/tasks/${taskId}/pull-request`, {
     pullRequestId
@@ -153,6 +167,20 @@ export async function getProjectIssueCoverage(projectId) {
   return response.data;
 }
 
+export async function confirmRequirementCompletion(requirementId) {
+  const response = await api.patch(`/requirements/${requirementId}/confirm-completion`);
+
+  return response.data;
+}
+
+export async function getRequirementTaskCoverage(projectId) {
+  const response = await api.get(
+    `/projects/${projectId}/traceability/requirement-task-coverage`
+  );
+
+  return response.data;
+}
+
 export const kanbanApi = {
   getBoard(projectId) {
     return api.get(`/projects/${projectId}/kanban`);
@@ -190,8 +218,18 @@ export const requirementsApi = {
     return api.post(`/projects/${projectId}/requirements`, data);
   },
 
-  listByProject(projectId) {
-    return api.get(`/projects/${projectId}/requirements`);
+  listByProject(projectId, filters = {}) {
+    const params = new URLSearchParams();
+
+    if (filters.search) {
+      params.set('search', filters.search);
+    }
+
+    const queryString = params.toString();
+
+    return api.get(
+      `/projects/${projectId}/requirements${queryString ? `?${queryString}` : ''}`
+    );
   },
 
   getById(requirementId) {

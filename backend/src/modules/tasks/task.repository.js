@@ -34,7 +34,17 @@ const taskIssueSelect = {
   closedAtGithub: true
 };
 
+const taskRequirementSelect = {
+  id: true,
+  title: true,
+  type: true,
+  status: true
+};
+
 const taskInclude = {
+  requirement: {
+    select: taskRequirementSelect
+  },
   pullRequest: {
     select: taskPullRequestSelect
   },
@@ -77,9 +87,22 @@ export const taskRepository = {
     });
   },
 
-  async findTasksByProject(projectId) {
+  async findTasksByProject(projectId, filters = {}) {
+    const search = typeof filters.search === 'string' ? filters.search.trim() : '';
+
     return prisma.task.findMany({
-      where: { projectId },
+      where: {
+        projectId,
+        ...(search
+          ? {
+              OR: [
+                { title: { contains: search } },
+                { responsible: { contains: search } },
+                { status: { contains: search } }
+              ]
+            }
+          : {})
+      },
       include: taskInclude,
       orderBy: { createdAt: 'desc' }
     });
@@ -94,6 +117,16 @@ export const taskRepository = {
 
   async findPullRequestById(id) {
     return prisma.pullRequest.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        projectId: true
+      }
+    });
+  },
+
+  async findRequirementById(id) {
+    return prisma.requirement.findUnique({
       where: { id },
       select: {
         id: true,
@@ -252,6 +285,14 @@ export const taskRepository = {
     return prisma.task.update({
       where: { id },
       data: { pullRequestId },
+      include: taskInclude
+    });
+  },
+
+  async updateTaskRequirement(id, requirementId) {
+    return prisma.task.update({
+      where: { id },
+      data: { requirementId },
       include: taskInclude
     });
   },

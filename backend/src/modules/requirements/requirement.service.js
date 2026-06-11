@@ -10,8 +10,17 @@ class RequirementServiceError extends Error {
 }
 
 const allowedTypes = new Set(['FUNCIONAL', 'NAO_FUNCIONAL', 'REGRA_NEGOCIO']);
-const allowedStatuses = new Set(['PENDENTE', 'EM_ANDAMENTO', 'CONCLUIDO', 'CANCELADO']);
-const editableFields = ['title', 'description', 'type', 'status'];
+const allowedStatuses = new Set([
+  'CADASTRADO',
+  'APROVADO',
+  'EM_IMPLEMENTACAO',
+  'VALIDADO',
+  'CONCLUIDO',
+  'PENDENTE',
+  'EM_ANDAMENTO',
+  'CANCELADO'
+]);
+const editableFields = ['title', 'description', 'type'];
 
 function parsePositiveInteger(value, entityName) {
   const parsedValue = Number(value);
@@ -80,7 +89,7 @@ function validateType(type) {
 function validateStatus(status) {
   if (status !== undefined && !allowedStatuses.has(status)) {
     throw new RequirementServiceError(
-      'Status inválido. Use PENDENTE, EM_ANDAMENTO, CONCLUIDO ou CANCELADO.',
+      'Status inválido. Use CADASTRADO, APROVADO, EM_IMPLEMENTACAO, VALIDADO ou CONCLUIDO.',
       400
     );
   }
@@ -92,10 +101,8 @@ function buildRequirementData(data, isCreate = false) {
   validateTitle(payload.title, isCreate);
 
   const normalizedType = normalizeEnumValue(payload.type);
-  const normalizedStatus = normalizeEnumValue(payload.status);
 
   validateType(normalizedType);
-  validateStatus(normalizedStatus);
 
   const requirementData = {};
 
@@ -110,14 +117,12 @@ function buildRequirementData(data, isCreate = false) {
       requirementData.description = normalizeOptionalText(payload.description);
     } else if (field === 'type' && normalizedType) {
       requirementData.type = normalizedType;
-    } else if (field === 'status' && normalizedStatus) {
-      requirementData.status = normalizedStatus;
     }
   }
 
   if (isCreate) {
     requirementData.type = normalizedType || 'FUNCIONAL';
-    requirementData.status = normalizedStatus || 'PENDENTE';
+    requirementData.status = 'CADASTRADO';
   }
 
   return requirementData;
@@ -143,6 +148,22 @@ async function ensureRequirementExists(requirementId) {
   return requirement;
 }
 
+function calculateRequirementStatus(tasks) {
+  if (tasks.length === 0) {
+    return 'CADASTRADO';
+  }
+
+  if (tasks.every((task) => task.status === 'A_FAZER')) {
+    return 'APROVADO';
+  }
+
+  if (tasks.every((task) => task.status === 'CONCLUIDO')) {
+    return 'VALIDADO';
+  }
+
+  return 'EM_IMPLEMENTACAO';
+}
+
 export const requirementService = {
   async createRequirement(projectId, data) {
     const parsedProjectId = parseProjectId(projectId);
@@ -153,11 +174,13 @@ export const requirementService = {
     return requirementRepository.createRequirement(parsedProjectId, requirementData);
   },
 
-  async findRequirementsByProject(projectId) {
+  async findRequirementsByProject(projectId, query = {}) {
     const parsedProjectId = parseProjectId(projectId);
     await ensureProjectExists(parsedProjectId);
 
-    return requirementRepository.findRequirementsByProject(parsedProjectId);
+    const search = typeof query.search === 'string' ? query.search.trim() : undefined;
+
+    return requirementRepository.findRequirementsByProject(parsedProjectId, { search });
   },
 
   async getRequirementById(requirementId) {
@@ -187,7 +210,7 @@ export const requirementService = {
 
     if (!normalizedStatus) {
       throw new RequirementServiceError(
-        'Status inválido. Use PENDENTE, EM_ANDAMENTO, CONCLUIDO ou CANCELADO.',
+        'Status inválido. Use CADASTRADO, APROVADO, EM_IMPLEMENTACAO, VALIDADO ou CONCLUIDO.',
         400
       );
     }
@@ -200,5 +223,61 @@ export const requirementService = {
     await ensureRequirementExists(parsedRequirementId);
 
     return requirementRepository.findTasksByRequirement(parsedRequirementId);
+  },
+
+  async recalculateRequirementStatus(requirementId) {
+    if (!requirementId) {
+      return null;
+    }
+
+    const parsedRequirementId = parseRequirementId(requirementId);
+    const requirement = await ensureRequirementExists(parsedRequirementId);
+
+    if (requirement.status === 'CONCLUIDO' || requirement.status === 'CANCELADO') {
+      return requirement;
+    }
+
+    const nextStatus = calculateRequirementStatus(requirement.tasks || []);
+
+    if (requirement.status === nextStatus) {
+      return requirement;
+    }
+
+    return requirementRepository.updateRequirementStatus(parsedRequirementId, nextStatus);
+  },
+
+  async confirmCompletion(requirementId) {
+    const parsedRequirementId = parseRequirementId(requirementId);
+    const requirement = await ensureRequirementExists(parsedRequirementId);
+
+    if (requirement.status !== 'VALIDADO') {
+      throw new RequirementServiceError(
+        'Apenas requisitos validados podem ser concluídos.',
+        400
+      );
+    }
+
+    return requirementRepository.updateRequirementStatus(parsedRequirementId, 'CONCLUIDO');
+  },
+
+  async getRequirementTaskCoverage(projectId) {
+    const parsedProjectId = parseProjectId(projectId);
+    await ensureProjectExists(parsedProjectId);
+
+    const [totalRequirements, linkedRequirements] = await Promise.all([
+      requirementRepository.countRequirementsByProject(parsedProjectId),
+      requirementRepository.countRequirementsWithTasksByProject(parsedProjectId)
+    ]);
+    const coveragePercentage =
+      totalRequirements === 0
+        ? 0
+        : Number(((linkedRequirements / totalRequirements) * 100).toFixed(2));
+
+    return {
+      projectId: parsedProjectId,
+      totalRequirements,
+      linkedRequirements,
+      coveragePercentage
+    };
   }
 };

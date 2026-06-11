@@ -25,6 +25,8 @@ router.get('/projects/:projectId/kanban/metrics', taskController.getKanbanMetric
 router.get('/tasks/:id', taskController.findById);
 router.put('/tasks/:id', taskController.update);
 router.patch('/tasks/:id/status', taskController.updateStatus);
+router.patch('/tasks/:id/requirement', taskController.linkRequirement);
+router.delete('/tasks/:id/requirement', taskController.unlinkRequirement);
 router.patch('/tasks/:id/pull-request', taskController.linkPullRequest);
 router.delete('/tasks/:id/pull-request', taskController.unlinkPullRequest);
 router.get('/tasks/:id/commits', taskController.listCommits);

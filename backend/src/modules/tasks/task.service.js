@@ -1,5 +1,6 @@
 // Service do modulo de tarefas. Contem as regras de negocio e validacoes do RF07.
 import { taskRepository } from './task.repository.js';
+import { requirementService } from '../requirements/requirement.service.js';
 
 class TaskServiceError extends Error {
   constructor(message, statusCode = 400) {
@@ -17,7 +18,6 @@ const editableFields = [
   'description',
   'priority',
   'responsible',
-  'status',
   'deadline',
   'estimatedEffort',
   'actualEffort'
@@ -59,6 +59,10 @@ function parseCommitId(commitId) {
 
 function parseIssueId(issueId) {
   return parsePositiveInteger(issueId, 'da issue');
+}
+
+function parseRequirementId(requirementId) {
+  return parsePositiveInteger(requirementId, 'do requisito');
 }
 
 function normalizeOptionalText(value) {
@@ -191,10 +195,6 @@ function buildTaskData(data, isCreate = false) {
     );
   }
 
-  if (payload.status !== undefined) {
-    validateStatus(payload.status);
-  }
-
   const taskData = {};
 
   for (const field of editableFields) {
@@ -221,7 +221,7 @@ function buildTaskData(data, isCreate = false) {
 
   if (isCreate) {
     taskData.priority = payload.priority || 'MEDIA';
-    taskData.status = payload.status || 'A_FAZER';
+    taskData.status = 'A_FAZER';
   }
 
   return taskData;
@@ -255,6 +255,16 @@ async function ensurePullRequestExists(pullRequestId) {
   }
 
   return pullRequest;
+}
+
+async function ensureRequirementExists(requirementId) {
+  const requirement = await taskRepository.findRequirementById(requirementId);
+
+  if (!requirement) {
+    throw new TaskServiceError('Requisito não encontrado.', 404);
+  }
+
+  return requirement;
 }
 
 async function ensureCommitExists(commitId) {
@@ -308,6 +318,40 @@ function formatTask(task) {
     commits: commitLinks.map((link) => formatCommit(link.commit)).filter(Boolean),
     issues: issueLinks.map((link) => formatIssue(link.issue)).filter(Boolean)
   };
+}
+
+async function resolveRequirementForTask(projectId, requirementId) {
+  if (requirementId === undefined) {
+    return undefined;
+  }
+
+  if (requirementId === null || requirementId === '') {
+    return null;
+  }
+
+  const parsedRequirementId = parseRequirementId(requirementId);
+  const requirement = await ensureRequirementExists(parsedRequirementId);
+
+  if (requirement.projectId !== projectId) {
+    throw new TaskServiceError(
+      'O requisito informado não pertence ao mesmo projeto da tarefa.',
+      400
+    );
+  }
+
+  return parsedRequirementId;
+}
+
+async function recalculateRelatedRequirements(...requirementIds) {
+  const uniqueRequirementIds = [
+    ...new Set(requirementIds.filter(Boolean).map((requirementId) => Number(requirementId)))
+  ];
+
+  await Promise.all(
+    uniqueRequirementIds.map((requirementId) =>
+      requirementService.recalculateRequirementStatus(requirementId)
+    )
+  );
 }
 
 function parseMetricDate(value) {
@@ -485,16 +529,24 @@ export const taskService = {
     await ensureProjectExists(parsedProjectId);
 
     const taskData = buildTaskData(data, true);
+    const requirementId = await resolveRequirementForTask(parsedProjectId, data?.requirementId);
+
+    if (requirementId !== undefined) {
+      taskData.requirementId = requirementId;
+    }
+
     const task = await taskRepository.createTask(parsedProjectId, taskData);
+    await recalculateRelatedRequirements(task.requirementId);
 
     return formatTask(task);
   },
 
-  async findTasksByProject(projectId) {
+  async findTasksByProject(projectId, query = {}) {
     const parsedProjectId = parseProjectId(projectId);
     await ensureProjectExists(parsedProjectId);
 
-    const tasks = await taskRepository.findTasksByProject(parsedProjectId);
+    const search = typeof query.search === 'string' ? query.search.trim() : undefined;
+    const tasks = await taskRepository.findTasksByProject(parsedProjectId, { search });
 
     return tasks.map(formatTask);
   },
@@ -510,24 +562,71 @@ export const taskService = {
     const parsedTaskId = parseTaskId(taskId);
     const currentTask = await ensureTaskExists(parsedTaskId);
     const taskData = buildTaskData(data);
+    const requirementId = await resolveRequirementForTask(
+      currentTask.projectId,
+      data?.requirementId
+    );
+
+    if (requirementId !== undefined) {
+      taskData.requirementId = requirementId;
+    }
 
     if (Object.keys(taskData).length === 0) {
       return formatTask(currentTask);
     }
 
     const task = await taskRepository.updateTask(parsedTaskId, taskData);
+    await recalculateRelatedRequirements(currentTask.requirementId, task.requirementId);
 
     return formatTask(task);
   },
 
   async updateTaskStatus(taskId, status) {
     const parsedTaskId = parseTaskId(taskId);
-    await ensureTaskExists(parsedTaskId);
+    const currentTask = await ensureTaskExists(parsedTaskId);
     validateStatus(status);
 
     const task = await taskRepository.updateTaskStatus(parsedTaskId, status);
+    await recalculateRelatedRequirements(currentTask.requirementId);
 
     return formatTask(task);
+  },
+
+  async linkRequirement(taskId, data) {
+    const parsedTaskId = parseTaskId(taskId);
+    const task = await ensureTaskExists(parsedTaskId);
+    const payload = data && typeof data === 'object' ? data : {};
+    const parsedRequirementId = parseRequirementId(payload.requirementId);
+    const requirement = await ensureRequirementExists(parsedRequirementId);
+
+    if (requirement.projectId !== task.projectId) {
+      throw new TaskServiceError(
+        'O requisito informado não pertence ao mesmo projeto da tarefa.',
+        400
+      );
+    }
+
+    const updatedTask = await taskRepository.updateTaskRequirement(
+      parsedTaskId,
+      parsedRequirementId
+    );
+    await recalculateRelatedRequirements(task.requirementId, parsedRequirementId);
+
+    return formatTask(updatedTask);
+  },
+
+  async unlinkRequirement(taskId) {
+    const parsedTaskId = parseTaskId(taskId);
+    const task = await ensureTaskExists(parsedTaskId);
+
+    if (!task.requirementId) {
+      return formatTask(task);
+    }
+
+    const updatedTask = await taskRepository.updateTaskRequirement(parsedTaskId, null);
+    await recalculateRelatedRequirements(task.requirementId);
+
+    return formatTask(updatedTask);
   },
 
   async linkPullRequest(taskId, data) {
@@ -708,6 +807,7 @@ export const taskService = {
       toStatus: payload.toStatus,
       ...movementResponsible
     });
+    await recalculateRelatedRequirements(task.requirementId);
 
     return {
       ...result,

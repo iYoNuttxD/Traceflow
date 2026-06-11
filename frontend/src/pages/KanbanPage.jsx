@@ -6,7 +6,8 @@ import {
   projectMembersApi,
   unlinkTaskCommit,
   unlinkTaskIssue,
-  unlinkTaskPullRequest
+  unlinkTaskPullRequest,
+  unlinkTaskRequirement
 } from '../api/api.js';
 import { KanbanColumn } from '../components/KanbanColumn.jsx';
 
@@ -20,6 +21,16 @@ const statusLabels = {
   A_FAZER: 'A Fazer',
   EM_ANDAMENTO: 'Em Andamento',
   CONCLUIDO: 'Concluído'
+};
+
+const requirementStatusLabels = {
+  CADASTRADO: 'Cadastrado',
+  APROVADO: 'Aprovado',
+  EM_IMPLEMENTACAO: 'Em implementação',
+  VALIDADO: 'Validado',
+  CONCLUIDO: 'Concluído',
+  PENDENTE: 'Pendente',
+  CANCELADO: 'Cancelado'
 };
 
 const priorityLabels = {
@@ -70,6 +81,10 @@ function formatCommitLabel(commit) {
   return `${shortHash} — ${commit.message || 'Sem mensagem'}`;
 }
 
+function formatRequirementLabel(requirement) {
+  return requirement?.title || 'Requisito vinculado';
+}
+
 function formatIssueLabel(issue) {
   return `#${issue.number} — ${issue.title}`;
 }
@@ -93,6 +108,7 @@ function formatIssueLabels(labels) {
 function getTraceabilitySummary(task) {
   const commitsCount = task.commits?.length || 0;
   const issuesCount = task.issues?.length || 0;
+  const requirementText = task.requirement ? formatRequirementLabel(task.requirement) : '';
   const pullRequestText = task.pullRequest ? `PR #${task.pullRequest.number}` : '';
   const commitText =
     commitsCount > 0 ? `${commitsCount} ${commitsCount === 1 ? 'commit' : 'commits'}` : '';
@@ -100,7 +116,7 @@ function getTraceabilitySummary(task) {
     issuesCount > 0 ? `${issuesCount} ${issuesCount === 1 ? 'issue' : 'issues'}` : '';
 
   return (
-    [pullRequestText, commitText, issueText].filter(Boolean).join(' · ') ||
+    [requirementText, pullRequestText, commitText, issueText].filter(Boolean).join(' · ') ||
     'Sem rastreabilidade'
   );
 }
@@ -433,6 +449,35 @@ export function KanbanPage() {
       setError(
         getErrorMessage(requestError, 'Não foi possível remover o vínculo com o pull request.')
       );
+    }
+  }
+
+  async function handleUnlinkSelectedTaskRequirement(taskId) {
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await unlinkTaskRequirement(taskId);
+      const updatedTask = response.task;
+      setSuccess(response.message || 'Vínculo com requisito removido.');
+      setBoard((currentBoard) =>
+        updateTaskInBoard(currentBoard, taskId, (task) => ({
+          ...task,
+          requirementId: null,
+          requirement: null
+        }))
+      );
+      setSelectedTask((current) =>
+        current && String(current.id) === String(taskId)
+          ? {
+              ...current,
+              requirementId: updatedTask?.requirementId || null,
+              requirement: updatedTask?.requirement || null
+            }
+          : current
+      );
+    } catch (requestError) {
+      setError(getErrorMessage(requestError, 'Não foi possível remover o requisito da tarefa.'));
     }
   }
 
@@ -836,6 +881,35 @@ export function KanbanPage() {
 
                 <div className="task-detail-traceability">
                   <span>Rastreabilidade</span>
+
+                  <div className="task-detail-traceability-section">
+                    <strong>Requisito</strong>
+                    {selectedTask.requirement ? (
+                      <div className="task-detail-traceability-item">
+                        <div>
+                          <strong>{formatRequirementLabel(selectedTask.requirement)}</strong>
+                          <p>
+                            Status:{' '}
+                            {selectedTask.requirement.status
+                              ? requirementStatusLabels[selectedTask.requirement.status] ||
+                                selectedTask.requirement.status
+                              : 'não informado'}
+                          </p>
+                        </div>
+                        <button
+                          className="traceability-remove-button"
+                          type="button"
+                          onClick={() => handleUnlinkSelectedTaskRequirement(selectedTask.id)}
+                          aria-label="Remover requisito vinculado"
+                          title="Remover requisito"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ) : (
+                      <p>Sem requisito vinculado.</p>
+                    )}
+                  </div>
 
                   <div className="task-detail-traceability-section">
                     <strong>Pull request</strong>

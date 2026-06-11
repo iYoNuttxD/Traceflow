@@ -11,10 +11,13 @@ import {
   linkTaskCommit,
   linkTaskIssue,
   linkTaskPullRequest,
+  linkTaskRequirement,
   projectMembersApi,
+  requirementsApi,
   unlinkTaskCommit,
   unlinkTaskIssue,
-  unlinkTaskPullRequest
+  unlinkTaskPullRequest,
+  unlinkTaskRequirement
 } from '../api/api.js';
 import { Card } from '../components/Card.jsx';
 import {
@@ -61,6 +64,14 @@ function formatPullRequestLabel(pullRequest) {
   return `#${pullRequest.number} — ${pullRequest.title}`;
 }
 
+function formatRequirementLabel(requirement) {
+  if (!requirement) {
+    return 'Requisito não encontrado';
+  }
+
+  return requirement.title;
+}
+
 function formatCommitLabel(commit) {
   const shortHash = commit.shortHash || commit.hash?.slice(0, 7) || `#${commit.id}`;
 
@@ -79,6 +90,8 @@ export function TasksPage() {
   const { projectId } = useParams();
   const [project, setProject] = useState(null);
   const [tasks, setTasks] = useState([]);
+  const [requirements, setRequirements] = useState([]);
+  const [requirementOptions, setRequirementOptions] = useState([]);
   const [pullRequests, setPullRequests] = useState([]);
   const [pullRequestOptions, setPullRequestOptions] = useState([]);
   const [commitResults, setCommitResults] = useState([]);
@@ -104,6 +117,7 @@ export function TasksPage() {
       const [
         projectResponse,
         tasksResponse,
+        requirementsResponse,
         pullRequestsResponse,
         commitCoverageResponse,
         issueCoverageResponse,
@@ -112,6 +126,7 @@ export function TasksPage() {
       ] = await Promise.all([
         api.get(`/projects/${projectId}`),
         api.get(`/projects/${projectId}/tasks`),
+        requirementsApi.listByProject(projectId),
         getProjectPullRequests(projectId),
         getProjectCommitCoverage(projectId),
         getProjectIssueCoverage(projectId),
@@ -129,6 +144,8 @@ export function TasksPage() {
 
       setProject(projectResponse.data.project);
       setTasks(tasksResponse.data.tasks);
+      setRequirements(requirementsResponse.data.requirements || []);
+      setRequirementOptions(requirementsResponse.data.requirements || []);
       setPullRequests(pullRequestsResponse.pullRequests || []);
       setPullRequestOptions(pullRequestsResponse.pullRequests || []);
       setCommitCoverage(commitCoverageResponse);
@@ -168,6 +185,30 @@ export function TasksPage() {
         setError(
           getErrorMessage(requestError, 'Não foi possível carregar os pull requests do projeto.')
         );
+      }
+    },
+    [projectId]
+  );
+
+  const searchRequirements = useCallback(
+    async (search) => {
+      try {
+        const response = await requirementsApi.listByProject(projectId, { search });
+        const foundRequirements = response.data.requirements || [];
+        setRequirements(foundRequirements);
+        setRequirementOptions((current) => {
+          const nextOptions = [...current];
+
+          for (const requirement of foundRequirements) {
+            if (!nextOptions.some((item) => String(item.id) === String(requirement.id))) {
+              nextOptions.push(requirement);
+            }
+          }
+
+          return nextOptions;
+        });
+      } catch (requestError) {
+        setError(getErrorMessage(requestError, 'Não foi possível carregar os requisitos.'));
       }
     },
     [projectId]
@@ -229,6 +270,23 @@ export function TasksPage() {
         ? current
         : [pullRequest, ...current]
     );
+  }
+
+  function addRequirementOption(requirement) {
+    setRequirementOptions((current) =>
+      current.some((item) => String(item.id) === String(requirement.id))
+        ? current
+        : [requirement, ...current]
+    );
+  }
+
+  function handleSelectRequirement(requirement) {
+    addRequirementOption(requirement);
+    handleFormChange('requirementId', String(requirement.id));
+  }
+
+  function handleClearRequirement() {
+    handleFormChange('requirementId', '');
   }
 
   function handleSelectPullRequest(pullRequest) {
@@ -313,6 +371,9 @@ export function TasksPage() {
       const selectedPullRequestId = formData.pullRequestId
         ? Number(formData.pullRequestId)
         : null;
+      const selectedRequirementId = formData.requirementId
+        ? Number(formData.requirementId)
+        : null;
       const selectedCommitIds = (formData.commitIds || []).map(Number);
       const selectedIssueIds = (formData.issueIds || []).map(Number);
       const editingTask = editingTaskId
@@ -320,6 +381,9 @@ export function TasksPage() {
         : null;
       const hadPullRequestLinked = Boolean(
         editingTask?.pullRequestId || editingTask?.pullRequest
+      );
+      const hadRequirementLinked = Boolean(
+        editingTask?.requirementId || editingTask?.requirement
       );
       const previousCommitIds = (editingTask?.commits || []).map((commit) => commit.id);
       const previousIssueIds = (editingTask?.issues || []).map((issue) => issue.id);
@@ -329,8 +393,22 @@ export function TasksPage() {
         : await api.post(`/projects/${projectId}/tasks`, payload);
       const savedTask = response.data.task;
       let pullRequestWarning = '';
+      let requirementWarning = '';
       let commitWarning = '';
       let issueWarning = '';
+
+      try {
+        if (selectedRequirementId) {
+          await linkTaskRequirement(savedTask.id, selectedRequirementId);
+        } else if (hadRequirementLinked) {
+          await unlinkTaskRequirement(savedTask.id);
+        }
+      } catch (requirementError) {
+        requirementWarning = getErrorMessage(
+          requirementError,
+          'Tarefa salva, mas não foi possível atualizar o vínculo com o requisito.'
+        );
+      }
 
       try {
         if (selectedPullRequestId) {
@@ -392,9 +470,11 @@ export function TasksPage() {
       setSuccess(response.data.message);
       resetForm();
       await loadTaskData();
-      if (pullRequestWarning || commitWarning || issueWarning) {
+      if (requirementWarning || pullRequestWarning || commitWarning || issueWarning) {
         setError(
-          [pullRequestWarning, commitWarning, issueWarning].filter(Boolean).join(' ')
+          [requirementWarning, pullRequestWarning, commitWarning, issueWarning]
+            .filter(Boolean)
+            .join(' ')
         );
       }
     } catch (requestError) {
@@ -409,6 +489,9 @@ export function TasksPage() {
     setFormData(taskToFormData(task));
     if (task.pullRequest) {
       addPullRequestOption(task.pullRequest);
+    }
+    if (task.requirement) {
+      addRequirementOption(task.requirement);
     }
     if (task.commits?.length) {
       setCommitOptions((current) => {
@@ -456,6 +539,19 @@ export function TasksPage() {
     }
   }
 
+  async function handleUnlinkRequirement(taskId) {
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await unlinkTaskRequirement(taskId);
+      setSuccess(response.message || 'Vínculo com requisito removido.');
+      await loadTaskData();
+    } catch (requestError) {
+      setError(getErrorMessage(requestError, 'Não foi possível remover o requisito da tarefa.'));
+    }
+  }
+
   async function handleUnlinkCommit(taskId, commitId) {
     setError('');
     setSuccess('');
@@ -490,6 +586,12 @@ export function TasksPage() {
       (pullRequest) => String(pullRequest.id) === String(formData.pullRequestId)
     ) ||
     editingTask?.pullRequest ||
+    null;
+  const selectedRequirement =
+    requirementOptions.find(
+      (requirement) => String(requirement.id) === String(formData.requirementId)
+    ) ||
+    editingTask?.requirement ||
     null;
   const selectedCommits = (formData.commitIds || [])
     .map(
@@ -584,14 +686,19 @@ export function TasksPage() {
             editing={Boolean(editingTaskId)}
             pullRequests={pullRequests}
             projectMembers={projectMembers}
+            requirements={requirements}
+            selectedRequirement={selectedRequirement}
             selectedPullRequest={selectedPullRequest}
             selectedCommits={selectedCommits}
             selectedIssues={selectedIssues}
             commitResults={commitResults}
             issueResults={issueResults}
+            onRequirementSearch={searchRequirements}
             onPullRequestSearch={searchPullRequests}
             onCommitSearch={searchCommits}
             onIssueSearch={searchIssues}
+            onSelectRequirement={handleSelectRequirement}
+            onClearRequirement={handleClearRequirement}
             onSelectPullRequest={handleSelectPullRequest}
             onClearPullRequest={handleClearPullRequest}
             onSelectCommit={handleSelectCommit}
@@ -649,6 +756,26 @@ export function TasksPage() {
 
                   <div className="task-pr-card">
                     <span>Rastreabilidade</span>
+                    <div className="task-traceability-group">
+                      <strong>Requisito</strong>
+                      {task.requirement ? (
+                        <div className="task-traceability-item">
+                          <span>{formatRequirementLabel(task.requirement)}</span>
+                          <button
+                            className="traceability-remove-button"
+                            type="button"
+                            onClick={() => handleUnlinkRequirement(task.id)}
+                            aria-label="Remover requisito vinculado"
+                            title="Remover requisito"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ) : (
+                        <p className="task-pr-meta">Sem requisito vinculado.</p>
+                      )}
+                    </div>
+
                     <div className="task-traceability-group">
                       <strong>Pull request</strong>
                       {task.pullRequest ? (
