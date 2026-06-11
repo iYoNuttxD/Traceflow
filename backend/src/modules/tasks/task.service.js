@@ -1,5 +1,6 @@
 // Service do modulo de tarefas. Contem as regras de negocio e validacoes do RF07.
 import { taskRepository } from './task.repository.js';
+import { requirementService } from '../requirements/requirement.service.js';
 
 class TaskServiceError extends Error {
   constructor(message, statusCode = 400) {
@@ -17,7 +18,6 @@ const editableFields = [
   'description',
   'priority',
   'responsible',
-  'status',
   'deadline',
   'estimatedEffort',
   'actualEffort'
@@ -47,6 +47,22 @@ function parseTaskId(taskId) {
 
 function parseProjectMemberId(projectMemberId) {
   return parsePositiveInteger(projectMemberId, 'do membro do projeto');
+}
+
+function parsePullRequestId(pullRequestId) {
+  return parsePositiveInteger(pullRequestId, 'do pull request');
+}
+
+function parseCommitId(commitId) {
+  return parsePositiveInteger(commitId, 'do commit');
+}
+
+function parseIssueId(issueId) {
+  return parsePositiveInteger(issueId, 'da issue');
+}
+
+function parseRequirementId(requirementId) {
+  return parsePositiveInteger(requirementId, 'do requisito');
 }
 
 function normalizeOptionalText(value) {
@@ -179,10 +195,6 @@ function buildTaskData(data, isCreate = false) {
     );
   }
 
-  if (payload.status !== undefined) {
-    validateStatus(payload.status);
-  }
-
   const taskData = {};
 
   for (const field of editableFields) {
@@ -209,7 +221,7 @@ function buildTaskData(data, isCreate = false) {
 
   if (isCreate) {
     taskData.priority = payload.priority || 'MEDIA';
-    taskData.status = payload.status || 'A_FAZER';
+    taskData.status = 'A_FAZER';
   }
 
   return taskData;
@@ -233,6 +245,113 @@ async function ensureTaskExists(taskId) {
   }
 
   return task;
+}
+
+async function ensurePullRequestExists(pullRequestId) {
+  const pullRequest = await taskRepository.findPullRequestById(pullRequestId);
+
+  if (!pullRequest) {
+    throw new TaskServiceError('Pull request não encontrado.', 404);
+  }
+
+  return pullRequest;
+}
+
+async function ensureRequirementExists(requirementId) {
+  const requirement = await taskRepository.findRequirementById(requirementId);
+
+  if (!requirement) {
+    throw new TaskServiceError('Requisito não encontrado.', 404);
+  }
+
+  return requirement;
+}
+
+async function ensureCommitExists(commitId) {
+  const commit = await taskRepository.findCommitById(commitId);
+
+  if (!commit) {
+    throw new TaskServiceError('Commit não encontrado.', 404);
+  }
+
+  return commit;
+}
+
+async function ensureIssueExists(issueId) {
+  const issue = await taskRepository.findIssueById(issueId);
+
+  if (!issue) {
+    throw new TaskServiceError('Issue não encontrada.', 404);
+  }
+
+  return issue;
+}
+
+function formatCommit(commit) {
+  if (!commit) {
+    return null;
+  }
+
+  return {
+    ...commit,
+    shortHash: commit.hash ? commit.hash.slice(0, 7) : null
+  };
+}
+
+function formatIssue(issue) {
+  if (!issue) {
+    return null;
+  }
+
+  return issue;
+}
+
+function formatTask(task) {
+  if (!task) {
+    return task;
+  }
+
+  const { commitLinks = [], issueLinks = [], ...taskData } = task;
+
+  return {
+    ...taskData,
+    commits: commitLinks.map((link) => formatCommit(link.commit)).filter(Boolean),
+    issues: issueLinks.map((link) => formatIssue(link.issue)).filter(Boolean)
+  };
+}
+
+async function resolveRequirementForTask(projectId, requirementId) {
+  if (requirementId === undefined) {
+    return undefined;
+  }
+
+  if (requirementId === null || requirementId === '') {
+    return null;
+  }
+
+  const parsedRequirementId = parseRequirementId(requirementId);
+  const requirement = await ensureRequirementExists(parsedRequirementId);
+
+  if (requirement.projectId !== projectId) {
+    throw new TaskServiceError(
+      'O requisito informado não pertence ao mesmo projeto da tarefa.',
+      400
+    );
+  }
+
+  return parsedRequirementId;
+}
+
+async function recalculateRelatedRequirements(...requirementIds) {
+  const uniqueRequirementIds = [
+    ...new Set(requirementIds.filter(Boolean).map((requirementId) => Number(requirementId)))
+  ];
+
+  await Promise.all(
+    uniqueRequirementIds.map((requirementId) =>
+      requirementService.recalculateRequirementStatus(requirementId)
+    )
+  );
 }
 
 function parseMetricDate(value) {
@@ -410,39 +529,242 @@ export const taskService = {
     await ensureProjectExists(parsedProjectId);
 
     const taskData = buildTaskData(data, true);
-    return taskRepository.createTask(parsedProjectId, taskData);
+    const requirementId = await resolveRequirementForTask(parsedProjectId, data?.requirementId);
+
+    if (requirementId !== undefined) {
+      taskData.requirementId = requirementId;
+    }
+
+    const task = await taskRepository.createTask(parsedProjectId, taskData);
+    await recalculateRelatedRequirements(task.requirementId);
+
+    return formatTask(task);
   },
 
-  async findTasksByProject(projectId) {
+  async findTasksByProject(projectId, query = {}) {
     const parsedProjectId = parseProjectId(projectId);
     await ensureProjectExists(parsedProjectId);
 
-    return taskRepository.findTasksByProject(parsedProjectId);
+    const search = typeof query.search === 'string' ? query.search.trim() : undefined;
+    const tasks = await taskRepository.findTasksByProject(parsedProjectId, { search });
+
+    return tasks.map(formatTask);
   },
 
   async getTaskById(taskId) {
     const parsedTaskId = parseTaskId(taskId);
-    return ensureTaskExists(parsedTaskId);
+    const task = await ensureTaskExists(parsedTaskId);
+
+    return formatTask(task);
   },
 
   async updateTask(taskId, data) {
     const parsedTaskId = parseTaskId(taskId);
     const currentTask = await ensureTaskExists(parsedTaskId);
     const taskData = buildTaskData(data);
+    const requirementId = await resolveRequirementForTask(
+      currentTask.projectId,
+      data?.requirementId
+    );
 
-    if (Object.keys(taskData).length === 0) {
-      return currentTask;
+    if (requirementId !== undefined) {
+      taskData.requirementId = requirementId;
     }
 
-    return taskRepository.updateTask(parsedTaskId, taskData);
+    if (Object.keys(taskData).length === 0) {
+      return formatTask(currentTask);
+    }
+
+    const task = await taskRepository.updateTask(parsedTaskId, taskData);
+    await recalculateRelatedRequirements(currentTask.requirementId, task.requirementId);
+
+    return formatTask(task);
   },
 
   async updateTaskStatus(taskId, status) {
     const parsedTaskId = parseTaskId(taskId);
-    await ensureTaskExists(parsedTaskId);
+    const currentTask = await ensureTaskExists(parsedTaskId);
     validateStatus(status);
 
-    return taskRepository.updateTaskStatus(parsedTaskId, status);
+    const task = await taskRepository.updateTaskStatus(parsedTaskId, status);
+    await recalculateRelatedRequirements(currentTask.requirementId);
+
+    return formatTask(task);
+  },
+
+  async linkRequirement(taskId, data) {
+    const parsedTaskId = parseTaskId(taskId);
+    const task = await ensureTaskExists(parsedTaskId);
+    const payload = data && typeof data === 'object' ? data : {};
+    const parsedRequirementId = parseRequirementId(payload.requirementId);
+    const requirement = await ensureRequirementExists(parsedRequirementId);
+
+    if (requirement.projectId !== task.projectId) {
+      throw new TaskServiceError(
+        'O requisito informado não pertence ao mesmo projeto da tarefa.',
+        400
+      );
+    }
+
+    const updatedTask = await taskRepository.updateTaskRequirement(
+      parsedTaskId,
+      parsedRequirementId
+    );
+    await recalculateRelatedRequirements(task.requirementId, parsedRequirementId);
+
+    return formatTask(updatedTask);
+  },
+
+  async unlinkRequirement(taskId) {
+    const parsedTaskId = parseTaskId(taskId);
+    const task = await ensureTaskExists(parsedTaskId);
+
+    if (!task.requirementId) {
+      return formatTask(task);
+    }
+
+    const updatedTask = await taskRepository.updateTaskRequirement(parsedTaskId, null);
+    await recalculateRelatedRequirements(task.requirementId);
+
+    return formatTask(updatedTask);
+  },
+
+  async linkPullRequest(taskId, data) {
+    const parsedTaskId = parseTaskId(taskId);
+    const task = await ensureTaskExists(parsedTaskId);
+    const payload = data && typeof data === 'object' ? data : {};
+
+    if (payload.pullRequestId === null || payload.pullRequestId === '') {
+      const updatedTask = await taskRepository.updateTaskPullRequest(parsedTaskId, null);
+
+      return formatTask(updatedTask);
+    }
+
+    const parsedPullRequestId = parsePullRequestId(payload.pullRequestId);
+    const pullRequest = await ensurePullRequestExists(parsedPullRequestId);
+
+    if (pullRequest.projectId !== task.projectId) {
+      throw new TaskServiceError(
+        'O pull request informado não pertence ao mesmo projeto da tarefa.',
+        400
+      );
+    }
+
+    const updatedTask = await taskRepository.updateTaskPullRequest(
+      parsedTaskId,
+      parsedPullRequestId
+    );
+
+    return formatTask(updatedTask);
+  },
+
+  async unlinkPullRequest(taskId) {
+    const parsedTaskId = parseTaskId(taskId);
+    await ensureTaskExists(parsedTaskId);
+
+    const task = await taskRepository.updateTaskPullRequest(parsedTaskId, null);
+
+    return formatTask(task);
+  },
+
+  async listTaskCommits(taskId) {
+    const parsedTaskId = parseTaskId(taskId);
+    await ensureTaskExists(parsedTaskId);
+    const commits = await taskRepository.findTaskCommits(parsedTaskId);
+
+    return commits.map(formatCommit);
+  },
+
+  async linkCommit(taskId, data) {
+    const parsedTaskId = parseTaskId(taskId);
+    const task = await ensureTaskExists(parsedTaskId);
+    const payload = data && typeof data === 'object' ? data : {};
+    const parsedCommitId = parseCommitId(payload.commitId);
+    const commit = await ensureCommitExists(parsedCommitId);
+
+    if (commit.projectId !== task.projectId) {
+      throw new TaskServiceError(
+        'O commit informado não pertence ao mesmo projeto da tarefa.',
+        400
+      );
+    }
+
+    const existingLink = await taskRepository.findTaskCommit(parsedTaskId, parsedCommitId);
+
+    if (existingLink) {
+      throw new TaskServiceError('Este commit já está vinculado à tarefa.', 409);
+    }
+
+    await taskRepository.createTaskCommit(parsedTaskId, parsedCommitId);
+    const commits = await taskRepository.findTaskCommits(parsedTaskId);
+
+    return commits.map(formatCommit);
+  },
+
+  async unlinkCommit(taskId, commitId) {
+    const parsedTaskId = parseTaskId(taskId);
+    const parsedCommitId = parseCommitId(commitId);
+    await ensureTaskExists(parsedTaskId);
+    const existingLink = await taskRepository.findTaskCommit(parsedTaskId, parsedCommitId);
+
+    if (!existingLink) {
+      throw new TaskServiceError('Vínculo entre tarefa e commit não encontrado.', 404);
+    }
+
+    await taskRepository.deleteTaskCommit(parsedTaskId, parsedCommitId);
+    const commits = await taskRepository.findTaskCommits(parsedTaskId);
+
+    return commits.map(formatCommit);
+  },
+
+  async listTaskIssues(taskId) {
+    const parsedTaskId = parseTaskId(taskId);
+    await ensureTaskExists(parsedTaskId);
+    const issues = await taskRepository.findTaskIssues(parsedTaskId);
+
+    return issues.map(formatIssue);
+  },
+
+  async linkIssue(taskId, data) {
+    const parsedTaskId = parseTaskId(taskId);
+    const task = await ensureTaskExists(parsedTaskId);
+    const payload = data && typeof data === 'object' ? data : {};
+    const parsedIssueId = parseIssueId(payload.issueId);
+    const issue = await ensureIssueExists(parsedIssueId);
+
+    if (issue.projectId !== task.projectId) {
+      throw new TaskServiceError(
+        'A issue informada não pertence ao mesmo projeto da tarefa.',
+        400
+      );
+    }
+
+    const existingLink = await taskRepository.findTaskIssue(parsedTaskId, parsedIssueId);
+
+    if (existingLink) {
+      throw new TaskServiceError('Esta issue já está vinculada à tarefa.', 409);
+    }
+
+    await taskRepository.createTaskIssue(parsedTaskId, parsedIssueId);
+    const issues = await taskRepository.findTaskIssues(parsedTaskId);
+
+    return issues.map(formatIssue);
+  },
+
+  async unlinkIssue(taskId, issueId) {
+    const parsedTaskId = parseTaskId(taskId);
+    const parsedIssueId = parseIssueId(issueId);
+    await ensureTaskExists(parsedTaskId);
+    const existingLink = await taskRepository.findTaskIssue(parsedTaskId, parsedIssueId);
+
+    if (!existingLink) {
+      throw new TaskServiceError('Vínculo entre tarefa e issue não encontrado.', 404);
+    }
+
+    await taskRepository.deleteTaskIssue(parsedTaskId, parsedIssueId);
+    const issues = await taskRepository.findTaskIssues(parsedTaskId);
+
+    return issues.map(formatIssue);
   },
 
   async getKanbanBoard(projectId) {
@@ -450,8 +772,9 @@ export const taskService = {
     await ensureProjectExists(parsedProjectId);
 
     const tasks = await taskRepository.findTasksByProject(parsedProjectId);
+    const formattedTasks = tasks.map(formatTask);
     const columns = kanbanStatuses.reduce((groupedColumns, status) => {
-      groupedColumns[status] = tasks.filter((task) => task.status === status);
+      groupedColumns[status] = formattedTasks.filter((task) => task.status === status);
       return groupedColumns;
     }, {});
 
@@ -462,7 +785,7 @@ export const taskService = {
         A_FAZER: columns.A_FAZER.length,
         EM_ANDAMENTO: columns.EM_ANDAMENTO.length,
         CONCLUIDO: columns.CONCLUIDO.length,
-        total: tasks.length
+        total: formattedTasks.length
       }
     };
   },
@@ -480,10 +803,16 @@ export const taskService = {
       throw new TaskServiceError('A tarefa já está nesta coluna.', 400);
     }
 
-    return taskRepository.moveTask(task, {
+    const result = await taskRepository.moveTask(task, {
       toStatus: payload.toStatus,
       ...movementResponsible
     });
+    await recalculateRelatedRequirements(task.requirementId);
+
+    return {
+      ...result,
+      task: formatTask(result.task)
+    };
   },
 
   async listMovements(projectId, query = {}) {
@@ -537,6 +866,63 @@ export const taskService = {
       ...(startDate !== undefined ? { startDate } : {}),
       ...(endDate !== undefined ? { endDate } : {}),
       totalTasksCreated
+    };
+  },
+
+  async getPullRequestCoverage(projectId) {
+    const parsedProjectId = parseProjectId(projectId);
+    await ensureProjectExists(parsedProjectId);
+
+    const [totalTasks, linkedTasks] = await Promise.all([
+      taskRepository.countTasksByProject(parsedProjectId),
+      taskRepository.countTasksWithPullRequestByProject(parsedProjectId)
+    ]);
+    const coveragePercentage =
+      totalTasks === 0 ? 0 : Number(((linkedTasks / totalTasks) * 100).toFixed(2));
+
+    return {
+      projectId: parsedProjectId,
+      totalTasks,
+      linkedTasks,
+      coveragePercentage
+    };
+  },
+
+  async getCommitCoverage(projectId) {
+    const parsedProjectId = parseProjectId(projectId);
+    await ensureProjectExists(parsedProjectId);
+
+    const [totalTasks, linkedTasks] = await Promise.all([
+      taskRepository.countTasksByProject(parsedProjectId),
+      taskRepository.countTasksWithCommitByProject(parsedProjectId)
+    ]);
+    const coveragePercentage =
+      totalTasks === 0 ? 0 : Number(((linkedTasks / totalTasks) * 100).toFixed(2));
+
+    return {
+      projectId: parsedProjectId,
+      totalTasks,
+      linkedTasks,
+      coveragePercentage
+    };
+  },
+
+  async getIssueCoverage(projectId) {
+    const parsedProjectId = parseProjectId(projectId);
+    await ensureProjectExists(parsedProjectId);
+
+    const [totalTasks, linkedTasks] = await Promise.all([
+      taskRepository.countTasksByProject(parsedProjectId),
+      taskRepository.countTasksWithIssueByProject(parsedProjectId)
+    ]);
+    const coveragePercentage =
+      totalTasks === 0 ? 0 : Number(((linkedTasks / totalTasks) * 100).toFixed(2));
+
+    return {
+      projectId: parsedProjectId,
+      totalTasks,
+      linkedTasks,
+      coveragePercentage
     };
   }
 };

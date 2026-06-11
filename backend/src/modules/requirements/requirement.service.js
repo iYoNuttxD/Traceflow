@@ -10,8 +10,17 @@ class RequirementServiceError extends Error {
 }
 
 const allowedTypes = new Set(['FUNCIONAL', 'NAO_FUNCIONAL', 'REGRA_NEGOCIO']);
-const allowedStatuses = new Set(['PENDENTE', 'EM_ANDAMENTO', 'CONCLUIDO', 'CANCELADO']);
-const editableFields = ['title', 'description', 'type', 'status'];
+const allowedStatuses = new Set([
+  'CADASTRADO',
+  'APROVADO',
+  'EM_IMPLEMENTACAO',
+  'VALIDADO',
+  'CONCLUIDO',
+  'PENDENTE',
+  'EM_ANDAMENTO',
+  'CANCELADO'
+]);
+const editableFields = ['title', 'description', 'type'];
 
 function parsePositiveInteger(value, entityName) {
   const parsedValue = Number(value);
@@ -84,7 +93,7 @@ function validateType(type) {
 function validateStatus(status) {
   if (status !== undefined && !allowedStatuses.has(status)) {
     throw new RequirementServiceError(
-      'Status inválido. Use PENDENTE, EM_ANDAMENTO, CONCLUIDO ou CANCELADO.',
+      'Status inválido. Use CADASTRADO, APROVADO, EM_IMPLEMENTACAO, VALIDADO ou CONCLUIDO.',
       400
     );
   }
@@ -96,10 +105,8 @@ function buildRequirementData(data, isCreate = false) {
   validateTitle(payload.title, isCreate);
 
   const normalizedType = normalizeEnumValue(payload.type);
-  const normalizedStatus = normalizeEnumValue(payload.status);
 
   validateType(normalizedType);
-  validateStatus(normalizedStatus);
 
   const requirementData = {};
 
@@ -114,14 +121,12 @@ function buildRequirementData(data, isCreate = false) {
       requirementData.description = normalizeOptionalText(payload.description);
     } else if (field === 'type' && normalizedType) {
       requirementData.type = normalizedType;
-    } else if (field === 'status' && normalizedStatus) {
-      requirementData.status = normalizedStatus;
     }
   }
 
   if (isCreate) {
     requirementData.type = normalizedType || 'FUNCIONAL';
-    requirementData.status = normalizedStatus || 'PENDENTE';
+    requirementData.status = 'CADASTRADO';
   }
 
   return requirementData;
@@ -147,14 +152,20 @@ async function ensureRequirementExists(requirementId) {
   return requirement;
 }
 
-async function ensureTaskExists(taskId) {
-  const task = await requirementRepository.findTaskById(taskId);
-
-  if (!task) {
-    throw new RequirementServiceError('Tarefa não encontrada.', 404);
+function calculateRequirementStatus(tasks) {
+  if (tasks.length === 0) {
+    return 'CADASTRADO';
   }
 
-  return task;
+  if (tasks.every((task) => task.status === 'A_FAZER')) {
+    return 'APROVADO';
+  }
+
+  if (tasks.every((task) => task.status === 'CONCLUIDO')) {
+    return 'VALIDADO';
+  }
+
+  return 'EM_IMPLEMENTACAO';
 }
 
 export const requirementService = {
@@ -167,11 +178,13 @@ export const requirementService = {
     return requirementRepository.createRequirement(parsedProjectId, requirementData);
   },
 
-  async findRequirementsByProject(projectId) {
+  async findRequirementsByProject(projectId, query = {}) {
     const parsedProjectId = parseProjectId(projectId);
     await ensureProjectExists(parsedProjectId);
 
-    return requirementRepository.findRequirementsByProject(parsedProjectId);
+    const search = typeof query.search === 'string' ? query.search.trim() : undefined;
+
+    return requirementRepository.findRequirementsByProject(parsedProjectId, { search });
   },
 
   async getRequirementById(requirementId) {
@@ -201,7 +214,7 @@ export const requirementService = {
 
     if (!normalizedStatus) {
       throw new RequirementServiceError(
-        'Status inválido. Use PENDENTE, EM_ANDAMENTO, CONCLUIDO ou CANCELADO.',
+        'Status inválido. Use CADASTRADO, APROVADO, EM_IMPLEMENTACAO, VALIDADO ou CONCLUIDO.',
         400
       );
     }
@@ -216,65 +229,59 @@ export const requirementService = {
     return requirementRepository.findTasksByRequirement(parsedRequirementId);
   },
 
-  async linkTaskToRequirement(requirementId, taskId) {
+  async recalculateRequirementStatus(requirementId) {
+    if (!requirementId) {
+      return null;
+    }
+
     const parsedRequirementId = parseRequirementId(requirementId);
-    const parsedTaskId = parseTaskId(taskId);
-
     const requirement = await ensureRequirementExists(parsedRequirementId);
-    const task = await ensureTaskExists(parsedTaskId);
 
-    if (task.projectId !== requirement.projectId) {
+    if (requirement.status === 'CONCLUIDO' || requirement.status === 'CANCELADO') {
+      return requirement;
+    }
+
+    const nextStatus = calculateRequirementStatus(requirement.tasks || []);
+
+    if (requirement.status === nextStatus) {
+      return requirement;
+    }
+
+    return requirementRepository.updateRequirementStatus(parsedRequirementId, nextStatus);
+  },
+
+  async confirmCompletion(requirementId) {
+    const parsedRequirementId = parseRequirementId(requirementId);
+    const requirement = await ensureRequirementExists(parsedRequirementId);
+
+    if (requirement.status !== 'VALIDADO') {
       throw new RequirementServiceError(
-        'O requisito e a tarefa devem pertencer ao mesmo projeto.',
+        'Apenas requisitos validados podem ser concluídos.',
         400
       );
     }
 
-    if (task.requirementId === parsedRequirementId) {
-      throw new RequirementServiceError('A tarefa já está vinculada a este requisito.', 400);
-    }
-
-    const updatedTask = await requirementRepository.linkTaskToRequirement(
-      parsedTaskId,
-      parsedRequirementId
-    );
-
-    return { requirement, task: updatedTask };
+    return requirementRepository.updateRequirementStatus(parsedRequirementId, 'CONCLUIDO');
   },
 
-  async unlinkTaskFromRequirement(requirementId, taskId) {
-    const parsedRequirementId = parseRequirementId(requirementId);
-    const parsedTaskId = parseTaskId(taskId);
-
-    await ensureRequirementExists(parsedRequirementId);
-    const task = await ensureTaskExists(parsedTaskId);
-
-    if (task.requirementId !== parsedRequirementId) {
-      throw new RequirementServiceError('A tarefa não está vinculada a este requisito.', 400);
-    }
-
-    return requirementRepository.unlinkTaskFromRequirement(parsedTaskId);
-  },
-
-  async findRequirementByTask(taskId) {
-    const parsedTaskId = parseTaskId(taskId);
-    const task = await requirementRepository.findTaskWithRequirement(parsedTaskId);
-
-    if (!task) {
-      throw new RequirementServiceError('Tarefa não encontrada.', 404);
-    }
-
-    return { taskId: parsedTaskId, requirement: task.requirement || null };
-  },
-
-  async findRequirementsWithTasksByProject(projectId) {
+  async getRequirementTaskCoverage(projectId) {
     const parsedProjectId = parseProjectId(projectId);
     await ensureProjectExists(parsedProjectId);
 
-    const requirements = await requirementRepository.findRequirementsWithTasksByProject(
-      parsedProjectId
-    );
+    const [totalRequirements, linkedRequirements] = await Promise.all([
+      requirementRepository.countRequirementsByProject(parsedProjectId),
+      requirementRepository.countRequirementsWithTasksByProject(parsedProjectId)
+    ]);
+    const coveragePercentage =
+      totalRequirements === 0
+        ? 0
+        : Number(((linkedRequirements / totalRequirements) * 100).toFixed(2));
 
-    return { projectId: parsedProjectId, requirements };
+    return {
+      projectId: parsedProjectId,
+      totalRequirements,
+      linkedRequirements,
+      coveragePercentage
+    };
   }
 };

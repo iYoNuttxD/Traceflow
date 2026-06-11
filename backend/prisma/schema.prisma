@@ -75,12 +75,48 @@ model Task {
   deadline        DateTime?
   estimatedEffort Int?
   actualEffort    Int?
+  pullRequestId   Int?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
   project     Project      @relation(fields: [projectId], references: [id])
   requirement Requirement? @relation(fields: [requirementId], references: [id])
+  pullRequest PullRequest? @relation(fields: [pullRequestId], references: [id], onDelete: SetNull)
   movements   TaskMovement[]
+  commitLinks TaskCommit[]
+  issueLinks  TaskIssue[]
+
+  @@index([pullRequestId])
+}
+
+// Vinculo de rastreabilidade entre tarefas e commits importados do GitHub.
+model TaskCommit {
+  id        Int      @id @default(autoincrement())
+  taskId    Int
+  commitId  Int
+  createdAt DateTime @default(now())
+
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  commit Commit @relation(fields: [commitId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, commitId])
+  @@index([taskId])
+  @@index([commitId])
+}
+
+// Vinculo de rastreabilidade entre tarefas e issues importadas do GitHub.
+model TaskIssue {
+  id        Int      @id @default(autoincrement())
+  taskId    Int
+  issueId   Int
+  createdAt DateTime @default(now())
+
+  task  Task  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  issue Issue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, issueId])
+  @@index([taskId])
+  @@index([issueId])
 }
 
 // Membro interno de um projeto no TRACEFLOW.
@@ -180,6 +216,7 @@ model Commit {
   updatedAt      DateTime  @updatedAt
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  taskLinks TaskCommit[]
 
   @@unique([projectId, hash])
 }
@@ -206,13 +243,13 @@ model PullRequest {
   updatedAt       DateTime  @updatedAt
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks   Task[]
 
   @@unique([projectId, githubId])
   @@unique([projectId, number])
 }
 
 // Issue importada do repositorio GitHub vinculado ao projeto.
-// TODO: Relacionar issues a tarefas e requisitos quando a rastreabilidade evoluir.
 model Issue {
   id               Int       @id @default(autoincrement())
   githubId         String
@@ -232,7 +269,8 @@ model Issue {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  taskLinks TaskIssue[]
 
   @@unique([projectId, githubId])
   @@unique([projectId, number])

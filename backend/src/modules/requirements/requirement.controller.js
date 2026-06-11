@@ -31,7 +31,8 @@ export const requirementController = {
   async findByProject(req, res) {
     try {
       const requirements = await requirementService.findRequirementsByProject(
-        req.params.projectId
+        req.params.projectId,
+        req.query
       );
 
       return res.json({
@@ -96,73 +97,32 @@ export const requirementController = {
     }
   },
 
-  async linkTaskToRequirement(req, res) {
+  async confirmCompletion(req, res) {
     try {
-      const result = await requirementService.linkTaskToRequirement(
-        req.params.requirementId,
-        req.params.taskId
-      );
+      const requirement = await requirementService.confirmCompletion(req.params.id);
 
       return res.json({
-        message: 'Tarefa vinculada ao requisito com sucesso.',
-        requirement: {
-          id: result.requirement.id,
-          projectId: result.requirement.projectId,
-          title: result.requirement.title
-        },
-        task: {
-          id: result.task.id,
-          projectId: result.task.projectId,
-          requirementId: result.task.requirementId,
-          title: result.task.title,
-          status: result.task.status
-        }
+        message: 'Requisito concluído com sucesso.',
+        requirement
       });
     } catch (error) {
-      return sendError(res, error, 'Erro interno ao relacionar requisito e tarefa.');
+      return sendError(res, error);
     }
   },
 
-  async unlinkTaskFromRequirement(req, res) {
+  async getTaskCoverage(req, res) {
     try {
-      const task = await requirementService.unlinkTaskFromRequirement(
-        req.params.requirementId,
-        req.params.taskId
-      );
-
-      return res.json({
-        message: 'Vínculo entre requisito e tarefa removido com sucesso.',
-        task: {
-          id: task.id,
-          projectId: task.projectId,
-          requirementId: task.requirementId,
-          title: task.title
-        }
-      });
-    } catch (error) {
-      return sendError(res, error, 'Erro interno ao remover vínculo entre requisito e tarefa.');
-    }
-  },
-
-  async findRequirementByTask(req, res) {
-    try {
-      const result = await requirementService.findRequirementByTask(req.params.taskId);
-
-      return res.json(result);
-    } catch (error) {
-      return sendError(res, error, 'Erro interno ao consultar requisito da tarefa.');
-    }
-  },
-
-  async findRequirementsWithTasksByProject(req, res) {
-    try {
-      const result = await requirementService.findRequirementsWithTasksByProject(
+      const coverage = await requirementService.getRequirementTaskCoverage(
         req.params.projectId
       );
 
-      return res.json(result);
+      return res.json(coverage);
     } catch (error) {
-      return sendError(res, error, 'Erro interno ao consultar requisitos com tarefas.');
+      return sendError(
+        res,
+        error,
+        'Erro interno ao calcular cobertura de requisitos com tarefas.'
+      );
     }
   }
 };

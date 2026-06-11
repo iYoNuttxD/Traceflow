@@ -34,6 +34,153 @@ export async function syncProjectGithub(projectId) {
   return response.data;
 }
 
+export async function getProjectPullRequests(projectId, filters = {}) {
+  const params = new URLSearchParams();
+
+  if (filters.search) {
+    params.set('search', filters.search);
+  }
+
+  const queryString = params.toString();
+  const response = await api.get(
+    `/projects/${projectId}/pull-requests${queryString ? `?${queryString}` : ''}`
+  );
+
+  return response.data;
+}
+
+export async function getProjectCommits(projectId, filters = {}) {
+  const params = new URLSearchParams();
+
+  if (filters.search) {
+    params.set('search', filters.search);
+  }
+
+  const queryString = params.toString();
+  const response = await api.get(
+    `/projects/${projectId}/commits${queryString ? `?${queryString}` : ''}`
+  );
+
+  return response.data;
+}
+
+export async function getProjectIssues(projectId, filters = {}) {
+  const params = new URLSearchParams();
+
+  if (filters.search) {
+    params.set('search', filters.search);
+  }
+
+  const queryString = params.toString();
+  const response = await api.get(
+    `/projects/${projectId}/issues${queryString ? `?${queryString}` : ''}`
+  );
+
+  return response.data;
+}
+
+export async function linkTaskRequirement(taskId, requirementId) {
+  const response = await api.patch(`/tasks/${taskId}/requirement`, {
+    requirementId
+  });
+
+  return response.data;
+}
+
+export async function unlinkTaskRequirement(taskId) {
+  const response = await api.delete(`/tasks/${taskId}/requirement`);
+
+  return response.data;
+}
+
+export async function linkTaskPullRequest(taskId, pullRequestId) {
+  const response = await api.patch(`/tasks/${taskId}/pull-request`, {
+    pullRequestId
+  });
+
+  return response.data;
+}
+
+export async function unlinkTaskPullRequest(taskId) {
+  const response = await api.delete(`/tasks/${taskId}/pull-request`);
+
+  return response.data;
+}
+
+export async function getTaskCommits(taskId) {
+  const response = await api.get(`/tasks/${taskId}/commits`);
+
+  return response.data;
+}
+
+export async function linkTaskCommit(taskId, commitId) {
+  const response = await api.post(`/tasks/${taskId}/commits`, {
+    commitId
+  });
+
+  return response.data;
+}
+
+export async function unlinkTaskCommit(taskId, commitId) {
+  const response = await api.delete(`/tasks/${taskId}/commits/${commitId}`);
+
+  return response.data;
+}
+
+export async function getTaskIssues(taskId) {
+  const response = await api.get(`/tasks/${taskId}/issues`);
+
+  return response.data;
+}
+
+export async function linkTaskIssue(taskId, issueId) {
+  const response = await api.post(`/tasks/${taskId}/issues`, {
+    issueId
+  });
+
+  return response.data;
+}
+
+export async function unlinkTaskIssue(taskId, issueId) {
+  const response = await api.delete(`/tasks/${taskId}/issues/${issueId}`);
+
+  return response.data;
+}
+
+export async function getProjectPullRequestCoverage(projectId) {
+  const response = await api.get(
+    `/projects/${projectId}/traceability/pull-request-coverage`
+  );
+
+  return response.data;
+}
+
+export async function getProjectCommitCoverage(projectId) {
+  const response = await api.get(`/projects/${projectId}/traceability/commit-coverage`);
+
+  return response.data;
+}
+
+export async function getProjectIssueCoverage(projectId) {
+  const response = await api.get(`/projects/${projectId}/traceability/issue-coverage`);
+
+  return response.data;
+}
+
+export async function confirmRequirementCompletion(requirementId) {
+  const response = await api.patch(`/requirements/${requirementId}/confirm-completion`);
+
+  return response.data;
+}
+
+export async function getRequirementTaskCoverage(projectId) {
+  const response = await api.get(
+    `/projects/${projectId}/traceability/requirement-task-coverage`
+  );
+
+  return response.data;
+}
+
 export const kanbanApi = {
   getBoard(projectId) {
     return api.get(`/projects/${projectId}/kanban`);
@@ -71,8 +218,18 @@ export const requirementsApi = {
     return api.post(`/projects/${projectId}/requirements`, data);
   },
 
-  listByProject(projectId) {
-    return api.get(`/projects/${projectId}/requirements`);
+  listByProject(projectId, filters = {}) {
+    const params = new URLSearchParams();
+
+    if (filters.search) {
+      params.set('search', filters.search);
+    }
+
+    const queryString = params.toString();
+
+    return api.get(
+      `/projects/${projectId}/requirements${queryString ? `?${queryString}` : ''}`
+    );
   },
 
   getById(requirementId) {

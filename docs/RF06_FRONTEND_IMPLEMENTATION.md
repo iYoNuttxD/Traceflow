@@ -60,3 +60,4 @@ Esta etapa não implementa dashboard, gráficos, relatórios, edição de artefa
 - Botão de sincronização manual GitHub adicionado à página de detalhes do projeto.
 - A página de detalhes do projeto passou a destacar uma visão geral antes do formulário de edição.
 - O aviso de ausência de membros no Kanban foi reduzido para uma mensagem curta, sem exibir código de acesso ou link de convite.
+- A tela de Informações do Repositório limpa dados antigos quando uma consulta de artefatos falha.

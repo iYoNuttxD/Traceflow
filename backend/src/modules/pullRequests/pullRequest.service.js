@@ -15,21 +15,33 @@ function parseProjectId(projectId) {
   const parsedProjectId = Number(projectId);
 
   if (!Number.isInteger(parsedProjectId) || parsedProjectId <= 0) {
-    throw new PullRequestServiceError('ProjectId invalido.', 400);
+    throw new PullRequestServiceError('ID do projeto inválido.', 400);
   }
 
   return parsedProjectId;
 }
 
+function normalizeSearch(search) {
+  if (search === undefined || search === null) {
+    return undefined;
+  }
+
+  const normalizedSearch = String(search).trim();
+
+  return normalizedSearch || undefined;
+}
+
 export const pullRequestService = {
-  async listProjectPullRequests(projectId) {
+  async listProjectPullRequests(projectId, query = {}) {
     const parsedProjectId = parseProjectId(projectId);
     const project = await projectRepository.findById(parsedProjectId);
 
     if (!project) {
-      throw new PullRequestServiceError('Projeto nao encontrado.', 404);
+      throw new PullRequestServiceError('Projeto não encontrado.', 404);
     }
 
-    return pullRequestRepository.listByProjectId(parsedProjectId);
+    return pullRequestRepository.listByProjectId(parsedProjectId, {
+      search: normalizeSearch(query.search)
+    });
   }
 };

@@ -38,9 +38,22 @@ export const commitRepository = {
     });
   },
 
-  async listByProjectId(projectId) {
+  async listByProjectId(projectId, filters = {}) {
     return prisma.commit.findMany({
-      where: { projectId },
+      where: {
+        projectId,
+        ...(filters.search
+          ? {
+              OR: [
+                { hash: { contains: filters.search } },
+                { message: { contains: filters.search } },
+                { authorName: { contains: filters.search } },
+                { authorUsername: { contains: filters.search } },
+                { branch: { contains: filters.search } }
+              ]
+            }
+          : {})
+      },
       orderBy: [{ date: 'desc' }, { createdAt: 'desc' }]
     });
   }

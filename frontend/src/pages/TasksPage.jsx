@@ -1,6 +1,24 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { api } from '../api/api.js';
+import {
+  api,
+  getProjectCommitCoverage,
+  getProjectCommits,
+  getProjectIssueCoverage,
+  getProjectIssues,
+  getProjectPullRequestCoverage,
+  getProjectPullRequests,
+  linkTaskCommit,
+  linkTaskIssue,
+  linkTaskPullRequest,
+  linkTaskRequirement,
+  projectMembersApi,
+  requirementsApi,
+  unlinkTaskCommit,
+  unlinkTaskIssue,
+  unlinkTaskPullRequest,
+  unlinkTaskRequirement
+} from '../api/api.js';
 import { Card } from '../components/Card.jsx';
 import {
   TaskForm,
@@ -38,15 +56,54 @@ function formatDateTime(value) {
   return new Date(value).toLocaleString('pt-BR');
 }
 
+function formatPullRequestLabel(pullRequest) {
+  if (!pullRequest) {
+    return 'Sem PR vinculado';
+  }
+
+  return `#${pullRequest.number} — ${pullRequest.title}`;
+}
+
+function formatRequirementLabel(requirement) {
+  if (!requirement) {
+    return 'Requisito não encontrado';
+  }
+
+  return requirement.title;
+}
+
+function formatCommitLabel(commit) {
+  const shortHash = commit.shortHash || commit.hash?.slice(0, 7) || `#${commit.id}`;
+
+  return `${shortHash} — ${commit.message || 'Sem mensagem'}`;
+}
+
+function formatIssueLabel(issue) {
+  if (!issue) {
+    return 'Issue não encontrada';
+  }
+
+  return `#${issue.number} — ${issue.title}`;
+}
+
 export function TasksPage() {
   const { projectId } = useParams();
   const [project, setProject] = useState(null);
   const [tasks, setTasks] = useState([]);
-  const [metrics, setMetrics] = useState(null);
-  const [requirementsMap, setRequirementsMap] = useState({});
+  const [requirements, setRequirements] = useState([]);
+  const [requirementOptions, setRequirementOptions] = useState([]);
+  const [pullRequests, setPullRequests] = useState([]);
+  const [pullRequestOptions, setPullRequestOptions] = useState([]);
+  const [commitResults, setCommitResults] = useState([]);
+  const [commitOptions, setCommitOptions] = useState([]);
+  const [issueResults, setIssueResults] = useState([]);
+  const [issueOptions, setIssueOptions] = useState([]);
+  const [pullRequestCoverage, setPullRequestCoverage] = useState(null);
+  const [commitCoverage, setCommitCoverage] = useState(null);
+  const [issueCoverage, setIssueCoverage] = useState(null);
+  const [projectMembers, setProjectMembers] = useState([]);
   const [formData, setFormData] = useState(emptyTaskForm);
   const [editingTaskId, setEditingTaskId] = useState(null);
-  const [period, setPeriod] = useState({ startDate: '', endDate: '' });
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -57,23 +114,44 @@ export function TasksPage() {
     setError('');
 
     try {
-      const [projectResponse, tasksResponse, metricsResponse, requirementsResponse] =
-        await Promise.all([
-          api.get(`/projects/${projectId}`),
-          api.get(`/projects/${projectId}/tasks`),
-          api.get(`/projects/${projectId}/tasks/metrics`),
-          api.get(`/projects/${projectId}/requirements`)
-        ]);
+      const [
+        projectResponse,
+        tasksResponse,
+        requirementsResponse,
+        pullRequestsResponse,
+        commitCoverageResponse,
+        issueCoverageResponse,
+        coverageResponse,
+        membersResponse
+      ] = await Promise.all([
+        api.get(`/projects/${projectId}`),
+        api.get(`/projects/${projectId}/tasks`),
+        requirementsApi.listByProject(projectId),
+        getProjectPullRequests(projectId),
+        getProjectCommitCoverage(projectId),
+        getProjectIssueCoverage(projectId),
+        getProjectPullRequestCoverage(projectId),
+        projectMembersApi.listProjectMembers(projectId).catch((requestError) => {
+          setError(
+            getErrorMessage(
+              requestError,
+              'Não foi possível carregar os membros do projeto.'
+            )
+          );
+          return { data: { members: [] } };
+        })
+      ]);
 
       setProject(projectResponse.data.project);
       setTasks(tasksResponse.data.tasks);
-      setMetrics(metricsResponse.data);
-
-      const map = {};
-      for (const requirement of requirementsResponse.data.requirements || []) {
-        map[requirement.id] = requirement;
-      }
-      setRequirementsMap(map);
+      setRequirements(requirementsResponse.data.requirements || []);
+      setRequirementOptions(requirementsResponse.data.requirements || []);
+      setPullRequests(pullRequestsResponse.pullRequests || []);
+      setPullRequestOptions(pullRequestsResponse.pullRequests || []);
+      setCommitCoverage(commitCoverageResponse);
+      setIssueCoverage(issueCoverageResponse);
+      setPullRequestCoverage(coverageResponse);
+      setProjectMembers(membersResponse.data.members || []);
     } catch (requestError) {
       setError(
         getErrorMessage(requestError, 'Não foi possível carregar as tarefas do projeto.')
@@ -87,8 +165,195 @@ export function TasksPage() {
     loadTaskData();
   }, [loadTaskData]);
 
+  const searchPullRequests = useCallback(
+    async (search) => {
+      try {
+        const response = await getProjectPullRequests(projectId, { search });
+        setPullRequests(response.pullRequests || []);
+        setPullRequestOptions((current) => {
+          const nextOptions = [...current];
+
+          for (const pullRequest of response.pullRequests || []) {
+            if (!nextOptions.some((item) => String(item.id) === String(pullRequest.id))) {
+              nextOptions.push(pullRequest);
+            }
+          }
+
+          return nextOptions;
+        });
+      } catch (requestError) {
+        setError(
+          getErrorMessage(requestError, 'Não foi possível carregar os pull requests do projeto.')
+        );
+      }
+    },
+    [projectId]
+  );
+
+  const searchRequirements = useCallback(
+    async (search) => {
+      try {
+        const response = await requirementsApi.listByProject(projectId, { search });
+        const foundRequirements = response.data.requirements || [];
+        setRequirements(foundRequirements);
+        setRequirementOptions((current) => {
+          const nextOptions = [...current];
+
+          for (const requirement of foundRequirements) {
+            if (!nextOptions.some((item) => String(item.id) === String(requirement.id))) {
+              nextOptions.push(requirement);
+            }
+          }
+
+          return nextOptions;
+        });
+      } catch (requestError) {
+        setError(getErrorMessage(requestError, 'Não foi possível carregar os requisitos.'));
+      }
+    },
+    [projectId]
+  );
+
+  const searchCommits = useCallback(
+    async (search) => {
+      try {
+        const response = await getProjectCommits(projectId, { search });
+        setCommitResults(response.commits || []);
+        setCommitOptions((current) => {
+          const nextOptions = [...current];
+
+          for (const commit of response.commits || []) {
+            if (!nextOptions.some((item) => String(item.id) === String(commit.id))) {
+              nextOptions.push(commit);
+            }
+          }
+
+          return nextOptions;
+        });
+      } catch (requestError) {
+        setError(getErrorMessage(requestError, 'Não foi possível carregar os commits do projeto.'));
+      }
+    },
+    [projectId]
+  );
+
+  const searchIssues = useCallback(
+    async (search) => {
+      try {
+        const response = await getProjectIssues(projectId, { search });
+        setIssueResults(response.issues || []);
+        setIssueOptions((current) => {
+          const nextOptions = [...current];
+
+          for (const issue of response.issues || []) {
+            if (!nextOptions.some((item) => String(item.id) === String(issue.id))) {
+              nextOptions.push(issue);
+            }
+          }
+
+          return nextOptions;
+        });
+      } catch (requestError) {
+        setError(getErrorMessage(requestError, 'Não foi possível carregar as issues do projeto.'));
+      }
+    },
+    [projectId]
+  );
+
   function handleFormChange(name, value) {
     setFormData((current) => ({ ...current, [name]: value }));
+  }
+
+  function addPullRequestOption(pullRequest) {
+    setPullRequestOptions((current) =>
+      current.some((item) => String(item.id) === String(pullRequest.id))
+        ? current
+        : [pullRequest, ...current]
+    );
+  }
+
+  function addRequirementOption(requirement) {
+    setRequirementOptions((current) =>
+      current.some((item) => String(item.id) === String(requirement.id))
+        ? current
+        : [requirement, ...current]
+    );
+  }
+
+  function handleSelectRequirement(requirement) {
+    addRequirementOption(requirement);
+    handleFormChange('requirementId', String(requirement.id));
+  }
+
+  function handleClearRequirement() {
+    handleFormChange('requirementId', '');
+  }
+
+  function handleSelectPullRequest(pullRequest) {
+    addPullRequestOption(pullRequest);
+    handleFormChange('pullRequestId', String(pullRequest.id));
+  }
+
+  function handleClearPullRequest() {
+    handleFormChange('pullRequestId', '');
+  }
+
+  function handleSelectCommit(commit) {
+    setCommitOptions((current) =>
+      current.some((item) => String(item.id) === String(commit.id))
+        ? current
+        : [commit, ...current]
+    );
+    setFormData((current) => {
+      const commitIds = current.commitIds || [];
+
+      if (commitIds.some((commitId) => String(commitId) === String(commit.id))) {
+        return current;
+      }
+
+      return {
+        ...current,
+        commitIds: [...commitIds, String(commit.id)]
+      };
+    });
+  }
+
+  function handleSelectIssue(issue) {
+    setIssueOptions((current) =>
+      current.some((item) => String(item.id) === String(issue.id))
+        ? current
+        : [issue, ...current]
+    );
+    setFormData((current) => {
+      const issueIds = current.issueIds || [];
+
+      if (issueIds.some((issueId) => String(issueId) === String(issue.id))) {
+        return current;
+      }
+
+      return {
+        ...current,
+        issueIds: [...issueIds, String(issue.id)]
+      };
+    });
+  }
+
+  function handleRemoveIssueFromForm(issueId) {
+    setFormData((current) => ({
+      ...current,
+      issueIds: (current.issueIds || []).filter(
+        (currentIssueId) => String(currentIssueId) !== String(issueId)
+      )
+    }));
+  }
+
+  function handleRemoveCommitFromForm(commitId) {
+    setFormData((current) => ({
+      ...current,
+      commitIds: (current.commitIds || []).filter(
+        (currentCommitId) => String(currentCommitId) !== String(commitId)
+      )
+    }));
   }
 
   function resetForm() {
@@ -103,15 +368,115 @@ export function TasksPage() {
     setSuccess('');
 
     try {
+      const selectedPullRequestId = formData.pullRequestId
+        ? Number(formData.pullRequestId)
+        : null;
+      const selectedRequirementId = formData.requirementId
+        ? Number(formData.requirementId)
+        : null;
+      const selectedCommitIds = (formData.commitIds || []).map(Number);
+      const selectedIssueIds = (formData.issueIds || []).map(Number);
+      const editingTask = editingTaskId
+        ? tasks.find((task) => String(task.id) === String(editingTaskId))
+        : null;
+      const hadPullRequestLinked = Boolean(
+        editingTask?.pullRequestId || editingTask?.pullRequest
+      );
+      const hadRequirementLinked = Boolean(
+        editingTask?.requirementId || editingTask?.requirement
+      );
+      const previousCommitIds = (editingTask?.commits || []).map((commit) => commit.id);
+      const previousIssueIds = (editingTask?.issues || []).map((issue) => issue.id);
       const payload = taskFormToPayload(formData, Boolean(editingTaskId));
       const response = editingTaskId
         ? await api.put(`/tasks/${editingTaskId}`, payload)
         : await api.post(`/projects/${projectId}/tasks`, payload);
+      const savedTask = response.data.task;
+      let pullRequestWarning = '';
+      let requirementWarning = '';
+      let commitWarning = '';
+      let issueWarning = '';
+
+      try {
+        if (selectedRequirementId) {
+          await linkTaskRequirement(savedTask.id, selectedRequirementId);
+        } else if (hadRequirementLinked) {
+          await unlinkTaskRequirement(savedTask.id);
+        }
+      } catch (requirementError) {
+        requirementWarning = getErrorMessage(
+          requirementError,
+          'Tarefa salva, mas não foi possível atualizar o vínculo com o requisito.'
+        );
+      }
+
+      try {
+        if (selectedPullRequestId) {
+          await linkTaskPullRequest(savedTask.id, selectedPullRequestId);
+        } else if (hadPullRequestLinked) {
+          await unlinkTaskPullRequest(savedTask.id);
+        }
+      } catch (pullRequestError) {
+        pullRequestWarning = getErrorMessage(
+          pullRequestError,
+          'Tarefa salva, mas não foi possível atualizar o vínculo com o pull request.'
+        );
+      }
+
+      try {
+        const commitsToLink = selectedCommitIds.filter(
+          (commitId) => !previousCommitIds.includes(commitId)
+        );
+        const commitsToUnlink = previousCommitIds.filter(
+          (commitId) => !selectedCommitIds.includes(commitId)
+        );
+
+        for (const commitId of commitsToLink) {
+          await linkTaskCommit(savedTask.id, commitId);
+        }
+
+        for (const commitId of commitsToUnlink) {
+          await unlinkTaskCommit(savedTask.id, commitId);
+        }
+      } catch (commitError) {
+        commitWarning = getErrorMessage(
+          commitError,
+          'Tarefa salva, mas não foi possível atualizar os vínculos com commits.'
+        );
+      }
+
+      try {
+        const issuesToLink = selectedIssueIds.filter(
+          (issueId) => !previousIssueIds.includes(issueId)
+        );
+        const issuesToUnlink = previousIssueIds.filter(
+          (issueId) => !selectedIssueIds.includes(issueId)
+        );
+
+        for (const issueId of issuesToLink) {
+          await linkTaskIssue(savedTask.id, issueId);
+        }
+
+        for (const issueId of issuesToUnlink) {
+          await unlinkTaskIssue(savedTask.id, issueId);
+        }
+      } catch (issueError) {
+        issueWarning = getErrorMessage(
+          issueError,
+          'Tarefa salva, mas não foi possível atualizar os vínculos com issues.'
+        );
+      }
 
       setSuccess(response.data.message);
-      setPeriod({ startDate: '', endDate: '' });
       resetForm();
       await loadTaskData();
+      if (requirementWarning || pullRequestWarning || commitWarning || issueWarning) {
+        setError(
+          [requirementWarning, pullRequestWarning, commitWarning, issueWarning]
+            .filter(Boolean)
+            .join(' ')
+        );
+      }
     } catch (requestError) {
       setError(getErrorMessage(requestError, 'Não foi possível salvar a tarefa.'));
     } finally {
@@ -122,59 +487,126 @@ export function TasksPage() {
   function startEditing(task) {
     setEditingTaskId(task.id);
     setFormData(taskToFormData(task));
+    if (task.pullRequest) {
+      addPullRequestOption(task.pullRequest);
+    }
+    if (task.requirement) {
+      addRequirementOption(task.requirement);
+    }
+    if (task.commits?.length) {
+      setCommitOptions((current) => {
+        const nextCommits = [...current];
+
+        for (const commit of task.commits) {
+          if (!nextCommits.some((item) => String(item.id) === String(commit.id))) {
+            nextCommits.unshift(commit);
+          }
+        }
+
+        return nextCommits;
+      });
+    }
+    if (task.issues?.length) {
+      setIssueOptions((current) => {
+        const nextIssues = [...current];
+
+        for (const issue of task.issues) {
+          if (!nextIssues.some((item) => String(item.id) === String(issue.id))) {
+            nextIssues.unshift(issue);
+          }
+        }
+
+        return nextIssues;
+      });
+    }
     setError('');
     setSuccess('');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  async function handleStatusChange(taskId, status) {
+  async function handleUnlinkPullRequest(taskId) {
     setError('');
     setSuccess('');
 
     try {
-      const response = await api.patch(`/tasks/${taskId}/status`, { status });
-      setSuccess(response.data.message);
-      setTasks((current) =>
-        current.map((task) => (task.id === taskId ? response.data.task : task))
+      const response = await unlinkTaskPullRequest(taskId);
+      setSuccess(response.message || 'Pull request removido da tarefa.');
+      await loadTaskData();
+    } catch (requestError) {
+      setError(
+        getErrorMessage(requestError, 'Não foi possível remover o vínculo com o pull request.')
       );
-    } catch (requestError) {
-      setError(getErrorMessage(requestError, 'Não foi possível alterar o status.'));
     }
   }
 
-  async function handleMetricsSubmit(event) {
-    event.preventDefault();
+  async function handleUnlinkRequirement(taskId) {
     setError('');
+    setSuccess('');
 
     try {
-      const params = {};
-
-      if (period.startDate) {
-        params.startDate = period.startDate;
-      }
-
-      if (period.endDate) {
-        params.endDate = period.endDate;
-      }
-
-      const response = await api.get(`/projects/${projectId}/tasks/metrics`, { params });
-      setMetrics(response.data);
+      const response = await unlinkTaskRequirement(taskId);
+      setSuccess(response.message || 'Vínculo com requisito removido.');
+      await loadTaskData();
     } catch (requestError) {
-      setError(getErrorMessage(requestError, 'Não foi possível consultar a métrica.'));
+      setError(getErrorMessage(requestError, 'Não foi possível remover o requisito da tarefa.'));
     }
   }
 
-  async function clearMetricsPeriod() {
-    setPeriod({ startDate: '', endDate: '' });
+  async function handleUnlinkCommit(taskId, commitId) {
     setError('');
+    setSuccess('');
 
     try {
-      const response = await api.get(`/projects/${projectId}/tasks/metrics`);
-      setMetrics(response.data);
+      const response = await unlinkTaskCommit(taskId, commitId);
+      setSuccess(response.message || 'Commit removido da tarefa.');
+      await loadTaskData();
     } catch (requestError) {
-      setError(getErrorMessage(requestError, 'Não foi possível consultar a métrica.'));
+      setError(getErrorMessage(requestError, 'Não foi possível remover o commit da tarefa.'));
     }
   }
+
+  async function handleUnlinkIssue(taskId, issueId) {
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await unlinkTaskIssue(taskId, issueId);
+      setSuccess(response.message || 'Issue removida da tarefa.');
+      await loadTaskData();
+    } catch (requestError) {
+      setError(getErrorMessage(requestError, 'Não foi possível remover a issue da tarefa.'));
+    }
+  }
+
+  const editingTask = editingTaskId
+    ? tasks.find((task) => String(task.id) === String(editingTaskId))
+    : null;
+  const selectedPullRequest =
+    pullRequestOptions.find(
+      (pullRequest) => String(pullRequest.id) === String(formData.pullRequestId)
+    ) ||
+    editingTask?.pullRequest ||
+    null;
+  const selectedRequirement =
+    requirementOptions.find(
+      (requirement) => String(requirement.id) === String(formData.requirementId)
+    ) ||
+    editingTask?.requirement ||
+    null;
+  const selectedCommits = (formData.commitIds || [])
+    .map(
+      (commitId) =>
+        commitOptions.find((commit) => String(commit.id) === String(commitId)) ||
+        editingTask?.commits?.find((commit) => String(commit.id) === String(commitId))
+    )
+    .filter(Boolean);
+  const selectedIssues = (formData.issueIds || [])
+    .map(
+      (issueId) =>
+        issueOptions.find((issue) => String(issue.id) === String(issueId)) ||
+        editingTask?.issues?.find((issue) => String(issue.id) === String(issueId))
+    )
+    .filter(Boolean);
 
   if (loading) {
     return (
@@ -213,47 +645,33 @@ export function TasksPage() {
           <strong className="metric-value">{tasks.length}</strong>
         </Card>
 
-        <Card title="Volume de planejamento">
-          <strong className="metric-value">{metrics?.totalTasksCreated ?? 0}</strong>
+        <Card title="Cobertura com Pull Requests">
+          <strong className="metric-value">
+            {pullRequestCoverage?.coveragePercentage ?? 0}%
+          </strong>
           <p className="metric-description">
-            {metrics?.startDate || metrics?.endDate
-              ? `Tarefas criadas entre ${metrics.startDate || 'o início'} e ${metrics.endDate || 'hoje'}.`
-              : 'Quantidade total de tarefas cadastradas no projeto.'}
+            {pullRequestCoverage
+              ? `${pullRequestCoverage.linkedTasks} de ${pullRequestCoverage.totalTasks} tarefas possuem PR vinculado.`
+              : 'Percentual de tarefas vinculadas a pull requests.'}
           </p>
-          <form className="metrics-form" onSubmit={handleMetricsSubmit}>
-            <label className="field">
-              <span>Data inicial</span>
-              <input
-                type="date"
-                value={period.startDate}
-                onChange={(event) =>
-                  setPeriod((current) => ({ ...current, startDate: event.target.value }))
-                }
-              />
-            </label>
-            <label className="field">
-              <span>Data final</span>
-              <input
-                type="date"
-                value={period.endDate}
-                onChange={(event) =>
-                  setPeriod((current) => ({ ...current, endDate: event.target.value }))
-                }
-              />
-            </label>
-            <button className="button button-secondary" type="submit">
-              Consultar período
-            </button>
-            {(metrics?.startDate || metrics?.endDate) && (
-              <button
-                className="button button-secondary metrics-clear"
-                type="button"
-                onClick={clearMetricsPeriod}
-              >
-                Limpar período
-              </button>
-            )}
-          </form>
+        </Card>
+
+        <Card title="Cobertura com commits">
+          <strong className="metric-value">{commitCoverage?.coveragePercentage ?? 0}%</strong>
+          <p className="metric-description">
+            {commitCoverage
+              ? `${commitCoverage.linkedTasks} de ${commitCoverage.totalTasks} tarefas possuem pelo menos um commit vinculado.`
+              : 'Percentual de tarefas vinculadas a commits.'}
+          </p>
+        </Card>
+
+        <Card title="Cobertura com issues">
+          <strong className="metric-value">{issueCoverage?.coveragePercentage ?? 0}%</strong>
+          <p className="metric-description">
+            {issueCoverage
+              ? `${issueCoverage.linkedTasks} de ${issueCoverage.totalTasks} tarefas possuem pelo menos uma issue vinculada.`
+              : 'Percentual de tarefas vinculadas a issues.'}
+          </p>
         </Card>
       </div>
 
@@ -266,14 +684,37 @@ export function TasksPage() {
             onCancel={resetForm}
             submitting={submitting}
             editing={Boolean(editingTaskId)}
+            pullRequests={pullRequests}
+            projectMembers={projectMembers}
+            requirements={requirements}
+            selectedRequirement={selectedRequirement}
+            selectedPullRequest={selectedPullRequest}
+            selectedCommits={selectedCommits}
+            selectedIssues={selectedIssues}
+            commitResults={commitResults}
+            issueResults={issueResults}
+            onRequirementSearch={searchRequirements}
+            onPullRequestSearch={searchPullRequests}
+            onCommitSearch={searchCommits}
+            onIssueSearch={searchIssues}
+            onSelectRequirement={handleSelectRequirement}
+            onClearRequirement={handleClearRequirement}
+            onSelectPullRequest={handleSelectPullRequest}
+            onClearPullRequest={handleClearPullRequest}
+            onSelectCommit={handleSelectCommit}
+            onRemoveCommit={handleRemoveCommitFromForm}
+            onSelectIssue={handleSelectIssue}
+            onRemoveIssue={handleRemoveIssueFromForm}
           />
         </Card>
+      </div>
 
+      <section className="tasks-list-section">
         <Card title="Tarefas cadastradas">
           {tasks.length === 0 ? (
             <p className="empty-state">Nenhuma tarefa cadastrada ainda.</p>
           ) : (
-            <div className="task-list">
+            <div className="task-list tasks-list-grid">
               {tasks.map((task) => (
                 <article className="task-item" key={task.id}>
                   <div className="task-item-header">
@@ -321,6 +762,130 @@ export function TasksPage() {
                     </div>
                   </dl>
 
+                  <div className="task-pr-card">
+                    <span>Rastreabilidade</span>
+                    <div className="task-traceability-group">
+                      <strong>Requisito</strong>
+                      {task.requirement ? (
+                        <div className="task-traceability-item">
+                          <span>{formatRequirementLabel(task.requirement)}</span>
+                          <button
+                            className="traceability-remove-button"
+                            type="button"
+                            onClick={() => handleUnlinkRequirement(task.id)}
+                            aria-label="Remover requisito vinculado"
+                            title="Remover requisito"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ) : (
+                        <p className="task-pr-meta">Sem requisito vinculado.</p>
+                      )}
+                    </div>
+
+                    <div className="task-traceability-group">
+                      <strong>Pull request</strong>
+                      {task.pullRequest ? (
+                        <div className="task-traceability-item">
+                          {task.pullRequest.githubUrl ? (
+                            <a
+                              className="task-pr-link"
+                              href={task.pullRequest.githubUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              {formatPullRequestLabel(task.pullRequest)}
+                            </a>
+                          ) : (
+                            <span>{formatPullRequestLabel(task.pullRequest)}</span>
+                          )}
+                          <button
+                            className="traceability-remove-button"
+                            type="button"
+                            onClick={() => handleUnlinkPullRequest(task.id)}
+                            aria-label="Remover pull request vinculado"
+                            title="Remover pull request"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ) : (
+                        <p className="task-pr-meta">Sem PR vinculado.</p>
+                      )}
+                    </div>
+
+                    <div className="task-traceability-group">
+                      <strong>Commits</strong>
+                      {task.commits?.length ? (
+                        <div className="task-traceability-list">
+                          {task.commits.map((commit) => (
+                            <div className="task-traceability-item" key={commit.id}>
+                              {commit.githubUrl ? (
+                                <a
+                                  className="task-pr-link"
+                                  href={commit.githubUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  {formatCommitLabel(commit)}
+                                </a>
+                              ) : (
+                                <span>{formatCommitLabel(commit)}</span>
+                              )}
+                              <button
+                                className="traceability-remove-button"
+                                type="button"
+                                onClick={() => handleUnlinkCommit(task.id, commit.id)}
+                                aria-label="Remover commit vinculado"
+                                title="Remover commit"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="task-pr-meta">Sem commits vinculados.</p>
+                      )}
+                    </div>
+
+                    <div className="task-traceability-group">
+                      <strong>Issues</strong>
+                      {task.issues?.length ? (
+                        <div className="task-traceability-list">
+                          {task.issues.map((issue) => (
+                            <div className="task-traceability-item" key={issue.id}>
+                              {issue.githubUrl ? (
+                                <a
+                                  className="task-pr-link"
+                                  href={issue.githubUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  {formatIssueLabel(issue)}
+                                </a>
+                              ) : (
+                                <span>{formatIssueLabel(issue)}</span>
+                              )}
+                              <button
+                                className="traceability-remove-button"
+                                type="button"
+                                onClick={() => handleUnlinkIssue(task.id, issue.id)}
+                                aria-label="Remover issue vinculada"
+                                title="Remover issue"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="task-pr-meta">Sem issues vinculadas.</p>
+                      )}
+                    </div>
+                  </div>
+
                   <div className="task-actions">
                     <button
                       className="button button-secondary"
@@ -329,24 +894,13 @@ export function TasksPage() {
                     >
                       Editar
                     </button>
-                    <label className="inline-status">
-                      <span>Alterar status</span>
-                      <select
-                        value={task.status}
-                        onChange={(event) => handleStatusChange(task.id, event.target.value)}
-                      >
-                        <option value="A_FAZER">A Fazer</option>
-                        <option value="EM_ANDAMENTO">Em Andamento</option>
-                        <option value="CONCLUIDO">Concluído</option>
-                      </select>
-                    </label>
                   </div>
                 </article>
               ))}
             </div>
           )}
         </Card>
-      </div>
+      </section>
     </main>
   );
 }

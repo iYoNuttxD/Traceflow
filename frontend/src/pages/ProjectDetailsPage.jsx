@@ -4,9 +4,7 @@ import { api, syncProjectGithub } from '../api/api.js';
 import { Card } from '../components/Card.jsx';
 import {
   ProjectForm,
-  applyRepositoryToProjectForm,
   emptyProjectForm,
-  normalizeRepository,
   updateProjectForm
 } from '../components/ProjectForm.jsx';
 
@@ -65,19 +63,54 @@ function formatSyncSummary(summary) {
   return parts.join(' ');
 }
 
+function formatProjectStatus(status) {
+  const labels = {
+    ATIVO: 'Ativo',
+    INATIVO: 'Inativo',
+    ARQUIVADO: 'Arquivado'
+  };
+
+  return labels[status] || status || 'Não informado';
+}
+
+function getRepositoryName(project) {
+  if (project.githubRepositoryFullName) {
+    return project.githubRepositoryFullName;
+  }
+
+  if (project.githubOwner && (project.githubRepositoryName || project.githubRepo)) {
+    return `${project.githubOwner}/${project.githubRepositoryName || project.githubRepo}`;
+  }
+
+  return project.githubRepo || project.githubRepositoryName || '';
+}
+
+function getRepositoryUrl(project) {
+  return project.githubRepositoryUrl || project.githubUrl || '';
+}
+
+function buildInviteUrl(project) {
+  if (project.inviteLink) {
+    return project.inviteLink;
+  }
+
+  if (!project.accessCode) {
+    return '';
+  }
+
+  return `${window.location.origin}/join/${project.accessCode}`;
+}
+
 export function ProjectDetailsPage() {
   const { id } = useParams();
   const [project, setProject] = useState(null);
   const [members, setMembers] = useState([]);
   const [memberForm, setMemberForm] = useState({ name: '', email: '', role: 'MEMBRO' });
-  const [repositories, setRepositories] = useState([]);
   const [formData, setFormData] = useState(emptyProjectForm);
   const [loading, setLoading] = useState(true);
-  const [loadingRepositories, setLoadingRepositories] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [submittingMember, setSubmittingMember] = useState(false);
   const [syncingGithub, setSyncingGithub] = useState(false);
-  const [repositoriesError, setRepositoriesError] = useState('');
   const [membersError, setMembersError] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -112,50 +145,12 @@ export function ProjectDetailsPage() {
     loadProject();
   }, [id]);
 
-  useEffect(() => {
-    async function loadRepositories() {
-      setLoadingRepositories(true);
-      setRepositoriesError('');
-
-      try {
-        const response = await api.get('/github/repositories');
-        const validRepositories = (response.data.repositories || [])
-          .map(normalizeRepository)
-          .filter(
-            (repository) =>
-              repository.owner &&
-              repository.name &&
-              repository.fullName &&
-              repository.url
-          );
-        setRepositories(validRepositories);
-      } catch {
-        setRepositories([]);
-        setRepositoriesError('Não foi possível carregar os repositórios do GitHub.');
-      } finally {
-        setLoadingRepositories(false);
-      }
-    }
-
-    loadRepositories();
-  }, []);
-
   function handleChange(name, value) {
     setFormData((current) => updateProjectForm(current, name, value));
   }
 
   function handleMemberChange(name, value) {
     setMemberForm((current) => ({ ...current, [name]: value }));
-  }
-
-  function handleRepositoryChange(fullName) {
-    const selectedRepository = repositories.find(
-      (repository) => normalizeRepository(repository).fullName === fullName
-    );
-
-    if (selectedRepository) {
-      setFormData((current) => applyRepositoryToProjectForm(current, selectedRepository));
-    }
   }
 
   async function handleSubmit(event) {
@@ -165,7 +160,12 @@ export function ProjectDetailsPage() {
     setSuccess('');
 
     try {
-      const response = await api.put(`/projects/${id}`, formData);
+      const response = await api.put(`/projects/${id}`, {
+        name: formData.name,
+        description: formData.description,
+        responsibleTeam: formData.responsibleTeam,
+        status: formData.status
+      });
       setProject(response.data.project);
       setFormData(toFormData(response.data.project));
       setSuccess(response.data.message);
@@ -229,6 +229,25 @@ export function ProjectDetailsPage() {
     }
   }
 
+  async function handleCopyInviteLink() {
+    const inviteUrl = buildInviteUrl(project);
+
+    if (!inviteUrl) {
+      setError('Código de acesso não disponível para copiar convite.');
+      setSuccess('');
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(inviteUrl);
+      setError('');
+      setSuccess('Link de convite copiado.');
+    } catch {
+      setSuccess('');
+      setError('Não foi possível copiar o link de convite.');
+    }
+  }
+
   if (loading) {
     return (
       <main className="page-container">
@@ -248,6 +267,10 @@ export function ProjectDetailsPage() {
     );
   }
 
+  const repositoryName = getRepositoryName(project);
+  const repositoryUrl = getRepositoryUrl(project);
+  const githubSyncStatus = project.githubLastSyncAt ? 'Sincronizado' : 'Não sincronizado';
+
   return (
     <main className="page-container">
       <Link className="back-link" to="/projects">
@@ -262,16 +285,16 @@ export function ProjectDetailsPage() {
         </div>
         <div className="project-header-actions">
           <Link className="button button-secondary link-button" to={`/projects/${project.id}/tasks`}>
-            Ver tarefas do projeto
+            Tarefas
           </Link>
           <Link
             className="button button-secondary link-button"
             to={`/projects/${project.id}/requirements`}
           >
-            Ver requisitos do projeto
+            Requisitos
           </Link>
           <Link className="button button-secondary link-button" to={`/projects/${project.id}/kanban`}>
-            Ver Kanban
+            Kanban
           </Link>
           <Link
             className="button button-secondary link-button"
@@ -283,7 +306,7 @@ export function ProjectDetailsPage() {
             className="button button-secondary link-button"
             to={`/projects/${project.id}/repository`}
           >
-            Informações do Repositório
+            Repositório
           </Link>
           <button
             className="button button-primary"
@@ -291,11 +314,8 @@ export function ProjectDetailsPage() {
             onClick={handleGithubSync}
             disabled={syncingGithub}
           >
-            {syncingGithub ? 'Sincronizando...' : 'Sincronizar GitHub'}
+            {syncingGithub ? 'Sincronizando...' : 'Sincronizar'}
           </button>
-          <span className={`status-badge status-${project.status.toLowerCase()}`}>
-            {project.status}
-          </span>
         </div>
       </header>
 
@@ -307,19 +327,39 @@ export function ProjectDetailsPage() {
         <Card title="Visão geral do projeto">
           <dl className="overview-grid">
             <div>
-              <dt>Status</dt>
+              <dt>Status do projeto</dt>
               <dd>
                 <span className={`status-badge status-${project.status.toLowerCase()}`}>
-                  {project.status}
+                  {formatProjectStatus(project.status)}
+                </span>
+              </dd>
+            </div>
+            <div>
+              <dt>Status GitHub</dt>
+              <dd>
+                <span
+                  className={`status-badge ${
+                    project.githubLastSyncAt ? 'status-ativo' : 'status-pendente'
+                  }`}
+                >
+                  {githubSyncStatus}
                 </span>
               </dd>
             </div>
             <div>
               <dt>Repositório GitHub</dt>
               <dd>
-                {project.githubOwner && project.githubRepo
-                  ? `${project.githubOwner}/${project.githubRepo}`
-                  : 'Não informado'}
+                {repositoryName ? (
+                  repositoryUrl ? (
+                    <a href={repositoryUrl} target="_blank" rel="noreferrer">
+                      {repositoryName}
+                    </a>
+                  ) : (
+                    repositoryName
+                  )
+                ) : (
+                  'Não informado'
+                )}
               </dd>
             </div>
             <div>
@@ -332,137 +372,95 @@ export function ProjectDetailsPage() {
             </div>
             <div>
               <dt>Código de acesso</dt>
-              <dd>{project.accessCode || 'Não informado'}</dd>
+              <dd className="overview-value-with-action">
+                <span>{project.accessCode || 'Não informado'}</span>
+                {project.accessCode && (
+                  <button
+                    className="copy-invite-button"
+                    type="button"
+                    onClick={handleCopyInviteLink}
+                  >
+                    Copiar convite
+                  </button>
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt>Área ou equipe responsável</dt>
+              <dd>{project.responsibleTeam || 'Não informada'}</dd>
+            </div>
+            <div>
+              <dt>Criado em</dt>
+              <dd>{formatDateTime(project.createdAt)}</dd>
+            </div>
+            <div>
+              <dt>Atualizado em</dt>
+              <dd>{formatDateTime(project.updatedAt)}</dd>
             </div>
           </dl>
         </Card>
       </section>
 
-      <div className="details-layout">
+      <div className="project-details-stack">
         <Card title="Editar dados do projeto">
           <ProjectForm
             formData={formData}
-            repositories={repositories}
-            loadingRepositories={loadingRepositories}
-            repositoriesError={repositoriesError}
             onChange={handleChange}
-            onRepositoryChange={handleRepositoryChange}
             onSubmit={handleSubmit}
             submitLabel="Salvar alterações"
             submitting={submitting}
+            showRepositoryField={false}
           />
         </Card>
 
-        <aside className="details-sidebar">
-          <Card title="Acesso ao projeto">
-            <dl className="details-list">
-              <div>
-                <dt>Código de acesso</dt>
-                <dd>{project.accessCode || 'Não informado'}</dd>
-              </div>
-              <div>
-                <dt>Link de convite rápido</dt>
-                <dd>{project.inviteLink || 'Não informado'}</dd>
-              </div>
-            </dl>
-          </Card>
+        <Card title="Membros do projeto">
+          {members.length === 0 ? (
+            <p className="empty-state">Nenhum membro interno cadastrado neste projeto.</p>
+          ) : (
+            <div className="member-list member-list-wide">
+              {members.map((member) => (
+                <article className="member-item" key={member.id}>
+                  <strong>{member.name}</strong>
+                  <span>{member.email || 'Sem email'}</span>
+                  <span>{member.role}</span>
+                </article>
+              ))}
+            </div>
+          )}
 
-          <Card title="Membros do projeto">
-            {members.length === 0 ? (
-              <p className="empty-state">Nenhum membro interno cadastrado neste projeto.</p>
-            ) : (
-              <div className="member-list">
-                {members.map((member) => (
-                  <article className="member-item" key={member.id}>
-                    <strong>{member.name}</strong>
-                    <span>{member.email || 'Sem email'}</span>
-                    <span>{member.role}</span>
-                  </article>
-                ))}
-              </div>
-            )}
-
-            <form className="member-form" onSubmit={handleMemberSubmit}>
-              <label className="field">
-                <span>Nome</span>
-                <input
-                  type="text"
-                  value={memberForm.name}
-                  onChange={(event) => handleMemberChange('name', event.target.value)}
-                  placeholder="Nome do membro"
-                />
-              </label>
-              <label className="field">
-                <span>Email</span>
-                <input
-                  type="email"
-                  value={memberForm.email}
-                  onChange={(event) => handleMemberChange('email', event.target.value)}
-                  placeholder="email@exemplo.com"
-                />
-              </label>
-              <label className="field">
-                <span>Papel</span>
-                <input
-                  type="text"
-                  value={memberForm.role}
-                  onChange={(event) => handleMemberChange('role', event.target.value)}
-                  placeholder="DESENVOLVEDOR"
-                />
-              </label>
-              <button className="button button-secondary" type="submit" disabled={submittingMember}>
-                {submittingMember ? 'Adicionando...' : 'Adicionar membro'}
-              </button>
-            </form>
-          </Card>
-
-          <Card title="Responsabilidade">
-            <dl className="details-list">
-              <div>
-                <dt>Área ou equipe responsável</dt>
-                <dd>{project.responsibleTeam}</dd>
-              </div>
-            </dl>
-          </Card>
-
-          <Card title="Repositório GitHub">
-            <dl className="details-list">
-              <div>
-                <dt>Owner</dt>
-                <dd>{project.githubOwner || 'Não informado'}</dd>
-              </div>
-              <div>
-                <dt>Repositório</dt>
-                <dd>{project.githubRepo || 'Não informado'}</dd>
-              </div>
-              <div>
-                <dt>URL</dt>
-                <dd>
-                  {project.githubUrl ? (
-                    <a href={project.githubUrl} target="_blank" rel="noreferrer">
-                      Abrir no GitHub
-                    </a>
-                  ) : (
-                    'Não informada'
-                  )}
-                </dd>
-              </div>
-            </dl>
-          </Card>
-
-          <Card title="Registro">
-            <dl className="details-list">
-              <div>
-                <dt>Criado em</dt>
-                <dd>{new Date(project.createdAt).toLocaleString('pt-BR')}</dd>
-              </div>
-              <div>
-                <dt>Atualizado em</dt>
-                <dd>{new Date(project.updatedAt).toLocaleString('pt-BR')}</dd>
-              </div>
-            </dl>
-          </Card>
-        </aside>
+          <form className="member-form member-form-wide" onSubmit={handleMemberSubmit}>
+            <label className="field">
+              <span>Nome</span>
+              <input
+                type="text"
+                value={memberForm.name}
+                onChange={(event) => handleMemberChange('name', event.target.value)}
+                placeholder="Nome do membro"
+              />
+            </label>
+            <label className="field">
+              <span>Email</span>
+              <input
+                type="email"
+                value={memberForm.email}
+                onChange={(event) => handleMemberChange('email', event.target.value)}
+                placeholder="email@exemplo.com"
+              />
+            </label>
+            <label className="field">
+              <span>Papel</span>
+              <input
+                type="text"
+                value={memberForm.role}
+                onChange={(event) => handleMemberChange('role', event.target.value)}
+                placeholder="DESENVOLVEDOR"
+              />
+            </label>
+            <button className="button button-secondary" type="submit" disabled={submittingMember}>
+              {submittingMember ? 'Adicionando...' : 'Adicionar membro'}
+            </button>
+          </form>
+        </Card>
       </div>
     </main>
   );

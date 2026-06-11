@@ -1,6 +1,15 @@
 // Repository do modulo de requisitos. Todo acesso ao banco passa pelo Prisma.
 import { prisma } from '../../database/prismaClient.js';
 
+const linkedTaskSelect = {
+  id: true,
+  title: true,
+  status: true,
+  responsible: true,
+  deadline: true,
+  description: true
+};
+
 const requirementInclude = {
   project: {
     select: {
@@ -9,6 +18,7 @@ const requirementInclude = {
     }
   },
   tasks: {
+    select: linkedTaskSelect,
     orderBy: { createdAt: 'desc' }
   }
 };
@@ -25,13 +35,28 @@ export const requirementRepository = {
       data: {
         ...data,
         projectId
-      }
+      },
+      include: requirementInclude
     });
   },
 
-  async findRequirementsByProject(projectId) {
+  async findRequirementsByProject(projectId, filters = {}) {
+    const search = typeof filters.search === 'string' ? filters.search.trim() : '';
+
     return prisma.requirement.findMany({
-      where: { projectId },
+      where: {
+        projectId,
+        ...(search
+          ? {
+              OR: [
+                { title: { contains: search } },
+                { type: { contains: search } },
+                { status: { contains: search } }
+              ]
+            }
+          : {})
+      },
+      include: requirementInclude,
       orderBy: { createdAt: 'desc' }
     });
   },
@@ -46,75 +71,41 @@ export const requirementRepository = {
   async updateRequirement(id, data) {
     return prisma.requirement.update({
       where: { id },
-      data
+      data,
+      include: requirementInclude
     });
   },
 
   async updateRequirementStatus(id, status) {
     return prisma.requirement.update({
       where: { id },
-      data: { status }
+      data: { status },
+      include: requirementInclude
     });
   },
 
   async findTasksByRequirement(requirementId) {
     return prisma.task.findMany({
       where: { requirementId },
+      select: linkedTaskSelect,
       orderBy: { createdAt: 'desc' }
     });
   },
 
-  async findTaskById(id) {
-    return prisma.task.findUnique({ where: { id } });
+  async countRequirementsByProject(projectId) {
+    return prisma.requirement.count({
+      where: { projectId }
+    });
   },
 
-  async findTaskWithRequirement(id) {
-    return prisma.task.findUnique({
-      where: { id },
-      include: {
-        requirement: {
-          select: {
-            id: true,
-            projectId: true,
-            title: true,
-            description: true,
-            type: true,
-            status: true
-          }
+  async countRequirementsWithTasksByProject(projectId) {
+    return prisma.requirement.count({
+      where: {
+        projectId,
+        tasks: {
+          some: {}
         }
       }
-    });
-  },
-
-  async linkTaskToRequirement(taskId, requirementId) {
-    return prisma.task.update({
-      where: { id: taskId },
-      data: { requirementId }
-    });
-  },
-
-  async unlinkTaskFromRequirement(taskId) {
-    return prisma.task.update({
-      where: { id: taskId },
-      data: { requirementId: null }
-    });
-  },
-
-  async findRequirementsWithTasksByProject(projectId) {
-    return prisma.requirement.findMany({
-      where: { projectId },
-      include: {
-        tasks: {
-          select: {
-            id: true,
-            title: true,
-            status: true,
-            responsible: true
-          },
-          orderBy: { createdAt: 'desc' }
-        }
-      },
-      orderBy: { createdAt: 'desc' }
     });
   }
 };
