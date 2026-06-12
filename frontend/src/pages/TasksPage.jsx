@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   api,
+  deleteTask,
   getProjectCommitCoverage,
   getProjectCommits,
   getProjectIssueCoverage,
@@ -104,6 +105,7 @@ export function TasksPage() {
   const [projectMembers, setProjectMembers] = useState([]);
   const [formData, setFormData] = useState(emptyTaskForm);
   const [editingTaskId, setEditingTaskId] = useState(null);
+  const [deletingTaskId, setDeletingTaskId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -578,6 +580,35 @@ export function TasksPage() {
     }
   }
 
+  async function handleDeleteTask(task) {
+    const confirmed = window.confirm(
+      'Tem certeza que deseja excluir esta tarefa?\n\nEsta ação não poderá ser desfeita. Os vínculos com requisito, pull request, commits, issues e movimentações do Kanban serão removidos, mas os artefatos importados do GitHub serão mantidos.'
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingTaskId(task.id);
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await deleteTask(task.id);
+
+      if (String(editingTaskId) === String(task.id)) {
+        resetForm();
+      }
+
+      setSuccess(response.message || 'Tarefa excluída com sucesso.');
+      await loadTaskData();
+    } catch (requestError) {
+      setError(getErrorMessage(requestError, 'Não foi possível excluir a tarefa.'));
+    } finally {
+      setDeletingTaskId(null);
+    }
+  }
+
   const editingTask = editingTaskId
     ? tasks.find((task) => String(task.id) === String(editingTaskId))
     : null;
@@ -885,6 +916,14 @@ export function TasksPage() {
                       onClick={() => startEditing(task)}
                     >
                       Editar
+                    </button>
+                    <button
+                      className="button button-danger"
+                      type="button"
+                      onClick={() => handleDeleteTask(task)}
+                      disabled={deletingTaskId === task.id}
+                    >
+                      {deletingTaskId === task.id ? 'Excluindo...' : 'Excluir'}
                     </button>
                   </div>
                 </article>

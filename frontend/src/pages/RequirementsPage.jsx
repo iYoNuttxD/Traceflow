@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import {
   api,
   confirmRequirementCompletion,
+  deleteRequirement,
   getRequirementTaskCoverage,
   linkTaskRequirement,
   requirementsApi,
@@ -83,6 +84,7 @@ export function RequirementsPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [confirmingRequirementId, setConfirmingRequirementId] = useState(null);
+  const [deletingRequirementId, setDeletingRequirementId] = useState(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -297,6 +299,35 @@ export function RequirementsPage() {
       setError(getErrorMessage(requestError, 'Não foi possível concluir o requisito.'));
     } finally {
       setConfirmingRequirementId(null);
+    }
+  }
+
+  async function handleDeleteRequirement(requirement) {
+    const confirmed = window.confirm(
+      'Tem certeza que deseja excluir este requisito?\n\nEsta ação não poderá ser desfeita. As tarefas vinculadas serão mantidas, mas ficarão sem requisito vinculado.'
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingRequirementId(requirement.id);
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await deleteRequirement(requirement.id);
+
+      if (String(editingRequirementId) === String(requirement.id)) {
+        resetForm();
+      }
+
+      setSuccess(response.message || 'Requisito excluído com sucesso.');
+      await loadRequirementsData();
+    } catch (requestError) {
+      setError(getErrorMessage(requestError, 'Não foi possível excluir o requisito.'));
+    } finally {
+      setDeletingRequirementId(null);
     }
   }
 
@@ -577,6 +608,14 @@ export function RequirementsPage() {
                           : 'Confirmar conclusão'}
                       </button>
                     )}
+                    <button
+                      className="button button-danger"
+                      type="button"
+                      onClick={() => handleDeleteRequirement(requirement)}
+                      disabled={deletingRequirementId === requirement.id}
+                    >
+                      {deletingRequirementId === requirement.id ? 'Excluindo...' : 'Excluir'}
+                    </button>
                   </div>
                 </article>
               ))}

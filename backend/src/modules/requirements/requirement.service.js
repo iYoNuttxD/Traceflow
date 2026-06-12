@@ -201,6 +201,17 @@ export const requirementService = {
     return requirementRepository.updateRequirement(parsedRequirementId, requirementData);
   },
 
+  async deleteRequirement(requirementId) {
+    const parsedRequirementId = parseRequirementId(requirementId);
+    await ensureRequirementExists(parsedRequirementId);
+
+    await requirementRepository.deleteRequirement(parsedRequirementId);
+
+    return {
+      id: parsedRequirementId
+    };
+  },
+
   async updateRequirementStatus(requirementId, status) {
     const parsedRequirementId = parseRequirementId(requirementId);
     await ensureRequirementExists(parsedRequirementId);

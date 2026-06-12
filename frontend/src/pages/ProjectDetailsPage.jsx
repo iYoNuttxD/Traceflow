@@ -35,6 +35,14 @@ function formatDateTime(value) {
   }).format(new Date(value));
 }
 
+function formatLastSuccessfulSync(value) {
+  if (!value) {
+    return 'Não realizada';
+  }
+
+  return formatDateTime(value);
+}
+
 function formatSyncSummary(summary) {
   if (!summary) {
     return '';
@@ -101,6 +109,43 @@ function buildInviteUrl(project) {
   return `${window.location.origin}/join/${project.accessCode}`;
 }
 
+function getGithubSyncDisplay(project, syncStatus) {
+  const hasRepository = Boolean(getRepositoryName(project));
+
+  if (!hasRepository) {
+    return {
+      label: 'Não integrado',
+      className: 'status-pendente'
+    };
+  }
+
+  if (syncStatus === 'syncing') {
+    return {
+      label: 'Sincronizando...',
+      className: 'status-pendente'
+    };
+  }
+
+  if (syncStatus === 'error') {
+    return {
+      label: 'Falha na sincronização',
+      className: 'status-cancelado'
+    };
+  }
+
+  if (project.githubLastSyncAt) {
+    return {
+      label: 'Sincronizado',
+      className: 'status-ativo'
+    };
+  }
+
+  return {
+    label: 'Não sincronizado',
+    className: 'status-pendente'
+  };
+}
+
 export function ProjectDetailsPage() {
   const { id } = useParams();
   const [project, setProject] = useState(null);
@@ -111,6 +156,7 @@ export function ProjectDetailsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submittingMember, setSubmittingMember] = useState(false);
   const [syncingGithub, setSyncingGithub] = useState(false);
+  const [githubSyncStatus, setGithubSyncStatus] = useState('idle');
   const [membersError, setMembersError] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -120,6 +166,7 @@ export function ProjectDetailsPage() {
       setLoading(true);
       setError('');
       setMembersError('');
+      setGithubSyncStatus('idle');
 
       try {
         const [projectResponse, membersResponse] = await Promise.all([
@@ -200,6 +247,7 @@ export function ProjectDetailsPage() {
 
   async function handleGithubSync() {
     setSyncingGithub(true);
+    setGithubSyncStatus('syncing');
     setError('');
     setSuccess('');
 
@@ -215,14 +263,19 @@ export function ProjectDetailsPage() {
             }
           : current
       );
+      setGithubSyncStatus('success');
       setSuccess(
         syncSummary
           ? `Sincronização GitHub concluída com sucesso. ${syncSummary}`
           : response.message || 'Sincronização GitHub concluída com sucesso.'
       );
     } catch (requestError) {
+      setGithubSyncStatus('error');
       setError(
-        getErrorMessage(requestError, 'Não foi possível sincronizar o repositório GitHub.')
+        getErrorMessage(
+          requestError,
+          'Não foi possível sincronizar com o GitHub no momento. Verifique sua conexão ou tente novamente mais tarde.'
+        )
       );
     } finally {
       setSyncingGithub(false);
@@ -269,7 +322,7 @@ export function ProjectDetailsPage() {
 
   const repositoryName = getRepositoryName(project);
   const repositoryUrl = getRepositoryUrl(project);
-  const githubSyncStatus = project.githubLastSyncAt ? 'Sincronizado' : 'Não sincronizado';
+  const githubSyncDisplay = getGithubSyncDisplay(project, githubSyncStatus);
 
   return (
     <main className="page-container">
@@ -302,6 +355,12 @@ export function ProjectDetailsPage() {
           >
             Repositório
           </Link>
+          <Link
+            className="button button-secondary link-button"
+            to={`/projects/${project.id}/traceability`}
+          >
+            Rastreabilidade
+          </Link>
           <button
             className="button button-primary"
             type="button"
@@ -331,12 +390,8 @@ export function ProjectDetailsPage() {
             <div>
               <dt>Status GitHub</dt>
               <dd>
-                <span
-                  className={`status-badge ${
-                    project.githubLastSyncAt ? 'status-ativo' : 'status-pendente'
-                  }`}
-                >
-                  {githubSyncStatus}
+                <span className={`status-badge ${githubSyncDisplay.className}`}>
+                  {githubSyncDisplay.label}
                 </span>
               </dd>
             </div>
@@ -357,8 +412,8 @@ export function ProjectDetailsPage() {
               </dd>
             </div>
             <div>
-              <dt>Última sincronização</dt>
-              <dd>{formatDateTime(project.githubLastSyncAt)}</dd>
+              <dt>Última sincronização bem-sucedida</dt>
+              <dd>{formatLastSuccessfulSync(project.githubLastSyncAt)}</dd>
             </div>
             <div>
               <dt>Membros</dt>

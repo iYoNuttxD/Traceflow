@@ -130,6 +130,18 @@ export const taskController = {
     }
   },
 
+  async delete(req, res) {
+    try {
+      await taskService.deleteTask(req.params.id);
+
+      return res.json({
+        message: 'Tarefa excluída com sucesso.'
+      });
+    } catch (error) {
+      return sendError(res, error, 'Erro interno ao excluir tarefa.');
+    }
+  },
+
   async listCommits(req, res) {
     try {
       const commits = await taskService.listTaskCommits(req.params.id);

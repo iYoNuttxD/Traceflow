@@ -12,6 +12,7 @@ router.get(
 );
 router.get('/requirements/:id', requirementController.findById);
 router.put('/requirements/:id', requirementController.update);
+router.delete('/requirements/:id', requirementController.delete);
 router.patch('/requirements/:id/status', requirementController.updateStatus);
 router.patch('/requirements/:id/confirm-completion', requirementController.confirmCompletion);
 router.get('/requirements/:id/tasks', requirementController.findTasksByRequirement);

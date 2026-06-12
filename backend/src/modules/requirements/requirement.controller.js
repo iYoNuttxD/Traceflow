@@ -67,6 +67,18 @@ export const requirementController = {
     }
   },
 
+  async delete(req, res) {
+    try {
+      await requirementService.deleteRequirement(req.params.id);
+
+      return res.json({
+        message: 'Requisito excluído com sucesso.'
+      });
+    } catch (error) {
+      return sendError(res, error, 'Erro interno ao excluir requisito.');
+    }
+  },
+
   async updateStatus(req, res) {
     try {
       const requirement = await requirementService.updateRequirementStatus(

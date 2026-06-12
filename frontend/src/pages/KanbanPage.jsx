@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   api,
+  deleteTask,
   kanbanApi,
   projectMembersApi,
   unlinkTaskCommit,
@@ -189,6 +190,7 @@ export function KanbanPage() {
   const [selectedTask, setSelectedTask] = useState(null);
   const [loading, setLoading] = useState(true);
   const [movingTaskId, setMovingTaskId] = useState(null);
+  const [deletingTaskId, setDeletingTaskId] = useState(null);
   const [draggingTaskId, setDraggingTaskId] = useState(null);
   const [dragOverStatus, setDragOverStatus] = useState('');
   const [error, setError] = useState('');
@@ -535,6 +537,31 @@ export function KanbanPage() {
     }
   }
 
+  async function handleDeleteSelectedTask(task) {
+    const confirmed = window.confirm(
+      'Tem certeza que deseja excluir esta tarefa?\n\nEsta ação não poderá ser desfeita. Os vínculos com requisito, pull request, commits, issues e movimentações do Kanban serão removidos, mas os artefatos importados do GitHub serão mantidos.'
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingTaskId(task.id);
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await deleteTask(task.id);
+      setSelectedTask(null);
+      setSuccess(response.message || 'Tarefa excluída com sucesso.');
+      await loadKanban(buildPeriodParams(period));
+    } catch (requestError) {
+      setError(getErrorMessage(requestError, 'Não foi possível excluir a tarefa.'));
+    } finally {
+      setDeletingTaskId(null);
+    }
+  }
+
   async function handlePeriodSubmit(event) {
     event.preventDefault();
     setError('');
@@ -835,13 +862,23 @@ export function KanbanPage() {
                     <span className="eyebrow">Detalhes da tarefa</span>
                     <h2 id="task-detail-title">{selectedTask.title}</h2>
                   </div>
-                  <button
-                    className="text-button"
-                    type="button"
-                    onClick={() => setSelectedTask(null)}
-                  >
-                    Fechar
-                  </button>
+                  <div className="task-detail-header-actions">
+                    <button
+                      className="button button-danger"
+                      type="button"
+                      onClick={() => handleDeleteSelectedTask(selectedTask)}
+                      disabled={deletingTaskId === selectedTask.id}
+                    >
+                      {deletingTaskId === selectedTask.id ? 'Excluindo...' : 'Excluir'}
+                    </button>
+                    <button
+                      className="text-button"
+                      type="button"
+                      onClick={() => setSelectedTask(null)}
+                    >
+                      Fechar
+                    </button>
+                  </div>
                 </div>
 
                 <p className="task-detail-description">

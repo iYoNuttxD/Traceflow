@@ -297,6 +297,26 @@ export const taskRepository = {
     });
   },
 
+  async deleteTask(id) {
+    return prisma.$transaction(async (tx) => {
+      await tx.taskCommit.deleteMany({
+        where: { taskId: id }
+      });
+
+      await tx.taskIssue.deleteMany({
+        where: { taskId: id }
+      });
+
+      await tx.taskMovement.deleteMany({
+        where: { taskId: id }
+      });
+
+      return tx.task.delete({
+        where: { id }
+      });
+    });
+  },
+
   async moveTask(task, data) {
     return prisma.$transaction(async (tx) => {
       const updatedTask = await tx.task.update({

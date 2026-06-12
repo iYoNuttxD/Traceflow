@@ -93,6 +93,18 @@ export async function unlinkTaskRequirement(taskId) {
   return response.data;
 }
 
+export async function deleteTask(taskId) {
+  const response = await api.delete(`/tasks/${taskId}`);
+
+  return response.data;
+}
+
+export async function deleteRequirement(requirementId) {
+  const response = await api.delete(`/requirements/${requirementId}`);
+
+  return response.data;
+}
+
 export async function linkTaskPullRequest(taskId, pullRequestId) {
   const response = await api.patch(`/tasks/${taskId}/pull-request`, {
     pullRequestId
@@ -176,6 +188,22 @@ export async function confirmRequirementCompletion(requirementId) {
 export async function getRequirementTaskCoverage(projectId) {
   const response = await api.get(
     `/projects/${projectId}/traceability/requirement-task-coverage`
+  );
+
+  return response.data;
+}
+
+export async function getRequirementsTraceabilityMatrix(projectId) {
+  const response = await api.get(
+    `/projects/${projectId}/traceability/requirements-matrix`
+  );
+
+  return response.data;
+}
+
+export async function getRequirementTraceability(projectId, requirementId) {
+  const response = await api.get(
+    `/projects/${projectId}/traceability/requirements/${requirementId}`
   );
 
   return response.data;

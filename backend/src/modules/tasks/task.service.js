@@ -629,6 +629,19 @@ export const taskService = {
     return formatTask(updatedTask);
   },
 
+  async deleteTask(taskId) {
+    const parsedTaskId = parseTaskId(taskId);
+    const task = await ensureTaskExists(parsedTaskId);
+    const requirementId = task.requirementId;
+
+    await taskRepository.deleteTask(parsedTaskId);
+    await recalculateRelatedRequirements(requirementId);
+
+    return {
+      id: parsedTaskId
+    };
+  },
+
   async linkPullRequest(taskId, data) {
     const parsedTaskId = parseTaskId(taskId);
     const task = await ensureTaskExists(parsedTaskId);

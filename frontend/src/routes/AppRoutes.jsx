@@ -24,7 +24,7 @@ export function AppRoutes() {
       <Route path="/projects/:projectId/kanban" element={<KanbanPage />} />
       <Route path="/projects/:projectId/repository" element={<RepositoryInfoPage />} />
       <Route path="/projects/:id/github-artifacts" element={<GithubArtifactsPage />} />
-      <Route path="/projects/:id/traceability" element={<TraceabilityPage />} />
+      <Route path="/projects/:projectId/traceability" element={<TraceabilityPage />} />
     </Routes>
   );
 }

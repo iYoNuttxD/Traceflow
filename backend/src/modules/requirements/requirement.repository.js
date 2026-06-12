@@ -84,6 +84,19 @@ export const requirementRepository = {
     });
   },
 
+  async deleteRequirement(id) {
+    return prisma.$transaction(async (tx) => {
+      await tx.task.updateMany({
+        where: { requirementId: id },
+        data: { requirementId: null }
+      });
+
+      return tx.requirement.delete({
+        where: { id }
+      });
+    });
+  },
+
   async findTasksByRequirement(requirementId) {
     return prisma.task.findMany({
       where: { requirementId },
