@@ -61,6 +61,40 @@ export const projectRepository = {
     });
   },
 
+  async markGithubSyncStarted(id, attemptedAt) {
+    return prisma.project.update({
+      where: { id },
+      data: {
+        githubSyncStatus: 'SINCRONIZANDO',
+        githubLastSyncAttemptAt: attemptedAt,
+        githubLastSyncError: null
+      }
+    });
+  },
+
+  async markGithubSyncSucceeded(id, syncedAt) {
+    return prisma.project.update({
+      where: { id },
+      data: {
+        githubLastSyncAt: syncedAt,
+        githubLastSyncAttemptAt: syncedAt,
+        githubSyncStatus: 'SINCRONIZADO',
+        githubLastSyncError: null
+      }
+    });
+  },
+
+  async markGithubSyncFailed(id, attemptedAt, errorMessage) {
+    return prisma.project.update({
+      where: { id },
+      data: {
+        githubLastSyncAttemptAt: attemptedAt,
+        githubSyncStatus: 'FALHA',
+        githubLastSyncError: errorMessage
+      }
+    });
+  },
+
   async findActiveMembersByProject(projectId) {
     return prisma.projectMember.findMany({
       where: {

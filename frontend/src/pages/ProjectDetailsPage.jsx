@@ -111,6 +111,7 @@ function buildInviteUrl(project) {
 
 function getGithubSyncDisplay(project, syncStatus) {
   const hasRepository = Boolean(getRepositoryName(project));
+  const persistedStatus = project.githubSyncStatus;
 
   if (!hasRepository) {
     return {
@@ -119,21 +120,21 @@ function getGithubSyncDisplay(project, syncStatus) {
     };
   }
 
-  if (syncStatus === 'syncing') {
+  if (syncStatus === 'syncing' || persistedStatus === 'SINCRONIZANDO') {
     return {
       label: 'Sincronizando...',
       className: 'status-pendente'
     };
   }
 
-  if (syncStatus === 'error') {
+  if (syncStatus === 'error' || persistedStatus === 'FALHA') {
     return {
       label: 'Falha na sincronização',
       className: 'status-cancelado'
     };
   }
 
-  if (project.githubLastSyncAt) {
+  if (persistedStatus === 'SINCRONIZADO' || project.githubLastSyncAt) {
     return {
       label: 'Sincronizado',
       className: 'status-ativo'
@@ -141,7 +142,7 @@ function getGithubSyncDisplay(project, syncStatus) {
   }
 
   return {
-    label: 'Não sincronizado',
+    label: 'Nunca sincronizado',
     className: 'status-pendente'
   };
 }
@@ -161,6 +162,13 @@ export function ProjectDetailsPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  async function refreshProjectDetails() {
+    const projectResponse = await api.get(`/projects/${id}`);
+    setProject(projectResponse.data.project);
+    setFormData(toFormData(projectResponse.data.project));
+    return projectResponse.data.project;
+  }
+
   useEffect(() => {
     async function loadProject() {
       setLoading(true);
@@ -179,8 +187,9 @@ export function ProjectDetailsPage() {
           })
         ]);
 
-        setProject(projectResponse.data.project);
-        setFormData(toFormData(projectResponse.data.project));
+        const loadedProject = projectResponse.data.project;
+        setProject(loadedProject);
+        setFormData(toFormData(loadedProject));
         setMembers(membersResponse.data.members || []);
       } catch (requestError) {
         setError(getErrorMessage(requestError, 'Não foi possível carregar o projeto.'));
@@ -255,14 +264,13 @@ export function ProjectDetailsPage() {
       const response = await syncProjectGithub(id);
       const syncSummary = formatSyncSummary(response.summary);
 
-      setProject((current) =>
-        current
-          ? {
-              ...current,
-              githubLastSyncAt: new Date().toISOString()
-            }
-          : current
-      );
+      if (response.project) {
+        setProject(response.project);
+        setFormData(toFormData(response.project));
+      } else {
+        await refreshProjectDetails();
+      }
+
       setGithubSyncStatus('success');
       setSuccess(
         syncSummary
@@ -277,6 +285,12 @@ export function ProjectDetailsPage() {
           'Não foi possível sincronizar com o GitHub no momento. Verifique sua conexão ou tente novamente mais tarde.'
         )
       );
+
+      try {
+        await refreshProjectDetails();
+      } catch {
+        // Mantem o estado local de falha se a atualização do projeto também falhar.
+      }
     } finally {
       setSyncingGithub(false);
     }
@@ -415,6 +429,16 @@ export function ProjectDetailsPage() {
               <dt>Última sincronização bem-sucedida</dt>
               <dd>{formatLastSuccessfulSync(project.githubLastSyncAt)}</dd>
             </div>
+            <div>
+              <dt>Última tentativa</dt>
+              <dd>{formatLastSuccessfulSync(project.githubLastSyncAttemptAt)}</dd>
+            </div>
+            {project.githubSyncStatus === 'FALHA' && project.githubLastSyncError && (
+              <div>
+                <dt>Último erro</dt>
+                <dd>{project.githubLastSyncError}</dd>
+              </div>
+            )}
             <div>
               <dt>Membros</dt>
               <dd>{members.length}</dd>

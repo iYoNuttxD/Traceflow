@@ -44,6 +44,33 @@ function validateGithubLinkedProject(project) {
   };
 }
 
+function normalizeGithubSyncError(error) {
+  if (error instanceof GithubSyncError) {
+    return error.message;
+  }
+
+  if (
+    error.status === 429 ||
+    (error.status === 403 && error.response?.headers?.['x-ratelimit-remaining'] === '0')
+  ) {
+    return 'Limite de requisições do GitHub atingido.';
+  }
+
+  if (error.status === 401 || error.status === 403) {
+    return 'Token GitHub inválido, expirado ou sem permissão.';
+  }
+
+  if (error.status === 404) {
+    return 'Repositório GitHub não encontrado ou sem permissão de acesso.';
+  }
+
+  if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+    return 'Falha de conexão com o GitHub.';
+  }
+
+  return 'Não foi possível sincronizar com o GitHub.';
+}
+
 function mapGithubCommit(item, project, branch) {
   return {
     hash: item.sha,
@@ -205,18 +232,38 @@ export const githubSyncService = {
     const parsedProjectId = parseProjectId(projectId);
     const project = await projectRepository.findById(parsedProjectId);
 
-    validateGithubLinkedProject(project);
+    try {
+      validateGithubLinkedProject(project);
 
-    const commitSummary = await syncCommits(project);
-    const pullRequestSummary = await syncPullRequests(project);
-    const issueSummary = await syncIssues(project);
+      await projectRepository.markGithubSyncStarted(parsedProjectId, new Date());
 
-    await projectRepository.updateGithubLastSyncAt(parsedProjectId, new Date());
+      const commitSummary = await syncCommits(project);
+      const pullRequestSummary = await syncPullRequests(project);
+      const issueSummary = await syncIssues(project);
+      const syncedAt = new Date();
+      const updatedProject = await projectRepository.markGithubSyncSucceeded(
+        parsedProjectId,
+        syncedAt
+      );
 
-    return {
-      commits: commitSummary,
-      pullRequests: pullRequestSummary,
-      issues: issueSummary
-    };
+      return {
+        summary: {
+          commits: commitSummary,
+          pullRequests: pullRequestSummary,
+          issues: issueSummary
+        },
+        project: updatedProject
+      };
+    } catch (error) {
+      if (project) {
+        await projectRepository.markGithubSyncFailed(
+          parsedProjectId,
+          new Date(),
+          normalizeGithubSyncError(error).slice(0, 255)
+        );
+      }
+
+      throw error;
+    }
   }
 };

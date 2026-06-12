@@ -50,11 +50,12 @@ export const githubController = {
 
   async syncProjectGithubArtifacts(req, res) {
     try {
-      const summary = await githubSyncService.syncGithubArtifacts(req.params.projectId);
+      const { summary, project } = await githubSyncService.syncGithubArtifacts(req.params.projectId);
 
       return res.json({
         message: 'Sincronização com GitHub concluída.',
-        summary
+        summary,
+        project
       });
     } catch (error) {
       return sendGithubError(res, error, 'Erro ao sincronizar artefatos do GitHub.');
