@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { getProjectArtifacts } from '../api/api.js';
+import { ProjectSectionNav } from '../components/ProjectSectionNav.jsx';
 
 const emptyFilters = {
   type: '',
@@ -133,6 +134,7 @@ export function RepositoryInfoPage() {
               : 'Visualize commits, pull requests e issues importados do GitHub para este projeto.'}
           </p>
         </div>
+        <ProjectSectionNav projectId={projectId} activeSection="repository" />
       </header>
 
       {error && <div className="message message-error">{error}</div>}

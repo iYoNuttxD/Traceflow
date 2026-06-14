@@ -10,6 +10,7 @@ import {
   unlinkTaskRequirement
 } from '../api/api.js';
 import { Card } from '../components/Card.jsx';
+import { ProjectSectionNav } from '../components/ProjectSectionNav.jsx';
 
 const emptyRequirementForm = {
   title: '',
@@ -60,6 +61,11 @@ function requirementToForm(requirement) {
 function requirementFormToPayload(formData) {
   const payload = { ...formData };
   delete payload.taskIds;
+
+  if (!['FUNCIONAL', 'NAO_FUNCIONAL'].includes(payload.type)) {
+    delete payload.type;
+  }
+
   return payload;
 }
 
@@ -386,9 +392,7 @@ export function RequirementsPage() {
               : 'Cadastre e acompanhe os requisitos associados ao projeto.'}
           </p>
         </div>
-        <Link className="button button-secondary link-button" to={`/projects/${projectId}/tasks`}>
-          Ver tarefas do projeto
-        </Link>
+        <ProjectSectionNav projectId={projectId} activeSection="requirements" />
       </header>
 
       {error && <div className="message message-error">{error}</div>}
@@ -454,9 +458,14 @@ export function RequirementsPage() {
                 value={formData.type}
                 onChange={(event) => handleFormChange('type', event.target.value)}
               >
+                {formData.type &&
+                  !['FUNCIONAL', 'NAO_FUNCIONAL'].includes(formData.type) && (
+                    <option value={formData.type} disabled>
+                      {typeLabels[formData.type] || formData.type} (legado)
+                    </option>
+                  )}
                 <option value="FUNCIONAL">Funcional</option>
                 <option value="NAO_FUNCIONAL">Não funcional</option>
-                <option value="REGRA_NEGOCIO">Regra de negócio</option>
               </select>
             </label>
 

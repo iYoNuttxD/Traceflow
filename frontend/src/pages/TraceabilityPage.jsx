@@ -5,6 +5,7 @@ import {
   getRequirementsTraceabilityMatrix
 } from '../api/api.js';
 import { Card } from '../components/Card.jsx';
+import { ProjectSectionNav } from '../components/ProjectSectionNav.jsx';
 import { TraceabilityFlow } from '../components/TraceabilityFlow.jsx';
 
 const requirementStatusLabels = {
@@ -116,6 +117,7 @@ export function TraceabilityPage() {
             Acompanhe a evolução dos requisitos, tarefas e evidências técnicas do projeto.
           </p>
         </div>
+        <ProjectSectionNav projectId={projectId} activeSection="traceability" />
       </header>
 
       {matrixError && <div className="message message-error">{matrixError}</div>}

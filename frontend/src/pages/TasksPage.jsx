@@ -21,6 +21,7 @@ import {
   unlinkTaskRequirement
 } from '../api/api.js';
 import { Card } from '../components/Card.jsx';
+import { ProjectSectionNav } from '../components/ProjectSectionNav.jsx';
 import {
   TaskForm,
   emptyTaskForm,
@@ -663,9 +664,7 @@ export function TasksPage() {
               : 'Cadastre e acompanhe as tarefas associadas ao projeto.'}
           </p>
         </div>
-        <Link className="button button-secondary link-button" to={`/projects/${projectId}/kanban`}>
-          Ver Kanban
-        </Link>
+        <ProjectSectionNav projectId={projectId} activeSection="tasks" />
       </header>
 
       {error && <div className="message message-error">{error}</div>}

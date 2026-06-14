@@ -11,6 +11,7 @@ import {
   unlinkTaskRequirement
 } from '../api/api.js';
 import { KanbanColumn } from '../components/KanbanColumn.jsx';
+import { ProjectSectionNav } from '../components/ProjectSectionNav.jsx';
 
 const KANBAN_COLUMNS = [
   { status: 'A_FAZER', label: 'A Fazer' },
@@ -591,8 +592,8 @@ export function KanbanPage() {
 
   return (
     <main className="page-container">
-      <Link className="back-link" to={`/projects/${projectId}/tasks`}>
-        Voltar para tarefas
+      <Link className="back-link" to={`/projects/${projectId}`}>
+        ← Voltar para o projeto
       </Link>
 
       <header className="page-header kanban-header">
@@ -605,9 +606,7 @@ export function KanbanPage() {
               : 'Organização das tarefas por coluna.'}
           </p>
         </div>
-        <Link className="button button-secondary link-button" to={`/projects/${projectId}`}>
-          Ver projeto
-        </Link>
+        <ProjectSectionNav projectId={projectId} activeSection="kanban" />
       </header>
 
       {error && <div className="message message-error">{error}</div>}

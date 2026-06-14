@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api, syncProjectGithub } from '../api/api.js';
 import { Card } from '../components/Card.jsx';
+import { ProjectSectionNav } from '../components/ProjectSectionNav.jsx';
 import {
   ProjectForm,
   emptyProjectForm,
@@ -350,40 +351,13 @@ export function ProjectDetailsPage() {
           <h1>{project.name}</h1>
           <p>{project.description || 'Sem descrição cadastrada.'}</p>
         </div>
-        <div className="project-header-actions">
-          <Link className="button button-secondary link-button" to={`/projects/${project.id}/tasks`}>
-            Tarefas
-          </Link>
-          <Link
-            className="button button-secondary link-button"
-            to={`/projects/${project.id}/requirements`}
-          >
-            Requisitos
-          </Link>
-          <Link className="button button-secondary link-button" to={`/projects/${project.id}/kanban`}>
-            Kanban
-          </Link>
-          <Link
-            className="button button-secondary link-button"
-            to={`/projects/${project.id}/repository`}
-          >
-            Repositório
-          </Link>
-          <Link
-            className="button button-secondary link-button"
-            to={`/projects/${project.id}/traceability`}
-          >
-            Rastreabilidade
-          </Link>
-          <button
-            className="button button-primary"
-            type="button"
-            onClick={handleGithubSync}
-            disabled={syncingGithub}
-          >
-            {syncingGithub ? 'Sincronizando...' : 'Sincronizar'}
-          </button>
-        </div>
+        <ProjectSectionNav
+          projectId={project.id}
+          activeSection="overview"
+          showSyncButton
+          onSync={handleGithubSync}
+          isSyncing={syncingGithub}
+        />
       </header>
 
       {error && <div className="message message-error">{error}</div>}
