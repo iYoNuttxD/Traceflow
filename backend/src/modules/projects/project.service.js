@@ -286,7 +286,10 @@ function buildProjectData(data, repository) {
     githubIsPrivate: repository.private,
     githubIntegratedAt: new Date(),
     githubAutoSyncEnabled,
-    githubLastSyncAt: null
+    githubLastSyncAt: null,
+    githubSyncStatus: 'NUNCA_SINCRONIZADO',
+    githubLastSyncError: null,
+    githubLastSyncAttemptAt: null
   };
 }
 

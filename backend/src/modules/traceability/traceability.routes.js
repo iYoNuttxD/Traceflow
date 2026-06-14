@@ -6,6 +6,14 @@ import { traceabilityController } from './traceability.controller.js';
 const router = Router();
 const placeholder = traceabilityController.notImplemented;
 
+router.get(
+  '/projects/:projectId/traceability/requirements-matrix',
+  traceabilityController.getRequirementsMatrix
+);
+router.get(
+  '/projects/:projectId/traceability/requirements/:requirementId',
+  traceabilityController.getRequirementTraceability
+);
 router.post('/projects/:projectId/trace-links', placeholder);
 router.get('/requirements/:requirementId/traceability', placeholder);
 router.get('/tasks/:taskId/traceability', placeholder);

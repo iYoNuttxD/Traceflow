@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { api, kanbanApi, projectMembersApi } from '../api/api.js';
+import {
+  api,
+  deleteTask,
+  kanbanApi,
+  projectMembersApi,
+  unlinkTaskCommit,
+  unlinkTaskIssue,
+  unlinkTaskPullRequest,
+  unlinkTaskRequirement
+} from '../api/api.js';
 import { KanbanColumn } from '../components/KanbanColumn.jsx';
 
 const KANBAN_COLUMNS = [
@@ -13,6 +22,16 @@ const statusLabels = {
   A_FAZER: 'A Fazer',
   EM_ANDAMENTO: 'Em Andamento',
   CONCLUIDO: 'Concluído'
+};
+
+const requirementStatusLabels = {
+  CADASTRADO: 'Cadastrado',
+  APROVADO: 'Aprovado',
+  EM_IMPLEMENTACAO: 'Em implementação',
+  VALIDADO: 'Validado',
+  CONCLUIDO: 'Concluído',
+  PENDENTE: 'Pendente',
+  CANCELADO: 'Cancelado'
 };
 
 const priorityLabels = {
@@ -55,6 +74,70 @@ function buildPeriodParams(period) {
   }
 
   return params;
+}
+
+function formatCommitLabel(commit) {
+  const shortHash = commit.shortHash || commit.hash?.slice(0, 7) || `#${commit.id}`;
+
+  return `${shortHash} — ${commit.message || 'Sem mensagem'}`;
+}
+
+function formatRequirementLabel(requirement) {
+  return requirement?.title || 'Requisito vinculado';
+}
+
+function formatIssueLabel(issue) {
+  return `#${issue.number} — ${issue.title}`;
+}
+
+function formatIssueLabels(labels) {
+  if (!labels) {
+    return 'sem labels';
+  }
+
+  if (Array.isArray(labels)) {
+    return labels.length > 0 ? labels.join(', ') : 'sem labels';
+  }
+
+  if (typeof labels === 'string') {
+    return labels || 'sem labels';
+  }
+
+  return 'sem labels';
+}
+
+function getTraceabilitySummary(task) {
+  const commitsCount = task.commits?.length || 0;
+  const issuesCount = task.issues?.length || 0;
+  const requirementText = task.requirement ? formatRequirementLabel(task.requirement) : '';
+  const pullRequestText = task.pullRequest ? `PR #${task.pullRequest.number}` : '';
+  const commitText =
+    commitsCount > 0 ? `${commitsCount} ${commitsCount === 1 ? 'commit' : 'commits'}` : '';
+  const issueText =
+    issuesCount > 0 ? `${issuesCount} ${issuesCount === 1 ? 'issue' : 'issues'}` : '';
+
+  return (
+    [requirementText, pullRequestText, commitText, issueText].filter(Boolean).join(' · ') ||
+    'Sem rastreabilidade'
+  );
+}
+
+function updateTaskInBoard(board, taskId, updater) {
+  if (!board?.columns) {
+    return board;
+  }
+
+  const columns = Object.fromEntries(
+    Object.entries(board.columns).map(([status, tasks]) => [
+      status,
+      tasks.map((task) => (String(task.id) === String(taskId) ? updater(task) : task))
+    ])
+  );
+
+  return {
+    ...board,
+    columns
+  };
 }
 
 function updateBoardWithMovedTask(board, movedTask) {
@@ -107,6 +190,7 @@ export function KanbanPage() {
   const [selectedTask, setSelectedTask] = useState(null);
   const [loading, setLoading] = useState(true);
   const [movingTaskId, setMovingTaskId] = useState(null);
+  const [deletingTaskId, setDeletingTaskId] = useState(null);
   const [draggingTaskId, setDraggingTaskId] = useState(null);
   const [dragOverStatus, setDragOverStatus] = useState('');
   const [error, setError] = useState('');
@@ -339,6 +423,145 @@ export function KanbanPage() {
     setSelectedTask(task);
   }
 
+  async function handleUnlinkSelectedTaskPullRequest(taskId) {
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await unlinkTaskPullRequest(taskId);
+      const updatedTask = response.task;
+      setSuccess(response.message || 'Pull request removido da tarefa.');
+      setBoard((currentBoard) =>
+        updateTaskInBoard(currentBoard, taskId, (task) => ({
+          ...task,
+          pullRequestId: null,
+          pullRequest: null
+        }))
+      );
+      setSelectedTask((current) =>
+        current && String(current.id) === String(taskId)
+          ? {
+              ...current,
+              pullRequestId: updatedTask?.pullRequestId || null,
+              pullRequest: updatedTask?.pullRequest || null
+            }
+          : current
+      );
+    } catch (requestError) {
+      setError(
+        getErrorMessage(requestError, 'Não foi possível remover o vínculo com o pull request.')
+      );
+    }
+  }
+
+  async function handleUnlinkSelectedTaskRequirement(taskId) {
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await unlinkTaskRequirement(taskId);
+      const updatedTask = response.task;
+      setSuccess(response.message || 'Vínculo com requisito removido.');
+      setBoard((currentBoard) =>
+        updateTaskInBoard(currentBoard, taskId, (task) => ({
+          ...task,
+          requirementId: null,
+          requirement: null
+        }))
+      );
+      setSelectedTask((current) =>
+        current && String(current.id) === String(taskId)
+          ? {
+              ...current,
+              requirementId: updatedTask?.requirementId || null,
+              requirement: updatedTask?.requirement || null
+            }
+          : current
+      );
+    } catch (requestError) {
+      setError(getErrorMessage(requestError, 'Não foi possível remover o requisito da tarefa.'));
+    }
+  }
+
+  async function handleUnlinkSelectedTaskCommit(taskId, commitId) {
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await unlinkTaskCommit(taskId, commitId);
+      const commits = response.commits || [];
+      setSuccess(response.message || 'Commit removido da tarefa.');
+      setBoard((currentBoard) =>
+        updateTaskInBoard(currentBoard, taskId, (task) => ({
+          ...task,
+          commits
+        }))
+      );
+      setSelectedTask((current) =>
+        current && String(current.id) === String(taskId)
+          ? {
+              ...current,
+              commits
+            }
+          : current
+      );
+    } catch (requestError) {
+      setError(getErrorMessage(requestError, 'Não foi possível remover o commit da tarefa.'));
+    }
+  }
+
+  async function handleUnlinkSelectedTaskIssue(taskId, issueId) {
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await unlinkTaskIssue(taskId, issueId);
+      const issues = response.issues || [];
+      setSuccess(response.message || 'Issue removida da tarefa.');
+      setBoard((currentBoard) =>
+        updateTaskInBoard(currentBoard, taskId, (task) => ({
+          ...task,
+          issues
+        }))
+      );
+      setSelectedTask((current) =>
+        current && String(current.id) === String(taskId)
+          ? {
+              ...current,
+              issues
+            }
+          : current
+      );
+    } catch (requestError) {
+      setError(getErrorMessage(requestError, 'Não foi possível remover a issue da tarefa.'));
+    }
+  }
+
+  async function handleDeleteSelectedTask(task) {
+    const confirmed = window.confirm(
+      'Tem certeza que deseja excluir esta tarefa?\n\nEsta ação não poderá ser desfeita. Os vínculos com requisito, pull request, commits, issues e movimentações do Kanban serão removidos, mas os artefatos importados do GitHub serão mantidos.'
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingTaskId(task.id);
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await deleteTask(task.id);
+      setSelectedTask(null);
+      setSuccess(response.message || 'Tarefa excluída com sucesso.');
+      await loadKanban(buildPeriodParams(period));
+    } catch (requestError) {
+      setError(getErrorMessage(requestError, 'Não foi possível excluir a tarefa.'));
+    } finally {
+      setDeletingTaskId(null);
+    }
+  }
+
   async function handlePeriodSubmit(event) {
     event.preventDefault();
     setError('');
@@ -486,24 +709,7 @@ export function KanbanPage() {
                               </div>
                               <div>
                                 <dt>Rastreabilidade</dt>
-                                <dd>
-                                  {task.pullRequest ? (
-                                    task.pullRequest.githubUrl ? (
-                                      <a
-                                        href={task.pullRequest.githubUrl}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        onClick={(event) => event.stopPropagation()}
-                                      >
-                                        PR #{task.pullRequest.number} — {task.pullRequest.title}
-                                      </a>
-                                    ) : (
-                                      `PR #${task.pullRequest.number} — ${task.pullRequest.title}`
-                                    )
-                                  ) : (
-                                    'Sem PR vinculado'
-                                  )}
-                                </dd>
+                                <dd>{getTraceabilitySummary(task)}</dd>
                               </div>
                             </dl>
 
@@ -656,13 +862,23 @@ export function KanbanPage() {
                     <span className="eyebrow">Detalhes da tarefa</span>
                     <h2 id="task-detail-title">{selectedTask.title}</h2>
                   </div>
-                  <button
-                    className="text-button"
-                    type="button"
-                    onClick={() => setSelectedTask(null)}
-                  >
-                    Fechar
-                  </button>
+                  <div className="task-detail-header-actions">
+                    <button
+                      className="button button-danger"
+                      type="button"
+                      onClick={() => handleDeleteSelectedTask(selectedTask)}
+                      disabled={deletingTaskId === selectedTask.id}
+                    >
+                      {deletingTaskId === selectedTask.id ? 'Excluindo...' : 'Excluir'}
+                    </button>
+                    <button
+                      className="text-button"
+                      type="button"
+                      onClick={() => setSelectedTask(null)}
+                    >
+                      Fechar
+                    </button>
+                  </div>
                 </div>
 
                 <p className="task-detail-description">
@@ -701,27 +917,146 @@ export function KanbanPage() {
                 </dl>
 
                 <div className="task-detail-traceability">
-                  <span>Pull request vinculado</span>
-                  {selectedTask.pullRequest ? (
-                    <>
-                      <strong>
-                        #{selectedTask.pullRequest.number} — {selectedTask.pullRequest.title}
-                      </strong>
-                      <p>Status: {selectedTask.pullRequest.state || 'não informado'}</p>
-                      <p>Autor: {selectedTask.pullRequest.authorUsername || 'não informado'}</p>
-                      {selectedTask.pullRequest.githubUrl && (
-                        <a
-                          href={selectedTask.pullRequest.githubUrl}
-                          target="_blank"
-                          rel="noreferrer"
+                  <span>Rastreabilidade</span>
+
+                  <div className="task-detail-traceability-section">
+                    <strong>Requisito</strong>
+                    {selectedTask.requirement ? (
+                      <div className="task-detail-traceability-item">
+                        <div>
+                          <strong>{formatRequirementLabel(selectedTask.requirement)}</strong>
+                          <p>
+                            Status:{' '}
+                            {selectedTask.requirement.status
+                              ? requirementStatusLabels[selectedTask.requirement.status] ||
+                                selectedTask.requirement.status
+                              : 'não informado'}
+                          </p>
+                        </div>
+                        <button
+                          className="traceability-remove-button"
+                          type="button"
+                          onClick={() => handleUnlinkSelectedTaskRequirement(selectedTask.id)}
+                          aria-label="Remover requisito vinculado"
+                          title="Remover requisito"
                         >
-                          Abrir no GitHub
-                        </a>
-                      )}
-                    </>
-                  ) : (
-                    <p>Sem PR vinculado.</p>
-                  )}
+                          ×
+                        </button>
+                      </div>
+                    ) : (
+                      <p>Sem requisito vinculado.</p>
+                    )}
+                  </div>
+
+                  <div className="task-detail-traceability-section">
+                    <strong>Pull request</strong>
+                    {selectedTask.pullRequest ? (
+                      <div className="task-detail-traceability-item">
+                        <div>
+                          <strong>
+                            #{selectedTask.pullRequest.number} — {selectedTask.pullRequest.title}
+                          </strong>
+                          <p>Status: {selectedTask.pullRequest.state || 'não informado'}</p>
+                          <p>
+                            Autor:{' '}
+                            {selectedTask.pullRequest.authorUsername || 'não informado'}
+                          </p>
+                          {selectedTask.pullRequest.githubUrl && (
+                            <a
+                              href={selectedTask.pullRequest.githubUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              Abrir no GitHub
+                            </a>
+                          )}
+                        </div>
+                        <button
+                          className="traceability-remove-button"
+                          type="button"
+                          onClick={() => handleUnlinkSelectedTaskPullRequest(selectedTask.id)}
+                          aria-label="Remover pull request vinculado"
+                          title="Remover pull request"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ) : (
+                      <p>Sem PR vinculado.</p>
+                    )}
+                  </div>
+
+                  <div className="task-detail-traceability-section">
+                    <strong>Commits</strong>
+                    {selectedTask.commits?.length ? (
+                      <div className="task-detail-commit-list">
+                        {selectedTask.commits.map((commit) => (
+                          <div className="task-detail-traceability-item" key={commit.id}>
+                            <div>
+                              <strong>{formatCommitLabel(commit)}</strong>
+                              <p>Autor: {commit.authorName || commit.authorUsername || 'não informado'}</p>
+                              <p>Data: {formatDateTime(commit.date)}</p>
+                              <p>Branch: {commit.branch || 'não informada'}</p>
+                              {commit.githubUrl && (
+                                <a href={commit.githubUrl} target="_blank" rel="noreferrer">
+                                  Abrir no GitHub
+                                </a>
+                              )}
+                            </div>
+                            <button
+                              className="traceability-remove-button"
+                              type="button"
+                              onClick={() =>
+                                handleUnlinkSelectedTaskCommit(selectedTask.id, commit.id)
+                              }
+                              aria-label="Remover commit vinculado"
+                              title="Remover commit"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p>Sem commits vinculados.</p>
+                    )}
+                  </div>
+
+                  <div className="task-detail-traceability-section">
+                    <strong>Issues</strong>
+                    {selectedTask.issues?.length ? (
+                      <div className="task-detail-commit-list">
+                        {selectedTask.issues.map((issue) => (
+                          <div className="task-detail-traceability-item" key={issue.id}>
+                            <div>
+                              <strong>{formatIssueLabel(issue)}</strong>
+                              <p>Status: {issue.state || 'não informado'}</p>
+                              <p>Autor: {issue.authorUsername || 'não informado'}</p>
+                              <p>Labels: {formatIssueLabels(issue.labels)}</p>
+                              {issue.githubUrl && (
+                                <a href={issue.githubUrl} target="_blank" rel="noreferrer">
+                                  Abrir no GitHub
+                                </a>
+                              )}
+                            </div>
+                            <button
+                              className="traceability-remove-button"
+                              type="button"
+                              onClick={() =>
+                                handleUnlinkSelectedTaskIssue(selectedTask.id, issue.id)
+                              }
+                              aria-label="Remover issue vinculada"
+                              title="Remover issue"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p>Sem issues vinculadas.</p>
+                    )}
+                  </div>
                 </div>
               </section>
             </div>

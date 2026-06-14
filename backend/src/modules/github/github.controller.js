@@ -50,11 +50,12 @@ export const githubController = {
 
   async syncProjectGithubArtifacts(req, res) {
     try {
-      const summary = await githubSyncService.syncGithubArtifacts(req.params.projectId);
+      const { summary, project } = await githubSyncService.syncGithubArtifacts(req.params.projectId);
 
       return res.json({
         message: 'Sincronização com GitHub concluída.',
-        summary
+        summary,
+        project
       });
     } catch (error) {
       return sendGithubError(res, error, 'Erro ao sincronizar artefatos do GitHub.');
@@ -63,7 +64,7 @@ export const githubController = {
 
   async listProjectCommits(req, res) {
     try {
-      const commits = await commitService.listProjectCommits(req.params.projectId);
+      const commits = await commitService.listProjectCommits(req.params.projectId, req.query);
 
       return res.json({ commits });
     } catch (error) {
@@ -73,7 +74,10 @@ export const githubController = {
 
   async listProjectPullRequests(req, res) {
     try {
-      const pullRequests = await pullRequestService.listProjectPullRequests(req.params.projectId);
+      const pullRequests = await pullRequestService.listProjectPullRequests(
+        req.params.projectId,
+        req.query
+      );
 
       return res.json({ pullRequests });
     } catch (error) {
@@ -83,7 +87,7 @@ export const githubController = {
 
   async listProjectIssues(req, res) {
     try {
-      const issues = await issueService.listProjectIssues(req.params.projectId);
+      const issues = await issueService.listProjectIssues(req.params.projectId, req.query);
 
       return res.json({ issues });
     } catch (error) {

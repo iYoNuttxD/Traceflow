@@ -11,9 +11,62 @@ const taskPullRequestSelect = {
   createdAtGithub: true
 };
 
+const taskCommitSelect = {
+  id: true,
+  hash: true,
+  message: true,
+  authorName: true,
+  authorUsername: true,
+  date: true,
+  branch: true,
+  githubUrl: true
+};
+
+const taskIssueSelect = {
+  id: true,
+  number: true,
+  title: true,
+  state: true,
+  authorUsername: true,
+  labels: true,
+  githubUrl: true,
+  createdAtGithub: true,
+  closedAtGithub: true
+};
+
+const taskRequirementSelect = {
+  id: true,
+  title: true,
+  type: true,
+  status: true
+};
+
 const taskInclude = {
+  requirement: {
+    select: taskRequirementSelect
+  },
   pullRequest: {
     select: taskPullRequestSelect
+  },
+  commitLinks: {
+    select: {
+      commit: {
+        select: taskCommitSelect
+      }
+    },
+    orderBy: {
+      createdAt: 'desc'
+    }
+  },
+  issueLinks: {
+    select: {
+      issue: {
+        select: taskIssueSelect
+      }
+    },
+    orderBy: {
+      createdAt: 'desc'
+    }
   }
 };
 
@@ -34,9 +87,22 @@ export const taskRepository = {
     });
   },
 
-  async findTasksByProject(projectId) {
+  async findTasksByProject(projectId, filters = {}) {
+    const search = typeof filters.search === 'string' ? filters.search.trim() : '';
+
     return prisma.task.findMany({
-      where: { projectId },
+      where: {
+        projectId,
+        ...(search
+          ? {
+              OR: [
+                { title: { contains: search } },
+                { responsible: { contains: search } },
+                { status: { contains: search } }
+              ]
+            }
+          : {})
+      },
       include: taskInclude,
       orderBy: { createdAt: 'desc' }
     });
@@ -55,6 +121,140 @@ export const taskRepository = {
       select: {
         id: true,
         projectId: true
+      }
+    });
+  },
+
+  async findRequirementById(id) {
+    return prisma.requirement.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        projectId: true
+      }
+    });
+  },
+
+  async findCommitById(id) {
+    return prisma.commit.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        projectId: true
+      }
+    });
+  },
+
+  async findIssueById(id) {
+    return prisma.issue.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        projectId: true
+      }
+    });
+  },
+
+  async findTaskCommit(taskId, commitId) {
+    return prisma.taskCommit.findUnique({
+      where: {
+        taskId_commitId: {
+          taskId,
+          commitId
+        }
+      }
+    });
+  },
+
+  async findTaskCommits(taskId) {
+    const links = await prisma.taskCommit.findMany({
+      where: { taskId },
+      select: {
+        commit: {
+          select: taskCommitSelect
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    return links.map((link) => link.commit);
+  },
+
+  async findTaskIssue(taskId, issueId) {
+    return prisma.taskIssue.findUnique({
+      where: {
+        taskId_issueId: {
+          taskId,
+          issueId
+        }
+      }
+    });
+  },
+
+  async findTaskIssues(taskId) {
+    const links = await prisma.taskIssue.findMany({
+      where: { taskId },
+      select: {
+        issue: {
+          select: taskIssueSelect
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    return links.map((link) => link.issue);
+  },
+
+  async createTaskCommit(taskId, commitId) {
+    return prisma.taskCommit.create({
+      data: {
+        taskId,
+        commitId
+      },
+      select: {
+        commit: {
+          select: taskCommitSelect
+        }
+      }
+    });
+  },
+
+  async createTaskIssue(taskId, issueId) {
+    return prisma.taskIssue.create({
+      data: {
+        taskId,
+        issueId
+      },
+      select: {
+        issue: {
+          select: taskIssueSelect
+        }
+      }
+    });
+  },
+
+  async deleteTaskCommit(taskId, commitId) {
+    return prisma.taskCommit.delete({
+      where: {
+        taskId_commitId: {
+          taskId,
+          commitId
+        }
+      }
+    });
+  },
+
+  async deleteTaskIssue(taskId, issueId) {
+    return prisma.taskIssue.delete({
+      where: {
+        taskId_issueId: {
+          taskId,
+          issueId
+        }
       }
     });
   },
@@ -86,6 +286,34 @@ export const taskRepository = {
       where: { id },
       data: { pullRequestId },
       include: taskInclude
+    });
+  },
+
+  async updateTaskRequirement(id, requirementId) {
+    return prisma.task.update({
+      where: { id },
+      data: { requirementId },
+      include: taskInclude
+    });
+  },
+
+  async deleteTask(id) {
+    return prisma.$transaction(async (tx) => {
+      await tx.taskCommit.deleteMany({
+        where: { taskId: id }
+      });
+
+      await tx.taskIssue.deleteMany({
+        where: { taskId: id }
+      });
+
+      await tx.taskMovement.deleteMany({
+        where: { taskId: id }
+      });
+
+      return tx.task.delete({
+        where: { id }
+      });
     });
   },
 
@@ -162,6 +390,28 @@ export const taskRepository = {
         projectId,
         pullRequestId: {
           not: null
+        }
+      }
+    });
+  },
+
+  async countTasksWithCommitByProject(projectId) {
+    return prisma.task.count({
+      where: {
+        projectId,
+        commitLinks: {
+          some: {}
+        }
+      }
+    });
+  },
+
+  async countTasksWithIssueByProject(projectId) {
+    return prisma.task.count({
+      where: {
+        projectId,
+        issueLinks: {
+          some: {}
         }
       }
     });
