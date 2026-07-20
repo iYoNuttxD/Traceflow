@@ -1,148 +1,86 @@
 # TRACEFLOW
 
-## Sobre o projeto
+TRACEFLOW é uma plataforma de rastreabilidade para projetos de software. A solução conecta requisitos, tarefas e artefatos técnicos do GitHub para tornar o progresso e as evidências de implementação verificáveis.
 
-TRACEFLOW é uma plataforma de apoio ao acompanhamento de projetos de software por meio da rastreabilidade entre requisitos, tarefas e artefatos técnicos importados do GitHub.
+> Este repositório evolui como produto, não como demonstração de MVP. Decisões de implementação devem considerar segurança, privacidade, qualidade, operação e manutenção. Consulte [Contexto e arquitetura](TRACEFLOW_CONTEXTO_ARQUITETURA.md) antes de contribuir.
 
-O MVP permite acompanhar a cadeia:
+## Objetivo
+
+O TRACEFLOW apoia equipes no acompanhamento do desenvolvimento de software por meio da cadeia:
 
 ```txt
 Requisito -> Tarefa -> Issue / Pull Request / Commit
 ```
 
-Com isso, o projeto consegue relacionar necessidades do produto, unidades de planejamento e evidências técnicas de implementação.
+Essa cadeia permite relacionar necessidades do produto, unidades de planejamento e evidências técnicas de entrega.
 
-## Objetivo
+## Capacidades atuais
 
-O objetivo do TRACEFLOW é apoiar o acompanhamento do desenvolvimento de software por meio da integração entre requisitos, tarefas e artefatos técnicos do GitHub, permitindo visualizar evidências de implementação, progresso e rastreabilidade das entregas.
+- Cadastro, edição, membros e convites de projetos.
+- Integração com repositórios GitHub por Octokit.
+- Importação persistente de commits, pull requests e issues.
+- Cadastro, edição e exclusão segura de requisitos e tarefas.
+- Vínculos entre requisitos, tarefas e artefatos GitHub.
+- Quadro Kanban com histórico de movimentações.
+- Indicadores e matriz de cobertura de rastreabilidade.
+- Fluxograma interativo da cadeia de rastreabilidade.
+- Persistência do estado e de falhas de sincronização com o GitHub.
 
-## Funcionalidades do MVP
-
-- Cadastro e edição de projetos.
-- Integração com repositório GitHub.
-- Importação de commits.
-- Importação de pull requests.
-- Importação de issues.
-- Exibição das informações do repositório.
-- Cadastro, edição e exclusão segura de tarefas.
-- Organização de tarefas em quadro Kanban.
-- Histórico de movimentações do Kanban.
-- Cadastro, edição e exclusão segura de requisitos.
-- Vínculo entre requisitos e tarefas.
-- Vínculo entre tarefas e pull requests.
-- Vínculo entre tarefas e commits.
-- Vínculo entre tarefas e issues.
-- Indicadores de cobertura de rastreabilidade.
-- Matriz de rastreabilidade de requisitos.
-- Fluxograma interativo de rastreabilidade.
-- Persistência do status de sincronização GitHub.
-
-## Fluxo principal da solução
-
-1. Usuário cadastra um projeto.
-2. Usuário seleciona um repositório GitHub.
-3. Sistema importa commits, pull requests e issues.
-4. Usuário cadastra requisitos.
-5. Usuário cadastra tarefas.
-6. Usuário vincula requisitos a tarefas.
-7. Usuário vincula tarefas a issues, pull requests e commits.
-8. Sistema calcula indicadores de cobertura.
-9. Sistema exibe matriz e fluxograma de rastreabilidade.
-
-## Arquitetura geral
+## Arquitetura
 
 ```txt
-Frontend React
-  -> API REST Node.js/Express
-    -> Services
-      -> Repositories
-        -> Prisma ORM
-          -> MySQL
+React/Vite -> API REST -> Routes -> Controller -> Service -> Repository -> Prisma -> MySQL
+                                  |
+                                  +-> Octokit -> GitHub API
 ```
 
-A integração com GitHub é feita no backend com Octokit. O frontend consome a API REST e concentra a experiência visual nas telas de projetos, tarefas, requisitos, Kanban, repositório e rastreabilidade.
+As responsabilidades das camadas e as regras obrigatórias de evolução estão detalhadas em [TRACEFLOW_CONTEXTO_ARQUITETURA.md](TRACEFLOW_CONTEXTO_ARQUITETURA.md).
 
-## Tecnologias utilizadas
+## Tecnologias
 
-Frontend:
-
-- React
-- Vite
-- JavaScript
-- CSS
-- React Flow
-
-Backend:
-
-- Node.js
-- Express
-- Prisma ORM
-- MySQL
-- Octokit
-
-Ferramentas:
-
-- Git/GitHub
-- VS Code
-- npm
+| Área | Tecnologias |
+|---|---|
+| Frontend | React, Vite, JavaScript, CSS, React Router, Axios, React Flow |
+| Backend | Node.js, Express, Prisma ORM, MySQL, Octokit |
+| Engenharia | npm, Git, GitHub Actions |
 
 ## Estrutura do repositório
 
 ```txt
 Traceflow/
+├── .github/workflows/       # integração contínua
 ├── backend/
-│   ├── prisma/
-│   │   ├── migrations/
-│   │   └── schema.prisma
-│   ├── src/
-│   │   ├── config/
-│   │   ├── database/
-│   │   ├── modules/
-│   │   ├── routes/
-│   │   ├── app.js
-│   │   └── server.js
-│   └── README.md
-├── frontend/
-│   ├── src/
-│   │   ├── api/
-│   │   ├── assets/
-│   │   ├── components/
-│   │   ├── pages/
-│   │   ├── routes/
-│   │   └── styles/
-│   └── README.md
-├── rest.http
+│   ├── prisma/              # schema e migrações
+│   └── src/modules/         # módulos em camadas MVC
+├── frontend/src/            # interface React
+├── TRACEFLOW_CONTEXTO_ARQUITETURA.md
 └── README.md
 ```
 
-## Como executar o projeto
+## Como executar
 
-Backend:
+Requisitos: Node.js compatível com as dependências do projeto, npm e MySQL.
 
 ```bash
+npm run install:all
+cp backend/.env.example backend/.env
 cd backend
-npm install
 npx prisma generate
 npx prisma migrate deploy
 npm run dev
 ```
 
-Frontend:
+Em outro terminal:
 
 ```bash
 cd frontend
-npm install
 npm run dev
 ```
 
-Portas padrão:
+- API: `http://localhost:3001`
+- interface: `http://localhost:5173`
 
-- Backend: `http://localhost:3001`
-- Frontend: `http://localhost:5173`
-
-## Variáveis de ambiente
-
-Exemplo de `backend/.env`:
+Configure `backend/.env` sem versionar segredos:
 
 ```env
 DATABASE_URL="mysql://usuario:senha@localhost:3306/traceflow"
@@ -151,9 +89,27 @@ PORT=3001
 FRONTEND_URL="http://localhost:5173"
 ```
 
-## Rastreabilidade no TRACEFLOW
+## Qualidade, segurança e privacidade
 
-A rastreabilidade é organizada pela cadeia:
+Toda mudança deve observar:
+
+- OWASP ASVS 5.0, com Level 2 como referência inicial de verificação;
+- LGPD e minimização de dados pessoais;
+- testes automatizados proporcionais ao risco da alteração;
+- validação pela integração contínua no GitHub Actions;
+- ausência de segredos, tokens ou dados pessoais em código e logs;
+- proibição de mocks, dados falsos e respostas estáticas no código de produção;
+- Definition of Done definida no documento de arquitetura.
+
+Mocks são permitidos somente em testes automatizados ou quando solicitados explicitamente e isolados do runtime de produção.
+
+## Documentação por componente
+
+- [Contexto, arquitetura e padrões](TRACEFLOW_CONTEXTO_ARQUITETURA.md)
+- [Backend](backend/README.md)
+- [Frontend](frontend/README.md)
+
+## Rastreabilidade
 
 ```txt
 Requisito
@@ -164,10 +120,4 @@ Tarefa
    └── Commit
 ```
 
-- Requisitos representam necessidades do projeto.
-- Tarefas representam unidades de planejamento e execução.
-- Issues representam demandas, bugs ou melhorias registradas no GitHub.
-- Pull requests representam entregas técnicas agrupadas.
-- Commits representam alterações pontuais no código-fonte.
-
-A matriz de rastreabilidade permite identificar progresso do requisito, tarefas vinculadas, evidências técnicas e situação da implementação. O fluxograma interativo permite explorar visualmente os vínculos entre requisito, tarefas e artefatos.
+Requisitos representam necessidades; tarefas organizam a execução; issues registram demandas, bugs ou melhorias; pull requests agrupam entregas; commits registram alterações pontuais. A matriz e o fluxograma permitem avaliar cobertura, progresso e evidências sem substituir a validação funcional da entrega.
