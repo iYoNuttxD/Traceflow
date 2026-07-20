@@ -1,69 +1,67 @@
 # TRACEFLOW Backend
 
-## Sobre
+API REST responsável por regras de negócio, persistência, integração com GitHub e consolidação da rastreabilidade entre requisitos, tarefas e artefatos técnicos.
 
-Backend do TRACEFLOW, responsável pela API REST, persistência dos dados, integração com GitHub e consolidação da rastreabilidade entre requisitos, tarefas e artefatos técnicos.
+As regras transversais do produto estão em [Contexto e arquitetura](../TRACEFLOW_CONTEXTO_ARQUITETURA.md).
 
 ## Arquitetura
 
-O backend segue o padrão:
-
 ```txt
-routes -> controllers -> services -> repositories -> Prisma/MySQL
+Routes -> Controller -> Service -> Repository -> Prisma -> MySQL
 ```
 
-- Routes definem as rotas HTTP.
-- Controllers recebem as requisições e formatam respostas.
-- Services concentram regras de negócio.
-- Repositories isolam o acesso ao banco.
-- Prisma ORM persiste os dados no MySQL.
+- **Routes:** registram caminhos, métodos e middlewares.
+- **Controllers:** interpretam entradas HTTP e formatam respostas.
+- **Services:** aplicam regras de negócio e coordenam casos de uso.
+- **Repositories:** isolam consultas e mutações de persistência.
+- **Prisma/MySQL:** modelam e armazenam os dados.
+
+Octokit é acessado pela camada de serviço/cliente GitHub. Controllers não devem consultar Prisma ou APIs externas diretamente, e repositories não devem conter regras de negócio.
 
 ## Tecnologias
 
-- Node.js
-- Express
-- Prisma ORM
-- MySQL
+- Node.js e Express
+- Prisma ORM e MySQL
 - Octokit
-- dotenv
-- cors
+- dotenv e cors
 
-## Estrutura de pastas
+## Estrutura
 
 ```txt
 backend/
 ├── prisma/
 │   ├── migrations/
 │   └── schema.prisma
-├── src/
-│   ├── config/
-│   ├── database/
-│   ├── modules/
-│   │   ├── artifacts/
-│   │   ├── commits/
-│   │   ├── github/
-│   │   ├── issues/
-│   │   ├── projects/
-│   │   ├── pullRequests/
-│   │   ├── requirements/
-│   │   ├── tasks/
-│   │   └── traceability/
-│   ├── routes/
-│   ├── app.js
-│   └── server.js
-└── package.json
+└── src/
+    ├── config/
+    ├── database/
+    ├── modules/
+    │   ├── artifacts/
+    │   ├── commits/
+    │   ├── github/
+    │   ├── issues/
+    │   ├── projects/
+    │   ├── pullRequests/
+    │   ├── requirements/
+    │   ├── tasks/
+    │   └── traceability/
+    ├── routes/
+    ├── app.js
+    └── server.js
 ```
 
-## Instalação
+## Configuração e execução
 
 ```bash
 cd backend
 npm install
+cp .env.example .env
+npx prisma generate
+npx prisma migrate deploy
+npm run dev
 ```
 
-## Variáveis de ambiente
-
-Criar `backend/.env` com valores equivalentes:
+Variáveis esperadas:
 
 ```env
 DATABASE_URL="mysql://usuario:senha@localhost:3306/traceflow"
@@ -72,9 +70,9 @@ PORT=3001
 FRONTEND_URL="http://localhost:5173"
 ```
 
-## Banco de dados e Prisma
+Use privilégio mínimo nas credenciais. Nunca registre `GITHUB_TOKEN`, `DATABASE_URL`, cabeçalhos de autorização ou dados pessoais em logs.
 
-Comandos úteis:
+## Banco de dados e Prisma
 
 ```bash
 npx prisma validate
@@ -83,120 +81,81 @@ npx prisma migrate deploy
 npx prisma migrate status
 ```
 
-Durante desenvolvimento local, também pode ser usado:
+Alterações de schema devem incluir migração revisável e compatível com os dados existentes. Não use `prisma migrate reset` como procedimento normal: ele apaga dados. Migrações destrutivas exigem plano explícito de compatibilidade, backup e recuperação.
 
-```bash
-npm run prisma:migrate
-```
+## Módulos principais
 
-Não usar `prisma migrate reset`, pois ele apaga os dados locais.
-
-## Executando o backend
-
-```bash
-npm run dev
-```
-
-Servidor padrão:
-
-```txt
-http://localhost:3001
-```
-
-## Principais módulos
-
-- `projects`: cadastro, edição, membros, convite e integração inicial com repositórios.
-- `github`: autenticação, listagem de repositórios e sincronização com GitHub.
-- `commits`: consulta de commits importados.
-- `pullRequests`: consulta de pull requests importados.
-- `issues`: consulta de issues importadas.
-- `artifacts`: visão consolidada de artefatos do repositório.
-- `tasks`: tarefas, Kanban, vínculos com requisito, PRs, commits e issues.
-- `requirements`: requisitos, status automático e vínculo com tarefas.
+- `projects`: projetos, membros, convites e integração inicial com repositórios.
+- `github`: autenticação, listagem de repositórios e sincronização.
+- `commits`, `pullRequests` e `issues`: artefatos importados.
+- `artifacts`: visão consolidada dos artefatos do repositório.
+- `tasks`: tarefas, Kanban e vínculos de rastreabilidade.
+- `requirements`: requisitos, status e vínculo com tarefas.
 - `traceability`: matriz e cadeia de rastreabilidade.
 
-## Principais endpoints
+## Endpoints principais
 
 | Método | Rota | Descrição |
 |---|---|---|
 | GET | `/api/github/auth/check` | Verifica autenticação com GitHub |
 | GET | `/api/github/repositories` | Lista repositórios GitHub |
 | POST | `/api/projects/from-github` | Cria projeto a partir de repositório |
-| GET | `/api/projects` | Lista projetos |
-| GET | `/api/projects/:id` | Consulta projeto |
-| PUT | `/api/projects/:id` | Atualiza projeto |
+| GET/POST | `/api/projects` | Lista/cria projetos conforme rota disponível |
+| GET/PUT | `/api/projects/:id` | Consulta/atualiza projeto |
 | POST | `/api/projects/:projectId/github/sync` | Sincroniza artefatos GitHub |
-| GET | `/api/projects/:projectId/artifacts` | Lista artefatos do repositório |
-| GET | `/api/projects/:projectId/commits` | Lista commits importados |
-| GET | `/api/projects/:projectId/pull-requests` | Lista pull requests importados |
-| GET | `/api/projects/:projectId/issues` | Lista issues importadas |
-| GET | `/api/projects/:projectId/tasks` | Lista tarefas |
-| POST | `/api/projects/:projectId/tasks` | Cria tarefa |
-| PUT | `/api/tasks/:id` | Atualiza tarefa |
-| DELETE | `/api/tasks/:id` | Exclui tarefa com segurança |
+| GET | `/api/projects/:projectId/artifacts` | Lista artefatos |
+| GET | `/api/projects/:projectId/commits` | Lista commits |
+| GET | `/api/projects/:projectId/pull-requests` | Lista pull requests |
+| GET | `/api/projects/:projectId/issues` | Lista issues |
+| GET/POST | `/api/projects/:projectId/tasks` | Lista/cria tarefas |
+| PUT/DELETE | `/api/tasks/:id` | Atualiza/exclui tarefa |
 | PATCH | `/api/tasks/:id/move` | Move tarefa no Kanban |
-| PATCH | `/api/tasks/:id/requirement` | Vincula requisito à tarefa |
-| DELETE | `/api/tasks/:id/requirement` | Remove requisito da tarefa |
-| PATCH | `/api/tasks/:id/pull-request` | Vincula PR à tarefa |
-| DELETE | `/api/tasks/:id/pull-request` | Remove PR da tarefa |
-| POST | `/api/tasks/:id/commits` | Vincula commit à tarefa |
-| DELETE | `/api/tasks/:id/commits/:commitId` | Remove commit da tarefa |
-| POST | `/api/tasks/:id/issues` | Vincula issue à tarefa |
-| DELETE | `/api/tasks/:id/issues/:issueId` | Remove issue da tarefa |
-| GET | `/api/projects/:projectId/requirements` | Lista requisitos |
-| POST | `/api/projects/:projectId/requirements` | Cria requisito |
-| PUT | `/api/requirements/:id` | Atualiza requisito |
-| DELETE | `/api/requirements/:id` | Exclui requisito com segurança |
-| PATCH | `/api/requirements/:id/confirm-completion` | Confirma conclusão de requisito validado |
-| GET | `/api/requirements/:id/tasks` | Lista tarefas vinculadas ao requisito |
+| GET/POST | `/api/projects/:projectId/requirements` | Lista/cria requisitos |
+| PUT/DELETE | `/api/requirements/:id` | Atualiza/exclui requisito |
 | GET | `/api/projects/:projectId/traceability/requirements-matrix` | Matriz de rastreabilidade |
-| GET | `/api/projects/:projectId/traceability/requirements/:requirementId` | Cadeia de rastreabilidade do requisito |
+| GET | `/api/projects/:projectId/traceability/requirements/:requirementId` | Cadeia de um requisito |
+
+Consulte os arquivos `*.routes.js` para o contrato efetivamente implementado. Mudanças de API devem validar entradas, usar códigos HTTP consistentes e preservar compatibilidade ou documentar a ruptura.
 
 ## Sincronização GitHub
 
-A sincronização usa Octokit para importar commits, pull requests e issues do repositório integrado ao projeto.
+A sincronização usa Octokit e persiste commits, pull requests e issues. O projeto registra última sincronização bem-sucedida, última tentativa, estado e erro resumido. Em falhas, o erro deve ser sanitizado e `githubLastSyncAt` não deve indicar sucesso.
 
-Campos importantes no projeto:
+Integrações externas precisam de timeout, tratamento de limite de requisições, falhas previsíveis e operações idempotentes quando aplicável. Não substitua indisponibilidade externa por dados mockados em produção.
 
-- `githubLastSyncAt`: última sincronização concluída com sucesso.
-- `githubLastSyncAttemptAt`: última tentativa de sincronização, com sucesso ou falha.
-- `githubSyncStatus`: status da última tentativa.
-- `githubLastSyncError`: mensagem resumida da última falha.
+## Segurança e LGPD
 
-Em caso de falha, o backend persiste o erro sem atualizar `githubLastSyncAt`.
+O backend deve seguir OWASP ASVS 5.0 Level 2 como referência inicial:
 
-## Rastreabilidade
+- validar tipo, formato, tamanho e faixa de toda entrada no limite da aplicação;
+- usar Prisma parametrizado e nunca concatenar entrada em consultas;
+- autenticar e autorizar cada recurso no servidor, inclusive por projeto;
+- restringir CORS a origens confiáveis por ambiente;
+- manter segredos fora do repositório e rotacioná-los quando expostos;
+- retornar erros seguros, sem stack trace ou detalhes internos;
+- aplicar limites de corpo, paginação, rate limiting e proteção contra abuso;
+- registrar eventos de segurança sem tokens ou dados pessoais desnecessários.
 
-O backend consolida a rastreabilidade pela cadeia:
+Dados pessoais devem ter finalidade definida, coleta mínima, retenção controlada e mecanismo de correção/eliminação quando aplicável. Novos campos pessoais exigem avaliação de finalidade e base legal.
 
-```txt
-Requirement -> Task -> Issue / PullRequest / Commit
+## Testes e validações
+
+Mudanças devem adicionar testes unitários de services e regras de negócio, testes de integração para repositories/Prisma e testes de API para rotas críticas. APIs externas podem ser simuladas somente nos testes; o código executado em produção deve usar integrações reais.
+
+Validações atuais:
+
+```bash
+npx prisma validate
+npx prisma generate
+find src -name '*.js' -exec node --check {} \;
 ```
 
-A matriz calcula progresso, tarefas concluídas, evidências técnicas e situação de implementação. Issues aparecem como artefatos relacionados, mas evidência técnica de implementação considera pull requests e commits.
+A integração contínua executa as verificações disponíveis. À medida que suites de teste forem introduzidas, seus scripts `test` devem ser obrigatórios no workflow.
 
 ## Exclusão segura
 
-Tarefa:
+Exclusões devem preservar consistência e respeitar retenção/LGPD. A exclusão de tarefa remove seus vínculos e movimentações, mas mantém requisitos e artefatos importados. A exclusão de requisito desvincula tarefas sem apagar tarefas ou artefatos. Qualquer mudança nessa semântica exige teste de integração e documentação.
 
-- Remove a tarefa.
-- Remove vínculos com commits e issues.
-- Remove vínculo com pull request junto com a tarefa.
-- Remove movimentações do Kanban relacionadas.
-- Mantém requisitos e artefatos importados do GitHub.
+## Definition of Done
 
-Requisito:
-
-- Remove o requisito.
-- Mantém tarefas cadastradas.
-- Desvincula tarefas do requisito.
-- Mantém artefatos importados do GitHub.
-
-## Validações
-
-```bash
-node --check src/server.js
-npx prisma validate
-npx prisma generate
-npx prisma migrate status
-```
+Uma alteração de backend está concluída quando respeita as camadas, possui validação e autorização, trata erros sem vazar dados, inclui migração quando necessária, tem testes proporcionais ao risco, passa pela CI e atualiza documentação/contratos. Consulte a definição completa no documento de arquitetura.
