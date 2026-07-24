@@ -2,14 +2,7 @@
 // TODO: Adicionar filtros por estado, branch e autor quando o MVP evoluir.
 import { projectRepository } from '../projects/project.repository.js';
 import { pullRequestRepository } from './pullRequest.repository.js';
-
-class PullRequestServiceError extends Error {
-  constructor(message, statusCode = 400) {
-    super(message);
-    this.name = 'PullRequestServiceError';
-    this.statusCode = statusCode;
-  }
-}
+import { DomainError as PullRequestServiceError } from '../../shared/errors/index.js';
 
 function parseProjectId(projectId) {
   const parsedProjectId = Number(projectId);

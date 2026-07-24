@@ -7,14 +7,8 @@ import { projectRepository } from '../projects/project.repository.js';
 import { commitRepository } from '../commits/commit.repository.js';
 import { pullRequestRepository } from '../pullRequests/pullRequest.repository.js';
 import { issueRepository } from '../issues/issue.repository.js';
-
-class GithubSyncError extends Error {
-  constructor(message, statusCode = 400) {
-    super(message);
-    this.name = 'GithubSyncError';
-    this.statusCode = statusCode;
-  }
-}
+import { DomainError as GithubSyncError } from '../../shared/errors/index.js';
+import { normalizeGithubError } from './github-error.js';
 
 function parseProjectId(projectId) {
   const parsedProjectId = Number(projectId);
@@ -49,26 +43,7 @@ function normalizeGithubSyncError(error) {
     return error.message;
   }
 
-  if (
-    error.status === 429 ||
-    (error.status === 403 && error.response?.headers?.['x-ratelimit-remaining'] === '0')
-  ) {
-    return 'Limite de requisições do GitHub atingido.';
-  }
-
-  if (error.status === 401 || error.status === 403) {
-    return 'Token GitHub inválido, expirado ou sem permissão.';
-  }
-
-  if (error.status === 404) {
-    return 'Repositório GitHub não encontrado ou sem permissão de acesso.';
-  }
-
-  if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
-    return 'Falha de conexão com o GitHub.';
-  }
-
-  return 'Não foi possível sincronizar com o GitHub.';
+  return normalizeGithubError(error).message;
 }
 
 function mapGithubCommit(item, project, branch) {

@@ -1,21 +1,30 @@
-// Configuracao principal da aplicacao Express do TRACEFLOW.
-// TODO: Registrar middlewares adicionais somente conforme as necessidades do MVP.
-import express from 'express';
 import cors from 'cors';
+import express from 'express';
+import { createErrorHandler } from './middlewares/error-handler.middleware.js';
+import { notFoundMiddleware } from './middlewares/not-found.middleware.js';
+import { createRequestContextMiddleware } from './middlewares/request-context.middleware.js';
 import routes from './routes/index.js';
+import { createHealthHandlers } from './shared/http/index.js';
+import { logger as defaultLogger } from './shared/logger/index.js';
 
-const app = express();
+export function createApp({ logger = defaultLogger, readinessCheck } = {}) {
+  const app = express();
+  const health = createHealthHandlers({ readinessCheck });
 
-app.use(cors());
-app.use(express.json());
+  app.use(createRequestContextMiddleware({ logger }));
+  app.use(cors());
+  app.use(express.json());
 
-app.get('/health', (req, res) => {
-  return res.json({
-    status: 'ok',
-    message: 'TRACEFLOW backend structure is ready.'
-  });
-});
+  app.get('/health', health.health);
+  app.get('/health/live', health.live);
+  app.get('/health/ready', health.ready);
+  app.use('/api', routes);
+  app.use(notFoundMiddleware);
+  app.use(createErrorHandler({ logger }));
 
-app.use('/api', routes);
+  return app;
+}
+
+const app = createApp();
 
 export default app;

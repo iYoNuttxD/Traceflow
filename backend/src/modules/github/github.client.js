@@ -3,16 +3,19 @@
 // TODO: Adicionar funcoes para repositorio, commits, pull requests e issues em tarefas futuras.
 import { Octokit } from '@octokit/rest';
 import { env } from '../../config/env.js';
+import { ERROR_CODES, ExternalServiceError } from '../../shared/errors/index.js';
 
 let octokitInstance = null;
 
 export function getGithubClient() {
   if (!octokitInstance) {
-    const token = env.githubToken || process.env.GITHUB_TOKEN;
+    const token = env.githubToken;
 
     if (!token) {
-      throw new Error(
-        'GITHUB_TOKEN não configurado. Defina a variável no arquivo .env para usar a integração com GitHub.'
+      throw new ExternalServiceError(
+        'Integração GitHub indisponível.',
+        500,
+        ERROR_CODES.GITHUB_AUTH_FAILED
       );
     }
 

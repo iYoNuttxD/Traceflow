@@ -1,140 +1,63 @@
-// Controller do modulo de requisitos. Recebe HTTP e delega regras ao service.
+import { asyncHandler } from '../../shared/http/index.js';
 import { requirementService } from './requirement.service.js';
 
-function sendError(res, error, fallbackMessage = 'Erro interno ao processar requisito.') {
-  if (!error.statusCode) {
-    console.error(fallbackMessage, error);
-  }
-
-  return res.status(error.statusCode || 500).json({
-    message: error.statusCode ? error.message : fallbackMessage
-  });
-}
+const requirementFallback = 'Erro interno ao processar requisito.';
 
 export const requirementController = {
-  async create(req, res) {
-    try {
-      const requirement = await requirementService.createRequirement(
-        req.params.projectId,
-        req.body
-      );
+  create: asyncHandler(async (req, res) => {
+    const requirement = await requirementService.createRequirement(
+      req.params.projectId,
+      req.body
+    );
+    return res.status(201).json({ message: 'Requisito cadastrado com sucesso.', requirement });
+  }, { fallbackMessage: requirementFallback }),
 
-      return res.status(201).json({
-        message: 'Requisito cadastrado com sucesso.',
-        requirement
-      });
-    } catch (error) {
-      return sendError(res, error);
-    }
-  },
+  findByProject: asyncHandler(async (req, res) => {
+    const requirements = await requirementService.findRequirementsByProject(
+      req.params.projectId,
+      req.query
+    );
+    return res.json({ total: requirements.length, requirements });
+  }, { fallbackMessage: requirementFallback }),
 
-  async findByProject(req, res) {
-    try {
-      const requirements = await requirementService.findRequirementsByProject(
-        req.params.projectId,
-        req.query
-      );
+  findById: asyncHandler(async (req, res) => {
+    const requirement = await requirementService.getRequirementById(req.params.id);
+    return res.json({ requirement });
+  }, { fallbackMessage: requirementFallback }),
 
-      return res.json({
-        total: requirements.length,
-        requirements
-      });
-    } catch (error) {
-      return sendError(res, error);
-    }
-  },
+  update: asyncHandler(async (req, res) => {
+    const requirement = await requirementService.updateRequirement(req.params.id, req.body);
+    return res.json({ message: 'Requisito atualizado com sucesso.', requirement });
+  }, { fallbackMessage: requirementFallback }),
 
-  async findById(req, res) {
-    try {
-      const requirement = await requirementService.getRequirementById(req.params.id);
+  delete: asyncHandler(async (req, res) => {
+    await requirementService.deleteRequirement(req.params.id);
+    return res.json({ message: 'Requisito excluído com sucesso.' });
+  }, { fallbackMessage: 'Erro interno ao excluir requisito.' }),
 
-      return res.json({ requirement });
-    } catch (error) {
-      return sendError(res, error);
-    }
-  },
+  updateStatus: asyncHandler(async (req, res) => {
+    const requirement = await requirementService.updateRequirementStatus(
+      req.params.id,
+      req.body.status
+    );
+    return res.json({
+      message: 'Status do requisito atualizado com sucesso.',
+      requirement
+    });
+  }, { fallbackMessage: requirementFallback }),
 
-  async update(req, res) {
-    try {
-      const requirement = await requirementService.updateRequirement(req.params.id, req.body);
+  findTasksByRequirement: asyncHandler(async (req, res) => {
+    const tasks = await requirementService.findTasksByRequirement(req.params.id);
+    return res.json({ requirementId: Number(req.params.id), total: tasks.length, tasks });
+  }, { fallbackMessage: requirementFallback }),
 
-      return res.json({
-        message: 'Requisito atualizado com sucesso.',
-        requirement
-      });
-    } catch (error) {
-      return sendError(res, error);
-    }
-  },
+  confirmCompletion: asyncHandler(async (req, res) => {
+    const requirement = await requirementService.confirmCompletion(req.params.id);
+    return res.json({ message: 'Requisito concluído com sucesso.', requirement });
+  }, { fallbackMessage: requirementFallback }),
 
-  async delete(req, res) {
-    try {
-      await requirementService.deleteRequirement(req.params.id);
-
-      return res.json({
-        message: 'Requisito excluído com sucesso.'
-      });
-    } catch (error) {
-      return sendError(res, error, 'Erro interno ao excluir requisito.');
-    }
-  },
-
-  async updateStatus(req, res) {
-    try {
-      const requirement = await requirementService.updateRequirementStatus(
-        req.params.id,
-        req.body.status
-      );
-
-      return res.json({
-        message: 'Status do requisito atualizado com sucesso.',
-        requirement
-      });
-    } catch (error) {
-      return sendError(res, error);
-    }
-  },
-
-  async findTasksByRequirement(req, res) {
-    try {
-      const tasks = await requirementService.findTasksByRequirement(req.params.id);
-
-      return res.json({
-        requirementId: Number(req.params.id),
-        total: tasks.length,
-        tasks
-      });
-    } catch (error) {
-      return sendError(res, error);
-    }
-  },
-
-  async confirmCompletion(req, res) {
-    try {
-      const requirement = await requirementService.confirmCompletion(req.params.id);
-
-      return res.json({
-        message: 'Requisito concluído com sucesso.',
-        requirement
-      });
-    } catch (error) {
-      return sendError(res, error);
-    }
-  },
-
-  async getTaskCoverage(req, res) {
-    try {
-      const coverage = await requirementService.getRequirementTaskCoverage(
-        req.params.projectId
-      );
-
-      return res.json(coverage);
-    } catch (error) {
-      return sendError(
-        res,
-        error,
-        'Erro interno ao calcular cobertura de requisitos com tarefas.'
-      );
-    }
-  }
+  getTaskCoverage: asyncHandler(async (req, res) => {
+    const coverage = await requirementService.getRequirementTaskCoverage(req.params.projectId);
+    return res.json(coverage);
+  }, { fallbackMessage: 'Erro interno ao calcular cobertura de requisitos com tarefas.' })
 };

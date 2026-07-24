@@ -59,6 +59,41 @@ describe('GET /health', () => {
       message: 'TRACEFLOW backend structure is ready.'
     });
   });
+
+  it('expõe liveness e readiness sem consultar GitHub', async () => {
+    const liveResponse = await request(app).get('/health/live');
+    expect(liveResponse.status).toBe(200);
+    expect(liveResponse.body).toEqual({ status: 'ok' });
+
+    const readyResponse = await request(app).get('/health/ready');
+    expect(readyResponse.status).toBe(200);
+    expect(readyResponse.body).toEqual({ status: 'ready' });
+  });
+
+  it('gera, aceita e substitui request ID com segurança', async () => {
+    const generated = await request(app).get('/health');
+    expect(generated.headers['x-request-id']).toMatch(/^[0-9a-f-]{36}$/);
+
+    const accepted = await request(app).get('/health').set('X-Request-Id', 'cliente-seguro');
+    expect(accepted.headers['x-request-id']).toBe('cliente-seguro');
+
+    const replaced = await request(app)
+      .get('/health')
+      .set('X-Request-Id', 'inválido com espaços e conteúdo arbitrário');
+    expect(replaced.headers['x-request-id']).not.toContain('inválido');
+  });
+
+  it('retorna 404 estruturado para rota desconhecida', async () => {
+    const response = await request(app)
+      .get('/rota-inexistente')
+      .set('X-Request-Id', 'req-404');
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({
+      message: 'Rota não encontrada.',
+      code: 'ROUTE_NOT_FOUND',
+      requestId: 'req-404'
+    });
+  });
 });
 
 describe('contratos HTTP de projetos', () => {

@@ -23,7 +23,7 @@ route → controller → service → repository → Prisma/MySQL
 - Extrai `params`, `query` e `body`, chama service e preserva a resposta HTTP atual.
 - Não acessa Prisma, repository ou Octokit.
 - Não contém regra de negócio nem constrói query de banco.
-- O tratamento global de erros não é introduzido na E2.
+- Encaminha falhas ao middleware global por `asyncHandler`, preservando a mensagem pública histórica como fallback compatível.
 
 ### Service
 
@@ -95,6 +95,10 @@ No backend, `project.service.js` funciona temporariamente como fachada e delega 
 - repository → route, controller ou Express;
 - frontend → qualquer internal do backend;
 - `shared` → módulo de domínio;
+- middleware → repository;
+- error handler → service de domínio;
+- logger → Express;
+- `frontend/src/shared` → pages;
 - ciclo entre arquivos do mesmo módulo;
 - import do `index.js` do próprio módulo por um internal desse módulo.
 

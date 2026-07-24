@@ -1,8 +1,18 @@
-// Ponto de entrada do backend TRACEFLOW. A configuracao da aplicacao fica em app.js.
-// TODO: Adicionar encerramento controlado do servidor quando a infraestrutura exigir.
 import app from './app.js';
 import { env } from './config/env.js';
+import { prisma } from './database/prismaClient.js';
+import { logger } from './shared/logger/index.js';
+import { createGracefulShutdown } from './shared/runtime/graceful-shutdown.js';
 
-app.listen(env.port, () => {
-  console.log(`TRACEFLOW backend running on port ${env.port}`);
+const server = app.listen(env.port, () => {
+  logger.info('TRACEFLOW backend running.', { port: env.port });
 });
+
+const shutdown = createGracefulShutdown({
+  server,
+  disconnect: () => prisma.$disconnect(),
+  logger
+});
+
+process.once('SIGINT', () => void shutdown('SIGINT'));
+process.once('SIGTERM', () => void shutdown('SIGTERM'));

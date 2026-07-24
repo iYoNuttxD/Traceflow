@@ -1,14 +1,7 @@
 // Service de Issues importadas.
 import { projectRepository } from '../projects/project.repository.js';
 import { issueRepository } from './issue.repository.js';
-
-class IssueServiceError extends Error {
-  constructor(message, statusCode = 400) {
-    super(message);
-    this.name = 'IssueServiceError';
-    this.statusCode = statusCode;
-  }
-}
+import { DomainError as IssueServiceError } from '../../shared/errors/index.js';
 
 function parseProjectId(projectId) {
   const parsedProjectId = Number(projectId);

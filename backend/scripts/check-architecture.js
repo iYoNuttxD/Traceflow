@@ -69,6 +69,11 @@ function inspectBackendImports(files, backendRoot, violations, graph) {
   for (const file of files) {
     const source = readFileSync(file, 'utf8');
     const layer = layerOf(file);
+    const relativeFile = relative(backendRoot, file).split(sep);
+    const isShared = relativeFile.includes('shared');
+    const isMiddleware = relativeFile.includes('middlewares');
+    const isLogger = isShared && relativeFile.includes('logger');
+    const isErrorHandler = relativeFile.at(-1) === 'error-handler.middleware.js';
     const imports = extractImportSpecifiers(source);
 
     graph.set(file, []);
@@ -111,6 +116,22 @@ function inspectBackendImports(files, backendRoot, violations, graph) {
 
       if (layer === 'repository' && specifier === 'express') {
         addViolation(violations, file, 'repository-no-http', specifier, 'Repository não pode conhecer HTTP/Express.');
+      }
+
+      if (isShared && target && moduleOf(target, backendRoot)) {
+        addViolation(violations, file, 'shared-no-domain', specifier, 'Shared não pode importar módulo de domínio.');
+      }
+
+      if (isMiddleware && targetLayer === 'repository') {
+        addViolation(violations, file, 'middleware-no-repository', specifier, 'Middleware não pode importar repository.');
+      }
+
+      if (isLogger && specifier === 'express') {
+        addViolation(violations, file, 'logger-no-express', specifier, 'Logger não pode importar Express.');
+      }
+
+      if (isErrorHandler && targetLayer === 'service' && target && moduleOf(target, backendRoot)) {
+        addViolation(violations, file, 'error-handler-no-domain-service', specifier, 'Error handler não pode importar service de domínio.');
       }
     }
   }
@@ -166,6 +187,8 @@ function detectModuleCycles(graph, backendRoot, violations) {
 function inspectFrontendImports(files, frontendRoot, violations) {
   for (const file of files) {
     const source = readFileSync(file, 'utf8');
+    const relativeFile = relative(frontendRoot, file).split(sep);
+    const isShared = relativeFile.includes('shared');
 
     for (const specifier of extractImportSpecifiers(source)) {
       const target = resolveImport(file, specifier);
@@ -182,6 +205,17 @@ function inspectFrontendImports(files, frontendRoot, violations) {
           'frontend-no-backend-internals',
           specifier,
           'Frontend não pode importar internals do backend.'
+        );
+      }
+
+
+      if (isShared && target && relative(frontendRoot, target).split(sep).includes('pages')) {
+        addViolation(
+          violations,
+          file,
+          'frontend-shared-no-pages',
+          specifier,
+          'Frontend shared não pode importar pages.'
         );
       }
     }

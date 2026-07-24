@@ -16,6 +16,10 @@ Esta área registra a evolução incremental do MVP para uma arquitetura mais se
 
 **Concluída em 24/07/2026**, com convenções e verificação automática, módulos Projects, Requirements, Tasks e Traceability divididos por responsabilidade, fronteira GitHub auditada, feature frontend Projects organizada e compatibilidades temporárias avaliadas. A continuação final partiu do commit `28da221fd7ba6900c62a4a5d3e6237df47572d8d`.
 
+## Estado da E3
+
+**Concluída em 24/07/2026**, com configuração validada no startup, erros e logging estruturado compartilhados, redaction, request ID, middlewares 404/erro, health/liveness/readiness, shutdown controlado e normalização mínima de erros no frontend. A execução partiu do commit `2ac8421c98a83fcc39e45cb8e62ba27cc3322d52`.
+
 ## Documentos produzidos
 
 - [E0_BASELINE.md](E0_BASELINE.md) — execução, arquitetura, páginas, fluxos, divergências e bloqueios.
@@ -26,11 +30,12 @@ Esta área registra a evolução incremental do MVP para uma arquitetura mais se
 - [E0_SECURITY_PRIVACY_BASELINE.md](E0_SECURITY_PRIVACY_BASELINE.md) — controles atuais, lacunas, dados pessoais e relação preliminar com ASVS.
 - [E1_TEST_HARNESS.md](E1_TEST_HARNESS.md) — harness, isolamento do banco, testes de caracterização, resultados e cobertura inicial.
 - [E2_ARCHITECTURAL_BOUNDARIES.md](E2_ARCHITECTURAL_BOUNDARIES.md) — convenções, verificador, módulos migrados, cobertura e pendências.
+- [E3_SHARED_INFRASTRUCTURE.md](E3_SHARED_INFRASTRUCTURE.md) — configuração, erros, logging, redaction, request ID, health e shutdown.
 - [MODULE_CONVENTIONS.md](../architecture/MODULE_CONVENTIONS.md) — responsabilidades e dependências permitidas no backend.
 - [FRONTEND_STRUCTURE.md](../architecture/FRONTEND_STRUCTURE.md) — direção pages → features → shared e organização frontend.
 
 ## Próxima etapa
 
-A próxima etapa planejada é a E3. Ela não foi iniciada nesta execução.
+A próxima etapa planejada é a E4. Ela não foi iniciada nesta execução.
 
-Nenhum código funcional foi refatorado durante a E0 ou a E1. A E2 reorganizou fronteiras internas sem alterar contratos ou comportamento funcional.
+Nenhum código funcional foi refatorado durante a E0 ou a E1. A E2 reorganizou fronteiras internas e a E3 introduziu infraestrutura transversal, ambas sem alterar regras de negócio ou contratos de sucesso.

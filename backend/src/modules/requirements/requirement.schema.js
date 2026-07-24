@@ -1,10 +1,5 @@
-export class RequirementServiceError extends Error {
-  constructor(message, statusCode = 400) {
-    super(message);
-    this.name = 'RequirementServiceError';
-    this.statusCode = statusCode;
-  }
-}
+import { DomainError as RequirementServiceError } from '../../shared/errors/index.js';
+export { RequirementServiceError };
 
 const allowedTypes = new Set(['FUNCIONAL', 'NAO_FUNCIONAL', 'REGRA_NEGOCIO']);
 const allowedStatuses = new Set([

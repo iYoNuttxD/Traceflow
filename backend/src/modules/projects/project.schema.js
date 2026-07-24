@@ -1,10 +1,5 @@
-export class ProjectServiceError extends Error {
-  constructor(message, statusCode = 400) {
-    super(message);
-    this.name = 'ProjectServiceError';
-    this.statusCode = statusCode;
-  }
-}
+import { DomainError as ProjectServiceError } from '../../shared/errors/index.js';
+export { ProjectServiceError };
 
 const requiredGithubFields = [
   'githubRepositoryId',
@@ -73,7 +68,7 @@ function normalizeGithubRepository(data, required = false) {
       urlOwner.toLowerCase() !== githubOwner.toLowerCase() ||
       urlRepo.toLowerCase() !== normalizedRepo.toLowerCase()
     ) {
-      throw new Error('Invalid GitHub repository URL');
+      throw new ProjectServiceError('Selecione um repositório GitHub válido para o projeto.', 400);
     }
 
     return {

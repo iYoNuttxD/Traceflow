@@ -1,14 +1,7 @@
 // Service de rastreabilidade: coordena persistência, cálculos e mapeamento de saída.
 import { formatMatrixRow, formatRequirementDetail } from './traceability.mapper.js';
 import { traceabilityRepository } from './traceability.repository.js';
-
-class TraceabilityServiceError extends Error {
-  constructor(message, statusCode = 400) {
-    super(message);
-    this.name = 'TraceabilityServiceError';
-    this.statusCode = statusCode;
-  }
-}
+import { DomainError as TraceabilityServiceError } from '../../shared/errors/index.js';
 
 function parsePositiveInteger(value, entityName) {
   const parsedValue = Number(value);

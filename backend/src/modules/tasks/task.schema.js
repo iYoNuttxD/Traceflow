@@ -1,10 +1,5 @@
-export class TaskServiceError extends Error {
-  constructor(message, statusCode = 400) {
-    super(message);
-    this.name = 'TaskServiceError';
-    this.statusCode = statusCode;
-  }
-}
+import { DomainError as TaskServiceError } from '../../shared/errors/index.js';
+export { TaskServiceError };
 
 export const kanbanStatuses = ['A_FAZER', 'EM_ANDAMENTO', 'CONCLUIDO'];
 const allowedPriorities = new Set(['BAIXA', 'MEDIA', 'ALTA', 'CRITICA']);

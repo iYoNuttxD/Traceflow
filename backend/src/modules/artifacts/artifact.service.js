@@ -1,13 +1,6 @@
 // Service do RF06: consolida commits, pull requests e issues importados.
 import { artifactRepository } from './artifact.repository.js';
-
-class ArtifactServiceError extends Error {
-  constructor(message, statusCode = 400) {
-    super(message);
-    this.name = 'ArtifactServiceError';
-    this.statusCode = statusCode;
-  }
-}
+import { DomainError as ArtifactServiceError } from '../../shared/errors/index.js';
 
 const artifactTypes = new Set(['commit', 'pull_request', 'issue']);
 
