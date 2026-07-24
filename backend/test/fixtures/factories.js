@@ -1,0 +1,106 @@
+let sequence = 0;
+
+function nextId() {
+  sequence += 1;
+  return `${Date.now()}-${sequence}`;
+}
+
+export async function createProject(prisma, overrides = {}) {
+  const unique = nextId();
+
+  return prisma.project.create({
+    data: {
+      name: `Projeto artificial ${unique}`,
+      responsibleTeam: 'Equipe artificial',
+      accessCode: `TEST-${unique}`,
+      status: 'ATIVO',
+      ...overrides
+    }
+  });
+}
+
+export async function createRequirement(prisma, projectId, overrides = {}) {
+  return prisma.requirement.create({
+    data: {
+      projectId,
+      title: `Requisito artificial ${nextId()}`,
+      type: 'FUNCIONAL',
+      status: 'CADASTRADO',
+      ...overrides
+    }
+  });
+}
+
+export async function createTask(prisma, projectId, overrides = {}) {
+  return prisma.task.create({
+    data: {
+      projectId,
+      title: `Tarefa artificial ${nextId()}`,
+      priority: 'MEDIA',
+      status: 'A_FAZER',
+      ...overrides
+    }
+  });
+}
+
+export async function createProjectMember(prisma, projectId, overrides = {}) {
+  return prisma.projectMember.create({
+    data: {
+      projectId,
+      name: `Pessoa artificial ${nextId()}`,
+      email: `pessoa-${nextId()}@example.invalid`,
+      role: 'MEMBRO',
+      ...overrides
+    }
+  });
+}
+
+export async function createCommit(prisma, projectId, overrides = {}) {
+  const unique = nextId();
+
+  return prisma.commit.create({
+    data: {
+      projectId,
+      hash: `fake-hash-${unique}`,
+      message: `Commit artificial ${unique}`,
+      authorName: 'Autor artificial',
+      authorEmail: 'autor@example.invalid',
+      branch: 'main',
+      date: new Date('2026-01-10T12:00:00.000Z'),
+      ...overrides
+    }
+  });
+}
+
+export async function createPullRequest(prisma, projectId, overrides = {}) {
+  const unique = nextId();
+
+  return prisma.pullRequest.create({
+    data: {
+      projectId,
+      githubId: `fake-pr-${unique}`,
+      number: sequence,
+      title: `Pull request artificial ${unique}`,
+      state: 'open',
+      sourceBranch: 'feature/artificial',
+      targetBranch: 'main',
+      ...overrides
+    }
+  });
+}
+
+export async function createIssue(prisma, projectId, overrides = {}) {
+  const unique = nextId();
+
+  return prisma.issue.create({
+    data: {
+      projectId,
+      githubId: `fake-issue-${unique}`,
+      number: sequence,
+      title: `Issue artificial ${unique}`,
+      state: 'open',
+      labels: [],
+      ...overrides
+    }
+  });
+}

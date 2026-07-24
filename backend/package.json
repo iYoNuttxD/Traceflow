@@ -7,6 +7,11 @@
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:unit": "vitest run test/unit",
+    "test:integration": "vitest run test/integration test/api",
+    "test:coverage": "vitest run --coverage",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev"
   },
@@ -18,7 +23,10 @@
     "express": "^4.18.0"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.10",
     "nodemon": "^3.0.0",
-    "prisma": "^6.0.0"
+    "prisma": "^6.0.0",
+    "supertest": "^7.2.2",
+    "vitest": "^4.1.10"
   }
 }

@@ -2,11 +2,15 @@
 
 ## Objetivo
 
-Esta área registra a evolução incremental do MVP para uma arquitetura mais segura, testável e sustentável. A E0 congela um baseline verificável do comportamento, dos contratos e dos dados atuais antes de qualquer refatoração.
+Esta área registra a evolução incremental do MVP para uma arquitetura mais segura, testável e sustentável. A E0 congelou um baseline verificável; a E1 adicionou a rede inicial de testes que protege os contratos e comportamentos atuais.
 
 ## Estado da E0
 
 **Concluída documentalmente em 24/07/2026**, com baseline executável, inventários e riscos registrados. A análise foi realizada na branch `daniel-dev`, no commit inicial `75f8921f719d87e9d6c27e05ac0016285c07ea5c`.
+
+## Estado da E1
+
+**Concluída em 24/07/2026**, com runners backend/frontend, banco MySQL isolado, testes HTTP e de interface, dublês da fronteira GitHub e cobertura inicial. A execução foi realizada na branch `daniel-dev`, a partir do commit `4cdcb941452dc1da0a97d24b1b3ca3f1e07aaacd`.
 
 ## Documentos produzidos
 
@@ -16,9 +20,10 @@ Esta área registra a evolução incremental do MVP para uma arquitetura mais se
 - [E0_PRISMA_INVENTORY.md](E0_PRISMA_INVENTORY.md) — models, relações, migrations, uso e riscos.
 - [E0_TECHNICAL_DEBT.md](E0_TECHNICAL_DEBT.md) — TODOs, placeholders, duplicações, candidatos a legado e prioridades.
 - [E0_SECURITY_PRIVACY_BASELINE.md](E0_SECURITY_PRIVACY_BASELINE.md) — controles atuais, lacunas, dados pessoais e relação preliminar com ASVS.
+- [E1_TEST_HARNESS.md](E1_TEST_HARNESS.md) — harness, isolamento do banco, testes de caracterização, resultados e cobertura inicial.
 
 ## Próxima etapa
 
-`E1 — Harness e testes de caracterização do MVP`, somente após revisão e aceite manual destes documentos.
+`E2`, somente após revisão manual da E1, conforme o roadmap incremental.
 
-Nenhum código funcional foi refatorado durante a E0.
+Nenhum código funcional foi refatorado durante a E0 ou a E1.
