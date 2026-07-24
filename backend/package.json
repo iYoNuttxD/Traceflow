@@ -12,6 +12,7 @@
     "test:unit": "vitest run test/unit",
     "test:integration": "vitest run test/integration test/api",
     "test:coverage": "vitest run --coverage",
+    "architecture:check": "node scripts/check-architecture.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev"
   },

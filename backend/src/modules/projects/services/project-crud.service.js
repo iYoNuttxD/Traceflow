@@ -1,0 +1,38 @@
+import { projectRepository } from '../project.repository.js';
+import {
+  buildEditableProjectData,
+  parseProjectId,
+  ProjectServiceError
+} from '../project.schema.js';
+import { buildProjectInviteData } from './project-invite.service.js';
+
+export const projectCrudService = {
+  async createProject(data) {
+    const projectData = {
+      ...buildEditableProjectData(data, true),
+      ...(await buildProjectInviteData())
+    };
+    return projectRepository.createProject(projectData);
+  },
+
+  async findAllProjects() {
+    return projectRepository.findAllProjects();
+  },
+
+  async getProjectById(projectId) {
+    const parsedProjectId = parseProjectId(projectId);
+    const project = await projectRepository.findById(parsedProjectId);
+    if (!project) throw new ProjectServiceError('Projeto não encontrado.', 404);
+    return project;
+  },
+
+  async updateProject(projectId, data) {
+    const parsedProjectId = parseProjectId(projectId);
+    const project = await projectRepository.findById(parsedProjectId);
+    if (!project) throw new ProjectServiceError('Projeto não encontrado.', 404);
+
+    const projectData = buildEditableProjectData(data);
+    if (Object.keys(projectData).length === 0) return project;
+    return projectRepository.updateProject(parsedProjectId, projectData);
+  }
+};

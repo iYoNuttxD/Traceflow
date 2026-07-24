@@ -1,11 +1,11 @@
 // Agregador central das rotas da API TRACEFLOW.
 // TODO: Manter cada novo endpoint no modulo responsavel.
 import { Router } from 'express';
-import projectRoutes from '../modules/projects/project.routes.js';
-import requirementRoutes from '../modules/requirements/requirement.routes.js';
-import taskRoutes from '../modules/tasks/task.routes.js';
-import githubRoutes from '../modules/github/github.routes.js';
-import traceabilityRoutes from '../modules/traceability/traceability.routes.js';
+import { projectRoutes } from '../modules/projects/index.js';
+import { requirementRoutes } from '../modules/requirements/index.js';
+import { taskRoutes } from '../modules/tasks/index.js';
+import { githubRoutes } from '../modules/github/index.js';
+import { traceabilityRoutes } from '../modules/traceability/index.js';
 
 const routes = Router();
 

@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api } from '../api/api.js';
-import { Card } from '../components/Card.jsx';
+import { Card } from '../shared/index.js';
 import {
   ProjectForm,
   applyRepositoryToProjectForm,
   emptyProjectForm,
   normalizeRepository,
+  projectsApi,
   updateProjectForm
-} from '../components/ProjectForm.jsx';
+} from '../features/projects/index.js';
 
 function getErrorMessage(error, fallback) {
   return error.response?.data?.message || fallback;
@@ -30,7 +30,7 @@ export function ProjectsPage() {
     setError('');
 
     try {
-      const response = await api.get('/projects');
+      const response = await projectsApi.list();
       setProjects(response.data.projects);
     } catch (requestError) {
       setError(getErrorMessage(requestError, 'Não foi possível carregar os projetos.'));
@@ -44,7 +44,7 @@ export function ProjectsPage() {
     setRepositoriesError('');
 
     try {
-      const response = await api.get('/github/repositories');
+      const response = await projectsApi.listGithubRepositories();
       const validRepositories = (response.data.repositories || [])
         .map(normalizeRepository)
         .filter(
@@ -103,7 +103,7 @@ export function ProjectsPage() {
     setSubmitting(true);
 
     try {
-      const response = await api.post('/projects', formData);
+      const response = await projectsApi.create(formData);
       setSuccess(response.data.message);
       setFormData(emptyProjectForm);
       await loadProjects();
