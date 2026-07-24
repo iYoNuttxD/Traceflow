@@ -8,8 +8,8 @@ const apiMocks = vi.hoisted(() => ({
   getRequirementTraceability: vi.fn()
 }));
 
-vi.mock('../api/api.js', () => apiMocks);
-vi.mock('../components/TraceabilityFlow.jsx', () => ({
+vi.mock('../../src/api/api.js', () => apiMocks);
+vi.mock('../../src/components/TraceabilityFlow.jsx', () => ({
   TraceabilityFlow({ traceability }) {
     const task = traceability.tasks[0];
 
@@ -22,7 +22,7 @@ vi.mock('../components/TraceabilityFlow.jsx', () => ({
   }
 }));
 
-import { TraceabilityPage } from './TraceabilityPage.jsx';
+import { TraceabilityPage } from '../../src/pages/TraceabilityPage.jsx';
 
 function renderPage() {
   return render(

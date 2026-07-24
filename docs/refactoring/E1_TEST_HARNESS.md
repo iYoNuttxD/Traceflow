@@ -39,9 +39,18 @@ backend/
 
 frontend/
 ├── src/
-│   ├── components/{Card,ProjectForm,TaskForm}.test.jsx
-│   ├── pages/{ProjectsPage,TraceabilityPage}.test.jsx
-│   └── tests/setup.js
+│   ├── components/
+│   ├── pages/
+│   └── ...
+├── test/
+│   ├── components/
+│   │   ├── Card.test.jsx
+│   │   ├── ProjectForm.test.jsx
+│   │   └── TaskForm.test.jsx
+│   ├── pages/
+│   │   ├── ProjectsPage.test.jsx
+│   │   └── TraceabilityPage.test.jsx
+│   └── setup.js
 └── vitest.config.js
 ```
 

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { TaskForm, emptyTaskForm } from './TaskForm.jsx';
+import { TaskForm, emptyTaskForm } from '../../src/components/TaskForm.jsx';
 
 function TaskFormHarness({ onSubmit, editing = false, submitting = false, members = [] }) {
   const [formData, setFormData] = useState(emptyTaskForm);

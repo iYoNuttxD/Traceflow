@@ -8,9 +8,9 @@ const apiMock = vi.hoisted(() => ({
   post: vi.fn()
 }));
 
-vi.mock('../api/api.js', () => ({ api: apiMock }));
+vi.mock('../../src/api/api.js', () => ({ api: apiMock }));
 
-import { ProjectsPage } from './ProjectsPage.jsx';
+import { ProjectsPage } from '../../src/pages/ProjectsPage.jsx';
 
 const fakeRepository = {
   githubRepositoryId: '501',
