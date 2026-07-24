@@ -4,5 +4,6 @@ export {
   ConfigurationError,
   DomainError,
   ExternalServiceError,
-  NotFoundError
+  NotFoundError,
+  ValidationError
 } from './domain-error.js';

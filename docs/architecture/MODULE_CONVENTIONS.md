@@ -15,8 +15,9 @@ route → controller → service → repository → Prisma/MySQL
 ### Route
 
 - Declara método, caminho e middlewares e encaminha ao controller.
+- Pode importar schemas HTTP do próprio módulo e o middleware compartilhado de validação.
 - Não acessa Prisma, database, repository ou client externo.
-- Não valida invariantes, monta query ou executa persistência.
+- Valida formato, tipo, presença, tamanho e coerção declarada; não valida invariantes, monta query ou executa persistência.
 
 ### Controller
 
@@ -53,6 +54,7 @@ src/modules/<domain>/
 ├── <domain>.service.js
 ├── <domain>.repository.js
 ├── <domain>.schema.js       # validação/normalização específica, quando necessária
+├── <domain>.validation.js   # contrato HTTP com Zod, quando há entrada
 ├── <domain>.mapper.js       # conversão relevante, quando necessária
 ├── <domain>.calculator.js   # cálculo puro e testável, quando necessário
 ├── services/                # casos de uso coesos, quando o service crescer
@@ -98,6 +100,8 @@ No backend, `project.service.js` funciona temporariamente como fachada e delega 
 - middleware → repository;
 - error handler → service de domínio;
 - logger → Express;
+- schema/validation → controller, repository ou Express;
+- middleware de validação → service de domínio;
 - `frontend/src/shared` → pages;
 - ciclo entre arquivos do mesmo módulo;
 - import do `index.js` do próprio módulo por um internal desse módulo.

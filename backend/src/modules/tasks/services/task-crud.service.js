@@ -23,8 +23,9 @@ export const taskCrudService = {
   async findTasksByProject(projectId, query = {}) {
     const parsedProjectId = parseProjectId(projectId);
     await ensureProjectExists(parsedProjectId);
-    const search = typeof query.search === 'string' ? query.search.trim() : undefined;
-    return (await taskRepository.findTasksByProject(parsedProjectId, { search })).map(formatTask);
+    return (await taskRepository.findTasksByProject(parsedProjectId, {
+      search: query.search
+    })).map(formatTask);
   },
 
   async getTaskById(taskId) {

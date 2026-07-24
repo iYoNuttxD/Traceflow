@@ -74,6 +74,8 @@ function inspectBackendImports(files, backendRoot, violations, graph) {
     const isMiddleware = relativeFile.includes('middlewares');
     const isLogger = isShared && relativeFile.includes('logger');
     const isErrorHandler = relativeFile.at(-1) === 'error-handler.middleware.js';
+    const isValidationMiddleware = relativeFile.at(-1) === 'validate-request.middleware.js';
+    const isSchema = /\.(?:schema|validation)\.js$/.test(file);
     const imports = extractImportSpecifiers(source);
 
     graph.set(file, []);
@@ -132,6 +134,22 @@ function inspectBackendImports(files, backendRoot, violations, graph) {
 
       if (isErrorHandler && targetLayer === 'service' && target && moduleOf(target, backendRoot)) {
         addViolation(violations, file, 'error-handler-no-domain-service', specifier, 'Error handler não pode importar service de domínio.');
+      }
+
+      if (isSchema && targetLayer === 'controller') {
+        addViolation(violations, file, 'schema-no-controller', specifier, 'Schema não pode importar controller.');
+      }
+
+      if (isSchema && targetLayer === 'repository') {
+        addViolation(violations, file, 'schema-no-repository', specifier, 'Schema não pode importar repository.');
+      }
+
+      if (isSchema && specifier === 'express') {
+        addViolation(violations, file, 'schema-no-express', specifier, 'Schema de domínio não pode importar Express.');
+      }
+
+      if (isValidationMiddleware && targetLayer === 'service') {
+        addViolation(violations, file, 'validation-middleware-no-service', specifier, 'Middleware de validação não pode importar service.');
       }
     }
   }

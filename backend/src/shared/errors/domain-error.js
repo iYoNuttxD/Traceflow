@@ -46,3 +46,17 @@ export class ExternalServiceError extends AppError {
     this.name = 'ExternalServiceError';
   }
 }
+
+export class ValidationError extends AppError {
+  constructor({ message = 'Dados inválidos.', details = [], cause } = {}) {
+    super({
+      message,
+      statusCode: 400,
+      code: ERROR_CODES.VALIDATION_ERROR,
+      details,
+      cause,
+      exposeTechnicalDetails: true
+    });
+    this.name = 'ValidationError';
+  }
+}

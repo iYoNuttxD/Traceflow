@@ -48,7 +48,7 @@ export const requirementController = {
 
   findTasksByRequirement: asyncHandler(async (req, res) => {
     const tasks = await requirementService.findTasksByRequirement(req.params.id);
-    return res.json({ requirementId: Number(req.params.id), total: tasks.length, tasks });
+    return res.json({ requirementId: req.params.id, total: tasks.length, tasks });
   }, { fallbackMessage: requirementFallback }),
 
   confirmCompletion: asyncHandler(async (req, res) => {

@@ -34,5 +34,9 @@ describe('verificador de fronteiras arquiteturais', () => {
     expect(rules).toContain('logger-no-express');
     expect(rules).toContain('error-handler-no-domain-service');
     expect(rules).toContain('frontend-shared-no-pages');
+    expect(rules).toContain('schema-no-controller');
+    expect(rules).toContain('schema-no-repository');
+    expect(rules).toContain('schema-no-express');
+    expect(rules).toContain('validation-middleware-no-service');
   });
 });

@@ -22,7 +22,7 @@ export const projectController = {
 
   listMembers: asyncHandler(async (req, res) => {
     const members = await projectService.listProjectMembers(req.params.projectId);
-    return res.json({ projectId: Number(req.params.projectId), members });
+    return res.json({ projectId: req.params.projectId, members });
   }, { fallbackMessage: membersFallback }),
 
   addMember: asyncHandler(async (req, res) => {

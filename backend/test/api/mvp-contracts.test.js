@@ -49,6 +49,18 @@ function projectBody(suffix = 'a') {
   };
 }
 
+function expectValidationError(response, field) {
+  expect(response.status).toBe(400);
+  expect(response.body).toMatchObject({
+    code: 'VALIDATION_ERROR',
+    details: expect.arrayContaining([expect.objectContaining({ field })]),
+    requestId: expect.any(String)
+  });
+  expect(response.body.message).toEqual(expect.any(String));
+  expect(response.headers['x-request-id']).toBe(response.body.requestId);
+  expect(response.body).not.toHaveProperty('stack');
+}
+
 describe('GET /health', () => {
   it('preserva o contrato atual do health check', async () => {
     const response = await request(app).get('/health');
@@ -117,8 +129,8 @@ describe('contratos HTTP de projetos', () => {
   it('preserva o erro 400 para body inválido', async () => {
     const response = await request(app).post('/api/projects').send({});
 
-    expect(response.status).toBe(400);
-    expect(response.body).toEqual({ message: 'O nome do projeto é obrigatório.' });
+    expectValidationError(response, 'name');
+    expect(response.body.message).toBe('O nome do projeto é obrigatório.');
   });
 
   it('lista, consulta e atualiza no formato atual', async () => {
@@ -255,11 +267,10 @@ describe('contratos de requisitos e vínculo com tarefas', () => {
     const invalidStatusResponse = await request(app)
       .patch(`/api/requirements/${requirement.id}/status`)
       .send({ status: 'INEXISTENTE' });
-    expect(invalidStatusResponse.status).toBe(400);
-    expect(invalidStatusResponse.body).toEqual({
-      message:
-        'Status inválido. Use CADASTRADO, APROVADO, EM_IMPLEMENTACAO, VALIDADO ou CONCLUIDO.'
-    });
+    expectValidationError(invalidStatusResponse, 'status');
+    expect(invalidStatusResponse.body.message).toBe(
+      'Status inválido. Use CADASTRADO, APROVADO, EM_IMPLEMENTACAO, VALIDADO ou CONCLUIDO.'
+    );
 
     const earlyCompletionResponse = await request(app).patch(
       `/api/requirements/${requirement.id}/confirm-completion`
@@ -726,6 +737,138 @@ describe('matriz e detalhe de rastreabilidade', () => {
   });
 });
 
+describe('validação HTTP negativa da E4', () => {
+  it('valida IDs, URL, boolean, e-mail, accessCode e campos de Projects', async () => {
+    expectValidationError(await request(app).get('/api/projects/invalido'), 'id');
+
+    expectValidationError(
+      await request(app).post('/api/projects').send({ ...projectBody('url'), githubUrl: 'https://example.com/repo' }),
+      'githubUrl'
+    );
+    expectValidationError(
+      await request(app).patch('/api/projects/1/github/sync-settings').send({ githubAutoSyncEnabled: 'true' }),
+      'githubAutoSyncEnabled'
+    );
+    expectValidationError(
+      await request(app).post('/api/projects/1/members').send({ name: 'Pessoa', email: 'invalido', role: 'MEMBRO' }),
+      'email'
+    );
+    expectValidationError(
+      await request(app).post('/api/projects/join').send({ accessCode: '', name: 'Pessoa' }),
+      'accessCode'
+    );
+    expectValidationError(
+      await request(app).post('/api/projects').send({ ...projectBody('unknown'), campoInventado: true }),
+      'campoInventado'
+    );
+  });
+
+  it('valida entradas de Requirements sem alterar erros de domínio', async () => {
+    expectValidationError(await request(app).get('/api/requirements/invalido'), 'id');
+    expectValidationError(
+      await request(app).post('/api/projects/1/requirements').send({ title: '' }),
+      'title'
+    );
+    expectValidationError(
+      await request(app).post('/api/projects/1/requirements').send({ title: 'RF', type: 'OUTRO' }),
+      'type'
+    );
+    expectValidationError(
+      await request(app).patch('/api/requirements/1/status').send({ status: 'OUTRO' }),
+      'status'
+    );
+    expectValidationError(
+      await request(app).get(`/api/projects/1/requirements?search=${'a'.repeat(256)}`),
+      'search'
+    );
+    expectValidationError(
+      await request(app).post('/api/projects/1/requirements').send({ title: 'RF', segredo: 'nao-retornar' }),
+      'segredo'
+    );
+  });
+
+  it('valida entradas de Tasks, vínculos e filtros', async () => {
+    expectValidationError(await request(app).get('/api/tasks/1.5'), 'id');
+    expectValidationError(
+      await request(app).post('/api/projects/1/tasks').send({ title: '' }),
+      'title'
+    );
+    expectValidationError(
+      await request(app).post('/api/projects/1/tasks').send({ title: 'Tarefa', estimatedEffort: -1 }),
+      'estimatedEffort'
+    );
+    expectValidationError(
+      await request(app).post('/api/projects/1/tasks').send({ title: 'Tarefa', deadline: '2026-02-30' }),
+      'deadline'
+    );
+    expectValidationError(
+      await request(app).post('/api/projects/1/tasks').send({ title: 'Tarefa', priority: 'URGENTE' }),
+      'priority'
+    );
+    expectValidationError(
+      await request(app).patch('/api/tasks/1/status').send({ status: 'OUTRO' }),
+      'status'
+    );
+    expectValidationError(
+      await request(app).patch('/api/tasks/1/requirement').send({ requirementId: 'abc' }),
+      'requirementId'
+    );
+    expectValidationError(
+      await request(app).post('/api/tasks/1/commits').send({ commitId: 0 }),
+      'commitId'
+    );
+    expectValidationError(
+      await request(app).post('/api/tasks/1/issues').send({ issueId: -2 }),
+      'issueId'
+    );
+    expectValidationError(
+      await request(app).get('/api/projects/1/tasks/metrics?startDate=2026-12-31&endDate=2026-01-01'),
+      'endDate'
+    );
+    expectValidationError(
+      await request(app).post('/api/projects/1/tasks').send({ title: 'Tarefa', campoInventado: true }),
+      'campoInventado'
+    );
+  });
+
+  it('valida GitHub, Artifacts e Traceability sem acessar dependências', async () => {
+    expectValidationError(await request(app).get('/api/projects/x/commits'), 'projectId');
+    expectValidationError(
+      await request(app).get(`/api/projects/1/issues?search=${'a'.repeat(256)}`),
+      'search'
+    );
+    expectValidationError(
+      await request(app).get('/api/projects/1/artifacts?type=branch'),
+      'type'
+    );
+    expectValidationError(
+      await request(app).get('/api/projects/1/artifacts?startDate=2026-02-30'),
+      'startDate'
+    );
+    expectValidationError(
+      await request(app).get('/api/projects/x/traceability/requirements-matrix'),
+      'projectId'
+    );
+    expectValidationError(
+      await request(app).get('/api/projects/1/traceability/requirements/x'),
+      'requirementId'
+    );
+  });
+
+  it('não retorna valores sensíveis nem internals no erro', async () => {
+    const secret = 'token-super-secreto';
+    const response = await request(app)
+      .post('/api/projects')
+      .set('X-Request-Id', 'e4-seguro')
+      .send({ ...projectBody('secret'), token: secret });
+    expectValidationError(response, 'token');
+    const serialized = JSON.stringify(response.body);
+    expect(serialized).not.toContain(secret);
+    expect(serialized).not.toMatch(/Zod|schema|stack/i);
+    expect(response.body.requestId).toBe('e4-seguro');
+  });
+});
+
 describe('baseline dos endpoints 501', () => {
   it.each([
     ['delete', '/api/projects/1'],
@@ -740,5 +883,10 @@ describe('baseline dos endpoints 501', () => {
 
     expect(response.status).toBe(501);
     expect(response.body).toHaveProperty('message');
+  });
+
+  it('mantém 501 mesmo quando o parâmetro do placeholder é inválido', async () => {
+    expect((await request(app).delete('/api/projects/invalido')).status).toBe(501);
+    expect((await request(app).get('/api/tasks/invalido/traceability')).status).toBe(501);
   });
 });

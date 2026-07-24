@@ -31,8 +31,9 @@ export const requirementCrudService = {
   async findRequirementsByProject(projectId, query = {}) {
     const parsedProjectId = parseProjectId(projectId);
     await ensureRequirementProjectExists(parsedProjectId);
-    const search = typeof query.search === 'string' ? query.search.trim() : undefined;
-    return requirementRepository.findRequirementsByProject(parsedProjectId, { search });
+    return requirementRepository.findRequirementsByProject(parsedProjectId, {
+      search: query.search
+    });
   },
 
   async getRequirementById(requirementId) {

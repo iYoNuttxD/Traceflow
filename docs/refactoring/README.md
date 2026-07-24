@@ -20,6 +20,10 @@ Esta área registra a evolução incremental do MVP para uma arquitetura mais se
 
 **Concluída em 24/07/2026**, com configuração validada no startup, erros e logging estruturado compartilhados, redaction, request ID, middlewares 404/erro, health/liveness/readiness, shutdown controlado e normalização mínima de erros no frontend. A execução partiu do commit `2ac8421c98a83fcc39e45cb8e62ba27cc3322d52`.
 
+## Estado da E4
+
+**Concluída em 24/07/2026**, com validação centralizada de params, query e body, coerções explícitas, bodies estritos, erros seguros, schemas por módulo e catálogo dos contratos HTTP. A execução partiu do commit `7b0c25b1f3e7d3bb67947a82bc1fa93e16597812`.
+
 ## Documentos produzidos
 
 - [E0_BASELINE.md](E0_BASELINE.md) — execução, arquitetura, páginas, fluxos, divergências e bloqueios.
@@ -31,11 +35,13 @@ Esta área registra a evolução incremental do MVP para uma arquitetura mais se
 - [E1_TEST_HARNESS.md](E1_TEST_HARNESS.md) — harness, isolamento do banco, testes de caracterização, resultados e cobertura inicial.
 - [E2_ARCHITECTURAL_BOUNDARIES.md](E2_ARCHITECTURAL_BOUNDARIES.md) — convenções, verificador, módulos migrados, cobertura e pendências.
 - [E3_SHARED_INFRASTRUCTURE.md](E3_SHARED_INFRASTRUCTURE.md) — configuração, erros, logging, redaction, request ID, health e shutdown.
+- [E4_INPUT_VALIDATION.md](E4_INPUT_VALIDATION.md) — validação HTTP, coerções, schemas, testes, cobertura e limitações.
+- [API_CONTRACTS.md](../api/API_CONTRACTS.md) — catálogo executável de rotas, entradas, respostas e erros atuais.
 - [MODULE_CONVENTIONS.md](../architecture/MODULE_CONVENTIONS.md) — responsabilidades e dependências permitidas no backend.
 - [FRONTEND_STRUCTURE.md](../architecture/FRONTEND_STRUCTURE.md) — direção pages → features → shared e organização frontend.
 
 ## Próxima etapa
 
-A próxima etapa planejada é a E4. Ela não foi iniciada nesta execução.
+A próxima etapa planejada é a E5. Ela não foi iniciada nesta execução.
 
-Nenhum código funcional foi refatorado durante a E0 ou a E1. A E2 reorganizou fronteiras internas e a E3 introduziu infraestrutura transversal, ambas sem alterar regras de negócio ou contratos de sucesso.
+Nenhum código funcional foi refatorado durante a E0 ou a E1. A E2 reorganizou fronteiras internas, a E3 introduziu infraestrutura transversal e a E4 protegeu os contratos de entrada, sem alterar regras de negócio ou respostas de sucesso.
