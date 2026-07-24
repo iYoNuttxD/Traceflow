@@ -3,16 +3,15 @@
 ## Identificação e estado
 
 - **Branch:** `daniel-dev`
-- **Commit inicial:** `ba1de5526676e19237104064e79e598782dbc154`
+- **Commit inicial da E2:** `ba1de5526676e19237104064e79e598782dbc154`
+- **Commit inicial desta continuação:** `28da221fd7ba6900c62a4a5d3e6237df47572d8d`
 - **Data:** 24/07/2026
-- **Estado inicial:** árvore limpa e sincronizada com `origin/daniel-dev` (`+0/-0`).
-- **Resultado:** **PARCIAL**. E2.1, E2.2, E2.3, E2.5, E2.7 e E2.8 foram concluídas com validação. Requirements e, principalmente, Tasks permanecem para uma continuação da E2.
+- **Estado inicial desta continuação:** árvore limpa e sincronizada com `origin/daniel-dev` (`+0/-0`).
+- **Resultado:** **CONCLUÍDA**. E2.1 a E2.10 foram executadas e validadas.
 
-O estado parcial é intencional: dividir `task.service.js` e `task.repository.js` na mesma entrega produziria uma alteração ampla sobre Kanban, vínculos e métricas. A implementação existente foi preservada em um único local, com seu entry point público, sem criar serviços concorrentes.
+## Objetivo e arquitetura adotada
 
-## Objetivo e baseline
-
-A E2 torna explícita a direção:
+A E2 tornou explícita a direção:
 
 ```text
 Route → Controller → Service → Repository → Prisma/MySQL
@@ -20,42 +19,52 @@ Route → Controller → Service → Repository → Prisma/MySQL
                         external client
 ```
 
-Os contratos HTTP, mensagens, códigos, fórmulas e sete endpoints `501` caracterizados na E1 permanecem como baseline. Nenhuma alteração de schema, migration, autenticação, autorização ou segurança foi introduzida.
+Routes apenas registram HTTP; controllers preservam os contratos; services executam e coordenam casos de uso; repositories concentram persistência; clients externos não persistem. As convenções completas estão em `docs/architecture/MODULE_CONVENTIONS.md` e `docs/architecture/FRONTEND_STRUCTURE.md`.
 
-## Estrutura anterior e estrutura resultante
+Os contratos, mensagens, códigos, fórmulas e sete endpoints `501` caracterizados na E1 permaneceram como baseline. Não houve alteração de schema, migration, autenticação, autorização, segurança ou layout.
 
-Antes, Projects e Traceability concentravam casos de uso, validações, cálculos e mapeamento em um único service; o frontend mantinha `ProjectForm` e `Card` em `src/components` e a página chamava o Axios genérico diretamente.
-
-Estrutura nova relevante:
+## Estrutura final relevante
 
 ```text
-backend/
-├── scripts/check-architecture.js
-├── src/
-│   ├── modules/
-│   │   ├── github/index.js
-│   │   ├── projects/
-│   │   │   ├── index.js
-│   │   │   ├── project.schema.js
-│   │   │   ├── project.service.js
-│   │   │   └── services/
-│   │   │       ├── project-crud.service.js
-│   │   │       ├── project-github.service.js
-│   │   │       ├── project-invite.service.js
-│   │   │       └── project-members.service.js
-│   │   ├── requirements/index.js
-│   │   ├── tasks/index.js
-│   │   └── traceability/
-│   │       ├── index.js
-│   │       ├── traceability.calculator.js
-│   │       ├── traceability.mapper.js
-│   │       └── traceability.service.js
-│   └── shared/README.md
-└── test/
-    ├── fixtures/architecture/invalid/
-    └── unit/
-        ├── architecture-check.test.js
-        └── traceability.calculator.test.js
+backend/src/modules/
+├── github/
+│   ├── github.client.js
+│   ├── githubSync.service.js
+│   └── index.js
+├── projects/
+│   ├── project.schema.js
+│   ├── project.service.js
+│   └── services/
+│       ├── project-crud.service.js
+│       ├── project-github.service.js
+│       ├── project-invite.service.js
+│       └── project-members.service.js
+├── requirements/
+│   ├── requirement.schema.js
+│   ├── requirement.service.js
+│   ├── requirement.repository.js
+│   └── services/
+│       ├── requirement-crud.service.js
+│       ├── requirement-status.service.js
+│       └── requirement-coverage.service.js
+├── tasks/
+│   ├── task.schema.js
+│   ├── task.service-support.js
+│   ├── task.service.js
+│   ├── task.repository.js
+│   └── services/
+│       ├── task-crud.service.js
+│       ├── task-requirement.service.js
+│       ├── task-pull-request.service.js
+│       ├── task-commit.service.js
+│       ├── task-issue.service.js
+│       ├── task-kanban.service.js
+│       ├── task-movement.service.js
+│       └── task-metrics.service.js
+└── traceability/
+    ├── traceability.calculator.js
+    ├── traceability.mapper.js
+    └── traceability.service.js
 
 frontend/src/
 ├── features/projects/
@@ -65,150 +74,118 @@ frontend/src/
 ├── shared/
 │   ├── components/Card.jsx
 │   └── index.js
-├── pages/ProjectsPage.jsx
-└── components/                 # reexports temporários compatíveis
+└── pages/ProjectsPage.jsx
 ```
 
-## Convenções e regras de dependência
+## Verificação automática de fronteiras
 
-As responsabilidades, nomes, entry points, prevenção de ciclos e política de compatibilidade estão em:
-
-- `docs/architecture/MODULE_CONVENTIONS.md`;
-- `docs/architecture/FRONTEND_STRUCTURE.md`.
-
-Regras verificadas automaticamente:
-
-- route não importa repository ou Prisma/database;
-- controller não importa repository ou Prisma/database;
-- repository não importa controller, route ou Express;
-- frontend não importa internals do backend;
-- não há ciclo evidente entre arquivos do mesmo módulo.
-
-Services permanecem responsáveis por regras e coordenação; repositories mantêm persistência; `github.client.js` continua sem Prisma e substituível nos testes.
-
-## Ferramenta de verificação
-
-Foi criado um script Node sem dependência adicional:
+`backend/scripts/check-architecture.js` verifica imports e reexports estáticos sem dependência adicional. O comando é:
 
 ```bash
 cd backend
 npm run architecture:check
 ```
 
-O script percorre imports/reexports estáticos `.js`/`.jsx`, resolve caminhos relativos e retorna código 1 com arquivo, regra e import quando encontra uma violação.
+Ele reprova route importando repository/Prisma, controller importando repository/Prisma, repository importando controller/route/Express, frontend importando backend e ciclos internos evidentes. O código real passou com zero violações. A fixture controlada continua provando o caminho de falha com código diferente de zero.
 
-Resultados:
+## Módulos concluídos
 
-- código real: aprovado, zero violações;
-- fixture controlada: falhou com código 1 e quatro achados (`route-no-repository`, `controller-no-repository`, `repository-no-controller` e `module-no-cycle`);
-- teste automatizado: três casos aprovados.
+### GitHub
 
-O workflow de CI não foi alterado; sua integração obrigatória permanece para a E14.
+`github.client.js` encapsula Octokit sem persistência; `githubSync.service.js` orquestra; repositories de commits, pull requests e issues persistem. Paginação, timeout, retry, rate limit, token e filtros atuais não foram corrigidos nesta etapa.
 
-## Módulos migrados
+### Projects
 
-### GitHub — E2.2 concluída
+CRUD, membros, convite e integração GitHub permanecem em casos de uso separados. `project.service.js` é a API pública interna agregadora, sem regra duplicada. `Math.random()`, convite `TRC-*`, token global, mensagens e status foram preservados.
 
-A auditoria confirmou que `github.client.js` encapsula Octokit sem persistência, `githubSync.service.js` orquestra a sincronização e commits/PRs/issues persistem nos repositories próprios. Foi adicionado apenas `github/index.js` como API pública. Paginação, timeout, retry, rate limit, token e filtros atuais foram preservados.
+### Requirements
 
-### Projects — E2.3 concluída internamente
+O antigo service monolítico foi dividido em:
 
-`project.service.js` passou a ser uma fachada compatível sobre casos de uso únicos:
+- CRUD, consultas e exclusão com desvinculação;
+- status, recálculo e confirmação de conclusão;
+- cobertura Requirement–Task;
+- validações e cálculos puros em `requirement.schema.js`.
 
-- CRUD;
-- membros e entrada no projeto;
-- convite/código de acesso;
-- integração e configurações GitHub.
+O repository permaneceu único: suas operações são coesas e a divisão criaria gateways artificiais sem benefício. `requirement.service.js` ficou como API interna agregadora, sem duplicar implementação.
 
-Validação/normalização específicas ficaram em `project.schema.js`. `Math.random()`, formato `TRC-*`, convite, token global, mensagens e status não mudaram.
+### Traceability
 
-### Requirements — E2.4 pendente
+O service coordena repository e saída; fórmulas estão em `traceability.calculator.js` e DTOs em `traceability.mapper.js`. Issue isolada, percentuais, propriedades e estados atuais foram preservados.
 
-Foi criado o entry point explícito `requirements/index.js`, mas o service não foi dividido. CRUD, status, confirmação e cobertura continuam na implementação original e protegidos pelos testes E1. Nenhuma migração parcial concorrente foi iniciada.
+### Tasks
 
-### Traceability — E2.5 concluída
+O service de 941 linhas foi substituído por casos de uso coesos, na ordem protegida pelos testes:
 
-O service passou a coordenar repository e saída. Fórmulas puras foram extraídas para `traceability.calculator.js` e DTOs para `traceability.mapper.js`. Testes unitários preservam arredondamento, estados e a regra atual em que issue isolada não é evidência técnica.
+1. CRUD e atualização direta de status;
+2. vínculo Requirement;
+3. vínculo singular de Pull Request;
+4. vínculos TaskCommit;
+5. vínculos TaskIssue;
+6. quadro e movimentação transacional;
+7. histórico e métricas de movimentos;
+8. métricas de tarefas e coberturas PR/commit/issue;
+9. fachada final de exports.
 
-### Tasks — E2.6 pendente
+`task.schema.js` contém parsing, validações e cálculos puros. `task.service-support.js` concentra apenas garantias e mapeamentos compartilhados. O repository permaneceu único para preservar selects/includes compartilhados, a exclusão transacional e a atomicidade Task + TaskMovement sem duplicar queries.
 
-Foi criado apenas `tasks/index.js`. `task.service.js`, controller e repository permanecem intactos. A divisão por CRUD, vínculos, Kanban, movimentos e métricas fica bloqueando a conclusão da E2 e deve ocorrer em mudanças menores, cada uma executando a suíte HTTP correspondente.
+## Frontend e limpeza E2.9
 
-## Frontend — E2.7 e E2.8 concluídas
+A direção `pages → features → shared` foi mantida. Projects é a feature representativa; não houve reorganização de Kanban, Tasks, Requirements, ProjectDetails ou Traceability.
 
-A convenção `pages → features → shared` foi documentada. A feature representativa `projects` contém o formulário, chamadas HTTP da página e API pública explícita. `ProjectsPage` continua na pasta de pages e preserva loading, vazio, erro, submissão, mensagens e aparência.
+Após busca de todos os consumidores, os wrappers temporários foram removidos:
 
-`Card` migrou para `shared/components`. Nenhuma página de Kanban, Tasks, Requirements, Traceability ou detalhes foi reorganizada.
+- `frontend/src/components/Card.jsx`;
+- `frontend/src/components/ProjectForm.jsx`.
 
-## Arquivos movidos, divididos e compatibilidade
-
-Movidos:
-
-- `src/components/ProjectForm.jsx` → `src/features/projects/components/ProjectForm.jsx`;
-- `src/components/Card.jsx` → `src/shared/components/Card.jsx`.
-
-Divididos:
-
-- `project.service.js` em fachada + schema + quatro casos de uso;
-- `traceability.service.js` em service + calculator + mapper.
-
-Compatibilidade temporária:
-
-- `backend/src/modules/projects/project.service.js` mantém o export `projectService` e possui `TODO(E2.9)`;
-- `frontend/src/components/ProjectForm.jsx` e `Card.jsx` são apenas reexports com `TODO(E2.9)`.
-
-Não existe implementação duplicada.
+Páginas e testes agora importam `Card` pela API `shared/index.js` e `ProjectForm` por `features/projects/index.js`. As fachadas backend `project.service.js`, `requirement.service.js` e `task.service.js` foram mantidas deliberadamente como APIs públicas internas agregadoras, e não como compatibilidades temporárias. Nenhuma delas contém regra duplicada.
 
 ## Testes adicionados e contratos preservados
 
-Foram adicionados seis testes unitários:
+Foram adicionados nove testes nesta continuação:
 
-- três do verificador arquitetural;
-- três dos cálculos de rastreabilidade.
+- cinco testes HTTP de caracterização para detalhe/status/conclusão/cobertura de requisitos, status direto, listagens técnicas e métricas/coberturas de Tasks;
+- quatro testes unitários para status, datas e percentuais extraídos.
 
-Os 29 testes HTTP/API da E1 continuaram aprovados após Projects e Traceability. Os testes GitHub continuam usando dublês apenas no ambiente de teste. Os 12 testes frontend continuaram aprovados após a migração da feature.
+Resultado final: 49 testes backend (15 unitários e 34 integração/API) e 12 testes frontend; 61 no total. Permaneceram cobertos health, Projects, Requirements, Tasks, vínculos, GitHub com dublês, Kanban, rastreabilidade e os sete endpoints `501`.
 
-Foram preservados: rotas, corpos, mensagens, status HTTP, exclusões, vínculos, transações, ator Kanban, cardinalidade da PR, fórmulas, issue isolada, paginação atual e os sete endpoints `501`.
-
-## Cobertura antes e depois
+## Cobertura antes e depois desta continuação
 
 | Área | Momento | Statements | Branches | Functions | Lines |
 |---|---|---:|---:|---:|---:|
-| Backend | Antes | 56,30% | 40,22% | 59,72% | 55,92% |
-| Backend | Depois | 56,58% | 39,88% | 59,72% | 56,32% |
-| Frontend | Antes | 10,43% | 12,58% | 9,16% | 10,71% |
-| Frontend | Depois | 10,67% | 12,58% | 9,74% | 10,96% |
+| Backend | Antes | 56,58% | 39,88% | 59,72% | 56,32% |
+| Backend | Depois | 66,06% | 44,61% | 70,11% | 66,66% |
+| Frontend | Antes | 10,67% | 12,58% | 9,74% | 10,96% |
+| Frontend | Depois | 10,93% | 12,74% | 9,74% | 11,24% |
 
-A pequena variação de branches backend decorre da redistribuição das mesmas regras em novos arquivos e denominadores; statements e lines não caíram. Nenhum arquivo de produção foi excluído da coleta.
+O aumento backend vem da caracterização dos contratos já existentes e dos testes das funções puras. A pequena alta frontend decorre da resolução dos imports pelos entry points canônicos; nenhum arquivo de produção foi excluído da coleta.
 
-## Validação final
+## Validações
 
-| Comando | Resultado |
+| Comando | Resultado final |
 |---|---|
-| Backend `npm ci` | Aprovado, sem mudança de dependências ou lockfile. |
+| Backend `npm ci` | Aprovado; nenhuma dependência ou lockfile alterado. |
 | `npx prisma validate` | Aprovado; schema válido e inalterado. |
-| `npx prisma generate` | Aprovado; Prisma Client 6.19.3. |
-| Backend `npm test` | 6 arquivos e 40 testes aprovados. |
-| Backend `npm run test:unit` | 4 arquivos e 11 testes aprovados. |
-| Backend `npm run test:integration` | 2 arquivos e 29 testes aprovados no `traceflow_test`. |
-| Backend `npm run test:coverage` | Aprovado com os percentuais registrados acima. |
-| Backend `npm run architecture:check` | Aprovado no código real; fixture controlada falhou com código 1. |
-| Frontend `npm ci` | Aprovado, sem mudança de dependências ou lockfile. |
-| Frontend `npm test` | 5 arquivos e 12 testes aprovados. |
-| Frontend `npm run test:coverage` | Aprovado com os percentuais registrados acima. |
+| `npx prisma generate` | Aprovado. |
+| `npm run architecture:check` | Aprovado, zero violações no código real. |
+| Backend `npm test` | 7 arquivos, 49 testes aprovados. |
+| Backend `npm run test:unit` | 5 arquivos, 15 testes aprovados. |
+| Backend `npm run test:integration` | 2 arquivos, 34 testes aprovados em `traceflow_test`. |
+| Backend `npm run test:coverage` | Aprovado; cobertura registrada acima. |
+| Frontend `npm ci` | Aprovado; nenhuma dependência ou lockfile alterado. |
+| Frontend `npm test` | 5 arquivos, 12 testes aprovados. |
+| Frontend `npm run test:coverage` | Aprovado; cobertura registrada acima. |
 | Frontend `npm run build` | Aprovado; permanece aviso não bloqueante de chunk de aproximadamente 546 kB. |
 
-## Limitações, itens não realizados e bloqueios para E3
+## Limitações restantes e bloqueios para E3
 
-- Requirements ainda precisa ser dividido por CRUD, status/confirmação e cobertura.
-- Tasks ainda precisa ser dividido incrementalmente por CRUD, vínculos, Kanban, movimentos e métricas.
-- Reexports/fachada temporários precisam ser removidos na E2.9 após migração de consumidores.
-- A verificação usa análise estática simples por regex e não substitui parser/linter completo; imports dinâmicos exigem revisão manual.
-- A cobertura direta de `project-github.service.js` e `project-members.service.js` ainda é baixa.
+- O verificador usa análise estática simples e não substitui parser/linter completo.
+- `task.repository.js` permanece grande, por decisão de coesão transacional e compartilhamento de selects; futura divisão exige benefício comprovado e testes adicionais.
+- A cobertura frontend e de alguns casos Projects/GitHub ainda é baixa.
 - O bundle frontend mantém o aviso conhecido acima de 500 kB.
 
-**E3 permanece bloqueada** até Requirements e Tasks serem reorganizados com compatibilidade, todas as validações permanecerem verdes e a E2 ser marcada como concluída.
+Não há bloqueio arquitetural remanescente da E2 para iniciar a E3. As limitações acima devem permanecer registradas e tratadas apenas nas etapas apropriadas.
 
 ## Confirmações de escopo
 
-Nenhuma migration foi criada. `schema.prisma` não foi alterado. Nenhum endpoint `501` foi implementado ou removido. Nenhuma dependência foi adicionada ou removida. Nenhum mock foi incluído no runtime. Nenhuma regra, contrato HTTP, mensagem, status ou comportamento visual foi intencionalmente alterado. Nenhuma branch, commit, push ou pull request foi criado nesta execução.
+A análise permaneceu na branch `daniel-dev`. Nenhuma migration foi criada. `schema.prisma` não foi alterado. Nenhum endpoint `501` foi implementado ou removido. Nenhum contrato HTTP, mensagem ou status foi alterado. Nenhum mock foi incluído no runtime. Nenhuma dependência de runtime foi adicionada. Nenhum commit, push ou pull request foi realizado nesta execução.

@@ -14,7 +14,7 @@ Esta área registra a evolução incremental do MVP para uma arquitetura mais se
 
 ## Estado da E2
 
-**Parcial em 24/07/2026**, com convenções e verificação automática, módulos Projects e Traceability divididos, fronteira GitHub auditada e feature frontend Projects organizada. Requirements e Tasks permanecem para conclusão segura da própria E2. O trabalho partiu do commit `ba1de5526676e19237104064e79e598782dbc154`.
+**Concluída em 24/07/2026**, com convenções e verificação automática, módulos Projects, Requirements, Tasks e Traceability divididos por responsabilidade, fronteira GitHub auditada, feature frontend Projects organizada e compatibilidades temporárias avaliadas. A continuação final partiu do commit `28da221fd7ba6900c62a4a5d3e6237df47572d8d`.
 
 ## Documentos produzidos
 
@@ -31,6 +31,6 @@ Esta área registra a evolução incremental do MVP para uma arquitetura mais se
 
 ## Próxima etapa
 
-Concluir `E2.4 Requirements`, `E2.6 Tasks` e `E2.9` antes de iniciar a E3. A próxima etapa planejada é a E3, atualmente bloqueada pela E2 parcial.
+A próxima etapa planejada é a E3. Ela não foi iniciada nesta execução.
 
-Nenhum código funcional foi refatorado durante a E0 ou a E1. A E2 parcial reorganizou fronteiras internas sem alterar contratos ou comportamento funcional.
+Nenhum código funcional foi refatorado durante a E0 ou a E1. A E2 reorganizou fronteiras internas sem alterar contratos ou comportamento funcional.

@@ -20,7 +20,7 @@ import {
   unlinkTaskPullRequest,
   unlinkTaskRequirement
 } from '../api/api.js';
-import { Card } from '../components/Card.jsx';
+import { Card } from '../shared/index.js';
 import { ProjectSectionNav } from '../components/ProjectSectionNav.jsx';
 import {
   TaskForm,

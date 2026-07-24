@@ -196,6 +196,97 @@ describe('contratos de requisitos e vínculo com tarefas', () => {
     expect(unlinkResponse.status).toBe(200);
     expect(unlinkResponse.body.task.requirementId).toBeNull();
   });
+
+  it('preserva detalhe, status, conclusão e erros atuais de requisito', async () => {
+    const project = await createProject(prisma);
+    const requirement = await createRequirement(prisma, project.id);
+    const task = await createTask(prisma, project.id, {
+      requirementId: requirement.id,
+      status: 'CONCLUIDO'
+    });
+
+    const detailResponse = await request(app).get(`/api/requirements/${requirement.id}`);
+    expect(detailResponse.status).toBe(200);
+    expect(detailResponse.body.requirement).toMatchObject({ id: requirement.id });
+
+    const tasksResponse = await request(app).get(`/api/requirements/${requirement.id}/tasks`);
+    expect(tasksResponse.status).toBe(200);
+    expect(tasksResponse.body).toMatchObject({
+      requirementId: requirement.id,
+      total: 1,
+      tasks: [expect.objectContaining({ id: task.id })]
+    });
+
+    const invalidStatusResponse = await request(app)
+      .patch(`/api/requirements/${requirement.id}/status`)
+      .send({ status: 'INEXISTENTE' });
+    expect(invalidStatusResponse.status).toBe(400);
+    expect(invalidStatusResponse.body).toEqual({
+      message:
+        'Status inválido. Use CADASTRADO, APROVADO, EM_IMPLEMENTACAO, VALIDADO ou CONCLUIDO.'
+    });
+
+    const earlyCompletionResponse = await request(app).patch(
+      `/api/requirements/${requirement.id}/confirm-completion`
+    );
+    expect(earlyCompletionResponse.status).toBe(400);
+    expect(earlyCompletionResponse.body).toEqual({
+      message: 'Apenas requisitos validados podem ser concluídos.'
+    });
+
+    const statusResponse = await request(app)
+      .patch(`/api/requirements/${requirement.id}/status`)
+      .send({ status: 'VALIDADO' });
+    expect(statusResponse.status).toBe(200);
+    expect(statusResponse.body).toMatchObject({
+      message: 'Status do requisito atualizado com sucesso.',
+      requirement: { id: requirement.id, status: 'VALIDADO' }
+    });
+
+    const completionResponse = await request(app).patch(
+      `/api/requirements/${requirement.id}/confirm-completion`
+    );
+    expect(completionResponse.status).toBe(200);
+    expect(completionResponse.body).toMatchObject({
+      message: 'Requisito concluído com sucesso.',
+      requirement: { id: requirement.id, status: 'CONCLUIDO' }
+    });
+
+    expect((await request(app).get('/api/requirements/999999')).status).toBe(404);
+    expect(
+      (
+        await request(app)
+          .post(`/api/projects/${project.id}/requirements`)
+          .send({ title: '   ' })
+      ).status
+    ).toBe(400);
+    expect(
+      (
+        await request(app)
+          .post('/api/projects/999999/requirements')
+          .send({ title: 'Requisito sem projeto' })
+      ).status
+    ).toBe(404);
+  });
+
+  it('preserva a fórmula atual da cobertura requisito-tarefa', async () => {
+    const project = await createProject(prisma);
+    const linkedRequirement = await createRequirement(prisma, project.id);
+    await createRequirement(prisma, project.id);
+    await createTask(prisma, project.id, { requirementId: linkedRequirement.id });
+
+    const response = await request(app).get(
+      `/api/projects/${project.id}/traceability/requirement-task-coverage`
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      projectId: project.id,
+      totalRequirements: 2,
+      linkedRequirements: 1,
+      coveragePercentage: 50
+    });
+  });
 });
 
 describe('contratos HTTP de tarefas', () => {
@@ -258,6 +349,24 @@ describe('contratos HTTP de tarefas', () => {
     expect(await prisma.commit.findUnique({ where: { id: commit.id } })).not.toBeNull();
     expect(await prisma.pullRequest.findUnique({ where: { id: pullRequest.id } })).not.toBeNull();
     expect(await prisma.issue.findUnique({ where: { id: issue.id } })).not.toBeNull();
+  });
+
+  it('preserva atualização direta de status sem criar TaskMovement', async () => {
+    const project = await createProject(prisma);
+    const task = await createTask(prisma, project.id);
+
+    const response = await request(app)
+      .patch(`/api/tasks/${task.id}/status`)
+      .send({ status: 'EM_ANDAMENTO' });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      message: 'Status da tarefa atualizado com sucesso.',
+      task: { id: task.id, status: 'EM_ANDAMENTO' }
+    });
+    expect(await prisma.taskMovement.count({ where: { taskId: task.id } })).toBe(0);
+    expect((await request(app).get('/api/tasks/invalido')).status).toBe(400);
+    expect((await request(app).get('/api/tasks/999999')).status).toBe(404);
   });
 });
 
@@ -345,6 +454,29 @@ describe('vínculos técnicos', () => {
     expect(unlinkResponse.status).toBe(200);
     expect(unlinkResponse.body.issues).toEqual([]);
   });
+
+  it('preserva os contratos de listagem de commits e issues', async () => {
+    const project = await createProject(prisma);
+    const task = await createTask(prisma, project.id);
+    const commit = await createCommit(prisma, project.id);
+    const issue = await createIssue(prisma, project.id);
+    await prisma.taskCommit.create({ data: { taskId: task.id, commitId: commit.id } });
+    await prisma.taskIssue.create({ data: { taskId: task.id, issueId: issue.id } });
+
+    const commitsResponse = await request(app).get(`/api/tasks/${task.id}/commits`);
+    expect(commitsResponse.status).toBe(200);
+    expect(commitsResponse.body).toEqual({
+      total: 1,
+      commits: [expect.objectContaining({ id: commit.id, shortHash: commit.hash.slice(0, 7) })]
+    });
+
+    const issuesResponse = await request(app).get(`/api/tasks/${task.id}/issues`);
+    expect(issuesResponse.status).toBe(200);
+    expect(issuesResponse.body).toEqual({
+      total: 1,
+      issues: [expect.objectContaining({ id: issue.id })]
+    });
+  });
 });
 
 describe('Kanban e histórico', () => {
@@ -417,6 +549,41 @@ describe('Kanban e histórico', () => {
     expect(response.status).toBe(400);
     expect(response.body).toEqual({ message: 'A tarefa já está nesta coluna.' });
     expect(await prisma.taskMovement.count()).toBe(0);
+  });
+
+  it('preserva métricas de tarefas e coberturas técnicas atuais', async () => {
+    const project = await createProject(prisma);
+    const pullRequest = await createPullRequest(prisma, project.id);
+    const commit = await createCommit(prisma, project.id);
+    const issue = await createIssue(prisma, project.id);
+    const linkedTask = await createTask(prisma, project.id, {
+      pullRequestId: pullRequest.id
+    });
+    await createTask(prisma, project.id);
+    await prisma.taskCommit.create({ data: { taskId: linkedTask.id, commitId: commit.id } });
+    await prisma.taskIssue.create({ data: { taskId: linkedTask.id, issueId: issue.id } });
+
+    const metricsResponse = await request(app).get(`/api/projects/${project.id}/tasks/metrics`);
+    expect(metricsResponse.status).toBe(200);
+    expect(metricsResponse.body).toMatchObject({
+      projectId: project.id,
+      indicator: 'Volume de planejamento',
+      metric: 'Quantidade de tarefas cadastradas',
+      totalTasksCreated: 2
+    });
+
+    for (const kind of ['pull-request', 'commit', 'issue']) {
+      const response = await request(app).get(
+        `/api/projects/${project.id}/traceability/${kind}-coverage`
+      );
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        projectId: project.id,
+        totalTasks: 2,
+        linkedTasks: 1,
+        coveragePercentage: 50
+      });
+    }
   });
 });
 

@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api, syncProjectGithub } from '../api/api.js';
-import { Card } from '../components/Card.jsx';
+import { Card } from '../shared/index.js';
 import { ProjectSectionNav } from '../components/ProjectSectionNav.jsx';
 import {
   ProjectForm,
   emptyProjectForm,
   updateProjectForm
-} from '../components/ProjectForm.jsx';
+} from '../features/projects/index.js';
 
 function toFormData(project) {
   return {

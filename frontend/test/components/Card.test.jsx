@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { Card } from '../../src/components/Card.jsx';
+import { Card } from '../../src/shared/index.js';
 
 describe('Card', () => {
   it('renderiza o título e o conteúdo atuais', () => {

@@ -3,7 +3,7 @@ import { projectCrudService } from './services/project-crud.service.js';
 import { projectGithubService } from './services/project-github.service.js';
 import { projectMembersService } from './services/project-members.service.js';
 
-// TODO(E2.9): remover a fachada quando todos os consumidores usarem os casos de uso públicos.
+// API pública interna do módulo: agrega os casos de uso consumidos pelo controller.
 export const projectService = {
   ...projectCrudService,
   ...projectMembersService,

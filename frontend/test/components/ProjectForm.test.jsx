@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { ProjectForm, emptyProjectForm } from '../../src/components/ProjectForm.jsx';
+import { ProjectForm, emptyProjectForm } from '../../src/features/projects/index.js';
 
 const repository = {
   id: '101',
