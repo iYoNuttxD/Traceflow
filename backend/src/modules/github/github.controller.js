@@ -47,11 +47,5 @@ export const githubController = {
   listProjectIssues: asyncHandler(async (req, res) => {
     const issues = await issueService.listProjectIssues(req.params.projectId, req.query);
     return res.json({ issues });
-  }, { fallbackMessage: 'Não foi possível listar as issues do projeto.' }),
-
-  async notImplemented(req, res) {
-    return res.status(501).json({
-      message: 'Endpoint GitHub preparado para desenvolvimento futuro.'
-    });
-  }
+  }, { fallbackMessage: 'Não foi possível listar as issues do projeto.' })
 };

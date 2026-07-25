@@ -53,3 +53,7 @@ Sem declarar conformidade ASVS L2: V6 permanece **PARCIAL** (Argon2id, resposta 
 ## Atualização E7
 
 Sem declarar conformidade: V16 ganha evidência **IMPLEMENTADA no escopo dos eventos definidos** em `AuditEvent`, consultas restritas, metadata allowlist, request ID, rollback obrigatório e retenção; direitos do titular e minimização têm evidência técnica em `modules/privacy` e `docs/privacy`. Permanecem lacunas em confirmação de e-mail, backups/logs externos, legal hold e validação jurídica/operacional.
+
+## Atualização E9
+
+Sem declarar conformidade: V1.3.6 e V13.2.6 ganham evidência adicional no factory/client GitHub com base fixa, provider de credencial, timeout/retry já centralizados, paginação explícita, DTOs mínimos e testes sem rede real. A sincronização ganhou idempotência por identificador externo, trava por projeto na instância e estado de falha auditável. Permanecem lacunas em credencial por instalação, lock/store distribuído, checkpoint e smoke operacional autorizado.

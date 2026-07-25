@@ -11,6 +11,11 @@ export const emptyProjectForm = {
   githubOwner: '',
   githubRepo: '',
   githubUrl: '',
+  githubRepositoryId: '',
+  githubRepositoryName: '',
+  githubRepositoryFullName: '',
+  githubRepositoryUrl: '',
+  githubDefaultBranch: '',
   status: 'ATIVO'
 };
 
@@ -49,7 +54,12 @@ export function applyRepositoryToProjectForm(currentForm, repository) {
     name: currentForm.name.trim() ? currentForm.name : normalizedRepository.name,
     githubOwner: normalizedRepository.owner,
     githubRepo: normalizedRepository.name,
-    githubUrl: normalizedRepository.url
+    githubUrl: normalizedRepository.url,
+    githubRepositoryId: normalizedRepository.id,
+    githubRepositoryName: normalizedRepository.name,
+    githubRepositoryFullName: normalizedRepository.fullName,
+    githubRepositoryUrl: normalizedRepository.url,
+    githubDefaultBranch: normalizedRepository.defaultBranch
   };
 }
 
@@ -63,7 +73,8 @@ export function ProjectForm({
   onSubmit,
   submitLabel,
   submitting,
-  showRepositoryField = true
+  showRepositoryField = true,
+  showStatusField = true
 }) {
   const currentRepositoryFullName =
     formData.githubOwner && formData.githubRepo
@@ -156,20 +167,22 @@ export function ProjectForm({
         </>
       )}
 
-      <label className="field">
-        <span>Status</span>
-        <select
-          name="status"
-          value={formData.status}
-          onChange={(event) => onChange(event.target.name, event.target.value)}
-        >
-          {statusOptions.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </label>
+      {showStatusField && (
+        <label className="field">
+          <span>Status</span>
+          <select
+            name="status"
+            value={formData.status}
+            onChange={(event) => onChange(event.target.name, event.target.value)}
+          >
+            {statusOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
 
       <div className="form-actions field-full">
         <button className="button button-primary" type="submit" disabled={submitting}>

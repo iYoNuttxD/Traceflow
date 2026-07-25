@@ -62,6 +62,13 @@ export const projectRepository = {
     });
   },
 
+  async updateGithubRepositoryMetadata(id, data) {
+    return prisma.project.update({
+      where: { id },
+      data
+    });
+  },
+
   async updateGithubLastSyncAt(id, githubLastSyncAt) {
     return prisma.project.update({
       where: { id },
@@ -74,8 +81,7 @@ export const projectRepository = {
       where: { id },
       data: {
         githubSyncStatus: 'SINCRONIZANDO',
-        githubLastSyncAttemptAt: attemptedAt,
-        githubLastSyncError: null
+        githubLastSyncAttemptAt: attemptedAt
       }
     });
   },

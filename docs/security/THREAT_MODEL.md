@@ -1,5 +1,9 @@
 # Threat model inicial do TRACEFLOW
 
+## Atualização E9
+
+A credencial GitHub sistêmica passou a ser fornecida por provider único ao client externo, conforme ADR-007. DTOs mínimos reduzem a propagação de payloads externos, paginação limita memória, e persistência por projeto/identificador protege idempotência. Sync concorrente no mesmo projeto é bloqueado por instância; falha parcial preserva lotes e último sucesso, registra estado sanitizado e permite reprocessamento. Persistem o raio de impacto/quota do PAT, a ausência de lock distribuído e de checkpoint persistente entre páginas.
+
 ## Atualização E6
 
 Identidade verificável, sessão opaca, CSRF, memberships e RBAC reduzem spoofing/BOLA. Navegador, cookie, SMTP e endpoints públicos de autenticação formam trust boundaries. A continuação da E6 adicionou adapter SMTP/capture, administração canônica, proteção transacional do último OWNER e retenção operacional. Persistem: PAT GitHub sistêmico, infraestrutura não distribuída, dependência operacional de SMTP e campos legados textuais.
@@ -77,7 +81,7 @@ O backend não faz fetch genérico de URLs informadas pelo cliente. A integraç�
 | Information disclosure | Token, banco, e-mail ou erro externo em resposta/log | ALTO | error handler seguro, redaction, scanner e política de segredos | Secret manager, acesso/retenção de logs e minimização E7 |
 | Information disclosure | Enumeração de projetos/códigos | CRÍTICO | membership/BOLA, convite canônico e rate limit/log do join legado | `accessCode` legado ainda distingue falha e deve ser descontinuado após migração |
 | Denial of service | JSON grande ou malformado | ALTO | limite explícito de 100kb, `413`, `400` e `415` seguros | Limites de proxy e coleções devem ser alinhados no deploy |
-| Denial of service | Abuso geral/join/GitHub sync | ALTO | limiters geral/sensíveis, chave IP+projectId e trava concorrente por projeto | MemoryStore não é distribuído; IP não equivale a usuário |
+| Denial of service | Abuso geral/join/GitHub sync | ALTO | limiters geral/sensíveis, chave IP+projectId, paginação e trava concorrente por projeto | MemoryStore e trava não são distribuídos; IP não equivale a usuário |
 | Denial of service | GitHub lento/indisponível | ALTO | timeout 15s, retry limitado, backoff/jitter e normalização 403/429 | Sem circuit breaker, fila, checkpoint ou scheduler |
 | SSRF | URL externa aponta para localhost, rede privada ou metadata | ALTO | somente HTTPS e hosts `github.com`/`api.github.com`; base Octokit fixa | GitHub Enterprise não suportado; novas integrações exigem revisão |
 | Supply chain | Dependência vulnerável ou segredo versionado | ALTO | lockfiles, `npm audit`, atualizações pontuais e scanner local | Scanner não está no CI até E14; React Router RSC mantém advisory não aplicável à SPA |

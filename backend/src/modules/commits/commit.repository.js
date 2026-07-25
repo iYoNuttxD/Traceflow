@@ -1,5 +1,4 @@
 // Repository de commits importados do GitHub.
-// TODO: Evoluir consultas quando commits forem vinculados a tarefas e requisitos.
 import { prisma } from '../../database/prismaClient.js';
 
 export const commitRepository = {
@@ -14,9 +13,12 @@ export const commitRepository = {
     });
   },
 
-  async findHashesByProjectId(projectId) {
+  async findHashesByProjectId(projectId, hashes) {
     const commits = await prisma.commit.findMany({
-      where: { projectId },
+      where: {
+        projectId,
+        ...(Array.isArray(hashes) ? { hash: { in: hashes } } : {})
+      },
       select: { hash: true }
     });
 

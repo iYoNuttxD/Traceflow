@@ -3,6 +3,8 @@
 - **Estado:** transição aceita na E6
 - **Data:** 24/07/2026
 
+> A fronteira técnica e o provider adotados na E9 são detalhados no [ADR-007](ADR-007-GITHUB-CREDENTIAL-STRATEGY.md). Esta decisão histórica permanece válida quanto à titularidade sistêmica da credencial.
+
 ## Decisão
 
 O `GITHUB_TOKEN` global permanece temporariamente como credencial técnica do sistema. Ele não representa o usuário autenticado, não concede papel de projeto e não é exposto ao frontend, banco, respostas ou logs. Autorização TRACEFLOW é verificada antes de listagem, importação ou sincronização.

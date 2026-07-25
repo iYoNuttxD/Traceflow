@@ -11,5 +11,9 @@ export const projectsApi = {
 
   create(data) {
     return api.post('/projects', data);
+  },
+
+  createFromGithub(data) {
+    return api.post('/projects/from-github', data);
   }
 };

@@ -92,7 +92,7 @@ describe('ProjectsPage', () => {
     expect(screen.getByText('Não foi possível carregar os repositórios do GitHub.')).toBeInTheDocument();
   });
 
-  it('submete o formulário com o contrato atual e recarrega a lista', async () => {
+  it('submete o formulário pelo endpoint especializado e recarrega a lista', async () => {
     const user = userEvent.setup();
     mockInitialRequests({ projects: [] });
     apiMock.post.mockResolvedValue({ data: { message: 'Projeto cadastrado com sucesso.' } });
@@ -112,13 +112,16 @@ describe('ProjectsPage', () => {
 
     await waitFor(() => {
       expect(apiMock.post).toHaveBeenCalledWith(
-        '/projects',
+        '/projects/from-github',
         expect.objectContaining({
           name: 'Projeto submetido',
           responsibleTeam: 'Equipe submetida',
           githubOwner: fakeRepository.owner,
-          githubRepo: fakeRepository.name,
-          githubUrl: fakeRepository.url
+          githubRepositoryId: fakeRepository.githubRepositoryId,
+          githubRepositoryName: fakeRepository.name,
+          githubRepositoryFullName: fakeRepository.fullName,
+          githubRepositoryUrl: fakeRepository.url,
+          githubDefaultBranch: fakeRepository.defaultBranch
         })
       );
     });

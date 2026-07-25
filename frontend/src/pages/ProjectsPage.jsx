@@ -82,7 +82,12 @@ export function ProjectsPage() {
         ...current,
         githubOwner: '',
         githubRepo: '',
-        githubUrl: ''
+        githubUrl: '',
+        githubRepositoryId: '',
+        githubRepositoryName: '',
+        githubRepositoryFullName: '',
+        githubRepositoryUrl: '',
+        githubDefaultBranch: ''
       }));
       return;
     }
@@ -95,7 +100,11 @@ export function ProjectsPage() {
     setError('');
     setSuccess('');
 
-    if (!formData.githubOwner || !formData.githubRepo || !formData.githubUrl) {
+    if (
+      !formData.githubRepositoryId ||
+      !formData.githubRepositoryFullName ||
+      !formData.githubDefaultBranch
+    ) {
       setError('Selecione um repositório GitHub para criar o projeto.');
       return;
     }
@@ -103,7 +112,17 @@ export function ProjectsPage() {
     setSubmitting(true);
 
     try {
-      const response = await projectsApi.create(formData);
+      const response = await projectsApi.createFromGithub({
+        githubRepositoryId: formData.githubRepositoryId,
+        githubOwner: formData.githubOwner,
+        githubRepositoryName: formData.githubRepositoryName,
+        githubRepositoryFullName: formData.githubRepositoryFullName,
+        githubRepositoryUrl: formData.githubRepositoryUrl,
+        githubDefaultBranch: formData.githubDefaultBranch,
+        name: formData.name,
+        description: formData.description,
+        responsibleTeam: formData.responsibleTeam
+      });
       setSuccess(response.data.message);
       setFormData(emptyProjectForm);
       await loadProjects();
@@ -139,6 +158,7 @@ export function ProjectsPage() {
             onSubmit={handleSubmit}
             submitLabel="Cadastrar projeto"
             submitting={submitting}
+            showStatusField={false}
           />
         </Card>
 

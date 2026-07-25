@@ -19,4 +19,6 @@ Prazos abaixo são defaults de engenharia, não prazos jurídicos definitivos. P
 | e-mails técnicos | provedor SMTP | política do provedor | TRACEFLOW não controla mailbox; evitar anexos de exportação |
 | backup | infraestrutura | a definir | expurgo lógico pode persistir até rotação; acesso e criptografia devem ser contratados |
 
+Na E9, sincronização GitHub atualiza ou acrescenta artefatos por identificador externo e não apaga automaticamente itens ausentes em uma execução posterior. Essa preservação protege rastreabilidade e vínculos; uma política de reconciliação destrutiva exigirá decisão específica de retenção e auditoria.
+
 Execução: `npm run privacy:retention:dry-run` mostra apenas contagens; `npm run privacy:retention` aplica. Banco com nome de produção exige `--confirm-production`. Agendamento pertence a cron/job externo, nunca ao startup.

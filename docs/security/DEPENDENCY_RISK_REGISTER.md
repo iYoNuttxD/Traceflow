@@ -1,5 +1,9 @@
 # Registro de risco de dependências
 
+## Revalidação E9
+
+Em 25/07/2026, nova execução manteve o backend com zero vulnerabilidades e o frontend com duas entradas altas do mesmo advisory React Router RSC já registrado abaixo. A E9 não alterou dependências nem lockfiles e não executou correção automática.
+
 ## Atualização E6
 
 - `argon2@0.44.0` foi adicionado ao runtime para Argon2id; compatível com Node 22 e audit backend com zero vulnerabilidades.

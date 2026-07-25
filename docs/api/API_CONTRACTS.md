@@ -1,8 +1,14 @@
 # Catálogo atual de contratos HTTP do TRACEFLOW
 
+## Atualização E9 — Projetos e sincronização GitHub
+
+O cadastro integrado usa a operação especializada `POST /projects/from-github` e revalida o repositório externo. A sincronização pagina commits, pull requests e issues, deduplica/upserta por identificadores externos dentro do projeto e só marca sucesso após todas as coleções. Falha parcial preserva lotes já confirmados, o último sucesso e os vínculos técnicos; a resposta de sucesso permanece `{message,summary,project}`.
+
+O alias legado redundante `GET /projects/:projectId/github/artifacts` foi removido após confirmação de ausência de consumidores; ele agora segue o `404 ROUTE_NOT_FOUND`. A rota canônica RF06 permanece `GET /projects/:projectId/artifacts`. Assim, seis placeholders continuam retornando `501` quando a requisição está autenticada.
+
 ## Atualização E8 — persistência canônica sem ruptura HTTP
 
-A cardinalidade funcional confirmada é Task 0..1 PullRequest e PullRequest 0..N Tasks. `Task.pullRequestId` é a única fonte canônica; o join experimental N:N, o dual-write e o fallback foram removidos. Os endpoints continuam singulares e preservam paths, status, mensagens e payloads. Nenhum dos sete placeholders 501 foi implementado.
+A cardinalidade funcional confirmada é Task 0..1 PullRequest e PullRequest 0..N Tasks. `Task.pullRequestId` é a única fonte canônica; o join experimental N:N, o dual-write e o fallback foram removidos. Os endpoints continuam singulares e preservam paths, status, mensagens e payloads. Na E8, nenhum dos sete placeholders 501 então existentes foi implementado.
 
 ## Atualização E6 — identidade e privacidade dos endpoints
 
@@ -123,9 +129,8 @@ Priority: `BAIXA`, `MEDIA`, `ALTA`, `CRITICA`. Status: `A_FAZER`, `EM_ANDAMENTO`
 | GET | `/projects/:projectId/pull-requests` | `projectId`, `search?` | `200`, `{pullRequests}` |
 | GET | `/projects/:projectId/issues` | `projectId`, `search?` | `200`, `{issues}` |
 | GET | `/projects/:projectId/artifacts` | `projectId`; `type?`, `startDate?`, `endDate?` | `200`, projeto, filtros, resumo e artefatos |
-| GET | `/projects/:projectId/github/artifacts` | placeholder | `501` inalterado |
 
-Tipos de artifacts: `commit`, `pull_request`, `issue`. A E4 não adiciona paginação, chamadas GitHub, retry, timeout ou mudanças no sync.
+Tipos de artifacts: `commit`, `pull_request`, `issue`. A paginação E9 ocorre somente na leitura externa do GitHub; os contratos públicos de listagem permanecem inalterados.
 
 ## Traceability e placeholders
 

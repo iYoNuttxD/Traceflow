@@ -1,50 +1,103 @@
-// Cliente de integracao com GitHub via Octokit.
-// Este arquivo centraliza autenticacao e comunicacao externa com a API do GitHub.
-// TODO: Adicionar funcoes para repositorio, commits, pull requests e issues em tarefas futuras.
 import { Octokit } from '@octokit/rest';
 import { env } from '../../config/env.js';
-import { ERROR_CODES, ExternalServiceError } from '../../shared/errors/index.js';
+import { githubCredentialProvider } from './github-credential.provider.js';
+import {
+  mapGithubCommit,
+  mapGithubIssue,
+  mapGithubPullRequest,
+  mapGithubRepository
+} from './github.mapper.js';
+import { paginateGithub } from './github-pagination.js';
+import { executeGithubRequest } from './github-request.js';
 
-let octokitInstance = null;
+const PAGE_SIZE = 100;
 
-export function getGithubClient() {
-  if (!octokitInstance) {
-    const token = env.githubToken;
+function hasNextPage(response, itemCount) {
+  const link = response?.headers?.link;
+  if (typeof link === 'string') return /rel="next"/.test(link);
+  return itemCount === PAGE_SIZE;
+}
 
-    if (!token) {
-      throw new ExternalServiceError(
-        'Integração GitHub indisponível.',
-        500,
-        ERROR_CODES.GITHUB_AUTH_FAILED
-      );
-    }
+export function createGithubClient({
+  credentialProvider = githubCredentialProvider,
+  OctokitClass = Octokit,
+  requestExecutor = executeGithubRequest
+} = {}) {
+  const octokit = new OctokitClass({
+    auth: credentialProvider.getToken(),
+    baseUrl: 'https://api.github.com',
+    request: { timeout: env.githubRequestTimeoutMs }
+  });
 
-    octokitInstance = new Octokit({
-      auth: token,
-      baseUrl: 'https://api.github.com',
-      request: { timeout: env.githubRequestTimeoutMs }
-    });
+  async function requestPage(endpoint, params, mapper, { filter } = {}) {
+    const response = await requestExecutor(() => endpoint(params));
+    const mapped = response.data.map(mapper);
+    const items = typeof filter === 'function' ? mapped.filter(filter) : mapped;
+    return { items, hasNext: hasNextPage(response, response.data.length) };
   }
 
-  return octokitInstance;
+  return Object.freeze({
+    async checkAuthentication() {
+      const response = await requestExecutor(() => octokit.rest.users.getAuthenticated());
+      return {
+        login: response.data.login,
+        id: response.data.id,
+        type: response.data.type
+      };
+    },
+
+    async getRepository(owner, repo) {
+      const response = await requestExecutor(() => octokit.rest.repos.get({ owner, repo }));
+      return mapGithubRepository(response.data);
+    },
+
+    listRepositoryPages() {
+      return paginateGithub(({ page, perPage }) => requestPage(
+        octokit.rest.repos.listForAuthenticatedUser,
+        { per_page: perPage, page, sort: 'updated' },
+        mapGithubRepository
+      ), { perPage: PAGE_SIZE });
+    },
+
+    listCommitPages({ owner, repo, branch }) {
+      return paginateGithub(({ page, perPage }) => requestPage(
+        octokit.rest.repos.listCommits,
+        { owner, repo, sha: branch, per_page: perPage, page },
+        (item) => mapGithubCommit(item, branch)
+      ), { perPage: PAGE_SIZE });
+    },
+
+    listPullRequestPages({ owner, repo, branch }) {
+      return paginateGithub(({ page, perPage }) => requestPage(
+        octokit.rest.pulls.list,
+        { owner, repo, state: 'all', base: branch, per_page: perPage, page },
+        mapGithubPullRequest,
+        { filter: (pullRequest) => pullRequest.targetBranch === branch }
+      ), { perPage: PAGE_SIZE });
+    },
+
+    listIssuePages({ owner, repo }) {
+      return paginateGithub(({ page, perPage }) => requestPage(
+        octokit.rest.issues.listForRepo,
+        { owner, repo, state: 'all', per_page: perPage, page },
+        mapGithubIssue,
+        { filter: Boolean }
+      ), { perPage: PAGE_SIZE });
+    }
+  });
 }
 
-export async function checkGithubAuthentication() {
-  const github = getGithubClient();
-  const { executeGithubRequest } = await import('./github-request.js');
-  const response = await executeGithubRequest(() => github.rest.users.getAuthenticated());
+let githubClientInstance;
 
-  return {
-    login: response.data.login,
-    id: response.data.id,
-    type: response.data.type
-  };
+export function getGithubClient() {
+  if (!githubClientInstance) githubClientInstance = createGithubClient();
+  return githubClientInstance;
 }
 
-export async function getGithubRepository(owner, repo) {
-  const github = getGithubClient();
-  const { executeGithubRequest } = await import('./github-request.js');
-  const response = await executeGithubRequest(() => github.rest.repos.get({ owner, repo }));
+export function checkGithubAuthentication() {
+  return getGithubClient().checkAuthentication();
+}
 
-  return response.data;
+export function getGithubRepository(owner, repo) {
+  return getGithubClient().getRepository(owner, repo);
 }

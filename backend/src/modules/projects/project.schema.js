@@ -130,14 +130,14 @@ export function buildGithubProjectData(data, repository) {
     description: data.description ?? repository.description,
     responsibleTeam: normalizeOptionalText(data.responsibleTeam) || 'Não informada',
     status: 'ATIVO',
-    githubOwner: repository.owner.login,
+    githubOwner: repository.owner,
     githubRepo: repository.name,
-    githubUrl: repository.html_url,
-    githubRepositoryId: String(repository.id),
+    githubUrl: repository.url,
+    githubRepositoryId: repository.githubRepositoryId,
     githubRepositoryName: repository.name,
-    githubRepositoryFullName: repository.full_name,
-    githubRepositoryUrl: repository.html_url,
-    githubDefaultBranch: repository.default_branch,
+    githubRepositoryFullName: repository.fullName,
+    githubRepositoryUrl: repository.url,
+    githubDefaultBranch: repository.defaultBranch,
     githubIsPrivate: repository.private,
     githubIntegratedAt: new Date(),
     githubAutoSyncEnabled: data.githubAutoSyncEnabled === true,
@@ -145,6 +145,24 @@ export function buildGithubProjectData(data, repository) {
     githubSyncStatus: 'NUNCA_SINCRONIZADO',
     githubLastSyncError: null,
     githubLastSyncAttemptAt: null
+  };
+}
+
+export function buildGithubRepositoryMetadata(repository) {
+  if (!repository?.defaultBranch) {
+    throw new ProjectServiceError('Não foi possível determinar a branch principal do repositório.', 400);
+  }
+
+  return {
+    githubOwner: repository.owner,
+    githubRepo: repository.name,
+    githubUrl: repository.url,
+    githubRepositoryId: repository.githubRepositoryId,
+    githubRepositoryName: repository.name,
+    githubRepositoryFullName: repository.fullName,
+    githubRepositoryUrl: repository.url,
+    githubDefaultBranch: repository.defaultBranch,
+    githubIsPrivate: repository.private
   };
 }
 

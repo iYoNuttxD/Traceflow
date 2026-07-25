@@ -887,7 +887,6 @@ describe('validação HTTP negativa da E4', () => {
 describe('baseline dos endpoints 501', () => {
   it.each([
     ['delete', '/api/projects/1'],
-    ['get', '/api/projects/1/github/artifacts'],
     ['post', '/api/projects/1/trace-links'],
     ['get', '/api/requirements/1/traceability'],
     ['get', '/api/tasks/1/traceability'],
@@ -898,6 +897,12 @@ describe('baseline dos endpoints 501', () => {
 
     expect(response.status).toBe(501);
     expect(response.body).toHaveProperty('message');
+  });
+
+  it('remove o placeholder GitHub redundante sem afetar o endpoint canônico de artifacts', async () => {
+    const response = await api.get('/api/projects/1/github/artifacts');
+    expect(response.status).toBe(404);
+    expect(response.body.code).toBe('ROUTE_NOT_FOUND');
   });
 
   it('mantém 501 mesmo quando o parâmetro do placeholder é inválido', async () => {

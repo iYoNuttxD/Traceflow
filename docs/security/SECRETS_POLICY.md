@@ -4,7 +4,7 @@
 
 Os segredos atuais são `GITHUB_TOKEN`, as credenciais contidas em `DATABASE_URL`/`TEST_DATABASE_URL` e `SMTP_PASSWORD`. Qualquer futura chave de sessão, JWT, e-mail, cloud ou criptografia entra automaticamente nesta política.
 
-Na E6, tokens opacos de sessão, recuperação e convite são segredos efêmeros: valores brutos existem somente no cookie HttpOnly, memória do cliente ou entrega de uso único; o banco guarda SHA-256. Senhas guardam somente Argon2id. Nenhum desses valores pode ser logado. O PAT GitHub permanece credencial técnica do sistema, não identidade do usuário (ADR-004).
+Na E6, tokens opacos de sessão, recuperação e convite são segredos efêmeros: valores brutos existem somente no cookie HttpOnly, memória do cliente ou entrega de uso único; o banco guarda SHA-256. Senhas guardam somente Argon2id. Nenhum desses valores pode ser logado. O PAT GitHub permanece credencial técnica do sistema, não identidade do usuário (ADR-004 e ADR-007).
 
 ## Regras
 
@@ -15,6 +15,7 @@ Na E6, tokens opacos de sessão, recuperação e convite são segredos efêmeros
 - o acesso deve seguir menor privilégio e ser limitado aos operadores/serviços que precisam do valor;
 - produção deve falhar rapidamente quando o token GitHub obrigatório ou a configuração crítica estiver ausente;
 - o logger registra apenas serviço, status externo, código normalizado e request ID; headers e objetos Octokit completos são proibidos.
+- na integração GitHub, somente o provider de credencial lê a configuração e a entrega ao factory do client; domínio, repositories, frontend e banco não recebem o PAT.
 
 ## Ciclo de vida
 

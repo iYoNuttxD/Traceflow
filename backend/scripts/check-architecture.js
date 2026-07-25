@@ -142,6 +142,10 @@ function inspectBackendImports(files, backendRoot, violations, graph) {
         addViolation(violations, file, 'repository-no-http', specifier, 'Repository não pode conhecer HTTP/Express.');
       }
 
+      if (layer === 'repository' && targetLayer === 'client') {
+        addViolation(violations, file, 'repository-no-external-client', specifier, 'Repository não pode chamar client externo.');
+      }
+
       if (isShared && target && moduleOf(target, backendRoot)) {
         addViolation(violations, file, 'shared-no-domain', specifier, 'Shared não pode importar módulo de domínio.');
       }
@@ -188,6 +192,9 @@ function inspectBackendImports(files, backendRoot, violations, graph) {
 
       if (layer === 'client' && targetLayer === 'controller') {
         addViolation(violations, file, 'client-no-controller', specifier, 'Client externo não pode importar controller.');
+      }
+      if (layer === 'client' && databaseImport) {
+        addViolation(violations, file, 'client-no-database', specifier, 'Client externo não pode acessar Prisma/database.');
       }
     }
   }

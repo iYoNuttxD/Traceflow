@@ -40,6 +40,10 @@ Esta área registra a evolução incremental do MVP para uma arquitetura mais se
 
 **Concluída definitivamente em 25/07/2026**, com cardinalidade Task 0..1 PullRequest confirmada, `Task.pullRequestId` canônico, reconciliação protegida e contract separado de `TaskPullRequest`, `GithubArtifact` e `TraceLink`. A continuação definitiva partiu do commit `def9c89284c55c4ab892c653b9082d9fb824db25`.
 
+## Estado da E9
+
+**Concluída tecnicamente em 25/07/2026, com smoke externo pendente**, com provider de credencial GitHub, DTOs, paginação, sincronização idempotente e auditável, persistência por lotes, proteção de concorrência e fluxos frontend de Projetos/Artifacts protegidos. A execução partiu do commit `ce87c5547ccb6ce0b1d9b658aa0cfb44105fca6d`.
+
 ## Documentos produzidos
 
 - [E0_BASELINE.md](E0_BASELINE.md) — execução, arquitetura, páginas, fluxos, divergências e bloqueios.
@@ -56,6 +60,7 @@ Esta área registra a evolução incremental do MVP para uma arquitetura mais se
 - [E6_IDENTITY_AUTHORIZATION.md](E6_IDENTITY_AUTHORIZATION.md) — identidade, sessão, CSRF, RBAC, convites, migration e lacunas.
 - [E7_PRIVACY_AUDIT_GOVERNANCE.md](E7_PRIVACY_AUDIT_GOVERNANCE.md) — auditoria, direitos do titular, retenção, anonimização e lacunas.
 - [E8_PRISMA_SCHEMA_MIGRATION.md](E8_PRISMA_SCHEMA_MIGRATION.md) — modelo canônico, reconciliação, migrations contract e fechamento definitivo.
+- [E9_PROJECTS_GITHUB.md](E9_PROJECTS_GITHUB.md) — cadastro de projetos, fronteira GitHub, paginação, sincronização, testes e riscos residuais.
 - [THREAT_MODEL.md](../security/THREAT_MODEL.md) — ativos, boundaries, ameaças e decisões de risco.
 - [SECRETS_POLICY.md](../security/SECRETS_POLICY.md) — ciclo de vida, acesso, rotação e resposta a vazamento.
 - [DEPENDENCY_RISK_REGISTER.md](../security/DEPENDENCY_RISK_REGISTER.md) — advisories, aplicabilidade e decisões.
@@ -67,6 +72,6 @@ Esta área registra a evolução incremental do MVP para uma arquitetura mais se
 
 ## Próxima etapa
 
-E0–E8 estão concluídas; a E8 está concluída definitivamente. Próxima etapa: **E9**, que não foi iniciada nesta execução.
+E0–E8 estão concluídas definitivamente. A E9 está concluída tecnicamente; falta apenas smoke contra GitHub real com token e repositório de teste explicitamente autorizados. Próxima etapa: **E10 — Requisitos e Rastreabilidade**, que não foi iniciada nesta execução.
 
 Nenhum código funcional foi refatorado durante a E0 ou a E1. A E2 reorganizou fronteiras internas, a E3 introduziu infraestrutura transversal, a E4 protegeu os contratos de entrada e a E5 estabeleceu controles transversais de segurança, sem alterar regras de negócio ou respostas de sucesso.

@@ -1,5 +1,4 @@
 // Repository de Pull Requests importados do GitHub.
-// TODO: Expandir consultas quando PRs forem vinculados a tarefas e commits.
 import { prisma } from '../../database/prismaClient.js';
 
 function buildPullRequestUpdate(data) {
@@ -31,9 +30,12 @@ export const pullRequestRepository = {
     });
   },
 
-  async findGithubIdsByProjectId(projectId) {
+  async findGithubIdsByProjectId(projectId, githubIds) {
     const pullRequests = await prisma.pullRequest.findMany({
-      where: { projectId },
+      where: {
+        projectId,
+        ...(Array.isArray(githubIds) ? { githubId: { in: githubIds } } : {})
+      },
       select: { githubId: true }
     });
 
@@ -45,14 +47,11 @@ export const pullRequestRepository = {
       return { created: 0, updated: 0 };
     }
 
-    const existingGithubIds = new Set(await this.findGithubIdsByProjectId(data[0].projectId));
-    let created = 0;
-    let updated = 0;
-
-    for (const pullRequest of data) {
-      const isExisting = existingGithubIds.has(pullRequest.githubId);
-
-      await prisma.pullRequest.upsert({
+    const existingGithubIds = new Set(await this.findGithubIdsByProjectId(
+      data[0].projectId,
+      data.map(({ githubId }) => githubId)
+    ));
+    const operations = data.map((pullRequest) => prisma.pullRequest.upsert({
         where: {
           projectId_githubId: {
             projectId: pullRequest.projectId,
@@ -61,15 +60,11 @@ export const pullRequestRepository = {
         },
         update: buildPullRequestUpdate(pullRequest),
         create: pullRequest
-      });
+      }));
+    await prisma.$transaction(operations);
 
-      if (isExisting) {
-        updated += 1;
-      } else {
-        created += 1;
-        existingGithubIds.add(pullRequest.githubId);
-      }
-    }
+    const updated = data.filter(({ githubId }) => existingGithubIds.has(githubId)).length;
+    const created = data.length - updated;
 
     return { created, updated };
   },

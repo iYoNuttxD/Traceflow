@@ -29,15 +29,15 @@ async function verifyGithubRepositoryAccess(data) {
   try {
     const repository = await getGithubRepository(data.githubOwner, data.githubRepositoryName);
     if (
-      String(repository.id) !== String(data.githubRepositoryId) ||
-      repository.full_name !== data.githubRepositoryFullName
+      repository.githubRepositoryId !== String(data.githubRepositoryId) ||
+      repository.fullName !== data.githubRepositoryFullName
     ) {
       throw new ProjectServiceError('Dados do repositório GitHub não correspondem ao repositório acessível.', 400);
     }
     return repository;
   } catch (error) {
     if (error instanceof ProjectServiceError) throw error;
-    if (error.status === 404) {
+    if (error.status === 404 || error.statusCode === 404) {
       throw new ProjectServiceError('Repositório GitHub não encontrado ou sem permissão de acesso.', 404);
     }
     throw error;
