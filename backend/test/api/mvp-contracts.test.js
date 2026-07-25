@@ -1,5 +1,6 @@
 import request from 'supertest';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { createHash } from 'node:crypto';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   cleanTestDatabase,
   configureTestDatabaseEnvironment,
@@ -13,10 +14,15 @@ import {
   createPullRequest,
   createRequirement,
   createTask
+  ,setAuthenticatedFixtureUser
 } from '../fixtures/factories.js';
 
 let app;
 let prisma;
+let api;
+const sessionToken = 'e6-characterization-session-token';
+const csrfToken = 'e6-characterization-csrf-token';
+const sha256 = (value) => createHash('sha256').update(value).digest('hex');
 
 beforeAll(async () => {
   const testDatabaseUrl = configureTestDatabaseEnvironment();
@@ -28,6 +34,15 @@ beforeAll(async () => {
 
 afterEach(async () => {
   await cleanTestDatabase(prisma);
+  setAuthenticatedFixtureUser(undefined);
+});
+
+beforeEach(async () => {
+  const user = await prisma.user.create({ data: { name: 'Usuário E6 artificial', email: 'e6@example.invalid', passwordHash: 'fixture-only' } });
+  await prisma.session.create({ data: { userId: user.id, tokenHash: sha256(sessionToken), csrfTokenHash: sha256(csrfToken), sessionVersion: user.sessionVersion, expiresAt: new Date(Date.now() + 60000) } });
+  setAuthenticatedFixtureUser(user.id);
+  const secured = (method) => (path) => request(app)[method](path).set('Cookie', `traceflow_session=${sessionToken}`).set('X-CSRF-Token', csrfToken);
+  api = { get: secured('get'), post: secured('post'), put: secured('put'), patch: secured('patch'), delete: secured('delete') };
 });
 
 afterAll(async () => {
@@ -63,7 +78,7 @@ function expectValidationError(response, field) {
 
 describe('GET /health', () => {
   it('preserva o contrato atual do health check', async () => {
-    const response = await request(app).get('/health');
+    const response = await api.get('/health');
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual({
@@ -73,30 +88,30 @@ describe('GET /health', () => {
   });
 
   it('expõe liveness e readiness sem consultar GitHub', async () => {
-    const liveResponse = await request(app).get('/health/live');
+    const liveResponse = await api.get('/health/live');
     expect(liveResponse.status).toBe(200);
     expect(liveResponse.body).toEqual({ status: 'ok' });
 
-    const readyResponse = await request(app).get('/health/ready');
+    const readyResponse = await api.get('/health/ready');
     expect(readyResponse.status).toBe(200);
     expect(readyResponse.body).toEqual({ status: 'ready' });
   });
 
   it('gera, aceita e substitui request ID com segurança', async () => {
-    const generated = await request(app).get('/health');
+    const generated = await api.get('/health');
     expect(generated.headers['x-request-id']).toMatch(/^[0-9a-f-]{36}$/);
 
-    const accepted = await request(app).get('/health').set('X-Request-Id', 'cliente-seguro');
+    const accepted = await api.get('/health').set('X-Request-Id', 'cliente-seguro');
     expect(accepted.headers['x-request-id']).toBe('cliente-seguro');
 
-    const replaced = await request(app)
+    const replaced = await api
       .get('/health')
       .set('X-Request-Id', 'inválido com espaços e conteúdo arbitrário');
     expect(replaced.headers['x-request-id']).not.toContain('inválido');
   });
 
   it('retorna 404 estruturado para rota desconhecida', async () => {
-    const response = await request(app)
+    const response = await api
       .get('/rota-inexistente')
       .set('X-Request-Id', 'req-404');
     expect(response.status).toBe(404);
@@ -110,7 +125,7 @@ describe('GET /health', () => {
 
 describe('contratos HTTP de projetos', () => {
   it('cria um projeto válido com o status e o envelope atuais', async () => {
-    const response = await request(app).post('/api/projects').send(projectBody('create'));
+    const response = await api.post('/api/projects').send(projectBody('create'));
 
     expect(response.status).toBe(201);
     expect(response.body).toMatchObject({
@@ -127,7 +142,7 @@ describe('contratos HTTP de projetos', () => {
   });
 
   it('preserva o erro 400 para body inválido', async () => {
-    const response = await request(app).post('/api/projects').send({});
+    const response = await api.post('/api/projects').send({});
 
     expectValidationError(response, 'name');
     expect(response.body.message).toBe('O nome do projeto é obrigatório.');
@@ -136,7 +151,7 @@ describe('contratos HTTP de projetos', () => {
   it('lista, consulta e atualiza no formato atual', async () => {
     const project = await createProject(prisma, { name: 'Projeto consultável' });
 
-    const listResponse = await request(app).get('/api/projects');
+    const listResponse = await api.get('/api/projects');
     expect(listResponse.status).toBe(200);
     expect(listResponse.body.projects).toHaveLength(1);
     expect(listResponse.body.projects[0]).toMatchObject({
@@ -144,13 +159,13 @@ describe('contratos HTTP de projetos', () => {
       name: 'Projeto consultável'
     });
 
-    const detailResponse = await request(app).get(`/api/projects/${project.id}`);
+    const detailResponse = await api.get(`/api/projects/${project.id}`);
     expect(detailResponse.status).toBe(200);
     expect(detailResponse.body).toEqual({
       project: expect.objectContaining({ id: project.id, name: 'Projeto consultável' })
     });
 
-    const updateResponse = await request(app)
+    const updateResponse = await api
       .put(`/api/projects/${project.id}`)
       .send({ name: 'Projeto atualizado', responsibleTeam: 'Equipe atualizada' });
     expect(updateResponse.status).toBe(200);
@@ -161,7 +176,7 @@ describe('contratos HTTP de projetos', () => {
   });
 
   it('preserva 404 e o formato de erro para projeto inexistente', async () => {
-    const response = await request(app).get('/api/projects/999999');
+    const response = await api.get('/api/projects/999999');
 
     expect(response.status).toBe(404);
     expect(response.body).toEqual({ message: 'Projeto não encontrado.' });
@@ -172,7 +187,7 @@ describe('contratos de requisitos e vínculo com tarefas', () => {
   it('cria, lista, edita e exclui requisito mantendo a tarefa', async () => {
     const project = await createProject(prisma);
 
-    const createResponse = await request(app)
+    const createResponse = await api
       .post(`/api/projects/${project.id}/requirements`)
       .send({ title: 'Requisito HTTP', description: 'Descrição artificial' });
     expect(createResponse.status).toBe(201);
@@ -190,14 +205,14 @@ describe('contratos de requisitos e vínculo com tarefas', () => {
     const requirementId = createResponse.body.requirement.id;
     const task = await createTask(prisma, project.id, { requirementId });
 
-    const listResponse = await request(app).get(
+    const listResponse = await api.get(
       `/api/projects/${project.id}/requirements`
     );
     expect(listResponse.status).toBe(200);
     expect(listResponse.body.total).toBe(1);
     expect(listResponse.body.requirements[0].tasks[0].id).toBe(task.id);
 
-    const updateResponse = await request(app)
+    const updateResponse = await api
       .put(`/api/requirements/${requirementId}`)
       .send({ title: 'Requisito HTTP editado', type: 'NAO_FUNCIONAL' });
     expect(updateResponse.status).toBe(200);
@@ -207,7 +222,7 @@ describe('contratos de requisitos e vínculo com tarefas', () => {
       type: 'NAO_FUNCIONAL'
     });
 
-    const deleteResponse = await request(app).delete(`/api/requirements/${requirementId}`);
+    const deleteResponse = await api.delete(`/api/requirements/${requirementId}`);
     expect(deleteResponse.status).toBe(200);
     expect(deleteResponse.body).toEqual({ message: 'Requisito excluído com sucesso.' });
     expect(await prisma.requirement.findUnique({ where: { id: requirementId } })).toBeNull();
@@ -223,7 +238,7 @@ describe('contratos de requisitos e vínculo com tarefas', () => {
     const requirementA = await createRequirement(prisma, projectA.id);
     const requirementB = await createRequirement(prisma, projectB.id);
 
-    const linkResponse = await request(app)
+    const linkResponse = await api
       .patch(`/api/tasks/${task.id}/requirement`)
       .send({ requirementId: requirementA.id });
     expect(linkResponse.status).toBe(200);
@@ -233,13 +248,13 @@ describe('contratos de requisitos e vínculo com tarefas', () => {
       requirement: { id: requirementA.id }
     });
 
-    const crossProjectResponse = await request(app)
+    const crossProjectResponse = await api
       .patch(`/api/tasks/${task.id}/requirement`)
       .send({ requirementId: requirementB.id });
     expect(crossProjectResponse.status).toBe(400);
     expect(crossProjectResponse.body.message).toContain('não pertence ao mesmo projeto');
 
-    const unlinkResponse = await request(app).delete(`/api/tasks/${task.id}/requirement`);
+    const unlinkResponse = await api.delete(`/api/tasks/${task.id}/requirement`);
     expect(unlinkResponse.status).toBe(200);
     expect(unlinkResponse.body.task.requirementId).toBeNull();
   });
@@ -252,11 +267,11 @@ describe('contratos de requisitos e vínculo com tarefas', () => {
       status: 'CONCLUIDO'
     });
 
-    const detailResponse = await request(app).get(`/api/requirements/${requirement.id}`);
+    const detailResponse = await api.get(`/api/requirements/${requirement.id}`);
     expect(detailResponse.status).toBe(200);
     expect(detailResponse.body.requirement).toMatchObject({ id: requirement.id });
 
-    const tasksResponse = await request(app).get(`/api/requirements/${requirement.id}/tasks`);
+    const tasksResponse = await api.get(`/api/requirements/${requirement.id}/tasks`);
     expect(tasksResponse.status).toBe(200);
     expect(tasksResponse.body).toMatchObject({
       requirementId: requirement.id,
@@ -264,7 +279,7 @@ describe('contratos de requisitos e vínculo com tarefas', () => {
       tasks: [expect.objectContaining({ id: task.id })]
     });
 
-    const invalidStatusResponse = await request(app)
+    const invalidStatusResponse = await api
       .patch(`/api/requirements/${requirement.id}/status`)
       .send({ status: 'INEXISTENTE' });
     expectValidationError(invalidStatusResponse, 'status');
@@ -272,7 +287,7 @@ describe('contratos de requisitos e vínculo com tarefas', () => {
       'Status inválido. Use CADASTRADO, APROVADO, EM_IMPLEMENTACAO, VALIDADO ou CONCLUIDO.'
     );
 
-    const earlyCompletionResponse = await request(app).patch(
+    const earlyCompletionResponse = await api.patch(
       `/api/requirements/${requirement.id}/confirm-completion`
     );
     expect(earlyCompletionResponse.status).toBe(400);
@@ -280,7 +295,7 @@ describe('contratos de requisitos e vínculo com tarefas', () => {
       message: 'Apenas requisitos validados podem ser concluídos.'
     });
 
-    const statusResponse = await request(app)
+    const statusResponse = await api
       .patch(`/api/requirements/${requirement.id}/status`)
       .send({ status: 'VALIDADO' });
     expect(statusResponse.status).toBe(200);
@@ -289,7 +304,7 @@ describe('contratos de requisitos e vínculo com tarefas', () => {
       requirement: { id: requirement.id, status: 'VALIDADO' }
     });
 
-    const completionResponse = await request(app).patch(
+    const completionResponse = await api.patch(
       `/api/requirements/${requirement.id}/confirm-completion`
     );
     expect(completionResponse.status).toBe(200);
@@ -298,17 +313,17 @@ describe('contratos de requisitos e vínculo com tarefas', () => {
       requirement: { id: requirement.id, status: 'CONCLUIDO' }
     });
 
-    expect((await request(app).get('/api/requirements/999999')).status).toBe(404);
+    expect((await api.get('/api/requirements/999999')).status).toBe(404);
     expect(
       (
-        await request(app)
+        await api
           .post(`/api/projects/${project.id}/requirements`)
           .send({ title: '   ' })
       ).status
     ).toBe(400);
     expect(
       (
-        await request(app)
+        await api
           .post('/api/projects/999999/requirements')
           .send({ title: 'Requisito sem projeto' })
       ).status
@@ -321,7 +336,7 @@ describe('contratos de requisitos e vínculo com tarefas', () => {
     await createRequirement(prisma, project.id);
     await createTask(prisma, project.id, { requirementId: linkedRequirement.id });
 
-    const response = await request(app).get(
+    const response = await api.get(
       `/api/projects/${project.id}/traceability/requirement-task-coverage`
     );
 
@@ -340,7 +355,7 @@ describe('contratos HTTP de tarefas', () => {
     const project = await createProject(prisma);
     const requirement = await createRequirement(prisma, project.id);
 
-    const minimalResponse = await request(app)
+    const minimalResponse = await api
       .post(`/api/projects/${project.id}/tasks`)
       .send({ title: 'Tarefa mínima' });
     expect(minimalResponse.status).toBe(201);
@@ -352,13 +367,13 @@ describe('contratos HTTP de tarefas', () => {
       issues: []
     });
 
-    const linkedResponse = await request(app)
+    const linkedResponse = await api
       .post(`/api/projects/${project.id}/tasks`)
       .send({ title: 'Tarefa ligada', requirementId: requirement.id });
     expect(linkedResponse.status).toBe(201);
     expect(linkedResponse.body.task.requirement).toMatchObject({ id: requirement.id });
 
-    const listResponse = await request(app).get(`/api/projects/${project.id}/tasks`);
+    const listResponse = await api.get(`/api/projects/${project.id}/tasks`);
     expect(listResponse.status).toBe(200);
     expect(listResponse.body.total).toBe(2);
     expect(listResponse.body.tasks).toHaveLength(2);
@@ -373,7 +388,7 @@ describe('contratos HTTP de tarefas', () => {
     await prisma.taskCommit.create({ data: { taskId: task.id, commitId: commit.id } });
     await prisma.taskIssue.create({ data: { taskId: task.id, issueId: issue.id } });
 
-    const detailResponse = await request(app).get(`/api/tasks/${task.id}`);
+    const detailResponse = await api.get(`/api/tasks/${task.id}`);
     expect(detailResponse.status).toBe(200);
     expect(detailResponse.body.task).toMatchObject({
       id: task.id,
@@ -382,13 +397,13 @@ describe('contratos HTTP de tarefas', () => {
       issues: [expect.objectContaining({ id: issue.id })]
     });
 
-    const updateResponse = await request(app)
+    const updateResponse = await api
       .put(`/api/tasks/${task.id}`)
       .send({ title: 'Tarefa editada', actualEffort: 3 });
     expect(updateResponse.status).toBe(200);
     expect(updateResponse.body.task).toMatchObject({ title: 'Tarefa editada', actualEffort: 3 });
 
-    const deleteResponse = await request(app).delete(`/api/tasks/${task.id}`);
+    const deleteResponse = await api.delete(`/api/tasks/${task.id}`);
     expect(deleteResponse.status).toBe(200);
     expect(deleteResponse.body).toEqual({ message: 'Tarefa excluída com sucesso.' });
     expect(await prisma.task.findUnique({ where: { id: task.id } })).toBeNull();
@@ -401,7 +416,7 @@ describe('contratos HTTP de tarefas', () => {
     const project = await createProject(prisma);
     const task = await createTask(prisma, project.id);
 
-    const response = await request(app)
+    const response = await api
       .patch(`/api/tasks/${task.id}/status`)
       .send({ status: 'EM_ANDAMENTO' });
 
@@ -411,8 +426,8 @@ describe('contratos HTTP de tarefas', () => {
       task: { id: task.id, status: 'EM_ANDAMENTO' }
     });
     expect(await prisma.taskMovement.count({ where: { taskId: task.id } })).toBe(0);
-    expect((await request(app).get('/api/tasks/invalido')).status).toBe(400);
-    expect((await request(app).get('/api/tasks/999999')).status).toBe(404);
+    expect((await api.get('/api/tasks/invalido')).status).toBe(400);
+    expect((await api.get('/api/tasks/999999')).status).toBe(404);
   });
 });
 
@@ -424,18 +439,18 @@ describe('vínculos técnicos', () => {
     const pullRequestA = await createPullRequest(prisma, projectA.id);
     const pullRequestB = await createPullRequest(prisma, projectB.id);
 
-    const linkResponse = await request(app)
+    const linkResponse = await api
       .patch(`/api/tasks/${task.id}/pull-request`)
       .send({ pullRequestId: pullRequestA.id });
     expect(linkResponse.status).toBe(200);
     expect(linkResponse.body.task.pullRequest.id).toBe(pullRequestA.id);
 
-    const crossResponse = await request(app)
+    const crossResponse = await api
       .patch(`/api/tasks/${task.id}/pull-request`)
       .send({ pullRequestId: pullRequestB.id });
     expect(crossResponse.status).toBe(400);
 
-    const unlinkResponse = await request(app).delete(`/api/tasks/${task.id}/pull-request`);
+    const unlinkResponse = await api.delete(`/api/tasks/${task.id}/pull-request`);
     expect(unlinkResponse.status).toBe(200);
     expect(unlinkResponse.body.task.pullRequest).toBeNull();
   });
@@ -447,7 +462,7 @@ describe('vínculos técnicos', () => {
     const commitA = await createCommit(prisma, projectA.id);
     const commitB = await createCommit(prisma, projectB.id);
 
-    const linkResponse = await request(app)
+    const linkResponse = await api
       .post(`/api/tasks/${task.id}/commits`)
       .send({ commitId: commitA.id });
     expect(linkResponse.status).toBe(201);
@@ -457,15 +472,15 @@ describe('vínculos técnicos', () => {
     });
 
     expect(
-      (await request(app).post(`/api/tasks/${task.id}/commits`).send({ commitId: commitA.id }))
+      (await api.post(`/api/tasks/${task.id}/commits`).send({ commitId: commitA.id }))
         .status
     ).toBe(409);
     expect(
-      (await request(app).post(`/api/tasks/${task.id}/commits`).send({ commitId: commitB.id }))
+      (await api.post(`/api/tasks/${task.id}/commits`).send({ commitId: commitB.id }))
         .status
     ).toBe(400);
 
-    const unlinkResponse = await request(app).delete(
+    const unlinkResponse = await api.delete(
       `/api/tasks/${task.id}/commits/${commitA.id}`
     );
     expect(unlinkResponse.status).toBe(200);
@@ -479,22 +494,22 @@ describe('vínculos técnicos', () => {
     const issueA = await createIssue(prisma, projectA.id);
     const issueB = await createIssue(prisma, projectB.id);
 
-    const linkResponse = await request(app)
+    const linkResponse = await api
       .post(`/api/tasks/${task.id}/issues`)
       .send({ issueId: issueA.id });
     expect(linkResponse.status).toBe(201);
     expect(linkResponse.body.issues[0]).toMatchObject({ id: issueA.id });
 
     expect(
-      (await request(app).post(`/api/tasks/${task.id}/issues`).send({ issueId: issueA.id }))
+      (await api.post(`/api/tasks/${task.id}/issues`).send({ issueId: issueA.id }))
         .status
     ).toBe(409);
     expect(
-      (await request(app).post(`/api/tasks/${task.id}/issues`).send({ issueId: issueB.id }))
+      (await api.post(`/api/tasks/${task.id}/issues`).send({ issueId: issueB.id }))
         .status
     ).toBe(400);
 
-    const unlinkResponse = await request(app).delete(
+    const unlinkResponse = await api.delete(
       `/api/tasks/${task.id}/issues/${issueA.id}`
     );
     expect(unlinkResponse.status).toBe(200);
@@ -509,14 +524,14 @@ describe('vínculos técnicos', () => {
     await prisma.taskCommit.create({ data: { taskId: task.id, commitId: commit.id } });
     await prisma.taskIssue.create({ data: { taskId: task.id, issueId: issue.id } });
 
-    const commitsResponse = await request(app).get(`/api/tasks/${task.id}/commits`);
+    const commitsResponse = await api.get(`/api/tasks/${task.id}/commits`);
     expect(commitsResponse.status).toBe(200);
     expect(commitsResponse.body).toEqual({
       total: 1,
       commits: [expect.objectContaining({ id: commit.id, shortHash: commit.hash.slice(0, 7) })]
     });
 
-    const issuesResponse = await request(app).get(`/api/tasks/${task.id}/issues`);
+    const issuesResponse = await api.get(`/api/tasks/${task.id}/issues`);
     expect(issuesResponse.status).toBe(200);
     expect(issuesResponse.body).toEqual({
       total: 1,
@@ -533,7 +548,7 @@ describe('Kanban e histórico', () => {
     });
     const task = await createTask(prisma, project.id);
 
-    const boardResponse = await request(app).get(`/api/projects/${project.id}/kanban`);
+    const boardResponse = await api.get(`/api/projects/${project.id}/kanban`);
     expect(boardResponse.status).toBe(200);
     expect(boardResponse.body).toMatchObject({
       projectId: project.id,
@@ -541,7 +556,7 @@ describe('Kanban e histórico', () => {
     });
     expect(boardResponse.body.columns.A_FAZER[0].id).toBe(task.id);
 
-    const moveResponse = await request(app)
+    const moveResponse = await api
       .patch(`/api/tasks/${task.id}/move`)
       .send({ toStatus: 'EM_ANDAMENTO', projectMemberId: member.id });
     expect(moveResponse.status).toBe(200);
@@ -552,8 +567,8 @@ describe('Kanban e histórico', () => {
         taskId: task.id,
         fromStatus: 'A_FAZER',
         toStatus: 'EM_ANDAMENTO',
-        movedBy: 'Movimentador artificial',
-        projectMemberId: member.id
+        movedBy: 'Usuário E6 artificial',
+        projectMemberId: null
       }
     });
 
@@ -562,22 +577,22 @@ describe('Kanban e histórico', () => {
     });
     expect(await prisma.taskMovement.count({ where: { taskId: task.id } })).toBe(1);
 
-    const movementsResponse = await request(app)
+    const movementsResponse = await api
       .get(`/api/projects/${project.id}/kanban/movements`)
       .query({
         startDate: '2020-01-01',
         endDate: '2030-12-31',
-        movedBy: 'Movimentador artificial'
+        movedBy: 'Usuário E6 artificial'
       });
     expect(movementsResponse.status).toBe(200);
     expect(movementsResponse.body.total).toBe(1);
     expect(movementsResponse.body.movements[0]).toMatchObject({
       taskId: task.id,
       taskTitle: task.title,
-      movedBy: 'Movimentador artificial'
+      movedBy: 'Usuário E6 artificial'
     });
 
-    const metricsResponse = await request(app)
+    const metricsResponse = await api
       .get(`/api/projects/${project.id}/kanban/metrics`)
       .query({ startDate: '2020-01-01', endDate: '2030-12-31' });
     expect(metricsResponse.status).toBe(200);
@@ -588,7 +603,7 @@ describe('Kanban e histórico', () => {
     const project = await createProject(prisma);
     const task = await createTask(prisma, project.id);
 
-    const response = await request(app)
+    const response = await api
       .patch(`/api/tasks/${task.id}/move`)
       .send({ toStatus: 'A_FAZER', movedBy: 'Ator textual artificial' });
 
@@ -609,7 +624,7 @@ describe('Kanban e histórico', () => {
     await prisma.taskCommit.create({ data: { taskId: linkedTask.id, commitId: commit.id } });
     await prisma.taskIssue.create({ data: { taskId: linkedTask.id, issueId: issue.id } });
 
-    const metricsResponse = await request(app).get(`/api/projects/${project.id}/tasks/metrics`);
+    const metricsResponse = await api.get(`/api/projects/${project.id}/tasks/metrics`);
     expect(metricsResponse.status).toBe(200);
     expect(metricsResponse.body).toMatchObject({
       projectId: project.id,
@@ -619,7 +634,7 @@ describe('Kanban e histórico', () => {
     });
 
     for (const kind of ['pull-request', 'commit', 'issue']) {
-      const response = await request(app).get(
+      const response = await api.get(
         `/api/projects/${project.id}/traceability/${kind}-coverage`
       );
       expect(response.status).toBe(200);
@@ -670,7 +685,7 @@ describe('matriz e detalhe de rastreabilidade', () => {
     });
     await prisma.taskIssue.create({ data: { taskId: issueTask.id, issueId: issue.id } });
 
-    const matrixResponse = await request(app).get(
+    const matrixResponse = await api.get(
       `/api/projects/${project.id}/traceability/requirements-matrix`
     );
     expect(matrixResponse.status).toBe(200);
@@ -714,7 +729,7 @@ describe('matriz e detalhe de rastreabilidade', () => {
       implementationStatus: 'PLANEJADO'
     });
 
-    const detailResponse = await request(app).get(
+    const detailResponse = await api.get(
       `/api/projects/${project.id}/traceability/requirements/${requirementIssue.id}`
     );
     expect(detailResponse.status).toBe(200);
@@ -739,125 +754,125 @@ describe('matriz e detalhe de rastreabilidade', () => {
 
 describe('validação HTTP negativa da E4', () => {
   it('valida IDs, URL, boolean, e-mail, accessCode e campos de Projects', async () => {
-    expectValidationError(await request(app).get('/api/projects/invalido'), 'id');
+    expectValidationError(await api.get('/api/projects/invalido'), 'id');
 
     expectValidationError(
-      await request(app).post('/api/projects').send({ ...projectBody('url'), githubUrl: 'https://example.com/repo' }),
+      await api.post('/api/projects').send({ ...projectBody('url'), githubUrl: 'https://example.com/repo' }),
       'githubUrl'
     );
     expectValidationError(
-      await request(app).patch('/api/projects/1/github/sync-settings').send({ githubAutoSyncEnabled: 'true' }),
+      await api.patch('/api/projects/1/github/sync-settings').send({ githubAutoSyncEnabled: 'true' }),
       'githubAutoSyncEnabled'
     );
     expectValidationError(
-      await request(app).post('/api/projects/1/members').send({ name: 'Pessoa', email: 'invalido', role: 'MEMBRO' }),
+      await api.post('/api/projects/1/members').send({ name: 'Pessoa', email: 'invalido', role: 'MEMBRO' }),
       'email'
     );
     expectValidationError(
-      await request(app).post('/api/projects/join').send({ accessCode: '', name: 'Pessoa' }),
+      await api.post('/api/projects/join').send({ accessCode: '', name: 'Pessoa' }),
       'accessCode'
     );
     expectValidationError(
-      await request(app).post('/api/projects').send({ ...projectBody('unknown'), campoInventado: true }),
+      await api.post('/api/projects').send({ ...projectBody('unknown'), campoInventado: true }),
       'campoInventado'
     );
   });
 
   it('valida entradas de Requirements sem alterar erros de domínio', async () => {
-    expectValidationError(await request(app).get('/api/requirements/invalido'), 'id');
+    expectValidationError(await api.get('/api/requirements/invalido'), 'id');
     expectValidationError(
-      await request(app).post('/api/projects/1/requirements').send({ title: '' }),
+      await api.post('/api/projects/1/requirements').send({ title: '' }),
       'title'
     );
     expectValidationError(
-      await request(app).post('/api/projects/1/requirements').send({ title: 'RF', type: 'OUTRO' }),
+      await api.post('/api/projects/1/requirements').send({ title: 'RF', type: 'OUTRO' }),
       'type'
     );
     expectValidationError(
-      await request(app).patch('/api/requirements/1/status').send({ status: 'OUTRO' }),
+      await api.patch('/api/requirements/1/status').send({ status: 'OUTRO' }),
       'status'
     );
     expectValidationError(
-      await request(app).get(`/api/projects/1/requirements?search=${'a'.repeat(256)}`),
+      await api.get(`/api/projects/1/requirements?search=${'a'.repeat(256)}`),
       'search'
     );
     expectValidationError(
-      await request(app).post('/api/projects/1/requirements').send({ title: 'RF', segredo: 'nao-retornar' }),
+      await api.post('/api/projects/1/requirements').send({ title: 'RF', segredo: 'nao-retornar' }),
       'segredo'
     );
   });
 
   it('valida entradas de Tasks, vínculos e filtros', async () => {
-    expectValidationError(await request(app).get('/api/tasks/1.5'), 'id');
+    expectValidationError(await api.get('/api/tasks/1.5'), 'id');
     expectValidationError(
-      await request(app).post('/api/projects/1/tasks').send({ title: '' }),
+      await api.post('/api/projects/1/tasks').send({ title: '' }),
       'title'
     );
     expectValidationError(
-      await request(app).post('/api/projects/1/tasks').send({ title: 'Tarefa', estimatedEffort: -1 }),
+      await api.post('/api/projects/1/tasks').send({ title: 'Tarefa', estimatedEffort: -1 }),
       'estimatedEffort'
     );
     expectValidationError(
-      await request(app).post('/api/projects/1/tasks').send({ title: 'Tarefa', deadline: '2026-02-30' }),
+      await api.post('/api/projects/1/tasks').send({ title: 'Tarefa', deadline: '2026-02-30' }),
       'deadline'
     );
     expectValidationError(
-      await request(app).post('/api/projects/1/tasks').send({ title: 'Tarefa', priority: 'URGENTE' }),
+      await api.post('/api/projects/1/tasks').send({ title: 'Tarefa', priority: 'URGENTE' }),
       'priority'
     );
     expectValidationError(
-      await request(app).patch('/api/tasks/1/status').send({ status: 'OUTRO' }),
+      await api.patch('/api/tasks/1/status').send({ status: 'OUTRO' }),
       'status'
     );
     expectValidationError(
-      await request(app).patch('/api/tasks/1/requirement').send({ requirementId: 'abc' }),
+      await api.patch('/api/tasks/1/requirement').send({ requirementId: 'abc' }),
       'requirementId'
     );
     expectValidationError(
-      await request(app).post('/api/tasks/1/commits').send({ commitId: 0 }),
+      await api.post('/api/tasks/1/commits').send({ commitId: 0 }),
       'commitId'
     );
     expectValidationError(
-      await request(app).post('/api/tasks/1/issues').send({ issueId: -2 }),
+      await api.post('/api/tasks/1/issues').send({ issueId: -2 }),
       'issueId'
     );
     expectValidationError(
-      await request(app).get('/api/projects/1/tasks/metrics?startDate=2026-12-31&endDate=2026-01-01'),
+      await api.get('/api/projects/1/tasks/metrics?startDate=2026-12-31&endDate=2026-01-01'),
       'endDate'
     );
     expectValidationError(
-      await request(app).post('/api/projects/1/tasks').send({ title: 'Tarefa', campoInventado: true }),
+      await api.post('/api/projects/1/tasks').send({ title: 'Tarefa', campoInventado: true }),
       'campoInventado'
     );
   });
 
   it('valida GitHub, Artifacts e Traceability sem acessar dependências', async () => {
-    expectValidationError(await request(app).get('/api/projects/x/commits'), 'projectId');
+    expectValidationError(await api.get('/api/projects/x/commits'), 'projectId');
     expectValidationError(
-      await request(app).get(`/api/projects/1/issues?search=${'a'.repeat(256)}`),
+      await api.get(`/api/projects/1/issues?search=${'a'.repeat(256)}`),
       'search'
     );
     expectValidationError(
-      await request(app).get('/api/projects/1/artifacts?type=branch'),
+      await api.get('/api/projects/1/artifacts?type=branch'),
       'type'
     );
     expectValidationError(
-      await request(app).get('/api/projects/1/artifacts?startDate=2026-02-30'),
+      await api.get('/api/projects/1/artifacts?startDate=2026-02-30'),
       'startDate'
     );
     expectValidationError(
-      await request(app).get('/api/projects/x/traceability/requirements-matrix'),
+      await api.get('/api/projects/x/traceability/requirements-matrix'),
       'projectId'
     );
     expectValidationError(
-      await request(app).get('/api/projects/1/traceability/requirements/x'),
+      await api.get('/api/projects/1/traceability/requirements/x'),
       'requirementId'
     );
   });
 
   it('não retorna valores sensíveis nem internals no erro', async () => {
     const secret = 'token-super-secreto';
-    const response = await request(app)
+    const response = await api
       .post('/api/projects')
       .set('X-Request-Id', 'e4-seguro')
       .send({ ...projectBody('secret'), token: secret });
@@ -879,14 +894,14 @@ describe('baseline dos endpoints 501', () => {
     ['get', '/api/github-artifacts/1/traceability'],
     ['delete', '/api/trace-links/1']
   ])('%s %s continua retornando 501', async (method, path) => {
-    const response = await request(app)[method](path);
+    const response = await api[method](path);
 
     expect(response.status).toBe(501);
     expect(response.body).toHaveProperty('message');
   });
 
   it('mantém 501 mesmo quando o parâmetro do placeholder é inválido', async () => {
-    expect((await request(app).delete('/api/projects/invalido')).status).toBe(501);
-    expect((await request(app).get('/api/tasks/invalido/traceability')).status).toBe(501);
+    expect((await api.delete('/api/projects/invalido')).status).toBe(501);
+    expect((await api.get('/api/tasks/invalido/traceability')).status).toBe(501);
   });
 });

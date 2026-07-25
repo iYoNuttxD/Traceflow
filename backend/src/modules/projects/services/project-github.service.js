@@ -45,14 +45,14 @@ async function verifyGithubRepositoryAccess(data) {
 }
 
 export const projectGithubService = {
-  async createProjectFromGithubRepository(data) {
+  async createProjectFromGithubRepository(data, ownerUserId) {
     validateGithubRepositoryData(data);
     validateOptionalGithubAutoSyncEnabled(data.githubAutoSyncEnabled);
     const repository = await verifyGithubRepositoryAccess(data);
     const projectData = buildGithubProjectData(data, repository);
     const inviteData = await buildProjectInviteData();
     await ensureRepositoryIsNotLinked(projectData);
-    return projectRepository.createFromGithub({ ...projectData, ...inviteData });
+    return projectRepository.createProject({ ...projectData, ...inviteData }, ownerUserId);
   },
 
   async updateGithubSyncSettings(projectId, data) {

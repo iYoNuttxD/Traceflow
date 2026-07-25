@@ -32,7 +32,7 @@ export const projectMembersService = {
     return projectRepository.createProjectMember(parsedProjectId, memberData);
   },
 
-  async joinProject(data) {
+  async joinProject(data, authenticatedUser) {
     const payload = data && typeof data === 'object' ? data : {};
     const accessCode = normalizeAccessCode(payload.accessCode);
     if (!accessCode) {
@@ -42,6 +42,9 @@ export const projectMembersService = {
     const project = await projectRepository.findProjectByAccessCode(accessCode);
     if (!project) throw new ProjectServiceError('Projeto não encontrado.', 404);
     const member = await projectMembersService.addProjectMember(project.id, payload);
+    if (authenticatedUser?.id) {
+      await projectRepository.upsertProjectMembership(project.id, authenticatedUser.id, payload.role);
+    }
 
     return { project: { id: project.id, name: project.name }, member };
   }

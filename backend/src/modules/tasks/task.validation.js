@@ -50,6 +50,7 @@ const taskFields = {
   description: optionalText({ field: 'Descrição' }),
   priority: priority.optional(),
   responsible: optionalText({ field: 'Responsável' }),
+  responsibleUserId: nullableId('ID do usuário responsável inválido.').optional(),
   deadline: deadline.optional(),
   estimatedEffort: effort('O esforço estimado deve ser um número inteiro maior ou igual a zero.').optional(),
   actualEffort: effort('O esforço realizado deve ser um número inteiro maior ou igual a zero.').optional(),

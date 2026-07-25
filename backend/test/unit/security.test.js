@@ -130,7 +130,7 @@ describe('rate limiting', () => {
     const first = await request(app).get('/api/unknown').set('X-Forwarded-For', '198.51.100.10');
     const limited = await request(app).get('/api/unknown').set('X-Forwarded-For', '198.51.100.10');
     const isolated = await request(app).get('/api/unknown').set('X-Forwarded-For', '198.51.100.11');
-    expect(first.status).toBe(404);
+    expect(first.status).toBe(401);
     expect(limited).toMatchObject({
       status: 429,
       body: {
@@ -141,7 +141,7 @@ describe('rate limiting', () => {
     });
     expect(limited.headers['retry-after']).toBeDefined();
     expect(limited.headers.ratelimit).toBeDefined();
-    expect(isolated.status).toBe(404);
+    expect(isolated.status).toBe(401);
   });
 
   it.each([

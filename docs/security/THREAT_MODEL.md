@@ -1,8 +1,14 @@
 # Threat model inicial do TRACEFLOW
 
+## Atualização E6
+
+Identidade verificável, sessão opaca, CSRF, memberships e RBAC reduzem spoofing/BOLA. Navegador, cookie e endpoints públicos de autenticação formam nova trust boundary. Persistem: entrega de e-mail sem adaptador operacional, administração/último OWNER incompleta, PAT GitHub sistêmico, infraestrutura não distribuída e campos legados textuais.
+
+Novas ameaças tratadas/testadas: credential stuffing, fixation/hijacking, CSRF, replay de reset/convite, enumeração de conta/projeto, privilege escalation e BOLA entre projetos.
+
 ## Escopo e método
 
-Este threat model cobre o MVP na conclusão da E5 e usa STRIDE como guia de descoberta. Ele é uma baseline de engenharia, não uma certificação ou avaliação formal completa. O sistema ainda não possui identidade, sessão ou autorização; essas lacunas dominam o risco residual e pertencem à E6.
+Este threat model nasceu na E5 e foi atualizado na E6; usa STRIDE como guia e não é certificação formal. Identidade, sessão e autorização agora existem, com as lacunas operacionais explicitadas acima.
 
 ## Ativos
 
@@ -57,8 +63,8 @@ O backend não faz fetch genérico de URLs informadas pelo cliente. A integraç�
 
 | Categoria | Ameaça | Impacto | Controles E5 | Risco residual |
 |---|---|---|---|---|
-| Spoofing | Cliente assume qualquer identidade textual/membro | CRÍTICO | Nenhum controle de identidade foi antecipado | E6: User, login, sessão e vínculo real com ProjectMember |
-| Tampering | Alteração anônima por ID/BOLA | CRÍTICO | Validação de formato e algumas invariantes de mesmo projeto | E6: autorização deny-by-default por projeto/recurso |
+| Spoofing | Cliente assume identidade textual/membro | ALTO | E6 usa User/sessão e ator canônico | concluir contract/backfill legado |
+| Tampering | Alteração por ID/BOLA | MÉDIO | membership, resolução de recurso e deny-by-default | ampliar matriz de papéis por endpoint |
 | Repudiation | `movedBy` e ator textual forjáveis | ALTO | request ID, logs JSON e eventos de operações sensíveis | E6/E7: identidade e AuditEvent com retenção/acesso |
 | Information disclosure | Token, banco, e-mail ou erro externo em resposta/log | ALTO | error handler seguro, redaction, scanner e política de segredos | Secret manager, acesso/retenção de logs e minimização E7 |
 | Information disclosure | Enumeração de projetos/códigos | CRÍTICO | rate limit de join e log sanitizado | Resposta de join ainda distingue projeto inexistente; corrigir junto do convite E6 |

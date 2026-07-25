@@ -4,6 +4,10 @@ import { createErrorHandler } from './middlewares/error-handler.middleware.js';
 import { notFoundMiddleware } from './middlewares/not-found.middleware.js';
 import { createRequestContextMiddleware } from './middlewares/request-context.middleware.js';
 import routes from './routes/index.js';
+import { authRoutes } from './modules/auth/index.js';
+import { createAuthenticationMiddleware } from './middlewares/auth/authentication.middleware.js';
+import { createCsrfMiddleware } from './middlewares/auth/csrf.middleware.js';
+import { createProjectAuthorizationMiddleware } from './middlewares/auth/project-authorization.middleware.js';
 import { createHealthHandlers } from './shared/http/index.js';
 import { logger as defaultLogger } from './shared/logger/index.js';
 import {
@@ -36,6 +40,11 @@ export function createApp({ logger = defaultLogger, readinessCheck, securityConf
   app.get('/health/live', health.live);
   app.get('/health/ready', health.ready);
   app.use('/api', noStoreApiResponses);
+  app.use('/api/auth/register', rateLimiters.sensitive);
+  app.use('/api/auth/login', rateLimiters.sensitive);
+  app.use('/api/auth/forgot-password', rateLimiters.sensitive);
+  app.use('/api/auth/reset-password', rateLimiters.sensitive);
+  app.use('/api/auth', authRoutes);
   app.use(
     '/api/projects/join',
     createSensitiveAttemptLogger({ logger, event: 'project_join' }),
@@ -50,6 +59,9 @@ export function createApp({ logger = defaultLogger, readinessCheck, securityConf
     rateLimiters.sync
   );
   app.use('/api', rateLimiters.general);
+  app.use('/api', createAuthenticationMiddleware({ cookieName: securityConfig.sessionCookieName }));
+  app.use('/api', createCsrfMiddleware());
+  app.use('/api', createProjectAuthorizationMiddleware());
   app.use('/api', routes);
   app.use(notFoundMiddleware);
   app.use(createErrorHandler({ logger }));

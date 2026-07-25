@@ -90,7 +90,7 @@ export const taskController = {
   }, { fallbackMessage: kanbanFallback }),
 
   moveTask: asyncHandler(async (req, res) => {
-    const result = await taskService.moveTask(req.params.id, req.body);
+    const result = await taskService.moveTask(req.params.id, req.body, req.auth.user);
     return res.json({
       message: 'Tarefa movida com sucesso.',
       task: result.task,

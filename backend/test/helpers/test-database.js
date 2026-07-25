@@ -85,12 +85,17 @@ export async function cleanTestDatabase(prisma) {
     prisma.taskMovement.deleteMany(),
     prisma.task.deleteMany(),
     prisma.requirement.deleteMany(),
+    prisma.projectInvitation.deleteMany(),
+    prisma.projectMembership.deleteMany(),
     prisma.projectMember.deleteMany(),
     prisma.traceLink.deleteMany(),
     prisma.githubArtifact.deleteMany(),
     prisma.commit.deleteMany(),
     prisma.pullRequest.deleteMany(),
     prisma.issue.deleteMany(),
-    prisma.project.deleteMany()
+    prisma.project.deleteMany(),
+    prisma.passwordResetToken.deleteMany(),
+    prisma.session.deleteMany(),
+    prisma.user.deleteMany()
   ]);
 }

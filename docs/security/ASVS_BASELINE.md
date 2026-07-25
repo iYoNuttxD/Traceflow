@@ -45,3 +45,7 @@ Estados: `IMPLEMENTADO`, `PARCIAL`, `AUSENTE`, `NÃO_APLICÁVEL`, `NÃO_VERIFICA
 3. classificação/retenção/acesso a logs e dados pessoais, mais auditoria de negócio (E7);
 4. TLS/proxy/headers do host SPA e limiter distribuído no ambiente de produção;
 5. secret manager, SBOM, dependency review e scanner obrigatório no CI (E14).
+
+## Atualização E6
+
+Sem declarar conformidade ASVS L2: V6 passa a **PARCIAL** (Argon2id, resposta uniforme, inatividade e reset); V7 a **PARCIAL** (sessão opaca hashada, cookie, expiração/revogação e CSRF); V8 a **PARCIAL** (RBAC, listagem filtrada, BOLA 404 e 403 por papel); V3.5.1/V3.5.2 está **IMPLEMENTADO no escopo atual**. Lacunas: MFA, administração completa, entrega de reset, limpeza agendada, matriz exaustiva de papéis e infraestrutura distribuída.

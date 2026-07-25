@@ -2,12 +2,20 @@
 import { prisma } from '../../database/prismaClient.js';
 
 export const projectRepository = {
-  async createProject(data) {
-    return prisma.project.create({ data });
+  async createProject(data, ownerUserId) {
+    if (!ownerUserId) return prisma.project.create({ data });
+    return prisma.$transaction(async (tx) => {
+      const project = await tx.project.create({ data });
+      await tx.projectMembership.create({
+        data: { projectId: project.id, userId: ownerUserId, role: 'OWNER' }
+      });
+      return project;
+    });
   },
 
-  async findAllProjects() {
+  async findAllProjects(userId) {
     return prisma.project.findMany({
+      ...(userId ? { where: { memberships: { some: { userId, isActive: true } } } } : {}),
       orderBy: { createdAt: 'desc' }
     });
   },
@@ -120,6 +128,15 @@ export const projectRepository = {
         ...data,
         projectId
       }
+    });
+  },
+
+  async upsertProjectMembership(projectId, userId, role = 'MEMBER') {
+    const normalizedRole = { DONO: 'OWNER', GERENTE: 'MANAGER', MEMBRO: 'MEMBER', VISUALIZADOR: 'VIEWER' }[role] || role;
+    return prisma.projectMembership.upsert({
+      where: { projectId_userId: { projectId, userId } },
+      create: { projectId, userId, role: ['OWNER', 'MANAGER', 'MEMBER', 'VIEWER'].includes(normalizedRole) ? normalizedRole : 'MEMBER' },
+      update: { isActive: true }
     });
   }
 };

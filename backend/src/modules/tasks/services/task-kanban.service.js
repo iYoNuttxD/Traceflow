@@ -35,13 +35,15 @@ export const taskKanbanService = {
     };
   },
 
-  async moveTask(taskId, data) {
+  async moveTask(taskId, data, actor) {
     const id = parseTaskId(taskId);
     const task = await ensureTaskExists(id);
     await ensureProjectExists(task.projectId);
     const payload = data && typeof data === 'object' ? data : {};
     validateStatus(payload.toStatus);
-    const responsible = await resolveMovementResponsible(task, payload);
+    const responsible = actor
+      ? { movedByUserId: actor.id, movedBy: actor.name }
+      : await resolveMovementResponsible(task, payload);
     if (task.status === payload.toStatus) {
       throw new TaskServiceError('A tarefa já está nesta coluna.', 400);
     }

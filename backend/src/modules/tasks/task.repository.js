@@ -42,6 +42,7 @@ const taskRequirementSelect = {
 };
 
 const taskInclude = {
+  responsibleUser: { select: { id: true, name: true, email: true } },
   requirement: {
     select: taskRequirementSelect
   },
@@ -71,6 +72,9 @@ const taskInclude = {
 };
 
 export const taskRepository = {
+  async findActiveMembership(projectId, userId) {
+    return prisma.projectMembership.findFirst({ where: { projectId, userId, isActive: true } });
+  },
   async findProjectById(projectId) {
     return prisma.project.findUnique({
       where: { id: projectId }
@@ -332,6 +336,7 @@ export const taskRepository = {
           fromStatus: task.status,
           toStatus: data.toStatus,
           movedBy: data.movedBy,
+          ...(data.movedByUserId !== undefined ? { movedByUserId: data.movedByUserId } : {}),
           ...(data.projectMemberId !== undefined
             ? { projectMemberId: data.projectMemberId }
             : {}),

@@ -6,12 +6,12 @@ const membersFallback = 'Erro interno ao processar membros do projeto.';
 
 export const projectController = {
   create: asyncHandler(async (req, res) => {
-    const project = await projectService.createProject(req.body);
+    const project = await projectService.createProject(req.body, req.auth.user.id);
     return res.status(201).json({ message: 'Projeto cadastrado com sucesso.', project });
   }, { fallbackMessage: projectFallback }),
 
   findAll: asyncHandler(async (req, res) => {
-    const projects = await projectService.findAllProjects();
+    const projects = await projectService.findAllProjects(req.auth.user.id);
     return res.json({ projects });
   }, { fallbackMessage: projectFallback }),
 
@@ -34,7 +34,7 @@ export const projectController = {
   }, { fallbackMessage: membersFallback }),
 
   join: asyncHandler(async (req, res) => {
-    const result = await projectService.joinProject(req.body);
+    const result = await projectService.joinProject(req.body, req.auth.user);
     return res.status(201).json({
       message: 'Entrada no projeto realizada com sucesso.',
       project: result.project,
@@ -52,7 +52,7 @@ export const projectController = {
   },
 
   createFromGithub: asyncHandler(async (req, res) => {
-    const project = await projectService.createProjectFromGithubRepository(req.body);
+    const project = await projectService.createProjectFromGithubRepository(req.body, req.auth.user.id);
     return res.status(201).json({
       message: 'Projeto criado a partir do repositório GitHub com sucesso.',
       project

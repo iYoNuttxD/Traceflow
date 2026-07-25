@@ -4,6 +4,8 @@
 
 Os segredos atuais são `GITHUB_TOKEN` e as credenciais contidas em `DATABASE_URL`/`TEST_DATABASE_URL`. Qualquer futura chave de sessão, JWT, e-mail, cloud ou criptografia entra automaticamente nesta política.
 
+Na E6, tokens opacos de sessão, recuperação e convite são segredos efêmeros: valores brutos existem somente no cookie HttpOnly, memória do cliente ou entrega de uso único; o banco guarda SHA-256. Senhas guardam somente Argon2id. Nenhum desses valores pode ser logado. O PAT GitHub permanece credencial técnica do sistema, não identidade do usuário (ADR-004).
+
 ## Regras
 
 - segredos existem somente no backend, ambiente de execução ou secret store aprovado;

@@ -1,0 +1,5 @@
+import { useState } from 'react'; import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../features/auth/AuthContext.jsx'; import { normalizeApiError } from '../api/api.js';
+export function RegisterPage() { const { register } = useAuth(); const navigate = useNavigate(); const [values, setValues] = useState({ name: '', email: '', password: '' }); const [error, setError] = useState('');
+  async function submit(event) { event.preventDefault(); try { await register(values); navigate('/projects'); } catch (cause) { setError(normalizeApiError(cause).message); } }
+  return <main className="page"><h1>Criar conta</h1><form onSubmit={submit}>{['name','email','password'].map((field) => <label key={field}>{field === 'name' ? 'Nome' : field === 'email' ? 'E-mail' : 'Senha'}<input type={field === 'password' ? 'password' : field === 'email' ? 'email' : 'text'} value={values[field]} onChange={(e) => setValues({ ...values, [field]: e.target.value })} required /></label>)}{error && <p role="alert">{error}</p>}<button type="submit">Criar conta</button></form><Link to="/login">Já tenho conta</Link></main>; }

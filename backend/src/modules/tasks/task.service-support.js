@@ -68,6 +68,17 @@ export async function resolveRequirementForTask(projectId, requirementId) {
   return parsedRequirementId;
 }
 
+export async function resolveResponsibleUser(projectId, userId) {
+  if (userId === undefined) return undefined;
+  if (userId === null || userId === '') return null;
+  const parsed = Number(userId);
+  const membership = Number.isInteger(parsed) && parsed > 0
+    ? await taskRepository.findActiveMembership(projectId, parsed)
+    : null;
+  if (!membership) throw new TaskServiceError('Usuário responsável não pertence ao projeto.', 400);
+  return parsed;
+}
+
 export async function recalculateRelatedRequirements(...requirementIds) {
   const uniqueIds = [...new Set(requirementIds.filter(Boolean).map(Number))];
   await Promise.all(uniqueIds.map((id) => requirementService.recalculateRequirementStatus(id)));

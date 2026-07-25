@@ -1,5 +1,10 @@
 # Registro de risco de dependências
 
+## Atualização E6
+
+- `argon2@0.44.0` foi adicionado ao runtime para Argon2id; compatível com Node 22 e audit backend com zero vulnerabilidades.
+- O frontend permanece com 2 entradas altas do advisory React Router RSC. O TRACEFLOW é SPA client-side e não usa RSC/actions; a correção proposta pelo audit exige downgrade/breaking change e não foi aplicada automaticamente.
+
 ## Método
 
 Registro gerado em 24/07/2026 com `npm audit`, `npm ls` e análise do uso real. Não foi executado `npm audit fix` nem `--force`; somente atualizações pontuais dentro de faixas compatíveis foram aplicadas e validadas por testes/build.

@@ -7,16 +7,16 @@ import {
 import { buildProjectInviteData } from './project-invite.service.js';
 
 export const projectCrudService = {
-  async createProject(data) {
+  async createProject(data, ownerUserId) {
     const projectData = {
       ...buildEditableProjectData(data, true),
       ...(await buildProjectInviteData())
     };
-    return projectRepository.createProject(projectData);
+    return projectRepository.createProject(projectData, ownerUserId);
   },
 
-  async findAllProjects() {
-    return projectRepository.findAllProjects();
+  async findAllProjects(userId) {
+    return projectRepository.findAllProjects(userId);
   },
 
   async getProjectById(projectId) {

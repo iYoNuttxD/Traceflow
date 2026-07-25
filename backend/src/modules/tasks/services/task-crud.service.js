@@ -5,7 +5,8 @@ import {
   ensureTaskExists,
   formatTask,
   recalculateRelatedRequirements,
-  resolveRequirementForTask
+  resolveRequirementForTask,
+  resolveResponsibleUser
 } from '../task.service-support.js';
 
 export const taskCrudService = {
@@ -15,6 +16,8 @@ export const taskCrudService = {
     const taskData = buildTaskData(data, true);
     const requirementId = await resolveRequirementForTask(parsedProjectId, data?.requirementId);
     if (requirementId !== undefined) taskData.requirementId = requirementId;
+    const responsibleUserId = await resolveResponsibleUser(parsedProjectId, data?.responsibleUserId);
+    if (responsibleUserId !== undefined) taskData.responsibleUserId = responsibleUserId;
     const task = await taskRepository.createTask(parsedProjectId, taskData);
     await recalculateRelatedRequirements(task.requirementId);
     return formatTask(task);
@@ -38,6 +41,8 @@ export const taskCrudService = {
     const taskData = buildTaskData(data);
     const requirementId = await resolveRequirementForTask(current.projectId, data?.requirementId);
     if (requirementId !== undefined) taskData.requirementId = requirementId;
+    const responsibleUserId = await resolveResponsibleUser(current.projectId, data?.responsibleUserId);
+    if (responsibleUserId !== undefined) taskData.responsibleUserId = responsibleUserId;
     if (Object.keys(taskData).length === 0) return formatTask(current);
     const task = await taskRepository.updateTask(id, taskData);
     await recalculateRelatedRequirements(current.requirementId, task.requirementId);

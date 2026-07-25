@@ -3,13 +3,12 @@
 import { BrowserRouter } from 'react-router-dom';
 import { AppRoutes } from './routes/AppRoutes.jsx';
 import { Layout } from './components/Layout.jsx';
+import { AuthProvider } from './features/auth/AuthContext.jsx';
 
 export default function App() {
   return (
     <BrowserRouter>
-      <Layout>
-        <AppRoutes />
-      </Layout>
+      <AuthProvider><Layout><AppRoutes /></Layout></AuthProvider>
     </BrowserRouter>
   );
 }

@@ -13,8 +13,15 @@ import {
   projectProjectIdParamsSchema,
   updateProjectBodySchema
 } from './project.validation.js';
+import { projectInvitationController } from './project-invitation.controller.js';
+import { acceptInvitationBody, createInvitationBody, invitationParams, invitationProjectParams } from './project-invitation.validation.js';
 
 const router = Router();
+
+router.post('/invitations/accept', validateRequest({ body: acceptInvitationBody }), projectInvitationController.accept);
+router.get('/:projectId/invitations', validateRequest({ params: invitationProjectParams }), projectInvitationController.list);
+router.post('/:projectId/invitations', validateRequest({ params: invitationProjectParams, body: createInvitationBody }), projectInvitationController.create);
+router.delete('/:projectId/invitations/:invitationId', validateRequest({ params: invitationParams }), projectInvitationController.revoke);
 
 router.post('/from-github', validateRequest({ body: createProjectFromGithubBodySchema }), projectController.createFromGithub);
 router.post('/join', validateRequest({ body: joinProjectBodySchema }), projectController.join);

@@ -7,6 +7,105 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum ProjectRole {
+  OWNER
+  MANAGER
+  MEMBER
+  VIEWER
+}
+
+model User {
+  id              Int       @id @default(autoincrement())
+  name            String
+  email           String    @unique
+  passwordHash    String?
+  isActive        Boolean   @default(true)
+  emailVerifiedAt DateTime?
+  mustSetPassword Boolean   @default(false)
+  sessionVersion  Int       @default(1)
+  lastLoginAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  sessions            Session[]
+  passwordResetTokens PasswordResetToken[]
+  memberships         ProjectMembership[]
+  createdInvitations  ProjectInvitation[]  @relation("InvitationCreator")
+  acceptedInvitations ProjectInvitation[]  @relation("InvitationAcceptor")
+  responsibleTasks    Task[]
+  taskMovements       TaskMovement[]
+}
+
+model Session {
+  id             Int       @id @default(autoincrement())
+  userId         Int
+  tokenHash      String    @unique
+  csrfTokenHash  String
+  sessionVersion Int
+  expiresAt      DateTime
+  lastSeenAt     DateTime  @default(now())
+  revokedAt      DateTime?
+  createdAt      DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model PasswordResetToken {
+  id        Int       @id @default(autoincrement())
+  userId    Int
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model ProjectMembership {
+  id        Int         @id @default(autoincrement())
+  projectId Int
+  userId    Int
+  role      ProjectRole @default(MEMBER)
+  isActive  Boolean     @default(true)
+  joinedAt  DateTime    @default(now())
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([userId])
+}
+
+model ProjectInvitation {
+  id           Int         @id @default(autoincrement())
+  projectId    Int
+  email        String
+  role         ProjectRole @default(MEMBER)
+  tokenHash    String      @unique
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  acceptedAt   DateTime?
+  createdById  Int
+  acceptedById Int?
+  createdAt    DateTime    @default(now())
+
+  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy  User    @relation("InvitationCreator", fields: [createdById], references: [id])
+  acceptedBy User?   @relation("InvitationAcceptor", fields: [acceptedById], references: [id])
+
+  @@index([projectId])
+  @@index([email])
+  @@index([expiresAt])
+}
+
 // Entidade central do TRACEFLOW.
 // TODO: Revisar os campos durante a implementacao de RF01, RF02, RF21 e RF22.
 model Project {
@@ -44,6 +143,8 @@ model Project {
   commits       Commit[]
   pullRequests  PullRequest[]
   issues        Issue[]
+  memberships   ProjectMembership[]
+  invitations   ProjectInvitation[]
 
   @@unique([githubRepositoryId])
   @@unique([githubRepositoryFullName])
@@ -67,29 +168,32 @@ model Requirement {
 
 // Unidade de trabalho e elo entre planejamento e implementacao.
 model Task {
-  id              Int       @id @default(autoincrement())
-  projectId       Int
-  requirementId   Int?
-  title           String
-  description     String?
-  priority        String    @default("MEDIA")
-  responsible     String?
-  status          String    @default("A_FAZER")
-  deadline        DateTime?
-  estimatedEffort Int?
-  actualEffort    Int?
-  pullRequestId   Int?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id                Int       @id @default(autoincrement())
+  projectId         Int
+  requirementId     Int?
+  title             String
+  description       String?
+  priority          String    @default("MEDIA")
+  responsible       String?
+  status            String    @default("A_FAZER")
+  deadline          DateTime?
+  estimatedEffort   Int?
+  actualEffort      Int?
+  pullRequestId     Int?
+  responsibleUserId Int?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  project     Project        @relation(fields: [projectId], references: [id])
-  requirement Requirement?   @relation(fields: [requirementId], references: [id])
-  pullRequest PullRequest?   @relation(fields: [pullRequestId], references: [id], onDelete: SetNull)
-  movements   TaskMovement[]
-  commitLinks TaskCommit[]
-  issueLinks  TaskIssue[]
+  project         Project        @relation(fields: [projectId], references: [id])
+  requirement     Requirement?   @relation(fields: [requirementId], references: [id])
+  pullRequest     PullRequest?   @relation(fields: [pullRequestId], references: [id], onDelete: SetNull)
+  movements       TaskMovement[]
+  commitLinks     TaskCommit[]
+  issueLinks      TaskIssue[]
+  responsibleUser User?          @relation(fields: [responsibleUserId], references: [id], onDelete: SetNull)
 
   @@index([pullRequestId])
+  @@index([responsibleUserId])
 }
 
 // Vinculo de rastreabilidade entre tarefas e commits importados do GitHub.
@@ -150,6 +254,7 @@ model TaskMovement {
   toStatus        String
   movedBy         String
   projectMemberId Int?
+  movedByUserId   Int?
   movedAt         DateTime @default(now())
   sprintId        Int?
   createdAt       DateTime @default(now())
@@ -157,10 +262,12 @@ model TaskMovement {
   project       Project        @relation(fields: [projectId], references: [id])
   task          Task           @relation(fields: [taskId], references: [id])
   projectMember ProjectMember? @relation(fields: [projectMemberId], references: [id])
+  movedByUser   User?          @relation(fields: [movedByUserId], references: [id], onDelete: SetNull)
 
   @@index([projectId])
   @@index([taskId])
   @@index([projectMemberId])
+  @@index([movedByUserId])
   @@index([movedAt])
 }
 

@@ -4,8 +4,35 @@ import axios from 'axios';
 export { normalizeApiError } from '../shared/services/http-error.js';
 
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3001/api',
+  withCredentials: true
 });
+
+let csrfToken;
+export function setCsrfToken(value) { csrfToken = value || undefined; }
+api.interceptors.request.use((config) => {
+  if (csrfToken && ['post', 'put', 'patch', 'delete'].includes(config.method?.toLowerCase())) {
+    config.headers['X-CSRF-Token'] = csrfToken;
+  }
+  return config;
+});
+api.interceptors.response.use(undefined, (error) => {
+  if (error?.response?.status === 401 && typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('traceflow:unauthorized'));
+  }
+  return Promise.reject(error);
+});
+
+export const authApi = {
+  register(data) { return api.post('/auth/register', data); },
+  login(data) { return api.post('/auth/login', data); },
+  me() { return api.get('/auth/me'); },
+  csrf() { return api.get('/auth/csrf'); },
+  logout() { return api.post('/auth/logout'); },
+  forgotPassword(email) { return api.post('/auth/forgot-password', { email }); },
+  resetPassword(token, password) { return api.post('/auth/reset-password', { token, password }); },
+  changePassword(currentPassword, password) { return api.post('/auth/change-password', { currentPassword, password }); }
+};
 
 export async function getProjectArtifacts(projectId, filters = {}) {
   const params = new URLSearchParams();

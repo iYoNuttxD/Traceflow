@@ -14,12 +14,15 @@
     "test:coverage": "vitest run --coverage",
     "architecture:check": "node scripts/check-architecture.js",
     "security:secrets": "node scripts/check-secrets.js",
+    "e6:backfill:dry-run": "node scripts/backfill-e6-memberships.js",
+    "e6:backfill": "node scripts/backfill-e6-memberships.js --apply",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev"
   },
   "dependencies": {
     "@octokit/rest": "^21.0.0",
     "@prisma/client": "^6.0.0",
+    "argon2": "^0.44.0",
     "cors": "^2.8.5",
     "dotenv": "^16.0.0",
     "express": "^4.18.0",

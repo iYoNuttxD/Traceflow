@@ -9,6 +9,7 @@ const editableFields = [
   'description',
   'priority',
   'responsible',
+  'responsibleUserId',
   'deadline',
   'estimatedEffort',
   'actualEffort'

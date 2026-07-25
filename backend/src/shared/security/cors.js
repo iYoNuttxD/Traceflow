@@ -51,7 +51,7 @@ export function createCorsMiddleware({
     },
     methods: [...methods],
     allowedHeaders: corsAllowedHeaders,
-    credentials: false,
+    credentials: true,
     maxAge: 600,
     optionsSuccessStatus: 204
   });

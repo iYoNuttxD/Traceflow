@@ -79,7 +79,7 @@ function parseCorsMethods(value) {
 }
 
 function parseCorsHeaders(value) {
-  const headers = parseCsv(value, ['Content-Type', 'X-Request-Id']);
+  const headers = parseCsv(value, ['Content-Type', 'X-Request-Id', 'X-CSRF-Token']);
   if (headers.length === 0 || headers.some((header) => !/^[A-Za-z0-9-]+$/.test(header))) {
     throw new ConfigurationError('Configuração inválida: CORS_ALLOWED_HEADERS contém header inválido.');
   }
@@ -109,6 +109,14 @@ function parseTrustProxy(value) {
   }
   if (['loopback', 'linklocal', 'uniquelocal'].includes(value)) return value;
   throw new ConfigurationError('Configuração inválida: TRUST_PROXY deve ser false, um número de saltos ou uma faixa confiável.');
+}
+
+function parseSameSite(value) {
+  const normalized = (value || 'lax').toLowerCase();
+  if (!['lax', 'strict', 'none'].includes(normalized)) {
+    throw new ConfigurationError('Configuração inválida: SESSION_COOKIE_SAME_SITE deve ser lax, strict ou none.');
+  }
+  return normalized;
 }
 
 export function createEnvironment(source = {}) {
@@ -173,6 +181,17 @@ export function createEnvironment(source = {}) {
       min: 0,
       max: 5
     }),
+    sessionTtlMs: parseInteger(source.SESSION_TTL_MS, 'SESSION_TTL_MS', {
+      defaultValue: 8 * 60 * 60 * 1000, min: 5 * 60 * 1000, max: 30 * 24 * 60 * 60 * 1000
+    }),
+    passwordResetTtlMs: parseInteger(source.PASSWORD_RESET_TTL_MS, 'PASSWORD_RESET_TTL_MS', {
+      defaultValue: 30 * 60 * 1000, min: 5 * 60 * 1000, max: 24 * 60 * 60 * 1000
+    }),
+    invitationTtlMs: parseInteger(source.INVITATION_TTL_MS, 'INVITATION_TTL_MS', {
+      defaultValue: 7 * 24 * 60 * 60 * 1000, min: 60 * 60 * 1000, max: 30 * 24 * 60 * 60 * 1000
+    }),
+    sessionCookieName: source.SESSION_COOKIE_NAME || 'traceflow_session',
+    sessionCookieSameSite: parseSameSite(source.SESSION_COOKIE_SAME_SITE),
     trustProxy: parseTrustProxy(source.TRUST_PROXY),
     isDevelopment: nodeEnv === 'development',
     isTest: nodeEnv === 'test',

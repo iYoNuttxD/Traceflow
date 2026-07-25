@@ -1,8 +1,16 @@
 # Catálogo atual de contratos HTTP do TRACEFLOW
 
+## Atualização E6 — identidade e privacidade dos endpoints
+
+Health permanece público. Também são públicos `POST /api/auth/register`, `login`, `forgot-password` e `reset-password`. As demais rotas `/api` exigem cookie de sessão; mutations exigem `X-CSRF-Token`. `GET /api/auth/me` restaura a identidade, `GET /api/auth/csrf` rotaciona CSRF, `POST /api/auth/logout` revoga a sessão e `POST /api/auth/change-password` revoga todas as sessões.
+
+Convites canônicos: `GET|POST /api/projects/:projectId/invitations`, `DELETE /api/projects/:projectId/invitations/:invitationId` e `POST /api/projects/invitations/accept`. O join por `accessCode` permanece autenticado e deprecado. Papéis: OWNER, MANAGER, MEMBER e VIEWER. Ausência de membership pode retornar 404; papel insuficiente, 403. Placeholders retornam 401 sem sessão e preservam 501 autenticados.
+
+Novos erros seguem `{message,code,requestId}`: `AUTHENTICATION_REQUIRED`, `INVALID_CREDENTIALS`, `ACCOUNT_DISABLED`, `CSRF_INVALID`, `FORBIDDEN` e `INVITATION_INVALID`. Respostas de recuperação são uniformes. O cookie nunca é exposto a JavaScript e CORS usa credenciais somente para a allowlist.
+
 ## Escopo e convenções
 
-Este catálogo descreve o código executável na conclusão da E4. Ele não é uma promessa de versão futura nem uma especificação OpenAPI definitiva. A API base é `/api`, não possui autenticação ou autorização e mantém os contratos de sucesso caracterizados nas etapas E0/E1.
+As seções abaixo preservam os contratos funcionais documentados na conclusão da E4, agora sujeitos à autenticação/autorização descrita na atualização E6. Este catálogo não é uma especificação OpenAPI definitiva.
 
 Todas as respostas incluem o header `X-Request-Id`. Erros de domínio preservam `{ "message": "..." }`. Erros de validação usam HTTP `400`:
 
