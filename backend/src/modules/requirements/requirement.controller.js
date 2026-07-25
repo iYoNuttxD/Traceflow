@@ -1,5 +1,6 @@
 import { asyncHandler } from '../../shared/http/index.js';
 import { requirementService } from './requirement.service.js';
+import { auditService } from '../audit/audit.service.js';
 
 const requirementFallback = 'Erro interno ao processar requisito.';
 
@@ -9,6 +10,7 @@ export const requirementController = {
       req.params.projectId,
       req.body
     );
+    await auditService.recordOperational({ actorUserId: req.auth.user.id, projectId: requirement.projectId, requestId: req.requestId, action: 'REQUIREMENT_CREATED', resourceType: 'Requirement', resourceId: requirement.id });
     return res.status(201).json({ message: 'Requisito cadastrado com sucesso.', requirement });
   }, { fallbackMessage: requirementFallback }),
 
@@ -27,11 +29,14 @@ export const requirementController = {
 
   update: asyncHandler(async (req, res) => {
     const requirement = await requirementService.updateRequirement(req.params.id, req.body);
+    await auditService.recordOperational({ actorUserId: req.auth.user.id, projectId: requirement.projectId, requestId: req.requestId, action: 'REQUIREMENT_UPDATED', resourceType: 'Requirement', resourceId: requirement.id });
     return res.json({ message: 'Requisito atualizado com sucesso.', requirement });
   }, { fallbackMessage: requirementFallback }),
 
   delete: asyncHandler(async (req, res) => {
+    const requirement = await requirementService.getRequirementById(req.params.id);
     await requirementService.deleteRequirement(req.params.id);
+    await auditService.recordOperational({ actorUserId: req.auth.user.id, projectId: requirement.projectId, requestId: req.requestId, action: 'REQUIREMENT_DELETED', resourceType: 'Requirement', resourceId: requirement.id });
     return res.json({ message: 'Requisito excluído com sucesso.' });
   }, { fallbackMessage: 'Erro interno ao excluir requisito.' }),
 

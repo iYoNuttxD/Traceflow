@@ -105,6 +105,8 @@ No backend, `project.service.js` funciona temporariamente como fachada e delega 
 - `frontend/src/shared` → pages;
 - ciclo entre arquivos do mesmo módulo;
 - import do `index.js` do próprio módulo por um internal desse módulo.
+- gravação de `AuditEvent` fora do adapter `audit.repository` ou da retenção controlada;
+- import de scripts operacionais pelo runtime.
 
 ## Prevenção de ciclos
 
@@ -119,6 +121,7 @@ No backend, `project.service.js` funciona temporariamente como fachada e delega 
 - `githubSync.service.js → commit/pullRequest/issue repositories`: orquestração externa permanece no service e persistência nos repositories.
 - `traceability.service.js → traceability.mapper.js → traceability.calculator.js`: coordenação, DTO e cálculo são responsabilidades distintas.
 - `project.service.js → services/project-*.service.js`: fachada compatível sem segunda implementação.
+- `privacy.service.js → privacy.repository.js → audit.repository.js`: direitos do titular coordenam adapters; somente o adapter central persiste auditoria.
 
 ## Verificação
 

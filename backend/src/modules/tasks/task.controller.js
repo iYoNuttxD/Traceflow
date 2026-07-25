@@ -1,5 +1,6 @@
 import { asyncHandler } from '../../shared/http/index.js';
 import { taskService } from './task.service.js';
+import { auditService } from '../audit/audit.service.js';
 
 const taskFallback = 'Erro interno ao processar tarefa.';
 const kanbanFallback = 'Erro interno ao processar Kanban.';
@@ -7,6 +8,7 @@ const kanbanFallback = 'Erro interno ao processar Kanban.';
 export const taskController = {
   create: asyncHandler(async (req, res) => {
     const task = await taskService.createTask(req.params.projectId, req.body);
+    await auditService.recordOperational({ actorUserId: req.auth.user.id, projectId: task.projectId, requestId: req.requestId, action: 'TASK_CREATED', resourceType: 'Task', resourceId: task.id });
     return res.status(201).json({ message: 'Tarefa cadastrada com sucesso.', task });
   }, { fallbackMessage: taskFallback }),
 
@@ -22,6 +24,7 @@ export const taskController = {
 
   update: asyncHandler(async (req, res) => {
     const task = await taskService.updateTask(req.params.id, req.body);
+    await auditService.recordOperational({ actorUserId: req.auth.user.id, projectId: task.projectId, requestId: req.requestId, action: 'TASK_UPDATED', resourceType: 'Task', resourceId: task.id });
     return res.json({ message: 'Tarefa atualizada com sucesso.', task });
   }, { fallbackMessage: taskFallback }),
 
@@ -51,7 +54,9 @@ export const taskController = {
   }, { fallbackMessage: 'Erro interno ao remover requisito da tarefa.' }),
 
   delete: asyncHandler(async (req, res) => {
+    const task = await taskService.getTaskById(req.params.id);
     await taskService.deleteTask(req.params.id);
+    await auditService.recordOperational({ actorUserId: req.auth.user.id, projectId: task.projectId, requestId: req.requestId, action: 'TASK_DELETED', resourceType: 'Task', resourceId: task.id });
     return res.json({ message: 'Tarefa excluída com sucesso.' });
   }, { fallbackMessage: 'Erro interno ao excluir tarefa.' }),
 
@@ -91,6 +96,7 @@ export const taskController = {
 
   moveTask: asyncHandler(async (req, res) => {
     const result = await taskService.moveTask(req.params.id, req.body, req.auth.user);
+    await auditService.recordOperational({ actorUserId: req.auth.user.id, projectId: result.task.projectId, requestId: req.requestId, action: 'TASK_MOVED', resourceType: 'Task', resourceId: result.task.id });
     return res.json({
       message: 'Tarefa movida com sucesso.',
       task: result.task,

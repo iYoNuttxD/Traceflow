@@ -44,6 +44,9 @@ export function deployTestMigrations(testDatabaseUrl) {
 
 export async function cleanTestDatabase(prisma) {
   await prisma.$transaction([
+    prisma.auditEvent.deleteMany(),
+    prisma.personalDataExport.deleteMany(),
+    prisma.privacyRequest.deleteMany(),
     prisma.taskCommit.deleteMany(),
     prisma.taskIssue.deleteMany(),
     prisma.taskMovement.deleteMany(),

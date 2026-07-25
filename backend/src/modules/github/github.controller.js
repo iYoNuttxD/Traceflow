@@ -4,6 +4,7 @@ import { issueService } from '../issues/issue.service.js';
 import { pullRequestService } from '../pullRequests/pullRequest.service.js';
 import { githubService } from './github.service.js';
 import { githubSyncService } from './githubSync.service.js';
+import { auditService } from '../audit/audit.service.js';
 
 export const githubController = {
   checkAuthentication: asyncHandler(async (req, res) => {
@@ -19,10 +20,15 @@ export const githubController = {
   }, { fallbackMessage: 'Não foi possível listar os repositórios do GitHub.' }),
 
   syncProjectGithubArtifacts: asyncHandler(async (req, res) => {
-    const { summary, project } = await githubSyncService.syncGithubArtifacts(
-      req.params.projectId
-    );
-    return res.json({ message: 'Sincronização com GitHub concluída.', summary, project });
+    await auditService.recordOperational({ actorUserId: req.auth.user.id, projectId: req.params.projectId, requestId: req.requestId, action: 'GITHUB_SYNC_REQUESTED', resourceType: 'Project', resourceId: req.params.projectId });
+    try {
+      const { summary, project } = await githubSyncService.syncGithubArtifacts(req.params.projectId);
+      await auditService.recordOperational({ actorUserId: req.auth.user.id, projectId: req.params.projectId, requestId: req.requestId, action: 'GITHUB_SYNC_SUCCEEDED', resourceType: 'Project', resourceId: req.params.projectId });
+      return res.json({ message: 'Sincronização com GitHub concluída.', summary, project });
+    } catch (error) {
+      await auditService.recordOperational({ actorUserId: req.auth.user.id, projectId: req.params.projectId, requestId: req.requestId, action: 'GITHUB_SYNC_FAILED', resourceType: 'Project', resourceId: req.params.projectId, result: 'FAILURE', reasonCode: error.code || 'GITHUB_SYNC_FAILED' });
+      throw error;
+    }
   }, { fallbackMessage: 'Erro ao sincronizar artefatos do GitHub.' }),
 
   listProjectCommits: asyncHandler(async (req, res) => {

@@ -146,7 +146,8 @@ describe('rate limiting', () => {
 
   it.each([
     ['/api/projects/join', 'join'],
-    ['/api/projects/not-an-id/github/sync', 'sync']
+    ['/api/projects/not-an-id/github/sync', 'sync'],
+    ['/api/account/personal-data/export', 'personal-data-export']
   ])('aplica limite sensível em %s', async (path) => {
     const app = createApp({
       logger: silentLogger,

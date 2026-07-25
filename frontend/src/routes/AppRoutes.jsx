@@ -16,6 +16,7 @@ import { ForgotPasswordPage } from '../pages/ForgotPasswordPage.jsx';
 import { ResetPasswordPage } from '../pages/ResetPasswordPage.jsx';
 import { AcceptInvitationPage } from '../pages/AcceptInvitationPage.jsx';
 import { ProtectedRoute } from '../features/auth/ProtectedRoute.jsx';
+import { PrivacyPage, ProjectAuditPage } from '../features/privacy/index.js';
 
 export function AppRoutes() {
   return (
@@ -37,6 +38,8 @@ export function AppRoutes() {
         <Route path="/projects/:projectId/repository" element={<RepositoryInfoPage />} />
         <Route path="/projects/:id/github-artifacts" element={<GithubArtifactsPage />} />
         <Route path="/projects/:projectId/traceability" element={<TraceabilityPage />} />
+        <Route path="/account/privacy" element={<PrivacyPage />} />
+        <Route path="/projects/:projectId/audit" element={<ProjectAuditPage />} />
       </Route>
     </Routes>
   );

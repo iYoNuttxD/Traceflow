@@ -14,6 +14,37 @@ enum ProjectRole {
   VIEWER
 }
 
+enum AuditActorType {
+  USER
+  SYSTEM
+}
+
+enum AuditResult {
+  SUCCESS
+  FAILURE
+}
+
+enum PrivacyRequestType {
+  DATA_EXPORT
+  ACCOUNT_DEACTIVATION
+  ACCOUNT_DELETION
+  DATA_CORRECTION
+}
+
+enum PrivacyRequestStatus {
+  PENDING
+  CANCELLED
+  COMPLETED
+  REJECTED
+}
+
+enum PersonalDataExportStatus {
+  PENDING
+  COMPLETED
+  EXPIRED
+  FAILED
+}
+
 model User {
   id              Int       @id @default(autoincrement())
   name            String
@@ -34,6 +65,9 @@ model User {
   acceptedInvitations ProjectInvitation[]  @relation("InvitationAcceptor")
   responsibleTasks    Task[]
   taskMovements       TaskMovement[]
+  auditEvents         AuditEvent[]
+  privacyRequests     PrivacyRequest[]
+  personalDataExports PersonalDataExport[]
 }
 
 model Session {
@@ -145,9 +179,73 @@ model Project {
   issues        Issue[]
   memberships   ProjectMembership[]
   invitations   ProjectInvitation[]
+  auditEvents   AuditEvent[]
 
   @@unique([githubRepositoryId])
   @@unique([githubRepositoryFullName])
+}
+
+model AuditEvent {
+  id             Int            @id @default(autoincrement())
+  occurredAt     DateTime       @default(now())
+  actorUserId    Int?
+  actorType      AuditActorType @default(USER)
+  projectId      Int?
+  action         String
+  resourceType   String
+  resourceId     String?
+  result         AuditResult    @default(SUCCESS)
+  reasonCode     String?
+  requestId      String?
+  metadataJson   Json?
+  retentionUntil DateTime
+  createdAt      DateTime       @default(now())
+
+  actorUser User?    @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([actorUserId, occurredAt])
+  @@index([projectId, occurredAt])
+  @@index([action, occurredAt])
+  @@index([retentionUntil])
+}
+
+model PrivacyRequest {
+  id           Int                  @id @default(autoincrement())
+  userId       Int
+  type         PrivacyRequestType
+  status       PrivacyRequestStatus @default(PENDING)
+  requestedAt  DateTime             @default(now())
+  scheduledFor DateTime?
+  completedAt  DateTime?
+  cancelledAt  DateTime?
+  reasonCode   String?
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type, status])
+  @@index([scheduledFor])
+  @@index([updatedAt])
+}
+
+model PersonalDataExport {
+  id          Int                      @id @default(autoincrement())
+  userId      Int
+  status      PersonalDataExportStatus @default(PENDING)
+  format      String                   @default("JSON")
+  expiresAt   DateTime
+  completedAt DateTime?
+  failedAt    DateTime?
+  errorCode   String?
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([status, expiresAt])
 }
 
 // Requisito funcional ou necessidade cadastrada no projeto.

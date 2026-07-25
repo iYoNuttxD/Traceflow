@@ -6,6 +6,8 @@ import { requirementRoutes } from '../modules/requirements/index.js';
 import { taskRoutes } from '../modules/tasks/index.js';
 import { githubRoutes } from '../modules/github/index.js';
 import { traceabilityRoutes } from '../modules/traceability/index.js';
+import { auditRoutes } from '../modules/audit/index.js';
+import { privacyRoutes } from '../modules/privacy/index.js';
 
 const routes = Router();
 
@@ -14,5 +16,7 @@ routes.use('/', requirementRoutes);
 routes.use('/', taskRoutes);
 routes.use('/', githubRoutes);
 routes.use('/', traceabilityRoutes);
+routes.use('/', auditRoutes);
+routes.use('/account', privacyRoutes);
 
 export default routes;

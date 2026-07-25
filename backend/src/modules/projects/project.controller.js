@@ -1,5 +1,6 @@
 import { asyncHandler } from '../../shared/http/index.js';
 import { projectService } from './project.service.js';
+import { auditService } from '../audit/audit.service.js';
 
 const projectFallback = 'Erro interno ao processar projeto.';
 const membersFallback = 'Erro interno ao processar membros do projeto.';
@@ -7,6 +8,7 @@ const membersFallback = 'Erro interno ao processar membros do projeto.';
 export const projectController = {
   create: asyncHandler(async (req, res) => {
     const project = await projectService.createProject(req.body, req.auth.user.id);
+    await auditService.recordOperational({ actorUserId: req.auth.user.id, projectId: project.id, requestId: req.requestId, action: 'PROJECT_CREATED', resourceType: 'Project', resourceId: project.id });
     return res.status(201).json({ message: 'Projeto cadastrado com sucesso.', project });
   }, { fallbackMessage: projectFallback }),
 
@@ -44,6 +46,7 @@ export const projectController = {
 
   update: asyncHandler(async (req, res) => {
     const project = await projectService.updateProject(req.params.id, req.body);
+    await auditService.recordOperational({ actorUserId: req.auth.user.id, projectId: project.id, requestId: req.requestId, action: 'PROJECT_UPDATED', resourceType: 'Project', resourceId: project.id });
     return res.json({ message: 'Projeto atualizado com sucesso.', project });
   }, { fallbackMessage: projectFallback }),
 

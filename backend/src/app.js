@@ -53,6 +53,7 @@ export function createApp({ logger = defaultLogger, readinessCheck, securityConf
   app.use('/api/github/auth/check', rateLimiters.sensitive);
   app.use('/api/github/repositories', rateLimiters.sensitive);
   app.use('/api/projects/from-github', rateLimiters.sensitive);
+  app.use('/api/account/personal-data/export', rateLimiters.sensitive);
   app.use(
     '/api/projects/:projectId/github/sync',
     createSensitiveAttemptLogger({ logger, event: 'github_sync' }),

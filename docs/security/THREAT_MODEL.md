@@ -87,4 +87,4 @@ O backend não faz fetch genérico de URLs informadas pelo cliente. A integraç�
 - `accessCode` legado com `Math.random()` permanece deprecado e com rate limit; convites canônicos usam token aleatório, hash, expiração, revogação e consumo único.
 - TLS termina no reverse proxy; Express não implementa TLS. HSTS é habilitado apenas quando `NODE_ENV=production`.
 - O frontend é servido separadamente; CSP/HSTS do documento HTML precisam ser aplicados no host da SPA.
-- Retenção, minimização, direitos do titular e auditoria de negócio ficam para E7.
+- E7 adicionou minimização de exportação, auditoria persistente crítica/operacional, retenção manual e anonimização seletiva. Riscos residuais: jobs/logs/backups do deploy, fallback operacional do logger, confirmação de e-mail e revisão jurídica.

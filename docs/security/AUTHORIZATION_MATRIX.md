@@ -32,10 +32,13 @@ Baseline E6 em 24/07/2026. A matriz descreve a política efetiva; não substitui
 | Commits, PRs, issues e artifacts: `GET` | 401 | L | L | L | L | mesmo projeto |
 | Traceability implementada: `GET` | 401 | L | L | L | L | mesmo projeto |
 | Sete placeholders `501` | 401 | 501 | 501 | 501 | 501 | autenticação exigida; baseline inalterado |
+| `/api/account/personal-data`, perfil, sessões, exportação, desativação e exclusão | 401 | E | E | E | E | somente o próprio titular; mutations exigem CSRF/senha quando indicado |
+| `GET /api/account/audit-events` | 401 | L | L | L | L | somente eventos cujo ator é o titular |
+| `GET /api/projects/:projectId/audit-events` | 401 | 403 | 403 | 403 | A | paginado, metadata minimizada, sem enumeração entre projetos |
 
 ## Decisões
 
 - OWNER administra membros, convites e configuração; MANAGER coordena sync e também escreve domínio; MEMBER escreve tarefas/requisitos; VIEWER é leitura.
 - O middleware resolve o projeto por rota direta ou pelo recurso filho antes de avaliar a membership.
 - `ProjectMember` e `accessCode` permanecem apenas para compatibilidade; o contrato canônico usa `ProjectMembership`.
-- A E7 deverá adicionar trilha de auditoria e política formal de retenção, sem alterar esta matriz silenciosamente.
+- A E7 adiciona trilha de auditoria e direitos do titular; não concede administração de dados pessoais a um OWNER de projeto.

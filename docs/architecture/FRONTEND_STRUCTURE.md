@@ -43,6 +43,10 @@ src/features/projects/
 
 `ProjectsPage.jsx` permanece como page e consome a API pública da feature. `ProjectForm.jsx` antigo é um reexport temporário para consumidores e testes existentes. `Card` foi movido para `shared/components`, também com reexport compatível.
 
+## Feature Privacy
+
+`src/features/privacy` contém API, página de conta e auditoria de projeto. Ela consome apenas o client HTTP e serviços compartilhados, nunca internals do backend. As rotas `/account/privacy` e `/projects/:projectId/audit` são compostas em `AppRoutes`.
+
 ## Imports e ciclos
 
 - Pages importam somente o `index.js` público de uma feature quando possível.

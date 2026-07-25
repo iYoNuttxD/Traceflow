@@ -88,5 +88,9 @@ export const authService = {
     if (!user?.passwordHash || !(await argon2.verify(user.passwordHash, currentPassword))) throw authError('Senha atual inválida.');
     await authRepository.updateUser(userId, { passwordHash: await this.hashPassword(password), sessionVersion: { increment: 1 } });
     await authRepository.revokeUserSessions(userId);
+  },
+  async verifyPassword(userId, password) {
+    const user = await authRepository.findUserById(userId);
+    return Boolean(user?.passwordHash && await argon2.verify(user.passwordHash, password));
   }
 };

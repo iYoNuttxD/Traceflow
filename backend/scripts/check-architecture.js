@@ -78,6 +78,12 @@ function inspectBackendImports(files, backendRoot, violations, graph) {
     const isSchema = /\.(?:schema|validation)\.js$/.test(file);
     const imports = extractImportSpecifiers(source);
 
+    if (!relativeFile.join('/').endsWith('modules/audit/audit.repository.js') &&
+        !relativeFile.join('/').endsWith('shared/maintenance/privacy-retention.js') &&
+        /\.auditEvent\.(?:create|update|delete)/.test(source)) {
+      addViolation(violations, file, 'audit-write-via-adapter', 'AuditEvent', 'AuditEvent deve ser gravado somente pelo adapter de auditoria ou retenção controlada.');
+    }
+
     graph.set(file, []);
 
     for (const specifier of imports) {
@@ -87,6 +93,10 @@ function inspectBackendImports(files, backendRoot, violations, graph) {
         specifier === '@prisma/client' ||
         specifier.includes('/database/') ||
         specifier.includes('prismaClient');
+
+      if (specifier.includes('/scripts/') || specifier.startsWith('../scripts')) {
+        addViolation(violations, file, 'runtime-no-operational-script', specifier, 'Runtime não pode importar script operacional de retenção/manutenção.');
+      }
 
       if (target && files.includes(target)) {
         graph.get(file).push(target);

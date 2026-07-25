@@ -137,6 +137,25 @@ Tipos de artifacts: `commit`, `pull_request`, `issue`. A E4 não adiciona pagina
 
 Os placeholders alcançam o handler `501` mesmo com texto no parâmetro. Isso é uma exceção deliberada à validação de IDs e mantém a caracterização da E1.
 
+## Conta, privacidade e auditoria (E7)
+
+| Método | Caminho | Entrada | Sucesso |
+|---|---|---|---|
+| GET | `/account/personal-data` | sessão | `200`, `{data}` minimizado |
+| PATCH | `/account/profile` | `name`, `email`, `currentPassword` | `200`, `{message,user}` |
+| GET | `/account/sessions` | sessão | `200`, sessões sem hashes |
+| DELETE | `/account/sessions/:sessionId` | ID próprio | `204` |
+| DELETE | `/account/sessions` | sessão | `204`, revoga todas |
+| POST | `/account/personal-data/export` | CSRF | `202`, metadata da exportação |
+| GET | `/account/personal-data/export/:exportId` | ID próprio | `200`, status; `404` cruzado |
+| GET | `/account/personal-data/export/:exportId/download` | ID próprio não expirado | `200`, JSON; `410 EXPORT_EXPIRED` |
+| POST | `/account/deactivate` | `password` | `200`; `409 LAST_PROJECT_OWNER` |
+| GET/POST/DELETE | `/account/deletion-request` | POST: `password` | status `200`/`202`/`200` |
+| GET | `/account/audit-events` | `page`, `limit`, `action`, `result`, datas | `200`, página própria |
+| GET | `/projects/:projectId/audit-events` | mesmos filtros | `200` OWNER; `403` demais papéis |
+
+Exportação não contém hashes, cookies, segredos nem dados pessoais de outros membros. Todos os caminhos possuem prefixo `/api`.
+
 ## Limites e erros
 
 - Strings persistidas em campos Prisma `String` sem `@db.Text`: até 191 caracteres.
