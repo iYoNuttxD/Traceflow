@@ -6,7 +6,5 @@ export const authorizationRepository = {
     return prisma.projectMembership.findFirst({ where: { projectId, userId, isActive: true } });
   },
   projectForRequirement(id) { return prisma.requirement.findUnique({ where: { id }, select: { projectId: true } }); },
-  projectForTask(id) { return prisma.task.findUnique({ where: { id }, select: { projectId: true } }); },
-  projectForArtifact(id) { return prisma.githubArtifact.findUnique({ where: { id }, select: { projectId: true } }); },
-  projectForTraceLink(id) { return prisma.traceLink.findUnique({ where: { id }, select: { projectId: true } }); }
+  projectForTask(id) { return prisma.task.findUnique({ where: { id }, select: { projectId: true } }); }
 };

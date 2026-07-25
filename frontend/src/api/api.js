@@ -133,7 +133,7 @@ export async function deleteRequirement(requirementId) {
   return response.data;
 }
 
-export async function linkTaskPullRequest(taskId, pullRequestId) {
+export async function linkTaskToPullRequest(taskId, pullRequestId) {
   const response = await api.patch(`/tasks/${taskId}/pull-request`, {
     pullRequestId
   });
@@ -141,7 +141,7 @@ export async function linkTaskPullRequest(taskId, pullRequestId) {
   return response.data;
 }
 
-export async function unlinkTaskPullRequest(taskId) {
+export async function unlinkTaskFromPullRequest(taskId) {
   const response = await api.delete(`/tasks/${taskId}/pull-request`);
 
   return response.data;

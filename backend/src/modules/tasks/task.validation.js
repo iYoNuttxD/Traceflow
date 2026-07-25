@@ -70,7 +70,7 @@ export const taskStatusBodySchema = strictObject({ status: taskStatus });
 export const taskRequirementBodySchema = strictObject({
   requirementId: positiveInteger('ID do requisito inválido.')
 });
-export const taskPullRequestBodySchema = strictObject({
+export const pullRequestLinkBodySchema = strictObject({
   pullRequestId: nullableId('ID do pull request inválido.')
 });
 export const taskCommitBodySchema = strictObject({

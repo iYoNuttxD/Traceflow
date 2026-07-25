@@ -11,10 +11,6 @@ export const authorizationService = {
     if (requirementId) return (await authorizationRepository.projectForRequirement(requirementId))?.projectId ?? null;
     const taskId = matchId(path, /^\/tasks\/(\d+)(?:\/|$)/);
     if (taskId) return (await authorizationRepository.projectForTask(taskId))?.projectId ?? null;
-    const artifactId = matchId(path, /^\/github-artifacts\/(\d+)(?:\/|$)/);
-    if (artifactId) return (await authorizationRepository.projectForArtifact(artifactId))?.projectId ?? null;
-    const traceLinkId = matchId(path, /^\/trace-links\/(\d+)(?:\/|$)/);
-    if (traceLinkId) return (await authorizationRepository.projectForTraceLink(traceLinkId))?.projectId ?? null;
     return null;
   },
   requiredRole(req) {

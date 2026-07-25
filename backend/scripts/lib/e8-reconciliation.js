@@ -1,44 +1,24 @@
 import { createHash } from 'node:crypto';
 import { runMembershipBackfill } from './membership-backfill.js';
+import {
+  auditTaskPullRequests,
+  legacyTableExists,
+  loadLegacySnapshot,
+  normalizeArtifactType,
+  reconcileArtifactRecords,
+  reconcileTraceLinkRecords,
+  taskPullRequestReconciliationPlan
+} from './e8-legacy-data.js';
 
 const normalized = (value) => String(value ?? '').trim().toLowerCase();
 const validEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized(value));
-const normalizedEntity = (value) => normalized(value).replace(/[\s-]+/g, '_').replace(/^github_/, '').toUpperCase();
+
+export { auditTaskPullRequests, normalizeArtifactType, reconcileArtifactRecords, reconcileTraceLinkRecords, taskPullRequestReconciliationPlan };
 
 export function checksumIds(ids) {
   return createHash('sha256')
     .update([...new Set(ids.map(Number).filter(Number.isInteger))].sort((a, b) => a - b).join(','))
     .digest('hex');
-}
-
-export function normalizeArtifactType(type) {
-  const value = normalized(type).replace(/[\s-]+/g, '_');
-  if (['commit', 'commits'].includes(value)) return 'COMMIT';
-  if (['pull_request', 'pullrequest', 'pr'].includes(value)) return 'PULL_REQUEST';
-  if (['issue', 'issues'].includes(value)) return 'ISSUE';
-  return 'UNKNOWN';
-}
-
-export function reconcileArtifactRecords({ artifacts = [], commits = [], pullRequests = [], issues = [] }) {
-  const commitKeys = new Set(commits.flatMap((item) => [item.hash, item.githubId].filter(Boolean).map(normalized)));
-  const pullRequestKeys = new Set(pullRequests.flatMap((item) => [item.githubId, item.number].filter((value) => value !== null && value !== undefined).map(normalized)));
-  const issueKeys = new Set(issues.flatMap((item) => [item.githubId, item.number].filter((value) => value !== null && value !== undefined).map(normalized)));
-  const seen = new Set();
-  const report = { examined: artifacts.length, matchedCommit: 0, matchedPullRequest: 0, matchedIssue: 0, unmatched: 0, duplicates: 0, unknownType: 0 };
-  for (const artifact of artifacts) {
-    const type = normalizeArtifactType(artifact.type);
-    const candidates = [artifact.externalId, artifact.sha].filter(Boolean).map(normalized);
-    const key = `${artifact.projectId}:${type}:${candidates[0] || artifact.id}`;
-    if (seen.has(key)) report.duplicates += 1;
-    seen.add(key);
-    const pool = type === 'COMMIT' ? commitKeys : type === 'PULL_REQUEST' ? pullRequestKeys : type === 'ISSUE' ? issueKeys : null;
-    if (!pool) { report.unknownType += 1; report.unmatched += 1; continue; }
-    if (!candidates.some((candidate) => pool.has(candidate))) { report.unmatched += 1; continue; }
-    if (type === 'COMMIT') report.matchedCommit += 1;
-    if (type === 'PULL_REQUEST') report.matchedPullRequest += 1;
-    if (type === 'ISSUE') report.matchedIssue += 1;
-  }
-  return report;
 }
 
 export function mapLegacyRole(role) {
@@ -75,46 +55,75 @@ export function canonicalProjectPatch(project) {
   return patch;
 }
 
-function technicalModelCounts(client) {
-  const names = ['user', 'session', 'passwordResetToken', 'project', 'projectMembership', 'projectInvitation', 'projectMember', 'requirement', 'task', 'taskMovement', 'taskCommit', 'taskIssue', 'taskPullRequest', 'commit', 'pullRequest', 'issue', 'githubArtifact', 'traceLink', 'auditEvent', 'privacyRequest', 'personalDataExport'];
-  return Promise.all(names.map(async (name) => [name, await client[name].count()])).then(Object.fromEntries);
-}
-
-export async function auditE8Schema({ client }) {
-  const [counts, artifacts, commits, pullRequests, issues, legacyPrTasks, canonicalPrLinks, traceLinks] = await Promise.all([
-    technicalModelCounts(client),
-    client.githubArtifact.findMany({ select: { id: true, projectId: true, type: true, externalId: true, sha: true } }),
+async function canonicalSnapshot(client) {
+  const [projects, tasks, requirements, commits, pullRequests, issues, taskCommits, taskIssues] = await Promise.all([
+    client.project.findMany({ select: { id: true } }),
+    client.task.findMany({ select: { id: true, projectId: true, requirementId: true, pullRequestId: true } }),
+    client.requirement.findMany({ select: { id: true, projectId: true } }),
     client.commit.findMany({ select: { id: true, projectId: true, hash: true } }),
     client.pullRequest.findMany({ select: { id: true, projectId: true, githubId: true, number: true } }),
     client.issue.findMany({ select: { id: true, projectId: true, githubId: true, number: true } }),
-    client.task.findMany({ where: { pullRequestId: { not: null } }, select: { id: true, pullRequestId: true } }),
-    client.taskPullRequest.findMany({ select: { taskId: true, pullRequestId: true } }),
-    client.traceLink.findMany({ select: { id: true, projectId: true, sourceType: true, sourceId: true, targetType: true, targetId: true } })
+    client.taskCommit.findMany({ select: { taskId: true, commitId: true } }),
+    client.taskIssue.findMany({ select: { taskId: true, issueId: true } })
   ]);
-  const canonicalSet = new Set(canonicalPrLinks.map((link) => `${link.taskId}:${link.pullRequestId}`));
-  const missingCanonicalPrLinks = legacyPrTasks.filter((task) => !canonicalSet.has(`${task.id}:${task.pullRequestId}`));
+  return { projects, tasks, requirements, commits, pullRequests, issues, taskCommits, taskIssues };
+}
+
+async function technicalModelCounts(client, legacy) {
+  const names = ['user', 'session', 'passwordResetToken', 'project', 'projectMembership', 'projectInvitation', 'projectMember', 'requirement', 'task', 'taskMovement', 'taskCommit', 'taskIssue', 'commit', 'pullRequest', 'issue', 'auditEvent', 'privacyRequest', 'personalDataExport'];
+  const counts = Object.fromEntries(await Promise.all(names.map(async (name) => [name, await client[name].count()])));
   return {
-    counts,
+    ...counts,
+    taskPullRequest: legacy.taskPullRequests.length,
+    githubArtifact: legacy.githubArtifacts.length,
+    traceLink: legacy.traceLinks.length
+  };
+}
+
+export async function auditE8Schema({ client }) {
+  const [legacy, canonical, tables] = await Promise.all([
+    loadLegacySnapshot(client),
+    canonicalSnapshot(client),
+    Promise.all(['TaskPullRequest', 'GithubArtifact', 'TraceLink'].map((name) => legacyTableExists(client, name)))
+  ]);
+  const taskPullRequests = auditTaskPullRequests({
+    links: legacy.taskPullRequests,
+    tasks: canonical.tasks,
+    pullRequests: canonical.pullRequests
+  });
+  taskPullRequests.tablePresent = tables[0];
+  const artifacts = reconcileArtifactRecords({
+    artifacts: legacy.githubArtifacts,
+    projects: canonical.projects,
+    commits: canonical.commits,
+    pullRequests: canonical.pullRequests,
+    issues: canonical.issues
+  }).report;
+  artifacts.tablePresent = tables[1];
+  const traceLinks = reconcileTraceLinkRecords({ traceLinks: legacy.traceLinks, ...canonical }).report;
+  traceLinks.tablePresent = tables[2];
+  return {
+    counts: await technicalModelCounts(client, legacy),
     checksums: {
-      tasksWithLegacyPullRequest: checksumIds(legacyPrTasks.map((item) => item.id)),
-      canonicalTaskPullRequests: checksumIds(canonicalPrLinks.map((item) => item.taskId)),
-      traceLinks: checksumIds(traceLinks.map((item) => item.id))
+      tasksWithPullRequest: checksumIds(canonical.tasks.filter((item) => item.pullRequestId).map((item) => item.id)),
+      taskPullRequests: checksumIds(legacy.taskPullRequests.map((item) => item.taskId)),
+      traceLinks: checksumIds(legacy.traceLinks.map((item) => item.id))
     },
-    artifacts: reconcileArtifactRecords({ artifacts, commits, pullRequests, issues }),
-    links: { legacyPullRequestLinks: legacyPrTasks.length, canonicalPullRequestLinks: canonicalPrLinks.length, missingCanonicalPullRequestLinks: missingCanonicalPrLinks.length, traceLinks: traceLinks.length }
+    taskPullRequests,
+    artifacts,
+    traceLinks
   };
 }
 
 async function buildReconciliationPlan(client) {
-  const [projects, tasks, movements, memberships, members, legacyPrTasks, canonicalPrLinks, traceLinks] = await Promise.all([
+  const [projects, responsibleTasks, movements, memberships, members, legacy, canonical] = await Promise.all([
     client.project.findMany({ select: { id: true, githubOwner: true, githubRepo: true, githubUrl: true, githubRepositoryName: true, githubRepositoryFullName: true, githubRepositoryUrl: true } }),
     client.task.findMany({ where: { responsibleUserId: null, responsible: { not: null } }, select: { id: true, projectId: true, responsible: true } }),
     client.taskMovement.findMany({ where: { movedByUserId: null }, select: { id: true, projectId: true, movedBy: true, projectMemberId: true } }),
     client.projectMembership.findMany({ select: { projectId: true, userId: true, isActive: true, user: { select: { name: true, email: true } } } }),
     client.projectMember.findMany({ select: { id: true, projectId: true, email: true } }),
-    client.task.findMany({ where: { pullRequestId: { not: null } }, select: { id: true, pullRequestId: true } }),
-    client.taskPullRequest.findMany({ select: { taskId: true, pullRequestId: true } }),
-    client.traceLink.findMany({ select: { id: true, projectId: true, sourceType: true, sourceId: true, targetType: true, targetId: true } })
+    loadLegacySnapshot(client),
+    canonicalSnapshot(client)
   ]);
   const membershipByProject = new Map();
   for (const membership of memberships) {
@@ -125,8 +134,8 @@ async function buildReconciliationPlan(client) {
   const memberById = new Map(members.map((member) => [member.id, member]));
   const projectUpdates = projects.map((project) => ({ id: project.id, data: canonicalProjectPatch(project) })).filter((item) => Object.keys(item.data).length > 0);
   const responsibleUpdates = [];
-  const responsible = { examined: tasks.length, matched: 0, unmatched: 0, ambiguous: 0 };
-  for (const task of tasks) {
+  const responsible = { examined: responsibleTasks.length, matched: 0, unmatched: 0, ambiguous: 0 };
+  for (const task of responsibleTasks) {
     const resolution = resolveUniqueUserByName(task.responsible, membershipByProject.get(task.projectId) || []);
     if (resolution.status === 'MATCHED') { responsible.matched += 1; responsibleUpdates.push({ id: task.id, userId: resolution.userId }); }
     else if (resolution.status === 'AMBIGUOUS') responsible.ambiguous += 1;
@@ -142,39 +151,10 @@ async function buildReconciliationPlan(client) {
     else if (resolution.status === 'AMBIGUOUS') movedBy.ambiguous += 1;
     else movedBy.unmatched += 1;
   }
-  const canonicalSet = new Set(canonicalPrLinks.map((link) => `${link.taskId}:${link.pullRequestId}`));
-  const pullRequestLinks = legacyPrTasks.filter((task) => !canonicalSet.has(`${task.id}:${task.pullRequestId}`)).map((task) => ({ taskId: task.id, pullRequestId: task.pullRequestId }));
-  const typedLinks = { taskCommits: [], taskIssues: [], taskPullRequests: [], requirementTasks: [], unsupported: 0, conflicts: 0 };
-  for (const link of traceLinks) {
-    const source = { type: normalizedEntity(link.sourceType), id: link.sourceId };
-    const target = { type: normalizedEntity(link.targetType), id: link.targetId };
-    const pair = [source, target];
-    const taskRef = pair.find((item) => item.type === 'TASK');
-    const other = pair.find((item) => item !== taskRef);
-    if (!taskRef || !other) { typedLinks.unsupported += 1; continue; }
-    const task = await client.task.findUnique({ where: { id: taskRef.id }, select: { id: true, projectId: true, requirementId: true } });
-    if (!task || task.projectId !== link.projectId) { typedLinks.conflicts += 1; continue; }
-    if (other.type === 'COMMIT') {
-      const artifact = await client.commit.findUnique({ where: { id: other.id }, select: { id: true, projectId: true } });
-      if (!artifact || artifact.projectId !== link.projectId) { typedLinks.conflicts += 1; continue; }
-      const existing = await client.taskCommit.findUnique({ where: { taskId_commitId: { taskId: task.id, commitId: artifact.id } }, select: { id: true } });
-      if (!existing) typedLinks.taskCommits.push({ taskId: task.id, commitId: artifact.id });
-    } else if (other.type === 'ISSUE') {
-      const artifact = await client.issue.findUnique({ where: { id: other.id }, select: { id: true, projectId: true } });
-      if (!artifact || artifact.projectId !== link.projectId) { typedLinks.conflicts += 1; continue; }
-      const existing = await client.taskIssue.findUnique({ where: { taskId_issueId: { taskId: task.id, issueId: artifact.id } }, select: { id: true } });
-      if (!existing) typedLinks.taskIssues.push({ taskId: task.id, issueId: artifact.id });
-    } else if (other.type === 'PULL_REQUEST' || other.type === 'PULLREQUEST' || other.type === 'PR') {
-      const artifact = await client.pullRequest.findUnique({ where: { id: other.id }, select: { id: true, projectId: true } });
-      if (!artifact || artifact.projectId !== link.projectId) { typedLinks.conflicts += 1; continue; }
-      if (!canonicalSet.has(`${task.id}:${artifact.id}`)) typedLinks.taskPullRequests.push({ taskId: task.id, pullRequestId: artifact.id });
-    } else if (other.type === 'REQUIREMENT') {
-      const requirement = await client.requirement.findUnique({ where: { id: other.id }, select: { id: true, projectId: true } });
-      if (!requirement || requirement.projectId !== link.projectId || (task.requirementId && task.requirementId !== requirement.id)) { typedLinks.conflicts += 1; continue; }
-      if (!task.requirementId) typedLinks.requirementTasks.push({ taskId: task.id, requirementId: requirement.id });
-    } else typedLinks.unsupported += 1;
-  }
-  return { projectUpdates, responsibleUpdates, movementUpdates, pullRequestLinks, responsible, movedBy, typedLinks };
+  const taskPullRequests = taskPullRequestReconciliationPlan({ links: legacy.taskPullRequests, tasks: canonical.tasks, pullRequests: canonical.pullRequests });
+  const artifacts = reconcileArtifactRecords({ artifacts: legacy.githubArtifacts, ...canonical });
+  const traceLinks = reconcileTraceLinkRecords({ traceLinks: legacy.traceLinks, ...canonical });
+  return { projectUpdates, responsibleUpdates, movementUpdates, responsible, movedBy, taskPullRequests, artifacts, traceLinks };
 }
 
 export async function runE8Reconciliation({ client, apply = false }) {
@@ -186,18 +166,34 @@ export async function runE8Reconciliation({ client, apply = false }) {
       for (const update of plan.projectUpdates) await tx.project.update({ where: { id: update.id }, data: update.data });
       for (const update of plan.responsibleUpdates) await tx.task.update({ where: { id: update.id }, data: { responsibleUserId: update.userId } });
       for (const update of plan.movementUpdates) await tx.taskMovement.update({ where: { id: update.id }, data: { movedByUserId: update.userId } });
-      if (plan.pullRequestLinks.length > 0) await tx.taskPullRequest.createMany({ data: plan.pullRequestLinks, skipDuplicates: true });
-      if (plan.typedLinks.taskCommits.length > 0) await tx.taskCommit.createMany({ data: plan.typedLinks.taskCommits, skipDuplicates: true });
-      if (plan.typedLinks.taskIssues.length > 0) await tx.taskIssue.createMany({ data: plan.typedLinks.taskIssues, skipDuplicates: true });
-      if (plan.typedLinks.taskPullRequests.length > 0) await tx.taskPullRequest.createMany({ data: plan.typedLinks.taskPullRequests, skipDuplicates: true });
-      for (const update of plan.typedLinks.requirementTasks) await tx.task.update({ where: { id: update.taskId }, data: { requirementId: update.requirementId } });
+      for (const update of plan.taskPullRequests.updates) await tx.task.update({ where: { id: update.taskId }, data: { pullRequestId: update.pullRequestId } });
+      if (plan.artifacts.convertibleCommits.length > 0) await tx.commit.createMany({ data: plan.artifacts.convertibleCommits, skipDuplicates: true });
+      if (plan.traceLinks.plan.taskCommits.length > 0) await tx.taskCommit.createMany({ data: plan.traceLinks.plan.taskCommits, skipDuplicates: true });
+      if (plan.traceLinks.plan.taskIssues.length > 0) await tx.taskIssue.createMany({ data: plan.traceLinks.plan.taskIssues, skipDuplicates: true });
+      for (const update of plan.traceLinks.plan.taskPullRequests) await tx.task.update({ where: { id: update.taskId }, data: { pullRequestId: update.pullRequestId } });
+      for (const update of plan.traceLinks.plan.requirementTasks) await tx.task.update({ where: { id: update.taskId }, data: { requirementId: update.requirementId } });
     });
   }
   const after = apply ? await auditE8Schema({ client }) : before;
   return {
     mode: apply ? 'apply' : 'dry-run',
-    pending: { legacyMemberships: Math.max(0, memberships.eligible - memberships.alreadyMigrated - memberships.migrated), projectCanonicalFields: plan.projectUpdates.length, responsibleUsers: plan.responsibleUpdates.length, movedByUsers: plan.movementUpdates.length, taskPullRequests: plan.pullRequestLinks.length, traceLinks: plan.typedLinks.taskCommits.length + plan.typedLinks.taskIssues.length + plan.typedLinks.taskPullRequests.length + plan.typedLinks.requirementTasks.length },
-    unresolved: { memberships: { invalid: memberships.skippedMissingOrInvalidEmail, ambiguous: memberships.skippedAmbiguousIdentity, unknownRole: memberships.skippedUnknownRole, projectsWithoutOwner: memberships.projectsWithoutEligibleOwner.length }, responsible: { unmatched: plan.responsible.unmatched, ambiguous: plan.responsible.ambiguous }, movedBy: { unmatched: plan.movedBy.unmatched, ambiguous: plan.movedBy.ambiguous }, traceLinks: { unsupported: plan.typedLinks.unsupported, conflicts: plan.typedLinks.conflicts } },
+    pending: {
+      legacyMemberships: Math.max(0, memberships.eligible - memberships.alreadyMigrated - memberships.migrated),
+      projectCanonicalFields: plan.projectUpdates.length,
+      responsibleUsers: plan.responsibleUpdates.length,
+      movedByUsers: plan.movementUpdates.length,
+      taskPullRequests: plan.taskPullRequests.updates.length,
+      githubArtifacts: plan.artifacts.convertibleCommits.length,
+      traceLinks: plan.traceLinks.report.pending
+    },
+    unresolved: {
+      memberships: { invalid: memberships.skippedMissingOrInvalidEmail, ambiguous: memberships.skippedAmbiguousIdentity, unknownRole: memberships.skippedUnknownRole, projectsWithoutOwner: memberships.projectsWithoutEligibleOwner.length },
+      responsible: { unmatched: plan.responsible.unmatched, ambiguous: plan.responsible.ambiguous },
+      movedBy: { unmatched: plan.movedBy.unmatched, ambiguous: plan.movedBy.ambiguous },
+      taskPullRequests: { conflicts: plan.taskPullRequests.conflicts },
+      githubArtifacts: { exclusive: plan.artifacts.report.exclusiveRecords, ambiguous: plan.artifacts.report.ambiguous },
+      traceLinks: { unsupported: plan.traceLinks.report.unsupported, conflicts: plan.traceLinks.report.conflicts, orphanLinks: plan.traceLinks.report.orphanLinks }
+    },
     before,
     after
   };

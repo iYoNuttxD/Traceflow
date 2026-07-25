@@ -40,6 +40,7 @@ describe('verificador de fronteiras arquiteturais', () => {
     expect(rules).toContain('validation-middleware-no-service');
     expect(rules).toContain('client-no-controller');
     expect(rules).toContain('mapper-no-database');
+    expect(rules).toContain('removed-model-no-runtime');
     expect(rules).toContain('reconciliation-no-controller');
     expect(rules).toContain('schema-no-service');
     expect(rules).toContain('audit-write-via-adapter');

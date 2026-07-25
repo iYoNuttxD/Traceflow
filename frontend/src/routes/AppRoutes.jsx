@@ -7,7 +7,6 @@ import { RequirementsPage } from '../pages/RequirementsPage.jsx';
 import { TasksPage } from '../pages/TasksPage.jsx';
 import { KanbanPage } from '../pages/KanbanPage.jsx';
 import { RepositoryInfoPage } from '../pages/RepositoryInfoPage.jsx';
-import { GithubArtifactsPage } from '../pages/GithubArtifactsPage.jsx';
 import { TraceabilityPage } from '../pages/TraceabilityPage.jsx';
 import { JoinProjectPage } from '../pages/JoinProjectPage.jsx';
 import { LoginPage } from '../pages/LoginPage.jsx';
@@ -36,7 +35,6 @@ export function AppRoutes() {
         <Route path="/projects/:projectId/tasks" element={<TasksPage />} />
         <Route path="/projects/:projectId/kanban" element={<KanbanPage />} />
         <Route path="/projects/:projectId/repository" element={<RepositoryInfoPage />} />
-        <Route path="/projects/:id/github-artifacts" element={<GithubArtifactsPage />} />
         <Route path="/projects/:projectId/traceability" element={<TraceabilityPage />} />
         <Route path="/account/privacy" element={<PrivacyPage />} />
         <Route path="/projects/:projectId/audit" element={<ProjectAuditPage />} />

@@ -2,7 +2,7 @@
 
 ## Atualização E8 — persistência canônica sem ruptura HTTP
 
-O vínculo Task–PullRequest passou a possuir `TaskPullRequest` canônico N:N, mas os endpoints existentes continuam singulares e preservam exatamente paths, status, mensagens e payloads. Durante a transição, a escrita atualiza join e `Task.pullRequestId` na mesma transação; a leitura usa fallback sem expor `pullRequestLinks`. Nenhum dos sete placeholders 501 foi implementado.
+A cardinalidade funcional confirmada é Task 0..1 PullRequest e PullRequest 0..N Tasks. `Task.pullRequestId` é a única fonte canônica; o join experimental N:N, o dual-write e o fallback foram removidos. Os endpoints continuam singulares e preservam paths, status, mensagens e payloads. Nenhum dos sete placeholders 501 foi implementado.
 
 ## Atualização E6 — identidade e privacidade dos endpoints
 

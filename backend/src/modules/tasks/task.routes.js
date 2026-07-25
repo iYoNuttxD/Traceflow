@@ -13,7 +13,7 @@ import {
   taskIssueBodySchema,
   taskIssueParamsSchema,
   taskProjectParamsSchema,
-  taskPullRequestBodySchema,
+  pullRequestLinkBodySchema,
   taskRequirementBodySchema,
   taskSearchQuerySchema,
   taskStatusBodySchema,
@@ -49,7 +49,7 @@ router.delete('/tasks/:id', validateRequest({ params: taskIdParamsSchema, body: 
 router.patch('/tasks/:id/status', validateRequest({ params: taskIdParamsSchema, body: taskStatusBodySchema }), taskController.updateStatus);
 router.patch('/tasks/:id/requirement', validateRequest({ params: taskIdParamsSchema, body: taskRequirementBodySchema }), taskController.linkRequirement);
 router.delete('/tasks/:id/requirement', validateRequest({ params: taskIdParamsSchema, body: emptyBodySchema }), taskController.unlinkRequirement);
-router.patch('/tasks/:id/pull-request', validateRequest({ params: taskIdParamsSchema, body: taskPullRequestBodySchema }), taskController.linkPullRequest);
+router.patch('/tasks/:id/pull-request', validateRequest({ params: taskIdParamsSchema, body: pullRequestLinkBodySchema }), taskController.linkPullRequest);
 router.delete('/tasks/:id/pull-request', validateRequest({ params: taskIdParamsSchema, body: emptyBodySchema }), taskController.unlinkPullRequest);
 router.get('/tasks/:id/commits', validateRequest({ params: taskIdParamsSchema }), taskController.listCommits);
 router.post('/tasks/:id/commits', validateRequest({ params: taskIdParamsSchema, body: taskCommitBodySchema }), taskController.linkCommit);

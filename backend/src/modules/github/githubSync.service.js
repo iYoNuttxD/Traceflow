@@ -206,7 +206,7 @@ async function syncIssues(project) {
 }
 
 export const githubSyncService = {
-  async syncGithubArtifacts(projectId) {
+  async syncProjectGithubData(projectId) {
     const parsedProjectId = parseProjectId(projectId);
     if (projectsInSync.has(parsedProjectId)) {
       throw new GithubSyncError('Sincronização do GitHub já está em andamento para este projeto.', 409);

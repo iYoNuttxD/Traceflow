@@ -11,13 +11,13 @@ import {
   getProjectPullRequests,
   linkTaskCommit,
   linkTaskIssue,
-  linkTaskPullRequest,
+  linkTaskToPullRequest,
   linkTaskRequirement,
   projectMembersApi,
   requirementsApi,
   unlinkTaskCommit,
   unlinkTaskIssue,
-  unlinkTaskPullRequest,
+  unlinkTaskFromPullRequest,
   unlinkTaskRequirement
 } from '../api/api.js';
 import { Card } from '../shared/index.js';
@@ -415,9 +415,9 @@ export function TasksPage() {
 
       try {
         if (selectedPullRequestId) {
-          await linkTaskPullRequest(savedTask.id, selectedPullRequestId);
+          await linkTaskToPullRequest(savedTask.id, selectedPullRequestId);
         } else if (hadPullRequestLinked) {
-          await unlinkTaskPullRequest(savedTask.id);
+          await unlinkTaskFromPullRequest(savedTask.id);
         }
       } catch (pullRequestError) {
         pullRequestWarning = getErrorMessage(
@@ -532,7 +532,7 @@ export function TasksPage() {
     setSuccess('');
 
     try {
-      const response = await unlinkTaskPullRequest(taskId);
+      const response = await unlinkTaskFromPullRequest(taskId);
       setSuccess(response.message || 'Pull request removido da tarefa.');
       await loadTaskData();
     } catch (requestError) {

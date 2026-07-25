@@ -6,13 +6,13 @@ import {
   formatTask
 } from '../task.service-support.js';
 
-export const taskPullRequestService = {
+export const pullRequestLinkService = {
   async linkPullRequest(taskId, data) {
     const id = parseTaskId(taskId);
     const task = await ensureTaskExists(id);
     const payload = data && typeof data === 'object' ? data : {};
     if (payload.pullRequestId === null || payload.pullRequestId === '') {
-      return formatTask(await taskRepository.updateTaskPullRequest(id, null));
+      return formatTask(await taskRepository.updatePullRequestLink(id, null));
     }
     const pullRequestId = parsePullRequestId(payload.pullRequestId);
     const pullRequest = await ensurePullRequestExists(pullRequestId);
@@ -22,12 +22,12 @@ export const taskPullRequestService = {
         400
       );
     }
-    return formatTask(await taskRepository.updateTaskPullRequest(id, pullRequestId));
+    return formatTask(await taskRepository.updatePullRequestLink(id, pullRequestId));
   },
 
   async unlinkPullRequest(taskId) {
     const id = parseTaskId(taskId);
     await ensureTaskExists(id);
-    return formatTask(await taskRepository.updateTaskPullRequest(id, null));
+    return formatTask(await taskRepository.updatePullRequestLink(id, null));
   }
 };

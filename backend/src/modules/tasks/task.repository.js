@@ -1,7 +1,7 @@
 // Repository do modulo de tarefas. Todo acesso ao banco passa pelo Prisma.
 import { prisma } from '../../database/prismaClient.js';
 
-const taskPullRequestSelect = {
+const pullRequestSelect = {
   id: true,
   number: true,
   title: true,
@@ -47,13 +47,7 @@ const taskInclude = {
     select: taskRequirementSelect
   },
   pullRequest: {
-    select: taskPullRequestSelect
-  },
-  pullRequestLinks: {
-    select: {
-      pullRequest: { select: taskPullRequestSelect }
-    },
-    orderBy: { createdAt: 'asc' }
+    select: pullRequestSelect
   },
   commitLinks: {
     select: {
@@ -291,17 +285,11 @@ export const taskRepository = {
     });
   },
 
-  async updateTaskPullRequest(id, pullRequestId) {
-    return prisma.$transaction(async (tx) => {
-      await tx.taskPullRequest.deleteMany({ where: { taskId: id } });
-      if (pullRequestId !== null) {
-        await tx.taskPullRequest.create({ data: { taskId: id, pullRequestId } });
-      }
-      return tx.task.update({
-        where: { id },
-        data: { pullRequestId },
-        include: taskInclude
-      });
+  async updatePullRequestLink(id, pullRequestId) {
+    return prisma.task.update({
+      where: { id },
+      data: { pullRequestId },
+      include: taskInclude
     });
   },
 
@@ -320,10 +308,6 @@ export const taskRepository = {
       });
 
       await tx.taskIssue.deleteMany({
-        where: { taskId: id }
-      });
-
-      await tx.taskPullRequest.deleteMany({
         where: { taskId: id }
       });
 
@@ -409,10 +393,7 @@ export const taskRepository = {
     return prisma.task.count({
       where: {
         projectId,
-        OR: [
-          { pullRequestLinks: { some: {} } },
-          { pullRequestId: { not: null } }
-        ]
+        pullRequestId: { not: null }
       }
     });
   },

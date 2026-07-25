@@ -7,7 +7,7 @@ import {
   projectMembersApi,
   unlinkTaskCommit,
   unlinkTaskIssue,
-  unlinkTaskPullRequest,
+  unlinkTaskFromPullRequest,
   unlinkTaskRequirement
 } from '../api/api.js';
 import { KanbanColumn } from '../components/KanbanColumn.jsx';
@@ -424,12 +424,12 @@ export function KanbanPage() {
     setSelectedTask(task);
   }
 
-  async function handleUnlinkSelectedTaskPullRequest(taskId) {
+  async function handleUnlinkSelectedPullRequest(taskId) {
     setError('');
     setSuccess('');
 
     try {
-      const response = await unlinkTaskPullRequest(taskId);
+      const response = await unlinkTaskFromPullRequest(taskId);
       const updatedTask = response.task;
       setSuccess(response.message || 'Pull request removido da tarefa.');
       setBoard((currentBoard) =>
@@ -973,7 +973,7 @@ export function KanbanPage() {
                         <button
                           className="traceability-remove-button"
                           type="button"
-                          onClick={() => handleUnlinkSelectedTaskPullRequest(selectedTask.id)}
+                          onClick={() => handleUnlinkSelectedPullRequest(selectedTask.id)}
                           aria-label="Remover pull request vinculado"
                           title="Remover pull request"
                         >

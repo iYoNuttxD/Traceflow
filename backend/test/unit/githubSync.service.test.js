@@ -152,7 +152,7 @@ describe('githubSyncService com Octokit e persistência substituídos', () => {
     const github = buildGithubDouble();
     mocks.getGithubClient.mockReturnValue(github);
 
-    const result = await githubSyncService.syncGithubArtifacts(String(project.id));
+    const result = await githubSyncService.syncProjectGithubData(String(project.id));
 
     expect(github.rest.repos.listCommits).toHaveBeenCalledWith({
       owner: project.githubOwner,
@@ -199,7 +199,7 @@ describe('githubSyncService com Octokit e persistência substituídos', () => {
     github.rest.repos.listCommits.mockRejectedValue({ status: 404 });
     mocks.getGithubClient.mockReturnValue(github);
 
-    await expect(githubSyncService.syncGithubArtifacts(project.id)).rejects.toMatchObject({
+    await expect(githubSyncService.syncProjectGithubData(project.id)).rejects.toMatchObject({
       statusCode: 404,
       message: 'Repositório GitHub não encontrado ou sem permissão de acesso.'
     });
@@ -220,9 +220,9 @@ describe('githubSyncService com Octokit e persistência substituídos', () => {
     mocks.getGithubClient.mockReturnValue(github);
     mocks.commitRepository.createMany.mockResolvedValue({ count: 0 });
 
-    const firstSync = githubSyncService.syncGithubArtifacts(project.id);
+    const firstSync = githubSyncService.syncProjectGithubData(project.id);
     await vi.waitFor(() => expect(releaseRequest).toBeTypeOf('function'));
-    await expect(githubSyncService.syncGithubArtifacts(project.id)).rejects.toMatchObject({
+    await expect(githubSyncService.syncProjectGithubData(project.id)).rejects.toMatchObject({
       statusCode: 409,
       message: 'Sincronização do GitHub já está em andamento para este projeto.'
     });

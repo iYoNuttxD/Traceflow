@@ -33,27 +33,6 @@ const traceabilityRequirementSelect = {
           mergedAtGithub: true
         }
       },
-      pullRequestLinks: {
-        select: {
-          pullRequest: {
-            select: {
-              id: true,
-              number: true,
-              title: true,
-              state: true,
-              authorUsername: true,
-              sourceBranch: true,
-              targetBranch: true,
-              githubUrl: true,
-              createdAtGithub: true,
-              updatedAtGithub: true,
-              closedAtGithub: true,
-              mergedAtGithub: true
-            }
-          }
-        },
-        orderBy: { createdAt: 'asc' }
-      },
       issueLinks: {
         select: {
           issue: {

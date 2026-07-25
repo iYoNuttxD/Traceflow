@@ -12,7 +12,7 @@ Este threat model nasceu na E5 e foi atualizado na E6; usa STRIDE como guia e n�
 
 ## Atualização E8
 
-Migrations e reconciliação formam uma boundary administrativa: scripts são dry-run por padrão, sanitizam o target, exigem confirmação para apply fora de banco de teste e não são importáveis pelo runtime. O risco principal passa a ser corrupção/perda durante backfill ou contract; foi mitigado com expansão aditiva, transação, idempotência, checksums, preservação da origem e proibição de contract nesta entrega. Produção ainda exige cópia representativa, backup, estimativa de lock e janela operacional.
+Migrations e reconciliação formam uma boundary administrativa: scripts são dry-run por padrão, sanitizam o target, exigem confirmação para apply fora de banco de teste e não são importáveis pelo runtime. O contract final removeu três representações legadas somente após zero conflitos, órfãos, dados exclusivos, consumidores e dependências. Guards SQL impedem `DROP` com linha residual. Produção ainda exige dry-run em cópia representativa, backup, estimativa de lock e janela operacional.
 
 ## Ativos
 

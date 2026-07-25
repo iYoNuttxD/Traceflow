@@ -58,17 +58,16 @@ model User {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  sessions             Session[]
-  passwordResetTokens  PasswordResetToken[]
-  memberships          ProjectMembership[]
-  createdInvitations   ProjectInvitation[]  @relation("InvitationCreator")
-  acceptedInvitations  ProjectInvitation[]  @relation("InvitationAcceptor")
-  responsibleTasks     Task[]
-  taskMovements        TaskMovement[]
-  taskPullRequestLinks TaskPullRequest[]
-  auditEvents          AuditEvent[]
-  privacyRequests      PrivacyRequest[]
-  personalDataExports  PersonalDataExport[]
+  sessions            Session[]
+  passwordResetTokens PasswordResetToken[]
+  memberships         ProjectMembership[]
+  createdInvitations  ProjectInvitation[]  @relation("InvitationCreator")
+  acceptedInvitations ProjectInvitation[]  @relation("InvitationAcceptor")
+  responsibleTasks    Task[]
+  taskMovements       TaskMovement[]
+  auditEvents         AuditEvent[]
+  privacyRequests     PrivacyRequest[]
+  personalDataExports PersonalDataExport[]
 }
 
 model Session {
@@ -174,8 +173,6 @@ model Project {
   tasks         Task[]
   members       ProjectMember[]
   taskMovements TaskMovement[]
-  artifacts     GithubArtifact[]
-  traceLinks    TraceLink[]
   commits       Commit[]
   pullRequests  PullRequest[]
   issues        Issue[]
@@ -254,7 +251,7 @@ model PersonalDataExport {
 }
 
 // Requisito funcional ou necessidade cadastrada no projeto.
-// TODO: Implementar futuramente a cadeia Requirement -> Task -> GithubArtifact.
+// TODO: Evoluir futuramente a cadeia Requirement -> Task -> artefatos técnicos tipados.
 model Requirement {
   id          Int      @id @default(autoincrement())
   projectId   Int
@@ -290,39 +287,19 @@ model Task {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
-  project          Project           @relation(fields: [projectId], references: [id])
-  requirement      Requirement?      @relation(fields: [requirementId], references: [id])
-  pullRequest      PullRequest?      @relation(fields: [pullRequestId], references: [id], onDelete: SetNull)
-  movements        TaskMovement[]
-  commitLinks      TaskCommit[]
-  issueLinks       TaskIssue[]
-  pullRequestLinks TaskPullRequest[]
-  responsibleUser  User?             @relation(fields: [responsibleUserId], references: [id], onDelete: SetNull)
+  project         Project        @relation(fields: [projectId], references: [id])
+  requirement     Requirement?   @relation(fields: [requirementId], references: [id])
+  pullRequest     PullRequest?   @relation(fields: [pullRequestId], references: [id], onDelete: SetNull)
+  movements       TaskMovement[]
+  commitLinks     TaskCommit[]
+  issueLinks      TaskIssue[]
+  responsibleUser User?          @relation(fields: [responsibleUserId], references: [id], onDelete: SetNull)
 
   @@index([pullRequestId])
   @@index([responsibleUserId])
   @@index([requirementId])
   @@index([projectId, status])
   @@index([projectId, createdAt])
-}
-
-// Representacao canonica expandida do vinculo Task <-> PullRequest.
-// Task.pullRequestId permanece como alias legado ate a fase contract.
-model TaskPullRequest {
-  id             Int      @id @default(autoincrement())
-  taskId         Int
-  pullRequestId  Int
-  linkedByUserId Int?
-  createdAt      DateTime @default(now())
-
-  task         Task        @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  pullRequest  PullRequest @relation(fields: [pullRequestId], references: [id], onDelete: Cascade)
-  linkedByUser User?       @relation(fields: [linkedByUserId], references: [id], onDelete: SetNull)
-
-  @@unique([taskId, pullRequestId])
-  @@index([taskId, createdAt])
-  @@index([pullRequestId])
-  @@index([linkedByUserId])
 }
 
 // Vinculo de rastreabilidade entre tarefas e commits importados do GitHub.
@@ -398,49 +375,6 @@ model TaskMovement {
   @@index([taskId, movedAt])
 }
 
-// Generalizacao de Commit, PullRequest e Issue no MVP.
-// TODO: Restringir type a COMMIT, PULL_REQUEST ou ISSUE na camada de servico.
-model GithubArtifact {
-  id              Int       @id @default(autoincrement())
-  projectId       Int
-  type            String
-  externalId      String?
-  sha             String?
-  title           String?
-  description     String?
-  author          String?
-  status          String?
-  branch          String?
-  url             String?
-  createdAtGithub DateTime?
-  closedAtGithub  DateTime?
-  importedAt      DateTime  @default(now())
-
-  project Project @relation(fields: [projectId], references: [id])
-
-  @@unique([projectId, type, externalId])
-  @@index([projectId, importedAt])
-}
-
-// Vinculo manual de rastreabilidade entre os elementos do MVP.
-// TODO: Implementar Requirement -> Task e Task -> GithubArtifact.
-model TraceLink {
-  id         Int      @id @default(autoincrement())
-  projectId  Int
-  sourceType String
-  sourceId   Int
-  targetType String
-  targetId   Int
-  linkType   String   @default("RELATED_TO")
-  createdAt  DateTime @default(now())
-
-  project Project @relation(fields: [projectId], references: [id])
-
-  @@index([projectId, createdAt])
-  @@index([projectId, sourceType, sourceId])
-  @@index([projectId, targetType, targetId])
-}
-
 // Commit importado do repositorio GitHub vinculado ao projeto.
 // TODO: Relacionar commits a tarefas quando o fluxo de rastreabilidade evoluir.
 model Commit {
@@ -486,9 +420,8 @@ model PullRequest {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  project   Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  tasks     Task[]
-  taskLinks TaskPullRequest[]
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks   Task[]
 
   @@unique([projectId, githubId])
   @@unique([projectId, number])

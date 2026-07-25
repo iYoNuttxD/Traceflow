@@ -1,40 +1,36 @@
-# ADR-006 — Modelo de dados canônico e migração E8
+# ADR-006 — Modelo de dados canônico e contract da E8
 
-- Estado: aceita na E8
+- Estado: aceita e concluída definitivamente
 - Data: 25/07/2026
-- Estratégia: expand → backfill → switch compatível → contract separado
+- Estratégia: expand → backfill → switch compatível → contract protegido
 
 ## Contexto
 
-O schema pós-E7 contém identidade, sessão, autorização, privacidade e auditoria, mas preserva representações do MVP: `GithubArtifact` ao lado de `Commit`/`PullRequest`/`Issue`, `TraceLink` ao lado de relações tipadas, `ProjectMember` ao lado de `ProjectMembership`, campos GitHub duplicados e atores/responsáveis textuais. `Task.pullRequestId` também limita cada tarefa a uma única PR.
+O schema pós-E7 mantinha `GithubArtifact` ao lado de `Commit`/`PullRequest`/`Issue`, `TraceLink` ao lado das relações tipadas e `Task.pullRequestId` ao lado do join experimental `TaskPullRequest`. A expansão N:N foi uma decisão conservadora tomada porque a cardinalidade funcional não estava confirmada no checkout usado na primeira execução da E8.
 
-O Capítulo 3 do TCC e seus diagramas não estão presentes neste checkout. RF09 confirma vínculo Task–PR, mas não explicita cardinalidade. Por isso, a persistência é expandida para N:N sem mudar ainda o contrato HTTP singular.
+A equipe confirmou posteriormente o contrato funcional do MVP: uma Task pode estar vinculada a zero ou uma PullRequest; uma PullRequest pode estar vinculada a zero ou várias Tasks.
 
-## Decisão
+## Decisão de cardinalidade
 
-- `Commit`, `PullRequest` e `Issue` são os artefatos GitHub canônicos. `GithubArtifact` é `LEGADO ATIVO` para reconciliação e para o placeholder 501; não recebe novos consumidores.
-- `TaskCommit`, `TaskIssue` e o novo `TaskPullRequest` são vínculos técnicos canônicos. Todos usam unique composto; apagar a tarefa apaga somente o join, nunca o artefato.
-- `TaskPullRequest` suporta N:N. `Task.pullRequestId` permanece alias legado e é escrito na mesma transação pelo contrato singular atual. A leitura prefere o campo histórico e usa o join como fallback, sem devolver coleção nova.
-- `Requirement–Task` permanece 1:N por `Task.requirementId`; não existe evidência para alterar sua cardinalidade.
-- `TraceLink` é `LEGADO/PLACEHOLDER`. Relações suportadas são materializadas de forma idempotente nos joins tipados, mas a origem não é apagada.
-- `ProjectMembership` é a associação canônica de identidade. `ProjectMember` permanece legado até todos os registros e consumidores estarem reconciliados.
-- `Task.responsibleUserId` e `TaskMovement.movedByUserId` são canônicos. `responsible`, `movedBy` e `projectMemberId` preservam histórico/fallback até cobertura integral.
-- Para repositório GitHub, a identidade canônica é `githubRepositoryId`; apresentação e resolução usam `githubRepositoryFullName`, `githubRepositoryUrl` e `githubDefaultBranch`. `githubOwner`, `githubRepositoryName` e os aliases `githubRepo/githubUrl` permanecem transitórios porque contratos atuais os consomem.
-- `GithubSyncRun` não foi criado: modelar execução sem implementar a semântica da E9 criaria tabela sem ownership operacional.
-- Enums Prisma continuam restritos aos conjuntos estáveis já implantados (`ProjectRole`, auditoria e privacidade). Estados históricos de Project/Requirement/Task/GitHub permanecem strings validadas; conversão exige auditoria de valores reais.
-- UTC continua padrão. Timestamps externos são separados dos locais. Nenhum timestamp foi adicionado sem consulta/retention real.
+No MVP do TRACEFLOW, uma tarefa pode estar associada a, no máximo, uma Pull Request. Uma Pull Request pode estar associada a várias tarefas. Portanto, a chave estrangeira opcional `Task.pullRequestId` é a representação canônica da relação.
 
-## Integridade e ownership
+`TaskPullRequest` não representa o contrato funcional do MVP e foi removido após auditoria e reconciliação. O contrato HTTP continua singular. Suporte futuro a múltiplas PRs por tarefa exigirá nova decisão funcional, novo ADR, migration e alteração contratual explícita.
 
-- `Project` é agregado de Requirement, Task e artefatos. A E8 explicita cascade Project→Requirement; joins tipados usam cascade para o vínculo.
-- Auditoria usa `SetNull` para ator/projeto; identidade é anonimizada, não fisicamente apagada no fluxo comum.
-- Regras “mesmo projeto” continuam garantidas no service/transação: FKs isoladas não expressam igualdade de `projectId` entre Task e artefato.
-- Os novos índices cobrem consultas reais por projeto/status/data, histórico, artefatos, membership e os dois sentidos dos joins. Unique/PK não foram duplicados.
+## Demais decisões canônicas
 
-## Compatibilidade e contract
+- `Commit`, `PullRequest` e `Issue` são as fontes canônicas de artefatos GitHub; `GithubArtifact` foi descontinuado e removido.
+- `Requirement → Task`, `TaskCommit`, `TaskIssue` e `Task.pullRequestId` são os vínculos canônicos; `TraceLink` foi descontinuado e removido.
+- `ProjectMembership` continua canônico; `ProjectMember` permanece legado porque não faz parte deste contract.
+- `Task.responsibleUserId` e `TaskMovement.movedByUserId` continuam canônicos, com fallbacks históricos ainda preservados.
+- Identidade/configuração GitHub continua em `githubRepositoryId`, `githubRepositoryFullName`, `githubRepositoryUrl` e `githubDefaultBranch`; aliases históricos não foram tratados neste fechamento.
+- Enums, timestamps, ownership, cascatas de auditoria e regras de mesmo projeto permaneceram inalterados.
 
-O switch da E8 é interno: dual-write transacional e dual-read sem mudança do JSON. Remoções ficam proibidas até contagens pendentes e conflitos chegarem a zero, consumidores antigos desaparecerem e uma migration contract separada possuir rollback por roll-forward. O plano verificável está em `docs/data/E8_CONTRACT_PLAN.md`.
+## Contract e proteção de dados
+
+Auditoria, reconciliação e contract são separados. O dry-run exige zero conflito, órfão, dado exclusivo, consumidor ativo e relação dependente. O apply requer banco de teste ou confirmação explícita por ambiente. Cada migration contract possui guard SQL que falha antes do `DROP TABLE` se qualquer registro residual existir.
+
+Os relatórios contêm somente contagens, checksums e estado técnico. Nenhum título, descrição, nome, e-mail, token ou payload GitHub é emitido.
 
 ## Consequências
 
-Há redundância temporária e custo de dual-write. Em troca, a migração preserva dados, torna a futura cardinalidade N:N possível e permite comparar checksums/contagens antes de remover legado. E9 deve consolidar repositório/sync; E10 deve decidir o destino definitivo de `TraceLink`; E11 deve retirar fallbacks textuais somente após reconciliação real.
+O runtime possui uma única fonte de verdade para Task–PR e relações específicas para rastreabilidade. O dual-write e os fallbacks foram removidos. Os sete endpoints placeholder continuam `501`; remover os models antigos não os implementa. Rollback operacional é por roll-forward e restauração de backup, nunca por edição de migration já aplicada.

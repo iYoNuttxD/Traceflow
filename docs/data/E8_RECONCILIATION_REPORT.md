@@ -1,32 +1,43 @@
-# E8 — Relatório de reconciliação
+# E8 — Relatório final de reconciliação e contract
 
-## Execuções verificadas
+## Ambiente e decisão
 
-Fonte: schema E7 (17 migrations) em `traceflow_test`. Destino: schema expandido E8 (20 migrations). O banco estava vazio no inventário inicial: todos os 21 models auditados tinham contagem zero; checksums dos conjuntos técnicos vazios eram `e3b0c442…b855`. Nenhum banco compartilhado/produção foi lido.
+- Branch: `daniel-dev`
+- Commit inicial desta continuação: `def9c89284c55c4ab892c653b9082d9fb824db25`
+- Banco: `traceflow_test`, isolado; nenhum banco compartilhado/produção foi consultado
+- Cardinalidade confirmada: Task 0..1 PullRequest; PullRequest 0..N Tasks
+- Fonte canônica: `Task.pullRequestId`
 
-| Cenário controlado | Antes | Apply | Segunda execução |
+## Auditoria anterior ao contract
+
+| Verificação | TaskPullRequest | GithubArtifact | TraceLink |
 |---|---:|---:|---:|
-| Task com `pullRequestId`, sem TaskPullRequest | 1 pendente | 1 join criado | 0 pendente |
-| Task com responsável textual único | 1 pendente | `responsibleUserId` preenchido | 0 pendente |
-| Movement com ProjectMember reconciliável | 1 pendente | `movedByUserId` preenchido | 0 pendente |
-| Project com aliases GitHub | 1 projeto | 3 campos canônicos preenchidos, aliases preservados | 0 pendente |
-| TraceLink Task→Commit | 1 pendente | TaskCommit criado | 0 pendente |
-| GithubArtifact→Commit | 1 correspondente | somente classificado | mesma origem preservada |
+| registros totais | 0 | 0 | 0 |
+| registros reconciliados | 0 | 0 | 0 |
+| registros exclusivos | 0 | 0 | 0 |
+| conflitos/ambíguos | 0 | 0 | 0 |
+| órfãos | 0 | 0 | 0 |
+| duplicidades | 0 | 0 | 0 |
+| consumidores ativos | 0 | 0 | 0 |
+| relações dependentes externas | 0 | 0 | 0 |
+| contract removível | sim | sim | sim |
 
-As fixtures também verificam que apagar Task remove `TaskPullRequest`, mas preserva PullRequest. Nenhum dado pessoal é emitido: relatórios contêm apenas contagens, checksums e IDs técnicos quando estritamente necessários pelo backfill E6.
+Na auditoria Task–PR também foram zero: Tasks com mais de uma PR no join, joins sem `Task.pullRequestId`, joins diferentes da FK e FKs sem join correspondente. Checksums dos conjuntos vazios: `e3b0c442…b855`.
 
-## Conflitos, órfãos e não reconciliados
+## Cenários artificiais verificados
 
-No banco de teste vazio: zero duplicidades, conflitos, órfãos e não reconciliados. Nos cenários artificiais: zero vínculo perdido e zero órfão criado. Em banco real, o comando deve classificar sem aplicar automaticamente: e-mail ausente/inválido, nome ambíguo, papel desconhecido, projeto sem OWNER, responsável/movedBy sem identidade, TraceLink com projeto divergente/tipo não suportado e GithubArtifact sem correspondente.
+- join singular preenche `Task.pullRequestId` e a segunda execução fica sem pendência;
+- múltiplas PRs e divergência join/FK são classificadas como conflito e bloqueiam contract;
+- artifact correspondente não é duplicado; Commit com `sha` suficiente é criado; artifact ambíguo bloqueia contract;
+- TraceLink Requirement–Task, Task–Commit, Task–Issue e Task–PR é materializado nas relações específicas;
+- tipo desconhecido, órfão, projeto divergente ou múltiplas PRs bloqueia contract;
+- relatórios não contêm conteúdo, nome, e-mail ou payload legado;
+- auditoria e contract permanecem idempotentes.
 
-## Decisões
+## Resultado
 
-- `GithubArtifact` sem correspondência não cria artefato específico, pois pode faltar identidade externa/conteúdo confiável.
-- TraceLink somente materializa pares Task–Commit/Issue/PR e Requirement–Task quando ambos existem no mesmo projeto e não há conflito.
-- Origem legada nunca é apagada.
-- Apply é transacional para campos/joins E8; backfill de memberships reutiliza a rotina idempotente E6.
-- `--apply` exige banco marcado como teste ou confirmação explícita de desenvolvimento/produção.
+As migrations contract foram aplicadas após dry-run limpo. `TaskPullRequest`, `GithubArtifact` e `TraceLink` foram removidos. A auditoria posterior informa `tablePresent: false`, zero pendências e contract permitido. Tasks, PullRequests, Commits, Issues, TaskCommit, TaskIssue, auditoria e solicitações de privacidade foram preservados.
 
-## Critérios para contract
+Durante a primeira montagem manual do cenário temporário de upgrade, um processo isolado herdou por engano a `DATABASE_URL` de desenvolvimento e inseriu cinco registros integralmente sintéticos, identificados por marcadores exclusivos. A execução falhou antes de tocar tabelas legadas; somente esses registros sintéticos foram removidos imediatamente por seus identificadores exatos. Nenhum registro preexistente, schema ou migration foi alterado e nenhum banco foi resetado. O cenário foi repetido com target temporário explícito e aprovado integralmente.
 
-Dry-run após apply deve apresentar zero pendências; conflitos precisam de decisão manual; checksums e contagens dos vínculos devem ser equivalentes; runtime/testes não podem importar o model/campo removido; retenção/auditoria devem permanecer verdes. O plano detalhado está em `E8_CONTRACT_PLAN.md`.
+Estado definitivo: **CONCLUÍDA DEFINITIVAMENTE**.

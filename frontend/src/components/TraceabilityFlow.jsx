@@ -403,7 +403,7 @@ function buildFlow(traceability, expandedNodeIds, onToggleNode) {
   taskBlueprints.forEach(({ task, taskId, artifacts, subtreeWidth }) => {
     const taskX = nextTaskStartX + subtreeWidth / 2;
     nextTaskStartX += subtreeWidth + TASK_HORIZONTAL_GAP;
-    const taskPullRequestLabel = task.pullRequest
+    const pullRequestLabel = task.pullRequest
       ? `#${task.pullRequest.number} — ${task.pullRequest.title}`
       : 'Nenhum PR';
 
@@ -421,7 +421,7 @@ function buildFlow(traceability, expandedNodeIds, onToggleNode) {
         detail: {
           ...task,
           issuesCount: task.issues?.length || 0,
-          pullRequestLabel: taskPullRequestLabel,
+          pullRequestLabel,
           commitsCount: task.commits?.length || 0
         }
       })

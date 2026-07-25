@@ -19,10 +19,10 @@ export const githubController = {
     return res.json({ repositories: await githubService.listRepositories() });
   }, { fallbackMessage: 'Não foi possível listar os repositórios do GitHub.' }),
 
-  syncProjectGithubArtifacts: asyncHandler(async (req, res) => {
+  syncProjectGithubData: asyncHandler(async (req, res) => {
     await auditService.recordOperational({ actorUserId: req.auth.user.id, projectId: req.params.projectId, requestId: req.requestId, action: 'GITHUB_SYNC_REQUESTED', resourceType: 'Project', resourceId: req.params.projectId });
     try {
-      const { summary, project } = await githubSyncService.syncGithubArtifacts(req.params.projectId);
+      const { summary, project } = await githubSyncService.syncProjectGithubData(req.params.projectId);
       await auditService.recordOperational({ actorUserId: req.auth.user.id, projectId: req.params.projectId, requestId: req.requestId, action: 'GITHUB_SYNC_SUCCEEDED', resourceType: 'Project', resourceId: req.params.projectId });
       return res.json({ message: 'Sincronização com GitHub concluída.', summary, project });
     } catch (error) {

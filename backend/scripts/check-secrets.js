@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { extname, relative, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -36,7 +36,7 @@ function defaultFiles(root) {
     encoding: 'utf8'
   });
   if (result.status !== 0) throw new Error('Não foi possível enumerar os arquivos do repositório.');
-  return result.stdout.split(/\r?\n/).filter(Boolean).filter((file) => {
+  return result.stdout.split(/\r?\n/).filter(Boolean).filter((file) => existsSync(resolve(root, file))).filter((file) => {
     if (/^(?:backend|frontend)\/(?:node_modules|coverage|dist)\//.test(file)) return false;
     if (/^(?:docs|backend\/test|frontend\/test)\//.test(file)) return false;
     if (/package-lock\.json$/.test(file)) return false;
@@ -48,6 +48,7 @@ function defaultFiles(root) {
 export function scanFiles(files, root = process.cwd()) {
   return files.flatMap((file) => {
     const path = resolve(root, file);
+    if (!existsSync(path)) return [];
     return scanText(readFileSync(path, 'utf8'), relative(root, path));
   });
 }

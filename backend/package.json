@@ -25,6 +25,8 @@
     "e8:audit": "node scripts/e8-schema-audit.js",
     "e8:reconcile:dry-run": "node scripts/e8-reconcile.js",
     "e8:reconcile": "node scripts/e8-reconcile.js --apply",
+    "e8:contract:dry-run": "node scripts/e8-contract.js",
+    "e8:contract": "node scripts/e8-contract.js --apply",
     "db:test:migrate": "node scripts/test-database.js migrate",
     "db:test:status": "node scripts/test-database.js status",
     "prisma:generate": "prisma generate",

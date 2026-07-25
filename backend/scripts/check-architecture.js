@@ -80,6 +80,16 @@ function inspectBackendImports(files, backendRoot, violations, graph) {
     const isReconciliation = /(?:reconcile|reconciliation)/i.test(relativeFile.at(-1));
     const imports = extractImportSpecifiers(source);
 
+    if (/prisma\.taskPullRequest|pullRequestLinks|\bTaskPullRequest\b/.test(source)) {
+      addViolation(violations, file, 'removed-model-no-runtime', 'TaskPullRequest', 'Runtime não pode reintroduzir o join TaskPullRequest removido na E8.');
+    }
+    if (/prisma\.githubArtifact|\bGithubArtifact\b/.test(source)) {
+      addViolation(violations, file, 'removed-model-no-runtime', 'GithubArtifact', 'Runtime não pode reintroduzir GithubArtifact removido na E8.');
+    }
+    if (/prisma\.traceLink|\bTraceLink\b/.test(source)) {
+      addViolation(violations, file, 'removed-model-no-runtime', 'TraceLink', 'Runtime não pode reintroduzir TraceLink removido na E8.');
+    }
+
     if (!relativeFile.join('/').endsWith('modules/audit/audit.repository.js') &&
         !relativeFile.join('/').endsWith('shared/maintenance/privacy-retention.js') &&
         /\.auditEvent\.(?:create|update|delete)/.test(source)) {
@@ -235,6 +245,10 @@ function inspectFrontendImports(files, frontendRoot, violations) {
     const source = readFileSync(file, 'utf8');
     const relativeFile = relative(frontendRoot, file).split(sep);
     const isShared = relativeFile.includes('shared');
+
+    if (/\bTaskPullRequest\b|\bGithubArtifact\b|\bTraceLink\b/.test(source)) {
+      addViolation(violations, file, 'frontend-no-removed-model', 'E8 legacy model', 'Frontend não pode depender dos models removidos na E8.');
+    }
 
     for (const specifier of extractImportSpecifiers(source)) {
       const target = resolveImport(file, specifier);

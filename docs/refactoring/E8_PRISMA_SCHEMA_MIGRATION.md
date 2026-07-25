@@ -3,98 +3,132 @@
 ## Identificação e estado
 
 - Branch: `daniel-dev`
-- Commit inicial: `b4c682f22413c9ce6177e8d9997c462d0118e4f2`
+- Commit inicial desta continuação: `def9c89284c55c4ab892c653b9082d9fb824db25`
 - Data: 25/07/2026
-- Estado inicial: árvore limpa, sincronizada com upstream (`0/0`) e sem alterações preexistentes
-- Estado: **CONCLUÍDA**, limitada à fase expand/backfill/switch compatível. Contract destrutivo não foi executado e E9 não foi iniciada.
+- Estado inicial: árvore limpa, branch sincronizada com upstream (`0/0`) e nenhuma alteração local preexistente
+- Estado final: **CONCLUÍDA DEFINITIVAMENTE**
+- Próxima etapa: E9, não iniciada nesta execução
 
-## Fontes e inventário
+## Decisão funcional confirmada
 
-Foram revisados schema, 17 migrations E0–E7, repositories/services, testes, frontend, contratos, ADRs E6/E7, inventários de privacidade e documentos oficiais disponíveis. `TRACEFLOW_MAPEAMENTO_REFATORACAO.md` não está versionado e foi lido em `Downloads`. O PDF/Capítulo 3 do TCC não existe neste checkout; cardinalidades não explícitas foram mantidas ou expandidas sem contract.
+A equipe confirmou a cardinalidade do MVP: uma Task pode possuir zero ou uma PullRequest, enquanto uma PullRequest pode atender zero ou várias Tasks. A relação canônica é, portanto, a chave estrangeira opcional `Task.pullRequestId`.
 
-O inventário completo está em `docs/data/E8_SCHEMA_INVENTORY.md`. O banco `traceflow_test` estava vazio no diagnóstico: 21 models com volume zero; produção/ambiente compartilhado não foi consultado e permanece `NÃO CONFIRMADO`.
+`TaskPullRequest` havia sido introduzida na primeira execução da E8 como expansão conservadora N:N diante da ausência de confirmação funcional. O join não representa o contrato do MVP e foi removido. O endpoint, o corpo JSON e a leitura de Pull Request permanecem singulares. Uma futura relação N:N exigirá novo ADR, migration e mudança contratual explícita.
 
-## Modelo canônico e duplicações
+O [ADR-006](../architecture/ADR-006-CANONICAL-DATA-MODEL.md) registra esta decisão e também formaliza que `Commit`, `PullRequest` e `Issue` substituem `GithubArtifact`, enquanto `Requirement → Task`, `TaskCommit`, `TaskIssue` e `Task.pullRequestId` substituem `TraceLink`.
 
-O ADR-006 define:
+## Auditoria e critérios de contract
 
-- artefatos: `Commit`, `PullRequest`, `Issue` canônicos; `GithubArtifact` legado ativo;
-- vínculos: `TaskCommit`, `TaskIssue`, `TaskPullRequest` canônicos; `TraceLink` legado/placeholder;
-- equipe: `ProjectMembership` canônico; `ProjectMember` legado;
-- autoria: `responsibleUserId` e `movedByUserId` canônicos, textos como fallback;
-- GitHub: repository ID/fullName/URL/default branch como identidade/configuração canônica; aliases preservados;
-- estados históricos permanecem strings até auditoria de dados reais; enums estáveis E6/E7 permanecem.
+O audit inicial foi executado no MySQL isolado `traceflow_test`, antes do contract:
 
-`Sprint`, `Comment`, `Notification`, `Alert`, `Indicator`, `Report`, `TestCase`, `Defect` e `GithubSyncRun` não foram inventados nesta etapa.
+| Métrica | TaskPullRequest | GithubArtifact | TraceLink |
+|---|---:|---:|---:|
+| registros totais | 0 | 0 | 0 |
+| reconciliados | 0 | 0 | 0 |
+| exclusivos | 0 | 0 | 0 |
+| conflitos ou ambiguidades | 0 | 0 | 0 |
+| órfãos | 0 | 0 | 0 |
+| duplicidades | 0 | 0 | 0 |
+| consumidores ativos | 0 | 0 | 0 |
+| relações dependentes externas | 0 | 0 | 0 |
+| removível | sim | sim | sim |
 
-## Migrations
+Para Task–PR também foram zero: Tasks com mais de uma PR no join, joins sem FK canônica, joins divergentes da FK e FKs sem join correspondente. Os relatórios contêm somente target sanitizado, contagens, categorias e checksums.
 
-1. `20260725120000_e8_expand_task_pull_request`: cria `TaskPullRequest`, unique `(taskId,pullRequestId)`, índices nos dois sentidos, ator opcional e FKs Cascade/SetNull.
-2. `20260725121000_e8_indexes_and_constraints`: adiciona índices guiados pelas queries em Project, Membership, Requirement, Task, Movement, artefatos e legados; explicita Project→Requirement como Cascade.
-3. `20260725122000_e8_remove_redundant_indexes`: remove índices simples já cobertos pelo prefixo de unique/índice composto, reduzindo custo de escrita sem perder os caminhos consultados.
+O contract é bloqueado quando existe múltipla PR por Task, divergência join/FK, artifact ambíguo, TraceLink desconhecido, órfão, dado exclusivo, relação dependente ou consumidor de runtime. Nenhum vínculo é escolhido ou descartado automaticamente nessas situações.
 
-Nenhum `DROP TABLE`, `DROP COLUMN`, reset ou remoção de model foi criado. Rollback é roll-forward: corrigir/adicionar nova migration; a origem legada permanece disponível.
+## Reconciliação e leitura canônica
 
-## Backfill e reconciliação
+Os scripts E8 foram ampliados para auditar as tabelas opcionais antes e depois do contract. Dry-run continua sendo o padrão; `--apply` exige confirmação por ambiente, prefere `TEST_DATABASE_URL`, rejeita target ambíguo, opera transacionalmente e é idempotente.
 
-Scripts:
+Regras implementadas:
 
-- `npm run e8:audit`: contagens, checksums, correspondência de artifacts e lacunas de joins;
-- `npm run e8:reconcile:dry-run`: plano sem escrita;
-- `npm run e8:reconcile`: apply protegido e transacional.
+- join singular preenche `Task.pullRequestId` somente quando a FK está vazia;
+- join consistente não gera escrita;
+- múltiplas PRs ou join divergente bloqueiam o contract;
+- GithubArtifact inequivocamente correspondente não é duplicado;
+- Commit somente é convertido quando há `projectId` e `sha` suficientes e únicos;
+- TraceLink reconhecido materializa ou confirma a relação específica;
+- tipo desconhecido, origem ambígua ou projeto divergente bloqueia o contract.
 
-Dry-run é padrão. O target prefere `TEST_DATABASE_URL`; apply em desenvolvimento exige `--confirm-development` e produção exige `--confirm-production`. Saída contém somente target sanitizado, contagens, checksums e categorias de conflito. `--report` usa criação exclusiva e não sobrescreve arquivo.
+O dual-write foi removido. Vincular ou desvincular PR agora atualiza exclusivamente `Task.pullRequestId`. As leituras de Tasks, métricas e rastreabilidade usam exclusivamente `Task.pullRequest`; não há fallback, deduplicação ou include do join N:N. As respostas HTTP permanecem singulares e inalteradas.
 
-O reconciliador:
+## Consumers removidos
 
-- reutiliza o backfill E6 de ProjectMember→ProjectMembership;
-- preenche campos GitHub canônicos sem apagar aliases;
-- resolve responsável/movedBy somente por identidade única e ativa;
-- copia `Task.pullRequestId` para TaskPullRequest;
-- materializa TraceLink suportado no join/FK tipado quando o projeto coincide;
-- classifica GithubArtifact, mas não cria artefato específico a partir de dados insuficientes;
-- preserva todos os registros legados.
+- `GithubArtifact`: removidos os acessos mortos da autorização, o repository vazio e a página estática sem rota funcional. Os services de sync continuam usando apenas `Commit`, `PullRequest` e `Issue`.
+- `TraceLink`: removidos os acessos mortos da autorização. Os vínculos tipados permanecem canônicos.
+- `TaskPullRequest`: removidos dual-write, dual-read, includes, mapper e cobertura baseada no join.
 
-Nos cenários artificiais, apply criou 1 join PR, resolveu 1 responsável e 1 movimento, preencheu 1 projeto e materializou 1 TaskCommit. A segunda execução apresentou zero pendências; nenhuma duplicidade, conflito, órfão ou perda foi observada. O relatório verificável está em `docs/data/E8_RECONCILIATION_REPORT.md`.
+Os sete endpoints placeholder permanecem `501`, inclusive os endpoints históricos de GithubArtifact e TraceLink. A descontinuação dos models não implementa esses contratos.
 
-## Dual-read, dual-write e repositories
+## Migrations contract
 
-O endpoint singular de PR foi preservado. `taskRepository.updateTaskPullRequest` grava FK legada e join canônico na mesma transação; desvinculação remove ambos. Leituras de Tasks e Traceability preferem `Task.pullRequest` e usam o primeiro join canônico como fallback, removendo internals do JSON. A cobertura de PR considera qualquer representação. Excluir Task remove joins, não PullRequest.
+Foram criadas migrations novas; nenhuma migration anterior foi editada:
 
-Não há dual-write para GithubArtifact/TraceLink/ProjectMember. Os repositories de sync continuam usando os models específicos. Nenhuma resposta HTTP de sucesso ou erro foi alterada.
+1. `20260725130000_e8_contract_remove_task_pull_request`
+2. `20260725131000_e8_contract_remove_github_artifact`
+3. `20260725132000_e8_contract_remove_trace_link`
 
-## Enums, timestamps, cascatas, índices e constraints
+Cada migration possui guard SQL que falha se a respectiva tabela ainda contiver qualquer registro. Após o gate da aplicação, as migrations removem FKs, índices e a tabela legada, preservando Task, PullRequest, Commit, Issue, relações específicas, AuditEvent e PrivacyRequest. Rollback operacional é por roll-forward e restauração de backup, não pela edição de migration aplicada.
 
-- ProjectRole/auditoria/privacidade permanecem enums por estabilidade comprovada.
-- Project/Requirement/Task/GitHub permanecem strings para preservar valores históricos desconhecidos.
-- timestamps locais usam UTC/Prisma; timestamps GitHub continuam separados; nenhum timestamp ornamental foi adicionado.
-- join Task–PR usa Cascade nos joins e SetNull no ator; Task delete preserva PR.
-- Project→Requirement agora explicita Cascade, coerente com o agregado e com o futuro delete de projeto ainda 501.
-- same-project, membership ativa e transições continuam invariantes de service/transação; FK simples não expressa essas igualdades.
+## Scripts e comandos
 
-## Arquitetura, privacidade e segurança
+- `npm run e8:audit`: auditoria sanitizada do schema e dos dados;
+- `npm run e8:reconcile:dry-run`: plano de reconciliação, sem escrita;
+- `npm run e8:reconcile`: aplica apenas reconciliações inequívocas;
+- `npm run e8:contract:dry-run`: informa a removibilidade e os motivos de bloqueio;
+- `npm run e8:contract`: aplica contract somente se todos os gates forem aprovados.
 
-O verificador ganhou regras `mapper-no-database`, `reconciliation-no-controller` e `schema-no-service`, com fixtures controladas. Runtime continua impedido de importar scripts operacionais. Reports não contêm nome, e-mail, token, URL com credencial ou conteúdo de artifact. Auditoria, anonimização e retenção E7 não foram alteradas.
+O architecture check impede a reintrodução desses models no runtime, fallback legado, import de scripts E8 pelo runtime e acesso Prisma fora das áreas autorizadas.
 
-## Testes e cobertura
+## Validação de migrations e preservação
 
-Baseline confirmado: backend 141 testes, 77,80% statements, 63,28% branches, 78,96% functions e 80,01% lines; frontend 25 testes e baseline E7 15,91/16,08/15,75/15,55.
+Foram exercitados dois caminhos reais em bancos temporários isolados:
 
-Foram adicionados testes para mapping/deduplicação/checksum, papel legado, responsible/movedBy, ProjectMember→Membership, datasource guard, dry-run/apply/idempotência, backfill artificial, TraceLink, GithubArtifact, cascata do join e preservação do artefato.
+- instalação do zero com as 23 migrations, seguida de status e auditoria;
+- upgrade das 20 migrations da E8 anterior para as três migrations contract, com dados artificiais legados.
 
-Resultado final: **151 backend** (85 unitários e 66 integração/API) e **25 frontend**, total 176. Backend: 77,85% statements, 63,47% branches, 78,99% functions e 80,06% lines. Frontend permaneceu em 15,91/16,08/15,75/15,55. `architecture:check`, scanner de 193 arquivos, as 20 migrations em upgrade e banco vazio, Prisma validate/generate, audit/reconcile idempotente, todas as suítes e build Vite foram aprovados.
+No upgrade artificial, TaskPullRequest singular foi reconciliado na FK, GithubArtifact correspondente foi reconhecido e TraceLink Task→Commit materializou TaskCommit. Após o contract permaneceram exatamente uma Task, uma PullRequest, um Commit, um TaskCommit, um AuditEvent e uma PrivacyRequest; as três tabelas legadas deixaram de existir. A segunda execução não encontrou escrita pendente.
 
-`npm audit` backend: zero vulnerabilidades. Frontend: duas ocorrências altas do mesmo advisory React Router RSC (`GHSA-qwww-vcr4-c8h2`), já conhecido, não aplicável ao modo SPA utilizado e com correção disponível apenas por mudança breaking/force; nenhuma atualização automática foi executada. O build mantém o aviso não bloqueante de chunk principal acima de 500 kB.
+Os testes também cobrem banco vazio, múltiplas PRs, divergência join/FK, artifact convertível e ambíguo, TraceLink reconhecido e desconhecido, gate permitido/bloqueado, datasource guard, idempotência e relatório sem PII.
 
-## Contract futuro, limitações e E9
+## Registro de segurança operacional
 
-`docs/data/E8_CONTRACT_PLAN.md` condiciona cada remoção a zero pendências, consumers migrados, checksums equivalentes e migration separada. Limitações:
+Durante a primeira montagem manual do cenário temporário de upgrade, um processo Node isolado herdou `DATABASE_URL` de desenvolvimento em vez do target temporário. Ele inseriu cinco registros sintéticos com identificadores exclusivos e falhou antes de criar qualquer registro legado. A execução foi interrompida e somente esses cinco registros conhecidos foram removidos por seus marcadores exatos; a verificação confirmou um projeto e um usuário sintéticos removidos, com as dependências sintéticas em cascata. Nenhum schema, migration, registro preexistente ou banco foi resetado.
 
-- não houve acesso a cópia de produção nem estimativa de volume/lock;
-- TCC/diagramas não estavam disponíveis para confirmar cardinalidade N:N como contrato funcional;
-- `GithubArtifact` sem correspondente e TraceLink desconhecido exigem decisão manual;
-- contratos ainda são singulares para PR;
-- campos GitHub e atores textuais permanecem por compatibilidade;
-- migration foi validada localmente em MySQL de teste; deploy real exige backup/janela/monitoramento.
+O cenário foi então repetido com `DATABASE_URL` explicitamente apontando para o banco temporário e passou integralmente. O incidente reforçou o datasource guard dos scripts E8; nenhum relatório contém nome, e-mail, token, descrição, conteúdo de tarefa ou payload GitHub.
 
-E9 pode iniciar após revisão humana das migrations e execução do audit/dry-run em cópia representativa. A E8 não implementou sync, paginação, endpoints 501 nem refatoração de domínio E9.
+## Contratos, privacidade e segurança
+
+- Nenhuma resposta HTTP de sucesso, mensagem, status ou regra de negócio foi alterada.
+- Nenhum endpoint `501` foi implementado ou removido.
+- Auditoria, anonimização, retenção e solicitações de privacidade continuam preservadas.
+- Nenhum model novo, mock de runtime ou dependência foi adicionado.
+- O schema final não contém TaskPullRequest, GithubArtifact ou TraceLink.
+- Nenhuma E9 foi iniciada.
+
+## Testes, cobertura e auditoria de dependências
+
+Baseline anterior:
+
+- Backend: 77,85% statements; 63,47% branches; 78,99% functions; 80,06% lines.
+- Frontend: 15,91% statements; 16,08% branches; 15,75% functions; 15,55% lines.
+
+Resultado final:
+
+- Backend: 21 arquivos, **154 testes** (85 unitários e 69 de integração/API), todos aprovados.
+- Cobertura backend: **77,93% statements; 63,53% branches; 79,19% functions; 80,09% lines**.
+- Frontend: 10 arquivos, **25 testes**, todos aprovados; build Vite aprovado.
+- Cobertura frontend: **15,92% statements; 16,08% branches; 15,78% functions; 15,56% lines**.
+- `architecture:check`: aprovado, incluindo fixture que prova o bloqueio de model legado.
+- `security:secrets`: aprovado em 194 arquivos. O scanner passou a ignorar somente paths já removidos do worktree, sem reduzir padrões ou excluir arquivos existentes.
+- `npm audit` backend: zero vulnerabilidades.
+- `npm audit` frontend: duas ocorrências altas do advisory React Router RSC `GHSA-qwww-vcr4-c8h2`, não aplicável ao modo SPA atual e com correção disponível apenas via mudança breaking/force; nenhuma correção automática foi executada.
+
+O build mantém apenas o aviso não bloqueante de chunk principal acima de 500 kB. A cobertura não caiu: todos os quatro indicadores tiveram leve aumento nos dois projetos.
+
+## Limitações e bloqueios para E9
+
+Não restou decisão funcional pendente no schema desta E8. O contract foi aprovado no banco isolado e em cenários artificiais, mas qualquer implantação em ambiente compartilhado deve repetir audit, dry-run e backup/janela operacional sobre uma cópia representativa antes da migration.
+
+Bloqueios para E9: nenhum bloqueio arquitetural da E8, condicionado à revisão humana deste diff e à execução operacional segura no ambiente de destino.
