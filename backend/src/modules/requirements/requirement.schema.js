@@ -104,7 +104,3 @@ export function calculateRequirementStatus(tasks) {
   if (tasks.every((task) => task.status === 'CONCLUIDO')) return 'VALIDADO';
   return 'EM_IMPLEMENTACAO';
 }
-
-export function calculateCoveragePercentage(linked, total) {
-  return total === 0 ? 0 : Number(((linked / total) * 100).toFixed(2));
-}

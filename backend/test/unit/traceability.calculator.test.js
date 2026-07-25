@@ -1,14 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildRequirementMetrics,
+  buildCoverageMetric,
+  buildMatrixSummary,
   calculateProgress,
   getImplementationStatus
 } from '../../src/modules/traceability/traceability.calculator.js';
 
 describe('cálculos atuais de rastreabilidade', () => {
-  it('preserva o percentual atual com duas casas decimais', () => {
-    expect(calculateProgress([])).toBe(0);
-    expect(calculateProgress([{ status: 'CONCLUIDO' }, { status: 'A_FAZER' }, { status: 'A_FAZER' }])).toBe(33.33);
+  it('distingue ausência de denominador de zero real e arredonda', () => {
+    expect(calculateProgress([])).toEqual({ numerator: 0, denominator: 0, percentage: null, hasData: false });
+    expect(calculateProgress([{ status: 'CONCLUIDO' }, { status: 'A_FAZER' }, { status: 'A_FAZER' }])).toEqual({ numerator: 1, denominator: 3, percentage: 33.33, hasData: true });
+    expect(buildCoverageMetric(0, 10)).toEqual({ numerator: 0, denominator: 10, percentage: 0, hasData: true });
+  });
+
+  it('calcula resumo global com o denominador de todas as linhas', () => {
+    const summary = buildMatrixSummary([
+      { tasksCount: 1, hasTechnicalEvidence: true, implementationStatus: 'IMPLEMENTADO', progress: { numerator: 1, denominator: 1 } },
+      { tasksCount: 0, hasTechnicalEvidence: false, implementationStatus: 'SEM_RASTREABILIDADE', progress: { numerator: 0, denominator: 0 } }
+    ]);
+    expect(summary).toMatchObject({ totalRequirements: 2, averageProgress: { numerator: 100, denominator: 2, percentage: 50, hasData: true } });
   });
 
   it('preserva os estados atuais de implementação', () => {

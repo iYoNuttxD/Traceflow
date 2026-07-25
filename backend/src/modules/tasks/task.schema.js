@@ -189,7 +189,3 @@ export function normalizeMovedBy(movedBy) {
   }
   return movedBy.trim();
 }
-
-export function calculateCoveragePercentage(linked, total) {
-  return total === 0 ? 0 : Number(((linked / total) * 100).toFixed(2));
-}

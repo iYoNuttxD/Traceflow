@@ -4,7 +4,7 @@ import { authorizationService } from '../../modules/authorization/authorization.
 export function createProjectAuthorizationMiddleware({ service = authorizationService } = {}) {
   return async function authorize(req, res, next) {
     try {
-      if ((req.method === 'DELETE' && /^\/projects\/[^/]+$/.test(req.path)) || /^\/projects\/[^/]+\/trace-links$|^\/requirements\/[^/]+\/traceability$|^\/tasks\/[^/]+\/traceability$|^\/github-artifacts\/[^/]+\/traceability$|^\/trace-links\/[^/]+$/.test(req.path)) return next();
+      if (req.method === 'DELETE' && /^\/projects\/[^/]+$/.test(req.path)) return next();
       if ((req.method === 'POST' && req.path === '/projects') || req.path.startsWith('/github/')) return next();
       if (req.method === 'GET' && req.path === '/projects') return next();
       const projectId = await service.resolveProjectId(req.path);

@@ -8,6 +8,7 @@ const publicSelect = {
 
 export const auditRepository = {
   create(data, client = prisma) { return client.auditEvent.create({ data }); },
+  createMany(data, client = prisma) { return client.auditEvent.createMany({ data }); },
   list({ where, skip, take }) {
     return prisma.$transaction([
       prisma.auditEvent.count({ where }),

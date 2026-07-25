@@ -32,7 +32,9 @@ function getErrorMessage(error, fallback) {
 }
 
 function formatPercentage(value) {
-  return `${Number(value || 0).toLocaleString('pt-BR', {
+  const percentage = typeof value === 'object' ? value?.percentage : value;
+  if (percentage == null) return 'Sem dados';
+  return `${Number(percentage).toLocaleString('pt-BR', {
     maximumFractionDigits: 2
   })}%`;
 }
@@ -54,13 +56,14 @@ export function TraceabilityPage() {
   const [loadingRequirement, setLoadingRequirement] = useState(false);
   const [matrixError, setMatrixError] = useState('');
   const [requirementError, setRequirementError] = useState('');
+  const [page, setPage] = useState(1);
 
   const loadMatrix = useCallback(async () => {
     setLoadingMatrix(true);
     setMatrixError('');
 
     try {
-      const data = await getRequirementsTraceabilityMatrix(projectId);
+      const data = await getRequirementsTraceabilityMatrix(projectId, { page, limit: 20 });
       setMatrixData(data);
     } catch (requestError) {
       setMatrixData(null);
@@ -73,7 +76,7 @@ export function TraceabilityPage() {
     } finally {
       setLoadingMatrix(false);
     }
-  }, [projectId]);
+  }, [page, projectId]);
 
   useEffect(() => {
     loadMatrix();
@@ -102,6 +105,7 @@ export function TraceabilityPage() {
 
   const summary = matrixData?.summary || {};
   const requirements = matrixData?.requirements || [];
+  const pagination = matrixData?.pagination || {};
 
   return (
     <main className="page-container traceability-page">
@@ -149,7 +153,7 @@ export function TraceabilityPage() {
             </Card>
             <Card title="Progresso médio">
               <strong className="metric-value">
-                {formatPercentage(summary.averageProgressPercentage)}
+                {formatPercentage(summary.averageProgress || summary.averageProgressPercentage)}
               </strong>
             </Card>
           </section>
@@ -191,7 +195,7 @@ export function TraceabilityPage() {
                         <td>{formatRequirementStatus(requirement.status)}</td>
                         <td>
                           <div className="traceability-progress">
-                            <span>{formatPercentage(requirement.progressPercentage)}</span>
+                            <span>{formatPercentage(requirement.progress || requirement.progressPercentage)}</span>
                             <div className="traceability-progress-bar">
                               <span
                                 style={{
@@ -231,6 +235,14 @@ export function TraceabilityPage() {
               </table>
             </div>
           </Card>
+
+          {pagination.totalPages > 1 && (
+            <nav className="pagination-controls" aria-label="Paginação da matriz">
+              <button className="button button-secondary" type="button" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}>Anterior</button>
+              <span>Página {pagination.page} de {pagination.totalPages}</span>
+              <button className="button button-secondary" type="button" disabled={page >= pagination.totalPages} onClick={() => setPage((current) => current + 1)}>Próxima</button>
+            </nav>
+          )}
 
           <Card title="Fluxograma de rastreabilidade">
             <section className="traceability-flow-placeholder">

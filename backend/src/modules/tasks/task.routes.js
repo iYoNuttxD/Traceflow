@@ -25,21 +25,6 @@ const router = Router();
 router.post('/projects/:projectId/tasks', validateRequest({ params: taskProjectParamsSchema, body: createTaskBodySchema }), taskController.create);
 router.get('/projects/:projectId/tasks', validateRequest({ params: taskProjectParamsSchema, query: taskSearchQuerySchema }), taskController.findByProject);
 router.get('/projects/:projectId/tasks/metrics', validateRequest({ params: taskProjectParamsSchema, query: taskDateRangeQuerySchema }), taskController.getMetrics);
-router.get(
-  '/projects/:projectId/traceability/pull-request-coverage',
-  validateRequest({ params: taskProjectParamsSchema }),
-  taskController.getPullRequestCoverage
-);
-router.get(
-  '/projects/:projectId/traceability/commit-coverage',
-  validateRequest({ params: taskProjectParamsSchema }),
-  taskController.getCommitCoverage
-);
-router.get(
-  '/projects/:projectId/traceability/issue-coverage',
-  validateRequest({ params: taskProjectParamsSchema }),
-  taskController.getIssueCoverage
-);
 router.get('/projects/:projectId/kanban', validateRequest({ params: taskProjectParamsSchema }), taskController.getKanbanBoard);
 router.get('/projects/:projectId/kanban/movements', validateRequest({ params: taskProjectParamsSchema, query: movementQuerySchema }), taskController.listMovements);
 router.get('/projects/:projectId/kanban/metrics', validateRequest({ params: taskProjectParamsSchema, query: movementQuerySchema }), taskController.getKanbanMetrics);

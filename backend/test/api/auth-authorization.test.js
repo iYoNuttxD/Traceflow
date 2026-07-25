@@ -131,6 +131,22 @@ describe('identidade, sessão, CSRF e autorização E6', () => {
     expect((await manager.agent.get(`/api/projects/${project.id}`)).status).toBe(404);
   });
 
+  it('aplica VIEWER+ às perspectivas e MEMBER+ ao vínculo atômico da E10', async () => {
+    const owner = await register('trace-owner@example.invalid');
+    const project = (await owner.mutate('post', '/api/projects').send(projectBody('Trace E10'))).body.project;
+    const requirement = (await owner.mutate('post', `/api/projects/${project.id}/requirements`).send({ title: 'RF E10' })).body.requirement;
+    const task = (await owner.mutate('post', `/api/projects/${project.id}/tasks`).send({ title: 'Task E10' })).body.task;
+    const viewer = await register('trace-viewer@example.invalid');
+    const viewerUser = await prisma.user.findUnique({ where: { email: 'trace-viewer@example.invalid' } });
+    await prisma.projectMembership.create({ data: { projectId: project.id, userId: viewerUser.id, role: 'VIEWER' } });
+    const outsider = await register('trace-outsider@example.invalid');
+
+    expect((await viewer.agent.get(`/api/projects/${project.id}/traceability/tasks/${task.id}`)).status).toBe(200);
+    expect((await viewer.mutate('put', `/api/requirements/${requirement.id}/tasks`).send({ taskIds: [task.id] })).status).toBe(403);
+    expect((await outsider.agent.get(`/api/projects/${project.id}/traceability/tasks/${task.id}`)).status).toBe(404);
+    expect((await owner.mutate('put', `/api/requirements/${requirement.id}/tasks`).send({ taskIds: [task.id] })).status).toBe(200);
+  });
+
   it('recuperação é uniforme e token é de uso único', async () => {
     await register('reset@example.invalid');
     const missing = await request(app).post('/api/auth/forgot-password').send({ email: 'missing@example.invalid' });

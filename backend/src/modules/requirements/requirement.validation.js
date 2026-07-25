@@ -44,3 +44,8 @@ export const updateRequirementBodySchema = strictObject({
 
 export const requirementStatusBodySchema = strictObject({ status: requirementStatus });
 export const requirementSearchQuerySchema = strictObject({ search: searchText });
+export const replaceRequirementTasksBodySchema = strictObject({
+  taskIds: z.array(positiveInteger('ID da tarefa inválido.'))
+    .max(100, 'No máximo 100 tarefas podem ser atualizadas por operação.')
+    .refine((taskIds) => new Set(taskIds).size === taskIds.length, 'A lista de tarefas não pode conter IDs duplicados.')
+});

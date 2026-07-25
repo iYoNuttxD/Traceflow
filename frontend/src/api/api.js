@@ -121,6 +121,11 @@ export async function unlinkTaskRequirement(taskId) {
   return response.data;
 }
 
+export async function replaceRequirementTasks(requirementId, taskIds) {
+  const response = await api.put(`/requirements/${requirementId}/tasks`, { taskIds });
+  return response.data;
+}
+
 export async function deleteTask(taskId) {
   const response = await api.delete(`/tasks/${taskId}`);
 
@@ -221,19 +226,34 @@ export async function getRequirementTaskCoverage(projectId) {
   return response.data;
 }
 
-export async function getRequirementsTraceabilityMatrix(projectId) {
+export async function getRequirementsTraceabilityMatrix(projectId, params = {}) {
   const response = await api.get(
-    `/projects/${projectId}/traceability/requirements-matrix`
+    `/projects/${projectId}/traceability/requirements-matrix`,
+    { params }
   );
 
   return response.data;
 }
 
-export async function getRequirementTraceability(projectId, requirementId) {
+export async function getRequirementTraceability(projectId, requirementId, params = {}) {
   const response = await api.get(
-    `/projects/${projectId}/traceability/requirements/${requirementId}`
+    `/projects/${projectId}/traceability/requirements/${requirementId}`,
+    { params }
   );
 
+  return response.data;
+}
+
+export async function getTaskTraceability(projectId, taskId, params = {}) {
+  const response = await api.get(`/projects/${projectId}/traceability/tasks/${taskId}`, { params });
+  return response.data;
+}
+
+export async function getArtifactTraceability(projectId, artifactType, artifactId, params = {}) {
+  const response = await api.get(
+    `/projects/${projectId}/traceability/artifacts/${artifactType}/${artifactId}`,
+    { params }
+  );
   return response.data;
 }
 

@@ -56,13 +56,21 @@ export const requirementController = {
     return res.json({ requirementId: req.params.id, total: tasks.length, tasks });
   }, { fallbackMessage: requirementFallback }),
 
+  replaceTasks: asyncHandler(async (req, res) => {
+    const result = await requirementService.replaceTasks(req.params.id, req.body.taskIds, {
+      actorUserId: req.auth.user.id,
+      requestId: req.requestId
+    });
+    return res.json({
+      message: 'Tarefas do requisito atualizadas com sucesso.',
+      requirement: result.requirement,
+      reassignedTasks: result.reassignedTasks,
+      changes: result.changes
+    });
+  }, { fallbackMessage: 'Erro interno ao atualizar tarefas do requisito.' }),
+
   confirmCompletion: asyncHandler(async (req, res) => {
     const requirement = await requirementService.confirmCompletion(req.params.id);
     return res.json({ message: 'Requisito concluído com sucesso.', requirement });
-  }, { fallbackMessage: requirementFallback }),
-
-  getTaskCoverage: asyncHandler(async (req, res) => {
-    const coverage = await requirementService.getRequirementTaskCoverage(req.params.projectId);
-    return res.json(coverage);
-  }, { fallbackMessage: 'Erro interno ao calcular cobertura de requisitos com tarefas.' })
+  }, { fallbackMessage: requirementFallback })
 };

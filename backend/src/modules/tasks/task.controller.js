@@ -5,6 +5,17 @@ import { auditService } from '../audit/audit.service.js';
 const taskFallback = 'Erro interno ao processar tarefa.';
 const kanbanFallback = 'Erro interno ao processar Kanban.';
 
+function recordTraceabilityMutation(req, task, action, resourceType, resourceId) {
+  return auditService.recordOperational({
+    actorUserId: req.auth.user.id,
+    projectId: task.projectId,
+    requestId: req.requestId,
+    action,
+    resourceType,
+    resourceId
+  });
+}
+
 export const taskController = {
   create: asyncHandler(async (req, res) => {
     const task = await taskService.createTask(req.params.projectId, req.body);
@@ -35,21 +46,27 @@ export const taskController = {
 
   linkPullRequest: asyncHandler(async (req, res) => {
     const task = await taskService.linkPullRequest(req.params.id, req.body);
+    await recordTraceabilityMutation(req, task, 'TASK_PULL_REQUEST_LINKED', 'PullRequest', req.body.pullRequestId);
     return res.json({ message: 'Pull request vinculado à tarefa com sucesso.', task });
   }, { fallbackMessage: 'Erro interno ao vincular pull request à tarefa.' }),
 
   unlinkPullRequest: asyncHandler(async (req, res) => {
+    const previous = await taskService.getTaskById(req.params.id);
     const task = await taskService.unlinkPullRequest(req.params.id);
+    await recordTraceabilityMutation(req, task, 'TASK_PULL_REQUEST_UNLINKED', 'PullRequest', previous.pullRequest?.id);
     return res.json({ message: 'Pull request removido da tarefa.', task });
   }, { fallbackMessage: 'Erro interno ao remover pull request da tarefa.' }),
 
   linkRequirement: asyncHandler(async (req, res) => {
     const task = await taskService.linkRequirement(req.params.id, req.body);
+    await recordTraceabilityMutation(req, task, 'REQUIREMENT_TASK_LINKED', 'Requirement', req.body.requirementId);
     return res.json({ message: 'Requisito vinculado à tarefa.', task });
   }, { fallbackMessage: 'Erro interno ao vincular requisito à tarefa.' }),
 
   unlinkRequirement: asyncHandler(async (req, res) => {
+    const previous = await taskService.getTaskById(req.params.id);
     const task = await taskService.unlinkRequirement(req.params.id);
+    await recordTraceabilityMutation(req, task, 'REQUIREMENT_TASK_UNLINKED', 'Requirement', previous.requirement?.id);
     return res.json({ message: 'Vínculo com requisito removido.', task });
   }, { fallbackMessage: 'Erro interno ao remover requisito da tarefa.' }),
 
@@ -66,12 +83,16 @@ export const taskController = {
   }, { fallbackMessage: 'Erro interno ao listar commits vinculados à tarefa.' }),
 
   linkCommit: asyncHandler(async (req, res) => {
+    const task = await taskService.getTaskById(req.params.id);
     const commits = await taskService.linkCommit(req.params.id, req.body);
+    await recordTraceabilityMutation(req, task, 'TASK_COMMIT_LINKED', 'Commit', req.body.commitId);
     return res.status(201).json({ message: 'Commit vinculado à tarefa com sucesso.', commits });
   }, { fallbackMessage: 'Erro interno ao vincular commit à tarefa.' }),
 
   unlinkCommit: asyncHandler(async (req, res) => {
+    const task = await taskService.getTaskById(req.params.id);
     const commits = await taskService.unlinkCommit(req.params.id, req.params.commitId);
+    await recordTraceabilityMutation(req, task, 'TASK_COMMIT_UNLINKED', 'Commit', req.params.commitId);
     return res.json({ message: 'Commit removido da tarefa.', commits });
   }, { fallbackMessage: 'Erro interno ao remover commit da tarefa.' }),
 
@@ -81,12 +102,16 @@ export const taskController = {
   }, { fallbackMessage: 'Erro interno ao listar issues vinculadas à tarefa.' }),
 
   linkIssue: asyncHandler(async (req, res) => {
+    const task = await taskService.getTaskById(req.params.id);
     const issues = await taskService.linkIssue(req.params.id, req.body);
+    await recordTraceabilityMutation(req, task, 'TASK_ISSUE_LINKED', 'Issue', req.body.issueId);
     return res.status(201).json({ message: 'Issue vinculada à tarefa com sucesso.', issues });
   }, { fallbackMessage: 'Erro interno ao vincular issue à tarefa.' }),
 
   unlinkIssue: asyncHandler(async (req, res) => {
+    const task = await taskService.getTaskById(req.params.id);
     const issues = await taskService.unlinkIssue(req.params.id, req.params.issueId);
+    await recordTraceabilityMutation(req, task, 'TASK_ISSUE_UNLINKED', 'Issue', req.params.issueId);
     return res.json({ message: 'Issue removida da tarefa.', issues });
   }, { fallbackMessage: 'Erro interno ao remover issue da tarefa.' }),
 
@@ -119,17 +144,5 @@ export const taskController = {
       req.query.endDate
     );
     return res.json(metrics);
-  }, { fallbackMessage: taskFallback }),
-
-  getPullRequestCoverage: asyncHandler(async (req, res) => {
-    return res.json(await taskService.getPullRequestCoverage(req.params.projectId));
-  }, { fallbackMessage: 'Erro interno ao calcular cobertura com pull requests.' }),
-
-  getCommitCoverage: asyncHandler(async (req, res) => {
-    return res.json(await taskService.getCommitCoverage(req.params.projectId));
-  }, { fallbackMessage: 'Erro interno ao calcular cobertura com commits.' }),
-
-  getIssueCoverage: asyncHandler(async (req, res) => {
-    return res.json(await taskService.getIssueCoverage(req.params.projectId));
-  }, { fallbackMessage: 'Erro interno ao calcular cobertura com issues.' })
+  }, { fallbackMessage: taskFallback })
 };

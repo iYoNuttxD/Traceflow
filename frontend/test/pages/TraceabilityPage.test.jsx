@@ -11,12 +11,14 @@ const apiMocks = vi.hoisted(() => ({
 vi.mock('../../src/api/api.js', () => apiMocks);
 vi.mock('../../src/components/TraceabilityFlow.jsx', () => ({
   TraceabilityFlow({ traceability }) {
-    const task = traceability.tasks[0];
+    const requirement = traceability.nodes.find((node) => node.type === 'REQUIREMENT');
+    const task = traceability.nodes.find((node) => node.type === 'TASK');
+    const commit = traceability.nodes.find((node) => node.type === 'COMMIT');
 
     return (
       <div data-testid="traceability-flow-contract">
-        {traceability.requirement.title} | {task?.title || 'sem tarefa'} |{' '}
-        {task?.commits?.[0]?.shortHash || 'sem artefato'}
+        {requirement?.data.title} | {task?.data.title || 'sem tarefa'} |{' '}
+        {commit?.data.shortHash || 'sem artefato'}
       </div>
     );
   }
@@ -49,7 +51,8 @@ describe('TraceabilityPage', () => {
         implementedRequirements: 0,
         averageProgressPercentage: 0
       },
-      requirements: []
+      requirements: [],
+      pagination: { page: 1, limit: 20, total: 0, totalPages: 0 }
     });
     renderPage();
 
@@ -67,7 +70,8 @@ describe('TraceabilityPage', () => {
         requirementsWithTasks: 1,
         requirementsWithTechnicalEvidence: 1,
         implementedRequirements: 0,
-        averageProgressPercentage: 0
+        averageProgressPercentage: 0,
+        averageProgress: { numerator: 0, denominator: 1, percentage: 0, hasData: true }
       },
       requirements: [
         {
@@ -84,28 +88,23 @@ describe('TraceabilityPage', () => {
           hasTechnicalEvidence: true,
           implementationStatus: 'EM_DESENVOLVIMENTO'
         }
-      ]
+      ],
+      pagination: { page: 1, limit: 20, total: 1, totalPages: 1 }
     });
     apiMocks.getRequirementTraceability.mockResolvedValue({
       projectId: 9,
-      requirement: {
-        id: 10,
-        title: 'Requisito artificial',
-        status: 'CADASTRADO',
-        progressPercentage: 0,
-        implementationStatus: 'EM_DESENVOLVIMENTO',
-        hasTechnicalEvidence: true
-      },
-      tasks: [
-        {
-          id: 20,
-          title: 'Tarefa artificial',
-          status: 'A_FAZER',
-          pullRequest: null,
-          issues: [],
-          commits: [{ id: 30, hash: 'abcdef123', shortHash: 'abcdef1' }]
-        }
-      ]
+      perspective: { type: 'REQUIREMENT', id: 10 },
+      summary: { hasTechnicalEvidence: true },
+      nodes: [
+        { id: 'requirement:10', type: 'REQUIREMENT', data: { id: 10, title: 'Requisito artificial' } },
+        { id: 'task:20', type: 'TASK', data: { id: 20, title: 'Tarefa artificial' } },
+        { id: 'commit:30', type: 'COMMIT', data: { id: 30, shortHash: 'abcdef1' } }
+      ],
+      edges: [
+        { id: 'rt', type: 'REQUIREMENT_TASK', source: 'requirement:10', target: 'task:20' },
+        { id: 'tc', type: 'TASK_COMMIT', source: 'task:20', target: 'commit:30' }
+      ],
+      pagination: { page: 1, limit: 20, total: 1, totalPages: 1 }
     });
     renderPage();
 
@@ -115,5 +114,6 @@ describe('TraceabilityPage', () => {
       'Requisito artificial | Tarefa artificial | abcdef1'
     );
     expect(apiMocks.getRequirementTraceability).toHaveBeenCalledWith('9', 10);
+    expect(apiMocks.getRequirementsTraceabilityMatrix).toHaveBeenCalledWith('9', { page: 1, limit: 20 });
   });
 });

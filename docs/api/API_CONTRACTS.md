@@ -1,10 +1,16 @@
 # Catálogo atual de contratos HTTP do TRACEFLOW
 
+## Atualização E10 — requisitos e rastreabilidade canônica
+
+`Task.requirementId`, `Task.pullRequestId`, `TaskCommit` e `TaskIssue` são as únicas fontes dos vínculos. A matriz passou a ser paginada sem carregar conteúdo integral de artefatos e mantém um summary global independente da página. As perspectivas de requisito, tarefa e artefato usam o mesmo DTO `{projectId,perspective,summary,nodes,edges,pagination}`; IDs de node são namespaced e as arestas usam `REQUIREMENT_TASK`, `TASK_COMMIT`, `TASK_PULL_REQUEST` ou `TASK_ISSUE`.
+
+Os cinco placeholders baseados em `TraceLink`/`GithubArtifact` foram removidos e seguem o `404` global. O único `501` restante é `DELETE /projects/:id`. O RF41 permanece bloqueado: o TCC menciona identificador “no formato ID”, mas não define a sintaxe que pode ser reconhecida deterministicamente.
+
 ## Atualização E9 — Projetos e sincronização GitHub
 
 O cadastro integrado usa a operação especializada `POST /projects/from-github` e revalida o repositório externo. A sincronização pagina commits, pull requests e issues, deduplica/upserta por identificadores externos dentro do projeto e só marca sucesso após todas as coleções. Falha parcial preserva lotes já confirmados, o último sucesso e os vínculos técnicos; a resposta de sucesso permanece `{message,summary,project}`.
 
-O alias legado redundante `GET /projects/:projectId/github/artifacts` foi removido após confirmação de ausência de consumidores; ele agora segue o `404 ROUTE_NOT_FOUND`. A rota canônica RF06 permanece `GET /projects/:projectId/artifacts`. Assim, seis placeholders continuam retornando `501` quando a requisição está autenticada.
+O alias legado redundante `GET /projects/:projectId/github/artifacts` foi removido após confirmação de ausência de consumidores; ele agora segue o `404 ROUTE_NOT_FOUND`. A rota canônica RF06 permanece `GET /projects/:projectId/artifacts`.
 
 ## Atualização E8 — persistência canônica sem ruptura HTTP
 
@@ -87,6 +93,7 @@ Status de projeto: `ATIVO`, `INATIVO`, `ARQUIVADO`. URLs GitHub precisam usar HT
 | PATCH | `/requirements/:id/status` | `id` positivo | `status` | `200`, `{message,requirement}` |
 | PATCH | `/requirements/:id/confirm-completion` | `id` positivo | nenhum | `200`, `{message,requirement}` |
 | GET | `/requirements/:id/tasks` | `id` positivo | — | `200`, `{requirementId,total,tasks}` |
+| PUT | `/requirements/:id/tasks` | `id` positivo | `taskIds`: array único de até 100 IDs | `200`, `{message,requirement,reassignedTasks,changes}` |
 | GET | `/projects/:projectId/traceability/requirement-task-coverage` | `projectId` positivo | — | `200`, métricas atuais |
 
 Tipos preservados: `FUNCIONAL`, `NAO_FUNCIONAL`, `REGRA_NEGOCIO`. Status preservados: `CADASTRADO`, `APROVADO`, `EM_IMPLEMENTACAO`, `VALIDADO`, `CONCLUIDO`, `PENDENTE`, `EM_ANDAMENTO`, `CANCELADO`. As transições continuam sendo regra de domínio do service.
@@ -132,19 +139,18 @@ Priority: `BAIXA`, `MEDIA`, `ALTA`, `CRITICA`. Status: `A_FAZER`, `EM_ANDAMENTO`
 
 Tipos de artifacts: `commit`, `pull_request`, `issue`. A paginação E9 ocorre somente na leitura externa do GitHub; os contratos públicos de listagem permanecem inalterados.
 
-## Traceability e placeholders
+Coberturas preservam os campos históricos e acrescentam `coverage: {numerator,denominator,percentage,hasData}`. Quando não há denominador, `percentage` é `null` e `hasData` é `false`; o escalar histórico permanece `0` por compatibilidade.
+
+## Traceability canônica
 
 | Método | Caminho | Entrada | Sucesso |
 |---|---|---|---|
-| GET | `/projects/:projectId/traceability/requirements-matrix` | `projectId` positivo | `200`, matriz e summary atuais |
-| GET | `/projects/:projectId/traceability/requirements/:requirementId` | ambos positivos | `200`, detalhe/grafo atual |
-| POST | `/projects/:projectId/trace-links` | não validada para preservar baseline | `501` |
-| GET | `/requirements/:requirementId/traceability` | não validada para preservar baseline | `501` |
-| GET | `/tasks/:taskId/traceability` | não validada para preservar baseline | `501` |
-| GET | `/github-artifacts/:artifactId/traceability` | não validada para preservar baseline | `501` |
-| DELETE | `/trace-links/:id` | não validada para preservar baseline | `501` |
+| GET | `/projects/:projectId/traceability/requirements-matrix` | IDs; `page?`, `limit?` | `200`, `{projectId,summary,requirements,pagination}` |
+| GET | `/projects/:projectId/traceability/requirements/:requirementId` | IDs; `page?`, `limit?` paginam tarefas | `200`, DTO de grafo, perspectiva `REQUIREMENT` |
+| GET | `/projects/:projectId/traceability/tasks/:taskId` | IDs; `page?`, `limit?` paginam artefatos | `200`, DTO de grafo, perspectiva `TASK` |
+| GET | `/projects/:projectId/traceability/artifacts/:artifactType/:artifactId` | `commit`, `pull-request` ou `issue`; paginação de tarefas | `200`, DTO de grafo da perspectiva tipada |
 
-Os placeholders alcançam o handler `501` mesmo com texto no parâmetro. Isso é uma exceção deliberada à validação de IDs e mantém a caracterização da E1.
+O summary da matriz é calculado sobre todo o projeto, não apenas sobre a página. A matriz seleciona somente dados resumidos e contagens. O grafo nunca expõe `Commit.authorEmail`. Recursos de outro projeto recebem `404`; consultas exigem VIEWER+ e a atualização atômica Requirement–Task exige MEMBER+.
 
 ## Conta, privacidade e auditoria (E7)
 

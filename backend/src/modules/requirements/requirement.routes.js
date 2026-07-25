@@ -8,6 +8,7 @@ import {
   requirementProjectParamsSchema,
   requirementSearchQuerySchema,
   requirementStatusBodySchema,
+  replaceRequirementTasksBodySchema,
   updateRequirementBodySchema
 } from './requirement.validation.js';
 
@@ -22,11 +23,6 @@ router.get(
   '/projects/:projectId/requirements',
   validateRequest({ params: requirementProjectParamsSchema, query: requirementSearchQuerySchema }),
   requirementController.findByProject
-);
-router.get(
-  '/projects/:projectId/traceability/requirement-task-coverage',
-  validateRequest({ params: requirementProjectParamsSchema }),
-  requirementController.getTaskCoverage
 );
 router.get('/requirements/:id', validateRequest({ params: requirementIdParamsSchema }), requirementController.findById);
 router.put(
@@ -49,6 +45,11 @@ router.get(
   '/requirements/:id/tasks',
   validateRequest({ params: requirementIdParamsSchema }),
   requirementController.findTasksByRequirement
+);
+router.put(
+  '/requirements/:id/tasks',
+  validateRequest({ params: requirementIdParamsSchema, body: replaceRequirementTasksBodySchema }),
+  requirementController.replaceTasks
 );
 
 export default router;

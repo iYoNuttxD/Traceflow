@@ -44,6 +44,10 @@ Esta área registra a evolução incremental do MVP para uma arquitetura mais se
 
 **Concluída tecnicamente em 25/07/2026, com smoke externo pendente**, com provider de credencial GitHub, DTOs, paginação, sincronização idempotente e auditável, persistência por lotes, proteção de concorrência e fluxos frontend de Projetos/Artifacts protegidos. A execução partiu do commit `ce87c5547ccb6ce0b1d9b658aa0cfb44105fca6d`.
 
+## Estado da E10
+
+**Concluída em 25/07/2026**, com fórmulas canônicas, distinção entre zero e ausência, atualização atômica Requirement–Task, matriz paginada, DTO único e perspectivas project-scoped de requisito, tarefa e artefato. Os placeholders genéricos foram removidos; RF41 permanece bloqueado pela ausência de sintaxe oficial para o identificador da tarefa na mensagem do commit. A execução partiu do commit `7e64243`.
+
 ## Documentos produzidos
 
 - [E0_BASELINE.md](E0_BASELINE.md) — execução, arquitetura, páginas, fluxos, divergências e bloqueios.
@@ -61,6 +65,7 @@ Esta área registra a evolução incremental do MVP para uma arquitetura mais se
 - [E7_PRIVACY_AUDIT_GOVERNANCE.md](E7_PRIVACY_AUDIT_GOVERNANCE.md) — auditoria, direitos do titular, retenção, anonimização e lacunas.
 - [E8_PRISMA_SCHEMA_MIGRATION.md](E8_PRISMA_SCHEMA_MIGRATION.md) — modelo canônico, reconciliação, migrations contract e fechamento definitivo.
 - [E9_PROJECTS_GITHUB.md](E9_PROJECTS_GITHUB.md) — cadastro de projetos, fronteira GitHub, paginação, sincronização, testes e riscos residuais.
+- [E10_REQUIREMENTS_TRACEABILITY.md](E10_REQUIREMENTS_TRACEABILITY.md) — requisitos, fórmulas, vínculos atômicos, matriz e grafos canônicos.
 - [THREAT_MODEL.md](../security/THREAT_MODEL.md) — ativos, boundaries, ameaças e decisões de risco.
 - [SECRETS_POLICY.md](../security/SECRETS_POLICY.md) — ciclo de vida, acesso, rotação e resposta a vazamento.
 - [DEPENDENCY_RISK_REGISTER.md](../security/DEPENDENCY_RISK_REGISTER.md) — advisories, aplicabilidade e decisões.
@@ -72,6 +77,6 @@ Esta área registra a evolução incremental do MVP para uma arquitetura mais se
 
 ## Próxima etapa
 
-E0–E8 estão concluídas definitivamente. A E9 está concluída tecnicamente; falta apenas smoke contra GitHub real com token e repositório de teste explicitamente autorizados. Próxima etapa: **E10 — Requisitos e Rastreabilidade**, que não foi iniciada nesta execução.
+E0–E8 estão concluídas definitivamente. A E9 está concluída tecnicamente, com smoke externo ainda pendente. A E10 está concluída, mantendo o RF41 bloqueado por ambiguidade documental conforme a regra de aceite da própria etapa. Próxima etapa: **E11**, que não foi iniciada nesta execução.
 
 Nenhum código funcional foi refatorado durante a E0 ou a E1. A E2 reorganizou fronteiras internas, a E3 introduziu infraestrutura transversal, a E4 protegeu os contratos de entrada e a E5 estabeleceu controles transversais de segurança, sem alterar regras de negócio ou respostas de sucesso.

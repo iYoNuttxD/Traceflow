@@ -1,10 +1,16 @@
-export function calculateProgress(tasks) {
-  if (tasks.length === 0) {
-    return 0;
-  }
+export function buildMetric(numerator, denominator) {
+  const hasData = denominator > 0;
+  return {
+    numerator,
+    denominator,
+    percentage: hasData ? Number(((numerator / denominator) * 100).toFixed(2)) : null,
+    hasData
+  };
+}
 
+export function calculateProgress(tasks) {
   const completedTasksCount = tasks.filter((task) => task.status === 'CONCLUIDO').length;
-  return Number(((completedTasksCount / tasks.length) * 100).toFixed(2));
+  return buildMetric(completedTasksCount, tasks.length);
 }
 
 export function uniqueById(items) {
@@ -21,6 +27,14 @@ function extractIssues(tasks) {
   return uniqueById(
     tasks.flatMap((task) => (task.issueLinks || []).map((link) => link.issue).filter(Boolean))
   );
+}
+
+function countLinked(tasks, relation) {
+  return tasks.reduce((total, task) => {
+    const count = task?._count?.[relation];
+    if (Number.isInteger(count)) return total + count;
+    return total + (task?.[relation] || []).length;
+  }, 0);
 }
 
 function extractCommits(tasks) {
@@ -55,8 +69,11 @@ export function buildRequirementMetrics(requirement) {
   const commits = extractCommits(tasks);
   const pullRequests = extractPullRequests(tasks);
   const completedTasksCount = tasks.filter((task) => task.status === 'CONCLUIDO').length;
-  const hasTechnicalEvidence = pullRequests.length > 0 || commits.length > 0;
-  const progressPercentage = calculateProgress(tasks);
+  const issuesCount = countLinked(tasks, 'issueLinks');
+  const commitsCount = countLinked(tasks, 'commitLinks');
+  const pullRequestsCount = tasks.filter((task) => task.pullRequest || task.pullRequestId).length;
+  const hasTechnicalEvidence = pullRequestsCount > 0 || commitsCount > 0;
+  const progress = calculateProgress(tasks);
   const implementationStatus = getImplementationStatus(
     requirement,
     tasks,
@@ -70,11 +87,52 @@ export function buildRequirementMetrics(requirement) {
     pullRequests,
     tasksCount: tasks.length,
     completedTasksCount,
-    progressPercentage,
-    issuesCount: issues.length,
-    pullRequestsCount: pullRequests.length,
-    commitsCount: commits.length,
+    progress,
+    // Compatibilidade com a matriz histórica: ausência de denominador continua exibida como 0.
+    progressPercentage: progress.percentage ?? 0,
+    issuesCount: Math.max(issues.length, issuesCount),
+    pullRequestsCount: Math.max(pullRequests.length, pullRequestsCount),
+    commitsCount: Math.max(commits.length, commitsCount),
     hasTechnicalEvidence,
     implementationStatus
+  };
+}
+
+export function buildCoverageMetric(linked, total) {
+  return buildMetric(linked, total);
+}
+
+export function buildMatrixSummary(rows) {
+  const totalRequirements = rows.length;
+  const requirementsWithTasks = rows.filter((row) => row.tasksCount > 0).length;
+  const requirementsWithTechnicalEvidence = rows.filter((row) => row.hasTechnicalEvidence).length;
+  const implementedRequirements = rows.filter((row) =>
+    ['IMPLEMENTADO', 'CONCLUIDO'].includes(row.implementationStatus)
+  ).length;
+  // Preserva a fórmula histórica: média por requisito, considerando requisitos sem tarefas como 0.
+  const progressSum = rows.reduce(
+    (sum, row) => sum + (
+      row.progressPercentage ??
+      row.progress?.percentage ??
+      (row.progress?.denominator
+        ? Number(((row.progress.numerator / row.progress.denominator) * 100).toFixed(2))
+        : 0)
+    ),
+    0
+  );
+  const averageProgress = {
+    numerator: progressSum,
+    denominator: totalRequirements,
+    percentage: totalRequirements ? Number((progressSum / totalRequirements).toFixed(2)) : null,
+    hasData: totalRequirements > 0
+  };
+
+  return {
+    totalRequirements,
+    requirementsWithTasks,
+    requirementsWithTechnicalEvidence,
+    implementedRequirements,
+    averageProgress,
+    averageProgressPercentage: averageProgress.percentage ?? 0
   };
 }

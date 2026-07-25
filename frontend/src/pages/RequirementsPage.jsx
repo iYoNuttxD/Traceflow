@@ -5,9 +5,8 @@ import {
   confirmRequirementCompletion,
   deleteRequirement,
   getRequirementTaskCoverage,
-  linkTaskRequirement,
-  requirementsApi,
-  unlinkTaskRequirement
+  replaceRequirementTasks,
+  requirementsApi
 } from '../api/api.js';
 import { Card } from '../shared/index.js';
 import { ProjectSectionNav } from '../components/ProjectSectionNav.jsx';
@@ -140,46 +139,15 @@ export function RequirementsPage() {
 
     try {
       const selectedTaskIds = (formData.taskIds || []).map(Number);
-      const editingRequirement = editingRequirementId
-        ? requirements.find(
-            (requirement) => String(requirement.id) === String(editingRequirementId)
-          )
-        : null;
-      const previousTaskIds = (editingRequirement?.tasks || []).map((task) => task.id);
       const payload = requirementFormToPayload(formData);
       const response = editingRequirementId
         ? await requirementsApi.update(editingRequirementId, payload)
         : await requirementsApi.create(projectId, payload);
       const savedRequirement = response.data.requirement;
-      const tasksToLink = selectedTaskIds.filter((taskId) => !previousTaskIds.includes(taskId));
-      const tasksToUnlink = previousTaskIds.filter((taskId) => !selectedTaskIds.includes(taskId));
-      let linkWarning = '';
-
-      try {
-        for (const taskId of tasksToLink) {
-          const task = [...taskOptions, ...taskResults].find(
-            (item) => String(item.id) === String(taskId)
-          );
-          const previousRequirementId = task?.requirementId;
-
-          await linkTaskRequirement(taskId, savedRequirement.id);
-
-          if (
-            previousRequirementId &&
-            String(previousRequirementId) !== String(savedRequirement.id)
-          ) {
-            linkWarning =
-              'Esta tarefa já estava vinculada a outro requisito e foi atualizada para este requisito.';
-          }
-        }
-
-        for (const taskId of tasksToUnlink) {
-          await unlinkTaskRequirement(taskId);
-        }
-      } catch (linkError) {
-        linkWarning =
-          getErrorMessage(linkError, 'Requisito salvo, mas não foi possível atualizar as tarefas vinculadas.');
-      }
+      const linkResult = await replaceRequirementTasks(savedRequirement.id, selectedTaskIds);
+      const linkWarning = linkResult.reassignedTasks?.length
+        ? 'Uma ou mais tarefas já pertenciam a outro requisito e foram reassociadas.'
+        : '';
 
       setSuccess(response.data.message);
       resetForm();
