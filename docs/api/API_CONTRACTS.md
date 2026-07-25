@@ -1,5 +1,9 @@
 # Catálogo atual de contratos HTTP do TRACEFLOW
 
+## Atualização E8 — persistência canônica sem ruptura HTTP
+
+O vínculo Task–PullRequest passou a possuir `TaskPullRequest` canônico N:N, mas os endpoints existentes continuam singulares e preservam exatamente paths, status, mensagens e payloads. Durante a transição, a escrita atualiza join e `Task.pullRequestId` na mesma transação; a leitura usa fallback sem expor `pullRequestLinks`. Nenhum dos sete placeholders 501 foi implementado.
+
 ## Atualização E6 — identidade e privacidade dos endpoints
 
 Health permanece público. Também são públicos `POST /api/auth/register`, `login`, `forgot-password` e `reset-password`. As demais rotas `/api` exigem cookie de sessão; mutations exigem `X-CSRF-Token`. `GET /api/auth/me` restaura a identidade, `GET /api/auth/csrf` rotaciona CSRF, `POST /api/auth/logout` revoga a sessão e `POST /api/auth/change-password` revoga todas as sessões.

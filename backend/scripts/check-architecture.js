@@ -76,6 +76,8 @@ function inspectBackendImports(files, backendRoot, violations, graph) {
     const isErrorHandler = relativeFile.at(-1) === 'error-handler.middleware.js';
     const isValidationMiddleware = relativeFile.at(-1) === 'validate-request.middleware.js';
     const isSchema = /\.(?:schema|validation)\.js$/.test(file);
+    const isMapper = /\.mapper\.js$/.test(file);
+    const isReconciliation = /(?:reconcile|reconciliation)/i.test(relativeFile.at(-1));
     const imports = extractImportSpecifiers(source);
 
     if (!relativeFile.join('/').endsWith('modules/audit/audit.repository.js') &&
@@ -156,6 +158,18 @@ function inspectBackendImports(files, backendRoot, violations, graph) {
 
       if (isSchema && specifier === 'express') {
         addViolation(violations, file, 'schema-no-express', specifier, 'Schema de domínio não pode importar Express.');
+      }
+
+      if (isMapper && databaseImport) {
+        addViolation(violations, file, 'mapper-no-database', specifier, 'Mapper não pode acessar Prisma/database diretamente.');
+      }
+
+      if (isReconciliation && targetLayer === 'controller') {
+        addViolation(violations, file, 'reconciliation-no-controller', specifier, 'Reconciliação não pode importar controller.');
+      }
+
+      if (isSchema && targetLayer === 'service') {
+        addViolation(violations, file, 'schema-no-service', specifier, 'Schema/helper de schema não pode importar service.');
       }
 
       if (isValidationMiddleware && targetLayer === 'service') {

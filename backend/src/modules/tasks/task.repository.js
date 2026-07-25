@@ -49,6 +49,12 @@ const taskInclude = {
   pullRequest: {
     select: taskPullRequestSelect
   },
+  pullRequestLinks: {
+    select: {
+      pullRequest: { select: taskPullRequestSelect }
+    },
+    orderBy: { createdAt: 'asc' }
+  },
   commitLinks: {
     select: {
       commit: {
@@ -286,10 +292,16 @@ export const taskRepository = {
   },
 
   async updateTaskPullRequest(id, pullRequestId) {
-    return prisma.task.update({
-      where: { id },
-      data: { pullRequestId },
-      include: taskInclude
+    return prisma.$transaction(async (tx) => {
+      await tx.taskPullRequest.deleteMany({ where: { taskId: id } });
+      if (pullRequestId !== null) {
+        await tx.taskPullRequest.create({ data: { taskId: id, pullRequestId } });
+      }
+      return tx.task.update({
+        where: { id },
+        data: { pullRequestId },
+        include: taskInclude
+      });
     });
   },
 
@@ -308,6 +320,10 @@ export const taskRepository = {
       });
 
       await tx.taskIssue.deleteMany({
+        where: { taskId: id }
+      });
+
+      await tx.taskPullRequest.deleteMany({
         where: { taskId: id }
       });
 
@@ -393,9 +409,10 @@ export const taskRepository = {
     return prisma.task.count({
       where: {
         projectId,
-        pullRequestId: {
-          not: null
-        }
+        OR: [
+          { pullRequestLinks: { some: {} } },
+          { pullRequestId: { not: null } }
+        ]
       }
     });
   },

@@ -47,6 +47,7 @@ export async function cleanTestDatabase(prisma) {
     prisma.auditEvent.deleteMany(),
     prisma.personalDataExport.deleteMany(),
     prisma.privacyRequest.deleteMany(),
+    prisma.taskPullRequest.deleteMany(),
     prisma.taskCommit.deleteMany(),
     prisma.taskIssue.deleteMany(),
     prisma.taskMovement.deleteMany(),

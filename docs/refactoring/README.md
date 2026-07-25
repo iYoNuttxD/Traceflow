@@ -36,6 +36,10 @@ Esta área registra a evolução incremental do MVP para uma arquitetura mais se
 
 **Concluída em 24/07/2026**, com models/migration aditivos, auditoria persistente, direitos do titular, retenção, anonimização controlada, frontend e documentação de privacidade. A execução partiu do commit `4a02b67fe471a05405644dcd7fa66536cb8a1ade`.
 
+## Estado da E8
+
+**Concluída em 25/07/2026**, na fase segura expand/backfill/switch compatível, com ADR canônico, `TaskPullRequest`, índices/constraints, scripts protegidos e idempotentes, reconciliação sem perda e plano de contract separado. A execução partiu do commit `b4c682f22413c9ce6177e8d9997c462d0118e4f2`.
+
 ## Documentos produzidos
 
 - [E0_BASELINE.md](E0_BASELINE.md) — execução, arquitetura, páginas, fluxos, divergências e bloqueios.
@@ -51,6 +55,7 @@ Esta área registra a evolução incremental do MVP para uma arquitetura mais se
 - [E5_SECURITY_BASELINE.md](E5_SECURITY_BASELINE.md) — controles transversais E5, testes, audits, cobertura e riscos residuais.
 - [E6_IDENTITY_AUTHORIZATION.md](E6_IDENTITY_AUTHORIZATION.md) — identidade, sessão, CSRF, RBAC, convites, migration e lacunas.
 - [E7_PRIVACY_AUDIT_GOVERNANCE.md](E7_PRIVACY_AUDIT_GOVERNANCE.md) — auditoria, direitos do titular, retenção, anonimização e lacunas.
+- [E8_PRISMA_SCHEMA_MIGRATION.md](E8_PRISMA_SCHEMA_MIGRATION.md) — modelo canônico, migrations, reconciliação, compatibilidade e contract futuro.
 - [THREAT_MODEL.md](../security/THREAT_MODEL.md) — ativos, boundaries, ameaças e decisões de risco.
 - [SECRETS_POLICY.md](../security/SECRETS_POLICY.md) — ciclo de vida, acesso, rotação e resposta a vazamento.
 - [DEPENDENCY_RISK_REGISTER.md](../security/DEPENDENCY_RISK_REGISTER.md) — advisories, aplicabilidade e decisões.
@@ -62,6 +67,6 @@ Esta área registra a evolução incremental do MVP para uma arquitetura mais se
 
 ## Próxima etapa
 
-A E7 está concluída. Próxima etapa: **E8**, que não foi iniciada nesta execução.
+E0–E8 estão concluídas. Próxima etapa: **E9**, que não foi iniciada nesta execução.
 
 Nenhum código funcional foi refatorado durante a E0 ou a E1. A E2 reorganizou fronteiras internas, a E3 introduziu infraestrutura transversal, a E4 protegeu os contratos de entrada e a E5 estabeleceu controles transversais de segurança, sem alterar regras de negócio ou respostas de sucesso.

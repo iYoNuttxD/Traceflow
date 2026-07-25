@@ -10,6 +10,10 @@ Novas ameaças tratadas/testadas: credential stuffing, fixation/hijacking, CSRF,
 
 Este threat model nasceu na E5 e foi atualizado na E6; usa STRIDE como guia e não é certificação formal. Identidade, sessão e autorização agora existem, com as lacunas operacionais explicitadas acima.
 
+## Atualização E8
+
+Migrations e reconciliação formam uma boundary administrativa: scripts são dry-run por padrão, sanitizam o target, exigem confirmação para apply fora de banco de teste e não são importáveis pelo runtime. O risco principal passa a ser corrupção/perda durante backfill ou contract; foi mitigado com expansão aditiva, transação, idempotência, checksums, preservação da origem e proibição de contract nesta entrega. Produção ainda exige cópia representativa, backup, estimativa de lock e janela operacional.
+
 ## Ativos
 
 - projetos, requisitos, tarefas, vínculos e histórico Kanban;

@@ -30,3 +30,29 @@ export function isProductionDatabase(value) {
   const name = parseDatabaseUrl(value).pathname.replace(/^\//, '').toLowerCase();
   return /(^|[_-])(prod|production)([_-]|$)/.test(name);
 }
+
+export function isTestDatabase(value) {
+  const name = parseDatabaseUrl(value).pathname.replace(/^\//, '').toLowerCase();
+  return /(^|[_-])test([_-]|$)/.test(name);
+}
+
+export function assertMaintenanceDatabase({
+  databaseUrl,
+  developmentDatabaseUrl,
+  apply = false,
+  confirmDevelopment = false,
+  confirmProduction = false
+}) {
+  parseDatabaseUrl(databaseUrl);
+  if (developmentDatabaseUrl && isTestDatabase(databaseUrl) && databaseUrl === developmentDatabaseUrl) {
+    throw new Error('O banco de teste da manutenção deve ser diferente de DATABASE_URL.');
+  }
+  if (!apply) return databaseUrl;
+  if (isProductionDatabase(databaseUrl) && !confirmProduction) {
+    throw new Error('Reconciliação em produção exige --confirm-production.');
+  }
+  if (!isProductionDatabase(databaseUrl) && !isTestDatabase(databaseUrl) && !confirmDevelopment) {
+    throw new Error('Reconciliação em desenvolvimento exige --confirm-development.');
+  }
+  return databaseUrl;
+}

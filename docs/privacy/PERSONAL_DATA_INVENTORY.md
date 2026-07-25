@@ -1,6 +1,6 @@
 # Inventário de dados pessoais do TRACEFLOW
 
-Baseline técnico E7 de 24/07/2026. Este inventário apoia governança e não constitui conclusão jurídica; base legal, prazos obrigatórios e atendimento formal devem ser validados pelo controlador e assessoria competente.
+Baseline técnico atualizado na E8 em 25/07/2026. Este inventário apoia governança e não constitui conclusão jurídica; base legal, prazos obrigatórios e atendimento formal devem ser validados pelo controlador e assessoria competente.
 
 | Dado | Classificação | Origem/finalidade | Model | Acesso/compartilhamento | Retenção e correção | Exclusão/risco |
 |---|---|---|---|---|---|---|
@@ -9,6 +9,7 @@ Baseline técnico E7 de 24/07/2026. Este inventário apoia governança e não co
 | sessão/CSRF/reset/convite | CREDENCIAL/SEGREDO | sessão e fluxos de prova | `Session`, `PasswordResetToken`, `ProjectInvitation` | backend; token bruto apenas navegador/e-mail | TTL e limpeza operacional | revogado/removido; risco crítico se vazado |
 | membership, papel e participação | DADO PESSOAL | autorização por projeto | `ProjectMembership` | integrantes do projeto, e-mail minimizado por papel | histórico durante o projeto/conta | desativação lógica; risco BOLA mitigado por RBAC |
 | responsável e movimentação | DADO TÉCNICO POTENCIALMENTE PESSOAL | atribuição e histórico Kanban | `Task`, `TaskMovement` | integrantes do projeto | histórico funcional | texto legado vira neutro na anonimização |
+| ator de vínculo Task–PR | IDENTIFICADOR TÉCNICO POTENCIALMENTE PESSOAL | autoria futura do vínculo técnico | `TaskPullRequest.linkedByUserId` | integrantes autorizados; campo ainda não exposto no contrato | ciclo do vínculo/projeto | `SetNull` preserva vínculo ao anonimizar/remover referência; E8 não faz correlação retroativa |
 | autoria de commit/login/e-mail | DADO TÉCNICO POTENCIALMENTE PESSOAL | rastreabilidade importada do GitHub | `Commit`, `PullRequest`, `Issue`, `GithubArtifact` | integrantes do projeto; GitHub é origem/terceiro | acompanha artefato técnico | correlação é limitada e não é automaticamente identidade TRACEFLOW |
 | conteúdo de requisito/tarefa/issue | DADO TÉCNICO POTENCIALMENTE PESSOAL | colaboração | models de domínio | integrantes autorizados e GitHub quando originário | ciclo do projeto | pode conter PII livre; minimização depende do autor |
 | request ID e evento de auditoria | IDENTIFICADOR TÉCNICO | segurança, responsabilização e diagnóstico | `AuditEvent` | titular para conta; OWNER para projeto; operador de banco | 365 dias por default técnico | metadata em allowlist, sem body/e-mail/token |

@@ -80,7 +80,7 @@ function formatTask(task) {
     priority: task.priority,
     responsible: task.responsible,
     deadline: task.deadline,
-    pullRequest: formatPullRequest(task.pullRequest),
+    pullRequest: formatPullRequest(task.pullRequest || task.pullRequestLinks?.[0]?.pullRequest),
     issues: uniqueById((task.issueLinks || []).map((link) => link.issue).filter(Boolean)).map(
       formatIssue
     ),

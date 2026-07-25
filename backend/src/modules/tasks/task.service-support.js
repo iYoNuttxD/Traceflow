@@ -46,9 +46,10 @@ export function formatIssue(issue) {
 }
 export function formatTask(task) {
   if (!task) return task;
-  const { commitLinks = [], issueLinks = [], ...taskData } = task;
+  const { commitLinks = [], issueLinks = [], pullRequestLinks = [], ...taskData } = task;
   return {
     ...taskData,
+    pullRequest: taskData.pullRequest || pullRequestLinks[0]?.pullRequest || null,
     commits: commitLinks.map((link) => formatCommit(link.commit)).filter(Boolean),
     issues: issueLinks.map((link) => formatIssue(link.issue)).filter(Boolean)
   };
