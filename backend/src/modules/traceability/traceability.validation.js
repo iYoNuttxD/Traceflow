@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { paginationSchema, positiveInteger, strictObject } from '../../shared/validation/index.js';
+import { emptyBodySchema, paginationSchema, positiveInteger, strictObject } from '../../shared/validation/index.js';
 
 export const traceabilityProjectParamsSchema = strictObject({
   projectId: positiveInteger('ID do projeto inválido.')
@@ -24,3 +24,17 @@ export const traceabilityArtifactParamsSchema = strictObject({
 });
 
 export const traceabilityPaginationQuerySchema = strictObject(paginationSchema);
+
+export const commitSuggestionParamsSchema = strictObject({
+  projectId: positiveInteger('ID do projeto inválido.'),
+  suggestionId: positiveInteger('ID da sugestão inválido.')
+});
+
+export const commitSuggestionQuerySchema = strictObject({
+  status: z.enum(['PENDING', 'CONFIRMED', 'REJECTED'], {
+    error: 'Status de sugestão inválido.'
+  }).optional().default('PENDING'),
+  ...paginationSchema
+});
+
+export const emptyCommitSuggestionBodySchema = emptyBodySchema;

@@ -32,6 +32,8 @@ Baseline E6, atualizado na E10 em 25/07/2026. A matriz descreve a política efet
 | `PATCH /api/projects/:projectId/github/sync-settings` | 401 | 403 | 403 | 403 | A | OWNER |
 | Commits, PRs, issues e artifacts: `GET` | 401 | L | L | L | L | mesmo projeto |
 | Traceability project-scoped: matriz, requisito, tarefa e artefato | 401 | L | L | L | L | membership ativa e recurso no mesmo projeto |
+| `GET .../traceability/commit-suggestions` | 401 | L | L | L | L | DTO minimizado; mesmo projeto |
+| `POST .../commit-suggestions/scan`, `:id/confirm`, `:id/reject` | 401 | 403 | E | E | E | CSRF, membership ativa e relações no mesmo projeto |
 | `DELETE /api/projects/:id` | 401 | 501 | 501 | 501 | 501 | único placeholder restante |
 | `/api/account/personal-data`, perfil, sessões, exportação, desativação e exclusão | 401 | E | E | E | E | somente o próprio titular; mutations exigem CSRF/senha quando indicado |
 | `GET /api/account/audit-events` | 401 | L | L | L | L | somente eventos cujo ator é o titular |
@@ -45,3 +47,4 @@ Baseline E6, atualizado na E10 em 25/07/2026. A matriz descreve a política efet
 - A E7 adiciona trilha de auditoria e direitos do titular; não concede administração de dados pessoais a um OWNER de projeto.
 - Na E9, o alias não canônico `/api/projects/:projectId/github/artifacts` foi removido e retorna 404; RF06 usa `/api/projects/:projectId/artifacts`. Sync permanece restrito a MANAGER/OWNER.
 - Na E10, as rotas genéricas dependentes de `TraceLink` e `GithubArtifact` foram removidas. As perspectivas canônicas sempre incluem `projectId`, evitando autorização por ID global isolado.
+- No fechamento do RF41, VIEWER apenas consulta; MEMBER+ analisa e revisa. Confirmação e rejeição são transacionais e auditadas.

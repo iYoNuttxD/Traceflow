@@ -4,7 +4,7 @@
 
 `Task.requirementId`, `Task.pullRequestId`, `TaskCommit` e `TaskIssue` são as únicas fontes dos vínculos. A matriz passou a ser paginada sem carregar conteúdo integral de artefatos e mantém um summary global independente da página. As perspectivas de requisito, tarefa e artefato usam o mesmo DTO `{projectId,perspective,summary,nodes,edges,pagination}`; IDs de node são namespaced e as arestas usam `REQUIREMENT_TASK`, `TASK_COMMIT`, `TASK_PULL_REQUEST` ou `TASK_ISSUE`.
 
-Os cinco placeholders baseados em `TraceLink`/`GithubArtifact` foram removidos e seguem o `404` global. O único `501` restante é `DELETE /projects/:id`. O RF41 permanece bloqueado: o TCC menciona identificador “no formato ID”, mas não define a sintaxe que pode ser reconhecida deterministicamente.
+Os cinco placeholders baseados em `TraceLink`/`GithubArtifact` foram removidos e seguem o `404` global. O único `501` restante é `DELETE /projects/:id`. O fechamento definitivo do RF41 adotou exclusivamente `[TASK-<ID>]`, persiste sugestões revisáveis e só cria `TaskCommit` após confirmação humana.
 
 ## Atualização E9 — Projetos e sincronização GitHub
 
@@ -149,8 +149,14 @@ Coberturas preservam os campos históricos e acrescentam `coverage: {numerator,d
 | GET | `/projects/:projectId/traceability/requirements/:requirementId` | IDs; `page?`, `limit?` paginam tarefas | `200`, DTO de grafo, perspectiva `REQUIREMENT` |
 | GET | `/projects/:projectId/traceability/tasks/:taskId` | IDs; `page?`, `limit?` paginam artefatos | `200`, DTO de grafo, perspectiva `TASK` |
 | GET | `/projects/:projectId/traceability/artifacts/:artifactType/:artifactId` | `commit`, `pull-request` ou `issue`; paginação de tarefas | `200`, DTO de grafo da perspectiva tipada |
+| POST | `/projects/:projectId/traceability/commit-suggestions/scan` | body vazio | `200`, `{scannedCommits,detectedReferences,createdSuggestions,skippedSuggestions}` |
+| GET | `/projects/:projectId/traceability/commit-suggestions` | `status?` = PENDING/CONFIRMED/REJECTED; `page?`, `limit?` | `200`, DTO minimizado, permissões e paginação |
+| POST | `/projects/:projectId/traceability/commit-suggestions/:suggestionId/confirm` | IDs; body vazio | `200`, `{message,suggestion,changed}`; cria `TaskCommit` atomicamente |
+| POST | `/projects/:projectId/traceability/commit-suggestions/:suggestionId/reject` | IDs; body vazio | `200`, `{message,suggestion,changed}`; não cria vínculo |
 
 O summary da matriz é calculado sobre todo o projeto, não apenas sobre a página. A matriz seleciona somente dados resumidos e contagens. O grafo nunca expõe `Commit.authorEmail`. Recursos de outro projeto recebem `404`; consultas exigem VIEWER+ e a atualização atômica Requirement–Task exige MEMBER+.
+
+O parser RF41 usa somente `/\[TASK-(\d+)\]/gi`: aceita caixa variada, múltiplos IDs e deduplica repetições na mesma mensagem. Não aceita `TASK-42`, `#42`, `ID 42`, `[ISSUE-42]` ou IDs não numéricos. Detecção e scan não criam vínculo; sugestões rejeitadas ou confirmadas nunca são reabertas.
 
 ## Conta, privacidade e auditoria (E7)
 

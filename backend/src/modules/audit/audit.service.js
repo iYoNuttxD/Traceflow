@@ -4,7 +4,10 @@ import { auditRepository } from './audit.repository.js';
 import { logger } from '../../shared/logger/index.js';
 
 const day = 86400000;
-const allowedMetadata = new Set(['previousRole', 'newRole', 'scope', 'count', 'format', 'sessionId']);
+const allowedMetadata = new Set([
+  'previousRole', 'newRole', 'scope', 'count', 'format', 'sessionId',
+  'taskId', 'commitId', 'suggestionId'
+]);
 
 export function minimizeAuditMetadata(metadata) {
   if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return undefined;

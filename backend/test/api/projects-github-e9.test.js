@@ -157,7 +157,7 @@ describe('Projetos e integração GitHub E9', () => {
     await prisma.taskIssue.create({ data: { taskId: task.id, issueId: existingIssue.id } });
 
     githubBoundary.client = createGithubDouble({
-      commits: [[{ hash: 'commit-1', message: 'Primeiro', branch: 'trunk', date: new Date('2026-01-01') }], [{ hash: 'commit-2', message: 'Segundo', branch: 'trunk', date: new Date('2026-01-02') }]],
+      commits: [[{ hash: 'commit-1', message: `Primeiro [TASK-${task.id}]`, branch: 'trunk', date: new Date('2026-01-01') }], [{ hash: 'commit-2', message: 'Segundo', branch: 'trunk', date: new Date('2026-01-02') }]],
       pullRequests: [[{ githubId: 'pr-existing', number: 10, title: 'Título atualizado', targetBranch: 'trunk' }], [{ githubId: 'pr-new', number: 11, title: 'Nova PR', targetBranch: 'trunk' }]],
       issues: [[{ githubId: 'issue-existing', number: 20, title: 'Issue atualizada', labels: [] }], [{ githubId: 'issue-new', number: 21, title: 'Issue nova', labels: [] }]]
     });
@@ -170,6 +170,7 @@ describe('Projetos e integração GitHub E9', () => {
       issues: { found: 2, created: 1, updated: 1 }
     });
     expect(await prisma.commit.count({ where: { projectId: project.id } })).toBe(2);
+    expect(await prisma.taskCommitSuggestion.count({ where: { projectId: project.id, taskId: task.id, status: 'PENDING' } })).toBe(1);
     expect((await prisma.pullRequest.findUnique({ where: { id: existingPr.id } })).title).toBe('Título atualizado');
     expect((await prisma.task.findUnique({ where: { id: task.id } })).pullRequestId).toBe(existingPr.id);
     expect(await prisma.taskIssue.count({ where: { taskId: task.id, issueId: existingIssue.id } })).toBe(1);
@@ -177,6 +178,7 @@ describe('Projetos e integração GitHub E9', () => {
     const second = await owner.mutate('post', `/api/projects/${project.id}/github/sync`).send({});
     expect(second.body.summary.commits).toEqual({ found: 2, created: 0, skipped: 2 });
     expect(await prisma.commit.count({ where: { projectId: project.id } })).toBe(2);
+    expect(await prisma.taskCommitSuggestion.count({ where: { projectId: project.id, taskId: task.id } })).toBe(1);
     expect((await prisma.project.findUnique({ where: { id: project.id } })).githubIntegratedAt)
       .toEqual(integratedAt);
 

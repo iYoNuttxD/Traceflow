@@ -7,6 +7,7 @@ import {
 import { Card } from '../shared/index.js';
 import { ProjectSectionNav } from '../components/ProjectSectionNav.jsx';
 import { TraceabilityFlow } from '../components/TraceabilityFlow.jsx';
+import { CommitSuggestionsCard } from '../components/CommitSuggestionsCard.jsx';
 
 const requirementStatusLabels = {
   CADASTRADO: 'Cadastrado',
@@ -276,6 +277,8 @@ export function TraceabilityPage() {
           </Card>
         </>
       )}
+
+      <CommitSuggestionsCard projectId={projectId} />
     </main>
   );
 }

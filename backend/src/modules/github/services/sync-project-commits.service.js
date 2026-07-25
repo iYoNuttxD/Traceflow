@@ -1,4 +1,5 @@
 import { commitRepository } from '../../commits/commit.repository.js';
+import { commitSuggestionService } from '../../traceability/commit-suggestion.service.js';
 
 export async function syncProjectCommits({ project, repository, githubClient }) {
   const summary = { found: 0, created: 0, skipped: 0 };
@@ -15,6 +16,13 @@ export async function syncProjectCommits({ project, repository, githubClient }) 
     ));
     const newCommits = commits.filter(({ hash }) => !existingHashes.has(hash));
     const result = await commitRepository.createMany(newCommits);
+    if (result.count > 0) {
+      const persistedCommits = await commitRepository.findByProjectIdAndHashes(
+        project.id,
+        newCommits.map(({ hash }) => hash)
+      );
+      await commitSuggestionService.detectForCommits(project.id, persistedCommits);
+    }
 
     summary.found += commits.length;
     summary.created += result.count;

@@ -23,6 +23,9 @@ vi.mock('../../src/components/TraceabilityFlow.jsx', () => ({
     );
   }
 }));
+vi.mock('../../src/components/CommitSuggestionsCard.jsx', () => ({
+  CommitSuggestionsCard() { return <div data-testid="commit-suggestions" />; }
+}));
 
 import { TraceabilityPage } from '../../src/pages/TraceabilityPage.jsx';
 

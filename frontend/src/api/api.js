@@ -257,6 +257,38 @@ export async function getArtifactTraceability(projectId, artifactType, artifactI
   return response.data;
 }
 
+export async function getCommitSuggestions(projectId, params = {}) {
+  const response = await api.get(
+    `/projects/${projectId}/traceability/commit-suggestions`,
+    { params }
+  );
+  return response.data;
+}
+
+export async function scanCommitSuggestions(projectId) {
+  const response = await api.post(
+    `/projects/${projectId}/traceability/commit-suggestions/scan`,
+    {}
+  );
+  return response.data;
+}
+
+export async function confirmCommitSuggestion(projectId, suggestionId) {
+  const response = await api.post(
+    `/projects/${projectId}/traceability/commit-suggestions/${suggestionId}/confirm`,
+    {}
+  );
+  return response.data;
+}
+
+export async function rejectCommitSuggestion(projectId, suggestionId) {
+  const response = await api.post(
+    `/projects/${projectId}/traceability/commit-suggestions/${suggestionId}/reject`,
+    {}
+  );
+  return response.data;
+}
+
 export const kanbanApi = {
   getBoard(projectId) {
     return api.get(`/projects/${projectId}/kanban`);

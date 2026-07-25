@@ -2,6 +2,9 @@ import { Router } from 'express';
 import { validateRequest } from '../../shared/validation/index.js';
 import { traceabilityController } from './traceability.controller.js';
 import {
+  commitSuggestionParamsSchema,
+  commitSuggestionQuerySchema,
+  emptyCommitSuggestionBodySchema,
   traceabilityArtifactParamsSchema,
   traceabilityPaginationQuerySchema,
   traceabilityProjectParamsSchema,
@@ -10,6 +13,27 @@ import {
 } from './traceability.validation.js';
 
 const router = Router();
+
+router.post(
+  '/projects/:projectId/traceability/commit-suggestions/scan',
+  validateRequest({ params: traceabilityProjectParamsSchema, body: emptyCommitSuggestionBodySchema }),
+  traceabilityController.scanCommitSuggestions
+);
+router.get(
+  '/projects/:projectId/traceability/commit-suggestions',
+  validateRequest({ params: traceabilityProjectParamsSchema, query: commitSuggestionQuerySchema }),
+  traceabilityController.listCommitSuggestions
+);
+router.post(
+  '/projects/:projectId/traceability/commit-suggestions/:suggestionId/confirm',
+  validateRequest({ params: commitSuggestionParamsSchema, body: emptyCommitSuggestionBodySchema }),
+  traceabilityController.confirmCommitSuggestion
+);
+router.post(
+  '/projects/:projectId/traceability/commit-suggestions/:suggestionId/reject',
+  validateRequest({ params: commitSuggestionParamsSchema, body: emptyCommitSuggestionBodySchema }),
+  traceabilityController.rejectCommitSuggestion
+);
 
 router.get('/projects/:projectId/traceability/requirement-task-coverage', validateRequest({ params: traceabilityProjectParamsSchema }), traceabilityController.getRequirementTaskCoverage);
 router.get('/projects/:projectId/traceability/pull-request-coverage', validateRequest({ params: traceabilityProjectParamsSchema }), traceabilityController.getPullRequestCoverage);

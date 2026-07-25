@@ -25,6 +25,14 @@ export const commitRepository = {
     return commits.map((commit) => commit.hash);
   },
 
+  async findByProjectIdAndHashes(projectId, hashes) {
+    if (!hashes.length) return [];
+    return prisma.commit.findMany({
+      where: { projectId, hash: { in: hashes } },
+      select: { id: true, projectId: true, message: true }
+    });
+  },
+
   async create(data) {
     return prisma.commit.create({ data });
   },

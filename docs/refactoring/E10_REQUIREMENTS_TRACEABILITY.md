@@ -2,7 +2,7 @@
 
 ## Estado
 
-**CONCLUÍDA.** A E10 refatorou capacidades existentes, concluiu as perspectivas project-scoped de tarefa e artefato, tornou a atualização Requirement–Task atômica e removeu contratos genéricos incompatíveis com o modelo canônico. O RF41 permanece **BLOQUEADO POR AMBIGUIDADE FUNCIONAL DOCUMENTADA**, condição expressamente permitida para o fechamento desta etapa.
+**CONCLUÍDA DEFINITIVAMENTE.** A E10 refatorou capacidades existentes, concluiu as perspectivas project-scoped, tornou Requirement–Task atômico e homologou o RF41 com sugestões persistidas e confirmação humana. **RF41 — IMPLEMENTADO E HOMOLOGADO.**
 
 ## Baseline
 
@@ -11,7 +11,8 @@
 - Data: 25/07/2026.
 - Baseline E9: 163 testes backend, 32 frontend; coberturas de 84,25%/70,46%/86,28%/86,91% no backend e 22,59%/22,85%/20,20%/22,81% no frontend.
 - Alterações preexistentes preservadas: os PDFs do TCC e ASVS e `TRACEFLOW_MAPEAMENTO_REFATORACAO.md`, todos não rastreados.
-- O schema Prisma e as 23 migrations herdadas não foram alterados.
+- No fechamento anterior, o schema Prisma e as 23 migrations eram o baseline inalterado.
+- Continuação RF41: commit inicial `2143e07` (`refactor(traceability): finalize E10 canonical traceability queries`); o schema recebeu somente o model específico e uma migration aditiva foi criada, sem editar as 23 anteriores.
 
 ## RFs homologados
 
@@ -20,13 +21,52 @@
 | RF09 | Task → PullRequest singular | integrado às consultas canônicas | HOMOLOGADO |
 | RF11 | Task ↔ Commit | integrado às consultas canônicas | HOMOLOGADO |
 | RF12 | Task ↔ Issue | integrado às consultas canônicas | HOMOLOGADO |
-| RF41 | sugestão Commit → Task | regra documental auditada | BLOQUEADO |
+| RF41 | sugestão Commit → Task | parser oficial, persistência, revisão e sync | IMPLEMENTADO E HOMOLOGADO |
 | RF48 | Requirement → Task singular no lado Task | atualização de conjunto transacional | APRIMORADO |
 | RF49 | consulta por requisito | DTO único e paginação | REFATORADO |
 | RF52 | consulta por tarefa | perspectiva project-scoped | CONCLUÍDO |
 | RF53 | consulta reversa por artefato tipado | perspectiva project-scoped | CONCLUÍDO |
 
-O TCC diz apenas que a mensagem contém o identificador da tarefa “no formato ID”; não define prefixo, delimitador, posição nem expressão sintática. Implementar RF41 exigiria inventar uma regex e poderia sugerir tarefas erradas. Por isso nenhuma sugestão ou vínculo automático foi criado. A futura decisão deve definir sintaxe inequívoca, exemplos positivos/negativos e compatibilidade com mensagens históricas.
+O TCC determina que a mensagem contenha o identificador e que a sugestão seja apresentada ao usuário antes do registro. A equipe definiu oficialmente a sintaxe que faltava: `[TASK-<ID>]`.
+
+## RF41 — sugestão Commit → Task
+
+### Decisão e parser
+
+O parser centralizado usa exclusivamente:
+
+```javascript
+/\[TASK-(\d+)\]/gi
+```
+
+Aceita `[TASK-42]`, `[task-42]`, `[Task-42]` e múltiplas referências; IDs repetidos na mesma mensagem são deduplicados. Não aceita `TASK-42`, `#42`, `ID 42`, `tarefa 42`, `[ISSUE-42]`, `[TASK-ABC]`, `[TASK--42]` ou zero. Nenhum padrão histórico alternativo é inferido.
+
+### Persistência e estados
+
+`TaskCommitSuggestion` é específico do RF41 e possui `projectId`, `taskId`, `commitId`, status, datas de detecção/revisão e revisor opcional. O par Task–Commit é único; índices cobrem projeto/status, task, commit e revisor. Estados:
+
+```text
+PENDING → CONFIRMED
+PENDING → REJECTED
+```
+
+Reanálise nunca reabre `CONFIRMED` ou `REJECTED`. A migration `20260725140000_e10_add_task_commit_suggestions` é aditiva. `TaskCommit` continua sendo a única relação canônica confirmada; a sugestão não é um link genérico.
+
+### Detecção, sync e histórico
+
+A detecção fica no service: extrai IDs, carrega somente Tasks do projeto, elimina TaskCommit/sugestão existentes e persiste novas sugestões PENDING de forma idempotente. Task inexistente ou de outro projeto é ignorada.
+
+O sync GitHub E9 analisa apenas commits recém-persistidos após cada lote. Mensagem sem referência é um resultado normal; falha técnica segue a política existente de sync parcial, sem apagar commits já persistidos. A segunda sincronização não duplica sugestões.
+
+`POST /projects/:projectId/traceability/commit-suggestions/scan` percorre commits históricos em lotes de 100 e retorna somente contagens sanitizadas. A operação é idempotente e auditada como `TASK_COMMIT_SUGGESTIONS_SCANNED`.
+
+### Consulta e revisão
+
+`GET /projects/:projectId/traceability/commit-suggestions` aceita status e paginação, usa PENDING por padrão e retorna Task/Commit resumidos sem `authorEmail` ou payload GitHub.
+
+Confirmação e rejeição são project-scoped e idempotentes. A confirmação valida novamente Task, Commit e Project dentro da transação, faz upsert de `TaskCommit`, atualiza a sugestão/revisor e grava `TASK_COMMIT_SUGGESTION_CONFIRMED`. A rejeição não cria vínculo e grava `TASK_COMMIT_SUGGESTION_REJECTED`. Uma decisão oposta posterior retorna conflito.
+
+VIEWER+ consulta; MEMBER+ analisa, confirma ou rejeita. Mutações exigem CSRF. Ausência de membership ou divergência de projeto retorna 404; papel insuficiente retorna 403. Auditoria contém apenas IDs técnicos allowlisted, count e scope.
 
 ## Modelo e arquitetura
 
@@ -150,6 +190,7 @@ Eles agora seguem o 404 global. Nenhuma implementação genérica foi criada. `D
 - loading, vazio, erro, seleção e navegação foram preservados;
 - `TraceabilityList.jsx`, sem consumer, foi removido;
 - nenhuma biblioteca visual ou dependência foi adicionada.
+- a seção “Sugestões de commits” exibe hash curto, mensagem resumida, Task e status; VIEWER somente lê, enquanto MEMBER+ pode analisar histórico, confirmar e rejeitar com ações desabilitadas durante requests.
 
 ## Auditoria e privacidade
 
@@ -163,18 +204,18 @@ Resultado final:
 
 | Suíte | Testes | Statements | Branches | Functions | Lines |
 |---|---:|---:|---:|---:|---:|
-| Backend | 166 | 85,23% | 71,40% | 86,88% | 87,88% |
-| Frontend | 38 | 31,44% | 29,72% | 26,36% | 32,28% |
+| Backend | 184 | 85,59% | 71,41% | 87,53% | 88,24% |
+| Frontend | 44 | 32,79% | 30,98% | 27,56% | 33,74% |
 
-No backend, 90 testes unitários e 76 de integração/API passaram em 23 arquivos. No frontend, 38 testes passaram em 14 arquivos e o build Vite foi aprovado; permanece apenas o aviso preexistente de chunk principal superior a 500 kB. Todas as métricas de cobertura cresceram em relação à E9.
+No backend, 103 testes unitários e 81 de integração/API passaram em 25 arquivos. No frontend, 44 testes passaram em 15 arquivos e o build Vite foi aprovado; permanece apenas o aviso preexistente de chunk principal superior a 500 kB. Todas as métricas de cobertura cresceram em relação ao baseline anterior ao fechamento do RF41.
 
-`prisma format`, `prisma validate`, `prisma generate`, `db:test:migrate` e `db:test:status` passaram; as 23 migrations continuam aplicadas e sem pendências no MySQL isolado `traceflow_test`. `architecture:check` e `security:secrets` passaram, com 200 arquivos inspecionados pelo scanner. O audit do backend encontrou zero vulnerabilidades. O frontend preserva duas ocorrências altas direta/transitiva do advisory de React Router em modo RSC; o TRACEFLOW usa SPA com `BrowserRouter`, e a correção proposta pelo npm é uma mudança incompatível. Nenhum `audit fix` foi executado.
+`prisma format`, `prisma validate`, `prisma generate`, `db:test:migrate` e `db:test:status` passaram; as 24 migrations, incluindo a aditiva do RF41, estão aplicadas e sem pendências no MySQL isolado `traceflow_test`. `architecture:check` e `security:secrets` passaram, com 204 arquivos inspecionados pelo scanner. O audit do backend encontrou zero vulnerabilidades. O frontend preserva duas ocorrências altas direta/transitiva do advisory de React Router em modo RSC; o TRACEFLOW usa SPA com `BrowserRouter`, e a correção proposta pelo npm é uma mudança incompatível. Nenhum `audit fix` foi executado.
 
-Não foram adicionadas dependências, migrations ou mocks de runtime. Os testes não chamaram GitHub real e nenhum banco de desenvolvimento foi resetado.
+Não foram adicionadas dependências nem mocks de runtime. Foi criada somente a nova migration aditiva do RF41; nenhuma migration anterior foi editada. Os testes não chamaram GitHub real e nenhum banco de desenvolvimento foi resetado.
 
-## Riscos e bloqueios para E11
+## Riscos residuais e bloqueios para E11
 
-- RF41 depende de definição funcional inequívoca do identificador na mensagem de commit.
 - O grafo de requisito limita defensivamente artifacts por task; coleções extensas devem ser navegadas pela perspectiva paginada da tarefa.
 - A média global mantém a fórmula histórica por requisito; mudança de ponderação exige decisão funcional própria.
+- O scan histórico é síncrono e paginado em lotes; projetos excepcionalmente grandes podem exigir job assíncrono em evolução futura.
 - E11 não foi iniciada.

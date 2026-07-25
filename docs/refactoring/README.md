@@ -46,7 +46,7 @@ Esta área registra a evolução incremental do MVP para uma arquitetura mais se
 
 ## Estado da E10
 
-**Concluída em 25/07/2026**, com fórmulas canônicas, distinção entre zero e ausência, atualização atômica Requirement–Task, matriz paginada, DTO único e perspectivas project-scoped de requisito, tarefa e artefato. Os placeholders genéricos foram removidos; RF41 permanece bloqueado pela ausência de sintaxe oficial para o identificador da tarefa na mensagem do commit. A execução partiu do commit `7e64243`.
+**Concluída definitivamente em 25/07/2026**, com fórmulas canônicas, vínculos atômicos, matriz/grafos project-scoped e RF41 implementado por sugestões persistidas `[TASK-<ID>]`, revisão humana e integração idempotente com o sync. O fechamento do RF41 partiu do commit `2143e07`.
 
 ## Documentos produzidos
 
@@ -77,6 +77,6 @@ Esta área registra a evolução incremental do MVP para uma arquitetura mais se
 
 ## Próxima etapa
 
-E0–E8 estão concluídas definitivamente. A E9 está concluída tecnicamente, com smoke externo ainda pendente. A E10 está concluída, mantendo o RF41 bloqueado por ambiguidade documental conforme a regra de aceite da própria etapa. Próxima etapa: **E11**, que não foi iniciada nesta execução.
+E0–E8 estão concluídas definitivamente. A E9 está concluída tecnicamente, com smoke externo ainda pendente. A E10 está concluída definitivamente, incluindo RF41 implementado e homologado. Próxima etapa: **E11**, que não foi iniciada nesta execução.
 
 Nenhum código funcional foi refatorado durante a E0 ou a E1. A E2 reorganizou fronteiras internas, a E3 introduziu infraestrutura transversal, a E4 protegeu os contratos de entrada e a E5 estabeleceu controles transversais de segurança, sem alterar regras de negócio ou respostas de sucesso.

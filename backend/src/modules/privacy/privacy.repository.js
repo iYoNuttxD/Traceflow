@@ -25,7 +25,10 @@ export const privacyRepository = {
         createdInvitations: { select: { id: true, projectId: true, role: true, expiresAt: true, revokedAt: true, acceptedAt: true, createdAt: true } },
         acceptedInvitations: { select: { id: true, projectId: true, role: true, acceptedAt: true, createdAt: true } },
         privacyRequests: { select: { id: true, type: true, status: true, requestedAt: true, scheduledFor: true, completedAt: true, cancelledAt: true } },
-        personalDataExports: { select: { id: true, status: true, format: true, expiresAt: true, createdAt: true } }
+        personalDataExports: { select: { id: true, status: true, format: true, expiresAt: true, createdAt: true } },
+        reviewedTaskCommitSuggestions: {
+          select: { id: true, projectId: true, taskId: true, commitId: true, status: true, reviewedAt: true }
+        }
       }
     });
   },

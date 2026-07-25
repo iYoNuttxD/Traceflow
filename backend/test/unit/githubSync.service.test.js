@@ -9,7 +9,12 @@ const mocks = vi.hoisted(() => ({
     markGithubSyncSucceeded: vi.fn(),
     markGithubSyncFailed: vi.fn()
   },
-  commitRepository: { findHashesByProjectId: vi.fn(), createMany: vi.fn() },
+  commitRepository: {
+    findHashesByProjectId: vi.fn(),
+    findByProjectIdAndHashes: vi.fn(),
+    createMany: vi.fn()
+  },
+  commitSuggestionService: { detectForCommits: vi.fn() },
   pullRequestRepository: { upsertMany: vi.fn() },
   issueRepository: { upsertMany: vi.fn() }
 }));
@@ -17,6 +22,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../src/modules/github/github.client.js', () => ({ getGithubClient: mocks.getGithubClient }));
 vi.mock('../../src/modules/projects/project.repository.js', () => ({ projectRepository: mocks.projectRepository }));
 vi.mock('../../src/modules/commits/commit.repository.js', () => ({ commitRepository: mocks.commitRepository }));
+vi.mock('../../src/modules/traceability/commit-suggestion.service.js', () => ({ commitSuggestionService: mocks.commitSuggestionService }));
 vi.mock('../../src/modules/pullRequests/pullRequest.repository.js', () => ({ pullRequestRepository: mocks.pullRequestRepository }));
 vi.mock('../../src/modules/issues/issue.repository.js', () => ({ issueRepository: mocks.issueRepository }));
 
@@ -61,6 +67,10 @@ describe('githubSyncService com client e persistência substituídos', () => {
     mocks.projectRepository.markGithubSyncFailed.mockResolvedValue(project);
     mocks.commitRepository.findHashesByProjectId.mockResolvedValue(['hash-existente']);
     mocks.commitRepository.createMany.mockImplementation(async (items) => ({ count: items.length }));
+    mocks.commitRepository.findByProjectIdAndHashes.mockImplementation(async (projectId, hashes) =>
+      hashes.map((hash, index) => ({ id: index + 1, projectId, message: `[TASK-${index + 1}]`, hash }))
+    );
+    mocks.commitSuggestionService.detectForCommits.mockResolvedValue({ createdSuggestions: 0 });
     mocks.pullRequestRepository.upsertMany.mockImplementation(async (items) => ({ created: items.length, updated: 0 }));
     mocks.issueRepository.upsertMany.mockImplementation(async (items) => ({ created: 0, updated: items.length }));
   });
@@ -80,6 +90,10 @@ describe('githubSyncService com client e persistência substituídos', () => {
     expect(github.listPullRequestPages).toHaveBeenCalledWith(expect.objectContaining({ branch: 'main' }));
     expect(mocks.commitRepository.createMany).toHaveBeenNthCalledWith(1, []);
     expect(mocks.commitRepository.createMany).toHaveBeenNthCalledWith(2, [expect.objectContaining({ hash: 'hash-novo', projectId: project.id })]);
+    expect(mocks.commitSuggestionService.detectForCommits).toHaveBeenCalledWith(
+      project.id,
+      [expect.objectContaining({ projectId: project.id, message: '[TASK-1]' })]
+    );
     expect(result.summary).toEqual({
       commits: { found: 2, created: 1, skipped: 1 },
       pullRequests: { found: 1, created: 1, updated: 0 },

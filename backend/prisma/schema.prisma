@@ -45,6 +45,12 @@ enum PersonalDataExportStatus {
   FAILED
 }
 
+enum TaskCommitSuggestionStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+}
+
 model User {
   id              Int       @id @default(autoincrement())
   name            String
@@ -58,16 +64,17 @@ model User {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  sessions            Session[]
-  passwordResetTokens PasswordResetToken[]
-  memberships         ProjectMembership[]
-  createdInvitations  ProjectInvitation[]  @relation("InvitationCreator")
-  acceptedInvitations ProjectInvitation[]  @relation("InvitationAcceptor")
-  responsibleTasks    Task[]
-  taskMovements       TaskMovement[]
-  auditEvents         AuditEvent[]
-  privacyRequests     PrivacyRequest[]
-  personalDataExports PersonalDataExport[]
+  sessions                      Session[]
+  passwordResetTokens           PasswordResetToken[]
+  memberships                   ProjectMembership[]
+  createdInvitations            ProjectInvitation[]    @relation("InvitationCreator")
+  acceptedInvitations           ProjectInvitation[]    @relation("InvitationAcceptor")
+  responsibleTasks              Task[]
+  taskMovements                 TaskMovement[]
+  auditEvents                   AuditEvent[]
+  privacyRequests               PrivacyRequest[]
+  personalDataExports           PersonalDataExport[]
+  reviewedTaskCommitSuggestions TaskCommitSuggestion[] @relation("TaskCommitSuggestionReviewer")
 }
 
 model Session {
@@ -169,16 +176,17 @@ model Project {
   createdAt                DateTime  @default(now())
   updatedAt                DateTime  @updatedAt
 
-  requirements  Requirement[]
-  tasks         Task[]
-  members       ProjectMember[]
-  taskMovements TaskMovement[]
-  commits       Commit[]
-  pullRequests  PullRequest[]
-  issues        Issue[]
-  memberships   ProjectMembership[]
-  invitations   ProjectInvitation[]
-  auditEvents   AuditEvent[]
+  requirements          Requirement[]
+  tasks                 Task[]
+  members               ProjectMember[]
+  taskMovements         TaskMovement[]
+  commits               Commit[]
+  pullRequests          PullRequest[]
+  issues                Issue[]
+  memberships           ProjectMembership[]
+  invitations           ProjectInvitation[]
+  auditEvents           AuditEvent[]
+  taskCommitSuggestions TaskCommitSuggestion[]
 
   @@unique([githubRepositoryId])
   @@unique([githubRepositoryFullName])
@@ -287,13 +295,14 @@ model Task {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
-  project         Project        @relation(fields: [projectId], references: [id])
-  requirement     Requirement?   @relation(fields: [requirementId], references: [id])
-  pullRequest     PullRequest?   @relation(fields: [pullRequestId], references: [id], onDelete: SetNull)
-  movements       TaskMovement[]
-  commitLinks     TaskCommit[]
-  issueLinks      TaskIssue[]
-  responsibleUser User?          @relation(fields: [responsibleUserId], references: [id], onDelete: SetNull)
+  project           Project                @relation(fields: [projectId], references: [id])
+  requirement       Requirement?           @relation(fields: [requirementId], references: [id])
+  pullRequest       PullRequest?           @relation(fields: [pullRequestId], references: [id], onDelete: SetNull)
+  movements         TaskMovement[]
+  commitLinks       TaskCommit[]
+  commitSuggestions TaskCommitSuggestion[]
+  issueLinks        TaskIssue[]
+  responsibleUser   User?                  @relation(fields: [responsibleUserId], references: [id], onDelete: SetNull)
 
   @@index([pullRequestId])
   @@index([responsibleUserId])
@@ -314,6 +323,31 @@ model TaskCommit {
 
   @@unique([taskId, commitId])
   @@index([commitId])
+}
+
+// Sugestão persistida do RF41. O vínculo canônico só existe em TaskCommit após confirmação.
+model TaskCommitSuggestion {
+  id               Int                        @id @default(autoincrement())
+  projectId        Int
+  taskId           Int
+  commitId         Int
+  status           TaskCommitSuggestionStatus @default(PENDING)
+  detectedAt       DateTime                   @default(now())
+  reviewedAt       DateTime?
+  reviewedByUserId Int?
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+
+  project        Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task           Task    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  commit         Commit  @relation(fields: [commitId], references: [id], onDelete: Cascade)
+  reviewedByUser User?   @relation("TaskCommitSuggestionReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([taskId, commitId])
+  @@index([projectId, status])
+  @@index([commitId])
+  @@index([taskId])
+  @@index([reviewedByUserId])
 }
 
 // Vinculo de rastreabilidade entre tarefas e issues importadas do GitHub.
@@ -391,8 +425,9 @@ model Commit {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  project   Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  taskLinks TaskCommit[]
+  project         Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  taskLinks       TaskCommit[]
+  taskSuggestions TaskCommitSuggestion[]
 
   @@unique([projectId, hash])
   @@index([projectId, date])
