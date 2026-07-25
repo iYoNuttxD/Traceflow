@@ -9,6 +9,9 @@ import { pullRequestRepository } from '../pullRequests/pullRequest.repository.js
 import { issueRepository } from '../issues/issue.repository.js';
 import { DomainError as GithubSyncError } from '../../shared/errors/index.js';
 import { normalizeGithubError } from './github-error.js';
+import { executeGithubRequest } from './github-request.js';
+
+const projectsInSync = new Set();
 
 function parseProjectId(projectId) {
   const parsedProjectId = Number(projectId);
@@ -121,7 +124,7 @@ async function syncCommits(project) {
   }
 
   try {
-    const response = await github.rest.repos.listCommits(listCommitsParams);
+    const response = await executeGithubRequest(() => github.rest.repos.listCommits(listCommitsParams));
 
     const mappedCommits = response.data.map((item) => mapGithubCommit(item, project, defaultBranch));
     const existingHashes = new Set(await commitRepository.findHashesByProjectId(project.id));
@@ -135,7 +138,7 @@ async function syncCommits(project) {
       skipped: mappedCommits.length - result.count
     };
   } catch (error) {
-    if (error.status === 404) {
+    if (error.status === 404 || error.statusCode === 404) {
       throw new GithubSyncError('Repositório GitHub não encontrado ou sem permissão de acesso.', 404);
     }
 
@@ -148,12 +151,12 @@ async function syncPullRequests(project) {
   const github = getGithubClient();
 
   try {
-    const response = await github.rest.pulls.list({
+    const response = await executeGithubRequest(() => github.rest.pulls.list({
       owner,
       repo,
       state: 'all',
       per_page: 100
-    });
+    }));
 
     const mappedPullRequests = response.data.map((item) => mapGithubPullRequest(item, project));
     const result = await pullRequestRepository.upsertMany(mappedPullRequests);
@@ -164,7 +167,7 @@ async function syncPullRequests(project) {
       updated: result.updated
     };
   } catch (error) {
-    if (error.status === 404) {
+    if (error.status === 404 || error.statusCode === 404) {
       throw new GithubSyncError('Repositório GitHub não encontrado ou sem permissão de acesso.', 404);
     }
 
@@ -177,12 +180,12 @@ async function syncIssues(project) {
   const github = getGithubClient();
 
   try {
-    const response = await github.rest.issues.listForRepo({
+    const response = await executeGithubRequest(() => github.rest.issues.listForRepo({
       owner,
       repo,
       state: 'all',
       per_page: 100
-    });
+    }));
 
     const issuesOnly = response.data.filter((item) => !item.pull_request);
     const mappedIssues = issuesOnly.map((item) => mapGithubIssue(item, project));
@@ -194,7 +197,7 @@ async function syncIssues(project) {
       updated: result.updated
     };
   } catch (error) {
-    if (error.status === 404) {
+    if (error.status === 404 || error.statusCode === 404) {
       throw new GithubSyncError('Repositório GitHub não encontrado ou sem permissão de acesso.', 404);
     }
 
@@ -205,9 +208,14 @@ async function syncIssues(project) {
 export const githubSyncService = {
   async syncGithubArtifacts(projectId) {
     const parsedProjectId = parseProjectId(projectId);
-    const project = await projectRepository.findById(parsedProjectId);
+    if (projectsInSync.has(parsedProjectId)) {
+      throw new GithubSyncError('Sincronização do GitHub já está em andamento para este projeto.', 409);
+    }
+    projectsInSync.add(parsedProjectId);
+    let project;
 
     try {
+      project = await projectRepository.findById(parsedProjectId);
       validateGithubLinkedProject(project);
 
       await projectRepository.markGithubSyncStarted(parsedProjectId, new Date());
@@ -239,6 +247,8 @@ export const githubSyncService = {
       }
 
       throw error;
+    } finally {
+      projectsInSync.delete(parsedProjectId);
     }
   }
 };

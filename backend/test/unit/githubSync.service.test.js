@@ -210,4 +210,26 @@ describe('githubSyncService com Octokit e persistência substituídos', () => {
     );
     expect(mocks.pullRequestRepository.upsertMany).not.toHaveBeenCalled();
   });
+
+  it('impede sincronizações concorrentes do mesmo projeto na mesma instância', async () => {
+    const github = buildGithubDouble();
+    let releaseRequest;
+    github.rest.repos.listCommits.mockImplementation(() => new Promise((resolve) => {
+      releaseRequest = () => resolve({ data: [] });
+    }));
+    mocks.getGithubClient.mockReturnValue(github);
+    mocks.commitRepository.createMany.mockResolvedValue({ count: 0 });
+
+    const firstSync = githubSyncService.syncGithubArtifacts(project.id);
+    await vi.waitFor(() => expect(releaseRequest).toBeTypeOf('function'));
+    await expect(githubSyncService.syncGithubArtifacts(project.id)).rejects.toMatchObject({
+      statusCode: 409,
+      message: 'Sincronização do GitHub já está em andamento para este projeto.'
+    });
+
+    releaseRequest();
+    await expect(firstSync).resolves.toMatchObject({
+      summary: { commits: { found: 0, created: 0, skipped: 0 } }
+    });
+  });
 });

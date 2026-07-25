@@ -20,7 +20,9 @@ export function getGithubClient() {
     }
 
     octokitInstance = new Octokit({
-      auth: token
+      auth: token,
+      baseUrl: 'https://api.github.com',
+      request: { timeout: env.githubRequestTimeoutMs }
     });
   }
 
@@ -29,7 +31,8 @@ export function getGithubClient() {
 
 export async function checkGithubAuthentication() {
   const github = getGithubClient();
-  const response = await github.rest.users.getAuthenticated();
+  const { executeGithubRequest } = await import('./github-request.js');
+  const response = await executeGithubRequest(() => github.rest.users.getAuthenticated());
 
   return {
     login: response.data.login,
@@ -40,7 +43,8 @@ export async function checkGithubAuthentication() {
 
 export async function getGithubRepository(owner, repo) {
   const github = getGithubClient();
-  const response = await github.rest.repos.get({ owner, repo });
+  const { executeGithubRequest } = await import('./github-request.js');
+  const response = await executeGithubRequest(() => github.rest.repos.get({ owner, repo }));
 
   return response.data;
 }

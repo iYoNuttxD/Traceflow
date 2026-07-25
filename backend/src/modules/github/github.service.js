@@ -1,6 +1,7 @@
 // Service GitHub: coordena casos de uso do modulo sem acessar HTTP diretamente.
 // TODO: Implementar importacao de commits, pull requests e issues em tarefas futuras.
 import { checkGithubAuthentication, getGithubClient } from './github.client.js';
+import { executeGithubRequest } from './github-request.js';
 
 function mapRepository(repo) {
   return {
@@ -22,10 +23,10 @@ export const githubService = {
 
   async listRepositories() {
     const github = getGithubClient();
-    const response = await github.rest.repos.listForAuthenticatedUser({
+    const response = await executeGithubRequest(() => github.rest.repos.listForAuthenticatedUser({
       per_page: 100,
       sort: 'updated'
-    });
+    }));
 
     return response.data.map(mapRepository);
   }

@@ -8,6 +8,7 @@ const githubClientMocks = vi.hoisted(() => ({
 vi.mock('../../src/modules/github/github.client.js', () => githubClientMocks);
 
 import { githubService } from '../../src/modules/github/github.service.js';
+import { ERROR_CODES, ExternalServiceError } from '../../src/shared/errors/index.js';
 
 describe('githubService com fronteira Octokit substituída', () => {
   beforeEach(() => {
@@ -66,7 +67,7 @@ describe('githubService com fronteira Octokit substituída', () => {
     });
   });
 
-  it('propaga a falha do client, preservando o comportamento atual do service', async () => {
+  it('normaliza a falha do client sem propagar detalhes externos', async () => {
     const externalError = new Error('falha artificial');
     githubClientMocks.getGithubClient.mockReturnValue({
       rest: {
@@ -76,6 +77,13 @@ describe('githubService com fronteira Octokit substituída', () => {
       }
     });
 
-    await expect(githubService.listRepositories()).rejects.toBe(externalError);
+    const operation = githubService.listRepositories();
+    await expect(operation).rejects.toMatchObject({
+      name: 'ExternalServiceError',
+      statusCode: 500,
+      code: ERROR_CODES.EXTERNAL_SERVICE_ERROR,
+      message: 'Não foi possível sincronizar com o GitHub.'
+    });
+    await expect(operation).rejects.toBeInstanceOf(ExternalServiceError);
   });
 });

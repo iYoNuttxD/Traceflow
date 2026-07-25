@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isAllowedGithubUrl } from '../security/ssrf.js';
 
 export const INPUT_LIMITS = Object.freeze({
   shortText: 191,
@@ -75,10 +76,8 @@ export const httpUrl = (label = 'URL') => z.string({ error: `${label} inválida.
     }
   }, `${label} inválida.`);
 
-export const githubUrl = httpUrl('URL GitHub').refine((value) => {
-  const parsed = new URL(value);
-  return ['github.com', 'www.github.com'].includes(parsed.hostname.toLowerCase());
-}, 'URL GitHub inválida.');
+export const githubUrl = httpUrl('URL GitHub')
+  .refine(isAllowedGithubUrl, 'URL GitHub inválida. Use HTTPS e um host oficial do GitHub.');
 
 export const email = z.string({ error: 'E-mail inválido.' })
   .trim()

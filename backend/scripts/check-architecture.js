@@ -151,6 +151,10 @@ function inspectBackendImports(files, backendRoot, violations, graph) {
       if (isValidationMiddleware && targetLayer === 'service') {
         addViolation(violations, file, 'validation-middleware-no-service', specifier, 'Middleware de validação não pode importar service.');
       }
+
+      if (layer === 'client' && targetLayer === 'controller') {
+        addViolation(violations, file, 'client-no-controller', specifier, 'Client externo não pode importar controller.');
+      }
     }
   }
 

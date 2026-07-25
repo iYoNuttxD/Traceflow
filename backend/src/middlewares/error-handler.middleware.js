@@ -6,6 +6,24 @@ const defaultInternalMessage = 'Erro interno ao processar solicitação.';
 
 function normalizeKnownError(error) {
   if (error instanceof AppError) return error;
+  if (error?.type === 'entity.too.large') {
+    return new AppError({
+      message: 'Payload excede o limite permitido.',
+      statusCode: 413,
+      code: ERROR_CODES.PAYLOAD_TOO_LARGE,
+      exposeTechnicalDetails: true,
+      cause: error
+    });
+  }
+  if (error?.type === 'entity.parse.failed') {
+    return new AppError({
+      message: 'JSON inválido.',
+      statusCode: 400,
+      code: ERROR_CODES.MALFORMED_JSON,
+      exposeTechnicalDetails: true,
+      cause: error
+    });
+  }
   if (Number.isInteger(error?.statusCode) && error.statusCode >= 400 && error.statusCode <= 599) {
     return new AppError({
       message: error.message,

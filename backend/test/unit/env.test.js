@@ -15,7 +15,14 @@ describe('configuração centralizada', () => {
       nodeEnv: 'development',
       port: 3001,
       frontendUrl: 'http://localhost:5173',
-      configurationValid: true
+      configurationValid: true,
+      bodyLimit: '100kb',
+      rateLimitWindowMs: 900000,
+      rateLimitMax: 200,
+      sensitiveRateLimitMax: 20,
+      githubRequestTimeoutMs: 15000,
+      githubRetryMax: 2,
+      trustProxy: false
     });
     expect(Object.isFrozen(config)).toBe(true);
   });
@@ -51,7 +58,28 @@ describe('configuração centralizada', () => {
   it('exige token GitHub somente em produção', () => {
     expect(() => createEnvironment({ ...validSource, NODE_ENV: 'production' }))
       .toThrowError(/GITHUB_TOKEN/);
-    expect(createEnvironment({ ...validSource, NODE_ENV: 'production', GITHUB_TOKEN: 'fake' }))
+    expect(createEnvironment({
+      ...validSource,
+      NODE_ENV: 'production',
+      GITHUB_TOKEN: 'fake',
+      CORS_ALLOWED_ORIGINS: 'https://traceflow.example'
+    }))
       .toMatchObject({ isProduction: true });
+  });
+
+  it('valida configuração de segurança sem expor valores', () => {
+    expect(() => createEnvironment({
+      ...validSource,
+      NODE_ENV: 'production',
+      GITHUB_TOKEN: 'fake'
+    })).toThrowError(/CORS_ALLOWED_ORIGINS/);
+    expect(() => createEnvironment({ ...validSource, BODY_LIMIT: '100gb' }))
+      .toThrowError(/BODY_LIMIT/);
+    expect(() => createEnvironment({ ...validSource, RATE_LIMIT_MAX: '0' }))
+      .toThrowError(/RATE_LIMIT_MAX/);
+    expect(() => createEnvironment({ ...validSource, TRUST_PROXY: 'true' }))
+      .toThrowError(/TRUST_PROXY/);
+    expect(() => createEnvironment({ ...validSource, CORS_ALLOWED_ORIGINS: '*' }))
+      .toThrowError(/CORS_ALLOWED_ORIGINS/);
   });
 });

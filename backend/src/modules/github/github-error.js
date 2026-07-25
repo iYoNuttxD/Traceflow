@@ -1,6 +1,16 @@
 import { ERROR_CODES } from '../../shared/errors/index.js';
 
 export function normalizeGithubError(error) {
+  if (error?.code === ERROR_CODES.GITHUB_RATE_LIMITED ||
+      error?.code === ERROR_CODES.GITHUB_AUTH_FAILED ||
+      error?.code === ERROR_CODES.RESOURCE_NOT_FOUND ||
+      error?.code === ERROR_CODES.EXTERNAL_SERVICE_ERROR) {
+    return {
+      message: error.message,
+      code: error.code,
+      externalStatus: error.externalStatus
+    };
+  }
   const externalStatus = Number.isInteger(error?.status) ? error.status : undefined;
 
   if (
