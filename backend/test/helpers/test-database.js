@@ -1,44 +1,8 @@
 import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import dotenv from 'dotenv';
-
-export function validateTestDatabaseUrl(testDatabaseUrl, developmentDatabaseUrl) {
-  if (!testDatabaseUrl) {
-    throw new Error(
-      'TEST_DATABASE_URL é obrigatória. Configure um banco MySQL exclusivo, como traceflow_test.'
-    );
-  }
-
-  let parsedUrl;
-
-  try {
-    parsedUrl = new URL(testDatabaseUrl);
-  } catch {
-    throw new Error('TEST_DATABASE_URL não é uma URL válida.');
-  }
-
-  if (parsedUrl.protocol !== 'mysql:') {
-    throw new Error('TEST_DATABASE_URL deve usar MySQL.');
-  }
-
-  const databaseName = parsedUrl.pathname.replace(/^\//, '').toLowerCase();
-
-  if (!databaseName || !/(^|[_-])test([_-]|$)/.test(databaseName)) {
-    throw new Error(
-      'TEST_DATABASE_URL deve apontar claramente para um banco de teste (nome contendo test).'
-    );
-  }
-
-  if (/(^|[_-])(prod|production)([_-]|$)/.test(databaseName)) {
-    throw new Error('TEST_DATABASE_URL não pode apontar para um banco de produção.');
-  }
-
-  if (developmentDatabaseUrl && testDatabaseUrl === developmentDatabaseUrl) {
-    throw new Error('TEST_DATABASE_URL deve ser diferente de DATABASE_URL.');
-  }
-
-  return testDatabaseUrl;
-}
+export { validateTestDatabaseUrl } from '../../scripts/lib/database-safety.js';
+import { validateTestDatabaseUrl } from '../../scripts/lib/database-safety.js';
 
 export function configureTestDatabaseEnvironment() {
   dotenv.config({ path: resolve(process.cwd(), '.env.test'), override: false, quiet: true });

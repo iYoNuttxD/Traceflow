@@ -48,4 +48,4 @@ Estados: `IMPLEMENTADO`, `PARCIAL`, `AUSENTE`, `NÃO_APLICÁVEL`, `NÃO_VERIFICA
 
 ## Atualização E6
 
-Sem declarar conformidade ASVS L2: V6 passa a **PARCIAL** (Argon2id, resposta uniforme, inatividade e reset); V7 a **PARCIAL** (sessão opaca hashada, cookie, expiração/revogação e CSRF); V8 a **PARCIAL** (RBAC, listagem filtrada, BOLA 404 e 403 por papel); V3.5.1/V3.5.2 está **IMPLEMENTADO no escopo atual**. Lacunas: MFA, administração completa, entrega de reset, limpeza agendada, matriz exaustiva de papéis e infraestrutura distribuída.
+Sem declarar conformidade ASVS L2: V6 permanece **PARCIAL** (Argon2id, resposta uniforme, inatividade, reset e entrega SMTP configurável); V7 permanece **PARCIAL** (sessão opaca hashada, cookie, expiração/revogação, CSRF e limpeza operacional); V8 passa a **IMPLEMENTADO no escopo RBAC atual** (matriz documentada, BOLA 404, 403 por papel, administração canônica e proteção do último OWNER). V3.5.1/V3.5.2 está **IMPLEMENTADO no escopo atual**. Lacunas: MFA/SSO, store distribuído, monitoramento/agendamento operacional, gestão real do SMTP e controles de auditoria/privacidade da E7.

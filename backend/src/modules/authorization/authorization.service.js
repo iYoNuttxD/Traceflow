@@ -19,7 +19,9 @@ export const authorizationService = {
   },
   requiredRole(req) {
     if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return 'VIEWER';
-    if (/\/members(?:\/|$)|\/invitations(?:\/|$)|\/github\/sync-settings/.test(req.path)) return 'OWNER';
+    if (req.method === 'DELETE' && /\/members\/me$/.test(req.path)) return 'VIEWER';
+    if (req.method === 'PUT' && /^\/projects\/\d+$/.test(req.path)) return 'OWNER';
+    if (/\/members(?:\/|$)|\/invitations(?:\/|$)|\/ownership\/transfer$|\/github\/sync-settings/.test(req.path)) return 'OWNER';
     if (/\/github\/sync(?:\/|$)/.test(req.path)) return 'MANAGER';
     return 'MEMBER';
   },

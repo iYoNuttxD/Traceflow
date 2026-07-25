@@ -2,6 +2,8 @@ import { createHash, randomBytes } from 'node:crypto';
 import { env } from '../../../config/env.js';
 import { AppError, ERROR_CODES } from '../../../shared/errors/index.js';
 import { projectInvitationRepository } from '../project-invitation.repository.js';
+import { emailService } from '../../../shared/email/index.js';
+import { logger } from '../../../shared/logger/index.js';
 
 const tokenHash = (value) => createHash('sha256').update(value).digest('hex');
 const invalidInvitation = () => new AppError({ message: 'Convite inválido ou expirado.', statusCode: 400, code: ERROR_CODES.INVITATION_INVALID, exposeTechnicalDetails: true });
@@ -9,19 +11,31 @@ const invalidInvitation = () => new AppError({ message: 'Convite inválido ou ex
 export const projectInvitationService = {
   async create(projectId, creatorId, { email, role }) {
     const token = randomBytes(32).toString('base64url');
-    const invitation = await projectInvitationRepository.create({
+    const expiresAt = new Date(Date.now() + env.invitationTtlMs);
+    const invitation = await projectInvitationRepository.createReplacingActive({
       projectId, createdById: creatorId, email: email.trim().toLowerCase(), role,
-      tokenHash: tokenHash(token), expiresAt: new Date(Date.now() + env.invitationTtlMs)
+      tokenHash: tokenHash(token), expiresAt
     });
-    return { invitation: { id: invitation.id, email: invitation.email, role: invitation.role, expiresAt: invitation.expiresAt }, token };
+    await emailService.sendProjectInvitation({
+      to: invitation.email, token, expiresAt, projectName: invitation.project.name,
+      role, projectId, invitationId: invitation.id
+    });
+    logger.info('Convite de projeto criado.', { event: 'project_invitation_created', projectId, invitationId: invitation.id, actorId: creatorId });
+    return {
+      invitation: { id: invitation.id, email: invitation.email, role: invitation.role, expiresAt: invitation.expiresAt },
+      ...(env.isTest ? { token } : {})
+    };
   },
   list(projectId) { return projectInvitationRepository.list(projectId); },
   async revoke(projectId, invitationId) {
     if (!(await projectInvitationRepository.revoke(projectId, invitationId)).count) throw invalidInvitation();
+    logger.info('Convite de projeto revogado.', { event: 'project_invitation_revoked', projectId, invitationId });
   },
   async accept(token, user) {
     const invitation = await projectInvitationRepository.findByHash(tokenHash(token));
     if (!invitation || invitation.revokedAt || invitation.acceptedAt || invitation.expiresAt <= new Date() || invitation.email !== user.email) throw invalidInvitation();
-    return projectInvitationRepository.accept(invitation, user.id);
+    const membership = await projectInvitationRepository.accept(invitation, user.id);
+    logger.info('Convite de projeto aceito.', { event: 'project_invitation_accepted', projectId: invitation.projectId, invitationId: invitation.id, actorId: user.id });
+    return membership;
   }
 };

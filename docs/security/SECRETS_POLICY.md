@@ -2,7 +2,7 @@
 
 ## Escopo
 
-Os segredos atuais são `GITHUB_TOKEN` e as credenciais contidas em `DATABASE_URL`/`TEST_DATABASE_URL`. Qualquer futura chave de sessão, JWT, e-mail, cloud ou criptografia entra automaticamente nesta política.
+Os segredos atuais são `GITHUB_TOKEN`, as credenciais contidas em `DATABASE_URL`/`TEST_DATABASE_URL` e `SMTP_PASSWORD`. Qualquer futura chave de sessão, JWT, e-mail, cloud ou criptografia entra automaticamente nesta política.
 
 Na E6, tokens opacos de sessão, recuperação e convite são segredos efêmeros: valores brutos existem somente no cookie HttpOnly, memória do cliente ou entrega de uso único; o banco guarda SHA-256. Senhas guardam somente Argon2id. Nenhum desses valores pode ser logado. O PAT GitHub permanece credencial técnica do sistema, não identidade do usuário (ADR-004).
 
@@ -23,6 +23,7 @@ Na E6, tokens opacos de sessão, recuperação e convite são segredos efêmeros
 | `GITHUB_TOKEN` | responsável pela integração/plataforma | somente repositórios e leituras necessárias | a cada 90 dias ou política mais restritiva do provedor | imediata após vazamento, desligamento do titular ou mudança de escopo |
 | `DATABASE_URL` | administração de dados/plataforma | usuário próprio da aplicação, sem privilégios administrativos | a cada 90 dias ou política corporativa | trocar credencial, revogar usuário antigo e verificar logs/conexões |
 | `TEST_DATABASE_URL` | desenvolvimento/CI | banco descartável cujo nome identifica teste | junto do ambiente/runner | destruir ou rotacionar ao comprometer o runner |
+| `SMTP_PASSWORD` | plataforma/comunicação | conta limitada ao envio transacional do TRACEFLOW | a cada 90 dias ou política do provedor | revogar credencial e tokens de reset/convite potencialmente expostos |
 
 Os prazos são baseline técnica e precisam ser alinhados à operação real. A rotação deve suportar período curto de transição, teste de conectividade e revogação do valor anterior.
 

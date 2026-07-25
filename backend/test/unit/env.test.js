@@ -62,9 +62,19 @@ describe('configuração centralizada', () => {
       ...validSource,
       NODE_ENV: 'production',
       GITHUB_TOKEN: 'fake',
-      CORS_ALLOWED_ORIGINS: 'https://traceflow.example'
+      CORS_ALLOWED_ORIGINS: 'https://traceflow.example',
+      EMAIL_PROVIDER: 'smtp', EMAIL_FROM: 'no-reply@traceflow.example',
+      SMTP_HOST: 'smtp.traceflow.example', SMTP_USER: 'mailer', SMTP_PASSWORD: 'secret'
     }))
       .toMatchObject({ isProduction: true });
+  });
+
+  it('valida o provedor de e-mail sem revelar credenciais', () => {
+    expect(createEnvironment(validSource)).toMatchObject({ emailProvider: 'capture' });
+    expect(() => createEnvironment({ ...validSource, EMAIL_PROVIDER: 'smtp', EMAIL_FROM: 'invalid' }))
+      .toThrowError(/EMAIL_FROM/);
+    expect(() => createEnvironment({ ...validSource, EMAIL_PROVIDER: 'smtp', EMAIL_FROM: 'mail@example.com' }))
+      .toThrowError(/SMTP_HOST/);
   });
 
   it('valida configuração de segurança sem expor valores', () => {

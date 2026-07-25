@@ -8,6 +8,7 @@ import {
   emptyProjectForm,
   updateProjectForm
 } from '../features/projects/index.js';
+import { ProjectMembersPanel } from '../features/members/index.js';
 
 function toFormData(project) {
   return {
@@ -151,15 +152,13 @@ function getGithubSyncDisplay(project, syncStatus) {
 export function ProjectDetailsPage() {
   const { id } = useParams();
   const [project, setProject] = useState(null);
-  const [members, setMembers] = useState([]);
-  const [memberForm, setMemberForm] = useState({ name: '', email: '', role: 'MEMBRO' });
+  const [memberCount, setMemberCount] = useState(0);
+  const [currentMembership, setCurrentMembership] = useState(null);
   const [formData, setFormData] = useState(emptyProjectForm);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [submittingMember, setSubmittingMember] = useState(false);
   const [syncingGithub, setSyncingGithub] = useState(false);
   const [githubSyncStatus, setGithubSyncStatus] = useState('idle');
-  const [membersError, setMembersError] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -174,24 +173,14 @@ export function ProjectDetailsPage() {
     async function loadProject() {
       setLoading(true);
       setError('');
-      setMembersError('');
       setGithubSyncStatus('idle');
 
       try {
-        const [projectResponse, membersResponse] = await Promise.all([
-          api.get(`/projects/${id}`),
-          api.get(`/projects/${id}/members`).catch((requestError) => {
-            setMembersError(
-              getErrorMessage(requestError, 'Não foi possível carregar os membros do projeto.')
-            );
-            return { data: { members: [] } };
-          })
-        ]);
+        const projectResponse = await api.get(`/projects/${id}`);
 
         const loadedProject = projectResponse.data.project;
         setProject(loadedProject);
         setFormData(toFormData(loadedProject));
-        setMembers(membersResponse.data.members || []);
       } catch (requestError) {
         setError(getErrorMessage(requestError, 'Não foi possível carregar o projeto.'));
       } finally {
@@ -204,10 +193,6 @@ export function ProjectDetailsPage() {
 
   function handleChange(name, value) {
     setFormData((current) => updateProjectForm(current, name, value));
-  }
-
-  function handleMemberChange(name, value) {
-    setMemberForm((current) => ({ ...current, [name]: value }));
   }
 
   async function handleSubmit(event) {
@@ -230,28 +215,6 @@ export function ProjectDetailsPage() {
       setError(getErrorMessage(requestError, 'Não foi possível atualizar o projeto.'));
     } finally {
       setSubmitting(false);
-    }
-  }
-
-  async function handleMemberSubmit(event) {
-    event.preventDefault();
-    setSubmittingMember(true);
-    setMembersError('');
-    setSuccess('');
-
-    try {
-      const response = await api.post(`/projects/${id}/members`, memberForm);
-      setMembers((current) =>
-        [...current, response.data.member].sort((a, b) => a.name.localeCompare(b.name))
-      );
-      setMemberForm({ name: '', email: '', role: 'MEMBRO' });
-      setSuccess(response.data.message);
-    } catch (requestError) {
-      setMembersError(
-        getErrorMessage(requestError, 'Não foi possível adicionar o membro ao projeto.')
-      );
-    } finally {
-      setSubmittingMember(false);
     }
   }
 
@@ -354,14 +317,13 @@ export function ProjectDetailsPage() {
         <ProjectSectionNav
           projectId={project.id}
           activeSection="overview"
-          showSyncButton
+          showSyncButton={['MANAGER', 'OWNER'].includes(currentMembership?.role)}
           onSync={handleGithubSync}
           isSyncing={syncingGithub}
         />
       </header>
 
       {error && <div className="message message-error">{error}</div>}
-      {membersError && <div className="message message-error">{membersError}</div>}
       {success && <div className="message message-success">{success}</div>}
 
       <section className="project-overview">
@@ -415,7 +377,7 @@ export function ProjectDetailsPage() {
             )}
             <div>
               <dt>Membros</dt>
-              <dd>{members.length}</dd>
+              <dd>{memberCount}</dd>
             </div>
             <div>
               <dt>Código de acesso</dt>
@@ -449,7 +411,7 @@ export function ProjectDetailsPage() {
       </section>
 
       <div className="project-details-stack">
-        <Card title="Editar dados do projeto">
+        {currentMembership?.role === 'OWNER' && <Card title="Editar dados do projeto">
           <ProjectForm
             formData={formData}
             onChange={handleChange}
@@ -458,55 +420,10 @@ export function ProjectDetailsPage() {
             submitting={submitting}
             showRepositoryField={false}
           />
-        </Card>
+        </Card>}
 
         <Card title="Membros do projeto">
-          {members.length === 0 ? (
-            <p className="empty-state">Nenhum membro interno cadastrado neste projeto.</p>
-          ) : (
-            <div className="member-list member-list-wide">
-              {members.map((member) => (
-                <article className="member-item" key={member.id}>
-                  <strong>{member.name}</strong>
-                  <span>{member.email || 'Sem email'}</span>
-                  <span>{member.role}</span>
-                </article>
-              ))}
-            </div>
-          )}
-
-          <form className="member-form member-form-wide" onSubmit={handleMemberSubmit}>
-            <label className="field">
-              <span>Nome</span>
-              <input
-                type="text"
-                value={memberForm.name}
-                onChange={(event) => handleMemberChange('name', event.target.value)}
-                placeholder="Nome do membro"
-              />
-            </label>
-            <label className="field">
-              <span>Email</span>
-              <input
-                type="email"
-                value={memberForm.email}
-                onChange={(event) => handleMemberChange('email', event.target.value)}
-                placeholder="email@exemplo.com"
-              />
-            </label>
-            <label className="field">
-              <span>Papel</span>
-              <input
-                type="text"
-                value={memberForm.role}
-                onChange={(event) => handleMemberChange('role', event.target.value)}
-                placeholder="DESENVOLVEDOR"
-              />
-            </label>
-            <button className="button button-secondary" type="submit" disabled={submittingMember}>
-              {submittingMember ? 'Adicionando...' : 'Adicionar membro'}
-            </button>
-          </form>
+          <ProjectMembersPanel projectId={id} onCountChange={setMemberCount} onMembershipLoaded={setCurrentMembership} />
         </Card>
       </div>
     </main>

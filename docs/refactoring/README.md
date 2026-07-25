@@ -30,7 +30,7 @@ Esta área registra a evolução incremental do MVP para uma arquitetura mais se
 
 ## Estado da E6
 
-**Parcial em 24/07/2026**, com identidade, sessão opaca, CSRF, RBAC por projeto, mitigação de BOLA, convites hashados, migration/backfill expand-only e frontend autenticado. Os bloqueios operacionais estão em `E6_IDENTITY_AUTHORIZATION.md`. A execução partiu do commit `47fd71349a96c34dd1d715cfcc07ae77d71a018b`.
+**Concluída em 24/07/2026**, com identidade, sessão opaca, CSRF, RBAC por projeto, e-mail transacional configurável, administração canônica de memberships, proteção do último OWNER, limpeza operacional, backfill seguro e matriz de autorização. A continuação partiu do commit `77aeec998308c843ce6891c6a1d6e03e646e9d63`.
 
 ## Documentos produzidos
 
@@ -50,12 +50,13 @@ Esta área registra a evolução incremental do MVP para uma arquitetura mais se
 - [SECRETS_POLICY.md](../security/SECRETS_POLICY.md) — ciclo de vida, acesso, rotação e resposta a vazamento.
 - [DEPENDENCY_RISK_REGISTER.md](../security/DEPENDENCY_RISK_REGISTER.md) — advisories, aplicabilidade e decisões.
 - [ASVS_BASELINE.md](../security/ASVS_BASELINE.md) — evidências e lacunas aplicáveis do ASVS 5.0, sem declaração de conformidade.
+- [AUTHORIZATION_MATRIX.md](../security/AUTHORIZATION_MATRIX.md) — acesso por papel para todos os grupos de endpoints.
 - [API_CONTRACTS.md](../api/API_CONTRACTS.md) — catálogo executável de rotas, entradas, respostas e erros atuais.
 - [MODULE_CONVENTIONS.md](../architecture/MODULE_CONVENTIONS.md) — responsabilidades e dependências permitidas no backend.
 - [FRONTEND_STRUCTURE.md](../architecture/FRONTEND_STRUCTURE.md) — direção pages → features → shared e organização frontend.
 
 ## Próxima etapa
 
-A E6 permanece parcial. A E7 não deve começar antes do fechamento dos bloqueios documentados.
+A E6 está concluída. Próxima etapa: **E7**, que não foi iniciada nesta execução.
 
 Nenhum código funcional foi refatorado durante a E0 ou a E1. A E2 reorganizou fronteiras internas, a E3 introduziu infraestrutura transversal, a E4 protegeu os contratos de entrada e a E5 estabeleceu controles transversais de segurança, sem alterar regras de negócio ou respostas de sucesso.

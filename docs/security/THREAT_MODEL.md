@@ -2,9 +2,9 @@
 
 ## Atualização E6
 
-Identidade verificável, sessão opaca, CSRF, memberships e RBAC reduzem spoofing/BOLA. Navegador, cookie e endpoints públicos de autenticação formam nova trust boundary. Persistem: entrega de e-mail sem adaptador operacional, administração/último OWNER incompleta, PAT GitHub sistêmico, infraestrutura não distribuída e campos legados textuais.
+Identidade verificável, sessão opaca, CSRF, memberships e RBAC reduzem spoofing/BOLA. Navegador, cookie, SMTP e endpoints públicos de autenticação formam trust boundaries. A continuação da E6 adicionou adapter SMTP/capture, administração canônica, proteção transacional do último OWNER e retenção operacional. Persistem: PAT GitHub sistêmico, infraestrutura não distribuída, dependência operacional de SMTP e campos legados textuais.
 
-Novas ameaças tratadas/testadas: credential stuffing, fixation/hijacking, CSRF, replay de reset/convite, enumeração de conta/projeto, privilege escalation e BOLA entre projetos.
+Novas ameaças tratadas/testadas: credential stuffing, fixation/hijacking, CSRF, replay/substituição de reset e convite, enumeração de conta/projeto, privilege escalation, remoção do último OWNER e BOLA entre projetos.
 
 ## Escopo e método
 
@@ -22,8 +22,8 @@ Este threat model nasceu na E5 e foi atualizado na E6; usa STRIDE como guia e n�
 
 ## Atores
 
-- visitante anônimo, atualmente capaz de usar toda a API;
-- integrante legítimo de projeto, ainda sem identidade verificável;
+- visitante anônimo, limitado a health e autenticação pública;
+- integrante autenticado de projeto, sujeito ao papel da membership;
 - operador/desenvolvedor com acesso a ambiente e logs;
 - GitHub/Octokit como dependência externa;
 - agente malicioso remoto, pacote comprometido ou proxy mal configurado.
@@ -54,6 +54,8 @@ Backend Express  -- boundary HTTP, validação, logging e regras de domínio
    v
 Prisma/MySQL  -- boundary de persistência e dados pessoais
 
+Backend Express --> servidor SMTP -- boundary externa para entrega; token existe no conteúdo em trânsito
+
 CI/CD e operadores -- boundary administrativo para código, dependências e segredos
 ```
 
@@ -64,10 +66,12 @@ O backend não faz fetch genérico de URLs informadas pelo cliente. A integraç�
 | Categoria | Ameaça | Impacto | Controles E5 | Risco residual |
 |---|---|---|---|---|
 | Spoofing | Cliente assume identidade textual/membro | ALTO | E6 usa User/sessão e ator canônico | concluir contract/backfill legado |
-| Tampering | Alteração por ID/BOLA | MÉDIO | membership, resolução de recurso e deny-by-default | ampliar matriz de papéis por endpoint |
+| Tampering | Alteração por ID/BOLA | MÉDIO | membership, resolução de recurso, deny-by-default e matriz de papéis | manter testes ao adicionar endpoints |
+| Elevação de privilégio | MEMBER altera papel, desativa OWNER ou projeto fica sem OWNER | ALTO | OWNER-only, IDs do mesmo projeto, transação serializável e `LAST_PROJECT_OWNER` | concorrência deve continuar coberta em mudanças futuras |
+| Information disclosure | Reset/convite exposto em resposta, log ou adapter | CRÍTICO | hash no banco, resposta apenas em teste, SMTP/capture explícito, redaction e templates escapados | proteger caixa postal e SMTP; rotação após incidente |
 | Repudiation | `movedBy` e ator textual forjáveis | ALTO | request ID, logs JSON e eventos de operações sensíveis | E6/E7: identidade e AuditEvent com retenção/acesso |
 | Information disclosure | Token, banco, e-mail ou erro externo em resposta/log | ALTO | error handler seguro, redaction, scanner e política de segredos | Secret manager, acesso/retenção de logs e minimização E7 |
-| Information disclosure | Enumeração de projetos/códigos | CRÍTICO | rate limit de join e log sanitizado | Resposta de join ainda distingue projeto inexistente; corrigir junto do convite E6 |
+| Information disclosure | Enumeração de projetos/códigos | CRÍTICO | membership/BOLA, convite canônico e rate limit/log do join legado | `accessCode` legado ainda distingue falha e deve ser descontinuado após migração |
 | Denial of service | JSON grande ou malformado | ALTO | limite explícito de 100kb, `413`, `400` e `415` seguros | Limites de proxy e coleções devem ser alinhados no deploy |
 | Denial of service | Abuso geral/join/GitHub sync | ALTO | limiters geral/sensíveis, chave IP+projectId e trava concorrente por projeto | MemoryStore não é distribuído; IP não equivale a usuário |
 | Denial of service | GitHub lento/indisponível | ALTO | timeout 15s, retry limitado, backoff/jitter e normalização 403/429 | Sem circuit breaker, fila, checkpoint ou scheduler |
@@ -80,7 +84,7 @@ O backend não faz fetch genérico de URLs informadas pelo cliente. A integraç�
 
 - CORS não é autenticação e requisições sem `Origin` continuam permitidas para clientes não navegador.
 - O limiter em memória é aceito apenas para instância única; produção horizontal exige store distribuído.
-- `Math.random()`, código reutilizável e ausência de expiração/revogação do convite permanecem risco crítico para E6.
+- `accessCode` legado com `Math.random()` permanece deprecado e com rate limit; convites canônicos usam token aleatório, hash, expiração, revogação e consumo único.
 - TLS termina no reverse proxy; Express não implementa TLS. HSTS é habilitado apenas quando `NODE_ENV=production`.
 - O frontend é servido separadamente; CSP/HSTS do documento HTML precisam ser aplicados no host da SPA.
 - Retenção, minimização, direitos do titular e auditoria de negócio ficam para E7.

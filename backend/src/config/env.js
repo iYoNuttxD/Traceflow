@@ -119,6 +119,43 @@ function parseSameSite(value) {
   return normalized;
 }
 
+function parseBoolean(value, key, defaultValue = false) {
+  if (value === undefined || value === '') return defaultValue;
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  throw new ConfigurationError(`Configuração inválida: ${key} deve ser true ou false.`);
+}
+
+function parseEmailConfiguration(source, nodeEnv) {
+  const provider = source.EMAIL_PROVIDER || (nodeEnv === 'production' ? 'smtp' : 'capture');
+  if (!['capture', 'smtp'].includes(provider)) {
+    throw new ConfigurationError('Configuração inválida: EMAIL_PROVIDER deve ser capture ou smtp.');
+  }
+  if (nodeEnv === 'production' && provider !== 'smtp') {
+    throw new ConfigurationError('Configuração inválida: EMAIL_PROVIDER deve ser smtp em produção.');
+  }
+  const from = source.EMAIL_FROM || (provider === 'capture' ? 'no-reply@traceflow.test' : undefined);
+  if (!from || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(from)) {
+    throw new ConfigurationError('Configuração inválida: EMAIL_FROM deve ser um e-mail válido.');
+  }
+  if (provider === 'smtp') {
+    for (const key of ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASSWORD']) {
+      if (!source[key]) throw new ConfigurationError(`Configuração obrigatória ausente: ${key}.`);
+    }
+  }
+  return {
+    emailProvider: provider,
+    emailFrom: from,
+    smtpHost: source.SMTP_HOST,
+    smtpPort: parseInteger(source.SMTP_PORT, 'SMTP_PORT', { defaultValue: 587, min: 1, max: 65535 }),
+    smtpSecure: parseBoolean(source.SMTP_SECURE, 'SMTP_SECURE', false),
+    smtpUser: source.SMTP_USER,
+    smtpPassword: source.SMTP_PASSWORD,
+    passwordResetUrl: parseUrl(source.PASSWORD_RESET_URL || 'http://localhost:5173/reset-password', 'PASSWORD_RESET_URL'),
+    invitationAcceptUrl: parseUrl(source.INVITATION_ACCEPT_URL || 'http://localhost:5173/invitations/accept', 'INVITATION_ACCEPT_URL')
+  };
+}
+
 export function createEnvironment(source = {}) {
   const nodeEnv = source.NODE_ENV || 'development';
   if (!allowedEnvironments.has(nodeEnv)) {
@@ -144,6 +181,7 @@ export function createEnvironment(source = {}) {
   }
 
   const corsAllowedOrigins = parseCorsOrigins(source, nodeEnv, frontendUrl);
+  const emailConfiguration = parseEmailConfiguration(source, nodeEnv);
 
   return Object.freeze({
     nodeEnv,
@@ -162,14 +200,14 @@ export function createEnvironment(source = {}) {
       max: 24 * 60 * 60 * 1000
     }),
     rateLimitMax: parseInteger(source.RATE_LIMIT_MAX, 'RATE_LIMIT_MAX', {
-      defaultValue: 200,
+      defaultValue: nodeEnv === 'test' ? 1000 : 200,
       min: 1,
       max: 100000
     }),
     sensitiveRateLimitMax: parseInteger(
       source.SENSITIVE_RATE_LIMIT_MAX,
       'SENSITIVE_RATE_LIMIT_MAX',
-      { defaultValue: 20, min: 1, max: 10000 }
+      { defaultValue: nodeEnv === 'test' ? 1000 : 20, min: 1, max: 10000 }
     ),
     githubRequestTimeoutMs: parseInteger(
       source.GITHUB_REQUEST_TIMEOUT_MS,
@@ -190,6 +228,10 @@ export function createEnvironment(source = {}) {
     invitationTtlMs: parseInteger(source.INVITATION_TTL_MS, 'INVITATION_TTL_MS', {
       defaultValue: 7 * 24 * 60 * 60 * 1000, min: 60 * 60 * 1000, max: 30 * 24 * 60 * 60 * 1000
     }),
+    ...emailConfiguration,
+    sessionRetentionDays: parseInteger(source.AUTH_SESSION_RETENTION_DAYS, 'AUTH_SESSION_RETENTION_DAYS', { defaultValue: 30, min: 1, max: 3650 }),
+    passwordResetRetentionDays: parseInteger(source.AUTH_PASSWORD_RESET_RETENTION_DAYS, 'AUTH_PASSWORD_RESET_RETENTION_DAYS', { defaultValue: 7, min: 1, max: 3650 }),
+    invitationRetentionDays: parseInteger(source.AUTH_INVITATION_RETENTION_DAYS, 'AUTH_INVITATION_RETENTION_DAYS', { defaultValue: 30, min: 1, max: 3650 }),
     sessionCookieName: source.SESSION_COOKIE_NAME || 'traceflow_session',
     sessionCookieSameSite: parseSameSite(source.SESSION_COOKIE_SAME_SITE),
     trustProxy: parseTrustProxy(source.TRUST_PROXY),

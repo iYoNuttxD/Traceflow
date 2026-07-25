@@ -6,6 +6,10 @@ Health permanece público. Também são públicos `POST /api/auth/register`, `lo
 
 Convites canônicos: `GET|POST /api/projects/:projectId/invitations`, `DELETE /api/projects/:projectId/invitations/:invitationId` e `POST /api/projects/invitations/accept`. O join por `accessCode` permanece autenticado e deprecado. Papéis: OWNER, MANAGER, MEMBER e VIEWER. Ausência de membership pode retornar 404; papel insuficiente, 403. Placeholders retornam 401 sem sessão e preservam 501 autenticados.
 
+Na conclusão da E6, `GET /api/projects/:projectId/members` passou a representar a fonte canônica `ProjectMembership` e retorna `{projectId,currentMembership,members}`. OWNER recebe e-mail completo; demais papéis recebem valor mascarado. Administração canônica: `PATCH|DELETE /api/projects/:projectId/members/:membershipId`, `POST .../reactivate`, `DELETE .../members/me` e `POST /api/projects/:projectId/ownership/transfer`. Desativação/saída é lógica; o último OWNER recebe `409 LAST_PROJECT_OWNER`.
+
+Convite duplicado ativo é substituído (o anterior é revogado). Em produção, criação retorna somente `{invitation}` e o token segue pelo adapter de e-mail; o campo `token` existe apenas em testes controlados. Forgot-password continua uniforme e nunca retorna token fora de testes.
+
 Novos erros seguem `{message,code,requestId}`: `AUTHENTICATION_REQUIRED`, `INVALID_CREDENTIALS`, `ACCOUNT_DISABLED`, `CSRF_INVALID`, `FORBIDDEN` e `INVITATION_INVALID`. Respostas de recuperação são uniformes. O cookie nunca é exposto a JavaScript e CORS usa credenciais somente para a allowlist.
 
 ## Escopo e convenções
@@ -47,8 +51,16 @@ Na E5, respostas de sucesso permaneceram iguais. A API exige JSON para bodies, a
 | PUT | `/projects/:id` | `id` positivo | subconjunto de `name`, `description`, `responsibleTeam`, `status` e tripla GitHub legada | `200`, `{message,project}` |
 | DELETE | `/projects/:id` | baseline placeholder | — | `501` inalterado |
 | POST | `/projects/join` | — | `accessCode`, `name`; opcionais `email`, `role` | `201`, `{message,project,member}` |
-| GET | `/projects/:projectId/members` | `projectId` positivo | — | `200`, `{projectId,members}` |
+| GET | `/projects/:projectId/members` | `projectId` positivo | — | `200`, `{projectId,currentMembership,members}` |
 | POST | `/projects/:projectId/members` | `projectId` positivo | `name`; opcionais `email`, `role` | `201`, `{message,member}` |
+| PATCH | `/projects/:projectId/members/:membershipId` | IDs positivos | `role`: OWNER/MANAGER/MEMBER/VIEWER | `200`, `{message,membership}` |
+| DELETE | `/projects/:projectId/members/:membershipId` | IDs positivos | — | `204`, desativação lógica |
+| POST | `/projects/:projectId/members/:membershipId/reactivate` | IDs positivos | body vazio | `200`, `{message,membership}` |
+| DELETE | `/projects/:projectId/members/me` | `projectId` positivo | — | `204`, saída própria lógica |
+| POST | `/projects/:projectId/ownership/transfer` | `projectId` positivo | `membershipId` positivo | `200`, `{message,membership}` |
+| GET/POST | `/projects/:projectId/invitations` | `projectId` positivo | POST: `email`, `role` | `200` lista / `201` criação |
+| DELETE | `/projects/:projectId/invitations/:invitationId` | IDs positivos | — | `204` |
+| POST | `/projects/invitations/accept` | — | token opaco | `200`, `{message,membership}` |
 | PATCH | `/projects/:projectId/github/sync-settings` | `projectId` positivo | boolean `githubAutoSyncEnabled` | `200`, `{message,project}` |
 
 Status de projeto: `ATIVO`, `INATIVO`, `ARQUIVADO`. URLs GitHub precisam usar HTTP(S) e host `github.com`. E-mails são validados, mas continuam opcionais. `accessCode` mantém o mecanismo atual e não representa autenticação.

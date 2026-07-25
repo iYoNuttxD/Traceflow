@@ -3,49 +3,48 @@
 ## Identificação e estado
 
 - Branch: `daniel-dev`
-- Commit inicial: `47fd71349a96c34dd1d715cfcc07ae77d71a018b`
+- Commit inicial da continuação: `77aeec998308c843ce6891c6a1d6e03e646e9d63`
 - Data: 24/07/2026
-- Estado inicial: árvore limpa e sincronizada (`origin/daniel-dev`, +0/-0), sem alterações preexistentes
-- Resultado: **PARCIAL**. O núcleo de identidade, sessão, CSRF, RBAC, BOLA, convite seguro, migration expand-only e frontend autenticado está executável. Faltam entrega real de e-mail, administração completa de papéis/membros, limpeza agendada de tokens/sessões e matriz exaustiva de todos os papéis por domínio.
+- Estado inicial: árvore limpa e sincronizada com `origin/daniel-dev`; nenhuma alteração preexistente
+- Estado final: **CONCLUÍDA**, condicionado às validações registradas abaixo. A E7 não foi iniciada.
 
-## Decisões e estrutura
+## Entrega de e-mail
 
-Os ADRs 002, 003 e 004 registram sessão opaca server-side, RBAC deny-by-default e manutenção transitória do PAT GitHub como credencial do sistema. Foram criados `modules/auth`, `modules/authorization`, middlewares de autenticação/CSRF/autorização, `features/auth` e telas públicas.
+Foi criada a fronteira `shared/email`, com templates HTML escapados, texto alternativo e interface pequena. `EMAIL_PROVIDER=capture` é explícito em desenvolvimento/teste e nunca acessa rede; produção exige `smtp`, `EMAIL_FROM`, host e credenciais no startup. `nodemailer@9.0.3` é a única dependência adicionada. A versão 7 inicialmente avaliada apresentou advisories altos no audit e foi substituída pela major corrigida; a API utilizada foi validada por teste do adapter.
 
-Senhas usam `argon2@0.44.0`/Argon2id. Sessão, reset e convite recebem 256 bits via `randomBytes`; somente SHA-256 é persistido. Cookie: `HttpOnly`, `SameSite=Lax`, `Secure` em produção, path `/`, TTL configurável. CSRF bruto vive só em memória no frontend e é rotacionável. Não existe token de autenticação em storage ou URL.
+Forgot-password mantém resposta uniforme. O token bruto fica apenas na mensagem e, em testes, no contrato controlado preexistente. Convites ativos repetidos para o mesmo projeto/e-mail usam política de substituição: o anterior é revogado e somente o novo pode ser aceito. Em produção, convites não retornam token. Falhas de entrega geram evento técnico sanitizado sem token ou e-mail completo.
 
-## Schema, migration e backfill
+## Administração canônica de memberships
 
-A migration expand-only `20260724120000_add_identity_session_authorization` adiciona `User`, `Session`, `PasswordResetToken`, `ProjectMembership`, `ProjectInvitation`, `ProjectRole`, `Task.responsibleUserId` e `TaskMovement.movedByUserId`. Os campos/models legados permanecem.
+`GET /projects/:projectId/members` agora lista `ProjectMembership` com `User`. OWNER vê e-mail completo para administração; MANAGER/MEMBER/VIEWER recebem endereço mascarado. Foram adicionados atualização de papel, desativação lógica, reativação, saída própria e transferência de propriedade. Somente OWNER administra terceiros. A transferência promove uma membership ativa do mesmo projeto e mantém o solicitante como OWNER.
 
-`scripts/backfill-e6-memberships.js` é dry-run por padrão e só altera com `--apply`. Migra e-mails normalizados sem ambiguidade; ausência de e-mail ou nomes conflitantes são contabilizados e preservados para decisão manual. Não imprime PII. Rollback: voltar a aplicação mantendo a expansão; não há drop/contract nesta etapa.
+Despromoção, desativação ou saída do último OWNER retorna `409 LAST_PROJECT_OWNER`. A verificação e a escrita ocorrem em transação `Serializable`. Usuário, histórico e atribuições não são apagados. Membership inativa deixa de autorizar o projeto e não pode ser escolhida como responsável.
 
-Durante a validação, o primeiro `prisma migrate deploy` recebeu `TEST_DATABASE_URL`, porém o datasource ainda leu `DATABASE_URL` do `.env` e aplicou a migration também no banco local `traceflow`. A migration é aditiva e foi aplicada com sucesso; nada foi revertido/removido. Depois, o harness apontou explicitamente para `traceflow_test`.
+## Operação e dados legados
 
-## Contratos e autorização
+- `e6:cleanup:dry-run` e `e6:cleanup` inventariam/removem sessões, resets e convites finalizados após retenções de 30/7/30 dias. Não existe job oculto no startup.
+- `db:test:migrate` e `db:test:status` carregam `.env.test`, exigem MySQL, marcador `test` no nome e URL diferente de desenvolvimento; só exibem host/porta/database sanitizados.
+- O backfill permanece dry-run por padrão, aceita `--apply`, `--project-id`, `--report` e exige `--confirm-production` em database nomeado como produção. Ausência/e-mail inválido, identidade ambígua, papel desconhecido e projeto sem OWNER elegível são reportados sem PII. Execução repetida é idempotente.
+- `ProjectMember`, `accessCode`, `inviteLink` e demais campos legados não foram removidos. Nenhuma migration foi criada nesta continuação.
 
-Públicas: health/live/ready, register, login, forgot e reset. Todo domínio é privado. Novas rotas: `/api/auth/{register,login,logout,me,csrf,forgot-password,reset-password,change-password}` e CRUD/aceite de `/api/projects/.../invitations`.
+## Autorização e frontend
 
-Erros novos: `401 AUTHENTICATION_REQUIRED`, `401 INVALID_CREDENTIALS`, `403 ACCOUNT_DISABLED`, `403 CSRF_INVALID`, `403 FORBIDDEN`, `400 INVITATION_INVALID`. Ausência de membership retorna `404`. Placeholders retornam `401` sem sessão e `501` autenticados.
+`AUTHORIZATION_MATRIX.md` cataloga todos os grupos de endpoints. OWNER administra projeto/membros; MANAGER sincroniza GitHub; MEMBER escreve domínio; VIEWER lê. Atualização do projeto passou a exigir OWNER; ausência de membership continua `404`, e papel insuficiente `403`.
 
-OWNER nasce com o projeto em transação; listagem é filtrada. VIEWER lê, MEMBER escreve domínio, MANAGER sincroniza e OWNER administra. Recursos filhos resolvem o projeto antes do acesso. Kanban persiste ator da sessão em `movedByUserId`; responsável por tarefa precisa de membership ativa. Join legado exige sessão/CSRF, cria membership canônica e fica deprecado.
+O frontend ganhou `features/members`: listagem, papel, desativação/reativação, transferência, saída e convites, com confirmação para ações destrutivas e controles administrativos ocultos para não-OWNER. A página não armazena tokens e usa a sessão/CSRF existentes.
 
-## Reset, convite, GitHub e frontend
+## Testes e validações
 
-Forgot usa resposta uniforme. Reset expira, é uso único, incrementa versão e revoga sessões. Em teste o token é capturado na resposta; produção não o devolve/loga, mas ainda precisa de provedor de e-mail.
+Foram adicionados testes para templates, configuração SMTP/capture, retenção, proteção do banco de teste, memberships por papel, último OWNER, transferência, saída, substituição de convite, backfill vazio/legado/parcial/idempotente e UI de membros. O backfill de teste usa exclusivamente `traceflow_test`; o banco de desenvolvimento não é alvo.
 
-Convites possuem e-mail, papel, expiração, revogação, consumo único e hash. O segredo é devolvido uma vez ao OWNER; aceite exige sessão do mesmo e-mail. O PAT GitHub global não representa identidade, conforme ADR-004.
+Baseline: backend **76,38/61,68/76,41/77,45** e frontend **10,90/13,89/9,32/11,53** (statements/branches/functions/lines).
 
-Axios usa `withCredentials`, injeta CSRF em mutations e trata 401. `AuthProvider` restaura `/me`/CSRF sem storage; `ProtectedRoute` protege páginas. Há login, cadastro, recuperação, reset, aceite de convite e logout, sem face lift.
+Final: backend **76,83/62,63/77,40/78,45**; frontend **13,88/15,21/13,30/14,11**. Passaram 129 testes backend (73 unitários e 56 integração/API) e 22 frontend. `architecture:check`, scanner de 171 arquivos, Prisma validate/generate, migrate/status em `traceflow_test`, cleanup dry-run/apply repetido, backfill dry-run/apply/idempotência, build Vite e smoke de health/readiness/401 foram aprovados. Audit backend: zero vulnerabilidades após Nodemailer 9.0.3. Audit frontend: duas entradas altas do mesmo advisory React Router RSC, não aplicável à SPA atual e sem correção não-breaking.
 
-## Testes, dependência e cobertura
+## Limitações e bloqueios para E7
 
-Foram adicionados 8 testes API E6 e 3 frontend; os 36 testes HTTP históricos agora usam sessão/membership. Cobertura inclui cookie, me, login genérico, conta inativa, CSRF, logout, OWNER atômico, filtro, BOLA, VIEWER, convite/reuso, reset/reuso e 401/501.
-
-Baseline: backend 76,33/61,40/76,98/77,43 e frontend 11,17/13,97/9,93/11,49 (statements/branches/functions/lines). Final: backend **76,38/61,68/76,41/77,45**; frontend **10,90/13,89/9,32/11,53**. A pequena queda frontend vem do denominador das cinco telas/provider novos ainda parcialmente cobertos; nenhum arquivo foi excluído. Dependência adicionada: `argon2@0.44.0`; audit backend: zero vulnerabilidades. Frontend mantém 2 advisories altos do React Router RSC, recurso não usado pela SPA, sem fix não-breaking. CORS aceita credenciais e `X-CSRF-Token` só na allowlist.
-
-Validação final: Prisma validate/generate e architecture check aprovados; scanner aprovou 155 arquivos; migration sem pendências em `traceflow_test`; dry-run examinou banco vazio sem escrever; 118/118 testes backend, 67 unitários, 51 integração/API, 18/18 frontend e build Vite aprovados. Smoke: health/readiness 200, rota privada 401 e login inválido 401. O primeiro lote final falhou por cache Prisma restrito/audit sem rede e depois por ter igualado temporariamente `DATABASE_URL` e `TEST_DATABASE_URL`; as reexecuções com permissões e isolamento corretos passaram.
-
-## Limitações e bloqueios
-
-Adaptador real de e-mail; API/UI completa de papel/desativação/saída e proteção do último OWNER; limpeza agendada; validação do backfill no dataset real; matriz de papéis por todos os endpoints; store distribuído em produção. E7 não foi iniciada.
+- SMTP depende de credenciais/infraestrutura real e não foi chamado nos testes.
+- Cleanup é comando operacional manual; agendamento e observabilidade pertencem ao deploy.
+- Backfill foi validado em cenários artificiais isolados; casos reportados como manuais precisam de decisão do responsável antes de produção.
+- Rate limit/session store continuam em memória/instância única; MFA, SSO e secret manager não fazem parte da E6.
+- A E7 deve tratar auditoria, retenção e governança de dados. Não há bloqueio técnico conhecido após as validações finais.

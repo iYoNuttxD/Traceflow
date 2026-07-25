@@ -2,6 +2,7 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import argon2 from 'argon2';
 import { env } from '../../config/env.js';
 import { AppError, ERROR_CODES } from '../../shared/errors/index.js';
+import { emailService } from '../../shared/email/index.js';
 import { authRepository } from './auth.repository.js';
 
 const hashToken = (token) => createHash('sha256').update(token).digest('hex');
@@ -68,7 +69,9 @@ export const authService = {
     if (!user?.isActive) return null;
     await authRepository.expireResetTokens(user.id);
     const token = newToken();
-    await authRepository.createResetToken({ userId: user.id, tokenHash: hashToken(token), expiresAt: new Date(Date.now() + env.passwordResetTtlMs) });
+    const expiresAt = new Date(Date.now() + env.passwordResetTtlMs);
+    await authRepository.createResetToken({ userId: user.id, tokenHash: hashToken(token), expiresAt });
+    await emailService.sendPasswordReset({ to: user.email, token, expiresAt, userId: user.id });
     return env.isTest ? token : null;
   },
   async resetPassword({ token, password }) {

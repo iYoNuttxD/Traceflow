@@ -72,6 +72,65 @@ describe('identidade, sessão, CSRF e autorização E6', () => {
     expect((await member.mutate('post', '/api/projects/invitations/accept').send({ token: created.body.token })).body.code).toBe('INVITATION_INVALID');
   });
 
+  it('administra memberships canônicas, minimiza e-mail e impede MEMBER de administrar', async () => {
+    const owner = await register('owner@example.invalid', 'Owner');
+    const project = (await owner.mutate('post', '/api/projects').send(projectBody('Memberships'))).body.project;
+    const member = await register('member@example.invalid', 'Member');
+    const memberUser = await prisma.user.findUnique({ where: { email: 'member@example.invalid' } });
+    const membership = await prisma.projectMembership.create({ data: { projectId: project.id, userId: memberUser.id, role: 'MEMBER' } });
+    const ownerList = await owner.agent.get(`/api/projects/${project.id}/members`);
+    expect(ownerList.body.currentMembership.role).toBe('OWNER');
+    expect(ownerList.body.members.find(({ id }) => id === membership.id).user.email).toBe('member@example.invalid');
+    const memberList = await member.agent.get(`/api/projects/${project.id}/members`);
+    expect(memberList.body.members.find(({ id }) => id === membership.id).user.email).toMatch(/^m\*\*\*@/);
+    expect((await member.mutate('patch', `/api/projects/${project.id}/members/${membership.id}`).send({ role: 'MANAGER' })).status).toBe(403);
+    expect((await owner.mutate('patch', `/api/projects/${project.id}/members/${membership.id}`).send({ role: 'MANAGER' })).body.membership.role).toBe('MANAGER');
+    expect((await owner.mutate('delete', `/api/projects/${project.id}/members/${membership.id}`)).status).toBe(204);
+    expect((await owner.mutate('post', `/api/projects/${project.id}/members/${membership.id}/reactivate`).send({})).body.membership.isActive).toBe(true);
+  });
+
+  it('protege o último OWNER, permite transferência e saída lógica', async () => {
+    const owner = await register('owner@example.invalid', 'Owner');
+    const project = (await owner.mutate('post', '/api/projects').send(projectBody('Ownership'))).body.project;
+    const member = await register('member@example.invalid', 'Member');
+    const user = await prisma.user.findUnique({ where: { email: 'member@example.invalid' } });
+    const target = await prisma.projectMembership.create({ data: { projectId: project.id, userId: user.id, role: 'MEMBER' } });
+    const blocked = await owner.mutate('delete', `/api/projects/${project.id}/members/me`).send({});
+    expect(blocked).toMatchObject({ status: 409, body: { code: 'LAST_PROJECT_OWNER' } });
+    expect((await owner.mutate('post', `/api/projects/${project.id}/ownership/transfer`).send({ membershipId: target.id })).body.membership.role).toBe('OWNER');
+    expect((await owner.mutate('delete', `/api/projects/${project.id}/members/me`).send({})).status).toBe(204);
+    expect((await prisma.projectMembership.findFirst({ where: { projectId: project.id, userId: user.id } })).isActive).toBe(true);
+  });
+
+  it('substitui convite ativo duplicado e invalida o token anterior', async () => {
+    const owner = await register('owner@example.invalid');
+    const project = (await owner.mutate('post', '/api/projects').send(projectBody('Invites'))).body.project;
+    const first = await owner.mutate('post', `/api/projects/${project.id}/invitations`).send({ email: 'invitee@example.invalid', role: 'MEMBER' });
+    const second = await owner.mutate('post', `/api/projects/${project.id}/invitations`).send({ email: 'invitee@example.invalid', role: 'VIEWER' });
+    const invitee = await register('invitee@example.invalid');
+    expect((await invitee.mutate('post', '/api/projects/invitations/accept').send({ token: first.body.token })).status).toBe(400);
+    expect((await invitee.mutate('post', '/api/projects/invitations/accept').send({ token: second.body.token })).body.membership.role).toBe('VIEWER');
+  });
+
+  it('aplica a matriz efetiva a MANAGER, MEMBER, VIEWER e membership inativa', async () => {
+    const owner = await register('owner@example.invalid');
+    const project = (await owner.mutate('post', '/api/projects').send(projectBody('Papeis'))).body.project;
+    const manager = await register('manager@example.invalid');
+    const member = await register('member@example.invalid');
+    const viewer = await register('viewer@example.invalid');
+    for (const [email, role] of [['manager@example.invalid', 'MANAGER'], ['member@example.invalid', 'MEMBER'], ['viewer@example.invalid', 'VIEWER']]) {
+      const user = await prisma.user.findUnique({ where: { email } });
+      await prisma.projectMembership.create({ data: { projectId: project.id, userId: user.id, role } });
+    }
+    expect((await manager.mutate('post', `/api/projects/${project.id}/requirements`).send({ title: 'Requisito do manager' })).status).toBe(201);
+    expect((await member.mutate('post', `/api/projects/${project.id}/tasks`).send({ title: 'Tarefa do member' })).status).toBe(201);
+    expect((await viewer.agent.get(`/api/projects/${project.id}/tasks`)).status).toBe(200);
+    expect((await viewer.mutate('post', `/api/projects/${project.id}/tasks`).send({ title: 'Negada' })).status).toBe(403);
+    const managerUser = await prisma.user.findUnique({ where: { email: 'manager@example.invalid' } });
+    await prisma.projectMembership.update({ where: { projectId_userId: { projectId: project.id, userId: managerUser.id } }, data: { isActive: false } });
+    expect((await manager.agent.get(`/api/projects/${project.id}`)).status).toBe(404);
+  });
+
   it('recuperação é uniforme e token é de uso único', async () => {
     await register('reset@example.invalid');
     const missing = await request(app).post('/api/auth/forgot-password').send({ email: 'missing@example.invalid' });

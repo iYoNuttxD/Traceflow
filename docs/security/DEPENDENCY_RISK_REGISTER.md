@@ -3,6 +3,7 @@
 ## Atualização E6
 
 - `argon2@0.44.0` foi adicionado ao runtime para Argon2id; compatível com Node 22 e audit backend com zero vulnerabilidades.
+- `nodemailer@9.0.3` foi adicionado para SMTP. A 7.0.10 inicialmente instalada apresentou advisories altos; a major corrigida foi adotada após análise da pequena API usada (`createTransport`/`sendMail`) e teste de compatibilidade.
 - O frontend permanece com 2 entradas altas do advisory React Router RSC. O TRACEFLOW é SPA client-side e não usa RSC/actions; a correção proposta pelo audit exige downgrade/breaking change e não foi aplicada automaticamente.
 
 ## Método
@@ -17,6 +18,7 @@ Registro gerado em 24/07/2026 com `npm audit`, `npm ls` e análise do uso real. 
 | `brace-expansion` 5.0.6 | nodemon/minimatch | ALTA | Desenvolvimento; não entra no runtime de produção | atualizado para 5.0.8 dentro da faixa existente | CORRIGIDO |
 | `helmet` 8.3.0 | direta | — | Runtime; headers de segurança | adicionada, Node >=18 | ACEITO |
 | `express-rate-limit` 8.6.0 | direta | — | Runtime; anti-automação em instância única | adicionada, Node >=16; MemoryStore documentado | ACEITO_COM_LACUNA |
+| `nodemailer` 7.0.10 → 9.0.3 | direta | ALTA | Runtime; SMTP command/header injection, file/URL access e TLS/OAuth2 em versões afetadas | atualização pontual para a versão indicada pelo advisory; adapter testado sem rede | CORRIGIDO |
 
 Resultado final backend: **0 vulnerabilidades** no `npm audit`.
 
