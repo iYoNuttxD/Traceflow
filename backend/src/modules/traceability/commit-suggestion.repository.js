@@ -26,6 +26,13 @@ export const commitSuggestionRepository = {
     });
   },
 
+  findTaskByProjectAndId(projectId, taskId) {
+    return prisma.task.findFirst({
+      where: { id: taskId, projectId },
+      select: { id: true }
+    });
+  },
+
   findExistingTaskCommitPairs(taskIds, commitIds) {
     return prisma.taskCommit.findMany({
       where: { taskId: { in: taskIds }, commitId: { in: commitIds } },
@@ -55,8 +62,8 @@ export const commitSuggestionRepository = {
     });
   },
 
-  async list(projectId, { status, skip, take }) {
-    const where = { projectId, status };
+  async list(projectId, { status, taskId, skip, take }) {
+    const where = { projectId, status, ...(taskId ? { taskId } : {}) };
     const [total, suggestions] = await prisma.$transaction([
       prisma.taskCommitSuggestion.count({ where }),
       prisma.taskCommitSuggestion.findMany({

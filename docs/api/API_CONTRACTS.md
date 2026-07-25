@@ -150,13 +150,15 @@ Coberturas preservam os campos históricos e acrescentam `coverage: {numerator,d
 | GET | `/projects/:projectId/traceability/tasks/:taskId` | IDs; `page?`, `limit?` paginam artefatos | `200`, DTO de grafo, perspectiva `TASK` |
 | GET | `/projects/:projectId/traceability/artifacts/:artifactType/:artifactId` | `commit`, `pull-request` ou `issue`; paginação de tarefas | `200`, DTO de grafo da perspectiva tipada |
 | POST | `/projects/:projectId/traceability/commit-suggestions/scan` | body vazio | `200`, `{scannedCommits,detectedReferences,createdSuggestions,skippedSuggestions}` |
-| GET | `/projects/:projectId/traceability/commit-suggestions` | `status?` = PENDING/CONFIRMED/REJECTED; `page?`, `limit?` | `200`, DTO minimizado, permissões e paginação |
+| GET | `/projects/:projectId/traceability/commit-suggestions` | `status?` = PENDING/CONFIRMED/REJECTED; `taskId?` positivo e pertencente ao projeto; `page?`, `limit?` | `200`, DTO minimizado, permissões e paginação |
 | POST | `/projects/:projectId/traceability/commit-suggestions/:suggestionId/confirm` | IDs; body vazio | `200`, `{message,suggestion,changed}`; cria `TaskCommit` atomicamente |
 | POST | `/projects/:projectId/traceability/commit-suggestions/:suggestionId/reject` | IDs; body vazio | `200`, `{message,suggestion,changed}`; não cria vínculo |
 
 O summary da matriz é calculado sobre todo o projeto, não apenas sobre a página. A matriz seleciona somente dados resumidos e contagens. O grafo nunca expõe `Commit.authorEmail`. Recursos de outro projeto recebem `404`; consultas exigem VIEWER+ e a atualização atômica Requirement–Task exige MEMBER+.
 
 O parser RF41 usa somente `/\[TASK-(\d+)\]/gi`: aceita caixa variada, múltiplos IDs e deduplica repetições na mesma mensagem. Não aceita `TASK-42`, `#42`, `ID 42`, `[ISSUE-42]` ou IDs não numéricos. Detecção e scan não criam vínculo; sugestões rejeitadas ou confirmadas nunca são reabertas.
+
+Sem `taskId`, a consulta preserva a visão paginada do projeto. Com `taskId`, retorna somente sugestões da Task validada no mesmo projeto; ID inválido recebe `400` e Task inexistente ou de outro projeto recebe `404`. O DTO continua sem `Commit.authorEmail`.
 
 ## Conta, privacidade e auditoria (E7)
 

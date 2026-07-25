@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { CommitSuggestionsCard } from './CommitSuggestionsCard.jsx';
 
 export const emptyTaskForm = {
   title: '',
@@ -127,6 +128,7 @@ export function TaskForm({
   onRequirementSearch,
   onPullRequestSearch,
   onCommitSearch,
+  onCommitSearchClear,
   onIssueSearch,
   onSelectRequirement,
   onClearRequirement,
@@ -134,6 +136,9 @@ export function TaskForm({
   onClearPullRequest,
   onSelectCommit,
   onRemoveCommit,
+  onSuggestionConfirmed,
+  projectId,
+  taskId,
   onSelectIssue,
   onRemoveIssue
 }) {
@@ -171,13 +176,22 @@ export function TaskForm({
 
     return Boolean(matchesTitle || matchesType || matchesStatus);
   });
-  const availableCommitResults = commitResults.filter(
-    (commit) =>
-      !linkedCommitIds.has(String(commit.id)) &&
-      (commit.hash?.toLowerCase().includes(normalizedCommitSearch) ||
-        commit.shortHash?.toLowerCase().includes(normalizedCommitSearch) ||
-        commit.message?.toLowerCase().includes(normalizedCommitSearch))
-  );
+  const seenCommitKeys = new Set();
+  const availableCommitResults = commitResults.filter((commit) => {
+    const idKey = `id:${commit.id}`;
+    const hashKey = commit.hash ? `hash:${commit.hash.toLowerCase()}` : null;
+    if (linkedCommitIds.has(String(commit.id)) || seenCommitKeys.has(idKey) || (hashKey && seenCommitKeys.has(hashKey))) {
+      return false;
+    }
+    const matches = commit.hash?.toLowerCase().includes(normalizedCommitSearch) ||
+      commit.shortHash?.toLowerCase().includes(normalizedCommitSearch) ||
+      commit.message?.toLowerCase().includes(normalizedCommitSearch);
+    if (matches) {
+      seenCommitKeys.add(idKey);
+      if (hashKey) seenCommitKeys.add(hashKey);
+    }
+    return Boolean(matches);
+  }).slice(0, 20);
   const availablePullRequests = pullRequests.filter((pullRequest) => {
     if (String(pullRequest.id) === String(formData.pullRequestId)) {
       return false;
@@ -237,6 +251,7 @@ export function TaskForm({
     const query = commitSearch.trim();
 
     if (query.length < 2 || !onCommitSearch) {
+      onCommitSearchClear?.();
       return undefined;
     }
 
@@ -245,7 +260,7 @@ export function TaskForm({
     }, 300);
 
     return () => window.clearTimeout(timeoutId);
-  }, [commitSearch, onCommitSearch]);
+  }, [commitSearch, onCommitSearch, onCommitSearchClear]);
 
   useEffect(() => {
     const query = issueSearch.trim();
@@ -486,31 +501,19 @@ export function TaskForm({
         </div>
 
         <div className="traceability-picker">
-          <span>Commits vinculados</span>
-          {selectedCommits.length > 0 && (
-            <div className="traceability-selected-list">
-              {selectedCommits.map((commit) => (
-                <div className="traceability-selected-item" key={commit.id}>
-                  <strong>{formatCommitLabel(commit)}</strong>
-                  <button
-                    className="traceability-remove-button"
-                    type="button"
-                    onClick={() => onRemoveCommit?.(commit.id)}
-                    aria-label="Remover commit vinculado"
-                    title="Remover commit"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
+          <span>Buscar commits do projeto</span>
           <input
             type="search"
             value={commitSearch}
             onChange={(event) => setCommitSearch(event.target.value)}
-            placeholder="Pesquisar commit por SHA ou mensagem..."
+            placeholder="Pesquisar por SHA ou mensagem..."
+            aria-label="Buscar commits do projeto"
           />
+          {commitSearch && (
+            <button className="button button-secondary" type="button" onClick={() => setCommitSearch('')}>
+              Limpar busca
+            </button>
+          )}
           {commitSearch.trim().length >= 2 && (
             <div className="traceability-results">
               {availableCommitResults.length === 0 ? (
@@ -526,6 +529,36 @@ export function TaskForm({
                   </button>
                 ))
               )}
+            </div>
+          )}
+        </div>
+
+        <CommitSuggestionsCard
+          projectId={projectId}
+          taskId={taskId}
+          onConfirmed={onSuggestionConfirmed}
+        />
+
+        <div className="traceability-picker">
+          <span>Commits vinculados</span>
+          {selectedCommits.length === 0 ? (
+            <p className="field-help">Nenhum commit vinculado.</p>
+          ) : (
+            <div className="traceability-selected-list">
+              {selectedCommits.map((commit) => (
+                <div className="traceability-selected-item" key={commit.id}>
+                  <strong>{formatCommitLabel(commit)}</strong>
+                  <button
+                    className="traceability-remove-button"
+                    type="button"
+                    onClick={() => onRemoveCommit?.(commit.id)}
+                    aria-label="Remover commit vinculado"
+                    title="Remover commit"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
             </div>
           )}
         </div>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   api,
@@ -111,6 +111,7 @@ export function TasksPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const commitSearchRequest = useRef(0);
 
   const loadTaskData = useCallback(async () => {
     setLoading(true);
@@ -219,8 +220,10 @@ export function TasksPage() {
 
   const searchCommits = useCallback(
     async (search) => {
+      const requestId = ++commitSearchRequest.current;
       try {
         const response = await getProjectCommits(projectId, { search });
+        if (requestId !== commitSearchRequest.current) return;
         setCommitResults(response.commits || []);
         setCommitOptions((current) => {
           const nextOptions = [...current];
@@ -234,11 +237,17 @@ export function TasksPage() {
           return nextOptions;
         });
       } catch (requestError) {
+        if (requestId !== commitSearchRequest.current) return;
         setError(getErrorMessage(requestError, 'Não foi possível carregar os commits do projeto.'));
       }
     },
     [projectId]
   );
+
+  const clearCommitSearch = useCallback(() => {
+    commitSearchRequest.current += 1;
+    setCommitResults([]);
+  }, []);
 
   const searchIssues = useCallback(
     async (search) => {
@@ -362,6 +371,19 @@ export function TasksPage() {
   function resetForm() {
     setEditingTaskId(null);
     setFormData(emptyTaskForm);
+    clearCommitSearch();
+  }
+
+  function handleSuggestionConfirmed(commit) {
+    handleSelectCommit(commit);
+    setTasks((current) => current.map((task) => {
+      if (String(task.id) !== String(editingTaskId)) return task;
+      const commits = task.commits || [];
+      return commits.some((item) => String(item.id) === String(commit.id))
+        ? task
+        : { ...task, commits: [...commits, commit] };
+    }));
+    setSuccess('Sugestão confirmada e commit vinculado à tarefa.');
   }
 
   async function handleSubmit(event) {
@@ -726,6 +748,7 @@ export function TasksPage() {
             onRequirementSearch={searchRequirements}
             onPullRequestSearch={searchPullRequests}
             onCommitSearch={searchCommits}
+            onCommitSearchClear={clearCommitSearch}
             onIssueSearch={searchIssues}
             onSelectRequirement={handleSelectRequirement}
             onClearRequirement={handleClearRequirement}
@@ -733,6 +756,9 @@ export function TasksPage() {
             onClearPullRequest={handleClearPullRequest}
             onSelectCommit={handleSelectCommit}
             onRemoveCommit={handleRemoveCommitFromForm}
+            onSuggestionConfirmed={handleSuggestionConfirmed}
+            projectId={projectId}
+            taskId={editingTaskId}
             onSelectIssue={handleSelectIssue}
             onRemoveIssue={handleRemoveIssueFromForm}
           />

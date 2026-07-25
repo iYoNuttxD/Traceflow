@@ -34,6 +34,7 @@ export const commitSuggestionQuerySchema = strictObject({
   status: z.enum(['PENDING', 'CONFIRMED', 'REJECTED'], {
     error: 'Status de sugestão inválido.'
   }).optional().default('PENDING'),
+  taskId: positiveInteger('ID da tarefa inválido.').optional(),
   ...paginationSchema
 });
 

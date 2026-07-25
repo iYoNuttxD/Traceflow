@@ -2,10 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   confirmCommitSuggestion,
   getCommitSuggestions,
-  rejectCommitSuggestion,
-  scanCommitSuggestions
+  rejectCommitSuggestion
 } from '../api/api.js';
-import { Card } from '../shared/index.js';
 
 const statusLabels = {
   PENDING: 'Pendente',
@@ -22,19 +20,29 @@ function summarizedMessage(message) {
   return message.length > 160 ? `${message.slice(0, 157)}...` : message;
 }
 
-export function CommitSuggestionsCard({ projectId }) {
+export function CommitSuggestionsCard({ projectId, taskId, onConfirmed }) {
   const [suggestions, setSuggestions] = useState([]);
   const [permissions, setPermissions] = useState({ canReview: false });
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState(null);
-  const [scanning, setScanning] = useState(false);
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
+    if (!taskId) {
+      setSuggestions([]);
+      setLoading(false);
+      setError('');
+      return;
+    }
     setLoading(true);
     setError('');
     try {
-      const data = await getCommitSuggestions(projectId, { status: 'PENDING', page: 1, limit: 20 });
+      const data = await getCommitSuggestions(projectId, {
+        status: 'PENDING',
+        taskId,
+        page: 1,
+        limit: 20
+      });
       setSuggestions(data.suggestions || []);
       setPermissions(data.permissions || { canReview: false });
     } catch (cause) {
@@ -42,16 +50,18 @@ export function CommitSuggestionsCard({ projectId }) {
     } finally {
       setLoading(false);
     }
-  }, [projectId]);
+  }, [projectId, taskId]);
 
   useEffect(() => { void load(); }, [load]);
 
-  async function review(suggestionId, operation) {
+  async function review(suggestion, operation) {
+    const suggestionId = suggestion.id;
     setActionId(suggestionId);
     setError('');
     try {
       await operation(projectId, suggestionId);
-      await load();
+      if (operation === confirmCommitSuggestion) onConfirmed?.(suggestion.commit);
+      setSuggestions((current) => current.filter((item) => item.id !== suggestionId));
     } catch (cause) {
       setError(errorMessage(cause));
     } finally {
@@ -59,32 +69,19 @@ export function CommitSuggestionsCard({ projectId }) {
     }
   }
 
-  async function scan() {
-    setScanning(true);
-    setError('');
-    try {
-      await scanCommitSuggestions(projectId);
-      await load();
-    } catch (cause) {
-      setError(errorMessage(cause));
-    } finally {
-      setScanning(false);
-    }
-  }
-
   return (
-    <Card title="Sugestões de commits">
-      {permissions.canReview && (
-        <button className="button button-secondary" type="button" disabled={scanning || actionId !== null} onClick={() => void scan()}>
-          {scanning ? 'Analisando commits...' : 'Analisar commits existentes'}
-        </button>
+    <div className="traceability-picker">
+      <span>Sugestões automáticas</span>
+      <p className="field-help">Commits cuja mensagem contém [TASK-ID] para esta tarefa.</p>
+      {!taskId && (
+        <p className="field-help">Após salvar a tarefa, commits com [TASK-ID] poderão ser sugeridos automaticamente.</p>
       )}
       {error && <div className="message message-error" role="alert">{error}</div>}
-      {loading ? (
+      {taskId && loading ? (
         <p className="empty-state">Carregando sugestões de commits...</p>
-      ) : suggestions.length === 0 ? (
+      ) : taskId && !error && suggestions.length === 0 ? (
         <p className="empty-state">Nenhuma sugestão de commit pendente.</p>
-      ) : (
+      ) : taskId && !error ? (
         <div className="traceability-suggestions-list">
           {suggestions.map((suggestion) => {
             const processing = actionId === suggestion.id;
@@ -98,10 +95,10 @@ export function CommitSuggestionsCard({ projectId }) {
                 </div>
                 {permissions.canReview && suggestion.status === 'PENDING' && (
                   <div className="form-actions">
-                    <button className="button" type="button" disabled={processing || scanning} onClick={() => void review(suggestion.id, confirmCommitSuggestion)}>
+                    <button className="button" type="button" disabled={processing || actionId !== null} onClick={() => void review(suggestion, confirmCommitSuggestion)}>
                       {processing ? 'Processando...' : 'Confirmar'}
                     </button>
-                    <button className="button button-secondary" type="button" disabled={processing || scanning} onClick={() => void review(suggestion.id, rejectCommitSuggestion)}>
+                    <button className="button button-secondary" type="button" disabled={processing || actionId !== null} onClick={() => void review(suggestion, rejectCommitSuggestion)}>
                       Rejeitar
                     </button>
                   </div>
@@ -110,7 +107,7 @@ export function CommitSuggestionsCard({ projectId }) {
             );
           })}
         </div>
-      )}
-    </Card>
+      ) : null}
+    </div>
   );
 }

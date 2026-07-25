@@ -64,6 +64,8 @@ O sync GitHub E9 analisa apenas commits recém-persistidos após cada lote. Mens
 
 `GET /projects/:projectId/traceability/commit-suggestions` aceita status e paginação, usa PENDING por padrão e retorna Task/Commit resumidos sem `authorEmail` ou payload GitHub.
 
+O ajuste final de experiência acrescentou o filtro opcional `taskId`, validado como inteiro positivo e conferido contra o Project. A consulta sem filtro permanece compatível; com filtro, alimenta somente a edição da Task correspondente.
+
 Confirmação e rejeição são project-scoped e idempotentes. A confirmação valida novamente Task, Commit e Project dentro da transação, faz upsert de `TaskCommit`, atualiza a sugestão/revisor e grava `TASK_COMMIT_SUGGESTION_CONFIRMED`. A rejeição não cria vínculo e grava `TASK_COMMIT_SUGGESTION_REJECTED`. Uma decisão oposta posterior retorna conflito.
 
 VIEWER+ consulta; MEMBER+ analisa, confirma ou rejeita. Mutações exigem CSRF. Ausência de membership ou divergência de projeto retorna 404; papel insuficiente retorna 403. Auditoria contém apenas IDs técnicos allowlisted, count e scope.
@@ -190,7 +192,16 @@ Eles agora seguem o 404 global. Nenhuma implementação genérica foi criada. `D
 - loading, vazio, erro, seleção e navegação foram preservados;
 - `TraceabilityList.jsx`, sem consumer, foi removido;
 - nenhuma biblioteca visual ou dependência foi adicionada.
-- a seção “Sugestões de commits” exibe hash curto, mensagem resumida, Task e status; VIEWER somente lê, enquanto MEMBER+ pode analisar histórico, confirmar e rejeitar com ações desabilitadas durante requests.
+- a página geral de rastreabilidade voltou a concentrar apenas indicadores, matriz, grafos e perspectivas;
+- no formulário de Task, “Buscar commits do projeto”, “Sugestões automáticas” e “Commits vinculados” são áreas distintas;
+- a busca manual usa debounce, filtra somente SHA/mensagem, limita resultados, elimina duplicidades e preserva seleções;
+- no cadastro, nenhuma consulta de sugestão é realizada antes de existir `taskId`; uma orientação discreta explica o comportamento após salvar;
+- na edição, sugestões PENDING são filtradas pela Task; confirmar adiciona o Commit aos vinculados sem recarregar a página e rejeitar remove somente a sugestão;
+- o scan histórico manual foi movido para `ProjectDetailsPage`, junto ao contexto da integração GitHub, e exibe apenas contagens sanitizadas.
+
+### Correção operacional da listagem
+
+O erro “Erro interno ao listar sugestões de commits.” não era uma lista vazia nem um problema do contrato HTTP. O datasource local `traceflow` possuía oito migrations pendentes, incluindo `20260725140000_e10_add_task_commit_suggestions`; o Prisma Client já consultava o model, mas a tabela ainda não existia nesse banco. As migrations versionadas foram aplicadas com `prisma migrate deploy`, o status passou a 24 migrations atualizadas e o client foi regenerado. Nenhum fallback vazio, reset ou migration adicional foi criado.
 
 ## Auditoria e privacidade
 
@@ -204,10 +215,10 @@ Resultado final:
 
 | Suíte | Testes | Statements | Branches | Functions | Lines |
 |---|---:|---:|---:|---:|---:|
-| Backend | 184 | 85,59% | 71,41% | 87,53% | 88,24% |
-| Frontend | 44 | 32,79% | 30,98% | 27,56% | 33,74% |
+| Backend | 185 | 85,61% | 71,71% | 87,54% | 88,26% |
+| Frontend | 48 | 33,72% | 32,90% | 28,42% | 34,64% |
 
-No backend, 103 testes unitários e 81 de integração/API passaram em 25 arquivos. No frontend, 44 testes passaram em 15 arquivos e o build Vite foi aprovado; permanece apenas o aviso preexistente de chunk principal superior a 500 kB. Todas as métricas de cobertura cresceram em relação ao baseline anterior ao fechamento do RF41.
+No backend, 185 testes passaram em 25 arquivos. No frontend, 48 testes passaram em 15 arquivos e o build Vite foi aprovado; permanece apenas o aviso preexistente de chunk principal superior a 500 kB. Todas as métricas de cobertura cresceram em relação ao baseline anterior ao ajuste final do RF41.
 
 `prisma format`, `prisma validate`, `prisma generate`, `db:test:migrate` e `db:test:status` passaram; as 24 migrations, incluindo a aditiva do RF41, estão aplicadas e sem pendências no MySQL isolado `traceflow_test`. `architecture:check` e `security:secrets` passaram, com 204 arquivos inspecionados pelo scanner. O audit do backend encontrou zero vulnerabilidades. O frontend preserva duas ocorrências altas direta/transitiva do advisory de React Router em modo RSC; o TRACEFLOW usa SPA com `BrowserRouter`, e a correção proposta pelo npm é uma mudança incompatível. Nenhum `audit fix` foi executado.
 

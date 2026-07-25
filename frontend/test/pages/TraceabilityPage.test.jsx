@@ -23,10 +23,6 @@ vi.mock('../../src/components/TraceabilityFlow.jsx', () => ({
     );
   }
 }));
-vi.mock('../../src/components/CommitSuggestionsCard.jsx', () => ({
-  CommitSuggestionsCard() { return <div data-testid="commit-suggestions" />; }
-}));
-
 import { TraceabilityPage } from '../../src/pages/TraceabilityPage.jsx';
 
 function renderPage() {
@@ -62,6 +58,7 @@ describe('TraceabilityPage', () => {
     expect(
       await screen.findByText('Nenhum requisito cadastrado para este projeto.')
     ).toBeInTheDocument();
+    expect(screen.queryByText('Sugestões de commits')).not.toBeInTheDocument();
   });
 
   it('consome a matriz e o detalhe atual com tarefa e artefato', async () => {

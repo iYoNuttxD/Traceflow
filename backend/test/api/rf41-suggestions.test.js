@@ -76,6 +76,41 @@ describe('RF41 — sugestões persistidas Commit → Task', () => {
     expect((await outsider.agent.get(`/api/projects/${project.id}/traceability/commit-suggestions`)).status).toBe(404);
   });
 
+  it('filtra por taskId, preserva consulta geral e rejeita tarefa inválida ou de outro projeto', async () => {
+    const project = await createProject(prisma);
+    const otherProject = await createProject(prisma);
+    const viewer = await register('rf41-task-filter@example.invalid', 'VIEWER', project.id);
+    const task1 = await createTask(prisma, project.id);
+    const task2 = await createTask(prisma, project.id);
+    const foreignTask = await createTask(prisma, otherProject.id);
+    const commit1 = await createCommit(prisma, project.id, { message: `[TASK-${task1.id}]` });
+    const commit2 = await createCommit(prisma, project.id, { message: `[TASK-${task2.id}]` });
+    await prisma.taskCommitSuggestion.createMany({
+      data: [
+        { projectId: project.id, taskId: task1.id, commitId: commit1.id },
+        { projectId: project.id, taskId: task2.id, commitId: commit2.id }
+      ]
+    });
+
+    const filtered = await viewer.agent.get(
+      `/api/projects/${project.id}/traceability/commit-suggestions?taskId=${task1.id}`
+    );
+    expect(filtered).toMatchObject({
+      status: 200,
+      body: { pagination: { total: 1 }, suggestions: [{ task: { id: task1.id } }] }
+    });
+    expect((await viewer.agent.get(`/api/projects/${project.id}/traceability/commit-suggestions`)).body.pagination.total).toBe(2);
+    expect((await viewer.agent.get(`/api/projects/${project.id}/traceability/commit-suggestions?taskId=${task1.id + 10000}`)).status).toBe(404);
+    expect((await viewer.agent.get(`/api/projects/${project.id}/traceability/commit-suggestions?taskId=${foreignTask.id}`)).status).toBe(404);
+    expect((await viewer.agent.get(`/api/projects/${project.id}/traceability/commit-suggestions?taskId=abc`)).status).toBe(400);
+
+    await prisma.taskCommitSuggestion.deleteMany({ where: { taskId: task1.id } });
+    const empty = await viewer.agent.get(
+      `/api/projects/${project.id}/traceability/commit-suggestions?taskId=${task1.id}`
+    );
+    expect(empty).toMatchObject({ status: 200, body: { suggestions: [], pagination: { total: 0 } } });
+  });
+
   it('confirma de forma idempotente, cria TaskCommit uma vez e audita', async () => {
     const project = await createProject(prisma);
     const member = await register('rf41-member@example.invalid', 'MEMBER', project.id);

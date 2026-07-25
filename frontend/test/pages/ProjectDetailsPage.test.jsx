@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   api: { get: vi.fn(), put: vi.fn() },
   syncProjectGithub: vi.fn(),
+  scanCommitSuggestions: vi.fn(),
   membersApi: {
     list: vi.fn(), invitations: vi.fn(), leave: vi.fn(), invite: vi.fn(),
     updateRole: vi.fn(), deactivate: vi.fn(), reactivate: vi.fn(), transfer: vi.fn(),
@@ -13,7 +14,11 @@ const mocks = vi.hoisted(() => ({
   }
 }));
 
-vi.mock('../../src/api/api.js', () => ({ api: mocks.api, syncProjectGithub: mocks.syncProjectGithub }));
+vi.mock('../../src/api/api.js', () => ({
+  api: mocks.api,
+  syncProjectGithub: mocks.syncProjectGithub,
+  scanCommitSuggestions: mocks.scanCommitSuggestions
+}));
 vi.mock('../../src/features/members/members.api.js', () => ({ membersApi: mocks.membersApi }));
 
 import { ProjectDetailsPage } from '../../src/pages/ProjectDetailsPage.jsx';
@@ -42,6 +47,12 @@ describe('ProjectDetailsPage E9', () => {
       members: [{ id: 1, role: 'OWNER', isActive: true, user: { name: 'Owner', email: 'owner@example.invalid' } }]
     });
     mocks.membersApi.invitations.mockResolvedValue([]);
+    mocks.scanCommitSuggestions.mockResolvedValue({
+      scannedCommits: 4,
+      detectedReferences: 3,
+      createdSuggestions: 2,
+      skippedSuggestions: 1
+    });
   });
 
   it('exibe loading, sincroniza uma vez e apresenta o summary atual', async () => {
@@ -82,5 +93,23 @@ describe('ProjectDetailsPage E9', () => {
     renderPage();
     await screen.findByRole('heading', { name: 'Projeto E9' });
     expect(screen.queryByRole('button', { name: 'Sincronizar' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Analisar commits para sugestões' })).toBeInTheDocument();
+  });
+
+  it('analisa commits históricos no contexto do projeto e mostra apenas contagens', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Analisar commits para sugestões' }));
+    expect(mocks.scanCommitSuggestions).toHaveBeenCalledWith('1');
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Commits analisados: 4; referências detectadas: 3; sugestões criadas: 2; sugestões ignoradas: 1.'
+    );
+  });
+
+  it('oculta o scan histórico para VIEWER', async () => {
+    mocks.membersApi.list.mockResolvedValue({ currentMembership: { id: 3, role: 'VIEWER' }, members: [] });
+    renderPage();
+    await screen.findByRole('heading', { name: 'Projeto E9' });
+    expect(screen.queryByRole('button', { name: 'Analisar commits para sugestões' })).not.toBeInTheDocument();
   });
 });

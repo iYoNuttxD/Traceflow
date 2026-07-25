@@ -115,7 +115,16 @@ export const commitSuggestionService = {
     const page = Number(query.page) || 1;
     const limit = Math.min(Number(query.limit) || 20, 100);
     const status = query.status || 'PENDING';
-    const result = await commitSuggestionRepository.list(id, { status, skip: (page - 1) * limit, take: limit });
+    const taskId = query.taskId ? positiveId(query.taskId, 'ID da tarefa') : undefined;
+    if (taskId && !(await commitSuggestionRepository.findTaskByProjectAndId(id, taskId))) {
+      throw new AppError({ message: 'Tarefa não encontrada neste projeto.', statusCode: 404, code: ERROR_CODES.TASK_NOT_FOUND, exposeTechnicalDetails: true });
+    }
+    const result = await commitSuggestionRepository.list(id, {
+      status,
+      taskId,
+      skip: (page - 1) * limit,
+      take: limit
+    });
     return {
       projectId: id,
       status,
