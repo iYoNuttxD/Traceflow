@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import { projectMembersApi } from '../api/api.js';
-import { Card } from '../components/Card.jsx';
+import { Link, useParams } from 'react-router';
+import { projectMembersApi } from '../features/members/index.js';
+import { Card } from '../shared/index.js';
 
 function getErrorMessage(error, fallback) {
   return error.response?.data?.message || fallback;
@@ -102,7 +102,10 @@ export function JoinProjectPage() {
       </Card>
 
       {joinedProject && (
-        <Link className="button button-secondary link-button join-project-link" to={`/projects/${joinedProject.id}`}>
+        <Link
+          className="button button-secondary link-button join-project-link"
+          to={`/projects/${joinedProject.id}`}
+        >
           Abrir projeto
         </Link>
       )}

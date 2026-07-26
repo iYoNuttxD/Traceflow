@@ -1,140 +1,124 @@
-// Controller do modulo de requisitos. Recebe HTTP e delega regras ao service.
+import { asyncHandler } from '../../shared/http/index.js';
 import { requirementService } from './requirement.service.js';
+import { auditService } from '../audit/audit.service.js';
 
-function sendError(res, error, fallbackMessage = 'Erro interno ao processar requisito.') {
-  if (!error.statusCode) {
-    console.error(fallbackMessage, error);
-  }
-
-  return res.status(error.statusCode || 500).json({
-    message: error.statusCode ? error.message : fallbackMessage
-  });
-}
+const requirementFallback = 'Erro interno ao processar requisito.';
 
 export const requirementController = {
-  async create(req, res) {
-    try {
+  create: asyncHandler(
+    async (req, res) => {
       const requirement = await requirementService.createRequirement(
         req.params.projectId,
         req.body
       );
-
-      return res.status(201).json({
-        message: 'Requisito cadastrado com sucesso.',
-        requirement
+      await auditService.recordOperational({
+        actorUserId: req.auth.user.id,
+        projectId: requirement.projectId,
+        requestId: req.requestId,
+        action: 'REQUIREMENT_CREATED',
+        resourceType: 'Requirement',
+        resourceId: requirement.id
       });
-    } catch (error) {
-      return sendError(res, error);
-    }
-  },
+      return res.status(201).json({ message: 'Requisito cadastrado com sucesso.', requirement });
+    },
+    { fallbackMessage: requirementFallback }
+  ),
 
-  async findByProject(req, res) {
-    try {
+  findByProject: asyncHandler(
+    async (req, res) => {
       const requirements = await requirementService.findRequirementsByProject(
         req.params.projectId,
         req.query
       );
+      return res.json({ total: requirements.length, requirements });
+    },
+    { fallbackMessage: requirementFallback }
+  ),
 
-      return res.json({
-        total: requirements.length,
-        requirements
-      });
-    } catch (error) {
-      return sendError(res, error);
-    }
-  },
-
-  async findById(req, res) {
-    try {
+  findById: asyncHandler(
+    async (req, res) => {
       const requirement = await requirementService.getRequirementById(req.params.id);
-
       return res.json({ requirement });
-    } catch (error) {
-      return sendError(res, error);
-    }
-  },
+    },
+    { fallbackMessage: requirementFallback }
+  ),
 
-  async update(req, res) {
-    try {
+  update: asyncHandler(
+    async (req, res) => {
       const requirement = await requirementService.updateRequirement(req.params.id, req.body);
-
-      return res.json({
-        message: 'Requisito atualizado com sucesso.',
-        requirement
+      await auditService.recordOperational({
+        actorUserId: req.auth.user.id,
+        projectId: requirement.projectId,
+        requestId: req.requestId,
+        action: 'REQUIREMENT_UPDATED',
+        resourceType: 'Requirement',
+        resourceId: requirement.id
       });
-    } catch (error) {
-      return sendError(res, error);
-    }
-  },
+      return res.json({ message: 'Requisito atualizado com sucesso.', requirement });
+    },
+    { fallbackMessage: requirementFallback }
+  ),
 
-  async delete(req, res) {
-    try {
+  delete: asyncHandler(
+    async (req, res) => {
+      const requirement = await requirementService.getRequirementById(req.params.id);
       await requirementService.deleteRequirement(req.params.id);
-
-      return res.json({
-        message: 'Requisito excluído com sucesso.'
+      await auditService.recordOperational({
+        actorUserId: req.auth.user.id,
+        projectId: requirement.projectId,
+        requestId: req.requestId,
+        action: 'REQUIREMENT_DELETED',
+        resourceType: 'Requirement',
+        resourceId: requirement.id
       });
-    } catch (error) {
-      return sendError(res, error, 'Erro interno ao excluir requisito.');
-    }
-  },
+      return res.json({ message: 'Requisito excluído com sucesso.' });
+    },
+    { fallbackMessage: 'Erro interno ao excluir requisito.' }
+  ),
 
-  async updateStatus(req, res) {
-    try {
+  updateStatus: asyncHandler(
+    async (req, res) => {
       const requirement = await requirementService.updateRequirementStatus(
         req.params.id,
         req.body.status
       );
-
       return res.json({
         message: 'Status do requisito atualizado com sucesso.',
         requirement
       });
-    } catch (error) {
-      return sendError(res, error);
-    }
-  },
+    },
+    { fallbackMessage: requirementFallback }
+  ),
 
-  async findTasksByRequirement(req, res) {
-    try {
+  findTasksByRequirement: asyncHandler(
+    async (req, res) => {
       const tasks = await requirementService.findTasksByRequirement(req.params.id);
+      return res.json({ requirementId: req.params.id, total: tasks.length, tasks });
+    },
+    { fallbackMessage: requirementFallback }
+  ),
 
-      return res.json({
-        requirementId: Number(req.params.id),
-        total: tasks.length,
-        tasks
+  replaceTasks: asyncHandler(
+    async (req, res) => {
+      const result = await requirementService.replaceTasks(req.params.id, req.body.taskIds, {
+        actorUserId: req.auth.user.id,
+        requestId: req.requestId
       });
-    } catch (error) {
-      return sendError(res, error);
-    }
-  },
+      return res.json({
+        message: 'Tarefas do requisito atualizadas com sucesso.',
+        requirement: result.requirement,
+        reassignedTasks: result.reassignedTasks,
+        changes: result.changes
+      });
+    },
+    { fallbackMessage: 'Erro interno ao atualizar tarefas do requisito.' }
+  ),
 
-  async confirmCompletion(req, res) {
-    try {
+  confirmCompletion: asyncHandler(
+    async (req, res) => {
       const requirement = await requirementService.confirmCompletion(req.params.id);
-
-      return res.json({
-        message: 'Requisito concluído com sucesso.',
-        requirement
-      });
-    } catch (error) {
-      return sendError(res, error);
-    }
-  },
-
-  async getTaskCoverage(req, res) {
-    try {
-      const coverage = await requirementService.getRequirementTaskCoverage(
-        req.params.projectId
-      );
-
-      return res.json(coverage);
-    } catch (error) {
-      return sendError(
-        res,
-        error,
-        'Erro interno ao calcular cobertura de requisitos com tarefas.'
-      );
-    }
-  }
+      return res.json({ message: 'Requisito concluído com sucesso.', requirement });
+    },
+    { fallbackMessage: requirementFallback }
+  )
 };

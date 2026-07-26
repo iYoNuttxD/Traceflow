@@ -1,303 +1,148 @@
-// Service central de rastreabilidade entre requisitos, tarefas e artefatos GitHub.
+import { DomainError as TraceabilityServiceError } from '../../shared/errors/index.js';
+import { buildCoverageMetric, buildMatrixSummary } from './traceability.calculator.js';
+import {
+  formatArtifactGraph,
+  formatMatrixRow,
+  formatRequirementGraph,
+  formatTaskGraph
+} from './traceability.mapper.js';
 import { traceabilityRepository } from './traceability.repository.js';
-
-class TraceabilityServiceError extends Error {
-  constructor(message, statusCode = 400) {
-    super(message);
-    this.name = 'TraceabilityServiceError';
-    this.statusCode = statusCode;
-  }
-}
 
 function parsePositiveInteger(value, entityName) {
   const parsedValue = Number(value);
-
   if (!Number.isInteger(parsedValue) || parsedValue <= 0) {
     throw new TraceabilityServiceError(`ID ${entityName} inválido.`, 400);
   }
-
   return parsedValue;
 }
 
-function parseProjectId(projectId) {
-  return parsePositiveInteger(projectId, 'do projeto');
+function pageFrom(query = {}) {
+  const page = Number(query.page) || 1;
+  const limit = Math.min(Number(query.limit) || 20, 100);
+  return { page, limit, skip: (page - 1) * limit };
 }
 
-function parseRequirementId(requirementId) {
-  return parsePositiveInteger(requirementId, 'do requisito');
+function pagination(page, limit, total, scope) {
+  return {
+    page,
+    limit,
+    total,
+    totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+    scope
+  };
 }
 
 async function ensureProjectExists(projectId) {
   const project = await traceabilityRepository.findProjectById(projectId);
-
-  if (!project) {
-    throw new TraceabilityServiceError('Projeto não encontrado.', 404);
-  }
-
+  if (!project) throw new TraceabilityServiceError('Projeto não encontrado.', 404);
   return project;
 }
 
-function calculateProgress(tasks) {
-  if (tasks.length === 0) {
-    return 0;
-  }
-
-  const completedTasksCount = tasks.filter((task) => task.status === 'CONCLUIDO').length;
-
-  return Number(((completedTasksCount / tasks.length) * 100).toFixed(2));
-}
-
-function uniqueById(items) {
-  const uniqueItems = new Map();
-
-  for (const item of items) {
-    if (item?.id) {
-      uniqueItems.set(item.id, item);
-    }
-  }
-
-  return [...uniqueItems.values()];
-}
-
-function extractIssues(tasks) {
-  return uniqueById(
-    tasks.flatMap((task) => (task.issueLinks || []).map((link) => link.issue).filter(Boolean))
-  );
-}
-
-function extractCommits(tasks) {
-  return uniqueById(
-    tasks.flatMap((task) => (task.commitLinks || []).map((link) => link.commit).filter(Boolean))
-  );
-}
-
-function extractPullRequests(tasks) {
-  return uniqueById(tasks.map((task) => task.pullRequest).filter(Boolean));
-}
-
-function getImplementationStatus(requirement, tasks, hasTechnicalEvidence) {
-  if (requirement.status === 'CONCLUIDO') {
-    return 'CONCLUIDO';
-  }
-
-  if (tasks.length === 0) {
-    return 'SEM_RASTREABILIDADE';
-  }
-
-  const completedTasksCount = tasks.filter((task) => task.status === 'CONCLUIDO').length;
-  const allTasksCompleted = completedTasksCount === tasks.length;
-  const hasInProgressTask = tasks.some((task) => task.status === 'EM_ANDAMENTO');
-
-  if (allTasksCompleted && hasTechnicalEvidence) {
-    return 'IMPLEMENTADO';
-  }
-
-  if (completedTasksCount > 0 || hasInProgressTask || hasTechnicalEvidence) {
-    return 'EM_DESENVOLVIMENTO';
-  }
-
-  return 'PLANEJADO';
-}
-
-function buildRequirementMetrics(requirement) {
-  const tasks = requirement.tasks || [];
-  const issues = extractIssues(tasks);
-  const commits = extractCommits(tasks);
-  const pullRequests = extractPullRequests(tasks);
-  const completedTasksCount = tasks.filter((task) => task.status === 'CONCLUIDO').length;
-  const hasTechnicalEvidence = pullRequests.length > 0 || commits.length > 0;
-  const progressPercentage = calculateProgress(tasks);
-  const implementationStatus = getImplementationStatus(
-    requirement,
-    tasks,
-    hasTechnicalEvidence
-  );
-
+async function coverage(projectId, countTotal, countLinked, legacyTotalKey, legacyLinkedKey) {
+  const id = parsePositiveInteger(projectId, 'do projeto');
+  await ensureProjectExists(id);
+  const [total, linked] = await Promise.all([countTotal(id), countLinked(id)]);
+  const metric = buildCoverageMetric(linked, total);
   return {
-    tasks,
-    issues,
-    commits,
-    pullRequests,
-    tasksCount: tasks.length,
-    completedTasksCount,
-    progressPercentage,
-    issuesCount: issues.length,
-    pullRequestsCount: pullRequests.length,
-    commitsCount: commits.length,
-    hasTechnicalEvidence,
-    implementationStatus
-  };
-}
-
-function formatMatrixRow(requirement) {
-  const metrics = buildRequirementMetrics(requirement);
-
-  return {
-    id: requirement.id,
-    title: requirement.title,
-    description: requirement.description,
-    type: requirement.type,
-    status: requirement.status,
-    createdAt: requirement.createdAt,
-    tasksCount: metrics.tasksCount,
-    completedTasksCount: metrics.completedTasksCount,
-    progressPercentage: metrics.progressPercentage,
-    issuesCount: metrics.issuesCount,
-    pullRequestsCount: metrics.pullRequestsCount,
-    commitsCount: metrics.commitsCount,
-    hasTechnicalEvidence: metrics.hasTechnicalEvidence,
-    implementationStatus: metrics.implementationStatus
-  };
-}
-
-function formatCommit(commit) {
-  return {
-    id: commit.id,
-    hash: commit.hash,
-    shortHash: commit.hash ? commit.hash.slice(0, 7) : null,
-    message: commit.message,
-    authorName: commit.authorName,
-    authorEmail: commit.authorEmail,
-    authorUsername: commit.authorUsername,
-    date: commit.date,
-    branch: commit.branch,
-    githubUrl: commit.githubUrl
-  };
-}
-
-function formatIssue(issue) {
-  return {
-    id: issue.id,
-    number: issue.number,
-    title: issue.title,
-    state: issue.state,
-    authorUsername: issue.authorUsername,
-    assigneeUsername: issue.assigneeUsername,
-    labels: issue.labels,
-    githubUrl: issue.githubUrl,
-    createdAtGithub: issue.createdAtGithub,
-    updatedAtGithub: issue.updatedAtGithub,
-    closedAtGithub: issue.closedAtGithub
-  };
-}
-
-function formatPullRequest(pullRequest) {
-  if (!pullRequest) {
-    return null;
-  }
-
-  return {
-    id: pullRequest.id,
-    number: pullRequest.number,
-    title: pullRequest.title,
-    state: pullRequest.state,
-    authorUsername: pullRequest.authorUsername,
-    sourceBranch: pullRequest.sourceBranch,
-    targetBranch: pullRequest.targetBranch,
-    githubUrl: pullRequest.githubUrl,
-    createdAtGithub: pullRequest.createdAtGithub,
-    updatedAtGithub: pullRequest.updatedAtGithub,
-    closedAtGithub: pullRequest.closedAtGithub,
-    mergedAtGithub: pullRequest.mergedAtGithub
-  };
-}
-
-function formatTask(task) {
-  return {
-    id: task.id,
-    title: task.title,
-    description: task.description,
-    status: task.status,
-    priority: task.priority,
-    responsible: task.responsible,
-    deadline: task.deadline,
-    pullRequest: formatPullRequest(task.pullRequest),
-    issues: uniqueById((task.issueLinks || []).map((link) => link.issue).filter(Boolean)).map(
-      formatIssue
-    ),
-    commits: uniqueById(
-      (task.commitLinks || []).map((link) => link.commit).filter(Boolean)
-    ).map(formatCommit)
-  };
-}
-
-function formatRequirementDetail(requirement) {
-  const metrics = buildRequirementMetrics(requirement);
-
-  return {
-    projectId: requirement.projectId,
-    requirement: {
-      id: requirement.id,
-      title: requirement.title,
-      description: requirement.description,
-      type: requirement.type,
-      status: requirement.status,
-      createdAt: requirement.createdAt,
-      progressPercentage: metrics.progressPercentage,
-      implementationStatus: metrics.implementationStatus,
-      hasTechnicalEvidence: metrics.hasTechnicalEvidence
-    },
-    tasks: metrics.tasks.map(formatTask)
+    projectId: id,
+    [legacyTotalKey]: total,
+    [legacyLinkedKey]: linked,
+    coveragePercentage: metric.percentage ?? 0,
+    coverage: metric
   };
 }
 
 export const traceabilityService = {
-  async getRequirementsMatrix(projectId) {
-    const parsedProjectId = parseProjectId(projectId);
-    await ensureProjectExists(parsedProjectId);
-
-    const requirements =
-      await traceabilityRepository.findRequirementsTraceabilityByProject(parsedProjectId);
-    const rows = requirements.map(formatMatrixRow);
-    const totalRequirements = rows.length;
-    const requirementsWithTasks = rows.filter((row) => row.tasksCount > 0).length;
-    const requirementsWithTechnicalEvidence = rows.filter(
-      (row) => row.hasTechnicalEvidence
-    ).length;
-    const implementedRequirements = rows.filter((row) =>
-      ['IMPLEMENTADO', 'CONCLUIDO'].includes(row.implementationStatus)
-    ).length;
-    const averageProgressPercentage =
-      totalRequirements === 0
-        ? 0
-        : Number(
-            (
-              rows.reduce((sum, row) => sum + row.progressPercentage, 0) /
-              totalRequirements
-            ).toFixed(2)
-          );
-
+  async getRequirementsMatrix(projectId, query = {}) {
+    const id = parsePositiveInteger(projectId, 'do projeto');
+    await ensureProjectExists(id);
+    const { page, limit, skip } = pageFrom(query);
+    const [summaryRequirements, pageResult] = await Promise.all([
+      traceabilityRepository.findRequirementsSummaryByProject(id),
+      traceabilityRepository.findRequirementsMatrixPage(id, { skip, take: limit })
+    ]);
+    const summaryRows = summaryRequirements.map(formatMatrixRow);
     return {
-      projectId: parsedProjectId,
-      summary: {
-        totalRequirements,
-        requirementsWithTasks,
-        requirementsWithTechnicalEvidence,
-        implementedRequirements,
-        averageProgressPercentage
-      },
-      requirements: rows
+      projectId: id,
+      summary: buildMatrixSummary(summaryRows),
+      requirements: pageResult.requirements.map(formatMatrixRow),
+      pagination: pagination(page, limit, pageResult.total, 'requirements')
     };
   },
 
-  async getRequirementTraceability(projectId, requirementId) {
-    const parsedProjectId = parseProjectId(projectId);
-    const parsedRequirementId = parseRequirementId(requirementId);
-    await ensureProjectExists(parsedProjectId);
-
-    const requirement =
-      await traceabilityRepository.findRequirementTraceabilityByProject(
-        parsedProjectId,
-        parsedRequirementId
-      );
-
-    if (!requirement) {
-      throw new TraceabilityServiceError('Requisito não encontrado neste projeto.', 404);
-    }
-
-    return formatRequirementDetail({
-      ...requirement,
-      projectId: parsedProjectId
+  async getRequirementTraceability(projectId, requirementId, query = {}) {
+    const id = parsePositiveInteger(projectId, 'do projeto');
+    const requirement = parsePositiveInteger(requirementId, 'do requisito');
+    await ensureProjectExists(id);
+    const { page, limit, skip } = pageFrom(query);
+    const result = await traceabilityRepository.findRequirementGraphPage(id, requirement, {
+      skip,
+      take: limit
     });
+    if (!result) throw new TraceabilityServiceError('Requisito não encontrado neste projeto.', 404);
+    return formatRequirementGraph(result, pagination(page, limit, result.total, 'tasks'));
+  },
+
+  async getTaskTraceability(projectId, taskId, query = {}) {
+    const id = parsePositiveInteger(projectId, 'do projeto');
+    const task = parsePositiveInteger(taskId, 'da tarefa');
+    await ensureProjectExists(id);
+    const { page, limit, skip } = pageFrom(query);
+    const result = await traceabilityRepository.findTaskGraphPage(id, task, { skip, take: limit });
+    if (!result) throw new TraceabilityServiceError('Tarefa não encontrada neste projeto.', 404);
+    return formatTaskGraph(result, pagination(page, limit, result.total, 'artifacts'));
+  },
+
+  async getArtifactTraceability(projectId, artifactType, artifactId, query = {}) {
+    const id = parsePositiveInteger(projectId, 'do projeto');
+    const artifact = parsePositiveInteger(artifactId, 'do artefato');
+    await ensureProjectExists(id);
+    const { page, limit, skip } = pageFrom(query);
+    const result = await traceabilityRepository.findArtifactGraphPage(id, artifactType, artifact, {
+      skip,
+      take: limit
+    });
+    if (!result) throw new TraceabilityServiceError('Artefato não encontrado neste projeto.', 404);
+    return formatArtifactGraph(
+      { ...result, artifactType, projectId: id },
+      pagination(page, limit, result.total, 'tasks')
+    );
+  },
+
+  getRequirementTaskCoverage(projectId) {
+    return coverage(
+      projectId,
+      (id) => traceabilityRepository.countRequirementsByProject(id),
+      (id) => traceabilityRepository.countRequirementsWithTasks(id),
+      'totalRequirements',
+      'linkedRequirements'
+    );
+  },
+  getPullRequestCoverage(projectId) {
+    return coverage(
+      projectId,
+      (id) => traceabilityRepository.countTasksByProject(id),
+      (id) => traceabilityRepository.countTasksWithPullRequest(id),
+      'totalTasks',
+      'linkedTasks'
+    );
+  },
+  getCommitCoverage(projectId) {
+    return coverage(
+      projectId,
+      (id) => traceabilityRepository.countTasksByProject(id),
+      (id) => traceabilityRepository.countTasksWithCommit(id),
+      'totalTasks',
+      'linkedTasks'
+    );
+  },
+  getIssueCoverage(projectId) {
+    return coverage(
+      projectId,
+      (id) => traceabilityRepository.countTasksByProject(id),
+      (id) => traceabilityRepository.countTasksWithIssue(id),
+      'totalTasks',
+      'linkedTasks'
+    );
   }
 };

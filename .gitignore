@@ -3,6 +3,7 @@
 node_modules/
 .env
 .env.local
+.env.test
 dist/
 build/
 coverage/
@@ -13,6 +14,8 @@ backend/node_modules/
 frontend/node_modules/
 
 backend/.env
+backend/.env.test
+backend/.local/
 frontend/.env
 
 .vscode/

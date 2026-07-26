@@ -7,6 +7,155 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum ProjectRole {
+  OWNER
+  MANAGER
+  MEMBER
+  VIEWER
+}
+
+enum AuditActorType {
+  USER
+  SYSTEM
+}
+
+enum AuditResult {
+  SUCCESS
+  FAILURE
+}
+
+enum PrivacyRequestType {
+  DATA_EXPORT
+  ACCOUNT_DEACTIVATION
+  ACCOUNT_DELETION
+  DATA_CORRECTION
+}
+
+enum PrivacyRequestStatus {
+  PENDING
+  CANCELLED
+  COMPLETED
+  REJECTED
+}
+
+enum PersonalDataExportStatus {
+  PENDING
+  COMPLETED
+  EXPIRED
+  FAILED
+}
+
+enum TaskCommitSuggestionStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+}
+
+enum TaskHistoryField {
+  STATUS
+  DEADLINE
+  RESPONSIBLE
+  PRIORITY
+}
+
+model User {
+  id              Int       @id @default(autoincrement())
+  name            String
+  email           String    @unique
+  passwordHash    String?
+  isActive        Boolean   @default(true)
+  emailVerifiedAt DateTime?
+  mustSetPassword Boolean   @default(false)
+  sessionVersion  Int       @default(1)
+  lastLoginAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  sessions                      Session[]
+  passwordResetTokens           PasswordResetToken[]
+  memberships                   ProjectMembership[]
+  createdInvitations            ProjectInvitation[]    @relation("InvitationCreator")
+  acceptedInvitations           ProjectInvitation[]    @relation("InvitationAcceptor")
+  responsibleTasks              Task[]
+  taskMovements                 TaskMovement[]
+  taskHistoryEntries            TaskHistoryEntry[]
+  auditEvents                   AuditEvent[]
+  privacyRequests               PrivacyRequest[]
+  personalDataExports           PersonalDataExport[]
+  reviewedTaskCommitSuggestions TaskCommitSuggestion[] @relation("TaskCommitSuggestionReviewer")
+}
+
+model Session {
+  id             Int       @id @default(autoincrement())
+  userId         Int
+  tokenHash      String    @unique
+  csrfTokenHash  String
+  sessionVersion Int
+  expiresAt      DateTime
+  lastSeenAt     DateTime  @default(now())
+  revokedAt      DateTime?
+  createdAt      DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model PasswordResetToken {
+  id        Int       @id @default(autoincrement())
+  userId    Int
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model ProjectMembership {
+  id        Int         @id @default(autoincrement())
+  projectId Int
+  userId    Int
+  role      ProjectRole @default(MEMBER)
+  isActive  Boolean     @default(true)
+  joinedAt  DateTime    @default(now())
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([projectId, role, isActive])
+  @@index([userId, isActive])
+}
+
+model ProjectInvitation {
+  id           Int         @id @default(autoincrement())
+  projectId    Int
+  email        String
+  role         ProjectRole @default(MEMBER)
+  tokenHash    String      @unique
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  acceptedAt   DateTime?
+  createdById  Int
+  acceptedById Int?
+  createdAt    DateTime    @default(now())
+
+  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy  User    @relation("InvitationCreator", fields: [createdById], references: [id])
+  acceptedBy User?   @relation("InvitationAcceptor", fields: [acceptedById], references: [id])
+
+  @@index([projectId])
+  @@index([email])
+  @@index([expiresAt])
+}
+
 // Entidade central do TRACEFLOW.
 // TODO: Revisar os campos durante a implementacao de RF01, RF02, RF21 e RF22.
 model Project {
@@ -35,22 +184,91 @@ model Project {
   createdAt                DateTime  @default(now())
   updatedAt                DateTime  @updatedAt
 
-  requirements  Requirement[]
-  tasks         Task[]
-  members       ProjectMember[]
-  taskMovements TaskMovement[]
-  artifacts     GithubArtifact[]
-  traceLinks    TraceLink[]
-  commits       Commit[]
-  pullRequests  PullRequest[]
-  issues        Issue[]
+  requirements          Requirement[]
+  tasks                 Task[]
+  members               ProjectMember[]
+  taskMovements         TaskMovement[]
+  taskHistoryEntries    TaskHistoryEntry[]
+  commits               Commit[]
+  pullRequests          PullRequest[]
+  issues                Issue[]
+  memberships           ProjectMembership[]
+  invitations           ProjectInvitation[]
+  auditEvents           AuditEvent[]
+  taskCommitSuggestions TaskCommitSuggestion[]
 
   @@unique([githubRepositoryId])
   @@unique([githubRepositoryFullName])
+  @@index([status])
+  @@index([githubSyncStatus])
+  @@index([createdAt])
+}
+
+model AuditEvent {
+  id             Int            @id @default(autoincrement())
+  occurredAt     DateTime       @default(now())
+  actorUserId    Int?
+  actorType      AuditActorType @default(USER)
+  projectId      Int?
+  action         String
+  resourceType   String
+  resourceId     String?
+  result         AuditResult    @default(SUCCESS)
+  reasonCode     String?
+  requestId      String?
+  metadataJson   Json?
+  retentionUntil DateTime
+  createdAt      DateTime       @default(now())
+
+  actorUser User?    @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([actorUserId, occurredAt])
+  @@index([projectId, occurredAt])
+  @@index([action, occurredAt])
+  @@index([retentionUntil])
+}
+
+model PrivacyRequest {
+  id           Int                  @id @default(autoincrement())
+  userId       Int
+  type         PrivacyRequestType
+  status       PrivacyRequestStatus @default(PENDING)
+  requestedAt  DateTime             @default(now())
+  scheduledFor DateTime?
+  completedAt  DateTime?
+  cancelledAt  DateTime?
+  reasonCode   String?
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type, status])
+  @@index([scheduledFor])
+  @@index([updatedAt])
+}
+
+model PersonalDataExport {
+  id          Int                      @id @default(autoincrement())
+  userId      Int
+  status      PersonalDataExportStatus @default(PENDING)
+  format      String                   @default("JSON")
+  expiresAt   DateTime
+  completedAt DateTime?
+  failedAt    DateTime?
+  errorCode   String?
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([status, expiresAt])
 }
 
 // Requisito funcional ou necessidade cadastrada no projeto.
-// TODO: Implementar futuramente a cadeia Requirement -> Task -> GithubArtifact.
+// TODO: Evoluir futuramente a cadeia Requirement -> Task -> artefatos técnicos tipados.
 model Requirement {
   id          Int      @id @default(autoincrement())
   projectId   Int
@@ -61,35 +279,46 @@ model Requirement {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  project Project @relation(fields: [projectId], references: [id])
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   tasks   Task[]
+
+  @@index([projectId, status])
+  @@index([projectId, createdAt])
 }
 
 // Unidade de trabalho e elo entre planejamento e implementacao.
 model Task {
-  id              Int       @id @default(autoincrement())
-  projectId       Int
-  requirementId   Int?
-  title           String
-  description     String?
-  priority        String    @default("MEDIA")
-  responsible     String?
-  status          String    @default("A_FAZER")
-  deadline        DateTime?
-  estimatedEffort Int?
-  actualEffort    Int?
-  pullRequestId   Int?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id                Int       @id @default(autoincrement())
+  projectId         Int
+  requirementId     Int?
+  title             String
+  description       String?
+  priority          String    @default("MEDIA")
+  responsible       String?
+  status            String    @default("A_FAZER")
+  deadline          DateTime?
+  estimatedEffort   Int?
+  actualEffort      Int?
+  pullRequestId     Int?
+  responsibleUserId Int?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  project     Project        @relation(fields: [projectId], references: [id])
-  requirement Requirement?   @relation(fields: [requirementId], references: [id])
-  pullRequest PullRequest?   @relation(fields: [pullRequestId], references: [id], onDelete: SetNull)
-  movements   TaskMovement[]
-  commitLinks TaskCommit[]
-  issueLinks  TaskIssue[]
+  project           Project                @relation(fields: [projectId], references: [id])
+  requirement       Requirement?           @relation(fields: [requirementId], references: [id])
+  pullRequest       PullRequest?           @relation(fields: [pullRequestId], references: [id], onDelete: SetNull)
+  movements         TaskMovement[]
+  historyEntries    TaskHistoryEntry[]
+  commitLinks       TaskCommit[]
+  commitSuggestions TaskCommitSuggestion[]
+  issueLinks        TaskIssue[]
+  responsibleUser   User?                  @relation(fields: [responsibleUserId], references: [id], onDelete: SetNull)
 
   @@index([pullRequestId])
+  @@index([responsibleUserId])
+  @@index([requirementId])
+  @@index([projectId, status])
+  @@index([projectId, createdAt])
 }
 
 // Vinculo de rastreabilidade entre tarefas e commits importados do GitHub.
@@ -103,8 +332,32 @@ model TaskCommit {
   commit Commit @relation(fields: [commitId], references: [id], onDelete: Cascade)
 
   @@unique([taskId, commitId])
-  @@index([taskId])
   @@index([commitId])
+}
+
+// Sugestão persistida do RF41. O vínculo canônico só existe em TaskCommit após confirmação.
+model TaskCommitSuggestion {
+  id               Int                        @id @default(autoincrement())
+  projectId        Int
+  taskId           Int
+  commitId         Int
+  status           TaskCommitSuggestionStatus @default(PENDING)
+  detectedAt       DateTime                   @default(now())
+  reviewedAt       DateTime?
+  reviewedByUserId Int?
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+
+  project        Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task           Task    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  commit         Commit  @relation(fields: [commitId], references: [id], onDelete: Cascade)
+  reviewedByUser User?   @relation("TaskCommitSuggestionReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([taskId, commitId])
+  @@index([projectId, status])
+  @@index([commitId])
+  @@index([taskId])
+  @@index([reviewedByUserId])
 }
 
 // Vinculo de rastreabilidade entre tarefas e issues importadas do GitHub.
@@ -118,7 +371,6 @@ model TaskIssue {
   issue Issue @relation(fields: [issueId], references: [id], onDelete: Cascade)
 
   @@unique([taskId, issueId])
-  @@index([taskId])
   @@index([issueId])
 }
 
@@ -150,6 +402,7 @@ model TaskMovement {
   toStatus        String
   movedBy         String
   projectMemberId Int?
+  movedByUserId   Int?
   movedAt         DateTime @default(now())
   sprintId        Int?
   createdAt       DateTime @default(now())
@@ -157,49 +410,36 @@ model TaskMovement {
   project       Project        @relation(fields: [projectId], references: [id])
   task          Task           @relation(fields: [taskId], references: [id])
   projectMember ProjectMember? @relation(fields: [projectMemberId], references: [id])
+  movedByUser   User?          @relation(fields: [movedByUserId], references: [id], onDelete: SetNull)
 
-  @@index([projectId])
-  @@index([taskId])
   @@index([projectMemberId])
+  @@index([movedByUserId])
   @@index([movedAt])
+  @@index([projectId, movedAt])
+  @@index([taskId, movedAt])
 }
 
-// Generalizacao de Commit, PullRequest e Issue no MVP.
-// TODO: Restringir type a COMMIT, PULL_REQUEST ou ISSUE na camada de servico.
-model GithubArtifact {
-  id              Int       @id @default(autoincrement())
-  projectId       Int
-  type            String
-  externalId      String?
-  sha             String?
-  title           String?
-  description     String?
-  author          String?
-  status          String?
-  branch          String?
-  url             String?
-  createdAtGithub DateTime?
-  closedAtGithub  DateTime?
-  importedAt      DateTime  @default(now())
+// Histórico funcional e project-scoped exigido pelo RF38.
+// AuditEvent permanece como trilha transversal independente.
+model TaskHistoryEntry {
+  id          Int              @id @default(autoincrement())
+  projectId   Int
+  taskId      Int
+  actorUserId Int
+  field       TaskHistoryField
+  fromValue   String?
+  toValue     String?
+  occurredAt  DateTime         @default(now())
+  createdAt   DateTime         @default(now())
 
-  project Project @relation(fields: [projectId], references: [id])
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task      Task    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  actorUser User    @relation(fields: [actorUserId], references: [id])
 
-  @@unique([projectId, type, externalId])
-}
-
-// Vinculo manual de rastreabilidade entre os elementos do MVP.
-// TODO: Implementar Requirement -> Task e Task -> GithubArtifact.
-model TraceLink {
-  id         Int      @id @default(autoincrement())
-  projectId  Int
-  sourceType String
-  sourceId   Int
-  targetType String
-  targetId   Int
-  linkType   String   @default("RELATED_TO")
-  createdAt  DateTime @default(now())
-
-  project Project @relation(fields: [projectId], references: [id])
+  @@index([projectId, occurredAt])
+  @@index([taskId, occurredAt])
+  @@index([actorUserId, occurredAt])
+  @@index([field, occurredAt])
 }
 
 // Commit importado do repositorio GitHub vinculado ao projeto.
@@ -218,10 +458,13 @@ model Commit {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  project   Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  taskLinks TaskCommit[]
+  project         Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  taskLinks       TaskCommit[]
+  taskSuggestions TaskCommitSuggestion[]
 
   @@unique([projectId, hash])
+  @@index([projectId, date])
+  @@index([projectId, createdAt])
 }
 
 // Pull Request importado do repositorio GitHub vinculado ao projeto.
@@ -250,6 +493,8 @@ model PullRequest {
 
   @@unique([projectId, githubId])
   @@unique([projectId, number])
+  @@index([projectId, createdAtGithub])
+  @@index([projectId, updatedAtGithub])
 }
 
 // Issue importada do repositorio GitHub vinculado ao projeto.
@@ -277,6 +522,8 @@ model Issue {
 
   @@unique([projectId, githubId])
   @@unique([projectId, number])
+  @@index([projectId, createdAtGithub])
+  @@index([projectId, updatedAtGithub])
 }
 
 // TODO: Avaliar em evolucoes futuras User, Sprint, TestCase, Defect, Alert,

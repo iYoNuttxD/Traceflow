@@ -1,103 +1,94 @@
-// Controller da integracao GitHub. Recebe HTTP e delega a comunicacao ao service.
-// TODO: Preparar RF06 e RF50 sem implementar dashboard ou indicadores aqui.
+import { asyncHandler } from '../../shared/http/index.js';
+import { commitService } from '../commits/commit.service.js';
+import { issueService } from '../issues/issue.service.js';
+import { pullRequestService } from '../pullRequests/pullRequest.service.js';
 import { githubService } from './github.service.js';
 import { githubSyncService } from './githubSync.service.js';
-import { commitService } from '../commits/commit.service.js';
-import { pullRequestService } from '../pullRequests/pullRequest.service.js';
-import { issueService } from '../issues/issue.service.js';
-
-function sendGithubError(res, error, fallbackMessage) {
-  if (!error.statusCode) {
-    console.error(fallbackMessage, error);
-  }
-
-  return res.status(error.statusCode || 500).json({
-    message: error.statusCode ? error.message : fallbackMessage
-  });
-}
+import { auditService } from '../audit/audit.service.js';
 
 export const githubController = {
-  async checkAuthentication(req, res) {
-    try {
+  checkAuthentication: asyncHandler(
+    async (req, res) => {
       const githubUser = await githubService.checkAuthentication();
-
       return res.json({
         message: 'Autenticação com GitHub realizada com sucesso.',
         githubUser
       });
-    } catch (error) {
-      console.error('Erro ao verificar autenticação com GitHub:', error);
+    },
+    { fallbackMessage: 'Não foi possível verificar a autenticação com o GitHub.' }
+  ),
 
-      return res.status(500).json({
-        message: 'Não foi possível verificar a autenticação com o GitHub.'
+  listRepositories: asyncHandler(
+    async (req, res) => {
+      return res.json({ repositories: await githubService.listRepositories() });
+    },
+    { fallbackMessage: 'Não foi possível listar os repositórios do GitHub.' }
+  ),
+
+  syncProjectGithubData: asyncHandler(
+    async (req, res) => {
+      await auditService.recordOperational({
+        actorUserId: req.auth.user.id,
+        projectId: req.params.projectId,
+        requestId: req.requestId,
+        action: 'GITHUB_SYNC_REQUESTED',
+        resourceType: 'Project',
+        resourceId: req.params.projectId
       });
-    }
-  },
+      try {
+        const { summary, project } = await githubSyncService.syncProjectGithubData(
+          req.params.projectId
+        );
+        await auditService.recordOperational({
+          actorUserId: req.auth.user.id,
+          projectId: req.params.projectId,
+          requestId: req.requestId,
+          action: 'GITHUB_SYNC_SUCCEEDED',
+          resourceType: 'Project',
+          resourceId: req.params.projectId
+        });
+        return res.json({ message: 'Sincronização com GitHub concluída.', summary, project });
+      } catch (error) {
+        await auditService.recordOperational({
+          actorUserId: req.auth.user.id,
+          projectId: req.params.projectId,
+          requestId: req.requestId,
+          action: 'GITHUB_SYNC_FAILED',
+          resourceType: 'Project',
+          resourceId: req.params.projectId,
+          result: 'FAILURE',
+          reasonCode: error.code || 'GITHUB_SYNC_FAILED'
+        });
+        throw error;
+      }
+    },
+    { fallbackMessage: 'Erro ao sincronizar artefatos do GitHub.' }
+  ),
 
-  async listRepositories(req, res) {
-    try {
-      const repositories = await githubService.listRepositories();
-
-      return res.json({ repositories });
-    } catch (error) {
-      console.error('Erro ao listar repositórios do GitHub:', error);
-
-      return res.status(500).json({
-        message: 'Não foi possível listar os repositórios do GitHub.'
-      });
-    }
-  },
-
-  async syncProjectGithubArtifacts(req, res) {
-    try {
-      const { summary, project } = await githubSyncService.syncGithubArtifacts(req.params.projectId);
-
-      return res.json({
-        message: 'Sincronização com GitHub concluída.',
-        summary,
-        project
-      });
-    } catch (error) {
-      return sendGithubError(res, error, 'Erro ao sincronizar artefatos do GitHub.');
-    }
-  },
-
-  async listProjectCommits(req, res) {
-    try {
+  listProjectCommits: asyncHandler(
+    async (req, res) => {
       const commits = await commitService.listProjectCommits(req.params.projectId, req.query);
-
       return res.json({ commits });
-    } catch (error) {
-      return sendGithubError(res, error, 'Não foi possível listar os commits do projeto.');
-    }
-  },
+    },
+    { fallbackMessage: 'Não foi possível listar os commits do projeto.' }
+  ),
 
-  async listProjectPullRequests(req, res) {
-    try {
+  listProjectPullRequests: asyncHandler(
+    async (req, res) => {
       const pullRequests = await pullRequestService.listProjectPullRequests(
         req.params.projectId,
         req.query
       );
-
       return res.json({ pullRequests });
-    } catch (error) {
-      return sendGithubError(res, error, 'Não foi possível listar os pull requests do projeto.');
-    }
-  },
+    },
+    { fallbackMessage: 'Não foi possível listar os pull requests do projeto.' }
+  ),
 
-  async listProjectIssues(req, res) {
-    try {
+  listProjectIssues: asyncHandler(
+    async (req, res) => {
       const issues = await issueService.listProjectIssues(req.params.projectId, req.query);
-
       return res.json({ issues });
-    } catch (error) {
-      return sendGithubError(res, error, 'Não foi possível listar as issues do projeto.');
-    }
-  },
-
-  async notImplemented(req, res) {
-    return res.status(501).json({
-      message: 'Endpoint GitHub preparado para desenvolvimento futuro.'
-    });
-  }
+    },
+    { fallbackMessage: 'Não foi possível listar as issues do projeto.' }
+  )
 };

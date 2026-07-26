@@ -1,0 +1,28 @@
+import { useState } from 'react';
+import { authApi } from '../features/auth/index.js';
+import { normalizeApiError } from '../shared/index.js';
+export function ForgotPasswordPage() {
+  const [email, setEmail] = useState('');
+  const [message, setMessage] = useState('');
+  async function submit(event) {
+    event.preventDefault();
+    try {
+      setMessage((await authApi.forgotPassword(email)).data.message);
+    } catch (error) {
+      setMessage(normalizeApiError(error).message);
+    }
+  }
+  return (
+    <main className="page">
+      <h1>Recuperar senha</h1>
+      <form onSubmit={submit}>
+        <label>
+          E-mail
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        </label>
+        <button type="submit">Enviar instruções</button>
+      </form>
+      {message && <p role="status">{message}</p>}
+    </main>
+  );
+}

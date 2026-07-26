@@ -1,0 +1,199 @@
+import { MemoryRouter, Route, Routes } from 'react-router';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ConfirmProvider } from '../../src/shared/index.js';
+
+const mocks = vi.hoisted(() => ({
+  api: { get: vi.fn() },
+  kanbanApi: {
+    getBoard: vi.fn(),
+    getMetrics: vi.fn(),
+    listTaskHistory: vi.fn(),
+    moveTask: vi.fn()
+  },
+  projectMembersApi: { listProjectMembers: vi.fn() }
+}));
+
+vi.mock('../../src/features/tasks/api/tasks.api.js', () => ({
+  kanbanApi: mocks.kanbanApi,
+  deleteTask: vi.fn(),
+  unlinkTaskCommit: vi.fn(),
+  unlinkTaskIssue: vi.fn(),
+  unlinkTaskFromPullRequest: vi.fn(),
+  unlinkTaskRequirement: vi.fn()
+}));
+vi.mock('../../src/features/members/members.api.js', () => ({
+  projectMembersApi: mocks.projectMembersApi
+}));
+vi.mock('../../src/features/projects/api/projects.api.js', () => ({
+  projectsApi: { get: (id) => mocks.api.get(`/projects/${id}`) }
+}));
+
+import { KanbanPage } from '../../src/pages/KanbanPage.jsx';
+
+const task = {
+  id: 7,
+  projectId: 1,
+  title: 'Tarefa E11',
+  status: 'A_FAZER',
+  priority: 'MEDIA',
+  responsibleUser: { id: 5, name: 'Responsável real' },
+  commits: [],
+  issues: []
+};
+
+const board = {
+  columns: { A_FAZER: [task], EM_ANDAMENTO: [], CONCLUIDO: [] },
+  totals: { A_FAZER: 1, EM_ANDAMENTO: 0, CONCLUIDO: 0, total: 1 }
+};
+
+function historyResponse(overrides = {}) {
+  return {
+    data: {
+      items: [],
+      total: 0,
+      pagination: { page: 1, limit: 10, total: 0, totalPages: 0 },
+      ...overrides
+    }
+  };
+}
+
+function renderPage() {
+  return render(
+    <MemoryRouter initialEntries={['/projects/1/kanban']}>
+      <Routes>
+        <Route
+          path="/projects/:projectId/kanban"
+          element={
+            <ConfirmProvider>
+              <KanbanPage />
+            </ConfirmProvider>
+          }
+        />
+      </Routes>
+    </MemoryRouter>
+  );
+}
+
+function dragTaskTo(columnName) {
+  const dataTransfer = {
+    effectAllowed: '',
+    dropEffect: '',
+    setData: vi.fn(),
+    getData: vi.fn(() => String(task.id))
+  };
+  fireEvent.dragStart(screen.getByRole('button', { name: /Tarefa E11/ }), { dataTransfer });
+  fireEvent.drop(screen.getByRole('heading', { name: columnName }).closest('section'), {
+    dataTransfer
+  });
+}
+
+describe('KanbanPage E11', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.api.get.mockResolvedValue({ data: { project: { id: 1, name: 'Projeto E11' } } });
+    mocks.kanbanApi.getBoard.mockResolvedValue({ data: board });
+    mocks.kanbanApi.getMetrics.mockResolvedValue({
+      data: { indicator: 'MOVIMENTACOES', metric: 'Movimentações', totalMovements: 0 }
+    });
+    mocks.kanbanApi.listTaskHistory.mockResolvedValue(historyResponse());
+    mocks.projectMembersApi.listProjectMembers.mockResolvedValue({
+      data: {
+        members: [{ id: 3, userId: 5, isActive: true, user: { id: 5, name: 'Responsável real' } }]
+      }
+    });
+  });
+
+  it('move a tarefa enviando somente o status e usa o responsável canônico', async () => {
+    mocks.kanbanApi.moveTask.mockResolvedValue({
+      data: {
+        message: 'Tarefa movida com sucesso.',
+        task: { ...task, status: 'EM_ANDAMENTO' },
+        movement: { id: 1 }
+      }
+    });
+    renderPage();
+
+    expect((await screen.findAllByText('Responsável real')).length).toBeGreaterThan(0);
+    dragTaskTo('Em Andamento (0)');
+
+    await waitFor(() =>
+      expect(mocks.kanbanApi.moveTask).toHaveBeenCalledWith(7, {
+        toStatus: 'EM_ANDAMENTO'
+      })
+    );
+    expect(mocks.kanbanApi.moveTask.mock.calls[0][1]).not.toHaveProperty('movedBy');
+    expect(mocks.kanbanApi.moveTask.mock.calls[0][1]).not.toHaveProperty('projectMemberId');
+  });
+
+  it('mantém o quadro coerente e recarrega os dados diante de conflito 409', async () => {
+    mocks.kanbanApi.moveTask.mockRejectedValue({
+      response: { status: 409, data: { message: 'A tarefa foi alterada por outra operação.' } }
+    });
+    renderPage();
+    await screen.findByText('Tarefa E11');
+
+    dragTaskTo('Em Andamento (0)');
+
+    expect(
+      await screen.findByText('A tarefa foi alterada por outra operação.')
+    ).toBeInTheDocument();
+    await waitFor(() => expect(mocks.kanbanApi.getBoard).toHaveBeenCalledTimes(2));
+    expect(screen.getByRole('heading', { name: 'A Fazer (1)' })).toBeInTheDocument();
+  });
+
+  it('pagina o histórico no backend e distingue sucesso vazio de erro', async () => {
+    const user = userEvent.setup();
+    mocks.kanbanApi.listTaskHistory
+      .mockResolvedValueOnce(
+        historyResponse({
+          items: [
+            {
+              id: 1,
+              taskId: 7,
+              taskTitle: 'Tarefa E11',
+              actorUserId: 5,
+              actor: { id: 5, name: 'Responsável real' },
+              field: 'STATUS',
+              fromValue: 'A_FAZER',
+              toValue: 'EM_ANDAMENTO',
+              occurredAt: '2026-07-26T12:00:00.000Z'
+            }
+          ],
+          total: 11,
+          pagination: { page: 1, limit: 10, total: 11, totalPages: 2 }
+        })
+      )
+      .mockResolvedValueOnce(
+        historyResponse({
+          items: [
+            {
+              id: 2,
+              taskId: 7,
+              taskTitle: 'Tarefa E11',
+              actorUserId: 5,
+              actor: { id: 5, name: 'Responsável real' },
+              field: 'PRIORITY',
+              fromValue: 'MEDIA',
+              toValue: 'ALTA',
+              occurredAt: '2026-07-26T13:00:00.000Z'
+            }
+          ],
+          pagination: { page: 2, limit: 10, total: 11, totalPages: 2 },
+          total: 11
+        })
+      );
+    renderPage();
+
+    expect(await screen.findByText(/Status: A Fazer para Em Andamento/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Próxima' }));
+    await waitFor(() =>
+      expect(mocks.kanbanApi.listTaskHistory).toHaveBeenLastCalledWith('1', {
+        page: 2,
+        limit: 10
+      })
+    );
+    expect(await screen.findByText(/Prioridade: Média para Alta/)).toBeInTheDocument();
+  });
+});

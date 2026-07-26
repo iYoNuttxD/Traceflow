@@ -1,330 +1,197 @@
-// Controller do modulo de tarefas. Recebe HTTP e delega regras ao service.
+import { asyncHandler } from '../../shared/http/index.js';
 import { taskService } from './task.service.js';
 
-function sendError(res, error, fallbackMessage = 'Erro interno ao processar tarefa.') {
-  return res.status(error.statusCode || 500).json({
-    message: error.statusCode ? error.message : fallbackMessage
-  });
-}
+const taskFallback = 'Erro interno ao processar tarefa.';
+const kanbanFallback = 'Erro interno ao processar Kanban.';
+
+const context = (req) => ({
+  actor: req.auth.user,
+  actorUserId: req.auth.user.id,
+  requestId: req.requestId
+});
 
 export const taskController = {
-  async create(req, res) {
-    try {
-      const task = await taskService.createTask(req.params.projectId, req.body);
+  create: asyncHandler(
+    async (req, res) => {
+      const task = await taskService.createTask(req.params.projectId, req.body, context(req));
+      return res.status(201).json({ message: 'Tarefa cadastrada com sucesso.', task });
+    },
+    { fallbackMessage: taskFallback }
+  ),
 
-      return res.status(201).json({
-        message: 'Tarefa cadastrada com sucesso.',
-        task
-      });
-    } catch (error) {
-      return sendError(res, error);
-    }
-  },
-
-  async findByProject(req, res) {
-    try {
+  findByProject: asyncHandler(
+    async (req, res) => {
       const tasks = await taskService.findTasksByProject(req.params.projectId, req.query);
+      return res.json({ total: tasks.length, tasks });
+    },
+    { fallbackMessage: taskFallback }
+  ),
 
-      return res.json({
-        total: tasks.length,
-        tasks
-      });
-    } catch (error) {
-      return sendError(res, error);
-    }
-  },
-
-  async findById(req, res) {
-    try {
+  findById: asyncHandler(
+    async (req, res) => {
       const task = await taskService.getTaskById(req.params.id);
-
       return res.json({ task });
-    } catch (error) {
-      return sendError(res, error);
-    }
-  },
+    },
+    { fallbackMessage: taskFallback }
+  ),
 
-  async update(req, res) {
-    try {
-      const task = await taskService.updateTask(req.params.id, req.body);
+  update: asyncHandler(
+    async (req, res) => {
+      const task = await taskService.updateTask(req.params.id, req.body, context(req));
+      return res.json({ message: 'Tarefa atualizada com sucesso.', task });
+    },
+    { fallbackMessage: taskFallback }
+  ),
 
-      return res.json({
-        message: 'Tarefa atualizada com sucesso.',
-        task
-      });
-    } catch (error) {
-      return sendError(res, error);
-    }
-  },
+  updateStatus: asyncHandler(
+    async (req, res) => {
+      const task = await taskService.updateTaskStatus(req.params.id, req.body.status, context(req));
+      return res.json({ message: 'Status da tarefa atualizado com sucesso.', task });
+    },
+    { fallbackMessage: taskFallback }
+  ),
 
-  async updateStatus(req, res) {
-    try {
-      const task = await taskService.updateTaskStatus(req.params.id, req.body.status);
+  linkPullRequest: asyncHandler(
+    async (req, res) => {
+      const task = await taskService.linkPullRequest(req.params.id, req.body, context(req));
+      return res.json({ message: 'Pull request vinculado à tarefa com sucesso.', task });
+    },
+    { fallbackMessage: 'Erro interno ao vincular pull request à tarefa.' }
+  ),
 
-      return res.json({
-        message: 'Status da tarefa atualizado com sucesso.',
-        task
-      });
-    } catch (error) {
-      return sendError(res, error);
-    }
-  },
+  unlinkPullRequest: asyncHandler(
+    async (req, res) => {
+      const task = await taskService.unlinkPullRequest(req.params.id, context(req));
+      return res.json({ message: 'Pull request removido da tarefa.', task });
+    },
+    { fallbackMessage: 'Erro interno ao remover pull request da tarefa.' }
+  ),
 
-  async linkPullRequest(req, res) {
-    try {
-      const task = await taskService.linkPullRequest(req.params.id, req.body);
+  linkRequirement: asyncHandler(
+    async (req, res) => {
+      const task = await taskService.linkRequirement(req.params.id, req.body, context(req));
+      return res.json({ message: 'Requisito vinculado à tarefa.', task });
+    },
+    { fallbackMessage: 'Erro interno ao vincular requisito à tarefa.' }
+  ),
 
-      return res.json({
-        message: 'Pull request vinculado à tarefa com sucesso.',
-        task
-      });
-    } catch (error) {
-      return sendError(
-        res,
-        error,
-        'Erro interno ao vincular pull request à tarefa.'
-      );
-    }
-  },
+  unlinkRequirement: asyncHandler(
+    async (req, res) => {
+      const task = await taskService.unlinkRequirement(req.params.id, context(req));
+      return res.json({ message: 'Vínculo com requisito removido.', task });
+    },
+    { fallbackMessage: 'Erro interno ao remover requisito da tarefa.' }
+  ),
 
-  async unlinkPullRequest(req, res) {
-    try {
-      const task = await taskService.unlinkPullRequest(req.params.id);
+  delete: asyncHandler(
+    async (req, res) => {
+      await taskService.deleteTask(req.params.id, context(req));
+      return res.json({ message: 'Tarefa excluída com sucesso.' });
+    },
+    { fallbackMessage: 'Erro interno ao excluir tarefa.' }
+  ),
 
-      return res.json({
-        message: 'Pull request removido da tarefa.',
-        task
-      });
-    } catch (error) {
-      return sendError(
-        res,
-        error,
-        'Erro interno ao remover pull request da tarefa.'
-      );
-    }
-  },
-
-  async linkRequirement(req, res) {
-    try {
-      const task = await taskService.linkRequirement(req.params.id, req.body);
-
-      return res.json({
-        message: 'Requisito vinculado à tarefa.',
-        task
-      });
-    } catch (error) {
-      return sendError(res, error, 'Erro interno ao vincular requisito à tarefa.');
-    }
-  },
-
-  async unlinkRequirement(req, res) {
-    try {
-      const task = await taskService.unlinkRequirement(req.params.id);
-
-      return res.json({
-        message: 'Vínculo com requisito removido.',
-        task
-      });
-    } catch (error) {
-      return sendError(res, error, 'Erro interno ao remover requisito da tarefa.');
-    }
-  },
-
-  async delete(req, res) {
-    try {
-      await taskService.deleteTask(req.params.id);
-
-      return res.json({
-        message: 'Tarefa excluída com sucesso.'
-      });
-    } catch (error) {
-      return sendError(res, error, 'Erro interno ao excluir tarefa.');
-    }
-  },
-
-  async listCommits(req, res) {
-    try {
+  listCommits: asyncHandler(
+    async (req, res) => {
       const commits = await taskService.listTaskCommits(req.params.id);
+      return res.json({ total: commits.length, commits });
+    },
+    { fallbackMessage: 'Erro interno ao listar commits vinculados à tarefa.' }
+  ),
 
-      return res.json({
-        total: commits.length,
-        commits
-      });
-    } catch (error) {
-      return sendError(
-        res,
-        error,
-        'Erro interno ao listar commits vinculados à tarefa.'
+  linkCommit: asyncHandler(
+    async (req, res) => {
+      const commits = await taskService.linkCommit(req.params.id, req.body, context(req));
+      return res.status(201).json({ message: 'Commit vinculado à tarefa com sucesso.', commits });
+    },
+    { fallbackMessage: 'Erro interno ao vincular commit à tarefa.' }
+  ),
+
+  unlinkCommit: asyncHandler(
+    async (req, res) => {
+      const commits = await taskService.unlinkCommit(
+        req.params.id,
+        req.params.commitId,
+        context(req)
       );
-    }
-  },
+      return res.json({ message: 'Commit removido da tarefa.', commits });
+    },
+    { fallbackMessage: 'Erro interno ao remover commit da tarefa.' }
+  ),
 
-  async linkCommit(req, res) {
-    try {
-      const commits = await taskService.linkCommit(req.params.id, req.body);
-
-      return res.status(201).json({
-        message: 'Commit vinculado à tarefa com sucesso.',
-        commits
-      });
-    } catch (error) {
-      return sendError(res, error, 'Erro interno ao vincular commit à tarefa.');
-    }
-  },
-
-  async unlinkCommit(req, res) {
-    try {
-      const commits = await taskService.unlinkCommit(req.params.id, req.params.commitId);
-
-      return res.json({
-        message: 'Commit removido da tarefa.',
-        commits
-      });
-    } catch (error) {
-      return sendError(res, error, 'Erro interno ao remover commit da tarefa.');
-    }
-  },
-
-  async listIssues(req, res) {
-    try {
+  listIssues: asyncHandler(
+    async (req, res) => {
       const issues = await taskService.listTaskIssues(req.params.id);
+      return res.json({ total: issues.length, issues });
+    },
+    { fallbackMessage: 'Erro interno ao listar issues vinculadas à tarefa.' }
+  ),
 
-      return res.json({
-        total: issues.length,
-        issues
-      });
-    } catch (error) {
-      return sendError(
-        res,
-        error,
-        'Erro interno ao listar issues vinculadas à tarefa.'
-      );
-    }
-  },
+  linkIssue: asyncHandler(
+    async (req, res) => {
+      const issues = await taskService.linkIssue(req.params.id, req.body, context(req));
+      return res.status(201).json({ message: 'Issue vinculada à tarefa com sucesso.', issues });
+    },
+    { fallbackMessage: 'Erro interno ao vincular issue à tarefa.' }
+  ),
 
-  async linkIssue(req, res) {
-    try {
-      const issues = await taskService.linkIssue(req.params.id, req.body);
+  unlinkIssue: asyncHandler(
+    async (req, res) => {
+      const issues = await taskService.unlinkIssue(req.params.id, req.params.issueId, context(req));
+      return res.json({ message: 'Issue removida da tarefa.', issues });
+    },
+    { fallbackMessage: 'Erro interno ao remover issue da tarefa.' }
+  ),
 
-      return res.status(201).json({
-        message: 'Issue vinculada à tarefa com sucesso.',
-        issues
-      });
-    } catch (error) {
-      return sendError(res, error, 'Erro interno ao vincular issue à tarefa.');
-    }
-  },
+  getKanbanBoard: asyncHandler(
+    async (req, res) => {
+      return res.json(await taskService.getKanbanBoard(req.params.projectId));
+    },
+    { fallbackMessage: kanbanFallback }
+  ),
 
-  async unlinkIssue(req, res) {
-    try {
-      const issues = await taskService.unlinkIssue(req.params.id, req.params.issueId);
-
-      return res.json({
-        message: 'Issue removida da tarefa.',
-        issues
-      });
-    } catch (error) {
-      return sendError(res, error, 'Erro interno ao remover issue da tarefa.');
-    }
-  },
-
-  async getKanbanBoard(req, res) {
-    try {
-      const kanban = await taskService.getKanbanBoard(req.params.projectId);
-
-      return res.json(kanban);
-    } catch (error) {
-      return sendError(res, error, 'Erro interno ao processar Kanban.');
-    }
-  },
-
-  async moveTask(req, res) {
-    try {
-      const result = await taskService.moveTask(req.params.id, req.body);
-
+  moveTask: asyncHandler(
+    async (req, res) => {
+      const result = await taskService.moveTask(req.params.id, req.body, context(req));
       return res.json({
         message: 'Tarefa movida com sucesso.',
         task: result.task,
         movement: result.movement
       });
-    } catch (error) {
-      return sendError(res, error, 'Erro interno ao processar Kanban.');
-    }
-  },
+    },
+    { fallbackMessage: kanbanFallback }
+  ),
 
-  async listMovements(req, res) {
-    try {
-      const movements = await taskService.listMovements(req.params.projectId, req.query);
+  listMovements: asyncHandler(
+    async (req, res) => {
+      return res.json(await taskService.listMovements(req.params.projectId, req.query));
+    },
+    { fallbackMessage: kanbanFallback }
+  ),
 
-      return res.json(movements);
-    } catch (error) {
-      return sendError(res, error, 'Erro interno ao processar Kanban.');
-    }
-  },
+  listHistory: asyncHandler(
+    async (req, res) => {
+      return res.json(await taskService.listTaskHistory(req.params.projectId, req.query));
+    },
+    { fallbackMessage: 'Erro interno ao listar histórico de tarefas.' }
+  ),
 
-  async getKanbanMetrics(req, res) {
-    try {
-      const metrics = await taskService.getKanbanMetrics(req.params.projectId, req.query);
+  getKanbanMetrics: asyncHandler(
+    async (req, res) => {
+      return res.json(await taskService.getKanbanMetrics(req.params.projectId, req.query));
+    },
+    { fallbackMessage: kanbanFallback }
+  ),
 
-      return res.json(metrics);
-    } catch (error) {
-      return sendError(res, error, 'Erro interno ao processar Kanban.');
-    }
-  },
-
-  async getMetrics(req, res) {
-    try {
+  getMetrics: asyncHandler(
+    async (req, res) => {
       const metrics = await taskService.getTaskMetrics(
         req.params.projectId,
         req.query.startDate,
         req.query.endDate
       );
-
       return res.json(metrics);
-    } catch (error) {
-      return sendError(res, error);
-    }
-  },
-
-  async getPullRequestCoverage(req, res) {
-    try {
-      const coverage = await taskService.getPullRequestCoverage(req.params.projectId);
-
-      return res.json(coverage);
-    } catch (error) {
-      return sendError(
-        res,
-        error,
-        'Erro interno ao calcular cobertura com pull requests.'
-      );
-    }
-  },
-
-  async getCommitCoverage(req, res) {
-    try {
-      const coverage = await taskService.getCommitCoverage(req.params.projectId);
-
-      return res.json(coverage);
-    } catch (error) {
-      return sendError(
-        res,
-        error,
-        'Erro interno ao calcular cobertura com commits.'
-      );
-    }
-  },
-
-  async getIssueCoverage(req, res) {
-    try {
-      const coverage = await taskService.getIssueCoverage(req.params.projectId);
-
-      return res.json(coverage);
-    } catch (error) {
-      return sendError(
-        res,
-        error,
-        'Erro interno ao calcular cobertura com issues.'
-      );
-    }
-  }
+    },
+    { fallbackMessage: taskFallback }
+  )
 };

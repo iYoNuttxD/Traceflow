@@ -1,5 +1,6 @@
 // Repository do modulo de requisitos. Todo acesso ao banco passa pelo Prisma.
 import { prisma } from '../../database/prismaClient.js';
+import { auditRepository } from '../audit/audit.repository.js';
 
 const linkedTaskSelect = {
   id: true,
@@ -102,6 +103,56 @@ export const requirementRepository = {
       where: { requirementId },
       select: linkedTaskSelect,
       orderBy: { createdAt: 'desc' }
+    });
+  },
+
+  async findTasksByIds(taskIds) {
+    return prisma.task.findMany({
+      where: { id: { in: taskIds } },
+      select: { id: true, projectId: true, requirementId: true, status: true }
+    });
+  },
+
+  async findRequirementsByIds(requirementIds) {
+    return prisma.requirement.findMany({
+      where: { id: { in: requirementIds } },
+      select: {
+        id: true,
+        status: true,
+        tasks: { select: { id: true, status: true } }
+      }
+    });
+  },
+
+  async replaceRequirementTasks({
+    requirementId,
+    taskIds,
+    status,
+    relatedStatusUpdates,
+    auditEvents
+  }) {
+    return prisma.$transaction(async (tx) => {
+      await tx.task.updateMany({
+        where: { requirementId, ...(taskIds.length ? { id: { notIn: taskIds } } : {}) },
+        data: { requirementId: null }
+      });
+      if (taskIds.length) {
+        await tx.task.updateMany({
+          where: { id: { in: taskIds } },
+          data: { requirementId }
+        });
+      }
+      if (status) {
+        await tx.requirement.update({ where: { id: requirementId }, data: { status } });
+      }
+      for (const update of relatedStatusUpdates) {
+        await tx.requirement.update({ where: { id: update.id }, data: { status: update.status } });
+      }
+      if (auditEvents.length) await auditRepository.createMany(auditEvents, tx);
+      return tx.requirement.findUnique({
+        where: { id: requirementId },
+        include: requirementInclude
+      });
     });
   },
 

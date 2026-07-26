@@ -1,7 +1,8 @@
 // Repository do modulo de tarefas. Todo acesso ao banco passa pelo Prisma.
 import { prisma } from '../../database/prismaClient.js';
+import { auditRepository } from '../audit/audit.repository.js';
 
-const taskPullRequestSelect = {
+const pullRequestSelect = {
   id: true,
   number: true,
   title: true,
@@ -41,12 +42,13 @@ const taskRequirementSelect = {
   status: true
 };
 
-const taskInclude = {
+export const taskInclude = {
+  responsibleUser: { select: { id: true, name: true } },
   requirement: {
     select: taskRequirementSelect
   },
   pullRequest: {
-    select: taskPullRequestSelect
+    select: pullRequestSelect
   },
   commitLinks: {
     select: {
@@ -70,20 +72,39 @@ const taskInclude = {
   }
 };
 
+async function recalculateRequirements(tx, requirementIds, calculateStatus) {
+  const ids = [...new Set(requirementIds.filter(Boolean).map(Number))];
+  if (!ids.length || !calculateStatus) return;
+  const requirements = await tx.requirement.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, status: true, tasks: { select: { status: true } } }
+  });
+  for (const requirement of requirements) {
+    if (['CONCLUIDO', 'CANCELADO'].includes(requirement.status)) continue;
+    const status = calculateStatus(requirement.tasks);
+    if (status !== requirement.status) {
+      await tx.requirement.update({ where: { id: requirement.id }, data: { status } });
+    }
+  }
+}
+
 export const taskRepository = {
+  async findActiveMembership(projectId, userId) {
+    return prisma.projectMembership.findFirst({ where: { projectId, userId, isActive: true } });
+  },
   async findProjectById(projectId) {
     return prisma.project.findUnique({
       where: { id: projectId }
     });
   },
 
-  async createTask(projectId, data) {
-    return prisma.task.create({
-      data: {
-        ...data,
-        projectId
-      },
-      include: taskInclude
+  async createTaskAtomic(projectId, data, auditEvent, calculateRequirementStatus) {
+    return prisma.$transaction(async (tx) => {
+      const task = await tx.task.create({ data: { ...data, projectId }, include: taskInclude });
+      await recalculateRequirements(tx, [task.requirementId], calculateRequirementStatus);
+      if (auditEvent)
+        await auditRepository.create({ ...auditEvent, resourceId: String(task.id) }, tx);
+      return task;
     });
   },
 
@@ -209,95 +230,29 @@ export const taskRepository = {
     return links.map((link) => link.issue);
   },
 
-  async createTaskCommit(taskId, commitId) {
-    return prisma.taskCommit.create({
-      data: {
-        taskId,
-        commitId
-      },
-      select: {
-        commit: {
-          select: taskCommitSelect
-        }
+  async updateTaskAtomic(
+    id,
+    data,
+    { historyEntries, auditEvent, calculateRequirementStatus, previousRequirementId }
+  ) {
+    return prisma.$transaction(async (tx) => {
+      const task = await tx.task.update({ where: { id }, data, include: taskInclude });
+      if (historyEntries.length) {
+        await tx.taskHistoryEntry.createMany({
+          data: historyEntries.map((entry) => ({ ...entry, projectId: task.projectId, taskId: id }))
+        });
       }
+      await recalculateRequirements(
+        tx,
+        [previousRequirementId, task.requirementId],
+        calculateRequirementStatus
+      );
+      if (auditEvent) await auditRepository.create(auditEvent, tx);
+      return task;
     });
   },
 
-  async createTaskIssue(taskId, issueId) {
-    return prisma.taskIssue.create({
-      data: {
-        taskId,
-        issueId
-      },
-      select: {
-        issue: {
-          select: taskIssueSelect
-        }
-      }
-    });
-  },
-
-  async deleteTaskCommit(taskId, commitId) {
-    return prisma.taskCommit.delete({
-      where: {
-        taskId_commitId: {
-          taskId,
-          commitId
-        }
-      }
-    });
-  },
-
-  async deleteTaskIssue(taskId, issueId) {
-    return prisma.taskIssue.delete({
-      where: {
-        taskId_issueId: {
-          taskId,
-          issueId
-        }
-      }
-    });
-  },
-
-  async findProjectMemberById(id) {
-    return prisma.projectMember.findUnique({
-      where: { id }
-    });
-  },
-
-  async updateTask(id, data) {
-    return prisma.task.update({
-      where: { id },
-      data,
-      include: taskInclude
-    });
-  },
-
-  async updateTaskStatus(id, status) {
-    return prisma.task.update({
-      where: { id },
-      data: { status },
-      include: taskInclude
-    });
-  },
-
-  async updateTaskPullRequest(id, pullRequestId) {
-    return prisma.task.update({
-      where: { id },
-      data: { pullRequestId },
-      include: taskInclude
-    });
-  },
-
-  async updateTaskRequirement(id, requirementId) {
-    return prisma.task.update({
-      where: { id },
-      data: { requirementId },
-      include: taskInclude
-    });
-  },
-
-  async deleteTask(id) {
+  async deleteTask(id, { auditEvent, calculateRequirementStatus, requirementId } = {}) {
     return prisma.$transaction(async (tx) => {
       await tx.taskCommit.deleteMany({
         where: { taskId: id }
@@ -310,68 +265,13 @@ export const taskRepository = {
       await tx.taskMovement.deleteMany({
         where: { taskId: id }
       });
-
-      return tx.task.delete({
+      await tx.taskHistoryEntry.deleteMany({ where: { taskId: id } });
+      const deleted = await tx.task.delete({
         where: { id }
       });
-    });
-  },
-
-  async moveTask(task, data) {
-    return prisma.$transaction(async (tx) => {
-      const updatedTask = await tx.task.update({
-        where: { id: task.id },
-        data: { status: data.toStatus },
-        include: taskInclude
-      });
-
-      const movement = await tx.taskMovement.create({
-        data: {
-          projectId: task.projectId,
-          taskId: task.id,
-          fromStatus: task.status,
-          toStatus: data.toStatus,
-          movedBy: data.movedBy,
-          ...(data.projectMemberId !== undefined
-            ? { projectMemberId: data.projectMemberId }
-            : {}),
-          ...(data.sprintId !== undefined ? { sprintId: data.sprintId } : {})
-        }
-      });
-
-      return { task: updatedTask, movement };
-    });
-  },
-
-  async findMovementsByProject(projectId, filters = {}) {
-    return prisma.taskMovement.findMany({
-      where: {
-        projectId,
-        ...(filters.movedAt ? { movedAt: filters.movedAt } : {}),
-        ...(filters.taskId ? { taskId: filters.taskId } : {}),
-        ...(filters.movedBy ? { movedBy: filters.movedBy } : {}),
-        ...(filters.sprintId ? { sprintId: filters.sprintId } : {})
-      },
-      include: {
-        task: {
-          select: {
-            title: true
-          }
-        }
-      },
-      orderBy: { movedAt: 'desc' }
-    });
-  },
-
-  async countMovementsByProject(projectId, filters = {}) {
-    return prisma.taskMovement.count({
-      where: {
-        projectId,
-        ...(filters.movedAt ? { movedAt: filters.movedAt } : {}),
-        ...(filters.taskId ? { taskId: filters.taskId } : {}),
-        ...(filters.movedBy ? { movedBy: filters.movedBy } : {}),
-        ...(filters.sprintId ? { sprintId: filters.sprintId } : {})
-      }
+      await recalculateRequirements(tx, [requirementId], calculateRequirementStatus);
+      if (auditEvent) await auditRepository.create(auditEvent, tx);
+      return deleted;
     });
   },
 
@@ -388,9 +288,7 @@ export const taskRepository = {
     return prisma.task.count({
       where: {
         projectId,
-        pullRequestId: {
-          not: null
-        }
+        pullRequestId: { not: null }
       }
     });
   },

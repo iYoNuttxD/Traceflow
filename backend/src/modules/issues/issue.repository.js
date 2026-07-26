@@ -19,9 +19,12 @@ function buildIssueUpdate(data) {
 }
 
 export const issueRepository = {
-  async findGithubIdsByProjectId(projectId) {
+  async findGithubIdsByProjectId(projectId, githubIds) {
     const issues = await prisma.issue.findMany({
-      where: { projectId },
+      where: {
+        projectId,
+        ...(Array.isArray(githubIds) ? { githubId: { in: githubIds } } : {})
+      },
       select: { githubId: true }
     });
 
@@ -33,14 +36,14 @@ export const issueRepository = {
       return { created: 0, updated: 0 };
     }
 
-    const existingGithubIds = new Set(await this.findGithubIdsByProjectId(data[0].projectId));
-    let created = 0;
-    let updated = 0;
-
-    for (const issue of data) {
-      const isExisting = existingGithubIds.has(issue.githubId);
-
-      await prisma.issue.upsert({
+    const existingGithubIds = new Set(
+      await this.findGithubIdsByProjectId(
+        data[0].projectId,
+        data.map(({ githubId }) => githubId)
+      )
+    );
+    const operations = data.map((issue) =>
+      prisma.issue.upsert({
         where: {
           projectId_githubId: {
             projectId: issue.projectId,
@@ -49,15 +52,12 @@ export const issueRepository = {
         },
         update: buildIssueUpdate(issue),
         create: issue
-      });
+      })
+    );
+    await prisma.$transaction(operations);
 
-      if (isExisting) {
-        updated += 1;
-      } else {
-        created += 1;
-        existingGithubIds.add(issue.githubId);
-      }
-    }
+    const updated = data.filter(({ githubId }) => existingGithubIds.has(githubId)).length;
+    const created = data.length - updated;
 
     return { created, updated };
   },

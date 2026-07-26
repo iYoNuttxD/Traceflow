@@ -1,154 +1,118 @@
-// Controller de projetos. Recebe HTTP, chama o service e monta a resposta.
+import { asyncHandler } from '../../shared/http/index.js';
 import { projectService } from './project.service.js';
+import { auditService } from '../audit/audit.service.js';
 
-function sendProjectError(res, error, fallbackMessage) {
-  if (!error.statusCode) {
-    console.error(fallbackMessage, error);
-  }
-
-  return res.status(error.statusCode || 500).json({
-    message: error.statusCode ? error.message : fallbackMessage
-  });
-}
+const projectFallback = 'Erro interno ao processar projeto.';
+const membersFallback = 'Erro interno ao processar membros do projeto.';
 
 export const projectController = {
-  async create(req, res) {
-    try {
-      const project = await projectService.createProject(req.body);
-
-      return res.status(201).json({
-        message: 'Projeto cadastrado com sucesso.',
-        project
+  create: asyncHandler(
+    async (req, res) => {
+      const project = await projectService.createProject(req.body, req.auth.user.id);
+      await auditService.recordOperational({
+        actorUserId: req.auth.user.id,
+        projectId: project.id,
+        requestId: req.requestId,
+        action: 'PROJECT_CREATED',
+        resourceType: 'Project',
+        resourceId: project.id
       });
-    } catch (error) {
-      return res.status(error.statusCode || 500).json({
-        message: error.statusCode ? error.message : 'Erro interno ao processar projeto.'
-      });
-    }
-  },
+      return res.status(201).json({ message: 'Projeto cadastrado com sucesso.', project });
+    },
+    { fallbackMessage: projectFallback }
+  ),
 
-  async findAll(req, res) {
-    try {
-      const projects = await projectService.findAllProjects();
-
+  findAll: asyncHandler(
+    async (req, res) => {
+      const projects = await projectService.findAllProjects(req.auth.user.id);
       return res.json({ projects });
-    } catch (error) {
-      return res.status(500).json({
-        message: 'Erro interno ao processar projeto.'
-      });
-    }
-  },
+    },
+    { fallbackMessage: projectFallback }
+  ),
 
-  async findById(req, res) {
-    try {
+  findById: asyncHandler(
+    async (req, res) => {
       const project = await projectService.getProjectById(req.params.id);
-
       return res.json({ project });
-    } catch (error) {
-      return res.status(error.statusCode || 500).json({
-        message: error.statusCode ? error.message : 'Erro interno ao processar projeto.'
-      });
-    }
-  },
+    },
+    { fallbackMessage: projectFallback }
+  ),
 
-  async listMembers(req, res) {
-    try {
+  listMembers: asyncHandler(
+    async (req, res) => {
       const members = await projectService.listProjectMembers(req.params.projectId);
+      return res.json({ projectId: req.params.projectId, members });
+    },
+    { fallbackMessage: membersFallback }
+  ),
 
-      return res.json({
-        projectId: Number(req.params.projectId),
-        members
-      });
-    } catch (error) {
-      return res.status(error.statusCode || 500).json({
-        message: error.statusCode ? error.message : 'Erro interno ao processar membros do projeto.'
-      });
-    }
-  },
-
-  async addMember(req, res) {
-    try {
+  addMember: asyncHandler(
+    async (req, res) => {
       const member = await projectService.addProjectMember(req.params.projectId, req.body);
-
       return res.status(201).json({
         message: 'Membro adicionado ao projeto com sucesso.',
         member
       });
-    } catch (error) {
-      return res.status(error.statusCode || 500).json({
-        message: error.statusCode ? error.message : 'Erro interno ao processar membros do projeto.'
-      });
-    }
-  },
+    },
+    { fallbackMessage: membersFallback }
+  ),
 
-  async join(req, res) {
-    try {
-      const result = await projectService.joinProject(req.body);
-
+  join: asyncHandler(
+    async (req, res) => {
+      const result = await projectService.joinProject(req.body, req.auth.user);
       return res.status(201).json({
         message: 'Entrada no projeto realizada com sucesso.',
         project: result.project,
         member: result.member
       });
-    } catch (error) {
-      return res.status(error.statusCode || 500).json({
-        message: error.statusCode ? error.message : 'Erro interno ao entrar no projeto.'
-      });
-    }
-  },
+    },
+    { fallbackMessage: 'Erro interno ao entrar no projeto.' }
+  ),
 
-  async update(req, res) {
-    try {
+  update: asyncHandler(
+    async (req, res) => {
       const project = await projectService.updateProject(req.params.id, req.body);
+      await auditService.recordOperational({
+        actorUserId: req.auth.user.id,
+        projectId: project.id,
+        requestId: req.requestId,
+        action: 'PROJECT_UPDATED',
+        resourceType: 'Project',
+        resourceId: project.id
+      });
+      return res.json({ message: 'Projeto atualizado com sucesso.', project });
+    },
+    { fallbackMessage: projectFallback }
+  ),
 
-      return res.json({
-        message: 'Projeto atualizado com sucesso.',
-        project
-      });
-    } catch (error) {
-      return res.status(error.statusCode || 500).json({
-        message: error.statusCode ? error.message : 'Erro interno ao processar projeto.'
-      });
-    }
+  getById(req, res, next) {
+    return projectController.findById(req, res, next);
   },
 
-  async getById(req, res) {
-    return projectController.findById(req, res);
-  },
-
-  async createFromGithub(req, res) {
-    try {
-      const project = await projectService.createProjectFromGithubRepository(req.body);
-
+  createFromGithub: asyncHandler(
+    async (req, res) => {
+      const project = await projectService.createProjectFromGithubRepository(
+        req.body,
+        req.auth.user.id
+      );
       return res.status(201).json({
         message: 'Projeto criado a partir do repositório GitHub com sucesso.',
         project
       });
-    } catch (error) {
-      return sendProjectError(
-        res,
-        error,
-        'Não foi possível criar o projeto a partir do GitHub.'
-      );
-    }
-  },
+    },
+    { fallbackMessage: 'Não foi possível criar o projeto a partir do GitHub.' }
+  ),
 
-  async updateGithubSyncSettings(req, res) {
-    try {
+  updateGithubSyncSettings: asyncHandler(
+    async (req, res) => {
       const project = await projectService.updateGithubSyncSettings(req.params.projectId, req.body);
-
       return res.json({
         message: 'Configuração de sincronização GitHub atualizada com sucesso.',
         project
       });
-    } catch (error) {
-      return sendProjectError(
-        res,
-        error,
-        'Erro ao atualizar configuração de sincronização GitHub.'
-      );
-    }
-  },
+    },
+    { fallbackMessage: 'Erro ao atualizar configuração de sincronização GitHub.' }
+  ),
 
   async notImplemented(req, res) {
     return res.status(501).json({
