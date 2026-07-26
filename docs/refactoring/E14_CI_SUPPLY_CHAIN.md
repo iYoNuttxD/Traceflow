@@ -60,7 +60,7 @@ Na validação final, o backend registrou 86,29% statements, 73,31% branches, 88
 
 `scripts/check-npm-audit.mjs` executa `npm audit --json` e falha em qualquer vulnerabilidade high/critical nova. Uma exceção só é aceita quando advisory, pacote, cadeia, severidade, justificativa, data, revisão e responsável coincidem exatamente e a revisão não expirou.
 
-O backend permanece com zero vulnerabilidades. O frontend possui duas ocorrências do mesmo advisory `GHSA-qwww-vcr4-c8h2`: `react-router-dom` e seu `react-router`. A exceção é específica ao advisory/cadeia, válida até 26/10/2026 e fundamentada no fato de o TRACEFLOW ser SPA sem React Server Components/actions/SSR. Ela expira automaticamente e não autoriza advisories futuros do pacote.
+O backend permanece com zero vulnerabilidades. Após a publicação do patch oficial, o frontend migrou de `react-router-dom@7.18.0` para `react-router@8.3.0`, primeira versão corrigida para `GHSA-qwww-vcr4-c8h2`. A exceção temporária foi removida; o arquivo de política permanece com a lista vazia e o audit passa sem tolerância para esse advisory.
 
 O Dependency Review oficial roda somente em PR e bloqueia nova dependência de severidade `high` ou `critical`. CodeQL e SBOM automatizada não foram adicionados: permanecem decisões futuras, sem reduzir os gates desta etapa.
 
@@ -80,7 +80,7 @@ A passagem final aprovou 108 testes unitários, 90 de integração e 198 na cole
 
 ## Riscos para E15
 
-- A exceção React Router deve ser removida ou renovada com nova evidência antes de 26/10/2026.
+- React Router 8 exige Node 22.22.0 ou superior; CI e ambientes locais devem preservar esse piso dentro da linha Node 22.
 - SBOM automatizada e assinatura/proveniência de artefatos ainda não existem.
 - A proteção de branch precisa ser aplicada manualmente por mantenedor no GitHub.
 - Ações estão fixadas em majors estáveis, não em SHAs imutáveis; uma migração coordenada para SHAs pode endurecer a supply chain.

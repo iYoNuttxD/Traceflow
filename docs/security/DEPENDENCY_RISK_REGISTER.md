@@ -4,15 +4,13 @@
 
 Em 26/07/2026, `scripts/check-npm-audit.mjs` passou a bloquear toda vulnerabilidade `high` ou `critical` não registrada de forma específica. A política versionada em `npm-audit-exceptions.json` exige advisory ID, pacote, cadeia, severidade, justificativa, data da decisão, condição/data de revisão e responsável; exceções expiradas falham. O Dependency Review complementa a política sobre o delta de pull requests.
 
-A única exceção vigente é:
-
-| Advisory | Pacote/cadeia | Severidade | Justificativa | Decisão | Revisão | Responsável |
-|---|---|---:|---|---|---|---|
-| `GHSA-qwww-vcr4-c8h2` | `react-router-dom` → `react-router` | ALTA | vetor depende de React Server Components/actions; TRACEFLOW é SPA client-side sem RSC, SSR, actions ou loaders de servidor | risco residual temporário, sem downgrade incompatível | 26/10/2026 ou antes se RSC/SSR for adotado ou houver correção compatível | mantenedores TRACEFLOW |
-
-Essa exceção não libera genericamente `react-router` nem outro advisory. O backend possui zero vulnerabilidades no baseline E14. Nenhum `npm audit fix` foi executado.
+Não há exceção vigente. A exceção temporária de `GHSA-qwww-vcr4-c8h2` foi removida após a migração para `react-router@8.3.0`, primeira versão corrigida segundo o advisory oficial. Backend e frontend possuem zero vulnerabilidades no audit posterior. Nenhum `npm audit fix` foi executado.
 
 ESLint, Prettier, `@eslint/js` e `globals` foram adicionados como dependências de desenvolvimento; o frontend também recebeu `eslint-plugin-react-hooks`. O audit após a atualização não introduziu novo advisory. Nenhuma dessas ferramentas integra o runtime da aplicação.
+
+## Correção pós-E14 — React Router
+
+Em 26/07/2026, o advisory oficial definiu o intervalo vulnerável `>=7.12.0, <8.3.0` e a primeira versão corrigida `8.3.0`. Como `react-router-dom` foi removido oficialmente na major 8, o frontend passou a depender diretamente de `react-router@8.3.0`; imports declarativos foram migrados para `react-router`. React 19.2.7 e Vite 8 já atendiam aos peers/baseline da versão. A árvore e o audit ficaram sem vulnerabilidades e sem exceção.
 
 ## Revalidação E11
 

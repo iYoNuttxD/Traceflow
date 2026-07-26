@@ -1,16 +1,4 @@
 {
   "schemaVersion": 1,
-  "exceptions": [
-    {
-      "advisoryId": "GHSA-qwww-vcr4-c8h2",
-      "package": "react-router",
-      "dependencyChain": ["react-router-dom", "react-router"],
-      "severity": "high",
-      "justification": "O TRACEFLOW utiliza BrowserRouter como SPA cliente, sem React Server Components, server actions, loaders ou execução de actions no servidor; o vetor descrito não é alcançável na arquitetura atual. O npm propõe uma mudança incompatível e a atualização será feita de forma controlada.",
-      "decidedAt": "2026-07-26",
-      "reviewBy": "2026-10-26",
-      "reviewCondition": "Revisar antes da data, na adoção de RSC/actions/SSR ou quando houver versão corrigida compatível, o que ocorrer primeiro.",
-      "owner": "Maintainers TRACEFLOW"
-    }
-  ]
+  "exceptions": []
 }

@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { Routes, Route, Navigate, Outlet } from 'react-router';
 import { ProtectedRoute } from '../../features/auth/index.js';
 import { LoadingState } from '../../shared/index.js';
 import { lazyNamed } from './lazy-route.js';

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router';
 import { projectMembersApi } from '../features/members/index.js';
 import { Card } from '../shared/index.js';
 

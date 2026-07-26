@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router';
 import { normalizeApiError } from '../../shared/services/http-error.js';
 import { privacyApi } from './privacy.api.js';
 

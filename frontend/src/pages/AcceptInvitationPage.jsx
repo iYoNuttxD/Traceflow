@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router';
 import { authApi } from '../features/auth/index.js';
 import { normalizeApiError } from '../shared/index.js';
 export function AcceptInvitationPage() {

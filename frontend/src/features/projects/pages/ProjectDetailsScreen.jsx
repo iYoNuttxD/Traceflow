@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router';
 import { syncProjectGithub } from '../../github/index.js';
 import { Card } from '../../../shared/index.js';
 import { ProjectSectionNav } from '../components/ProjectSectionNav.jsx';

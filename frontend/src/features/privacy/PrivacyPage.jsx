@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { normalizeApiError, useConfirm } from '../../shared/index.js';
 import { useAuth } from '../auth/index.js';
 import { privacyApi } from './privacy.api.js';

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router';
 import { useAuth } from '../features/auth/index.js';
 import { FeedbackRegion, FormInput, normalizeApiError } from '../shared/index.js';
 

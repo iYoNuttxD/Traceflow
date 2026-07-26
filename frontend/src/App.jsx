@@ -1,4 +1,4 @@
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter } from 'react-router';
 import { AppRoutes } from './app/routes/AppRoutes.jsx';
 import { Layout } from './components/Layout.jsx';
 import { AuthProvider } from './features/auth/index.js';
