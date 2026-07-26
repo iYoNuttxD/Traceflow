@@ -131,9 +131,7 @@ export function ProjectForm({
               required
             >
               <option value="">
-                {loadingRepositories
-                  ? 'Carregando repositórios...'
-                  : 'Selecione um repositório'}
+                {loadingRepositories ? 'Carregando repositórios...' : 'Selecione um repositório'}
               </option>
               {!hasCurrentRepository && currentRepositoryFullName && (
                 <option value={currentRepositoryFullName}>{currentRepositoryFullName}</option>

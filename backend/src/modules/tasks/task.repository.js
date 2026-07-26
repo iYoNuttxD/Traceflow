@@ -102,7 +102,8 @@ export const taskRepository = {
     return prisma.$transaction(async (tx) => {
       const task = await tx.task.create({ data: { ...data, projectId }, include: taskInclude });
       await recalculateRequirements(tx, [task.requirementId], calculateRequirementStatus);
-      if (auditEvent) await auditRepository.create({ ...auditEvent, resourceId: String(task.id) }, tx);
+      if (auditEvent)
+        await auditRepository.create({ ...auditEvent, resourceId: String(task.id) }, tx);
       return task;
     });
   },
@@ -229,7 +230,11 @@ export const taskRepository = {
     return links.map((link) => link.issue);
   },
 
-  async updateTaskAtomic(id, data, { historyEntries, auditEvent, calculateRequirementStatus, previousRequirementId }) {
+  async updateTaskAtomic(
+    id,
+    data,
+    { historyEntries, auditEvent, calculateRequirementStatus, previousRequirementId }
+  ) {
     return prisma.$transaction(async (tx) => {
       const task = await tx.task.update({ where: { id }, data, include: taskInclude });
       if (historyEntries.length) {

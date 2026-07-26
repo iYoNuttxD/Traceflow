@@ -50,9 +50,16 @@ describe('infraestrutura de validação HTTP', () => {
     const valid = { params: {}, query: { enabled: 'false' }, body: {} };
     expect(execute({ query: schema }, valid).result).toBeUndefined();
     expect(valid.query.enabled).toBe(false);
-    expect(execute({ query: schema }, {
-      params: {}, query: { enabled: 'sim' }, body: {}
-    }).result).toBeInstanceOf(ValidationError);
+    expect(
+      execute(
+        { query: schema },
+        {
+          params: {},
+          query: { enabled: 'sim' },
+          body: {}
+        }
+      ).result
+    ).toBeInstanceOf(ValidationError);
   });
 
   it('rejeita campo desconhecido, texto excessivo, enum, data e URL inválidos', () => {
@@ -62,17 +69,20 @@ describe('infraestrutura de validação HTTP', () => {
       date: dateOnly(),
       repositoryUrl: githubUrl
     });
-    const result = execute({ body: schema }, {
-      params: {},
-      query: {},
-      body: {
-        title: 'excessivo',
-        status: 'OUTRO',
-        date: '2026-02-30',
-        repositoryUrl: 'https://example.com/repo',
-        token: 'segredo-que-nao-pode-voltar'
+    const result = execute(
+      { body: schema },
+      {
+        params: {},
+        query: {},
+        body: {
+          title: 'excessivo',
+          status: 'OUTRO',
+          date: '2026-02-30',
+          repositoryUrl: 'https://example.com/repo',
+          token: 'segredo-que-nao-pode-voltar'
+        }
       }
-    }).result;
+    ).result;
 
     expect(result).toBeInstanceOf(ValidationError);
     expect(result.details.map((detail) => detail.field)).toEqual(

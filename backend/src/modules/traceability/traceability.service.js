@@ -75,11 +75,10 @@ export const traceabilityService = {
     const requirement = parsePositiveInteger(requirementId, 'do requisito');
     await ensureProjectExists(id);
     const { page, limit, skip } = pageFrom(query);
-    const result = await traceabilityRepository.findRequirementGraphPage(
-      id,
-      requirement,
-      { skip, take: limit }
-    );
+    const result = await traceabilityRepository.findRequirementGraphPage(id, requirement, {
+      skip,
+      take: limit
+    });
     if (!result) throw new TraceabilityServiceError('Requisito não encontrado neste projeto.', 404);
     return formatRequirementGraph(result, pagination(page, limit, result.total, 'tasks'));
   },
@@ -99,12 +98,10 @@ export const traceabilityService = {
     const artifact = parsePositiveInteger(artifactId, 'do artefato');
     await ensureProjectExists(id);
     const { page, limit, skip } = pageFrom(query);
-    const result = await traceabilityRepository.findArtifactGraphPage(
-      id,
-      artifactType,
-      artifact,
-      { skip, take: limit }
-    );
+    const result = await traceabilityRepository.findArtifactGraphPage(id, artifactType, artifact, {
+      skip,
+      take: limit
+    });
     if (!result) throw new TraceabilityServiceError('Artefato não encontrado neste projeto.', 404);
     return formatArtifactGraph(
       { ...result, artifactType, projectId: id },
@@ -122,12 +119,30 @@ export const traceabilityService = {
     );
   },
   getPullRequestCoverage(projectId) {
-    return coverage(projectId, (id) => traceabilityRepository.countTasksByProject(id), (id) => traceabilityRepository.countTasksWithPullRequest(id), 'totalTasks', 'linkedTasks');
+    return coverage(
+      projectId,
+      (id) => traceabilityRepository.countTasksByProject(id),
+      (id) => traceabilityRepository.countTasksWithPullRequest(id),
+      'totalTasks',
+      'linkedTasks'
+    );
   },
   getCommitCoverage(projectId) {
-    return coverage(projectId, (id) => traceabilityRepository.countTasksByProject(id), (id) => traceabilityRepository.countTasksWithCommit(id), 'totalTasks', 'linkedTasks');
+    return coverage(
+      projectId,
+      (id) => traceabilityRepository.countTasksByProject(id),
+      (id) => traceabilityRepository.countTasksWithCommit(id),
+      'totalTasks',
+      'linkedTasks'
+    );
   },
   getIssueCoverage(projectId) {
-    return coverage(projectId, (id) => traceabilityRepository.countTasksByProject(id), (id) => traceabilityRepository.countTasksWithIssue(id), 'totalTasks', 'linkedTasks');
+    return coverage(
+      projectId,
+      (id) => traceabilityRepository.countTasksByProject(id),
+      (id) => traceabilityRepository.countTasksWithIssue(id),
+      'totalTasks',
+      'linkedTasks'
+    );
   }
 };

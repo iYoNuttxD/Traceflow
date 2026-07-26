@@ -1,12 +1,21 @@
 function escapeHtml(value) {
-  return String(value).replace(/[&<>"']/g, (character) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-  })[character]);
+  return String(value).replace(
+    /[&<>"']/g,
+    (character) =>
+      ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      })[character]
+  );
 }
 
 function safeUrl(value) {
   const url = new URL(value);
-  if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Unsupported email link protocol.');
+  if (!['http:', 'https:'].includes(url.protocol))
+    throw new Error('Unsupported email link protocol.');
   return escapeHtml(url.toString());
 }
 

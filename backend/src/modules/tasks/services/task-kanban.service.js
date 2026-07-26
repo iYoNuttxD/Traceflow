@@ -62,7 +62,10 @@ export const taskKanbanService = {
       })
     });
     if (result.conflict) {
-      throw new TaskServiceError('A tarefa foi alterada por outra operação. Atualize o quadro e tente novamente.', 409);
+      throw new TaskServiceError(
+        'A tarefa foi alterada por outra operação. Atualize o quadro e tente novamente.',
+        409
+      );
     }
     return { task: formatTask(result.task), movement: formatMovement(result.movement) };
   },

@@ -96,7 +96,11 @@ describe('TraceabilityPage', () => {
       perspective: { type: 'REQUIREMENT', id: 10 },
       summary: { hasTechnicalEvidence: true },
       nodes: [
-        { id: 'requirement:10', type: 'REQUIREMENT', data: { id: 10, title: 'Requisito artificial' } },
+        {
+          id: 'requirement:10',
+          type: 'REQUIREMENT',
+          data: { id: 10, title: 'Requisito artificial' }
+        },
         { id: 'task:20', type: 'TASK', data: { id: 20, title: 'Tarefa artificial' } },
         { id: 'commit:30', type: 'COMMIT', data: { id: 30, shortHash: 'abcdef1' } }
       ],
@@ -113,7 +117,16 @@ describe('TraceabilityPage', () => {
     expect(await screen.findByTestId('traceability-flow-contract')).toHaveTextContent(
       'Requisito artificial | Tarefa artificial | abcdef1'
     );
-    expect(apiMocks.getRequirementTraceability).toHaveBeenCalledWith('9', 10, {}, { signal: expect.any(AbortSignal) });
-    expect(apiMocks.getRequirementsTraceabilityMatrix).toHaveBeenCalledWith('9', { page: 1, limit: 20 }, { signal: expect.any(AbortSignal) });
+    expect(apiMocks.getRequirementTraceability).toHaveBeenCalledWith(
+      '9',
+      10,
+      {},
+      { signal: expect.any(AbortSignal) }
+    );
+    expect(apiMocks.getRequirementsTraceabilityMatrix).toHaveBeenCalledWith(
+      '9',
+      { page: 1, limit: 20 },
+      { signal: expect.any(AbortSignal) }
+    );
   });
 });

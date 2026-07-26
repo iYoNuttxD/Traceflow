@@ -43,7 +43,11 @@ export const projectMembersService = {
     if (!project) throw new ProjectServiceError('Projeto não encontrado.', 404);
     const member = await projectMembersService.addProjectMember(project.id, payload);
     if (authenticatedUser?.id) {
-      await projectRepository.upsertProjectMembership(project.id, authenticatedUser.id, payload.role);
+      await projectRepository.upsertProjectMembership(
+        project.id,
+        authenticatedUser.id,
+        payload.role
+      );
     }
 
     return { project: { id: project.id, name: project.name }, member };

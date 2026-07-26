@@ -4,12 +4,13 @@ import { normalizeGithubError } from '../../src/modules/github/github-error.js';
 
 describe('normalização de falhas GitHub', () => {
   it('normaliza autenticação e rate limit sem carregar resposta externa', () => {
-    expect(normalizeGithubError({ status: 401, response: { headers: { token: 'secret' } } }))
-      .toEqual({
-        message: 'Token GitHub inválido, expirado ou sem permissão.',
-        code: ERROR_CODES.GITHUB_AUTH_FAILED,
-        externalStatus: 401
-      });
+    expect(
+      normalizeGithubError({ status: 401, response: { headers: { token: 'secret' } } })
+    ).toEqual({
+      message: 'Token GitHub inválido, expirado ou sem permissão.',
+      code: ERROR_CODES.GITHUB_AUTH_FAILED,
+      externalStatus: 401
+    });
     expect(
       normalizeGithubError({
         status: 403,

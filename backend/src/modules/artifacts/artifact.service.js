@@ -188,11 +188,7 @@ function mapIssue(issue, project) {
 
 function isCompleteArtifact(artifact) {
   return Boolean(
-    artifact.type &&
-      artifact.author &&
-      artifact.date &&
-      artifact.projectId &&
-      artifact.projectName
+    artifact.type && artifact.author && artifact.date && artifact.projectId && artifact.projectName
   );
 }
 

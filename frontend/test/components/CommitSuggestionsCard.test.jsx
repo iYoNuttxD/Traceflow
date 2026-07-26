@@ -16,12 +16,22 @@ const suggestion = {
   id: 7,
   status: 'PENDING',
   task: { id: 42, title: 'Task artificial' },
-  commit: { id: 9, hash: 'abcdef123456', shortHash: 'abcdef1', message: 'feat: implementação [TASK-42]' }
+  commit: {
+    id: 9,
+    hash: 'abcdef123456',
+    shortHash: 'abcdef1',
+    message: 'feat: implementação [TASK-42]'
+  }
 };
 const response = (suggestions = [suggestion], canReview = true) => ({
   suggestions,
   permissions: { canReview },
-  pagination: { page: 1, limit: 20, total: suggestions.length, totalPages: suggestions.length ? 1 : 0 }
+  pagination: {
+    page: 1,
+    limit: 20,
+    total: suggestions.length,
+    totalPages: suggestions.length ? 1 : 0
+  }
 });
 
 describe('CommitSuggestionsCard', () => {
@@ -40,7 +50,11 @@ describe('CommitSuggestionsCard', () => {
 
   it('preserva loading e lista vazia', async () => {
     let resolveRequest;
-    apiMocks.getCommitSuggestions.mockReturnValueOnce(new Promise((resolve) => { resolveRequest = resolve; }));
+    apiMocks.getCommitSuggestions.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveRequest = resolve;
+      })
+    );
     render(<CommitSuggestionsCard projectId="3" taskId="42" />);
     expect(screen.getByText('Carregando sugestões de commits...')).toBeInTheDocument();
     resolveRequest(response([], false));
@@ -51,9 +65,16 @@ describe('CommitSuggestionsCard', () => {
     apiMocks.getCommitSuggestions.mockResolvedValue(response([suggestion], false));
     render(<CommitSuggestionsCard projectId="3" taskId="42" />);
     expect(await screen.findByText('feat: implementação [TASK-42]')).toBeInTheDocument();
-    expect(apiMocks.getCommitSuggestions).toHaveBeenCalledWith('3', {
-      status: 'PENDING', taskId: '42', page: 1, limit: 20
-    }, { signal: expect.any(AbortSignal) });
+    expect(apiMocks.getCommitSuggestions).toHaveBeenCalledWith(
+      '3',
+      {
+        status: 'PENDING',
+        taskId: '42',
+        page: 1,
+        limit: 20
+      },
+      { signal: expect.any(AbortSignal) }
+    );
     expect(screen.getByText('Task #42: Task artificial')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Confirmar' })).not.toBeInTheDocument();
   });
@@ -87,9 +108,16 @@ describe('CommitSuggestionsCard', () => {
 
     expect(apiMocks.scanCommitSuggestions).toHaveBeenCalledWith('3');
     expect(apiMocks.getCommitSuggestions).toHaveBeenCalledTimes(2);
-    expect(apiMocks.getCommitSuggestions).toHaveBeenLastCalledWith('3', {
-      status: 'PENDING', taskId: '42', page: 1, limit: 20
-    }, { signal: expect.any(AbortSignal) });
+    expect(apiMocks.getCommitSuggestions).toHaveBeenLastCalledWith(
+      '3',
+      {
+        status: 'PENDING',
+        taskId: '42',
+        page: 1,
+        limit: 20
+      },
+      { signal: expect.any(AbortSignal) }
+    );
     expect(await screen.findByRole('status')).toHaveTextContent('Commits analisados: 4');
     expect(screen.getByText('Nenhuma sugestão de commit pendente.')).toBeInTheDocument();
   });
@@ -103,7 +131,9 @@ describe('CommitSuggestionsCard', () => {
   });
 
   it('exibe erro seguro da API', async () => {
-    apiMocks.getCommitSuggestions.mockRejectedValue({ response: { data: { message: 'Falha artificial.' } } });
+    apiMocks.getCommitSuggestions.mockRejectedValue({
+      response: { data: { message: 'Falha artificial.' } }
+    });
     render(<CommitSuggestionsCard projectId="3" taskId="42" />);
     expect(await screen.findByRole('alert')).toHaveTextContent('Falha artificial.');
     expect(screen.queryByText('Nenhuma sugestão de commit pendente.')).not.toBeInTheDocument();

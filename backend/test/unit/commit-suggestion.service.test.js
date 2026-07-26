@@ -33,7 +33,14 @@ describe('parser canônico do RF41', () => {
   });
 
   it.each([
-    'TASK-42', '#42', 'ID 42', 'tarefa 42', '[ISSUE-42]', '[TASK-ABC]', '[TASK--42]', '[TASK-0]'
+    'TASK-42',
+    '#42',
+    'ID 42',
+    'tarefa 42',
+    '[ISSUE-42]',
+    '[TASK-ABC]',
+    '[TASK--42]',
+    '[TASK-0]'
   ])('rejeita formato alternativo %s', (message) => {
     expect(extractTaskIdsFromCommitMessage(message)).toEqual([]);
   });
@@ -56,13 +63,20 @@ describe('detecção de sugestões do RF41', () => {
     expect(mocks.repository.createMany).toHaveBeenCalledWith([
       { projectId: 7, taskId: 42, commitId: 10 }
     ]);
-    expect(result).toEqual({ scannedCommits: 1, detectedReferences: 2, createdSuggestions: 1, skippedSuggestions: 1 });
+    expect(result).toEqual({
+      scannedCommits: 1,
+      detectedReferences: 2,
+      createdSuggestions: 1,
+      skippedSuggestions: 1
+    });
   });
 
   it('ignora vínculo e sugestão existentes, inclusive rejeitada', async () => {
     mocks.repository.findTasksByProjectAndIds.mockResolvedValue([{ id: 42 }, { id: 57 }]);
     mocks.repository.findExistingTaskCommitPairs.mockResolvedValue([{ taskId: 42, commitId: 10 }]);
-    mocks.repository.findExistingSuggestionPairs.mockResolvedValue([{ taskId: 57, commitId: 10, status: 'REJECTED' }]);
+    mocks.repository.findExistingSuggestionPairs.mockResolvedValue([
+      { taskId: 57, commitId: 10, status: 'REJECTED' }
+    ]);
     const result = await commitSuggestionService.detectForCommits(7, [
       { id: 10, projectId: 7, message: '[TASK-42] [TASK-57]' }
     ]);
@@ -72,9 +86,11 @@ describe('detecção de sugestões do RF41', () => {
   });
 
   it('é idempotente quando a sugestão já foi persistida', async () => {
-    mocks.repository.findExistingSuggestionPairs.mockResolvedValue([{ taskId: 42, commitId: 10, status: 'PENDING' }]);
-    await expect(commitSuggestionService.detectForCommits(7, [
-      { id: 10, projectId: 7, message: '[TASK-42]' }
-    ])).resolves.toMatchObject({ createdSuggestions: 0, skippedSuggestions: 1 });
+    mocks.repository.findExistingSuggestionPairs.mockResolvedValue([
+      { taskId: 42, commitId: 10, status: 'PENDING' }
+    ]);
+    await expect(
+      commitSuggestionService.detectForCommits(7, [{ id: 10, projectId: 7, message: '[TASK-42]' }])
+    ).resolves.toMatchObject({ createdSuggestions: 0, skippedSuggestions: 1 });
   });
 });

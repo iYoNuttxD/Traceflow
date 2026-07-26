@@ -8,9 +8,9 @@ describe('cálculos extraídos de Requirements', () => {
     expect(calculateRequirementStatus([])).toBe('CADASTRADO');
     expect(calculateRequirementStatus([{ status: 'A_FAZER' }])).toBe('APROVADO');
     expect(calculateRequirementStatus([{ status: 'CONCLUIDO' }])).toBe('VALIDADO');
-    expect(
-      calculateRequirementStatus([{ status: 'A_FAZER' }, { status: 'CONCLUIDO' }])
-    ).toBe('EM_IMPLEMENTACAO');
+    expect(calculateRequirementStatus([{ status: 'A_FAZER' }, { status: 'CONCLUIDO' }])).toBe(
+      'EM_IMPLEMENTACAO'
+    );
   });
 
   it('usa a fórmula canônica de cobertura e distingue zero de ausência', () => {

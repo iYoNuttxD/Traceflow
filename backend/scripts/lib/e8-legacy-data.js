@@ -1,11 +1,15 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const normalized = (value) => String(value ?? '').trim().toLowerCase();
-export const normalizedEntity = (value) => normalized(value)
-  .replace(/[\s-]+/g, '_')
-  .replace(/^github_/, '')
-  .toUpperCase();
+const normalized = (value) =>
+  String(value ?? '')
+    .trim()
+    .toLowerCase();
+export const normalizedEntity = (value) =>
+  normalized(value)
+    .replace(/[\s-]+/g, '_')
+    .replace(/^github_/, '')
+    .toUpperCase();
 
 export function normalizeArtifactType(type) {
   const value = normalized(type).replace(/[\s-]+/g, '_');
@@ -31,8 +35,16 @@ async function legacyRows(client, tableName, columns) {
 export async function loadLegacySnapshot(client) {
   const [taskPullRequests, githubArtifacts, traceLinks] = await Promise.all([
     legacyRows(client, 'TaskPullRequest', '`id`, `taskId`, `pullRequestId`'),
-    legacyRows(client, 'GithubArtifact', '`id`, `projectId`, `type`, `externalId`, `sha`, `title`, `description`, `author`, `status`, `branch`, `url`, `createdAtGithub`, `closedAtGithub`'),
-    legacyRows(client, 'TraceLink', '`id`, `projectId`, `sourceType`, `sourceId`, `targetType`, `targetId`')
+    legacyRows(
+      client,
+      'GithubArtifact',
+      '`id`, `projectId`, `type`, `externalId`, `sha`, `title`, `description`, `author`, `status`, `branch`, `url`, `createdAtGithub`, `closedAtGithub`'
+    ),
+    legacyRows(
+      client,
+      'TraceLink',
+      '`id`, `projectId`, `sourceType`, `sourceId`, `targetType`, `targetId`'
+    )
   ]);
   return { taskPullRequests, githubArtifacts, traceLinks };
 }
@@ -58,7 +70,8 @@ export function auditTaskPullRequests({ links = [], tasks = [], pullRequests = [
     const ids = grouped.get(link.taskId) || new Set();
     ids.add(link.pullRequestId);
     grouped.set(link.taskId, ids);
-    if (task.pullRequestId === null || task.pullRequestId === undefined) joinsWithoutTaskPullRequestId += 1;
+    if (task.pullRequestId === null || task.pullRequestId === undefined)
+      joinsWithoutTaskPullRequestId += 1;
     else if (task.pullRequestId !== link.pullRequestId) joinsDifferentFromTaskPullRequestId += 1;
     else reconciled += 1;
   }
@@ -68,7 +81,11 @@ export function auditTaskPullRequests({ links = [], tasks = [], pullRequests = [
   const tasksWithPullRequestIdWithoutJoin = tasks.filter(
     (task) => task.pullRequestId && !linkedPairs.has(`${task.id}:${task.pullRequestId}`)
   ).length;
-  const conflicts = tasksWithMultiplePullRequests + joinsDifferentFromTaskPullRequestId + projectMismatches + orphanLinks;
+  const conflicts =
+    tasksWithMultiplePullRequests +
+    joinsDifferentFromTaskPullRequestId +
+    projectMismatches +
+    orphanLinks;
 
   return {
     tablePresent: links.tablePresent !== false,
@@ -101,7 +118,12 @@ export function taskPullRequestReconciliationPlan({ links = [], tasks = [], pull
     const task = taskById.get(taskId);
     const distinctIds = [...new Set(taskLinks.map((link) => link.pullRequestId))];
     const pullRequest = distinctIds.length === 1 ? pullRequestById.get(distinctIds[0]) : null;
-    if (!task || !pullRequest || distinctIds.length !== 1 || task.projectId !== pullRequest.projectId) {
+    if (
+      !task ||
+      !pullRequest ||
+      distinctIds.length !== 1 ||
+      task.projectId !== pullRequest.projectId
+    ) {
       conflicts += 1;
       continue;
     }
@@ -123,14 +145,23 @@ function artifactMatches(artifact, collections) {
     );
   }
   const candidate = normalized(artifact.externalId);
-  const source = type === 'PULL_REQUEST' ? collections.pullRequests : type === 'ISSUE' ? collections.issues : [];
+  const source =
+    type === 'PULL_REQUEST' ? collections.pullRequests : type === 'ISSUE' ? collections.issues : [];
   return source.filter(
-    (item) => item.projectId === artifact.projectId && candidate &&
+    (item) =>
+      item.projectId === artifact.projectId &&
+      candidate &&
       [item.githubId, item.number].map(normalized).includes(candidate)
   );
 }
 
-export function reconcileArtifactRecords({ artifacts = [], projects = [], commits = [], pullRequests = [], issues = [] }) {
+export function reconcileArtifactRecords({
+  artifacts = [],
+  projects = [],
+  commits = [],
+  pullRequests = [],
+  issues = []
+}) {
   const projectIds = new Set(projects.map((project) => project.id));
   const seen = new Set();
   const convertibleCommits = [];
@@ -206,8 +237,14 @@ function canonicalLinkSets({ taskCommits = [], taskIssues = [] }) {
 }
 
 export function reconcileTraceLinkRecords({
-  traceLinks = [], tasks = [], requirements = [], commits = [], pullRequests = [], issues = [],
-  taskCommits = [], taskIssues = []
+  traceLinks = [],
+  tasks = [],
+  requirements = [],
+  commits = [],
+  pullRequests = [],
+  issues = [],
+  taskCommits = [],
+  taskIssues = []
 }) {
   const taskById = new Map(tasks.map((item) => [item.id, item]));
   const requirementById = new Map(requirements.map((item) => [item.id, item]));
@@ -216,7 +253,12 @@ export function reconcileTraceLinkRecords({
   const issueById = new Map(issues.map((item) => [item.id, item]));
   const canonical = canonicalLinkSets({ taskCommits, taskIssues });
   const plan = { taskCommits: [], taskIssues: [], taskPullRequests: [], requirementTasks: [] };
-  const planned = { taskCommits: new Set(), taskIssues: new Set(), requirementTasks: new Set(), taskPullRequests: new Map() };
+  const planned = {
+    taskCommits: new Set(),
+    taskIssues: new Set(),
+    requirementTasks: new Set(),
+    taskPullRequests: new Map()
+  };
   const seen = new Set();
   const report = {
     examined: traceLinks.length,
@@ -242,7 +284,11 @@ export function reconcileTraceLinkRecords({
     const pair = [source, target];
     const taskRef = pair.find((item) => item.type === 'TASK');
     const other = pair.find((item) => item !== taskRef);
-    if (!taskRef || !other || !['REQUIREMENT', 'COMMIT', 'ISSUE', 'PULL_REQUEST', 'PULLREQUEST', 'PR'].includes(other.type)) {
+    if (
+      !taskRef ||
+      !other ||
+      !['REQUIREMENT', 'COMMIT', 'ISSUE', 'PULL_REQUEST', 'PULLREQUEST', 'PR'].includes(other.type)
+    ) {
       report.unsupported += 1;
       report.exclusiveRecords += 1;
       continue;
@@ -267,7 +313,8 @@ export function reconcileTraceLinkRecords({
       } else if (task.requirementId === artifact.id) report.reconciled += 1;
       else {
         relationKey = `${task.id}:${artifact.id}`;
-        if (!planned.requirementTasks.has(relationKey)) plan.requirementTasks.push({ taskId: task.id, requirementId: artifact.id });
+        if (!planned.requirementTasks.has(relationKey))
+          plan.requirementTasks.push({ taskId: task.id, requirementId: artifact.id });
         planned.requirementTasks.add(relationKey);
         report.pending += 1;
       }
@@ -282,7 +329,8 @@ export function reconcileTraceLinkRecords({
         report.exclusiveRecords += 1;
       } else if (canonical.taskCommits.has(relationKey)) report.reconciled += 1;
       else {
-        if (!planned.taskCommits.has(relationKey)) plan.taskCommits.push({ taskId: task.id, commitId: artifact.id });
+        if (!planned.taskCommits.has(relationKey))
+          plan.taskCommits.push({ taskId: task.id, commitId: artifact.id });
         planned.taskCommits.add(relationKey);
         report.pending += 1;
       }
@@ -297,7 +345,8 @@ export function reconcileTraceLinkRecords({
         report.exclusiveRecords += 1;
       } else if (canonical.taskIssues.has(relationKey)) report.reconciled += 1;
       else {
-        if (!planned.taskIssues.has(relationKey)) plan.taskIssues.push({ taskId: task.id, issueId: artifact.id });
+        if (!planned.taskIssues.has(relationKey))
+          plan.taskIssues.push({ taskId: task.id, issueId: artifact.id });
         planned.taskIssues.add(relationKey);
         report.pending += 1;
       }
@@ -310,7 +359,10 @@ export function reconcileTraceLinkRecords({
       report.exclusiveRecords += 1;
     } else {
       const previouslyPlanned = planned.taskPullRequests.get(task.id);
-      if ((task.pullRequestId && task.pullRequestId !== artifact.id) || (previouslyPlanned && previouslyPlanned !== artifact.id)) {
+      if (
+        (task.pullRequestId && task.pullRequestId !== artifact.id) ||
+        (previouslyPlanned && previouslyPlanned !== artifact.id)
+      ) {
         report.conflicts += 1;
         report.exclusiveRecords += 1;
       } else if (task.pullRequestId === artifact.id) report.reconciled += 1;

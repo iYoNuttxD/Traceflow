@@ -224,9 +224,7 @@ export function RequirementsScreen() {
 
   function handleSelectTask(task) {
     setTaskOptions((current) =>
-      current.some((item) => String(item.id) === String(task.id))
-        ? current
-        : [task, ...current]
+      current.some((item) => String(item.id) === String(task.id)) ? current : [task, ...current]
     );
     setFormData((current) => {
       const taskIds = current.taskIds || [];
@@ -263,9 +261,7 @@ export function RequirementsScreen() {
       setSuccess(response.message || 'Requisito concluído com sucesso.');
       setRequirements((current) =>
         current.map((requirement) =>
-          String(requirement.id) === String(requirementId)
-            ? response.requirement
-            : requirement
+          String(requirement.id) === String(requirementId) ? response.requirement : requirement
         )
       );
       await loadRequirementsData();
@@ -279,7 +275,8 @@ export function RequirementsScreen() {
   async function handleDeleteRequirement(requirement) {
     const confirmed = await confirm({
       title: 'Excluir requisito',
-      description: 'Esta ação não poderá ser desfeita. As tarefas vinculadas serão mantidas, mas ficarão sem requisito vinculado.',
+      description:
+        'Esta ação não poderá ser desfeita. As tarefas vinculadas serão mantidas, mas ficarão sem requisito vinculado.',
       confirmLabel: 'Excluir requisito'
     });
 
@@ -428,12 +425,11 @@ export function RequirementsScreen() {
                 value={formData.type}
                 onChange={(event) => handleFormChange('type', event.target.value)}
               >
-                {formData.type &&
-                  !['FUNCIONAL', 'NAO_FUNCIONAL'].includes(formData.type) && (
-                    <option value={formData.type} disabled>
-                      {typeLabels[formData.type] || formData.type} (legado)
-                    </option>
-                  )}
+                {formData.type && !['FUNCIONAL', 'NAO_FUNCIONAL'].includes(formData.type) && (
+                  <option value={formData.type} disabled>
+                    {typeLabels[formData.type] || formData.type} (legado)
+                  </option>
+                )}
                 <option value="FUNCIONAL">Funcional</option>
                 <option value="NAO_FUNCIONAL">Não funcional</option>
               </select>
@@ -442,9 +438,7 @@ export function RequirementsScreen() {
             <section className="task-traceability-form field-full">
               <div>
                 <span className="form-section-title">Rastreabilidade</span>
-                <p className="field-help">
-                  Vincule tarefas do projeto a este requisito.
-                </p>
+                <p className="field-help">Vincule tarefas do projeto a este requisito.</p>
               </div>
 
               <div className="traceability-picker">
@@ -480,11 +474,7 @@ export function RequirementsScreen() {
                       <p>Nenhuma tarefa encontrada.</p>
                     ) : (
                       availableTaskResults.map((task) => (
-                        <button
-                          key={task.id}
-                          type="button"
-                          onClick={() => handleSelectTask(task)}
-                        >
+                        <button key={task.id} type="button" onClick={() => handleSelectTask(task)}>
                           {formatTaskLabel(task)}
                         </button>
                       ))
@@ -496,11 +486,7 @@ export function RequirementsScreen() {
 
             <div className="form-actions field-full">
               {editingRequirementId && (
-                <button
-                  className="button button-secondary"
-                  type="button"
-                  onClick={resetForm}
-                >
+                <button className="button button-secondary" type="button" onClick={resetForm}>
                   Cancelar edição
                 </button>
               )}

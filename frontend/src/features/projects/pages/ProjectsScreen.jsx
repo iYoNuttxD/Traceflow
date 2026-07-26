@@ -49,10 +49,7 @@ export function ProjectsScreen() {
         .map(normalizeRepository)
         .filter(
           (repository) =>
-            repository.owner &&
-            repository.name &&
-            repository.fullName &&
-            repository.url
+            repository.owner && repository.name && repository.fullName && repository.url
         );
       setRepositories(validRepositories);
     } catch {

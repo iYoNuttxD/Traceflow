@@ -16,17 +16,19 @@ export const taskMovementService = {
       projectId: id,
       total,
       movements: movements.map(formatMovement),
-      pagination: { page: pagination.page, limit: pagination.limit, total, totalPages: Math.ceil(total / pagination.limit) }
+      pagination: {
+        page: pagination.page,
+        limit: pagination.limit,
+        total,
+        totalPages: Math.ceil(total / pagination.limit)
+      }
     };
   },
 
   async getKanbanMetrics(projectId, query = {}) {
     const id = parseProjectId(projectId);
     await ensureProjectExists(id);
-    const totalMovements = await taskMovementRepository.count(
-      id,
-      buildMovementFilters(query)
-    );
+    const totalMovements = await taskMovementRepository.count(id, buildMovementFilters(query));
     return {
       projectId: id,
       indicator: 'Fluxo de trabalho das tarefas',

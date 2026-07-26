@@ -7,12 +7,16 @@ export const taskHistoryService = {
     const id = parseProjectId(projectId);
     await ensureProjectExists(id);
     const pagination = buildPagination(query);
-    const [total, entries] = await taskHistoryRepository.listPage(id, {
-      taskId: query.taskId,
-      actorUserId: query.actorUserId,
-      field: query.field,
-      occurredAt: buildMovedAtFilter(query.startDate, query.endDate)
-    }, pagination);
+    const [total, entries] = await taskHistoryRepository.listPage(
+      id,
+      {
+        taskId: query.taskId,
+        actorUserId: query.actorUserId,
+        field: query.field,
+        occurredAt: buildMovedAtFilter(query.startDate, query.endDate)
+      },
+      pagination
+    );
     return {
       projectId: id,
       total,
@@ -27,7 +31,12 @@ export const taskHistoryService = {
         toValue: entry.toValue,
         occurredAt: entry.occurredAt
       })),
-      pagination: { page: pagination.page, limit: pagination.limit, total, totalPages: Math.ceil(total / pagination.limit) }
+      pagination: {
+        page: pagination.page,
+        limit: pagination.limit,
+        total,
+        totalPages: Math.ceil(total / pagination.limit)
+      }
     };
   }
 };

@@ -114,7 +114,9 @@ function appendTaskArtifacts(task, nodes, edges) {
 
   if (task.pullRequest) {
     nodes.push(graphNode('pull-request', publicPullRequest(task.pullRequest)));
-    edges.push(graphEdge(EDGE_TYPES.TASK_PULL_REQUEST, 'task', task.id, 'pull-request', task.pullRequest.id));
+    edges.push(
+      graphEdge(EDGE_TYPES.TASK_PULL_REQUEST, 'task', task.id, 'pull-request', task.pullRequest.id)
+    );
   }
   for (const commit of commits) {
     nodes.push(graphNode('commit', publicCommit(commit)));
@@ -152,7 +154,9 @@ export function formatRequirementGraph(requirement, pagination) {
   const edges = [];
   for (const task of requirement.tasks || []) {
     nodes.push(graphNode('task', publicTask(task)));
-    edges.push(graphEdge(EDGE_TYPES.REQUIREMENT_TASK, 'requirement', requirement.id, 'task', task.id));
+    edges.push(
+      graphEdge(EDGE_TYPES.REQUIREMENT_TASK, 'requirement', requirement.id, 'task', task.id)
+    );
     appendTaskArtifacts(task, nodes, edges);
   }
   const graph = deduplicateGraph(nodes, edges);
@@ -175,11 +179,14 @@ export function formatTaskGraph(task, pagination) {
   const edges = [];
   if (task.requirement) {
     nodes.push(graphNode('requirement', publicRequirement(task.requirement)));
-    edges.push(graphEdge(EDGE_TYPES.REQUIREMENT_TASK, 'requirement', task.requirement.id, 'task', task.id));
+    edges.push(
+      graphEdge(EDGE_TYPES.REQUIREMENT_TASK, 'requirement', task.requirement.id, 'task', task.id)
+    );
   }
   appendTaskArtifacts(task, nodes, edges);
   const graph = deduplicateGraph(nodes, edges);
-  const hasTechnicalEvidence = task.hasTechnicalEvidence ?? Boolean(task.pullRequest || task.commitLinks?.length);
+  const hasTechnicalEvidence =
+    task.hasTechnicalEvidence ?? Boolean(task.pullRequest || task.commitLinks?.length);
   return {
     projectId: task.projectId,
     perspective: { type: 'TASK', id: task.id },
@@ -191,24 +198,28 @@ export function formatTaskGraph(task, pagination) {
 
 export function formatArtifactGraph({ artifact, artifactType, projectId, tasks }, pagination) {
   const type = artifactType === 'pull-request' ? 'pull-request' : artifactType;
-  const publicArtifact = type === 'commit'
-    ? publicCommit(artifact)
-    : type === 'issue'
-      ? publicIssue(artifact)
-      : publicPullRequest(artifact);
+  const publicArtifact =
+    type === 'commit'
+      ? publicCommit(artifact)
+      : type === 'issue'
+        ? publicIssue(artifact)
+        : publicPullRequest(artifact);
   const nodes = [graphNode(type, publicArtifact)];
   const edges = [];
   for (const task of tasks) {
     nodes.push(graphNode('task', publicTask(task)));
-    const edgeType = type === 'commit'
-      ? EDGE_TYPES.TASK_COMMIT
-      : type === 'issue'
-        ? EDGE_TYPES.TASK_ISSUE
-        : EDGE_TYPES.TASK_PULL_REQUEST;
+    const edgeType =
+      type === 'commit'
+        ? EDGE_TYPES.TASK_COMMIT
+        : type === 'issue'
+          ? EDGE_TYPES.TASK_ISSUE
+          : EDGE_TYPES.TASK_PULL_REQUEST;
     edges.push(graphEdge(edgeType, 'task', task.id, type, artifact.id));
     if (task.requirement) {
       nodes.push(graphNode('requirement', publicRequirement(task.requirement)));
-      edges.push(graphEdge(EDGE_TYPES.REQUIREMENT_TASK, 'requirement', task.requirement.id, 'task', task.id));
+      edges.push(
+        graphEdge(EDGE_TYPES.REQUIREMENT_TASK, 'requirement', task.requirement.id, 'task', task.id)
+      );
     }
   }
   return {

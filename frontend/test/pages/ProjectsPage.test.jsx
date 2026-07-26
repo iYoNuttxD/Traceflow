@@ -96,7 +96,9 @@ describe('ProjectsPage', () => {
     renderPage();
 
     expect(await screen.findByText('Falha artificial da API')).toBeInTheDocument();
-    expect(screen.getByText('Não foi possível carregar os repositórios do GitHub.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Não foi possível carregar os repositórios do GitHub.')
+    ).toBeInTheDocument();
   });
 
   it('submete o formulário pelo endpoint especializado e recarrega a lista', async () => {
@@ -107,10 +109,7 @@ describe('ProjectsPage', () => {
     await screen.findByText('Nenhum projeto cadastrado ainda.');
 
     await user.type(screen.getByLabelText('Nome do projeto *'), 'Projeto submetido');
-    await user.type(
-      screen.getByLabelText('Área ou equipe responsável *'),
-      'Equipe submetida'
-    );
+    await user.type(screen.getByLabelText('Área ou equipe responsável *'), 'Equipe submetida');
     await user.selectOptions(
       screen.getByLabelText('Repositório GitHub *'),
       fakeRepository.fullName

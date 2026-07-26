@@ -47,11 +47,14 @@ export const pullRequestRepository = {
       return { created: 0, updated: 0 };
     }
 
-    const existingGithubIds = new Set(await this.findGithubIdsByProjectId(
-      data[0].projectId,
-      data.map(({ githubId }) => githubId)
-    ));
-    const operations = data.map((pullRequest) => prisma.pullRequest.upsert({
+    const existingGithubIds = new Set(
+      await this.findGithubIdsByProjectId(
+        data[0].projectId,
+        data.map(({ githubId }) => githubId)
+      )
+    );
+    const operations = data.map((pullRequest) =>
+      prisma.pullRequest.upsert({
         where: {
           projectId_githubId: {
             projectId: pullRequest.projectId,
@@ -60,7 +63,8 @@ export const pullRequestRepository = {
         },
         update: buildPullRequestUpdate(pullRequest),
         create: pullRequest
-      }));
+      })
+    );
     await prisma.$transaction(operations);
 
     const updated = data.filter(({ githubId }) => existingGithubIds.has(githubId)).length;

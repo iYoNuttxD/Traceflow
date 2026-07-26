@@ -19,9 +19,23 @@ const task = {
   actualEffort: 3,
   createdAt: '2026-07-26T12:00:00.000Z',
   requirement: { id: 10, title: 'RF frontend' },
-  pullRequest: { id: 20, number: 15, title: 'Route splitting', githubUrl: 'https://github.com/example/pull/15' },
-  commits: [{ id: 30, hash: 'abcdef123', message: 'lazy routes', githubUrl: 'https://github.com/example/commit/abcdef123' }],
-  issues: [{ id: 40, number: 9, title: 'Bundle grande', githubUrl: 'https://github.com/example/issues/9' }]
+  pullRequest: {
+    id: 20,
+    number: 15,
+    title: 'Route splitting',
+    githubUrl: 'https://github.com/example/pull/15'
+  },
+  commits: [
+    {
+      id: 30,
+      hash: 'abcdef123',
+      message: 'lazy routes',
+      githubUrl: 'https://github.com/example/commit/abcdef123'
+    }
+  ],
+  issues: [
+    { id: 40, number: 9, title: 'Bundle grande', githubUrl: 'https://github.com/example/issues/9' }
+  ]
 };
 
 describe('apresentação de Tasks e Kanban', () => {
@@ -89,17 +103,19 @@ describe('apresentação de Tasks e Kanban', () => {
     const onFieldFilterChange = vi.fn();
     render(
       <MovementHistory
-        movements={[{
-          id: 1,
-          taskId: 7,
-          taskTitle: 'Consolidar frontend',
-          actorUserId: 2,
-          actor: { name: 'Pessoa responsável' },
-          field: 'STATUS',
-          fromValue: 'A_FAZER',
-          toValue: 'EM_ANDAMENTO',
-          occurredAt: '2026-07-26T12:00:00.000Z'
-        }]}
+        movements={[
+          {
+            id: 1,
+            taskId: 7,
+            taskTitle: 'Consolidar frontend',
+            actorUserId: 2,
+            actor: { name: 'Pessoa responsável' },
+            field: 'STATUS',
+            fromValue: 'A_FAZER',
+            toValue: 'EM_ANDAMENTO',
+            occurredAt: '2026-07-26T12:00:00.000Z'
+          }
+        ]}
         pagination={{ total: 11 }}
         rangeStart={1}
         rangeEnd={10}

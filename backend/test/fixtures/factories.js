@@ -1,6 +1,8 @@
 let sequence = 0;
 let authenticatedUserId;
-export function setAuthenticatedFixtureUser(userId) { authenticatedUserId = userId; }
+export function setAuthenticatedFixtureUser(userId) {
+  authenticatedUserId = userId;
+}
 
 function nextId() {
   sequence += 1;
@@ -11,16 +13,18 @@ export async function createProject(prisma, overrides = {}) {
   const unique = nextId();
 
   const data = {
-      name: `Projeto artificial ${unique}`,
-      responsibleTeam: 'Equipe artificial',
-      accessCode: `TEST-${unique}`,
-      status: 'ATIVO',
-      ...overrides
+    name: `Projeto artificial ${unique}`,
+    responsibleTeam: 'Equipe artificial',
+    accessCode: `TEST-${unique}`,
+    status: 'ATIVO',
+    ...overrides
   };
   if (!authenticatedUserId) return prisma.project.create({ data });
   return prisma.$transaction(async (tx) => {
     const project = await tx.project.create({ data });
-    await tx.projectMembership.create({ data: { projectId: project.id, userId: authenticatedUserId, role: 'OWNER' } });
+    await tx.projectMembership.create({
+      data: { projectId: project.id, userId: authenticatedUserId, role: 'OWNER' }
+    });
     return project;
   });
 }

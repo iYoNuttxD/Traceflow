@@ -8,7 +8,13 @@ export default function App() {
   return (
     <BrowserRouter>
       <ErrorBoundary>
-        <AuthProvider><ConfirmProvider><Layout><AppRoutes /></Layout></ConfirmProvider></AuthProvider>
+        <AuthProvider>
+          <ConfirmProvider>
+            <Layout>
+              <AppRoutes />
+            </Layout>
+          </ConfirmProvider>
+        </AuthProvider>
       </ErrorBoundary>
     </BrowserRouter>
   );

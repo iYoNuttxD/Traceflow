@@ -43,10 +43,7 @@ export function normalizeOptionalText(value) {
 
 export function validateStatus(status) {
   if (status === undefined || !allowedStatuses.has(status)) {
-    throw new TaskServiceError(
-      'Status inválido. Use A_FAZER, EM_ANDAMENTO ou CONCLUIDO.',
-      400
-    );
+    throw new TaskServiceError('Status inválido. Use A_FAZER, EM_ANDAMENTO ou CONCLUIDO.', 400);
   }
 }
 
@@ -96,16 +93,12 @@ export function buildTaskData(data, isCreate = false) {
   const payload = data && typeof data === 'object' ? data : {};
   if (
     (isCreate && (typeof payload.title !== 'string' || !payload.title.trim())) ||
-    (payload.title !== undefined &&
-      (typeof payload.title !== 'string' || !payload.title.trim()))
+    (payload.title !== undefined && (typeof payload.title !== 'string' || !payload.title.trim()))
   ) {
     throw new TaskServiceError('O título da tarefa é obrigatório.', 400);
   }
   if (payload.priority !== undefined && !allowedPriorities.has(payload.priority)) {
-    throw new TaskServiceError(
-      'Prioridade inválida. Use BAIXA, MEDIA, ALTA ou CRITICA.',
-      400
-    );
+    throw new TaskServiceError('Prioridade inválida. Use BAIXA, MEDIA, ALTA ou CRITICA.', 400);
   }
   if (
     isCreate &&
@@ -173,7 +166,10 @@ export function buildMovementFilters(query = {}) {
     movedAt: buildMovedAtFilter(query.startDate, query.endDate),
     taskId:
       query.taskId === undefined || query.taskId === '' ? undefined : parseTaskId(query.taskId),
-    actorUserId: query.actorUserId === undefined ? undefined : parsePositiveInteger(query.actorUserId, 'do ator'),
+    actorUserId:
+      query.actorUserId === undefined
+        ? undefined
+        : parsePositiveInteger(query.actorUserId, 'do ator'),
     movedBy: normalizeOptionalText(query.movedBy) || undefined
   };
 }

@@ -158,12 +158,12 @@ export function TaskForm({
   const [commitSearch, setCommitSearch] = useState('');
   const [issueSearch, setIssueSearch] = useState('');
   const commitSearchInputRef = useRef(null);
-  const activeMembers = projectMembers.filter((member) => member.isActive !== false && member.user?.isActive !== false);
+  const activeMembers = projectMembers.filter(
+    (member) => member.isActive !== false && member.user?.isActive !== false
+  );
   const hasMembers = activeMembers.length > 0;
   const normalizedResponsible = normalizeText(formData.responsible);
-  const hasLegacyResponsible =
-    normalizedResponsible &&
-    !formData.responsibleUserId;
+  const hasLegacyResponsible = normalizedResponsible && !formData.responsibleUserId;
   const linkedCommitIds = new Set((formData.commitIds || []).map(String));
   const linkedIssueIds = new Set((formData.issueIds || []).map(String));
   const normalizedRequirementSearch = normalizeText(requirementSearch).toLowerCase();
@@ -177,43 +177,43 @@ export function TaskForm({
       return false;
     }
 
-    const matchesTitle = requirement.title
-      ?.toLowerCase()
-      .includes(normalizedRequirementSearch);
+    const matchesTitle = requirement.title?.toLowerCase().includes(normalizedRequirementSearch);
     const matchesType = requirement.type?.toLowerCase().includes(normalizedRequirementSearch);
-    const matchesStatus = requirement.status
-      ?.toLowerCase()
-      .includes(normalizedRequirementSearch);
+    const matchesStatus = requirement.status?.toLowerCase().includes(normalizedRequirementSearch);
 
     return Boolean(matchesTitle || matchesType || matchesStatus);
   });
   const seenCommitKeys = new Set();
-  const availableCommitResults = commitResults.filter((commit) => {
-    const idKey = `id:${commit.id}`;
-    const hashKey = commit.hash ? `hash:${commit.hash.toLowerCase()}` : null;
-    if (linkedCommitIds.has(String(commit.id)) || seenCommitKeys.has(idKey) || (hashKey && seenCommitKeys.has(hashKey))) {
-      return false;
-    }
-    const matches = commit.hash?.toLowerCase().includes(normalizedCommitSearch) ||
-      commit.shortHash?.toLowerCase().includes(normalizedCommitSearch) ||
-      commit.message?.toLowerCase().includes(normalizedCommitSearch);
-    if (matches) {
-      seenCommitKeys.add(idKey);
-      if (hashKey) seenCommitKeys.add(hashKey);
-    }
-    return Boolean(matches);
-  }).slice(0, 20);
+  const availableCommitResults = commitResults
+    .filter((commit) => {
+      const idKey = `id:${commit.id}`;
+      const hashKey = commit.hash ? `hash:${commit.hash.toLowerCase()}` : null;
+      if (
+        linkedCommitIds.has(String(commit.id)) ||
+        seenCommitKeys.has(idKey) ||
+        (hashKey && seenCommitKeys.has(hashKey))
+      ) {
+        return false;
+      }
+      const matches =
+        commit.hash?.toLowerCase().includes(normalizedCommitSearch) ||
+        commit.shortHash?.toLowerCase().includes(normalizedCommitSearch) ||
+        commit.message?.toLowerCase().includes(normalizedCommitSearch);
+      if (matches) {
+        seenCommitKeys.add(idKey);
+        if (hashKey) seenCommitKeys.add(hashKey);
+      }
+      return Boolean(matches);
+    })
+    .slice(0, 20);
   const availablePullRequests = pullRequests.filter((pullRequest) => {
     if (String(pullRequest.id) === String(formData.pullRequestId)) {
       return false;
     }
 
     const matchesNumber =
-      pullRequestNumericSearch &&
-      Number(pullRequest.number) === Number(pullRequestNumericSearch);
-    const matchesTitle = pullRequest.title
-      ?.toLowerCase()
-      .includes(normalizedPullRequestSearch);
+      pullRequestNumericSearch && Number(pullRequest.number) === Number(pullRequestNumericSearch);
+    const matchesTitle = pullRequest.title?.toLowerCase().includes(normalizedPullRequestSearch);
 
     return Boolean(matchesNumber || matchesTitle);
   });
@@ -222,8 +222,7 @@ export function TaskForm({
       return false;
     }
 
-    const matchesNumber =
-      issueNumericSearch && Number(issue.number) === Number(issueNumericSearch);
+    const matchesNumber = issueNumericSearch && Number(issue.number) === Number(issueNumericSearch);
     const matchesTitle = issue.title?.toLowerCase().includes(normalizedIssueSearch);
 
     return Boolean(matchesNumber || matchesTitle);
@@ -364,9 +363,7 @@ export function TaskForm({
           disabled={!hasMembers}
         >
           <option value="">
-            {hasMembers
-              ? 'Selecione um responsável'
-              : 'Nenhum membro cadastrado'}
+            {hasMembers ? 'Selecione um responsável' : 'Nenhum membro cadastrado'}
           </option>
           {activeMembers.map((member) => (
             <option key={member.id} value={memberUserId(member)}>
@@ -388,12 +385,7 @@ export function TaskForm({
 
       <label className="field">
         <span>Prazo</span>
-        <input
-          type="date"
-          name="deadline"
-          value={formData.deadline}
-          onChange={handleChange}
-        />
+        <input type="date" name="deadline" value={formData.deadline} onChange={handleChange} />
       </label>
 
       <label className="field">
@@ -427,9 +419,7 @@ export function TaskForm({
       <section className="task-traceability-form field-full">
         <div>
           <span className="form-section-title">Rastreabilidade</span>
-          <p className="field-help">
-            Vincule a tarefa aos artefatos importados do GitHub.
-          </p>
+          <p className="field-help">Vincule a tarefa aos artefatos importados do GitHub.</p>
         </div>
 
         <div className="traceability-picker">
@@ -549,11 +539,7 @@ export function TaskForm({
                 <p>Nenhum commit encontrado.</p>
               ) : (
                 availableCommitResults.map((commit) => (
-                  <button
-                    key={commit.id}
-                    type="button"
-                    onClick={() => handleSelectCommit(commit)}
-                  >
+                  <button key={commit.id} type="button" onClick={() => handleSelectCommit(commit)}>
                     {formatCommitLabel(commit)}
                   </button>
                 ))
@@ -624,11 +610,7 @@ export function TaskForm({
                 <p>Nenhuma issue encontrada.</p>
               ) : (
                 availableIssueResults.map((issue) => (
-                  <button
-                    key={issue.id}
-                    type="button"
-                    onClick={() => handleSelectIssue(issue)}
-                  >
+                  <button key={issue.id} type="button" onClick={() => handleSelectIssue(issue)}>
                     {formatIssueLabel(issue)}
                   </button>
                 ))
@@ -645,11 +627,7 @@ export function TaskForm({
           </button>
         )}
         <button className="button button-primary" type="submit" disabled={submitting}>
-          {submitting
-            ? 'Salvando...'
-            : editing
-              ? 'Salvar alterações'
-              : 'Cadastrar tarefa'}
+          {submitting ? 'Salvando...' : editing ? 'Salvar alterações' : 'Cadastrar tarefa'}
         </button>
       </div>
     </form>

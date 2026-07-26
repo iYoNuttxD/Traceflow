@@ -3,26 +3,45 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfirmProvider } from '../../src/shared/index.js';
 
-const apiMock = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() }));
+const apiMock = vi.hoisted(() => ({
+  get: vi.fn(),
+  post: vi.fn(),
+  patch: vi.fn(),
+  delete: vi.fn()
+}));
 vi.mock('../../src/api/http-client.js', () => ({ httpClient: apiMock }));
 import { ProjectMembersPanel } from '../../src/features/members/ProjectMembersPanel.jsx';
 
-const member = { id: 2, role: 'MEMBER', isActive: true, user: { name: 'Pessoa artificial', email: 'p***@example.invalid' } };
+const member = {
+  id: 2,
+  role: 'MEMBER',
+  isActive: true,
+  user: { name: 'Pessoa artificial', email: 'p***@example.invalid' }
+};
 
 function renderPanel() {
-  return render(<ConfirmProvider><ProjectMembersPanel projectId="1" /></ConfirmProvider>);
+  return render(
+    <ConfirmProvider>
+      <ProjectMembersPanel projectId="1" />
+    </ConfirmProvider>
+  );
 }
 
 function mockList(role = 'OWNER') {
   apiMock.get.mockImplementation((path) => {
-    if (path.endsWith('/members')) return Promise.resolve({ data: { currentMembership: { id: 1, role, isActive: true }, members: [member] } });
+    if (path.endsWith('/members'))
+      return Promise.resolve({
+        data: { currentMembership: { id: 1, role, isActive: true }, members: [member] }
+      });
     if (path.endsWith('/invitations')) return Promise.resolve({ data: { invitations: [] } });
     return Promise.reject(new Error(`URL inesperada: ${path}`));
   });
 }
 
 describe('ProjectMembersPanel', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   it('exibe dados minimizados e oculta administração para MEMBER', async () => {
     mockList('MEMBER');
@@ -40,7 +59,9 @@ describe('ProjectMembersPanel', () => {
     renderPanel();
     const select = await screen.findByLabelText('Perfil de Pessoa artificial');
     await user.selectOptions(select, 'MANAGER');
-    await waitFor(() => expect(apiMock.patch).toHaveBeenCalledWith('/projects/1/members/2', { role: 'MANAGER' }));
+    await waitFor(() =>
+      expect(apiMock.patch).toHaveBeenCalledWith('/projects/1/members/2', { role: 'MANAGER' })
+    );
   });
 
   it('permite saída própria confirmada sem tentar recarregar o projeto', async () => {
@@ -57,7 +78,9 @@ describe('ProjectMembersPanel', () => {
   it('confirma desativação e envia convite sem expor token', async () => {
     mockList('OWNER');
     apiMock.delete.mockResolvedValue({});
-    apiMock.post.mockResolvedValue({ data: { invitation: { id: 4, email: 'invite@example.invalid', role: 'VIEWER' } } });
+    apiMock.post.mockResolvedValue({
+      data: { invitation: { id: 4, email: 'invite@example.invalid', role: 'VIEWER' } }
+    });
     const user = userEvent.setup();
     renderPanel();
     await user.click(await screen.findByRole('button', { name: 'Desativar' }));
@@ -66,6 +89,11 @@ describe('ProjectMembersPanel', () => {
     await user.type(screen.getByLabelText('E-mail do convite'), 'invite@example.invalid');
     await user.selectOptions(screen.getByLabelText('Papel do convite'), 'VIEWER');
     await user.click(screen.getByRole('button', { name: 'Enviar convite' }));
-    await waitFor(() => expect(apiMock.post).toHaveBeenCalledWith('/projects/1/invitations', { email: 'invite@example.invalid', role: 'VIEWER' }));
+    await waitFor(() =>
+      expect(apiMock.post).toHaveBeenCalledWith('/projects/1/invitations', {
+        email: 'invite@example.invalid',
+        role: 'VIEWER'
+      })
+    );
   });
 });

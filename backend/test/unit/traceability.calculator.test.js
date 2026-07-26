@@ -9,23 +9,54 @@ import {
 
 describe('cálculos atuais de rastreabilidade', () => {
   it('distingue ausência de denominador de zero real e arredonda', () => {
-    expect(calculateProgress([])).toEqual({ numerator: 0, denominator: 0, percentage: null, hasData: false });
-    expect(calculateProgress([{ status: 'CONCLUIDO' }, { status: 'A_FAZER' }, { status: 'A_FAZER' }])).toEqual({ numerator: 1, denominator: 3, percentage: 33.33, hasData: true });
-    expect(buildCoverageMetric(0, 10)).toEqual({ numerator: 0, denominator: 10, percentage: 0, hasData: true });
+    expect(calculateProgress([])).toEqual({
+      numerator: 0,
+      denominator: 0,
+      percentage: null,
+      hasData: false
+    });
+    expect(
+      calculateProgress([{ status: 'CONCLUIDO' }, { status: 'A_FAZER' }, { status: 'A_FAZER' }])
+    ).toEqual({ numerator: 1, denominator: 3, percentage: 33.33, hasData: true });
+    expect(buildCoverageMetric(0, 10)).toEqual({
+      numerator: 0,
+      denominator: 10,
+      percentage: 0,
+      hasData: true
+    });
   });
 
   it('calcula resumo global com o denominador de todas as linhas', () => {
     const summary = buildMatrixSummary([
-      { tasksCount: 1, hasTechnicalEvidence: true, implementationStatus: 'IMPLEMENTADO', progress: { numerator: 1, denominator: 1 } },
-      { tasksCount: 0, hasTechnicalEvidence: false, implementationStatus: 'SEM_RASTREABILIDADE', progress: { numerator: 0, denominator: 0 } }
+      {
+        tasksCount: 1,
+        hasTechnicalEvidence: true,
+        implementationStatus: 'IMPLEMENTADO',
+        progress: { numerator: 1, denominator: 1 }
+      },
+      {
+        tasksCount: 0,
+        hasTechnicalEvidence: false,
+        implementationStatus: 'SEM_RASTREABILIDADE',
+        progress: { numerator: 0, denominator: 0 }
+      }
     ]);
-    expect(summary).toMatchObject({ totalRequirements: 2, averageProgress: { numerator: 100, denominator: 2, percentage: 50, hasData: true } });
+    expect(summary).toMatchObject({
+      totalRequirements: 2,
+      averageProgress: { numerator: 100, denominator: 2, percentage: 50, hasData: true }
+    });
   });
 
   it('preserva os estados atuais de implementação', () => {
-    expect(getImplementationStatus({ status: 'CADASTRADO' }, [], false)).toBe('SEM_RASTREABILIDADE');
-    expect(getImplementationStatus({ status: 'CADASTRADO' }, [{ status: 'A_FAZER' }], false)).toBe('PLANEJADO');
-    expect(getImplementationStatus({ status: 'CADASTRADO' }, [{ status: 'CONCLUIDO' }], true)).toBe('IMPLEMENTADO');
+    expect(getImplementationStatus({ status: 'CADASTRADO' }, [], false)).toBe(
+      'SEM_RASTREABILIDADE'
+    );
+    expect(getImplementationStatus({ status: 'CADASTRADO' }, [{ status: 'A_FAZER' }], false)).toBe(
+      'PLANEJADO'
+    );
+    expect(getImplementationStatus({ status: 'CADASTRADO' }, [{ status: 'CONCLUIDO' }], true)).toBe(
+      'IMPLEMENTADO'
+    );
     expect(getImplementationStatus({ status: 'CONCLUIDO' }, [], false)).toBe('CONCLUIDO');
   });
 

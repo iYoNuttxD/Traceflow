@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react';
 import { setCsrfToken } from '../../api/http-client.js';
 import { authApi } from './api/auth.api.js';
 
@@ -45,17 +53,20 @@ export function AuthProvider({ children }) {
     setCsrfToken(data.csrfToken);
     return data.user;
   }, []);
-  const value = useMemo(() => ({
-    user,
-    loading,
-    login: (values) => authenticate(authApi.login, values),
-    register: (values) => authenticate(authApi.register, values),
-    logout: async () => {
-      await authApi.logout();
-      clear();
-    },
-    refresh
-  }), [user, loading, authenticate, clear, refresh]);
+  const value = useMemo(
+    () => ({
+      user,
+      loading,
+      login: (values) => authenticate(authApi.login, values),
+      register: (values) => authenticate(authApi.register, values),
+      logout: async () => {
+        await authApi.logout();
+        clear();
+      },
+      refresh
+    }),
+    [user, loading, authenticate, clear, refresh]
+  );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 export const useAuth = () => useContext(AuthContext);

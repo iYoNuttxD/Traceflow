@@ -13,7 +13,11 @@ describe('formulários de identidade acessíveis', () => {
 
   it('foca o primeiro campo obrigatório e não envia formulário inválido', async () => {
     const user = userEvent.setup();
-    render(<MemoryRouter><LoginPage /></MemoryRouter>);
+    render(
+      <MemoryRouter>
+        <LoginPage />
+      </MemoryRouter>
+    );
     await user.click(screen.getByRole('button', { name: 'Entrar' }));
     expect(screen.getByLabelText(/E-mail/)).toHaveFocus();
     expect(screen.getByLabelText(/E-mail/)).toHaveAccessibleDescription('Campo obrigatório.');
@@ -21,9 +25,21 @@ describe('formulários de identidade acessíveis', () => {
   });
 
   it('mapeia fieldErrors seguros do backend e reabilita o submit', async () => {
-    auth.register.mockRejectedValue({ response: { status: 400, data: { message: 'Dados inválidos.', details: [{ field: 'body.email', message: 'E-mail inválido.' }] } } });
+    auth.register.mockRejectedValue({
+      response: {
+        status: 400,
+        data: {
+          message: 'Dados inválidos.',
+          details: [{ field: 'body.email', message: 'E-mail inválido.' }]
+        }
+      }
+    });
     const user = userEvent.setup();
-    render(<MemoryRouter><RegisterPage /></MemoryRouter>);
+    render(
+      <MemoryRouter>
+        <RegisterPage />
+      </MemoryRouter>
+    );
     await user.type(screen.getByLabelText(/Nome/), 'Pessoa');
     await user.type(screen.getByLabelText(/E-mail/), 'invalid');
     await user.type(screen.getByLabelText(/Senha/), 'senha');

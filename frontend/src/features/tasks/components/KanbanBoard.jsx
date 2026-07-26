@@ -1,7 +1,20 @@
 import { KanbanColumn } from './KanbanColumn.jsx';
-import { formatDate, getTraceabilitySummary, KANBAN_COLUMNS, priorityLabels } from './kanban-display.js';
+import {
+  formatDate,
+  getTraceabilitySummary,
+  KANBAN_COLUMNS,
+  priorityLabels
+} from './kanban-display.js';
 
-function KanbanTaskCard({ task, moving, dragging, onSelect, onKeyboardSelect, onDragStart, onDragEnd }) {
+function KanbanTaskCard({
+  task,
+  moving,
+  dragging,
+  onSelect,
+  onKeyboardSelect,
+  onDragStart,
+  onDragEnd
+}) {
   const priority = task.priority || 'MEDIA';
   return (
     <article
@@ -21,19 +34,42 @@ function KanbanTaskCard({ task, moving, dragging, onSelect, onKeyboardSelect, on
     >
       <div className="kanban-task-header">
         <strong>{task.title}</strong>
-        <span className={`priority-badge priority-${priority.toLowerCase()}`}>{priorityLabels[priority] || priority}</span>
+        <span className={`priority-badge priority-${priority.toLowerCase()}`}>
+          {priorityLabels[priority] || priority}
+        </span>
       </div>
       <dl className="kanban-task-details">
-        <div><dt>Responsável</dt><dd>{task.responsibleUser?.name || task.responsible || 'Não informado'}</dd></div>
-        <div><dt>Prazo</dt><dd>{formatDate(task.deadline)}</dd></div>
-        <div><dt>Rastreabilidade</dt><dd>{getTraceabilitySummary(task)}</dd></div>
+        <div>
+          <dt>Responsável</dt>
+          <dd>{task.responsibleUser?.name || task.responsible || 'Não informado'}</dd>
+        </div>
+        <div>
+          <dt>Prazo</dt>
+          <dd>{formatDate(task.deadline)}</dd>
+        </div>
+        <div>
+          <dt>Rastreabilidade</dt>
+          <dd>{getTraceabilitySummary(task)}</dd>
+        </div>
       </dl>
       {moving && <span className="kanban-task-moving-label">Movendo...</span>}
     </article>
   );
 }
 
-export function KanbanBoard({ board, movingTaskId, draggingTaskId, dragOverStatus, onSelectTask, onKeyboardSelectTask = onSelectTask, onTaskDragStart, onTaskDragEnd, onColumnDragOver, onColumnDragLeave, onColumnDrop }) {
+export function KanbanBoard({
+  board,
+  movingTaskId,
+  draggingTaskId,
+  dragOverStatus,
+  onSelectTask,
+  onKeyboardSelectTask = onSelectTask,
+  onTaskDragStart,
+  onTaskDragEnd,
+  onColumnDragOver,
+  onColumnDragLeave,
+  onColumnDrop
+}) {
   return (
     <div className="kanban-board">
       {KANBAN_COLUMNS.map((column) => {
@@ -47,7 +83,9 @@ export function KanbanBoard({ board, movingTaskId, draggingTaskId, dragOverStatu
             onDragLeave={(event) => onColumnDragLeave(event, column.status)}
             onDrop={(event) => onColumnDrop(event, column.status)}
           >
-            {tasks.length === 0 ? <p className="kanban-empty">Nenhuma tarefa nesta etapa.</p> : (
+            {tasks.length === 0 ? (
+              <p className="kanban-empty">Nenhuma tarefa nesta etapa.</p>
+            ) : (
               <div className="kanban-task-list">
                 {tasks.map((task) => (
                   <KanbanTaskCard

@@ -16,7 +16,27 @@ import {
 function ConfirmFixture() {
   const confirm = useConfirm();
   const [result, setResult] = useState('');
-  return <><button type="button" onClick={async () => setResult(await confirm({ title: 'Excluir registro', description: 'A ação é permanente.', confirmLabel: 'Excluir' }) ? 'confirmado' : 'cancelado')}>Abrir confirmação</button><output>{result}</output></>;
+  return (
+    <>
+      <button
+        type="button"
+        onClick={async () =>
+          setResult(
+            (await confirm({
+              title: 'Excluir registro',
+              description: 'A ação é permanente.',
+              confirmLabel: 'Excluir'
+            }))
+              ? 'confirmado'
+              : 'cancelado'
+          )
+        }
+      >
+        Abrir confirmação
+      </button>
+      <output>{result}</output>
+    </>
+  );
 }
 
 describe('infraestrutura acessível compartilhada', () => {
@@ -31,7 +51,12 @@ describe('infraestrutura acessível compartilhada', () => {
   });
 
   it('associa erro ao campo e anuncia feedback sem depender de cor', () => {
-    render(<><FormInput id="title" label="Título" required error="Campo obrigatório." /><FeedbackRegion success="Salvo com sucesso." /></>);
+    render(
+      <>
+        <FormInput id="title" label="Título" required error="Campo obrigatório." />
+        <FeedbackRegion success="Salvo com sucesso." />
+      </>
+    );
     const input = screen.getByLabelText(/Título/);
     expect(input).toHaveAttribute('aria-invalid', 'true');
     expect(input).toHaveAccessibleDescription('Campo obrigatório.');
@@ -40,7 +65,11 @@ describe('infraestrutura acessível compartilhada', () => {
 
   it('cancela por Escape e restaura o foco no acionador', async () => {
     const user = userEvent.setup();
-    render(<ConfirmProvider><ConfirmFixture /></ConfirmProvider>);
+    render(
+      <ConfirmProvider>
+        <ConfirmFixture />
+      </ConfirmProvider>
+    );
     const trigger = screen.getByRole('button', { name: 'Abrir confirmação' });
     trigger.focus();
     await user.click(trigger);
@@ -52,7 +81,11 @@ describe('infraestrutura acessível compartilhada', () => {
 
   it('confirma por teclado dentro do dialog', async () => {
     const user = userEvent.setup();
-    render(<ConfirmProvider><ConfirmFixture /></ConfirmProvider>);
+    render(
+      <ConfirmProvider>
+        <ConfirmFixture />
+      </ConfirmProvider>
+    );
     await user.click(screen.getByRole('button', { name: 'Abrir confirmação' }));
     await user.click(screen.getByRole('button', { name: 'Excluir' }));
     expect(await screen.findByText('confirmado')).toBeInTheDocument();
@@ -60,9 +93,17 @@ describe('infraestrutura acessível compartilhada', () => {
 
   it('isola falha de renderização sem expor stack ou mensagem interna', () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-    function BrokenView() { throw new Error('segredo-interno'); }
-    render(<ErrorBoundary><BrokenView /></ErrorBoundary>);
-    expect(screen.getByRole('heading', { name: 'Não foi possível exibir esta página.' })).toBeInTheDocument();
+    function BrokenView() {
+      throw new Error('segredo-interno');
+    }
+    render(
+      <ErrorBoundary>
+        <BrokenView />
+      </ErrorBoundary>
+    );
+    expect(
+      screen.getByRole('heading', { name: 'Não foi possível exibir esta página.' })
+    ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Tentar novamente' })).toBeInTheDocument();
     expect(screen.queryByText(/segredo-interno/)).not.toBeInTheDocument();
     consoleError.mockRestore();

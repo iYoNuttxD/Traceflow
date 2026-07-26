@@ -182,65 +182,74 @@ describe('GitHub, SSRF e segredos', () => {
   });
 
   it('faz retry limitado de falha transitória sem espera real', async () => {
-    const operation = vi.fn()
+    const operation = vi
+      .fn()
       .mockRejectedValueOnce({ status: 503 })
       .mockResolvedValue({ data: 'ok' });
     const wait = vi.fn().mockResolvedValue();
-    await expect(executeGithubRequest(operation, {
-      maxRetries: 2,
-      wait,
-      random: () => 0
-    })).resolves.toEqual({ data: 'ok' });
+    await expect(
+      executeGithubRequest(operation, {
+        maxRetries: 2,
+        wait,
+        random: () => 0
+      })
+    ).resolves.toEqual({ data: 'ok' });
     expect(operation).toHaveBeenCalledTimes(2);
     expect(wait).toHaveBeenCalledWith(250);
   });
 
   it('não repete autenticação e encerra no máximo configurado', async () => {
     const authOperation = vi.fn().mockRejectedValue({ status: 401 });
-    await expect(executeGithubRequest(authOperation, { maxRetries: 3, wait: vi.fn() }))
-      .rejects.toBeInstanceOf(ExternalServiceError);
+    await expect(
+      executeGithubRequest(authOperation, { maxRetries: 3, wait: vi.fn() })
+    ).rejects.toBeInstanceOf(ExternalServiceError);
     expect(authOperation).toHaveBeenCalledOnce();
 
     const transient = vi.fn().mockRejectedValue({ status: 503 });
-    await expect(executeGithubRequest(transient, {
-      maxRetries: 2,
-      wait: vi.fn().mockResolvedValue(),
-      random: () => 0
-    })).rejects.toBeInstanceOf(ExternalServiceError);
+    await expect(
+      executeGithubRequest(transient, {
+        maxRetries: 2,
+        wait: vi.fn().mockResolvedValue(),
+        random: () => 0
+      })
+    ).rejects.toBeInstanceOf(ExternalServiceError);
     expect(transient).toHaveBeenCalledTimes(3);
   });
 
   it('normaliza timeout e rate limit 403/429 sem carregar token', async () => {
     expect(isRetryableGithubError({ code: 'ETIMEDOUT' })).toBe(true);
     expect(isRetryableGithubError({ status: 403 })).toBe(false);
-    expect(calculateGithubRetryDelay({ response: { headers: { 'retry-after': '9' } } }, 0))
-      .toBe(2000);
-    await expect(executeGithubRequest(
-      vi.fn().mockRejectedValue({ code: 'ETIMEDOUT', message: 'token=segredo' }),
-      { maxRetries: 0 }
-    )).rejects.toMatchObject({ statusCode: 503, code: ERROR_CODES.EXTERNAL_SERVICE_ERROR });
-    await expect(executeGithubRequest(
-      vi.fn().mockRejectedValue({
-        status: 403,
-        response: { headers: { 'x-ratelimit-remaining': '0', authorization: 'token-real' } }
-      }),
-      { maxRetries: 0 }
-    )).rejects.toMatchObject({ statusCode: 429, code: ERROR_CODES.GITHUB_RATE_LIMITED });
-    await expect(executeGithubRequest(
-      vi.fn().mockRejectedValue({ status: 429, response: { headers: { token: 'token-real' } } }),
-      { maxRetries: 0 }
-    )).rejects.toMatchObject({ statusCode: 429, code: ERROR_CODES.GITHUB_RATE_LIMITED });
+    expect(calculateGithubRetryDelay({ response: { headers: { 'retry-after': '9' } } }, 0)).toBe(
+      2000
+    );
+    await expect(
+      executeGithubRequest(
+        vi.fn().mockRejectedValue({ code: 'ETIMEDOUT', message: 'token=segredo' }),
+        { maxRetries: 0 }
+      )
+    ).rejects.toMatchObject({ statusCode: 503, code: ERROR_CODES.EXTERNAL_SERVICE_ERROR });
+    await expect(
+      executeGithubRequest(
+        vi.fn().mockRejectedValue({
+          status: 403,
+          response: { headers: { 'x-ratelimit-remaining': '0', authorization: 'token-real' } }
+        }),
+        { maxRetries: 0 }
+      )
+    ).rejects.toMatchObject({ statusCode: 429, code: ERROR_CODES.GITHUB_RATE_LIMITED });
+    await expect(
+      executeGithubRequest(
+        vi.fn().mockRejectedValue({ status: 429, response: { headers: { token: 'token-real' } } }),
+        { maxRetries: 0 }
+      )
+    ).rejects.toMatchObject({ statusCode: 429, code: ERROR_CODES.GITHUB_RATE_LIMITED });
   });
 
   it('scanner detecta fixture controlada e ignora placeholder permitido', () => {
-    const unsafe = readFileSync(
-      resolve('test/fixtures/security/unsafe-secret.txt'),
-      'utf8'
-    );
+    const unsafe = readFileSync(resolve('test/fixtures/security/unsafe-secret.txt'), 'utf8');
     expect(scanText(unsafe, 'unsafe-secret.txt')).toEqual([
       { file: 'unsafe-secret.txt', line: 1, type: 'GitHub token' }
     ]);
-    expect(scanText('DATABASE_URL="mysql://usuario:senha@localhost:3306/traceflow"'))
-      .toEqual([]);
+    expect(scanText('DATABASE_URL="mysql://usuario:senha@localhost:3306/traceflow"')).toEqual([]);
   });
 });

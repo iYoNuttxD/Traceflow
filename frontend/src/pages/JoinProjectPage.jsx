@@ -102,7 +102,10 @@ export function JoinProjectPage() {
       </Card>
 
       {joinedProject && (
-        <Link className="button button-secondary link-button join-project-link" to={`/projects/${joinedProject.id}`}>
+        <Link
+          className="button button-secondary link-button join-project-link"
+          to={`/projects/${joinedProject.id}`}
+        >
           Abrir projeto
         </Link>
       )}

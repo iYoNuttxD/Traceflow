@@ -19,7 +19,11 @@ export function LoginPage() {
 
   async function submit(event) {
     event.preventDefault();
-    const validation = Object.fromEntries(Object.entries(values).filter(([, value]) => !value.trim()).map(([field]) => [field, 'Campo obrigatório.']));
+    const validation = Object.fromEntries(
+      Object.entries(values)
+        .filter(([, value]) => !value.trim())
+        .map(([field]) => [field, 'Campo obrigatório.'])
+    );
     if (Object.keys(validation).length) {
       setFieldErrors(validation);
       queueMicrotask(() => document.getElementById(Object.keys(validation)[0])?.focus());
@@ -34,16 +38,44 @@ export function LoginPage() {
       const normalized = normalizeApiError(cause);
       setError(normalized.message);
       setFieldErrors(normalized.fieldErrors);
-      queueMicrotask(() => document.getElementById(Object.keys(normalized.fieldErrors)[0])?.focus());
+      queueMicrotask(() =>
+        document.getElementById(Object.keys(normalized.fieldErrors)[0])?.focus()
+      );
     } finally {
       setSubmitting(false);
     }
   }
 
-  return <main className="page"><h1>Entrar</h1><form onSubmit={submit} noValidate>
-    <FormInput id="email" name="email" label="E-mail" type="email" value={values.email} onChange={(event) => change('email', event.target.value)} required error={fieldErrors.email} />
-    <FormInput id="password" name="password" label="Senha" type="password" value={values.password} onChange={(event) => change('password', event.target.value)} required error={fieldErrors.password} />
-    <FeedbackRegion error={error} />
-    <button type="submit" disabled={submitting}>{submitting ? 'Entrando...' : 'Entrar'}</button>
-  </form><Link to="/forgot-password">Esqueci minha senha</Link> <Link to="/register">Criar conta</Link></main>;
+  return (
+    <main className="page">
+      <h1>Entrar</h1>
+      <form onSubmit={submit} noValidate>
+        <FormInput
+          id="email"
+          name="email"
+          label="E-mail"
+          type="email"
+          value={values.email}
+          onChange={(event) => change('email', event.target.value)}
+          required
+          error={fieldErrors.email}
+        />
+        <FormInput
+          id="password"
+          name="password"
+          label="Senha"
+          type="password"
+          value={values.password}
+          onChange={(event) => change('password', event.target.value)}
+          required
+          error={fieldErrors.password}
+        />
+        <FeedbackRegion error={error} />
+        <button type="submit" disabled={submitting}>
+          {submitting ? 'Entrando...' : 'Entrar'}
+        </button>
+      </form>
+      <Link to="/forgot-password">Esqueci minha senha</Link> <Link to="/register">Criar conta</Link>
+    </main>
+  );
 }

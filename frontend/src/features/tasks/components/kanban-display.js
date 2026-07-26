@@ -35,9 +35,7 @@ export const historyFieldLabels = {
 };
 
 export function formatDate(value) {
-  return value
-    ? new Date(value).toLocaleDateString('pt-BR', { timeZone: 'UTC' })
-    : 'Não informado';
+  return value ? new Date(value).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : 'Não informado';
 }
 
 export function formatDateTime(value) {
@@ -50,7 +48,9 @@ export function formatHistoryValue(field, value, members) {
   if (field === 'PRIORITY') return priorityLabels[value] || value;
   if (field === 'DEADLINE') return formatDate(value);
   if (field === 'RESPONSIBLE') {
-    const membership = members.find((item) => String(item.user?.id || item.userId) === String(value));
+    const membership = members.find(
+      (item) => String(item.user?.id || item.userId) === String(value)
+    );
     return membership?.user?.name || `Usuário #${value}`;
   }
   return value;

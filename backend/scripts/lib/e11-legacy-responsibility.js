@@ -18,7 +18,8 @@ export class E11ReconciliationBlockedError extends Error {
 }
 
 export function resolveMovementEvidence({ movement, users, memberships }) {
-  if (movement.movedByUserId) return { status: 'ALREADY_RECONCILED', userId: movement.movedByUserId };
+  if (movement.movedByUserId)
+    return { status: 'ALREADY_RECONCILED', userId: movement.movedByUserId };
   const member = movement.projectMember;
   if (!member || member.projectId !== movement.projectId || !normalizedEmail(member.email)) {
     return { status: 'UNRESOLVED_PRESERVED' };
@@ -29,10 +30,11 @@ export function resolveMovementEvidence({ movement, users, memberships }) {
   if (candidates.length !== 1) return { status: 'UNRESOLVED_PRESERVED' };
 
   const user = candidates[0];
-  const activeMembership = memberships.some((membership) =>
-    membership.projectId === movement.projectId &&
-    membership.userId === user.id &&
-    membership.isActive === true
+  const activeMembership = memberships.some(
+    (membership) =>
+      membership.projectId === movement.projectId &&
+      membership.userId === user.id &&
+      membership.isActive === true
   );
   return activeMembership
     ? { status: 'RECONCILABLE', userId: user.id }
@@ -40,7 +42,9 @@ export function resolveMovementEvidence({ movement, users, memberships }) {
 }
 
 export function buildTaskMappingFile({ tasks, memberships, previousMappings = [] }) {
-  const selectedByTask = new Map(previousMappings.map((entry) => [Number(entry.taskId), entry.selectedUserId ?? null]));
+  const selectedByTask = new Map(
+    previousMappings.map((entry) => [Number(entry.taskId), entry.selectedUserId ?? null])
+  );
   return {
     mappings: tasks
       .filter((task) => task.responsible && !task.responsibleUserId)
@@ -79,11 +83,16 @@ export function validateTaskMappings({ tasks, mappings, memberships }) {
   for (const task of tasks.filter((item) => item.responsible && !item.responsibleUserId)) {
     const entry = mappingByTask.get(task.id);
     const selectedUserId = positiveInteger(entry?.selectedUserId);
-    const valid = entry && Number(entry.projectId) === task.projectId && selectedUserId && memberships.some((membership) =>
-      membership.projectId === task.projectId &&
-      membership.userId === selectedUserId &&
-      membership.isActive === true
-    );
+    const valid =
+      entry &&
+      Number(entry.projectId) === task.projectId &&
+      selectedUserId &&
+      memberships.some(
+        (membership) =>
+          membership.projectId === task.projectId &&
+          membership.userId === selectedUserId &&
+          membership.isActive === true
+      );
     if (!valid) blocked.push(task.id);
     else plan.push({ taskId: task.id, projectId: task.projectId, userId: selectedUserId });
   }
@@ -118,8 +127,8 @@ export function buildE11Audit({ tasks, movements, users, memberships }) {
   }));
   const textOnlyTasks = tasks.filter((task) => task.responsible && !task.responsibleUserId);
   const tasksWithBoth = tasks.filter((task) => task.responsible && task.responsibleUserId);
-  const divergent = tasksWithBoth.filter((task) =>
-    task.responsibleUser && task.responsible.trim() !== task.responsibleUser.name.trim()
+  const divergent = tasksWithBoth.filter(
+    (task) => task.responsibleUser && task.responsible.trim() !== task.responsibleUser.name.trim()
   );
 
   return {
@@ -128,15 +137,24 @@ export function buildE11Audit({ tasks, movements, users, memberships }) {
       tasksWithResponsibleUserId: tasks.filter((task) => task.responsibleUserId).length,
       tasksWithTextAndId: tasksWithBoth.length,
       tasksPotentialDivergence: divergent.length,
-      movementsTextOnly: movements.filter((movement) => movement.movedBy && !movement.movedByUserId).length,
+      movementsTextOnly: movements.filter((movement) => movement.movedBy && !movement.movedByUserId)
+        .length,
       movementsWithProjectMemberId: movements.filter((movement) => movement.projectMemberId).length,
       movementsWithMovedByUserId: movements.filter((movement) => movement.movedByUserId).length,
-      movementsReconciliable: movementResults.filter(({ resolution }) => resolution.status === 'RECONCILABLE').length,
-      movementsUnresolved: movementResults.filter(({ resolution }) => resolution.status === 'UNRESOLVED_PRESERVED').length
+      movementsReconciliable: movementResults.filter(
+        ({ resolution }) => resolution.status === 'RECONCILABLE'
+      ).length,
+      movementsUnresolved: movementResults.filter(
+        ({ resolution }) => resolution.status === 'UNRESOLVED_PRESERVED'
+      ).length
     },
     tasks: tasks
       .filter((task) => task.responsible || task.responsibleUserId)
-      .map((task) => ({ taskId: task.id, projectId: task.projectId, status: safeTaskStatus(task) })),
+      .map((task) => ({
+        taskId: task.id,
+        projectId: task.projectId,
+        status: safeTaskStatus(task)
+      })),
     movements: movementResults.map(({ movement, resolution }) => ({
       movementId: movement.id,
       projectId: movement.projectId,
@@ -156,19 +174,35 @@ export function buildE11Audit({ tasks, movements, users, memberships }) {
 export async function loadE11LegacyState(client) {
   const [tasks, movements, users, memberships] = await Promise.all([
     client.task.findMany({
-      select: { id: true, projectId: true, responsible: true, responsibleUserId: true, responsibleUser: { select: { name: true } } },
+      select: {
+        id: true,
+        projectId: true,
+        responsible: true,
+        responsibleUserId: true,
+        responsibleUser: { select: { name: true } }
+      },
       orderBy: { id: 'asc' }
     }),
     client.taskMovement.findMany({
       select: {
-        id: true, projectId: true, movedBy: true, projectMemberId: true, movedByUserId: true,
+        id: true,
+        projectId: true,
+        movedBy: true,
+        projectMemberId: true,
+        movedByUserId: true,
         projectMember: { select: { projectId: true, email: true } }
       },
       orderBy: { id: 'asc' }
     }),
     client.user.findMany({ select: { id: true, email: true } }),
     client.projectMembership.findMany({
-      select: { projectId: true, userId: true, role: true, isActive: true, user: { select: { name: true, email: true } } }
+      select: {
+        projectId: true,
+        userId: true,
+        role: true,
+        isActive: true,
+        user: { select: { name: true, email: true } }
+      }
     })
   ]);
   return { tasks, movements, users, memberships };
@@ -180,7 +214,14 @@ export async function auditE11LegacyResponsibilities({ client }) {
   return { state, audit };
 }
 
-function maintenanceAuditEvent({ projectId, action, resourceType, resourceId, metadata, retentionDays }) {
+function maintenanceAuditEvent({
+  projectId,
+  action,
+  resourceType,
+  resourceId,
+  metadata,
+  retentionDays
+}) {
   return {
     actorUserId: null,
     actorType: 'SYSTEM',
@@ -196,9 +237,18 @@ function maintenanceAuditEvent({ projectId, action, resourceType, resourceId, me
   };
 }
 
-export async function runE11LegacyReconciliation({ client, mappings = [], apply = false, auditRetentionDays = 365 }) {
+export async function runE11LegacyReconciliation({
+  client,
+  mappings = [],
+  apply = false,
+  auditRetentionDays = 365
+}) {
   const { state, audit } = await auditE11LegacyResponsibilities({ client });
-  const taskValidation = validateTaskMappings({ tasks: state.tasks, mappings, memberships: state.memberships });
+  const taskValidation = validateTaskMappings({
+    tasks: state.tasks,
+    mappings,
+    memberships: state.memberships
+  });
   const report = {
     mode: apply ? 'apply' : 'dry-run',
     before: audit.counts,
@@ -209,17 +259,23 @@ export async function runE11LegacyReconciliation({ client, mappings = [], apply 
     blockedTaskIds: taskValidation.blockedTaskIds,
     taskIds: taskValidation.plan.map((item) => item.taskId),
     movementIds: audit.movementPlan.map((item) => item.movementId),
-    unresolvedMovementIds: audit.movements.filter((item) => item.status === 'UNRESOLVED_PRESERVED').map((item) => item.movementId),
+    unresolvedMovementIds: audit.movements
+      .filter((item) => item.status === 'UNRESOLVED_PRESERVED')
+      .map((item) => item.movementId),
     applied: { tasks: 0, movements: 0 }
   };
 
   if (!apply) return report;
-  if (taskValidation.blockedTaskIds.length) throw new E11ReconciliationBlockedError(taskValidation.blockedTaskIds);
+  if (taskValidation.blockedTaskIds.length)
+    throw new E11ReconciliationBlockedError(taskValidation.blockedTaskIds);
 
   let appliedMovements = 0;
   await client.$transaction(async (tx) => {
     for (const item of taskValidation.plan) {
-      const task = await tx.task.findUnique({ where: { id: item.taskId }, select: { projectId: true, responsibleUserId: true } });
+      const task = await tx.task.findUnique({
+        where: { id: item.taskId },
+        select: { projectId: true, responsibleUserId: true }
+      });
       const membership = await tx.projectMembership.findFirst({
         where: { projectId: item.projectId, userId: item.userId, isActive: true },
         select: { id: true }
@@ -227,26 +283,40 @@ export async function runE11LegacyReconciliation({ client, mappings = [], apply 
       if (!task || task.projectId !== item.projectId || task.responsibleUserId || !membership) {
         throw new E11ReconciliationBlockedError([item.taskId]);
       }
-      await tx.task.update({ where: { id: item.taskId }, data: { responsibleUserId: item.userId } });
-      await tx.auditEvent.create({ data: maintenanceAuditEvent({
-        projectId: item.projectId,
-        action: 'TASK_RESPONSIBILITY_RECONCILED',
-        resourceType: 'Task',
-        resourceId: item.taskId,
-        metadata: { taskId: item.taskId },
-        retentionDays: auditRetentionDays
-      }) });
+      await tx.task.update({
+        where: { id: item.taskId },
+        data: { responsibleUserId: item.userId }
+      });
+      await tx.auditEvent.create({
+        data: maintenanceAuditEvent({
+          projectId: item.projectId,
+          action: 'TASK_RESPONSIBILITY_RECONCILED',
+          resourceType: 'Task',
+          resourceId: item.taskId,
+          metadata: { taskId: item.taskId },
+          retentionDays: auditRetentionDays
+        })
+      });
     }
 
     for (const item of audit.movementPlan) {
       const movement = await tx.taskMovement.findUnique({
         where: { id: item.movementId },
         select: {
-          id: true, projectId: true, movedByUserId: true, projectMemberId: true,
+          id: true,
+          projectId: true,
+          movedByUserId: true,
+          projectMemberId: true,
           projectMember: { select: { projectId: true, email: true } }
         }
       });
-      if (!movement || movement.projectId !== item.projectId || movement.movedByUserId || movement.projectMemberId !== item.projectMemberId) continue;
+      if (
+        !movement ||
+        movement.projectId !== item.projectId ||
+        movement.movedByUserId ||
+        movement.projectMemberId !== item.projectMemberId
+      )
+        continue;
       const [users, memberships] = await Promise.all([
         tx.user.findMany({ select: { id: true, email: true } }),
         tx.projectMembership.findMany({
@@ -256,16 +326,21 @@ export async function runE11LegacyReconciliation({ client, mappings = [], apply 
       ]);
       const resolution = resolveMovementEvidence({ movement, users, memberships });
       if (resolution.status !== 'RECONCILABLE' || resolution.userId !== item.userId) continue;
-      await tx.taskMovement.update({ where: { id: item.movementId }, data: { movedByUserId: item.userId } });
+      await tx.taskMovement.update({
+        where: { id: item.movementId },
+        data: { movedByUserId: item.userId }
+      });
       appliedMovements += 1;
-      await tx.auditEvent.create({ data: maintenanceAuditEvent({
-        projectId: item.projectId,
-        action: 'TASK_MOVEMENT_ACTOR_RECONCILED',
-        resourceType: 'TaskMovement',
-        resourceId: item.movementId,
-        metadata: { count: 1 },
-        retentionDays: auditRetentionDays
-      }) });
+      await tx.auditEvent.create({
+        data: maintenanceAuditEvent({
+          projectId: item.projectId,
+          action: 'TASK_MOVEMENT_ACTOR_RECONCILED',
+          resourceType: 'TaskMovement',
+          resourceId: item.movementId,
+          metadata: { count: 1 },
+          retentionDays: auditRetentionDays
+        })
+      });
     }
   });
 

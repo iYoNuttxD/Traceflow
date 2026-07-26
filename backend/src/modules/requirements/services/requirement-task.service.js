@@ -32,7 +32,9 @@ export const requirementTaskService = {
     const reassignedTasks = tasks
       .filter((task) => task.requirementId && task.requirementId !== id)
       .map((task) => ({ taskId: task.id, previousRequirementId: task.requirementId }));
-    const previousRequirementIds = [...new Set(reassignedTasks.map((task) => task.previousRequirementId))];
+    const previousRequirementIds = [
+      ...new Set(reassignedTasks.map((task) => task.previousRequirementId))
+    ];
     const previousRequirements = previousRequirementIds.length
       ? await requirementRepository.findRequirementsByIds(previousRequirementIds)
       : [];
@@ -44,22 +46,26 @@ export const requirementTaskService = {
         status: calculateRequirementStatus(item.tasks.filter((task) => !movedTaskIds.has(task.id)))
       }));
     const auditEvents = [
-      ...linkedIds.map((taskId) => buildAuditEvent({
-        actorUserId: context.actorUserId,
-        projectId: requirement.projectId,
-        requestId: context.requestId,
-        action: 'REQUIREMENT_TASK_LINKED',
-        resourceType: 'Task',
-        resourceId: taskId
-      })),
-      ...unlinkedIds.map((taskId) => buildAuditEvent({
-        actorUserId: context.actorUserId,
-        projectId: requirement.projectId,
-        requestId: context.requestId,
-        action: 'REQUIREMENT_TASK_UNLINKED',
-        resourceType: 'Task',
-        resourceId: taskId
-      }))
+      ...linkedIds.map((taskId) =>
+        buildAuditEvent({
+          actorUserId: context.actorUserId,
+          projectId: requirement.projectId,
+          requestId: context.requestId,
+          action: 'REQUIREMENT_TASK_LINKED',
+          resourceType: 'Task',
+          resourceId: taskId
+        })
+      ),
+      ...unlinkedIds.map((taskId) =>
+        buildAuditEvent({
+          actorUserId: context.actorUserId,
+          projectId: requirement.projectId,
+          requestId: context.requestId,
+          action: 'REQUIREMENT_TASK_UNLINKED',
+          resourceType: 'Task',
+          resourceId: taskId
+        })
+      )
     ];
     const nextStatus = ['CONCLUIDO', 'CANCELADO'].includes(requirement.status)
       ? null

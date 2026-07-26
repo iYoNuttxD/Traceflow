@@ -18,11 +18,11 @@ function renderRoute(initialEntry = '/projects') {
         <Route path="/login" element={<LoginProbe />} />
         <Route
           path="/projects/*"
-          element={(
+          element={
             <ProtectedRoute>
               <h1>Projetos privados</h1>
             </ProtectedRoute>
-          )}
+          }
         />
       </Routes>
     </MemoryRouter>
@@ -30,7 +30,9 @@ function renderRoute(initialEntry = '/projects') {
 }
 
 describe('ProtectedRoute', () => {
-  beforeEach(() => { authState = { user: null, loading: false }; });
+  beforeEach(() => {
+    authState = { user: null, loading: false };
+  });
 
   it('redireciona visitante para login', () => {
     renderRoute();

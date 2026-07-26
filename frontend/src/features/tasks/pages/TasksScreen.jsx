@@ -16,7 +16,11 @@ import { projectMembersApi } from '../../members/index.js';
 import { requirementsApi } from '../../requirements/index.js';
 import { projectsApi } from '../../projects/index.js';
 import { getProjectCommits, getProjectIssues, getProjectPullRequests } from '../../github/index.js';
-import { getProjectCommitCoverage, getProjectIssueCoverage, getProjectPullRequestCoverage } from '../../traceability/index.js';
+import {
+  getProjectCommitCoverage,
+  getProjectIssueCoverage,
+  getProjectPullRequestCoverage
+} from '../../traceability/index.js';
 import { Card, useAbortableRequest, useConfirm } from '../../../shared/index.js';
 import { ProjectSectionNav } from '../../projects/index.js';
 import {
@@ -85,10 +89,7 @@ export function TasksScreen() {
         getProjectPullRequestCoverage(projectId),
         projectMembersApi.listProjectMembers(projectId).catch((requestError) => {
           setError(
-            getErrorMessage(
-              requestError,
-              'Não foi possível carregar os membros do projeto.'
-            )
+            getErrorMessage(requestError, 'Não foi possível carregar os membros do projeto.')
           );
           return { data: { members: [] } };
         })
@@ -105,9 +106,7 @@ export function TasksScreen() {
       setPullRequestCoverage(coverageResponse);
       setProjectMembers(membersResponse.data.members || []);
     } catch (requestError) {
-      setError(
-        getErrorMessage(requestError, 'Não foi possível carregar as tarefas do projeto.')
-      );
+      setError(getErrorMessage(requestError, 'Não foi possível carregar as tarefas do projeto.'));
     } finally {
       setLoading(false);
     }
@@ -122,7 +121,9 @@ export function TasksScreen() {
   const searchPullRequests = useCallback(
     async (search) => {
       try {
-        const response = await runPullRequestSearch((signal) => getProjectPullRequests(projectId, { search }, { signal }));
+        const response = await runPullRequestSearch((signal) =>
+          getProjectPullRequests(projectId, { search }, { signal })
+        );
         if (!response) return;
         setPullRequests(response.pullRequests || []);
         setPullRequestOptions((current) => {
@@ -148,7 +149,9 @@ export function TasksScreen() {
   const searchRequirements = useCallback(
     async (search) => {
       try {
-        const response = await runRequirementSearch((signal) => requirementsApi.listByProject(projectId, { search }, { signal }));
+        const response = await runRequirementSearch((signal) =>
+          requirementsApi.listByProject(projectId, { search }, { signal })
+        );
         if (!response) return;
         const foundRequirements = response.data.requirements || [];
         setRequirements(foundRequirements);
@@ -173,7 +176,9 @@ export function TasksScreen() {
   const searchCommits = useCallback(
     async (search) => {
       try {
-        const response = await runCommitSearch((signal) => getProjectCommits(projectId, { search }, { signal }));
+        const response = await runCommitSearch((signal) =>
+          getProjectCommits(projectId, { search }, { signal })
+        );
         if (!response) return;
         setCommitResults(response.commits || []);
         setCommitOptions((current) => {
@@ -202,7 +207,9 @@ export function TasksScreen() {
   const searchIssues = useCallback(
     async (search) => {
       try {
-        const response = await runIssueSearch((signal) => getProjectIssues(projectId, { search }, { signal }));
+        const response = await runIssueSearch((signal) =>
+          getProjectIssues(projectId, { search }, { signal })
+        );
         if (!response) return;
         setIssueResults(response.issues || []);
         setIssueOptions((current) => {
@@ -263,9 +270,7 @@ export function TasksScreen() {
 
   function handleSelectCommit(commit) {
     setCommitOptions((current) =>
-      current.some((item) => String(item.id) === String(commit.id))
-        ? current
-        : [commit, ...current]
+      current.some((item) => String(item.id) === String(commit.id)) ? current : [commit, ...current]
     );
     setFormData((current) => {
       const commitIds = current.commitIds || [];
@@ -283,9 +288,7 @@ export function TasksScreen() {
 
   function handleSelectIssue(issue) {
     setIssueOptions((current) =>
-      current.some((item) => String(item.id) === String(issue.id))
-        ? current
-        : [issue, ...current]
+      current.some((item) => String(item.id) === String(issue.id)) ? current : [issue, ...current]
     );
     setFormData((current) => {
       const issueIds = current.issueIds || [];
@@ -327,13 +330,15 @@ export function TasksScreen() {
 
   function handleSuggestionConfirmed(commit) {
     handleSelectCommit(commit);
-    setTasks((current) => current.map((task) => {
-      if (String(task.id) !== String(editingTaskId)) return task;
-      const commits = task.commits || [];
-      return commits.some((item) => String(item.id) === String(commit.id))
-        ? task
-        : { ...task, commits: [...commits, commit] };
-    }));
+    setTasks((current) =>
+      current.map((task) => {
+        if (String(task.id) !== String(editingTaskId)) return task;
+        const commits = task.commits || [];
+        return commits.some((item) => String(item.id) === String(commit.id))
+          ? task
+          : { ...task, commits: [...commits, commit] };
+      })
+    );
     setSuccess('Sugestão confirmada e commit vinculado à tarefa.');
   }
 
@@ -344,23 +349,15 @@ export function TasksScreen() {
     setSuccess('');
 
     try {
-      const selectedPullRequestId = formData.pullRequestId
-        ? Number(formData.pullRequestId)
-        : null;
-      const selectedRequirementId = formData.requirementId
-        ? Number(formData.requirementId)
-        : null;
+      const selectedPullRequestId = formData.pullRequestId ? Number(formData.pullRequestId) : null;
+      const selectedRequirementId = formData.requirementId ? Number(formData.requirementId) : null;
       const selectedCommitIds = (formData.commitIds || []).map(Number);
       const selectedIssueIds = (formData.issueIds || []).map(Number);
       const editingTask = editingTaskId
         ? tasks.find((task) => String(task.id) === String(editingTaskId))
         : null;
-      const hadPullRequestLinked = Boolean(
-        editingTask?.pullRequestId || editingTask?.pullRequest
-      );
-      const hadRequirementLinked = Boolean(
-        editingTask?.requirementId || editingTask?.requirement
-      );
+      const hadPullRequestLinked = Boolean(editingTask?.pullRequestId || editingTask?.pullRequest);
+      const hadRequirementLinked = Boolean(editingTask?.requirementId || editingTask?.requirement);
       const previousCommitIds = (editingTask?.commits || []).map((commit) => commit.id);
       const previousIssueIds = (editingTask?.issues || []).map((issue) => issue.id);
       const payload = taskFormToPayload(formData, Boolean(editingTaskId));
@@ -557,7 +554,8 @@ export function TasksScreen() {
   async function handleDeleteTask(task) {
     const confirmed = await confirm({
       title: 'Excluir tarefa',
-      description: 'Esta ação não poderá ser desfeita. Os vínculos com requisito, pull request, commits, issues e movimentações do Kanban serão removidos, mas os artefatos importados do GitHub serão mantidos.',
+      description:
+        'Esta ação não poderá ser desfeita. Os vínculos com requisito, pull request, commits, issues e movimentações do Kanban serão removidos, mas os artefatos importados do GitHub serão mantidos.',
       confirmLabel: 'Excluir tarefa'
     });
 

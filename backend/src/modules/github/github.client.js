@@ -52,37 +52,53 @@ export function createGithubClient({
     },
 
     listRepositoryPages() {
-      return paginateGithub(({ page, perPage }) => requestPage(
-        octokit.rest.repos.listForAuthenticatedUser,
-        { per_page: perPage, page, sort: 'updated' },
-        mapGithubRepository
-      ), { perPage: PAGE_SIZE });
+      return paginateGithub(
+        ({ page, perPage }) =>
+          requestPage(
+            octokit.rest.repos.listForAuthenticatedUser,
+            { per_page: perPage, page, sort: 'updated' },
+            mapGithubRepository
+          ),
+        { perPage: PAGE_SIZE }
+      );
     },
 
     listCommitPages({ owner, repo, branch }) {
-      return paginateGithub(({ page, perPage }) => requestPage(
-        octokit.rest.repos.listCommits,
-        { owner, repo, sha: branch, per_page: perPage, page },
-        (item) => mapGithubCommit(item, branch)
-      ), { perPage: PAGE_SIZE });
+      return paginateGithub(
+        ({ page, perPage }) =>
+          requestPage(
+            octokit.rest.repos.listCommits,
+            { owner, repo, sha: branch, per_page: perPage, page },
+            (item) => mapGithubCommit(item, branch)
+          ),
+        { perPage: PAGE_SIZE }
+      );
     },
 
     listPullRequestPages({ owner, repo, branch }) {
-      return paginateGithub(({ page, perPage }) => requestPage(
-        octokit.rest.pulls.list,
-        { owner, repo, state: 'all', base: branch, per_page: perPage, page },
-        mapGithubPullRequest,
-        { filter: (pullRequest) => pullRequest.targetBranch === branch }
-      ), { perPage: PAGE_SIZE });
+      return paginateGithub(
+        ({ page, perPage }) =>
+          requestPage(
+            octokit.rest.pulls.list,
+            { owner, repo, state: 'all', base: branch, per_page: perPage, page },
+            mapGithubPullRequest,
+            { filter: (pullRequest) => pullRequest.targetBranch === branch }
+          ),
+        { perPage: PAGE_SIZE }
+      );
     },
 
     listIssuePages({ owner, repo }) {
-      return paginateGithub(({ page, perPage }) => requestPage(
-        octokit.rest.issues.listForRepo,
-        { owner, repo, state: 'all', per_page: perPage, page },
-        mapGithubIssue,
-        { filter: Boolean }
-      ), { perPage: PAGE_SIZE });
+      return paginateGithub(
+        ({ page, perPage }) =>
+          requestPage(
+            octokit.rest.issues.listForRepo,
+            { owner, repo, state: 'all', per_page: perPage, page },
+            mapGithubIssue,
+            { filter: Boolean }
+          ),
+        { perPage: PAGE_SIZE }
+      );
     }
   });
 }

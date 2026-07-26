@@ -19,9 +19,15 @@ vi.mock('../../src/features/requirements/api/requirements.api.js', () => ({
   replaceRequirementTasks: mocks.replaceRequirementTasks,
   requirementsApi: mocks.requirementsApi
 }));
-vi.mock('../../src/features/traceability/api/traceability.api.js', () => ({ getRequirementTaskCoverage: mocks.getRequirementTaskCoverage }));
-vi.mock('../../src/features/projects/api/projects.api.js', () => ({ projectsApi: { get: (id) => mocks.api.get(`/projects/${id}`) } }));
-vi.mock('../../src/features/tasks/api/tasks.api.js', () => ({ tasksApi: { list: (id, params) => mocks.api.get(`/projects/${id}/tasks`, { params }) } }));
+vi.mock('../../src/features/traceability/api/traceability.api.js', () => ({
+  getRequirementTaskCoverage: mocks.getRequirementTaskCoverage
+}));
+vi.mock('../../src/features/projects/api/projects.api.js', () => ({
+  projectsApi: { get: (id) => mocks.api.get(`/projects/${id}`) }
+}));
+vi.mock('../../src/features/tasks/api/tasks.api.js', () => ({
+  tasksApi: { list: (id, params) => mocks.api.get(`/projects/${id}/tasks`, { params }) }
+}));
 
 import { RequirementsPage } from '../../src/pages/RequirementsPage.jsx';
 
@@ -39,7 +45,16 @@ const requirement = {
 function renderPage() {
   return render(
     <MemoryRouter initialEntries={['/projects/9/requirements']}>
-      <Routes><Route path="/projects/:projectId/requirements" element={<ConfirmProvider><RequirementsPage /></ConfirmProvider>} /></Routes>
+      <Routes>
+        <Route
+          path="/projects/:projectId/requirements"
+          element={
+            <ConfirmProvider>
+              <RequirementsPage />
+            </ConfirmProvider>
+          }
+        />
+      </Routes>
     </MemoryRouter>
   );
 }
@@ -47,10 +62,22 @@ function renderPage() {
 describe('RequirementsPage E10', () => {
   beforeEach(() => {
     mocks.api.get.mockResolvedValue({ data: { project: { id: 9, name: 'Projeto artificial' } } });
-    mocks.requirementsApi.listByProject.mockResolvedValue({ data: { requirements: [requirement] } });
-    mocks.getRequirementTaskCoverage.mockResolvedValue({ totalRequirements: 1, linkedRequirements: 1, coveragePercentage: 100 });
-    mocks.requirementsApi.update.mockResolvedValue({ data: { message: 'Requisito atualizado com sucesso.', requirement } });
-    mocks.replaceRequirementTasks.mockResolvedValue({ requirement, reassignedTasks: [], changes: { linked: 0, unlinked: 0 } });
+    mocks.requirementsApi.listByProject.mockResolvedValue({
+      data: { requirements: [requirement] }
+    });
+    mocks.getRequirementTaskCoverage.mockResolvedValue({
+      totalRequirements: 1,
+      linkedRequirements: 1,
+      coveragePercentage: 100
+    });
+    mocks.requirementsApi.update.mockResolvedValue({
+      data: { message: 'Requisito atualizado com sucesso.', requirement }
+    });
+    mocks.replaceRequirementTasks.mockResolvedValue({
+      requirement,
+      reassignedTasks: [],
+      changes: { linked: 0, unlinked: 0 }
+    });
   });
 
   it('substitui os loops de vínculo por uma única atualização atômica', async () => {
@@ -65,6 +92,9 @@ describe('RequirementsPage E10', () => {
       expect(mocks.replaceRequirementTasks).toHaveBeenCalledTimes(1);
       expect(mocks.replaceRequirementTasks).toHaveBeenCalledWith(10, [20]);
     });
-    expect(mocks.requirementsApi.update).toHaveBeenCalledWith(10, expect.objectContaining({ title: 'Requisito editado' }));
+    expect(mocks.requirementsApi.update).toHaveBeenCalledWith(
+      10,
+      expect.objectContaining({ title: 'Requisito editado' })
+    );
   });
 });

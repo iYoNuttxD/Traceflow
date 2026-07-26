@@ -24,13 +24,21 @@ router.get(
   validateRequest({ params: requirementProjectParamsSchema, query: requirementSearchQuerySchema }),
   requirementController.findByProject
 );
-router.get('/requirements/:id', validateRequest({ params: requirementIdParamsSchema }), requirementController.findById);
+router.get(
+  '/requirements/:id',
+  validateRequest({ params: requirementIdParamsSchema }),
+  requirementController.findById
+);
 router.put(
   '/requirements/:id',
   validateRequest({ params: requirementIdParamsSchema, body: updateRequirementBodySchema }),
   requirementController.update
 );
-router.delete('/requirements/:id', validateRequest({ params: requirementIdParamsSchema, body: emptyBodySchema }), requirementController.delete);
+router.delete(
+  '/requirements/:id',
+  validateRequest({ params: requirementIdParamsSchema, body: emptyBodySchema }),
+  requirementController.delete
+);
 router.patch(
   '/requirements/:id/status',
   validateRequest({ params: requirementIdParamsSchema, body: requirementStatusBodySchema }),

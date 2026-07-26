@@ -12,11 +12,13 @@ export function validateRequest(schemas = {}) {
       const result = schema.safeParse(req[location]);
       if (!result.success) {
         const details = mapValidationIssues(result.error.issues, location);
-        return next(new ValidationError({
-          message: details[0]?.message || 'Dados inválidos.',
-          details,
-          cause: result.error
-        }));
+        return next(
+          new ValidationError({
+            message: details[0]?.message || 'Dados inválidos.',
+            details,
+            cause: result.error
+          })
+        );
       }
 
       req[location] = result.data;

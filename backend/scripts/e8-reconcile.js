@@ -25,7 +25,10 @@ process.env.DATABASE_URL = target;
 const { prisma } = await import('../src/database/prismaClient.js');
 
 try {
-  const report = { target: sanitizedDatabaseTarget(target), ...(await runE8Reconciliation({ client: prisma, apply })) };
+  const report = {
+    target: sanitizedDatabaseTarget(target),
+    ...(await runE8Reconciliation({ client: prisma, apply }))
+  };
   const output = `${JSON.stringify(report, null, 2)}\n`;
   process.stdout.write(output);
   const reportPath = optionValue('--report');

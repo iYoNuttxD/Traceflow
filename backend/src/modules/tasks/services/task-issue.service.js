@@ -21,15 +21,19 @@ export const taskIssueService = {
     if (await taskRepository.findTaskIssue(id, issueId)) {
       throw new TaskServiceError('Esta issue já está vinculada à tarefa.', 409);
     }
-    await taskLinkRepository.createIssue(id, issueId, buildAuditEvent({
-      actorUserId: context.actorUserId,
-      projectId: task.projectId,
-      requestId: context.requestId,
-      action: 'TASK_ISSUE_LINKED',
-      resourceType: 'Issue',
-      resourceId: issueId,
-      metadata: { taskId: id }
-    }));
+    await taskLinkRepository.createIssue(
+      id,
+      issueId,
+      buildAuditEvent({
+        actorUserId: context.actorUserId,
+        projectId: task.projectId,
+        requestId: context.requestId,
+        action: 'TASK_ISSUE_LINKED',
+        resourceType: 'Issue',
+        resourceId: issueId,
+        metadata: { taskId: id }
+      })
+    );
     return (await taskRepository.findTaskIssues(id)).map(formatIssue);
   },
   async unlinkIssue(taskId, issueId, context = {}) {
@@ -39,15 +43,19 @@ export const taskIssueService = {
     if (!(await taskRepository.findTaskIssue(id, parsedIssueId))) {
       throw new TaskServiceError('Vínculo entre tarefa e issue não encontrado.', 404);
     }
-    await taskLinkRepository.deleteIssue(id, parsedIssueId, buildAuditEvent({
-      actorUserId: context.actorUserId,
-      projectId: task.projectId,
-      requestId: context.requestId,
-      action: 'TASK_ISSUE_UNLINKED',
-      resourceType: 'Issue',
-      resourceId: parsedIssueId,
-      metadata: { taskId: id }
-    }));
+    await taskLinkRepository.deleteIssue(
+      id,
+      parsedIssueId,
+      buildAuditEvent({
+        actorUserId: context.actorUserId,
+        projectId: task.projectId,
+        requestId: context.requestId,
+        action: 'TASK_ISSUE_UNLINKED',
+        resourceType: 'Issue',
+        resourceId: parsedIssueId,
+        metadata: { taskId: id }
+      })
+    );
     return (await taskRepository.findTaskIssues(id)).map(formatIssue);
   }
 };

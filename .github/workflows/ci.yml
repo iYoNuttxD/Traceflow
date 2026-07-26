@@ -14,11 +14,81 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  backend:
-    name: Backend
+  quality:
+    name: Quality
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Lint backend
+        working-directory: backend
+        run: npm run lint
+
+      - name: Check backend formatting
+        working-directory: backend
+        run: npm run format:check
+
+      - name: Lint frontend
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Check frontend formatting
+        working-directory: frontend
+        run: npm run format:check
+
+      - name: Check CI policy file formatting
+        working-directory: backend
+        run: >-
+          npx prettier --check
+          ../.github/workflows/ci.yml
+          ../scripts/*.mjs
+          ../docs/security/npm-audit-exceptions.json
+
+      - name: Validate workflow policy
+        run: node --test scripts/validate-ci.test.mjs
+
+  backend-tests:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NODE_ENV: test
+      DATABASE_URL: mysql://traceflow:traceflow@localhost:3306/traceflow_dev_ci
+      TEST_DATABASE_URL: mysql://traceflow:traceflow@localhost:3306/traceflow_test
+    services:
+      mysql:
+        image: mysql:8.4.8
+        env:
+          MYSQL_DATABASE: traceflow_test
+          MYSQL_USER: traceflow
+          MYSQL_PASSWORD: traceflow
+          MYSQL_ROOT_PASSWORD: traceflow_root_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -utraceflow -ptraceflow"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -37,28 +107,57 @@ jobs:
       - name: Validate Prisma schema
         working-directory: backend
         run: npx prisma validate
-        env:
-          DATABASE_URL: mysql://traceflow:traceflow@localhost:3306/traceflow
 
       - name: Generate Prisma Client
         working-directory: backend
         run: npx prisma generate
-        env:
-          DATABASE_URL: mysql://traceflow:traceflow@localhost:3306/traceflow
 
-      - name: Check JavaScript syntax
+      - name: Apply all migrations to empty test database
         working-directory: backend
-        run: find src -name '*.js' -print0 | xargs -0 -n1 node --check
+        run: npm run db:test:migrate
 
-      - name: Run backend tests when available
+      - name: Verify migration status
         working-directory: backend
-        run: npm run test --if-present
+        run: npm run db:test:status
 
-  frontend:
-    name: Frontend
+      - name: Check architecture
+        working-directory: backend
+        run: npm run architecture:check
+
+      - name: Scan repository secrets
+        working-directory: backend
+        run: npm run security:secrets
+
+      - name: Run unit tests
+        working-directory: backend
+        run: npm run test:unit
+
+      - name: Run integration tests
+        working-directory: backend
+        run: npm run test:integration
+
+      - name: Enforce backend coverage
+        working-directory: backend
+        run: npm run test:coverage
+
+      - name: Upload backend coverage
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: |
+            backend/coverage/index.html
+            backend/coverage/**/*.html
+            backend/coverage/**/*.css
+            backend/coverage/**/*.js
+            backend/coverage/coverage-summary.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+  frontend-tests:
+    name: Frontend Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -74,10 +173,87 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: Run frontend tests when available
+      - name: Lint
         working-directory: frontend
-        run: npm run test --if-present
+        run: npm run lint
 
-      - name: Build frontend
+      - name: Check formatting
+        working-directory: frontend
+        run: npm run format:check
+
+      - name: Enforce frontend coverage
+        working-directory: frontend
+        run: npm run test:coverage
+
+      - name: Build production frontend
         working-directory: frontend
         run: npm run build
+
+      - name: Upload frontend coverage
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: |
+            frontend/coverage/index.html
+            frontend/coverage/**/*.html
+            frontend/coverage/**/*.css
+            frontend/coverage/**/*.js
+            frontend/coverage/coverage-summary.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+  supply-chain:
+    name: Supply Chain
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Test audit policy
+        run: node --test scripts/check-npm-audit.test.mjs
+
+      - name: Enforce backend dependency policy
+        run: node scripts/check-npm-audit.mjs backend docs/security/npm-audit-exceptions.json
+
+      - name: Enforce frontend dependency policy
+        run: node scripts/check-npm-audit.mjs frontend docs/security/npm-audit-exceptions.json
+
+      - name: Scan repository secrets
+        working-directory: backend
+        run: npm run security:secrets
+
+  dependency-review:
+    name: Dependency Review
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Review dependency changes
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high

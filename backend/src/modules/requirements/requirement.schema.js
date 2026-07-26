@@ -58,8 +58,7 @@ export function buildRequirementData(data, isCreate = false) {
 
   if (
     (isCreate && (typeof payload.title !== 'string' || !payload.title.trim())) ||
-    (payload.title !== undefined &&
-      (typeof payload.title !== 'string' || !payload.title.trim()))
+    (payload.title !== undefined && (typeof payload.title !== 'string' || !payload.title.trim()))
   ) {
     throw new RequirementServiceError('O título do requisito é obrigatório.', 400);
   }

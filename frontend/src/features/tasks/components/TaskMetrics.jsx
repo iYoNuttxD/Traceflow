@@ -5,9 +5,7 @@ function CoverageMetric({ title, coverage, emptyDescription, linkedDescription }
     <Card title={title}>
       <strong className="metric-value">{coverage?.coveragePercentage ?? 0}%</strong>
       <p className="metric-description">
-        {coverage
-          ? linkedDescription(coverage)
-          : emptyDescription}
+        {coverage ? linkedDescription(coverage) : emptyDescription}
       </p>
     </Card>
   );
@@ -23,19 +21,25 @@ export function TaskMetrics({ total, pullRequestCoverage, commitCoverage, issueC
         title="Cobertura com Pull Requests"
         coverage={pullRequestCoverage}
         emptyDescription="Percentual de tarefas vinculadas a pull requests."
-        linkedDescription={(value) => `${value.linkedTasks} de ${value.totalTasks} tarefas possuem PR vinculado.`}
+        linkedDescription={(value) =>
+          `${value.linkedTasks} de ${value.totalTasks} tarefas possuem PR vinculado.`
+        }
       />
       <CoverageMetric
         title="Cobertura com commits"
         coverage={commitCoverage}
         emptyDescription="Percentual de tarefas vinculadas a commits."
-        linkedDescription={(value) => `${value.linkedTasks} de ${value.totalTasks} tarefas possuem pelo menos um commit vinculado.`}
+        linkedDescription={(value) =>
+          `${value.linkedTasks} de ${value.totalTasks} tarefas possuem pelo menos um commit vinculado.`
+        }
       />
       <CoverageMetric
         title="Cobertura com issues"
         coverage={issueCoverage}
         emptyDescription="Percentual de tarefas vinculadas a issues."
-        linkedDescription={(value) => `${value.linkedTasks} de ${value.totalTasks} tarefas possuem pelo menos uma issue vinculada.`}
+        linkedDescription={(value) =>
+          `${value.linkedTasks} de ${value.totalTasks} tarefas possuem pelo menos uma issue vinculada.`
+        }
       />
     </div>
   );

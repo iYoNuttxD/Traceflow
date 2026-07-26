@@ -44,7 +44,9 @@ export function createErrorHandler({ logger = defaultLogger, environment = env.n
     const statusCode = knownError?.statusCode || 500;
     const fallbackMessage = sanitizeText(error?.publicFallbackMessage || defaultInternalMessage);
     const message = knownError
-      ? knownError.useFallbackMessage ? fallbackMessage : sanitizeText(knownError.message)
+      ? knownError.useFallbackMessage
+        ? fallbackMessage
+        : sanitizeText(knownError.message)
       : fallbackMessage;
     const errorCode = knownError?.code || ERROR_CODES.INTERNAL_ERROR;
 

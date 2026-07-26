@@ -60,7 +60,10 @@ export const taskMovementRepository = {
       });
       await recalculateRequirement(tx, task.requirementId, calculateRequirementStatus);
       if (auditEvent) await auditRepository.create(auditEvent, tx);
-      const updatedTask = await tx.task.findUnique({ where: { id: task.id }, include: taskInclude });
+      const updatedTask = await tx.task.findUnique({
+        where: { id: task.id },
+        include: taskInclude
+      });
       return { task: updatedTask, movement };
     });
   },

@@ -4,7 +4,13 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { TaskForm, emptyTaskForm, taskFormToPayload } from '../../src/features/tasks/index.js';
 
-function TaskFormHarness({ onSubmit, editing = false, submitting = false, members = [], ...props }) {
+function TaskFormHarness({
+  onSubmit,
+  editing = false,
+  submitting = false,
+  members = [],
+  ...props
+}) {
   const [formData, setFormData] = useState(emptyTaskForm);
 
   return (
@@ -102,7 +108,9 @@ describe('TaskForm', () => {
     expect(searchInput).toHaveFocus();
     expect(onCommitSearchClear).toHaveBeenCalled();
     expect(screen.queryByRole('button', { name: /abc1234/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Limpar busca de commits' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Limpar busca de commits' })
+    ).not.toBeInTheDocument();
   });
 
   it('informa quando a busca manual não encontra commit compatível', async () => {

@@ -68,9 +68,10 @@ export async function resolveResponsibleUser(projectId, userId) {
   if (userId === undefined) return undefined;
   if (userId === null || userId === '') return null;
   const parsed = Number(userId);
-  const membership = Number.isInteger(parsed) && parsed > 0
-    ? await taskRepository.findActiveMembership(projectId, parsed)
-    : null;
+  const membership =
+    Number.isInteger(parsed) && parsed > 0
+      ? await taskRepository.findActiveMembership(projectId, parsed)
+      : null;
   if (!membership) throw new TaskServiceError('Usuário responsável não pertence ao projeto.', 400);
   return parsed;
 }

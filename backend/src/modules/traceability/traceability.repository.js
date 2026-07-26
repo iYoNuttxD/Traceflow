@@ -191,14 +191,19 @@ export const traceabilityRepository = {
 
   async findArtifactGraphPage(projectId, artifactType, artifactId, { skip, take }) {
     if (artifactType === 'commit') {
-      const artifact = await prisma.commit.findFirst({ where: { id: artifactId, projectId }, select: commitFields });
+      const artifact = await prisma.commit.findFirst({
+        where: { id: artifactId, projectId },
+        select: commitFields
+      });
       if (!artifact) return null;
       const where = { commitId: artifactId, task: { projectId } };
       const [total, links] = await prisma.$transaction([
         prisma.taskCommit.count({ where }),
         prisma.taskCommit.findMany({
           where,
-          select: { task: { select: { ...taskFields, requirement: { select: requirementFields } } } },
+          select: {
+            task: { select: { ...taskFields, requirement: { select: requirementFields } } }
+          },
           orderBy: { createdAt: 'desc' },
           skip,
           take
@@ -207,14 +212,19 @@ export const traceabilityRepository = {
       return { artifact, tasks: links.map((link) => link.task), total };
     }
     if (artifactType === 'issue') {
-      const artifact = await prisma.issue.findFirst({ where: { id: artifactId, projectId }, select: issueFields });
+      const artifact = await prisma.issue.findFirst({
+        where: { id: artifactId, projectId },
+        select: issueFields
+      });
       if (!artifact) return null;
       const where = { issueId: artifactId, task: { projectId } };
       const [total, links] = await prisma.$transaction([
         prisma.taskIssue.count({ where }),
         prisma.taskIssue.findMany({
           where,
-          select: { task: { select: { ...taskFields, requirement: { select: requirementFields } } } },
+          select: {
+            task: { select: { ...taskFields, requirement: { select: requirementFields } } }
+          },
           orderBy: { createdAt: 'desc' },
           skip,
           take
@@ -222,7 +232,10 @@ export const traceabilityRepository = {
       ]);
       return { artifact, tasks: links.map((link) => link.task), total };
     }
-    const artifact = await prisma.pullRequest.findFirst({ where: { id: artifactId, projectId }, select: pullRequestFields });
+    const artifact = await prisma.pullRequest.findFirst({
+      where: { id: artifactId, projectId },
+      select: pullRequestFields
+    });
     if (!artifact) return null;
     const [total, tasks] = await prisma.$transaction([
       prisma.task.count({ where: { projectId, pullRequestId: artifactId } }),

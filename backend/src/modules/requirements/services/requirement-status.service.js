@@ -39,10 +39,7 @@ export const requirementStatusService = {
     const parsedRequirementId = parseRequirementId(requirementId);
     const requirement = await ensureRequirementExists(parsedRequirementId);
     if (requirement.status !== 'VALIDADO') {
-      throw new RequirementServiceError(
-        'Apenas requisitos validados podem ser concluídos.',
-        400
-      );
+      throw new RequirementServiceError('Apenas requisitos validados podem ser concluídos.', 400);
     }
     return requirementRepository.updateRequirementStatus(parsedRequirementId, 'CONCLUIDO');
   }

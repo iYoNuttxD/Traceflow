@@ -6,7 +6,10 @@ export async function* paginateGithub(fetchPage, { perPage = 100 } = {}) {
     const items = Array.isArray(response?.items) ? response.items : [];
     yield items;
 
-    if (response?.hasNext === false || (response?.hasNext === undefined && items.length < perPage)) {
+    if (
+      response?.hasNext === false ||
+      (response?.hasNext === undefined && items.length < perPage)
+    ) {
       return;
     }
 

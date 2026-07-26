@@ -14,18 +14,48 @@ import {
   updateProjectBodySchema
 } from './project.validation.js';
 import { projectInvitationController } from './project-invitation.controller.js';
-import { acceptInvitationBody, createInvitationBody, invitationParams, invitationProjectParams } from './project-invitation.validation.js';
+import {
+  acceptInvitationBody,
+  createInvitationBody,
+  invitationParams,
+  invitationProjectParams
+} from './project-invitation.validation.js';
 import { projectMembershipController } from './project-membership.controller.js';
-import { membershipParams, membershipProjectParams, membershipRoleBody, ownershipTransferBody } from './project-membership.validation.js';
+import {
+  membershipParams,
+  membershipProjectParams,
+  membershipRoleBody,
+  ownershipTransferBody
+} from './project-membership.validation.js';
 
 const router = Router();
 
-router.post('/invitations/accept', validateRequest({ body: acceptInvitationBody }), projectInvitationController.accept);
-router.get('/:projectId/invitations', validateRequest({ params: invitationProjectParams }), projectInvitationController.list);
-router.post('/:projectId/invitations', validateRequest({ params: invitationProjectParams, body: createInvitationBody }), projectInvitationController.create);
-router.delete('/:projectId/invitations/:invitationId', validateRequest({ params: invitationParams }), projectInvitationController.revoke);
+router.post(
+  '/invitations/accept',
+  validateRequest({ body: acceptInvitationBody }),
+  projectInvitationController.accept
+);
+router.get(
+  '/:projectId/invitations',
+  validateRequest({ params: invitationProjectParams }),
+  projectInvitationController.list
+);
+router.post(
+  '/:projectId/invitations',
+  validateRequest({ params: invitationProjectParams, body: createInvitationBody }),
+  projectInvitationController.create
+);
+router.delete(
+  '/:projectId/invitations/:invitationId',
+  validateRequest({ params: invitationParams }),
+  projectInvitationController.revoke
+);
 
-router.post('/from-github', validateRequest({ body: createProjectFromGithubBodySchema }), projectController.createFromGithub);
+router.post(
+  '/from-github',
+  validateRequest({ body: createProjectFromGithubBodySchema }),
+  projectController.createFromGithub
+);
 router.post('/join', validateRequest({ body: joinProjectBodySchema }), projectController.join);
 router.patch(
   '/:projectId/github/sync-settings',
@@ -33,12 +63,36 @@ router.patch(
   projectController.updateGithubSyncSettings
 );
 router.use('/', artifactRoutes);
-router.get('/:projectId/members', validateRequest({ params: membershipProjectParams }), projectMembershipController.list);
-router.delete('/:projectId/members/me', validateRequest({ params: membershipProjectParams }), projectMembershipController.leave);
-router.patch('/:projectId/members/:membershipId', validateRequest({ params: membershipParams, body: membershipRoleBody }), projectMembershipController.updateRole);
-router.delete('/:projectId/members/:membershipId', validateRequest({ params: membershipParams }), projectMembershipController.deactivate);
-router.post('/:projectId/members/:membershipId/reactivate', validateRequest({ params: membershipParams }), projectMembershipController.reactivate);
-router.post('/:projectId/ownership/transfer', validateRequest({ params: membershipProjectParams, body: ownershipTransferBody }), projectMembershipController.transferOwnership);
+router.get(
+  '/:projectId/members',
+  validateRequest({ params: membershipProjectParams }),
+  projectMembershipController.list
+);
+router.delete(
+  '/:projectId/members/me',
+  validateRequest({ params: membershipProjectParams }),
+  projectMembershipController.leave
+);
+router.patch(
+  '/:projectId/members/:membershipId',
+  validateRequest({ params: membershipParams, body: membershipRoleBody }),
+  projectMembershipController.updateRole
+);
+router.delete(
+  '/:projectId/members/:membershipId',
+  validateRequest({ params: membershipParams }),
+  projectMembershipController.deactivate
+);
+router.post(
+  '/:projectId/members/:membershipId/reactivate',
+  validateRequest({ params: membershipParams }),
+  projectMembershipController.reactivate
+);
+router.post(
+  '/:projectId/ownership/transfer',
+  validateRequest({ params: membershipProjectParams, body: ownershipTransferBody }),
+  projectMembershipController.transferOwnership
+);
 router.post(
   '/:projectId/members',
   validateRequest({ params: projectProjectIdParamsSchema, body: addProjectMemberBodySchema }),

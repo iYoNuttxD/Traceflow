@@ -2,7 +2,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { getProjectArtifacts } from '../index.js';
 import { ProjectSectionNav } from '../../projects/index.js';
-import { compactParams, ErrorState, LoadingState, useAbortableRequest } from '../../../shared/index.js';
+import {
+  compactParams,
+  ErrorState,
+  LoadingState,
+  useAbortableRequest
+} from '../../../shared/index.js';
 
 const emptyFilters = {
   type: '',
@@ -109,7 +114,9 @@ export function RepositoryInfoScreen() {
       let settled = false;
 
       try {
-        const data = await runArtifactsRequest((signal) => getProjectArtifacts(projectId, requestParams, { signal }));
+        const data = await runArtifactsRequest((signal) =>
+          getProjectArtifacts(projectId, requestParams, { signal })
+        );
         if (!data) return;
         settled = true;
         setRepositoryData(data);
@@ -118,10 +125,7 @@ export function RepositoryInfoScreen() {
         settled = true;
         setRepositoryData(null);
         setError(
-          getErrorMessage(
-            requestError,
-            'Não foi possível carregar os artefatos do repositório.'
-          )
+          getErrorMessage(requestError, 'Não foi possível carregar os artefatos do repositório.')
         );
       } finally {
         if (settled) setLoading(false);
@@ -213,7 +217,12 @@ export function RepositoryInfoScreen() {
           <button className="button button-primary" type="submit" disabled={loading}>
             Aplicar filtros
           </button>
-          <button className="button button-secondary" type="button" onClick={clearFilters} disabled={loading}>
+          <button
+            className="button button-secondary"
+            type="button"
+            onClick={clearFilters}
+            disabled={loading}
+          >
             Limpar filtros
           </button>
         </div>

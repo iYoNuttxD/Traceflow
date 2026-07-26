@@ -30,9 +30,18 @@ export function useCommitSuggestions({ projectId, taskId, onConfirmed }) {
     setError('');
     let settled = false;
     try {
-      const data = await run((signal) => getCommitSuggestions(projectId, {
-        status: 'PENDING', taskId, page: 1, limit: 20
-      }, { signal }));
+      const data = await run((signal) =>
+        getCommitSuggestions(
+          projectId,
+          {
+            status: 'PENDING',
+            taskId,
+            page: 1,
+            limit: 20
+          },
+          { signal }
+        )
+      );
       if (!data) return;
       settled = true;
       setSuggestions(data.suggestions || []);
@@ -45,21 +54,26 @@ export function useCommitSuggestions({ projectId, taskId, onConfirmed }) {
     }
   }, [projectId, run, taskId]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
-  const review = useCallback(async (suggestion, operation, confirmed) => {
-    setActionId(suggestion.id);
-    setError('');
-    try {
-      await operation(projectId, suggestion.id);
-      if (confirmed) onConfirmed?.(suggestion.commit);
-      setSuggestions((current) => current.filter((item) => item.id !== suggestion.id));
-    } catch (cause) {
-      setError(normalizeApiError(cause, fallbackMessage).message);
-    } finally {
-      setActionId(null);
-    }
-  }, [onConfirmed, projectId]);
+  const review = useCallback(
+    async (suggestion, operation, confirmed) => {
+      setActionId(suggestion.id);
+      setError('');
+      try {
+        await operation(projectId, suggestion.id);
+        if (confirmed) onConfirmed?.(suggestion.commit);
+        setSuggestions((current) => current.filter((item) => item.id !== suggestion.id));
+      } catch (cause) {
+        setError(normalizeApiError(cause, fallbackMessage).message);
+      } finally {
+        setActionId(null);
+      }
+    },
+    [onConfirmed, projectId]
+  );
 
   const scan = useCallback(async () => {
     if (!taskId || !permissions.canReview) return;

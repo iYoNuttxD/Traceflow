@@ -22,7 +22,7 @@ export function calculateGithubRetryDelay(error, attempt, random = Math.random) 
     return Math.min(Math.max(resetAt * 1000 - Date.now(), 0), 2000);
   }
 
-  return Math.min(250 * (2 ** attempt) + Math.floor(random() * 100), 2000);
+  return Math.min(250 * 2 ** attempt + Math.floor(random() * 100), 2000);
 }
 
 function sleep(delayMs) {
@@ -39,27 +39,18 @@ function toExternalServiceError(error) {
       : error?.code === 'ETIMEDOUT'
         ? 503
         : 500;
-  const externalError = new ExternalServiceError(
-    normalized.message,
-    statusCode,
-    normalized.code,
-    {
-      cause: error,
-      useFallbackMessage: !isRateLimit,
-      exposeTechnicalDetails: isRateLimit
-    }
-  );
+  const externalError = new ExternalServiceError(normalized.message, statusCode, normalized.code, {
+    cause: error,
+    useFallbackMessage: !isRateLimit,
+    exposeTechnicalDetails: isRateLimit
+  });
   externalError.externalStatus = normalized.externalStatus;
   return externalError;
 }
 
 export async function executeGithubRequest(
   operation,
-  {
-    maxRetries = env.githubRetryMax,
-    wait = sleep,
-    random = Math.random
-  } = {}
+  { maxRetries = env.githubRetryMax, wait = sleep, random = Math.random } = {}
 ) {
   let attempt = 0;
 

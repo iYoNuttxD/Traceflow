@@ -18,7 +18,11 @@ export function RegisterPage() {
 
   async function submit(event) {
     event.preventDefault();
-    const validation = Object.fromEntries(Object.entries(values).filter(([, value]) => !value.trim()).map(([field]) => [field, 'Campo obrigatório.']));
+    const validation = Object.fromEntries(
+      Object.entries(values)
+        .filter(([, value]) => !value.trim())
+        .map(([field]) => [field, 'Campo obrigatório.'])
+    );
     if (Object.keys(validation).length) {
       setFieldErrors(validation);
       queueMicrotask(() => document.getElementById(Object.keys(validation)[0])?.focus());
@@ -33,17 +37,53 @@ export function RegisterPage() {
       const normalized = normalizeApiError(cause);
       setError(normalized.message);
       setFieldErrors(normalized.fieldErrors);
-      queueMicrotask(() => document.getElementById(Object.keys(normalized.fieldErrors)[0])?.focus());
+      queueMicrotask(() =>
+        document.getElementById(Object.keys(normalized.fieldErrors)[0])?.focus()
+      );
     } finally {
       setSubmitting(false);
     }
   }
 
-  return <main className="page"><h1>Criar conta</h1><form onSubmit={submit} noValidate>
-    <FormInput id="name" name="name" label="Nome" value={values.name} onChange={(event) => change('name', event.target.value)} required error={fieldErrors.name} />
-    <FormInput id="email" name="email" label="E-mail" type="email" value={values.email} onChange={(event) => change('email', event.target.value)} required error={fieldErrors.email} />
-    <FormInput id="password" name="password" label="Senha" type="password" value={values.password} onChange={(event) => change('password', event.target.value)} required error={fieldErrors.password} />
-    <FeedbackRegion error={error} />
-    <button type="submit" disabled={submitting}>{submitting ? 'Criando...' : 'Criar conta'}</button>
-  </form><Link to="/login">Já tenho conta</Link></main>;
+  return (
+    <main className="page">
+      <h1>Criar conta</h1>
+      <form onSubmit={submit} noValidate>
+        <FormInput
+          id="name"
+          name="name"
+          label="Nome"
+          value={values.name}
+          onChange={(event) => change('name', event.target.value)}
+          required
+          error={fieldErrors.name}
+        />
+        <FormInput
+          id="email"
+          name="email"
+          label="E-mail"
+          type="email"
+          value={values.email}
+          onChange={(event) => change('email', event.target.value)}
+          required
+          error={fieldErrors.email}
+        />
+        <FormInput
+          id="password"
+          name="password"
+          label="Senha"
+          type="password"
+          value={values.password}
+          onChange={(event) => change('password', event.target.value)}
+          required
+          error={fieldErrors.password}
+        />
+        <FeedbackRegion error={error} />
+        <button type="submit" disabled={submitting}>
+          {submitting ? 'Criando...' : 'Criar conta'}
+        </button>
+      </form>
+      <Link to="/login">Já tenho conta</Link>
+    </main>
+  );
 }

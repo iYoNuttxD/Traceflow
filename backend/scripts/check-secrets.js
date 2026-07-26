@@ -4,7 +4,10 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const patterns = [
-  { name: 'GitHub token', pattern: /\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\b/g },
+  {
+    name: 'GitHub token',
+    pattern: /\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\b/g
+  },
   { name: 'AWS access key', pattern: /\bAKIA[0-9A-Z]{16}\b/g },
   { name: 'Private key', pattern: /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/g },
   { name: 'Database URL with password', pattern: /\bmysql:\/\/[^\s/:]+:[^\s@]+@[^\s]+/gi },
@@ -36,13 +39,20 @@ function defaultFiles(root) {
     encoding: 'utf8'
   });
   if (result.status !== 0) throw new Error('Não foi possível enumerar os arquivos do repositório.');
-  return result.stdout.split(/\r?\n/).filter(Boolean).filter((file) => existsSync(resolve(root, file))).filter((file) => {
-    if (/^(?:backend|frontend)\/(?:node_modules|coverage|dist)\//.test(file)) return false;
-    if (/^(?:docs|backend\/test|frontend\/test)\//.test(file)) return false;
-    if (/package-lock\.json$/.test(file)) return false;
-    return ['.js', '.jsx', '.json', '.yml', '.yaml', '.env', '.example'].includes(extname(file)) ||
-      /(?:^|\/)\.env\.example$/.test(file);
-  });
+  return result.stdout
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .filter((file) => existsSync(resolve(root, file)))
+    .filter((file) => {
+      if (/^(?:backend|frontend)\/(?:node_modules|coverage|dist)\//.test(file)) return false;
+      if (/^(?:docs|backend\/test|frontend\/test)\//.test(file)) return false;
+      if (/package-lock\.json$/.test(file)) return false;
+      return (
+        ['.js', '.jsx', '.mjs', '.json', '.yml', '.yaml', '.env', '.example'].includes(
+          extname(file)
+        ) || /(?:^|\/)\.env\.example$/.test(file)
+      );
+    });
 }
 
 export function scanFiles(files, root = process.cwd()) {
@@ -60,7 +70,9 @@ function main() {
   const findings = scanFiles(files, root);
   if (findings.length > 0) {
     for (const finding of findings) {
-      process.stderr.write(`${finding.file}:${finding.line} [${finding.type}] possível segredo detectado\n`);
+      process.stderr.write(
+        `${finding.file}:${finding.line} [${finding.type}] possível segredo detectado\n`
+      );
     }
     process.exitCode = 1;
     return;

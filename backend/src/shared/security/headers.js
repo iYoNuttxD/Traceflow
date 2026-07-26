@@ -10,9 +10,7 @@ export function createSecurityHeadersMiddleware({ isProduction }) {
     },
     crossOriginResourcePolicy: { policy: 'cross-origin' },
     frameguard: { action: 'deny' },
-    hsts: isProduction
-      ? { maxAge: 31536000, includeSubDomains: true, preload: false }
-      : false,
+    hsts: isProduction ? { maxAge: 31536000, includeSubDomains: true, preload: false } : false,
     referrerPolicy: { policy: 'no-referrer' }
   });
 }

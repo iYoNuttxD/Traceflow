@@ -9,9 +9,11 @@ export function mapValidationIssues(issues, location) {
       return issue.keys.map((key) => ({ field: String(key), message: 'Campo não permitido.' }));
     }
 
-    return [{
-      field: fieldFromPath(issue.path, location),
-      message: issue.message
-    }];
+    return [
+      {
+        field: fieldFromPath(issue.path, location),
+        message: issue.message
+      }
+    ];
   });
 }

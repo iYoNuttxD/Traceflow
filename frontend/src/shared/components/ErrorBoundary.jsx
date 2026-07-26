@@ -21,8 +21,12 @@ export class ErrorBoundary extends Component {
           <h1>Não foi possível exibir esta página.</h1>
           <p>Tente novamente. Se o problema continuar, volte à lista de projetos.</p>
           <div className="dialog-actions">
-            <button type="button" onClick={this.retry}>Tentar novamente</button>
-            <a className="button button-secondary" href="/projects">Voltar aos projetos</a>
+            <button type="button" onClick={this.retry}>
+              Tentar novamente
+            </button>
+            <a className="button button-secondary" href="/projects">
+              Voltar aos projetos
+            </a>
           </div>
         </section>
       </main>

@@ -23,8 +23,12 @@ vi.mock('../../src/features/tasks/api/tasks.api.js', () => ({
   unlinkTaskFromPullRequest: vi.fn(),
   unlinkTaskRequirement: vi.fn()
 }));
-vi.mock('../../src/features/members/members.api.js', () => ({ projectMembersApi: mocks.projectMembersApi }));
-vi.mock('../../src/features/projects/api/projects.api.js', () => ({ projectsApi: { get: (id) => mocks.api.get(`/projects/${id}`) } }));
+vi.mock('../../src/features/members/members.api.js', () => ({
+  projectMembersApi: mocks.projectMembersApi
+}));
+vi.mock('../../src/features/projects/api/projects.api.js', () => ({
+  projectsApi: { get: (id) => mocks.api.get(`/projects/${id}`) }
+}));
 
 import { KanbanPage } from '../../src/pages/KanbanPage.jsx';
 
@@ -59,7 +63,14 @@ function renderPage() {
   return render(
     <MemoryRouter initialEntries={['/projects/1/kanban']}>
       <Routes>
-        <Route path="/projects/:projectId/kanban" element={<ConfirmProvider><KanbanPage /></ConfirmProvider>} />
+        <Route
+          path="/projects/:projectId/kanban"
+          element={
+            <ConfirmProvider>
+              <KanbanPage />
+            </ConfirmProvider>
+          }
+        />
       </Routes>
     </MemoryRouter>
   );
@@ -89,9 +100,7 @@ describe('KanbanPage E11', () => {
     mocks.kanbanApi.listTaskHistory.mockResolvedValue(historyResponse());
     mocks.projectMembersApi.listProjectMembers.mockResolvedValue({
       data: {
-        members: [
-          { id: 3, userId: 5, isActive: true, user: { id: 5, name: 'Responsável real' } }
-        ]
+        members: [{ id: 3, userId: 5, isActive: true, user: { id: 5, name: 'Responsável real' } }]
       }
     });
   });
@@ -127,7 +136,9 @@ describe('KanbanPage E11', () => {
 
     dragTaskTo('Em Andamento (0)');
 
-    expect(await screen.findByText('A tarefa foi alterada por outra operação.')).toBeInTheDocument();
+    expect(
+      await screen.findByText('A tarefa foi alterada por outra operação.')
+    ).toBeInTheDocument();
     await waitFor(() => expect(mocks.kanbanApi.getBoard).toHaveBeenCalledTimes(2));
     expect(screen.getByRole('heading', { name: 'A Fazer (1)' })).toBeInTheDocument();
   });

@@ -7,8 +7,9 @@ import {
 import { buildProjectInviteData } from './project-invite.service.js';
 
 function protectGithubRepositoryIdentity(project, projectData) {
-  const hasGithubIdentity = ['githubOwner', 'githubRepo', 'githubUrl']
-    .some((field) => projectData[field] !== undefined);
+  const hasGithubIdentity = ['githubOwner', 'githubRepo', 'githubUrl'].some(
+    (field) => projectData[field] !== undefined
+  );
   if (!hasGithubIdentity) return;
 
   const current = {
@@ -16,8 +17,9 @@ function protectGithubRepositoryIdentity(project, projectData) {
     githubRepo: project.githubRepositoryName || project.githubRepo,
     githubUrl: project.githubRepositoryUrl || project.githubUrl
   };
-  const changed = Object.entries(current)
-    .some(([field, value]) => projectData[field] !== undefined && projectData[field] !== value);
+  const changed = Object.entries(current).some(
+    ([field, value]) => projectData[field] !== undefined && projectData[field] !== value
+  );
 
   if (changed) {
     throw new ProjectServiceError(

@@ -24,15 +24,19 @@ export const taskCommitService = {
     if (await taskRepository.findTaskCommit(id, commitId)) {
       throw new TaskServiceError('Este commit já está vinculado à tarefa.', 409);
     }
-    await taskLinkRepository.createCommit(id, commitId, buildAuditEvent({
-      actorUserId: context.actorUserId,
-      projectId: task.projectId,
-      requestId: context.requestId,
-      action: 'TASK_COMMIT_LINKED',
-      resourceType: 'Commit',
-      resourceId: commitId,
-      metadata: { taskId: id, commitId }
-    }));
+    await taskLinkRepository.createCommit(
+      id,
+      commitId,
+      buildAuditEvent({
+        actorUserId: context.actorUserId,
+        projectId: task.projectId,
+        requestId: context.requestId,
+        action: 'TASK_COMMIT_LINKED',
+        resourceType: 'Commit',
+        resourceId: commitId,
+        metadata: { taskId: id, commitId }
+      })
+    );
     return (await taskRepository.findTaskCommits(id)).map(formatCommit);
   },
   async unlinkCommit(taskId, commitId, context = {}) {
@@ -42,15 +46,19 @@ export const taskCommitService = {
     if (!(await taskRepository.findTaskCommit(id, parsedCommitId))) {
       throw new TaskServiceError('Vínculo entre tarefa e commit não encontrado.', 404);
     }
-    await taskLinkRepository.deleteCommit(id, parsedCommitId, buildAuditEvent({
-      actorUserId: context.actorUserId,
-      projectId: task.projectId,
-      requestId: context.requestId,
-      action: 'TASK_COMMIT_UNLINKED',
-      resourceType: 'Commit',
-      resourceId: parsedCommitId,
-      metadata: { taskId: id, commitId: parsedCommitId }
-    }));
+    await taskLinkRepository.deleteCommit(
+      id,
+      parsedCommitId,
+      buildAuditEvent({
+        actorUserId: context.actorUserId,
+        projectId: task.projectId,
+        requestId: context.requestId,
+        action: 'TASK_COMMIT_UNLINKED',
+        resourceType: 'Commit',
+        resourceId: parsedCommitId,
+        metadata: { taskId: id, commitId: parsedCommitId }
+      })
+    );
     return (await taskRepository.findTaskCommits(id)).map(formatCommit);
   }
 };

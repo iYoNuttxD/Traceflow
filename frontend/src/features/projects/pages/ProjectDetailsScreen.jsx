@@ -3,11 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { syncProjectGithub } from '../../github/index.js';
 import { Card } from '../../../shared/index.js';
 import { ProjectSectionNav } from '../components/ProjectSectionNav.jsx';
-import {
-  ProjectForm,
-  emptyProjectForm,
-  updateProjectForm
-} from '../components/ProjectForm.jsx';
+import { ProjectForm, emptyProjectForm, updateProjectForm } from '../components/ProjectForm.jsx';
 import { projectsApi } from '../api/projects.api.js';
 import { ProjectMembersPanel } from '../../members/index.js';
 
@@ -412,19 +408,25 @@ export function ProjectDetailsScreen() {
       </section>
 
       <div className="project-details-stack">
-        {currentMembership?.role === 'OWNER' && <Card title="Editar dados do projeto">
-          <ProjectForm
-            formData={formData}
-            onChange={handleChange}
-            onSubmit={handleSubmit}
-            submitLabel="Salvar alterações"
-            submitting={submitting}
-            showRepositoryField={false}
-          />
-        </Card>}
+        {currentMembership?.role === 'OWNER' && (
+          <Card title="Editar dados do projeto">
+            <ProjectForm
+              formData={formData}
+              onChange={handleChange}
+              onSubmit={handleSubmit}
+              submitLabel="Salvar alterações"
+              submitting={submitting}
+              showRepositoryField={false}
+            />
+          </Card>
+        )}
 
         <Card title="Membros do projeto">
-          <ProjectMembersPanel projectId={id} onCountChange={setMemberCount} onMembershipLoaded={setCurrentMembership} />
+          <ProjectMembersPanel
+            projectId={id}
+            onCountChange={setMemberCount}
+            onMembershipLoaded={setCurrentMembership}
+          />
         </Card>
       </div>
     </main>

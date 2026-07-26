@@ -7,20 +7,37 @@ import {
   strictObject
 } from '../../shared/validation/index.js';
 
-const requirementType = z.string().trim().transform((value) => value.toUpperCase()).pipe(
-  z.enum(['FUNCIONAL', 'NAO_FUNCIONAL', 'REGRA_NEGOCIO'], {
-    error: 'Tipo inválido. Use FUNCIONAL, NAO_FUNCIONAL ou REGRA_NEGOCIO.'
-  })
-);
+const requirementType = z
+  .string()
+  .trim()
+  .transform((value) => value.toUpperCase())
+  .pipe(
+    z.enum(['FUNCIONAL', 'NAO_FUNCIONAL', 'REGRA_NEGOCIO'], {
+      error: 'Tipo inválido. Use FUNCIONAL, NAO_FUNCIONAL ou REGRA_NEGOCIO.'
+    })
+  );
 
-const requirementStatus = z.string().trim().transform((value) => value.toUpperCase()).pipe(
-  z.enum([
-    'CADASTRADO', 'APROVADO', 'EM_IMPLEMENTACAO', 'VALIDADO',
-    'CONCLUIDO', 'PENDENTE', 'EM_ANDAMENTO', 'CANCELADO'
-  ], {
-    error: 'Status inválido. Use CADASTRADO, APROVADO, EM_IMPLEMENTACAO, VALIDADO ou CONCLUIDO.'
-  })
-);
+const requirementStatus = z
+  .string()
+  .trim()
+  .transform((value) => value.toUpperCase())
+  .pipe(
+    z.enum(
+      [
+        'CADASTRADO',
+        'APROVADO',
+        'EM_IMPLEMENTACAO',
+        'VALIDADO',
+        'CONCLUIDO',
+        'PENDENTE',
+        'EM_ANDAMENTO',
+        'CANCELADO'
+      ],
+      {
+        error: 'Status inválido. Use CADASTRADO, APROVADO, EM_IMPLEMENTACAO, VALIDADO ou CONCLUIDO.'
+      }
+    )
+  );
 
 export const requirementProjectParamsSchema = strictObject({
   projectId: positiveInteger('ID do projeto inválido.')
@@ -45,7 +62,11 @@ export const updateRequirementBodySchema = strictObject({
 export const requirementStatusBodySchema = strictObject({ status: requirementStatus });
 export const requirementSearchQuerySchema = strictObject({ search: searchText });
 export const replaceRequirementTasksBodySchema = strictObject({
-  taskIds: z.array(positiveInteger('ID da tarefa inválido.'))
+  taskIds: z
+    .array(positiveInteger('ID da tarefa inválido.'))
     .max(100, 'No máximo 100 tarefas podem ser atualizadas por operação.')
-    .refine((taskIds) => new Set(taskIds).size === taskIds.length, 'A lista de tarefas não pode conter IDs duplicados.')
+    .refine(
+      (taskIds) => new Set(taskIds).size === taskIds.length,
+      'A lista de tarefas não pode conter IDs duplicados.'
+    )
 });

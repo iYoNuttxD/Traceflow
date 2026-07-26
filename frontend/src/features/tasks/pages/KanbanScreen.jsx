@@ -76,8 +76,7 @@ function updateBoardWithMovedTask(board, movedTask) {
     (total, column) => total + (columns[column.status]?.length || 0),
     0
   );
-  const total =
-    typeof board.totals?.total === 'number' ? board.totals.total : calculatedTotal;
+  const total = typeof board.totals?.total === 'number' ? board.totals.total : calculatedTotal;
 
   return {
     ...board,
@@ -103,7 +102,12 @@ export function KanbanScreen() {
   const [movementMemberFilter, setMovementMemberFilter] = useState('');
   const [historyFieldFilter, setHistoryFieldFilter] = useState('');
   const [movementPage, setMovementPage] = useState(1);
-  const [movementPagination, setMovementPagination] = useState({ page: 1, limit: MOVEMENTS_PER_PAGE, total: 0, totalPages: 0 });
+  const [movementPagination, setMovementPagination] = useState({
+    page: 1,
+    limit: MOVEMENTS_PER_PAGE,
+    total: 0,
+    totalPages: 0
+  });
   const [selectedTask, setSelectedTask] = useState(null);
   const [loading, setLoading] = useState(true);
   const [movingTaskId, setMovingTaskId] = useState(null);
@@ -126,8 +130,7 @@ export function KanbanScreen() {
   const totalMovementPages = Math.max(1, movementPagination.totalPages || 1);
   const currentMovementPage = Math.min(movementPage, totalMovementPages);
   const movementStartIndex = (currentMovementPage - 1) * MOVEMENTS_PER_PAGE;
-  const movementRangeStart =
-    movementPagination.total === 0 ? 0 : movementStartIndex + 1;
+  const movementRangeStart = movementPagination.total === 0 ? 0 : movementStartIndex + 1;
   const movementRangeEnd = Math.min(
     movementStartIndex + movements.length,
     movementPagination.total
@@ -139,21 +142,33 @@ export function KanbanScreen() {
       setError('');
 
       try {
-        const [projectResponse, boardResponse, metricsResponse, movementsResponse, membersResponse] =
-          await Promise.all([
-            projectsApi.get(projectId),
-            kanbanApi.getBoard(projectId),
-            kanbanApi.getMetrics(projectId, params),
-            kanbanApi.listTaskHistory(projectId, { ...params, page: 1, limit: MOVEMENTS_PER_PAGE }),
-            projectMembersApi.listProjectMembers(projectId)
-          ]);
+        const [
+          projectResponse,
+          boardResponse,
+          metricsResponse,
+          movementsResponse,
+          membersResponse
+        ] = await Promise.all([
+          projectsApi.get(projectId),
+          kanbanApi.getBoard(projectId),
+          kanbanApi.getMetrics(projectId, params),
+          kanbanApi.listTaskHistory(projectId, { ...params, page: 1, limit: MOVEMENTS_PER_PAGE }),
+          projectMembersApi.listProjectMembers(projectId)
+        ]);
 
         const members = membersResponse.data.members || [];
         setProject(projectResponse.data.project);
         setBoard(boardResponse.data);
         setMetrics(metricsResponse.data);
         setMovements(movementsResponse.data.items || []);
-        setMovementPagination(movementsResponse.data.pagination || { page: 1, limit: MOVEMENTS_PER_PAGE, total: movementsResponse.data.total || 0, totalPages: 1 });
+        setMovementPagination(
+          movementsResponse.data.pagination || {
+            page: 1,
+            limit: MOVEMENTS_PER_PAGE,
+            total: movementsResponse.data.total || 0,
+            totalPages: 1
+          }
+        );
         setProjectMembers(members);
       } catch (requestError) {
         setError(getErrorMessage(requestError, 'Não foi possível carregar o Kanban.'));
@@ -170,7 +185,15 @@ export function KanbanScreen() {
     void loadKanban();
   }, [loadKanban, projectId]);
 
-  async function refreshKanban(params = { ...buildPeriodParams(period), page: movementPage, limit: MOVEMENTS_PER_PAGE, ...(movementMemberFilter ? { actorUserId: movementMemberFilter } : {}), ...(historyFieldFilter ? { field: historyFieldFilter } : {}) }) {
+  async function refreshKanban(
+    params = {
+      ...buildPeriodParams(period),
+      page: movementPage,
+      limit: MOVEMENTS_PER_PAGE,
+      ...(movementMemberFilter ? { actorUserId: movementMemberFilter } : {}),
+      ...(historyFieldFilter ? { field: historyFieldFilter } : {})
+    }
+  ) {
     const [boardResponse, metricsResponse, movementsResponse] = await Promise.all([
       kanbanApi.getBoard(projectId),
       kanbanApi.getMetrics(projectId, params),
@@ -180,7 +203,14 @@ export function KanbanScreen() {
     setBoard(boardResponse.data);
     setMetrics(metricsResponse.data);
     setMovements(movementsResponse.data.items || []);
-    setMovementPagination(movementsResponse.data.pagination || { page: 1, limit: MOVEMENTS_PER_PAGE, total: movementsResponse.data.total || 0, totalPages: 1 });
+    setMovementPagination(
+      movementsResponse.data.pagination || {
+        page: 1,
+        limit: MOVEMENTS_PER_PAGE,
+        total: movementsResponse.data.total || 0,
+        totalPages: 1
+      }
+    );
   }
 
   async function moveTaskToStatus(task, toStatus) {
@@ -404,7 +434,8 @@ export function KanbanScreen() {
   async function handleDeleteSelectedTask(task) {
     const confirmed = await confirm({
       title: 'Excluir tarefa',
-      description: 'Esta ação não poderá ser desfeita. Os vínculos com requisito, pull request, commits, issues e movimentações do Kanban serão removidos, mas os artefatos importados do GitHub serão mantidos.',
+      description:
+        'Esta ação não poderá ser desfeita. Os vínculos com requisito, pull request, commits, issues e movimentações do Kanban serão removidos, mas os artefatos importados do GitHub serão mantidos.',
       confirmLabel: 'Excluir tarefa'
     });
 
@@ -435,7 +466,13 @@ export function KanbanScreen() {
     setMovementPage(1);
 
     try {
-      await refreshKanban({ ...buildPeriodParams(period), ...(movementMemberFilter ? { actorUserId: movementMemberFilter } : {}), ...(historyFieldFilter ? { field: historyFieldFilter } : {}), page: 1, limit: MOVEMENTS_PER_PAGE });
+      await refreshKanban({
+        ...buildPeriodParams(period),
+        ...(movementMemberFilter ? { actorUserId: movementMemberFilter } : {}),
+        ...(historyFieldFilter ? { field: historyFieldFilter } : {}),
+        page: 1,
+        limit: MOVEMENTS_PER_PAGE
+      });
     } catch (requestError) {
       setError(getErrorMessage(requestError, 'Não foi possível consultar o período.'));
     }
@@ -498,7 +535,9 @@ export function KanbanScreen() {
       ) : error && !board ? null : (
         <>
           <section className="kanban-toolbar">
-            <p className="kanban-members-empty">A autoria das movimentações é obtida da sessão autenticada.</p>
+            <p className="kanban-members-empty">
+              A autoria das movimentações é obtida da sessão autenticada.
+            </p>
 
             <div className="kanban-metric-panel">
               <span className="eyebrow">{metrics?.indicator}</span>
@@ -536,7 +575,9 @@ export function KanbanScreen() {
             fieldFilter={historyFieldFilter}
             members={projectMembers}
             metrics={metrics}
-            onPeriodChange={(field, value) => setPeriod((current) => ({ ...current, [field]: value }))}
+            onPeriodChange={(field, value) =>
+              setPeriod((current) => ({ ...current, [field]: value }))
+            }
             onMemberFilterChange={setMovementMemberFilter}
             onFieldFilterChange={setHistoryFieldFilter}
             onSubmit={handlePeriodSubmit}

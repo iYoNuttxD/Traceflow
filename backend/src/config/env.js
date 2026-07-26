@@ -41,11 +41,12 @@ function parseCsv(value, fallback = []) {
 }
 
 function parseCorsOrigins(source, nodeEnv, frontendUrl) {
-  const fallback = nodeEnv === 'production'
-    ? []
-    : nodeEnv === 'test'
-      ? ['http://frontend.test']
-      : [frontendUrl, 'http://localhost:5173'];
+  const fallback =
+    nodeEnv === 'production'
+      ? []
+      : nodeEnv === 'test'
+        ? ['http://frontend.test']
+        : [frontendUrl, 'http://localhost:5173'];
   const origins = parseCsv(source.CORS_ALLOWED_ORIGINS, fallback);
 
   if (nodeEnv === 'production' && origins.length === 0) {
@@ -56,7 +57,9 @@ function parseCorsOrigins(source, nodeEnv, frontendUrl) {
 
   for (const origin of origins) {
     if (origin === '*') {
-      throw new ConfigurationError('Configuração inválida: CORS_ALLOWED_ORIGINS não aceita wildcard.');
+      throw new ConfigurationError(
+        'Configuração inválida: CORS_ALLOWED_ORIGINS não aceita wildcard.'
+      );
     }
     const parsed = parseUrl(origin, 'CORS_ALLOWED_ORIGINS');
     if (!['http:', 'https:'].includes(new URL(parsed).protocol)) {
@@ -70,10 +73,13 @@ function parseCorsOrigins(source, nodeEnv, frontendUrl) {
 }
 
 function parseCorsMethods(value) {
-  const methods = parseCsv(value, ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'])
-    .map((method) => method.toUpperCase());
+  const methods = parseCsv(value, ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']).map(
+    (method) => method.toUpperCase()
+  );
   if (methods.length === 0 || methods.some((method) => !allowedCorsMethods.has(method))) {
-    throw new ConfigurationError('Configuração inválida: CORS_ALLOWED_METHODS contém método não permitido.');
+    throw new ConfigurationError(
+      'Configuração inválida: CORS_ALLOWED_METHODS contém método não permitido.'
+    );
   }
   return methods;
 }
@@ -81,7 +87,9 @@ function parseCorsMethods(value) {
 function parseCorsHeaders(value) {
   const headers = parseCsv(value, ['Content-Type', 'X-Request-Id', 'X-CSRF-Token']);
   if (headers.length === 0 || headers.some((header) => !/^[A-Za-z0-9-]+$/.test(header))) {
-    throw new ConfigurationError('Configuração inválida: CORS_ALLOWED_HEADERS contém header inválido.');
+    throw new ConfigurationError(
+      'Configuração inválida: CORS_ALLOWED_HEADERS contém header inválido.'
+    );
   }
   return headers;
 }
@@ -92,7 +100,7 @@ function parseBodyLimit(value) {
   if (!match) {
     throw new ConfigurationError('Configuração inválida: BODY_LIMIT deve usar b, kb ou mb.');
   }
-  const bytes = Number(match[1]) * ({ b: 1, kb: 1024, mb: 1024 * 1024 })[match[2].toLowerCase()];
+  const bytes = Number(match[1]) * { b: 1, kb: 1024, mb: 1024 * 1024 }[match[2].toLowerCase()];
   if (bytes < 1024 || bytes > 10 * 1024 * 1024) {
     throw new ConfigurationError('Configuração inválida: BODY_LIMIT deve estar entre 1kb e 10mb.');
   }
@@ -102,19 +110,25 @@ function parseBodyLimit(value) {
 function parseTrustProxy(value) {
   if (value === undefined || value === '' || value === 'false') return false;
   if (value === 'true') {
-    throw new ConfigurationError('Configuração inválida: TRUST_PROXY não pode ser true irrestrito.');
+    throw new ConfigurationError(
+      'Configuração inválida: TRUST_PROXY não pode ser true irrestrito.'
+    );
   }
   if (/^\d+$/.test(value)) {
     return parseInteger(value, 'TRUST_PROXY', { min: 1, max: 10 });
   }
   if (['loopback', 'linklocal', 'uniquelocal'].includes(value)) return value;
-  throw new ConfigurationError('Configuração inválida: TRUST_PROXY deve ser false, um número de saltos ou uma faixa confiável.');
+  throw new ConfigurationError(
+    'Configuração inválida: TRUST_PROXY deve ser false, um número de saltos ou uma faixa confiável.'
+  );
 }
 
 function parseSameSite(value) {
   const normalized = (value || 'lax').toLowerCase();
   if (!['lax', 'strict', 'none'].includes(normalized)) {
-    throw new ConfigurationError('Configuração inválida: SESSION_COOKIE_SAME_SITE deve ser lax, strict ou none.');
+    throw new ConfigurationError(
+      'Configuração inválida: SESSION_COOKIE_SAME_SITE deve ser lax, strict ou none.'
+    );
   }
   return normalized;
 }
@@ -132,9 +146,12 @@ function parseEmailConfiguration(source, nodeEnv) {
     throw new ConfigurationError('Configuração inválida: EMAIL_PROVIDER deve ser capture ou smtp.');
   }
   if (nodeEnv === 'production' && provider !== 'smtp') {
-    throw new ConfigurationError('Configuração inválida: EMAIL_PROVIDER deve ser smtp em produção.');
+    throw new ConfigurationError(
+      'Configuração inválida: EMAIL_PROVIDER deve ser smtp em produção.'
+    );
   }
-  const from = source.EMAIL_FROM || (provider === 'capture' ? 'no-reply@traceflow.test' : undefined);
+  const from =
+    source.EMAIL_FROM || (provider === 'capture' ? 'no-reply@traceflow.test' : undefined);
   if (!from || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(from)) {
     throw new ConfigurationError('Configuração inválida: EMAIL_FROM deve ser um e-mail válido.');
   }
@@ -147,12 +164,22 @@ function parseEmailConfiguration(source, nodeEnv) {
     emailProvider: provider,
     emailFrom: from,
     smtpHost: source.SMTP_HOST,
-    smtpPort: parseInteger(source.SMTP_PORT, 'SMTP_PORT', { defaultValue: 587, min: 1, max: 65535 }),
+    smtpPort: parseInteger(source.SMTP_PORT, 'SMTP_PORT', {
+      defaultValue: 587,
+      min: 1,
+      max: 65535
+    }),
     smtpSecure: parseBoolean(source.SMTP_SECURE, 'SMTP_SECURE', false),
     smtpUser: source.SMTP_USER,
     smtpPassword: source.SMTP_PASSWORD,
-    passwordResetUrl: parseUrl(source.PASSWORD_RESET_URL || 'http://localhost:5173/reset-password', 'PASSWORD_RESET_URL'),
-    invitationAcceptUrl: parseUrl(source.INVITATION_ACCEPT_URL || 'http://localhost:5173/invitations/accept', 'INVITATION_ACCEPT_URL')
+    passwordResetUrl: parseUrl(
+      source.PASSWORD_RESET_URL || 'http://localhost:5173/reset-password',
+      'PASSWORD_RESET_URL'
+    ),
+    invitationAcceptUrl: parseUrl(
+      source.INVITATION_ACCEPT_URL || 'http://localhost:5173/invitations/accept',
+      'INVITATION_ACCEPT_URL'
+    )
   };
 }
 
@@ -167,14 +194,10 @@ export function createEnvironment(source = {}) {
   const testDatabaseUrl = source.TEST_DATABASE_URL
     ? parseUrl(source.TEST_DATABASE_URL, 'TEST_DATABASE_URL', { protocol: 'mysql:' })
     : undefined;
-  const databaseSource = nodeEnv === 'test' && testDatabaseUrl
-    ? testDatabaseUrl
-    : source.DATABASE_URL;
+  const databaseSource =
+    nodeEnv === 'test' && testDatabaseUrl ? testDatabaseUrl : source.DATABASE_URL;
   const databaseUrl = parseUrl(databaseSource, 'DATABASE_URL', { protocol: 'mysql:' });
-  const frontendUrl = parseUrl(
-    source.FRONTEND_URL || 'http://localhost:5173',
-    'FRONTEND_URL'
-  );
+  const frontendUrl = parseUrl(source.FRONTEND_URL || 'http://localhost:5173', 'FRONTEND_URL');
 
   if (nodeEnv === 'production' && !source.GITHUB_TOKEN) {
     throw new ConfigurationError('Configuração obrigatória ausente: GITHUB_TOKEN.');
@@ -220,23 +243,61 @@ export function createEnvironment(source = {}) {
       max: 5
     }),
     sessionTtlMs: parseInteger(source.SESSION_TTL_MS, 'SESSION_TTL_MS', {
-      defaultValue: 8 * 60 * 60 * 1000, min: 5 * 60 * 1000, max: 30 * 24 * 60 * 60 * 1000
+      defaultValue: 8 * 60 * 60 * 1000,
+      min: 5 * 60 * 1000,
+      max: 30 * 24 * 60 * 60 * 1000
     }),
     passwordResetTtlMs: parseInteger(source.PASSWORD_RESET_TTL_MS, 'PASSWORD_RESET_TTL_MS', {
-      defaultValue: 30 * 60 * 1000, min: 5 * 60 * 1000, max: 24 * 60 * 60 * 1000
+      defaultValue: 30 * 60 * 1000,
+      min: 5 * 60 * 1000,
+      max: 24 * 60 * 60 * 1000
     }),
     invitationTtlMs: parseInteger(source.INVITATION_TTL_MS, 'INVITATION_TTL_MS', {
-      defaultValue: 7 * 24 * 60 * 60 * 1000, min: 60 * 60 * 1000, max: 30 * 24 * 60 * 60 * 1000
+      defaultValue: 7 * 24 * 60 * 60 * 1000,
+      min: 60 * 60 * 1000,
+      max: 30 * 24 * 60 * 60 * 1000
     }),
     ...emailConfiguration,
-    sessionRetentionDays: parseInteger(source.AUTH_SESSION_RETENTION_DAYS, 'AUTH_SESSION_RETENTION_DAYS', { defaultValue: 30, min: 1, max: 3650 }),
-    passwordResetRetentionDays: parseInteger(source.AUTH_PASSWORD_RESET_RETENTION_DAYS, 'AUTH_PASSWORD_RESET_RETENTION_DAYS', { defaultValue: 7, min: 1, max: 3650 }),
-    invitationRetentionDays: parseInteger(source.AUTH_INVITATION_RETENTION_DAYS, 'AUTH_INVITATION_RETENTION_DAYS', { defaultValue: 30, min: 1, max: 3650 }),
-    auditRetentionDays: parseInteger(source.AUDIT_RETENTION_DAYS, 'AUDIT_RETENTION_DAYS', { defaultValue: 365, min: 30, max: 3650 }),
-    deactivatedAccountRetentionDays: parseInteger(source.DEACTIVATED_ACCOUNT_RETENTION_DAYS, 'DEACTIVATED_ACCOUNT_RETENTION_DAYS', { defaultValue: 30, min: 1, max: 3650 }),
-    exportFileTtlMinutes: parseInteger(source.EXPORT_FILE_TTL_MINUTES, 'EXPORT_FILE_TTL_MINUTES', { defaultValue: 15, min: 5, max: 1440 }),
-    privacyRequestRetentionDays: parseInteger(source.PRIVACY_REQUEST_RETENTION_DAYS, 'PRIVACY_REQUEST_RETENTION_DAYS', { defaultValue: 365, min: 30, max: 3650 }),
-    accountDeletionGraceDays: parseInteger(source.ACCOUNT_DELETION_GRACE_DAYS, 'ACCOUNT_DELETION_GRACE_DAYS', { defaultValue: 7, min: 1, max: 90 }),
+    sessionRetentionDays: parseInteger(
+      source.AUTH_SESSION_RETENTION_DAYS,
+      'AUTH_SESSION_RETENTION_DAYS',
+      { defaultValue: 30, min: 1, max: 3650 }
+    ),
+    passwordResetRetentionDays: parseInteger(
+      source.AUTH_PASSWORD_RESET_RETENTION_DAYS,
+      'AUTH_PASSWORD_RESET_RETENTION_DAYS',
+      { defaultValue: 7, min: 1, max: 3650 }
+    ),
+    invitationRetentionDays: parseInteger(
+      source.AUTH_INVITATION_RETENTION_DAYS,
+      'AUTH_INVITATION_RETENTION_DAYS',
+      { defaultValue: 30, min: 1, max: 3650 }
+    ),
+    auditRetentionDays: parseInteger(source.AUDIT_RETENTION_DAYS, 'AUDIT_RETENTION_DAYS', {
+      defaultValue: 365,
+      min: 30,
+      max: 3650
+    }),
+    deactivatedAccountRetentionDays: parseInteger(
+      source.DEACTIVATED_ACCOUNT_RETENTION_DAYS,
+      'DEACTIVATED_ACCOUNT_RETENTION_DAYS',
+      { defaultValue: 30, min: 1, max: 3650 }
+    ),
+    exportFileTtlMinutes: parseInteger(source.EXPORT_FILE_TTL_MINUTES, 'EXPORT_FILE_TTL_MINUTES', {
+      defaultValue: 15,
+      min: 5,
+      max: 1440
+    }),
+    privacyRequestRetentionDays: parseInteger(
+      source.PRIVACY_REQUEST_RETENTION_DAYS,
+      'PRIVACY_REQUEST_RETENTION_DAYS',
+      { defaultValue: 365, min: 30, max: 3650 }
+    ),
+    accountDeletionGraceDays: parseInteger(
+      source.ACCOUNT_DELETION_GRACE_DAYS,
+      'ACCOUNT_DELETION_GRACE_DAYS',
+      { defaultValue: 7, min: 1, max: 90 }
+    ),
     sessionCookieName: source.SESSION_COOKIE_NAME || 'traceflow_session',
     sessionCookieSameSite: parseSameSite(source.SESSION_COOKIE_SAME_SITE),
     trustProxy: parseTrustProxy(source.TRUST_PROXY),

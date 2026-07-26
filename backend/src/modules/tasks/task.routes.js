@@ -23,27 +23,111 @@ import {
 
 const router = Router();
 
-router.post('/projects/:projectId/tasks', validateRequest({ params: taskProjectParamsSchema, body: createTaskBodySchema }), taskController.create);
-router.get('/projects/:projectId/tasks', validateRequest({ params: taskProjectParamsSchema, query: taskSearchQuerySchema }), taskController.findByProject);
-router.get('/projects/:projectId/tasks/metrics', validateRequest({ params: taskProjectParamsSchema, query: taskDateRangeQuerySchema }), taskController.getMetrics);
-router.get('/projects/:projectId/tasks/history', validateRequest({ params: taskProjectParamsSchema, query: taskHistoryQuerySchema }), taskController.listHistory);
-router.get('/projects/:projectId/kanban', validateRequest({ params: taskProjectParamsSchema }), taskController.getKanbanBoard);
-router.get('/projects/:projectId/kanban/movements', validateRequest({ params: taskProjectParamsSchema, query: movementQuerySchema }), taskController.listMovements);
-router.get('/projects/:projectId/kanban/metrics', validateRequest({ params: taskProjectParamsSchema, query: movementQuerySchema }), taskController.getKanbanMetrics);
+router.post(
+  '/projects/:projectId/tasks',
+  validateRequest({ params: taskProjectParamsSchema, body: createTaskBodySchema }),
+  taskController.create
+);
+router.get(
+  '/projects/:projectId/tasks',
+  validateRequest({ params: taskProjectParamsSchema, query: taskSearchQuerySchema }),
+  taskController.findByProject
+);
+router.get(
+  '/projects/:projectId/tasks/metrics',
+  validateRequest({ params: taskProjectParamsSchema, query: taskDateRangeQuerySchema }),
+  taskController.getMetrics
+);
+router.get(
+  '/projects/:projectId/tasks/history',
+  validateRequest({ params: taskProjectParamsSchema, query: taskHistoryQuerySchema }),
+  taskController.listHistory
+);
+router.get(
+  '/projects/:projectId/kanban',
+  validateRequest({ params: taskProjectParamsSchema }),
+  taskController.getKanbanBoard
+);
+router.get(
+  '/projects/:projectId/kanban/movements',
+  validateRequest({ params: taskProjectParamsSchema, query: movementQuerySchema }),
+  taskController.listMovements
+);
+router.get(
+  '/projects/:projectId/kanban/metrics',
+  validateRequest({ params: taskProjectParamsSchema, query: movementQuerySchema }),
+  taskController.getKanbanMetrics
+);
 router.get('/tasks/:id', validateRequest({ params: taskIdParamsSchema }), taskController.findById);
-router.put('/tasks/:id', validateRequest({ params: taskIdParamsSchema, body: updateTaskBodySchema }), taskController.update);
-router.delete('/tasks/:id', validateRequest({ params: taskIdParamsSchema, body: emptyBodySchema }), taskController.delete);
-router.patch('/tasks/:id/status', validateRequest({ params: taskIdParamsSchema, body: taskStatusBodySchema }), taskController.updateStatus);
-router.patch('/tasks/:id/requirement', validateRequest({ params: taskIdParamsSchema, body: taskRequirementBodySchema }), taskController.linkRequirement);
-router.delete('/tasks/:id/requirement', validateRequest({ params: taskIdParamsSchema, body: emptyBodySchema }), taskController.unlinkRequirement);
-router.patch('/tasks/:id/pull-request', validateRequest({ params: taskIdParamsSchema, body: pullRequestLinkBodySchema }), taskController.linkPullRequest);
-router.delete('/tasks/:id/pull-request', validateRequest({ params: taskIdParamsSchema, body: emptyBodySchema }), taskController.unlinkPullRequest);
-router.get('/tasks/:id/commits', validateRequest({ params: taskIdParamsSchema }), taskController.listCommits);
-router.post('/tasks/:id/commits', validateRequest({ params: taskIdParamsSchema, body: taskCommitBodySchema }), taskController.linkCommit);
-router.delete('/tasks/:id/commits/:commitId', validateRequest({ params: taskCommitParamsSchema, body: emptyBodySchema }), taskController.unlinkCommit);
-router.get('/tasks/:id/issues', validateRequest({ params: taskIdParamsSchema }), taskController.listIssues);
-router.post('/tasks/:id/issues', validateRequest({ params: taskIdParamsSchema, body: taskIssueBodySchema }), taskController.linkIssue);
-router.delete('/tasks/:id/issues/:issueId', validateRequest({ params: taskIssueParamsSchema, body: emptyBodySchema }), taskController.unlinkIssue);
-router.patch('/tasks/:id/move', validateRequest({ params: taskIdParamsSchema, body: moveTaskBodySchema }), taskController.moveTask);
+router.put(
+  '/tasks/:id',
+  validateRequest({ params: taskIdParamsSchema, body: updateTaskBodySchema }),
+  taskController.update
+);
+router.delete(
+  '/tasks/:id',
+  validateRequest({ params: taskIdParamsSchema, body: emptyBodySchema }),
+  taskController.delete
+);
+router.patch(
+  '/tasks/:id/status',
+  validateRequest({ params: taskIdParamsSchema, body: taskStatusBodySchema }),
+  taskController.updateStatus
+);
+router.patch(
+  '/tasks/:id/requirement',
+  validateRequest({ params: taskIdParamsSchema, body: taskRequirementBodySchema }),
+  taskController.linkRequirement
+);
+router.delete(
+  '/tasks/:id/requirement',
+  validateRequest({ params: taskIdParamsSchema, body: emptyBodySchema }),
+  taskController.unlinkRequirement
+);
+router.patch(
+  '/tasks/:id/pull-request',
+  validateRequest({ params: taskIdParamsSchema, body: pullRequestLinkBodySchema }),
+  taskController.linkPullRequest
+);
+router.delete(
+  '/tasks/:id/pull-request',
+  validateRequest({ params: taskIdParamsSchema, body: emptyBodySchema }),
+  taskController.unlinkPullRequest
+);
+router.get(
+  '/tasks/:id/commits',
+  validateRequest({ params: taskIdParamsSchema }),
+  taskController.listCommits
+);
+router.post(
+  '/tasks/:id/commits',
+  validateRequest({ params: taskIdParamsSchema, body: taskCommitBodySchema }),
+  taskController.linkCommit
+);
+router.delete(
+  '/tasks/:id/commits/:commitId',
+  validateRequest({ params: taskCommitParamsSchema, body: emptyBodySchema }),
+  taskController.unlinkCommit
+);
+router.get(
+  '/tasks/:id/issues',
+  validateRequest({ params: taskIdParamsSchema }),
+  taskController.listIssues
+);
+router.post(
+  '/tasks/:id/issues',
+  validateRequest({ params: taskIdParamsSchema, body: taskIssueBodySchema }),
+  taskController.linkIssue
+);
+router.delete(
+  '/tasks/:id/issues/:issueId',
+  validateRequest({ params: taskIssueParamsSchema, body: emptyBodySchema }),
+  taskController.unlinkIssue
+);
+router.patch(
+  '/tasks/:id/move',
+  validateRequest({ params: taskIdParamsSchema, body: moveTaskBodySchema }),
+  taskController.moveTask
+);
 
 export default router;

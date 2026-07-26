@@ -30,7 +30,9 @@ function AuthHarness() {
       <button type="button" onClick={() => auth.register({ name: 'Nova pessoa' })}>
         Registrar
       </button>
-      <button type="button" onClick={auth.logout}>Sair</button>
+      <button type="button" onClick={auth.logout}>
+        Sair
+      </button>
       <button type="button" onClick={() => Promise.all([auth.refresh(), auth.refresh()])}>
         Atualizar duas vezes
       </button>
@@ -105,7 +107,10 @@ describe('AuthContext', () => {
 
     let resolveMe;
     mocks.authApi.me.mockImplementationOnce(
-      () => new Promise((resolve) => { resolveMe = resolve; })
+      () =>
+        new Promise((resolve) => {
+          resolveMe = resolve;
+        })
     );
     mocks.authApi.csrf.mockResolvedValueOnce({ data: { csrfToken: 'csrf-atualizado' } });
     await user.click(screen.getByRole('button', { name: 'Atualizar duas vezes' }));

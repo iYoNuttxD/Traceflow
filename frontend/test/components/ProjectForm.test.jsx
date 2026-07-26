@@ -49,30 +49,16 @@ describe('ProjectForm', () => {
     expect(screen.getByLabelText('Repositório GitHub *')).toBeRequired();
     await user.type(screen.getByLabelText('Nome do projeto *'), 'Projeto artificial');
     await user.type(screen.getByLabelText('Descrição'), 'Descrição artificial');
-    await user.type(
-      screen.getByLabelText('Área ou equipe responsável *'),
-      'Equipe artificial'
-    );
-    await user.selectOptions(
-      screen.getByLabelText('Repositório GitHub *'),
-      repository.fullName
-    );
+    await user.type(screen.getByLabelText('Área ou equipe responsável *'), 'Equipe artificial');
+    await user.selectOptions(screen.getByLabelText('Repositório GitHub *'), repository.fullName);
     await user.click(screen.getByRole('button', { name: 'Cadastrar projeto' }));
 
     expect(onSubmit).toHaveBeenCalledOnce();
-    expect(screen.getByText(/Repositório selecionado:/)).toHaveTextContent(
-      repository.fullName
-    );
+    expect(screen.getByText(/Repositório selecionado:/)).toHaveTextContent(repository.fullName);
   });
 
   it('preserva estados desabilitados de carregamento e submissão', () => {
-    render(
-      <ProjectFormHarness
-        onSubmit={vi.fn()}
-        loadingRepositories
-        submitting
-      />
-    );
+    render(<ProjectFormHarness onSubmit={vi.fn()} loadingRepositories submitting />);
 
     expect(screen.getByLabelText('Repositório GitHub *')).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Salvando...' })).toBeDisabled();

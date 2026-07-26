@@ -138,10 +138,17 @@ export const projectRepository = {
   },
 
   async upsertProjectMembership(projectId, userId, role = 'MEMBER') {
-    const normalizedRole = { DONO: 'OWNER', GERENTE: 'MANAGER', MEMBRO: 'MEMBER', VISUALIZADOR: 'VIEWER' }[role] || role;
+    const normalizedRole =
+      { DONO: 'OWNER', GERENTE: 'MANAGER', MEMBRO: 'MEMBER', VISUALIZADOR: 'VIEWER' }[role] || role;
     return prisma.projectMembership.upsert({
       where: { projectId_userId: { projectId, userId } },
-      create: { projectId, userId, role: ['OWNER', 'MANAGER', 'MEMBER', 'VIEWER'].includes(normalizedRole) ? normalizedRole : 'MEMBER' },
+      create: {
+        projectId,
+        userId,
+        role: ['OWNER', 'MANAGER', 'MEMBER', 'VIEWER'].includes(normalizedRole)
+          ? normalizedRole
+          : 'MEMBER'
+      },
       update: { isActive: true }
     });
   }

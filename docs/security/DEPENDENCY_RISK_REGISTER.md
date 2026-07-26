@@ -1,5 +1,19 @@
 # Registro de risco de dependências
 
+## Gate executável E14
+
+Em 26/07/2026, `scripts/check-npm-audit.mjs` passou a bloquear toda vulnerabilidade `high` ou `critical` não registrada de forma específica. A política versionada em `npm-audit-exceptions.json` exige advisory ID, pacote, cadeia, severidade, justificativa, data da decisão, condição/data de revisão e responsável; exceções expiradas falham. O Dependency Review complementa a política sobre o delta de pull requests.
+
+A única exceção vigente é:
+
+| Advisory | Pacote/cadeia | Severidade | Justificativa | Decisão | Revisão | Responsável |
+|---|---|---:|---|---|---|---|
+| `GHSA-qwww-vcr4-c8h2` | `react-router-dom` → `react-router` | ALTA | vetor depende de React Server Components/actions; TRACEFLOW é SPA client-side sem RSC, SSR, actions ou loaders de servidor | risco residual temporário, sem downgrade incompatível | 26/10/2026 ou antes se RSC/SSR for adotado ou houver correção compatível | mantenedores TRACEFLOW |
+
+Essa exceção não libera genericamente `react-router` nem outro advisory. O backend possui zero vulnerabilidades no baseline E14. Nenhum `npm audit fix` foi executado.
+
+ESLint, Prettier, `@eslint/js` e `globals` foram adicionados como dependências de desenvolvimento; o frontend também recebeu `eslint-plugin-react-hooks`. O audit após a atualização não introduziu novo advisory. Nenhuma dessas ferramentas integra o runtime da aplicação.
+
 ## Revalidação E11
 
 Em 26/07/2026, o backend permaneceu com zero vulnerabilidades. O frontend manteve duas entradas altas do advisory `GHSA-qwww-vcr4-c8h2` em React Router RSC. O TRACEFLOW continua SPA client-side, sem RSC/actions; o audit propõe mudança incompatível e nenhuma correção automática foi executada. E11 não alterou dependências ou lockfiles.
@@ -48,4 +62,4 @@ Resultado final frontend: **2 entradas altas** no `npm audit`, ambas representan
 - desenvolvimento/build: avaliar alcance e corrigir por patch/minor quando seguro;
 - nenhuma major automática sem análise de API, testes e plano de rollback;
 - lockfiles são obrigatórios; fontes esperadas são o registry npm e o repositório oficial do pacote;
-- SBOM automatizada e dependency review no CI permanecem para E14.
+- Dependency review é obrigatório em pull requests desde a E14. SBOM automatizada permanece como evolução futura.

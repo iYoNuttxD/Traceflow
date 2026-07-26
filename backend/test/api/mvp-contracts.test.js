@@ -12,8 +12,8 @@ import {
   createProject,
   createPullRequest,
   createRequirement,
-  createTask
-  ,setAuthenticatedFixtureUser
+  createTask,
+  setAuthenticatedFixtureUser
 } from '../fixtures/factories.js';
 
 let app;
@@ -37,11 +37,36 @@ afterEach(async () => {
 });
 
 beforeEach(async () => {
-  const user = await prisma.user.create({ data: { name: 'Usuário E6 artificial', email: 'e6@example.invalid', passwordHash: 'fixture-only' } });
-  await prisma.session.create({ data: { userId: user.id, tokenHash: sha256(sessionToken), csrfTokenHash: sha256(csrfToken), sessionVersion: user.sessionVersion, expiresAt: new Date(Date.now() + 60000) } });
+  const user = await prisma.user.create({
+    data: {
+      name: 'Usuário E6 artificial',
+      email: 'e6@example.invalid',
+      passwordHash: 'fixture-only'
+    }
+  });
+  await prisma.session.create({
+    data: {
+      userId: user.id,
+      tokenHash: sha256(sessionToken),
+      csrfTokenHash: sha256(csrfToken),
+      sessionVersion: user.sessionVersion,
+      expiresAt: new Date(Date.now() + 60000)
+    }
+  });
   setAuthenticatedFixtureUser(user.id);
-  const secured = (method) => (path) => request(app)[method](path).set('Cookie', `traceflow_session=${sessionToken}`).set('X-CSRF-Token', csrfToken);
-  api = { get: secured('get'), post: secured('post'), put: secured('put'), patch: secured('patch'), delete: secured('delete') };
+  const secured = (method) => (path) => {
+    const client = request(app);
+    return client[method](path)
+      .set('Cookie', `traceflow_session=${sessionToken}`)
+      .set('X-CSRF-Token', csrfToken);
+  };
+  api = {
+    get: secured('get'),
+    post: secured('post'),
+    put: secured('put'),
+    patch: secured('patch'),
+    delete: secured('delete')
+  };
 });
 
 afterAll(async () => {
@@ -110,9 +135,7 @@ describe('GET /health', () => {
   });
 
   it('retorna 404 estruturado para rota desconhecida', async () => {
-    const response = await api
-      .get('/rota-inexistente')
-      .set('X-Request-Id', 'req-404');
+    const response = await api.get('/rota-inexistente').set('X-Request-Id', 'req-404');
     expect(response.status).toBe(404);
     expect(response.body).toEqual({
       message: 'Rota não encontrada.',
@@ -204,9 +227,7 @@ describe('contratos de requisitos e vínculo com tarefas', () => {
     const requirementId = createResponse.body.requirement.id;
     const task = await createTask(prisma, project.id, { requirementId });
 
-    const listResponse = await api.get(
-      `/api/projects/${project.id}/requirements`
-    );
+    const listResponse = await api.get(`/api/projects/${project.id}/requirements`);
     expect(listResponse.status).toBe(200);
     expect(listResponse.body.total).toBe(1);
     expect(listResponse.body.requirements[0].tasks[0].id).toBe(task.id);
@@ -314,18 +335,11 @@ describe('contratos de requisitos e vínculo com tarefas', () => {
 
     expect((await api.get('/api/requirements/999999')).status).toBe(404);
     expect(
-      (
-        await api
-          .post(`/api/projects/${project.id}/requirements`)
-          .send({ title: '   ' })
-      ).status
+      (await api.post(`/api/projects/${project.id}/requirements`).send({ title: '   ' })).status
     ).toBe(400);
     expect(
-      (
-        await api
-          .post('/api/projects/999999/requirements')
-          .send({ title: 'Requisito sem projeto' })
-      ).status
+      (await api.post('/api/projects/999999/requirements').send({ title: 'Requisito sem projeto' }))
+        .status
     ).toBe(404);
   });
 
@@ -355,26 +369,39 @@ describe('contratos de requisitos e vínculo com tarefas', () => {
     const requirement = await createRequirement(prisma, project.id);
     const previousRequirement = await createRequirement(prisma, project.id);
     const firstTask = await createTask(prisma, project.id, { requirementId: requirement.id });
-    const reassignedTask = await createTask(prisma, project.id, { requirementId: previousRequirement.id });
+    const reassignedTask = await createTask(prisma, project.id, {
+      requirementId: previousRequirement.id
+    });
     const foreignTask = await createTask(prisma, otherProject.id);
 
     const rejected = await api
       .put(`/api/requirements/${requirement.id}/tasks`)
       .send({ taskIds: [reassignedTask.id, foreignTask.id] });
     expect(rejected.status).toBe(400);
-    expect(await prisma.task.findUnique({ where: { id: firstTask.id } })).toMatchObject({ requirementId: requirement.id });
-    expect(await prisma.task.findUnique({ where: { id: reassignedTask.id } })).toMatchObject({ requirementId: previousRequirement.id });
+    expect(await prisma.task.findUnique({ where: { id: firstTask.id } })).toMatchObject({
+      requirementId: requirement.id
+    });
+    expect(await prisma.task.findUnique({ where: { id: reassignedTask.id } })).toMatchObject({
+      requirementId: previousRequirement.id
+    });
 
     const updated = await api
       .put(`/api/requirements/${requirement.id}/tasks`)
       .send({ taskIds: [reassignedTask.id] });
     expect(updated.status).toBe(200);
     expect(updated.body).toMatchObject({
-      requirement: { id: requirement.id, tasks: [expect.objectContaining({ id: reassignedTask.id })] },
-      reassignedTasks: [{ taskId: reassignedTask.id, previousRequirementId: previousRequirement.id }],
+      requirement: {
+        id: requirement.id,
+        tasks: [expect.objectContaining({ id: reassignedTask.id })]
+      },
+      reassignedTasks: [
+        { taskId: reassignedTask.id, previousRequirementId: previousRequirement.id }
+      ],
       changes: { linked: 1, unlinked: 1 }
     });
-    expect(await prisma.task.findUnique({ where: { id: firstTask.id } })).toMatchObject({ requirementId: null });
+    expect(await prisma.task.findUnique({ where: { id: firstTask.id } })).toMatchObject({
+      requirementId: null
+    });
 
     const auditCount = await prisma.auditEvent.count({
       where: { action: { in: ['REQUIREMENT_TASK_LINKED', 'REQUIREMENT_TASK_UNLINKED'] } }
@@ -384,9 +411,11 @@ describe('contratos de requisitos e vínculo com tarefas', () => {
       .put(`/api/requirements/${requirement.id}/tasks`)
       .send({ taskIds: [reassignedTask.id] });
     expect(repeated.body.changes).toEqual({ linked: 0, unlinked: 0 });
-    expect(await prisma.auditEvent.count({
-      where: { action: { in: ['REQUIREMENT_TASK_LINKED', 'REQUIREMENT_TASK_UNLINKED'] } }
-    })).toBe(auditCount);
+    expect(
+      await prisma.auditEvent.count({
+        where: { action: { in: ['REQUIREMENT_TASK_LINKED', 'REQUIREMENT_TASK_UNLINKED'] } }
+      })
+    ).toBe(auditCount);
   });
 });
 
@@ -476,9 +505,15 @@ describe('contratos HTTP de tarefas', () => {
     });
     expect(await prisma.taskMovement.count({ where: { taskId: task.id } })).toBe(1);
     expect(await prisma.taskHistoryEntry.findFirst({ where: { taskId: task.id } })).toMatchObject({
-      field: 'STATUS', fromValue: 'A_FAZER', toValue: 'EM_ANDAMENTO'
+      field: 'STATUS',
+      fromValue: 'A_FAZER',
+      toValue: 'EM_ANDAMENTO'
     });
-    expect(await prisma.auditEvent.findFirst({ where: { action: 'TASK_MOVED', resourceId: String(task.id) } })).not.toBeNull();
+    expect(
+      await prisma.auditEvent.findFirst({
+        where: { action: 'TASK_MOVED', resourceId: String(task.id) }
+      })
+    ).not.toBeNull();
     expect((await api.get('/api/tasks/invalido')).status).toBe(400);
     expect((await api.get('/api/tasks/999999')).status).toBe(404);
   });
@@ -530,17 +565,13 @@ describe('vínculos técnicos', () => {
     });
 
     expect(
-      (await api.post(`/api/tasks/${task.id}/commits`).send({ commitId: commitA.id }))
-        .status
+      (await api.post(`/api/tasks/${task.id}/commits`).send({ commitId: commitA.id })).status
     ).toBe(409);
     expect(
-      (await api.post(`/api/tasks/${task.id}/commits`).send({ commitId: commitB.id }))
-        .status
+      (await api.post(`/api/tasks/${task.id}/commits`).send({ commitId: commitB.id })).status
     ).toBe(400);
 
-    const unlinkResponse = await api.delete(
-      `/api/tasks/${task.id}/commits/${commitA.id}`
-    );
+    const unlinkResponse = await api.delete(`/api/tasks/${task.id}/commits/${commitA.id}`);
     expect(unlinkResponse.status).toBe(200);
     expect(unlinkResponse.body.commits).toEqual([]);
     expect(
@@ -564,17 +595,13 @@ describe('vínculos técnicos', () => {
     expect(linkResponse.body.issues[0]).toMatchObject({ id: issueA.id });
 
     expect(
-      (await api.post(`/api/tasks/${task.id}/issues`).send({ issueId: issueA.id }))
-        .status
+      (await api.post(`/api/tasks/${task.id}/issues`).send({ issueId: issueA.id })).status
     ).toBe(409);
     expect(
-      (await api.post(`/api/tasks/${task.id}/issues`).send({ issueId: issueB.id }))
-        .status
+      (await api.post(`/api/tasks/${task.id}/issues`).send({ issueId: issueB.id })).status
     ).toBe(400);
 
-    const unlinkResponse = await api.delete(
-      `/api/tasks/${task.id}/issues/${issueA.id}`
-    );
+    const unlinkResponse = await api.delete(`/api/tasks/${task.id}/issues/${issueA.id}`);
     expect(unlinkResponse.status).toBe(200);
     expect(unlinkResponse.body.issues).toEqual([]);
     expect(
@@ -641,15 +668,15 @@ describe('Kanban e histórico', () => {
       status: 'EM_ANDAMENTO'
     });
     expect(await prisma.taskMovement.count({ where: { taskId: task.id } })).toBe(1);
-    expect(await prisma.taskHistoryEntry.count({ where: { taskId: task.id, field: 'STATUS' } })).toBe(1);
+    expect(
+      await prisma.taskHistoryEntry.count({ where: { taskId: task.id, field: 'STATUS' } })
+    ).toBe(1);
 
-    const movementsResponse = await api
-      .get(`/api/projects/${project.id}/kanban/movements`)
-      .query({
-        startDate: '2020-01-01',
-        endDate: '2030-12-31',
-        movedBy: 'Usuário E6 artificial'
-      });
+    const movementsResponse = await api.get(`/api/projects/${project.id}/kanban/movements`).query({
+      startDate: '2020-01-01',
+      endDate: '2030-12-31',
+      movedBy: 'Usuário E6 artificial'
+    });
     expect(movementsResponse.status).toBe(200);
     expect(movementsResponse.body.total).toBe(1);
     expect(movementsResponse.body.movements[0]).toMatchObject({
@@ -669,9 +696,7 @@ describe('Kanban e histórico', () => {
     const project = await createProject(prisma);
     const task = await createTask(prisma, project.id);
 
-    const response = await api
-      .patch(`/api/tasks/${task.id}/move`)
-      .send({ toStatus: 'A_FAZER' });
+    const response = await api.patch(`/api/tasks/${task.id}/move`).send({ toStatus: 'A_FAZER' });
 
     expect(response.status).toBe(400);
     expect(response.body).toEqual({ message: 'A tarefa já está nesta coluna.' });
@@ -683,7 +708,8 @@ describe('Kanban e histórico', () => {
     const project = await createProject(prisma);
     const task = await createTask(prisma, project.id);
     const forged = await api.patch(`/api/tasks/${task.id}/move`).send({
-      toStatus: 'EM_ANDAMENTO', movedBy: 'Ator forjado'
+      toStatus: 'EM_ANDAMENTO',
+      movedBy: 'Ator forjado'
     });
     expectValidationError(forged, 'movedBy');
     expect(await prisma.taskMovement.count()).toBe(0);
@@ -696,26 +722,54 @@ describe('Kanban e histórico', () => {
 
   it('registra prazo, responsável e prioridade e pagina o histórico no backend', async () => {
     const project = await createProject(prisma);
-    const responsible = await prisma.user.create({ data: { name: 'Responsável E11', email: 'responsavel-e11@example.invalid', passwordHash: 'fixture-only' } });
-    await prisma.projectMembership.create({ data: { projectId: project.id, userId: responsible.id, role: 'MEMBER' } });
+    const responsible = await prisma.user.create({
+      data: {
+        name: 'Responsável E11',
+        email: 'responsavel-e11@example.invalid',
+        passwordHash: 'fixture-only'
+      }
+    });
+    await prisma.projectMembership.create({
+      data: { projectId: project.id, userId: responsible.id, role: 'MEMBER' }
+    });
     const task = await createTask(prisma, project.id);
 
     const updated = await api.put(`/api/tasks/${task.id}`).send({
-      deadline: '2026-08-10', priority: 'ALTA', responsibleUserId: responsible.id
+      deadline: '2026-08-10',
+      priority: 'ALTA',
+      responsibleUserId: responsible.id
     });
     expect(updated.status).toBe(200);
-    expect(updated.body.task).toMatchObject({ responsibleUserId: responsible.id, responsibleUser: { id: responsible.id, name: 'Responsável E11' }, responsible: 'Responsável E11' });
+    expect(updated.body.task).toMatchObject({
+      responsibleUserId: responsible.id,
+      responsibleUser: { id: responsible.id, name: 'Responsável E11' },
+      responsible: 'Responsável E11'
+    });
     expect(await prisma.taskHistoryEntry.count({ where: { taskId: task.id } })).toBe(3);
 
-    await api.put(`/api/tasks/${task.id}`).send({ deadline: '2026-08-10', priority: 'ALTA', responsibleUserId: responsible.id });
+    await api
+      .put(`/api/tasks/${task.id}`)
+      .send({ deadline: '2026-08-10', priority: 'ALTA', responsibleUserId: responsible.id });
     expect(await prisma.taskHistoryEntry.count({ where: { taskId: task.id } })).toBe(3);
 
-    const firstPage = await api.get(`/api/projects/${project.id}/tasks/history`).query({ page: 1, limit: 2 });
-    expect(firstPage.body).toMatchObject({ total: 3, pagination: { page: 1, limit: 2, total: 3, totalPages: 2 } });
+    const firstPage = await api
+      .get(`/api/projects/${project.id}/tasks/history`)
+      .query({ page: 1, limit: 2 });
+    expect(firstPage.body).toMatchObject({
+      total: 3,
+      pagination: { page: 1, limit: 2, total: 3, totalPages: 2 }
+    });
     expect(firstPage.body.items).toHaveLength(2);
-    expect(firstPage.body.items[0].actor).toEqual(expect.objectContaining({ name: 'Usuário E6 artificial' }));
-    const filtered = await api.get(`/api/projects/${project.id}/tasks/history`).query({ field: 'RESPONSIBLE' });
-    expect(filtered.body).toMatchObject({ total: 1, items: [expect.objectContaining({ field: 'RESPONSIBLE', toValue: String(responsible.id) })] });
+    expect(firstPage.body.items[0].actor).toEqual(
+      expect.objectContaining({ name: 'Usuário E6 artificial' })
+    );
+    const filtered = await api
+      .get(`/api/projects/${project.id}/tasks/history`)
+      .query({ field: 'RESPONSIBLE' });
+    expect(filtered.body).toMatchObject({
+      total: 1,
+      items: [expect.objectContaining({ field: 'RESPONSIBLE', toValue: String(responsible.id) })]
+    });
   });
 
   it('rejeita responsável sem membership ativa no mesmo projeto', async () => {
@@ -769,8 +823,14 @@ describe('Kanban e histórico', () => {
     ]);
     expect([first.status, second.status].sort()).toEqual([200, 409]);
     expect(await prisma.taskMovement.count({ where: { taskId: task.id } })).toBe(1);
-    expect(await prisma.taskHistoryEntry.count({ where: { taskId: task.id, field: 'STATUS' } })).toBe(1);
-    expect(await prisma.auditEvent.count({ where: { action: 'TASK_MOVED', resourceId: String(task.id) } })).toBe(1);
+    expect(
+      await prisma.taskHistoryEntry.count({ where: { taskId: task.id, field: 'STATUS' } })
+    ).toBe(1);
+    expect(
+      await prisma.auditEvent.count({
+        where: { action: 'TASK_MOVED', resourceId: String(task.id) }
+      })
+    ).toBe(1);
   });
 
   it('preserva métricas de tarefas e coberturas técnicas atuais', async () => {
@@ -795,9 +855,7 @@ describe('Kanban e histórico', () => {
     });
 
     for (const kind of ['pull-request', 'commit', 'issue']) {
-      const response = await api.get(
-        `/api/projects/${project.id}/traceability/${kind}-coverage`
-      );
+      const response = await api.get(`/api/projects/${project.id}/traceability/${kind}-coverage`);
       expect(response.status).toBe(200);
       expect(response.body).toEqual({
         projectId: project.id,
@@ -908,15 +966,27 @@ describe('matriz e detalhe de rastreabilidade', () => {
       summary: { hasTechnicalEvidence: false, implementationStatus: 'PLANEJADO' },
       pagination: { scope: 'tasks', total: 1 }
     });
-    expect(detailResponse.body.nodes).toEqual(expect.arrayContaining([
-      expect.objectContaining({ id: `requirement:${requirementIssue.id}`, type: 'REQUIREMENT' }),
-      expect.objectContaining({ id: `task:${issueTask.id}`, type: 'TASK' }),
-      expect.objectContaining({ id: `issue:${issue.id}`, type: 'ISSUE' })
-    ]));
-    expect(detailResponse.body.edges).toEqual(expect.arrayContaining([
-      expect.objectContaining({ type: 'REQUIREMENT_TASK', source: `requirement:${requirementIssue.id}`, target: `task:${issueTask.id}` }),
-      expect.objectContaining({ type: 'TASK_ISSUE', source: `task:${issueTask.id}`, target: `issue:${issue.id}` })
-    ]));
+    expect(detailResponse.body.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: `requirement:${requirementIssue.id}`, type: 'REQUIREMENT' }),
+        expect.objectContaining({ id: `task:${issueTask.id}`, type: 'TASK' }),
+        expect.objectContaining({ id: `issue:${issue.id}`, type: 'ISSUE' })
+      ])
+    );
+    expect(detailResponse.body.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'REQUIREMENT_TASK',
+          source: `requirement:${requirementIssue.id}`,
+          target: `task:${issueTask.id}`
+        }),
+        expect.objectContaining({
+          type: 'TASK_ISSUE',
+          source: `task:${issueTask.id}`,
+          target: `issue:${issue.id}`
+        })
+      ])
+    );
     expect(JSON.stringify(detailResponse.body)).not.toContain('authorEmail');
 
     const pagedMatrix = await api.get(
@@ -932,7 +1002,9 @@ describe('matriz e detalhe de rastreabilidade', () => {
     const otherProject = await createProject(prisma);
     const requirement = await createRequirement(prisma, project.id);
     const task = await createTask(prisma, project.id, { requirementId: requirement.id });
-    const commit = await createCommit(prisma, project.id, { authorEmail: 'privado@example.invalid' });
+    const commit = await createCommit(prisma, project.id, {
+      authorEmail: 'privado@example.invalid'
+    });
     const issue = await createIssue(prisma, project.id);
     const pullRequest = await createPullRequest(prisma, project.id);
     await prisma.task.update({ where: { id: task.id }, data: { pullRequestId: pullRequest.id } });
@@ -942,10 +1014,17 @@ describe('matriz e detalhe de rastreabilidade', () => {
     const taskGraph = await api.get(`/api/projects/${project.id}/traceability/tasks/${task.id}`);
     expect(taskGraph.status).toBe(200);
     expect(taskGraph.body.perspective).toEqual({ type: 'TASK', id: task.id });
-    expect(new Set(taskGraph.body.nodes.map((node) => node.id)).size).toBe(taskGraph.body.nodes.length);
-    expect(new Set(taskGraph.body.edges.map((edge) => edge.id)).size).toBe(taskGraph.body.edges.length);
+    expect(new Set(taskGraph.body.nodes.map((node) => node.id)).size).toBe(
+      taskGraph.body.nodes.length
+    );
+    expect(new Set(taskGraph.body.edges.map((edge) => edge.id)).size).toBe(
+      taskGraph.body.edges.length
+    );
     expect(taskGraph.body.edges.map((edge) => edge.type).sort()).toEqual([
-      'REQUIREMENT_TASK', 'TASK_COMMIT', 'TASK_ISSUE', 'TASK_PULL_REQUEST'
+      'REQUIREMENT_TASK',
+      'TASK_COMMIT',
+      'TASK_ISSUE',
+      'TASK_PULL_REQUEST'
     ]);
     expect(JSON.stringify(taskGraph.body)).not.toContain('authorEmail');
 
@@ -956,12 +1035,18 @@ describe('matriz e detalhe de rastreabilidade', () => {
       summary: { hasTechnicalEvidence: true, artifactsCount: 3 },
       pagination: { page: 2, limit: 1, total: 3, scope: 'artifacts' }
     });
-    expect(secondArtifactPage.body.edges).toEqual(expect.arrayContaining([
-      expect.objectContaining({ type: 'TASK_COMMIT' })
-    ]));
-    expect((await api.get(`/api/projects/${otherProject.id}/traceability/tasks/${task.id}`)).status).toBe(404);
+    expect(secondArtifactPage.body.edges).toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: 'TASK_COMMIT' })])
+    );
+    expect(
+      (await api.get(`/api/projects/${otherProject.id}/traceability/tasks/${task.id}`)).status
+    ).toBe(404);
 
-    for (const [type, artifact] of [['commit', commit], ['pull-request', pullRequest], ['issue', issue]]) {
+    for (const [type, artifact] of [
+      ['commit', commit],
+      ['pull-request', pullRequest],
+      ['issue', issue]
+    ]) {
       const response = await api.get(
         `/api/projects/${project.id}/traceability/artifacts/${type}/${artifact.id}`
       );
@@ -971,14 +1056,22 @@ describe('matriz e detalhe de rastreabilidade', () => {
         perspective: { id: artifact.id },
         pagination: { scope: 'tasks', total: 1 }
       });
-      expect(response.body.nodes).toEqual(expect.arrayContaining([
-        expect.objectContaining({ id: `task:${task.id}`, type: 'TASK' }),
-        expect.objectContaining({ id: `requirement:${requirement.id}`, type: 'REQUIREMENT' })
-      ]));
+      expect(response.body.nodes).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: `task:${task.id}`, type: 'TASK' }),
+          expect.objectContaining({ id: `requirement:${requirement.id}`, type: 'REQUIREMENT' })
+        ])
+      );
     }
 
-    expect((await api.get(`/api/projects/${project.id}/traceability/artifacts/branch/${commit.id}`)).status).toBe(400);
-    expect((await api.get(`/api/projects/${otherProject.id}/traceability/artifacts/commit/${commit.id}`)).status).toBe(404);
+    expect(
+      (await api.get(`/api/projects/${project.id}/traceability/artifacts/branch/${commit.id}`))
+        .status
+    ).toBe(400);
+    expect(
+      (await api.get(`/api/projects/${otherProject.id}/traceability/artifacts/commit/${commit.id}`))
+        .status
+    ).toBe(404);
   });
 });
 
@@ -987,15 +1080,21 @@ describe('validação HTTP negativa da E4', () => {
     expectValidationError(await api.get('/api/projects/invalido'), 'id');
 
     expectValidationError(
-      await api.post('/api/projects').send({ ...projectBody('url'), githubUrl: 'https://example.com/repo' }),
+      await api
+        .post('/api/projects')
+        .send({ ...projectBody('url'), githubUrl: 'https://example.com/repo' }),
       'githubUrl'
     );
     expectValidationError(
-      await api.patch('/api/projects/1/github/sync-settings').send({ githubAutoSyncEnabled: 'true' }),
+      await api
+        .patch('/api/projects/1/github/sync-settings')
+        .send({ githubAutoSyncEnabled: 'true' }),
       'githubAutoSyncEnabled'
     );
     expectValidationError(
-      await api.post('/api/projects/1/members').send({ name: 'Pessoa', email: 'invalido', role: 'MEMBRO' }),
+      await api
+        .post('/api/projects/1/members')
+        .send({ name: 'Pessoa', email: 'invalido', role: 'MEMBRO' }),
       'email'
     );
     expectValidationError(
@@ -1034,10 +1133,7 @@ describe('validação HTTP negativa da E4', () => {
 
   it('valida entradas de Tasks, vínculos e filtros', async () => {
     expectValidationError(await api.get('/api/tasks/1.5'), 'id');
-    expectValidationError(
-      await api.post('/api/projects/1/tasks').send({ title: '' }),
-      'title'
-    );
+    expectValidationError(await api.post('/api/projects/1/tasks').send({ title: '' }), 'title');
     expectValidationError(
       await api.post('/api/projects/1/tasks').send({ title: 'Tarefa', estimatedEffort: -1 }),
       'estimatedEffort'
@@ -1058,14 +1154,8 @@ describe('validação HTTP negativa da E4', () => {
       await api.patch('/api/tasks/1/requirement').send({ requirementId: 'abc' }),
       'requirementId'
     );
-    expectValidationError(
-      await api.post('/api/tasks/1/commits').send({ commitId: 0 }),
-      'commitId'
-    );
-    expectValidationError(
-      await api.post('/api/tasks/1/issues').send({ issueId: -2 }),
-      'issueId'
-    );
+    expectValidationError(await api.post('/api/tasks/1/commits').send({ commitId: 0 }), 'commitId');
+    expectValidationError(await api.post('/api/tasks/1/issues').send({ issueId: -2 }), 'issueId');
     expectValidationError(
       await api.get('/api/projects/1/tasks/metrics?startDate=2026-12-31&endDate=2026-01-01'),
       'endDate'
@@ -1082,10 +1172,7 @@ describe('validação HTTP negativa da E4', () => {
       await api.get(`/api/projects/1/issues?search=${'a'.repeat(256)}`),
       'search'
     );
-    expectValidationError(
-      await api.get('/api/projects/1/artifacts?type=branch'),
-      'type'
-    );
+    expectValidationError(await api.get('/api/projects/1/artifacts?type=branch'), 'type');
     expectValidationError(
       await api.get('/api/projects/1/artifacts?startDate=2026-02-30'),
       'startDate'

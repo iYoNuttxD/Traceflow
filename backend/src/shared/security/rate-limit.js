@@ -18,12 +18,14 @@ function limiter({ identifier, windowMs, limit, keyGenerator = safeClientKey }) 
     legacyHeaders: false,
     skip: (req) => req.method === 'OPTIONS',
     handler(req, res, next) {
-      return next(new AppError({
-        message: rateLimitMessage,
-        statusCode: 429,
-        code: ERROR_CODES.RATE_LIMITED,
-        exposeTechnicalDetails: true
-      }));
+      return next(
+        new AppError({
+          message: rateLimitMessage,
+          statusCode: 429,
+          code: ERROR_CODES.RATE_LIMITED,
+          exposeTechnicalDetails: true
+        })
+      );
     }
   });
 }
@@ -33,7 +35,11 @@ export function createRateLimiters({ windowMs, generalMax, sensitiveMax }) {
   return Object.freeze({
     general: limiter({ identifier: 'api-general', windowMs, limit: generalMax }),
     sensitive: limiter({ identifier: 'api-sensitive', windowMs, limit: sensitiveMax }),
-    join: limiter({ identifier: 'project-join', windowMs, limit: Math.max(1, Math.min(10, sensitiveMax)) }),
+    join: limiter({
+      identifier: 'project-join',
+      windowMs,
+      limit: Math.max(1, Math.min(10, sensitiveMax))
+    }),
     sync: limiter({
       identifier: 'github-sync',
       windowMs,

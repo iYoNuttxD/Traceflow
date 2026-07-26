@@ -12,7 +12,16 @@ async function dependentRelations(client, tableName) {
   return Number(rows[0]?.total || 0);
 }
 
-function modelDecision({ tablePresent, total, reconciled, exclusive, conflicts, consumers, dependencies, extraBlockers = 0 }) {
+function modelDecision({
+  tablePresent,
+  total,
+  reconciled,
+  exclusive,
+  conflicts,
+  consumers,
+  dependencies,
+  extraBlockers = 0
+}) {
   const blockers = [];
   if (exclusive > 0) blockers.push('dados exclusivos');
   if (conflicts > 0) blockers.push('conflitos');
@@ -70,10 +79,18 @@ export function buildContractDecision({ audit, consumers, dependencies }) {
   };
 }
 
-export async function auditE8Contract({ client, sourceRoot = resolve(process.cwd(), 'src'), consumers: suppliedConsumers }) {
+export async function auditE8Contract({
+  client,
+  sourceRoot = resolve(process.cwd(), 'src'),
+  consumers: suppliedConsumers
+}) {
   const [audit, dependencyCounts] = await Promise.all([
     auditE8Schema({ client }),
-    Promise.all(['TaskPullRequest', 'GithubArtifact', 'TraceLink'].map((table) => dependentRelations(client, table)))
+    Promise.all(
+      ['TaskPullRequest', 'GithubArtifact', 'TraceLink'].map((table) =>
+        dependentRelations(client, table)
+      )
+    )
   ]);
   const consumers = suppliedConsumers || detectLegacyRuntimeConsumers(sourceRoot);
   const dependencies = {
@@ -91,7 +108,9 @@ export async function auditE8Contract({ client, sourceRoot = resolve(process.cwd
 export async function runE8Contract({ client, apply = false, sourceRoot, consumers }) {
   const before = await auditE8Contract({ client, sourceRoot, consumers });
   if (apply && !before.allowed) {
-    const error = new Error('Contract E8 bloqueado: existem dados, conflitos, consumidores ou dependências pendentes.');
+    const error = new Error(
+      'Contract E8 bloqueado: existem dados, conflitos, consumidores ou dependências pendentes.'
+    );
     error.code = 'E8_CONTRACT_BLOCKED';
     error.report = before;
     throw error;
@@ -99,7 +118,8 @@ export async function runE8Contract({ client, apply = false, sourceRoot, consume
   if (apply) {
     await client.$transaction(async (tx) => {
       for (const table of ['TaskPullRequest', 'GithubArtifact', 'TraceLink']) {
-        if (await legacyTableExists(tx, table)) await tx.$executeRawUnsafe(`DELETE FROM \`${table}\``);
+        if (await legacyTableExists(tx, table))
+          await tx.$executeRawUnsafe(`DELETE FROM \`${table}\``);
       }
     });
   }

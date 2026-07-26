@@ -25,10 +25,18 @@ async function safelySend(type, message, context = {}) {
 export const emailService = Object.freeze({
   sendPasswordReset({ to, token, expiresAt, userId }) {
     const resetUrl = appendToken(env.passwordResetUrl, token);
-    return safelySend('password_reset_email', { to, ...passwordResetTemplate({ resetUrl, expiresAt }) }, { userId });
+    return safelySend(
+      'password_reset_email',
+      { to, ...passwordResetTemplate({ resetUrl, expiresAt }) },
+      { userId }
+    );
   },
   sendProjectInvitation({ to, token, expiresAt, projectName, role, projectId, invitationId }) {
     const invitationUrl = appendToken(env.invitationAcceptUrl, token);
-    return safelySend('project_invitation_email', { to, ...invitationTemplate({ invitationUrl, projectName, role, expiresAt }) }, { projectId, invitationId });
+    return safelySend(
+      'project_invitation_email',
+      { to, ...invitationTemplate({ invitationUrl, projectName, role, expiresAt }) },
+      { projectId, invitationId }
+    );
   }
 });

@@ -18,12 +18,13 @@ const priority = z.enum(['BAIXA', 'MEDIA', 'ALTA', 'CRITICA'], {
   error: 'Prioridade inválida. Use BAIXA, MEDIA, ALTA ou CRITICA.'
 });
 const nullableId = (message) => z.union([positiveInteger(message), z.null(), z.literal('')]);
-const effort = (message) => z.union([
-  z.number().int().nonnegative(message),
-  z.string().regex(/^\d+$/, message).transform(Number),
-  z.null(),
-  z.literal('').transform(() => null)
-]);
+const effort = (message) =>
+  z.union([
+    z.number().int().nonnegative(message),
+    z.string().regex(/^\d+$/, message).transform(Number),
+    z.null(),
+    z.literal('').transform(() => null)
+  ]);
 const deadline = z.union([
   dateOnly('Prazo'),
   isoDateTime('Prazo'),
@@ -52,8 +53,12 @@ const taskFields = {
   priority: priority.optional(),
   responsibleUserId: nullableId('ID do usuário responsável inválido.').optional(),
   deadline: deadline.optional(),
-  estimatedEffort: effort('O esforço estimado deve ser um número inteiro maior ou igual a zero.').optional(),
-  actualEffort: effort('O esforço realizado deve ser um número inteiro maior ou igual a zero.').optional(),
+  estimatedEffort: effort(
+    'O esforço estimado deve ser um número inteiro maior ou igual a zero.'
+  ).optional(),
+  actualEffort: effort(
+    'O esforço realizado deve ser um número inteiro maior ou igual a zero.'
+  ).optional(),
   requirementId: nullableId('ID do requisito inválido.').optional()
 };
 

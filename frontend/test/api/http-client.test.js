@@ -26,7 +26,8 @@ describe('cliente HTTP compartilhado', () => {
     const client = createHttpClient();
     const listener = vi.fn();
     window.addEventListener('traceflow:unauthorized', listener);
-    client.defaults.adapter = (config) => Promise.reject({ response: { status: config.url === '/unauthorized' ? 401 : 403 }, config });
+    client.defaults.adapter = (config) =>
+      Promise.reject({ response: { status: config.url === '/unauthorized' ? 401 : 403 }, config });
 
     await expect(client.get('/forbidden')).rejects.toBeTruthy();
     expect(listener).not.toHaveBeenCalled();

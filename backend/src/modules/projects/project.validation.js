@@ -15,7 +15,8 @@ const projectStatus = z.enum(['ATIVO', 'INATIVO', 'ARQUIVADO'], {
 const optionalProjectText = (field) => optionalText({ field });
 const githubOwner = requiredText({ field: 'githubOwner' });
 const githubRepositoryName = requiredText({ field: 'githubRepositoryName' });
-const repositoryId = z.union([z.string(), z.number().int()])
+const repositoryId = z
+  .union([z.string(), z.number().int()])
   .transform(String)
   .pipe(z.string().trim().min(1, 'githubRepositoryId é obrigatório.').max(INPUT_LIMITS.shortText));
 
@@ -62,7 +63,9 @@ export const createProjectFromGithubBodySchema = strictObject({
   nome: optionalProjectText('Nome'),
   description: optionalProjectText('Descrição'),
   responsibleTeam: optionalProjectText('Equipe responsável'),
-  githubAutoSyncEnabled: z.boolean({ error: 'githubAutoSyncEnabled deve ser um valor booleano.' }).optional()
+  githubAutoSyncEnabled: z
+    .boolean({ error: 'githubAutoSyncEnabled deve ser um valor booleano.' })
+    .optional()
 });
 
 const memberFields = {

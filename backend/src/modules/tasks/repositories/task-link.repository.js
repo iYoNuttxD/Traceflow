@@ -33,7 +33,11 @@ export const taskLinkRepository = {
   },
   async setPullRequest(taskId, pullRequestId, auditEvent) {
     return prisma.$transaction(async (tx) => {
-      const task = await tx.task.update({ where: { id: taskId }, data: { pullRequestId }, include: taskInclude });
+      const task = await tx.task.update({
+        where: { id: taskId },
+        data: { pullRequestId },
+        include: taskInclude
+      });
       if (auditEvent) await auditRepository.create(auditEvent, tx);
       return task;
     });

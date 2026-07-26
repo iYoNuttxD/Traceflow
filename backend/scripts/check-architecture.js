@@ -82,32 +82,89 @@ function inspectBackendImports(files, backendRoot, violations, graph) {
     const imports = extractImportSpecifiers(source);
 
     if (isTaskRuntime && /req\.body(?:\.|\?\.)(?:movedBy|projectMemberId)\b/.test(source)) {
-      addViolation(violations, file, 'task-actor-from-session', 'legacy movement actor', 'Ator de movimentação deve vir da sessão, nunca do body.');
+      addViolation(
+        violations,
+        file,
+        'task-actor-from-session',
+        'legacy movement actor',
+        'Ator de movimentação deve vir da sessão, nunca do body.'
+      );
     }
-    if (isTaskRuntime && /\.taskMovement\.create\s*\(/.test(source) && !/\bmovedByUserId\s*:/.test(source)) {
-      addViolation(violations, file, 'task-movement-canonical-actor', 'movedByUserId', 'Nova movimentação deve persistir movedByUserId canônico.');
+    if (
+      isTaskRuntime &&
+      /\.taskMovement\.create\s*\(/.test(source) &&
+      !/\bmovedByUserId\s*:/.test(source)
+    ) {
+      addViolation(
+        violations,
+        file,
+        'task-movement-canonical-actor',
+        'movedByUserId',
+        'Nova movimentação deve persistir movedByUserId canônico.'
+      );
     }
-    if (isTaskRuntime && /\.task\.(?:create|update)\s*\([\s\S]{0,300}?\bresponsible\s*:/.test(source)) {
-      addViolation(violations, file, 'task-responsible-canonical-id', 'responsible', 'Nova escrita de responsável deve usar responsibleUserId, não identidade textual.');
+    if (
+      isTaskRuntime &&
+      /\.task\.(?:create|update)\s*\([\s\S]{0,300}?\bresponsible\s*:/.test(source)
+    ) {
+      addViolation(
+        violations,
+        file,
+        'task-responsible-canonical-id',
+        'responsible',
+        'Nova escrita de responsável deve usar responsibleUserId, não identidade textual.'
+      );
     }
     if (isTaskRuntime && /\b(?:responsible|movedBy)\s*={2,3}/.test(source)) {
-      addViolation(violations, file, 'task-no-textual-identity-authorization', 'legacy textual identity', 'Autorização não pode comparar identidade textual legada.');
+      addViolation(
+        violations,
+        file,
+        'task-no-textual-identity-authorization',
+        'legacy textual identity',
+        'Autorização não pode comparar identidade textual legada.'
+      );
     }
 
     if (/prisma\.taskPullRequest|pullRequestLinks|\bTaskPullRequest\b/.test(source)) {
-      addViolation(violations, file, 'removed-model-no-runtime', 'TaskPullRequest', 'Runtime não pode reintroduzir o join TaskPullRequest removido na E8.');
+      addViolation(
+        violations,
+        file,
+        'removed-model-no-runtime',
+        'TaskPullRequest',
+        'Runtime não pode reintroduzir o join TaskPullRequest removido na E8.'
+      );
     }
     if (/prisma\.githubArtifact|\bGithubArtifact\b/.test(source)) {
-      addViolation(violations, file, 'removed-model-no-runtime', 'GithubArtifact', 'Runtime não pode reintroduzir GithubArtifact removido na E8.');
+      addViolation(
+        violations,
+        file,
+        'removed-model-no-runtime',
+        'GithubArtifact',
+        'Runtime não pode reintroduzir GithubArtifact removido na E8.'
+      );
     }
     if (/prisma\.traceLink|\bTraceLink\b/.test(source)) {
-      addViolation(violations, file, 'removed-model-no-runtime', 'TraceLink', 'Runtime não pode reintroduzir TraceLink removido na E8.');
+      addViolation(
+        violations,
+        file,
+        'removed-model-no-runtime',
+        'TraceLink',
+        'Runtime não pode reintroduzir TraceLink removido na E8.'
+      );
     }
 
-    if (!relativeFile.join('/').endsWith('modules/audit/audit.repository.js') &&
-        !relativeFile.join('/').endsWith('shared/maintenance/privacy-retention.js') &&
-        /\.auditEvent\.(?:create|update|delete)/.test(source)) {
-      addViolation(violations, file, 'audit-write-via-adapter', 'AuditEvent', 'AuditEvent deve ser gravado somente pelo adapter de auditoria ou retenção controlada.');
+    if (
+      !relativeFile.join('/').endsWith('modules/audit/audit.repository.js') &&
+      !relativeFile.join('/').endsWith('shared/maintenance/privacy-retention.js') &&
+      /\.auditEvent\.(?:create|update|delete)/.test(source)
+    ) {
+      addViolation(
+        violations,
+        file,
+        'audit-write-via-adapter',
+        'AuditEvent',
+        'AuditEvent deve ser gravado somente pelo adapter de auditoria ou retenção controlada.'
+      );
     }
 
     graph.set(file, []);
@@ -121,7 +178,13 @@ function inspectBackendImports(files, backendRoot, violations, graph) {
         specifier.includes('prismaClient');
 
       if (specifier.includes('/scripts/') || specifier.startsWith('../scripts')) {
-        addViolation(violations, file, 'runtime-no-operational-script', specifier, 'Runtime não pode importar script operacional de retenção/manutenção.');
+        addViolation(
+          violations,
+          file,
+          'runtime-no-operational-script',
+          specifier,
+          'Runtime não pode importar script operacional de retenção/manutenção.'
+        );
       }
 
       if (target && files.includes(target)) {
@@ -129,86 +192,212 @@ function inspectBackendImports(files, backendRoot, violations, graph) {
       }
 
       if (layer === 'route' && targetLayer === 'repository') {
-        addViolation(violations, file, 'route-no-repository', specifier, 'Route não pode importar repository.');
+        addViolation(
+          violations,
+          file,
+          'route-no-repository',
+          specifier,
+          'Route não pode importar repository.'
+        );
       }
 
       if (layer === 'route' && databaseImport) {
-        addViolation(violations, file, 'route-no-database', specifier, 'Route não pode acessar Prisma/database.');
+        addViolation(
+          violations,
+          file,
+          'route-no-database',
+          specifier,
+          'Route não pode acessar Prisma/database.'
+        );
       }
 
       if (layer === 'controller' && targetLayer === 'repository') {
-        addViolation(violations, file, 'controller-no-repository', specifier, 'Controller não pode importar repository.');
+        addViolation(
+          violations,
+          file,
+          'controller-no-repository',
+          specifier,
+          'Controller não pode importar repository.'
+        );
       }
 
       if (layer === 'controller' && databaseImport) {
-        addViolation(violations, file, 'controller-no-database', specifier, 'Controller não pode acessar Prisma/database.');
+        addViolation(
+          violations,
+          file,
+          'controller-no-database',
+          specifier,
+          'Controller não pode acessar Prisma/database.'
+        );
       }
 
       if (layer === 'repository' && targetLayer === 'controller') {
-        addViolation(violations, file, 'repository-no-controller', specifier, 'Repository não pode importar controller.');
+        addViolation(
+          violations,
+          file,
+          'repository-no-controller',
+          specifier,
+          'Repository não pode importar controller.'
+        );
       }
 
       if (layer === 'repository' && targetLayer === 'route') {
-        addViolation(violations, file, 'repository-no-route', specifier, 'Repository não pode importar route.');
+        addViolation(
+          violations,
+          file,
+          'repository-no-route',
+          specifier,
+          'Repository não pode importar route.'
+        );
       }
 
       if (layer === 'repository' && specifier === 'express') {
-        addViolation(violations, file, 'repository-no-http', specifier, 'Repository não pode conhecer HTTP/Express.');
+        addViolation(
+          violations,
+          file,
+          'repository-no-http',
+          specifier,
+          'Repository não pode conhecer HTTP/Express.'
+        );
       }
 
       if (layer === 'repository' && targetLayer === 'client') {
-        addViolation(violations, file, 'repository-no-external-client', specifier, 'Repository não pode chamar client externo.');
+        addViolation(
+          violations,
+          file,
+          'repository-no-external-client',
+          specifier,
+          'Repository não pode chamar client externo.'
+        );
       }
 
       if (isShared && target && moduleOf(target, backendRoot)) {
-        addViolation(violations, file, 'shared-no-domain', specifier, 'Shared não pode importar módulo de domínio.');
+        addViolation(
+          violations,
+          file,
+          'shared-no-domain',
+          specifier,
+          'Shared não pode importar módulo de domínio.'
+        );
       }
 
       if (isMiddleware && targetLayer === 'repository') {
-        addViolation(violations, file, 'middleware-no-repository', specifier, 'Middleware não pode importar repository.');
+        addViolation(
+          violations,
+          file,
+          'middleware-no-repository',
+          specifier,
+          'Middleware não pode importar repository.'
+        );
       }
 
       if (isLogger && specifier === 'express') {
-        addViolation(violations, file, 'logger-no-express', specifier, 'Logger não pode importar Express.');
+        addViolation(
+          violations,
+          file,
+          'logger-no-express',
+          specifier,
+          'Logger não pode importar Express.'
+        );
       }
 
       if (isErrorHandler && targetLayer === 'service' && target && moduleOf(target, backendRoot)) {
-        addViolation(violations, file, 'error-handler-no-domain-service', specifier, 'Error handler não pode importar service de domínio.');
+        addViolation(
+          violations,
+          file,
+          'error-handler-no-domain-service',
+          specifier,
+          'Error handler não pode importar service de domínio.'
+        );
       }
 
       if (isSchema && targetLayer === 'controller') {
-        addViolation(violations, file, 'schema-no-controller', specifier, 'Schema não pode importar controller.');
+        addViolation(
+          violations,
+          file,
+          'schema-no-controller',
+          specifier,
+          'Schema não pode importar controller.'
+        );
       }
 
       if (isSchema && targetLayer === 'repository') {
-        addViolation(violations, file, 'schema-no-repository', specifier, 'Schema não pode importar repository.');
+        addViolation(
+          violations,
+          file,
+          'schema-no-repository',
+          specifier,
+          'Schema não pode importar repository.'
+        );
       }
 
       if (isSchema && specifier === 'express') {
-        addViolation(violations, file, 'schema-no-express', specifier, 'Schema de domínio não pode importar Express.');
+        addViolation(
+          violations,
+          file,
+          'schema-no-express',
+          specifier,
+          'Schema de domínio não pode importar Express.'
+        );
       }
 
       if (isMapper && databaseImport) {
-        addViolation(violations, file, 'mapper-no-database', specifier, 'Mapper não pode acessar Prisma/database diretamente.');
+        addViolation(
+          violations,
+          file,
+          'mapper-no-database',
+          specifier,
+          'Mapper não pode acessar Prisma/database diretamente.'
+        );
       }
 
       if (isReconciliation && targetLayer === 'controller') {
-        addViolation(violations, file, 'reconciliation-no-controller', specifier, 'Reconciliação não pode importar controller.');
+        addViolation(
+          violations,
+          file,
+          'reconciliation-no-controller',
+          specifier,
+          'Reconciliação não pode importar controller.'
+        );
       }
 
       if (isSchema && targetLayer === 'service') {
-        addViolation(violations, file, 'schema-no-service', specifier, 'Schema/helper de schema não pode importar service.');
+        addViolation(
+          violations,
+          file,
+          'schema-no-service',
+          specifier,
+          'Schema/helper de schema não pode importar service.'
+        );
       }
 
       if (isValidationMiddleware && targetLayer === 'service') {
-        addViolation(violations, file, 'validation-middleware-no-service', specifier, 'Middleware de validação não pode importar service.');
+        addViolation(
+          violations,
+          file,
+          'validation-middleware-no-service',
+          specifier,
+          'Middleware de validação não pode importar service.'
+        );
       }
 
       if (layer === 'client' && targetLayer === 'controller') {
-        addViolation(violations, file, 'client-no-controller', specifier, 'Client externo não pode importar controller.');
+        addViolation(
+          violations,
+          file,
+          'client-no-controller',
+          specifier,
+          'Client externo não pode importar controller.'
+        );
       }
       if (layer === 'client' && databaseImport) {
-        addViolation(violations, file, 'client-no-database', specifier, 'Client externo não pode acessar Prisma/database.');
+        addViolation(
+          violations,
+          file,
+          'client-no-database',
+          specifier,
+          'Client externo não pode acessar Prisma/database.'
+        );
       }
     }
   }
@@ -271,7 +460,13 @@ function inspectFrontendImports(files, frontendRoot, violations) {
     const isPage = relativeFile.includes('pages');
 
     if (/\bTaskPullRequest\b|\bGithubArtifact\b|\bTraceLink\b/.test(source)) {
-      addViolation(violations, file, 'frontend-no-removed-model', 'E8 legacy model', 'Frontend não pode depender dos models removidos na E8.');
+      addViolation(
+        violations,
+        file,
+        'frontend-no-removed-model',
+        'E8 legacy model',
+        'Frontend não pode depender dos models removidos na E8.'
+      );
     }
 
     for (const specifier of extractImportSpecifiers(source)) {
@@ -292,7 +487,6 @@ function inspectFrontendImports(files, frontendRoot, violations) {
         );
       }
 
-
       if (isShared && target && relative(frontendRoot, target).split(sep).includes('pages')) {
         addViolation(
           violations,
@@ -308,15 +502,38 @@ function inspectFrontendImports(files, frontendRoot, violations) {
       const targetFeature = targetFeaturesIndex >= 0 ? targetParts[targetFeaturesIndex + 1] : null;
 
       if (isShared && targetFeature) {
-        addViolation(violations, file, 'frontend-shared-no-features', specifier, 'Frontend shared não pode importar features.');
+        addViolation(
+          violations,
+          file,
+          'frontend-shared-no-features',
+          specifier,
+          'Frontend shared não pode importar features.'
+        );
       }
 
-      if (currentFeature && targetFeature && currentFeature !== targetFeature && targetParts.at(-1) !== 'index.js') {
-        addViolation(violations, file, 'frontend-feature-public-api', specifier, 'Integração entre features deve usar o index.js público.');
+      if (
+        currentFeature &&
+        targetFeature &&
+        currentFeature !== targetFeature &&
+        targetParts.at(-1) !== 'index.js'
+      ) {
+        addViolation(
+          violations,
+          file,
+          'frontend-feature-public-api',
+          specifier,
+          'Integração entre features deve usar o index.js público.'
+        );
       }
 
       if (isPage && (specifier === 'axios' || targetParts.join('/').includes('api/http-client'))) {
-        addViolation(violations, file, 'frontend-page-no-http-client', specifier, 'Pages não podem chamar Axios ou o cliente HTTP diretamente.');
+        addViolation(
+          violations,
+          file,
+          'frontend-page-no-http-client',
+          specifier,
+          'Pages não podem chamar Axios ou o cliente HTTP diretamente.'
+        );
       }
     }
   }
@@ -356,7 +573,9 @@ function runCli() {
 
   console.error(`Architecture check failed: ${violations.length} violação(ões).`);
   for (const violation of violations) {
-    console.error(`- ${violation.file}: [${violation.rule}] ${violation.message} Import: ${violation.specifier}`);
+    console.error(
+      `- ${violation.file}: [${violation.rule}] ${violation.message} Import: ${violation.specifier}`
+    );
   }
   process.exitCode = 1;
 }

@@ -19,21 +19,50 @@ function ConfirmDialog({ dialog, close }) {
       if (!focusable.length) return;
       const first = focusable[0];
       const last = focusable.at(-1);
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     }
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [close]);
 
   return (
-    <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && close(false)}>
-      <section ref={panelRef} className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-title" aria-describedby="confirm-dialog-description">
+    <div
+      className="dialog-backdrop"
+      role="presentation"
+      onMouseDown={(event) => event.target === event.currentTarget && close(false)}
+    >
+      <section
+        ref={panelRef}
+        className="confirm-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="confirm-dialog-title"
+        aria-describedby="confirm-dialog-description"
+      >
         <h2 id="confirm-dialog-title">{dialog.title}</h2>
         <p id="confirm-dialog-description">{dialog.description}</p>
         <div className="dialog-actions">
-          <button ref={cancelRef} type="button" className="button button-secondary" onClick={() => close(false)}>Cancelar</button>
-          <button type="button" className={dialog.destructive ? 'button button-danger' : 'button'} onClick={() => close(true)}>{dialog.confirmLabel || 'Confirmar'}</button>
+          <button
+            ref={cancelRef}
+            type="button"
+            className="button button-secondary"
+            onClick={() => close(false)}
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            className={dialog.destructive ? 'button button-danger' : 'button'}
+            onClick={() => close(true)}
+          >
+            {dialog.confirmLabel || 'Confirmar'}
+          </button>
         </div>
       </section>
     </div>
@@ -51,18 +80,27 @@ export function ConfirmProvider({ children }) {
     });
   }, []);
 
-  const confirm = useCallback((options) => new Promise((resolve) => {
-    setDialog({
-      title: options.title || 'Confirmar ação',
-      description: options.description,
-      confirmLabel: options.confirmLabel,
-      destructive: options.destructive !== false,
-      trigger: document.activeElement,
-      resolve
-    });
-  }), []);
+  const confirm = useCallback(
+    (options) =>
+      new Promise((resolve) => {
+        setDialog({
+          title: options.title || 'Confirmar ação',
+          description: options.description,
+          confirmLabel: options.confirmLabel,
+          destructive: options.destructive !== false,
+          trigger: document.activeElement,
+          resolve
+        });
+      }),
+    []
+  );
 
-  return <ConfirmContext.Provider value={confirm}>{children}{dialog && <ConfirmDialog dialog={dialog} close={close} />}</ConfirmContext.Provider>;
+  return (
+    <ConfirmContext.Provider value={confirm}>
+      {children}
+      {dialog && <ConfirmDialog dialog={dialog} close={close} />}
+    </ConfirmContext.Provider>
+  );
 }
 
 export function useConfirm() {

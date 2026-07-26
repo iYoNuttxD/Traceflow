@@ -13,12 +13,19 @@ function optionValue(name) {
 }
 
 const target = process.env.TEST_DATABASE_URL || process.env.DATABASE_URL;
-assertMaintenanceDatabase({ databaseUrl: target, developmentDatabaseUrl: process.env.DATABASE_URL });
+assertMaintenanceDatabase({
+  databaseUrl: target,
+  developmentDatabaseUrl: process.env.DATABASE_URL
+});
 process.env.DATABASE_URL = target;
 const { prisma } = await import('../src/database/prismaClient.js');
 
 try {
-  const report = { mode: 'audit', target: sanitizedDatabaseTarget(target), ...(await auditE8Schema({ client: prisma })) };
+  const report = {
+    mode: 'audit',
+    target: sanitizedDatabaseTarget(target),
+    ...(await auditE8Schema({ client: prisma }))
+  };
   const output = `${JSON.stringify(report, null, 2)}\n`;
   process.stdout.write(output);
   const reportPath = optionValue('--report');

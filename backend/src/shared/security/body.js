@@ -8,10 +8,12 @@ export function requireJsonContentType(req, res, next) {
   const hasBody = contentLength > 0 || Boolean(req.get('Transfer-Encoding'));
   if (!hasBody || req.is('application/json')) return next();
 
-  return next(new AppError({
-    message: 'Content-Type não suportado. Use application/json.',
-    statusCode: 415,
-    code: ERROR_CODES.UNSUPPORTED_MEDIA_TYPE,
-    exposeTechnicalDetails: true
-  }));
+  return next(
+    new AppError({
+      message: 'Content-Type não suportado. Use application/json.',
+      statusCode: 415,
+      code: ERROR_CODES.UNSUPPORTED_MEDIA_TYPE,
+      exposeTechnicalDetails: true
+    })
+  );
 }

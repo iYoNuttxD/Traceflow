@@ -8,8 +8,16 @@ import { ProjectAuditPage } from '../../src/features/privacy/ProjectAuditPage.js
 
 describe('ProjectAuditPage', () => {
   it('renderiza a trilha administrativa minimizada do projeto', async () => {
-    apiMock.get.mockResolvedValue({ data: { events: [{ id: 1, action: 'PROJECT_MEMBER_ROLE_CHANGED', result: 'SUCCESS' }] } });
-    render(<MemoryRouter initialEntries={['/projects/9/audit']}><Routes><Route path="/projects/:projectId/audit" element={<ProjectAuditPage />} /></Routes></MemoryRouter>);
+    apiMock.get.mockResolvedValue({
+      data: { events: [{ id: 1, action: 'PROJECT_MEMBER_ROLE_CHANGED', result: 'SUCCESS' }] }
+    });
+    render(
+      <MemoryRouter initialEntries={['/projects/9/audit']}>
+        <Routes>
+          <Route path="/projects/:projectId/audit" element={<ProjectAuditPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
     expect(await screen.findByText(/PROJECT_MEMBER_ROLE_CHANGED — SUCCESS/)).toBeInTheDocument();
     expect(apiMock.get).toHaveBeenCalledWith('/projects/9/audit-events', {});
     expect(screen.queryByText(/email|token|password/i)).not.toBeInTheDocument();

@@ -29,7 +29,7 @@ Estados: `IMPLEMENTADO`, `PARCIAL`, `AUSENTE`, `NÃO_APLICÁVEL`, `NÃO_VERIFICA
 | V13.4.5 endpoints de monitoramento | Aplicável | PARCIAL | health não expõe causa/URLs | definir exposição de readiness no deploy |
 | V14.3.2 anti-cache | Aplicável | IMPLEMENTADO | `Cache-Control: no-store` em `/api` | validar assets/documento da SPA conforme sensibilidade |
 | V15.1.1 prazo de remediação | Aplicável | IMPLEMENTADO | `DEPENDENCY_RISK_REGISTER.md` | formalizar owner/SLA corporativo |
-| V15.1.2 inventário/SBOM | Aplicável | PARCIAL | lockfiles e audit | SBOM automatizada E14 |
+| V15.1.2 inventário/SBOM | Aplicável | PARCIAL | lockfiles, audit com política executável e dependency review em PR | SBOM automatizada ainda ausente |
 | V15.3.4 IP via proxy | Aplicável | PARCIAL | trust proxy explícito e limiter usa `req.ip`/IPv6 normalizado | validar ingress real e proteção de headers |
 | V16.1.1 inventário de logs | Aplicável | PARCIAL | E3/E5 documentam formato/eventos | acesso, destino e retenção dependem da operação/E7 |
 | V16.2.2 timestamp com zona | Aplicável | IMPLEMENTADO | ISO-8601 UTC | sincronização do host não verificada |
@@ -44,7 +44,7 @@ Estados: `IMPLEMENTADO`, `PARCIAL`, `AUSENTE`, `NÃO_APLICÁVEL`, `NÃO_VERIFICA
 2. convite criptograficamente seguro, hash, expiração, revogação e resposta uniforme (E6);
 3. classificação/retenção/acesso a logs e dados pessoais, mais auditoria de negócio (E7);
 4. TLS/proxy/headers do host SPA e limiter distribuído no ambiente de produção;
-5. secret manager, SBOM, dependency review e scanner obrigatório no CI (E14).
+5. secret manager e SBOM; dependency review e scanner obrigatório foram incorporados à CI na E14.
 
 ## Atualização E6
 

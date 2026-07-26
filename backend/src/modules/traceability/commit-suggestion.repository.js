@@ -88,7 +88,11 @@ export const commitSuggestionRepository = {
     return prisma.$transaction(async (tx) => {
       const suggestion = await tx.taskCommitSuggestion.findFirst({
         where: { id: suggestionId, projectId },
-        select: { ...suggestionSelect, task: { select: { id: true, projectId: true, title: true, status: true } }, commit: { select: { id: true, projectId: true, hash: true, message: true, date: true } } }
+        select: {
+          ...suggestionSelect,
+          task: { select: { id: true, projectId: true, title: true, status: true } },
+          commit: { select: { id: true, projectId: true, hash: true, message: true, date: true } }
+        }
       });
       if (!suggestion) return { outcome: 'NOT_FOUND' };
       if (suggestion.task.projectId !== projectId || suggestion.commit.projectId !== projectId) {
@@ -107,13 +111,22 @@ export const commitSuggestionRepository = {
         data: { status: 'CONFIRMED', reviewedAt, reviewedByUserId: userId }
       });
       if (update.count === 0) {
-        const current = await tx.taskCommitSuggestion.findUnique({ where: { id: suggestionId }, select: suggestionSelect });
-        return { outcome: current?.status === 'CONFIRMED' ? 'UNCHANGED' : 'INVALID_STATUS', suggestion: current };
+        const current = await tx.taskCommitSuggestion.findUnique({
+          where: { id: suggestionId },
+          select: suggestionSelect
+        });
+        return {
+          outcome: current?.status === 'CONFIRMED' ? 'UNCHANGED' : 'INVALID_STATUS',
+          suggestion: current
+        };
       }
       await auditRepository.create(auditEvent, tx);
       return {
         outcome: 'UPDATED',
-        suggestion: await tx.taskCommitSuggestion.findUnique({ where: { id: suggestionId }, select: suggestionSelect })
+        suggestion: await tx.taskCommitSuggestion.findUnique({
+          where: { id: suggestionId },
+          select: suggestionSelect
+        })
       };
     });
   },
@@ -122,7 +135,11 @@ export const commitSuggestionRepository = {
     return prisma.$transaction(async (tx) => {
       const suggestion = await tx.taskCommitSuggestion.findFirst({
         where: { id: suggestionId, projectId },
-        select: { ...suggestionSelect, task: { select: { id: true, projectId: true, title: true, status: true } }, commit: { select: { id: true, projectId: true, hash: true, message: true, date: true } } }
+        select: {
+          ...suggestionSelect,
+          task: { select: { id: true, projectId: true, title: true, status: true } },
+          commit: { select: { id: true, projectId: true, hash: true, message: true, date: true } }
+        }
       });
       if (!suggestion) return { outcome: 'NOT_FOUND' };
       if (suggestion.task.projectId !== projectId || suggestion.commit.projectId !== projectId) {
@@ -136,13 +153,22 @@ export const commitSuggestionRepository = {
         data: { status: 'REJECTED', reviewedAt, reviewedByUserId: userId }
       });
       if (update.count === 0) {
-        const current = await tx.taskCommitSuggestion.findUnique({ where: { id: suggestionId }, select: suggestionSelect });
-        return { outcome: current?.status === 'REJECTED' ? 'UNCHANGED' : 'INVALID_STATUS', suggestion: current };
+        const current = await tx.taskCommitSuggestion.findUnique({
+          where: { id: suggestionId },
+          select: suggestionSelect
+        });
+        return {
+          outcome: current?.status === 'REJECTED' ? 'UNCHANGED' : 'INVALID_STATUS',
+          suggestion: current
+        };
       }
       await auditRepository.create(auditEvent, tx);
       return {
         outcome: 'UPDATED',
-        suggestion: await tx.taskCommitSuggestion.findUnique({ where: { id: suggestionId }, select: suggestionSelect })
+        suggestion: await tx.taskCommitSuggestion.findUnique({
+          where: { id: suggestionId },
+          select: suggestionSelect
+        })
       };
     });
   }

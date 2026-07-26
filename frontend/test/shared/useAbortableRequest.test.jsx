@@ -7,7 +7,9 @@ function Fixture() {
   const [value, setValue] = useState('inicial');
   const { run } = useAbortableRequest();
   useEffect(() => {
-    void run(() => new Promise((resolve) => setTimeout(() => resolve('antiga'), 25))).then((result) => result && setValue(result));
+    void run(() => new Promise((resolve) => setTimeout(() => resolve('antiga'), 25))).then(
+      (result) => result && setValue(result)
+    );
     void run(() => Promise.resolve('nova')).then((result) => result && setValue(result));
   }, [run]);
   return <output>{value}</output>;

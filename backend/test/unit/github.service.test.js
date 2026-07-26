@@ -19,20 +19,34 @@ describe('githubService com fronteira GitHub substituída', () => {
 
   it('mantém o contrato da autenticação simulada sem acessar rede', async () => {
     githubClientMocks.checkGithubAuthentication.mockResolvedValue({
-      login: 'usuario-artificial', id: 101, type: 'User'
+      login: 'usuario-artificial',
+      id: 101,
+      type: 'User'
     });
     await expect(githubService.checkAuthentication()).resolves.toEqual({
-      login: 'usuario-artificial', id: 101, type: 'User'
+      login: 'usuario-artificial',
+      id: 101,
+      type: 'User'
     });
   });
 
   it('combina todas as páginas de repositórios preservando o DTO público', async () => {
     const first = {
-      githubRepositoryId: '201', name: 'primeiro', owner: 'artificial',
-      fullName: 'artificial/primeiro', url: 'https://github.com/artificial/primeiro',
-      defaultBranch: 'trunk', private: false, description: null
+      githubRepositoryId: '201',
+      name: 'primeiro',
+      owner: 'artificial',
+      fullName: 'artificial/primeiro',
+      url: 'https://github.com/artificial/primeiro',
+      defaultBranch: 'trunk',
+      private: false,
+      description: null
     };
-    const second = { ...first, githubRepositoryId: '202', name: 'segundo', fullName: 'artificial/segundo' };
+    const second = {
+      ...first,
+      githubRepositoryId: '202',
+      name: 'segundo',
+      fullName: 'artificial/segundo'
+    };
     githubClientMocks.getGithubClient.mockReturnValue({
       listRepositoryPages: () => pages([first], [second])
     });
@@ -47,7 +61,10 @@ describe('githubService com fronteira GitHub substituída', () => {
       ERROR_CODES.EXTERNAL_SERVICE_ERROR
     );
     githubClientMocks.getGithubClient.mockReturnValue({
-      listRepositoryPages: () => (async function* fail() { throw failure; })()
+      listRepositoryPages: () =>
+        (async function* fail() {
+          throw failure;
+        })()
     });
 
     await expect(githubService.listRepositories()).rejects.toBe(failure);

@@ -17,8 +17,10 @@ const sensitiveKeys = new Set([
 ]);
 
 function isSensitiveKey(key) {
-  return sensitiveKeys.has(String(key).replace(/[-\s]/g, '').toLowerCase()) ||
-    sensitiveKeys.has(String(key).toLowerCase());
+  return (
+    sensitiveKeys.has(String(key).replace(/[-\s]/g, '').toLowerCase()) ||
+    sensitiveKeys.has(String(key).toLowerCase())
+  );
 }
 
 export function sanitizeText(value) {

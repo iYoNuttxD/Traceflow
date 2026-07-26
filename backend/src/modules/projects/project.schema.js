@@ -84,7 +84,10 @@ function normalizeGithubRepository(data, required = false) {
 export function buildEditableProjectData(data, isCreate = false) {
   const payload = data && typeof data === 'object' ? data : {};
 
-  if ((isCreate || payload.name !== undefined) && (typeof payload.name !== 'string' || !payload.name.trim())) {
+  if (
+    (isCreate || payload.name !== undefined) &&
+    (typeof payload.name !== 'string' || !payload.name.trim())
+  ) {
     throw new ProjectServiceError('O nome do projeto é obrigatório.', 400);
   }
   if (
@@ -150,7 +153,10 @@ export function buildGithubProjectData(data, repository) {
 
 export function buildGithubRepositoryMetadata(repository) {
   if (!repository?.defaultBranch) {
-    throw new ProjectServiceError('Não foi possível determinar a branch principal do repositório.', 400);
+    throw new ProjectServiceError(
+      'Não foi possível determinar a branch principal do repositório.',
+      400
+    );
   }
 
   return {

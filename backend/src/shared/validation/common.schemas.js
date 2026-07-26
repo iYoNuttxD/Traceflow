@@ -17,14 +17,14 @@ function isValidDateOnly(value) {
   const month = Number(monthText);
   const day = Number(dayText);
   const date = new Date(Date.UTC(year, month - 1, day));
-  return date.getUTCFullYear() === year &&
-    date.getUTCMonth() === month - 1 &&
-    date.getUTCDate() === day;
+  return (
+    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+  );
 }
 
 export const positiveInteger = (message = 'Informe um ID inteiro positivo.') =>
   z.preprocess(
-    (value) => typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : value,
+    (value) => (typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : value),
     z.number({ error: message }).int(message).positive(message)
   );
 
@@ -32,18 +32,23 @@ export const requiredText = ({
   field = 'Campo',
   max = INPUT_LIMITS.shortText,
   message = `${field} obrigatório.`
-} = {}) => z.string({ error: message }).trim().min(1, message).max(
-  max,
-  `${field} deve possuir no máximo ${max} caracteres.`
-);
+} = {}) =>
+  z
+    .string({ error: message })
+    .trim()
+    .min(1, message)
+    .max(max, `${field} deve possuir no máximo ${max} caracteres.`);
 
 export const optionalText = ({ field = 'Campo', max = INPUT_LIMITS.shortText } = {}) =>
-  z.union([
-    z.string().trim().max(max, `${field} deve possuir no máximo ${max} caracteres.`),
-    z.null()
-  ]).optional();
+  z
+    .union([
+      z.string().trim().max(max, `${field} deve possuir no máximo ${max} caracteres.`),
+      z.null()
+    ])
+    .optional();
 
-export const searchText = z.string()
+export const searchText = z
+  .string()
   .trim()
   .max(INPUT_LIMITS.search, `Busca deve possuir no máximo ${INPUT_LIMITS.search} caracteres.`)
   .optional();
@@ -53,33 +58,41 @@ export const queryBoolean = z.union([
   z.literal('false').transform(() => false)
 ]);
 
-export const dateOnly = (label = 'Data') => z.string()
-  .refine(isValidDateOnly, `${label} inválida. Use o formato YYYY-MM-DD.`);
+export const dateOnly = (label = 'Data') =>
+  z.string().refine(isValidDateOnly, `${label} inválida. Use o formato YYYY-MM-DD.`);
 
 export const optionalDateOnly = (label = 'Data') => dateOnly(label).optional();
 
-export const isoDateTime = (label = 'Data e hora') => z.string()
-  .refine(
-    (value) => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/.test(value) &&
-      !Number.isNaN(Date.parse(value)),
-    `${label} deve estar em formato ISO-8601.`
-  );
+export const isoDateTime = (label = 'Data e hora') =>
+  z
+    .string()
+    .refine(
+      (value) =>
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/.test(value) &&
+        !Number.isNaN(Date.parse(value)),
+      `${label} deve estar em formato ISO-8601.`
+    );
 
-export const httpUrl = (label = 'URL') => z.string({ error: `${label} inválida.` })
-  .trim()
-  .max(INPUT_LIMITS.url, `${label} deve possuir no máximo ${INPUT_LIMITS.url} caracteres.`)
-  .refine((value) => {
-    try {
-      return ['http:', 'https:'].includes(new URL(value).protocol);
-    } catch {
-      return false;
-    }
-  }, `${label} inválida.`);
+export const httpUrl = (label = 'URL') =>
+  z
+    .string({ error: `${label} inválida.` })
+    .trim()
+    .max(INPUT_LIMITS.url, `${label} deve possuir no máximo ${INPUT_LIMITS.url} caracteres.`)
+    .refine((value) => {
+      try {
+        return ['http:', 'https:'].includes(new URL(value).protocol);
+      } catch {
+        return false;
+      }
+    }, `${label} inválida.`);
 
-export const githubUrl = httpUrl('URL GitHub')
-  .refine(isAllowedGithubUrl, 'URL GitHub inválida. Use HTTPS e um host oficial do GitHub.');
+export const githubUrl = httpUrl('URL GitHub').refine(
+  isAllowedGithubUrl,
+  'URL GitHub inválida. Use HTTPS e um host oficial do GitHub.'
+);
 
-export const email = z.string({ error: 'E-mail inválido.' })
+export const email = z
+  .string({ error: 'E-mail inválido.' })
   .trim()
   .max(INPUT_LIMITS.shortText, 'E-mail deve possuir no máximo 191 caracteres.')
   .email('E-mail inválido.');

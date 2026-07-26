@@ -124,7 +124,13 @@ export const requirementRepository = {
     });
   },
 
-  async replaceRequirementTasks({ requirementId, taskIds, status, relatedStatusUpdates, auditEvents }) {
+  async replaceRequirementTasks({
+    requirementId,
+    taskIds,
+    status,
+    relatedStatusUpdates,
+    auditEvents
+  }) {
     return prisma.$transaction(async (tx) => {
       await tx.task.updateMany({
         where: { requirementId, ...(taskIds.length ? { id: { notIn: taskIds } } : {}) },
@@ -143,7 +149,10 @@ export const requirementRepository = {
         await tx.requirement.update({ where: { id: update.id }, data: { status: update.status } });
       }
       if (auditEvents.length) await auditRepository.createMany(auditEvents, tx);
-      return tx.requirement.findUnique({ where: { id: requirementId }, include: requirementInclude });
+      return tx.requirement.findUnique({
+        where: { id: requirementId },
+        include: requirementInclude
+      });
     });
   },
 

@@ -19,10 +19,7 @@ describe('proteção do banco de testes', () => {
     'mysql://usuario:senha@localhost:3306/traceflow_production'
   ])('rejeita destino inseguro: %s', (unsafeUrl) => {
     expect(() =>
-      validateTestDatabaseUrl(
-        unsafeUrl,
-        'mysql://usuario:senha@localhost:3306/traceflow'
-      )
+      validateTestDatabaseUrl(unsafeUrl, 'mysql://usuario:senha@localhost:3306/traceflow')
     ).toThrow();
   });
 

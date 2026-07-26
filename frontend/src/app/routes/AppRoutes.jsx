@@ -6,22 +6,53 @@ import { lazyNamed } from './lazy-route.js';
 
 const LoginPage = lazyNamed(() => import('../../pages/LoginPage.jsx'), 'LoginPage');
 const RegisterPage = lazyNamed(() => import('../../pages/RegisterPage.jsx'), 'RegisterPage');
-const ForgotPasswordPage = lazyNamed(() => import('../../pages/ForgotPasswordPage.jsx'), 'ForgotPasswordPage');
-const ResetPasswordPage = lazyNamed(() => import('../../pages/ResetPasswordPage.jsx'), 'ResetPasswordPage');
-const AcceptInvitationPage = lazyNamed(() => import('../../pages/AcceptInvitationPage.jsx'), 'AcceptInvitationPage');
-const JoinProjectPage = lazyNamed(() => import('../../pages/JoinProjectPage.jsx'), 'JoinProjectPage');
+const ForgotPasswordPage = lazyNamed(
+  () => import('../../pages/ForgotPasswordPage.jsx'),
+  'ForgotPasswordPage'
+);
+const ResetPasswordPage = lazyNamed(
+  () => import('../../pages/ResetPasswordPage.jsx'),
+  'ResetPasswordPage'
+);
+const AcceptInvitationPage = lazyNamed(
+  () => import('../../pages/AcceptInvitationPage.jsx'),
+  'AcceptInvitationPage'
+);
+const JoinProjectPage = lazyNamed(
+  () => import('../../pages/JoinProjectPage.jsx'),
+  'JoinProjectPage'
+);
 const ProjectsPage = lazyNamed(() => import('../../pages/ProjectsPage.jsx'), 'ProjectsPage');
-const ProjectDetailsPage = lazyNamed(() => import('../../pages/ProjectDetailsPage.jsx'), 'ProjectDetailsPage');
-const RequirementsPage = lazyNamed(() => import('../../pages/RequirementsPage.jsx'), 'RequirementsPage');
+const ProjectDetailsPage = lazyNamed(
+  () => import('../../pages/ProjectDetailsPage.jsx'),
+  'ProjectDetailsPage'
+);
+const RequirementsPage = lazyNamed(
+  () => import('../../pages/RequirementsPage.jsx'),
+  'RequirementsPage'
+);
 const TasksPage = lazyNamed(() => import('../../pages/TasksPage.jsx'), 'TasksPage');
 const KanbanPage = lazyNamed(() => import('../../pages/KanbanPage.jsx'), 'KanbanPage');
-const RepositoryInfoPage = lazyNamed(() => import('../../pages/RepositoryInfoPage.jsx'), 'RepositoryInfoPage');
-const TraceabilityPage = lazyNamed(() => import('../../pages/TraceabilityPage.jsx'), 'TraceabilityPage');
+const RepositoryInfoPage = lazyNamed(
+  () => import('../../pages/RepositoryInfoPage.jsx'),
+  'RepositoryInfoPage'
+);
+const TraceabilityPage = lazyNamed(
+  () => import('../../pages/TraceabilityPage.jsx'),
+  'TraceabilityPage'
+);
 const PrivacyPage = lazyNamed(() => import('../../pages/PrivacyPage.jsx'), 'PrivacyPage');
-const ProjectAuditPage = lazyNamed(() => import('../../pages/ProjectAuditPage.jsx'), 'ProjectAuditPage');
+const ProjectAuditPage = lazyNamed(
+  () => import('../../pages/ProjectAuditPage.jsx'),
+  'ProjectAuditPage'
+);
 
 export function RouteLoadingFallback() {
-  return <main className="page-container"><LoadingState message="Carregando página..." /></main>;
+  return (
+    <main className="page-container">
+      <LoadingState message="Carregando página..." />
+    </main>
+  );
 }
 
 export function AppRoutes() {
@@ -32,7 +63,13 @@ export function AppRoutes() {
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
-        <Route element={<ProtectedRoute><Outlet /></ProtectedRoute>}>
+        <Route
+          element={
+            <ProtectedRoute>
+              <Outlet />
+            </ProtectedRoute>
+          }
+        >
           <Route path="/" element={<Navigate to="/projects" replace />} />
           <Route path="/invitations/accept" element={<AcceptInvitationPage />} />
           <Route path="/join" element={<JoinProjectPage />} />

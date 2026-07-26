@@ -10,10 +10,12 @@ export async function syncProjectCommits({ project, repository, githubClient }) 
     branch: repository.defaultBranch
   })) {
     const commits = page.map((commit) => ({ ...commit, projectId: project.id }));
-    const existingHashes = new Set(await commitRepository.findHashesByProjectId(
-      project.id,
-      commits.map(({ hash }) => hash)
-    ));
+    const existingHashes = new Set(
+      await commitRepository.findHashesByProjectId(
+        project.id,
+        commits.map(({ hash }) => hash)
+      )
+    );
     const newCommits = commits.filter(({ hash }) => !existingHashes.has(hash));
     const result = await commitRepository.createMany(newCommits);
     if (result.count > 0) {

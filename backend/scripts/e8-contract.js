@@ -27,16 +27,25 @@ const { prisma } = await import('../src/database/prismaClient.js');
 
 let report;
 try {
-  report = { target: sanitizedDatabaseTarget(target), ...(await runE8Contract({ client: prisma, apply })) };
+  report = {
+    target: sanitizedDatabaseTarget(target),
+    ...(await runE8Contract({ client: prisma, apply }))
+  };
   if (apply) {
     await prisma.$disconnect();
-    const executable = resolve(process.cwd(), 'node_modules', '.bin', process.platform === 'win32' ? 'prisma.cmd' : 'prisma');
+    const executable = resolve(
+      process.cwd(),
+      'node_modules',
+      '.bin',
+      process.platform === 'win32' ? 'prisma.cmd' : 'prisma'
+    );
     const migration = spawnSync(executable, ['migrate', 'deploy'], {
       cwd: process.cwd(),
       env: { ...process.env, DATABASE_URL: target },
       encoding: 'utf8'
     });
-    if (migration.status !== 0) throw new Error('Falha ao aplicar migrations contract após o gate seguro.');
+    if (migration.status !== 0)
+      throw new Error('Falha ao aplicar migrations contract após o gate seguro.');
     const { PrismaClient } = await import('@prisma/client');
     const verificationClient = new PrismaClient();
     try {
@@ -51,7 +60,10 @@ try {
   const reportPath = optionValue('--report');
   if (reportPath) await writeFile(reportPath, output, { flag: 'wx' });
 } catch (error) {
-  if (error.report) process.stderr.write(`${JSON.stringify({ target: sanitizedDatabaseTarget(target), blocked: error.report }, null, 2)}\n`);
+  if (error.report)
+    process.stderr.write(
+      `${JSON.stringify({ target: sanitizedDatabaseTarget(target), blocked: error.report }, null, 2)}\n`
+    );
   throw error;
 } finally {
   await prisma.$disconnect();

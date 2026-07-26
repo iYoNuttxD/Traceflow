@@ -10,6 +10,15 @@ if (!['migrate', 'status'].includes(command)) throw new Error('Use migrate ou st
 const testUrl = validateTestDatabaseUrl(process.env.TEST_DATABASE_URL, process.env.DATABASE_URL);
 process.stdout.write(`${JSON.stringify({ target: sanitizedDatabaseTarget(testUrl), command })}\n`);
 const prismaArgs = command === 'migrate' ? ['migrate', 'deploy'] : ['migrate', 'status'];
-const executable = resolve(process.cwd(), 'node_modules', '.bin', process.platform === 'win32' ? 'prisma.cmd' : 'prisma');
-const result = spawnSync(executable, prismaArgs, { cwd: process.cwd(), env: { ...process.env, NODE_ENV: 'test', DATABASE_URL: testUrl }, stdio: 'inherit' });
+const executable = resolve(
+  process.cwd(),
+  'node_modules',
+  '.bin',
+  process.platform === 'win32' ? 'prisma.cmd' : 'prisma'
+);
+const result = spawnSync(executable, prismaArgs, {
+  cwd: process.cwd(),
+  env: { ...process.env, NODE_ENV: 'test', DATABASE_URL: testUrl },
+  stdio: 'inherit'
+});
 process.exitCode = result.status ?? 1;

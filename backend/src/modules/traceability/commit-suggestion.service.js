@@ -8,7 +8,12 @@ const pairKey = (taskId, commitId) => `${taskId}:${commitId}`;
 function positiveId(value, label) {
   const parsed = Number(value);
   if (!Number.isSafeInteger(parsed) || parsed <= 0) {
-    throw new AppError({ message: `${label} inválido.`, statusCode: 400, code: ERROR_CODES.VALIDATION_ERROR, exposeTechnicalDetails: true });
+    throw new AppError({
+      message: `${label} inválido.`,
+      statusCode: 400,
+      code: ERROR_CODES.VALIDATION_ERROR,
+      exposeTechnicalDetails: true
+    });
   }
   return parsed;
 }
@@ -33,26 +38,49 @@ function publicSuggestion(suggestion) {
 async function ensureProject(projectId) {
   const id = positiveId(projectId, 'ID do projeto');
   if (!(await commitSuggestionRepository.findProjectById(id))) {
-    throw new AppError({ message: 'Projeto não encontrado.', statusCode: 404, code: ERROR_CODES.PROJECT_NOT_FOUND, exposeTechnicalDetails: true });
+    throw new AppError({
+      message: 'Projeto não encontrado.',
+      statusCode: 404,
+      code: ERROR_CODES.PROJECT_NOT_FOUND,
+      exposeTechnicalDetails: true
+    });
   }
   return id;
 }
 
 function reviewError(result) {
   if (['NOT_FOUND', 'PROJECT_MISMATCH'].includes(result.outcome)) {
-    return new AppError({ message: 'Sugestão não encontrada neste projeto.', statusCode: 404, code: ERROR_CODES.RESOURCE_NOT_FOUND, exposeTechnicalDetails: true });
+    return new AppError({
+      message: 'Sugestão não encontrada neste projeto.',
+      statusCode: 404,
+      code: ERROR_CODES.RESOURCE_NOT_FOUND,
+      exposeTechnicalDetails: true
+    });
   }
-  return new AppError({ message: 'A sugestão já foi revisada com outro resultado.', statusCode: 409, code: ERROR_CODES.CONFLICT, exposeTechnicalDetails: true });
+  return new AppError({
+    message: 'A sugestão já foi revisada com outro resultado.',
+    statusCode: 409,
+    code: ERROR_CODES.CONFLICT,
+    exposeTechnicalDetails: true
+  });
 }
 
 async function detectForCommits(projectId, commits) {
   const id = positiveId(projectId, 'ID do projeto');
   const projectCommits = (commits || []).filter((commit) => commit.projectId === id);
   const references = projectCommits.flatMap((commit) =>
-    extractTaskIdsFromCommitMessage(commit.message).map((taskId) => ({ taskId, commitId: commit.id }))
+    extractTaskIdsFromCommitMessage(commit.message).map((taskId) => ({
+      taskId,
+      commitId: commit.id
+    }))
   );
   if (references.length === 0) {
-    return { scannedCommits: projectCommits.length, detectedReferences: 0, createdSuggestions: 0, skippedSuggestions: 0 };
+    return {
+      scannedCommits: projectCommits.length,
+      detectedReferences: 0,
+      createdSuggestions: 0,
+      skippedSuggestions: 0
+    };
   }
 
   const taskIds = [...new Set(references.map(({ taskId }) => taskId))];
@@ -67,8 +95,9 @@ async function detectForCommits(projectId, commits) {
     ...existingLinks.map(({ taskId, commitId }) => pairKey(taskId, commitId)),
     ...existingSuggestions.map(({ taskId, commitId }) => pairKey(taskId, commitId))
   ]);
-  const candidates = references.filter(({ taskId, commitId }) =>
-    validTaskIds.has(taskId) && !blockedPairs.has(pairKey(taskId, commitId))
+  const candidates = references.filter(
+    ({ taskId, commitId }) =>
+      validTaskIds.has(taskId) && !blockedPairs.has(pairKey(taskId, commitId))
   );
   const result = await commitSuggestionRepository.createMany(
     candidates.map(({ taskId, commitId }) => ({ projectId: id, taskId, commitId }))
@@ -87,7 +116,12 @@ export const commitSuggestionService = {
 
   async scanHistorical(projectId, context) {
     const id = await ensureProject(projectId);
-    const total = { scannedCommits: 0, detectedReferences: 0, createdSuggestions: 0, skippedSuggestions: 0 };
+    const total = {
+      scannedCommits: 0,
+      detectedReferences: 0,
+      createdSuggestions: 0,
+      skippedSuggestions: 0
+    };
     let cursor;
     do {
       const commits = await commitSuggestionRepository.findCommitPage(id, { cursor, take: 100 });
@@ -96,6 +130,8 @@ export const commitSuggestionService = {
       for (const key of Object.keys(total)) total[key] += pageResult[key];
       cursor = commits.at(-1).id;
       if (commits.length < 100) break;
+      // A paginação termina pelo tamanho da página; o cursor apenas avança o lote.
+      // eslint-disable-next-line no-constant-condition
     } while (true);
 
     await context.auditService.recordOperational({
@@ -117,7 +153,12 @@ export const commitSuggestionService = {
     const status = query.status || 'PENDING';
     const taskId = query.taskId ? positiveId(query.taskId, 'ID da tarefa') : undefined;
     if (taskId && !(await commitSuggestionRepository.findTaskByProjectAndId(id, taskId))) {
-      throw new AppError({ message: 'Tarefa não encontrada neste projeto.', statusCode: 404, code: ERROR_CODES.TASK_NOT_FOUND, exposeTechnicalDetails: true });
+      throw new AppError({
+        message: 'Tarefa não encontrada neste projeto.',
+        statusCode: 404,
+        code: ERROR_CODES.TASK_NOT_FOUND,
+        exposeTechnicalDetails: true
+      });
     }
     const result = await commitSuggestionRepository.list(id, {
       status,
@@ -129,7 +170,12 @@ export const commitSuggestionService = {
       projectId: id,
       status,
       suggestions: result.suggestions.map(publicSuggestion),
-      pagination: { page, limit, total: result.total, totalPages: result.total ? Math.ceil(result.total / limit) : 0 }
+      pagination: {
+        page,
+        limit,
+        total: result.total,
+        totalPages: result.total ? Math.ceil(result.total / limit) : 0
+      }
     };
   },
 
@@ -147,9 +193,18 @@ export const commitSuggestionService = {
       resourceId: suggestion,
       metadata: { suggestionId: suggestion, taskId: existing.taskId, commitId: existing.commitId }
     });
-    const result = await commitSuggestionRepository.confirm({ projectId: id, suggestionId: suggestion, userId: context.actorUserId, reviewedAt: new Date(), auditEvent });
+    const result = await commitSuggestionRepository.confirm({
+      projectId: id,
+      suggestionId: suggestion,
+      userId: context.actorUserId,
+      reviewedAt: new Date(),
+      auditEvent
+    });
     if (!['UPDATED', 'UNCHANGED'].includes(result.outcome)) throw reviewError(result);
-    return { suggestion: publicSuggestion(result.suggestion), changed: result.outcome === 'UPDATED' };
+    return {
+      suggestion: publicSuggestion(result.suggestion),
+      changed: result.outcome === 'UPDATED'
+    };
   },
 
   async reject(projectId, suggestionId, context) {
@@ -166,8 +221,17 @@ export const commitSuggestionService = {
       resourceId: suggestion,
       metadata: { suggestionId: suggestion, taskId: existing.taskId, commitId: existing.commitId }
     });
-    const result = await commitSuggestionRepository.reject({ projectId: id, suggestionId: suggestion, userId: context.actorUserId, reviewedAt: new Date(), auditEvent });
+    const result = await commitSuggestionRepository.reject({
+      projectId: id,
+      suggestionId: suggestion,
+      userId: context.actorUserId,
+      reviewedAt: new Date(),
+      auditEvent
+    });
     if (!['UPDATED', 'UNCHANGED'].includes(result.outcome)) throw reviewError(result);
-    return { suggestion: publicSuggestion(result.suggestion), changed: result.outcome === 'UPDATED' };
+    return {
+      suggestion: publicSuggestion(result.suggestion),
+      changed: result.outcome === 'UPDATED'
+    };
   }
 };

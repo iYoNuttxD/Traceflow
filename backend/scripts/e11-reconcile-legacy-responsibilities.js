@@ -5,10 +5,13 @@ import { assertMaintenanceDatabase, sanitizedDatabaseTarget } from './lib/databa
 import { runE11LegacyReconciliation } from './lib/e11-legacy-responsibility.js';
 
 dotenv.config({ path: resolve(process.cwd(), '.env'), override: false, quiet: true });
-if (process.argv.includes('--test')) dotenv.config({ path: resolve(process.cwd(), '.env.test'), override: true, quiet: true });
+if (process.argv.includes('--test'))
+  dotenv.config({ path: resolve(process.cwd(), '.env.test'), override: true, quiet: true });
 
 const apply = process.argv.includes('--apply');
-const target = process.argv.includes('--test') ? process.env.TEST_DATABASE_URL : process.env.DATABASE_URL;
+const target = process.argv.includes('--test')
+  ? process.env.TEST_DATABASE_URL
+  : process.env.DATABASE_URL;
 assertMaintenanceDatabase({
   databaseUrl: target,
   developmentDatabaseUrl: process.env.DATABASE_URL,
@@ -22,11 +25,15 @@ const { prisma } = await import('../src/database/prismaClient.js');
 
 try {
   let mappings = [];
-  try { mappings = JSON.parse(await readFile(mappingPath, 'utf8')).mappings || []; } catch (error) {
+  try {
+    mappings = JSON.parse(await readFile(mappingPath, 'utf8')).mappings || [];
+  } catch (error) {
     if (error.code !== 'ENOENT') throw error;
   }
   const report = await runE11LegacyReconciliation({ client: prisma, mappings, apply });
-  process.stdout.write(`${JSON.stringify({ target: sanitizedDatabaseTarget(target), ...report }, null, 2)}\n`);
+  process.stdout.write(
+    `${JSON.stringify({ target: sanitizedDatabaseTarget(target), ...report }, null, 2)}\n`
+  );
 } finally {
   await prisma.$disconnect();
 }

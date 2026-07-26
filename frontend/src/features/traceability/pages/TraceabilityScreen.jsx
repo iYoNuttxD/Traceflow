@@ -66,7 +66,9 @@ export function TraceabilityScreen() {
     let settled = false;
 
     try {
-      const data = await runMatrixRequest((signal) => getRequirementsTraceabilityMatrix(projectId, { page, limit: 20 }, { signal }));
+      const data = await runMatrixRequest((signal) =>
+        getRequirementsTraceabilityMatrix(projectId, { page, limit: 20 }, { signal })
+      );
       if (!data) return;
       settled = true;
       setMatrixData(data);
@@ -74,10 +76,7 @@ export function TraceabilityScreen() {
       settled = true;
       setMatrixData(null);
       setMatrixError(
-        getErrorMessage(
-          requestError,
-          'Não foi possível carregar a matriz de rastreabilidade.'
-        )
+        getErrorMessage(requestError, 'Não foi possível carregar a matriz de rastreabilidade.')
       );
     } finally {
       if (settled) setLoadingMatrix(false);
@@ -96,7 +95,9 @@ export function TraceabilityScreen() {
     let settled = false;
 
     try {
-      const data = await runRequirementRequest((signal) => getRequirementTraceability(projectId, requirementId, {}, { signal }));
+      const data = await runRequirementRequest((signal) =>
+        getRequirementTraceability(projectId, requirementId, {}, { signal })
+      );
       if (!data) return;
       settled = true;
       setRequirementTraceability(data);
@@ -127,9 +128,7 @@ export function TraceabilityScreen() {
         <div>
           <span className="eyebrow">Projeto #{projectId}</span>
           <h1>Rastreabilidade</h1>
-          <p>
-            Acompanhe a evolução dos requisitos, tarefas e evidências técnicas do projeto.
-          </p>
+          <p>Acompanhe a evolução dos requisitos, tarefas e evidências técnicas do projeto.</p>
         </div>
         <ProjectSectionNav projectId={projectId} activeSection="traceability" />
       </header>
@@ -157,9 +156,7 @@ export function TraceabilityScreen() {
               </strong>
             </Card>
             <Card title="Implementados">
-              <strong className="metric-value">
-                {summary.implementedRequirements ?? 0}
-              </strong>
+              <strong className="metric-value">{summary.implementedRequirements ?? 0}</strong>
             </Card>
             <Card title="Progresso médio">
               <strong className="metric-value">
@@ -197,15 +194,17 @@ export function TraceabilityScreen() {
                         <td>
                           <button className="traceability-row-button" type="button">
                             <strong>{requirement.title}</strong>
-                            {requirement.description && (
-                              <span>{requirement.description}</span>
-                            )}
+                            {requirement.description && <span>{requirement.description}</span>}
                           </button>
                         </td>
                         <td>{formatRequirementStatus(requirement.status)}</td>
                         <td>
                           <div className="traceability-progress">
-                            <span>{formatPercentage(requirement.progress || requirement.progressPercentage)}</span>
+                            <span>
+                              {formatPercentage(
+                                requirement.progress || requirement.progressPercentage
+                              )}
+                            </span>
                             <div className="traceability-progress-bar">
                               <span
                                 style={{
@@ -227,14 +226,10 @@ export function TraceabilityScreen() {
                         <td>
                           <span
                             className={`status-badge ${
-                              requirement.hasTechnicalEvidence
-                                ? 'status-ativo'
-                                : 'status-pendente'
+                              requirement.hasTechnicalEvidence ? 'status-ativo' : 'status-pendente'
                             }`}
                           >
-                            {requirement.hasTechnicalEvidence
-                              ? 'Com evidência'
-                              : 'Sem evidência'}
+                            {requirement.hasTechnicalEvidence ? 'Com evidência' : 'Sem evidência'}
                           </span>
                         </td>
                         <td>{formatImplementationStatus(requirement.implementationStatus)}</td>
@@ -248,9 +243,25 @@ export function TraceabilityScreen() {
 
           {pagination.totalPages > 1 && (
             <nav className="pagination-controls" aria-label="Paginação da matriz">
-              <button className="button button-secondary" type="button" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}>Anterior</button>
-              <span>Página {pagination.page} de {pagination.totalPages}</span>
-              <button className="button button-secondary" type="button" disabled={page >= pagination.totalPages} onClick={() => setPage((current) => current + 1)}>Próxima</button>
+              <button
+                className="button button-secondary"
+                type="button"
+                disabled={page <= 1}
+                onClick={() => setPage((current) => current - 1)}
+              >
+                Anterior
+              </button>
+              <span>
+                Página {pagination.page} de {pagination.totalPages}
+              </span>
+              <button
+                className="button button-secondary"
+                type="button"
+                disabled={page >= pagination.totalPages}
+                onClick={() => setPage((current) => current + 1)}
+              >
+                Próxima
+              </button>
             </nav>
           )}
 
@@ -260,9 +271,7 @@ export function TraceabilityScreen() {
                 <p className="empty-state">Carregando requisito selecionado...</p>
               )}
 
-              {requirementError && (
-                <div className="message message-error">{requirementError}</div>
-              )}
+              {requirementError && <div className="message message-error">{requirementError}</div>}
 
               {!selectedRequirementId && !loadingRequirement && (
                 <p className="empty-state">

@@ -74,11 +74,7 @@ export function buildRequirementMetrics(requirement) {
   const pullRequestsCount = tasks.filter((task) => task.pullRequest || task.pullRequestId).length;
   const hasTechnicalEvidence = pullRequestsCount > 0 || commitsCount > 0;
   const progress = calculateProgress(tasks);
-  const implementationStatus = getImplementationStatus(
-    requirement,
-    tasks,
-    hasTechnicalEvidence
-  );
+  const implementationStatus = getImplementationStatus(requirement, tasks, hasTechnicalEvidence);
 
   return {
     tasks,
@@ -111,13 +107,13 @@ export function buildMatrixSummary(rows) {
   ).length;
   // Preserva a fórmula histórica: média por requisito, considerando requisitos sem tarefas como 0.
   const progressSum = rows.reduce(
-    (sum, row) => sum + (
-      row.progressPercentage ??
-      row.progress?.percentage ??
-      (row.progress?.denominator
-        ? Number(((row.progress.numerator / row.progress.denominator) * 100).toFixed(2))
-        : 0)
-    ),
+    (sum, row) =>
+      sum +
+      (row.progressPercentage ??
+        row.progress?.percentage ??
+        (row.progress?.denominator
+          ? Number(((row.progress.numerator / row.progress.denominator) * 100).toFixed(2))
+          : 0)),
     0
   );
   const averageProgress = {

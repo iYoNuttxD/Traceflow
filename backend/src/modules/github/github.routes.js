@@ -7,9 +7,25 @@ import { githubProjectParamsSchema, githubSearchQuerySchema } from './github.val
 const router = Router();
 router.get('/github/auth/check', githubController.checkAuthentication);
 router.get('/github/repositories', githubController.listRepositories);
-router.post('/projects/:projectId/github/sync', validateRequest({ params: githubProjectParamsSchema, body: emptyBodySchema }), githubController.syncProjectGithubData);
-router.get('/projects/:projectId/commits', validateRequest({ params: githubProjectParamsSchema, query: githubSearchQuerySchema }), githubController.listProjectCommits);
-router.get('/projects/:projectId/pull-requests', validateRequest({ params: githubProjectParamsSchema, query: githubSearchQuerySchema }), githubController.listProjectPullRequests);
-router.get('/projects/:projectId/issues', validateRequest({ params: githubProjectParamsSchema, query: githubSearchQuerySchema }), githubController.listProjectIssues);
+router.post(
+  '/projects/:projectId/github/sync',
+  validateRequest({ params: githubProjectParamsSchema, body: emptyBodySchema }),
+  githubController.syncProjectGithubData
+);
+router.get(
+  '/projects/:projectId/commits',
+  validateRequest({ params: githubProjectParamsSchema, query: githubSearchQuerySchema }),
+  githubController.listProjectCommits
+);
+router.get(
+  '/projects/:projectId/pull-requests',
+  validateRequest({ params: githubProjectParamsSchema, query: githubSearchQuerySchema }),
+  githubController.listProjectPullRequests
+);
+router.get(
+  '/projects/:projectId/issues',
+  validateRequest({ params: githubProjectParamsSchema, query: githubSearchQuerySchema }),
+  githubController.listProjectIssues
+);
 
 export default router;
