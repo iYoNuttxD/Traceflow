@@ -2,7 +2,7 @@
 
 ## Estado
 
-**CONCLUÍDA TECNICAMENTE em 26/07/2026; fechamento definitivo aguardando validação visual manual.** A etapa reorganizou o frontend por domínio, separou o cliente HTTP dos contratos de cada feature, introduziu cancelamento de consultas obsoletas e componentes compartilhados de estado/acessibilidade, sem alterar regras de negócio, contratos HTTP, schema ou migrations. A correção pós-validação descrita abaixo passou por testes automatizados e build; o ambiente desta execução não disponibilizou navegador controlável para homologar visualmente os três fluxos.
+**CONCLUÍDA DEFINITIVAMENTE em 26/07/2026.** A etapa reorganizou o frontend por domínio, separou o cliente HTTP dos contratos de cada feature, introduziu cancelamento de consultas obsoletas e componentes compartilhados de estado/acessibilidade, sem alterar regras de negócio, contratos HTTP, schema ou migrations. A equipe concluiu a validação visual dos fluxos corrigidos antes do início da E13.
 
 ## Baseline operacional
 
@@ -122,7 +122,7 @@ Resultado da correção:
 
 Os 69 testes frontend, os 198 testes backend, o build, `prisma validate`, `architecture:check` e `security:secrets` passaram. O audit frontend continua registrando as duas vulnerabilidades altas do React Router/RSC já descritas. O aviso de bundle acima de 500 kB permanece fora desta correção.
 
-Para rotular a etapa como **CONCLUÍDA DEFINITIVAMENTE**, ainda é necessário validar visualmente em navegador: (1) o único controle de limpeza e seu foco na busca de commits; (2) a abertura e filtragem do repositório; e (3) a ausência do RF41 em `ProjectDetails` e sua presença somente na edição da Task. Essa pendência é operacional de homologação, não de implementação, e não autoriza iniciar a E13.
+Na homologação em navegador, a equipe confirmou: (1) o controle único de limpeza e a preservação do foco na busca de commits; (2) a abertura e os filtros da página de repositório; e (3) o RF41 ausente de `ProjectDetails` e restrito à edição da Task. Com essas evidências, não resta pendência de fechamento da E12.
 
 ## Riscos para E13
 
@@ -130,4 +130,4 @@ Para rotular a etapa como **CONCLUÍDA DEFINITIVAMENTE**, ainda é necessário v
 - Screens de Tasks e Kanban ainda são extensas, embora isoladas no domínio; novas decomposições devem seguir fluxos reais e não criar hooks genéricos.
 - A cobertura de AuthContext e das rotas globais ainda é menor que a dos novos módulos de infraestrutura.
 
-E13 não foi iniciada.
+Esses riscos foram encaminhados à E13 sem reabrir os fluxos homologados da E12.

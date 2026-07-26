@@ -54,7 +54,11 @@ Esta área registra a evolução incremental do MVP para uma arquitetura mais se
 
 ## Estado da E12
 
-**Concluída em 26/07/2026**, com frontend organizado por domínio, pages finas, APIs separadas, cliente HTTP compartilhado, cancelamento de requisições obsoletas, estados mutuamente exclusivos, formulários e confirmações acessíveis. A execução partiu do commit `b3014c4`.
+**Concluída definitivamente em 26/07/2026**, com frontend organizado por domínio, pages finas, APIs separadas, cliente HTTP compartilhado, cancelamento de requisições obsoletas, estados mutuamente exclusivos, formulários e confirmações acessíveis. A equipe homologou em navegador a busca de commits, a página de repositório e o RF41 restrito à edição da Task. A execução partiu do commit `b3014c4`.
+
+## Estado da E13
+
+**Concluída em 26/07/2026**, com code splitting por rota, isolamento do grafo, bundle inicial abaixo de 500 kB, Tasks e Kanban decompostos por fluxo e restauração de sessão protegida contra requests concorrentes. A execução partiu do commit `a783451`.
 
 ## Documentos produzidos
 
@@ -76,6 +80,7 @@ Esta área registra a evolução incremental do MVP para uma arquitetura mais se
 - [E10_REQUIREMENTS_TRACEABILITY.md](E10_REQUIREMENTS_TRACEABILITY.md) — requisitos, fórmulas, vínculos atômicos, matriz e grafos canônicos.
 - [E11_TASKS_KANBAN_HISTORY.md](E11_TASKS_KANBAN_HISTORY.md) — responsável canônico, movimento concorrente, histórico RF38, vínculos e exclusão transacionais.
 - [E12_FRONTEND_DOMAIN_ACCESSIBILITY.md](E12_FRONTEND_DOMAIN_ACCESSIBILITY.md) — arquitetura por domínio, cliente HTTP, estado, formulários e acessibilidade.
+- [E13_FRONTEND_PERFORMANCE_CONSOLIDATION.md](E13_FRONTEND_PERFORMANCE_CONSOLIDATION.md) — lazy routes, chunks, consolidação de Tasks/Kanban e cobertura de autenticação.
 - [THREAT_MODEL.md](../security/THREAT_MODEL.md) — ativos, boundaries, ameaças e decisões de risco.
 - [SECRETS_POLICY.md](../security/SECRETS_POLICY.md) — ciclo de vida, acesso, rotação e resposta a vazamento.
 - [DEPENDENCY_RISK_REGISTER.md](../security/DEPENDENCY_RISK_REGISTER.md) — advisories, aplicabilidade e decisões.
@@ -87,6 +92,6 @@ Esta área registra a evolução incremental do MVP para uma arquitetura mais se
 
 ## Próxima etapa
 
-E0–E12 estão concluídas. **Próxima etapa: E13.** A E13 não foi iniciada nesta execução.
+E0–E13 estão concluídas. **Próxima etapa prevista: E14.** A E14 não foi iniciada nesta execução.
 
 Nenhum código funcional foi refatorado durante a E0 ou a E1. A E2 reorganizou fronteiras internas, a E3 introduziu infraestrutura transversal, a E4 protegeu os contratos de entrada e a E5 estabeleceu controles transversais de segurança, sem alterar regras de negócio ou respostas de sucesso.

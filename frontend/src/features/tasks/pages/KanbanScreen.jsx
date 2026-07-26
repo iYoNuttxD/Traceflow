@@ -11,75 +11,16 @@ import {
 import { projectMembersApi } from '../../members/index.js';
 import { projectsApi } from '../../projects/index.js';
 import { ProjectSectionNav } from '../../projects/index.js';
-import { KanbanColumn } from '../components/KanbanColumn.jsx';
+import { KanbanBoard } from '../components/KanbanBoard.jsx';
+import { KANBAN_COLUMNS } from '../components/kanban-display.js';
+import { MovementHistory } from '../components/MovementHistory.jsx';
+import { TaskDetailsPanel } from '../components/TaskDetailsPanel.jsx';
 import { FeedbackRegion, LoadingState, useConfirm } from '../../../shared/index.js';
 
-const KANBAN_COLUMNS = [
-  { status: 'A_FAZER', label: 'A Fazer' },
-  { status: 'EM_ANDAMENTO', label: 'Em Andamento' },
-  { status: 'CONCLUIDO', label: 'Concluído' }
-];
-
-const statusLabels = {
-  A_FAZER: 'A Fazer',
-  EM_ANDAMENTO: 'Em Andamento',
-  CONCLUIDO: 'Concluído'
-};
-
-const requirementStatusLabels = {
-  CADASTRADO: 'Cadastrado',
-  APROVADO: 'Aprovado',
-  EM_IMPLEMENTACAO: 'Em implementação',
-  VALIDADO: 'Validado',
-  CONCLUIDO: 'Concluído',
-  PENDENTE: 'Pendente',
-  CANCELADO: 'Cancelado'
-};
-
-const priorityLabels = {
-  BAIXA: 'Baixa',
-  MEDIA: 'Média',
-  ALTA: 'Alta',
-  CRITICA: 'Crítica'
-};
-const historyFieldLabels = {
-  STATUS: 'Status',
-  DEADLINE: 'Prazo',
-  RESPONSIBLE: 'Responsável',
-  PRIORITY: 'Prioridade'
-};
 const MOVEMENTS_PER_PAGE = 10;
 
 function getErrorMessage(error, fallback) {
   return error.response?.data?.message || fallback;
-}
-
-function formatDate(value) {
-  if (!value) {
-    return 'Não informado';
-  }
-
-  return new Date(value).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
-}
-
-function formatDateTime(value) {
-  if (!value) {
-    return 'Não informado';
-  }
-
-  return new Date(value).toLocaleString('pt-BR');
-}
-
-function formatHistoryValue(field, value, members) {
-  if (value === null || value === undefined || value === '') return 'Não informado';
-  if (field === 'STATUS') return statusLabels[value] || value;
-  if (field === 'PRIORITY') return priorityLabels[value] || value;
-  if (field === 'DEADLINE') return formatDate(value);
-  if (field === 'RESPONSIBLE') {
-    const membership = members.find((item) => String(item.user?.id || item.userId) === String(value));
-    return membership?.user?.name || `Usuário #${value}`;
-  }
-  return value;
 }
 
 function buildPeriodParams(period) {
@@ -94,52 +35,6 @@ function buildPeriodParams(period) {
   }
 
   return params;
-}
-
-function formatCommitLabel(commit) {
-  const shortHash = commit.shortHash || commit.hash?.slice(0, 7) || `#${commit.id}`;
-
-  return `${shortHash} — ${commit.message || 'Sem mensagem'}`;
-}
-
-function formatRequirementLabel(requirement) {
-  return requirement?.title || 'Requisito vinculado';
-}
-
-function formatIssueLabel(issue) {
-  return `#${issue.number} — ${issue.title}`;
-}
-
-function formatIssueLabels(labels) {
-  if (!labels) {
-    return 'sem labels';
-  }
-
-  if (Array.isArray(labels)) {
-    return labels.length > 0 ? labels.join(', ') : 'sem labels';
-  }
-
-  if (typeof labels === 'string') {
-    return labels || 'sem labels';
-  }
-
-  return 'sem labels';
-}
-
-function getTraceabilitySummary(task) {
-  const commitsCount = task.commits?.length || 0;
-  const issuesCount = task.issues?.length || 0;
-  const requirementText = task.requirement ? formatRequirementLabel(task.requirement) : '';
-  const pullRequestText = task.pullRequest ? `PR #${task.pullRequest.number}` : '';
-  const commitText =
-    commitsCount > 0 ? `${commitsCount} ${commitsCount === 1 ? 'commit' : 'commits'}` : '';
-  const issueText =
-    issuesCount > 0 ? `${issuesCount} ${issuesCount === 1 ? 'issue' : 'issues'}` : '';
-
-  return (
-    [requirementText, pullRequestText, commitText, issueText].filter(Boolean).join(' · ') ||
-    'Sem rastreabilidade'
-  );
 }
 
 function updateTaskInBoard(board, taskId, updater) {
@@ -218,6 +113,7 @@ export function KanbanScreen() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const suppressTaskClickRef = useRef(false);
+  const loadedProjectIdRef = useRef(null);
 
   const allTasks = useMemo(() => {
     if (!board?.columns) {
@@ -269,8 +165,10 @@ export function KanbanScreen() {
   );
 
   useEffect(() => {
-    loadKanban();
-  }, [loadKanban]);
+    if (loadedProjectIdRef.current === projectId) return;
+    loadedProjectIdRef.current = projectId;
+    void loadKanban();
+  }, [loadKanban, projectId]);
 
   async function refreshKanban(params = { ...buildPeriodParams(period), page: movementPage, limit: MOVEMENTS_PER_PAGE, ...(movementMemberFilter ? { actorUserId: movementMemberFilter } : {}), ...(historyFieldFilter ? { field: historyFieldFilter } : {}) }) {
     const [boardResponse, metricsResponse, movementsResponse] = await Promise.all([
@@ -611,193 +509,40 @@ export function KanbanScreen() {
             </div>
           </section>
 
-          <div className="kanban-board">
-            {KANBAN_COLUMNS.map((column) => {
-              const columnTasks = board?.columns?.[column.status] || [];
+          <KanbanBoard
+            board={board}
+            movingTaskId={movingTaskId}
+            draggingTaskId={draggingTaskId}
+            dragOverStatus={dragOverStatus}
+            onSelectTask={handleTaskClick}
+            onKeyboardSelectTask={setSelectedTask}
+            onTaskDragStart={handleTaskDragStart}
+            onTaskDragEnd={handleTaskDragEnd}
+            onColumnDragOver={handleColumnDragOver}
+            onColumnDragLeave={handleColumnDragLeave}
+            onColumnDrop={handleColumnDrop}
+          />
 
-              return (
-                <KanbanColumn
-                  key={column.status}
-                  title={`${column.label} (${board?.totals?.[column.status] ?? 0})`}
-                  className={
-                    dragOverStatus === column.status ? 'kanban-column--drag-over' : ''
-                  }
-                  onDragOver={(event) => handleColumnDragOver(event, column.status)}
-                  onDragLeave={(event) => handleColumnDragLeave(event, column.status)}
-                  onDrop={(event) => handleColumnDrop(event, column.status)}
-                >
-                  {columnTasks.length === 0 ? (
-                    <p className="kanban-empty">Nenhuma tarefa nesta etapa.</p>
-                  ) : (
-                    <div className="kanban-task-list">
-                      {columnTasks.map((task) => {
-                        const priority = task.priority || 'MEDIA';
-                        const isMovingThisTask = movingTaskId === task.id;
-                        const isDraggingThisTask = draggingTaskId === task.id;
-
-                        return (
-                          <article
-                            className={`kanban-task ${
-                              isDraggingThisTask ? 'kanban-task--dragging' : ''
-                            } ${isMovingThisTask ? 'kanban-task--moving' : ''}`.trim()}
-                            key={task.id}
-                            role="button"
-                            tabIndex={0}
-                            draggable={!isMovingThisTask}
-                            onClick={() => handleTaskClick(task)}
-                            onKeyDown={(event) => {
-                              if (event.key === 'Enter' || event.key === ' ') {
-                                event.preventDefault();
-                                setSelectedTask(task);
-                              }
-                            }}
-                            onDragStart={(event) => handleTaskDragStart(event, task)}
-                            onDragEnd={handleTaskDragEnd}
-                          >
-                            <div className="kanban-task-header">
-                              <strong>{task.title}</strong>
-                              <span className={`priority-badge priority-${priority.toLowerCase()}`}>
-                                {priorityLabels[priority] || priority}
-                              </span>
-                            </div>
-
-                            <dl className="kanban-task-details">
-                              <div>
-                                <dt>Responsável</dt>
-                                <dd>{task.responsibleUser?.name || task.responsible || 'Não informado'}</dd>
-                              </div>
-                              <div>
-                                <dt>Prazo</dt>
-                                <dd>{formatDate(task.deadline)}</dd>
-                              </div>
-                              <div>
-                                <dt>Rastreabilidade</dt>
-                                <dd>{getTraceabilitySummary(task)}</dd>
-                              </div>
-                            </dl>
-
-                            {isMovingThisTask && (
-                              <span className="kanban-task-moving-label">Movendo...</span>
-                            )}
-                          </article>
-                        );
-                      })}
-                    </div>
-                  )}
-                </KanbanColumn>
-              );
-            })}
-          </div>
-
-          <section className="kanban-history">
-            <div className="kanban-section-header">
-              <div>
-                <h2>Histórico de tarefas</h2>
-                <p>Total filtrado: {movementPagination.total}</p>
-                <p>
-                  Exibindo {movementRangeStart}–{movementRangeEnd} de{' '}
-                  {movementPagination.total}
-                </p>
-              </div>
-
-              <form className="kanban-history-filters" onSubmit={handlePeriodSubmit}>
-                <label className="field">
-                  <span>Data inicial</span>
-                  <input
-                    type="date"
-                    value={period.startDate}
-                    onChange={(event) =>
-                      setPeriod((current) => ({ ...current, startDate: event.target.value }))
-                    }
-                  />
-                </label>
-                <label className="field">
-                  <span>Campo</span>
-                  <select value={historyFieldFilter} onChange={(event) => setHistoryFieldFilter(event.target.value)}>
-                    <option value="">Todos os campos</option>
-                    {Object.entries(historyFieldLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                  </select>
-                </label>
-                <label className="field">
-                  <span>Data final</span>
-                  <input
-                    type="date"
-                    value={period.endDate}
-                    onChange={(event) =>
-                      setPeriod((current) => ({ ...current, endDate: event.target.value }))
-                    }
-                  />
-                </label>
-                <label className="field">
-                  <span>Membro</span>
-                  <select
-                    value={movementMemberFilter}
-                    onChange={(event) => setMovementMemberFilter(event.target.value)}
-                  >
-                    <option value="">Todos os membros</option>
-                    {projectMembers.filter((member) => member.isActive !== false).map((member) => (
-                      <option key={member.id} value={member.user?.id || member.userId}>
-                        {member.user?.name || 'Membro sem nome'}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <button className="button button-secondary" type="submit">
-                  Filtrar
-                </button>
-                {(metrics?.startDate || metrics?.endDate || movementMemberFilter || historyFieldFilter) && (
-                  <button
-                    className="button button-secondary metrics-clear"
-                    type="button"
-                    onClick={clearPeriod}
-                  >
-                    Limpar período
-                  </button>
-                )}
-              </form>
-            </div>
-
-            {movementPagination.total === 0 ? (
-              <p className="empty-state">Nenhuma alteração registrada.</p>
-            ) : (
-              <>
-                <div className="movement-list">
-                  {movements.map((movement) => (
-                    <article className="movement-item" key={movement.id}>
-                      <strong>{movement.taskTitle || `Tarefa #${movement.taskId}`}</strong>
-                      <span>{historyFieldLabels[movement.field] || movement.field}: {formatHistoryValue(movement.field, movement.fromValue, projectMembers)} para {formatHistoryValue(movement.field, movement.toValue, projectMembers)}</span>
-                      <span>{movement.actor?.name || `Usuário #${movement.actorUserId}`}</span>
-                      <time dateTime={movement.occurredAt}>{formatDateTime(movement.occurredAt)}</time>
-                    </article>
-                  ))}
-                </div>
-
-                {movementPagination.total > MOVEMENTS_PER_PAGE && (
-                  <div className="movement-pagination">
-                    <button
-                      className="button button-secondary"
-                      type="button"
-                      disabled={currentMovementPage === 1}
-                      onClick={() => changeMovementPage(Math.max(1, currentMovementPage - 1))}
-                    >
-                      Anterior
-                    </button>
-                    <span>
-                      Página {currentMovementPage} de {totalMovementPages}
-                    </span>
-                    <button
-                      className="button button-secondary"
-                      type="button"
-                      disabled={currentMovementPage === totalMovementPages}
-                      onClick={() => changeMovementPage(Math.min(totalMovementPages, currentMovementPage + 1))}
-                    >
-                      Próxima
-                    </button>
-                  </div>
-                )}
-              </>
-            )}
-          </section>
+          <MovementHistory
+            movements={movements}
+            pagination={movementPagination}
+            rangeStart={movementRangeStart}
+            rangeEnd={movementRangeEnd}
+            currentPage={currentMovementPage}
+            totalPages={totalMovementPages}
+            pageSize={MOVEMENTS_PER_PAGE}
+            period={period}
+            memberFilter={movementMemberFilter}
+            fieldFilter={historyFieldFilter}
+            members={projectMembers}
+            metrics={metrics}
+            onPeriodChange={(field, value) => setPeriod((current) => ({ ...current, [field]: value }))}
+            onMemberFilterChange={setMovementMemberFilter}
+            onFieldFilterChange={setHistoryFieldFilter}
+            onSubmit={handlePeriodSubmit}
+            onClear={clearPeriod}
+            onPageChange={changeMovementPage}
+          />
 
           {allTasks.length !== board?.totals?.total && (
             <div className="message message-error">
@@ -805,223 +550,16 @@ export function KanbanScreen() {
             </div>
           )}
 
-          {selectedTask && (
-            <div
-              className="task-detail-overlay"
-              role="presentation"
-              onClick={() => setSelectedTask(null)}
-            >
-              <section
-                className="task-detail-modal"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="task-detail-title"
-                onClick={(event) => event.stopPropagation()}
-              >
-                <div className="task-detail-header">
-                  <div>
-                    <span className="eyebrow">Detalhes da tarefa</span>
-                    <h2 id="task-detail-title">{selectedTask.title}</h2>
-                  </div>
-                  <div className="task-detail-header-actions">
-                    <button
-                      className="button button-danger"
-                      type="button"
-                      onClick={() => handleDeleteSelectedTask(selectedTask)}
-                      disabled={deletingTaskId === selectedTask.id}
-                    >
-                      {deletingTaskId === selectedTask.id ? 'Excluindo...' : 'Excluir'}
-                    </button>
-                    <button
-                      className="text-button"
-                      type="button"
-                      onClick={() => setSelectedTask(null)}
-                    >
-                      Fechar
-                    </button>
-                  </div>
-                </div>
-
-                <p className="task-detail-description">
-                  {selectedTask.description || 'Sem descrição cadastrada.'}
-                </p>
-
-                <dl className="task-detail-grid">
-                  <div>
-                    <dt>Prioridade</dt>
-                    <dd>{priorityLabels[selectedTask.priority] || selectedTask.priority}</dd>
-                  </div>
-                  <div>
-                    <dt>Responsável</dt>
-                    <dd>{selectedTask.responsibleUser?.name || selectedTask.responsible || 'Não informado'}</dd>
-                  </div>
-                  <div>
-                    <dt>Prazo</dt>
-                    <dd>{formatDate(selectedTask.deadline)}</dd>
-                  </div>
-                  <div>
-                    <dt>Status atual</dt>
-                    <dd>{statusLabels[selectedTask.status] || selectedTask.status}</dd>
-                  </div>
-                  <div>
-                    <dt>Esforço estimado</dt>
-                    <dd>{selectedTask.estimatedEffort ?? 'Não informado'}</dd>
-                  </div>
-                  <div>
-                    <dt>Esforço realizado</dt>
-                    <dd>{selectedTask.actualEffort ?? 'Não informado'}</dd>
-                  </div>
-                  <div>
-                    <dt>Data de criação</dt>
-                    <dd>{formatDateTime(selectedTask.createdAt)}</dd>
-                  </div>
-                </dl>
-
-                <div className="task-detail-traceability">
-                  <span>Rastreabilidade</span>
-
-                  <div className="task-detail-traceability-section">
-                    <strong>Requisito</strong>
-                    {selectedTask.requirement ? (
-                      <div className="task-detail-traceability-item">
-                        <div>
-                          <strong>{formatRequirementLabel(selectedTask.requirement)}</strong>
-                          <p>
-                            Status:{' '}
-                            {selectedTask.requirement.status
-                              ? requirementStatusLabels[selectedTask.requirement.status] ||
-                                selectedTask.requirement.status
-                              : 'não informado'}
-                          </p>
-                        </div>
-                        <button
-                          className="traceability-remove-button"
-                          type="button"
-                          onClick={() => handleUnlinkSelectedTaskRequirement(selectedTask.id)}
-                          aria-label="Remover requisito vinculado"
-                          title="Remover requisito"
-                        >
-                          ×
-                        </button>
-                      </div>
-                    ) : (
-                      <p>Sem requisito vinculado.</p>
-                    )}
-                  </div>
-
-                  <div className="task-detail-traceability-section">
-                    <strong>Pull request</strong>
-                    {selectedTask.pullRequest ? (
-                      <div className="task-detail-traceability-item">
-                        <div>
-                          <strong>
-                            #{selectedTask.pullRequest.number} — {selectedTask.pullRequest.title}
-                          </strong>
-                          <p>Status: {selectedTask.pullRequest.state || 'não informado'}</p>
-                          <p>
-                            Autor:{' '}
-                            {selectedTask.pullRequest.authorUsername || 'não informado'}
-                          </p>
-                          {selectedTask.pullRequest.githubUrl && (
-                            <a
-                              href={selectedTask.pullRequest.githubUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              Abrir no GitHub
-                            </a>
-                          )}
-                        </div>
-                        <button
-                          className="traceability-remove-button"
-                          type="button"
-                          onClick={() => handleUnlinkSelectedPullRequest(selectedTask.id)}
-                          aria-label="Remover pull request vinculado"
-                          title="Remover pull request"
-                        >
-                          ×
-                        </button>
-                      </div>
-                    ) : (
-                      <p>Sem PR vinculado.</p>
-                    )}
-                  </div>
-
-                  <div className="task-detail-traceability-section">
-                    <strong>Commits</strong>
-                    {selectedTask.commits?.length ? (
-                      <div className="task-detail-commit-list">
-                        {selectedTask.commits.map((commit) => (
-                          <div className="task-detail-traceability-item" key={commit.id}>
-                            <div>
-                              <strong>{formatCommitLabel(commit)}</strong>
-                              <p>Autor: {commit.authorName || commit.authorUsername || 'não informado'}</p>
-                              <p>Data: {formatDateTime(commit.date)}</p>
-                              <p>Branch: {commit.branch || 'não informada'}</p>
-                              {commit.githubUrl && (
-                                <a href={commit.githubUrl} target="_blank" rel="noopener noreferrer">
-                                  Abrir no GitHub
-                                </a>
-                              )}
-                            </div>
-                            <button
-                              className="traceability-remove-button"
-                              type="button"
-                              onClick={() =>
-                                handleUnlinkSelectedTaskCommit(selectedTask.id, commit.id)
-                              }
-                              aria-label="Remover commit vinculado"
-                              title="Remover commit"
-                            >
-                              ×
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p>Sem commits vinculados.</p>
-                    )}
-                  </div>
-
-                  <div className="task-detail-traceability-section">
-                    <strong>Issues</strong>
-                    {selectedTask.issues?.length ? (
-                      <div className="task-detail-commit-list">
-                        {selectedTask.issues.map((issue) => (
-                          <div className="task-detail-traceability-item" key={issue.id}>
-                            <div>
-                              <strong>{formatIssueLabel(issue)}</strong>
-                              <p>Status: {issue.state || 'não informado'}</p>
-                              <p>Autor: {issue.authorUsername || 'não informado'}</p>
-                              <p>Labels: {formatIssueLabels(issue.labels)}</p>
-                              {issue.githubUrl && (
-                                <a href={issue.githubUrl} target="_blank" rel="noopener noreferrer">
-                                  Abrir no GitHub
-                                </a>
-                              )}
-                            </div>
-                            <button
-                              className="traceability-remove-button"
-                              type="button"
-                              onClick={() =>
-                                handleUnlinkSelectedTaskIssue(selectedTask.id, issue.id)
-                              }
-                              aria-label="Remover issue vinculada"
-                              title="Remover issue"
-                            >
-                              ×
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p>Sem issues vinculadas.</p>
-                    )}
-                  </div>
-                </div>
-              </section>
-            </div>
-          )}
+          <TaskDetailsPanel
+            task={selectedTask}
+            deleting={deletingTaskId === selectedTask?.id}
+            onClose={() => setSelectedTask(null)}
+            onDelete={handleDeleteSelectedTask}
+            onUnlinkRequirement={handleUnlinkSelectedTaskRequirement}
+            onUnlinkPullRequest={handleUnlinkSelectedPullRequest}
+            onUnlinkCommit={handleUnlinkSelectedTaskCommit}
+            onUnlinkIssue={handleUnlinkSelectedTaskIssue}
+          />
         </>
       )}
     </main>

@@ -1,13 +1,56 @@
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
 let authState;
 vi.mock('../../src/features/auth/AuthContext.jsx', () => ({ useAuth: () => authState }));
 const { ProtectedRoute } = await import('../../src/features/auth/ProtectedRoute.jsx');
-function renderRoute() { return render(<MemoryRouter initialEntries={['/projects']}><Routes><Route path="/login" element={<h1>Entrar</h1>} /><Route path="/projects" element={<ProtectedRoute><h1>Projetos privados</h1></ProtectedRoute>} /></Routes></MemoryRouter>); }
+
+function LoginProbe() {
+  const location = useLocation();
+  return <h1>Entrar {location.state?.from || ''}</h1>;
+}
+
+function renderRoute(initialEntry = '/projects') {
+  return render(
+    <MemoryRouter initialEntries={[initialEntry]}>
+      <Routes>
+        <Route path="/login" element={<LoginProbe />} />
+        <Route
+          path="/projects/*"
+          element={(
+            <ProtectedRoute>
+              <h1>Projetos privados</h1>
+            </ProtectedRoute>
+          )}
+        />
+      </Routes>
+    </MemoryRouter>
+  );
+}
+
 describe('ProtectedRoute', () => {
   beforeEach(() => { authState = { user: null, loading: false }; });
-  it('redireciona visitante para login', () => { renderRoute(); expect(screen.getByRole('heading', { name: 'Entrar' })).toBeInTheDocument(); });
-  it('preserva loading sem renderizar conteúdo privado', () => { authState.loading = true; renderRoute(); expect(screen.getByText('Carregando sessão...')).toBeInTheDocument(); });
-  it('renderiza rota para usuário autenticado', () => { authState.user = { id: 1, name: 'Pessoa' }; renderRoute(); expect(screen.getByText('Projetos privados')).toBeInTheDocument(); });
+
+  it('redireciona visitante para login', () => {
+    renderRoute();
+    expect(screen.getByRole('heading', { name: 'Entrar /projects' })).toBeInTheDocument();
+  });
+
+  it('preserva a rota originalmente solicitada para retorno após login', () => {
+    renderRoute('/projects/7/tasks');
+    expect(screen.getByRole('heading', { name: 'Entrar /projects/7/tasks' })).toBeInTheDocument();
+  });
+
+  it('preserva loading sem renderizar conteúdo privado', () => {
+    authState.loading = true;
+    renderRoute();
+    expect(screen.getByText('Carregando sessão...')).toBeInTheDocument();
+  });
+
+  it('renderiza rota para usuário autenticado', () => {
+    authState.user = { id: 1, name: 'Pessoa' };
+    renderRoute();
+    expect(screen.getByText('Projetos privados')).toBeInTheDocument();
+  });
 });

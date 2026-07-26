@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   deleteTask,
@@ -25,64 +25,11 @@ import {
   taskFormToPayload,
   taskToFormData
 } from '../components/TaskForm.jsx';
-
-const statusLabels = {
-  A_FAZER: 'A Fazer',
-  EM_ANDAMENTO: 'Em Andamento',
-  CONCLUIDO: 'Concluído'
-};
-
-const priorityLabels = {
-  BAIXA: 'Baixa',
-  MEDIA: 'Média',
-  ALTA: 'Alta',
-  CRITICA: 'Crítica'
-};
+import { TaskMetrics } from '../components/TaskMetrics.jsx';
+import { TaskList } from '../components/TaskList.jsx';
 
 function getErrorMessage(error, fallback) {
   return error.response?.data?.message || fallback;
-}
-
-function formatDate(value) {
-  if (!value) {
-    return 'Não informado';
-  }
-
-  return new Date(value).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
-}
-
-function formatDateTime(value) {
-  return new Date(value).toLocaleString('pt-BR');
-}
-
-function formatPullRequestLabel(pullRequest) {
-  if (!pullRequest) {
-    return 'Sem PR vinculado';
-  }
-
-  return `#${pullRequest.number} — ${pullRequest.title}`;
-}
-
-function formatRequirementLabel(requirement) {
-  if (!requirement) {
-    return 'Requisito não encontrado';
-  }
-
-  return requirement.title;
-}
-
-function formatCommitLabel(commit) {
-  const shortHash = commit.shortHash || commit.hash?.slice(0, 7) || `#${commit.id}`;
-
-  return `${shortHash} — ${commit.message || 'Sem mensagem'}`;
-}
-
-function formatIssueLabel(issue) {
-  if (!issue) {
-    return 'Issue não encontrada';
-  }
-
-  return `#${issue.number} — ${issue.title}`;
 }
 
 export function TasksScreen() {
@@ -113,6 +60,7 @@ export function TasksScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const loadedProjectIdRef = useRef(null);
   const loadTaskData = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -166,8 +114,10 @@ export function TasksScreen() {
   }, [projectId]);
 
   useEffect(() => {
-    loadTaskData();
-  }, [loadTaskData]);
+    if (loadedProjectIdRef.current === projectId) return;
+    loadedProjectIdRef.current = projectId;
+    void loadTaskData();
+  }, [loadTaskData, projectId]);
 
   const searchPullRequests = useCallback(
     async (search) => {
@@ -695,40 +645,12 @@ export function TasksScreen() {
       {error && <div className="message message-error">{error}</div>}
       {success && <div className="message message-success">{success}</div>}
 
-      <div className="task-summary">
-        <Card title="Total de tarefas cadastradas">
-          <strong className="metric-value">{tasks.length}</strong>
-        </Card>
-
-        <Card title="Cobertura com Pull Requests">
-          <strong className="metric-value">
-            {pullRequestCoverage?.coveragePercentage ?? 0}%
-          </strong>
-          <p className="metric-description">
-            {pullRequestCoverage
-              ? `${pullRequestCoverage.linkedTasks} de ${pullRequestCoverage.totalTasks} tarefas possuem PR vinculado.`
-              : 'Percentual de tarefas vinculadas a pull requests.'}
-          </p>
-        </Card>
-
-        <Card title="Cobertura com commits">
-          <strong className="metric-value">{commitCoverage?.coveragePercentage ?? 0}%</strong>
-          <p className="metric-description">
-            {commitCoverage
-              ? `${commitCoverage.linkedTasks} de ${commitCoverage.totalTasks} tarefas possuem pelo menos um commit vinculado.`
-              : 'Percentual de tarefas vinculadas a commits.'}
-          </p>
-        </Card>
-
-        <Card title="Cobertura com issues">
-          <strong className="metric-value">{issueCoverage?.coveragePercentage ?? 0}%</strong>
-          <p className="metric-description">
-            {issueCoverage
-              ? `${issueCoverage.linkedTasks} de ${issueCoverage.totalTasks} tarefas possuem pelo menos uma issue vinculada.`
-              : 'Percentual de tarefas vinculadas a issues.'}
-          </p>
-        </Card>
-      </div>
+      <TaskMetrics
+        total={tasks.length}
+        pullRequestCoverage={pullRequestCoverage}
+        commitCoverage={commitCoverage}
+        issueCoverage={issueCoverage}
+      />
 
       <div className="tasks-layout">
         <Card title={editingTaskId ? 'Editar tarefa' : 'Cadastrar tarefa'}>
@@ -768,198 +690,16 @@ export function TasksScreen() {
         </Card>
       </div>
 
-      <section className="tasks-list-section">
-        <Card title="Tarefas cadastradas">
-          {tasks.length === 0 ? (
-            <p className="empty-state">Nenhuma tarefa cadastrada ainda.</p>
-          ) : (
-            <div className="task-list tasks-list-grid">
-              {tasks.map((task) => (
-                <article className="task-item" key={task.id}>
-                  <div className="task-item-header">
-                    <div>
-                      <span className={`priority-badge priority-${task.priority.toLowerCase()}`}>
-                        {priorityLabels[task.priority]}
-                      </span>
-                      <h3>{task.title}</h3>
-                    </div>
-                    <span className={`status-badge status-${task.status.toLowerCase()}`}>
-                      {statusLabels[task.status]}
-                    </span>
-                  </div>
-
-                  <p>{task.description || 'Sem descrição cadastrada.'}</p>
-
-                  <dl className="task-details">
-                    <div>
-                      <dt>Responsável</dt>
-                      <dd>{task.responsibleUser?.name || task.responsible || 'Não informado'}</dd>
-                    </div>
-                    <div>
-                      <dt>Prazo</dt>
-                      <dd>{formatDate(task.deadline)}</dd>
-                    </div>
-                    <div>
-                      <dt>Esforço estimado</dt>
-                      <dd>{task.estimatedEffort ?? 'Não informado'}</dd>
-                    </div>
-                    <div>
-                      <dt>Esforço realizado</dt>
-                      <dd>{task.actualEffort ?? 'Não informado'}</dd>
-                    </div>
-                    <div>
-                      <dt>Criada em</dt>
-                      <dd>{formatDateTime(task.createdAt)}</dd>
-                    </div>
-                  </dl>
-
-                  <div className="task-pr-card">
-                    <span>Rastreabilidade</span>
-                    <div className="task-traceability-group">
-                      <strong>Requisito</strong>
-                      {task.requirement ? (
-                        <div className="task-traceability-item">
-                          <span>{formatRequirementLabel(task.requirement)}</span>
-                          <button
-                            className="traceability-remove-button"
-                            type="button"
-                            onClick={() => handleUnlinkRequirement(task.id)}
-                            aria-label="Remover requisito vinculado"
-                            title="Remover requisito"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ) : (
-                        <p className="task-pr-meta">Sem requisito vinculado.</p>
-                      )}
-                    </div>
-
-                    <div className="task-traceability-group">
-                      <strong>Pull request</strong>
-                      {task.pullRequest ? (
-                        <div className="task-traceability-item">
-                          {task.pullRequest.githubUrl ? (
-                            <a
-                              className="task-pr-link"
-                              href={task.pullRequest.githubUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              {formatPullRequestLabel(task.pullRequest)}
-                            </a>
-                          ) : (
-                            <span>{formatPullRequestLabel(task.pullRequest)}</span>
-                          )}
-                          <button
-                            className="traceability-remove-button"
-                            type="button"
-                            onClick={() => handleUnlinkPullRequest(task.id)}
-                            aria-label="Remover pull request vinculado"
-                            title="Remover pull request"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ) : (
-                        <p className="task-pr-meta">Sem PR vinculado.</p>
-                      )}
-                    </div>
-
-                    <div className="task-traceability-group">
-                      <strong>Commits</strong>
-                      {task.commits?.length ? (
-                        <div className="task-traceability-list">
-                          {task.commits.map((commit) => (
-                            <div className="task-traceability-item" key={commit.id}>
-                              {commit.githubUrl ? (
-                                <a
-                                  className="task-pr-link"
-                                  href={commit.githubUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                >
-                                  {formatCommitLabel(commit)}
-                                </a>
-                              ) : (
-                                <span>{formatCommitLabel(commit)}</span>
-                              )}
-                              <button
-                                className="traceability-remove-button"
-                                type="button"
-                                onClick={() => handleUnlinkCommit(task.id, commit.id)}
-                                aria-label="Remover commit vinculado"
-                                title="Remover commit"
-                              >
-                                ×
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="task-pr-meta">Sem commits vinculados.</p>
-                      )}
-                    </div>
-
-                    <div className="task-traceability-group">
-                      <strong>Issues</strong>
-                      {task.issues?.length ? (
-                        <div className="task-traceability-list">
-                          {task.issues.map((issue) => (
-                            <div className="task-traceability-item" key={issue.id}>
-                              {issue.githubUrl ? (
-                                <a
-                                  className="task-pr-link"
-                                  href={issue.githubUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                >
-                                  {formatIssueLabel(issue)}
-                                </a>
-                              ) : (
-                                <span>{formatIssueLabel(issue)}</span>
-                              )}
-                              <button
-                                className="traceability-remove-button"
-                                type="button"
-                                onClick={() => handleUnlinkIssue(task.id, issue.id)}
-                                aria-label="Remover issue vinculada"
-                                title="Remover issue"
-                              >
-                                ×
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="task-pr-meta">Sem issues vinculadas.</p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="task-actions">
-                    <button
-                      className="button button-secondary"
-                      type="button"
-                      onClick={() => startEditing(task)}
-                    >
-                      Editar
-                    </button>
-                    <button
-                      className="button button-danger"
-                      type="button"
-                      onClick={() => handleDeleteTask(task)}
-                      disabled={deletingTaskId === task.id}
-                    >
-                      {deletingTaskId === task.id ? 'Excluindo...' : 'Excluir'}
-                    </button>
-                  </div>
-                </article>
-              ))}
-            </div>
-          )}
-        </Card>
-      </section>
+      <TaskList
+        tasks={tasks}
+        deletingTaskId={deletingTaskId}
+        onEdit={startEditing}
+        onDelete={handleDeleteTask}
+        onUnlinkRequirement={handleUnlinkRequirement}
+        onUnlinkPullRequest={handleUnlinkPullRequest}
+        onUnlinkCommit={handleUnlinkCommit}
+        onUnlinkIssue={handleUnlinkIssue}
+      />
     </main>
   );
 }

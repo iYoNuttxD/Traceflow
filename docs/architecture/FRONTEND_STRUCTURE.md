@@ -21,7 +21,9 @@ app/routes → pages → features/<domain> → shared + api/http-client
 
 ```text
 src/
-├── app/routes/AppRoutes.jsx
+├── app/routes/
+│   ├── AppRoutes.jsx
+│   └── lazy-route.js
 ├── api/
 │   └── http-client.js
 ├── pages/                     # adaptadores finos de rota
@@ -41,6 +43,24 @@ src/
 ```
 
 Somente pastas com implementação real devem existir.
+
+## Rotas e chunks
+
+`AppRoutes` declara as páginas com `React.lazy` por meio do adaptador mínimo `lazyNamed`. Um único `Suspense` na fronteira das rotas fornece fallback anunciado por `role="status"`; o `ErrorBoundary` global captura também falhas de importação dinâmica. `ProtectedRoute`, restauração da sessão, CSRF e os providers globais permanecem fora dos chunks de página.
+
+O build separa as telas públicas e protegidas, os módulos de domínio e o grafo. `TraceabilityFlow` e `@xyflow/react` são alcançados apenas pelo chunk de rastreabilidade e não pertencem à entrada inicial.
+
+## Consolidação de Tasks e Kanban
+
+As screens de Tasks e Kanban coordenam estado e casos de uso, enquanto componentes do próprio domínio apresentam responsabilidades delimitadas:
+
+- `TaskMetrics` e `TaskList` apresentam resumo, tarefas e vínculos;
+- `KanbanBoard` apresenta colunas e cartões com interação por teclado e drag-and-drop;
+- `MovementHistory` apresenta filtros e paginação do backend;
+- `TaskDetailsPanel` apresenta o detalhe e delega mutações;
+- `kanban-display` centraliza somente labels e formatação de apresentação.
+
+A restauração de sessão coalesce chamadas concorrentes e as cargas iniciais de Tasks/Kanban são protegidas contra a segunda execução de efeitos em desenvolvimento, sem introduzir cache global.
 
 ## Cliente HTTP
 
