@@ -2,7 +2,7 @@
 
 ## Estado
 
-**CONCLUÍDA em 26/07/2026.** Branch `daniel-dev`; commit inicial `f084017 fix(traceability): move RF41 suggestions to task workflow [TASK-01]`. A E11 refatorou capacidades existentes, sem iniciar a E12.
+**PARCIAL — RECONCILIAÇÃO DE RESPONSÁVEL BLOQUEADA em 26/07/2026.** A parte funcional da E11 está concluída, mas o fechamento definitivo depende do mapeamento manual dos responsáveis textuais legados. Branch `daniel-dev`; continuação iniciada no commit `6470645 refactor(tasks): finalize E11 atomic Kanban and task history`. Nenhuma associação automática ou parcial foi aplicada e a E12 não foi iniciada.
 
 Baseline herdado: 185 testes backend, 48 frontend e 24 migrations. Cobertura informada: backend 85,61% statements, 71,71% branches, 87,54% functions e 88,26% lines; frontend 33,72%, 32,90%, 28,42% e 34,64%, respectivamente.
 
@@ -36,6 +36,30 @@ Novas escritas usam `Task.responsibleUserId`, validado contra `ProjectMembership
 
 Foi executada auditoria somente de contagens no banco local: 8 Tasks possuem apenas `responsible` textual, nenhuma possui `responsibleUserId`; 10 movimentos possuem apenas ator textual e `projectMemberId`, nenhum possui `movedByUserId`. Não houve exposição de nomes/e-mails. Assim, `Task.responsible`, `TaskMovement.movedBy` e `projectMemberId` permanecem como fallback histórico; não são fonte canônica nem controlam novas movimentações. Remoção exige reconciliação explícita futura, sem associação ambígua por nome.
 
+### Reconciliação controlada
+
+Foram adicionados os comandos `e11:legacy:audit`, `e11:legacy:reconcile:dry-run` e `e11:legacy:reconcile`. Os scripts são dry-run por padrão, sanitizam a saída, validam o datasource e aplicam Tasks e movimentos em uma única transação. O apply requer `--confirm-development` ou `--confirm-production` e é bloqueado quando qualquer Task não possui `selectedUserId` manual válido. Não existe associação por nome, similaridade, ordem, e-mail inferido ou primeiro resultado.
+
+A auditoria no datasource local registrou somente contagens:
+
+| Verificação | Contagem |
+|---|---:|
+| Tasks somente com texto | 8 |
+| Tasks com `responsibleUserId` | 0 |
+| Tasks com texto e ID | 0 |
+| divergências potenciais | 0 |
+| mappings manuais preenchidos | 0 |
+| memberships ativas candidatas | 0 |
+| movimentos somente com texto | 10 |
+| movimentos com `projectMemberId` | 10 |
+| movimentos com `movedByUserId` | 0 |
+| movimentos tecnicamente reconciliáveis | 0 |
+| movimentos preservados sem autoria comprovada | 10 |
+
+O arquivo `backend/.local/e11-task-responsibility-mapping.json` foi gerado com permissão local restrita e está ignorado pelo Git. Ele pode conter os dados necessários à decisão local; nenhum nome, e-mail ou texto foi versionado. Como não há membership ativa candidata no projeto, os oito mappings continuam bloqueados e o apply não foi executado. As contagens permaneceram inalteradas.
+
+Movimentos só são reconciliados pela cadeia `projectMemberId → ProjectMember do mesmo projeto → e-mail preenchido → exatamente um User → ProjectMembership ativa no mesmo projeto`. Os dez movimentos não satisfazem integralmente essa evidência e foram classificados como `UNRESOLVED_PRESERVED`; seus snapshots e referências históricas foram mantidos.
+
 ## Movimento, atomicidade e concorrência
 
 `PATCH /tasks/:id/status` e `PATCH /tasks/:id/move` delegam à mesma regra. O body canônico de move contém apenas `toStatus`; `movedBy` e `projectMemberId` são rejeitados. O ator é sempre `req.auth.user`.
@@ -62,7 +86,7 @@ O hard delete vigente remove joins, movimentos e histórico funcional na transa�
 
 Foram acrescentados testes para autoria da sessão, rejeição de ator no body, transição direta com histórico, concorrência/409, responsável fora do projeto ou inativo, quatro campos RF38, no-op, paginação/filtros, exclusão sem órfãos, payload frontend sem ator, membership ativa, rollback visual e paginação do Kanban.
 
-Resultados finais: 189 testes backend e 52 frontend. `test:unit` passou com 103 testes; `test:integration`, com 86. Architecture check, scanner de segredos (208 arquivos), build e as 25 migrations no `traceflow_test` passaram. O primeiro `test:unit` dentro do sandbox falhou apenas porque Supertest não pôde abrir listener (`EPERM`); a repetição fora do sandbox passou integralmente.
+Resultados da continuação: 198 testes backend em 27 arquivos e 52 frontend em 16 arquivos. Os 9 testes backend acrescentados cobrem validação do mapa manual, ausência/inatividade/divergência de membership, atomicidade sem aplicação parcial, evidência técnica de movimentos, preservação, idempotência e saída sem PII. Architecture check, scanner de segredos (211 arquivos) e build passaram. A migration E11 já havia sido aplicada pela equipe e não foi reaplicada nesta correção.
 
 Cobertura final backend: 86,29% statements, 73,31% branches, 88,39% functions e 89,04% lines. Cobertura frontend: 42,55%, 40,30%, 35,20% e 44,29%, respectivamente. Ambas superam o baseline, sem exclusões artificiais.
 
@@ -70,7 +94,8 @@ Cobertura final backend: 86,29% statements, 73,31% branches, 88,39% functions e 
 
 ## Riscos para E12
 
+- o fechamento definitivo está bloqueado até existirem memberships ativas válidas e o operador preencher manualmente os 8 `selectedUserId`; a E12 não foi iniciada;
 - reconciliar os campos textuais legados requer política e dados confiáveis; contract permanece bloqueado pelos registros exclusivos;
 - limiter/controle distribuído de concorrência não foi introduzido; a proteção é otimista no MySQL e suficiente ao caso de uso atual;
 - o frontend mantém a estrutura existente, pois decomposição visual ampla pertence à E12;
-- smoke GitHub externo herdado da E9 continua dependente de credencial/ambiente externo.
+- a verificação do fluxo GitHub herdada da E9 foi informada pela equipe como concluída e não foi repetida nesta correção.

@@ -50,7 +50,7 @@ Esta área registra a evolução incremental do MVP para uma arquitetura mais se
 
 ## Estado da E11
 
-**Concluída em 26/07/2026**, com `responsibleUserId` canônico, ator derivado da sessão, transição de status otimista e atômica, histórico funcional RF38 paginado e mutações críticas com auditoria transacional. A execução partiu do commit `f084017`.
+**Parcial — reconciliação de responsável bloqueada em 26/07/2026.** A parte funcional está concluída com `responsibleUserId` canônico, ator derivado da sessão, transição de status atômica e histórico RF38. O fechamento definitivo aguarda mapeamento manual válido de 8 Tasks; 10 movimentos sem evidência técnica inequívoca foram preservados. A continuação partiu do commit `6470645`.
 
 ## Documentos produzidos
 
@@ -82,6 +82,6 @@ Esta área registra a evolução incremental do MVP para uma arquitetura mais se
 
 ## Próxima etapa
 
-E0–E8 estão concluídas definitivamente. A E9 está concluída tecnicamente, com smoke externo ainda pendente. E10 e E11 estão concluídas, com RF41 preservado. Próxima etapa: **E12**.
+E0–E8 estão concluídas definitivamente. A E9 e a verificação externa indicada pela equipe estão concluídas. E10 está concluída definitivamente. A E11 está funcionalmente concluída, mas seu contract de identidade legada permanece bloqueado; **E12 não foi iniciada**.
 
 Nenhum código funcional foi refatorado durante a E0 ou a E1. A E2 reorganizou fronteiras internas, a E3 introduziu infraestrutura transversal, a E4 protegeu os contratos de entrada e a E5 estabeleceu controles transversais de segurança, sem alterar regras de negócio ou respostas de sucesso.

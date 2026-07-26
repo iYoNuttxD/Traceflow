@@ -78,7 +78,21 @@ function inspectBackendImports(files, backendRoot, violations, graph) {
     const isSchema = /\.(?:schema|validation)\.js$/.test(file);
     const isMapper = /\.mapper\.js$/.test(file);
     const isReconciliation = /(?:reconcile|reconciliation)/i.test(relativeFile.at(-1));
+    const isTaskRuntime = relativeFile.slice(0, 2).join('/') === 'modules/tasks';
     const imports = extractImportSpecifiers(source);
+
+    if (isTaskRuntime && /req\.body(?:\.|\?\.)(?:movedBy|projectMemberId)\b/.test(source)) {
+      addViolation(violations, file, 'task-actor-from-session', 'legacy movement actor', 'Ator de movimentação deve vir da sessão, nunca do body.');
+    }
+    if (isTaskRuntime && /\.taskMovement\.create\s*\(/.test(source) && !/\bmovedByUserId\s*:/.test(source)) {
+      addViolation(violations, file, 'task-movement-canonical-actor', 'movedByUserId', 'Nova movimentação deve persistir movedByUserId canônico.');
+    }
+    if (isTaskRuntime && /\.task\.(?:create|update)\s*\([\s\S]{0,300}?\bresponsible\s*:/.test(source)) {
+      addViolation(violations, file, 'task-responsible-canonical-id', 'responsible', 'Nova escrita de responsável deve usar responsibleUserId, não identidade textual.');
+    }
+    if (isTaskRuntime && /\b(?:responsible|movedBy)\s*={2,3}/.test(source)) {
+      addViolation(violations, file, 'task-no-textual-identity-authorization', 'legacy textual identity', 'Autorização não pode comparar identidade textual legada.');
+    }
 
     if (/prisma\.taskPullRequest|pullRequestLinks|\bTaskPullRequest\b/.test(source)) {
       addViolation(violations, file, 'removed-model-no-runtime', 'TaskPullRequest', 'Runtime não pode reintroduzir o join TaskPullRequest removido na E8.');

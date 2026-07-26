@@ -46,5 +46,9 @@ describe('verificador de fronteiras arquiteturais', () => {
     expect(rules).toContain('reconciliation-no-controller');
     expect(rules).toContain('schema-no-service');
     expect(rules).toContain('audit-write-via-adapter');
+    expect(rules).toContain('task-actor-from-session');
+    expect(rules).toContain('task-movement-canonical-actor');
+    expect(rules).toContain('task-no-textual-identity-authorization');
+    expect(rules).toContain('task-responsible-canonical-id');
   });
 });
