@@ -2,7 +2,7 @@
 
 ## Estado
 
-**CONCLUÍDA em 26/07/2026.** A etapa reorganizou o frontend por domínio, separou o cliente HTTP dos contratos de cada feature, introduziu cancelamento de consultas obsoletas e componentes compartilhados de estado/acessibilidade, sem alterar regras de negócio, contratos HTTP, schema ou migrations.
+**CONCLUÍDA TECNICAMENTE em 26/07/2026; fechamento definitivo aguardando validação visual manual.** A etapa reorganizou o frontend por domínio, separou o cliente HTTP dos contratos de cada feature, introduziu cancelamento de consultas obsoletas e componentes compartilhados de estado/acessibilidade, sem alterar regras de negócio, contratos HTTP, schema ou migrations. A correção pós-validação descrita abaixo passou por testes automatizados e build; o ambiente desta execução não disponibilizou navegador controlável para homologar visualmente os três fluxos.
 
 ## Baseline operacional
 
@@ -96,6 +96,33 @@ O build Vite passa. O aviso de bundle principal superior a 500 kB permanece conh
 Na regressão final, os 198 testes backend passaram em 27 arquivos usando exclusivamente `traceflow_test`. `prisma validate`, `architecture:check` e `security:secrets` passaram; o scanner verificou 234 arquivos. O audit backend encontrou zero vulnerabilidades.
 
 O audit frontend mantém duas vulnerabilidades altas direta/transitiva do React Router relacionadas ao modo RSC. O TRACEFLOW utiliza SPA com `BrowserRouter`; a correção automática proposta força versão incompatível. O risco conhecido foi mantido para atualização controlada e nenhum `npm audit fix` foi executado.
+
+## Correção final pós-validação manual
+
+A validação manual posterior à implementação original identificou três regressões de integração, corrigidas sem alterar contratos HTTP ou regras de domínio:
+
+- a busca manual de commits possuía o controle nativo do campo e um botão grande redundante; ela agora expõe somente um controle interno `×`, com nome acessível `Limpar busca de commits`, foco devolvido ao campo e cancelamento/limpeza de resultados obsoletos;
+- a tela de repositório enviava `type`, `startDate` e `endDate` como strings vazias na carga inicial, o que fazia a validação HTTP rejeitar datas ausentes; `compactParams` passou a retirar `undefined`, `null` e strings vazias ou compostas apenas por espaços, preservando `0` e `false`;
+- o scan histórico do RF41 estava na visão geral do projeto; a ação foi removida de `ProjectDetails` e passou a existir somente em `Sugestões automáticas` durante a edição de uma Task persistida. O cadastro continua sem consultar sugestões e apenas orienta que `[TASK-ID]` poderá gerar sugestões depois do salvamento.
+
+A compactação foi aplicada às APIs com queries opcionais de GitHub/artifacts, requirements, tasks, histórico/Kanban e rastreabilidade. O repositório também valida o formato das datas e a ordem cronológica antes do request, cancela consulta obsoleta ao alterar filtros, dá precedência ao erro sobre o vazio, oferece retry e mantém somente o link canônico de retorno no cabeçalho.
+
+Foram adicionadas caracterizações para compactação de parâmetros, carga inicial sem filtros, datas válidas e intervalo invertido, limpeza/reload de filtro, cancelamento, retry sem estado vazio, renderização do resumo/artefatos, controle único de limpeza com foco, RF41 ausente em `ProjectDetails`, cadastro sem request e scan restrito à edição com recarga por `taskId`.
+
+Resultado da correção:
+
+| Métrica | E12 original | Após correção |
+|---|---:|---:|
+| Testes | 62 | 69 |
+| Arquivos de teste | 20 | 21 |
+| Statements | 47,75% | 49,58% |
+| Branches | 42,06% | 44,33% |
+| Functions | 37,93% | 40,45% |
+| Lines | 50,34% | 52,43% |
+
+Os 69 testes frontend, os 198 testes backend, o build, `prisma validate`, `architecture:check` e `security:secrets` passaram. O audit frontend continua registrando as duas vulnerabilidades altas do React Router/RSC já descritas. O aviso de bundle acima de 500 kB permanece fora desta correção.
+
+Para rotular a etapa como **CONCLUÍDA DEFINITIVAMENTE**, ainda é necessário validar visualmente em navegador: (1) o único controle de limpeza e seu foco na busca de commits; (2) a abertura e filtragem do repositório; e (3) a ausência do RF41 em `ProjectDetails` e sua presença somente na edição da Task. Essa pendência é operacional de homologação, não de implementação, e não autoriza iniciar a E13.
 
 ## Riscos para E13
 

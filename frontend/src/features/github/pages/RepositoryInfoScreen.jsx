@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { getProjectArtifacts } from '../index.js';
 import { ProjectSectionNav } from '../../projects/index.js';
-import { useAbortableRequest } from '../../../shared/index.js';
+import { compactParams, ErrorState, LoadingState, useAbortableRequest } from '../../../shared/index.js';
 
 const emptyFilters = {
   type: '',
@@ -60,9 +60,33 @@ function hasActiveFilters(filters) {
   return Boolean(filters.type || filters.startDate || filters.endDate);
 }
 
+function isValidDate(value) {
+  if (!value) return true;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
+function validateFilters(filters) {
+  if (!isValidDate(filters.startDate)) {
+    return 'Data inicial inválida. Use o formato YYYY-MM-DD.';
+  }
+
+  if (!isValidDate(filters.endDate)) {
+    return 'Data final inválida. Use o formato YYYY-MM-DD.';
+  }
+
+  if (filters.startDate && filters.endDate && filters.startDate > filters.endDate) {
+    return 'A data inicial não pode ser posterior à data final.';
+  }
+
+  return '';
+}
+
 export function RepositoryInfoScreen() {
   const { projectId } = useParams();
-  const { run: runArtifactsRequest } = useAbortableRequest();
+  const { run: runArtifactsRequest, cancel: cancelArtifactsRequest } = useAbortableRequest();
   const [repositoryData, setRepositoryData] = useState(null);
   const [filters, setFilters] = useState(emptyFilters);
   const [appliedFilters, setAppliedFilters] = useState(emptyFilters);
@@ -71,16 +95,25 @@ export function RepositoryInfoScreen() {
 
   const loadArtifacts = useCallback(
     async (nextFilters = emptyFilters) => {
+      const validationError = validateFilters(nextFilters);
+      if (validationError) {
+        cancelArtifactsRequest();
+        setLoading(false);
+        setError(validationError);
+        return;
+      }
+
+      const requestParams = compactParams(nextFilters);
       setLoading(true);
       setError('');
       let settled = false;
 
       try {
-        const data = await runArtifactsRequest((signal) => getProjectArtifacts(projectId, nextFilters, { signal }));
+        const data = await runArtifactsRequest((signal) => getProjectArtifacts(projectId, requestParams, { signal }));
         if (!data) return;
         settled = true;
         setRepositoryData(data);
-        setAppliedFilters(nextFilters);
+        setAppliedFilters({ ...emptyFilters, ...nextFilters });
       } catch (requestError) {
         settled = true;
         setRepositoryData(null);
@@ -94,7 +127,7 @@ export function RepositoryInfoScreen() {
         if (settled) setLoading(false);
       }
     },
-    [projectId, runArtifactsRequest]
+    [cancelArtifactsRequest, projectId, runArtifactsRequest]
   );
 
   useEffect(() => {
@@ -102,6 +135,8 @@ export function RepositoryInfoScreen() {
   }, [loadArtifacts]);
 
   function handleFilterChange(name, value) {
+    cancelArtifactsRequest();
+    setLoading(false);
     setFilters((current) => ({
       ...current,
       [name]: value
@@ -122,7 +157,6 @@ export function RepositoryInfoScreen() {
   const summary = repositoryData?.summary || {};
   const artifacts = repositoryData?.artifacts || [];
   const showFilteredEmptyState = hasActiveFilters(appliedFilters);
-  const shouldShowContent = !error || repositoryData;
 
   return (
     <main className="page-container repository-page">
@@ -143,11 +177,53 @@ export function RepositoryInfoScreen() {
         <ProjectSectionNav projectId={projectId} activeSection="repository" />
       </header>
 
-      {error && <div className="message message-error">{error}</div>}
+      <form className="repository-filters" onSubmit={handleFilterSubmit}>
+        <label className="field">
+          <span>Tipo de artefato</span>
+          <select
+            value={filters.type}
+            onChange={(event) => handleFilterChange('type', event.target.value)}
+          >
+            <option value="">Todos</option>
+            <option value="commit">Commits</option>
+            <option value="pull_request">Pull Requests</option>
+            <option value="issue">Issues</option>
+          </select>
+        </label>
+
+        <label className="field">
+          <span>Data inicial</span>
+          <input
+            type="date"
+            value={filters.startDate}
+            onChange={(event) => handleFilterChange('startDate', event.target.value)}
+          />
+        </label>
+
+        <label className="field">
+          <span>Data final</span>
+          <input
+            type="date"
+            value={filters.endDate}
+            onChange={(event) => handleFilterChange('endDate', event.target.value)}
+          />
+        </label>
+
+        <div className="repository-filter-actions">
+          <button className="button button-primary" type="submit" disabled={loading}>
+            Aplicar filtros
+          </button>
+          <button className="button button-secondary" type="button" onClick={clearFilters} disabled={loading}>
+            Limpar filtros
+          </button>
+        </div>
+      </form>
 
       {loading ? (
-        <p className="empty-state">Carregando artefatos do repositório...</p>
-      ) : shouldShowContent ? (
+        <LoadingState message="Carregando artefatos do repositório..." />
+      ) : error ? (
+        <ErrorState message={error} onRetry={() => loadArtifacts(filters)} />
+      ) : (
         <>
           <section className="repository-summary">
             <article className="repository-summary-card">
@@ -171,48 +247,6 @@ export function RepositoryInfoScreen() {
               <strong>{formatCompleteness(summary.metadataCompletenessPercentage)}</strong>
             </article>
           </section>
-
-          <form className="repository-filters" onSubmit={handleFilterSubmit}>
-            <label className="field">
-              <span>Tipo de artefato</span>
-              <select
-                value={filters.type}
-                onChange={(event) => handleFilterChange('type', event.target.value)}
-              >
-                <option value="">Todos</option>
-                <option value="commit">Commits</option>
-                <option value="pull_request">Pull Requests</option>
-                <option value="issue">Issues</option>
-              </select>
-            </label>
-
-            <label className="field">
-              <span>Data inicial</span>
-              <input
-                type="date"
-                value={filters.startDate}
-                onChange={(event) => handleFilterChange('startDate', event.target.value)}
-              />
-            </label>
-
-            <label className="field">
-              <span>Data final</span>
-              <input
-                type="date"
-                value={filters.endDate}
-                onChange={(event) => handleFilterChange('endDate', event.target.value)}
-              />
-            </label>
-
-            <div className="repository-filter-actions">
-              <button className="button button-primary" type="submit">
-                Aplicar filtros
-              </button>
-              <button className="button button-secondary" type="button" onClick={clearFilters}>
-                Limpar filtros
-              </button>
-            </div>
-          </form>
 
           {artifacts.length === 0 ? (
             <p className="repository-empty empty-state">
@@ -261,10 +295,6 @@ export function RepositoryInfoScreen() {
             </div>
           )}
         </>
-      ) : (
-        <Link className="text-link" to={`/projects/${projectId}`}>
-          Voltar para detalhes do projeto
-        </Link>
       )}
     </main>
   );

@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { syncProjectGithub } from '../../github/index.js';
-import { scanCommitSuggestions } from '../../traceability/index.js';
 import { Card } from '../../../shared/index.js';
 import { ProjectSectionNav } from '../components/ProjectSectionNav.jsx';
 import {
@@ -161,8 +160,6 @@ export function ProjectDetailsScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [syncingGithub, setSyncingGithub] = useState(false);
   const [githubSyncStatus, setGithubSyncStatus] = useState('idle');
-  const [scanningSuggestions, setScanningSuggestions] = useState(false);
-  const [suggestionScanResult, setSuggestionScanResult] = useState(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -261,19 +258,6 @@ export function ProjectDetailsScreen() {
       }
     } finally {
       setSyncingGithub(false);
-    }
-  }
-
-  async function handleSuggestionScan() {
-    setScanningSuggestions(true);
-    setSuggestionScanResult(null);
-    setError('');
-    try {
-      setSuggestionScanResult(await scanCommitSuggestions(id));
-    } catch (requestError) {
-      setError(getErrorMessage(requestError, 'Não foi possível analisar os commits existentes.'));
-    } finally {
-      setScanningSuggestions(false);
     }
   }
 
@@ -426,30 +410,6 @@ export function ProjectDetailsScreen() {
           </dl>
         </Card>
       </section>
-
-      {currentMembership && currentMembership.role !== 'VIEWER' && (
-        <section className="project-overview">
-          <Card title="Analisar commits para sugestões">
-            <p>Procura referências [TASK-ID] nos commits já importados.</p>
-            <button
-              className="button button-secondary"
-              type="button"
-              disabled={scanningSuggestions}
-              onClick={handleSuggestionScan}
-            >
-              {scanningSuggestions ? 'Analisando commits...' : 'Analisar commits para sugestões'}
-            </button>
-            {suggestionScanResult && (
-              <p className="field-help" role="status">
-                Commits analisados: {suggestionScanResult.scannedCommits};{' '}
-                referências detectadas: {suggestionScanResult.detectedReferences};{' '}
-                sugestões criadas: {suggestionScanResult.createdSuggestions};{' '}
-                sugestões ignoradas: {suggestionScanResult.skippedSuggestions}.
-              </p>
-            )}
-          </Card>
-        </section>
-      )}
 
       <div className="project-details-stack">
         {currentMembership?.role === 'OWNER' && <Card title="Editar dados do projeto">

@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   confirmCommitSuggestion,
   getCommitSuggestions,
-  rejectCommitSuggestion
+  rejectCommitSuggestion,
+  scanCommitSuggestions
 } from '../../traceability/index.js';
 import { normalizeApiError, useAbortableRequest } from '../../../shared/index.js';
 
@@ -13,6 +14,8 @@ export function useCommitSuggestions({ projectId, taskId, onConfirmed }) {
   const [permissions, setPermissions] = useState({ canReview: false });
   const [loading, setLoading] = useState(Boolean(taskId));
   const [actionId, setActionId] = useState(null);
+  const [scanning, setScanning] = useState(false);
+  const [scanResult, setScanResult] = useState(null);
   const [error, setError] = useState('');
   const { run } = useAbortableRequest();
 
@@ -58,13 +61,33 @@ export function useCommitSuggestions({ projectId, taskId, onConfirmed }) {
     }
   }, [onConfirmed, projectId]);
 
+  const scan = useCallback(async () => {
+    if (!taskId || !permissions.canReview) return;
+
+    setScanning(true);
+    setScanResult(null);
+    setError('');
+    try {
+      const result = await scanCommitSuggestions(projectId);
+      setScanResult(result);
+      await load();
+    } catch (cause) {
+      setError(normalizeApiError(cause, fallbackMessage).message);
+    } finally {
+      setScanning(false);
+    }
+  }, [load, permissions.canReview, projectId, taskId]);
+
   return {
     suggestions,
     permissions,
     loading,
     actionId,
+    scanning,
+    scanResult,
     error,
     retry: load,
+    scan,
     confirmSuggestion: (suggestion) => review(suggestion, confirmCommitSuggestion, true),
     rejectSuggestion: (suggestion) => review(suggestion, rejectCommitSuggestion, false)
   };

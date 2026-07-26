@@ -74,6 +74,7 @@ describe('TaskForm', () => {
 
   it('separa busca manual e commits vinculados, filtrando por SHA ou mensagem', async () => {
     const user = userEvent.setup();
+    const onCommitSearchClear = vi.fn();
     render(
       <TaskFormHarness
         onSubmit={vi.fn((event) => event.preventDefault())}
@@ -82,6 +83,7 @@ describe('TaskForm', () => {
           { id: 2, hash: 'def987654', message: 'Corrige relatório' }
         ]}
         onCommitSearch={vi.fn()}
+        onCommitSearchClear={onCommitSearchClear}
       />
     );
 
@@ -90,11 +92,17 @@ describe('TaskForm', () => {
     expect(screen.getByText('Commits vinculados')).toBeInTheDocument();
     expect(screen.getByText(/Após salvar a tarefa/)).toBeInTheDocument();
 
-    await user.type(screen.getByRole('searchbox', { name: 'Buscar commits do projeto' }), 'abc');
+    const searchInput = screen.getByRole('searchbox', { name: 'Buscar commits do projeto' });
+    await user.type(searchInput, 'abc');
     expect(screen.getByRole('button', { name: /abc1234/ })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /def9876/ })).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Limpar busca' }));
-    expect(screen.getByRole('searchbox', { name: 'Buscar commits do projeto' })).toHaveValue('');
+    expect(screen.getAllByRole('button', { name: 'Limpar busca de commits' })).toHaveLength(1);
+    await user.click(screen.getByRole('button', { name: 'Limpar busca de commits' }));
+    expect(searchInput).toHaveValue('');
+    expect(searchInput).toHaveFocus();
+    expect(onCommitSearchClear).toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: /abc1234/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Limpar busca de commits' })).not.toBeInTheDocument();
   });
 
   it('informa quando a busca manual não encontra commit compatível', async () => {

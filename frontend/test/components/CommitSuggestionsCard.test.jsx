@@ -5,7 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const apiMocks = vi.hoisted(() => ({
   getCommitSuggestions: vi.fn(),
   confirmCommitSuggestion: vi.fn(),
-  rejectCommitSuggestion: vi.fn()
+  rejectCommitSuggestion: vi.fn(),
+  scanCommitSuggestions: vi.fn()
 }));
 
 vi.mock('../../src/features/traceability/api/traceability.api.js', () => apiMocks);
@@ -29,6 +30,12 @@ describe('CommitSuggestionsCard', () => {
     apiMocks.getCommitSuggestions.mockResolvedValue(response());
     apiMocks.confirmCommitSuggestion.mockResolvedValue({ changed: true });
     apiMocks.rejectCommitSuggestion.mockResolvedValue({ changed: true });
+    apiMocks.scanCommitSuggestions.mockResolvedValue({
+      scannedCommits: 4,
+      detectedReferences: 2,
+      createdSuggestions: 1,
+      skippedSuggestions: 1
+    });
   });
 
   it('preserva loading e lista vazia', async () => {
@@ -69,10 +76,30 @@ describe('CommitSuggestionsCard', () => {
     expect(await screen.findByText('Nenhuma sugestão de commit pendente.')).toBeInTheDocument();
   });
 
+  it('analisa históricos somente na edição e recarrega as sugestões da tarefa', async () => {
+    const user = userEvent.setup();
+    apiMocks.getCommitSuggestions
+      .mockResolvedValueOnce(response([suggestion], true))
+      .mockResolvedValueOnce(response([], true));
+
+    render(<CommitSuggestionsCard projectId="3" taskId="42" />);
+    await user.click(await screen.findByRole('button', { name: 'Atualizar sugestões' }));
+
+    expect(apiMocks.scanCommitSuggestions).toHaveBeenCalledWith('3');
+    expect(apiMocks.getCommitSuggestions).toHaveBeenCalledTimes(2);
+    expect(apiMocks.getCommitSuggestions).toHaveBeenLastCalledWith('3', {
+      status: 'PENDING', taskId: '42', page: 1, limit: 20
+    }, { signal: expect.any(AbortSignal) });
+    expect(await screen.findByRole('status')).toHaveTextContent('Commits analisados: 4');
+    expect(screen.getByText('Nenhuma sugestão de commit pendente.')).toBeInTheDocument();
+  });
+
   it('não consulta sugestões antes de a tarefa ser persistida', () => {
     render(<CommitSuggestionsCard projectId="3" />);
     expect(screen.getByText(/Após salvar a tarefa/)).toBeInTheDocument();
     expect(apiMocks.getCommitSuggestions).not.toHaveBeenCalled();
+    expect(apiMocks.scanCommitSuggestions).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'Atualizar sugestões' })).not.toBeInTheDocument();
   });
 
   it('exibe erro seguro da API', async () => {

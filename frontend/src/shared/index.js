@@ -6,3 +6,4 @@ export { FeedbackRegion } from './components/FeedbackRegion.jsx';
 export { FormInput } from './components/FormInput.jsx';
 export { useAbortableRequest } from './hooks/useAbortableRequest.js';
 export { normalizeApiError } from './services/http-error.js';
+export { compactParams } from './utils/compact-params.js';

@@ -1,4 +1,5 @@
 import { httpClient } from '../../../api/http-client.js';
+import { compactParams } from '../../../shared/utils/compact-params.js';
 
 async function data(request) {
   return (await request).data;
@@ -6,22 +7,22 @@ async function data(request) {
 
 export const githubApi = {
   repositories(params = {}, options = {}) {
-    return httpClient.get('/github/repositories', { ...options, params });
+    return httpClient.get('/github/repositories', { ...options, params: compactParams(params) });
   },
   syncProject(projectId) {
     return data(httpClient.post(`/projects/${projectId}/github/sync`));
   },
   artifacts(projectId, params = {}, options = {}) {
-    return data(httpClient.get(`/projects/${projectId}/artifacts`, { ...options, params }));
+    return data(httpClient.get(`/projects/${projectId}/artifacts`, { ...options, params: compactParams(params) }));
   },
   pullRequests(projectId, params = {}, options = {}) {
-    return data(httpClient.get(`/projects/${projectId}/pull-requests`, { ...options, params }));
+    return data(httpClient.get(`/projects/${projectId}/pull-requests`, { ...options, params: compactParams(params) }));
   },
   commits(projectId, params = {}, options = {}) {
-    return data(httpClient.get(`/projects/${projectId}/commits`, { ...options, params }));
+    return data(httpClient.get(`/projects/${projectId}/commits`, { ...options, params: compactParams(params) }));
   },
   issues(projectId, params = {}, options = {}) {
-    return data(httpClient.get(`/projects/${projectId}/issues`, { ...options, params }));
+    return data(httpClient.get(`/projects/${projectId}/issues`, { ...options, params: compactParams(params) }));
   }
 };
 

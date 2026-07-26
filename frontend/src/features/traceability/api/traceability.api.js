@@ -1,4 +1,5 @@
 import { httpClient } from '../../../api/http-client.js';
+import { compactParams } from '../../../shared/utils/compact-params.js';
 
 async function data(request) { return (await request).data; }
 
@@ -7,11 +8,11 @@ export const traceabilityApi = {
   pullRequestCoverage(projectId, options = {}) { return data(httpClient.get(`/projects/${projectId}/traceability/pull-request-coverage`, options)); },
   commitCoverage(projectId, options = {}) { return data(httpClient.get(`/projects/${projectId}/traceability/commit-coverage`, options)); },
   issueCoverage(projectId, options = {}) { return data(httpClient.get(`/projects/${projectId}/traceability/issue-coverage`, options)); },
-  matrix(projectId, params = {}, options = {}) { return data(httpClient.get(`/projects/${projectId}/traceability/requirements-matrix`, { ...options, params })); },
-  requirement(projectId, requirementId, params = {}, options = {}) { return data(httpClient.get(`/projects/${projectId}/traceability/requirements/${requirementId}`, { ...options, params })); },
-  task(projectId, taskId, params = {}, options = {}) { return data(httpClient.get(`/projects/${projectId}/traceability/tasks/${taskId}`, { ...options, params })); },
-  artifact(projectId, artifactType, artifactId, params = {}, options = {}) { return data(httpClient.get(`/projects/${projectId}/traceability/artifacts/${artifactType}/${artifactId}`, { ...options, params })); },
-  suggestions(projectId, params = {}, options = {}) { return data(httpClient.get(`/projects/${projectId}/traceability/commit-suggestions`, { ...options, params })); },
+  matrix(projectId, params = {}, options = {}) { return data(httpClient.get(`/projects/${projectId}/traceability/requirements-matrix`, { ...options, params: compactParams(params) })); },
+  requirement(projectId, requirementId, params = {}, options = {}) { return data(httpClient.get(`/projects/${projectId}/traceability/requirements/${requirementId}`, { ...options, params: compactParams(params) })); },
+  task(projectId, taskId, params = {}, options = {}) { return data(httpClient.get(`/projects/${projectId}/traceability/tasks/${taskId}`, { ...options, params: compactParams(params) })); },
+  artifact(projectId, artifactType, artifactId, params = {}, options = {}) { return data(httpClient.get(`/projects/${projectId}/traceability/artifacts/${artifactType}/${artifactId}`, { ...options, params: compactParams(params) })); },
+  suggestions(projectId, params = {}, options = {}) { return data(httpClient.get(`/projects/${projectId}/traceability/commit-suggestions`, { ...options, params: compactParams(params) })); },
   scanSuggestions(projectId) { return data(httpClient.post(`/projects/${projectId}/traceability/commit-suggestions/scan`, {})); },
   confirmSuggestion(projectId, suggestionId) { return data(httpClient.post(`/projects/${projectId}/traceability/commit-suggestions/${suggestionId}/confirm`, {})); },
   rejectSuggestion(projectId, suggestionId) { return data(httpClient.post(`/projects/${projectId}/traceability/commit-suggestions/${suggestionId}/reject`, {})); }

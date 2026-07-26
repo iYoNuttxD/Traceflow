@@ -1,9 +1,10 @@
 import { httpClient } from '../../../api/http-client.js';
+import { compactParams } from '../../../shared/utils/compact-params.js';
 
 export const requirementsApi = {
   create(projectId, data) { return httpClient.post(`/projects/${projectId}/requirements`, data); },
   listByProject(projectId, params = {}, options = {}) {
-    return httpClient.get(`/projects/${projectId}/requirements`, { ...options, params });
+    return httpClient.get(`/projects/${projectId}/requirements`, { ...options, params: compactParams(params) });
   },
   getById(requirementId, options = {}) { return httpClient.get(`/requirements/${requirementId}`, options); },
   update(requirementId, data) { return httpClient.put(`/requirements/${requirementId}`, data); },

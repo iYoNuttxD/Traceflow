@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CommitSuggestionsCard } from './CommitSuggestionsCard.jsx';
 
 export const emptyTaskForm = {
@@ -157,6 +157,7 @@ export function TaskForm({
   const [pullRequestSearch, setPullRequestSearch] = useState('');
   const [commitSearch, setCommitSearch] = useState('');
   const [issueSearch, setIssueSearch] = useState('');
+  const commitSearchInputRef = useRef(null);
   const activeMembers = projectMembers.filter((member) => member.isActive !== false && member.user?.isActive !== false);
   const hasMembers = activeMembers.length > 0;
   const normalizedResponsible = normalizeText(formData.responsible);
@@ -261,7 +262,9 @@ export function TaskForm({
     const query = commitSearch.trim();
 
     if (query.length < 2 || !onCommitSearch) {
-      onCommitSearchClear?.();
+      if (commitSearch !== '') {
+        onCommitSearchClear?.();
+      }
       return undefined;
     }
 
@@ -304,6 +307,13 @@ export function TaskForm({
   function handleSelectCommit(commit) {
     onSelectCommit?.(commit);
     setCommitSearch('');
+    onCommitSearchClear?.();
+  }
+
+  function handleCommitSearchClear() {
+    setCommitSearch('');
+    onCommitSearchClear?.();
+    commitSearchInputRef.current?.focus();
   }
 
   function handleSelectIssue(issue) {
@@ -512,18 +522,27 @@ export function TaskForm({
 
         <div className="traceability-picker">
           <span>Buscar commits do projeto</span>
-          <input
-            type="search"
-            value={commitSearch}
-            onChange={(event) => setCommitSearch(event.target.value)}
-            placeholder="Pesquisar por SHA ou mensagem..."
-            aria-label="Buscar commits do projeto"
-          />
-          {commitSearch && (
-            <button className="button button-secondary" type="button" onClick={() => setCommitSearch('')}>
-              Limpar busca
-            </button>
-          )}
+          <div className="traceability-search-field">
+            <input
+              ref={commitSearchInputRef}
+              type="search"
+              value={commitSearch}
+              onChange={(event) => setCommitSearch(event.target.value)}
+              placeholder="Pesquisar por SHA ou mensagem..."
+              aria-label="Buscar commits do projeto"
+            />
+            {commitSearch && (
+              <button
+                className="traceability-search-clear"
+                type="button"
+                onClick={handleCommitSearchClear}
+                aria-label="Limpar busca de commits"
+                title="Limpar busca"
+              >
+                ×
+              </button>
+            )}
+          </div>
           {commitSearch.trim().length >= 2 && (
             <div className="traceability-results">
               {availableCommitResults.length === 0 ? (

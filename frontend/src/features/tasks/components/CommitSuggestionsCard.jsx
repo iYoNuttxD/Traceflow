@@ -12,7 +12,18 @@ function summarizedMessage(message) {
 }
 
 export function CommitSuggestionsCard({ projectId, taskId, onConfirmed }) {
-  const { suggestions, permissions, loading, actionId, error, confirmSuggestion, rejectSuggestion } = useCommitSuggestions({ projectId, taskId, onConfirmed });
+  const {
+    suggestions,
+    permissions,
+    loading,
+    actionId,
+    scanning,
+    scanResult,
+    error,
+    scan,
+    confirmSuggestion,
+    rejectSuggestion
+  } = useCommitSuggestions({ projectId, taskId, onConfirmed });
 
   return (
     <div className="traceability-picker">
@@ -20,6 +31,19 @@ export function CommitSuggestionsCard({ projectId, taskId, onConfirmed }) {
       <p className="field-help">Commits cuja mensagem contém [TASK-ID] para esta tarefa.</p>
       {!taskId && (
         <p className="field-help">Após salvar a tarefa, commits com [TASK-ID] poderão ser sugeridos automaticamente.</p>
+      )}
+      {taskId && permissions.canReview && (
+        <div>
+          <p className="field-help">Analisa os commits já importados e atualiza as sugestões desta tarefa.</p>
+          <button className="button button-secondary" type="button" disabled={scanning || actionId !== null} onClick={() => void scan()}>
+            {scanning ? 'Atualizando sugestões...' : 'Atualizar sugestões'}
+          </button>
+        </div>
+      )}
+      {scanResult && (
+        <p className="field-help" role="status">
+          Commits analisados: {scanResult.scannedCommits}; referências detectadas: {scanResult.detectedReferences}; sugestões criadas: {scanResult.createdSuggestions}; sugestões ignoradas: {scanResult.skippedSuggestions}.
+        </p>
       )}
       {error && <div className="message message-error" role="alert">{error}</div>}
       {taskId && loading ? (
