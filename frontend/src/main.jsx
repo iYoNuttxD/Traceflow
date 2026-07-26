@@ -1,5 +1,5 @@
 // Entrada principal do frontend React.
-// TODO: Manter este arquivo restrito a inicializacao da aplicacao.
+// Bootstrap da aplicação; composição de domínio permanece fora deste arquivo.
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.jsx';

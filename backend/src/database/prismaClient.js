@@ -1,5 +1,5 @@
 // Cliente Prisma compartilhado pelos repositories.
-// TODO: Importar este client somente quando os acessos reais ao MySQL forem implementados.
+// Client Prisma compartilhado exclusivamente pelas fronteiras de persistência autorizadas.
 import { PrismaClient } from '@prisma/client';
 
 export const prisma = new PrismaClient();

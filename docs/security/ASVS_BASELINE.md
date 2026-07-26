@@ -1,59 +1,41 @@
-# Baseline OWASP ASVS 5.0 do TRACEFLOW
+# Baseline de evidências OWASP ASVS 5.0 do TRACEFLOW
 
-## Escopo e fonte
+## Escopo
 
-Esta é uma matriz de evidências aplicáveis ao MVP após a E5. **Não declara conformidade ASVS L2.** O artefato ASVS 5.0 citado no prompt não foi encontrado no checkout; foi usado o CSV oficial `OWASP_Application_Security_Verification_Standard_5.0.0_en.csv` da [release oficial OWASP/ASVS](https://github.com/OWASP/ASVS/releases/tag/latest), consultada em 24/07/2026.
+Esta matriz consolida evidências verificáveis do estado final da refatoração. Ela não é uma certificação, não declara conformidade integral com o ASVS L2 e não substitui validação operacional do ambiente de produção.
 
-Estados: `IMPLEMENTADO`, `PARCIAL`, `AUSENTE`, `NÃO_APLICÁVEL`, `NÃO_VERIFICADO`.
+Estados: `ATENDIDO`, `PARCIAL`, `NÃO ATENDIDO` e `NÃO APLICÁVEL`.
 
-| Controle | Aplicabilidade | Estado | Evidência | Lacuna / etapa futura |
-|---|---|---|---|---|
-| V1.2.4 queries parametrizadas | Aplicável | IMPLEMENTADO | Prisma, sem SQL raw identificado | manter revisão de novas queries |
-| V1.3.6 SSRF | Aplicável | IMPLEMENTADO | `shared/security/ssrf.js`, URL HTTPS/hosts oficiais e base Octokit fixa | revisar cada nova integração/redirect |
-| V2.4.1 anti-automação | Aplicável | PARCIAL | limiters geral, join, GitHub e trava de sync | store distribuído, identidade e limites por usuário E6/infra |
-| V3.4.1 HSTS | Aplicável em produção HTTPS | PARCIAL | Helmet habilita 1 ano/subdomínios somente em produção | validar proxy/HTTPS e host da SPA |
-| V3.4.2 CORS allowlist | Aplicável | IMPLEMENTADO | allowlist por ambiente; wildcard proibido; preflight testado | revisar origens no deploy |
-| V3.4.3 CSP | Aplicável | PARCIAL | API usa CSP restritiva | CSP do servidor da SPA não está neste repositório |
-| V3.4.4 `nosniff` | Aplicável | IMPLEMENTADO | Helmet e teste HTTP | validar também host da SPA |
-| V3.4.5 Referrer Policy | Aplicável | PARCIAL | `no-referrer` na API | validar host da SPA |
-| V3.4.6 `frame-ancestors` | Aplicável | PARCIAL | CSP `frame-ancestors 'none'` e X-Frame-Options na API | aplicar no documento HTML da SPA |
-| V3.5.1/V3.5.2 proteção de origem/CSRF | Futuramente aplicável | PARCIAL | CORS e content type; não há cookie/sessão | CSRF e sessão pertencem à E6; CORS não é autenticação |
-| V4.1.1 Content-Type correto | Aplicável | IMPLEMENTADO | Express JSON e rejeição `415` para body inesperado | observar novos formatos/upload |
-| V4.1.3 headers do proxy confiáveis | Aplicável no deploy | PARCIAL | `TRUST_PROXY` não aceita `true`, admite hops/faixas explícitas | topologia do proxy não existe no repo |
-| V6 autenticação | Aplicável | AUSENTE | nenhuma identidade/login | E6 |
-| V7 sessão | Aplicável após E6 | AUSENTE | nenhuma sessão/cookie | E6 |
-| V8 controle de acesso | Aplicável | AUSENTE | rotas anônimas; apenas invariantes pontuais | BOLA/IDOR deny-by-default na E6 |
-| V12.2.1/V12.3.1 TLS | Aplicável | PARCIAL | GitHub usa HTTPS e certificado validado pelo Node | TLS inbound e MySQL TLS dependem do deploy |
-| V13.2.6 timeout/retry externo | Aplicável | IMPLEMENTADO | Octokit 15s, retries limitados/backoff/jitter | sem circuit breaker/telemetria distribuída |
-| V13.3.1 secret manager | Aplicável | AUSENTE | env, redaction, scanner e política apenas | secret manager/identidade de workload futura |
-| V13.4.5 endpoints de monitoramento | Aplicável | PARCIAL | health não expõe causa/URLs | definir exposição de readiness no deploy |
-| V14.3.2 anti-cache | Aplicável | IMPLEMENTADO | `Cache-Control: no-store` em `/api` | validar assets/documento da SPA conforme sensibilidade |
-| V15.1.1 prazo de remediação | Aplicável | IMPLEMENTADO | `DEPENDENCY_RISK_REGISTER.md` | formalizar owner/SLA corporativo |
-| V15.1.2 inventário/SBOM | Aplicável | PARCIAL | lockfiles, audit com política executável e dependency review em PR | SBOM automatizada ainda ausente |
-| V15.3.4 IP via proxy | Aplicável | PARCIAL | trust proxy explícito e limiter usa `req.ip`/IPv6 normalizado | validar ingress real e proteção de headers |
-| V16.1.1 inventário de logs | Aplicável | PARCIAL | E3/E5 documentam formato/eventos | acesso, destino e retenção dependem da operação/E7 |
-| V16.2.2 timestamp com zona | Aplicável | IMPLEMENTADO | ISO-8601 UTC | sincronização do host não verificada |
-| V16.2.4 formato correlacionável | Aplicável | IMPLEMENTADO | JSON estruturado + request ID | agregador externo não configurado |
-| V16.2.5 dados sensíveis em logs | Aplicável | IMPLEMENTADO | redaction e testes de token/DB/e-mail | revisão contínua de novas chaves |
-| V16.3.4 erros/controles falhos logados | Aplicável | IMPLEMENTADO | error handler e eventos sensíveis sanitizados | alertas/monitoramento não implementados |
-| Upload de arquivos | Não existe no MVP | NÃO_APLICÁVEL | nenhuma rota multipart/upload | reavaliar se a função surgir |
+| Área / controle aplicável | Estado | Evidência verificável | Limitação |
+|---|---|---|---|
+| Arquitetura em camadas e fronteiras | ATENDIDO | `docs/architecture/SYSTEM_ARCHITECTURE.md`; `backend/scripts/check-architecture.js`; `npm run architecture:check` | revisão contínua é necessária para novos módulos |
+| Validação de entrada e queries parametrizadas | ATENDIDO | `backend/src/shared/validation/`; schemas dos módulos; Prisma sem SQL raw no runtime; testes de validação | novos endpoints devem aderir aos mesmos schemas |
+| Prevenção de SSRF na integração GitHub | ATENDIDO | `backend/src/shared/security/ssrf.js`; testes de hosts/esquemas; base fixa do Octokit | deve ser reavaliado ao adicionar outra integração externa |
+| Autenticação e recuperação de conta | PARCIAL | `backend/src/modules/auth/`; Argon2id, respostas uniformes, reset com TTL e testes | MFA, verificação de e-mail e SSO não existem |
+| Sessão e CSRF | ATENDIDO no escopo atual | sessão opaca hashada, cookie seguro por ambiente, expiração/revogação, middleware CSRF e testes em `backend/test` | store distribuído e revogação central entre instâncias não existem |
+| Autorização por projeto e objeto | ATENDIDO no escopo RBAC atual | `backend/src/shared/auth/`; `docs/security/AUTHORIZATION_MATRIX.md`; testes 403/404 e isolamento entre projetos | não representa ABAC nem autorização fora dos papéis atuais |
+| Proteção contra automação e abuso | PARCIAL | limiters geral, convite e GitHub em `backend/src/shared/security/`; lock de sync por projeto | contadores e lock são locais à instância; produção horizontal requer store distribuído |
+| CORS, headers e fingerprint | ATENDIDO na API | allowlist em `backend/src/shared/security/cors.js`; Helmet; `X-Powered-By` removido; testes HTTP | headers do documento HTML pertencem ao host da SPA |
+| HSTS e confiança no proxy | PARCIAL | HSTS condicionado a produção; `TRUST_PROXY` explícito e validado | depende de HTTPS e topologia reais do ingress |
+| Limite e parsing seguro de body | ATENDIDO | `BODY_LIMIT`; tratamento 400/413/415 seguro no middleware global; testes | uploads não fazem parte do produto atual |
+| TLS de saída e timeout/retry | ATENDIDO para GitHub | HTTPS, timeout e retry limitados no client GitHub; testes de falhas transitórias | TLS de entrada e MySQL dependem da infraestrutura |
+| Segredos e redaction | PARCIAL | `docs/security/SECRETS_POLICY.md`; scanner obrigatório na CI; env validado; testes de redaction | secret manager e rotação automatizada não existem |
+| Erros seguros e correlação | ATENDIDO | erros compartilhados, request ID, ausência de stack/valor recebido e testes | agregador operacional externo não está configurado no repositório |
+| Logging e auditoria de domínio | ATENDIDO no escopo definido | logger estruturado/redacted; `AuditEvent`; metadata allowlist; consultas restritas; testes | alertas, SIEM e garantia externa de retenção não são verificáveis aqui |
+| Privacidade e direitos do titular | PARCIAL | `backend/src/modules/privacy/`; inventário, exportação, desativação/anomização e testes | bases legais, prazos e procedimento humano exigem validação jurídica |
+| Dependências e lockfiles | ATENDIDO para high/critical conhecidos | `package-lock.json`; `scripts/check-npm-audit.mjs`; Dependency Review; audits E15 com zero vulnerabilidades | SBOM e gate automatizado de compatibilidade de licenças não existem |
+| CI e gates de merge | ATENDIDO no workflow | `.github/workflows/ci.yml`; lint, format, Prisma, migrations, testes, cobertura, build, audit, secrets e dependency review | branch protection é configuração remota e deve seguir `docs/ci/BRANCH_PROTECTION.md` |
+| Health/liveness/readiness | ATENDIDO | `/health`, `/health/live`, `/health/ready`; smoke e testes | política de exposição pública depende do deploy |
+| Backup e restauração | PARCIAL | `docs/runbooks/BACKUP_RESTORE.md`; exercício E15 em bancos artificiais com 21 tabelas restauradas | agendamento, criptografia, retenção e restore periódico são responsabilidades operacionais |
+| Upload de arquivos | NÃO APLICÁVEL | nenhuma rota multipart/upload no runtime | reavaliar caso a capacidade seja introduzida |
+| Server-side rendering/RSC | NÃO APLICÁVEL | frontend Vite SPA sem SSR, loaders/actions de servidor ou React Server Components | reavaliar se a arquitetura frontend mudar |
 
-## Lacunas L2 prioritárias
+## Lacunas prioritárias
 
-1. autenticação, sessão e autorização por projeto/recurso (E6);
-2. convite criptograficamente seguro, hash, expiração, revogação e resposta uniforme (E6);
-3. classificação/retenção/acesso a logs e dados pessoais, mais auditoria de negócio (E7);
-4. TLS/proxy/headers do host SPA e limiter distribuído no ambiente de produção;
-5. secret manager e SBOM; dependency review e scanner obrigatório foram incorporados à CI na E14.
+1. store distribuído para sessões operacionais, rate limiting e exclusão mútua do sync;
+2. secret manager, rotação automatizada e telemetria/alertas operacionais;
+3. MFA, confirmação de e-mail e endurecimento adicional da recuperação de conta;
+4. TLS, proxy, CSP do host da SPA, backup e retenção comprovados no ambiente real;
+5. SBOM, gate de licenças e validação jurídica da política de privacidade.
 
-## Atualização E6
-
-Sem declarar conformidade ASVS L2: V6 permanece **PARCIAL** (Argon2id, resposta uniforme, inatividade, reset e entrega SMTP configurável); V7 permanece **PARCIAL** (sessão opaca hashada, cookie, expiração/revogação, CSRF e limpeza operacional); V8 passa a **IMPLEMENTADO no escopo RBAC atual** (matriz documentada, BOLA 404, 403 por papel, administração canônica e proteção do último OWNER). V3.5.1/V3.5.2 está **IMPLEMENTADO no escopo atual**. Lacunas: MFA/SSO, store distribuído, monitoramento/agendamento operacional, gestão real do SMTP e controles de auditoria/privacidade da E7.
-
-## Atualização E7
-
-Sem declarar conformidade: V16 ganha evidência **IMPLEMENTADA no escopo dos eventos definidos** em `AuditEvent`, consultas restritas, metadata allowlist, request ID, rollback obrigatório e retenção; direitos do titular e minimização têm evidência técnica em `modules/privacy` e `docs/privacy`. Permanecem lacunas em confirmação de e-mail, backups/logs externos, legal hold e validação jurídica/operacional.
-
-## Atualização E9
-
-Sem declarar conformidade: V1.3.6 e V13.2.6 ganham evidência adicional no factory/client GitHub com base fixa, provider de credencial, timeout/retry já centralizados, paginação explícita, DTOs mínimos e testes sem rede real. A sincronização ganhou idempotência por identificador externo, trava por projeto na instância e estado de falha auditável. Permanecem lacunas em credencial por instalação, lock/store distribuído, checkpoint e smoke operacional autorizado.
+As lacunas possuem rastreabilidade em `docs/issues/TECHNICAL_BACKLOG.md`. O estado `ATENDIDO` sempre se limita à evidência citada e não equivale a conformidade total do produto ou da operação.

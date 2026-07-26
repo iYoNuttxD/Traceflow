@@ -1,78 +1,42 @@
 # TRACEFLOW Backend
 
-API REST responsável por regras de negócio, persistência, integração com GitHub e consolidação da rastreabilidade entre requisitos, tarefas e artefatos técnicos.
-
-As regras transversais do produto estão em [Contexto e arquitetura](../TRACEFLOW_CONTEXTO_ARQUITETURA.md).
+API REST em Node.js/Express responsável por identidade, autorização, projetos, GitHub, requisitos, tarefas, Kanban, rastreabilidade, auditoria e privacidade.
 
 ## Arquitetura
 
-```txt
-Routes -> Controller -> Service -> Repository -> Prisma -> MySQL
+```text
+Route → Controller → Service → Repository → Prisma → MySQL
+                         └→ external client
 ```
 
-- **Routes:** registram caminhos, métodos e middlewares.
-- **Controllers:** interpretam entradas HTTP e formatam respostas.
-- **Services:** aplicam regras de negócio e coordenam casos de uso.
-- **Repositories:** isolam consultas e mutações de persistência.
-- **Prisma/MySQL:** modelam e armazenam os dados.
+Routes aplicam autenticação, CSRF, autorização e validação; controllers adaptam HTTP; services coordenam regras e transações; repositories encapsulam Prisma. O verificador `architecture:check` bloqueia dependências proibidas e reintrodução dos models removidos na E8.
 
-Octokit é acessado pela camada de serviço/cliente GitHub. Controllers não devem consultar Prisma ou APIs externas diretamente, e repositories não devem conter regras de negócio.
-
-## Tecnologias
-
-- Node.js e Express
-- Prisma ORM e MySQL
-- Octokit
-- dotenv e cors
-
-## Estrutura
-
-```txt
-backend/
-├── prisma/
-│   ├── migrations/
-│   └── schema.prisma
-└── src/
-    ├── config/
-    ├── database/
-    ├── modules/
-    │   ├── artifacts/
-    │   ├── commits/
-    │   ├── github/
-    │   ├── issues/
-    │   ├── projects/
-    │   ├── pullRequests/
-    │   ├── requirements/
-    │   ├── tasks/
-    │   └── traceability/
-    ├── routes/
-    ├── app.js
-    └── server.js
-```
-
-## Configuração e execução
+## Instalação e configuração
 
 ```bash
 cd backend
-npm install
+npm ci
 cp .env.example .env
+npx prisma validate
 npx prisma generate
 npx prisma migrate deploy
 npm run dev
 ```
 
-Variáveis esperadas:
+Use Node `22.22.0+` e MySQL 8.4 compatível. `.env.example` contém placeholders e defaults documentados; produção exige `GITHUB_TOKEN`, CORS explícito e SMTP. Nunca use `TEST_DATABASE_URL` igual a `DATABASE_URL`.
 
-```env
-DATABASE_URL="mysql://usuario:senha@localhost:3306/traceflow"
-GITHUB_TOKEN="token_do_github"
-PORT=3001
-FRONTEND_URL="http://localhost:5173"
-```
+## Módulos
 
-Use privilégio mínimo nas credenciais. Nunca registre `GITHUB_TOKEN`, `DATABASE_URL`, cabeçalhos de autorização ou dados pessoais em logs.
+- `auth`, `authorization`: sessão opaca, CSRF e RBAC;
+- `projects`: projeto, memberships, convites e compatibilidades legadas;
+- `github`, `commits`, `pullRequests`, `issues`, `artifacts`: integração e leitura tipada;
+- `requirements`, `tasks`, `traceability`: domínio e cadeia canônica;
+- `audit`, `privacy`: trilha transversal e direitos técnicos do titular;
+- `shared`: configuração, erros, logging/redaction, validação, segurança, e-mail e shutdown.
 
-## Banco de dados e Prisma
+O contrato efetivo está em [API_CONTRACTS.md](../docs/api/API_CONTRACTS.md). Não use rotas, controller ou Prisma como atalho entre camadas.
+
+## Banco e migrations
 
 ```bash
 npx prisma validate
@@ -81,81 +45,39 @@ npx prisma migrate deploy
 npx prisma migrate status
 ```
 
-Alterações de schema devem incluir migração revisável e compatível com os dados existentes. Não use `prisma migrate reset` como procedimento normal: ele apaga dados. Migrações destrutivas exigem plano explícito de compatibilidade, backup e recuperação.
-
-## Módulos principais
-
-- `projects`: projetos, membros, convites e integração inicial com repositórios.
-- `github`: autenticação, listagem de repositórios e sincronização.
-- `commits`, `pullRequests` e `issues`: artefatos importados.
-- `artifacts`: visão consolidada dos artefatos do repositório.
-- `tasks`: tarefas, Kanban e vínculos de rastreabilidade.
-- `requirements`: requisitos, status e vínculo com tarefas.
-- `traceability`: matriz e cadeia de rastreabilidade.
-
-## Endpoints principais
-
-| Método | Rota | Descrição |
-|---|---|---|
-| GET | `/api/github/auth/check` | Verifica autenticação com GitHub |
-| GET | `/api/github/repositories` | Lista repositórios GitHub |
-| POST | `/api/projects/from-github` | Cria projeto a partir de repositório |
-| GET/POST | `/api/projects` | Lista/cria projetos conforme rota disponível |
-| GET/PUT | `/api/projects/:id` | Consulta/atualiza projeto |
-| POST | `/api/projects/:projectId/github/sync` | Sincroniza artefatos GitHub |
-| GET | `/api/projects/:projectId/artifacts` | Lista artefatos |
-| GET | `/api/projects/:projectId/commits` | Lista commits |
-| GET | `/api/projects/:projectId/pull-requests` | Lista pull requests |
-| GET | `/api/projects/:projectId/issues` | Lista issues |
-| GET/POST | `/api/projects/:projectId/tasks` | Lista/cria tarefas |
-| PUT/DELETE | `/api/tasks/:id` | Atualiza/exclui tarefa |
-| PATCH | `/api/tasks/:id/move` | Move tarefa no Kanban |
-| GET/POST | `/api/projects/:projectId/requirements` | Lista/cria requisitos |
-| PUT/DELETE | `/api/requirements/:id` | Atualiza/exclui requisito |
-| GET | `/api/projects/:projectId/traceability/requirements-matrix` | Matriz de rastreabilidade |
-| GET | `/api/projects/:projectId/traceability/requirements/:requirementId` | Cadeia de um requisito |
-
-Consulte os arquivos `*.routes.js` para o contrato efetivamente implementado. Mudanças de API devem validar entradas, usar códigos HTTP consistentes e preservar compatibilidade ou documentar a ruptura.
-
-## Sincronização GitHub
-
-A sincronização usa Octokit e persiste commits, pull requests e issues. O projeto registra última sincronização bem-sucedida, última tentativa, estado e erro resumido. Em falhas, o erro deve ser sanitizado e `githubLastSyncAt` não deve indicar sucesso.
-
-Integrações externas precisam de timeout, tratamento de limite de requisições, falhas previsíveis e operações idempotentes quando aplicável. Não substitua indisponibilidade externa por dados mockados em produção.
-
-## Segurança e LGPD
-
-O backend deve seguir OWASP ASVS 5.0 Level 2 como referência inicial:
-
-- validar tipo, formato, tamanho e faixa de toda entrada no limite da aplicação;
-- usar Prisma parametrizado e nunca concatenar entrada em consultas;
-- autenticar e autorizar cada recurso no servidor, inclusive por projeto;
-- restringir CORS a origens confiáveis por ambiente;
-- manter segredos fora do repositório e rotacioná-los quando expostos;
-- retornar erros seguros, sem stack trace ou detalhes internos;
-- aplicar limites de corpo, paginação, rate limiting e proteção contra abuso;
-- registrar eventos de segurança sem tokens ou dados pessoais desnecessários.
-
-Dados pessoais devem ter finalidade definida, coleta mínima, retenção controlada e mecanismo de correção/eliminação quando aplicável. Novos campos pessoais exigem avaliação de finalidade e base legal.
-
-## Testes e validações
-
-Mudanças devem adicionar testes unitários de services e regras de negócio, testes de integração para repositories/Prisma e testes de API para rotas críticas. APIs externas podem ser simuladas somente nos testes; o código executado em produção deve usar integrações reais.
-
-Validações atuais:
+Para banco isolado cujo nome contenha `test`:
 
 ```bash
-npx prisma validate
-npx prisma generate
-find src -name '*.js' -exec node --check {} \;
+npm run db:test:migrate
+npm run db:test:status
 ```
 
-A integração contínua executa as verificações disponíveis. À medida que suites de teste forem introduzidas, seus scripts `test` devem ser obrigatórios no workflow.
+Há 25 migrations versionadas. Não edite migration aplicada e não use reset em desenvolvimento. Scripts E6/E8/E11 e privacidade são manutenção protegida, dry-run por padrão quando aplicável; consulte os relatórios da etapa e os runbooks antes de `--apply`.
 
-## Exclusão segura
+## Qualidade
 
-Exclusões devem preservar consistência e respeitar retenção/LGPD. A exclusão de tarefa remove seus vínculos e movimentações, mas mantém requisitos e artefatos importados. A exclusão de requisito desvincula tarefas sem apagar tarefas ou artefatos. Qualquer mudança nessa semântica exige teste de integração e documentação.
+```bash
+npm run lint
+npm run format:check
+npm run architecture:check
+npm run security:secrets
+npm run test:unit
+npm run test:integration
+npm run test:coverage
+```
 
-## Definition of Done
+Integração/API usa MySQL real indicado por `TEST_DATABASE_URL`. A cobertura mínima global é 85% statements, 70% branches, 85% functions e 87% lines.
 
-Uma alteração de backend está concluída quando respeita as camadas, possui validação e autorização, trata erros sem vazar dados, inclui migração quando necessária, tem testes proporcionais ao risco, passa pela CI e atualiza documentação/contratos. Consulte a definição completa no documento de arquitetura.
+## Operação
+
+- `npm start`: execução de produção do processo Express;
+- `/health`: compatibilidade;
+- `/health/live`: processo vivo;
+- `/health/ready`: configuração e banco disponíveis;
+- SIGINT/SIGTERM: shutdown controlado e desconexão Prisma.
+
+Runbooks: [GitHub](../docs/runbooks/GITHUB_INTEGRATION.md), [migrations](../docs/runbooks/DATABASE_MIGRATIONS.md), [backup](../docs/runbooks/BACKUP_RESTORE.md) e [incidentes](../docs/runbooks/INCIDENT_RESPONSE.md).
+
+## Legado preservado
+
+`ProjectMember`, `accessCode/inviteLink`, aliases GitHub, `Task.responsible`, `TaskMovement.movedBy` e `projectMemberId` permanecem somente onde contratos ou dados históricos exigem. Identidade e autorização usam `User`, `ProjectMembership`, `responsibleUserId` e `movedByUserId`. Não associe snapshots por nome.

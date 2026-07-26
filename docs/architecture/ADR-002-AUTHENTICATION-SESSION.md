@@ -19,4 +19,4 @@ Mutations autenticadas exigem `X-CSRF-Token`. O valor bruto existe apenas no cli
 
 ## Consequências
 
-Sessões exigem consulta ao banco por request e limpeza periódica futura. Store distribuído/cache pode ser adicionado sem mudar o contrato do cookie. A entrega real de e-mail de recuperação ainda requer adaptador operacional; em teste o token é capturado somente pela resposta controlada.
+Sessões exigem consulta ao banco por request e limpeza periódica pelo comando operacional E6. Store distribuído/cache pode ser adicionado sem mudar o contrato do cookie. O provider de e-mail suporta SMTP em produção e capture somente em desenvolvimento/teste; tokens nunca retornam fora do ambiente de teste controlado.

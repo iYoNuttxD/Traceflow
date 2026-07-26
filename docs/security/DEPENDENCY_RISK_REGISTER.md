@@ -6,6 +6,10 @@ Em 26/07/2026, `scripts/check-npm-audit.mjs` passou a bloquear toda vulnerabilid
 
 Não há exceção vigente. A exceção temporária de `GHSA-qwww-vcr4-c8h2` foi removida após a migração para `react-router@8.3.0`, primeira versão corrigida segundo o advisory oficial. Backend e frontend possuem zero vulnerabilidades no audit posterior. Nenhum `npm audit fix` foi executado.
 
+## Revalidação E15
+
+Em 26/07/2026, `npm audit --json` e o verificador de política passaram para backend e frontend com zero vulnerabilidades e zero exceções. A inspeção dos lockfiles encontrou metadata de licença para todos os 347 pacotes do backend e 308 do frontend, sem marcador `UNKNOWN` ou `UNLICENSED`; isso é inventário, não um parecer jurídico nem um gate automatizado de compatibilidade. SBOM e política executável de licenças continuam no backlog.
+
 ESLint, Prettier, `@eslint/js` e `globals` foram adicionados como dependências de desenvolvimento; o frontend também recebeu `eslint-plugin-react-hooks`. O audit após a atualização não introduziu novo advisory. Nenhuma dessas ferramentas integra o runtime da aplicação.
 
 ## Correção pós-E14 — React Router
@@ -49,9 +53,9 @@ Resultado final backend: **0 vulnerabilidades** no `npm audit`.
 | `axios` 1.17.x | recursão, pollution, proxy e limites de upload | Cliente HTTP direto | atualizado para 1.18.0 | CORRIGIDO |
 | `form-data` 4.0.5 | CRLF em multipart | Transitivo de Axios; browser não usa adapter Node em produção, mas estava no grafo | atualizado para 4.0.6 | CORRIGIDO |
 | `postcss` <=8.5.17 | leitura de source map/path traversal | Build Vite, não runtime do navegador | atualizado para 8.5.23 | CORRIGIDO |
-| `react-router`/`react-router-dom` 7.18.0 | bypass CSRF em modo RSC | TRACEFLOW usa `BrowserRouter`/SPA, sem RSC, actions, loaders ou server rendering | não fazer downgrade/major automático; monitorar release corrigida compatível | RISCO_RESIDUAL_NÃO_EXPLORÁVEL_NO_USO_ATUAL |
+| `react-router`/`react-router-dom` 7.18.0 | bypass CSRF em modo RSC | TRACEFLOW usa SPA, mas a versão vulnerável continuava presente | migrado para `react-router@8.3.0`, primeira versão corrigida, com testes de rotas e build | CORRIGIDO |
 
-Resultado final frontend: **2 entradas altas** no `npm audit`, ambas representando o mesmo advisory transitivo/direto de React Router RSC. O audit sugere alteração incompatível; a suíte atual não cobre migração major. A decisão deve ser revista quando houver versão compatível ou se RSC/actions forem introduzidos.
+Resultado final frontend após a correção pós-E14 e a revalidação E15: **0 vulnerabilidades** no `npm audit`; nenhuma exceção permanece para React Router.
 
 ## Política de atualização
 

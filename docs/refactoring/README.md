@@ -64,6 +64,10 @@ Esta área registra a evolução incremental do MVP para uma arquitetura mais se
 
 **Concluída em 26/07/2026**, com checks obrigatórios e estáveis, lint/formatação, MySQL real, migrations do zero, cobertura com thresholds, artifacts, política executável de dependências, Dependency Review e scanner de segredos. A execução partiu do commit `204e37b`.
 
+## Estado da E15
+
+**Concluída com ressalvas em 26/07/2026**, com arquitetura e contratos reconciliados, inventário integral do legado, remoção apenas de código comprovadamente sem consumers, matriz RF–código–teste, evidências ASVS/LGPD e runbooks operacionais. Os campos e contratos com dados ou compatibilidade ativa foram preservados e classificados. A execução partiu do commit `35b6d40`.
+
 ## Documentos produzidos
 
 - [E0_BASELINE.md](E0_BASELINE.md) — execução, arquitetura, páginas, fluxos, divergências e bloqueios.
@@ -86,6 +90,7 @@ Esta área registra a evolução incremental do MVP para uma arquitetura mais se
 - [E12_FRONTEND_DOMAIN_ACCESSIBILITY.md](E12_FRONTEND_DOMAIN_ACCESSIBILITY.md) — arquitetura por domínio, cliente HTTP, estado, formulários e acessibilidade.
 - [E13_FRONTEND_PERFORMANCE_CONSOLIDATION.md](E13_FRONTEND_PERFORMANCE_CONSOLIDATION.md) — lazy routes, chunks, consolidação de Tasks/Kanban e cobertura de autenticação.
 - [E14_CI_SUPPLY_CHAIN.md](E14_CI_SUPPLY_CHAIN.md) — gates de merge, MySQL/migrations, qualidade, cobertura e supply chain.
+- [E15_FINAL_DOCUMENTATION_LEGACY_CLEANUP.md](E15_FINAL_DOCUMENTATION_LEGACY_CLEANUP.md) — auditoria final, inventário do legado, runbooks, evidências e gates de encerramento.
 - [THREAT_MODEL.md](../security/THREAT_MODEL.md) — ativos, boundaries, ameaças e decisões de risco.
 - [SECRETS_POLICY.md](../security/SECRETS_POLICY.md) — ciclo de vida, acesso, rotação e resposta a vazamento.
 - [DEPENDENCY_RISK_REGISTER.md](../security/DEPENDENCY_RISK_REGISTER.md) — advisories, aplicabilidade e decisões.
@@ -95,8 +100,8 @@ Esta área registra a evolução incremental do MVP para uma arquitetura mais se
 - [MODULE_CONVENTIONS.md](../architecture/MODULE_CONVENTIONS.md) — responsabilidades e dependências permitidas no backend.
 - [FRONTEND_STRUCTURE.md](../architecture/FRONTEND_STRUCTURE.md) — direção pages → features → shared e organização frontend.
 
-## Próxima etapa
+## Encerramento
 
-E0–E14 estão concluídas. **Próxima etapa prevista: E15.** A E15 não foi iniciada nesta execução.
+E0–E14 estão concluídas e a E15 encerra o plano com ressalvas operacionais e jurídicas explicitamente registradas. Não há etapa de refatoração posterior iniciada neste trabalho.
 
 Nenhum código funcional foi refatorado durante a E0 ou a E1. A E2 reorganizou fronteiras internas, a E3 introduziu infraestrutura transversal, a E4 protegeu os contratos de entrada e a E5 estabeleceu controles transversais de segurança, sem alterar regras de negócio ou respostas de sucesso.

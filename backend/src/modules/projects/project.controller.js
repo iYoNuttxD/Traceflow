@@ -38,14 +38,6 @@ export const projectController = {
     { fallbackMessage: projectFallback }
   ),
 
-  listMembers: asyncHandler(
-    async (req, res) => {
-      const members = await projectService.listProjectMembers(req.params.projectId);
-      return res.json({ projectId: req.params.projectId, members });
-    },
-    { fallbackMessage: membersFallback }
-  ),
-
   addMember: asyncHandler(
     async (req, res) => {
       const member = await projectService.addProjectMember(req.params.projectId, req.body);
@@ -84,10 +76,6 @@ export const projectController = {
     },
     { fallbackMessage: projectFallback }
   ),
-
-  getById(req, res, next) {
-    return projectController.findById(req, res, next);
-  },
 
   createFromGithub: asyncHandler(
     async (req, res) => {

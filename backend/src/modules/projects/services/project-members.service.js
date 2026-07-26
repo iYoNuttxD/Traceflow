@@ -7,13 +7,6 @@ import {
 } from '../project.schema.js';
 
 export const projectMembersService = {
-  async listProjectMembers(projectId) {
-    const parsedProjectId = parseProjectId(projectId);
-    const project = await projectRepository.findById(parsedProjectId);
-    if (!project) throw new ProjectServiceError('Projeto não encontrado.', 404);
-    return projectRepository.findActiveMembersByProject(parsedProjectId);
-  },
-
   async addProjectMember(projectId, data, defaultRole = 'MEMBRO') {
     const parsedProjectId = parseProjectId(projectId);
     const project = await projectRepository.findById(parsedProjectId);

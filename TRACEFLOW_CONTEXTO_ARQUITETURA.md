@@ -4,6 +4,8 @@
 >
 > Este documento substitui a visão limitada ao MVP. O código produzido no MVP passa a ser tratado como base evolutiva de um produto real, sujeito a requisitos de segurança, qualidade, privacidade, testes, integração contínua e manutenção.
 
+> **Estado executável após a E15:** este documento contém contexto e diretrizes evolutivas, inclusive capacidades futuras. Para a arquitetura efetivamente implementada, use `docs/architecture/SYSTEM_ARCHITECTURE.md`; para contratos ativos, `docs/api/API_CONTRACTS.md`; e para a cobertura real dos requisitos, `docs/traceability/RF_TECHNICAL_MATRIX.md`. Uma diretriz futura descrita aqui não deve ser interpretada como funcionalidade já entregue.
+
 ---
 
 ## 1. Finalidade deste documento

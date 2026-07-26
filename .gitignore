@@ -1,5 +1,4 @@
-# Dependencias e configuracoes locais.
-# TODO: Revisar esta lista quando novas ferramentas forem adicionadas.
+# Dependências, artefatos gerados e configurações locais.
 node_modules/
 .env
 .env.local

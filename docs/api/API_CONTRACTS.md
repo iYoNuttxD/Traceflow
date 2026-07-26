@@ -1,5 +1,9 @@
 # Catálogo atual de contratos HTTP do TRACEFLOW
 
+## Evidência e rastreabilidade
+
+Os caminhos abaixo são relativos ao prefixo `/api`, exceto os endpoints de health. Autenticação e autorização por papel estão consolidadas em `docs/security/AUTHORIZATION_MATRIX.md`; a relação entre requisito funcional, fluxo, endpoint, service, persistência, frontend e testes está em `docs/traceability/RF_TECHNICAL_MATRIX.md`. A auditoria E15 reconciliou este catálogo com os arquivos `*.routes.js`: o único contrato ativo deliberadamente não implementado é `DELETE /api/projects/:id`, que permanece `501`.
+
 ## Atualização E10 — requisitos e rastreabilidade canônica
 
 `Task.requirementId`, `Task.pullRequestId`, `TaskCommit` e `TaskIssue` são as únicas fontes dos vínculos. A matriz passou a ser paginada sem carregar conteúdo integral de artefatos e mantém um summary global independente da página. As perspectivas de requisito, tarefa e artefato usam o mesmo DTO `{projectId,perspective,summary,nodes,edges,pagination}`; IDs de node são namespaced e as arestas usam `REQUIREMENT_TASK`, `TASK_COMMIT`, `TASK_PULL_REQUEST` ou `TASK_ISSUE`.
@@ -130,7 +134,7 @@ Priority: `BAIXA`, `MEDIA`, `ALTA`, `CRITICA`. Status: `A_FAZER`, `EM_ANDAMENTO`
 
 | Método | Caminho | Entrada | Sucesso |
 |---|---|---|---|
-| GET | `/github/auth/check` | — | `200`, autenticação simulável/real conforme ambiente |
+| GET | `/github/auth/check` | — | `200`, estado sanitizado da credencial técnica configurada |
 | GET | `/github/repositories` | — | `200`, `{repositories}` |
 | POST | `/projects/:projectId/github/sync` | `projectId` positivo | `200`, `{message,summary,project}` |
 | GET | `/projects/:projectId/commits` | `projectId`, `search?` | `200`, `{commits}` |

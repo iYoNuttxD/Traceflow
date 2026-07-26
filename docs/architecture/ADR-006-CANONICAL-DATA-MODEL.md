@@ -33,4 +33,4 @@ Os relatórios contêm somente contagens, checksums e estado técnico. Nenhum t�
 
 ## Consequências
 
-O runtime possui uma única fonte de verdade para Task–PR e relações específicas para rastreabilidade. O dual-write e os fallbacks foram removidos. Os sete endpoints placeholder continuam `501`; remover os models antigos não os implementa. Rollback operacional é por roll-forward e restauração de backup, nunca por edição de migration já aplicada.
+O runtime possui uma única fonte de verdade para Task–PR e relações específicas para rastreabilidade. O dual-write e os fallbacks foram removidos. As rotas genéricas antigas foram removidas na E10; somente `DELETE /api/projects/:id` permanece `501` e não depende desses models. Rollback operacional é por roll-forward e restauração de backup, nunca por edição de migration já aplicada.

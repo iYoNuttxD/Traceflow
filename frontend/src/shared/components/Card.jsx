@@ -1,5 +1,4 @@
-// Card simples reutilizavel para conteudos futuros.
-// TODO: Definir variacoes visuais quando as telas forem implementadas.
+// Card compartilhado usado pelas telas atuais.
 export function Card({ title, children }) {
   return (
     <section className="card">
