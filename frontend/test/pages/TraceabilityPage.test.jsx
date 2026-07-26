@@ -8,8 +8,8 @@ const apiMocks = vi.hoisted(() => ({
   getRequirementTraceability: vi.fn()
 }));
 
-vi.mock('../../src/api/api.js', () => apiMocks);
-vi.mock('../../src/components/TraceabilityFlow.jsx', () => ({
+vi.mock('../../src/features/traceability/api/traceability.api.js', () => apiMocks);
+vi.mock('../../src/features/traceability/components/TraceabilityFlow.jsx', () => ({
   TraceabilityFlow({ traceability }) {
     const requirement = traceability.nodes.find((node) => node.type === 'REQUIREMENT');
     const task = traceability.nodes.find((node) => node.type === 'TASK');
@@ -113,7 +113,7 @@ describe('TraceabilityPage', () => {
     expect(await screen.findByTestId('traceability-flow-contract')).toHaveTextContent(
       'Requisito artificial | Tarefa artificial | abcdef1'
     );
-    expect(apiMocks.getRequirementTraceability).toHaveBeenCalledWith('9', 10);
-    expect(apiMocks.getRequirementsTraceabilityMatrix).toHaveBeenCalledWith('9', { page: 1, limit: 20 });
+    expect(apiMocks.getRequirementTraceability).toHaveBeenCalledWith('9', 10, {}, { signal: expect.any(AbortSignal) });
+    expect(apiMocks.getRequirementsTraceabilityMatrix).toHaveBeenCalledWith('9', { page: 1, limit: 20 }, { signal: expect.any(AbortSignal) });
   });
 });

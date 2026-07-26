@@ -2,9 +2,10 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ConfirmProvider } from '../../src/shared/index.js';
 
 const apiMock = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() }));
-vi.mock('../../src/api/api.js', () => ({ api: apiMock }));
+vi.mock('../../src/api/http-client.js', () => ({ httpClient: apiMock }));
 vi.mock('../../src/features/auth/AuthContext.jsx', () => ({ useAuth: () => ({ user: { name: 'Pessoa artificial', email: 'person@example.invalid' }, refresh: vi.fn() }) }));
 import { PrivacyPage } from '../../src/features/privacy/PrivacyPage.jsx';
 
@@ -18,9 +19,9 @@ function mockLoads() {
 }
 
 describe('PrivacyPage', () => {
-  beforeEach(() => { vi.clearAllMocks(); mockLoads(); window.confirm = vi.fn(() => true); });
+  beforeEach(() => { vi.clearAllMocks(); mockLoads(); });
   it('exibe sessões, exportação, exclusão e atividade sem dados técnicos', async () => {
-    render(<MemoryRouter><PrivacyPage /></MemoryRouter>);
+    render(<MemoryRouter><ConfirmProvider><PrivacyPage /></ConfirmProvider></MemoryRouter>);
     expect(await screen.findByText('Sessão atual')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Exportar meus dados' })).toBeInTheDocument();
     expect(screen.getByText(/LOGIN_SUCCEEDED/)).toBeInTheDocument();
@@ -29,7 +30,7 @@ describe('PrivacyPage', () => {
   it('edita o próprio perfil com confirmação de senha', async () => {
     apiMock.patch.mockResolvedValue({ data: { user: { name: 'Novo nome' } } });
     const user = userEvent.setup();
-    render(<MemoryRouter><PrivacyPage /></MemoryRouter>);
+    render(<MemoryRouter><ConfirmProvider><PrivacyPage /></ConfirmProvider></MemoryRouter>);
     await screen.findByText('Sessão atual');
     await user.clear(screen.getByLabelText('Nome'));
     await user.type(screen.getByLabelText('Nome'), 'Novo nome');

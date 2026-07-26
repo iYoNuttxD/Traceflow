@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const getProjectArtifacts = vi.hoisted(() => vi.fn());
-vi.mock('../../src/api/api.js', () => ({ getProjectArtifacts }));
+vi.mock('../../src/features/github/api/github.api.js', () => ({ getProjectArtifacts }));
 
 import { RepositoryInfoPage } from '../../src/pages/RepositoryInfoPage.jsx';
 
@@ -30,7 +30,7 @@ describe('RepositoryInfoPage RF06', () => {
     renderPage();
     expect(screen.getByText('Carregando artefatos do repositório...')).toBeInTheDocument();
     expect(await screen.findByText('Nenhum artefato GitHub foi importado para este projeto.')).toBeInTheDocument();
-    expect(getProjectArtifacts).toHaveBeenCalledWith('1', { type: '', startDate: '', endDate: '' });
+    expect(getProjectArtifacts).toHaveBeenCalledWith('1', { type: '', startDate: '', endDate: '' }, { signal: expect.any(AbortSignal) });
   });
 
   it('combina tipo e intervalo de datas no filtro existente', async () => {
@@ -43,7 +43,7 @@ describe('RepositoryInfoPage RF06', () => {
     await user.click(screen.getByRole('button', { name: 'Aplicar filtros' }));
     expect(getProjectArtifacts).toHaveBeenLastCalledWith('1', {
       type: 'pull_request', startDate: '2026-01-01', endDate: '2026-01-31'
-    });
+    }, { signal: expect.any(AbortSignal) });
     expect(await screen.findByText('Nenhum artefato encontrado para os filtros selecionados.')).toBeInTheDocument();
   });
 });

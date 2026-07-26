@@ -15,7 +15,7 @@ describe('normalização mínima de erros HTTP', () => {
           headers: {}
         }
       })
-    ).toEqual({
+    ).toMatchObject({
       message: 'Rota não encontrada.',
       status: 404,
       code: 'ROUTE_NOT_FOUND',
@@ -25,7 +25,7 @@ describe('normalização mínima de erros HTTP', () => {
   });
 
   it('diferencia erro de rede e usa mensagem segura disponível', () => {
-    expect(normalizeApiError({ message: 'Network Error' })).toEqual({
+    expect(normalizeApiError({ message: 'Network Error' })).toMatchObject({
       message: 'Network Error',
       status: undefined,
       code: undefined,

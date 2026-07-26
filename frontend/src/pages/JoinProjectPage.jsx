@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { projectMembersApi } from '../api/api.js';
+import { projectMembersApi } from '../features/members/index.js';
 import { Card } from '../shared/index.js';
 
 function getErrorMessage(error, fallback) {

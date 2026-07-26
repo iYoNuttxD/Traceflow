@@ -1,21 +1,19 @@
-// Rotas principais do frontend TRACEFLOW.
-// TODO: Ajustar navegacao conforme os fluxos forem implementados.
 import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
-import { ProjectsPage } from '../pages/ProjectsPage.jsx';
-import { ProjectDetailsPage } from '../pages/ProjectDetailsPage.jsx';
-import { RequirementsPage } from '../pages/RequirementsPage.jsx';
-import { TasksPage } from '../pages/TasksPage.jsx';
-import { KanbanPage } from '../pages/KanbanPage.jsx';
-import { RepositoryInfoPage } from '../pages/RepositoryInfoPage.jsx';
-import { TraceabilityPage } from '../pages/TraceabilityPage.jsx';
-import { JoinProjectPage } from '../pages/JoinProjectPage.jsx';
-import { LoginPage } from '../pages/LoginPage.jsx';
-import { RegisterPage } from '../pages/RegisterPage.jsx';
-import { ForgotPasswordPage } from '../pages/ForgotPasswordPage.jsx';
-import { ResetPasswordPage } from '../pages/ResetPasswordPage.jsx';
-import { AcceptInvitationPage } from '../pages/AcceptInvitationPage.jsx';
-import { ProtectedRoute } from '../features/auth/ProtectedRoute.jsx';
-import { PrivacyPage, ProjectAuditPage } from '../features/privacy/index.js';
+import { ProjectsPage } from '../../pages/ProjectsPage.jsx';
+import { ProjectDetailsPage } from '../../pages/ProjectDetailsPage.jsx';
+import { RequirementsPage } from '../../pages/RequirementsPage.jsx';
+import { TasksPage } from '../../pages/TasksPage.jsx';
+import { KanbanPage } from '../../pages/KanbanPage.jsx';
+import { RepositoryInfoPage } from '../../pages/RepositoryInfoPage.jsx';
+import { TraceabilityPage } from '../../pages/TraceabilityPage.jsx';
+import { JoinProjectPage } from '../../pages/JoinProjectPage.jsx';
+import { LoginPage } from '../../pages/LoginPage.jsx';
+import { RegisterPage } from '../../pages/RegisterPage.jsx';
+import { ForgotPasswordPage } from '../../pages/ForgotPasswordPage.jsx';
+import { ResetPasswordPage } from '../../pages/ResetPasswordPage.jsx';
+import { AcceptInvitationPage } from '../../pages/AcceptInvitationPage.jsx';
+import { ProtectedRoute } from '../../features/auth/index.js';
+import { PrivacyPage, ProjectAuditPage } from '../../features/privacy/index.js';
 
 export function AppRoutes() {
   return (

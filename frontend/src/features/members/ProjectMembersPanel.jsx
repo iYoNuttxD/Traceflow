@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { normalizeApiError } from '../../shared/services/http-error.js';
+import { normalizeApiError, useConfirm } from '../../shared/index.js';
 import { membersApi } from './members.api.js';
 
 const roles = ['OWNER', 'MANAGER', 'MEMBER', 'VIEWER'];
 
 export function ProjectMembersPanel({ projectId, onCountChange, onMembershipLoaded }) {
+  const confirm = useConfirm();
   const [members, setMembers] = useState([]);
   const [currentMembership, setCurrentMembership] = useState(null);
   const [invitations, setInvitations] = useState([]);
@@ -35,7 +36,7 @@ export function ProjectMembersPanel({ projectId, onCountChange, onMembershipLoad
   }
 
   async function leaveProject() {
-    if (!window.confirm('Sair deste projeto?')) return;
+    if (!await confirm({ title: 'Sair do projeto', description: 'Você perderá o acesso a este projeto.', confirmLabel: 'Sair' })) return;
     setError('');
     try {
       await membersApi.leave(projectId);
@@ -47,6 +48,16 @@ export function ProjectMembersPanel({ projectId, onCountChange, onMembershipLoad
     } catch (requestError) {
       setError(normalizeApiError(requestError).message);
     }
+  }
+
+  async function deactivateMember(member) {
+    if (!await confirm({ title: 'Desativar membro', description: 'O membro perderá o acesso ativo ao projeto.', confirmLabel: 'Desativar' })) return;
+    await execute(() => membersApi.deactivate(projectId, member.id), 'Membro desativado.');
+  }
+
+  async function transferOwnership(member) {
+    if (!await confirm({ title: 'Transferir propriedade', description: 'Este membro passará a ser o proprietário do projeto.', confirmLabel: 'Transferir' })) return;
+    await execute(() => membersApi.transfer(projectId, member.id), 'Propriedade transferida.');
   }
 
   return (
@@ -67,8 +78,8 @@ export function ProjectMembersPanel({ projectId, onCountChange, onMembershipLoad
                       {roles.map((role) => <option key={role} value={role}>{role}</option>)}
                     </select>
                   </label>
-                  {member.isActive ? <button type="button" onClick={() => window.confirm('Desativar este membro?') && execute(() => membersApi.deactivate(projectId, member.id), 'Membro desativado.')}>Desativar</button> : <button type="button" onClick={() => execute(() => membersApi.reactivate(projectId, member.id), 'Membro reativado.')}>Reativar</button>}
-                  {member.isActive && member.role !== 'OWNER' && <button type="button" onClick={() => window.confirm('Transferir a propriedade para este membro?') && execute(() => membersApi.transfer(projectId, member.id), 'Propriedade transferida.')}>Tornar proprietário</button>}
+                  {member.isActive ? <button type="button" onClick={() => void deactivateMember(member)}>Desativar</button> : <button type="button" onClick={() => execute(() => membersApi.reactivate(projectId, member.id), 'Membro reativado.')}>Reativar</button>}
+                  {member.isActive && member.role !== 'OWNER' && <button type="button" onClick={() => void transferOwnership(member)}>Tornar proprietário</button>}
                 </>
               ) : <span>{member.role}</span>}
             </article>

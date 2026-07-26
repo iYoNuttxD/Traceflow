@@ -1,12 +1,17 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ConfirmProvider } from '../../src/shared/index.js';
 
 const apiMock = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() }));
-vi.mock('../../src/api/api.js', () => ({ api: apiMock }));
+vi.mock('../../src/api/http-client.js', () => ({ httpClient: apiMock }));
 import { ProjectMembersPanel } from '../../src/features/members/ProjectMembersPanel.jsx';
 
 const member = { id: 2, role: 'MEMBER', isActive: true, user: { name: 'Pessoa artificial', email: 'p***@example.invalid' } };
+
+function renderPanel() {
+  return render(<ConfirmProvider><ProjectMembersPanel projectId="1" /></ConfirmProvider>);
+}
 
 function mockList(role = 'OWNER') {
   apiMock.get.mockImplementation((path) => {
@@ -17,11 +22,11 @@ function mockList(role = 'OWNER') {
 }
 
 describe('ProjectMembersPanel', () => {
-  beforeEach(() => { vi.clearAllMocks(); window.confirm = vi.fn(() => true); });
+  beforeEach(() => { vi.clearAllMocks(); });
 
   it('exibe dados minimizados e oculta administração para MEMBER', async () => {
     mockList('MEMBER');
-    render(<ProjectMembersPanel projectId="1" />);
+    renderPanel();
     expect(await screen.findByText('Pessoa artificial')).toBeInTheDocument();
     expect(screen.getByText('p***@example.invalid')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Desativar' })).not.toBeInTheDocument();
@@ -32,7 +37,7 @@ describe('ProjectMembersPanel', () => {
     mockList('OWNER');
     apiMock.patch.mockResolvedValue({ data: { membership: { ...member, role: 'MANAGER' } } });
     const user = userEvent.setup();
-    render(<ProjectMembersPanel projectId="1" />);
+    renderPanel();
     const select = await screen.findByLabelText('Perfil de Pessoa artificial');
     await user.selectOptions(select, 'MANAGER');
     await waitFor(() => expect(apiMock.patch).toHaveBeenCalledWith('/projects/1/members/2', { role: 'MANAGER' }));
@@ -42,8 +47,9 @@ describe('ProjectMembersPanel', () => {
     mockList('MEMBER');
     apiMock.delete.mockResolvedValue({});
     const user = userEvent.setup();
-    render(<ProjectMembersPanel projectId="1" />);
+    renderPanel();
     await user.click(await screen.findByRole('button', { name: 'Sair do projeto' }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Sair' }));
     expect(apiMock.delete).toHaveBeenCalledWith('/projects/1/members/me');
     expect(await screen.findByText('Você saiu do projeto.')).toBeInTheDocument();
   });
@@ -53,9 +59,9 @@ describe('ProjectMembersPanel', () => {
     apiMock.delete.mockResolvedValue({});
     apiMock.post.mockResolvedValue({ data: { invitation: { id: 4, email: 'invite@example.invalid', role: 'VIEWER' } } });
     const user = userEvent.setup();
-    render(<ProjectMembersPanel projectId="1" />);
+    renderPanel();
     await user.click(await screen.findByRole('button', { name: 'Desativar' }));
-    expect(window.confirm).toHaveBeenCalled();
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Desativar' }));
     expect(apiMock.delete).toHaveBeenCalledWith('/projects/1/members/2');
     await user.type(screen.getByLabelText('E-mail do convite'), 'invite@example.invalid');
     await user.selectOptions(screen.getByLabelText('Papel do convite'), 'VIEWER');

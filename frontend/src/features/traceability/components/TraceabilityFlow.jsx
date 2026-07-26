@@ -50,7 +50,7 @@ function DetailRow({ label, value, href }) {
   return (
     <div className="trace-node-detail-row">
       <dt>{label}</dt>
-      <dd>{href ? <a href={href} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>{display}</a> : display}</dd>
+      <dd>{href ? <a href={href} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>{display}</a> : display}</dd>
     </div>
   );
 }

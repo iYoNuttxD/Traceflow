@@ -2,6 +2,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ConfirmProvider } from '../../src/shared/index.js';
 
 const mocks = vi.hoisted(() => ({
   api: { get: vi.fn() },
@@ -14,16 +15,16 @@ const mocks = vi.hoisted(() => ({
   projectMembersApi: { listProjectMembers: vi.fn() }
 }));
 
-vi.mock('../../src/api/api.js', () => ({
-  api: mocks.api,
+vi.mock('../../src/features/tasks/api/tasks.api.js', () => ({
   kanbanApi: mocks.kanbanApi,
-  projectMembersApi: mocks.projectMembersApi,
   deleteTask: vi.fn(),
   unlinkTaskCommit: vi.fn(),
   unlinkTaskIssue: vi.fn(),
   unlinkTaskFromPullRequest: vi.fn(),
   unlinkTaskRequirement: vi.fn()
 }));
+vi.mock('../../src/features/members/members.api.js', () => ({ projectMembersApi: mocks.projectMembersApi }));
+vi.mock('../../src/features/projects/api/projects.api.js', () => ({ projectsApi: { get: (id) => mocks.api.get(`/projects/${id}`) } }));
 
 import { KanbanPage } from '../../src/pages/KanbanPage.jsx';
 
@@ -58,7 +59,7 @@ function renderPage() {
   return render(
     <MemoryRouter initialEntries={['/projects/1/kanban']}>
       <Routes>
-        <Route path="/projects/:projectId/kanban" element={<KanbanPage />} />
+        <Route path="/projects/:projectId/kanban" element={<ConfirmProvider><KanbanPage /></ConfirmProvider>} />
       </Routes>
     </MemoryRouter>
   );

@@ -8,7 +8,14 @@ const apiMock = vi.hoisted(() => ({
   post: vi.fn()
 }));
 
-vi.mock('../../src/api/api.js', () => ({ api: apiMock }));
+vi.mock('../../src/features/projects/api/projects.api.js', () => ({
+  projectsApi: {
+    list: () => apiMock.get('/projects'),
+    listGithubRepositories: () => apiMock.get('/github/repositories'),
+    create: (data) => apiMock.post('/projects', data),
+    createFromGithub: (data) => apiMock.post('/projects/from-github', data)
+  }
+}));
 
 import { ProjectsPage } from '../../src/pages/ProjectsPage.jsx';
 

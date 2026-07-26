@@ -1,9 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
-import {
-  confirmCommitSuggestion,
-  getCommitSuggestions,
-  rejectCommitSuggestion
-} from '../api/api.js';
+import { useCommitSuggestions } from '../hooks/useCommitSuggestions.js';
 
 const statusLabels = {
   PENDING: 'Pendente',
@@ -11,63 +6,13 @@ const statusLabels = {
   REJECTED: 'Rejeitada'
 };
 
-function errorMessage(error) {
-  return error?.response?.data?.message || 'Não foi possível processar as sugestões de commits.';
-}
-
 function summarizedMessage(message) {
   if (!message) return 'Commit sem mensagem.';
   return message.length > 160 ? `${message.slice(0, 157)}...` : message;
 }
 
 export function CommitSuggestionsCard({ projectId, taskId, onConfirmed }) {
-  const [suggestions, setSuggestions] = useState([]);
-  const [permissions, setPermissions] = useState({ canReview: false });
-  const [loading, setLoading] = useState(true);
-  const [actionId, setActionId] = useState(null);
-  const [error, setError] = useState('');
-
-  const load = useCallback(async () => {
-    if (!taskId) {
-      setSuggestions([]);
-      setLoading(false);
-      setError('');
-      return;
-    }
-    setLoading(true);
-    setError('');
-    try {
-      const data = await getCommitSuggestions(projectId, {
-        status: 'PENDING',
-        taskId,
-        page: 1,
-        limit: 20
-      });
-      setSuggestions(data.suggestions || []);
-      setPermissions(data.permissions || { canReview: false });
-    } catch (cause) {
-      setError(errorMessage(cause));
-    } finally {
-      setLoading(false);
-    }
-  }, [projectId, taskId]);
-
-  useEffect(() => { void load(); }, [load]);
-
-  async function review(suggestion, operation) {
-    const suggestionId = suggestion.id;
-    setActionId(suggestionId);
-    setError('');
-    try {
-      await operation(projectId, suggestionId);
-      if (operation === confirmCommitSuggestion) onConfirmed?.(suggestion.commit);
-      setSuggestions((current) => current.filter((item) => item.id !== suggestionId));
-    } catch (cause) {
-      setError(errorMessage(cause));
-    } finally {
-      setActionId(null);
-    }
-  }
+  const { suggestions, permissions, loading, actionId, error, confirmSuggestion, rejectSuggestion } = useCommitSuggestions({ projectId, taskId, onConfirmed });
 
   return (
     <div className="traceability-picker">
@@ -95,10 +40,10 @@ export function CommitSuggestionsCard({ projectId, taskId, onConfirmed }) {
                 </div>
                 {permissions.canReview && suggestion.status === 'PENDING' && (
                   <div className="form-actions">
-                    <button className="button" type="button" disabled={processing || actionId !== null} onClick={() => void review(suggestion, confirmCommitSuggestion)}>
+                    <button className="button" type="button" disabled={processing || actionId !== null} onClick={() => void confirmSuggestion(suggestion)}>
                       {processing ? 'Processando...' : 'Confirmar'}
                     </button>
-                    <button className="button button-secondary" type="button" disabled={processing || actionId !== null} onClick={() => void review(suggestion, rejectCommitSuggestion)}>
+                    <button className="button button-secondary" type="button" disabled={processing || actionId !== null} onClick={() => void rejectSuggestion(suggestion)}>
                       Rejeitar
                     </button>
                   </div>

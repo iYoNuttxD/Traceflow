@@ -1,14 +1,15 @@
-// Componente raiz do frontend TRACEFLOW.
-// TODO: Adicionar providers globais apenas quando forem necessarios.
 import { BrowserRouter } from 'react-router-dom';
-import { AppRoutes } from './routes/AppRoutes.jsx';
+import { AppRoutes } from './app/routes/AppRoutes.jsx';
 import { Layout } from './components/Layout.jsx';
-import { AuthProvider } from './features/auth/AuthContext.jsx';
+import { AuthProvider } from './features/auth/index.js';
+import { ConfirmProvider, ErrorBoundary } from './shared/index.js';
 
 export default function App() {
   return (
     <BrowserRouter>
-      <AuthProvider><Layout><AppRoutes /></Layout></AuthProvider>
+      <ErrorBoundary>
+        <AuthProvider><ConfirmProvider><Layout><AppRoutes /></Layout></ConfirmProvider></AuthProvider>
+      </ErrorBoundary>
     </BrowserRouter>
   );
 }

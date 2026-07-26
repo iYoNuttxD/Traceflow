@@ -2,6 +2,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ConfirmProvider } from '../../src/shared/index.js';
 
 const mocks = vi.hoisted(() => ({
   api: { get: vi.fn() },
@@ -12,7 +13,15 @@ const mocks = vi.hoisted(() => ({
   requirementsApi: { create: vi.fn(), listByProject: vi.fn(), update: vi.fn() }
 }));
 
-vi.mock('../../src/api/api.js', () => mocks);
+vi.mock('../../src/features/requirements/api/requirements.api.js', () => ({
+  confirmRequirementCompletion: mocks.confirmRequirementCompletion,
+  deleteRequirement: mocks.deleteRequirement,
+  replaceRequirementTasks: mocks.replaceRequirementTasks,
+  requirementsApi: mocks.requirementsApi
+}));
+vi.mock('../../src/features/traceability/api/traceability.api.js', () => ({ getRequirementTaskCoverage: mocks.getRequirementTaskCoverage }));
+vi.mock('../../src/features/projects/api/projects.api.js', () => ({ projectsApi: { get: (id) => mocks.api.get(`/projects/${id}`) } }));
+vi.mock('../../src/features/tasks/api/tasks.api.js', () => ({ tasksApi: { list: (id, params) => mocks.api.get(`/projects/${id}/tasks`, { params }) } }));
 
 import { RequirementsPage } from '../../src/pages/RequirementsPage.jsx';
 
@@ -30,7 +39,7 @@ const requirement = {
 function renderPage() {
   return render(
     <MemoryRouter initialEntries={['/projects/9/requirements']}>
-      <Routes><Route path="/projects/:projectId/requirements" element={<RequirementsPage />} /></Routes>
+      <Routes><Route path="/projects/:projectId/requirements" element={<ConfirmProvider><RequirementsPage /></ConfirmProvider>} /></Routes>
     </MemoryRouter>
   );
 }

@@ -2,6 +2,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ConfirmProvider } from '../../src/shared/index.js';
 
 const mocks = vi.hoisted(() => ({
   api: { get: vi.fn(), put: vi.fn() },
@@ -14,11 +15,14 @@ const mocks = vi.hoisted(() => ({
   }
 }));
 
-vi.mock('../../src/api/api.js', () => ({
-  api: mocks.api,
-  syncProjectGithub: mocks.syncProjectGithub,
-  scanCommitSuggestions: mocks.scanCommitSuggestions
+vi.mock('../../src/features/projects/api/projects.api.js', () => ({
+  projectsApi: {
+    get: (id) => mocks.api.get(`/projects/${id}`),
+    update: (id, data) => mocks.api.put(`/projects/${id}`, data)
+  }
 }));
+vi.mock('../../src/features/github/api/github.api.js', () => ({ syncProjectGithub: mocks.syncProjectGithub }));
+vi.mock('../../src/features/traceability/api/traceability.api.js', () => ({ scanCommitSuggestions: mocks.scanCommitSuggestions }));
 vi.mock('../../src/features/members/members.api.js', () => ({ membersApi: mocks.membersApi }));
 
 import { ProjectDetailsPage } from '../../src/pages/ProjectDetailsPage.jsx';
@@ -33,7 +37,7 @@ const project = {
 function renderPage() {
   return render(
     <MemoryRouter initialEntries={['/projects/1']}>
-      <Routes><Route path="/projects/:id" element={<ProjectDetailsPage />} /></Routes>
+      <Routes><Route path="/projects/:id" element={<ConfirmProvider><ProjectDetailsPage /></ConfirmProvider>} /></Routes>
     </MemoryRouter>
   );
 }

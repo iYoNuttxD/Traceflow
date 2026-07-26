@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { authApi, setCsrfToken } from '../../api/api.js';
+import { setCsrfToken } from '../../api/http-client.js';
+import { authApi } from './api/auth.api.js';
 
 const AuthContext = createContext(null);
 export function AuthProvider({ children }) {

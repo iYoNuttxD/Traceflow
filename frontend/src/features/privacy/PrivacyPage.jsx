@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { normalizeApiError } from '../../shared/services/http-error.js';
-import { useAuth } from '../auth/AuthContext.jsx';
+import { normalizeApiError, useConfirm } from '../../shared/index.js';
+import { useAuth } from '../auth/index.js';
 import { privacyApi } from './privacy.api.js';
 
 export function PrivacyPage() {
+  const confirm = useConfirm();
   const { user, refresh } = useAuth();
   const navigate = useNavigate();
   const [profile, setProfile] = useState({ name: user?.name || '', email: user?.email || '', currentPassword: '' });
@@ -23,7 +24,7 @@ export function PrivacyPage() {
   async function run(operation, success) { setError(''); try { await operation(); setMessage(success); await load(); } catch (value) { setError(normalizeApiError(value).message); } }
   async function submitProfile(event) { event.preventDefault(); await run(async () => { await privacyApi.updateProfile(profile); await refresh(); setProfile((value) => ({ ...value, currentPassword: '' })); }, 'Perfil atualizado.'); }
   async function exportData() { await run(async () => { const record = await privacyApi.requestExport(); window.location.assign(`${import.meta.env.VITE_API_URL || 'http://localhost:3001/api'}/account/personal-data/export/${record.id}/download`); }, 'Exportação preparada.'); }
-  async function deactivate() { if (!window.confirm('Desativar sua conta?')) return; await run(async () => { await privacyApi.deactivate(password); navigate('/login'); }, 'Conta desativada.'); }
+  async function deactivate() { if (!await confirm({ title: 'Desativar conta', description: 'Sua sessão será encerrada e sua conta ficará desativada.', confirmLabel: 'Desativar' })) return; await run(async () => { await privacyApi.deactivate(password); navigate('/login'); }, 'Conta desativada.'); }
 
   return <main className="page-container"><h1>Privacidade e conta</h1>
     {error && <div className="message message-error">{error}</div>}{message && <div className="message message-success">{message}</div>}

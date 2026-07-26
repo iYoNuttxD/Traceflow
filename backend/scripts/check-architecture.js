@@ -266,6 +266,9 @@ function inspectFrontendImports(files, frontendRoot, violations) {
     const source = readFileSync(file, 'utf8');
     const relativeFile = relative(frontendRoot, file).split(sep);
     const isShared = relativeFile.includes('shared');
+    const featuresIndex = relativeFile.indexOf('features');
+    const currentFeature = featuresIndex >= 0 ? relativeFile[featuresIndex + 1] : null;
+    const isPage = relativeFile.includes('pages');
 
     if (/\bTaskPullRequest\b|\bGithubArtifact\b|\bTraceLink\b/.test(source)) {
       addViolation(violations, file, 'frontend-no-removed-model', 'E8 legacy model', 'Frontend não pode depender dos models removidos na E8.');
@@ -298,6 +301,22 @@ function inspectFrontendImports(files, frontendRoot, violations) {
           specifier,
           'Frontend shared não pode importar pages.'
         );
+      }
+
+      const targetParts = target ? relative(frontendRoot, target).split(sep) : [];
+      const targetFeaturesIndex = targetParts.indexOf('features');
+      const targetFeature = targetFeaturesIndex >= 0 ? targetParts[targetFeaturesIndex + 1] : null;
+
+      if (isShared && targetFeature) {
+        addViolation(violations, file, 'frontend-shared-no-features', specifier, 'Frontend shared não pode importar features.');
+      }
+
+      if (currentFeature && targetFeature && currentFeature !== targetFeature && targetParts.at(-1) !== 'index.js') {
+        addViolation(violations, file, 'frontend-feature-public-api', specifier, 'Integração entre features deve usar o index.js público.');
+      }
+
+      if (isPage && (specifier === 'axios' || targetParts.join('/').includes('api/http-client'))) {
+        addViolation(violations, file, 'frontend-page-no-http-client', specifier, 'Pages não podem chamar Axios ou o cliente HTTP diretamente.');
       }
     }
   }

@@ -1,16 +1,16 @@
-import { api } from '../../api/api.js';
+import { httpClient } from '../../api/http-client.js';
 
 export const privacyApi = {
-  async data() { return (await api.get('/account/personal-data')).data.data; },
-  async updateProfile(data) { return (await api.patch('/account/profile', data)).data; },
-  async sessions() { return (await api.get('/account/sessions')).data.sessions; },
-  revokeSession(id) { return api.delete(`/account/sessions/${id}`); },
-  revokeAllSessions() { return api.delete('/account/sessions'); },
-  async requestExport() { return (await api.post('/account/personal-data/export')).data.export; },
-  async deletionRequest() { return (await api.get('/account/deletion-request')).data.request; },
-  async requestDeletion(password) { return (await api.post('/account/deletion-request', { password })).data.request; },
-  cancelDeletion() { return api.delete('/account/deletion-request'); },
-  deactivate(password) { return api.post('/account/deactivate', { password }); },
-  async audit() { return (await api.get('/account/audit-events')).data; },
-  async projectAudit(projectId) { return (await api.get(`/projects/${projectId}/audit-events`)).data; }
+  async data(options = {}) { return (await httpClient.get('/account/personal-data', options)).data.data; },
+  async updateProfile(data) { return (await httpClient.patch('/account/profile', data)).data; },
+  async sessions(options = {}) { return (await httpClient.get('/account/sessions', options)).data.sessions; },
+  revokeSession(id) { return httpClient.delete(`/account/sessions/${id}`); },
+  revokeAllSessions() { return httpClient.delete('/account/sessions'); },
+  async requestExport() { return (await httpClient.post('/account/personal-data/export')).data.export; },
+  async deletionRequest(options = {}) { return (await httpClient.get('/account/deletion-request', options)).data.request; },
+  async requestDeletion(password) { return (await httpClient.post('/account/deletion-request', { password })).data.request; },
+  cancelDeletion() { return httpClient.delete('/account/deletion-request'); },
+  deactivate(password) { return httpClient.post('/account/deactivate', { password }); },
+  async audit(options = {}) { return (await httpClient.get('/account/audit-events', options)).data; },
+  async projectAudit(projectId, options = {}) { return (await httpClient.get(`/projects/${projectId}/audit-events`, options)).data; }
 };

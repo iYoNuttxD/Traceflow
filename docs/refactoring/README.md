@@ -50,7 +50,11 @@ Esta área registra a evolução incremental do MVP para uma arquitetura mais se
 
 ## Estado da E11
 
-**Parcial — reconciliação de responsável bloqueada em 26/07/2026.** A parte funcional está concluída com `responsibleUserId` canônico, ator derivado da sessão, transição de status atômica e histórico RF38. O fechamento definitivo aguarda mapeamento manual válido de 8 Tasks; 10 movimentos sem evidência técnica inequívoca foram preservados. A continuação partiu do commit `6470645`.
+**Concluída definitivamente em 26/07/2026**, com `responsibleUserId` canônico, ator derivado da sessão, transição de status atômica, histórico RF38 e reconciliação controlada dos snapshots legados. Movimentos sem evidência inequívoca permanecem preservados, sem bloquear a evolução. O fechamento foi registrado no commit `b3014c4`.
+
+## Estado da E12
+
+**Concluída em 26/07/2026**, com frontend organizado por domínio, pages finas, APIs separadas, cliente HTTP compartilhado, cancelamento de requisições obsoletas, estados mutuamente exclusivos, formulários e confirmações acessíveis. A execução partiu do commit `b3014c4`.
 
 ## Documentos produzidos
 
@@ -71,6 +75,7 @@ Esta área registra a evolução incremental do MVP para uma arquitetura mais se
 - [E9_PROJECTS_GITHUB.md](E9_PROJECTS_GITHUB.md) — cadastro de projetos, fronteira GitHub, paginação, sincronização, testes e riscos residuais.
 - [E10_REQUIREMENTS_TRACEABILITY.md](E10_REQUIREMENTS_TRACEABILITY.md) — requisitos, fórmulas, vínculos atômicos, matriz e grafos canônicos.
 - [E11_TASKS_KANBAN_HISTORY.md](E11_TASKS_KANBAN_HISTORY.md) — responsável canônico, movimento concorrente, histórico RF38, vínculos e exclusão transacionais.
+- [E12_FRONTEND_DOMAIN_ACCESSIBILITY.md](E12_FRONTEND_DOMAIN_ACCESSIBILITY.md) — arquitetura por domínio, cliente HTTP, estado, formulários e acessibilidade.
 - [THREAT_MODEL.md](../security/THREAT_MODEL.md) — ativos, boundaries, ameaças e decisões de risco.
 - [SECRETS_POLICY.md](../security/SECRETS_POLICY.md) — ciclo de vida, acesso, rotação e resposta a vazamento.
 - [DEPENDENCY_RISK_REGISTER.md](../security/DEPENDENCY_RISK_REGISTER.md) — advisories, aplicabilidade e decisões.
@@ -82,6 +87,6 @@ Esta área registra a evolução incremental do MVP para uma arquitetura mais se
 
 ## Próxima etapa
 
-E0–E8 estão concluídas definitivamente. A E9 e a verificação externa indicada pela equipe estão concluídas. E10 está concluída definitivamente. A E11 está funcionalmente concluída, mas seu contract de identidade legada permanece bloqueado; **E12 não foi iniciada**.
+E0–E12 estão concluídas. **Próxima etapa: E13.** A E13 não foi iniciada nesta execução.
 
 Nenhum código funcional foi refatorado durante a E0 ou a E1. A E2 reorganizou fronteiras internas, a E3 introduziu infraestrutura transversal, a E4 protegeu os contratos de entrada e a E5 estabeleceu controles transversais de segurança, sem alterar regras de negócio ou respostas de sucesso.

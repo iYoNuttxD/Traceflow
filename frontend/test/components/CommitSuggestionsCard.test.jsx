@@ -8,8 +8,8 @@ const apiMocks = vi.hoisted(() => ({
   rejectCommitSuggestion: vi.fn()
 }));
 
-vi.mock('../../src/api/api.js', () => apiMocks);
-import { CommitSuggestionsCard } from '../../src/components/CommitSuggestionsCard.jsx';
+vi.mock('../../src/features/traceability/api/traceability.api.js', () => apiMocks);
+import { CommitSuggestionsCard } from '../../src/features/tasks/index.js';
 
 const suggestion = {
   id: 7,
@@ -46,7 +46,7 @@ describe('CommitSuggestionsCard', () => {
     expect(await screen.findByText('feat: implementação [TASK-42]')).toBeInTheDocument();
     expect(apiMocks.getCommitSuggestions).toHaveBeenCalledWith('3', {
       status: 'PENDING', taskId: '42', page: 1, limit: 20
-    });
+    }, { signal: expect.any(AbortSignal) });
     expect(screen.getByText('Task #42: Task artificial')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Confirmar' })).not.toBeInTheDocument();
   });

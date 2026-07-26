@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildFlow } from '../../src/components/TraceabilityFlow.jsx';
+import { buildFlow } from '../../src/features/traceability/index.js';
 
 describe('TraceabilityFlow canônico', () => {
   it.each(['REQUIREMENT', 'TASK', 'COMMIT', 'PULL_REQUEST', 'ISSUE'])(

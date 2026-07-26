@@ -1,19 +1,27 @@
-import { api } from '../../../api/api.js';
+import { httpClient } from '../../../api/http-client.js';
 
 export const projectsApi = {
   list() {
-    return api.get('/projects');
+    return httpClient.get('/projects');
   },
 
   listGithubRepositories() {
-    return api.get('/github/repositories');
+    return httpClient.get('/github/repositories');
   },
 
   create(data) {
-    return api.post('/projects', data);
+    return httpClient.post('/projects', data);
   },
 
   createFromGithub(data) {
-    return api.post('/projects/from-github', data);
+    return httpClient.post('/projects/from-github', data);
+  },
+
+  get(projectId, options = {}) {
+    return httpClient.get(`/projects/${projectId}`, options);
+  },
+
+  update(projectId, data) {
+    return httpClient.put(`/projects/${projectId}`, data);
   }
 };

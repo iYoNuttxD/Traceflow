@@ -1,7 +1,7 @@
 // Navegacao principal inicial do TRACEFLOW.
 // TODO: Adicionar links contextuais quando o projeto ativo estiver disponivel.
 import { Link } from 'react-router-dom';
-import { useAuth } from '../features/auth/AuthContext.jsx';
+import { useAuth } from '../features/auth/index.js';
 
 export function Navbar() {
   const auth = useAuth();
