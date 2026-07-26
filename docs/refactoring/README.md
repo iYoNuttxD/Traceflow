@@ -48,6 +48,10 @@ Esta área registra a evolução incremental do MVP para uma arquitetura mais se
 
 **Concluída definitivamente em 25/07/2026**, com fórmulas canônicas, vínculos atômicos, matriz/grafos project-scoped e RF41 implementado por sugestões persistidas `[TASK-<ID>]`, revisão humana e integração idempotente com o sync. O fechamento do RF41 partiu do commit `2143e07`.
 
+## Estado da E11
+
+**Concluída em 26/07/2026**, com `responsibleUserId` canônico, ator derivado da sessão, transição de status otimista e atômica, histórico funcional RF38 paginado e mutações críticas com auditoria transacional. A execução partiu do commit `f084017`.
+
 ## Documentos produzidos
 
 - [E0_BASELINE.md](E0_BASELINE.md) — execução, arquitetura, páginas, fluxos, divergências e bloqueios.
@@ -66,6 +70,7 @@ Esta área registra a evolução incremental do MVP para uma arquitetura mais se
 - [E8_PRISMA_SCHEMA_MIGRATION.md](E8_PRISMA_SCHEMA_MIGRATION.md) — modelo canônico, reconciliação, migrations contract e fechamento definitivo.
 - [E9_PROJECTS_GITHUB.md](E9_PROJECTS_GITHUB.md) — cadastro de projetos, fronteira GitHub, paginação, sincronização, testes e riscos residuais.
 - [E10_REQUIREMENTS_TRACEABILITY.md](E10_REQUIREMENTS_TRACEABILITY.md) — requisitos, fórmulas, vínculos atômicos, matriz e grafos canônicos.
+- [E11_TASKS_KANBAN_HISTORY.md](E11_TASKS_KANBAN_HISTORY.md) — responsável canônico, movimento concorrente, histórico RF38, vínculos e exclusão transacionais.
 - [THREAT_MODEL.md](../security/THREAT_MODEL.md) — ativos, boundaries, ameaças e decisões de risco.
 - [SECRETS_POLICY.md](../security/SECRETS_POLICY.md) — ciclo de vida, acesso, rotação e resposta a vazamento.
 - [DEPENDENCY_RISK_REGISTER.md](../security/DEPENDENCY_RISK_REGISTER.md) — advisories, aplicabilidade e decisões.
@@ -77,6 +82,6 @@ Esta área registra a evolução incremental do MVP para uma arquitetura mais se
 
 ## Próxima etapa
 
-E0–E8 estão concluídas definitivamente. A E9 está concluída tecnicamente, com smoke externo ainda pendente. A E10 está concluída definitivamente, incluindo RF41 implementado e homologado. Próxima etapa: **E11**, que não foi iniciada nesta execução.
+E0–E8 estão concluídas definitivamente. A E9 está concluída tecnicamente, com smoke externo ainda pendente. E10 e E11 estão concluídas, com RF41 preservado. Próxima etapa: **E12**.
 
 Nenhum código funcional foi refatorado durante a E0 ou a E1. A E2 reorganizou fronteiras internas, a E3 introduziu infraestrutura transversal, a E4 protegeu os contratos de entrada e a E5 estabeleceu controles transversais de segurança, sem alterar regras de negócio ou respostas de sucesso.

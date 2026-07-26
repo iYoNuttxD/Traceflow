@@ -1,6 +1,6 @@
 # Matriz de autorização da API TRACEFLOW
 
-Baseline E6, atualizado na E10 em 25/07/2026. A matriz descreve a política efetiva; não substitui os testes. `L` = leitura, `E` = escrita de domínio, `A` = administração. Sem membership ativa, recursos de projeto retornam `404` para reduzir enumeração; papel insuficiente retorna `403`. Mutations autenticadas exigem CSRF.
+Baseline E6, atualizado na E11 em 26/07/2026. A matriz descreve a política efetiva; não substitui os testes. `L` = leitura, `E` = escrita de domínio, `A` = administração. Sem membership ativa, recursos de projeto retornam `404` para reduzir enumeração; papel insuficiente retorna `403`. Mutations autenticadas exigem CSRF.
 
 | Endpoints | Anônimo | VIEWER | MEMBER | MANAGER | OWNER | Regra adicional |
 |---|---:|---:|---:|---:|---:|---|
@@ -27,6 +27,7 @@ Baseline E6, atualizado na E10 em 25/07/2026. A matriz descreve a política efet
 | `PUT /api/requirements/:id/tasks` | 401 | 403 | E | E | E | conjunto atômico; todas as tarefas no mesmo projeto |
 | Tasks/vínculos/Kanban/métricas: todos os `GET` | 401 | L | L | L | L | mesmo projeto/recurso |
 | Tasks/vínculos/Kanban: `POST`, `PUT`, `PATCH`, `DELETE` | 401 | 403 | E | E | E | pertencimento e ator canônico |
+| `GET /api/projects/:projectId/tasks/history` | 401 | L | L | L | L | paginado; ator e recursos do mesmo projeto |
 | `GET /api/github/auth/check`, `/github/repositories` | 401 | L | L | L | L | credencial GitHub é sistêmica |
 | `POST /api/projects/:projectId/github/sync` | 401 | 403 | 403 | E | E | MANAGER+ e trava por projeto |
 | `PATCH /api/projects/:projectId/github/sync-settings` | 401 | 403 | 403 | 403 | A | OWNER |
@@ -48,3 +49,4 @@ Baseline E6, atualizado na E10 em 25/07/2026. A matriz descreve a política efet
 - Na E9, o alias não canônico `/api/projects/:projectId/github/artifacts` foi removido e retorna 404; RF06 usa `/api/projects/:projectId/artifacts`. Sync permanece restrito a MANAGER/OWNER.
 - Na E10, as rotas genéricas dependentes de `TraceLink` e `GithubArtifact` foram removidas. As perspectivas canônicas sempre incluem `projectId`, evitando autorização por ID global isolado.
 - No fechamento do RF41, VIEWER apenas consulta; MEMBER+ analisa e revisa. Confirmação e rejeição são transacionais e auditadas.
+- Na E11, `responsibleUserId` exige membership ativa; a autoria de movimento vem exclusivamente da sessão e não pode ser controlada pelo body.

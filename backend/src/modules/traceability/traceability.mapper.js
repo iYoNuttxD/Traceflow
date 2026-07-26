@@ -78,7 +78,8 @@ function publicTask(task) {
     description: task.description,
     status: task.status,
     priority: task.priority,
-    responsible: task.responsible,
+    responsible: task.responsibleUser?.name || task.responsible,
+    responsibleUser: task.responsibleUser || null,
     deadline: task.deadline,
     estimatedEffort: task.estimatedEffort,
     actualEffort: task.actualEffort

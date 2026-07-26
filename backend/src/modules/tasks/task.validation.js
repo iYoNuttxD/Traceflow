@@ -4,6 +4,7 @@ import {
   dateRangeSchema,
   isoDateTime,
   optionalText,
+  paginationSchema,
   positiveInteger,
   requiredText,
   searchText,
@@ -49,7 +50,6 @@ const taskFields = {
   title: requiredText({ message: 'O título da tarefa é obrigatório.' }),
   description: optionalText({ field: 'Descrição' }),
   priority: priority.optional(),
-  responsible: optionalText({ field: 'Responsável' }),
   responsibleUserId: nullableId('ID do usuário responsável inválido.').optional(),
   deadline: deadline.optional(),
   estimatedEffort: effort('O esforço estimado deve ser um número inteiro maior ou igual a zero.').optional(),
@@ -80,15 +80,21 @@ export const taskIssueBodySchema = strictObject({
   issueId: positiveInteger('ID da issue inválido.')
 });
 export const moveTaskBodySchema = strictObject({
-  toStatus: taskStatus,
-  projectMemberId: nullableId('ID do membro do projeto inválido.').optional(),
-  movedBy: optionalText({ field: 'Responsável pela movimentação' }),
-  sprintId: nullableId('ID da sprint inválido.').optional()
+  toStatus: taskStatus
 });
 
 export const taskSearchQuerySchema = strictObject({ search: searchText });
 export const taskDateRangeQuerySchema = dateRangeSchema;
 export const movementQuerySchema = dateRangeSchema.extend({
   taskId: positiveInteger('ID da tarefa inválido.').optional(),
-  movedBy: optionalText({ field: 'Responsável pela movimentação' })
+  actorUserId: positiveInteger('ID do ator inválido.').optional(),
+  movedBy: optionalText({ field: 'Responsável pela movimentação' }),
+  ...paginationSchema
+});
+
+export const taskHistoryQuerySchema = dateRangeSchema.extend({
+  taskId: positiveInteger('ID da tarefa inválido.').optional(),
+  actorUserId: positiveInteger('ID do ator inválido.').optional(),
+  field: z.enum(['STATUS', 'DEADLINE', 'RESPONSIBLE', 'PRIORITY']).optional(),
+  ...paginationSchema
 });

@@ -1,22 +1,29 @@
-import { taskRepository } from '../task.repository.js';
-import { buildMovementFilters, parseProjectId } from '../task.schema.js';
+import { buildMovementFilters, buildPagination, parseProjectId } from '../task.schema.js';
 import { ensureProjectExists, formatMovement } from '../task.service-support.js';
+import { taskMovementRepository } from '../repositories/task-movement.repository.js';
 
 export const taskMovementService = {
   async listMovements(projectId, query = {}) {
     const id = parseProjectId(projectId);
     await ensureProjectExists(id);
-    const movements = await taskRepository.findMovementsByProject(
+    const pagination = buildPagination(query);
+    const [total, movements] = await taskMovementRepository.listPage(
       id,
-      buildMovementFilters(query)
+      buildMovementFilters(query),
+      pagination
     );
-    return { projectId: id, total: movements.length, movements: movements.map(formatMovement) };
+    return {
+      projectId: id,
+      total,
+      movements: movements.map(formatMovement),
+      pagination: { page: pagination.page, limit: pagination.limit, total, totalPages: Math.ceil(total / pagination.limit) }
+    };
   },
 
   async getKanbanMetrics(projectId, query = {}) {
     const id = parseProjectId(projectId);
     await ensureProjectExists(id);
-    const totalMovements = await taskRepository.countMovementsByProject(
+    const totalMovements = await taskMovementRepository.count(
       id,
       buildMovementFilters(query)
     );

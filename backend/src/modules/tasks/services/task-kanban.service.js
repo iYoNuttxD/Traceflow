@@ -10,9 +10,11 @@ import {
   ensureProjectExists,
   ensureTaskExists,
   formatTask,
-  recalculateRelatedRequirements,
-  resolveMovementResponsible
+  formatMovement
 } from '../task.service-support.js';
+import { taskMovementRepository } from '../repositories/task-movement.repository.js';
+import { buildAuditEvent } from '../../audit/audit.service.js';
+import { calculateRequirementStatus } from '../../requirements/requirement.schema.js';
 
 export const taskKanbanService = {
   async getKanbanBoard(projectId) {
@@ -35,23 +37,38 @@ export const taskKanbanService = {
     };
   },
 
-  async moveTask(taskId, data, actor) {
+  async moveTask(taskId, data, context = {}) {
     const id = parseTaskId(taskId);
     const task = await ensureTaskExists(id);
     await ensureProjectExists(task.projectId);
     const payload = data && typeof data === 'object' ? data : {};
     validateStatus(payload.toStatus);
-    const responsible = actor
-      ? { movedByUserId: actor.id, movedBy: actor.name }
-      : await resolveMovementResponsible(task, payload);
+    const actor = context.actor;
     if (task.status === payload.toStatus) {
       throw new TaskServiceError('A tarefa já está nesta coluna.', 400);
     }
-    const result = await taskRepository.moveTask(task, {
+    const result = await taskMovementRepository.transitionStatus({
+      task,
       toStatus: payload.toStatus,
-      ...responsible
+      actor,
+      calculateRequirementStatus,
+      auditEvent: buildAuditEvent({
+        actorUserId: actor.id,
+        projectId: task.projectId,
+        requestId: context.requestId,
+        action: 'TASK_MOVED',
+        resourceType: 'Task',
+        resourceId: task.id
+      })
     });
-    await recalculateRelatedRequirements(task.requirementId);
-    return { ...result, task: formatTask(result.task) };
+    if (result.conflict) {
+      throw new TaskServiceError('A tarefa foi alterada por outra operação. Atualize o quadro e tente novamente.', 409);
+    }
+    return { task: formatTask(result.task), movement: formatMovement(result.movement) };
+  },
+
+  async updateTaskStatus(taskId, status, context = {}) {
+    const result = await taskKanbanService.moveTask(taskId, { toStatus: status }, context);
+    return result.task;
   }
 };

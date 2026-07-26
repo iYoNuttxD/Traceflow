@@ -8,7 +8,6 @@ const editableFields = [
   'title',
   'description',
   'priority',
-  'responsible',
   'responsibleUserId',
   'deadline',
   'estimatedEffort',
@@ -30,8 +29,6 @@ export function parseProjectId(projectId) {
   return parsePositiveInteger(projectId, 'do projeto');
 }
 export const parseTaskId = (value) => parsePositiveInteger(value, 'da tarefa');
-export const parseProjectMemberId = (value) =>
-  parsePositiveInteger(value, 'do membro do projeto');
 export const parsePullRequestId = (value) => parsePositiveInteger(value, 'do pull request');
 export const parseCommitId = (value) => parsePositiveInteger(value, 'do commit');
 export const parseIssueId = (value) => parsePositiveInteger(value, 'da issue');
@@ -125,7 +122,7 @@ export function buildTaskData(data, isCreate = false) {
   for (const field of editableFields) {
     if (payload[field] === undefined || (isCreate && field === 'actualEffort')) continue;
     if (field === 'title') taskData.title = payload.title.trim();
-    else if (field === 'description' || field === 'responsible') {
+    else if (field === 'description') {
       taskData[field] = normalizeOptionalText(payload[field]);
     } else if (field === 'deadline') taskData.deadline = parseDeadline(payload.deadline);
     else if (field === 'estimatedEffort' || field === 'actualEffort') {
@@ -176,16 +173,13 @@ export function buildMovementFilters(query = {}) {
     movedAt: buildMovedAtFilter(query.startDate, query.endDate),
     taskId:
       query.taskId === undefined || query.taskId === '' ? undefined : parseTaskId(query.taskId),
+    actorUserId: query.actorUserId === undefined ? undefined : parsePositiveInteger(query.actorUserId, 'do ator'),
     movedBy: normalizeOptionalText(query.movedBy) || undefined
   };
 }
 
-export function normalizeMovedBy(movedBy) {
-  if (typeof movedBy !== 'string' || !movedBy.trim()) {
-    throw new TaskServiceError(
-      'Selecione um membro do projeto responsável pela movimentação.',
-      400
-    );
-  }
-  return movedBy.trim();
+export function buildPagination(query = {}, defaultLimit = 20) {
+  const page = Number(query.page) || 1;
+  const limit = Number(query.limit) || defaultLimit;
+  return { page, limit, skip: (page - 1) * limit, take: limit };
 }

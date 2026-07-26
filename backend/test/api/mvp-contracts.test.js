@@ -10,7 +10,6 @@ import {
   createCommit,
   createIssue,
   createProject,
-  createProjectMember,
   createPullRequest,
   createRequirement,
   createTask
@@ -451,9 +450,18 @@ describe('contratos HTTP de tarefas', () => {
     expect(await prisma.commit.findUnique({ where: { id: commit.id } })).not.toBeNull();
     expect(await prisma.pullRequest.findUnique({ where: { id: pullRequest.id } })).not.toBeNull();
     expect(await prisma.issue.findUnique({ where: { id: issue.id } })).not.toBeNull();
+    expect(await prisma.taskCommit.count({ where: { taskId: task.id } })).toBe(0);
+    expect(await prisma.taskIssue.count({ where: { taskId: task.id } })).toBe(0);
+    expect(await prisma.taskMovement.count({ where: { taskId: task.id } })).toBe(0);
+    expect(await prisma.taskHistoryEntry.count({ where: { taskId: task.id } })).toBe(0);
+    expect(
+      await prisma.auditEvent.findFirst({
+        where: { action: 'TASK_DELETED', resourceId: String(task.id) }
+      })
+    ).not.toBeNull();
   });
 
-  it('preserva atualização direta de status sem criar TaskMovement', async () => {
+  it('faz a rota direta de status usar movimento, histórico e auditoria atômicos', async () => {
     const project = await createProject(prisma);
     const task = await createTask(prisma, project.id);
 
@@ -466,7 +474,11 @@ describe('contratos HTTP de tarefas', () => {
       message: 'Status da tarefa atualizado com sucesso.',
       task: { id: task.id, status: 'EM_ANDAMENTO' }
     });
-    expect(await prisma.taskMovement.count({ where: { taskId: task.id } })).toBe(0);
+    expect(await prisma.taskMovement.count({ where: { taskId: task.id } })).toBe(1);
+    expect(await prisma.taskHistoryEntry.findFirst({ where: { taskId: task.id } })).toMatchObject({
+      field: 'STATUS', fromValue: 'A_FAZER', toValue: 'EM_ANDAMENTO'
+    });
+    expect(await prisma.auditEvent.findFirst({ where: { action: 'TASK_MOVED', resourceId: String(task.id) } })).not.toBeNull();
     expect((await api.get('/api/tasks/invalido')).status).toBe(400);
     expect((await api.get('/api/tasks/999999')).status).toBe(404);
   });
@@ -494,6 +506,11 @@ describe('vínculos técnicos', () => {
     const unlinkResponse = await api.delete(`/api/tasks/${task.id}/pull-request`);
     expect(unlinkResponse.status).toBe(200);
     expect(unlinkResponse.body.task.pullRequest).toBeNull();
+    expect(
+      await prisma.auditEvent.count({
+        where: { action: { in: ['TASK_PULL_REQUEST_LINKED', 'TASK_PULL_REQUEST_UNLINKED'] } }
+      })
+    ).toBe(2);
   });
 
   it('caracteriza vínculo, duplicidade, projeto diferente e remoção de commit', async () => {
@@ -526,6 +543,11 @@ describe('vínculos técnicos', () => {
     );
     expect(unlinkResponse.status).toBe(200);
     expect(unlinkResponse.body.commits).toEqual([]);
+    expect(
+      await prisma.auditEvent.count({
+        where: { action: { in: ['TASK_COMMIT_LINKED', 'TASK_COMMIT_UNLINKED'] } }
+      })
+    ).toBe(2);
   });
 
   it('caracteriza vínculo, duplicidade, projeto diferente e remoção de issue', async () => {
@@ -555,6 +577,11 @@ describe('vínculos técnicos', () => {
     );
     expect(unlinkResponse.status).toBe(200);
     expect(unlinkResponse.body.issues).toEqual([]);
+    expect(
+      await prisma.auditEvent.count({
+        where: { action: { in: ['TASK_ISSUE_LINKED', 'TASK_ISSUE_UNLINKED'] } }
+      })
+    ).toBe(2);
   });
 
   it('preserva os contratos de listagem de commits e issues', async () => {
@@ -584,9 +611,6 @@ describe('vínculos técnicos', () => {
 describe('Kanban e histórico', () => {
   it('monta o quadro e persiste tarefa e movimento na mesma operação', async () => {
     const project = await createProject(prisma);
-    const member = await createProjectMember(prisma, project.id, {
-      name: 'Movimentador artificial'
-    });
     const task = await createTask(prisma, project.id);
 
     const boardResponse = await api.get(`/api/projects/${project.id}/kanban`);
@@ -599,7 +623,7 @@ describe('Kanban e histórico', () => {
 
     const moveResponse = await api
       .patch(`/api/tasks/${task.id}/move`)
-      .send({ toStatus: 'EM_ANDAMENTO', projectMemberId: member.id });
+      .send({ toStatus: 'EM_ANDAMENTO' });
     expect(moveResponse.status).toBe(200);
     expect(moveResponse.body).toMatchObject({
       message: 'Tarefa movida com sucesso.',
@@ -617,6 +641,7 @@ describe('Kanban e histórico', () => {
       status: 'EM_ANDAMENTO'
     });
     expect(await prisma.taskMovement.count({ where: { taskId: task.id } })).toBe(1);
+    expect(await prisma.taskHistoryEntry.count({ where: { taskId: task.id, field: 'STATUS' } })).toBe(1);
 
     const movementsResponse = await api
       .get(`/api/projects/${project.id}/kanban/movements`)
@@ -646,11 +671,106 @@ describe('Kanban e histórico', () => {
 
     const response = await api
       .patch(`/api/tasks/${task.id}/move`)
-      .send({ toStatus: 'A_FAZER', movedBy: 'Ator textual artificial' });
+      .send({ toStatus: 'A_FAZER' });
 
     expect(response.status).toBe(400);
     expect(response.body).toEqual({ message: 'A tarefa já está nesta coluna.' });
     expect(await prisma.taskMovement.count()).toBe(0);
+    expect(await prisma.taskHistoryEntry.count()).toBe(0);
+  });
+
+  it('rejeita ator enviado no body e sempre deriva a autoria da sessão', async () => {
+    const project = await createProject(prisma);
+    const task = await createTask(prisma, project.id);
+    const forged = await api.patch(`/api/tasks/${task.id}/move`).send({
+      toStatus: 'EM_ANDAMENTO', movedBy: 'Ator forjado'
+    });
+    expectValidationError(forged, 'movedBy');
+    expect(await prisma.taskMovement.count()).toBe(0);
+
+    await api.patch(`/api/tasks/${task.id}/move`).send({ toStatus: 'EM_ANDAMENTO' });
+    const movement = await prisma.taskMovement.findFirst({ where: { taskId: task.id } });
+    expect(movement).toMatchObject({ movedBy: 'Usuário E6 artificial', projectMemberId: null });
+    expect(movement.movedByUserId).not.toBeNull();
+  });
+
+  it('registra prazo, responsável e prioridade e pagina o histórico no backend', async () => {
+    const project = await createProject(prisma);
+    const responsible = await prisma.user.create({ data: { name: 'Responsável E11', email: 'responsavel-e11@example.invalid', passwordHash: 'fixture-only' } });
+    await prisma.projectMembership.create({ data: { projectId: project.id, userId: responsible.id, role: 'MEMBER' } });
+    const task = await createTask(prisma, project.id);
+
+    const updated = await api.put(`/api/tasks/${task.id}`).send({
+      deadline: '2026-08-10', priority: 'ALTA', responsibleUserId: responsible.id
+    });
+    expect(updated.status).toBe(200);
+    expect(updated.body.task).toMatchObject({ responsibleUserId: responsible.id, responsibleUser: { id: responsible.id, name: 'Responsável E11' }, responsible: 'Responsável E11' });
+    expect(await prisma.taskHistoryEntry.count({ where: { taskId: task.id } })).toBe(3);
+
+    await api.put(`/api/tasks/${task.id}`).send({ deadline: '2026-08-10', priority: 'ALTA', responsibleUserId: responsible.id });
+    expect(await prisma.taskHistoryEntry.count({ where: { taskId: task.id } })).toBe(3);
+
+    const firstPage = await api.get(`/api/projects/${project.id}/tasks/history`).query({ page: 1, limit: 2 });
+    expect(firstPage.body).toMatchObject({ total: 3, pagination: { page: 1, limit: 2, total: 3, totalPages: 2 } });
+    expect(firstPage.body.items).toHaveLength(2);
+    expect(firstPage.body.items[0].actor).toEqual(expect.objectContaining({ name: 'Usuário E6 artificial' }));
+    const filtered = await api.get(`/api/projects/${project.id}/tasks/history`).query({ field: 'RESPONSIBLE' });
+    expect(filtered.body).toMatchObject({ total: 1, items: [expect.objectContaining({ field: 'RESPONSIBLE', toValue: String(responsible.id) })] });
+  });
+
+  it('rejeita responsável sem membership ativa no mesmo projeto', async () => {
+    const project = await createProject(prisma);
+    const otherProject = await createProject(prisma);
+    const outsideUser = await prisma.user.create({
+      data: {
+        name: 'Responsável externo',
+        email: 'responsavel-externo-e11@example.invalid',
+        passwordHash: 'fixture-only'
+      }
+    });
+    await prisma.projectMembership.create({
+      data: { projectId: otherProject.id, userId: outsideUser.id, role: 'MEMBER' }
+    });
+
+    const crossProject = await api
+      .post(`/api/projects/${project.id}/tasks`)
+      .send({ title: 'Tarefa protegida', responsibleUserId: outsideUser.id });
+    expect(crossProject.status).toBe(400);
+    expect(crossProject.body).toEqual({
+      message: 'Usuário responsável não pertence ao projeto.'
+    });
+
+    await prisma.projectMembership.create({
+      data: {
+        projectId: project.id,
+        userId: outsideUser.id,
+        role: 'MEMBER',
+        isActive: false
+      }
+    });
+    const inactive = await api
+      .post(`/api/projects/${project.id}/tasks`)
+      .send({ title: 'Tarefa protegida', responsibleUserId: outsideUser.id });
+    expect(inactive.status).toBe(400);
+    expect(await prisma.task.count({ where: { projectId: project.id } })).toBe(0);
+
+    const textual = await api
+      .post(`/api/projects/${project.id}/tasks`)
+      .send({ title: 'Tarefa textual', responsible: 'Nome enviado pelo cliente' });
+    expectValidationError(textual, 'responsible');
+  });
+
+  it('protege atualização concorrente do mesmo status com conflito e sem histórico duplicado', async () => {
+    const project = await createProject(prisma);
+    const task = await createTask(prisma, project.id);
+    const [first, second] = await Promise.all([
+      api.patch(`/api/tasks/${task.id}/move`).send({ toStatus: 'EM_ANDAMENTO' }),
+      api.patch(`/api/tasks/${task.id}/move`).send({ toStatus: 'CONCLUIDO' })
+    ]);
+    expect([first.status, second.status].sort()).toEqual([200, 409]);
+    expect(await prisma.taskMovement.count({ where: { taskId: task.id } })).toBe(1);
+    expect(await prisma.taskHistoryEntry.count({ where: { taskId: task.id, field: 'STATUS' } })).toBe(1);
+    expect(await prisma.auditEvent.count({ where: { action: 'TASK_MOVED', resourceId: String(task.id) } })).toBe(1);
   });
 
   it('preserva métricas de tarefas e coberturas técnicas atuais', async () => {

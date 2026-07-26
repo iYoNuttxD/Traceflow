@@ -790,7 +790,7 @@ export function TasksPage() {
                   <dl className="task-details">
                     <div>
                       <dt>Responsável</dt>
-                      <dd>{task.responsible || 'Não informado'}</dd>
+                      <dd>{task.responsibleUser?.name || task.responsible || 'Não informado'}</dd>
                     </div>
                     <div>
                       <dt>Prazo</dt>

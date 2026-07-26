@@ -1,6 +1,7 @@
 import { taskCommitService } from './services/task-commit.service.js';
 import { taskCrudService } from './services/task-crud.service.js';
 import { taskIssueService } from './services/task-issue.service.js';
+import { taskHistoryService } from './services/task-history.service.js';
 import { taskKanbanService } from './services/task-kanban.service.js';
 import { taskMetricsService } from './services/task-metrics.service.js';
 import { taskMovementService } from './services/task-movement.service.js';
@@ -14,6 +15,7 @@ export const taskService = {
   ...pullRequestLinkService,
   ...taskCommitService,
   ...taskIssueService,
+  ...taskHistoryService,
   ...taskKanbanService,
   ...taskMovementService,
   ...taskMetricsService

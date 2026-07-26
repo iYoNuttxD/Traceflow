@@ -1,6 +1,6 @@
 # Inventário de dados pessoais do TRACEFLOW
 
-Baseline técnico atualizado na E10 em 25/07/2026. Este inventário apoia governança e não constitui conclusão jurídica; base legal, prazos obrigatórios e atendimento formal devem ser validados pelo controlador e assessoria competente.
+Baseline técnico atualizado na E11 em 26/07/2026. Este inventário apoia governança e não constitui conclusão jurídica; base legal, prazos obrigatórios e atendimento formal devem ser validados pelo controlador e assessoria competente.
 
 | Dado | Classificação | Origem/finalidade | Model | Acesso/compartilhamento | Retenção e correção | Exclusão/risco |
 |---|---|---|---|---|---|---|
@@ -8,7 +8,7 @@ Baseline técnico atualizado na E10 em 25/07/2026. Este inventário apoia govern
 | hash de senha | CREDENCIAL/SEGREDO | autenticação | `User.passwordHash` | somente backend/Argon2id | até troca ou anonimização | removido na anonimização; nunca exportado/logado |
 | sessão/CSRF/reset/convite | CREDENCIAL/SEGREDO | sessão e fluxos de prova | `Session`, `PasswordResetToken`, `ProjectInvitation` | backend; token bruto apenas navegador/e-mail | TTL e limpeza operacional | revogado/removido; risco crítico se vazado |
 | membership, papel e participação | DADO PESSOAL | autorização por projeto | `ProjectMembership` | integrantes do projeto, e-mail minimizado por papel | histórico durante o projeto/conta | desativação lógica; risco BOLA mitigado por RBAC |
-| responsável e movimentação | DADO TÉCNICO POTENCIALMENTE PESSOAL | atribuição e histórico Kanban | `Task`, `TaskMovement` | integrantes do projeto | histórico funcional | texto legado vira neutro na anonimização |
+| responsável, movimentação e histórico RF38 | DADO TÉCNICO POTENCIALMENTE PESSOAL | atribuição, autoria e histórico funcional | `Task.responsibleUserId`, `TaskMovement.movedByUserId`, `TaskHistoryEntry.actorUserId` | integrantes do projeto | ciclo da tarefa/projeto | DTOs expõem ID/nome mínimo; valores de responsável no histórico são IDs, sem e-mail |
 | vínculo Task–PR | DADO TÉCNICO | rastreabilidade singular da tarefa | `Task.pullRequestId` | integrantes autorizados | ciclo da tarefa/projeto | não possui ator próprio; a relação é removida com a Task ou anulada com a PR |
 | sugestão e decisão Commit–Task | DADO TÉCNICO/IDENTIFICADOR DE AÇÃO | sugestão RF41 e responsabilização da revisão | `TaskCommitSuggestion.reviewedByUserId` | integrantes autorizados; VIEWER pode consultar | ciclo do projeto; revisor incluído na exportação do titular | `SetNull` se o usuário for removido; DTO não expõe e-mail ou autoria do commit |
 | autoria de commit/login/e-mail | DADO TÉCNICO POTENCIALMENTE PESSOAL | rastreabilidade importada do GitHub por DTO mínimo | `Commit`, `PullRequest`, `Issue` | integrantes do projeto; RF06 e os grafos E10 não expõem `Commit.authorEmail` | acompanha artefato técnico | correlação é limitada e não é automaticamente identidade TRACEFLOW |
@@ -17,4 +17,4 @@ Baseline técnico atualizado na E10 em 25/07/2026. Este inventário apoia govern
 | segredos de infraestrutura | CREDENCIAL/SEGREDO | banco, GitHub e SMTP | variáveis de ambiente | operadores autorizados/backend | rotação operacional | nunca exportados, persistidos na UI ou logs |
 | código/link legado de acesso | CREDENCIAL/SEGREDO | compatibilidade de convite | `Project.accessCode/inviteLink` | backend e integrantes conforme UI legada | até retirada futura | não incluído na exportação; mecanismo residual inseguro |
 
-Campos legados `ProjectMember.name/email` permanecem por integridade. `Task.responsible` e `TaskMovement.movedBy` são neutralizados quando vinculados ao usuário anonimizado. Dados GitHub não são apagados automaticamente porque pertencem ao histórico externo do projeto e podem representar terceiros.
+Campos legados `ProjectMember.name/email` permanecem por integridade. `Task.responsible`, `TaskMovement.movedBy` e `projectMemberId` permanecem para registros históricos não reconciliados; novas escritas usam `User`. A auditoria local encontrou oito Tasks somente com responsável textual e dez movimentos somente com ator textual/membro legado, sem imprimir PII; por isso o contract destrutivo foi adiado. Dados GitHub não são apagados automaticamente porque pertencem ao histórico externo do projeto e podem representar terceiros.

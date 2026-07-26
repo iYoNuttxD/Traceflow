@@ -6,6 +6,7 @@ export const emptyTaskForm = {
   description: '',
   priority: 'MEDIA',
   responsible: '',
+  responsibleUserId: '',
   deadline: '',
   estimatedEffort: '',
   actualEffort: '',
@@ -21,6 +22,7 @@ export function taskToFormData(task) {
     description: task.description || '',
     priority: task.priority || 'MEDIA',
     responsible: task.responsible || '',
+    responsibleUserId: task.responsibleUserId ? String(task.responsibleUserId) : '',
     deadline: task.deadline ? task.deadline.slice(0, 10) : '',
     estimatedEffort: task.estimatedEffort ?? '',
     actualEffort: task.actualEffort ?? '',
@@ -46,7 +48,12 @@ function normalizeNumberField(value) {
 }
 
 function formatMemberName(member) {
-  return member.name || member.email || 'Membro sem nome';
+  const user = member.user || member;
+  return user.name || user.email || 'Membro sem nome';
+}
+
+function memberUserId(member) {
+  return member.user?.id || member.userId || member.id;
 }
 
 function formatPullRequestLabel(pullRequest) {
@@ -105,6 +112,10 @@ export function taskFormToPayload(formData, editing = false) {
   delete payload.status;
   delete payload.commitIds;
   delete payload.issueIds;
+  delete payload.responsible;
+  payload.responsibleUserId = formData.responsibleUserId
+    ? Number(formData.responsibleUserId)
+    : null;
 
   return payload;
 }
@@ -146,13 +157,12 @@ export function TaskForm({
   const [pullRequestSearch, setPullRequestSearch] = useState('');
   const [commitSearch, setCommitSearch] = useState('');
   const [issueSearch, setIssueSearch] = useState('');
-  const hasMembers = projectMembers.length > 0;
+  const activeMembers = projectMembers.filter((member) => member.isActive !== false && member.user?.isActive !== false);
+  const hasMembers = activeMembers.length > 0;
   const normalizedResponsible = normalizeText(formData.responsible);
   const hasLegacyResponsible =
     normalizedResponsible &&
-    !projectMembers.some(
-      (member) => normalizeText(formatMemberName(member)) === normalizedResponsible
-    );
+    !formData.responsibleUserId;
   const linkedCommitIds = new Set((formData.commitIds || []).map(String));
   const linkedIssueIds = new Set((formData.issueIds || []).map(String));
   const normalizedRequirementSearch = normalizeText(requirementSearch).toLowerCase();
@@ -338,27 +348,27 @@ export function TaskForm({
       <label className="field">
         <span>Responsável</span>
         <select
-          name="responsible"
-          value={formData.responsible}
+          name="responsibleUserId"
+          value={formData.responsibleUserId}
           onChange={handleChange}
-          disabled={!hasMembers && !hasLegacyResponsible}
+          disabled={!hasMembers}
         >
           <option value="">
             {hasMembers
               ? 'Selecione um responsável'
               : 'Nenhum membro cadastrado'}
           </option>
-          {hasLegacyResponsible && (
-            <option value={formData.responsible}>
-              Responsável atual: {formData.responsible}
-            </option>
-          )}
-          {projectMembers.map((member) => (
-            <option key={member.id} value={formatMemberName(member)}>
+          {activeMembers.map((member) => (
+            <option key={member.id} value={memberUserId(member)}>
               {formatMemberName(member)}
             </option>
           ))}
         </select>
+        {hasLegacyResponsible && (
+          <small className="field-help">
+            Responsável legado: {formData.responsible}. Selecione um usuário ativo para reconciliar.
+          </small>
+        )}
         {!hasMembers && (
           <small className="field-help">
             Cadastre membros no projeto para atribuir responsáveis às tarefas.

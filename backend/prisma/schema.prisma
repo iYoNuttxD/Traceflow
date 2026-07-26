@@ -51,6 +51,13 @@ enum TaskCommitSuggestionStatus {
   REJECTED
 }
 
+enum TaskHistoryField {
+  STATUS
+  DEADLINE
+  RESPONSIBLE
+  PRIORITY
+}
+
 model User {
   id              Int       @id @default(autoincrement())
   name            String
@@ -71,6 +78,7 @@ model User {
   acceptedInvitations           ProjectInvitation[]    @relation("InvitationAcceptor")
   responsibleTasks              Task[]
   taskMovements                 TaskMovement[]
+  taskHistoryEntries            TaskHistoryEntry[]
   auditEvents                   AuditEvent[]
   privacyRequests               PrivacyRequest[]
   personalDataExports           PersonalDataExport[]
@@ -180,6 +188,7 @@ model Project {
   tasks                 Task[]
   members               ProjectMember[]
   taskMovements         TaskMovement[]
+  taskHistoryEntries    TaskHistoryEntry[]
   commits               Commit[]
   pullRequests          PullRequest[]
   issues                Issue[]
@@ -299,6 +308,7 @@ model Task {
   requirement       Requirement?           @relation(fields: [requirementId], references: [id])
   pullRequest       PullRequest?           @relation(fields: [pullRequestId], references: [id], onDelete: SetNull)
   movements         TaskMovement[]
+  historyEntries    TaskHistoryEntry[]
   commitLinks       TaskCommit[]
   commitSuggestions TaskCommitSuggestion[]
   issueLinks        TaskIssue[]
@@ -407,6 +417,29 @@ model TaskMovement {
   @@index([movedAt])
   @@index([projectId, movedAt])
   @@index([taskId, movedAt])
+}
+
+// Histórico funcional e project-scoped exigido pelo RF38.
+// AuditEvent permanece como trilha transversal independente.
+model TaskHistoryEntry {
+  id          Int              @id @default(autoincrement())
+  projectId   Int
+  taskId      Int
+  actorUserId Int
+  field       TaskHistoryField
+  fromValue   String?
+  toValue     String?
+  occurredAt  DateTime         @default(now())
+  createdAt   DateTime         @default(now())
+
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task      Task    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  actorUser User    @relation(fields: [actorUserId], references: [id])
+
+  @@index([projectId, occurredAt])
+  @@index([taskId, occurredAt])
+  @@index([actorUserId, occurredAt])
+  @@index([field, occurredAt])
 }
 
 // Commit importado do repositorio GitHub vinculado ao projeto.

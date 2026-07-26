@@ -102,12 +102,12 @@ Tipos preservados: `FUNCIONAL`, `NAO_FUNCIONAL`, `REGRA_NEGOCIO`. Status preserv
 
 | Método | Caminho | Entrada principal | Sucesso |
 |---|---|---|---|
-| POST | `/projects/:projectId/tasks` | `projectId`; `title`; opcionais `description`, `priority`, `responsible`, `deadline`, efforts, `requirementId` | `201`, `{message,task}` |
+| POST | `/projects/:projectId/tasks` | `projectId`; `title`; opcionais `description`, `priority`, `responsibleUserId`, `deadline`, efforts, `requirementId` | `201`, `{message,task}` |
 | GET | `/projects/:projectId/tasks` | `projectId`, `search?` | `200`, `{total,tasks}` |
 | GET | `/tasks/:id` | `id` positivo | `200`, `{task}` |
 | PUT | `/tasks/:id` | `id`; subconjunto dos campos editáveis | `200`, `{message,task}` |
 | DELETE | `/tasks/:id` | `id` positivo | `200`, `{message}` |
-| PATCH | `/tasks/:id/status` | `status` | `200`, `{message,task}` |
+| PATCH | `/tasks/:id/status` | `status` | `200`, `{message,task}`; delega à transição canônica e cria movimento/histórico |
 | PATCH/DELETE | `/tasks/:id/requirement` | `requirementId` no PATCH | `200`, `{message,task}` |
 | PATCH/DELETE | `/tasks/:id/pull-request` | `pullRequestId` no PATCH; `null` continua aceito | `200`, `{message,task}` |
 | GET | `/tasks/:id/commits` | `id` | `200`, `{total,commits}` |
@@ -117,13 +117,14 @@ Tipos preservados: `FUNCIONAL`, `NAO_FUNCIONAL`, `REGRA_NEGOCIO`. Status preserv
 | POST | `/tasks/:id/issues` | `issueId` | `201`, `{message,issues}` |
 | DELETE | `/tasks/:id/issues/:issueId` | ambos positivos | `200`, `{message,issues}` |
 | GET | `/projects/:projectId/kanban` | `projectId` | `200`, quadro atual |
-| PATCH | `/tasks/:id/move` | `toStatus` e `projectMemberId` ou ator textual `movedBy`; `sprintId?` aceito conforme contrato atual | `200`, `{message,task,movement}` |
-| GET | `/projects/:projectId/kanban/movements` | datas, `taskId?`, `movedBy?` | `200`, `{projectId,total,movements}` |
+| PATCH | `/tasks/:id/move` | somente `toStatus`; o ator é obtido da sessão | `200`, `{message,task,movement}`; `409` em concorrência otimista |
+| GET | `/projects/:projectId/kanban/movements` | datas, `taskId?`, `actorUserId?`, `movedBy?`, `page?`, `limit?` | `200`, `{projectId,total,movements,pagination}` |
+| GET | `/projects/:projectId/tasks/history` | `taskId?`, `actorUserId?`, `field?`, datas, `page?`, `limit?` | `200`, `{projectId,total,items,pagination}` |
 | GET | `/projects/:projectId/kanban/metrics` | mesmos filtros atuais | `200`, métricas atuais |
 | GET | `/projects/:projectId/tasks/metrics` | `startDate?`, `endDate?` | `200`, métricas atuais |
 | GET | `/projects/:projectId/traceability/{pull-request,commit,issue}-coverage` | `projectId` | `200`, cobertura atual |
 
-Priority: `BAIXA`, `MEDIA`, `ALTA`, `CRITICA`. Status: `A_FAZER`, `EM_ANDAMENTO`, `CONCLUIDO`. Efforts são inteiros não negativos. Pertencimento, duplicidade, PR singular, autoria do movimento e transações permanecem nos services.
+Priority: `BAIXA`, `MEDIA`, `ALTA`, `CRITICA`. Status: `A_FAZER`, `EM_ANDAMENTO`, `CONCLUIDO`. Efforts são inteiros não negativos. `responsibleUserId` deve identificar usuário com membership ativa no projeto; respostas expõem apenas `{id,name}` em `responsibleUser`. `Task.responsible`, `TaskMovement.movedBy` e `projectMemberId` permanecem somente para dados históricos/compatibilidade de leitura. O histórico funcional usa `STATUS`, `DEADLINE`, `RESPONSIBLE` e `PRIORITY`; mudanças sem efeito não geram entrada.
 
 ## GitHub e Artifacts
 

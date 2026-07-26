@@ -1,5 +1,9 @@
 # Registro de risco de dependências
 
+## Revalidação E11
+
+Em 26/07/2026, o backend permaneceu com zero vulnerabilidades. O frontend manteve duas entradas altas do advisory `GHSA-qwww-vcr4-c8h2` em React Router RSC. O TRACEFLOW continua SPA client-side, sem RSC/actions; o audit propõe mudança incompatível e nenhuma correção automática foi executada. E11 não alterou dependências ou lockfiles.
+
 ## Revalidação E9
 
 Em 25/07/2026, nova execução manteve o backend com zero vulnerabilidades e o frontend com duas entradas altas do mesmo advisory React Router RSC já registrado abaixo. A E9 não alterou dependências nem lockfiles e não executou correção automática.

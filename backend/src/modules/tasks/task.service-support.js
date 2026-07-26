@@ -1,11 +1,5 @@
-import { requirementService } from '../requirements/requirement.service.js';
 import { taskRepository } from './task.repository.js';
-import {
-  TaskServiceError,
-  normalizeMovedBy,
-  parseProjectMemberId,
-  parseRequirementId
-} from './task.schema.js';
+import { TaskServiceError, parseRequirementId } from './task.schema.js';
 
 export async function ensureProjectExists(projectId) {
   const project = await taskRepository.findProjectById(projectId);
@@ -49,6 +43,7 @@ export function formatTask(task) {
   const { commitLinks = [], issueLinks = [], ...taskData } = task;
   return {
     ...taskData,
+    responsible: taskData.responsibleUser?.name || taskData.responsible || null,
     pullRequest: taskData.pullRequest || null,
     commits: commitLinks.map((link) => formatCommit(link.commit)).filter(Boolean),
     issues: issueLinks.map((link) => formatIssue(link.issue)).filter(Boolean)
@@ -80,30 +75,6 @@ export async function resolveResponsibleUser(projectId, userId) {
   return parsed;
 }
 
-export async function recalculateRelatedRequirements(...requirementIds) {
-  const uniqueIds = [...new Set(requirementIds.filter(Boolean).map(Number))];
-  await Promise.all(uniqueIds.map((id) => requirementService.recalculateRequirementStatus(id)));
-}
-
-export async function resolveMovementResponsible(task, payload) {
-  if (
-    payload.projectMemberId !== undefined &&
-    payload.projectMemberId !== null &&
-    payload.projectMemberId !== ''
-  ) {
-    const id = parseProjectMemberId(payload.projectMemberId);
-    const member = await taskRepository.findProjectMemberById(id);
-    if (!member || member.projectId !== task.projectId) {
-      throw new TaskServiceError('Membro do projeto não encontrado.', 404);
-    }
-    if (!member.isActive) {
-      throw new TaskServiceError('Membro inativo não pode movimentar tarefas.', 400);
-    }
-    return { projectMemberId: member.id, movedBy: member.name };
-  }
-  return { movedBy: normalizeMovedBy(payload.movedBy) };
-}
-
 export function formatMovement(movement) {
   return {
     id: movement.id,
@@ -111,9 +82,30 @@ export function formatMovement(movement) {
     taskTitle: movement.task?.title || null,
     fromStatus: movement.fromStatus,
     toStatus: movement.toStatus,
-    projectMemberId: movement.projectMemberId,
-    movedBy: movement.movedBy,
+    projectMemberId: null,
+    movedBy: movement.movedByUser?.name || movement.movedBy,
+    movedByUser: movement.movedByUser || null,
     movedAt: movement.movedAt,
     ...(movement.sprintId ? { sprintId: movement.sprintId } : {})
   };
+}
+
+export function historyValue(value, field) {
+  if (value === undefined || value === null || value === '') return null;
+  if (field === 'DEADLINE') return new Date(value).toISOString();
+  return String(value);
+}
+
+export function buildTaskHistoryChanges(current, next) {
+  const definitions = [
+    ['deadline', 'DEADLINE'],
+    ['responsibleUserId', 'RESPONSIBLE'],
+    ['priority', 'PRIORITY']
+  ];
+  return definitions.flatMap(([property, field]) => {
+    if (!(property in next)) return [];
+    const fromValue = historyValue(current[property], field);
+    const toValue = historyValue(next[property], field);
+    return fromValue === toValue ? [] : [{ field, fromValue, toValue }];
+  });
 }

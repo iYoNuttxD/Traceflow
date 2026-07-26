@@ -302,6 +302,10 @@ export const kanbanApi = {
     return api.get(`/projects/${projectId}/kanban/movements`, { params });
   },
 
+  listTaskHistory(projectId, params) {
+    return api.get(`/projects/${projectId}/tasks/history`, { params });
+  },
+
   getMetrics(projectId, params) {
     return api.get(`/projects/${projectId}/kanban/metrics`, { params });
   }

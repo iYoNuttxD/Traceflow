@@ -12,7 +12,7 @@ Prazos abaixo são defaults de engenharia, não prazos jurídicos definitivos. P
 | exportação temporária | metadata MySQL/resposta sob demanda | 15 minutos para download | sem arquivo público ou persistente; metadata expirada é removida pelo cleanup |
 | conta desativada | MySQL | 30 dias antes de revisão operacional | não é apagada automaticamente; anonimização exige solicitação elegível |
 | conta anonimizada | MySQL | histórico técnico necessário | perfil neutralizado; auditoria segue prazo próprio |
-| requisitos, tarefas, movements e artifacts | MySQL | ciclo do projeto, sem prazo automático | exclusão depende de política do projeto e análise futura |
+| requisitos, tarefas, movements, histórico RF38 e artifacts | MySQL | ciclo do projeto, sem prazo automático | `TaskHistoryEntry` é histórico funcional; hard delete da Task remove movement/history na transação, mas preserva `AuditEvent` |
 | vínculos `TaskCommit`, `TaskIssue` e `Task.pullRequestId` | MySQL | ciclo da tarefa/projeto | excluir Task remove joins/FK; Commit, PullRequest e Issue importados são preservados |
 | `ProjectMember` legado | MySQL | até migração contratual futura | não é prova de identidade; nenhuma remoção E7 |
 | logs | destino operacional | a definir no deploy, recomendação inicial 30–90 dias | stdout local não implementa política do agregador |

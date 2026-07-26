@@ -58,6 +58,8 @@ const taskFields = {
   status: true,
   priority: true,
   responsible: true,
+  responsibleUserId: true,
+  responsibleUser: { select: { id: true, name: true } },
   deadline: true,
   estimatedEffort: true,
   actualEffort: true

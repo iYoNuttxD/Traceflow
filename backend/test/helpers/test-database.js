@@ -50,6 +50,7 @@ export async function cleanTestDatabase(prisma) {
     prisma.taskCommitSuggestion.deleteMany(),
     prisma.taskCommit.deleteMany(),
     prisma.taskIssue.deleteMany(),
+    prisma.taskHistoryEntry.deleteMany(),
     prisma.taskMovement.deleteMany(),
     prisma.task.deleteMany(),
     prisma.requirement.deleteMany(),

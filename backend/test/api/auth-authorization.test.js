@@ -142,8 +142,14 @@ describe('identidade, sessão, CSRF e autorização E6', () => {
     const outsider = await register('trace-outsider@example.invalid');
 
     expect((await viewer.agent.get(`/api/projects/${project.id}/traceability/tasks/${task.id}`)).status).toBe(200);
+    expect((await viewer.agent.get(`/api/projects/${project.id}/tasks/history`)).status).toBe(200);
+    expect(
+      (await viewer.mutate('patch', `/api/tasks/${task.id}/move`).send({ toStatus: 'EM_ANDAMENTO' }))
+        .status
+    ).toBe(403);
     expect((await viewer.mutate('put', `/api/requirements/${requirement.id}/tasks`).send({ taskIds: [task.id] })).status).toBe(403);
     expect((await outsider.agent.get(`/api/projects/${project.id}/traceability/tasks/${task.id}`)).status).toBe(404);
+    expect((await outsider.agent.get(`/api/projects/${project.id}/tasks/history`)).status).toBe(404);
     expect((await owner.mutate('put', `/api/requirements/${requirement.id}/tasks`).send({ taskIds: [task.id] })).status).toBe(200);
   });
 

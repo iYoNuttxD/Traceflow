@@ -93,7 +93,7 @@ describe('ProjectDetailsPage E9', () => {
     renderPage();
     await screen.findByRole('heading', { name: 'Projeto E9' });
     expect(screen.queryByRole('button', { name: 'Sincronizar' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Analisar commits para sugestões' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Analisar commits para sugestões' })).toBeInTheDocument();
   });
 
   it('analisa commits históricos no contexto do projeto e mostra apenas contagens', async () => {

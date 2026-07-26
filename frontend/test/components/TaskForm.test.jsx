@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { TaskForm, emptyTaskForm } from '../../src/components/TaskForm.jsx';
+import { TaskForm, emptyTaskForm, taskFormToPayload } from '../../src/components/TaskForm.jsx';
 
 function TaskFormHarness({ onSubmit, editing = false, submitting = false, members = [], ...props }) {
   const [formData, setFormData] = useState(emptyTaskForm);
@@ -45,6 +45,31 @@ describe('TaskForm', () => {
 
     expect(screen.getByLabelText('Esforço realizado')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Salvando...' })).toBeDisabled();
+  });
+
+  it('usa o usuário de uma membership ativa como responsável canônico', async () => {
+    const user = userEvent.setup();
+    render(
+      <TaskFormHarness
+        onSubmit={vi.fn((event) => event.preventDefault())}
+        members={[
+          { id: 10, isActive: true, userId: 42, user: { id: 42, name: 'Pessoa ativa' } },
+          { id: 11, isActive: false, userId: 57, user: { id: 57, name: 'Pessoa inativa' } }
+        ]}
+      />
+    );
+
+    const responsible = screen.getByRole('combobox', { name: /Responsável/ });
+    await user.selectOptions(responsible, '42');
+
+    expect(responsible).toHaveValue('42');
+    expect(screen.queryByRole('option', { name: 'Pessoa inativa' })).not.toBeInTheDocument();
+    expect(taskFormToPayload({ ...emptyTaskForm, responsibleUserId: '42' })).toMatchObject({
+      responsibleUserId: 42
+    });
+    expect(taskFormToPayload({ ...emptyTaskForm, responsible: 'Nome legado' })).not.toHaveProperty(
+      'responsible'
+    );
   });
 
   it('separa busca manual e commits vinculados, filtrando por SHA ou mensagem', async () => {

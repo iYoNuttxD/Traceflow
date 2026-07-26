@@ -12,6 +12,7 @@ import {
   taskIdParamsSchema,
   taskIssueBodySchema,
   taskIssueParamsSchema,
+  taskHistoryQuerySchema,
   taskProjectParamsSchema,
   pullRequestLinkBodySchema,
   taskRequirementBodySchema,
@@ -25,6 +26,7 @@ const router = Router();
 router.post('/projects/:projectId/tasks', validateRequest({ params: taskProjectParamsSchema, body: createTaskBodySchema }), taskController.create);
 router.get('/projects/:projectId/tasks', validateRequest({ params: taskProjectParamsSchema, query: taskSearchQuerySchema }), taskController.findByProject);
 router.get('/projects/:projectId/tasks/metrics', validateRequest({ params: taskProjectParamsSchema, query: taskDateRangeQuerySchema }), taskController.getMetrics);
+router.get('/projects/:projectId/tasks/history', validateRequest({ params: taskProjectParamsSchema, query: taskHistoryQuerySchema }), taskController.listHistory);
 router.get('/projects/:projectId/kanban', validateRequest({ params: taskProjectParamsSchema }), taskController.getKanbanBoard);
 router.get('/projects/:projectId/kanban/movements', validateRequest({ params: taskProjectParamsSchema, query: movementQuerySchema }), taskController.listMovements);
 router.get('/projects/:projectId/kanban/metrics', validateRequest({ params: taskProjectParamsSchema, query: movementQuerySchema }), taskController.getKanbanMetrics);

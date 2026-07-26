@@ -41,6 +41,12 @@ const priorityLabels = {
   ALTA: 'Alta',
   CRITICA: 'Crítica'
 };
+const historyFieldLabels = {
+  STATUS: 'Status',
+  DEADLINE: 'Prazo',
+  RESPONSIBLE: 'Responsável',
+  PRIORITY: 'Prioridade'
+};
 const MOVEMENTS_PER_PAGE = 10;
 
 function getErrorMessage(error, fallback) {
@@ -61,6 +67,18 @@ function formatDateTime(value) {
   }
 
   return new Date(value).toLocaleString('pt-BR');
+}
+
+function formatHistoryValue(field, value, members) {
+  if (value === null || value === undefined || value === '') return 'Não informado';
+  if (field === 'STATUS') return statusLabels[value] || value;
+  if (field === 'PRIORITY') return priorityLabels[value] || value;
+  if (field === 'DEADLINE') return formatDate(value);
+  if (field === 'RESPONSIBLE') {
+    const membership = members.find((item) => String(item.user?.id || item.userId) === String(value));
+    return membership?.user?.name || `Usuário #${value}`;
+  }
+  return value;
 }
 
 function buildPeriodParams(period) {
@@ -184,10 +202,11 @@ export function KanbanPage() {
   const [metrics, setMetrics] = useState(null);
   const [movements, setMovements] = useState([]);
   const [projectMembers, setProjectMembers] = useState([]);
-  const [selectedProjectMemberId, setSelectedProjectMemberId] = useState('');
   const [period, setPeriod] = useState({ startDate: '', endDate: '' });
   const [movementMemberFilter, setMovementMemberFilter] = useState('');
+  const [historyFieldFilter, setHistoryFieldFilter] = useState('');
   const [movementPage, setMovementPage] = useState(1);
+  const [movementPagination, setMovementPagination] = useState({ page: 1, limit: MOVEMENTS_PER_PAGE, total: 0, totalPages: 0 });
   const [selectedTask, setSelectedTask] = useState(null);
   const [loading, setLoading] = useState(true);
   const [movingTaskId, setMovingTaskId] = useState(null);
@@ -206,39 +225,14 @@ export function KanbanPage() {
     return KANBAN_COLUMNS.flatMap((column) => board.columns[column.status] || []);
   }, [board]);
 
-  const filteredMovements = useMemo(() => {
-    if (!movementMemberFilter) {
-      return movements;
-    }
-
-    const selectedMember = projectMembers.find(
-      (member) => String(member.id) === String(movementMemberFilter)
-    );
-
-    return movements.filter((movement) => {
-      if (movement.projectMemberId !== undefined && movement.projectMemberId !== null) {
-        return String(movement.projectMemberId) === String(movementMemberFilter);
-      }
-
-      return selectedMember ? movement.movedBy === selectedMember.name : false;
-    });
-  }, [movementMemberFilter, movements, projectMembers]);
-
-  const totalMovementPages = Math.max(
-    1,
-    Math.ceil(filteredMovements.length / MOVEMENTS_PER_PAGE)
-  );
+  const totalMovementPages = Math.max(1, movementPagination.totalPages || 1);
   const currentMovementPage = Math.min(movementPage, totalMovementPages);
   const movementStartIndex = (currentMovementPage - 1) * MOVEMENTS_PER_PAGE;
-  const paginatedMovements = filteredMovements.slice(
-    movementStartIndex,
-    movementStartIndex + MOVEMENTS_PER_PAGE
-  );
   const movementRangeStart =
-    filteredMovements.length === 0 ? 0 : movementStartIndex + 1;
+    movementPagination.total === 0 ? 0 : movementStartIndex + 1;
   const movementRangeEnd = Math.min(
-    movementStartIndex + MOVEMENTS_PER_PAGE,
-    filteredMovements.length
+    movementStartIndex + movements.length,
+    movementPagination.total
   );
 
   const loadKanban = useCallback(
@@ -252,7 +246,7 @@ export function KanbanPage() {
             api.get(`/projects/${projectId}`),
             kanbanApi.getBoard(projectId),
             kanbanApi.getMetrics(projectId, params),
-            kanbanApi.listMovements(projectId, params),
+            kanbanApi.listTaskHistory(projectId, { ...params, page: 1, limit: MOVEMENTS_PER_PAGE }),
             projectMembersApi.listProjectMembers(projectId)
           ]);
 
@@ -260,9 +254,9 @@ export function KanbanPage() {
         setProject(projectResponse.data.project);
         setBoard(boardResponse.data);
         setMetrics(metricsResponse.data);
-        setMovements(movementsResponse.data.movements || []);
+        setMovements(movementsResponse.data.items || []);
+        setMovementPagination(movementsResponse.data.pagination || { page: 1, limit: MOVEMENTS_PER_PAGE, total: movementsResponse.data.total || 0, totalPages: 1 });
         setProjectMembers(members);
-        setSelectedProjectMemberId((current) => current || String(members[0]?.id || ''));
       } catch (requestError) {
         setError(getErrorMessage(requestError, 'Não foi possível carregar o Kanban.'));
       } finally {
@@ -276,44 +270,20 @@ export function KanbanPage() {
     loadKanban();
   }, [loadKanban]);
 
-  useEffect(() => {
-    if (projectMembers.length === 0) {
-      setSelectedProjectMemberId('');
-      return;
-    }
-
-    const selectedStillExists = projectMembers.some(
-      (member) => String(member.id) === String(selectedProjectMemberId)
-    );
-
-    if (!selectedStillExists) {
-      setSelectedProjectMemberId(String(projectMembers[0].id));
-    }
-  }, [projectMembers, selectedProjectMemberId]);
-
-  useEffect(() => {
-    setMovementPage(1);
-  }, [movementMemberFilter, movements]);
-
-  async function refreshKanban(params = buildPeriodParams(period)) {
+  async function refreshKanban(params = { ...buildPeriodParams(period), page: movementPage, limit: MOVEMENTS_PER_PAGE, ...(movementMemberFilter ? { actorUserId: movementMemberFilter } : {}), ...(historyFieldFilter ? { field: historyFieldFilter } : {}) }) {
     const [boardResponse, metricsResponse, movementsResponse] = await Promise.all([
       kanbanApi.getBoard(projectId),
       kanbanApi.getMetrics(projectId, params),
-      kanbanApi.listMovements(projectId, params)
+      kanbanApi.listTaskHistory(projectId, params)
     ]);
 
     setBoard(boardResponse.data);
     setMetrics(metricsResponse.data);
-    setMovements(movementsResponse.data.movements || []);
+    setMovements(movementsResponse.data.items || []);
+    setMovementPagination(movementsResponse.data.pagination || { page: 1, limit: MOVEMENTS_PER_PAGE, total: movementsResponse.data.total || 0, totalPages: 1 });
   }
 
   async function moveTaskToStatus(task, toStatus) {
-    if (!selectedProjectMemberId) {
-      setError('Selecione o responsável pela movimentação antes de mover a tarefa.');
-      setSuccess('');
-      return;
-    }
-
     if (toStatus === task.status) {
       return;
     }
@@ -323,23 +293,13 @@ export function KanbanPage() {
     setSuccess('');
 
     try {
-      const response = await kanbanApi.moveTask(task.id, {
-        toStatus,
-        projectMemberId: Number(selectedProjectMemberId)
-      });
+      const response = await kanbanApi.moveTask(task.id, { toStatus });
       const movedTask = response.data.task;
 
       setSuccess(response.data.message);
       setBoard((currentBoard) => updateBoardWithMovedTask(currentBoard, movedTask));
 
       if (response.data.movement) {
-        setMovements((current) => [
-          {
-            ...response.data.movement,
-            taskTitle: movedTask?.title || task.title
-          },
-          ...current
-        ]);
         setMetrics((current) =>
           current
             ? {
@@ -362,6 +322,9 @@ export function KanbanPage() {
       });
     } catch (requestError) {
       setError(getErrorMessage(requestError, 'Não foi possível mover a tarefa.'));
+      if (requestError.response?.status === 409) {
+        refreshKanban().catch(() => {});
+      }
     } finally {
       setMovingTaskId(null);
     }
@@ -570,7 +533,7 @@ export function KanbanPage() {
     setMovementPage(1);
 
     try {
-      await refreshKanban(buildPeriodParams(period));
+      await refreshKanban({ ...buildPeriodParams(period), ...(movementMemberFilter ? { actorUserId: movementMemberFilter } : {}), ...(historyFieldFilter ? { field: historyFieldFilter } : {}), page: 1, limit: MOVEMENTS_PER_PAGE });
     } catch (requestError) {
       setError(getErrorMessage(requestError, 'Não foi possível consultar o período.'));
     }
@@ -579,14 +542,31 @@ export function KanbanPage() {
   async function clearPeriod() {
     setPeriod({ startDate: '', endDate: '' });
     setMovementMemberFilter('');
+    setHistoryFieldFilter('');
     setMovementPage(1);
     setError('');
     setSuccess('');
 
     try {
-      await refreshKanban({});
+      await refreshKanban({ page: 1, limit: MOVEMENTS_PER_PAGE });
     } catch (requestError) {
       setError(getErrorMessage(requestError, 'Não foi possível limpar o período.'));
+    }
+  }
+
+  async function changeMovementPage(nextPage) {
+    setMovementPage(nextPage);
+    setError('');
+    try {
+      await refreshKanban({
+        ...buildPeriodParams(period),
+        ...(movementMemberFilter ? { actorUserId: movementMemberFilter } : {}),
+        ...(historyFieldFilter ? { field: historyFieldFilter } : {}),
+        page: nextPage,
+        limit: MOVEMENTS_PER_PAGE
+      });
+    } catch (requestError) {
+      setError(getErrorMessage(requestError, 'Não foi possível carregar a página do histórico.'));
     }
   }
 
@@ -617,26 +597,7 @@ export function KanbanPage() {
       ) : (
         <>
           <section className="kanban-toolbar">
-            <div className="field kanban-owner-field">
-              <span>Responsável pela movimentação</span>
-              {projectMembers.length > 0 ? (
-                <select
-                  value={selectedProjectMemberId}
-                  onChange={(event) => setSelectedProjectMemberId(event.target.value)}
-                >
-                  {projectMembers.map((member) => (
-                    <option key={member.id} value={member.id}>
-                      {member.name} {member.role ? `- ${member.role}` : ''}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <p className="kanban-members-empty">
-                  Nenhum membro interno cadastrado. Cadastre membros no projeto para atribuir
-                  responsáveis às tarefas.
-                </p>
-              )}
-            </div>
+            <p className="kanban-members-empty">A autoria das movimentações é obtida da sessão autenticada.</p>
 
             <div className="kanban-metric-panel">
               <span className="eyebrow">{metrics?.indicator}</span>
@@ -700,7 +661,7 @@ export function KanbanPage() {
                             <dl className="kanban-task-details">
                               <div>
                                 <dt>Responsável</dt>
-                                <dd>{task.responsible || 'Não informado'}</dd>
+                                <dd>{task.responsibleUser?.name || task.responsible || 'Não informado'}</dd>
                               </div>
                               <div>
                                 <dt>Prazo</dt>
@@ -728,11 +689,11 @@ export function KanbanPage() {
           <section className="kanban-history">
             <div className="kanban-section-header">
               <div>
-                <h2>Histórico de movimentações</h2>
-                <p>Total filtrado: {filteredMovements.length}</p>
+                <h2>Histórico de tarefas</h2>
+                <p>Total filtrado: {movementPagination.total}</p>
                 <p>
                   Exibindo {movementRangeStart}–{movementRangeEnd} de{' '}
-                  {filteredMovements.length}
+                  {movementPagination.total}
                 </p>
               </div>
 
@@ -746,6 +707,13 @@ export function KanbanPage() {
                       setPeriod((current) => ({ ...current, startDate: event.target.value }))
                     }
                   />
+                </label>
+                <label className="field">
+                  <span>Campo</span>
+                  <select value={historyFieldFilter} onChange={(event) => setHistoryFieldFilter(event.target.value)}>
+                    <option value="">Todos os campos</option>
+                    {Object.entries(historyFieldLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </select>
                 </label>
                 <label className="field">
                   <span>Data final</span>
@@ -764,9 +732,9 @@ export function KanbanPage() {
                     onChange={(event) => setMovementMemberFilter(event.target.value)}
                   >
                     <option value="">Todos os membros</option>
-                    {projectMembers.map((member) => (
-                      <option key={member.id} value={member.id}>
-                        {member.name || member.email || 'Membro sem nome'}
+                    {projectMembers.filter((member) => member.isActive !== false).map((member) => (
+                      <option key={member.id} value={member.user?.id || member.userId}>
+                        {member.user?.name || 'Membro sem nome'}
                       </option>
                     ))}
                   </select>
@@ -774,7 +742,7 @@ export function KanbanPage() {
                 <button className="button button-secondary" type="submit">
                   Filtrar
                 </button>
-                {(metrics?.startDate || metrics?.endDate || movementMemberFilter) && (
+                {(metrics?.startDate || metrics?.endDate || movementMemberFilter || historyFieldFilter) && (
                   <button
                     className="button button-secondary metrics-clear"
                     type="button"
@@ -786,33 +754,28 @@ export function KanbanPage() {
               </form>
             </div>
 
-            {filteredMovements.length === 0 ? (
-              <p className="empty-state">Nenhuma movimentação registrada.</p>
+            {movementPagination.total === 0 ? (
+              <p className="empty-state">Nenhuma alteração registrada.</p>
             ) : (
               <>
                 <div className="movement-list">
-                  {paginatedMovements.map((movement) => (
+                  {movements.map((movement) => (
                     <article className="movement-item" key={movement.id}>
                       <strong>{movement.taskTitle || `Tarefa #${movement.taskId}`}</strong>
-                      <span>
-                        {statusLabels[movement.fromStatus] || movement.fromStatus} para{' '}
-                        {statusLabels[movement.toStatus] || movement.toStatus}
-                      </span>
-                      <span>{movement.movedBy}</span>
-                      <time dateTime={movement.movedAt}>{formatDateTime(movement.movedAt)}</time>
+                      <span>{historyFieldLabels[movement.field] || movement.field}: {formatHistoryValue(movement.field, movement.fromValue, projectMembers)} para {formatHistoryValue(movement.field, movement.toValue, projectMembers)}</span>
+                      <span>{movement.actor?.name || `Usuário #${movement.actorUserId}`}</span>
+                      <time dateTime={movement.occurredAt}>{formatDateTime(movement.occurredAt)}</time>
                     </article>
                   ))}
                 </div>
 
-                {filteredMovements.length > MOVEMENTS_PER_PAGE && (
+                {movementPagination.total > MOVEMENTS_PER_PAGE && (
                   <div className="movement-pagination">
                     <button
                       className="button button-secondary"
                       type="button"
                       disabled={currentMovementPage === 1}
-                      onClick={() =>
-                        setMovementPage((current) => Math.max(1, current - 1))
-                      }
+                      onClick={() => changeMovementPage(Math.max(1, currentMovementPage - 1))}
                     >
                       Anterior
                     </button>
@@ -823,11 +786,7 @@ export function KanbanPage() {
                       className="button button-secondary"
                       type="button"
                       disabled={currentMovementPage === totalMovementPages}
-                      onClick={() =>
-                        setMovementPage((current) =>
-                          Math.min(totalMovementPages, current + 1)
-                        )
-                      }
+                      onClick={() => changeMovementPage(Math.min(totalMovementPages, currentMovementPage + 1))}
                     >
                       Próxima
                     </button>
@@ -891,7 +850,7 @@ export function KanbanPage() {
                   </div>
                   <div>
                     <dt>Responsável</dt>
-                    <dd>{selectedTask.responsible || 'Não informado'}</dd>
+                    <dd>{selectedTask.responsibleUser?.name || selectedTask.responsible || 'Não informado'}</dd>
                   </div>
                   <div>
                     <dt>Prazo</dt>
