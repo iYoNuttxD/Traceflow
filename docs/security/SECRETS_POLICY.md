@@ -39,6 +39,6 @@ Os prazos são baseline técnica e precisam ser alinhados à operação real. A 
 
 ## Ferramentas e lacunas
 
-`npm run security:secrets` examina arquivos versionados e não ignorados por padrões de token GitHub, URL MySQL com senha, chave privada, AWS key e JWT secret. O scanner ignora exemplos artificiais conhecidos e fixtures de teste; um teste controlado prova a detecção. Ele é uma barreira local, não substitui secret manager, scanner histórico ou integração CI. A obrigatoriedade no CI pertence à E14.
+`npm run security:secrets` examina arquivos versionados e não ignorados por padrões de token GitHub, URL MySQL com senha, chave privada, AWS key e JWT secret. O scanner ignora somente exemplos artificiais conhecidos e fixtures controladas; um teste prova a detecção e a E14 tornou sua execução obrigatória na CI. Ele não substitui secret manager, scanner de todo o histórico Git nem resposta operacional a incidentes.
 
-Produção deve migrar os valores para secret manager com auditoria, identidade de workload, rotação e acesso temporário. Essa migração não foi implementada na E5.
+Produção deve migrar os valores para secret manager com auditoria, identidade de workload, rotação e acesso temporário. Essa capacidade permanece como risco operacional registrado no backlog da E15.

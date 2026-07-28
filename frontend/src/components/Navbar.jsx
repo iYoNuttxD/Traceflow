@@ -1,5 +1,5 @@
 // Navegacao principal inicial do TRACEFLOW.
-// TODO: Adicionar links contextuais quando o projeto ativo estiver disponivel.
+// Navegação global; a navegação contextual de projeto fica em ProjectSectionNav.
 import { Link } from 'react-router';
 import { useAuth } from '../features/auth/index.js';
 

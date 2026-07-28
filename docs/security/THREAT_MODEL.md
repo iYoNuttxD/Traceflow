@@ -12,7 +12,7 @@ Novas ameaças tratadas/testadas: credential stuffing, fixation/hijacking, CSRF,
 
 ## Escopo e método
 
-Este threat model nasceu na E5 e foi atualizado na E6; usa STRIDE como guia e não é certificação formal. Identidade, sessão e autorização agora existem, com as lacunas operacionais explicitadas acima.
+Este threat model nasceu na E5 e foi consolidado na E15; usa STRIDE como guia e não é certificação formal. Identidade, sessão, autorização, auditoria e gates de supply chain existem, com as lacunas operacionais explicitadas abaixo.
 
 ## Atualização E8
 
@@ -77,14 +77,14 @@ O backend não faz fetch genérico de URLs informadas pelo cliente. A integraç�
 | Tampering | Alteração por ID/BOLA | MÉDIO | membership, resolução de recurso, deny-by-default e matriz de papéis | manter testes ao adicionar endpoints |
 | Elevação de privilégio | MEMBER altera papel, desativa OWNER ou projeto fica sem OWNER | ALTO | OWNER-only, IDs do mesmo projeto, transação serializável e `LAST_PROJECT_OWNER` | concorrência deve continuar coberta em mudanças futuras |
 | Information disclosure | Reset/convite exposto em resposta, log ou adapter | CRÍTICO | hash no banco, resposta apenas em teste, SMTP/capture explícito, redaction e templates escapados | proteger caixa postal e SMTP; rotação após incidente |
-| Repudiation | `movedBy` e ator textual forjáveis | ALTO | request ID, logs JSON e eventos de operações sensíveis | E6/E7: identidade e AuditEvent com retenção/acesso |
-| Information disclosure | Token, banco, e-mail ou erro externo em resposta/log | ALTO | error handler seguro, redaction, scanner e política de segredos | Secret manager, acesso/retenção de logs e minimização E7 |
+| Repudiation | autoria de mutação não comprovável | ALTO | ator da sessão, `AuditEvent`, `TaskHistoryEntry`, request ID e metadata allowlist; snapshots anteriores à identidade não são associados artificialmente | garantir retenção e acesso aos logs no ambiente real |
+| Information disclosure | Token, banco, e-mail ou erro externo em resposta/log | ALTO | error handler seguro, redaction, scanner obrigatório na CI e minimização de DTOs | secret manager e governança dos logs externos |
 | Information disclosure | Enumeração de projetos/códigos | CRÍTICO | membership/BOLA, convite canônico e rate limit/log do join legado | `accessCode` legado ainda distingue falha e deve ser descontinuado após migração |
 | Denial of service | JSON grande ou malformado | ALTO | limite explícito de 100kb, `413`, `400` e `415` seguros | Limites de proxy e coleções devem ser alinhados no deploy |
 | Denial of service | Abuso geral/join/GitHub sync | ALTO | limiters geral/sensíveis, chave IP+projectId, paginação e trava concorrente por projeto | MemoryStore e trava não são distribuídos; IP não equivale a usuário |
 | Denial of service | GitHub lento/indisponível | ALTO | timeout 15s, retry limitado, backoff/jitter e normalização 403/429 | Sem circuit breaker, fila, checkpoint ou scheduler |
 | SSRF | URL externa aponta para localhost, rede privada ou metadata | ALTO | somente HTTPS e hosts `github.com`/`api.github.com`; base Octokit fixa | GitHub Enterprise não suportado; novas integrações exigem revisão |
-| Supply chain | Dependência vulnerável ou segredo versionado | ALTO | lockfiles, `npm audit`, atualizações pontuais e scanner local | Scanner não está no CI até E14; React Router RSC mantém advisory não aplicável à SPA |
+| Supply chain | Dependência vulnerável ou segredo versionado | ALTO | lockfiles, política executável de audit, Dependency Review, scanner obrigatório e actions fixadas | SBOM, gate de licenças e revisão operacional contínua ainda necessários |
 | Misconfiguration | CORS aberto, proxy irrestrito, segredo ausente | ALTO | configuração fail-fast, allowlist obrigatória em produção e `trust proxy` explícito | TLS/HSTS e headers do host da SPA dependem do ambiente de deploy |
 | Clickjacking/XSS | Conteúdo incorporado ou interpretado no contexto errado | MÉDIO | CSP restritiva, `frame-ancestors`, `nosniff`, frameguard e referrer policy na API | CSP do servidor que hospeda a SPA ainda precisa ser configurada/validada |
 
@@ -95,4 +95,4 @@ O backend não faz fetch genérico de URLs informadas pelo cliente. A integraç�
 - `accessCode` legado com `Math.random()` permanece deprecado e com rate limit; convites canônicos usam token aleatório, hash, expiração, revogação e consumo único.
 - TLS termina no reverse proxy; Express não implementa TLS. HSTS é habilitado apenas quando `NODE_ENV=production`.
 - O frontend é servido separadamente; CSP/HSTS do documento HTML precisam ser aplicados no host da SPA.
-- E7 adicionou minimização de exportação, auditoria persistente crítica/operacional, retenção manual e anonimização seletiva. Riscos residuais: jobs/logs/backups do deploy, fallback operacional do logger, confirmação de e-mail e revisão jurídica.
+- E7 adicionou minimização de exportação, auditoria persistente crítica/operacional, retenção manual e anonimização seletiva. A E15 adicionou runbooks e inventário final, mas jobs/logs/backups do deploy, confirmação de e-mail, secret manager e revisão jurídica permanecem riscos residuais.

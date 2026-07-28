@@ -5,7 +5,7 @@
 
 ## Decisão
 
-`ProjectMembership` vincula `User` e `Project` com `OWNER`, `MANAGER`, `MEMBER` ou `VIEWER`. A política é deny-by-default e resolve o projeto antes de acessar recursos filhos (`Requirement`, `Task`, `GithubArtifact`, `TraceLink`). Ausência de membership retorna `404` para reduzir enumeração; membership existente sem papel suficiente retorna `403`.
+`ProjectMembership` vincula `User` e `Project` com `OWNER`, `MANAGER`, `MEMBER` ou `VIEWER`. A política é deny-by-default e resolve o projeto antes de acessar recursos filhos (`Requirement`, `Task`, `Commit`, `PullRequest`, `Issue` e sugestões). Ausência de membership retorna `404` para reduzir enumeração; membership existente sem papel suficiente retorna `403`.
 
 | Operação | VIEWER | MEMBER | MANAGER | OWNER |
 |---|---:|---:|---:|---:|
@@ -16,8 +16,8 @@
 
 Criação de projeto e membership OWNER são uma transação. Listagem de projetos é filtrada por membership. O ator de `TaskMovement` passa a ser o usuário da sessão. `ProjectMember`, `movedBy` e `projectMemberId` permanecem apenas para compatibilidade expand/backfill/switch; não são prova de identidade.
 
-Endpoints `501` são privados: sem sessão retornam `401`; autenticados continuam `501`. O middleware não implementa esses endpoints.
+O único endpoint `501` restante é `DELETE /api/projects/:id`: sem sessão retorna `401`; autenticado continua `501`. O middleware não implementa a exclusão.
 
 ## Consequências e lacunas
 
-As políticas hoje são código central testado, não ABAC. Transferência do último OWNER, remoção/desativação administrativa completa e auditoria persistente são trabalhos posteriores. Rate limit continua por IP/projeto até existir store distribuído.
+As políticas são código central testado, não ABAC. Transferência e proteção do último OWNER, administração de memberships e auditoria persistente foram concluídas nas E6/E7. Rate limit continua por IP/projeto e precisa de store distribuído em implantação horizontal.

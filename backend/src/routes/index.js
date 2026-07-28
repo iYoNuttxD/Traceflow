@@ -1,5 +1,4 @@
-// Agregador central das rotas da API TRACEFLOW.
-// TODO: Manter cada novo endpoint no modulo responsavel.
+// Agregador central das rotas da API TRACEFLOW; cada endpoint pertence ao módulo responsável.
 import { Router } from 'express';
 import { projectRoutes } from '../modules/projects/index.js';
 import { requirementRoutes } from '../modules/requirements/index.js';

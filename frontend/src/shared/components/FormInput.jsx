@@ -1,5 +1,5 @@
 // Campo de formulario reutilizavel.
-// TODO: Adicionar exibicao padronizada de erros de validacao.
+// Campo compartilhado com erro e metadados acessíveis padronizados.
 export function FormInput({ label, error, required, id: providedId, ...inputProps }) {
   const id = providedId || inputProps.name;
   const errorId = error && id ? `${id}-error` : undefined;

@@ -34,9 +34,6 @@ export const membersApi = {
   listProjectMembers(projectId, options = {}) {
     return httpClient.get(`/projects/${projectId}/members`, options);
   },
-  addProjectMember(projectId, data) {
-    return httpClient.post(`/projects/${projectId}/members`, data);
-  },
   joinProject(data) {
     return httpClient.post('/projects/join', data);
   }

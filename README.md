@@ -1,76 +1,100 @@
 # TRACEFLOW
 
-TRACEFLOW é uma plataforma de rastreabilidade para projetos de software. A solução conecta requisitos, tarefas e artefatos técnicos do GitHub para tornar o progresso e as evidências de implementação verificáveis.
+TRACEFLOW é uma aplicação web para relacionar requisitos, tarefas e evidências técnicas importadas do GitHub. A cadeia canônica é:
 
-> Este repositório evolui como produto, não como demonstração de MVP. Decisões de implementação devem considerar segurança, privacidade, qualidade, operação e manutenção. Consulte [Contexto e arquitetura](TRACEFLOW_CONTEXTO_ARQUITETURA.md) antes de contribuir.
-
-## Objetivo
-
-O TRACEFLOW apoia equipes no acompanhamento do desenvolvimento de software por meio da cadeia:
-
-```txt
-Requisito -> Tarefa -> Issue / Pull Request / Commit
+```text
+Requirement → Task → Commit | PullRequest | Issue
 ```
 
-Essa cadeia permite relacionar necessidades do produto, unidades de planejamento e evidências técnicas de entrega.
-
-## Capacidades atuais
-
-- Cadastro, edição, membros e convites de projetos.
-- Integração com repositórios GitHub por Octokit.
-- Importação persistente de commits, pull requests e issues.
-- Cadastro, edição e exclusão segura de requisitos e tarefas.
-- Vínculos entre requisitos, tarefas e artefatos GitHub.
-- Quadro Kanban com histórico de movimentações.
-- Indicadores e matriz de cobertura de rastreabilidade.
-- Fluxograma interativo da cadeia de rastreabilidade.
-- Persistência do estado e de falhas de sincronização com o GitHub.
+O produto atual inclui projetos e memberships, autenticação por sessão, integração GitHub, requisitos, tarefas, Kanban, histórico, rastreabilidade, sugestões revisáveis `[TASK-<ID>]`, auditoria e operações de privacidade. O [catálogo da API](docs/api/API_CONTRACTS.md) e a [matriz RF–código–teste](docs/traceability/RF_TECHNICAL_MATRIX.md) distinguem o que está implementado do trabalho futuro.
 
 ## Arquitetura
 
-```txt
-React/Vite -> API REST -> Routes -> Controller -> Service -> Repository -> Prisma -> MySQL
-                                  |
-                                  +-> Octokit -> GitHub API
+```text
+React/Vite → API REST/Express → Route → Controller → Service → Repository → Prisma → MySQL
+                                           └→ GitHub client/Octokit → GitHub API
 ```
 
-As responsabilidades das camadas e as regras obrigatórias de evolução estão detalhadas em [TRACEFLOW_CONTEXTO_ARQUITETURA.md](TRACEFLOW_CONTEXTO_ARQUITETURA.md).
+- O frontend usa pages finas, features por domínio, componentes compartilhados e um único client Axios.
+- O backend valida e autoriza no limite HTTP; regras ficam em services e Prisma somente em repositories autorizados.
+- Sessões são opacas e server-side; mutações autenticadas exigem CSRF.
+- `ProjectMembership` é a fonte de autorização. Ausência de membership retorna `404`; papel insuficiente retorna `403`.
+- `Commit`, `PullRequest`, `Issue`, `TaskCommit`, `TaskIssue` e `Task.pullRequestId` são canônicos.
+
+Consulte a [arquitetura vigente](docs/architecture/SYSTEM_ARCHITECTURE.md), as [convenções backend](docs/architecture/MODULE_CONVENTIONS.md) e a [estrutura frontend](docs/architecture/FRONTEND_STRUCTURE.md).
 
 ## Tecnologias
 
-| Área | Tecnologias |
+| Área | Stack |
 |---|---|
-| Frontend | React, Vite, JavaScript, CSS, React Router, Axios, React Flow |
-| Backend | Node.js, Express, Prisma ORM, MySQL, Octokit |
-| Engenharia | npm, Git, GitHub Actions |
+| Frontend | React 19, Vite 8, React Router 8, Axios, `@xyflow/react` |
+| Backend | Node.js, Express 4, Zod, Prisma 6, Octokit |
+| Dados | MySQL 8.4 compatível, migrations Prisma versionadas |
+| Segurança | Argon2id, sessão opaca, CSRF, Helmet, CORS allowlist, rate limiting |
+| Engenharia | Vitest, Testing Library, ESLint, Prettier, GitHub Actions |
 
-## Estrutura do repositório
+## Pré-requisitos
 
-```txt
-Traceflow/
-├── .github/workflows/       # integração contínua
-├── backend/
-│   ├── prisma/              # schema e migrações
-│   └── src/modules/         # módulos em camadas MVC
-├── frontend/src/            # interface React
-├── TRACEFLOW_CONTEXTO_ARQUITETURA.md
-└── README.md
-```
+- Node.js `22.22.0` ou superior dentro da linha 22;
+- npm compatível com os lockfiles;
+- MySQL 8.4 compatível;
+- credencial GitHub com o menor escopo de leitura necessário, quando a integração for usada.
 
-## Como executar
+## Instalação
 
-Requisitos: Node.js compatível com as dependências do projeto, npm e MySQL.
+Use instalações determinísticas separadas:
 
 ```bash
-npm run install:all
-cp backend/.env.example backend/.env
 cd backend
-npx prisma generate
-npx prisma migrate deploy
-npm run dev
+npm ci
+cp .env.example .env
+
+cd ../frontend
+npm ci
 ```
 
-Em outro terminal:
+Não use `npm run install:all` para reproduzir a CI: esse script histórico usa `npm install`.
+
+## Configuração
+
+O backend valida a configuração no startup. O arquivo [backend/.env.example](backend/.env.example) lista todas as variáveis. As essenciais em desenvolvimento são:
+
+```env
+NODE_ENV=development
+DATABASE_URL="mysql://usuario:senha@localhost:3306/traceflow"
+GITHUB_TOKEN="token_local"
+FRONTEND_URL="http://localhost:5173"
+```
+
+Para testes de banco, defina `TEST_DATABASE_URL` com nome que contenha `test` e que seja diferente de `DATABASE_URL`. Valores `VITE_*` são públicos; o frontend aceita apenas `VITE_API_URL` e `VITE_API_TIMEOUT_MS`, sem segredos.
+
+## Banco e migrations
+
+```bash
+cd backend
+npx prisma validate
+npx prisma generate
+npx prisma migrate deploy
+npx prisma migrate status
+```
+
+Na CI e em testes locais isolados:
+
+```bash
+npm run db:test:migrate
+npm run db:test:status
+```
+
+Não use `prisma migrate reset` em banco com dados. Antes de mudança destrutiva, siga o [runbook de banco](docs/runbooks/DATABASE_MIGRATIONS.md) e o [runbook de backup/restore](docs/runbooks/BACKUP_RESTORE.md).
+
+## Execução local
+
+Em terminais separados:
+
+```bash
+cd backend
+npm run dev
+```
 
 ```bash
 cd frontend
@@ -78,46 +102,83 @@ npm run dev
 ```
 
 - API: `http://localhost:3001`
-- interface: `http://localhost:5173`
+- SPA: `http://localhost:5173`
+- Probes: `/health`, `/health/live` e `/health/ready`
 
-Configure `backend/.env` sem versionar segredos:
+## Gates de qualidade
 
-```env
-DATABASE_URL="mysql://usuario:senha@localhost:3306/traceflow"
-GITHUB_TOKEN="token_do_github"
-PORT=3001
-FRONTEND_URL="http://localhost:5173"
+Backend:
+
+```bash
+cd backend
+npm run lint
+npm run format:check
+npx prisma validate
+npx prisma generate
+npm run db:test:migrate
+npm run db:test:status
+npm run architecture:check
+npm run security:secrets
+npm run test:unit
+npm run test:integration
+npm run test:coverage
 ```
 
-## Qualidade, segurança e privacidade
+Frontend:
 
-Toda mudança deve observar:
-
-- OWASP ASVS 5.0, com Level 2 como referência inicial de verificação;
-- LGPD e minimização de dados pessoais;
-- testes automatizados proporcionais ao risco da alteração;
-- validação pela integração contínua no GitHub Actions;
-- ausência de segredos, tokens ou dados pessoais em código e logs;
-- proibição de mocks, dados falsos e respostas estáticas no código de produção;
-- Definition of Done definida no documento de arquitetura.
-
-Mocks são permitidos somente em testes automatizados ou quando solicitados explicitamente e isolados do runtime de produção.
-
-## Documentação por componente
-
-- [Contexto, arquitetura e padrões](TRACEFLOW_CONTEXTO_ARQUITETURA.md)
-- [Backend](backend/README.md)
-- [Frontend](frontend/README.md)
-
-## Rastreabilidade
-
-```txt
-Requisito
-   ↓
-Tarefa
-   ├── Issue
-   ├── Pull Request
-   └── Commit
+```bash
+cd frontend
+npm run lint
+npm run format:check
+npm run test:coverage
+npm run build
 ```
 
-Requisitos representam necessidades; tarefas organizam a execução; issues registram demandas, bugs ou melhorias; pull requests agrupam entregas; commits registram alterações pontuais. A matriz e o fluxograma permitem avaliar cobertura, progresso e evidências sem substituir a validação funcional da entrega.
+Supply chain, a partir da raiz:
+
+```bash
+node --test scripts/check-npm-audit.test.mjs scripts/validate-ci.test.mjs
+node scripts/check-npm-audit.mjs backend docs/security/npm-audit-exceptions.json
+node scripts/check-npm-audit.mjs frontend docs/security/npm-audit-exceptions.json
+```
+
+Os checks obrigatórios são `Quality`, `Backend Tests`, `Frontend Tests`, `Supply Chain` e, em pull requests, `Dependency Review`. Consulte [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Integração GitHub
+
+O backend usa uma credencial técnica sistêmica por meio de um provider único. A sincronização é manual, paginada, idempotente por identificador externo, possui timeout/retry limitado e não remove automaticamente artefatos ausentes em uma execução posterior. Operação, rate limit, falhas e reprocessamento estão no [runbook GitHub](docs/runbooks/GITHUB_INTEGRATION.md).
+
+## Segurança e privacidade
+
+- Não versione `.env`, tokens, dumps ou dados pessoais.
+- Não trate CORS ou controles da UI como autorização.
+- Não exponha hashes, cookies, `authorEmail`, stacks ou payloads externos.
+- O projeto usa OWASP ASVS 5.0 como referência, sem alegar conformidade total.
+- Os artefatos de LGPD são técnicos e dependem de validação jurídica/operacional.
+
+Evidências: [ASVS](docs/security/ASVS_BASELINE.md), [threat model](docs/security/THREAT_MODEL.md), [dados pessoais](docs/privacy/PERSONAL_DATA_INVENTORY.md), [retenção](docs/privacy/DATA_RETENTION_POLICY.md) e [incidentes](docs/runbooks/INCIDENT_RESPONSE.md).
+
+## Limitações conhecidas
+
+- `DELETE /api/projects/:id` permanece `501`; não existe política homologada de exclusão de projeto.
+- `ProjectMember`, `Project.accessCode/inviteLink`, aliases GitHub e snapshots textuais pré-identidade permanecem por compatibilidade/dados históricos.
+- O rate limiter e a trava de sincronização são por processo; produção horizontal exige store/lock distribuído.
+- O PAT GitHub é sistêmico; GitHub App por instalação e secret manager ainda não existem.
+- TLS, headers do host da SPA, backups agendados, observabilidade e branch protection dependem do ambiente operacional.
+- Não há SBOM/proveniência automatizada, E2E em navegador ou gate automatizado de licenças.
+
+## Estrutura
+
+```text
+backend/src/modules/       domínios e camadas da API
+backend/src/shared/        infraestrutura transversal
+backend/prisma/            schema e 25 migrations
+frontend/src/features/     domínios da SPA
+frontend/src/shared/       UI, hooks e serviços compartilhados
+docs/architecture/         arquitetura e ADRs
+docs/api/                  contratos HTTP
+docs/runbooks/             operação e incidentes
+docs/security/             evidências e políticas de segurança
+docs/privacy/              inventário e ciclo de vida de dados
+docs/refactoring/          relatórios E0–E15
+```

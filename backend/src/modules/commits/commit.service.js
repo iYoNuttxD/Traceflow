@@ -1,5 +1,4 @@
-// Service de commits importados.
-// TODO: Adicionar filtros por branch, autor e periodo quando o MVP evoluir.
+// Service de consulta dos commits importados pelo contrato atual.
 import { projectRepository } from '../projects/project.repository.js';
 import { commitRepository } from './commit.repository.js';
 import { DomainError as CommitServiceError } from '../../shared/errors/index.js';

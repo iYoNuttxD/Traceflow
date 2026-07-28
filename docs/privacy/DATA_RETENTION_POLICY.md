@@ -17,10 +17,12 @@ Prazos abaixo são defaults de engenharia, não prazos jurídicos definitivos. P
 | `ProjectMember` legado | MySQL | até migração contratual futura | não é prova de identidade; nenhuma remoção E7 |
 | logs | destino operacional | a definir no deploy, recomendação inicial 30–90 dias | stdout local não implementa política do agregador |
 | e-mails técnicos | provedor SMTP | política do provedor | TRACEFLOW não controla mailbox; evitar anexos de exportação |
-| backup | infraestrutura | a definir | expurgo lógico pode persistir até rotação; acesso e criptografia devem ser contratados |
+| backup | infraestrutura | a definir pelo controlador | expurgo lógico pode persistir até rotação; seguir `docs/runbooks/BACKUP_RESTORE.md`, com acesso, criptografia e descarte seguros |
 
 Na E9, sincronização GitHub atualiza ou acrescenta artefatos por identificador externo e não apaga automaticamente itens ausentes em uma execução posterior. Essa preservação protege rastreabilidade e vínculos; uma política de reconciliação destrutiva exigirá decisão específica de retenção e auditoria.
 
 `Task.responsible`, `TaskMovement.movedBy` e `TaskMovement.projectMemberId` permanecem como snapshots históricos somente leitura. A reconciliação E11 preenche IDs canônicos apenas com seleção manual válida para Tasks ou evidência técnica inequívoca para movimentos. Registros não comprovados são preservados, nunca apagados; remoção física desses campos exige contract destrutivo futuro e decisão específica de retenção.
 
 Execução: `npm run privacy:retention:dry-run` mostra apenas contagens; `npm run privacy:retention` aplica. Banco com nome de produção exige `--confirm-production`. Agendamento pertence a cron/job externo, nunca ao startup.
+
+Na E15, um backup e restore foi exercitado somente sobre bancos artificiais: 21 tabelas foram restauradas e os bancos/arquivo temporários foram removidos. Isso valida o procedimento técnico, não comprova agendamento, criptografia, retenção ou restauração periódica de produção. Essas responsabilidades permanecem operacionais e jurídicas.

@@ -1,5 +1,4 @@
-// Service de Pull Requests importados.
-// TODO: Adicionar filtros por estado, branch e autor quando o MVP evoluir.
+// Service de consulta das Pull Requests importadas pelo contrato atual.
 import { projectRepository } from '../projects/project.repository.js';
 import { pullRequestRepository } from './pullRequest.repository.js';
 import { DomainError as PullRequestServiceError } from '../../shared/errors/index.js';
