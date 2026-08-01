@@ -182,7 +182,11 @@ export const privacyService = {
       const suffix = randomUUID();
       const result = await privacyRepository.anonymize(
         request.id,
-        { name: 'Usuário anonimizado', email: `anon-${suffix}@anonymous.invalid` },
+        {
+          name: 'Usuário anonimizado',
+          username: `anon-${suffix.replaceAll('-', '').slice(0, 24)}`,
+          email: `anon-${suffix}@anonymous.invalid`
+        },
         buildAuditEvent({
           actorUserId: request.userId,
           actorType: 'SYSTEM',

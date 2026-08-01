@@ -14,7 +14,7 @@ React/Vite SPA
 Express API
   ↓
 Route → Controller → Service → Repository → Prisma → MySQL
-                         └→ GitHub client/Octokit → api.github.com
+                         └→ GitHub App factory por instalação/Octokit → api.github.com
                          └→ email provider → SMTP/capture controlado
 ```
 
@@ -69,7 +69,11 @@ TaskCommitSuggestion → revisão humana → TaskCommit
 
 ## GitHub
 
-`github-credential.provider.js` é o único leitor da credencial. O client fixa `api.github.com`, aplica timeout/retry e converte para DTO mínimo. Sync pagina coleções, persiste por identificador externo e impede concorrência por projeto na instância. Não há fetch genérico de URL fornecida pelo cliente.
+`github-credential.provider.js` lê somente segredos da GitHub App, assina JWT e cria tokens temporários. `github.client.js` é uma factory por instalação; não existe singleton nem fallback para credencial sistêmica. State do callback é hashado e ligado à sessão; installation ID é comprovado com user token efêmero. Sync pagina coleções, persiste por identificador externo e impede concorrência por projeto na instância. Webhook público usa raw body, HMAC e delivery ID, sem sessão/CSRF. Não há fetch genérico de URL fornecida pelo cliente.
+
+Uma `GitHubInstallation` pode alimentar várias `ProjectGitHubIntegration`. Cada integração aponta para um projeto e um repositório únicos; `installationId` é apenas FK/index, nunca unique. A listagem consulta ao vivo todos os repositórios da instalação e cruza seus IDs com as integrações para informar disponibilidade sem bloquear os demais.
+
+Projetos anteriores à L1 mantêm artifacts e metadados em uma integração `RECONNECT_REQUIRED`. `ProjectGitHubIntegration` é a única fonte operacional da conexão; aliases em `Project` permanecem apenas para compatibilidade de leitura.
 
 ## Segurança e privacidade
 
@@ -86,4 +90,3 @@ Prisma é acessado somente por repositories e scripts de manutenção autorizado
 GitHub Actions executa Quality, Backend Tests, Frontend Tests, Supply Chain e Dependency Review. Backend usa MySQL descartável e migrations do zero. Coverage, architecture check, secret scan, audit policy e build são gates.
 
 TLS termina no proxy. Rate limit/trava GitHub são locais ao processo. Logs, backup, restore, secret manager, monitoramento e proteção de branch precisam ser configurados no ambiente conforme os runbooks.
-

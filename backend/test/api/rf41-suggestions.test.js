@@ -26,9 +26,18 @@ afterAll(async () => {
 
 async function register(email, role, projectId) {
   const agent = request.agent(app);
-  const response = await agent
-    .post('/api/auth/register')
-    .send({ name: 'Pessoa RF41', email, password });
+  const response = await agent.post('/api/auth/register').send({
+    name: 'Pessoa RF41',
+    username: `u${email
+      .split('@')[0]
+      .replace(/[^a-z0-9]/g, '')
+      .slice(0, 29)}`,
+    email,
+    password
+  });
+  await request(app)
+    .post('/api/auth/email-verification/verify')
+    .send({ token: response.body.emailVerification.testToken });
   if (projectId) {
     await prisma.projectMembership.create({
       data: { projectId, userId: response.body.user.id, role }

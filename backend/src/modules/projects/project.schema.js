@@ -113,7 +113,7 @@ export function buildEditableProjectData(data, isCreate = false) {
     return normalizedData;
   }, {});
 
-  const githubRepository = normalizeGithubRepository(payload, isCreate);
+  const githubRepository = normalizeGithubRepository(payload, false);
   if (githubRepository) Object.assign(projectData, githubRepository);
   return projectData;
 }

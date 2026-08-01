@@ -5,9 +5,9 @@ Baseline E6, consolidado na E15 em 26/07/2026. A matriz descreve a política efe
 | Endpoints | Anônimo | VIEWER | MEMBER | MANAGER | OWNER | Regra adicional |
 |---|---:|---:|---:|---:|---:|---|
 | `GET /health`, `/health/live`, `/health/ready` | L | L | L | L | L | públicos |
-| `POST /api/auth/register`, `login`, `forgot-password`, `reset-password` | E | E | E | E | E | públicos, limiter sensível |
-| `GET /api/auth/me`, `csrf`; `POST logout`, `change-password` | 401 | E | E | E | E | própria sessão |
-| `POST /api/projects` e `/projects/from-github` | 401 | E | E | E | E | criador vira OWNER |
+| `POST /api/auth/register`, `login`, `forgot-password`, `reset-password`, `email-verification/verify` | E | E | E | E | E | públicos, limiter sensível |
+| `GET /api/auth/me`, `csrf`; `POST logout`, `change-password`, `email-verification/resend`; `PATCH username` | 401 | E | E | E | E | própria sessão; mutations exigem CSRF |
+| `POST /api/projects` e `/projects/from-github` | 401 | E | E | E | E | e-mail verificado; criador vira OWNER |
 | `GET /api/projects` | 401 | L | L | L | L | lista somente memberships ativas |
 | `GET /api/projects/:id` | 401 | L | L | L | L | membership no projeto |
 | `PUT /api/projects/:id` | 401 | 403 | 403 | 403 | A | configuração do projeto |
@@ -20,7 +20,7 @@ Baseline E6, consolidado na E15 em 26/07/2026. A matriz descreve a política efe
 | `DELETE /api/projects/:projectId/members/me` | 401 | E | E | E | E | somente a própria membership; último OWNER protegido |
 | `POST /api/projects/:projectId/ownership/transfer` | 401 | 403 | 403 | 403 | A | alvo ativo do mesmo projeto; solicitante permanece OWNER |
 | `GET /api/projects/:projectId/invitations` | 401 | 403 | 403 | 403 | A | e-mails visíveis apenas ao OWNER |
-| `POST/DELETE /api/projects/:projectId/invitations...` | 401 | 403 | 403 | 403 | A | criação/revogação; token bruto não sai em produção |
+| `POST/DELETE /api/projects/:projectId/invitations...` | 401 | 403 | 403 | 403 | A | criação exige e-mail verificado; token bruto não sai em produção |
 | `POST /api/projects/invitations/accept` | 401 | E | E | E | E | e-mail da sessão deve coincidir |
 | Requirements: todos os `GET` | 401 | L | L | L | L | mesmo projeto |
 | Requirements: `POST`, `PUT`, `PATCH`, `DELETE` | 401 | 403 | E | E | E | invariantes no service |
@@ -28,8 +28,11 @@ Baseline E6, consolidado na E15 em 26/07/2026. A matriz descreve a política efe
 | Tasks/vínculos/Kanban/métricas: todos os `GET` | 401 | L | L | L | L | mesmo projeto/recurso |
 | Tasks/vínculos/Kanban: `POST`, `PUT`, `PATCH`, `DELETE` | 401 | 403 | E | E | E | pertencimento e ator canônico |
 | `GET /api/projects/:projectId/tasks/history` | 401 | L | L | L | L | paginado; ator e recursos do mesmo projeto |
-| `GET /api/github/auth/check`, `/github/repositories` | 401 | L | L | L | L | credencial GitHub é sistêmica |
-| `POST /api/projects/:projectId/github/sync` | 401 | 403 | 403 | E | E | MANAGER+ e trava por projeto |
+| `POST /api/github/app/installations/start`; `GET /github/app/installations...` | 401 | E | E | E | E | start exige e-mail verificado; somente instalações comprovadas |
+| `GET /api/github/app/callback` | 401 | E | E | E | E | mesma sessão/state; não cria sessão TRACEFLOW |
+| `PUT /api/projects/:projectId/github/integration` | 401 | 403 | 403 | 403 | A | e-mail verificado; OWNER e instalação comprovada |
+| `POST /api/github/app/webhook` | E | E | E | E | E | público; HMAC/raw body/delivery ID, sem sessão ou CSRF |
+| `POST /api/projects/:projectId/github/sync` | 401 | 403 | 403 | E | E | MANAGER+, e-mail verificado, integração ACTIVE e trava por projeto |
 | `PATCH /api/projects/:projectId/github/sync-settings` | 401 | 403 | 403 | 403 | A | OWNER |
 | Commits, PRs, issues e artifacts: `GET` | 401 | L | L | L | L | mesmo projeto |
 | Traceability project-scoped: matriz, requisito, tarefa e artefato | 401 | L | L | L | L | membership ativa e recurso no mesmo projeto |

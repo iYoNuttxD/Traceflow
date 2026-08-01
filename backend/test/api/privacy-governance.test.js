@@ -24,9 +24,18 @@ afterAll(async () => {
 
 async function register(email = 'privacy@example.invalid') {
   const agent = request.agent(app);
-  const response = await agent
-    .post('/api/auth/register')
-    .send({ name: 'Pessoa artificial', email, password });
+  const response = await agent.post('/api/auth/register').send({
+    name: 'Pessoa artificial',
+    username: `u${email
+      .split('@')[0]
+      .replace(/[^a-z0-9]/g, '')
+      .slice(0, 29)}`,
+    email,
+    password
+  });
+  await request(app)
+    .post('/api/auth/email-verification/verify')
+    .send({ token: response.body.emailVerification.testToken });
   return {
     agent,
     csrf: response.body.csrfToken,

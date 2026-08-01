@@ -9,7 +9,10 @@ import {
   forgotBodySchema,
   loginBodySchema,
   registerBodySchema,
-  resetBodySchema
+  resetBodySchema,
+  verifyEmailBodySchema,
+  emptyAuthBodySchema,
+  usernameBodySchema
 } from './auth.validation.js';
 
 const router = Router();
@@ -22,6 +25,18 @@ router.post(
   validateRequest({ body: forgotBodySchema }),
   authController.forgotPassword
 );
+router.patch(
+  '/username',
+  authenticate,
+  csrf,
+  validateRequest({ body: usernameBodySchema }),
+  authController.updateUsername
+);
+router.post(
+  '/email-verification/verify',
+  validateRequest({ body: verifyEmailBodySchema }),
+  authController.verifyEmail
+);
 router.post(
   '/reset-password',
   validateRequest({ body: resetBodySchema }),
@@ -30,6 +45,13 @@ router.post(
 router.get('/me', authenticate, authController.me);
 router.get('/csrf', authenticate, authController.csrf);
 router.post('/logout', authenticate, csrf, authController.logout);
+router.post(
+  '/email-verification/resend',
+  authenticate,
+  csrf,
+  validateRequest({ body: emptyAuthBodySchema }),
+  authController.resendEmailVerification
+);
 router.post(
   '/change-password',
   authenticate,

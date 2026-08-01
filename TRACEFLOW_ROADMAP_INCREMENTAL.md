@@ -77,7 +77,7 @@ flowchart LR
 | Ordem | Iniciativa | Responsável | RFs principais | Estado | Saída esperada |
 |---:|---|---|---|---|---|
 | Base | Núcleo funcional e refatoração E0–E15 | Equipe, com execução principal de Daniel na refatoração | RF01–RF09, RF11, RF12, RF21, RF22, RF38, RF41, RF48–RF53; base de RF23–RF28 | ENTREGUE / BASE ESTÁVEL | Arquitetura, segurança, CI, GitHub, tarefas e rastreabilidade consolidados |
-| A | Finalização de Login, Identidade e Acesso | Daniel | RF23–RF28 | PARCIAL → PRÓXIMA ENTREGA | Jornada completa de cadastro, login, sessão, recuperação, equipe e perfis homologada |
+| A | Finalização de Login, Identidade e Acesso — L1 | Daniel | RF23–RF28 | IMPLEMENTADA; HOMOLOGAÇÃO EXTERNA PENDENTE | Cadastro/username, login por identificador, sessão persistente, verificação e recuperação; SMTP real ainda requer ambiente |
 | B | Planejamento e Colaboração | João + GT | RF10, RF29, RF31–RF35; integração com RF51 | PARCIAL / NÃO IMPLEMENTADO → PRÓXIMA ENTREGA | Cronograma, sprints, esforço e colaboração incorporados às tarefas |
 | 3 | Qualidade e rastreabilidade ampliada | A definir | RF42–RF46, RF62–RF64 | FUTURO | Casos de teste e defeitos conectados à rastreabilidade |
 | 4 | Alertas e notificações | A definir | RF13, RF30, RF39, RF40, RF58–RF61 | FUTURO | Inconsistências e eventos comunicados aos usuários |
@@ -183,7 +183,7 @@ As ressalvas operacionais e de produto permanecem no backlog técnico, mas não 
 **Prioridade:** imediata  
 **RFs:** RF23, RF24, RF25, RF26, RF27 e RF28  
 **Casos de uso relacionados:** UC01, UC02, UC05, UC06 e UC07  
-**Estado atual:** base implementada, entrega ainda não homologada como fluxo completo
+**Estado atual:** L1 implementada no produto e coberta por testes automatizados; homologação com SMTP/GitHub App reais e E2E externo permanecem pendentes
 
 ## 7. Objetivo
 
@@ -279,6 +279,8 @@ Caso a equipe decida não implementar, a decisão deve ser registrada e a especi
 - E2E da jornada principal.
 
 ## 10. Critérios de conclusão da Entrega A
+
+A implementação L1 atende aos fluxos de identidade, política de senha, sessão comum/persistente, verificação de e-mail e integração por GitHub App. Os critérios dependentes de infraestrutura real não são declarados concluídos: envio SMTP em homologação, instalação/permissões/webhook de uma App real e E2E externo permanecem no backlog técnico.
 
 - RF23–RF28 funcionando de ponta a ponta;
 - UC01, UC02, UC05, UC06 e UC07 alinhados ao comportamento real;
@@ -532,13 +534,10 @@ RF51 não deve ser recriado.
 
 ### Daniel
 
-1. auditar lacunas de RF23–RF28 e UC01–UC07;
-2. finalizar política de sessão;
-3. concluir recuperação com e-mail real;
-4. finalizar gestão de conta;
-5. homologar convites, equipe e perfis;
-6. adicionar E2E;
-7. atualizar documentação e matriz.
+1. homologar SMTP real para verificação, recuperação e convite;
+2. homologar GitHub App real, permissões mínimas, callback e webhooks;
+3. adicionar E2E real da jornada crítica em ambiente isolado;
+4. avaliar MFA para perfis administrativos.
 
 ### João
 
@@ -691,7 +690,7 @@ Versão pronta para homologação e validação do TCC.
 | Projetos e GitHub | RF01–RF06, RF21, RF22, RF50 | ENTREGUE |
 | Tarefas e Kanban | RF07, RF08, RF38, RF51 | ENTREGUE |
 | Rastreabilidade | RF09, RF11, RF12, RF41, RF48, RF49, RF52, RF53 | ENTREGUE |
-| Identidade e acesso | RF23–RF28 | BASE IMPLEMENTADA; FINALIZAÇÃO COM DANIEL |
+| Identidade e acesso | RF23–RF28 | L1 IMPLEMENTADA; SMTP REAL E E2E EXTERNO PENDENTES |
 | Cronograma e sprint | RF10, RF35 | PRÓXIMA ENTREGA — JOÃO |
 | Esforço e prioridade | RF32–RF34 | PRÓXIMA ENTREGA — GT |
 | Comentários | RF29, RF31 | PRÓXIMA ENTREGA — GT |

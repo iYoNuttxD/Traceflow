@@ -21,6 +21,7 @@ import {
   invitationProjectParams
 } from './project-invitation.validation.js';
 import { projectMembershipController } from './project-membership.controller.js';
+import { requireVerifiedEmail } from '../../middlewares/auth/email-verification.middleware.js';
 import {
   membershipParams,
   membershipProjectParams,
@@ -42,6 +43,7 @@ router.get(
 );
 router.post(
   '/:projectId/invitations',
+  requireVerifiedEmail,
   validateRequest({ params: invitationProjectParams, body: createInvitationBody }),
   projectInvitationController.create
 );
@@ -53,12 +55,14 @@ router.delete(
 
 router.post(
   '/from-github',
+  requireVerifiedEmail,
   validateRequest({ body: createProjectFromGithubBodySchema }),
   projectController.createFromGithub
 );
 router.post('/join', validateRequest({ body: joinProjectBodySchema }), projectController.join);
 router.patch(
   '/:projectId/github/sync-settings',
+  requireVerifiedEmail,
   validateRequest({ params: projectProjectIdParamsSchema, body: githubSyncSettingsBodySchema }),
   projectController.updateGithubSyncSettings
 );
@@ -98,7 +102,12 @@ router.post(
   validateRequest({ params: projectProjectIdParamsSchema, body: addProjectMemberBodySchema }),
   projectController.addMember
 );
-router.post('/', validateRequest({ body: createProjectBodySchema }), projectController.create);
+router.post(
+  '/',
+  requireVerifiedEmail,
+  validateRequest({ body: createProjectBodySchema }),
+  projectController.create
+);
 router.get('/', projectController.findAll);
 router.get('/:id', validateRequest({ params: projectIdParamsSchema }), projectController.findById);
 router.put(

@@ -1,4 +1,5 @@
-import { getGithubClient } from '../github.client.js';
+import { githubInstallationClientFactory } from '../github.client.js';
+import { githubRepository as githubIntegrationRepository } from '../github.repository.js';
 import { normalizeGithubError } from '../github-error.js';
 import { projectRepository } from '../../projects/project.repository.js';
 import {
@@ -64,7 +65,20 @@ export async function syncProjectGithubData(projectId) {
     linkedRepositoryCoordinates(project);
     await projectRepository.markGithubSyncStarted(parsedProjectId, attemptedAt);
 
-    const githubClient = getGithubClient();
+    const integration = await githubIntegrationRepository.findIntegration(parsedProjectId);
+    if (
+      !integration ||
+      integration.status !== 'ACTIVE' ||
+      integration.installation?.status !== 'ACTIVE'
+    ) {
+      throw new ProjectServiceError(
+        'Reconecte a GitHub App antes de sincronizar este projeto.',
+        409
+      );
+    }
+    const githubClient = await githubInstallationClientFactory.forInstallation(
+      integration.installation.githubInstallationId
+    );
     const repository = await validateAndRefreshRepository(project, githubClient);
     const commitSummary = await syncProjectCommits({ project, repository, githubClient });
     const pullRequestSummary = await syncProjectPullRequests({ project, repository, githubClient });

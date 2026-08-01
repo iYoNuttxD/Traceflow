@@ -3,7 +3,13 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     environment: 'node',
+    env: {
+      NODE_ENV: 'test',
+      RATE_LIMIT_MAX: '1000',
+      SENSITIVE_RATE_LIMIT_MAX: '1000'
+    },
     fileParallelism: false,
+    testTimeout: 30000,
     sequence: {
       concurrent: false
     },

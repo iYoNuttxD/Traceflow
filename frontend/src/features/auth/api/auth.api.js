@@ -22,6 +22,15 @@ export const authApi = {
   resetPassword(token, password) {
     return httpClient.post('/auth/reset-password', { token, password });
   },
+  resendEmailVerification() {
+    return httpClient.post('/auth/email-verification/resend', {});
+  },
+  verifyEmail(token) {
+    return httpClient.post('/auth/email-verification/verify', { token });
+  },
+  updateUsername(username) {
+    return httpClient.patch('/auth/username', { username });
+  },
   changePassword(currentPassword, password) {
     return httpClient.post('/auth/change-password', { currentPassword, password });
   },

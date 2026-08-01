@@ -73,6 +73,8 @@ Toda API de domínio usa `httpClient`. Queries recebem `params` e, quando obsole
 - `ConfirmProvider` substitui confirmação nativa e gerencia foco/Escape.
 - `ErrorBoundary` trata falhas de renderização, não erros HTTP.
 - Formulários associam label/controle/erro e focam o primeiro campo inválido.
+- Rotas públicas de login/cadastro/recuperação usam `GuestOnlyRoute`; autenticação restaurada redireciona para `/projects` sem loop.
+- Pages de autenticação são adaptadores finos para screens em `features/auth/pages`; força de senha é informativa e o backend continua autoritativo.
 - Links externos em nova aba usam `noopener noreferrer`.
 
 ## Compatibilidade

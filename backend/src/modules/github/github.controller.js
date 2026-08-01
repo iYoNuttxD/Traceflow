@@ -2,29 +2,10 @@ import { asyncHandler } from '../../shared/http/index.js';
 import { commitService } from '../commits/commit.service.js';
 import { issueService } from '../issues/issue.service.js';
 import { pullRequestService } from '../pullRequests/pullRequest.service.js';
-import { githubService } from './github.service.js';
 import { githubSyncService } from './githubSync.service.js';
 import { auditService } from '../audit/audit.service.js';
 
 export const githubController = {
-  checkAuthentication: asyncHandler(
-    async (req, res) => {
-      const githubUser = await githubService.checkAuthentication();
-      return res.json({
-        message: 'Autenticação com GitHub realizada com sucesso.',
-        githubUser
-      });
-    },
-    { fallbackMessage: 'Não foi possível verificar a autenticação com o GitHub.' }
-  ),
-
-  listRepositories: asyncHandler(
-    async (req, res) => {
-      return res.json({ repositories: await githubService.listRepositories() });
-    },
-    { fallbackMessage: 'Não foi possível listar os repositórios do GitHub.' }
-  ),
-
   syncProjectGithubData: asyncHandler(
     async (req, res) => {
       await auditService.recordOperational({

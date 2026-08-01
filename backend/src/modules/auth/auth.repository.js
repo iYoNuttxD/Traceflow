@@ -4,6 +4,9 @@ export const authRepository = {
   findUserByEmail(email) {
     return prisma.user.findUnique({ where: { email } });
   },
+  findUserByUsername(username) {
+    return prisma.user.findUnique({ where: { username } });
+  },
   findUserById(id) {
     return prisma.user.findUnique({ where: { id } });
   },
@@ -48,5 +51,23 @@ export const authRepository = {
       where: { userId, usedAt: null },
       data: { usedAt: new Date() }
     });
+  },
+  createEmailVerificationToken(data) {
+    return prisma.emailVerificationToken.create({ data });
+  },
+  findEmailVerificationToken(tokenHash) {
+    return prisma.emailVerificationToken.findUnique({
+      where: { tokenHash },
+      include: { user: true }
+    });
+  },
+  expireEmailVerificationTokens(userId) {
+    return prisma.emailVerificationToken.updateMany({
+      where: { userId, usedAt: null },
+      data: { usedAt: new Date() }
+    });
+  },
+  useEmailVerificationToken(id) {
+    return prisma.emailVerificationToken.update({ where: { id }, data: { usedAt: new Date() } });
   }
 };

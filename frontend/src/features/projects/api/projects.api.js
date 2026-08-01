@@ -5,8 +5,22 @@ export const projectsApi = {
     return httpClient.get('/projects');
   },
 
-  listGithubRepositories() {
-    return httpClient.get('/github/repositories');
+  listGithubInstallations() {
+    return httpClient.get('/github/app/installations');
+  },
+
+  listGithubRepositories(installationId, projectId) {
+    return httpClient.get(`/github/app/installations/${installationId}/repositories`, {
+      params: projectId ? { projectId } : undefined
+    });
+  },
+
+  startGithubInstallation(data) {
+    return httpClient.post('/github/app/installations/start', data);
+  },
+
+  connectGithubRepository(projectId, data) {
+    return httpClient.put(`/projects/${projectId}/github/integration`, data);
   },
 
   create(data) {

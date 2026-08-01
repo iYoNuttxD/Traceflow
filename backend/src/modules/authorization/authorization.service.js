@@ -21,7 +21,7 @@ export const authorizationService = {
     if (req.method === 'DELETE' && /\/members\/me$/.test(req.path)) return 'VIEWER';
     if (req.method === 'PUT' && /^\/projects\/\d+$/.test(req.path)) return 'OWNER';
     if (
-      /\/members(?:\/|$)|\/invitations(?:\/|$)|\/ownership\/transfer$|\/github\/sync-settings/.test(
+      /\/members(?:\/|$)|\/invitations(?:\/|$)|\/ownership\/transfer$|\/github\/(?:sync-settings|integration)/.test(
         req.path
       )
     )

@@ -58,10 +58,24 @@ enum TaskHistoryField {
   PRIORITY
 }
 
+enum GitHubInstallationStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+enum GitHubIntegrationStatus {
+  ACTIVE
+  RECONNECT_REQUIRED
+  DISCONNECTED
+}
+
 model User {
   id              Int       @id @default(autoincrement())
   name            String
   email           String    @unique
+  username        String    @unique
+  mustSetUsername Boolean   @default(false)
   passwordHash    String?
   isActive        Boolean   @default(true)
   emailVerifiedAt DateTime?
@@ -71,18 +85,21 @@ model User {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  sessions                      Session[]
-  passwordResetTokens           PasswordResetToken[]
-  memberships                   ProjectMembership[]
-  createdInvitations            ProjectInvitation[]    @relation("InvitationCreator")
-  acceptedInvitations           ProjectInvitation[]    @relation("InvitationAcceptor")
-  responsibleTasks              Task[]
-  taskMovements                 TaskMovement[]
-  taskHistoryEntries            TaskHistoryEntry[]
-  auditEvents                   AuditEvent[]
-  privacyRequests               PrivacyRequest[]
-  personalDataExports           PersonalDataExport[]
-  reviewedTaskCommitSuggestions TaskCommitSuggestion[] @relation("TaskCommitSuggestionReviewer")
+  sessions                         Session[]
+  passwordResetTokens              PasswordResetToken[]
+  emailVerificationTokens          EmailVerificationToken[]
+  memberships                      ProjectMembership[]
+  createdInvitations               ProjectInvitation[]               @relation("InvitationCreator")
+  acceptedInvitations              ProjectInvitation[]               @relation("InvitationAcceptor")
+  responsibleTasks                 Task[]
+  taskMovements                    TaskMovement[]
+  taskHistoryEntries               TaskHistoryEntry[]
+  auditEvents                      AuditEvent[]
+  privacyRequests                  PrivacyRequest[]
+  personalDataExports              PersonalDataExport[]
+  reviewedTaskCommitSuggestions    TaskCommitSuggestion[]            @relation("TaskCommitSuggestionReviewer")
+  githubInstallationAuthorizations GitHubInstallationAuthorization[]
+  githubAppConnectionStates        GitHubAppConnectionState[]
 }
 
 model Session {
@@ -92,9 +109,25 @@ model Session {
   csrfTokenHash  String
   sessionVersion Int
   expiresAt      DateTime
+  rememberMe     Boolean   @default(false)
   lastSeenAt     DateTime  @default(now())
   revokedAt      DateTime?
   createdAt      DateTime  @default(now())
+
+  user                      User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  githubAppConnectionStates GitHubAppConnectionState[]
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model EmailVerificationToken {
+  id        Int       @id @default(autoincrement())
+  userId    Int
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -183,24 +216,115 @@ model Project {
   createdAt                DateTime  @default(now())
   updatedAt                DateTime  @updatedAt
 
-  requirements          Requirement[]
-  tasks                 Task[]
-  members               ProjectMember[]
-  taskMovements         TaskMovement[]
-  taskHistoryEntries    TaskHistoryEntry[]
-  commits               Commit[]
-  pullRequests          PullRequest[]
-  issues                Issue[]
-  memberships           ProjectMembership[]
-  invitations           ProjectInvitation[]
-  auditEvents           AuditEvent[]
-  taskCommitSuggestions TaskCommitSuggestion[]
+  requirements           Requirement[]
+  tasks                  Task[]
+  members                ProjectMember[]
+  taskMovements          TaskMovement[]
+  taskHistoryEntries     TaskHistoryEntry[]
+  commits                Commit[]
+  pullRequests           PullRequest[]
+  issues                 Issue[]
+  memberships            ProjectMembership[]
+  invitations            ProjectInvitation[]
+  auditEvents            AuditEvent[]
+  taskCommitSuggestions  TaskCommitSuggestion[]
+  githubIntegration      ProjectGitHubIntegration?
+  githubConnectionStates GitHubAppConnectionState[]
 
   @@unique([githubRepositoryId])
   @@unique([githubRepositoryFullName])
   @@index([status])
   @@index([githubSyncStatus])
   @@index([createdAt])
+}
+
+model GitHubInstallation {
+  id                   Int                      @id @default(autoincrement())
+  githubInstallationId String                   @unique
+  accountId            String
+  accountLogin         String
+  accountType          String
+  status               GitHubInstallationStatus @default(ACTIVE)
+  suspendedAt          DateTime?
+  installedAt          DateTime
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+
+  authorizations      GitHubInstallationAuthorization[]
+  projectIntegrations ProjectGitHubIntegration[]
+
+  @@index([accountId])
+  @@index([status])
+}
+
+model GitHubInstallationAuthorization {
+  id             Int      @id @default(autoincrement())
+  installationId Int
+  userId         Int
+  verifiedAt     DateTime
+  createdAt      DateTime @default(now())
+
+  installation GitHubInstallation @relation(fields: [installationId], references: [id], onDelete: Cascade)
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([installationId, userId])
+  @@index([userId])
+}
+
+model ProjectGitHubIntegration {
+  id                 Int                     @id @default(autoincrement())
+  projectId          Int                     @unique
+  installationId     Int?
+  githubRepositoryId String?                 @unique
+  repositoryName     String?
+  repositoryFullName String?
+  repositoryUrl      String?
+  defaultBranch      String?
+  status             GitHubIntegrationStatus @default(RECONNECT_REQUIRED)
+  lastValidatedAt    DateTime?
+  lastSyncAt         DateTime?
+  lastSyncStatus     String?
+  lastSyncError      String?
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+
+  project      Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  installation GitHubInstallation? @relation(fields: [installationId], references: [id], onDelete: SetNull)
+
+  @@index([installationId, status])
+}
+
+model GitHubAppConnectionState {
+  id             Int       @id @default(autoincrement())
+  userId         Int
+  sessionId      Int
+  tokenHash      String    @unique
+  intendedAction String
+  projectId      Int?
+  expiresAt      DateTime
+  usedAt         DateTime?
+  createdAt      DateTime  @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@index([sessionId])
+  @@index([projectId])
+}
+
+model GitHubWebhookDelivery {
+  id             Int       @id @default(autoincrement())
+  deliveryId     String    @unique
+  event          String
+  action         String?
+  installationId String?
+  receivedAt     DateTime  @default(now())
+  processedAt    DateTime?
+
+  @@index([installationId])
+  @@index([receivedAt])
 }
 
 model AuditEvent {

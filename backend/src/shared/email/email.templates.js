@@ -36,3 +36,13 @@ export function invitationTemplate({ invitationUrl, projectName, role, expiresAt
     html: `<p>Você foi convidado para o projeto <strong>${escapeHtml(projectName)}</strong> como ${escapeHtml(role)}.</p><p><a href="${link}">Aceitar convite</a></p><p>Expira em ${escapeHtml(expiresAt.toISOString())}.</p>`
   };
 }
+
+export function emailVerificationTemplate({ verificationUrl, expiresAt, name }) {
+  const link = safeUrl(verificationUrl);
+  const safeName = escapeHtml(name);
+  return {
+    subject: 'Verifique seu e-mail no TRACEFLOW',
+    text: `Olá, ${name}. Verifique seu e-mail em: ${verificationUrl}\nO link expira em ${expiresAt.toISOString()}.`,
+    html: `<p>Olá, ${safeName}.</p><p>Confirme seu e-mail para liberar ações sensíveis no TRACEFLOW.</p><p><a href="${link}">Verificar e-mail</a></p><p>Expira em ${escapeHtml(expiresAt.toISOString())}.</p>`
+  };
+}

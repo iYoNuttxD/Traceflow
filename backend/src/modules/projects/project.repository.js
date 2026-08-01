@@ -12,11 +12,34 @@ export const projectRepository = {
       return project;
     });
   },
+  async createGithubAppProject(data, ownerUserId, installationId, repository) {
+    return prisma.$transaction(async (tx) => {
+      const project = await tx.project.create({ data });
+      await tx.projectMembership.create({
+        data: { projectId: project.id, userId: ownerUserId, role: 'OWNER' }
+      });
+      await tx.projectGitHubIntegration.create({
+        data: {
+          projectId: project.id,
+          installationId,
+          githubRepositoryId: repository.githubRepositoryId,
+          repositoryName: repository.name,
+          repositoryFullName: repository.fullName,
+          repositoryUrl: repository.url,
+          defaultBranch: repository.defaultBranch,
+          status: 'ACTIVE',
+          lastValidatedAt: new Date()
+        }
+      });
+      return project;
+    });
+  },
 
   async findAllProjects(userId) {
     return prisma.project.findMany({
       ...(userId ? { where: { memberships: { some: { userId, isActive: true } } } } : {}),
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
+      include: { githubIntegration: { select: { status: true, githubRepositoryId: true } } }
     });
   },
 
@@ -35,7 +58,8 @@ export const projectRepository = {
 
   async findById(id) {
     return prisma.project.findUnique({
-      where: { id }
+      where: { id },
+      include: { githubIntegration: true }
     });
   },
 

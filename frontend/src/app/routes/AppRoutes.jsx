@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import { Routes, Route, Navigate, Outlet } from 'react-router';
-import { ProtectedRoute } from '../../features/auth/index.js';
+import { GuestOnlyRoute, ProtectedRoute } from '../../features/auth/index.js';
 import { LoadingState } from '../../shared/index.js';
 import { lazyNamed } from './lazy-route.js';
 
@@ -13,6 +13,10 @@ const ForgotPasswordPage = lazyNamed(
 const ResetPasswordPage = lazyNamed(
   () => import('../../pages/ResetPasswordPage.jsx'),
   'ResetPasswordPage'
+);
+const VerifyEmailPage = lazyNamed(
+  () => import('../../pages/VerifyEmailPage.jsx'),
+  'VerifyEmailPage'
 );
 const AcceptInvitationPage = lazyNamed(
   () => import('../../pages/AcceptInvitationPage.jsx'),
@@ -59,10 +63,32 @@ export function AppRoutes() {
   return (
     <Suspense fallback={<RouteLoadingFallback />}>
       <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route
+          path="/login"
+          element={
+            <GuestOnlyRoute>
+              <LoginPage />
+            </GuestOnlyRoute>
+          }
+        />
+        <Route
+          path="/register"
+          element={
+            <GuestOnlyRoute>
+              <RegisterPage />
+            </GuestOnlyRoute>
+          }
+        />
+        <Route
+          path="/forgot-password"
+          element={
+            <GuestOnlyRoute>
+              <ForgotPasswordPage />
+            </GuestOnlyRoute>
+          }
+        />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route
           element={
             <ProtectedRoute>

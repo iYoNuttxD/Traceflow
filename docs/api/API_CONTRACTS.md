@@ -1,5 +1,15 @@
 # Catálogo atual de contratos HTTP do TRACEFLOW
 
+## L1 — identidade, verificação e GitHub App
+
+`POST /auth/register` recebe `{name,username,email,password}` e cria conta/sessão mesmo quando a entrega SMTP falha; `emailVerification.status` informa `accepted`, `temporary_failure` ou `permanent_failure`. `POST /auth/login` recebe `{identifier,password,rememberMe}` e aceita username/e-mail sem enumerar contas. `PATCH /auth/username` substitui o identificador técnico de usuário migrado. `POST /auth/email-verification/resend` exige sessão+CSRF; `POST /auth/email-verification/verify` é público e consome token único.
+
+GitHub App: `POST /github/app/installations/start`, `GET /github/app/callback`, `GET /github/app/installations`, `GET /github/app/installations/:installationId/repositories`, `PUT /projects/:projectId/github/integration` e `POST /github/app/webhook`. Start/list/connect exigem sessão; start/connect e sync exigem e-mail verificado. Callback exige a sessão vinculada ao state. Webhook é público, sem CSRF, e exige HMAC/body raw/delivery ID. `POST /projects/from-github` aceita `{githubInstallationId,githubRepositoryId,name?,description?,responsibleTeam?}` e revalida o repositório com a instalação; metadados enviados pelo navegador não são autoridade.
+
+`GET /github/app/installations/:installationId/repositories` retorna todos os repositórios acessíveis e aceita `projectId` opcional para reconexão. Cada item inclui `availability`, `alreadyConnected`, `connectedToCurrentProject` e `selectable`. Repositório ocupado por outro projeto é listado, mas não selecionável; os demais repositórios da mesma instalação continuam disponíveis. Uma instalação pode servir N projetos, mas `projectId` e `githubRepositoryId` são exclusivos em `ProjectGitHubIntegration`.
+
+Os contratos sistêmicos `GET /github/auth/check` e `GET /github/repositories` foram removidos. Não há fallback para PAT ou configuração `GITHUB_TOKEN`.
+
 ## Evidência e rastreabilidade
 
 Os caminhos abaixo são relativos ao prefixo `/api`, exceto os endpoints de health. Autenticação e autorização por papel estão consolidadas em `docs/security/AUTHORIZATION_MATRIX.md`; a relação entre requisito funcional, fluxo, endpoint, service, persistência, frontend e testes está em `docs/traceability/RF_TECHNICAL_MATRIX.md`. A auditoria E15 reconciliou este catálogo com os arquivos `*.routes.js`: o único contrato ativo deliberadamente não implementado é `DELETE /api/projects/:id`, que permanece `501`.

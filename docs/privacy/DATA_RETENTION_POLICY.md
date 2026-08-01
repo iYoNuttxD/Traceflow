@@ -6,6 +6,10 @@ Prazos abaixo são defaults de engenharia, não prazos jurídicos definitivos. P
 |---|---|---:|---|
 | sessão revogada/expirada | MySQL | 30 dias | `e6:cleanup`; sessão ativa não é removida |
 | reset de senha | MySQL | 7 dias | `e6:cleanup` após uso/expiração |
+| verificação de e-mail | MySQL | TTL de 24 horas; retenção de 7 dias por default | `e6:cleanup` após uso/expiração; valor bruto nunca persiste |
+| state da GitHub App | MySQL | TTL de 10 minutos; retenção de 7 dias por default | `e6:cleanup` após uso/expiração; sessão removida também faz cascade |
+| delivery de webhook GitHub | MySQL | 30 dias por default | `e6:cleanup`; guarda somente IDs/event/action, nunca payload integral |
+| metadados/autorização da instalação | MySQL | duração da conexão/conta | anonimização remove autorização do usuário; artifacts do projeto permanecem conforme finalidade histórica |
 | convite finalizado | MySQL | 30 dias | `e6:cleanup`; convite ativo preservado |
 | `AuditEvent` | MySQL | 365 dias | `privacy:retention`; usa `retentionUntil` e registra o próprio cleanup |
 | solicitação de privacidade finalizada | MySQL | 365 dias | pendente nunca é apagada pelo cleanup |

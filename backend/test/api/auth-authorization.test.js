@@ -31,7 +31,18 @@ afterAll(async () => {
 
 async function register(email, name = 'Pessoa artificial') {
   const agent = request.agent(app);
-  const response = await agent.post('/api/auth/register').send({ name, email, password });
+  const response = await agent.post('/api/auth/register').send({
+    name,
+    username: `u${email
+      .split('@')[0]
+      .replace(/[^a-z0-9]/g, '')
+      .slice(0, 29)}`,
+    email,
+    password
+  });
+  await request(app)
+    .post('/api/auth/email-verification/verify')
+    .send({ token: response.body.emailVerification.testToken });
   const csrf = response.body.csrfToken;
   return {
     agent,
@@ -52,15 +63,139 @@ describe('identidade, sessão, CSRF e autorização E6', () => {
     expect((await agent.get('/api/auth/me')).body.user.email).toBe('owner@example.invalid');
   });
 
+  it('normaliza username, bloqueia reservados e duplicados e autentica por username ou e-mail', async () => {
+    const first = await register('identity@example.invalid', 'Identidade');
+    expect(first.response.body.user.username).toBe('uidentity');
+    expect(
+      (
+        await request(app).post('/api/auth/register').send({
+          name: 'Reservado',
+          username: 'ADMIN',
+          email: 'reserved@example.invalid',
+          password
+        })
+      ).status
+    ).toBe(400);
+    expect(
+      (
+        await request(app).post('/api/auth/register').send({
+          name: 'Duplicado',
+          username: 'UIDENTITY',
+          email: 'other@example.invalid',
+          password
+        })
+      ).status
+    ).toBe(409);
+    expect(
+      (
+        await request(app)
+          .post('/api/auth/login')
+          .send({ identifier: 'UIDENTITY', password, rememberMe: false })
+      ).status
+    ).toBe(200);
+    expect(
+      (
+        await request(app)
+          .post('/api/auth/login')
+          .send({ identifier: 'identity@example.invalid', password, rememberMe: false })
+      ).status
+    ).toBe(200);
+  });
+
+  it('persiste a escolha de sessão e aplica TTL maior somente para rememberMe', async () => {
+    await register('remember@example.invalid');
+    const normal = await request(app)
+      .post('/api/auth/login')
+      .send({ identifier: 'uremember', password, rememberMe: false });
+    const persistent = await request(app)
+      .post('/api/auth/login')
+      .send({ identifier: 'uremember', password, rememberMe: true });
+    expect(normal.status).toBe(200);
+    expect(persistent.status).toBe(200);
+    const sessions = await prisma.session.findMany({
+      where: { user: { email: 'remember@example.invalid' } },
+      orderBy: { createdAt: 'asc' }
+    });
+    expect(sessions.some((session) => session.rememberMe === false)).toBe(true);
+    const remembered = sessions.find((session) => session.rememberMe === true);
+    const ordinary = sessions.find((session) => session.rememberMe === false);
+    expect(remembered.expiresAt.getTime() - remembered.createdAt.getTime()).toBeGreaterThan(
+      ordinary.expiresAt.getTime() - ordinary.createdAt.getTime()
+    );
+  });
+
+  it('bloqueia ação sensível até verificar e-mail e rejeita reuso do token', async () => {
+    const agent = request.agent(app);
+    const response = await agent.post('/api/auth/register').send({
+      name: 'E-mail pendente',
+      username: 'email-pendente',
+      email: 'pending@example.invalid',
+      password
+    });
+    const csrf = response.body.csrfToken;
+    expect(
+      (await agent.post('/api/projects').set('X-CSRF-Token', csrf).send(projectBody('Bloqueado')))
+        .body.code
+    ).toBe('EMAIL_VERIFICATION_REQUIRED');
+    const token = response.body.emailVerification.testToken;
+    expect(
+      (await request(app).post('/api/auth/email-verification/verify').send({ token })).status
+    ).toBe(200);
+    expect(
+      (await request(app).post('/api/auth/email-verification/verify').send({ token })).status
+    ).toBe(400);
+    expect(
+      (await agent.post('/api/projects').set('X-CSRF-Token', csrf).send(projectBody('Liberado')))
+        .status
+    ).toBe(201);
+  });
+
+  it('rejeita token de verificação expirado e permite reenvio autenticado', async () => {
+    const agent = request.agent(app);
+    const response = await agent.post('/api/auth/register').send({
+      name: 'Reenvio artificial',
+      username: 'reenvio-artificial',
+      email: 'resend@example.invalid',
+      password
+    });
+    const user = await prisma.user.findUnique({ where: { email: 'resend@example.invalid' } });
+    await prisma.emailVerificationToken.updateMany({
+      where: { userId: user.id },
+      data: { expiresAt: new Date(Date.now() - 1000) }
+    });
+    expect(
+      (
+        await request(app)
+          .post('/api/auth/email-verification/verify')
+          .send({ token: response.body.emailVerification.testToken })
+      ).status
+    ).toBe(400);
+    const resent = await agent
+      .post('/api/auth/email-verification/resend')
+      .set('X-CSRF-Token', response.body.csrfToken)
+      .send({});
+    expect(resent).toMatchObject({
+      status: 200,
+      body: { delivery: { status: 'accepted', testToken: expect.any(String) } }
+    });
+    expect(
+      (
+        await request(app)
+          .post('/api/auth/email-verification/verify')
+          .send({ token: resent.body.delivery.testToken })
+      ).status
+    ).toBe(200);
+  });
+
   it('usa erro genérico no login e bloqueia conta desativada', async () => {
     await register('login@example.invalid');
     expect(
       (
         await request(app)
           .post('/api/auth/login')
-          .send({ email: 'login@example.invalid', password: 'errada' })
+          .send({ identifier: 'login@example.invalid', password: 'errada', rememberMe: false })
       ).body.message
-    ).toBe('E-mail ou senha inválidos.');
+    ).toBe('Nome de usuário, e-mail ou senha inválidos.');
     await prisma.user.update({
       where: { email: 'login@example.invalid' },
       data: { isActive: false }
@@ -69,7 +204,7 @@ describe('identidade, sessão, CSRF e autorização E6', () => {
       (
         await request(app)
           .post('/api/auth/login')
-          .send({ email: 'login@example.invalid', password })
+          .send({ identifier: 'ulogin', password, rememberMe: false })
       ).status
     ).toBe(403);
   });

@@ -5,13 +5,21 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const apiMock = vi.hoisted(() => ({
   get: vi.fn(),
-  post: vi.fn()
+  post: vi.fn(),
+  put: vi.fn()
 }));
 
 vi.mock('../../src/features/projects/api/projects.api.js', () => ({
   projectsApi: {
     list: () => apiMock.get('/projects'),
-    listGithubRepositories: () => apiMock.get('/github/repositories'),
+    listGithubInstallations: () => apiMock.get('/github/app/installations'),
+    listGithubRepositories: (installationId, projectId) =>
+      apiMock.get(`/github/app/installations/${installationId}/repositories`, {
+        params: projectId ? { projectId } : undefined
+      }),
+    startGithubInstallation: (data) => apiMock.post('/github/app/installations/start', data),
+    connectGithubRepository: (projectId, data) =>
+      apiMock.put(`/projects/${projectId}/github/integration`, data),
     create: (data) => apiMock.post('/projects', data),
     createFromGithub: (data) => apiMock.post('/projects/from-github', data)
   }
@@ -44,7 +52,21 @@ function mockInitialRequests({ projects = [], repositories = [fakeRepository] } 
       return Promise.resolve({ data: { projects } });
     }
 
-    if (url === '/github/repositories') {
+    if (url === '/github/app/installations') {
+      return Promise.resolve({
+        data: {
+          installations: [
+            {
+              githubInstallationId: '77',
+              accountLogin: 'usuario-artificial',
+              accountType: 'User'
+            }
+          ]
+        }
+      });
+    }
+
+    if (url === '/github/app/installations/77/repositories') {
       return Promise.resolve({ data: { repositories } });
     }
 
@@ -97,7 +119,7 @@ describe('ProjectsPage', () => {
 
     expect(await screen.findByText('Falha artificial da API')).toBeInTheDocument();
     expect(
-      screen.getByText('Não foi possível carregar os repositórios do GitHub.')
+      screen.getByRole('button', { name: 'Instalar ou autorizar GitHub App' })
     ).toBeInTheDocument();
   });
 
@@ -122,15 +144,59 @@ describe('ProjectsPage', () => {
         expect.objectContaining({
           name: 'Projeto submetido',
           responsibleTeam: 'Equipe submetida',
-          githubOwner: fakeRepository.owner,
-          githubRepositoryId: fakeRepository.githubRepositoryId,
-          githubRepositoryName: fakeRepository.name,
-          githubRepositoryFullName: fakeRepository.fullName,
-          githubRepositoryUrl: fakeRepository.url,
-          githubDefaultBranch: fakeRepository.defaultBranch
+          githubInstallationId: '77',
+          githubRepositoryId: fakeRepository.githubRepositoryId
         })
       );
     });
     expect(await screen.findByText('Projeto cadastrado com sucesso.')).toBeInTheDocument();
+  });
+
+  it('lista todos os repositórios e desabilita somente o já utilizado', async () => {
+    const repositories = [
+      { ...fakeRepository, selectable: true, alreadyConnected: false },
+      {
+        ...fakeRepository,
+        githubRepositoryId: '502',
+        name: 'ocupado',
+        fullName: 'usuario-artificial/ocupado',
+        url: 'https://github.com/usuario-artificial/ocupado',
+        defaultBranch: 'develop',
+        selectable: false,
+        alreadyConnected: true
+      },
+      {
+        ...fakeRepository,
+        githubRepositoryId: '503',
+        name: 'disponivel',
+        fullName: 'usuario-artificial/disponivel',
+        url: 'https://github.com/usuario-artificial/disponivel',
+        defaultBranch: 'trunk',
+        selectable: true,
+        alreadyConnected: false
+      }
+    ];
+    mockInitialRequests({ repositories });
+    renderPage();
+
+    const select = await screen.findByLabelText('Repositório GitHub *');
+    await waitFor(() => expect(select.querySelectorAll('option')).toHaveLength(4));
+    const options = [...select.querySelectorAll('option')];
+    expect(options.find((option) => option.value.endsWith('/ocupado'))).toBeDisabled();
+    expect(options.find((option) => option.value.endsWith('/disponivel'))).toBeEnabled();
+    expect(options.find((option) => option.value.endsWith('/ocupado')).textContent).toMatch(
+      /branch develop.*já utilizado/
+    );
+    expect(
+      screen.getByRole('link', { name: 'Gerenciar acesso da instalação no GitHub' })
+    ).toHaveAttribute('href', 'https://github.com/settings/installations/77');
+  });
+
+  it('mostra estado vazio quando a instalação não possui repositórios', async () => {
+    mockInitialRequests({ repositories: [] });
+    renderPage();
+    expect(
+      await screen.findByText(/Esta instalação não possui repositórios autorizados/)
+    ).toBeInTheDocument();
   });
 });

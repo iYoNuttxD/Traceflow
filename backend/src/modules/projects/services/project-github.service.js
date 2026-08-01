@@ -1,71 +1,65 @@
-import { getGithubRepository } from '../../github/github.client.js';
+import { githubAppService } from '../../github/github-app.service.js';
 import { projectRepository } from '../project.repository.js';
 import {
-  buildGithubProjectData,
-  ensureGithubLinkedProject,
   parseProjectId,
   ProjectServiceError,
-  validateGithubAutoSyncEnabled,
-  validateGithubRepositoryData,
-  validateOptionalGithubAutoSyncEnabled
+  validateGithubAutoSyncEnabled
 } from '../project.schema.js';
-import { buildProjectInviteData } from './project-invite.service.js';
-
-async function ensureRepositoryIsNotLinked(data) {
-  const projectById = await projectRepository.findByGithubRepositoryId(data.githubRepositoryId);
-  if (projectById) {
-    throw new ProjectServiceError('Já existe um projeto vinculado a este repositório GitHub.', 409);
-  }
-
-  const projectByFullName = await projectRepository.findByGithubRepositoryFullName(
-    data.githubRepositoryFullName
-  );
-  if (projectByFullName) {
-    throw new ProjectServiceError('Já existe um projeto vinculado a este repositório GitHub.', 409);
-  }
-}
-
-async function verifyGithubRepositoryAccess(data) {
-  try {
-    const repository = await getGithubRepository(data.githubOwner, data.githubRepositoryName);
-    if (
-      repository.githubRepositoryId !== String(data.githubRepositoryId) ||
-      repository.fullName !== data.githubRepositoryFullName
-    ) {
-      throw new ProjectServiceError(
-        'Dados do repositório GitHub não correspondem ao repositório acessível.',
-        400
-      );
-    }
-    return repository;
-  } catch (error) {
-    if (error instanceof ProjectServiceError) throw error;
-    if (error.status === 404 || error.statusCode === 404) {
-      throw new ProjectServiceError(
-        'Repositório GitHub não encontrado ou sem permissão de acesso.',
-        404
-      );
-    }
-    throw error;
-  }
-}
 
 export const projectGithubService = {
   async createProjectFromGithubRepository(data, ownerUserId) {
-    validateGithubRepositoryData(data);
-    validateOptionalGithubAutoSyncEnabled(data.githubAutoSyncEnabled);
-    const repository = await verifyGithubRepositoryAccess(data);
-    const projectData = buildGithubProjectData(data, repository);
-    const inviteData = await buildProjectInviteData();
-    await ensureRepositoryIsNotLinked(projectData);
-    return projectRepository.createProject({ ...projectData, ...inviteData }, ownerUserId);
+    const { installation, repository } = await githubAppService.resolveAuthorizedRepository(
+      ownerUserId,
+      data.githubInstallationId,
+      data.githubRepositoryId
+    );
+    if (
+      (await projectRepository.findByGithubRepositoryId(repository.githubRepositoryId)) ||
+      (await githubAppService.assertRepositoryAvailable(repository.githubRepositoryId, null))
+    ) {
+      throw new ProjectServiceError(
+        'Já existe um projeto vinculado a este repositório GitHub.',
+        409
+      );
+    }
+    const projectData = {
+      name: (data.name || repository.name).trim(),
+      description: data.description?.trim() || repository.description || null,
+      responsibleTeam: data.responsibleTeam?.trim() || 'Equipe do projeto',
+      githubOwner: repository.owner,
+      githubRepo: repository.name,
+      githubUrl: repository.url,
+      githubRepositoryId: repository.githubRepositoryId,
+      githubRepositoryName: repository.name,
+      githubRepositoryFullName: repository.fullName,
+      githubRepositoryUrl: repository.url,
+      githubDefaultBranch: repository.defaultBranch,
+      githubIsPrivate: repository.private,
+      githubIntegratedAt: new Date(),
+      githubSyncStatus: 'PENDENTE'
+    };
+    try {
+      return await projectRepository.createGithubAppProject(
+        projectData,
+        ownerUserId,
+        installation.id,
+        repository
+      );
+    } catch (error) {
+      if (error?.code === 'P2002') {
+        throw new ProjectServiceError(
+          'Já existe um projeto vinculado a este repositório GitHub.',
+          409
+        );
+      }
+      throw error;
+    }
   },
-
   async updateGithubSyncSettings(projectId, data) {
     const parsedProjectId = parseProjectId(projectId);
     validateGithubAutoSyncEnabled(data.githubAutoSyncEnabled);
     const project = await projectRepository.findById(parsedProjectId);
-    ensureGithubLinkedProject(project);
+    if (!project) throw new ProjectServiceError('Projeto não encontrado.', 404);
     return projectRepository.updateGithubSyncSettings(parsedProjectId, data.githubAutoSyncEnabled);
   }
 };

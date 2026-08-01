@@ -6,8 +6,17 @@ async function data(request) {
 }
 
 export const githubApi = {
-  repositories(params = {}, options = {}) {
-    return httpClient.get('/github/repositories', { ...options, params: compactParams(params) });
+  installations(options = {}) {
+    return httpClient.get('/github/app/installations', options);
+  },
+  repositories(installationId, options = {}) {
+    return httpClient.get(`/github/app/installations/${installationId}/repositories`, options);
+  },
+  startInstallation(payload) {
+    return data(httpClient.post('/github/app/installations/start', payload));
+  },
+  connectProject(projectId, data) {
+    return data(httpClient.put(`/projects/${projectId}/github/integration`, data));
   },
   syncProject(projectId) {
     return data(httpClient.post(`/projects/${projectId}/github/sync`));

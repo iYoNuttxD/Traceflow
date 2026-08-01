@@ -13,8 +13,6 @@ const projectStatus = z.enum(['ATIVO', 'INATIVO', 'ARQUIVADO'], {
   error: 'Status inválido. Use ATIVO, INATIVO ou ARQUIVADO.'
 });
 const optionalProjectText = (field) => optionalText({ field });
-const githubOwner = requiredText({ field: 'githubOwner' });
-const githubRepositoryName = requiredText({ field: 'githubRepositoryName' });
 const repositoryId = z
   .union([z.string(), z.number().int()])
   .transform(String)
@@ -39,7 +37,9 @@ export const createProjectBodySchema = strictObject({
   description: optionalProjectText('Descrição'),
   responsibleTeam: requiredText({ message: 'A equipe responsável é obrigatória.' }),
   status: projectStatus.optional(),
-  ...repositoryShape
+  githubOwner: repositoryShape.githubOwner.optional(),
+  githubRepo: repositoryShape.githubRepo.optional(),
+  githubUrl: githubUrl.optional()
 });
 
 export const updateProjectBodySchema = strictObject({
@@ -53,19 +53,11 @@ export const updateProjectBodySchema = strictObject({
 });
 
 export const createProjectFromGithubBodySchema = strictObject({
+  githubInstallationId: z.string().regex(/^\d+$/, 'ID da instalação inválido.'),
   githubRepositoryId: repositoryId,
-  githubOwner,
-  githubRepositoryName,
-  githubRepositoryFullName: requiredText({ field: 'githubRepositoryFullName' }),
-  githubRepositoryUrl: githubUrl,
-  githubDefaultBranch: requiredText({ field: 'githubDefaultBranch' }),
   name: optionalProjectText('Nome'),
-  nome: optionalProjectText('Nome'),
   description: optionalProjectText('Descrição'),
-  responsibleTeam: optionalProjectText('Equipe responsável'),
-  githubAutoSyncEnabled: z
-    .boolean({ error: 'githubAutoSyncEnabled deve ser um valor booleano.' })
-    .optional()
+  responsibleTeam: optionalProjectText('Equipe responsável')
 });
 
 const memberFields = {

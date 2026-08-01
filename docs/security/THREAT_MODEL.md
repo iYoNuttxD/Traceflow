@@ -1,12 +1,18 @@
 # Threat model inicial do TRACEFLOW
 
+## Atualização L1
+
+Username/e-mail compartilham mensagem genérica; rate limit reduz brute force/credential stuffing. Sessão persistente usa o mesmo token opaco, com TTL distinto persistido. Verificação, reset, convite e state usam valor aleatório, hash, expiração e uso único. SMTP falho não reverte a conta nem produz alegação de entrega aceita.
+
+A integração migrou diretamente para GitHub App. O callback liga state à sessão, comprova a instalação na lista do usuário e descarta o user token. Installation token é gerado sob demanda. Webhook exige HMAC SHA-256 constant-time e delivery ID. Foram considerados callback/installation ID forjados, replay, instalação de outro usuário, BOLA/non-OWNER, private key/client/webhook secret, token em log, suspensão/remoção e repositório removido. Permanecem riscos operacionais de secret manager, permissões/configuração real, lock/rate limit distribuído e indisponibilidade externa.
+
 ## Atualização E9
 
-A credencial GitHub sistêmica passou a ser fornecida por provider único ao client externo, conforme ADR-007. DTOs mínimos reduzem a propagação de payloads externos, paginação limita memória, e persistência por projeto/identificador protege idempotência. Sync concorrente no mesmo projeto é bloqueado por instância; falha parcial preserva lotes e último sucesso, registra estado sanitizado e permite reprocessamento. Persistem o raio de impacto/quota do PAT, a ausência de lock distribuído e de checkpoint persistente entre páginas.
+Esta seção descreve o estado histórico E9. A L1 substituiu o provider sistêmico pela GitHub App descrita acima. DTOs mínimos, paginação, idempotência e trava por instância permanecem.
 
 ## Atualização E6
 
-Identidade verificável, sessão opaca, CSRF, memberships e RBAC reduzem spoofing/BOLA. Navegador, cookie, SMTP e endpoints públicos de autenticação formam trust boundaries. A continuação da E6 adicionou adapter SMTP/capture, administração canônica, proteção transacional do último OWNER e retenção operacional. Persistem: PAT GitHub sistêmico, infraestrutura não distribuída, dependência operacional de SMTP e campos legados textuais.
+Identidade verificável, sessão opaca, CSRF, memberships e RBAC reduzem spoofing/BOLA. Navegador, cookie, SMTP e endpoints públicos de autenticação formam trust boundaries. A continuação da E6 adicionou adapter SMTP/capture, administração canônica, proteção transacional do último OWNER e retenção operacional. A referência ao PAT é histórica; a L1 o removeu do runtime.
 
 Novas ameaças tratadas/testadas: credential stuffing, fixation/hijacking, CSRF, replay/substituição de reset e convite, enumeração de conta/projeto, privilege escalation, remoção do último OWNER e BOLA entre projetos.
 
@@ -23,7 +29,7 @@ Migrations e reconciliação formam uma boundary administrativa: scripts são dr
 - projetos, requisitos, tarefas, vínculos e histórico Kanban;
 - metadados de repositórios, commits, pull requests e issues;
 - nomes, e-mails, logins GitHub e autoria técnica;
-- `GITHUB_TOKEN`, `DATABASE_URL` e configuração operacional;
+- chave privada/client/webhook secret da GitHub App, `DATABASE_URL`, credencial SMTP e configuração operacional;
 - códigos e links de convite;
 - integridade do banco MySQL e disponibilidade da API;
 - logs estruturados, request IDs, lockfiles e pipeline CI/CD.
@@ -58,7 +64,7 @@ Reverse proxy / ingress  -- boundary de transporte e IP confiável
         v
 Backend Express  -- boundary HTTP, validação, logging e regras de domínio
    |          |
-   |          +--> GitHub API/Octokit -- boundary externa, token, timeout e retry
+   |          +--> GitHub API/Octokit -- boundary externa, App/installation, timeout e retry
    v
 Prisma/MySQL  -- boundary de persistência e dados pessoais
 

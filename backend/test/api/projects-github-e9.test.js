@@ -9,14 +9,21 @@ import { ERROR_CODES, ExternalServiceError } from '../../src/shared/errors/index
 
 const githubBoundary = vi.hoisted(() => ({
   client: null,
-  getGithubRepository: vi.fn(),
-  checkGithubAuthentication: vi.fn()
+  installation: null,
+  resolveAuthorizedRepository: vi.fn(),
+  assertRepositoryAvailable: vi.fn()
 }));
 
 vi.mock('../../src/modules/github/github.client.js', () => ({
-  getGithubClient: () => githubBoundary.client,
-  getGithubRepository: githubBoundary.getGithubRepository,
-  checkGithubAuthentication: githubBoundary.checkGithubAuthentication
+  githubInstallationClientFactory: {
+    forInstallation: () => githubBoundary.client
+  }
+}));
+vi.mock('../../src/modules/github/github-app.service.js', () => ({
+  githubAppService: {
+    resolveAuthorizedRepository: githubBoundary.resolveAuthorizedRepository,
+    assertRepositoryAvailable: githubBoundary.assertRepositoryAvailable
+  }
 }));
 
 let app;
@@ -32,6 +39,13 @@ const repository = {
   private: true,
   description: 'Repositório artificial E9'
 };
+const repositoryFor = (id, suffix) => ({
+  ...repository,
+  githubRepositoryId: String(id),
+  name: `repositorio-${suffix}`,
+  fullName: `usuario-e9/repositorio-${suffix}`,
+  url: `https://github.com/usuario-e9/repositorio-${suffix}`
+});
 
 async function* pages(...values) {
   for (const value of values) yield value;
@@ -49,7 +63,22 @@ function createGithubDouble({ commits = [[]], pullRequests = [[]], issues = [[]]
 
 async function register(email, name = 'Pessoa E9') {
   const agent = request.agent(app);
-  const response = await agent.post('/api/auth/register').send({ name, email, password });
+  const response = await agent.post('/api/auth/register').send({
+    name,
+    username: `u${email
+      .split('@')[0]
+      .replace(/[^a-z0-9]/g, '')
+      .slice(0, 29)}`,
+    email,
+    password
+  });
+  expect(response.status, JSON.stringify(response.body)).toBe(201);
+  const verification = await request(app)
+    .post('/api/auth/email-verification/verify')
+    .send({ token: response.body.emailVerification.testToken });
+  expect(verification.status, JSON.stringify(verification.body)).toBe(200);
+  const session = await agent.get('/api/auth/me');
+  expect(session.status, JSON.stringify(session.body)).toBe(200);
   const csrf = response.body.csrfToken;
   return {
     agent,
@@ -60,12 +89,8 @@ async function register(email, name = 'Pessoa E9') {
 
 async function createIntegratedProject(auth) {
   const response = await auth.mutate('post', '/api/projects/from-github').send({
+    githubInstallationId: '77',
     githubRepositoryId: repository.githubRepositoryId,
-    githubOwner: repository.owner,
-    githubRepositoryName: repository.name,
-    githubRepositoryFullName: repository.fullName,
-    githubRepositoryUrl: repository.url,
-    githubDefaultBranch: repository.defaultBranch,
     name: 'Projeto E9',
     responsibleTeam: 'Equipe E9'
   });
@@ -83,8 +108,22 @@ beforeAll(async () => {
 beforeEach(async () => {
   await cleanTestDatabase(prisma);
   vi.clearAllMocks();
-  githubBoundary.getGithubRepository.mockResolvedValue(repository);
   githubBoundary.client = createGithubDouble();
+  githubBoundary.installation = await prisma.gitHubInstallation.create({
+    data: {
+      githubInstallationId: '77',
+      accountId: '700',
+      accountLogin: 'usuario-e9',
+      accountType: 'User',
+      installedAt: new Date(),
+      status: 'ACTIVE'
+    }
+  });
+  githubBoundary.resolveAuthorizedRepository.mockImplementation(async () => ({
+    installation: githubBoundary.installation,
+    repository
+  }));
+  githubBoundary.assertRepositoryAvailable.mockResolvedValue(null);
 });
 
 afterEach(() => cleanTestDatabase(prisma));
@@ -94,14 +133,60 @@ afterAll(async () => {
 });
 
 describe('Projetos e integração GitHub E9', () => {
+  it('reutiliza uma instalação em três projetos com repositórios diferentes', async () => {
+    const owner = await register('owner-multiple@example.invalid');
+    const repositories = [
+      repositoryFor(9101, 'a'),
+      repositoryFor(9102, 'b'),
+      repositoryFor(9103, 'c')
+    ];
+    githubBoundary.resolveAuthorizedRepository.mockImplementation(
+      async (_userId, _installationId, repositoryId) => ({
+        installation: githubBoundary.installation,
+        repository: repositories.find(
+          (candidate) => candidate.githubRepositoryId === String(repositoryId)
+        )
+      })
+    );
+
+    const projects = [];
+    for (const [index, candidate] of repositories.entries()) {
+      const response = await owner.mutate('post', '/api/projects/from-github').send({
+        githubInstallationId: '77',
+        githubRepositoryId: candidate.githubRepositoryId,
+        name: `Projeto múltiplo ${index + 1}`,
+        responsibleTeam: 'Equipe múltipla'
+      });
+      expect(response.status).toBe(201);
+      projects.push(response.body.project);
+    }
+
+    const integrations = await prisma.projectGitHubIntegration.findMany({
+      where: { installationId: githubBoundary.installation.id },
+      orderBy: { githubRepositoryId: 'asc' }
+    });
+    expect(integrations).toHaveLength(3);
+    expect(new Set(integrations.map(({ projectId }) => projectId)).size).toBe(3);
+    expect(new Set(integrations.map(({ githubRepositoryId }) => githubRepositoryId)).size).toBe(3);
+
+    githubBoundary.client = createGithubDouble();
+    githubBoundary.client.getRepository.mockImplementation(async (ownerName, repositoryName) =>
+      repositories.find(
+        (candidate) => candidate.owner === ownerName && candidate.name === repositoryName
+      )
+    );
+    for (const project of projects) {
+      expect(
+        (await owner.mutate('post', `/api/projects/${project.id}/github/sync`).send({})).status
+      ).toBe(200);
+    }
+  }, 15000);
+
   it('preserva cadastro comum e usa revalidação externa no cadastro GitHub', async () => {
     const owner = await register('owner-e9@example.invalid');
     const common = await owner.mutate('post', '/api/projects').send({
       name: 'Projeto comum',
-      responsibleTeam: 'Equipe',
-      githubOwner: 'fake-owner',
-      githubRepo: 'fake-repo',
-      githubUrl: 'https://github.com/fake-owner/fake-repo'
+      responsibleTeam: 'Equipe'
     });
     expect(common).toMatchObject({
       status: 201,
@@ -109,9 +194,10 @@ describe('Projetos e integração GitHub E9', () => {
     });
 
     const project = await createIntegratedProject(owner);
-    expect(githubBoundary.getGithubRepository).toHaveBeenCalledWith(
-      repository.owner,
-      repository.name
+    expect(githubBoundary.resolveAuthorizedRepository).toHaveBeenCalledWith(
+      owner.user.id,
+      '77',
+      repository.githubRepositoryId
     );
     expect(project).toMatchObject({
       githubRepositoryId: repository.githubRepositoryId,
@@ -135,12 +221,8 @@ describe('Projetos e integração GitHub E9', () => {
     });
 
     const duplicate = await owner.mutate('post', '/api/projects/from-github').send({
-      githubRepositoryId: repository.githubRepositoryId,
-      githubOwner: repository.owner,
-      githubRepositoryName: repository.name,
-      githubRepositoryFullName: repository.fullName,
-      githubRepositoryUrl: repository.url,
-      githubDefaultBranch: repository.defaultBranch
+      githubInstallationId: '77',
+      githubRepositoryId: repository.githubRepositoryId
     });
     expect(duplicate.status).toBe(409);
   });
@@ -169,7 +251,7 @@ describe('Projetos e integração GitHub E9', () => {
     expect(
       (await owner.mutate('post', `/api/projects/${project.id}/github/sync`).send({})).status
     ).toBe(200);
-  });
+  }, 30000);
 
   it('pagina, reprocessa sem duplicar e preserva vínculos e artifacts canônicos', async () => {
     const owner = await register('owner-sync@example.invalid');

@@ -40,8 +40,10 @@ beforeEach(async () => {
   const user = await prisma.user.create({
     data: {
       name: 'Usuário E6 artificial',
+      username: 'usuario-e6-artificial',
       email: 'e6@example.invalid',
-      passwordHash: 'fixture-only'
+      passwordHash: 'fixture-only',
+      emailVerifiedAt: new Date()
     }
   });
   await prisma.session.create({
@@ -725,6 +727,7 @@ describe('Kanban e histórico', () => {
     const responsible = await prisma.user.create({
       data: {
         name: 'Responsável E11',
+        username: 'responsavel-e11',
         email: 'responsavel-e11@example.invalid',
         passwordHash: 'fixture-only'
       }
@@ -778,6 +781,7 @@ describe('Kanban e histórico', () => {
     const outsideUser = await prisma.user.create({
       data: {
         name: 'Responsável externo',
+        username: 'responsavel-externo-e11',
         email: 'responsavel-externo-e11@example.invalid',
         passwordHash: 'fixture-only'
       }

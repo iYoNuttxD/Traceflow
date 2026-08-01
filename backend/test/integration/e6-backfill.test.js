@@ -28,7 +28,12 @@ describe('backfill E6', () => {
       prisma.project.create({ data: { name: 'Projeto parcial', responsibleTeam: 'Equipe' } })
     ]);
     const canonicalOwner = await prisma.user.create({
-      data: { name: 'Owner canônico', email: 'canonical@example.invalid', passwordHash: null }
+      data: {
+        name: 'Owner canônico',
+        username: 'owner-canonico',
+        email: 'canonical@example.invalid',
+        passwordHash: null
+      }
     });
     await prisma.projectMembership.create({
       data: { projectId: partial.id, userId: canonicalOwner.id, role: 'OWNER' }

@@ -1,6 +1,11 @@
 :root {
   font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
     sans-serif;
   color: #172033;
   background: #f5f7fb;
@@ -60,8 +65,7 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background:
-    radial-gradient(circle at top left, rgba(49, 91, 206, 0.08), transparent 28rem),
-    #f5f7fb;
+    radial-gradient(circle at top left, rgba(49, 91, 206, 0.08), transparent 28rem), #f5f7fb;
 }
 
 a {
@@ -197,7 +201,9 @@ a {
   background: #fff;
   font: inherit;
   outline: none;
-  transition: border-color 160ms ease, box-shadow 160ms ease;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
 }
 
 .field select {
@@ -1186,7 +1192,9 @@ a {
   border: 1px solid #dce2ec;
   border-radius: 14px;
   background: #eef2f8;
-  transition: border-color 160ms ease, background 160ms ease;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease;
 }
 
 .kanban-column--drag-over {
@@ -1524,7 +1532,10 @@ a {
 
 .movement-item {
   display: grid;
-  grid-template-columns: minmax(180px, 1.2fr) minmax(180px, 1fr) minmax(120px, 0.6fr) minmax(170px, 0.8fr);
+  grid-template-columns: minmax(180px, 1.2fr) minmax(180px, 1fr) minmax(120px, 0.6fr) minmax(
+      170px,
+      0.8fr
+    );
   gap: 0.75rem;
   align-items: center;
   padding: 0.85rem;
@@ -2205,5 +2216,214 @@ a {
 
   .repository-filter-actions {
     flex-direction: column;
+  }
+}
+/* Jornadas públicas de identidade L1. */
+.auth-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 2rem 1rem;
+  background: #f5f7fb;
+}
+
+.auth-shell {
+  width: min(100%, 520px);
+}
+
+.auth-card {
+  padding: clamp(1.5rem, 4vw, 2.5rem);
+  border: 1px solid #e2e7f0;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 18px 50px rgba(22, 34, 55, 0.09);
+}
+
+.auth-header {
+  display: grid;
+  gap: 0.55rem;
+  margin-bottom: 1.5rem;
+}
+
+.auth-header h1,
+.auth-header p,
+.auth-footer p,
+.password-requirements p {
+  margin: 0;
+}
+
+.auth-header h1 {
+  color: #172033;
+}
+
+.auth-header p,
+.auth-footer,
+.auth-privacy {
+  color: #667085;
+  line-height: 1.55;
+}
+
+.auth-brand {
+  color: #315bce;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.auth-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.auth-form .form-field {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.auth-form .form-field > label {
+  color: #344054;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.auth-form input:not([type='checkbox']) {
+  width: 100%;
+  min-width: 0;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid #cfd6e4;
+  border-radius: 9px;
+  background: #fff;
+  color: #172033;
+  font: inherit;
+}
+
+.auth-form input:focus-visible,
+.password-toggle:focus-visible,
+.auth-form button:focus-visible,
+.auth-form a:focus-visible {
+  outline: 3px solid rgba(49, 91, 206, 0.22);
+  outline-offset: 2px;
+}
+
+.password-control {
+  position: relative;
+  display: flex;
+}
+
+.password-control input {
+  padding-right: 5.4rem !important;
+}
+
+.password-toggle {
+  position: absolute;
+  inset: 0.3rem 0.35rem 0.3rem auto;
+  padding: 0.2rem 0.55rem;
+  border: 0;
+  border-radius: 7px;
+  background: #eef2ff;
+  color: #315bce;
+  font-weight: 700;
+}
+
+.password-requirements {
+  display: grid;
+  gap: 0.45rem;
+  color: #667085;
+  font-size: 0.82rem;
+}
+
+.password-requirements ul {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.password-requirements li[data-met='true'] {
+  color: #18794e;
+}
+
+.password-strength {
+  width: 100%;
+  height: 0.55rem;
+  accent-color: #315bce;
+}
+
+.auth-options {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  font-size: 0.88rem;
+}
+
+.checkbox-field {
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.auth-submit {
+  width: 100%;
+  justify-content: center;
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: #98a2b3;
+  font-size: 0.82rem;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #e2e7f0;
+}
+
+.github-login-placeholder {
+  width: 100%;
+  justify-content: center;
+  border: 1px solid #cfd6e4;
+  background: #f8fafc;
+  color: #667085;
+}
+
+.auth-footer {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid #e2e7f0;
+  text-align: center;
+}
+
+.email-verification-banner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid #f4d58d;
+  background: #fff8e7;
+  color: #6b4f00;
+}
+
+.email-verification-banner button {
+  border: 1px solid #b7791f;
+  border-radius: 9px;
+  background: #fff;
+  color: #6b4f00;
+}
+
+@media (max-width: 560px) {
+  .auth-options {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .auth-card {
+    border-radius: 12px;
   }
 }

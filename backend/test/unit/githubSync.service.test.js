@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  getGithubClient: vi.fn(),
+  forInstallation: vi.fn(),
+  githubIntegrationRepository: { findIntegration: vi.fn() },
   projectRepository: {
     findById: vi.fn(),
     updateGithubRepositoryMetadata: vi.fn(),
@@ -20,7 +21,10 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../../src/modules/github/github.client.js', () => ({
-  getGithubClient: mocks.getGithubClient
+  githubInstallationClientFactory: { forInstallation: mocks.forInstallation }
+}));
+vi.mock('../../src/modules/github/github.repository.js', () => ({
+  githubRepository: mocks.githubIntegrationRepository
 }));
 vi.mock('../../src/modules/projects/project.repository.js', () => ({
   projectRepository: mocks.projectRepository
@@ -76,6 +80,10 @@ function buildGithubDouble({ commits = [[]], pullRequests = [[]], issues = [[]] 
 describe('githubSyncService com client e persistência substituídos', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.githubIntegrationRepository.findIntegration.mockResolvedValue({
+      status: 'ACTIVE',
+      installation: { status: 'ACTIVE', githubInstallationId: '991' }
+    });
     mocks.projectRepository.findById.mockResolvedValue(project);
     mocks.projectRepository.updateGithubRepositoryMetadata.mockResolvedValue(project);
     mocks.projectRepository.markGithubSyncStarted.mockResolvedValue(project);
@@ -113,7 +121,7 @@ describe('githubSyncService com client e persistência substituídos', () => {
       pullRequests: [[{ githubId: '301', number: 3 }], []],
       issues: [[{ githubId: '401', number: 4 }], []]
     });
-    mocks.getGithubClient.mockReturnValue(github);
+    mocks.forInstallation.mockResolvedValue(github);
 
     const result = await githubSyncService.syncProjectGithubData(String(project.id));
 
@@ -145,7 +153,7 @@ describe('githubSyncService com client e persistência substituídos', () => {
   it('resolve branch ausente pela consulta do repositório e atualiza metadados canônicos', async () => {
     mocks.projectRepository.findById.mockResolvedValue({ ...project, githubDefaultBranch: null });
     const github = buildGithubDouble();
-    mocks.getGithubClient.mockReturnValue(github);
+    mocks.forInstallation.mockResolvedValue(github);
     await githubSyncService.syncProjectGithubData(project.id);
     expect(mocks.projectRepository.updateGithubRepositoryMetadata).toHaveBeenCalledWith(
       project.id,
@@ -166,7 +174,7 @@ describe('githubSyncService com client e persistência substituídos', () => {
         throw failure;
       })()
     );
-    mocks.getGithubClient.mockReturnValue(github);
+    mocks.forInstallation.mockResolvedValue(github);
 
     await expect(githubSyncService.syncProjectGithubData(project.id)).rejects.toBe(failure);
     expect(mocks.commitRepository.createMany).toHaveBeenCalledWith([
@@ -189,7 +197,7 @@ describe('githubSyncService com client e persistência substituídos', () => {
           release = () => resolve(repository);
         })
     );
-    mocks.getGithubClient.mockReturnValue(github);
+    mocks.forInstallation.mockResolvedValue(github);
 
     const first = githubSyncService.syncProjectGithubData(project.id);
     await vi.waitFor(() => expect(release).toBeTypeOf('function'));

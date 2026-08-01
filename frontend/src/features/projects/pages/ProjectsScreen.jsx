@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { Card, ErrorState, FeedbackRegion, LoadingState } from '../../../shared/index.js';
 import {
   ProjectForm,
@@ -15,15 +15,19 @@ function getErrorMessage(error, fallback) {
 }
 
 export function ProjectsScreen() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [projects, setProjects] = useState([]);
   const [repositories, setRepositories] = useState([]);
+  const [installations, setInstallations] = useState([]);
+  const [selectedInstallationId, setSelectedInstallationId] = useState('');
   const [formData, setFormData] = useState(emptyProjectForm);
   const [loadingProjects, setLoadingProjects] = useState(true);
-  const [loadingRepositories, setLoadingRepositories] = useState(true);
+  const [loadingRepositories, setLoadingRepositories] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [repositoriesError, setRepositoriesError] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const reconnectProjectId = searchParams.get('projectId');
 
   const loadProjects = useCallback(async () => {
     setLoadingProjects(true);
@@ -39,31 +43,79 @@ export function ProjectsScreen() {
     }
   }, []);
 
-  const loadRepositories = useCallback(async () => {
-    setLoadingRepositories(true);
-    setRepositoriesError('');
+  const loadRepositories = useCallback(
+    async (installationId) => {
+      if (!installationId) {
+        setRepositories([]);
+        setLoadingRepositories(false);
+        return;
+      }
+      setLoadingRepositories(true);
+      setRepositoriesError('');
 
-    try {
-      const response = await projectsApi.listGithubRepositories();
-      const validRepositories = (response.data.repositories || [])
-        .map(normalizeRepository)
-        .filter(
-          (repository) =>
-            repository.owner && repository.name && repository.fullName && repository.url
+      try {
+        const response = await projectsApi.listGithubRepositories(
+          installationId,
+          reconnectProjectId
         );
-      setRepositories(validRepositories);
+        const validRepositories = (response.data.repositories || [])
+          .map(normalizeRepository)
+          .filter(
+            (repository) =>
+              repository.owner && repository.name && repository.fullName && repository.url
+          );
+        setRepositories(validRepositories);
+      } catch {
+        setRepositories([]);
+        setRepositoriesError('Não foi possível carregar os repositórios do GitHub.');
+      } finally {
+        setLoadingRepositories(false);
+      }
+    },
+    [reconnectProjectId]
+  );
+
+  const loadInstallations = useCallback(async () => {
+    try {
+      const response = await projectsApi.listGithubInstallations();
+      const available = response.data.installations || [];
+      setInstallations(available);
+      if (available.length) {
+        setSelectedInstallationId((current) => current || available[0].githubInstallationId);
+      }
     } catch {
-      setRepositories([]);
-      setRepositoriesError('Não foi possível carregar os repositórios do GitHub.');
-    } finally {
-      setLoadingRepositories(false);
+      setInstallations([]);
     }
   }, []);
 
   useEffect(() => {
     loadProjects();
-    loadRepositories();
-  }, [loadProjects, loadRepositories]);
+    loadInstallations();
+  }, [loadProjects, loadInstallations]);
+
+  useEffect(() => {
+    void loadRepositories(selectedInstallationId);
+  }, [loadRepositories, selectedInstallationId]);
+
+  useEffect(() => {
+    const callbackInstallationId = searchParams.get('installationId');
+    if (callbackInstallationId) setSelectedInstallationId(callbackInstallationId);
+  }, [searchParams]);
+
+  async function startGithubInstallation(projectId) {
+    setError('');
+    try {
+      const response = await projectsApi.startGithubInstallation({
+        intendedAction: projectId ? 'CONNECT_PROJECT' : 'CREATE_PROJECT',
+        ...(projectId ? { projectId } : {})
+      });
+      window.location.assign(response.data.url);
+    } catch (requestError) {
+      setError(
+        getErrorMessage(requestError, 'Não foi possível iniciar a instalação da GitHub App.')
+      );
+    }
+  }
 
   function handleChange(name, value) {
     setFormData((current) => updateProjectForm(current, name, value));
@@ -74,7 +126,7 @@ export function ProjectsScreen() {
       (repository) => normalizeRepository(repository).fullName === fullName
     );
 
-    if (!selectedRepository) {
+    if (!selectedRepository || normalizeRepository(selectedRepository).selectable === false) {
       setFormData((current) => ({
         ...current,
         githubOwner: '',
@@ -110,12 +162,8 @@ export function ProjectsScreen() {
 
     try {
       const response = await projectsApi.createFromGithub({
+        githubInstallationId: selectedInstallationId,
         githubRepositoryId: formData.githubRepositoryId,
-        githubOwner: formData.githubOwner,
-        githubRepositoryName: formData.githubRepositoryName,
-        githubRepositoryFullName: formData.githubRepositoryFullName,
-        githubRepositoryUrl: formData.githubRepositoryUrl,
-        githubDefaultBranch: formData.githubDefaultBranch,
         name: formData.name,
         description: formData.description,
         responsibleTeam: formData.responsibleTeam
@@ -125,6 +173,31 @@ export function ProjectsScreen() {
       await loadProjects();
     } catch (requestError) {
       setError(getErrorMessage(requestError, 'Não foi possível cadastrar o projeto.'));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function reconnectProject() {
+    const projectId = searchParams.get('projectId');
+    if (!projectId || !formData.githubRepositoryId) {
+      setError('Selecione o repositório que será reconectado.');
+      return;
+    }
+    setSubmitting(true);
+    setError('');
+    setSuccess('');
+    try {
+      const response = await projectsApi.connectGithubRepository(projectId, {
+        githubInstallationId: selectedInstallationId,
+        githubRepositoryId: formData.githubRepositoryId
+      });
+      setSuccess(response.data.message);
+      setSearchParams({}, { replace: true });
+      setFormData(emptyProjectForm);
+      await loadProjects();
+    } catch (requestError) {
+      setError(getErrorMessage(requestError, 'Não foi possível reconectar o repositório.'));
     } finally {
       setSubmitting(false);
     }
@@ -144,6 +217,42 @@ export function ProjectsScreen() {
 
       <div className="projects-layout">
         <Card title="Cadastrar projeto">
+          <div className="github-app-setup">
+            <button className="button" type="button" onClick={() => void startGithubInstallation()}>
+              Instalar ou autorizar GitHub App
+            </button>
+            {installations.length > 0 && (
+              <>
+                <label className="field">
+                  <span>Instalação GitHub</span>
+                  <select
+                    value={selectedInstallationId}
+                    onChange={(event) => setSelectedInstallationId(event.target.value)}
+                  >
+                    {installations.map((installation) => (
+                      <option
+                        key={installation.githubInstallationId}
+                        value={installation.githubInstallationId}
+                      >
+                        {installation.accountLogin}
+                        {installation.accountType ? ` (${installation.accountType})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {selectedInstallationId && (
+                  <a
+                    className="text-link"
+                    href={`https://github.com/settings/installations/${selectedInstallationId}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Gerenciar acesso da instalação no GitHub
+                  </a>
+                )}
+              </>
+            )}
+          </div>
           <ProjectForm
             formData={formData}
             repositories={repositories}
@@ -156,6 +265,19 @@ export function ProjectsScreen() {
             submitting={submitting}
             showStatusField={false}
           />
+          {reconnectProjectId && (
+            <div className="github-reconnect-action">
+              <p>Selecione acima o repositório autorizado para reconectar o projeto.</p>
+              <button
+                className="button button-primary"
+                type="button"
+                onClick={() => void reconnectProject()}
+                disabled={submitting}
+              >
+                Concluir reconexão
+              </button>
+            </div>
+          )}
         </Card>
 
         <Card title="Projetos cadastrados">
@@ -192,6 +314,15 @@ export function ProjectsScreen() {
                   <Link className="text-link" to={`/projects/${project.id}`}>
                     Ver detalhes e editar
                   </Link>
+                  {project.githubIntegration?.status === 'RECONNECT_REQUIRED' && (
+                    <button
+                      className="button"
+                      type="button"
+                      onClick={() => void startGithubInstallation(project.id)}
+                    >
+                      Reconectar GitHub
+                    </button>
+                  )}
                 </article>
               ))}
             </div>

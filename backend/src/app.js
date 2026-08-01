@@ -5,6 +5,7 @@ import { notFoundMiddleware } from './middlewares/not-found.middleware.js';
 import { createRequestContextMiddleware } from './middlewares/request-context.middleware.js';
 import routes from './routes/index.js';
 import { authRoutes } from './modules/auth/index.js';
+import { githubWebhookController } from './modules/github/github-app.controller.js';
 import { createAuthenticationMiddleware } from './middlewares/auth/authentication.middleware.js';
 import { createCsrfMiddleware } from './middlewares/auth/csrf.middleware.js';
 import { createProjectAuthorizationMiddleware } from './middlewares/auth/project-authorization.middleware.js';
@@ -33,6 +34,12 @@ export function createApp({ logger = defaultLogger, readinessCheck, securityConf
   app.use(createRequestContextMiddleware({ logger }));
   app.use(createSecurityHeadersMiddleware(securityConfig));
   app.use(createCorsMiddleware(securityConfig));
+  app.post(
+    '/api/github/app/webhook',
+    rateLimiters.general,
+    express.raw({ type: 'application/json', limit: '1mb' }),
+    githubWebhookController.handle
+  );
   app.use(requireJsonContentType);
   app.use(express.json({ limit: securityConfig.bodyLimit, strict: true }));
 
@@ -44,14 +51,14 @@ export function createApp({ logger = defaultLogger, readinessCheck, securityConf
   app.use('/api/auth/login', rateLimiters.sensitive);
   app.use('/api/auth/forgot-password', rateLimiters.sensitive);
   app.use('/api/auth/reset-password', rateLimiters.sensitive);
+  app.use('/api/auth/email-verification', rateLimiters.sensitive);
   app.use('/api/auth', authRoutes);
   app.use(
     '/api/projects/join',
     createSensitiveAttemptLogger({ logger, event: 'project_join' }),
     rateLimiters.join
   );
-  app.use('/api/github/auth/check', rateLimiters.sensitive);
-  app.use('/api/github/repositories', rateLimiters.sensitive);
+  app.use('/api/github/app/installations', rateLimiters.sensitive);
   app.use('/api/projects/from-github', rateLimiters.sensitive);
   app.use('/api/account/personal-data/export', rateLimiters.sensitive);
   app.use(

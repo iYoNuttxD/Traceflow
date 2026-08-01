@@ -1,11 +1,11 @@
 # Matriz vigente RF → código → teste
 
-Estado consolidado após a E15. `IMPLEMENTADO` significa fluxo presente e protegido pela suíte; `PARCIAL` indica apenas parte do RF; `NÃO IMPLEMENTADO` não deve ser inferido de campos isolados.
+Estado consolidado após a L1. `IMPLEMENTADO` significa fluxo presente e protegido pela suíte; `PARCIAL` indica apenas parte do RF; `NÃO IMPLEMENTADO` não deve ser inferido de campos isolados. Homologações externas de SMTP e GitHub App permanecem distintas da cobertura automatizada.
 
 | RF | Fluxo funcional | Endpoint principal | Service | Persistência | Frontend | Evidência de teste | Estado |
 |---|---|---|---|---|---|---|---|
 | RF01 | cadastrar projeto | `POST /api/projects` | project-crud | Project, ProjectMembership | ProjectsScreen/ProjectForm | mvp-contracts, ProjectsPage | IMPLEMENTADO |
-| RF02 | integrar repositório GitHub | `POST /api/projects/from-github` | project-github | Project | ProjectsScreen | projects-github-e9, ProjectsPage | IMPLEMENTADO |
+| RF02 | integrar repositório GitHub | GitHub App callback + `POST /api/projects/from-github` | github-app/project-github | GitHubInstallation, ProjectGitHubIntegration, Project | ProjectsScreen | github-app, projects-github-e9, ProjectsPage | IMPLEMENTADO; HOMOLOGAÇÃO EXTERNA PENDENTE |
 | RF03 | importar commits | `POST .../github/sync` | sync-project-commits | Commit | ProjectDetails/Repository | projects-github-e9, githubSync | IMPLEMENTADO |
 | RF04 | importar Pull Requests | `POST .../github/sync` | sync-project-pull-requests | PullRequest | Repository | projects-github-e9, githubSync | IMPLEMENTADO |
 | RF05 | importar Issues | `POST .../github/sync` | sync-project-issues | Issue | Repository | projects-github-e9, githubSync | IMPLEMENTADO |
@@ -17,12 +17,12 @@ Estado consolidado após a E15. `IMPLEMENTADO` significa fluxo presente e proteg
 | RF12 | Task–Issue | `GET/POST/DELETE /tasks/:id/issues` | task-issue | TaskIssue | TaskForm/List | mvp-contracts | IMPLEMENTADO |
 | RF21 | atualizar sync GitHub | `POST .../github/sync` | sync-project-github | Project + artefatos | ProjectDetails | projects-github-e9 | IMPLEMENTADO |
 | RF22 | editar projeto | `PUT /api/projects/:id` | project-crud | Project | ProjectDetails/ProjectForm | mvp-contracts, ProjectDetailsPage | IMPLEMENTADO |
-| RF23 | cadastrar usuário | `POST /api/auth/register` | auth | User, Session | RegisterPage | auth-authorization, AuthForms/AuthContext | IMPLEMENTADO |
+| RF23 | cadastrar usuário | `POST /api/auth/register`, verificação de e-mail | auth/email | User, Session, EmailVerificationToken | Register/VerifyEmail | auth API, identity-policy, AuthForms/AuthContext | IMPLEMENTADO |
 | RF24 | vincular usuário ao projeto | invitations/accept, memberships | invitation/membership | ProjectMembership, Invitation | ProjectMembersPanel | auth-authorization, members panel | IMPLEMENTADO |
 | RF25 | definir perfil | `PATCH .../members/:membershipId` | membership | ProjectMembership.role | ProjectMembersPanel | auth-authorization | IMPLEMENTADO |
 | RF26 | consultar equipe | `GET .../members` | membership | ProjectMembership, User | ProjectMembersPanel/TaskForm | auth-authorization, members panel | IMPLEMENTADO |
-| RF27 | autenticar | `/api/auth/login`, me, logout, csrf | auth | User, Session | AuthContext/Login | auth-authorization, AuthContext/ProtectedRoute | IMPLEMENTADO |
-| RF28 | recuperar senha | forgot/reset-password | auth/email | PasswordResetToken | Forgot/Reset pages | auth tests, AuthForms | IMPLEMENTADO |
+| RF27 | autenticar | login por username/e-mail, me, logout, csrf | auth | User, Session | AuthContext/Login/GuestOnlyRoute | auth API, AuthContext/ProtectedRoute/GuestOnlyRoute | IMPLEMENTADO |
+| RF28 | recuperar senha | forgot/reset-password | auth/email | PasswordResetToken | Forgot/Reset pages | auth API, identity-policy, AuthForms | IMPLEMENTADO; SMTP EXTERNO PENDENTE |
 | RF38 | histórico de alterações | `GET .../tasks/history`, movements | task-movement/history | TaskHistoryEntry, TaskMovement | Kanban history | mvp-contracts, KanbanPage | IMPLEMENTADO |
 | RF41 | sugerir Commit–Task | commit-suggestions scan/list/review | commit-suggestion | TaskCommitSuggestion, TaskCommit | Task edit/suggestions | rf41 API/unit, CommitSuggestionsCard | IMPLEMENTADO |
 | RF48 | Requirement–Task | `PUT /requirements/:id/tasks` | requirement-task | Task.requirementId | RequirementsScreen | mvp-contracts, RequirementsPage | IMPLEMENTADO |

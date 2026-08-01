@@ -118,6 +118,7 @@ No backend, `project.service.js` funciona temporariamente como fachada e delega 
 ## Exemplos do TRACEFLOW
 
 - `github.service.js → github.client.js`: service coordena e o client encapsula Octokit.
+- `github-app.service.js → github.repository.js + github.client.js`: state/metadados ficam no repository; tokens temporários existem somente no credential provider/client.
 - `githubSync.service.js → commit/pullRequest/issue repositories`: orquestração externa permanece no service e persistência nos repositories.
 - `traceability.service.js → traceability.mapper.js → traceability.calculator.js`: coordenação, DTO e cálculo são responsabilidades distintas.
 - `project.service.js → services/project-*.service.js`: fachada compatível sem segunda implementação.

@@ -7,6 +7,25 @@ const validSource = {
   DATABASE_URL: 'mysql://user:password@localhost:3306/traceflow',
   FRONTEND_URL: 'http://localhost:5173'
 };
+const githubAppSource = {
+  GITHUB_APP_ID: '123',
+  GITHUB_APP_CLIENT_ID: 'Iv1.artificial',
+  GITHUB_APP_CLIENT_SECRET: 'client-secret-artificial',
+  GITHUB_APP_SLUG: 'traceflow-test',
+  GITHUB_APP_PRIVATE_KEY_BASE64: 'Y2hhdmUtYXJ0aWZpY2lhbA==',
+  GITHUB_APP_WEBHOOK_SECRET: 'webhook-artificial',
+  GITHUB_APP_CALLBACK_URL: 'https://api.traceflow.example/api/github/app/callback',
+  GITHUB_APP_FRONTEND_SUCCESS_URL: 'https://traceflow.example/projects?github=connected',
+  GITHUB_APP_FRONTEND_ERROR_URL: 'https://traceflow.example/projects?github=error'
+};
+const productionInfrastructure = {
+  CORS_ALLOWED_ORIGINS: 'https://traceflow.example',
+  EMAIL_PROVIDER: 'smtp',
+  EMAIL_FROM: 'no-reply@traceflow.example',
+  SMTP_HOST: 'smtp.traceflow.example',
+  SMTP_USER: 'mailer',
+  SMTP_PASSWORD: 'secret'
+};
 
 describe('configuração centralizada', () => {
   it('carrega e congela uma configuração válida', () => {
@@ -30,10 +49,18 @@ describe('configuração centralizada', () => {
   it('falha sem banco obrigatório e não inclui segredo na mensagem', () => {
     const secret = 'segredo-nao-pode-aparecer';
     expect(() =>
-      createEnvironment({ ...validSource, DATABASE_URL: undefined, GITHUB_TOKEN: secret })
+      createEnvironment({
+        ...validSource,
+        DATABASE_URL: undefined,
+        GITHUB_APP_CLIENT_SECRET: secret
+      })
     ).toThrowError(/DATABASE_URL/);
     try {
-      createEnvironment({ ...validSource, DATABASE_URL: undefined, GITHUB_TOKEN: secret });
+      createEnvironment({
+        ...validSource,
+        DATABASE_URL: undefined,
+        GITHUB_APP_CLIENT_SECRET: secret
+      });
     } catch (error) {
       expect(error.message).not.toContain(secret);
     }
@@ -58,23 +85,18 @@ describe('configuração centralizada', () => {
     expect(config.isTest).toBe(true);
   });
 
-  it('exige token GitHub somente em produção', () => {
-    expect(() => createEnvironment({ ...validSource, NODE_ENV: 'production' })).toThrowError(
-      /GITHUB_TOKEN/
-    );
+  it('exige configuração completa da GitHub App em produção', () => {
+    expect(() =>
+      createEnvironment({ ...validSource, ...productionInfrastructure, NODE_ENV: 'production' })
+    ).toThrowError(/GitHub App/);
     expect(
       createEnvironment({
         ...validSource,
         NODE_ENV: 'production',
-        GITHUB_TOKEN: 'fake',
-        CORS_ALLOWED_ORIGINS: 'https://traceflow.example',
-        EMAIL_PROVIDER: 'smtp',
-        EMAIL_FROM: 'no-reply@traceflow.example',
-        SMTP_HOST: 'smtp.traceflow.example',
-        SMTP_USER: 'mailer',
-        SMTP_PASSWORD: 'secret'
+        ...githubAppSource,
+        ...productionInfrastructure
       })
-    ).toMatchObject({ isProduction: true });
+    ).toMatchObject({ isProduction: true, githubAppConfigured: true });
   });
 
   it('valida o provedor de e-mail sem revelar credenciais', () => {
@@ -92,7 +114,7 @@ describe('configuração centralizada', () => {
       createEnvironment({
         ...validSource,
         NODE_ENV: 'production',
-        GITHUB_TOKEN: 'fake'
+        ...githubAppSource
       })
     ).toThrowError(/CORS_ALLOWED_ORIGINS/);
     expect(() => createEnvironment({ ...validSource, BODY_LIMIT: '100gb' })).toThrowError(

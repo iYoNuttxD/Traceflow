@@ -16,6 +16,7 @@ export const emptyProjectForm = {
   githubRepositoryFullName: '',
   githubRepositoryUrl: '',
   githubDefaultBranch: '',
+  githubInstallationId: '',
   status: 'ATIVO'
 };
 
@@ -38,7 +39,10 @@ export function normalizeRepository(repository) {
     url,
     description: repository.description || '',
     private: repository.private === true,
-    defaultBranch: repository.defaultBranch || repository.default_branch || ''
+    defaultBranch: repository.defaultBranch || repository.default_branch || '',
+    alreadyConnected: repository.alreadyConnected === true,
+    connectedToCurrentProject: repository.connectedToCurrentProject === true,
+    selectable: repository.selectable !== false
   };
 }
 
@@ -140,9 +144,23 @@ export function ProjectForm({
                 const normalizedRepository = normalizeRepository(repository);
 
                 return (
-                  <option key={normalizedRepository.id} value={normalizedRepository.fullName}>
+                  <option
+                    key={normalizedRepository.id}
+                    value={normalizedRepository.fullName}
+                    disabled={!normalizedRepository.selectable}
+                  >
                     {normalizedRepository.fullName}
+                    {normalizedRepository.defaultBranch
+                      ? ` — branch ${normalizedRepository.defaultBranch}`
+                      : ''}
                     {normalizedRepository.private ? ' (privado)' : ''}
+                    {normalizedRepository.alreadyConnected &&
+                    !normalizedRepository.connectedToCurrentProject
+                      ? ' — já utilizado por outro projeto'
+                      : ''}
+                    {normalizedRepository.connectedToCurrentProject
+                      ? ' — conectado a este projeto'
+                      : ''}
                   </option>
                 );
               })}
@@ -154,7 +172,8 @@ export function ProjectForm({
           )}
           {!loadingRepositories && !repositoriesError && repositories.length === 0 && (
             <p className="field-help field-full">
-              Nenhum repositório GitHub encontrado para este usuário.
+              Esta instalação não possui repositórios autorizados. Gerencie o acesso no GitHub e
+              tente novamente.
             </p>
           )}
           {formData.githubUrl && (

@@ -4,13 +4,14 @@ import { env } from '../../config/env.js';
 import { AppError, ERROR_CODES } from '../../shared/errors/index.js';
 import { emailService } from '../../shared/email/index.js';
 import { authRepository } from './auth.repository.js';
+import { normalizeUsername, passwordPolicyErrors, validateUsername } from './identity-policy.js';
 
 const hashToken = (token) => createHash('sha256').update(token).digest('hex');
 const newToken = () => randomBytes(32).toString('base64url');
 const publicUser = ({ passwordHash: _passwordHash, sessionVersion: _sessionVersion, ...user }) =>
   user;
 
-function authError(message = 'E-mail ou senha inválidos.') {
+function authError(message = 'Nome de usuário, e-mail ou senha inválidos.') {
   return new AppError({
     message,
     statusCode: 401,
@@ -19,18 +20,52 @@ function authError(message = 'E-mail ou senha inválidos.') {
   });
 }
 
-async function issueSession(user) {
+async function issueSession(user, rememberMe = false) {
   const token = newToken();
   const csrfToken = newToken();
-  const expiresAt = new Date(Date.now() + env.sessionTtlMs);
+  const ttlMs = rememberMe ? env.persistentSessionTtlMs : env.sessionTtlMs;
+  const expiresAt = new Date(Date.now() + ttlMs);
   const session = await authRepository.createSession({
     userId: user.id,
     tokenHash: hashToken(token),
     csrfTokenHash: hashToken(csrfToken),
     sessionVersion: user.sessionVersion,
+    expiresAt,
+    rememberMe
+  });
+  return { session, token, csrfToken, expiresAt, ttlMs };
+}
+
+function ensurePasswordPolicy(password, user) {
+  const errors = passwordPolicyErrors(password, user);
+  if (errors.length) {
+    throw new AppError({
+      message: errors[0],
+      statusCode: 400,
+      code: ERROR_CODES.VALIDATION_ERROR,
+      exposeTechnicalDetails: true
+    });
+  }
+}
+
+async function issueEmailVerification(user) {
+  if (user.emailVerifiedAt) return { status: 'already_verified' };
+  await authRepository.expireEmailVerificationTokens(user.id);
+  const token = newToken();
+  const expiresAt = new Date(Date.now() + env.emailVerificationTtlMs);
+  await authRepository.createEmailVerificationToken({
+    userId: user.id,
+    tokenHash: hashToken(token),
     expiresAt
   });
-  return { session, token, csrfToken, expiresAt };
+  const delivery = await emailService.sendEmailVerification({
+    to: user.email,
+    token,
+    expiresAt,
+    userId: user.id,
+    name: user.name
+  });
+  return { ...delivery, ...(env.isTest ? { testToken: token } : {}) };
 }
 
 export const authService = {
@@ -43,9 +78,14 @@ export const authService = {
       parallelism: 1
     });
   },
-  async register({ name, email, password }) {
+  async register({ name, username, email, password }) {
     const normalizedEmail = email.trim().toLowerCase();
-    if (await authRepository.findUserByEmail(normalizedEmail)) {
+    const normalizedUsername = normalizeUsername(username);
+    if (
+      !validateUsername(normalizedUsername).valid ||
+      (await authRepository.findUserByEmail(normalizedEmail)) ||
+      (await authRepository.findUserByUsername(normalizedUsername))
+    ) {
       throw new AppError({
         message: 'Não foi possível criar a conta.',
         statusCode: 409,
@@ -53,15 +93,22 @@ export const authService = {
         exposeTechnicalDetails: true
       });
     }
+    ensurePasswordPolicy(password, { username: normalizedUsername, email: normalizedEmail });
     const user = await authRepository.createUser({
       name: name.trim(),
+      username: normalizedUsername,
       email: normalizedEmail,
       passwordHash: await this.hashPassword(password)
     });
-    return { user: publicUser(user), ...(await issueSession(user)) };
+    const session = await issueSession(user, false);
+    const emailVerification = await issueEmailVerification(user);
+    return { user: publicUser(user), ...session, emailVerification };
   },
-  async login({ email, password }) {
-    const user = await authRepository.findUserByEmail(email.trim().toLowerCase());
+  async login({ identifier, password, rememberMe = false }) {
+    const normalized = identifier.trim().toLowerCase();
+    const user = normalized.includes('@')
+      ? await authRepository.findUserByEmail(normalized)
+      : await authRepository.findUserByUsername(normalizeUsername(normalized));
     if (!user?.passwordHash || !(await argon2.verify(user.passwordHash, password)))
       throw authError();
     if (!user.isActive)
@@ -72,7 +119,7 @@ export const authService = {
         exposeTechnicalDetails: true
       });
     const updated = await authRepository.updateUser(user.id, { lastLoginAt: new Date() });
-    return { user: publicUser(updated), ...(await issueSession(updated)) };
+    return { user: publicUser(updated), ...(await issueSession(updated, rememberMe)) };
   },
   async authenticate(token) {
     if (!token) return null;
@@ -126,6 +173,7 @@ export const authService = {
         exposeTechnicalDetails: true
       });
     }
+    ensurePasswordPolicy(password, record.user);
     await authRepository.updateUser(record.userId, {
       passwordHash: await this.hashPassword(password),
       mustSetPassword: false,
@@ -138,6 +186,7 @@ export const authService = {
     const user = await authRepository.findUserById(userId);
     if (!user?.passwordHash || !(await argon2.verify(user.passwordHash, currentPassword)))
       throw authError('Senha atual inválida.');
+    ensurePasswordPolicy(password, user);
     await authRepository.updateUser(userId, {
       passwordHash: await this.hashPassword(password),
       sessionVersion: { increment: 1 }
@@ -147,5 +196,44 @@ export const authService = {
   async verifyPassword(userId, password) {
     const user = await authRepository.findUserById(userId);
     return Boolean(user?.passwordHash && (await argon2.verify(user.passwordHash, password)));
+  },
+  resendEmailVerification(user) {
+    return issueEmailVerification(user);
+  },
+  async verifyEmail(token) {
+    const record = await authRepository.findEmailVerificationToken(hashToken(token));
+    if (!record || record.usedAt || record.expiresAt <= new Date()) {
+      throw new AppError({
+        message: 'Token de verificação inválido, expirado ou já utilizado.',
+        statusCode: 400,
+        code: ERROR_CODES.INVALID_CREDENTIALS,
+        exposeTechnicalDetails: true
+      });
+    }
+    await authRepository.updateUser(record.userId, { emailVerifiedAt: new Date() });
+    await authRepository.useEmailVerificationToken(record.id);
+    await authRepository.expireEmailVerificationTokens(record.userId);
+    return publicUser(await authRepository.findUserById(record.userId));
+  },
+  async updateUsername(userId, username) {
+    const result = validateUsername(username);
+    if (!result.valid)
+      throw new AppError({
+        message: result.message,
+        statusCode: 400,
+        code: ERROR_CODES.VALIDATION_ERROR,
+        exposeTechnicalDetails: true
+      });
+    const existing = await authRepository.findUserByUsername(result.username);
+    if (existing && existing.id !== userId)
+      throw new AppError({
+        message: 'Este nome de usuário não está disponível.',
+        statusCode: 409,
+        code: ERROR_CODES.CONFLICT,
+        exposeTechnicalDetails: true
+      });
+    return publicUser(
+      await authRepository.updateUser(userId, { username: result.username, mustSetUsername: false })
+    );
   }
 };

@@ -14,7 +14,11 @@ let prisma;
 
 async function projectWithLegacyIdentity() {
   const user = await prisma.user.create({
-    data: { name: 'Pessoa canônica', email: `canonical-${Date.now()}@example.invalid` }
+    data: {
+      name: 'Pessoa canônica',
+      username: `canonical-${Date.now()}`,
+      email: `canonical-${Date.now()}@example.invalid`
+    }
   });
   const project = await prisma.project.create({
     data: { name: 'Projeto E11', responsibleTeam: 'Equipe E11' }

@@ -27,7 +27,7 @@ export const projectInvitationService = {
       tokenHash: tokenHash(token),
       expiresAt
     });
-    await emailService.sendProjectInvitation({
+    const emailDelivery = await emailService.sendProjectInvitation({
       to: invitation.email,
       token,
       expiresAt,
@@ -57,6 +57,7 @@ export const projectInvitationService = {
         role: invitation.role,
         expiresAt: invitation.expiresAt
       },
+      emailDelivery,
       ...(env.isTest ? { token } : {})
     };
   },

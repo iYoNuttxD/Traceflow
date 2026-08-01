@@ -3,15 +3,15 @@ import { asyncHandler } from '../../shared/http/index.js';
 import { authService } from './auth.service.js';
 import { auditService } from '../audit/audit.service.js';
 
-const cookieOptions = () => ({
+const cookieOptions = (maxAge = env.sessionTtlMs) => ({
   httpOnly: true,
   secure: env.isProduction,
   sameSite: env.sessionCookieSameSite,
   path: '/',
-  maxAge: env.sessionTtlMs
+  maxAge
 });
 function establishSession(res, result) {
-  res.cookie(env.sessionCookieName, result.token, cookieOptions());
+  res.cookie(env.sessionCookieName, result.token, cookieOptions(result.ttlMs));
   return res.status(200).json({ user: result.user, csrfToken: result.csrfToken });
 }
 
@@ -25,8 +25,18 @@ export const authController = {
       resourceType: 'User',
       resourceId: result.user.id
     });
-    res.cookie(env.sessionCookieName, result.token, cookieOptions());
-    return res.status(201).json({ user: result.user, csrfToken: result.csrfToken });
+    res.cookie(env.sessionCookieName, result.token, cookieOptions(result.ttlMs));
+    const deliveryFailed = !['accepted', 'already_verified'].includes(
+      result.emailVerification.status
+    );
+    return res.status(201).json({
+      user: result.user,
+      csrfToken: result.csrfToken,
+      emailVerification: result.emailVerification,
+      message: deliveryFailed
+        ? 'Conta criada, mas não foi possível enviar a verificação. Solicite um novo envio.'
+        : 'Conta criada. Enviamos um link para verificar seu e-mail.'
+    });
   }),
   login: asyncHandler(async (req, res) => {
     try {
@@ -98,5 +108,51 @@ export const authController = {
     });
     res.clearCookie(env.sessionCookieName, { ...cookieOptions(), maxAge: undefined });
     return res.json({ message: 'Senha alterada com sucesso. Entre novamente.' });
+  }),
+  resendEmailVerification: asyncHandler(async (req, res) => {
+    const delivery = await authService.resendEmailVerification(req.auth.user);
+    await auditService.recordOperational({
+      actorUserId: req.auth.user.id,
+      requestId: req.requestId,
+      action: 'EMAIL_VERIFICATION_REQUESTED',
+      resourceType: 'User',
+      resourceId: req.auth.user.id,
+      result:
+        delivery.status === 'accepted' || delivery.status === 'already_verified'
+          ? 'SUCCESS'
+          : 'FAILURE',
+      reasonCode: delivery.status
+    });
+    return res.json({
+      message:
+        delivery.status === 'accepted'
+          ? 'Novo e-mail de verificação enviado.'
+          : delivery.status === 'already_verified'
+            ? 'O e-mail já está verificado.'
+            : 'Não foi possível enviar agora. Tente novamente mais tarde.',
+      delivery
+    });
+  }),
+  verifyEmail: asyncHandler(async (req, res) => {
+    const user = await authService.verifyEmail(req.body.token);
+    await auditService.recordOperational({
+      actorUserId: user.id,
+      requestId: req.requestId,
+      action: 'EMAIL_VERIFIED',
+      resourceType: 'User',
+      resourceId: user.id
+    });
+    return res.json({ message: 'E-mail verificado com sucesso.', user });
+  }),
+  updateUsername: asyncHandler(async (req, res) => {
+    const user = await authService.updateUsername(req.auth.user.id, req.body.username);
+    await auditService.recordOperational({
+      actorUserId: user.id,
+      requestId: req.requestId,
+      action: 'USERNAME_UPDATED',
+      resourceType: 'User',
+      resourceId: user.id
+    });
+    return res.json({ message: 'Nome de usuário atualizado.', user });
   })
 };

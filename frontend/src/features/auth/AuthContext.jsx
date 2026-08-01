@@ -59,6 +59,7 @@ export function AuthProvider({ children }) {
       loading,
       login: (values) => authenticate(authApi.login, values),
       register: (values) => authenticate(authApi.register, values),
+      updateUser: setUser,
       logout: async () => {
         await authApi.logout();
         clear();

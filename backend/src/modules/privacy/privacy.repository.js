@@ -281,6 +281,9 @@ export const privacyRepository = {
         });
         await tx.session.deleteMany({ where: { userId: request.userId } });
         await tx.passwordResetToken.deleteMany({ where: { userId: request.userId } });
+        await tx.emailVerificationToken.deleteMany({ where: { userId: request.userId } });
+        await tx.gitHubAppConnectionState.deleteMany({ where: { userId: request.userId } });
+        await tx.gitHubInstallationAuthorization.deleteMany({ where: { userId: request.userId } });
         await tx.projectInvitation.updateMany({
           where: { OR: [{ createdById: request.userId }, { email: currentUser.email }] },
           data: { revokedAt: new Date() }
@@ -305,11 +308,13 @@ export const privacyRepository = {
           where: { id: request.userId },
           data: {
             name: anonymous.name,
+            username: anonymous.username,
             email: anonymous.email,
             passwordHash: null,
             isActive: false,
             emailVerifiedAt: null,
             mustSetPassword: false,
+            mustSetUsername: false,
             sessionVersion: { increment: 1 }
           }
         });
