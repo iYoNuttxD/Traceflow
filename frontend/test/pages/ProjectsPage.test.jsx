@@ -122,9 +122,8 @@ describe('ProjectsPage', () => {
     renderPage();
 
     expect(await screen.findByText('Falha artificial da API')).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: 'Instalar ou autorizar GitHub App' })
-    ).toBeInTheDocument();
+    expect(screen.getByText('GitHub não vinculado')).toBeInTheDocument();
+    expect(screen.getByLabelText('Repositório GitHub *')).toBeDisabled();
   });
 
   it('submete o formulário pelo endpoint especializado e recarrega a lista', async () => {
@@ -191,10 +190,10 @@ describe('ProjectsPage', () => {
     expect(options.find((option) => option.value.endsWith('/ocupado')).textContent).toMatch(
       /branch develop.*já utilizado/
     );
-    expect(screen.getByRole('link', { name: 'Gerenciar acesso no GitHub' })).toHaveAttribute(
-      'href',
-      'https://github.com/settings/installations/77'
-    );
+    expect(screen.getByText(/GitHub vinculado/)).toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'Gerenciar acesso no GitHub' })
+    ).not.toBeInTheDocument();
   });
 
   it('mostra estado vazio quando a instalação não possui repositórios', async () => {
@@ -209,12 +208,15 @@ describe('ProjectsPage', () => {
     mockInitialRequests({ installations: [], repositories: [] });
     renderPage();
 
+    expect(await screen.findByText('GitHub não vinculado')).toBeInTheDocument();
+    expect(screen.getByLabelText('Repositório GitHub *')).toBeDisabled();
+    expect(screen.getByRole('link', { name: 'Integrações' })).toHaveAttribute(
+      'href',
+      '/settings/integrations'
+    );
     expect(
-      await screen.findAllByText('Nenhuma instalação da GitHub App foi vinculada ao TraceFlow.')
-    ).not.toHaveLength(0);
-    expect(
-      screen.getByRole('button', { name: 'Instalar ou autorizar GitHub App' })
-    ).toBeInTheDocument();
+      screen.queryByRole('button', { name: /Instalar|autorizar|atualizar acesso/i })
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByRole('link', { name: 'Gerenciar acesso no GitHub' })
     ).not.toBeInTheDocument();
@@ -232,9 +234,10 @@ describe('ProjectsPage', () => {
         apiMock.get.mock.calls.filter(([url]) => url === '/github/app/installations').length
       ).toBeGreaterThanOrEqual(2);
     });
+    expect(screen.getByText('GitHub vinculado · usuario-artificial')).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'Adicionar ou atualizar acesso' })
-    ).toBeInTheDocument();
+      screen.queryByRole('button', { name: 'Adicionar ou atualizar acesso' })
+    ).not.toBeInTheDocument();
     expect(
       await screen.findByRole('option', { name: /usuario-artificial\/repositorio-artificial/ })
     ).toBeInTheDocument();

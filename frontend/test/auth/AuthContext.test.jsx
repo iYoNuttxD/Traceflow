@@ -11,11 +11,15 @@ const mocks = vi.hoisted(() => ({
     register: vi.fn(),
     logout: vi.fn()
   },
-  setCsrfToken: vi.fn()
+  setCsrfToken: vi.fn(),
+  resetHttpSessionScope: vi.fn()
 }));
 
 vi.mock('../../src/features/auth/api/auth.api.js', () => ({ authApi: mocks.authApi }));
-vi.mock('../../src/api/http-client.js', () => ({ setCsrfToken: mocks.setCsrfToken }));
+vi.mock('../../src/api/http-client.js', () => ({
+  setCsrfToken: mocks.setCsrfToken,
+  resetHttpSessionScope: mocks.resetHttpSessionScope
+}));
 
 const { AuthProvider, useAuth } = await import('../../src/features/auth/AuthContext.jsx');
 
@@ -88,6 +92,7 @@ describe('AuthContext', () => {
     await user.click(screen.getByRole('button', { name: 'Login' }));
     await waitFor(() => expect(screen.getByTestId('auth-state')).toHaveTextContent('Login'));
     expect(mocks.setCsrfToken).toHaveBeenLastCalledWith('csrf-login');
+    expect(mocks.resetHttpSessionScope).toHaveBeenCalled();
 
     await user.click(screen.getByRole('button', { name: 'Registrar' }));
     await waitFor(() => expect(screen.getByTestId('auth-state')).toHaveTextContent('Cadastro'));
@@ -97,6 +102,7 @@ describe('AuthContext', () => {
     await waitFor(() => expect(screen.getByTestId('auth-state')).toHaveTextContent('Visitante'));
     expect(mocks.authApi.logout).toHaveBeenCalledTimes(1);
     expect(mocks.setCsrfToken).toHaveBeenLastCalledWith();
+    expect(mocks.resetHttpSessionScope).toHaveBeenCalled();
   });
 
   it('coalesce refreshes concorrentes', async () => {

@@ -16,13 +16,42 @@ export function EmptyState({ title = 'Nenhum resultado encontrado.', description
   );
 }
 
-export function ErrorState({ message, onRetry }) {
+export function ErrorState({ message, onRetry, retryAfterSeconds = 0 }) {
+  const [remaining, setRemaining] = useState(retryAfterSeconds);
+  const [retrying, setRetrying] = useState(false);
+  useEffect(() => setRemaining(retryAfterSeconds), [retryAfterSeconds]);
+  useEffect(() => {
+    if (remaining <= 0) return undefined;
+    const timer = window.setTimeout(() => setRemaining((value) => Math.max(0, value - 1)), 1000);
+    return () => window.clearTimeout(timer);
+  }, [remaining]);
+
+  async function retry() {
+    if (!onRetry || remaining > 0 || retrying) return;
+    setRetrying(true);
+    try {
+      await onRetry();
+    } finally {
+      setRetrying(false);
+    }
+  }
+
   return (
     <section className="async-state message message-error" role="alert">
       <p>{message}</p>
       {onRetry && (
-        <button type="button" onClick={onRetry}>
-          Tentar novamente
+        <button
+          className="button button-secondary button-compact"
+          type="button"
+          onClick={() => void retry()}
+          disabled={remaining > 0 || retrying}
+          aria-busy={retrying}
+        >
+          {retrying
+            ? 'Tentando...'
+            : remaining > 0
+              ? `Tentar novamente em ${remaining}s`
+              : 'Tentar novamente'}
         </button>
       )}
     </section>
@@ -40,10 +69,20 @@ export function ForbiddenState({
   );
 }
 
-export function RequestState({ loading, error, empty, forbidden, onRetry, children }) {
+export function RequestState({
+  loading,
+  error,
+  empty,
+  forbidden,
+  onRetry,
+  retryAfterSeconds,
+  children
+}) {
   if (loading) return <LoadingState />;
   if (forbidden) return <ForbiddenState message={error} />;
-  if (error) return <ErrorState message={error} onRetry={onRetry} />;
+  if (error)
+    return <ErrorState message={error} onRetry={onRetry} retryAfterSeconds={retryAfterSeconds} />;
   if (empty) return <EmptyState />;
   return children;
 }
+import { useEffect, useState } from 'react';

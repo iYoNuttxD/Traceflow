@@ -39,6 +39,17 @@ describe('configuração centralizada', () => {
       rateLimitWindowMs: 900000,
       rateLimitMax: 200,
       sensitiveRateLimitMax: 20,
+      rateLimitProfile: 'development',
+      rateLimitGlobalWindowMs: 60000,
+      rateLimitGlobalMax: 4000,
+      rateLimitReadBurstWindowMs: 10000,
+      rateLimitReadBurstMax: 120,
+      rateLimitReadWindowMs: 300000,
+      rateLimitReadMax: 1200,
+      rateLimitAuthMax: 20,
+      rateLimitEmailMax: 5,
+      rateLimitSensitiveMax: 20,
+      rateLimitExportMax: 3,
       githubRequestTimeoutMs: 15000,
       githubRetryMax: 2,
       trustProxy: false
@@ -73,6 +84,30 @@ describe('configuração centralizada', () => {
     );
     expect(() => createEnvironment({ ...validSource, DATABASE_URL: 'postgres://db' })).toThrowError(
       /DATABASE_URL/
+    );
+  });
+
+  it('valida perfil e valores centralizados de rate limiting', () => {
+    const config = createEnvironment({
+      ...validSource,
+      RATE_LIMIT_PROFILE: 'production',
+      RATE_LIMIT_GLOBAL_MAX: '900',
+      RATE_LIMIT_READ_MAX: '500',
+      RATE_LIMIT_EMAIL_MAX: '4',
+      RATE_LIMIT_EXPORT_MAX: '2'
+    });
+    expect(config).toMatchObject({
+      rateLimitProfile: 'production',
+      rateLimitGlobalMax: 900,
+      rateLimitReadMax: 500,
+      rateLimitEmailMax: 4,
+      rateLimitExportMax: 2
+    });
+    expect(() =>
+      createEnvironment({ ...validSource, RATE_LIMIT_PROFILE: 'disabled' })
+    ).toThrowError(/RATE_LIMIT_PROFILE/);
+    expect(() => createEnvironment({ ...validSource, RATE_LIMIT_READ_MAX: '0' })).toThrowError(
+      /RATE_LIMIT_READ_MAX/
     );
   });
 

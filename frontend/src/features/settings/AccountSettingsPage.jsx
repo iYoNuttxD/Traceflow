@@ -145,25 +145,27 @@ export function AccountSettingsPage() {
             onChange={(event) => setDeactivationPassword(event.target.value)}
           />
         </label>
-        <button
-          className="button-danger"
-          disabled={!active}
-          type="button"
-          onClick={async () => {
-            if (
-              !(await confirm({
-                title: 'Desativar conta',
-                description:
-                  'Você perderá acesso às áreas operacionais até confirmar a reativação.',
-                confirmLabel: 'Desativar'
-              }))
-            )
-              return;
-            await run(() => settingsApi.deactivate(deactivationPassword), 'Conta desativada.');
-          }}
-        >
-          Desativar conta
-        </button>
+        <div className="danger-zone-actions">
+          <button
+            className="button button-danger"
+            disabled={!active}
+            type="button"
+            onClick={async () => {
+              if (
+                !(await confirm({
+                  title: 'Desativar conta',
+                  description:
+                    'Você perderá acesso às áreas operacionais até confirmar a reativação.',
+                  confirmLabel: 'Desativar'
+                }))
+              )
+                return;
+              await run(() => settingsApi.deactivate(deactivationPassword), 'Conta desativada.');
+            }}
+          >
+            Desativar conta
+          </button>
+        </div>
       </section>
     </>
   );

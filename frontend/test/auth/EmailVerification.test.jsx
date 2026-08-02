@@ -23,7 +23,47 @@ describe('verificação de e-mail', () => {
     render(<EmailVerificationBanner user={{ emailVerifiedAt: null }} />);
     await userEvent.setup().click(screen.getByRole('button', { name: 'Reenviar verificação' }));
     expect(mocks.resendEmailVerification).toHaveBeenCalledOnce();
-    expect(await screen.findByText('Novo e-mail de verificação enviado.')).toBeInTheDocument();
+    expect(await screen.findByText('E-mail enviado')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reenviar verificação' })).toHaveClass(
+      'button-outline',
+      'button-compact'
+    );
+  });
+
+  it('respeita o cooldown informado pelo rate limiter sem novo envio imediato', async () => {
+    mocks.resendEmailVerification.mockRejectedValue({
+      response: {
+        status: 429,
+        data: {
+          code: 'RATE_LIMITED',
+          message: 'Muitas requisições. Tente novamente mais tarde.',
+          retryAfterSeconds: 42
+        }
+      }
+    });
+    render(<EmailVerificationBanner user={{ emailVerifiedAt: null }} />);
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Reenviar verificação' }));
+
+    expect(await screen.findByRole('button', { name: 'Reenviar em 42s' })).toBeDisabled();
+    expect(mocks.resendEmailVerification).toHaveBeenCalledOnce();
+  });
+
+  it('impede clique concorrente enquanto o reenvio está em andamento', async () => {
+    let resolveRequest;
+    mocks.resendEmailVerification.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveRequest = resolve;
+        })
+    );
+    render(<EmailVerificationBanner user={{ emailVerifiedAt: null }} />);
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Reenviar verificação' }));
+
+    const sending = screen.getByRole('button', { name: 'Reenviando...' });
+    expect(sending).toBeDisabled();
+    expect(sending).toHaveAttribute('aria-busy', 'true');
+    resolveRequest({ data: { message: 'ok' } });
+    expect(await screen.findByText('E-mail enviado')).toBeInTheDocument();
   });
 
   it('consome o token da URL e exibe confirmação retornada pelo backend', async () => {

@@ -73,6 +73,7 @@ export function ProjectForm({
   loadingRepositories = false,
   repositoriesError = '',
   repositoryEmptyMessage = 'A instalação não possui repositórios acessíveis.',
+  repositoryDisabled = false,
   onChange,
   onRepositoryChange,
   onSubmit,
@@ -132,7 +133,7 @@ export function ProjectForm({
               name="githubRepository"
               value={currentRepositoryFullName}
               onChange={(event) => onRepositoryChange(event.target.value)}
-              disabled={loadingRepositories || Boolean(repositoriesError)}
+              disabled={repositoryDisabled || loadingRepositories || Boolean(repositoriesError)}
               required
             >
               <option value="">
@@ -171,9 +172,13 @@ export function ProjectForm({
           {repositoriesError && (
             <p className="field-help field-error field-full">{repositoriesError}</p>
           )}
-          {!loadingRepositories && !repositoriesError && repositories.length === 0 && (
-            <p className="field-help field-full">{repositoryEmptyMessage}</p>
-          )}
+          {!repositoryDisabled &&
+            !loadingRepositories &&
+            !repositoriesError &&
+            repositories.length === 0 &&
+            repositoryEmptyMessage && (
+              <p className="field-help field-full">{repositoryEmptyMessage}</p>
+            )}
           {formData.githubUrl && (
             <p className="field-help field-full">
               Repositório selecionado: <strong>{currentRepositoryFullName}</strong>

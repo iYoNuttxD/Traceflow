@@ -75,45 +75,48 @@ export function PrivacySettingsPage() {
             onChange={(event) => setPassword(event.target.value)}
           />
         </label>
-        {request ? (
-          <button
-            type="button"
-            onClick={async () => {
-              if (
-                !(await confirm({
-                  title: 'Cancelar exclusão',
-                  description: 'Todas as sessões serão encerradas após o cancelamento.',
-                  confirmLabel: 'Cancelar exclusão'
-                }))
-              )
-                return;
-              await run(
-                () => settingsApi.cancelDeletion(password),
-                'Exclusão cancelada. Entre novamente.'
-              );
-            }}
-          >
-            Cancelar exclusão
-          </button>
-        ) : (
-          <button
-            className="button-danger"
-            type="button"
-            onClick={async () => {
-              if (
-                !(await confirm({
-                  title: 'Solicitar exclusão',
-                  description: 'A conta ficará restrita durante o prazo de carência.',
-                  confirmLabel: 'Solicitar exclusão'
-                }))
-              )
-                return;
-              await run(() => settingsApi.requestDeletion(password), 'Exclusão agendada.');
-            }}
-          >
-            Solicitar exclusão
-          </button>
-        )}
+        <div className="danger-zone-actions">
+          {request ? (
+            <button
+              className="button button-secondary"
+              type="button"
+              onClick={async () => {
+                if (
+                  !(await confirm({
+                    title: 'Cancelar exclusão',
+                    description: 'Todas as sessões serão encerradas após o cancelamento.',
+                    confirmLabel: 'Cancelar exclusão'
+                  }))
+                )
+                  return;
+                await run(
+                  () => settingsApi.cancelDeletion(password),
+                  'Exclusão cancelada. Entre novamente.'
+                );
+              }}
+            >
+              Cancelar exclusão
+            </button>
+          ) : (
+            <button
+              className="button button-danger"
+              type="button"
+              onClick={async () => {
+                if (
+                  !(await confirm({
+                    title: 'Solicitar exclusão',
+                    description: 'A conta ficará restrita durante o prazo de carência.',
+                    confirmLabel: 'Solicitar exclusão'
+                  }))
+                )
+                  return;
+                await run(() => settingsApi.requestDeletion(password), 'Exclusão agendada.');
+              }}
+            >
+              Solicitar exclusão
+            </button>
+          )}
+        </div>
       </section>
     </>
   );

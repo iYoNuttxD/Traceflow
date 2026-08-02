@@ -34,4 +34,11 @@ describe('contratos da API de configurações L2', () => {
       data: { currentPassword: 'senha-atual', confirmation: true }
     });
   });
+
+  it('inicia a autorização GitHub pela área de integrações', async () => {
+    await settingsApi.startGithubInstallation();
+    expect(client.post).toHaveBeenCalledWith('/github/app/installations/start', {
+      intendedAction: 'CREATE_PROJECT'
+    });
+  });
 });

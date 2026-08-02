@@ -7,7 +7,7 @@ import {
   useRef,
   useState
 } from 'react';
-import { setCsrfToken } from '../../api/http-client.js';
+import { resetHttpSessionScope, setCsrfToken } from '../../api/http-client.js';
 import { authApi } from './api/auth.api.js';
 
 const AuthContext = createContext(null);
@@ -16,6 +16,7 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const refreshPromiseRef = useRef(null);
   const clear = useCallback(() => {
+    resetHttpSessionScope();
     setCsrfToken();
     setUser(null);
   }, []);
@@ -54,6 +55,7 @@ export function AuthProvider({ children }) {
   }, [refresh]);
   const authenticate = useCallback(async (operation, values) => {
     const { data } = await operation(values);
+    resetHttpSessionScope();
     setUser(data.user);
     setCsrfToken(data.csrfToken);
     return data.user;

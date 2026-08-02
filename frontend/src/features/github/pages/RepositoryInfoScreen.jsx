@@ -6,6 +6,7 @@ import {
   compactParams,
   ErrorState,
   LoadingState,
+  normalizeApiError,
   useAbortableRequest
 } from '../../../shared/index.js';
 
@@ -20,10 +21,6 @@ const typeLabels = {
   pull_request: 'Pull Request',
   issue: 'Issue'
 };
-
-function getErrorMessage(error, fallback) {
-  return error.response?.data?.message || fallback;
-}
 
 function formatDate(value) {
   if (!value) {
@@ -97,6 +94,7 @@ export function RepositoryInfoScreen() {
   const [appliedFilters, setAppliedFilters] = useState(emptyFilters);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [retryAfterSeconds, setRetryAfterSeconds] = useState(0);
 
   const loadArtifacts = useCallback(
     async (nextFilters = emptyFilters) => {
@@ -111,6 +109,7 @@ export function RepositoryInfoScreen() {
       const requestParams = compactParams(nextFilters);
       setLoading(true);
       setError('');
+      setRetryAfterSeconds(0);
       let settled = false;
 
       try {
@@ -124,9 +123,12 @@ export function RepositoryInfoScreen() {
       } catch (requestError) {
         settled = true;
         setRepositoryData(null);
-        setError(
-          getErrorMessage(requestError, 'Não foi possível carregar os artefatos do repositório.')
+        const normalized = normalizeApiError(
+          requestError,
+          'Não foi possível carregar os artefatos do repositório.'
         );
+        setError(normalized.message);
+        setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
       } finally {
         if (settled) setLoading(false);
       }
@@ -231,7 +233,11 @@ export function RepositoryInfoScreen() {
       {loading ? (
         <LoadingState message="Carregando artefatos do repositório..." />
       ) : error ? (
-        <ErrorState message={error} onRetry={() => loadArtifacts(filters)} />
+        <ErrorState
+          message={error}
+          onRetry={() => loadArtifacts(filters)}
+          retryAfterSeconds={retryAfterSeconds}
+        />
       ) : (
         <>
           <section className="repository-summary">

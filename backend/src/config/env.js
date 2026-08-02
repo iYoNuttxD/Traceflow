@@ -4,6 +4,7 @@ import { ConfigurationError } from '../shared/errors/index.js';
 dotenv.config();
 
 const allowedEnvironments = new Set(['development', 'test', 'production']);
+const allowedRateLimitProfiles = new Set(['development', 'production']);
 const allowedCorsMethods = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']);
 
 function parsePort(value) {
@@ -256,6 +257,14 @@ export function createEnvironment(source = {}) {
   const corsAllowedOrigins = parseCorsOrigins(source, nodeEnv, frontendUrl);
   const emailConfiguration = parseEmailConfiguration(source, nodeEnv);
   const githubAppConfiguration = parseGithubAppConfiguration(source, nodeEnv);
+  const rateLimitProfile =
+    source.RATE_LIMIT_PROFILE || (nodeEnv === 'production' ? 'production' : 'development');
+  if (!allowedRateLimitProfiles.has(rateLimitProfile)) {
+    throw new ConfigurationError(
+      'Configuração inválida: RATE_LIMIT_PROFILE deve ser development ou production.'
+    );
+  }
+  const developmentRateLimits = rateLimitProfile === 'development';
 
   return Object.freeze({
     nodeEnv,
@@ -283,6 +292,77 @@ export function createEnvironment(source = {}) {
       'SENSITIVE_RATE_LIMIT_MAX',
       { defaultValue: nodeEnv === 'test' ? 1000 : 20, min: 1, max: 10000 }
     ),
+    rateLimitProfile,
+    rateLimitGlobalWindowMs: parseInteger(
+      source.RATE_LIMIT_GLOBAL_WINDOW_MS,
+      'RATE_LIMIT_GLOBAL_WINDOW_MS',
+      { defaultValue: 60_000, min: 1000, max: 24 * 60 * 60 * 1000 }
+    ),
+    rateLimitGlobalMax: parseInteger(source.RATE_LIMIT_GLOBAL_MAX, 'RATE_LIMIT_GLOBAL_MAX', {
+      defaultValue: developmentRateLimits ? 4000 : 1000,
+      min: 1,
+      max: 100000
+    }),
+    rateLimitReadBurstWindowMs: parseInteger(
+      source.RATE_LIMIT_READ_BURST_WINDOW_MS,
+      'RATE_LIMIT_READ_BURST_WINDOW_MS',
+      { defaultValue: 10_000, min: 1000, max: 60 * 60 * 1000 }
+    ),
+    rateLimitReadBurstMax: parseInteger(
+      source.RATE_LIMIT_READ_BURST_MAX,
+      'RATE_LIMIT_READ_BURST_MAX',
+      { defaultValue: developmentRateLimits ? 120 : 60, min: 1, max: 100000 }
+    ),
+    rateLimitReadWindowMs: parseInteger(
+      source.RATE_LIMIT_READ_WINDOW_MS,
+      'RATE_LIMIT_READ_WINDOW_MS',
+      { defaultValue: 5 * 60 * 1000, min: 1000, max: 24 * 60 * 60 * 1000 }
+    ),
+    rateLimitReadMax: parseInteger(source.RATE_LIMIT_READ_MAX, 'RATE_LIMIT_READ_MAX', {
+      defaultValue: developmentRateLimits ? 1200 : 600,
+      min: 1,
+      max: 100000
+    }),
+    rateLimitAuthWindowMs: parseInteger(
+      source.RATE_LIMIT_AUTH_WINDOW_MS,
+      'RATE_LIMIT_AUTH_WINDOW_MS',
+      { defaultValue: 15 * 60 * 1000, min: 1000, max: 24 * 60 * 60 * 1000 }
+    ),
+    rateLimitAuthMax: parseInteger(source.RATE_LIMIT_AUTH_MAX, 'RATE_LIMIT_AUTH_MAX', {
+      defaultValue: nodeEnv === 'test' ? 1000 : 20,
+      min: 1,
+      max: 10000
+    }),
+    rateLimitEmailWindowMs: parseInteger(
+      source.RATE_LIMIT_EMAIL_WINDOW_MS,
+      'RATE_LIMIT_EMAIL_WINDOW_MS',
+      { defaultValue: 60 * 60 * 1000, min: 1000, max: 24 * 60 * 60 * 1000 }
+    ),
+    rateLimitEmailMax: parseInteger(source.RATE_LIMIT_EMAIL_MAX, 'RATE_LIMIT_EMAIL_MAX', {
+      defaultValue: nodeEnv === 'test' ? 1000 : 5,
+      min: 1,
+      max: 10000
+    }),
+    rateLimitSensitiveWindowMs: parseInteger(
+      source.RATE_LIMIT_SENSITIVE_WINDOW_MS,
+      'RATE_LIMIT_SENSITIVE_WINDOW_MS',
+      { defaultValue: 15 * 60 * 1000, min: 1000, max: 24 * 60 * 60 * 1000 }
+    ),
+    rateLimitSensitiveMax: parseInteger(
+      source.RATE_LIMIT_SENSITIVE_MAX,
+      'RATE_LIMIT_SENSITIVE_MAX',
+      { defaultValue: nodeEnv === 'test' ? 1000 : 20, min: 1, max: 10000 }
+    ),
+    rateLimitExportWindowMs: parseInteger(
+      source.RATE_LIMIT_EXPORT_WINDOW_MS,
+      'RATE_LIMIT_EXPORT_WINDOW_MS',
+      { defaultValue: 60 * 60 * 1000, min: 1000, max: 24 * 60 * 60 * 1000 }
+    ),
+    rateLimitExportMax: parseInteger(source.RATE_LIMIT_EXPORT_MAX, 'RATE_LIMIT_EXPORT_MAX', {
+      defaultValue: nodeEnv === 'test' ? 1000 : 3,
+      min: 1,
+      max: 1000
+    }),
     githubRequestTimeoutMs: parseInteger(
       source.GITHUB_REQUEST_TIMEOUT_MS,
       'GITHUB_REQUEST_TIMEOUT_MS',

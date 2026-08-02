@@ -5,6 +5,10 @@ export function normalizeApiError(
   const response = error?.response;
   const data = response?.data && typeof response.data === 'object' ? response.data : {};
   const requestId = data.requestId || response?.headers?.['x-request-id'];
+  const retryAfterHeader = Number(
+    response?.headers?.['retry-after'] || response?.headers?.get?.('retry-after')
+  );
+  const retryAfterSeconds = Number(data.retryAfterSeconds || retryAfterHeader);
 
   const fieldErrors = Array.isArray(data.details)
     ? Object.freeze(
@@ -26,6 +30,11 @@ export function normalizeApiError(
     code: typeof data.code === 'string' ? data.code : undefined,
     fieldErrors,
     requestId: typeof requestId === 'string' ? requestId : undefined,
+    retryAfterSeconds:
+      Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
+        ? Math.ceil(retryAfterSeconds)
+        : undefined,
+    scope: typeof data.scope === 'string' ? data.scope : undefined,
     isNetworkError: !response,
     isCanceled: error?.code === 'ERR_CANCELED'
   };

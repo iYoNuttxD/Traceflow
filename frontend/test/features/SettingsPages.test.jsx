@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({
     sessions: vi.fn(),
     deletion: vi.fn(),
     github: vi.fn(),
+    removeGithubAuthorization: vi.fn(),
+    startGithubInstallation: vi.fn(),
     confirmEmail: vi.fn(),
     startReactivation: vi.fn()
   }
@@ -61,6 +63,10 @@ describe('configurações e estados restritos L2', () => {
     ]);
     mocks.api.deletion.mockResolvedValue(null);
     mocks.api.github.mockResolvedValue([]);
+    mocks.api.removeGithubAuthorization.mockResolvedValue({});
+    mocks.api.startGithubInstallation.mockResolvedValue({
+      data: { url: 'https://github.example/install' }
+    });
     mocks.api.confirmEmail.mockResolvedValue({});
   });
 
@@ -157,7 +163,9 @@ describe('configurações e estados restritos L2', () => {
       </MemoryRouter>
     );
     expect(await screen.findByRole('button', { name: 'Exportar meus dados' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Solicitar exclusão' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Solicitar exclusão' }).parentElement).toHaveClass(
+      'danger-zone-actions'
+    );
     unmount();
     render(
       <MemoryRouter>
@@ -166,6 +174,44 @@ describe('configurações e estados restritos L2', () => {
     );
     expect(
       await screen.findByText('Nenhuma autorização GitHub vinculada à sua conta.')
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Instalar ou autorizar GitHub App' })
+    ).toBeInTheDocument();
+  });
+
+  it('separa dados e remoção da autorização GitHub em uma zona de risco', async () => {
+    mocks.api.github.mockResolvedValue([
+      {
+        id: 12,
+        installation: {
+          accountLogin: 'traceflow-org',
+          accountType: 'Organization',
+          status: 'ACTIVE',
+          manageUrl: 'https://github.com/settings/installations/12'
+        },
+        repositories: [{ id: 1 }, { id: 2 }],
+        projects: [{ id: 20 }]
+      }
+    ]);
+    render(
+      <MemoryRouter>
+        <IntegrationsSettingsPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('traceflow-org')).toBeInTheDocument();
+    const password = screen.getByLabelText('Senha atual');
+    const dangerZone = password.closest('.github-authorization-danger');
+    expect(dangerZone).toHaveClass('danger-zone');
+    expect(dangerZone).toHaveTextContent('Esta autorização está relacionada a 1 projeto.');
+    expect(screen.getByRole('button', { name: 'Remover minha autorização' })).toBeDisabled();
+    expect(screen.getByRole('link', { name: 'Gerenciar acesso no GitHub' })).toHaveAttribute(
+      'href',
+      'https://github.com/settings/installations/12'
+    );
+    expect(
+      screen.getByRole('button', { name: 'Adicionar ou atualizar acesso' })
     ).toBeInTheDocument();
   });
 

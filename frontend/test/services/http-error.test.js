@@ -45,4 +45,26 @@ describe('normalização mínima de erros HTTP', () => {
       })
     ).toMatchObject({ requestId: 'req-header', isNetworkError: false });
   });
+
+  it('normaliza o prazo e o escopo de um 429 sem expor detalhes internos', () => {
+    expect(
+      normalizeApiError({
+        response: {
+          status: 429,
+          data: {
+            code: 'RATE_LIMITED',
+            message: 'Muitas requisições.',
+            retryAfterSeconds: 18,
+            scope: 'authenticated-read'
+          },
+          headers: { 'retry-after': '18' }
+        }
+      })
+    ).toMatchObject({
+      status: 429,
+      code: 'RATE_LIMITED',
+      retryAfterSeconds: 18,
+      scope: 'authenticated-read'
+    });
+  });
 });

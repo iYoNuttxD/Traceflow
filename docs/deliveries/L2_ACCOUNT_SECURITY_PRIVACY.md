@@ -79,6 +79,14 @@ A cardinalidade L1 permanece: uma instalação serve vários projetos/repositór
 
 Mutations autenticadas exigem CSRF e operações sensíveis possuem rate limit.
 
+## Rate limiting pós-L2
+
+O controle é determinístico e separado por risco. `global-abuse` é uma barreira generosa por IP; leituras autenticadas usam `authenticated-read-burst` e `authenticated-read` por `User.id`; autenticação combina IP e hash do identificador; entrega de e-mail combina conta/IP e hash do destino; mutações sensíveis e exportação possuem cotas próprias. `OPTIONS` não consome quota. Webhook e callback GitHub permanecem sob suas proteções específicas e apenas a barreira global de volume.
+
+Os perfis `development` e `production`, janelas e limites são configurados centralmente pelas variáveis `RATE_LIMIT_*`. Desenvolvimento mantém os limiters ativos, elevando apenas a tolerância de leitura e da barreira global. Respostas esperadas de bloqueio não passam pelo logger genérico de erro: geram warning sanitizado e retornam `Retry-After`, `RateLimit`, `retryAfterSeconds` e `scope`, sem chave interna, usuário, IP ou identificador.
+
+No frontend, somente requisições `GET` idênticas e simultaneamente pendentes são deduplicadas por método, URL, parâmetros e geração da sessão. Não existe cache persistente nem retry automático de 429. Logout, troca/expiração da sessão e novo login invalidam e abortam o escopo pendente; botões respeitam o prazo informado antes de permitir nova tentativa.
+
 ## Auditoria, testes e limitações
 
 São auditados perfil, username, e-mail, senha, sessões, desativação/reativação, exclusão/anonimização, exportação e GitHub. Metadados passam pela allowlist e não contêm senha, token, hash ou e-mail completo.

@@ -10,6 +10,8 @@ let app;
 let prisma;
 let getCapturedEmails;
 let clearCapturedEmails;
+let createApp;
+let env;
 const password = 'SenhaSegura123!';
 
 beforeAll(async () => {
@@ -18,6 +20,8 @@ beforeAll(async () => {
   ({ prisma } = await import('../../src/database/prismaClient.js'));
   ({ getCapturedEmails, clearCapturedEmails } =
     await import('../../src/shared/email/email.provider.js'));
+  ({ createApp } = await import('../../src/app.js'));
+  ({ env } = await import('../../src/config/env.js'));
   ({ default: app } = await import('../../src/app.js'));
   await cleanTestDatabase(prisma);
 });
@@ -46,7 +50,22 @@ async function register(email = 'settings@example.invalid') {
     .send({ token: registered.body.emailVerification.testToken });
   return {
     agent,
+    response: registered,
     mutate: (method, path) => agent[method](path).set('X-CSRF-Token', registered.body.csrfToken)
+  };
+}
+
+async function loginOn(targetApp, identifier) {
+  const agent = request.agent(targetApp);
+  const response = await agent.post('/api/auth/login').send({
+    identifier,
+    password,
+    rememberMe: false
+  });
+  return {
+    agent,
+    csrf: response.body.csrfToken,
+    mutate: (method, path) => agent[method](path).set('X-CSRF-Token', response.body.csrfToken)
   };
 }
 
@@ -259,5 +278,171 @@ describe('contratos de conta e privacidade L2', () => {
     expect(
       await prisma.gitHubInstallationAuthorization.findUnique({ where: { id: authorization.id } })
     ).toBeNull();
+  });
+});
+
+describe('rate limiting pós-L2', () => {
+  it('tolera navegação normal, duplicação de leitura e preflight sem 429', async () => {
+    await register('navigation-rate@example.invalid');
+    const navigationApp = createApp({
+      securityConfig: {
+        ...env,
+        trustProxy: 1,
+        rateLimitGlobalMax: 1000,
+        rateLimitReadBurstMax: 40,
+        rateLimitReadMax: 80
+      }
+    });
+    const auth = await loginOn(navigationApp, 'navigation-rate@example.invalid');
+    const paths = [
+      '/api/auth/me',
+      '/api/auth/csrf',
+      '/api/projects',
+      '/api/settings/account',
+      '/api/settings/security/sessions',
+      '/api/settings/privacy/deletion',
+      '/api/settings/integrations/github',
+      '/api/github/app/installations'
+    ];
+
+    for (let round = 0; round < 3; round += 1) {
+      const responses = await Promise.all(paths.map((path) => auth.agent.get(path)));
+      expect(responses.every((response) => response.status === 200)).toBe(true);
+    }
+    const duplicate = await Promise.all([
+      auth.agent.get('/api/settings/account'),
+      auth.agent.get('/api/settings/account')
+    ]);
+    expect(duplicate.map((response) => response.status)).toEqual([200, 200]);
+    expect(
+      (
+        await request(navigationApp)
+          .options('/api/settings/account')
+          .set('Origin', env.corsAllowedOrigins[0])
+          .set('Access-Control-Request-Method', 'GET')
+      ).status
+    ).toBe(204);
+  });
+
+  it('mantém quotas de leitura independentes para duas contas no mesmo IP', async () => {
+    await register('rate-account-a@example.invalid');
+    await register('rate-account-b@example.invalid');
+    const isolatedApp = createApp({
+      securityConfig: {
+        ...env,
+        trustProxy: 1,
+        rateLimitGlobalMax: 1000,
+        rateLimitReadBurstWindowMs: 60_000,
+        rateLimitReadBurstMax: 2,
+        rateLimitReadWindowMs: 60_000,
+        rateLimitReadMax: 2
+      }
+    });
+    const accountA = await loginOn(isolatedApp, 'rate-account-a@example.invalid');
+    const accountB = await loginOn(isolatedApp, 'rate-account-b@example.invalid');
+    const ip = '198.51.100.80';
+
+    expect(
+      (await accountA.agent.get('/api/settings/account').set('X-Forwarded-For', ip)).status
+    ).toBe(200);
+    expect(
+      (await accountA.agent.get('/api/settings/account').set('X-Forwarded-For', ip)).status
+    ).toBe(200);
+    const limited = await accountA.agent.get('/api/settings/account').set('X-Forwarded-For', ip);
+    const independent = await accountB.agent
+      .get('/api/settings/account')
+      .set('X-Forwarded-For', ip);
+
+    expect(limited).toMatchObject({
+      status: 429,
+      body: expect.objectContaining({
+        code: 'RATE_LIMITED',
+        scope: 'authenticated-read-burst',
+        retryAfterSeconds: expect.any(Number)
+      })
+    });
+    expect(limited.headers['retry-after']).toBeDefined();
+    expect(limited.headers.ratelimit).toBeDefined();
+    expect(independent.status).toBe(200);
+  });
+
+  it('continua bloqueando autenticação, e-mail, mutação e exportação abusivas', async () => {
+    await register('rate-sensitive@example.invalid');
+    const protectedApp = createApp({
+      securityConfig: {
+        ...env,
+        rateLimitGlobalMax: 1000,
+        rateLimitAuthMax: 1,
+        rateLimitEmailMax: 1,
+        rateLimitSensitiveMax: 1,
+        rateLimitExportMax: 1
+      }
+    });
+
+    await request(protectedApp)
+      .post('/api/auth/login')
+      .send({ identifier: 'unknown-rate@example.invalid', password: 'SenhaIncorreta123!' });
+    const authLimited = await request(protectedApp)
+      .post('/api/auth/login')
+      .send({ identifier: 'unknown-rate@example.invalid', password: 'SenhaIncorreta123!' });
+    expect(authLimited).toMatchObject({
+      status: 429,
+      body: expect.objectContaining({ scope: 'authentication' })
+    });
+
+    const authenticated = await loginOn(protectedApp, 'rate-sensitive@example.invalid');
+    await authenticated.mutate('post', '/api/auth/email-verification/resend').send({});
+    expect(
+      (await authenticated.mutate('post', '/api/auth/email-verification/resend').send({})).body
+        .scope
+    ).toBe('email-delivery');
+
+    await authenticated
+      .mutate('patch', '/api/settings/account/profile')
+      .send({ name: 'Nome com limite' });
+    expect(
+      (
+        await authenticated
+          .mutate('patch', '/api/settings/account/profile')
+          .send({ name: 'Nome bloqueado' })
+      ).body.scope
+    ).toBe('sensitive-mutation');
+
+    expect(
+      (await authenticated.mutate('post', '/api/settings/privacy/export').send({})).status
+    ).toBe(200);
+    expect(
+      (await authenticated.mutate('post', '/api/settings/privacy/export').send({})).body.scope
+    ).toBe('data-export');
+  });
+
+  it.each([
+    ['post', '/api/settings/security/password', 'password'],
+    ['post', '/api/settings/account/email-change', 'email'],
+    ['patch', '/api/settings/account/username', 'username'],
+    ['post', '/api/settings/account/deactivate', 'deactivate'],
+    ['post', '/api/settings/privacy/deletion', 'delete-account'],
+    ['delete', '/api/settings/privacy/deletion', 'cancel-deletion'],
+    ['delete', '/api/settings/security/sessions/not-a-uuid', 'revoke-session'],
+    ['delete', '/api/settings/integrations/github/authorizations/999', 'remove-github']
+  ])('protege abuso da mutação %s %s', async (method, path, suffix) => {
+    const email = `rate-${suffix}@example.invalid`;
+    await register(email);
+    const mutationApp = createApp({
+      securityConfig: {
+        ...env,
+        rateLimitGlobalMax: 1000,
+        rateLimitSensitiveMax: 1
+      }
+    });
+    const authenticated = await loginOn(mutationApp, email);
+
+    await authenticated.mutate(method, path).send({});
+    const limited = await authenticated.mutate(method, path).send({});
+
+    expect(limited).toMatchObject({
+      status: 429,
+      body: expect.objectContaining({ code: 'RATE_LIMITED', scope: 'sensitive-mutation' })
+    });
   });
 });

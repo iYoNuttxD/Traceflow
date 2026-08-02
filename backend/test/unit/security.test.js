@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import express from 'express';
 import request from 'supertest';
 import { describe, expect, it, vi } from 'vitest';
 import { createApp } from '../../src/app.js';
@@ -9,7 +10,7 @@ import {
   executeGithubRequest,
   isRetryableGithubError
 } from '../../src/modules/github/github-request.js';
-import { isAllowedGithubUrl } from '../../src/shared/security/index.js';
+import { createRateLimiters, isAllowedGithubUrl } from '../../src/shared/security/index.js';
 import { scanText } from '../../scripts/check-secrets.js';
 
 const silentLogger = Object.freeze({
@@ -125,7 +126,7 @@ describe('rate limiting', () => {
   it('aplica limite geral, headers e isolamento mínimo por IP', async () => {
     const app = createApp({
       logger: silentLogger,
-      securityConfig: securityConfig({ trustProxy: 1, rateLimitMax: 1 })
+      securityConfig: securityConfig({ trustProxy: 1, rateLimitGlobalMax: 1 })
     });
     const first = await request(app).get('/api/unknown').set('X-Forwarded-For', '198.51.100.10');
     const limited = await request(app).get('/api/unknown').set('X-Forwarded-For', '198.51.100.10');
@@ -136,6 +137,8 @@ describe('rate limiting', () => {
       body: {
         message: 'Muitas requisições. Tente novamente mais tarde.',
         code: ERROR_CODES.RATE_LIMITED,
+        scope: 'global-abuse',
+        retryAfterSeconds: expect.any(Number),
         requestId: expect.any(String)
       }
     });
@@ -144,21 +147,86 @@ describe('rate limiting', () => {
     expect(isolated.status).toBe(401);
   });
 
-  it.each([
-    ['/api/projects/join', 'join'],
-    ['/api/projects/not-an-id/github/sync', 'sync'],
-    ['/api/account/personal-data/export', 'personal-data-export']
-  ])('aplica limite sensível em %s', async (path) => {
+  it('mantém limite restritivo na entrada pública de projeto', async () => {
     const app = createApp({
       logger: silentLogger,
-      securityConfig: securityConfig({ sensitiveRateLimitMax: 2 })
+      securityConfig: securityConfig({ rateLimitSensitiveMax: 2 })
     });
     for (let index = 0; index < 2; index += 1) {
-      await request(app).post(path).send({});
+      await request(app).post('/api/projects/join').send({});
     }
-    const response = await request(app).post(path).send({});
+    const response = await request(app).post('/api/projects/join').send({});
     expect(response.status).toBe(429);
     expect(response.body.code).toBe(ERROR_CODES.RATE_LIMITED);
+    expect(response.body.scope).toBe('project-join');
+  });
+
+  it('isola leitura autenticada por User.id mesmo no mesmo IP', async () => {
+    const app = express();
+    app.set('trust proxy', 1);
+    const limiters = createRateLimiters({
+      logger: silentLogger,
+      rateLimitReadBurstWindowMs: 60_000,
+      rateLimitReadBurstMax: 2,
+      rateLimitReadWindowMs: 60_000,
+      rateLimitReadMax: 2
+    });
+    app.get(
+      '/read',
+      (req, res, next) => {
+        req.auth = { user: { id: req.get('X-Test-Authenticated-User') } };
+        next();
+      },
+      limiters.authenticatedReadBurst,
+      limiters.authenticatedReadSustained,
+      (req, res) => res.json({ ok: true })
+    );
+
+    const sameIp = { 'X-Forwarded-For': '198.51.100.20' };
+    expect(
+      (await request(app).get('/read').set(sameIp).set('X-Test-Authenticated-User', '7')).status
+    ).toBe(200);
+    expect(
+      (await request(app).get('/read').set(sameIp).set('X-Test-Authenticated-User', '7')).status
+    ).toBe(200);
+    const limited = await request(app)
+      .get('/read')
+      .set(sameIp)
+      .set('X-Test-Authenticated-User', '7');
+    const otherAccount = await request(app)
+      .get('/read')
+      .set(sameIp)
+      .set('X-Test-Authenticated-User', '8');
+
+    expect(limited).toMatchObject({
+      status: 429,
+      body: expect.objectContaining({ code: 'RATE_LIMITED', scope: 'authenticated-read-burst' })
+    });
+    expect(otherAccount.status).toBe(200);
+  });
+
+  it('não consome quota em OPTIONS e não expõe identificador no 429 ou log', async () => {
+    const logger = { ...silentLogger, warn: vi.fn() };
+    const app = express();
+    app.use(express.json());
+    const limiters = createRateLimiters({
+      logger,
+      rateLimitAuthWindowMs: 1000,
+      rateLimitAuthMax: 1
+    });
+    app.options('/login', limiters.authentication, (req, res) => res.sendStatus(204));
+    app.post('/login', limiters.authentication, (req, res) => res.sendStatus(204));
+
+    expect((await request(app).options('/login')).status).toBe(204);
+    await request(app).post('/login').send({ identifier: 'pessoa@example.invalid' });
+    const limited = await request(app)
+      .post('/login')
+      .send({ identifier: 'pessoa@example.invalid', token: 'segredo' });
+
+    expect(limited.headers['retry-after']).toBeDefined();
+    expect(limited.headers.ratelimit).toBeDefined();
+    expect(JSON.stringify(limited.body)).not.toContain('pessoa@example.invalid');
+    expect(JSON.stringify(logger.warn.mock.calls)).not.toMatch(/pessoa@example.invalid|segredo/);
   });
 });
 

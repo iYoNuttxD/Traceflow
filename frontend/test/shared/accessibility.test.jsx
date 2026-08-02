@@ -50,6 +50,13 @@ describe('infraestrutura acessível compartilhada', () => {
     expect(screen.getByRole('heading', { name: 'Acesso restrito' })).toBeInTheDocument();
   });
 
+  it('desabilita retry durante o prazo informado pelo backend', () => {
+    render(<ErrorState message="Muitas requisições." onRetry={vi.fn()} retryAfterSeconds={18} />);
+    const button = screen.getByRole('button', { name: 'Tentar novamente em 18s' });
+    expect(button).toBeDisabled();
+    expect(button).toHaveClass('button-secondary', 'button-compact');
+  });
+
   it('associa erro ao campo e anuncia feedback sem depender de cor', () => {
     render(
       <>

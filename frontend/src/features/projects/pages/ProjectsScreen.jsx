@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
-import { Card, ErrorState, FeedbackRegion, LoadingState } from '../../../shared/index.js';
+import {
+  Card,
+  ErrorState,
+  FeedbackRegion,
+  LoadingState,
+  normalizeApiError
+} from '../../../shared/index.js';
 import {
   ProjectForm,
   applyRepositoryToProjectForm,
@@ -26,6 +32,7 @@ export function ProjectsScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [repositoriesError, setRepositoriesError] = useState('');
   const [error, setError] = useState('');
+  const [retryAfterSeconds, setRetryAfterSeconds] = useState(0);
   const [success, setSuccess] = useState('');
   const [githubCallbackError, setGithubCallbackError] = useState('');
   const reconnectProjectId = searchParams.get('projectId');
@@ -33,12 +40,15 @@ export function ProjectsScreen() {
   const loadProjects = useCallback(async () => {
     setLoadingProjects(true);
     setError('');
+    setRetryAfterSeconds(0);
 
     try {
       const response = await projectsApi.list();
       setProjects(response.data.projects);
     } catch (requestError) {
-      setError(getErrorMessage(requestError, 'Não foi possível carregar os projetos.'));
+      const normalized = normalizeApiError(requestError, 'Não foi possível carregar os projetos.');
+      setError(normalized.message);
+      setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
     } finally {
       setLoadingProjects(false);
     }
@@ -111,21 +121,6 @@ export function ProjectsScreen() {
       );
     }
   }, [loadInstallations, searchParams]);
-
-  async function startGithubInstallation(projectId) {
-    setError('');
-    try {
-      const response = await projectsApi.startGithubInstallation({
-        intendedAction: projectId ? 'CONNECT_PROJECT' : 'CREATE_PROJECT',
-        ...(projectId ? { projectId } : {})
-      });
-      window.location.assign(response.data.url);
-    } catch (requestError) {
-      setError(
-        getErrorMessage(requestError, 'Não foi possível iniciar a instalação da GitHub App.')
-      );
-    }
-  }
 
   function handleChange(name, value) {
     setFormData((current) => updateProjectForm(current, name, value));
@@ -228,46 +223,45 @@ export function ProjectsScreen() {
       <div className="projects-layout">
         <Card title="Cadastrar projeto">
           <div className="github-app-setup">
-            <button className="button" type="button" onClick={() => void startGithubInstallation()}>
+            <span
+              className={`integration-status ${
+                installations.length > 0 ? 'is-connected' : 'is-disconnected'
+              }`}
+              role="status"
+            >
               {installations.length > 0
-                ? 'Adicionar ou atualizar acesso'
-                : 'Instalar ou autorizar GitHub App'}
-            </button>
+                ? `GitHub vinculado${
+                    installations.length === 1 ? ` · ${installations[0].accountLogin}` : ''
+                  }`
+                : 'GitHub não vinculado'}
+            </span>
+            {installations.length > 0 && (
+              <label className="field">
+                <span>Instalação GitHub</span>
+                <select
+                  value={selectedInstallationId}
+                  onChange={(event) => setSelectedInstallationId(event.target.value)}
+                >
+                  {installations.map((installation) => (
+                    <option
+                      key={installation.githubInstallationId}
+                      value={installation.githubInstallationId}
+                    >
+                      {installation.accountLogin}
+                      {installation.accountType ? ` (${installation.accountType})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             {installations.length === 0 && (
               <p className="field-help">
-                Nenhuma instalação da GitHub App foi vinculada ao TraceFlow.
+                Configure a integração em{' '}
+                <Link className="text-link" to="/settings/integrations">
+                  Integrações
+                </Link>
+                .
               </p>
-            )}
-            {installations.length > 0 && (
-              <>
-                <label className="field">
-                  <span>Instalação GitHub</span>
-                  <select
-                    value={selectedInstallationId}
-                    onChange={(event) => setSelectedInstallationId(event.target.value)}
-                  >
-                    {installations.map((installation) => (
-                      <option
-                        key={installation.githubInstallationId}
-                        value={installation.githubInstallationId}
-                      >
-                        {installation.accountLogin}
-                        {installation.accountType ? ` (${installation.accountType})` : ''}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {selectedInstallationId && (
-                  <a
-                    className="text-link"
-                    href={`https://github.com/settings/installations/${selectedInstallationId}`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Gerenciar acesso no GitHub
-                  </a>
-                )}
-              </>
             )}
           </div>
           <ProjectForm
@@ -276,10 +270,9 @@ export function ProjectsScreen() {
             loadingRepositories={loadingRepositories}
             repositoriesError={repositoriesError}
             repositoryEmptyMessage={
-              installations.length === 0
-                ? 'Nenhuma instalação da GitHub App foi vinculada ao TraceFlow.'
-                : 'A instalação não possui repositórios acessíveis.'
+              installations.length === 0 ? '' : 'A instalação não possui repositórios acessíveis.'
             }
+            repositoryDisabled={installations.length === 0}
             onChange={handleChange}
             onRepositoryChange={handleRepositoryChange}
             onSubmit={handleSubmit}
@@ -306,7 +299,11 @@ export function ProjectsScreen() {
           {loadingProjects ? (
             <LoadingState message="Carregando projetos..." />
           ) : error ? (
-            <ErrorState message={error} onRetry={loadProjects} />
+            <ErrorState
+              message={error}
+              onRetry={loadProjects}
+              retryAfterSeconds={retryAfterSeconds}
+            />
           ) : projects.length === 0 ? (
             <p className="empty-state">Nenhum projeto cadastrado ainda.</p>
           ) : (
@@ -337,13 +334,9 @@ export function ProjectsScreen() {
                     Ver detalhes e editar
                   </Link>
                   {project.githubIntegration?.status === 'RECONNECT_REQUIRED' && (
-                    <button
-                      className="button"
-                      type="button"
-                      onClick={() => void startGithubInstallation(project.id)}
-                    >
-                      Reconectar GitHub
-                    </button>
+                    <Link className="text-link" to={`/projects?projectId=${project.id}`}>
+                      Selecionar repositório para reconectar
+                    </Link>
                   )}
                 </article>
               ))}

@@ -62,6 +62,11 @@ export const settingsApi = {
   async github(options = {}) {
     return (await httpClient.get('/settings/integrations/github', options)).data.integrations;
   },
+  startGithubInstallation() {
+    return httpClient.post('/github/app/installations/start', {
+      intendedAction: 'CREATE_PROJECT'
+    });
+  },
   removeGithubAuthorization(authorizationId, currentPassword) {
     return httpClient.delete(`/settings/integrations/github/authorizations/${authorizationId}`, {
       data: { currentPassword, confirmation: true }

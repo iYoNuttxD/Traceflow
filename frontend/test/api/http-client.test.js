@@ -1,12 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createHttpClient, setCsrfToken } from '../../src/api/http-client.js';
+import {
+  createHttpClient,
+  resetHttpSessionScope,
+  setCsrfToken
+} from '../../src/api/http-client.js';
 
 function successAdapter(config) {
   return Promise.resolve({ data: {}, status: 200, statusText: 'OK', headers: {}, config });
 }
 
 describe('cliente HTTP compartilhado', () => {
-  beforeEach(() => setCsrfToken());
+  beforeEach(() => {
+    resetHttpSessionScope();
+    setCsrfToken();
+  });
 
   it('configura timeout, credenciais e CSRF somente em mutações', async () => {
     const client = createHttpClient({ baseURL: '/api', timeout: 4321 });
@@ -55,5 +62,51 @@ describe('cliente HTTP compartilhado', () => {
     await expect(client.get('/restricted')).rejects.toBeTruthy();
     expect(listener).toHaveBeenCalledOnce();
     window.removeEventListener('traceflow:account-restricted', listener);
+  });
+
+  it('deduplica GET simultâneo por URL e parâmetros na mesma geração de sessão', async () => {
+    const client = createHttpClient();
+    let resolveRequest;
+    const adapter = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          resolveRequest = () =>
+            resolve({ data: { ok: true }, status: 200, statusText: 'OK', headers: {}, config: {} });
+        })
+    );
+    client.defaults.adapter = adapter;
+
+    const first = client.get('/settings/account', { params: { page: 1, filter: 'active' } });
+    const duplicate = client.get('/settings/account', {
+      params: { filter: 'active', page: 1 }
+    });
+
+    expect(duplicate).toBe(first);
+    await vi.waitFor(() => expect(adapter).toHaveBeenCalledOnce());
+    resolveRequest();
+    await expect(first).resolves.toMatchObject({ data: { ok: true } });
+  });
+
+  it('não reutiliza GET após a troca de geração da sessão', async () => {
+    const client = createHttpClient();
+    client.defaults.adapter = vi.fn(successAdapter);
+
+    await client.get('/settings/account');
+    resetHttpSessionScope();
+    await client.get('/settings/account');
+
+    expect(client.defaults.adapter).toHaveBeenCalledTimes(2);
+  });
+
+  it('não deduplica operações mutáveis', async () => {
+    const client = createHttpClient();
+    client.defaults.adapter = vi.fn(successAdapter);
+
+    await Promise.all([
+      client.post('/settings/account/profile', {}),
+      client.post('/settings/account/profile', {})
+    ]);
+
+    expect(client.defaults.adapter).toHaveBeenCalledTimes(2);
   });
 });
