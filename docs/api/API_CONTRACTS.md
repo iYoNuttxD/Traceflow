@@ -1,5 +1,29 @@
 # Catálogo atual de contratos HTTP do TRACEFLOW
 
+## L2 — conta, segurança, privacidade e integrações
+
+Todos os contratos abaixo exigem sessão e CSRF nas mutations, exceto as duas confirmações públicas. `requireAccountState` limita `DEACTIVATED` à conta/reativação e `DELETION_PENDING` ao status/cancelamento/exportação; `ANONYMIZED` não autentica.
+
+| Método | Caminho | Regra principal |
+|---|---|---|
+| GET | `/settings/account` | conta própria e estado |
+| PATCH | `/settings/account/profile` | altera somente nome; conta ativa |
+| PATCH | `/settings/account/username` | política L1 e cooldown de 30 dias |
+| POST/DELETE | `/settings/account/email-change` | senha; solicitação hashada/cancelamento |
+| GET | `/settings/account/email-change/status` | solicitação própria pendente |
+| GET | `/settings/account/email-change/confirm` | público; token único; revoga todas as sessões |
+| POST | `/settings/security/password` | preserva sessão atual e revoga demais |
+| GET/DELETE | `/settings/security/sessions[/:sessionId]` | UUID público e sessão própria |
+| POST | `/settings/security/sessions/revoke-others` | preserva sessão atual |
+| POST | `/settings/account/deactivate` | senha, confirmação e bloqueio de último OWNER |
+| POST/GET | `/account/reactivation/start|confirm` | sessão restrita para start; confirmação pública |
+| GET/POST/DELETE | `/settings/privacy/deletion` | 30 dias, modo restrito e cancelamento com senha |
+| POST | `/settings/privacy/export` | ZIP/JSON; `ACTIVE` ou `DELETION_PENDING` |
+| GET | `/settings/integrations/github` | autorizações pessoais, instalações/repos/projetos |
+| DELETE | `/settings/integrations/github/authorizations/:authorizationId` | remove somente autorização própria |
+
+A exportação retorna `application/zip` com manifesto 1.0 e não persiste o arquivo. IDs de sessão internos, tokens, hashes e secrets não integram DTOs. Instalações GitHub suspensas/removidas não acionam listagem externa.
+
 ## L1 — identidade, verificação e GitHub App
 
 `POST /auth/register` recebe `{name,username,email,password}` e cria conta/sessão mesmo quando a entrega SMTP falha; `emailVerification.status` informa `accepted`, `temporary_failure` ou `permanent_failure`. `POST /auth/login` recebe `{identifier,password,rememberMe}` e aceita username/e-mail sem enumerar contas. `PATCH /auth/username` substitui o identificador técnico de usuário migrado. `POST /auth/email-verification/resend` exige sessão+CSRF; `POST /auth/email-verification/verify` é público e consome token único.
@@ -180,15 +204,15 @@ Sem `taskId`, a consulta preserva a visão paginada do projeto. Com `taskId`, re
 | Método | Caminho | Entrada | Sucesso |
 |---|---|---|---|
 | GET | `/account/personal-data` | sessão | `200`, `{data}` minimizado |
-| PATCH | `/account/profile` | `name`, `email`, `currentPassword` | `200`, `{message,user}` |
+| PATCH | `/account/profile` | `name` | `200`, `{message,user}`; compatibilidade, sem troca direta de e-mail |
 | GET | `/account/sessions` | sessão | `200`, sessões sem hashes |
 | DELETE | `/account/sessions/:sessionId` | ID próprio | `204` |
 | DELETE | `/account/sessions` | sessão | `204`, revoga todas |
 | POST | `/account/personal-data/export` | CSRF | `202`, metadata da exportação |
 | GET | `/account/personal-data/export/:exportId` | ID próprio | `200`, status; `404` cruzado |
-| GET | `/account/personal-data/export/:exportId/download` | ID próprio não expirado | `200`, JSON; `410 EXPORT_EXPIRED` |
+| GET | `/account/personal-data/export/:exportId/download` | ID próprio não expirado | `200`, ZIP/JSON; `410 EXPORT_EXPIRED` |
 | POST | `/account/deactivate` | `password` | `200`; `409 LAST_PROJECT_OWNER` |
-| GET/POST/DELETE | `/account/deletion-request` | POST: `password` | status `200`/`202`/`200` |
+| GET/POST/DELETE | `/account/deletion-request` | POST/DELETE: `password` | compatibilidade com o ciclo L2 |
 | GET | `/account/audit-events` | `page`, `limit`, `action`, `result`, datas | `200`, página própria |
 | GET | `/projects/:projectId/audit-events` | mesmos filtros | `200` OWNER; `403` demais papéis |
 

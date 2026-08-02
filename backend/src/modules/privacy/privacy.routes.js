@@ -31,5 +31,9 @@ router.post(
   validateRequest({ body: passwordBody }),
   privacyController.requestDeletion
 );
-router.delete('/deletion-request', privacyController.cancelDeletion);
+router.delete(
+  '/deletion-request',
+  validateRequest({ body: passwordBody }),
+  privacyController.cancelDeletion
+);
 export default router;

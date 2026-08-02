@@ -6,6 +6,7 @@ Baseline E6, consolidado na E15 em 26/07/2026. A matriz descreve a política efe
 |---|---:|---:|---:|---:|---:|---|
 | `GET /health`, `/health/live`, `/health/ready` | L | L | L | L | L | públicos |
 | `POST /api/auth/register`, `login`, `forgot-password`, `reset-password`, `email-verification/verify` | E | E | E | E | E | públicos, limiter sensível |
+| `GET /api/settings/account/email-change/confirm`, `/api/account/reactivation/confirm` | E | E | E | E | E | públicos; token hashado, expirável e de uso único |
 | `GET /api/auth/me`, `csrf`; `POST logout`, `change-password`, `email-verification/resend`; `PATCH username` | 401 | E | E | E | E | própria sessão; mutations exigem CSRF |
 | `POST /api/projects` e `/projects/from-github` | 401 | E | E | E | E | e-mail verificado; criador vira OWNER |
 | `GET /api/projects` | 401 | L | L | L | L | lista somente memberships ativas |
@@ -39,10 +40,13 @@ Baseline E6, consolidado na E15 em 26/07/2026. A matriz descreve a política efe
 | `GET .../traceability/commit-suggestions` | 401 | L | L | L | L | DTO minimizado; mesmo projeto |
 | `POST .../commit-suggestions/scan`, `:id/confirm`, `:id/reject` | 401 | 403 | E | E | E | CSRF, membership ativa e relações no mesmo projeto |
 | `/api/account/personal-data`, perfil, sessões, exportação, desativação e exclusão | 401 | E | E | E | E | somente o próprio titular; mutations exigem CSRF/senha quando indicado |
+| `/api/settings/account`, `/security`, `/privacy`, `/integrations` | 401 | E | E | E | E | titular; middleware de estado restringe operações e mutations exigem CSRF |
 | `GET /api/account/audit-events` | 401 | L | L | L | L | somente eventos cujo ator é o titular |
 | `GET /api/projects/:projectId/audit-events` | 401 | 403 | 403 | 403 | A | paginado, metadata minimizada, sem enumeração entre projetos |
 
 ## Decisões
+
+- `ACTIVE` segue a matriz por papel. `DEACTIVATED` acessa somente estado da conta e reativação. `DELETION_PENDING` acessa somente status/cancelamento/exportação. `ANONYMIZED` não autentica.
 
 - OWNER administra membros, convites e configuração; MANAGER coordena sync e também escreve domínio; MEMBER escreve tarefas/requisitos; VIEWER é leitura.
 - O middleware resolve o projeto por rota direta ou pelo recurso filho antes de avaliar a membership.

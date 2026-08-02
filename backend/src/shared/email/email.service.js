@@ -2,9 +2,12 @@ import { env } from '../../config/env.js';
 import { logger } from '../logger/index.js';
 import { createEmailProvider } from './email.provider.js';
 import {
+  accountReactivationTemplate,
+  emailChangeConfirmationTemplate,
   emailVerificationTemplate,
   invitationTemplate,
-  passwordResetTemplate
+  passwordResetTemplate,
+  securityNoticeTemplate
 } from './email.templates.js';
 
 const provider = createEmailProvider();
@@ -58,6 +61,93 @@ export const emailService = Object.freeze({
     return safelySend(
       'email_verification_email',
       { to, ...emailVerificationTemplate({ verificationUrl, expiresAt, name }) },
+      { userId }
+    );
+  },
+  sendEmailChangeConfirmation({ to, token, expiresAt, userId, name }) {
+    const confirmationUrl = appendToken(env.emailChangeUrl, token);
+    return safelySend(
+      'email_change_confirmation',
+      { to, ...emailChangeConfirmationTemplate({ confirmationUrl, expiresAt, name }) },
+      { userId }
+    );
+  },
+  sendEmailChangedNotice({ to, userId, name }) {
+    return safelySend(
+      'email_changed_notice',
+      {
+        to,
+        ...securityNoticeTemplate({
+          title: 'E-mail alterado no TRACEFLOW',
+          message:
+            'O e-mail principal da sua conta foi alterado. Se você não reconhece essa ação, contate o suporte.',
+          name
+        })
+      },
+      { userId }
+    );
+  },
+  sendPasswordChangedNotice({ to, userId, name }) {
+    return safelySend(
+      'password_changed_notice',
+      {
+        to,
+        ...securityNoticeTemplate({
+          title: 'Senha alterada no TRACEFLOW',
+          message: 'Sua senha foi alterada e as outras sessões foram encerradas.',
+          name
+        })
+      },
+      { userId }
+    );
+  },
+  sendAccountDeactivatedNotice({ to, userId, name }) {
+    return safelySend(
+      'account_deactivated_notice',
+      {
+        to,
+        ...securityNoticeTemplate({
+          title: 'Conta TRACEFLOW desativada',
+          message: 'Sua conta foi desativada e está em modo restrito.',
+          name
+        })
+      },
+      { userId }
+    );
+  },
+  sendAccountReactivation({ to, token, expiresAt, userId, name }) {
+    const confirmationUrl = appendToken(env.accountReactivationUrl, token);
+    return safelySend(
+      'account_reactivation',
+      { to, ...accountReactivationTemplate({ confirmationUrl, expiresAt, name }) },
+      { userId }
+    );
+  },
+  sendAccountDeletionRequested({ to, scheduledFor, userId, name }) {
+    return safelySend(
+      'account_deletion_requested',
+      {
+        to,
+        ...securityNoticeTemplate({
+          title: 'Exclusão da conta TRACEFLOW solicitada',
+          message: `Sua conta será anonimizada após ${scheduledFor.toISOString()}, salvo cancelamento.`,
+          name
+        })
+      },
+      { userId }
+    );
+  },
+  sendAccountDeletionCancelled({ to, userId, name }) {
+    return safelySend(
+      'account_deletion_cancelled',
+      {
+        to,
+        ...securityNoticeTemplate({
+          title: 'Exclusão da conta TRACEFLOW cancelada',
+          message: 'Sua solicitação foi cancelada. Faça login novamente.',
+          name
+        })
+      },
       { userId }
     );
   }

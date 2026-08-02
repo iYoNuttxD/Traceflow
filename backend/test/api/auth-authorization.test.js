@@ -198,15 +198,15 @@ describe('identidade, sessão, CSRF e autorização E6', () => {
     ).toBe('Nome de usuário, e-mail ou senha inválidos.');
     await prisma.user.update({
       where: { email: 'login@example.invalid' },
-      data: { isActive: false }
+      data: { isActive: false, accountStatus: 'DEACTIVATED' }
     });
-    expect(
-      (
-        await request(app)
-          .post('/api/auth/login')
-          .send({ identifier: 'ulogin', password, rememberMe: false })
-      ).status
-    ).toBe(403);
+    const restricted = await request(app)
+      .post('/api/auth/login')
+      .send({ identifier: 'ulogin', password, rememberMe: false });
+    expect(restricted).toMatchObject({
+      status: 200,
+      body: { user: { accountStatus: 'DEACTIVATED' } }
+    });
   });
 
   it('exige CSRF e invalida a sessão no logout', async () => {

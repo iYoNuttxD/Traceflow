@@ -25,3 +25,5 @@ Uma instalação pode atender vários projetos, cada qual com um repositório di
 ## Consequências
 
 Operação precisa criar/configurar a App e seus segredos. Repositórios antigos exigem ação de OWNER. Em troca, acesso, revogação e escopo passam a seguir a instalação e tokens temporários não integram o patrimônio de dados do TRACEFLOW. Secret manager, store distribuído e validação operacional externa permanecem necessários.
+
+Na L2, `GitHubInstallationAuthorization` também é autorização pessoal: o titular pode removê-la sem apagar instalação, projetos, integrações, artefatos ou autorizações de terceiros. A anonimização aplica a mesma separação.

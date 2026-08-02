@@ -111,11 +111,12 @@ export const authService = {
       : await authRepository.findUserByUsername(normalizeUsername(normalized));
     if (!user?.passwordHash || !(await argon2.verify(user.passwordHash, password)))
       throw authError();
-    if (!user.isActive)
+    const accountStatus = user.accountStatus || (user.isActive ? 'ACTIVE' : 'DEACTIVATED');
+    if (accountStatus === 'ANONYMIZED')
       throw new AppError({
-        message: 'Conta desativada.',
+        message: 'Não foi possível autenticar.',
         statusCode: 403,
-        code: ERROR_CODES.ACCOUNT_DISABLED,
+        code: ERROR_CODES.ACCOUNT_ANONYMIZED,
         exposeTechnicalDetails: true
       });
     const updated = await authRepository.updateUser(user.id, { lastLoginAt: new Date() });
@@ -128,7 +129,8 @@ export const authService = {
       !session ||
       session.revokedAt ||
       session.expiresAt <= new Date() ||
-      !session.user.isActive ||
+      (session.user.accountStatus || (session.user.isActive ? 'ACTIVE' : 'DEACTIVATED')) ===
+        'ANONYMIZED' ||
       session.sessionVersion !== session.user.sessionVersion
     )
       return null;
@@ -151,7 +153,7 @@ export const authService = {
   },
   async forgotPassword(email) {
     const user = await authRepository.findUserByEmail(email.trim().toLowerCase());
-    if (!user?.isActive) return null;
+    if (!user || user.accountStatus === 'ANONYMIZED') return null;
     await authRepository.expireResetTokens(user.id);
     const token = newToken();
     const expiresAt = new Date(Date.now() + env.passwordResetTtlMs);
@@ -173,6 +175,7 @@ export const authService = {
         exposeTechnicalDetails: true
       });
     }
+    if (record.user.accountStatus === 'ANONYMIZED') throw authError();
     ensurePasswordPolicy(password, record.user);
     await authRepository.updateUser(record.userId, {
       passwordHash: await this.hashPassword(password),

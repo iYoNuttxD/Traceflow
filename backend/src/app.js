@@ -10,6 +10,8 @@ import { githubAppCallbackRoutes } from './modules/github/github-public.routes.j
 import { createAuthenticationMiddleware } from './middlewares/auth/authentication.middleware.js';
 import { createCsrfMiddleware } from './middlewares/auth/csrf.middleware.js';
 import { createProjectAuthorizationMiddleware } from './middlewares/auth/project-authorization.middleware.js';
+import { requireAccountState } from './middlewares/auth/account-state.middleware.js';
+import { settingsPublicRoutes } from './modules/settings/index.js';
 import { createHealthHandlers } from './shared/http/index.js';
 import { logger as defaultLogger } from './shared/logger/index.js';
 import {
@@ -37,6 +39,9 @@ export function createApp({ logger = defaultLogger, readinessCheck, securityConf
   app.use(createCorsMiddleware(securityConfig));
   app.use('/api', noStoreApiResponses);
   app.use('/api/github-app/callback', rateLimiters.general, githubAppCallbackRoutes);
+  app.use('/api/settings/account/email-change/confirm', rateLimiters.sensitive);
+  app.use('/api/account/reactivation/confirm', rateLimiters.sensitive);
+  app.use('/api', settingsPublicRoutes);
   app.post(
     '/api/webhooks/github-app',
     rateLimiters.general,
@@ -63,6 +68,11 @@ export function createApp({ logger = defaultLogger, readinessCheck, securityConf
   app.use('/api/github/app/installations', rateLimiters.sensitive);
   app.use('/api/projects/from-github', rateLimiters.sensitive);
   app.use('/api/account/personal-data/export', rateLimiters.sensitive);
+  app.use('/api/settings/account/email-change', rateLimiters.sensitive);
+  app.use('/api/settings/security/password', rateLimiters.sensitive);
+  app.use('/api/settings/privacy', rateLimiters.sensitive);
+  app.use('/api/settings/integrations', rateLimiters.sensitive);
+  app.use('/api/account/reactivation', rateLimiters.sensitive);
   app.use(
     '/api/projects/:projectId/github/sync',
     createSensitiveAttemptLogger({ logger, event: 'github_sync' }),
@@ -71,6 +81,7 @@ export function createApp({ logger = defaultLogger, readinessCheck, securityConf
   app.use('/api', rateLimiters.general);
   app.use('/api', createAuthenticationMiddleware({ cookieName: securityConfig.sessionCookieName }));
   app.use('/api', createCsrfMiddleware());
+  app.use('/api', requireAccountState);
   app.use('/api', createProjectAuthorizationMiddleware());
   app.use('/api', routes);
   app.use(notFoundMiddleware);

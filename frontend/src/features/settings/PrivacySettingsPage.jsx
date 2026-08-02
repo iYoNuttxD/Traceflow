@@ -1,0 +1,120 @@
+import { useEffect, useState } from 'react';
+import { normalizeApiError, useConfirm } from '../../shared/index.js';
+import { useAuth } from '../auth/index.js';
+import { settingsApi } from './settings.api.js';
+import { SettingsFeedback } from './SettingsFeedback.jsx';
+
+function download(blob) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `traceflow-export-${new Date().toISOString().slice(0, 10)}.zip`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+export function PrivacySettingsPage() {
+  const confirm = useConfirm();
+  const { refresh } = useAuth();
+  const [request, setRequest] = useState(null);
+  const [password, setPassword] = useState('');
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  async function load() {
+    setRequest(await settingsApi.deletion());
+  }
+  useEffect(() => {
+    load().catch((value) => setError(normalizeApiError(value).message));
+  }, []);
+  async function run(operation, success) {
+    setError('');
+    try {
+      await operation();
+      setMessage(success);
+      await load();
+      await refresh();
+    } catch (value) {
+      setError(normalizeApiError(value).message);
+    }
+  }
+  return (
+    <>
+      <SettingsFeedback error={error} message={message} />
+      <section className="settings-card">
+        <h2>Portabilidade</h2>
+        <p>Baixe um arquivo ZIP com documentos JSON versionados e sem credenciais.</p>
+        <button
+          type="button"
+          onClick={() =>
+            void run(async () => download(await settingsApi.exportData()), 'Exportação concluída.')
+          }
+        >
+          Exportar meus dados
+        </button>
+      </section>
+      <section className="settings-card danger-zone">
+        <h2>Excluir conta</h2>
+        {request ? (
+          <p>
+            Exclusão agendada para{' '}
+            <strong>{new Date(request.scheduledFor).toLocaleString('pt-BR')}</strong>. Até lá, a
+            conta permanece restrita e a solicitação pode ser cancelada.
+          </p>
+        ) : (
+          <p>
+            Após o prazo de carência, identificadores pessoais serão anonimizados. Artefatos
+            colaborativos e rastreabilidade serão preservados.
+          </p>
+        )}
+        <label>
+          Senha atual
+          <input
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+          />
+        </label>
+        {request ? (
+          <button
+            type="button"
+            onClick={async () => {
+              if (
+                !(await confirm({
+                  title: 'Cancelar exclusão',
+                  description: 'Todas as sessões serão encerradas após o cancelamento.',
+                  confirmLabel: 'Cancelar exclusão'
+                }))
+              )
+                return;
+              await run(
+                () => settingsApi.cancelDeletion(password),
+                'Exclusão cancelada. Entre novamente.'
+              );
+            }}
+          >
+            Cancelar exclusão
+          </button>
+        ) : (
+          <button
+            className="button-danger"
+            type="button"
+            onClick={async () => {
+              if (
+                !(await confirm({
+                  title: 'Solicitar exclusão',
+                  description: 'A conta ficará restrita durante o prazo de carência.',
+                  confirmLabel: 'Solicitar exclusão'
+                }))
+              )
+                return;
+              await run(() => settingsApi.requestDeletion(password), 'Exclusão agendada.');
+            }}
+          >
+            Solicitar exclusão
+          </button>
+        )}
+      </section>
+    </>
+  );
+}

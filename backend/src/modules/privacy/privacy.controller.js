@@ -2,6 +2,7 @@ import { env } from '../../config/env.js';
 import { asyncHandler } from '../../shared/http/index.js';
 import { privacyService } from './privacy.service.js';
 import { auditService } from '../audit/audit.service.js';
+import { settingsService } from '../settings/settings.service.js';
 
 const clearCookie = (res) =>
   res.clearCookie(env.sessionCookieName, {
@@ -34,7 +35,7 @@ export const privacyController = {
   ),
   revokeSession: asyncHandler(async (req, res) => {
     await privacyService.revokeSession(req.auth.user.id, req.params.sessionId, req.requestId);
-    if (req.params.sessionId === req.auth.session.id) clearCookie(res);
+    if (req.params.sessionId === req.auth.session.publicId) clearCookie(res);
     return res.status(204).end();
   }),
   revokeAllSessions: asyncHandler(async (req, res) => {
@@ -51,7 +52,8 @@ export const privacyController = {
     res.json({ export: await privacyService.exportStatus(req.auth.user.id, req.params.exportId) })
   ),
   downloadExport: asyncHandler(async (req, res) => {
-    const payload = await privacyService.downloadExport(req.auth.user.id, req.params.exportId);
+    await privacyService.downloadExport(req.auth.user.id, req.params.exportId);
+    const payload = await settingsService.exportData(req.auth.user.id, req.requestId);
     await auditService.recordOperational({
       actorUserId: req.auth.user.id,
       requestId: req.requestId,
@@ -59,33 +61,42 @@ export const privacyController = {
       resourceType: 'PersonalDataExport',
       resourceId: req.params.exportId
     });
-    res.set(
-      'Content-Disposition',
-      `attachment; filename="traceflow-personal-data-${req.params.exportId}.json"`
-    );
-    return res.json(payload);
+    res.set('Content-Disposition', `attachment; filename="${payload.filename}"`);
+    res.type('application/zip');
+    return res.send(payload.zip);
   }),
   deactivate: asyncHandler(async (req, res) => {
-    await privacyService.deactivate(req.auth.user.id, req.body.password, req.requestId);
-    clearCookie(res);
-    return res.json({ message: 'Conta desativada com sucesso.' });
+    const account = await settingsService.deactivate(
+      req.auth.user.id,
+      req.auth.session.id,
+      { currentPassword: req.body.password, confirmation: true },
+      req.requestId
+    );
+    return res.json({ message: 'Conta desativada com sucesso.', account });
   }),
   deletionRequest: asyncHandler(async (req, res) =>
     res.json({ request: await privacyService.deletionRequest(req.auth.user.id) })
   ),
   requestDeletion: asyncHandler(async (req, res) =>
     res.status(202).json({
-      request: await privacyService.requestDeletion(
+      request: await settingsService.requestDeletion(
         req.auth.user.id,
-        req.body.password,
+        req.auth.session.id,
+        { currentPassword: req.body.password, confirmation: true },
         req.requestId
       )
     })
   ),
-  cancelDeletion: asyncHandler(async (req, res) =>
-    res.json({
+  cancelDeletion: asyncHandler(async (req, res) => {
+    const result = await settingsService.cancelDeletion(
+      req.auth.user.id,
+      { currentPassword: req.body.password, confirmation: true },
+      req.requestId
+    );
+    if (result.changed) clearCookie(res);
+    return res.json({
       message: 'Solicitação de exclusão cancelada.',
-      request: await privacyService.cancelDeletion(req.auth.user.id, req.requestId)
-    })
-  )
+      request: result.request
+    });
+  })
 };

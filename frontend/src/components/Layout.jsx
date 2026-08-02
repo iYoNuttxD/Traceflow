@@ -2,14 +2,24 @@
 // Shell visual global das rotas do TRACEFLOW.
 import { Navbar } from './Navbar.jsx';
 import { EmailVerificationBanner, UsernameSetupBanner, useAuth } from '../features/auth/index.js';
+import { useLocation } from 'react-router';
 
 export function Layout({ children }) {
   const { user, updateUser } = useAuth();
+  const location = useLocation();
+  const restricted =
+    user &&
+    (user.accountStatus || (user.isActive === false ? 'DEACTIVATED' : 'ACTIVE')) !== 'ACTIVE';
+  const publicConfirmation =
+    location.pathname === '/settings/account/email-change/confirm' ||
+    location.pathname === '/account/reactivation/confirm';
   return (
     <>
-      <Navbar />
-      <EmailVerificationBanner user={user} />
-      <UsernameSetupBanner user={user} onUpdated={updateUser} />
+      {!restricted && !publicConfirmation && <Navbar />}
+      {!restricted && !publicConfirmation && <EmailVerificationBanner user={user} />}
+      {!restricted && !publicConfirmation && (
+        <UsernameSetupBanner user={user} onUpdated={updateUser} />
+      )}
       {children}
     </>
   );

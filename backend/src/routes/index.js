@@ -7,6 +7,7 @@ import { githubRoutes } from '../modules/github/index.js';
 import { traceabilityRoutes } from '../modules/traceability/index.js';
 import { auditRoutes } from '../modules/audit/index.js';
 import { privacyRoutes } from '../modules/privacy/index.js';
+import { settingsRoutes } from '../modules/settings/index.js';
 
 const routes = Router();
 
@@ -17,5 +18,6 @@ routes.use('/', githubRoutes);
 routes.use('/', traceabilityRoutes);
 routes.use('/', auditRoutes);
 routes.use('/account', privacyRoutes);
+routes.use('/', settingsRoutes);
 
 export default routes;

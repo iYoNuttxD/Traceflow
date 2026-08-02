@@ -60,25 +60,19 @@ export const privacyService = {
     };
   },
   async updateProfile(userId, input, requestId) {
-    await requirePassword(userId, input.currentPassword);
-    const email = input.email.trim().toLowerCase();
-    const existing = await privacyRepository.findUserByEmail(email);
-    if (existing && existing.id !== userId)
-      throw new AppError({
-        message: 'Não foi possível atualizar a conta.',
-        statusCode: 409,
-        code: ERROR_CODES.CONFLICT,
-        exposeTechnicalDetails: true
-      });
     return privacyRepository.updateProfile(
       userId,
-      { name: input.name.trim(), email, emailVerifiedAt: null },
+      { name: input.name.trim() },
       audit(userId, requestId, 'ACCOUNT_PROFILE_UPDATED', 'User', userId)
     );
   },
   async sessions(userId, currentSessionId) {
     const sessions = await privacyRepository.listSessions(userId);
-    return sessions.map((session) => ({ ...session, current: session.id === currentSessionId }));
+    return sessions.map(({ id, publicId, ...session }) => ({
+      ...session,
+      sessionId: publicId,
+      current: id === currentSessionId
+    }));
   },
   async revokeSession(userId, sessionId, requestId) {
     const count = await privacyRepository.revokeSession(
@@ -100,10 +94,10 @@ export const privacyService = {
       userId,
       expiresAt,
       audit(userId, requestId, 'PERSONAL_DATA_EXPORT_REQUESTED', 'PersonalDataExport', null, {
-        format: 'JSON'
+        format: 'ZIP_JSON'
       }),
       audit(userId, requestId, 'PERSONAL_DATA_EXPORT_COMPLETED', 'PersonalDataExport', null, {
-        format: 'JSON'
+        format: 'ZIP_JSON'
       })
     );
   },
@@ -180,22 +174,38 @@ export const privacyService = {
     for (const request of due) {
       if ((await privacyRepository.lastOwnedProjects(request.userId)).length) continue;
       const suffix = randomUUID();
-      const result = await privacyRepository.anonymize(
-        request.id,
-        {
-          name: 'Usuário anonimizado',
-          username: `anon-${suffix.replaceAll('-', '').slice(0, 24)}`,
-          email: `anon-${suffix}@anonymous.invalid`
-        },
-        buildAuditEvent({
-          actorUserId: request.userId,
-          actorType: 'SYSTEM',
-          action: 'ACCOUNT_ANONYMIZED',
-          resourceType: 'User',
-          resourceId: request.userId
-        })
-      );
-      if (result && !result.blocked) processed += 1;
+      try {
+        const result = await privacyRepository.anonymize(
+          request.id,
+          {
+            name: 'Usuário excluído',
+            username: `anonymous_${suffix.replaceAll('-', '').slice(0, 24)}`,
+            email: `anonymous_${suffix}@deleted.traceflow.invalid`
+          },
+          buildAuditEvent({
+            actorUserId: request.userId,
+            actorType: 'SYSTEM',
+            action: 'ACCOUNT_ANONYMIZATION_STARTED',
+            resourceType: 'User',
+            resourceId: request.userId
+          }),
+          buildAuditEvent({
+            actorUserId: request.userId,
+            actorType: 'SYSTEM',
+            action: 'ACCOUNT_ANONYMIZED',
+            resourceType: 'User',
+            resourceId: request.userId
+          }),
+          now
+        );
+        if (result && !result.blocked) processed += 1;
+      } catch (error) {
+        await privacyRepository.markDeletionFailure(
+          request.id,
+          typeof error?.code === 'string' ? error.code : 'ANONYMIZATION_FAILED',
+          now
+        );
+      }
     }
     return { mode: 'apply', count: due.length, processed };
   }

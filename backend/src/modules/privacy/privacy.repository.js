@@ -4,6 +4,7 @@ import { auditRepository } from '../audit/audit.repository.js';
 
 const sessionSelect = {
   id: true,
+  publicId: true,
   expiresAt: true,
   lastSeenAt: true,
   revokedAt: true,
@@ -138,7 +139,7 @@ export const privacyRepository = {
   async revokeSession(userId, sessionId, auditData) {
     return prisma.$transaction(async (tx) => {
       const result = await tx.session.updateMany({
-        where: { id: sessionId, userId, revokedAt: null },
+        where: { publicId: sessionId, userId, revokedAt: null },
         data: { revokedAt: new Date() }
       });
       if (result.count) await auditRepository.create(auditData, tx);
@@ -158,7 +159,13 @@ export const privacyRepository = {
   async createExport(userId, expiresAt, auditData, completedAuditData) {
     return prisma.$transaction(async (tx) => {
       const record = await tx.personalDataExport.create({
-        data: { userId, status: 'COMPLETED', format: 'JSON', expiresAt, completedAt: new Date() }
+        data: {
+          userId,
+          status: 'COMPLETED',
+          format: 'ZIP_JSON',
+          expiresAt,
+          completedAt: new Date()
+        }
       });
       await auditRepository.create(auditData, tx);
       await auditRepository.create({ ...completedAuditData, resourceId: String(record.id) }, tx);
@@ -253,16 +260,47 @@ export const privacyRepository = {
     );
   },
   dueDeletionRequests(now = new Date()) {
+    const staleLease = new Date(now.getTime() - 30 * 60 * 1000);
     return prisma.privacyRequest.findMany({
-      where: { type: 'ACCOUNT_DELETION', status: 'PENDING', scheduledFor: { lte: now } },
-      select: { id: true, userId: true }
+      where: {
+        type: 'ACCOUNT_DELETION',
+        status: 'PENDING',
+        scheduledFor: { lte: now },
+        OR: [{ processingStartedAt: null }, { processingStartedAt: { lte: staleLease } }]
+      },
+      select: { id: true, userId: true, scheduledFor: true, lastAttemptAt: true }
     });
   },
-  async anonymize(requestId, anonymous, auditData) {
+  markDeletionFailure(requestId, failureCode, now = new Date()) {
+    return prisma.privacyRequest.updateMany({
+      where: { id: requestId, status: 'PENDING' },
+      data: { failureCode, lastAttemptAt: now, processingStartedAt: null }
+    });
+  },
+  async anonymize(requestId, anonymous, startedAuditData, completedAuditData, now = new Date()) {
     return prisma.$transaction(
       async (tx) => {
         const request = await tx.privacyRequest.findUnique({ where: { id: requestId } });
-        if (!request || request.status !== 'PENDING') return null;
+        if (
+          !request ||
+          request.status !== 'PENDING' ||
+          !request.scheduledFor ||
+          request.scheduledFor > now
+        )
+          return null;
+        const currentUser = await tx.user.findUnique({ where: { id: request.userId } });
+        if (!currentUser || currentUser.accountStatus === 'ANONYMIZED') return null;
+        const staleLease = new Date(now.getTime() - 30 * 60 * 1000);
+        const claim = await tx.privacyRequest.updateMany({
+          where: {
+            id: request.id,
+            status: 'PENDING',
+            OR: [{ processingStartedAt: null }, { processingStartedAt: { lte: staleLease } }]
+          },
+          data: { processingStartedAt: now, lastAttemptAt: now, failureCode: null }
+        });
+        if (!claim.count) return null;
+        await auditRepository.create(startedAuditData, tx);
         const owned = await tx.projectMembership.findMany({
           where: { userId: request.userId, role: 'OWNER', isActive: true },
           select: { projectId: true }
@@ -272,21 +310,28 @@ export const privacyRepository = {
             (await tx.projectMembership.count({
               where: { projectId: membership.projectId, role: 'OWNER', isActive: true }
             })) <= 1
-          )
+          ) {
+            await tx.privacyRequest.update({
+              where: { id: request.id },
+              data: { processingStartedAt: null, failureCode: 'SOLE_PROJECT_OWNER' }
+            });
             return { blocked: true };
+          }
         }
-        const currentUser = await tx.user.findUnique({
-          where: { id: request.userId },
-          select: { email: true }
-        });
         await tx.session.deleteMany({ where: { userId: request.userId } });
         await tx.passwordResetToken.deleteMany({ where: { userId: request.userId } });
         await tx.emailVerificationToken.deleteMany({ where: { userId: request.userId } });
         await tx.gitHubAppConnectionState.deleteMany({ where: { userId: request.userId } });
         await tx.gitHubInstallationAuthorization.deleteMany({ where: { userId: request.userId } });
+        await tx.emailChangeRequest.deleteMany({ where: { userId: request.userId } });
+        await tx.accountReactivationToken.deleteMany({ where: { userId: request.userId } });
         await tx.projectInvitation.updateMany({
-          where: { OR: [{ createdById: request.userId }, { email: currentUser.email }] },
-          data: { revokedAt: new Date() }
+          where: { createdById: request.userId, revokedAt: null },
+          data: { revokedAt: now }
+        });
+        await tx.projectInvitation.updateMany({
+          where: { email: currentUser.email },
+          data: { email: anonymous.email, revokedAt: now }
         });
         await tx.projectInvitation.updateMany({
           where: { acceptedById: request.userId },
@@ -296,6 +341,10 @@ export const privacyRepository = {
           where: { userId: request.userId },
           data: { isActive: false }
         });
+        await tx.projectMember.updateMany({
+          where: { email: currentUser.email },
+          data: { name: anonymous.name, email: anonymous.email, isActive: false }
+        });
         await tx.task.updateMany({
           where: { responsibleUserId: request.userId },
           data: { responsible: anonymous.name }
@@ -303,6 +352,14 @@ export const privacyRepository = {
         await tx.taskMovement.updateMany({
           where: { movedByUserId: request.userId },
           data: { movedBy: anonymous.name }
+        });
+        await tx.commit.updateMany({
+          where: { authorEmail: currentUser.email },
+          data: {
+            authorName: anonymous.name,
+            authorEmail: anonymous.email,
+            authorUsername: anonymous.username
+          }
         });
         await tx.user.update({
           where: { id: request.userId },
@@ -315,14 +372,22 @@ export const privacyRepository = {
             emailVerifiedAt: null,
             mustSetPassword: false,
             mustSetUsername: false,
-            sessionVersion: { increment: 1 }
+            sessionVersion: { increment: 1 },
+            accountStatus: 'ANONYMIZED',
+            anonymizedAt: now,
+            deactivatedAt: null
           }
         });
         await tx.privacyRequest.update({
           where: { id: request.id },
-          data: { status: 'COMPLETED', completedAt: new Date() }
+          data: {
+            status: 'COMPLETED',
+            completedAt: now,
+            processingStartedAt: null,
+            failureCode: null
+          }
         });
-        await auditRepository.create(auditData, tx);
+        await auditRepository.create(completedAuditData, tx);
         return { userId: request.userId, requestId: request.id };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }

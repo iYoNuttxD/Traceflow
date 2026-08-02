@@ -132,4 +132,16 @@ describe('AuthContext', () => {
     await waitFor(() => expect(screen.getByTestId('auth-state')).toHaveTextContent('Visitante'));
     expect(mocks.setCsrfToken).toHaveBeenLastCalledWith();
   });
+
+  it('atualiza a identidade quando o backend sinaliza estado restrito', async () => {
+    renderProvider();
+    await waitFor(() => expect(screen.getByTestId('auth-state')).toHaveTextContent('Daniel'));
+    mocks.authApi.me.mockResolvedValueOnce({
+      data: { user: { id: 1, name: 'Daniel restrito', accountStatus: 'DEACTIVATED' } }
+    });
+    window.dispatchEvent(new CustomEvent('traceflow:account-restricted'));
+    await waitFor(() =>
+      expect(screen.getByTestId('auth-state')).toHaveTextContent('Daniel restrito')
+    );
+  });
 });

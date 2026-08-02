@@ -3,6 +3,15 @@
 import { Link } from 'react-router';
 import { useAuth } from '../features/auth/index.js';
 
+function initials(name = '') {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0].toUpperCase())
+    .join('');
+}
+
 export function Navbar() {
   const auth = useAuth();
   return (
@@ -14,15 +23,24 @@ export function Navbar() {
         Projetos
       </Link>
       {auth?.user && (
-        <>
-          <Link className="nav-link" to="/account/privacy">
-            Privacidade
-          </Link>
-          <span className="nav-link">{auth.user.name}</span>
-          <button type="button" onClick={() => void auth.logout()}>
-            Sair
-          </button>
-        </>
+        <details className="user-menu">
+          <summary aria-label={`Abrir menu de ${auth.user.name}`}>
+            <span className="user-avatar" aria-hidden="true">
+              {initials(auth.user.name)}
+            </span>
+            <span>{auth.user.name}</span>
+          </summary>
+          <div className="user-menu-panel">
+            <span className="user-menu-email">{auth.user.email}</span>
+            <Link to="/settings/account">Configurações</Link>
+            <Link to="/settings/security">Segurança</Link>
+            <Link to="/settings/privacy">Privacidade</Link>
+            <Link to="/settings/integrations">Integrações</Link>
+            <button type="button" onClick={() => void auth.logout()}>
+              Sair
+            </button>
+          </div>
+        </details>
       )}
     </nav>
   );

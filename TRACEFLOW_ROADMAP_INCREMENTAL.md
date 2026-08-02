@@ -12,7 +12,7 @@ Este roadmap substitui a versão anterior e reorganiza o desenvolvimento do Trac
 
 A refatoração E0–E15 foi concluída e deixa de aparecer como etapa futura. Seus resultados passam a compor a **base técnica entregue**.
 
-As próximas entregas prioritárias serão executadas em paralelo:
+As entregas de identidade agora estão organizadas em dois incrementos: L1 concluída e L2 concluída no código, ambas ainda sujeitas à homologação externa de SMTP/GitHub. As próximas iniciativas de produto continuam em paralelo.
 
 1. **Finalização de Login, Identidade e Acesso — Daniel**
 2. **Planejamento e Colaboração — João e Gabriel Trevisan (GT)**
@@ -78,6 +78,7 @@ flowchart LR
 |---:|---|---|---|---|---|
 | Base | Núcleo funcional e refatoração E0–E15 | Equipe, com execução principal de Daniel na refatoração | RF01–RF09, RF11, RF12, RF21, RF22, RF38, RF41, RF48–RF53; base de RF23–RF28 | ENTREGUE / BASE ESTÁVEL | Arquitetura, segurança, CI, GitHub, tarefas e rastreabilidade consolidados |
 | A | Finalização de Login, Identidade e Acesso — L1 | Daniel | RF23–RF28 | IMPLEMENTADA; HOMOLOGAÇÃO EXTERNA PENDENTE | Cadastro/username, login por identificador, sessão persistente, verificação e recuperação; SMTP real ainda requer ambiente |
+| A.2 | Conta, Segurança, Privacidade e Integrações — L2 | Daniel | LGPD e qualidade transversal de RF23–RF28 | IMPLEMENTADA; HOMOLOGAÇÃO EXTERNA PENDENTE | Configurações, e-mail transacional, sessões, estados da conta, exclusão/anonimização, ZIP e autorizações GitHub |
 | B | Planejamento e Colaboração | João + GT | RF10, RF29, RF31–RF35; integração com RF51 | PARCIAL / NÃO IMPLEMENTADO → PRÓXIMA ENTREGA | Cronograma, sprints, esforço e colaboração incorporados às tarefas |
 | 3 | Qualidade e rastreabilidade ampliada | A definir | RF42–RF46, RF62–RF64 | FUTURO | Casos de teste e defeitos conectados à rastreabilidade |
 | 4 | Alertas e notificações | A definir | RF13, RF30, RF39, RF40, RF58–RF61 | FUTURO | Inconsistências e eventos comunicados aos usuários |
@@ -178,6 +179,12 @@ As ressalvas operacionais e de produto permanecem no backlog técnico, mas não 
 # PARTE II — PRÓXIMAS DUAS ENTREGAS
 
 # Entrega A — Finalização de Login, Identidade e Acesso
+
+## Incremento L2 — concluído no código
+
+A L2 acrescenta configurações de conta, mudança segura de username/e-mail, gestão de senha e sessões, desativação reativável, exclusão com carência de 30 dias, anonimização idempotente, exportação ZIP/JSON e gestão de autorizações pessoais da GitHub App. A migration é incremental e preserva a identidade canônica `User.id`, projetos e rastreabilidade.
+
+Permanecem futuros e fora da L2: exclusão/arquivamento/restauração de projeto, MFA e login com GitHub. O processor de exclusões depende de cron/runner externo; SMTP e GitHub App reais dependem de homologação de ambiente.
 
 **Responsável:** Daniel  
 **Prioridade:** imediata  

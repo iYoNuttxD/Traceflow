@@ -70,20 +70,31 @@ enum GitHubIntegrationStatus {
   DISCONNECTED
 }
 
+enum AccountStatus {
+  ACTIVE
+  DEACTIVATED
+  DELETION_PENDING
+  ANONYMIZED
+}
+
 model User {
-  id              Int       @id @default(autoincrement())
-  name            String
-  email           String    @unique
-  username        String    @unique
-  mustSetUsername Boolean   @default(false)
-  passwordHash    String?
-  isActive        Boolean   @default(true)
-  emailVerifiedAt DateTime?
-  mustSetPassword Boolean   @default(false)
-  sessionVersion  Int       @default(1)
-  lastLoginAt     DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id                Int           @id @default(autoincrement())
+  name              String
+  email             String        @unique
+  username          String        @unique
+  mustSetUsername   Boolean       @default(false)
+  passwordHash      String?
+  isActive          Boolean       @default(true)
+  emailVerifiedAt   DateTime?
+  mustSetPassword   Boolean       @default(false)
+  sessionVersion    Int           @default(1)
+  accountStatus     AccountStatus @default(ACTIVE)
+  deactivatedAt     DateTime?
+  usernameChangedAt DateTime?
+  anonymizedAt      DateTime?
+  lastLoginAt       DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
 
   sessions                         Session[]
   passwordResetTokens              PasswordResetToken[]
@@ -100,10 +111,15 @@ model User {
   reviewedTaskCommitSuggestions    TaskCommitSuggestion[]            @relation("TaskCommitSuggestionReviewer")
   githubInstallationAuthorizations GitHubInstallationAuthorization[]
   githubAppConnectionStates        GitHubAppConnectionState[]
+  emailChangeRequests              EmailChangeRequest[]
+  accountReactivationTokens        AccountReactivationToken[]
+
+  @@index([accountStatus])
 }
 
 model Session {
   id             Int       @id @default(autoincrement())
+  publicId       String    @unique @default(uuid())
   userId         Int
   tokenHash      String    @unique
   csrfTokenHash  String
@@ -116,6 +132,39 @@ model Session {
 
   user                      User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
   githubAppConnectionStates GitHubAppConnectionState[]
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model EmailChangeRequest {
+  id                   Int       @id @default(autoincrement())
+  userId               Int
+  currentEmailSnapshot String
+  newEmail             String
+  tokenHash            String    @unique
+  expiresAt            DateTime
+  verifiedAt           DateTime?
+  cancelledAt          DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([expiresAt])
+  @@index([newEmail])
+}
+
+model AccountReactivationToken {
+  id        Int       @id @default(autoincrement())
+  userId    Int
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([expiresAt])
@@ -353,17 +402,20 @@ model AuditEvent {
 }
 
 model PrivacyRequest {
-  id           Int                  @id @default(autoincrement())
-  userId       Int
-  type         PrivacyRequestType
-  status       PrivacyRequestStatus @default(PENDING)
-  requestedAt  DateTime             @default(now())
-  scheduledFor DateTime?
-  completedAt  DateTime?
-  cancelledAt  DateTime?
-  reasonCode   String?
-  createdAt    DateTime             @default(now())
-  updatedAt    DateTime             @updatedAt
+  id                  Int                  @id @default(autoincrement())
+  userId              Int
+  type                PrivacyRequestType
+  status              PrivacyRequestStatus @default(PENDING)
+  requestedAt         DateTime             @default(now())
+  scheduledFor        DateTime?
+  completedAt         DateTime?
+  cancelledAt         DateTime?
+  reasonCode          String?
+  processingStartedAt DateTime?
+  failureCode         String?
+  lastAttemptAt       DateTime?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

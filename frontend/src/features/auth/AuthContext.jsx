@@ -47,6 +47,11 @@ export function AuthProvider({ children }) {
     window.addEventListener('traceflow:unauthorized', clear);
     return () => window.removeEventListener('traceflow:unauthorized', clear);
   }, [clear]);
+  useEffect(() => {
+    const handleRestricted = () => void refresh();
+    window.addEventListener('traceflow:account-restricted', handleRestricted);
+    return () => window.removeEventListener('traceflow:account-restricted', handleRestricted);
+  }, [refresh]);
   const authenticate = useCallback(async (operation, values) => {
     const { data } = await operation(values);
     setUser(data.user);

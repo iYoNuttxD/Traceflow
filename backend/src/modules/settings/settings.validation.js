@@ -1,0 +1,24 @@
+import { z } from 'zod';
+import { email, requiredText, strictObject } from '../../shared/validation/index.js';
+
+const password = z.string().min(8, 'Senha obrigatória.').max(128);
+const token = z.string().min(32).max(256);
+
+export const profileBody = strictObject({ name: requiredText({ field: 'Nome' }).max(120) });
+export const usernameBody = strictObject({ username: z.string().min(3).max(39) });
+export const emailChangeBody = strictObject({ newEmail: email, currentPassword: password });
+export const passwordChangeBody = strictObject({
+  currentPassword: password,
+  newPassword: password,
+  confirmation: password
+});
+export const passwordConfirmationBody = strictObject({
+  currentPassword: password,
+  confirmation: z.literal(true, { error: 'Confirmação explícita obrigatória.' })
+});
+export const reactivationStartBody = strictObject({});
+export const tokenQuery = strictObject({ token });
+export const sessionParams = strictObject({ sessionId: z.string().uuid('Sessão inválida.') });
+export const githubAuthorizationParams = strictObject({
+  authorizationId: z.coerce.number().int().positive('Autorização inválida.')
+});

@@ -36,7 +36,7 @@ describe('E7 auditoria, privacidade e retenção', () => {
     expect(configuration).toMatchObject({
       auditRetentionDays: 365,
       exportFileTtlMinutes: 15,
-      accountDeletionGraceDays: 7
+      accountDeletionGraceDays: 30
     });
     expect(() =>
       createEnvironment({

@@ -25,6 +25,7 @@
     "privacy:retention": "node scripts/privacy-retention.js --apply",
     "privacy:deletions:dry-run": "node scripts/process-account-deletions.js",
     "privacy:deletions": "node scripts/process-account-deletions.js --apply",
+    "accounts:process-deletions": "node scripts/process-account-deletions.js --apply",
     "e8:audit": "node scripts/e8-schema-audit.js",
     "e8:reconcile:dry-run": "node scripts/e8-reconcile.js",
     "e8:reconcile": "node scripts/e8-reconcile.js --apply",
@@ -35,6 +36,7 @@
     "e11:legacy:reconcile": "node scripts/e11-reconcile-legacy-responsibilities.js --apply",
     "db:test:migrate": "node scripts/test-database.js migrate",
     "db:test:status": "node scripts/test-database.js status",
+    "db:test:validate-empty": "node scripts/validate-empty-migrations.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev"
   },

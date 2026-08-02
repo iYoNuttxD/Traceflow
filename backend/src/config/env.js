@@ -183,6 +183,15 @@ function parseEmailConfiguration(source, nodeEnv) {
     emailVerificationUrl: parseUrl(
       source.EMAIL_VERIFICATION_URL || 'http://localhost:5173/verify-email',
       'EMAIL_VERIFICATION_URL'
+    ),
+    emailChangeUrl: parseUrl(
+      source.EMAIL_CHANGE_CONFIRM_URL ||
+        'http://localhost:5173/settings/account/email-change/confirm',
+      'EMAIL_CHANGE_CONFIRM_URL'
+    ),
+    accountReactivationUrl: parseUrl(
+      source.ACCOUNT_REACTIVATION_URL || 'http://localhost:5173/account/reactivation/confirm',
+      'ACCOUNT_REACTIVATION_URL'
     )
   };
 }
@@ -313,6 +322,16 @@ export function createEnvironment(source = {}) {
       'EMAIL_VERIFICATION_TTL_MS',
       { defaultValue: 24 * 60 * 60 * 1000, min: 15 * 60 * 1000, max: 7 * 24 * 60 * 60 * 1000 }
     ),
+    emailChangeTtlMs: parseInteger(source.EMAIL_CHANGE_TTL_MS, 'EMAIL_CHANGE_TTL_MS', {
+      defaultValue: 30 * 60 * 1000,
+      min: 5 * 60 * 1000,
+      max: 24 * 60 * 60 * 1000
+    }),
+    accountReactivationTtlMs: parseInteger(
+      source.ACCOUNT_REACTIVATION_TTL_MS,
+      'ACCOUNT_REACTIVATION_TTL_MS',
+      { defaultValue: 30 * 60 * 1000, min: 5 * 60 * 1000, max: 24 * 60 * 60 * 1000 }
+    ),
     githubAppStateTtlMs: parseInteger(source.GITHUB_APP_STATE_TTL_MS, 'GITHUB_APP_STATE_TTL_MS', {
       defaultValue: 10 * 60 * 1000,
       min: 60 * 1000,
@@ -372,7 +391,7 @@ export function createEnvironment(source = {}) {
     accountDeletionGraceDays: parseInteger(
       source.ACCOUNT_DELETION_GRACE_DAYS,
       'ACCOUNT_DELETION_GRACE_DAYS',
-      { defaultValue: 7, min: 1, max: 90 }
+      { defaultValue: 30, min: 30, max: 90 }
     ),
     sessionCookieName: source.SESSION_COOKIE_NAME || 'traceflow_session',
     sessionCookieSameSite: parseSameSite(source.SESSION_COOKIE_SAME_SITE),

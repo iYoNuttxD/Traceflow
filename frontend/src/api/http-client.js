@@ -32,6 +32,19 @@ export function createHttpClient(options = {}) {
     if (error?.response?.status === 401 && typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('traceflow:unauthorized'));
     }
+    if (
+      error?.response?.status === 403 &&
+      ['ACCOUNT_DEACTIVATED', 'ACCOUNT_DELETION_PENDING', 'ACCOUNT_ANONYMIZED'].includes(
+        error.response.data?.code
+      ) &&
+      typeof window !== 'undefined'
+    ) {
+      window.dispatchEvent(
+        new CustomEvent('traceflow:account-restricted', {
+          detail: { code: error.response.data.code }
+        })
+      );
+    }
     return Promise.reject(error);
   });
 

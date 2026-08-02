@@ -10,5 +10,14 @@ export function ProtectedRoute({ children }) {
         <LoadingState message="Carregando sessão..." />
       </main>
     );
-  return user ? children : <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  const status = user.accountStatus || (user.isActive === false ? 'DEACTIVATED' : 'ACTIVE');
+  const restrictedPaths =
+    status === 'DELETION_PENDING'
+      ? ['/restricted', '/settings/account', '/settings/privacy']
+      : ['/restricted', '/settings/account'];
+  if (status !== 'ACTIVE' && !restrictedPaths.some((path) => location.pathname.startsWith(path))) {
+    return <Navigate to="/restricted" replace />;
+  }
+  return children;
 }

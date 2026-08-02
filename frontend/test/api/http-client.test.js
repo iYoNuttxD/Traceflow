@@ -35,4 +35,25 @@ describe('cliente HTTP compartilhado', () => {
     expect(listener).toHaveBeenCalledTimes(1);
     window.removeEventListener('traceflow:unauthorized', listener);
   });
+
+  it('emite atualização de estado apenas para 403 de conta restrita', async () => {
+    const client = createHttpClient();
+    const listener = vi.fn();
+    window.addEventListener('traceflow:account-restricted', listener);
+    client.defaults.adapter = (config) =>
+      Promise.reject({
+        response: {
+          status: 403,
+          data: {
+            code: config.url === '/restricted' ? 'ACCOUNT_DELETION_PENDING' : 'FORBIDDEN'
+          }
+        },
+        config
+      });
+    await expect(client.get('/forbidden')).rejects.toBeTruthy();
+    expect(listener).not.toHaveBeenCalled();
+    await expect(client.get('/restricted')).rejects.toBeTruthy();
+    expect(listener).toHaveBeenCalledOnce();
+    window.removeEventListener('traceflow:account-restricted', listener);
+  });
 });
