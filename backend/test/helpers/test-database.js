@@ -4,6 +4,11 @@ import dotenv from 'dotenv';
 export { validateTestDatabaseUrl } from '../../scripts/lib/database-safety.js';
 import { validateTestDatabaseUrl } from '../../scripts/lib/database-safety.js';
 
+// Define o ambiente antes de qualquer import dinâmico da aplicação. Isso evita
+// que um NODE_ENV de desenvolvimento do arquivo local seja congelado no singleton de configuração.
+process.env.NODE_ENV = 'test';
+process.env.EMAIL_PROVIDER = 'capture';
+
 export function configureTestDatabaseEnvironment() {
   dotenv.config({ path: resolve(process.cwd(), '.env.test'), override: false, quiet: true });
   dotenv.config({ path: resolve(process.cwd(), '.env'), override: false, quiet: true });

@@ -6,6 +6,7 @@ import { createRequestContextMiddleware } from './middlewares/request-context.mi
 import routes from './routes/index.js';
 import { authRoutes } from './modules/auth/index.js';
 import { githubWebhookController } from './modules/github/github-app.controller.js';
+import { githubAppCallbackRoutes } from './modules/github/github-public.routes.js';
 import { createAuthenticationMiddleware } from './middlewares/auth/authentication.middleware.js';
 import { createCsrfMiddleware } from './middlewares/auth/csrf.middleware.js';
 import { createProjectAuthorizationMiddleware } from './middlewares/auth/project-authorization.middleware.js';
@@ -34,8 +35,10 @@ export function createApp({ logger = defaultLogger, readinessCheck, securityConf
   app.use(createRequestContextMiddleware({ logger }));
   app.use(createSecurityHeadersMiddleware(securityConfig));
   app.use(createCorsMiddleware(securityConfig));
+  app.use('/api', noStoreApiResponses);
+  app.use('/api/github-app/callback', rateLimiters.general, githubAppCallbackRoutes);
   app.post(
-    '/api/github/app/webhook',
+    '/api/webhooks/github-app',
     rateLimiters.general,
     express.raw({ type: 'application/json', limit: '1mb' }),
     githubWebhookController.handle
@@ -46,7 +49,6 @@ export function createApp({ logger = defaultLogger, readinessCheck, securityConf
   app.get('/health', health.health);
   app.get('/health/live', health.live);
   app.get('/health/ready', health.ready);
-  app.use('/api', noStoreApiResponses);
   app.use('/api/auth/register', rateLimiters.sensitive);
   app.use('/api/auth/login', rateLimiters.sensitive);
   app.use('/api/auth/forgot-password', rateLimiters.sensitive);

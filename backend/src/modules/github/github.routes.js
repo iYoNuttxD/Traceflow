@@ -4,7 +4,6 @@ import { emptyBodySchema, validateRequest } from '../../shared/validation/index.
 import { githubController } from './github.controller.js';
 import { githubAppController } from './github-app.controller.js';
 import {
-  githubAppCallbackQuerySchema,
   githubAppStartBodySchema,
   githubConnectBodySchema,
   githubConnectParamsSchema,
@@ -21,11 +20,6 @@ router.post(
   requireVerifiedEmail,
   validateRequest({ body: githubAppStartBodySchema }),
   githubAppController.start
-);
-router.get(
-  '/github/app/callback',
-  validateRequest({ query: githubAppCallbackQuerySchema }),
-  githubAppController.callback
 );
 router.get('/github/app/installations', githubAppController.listInstallations);
 router.get(

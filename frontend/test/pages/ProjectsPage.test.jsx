@@ -38,15 +38,25 @@ const fakeRepository = {
   description: 'Repositório artificial'
 };
 
-function renderPage() {
+function renderPage(initialEntries = ['/projects']) {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={initialEntries}>
       <ProjectsPage />
     </MemoryRouter>
   );
 }
 
-function mockInitialRequests({ projects = [], repositories = [fakeRepository] } = {}) {
+function mockInitialRequests({
+  projects = [],
+  repositories = [fakeRepository],
+  installations = [
+    {
+      githubInstallationId: '77',
+      accountLogin: 'usuario-artificial',
+      accountType: 'User'
+    }
+  ]
+} = {}) {
   apiMock.get.mockImplementation((url) => {
     if (url === '/projects') {
       return Promise.resolve({ data: { projects } });
@@ -55,13 +65,7 @@ function mockInitialRequests({ projects = [], repositories = [fakeRepository] } 
     if (url === '/github/app/installations') {
       return Promise.resolve({
         data: {
-          installations: [
-            {
-              githubInstallationId: '77',
-              accountLogin: 'usuario-artificial',
-              accountType: 'User'
-            }
-          ]
+          installations
         }
       });
     }
@@ -187,16 +191,63 @@ describe('ProjectsPage', () => {
     expect(options.find((option) => option.value.endsWith('/ocupado')).textContent).toMatch(
       /branch develop.*já utilizado/
     );
-    expect(
-      screen.getByRole('link', { name: 'Gerenciar acesso da instalação no GitHub' })
-    ).toHaveAttribute('href', 'https://github.com/settings/installations/77');
+    expect(screen.getByRole('link', { name: 'Gerenciar acesso no GitHub' })).toHaveAttribute(
+      'href',
+      'https://github.com/settings/installations/77'
+    );
   });
 
   it('mostra estado vazio quando a instalação não possui repositórios', async () => {
     mockInitialRequests({ repositories: [] });
     renderPage();
     expect(
-      await screen.findByText(/Esta instalação não possui repositórios autorizados/)
+      await screen.findByText('A instalação não possui repositórios acessíveis.')
+    ).toBeInTheDocument();
+  });
+
+  it('distingue quando nenhuma instalação foi registrada', async () => {
+    mockInitialRequests({ installations: [], repositories: [] });
+    renderPage();
+
+    expect(
+      await screen.findAllByText('Nenhuma instalação da GitHub App foi vinculada ao TraceFlow.')
+    ).not.toHaveLength(0);
+    expect(
+      screen.getByRole('button', { name: 'Instalar ou autorizar GitHub App' })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'Gerenciar acesso no GitHub' })
+    ).not.toBeInTheDocument();
+  });
+
+  it('atualiza instalações e informa sucesso após retorno do callback', async () => {
+    mockInitialRequests();
+    renderPage(['/projects?github=connected&installationId=77']);
+
+    expect(
+      await screen.findByText('GitHub App vinculada ao TraceFlow. Os acessos foram atualizados.')
+    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        apiMock.get.mock.calls.filter(([url]) => url === '/github/app/installations').length
+      ).toBeGreaterThanOrEqual(2);
+    });
+    expect(
+      screen.getByRole('button', { name: 'Adicionar ou atualizar acesso' })
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByRole('option', { name: /usuario-artificial\/repositorio-artificial/ })
+    ).toBeInTheDocument();
+  });
+
+  it('mostra mensagem sanitizada quando o callback falha', async () => {
+    mockInitialRequests({ installations: [], repositories: [] });
+    renderPage(['/projects?github=error&reason=github_callback_failed']);
+
+    expect(
+      await screen.findByText(
+        'Não foi possível concluir a autorização da GitHub App. Inicie o fluxo novamente.'
+      )
     ).toBeInTheDocument();
   });
 });

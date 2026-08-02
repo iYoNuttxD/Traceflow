@@ -27,6 +27,7 @@ export function ProjectsScreen() {
   const [repositoriesError, setRepositoriesError] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [githubCallbackError, setGithubCallbackError] = useState('');
   const reconnectProjectId = searchParams.get('projectId');
 
   const loadProjects = useCallback(async () => {
@@ -100,7 +101,16 @@ export function ProjectsScreen() {
   useEffect(() => {
     const callbackInstallationId = searchParams.get('installationId');
     if (callbackInstallationId) setSelectedInstallationId(callbackInstallationId);
-  }, [searchParams]);
+    if (searchParams.get('github') === 'connected') {
+      setSuccess('GitHub App vinculada ao TraceFlow. Os acessos foram atualizados.');
+      setGithubCallbackError('');
+      void loadInstallations();
+    } else if (searchParams.get('github') === 'error') {
+      setGithubCallbackError(
+        'Não foi possível concluir a autorização da GitHub App. Inicie o fluxo novamente.'
+      );
+    }
+  }, [loadInstallations, searchParams]);
 
   async function startGithubInstallation(projectId) {
     setError('');
@@ -213,14 +223,21 @@ export function ProjectsScreen() {
         </div>
       </header>
 
-      <FeedbackRegion success={success} />
+      <FeedbackRegion error={githubCallbackError} success={success} />
 
       <div className="projects-layout">
         <Card title="Cadastrar projeto">
           <div className="github-app-setup">
             <button className="button" type="button" onClick={() => void startGithubInstallation()}>
-              Instalar ou autorizar GitHub App
+              {installations.length > 0
+                ? 'Adicionar ou atualizar acesso'
+                : 'Instalar ou autorizar GitHub App'}
             </button>
+            {installations.length === 0 && (
+              <p className="field-help">
+                Nenhuma instalação da GitHub App foi vinculada ao TraceFlow.
+              </p>
+            )}
             {installations.length > 0 && (
               <>
                 <label className="field">
@@ -247,7 +264,7 @@ export function ProjectsScreen() {
                     target="_blank"
                     rel="noreferrer"
                   >
-                    Gerenciar acesso da instalação no GitHub
+                    Gerenciar acesso no GitHub
                   </a>
                 )}
               </>
@@ -258,6 +275,11 @@ export function ProjectsScreen() {
             repositories={repositories}
             loadingRepositories={loadingRepositories}
             repositoriesError={repositoriesError}
+            repositoryEmptyMessage={
+              installations.length === 0
+                ? 'Nenhuma instalação da GitHub App foi vinculada ao TraceFlow.'
+                : 'A instalação não possui repositórios acessíveis.'
+            }
             onChange={handleChange}
             onRepositoryChange={handleRepositoryChange}
             onSubmit={handleSubmit}

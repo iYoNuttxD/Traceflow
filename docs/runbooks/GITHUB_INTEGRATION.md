@@ -2,12 +2,13 @@
 
 ## Criar a App
 
-1. No GitHub, crie uma GitHub App com callback igual a `GITHUB_APP_CALLBACK_URL` e webhook apontando para `POST /api/github/app/webhook`.
-2. Habilite instalação apenas nas contas/repositórios necessários. Permissões mínimas de repositório: Metadata read-only, Contents read-only, Pull requests read-only e Issues read-only. Não habilite login de usuários como funcionalidade do TRACEFLOW.
-3. Gere private key e configure seu conteúdo PEM em base64 no secret store como `GITHUB_APP_PRIVATE_KEY_BASE64`.
-4. Configure App ID, client ID/secret, slug, webhook secret e URLs de sucesso/erro listadas em `.env.example`.
-5. Não configure PAT nem `GITHUB_TOKEN`; não existe fallback operacional.
-6. Em produção, ausência ou conjunto parcial da configuração deve impedir startup.
+1. No GitHub, crie uma GitHub App com callback igual a `GITHUB_APP_CALLBACK_URL` (`/api/github-app/callback`) e webhook apontando para `POST /api/webhooks/github-app`.
+2. No callback, confirme nos logs sanitizados que a validação consulta `GET /user/installations`; chamadas a `/users/{username}/installation` indicam backend desatualizado.
+3. Habilite instalação apenas nas contas/repositórios necessários. Permissões mínimas de repositório: Metadata read-only, Contents read-only, Pull requests read-only e Issues read-only. Não habilite login de usuários como funcionalidade do TRACEFLOW.
+4. Gere private key e configure seu conteúdo PEM em base64 no secret store como `GITHUB_APP_PRIVATE_KEY_BASE64`.
+5. Configure App ID, client ID/secret, slug, webhook secret e URLs de sucesso/erro listadas em `.env.example`.
+6. Não configure PAT nem `GITHUB_TOKEN`; não existe fallback operacional.
+7. Em produção, ausência ou conjunto parcial da configuração deve impedir startup.
 
 Nenhuma variável `VITE_*` pode conter private key, client secret, webhook secret ou token. Esses valores não entram no banco.
 

@@ -2,8 +2,19 @@ import { createSign } from 'node:crypto';
 import { Octokit } from '@octokit/rest';
 import { env } from '../../config/env.js';
 import { ERROR_CODES, ExternalServiceError } from '../../shared/errors/index.js';
+import { executeGithubRequest } from './github-request.js';
 
 const encode = (value) => Buffer.from(JSON.stringify(value)).toString('base64url');
+
+function installationDto(item) {
+  return {
+    githubInstallationId: String(item.id),
+    accountId: String(item.account?.id),
+    accountLogin: item.account?.login || item.account?.name || 'unknown',
+    accountType: item.account?.type || 'Unknown',
+    installedAt: item.created_at ? new Date(item.created_at) : new Date()
+  };
+}
 
 function unavailable(cause) {
   return new ExternalServiceError(
@@ -17,7 +28,8 @@ function unavailable(cause) {
 export function createGithubAppCredentialProvider({
   environment = env,
   OctokitClass = Octokit,
-  fetchImpl = globalThis.fetch
+  fetchImpl = globalThis.fetch,
+  requestExecutor = executeGithubRequest
 } = {}) {
   function assertConfigured() {
     if (!environment.githubAppConfigured) throw unavailable();
@@ -41,6 +53,14 @@ export function createGithubAppCredentialProvider({
   function appClient() {
     return new OctokitClass({
       auth: appJwt(),
+      baseUrl: 'https://api.github.com',
+      request: { timeout: environment.githubRequestTimeoutMs }
+    });
+  }
+  function userClient(userAccessToken) {
+    assertConfigured();
+    return new OctokitClass({
+      auth: userAccessToken,
       baseUrl: 'https://api.github.com',
       request: { timeout: environment.githubRequestTimeoutMs }
     });
@@ -81,13 +101,28 @@ export function createGithubAppCredentialProvider({
         throw unavailable(error);
       }
     },
-    createUserClient(token) {
-      assertConfigured();
-      return new OctokitClass({
-        auth: token,
-        baseUrl: 'https://api.github.com',
-        request: { timeout: environment.githubRequestTimeoutMs }
-      });
+    async listInstallationsAccessibleToUser(userAccessToken) {
+      const client = userClient(userAccessToken);
+      const installations = [];
+      let page = 1;
+      while (true) {
+        const response = await requestExecutor(
+          () => client.request('GET /user/installations', { per_page: 100, page }),
+          { maxRetries: environment.githubRetryMax }
+        );
+        const currentPage = Array.isArray(response.data?.installations)
+          ? response.data.installations
+          : [];
+        installations.push(...currentPage.map(installationDto));
+        const totalCount = Number(response.data?.total_count);
+        if (
+          currentPage.length < 100 ||
+          (Number.isFinite(totalCount) && installations.length >= totalCount)
+        )
+          break;
+        page += 1;
+      }
+      return installations;
     }
   });
 }

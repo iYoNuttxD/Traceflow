@@ -76,16 +76,27 @@ describe('controllers da GitHub App L1', () => {
   it('conclui callback, registra auditoria e preserva contexto no redirect', async () => {
     mocks.service.completeCallback.mockResolvedValue({
       installation: { id: 12, githubInstallationId: '77' },
+      userId: 7,
       intendedAction: 'CONNECT_PROJECT',
       projectId: 9
     });
     const res = await invoke(githubAppController.callback, {
-      auth: { user: { id: 7 }, session: { id: 8 } },
-      query: { code: 'code', installation_id: '77', state: 'state' },
+      query: {
+        code: 'code',
+        installation_id: '77',
+        setup_action: 'install',
+        state: 'state'
+      },
       requestId: 'request-1'
     });
     const redirect = new URL(res.redirect.mock.calls[0][1]);
-    expect(res.redirect.mock.calls[0][0]).toBe(303);
+    expect(res.redirect.mock.calls[0][0]).toBe(302);
+    expect(mocks.service.completeCallback).toHaveBeenCalledWith({
+      code: 'code',
+      installationId: '77',
+      setupAction: 'install',
+      state: 'state'
+    });
     expect(redirect.searchParams.get('installationId')).toBe('77');
     expect(redirect.searchParams.get('projectId')).toBe('9');
     expect(mocks.audit.recordOperational).toHaveBeenCalledWith(
@@ -96,11 +107,12 @@ describe('controllers da GitHub App L1', () => {
   it('redireciona callback inválido com código público e fallback seguro', async () => {
     mocks.service.completeCallback.mockRejectedValue({ code: 'INVALID_STATE' });
     const res = await invoke(githubAppController.callback, {
-      auth: { user: { id: 7 }, session: { id: 8 } },
       query: {}
     });
-    expect(res.redirect.mock.calls[0][0]).toBe(303);
-    expect(new URL(res.redirect.mock.calls[0][1]).searchParams.get('reason')).toBe('INVALID_STATE');
+    expect(res.redirect.mock.calls[0][0]).toBe(302);
+    expect(new URL(res.redirect.mock.calls[0][1]).searchParams.get('reason')).toBe(
+      'github_callback_failed'
+    );
   });
 
   it('conecta projeto como OWNER e audita a integração', async () => {

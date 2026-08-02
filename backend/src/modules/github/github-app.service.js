@@ -1,6 +1,7 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { env } from '../../config/env.js';
 import { AppError, ERROR_CODES } from '../../shared/errors/index.js';
+import { logger } from '../../shared/logger/index.js';
 import { authorizationService } from '../authorization/authorization.service.js';
 import { githubAppCredentialProvider } from './github-credential.provider.js';
 import { githubInstallationClientFactory } from './github.client.js';
@@ -39,6 +40,34 @@ function installationDto(item) {
   };
 }
 
+function validCallbackInput({ code, installationId, setupAction, state }) {
+  return (
+    typeof code === 'string' &&
+    code.length > 0 &&
+    code.length <= 512 &&
+    typeof installationId === 'string' &&
+    /^\d+$/.test(installationId) &&
+    typeof state === 'string' &&
+    state.length >= 32 &&
+    state.length <= 128 &&
+    (!setupAction || ['install', 'update'].includes(setupAction))
+  );
+}
+
+function validStateRecord(record, now) {
+  if (!record || record.usedAt || record.expiresAt <= now) return false;
+  if (!record.user?.isActive || !record.session || record.session.userId !== record.userId)
+    return false;
+  if (
+    record.session.revokedAt ||
+    record.session.expiresAt <= now ||
+    record.session.sessionVersion !== record.user.sessionVersion
+  )
+    return false;
+  if (record.intendedAction === 'CONNECT_PROJECT') return Boolean(record.projectId);
+  return record.intendedAction === 'CREATE_PROJECT' && !record.projectId;
+}
+
 export const githubAppService = {
   async startInstallation({ user, session, intendedAction, projectId }) {
     if (!env.githubAppConfigured)
@@ -64,40 +93,71 @@ export const githubAppService = {
     url.searchParams.set('state', state);
     return { url: url.toString(), expiresInMs: env.githubAppStateTtlMs };
   },
-  async completeCallback({ user, session, code, installationId, state }) {
-    const record = await githubRepository.findConnectionState(hashToken(state));
-    if (
-      !record ||
-      record.usedAt ||
-      record.expiresAt <= new Date() ||
-      record.userId !== user.id ||
-      record.sessionId !== session.id
-    ) {
-      throw forbidden('Estado da conexão GitHub inválido, expirado ou já utilizado.');
-    }
-    const userToken = await githubAppCredentialProvider.exchangeUserCode(code);
-    const userClient = githubAppCredentialProvider.createUserClient(userToken);
-    const installations = await userClient.paginate(
-      userClient.rest.apps.listInstallationsForAuthenticatedUser,
-      { per_page: 100 }
-    );
-    const accessible = installations.find((item) => String(item.id) === String(installationId));
-    if (!accessible)
-      throw forbidden('A instalação informada não pertence ao usuário autenticado no GitHub.');
-    const installation = await githubRepository.authorizeInstallation({
-      userId: user.id,
-      githubInstallationId: String(accessible.id),
-      accountId: String(accessible.account?.id),
-      accountLogin: accessible.account?.login || accessible.account?.name || 'unknown',
-      accountType: accessible.account?.type || 'Unknown',
-      installedAt: accessible.created_at ? new Date(accessible.created_at) : new Date()
-    });
-    await githubRepository.useConnectionState(record.id);
-    return {
-      installation: installationDto(installation),
-      intendedAction: record.intendedAction,
-      projectId: record.projectId
+  async completeCallback({ code, installationId, setupAction, state }) {
+    let callbackStep = 'validate_state';
+    const logStep = (step) => {
+      callbackStep = step;
+      logger.info('Etapa do callback da GitHub App iniciada.', {
+        event: 'github_app_callback_step',
+        step
+      });
     };
+    try {
+      logStep('validate_state');
+      if (!validCallbackInput({ code, installationId, setupAction, state }))
+        throw forbidden('Callback da GitHub App inválido.');
+      const now = new Date();
+      const record = await githubRepository.findConnectionState(hashToken(state));
+      if (!validStateRecord(record, now)) {
+        throw forbidden('Estado da conexão GitHub inválido, expirado ou já utilizado.');
+      }
+
+      logStep('exchange_code');
+      const userToken = await githubAppCredentialProvider.exchangeUserCode(code);
+
+      logStep('list_user_installations');
+      const installations =
+        await githubAppCredentialProvider.listInstallationsAccessibleToUser(userToken);
+
+      logStep('validate_installation');
+      const metadata = installations.find(
+        (item) => item.githubInstallationId === String(installationId)
+      );
+      if (!metadata)
+        throw forbidden('A instalação informada não está acessível ao usuário autorizado.');
+
+      logStep('upsert_installation');
+      const authorizationResult = await githubRepository.authorizeInstallationFromState({
+        stateId: record.id,
+        now,
+        userId: record.userId,
+        installation: {
+          githubInstallationId: metadata.githubInstallationId,
+          accountId: metadata.accountId,
+          accountLogin: metadata.accountLogin,
+          accountType: metadata.accountType,
+          installedAt: metadata.installedAt
+        }
+      });
+      if (!authorizationResult)
+        throw forbidden('Estado da conexão GitHub inválido, expirado ou já utilizado.');
+      const { installation } = authorizationResult;
+      logStep('upsert_authorization');
+      logStep('consume_state');
+      return {
+        installation: installationDto(installation),
+        userId: record.userId,
+        intendedAction: record.intendedAction,
+        projectId: record.projectId
+      };
+    } catch (error) {
+      logger.warn('Callback da GitHub App interrompido.', {
+        event: 'github_app_callback_failed',
+        step: error.callbackStep || callbackStep,
+        errorCode: error.code || ERROR_CODES.INTERNAL_ERROR
+      });
+      throw error;
+    }
   },
   async listInstallations(userId) {
     return (await githubRepository.listAuthorizedInstallations(userId)).map(installationDto);
@@ -182,7 +242,12 @@ export const githubAppService = {
     }
   },
   verifyWebhookSignature(rawBody, suppliedSignature) {
-    if (!env.githubAppConfigured || !suppliedSignature?.startsWith('sha256=')) return false;
+    if (
+      !env.githubAppConfigured ||
+      !Buffer.isBuffer(rawBody) ||
+      !suppliedSignature?.startsWith('sha256=')
+    )
+      return false;
     const expected = Buffer.from(
       `sha256=${createHmac('sha256', env.githubAppWebhookSecret).update(rawBody).digest('hex')}`
     );
@@ -231,7 +296,9 @@ export const githubAppService = {
       await githubRepository.refreshInstallationMetadata(installationId, payload.installation);
     }
     if (event === 'installation' && installationId) {
-      if (payload.action === 'suspend') {
+      if (payload.action === 'created') {
+        await githubRepository.upsertInstallationFromWebhook(installationId, payload.installation);
+      } else if (payload.action === 'suspend') {
         await githubRepository.updateInstallationStatus(installationId, 'SUSPENDED', new Date());
         await githubRepository.requireReconnectForInstallation(installationId);
       } else if (payload.action === 'deleted') {

@@ -16,14 +16,13 @@ export const githubAppController = {
   callback: asyncHandler(async (req, res) => {
     try {
       const result = await githubAppService.completeCallback({
-        user: req.auth.user,
-        session: req.auth.session,
         code: req.query.code,
         installationId: req.query.installation_id,
+        setupAction: req.query.setup_action,
         state: req.query.state
       });
       await auditService.recordOperational({
-        actorUserId: req.auth.user.id,
+        actorUserId: result.userId,
         projectId: result.projectId,
         requestId: req.requestId,
         action: 'GITHUB_APP_INSTALLATION_AUTHORIZED',
@@ -36,13 +35,13 @@ export const githubAppController = {
       url.searchParams.set('installationId', result.installation.githubInstallationId);
       url.searchParams.set('action', result.intendedAction);
       if (result.projectId) url.searchParams.set('projectId', String(result.projectId));
-      return res.redirect(303, url.toString());
-    } catch (error) {
+      return res.redirect(302, url.toString());
+    } catch {
       const url = new URL(
         env.githubAppFrontendErrorUrl || `${env.frontendUrl}/projects?github=error`
       );
-      url.searchParams.set('reason', error.code || 'GITHUB_APP_CALLBACK_FAILED');
-      return res.redirect(303, url.toString());
+      url.searchParams.set('reason', 'github_callback_failed');
+      return res.redirect(302, url.toString());
     }
   }),
   listInstallations: asyncHandler(async (req, res) =>

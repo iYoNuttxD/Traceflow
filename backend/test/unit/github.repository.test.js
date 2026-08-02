@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const database = vi.hoisted(() => {
   const method = () => vi.fn();
   const tx = {
+    gitHubAppConnectionState: { findFirst: method(), updateMany: method() },
     gitHubInstallation: { upsert: method() },
     gitHubInstallationAuthorization: { upsert: method() },
     projectGitHubIntegration: { upsert: method() },
@@ -12,7 +13,12 @@ const database = vi.hoisted(() => {
     tx,
     prisma: {
       gitHubAppConnectionState: { create: method(), findUnique: method(), update: method() },
-      gitHubInstallation: { findFirst: method(), findMany: method(), updateMany: method() },
+      gitHubInstallation: {
+        findFirst: method(),
+        findMany: method(),
+        updateMany: method(),
+        upsert: method()
+      },
       projectGitHubIntegration: { findUnique: method(), findMany: method(), updateMany: method() },
       gitHubWebhookDelivery: { create: method(), update: method() },
       $transaction: vi.fn((callback) => callback(tx))
@@ -72,6 +78,76 @@ describe('persistência de metadados da GitHub App', () => {
     );
   });
 
+  it('consome state e autoriza instalação na mesma transação', async () => {
+    database.tx.gitHubAppConnectionState.findFirst.mockResolvedValue({ id: 3 });
+    database.tx.gitHubAppConnectionState.updateMany.mockResolvedValue({ count: 1 });
+    database.tx.gitHubInstallation.upsert.mockResolvedValue({ id: 12 });
+    database.tx.gitHubInstallationAuthorization.upsert.mockResolvedValue({
+      id: 30,
+      installationId: 12,
+      userId: 7
+    });
+    const now = new Date('2030-01-01');
+    await expect(
+      githubRepository.authorizeInstallationFromState({
+        stateId: 3,
+        now,
+        userId: 7,
+        installation: {
+          githubInstallationId: '77',
+          accountId: '700',
+          accountLogin: 'traceflow',
+          accountType: 'Organization',
+          installedAt: now
+        }
+      })
+    ).resolves.toEqual({
+      installation: { id: 12 },
+      authorization: { id: 30, installationId: 12, userId: 7 }
+    });
+    expect(database.tx.gitHubInstallation.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { githubInstallationId: '77' } })
+    );
+    expect(database.tx.gitHubInstallationAuthorization.upsert).toHaveBeenCalledWith({
+      where: { installationId_userId: { installationId: 12, userId: 7 } },
+      create: { installationId: 12, userId: 7, verifiedAt: now },
+      update: { verifiedAt: now }
+    });
+    expect(database.tx.gitHubAppConnectionState.updateMany).toHaveBeenCalledWith({
+      where: { id: 3, userId: 7, usedAt: null, expiresAt: { gt: now } },
+      data: { usedAt: now }
+    });
+    expect(
+      database.tx.gitHubInstallationAuthorization.upsert.mock.invocationCallOrder[0]
+    ).toBeLessThan(database.tx.gitHubAppConnectionState.updateMany.mock.invocationCallOrder[0]);
+
+    database.tx.gitHubAppConnectionState.updateMany.mockResolvedValueOnce({ count: 0 });
+    await expect(
+      githubRepository.authorizeInstallationFromState({
+        stateId: 3,
+        now,
+        userId: 7,
+        installation: { githubInstallationId: '77' }
+      })
+    ).resolves.toBeNull();
+  });
+
+  it('não tenta consumir o state quando o upsert da autorização falha', async () => {
+    database.tx.gitHubAppConnectionState.findFirst.mockResolvedValue({ id: 3 });
+    database.tx.gitHubInstallation.upsert.mockResolvedValue({ id: 12 });
+    database.tx.gitHubInstallationAuthorization.upsert.mockRejectedValue(new Error('db failure'));
+
+    await expect(
+      githubRepository.authorizeInstallationFromState({
+        stateId: 3,
+        now: new Date('2030-01-01'),
+        userId: 7,
+        installation: { githubInstallationId: '77' }
+      })
+    ).rejects.toMatchObject({ callbackStep: 'upsert_authorization' });
+    expect(database.tx.gitHubAppConnectionState.updateMany).not.toHaveBeenCalled();
+  });
+
   it('conecta projeto transacionalmente usando somente metadados validados', async () => {
     const repository = {
       githubRepositoryId: '501',
@@ -95,6 +171,9 @@ describe('persistência de metadados da GitHub App', () => {
     await githubRepository.completeWebhookDelivery(4);
     await githubRepository.updateInstallationStatus(77, 'SUSPENDED', new Date('2030-01-01'));
     await githubRepository.refreshInstallationMetadata(77, {
+      account: { id: 700, login: 'traceflow', type: 'Organization' }
+    });
+    await githubRepository.upsertInstallationFromWebhook(77, {
       account: { id: 700, login: 'traceflow', type: 'Organization' }
     });
     await githubRepository.requireReconnectForInstallation(77);

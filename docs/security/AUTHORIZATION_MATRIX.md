@@ -29,9 +29,9 @@ Baseline E6, consolidado na E15 em 26/07/2026. A matriz descreve a política efe
 | Tasks/vínculos/Kanban: `POST`, `PUT`, `PATCH`, `DELETE` | 401 | 403 | E | E | E | pertencimento e ator canônico |
 | `GET /api/projects/:projectId/tasks/history` | 401 | L | L | L | L | paginado; ator e recursos do mesmo projeto |
 | `POST /api/github/app/installations/start`; `GET /github/app/installations...` | 401 | E | E | E | E | start exige e-mail verificado; somente instalações comprovadas |
-| `GET /api/github/app/callback` | 401 | E | E | E | E | mesma sessão/state; não cria sessão TRACEFLOW |
+| `GET /api/github-app/callback` | 302 | 302 | 302 | 302 | 302 | público; state vinculado à sessão inicial, sem depender do cookie |
 | `PUT /api/projects/:projectId/github/integration` | 401 | 403 | 403 | 403 | A | e-mail verificado; OWNER e instalação comprovada |
-| `POST /api/github/app/webhook` | E | E | E | E | E | público; HMAC/raw body/delivery ID, sem sessão ou CSRF |
+| `POST /api/webhooks/github-app` | E | E | E | E | E | público; HMAC/raw body/delivery ID, sem sessão ou CSRF |
 | `POST /api/projects/:projectId/github/sync` | 401 | 403 | 403 | E | E | MANAGER+, e-mail verificado, integração ACTIVE e trava por projeto |
 | `PATCH /api/projects/:projectId/github/sync-settings` | 401 | 403 | 403 | 403 | A | OWNER |
 | Commits, PRs, issues e artifacts: `GET` | 401 | L | L | L | L | mesmo projeto |

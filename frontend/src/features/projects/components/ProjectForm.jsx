@@ -72,6 +72,7 @@ export function ProjectForm({
   repositories = [],
   loadingRepositories = false,
   repositoriesError = '',
+  repositoryEmptyMessage = 'A instalação não possui repositórios acessíveis.',
   onChange,
   onRepositoryChange,
   onSubmit,
@@ -171,10 +172,7 @@ export function ProjectForm({
             <p className="field-help field-error field-full">{repositoriesError}</p>
           )}
           {!loadingRepositories && !repositoriesError && repositories.length === 0 && (
-            <p className="field-help field-full">
-              Esta instalação não possui repositórios autorizados. Gerencie o acesso no GitHub e
-              tente novamente.
-            </p>
+            <p className="field-help field-full">{repositoryEmptyMessage}</p>
           )}
           {formData.githubUrl && (
             <p className="field-help field-full">

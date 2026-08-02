@@ -58,11 +58,11 @@ Migration anterior não foi editada.
 - `POST /api/auth/email-verification/resend`;
 - `POST /api/auth/email-verification/verify`;
 - `POST /api/github/app/installations/start`;
-- `GET /api/github/app/callback`;
+- `GET /api/github-app/callback` (público; autenticado pelo `state` de uso único);
 - `GET /api/github/app/installations`;
 - `GET /api/github/app/installations/:installationId/repositories`;
 - `PUT /api/projects/:projectId/github/integration`;
-- `POST /api/github/app/webhook` (público, assinatura obrigatória);
+- `POST /api/webhooks/github-app` (público, assinatura e raw body obrigatórios);
 - `POST /api/projects/from-github` agora recebe installation e repository IDs, não metadados confiados ao navegador.
 
 ## Frontend e CSS

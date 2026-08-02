@@ -14,7 +14,7 @@ const githubAppSource = {
   GITHUB_APP_SLUG: 'traceflow-test',
   GITHUB_APP_PRIVATE_KEY_BASE64: 'Y2hhdmUtYXJ0aWZpY2lhbA==',
   GITHUB_APP_WEBHOOK_SECRET: 'webhook-artificial',
-  GITHUB_APP_CALLBACK_URL: 'https://api.traceflow.example/api/github/app/callback',
+  GITHUB_APP_CALLBACK_URL: 'https://api.traceflow.example/api/github-app/callback',
   GITHUB_APP_FRONTEND_SUCCESS_URL: 'https://traceflow.example/projects?github=connected',
   GITHUB_APP_FRONTEND_ERROR_URL: 'https://traceflow.example/projects?github=error'
 };

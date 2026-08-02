@@ -11,6 +11,13 @@ import { paginateGithub } from './github-pagination.js';
 import { executeGithubRequest } from './github-request.js';
 
 const PAGE_SIZE = 100;
+const extractArrayItems = (data) => data;
+const extractInstallationRepositories = (data) => {
+  if (!data || !Array.isArray(data.repositories)) {
+    throw new Error('Resposta inválida ao listar repositórios da instalação.');
+  }
+  return data.repositories;
+};
 const hasNextPage = (response, count) =>
   typeof response?.headers?.link === 'string'
     ? /rel="next"/.test(response.headers.link)
@@ -27,11 +34,20 @@ export function createGithubClient({
     baseUrl: 'https://api.github.com',
     request: { timeout: env.githubRequestTimeoutMs }
   });
-  async function requestPage(endpoint, params, mapper, { filter } = {}) {
+  async function requestPage(
+    endpoint,
+    params,
+    mapper,
+    { filter, extractItems = extractArrayItems } = {}
+  ) {
     const response = await requestExecutor(() => endpoint(params));
-    const mapped = response.data.map(mapper);
+    const pageItems = extractItems(response.data);
+    if (!Array.isArray(pageItems)) {
+      throw new Error('Formato de resposta paginada do GitHub inesperado.');
+    }
+    const mapped = pageItems.map(mapper);
     const items = typeof filter === 'function' ? mapped.filter(filter) : mapped;
-    return { items, hasNext: hasNextPage(response, response.data.length) };
+    return { items, hasNext: hasNextPage(response, pageItems.length) };
   }
   return Object.freeze({
     async getRepository(owner, repo) {
@@ -44,7 +60,8 @@ export function createGithubClient({
           requestPage(
             octokit.rest.apps.listReposAccessibleToInstallation,
             { per_page: perPage, page },
-            mapGithubRepository
+            mapGithubRepository,
+            { extractItems: extractInstallationRepositories }
           ),
         { perPage: PAGE_SIZE }
       );

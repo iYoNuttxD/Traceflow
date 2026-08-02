@@ -2,11 +2,13 @@ import { createHmac } from 'node:crypto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
+  logger: { info: vi.fn(), warn: vi.fn() },
   repository: {
     createConnectionState: vi.fn(),
     findConnectionState: vi.fn(),
     useConnectionState: vi.fn(),
     authorizeInstallation: vi.fn(),
+    authorizeInstallationFromState: vi.fn(),
     findAuthorizedInstallation: vi.fn(),
     listAuthorizedInstallations: vi.fn(),
     findIntegrationByRepositoryId: vi.fn(),
@@ -16,10 +18,14 @@ const mocks = vi.hoisted(() => ({
     completeWebhookDelivery: vi.fn(),
     updateInstallationStatus: vi.fn(),
     refreshInstallationMetadata: vi.fn(),
+    upsertInstallationFromWebhook: vi.fn(),
     requireReconnectForInstallation: vi.fn(),
     requireReconnectForRepositories: vi.fn()
   },
-  credentialProvider: { exchangeUserCode: vi.fn(), createUserClient: vi.fn() },
+  credentialProvider: {
+    exchangeUserCode: vi.fn(),
+    listInstallationsAccessibleToUser: vi.fn()
+  },
   authorization: { membership: vi.fn() },
   clientFactory: { forInstallation: vi.fn() }
 }));
@@ -44,8 +50,31 @@ vi.mock('../../src/modules/github/github.client.js', () => ({
 vi.mock('../../src/modules/authorization/authorization.service.js', () => ({
   authorizationService: mocks.authorization
 }));
+vi.mock('../../src/shared/logger/index.js', () => ({ logger: mocks.logger }));
 
 const { githubAppService } = await import('../../src/modules/github/github-app.service.js');
+
+function validStateRecord(overrides = {}) {
+  const expiresAt = new Date(Date.now() + 60_000);
+  return {
+    id: 1,
+    userId: 7,
+    sessionId: 8,
+    expiresAt,
+    usedAt: null,
+    intendedAction: 'CREATE_PROJECT',
+    projectId: null,
+    user: { id: 7, isActive: true, sessionVersion: 1 },
+    session: {
+      id: 8,
+      userId: 7,
+      sessionVersion: 1,
+      expiresAt,
+      revokedAt: null
+    },
+    ...overrides
+  };
+}
 
 describe('autorização e webhooks da GitHub App L1', () => {
   beforeEach(() => {
@@ -75,18 +104,20 @@ describe('autorização e webhooks da GitHub App L1', () => {
     expect(stored.tokenHash).toHaveLength(64);
   });
 
-  it('rejeita state de outra sessão e instalação forjada sem persistir token temporário', async () => {
-    mocks.repository.findConnectionState.mockResolvedValue({
-      id: 1,
-      userId: 7,
-      sessionId: 999,
-      expiresAt: new Date(Date.now() + 1000),
-      usedAt: null
-    });
+  it('rejeita sessão inicial revogada e instalação forjada sem persistir token temporário', async () => {
+    mocks.repository.findConnectionState.mockResolvedValue(
+      validStateRecord({
+        session: {
+          id: 8,
+          userId: 7,
+          sessionVersion: 1,
+          expiresAt: new Date(Date.now() + 60_000),
+          revokedAt: new Date()
+        }
+      })
+    );
     await expect(
       githubAppService.completeCallback({
-        user: { id: 7 },
-        session: { id: 8 },
         code: 'code',
         installationId: '77',
         state: 'state-artificial-com-mais-de-trinta-caracteres'
@@ -94,39 +125,49 @@ describe('autorização e webhooks da GitHub App L1', () => {
     ).rejects.toMatchObject({ statusCode: 403 });
     expect(mocks.credentialProvider.exchangeUserCode).not.toHaveBeenCalled();
 
-    mocks.repository.findConnectionState.mockResolvedValue({
-      id: 1,
-      userId: 7,
-      sessionId: 8,
-      expiresAt: new Date(Date.now() + 1000),
-      usedAt: null,
-      intendedAction: 'CREATE_PROJECT',
-      projectId: null
-    });
+    mocks.repository.findConnectionState.mockResolvedValue(validStateRecord());
     mocks.credentialProvider.exchangeUserCode.mockResolvedValue('user-token-temporario');
-    mocks.credentialProvider.createUserClient.mockReturnValue({
-      paginate: vi
-        .fn()
-        .mockResolvedValue([{ id: 88, account: { id: 1, login: 'other', type: 'User' } }]),
-      rest: { apps: { listInstallationsForAuthenticatedUser: vi.fn() } }
-    });
+    mocks.credentialProvider.listInstallationsAccessibleToUser.mockResolvedValue([
+      {
+        githubInstallationId: '88',
+        accountId: '1',
+        accountLogin: 'other',
+        accountType: 'User',
+        installedAt: new Date()
+      }
+    ]);
     await expect(
       githubAppService.completeCallback({
-        user: { id: 7 },
-        session: { id: 8 },
         code: 'code',
         installationId: '77',
         state: 'state-artificial-com-mais-de-trinta-caracteres'
       })
     ).rejects.toMatchObject({ statusCode: 403 });
-    expect(mocks.repository.authorizeInstallation).not.toHaveBeenCalled();
+    expect(mocks.repository.authorizeInstallationFromState).not.toHaveBeenCalled();
+  });
+
+  it('rejeita callback sem state, com state curto ou intenção incompatível', async () => {
+    for (const state of [undefined, 'curto']) {
+      await expect(
+        githubAppService.completeCallback({ code: 'code', installationId: '77', state })
+      ).rejects.toMatchObject({ statusCode: 403 });
+    }
+    mocks.repository.findConnectionState.mockResolvedValue(
+      validStateRecord({ intendedAction: 'CONNECT_PROJECT', projectId: null })
+    );
+    await expect(
+      githubAppService.completeCallback({
+        code: 'code',
+        installationId: '77',
+        state: 'state-artificial-com-mais-de-trinta-caracteres'
+      })
+    ).rejects.toMatchObject({ statusCode: 403 });
+    expect(mocks.credentialProvider.exchangeUserCode).not.toHaveBeenCalled();
   });
 
   it('rejeita state expirado ou reutilizado e consome state válido uma única vez', async () => {
     const callback = {
-      user: { id: 7 },
-      session: { id: 8 },
-      code: 'code',
+      code: 'oauth-code-confidential',
       installationId: '77',
       state: 'state-artificial-com-mais-de-trinta-caracteres'
     };
@@ -134,51 +175,65 @@ describe('autorização e webhooks da GitHub App L1', () => {
       { expiresAt: new Date(Date.now() - 1000), usedAt: null },
       { expiresAt: new Date(Date.now() + 1000), usedAt: new Date() }
     ]) {
-      mocks.repository.findConnectionState.mockResolvedValue({
-        id: 1,
-        userId: 7,
-        sessionId: 8,
-        ...record
-      });
+      mocks.repository.findConnectionState.mockResolvedValue(validStateRecord(record));
       await expect(githubAppService.completeCallback(callback)).rejects.toMatchObject({
         statusCode: 403
       });
     }
 
-    mocks.repository.findConnectionState.mockResolvedValue({
-      id: 1,
-      userId: 7,
-      sessionId: 8,
-      expiresAt: new Date(Date.now() + 1000),
-      usedAt: null,
-      intendedAction: 'CREATE_PROJECT',
-      projectId: null
-    });
-    mocks.credentialProvider.exchangeUserCode.mockResolvedValue('token-efemero');
-    mocks.credentialProvider.createUserClient.mockReturnValue({
-      paginate: vi.fn().mockResolvedValue([
-        {
-          id: 77,
-          account: { id: 700, login: 'traceflow', type: 'Organization' },
-          created_at: '2030-01-01T00:00:00Z'
-        }
-      ]),
-      rest: { apps: { listInstallationsForAuthenticatedUser: vi.fn() } }
-    });
-    mocks.repository.authorizeInstallation.mockResolvedValue({
-      id: 12,
+    mocks.repository.findConnectionState.mockResolvedValue(validStateRecord());
+    const metadata = {
       githubInstallationId: '77',
+      accountId: '700',
       accountLogin: 'traceflow',
       accountType: 'Organization',
-      status: 'ACTIVE'
+      installedAt: new Date('2030-01-01T00:00:00Z')
+    };
+    mocks.credentialProvider.exchangeUserCode.mockResolvedValue('token-efemero');
+    mocks.credentialProvider.listInstallationsAccessibleToUser.mockResolvedValue([
+      { ...metadata, githubInstallationId: '76' },
+      metadata
+    ]);
+    mocks.logger.info.mockClear();
+    mocks.repository.authorizeInstallationFromState.mockResolvedValue({
+      installation: {
+        id: 12,
+        githubInstallationId: '77',
+        accountLogin: 'traceflow',
+        accountType: 'Organization',
+        status: 'ACTIVE'
+      },
+      authorization: { id: 30, installationId: 12, userId: 7 }
     });
     await expect(githubAppService.completeCallback(callback)).resolves.toMatchObject({
       installation: { githubInstallationId: '77' }
     });
-    expect(mocks.repository.useConnectionState).toHaveBeenCalledWith(1);
-    expect(JSON.stringify(mocks.repository.authorizeInstallation.mock.calls)).not.toContain(
+    expect(mocks.credentialProvider.listInstallationsAccessibleToUser).toHaveBeenCalledWith(
       'token-efemero'
     );
+    expect(mocks.repository.authorizeInstallationFromState).toHaveBeenCalledWith(
+      expect.objectContaining({ stateId: 1, userId: 7 })
+    );
+    expect(
+      JSON.stringify(mocks.repository.authorizeInstallationFromState.mock.calls)
+    ).not.toContain('token-efemero');
+    expect(mocks.logger.info.mock.calls.map(([, context]) => context.step)).toEqual([
+      'validate_state',
+      'exchange_code',
+      'list_user_installations',
+      'validate_installation',
+      'upsert_installation',
+      'upsert_authorization',
+      'consume_state'
+    ]);
+    expect(JSON.stringify(mocks.logger.info.mock.calls)).not.toMatch(
+      /token-efemero|state-artificial|oauth-code-confidential/
+    );
+
+    mocks.repository.authorizeInstallationFromState.mockResolvedValueOnce(null);
+    await expect(githubAppService.completeCallback(callback)).rejects.toMatchObject({
+      statusCode: 403
+    });
   });
 
   it('nega não OWNER e instalação/repositório não autorizados', async () => {
@@ -306,6 +361,39 @@ describe('autorização e webhooks da GitHub App L1', () => {
         event: 'installation'
       })
     ).rejects.toMatchObject({ statusCode: 403 });
+    expect(githubAppService.verifyWebhookSignature(rawBody)).toBe(false);
+    expect(githubAppService.verifyWebhookSignature(rawBody.toString(), signature)).toBe(false);
+    expect(githubAppService.verifyWebhookSignature(rawBody, 'sha256=curta')).toBe(false);
+  });
+
+  it('cria, remove e reativa instalação pelos eventos assinados', async () => {
+    mocks.repository.createWebhookDelivery.mockResolvedValue({ id: 20 });
+    for (const action of ['created', 'deleted', 'unsuspend']) {
+      const rawBody = Buffer.from(
+        JSON.stringify({
+          action,
+          installation: {
+            id: 77,
+            account: { id: 700, login: 'traceflow', type: 'Organization' },
+            created_at: '2030-01-01T00:00:00Z'
+          }
+        })
+      );
+      const signature = `sha256=${createHmac('sha256', 'webhook-secret-artificial').update(rawBody).digest('hex')}`;
+      await githubAppService.processWebhook({
+        rawBody,
+        signature,
+        deliveryId: `delivery-${action}`,
+        event: 'installation'
+      });
+    }
+    expect(mocks.repository.upsertInstallationFromWebhook).toHaveBeenCalledWith(
+      77,
+      expect.objectContaining({ id: 77 })
+    );
+    expect(mocks.repository.updateInstallationStatus).toHaveBeenCalledWith(77, 'DELETED');
+    expect(mocks.repository.updateInstallationStatus).toHaveBeenCalledWith(77, 'ACTIVE', null);
+    expect(mocks.repository.requireReconnectForInstallation).toHaveBeenCalledTimes(1);
   });
 
   it('marca instalação suspensa e seus projetos para reconexão', async () => {

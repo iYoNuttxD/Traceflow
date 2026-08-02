@@ -1,5 +1,12 @@
 import { prisma } from '../../database/prismaClient.js';
 
+function callbackPersistenceError(callbackStep, cause) {
+  return Object.assign(new Error(`Falha na etapa ${callbackStep} do callback da GitHub App.`), {
+    callbackStep,
+    cause
+  });
+}
+
 export const githubRepository = {
   createConnectionState(data) {
     return prisma.gitHubAppConnectionState.create({ data });
@@ -12,6 +19,61 @@ export const githubRepository = {
   },
   useConnectionState(id) {
     return prisma.gitHubAppConnectionState.update({ where: { id }, data: { usedAt: new Date() } });
+  },
+  async authorizeInstallationFromState({ stateId, now, userId, installation: data }) {
+    try {
+      return await prisma.$transaction(async (tx) => {
+        const availableState = await tx.gitHubAppConnectionState.findFirst({
+          where: { id: stateId, userId, usedAt: null, expiresAt: { gt: now } },
+          select: { id: true }
+        });
+        if (!availableState) return null;
+
+        let installation;
+        try {
+          installation = await tx.gitHubInstallation.upsert({
+            where: { githubInstallationId: data.githubInstallationId },
+            create: { ...data, status: 'ACTIVE' },
+            update: {
+              accountId: data.accountId,
+              accountLogin: data.accountLogin,
+              accountType: data.accountType,
+              status: 'ACTIVE',
+              suspendedAt: null
+            }
+          });
+        } catch (error) {
+          throw callbackPersistenceError('upsert_installation', error);
+        }
+
+        let authorization;
+        try {
+          authorization = await tx.gitHubInstallationAuthorization.upsert({
+            where: { installationId_userId: { installationId: installation.id, userId } },
+            create: { installationId: installation.id, userId, verifiedAt: now },
+            update: { verifiedAt: now }
+          });
+        } catch (error) {
+          throw callbackPersistenceError('upsert_authorization', error);
+        }
+
+        let claimed;
+        try {
+          claimed = await tx.gitHubAppConnectionState.updateMany({
+            where: { id: stateId, userId, usedAt: null, expiresAt: { gt: now } },
+            data: { usedAt: now }
+          });
+        } catch (error) {
+          throw callbackPersistenceError('consume_state', error);
+        }
+        if (claimed.count !== 1) throw callbackPersistenceError('consume_state');
+
+        return { installation, authorization };
+      });
+    } catch (error) {
+      if (error.callbackStep === 'consume_state' && !error.cause) return null;
+      throw error;
+    }
   },
   async authorizeInstallation({
     userId,
@@ -141,6 +203,27 @@ export const githubRepository = {
     return prisma.gitHubInstallation.updateMany({
       where: { githubInstallationId: String(githubInstallationId) },
       data
+    });
+  },
+  upsertInstallationFromWebhook(githubInstallationId, installation) {
+    const accountLogin = installation.account?.login || installation.account?.name || 'unknown';
+    return prisma.gitHubInstallation.upsert({
+      where: { githubInstallationId: String(githubInstallationId) },
+      create: {
+        githubInstallationId: String(githubInstallationId),
+        accountId: String(installation.account?.id || 'unknown'),
+        accountLogin,
+        accountType: installation.account?.type || 'Unknown',
+        installedAt: installation.created_at ? new Date(installation.created_at) : new Date(),
+        status: 'ACTIVE'
+      },
+      update: {
+        ...(installation.account?.id ? { accountId: String(installation.account.id) } : {}),
+        accountLogin,
+        ...(installation.account?.type ? { accountType: installation.account.type } : {}),
+        status: 'ACTIVE',
+        suspendedAt: null
+      }
     });
   },
   requireReconnectForInstallation(githubInstallationId) {

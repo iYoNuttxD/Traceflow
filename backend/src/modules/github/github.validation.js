@@ -10,12 +10,6 @@ export const githubAppStartBodySchema = strictObject({
   intendedAction: z.enum(['CONNECT_PROJECT', 'CREATE_PROJECT']),
   projectId: positiveInteger('ID do projeto inválido.').optional()
 });
-export const githubAppCallbackQuerySchema = strictObject({
-  code: z.string().min(1).max(512),
-  installation_id: z.string().regex(/^\d+$/),
-  setup_action: z.string().max(64).optional(),
-  state: z.string().min(32).max(128)
-});
 export const githubInstallationParamsSchema = strictObject({
   installationId: z.string().regex(/^\d+$/, 'ID da instalação inválido.')
 });
