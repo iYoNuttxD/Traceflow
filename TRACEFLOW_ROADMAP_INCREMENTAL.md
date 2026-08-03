@@ -1,17 +1,18 @@
-# TRACEFLOW - Roadmap de entrega em duas sprints
+# TRACEFLOW - Roadmap de entrega em três sprints
 
 > Reorganização do escopo remanescente do TraceFlow após a conclusão da refatoração E0-E15.
 >
-> **Fontes:** documento oficial do TCC, especialmente o Capítulo 3; estado da branch `main`; matriz técnica `RF -> código -> teste`; documentação arquitetural do repositório.
+> **Fontes:** documento oficial do TCC, especialmente os Capítulos 3 e 4 e o Apêndice B; estado da branch `main`; matriz técnica `RF -> código -> teste`; documentação arquitetural do repositório.
 
 ## 1. Objetivo e regra de organização
 
-O desenvolvimento remanescente será executado em **exatamente duas sprints**, com equilíbrio aproximado de 50% do escopo em cada uma:
+O desenvolvimento será organizado em **três sprints**. As Sprints 1 e 2 dividem aproximadamente 50% do escopo de implementação em cada uma; a Sprint 3 ocorre depois delas e é dedicada à validação e ao aperfeiçoamento da ferramenta:
 
 - **Sprint 1:** Finalização de Login, Identidade e Acesso; Planejamento e Colaboração; Qualidade e Rastreabilidade Ampliada.
 - **Sprint 2:** Alertas e Notificações; Indicadores e Painel Consolidado; Relatórios e PDF; Implementação em servidor Azure.
+- **Sprint 3:** Validação e aperfeiçoamento da ferramenta, em duas etapas sequenciais: aplicação do Capítulo 4 e correção dos pontos identificados.
 
-A base funcional e a refatoração E0-E15 já concluídas são pré-condições, não uma terceira sprint. Atividades de homologação, segurança, privacidade, testes, documentação e rastreabilidade integram os critérios de conclusão dos próprios cartões. Não existe uma frente separada de Consolidação e Validação.
+A base funcional e a refatoração E0-E15 já concluídas são pré-condições. Segurança, privacidade, testes, documentação e rastreabilidade integram os critérios de conclusão dos próprios cartões. A validação com participantes é executada somente na Sprint 3, após a ferramenta estar implementada e disponível em homologação.
 
 ## 2. Princípios de execução
 
@@ -21,21 +22,23 @@ A base funcional e a refatoração E0-E15 já concluídas são pré-condições,
 - Segurança OWASP ASVS, LGPD, acessibilidade, observabilidade e testes são transversais.
 - Toda entrega mantém a cadeia `RF -> cartão -> branch/commit -> pull request -> testes -> documentação`.
 
-## 3. Equilíbrio das sprints
+## 3. Estrutura das sprints
 
 | Sprint | Frentes | RFs de entrega | Peso complementar |
 |---|---|---:|---|
 | Sprint 1 | Identidade e acesso; planejamento e colaboração; qualidade e rastreabilidade | 21 | Novos modelos de sprint, comentários, casos de teste e defeitos |
 | Sprint 2 | Alertas; indicadores; painel; relatórios; PDF; Azure | 18 | Infraestrutura, deploy, banco, segredos, observabilidade, backup e operação |
+| Sprint 3 | Validação e aperfeiçoamento | Sem novo RF funcional | Participantes, roteiro, questionário TAM, evidências, correções e verificação |
 
-O equilíbrio é aproximado: a Sprint 1 concentra três domínios funcionais e a Sprint 2 combina três domínios funcionais com a implantação completa em Azure.
+O equilíbrio de implementação é aproximado: a Sprint 1 concentra três domínios funcionais e a Sprint 2 combina três domínios funcionais com a implantação completa em Azure. A Sprint 3 não redistribui RFs; ela valida o produto integrado e transforma os achados em correções verificadas.
 
 ```mermaid
 flowchart LR
     BASE["Base entregue: MVP + E0-E15"]
     S1["Sprint 1: identidade, planejamento, colaboração, qualidade e rastreabilidade"]
     S2["Sprint 2: alertas, indicadores, relatórios, PDF e Azure"]
-    BASE --> S1 --> S2
+    S3["Sprint 3: validação e aperfeiçoamento"]
+    BASE --> S1 --> S2 --> S3
 ```
 
 ## 4. Definition of Done comum
@@ -558,7 +561,191 @@ A Sprint 2 termina quando os 18 RFs estão homologados, os relatórios e PDFs s�
 
 ---
 
-## 11. Dependências entre cartões
+# SPRINT 3 - VALIDAÇÃO E APERFEIÇOAMENTO DA FERRAMENTA
+
+## 11. Objetivo e pré-condições da Sprint 3
+
+Executar o processo de validação definido no Capítulo 4 e no Apêndice B do TCC, analisar as evidências produzidas e corrigir os pontos identificados. A Sprint 3 começa somente após a conclusão das Sprints 1 e 2.
+
+**Pré-condições obrigatórias:**
+
+- ferramenta implementada e hospedada em ambiente de homologação acessível pela web;
+- integração com a API do GitHub funcional;
+- banco de homologação populado com projeto de exemplo e dados não sensíveis;
+- fluxo central e painel de indicadores disponíveis;
+- credenciais, roteiro/tutorial e formulário de avaliação preparados;
+- participantes selecionados entre Desenvolvedores, Tech Leads e profissionais de QA;
+- instrumentos de consentimento, privacidade e tratamento dos dados da pesquisa definidos.
+
+## 12. Duas etapas e ordem obrigatória
+
+### Etapa 1 - Aplicação do Capítulo 4 - Validação da ferramenta
+
+Preparar a aplicação, selecionar os participantes, executar remotamente o roteiro padronizado, coletar as respostas do questionário TAM e organizar os resultados funcionais e perceptivos.
+
+### Etapa 2 - Correção dos pontos identificados
+
+Consolidar os achados em itens rastreáveis, implementar correções e melhorias priorizadas e verificar que os problemas foram resolvidos sem regressões.
+
+```mermaid
+flowchart LR
+    V["1. Aplicar a validação"]
+    A["2. Analisar os resultados"]
+    R["3. Registrar os pontos identificados"]
+    C["4. Implementar as correções"]
+    T["5. Verificar as correções realizadas"]
+    V --> A --> R --> C --> T
+```
+
+Nenhuma correção começa antes do registro dos pontos identificados. Nenhum ponto é encerrado sem verificação da correção e evidência de não regressão.
+
+## 13. Cartões da Sprint 3
+
+### S3-01 - Aplicar a validação do Capítulo 4
+
+**Etapa:** 1 - Aplicação do Capítulo 4.  
+**Referências:** Capítulo 4, seções 4.1 a 4.3; Apêndice B.  
+**Descrição:** preparar e executar a validação remota com participantes das personas-alvo, usando o mesmo ambiente, roteiro e instrumentos para todos.
+
+**Dependências:** Sprints 1 e 2 concluídas; ambiente Azure de homologação; GitHub funcional; projeto de exemplo; instrumentos aprovados.  
+**Entregáveis:** plano e agenda; lista codificada de participantes; ambiente e dados; tutorial; roteiro; questionário TAM; registros de execução; respostas brutas protegidas.
+
+**Atividades obrigatórias do roteiro:**
+
+1. acessar o ambiente e autenticar;
+2. cadastrar projeto e repositório GitHub de teste;
+3. cadastrar requisito funcional;
+4. criar tarefa e vinculá-la ao requisito;
+5. sincronizar commits e pull requests;
+6. vincular commit à tarefa e consultar a rastreabilidade;
+7. concluir a tarefa e consultar indicadores.
+
+**Critérios de aceite:**
+
+- critérios de seleção, quantidade planejada e perfis dos participantes estão documentados;
+- todos recebem as mesmas instruções e executam o mesmo fluxo-base;
+- sucesso, dificuldade, abandono e observações de cada atividade são registrados;
+- questionário usa escala Likert de 5 pontos e contempla utilidade, facilidade de uso e intenção de uso futuro;
+- respostas são coletadas sem expor credenciais ou dados pessoais desnecessários;
+- desvios, incidentes e limitações da aplicação são registrados.
+
+**Checklist técnico:**
+
+- [ ] validar ambiente, integração, projeto de exemplo e credenciais;
+- [ ] revisar tutorial, roteiro, formulário e política de dados;
+- [ ] selecionar e agendar Desenvolvedores, Tech Leads e QA;
+- [ ] executar sessões e coletar evidências padronizadas;
+- [ ] armazenar respostas e registros com acesso restrito.
+
+### S3-02 - Analisar os resultados da validação
+
+**Etapa:** 1 - Aplicação do Capítulo 4.  
+**Referências:** Capítulo 4, seções 4.4 e 4.5; Apêndice B.  
+**Descrição:** analisar as respostas TAM e a conclusão das tarefas do roteiro para avaliar aceitação, usabilidade e adequação funcional.
+
+**Dependências:** S3-01 concluído; conjunto de respostas fechado e anonimizado/codificado.  
+**Entregáveis:** base tabulada; médias por dimensão e item; resultados por atividade; síntese qualitativa; limitações e evidências.
+
+**Critérios de aceite:**
+
+- respostas Likert são tabuladas sem alterar os dados originais;
+- médias de Utilidade Percebida, Facilidade de Uso Percebida e Intenção de Uso Futuro são calculadas de forma reproduzível;
+- conclusão do fluxo central é analisada por etapa do roteiro;
+- dificuldades, inconsistências, sugestões e observações abertas são categorizadas;
+- resultados são apresentados de forma agregada, sem identificar indevidamente participantes;
+- limitações, ausências e amostra efetiva são declaradas.
+
+**Checklist técnico:**
+
+- [ ] fechar, preservar e versionar o conjunto de respostas;
+- [ ] tabular Likert e calcular médias por item/dimensão;
+- [ ] consolidar sucesso e dificuldade por atividade;
+- [ ] categorizar observações qualitativas;
+- [ ] revisar cálculos, privacidade e limitações.
+
+### S3-03 - Registrar e priorizar os pontos identificados
+
+**Etapa:** transição entre a aplicação e a correção.  
+**Descrição:** converter os resultados da validação em pontos rastreáveis, distinguindo defeitos, problemas de uso, inconsistências e sugestões.
+
+**Dependências:** S3-02 concluído.  
+**Entregáveis:** registro consolidado de achados; evidências; classificação; prioridade; responsável; decisão e vínculo com os cards de correção.
+
+**Critérios de aceite:**
+
+- todo achado possui identificador, descrição, origem e evidência anonimizada;
+- itens são classificados como problema funcional, dificuldade de uso, inconsistência, sugestão ou outro tipo justificado;
+- severidade, frequência, impacto e prioridade são registrados;
+- duplicidades são consolidadas sem perder a origem;
+- itens não implementados possuem decisão e justificativa transparentes;
+- cada item aprovado para correção possui critério de aceite e responsável.
+
+**Checklist técnico:**
+
+- [ ] criar registro único dos achados;
+- [ ] anexar evidência e contexto sem dados pessoais desnecessários;
+- [ ] classificar severidade, frequência, impacto e tipo;
+- [ ] priorizar e atribuir responsáveis;
+- [ ] definir aceite e vínculo de cada correção.
+
+### S3-04 - Implementar as correções e melhorias priorizadas
+
+**Etapa:** 2 - Correção dos pontos identificados.  
+**Descrição:** corrigir defeitos, dificuldades de uso e inconsistências priorizadas, implementando somente melhorias justificadas pelas evidências da validação.
+
+**Dependências:** S3-03 concluído; itens priorizados e critérios aprovados.  
+**Entregáveis:** código, migrations quando necessárias, testes de regressão, documentação, pull requests e atualização dos registros de achado.
+
+**Critérios de aceite:**
+
+- cada alteração referencia o ponto identificado e os RFs afetados;
+- correções preservam contratos, autorização, segurança e integridade dos dados;
+- mudanças de schema usam migration versionada e testada;
+- problemas funcionais recebem teste de regressão;
+- mudanças de usabilidade são verificáveis e acessíveis;
+- CI permanece verde e não são introduzidos mocks em produção;
+- itens adiados ou rejeitados mantêm decisão e justificativa.
+
+**Checklist técnico:**
+
+- [ ] implementar em branches e PRs pequenos e rastreáveis;
+- [ ] atualizar backend, frontend e banco de forma coerente;
+- [ ] adicionar testes de regressão e segurança proporcionais ao risco;
+- [ ] atualizar documentação, matriz RF e registros de achado;
+- [ ] publicar versão corrigida em homologação.
+
+### S3-05 - Verificar as correções realizadas
+
+**Etapa:** 2 - Correção dos pontos identificados.  
+**Descrição:** confirmar que as correções atendem aos critérios definidos, não causam regressões e resolvem os achados observados na validação.
+
+**Dependências:** S3-04 concluído; versão corrigida em homologação.  
+**Entregáveis:** plano de reteste; evidências antes/depois; resultados automatizados e manuais; situação final de cada achado; limitações residuais.
+
+**Critérios de aceite:**
+
+- cada ponto corrigido é retestado contra seu critério de aceite e evidência original;
+- fluxo central do Apêndice B é reexecutado na versão corrigida;
+- testes automatizados, integração e E2E passam;
+- segurança, autorização, rastreabilidade, relatórios e deploy não apresentam regressão conhecida;
+- achados são encerrados, reabertos ou mantidos pendentes com justificativa;
+- resultados finais e limitações residuais são documentados para o TCC.
+
+**Checklist técnico:**
+
+- [ ] montar matriz ponto -> correção -> teste -> evidência;
+- [ ] executar retestes específicos e suíte de regressão;
+- [ ] reexecutar o fluxo central do Apêndice B;
+- [ ] revisar achados reabertos e limitações residuais;
+- [ ] consolidar evidências e atualizar o texto de validação do TCC.
+
+## 14. Marco de conclusão da Sprint 3
+
+A Sprint 3 termina somente quando a validação foi aplicada, os resultados foram analisados, todos os pontos foram registrados e decididos, as correções priorizadas foram implementadas e cada correção realizada foi verificada com evidência. Pendências residuais permanecem explicitamente documentadas.
+
+---
+
+## 15. Dependências entre cartões
 
 ```mermaid
 flowchart TD
@@ -581,9 +768,15 @@ flowchart TD
     Q[S2-08 Azure] --> R[S2-09 Deploy]
     R --> S[S2-10 Operação]
     P --> R
+    S --> V[S3-01 Aplicar validação]
+    P --> V
+    V --> W[S3-02 Analisar resultados]
+    W --> X[S3-03 Registrar pontos]
+    X --> Y[S3-04 Implementar correções]
+    Y --> Z[S3-05 Verificar correções]
 ```
 
-## 12. Cobertura final do escopo remanescente
+## 16. Cobertura final do escopo remanescente
 
 | Domínio | RFs | Sprint |
 |---|---|---|
@@ -594,5 +787,6 @@ flowchart TD
 | Indicadores e painel | RF15-RF18, RF36, RF54-RF56 | Sprint 2 |
 | Relatórios e PDF | RF37, RF57 | Sprint 2 |
 | Implementação em Azure | Infraestrutura, deploy e operação | Sprint 2 |
+| Validação e aperfeiçoamento | Capítulo 4 e Apêndice B; sem novo RF funcional | Sprint 3 |
 
-Total: **39 RFs remanescentes**, todos atribuídos a uma das duas sprints, sem inventar números ausentes e sem criar frentes adicionais.
+Total: **39 RFs remanescentes** distribuídos entre as Sprints 1 e 2. A Sprint 3 valida o produto integrado e executa as correções derivadas das evidências, sem inventar novos RFs.
