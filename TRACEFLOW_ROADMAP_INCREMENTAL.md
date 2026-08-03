@@ -1,736 +1,598 @@
-# TRACEFLOW — Roadmap completo e incremental atualizado
+# TRACEFLOW - Roadmap de entrega em duas sprints
 
-> Plano de evolução do TraceFlow após a conclusão da refatoração E0–E15.
+> Reorganização do escopo remanescente do TraceFlow após a conclusão da refatoração E0-E15.
 >
-> **Estado de referência:** branch `main`, após o merge da E15.
->
-> **Fontes consideradas:** documento oficial do TCC, especialmente o Capítulo 3; estado atual do repositório; matriz técnica `RF → código → teste`; documentação arquitetural e relatório final da E15.
+> **Fontes:** documento oficial do TCC, especialmente o Capítulo 3; estado da branch `main`; matriz técnica `RF -> código -> teste`; documentação arquitetural do repositório.
 
-## 1. Objetivo desta atualização
+## 1. Objetivo e regra de organização
 
-Este roadmap substitui a versão anterior e reorganiza o desenvolvimento do TraceFlow a partir do estado real do produto.
+O desenvolvimento remanescente será executado em **exatamente duas sprints**, com equilíbrio aproximado de 50% do escopo em cada uma:
 
-A refatoração E0–E15 foi concluída e deixa de aparecer como etapa futura. Seus resultados passam a compor a **base técnica entregue**.
+- **Sprint 1:** Finalização de Login, Identidade e Acesso; Planejamento e Colaboração; Qualidade e Rastreabilidade Ampliada.
+- **Sprint 2:** Alertas e Notificações; Indicadores e Painel Consolidado; Relatórios e PDF; Implementação em servidor Azure.
 
-As próximas entregas prioritárias serão executadas em paralelo:
+A base funcional e a refatoração E0-E15 já concluídas são pré-condições, não uma terceira sprint. Atividades de homologação, segurança, privacidade, testes, documentação e rastreabilidade integram os critérios de conclusão dos próprios cartões. Não existe uma frente separada de Consolidação e Validação.
 
-1. **Finalização de Login, Identidade e Acesso — Daniel**
-2. **Planejamento e Colaboração — João e Gabriel Trevisan (GT)**
+## 2. Princípios de execução
 
-Após essas duas entregas, o roadmap continua com qualidade e rastreabilidade ampliada, alertas, indicadores, relatórios e preparação para validação.
+- Nenhum RF é concluído apenas por possuir campos isolados no banco ou na interface.
+- Cada fluxo deve incluir, quando aplicável, migration versionada, backend, frontend, autorização, testes e documentação.
+- Não são permitidos mocks ou respostas estáticas no caminho de produção.
+- Segurança OWASP ASVS, LGPD, acessibilidade, observabilidade e testes são transversais.
+- Toda entrega mantém a cadeia `RF -> cartão -> branch/commit -> pull request -> testes -> documentação`.
 
----
+## 3. Equilíbrio das sprints
 
-## 2. Como interpretar este roadmap
+| Sprint | Frentes | RFs de entrega | Peso complementar |
+|---|---|---:|---|
+| Sprint 1 | Identidade e acesso; planejamento e colaboração; qualidade e rastreabilidade | 21 | Novos modelos de sprint, comentários, casos de teste e defeitos |
+| Sprint 2 | Alertas; indicadores; painel; relatórios; PDF; Azure | 18 | Infraestrutura, deploy, banco, segredos, observabilidade, backup e operação |
 
-- `ENTREGUE`: fluxo disponível no produto e sustentado por código, persistência, interface e testes.
-- `PARCIAL`: existe base funcional relevante, mas o requisito ainda não está homologado integralmente contra o TCC.
-- `PRÓXIMA ENTREGA`: item priorizado para o próximo ciclo.
-- `FUTURO`: item planejado para incrementos posteriores.
-- Nenhum RF deve ser considerado concluído apenas porque existem campos isolados no banco ou na interface.
-- Cada RF concluído deve manter rastreabilidade entre requisito, tarefa, código, pull request, testes e documentação.
-- Não são permitidos mocks no caminho de produção.
-- Segurança, autorização, LGPD, testes e CI permanecem critérios transversais.
-- A numeração oficial possui lacunas: RF14, RF19, RF20 e RF47 não estão definidos e não foram inventados.
-
----
-
-## 3. Visão geral atualizada
+O equilíbrio é aproximado: a Sprint 1 concentra três domínios funcionais e a Sprint 2 combina três domínios funcionais com a implantação completa em Azure.
 
 ```mermaid
 flowchart LR
-    BASE["Base entregue<br/>Núcleo do MVP + E0–E15"]
-    LOGIN["Entrega A<br/>Finalização de Login e Acesso<br/>Daniel"]
-    PLAN["Entrega B<br/>Planejamento e Colaboração<br/>João + GT"]
-    QUAL["3. Qualidade e rastreabilidade ampliada"]
-    ALERT["4. Alertas e notificações"]
-    IND["5. Indicadores e painel"]
-    REL["6. Relatórios e exportação"]
-    PROD["7. Consolidação e validação"]
-    UX["8. Face lift<br/>Opcional"]
-
-    BASE --> LOGIN
-    BASE --> PLAN
-    LOGIN -. "homologação de identidade e permissões" .-> PLAN
-    LOGIN --> QUAL
-    PLAN --> QUAL
-    QUAL --> ALERT --> IND --> REL --> PROD
-    LOGIN -.-> UX
-    PLAN -.-> UX
-    UX -. "não bloqueia" .-> PROD
-
-    classDef done fill:#285943,color:#fff,stroke:#163b2a,stroke-width:2px;
-    classDef priority fill:#17324d,color:#fff,stroke:#0b1f33,stroke-width:2px;
-    classDef delivery fill:#e8f0f7,color:#17202a,stroke:#315b7d;
-    classDef optional fill:#f3f4f6,color:#1f2937,stroke:#6b7280,stroke-width:2px,stroke-dasharray:5 5;
-
-    class BASE done;
-    class LOGIN,PLAN priority;
-    class QUAL,ALERT,IND,REL,PROD delivery;
-    class UX optional;
+    BASE["Base entregue: MVP + E0-E15"]
+    S1["Sprint 1: identidade, planejamento, colaboração, qualidade e rastreabilidade"]
+    S2["Sprint 2: alertas, indicadores, relatórios, PDF e Azure"]
+    BASE --> S1 --> S2
 ```
 
----
+## 4. Definition of Done comum
 
-## 4. Tabela-resumo
+Todo cartão funcional somente pode ser movido para concluído quando:
 
-| Ordem | Iniciativa | Responsável | RFs principais | Estado | Saída esperada |
-|---:|---|---|---|---|---|
-| Base | Núcleo funcional e refatoração E0–E15 | Equipe, com execução principal de Daniel na refatoração | RF01–RF09, RF11, RF12, RF21, RF22, RF38, RF41, RF48–RF53; base de RF23–RF28 | ENTREGUE / BASE ESTÁVEL | Arquitetura, segurança, CI, GitHub, tarefas e rastreabilidade consolidados |
-| A | Finalização de Login, Identidade e Acesso | Daniel | RF23–RF28 | PARCIAL → PRÓXIMA ENTREGA | Jornada completa de cadastro, login, sessão, recuperação, equipe e perfis homologada |
-| B | Planejamento e Colaboração | João + GT | RF10, RF29, RF31–RF35; integração com RF51 | PARCIAL / NÃO IMPLEMENTADO → PRÓXIMA ENTREGA | Cronograma, sprints, esforço e colaboração incorporados às tarefas |
-| 3 | Qualidade e rastreabilidade ampliada | A definir | RF42–RF46, RF62–RF64 | FUTURO | Casos de teste e defeitos conectados à rastreabilidade |
-| 4 | Alertas e notificações | A definir | RF13, RF30, RF39, RF40, RF58–RF61 | FUTURO | Inconsistências e eventos comunicados aos usuários |
-| 5 | Indicadores e painel consolidado | A definir | RF15–RF18, RF34–RF36, RF54–RF56 | FUTURO | Métricas de progresso, esforço, produtividade e qualidade |
-| 6 | Relatórios e PDF | A definir | RF37, RF57 | FUTURO | Relatórios reproduzíveis e exportáveis |
-| 7 | Consolidação e validação | Equipe | Qualidade transversal | FUTURO | Versão pronta para homologação e validação do TCC |
-| 8 | Face lift | A definir | Sem RF direto | OPCIONAL | Identidade visual consistente sem alterar regras de negócio |
-
----
-
-# PARTE I — O QUE JÁ FOI ENTREGUE
-
-## 5. Base funcional entregue
-
-### Projetos e GitHub
-
-- cadastro e edição de projetos;
-- integração com repositório GitHub;
-- importação de commits, pull requests e issues;
-- sincronização manual;
-- consulta dos artefatos importados;
-- sincronização das pull requests da branch principal;
-- paginação, deduplicação e tratamento de falhas da API.
-
-**RFs associados:** RF01, RF02, RF03, RF04, RF05, RF06, RF21, RF22 e RF50.
-
-### Tarefas e Kanban
-
-- cadastro, edição, consulta e exclusão de tarefas;
-- quadro Kanban com `A Fazer`, `Em Andamento` e `Concluído`;
-- movimentação atômica;
-- registro de usuário e data das movimentações;
-- prioridade, prazo e campos de esforço disponíveis como base;
-- responsável associado a usuário ativo do projeto;
-- histórico de status, prazo, responsável e prioridade.
-
-**RFs associados:** RF07, RF08, RF38 e RF51.
-
-### Rastreabilidade
-
-- requisito relacionado a tarefa;
-- tarefa relacionada a commit, pull request e issue;
-- consulta por requisito e tarefa;
-- consulta reversa por artefato técnico;
-- sugestão automática de vínculo quando o commit utiliza `[TASK-<ID>]`;
-- confirmação ou rejeição antes da criação do vínculo.
-
-**RFs associados:** RF09, RF11, RF12, RF41, RF48, RF49, RF52 e RF53.
-
-### Identidade e acesso já existentes como base
-
-- cadastro;
-- autenticação com e-mail e senha;
-- sessão server-side e cookie;
-- proteção CSRF;
-- consulta da sessão atual;
-- logout;
-- solicitação e redefinição de senha;
-- convite e aceite;
-- membership por projeto;
-- perfis `OWNER`, `MANAGER`, `MEMBER` e `VIEWER`;
-- consulta da equipe;
-- alteração de perfil;
-- autorização por projeto.
-
-Esses recursos constituem uma base relevante para RF23–RF28, mas a entrega será tratada como **parcial** até a homologação completa descrita na Entrega A.
+- os RFs e casos de uso relacionados funcionam de ponta a ponta;
+- regras, validações e autorização são aplicadas no backend;
+- banco, API e interface utilizam o mesmo contrato;
+- migrations são novas, versionadas e testadas;
+- estados de carregamento, vazio, erro e acesso negado são tratados;
+- testes unitários, integração/API, frontend e E2E proporcionais ao risco passam;
+- CI permanece verde, sem enfraquecimento de gates;
+- impactos OWASP ASVS e LGPD são avaliados;
+- documentação e matriz técnica de rastreabilidade são atualizadas;
+- não há mocks em produção, segredos versionados ou regressões conhecidas.
 
 ---
 
-## 6. Refatoração E0–E15 — concluída e removida das próximas etapas
+# SPRINT 1
 
-A refatoração não é mais uma iniciativa futura do roadmap.
+## 5. Objetivo da Sprint 1
 
-### Resultados incorporados à base
+Entregar identidade e acesso homologados, planejamento colaborativo e a cadeia ampliada de qualidade `Requisito -> Tarefa -> Artefato técnico -> Caso de teste -> Defeito`.
 
-- arquitetura backend `Route → Controller → Service → Repository → Prisma`;
-- frontend organizado por domínio;
-- contratos, validações, erros e logs padronizados;
-- autenticação e autorização por projeto;
-- trilha de auditoria e controles técnicos de privacidade;
-- modelo canônico de rastreabilidade;
-- remoção controlada de estruturas redundantes;
-- migrations versionadas;
-- testes unitários, de integração e frontend;
-- lint, formatação, cobertura e build;
-- CI com gates obrigatórios;
-- análise de dependências e Dependency Review;
-- documentação de arquitetura, API, segurança, LGPD e operação;
-- runbooks de GitHub, banco, backup e incidentes;
-- proteção da `main` por pull request e checks.
+**RFs:** RF10, RF23-RF29, RF31-RF35, RF42-RF46 e RF62-RF64.
 
-**Situação:** `E0–E15 — CONCLUÍDA COM RESSALVAS DOCUMENTADAS`.
+## 6. Cartões da Sprint 1
 
-As ressalvas operacionais e de produto permanecem no backlog técnico, mas não impedem as próximas funcionalidades.
+### S1-01 - Finalizar cadastro, login e ciclo de sessão
+
+**Requisitos:** RF23 e RF27; UC01 e UC05.  
+**Descrição:** homologar cadastro, autenticação, sessão, logout e proteção de rotas a partir da base existente, incluindo a decisão e implementação de sessão persistente prevista no TCC.
+
+**Dependências:** base de autenticação E0-E15; serviço de usuários; proteção CSRF.  
+**Entregáveis:** fluxos completos no backend e frontend; política documentada de TTL e revogação; auditoria; testes E2E.
+
+**Critérios de aceite:**
+
+- cadastro, login e logout funcionam pelo navegador;
+- rota originalmente solicitada é preservada após login;
+- usuário inativo, credencial inválida e sessão expirada recebem tratamento seguro;
+- opção de manter sessão ativa é implementada ou removida formalmente da especificação;
+- acesso sem sessão e acesso entre projetos são bloqueados no backend;
+- múltiplas abas, submissão duplicada e revogação são testadas.
+
+**Checklist técnico:**
+
+- [ ] revisar contratos, cookies, CSRF, TTL e versionamento de sessão;
+- [ ] completar backend, frontend e estados de erro;
+- [ ] registrar eventos de autenticação sem dados sensíveis;
+- [ ] adicionar testes unitários, API e E2E;
+- [ ] atualizar documentação e matriz RF.
+
+### S1-02 - Finalizar recuperação e alteração de senha
+
+**Requisitos:** RF28; UC02.  
+**Descrição:** concluir recuperação por e-mail e gestão de senha com tokens de uso único, expiração, revogação e provider real no ambiente de homologação.
+
+**Dependências:** S1-01; configuração segura de e-mail.  
+**Entregáveis:** solicitação, envio, redefinição e alteração de senha; interface; auditoria; testes.
+
+**Critérios de aceite:**
+
+- token válido funciona uma única vez e tokens inválidos, expirados ou reutilizados falham;
+- resposta da solicitação não permite enumeração de usuários;
+- troca de senha revoga sessões anteriores conforme política;
+- e-mail real é enviado em homologação; capturadores permanecem restritos a testes;
+- nenhum token, senha ou cookie é exposto em logs ou interface.
+
+**Checklist técnico:**
+
+- [ ] validar persistência por hash e expiração;
+- [ ] configurar provider e variáveis sem versionar segredos;
+- [ ] completar telas e feedbacks;
+- [ ] testar solicitação, link, troca, revogação e abuso;
+- [ ] atualizar documentação operacional e matriz RF.
+
+### S1-03 - Homologar membros, convites e perfis de acesso
+
+**Requisitos:** RF24, RF25 e RF26; UC06 e UC07.  
+**Descrição:** concluir vínculo de usuários ao projeto, consulta de equipe, convites e perfis `OWNER`, `MANAGER`, `MEMBER` e `VIEWER` com autorização real no backend.
+
+**Dependências:** S1-01; memberships existentes.  
+**Entregáveis:** gestão de equipe e perfis; regras de convite; isolamento por projeto; testes de autorização.
+
+**Critérios de aceite:**
+
+- convite pode ser aceito ou recusado e trata expiração, revogação, duplicidade e reutilização;
+- usuários cadastrados e ainda não cadastrados seguem fluxo coerente;
+- equipe e perfis são visíveis apenas a membros autorizados;
+- alterações sem permissão são bloqueadas no backend;
+- o último `OWNER` não pode ser removido ou rebaixado sem transferência válida.
+
+**Checklist técnico:**
+
+- [ ] revisar regras e contratos de membership/invite;
+- [ ] completar UI de equipe, convites e perfis;
+- [ ] aplicar autorização por projeto e perfil;
+- [ ] testar matriz permitir/negar e isolamento;
+- [ ] atualizar documentação, auditoria e matriz RF.
+
+### S1-04 - Implementar sprints, cronograma e marcos
+
+**Requisitos:** RF10 e RF35.  
+**Descrição:** criar gestão de sprints e cronograma do projeto, com marcos, datas, vínculo de tarefas e evolução reproduzível.
+
+**Dependências:** Project e Task existentes; S1-03 para permissões; integração posterior com S1-06.  
+**Entregáveis:** entidade e CRUD de Sprint; marcos; associação de tarefas; visão de cronograma; cálculo de evolução.
+
+**Critérios de aceite:**
+
+- sprint possui projeto, nome, objetivo, início, fim e status;
+- tarefa só pode ser associada a sprint do mesmo projeto;
+- cronograma apresenta tarefas, sprints, prazos e marcos;
+- evolução informa planejado, concluído, percentual e instante de corte;
+- tarefas adicionadas ou removidas após o planejamento são identificáveis;
+- permissões, fórmulas, fusos e limites de data são testados.
+
+**Checklist técnico:**
+
+- [ ] definir contrato e migration versionada;
+- [ ] implementar repository, service, controller, rotas e validação;
+- [ ] implementar telas, filtros e associação de tarefas;
+- [ ] testar fórmulas, autorização e integridade;
+- [ ] documentar API, cálculo e RFs.
+
+### S1-05 - Implementar comentários e histórico nas tarefas
+
+**Requisitos:** RF29 e RF31.  
+**Descrição:** permitir comentários persistidos com autoria real e histórico consultável na tarefa.
+
+**Dependências:** S1-01 e S1-03; Task existente.  
+**Entregáveis:** modelo de comentário; API; interface; paginação; política de edição/exclusão; auditoria.
+
+**Critérios de aceite:**
+
+- comentário pertence a tarefa e projeto válidos e usa o autor da sessão;
+- conteúdo vazio é rejeitado e limites são aplicados;
+- histórico apresenta autor, data/hora, ordenação estável e indicação de edição;
+- paginação não perde nem duplica registros;
+- regra de edição e preservação histórica é documentada;
+- acesso entre projetos e ações sem permissão são bloqueados.
+
+**Checklist técnico:**
+
+- [ ] criar migration e índices;
+- [ ] implementar camadas de backend e validação;
+- [ ] implementar interface e estados;
+- [ ] testar autoria, ordenação, paginação e autorização;
+- [ ] atualizar API, privacidade e matriz RF.
+
+### S1-06 - Homologar prioridade, estimativa e esforço realizado
+
+**Requisitos:** RF32, RF33 e RF34; integração com RF51.  
+**Descrição:** consolidar prioridade acessível, unidade oficial de estimativa e comparação reproduzível entre esforço planejado e realizado.
+
+**Dependências:** Task e responsável existentes; S1-04 para consolidação por sprint.  
+**Entregáveis:** contratos validados; interface consistente; fórmulas documentadas; resumo por tarefa e sprint.
+
+**Critérios de aceite:**
+
+- prioridade é consistente em lista, detalhes e Kanban e não depende apenas de cor;
+- unidade de esforço é única e exibida em criação, edição e consulta;
+- valores negativos ou inválidos são rejeitados;
+- diferença absoluta e percentual tratam estimativa zero e ausência de valor;
+- comparação funciona por tarefa e, após S1-04, por sprint;
+- responsável da tarefa não é confundido com autor de comentário.
+
+**Checklist técnico:**
+
+- [ ] definir unidade e fórmula em decisão documentada;
+- [ ] revisar schema e migration se necessário;
+- [ ] completar API, formulários e visualização;
+- [ ] integrar Sprint, Task e RF51;
+- [ ] testar casos extremos, acessibilidade e regressão.
+
+### S1-07 - Cadastrar e gerenciar casos de teste
+
+**Requisito:** RF42.  
+**Descrição:** criar casos de teste reais e persistidos com dados suficientes para execução e acompanhamento.
+
+**Dependências:** projeto, membros e autorização; S1-03.  
+**Entregáveis:** entidade; CRUD; responsável; status; interface; histórico relevante.
+
+**Critérios de aceite:**
+
+- caso de teste registra título, descrição, pré-condições, passos, resultado esperado, status e responsável;
+- campos obrigatórios e transições são validados no backend;
+- responsáveis pertencem ao projeto e o isolamento é preservado;
+- listas suportam paginação, filtros e estados de UI;
+- alterações relevantes são auditáveis.
+
+**Checklist técnico:**
+
+- [ ] modelar entidade, enums, índices e migration;
+- [ ] implementar backend completo;
+- [ ] implementar interface acessível;
+- [ ] adicionar testes de domínio, API e frontend;
+- [ ] atualizar contratos e matriz RF.
+
+### S1-08 - Cadastrar e gerenciar defeitos
+
+**Requisito:** RF45.  
+**Descrição:** registrar defeitos persistidos com severidade, status, responsável e data de abertura.
+
+**Dependências:** projeto, membros e autorização; S1-03.  
+**Entregáveis:** entidade; CRUD; interface; regras de status e severidade; auditoria.
+
+**Critérios de aceite:**
+
+- defeito registra título, descrição, severidade, status, responsável e data de abertura;
+- enums, campos obrigatórios e transições são validados no backend;
+- responsável precisa ser membro elegível do projeto;
+- consulta suporta paginação e filtros úteis;
+- histórico preserva as alterações relevantes.
+
+**Checklist técnico:**
+
+- [ ] modelar entidade, relações, índices e migration;
+- [ ] implementar backend e autorização;
+- [ ] implementar interface e estados;
+- [ ] adicionar testes e auditoria;
+- [ ] atualizar documentação e matriz RF.
+
+### S1-09 - Ampliar rastreabilidade entre requisitos, testes e defeitos
+
+**Requisitos:** RF43, RF44, RF46, RF62, RF63 e RF64.  
+**Descrição:** completar a cadeia direta e reversa entre requisitos, tarefas, artefatos técnicos, casos de teste e defeitos.
+
+**Dependências:** S1-07 e S1-08; núcleo de rastreabilidade existente.  
+**Entregáveis:** relações persistidas; APIs de vínculo e consulta; matriz/fluxo visual; integridade e auditoria.
+
+**Critérios de aceite:**
+
+- casos de teste podem ser vinculados a tarefas e requisitos;
+- defeitos podem ser vinculados a tarefas, requisitos e casos de teste;
+- a consulta de um caso de teste apresenta tarefa e artefatos técnicos relacionados;
+- navegação direta e reversa retorna resultados consistentes;
+- vínculos entre projetos diferentes são impossíveis;
+- criação e remoção registram origem, autor, data e evidência quando aplicável.
+
+**Checklist técnico:**
+
+- [ ] definir relações canônicas e cardinalidades;
+- [ ] criar migrations seguras sem duplicar modelos legados;
+- [ ] implementar vínculo, remoção e consultas reversas;
+- [ ] atualizar matriz e fluxo visual;
+- [ ] testar integridade, autorização e regressão ponta a ponta.
+
+## 7. Marco de conclusão da Sprint 1
+
+A Sprint 1 termina quando os 21 RFs estão homologados, as migrações aplicam em banco limpo e atualizado, os fluxos críticos passam em E2E, a cadeia ampliada de rastreabilidade é navegável nos dois sentidos e a documentação reflete o comportamento real.
 
 ---
 
-# PARTE II — PRÓXIMAS DUAS ENTREGAS
+# SPRINT 2
 
-# Entrega A — Finalização de Login, Identidade e Acesso
+## 8. Objetivo da Sprint 2
 
-**Responsável:** Daniel  
-**Prioridade:** imediata  
-**RFs:** RF23, RF24, RF25, RF26, RF27 e RF28  
-**Casos de uso relacionados:** UC01, UC02, UC05, UC06 e UC07  
-**Estado atual:** base implementada, entrega ainda não homologada como fluxo completo
+Transformar os dados rastreáveis em comunicação proativa, indicadores explicáveis e relatórios auditáveis, disponibilizando o TraceFlow em infraestrutura Azure segura e operável.
 
-## 7. Objetivo
+**RFs:** RF13, RF15-RF18, RF30, RF36, RF37, RF39, RF40, RF54-RF61.
 
-Finalizar a jornada de identidade e acesso para que cadastro, autenticação, recuperação de senha, sessão, convites, equipe e perfis funcionem de ponta a ponta em uma experiência coerente, segura e validada.
+## 9. Cartões da Sprint 2
 
-A entrega não deve reconstruir a autenticação existente. O trabalho deve partir da base atual, corrigir lacunas e homologar o conjunto.
+### S2-01 - Detectar inconsistências de rastreabilidade e emitir alertas
 
-## 8. O que já existe
+**Requisitos:** RF13, RF39, RF40 e RF58.  
+**Descrição:** detectar tarefas e artefatos técnicos sem vínculos esperados e registrar alertas rastreáveis, deduplicados e acionáveis.
 
-- endpoints de cadastro, login, sessão, CSRF, logout, recuperação, redefinição e alteração de senha;
-- páginas de login, cadastro, recuperação e redefinição;
-- rota protegida;
-- sessão persistida no backend;
-- hash de senha com Argon2id;
-- tokens de recuperação armazenados por hash;
-- convite e aceite de convite;
-- memberships e perfis;
-- consulta e gestão da equipe.
+**Dependências:** Sprint 1 concluída; sincronização GitHub e vínculos existentes.  
+**Entregáveis:** regras de detecção; persistência; API; interface; contexto e resolução do alerta.
 
-## 9. Escopo de Daniel
+**Critérios de aceite:**
 
-### 9.1 Homologar cadastro e autenticação — RF23 e RF27
+- tarefa concluída sem commit gera alerta com tarefa, tipo e data;
+- PR mesclada sem tarefa e issue fechada sem tarefa geram alertas equivalentes;
+- tarefas sem commit, PR ou issue podem ser listadas;
+- reprocessamento não duplica alertas ativos;
+- correção da inconsistência atualiza ou resolve o alerta conforme regra documentada;
+- consultas respeitam projeto, perfil e paginação.
 
-- revisar o fluxo completo de cadastro;
-- validar redirecionamento após cadastro e login;
-- preservar a rota solicitada antes da autenticação;
-- validar conta inativa;
-- garantir logout e encerramento correto da sessão;
-- tratar sessão expirada na interface;
-- revisar comportamento em múltiplas abas;
-- impedir acesso a rotas privadas sem sessão válida;
-- validar isolamento entre projetos;
-- revisar loading, erros e submissões duplicadas.
+**Checklist técnico:**
 
-### 9.2 Finalizar “manter sessão ativa” do UC01
+- [ ] definir eventos, estados e chave de deduplicação;
+- [ ] modelar persistência e migration;
+- [ ] implementar processamento idempotente e consultas;
+- [ ] implementar interface de alertas;
+- [ ] testar detecção, concorrência, autorização e resolução.
 
-O UC01 prevê a alternativa **Manter sessão ativa**, mas o formulário atual não apresenta essa opção.
+### S2-02 - Notificar mudança de status e vencimento de tarefa
 
-- definir TTL da sessão comum e persistente;
-- adicionar a opção na tela;
-- enviar a preferência ao backend;
-- aplicar cookie e expiração coerentes;
-- manter revogação e versionamento de sessão;
-- adicionar testes.
+**Requisitos:** RF30 e RF59.  
+**Descrição:** notificar responsáveis por mudança de status e atraso, com preferências, leitura e deduplicação.
 
-Caso a equipe decida não implementar, a decisão deve ser registrada e a especificação do TCC atualizada.
+**Dependências:** responsáveis RF51; cronograma e datas da Sprint 1; infraestrutura de notificação definida.  
+**Entregáveis:** eventos; destinatários; persistência; central de notificações; processamento de vencimento.
 
-### 9.3 Finalizar recuperação de senha — RF28 e UC02
+**Critérios de aceite:**
 
-- validar token válido, expirado, reutilizado e inválido;
-- revogar sessões após a troca;
-- configurar envio real de e-mail em homologação;
-- manter provider de captura apenas para testes;
-- validar link e expiração;
-- evitar enumeração de usuários;
-- alinhar mensagens do TCC à política de segurança;
-- testar o fluxo completo no navegador.
+- mudança de status notifica o responsável correto com contexto da tarefa;
+- tarefa vencida gera uma notificação sem repetição indevida;
+- leitura/não leitura e link para o contexto persistem;
+- alterações em massa e concorrentes são idempotentes;
+- timezone e instante de corte são documentados e testados;
+- somente destinatários autorizados visualizam a notificação.
 
-### 9.4 Finalizar gestão da conta
+**Checklist técnico:**
 
-- disponibilizar interface de alteração de senha;
-- confirmar invalidação de sessões anteriores;
-- apresentar feedback de sucesso e erro;
-- revisar dados básicos exibidos;
-- impedir exposição de credenciais ou tokens.
+- [ ] definir contrato de evento e preferências;
+- [ ] criar migration, job seguro e índices;
+- [ ] implementar API e interface;
+- [ ] configurar scheduler compatível com Azure;
+- [ ] testar prazos, fusos, deduplicação e autorização.
 
-### 9.5 Homologar usuários, equipe e perfis — RF24, RF25 e RF26
+### S2-03 - Notificar eventos de issues e pull requests
 
-- revisar convite, aceite e recusa;
-- validar convite expirado, revogado, duplicado e usado;
-- tratar usuário cadastrado e não cadastrado;
-- revisar consulta da equipe e alteração de perfil;
-- impedir alterações sem permissão;
-- definir proteção do último `OWNER`;
-- validar os papéis no backend;
-- garantir que a UI não seja tratada como autorização.
+**Requisitos:** RF60 e RF61.  
+**Descrição:** notificar usuários envolvidos quando issues e pull requests vinculadas forem abertas, fechadas ou mescladas.
 
-### 9.6 Testes obrigatórios
+**Dependências:** sincronização GitHub; rastreabilidade; infraestrutura de S2-02.  
+**Entregáveis:** detecção de transições; destinatários; notificações; links para tarefa e artefato.
 
-- cadastro;
-- login válido e inválido;
-- usuário inativo;
-- sessão expirada;
-- manter sessão ativa;
-- logout;
-- recuperação e alteração de senha;
-- token expirado e reutilizado;
-- convite e aceite;
-- alteração de perfil;
-- consulta de equipe;
-- acesso permitido e negado;
-- CSRF;
-- E2E da jornada principal.
+**Critérios de aceite:**
 
-## 10. Critérios de conclusão da Entrega A
+- abertura/fechamento de issue vinculada gera evento somente após transição real;
+- fechamento/merge de PR vinculada gera evento equivalente;
+- destinatários são derivados da participação na tarefa e do projeto;
+- sincronizações repetidas não duplicam notificações;
+- falhas temporárias podem ser reprocessadas sem perda;
+- tokens e respostas brutas do GitHub não são expostos.
 
-- RF23–RF28 funcionando de ponta a ponta;
-- UC01, UC02, UC05, UC06 e UC07 alinhados ao comportamento real;
-- cadastro, login, logout e recuperação utilizáveis pelo navegador;
-- homologação enviando e-mail por provider real;
-- “manter sessão ativa” implementado ou removido formalmente da especificação;
-- perfis aplicados no backend;
-- isolamento entre projetos;
-- sessões expiradas e revogadas tratadas;
-- testes automatizados e E2E aprovados;
-- documentação, API e matriz RF atualizadas;
-- CI verde.
+**Checklist técnico:**
+
+- [ ] mapear transições persistidas da sincronização;
+- [ ] implementar outbox/job ou estratégia idempotente equivalente;
+- [ ] integrar central de notificações;
+- [ ] adicionar observabilidade e retentativas limitadas;
+- [ ] testar eventos, duplicidade, falha e autorização.
+
+### S2-04 - Implementar indicadores de progresso e produtividade
+
+**Requisitos:** RF15, RF16, RF17, RF18 e RF36.  
+**Descrição:** calcular indicadores reproduzíveis de progresso, commits, tarefas concluídas, retrabalho e produtividade por responsável.
+
+**Dependências:** tarefas, sprints, responsáveis e dados GitHub íntegros; Sprint 1.  
+**Entregáveis:** serviços de cálculo; APIs; visualizações; definições e limitações documentadas.
+
+**Critérios de aceite:**
+
+- progresso usa tarefas concluídas sobre total e atualiza após mudança de status;
+- commits são contados por usuário e período estritamente na branch `main`;
+- tarefas concluídas são contadas por responsável e período;
+- retrabalho considera PRs reabertas após fechamento no período;
+- métrica por responsável apresenta commits e tarefas sem inferir avaliação humana absoluta;
+- fórmulas tratam conjuntos vazios, timezone e filtros de projeto.
+
+**Checklist técnico:**
+
+- [ ] documentar fórmula, fonte, período e limitações de cada indicador;
+- [ ] implementar consultas eficientes e serviços puros;
+- [ ] criar API e componentes de visualização;
+- [ ] testar cálculos, bordas, autorização e desempenho;
+- [ ] atualizar matriz RF e documentação de privacidade.
+
+### S2-05 - Implementar qualidade, filtros e painel consolidado
+
+**Requisitos:** RF54, RF55 e RF56.  
+**Descrição:** consolidar planejamento, GitHub, rastreabilidade e qualidade em um painel filtrável por período.
+
+**Dependências:** S2-04; casos de teste/defeitos da Sprint 1; dados de revisão de PR.  
+**Entregáveis:** indicadores de qualidade; filtro temporal comum; painel consolidado; estados e acessibilidade.
+
+**Critérios de aceite:**
+
+- qualidade apresenta taxa de retrabalho e taxa de aprovação em revisões;
+- painel integra planejamento, artefatos e indicadores sem dados mockados;
+- filtro de período é aplicado de forma consistente a todos os indicadores compatíveis;
+- cada número permite identificar fórmula, fonte e horário de atualização;
+- estados vazio, parcial e indisponível não são apresentados como zero;
+- consultas respeitam projeto e possuem desempenho aceitável.
+
+**Checklist técnico:**
+
+- [ ] definir contrato agregado e política de cache, se necessária;
+- [ ] implementar consultas e APIs;
+- [ ] construir painel responsivo e acessível;
+- [ ] testar filtros, dados ausentes, cálculo e autorização;
+- [ ] documentar métricas e atualizar matriz RF.
+
+### S2-06 - Gerar relatórios resumidos do projeto
+
+**Requisito:** RF37.  
+**Descrição:** gerar relatórios reproduzíveis de planejamento, rastreabilidade e indicadores a partir dos dados reais do projeto.
+
+**Dependências:** S2-04 e S2-05; dados da Sprint 1.  
+**Entregáveis:** modelo de relatório; filtros; geração; visualização; metadados e auditoria.
+
+**Critérios de aceite:**
+
+- relatório inclui seções de planejamento, rastreabilidade e indicadores;
+- período, projeto, data de geração e responsável são registrados;
+- números coincidem com as APIs e o painel para os mesmos filtros;
+- geração é autorizada e auditada;
+- conjuntos grandes possuem estratégia segura de processamento;
+- falhas não resultam em relatório incompleto marcado como sucesso.
+
+**Checklist técnico:**
+
+- [ ] definir contrato e snapshot dos dados;
+- [ ] implementar serviço de geração e status;
+- [ ] implementar visualização e filtros;
+- [ ] testar consistência, autorização, volume e falha;
+- [ ] documentar API, retenção e matriz RF.
+
+### S2-07 - Exportar relatórios em PDF
+
+**Requisito:** RF57.  
+**Descrição:** exportar o relatório de S2-06 como PDF paginado, legível e auditável.
+
+**Dependências:** S2-06; decisão de biblioteca e armazenamento.  
+**Entregáveis:** geração de PDF; download autorizado; cabeçalho/rodapé; tabelas e quebras de página; testes de renderização.
+
+**Critérios de aceite:**
+
+- PDF contém o mesmo recorte e dados do relatório de origem;
+- páginas possuem identificação do projeto, período, geração e numeração;
+- tabelas, gráficos e textos não ficam cortados ou ilegíveis;
+- caracteres em português são renderizados corretamente;
+- download exige acesso ao projeto e é auditado;
+- arquivo temporário/armazenado segue política de retenção e exclusão.
+
+**Checklist técnico:**
+
+- [ ] registrar decisão de biblioteca e estratégia de geração;
+- [ ] implementar template e paginação;
+- [ ] proteger geração, armazenamento e download;
+- [ ] criar testes de conteúdo e renderização;
+- [ ] atualizar operação, privacidade e matriz RF.
+
+### S2-08 - Definir arquitetura e provisionar ambiente Azure
+
+**Requisitos relacionados:** suporte operacional a todos os RFs; sem novo RF funcional.  
+**Descrição:** definir e provisionar infraestrutura Azure compatível com React/Vite, Node/Express, Prisma e MySQL, com ambientes e configurações reproduzíveis.
+
+**Dependências:** assinatura e permissões Azure; domínio e orçamento definidos; arquitetura atual.  
+**Entregáveis:** ADR; diagrama; infraestrutura como código; recursos de aplicação e banco; rede; DNS/TLS; inventário de variáveis.
+
+**Critérios de aceite:**
+
+- frontend, API e MySQL possuem serviços Azure definidos e justificados;
+- infraestrutura é reproduzível por IaC e separa homologação de produção;
+- banco não fica publicamente exposto sem necessidade;
+- HTTPS, CORS e origens são explícitos por ambiente;
+- segredos ficam em serviço seguro, nunca no repositório;
+- custos, escala, região, backup e limites são documentados.
+
+**Checklist técnico:**
+
+- [ ] criar ADR e diagrama de implantação;
+- [ ] escolher serviços Azure e estimar custos;
+- [ ] criar IaC e parâmetros por ambiente;
+- [ ] configurar rede, DNS, TLS, identidade e segredos;
+- [ ] provisionar homologação e validar conectividade.
+
+### S2-09 - Automatizar build, migrations e deploy na Azure
+
+**Requisitos relacionados:** suporte operacional a todos os RFs; sem novo RF funcional.  
+**Descrição:** criar entrega contínua com gates, artefatos imutáveis, migrations controladas e rollback verificável.
+
+**Dependências:** S2-08; CI existente verde; credenciais federadas ou identidade gerenciada.  
+**Entregáveis:** pipeline de deploy; configuração de runtime; migration job; smoke tests; rollback; runbook.
+
+**Critérios de aceite:**
+
+- deploy só ocorre após lint, testes, build e checks de segurança aprovados;
+- autenticação da automação evita segredo estático de longa duração quando suportado;
+- migrations usam comando de produção, são registradas e falham de forma segura;
+- frontend e API recebem apenas configurações do ambiente correto;
+- smoke test valida saúde, banco e fluxo crítico sem dados falsos de produção;
+- rollback de aplicação e recuperação de banco possuem procedimento testado.
+
+**Checklist técnico:**
+
+- [ ] criar pipeline de homologação e promoção;
+- [ ] configurar build e artefatos imutáveis;
+- [ ] automatizar migration com bloqueio e observabilidade;
+- [ ] implementar health/readiness e smoke tests;
+- [ ] executar e documentar ensaio de rollback.
+
+### S2-10 - Operacionalizar segurança, observabilidade e continuidade na Azure
+
+**Requisitos relacionados:** critérios transversais de segurança, LGPD e operação.  
+**Descrição:** concluir monitoramento, logs, alertas operacionais, backup/restore, retenção e resposta a incidentes do ambiente Azure.
+
+**Dependências:** S2-08 e S2-09; inventário de dados e eventos.  
+**Entregáveis:** dashboards e alertas; logs correlacionados; backup; teste de restore; políticas; runbooks; evidências de operação.
+
+**Critérios de aceite:**
+
+- aplicação expõe logs estruturados e métricas sem segredos ou dados pessoais desnecessários;
+- disponibilidade, erros, latência, banco e jobs possuem alertas acionáveis;
+- backups automáticos atendem RPO/RTO documentados;
+- restauração é ensaiada e evidenciada;
+- retenção, descarte e acessos seguem a política LGPD;
+- incidente, indisponibilidade, falha de deploy e comprometimento de segredo possuem runbook.
+
+**Checklist técnico:**
+
+- [ ] configurar telemetria, dashboards e alertas;
+- [ ] revisar redaction, retenção e controle de acesso;
+- [ ] configurar backup e executar restore de teste;
+- [ ] validar ASVS aplicável e dependências;
+- [ ] finalizar runbooks e checklist operacional.
+
+## 10. Marco de conclusão da Sprint 2
+
+A Sprint 2 termina quando os 18 RFs estão homologados, os relatórios e PDFs são reproduzíveis, os alertas e indicadores usam dados reais e o TraceFlow está implantado na Azure por pipeline controlada, com TLS, segredos seguros, migrations, monitoramento, backup restaurável e documentação operacional.
 
 ---
 
-# Entrega B — Planejamento e Colaboração
+## 11. Dependências entre cartões
 
-**Responsáveis:** João e Gabriel Trevisan (GT)  
-**Prioridade:** imediata e paralela à Entrega A  
-**RFs:** RF10, RF29, RF31, RF32, RF33, RF34 e RF35  
-**RF integrado já entregue:** RF51  
-**Dependências disponíveis:** RF24, RF25, RF26, RF07, RF08, RF38 e RF51
+```mermaid
+flowchart TD
+    A[S1-01 Sessão] --> B[S1-02 Senha]
+    A --> C[S1-03 Equipe e perfis]
+    C --> D[S1-04 Sprint e cronograma]
+    C --> E[S1-05 Comentários]
+    D --> F[S1-06 Esforço]
+    C --> G[S1-07 Casos de teste]
+    C --> H[S1-08 Defeitos]
+    G --> I[S1-09 Rastreabilidade ampliada]
+    H --> I
+    I --> J[S2-01 Alertas de rastreabilidade]
+    D --> K[S2-02 Notificações de tarefa]
+    K --> L[S2-03 Eventos GitHub]
+    F --> M[S2-04 Indicadores]
+    G --> N[S2-05 Painel]
+    H --> N
+    M --> N --> O[S2-06 Relatórios] --> P[S2-07 PDF]
+    Q[S2-08 Azure] --> R[S2-09 Deploy]
+    R --> S[S2-10 Operação]
+    P --> R
+```
 
-## 11. Objetivo
+## 12. Cobertura final do escopo remanescente
 
-Completar a camada de planejamento e colaboração, organizando cronograma, marcos, sprints, estimativas, esforço realizado e comentários no mesmo fluxo de tarefas e artefatos técnicos.
-
-## 12. Estado atual
-
-| RF | Situação atual | Próxima ação |
+| Domínio | RFs | Sprint |
 |---|---|---|
-| RF10 — Cronograma | Prazo existe em tarefas, mas não há cronograma completo ou marcos | IMPLEMENTAR |
-| RF29 — Comentários | Módulo funcional completo não existe | IMPLEMENTAR |
-| RF31 — Histórico de comentários | Depende do RF29 | IMPLEMENTAR |
-| RF32 — Prioridade visual | Prioridades e estilos existem como base | HOMOLOGAR E COMPLETAR |
-| RF33 — Estimativa | Campos existem e usam horas como base | HOMOLOGAR E COMPLETAR |
-| RF34 — Estimado × realizado | Valores existem, mas falta comparação consolidada | IMPLEMENTAR |
-| RF35 — Evolução por sprint | Não existe entidade e fluxo completo de sprint | IMPLEMENTAR |
-| RF51 — Responsável | Usuário ativo já pode ser associado | PRESERVAR E INTEGRAR |
-
----
-
-## 13. Divisão entre João e GT
-
-## 13.1 João — Cronograma, sprints e evolução
-
-**RFs:** RF10 e RF35, além da infraestrutura de sprint.
-
-### Entregáveis
-
-#### Modelo e gestão de Sprint
-
-- criar entidade `Sprint`;
-- relacionar sprint ao projeto;
-- relacionar tarefas à sprint;
-- definir nome, objetivo, início, fim e status;
-- impedir vínculos entre projetos diferentes;
-- criar migration nova;
-- CRUD de sprint;
-- iniciar, encerrar e consultar sprints;
-- associar e remover tarefas;
-- filtrar tarefas por sprint;
-- validar permissões.
-
-#### Cronograma e marcos — RF10
-
-- registrar período do projeto;
-- cadastrar e editar marcos;
-- relacionar marcos a datas;
-- apresentar tarefas, sprints, prazos e marcos;
-- calcular tarefas concluídas no prazo;
-- distinguir sem prazo, atrasada, em dia e concluída;
-- preservar histórico relevante.
-
-#### Evolução por sprint — RF35
-
-- calcular tarefas planejadas e concluídas;
-- apresentar percentual;
-- definir instante de corte;
-- documentar escopo inicial ou final;
-- indicar tarefas adicionadas e removidas;
-- consultar sprints encerradas;
-- testar fórmulas e filtros.
-
-#### Interface
-
-- seção de sprints;
-- visão de cronograma;
-- formulário;
-- seleção de sprint nas tarefas;
-- resumo da evolução;
-- loading, vazio, erro e acesso negado;
-- responsividade e acessibilidade.
-
-### Critérios de João
-
-- RF10 e RF35 completos;
-- sprint persistida e protegida por projeto;
-- cronograma reproduzível;
-- percentuais testados e documentados;
-- regras no backend;
-- migrations, testes, documentação e CI aprovados.
-
----
-
-## 13.2 Gabriel Trevisan (GT) — Esforço, prioridade e colaboração
-
-**RFs:** RF29, RF31, RF32, RF33 e RF34, com integração ao RF51.
-
-### Entregáveis
-
-#### Comentários — RF29
-
-- criar entidade de comentário;
-- relacionar a tarefa, projeto e autor;
-- registrar conteúdo e datas;
-- adicionar comentário;
-- definir regra de edição;
-- decidir exclusão lógica ou ausência de exclusão;
-- impedir comentário vazio;
-- autor obtido da sessão;
-- autorização e isolamento entre projetos.
-
-#### Histórico — RF31
-
-- listar em ordem definida;
-- paginação;
-- autor, data e hora;
-- indicação de edição;
-- preservação do histórico;
-- consulta na tela da tarefa;
-- testes de ordenação, paginação e autorização.
-
-#### Prioridade visual — RF32
-
-- revisar `BAIXA`, `MEDIA`, `ALTA` e `CRITICA`;
-- manter cor consistente em lista, detalhes e Kanban;
-- não depender somente de cor;
-- adicionar texto, badge ou ícone;
-- validar contraste;
-- garantir prioridade válida em todas as tarefas;
-- testar criação, edição e exibição.
-
-#### Estimativa — RF33
-
-- definir unidade oficial: horas, pontos ou configuração;
-- evitar mistura de unidades;
-- revisar campo existente;
-- validar valores;
-- exibir unidade;
-- permitir criação e edição;
-- calcular cobertura de estimativas;
-- integrar com sprint e cronograma.
-
-#### Comparação de esforço — RF34
-
-- usar estimativa e realizado;
-- implementar fórmula documentada;
-- tratar estimativa igual a zero;
-- exibir diferença absoluta e percentual;
-- consultar por tarefa;
-- resumir por sprint após integração;
-- distinguir ausência de estimativa de valor zero;
-- testar casos extremos.
-
-#### Integração com RF51
-
-RF51 não deve ser recriado.
-
-- preservar `responsibleUserId`;
-- consumir membros ativos;
-- mostrar responsável junto a comentários e esforço;
-- diferenciar autor do comentário e responsável da tarefa;
-- verificar permissão para editar planejamento;
-- adicionar regressão.
-
-### Critérios de GT
-
-- RF29, RF31, RF32, RF33 e RF34 completos;
-- comentários com autoria real;
-- histórico paginado;
-- prioridade acessível;
-- unidade de esforço documentada;
-- comparação reproduzível;
-- integração com sprint;
-- testes, documentação e CI aprovados.
-
----
-
-## 14. Contratos de integração João × GT
-
-### João será proprietário de
-
-- entidade e migration de `Sprint`;
-- associação Task–Sprint;
-- cronograma e marcos;
-- endpoints e telas de sprint;
-- fórmula de evolução por sprint.
-
-### GT será proprietário de
-
-- entidade e migration de comentários;
-- API e interface de comentários;
-- prioridade visual;
-- estimativa e realizado;
-- comparação de esforço.
-
-### Pontos compartilhados
-
-- `backend/prisma/schema.prisma`;
-- migrations;
-- payload de `Task`;
-- formulário e detalhes da tarefa;
-- rotas do projeto;
-- documentação da API;
-- matriz técnica.
-
-### Regras
-
-- migrations separadas e sequenciais;
-- não editar migration aplicada;
-- PRs separados;
-- atualizar com a `main` antes do merge;
-- não duplicar services ou componentes;
-- combinar previamente mudanças no payload;
-- João entrega o contrato mínimo de sprint antes da integração por sprint;
-- GT pode concluir comentários e prioridade de forma independente;
-- o merge final exige testes integrados.
-
----
-
-## 15. Critérios de conclusão da Entrega B
-
-- RF10, RF29, RF31, RF32, RF33, RF34 e RF35 homologados;
-- RF51 sem regressão;
-- cronograma, sprints, esforço, prioridade e comentários de ponta a ponta;
-- autorização por projeto;
-- datas, marcos e percentuais reproduzíveis;
-- comentários com autoria e histórico;
-- unidade de esforço definida;
-- fórmulas sem divisão inválida;
-- testes backend, frontend e integração aprovados;
-- documentação e matriz atualizadas;
-- CI verde.
-
----
-
-# PARTE III — ORDEM IMEDIATA
-
-## 16. Sequência recomendada
-
-### Daniel
-
-1. auditar lacunas de RF23–RF28 e UC01–UC07;
-2. finalizar política de sessão;
-3. concluir recuperação com e-mail real;
-4. finalizar gestão de conta;
-5. homologar convites, equipe e perfis;
-6. adicionar E2E;
-7. atualizar documentação e matriz.
-
-### João
-
-1. definir contrato de Sprint;
-2. criar migration e CRUD;
-3. relacionar tarefas;
-4. implementar cronograma e marcos;
-5. implementar evolução;
-6. concluir interface, testes e documentação.
-
-### GT
-
-1. definir contrato de comentário;
-2. criar migration e API;
-3. implementar histórico e interface;
-4. homologar prioridade;
-5. definir unidade de esforço;
-6. implementar comparação;
-7. integrar com Sprint e RF51;
-8. concluir testes e documentação.
-
-## 17. Dependências
-
-| Item | Pode começar? | Dependência |
-|---|---:|---|
-| Login | Sim | Base atual |
-| Comentários | Sim | Sessão e membership |
-| Prioridade | Sim | Task existente |
-| Estimativa | Sim | Campos atuais |
-| Sprint | Sim | Project e Task |
-| Cronograma | Sim | Contrato de Sprint e marcos |
-| Comparação por tarefa | Sim | Campos de esforço |
-| Comparação por sprint | Parcial | Sprint de João |
-| Evolução por sprint | Depois do contrato | Modelo e regras |
-| E2E integrado | Ao final | Duas entregas estáveis |
-
----
-
-# PARTE IV — ETAPAS FUTURAS
-
-## 18. Qualidade e rastreabilidade ampliada
-
-**RFs:** RF42–RF46 e RF62–RF64.
-
-### Escopo
-
-- casos de teste;
-- defeitos;
-- vínculos com tarefas e requisitos;
-- defeito relacionado ao teste que o identificou;
-- consulta ampliada;
-- matriz e fluxo visual atualizados.
-
-### Saída
-
-Cadeia entre necessidade, trabalho, implementação, validação e defeito.
-
-## 19. Alertas e notificações
-
-**RFs:** RF13, RF30, RF39, RF40 e RF58–RF61.
-
-### Escopo
-
-- tarefa concluída sem commit;
-- PR mesclada sem tarefa;
-- issue fechada sem tarefa;
-- tarefas sem vínculo;
-- vencimento;
-- mudança de status;
-- eventos de issue e PR;
-- leitura, destinatário, contexto e deduplicação.
-
-### Saída
-
-Detecção proativa e comunicação rastreável.
-
-## 20. Indicadores e painel
-
-**RFs:** RF15–RF18, RF34–RF36 e RF54–RF56.
-
-### Escopo
-
-- progresso;
-- produtividade por commits e tarefas;
-- retrabalho em PRs;
-- esforço e evolução por sprint;
-- produtividade por responsável;
-- qualidade;
-- painel consolidado;
-- filtros por período.
-
-### Saída
-
-Métricas explicáveis ligadas às evidências.
-
-## 21. Relatórios e exportação
-
-**RFs:** RF37 e RF57.
-
-### Escopo
-
-- planejamento;
-- rastreabilidade;
-- indicadores;
-- filtros;
-- data e responsável;
-- PDF paginado.
-
-### Saída
-
-Relatórios reproduzíveis e auditáveis.
-
-## 22. Consolidação e validação
-
-### Escopo
-
-- ambiente web;
-- projeto de exemplo;
-- integração GitHub;
-- roteiro de teste;
-- E2E;
-- backup e restore;
-- observabilidade;
-- ASVS e LGPD;
-- matriz final de RFs;
-- instrumentos de validação.
-
-### Saída
-
-Versão pronta para homologação e validação do TCC.
-
-## 23. Face lift opcional
-
-- identidade visual;
-- paleta e tipografia;
-- componentes;
-- responsividade;
-- acessibilidade;
-- sem alterar regras de negócio;
-- não bloqueia entregas funcionais.
-
----
-
-# PARTE V — COBERTURA DOS REQUISITOS
-
-## 24. Estado por domínio
-
-| Domínio | RFs | Situação |
-|---|---|---|
-| Projetos e GitHub | RF01–RF06, RF21, RF22, RF50 | ENTREGUE |
-| Tarefas e Kanban | RF07, RF08, RF38, RF51 | ENTREGUE |
-| Rastreabilidade | RF09, RF11, RF12, RF41, RF48, RF49, RF52, RF53 | ENTREGUE |
-| Identidade e acesso | RF23–RF28 | BASE IMPLEMENTADA; FINALIZAÇÃO COM DANIEL |
-| Cronograma e sprint | RF10, RF35 | PRÓXIMA ENTREGA — JOÃO |
-| Esforço e prioridade | RF32–RF34 | PRÓXIMA ENTREGA — GT |
-| Comentários | RF29, RF31 | PRÓXIMA ENTREGA — GT |
-| Casos de teste e defeitos | RF42–RF46, RF62–RF64 | FUTURO |
-| Alertas e notificações | RF13, RF30, RF39, RF40, RF58–RF61 | FUTURO |
-| Indicadores | RF15–RF18, RF36, RF54–RF56 | FUTURO |
-| Relatórios | RF37, RF57 | FUTURO |
-
-## 25. Regra de conclusão
-
-Uma entrega só muda para `CONCLUÍDA` quando:
-
-1. RFs funcionam de ponta a ponta;
-2. backend, banco e frontend usam o mesmo contrato;
-3. autorização está no backend;
-4. não há mocks em produção;
-5. migrations estão versionadas;
-6. testes passam;
-7. CI está verde;
-8. documentação e matriz foram atualizadas;
-9. critérios do TCC foram verificados;
-10. não há regressão conhecida.
-
-## 26. Regra de merge
-
-- partir da `main` atualizada;
-- desenvolver fora da `main`;
-- abrir pull request;
-- passar checks;
-- receber revisão;
-- atualizar a branch antes do merge;
-- não enfraquecer segurança ou testes;
-- incluir documentação e testes no incremento.
-
-## 27. Próximo marco
-
-O próximo marco será atingido quando:
-
-- **Daniel finalizar Login, Identidade e Acesso**;
-- **João e GT concluírem Planejamento e Colaboração**.
-
-Nesse ponto, o TraceFlow terá usuários, equipe, projetos, GitHub, tarefas, Kanban, requisitos, rastreabilidade, cronograma, sprints, estimativas, esforço, comentários, histórico e responsáveis — base suficiente para qualidade, alertas e indicadores.
+| Identidade e acesso | RF23-RF28 | Sprint 1 |
+| Planejamento e colaboração | RF10, RF29, RF31-RF35 | Sprint 1 |
+| Qualidade e rastreabilidade ampliada | RF42-RF46, RF62-RF64 | Sprint 1 |
+| Alertas e notificações | RF13, RF30, RF39, RF40, RF58-RF61 | Sprint 2 |
+| Indicadores e painel | RF15-RF18, RF36, RF54-RF56 | Sprint 2 |
+| Relatórios e PDF | RF37, RF57 | Sprint 2 |
+| Implementação em Azure | Infraestrutura, deploy e operação | Sprint 2 |
+
+Total: **39 RFs remanescentes**, todos atribuídos a uma das duas sprints, sem inventar números ausentes e sem criar frentes adicionais.
