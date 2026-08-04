@@ -9,7 +9,7 @@
 O desenvolvimento será organizado em **três sprints**. As Sprints 1 e 2 dividem aproximadamente 50% do escopo de implementação em cada uma; a Sprint 3 ocorre depois delas e é dedicada à validação e ao aperfeiçoamento da ferramenta:
 
 - **Sprint 1:** Finalização de Login, Identidade e Acesso; Planejamento e Colaboração; Qualidade e Rastreabilidade Ampliada.
-- **Sprint 2:** Alertas e Notificações; Indicadores e Painel Consolidado; Relatórios e PDF; Implementação em servidor Azure.
+- **Sprint 2:** Alertas e Notificações; Indicadores e Painel Consolidado; Relatórios e PDF; Implantação em ambiente de nuvem na Oracle Cloud Infrastructure (OCI).
 - **Sprint 3:** Validação e aperfeiçoamento da ferramenta, em duas etapas sequenciais: aplicação do Capítulo 4 e correção dos pontos identificados.
 
 A base funcional e a refatoração E0-E15 já concluídas são pré-condições. Segurança, privacidade, testes, documentação e rastreabilidade integram os critérios de conclusão dos próprios cartões. A validação com participantes é executada somente na Sprint 3, após a ferramenta estar implementada e disponível em homologação.
@@ -27,16 +27,16 @@ A base funcional e a refatoração E0-E15 já concluídas são pré-condições.
 | Sprint | Frentes | RFs de entrega | Peso complementar |
 |---|---|---:|---|
 | Sprint 1 | Identidade e acesso; planejamento e colaboração; qualidade e rastreabilidade | 21 | Novos modelos de sprint, comentários, casos de teste e defeitos |
-| Sprint 2 | Alertas; indicadores; painel; relatórios; PDF; Azure | 18 | Infraestrutura, deploy, banco, segredos, observabilidade, backup e operação |
+| Sprint 2 | Alertas; indicadores; painel; relatórios; PDF; OCI | 18 | Infraestrutura, deploy, banco, segredos, observabilidade, backup e operação |
 | Sprint 3 | Validação e aperfeiçoamento | Sem novo RF funcional | Participantes, roteiro, questionário TAM, evidências, correções e verificação |
 
-O equilíbrio de implementação é aproximado: a Sprint 1 concentra três domínios funcionais e a Sprint 2 combina três domínios funcionais com a implantação completa em Azure. A Sprint 3 não redistribui RFs; ela valida o produto integrado e transforma os achados em correções verificadas.
+O equilíbrio de implementação é aproximado: a Sprint 1 concentra três domínios funcionais e a Sprint 2 combina três domínios funcionais com a implantação planejada na Oracle Cloud Infrastructure (OCI). A Sprint 3 não redistribui RFs; ela valida o produto integrado e transforma os achados em correções verificadas.
 
 ```mermaid
 flowchart LR
     BASE["Base entregue: MVP + E0-E15"]
     S1["Sprint 1: identidade, planejamento, colaboração, qualidade e rastreabilidade"]
-    S2["Sprint 2: alertas, indicadores, relatórios, PDF e Azure"]
+    S2["Sprint 2: alertas, indicadores, relatórios, PDF e OCI"]
     S3["Sprint 3: validação e aperfeiçoamento"]
     BASE --> S1 --> S2 --> S3
 ```
@@ -299,7 +299,7 @@ A Sprint 1 termina quando os 21 RFs estão homologados, as migrações aplicam e
 
 ## 8. Objetivo da Sprint 2
 
-Transformar os dados rastreáveis em comunicação proativa, indicadores explicáveis e relatórios auditáveis, disponibilizando o TraceFlow em infraestrutura Azure segura e operável.
+Transformar os dados rastreáveis em comunicação proativa, indicadores explicáveis e relatórios auditáveis, disponibilizando o TraceFlow em infraestrutura segura e operável na Oracle Cloud Infrastructure (OCI).
 
 **RFs:** RF13, RF15-RF18, RF30, RF36, RF37, RF39, RF40, RF54-RF61.
 
@@ -352,7 +352,7 @@ Transformar os dados rastreáveis em comunicação proativa, indicadores explic�
 - [ ] definir contrato de evento e preferências;
 - [ ] criar migration, job seguro e índices;
 - [ ] implementar API e interface;
-- [ ] configurar scheduler compatível com Azure;
+- [ ] configurar scheduler compatível com o ambiente OCI planejado;
 - [ ] testar prazos, fusos, deduplicação e autorização.
 
 ### S2-03 - Notificar eventos de issues e pull requests
@@ -480,70 +480,76 @@ Transformar os dados rastreáveis em comunicação proativa, indicadores explic�
 - [ ] criar testes de conteúdo e renderização;
 - [ ] atualizar operação, privacidade e matriz RF.
 
-### S2-08 - Definir arquitetura e provisionar ambiente Azure
+### S2-08 - Definir arquitetura e provisionar ambiente na OCI
 
 **Requisitos relacionados:** suporte operacional a todos os RFs; sem novo RF funcional.  
-**Descrição:** definir e provisionar infraestrutura Azure compatível com React/Vite, Node/Express, Prisma e MySQL, com ambientes e configurações reproduzíveis.
+**Descrição:** definir e provisionar infraestrutura na Oracle Cloud Infrastructure (OCI), preferencialmente elegível ao Oracle Cloud Free Tier / Always Free, compatível com React/Vite, Node/Express, Prisma e MySQL. A arquitetura de referência planeja uma VM de aplicação com Nginx, frontend React e backend Node.js e uma VM de dados com MySQL, conectadas por rede privada; a ADR deve confirmar a topologia final conforme capacidade, custos e disponibilidade.
 
-**Dependências:** assinatura e permissões Azure; domínio e orçamento definidos; arquitetura atual.  
-**Entregáveis:** ADR; diagrama; infraestrutura como código; recursos de aplicação e banco; rede; DNS/TLS; inventário de variáveis.
+**Dependências:** conta e permissões OCI; disponibilidade e limites do Free Tier / Always Free na região escolhida; domínio e orçamento definidos; arquitetura atual.  
+**Entregáveis:** ADR; diagrama; infraestrutura como código; recursos de computação e armazenamento; rede privada; DNS/TLS; regras de firewall; inventário de variáveis e URLs da GitHub App.
 
 **Critérios de aceite:**
 
-- frontend, API e MySQL possuem serviços Azure definidos e justificados;
+- serviços OCI para aplicação e MySQL são definidos e justificados, incluindo a elegibilidade pretendida ao Free Tier / Always Free;
+- a topologia final é registrada em ADR; quando adotadas duas VMs, a VM de aplicação executa Nginx, React e Node.js, e a VM de dados executa MySQL;
 - infraestrutura é reproduzível por IaC e separa homologação de produção;
-- banco não fica publicamente exposto sem necessidade;
-- HTTPS, CORS e origens são explícitos por ambiente;
-- segredos ficam em serviço seguro, nunca no repositório;
-- custos, escala, região, backup e limites são documentados.
+- MySQL aceita conexões pela rede privada e não fica publicamente exposto sem necessidade;
+- HTTPS, CORS, origens, variáveis de ambiente e regras de firewall são explícitos por ambiente;
+- URLs, callbacks e webhooks da GitHub App são atualizados para o domínio de implantação;
+- segredos ficam em mecanismo seguro, nunca no repositório;
+- custos, escala, região, armazenamento, backup e limites da OCI são documentados.
 
 **Checklist técnico:**
 
-- [ ] criar ADR e diagrama de implantação;
-- [ ] escolher serviços Azure e estimar custos;
+- [ ] criar ADR e diagrama da implantação planejada;
+- [ ] validar elegibilidade e capacidade do Free Tier / Always Free e estimar custos excedentes;
 - [ ] criar IaC e parâmetros por ambiente;
-- [ ] configurar rede, DNS, TLS, identidade e segredos;
-- [ ] provisionar homologação e validar conectividade.
+- [ ] configurar VCN, sub-redes, rede privada, firewall, DNS, TLS, identidade e segredos;
+- [ ] configurar inventário de variáveis, URLs, callbacks e webhooks da GitHub App;
+- [ ] provisionar homologação e validar conectividade entre aplicação e MySQL.
 
-### S2-09 - Automatizar build, migrations e deploy na Azure
+### S2-09 - Automatizar build, migrations e deploy na OCI
 
 **Requisitos relacionados:** suporte operacional a todos os RFs; sem novo RF funcional.  
-**Descrição:** criar entrega contínua com gates, artefatos imutáveis, migrations controladas e rollback verificável.
+**Descrição:** criar entrega contínua para o ambiente OCI com gates, artefatos imutáveis, migrations controladas e rollback verificável.
 
-**Dependências:** S2-08; CI existente verde; credenciais federadas ou identidade gerenciada.  
-**Entregáveis:** pipeline de deploy; configuração de runtime; migration job; smoke tests; rollback; runbook.
+**Dependências:** S2-08; CI existente verde; acesso seguro às instâncias e credenciais OCI de menor privilégio.  
+**Entregáveis:** pipeline de deploy; configuração de Nginx e runtime Node.js; publicação do frontend; migration job do MySQL; smoke tests; rollback; runbook.
 
 **Critérios de aceite:**
 
 - deploy só ocorre após lint, testes, build e checks de segurança aprovados;
 - autenticação da automação evita segredo estático de longa duração quando suportado;
 - migrations usam comando de produção, são registradas e falham de forma segura;
-- frontend e API recebem apenas configurações do ambiente correto;
-- smoke test valida saúde, banco e fluxo crítico sem dados falsos de produção;
+- frontend e API recebem apenas variáveis e URLs do ambiente correto;
+- Nginx publica o frontend por HTTPS e encaminha as requisições da API para o backend Node.js;
+- smoke test valida saúde, conexão privada com o MySQL e fluxo crítico sem dados falsos de produção;
 - rollback de aplicação e recuperação de banco possuem procedimento testado.
 
 **Checklist técnico:**
 
 - [ ] criar pipeline de homologação e promoção;
-- [ ] configurar build e artefatos imutáveis;
+- [ ] configurar build, artefatos imutáveis, Nginx e runtime Node.js;
 - [ ] automatizar migration com bloqueio e observabilidade;
+- [ ] atualizar e validar URLs, callbacks e webhooks da GitHub App;
 - [ ] implementar health/readiness e smoke tests;
 - [ ] executar e documentar ensaio de rollback.
 
-### S2-10 - Operacionalizar segurança, observabilidade e continuidade na Azure
+### S2-10 - Operacionalizar segurança, observabilidade e continuidade na OCI
 
 **Requisitos relacionados:** critérios transversais de segurança, LGPD e operação.  
-**Descrição:** concluir monitoramento, logs, alertas operacionais, backup/restore, retenção e resposta a incidentes do ambiente Azure.
+**Descrição:** concluir monitoramento, logs, alertas operacionais, firewall, backup/restore, retenção e resposta a incidentes do ambiente OCI.
 
 **Dependências:** S2-08 e S2-09; inventário de dados e eventos.  
-**Entregáveis:** dashboards e alertas; logs correlacionados; backup; teste de restore; políticas; runbooks; evidências de operação.
+**Entregáveis:** dashboards e alertas; logs correlacionados; regras de firewall; backup do MySQL e volumes; teste de restore; políticas; runbooks; evidências de operação.
 
 **Critérios de aceite:**
 
 - aplicação expõe logs estruturados e métricas sem segredos ou dados pessoais desnecessários;
 - disponibilidade, erros, latência, banco e jobs possuem alertas acionáveis;
+- regras de firewall seguem menor privilégio e a VM de dados aceita MySQL somente pela rede privada necessária;
 - backups automáticos atendem RPO/RTO documentados;
-- restauração é ensaiada e evidenciada;
+- restauração do MySQL e dos dados persistentes é ensaiada e evidenciada;
 - retenção, descarte e acessos seguem a política LGPD;
 - incidente, indisponibilidade, falha de deploy e comprometimento de segredo possuem runbook.
 
@@ -551,13 +557,14 @@ Transformar os dados rastreáveis em comunicação proativa, indicadores explic�
 
 - [ ] configurar telemetria, dashboards e alertas;
 - [ ] revisar redaction, retenção e controle de acesso;
-- [ ] configurar backup e executar restore de teste;
+- [ ] revisar firewall e exposição pública das instâncias;
+- [ ] configurar backups e executar restore de teste;
 - [ ] validar ASVS aplicável e dependências;
 - [ ] finalizar runbooks e checklist operacional.
 
 ## 10. Marco de conclusão da Sprint 2
 
-A Sprint 2 termina quando os 18 RFs estão homologados, os relatórios e PDFs são reproduzíveis, os alertas e indicadores usam dados reais e o TraceFlow está implantado na Azure por pipeline controlada, com TLS, segredos seguros, migrations, monitoramento, backup restaurável e documentação operacional.
+A Sprint 2 termina quando os 18 RFs estão homologados, os relatórios e PDFs são reproduzíveis, os alertas e indicadores usam dados reais e o TraceFlow está implantado na Oracle Cloud Infrastructure (OCI) por pipeline controlada, com TLS, segredos seguros, migrations, rede privada para o MySQL, monitoramento, backup restaurável e documentação operacional.
 
 ---
 
@@ -607,7 +614,7 @@ Nenhuma correção começa antes do registro dos pontos identificados. Nenhum po
 **Referências:** Capítulo 4, seções 4.1 a 4.3; Apêndice B.  
 **Descrição:** preparar e executar a validação remota com participantes das personas-alvo, usando o mesmo ambiente, roteiro e instrumentos para todos.
 
-**Dependências:** Sprints 1 e 2 concluídas; ambiente Azure de homologação; GitHub funcional; projeto de exemplo; instrumentos aprovados.  
+**Dependências:** Sprints 1 e 2 concluídas; ambiente OCI de homologação; GitHub funcional; projeto de exemplo; instrumentos aprovados.  
 **Entregáveis:** plano e agenda; lista codificada de participantes; ambiente e dados; tutorial; roteiro; questionário TAM; registros de execução; respostas brutas protegidas.
 
 **Atividades obrigatórias do roteiro:**
@@ -765,7 +772,7 @@ flowchart TD
     G --> N[S2-05 Painel]
     H --> N
     M --> N --> O[S2-06 Relatórios] --> P[S2-07 PDF]
-    Q[S2-08 Azure] --> R[S2-09 Deploy]
+    Q[S2-08 OCI] --> R[S2-09 Deploy]
     R --> S[S2-10 Operação]
     P --> R
     S --> V[S3-01 Aplicar validação]
@@ -786,7 +793,7 @@ flowchart TD
 | Alertas e notificações | RF13, RF30, RF39, RF40, RF58-RF61 | Sprint 2 |
 | Indicadores e painel | RF15-RF18, RF36, RF54-RF56 | Sprint 2 |
 | Relatórios e PDF | RF37, RF57 | Sprint 2 |
-| Implementação em Azure | Infraestrutura, deploy e operação | Sprint 2 |
+| Implantação na Oracle Cloud Infrastructure (OCI) | Infraestrutura, deploy e operação | Sprint 2 |
 | Validação e aperfeiçoamento | Capítulo 4 e Apêndice B; sem novo RF funcional | Sprint 3 |
 
 Total: **39 RFs remanescentes** distribuídos entre as Sprints 1 e 2. A Sprint 3 valida o produto integrado e executa as correções derivadas das evidências, sem inventar novos RFs.
