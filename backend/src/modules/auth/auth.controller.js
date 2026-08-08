@@ -3,15 +3,18 @@ import { asyncHandler } from '../../shared/http/index.js';
 import { authService } from './auth.service.js';
 import { auditService } from '../audit/audit.service.js';
 
-const cookieOptions = (maxAge = env.sessionTtlMs) => ({
+export const sessionCookieOptions = (maxAge = env.sessionTtlMs) => ({
   httpOnly: true,
   secure: env.isProduction,
   sameSite: env.sessionCookieSameSite,
   path: '/',
   maxAge
 });
-function establishSession(res, result) {
-  res.cookie(env.sessionCookieName, result.token, cookieOptions(result.ttlMs));
+export function setSessionCookie(res, result) {
+  res.cookie(env.sessionCookieName, result.token, sessionCookieOptions(result.ttlMs));
+}
+export function establishSession(res, result) {
+  setSessionCookie(res, result);
   return res.status(200).json({ user: result.user, csrfToken: result.csrfToken });
 }
 
@@ -25,7 +28,7 @@ export const authController = {
       resourceType: 'User',
       resourceId: result.user.id
     });
-    res.cookie(env.sessionCookieName, result.token, cookieOptions(result.ttlMs));
+    setSessionCookie(res, result);
     const deliveryFailed = !['accepted', 'already_verified'].includes(
       result.emailVerification.status
     );
@@ -73,7 +76,7 @@ export const authController = {
       resourceType: 'Session',
       resourceId: req.auth.session.id
     });
-    res.clearCookie(env.sessionCookieName, { ...cookieOptions(), maxAge: undefined });
+    res.clearCookie(env.sessionCookieName, { ...sessionCookieOptions(), maxAge: undefined });
     return res.status(204).end();
   }),
   forgotPassword: asyncHandler(async (req, res) => {
@@ -106,7 +109,7 @@ export const authController = {
       resourceType: 'User',
       resourceId: req.auth.user.id
     });
-    res.clearCookie(env.sessionCookieName, { ...cookieOptions(), maxAge: undefined });
+    res.clearCookie(env.sessionCookieName, { ...sessionCookieOptions(), maxAge: undefined });
     return res.json({ message: 'Senha alterada com sucesso. Entre novamente.' });
   }),
   resendEmailVerification: asyncHandler(async (req, res) => {

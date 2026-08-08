@@ -15,6 +15,7 @@ const githubAppSource = {
   GITHUB_APP_PRIVATE_KEY_BASE64: 'Y2hhdmUtYXJ0aWZpY2lhbA==',
   GITHUB_APP_WEBHOOK_SECRET: 'webhook-artificial',
   GITHUB_APP_CALLBACK_URL: 'https://api.traceflow.example/api/github-app/callback',
+  GITHUB_LOGIN_CALLBACK_URL: 'https://api.traceflow.example/api/auth/github/callback',
   GITHUB_APP_FRONTEND_SUCCESS_URL: 'https://traceflow.example/projects?github=connected',
   GITHUB_APP_FRONTEND_ERROR_URL: 'https://traceflow.example/projects?github=error'
 };
@@ -132,6 +133,22 @@ describe('configuração centralizada', () => {
         ...productionInfrastructure
       })
     ).toMatchObject({ isProduction: true, githubAppConfigured: true });
+  });
+
+  it('separa o callback de login e exige HTTPS em produção', () => {
+    const configured = createEnvironment({ ...validSource, ...githubAppSource });
+    expect(configured.githubLoginCallbackUrl).toBe(
+      'https://api.traceflow.example/api/auth/github/callback'
+    );
+    expect(() =>
+      createEnvironment({
+        ...validSource,
+        NODE_ENV: 'production',
+        ...productionInfrastructure,
+        ...githubAppSource,
+        GITHUB_LOGIN_CALLBACK_URL: 'http://api.traceflow.example/api/auth/github/callback'
+      })
+    ).toThrowError(/HTTPS/);
   });
 
   it('valida o provedor de e-mail sem revelar credenciais', () => {

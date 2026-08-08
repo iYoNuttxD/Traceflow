@@ -20,6 +20,9 @@ export const settingsApi = {
   async changePassword(data) {
     return (await httpClient.post('/settings/security/password', data)).data;
   },
+  async initializePassword(data) {
+    return (await httpClient.post('/settings/security/password/initialize', data)).data;
+  },
   async sessions(options = {}) {
     return (await httpClient.get('/settings/security/sessions', options)).data.sessions;
   },
@@ -61,6 +64,19 @@ export const settingsApi = {
   },
   async github(options = {}) {
     return (await httpClient.get('/settings/integrations/github', options)).data.integrations;
+  },
+  async githubIdentity(options = {}) {
+    return (await httpClient.get('/settings/integrations/github-identity', options)).data.identity;
+  },
+  async startGithubIdentityLink(password) {
+    return (
+      await httpClient.post('/settings/integrations/github-identity/link/start', { password })
+    ).data;
+  },
+  unlinkGithubIdentity(currentPassword) {
+    return httpClient.delete('/settings/integrations/github-identity', {
+      data: { currentPassword, confirmation: true }
+    });
   },
   startGithubInstallation() {
     return httpClient.post('/github/app/installations/start', {

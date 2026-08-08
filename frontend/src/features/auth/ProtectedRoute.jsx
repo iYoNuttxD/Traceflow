@@ -1,6 +1,7 @@
 import { Navigate, useLocation } from 'react-router';
 import { useAuth } from './AuthContext.jsx';
 import { LoadingState } from '../../shared/index.js';
+import { locationReturnTo } from './return-to.js';
 export function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
   const location = useLocation();
@@ -10,7 +11,7 @@ export function ProtectedRoute({ children }) {
         <LoadingState message="Carregando sessão..." />
       </main>
     );
-  if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  if (!user) return <Navigate to="/login" replace state={{ from: locationReturnTo(location) }} />;
   const status = user.accountStatus || (user.isActive === false ? 'DEACTIVATED' : 'ACTIVE');
   const restrictedPaths =
     status === 'DELETION_PENDING'

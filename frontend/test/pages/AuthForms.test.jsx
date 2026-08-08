@@ -57,7 +57,7 @@ describe('formulários de identidade acessíveis', () => {
     expect(screen.getByRole('button', { name: 'Criar conta' })).toBeEnabled();
   });
 
-  it('oferece sessão persistente, visualização de senha e GitHub futuro sem OAuth', async () => {
+  it('oferece sessão persistente, visualização de senha e login GitHub funcional', async () => {
     const user = userEvent.setup();
     render(
       <MemoryRouter>
@@ -69,6 +69,6 @@ describe('formulários de identidade acessíveis', () => {
     expect(password).toHaveAttribute('type', 'password');
     await user.click(screen.getByRole('button', { name: 'Mostrar senha' }));
     expect(password).toHaveAttribute('type', 'text');
-    expect(screen.getByRole('button', { name: 'Entrar com GitHub — Em breve' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Entrar com GitHub' })).toBeEnabled();
   });
 });

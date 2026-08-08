@@ -126,7 +126,7 @@ beforeEach(async () => {
   githubBoundary.assertRepositoryAvailable.mockResolvedValue(null);
 });
 
-afterEach(() => cleanTestDatabase(prisma));
+afterEach(async () => cleanTestDatabase(prisma));
 afterAll(async () => {
   await cleanTestDatabase(prisma);
   await prisma.$disconnect();

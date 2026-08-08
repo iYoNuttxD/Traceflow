@@ -36,7 +36,10 @@ async function soleOwnerProjects(tx, userId) {
 
 export const settingsRepository = {
   account(userId) {
-    return prisma.user.findUnique({ where: { id: userId }, select: accountSelect });
+    return prisma.user.findUnique({
+      where: { id: userId },
+      select: { ...accountSelect, passwordHash: true }
+    });
   },
   findUserByEmail(email) {
     return prisma.user.findUnique({ where: { email }, select: { id: true } });
@@ -194,6 +197,75 @@ export const settingsRepository = {
       await auditRepository.create(auditData, tx);
       return user;
     });
+  },
+  async initializePassword(
+    userId,
+    currentSessionId,
+    passwordHash,
+    reauthenticatedAfter,
+    now,
+    auditData
+  ) {
+    return prisma.$transaction(
+      async (tx) => {
+        const user = await tx.user.findUnique({
+          where: { id: userId },
+          include: { githubIdentity: true }
+        });
+        if (!user) return { status: 'missing' };
+        if (user.passwordHash) return { status: 'already_set' };
+        if (!user.githubIdentity) return { status: 'identity_missing' };
+        const session = await tx.session.findFirst({
+          where: {
+            id: currentSessionId,
+            userId,
+            revokedAt: null,
+            expiresAt: { gt: now },
+            lastReauthenticatedAt: { gte: reauthenticatedAfter }
+          }
+        });
+        if (!session) return { status: 'reauth_required' };
+        const updated = await tx.user.update({
+          where: { id: userId },
+          data: { passwordHash, mustSetPassword: false, sessionVersion: { increment: 1 } }
+        });
+        await tx.session.updateMany({
+          where: { userId, id: { not: currentSessionId }, revokedAt: null },
+          data: { revokedAt: now }
+        });
+        await tx.session.update({
+          where: { id: currentSessionId },
+          data: { sessionVersion: updated.sessionVersion, lastReauthenticatedAt: null }
+        });
+        await tx.passwordResetToken.updateMany({
+          where: { userId, usedAt: null },
+          data: { usedAt: now }
+        });
+        await auditRepository.create(auditData, tx);
+        return { status: 'initialized' };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+    );
+  },
+  async unlinkGithubIdentity(userId, currentSessionId, now, auditData) {
+    return prisma.$transaction(
+      async (tx) => {
+        const user = await tx.user.findUnique({
+          where: { id: userId },
+          include: { githubIdentity: true }
+        });
+        if (!user?.githubIdentity) return { status: 'not_linked' };
+        if (!user.passwordHash) return { status: 'password_required' };
+        await tx.gitHubIdentity.delete({ where: { id: user.githubIdentity.id } });
+        await tx.session.updateMany({
+          where: { userId, id: { not: currentSessionId }, revokedAt: null },
+          data: { revokedAt: now }
+        });
+        await auditRepository.create(auditData, tx);
+        return { status: 'unlinked' };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+    );
   },
   async revokeSession(userId, publicId, now, auditData) {
     return prisma.$transaction(async (tx) => {

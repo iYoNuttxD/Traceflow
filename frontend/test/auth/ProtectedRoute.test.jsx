@@ -53,6 +53,13 @@ describe('ProtectedRoute', () => {
     expect(screen.getByRole('heading', { name: 'Entrar /projects/7/tasks' })).toBeInTheDocument();
   });
 
+  it('preserva pathname, search e hash no retorno após login', () => {
+    renderRoute('/projects/7/tasks?filter=open#history');
+    expect(
+      screen.getByRole('heading', { name: 'Entrar /projects/7/tasks?filter=open#history' })
+    ).toBeInTheDocument();
+  });
+
   it('preserva loading sem renderizar conteúdo privado', () => {
     authState.loading = true;
     renderRoute();

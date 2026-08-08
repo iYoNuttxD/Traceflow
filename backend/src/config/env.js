@@ -218,6 +218,18 @@ function parseGithubAppConfiguration(source, nodeEnv) {
     throw new ConfigurationError('Configuração obrigatória ausente: credenciais da GitHub App.');
   }
   if (present.length === 0) return { githubAppConfigured: false };
+  const githubLoginCallbackUrl =
+    source.GITHUB_LOGIN_CALLBACK_URL ||
+    (nodeEnv === 'production' ? undefined : 'http://localhost:3001/api/auth/github/callback');
+  const parsedGithubLoginCallbackUrl = parseUrl(
+    githubLoginCallbackUrl,
+    'GITHUB_LOGIN_CALLBACK_URL'
+  );
+  if (nodeEnv === 'production' && new URL(parsedGithubLoginCallbackUrl).protocol !== 'https:') {
+    throw new ConfigurationError(
+      'Configuração inválida: GITHUB_LOGIN_CALLBACK_URL deve usar HTTPS em produção.'
+    );
+  }
   return {
     githubAppConfigured: true,
     githubAppId: String(source.GITHUB_APP_ID),
@@ -234,7 +246,8 @@ function parseGithubAppConfiguration(source, nodeEnv) {
     githubAppFrontendErrorUrl: parseUrl(
       source.GITHUB_APP_FRONTEND_ERROR_URL,
       'GITHUB_APP_FRONTEND_ERROR_URL'
-    )
+    ),
+    githubLoginCallbackUrl: parsedGithubLoginCallbackUrl
   };
 }
 
@@ -417,6 +430,16 @@ export function createEnvironment(source = {}) {
       min: 60 * 1000,
       max: 30 * 60 * 1000
     }),
+    githubOAuthStateTtlMs: parseInteger(
+      source.GITHUB_OAUTH_STATE_TTL_MS,
+      'GITHUB_OAUTH_STATE_TTL_MS',
+      { defaultValue: 10 * 60 * 1000, min: 60 * 1000, max: 30 * 60 * 1000 }
+    ),
+    githubReauthenticationTtlMs: parseInteger(
+      source.GITHUB_REAUTHENTICATION_TTL_MS,
+      'GITHUB_REAUTHENTICATION_TTL_MS',
+      { defaultValue: 10 * 60 * 1000, min: 60 * 1000, max: 30 * 60 * 1000 }
+    ),
     ...emailConfiguration,
     sessionRetentionDays: parseInteger(
       source.AUTH_SESSION_RETENTION_DAYS,
@@ -474,6 +497,7 @@ export function createEnvironment(source = {}) {
       { defaultValue: 30, min: 30, max: 90 }
     ),
     sessionCookieName: source.SESSION_COOKIE_NAME || 'traceflow_session',
+    githubOAuthCookieName: source.GITHUB_OAUTH_COOKIE_NAME || 'traceflow_github_oauth',
     sessionCookieSameSite: parseSameSite(source.SESSION_COOKIE_SAME_SITE),
     trustProxy: parseTrustProxy(source.TRUST_PROXY),
     isDevelopment: nodeEnv === 'development',

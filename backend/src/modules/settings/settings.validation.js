@@ -22,3 +22,8 @@ export const sessionParams = strictObject({ sessionId: z.string().uuid('Sessão 
 export const githubAuthorizationParams = strictObject({
   authorizationId: z.coerce.number().int().positive('Autorização inválida.')
 });
+export const githubIdentityLinkBody = strictObject({ password });
+export const passwordInitializeBody = strictObject({
+  newPassword: z.string().min(12, 'A senha deve possuir ao menos 12 caracteres.').max(128),
+  confirmation: z.string().min(12).max(128)
+});

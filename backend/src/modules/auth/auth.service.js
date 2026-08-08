@@ -8,8 +8,10 @@ import { normalizeUsername, passwordPolicyErrors, validateUsername } from './ide
 
 const hashToken = (token) => createHash('sha256').update(token).digest('hex');
 const newToken = () => randomBytes(32).toString('base64url');
-const publicUser = ({ passwordHash: _passwordHash, sessionVersion: _sessionVersion, ...user }) =>
-  user;
+const publicUser = ({ passwordHash, sessionVersion: _sessionVersion, ...user }) => ({
+  ...user,
+  hasLocalPassword: Boolean(passwordHash)
+});
 
 function authError(message = 'Nome de usuário, e-mail ou senha inválidos.') {
   return new AppError({
@@ -20,7 +22,7 @@ function authError(message = 'Nome de usuário, e-mail ou senha inválidos.') {
   });
 }
 
-async function issueSession(user, rememberMe = false) {
+async function issueSession(user, rememberMe = false, { lastReauthenticatedAt = null } = {}) {
   const token = newToken();
   const csrfToken = newToken();
   const ttlMs = rememberMe ? env.persistentSessionTtlMs : env.sessionTtlMs;
@@ -31,7 +33,8 @@ async function issueSession(user, rememberMe = false) {
     csrfTokenHash: hashToken(csrfToken),
     sessionVersion: user.sessionVersion,
     expiresAt,
-    rememberMe
+    rememberMe,
+    lastReauthenticatedAt
   });
   return { session, token, csrfToken, expiresAt, ttlMs };
 }
@@ -70,6 +73,8 @@ async function issueEmailVerification(user) {
 
 export const authService = {
   hashToken,
+  publicUser,
+  issueSession,
   async hashPassword(password) {
     return argon2.hash(password, {
       type: argon2.argon2id,

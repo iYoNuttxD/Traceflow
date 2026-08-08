@@ -2716,12 +2716,27 @@ a {
   background: #e2e7f0;
 }
 
-.github-login-placeholder {
+.github-login-button {
   width: 100%;
   justify-content: center;
-  border: 1px solid #cfd6e4;
-  background: #f8fafc;
-  color: #667085;
+  border: 1px solid #24292f;
+  background: #24292f;
+  color: #fff;
+  transition:
+    background 150ms ease,
+    border-color 150ms ease,
+    transform 150ms ease;
+}
+
+.github-login-button:hover:not(:disabled) {
+  border-color: #111820;
+  background: #111820;
+  transform: translateY(-1px);
+}
+
+.github-login-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
 }
 
 .auth-footer {

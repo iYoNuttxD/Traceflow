@@ -97,6 +97,53 @@ describe('fronteira GitHub App da L1', () => {
     expect(requestExecutor).toHaveBeenCalledWith(expect.any(Function), { maxRetries: 2 });
   });
 
+  it('troca code de login com callback fixo e PKCE e lê somente e-mail primário verificado', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ access_token: 'user-token-efemero' })
+    });
+    const request = vi.fn(async (route) =>
+      route === 'GET /user'
+        ? { data: { id: 123, login: 'octocat' } }
+        : {
+            data: [
+              { email: 'unverified@example.test', primary: true, verified: false },
+              { email: 'verified@example.test', primary: true, verified: true }
+            ]
+          }
+    );
+    const OctokitClass = vi.fn(function OctokitDouble() {
+      this.request = request;
+    });
+    const provider = createGithubAppCredentialProvider({
+      environment: {
+        githubAppConfigured: true,
+        githubAppClientId: 'client-id',
+        githubAppClientSecret: 'client-secret',
+        githubLoginCallbackUrl: 'https://api.traceflow.test/api/auth/github/callback',
+        githubRequestTimeoutMs: 15000,
+        githubRetryMax: 0
+      },
+      OctokitClass,
+      fetchImpl,
+      requestExecutor: (operation) => operation()
+    });
+    await expect(
+      provider.exchangeLoginUserCode({ code: 'oauth-code', codeVerifier: 'verifier-seguro' })
+    ).resolves.toBe('user-token-efemero');
+    const body = fetchImpl.mock.calls[0][1].body;
+    expect(body.get('redirect_uri')).toBe('https://api.traceflow.test/api/auth/github/callback');
+    expect(body.get('code_verifier')).toBe('verifier-seguro');
+    await expect(provider.getAuthenticatedUser('user-token-efemero')).resolves.toMatchObject({
+      id: 123
+    });
+    await expect(provider.getPrimaryVerifiedEmail('user-token-efemero')).resolves.toBe(
+      'verified@example.test'
+    );
+    expect(request).toHaveBeenCalledWith('GET /user');
+    expect(request).toHaveBeenCalledWith('GET /user/emails', { per_page: 100 });
+  });
+
   it('pagina todas as instalações e encontra dados disponíveis somente em página posterior', async () => {
     const firstPage = Array.from({ length: 100 }, (_, index) => ({
       id: index + 1,

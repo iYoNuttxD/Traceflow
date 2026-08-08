@@ -4,6 +4,7 @@ import { validateRequest } from '../../shared/validation/index.js';
 import { createAuthenticationMiddleware } from '../../middlewares/auth/authentication.middleware.js';
 import { createCsrfMiddleware } from '../../middlewares/auth/csrf.middleware.js';
 import { authController } from './auth.controller.js';
+import { githubAuthController } from './github-auth.controller.js';
 import {
   changePasswordBodySchema,
   forgotBodySchema,
@@ -12,7 +13,8 @@ import {
   resetBodySchema,
   verifyEmailBodySchema,
   emptyAuthBodySchema,
-  usernameBodySchema
+  usernameBodySchema,
+  githubLoginStartBodySchema
 } from './auth.validation.js';
 
 const router = Router();
@@ -20,6 +22,19 @@ const authenticate = createAuthenticationMiddleware({ cookieName: env.sessionCoo
 const csrf = createCsrfMiddleware();
 router.post('/register', validateRequest({ body: registerBodySchema }), authController.register);
 router.post('/login', validateRequest({ body: loginBodySchema }), authController.login);
+router.post(
+  '/github/start',
+  validateRequest({ body: githubLoginStartBodySchema }),
+  githubAuthController.startLogin
+);
+router.get('/github/callback', githubAuthController.callback);
+router.post(
+  '/github/reauth/start',
+  authenticate,
+  csrf,
+  validateRequest({ body: emptyAuthBodySchema }),
+  githubAuthController.startPasswordReauthentication
+);
 router.post(
   '/forgot-password',
   validateRequest({ body: forgotBodySchema }),

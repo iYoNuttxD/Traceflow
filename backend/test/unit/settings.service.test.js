@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
     cancelEmailChange: vi.fn(),
     confirmEmailChange: vi.fn(),
     changePassword: vi.fn(),
+    initializePassword: vi.fn(),
+    unlinkGithubIdentity: vi.fn(),
     listSessions: vi.fn(),
     revokeSession: vi.fn(),
     revokeOtherSessions: vi.fn(),
@@ -35,7 +37,8 @@ const mocks = vi.hoisted(() => ({
     sendAccountDeletionRequested: vi.fn(),
     sendAccountDeletionCancelled: vi.fn()
   },
-  github: { listRepositories: vi.fn() }
+  github: { listRepositories: vi.fn() },
+  githubAuth: { identity: vi.fn(), startLink: vi.fn() }
 }));
 
 vi.mock('../../src/config/env.js', () => ({
@@ -44,7 +47,8 @@ vi.mock('../../src/config/env.js', () => ({
     accountReactivationTtlMs: 1_800_000,
     accountDeletionGraceDays: 30,
     exportFileTtlMinutes: 15,
-    auditRetentionDays: 365
+    auditRetentionDays: 365,
+    githubReauthenticationTtlMs: 600000
   }
 }));
 vi.mock('../../src/modules/settings/settings.repository.js', () => ({
@@ -54,6 +58,9 @@ vi.mock('../../src/modules/auth/auth.service.js', () => ({ authService: mocks.au
 vi.mock('../../src/shared/email/index.js', () => ({ emailService: mocks.email }));
 vi.mock('../../src/modules/github/github-app.service.js', () => ({
   githubAppService: mocks.github
+}));
+vi.mock('../../src/modules/auth/github-auth.service.js', () => ({
+  githubAuthService: mocks.githubAuth
 }));
 
 const { settingsService } = await import('../../src/modules/settings/settings.service.js');
@@ -65,7 +72,8 @@ const activeUser = {
   email: 'daniel@example.test',
   accountStatus: 'ACTIVE',
   mustSetUsername: false,
-  usernameChangedAt: null
+  usernameChangedAt: null,
+  passwordHash: 'argon2-current'
 };
 
 describe('configurações de conta L2', () => {
@@ -154,6 +162,47 @@ describe('configurações de conta L2', () => {
       expect.any(Date),
       expect.objectContaining({ action: 'PASSWORD_CHANGED' })
     );
+  });
+
+  it('expõe somente hasLocalPassword e autorização recente calculada', async () => {
+    mocks.repository.account.mockResolvedValue({ ...activeUser, passwordHash: null });
+    const recent = new Date();
+    const account = await settingsService.account(7, { lastReauthenticatedAt: recent });
+    expect(account).toMatchObject({ hasLocalPassword: false, canInitializePassword: true });
+    expect(account).not.toHaveProperty('passwordHash');
+  });
+
+  it('inicializa a primeira senha em operação dedicada e consome a reautenticação na transação', async () => {
+    mocks.repository.account.mockResolvedValue({ ...activeUser, passwordHash: null });
+    mocks.repository.initializePassword.mockResolvedValue({ status: 'initialized' });
+    await settingsService.initializePassword(
+      7,
+      22,
+      { newPassword: 'Senha-Nova-456!', confirmation: 'Senha-Nova-456!' },
+      'req-password',
+      new Date('2030-01-01T00:10:00Z')
+    );
+    expect(mocks.repository.initializePassword).toHaveBeenCalledWith(
+      7,
+      22,
+      'argon2-hash',
+      new Date('2030-01-01T00:00:00Z'),
+      new Date('2030-01-01T00:10:00Z'),
+      expect.objectContaining({ action: 'LOCAL_PASSWORD_INITIALIZED' })
+    );
+  });
+
+  it('impede desvincular a única identidade sem senha local', async () => {
+    mocks.repository.account.mockResolvedValue({ ...activeUser, passwordHash: null });
+    await expect(
+      settingsService.unlinkGithubIdentity(
+        7,
+        22,
+        { currentPassword: 'qualquer', confirmation: true },
+        'req-unlink'
+      )
+    ).rejects.toMatchObject({ code: 'LOCAL_PASSWORD_REQUIRED' });
+    expect(mocks.repository.unlinkGithubIdentity).not.toHaveBeenCalled();
   });
 
   it('lista apenas identificadores públicos de sessão', async () => {

@@ -66,6 +66,7 @@ describe('limpeza operacional da E6', () => {
       projectInvitation: model('invitation'),
       emailVerificationToken: model('verification'),
       gitHubAppConnectionState: model('github-state'),
+      gitHubOAuthState: model('github-oauth-state'),
       gitHubWebhookDelivery: model('github-delivery'),
       $transaction: async (operations) => {
         calls.push(['transaction', operations]);

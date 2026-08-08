@@ -23,7 +23,7 @@ const mocks = vi.hoisted(() => ({
     requireReconnectForRepositories: vi.fn()
   },
   credentialProvider: {
-    exchangeUserCode: vi.fn(),
+    exchangeInstallationUserCode: vi.fn(),
     listInstallationsAccessibleToUser: vi.fn()
   },
   authorization: { membership: vi.fn() },
@@ -123,10 +123,12 @@ describe('autorização e webhooks da GitHub App L1', () => {
         state: 'state-artificial-com-mais-de-trinta-caracteres'
       })
     ).rejects.toMatchObject({ statusCode: 403 });
-    expect(mocks.credentialProvider.exchangeUserCode).not.toHaveBeenCalled();
+    expect(mocks.credentialProvider.exchangeInstallationUserCode).not.toHaveBeenCalled();
 
     mocks.repository.findConnectionState.mockResolvedValue(validStateRecord());
-    mocks.credentialProvider.exchangeUserCode.mockResolvedValue('user-token-temporario');
+    mocks.credentialProvider.exchangeInstallationUserCode.mockResolvedValue(
+      'user-token-temporario'
+    );
     mocks.credentialProvider.listInstallationsAccessibleToUser.mockResolvedValue([
       {
         githubInstallationId: '88',
@@ -162,7 +164,7 @@ describe('autorização e webhooks da GitHub App L1', () => {
         state: 'state-artificial-com-mais-de-trinta-caracteres'
       })
     ).rejects.toMatchObject({ statusCode: 403 });
-    expect(mocks.credentialProvider.exchangeUserCode).not.toHaveBeenCalled();
+    expect(mocks.credentialProvider.exchangeInstallationUserCode).not.toHaveBeenCalled();
   });
 
   it('rejeita state expirado ou reutilizado e consome state válido uma única vez', async () => {
@@ -189,7 +191,7 @@ describe('autorização e webhooks da GitHub App L1', () => {
       accountType: 'Organization',
       installedAt: new Date('2030-01-01T00:00:00Z')
     };
-    mocks.credentialProvider.exchangeUserCode.mockResolvedValue('token-efemero');
+    mocks.credentialProvider.exchangeInstallationUserCode.mockResolvedValue('token-efemero');
     mocks.credentialProvider.listInstallationsAccessibleToUser.mockResolvedValue([
       { ...metadata, githubInstallationId: '76' },
       metadata

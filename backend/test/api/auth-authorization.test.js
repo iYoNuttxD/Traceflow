@@ -23,7 +23,7 @@ beforeAll(async () => {
   ({ default: app } = await import('../../src/app.js'));
   await cleanTestDatabase(prisma);
 });
-afterEach(() => cleanTestDatabase(prisma));
+afterEach(async () => cleanTestDatabase(prisma));
 afterAll(async () => {
   await cleanTestDatabase(prisma);
   await prisma.$disconnect();

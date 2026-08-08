@@ -41,4 +41,21 @@ describe('contratos da API de configurações L2', () => {
       intendedAction: 'CREATE_PROJECT'
     });
   });
+
+  it('mantém identidade GitHub separada da autorização de instalação', async () => {
+    await settingsApi.startGithubIdentityLink('senha-atual');
+    expect(client.post).toHaveBeenCalledWith('/settings/integrations/github-identity/link/start', {
+      password: 'senha-atual'
+    });
+    await settingsApi.unlinkGithubIdentity('senha-atual');
+    expect(client.delete).toHaveBeenCalledWith('/settings/integrations/github-identity', {
+      data: { currentPassword: 'senha-atual', confirmation: true }
+    });
+  });
+
+  it('inicializa a primeira senha em endpoint dedicado', async () => {
+    const data = { newPassword: 'SenhaNovaSegura123!', confirmation: 'SenhaNovaSegura123!' };
+    await settingsApi.initializePassword(data);
+    expect(client.post).toHaveBeenCalledWith('/settings/security/password/initialize', data);
+  });
 });

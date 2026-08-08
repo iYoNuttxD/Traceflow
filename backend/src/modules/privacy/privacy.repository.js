@@ -322,6 +322,8 @@ export const privacyRepository = {
         await tx.passwordResetToken.deleteMany({ where: { userId: request.userId } });
         await tx.emailVerificationToken.deleteMany({ where: { userId: request.userId } });
         await tx.gitHubAppConnectionState.deleteMany({ where: { userId: request.userId } });
+        await tx.gitHubOAuthState.deleteMany({ where: { userId: request.userId } });
+        await tx.gitHubIdentity.deleteMany({ where: { userId: request.userId } });
         await tx.gitHubInstallationAuthorization.deleteMany({ where: { userId: request.userId } });
         await tx.emailChangeRequest.deleteMany({ where: { userId: request.userId } });
         await tx.accountReactivationToken.deleteMany({ where: { userId: request.userId } });

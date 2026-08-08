@@ -1,10 +1,11 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   auth: { user: null, logout: vi.fn(), refresh: vi.fn() },
+  authApi: { startGithubPasswordReauthentication: vi.fn() },
   confirm: vi.fn(),
   api: {
     account: vi.fn(),
@@ -12,6 +13,10 @@ const mocks = vi.hoisted(() => ({
     sessions: vi.fn(),
     deletion: vi.fn(),
     github: vi.fn(),
+    githubIdentity: vi.fn(),
+    startGithubIdentityLink: vi.fn(),
+    unlinkGithubIdentity: vi.fn(),
+    initializePassword: vi.fn(),
     removeGithubAuthorization: vi.fn(),
     startGithubInstallation: vi.fn(),
     confirmEmail: vi.fn(),
@@ -19,11 +24,15 @@ const mocks = vi.hoisted(() => ({
   }
 }));
 
-vi.mock('../../src/features/auth/index.js', () => ({ useAuth: () => mocks.auth }));
+vi.mock('../../src/features/auth/index.js', () => ({
+  useAuth: () => mocks.auth,
+  authApi: mocks.authApi
+}));
 vi.mock('../../src/features/settings/settings.api.js', () => ({ settingsApi: mocks.api }));
 vi.mock('../../src/shared/index.js', () => ({
   normalizeApiError: (value) => ({ message: value?.message || 'Falha' }),
-  useConfirm: () => mocks.confirm
+  useConfirm: () => mocks.confirm,
+  LoadingState: ({ message }) => <p>{message}</p>
 }));
 
 const { RestrictedAccountPage } =
@@ -51,7 +60,9 @@ describe('configurações e estados restritos L2', () => {
       email: 'daniel@example.invalid',
       accountStatus: 'ACTIVE',
       pendingEmailChange: null,
-      nextUsernameChangeAt: null
+      nextUsernameChangeAt: null,
+      hasLocalPassword: true,
+      canInitializePassword: false
     });
     mocks.api.updateProfile.mockResolvedValue({});
     mocks.api.sessions.mockResolvedValue([
@@ -63,11 +74,13 @@ describe('configurações e estados restritos L2', () => {
     ]);
     mocks.api.deletion.mockResolvedValue(null);
     mocks.api.github.mockResolvedValue([]);
+    mocks.api.githubIdentity.mockResolvedValue({ linked: false });
     mocks.api.removeGithubAuthorization.mockResolvedValue({});
     mocks.api.startGithubInstallation.mockResolvedValue({
       data: { url: 'https://github.example/install' }
     });
     mocks.api.confirmEmail.mockResolvedValue({});
+    mocks.api.initializePassword.mockResolvedValue({});
   });
 
   it('oferece reativação por e-mail para conta desativada', async () => {
@@ -156,6 +169,48 @@ describe('configurações e estados restritos L2', () => {
     expect(document.body.textContent).not.toMatch(/tokenHash|csrfToken/);
   });
 
+  it('exige reautenticação antes de mostrar o formulário da primeira senha', async () => {
+    mocks.api.account.mockResolvedValue({
+      id: 7,
+      hasLocalPassword: false,
+      canInitializePassword: false
+    });
+    render(
+      <MemoryRouter>
+        <SecuritySettingsPage />
+      </MemoryRouter>
+    );
+    expect(
+      await screen.findByRole('button', { name: 'Confirmar identidade com GitHub' })
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText('Nova senha')).not.toBeInTheDocument();
+  });
+
+  it('cria a primeira senha somente depois de reautenticação recente', async () => {
+    const user = userEvent.setup();
+    mocks.api.account.mockResolvedValue({
+      id: 7,
+      hasLocalPassword: false,
+      canInitializePassword: true
+    });
+    render(
+      <MemoryRouter>
+        <SecuritySettingsPage />
+      </MemoryRouter>
+    );
+    await screen.findByRole('heading', { name: 'Criar senha de acesso' });
+    const password = await screen.findByLabelText('Nova senha');
+    await user.type(password, 'SenhaNovaSegura123!');
+    await user.type(screen.getByLabelText('Confirmar nova senha'), 'SenhaNovaSegura123!');
+    await user.click(screen.getByRole('button', { name: 'Criar senha' }));
+    await waitFor(() =>
+      expect(mocks.api.initializePassword).toHaveBeenCalledWith({
+        newPassword: 'SenhaNovaSegura123!',
+        confirmation: 'SenhaNovaSegura123!'
+      })
+    );
+  });
+
   it('apresenta exportação, exclusão e estado vazio de integrações', async () => {
     const { unmount } = render(
       <MemoryRouter>
@@ -213,6 +268,25 @@ describe('configurações e estados restritos L2', () => {
     expect(
       screen.getByRole('button', { name: 'Adicionar ou atualizar acesso' })
     ).toBeInTheDocument();
+  });
+
+  it('bloqueia desvínculo visual de conta GitHub-only e preserva a área da GitHub App', async () => {
+    mocks.api.account.mockResolvedValue({ hasLocalPassword: false });
+    mocks.api.githubIdentity.mockResolvedValue({ linked: true, githubLogin: 'octocat' });
+    render(
+      <MemoryRouter>
+        <IntegrationsSettingsPage />
+      </MemoryRouter>
+    );
+    expect(await screen.findByText('@octocat')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'crie uma senha em Segurança' })).toHaveAttribute(
+      'href',
+      '/settings/security'
+    );
+    expect(
+      screen.queryByRole('button', { name: 'Desvincular conta GitHub' })
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'GitHub App' })).toBeInTheDocument();
   });
 
   it('confirma alteração de e-mail por rota pública', async () => {

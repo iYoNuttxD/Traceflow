@@ -1,6 +1,8 @@
 import { env } from '../../config/env.js';
 import { asyncHandler } from '../../shared/http/index.js';
 import { settingsService } from './settings.service.js';
+import { setGithubOAuthCookie } from '../auth/github-auth.controller.js';
+import { auditService } from '../audit/audit.service.js';
 
 const clearCookie = (res) =>
   res.clearCookie(env.sessionCookieName, {
@@ -12,7 +14,7 @@ const clearCookie = (res) =>
 
 export const settingsController = {
   account: asyncHandler(async (req, res) =>
-    res.json({ account: await settingsService.account(req.auth.user.id) })
+    res.json({ account: await settingsService.account(req.auth.user.id, req.auth.session) })
   ),
   profile: asyncHandler(async (req, res) =>
     res.json({
@@ -134,6 +136,51 @@ export const settingsController = {
   github: asyncHandler(async (req, res) =>
     res.json({ integrations: await settingsService.githubIntegrations(req.auth.user.id) })
   ),
+  githubIdentity: asyncHandler(async (req, res) => {
+    const identity = await settingsService.githubIdentity(req.auth.user.id);
+    return res.json({
+      identity: identity
+        ? {
+            linked: true,
+            githubLogin: identity.githubLogin,
+            linkedAt: identity.linkedAt,
+            lastAuthenticatedAt: identity.lastAuthenticatedAt
+          }
+        : { linked: false }
+    });
+  }),
+  startGithubIdentityLink: asyncHandler(async (req, res) => {
+    const result = await settingsService.startGithubIdentityLink(
+      req.auth.user.id,
+      req.auth.session,
+      req.body.password
+    );
+    await auditService.recordOperational({
+      actorUserId: req.auth.user.id,
+      requestId: req.requestId,
+      action: 'GITHUB_IDENTITY_LINK_STARTED',
+      resourceType: 'GitHubIdentity'
+    });
+    return res.json(setGithubOAuthCookie(res, result));
+  }),
+  unlinkGithubIdentity: asyncHandler(async (req, res) => {
+    await settingsService.unlinkGithubIdentity(
+      req.auth.user.id,
+      req.auth.session.id,
+      req.body,
+      req.requestId
+    );
+    return res.status(204).end();
+  }),
+  initializePassword: asyncHandler(async (req, res) => {
+    await settingsService.initializePassword(
+      req.auth.user.id,
+      req.auth.session.id,
+      req.body,
+      req.requestId
+    );
+    return res.json({ message: 'Senha criada com sucesso.' });
+  }),
   removeGithub: asyncHandler(async (req, res) =>
     res.json({
       result: await settingsService.removeGithubAuthorization(

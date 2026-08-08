@@ -45,6 +45,12 @@ export async function cleanupAuthRecords({
         { usedAt: { lt: githubConnectionStateCutoff } }
       ]
     },
+    githubOAuthStates: {
+      OR: [
+        { expiresAt: { lt: githubConnectionStateCutoff } },
+        { usedAt: { lt: githubConnectionStateCutoff } }
+      ]
+    },
     githubWebhookDeliveries: { receivedAt: { lt: githubWebhookDeliveryCutoff } }
   };
   const counts = {
@@ -59,6 +65,7 @@ export async function cleanupAuthRecords({
     githubConnectionStates: await client.gitHubAppConnectionState.count({
       where: filters.githubConnectionStates
     }),
+    githubOAuthStates: await client.gitHubOAuthState.count({ where: filters.githubOAuthStates }),
     githubWebhookDeliveries: await client.gitHubWebhookDelivery.count({
       where: filters.githubWebhookDeliveries
     })
@@ -66,6 +73,7 @@ export async function cleanupAuthRecords({
   if (apply) {
     await client.$transaction([
       client.gitHubAppConnectionState.deleteMany({ where: filters.githubConnectionStates }),
+      client.gitHubOAuthState.deleteMany({ where: filters.githubOAuthStates }),
       client.session.deleteMany({ where: filters.sessions }),
       client.emailVerificationToken.deleteMany({ where: filters.emailVerificationTokens }),
       client.passwordResetToken.deleteMany({ where: filters.passwordResetTokens }),
@@ -81,6 +89,7 @@ export async function cleanupAuthRecords({
       projectInvitations: configuration.invitationRetentionDays,
       emailVerificationTokens: configuration.emailVerificationRetentionDays,
       githubConnectionStates: configuration.githubConnectionStateRetentionDays,
+      githubOAuthStates: configuration.githubConnectionStateRetentionDays,
       githubWebhookDeliveries: configuration.githubWebhookDeliveryRetentionDays
     },
     counts

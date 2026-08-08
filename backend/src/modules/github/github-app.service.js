@@ -113,7 +113,7 @@ export const githubAppService = {
       }
 
       logStep('exchange_code');
-      const userToken = await githubAppCredentialProvider.exchangeUserCode(code);
+      const userToken = await githubAppCredentialProvider.exchangeInstallationUserCode(code);
 
       logStep('list_user_installations');
       const installations =

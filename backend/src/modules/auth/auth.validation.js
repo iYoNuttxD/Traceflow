@@ -33,4 +33,8 @@ export const changePasswordBodySchema = strictObject({
 });
 export const verifyEmailBodySchema = strictObject({ token: z.string().min(32).max(128) });
 export const emptyAuthBodySchema = strictObject({});
+export const githubLoginStartBodySchema = strictObject({
+  rememberMe: z.boolean().optional().default(false),
+  returnTo: z.string().max(191).optional()
+});
 export const usernameBodySchema = strictObject({ username });

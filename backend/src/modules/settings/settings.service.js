@@ -11,6 +11,7 @@ import {
 } from '../auth/identity-policy.js';
 import { buildAuditEvent } from '../audit/audit.service.js';
 import { githubAppService } from '../github/github-app.service.js';
+import { githubAuthService } from '../auth/github-auth.service.js';
 import { settingsRepository } from './settings.repository.js';
 import { createJsonZip } from './zip.js';
 
@@ -57,14 +58,25 @@ function throwOwnership(blocked) {
 }
 
 export const settingsService = {
-  async account(userId) {
+  async account(userId, session) {
     const user = await settingsRepository.account(userId);
     if (!user) throw error('Conta não encontrada.', 404, ERROR_CODES.RESOURCE_NOT_FOUND);
     const pendingEmailChange = await settingsRepository.pendingEmailChange(userId);
     const nextUsernameChangeAt = user.usernameChangedAt
       ? new Date(user.usernameChangedAt.getTime() + 30 * day)
       : null;
-    return { ...user, pendingEmailChange, nextUsernameChangeAt };
+    const { passwordHash, ...safeUser } = user;
+    return {
+      ...safeUser,
+      hasLocalPassword: Boolean(passwordHash),
+      canInitializePassword: Boolean(
+        !passwordHash &&
+        session?.lastReauthenticatedAt &&
+        session.lastReauthenticatedAt.getTime() >= Date.now() - env.githubReauthenticationTtlMs
+      ),
+      pendingEmailChange,
+      nextUsernameChangeAt
+    };
   },
   async updateProfile(userId, name, requestId) {
     await requireActive(userId);
@@ -73,6 +85,66 @@ export const settingsService = {
       name.trim(),
       audit(userId, requestId, 'PROFILE_UPDATED')
     );
+  },
+  githubIdentity(userId) {
+    return githubAuthService.identity(userId);
+  },
+  async startGithubIdentityLink(userId, session, password) {
+    const account = await requireActive(userId);
+    return githubAuthService.startLink({
+      user: { ...account, hasLocalPassword: Boolean(account.passwordHash) },
+      session,
+      password
+    });
+  },
+  async unlinkGithubIdentity(userId, currentSessionId, input, requestId, now = new Date()) {
+    const user = await requireActive(userId);
+    if (!user.passwordHash) {
+      throw error(
+        'Crie uma senha para sua conta antes de remover seu único método de autenticação.',
+        409,
+        ERROR_CODES.LOCAL_PASSWORD_REQUIRED
+      );
+    }
+    await requirePassword(userId, input.currentPassword);
+    const result = await settingsRepository.unlinkGithubIdentity(
+      userId,
+      currentSessionId,
+      now,
+      audit(userId, requestId, 'GITHUB_IDENTITY_UNLINKED', 'GitHubIdentity')
+    );
+    if (result.status === 'not_linked')
+      throw error('Nenhuma conta GitHub vinculada.', 404, ERROR_CODES.GITHUB_IDENTITY_NOT_LINKED);
+    return result;
+  },
+  async initializePassword(userId, currentSessionId, input, requestId, now = new Date()) {
+    const user = await requireActive(userId);
+    if (user.passwordHash)
+      throw error('A senha local já foi cadastrada.', 409, ERROR_CODES.PASSWORD_ALREADY_SET);
+    if (input.newPassword !== input.confirmation)
+      throw error('As senhas não coincidem.', 400, ERROR_CODES.VALIDATION_ERROR);
+    const policyErrors = passwordPolicyErrors(input.newPassword, user);
+    if (policyErrors.length) throw error(policyErrors[0], 400, ERROR_CODES.VALIDATION_ERROR);
+    const reauthenticatedAfter = new Date(now.getTime() - env.githubReauthenticationTtlMs);
+    const result = await settingsRepository.initializePassword(
+      userId,
+      currentSessionId,
+      await authService.hashPassword(input.newPassword),
+      reauthenticatedAfter,
+      now,
+      audit(userId, requestId, 'LOCAL_PASSWORD_INITIALIZED')
+    );
+    if (result.status === 'already_set')
+      throw error('A senha local já foi cadastrada.', 409, ERROR_CODES.PASSWORD_ALREADY_SET);
+    if (result.status === 'identity_missing')
+      throw error('Nenhuma conta GitHub vinculada.', 409, ERROR_CODES.GITHUB_IDENTITY_NOT_LINKED);
+    if (result.status !== 'initialized')
+      throw error(
+        'Confirme sua identidade com GitHub novamente.',
+        403,
+        ERROR_CODES.GITHUB_REAUTHENTICATION_REQUIRED
+      );
+    return result;
   },
   async updateUsername(userId, username, requestId, now = new Date()) {
     const user = await requireActive(userId);

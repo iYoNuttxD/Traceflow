@@ -9,7 +9,9 @@ import {
   profileBody,
   reactivationStartBody,
   sessionParams,
-  usernameBody
+  usernameBody,
+  githubIdentityLinkBody,
+  passwordInitializeBody
 } from './settings.validation.js';
 
 const router = Router();
@@ -67,6 +69,22 @@ router.delete(
 );
 router.post('/settings/privacy/export', settingsController.exportData);
 router.get('/settings/integrations/github', settingsController.github);
+router.get('/settings/integrations/github-identity', settingsController.githubIdentity);
+router.post(
+  '/settings/integrations/github-identity/link/start',
+  validateRequest({ body: githubIdentityLinkBody }),
+  settingsController.startGithubIdentityLink
+);
+router.delete(
+  '/settings/integrations/github-identity',
+  validateRequest({ body: passwordConfirmationBody }),
+  settingsController.unlinkGithubIdentity
+);
+router.post(
+  '/settings/security/password/initialize',
+  validateRequest({ body: passwordInitializeBody }),
+  settingsController.initializePassword
+);
 router.delete(
   '/settings/integrations/github/authorizations/:authorizationId',
   validateRequest({ params: githubAuthorizationParams, body: passwordConfirmationBody }),

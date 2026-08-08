@@ -1,13 +1,16 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
 import { FeedbackRegion, FormInput, normalizeApiError } from '../../../shared/index.js';
 import { useAuth } from '../AuthContext.jsx';
 import { AuthShell } from '../components/AuthShell.jsx';
 import { PasswordField } from '../components/PasswordField.jsx';
+import { sanitizeInternalReturnTo } from '../return-to.js';
 
 export function RegisterScreen() {
   const { register } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const returnTo = sanitizeInternalReturnTo(location.state?.from || '/projects');
   const [values, setValues] = useState({
     name: '',
     username: '',
@@ -45,7 +48,7 @@ export function RegisterScreen() {
       const payload = { ...values };
       delete payload.passwordConfirmation;
       await register(payload);
-      navigate('/projects');
+      navigate(returnTo);
     } catch (cause) {
       const normalized = normalizeApiError(cause);
       setError(normalized.message);
@@ -65,7 +68,10 @@ export function RegisterScreen() {
       footer={
         <>
           <p>
-            Já possui conta? <Link to="/login">Entrar</Link>
+            Já possui conta?{' '}
+            <Link to="/login" state={{ from: returnTo }}>
+              Entrar
+            </Link>
           </p>
           <p className="auth-privacy">
             Usamos estes dados para autenticação, colaboração e comunicações transacionais. Consulte

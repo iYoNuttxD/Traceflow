@@ -1,22 +1,42 @@
 import { useEffect, useState } from 'react';
+import { Link, useLocation } from 'react-router';
 import { normalizeApiError, useConfirm } from '../../shared/index.js';
 import { settingsApi } from './settings.api.js';
 import { SettingsFeedback } from './SettingsFeedback.jsx';
 
 export function IntegrationsSettingsPage() {
   const confirm = useConfirm();
+  const location = useLocation();
+  const [account, setAccount] = useState(null);
+  const [identity, setIdentity] = useState({ linked: false });
   const [integrations, setIntegrations] = useState([]);
   const [passwords, setPasswords] = useState({});
+  const [identityPassword, setIdentityPassword] = useState('');
+  const [linking, setLinking] = useState(false);
   const [authorizing, setAuthorizing] = useState(false);
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState(
+    new URLSearchParams(location.search).get('githubIdentity') === 'success'
+      ? 'Conta GitHub vinculada com sucesso.'
+      : ''
+  );
   const [error, setError] = useState('');
+
   async function load() {
-    setIntegrations(await settingsApi.github());
+    const [nextAccount, nextIdentity, nextIntegrations] = await Promise.all([
+      settingsApi.account(),
+      settingsApi.githubIdentity(),
+      settingsApi.github()
+    ]);
+    setAccount(nextAccount);
+    setIdentity(nextIdentity);
+    setIntegrations(nextIntegrations);
   }
+
   useEffect(() => {
     load().catch((value) => setError(normalizeApiError(value).message));
   }, []);
-  async function remove(id) {
+
+  async function removeAuthorization(id) {
     if (
       !(await confirm({
         title: 'Remover autorização pessoal',
@@ -36,6 +56,41 @@ export function IntegrationsSettingsPage() {
       setError(normalizeApiError(value).message);
     }
   }
+
+  async function startIdentityLink() {
+    if (linking) return;
+    setLinking(true);
+    setError('');
+    try {
+      const result = await settingsApi.startGithubIdentityLink(identityPassword);
+      window.location.assign(result.url);
+    } catch (value) {
+      setError(normalizeApiError(value).message);
+      setLinking(false);
+    }
+  }
+
+  async function unlinkIdentity() {
+    if (
+      !(await confirm({
+        title: 'Desvincular conta GitHub',
+        description:
+          'Você não poderá mais entrar com esta conta GitHub. Projetos e integrações com repositórios serão preservados.',
+        confirmLabel: 'Desvincular'
+      }))
+    )
+      return;
+    setError('');
+    try {
+      await settingsApi.unlinkGithubIdentity(identityPassword);
+      setIdentityPassword('');
+      setMessage('Conta GitHub desvinculada.');
+      await load();
+    } catch (value) {
+      setError(normalizeApiError(value).message);
+    }
+  }
+
   async function authorize() {
     if (authorizing) return;
     setAuthorizing(true);
@@ -48,14 +103,89 @@ export function IntegrationsSettingsPage() {
       setAuthorizing(false);
     }
   }
+
   return (
     <>
       <SettingsFeedback error={error} message={message} />
+      <section className="settings-card github-identity-card">
+        <h2>Conta GitHub</h2>
+        <p>
+          Usada para autenticar sua conta TraceFlow. Não concede acesso a projetos ou repositórios.
+        </p>
+        {identity.linked ? (
+          <>
+            <div className="integration-card">
+              <div>
+                <strong>@{identity.githubLogin}</strong>
+                <small>Vinculada</small>
+              </div>
+              <p>Você pode utilizar esta conta para entrar no TraceFlow.</p>
+            </div>
+            <section className="github-authorization-danger danger-zone">
+              <h3>Desvincular conta GitHub</h3>
+              <p>
+                Você não poderá mais entrar com esta conta GitHub. Seus projetos e integrações com
+                repositórios não serão removidos.
+              </p>
+              {account?.hasLocalPassword ? (
+                <>
+                  <label>
+                    Senha atual da conta
+                    <input
+                      type="password"
+                      autoComplete="current-password"
+                      value={identityPassword}
+                      onChange={(event) => setIdentityPassword(event.target.value)}
+                    />
+                  </label>
+                  <div className="danger-zone-actions">
+                    <button
+                      className="button button-danger"
+                      type="button"
+                      disabled={!identityPassword}
+                      onClick={() => void unlinkIdentity()}
+                    >
+                      Desvincular conta GitHub
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <p className="danger-impact">
+                  Antes de desvincular o GitHub,{' '}
+                  <Link to="/settings/security">crie uma senha em Segurança</Link>.
+                </p>
+              )}
+            </section>
+          </>
+        ) : (
+          <>
+            <p>Nenhuma conta GitHub vinculada.</p>
+            <label>
+              Senha atual da conta TraceFlow
+              <input
+                type="password"
+                autoComplete="current-password"
+                value={identityPassword}
+                onChange={(event) => setIdentityPassword(event.target.value)}
+              />
+            </label>
+            <button
+              type="button"
+              disabled={!identityPassword || linking}
+              aria-busy={linking}
+              onClick={() => void startIdentityLink()}
+            >
+              {linking ? 'Conectando ao GitHub...' : 'Vincular conta GitHub'}
+            </button>
+          </>
+        )}
+      </section>
+
       <section className="settings-card">
         <h2>GitHub App</h2>
         <p>
-          As autorizações abaixo são pessoais. Removê-las não desinstala a GitHub App nem exclui
-          projetos.
+          Autoriza o acesso a repositórios. Este domínio é independente da conta GitHub usada para
+          entrar.
         </p>
         <button
           className="button button-secondary"
@@ -127,7 +257,7 @@ export function IntegrationsSettingsPage() {
                     className="button button-danger"
                     type="button"
                     disabled={!passwords[item.id]}
-                    onClick={() => void remove(item.id)}
+                    onClick={() => void removeAuthorization(item.id)}
                   >
                     Remover minha autorização
                   </button>

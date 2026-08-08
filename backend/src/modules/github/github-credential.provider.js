@@ -65,6 +65,32 @@ export function createGithubAppCredentialProvider({
       request: { timeout: environment.githubRequestTimeoutMs }
     });
   }
+  async function exchangeUserCode({ code, redirectUri, codeVerifier }) {
+    assertConfigured();
+    try {
+      const body = new URLSearchParams({
+        client_id: environment.githubAppClientId,
+        client_secret: environment.githubAppClientSecret,
+        code,
+        redirect_uri: redirectUri
+      });
+      if (codeVerifier) body.set('code_verifier', codeVerifier);
+      const response = await fetchImpl('https://github.com/login/oauth/access_token', {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.access_token)
+        throw new Error(payload.error || 'oauth_exchange_failed');
+      return payload.access_token;
+    } catch (error) {
+      throw unavailable(error);
+    }
+  }
   return Object.freeze({
     isConfigured: () => environment.githubAppConfigured === true,
     async createInstallationToken(installationId) {
@@ -77,26 +103,39 @@ export function createGithubAppCredentialProvider({
         throw unavailable(error);
       }
     },
-    async exchangeUserCode(code) {
-      assertConfigured();
+    exchangeInstallationUserCode(code) {
+      return exchangeUserCode({ code, redirectUri: environment.githubAppCallbackUrl });
+    },
+    exchangeLoginUserCode({ code, codeVerifier }) {
+      return exchangeUserCode({
+        code,
+        codeVerifier,
+        redirectUri: environment.githubLoginCallbackUrl
+      });
+    },
+    async getAuthenticatedUser(userAccessToken) {
       try {
-        const response = await fetchImpl('https://github.com/login/oauth/access_token', {
-          method: 'POST',
-          headers: {
-            Accept: 'application/json',
-            'Content-Type': 'application/x-www-form-urlencoded'
-          },
-          body: new URLSearchParams({
-            client_id: environment.githubAppClientId,
-            client_secret: environment.githubAppClientSecret,
-            code,
-            redirect_uri: environment.githubAppCallbackUrl
-          })
-        });
-        const payload = await response.json();
-        if (!response.ok || !payload.access_token)
-          throw new Error(payload.error || 'oauth_exchange_failed');
-        return payload.access_token;
+        const response = await requestExecutor(
+          () => userClient(userAccessToken).request('GET /user'),
+          {
+            maxRetries: environment.githubRetryMax
+          }
+        );
+        return response.data;
+      } catch (error) {
+        throw unavailable(error);
+      }
+    },
+    async getPrimaryVerifiedEmail(userAccessToken) {
+      try {
+        const response = await requestExecutor(
+          () => userClient(userAccessToken).request('GET /user/emails', { per_page: 100 }),
+          { maxRetries: environment.githubRetryMax }
+        );
+        return (Array.isArray(response.data) ? response.data : []).find(
+          (item) =>
+            item?.primary === true && item?.verified === true && typeof item.email === 'string'
+        )?.email;
       } catch (error) {
         throw unavailable(error);
       }

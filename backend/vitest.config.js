@@ -6,7 +6,10 @@ export default defineConfig({
     env: {
       NODE_ENV: 'test',
       RATE_LIMIT_MAX: '1000',
-      SENSITIVE_RATE_LIMIT_MAX: '1000'
+      SENSITIVE_RATE_LIMIT_MAX: '1000',
+      RATE_LIMIT_AUTH_MAX: '1000',
+      RATE_LIMIT_EMAIL_MAX: '1000',
+      RATE_LIMIT_SENSITIVE_MAX: '1000'
     },
     fileParallelism: false,
     testTimeout: 30000,

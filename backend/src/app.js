@@ -56,12 +56,15 @@ export function createApp({ logger = defaultLogger, readinessCheck, securityConf
   app.get('/health/ready', health.ready);
   app.use('/api/auth/register', rateLimiters.authentication, rateLimiters.emailDelivery);
   app.use('/api/auth/login', rateLimiters.authentication);
+  app.use('/api/auth/github/start', rateLimiters.authentication);
+  app.use('/api/auth/github/callback', rateLimiters.authentication);
   app.use('/api/auth/forgot-password', rateLimiters.authentication, rateLimiters.emailDelivery);
   app.use('/api/auth/reset-password', rateLimiters.authentication);
   app.use('/api/auth/email-verification/verify', rateLimiters.authentication);
   app.use('/api/auth/email-verification/resend', authenticate, csrf, rateLimiters.emailDelivery);
   app.use('/api/auth/username', authenticate, csrf, rateLimiters.sensitiveMutation);
   app.use('/api/auth/change-password', authenticate, csrf, rateLimiters.sensitiveMutation);
+  app.use('/api/auth/github/reauth/start', authenticate, csrf, rateLimiters.sensitiveMutation);
   app.get(
     ['/api/auth/me', '/api/auth/csrf'],
     authenticate,
@@ -83,6 +86,7 @@ export function createApp({ logger = defaultLogger, readinessCheck, securityConf
       '/api/settings/security/sessions',
       '/api/settings/privacy/deletion',
       '/api/settings/integrations/github',
+      '/api/settings/integrations/github-identity',
       '/api/github/app/installations',
       '/api/github/app/installations/:installationId/repositories'
     ],
@@ -102,6 +106,8 @@ export function createApp({ logger = defaultLogger, readinessCheck, securityConf
   app.post(
     [
       '/api/settings/security/password',
+      '/api/settings/security/password/initialize',
+      '/api/settings/integrations/github-identity/link/start',
       '/api/settings/security/sessions/revoke-others',
       '/api/settings/account/deactivate',
       '/api/settings/privacy/deletion',
@@ -114,7 +120,8 @@ export function createApp({ logger = defaultLogger, readinessCheck, securityConf
     [
       '/api/settings/security/sessions/:sessionId',
       '/api/settings/privacy/deletion',
-      '/api/settings/integrations/github/authorizations/:authorizationId'
+      '/api/settings/integrations/github/authorizations/:authorizationId',
+      '/api/settings/integrations/github-identity'
     ],
     rateLimiters.sensitiveMutation
   );
