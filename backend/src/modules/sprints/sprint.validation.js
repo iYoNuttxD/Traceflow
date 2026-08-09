@@ -105,6 +105,18 @@ export const scheduleQuerySchema = strictObject({
   }
 });
 
+// Evolução por sprint (RF35). `at` é recusado de forma explícita, com motivo:
+// `Task.status` guarda apenas o estado atual, então responder um corte no passado
+// com o status de hoje devolveria um número carimbado com uma data que ele não
+// representa. Recusar é honesto; ignorar em silêncio seria métrica enganosa.
+export const sprintProgressQuerySchema = strictObject({
+  at: z
+    .never({
+      error: 'Corte no passado não é suportado: o status da tarefa guarda apenas o estado atual.'
+    })
+    .optional()
+});
+
 export const replaceSprintTasksBodySchema = strictObject({
   taskIds: z
     .array(positiveInteger('ID da tarefa inválido.'))

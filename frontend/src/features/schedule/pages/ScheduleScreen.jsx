@@ -21,6 +21,7 @@ import { ScheduleAgenda } from '../components/ScheduleAgenda.jsx';
 import { SprintForm, emptySprintForm, validateSprintForm } from '../components/SprintForm.jsx';
 import { SprintList } from '../components/SprintList.jsx';
 import { SprintTasksPanel } from '../components/SprintTasksPanel.jsx';
+import { SprintProgressPanel } from '../components/SprintProgressPanel.jsx';
 import { isTerminalSprint, isTerminalTransition } from '../components/schedule-display.js';
 
 export function ScheduleScreen() {
@@ -48,6 +49,9 @@ export function ScheduleScreen() {
   const [selectedSprint, setSelectedSprint] = useState(null);
   const [selectedTaskIds, setSelectedTaskIds] = useState([]);
   const [tasksLoading, setTasksLoading] = useState(false);
+  const [progressSprint, setProgressSprint] = useState(null);
+  const [progress, setProgress] = useState(null);
+  const [progressLoading, setProgressLoading] = useState(false);
   // Nome por id para o painel dizer de QUAL sprint a tarefa sairia. A tarefa só
   // carrega `sprintId`; sem o mapa a origem seria um número sem significado.
   const sprintNames = Object.fromEntries(sprints.map((item) => [item.id, item.name]));
@@ -296,6 +300,28 @@ export function ScheduleScreen() {
     }
   };
 
+  const showProgress = async (sprint) => {
+    if (progressSprint?.id === sprint.id) {
+      setProgressSprint(null);
+      setProgress(null);
+      return;
+    }
+    // Mesma disciplina do painel de tarefas: limpar o resultado anterior e
+    // sinalizar carga, para a tela nunca afirmar um numero da sprint errada.
+    setProgressSprint(sprint);
+    setProgress(null);
+    setProgressLoading(true);
+    try {
+      const { data } = await scheduleApi.getSprintProgress(sprint.id);
+      setProgress(data);
+    } catch (requestError) {
+      setProgressSprint(null);
+      handleFailure(requestError, 'Não foi possível calcular a evolução da sprint.');
+    } finally {
+      setProgressLoading(false);
+    }
+  };
+
   const submitSprintTasks = async (taskIds) => {
     // Em sprint encerrada a remoção é mão única: o escopo é registro histórico e
     // a API recusa reincluir. O usuário precisa saber disso antes, não depois.
@@ -506,11 +532,24 @@ export function ScheduleScreen() {
             sprints={sprints}
             selectedSprintId={selectedSprint?.id}
             busySprintId={busySprintId}
+            progressSprintId={progressSprint?.id ?? null}
             onSelect={selectSprint}
+            onShowProgress={showProgress}
             onEdit={editSprint}
             onDelete={removeSprint}
             onChangeStatus={changeSprintStatus}
           />
+          {progressSprint && (
+            <SprintProgressPanel
+              sprint={progressSprint}
+              progress={progress}
+              loading={progressLoading}
+              onClose={() => {
+                setProgressSprint(null);
+                setProgress(null);
+              }}
+            />
+          )}
           {selectedSprint && (
             <SprintTasksPanel
               sprint={selectedSprint}

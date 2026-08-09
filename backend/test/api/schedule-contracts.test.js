@@ -472,6 +472,139 @@ describe('cronograma', () => {
   });
 });
 
+describe('evolucao da sprint (RF35)', () => {
+  it('separa escopo planejado de escopo atual e identifica as mudancas', async () => {
+    const owner = await register('progress-flow@example.invalid');
+    const project = await createProject(owner);
+    const sprintId = (await createSprint(owner, project.id)).body.sprint.id;
+    const a = await createTask(owner, project.id, 'Planejada e concluida');
+    const b = await createTask(owner, project.id, 'Planejada e removida');
+
+    // Escopo do planejamento, antes de iniciar a sprint.
+    await owner.mutate('patch', `/api/tasks/${a.id}/sprint`).send({ sprintId });
+    await owner.mutate('patch', `/api/tasks/${b.id}/sprint`).send({ sprintId });
+
+    // Iniciar grava startedAt: e este instante que fecha o planejamento.
+    await owner.mutate('patch', `/api/sprints/${sprintId}/status`).send({ status: 'EM_ANDAMENTO' });
+
+    // Depois da base: uma entra, uma sai, e a que ficou e concluida.
+    const c = await createTask(owner, project.id, 'Entrou depois');
+    await owner.mutate('patch', `/api/tasks/${c.id}/sprint`).send({ sprintId });
+    await owner.mutate('delete', `/api/tasks/${b.id}/sprint`).send();
+    await owner.mutate('patch', `/api/tasks/${a.id}/status`).send({ status: 'CONCLUIDO' });
+
+    const response = await owner.agent.get(`/api/sprints/${sprintId}/progress`);
+    expect(response.status).toBe(200);
+
+    const body = response.body;
+    expect(body.baseline.kind).toBe('STARTED_AT');
+    expect(body.cutoff).toMatch(/Z$/);
+
+    // Planejado = {a, b}: b saiu, mas estava planejada. Atual = {a, c}.
+    expect(body.planned).toMatchObject({ numerator: 1, denominator: 2, percentage: 50 });
+    expect(body.current).toMatchObject({ numerator: 1, denominator: 2, percentage: 50 });
+    expect(body.scopeChange.added.map((item) => item.taskId)).toEqual([c.id]);
+    expect(body.scopeChange.removed.map((item) => item.taskId)).toEqual([b.id]);
+  });
+
+  it('sprint nao iniciada tem base aberta e nenhuma mudanca de escopo', async () => {
+    const owner = await register('progress-open@example.invalid');
+    const project = await createProject(owner);
+    const sprintId = (await createSprint(owner, project.id)).body.sprint.id;
+    const task = await createTask(owner, project.id);
+    await owner.mutate('patch', `/api/tasks/${task.id}/sprint`).send({ sprintId });
+
+    const body = (await owner.agent.get(`/api/sprints/${sprintId}/progress`)).body;
+    expect(body.baseline).toEqual({ kind: 'OPEN', at: null });
+    expect(body.scopeChange).toEqual({ added: [], removed: [] });
+    expect(body.planned).toEqual(body.current);
+  });
+
+  it('sprint sem tarefas devolve percentual nulo, nunca zero', async () => {
+    const owner = await register('progress-empty@example.invalid');
+    const project = await createProject(owner);
+    const sprintId = (await createSprint(owner, project.id)).body.sprint.id;
+
+    const body = (await owner.agent.get(`/api/sprints/${sprintId}/progress`)).body;
+    expect(body.current).toEqual({
+      numerator: 0,
+      denominator: 0,
+      percentage: null,
+      hasData: false
+    });
+  });
+
+  // Corte no passado e recusado de proposito: Task.status guarda so o presente.
+  it('recusa corte no passado com 400 em vez de responder com dados de agora', async () => {
+    const owner = await register('progress-at@example.invalid');
+    const project = await createProject(owner);
+    const sprintId = (await createSprint(owner, project.id)).body.sprint.id;
+
+    const response = await owner.agent
+      .get(`/api/sprints/${sprintId}/progress`)
+      .query({ at: '2026-07-20' });
+    expect(response.status).toBe(400);
+    expect(response.body.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('rejeita parametro desconhecido na query', async () => {
+    const owner = await register('progress-unknown@example.invalid');
+    const project = await createProject(owner);
+    const sprintId = (await createSprint(owner, project.id)).body.sprint.id;
+    const response = await owner.agent
+      .get(`/api/sprints/${sprintId}/progress`)
+      .query({ inventado: '1' });
+    expect(response.status).toBe(400);
+  });
+
+  it('exige sessao', async () => {
+    expect((await request(app).get('/api/sprints/1/progress')).status).toBe(401);
+  });
+
+  // Sprint alheia nao vaza conteudo nem status. O CODIGO, porem, difere: recurso
+  // de projeto alheio e barrado pelo middleware (RESOURCE_NOT_FOUND) e recurso
+  // inexistente cai no service (SPRINT_NOT_FOUND), porque resolveProjectId nao
+  // resolve projeto e o middleware deixa passar
+  // (project-authorization.middleware.js:14).
+  //
+  // Isso e pre-existente e vale para todo o app — /tasks/:id, /requirements/:id,
+  // /milestones/:id. Uniformizar muda o contrato publico do RF10 e esta fora do
+  // escopo do RF35; registrado no backlog tecnico. O teste fixa o comportamento
+  // atual para que qualquer mudanca seja deliberada, e nao um efeito colateral.
+  it('nao vaza conteudo de sprint alheia, com a divergencia de codigo fixada', async () => {
+    const owner = await register('progress-owner@example.invalid');
+    const stranger = await register('progress-stranger@example.invalid');
+    const alheio = await createProject(stranger, 'Projeto alheio');
+    const sprintAlheia = (await createSprint(stranger, alheio.id)).body.sprint;
+
+    const existente = await owner.agent.get(`/api/sprints/${sprintAlheia.id}/progress`);
+    const inexistente = await owner.agent.get('/api/sprints/999999/progress');
+
+    expect(existente.status).toBe(404);
+    expect(inexistente.status).toBe(404);
+    expect(existente.body).not.toHaveProperty('planned');
+    expect(existente.body).not.toHaveProperty('scopeChange');
+    expect(existente.body.code).toBe('RESOURCE_NOT_FOUND');
+    expect(inexistente.body.code).toBe('SPRINT_NOT_FOUND');
+  });
+
+  it('VIEWER, MEMBER, MANAGER e OWNER leem a evolucao', async () => {
+    const owner = await register('progress-roles-owner@example.invalid');
+    const project = await createProject(owner);
+    const sprintId = (await createSprint(owner, project.id)).body.sprint.id;
+
+    for (const role of ['VIEWER', 'MEMBER', 'MANAGER']) {
+      const membro = await register(`progress-${role.toLowerCase()}@example.invalid`);
+      await prisma.projectMembership.create({
+        data: { projectId: project.id, userId: membro.userId, role }
+      });
+      const response = await membro.agent.get(`/api/sprints/${sprintId}/progress`);
+      expect(response.status, `papel ${role}`).toBe(200);
+    }
+    expect((await owner.agent.get(`/api/sprints/${sprintId}/progress`)).status).toBe(200);
+  });
+});
+
 describe('autenticacao, CSRF e papeis', () => {
   it('exige sessao em leitura e mutacao', async () => {
     expect((await request(app).get('/api/sprints/1')).status).toBe(401);

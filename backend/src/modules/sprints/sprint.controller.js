@@ -93,6 +93,14 @@ export const sprintController = {
     { fallbackMessage: 'Erro interno ao atualizar tarefas da sprint.' }
   ),
 
+  progress: asyncHandler(
+    async (req, res) => {
+      const progress = await sprintService.getSprintProgress(req.params.id);
+      return res.json(progress);
+    },
+    { fallbackMessage: 'Erro interno ao calcular a evolução da sprint.' }
+  ),
+
   createMilestone: asyncHandler(
     async (req, res) => {
       const milestone = await sprintService.createMilestone(

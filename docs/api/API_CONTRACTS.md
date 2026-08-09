@@ -238,7 +238,44 @@ CONCLUIDA    -> (terminal)
 CANCELADA    -> (terminal)
 ```
 
-Ao entrar em `EM_ANDAMENTO` grava-se `startedAt`; ao entrar em `CONCLUIDA`, `completedAt`. Ambos são apenas persistidos nesta entrega — são a linha de base que o RF35 consumirá.
+Ao entrar em `EM_ANDAMENTO` grava-se `startedAt`; ao entrar em `CONCLUIDA`, `completedAt`. `startedAt` é a **linha de base do planejamento** consumida pelo RF35.
+
+### Evolução por sprint (RF35)
+
+`GET /sprints/:id/progress` → `200`. Leitura; exige `VIEWER` no projeto da sprint.
+
+```json
+{
+  "sprintId": 4, "projectId": 2, "status": "EM_ANDAMENTO",
+  "cutoff": "2026-08-09T03:00:00.000Z",
+  "baseline": { "kind": "STARTED_AT", "at": "2026-08-01T12:00:00.000Z" },
+  "planned": { "numerator": 5, "denominator": 8, "percentage": 62.5, "hasData": true },
+  "current": { "numerator": 6, "denominator": 9, "percentage": 66.67, "hasData": true },
+  "scopeChange": {
+    "added":   [{ "taskId": 12, "at": "...", "fromSprintId": 3 }],
+    "removed": [{ "taskId": 7, "at": "...", "toSprintId": null }]
+  }
+}
+```
+
+**Ficha da métrica** (seção 10.5 do documento de arquitetura):
+
+| Item | Definição |
+|---|---|
+| Objetivo | acompanhar o avanço da sprint e tornar visível a mudança de escopo após o planejamento |
+| Fórmula | `buildMetric(concluídas, total)` — a **mesma** de `traceability.calculator.js`. Concluída é `status === 'CONCLUIDO'`; percentual com duas casas |
+| Dados de origem | `Task.status`, `Task.sprintId`, `Sprint.startedAt` e `TaskHistoryEntry` com `field: SPRINT` |
+| Linha de base | `Sprint.startedAt`. Sem ele (`PLANEJADA`), a base é `OPEN`: o planejamento não fechou, `planned == current` e `scopeChange` é vazio |
+| Escopo planejado | membros no instante da base, reconstruídos do histórico: para tarefa movimentada depois da base, o `fromValue` da **primeira** movimentação posterior descreve onde ela estava; sem movimentação posterior, vale o estado atual |
+| Mudança de escopo | saldo líquido entre base e corte. Tarefa que saiu e voltou **não** conta como entrada nem saída |
+| Instante de corte | `cutoff`, sempre o momento da consulta, devolvido na resposta |
+| Interpretação | mede progresso do trabalho, **não** de pessoas. Não há recorte por responsável |
+| Limitações | (a) corte no passado não é suportado — `at` responde `400`, porque `Task.status` guarda apenas o estado atual e reconstruí-lo exigiria varrer `field: STATUS`; (b) tarefa removida permanece no denominador de `planned`, por ter sido planejada; (c) escopo depende do histórico: movimentação feita fora da API não aparece |
+| Atualização | calculado sob demanda; sem cache |
+
+`percentage` é `null` — nunca `0` — quando `denominator` é zero: "nada concluído" e "não há o que medir" são estados diferentes, e `hasData` distingue os dois.
+
+Consulta não gera `AuditEvent`: a seção 13.9 lista exportação de dados e relatórios como auditáveis, e leitura de indicador não é exportação.
 
 ### Cronograma
 

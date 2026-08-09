@@ -33,6 +33,7 @@ Baseline E6, consolidado na E15 em 26/07/2026. A matriz descreve a política efe
 | Milestones: `GET /projects/:projectId/milestones`, `/milestones/:id` | 401 | L | L | L | L | RF10; `resolveProjectId` resolve `/milestones/:id` |
 | Milestones: `POST`, `PUT`, `PATCH /milestones/:id/status`, `DELETE` | 401 | 403 | E | E | E | RF10 |
 | `GET /api/projects/:projectId/schedule` | 401 | L | L | L | L | RF10; agregado somente-leitura, DTO minimizado |
+| `GET /api/sprints/:id/progress` | 401 | L | L | L | L | RF35; somente-leitura; só `taskId` no payload, sem recorte por responsável |
 | `PATCH/DELETE /api/tasks/:id/sprint` | 401 | 403 | E | E | E | RF10; tarefa e sprint no mesmo projeto; idempotente; recurso de projeto não visto responde 404 indistinguível |
 | `GET /api/github/auth/check`, `/github/repositories` | 401 | L | L | L | L | credencial GitHub é sistêmica |
 | `POST /api/projects/:projectId/github/sync` | 401 | 403 | 403 | E | E | MANAGER+ e trava por projeto |

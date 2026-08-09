@@ -88,10 +88,38 @@ Defesa em profundidade: os services comparam `projectId` de tarefa e sprint a pa
 
 **Privacidade.** Nenhuma categoria nova de dado pessoal. `Sprint` e `Milestone` são dados de projeto. A associação referencia `actorUserId`, já inventariado via `TaskHistoryEntry` e `AuditEvent`. O DTO do cronograma expõe `responsibleUserId` e nunca e-mail. O cronograma não calcula indicadores individuais e não deve ser usado para inferir desempenho humano, conforme a seção 14.3 do documento de arquitetura.
 
+## Adendo — RF35: linha de base e instante de corte
+
+- **Estado:** aceito no S1-04 (RF35), fechando o cartão.
+
+### Decisão 9 — a linha de base do planejamento é `Sprint.startedAt`
+
+O critério "tarefas adicionadas ou removidas após o planejamento são identificáveis" exige um marco. Adotamos `startedAt`: o planejamento fecha quando a sprint entra em `EM_ANDAMENTO`. É coerente com a Decisão 6, que criou o campo exatamente para isso, e com a rejeição de `startDate` — data planejada não é execução.
+
+Sprint ainda `PLANEJADA` tem `startedAt` nulo e base `OPEN`: o planejamento não fechou, então o escopo planejado **é** o atual e não existe "adicionada depois". É o comportamento correto, não um caso degenerado.
+
+**Alternativas consideradas.** `createdAt` trataria como planejado todo o período de montagem do escopo. Snapshot explícito exigiria entidade nova e migration, contrariando a Decisão 6.
+
+### Decisão 10 — corte no passado é recusado com `400`
+
+`Task.status` guarda apenas o estado atual. Aceitar `at` no passado e responder com o status de hoje devolveria um número carimbado com uma data que ele não representa — a métrica enganosa que a seção 10.5 do documento de arquitetura proíbe. O parâmetro é recusado explicitamente, nunca ignorado em silêncio.
+
+**Consequência negativa aceita:** não há série histórica. Suportá-la exigiria reconstruir também `field: STATUS`, com custo de consulta bem maior.
+
+### Consequências
+
+- Nenhuma migration: o RF35 consome `startedAt` e o histórico `SPRINT` já existentes, confirmando a Decisão 6.
+- A consulta do histórico usa `projectId + field + occurredAt`, que aproveita os índices existentes. **Não há índice em `toValue`/`fromValue`**, então a discriminação por sprint acontece em memória, sobre um conjunto já limitado ao projeto e ao período.
+- `buildMetric` passou a ser exportado pelo índice do módulo `traceability`, para que a evolução use a mesma definição de percentual do indicador de progresso. Duas fórmulas divergentes sobre o mesmo conjunto de tarefas seriam defeito de contrato.
+
+**Impactos de segurança.** Endpoint somente-leitura endereçado por ID: a superfície é IDOR/BOLA, coberta pelo `resolveProjectId` já existente para `/sprints/:id`. Nenhuma consulta usa SQL bruto. Sprint de projeto alheio não expõe conteúdo; a divergência de código entre `RESOURCE_NOT_FOUND` e `SPRINT_NOT_FOUND` é anterior e vale para todo o app — registrada no backlog.
+
+**Impactos de privacidade.** Nenhuma categoria nova de dado pessoal. A resposta traz apenas `taskId`; não há recorte por responsável, e a métrica não deve ser usada para inferir desempenho individual (seção 14.3).
+
 ## Rastreabilidade
 
-- Cartão: S1-04 (parte 1 de 2), roadmap incremental.
-- Requisito: RF10. **RF35 não entregue**; o cartão permanece aberto.
+- Cartão: S1-04, **completo**: RF10 e RF35.
+- Requisitos: RF10 e RF35.
 - Contratos: `docs/api/API_CONTRACTS.md`, seção "Atualização S1-04 (RF10)".
 - Autorização: `docs/security/AUTHORIZATION_MATRIX.md`.
 - Evidência ASVS: `docs/security/ASVS_BASELINE.md`.

@@ -11,6 +11,7 @@ import {
   replaceSprintTasksBodySchema,
   scheduleQuerySchema,
   sprintIdParamsSchema,
+  sprintProgressQuerySchema,
   sprintProjectParamsSchema,
   sprintSearchQuerySchema,
   sprintStatusBodySchema,
@@ -59,6 +60,12 @@ router.put(
   '/sprints/:id/tasks',
   validateRequest({ params: sprintIdParamsSchema, body: replaceSprintTasksBodySchema }),
   sprintController.replaceTasks
+);
+
+router.get(
+  '/sprints/:id/progress',
+  validateRequest({ params: sprintIdParamsSchema, query: sprintProgressQuerySchema }),
+  sprintController.progress
 );
 
 router.post(

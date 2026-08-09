@@ -113,6 +113,35 @@ export const sprintRepository = {
     });
   },
 
+  // Membros atuais da sprint, so o necessario para a metrica (RF35).
+  findTaskStatusesBySprint(sprintId) {
+    return prisma.task.findMany({
+      where: { sprintId },
+      select: { id: true, status: true },
+      orderBy: { id: 'asc' }
+    });
+  },
+
+  // Movimentacoes de sprint posteriores a base do planejamento.
+  // Filtra por `projectId + field + occurredAt`, que usa os indices existentes
+  // ([projectId, occurredAt] e [field, occurredAt]); NAO ha indice em toValue nem
+  // em fromValue, entao a discriminacao por sprint acontece em memoria, sobre um
+  // conjunto ja limitado ao projeto e ao periodo.
+  findSprintHistorySince(projectId, since) {
+    return prisma.taskHistoryEntry.findMany({
+      where: { projectId, field: 'SPRINT', occurredAt: { gt: since } },
+      select: { taskId: true, fromValue: true, toValue: true, occurredAt: true },
+      orderBy: { occurredAt: 'asc' }
+    });
+  },
+
+  findTaskStatusesByIds(taskIds) {
+    return prisma.task.findMany({
+      where: { id: { in: taskIds } },
+      select: { id: true, status: true }
+    });
+  },
+
   findTasksBySprint(sprintId) {
     return prisma.task.findMany({
       where: { sprintId },

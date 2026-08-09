@@ -19,8 +19,10 @@ function primaryTransition(status) {
 export function SprintList({
   sprints,
   selectedSprintId,
+  progressSprintId,
   busySprintId,
   onSelect,
+  onShowProgress,
   onEdit,
   onDelete,
   onChangeStatus
@@ -82,6 +84,17 @@ export function SprintList({
                 }
               >
                 {selected ? 'Fechar tarefas' : 'Gerenciar tarefas'}
+              </button>
+
+              <button
+                type="button"
+                className="button button-secondary"
+                onClick={() => onShowProgress(sprint)}
+                aria-expanded={progressSprintId === sprint.id}
+                aria-label={`${progressSprintId === sprint.id ? 'Fechar' : 'Ver'} evolução da sprint ${sprint.name}`}
+                title="Mostra o escopo planejado, o escopo atual e o que mudou depois do planejamento."
+              >
+                {progressSprintId === sprint.id ? 'Fechar evolução' : 'Ver evolução'}
               </button>
 
               {advance && (

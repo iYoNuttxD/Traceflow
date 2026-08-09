@@ -19,7 +19,8 @@ const mocks = vi.hoisted(() => ({
     updateMilestone: vi.fn(),
     updateMilestoneStatus: vi.fn(),
     removeMilestone: vi.fn(),
-    listProjectTasks: vi.fn()
+    listProjectTasks: vi.fn(),
+    getSprintProgress: vi.fn()
   },
   projects: { get: vi.fn() },
   confirm: vi.fn()
@@ -114,7 +115,8 @@ describe('contrato dos modulos consumidos', () => {
       'createMilestone',
       'updateMilestone',
       'updateMilestoneStatus',
-      'removeMilestone'
+      'removeMilestone',
+      'getSprintProgress'
     ]) {
       expect(typeof actual.scheduleApi[method], `scheduleApi.${method}`).toBe('function');
     }
@@ -660,6 +662,148 @@ describe('formulario de marco', () => {
     expect(await screen.findByText('Informe o título do marco.')).toBeInTheDocument();
     expect(screen.getByText('Informe a data prevista.')).toBeInTheDocument();
     expect(mocks.schedule.createMilestone).not.toHaveBeenCalled();
+  });
+});
+
+describe('evolucao da sprint (RF35)', () => {
+  const sprint = {
+    id: 3,
+    name: 'Sprint 1',
+    objective: null,
+    startDate: '2026-08-01',
+    endDate: '2026-08-14',
+    status: 'EM_ANDAMENTO'
+  };
+  const metrica = (numerator, denominator, percentage) => ({
+    numerator,
+    denominator,
+    percentage,
+    hasData: denominator > 0
+  });
+
+  beforeEach(() => {
+    mocks.schedule.listSprints.mockResolvedValue({ data: { total: 1, sprints: [sprint] } });
+  });
+
+  const abrir = async (user) =>
+    user.click(await screen.findByRole('button', { name: /^Ver evolução da sprint/ }));
+
+  it('apresenta escopo planejado, escopo atual e o que mudou', async () => {
+    const user = userEvent.setup();
+    mocks.schedule.getSprintProgress.mockResolvedValue({
+      data: {
+        sprintId: 3,
+        baseline: { kind: 'STARTED_AT', at: '2026-08-01T12:00:00.000Z' },
+        cutoff: '2026-08-09T15:00:00.000Z',
+        planned: metrica(1, 2, 50),
+        current: metrica(1, 2, 50),
+        scopeChange: {
+          added: [{ taskId: 12, at: '2026-08-05T10:00:00.000Z', fromSprintId: null }],
+          removed: [{ taskId: 7, at: '2026-08-06T10:00:00.000Z', toSprintId: null }]
+        }
+      }
+    });
+    renderScreen();
+    await abrir(user);
+
+    const painel = await screen.findByRole('region', { name: /Evolução da sprint/ });
+    expect(within(painel).getByText('Escopo planejado')).toBeInTheDocument();
+    expect(within(painel).getByText('Escopo atual')).toBeInTheDocument();
+    expect(within(painel).getAllByText('50%')).toHaveLength(2);
+    expect(within(painel).getByText('1 tarefa entrou na sprint: #12')).toBeInTheDocument();
+    expect(within(painel).getByText('1 tarefa saiu da sprint: #7')).toBeInTheDocument();
+  });
+
+  // percentage null significa "nao ha o que medir"; 0% diria "nada concluido".
+  it('sprint sem tarefas mostra sem dados, nunca 0%', async () => {
+    const user = userEvent.setup();
+    mocks.schedule.getSprintProgress.mockResolvedValue({
+      data: {
+        sprintId: 3,
+        baseline: { kind: 'STARTED_AT', at: '2026-08-01T12:00:00.000Z' },
+        cutoff: '2026-08-09T15:00:00.000Z',
+        planned: metrica(0, 0, null),
+        current: metrica(0, 0, null),
+        scopeChange: { added: [], removed: [] }
+      }
+    });
+    renderScreen();
+    await abrir(user);
+
+    const painel = await screen.findByRole('region', { name: /Evolução da sprint/ });
+    expect(within(painel).getAllByText('Sem tarefas para medir.')).toHaveLength(2);
+    expect(within(painel).queryByText('0%')).not.toBeInTheDocument();
+    expect(
+      within(painel).getByText(/Nenhuma tarefa entrou ou saiu depois do planejamento/)
+    ).toBeInTheDocument();
+  });
+
+  it('explica a base aberta quando a sprint ainda nao comecou', async () => {
+    const user = userEvent.setup();
+    mocks.schedule.listSprints.mockResolvedValue({
+      data: { total: 1, sprints: [{ ...sprint, status: 'PLANEJADA' }] }
+    });
+    mocks.schedule.getSprintProgress.mockResolvedValue({
+      data: {
+        sprintId: 3,
+        baseline: { kind: 'OPEN', at: null },
+        cutoff: '2026-08-09T15:00:00.000Z',
+        planned: metrica(0, 1, 0),
+        current: metrica(0, 1, 0),
+        scopeChange: { added: [], removed: [] }
+      }
+    });
+    renderScreen();
+    await abrir(user);
+
+    const painel = await screen.findByRole('region', { name: /Evolução da sprint/ });
+    expect(within(painel).getByText(/o planejamento não está fechado/)).toBeInTheDocument();
+    // Base aberta: nao ha "depois do planejamento" a relatar.
+    expect(within(painel).queryByText(/Mudanças depois do planejamento/)).not.toBeInTheDocument();
+  });
+
+  it('mostra estado de carga em vez de painel vazio', async () => {
+    const user = userEvent.setup();
+    let liberar;
+    mocks.schedule.getSprintProgress.mockReturnValue(
+      new Promise((resolve) => {
+        liberar = resolve;
+      })
+    );
+    renderScreen();
+    await abrir(user);
+
+    const painel = await screen.findByRole('region', { name: /Evolução da sprint/ });
+    expect(within(painel).getByText('Calculando a evolução...')).toBeInTheDocument();
+
+    liberar({
+      data: {
+        sprintId: 3,
+        baseline: { kind: 'OPEN', at: null },
+        cutoff: '2026-08-09T15:00:00.000Z',
+        planned: metrica(1, 1, 100),
+        current: metrica(1, 1, 100),
+        scopeChange: { added: [], removed: [] }
+      }
+    });
+    // Planejado e atual coincidem aqui, entao 100% aparece nas duas medidas.
+    expect(await within(painel).findAllByText('100%')).toHaveLength(2);
+  });
+
+  it('fecha o painel quando o calculo falha', async () => {
+    const user = userEvent.setup();
+    mocks.schedule.getSprintProgress.mockRejectedValue({
+      response: { status: 500, data: {} }
+    });
+    renderScreen();
+    await abrir(user);
+
+    expect(
+      await screen.findByText('Não foi possível calcular a evolução da sprint.')
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.queryByRole('region', { name: /Evolução da sprint/ })).not.toBeInTheDocument()
+    );
   });
 });
 

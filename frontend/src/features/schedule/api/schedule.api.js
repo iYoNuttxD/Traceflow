@@ -66,6 +66,11 @@ export const scheduleApi = {
     });
   },
 
+  // Evolucao por sprint (RF35)
+  getSprintProgress(sprintId, options = {}) {
+    return httpClient.get(`/sprints/${sprintId}/progress`, options);
+  },
+
   // Vinculo pelo lado da tarefa
   linkTaskSprint(taskId, sprintId) {
     return httpClient.patch(`/tasks/${taskId}/sprint`, { sprintId });
