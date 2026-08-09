@@ -9,6 +9,7 @@ import {
   unlinkTaskRequirement
 } from '../api/tasks.api.js';
 import { projectMembersApi } from '../../members/index.js';
+import { scheduleApi } from '../../schedule/index.js';
 import { projectsApi } from '../../projects/index.js';
 import { ProjectSectionNav } from '../../projects/index.js';
 import { KanbanBoard } from '../components/KanbanBoard.jsx';
@@ -98,6 +99,7 @@ export function KanbanScreen() {
   const [metrics, setMetrics] = useState(null);
   const [movements, setMovements] = useState([]);
   const [projectMembers, setProjectMembers] = useState([]);
+  const [projectSprints, setProjectSprints] = useState([]);
   const [period, setPeriod] = useState({ startDate: '', endDate: '' });
   const [movementMemberFilter, setMovementMemberFilter] = useState('');
   const [historyFieldFilter, setHistoryFieldFilter] = useState('');
@@ -147,13 +149,17 @@ export function KanbanScreen() {
           boardResponse,
           metricsResponse,
           movementsResponse,
-          membersResponse
+          membersResponse,
+          sprintsResponse
         ] = await Promise.all([
           projectsApi.get(projectId),
           kanbanApi.getBoard(projectId),
           kanbanApi.getMetrics(projectId, params),
           kanbanApi.listTaskHistory(projectId, { ...params, page: 1, limit: MOVEMENTS_PER_PAGE }),
-          projectMembersApi.listProjectMembers(projectId)
+          projectMembersApi.listProjectMembers(projectId),
+          // Sprints alimentam apenas os rótulos do histórico. Falha aqui não pode
+          // derrubar o Kanban: cai para lista vazia e o fallback exibe o ID.
+          scheduleApi.listSprints(projectId).catch(() => ({ data: { sprints: [] } }))
         ]);
 
         const members = membersResponse.data.members || [];
@@ -170,6 +176,7 @@ export function KanbanScreen() {
           }
         );
         setProjectMembers(members);
+        setProjectSprints(sprintsResponse.data.sprints || []);
       } catch (requestError) {
         setError(getErrorMessage(requestError, 'Não foi possível carregar o Kanban.'));
       } finally {
@@ -574,6 +581,7 @@ export function KanbanScreen() {
             memberFilter={movementMemberFilter}
             fieldFilter={historyFieldFilter}
             members={projectMembers}
+            sprints={projectSprints}
             metrics={metrics}
             onPeriodChange={(field, value) =>
               setPeriod((current) => ({ ...current, [field]: value }))

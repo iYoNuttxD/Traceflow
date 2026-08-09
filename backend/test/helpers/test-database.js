@@ -28,6 +28,10 @@ export function deployTestMigrations(testDatabaseUrl) {
   );
   const result = spawnSync(prismaExecutable, ['migrate', 'deploy'], {
     cwd: process.cwd(),
+    // A partir do Node 18.20.2/20.12.2/22 (mitigacao da CVE-2024-27980), spawn de
+    // .cmd/.bat sem shell retorna EINVAL. Sem isto, nenhum teste de integracao ou
+    // API roda no Windows.
+    shell: process.platform === 'win32',
     env: {
       ...process.env,
       DATABASE_URL: testDatabaseUrl
@@ -37,7 +41,9 @@ export function deployTestMigrations(testDatabaseUrl) {
 
   if (result.status !== 0) {
     throw new Error(
-      `Não foi possível aplicar migrations no banco de teste. ${result.stderr || result.stdout}`
+      `Não foi possível aplicar migrations no banco de teste. ${
+        result.error?.message || result.stderr || result.stdout
+      }`
     );
   }
 }
@@ -53,6 +59,8 @@ export async function cleanTestDatabase(prisma) {
     prisma.taskHistoryEntry.deleteMany(),
     prisma.taskMovement.deleteMany(),
     prisma.task.deleteMany(),
+    prisma.milestone.deleteMany(),
+    prisma.sprint.deleteMany(),
     prisma.requirement.deleteMany(),
     prisma.projectInvitation.deleteMany(),
     prisma.projectMembership.deleteMany(),

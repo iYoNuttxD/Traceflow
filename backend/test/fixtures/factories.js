@@ -53,6 +53,32 @@ export async function createTask(prisma, projectId, overrides = {}) {
   });
 }
 
+export async function createSprint(prisma, projectId, overrides = {}) {
+  return prisma.sprint.create({
+    data: {
+      projectId,
+      name: `Sprint artificial ${nextId()}`,
+      objective: 'Objetivo artificial',
+      startDate: new Date('2026-08-01T00:00:00.000Z'),
+      endDate: new Date('2026-08-14T00:00:00.000Z'),
+      status: 'PLANEJADA',
+      ...overrides
+    }
+  });
+}
+
+export async function createMilestone(prisma, projectId, overrides = {}) {
+  return prisma.milestone.create({
+    data: {
+      projectId,
+      title: `Marco artificial ${nextId()}`,
+      dueDate: new Date('2026-08-14T00:00:00.000Z'),
+      status: 'PENDENTE',
+      ...overrides
+    }
+  });
+}
+
 export async function createProjectMember(prisma, projectId, overrides = {}) {
   return prisma.projectMember.create({
     data: {

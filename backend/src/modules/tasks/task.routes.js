@@ -17,6 +17,7 @@ import {
   pullRequestLinkBodySchema,
   taskRequirementBodySchema,
   taskSearchQuerySchema,
+  taskSprintBodySchema,
   taskStatusBodySchema,
   updateTaskBodySchema
 } from './task.validation.js';
@@ -83,6 +84,16 @@ router.delete(
   '/tasks/:id/requirement',
   validateRequest({ params: taskIdParamsSchema, body: emptyBodySchema }),
   taskController.unlinkRequirement
+);
+router.patch(
+  '/tasks/:id/sprint',
+  validateRequest({ params: taskIdParamsSchema, body: taskSprintBodySchema }),
+  taskController.linkSprint
+);
+router.delete(
+  '/tasks/:id/sprint',
+  validateRequest({ params: taskIdParamsSchema, body: emptyBodySchema }),
+  taskController.unlinkSprint
 );
 router.patch(
   '/tasks/:id/pull-request',

@@ -31,7 +31,8 @@ export const historyFieldLabels = {
   STATUS: 'Status',
   DEADLINE: 'Prazo',
   RESPONSIBLE: 'Responsável',
-  PRIORITY: 'Prioridade'
+  PRIORITY: 'Prioridade',
+  SPRINT: 'Sprint'
 };
 
 export function formatDate(value) {
@@ -42,7 +43,9 @@ export function formatDateTime(value) {
   return value ? new Date(value).toLocaleString('pt-BR') : 'Não informado';
 }
 
-export function formatHistoryValue(field, value, members) {
+// O quarto parametro e opcional com default: chamadas de tres argumentos
+// permanecem identicas. Sem a lista de sprints, o fallback exibe o ID.
+export function formatHistoryValue(field, value, members, sprints = []) {
   if (value === null || value === undefined || value === '') return 'Não informado';
   if (field === 'STATUS') return statusLabels[value] || value;
   if (field === 'PRIORITY') return priorityLabels[value] || value;
@@ -52,6 +55,10 @@ export function formatHistoryValue(field, value, members) {
       (item) => String(item.user?.id || item.userId) === String(value)
     );
     return membership?.user?.name || `Usuário #${value}`;
+  }
+  if (field === 'SPRINT') {
+    const sprint = sprints.find((item) => String(item.id) === String(value));
+    return sprint?.name || `Sprint #${value}`;
   }
   return value;
 }

@@ -12,5 +12,11 @@ export const authorizationRepository = {
   },
   projectForTask(id) {
     return prisma.task.findUnique({ where: { id }, select: { projectId: true } });
+  },
+  projectForSprint(id) {
+    return prisma.sprint.findUnique({ where: { id }, select: { projectId: true } });
+  },
+  projectForMilestone(id) {
+    return prisma.milestone.findUnique({ where: { id }, select: { projectId: true } });
   }
 };

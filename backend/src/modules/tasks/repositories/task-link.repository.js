@@ -31,6 +31,20 @@ export const taskLinkRepository = {
       return updated;
     });
   },
+  // Transacao unica: atualiza Task.sprintId, grava o historico funcional (RF38)
+  // e o evento de auditoria no mesmo escopo. Falha em qualquer etapa desfaz tudo.
+  async setSprint(task, sprintId, { historyEntry, auditEvent } = {}) {
+    return prisma.$transaction(async (tx) => {
+      const updated = await tx.task.update({
+        where: { id: task.id },
+        data: { sprintId },
+        include: taskInclude
+      });
+      if (historyEntry) await tx.taskHistoryEntry.create({ data: historyEntry });
+      if (auditEvent) await auditRepository.create(auditEvent, tx);
+      return updated;
+    });
+  },
   async setPullRequest(taskId, pullRequestId, auditEvent) {
     return prisma.$transaction(async (tx) => {
       const task = await tx.task.update({

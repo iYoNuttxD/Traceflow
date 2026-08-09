@@ -13,7 +13,7 @@ Estados: `ATENDIDO`, `PARCIAL`, `NÃO ATENDIDO` e `NÃO APLICÁVEL`.
 | Prevenção de SSRF na integração GitHub | ATENDIDO | `backend/src/shared/security/ssrf.js`; testes de hosts/esquemas; base fixa do Octokit | deve ser reavaliado ao adicionar outra integração externa |
 | Autenticação e recuperação de conta | PARCIAL | `backend/src/modules/auth/`; Argon2id, respostas uniformes, reset com TTL e testes | MFA, verificação de e-mail e SSO não existem |
 | Sessão e CSRF | ATENDIDO no escopo atual | sessão opaca hashada, cookie seguro por ambiente, expiração/revogação, middleware CSRF e testes em `backend/test` | store distribuído e revogação central entre instâncias não existem |
-| Autorização por projeto e objeto | ATENDIDO no escopo RBAC atual | `backend/src/shared/auth/`; `docs/security/AUTHORIZATION_MATRIX.md`; testes 403/404 e isolamento entre projetos | não representa ABAC nem autorização fora dos papéis atuais |
+| Autorização por projeto e objeto | ATENDIDO no escopo RBAC atual | `backend/src/shared/auth/`; `docs/security/AUTHORIZATION_MATRIX.md`; testes 403/404 e isolamento entre projetos. **S1-04/RF10:** `resolveProjectId` estendido para `/sprints/:id` e `/milestones/:id` em `authorization.service.js`; sem essa extensão o middleware liberaria o recurso sem checar membership (ASVS 8.2.2, IDOR/BOLA). Evidência em `backend/test/api/schedule-contracts.test.js`, incluindo regressão dos recursos antigos | não representa ABAC nem autorização fora dos papéis atuais |
 | Proteção contra automação e abuso | PARCIAL | limiters geral, convite e GitHub em `backend/src/shared/security/`; lock de sync por projeto | contadores e lock são locais à instância; produção horizontal requer store distribuído |
 | CORS, headers e fingerprint | ATENDIDO na API | allowlist em `backend/src/shared/security/cors.js`; Helmet; `X-Powered-By` removido; testes HTTP | headers do documento HTML pertencem ao host da SPA |
 | HSTS e confiança no proxy | PARCIAL | HSTS condicionado a produção; `TRUST_PROXY` explícito e validado | depende de HTTPS e topologia reais do ingress |
@@ -29,6 +29,27 @@ Estados: `ATENDIDO`, `PARCIAL`, `NÃO ATENDIDO` e `NÃO APLICÁVEL`.
 | Backup e restauração | PARCIAL | `docs/runbooks/BACKUP_RESTORE.md`; exercício E15 em bancos artificiais com 21 tabelas restauradas | agendamento, criptografia, retenção e restore periódico são responsabilidades operacionais |
 | Upload de arquivos | NÃO APLICÁVEL | nenhuma rota multipart/upload no runtime | reavaliar caso a capacidade seja introduzida |
 | Server-side rendering/RSC | NÃO APLICÁVEL | frontend Vite SPA sem SSR, loaders/actions de servidor ou React Server Components | reavaliar se a arquitetura frontend mudar |
+
+## Controles verificados no S1-04 (RF10)
+
+Controles conferidos contra o texto oficial do ASVS 5.0.0 durante a entrega de sprints, marcos e cronograma. Todos são L1 ou L2, coerentes com a meta L2.
+
+| Controle | Aplicação no RF10 | Evidência |
+|---|---|---|
+| 1.2.4 consultas parametrizadas/ORM | apenas Prisma parametrizado; nenhum SQL bruto nos repositories de sprint e marco | `sprint.repository.js`, `milestone.repository.js` |
+| 2.2.1 allowlist, padrões e faixas | Zod estrito; `status` por `z.enum`; datas por `dateOnly`/`isoDateTime`; `taskIds` ≤ 100 sem duplicados | `sprint.validation.js`; `schedule-contracts.test.js` |
+| 2.2.2 validação em camada confiável | invariantes no service, não no formulário; frontend valida só por UX | `sprint.schema.js`; teste de API com payload inválido direto |
+| 2.2.3 consistência entre dados relacionados | `startDate <= endDate`; tarefa e sprint no mesmo projeto | `sprint.service.test.js` |
+| 2.3.1 fluxo na ordem esperada | máquina de estados da sprint; transição inválida → `409 SPRINT_INVALID_TRANSITION` | matriz de transições em `sprint.service.test.js` |
+| 2.3.3 transações no nível de negócio | link/unlink e `PUT /sprints/:id/tasks` em `prisma.$transaction` com auditoria no mesmo escopo | `rf10-sprint-schedule.test.js` (falha parcial sem persistência residual) |
+| 4.1.1 `Content-Type` correto | respostas JSON com charset; limites de payload globais | testes HTTP existentes |
+| 8.2.1 acesso a função por permissão explícita | `requiredRole` vigente aplicado às rotas novas, sem alterar o resolvedor de papéis | teste `403` para VIEWER em mutação |
+| 8.2.2 acesso a dado (IDOR/BOLA) | `resolveProjectId` estendido + filtro por `projectId` nos repositories | teste obrigatório de isolamento entre projetos, todos os métodos |
+| 8.3.1 autorização em camada confiável | middleware + verificação de pertencimento no service; nada depende da UI | teste de API sem passar pelo frontend |
+| 16.2.2 timestamps em UTC | `generatedAt`, `startedAt`, `completedAt`, `occurredAt` | `sprint.calculator.test.js` (normalização de offset) |
+| 16.3.2 falhas de autorização registradas | `403`/`404` chegam ao logger sem dado sensível | logger com redaction existente |
+| 16.3.3 eventos de segurança definidos | `AuditEvent` em todas as mutações de sprint, marco e vínculo | `schedule-contracts.test.js` |
+| 16.5.1 mensagem genérica em erro inesperado | `asyncHandler` com `fallbackMessage` por operação; `details` sem eco de valor recebido | teste de resposta de erro |
 
 ## Lacunas prioritárias
 

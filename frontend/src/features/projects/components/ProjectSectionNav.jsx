@@ -4,6 +4,7 @@ const projectSections = [
   { key: 'tasks', label: 'Tarefas', path: 'tasks' },
   { key: 'requirements', label: 'Requisitos', path: 'requirements' },
   { key: 'kanban', label: 'Kanban', path: 'kanban' },
+  { key: 'schedule', label: 'Cronograma', path: 'schedule' },
   { key: 'repository', label: 'Repositório', path: 'repository' },
   { key: 'traceability', label: 'Rastreabilidade', path: 'traceability' }
 ];

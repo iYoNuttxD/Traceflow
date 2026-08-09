@@ -12,6 +12,7 @@ export function MovementHistory({
   memberFilter,
   fieldFilter,
   members,
+  sprints = [],
   metrics,
   onPeriodChange,
   onMemberFilterChange,
@@ -102,8 +103,8 @@ export function MovementHistory({
                 <strong>{movement.taskTitle || `Tarefa #${movement.taskId}`}</strong>
                 <span>
                   {historyFieldLabels[movement.field] || movement.field}:{' '}
-                  {formatHistoryValue(movement.field, movement.fromValue, members)} para{' '}
-                  {formatHistoryValue(movement.field, movement.toValue, members)}
+                  {formatHistoryValue(movement.field, movement.fromValue, members, sprints)} para{' '}
+                  {formatHistoryValue(movement.field, movement.toValue, members, sprints)}
                 </span>
                 <span>{movement.actor?.name || `Usuário #${movement.actorUserId}`}</span>
                 <time dateTime={movement.occurredAt}>{formatDateTime(movement.occurredAt)}</time>

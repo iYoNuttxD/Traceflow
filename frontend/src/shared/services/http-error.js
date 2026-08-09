@@ -18,10 +18,11 @@ export function normalizeApiError(
       )
     : Object.freeze({});
   const normalized = {
-    message:
-      typeof data.message === 'string' && data.message
-        ? data.message
-        : error?.message || fallbackMessage,
+    // Precedência: mensagem do backend (já segura e em português) > texto explícito do
+    // chamador > genérico. A mensagem do axios ('Network Error', 'Request failed with
+    // status code 500') nunca chega ao usuário: é técnica, em inglês, e vaza detalhe de
+    // infraestrutura. Ela continua disponível em `original` para depuração.
+    message: typeof data.message === 'string' && data.message ? data.message : fallbackMessage,
     status: Number.isInteger(response?.status) ? response.status : undefined,
     code: typeof data.code === 'string' ? data.code : undefined,
     fieldErrors,

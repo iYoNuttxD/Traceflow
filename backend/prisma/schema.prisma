@@ -56,6 +56,19 @@ enum TaskHistoryField {
   DEADLINE
   RESPONSIBLE
   PRIORITY
+  SPRINT
+}
+
+enum SprintStatus {
+  PLANEJADA
+  EM_ANDAMENTO
+  CONCLUIDA
+  CANCELADA
+}
+
+enum MilestoneStatus {
+  PENDENTE
+  CONCLUIDO
 }
 
 model User {
@@ -195,6 +208,8 @@ model Project {
   invitations           ProjectInvitation[]
   auditEvents           AuditEvent[]
   taskCommitSuggestions TaskCommitSuggestion[]
+  sprints               Sprint[]
+  milestones            Milestone[]
 
   @@unique([githubRepositoryId])
   @@unique([githubRepositoryFullName])
@@ -299,12 +314,14 @@ model Task {
   actualEffort      Int?
   pullRequestId     Int?
   responsibleUserId Int?
+  sprintId          Int?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
   project           Project                @relation(fields: [projectId], references: [id])
   requirement       Requirement?           @relation(fields: [requirementId], references: [id])
   pullRequest       PullRequest?           @relation(fields: [pullRequestId], references: [id], onDelete: SetNull)
+  sprint            Sprint?                @relation(fields: [sprintId], references: [id], onDelete: SetNull)
   movements         TaskMovement[]
   historyEntries    TaskHistoryEntry[]
   commitLinks       TaskCommit[]
@@ -317,6 +334,46 @@ model Task {
   @@index([requirementId])
   @@index([projectId, status])
   @@index([projectId, createdAt])
+  @@index([projectId, sprintId])
+}
+
+// Sprint do cronograma do projeto (RF10); base para a evolucao do RF35.
+model Sprint {
+  id          Int          @id @default(autoincrement())
+  projectId   Int
+  name        String
+  objective   String?      @db.Text
+  startDate   DateTime     @db.Date
+  endDate     DateTime     @db.Date
+  status      SprintStatus @default(PLANEJADA)
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks   Task[]
+
+  @@unique([projectId, name])
+  @@index([projectId, status])
+  @@index([projectId, startDate])
+}
+
+// Marco do cronograma do projeto (RF10). Pertence ao projeto, nao a sprint.
+model Milestone {
+  id          Int             @id @default(autoincrement())
+  projectId   Int
+  title       String
+  description String?         @db.Text
+  dueDate     DateTime        @db.Date
+  status      MilestoneStatus @default(PENDENTE)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, dueDate])
+  @@index([projectId, status])
 }
 
 // Vinculo de rastreabilidade entre tarefas e commits importados do GitHub.

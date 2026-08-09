@@ -17,6 +17,15 @@ Consolidação técnica da E15 em 26/07/2026. O inventário descreve o tratament
 | Request ID, IP técnico e evento de auditoria | segurança, diagnóstico e responsabilização | request e operações autenticadas | logs e `AuditEvent` | titular em eventos próprios; OWNER em eventos do projeto; operação autorizada | 365 dias por default técnico para auditoria | job/política de retenção; logs externos dependem da operação | metadata minimizada | perfilamento e exposição operacional | allowlist, redaction, sem body/token/e-mail e request ID |
 | Segredos de infraestrutura | acesso a banco, GitHub e SMTP | operação | variáveis de ambiente, nunca banco/UI | operadores autorizados e backend | até rotação/revogação | revogação e substituição | não aplicável | comprometimento sistêmico | validação de config, scanner, redaction e política de segredos |
 
+## Avaliação do S1-04 (RF10) — sprints, marcos e cronograma
+
+O módulo **não introduz nova categoria de dado pessoal**. `Sprint` e `Milestone` armazenam apenas dados de projeto — nome, objetivo, título, descrição e datas de calendário — sem qualquer campo de titular.
+
+- A associação tarefa ↔ sprint referencia `TaskHistoryEntry.actorUserId` e `AuditEvent.actorUserId`, ambos **já inventariados** nas linhas de "Autor de movimento e histórico" e "Request ID, IP técnico e evento de auditoria". Nenhuma finalidade nova, nenhum prazo de retenção novo.
+- O DTO do cronograma expõe `responsibleUserId` (identificador técnico) e **nunca e-mail**, mantendo a minimização já adotada em `formatTask`. Teste de contrato verifica a ausência de e-mail no payload.
+- `Sprint.objective` e `Milestone.description` são texto livre e, como os demais campos livres do produto, podem conter PII inserida pelo usuário. Aplicam-se os mesmos controles: validação, limites de tamanho, RBAC e orientação de minimização.
+- O cronograma **não deve ser usado para inferir desempenho individual**. A seção 14.3 do documento de arquitetura veda conclusões absolutas sobre desempenho humano a partir de contagem de tarefas; esta entrega não calcula nenhum indicador por pessoa.
+
 ## Legado anterior à identidade
 
 A auditoria local sanitizada encontrou oito Tasks somente com responsável textual e dez movimentos somente com ator/membro legado. Não existe membership ativa inequívoca para reconciliá-los. Os valores textuais permanecem como snapshots, os identificadores canônicos permanecem nulos e nenhuma associação por nome foi criada. O mapa manual, quando necessário, fica exclusivamente em `backend/.local/`, ignorado pelo Git.
