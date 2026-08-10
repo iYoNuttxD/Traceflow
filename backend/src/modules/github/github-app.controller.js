@@ -56,6 +56,14 @@ export const githubAppController = {
       )
     })
   ),
+  listAllRepositories: asyncHandler(async (req, res) =>
+    res.json({
+      repositories: await githubAppService.listAllRepositories(
+        req.auth.user.id,
+        req.query?.projectId
+      )
+    })
+  ),
   connectProject: asyncHandler(async (req, res) => {
     const integration = await githubAppService.connectProject({
       projectId: req.params.projectId,

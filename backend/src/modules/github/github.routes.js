@@ -23,6 +23,11 @@ router.post(
 );
 router.get('/github/app/installations', githubAppController.listInstallations);
 router.get(
+  '/github/app/repositories',
+  validateRequest({ query: githubRepositoryListQuerySchema }),
+  githubAppController.listAllRepositories
+);
+router.get(
   '/github/app/installations/:installationId/repositories',
   validateRequest({
     params: githubInstallationParamsSchema,

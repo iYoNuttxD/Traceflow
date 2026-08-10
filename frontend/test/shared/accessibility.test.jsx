@@ -12,6 +12,7 @@ import {
   LoadingState,
   useConfirm
 } from '../../src/shared/index.js';
+import { PasswordField } from '../../src/features/auth/index.js';
 
 function ConfirmFixture() {
   const confirm = useConfirm();
@@ -68,6 +69,45 @@ describe('infraestrutura acessível compartilhada', () => {
     expect(input).toHaveAttribute('aria-invalid', 'true');
     expect(input).toHaveAccessibleDescription('Campo obrigatório.');
     expect(screen.getByRole('status')).toHaveTextContent('Salvo com sucesso.');
+  });
+
+  it('distingue success, warning e rate limit por semântica, ícone e texto', () => {
+    const { rerender } = render(<FeedbackRegion success="E-mail enviado com sucesso." />);
+    expect(screen.getByRole('status')).toHaveClass('message-success');
+    expect(screen.getByRole('status')).toHaveTextContent('✓');
+    rerender(<FeedbackRegion warning="Verifique seu e-mail." />);
+    expect(screen.getByRole('alert')).toHaveClass('message-warning');
+    expect(screen.getByRole('alert')).toHaveTextContent('⚠');
+    rerender(<FeedbackRegion rateLimit="Muitas tentativas realizadas." retryAfterSeconds={58} />);
+    expect(screen.getByRole('alert')).toHaveClass('message-rate-limit');
+    expect(screen.getByRole('alert')).toHaveTextContent('Tente novamente em 58s.');
+  });
+
+  it('permite mostrar senha e informa força somente quando solicitado', async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <PasswordField
+        id="new-password"
+        value="Senha artificial 123!"
+        onChange={vi.fn()}
+        showRequirements
+      />
+    );
+    expect(screen.getByLabelText(/Força da senha/)).toBeInTheDocument();
+    const input = screen.getByLabelText(/^Senha/);
+    expect(input).toHaveAttribute('type', 'password');
+    await user.click(screen.getByRole('button', { name: 'Mostrar senha' }));
+    expect(input).toHaveAttribute('type', 'text');
+    rerender(
+      <PasswordField
+        id="current-password"
+        label="Senha atual"
+        value="artificial"
+        onChange={vi.fn()}
+        autoComplete="current-password"
+      />
+    );
+    expect(screen.queryByLabelText(/Força da senha/)).not.toBeInTheDocument();
   });
 
   it('cancela por Escape e restaura o foco no acionador', async () => {

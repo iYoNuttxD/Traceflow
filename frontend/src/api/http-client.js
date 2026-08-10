@@ -2,6 +2,11 @@ import axios from 'axios';
 import { normalizeApiError } from '../shared/services/http-error.js';
 
 const mutatingMethods = new Set(['post', 'put', 'patch', 'delete']);
+const sessionFailureCodes = new Set([
+  'AUTHENTICATION_REQUIRED',
+  'SESSION_INVALID',
+  'SESSION_EXPIRED'
+]);
 const defaultTimeout = 15_000;
 let csrfToken;
 let sessionGeneration = 0;
@@ -29,6 +34,22 @@ function configuredTimeout() {
   return Number.isFinite(value) && value > 0 ? value : defaultTimeout;
 }
 
+function subscribeToGet(promise, signal) {
+  if (!signal) return promise;
+  const canceled = () => new axios.CanceledError('Requisição cancelada pelo consumidor.');
+  if (signal.aborted) return Promise.reject(canceled());
+  return promise.then(
+    (response) => {
+      if (signal.aborted) throw canceled();
+      return response;
+    },
+    (error) => {
+      if (signal.aborted) throw canceled();
+      throw error;
+    }
+  );
+}
+
 export function setCsrfToken(value) {
   csrfToken = value || undefined;
 }
@@ -50,7 +71,11 @@ export function createHttpClient(options = {}) {
   });
 
   client.interceptors.response.use(undefined, (error) => {
-    if (error?.response?.status === 401 && typeof window !== 'undefined') {
+    if (
+      error?.response?.status === 401 &&
+      sessionFailureCodes.has(error.response.data?.code) &&
+      typeof window !== 'undefined'
+    ) {
       resetHttpSessionScope();
       window.dispatchEvent(new CustomEvent('traceflow:unauthorized'));
     }
@@ -74,18 +99,15 @@ export function createHttpClient(options = {}) {
   client.get = (url, config = {}) => {
     const key = `${sessionGeneration}:get:${url}:${stableValue(config.params || {})}`;
     const pending = pendingGets.get(key);
-    if (pending) return pending.promise;
+    if (pending) return subscribeToGet(pending.promise, config.signal);
 
     const controller = new AbortController();
-    if (config.signal) {
-      if (config.signal.aborted) controller.abort();
-      else config.signal.addEventListener('abort', () => controller.abort(), { once: true });
-    }
-    const promise = get(url, { ...config, signal: controller.signal }).finally(() => {
+    const { signal: consumerSignal, ...requestConfig } = config;
+    const promise = get(url, { ...requestConfig, signal: controller.signal }).finally(() => {
       if (pendingGets.get(key)?.promise === promise) pendingGets.delete(key);
     });
     pendingGets.set(key, { promise, controller });
-    return promise;
+    return subscribeToGet(promise, consumerSignal);
   };
 
   return client;

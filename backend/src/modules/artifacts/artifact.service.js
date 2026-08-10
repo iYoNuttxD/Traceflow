@@ -132,6 +132,7 @@ function mapCommit(commit, project) {
     githubUrl: commit.githubUrl || null,
     metadata: {
       branch: commit.branch || null,
+      branches: (commit.branchLinks || []).map(({ branch }) => branch.name).sort(),
       state: null,
       number: null
     }
@@ -228,6 +229,7 @@ export const artifactService = {
   async listProjectArtifacts(projectId, query = {}) {
     const parsedProjectId = parseProjectId(projectId);
     const type = validateType(query.type);
+    const branch = query.branch;
     const dateFilter = buildDateFilter(query.startDate, query.endDate);
     const project = await artifactRepository.findProjectById(parsedProjectId);
 
@@ -237,10 +239,10 @@ export const artifactService = {
 
     const [commits, pullRequests, issues] = await Promise.all([
       !type || type === 'commit'
-        ? artifactRepository.listCommits(parsedProjectId, dateFilter)
+        ? artifactRepository.listCommits(parsedProjectId, dateFilter, branch)
         : Promise.resolve([]),
       !type || type === 'pull_request'
-        ? artifactRepository.listPullRequests(parsedProjectId, dateFilter)
+        ? artifactRepository.listPullRequests(parsedProjectId, dateFilter, branch)
         : Promise.resolve([]),
       !type || type === 'issue'
         ? artifactRepository.listIssues(parsedProjectId, dateFilter)
@@ -254,11 +256,16 @@ export const artifactService = {
     ]);
 
     return {
-      project,
+      project: { id: project.id, name: project.name },
+      repository: {
+        defaultBranch: project.githubDefaultBranch,
+        branches: project.githubBranches
+      },
       filters: {
         type: type || null,
         startDate: query.startDate || null,
-        endDate: query.endDate || null
+        endDate: query.endDate || null,
+        branch: branch || null
       },
       summary: buildSummary(artifacts),
       artifacts

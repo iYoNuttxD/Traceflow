@@ -42,7 +42,10 @@ export function normalizeRepository(repository) {
     defaultBranch: repository.defaultBranch || repository.default_branch || '',
     alreadyConnected: repository.alreadyConnected === true,
     connectedToCurrentProject: repository.connectedToCurrentProject === true,
-    selectable: repository.selectable !== false
+    selectable: repository.selectable !== false,
+    githubInstallationId: String(repository.githubInstallationId || ''),
+    accountLogin: repository.accountLogin || '',
+    connectedProject: repository.connectedProject || null
   };
 }
 
@@ -63,7 +66,8 @@ export function applyRepositoryToProjectForm(currentForm, repository) {
     githubRepositoryName: normalizedRepository.name,
     githubRepositoryFullName: normalizedRepository.fullName,
     githubRepositoryUrl: normalizedRepository.url,
-    githubDefaultBranch: normalizedRepository.defaultBranch
+    githubDefaultBranch: normalizedRepository.defaultBranch,
+    githubInstallationId: normalizedRepository.githubInstallationId
   };
 }
 
@@ -158,7 +162,7 @@ export function ProjectForm({
                     {normalizedRepository.private ? ' (privado)' : ''}
                     {normalizedRepository.alreadyConnected &&
                     !normalizedRepository.connectedToCurrentProject
-                      ? ' — já utilizado por outro projeto'
+                      ? ` — vinculado a ${normalizedRepository.connectedProject?.name || 'outro projeto'}`
                       : ''}
                     {normalizedRepository.connectedToCurrentProject
                       ? ' — conectado a este projeto'

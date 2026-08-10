@@ -16,7 +16,14 @@ function renderRoute(initialEntry = '/projects') {
     <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
         <Route path="/login" element={<LoginProbe />} />
-        <Route path="/restricted" element={<h1>Conta restrita</h1>} />
+        <Route
+          path="/restricted"
+          element={
+            <ProtectedRoute>
+              <h1>Conta restrita</h1>
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/settings/privacy"
           element={
@@ -82,5 +89,11 @@ describe('ProtectedRoute', () => {
     authState.user = { id: 1, accountStatus: 'DELETION_PENDING' };
     renderRoute('/settings/privacy');
     expect(screen.getByRole('heading', { name: 'Privacidade restrita' })).toBeInTheDocument();
+  });
+
+  it('redireciona usuário ACTIVE que abrir /restricted', () => {
+    authState.user = { id: 1, accountStatus: 'ACTIVE' };
+    renderRoute('/restricted');
+    expect(screen.getByRole('heading', { name: 'Projetos privados' })).toBeInTheDocument();
   });
 });

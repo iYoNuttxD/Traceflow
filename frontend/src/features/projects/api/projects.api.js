@@ -15,6 +15,12 @@ export const projectsApi = {
     });
   },
 
+  listAllGithubRepositories(projectId) {
+    return httpClient.get('/github/app/repositories', {
+      params: projectId ? { projectId } : undefined
+    });
+  },
+
   startGithubInstallation(data) {
     return httpClient.post('/github/app/installations/start', data);
   },

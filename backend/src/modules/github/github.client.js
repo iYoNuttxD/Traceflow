@@ -2,6 +2,7 @@ import { Octokit } from '@octokit/rest';
 import { env } from '../../config/env.js';
 import { githubAppCredentialProvider } from './github-credential.provider.js';
 import {
+  mapGithubBranch,
   mapGithubCommit,
   mapGithubIssue,
   mapGithubPullRequest,
@@ -77,14 +78,24 @@ export function createGithubClient({
         { perPage: PAGE_SIZE }
       );
     },
-    listPullRequestPages({ owner, repo, branch }) {
+    listBranchPages({ owner, repo }) {
+      return paginateGithub(
+        ({ page, perPage }) =>
+          requestPage(
+            octokit.rest.repos.listBranches,
+            { owner, repo, per_page: perPage, page },
+            mapGithubBranch
+          ),
+        { perPage: PAGE_SIZE }
+      );
+    },
+    listPullRequestPages({ owner, repo }) {
       return paginateGithub(
         ({ page, perPage }) =>
           requestPage(
             octokit.rest.pulls.list,
-            { owner, repo, state: 'all', base: branch, per_page: perPage, page },
-            mapGithubPullRequest,
-            { filter: (item) => item.targetBranch === branch }
+            { owner, repo, state: 'all', per_page: perPage, page },
+            mapGithubPullRequest
           ),
         { perPage: PAGE_SIZE }
       );

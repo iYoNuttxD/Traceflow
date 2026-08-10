@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router';
-import { authApi, useAuth } from '../auth/index.js';
+import { authApi, PasswordField, useAuth } from '../auth/index.js';
 import { LoadingState, normalizeApiError, useConfirm } from '../../shared/index.js';
 import { settingsApi } from './settings.api.js';
 import { SettingsFeedback } from './SettingsFeedback.jsx';
@@ -17,6 +17,7 @@ export function SecuritySettingsPage() {
     confirmation: ''
   });
   const [initialPassword, setInitialPassword] = useState({ newPassword: '', confirmation: '' });
+  const [passwordErrors, setPasswordErrors] = useState({});
   const [reauthenticating, setReauthenticating] = useState(false);
   const [message, setMessage] = useState(
     new URLSearchParams(location.search).get('githubReauth') === 'success'
@@ -64,11 +65,43 @@ export function SecuritySettingsPage() {
 
   async function initializePassword(event) {
     event.preventDefault();
+    if (initialPassword.newPassword !== initialPassword.confirmation) {
+      setError('');
+      setPasswordErrors({ confirmation: 'As senhas não coincidem.' });
+      return;
+    }
     await run(async () => {
       await settingsApi.initializePassword(initialPassword);
       setInitialPassword({ newPassword: '', confirmation: '' });
+      setPasswordErrors({});
       await refresh();
     }, 'Senha criada. Você também pode entrar com e-mail ou nome de usuário.');
+  }
+
+  async function changePassword(event) {
+    event.preventDefault();
+    if (password.newPassword !== password.confirmation) {
+      setError('');
+      setPasswordErrors({ confirmation: 'As senhas não coincidem.' });
+      return;
+    }
+    await run(async () => {
+      await settingsApi.changePassword(password);
+      setPassword({ currentPassword: '', newPassword: '', confirmation: '' });
+      setPasswordErrors({});
+    }, 'Senha alterada com sucesso. As outras sessões foram encerradas.');
+  }
+
+  function updateInitialPassword(field, value) {
+    setInitialPassword((current) => ({ ...current, [field]: value }));
+    setPasswordErrors((current) => ({ ...current, [field]: undefined }));
+    setError('');
+  }
+
+  function updatePassword(field, value) {
+    setPassword((current) => ({ ...current, [field]: value }));
+    setPasswordErrors((current) => ({ ...current, [field]: undefined }));
+    setError('');
   }
 
   return (
@@ -86,42 +119,26 @@ export function SecuritySettingsPage() {
             </p>
             {account.canInitializePassword ? (
               <form onSubmit={(event) => void initializePassword(event)}>
-                <label>
-                  Nova senha
-                  <input
-                    type="password"
-                    autoComplete="new-password"
-                    minLength={12}
-                    value={initialPassword.newPassword}
-                    onChange={(event) =>
-                      setInitialPassword((current) => ({
-                        ...current,
-                        newPassword: event.target.value
-                      }))
-                    }
-                  />
-                </label>
-                <label>
-                  Confirmar nova senha
-                  <input
-                    type="password"
-                    autoComplete="new-password"
-                    minLength={12}
-                    value={initialPassword.confirmation}
-                    onChange={(event) =>
-                      setInitialPassword((current) => ({
-                        ...current,
-                        confirmation: event.target.value
-                      }))
-                    }
-                  />
-                </label>
+                <PasswordField
+                  id="initialPassword"
+                  label="Nova senha"
+                  value={initialPassword.newPassword}
+                  onChange={(event) => updateInitialPassword('newPassword', event.target.value)}
+                  error={passwordErrors.newPassword}
+                  minLength={12}
+                  showRequirements
+                />
+                <PasswordField
+                  id="initialPasswordConfirmation"
+                  label="Confirmar nova senha"
+                  value={initialPassword.confirmation}
+                  onChange={(event) => updateInitialPassword('confirmation', event.target.value)}
+                  error={passwordErrors.confirmation}
+                  minLength={12}
+                />
                 <button
                   type="submit"
-                  disabled={
-                    !initialPassword.newPassword ||
-                    initialPassword.newPassword !== initialPassword.confirmation
-                  }
+                  disabled={!initialPassword.newPassword || !initialPassword.confirmation}
                 >
                   Criar senha
                 </button>
@@ -140,48 +157,30 @@ export function SecuritySettingsPage() {
         ) : (
           <>
             <h2>Alterar senha</h2>
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                void run(
-                  () => settingsApi.changePassword(password),
-                  'Senha alterada; as outras sessões foram encerradas.'
-                );
-              }}
-            >
-              <label>
-                Senha atual
-                <input
-                  type="password"
-                  autoComplete="current-password"
-                  value={password.currentPassword}
-                  onChange={(event) =>
-                    setPassword({ ...password, currentPassword: event.target.value })
-                  }
-                />
-              </label>
-              <label>
-                Nova senha
-                <input
-                  type="password"
-                  autoComplete="new-password"
-                  value={password.newPassword}
-                  onChange={(event) =>
-                    setPassword({ ...password, newPassword: event.target.value })
-                  }
-                />
-              </label>
-              <label>
-                Confirmar nova senha
-                <input
-                  type="password"
-                  autoComplete="new-password"
-                  value={password.confirmation}
-                  onChange={(event) =>
-                    setPassword({ ...password, confirmation: event.target.value })
-                  }
-                />
-              </label>
+            <form onSubmit={(event) => void changePassword(event)}>
+              <PasswordField
+                id="currentPassword"
+                label="Senha atual"
+                autoComplete="current-password"
+                value={password.currentPassword}
+                onChange={(event) => updatePassword('currentPassword', event.target.value)}
+                error={passwordErrors.currentPassword}
+              />
+              <PasswordField
+                id="newPassword"
+                label="Nova senha"
+                value={password.newPassword}
+                onChange={(event) => updatePassword('newPassword', event.target.value)}
+                error={passwordErrors.newPassword}
+                showRequirements
+              />
+              <PasswordField
+                id="passwordConfirmation"
+                label="Confirmar nova senha"
+                value={password.confirmation}
+                onChange={(event) => updatePassword('confirmation', event.target.value)}
+                error={passwordErrors.confirmation}
+              />
               <button type="submit">Alterar senha</button>
             </form>
           </>

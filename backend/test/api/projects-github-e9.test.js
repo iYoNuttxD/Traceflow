@@ -51,10 +51,16 @@ async function* pages(...values) {
   for (const value of values) yield value;
 }
 
-function createGithubDouble({ commits = [[]], pullRequests = [[]], issues = [[]] } = {}) {
+function createGithubDouble({
+  branches = [[{ name: 'trunk', headSha: null }]],
+  commits = [[]],
+  pullRequests = [[]],
+  issues = [[]]
+} = {}) {
   return {
     getRepository: vi.fn().mockResolvedValue(repository),
     listRepositoryPages: vi.fn(() => pages([repository])),
+    listBranchPages: vi.fn(() => pages(...branches)),
     listCommitPages: vi.fn(() => pages(...commits)),
     listPullRequestPages: vi.fn(() => pages(...pullRequests)),
     listIssuePages: vi.fn(() => pages(...issues))
@@ -328,7 +334,7 @@ describe('Projetos e integração GitHub E9', () => {
     ).toBe(1);
 
     const second = await owner.mutate('post', `/api/projects/${project.id}/github/sync`).send({});
-    expect(second.body.summary.commits).toEqual({ found: 2, created: 0, skipped: 2 });
+    expect(second.body.summary.commits).toMatchObject({ found: 2, created: 0, skipped: 2 });
     expect(await prisma.commit.count({ where: { projectId: project.id } })).toBe(2);
     expect(
       await prisma.taskCommitSuggestion.count({ where: { projectId: project.id, taskId: task.id } })

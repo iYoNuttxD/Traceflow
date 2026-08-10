@@ -69,6 +69,8 @@ export async function cleanTestDatabase(prisma) {
     prisma.projectInvitation.deleteMany(),
     prisma.projectMembership.deleteMany(),
     prisma.projectMember.deleteMany(),
+    prisma.commitBranch.deleteMany(),
+    prisma.gitBranch.deleteMany(),
     prisma.commit.deleteMany(),
     prisma.pullRequest.deleteMany(),
     prisma.issue.deleteMany(),

@@ -12,7 +12,8 @@ export const pullRequestService = {
     }
 
     return pullRequestRepository.listByProjectId(projectId, {
-      search: query.search
+      search: query.search,
+      branch: query.branch
     });
   }
 };

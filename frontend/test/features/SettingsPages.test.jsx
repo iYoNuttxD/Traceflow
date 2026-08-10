@@ -26,13 +26,23 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../../src/features/auth/index.js', () => ({
   useAuth: () => mocks.auth,
-  authApi: mocks.authApi
+  authApi: mocks.authApi,
+  PasswordField: ({ id, label, value, onChange, disabled, error }) => (
+    <div>
+      <label htmlFor={id}>
+        {label}
+        <input id={id} value={value} onChange={onChange} disabled={disabled} type="password" />
+      </label>
+      {error && <span role="alert">{error}</span>}
+    </div>
+  )
 }));
 vi.mock('../../src/features/settings/settings.api.js', () => ({ settingsApi: mocks.api }));
 vi.mock('../../src/shared/index.js', () => ({
   normalizeApiError: (value) => ({ message: value?.message || 'Falha' }),
   useConfirm: () => mocks.confirm,
-  LoadingState: ({ message }) => <p>{message}</p>
+  LoadingState: ({ message }) => <p>{message}</p>,
+  FeedbackRegion: ({ error, success }) => <div>{error || success}</div>
 }));
 
 const { RestrictedAccountPage } =
@@ -209,6 +219,28 @@ describe('configurações e estados restritos L2', () => {
         confirmation: 'SenhaNovaSegura123!'
       })
     );
+  });
+
+  it('explica confirmação divergente da primeira senha e limpa erro obsoleto ao editar', async () => {
+    const user = userEvent.setup();
+    mocks.api.account.mockResolvedValue({
+      id: 7,
+      hasLocalPassword: false,
+      canInitializePassword: true
+    });
+    render(
+      <MemoryRouter>
+        <SecuritySettingsPage />
+      </MemoryRouter>
+    );
+    await user.type(await screen.findByLabelText('Nova senha'), 'SenhaNovaSegura123!');
+    const confirmation = screen.getByLabelText('Confirmar nova senha');
+    await user.type(confirmation, 'Divergente123!');
+    await user.click(screen.getByRole('button', { name: 'Criar senha' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('As senhas não coincidem.');
+    expect(mocks.api.initializePassword).not.toHaveBeenCalled();
+    await user.clear(confirmation);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('apresenta exportação, exclusão e estado vazio de integrações', async () => {

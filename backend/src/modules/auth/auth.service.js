@@ -1,4 +1,4 @@
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import argon2 from 'argon2';
 import { env } from '../../config/env.js';
 import { AppError, ERROR_CODES } from '../../shared/errors/index.js';
@@ -8,6 +8,10 @@ import { normalizeUsername, passwordPolicyErrors, validateUsername } from './ide
 
 const hashToken = (token) => createHash('sha256').update(token).digest('hex');
 const newToken = () => randomBytes(32).toString('base64url');
+const csrfForSession = (session) =>
+  createHmac('sha256', Buffer.from(session.tokenHash, 'hex'))
+    .update('traceflow:csrf:v1')
+    .digest('base64url');
 const publicUser = ({ passwordHash, sessionVersion: _sessionVersion, ...user }) => ({
   ...user,
   hasLocalPassword: Boolean(passwordHash)
@@ -24,12 +28,13 @@ function authError(message = 'Nome de usuário, e-mail ou senha inválidos.') {
 
 async function issueSession(user, rememberMe = false, { lastReauthenticatedAt = null } = {}) {
   const token = newToken();
-  const csrfToken = newToken();
+  const tokenHash = hashToken(token);
+  const csrfToken = csrfForSession({ tokenHash });
   const ttlMs = rememberMe ? env.persistentSessionTtlMs : env.sessionTtlMs;
   const expiresAt = new Date(Date.now() + ttlMs);
   const session = await authRepository.createSession({
     userId: user.id,
-    tokenHash: hashToken(token),
+    tokenHash,
     csrfTokenHash: hashToken(csrfToken),
     sessionVersion: user.sessionVersion,
     expiresAt,
@@ -147,14 +152,12 @@ export const authService = {
   },
   verifyCsrf(session, supplied) {
     if (!supplied || typeof supplied !== 'string') return false;
-    const expected = Buffer.from(session.csrfTokenHash, 'hex');
-    const actual = Buffer.from(hashToken(supplied), 'hex');
+    const expected = Buffer.from(csrfForSession(session));
+    const actual = Buffer.from(supplied);
     return expected.length === actual.length && timingSafeEqual(expected, actual);
   },
-  async rotateCsrf(sessionId) {
-    const csrfToken = newToken();
-    await authRepository.updateSessionCsrf(sessionId, hashToken(csrfToken));
-    return csrfToken;
+  csrfToken(session) {
+    return csrfForSession(session);
   },
   async forgotPassword(email) {
     const user = await authRepository.findUserByEmail(email.trim().toLowerCase());
@@ -193,7 +196,12 @@ export const authService = {
   async changePassword(userId, currentPassword, password) {
     const user = await authRepository.findUserById(userId);
     if (!user?.passwordHash || !(await argon2.verify(user.passwordHash, currentPassword)))
-      throw authError('Senha atual inválida.');
+      throw new AppError({
+        message: 'Senha atual inválida.',
+        statusCode: 403,
+        code: ERROR_CODES.CURRENT_PASSWORD_INVALID,
+        exposeTechnicalDetails: true
+      });
     ensurePasswordPolicy(password, user);
     await authRepository.updateUser(userId, {
       passwordHash: await this.hashPassword(password),

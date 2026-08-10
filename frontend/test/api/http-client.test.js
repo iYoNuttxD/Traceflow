@@ -34,9 +34,24 @@ describe('cliente HTTP compartilhado', () => {
     const listener = vi.fn();
     window.addEventListener('traceflow:unauthorized', listener);
     client.defaults.adapter = (config) =>
-      Promise.reject({ response: { status: config.url === '/unauthorized' ? 401 : 403 }, config });
+      Promise.reject({
+        response: {
+          status: config.url === '/forbidden' ? 403 : 401,
+          data: {
+            code:
+              config.url === '/unauthorized'
+                ? 'AUTHENTICATION_REQUIRED'
+                : config.url === '/wrong-password'
+                  ? 'CURRENT_PASSWORD_INVALID'
+                  : 'FORBIDDEN'
+          }
+        },
+        config
+      });
 
     await expect(client.get('/forbidden')).rejects.toBeTruthy();
+    expect(listener).not.toHaveBeenCalled();
+    await expect(client.post('/wrong-password')).rejects.toBeTruthy();
     expect(listener).not.toHaveBeenCalled();
     await expect(client.get('/unauthorized')).rejects.toBeTruthy();
     expect(listener).toHaveBeenCalledTimes(1);
@@ -85,6 +100,30 @@ describe('cliente HTTP compartilhado', () => {
     await vi.waitFor(() => expect(adapter).toHaveBeenCalledOnce());
     resolveRequest();
     await expect(first).resolves.toMatchObject({ data: { ok: true } });
+  });
+
+  it('mantém uma única GET válida quando o primeiro consumidor é limpo pelo StrictMode', async () => {
+    const client = createHttpClient();
+    let resolveRequest;
+    const adapter = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          resolveRequest = () =>
+            resolve({ data: { ok: true }, status: 200, statusText: 'OK', headers: {}, config: {} });
+        })
+    );
+    client.defaults.adapter = adapter;
+    const firstController = new AbortController();
+    const secondController = new AbortController();
+
+    const first = client.get('/projects/1/artifacts', { signal: firstController.signal });
+    firstController.abort();
+    const second = client.get('/projects/1/artifacts', { signal: secondController.signal });
+
+    await vi.waitFor(() => expect(adapter).toHaveBeenCalledOnce());
+    resolveRequest();
+    await expect(first).rejects.toMatchObject({ code: 'ERR_CANCELED' });
+    await expect(second).resolves.toMatchObject({ data: { ok: true } });
   });
 
   it('não reutiliza GET após a troca de geração da sessão', async () => {

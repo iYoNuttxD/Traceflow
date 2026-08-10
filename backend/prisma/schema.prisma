@@ -289,6 +289,7 @@ model Project {
   taskCommitSuggestions  TaskCommitSuggestion[]
   githubIntegration      ProjectGitHubIntegration?
   githubConnectionStates GitHubAppConnectionState[]
+  githubBranches         GitBranch[]
 
   @@unique([githubRepositoryId])
   @@unique([githubRepositoryFullName])
@@ -677,10 +678,43 @@ model Commit {
   project         Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
   taskLinks       TaskCommit[]
   taskSuggestions TaskCommitSuggestion[]
+  branchLinks     CommitBranch[]
 
   @@unique([projectId, hash])
   @@index([projectId, date])
   @@index([projectId, createdAt])
+}
+
+// Branch observada no repositório GitHub do projeto. Registros inativos preservam histórico.
+model GitBranch {
+  id         Int      @id @default(autoincrement())
+  projectId  Int
+  name       String
+  headSha    String?
+  isDefault  Boolean  @default(false)
+  isActive   Boolean  @default(true)
+  lastSeenAt DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  project     Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  commitLinks CommitBranch[]
+
+  @@unique([projectId, name])
+  @@index([projectId, isActive])
+  @@index([projectId, isDefault])
+}
+
+// Um commit canônico pode estar contido em várias branches simultaneamente.
+model CommitBranch {
+  commitId Int
+  branchId Int
+
+  commit Commit    @relation(fields: [commitId], references: [id], onDelete: Cascade)
+  branch GitBranch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@id([commitId, branchId])
+  @@index([branchId])
 }
 
 // Pull Request importada do repositorio GitHub e vinculada às Tasks pela FK singular canônica.

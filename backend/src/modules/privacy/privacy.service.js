@@ -8,8 +8,8 @@ import { privacyRepository } from './privacy.repository.js';
 const invalidPassword = () =>
   new AppError({
     message: 'Senha atual inválida.',
-    statusCode: 401,
-    code: ERROR_CODES.INVALID_CREDENTIALS,
+    statusCode: 403,
+    code: ERROR_CODES.CURRENT_PASSWORD_INVALID,
     exposeTechnicalDetails: true
   });
 const notFound = () =>

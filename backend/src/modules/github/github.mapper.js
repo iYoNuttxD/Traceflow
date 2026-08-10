@@ -15,6 +15,13 @@ export function mapGithubRepository(item) {
   };
 }
 
+export function mapGithubBranch(item) {
+  return {
+    name: item.name,
+    headSha: item.commit?.sha ?? null
+  };
+}
+
 export function mapGithubCommit(item, branch) {
   return {
     hash: item.sha,

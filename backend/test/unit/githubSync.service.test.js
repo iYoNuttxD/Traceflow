@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   forInstallation: vi.fn(),
   githubIntegrationRepository: { findIntegration: vi.fn() },
+  githubBranchRepository: { syncObserved: vi.fn() },
   projectRepository: {
     findById: vi.fn(),
     updateGithubRepositoryMetadata: vi.fn(),
@@ -13,7 +14,8 @@ const mocks = vi.hoisted(() => ({
   commitRepository: {
     findHashesByProjectId: vi.fn(),
     findByProjectIdAndHashes: vi.fn(),
-    createMany: vi.fn()
+    createMany: vi.fn(),
+    createBranchLinks: vi.fn()
   },
   commitSuggestionService: { detectForCommits: vi.fn() },
   pullRequestRepository: { upsertMany: vi.fn() },
@@ -25,6 +27,9 @@ vi.mock('../../src/modules/github/github.client.js', () => ({
 }));
 vi.mock('../../src/modules/github/github.repository.js', () => ({
   githubRepository: mocks.githubIntegrationRepository
+}));
+vi.mock('../../src/modules/github/github-branch.repository.js', () => ({
+  githubBranchRepository: mocks.githubBranchRepository
 }));
 vi.mock('../../src/modules/projects/project.repository.js', () => ({
   projectRepository: mocks.projectRepository
@@ -68,9 +73,15 @@ async function* pages(...values) {
   for (const value of values) yield value;
 }
 
-function buildGithubDouble({ commits = [[]], pullRequests = [[]], issues = [[]] } = {}) {
+function buildGithubDouble({
+  branches = [[{ name: 'main', headSha: 'head-main' }]],
+  commits = [[]],
+  pullRequests = [[]],
+  issues = [[]]
+} = {}) {
   return {
     getRepository: vi.fn().mockResolvedValue(repository),
+    listBranchPages: vi.fn(() => pages(...branches)),
     listCommitPages: vi.fn(() => pages(...commits)),
     listPullRequestPages: vi.fn(() => pages(...pullRequests)),
     listIssuePages: vi.fn(() => pages(...issues))
@@ -92,6 +103,15 @@ describe('githubSyncService com client e persistência substituídos', () => {
       githubSyncStatus: 'SINCRONIZADO'
     });
     mocks.projectRepository.markGithubSyncFailed.mockResolvedValue(project);
+    mocks.githubBranchRepository.syncObserved.mockImplementation(
+      async (_projectId, branches, defaultBranch) =>
+        branches.map((branch, index) => ({
+          id: index + 10,
+          ...branch,
+          isActive: true,
+          isDefault: branch.name === defaultBranch
+        }))
+    );
     mocks.commitRepository.findHashesByProjectId.mockResolvedValue(['hash-existente']);
     mocks.commitRepository.createMany.mockImplementation(async (items) => ({
       count: items.length
@@ -104,6 +124,9 @@ describe('githubSyncService com client e persistência substituídos', () => {
         hash
       }))
     );
+    mocks.commitRepository.createBranchLinks.mockImplementation(async (items) => ({
+      count: items.length
+    }));
     mocks.commitSuggestionService.detectForCommits.mockResolvedValue({ createdSuggestions: 0 });
     mocks.pullRequestRepository.upsertMany.mockImplementation(async (items) => ({
       created: items.length,
@@ -129,12 +152,16 @@ describe('githubSyncService com client e persistência substituídos', () => {
       project.githubOwner,
       project.githubRepositoryName
     );
+    expect(github.listBranchPages).toHaveBeenCalledWith(
+      expect.objectContaining({ owner: repository.owner, repo: repository.name })
+    );
     expect(github.listCommitPages).toHaveBeenCalledWith(
       expect.objectContaining({ branch: 'main' })
     );
-    expect(github.listPullRequestPages).toHaveBeenCalledWith(
-      expect.objectContaining({ branch: 'main' })
-    );
+    expect(github.listPullRequestPages).toHaveBeenCalledWith({
+      owner: repository.owner,
+      repo: repository.name
+    });
     expect(mocks.commitRepository.createMany).toHaveBeenNthCalledWith(1, []);
     expect(mocks.commitRepository.createMany).toHaveBeenNthCalledWith(2, [
       expect.objectContaining({ hash: 'hash-novo', projectId: project.id })
@@ -143,7 +170,15 @@ describe('githubSyncService com client e persistência substituídos', () => {
       expect.objectContaining({ projectId: project.id, message: '[TASK-1]' })
     ]);
     expect(result.summary).toEqual({
-      commits: { found: 2, created: 1, skipped: 1 },
+      branches: { found: 1, active: 1, defaultBranch: 'main' },
+      commits: {
+        found: 2,
+        foundAcrossBranches: 2,
+        unique: 2,
+        created: 1,
+        skipped: 1,
+        linksCreated: 2
+      },
       pullRequests: { found: 1, created: 1, updated: 0 },
       issues: { found: 1, created: 0, updated: 1 }
     });
@@ -206,6 +241,59 @@ describe('githubSyncService com client e persistência substituídos', () => {
       message: 'Sincronização do GitHub já está em andamento para este projeto.'
     });
     release();
-    await expect(first).resolves.toMatchObject({ summary: { commits: { found: 0 } } });
+    await expect(first).resolves.toMatchObject({
+      summary: { commits: { foundAcrossBranches: 0 } }
+    });
+  });
+
+  it('deduplica commits encontrados em várias branches e cria todos os vínculos', async () => {
+    const stored = new Set();
+    const ids = new Map();
+    let nextId = 1;
+    mocks.commitRepository.findHashesByProjectId.mockImplementation(async (_projectId, hashes) =>
+      hashes.filter((hash) => stored.has(hash))
+    );
+    mocks.commitRepository.createMany.mockImplementation(async (items) => {
+      for (const item of items) {
+        stored.add(item.hash);
+        if (!ids.has(item.hash)) ids.set(item.hash, nextId++);
+      }
+      return { count: items.length };
+    });
+    mocks.commitRepository.findByProjectIdAndHashes.mockImplementation(async (projectId, hashes) =>
+      hashes.map((hash) => ({ id: ids.get(hash), projectId, hash, message: `[${hash}]` }))
+    );
+    const links = [];
+    mocks.commitRepository.createBranchLinks.mockImplementation(async (items) => {
+      links.push(...items);
+      return { count: items.length };
+    });
+    const github = buildGithubDouble({
+      branches: [
+        [
+          { name: 'main', headSha: 'C' },
+          { name: 'feature', headSha: 'D' }
+        ]
+      ]
+    });
+    github.listCommitPages.mockImplementation(({ branch }) =>
+      pages(
+        branch === 'main'
+          ? [{ hash: 'A' }, { hash: 'B' }, { hash: 'C' }]
+          : [{ hash: 'B' }, { hash: 'C' }, { hash: 'D' }]
+      )
+    );
+    mocks.forInstallation.mockResolvedValue(github);
+
+    const result = await githubSyncService.syncProjectGithubData(project.id);
+
+    expect(stored).toEqual(new Set(['A', 'B', 'C', 'D']));
+    expect(links).toHaveLength(6);
+    expect(result.summary.commits).toMatchObject({
+      foundAcrossBranches: 6,
+      unique: 4,
+      created: 4,
+      linksCreated: 6
+    });
   });
 });

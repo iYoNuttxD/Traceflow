@@ -13,15 +13,11 @@ export const projectGithubService = {
       data.githubInstallationId,
       data.githubRepositoryId
     );
-    if (
-      (await projectRepository.findByGithubRepositoryId(repository.githubRepositoryId)) ||
-      (await githubAppService.assertRepositoryAvailable(repository.githubRepositoryId, null))
-    ) {
-      throw new ProjectServiceError(
-        'Já existe um projeto vinculado a este repositório GitHub.',
-        409
-      );
-    }
+    await githubAppService.assertRepositoryAvailable(
+      repository.githubRepositoryId,
+      null,
+      ownerUserId
+    );
     const projectData = {
       name: (data.name || repository.name).trim(),
       description: data.description?.trim() || repository.description || null,

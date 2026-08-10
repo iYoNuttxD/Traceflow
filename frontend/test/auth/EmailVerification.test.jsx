@@ -5,16 +5,21 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   resendEmailVerification: vi.fn(),
-  verifyEmail: vi.fn()
+  verifyEmail: vi.fn(),
+  auth: { user: null, refresh: vi.fn() }
 }));
 vi.mock('../../src/features/auth/api/auth.api.js', () => ({ authApi: mocks }));
+vi.mock('../../src/features/auth/AuthContext.jsx', () => ({ useAuth: () => mocks.auth }));
 
 const { EmailVerificationBanner } =
   await import('../../src/features/auth/components/EmailVerificationBanner.jsx');
 const { VerifyEmailScreen } = await import('../../src/features/auth/pages/VerifyEmailScreen.jsx');
 
 describe('verificação de e-mail', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.auth.user = null;
+  });
 
   it('reenvia a verificação e apresenta o resultado sem falso sucesso local', async () => {
     mocks.resendEmailVerification.mockResolvedValue({
@@ -23,7 +28,7 @@ describe('verificação de e-mail', () => {
     render(<EmailVerificationBanner user={{ emailVerifiedAt: null }} />);
     await userEvent.setup().click(screen.getByRole('button', { name: 'Reenviar verificação' }));
     expect(mocks.resendEmailVerification).toHaveBeenCalledOnce();
-    expect(await screen.findByText('E-mail enviado')).toBeInTheDocument();
+    expect(await screen.findByText('E-mail enviado com sucesso.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Reenviar verificação' })).toHaveClass(
       'button-outline',
       'button-compact'
@@ -63,7 +68,7 @@ describe('verificação de e-mail', () => {
     expect(sending).toBeDisabled();
     expect(sending).toHaveAttribute('aria-busy', 'true');
     resolveRequest({ data: { message: 'ok' } });
-    expect(await screen.findByText('E-mail enviado')).toBeInTheDocument();
+    expect(await screen.findByText('E-mail enviado com sucesso.')).toBeInTheDocument();
   });
 
   it('consome o token da URL e exibe confirmação retornada pelo backend', async () => {
@@ -77,6 +82,20 @@ describe('verificação de e-mail', () => {
     );
     await waitFor(() => expect(mocks.verifyEmail).toHaveBeenCalledWith('token-artificial'));
     expect(await screen.findByText('E-mail verificado com sucesso.')).toBeInTheDocument();
+  });
+
+  it('atualiza o AuthContext quando a sessão corresponde ao e-mail verificado', async () => {
+    mocks.auth.user = { id: 7, emailVerifiedAt: null };
+    mocks.verifyEmail.mockResolvedValue({
+      data: { message: 'E-mail verificado com sucesso.', user: { id: 7 } }
+    });
+    render(
+      <MemoryRouter initialEntries={['/verify-email?token=token-artificial']}>
+        <VerifyEmailScreen />
+      </MemoryRouter>
+    );
+    await screen.findByText('E-mail verificado com sucesso.');
+    expect(mocks.auth.refresh).toHaveBeenCalledOnce();
   });
 
   it('rejeita link sem token sem chamar a API', async () => {

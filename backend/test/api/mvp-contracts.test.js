@@ -18,15 +18,17 @@ import {
 
 let app;
 let prisma;
+let authService;
 let api;
 const sessionToken = 'e6-characterization-session-token';
-const csrfToken = 'e6-characterization-csrf-token';
+let csrfToken;
 const sha256 = (value) => createHash('sha256').update(value).digest('hex');
 
 beforeAll(async () => {
   const testDatabaseUrl = configureTestDatabaseEnvironment();
   deployTestMigrations(testDatabaseUrl);
   ({ prisma } = await import('../../src/database/prismaClient.js'));
+  ({ authService } = await import('../../src/modules/auth/auth.service.js'));
   ({ default: app } = await import('../../src/app.js'));
   await cleanTestDatabase(prisma);
 });
@@ -46,15 +48,16 @@ beforeEach(async () => {
       emailVerifiedAt: new Date()
     }
   });
-  await prisma.session.create({
+  const session = await prisma.session.create({
     data: {
       userId: user.id,
       tokenHash: sha256(sessionToken),
-      csrfTokenHash: sha256(csrfToken),
+      csrfTokenHash: sha256('legacy-csrf-placeholder'),
       sessionVersion: user.sessionVersion,
       expiresAt: new Date(Date.now() + 60000)
     }
   });
+  csrfToken = authService.csrfToken(session);
   setAuthenticatedFixtureUser(user.id);
   const secured = (method) => (path) => {
     const client = request(app);

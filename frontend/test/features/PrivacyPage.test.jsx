@@ -65,7 +65,7 @@ describe('PrivacyPage', () => {
     await screen.findByText('Sessão atual');
     await user.clear(screen.getByLabelText('Nome'));
     await user.type(screen.getByLabelText('Nome'), 'Novo nome');
-    await user.type(screen.getByLabelText('Senha atual'), 'SenhaSegura123');
+    await user.type(screen.getByLabelText(/Senha atual/), 'SenhaSegura123');
     await user.click(screen.getByRole('button', { name: 'Salvar perfil' }));
     await waitFor(() =>
       expect(apiMock.patch).toHaveBeenCalledWith(

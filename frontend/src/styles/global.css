@@ -749,6 +749,18 @@ a {
   margin-bottom: 1rem;
 }
 
+.card-heading {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.card-heading h2 {
+  margin: 0;
+}
+
 .integration-status {
   display: inline-flex;
   width: fit-content;
@@ -759,6 +771,7 @@ a {
   border-radius: 999px;
   font-size: 0.82rem;
   font-weight: 750;
+  text-decoration: none;
 }
 
 .integration-status::before {
@@ -782,10 +795,31 @@ a {
 }
 
 .message {
+  display: flex;
+  gap: 0.7rem;
+  align-items: flex-start;
   margin-bottom: 1.25rem;
   border: 1px solid;
   border-radius: 10px;
   padding: 0.85rem 1rem;
+}
+
+.message-icon {
+  display: inline-grid;
+  flex: 0 0 1.4rem;
+  width: 1.4rem;
+  height: 1.4rem;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.message-countdown {
+  display: block;
+  margin-top: 0.25rem;
+  font-weight: 750;
 }
 
 .message-error {
@@ -800,6 +834,23 @@ a {
   background: #effaf4;
 }
 
+.message-info {
+  border-color: #b2ccff;
+  color: #1849a9;
+  background: #eff4ff;
+}
+
+.message-warning,
+.message-rate-limit {
+  border-color: #f5c451;
+  color: #7a2e0e;
+  background: #fffaeb;
+}
+
+.message-rate-limit {
+  border-width: 2px;
+}
+
 .project-list {
   display: grid;
   gap: 0.85rem;
@@ -810,6 +861,33 @@ a {
   border-radius: 12px;
   padding: 1rem;
   background: #fbfcfe;
+}
+
+.project-highlight {
+  border-color: #6172f3;
+  background: #eef4ff;
+  box-shadow: 0 0 0 3px rgba(97, 114, 243, 0.18);
+}
+
+.repository-duplicate-callout {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid #f5c451;
+  border-radius: 10px;
+  color: #7a2e0e;
+  background: #fffaeb;
+}
+
+.repository-duplicate-callout p {
+  margin: 0;
+}
+
+.repository-duplicate-callout div {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
 }
 
 .project-item-header {
@@ -1912,6 +1990,62 @@ a {
   color: #183b86;
   font-size: 1.9rem;
   line-height: 1;
+}
+
+.repository-branches {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.35fr) minmax(0, 1fr);
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  border: 1px solid #e2e7f0;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.repository-branches h2,
+.repository-branches p {
+  margin-top: 0;
+}
+
+.repository-branches > div:first-child {
+  display: grid;
+  align-content: start;
+  gap: 0.25rem;
+}
+
+.branch-list {
+  display: flex;
+  max-height: 9rem;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  overflow-y: auto;
+}
+
+.branch-chip {
+  display: inline-flex;
+  max-width: 100%;
+  padding: 0.25rem 0.55rem;
+  overflow: hidden;
+  border: 1px solid #d0d5dd;
+  border-radius: 999px;
+  color: #344054;
+  font-size: 0.78rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: #f9fafb;
+}
+
+.branch-default {
+  border-color: #84adff;
+  color: #1849a9;
+  background: #eff4ff;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .project-highlight {
+    transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
+  }
 }
 
 .traceability-summary-grid {

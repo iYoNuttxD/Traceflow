@@ -304,9 +304,53 @@ describe('autorização e webhooks da GitHub App L1', () => {
     expect(listed[1]).toMatchObject({
       availability: 'CONNECTED',
       alreadyConnected: true,
-      selectable: false
+      selectable: true
     });
     expect(listed[2]).toMatchObject({ availability: 'AVAILABLE', selectable: true });
+  });
+
+  it('agrega instalações, deduplica repositórios e mantém a instalação apenas como metadata interna', async () => {
+    mocks.repository.listAuthorizedInstallations.mockResolvedValue([
+      { id: 1, githubInstallationId: '77', accountLogin: 'pessoa' },
+      { id: 2, githubInstallationId: '88', accountLogin: 'organizacao' }
+    ]);
+    mocks.clientFactory.forInstallation.mockImplementation(async (installationId) => ({
+      listRepositoryPages: () =>
+        (async function* repositoryPages() {
+          yield [
+            {
+              githubRepositoryId: installationId === '77' ? '501' : '502',
+              fullName: installationId === '77' ? 'pessoa/a' : 'organizacao/b'
+            },
+            ...(installationId === '88'
+              ? [{ githubRepositoryId: '501', fullName: 'pessoa/a' }]
+              : [])
+          ];
+        })()
+    }));
+    mocks.repository.findIntegrationsByRepositoryIds.mockResolvedValue([
+      {
+        githubRepositoryId: '501',
+        projectId: 20,
+        project: { id: 20, name: 'Projeto A', memberships: [{ id: 1 }] }
+      }
+    ]);
+
+    const repositories = await githubAppService.listAllRepositories(7);
+
+    expect(repositories).toHaveLength(2);
+    expect(repositories[0]).toMatchObject({
+      githubRepositoryId: '502',
+      githubInstallationId: '88',
+      accountLogin: 'organizacao'
+    });
+    expect(repositories[1]).toMatchObject({
+      githubRepositoryId: '501',
+      githubInstallationId: '77',
+      accountLogin: 'pessoa',
+      alreadyConnected: true,
+      connectedProject: { id: 20, name: 'Projeto A' }
+    });
   });
 
   it('permite o repositório do próprio projeto e bloqueia o de outro projeto', async () => {

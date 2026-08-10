@@ -3,7 +3,11 @@ import { Link, useSearchParams } from 'react-router';
 import { FeedbackRegion, LoadingState, normalizeApiError } from '../../../shared/index.js';
 import { authApi } from '../api/auth.api.js';
 import { AuthShell } from '../components/AuthShell.jsx';
+import { useAuth } from '../AuthContext.jsx';
 export function VerifyEmailScreen() {
+  const auth = useAuth();
+  const user = auth?.user;
+  const refresh = auth?.refresh;
   const [params] = useSearchParams();
   const [state, setState] = useState({ loading: true, success: '', error: '' });
   useEffect(() => {
@@ -18,11 +22,14 @@ export function VerifyEmailScreen() {
     }
     authApi
       .verifyEmail(token)
-      .then((response) => setState({ loading: false, success: response.data.message, error: '' }))
+      .then(async (response) => {
+        if (user?.id === response.data.user?.id && refresh) await refresh();
+        setState({ loading: false, success: response.data.message, error: '' });
+      })
       .catch((cause) =>
         setState({ loading: false, success: '', error: normalizeApiError(cause).message })
       );
-  }, [params]);
+  }, [params, refresh, user?.id]);
   return (
     <AuthShell
       title="Verificar e-mail"

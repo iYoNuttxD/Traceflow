@@ -8,6 +8,7 @@ import {
   ProjectServiceError
 } from '../../projects/project.schema.js';
 import { syncProjectCommits } from './sync-project-commits.service.js';
+import { syncProjectBranches } from './sync-project-branches.service.js';
 import { syncProjectIssues } from './sync-project-issues.service.js';
 import { syncProjectPullRequests } from './sync-project-pull-requests.service.js';
 
@@ -80,7 +81,13 @@ export async function syncProjectGithubData(projectId) {
       integration.installation.githubInstallationId
     );
     const repository = await validateAndRefreshRepository(project, githubClient);
-    const commitSummary = await syncProjectCommits({ project, repository, githubClient });
+    const branchResult = await syncProjectBranches({ project, repository, githubClient });
+    const commitSummary = await syncProjectCommits({
+      project,
+      repository,
+      branches: branchResult.branches,
+      githubClient
+    });
     const pullRequestSummary = await syncProjectPullRequests({ project, repository, githubClient });
     const issueSummary = await syncProjectIssues({ project, repository, githubClient });
     const updatedProject = await projectRepository.markGithubSyncSucceeded(
@@ -90,6 +97,7 @@ export async function syncProjectGithubData(projectId) {
 
     return {
       summary: {
+        branches: branchResult.summary,
         commits: commitSummary,
         pullRequests: pullRequestSummary,
         issues: issueSummary

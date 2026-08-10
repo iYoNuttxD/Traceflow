@@ -216,6 +216,59 @@ describe('identidade, sessão, CSRF e autorização E6', () => {
     expect((await auth.agent.get('/api/auth/me')).status).toBe(401);
   });
 
+  it('mantém CSRF estável por sessão quando três abas consultam o token', async () => {
+    const auth = await register('csrf-tabs@example.invalid');
+    const tabB = (await auth.agent.get('/api/auth/csrf')).body.csrfToken;
+    const tabC = (await auth.agent.get('/api/auth/csrf')).body.csrfToken;
+    expect(new Set([auth.csrf, tabB, tabC]).size).toBe(1);
+
+    expect(
+      (
+        await auth.agent
+          .patch('/api/auth/username')
+          .set('X-CSRF-Token', auth.csrf)
+          .send({ username: 'csrf_tab_a' })
+      ).status
+    ).toBe(200);
+    expect(
+      (
+        await auth.agent
+          .patch('/api/auth/username')
+          .set('X-CSRF-Token', tabB)
+          .send({ username: 'csrf_tab_b' })
+      ).status
+    ).toBe(200);
+    expect(
+      (await auth.agent.post('/api/auth/logout').set('X-CSRF-Token', tabC).send({})).status
+    ).toBe(204);
+  });
+
+  it('recusa CSRF inválido, de outra sessão e após revogação', async () => {
+    const first = await register('csrf-session@example.invalid');
+    const second = request.agent(app);
+    await second
+      .post('/api/auth/login')
+      .send({ identifier: 'csrf-session@example.invalid', password, rememberMe: false });
+
+    expect(
+      (await first.agent.post('/api/auth/logout').set('X-CSRF-Token', 'invalido').send({})).body
+        .code
+    ).toBe('CSRF_INVALID');
+    expect(
+      (await second.post('/api/auth/logout').set('X-CSRF-Token', first.csrf).send({})).body.code
+    ).toBe('CSRF_INVALID');
+
+    const session = await prisma.session.findFirst({
+      where: { user: { email: 'csrf-session@example.invalid' }, revokedAt: null },
+      orderBy: { id: 'asc' }
+    });
+    await prisma.session.update({ where: { id: session.id }, data: { revokedAt: new Date() } });
+    expect(
+      (await first.agent.post('/api/auth/logout').set('X-CSRF-Token', first.csrf).send({})).body
+        .code
+    ).toBe('AUTHENTICATION_REQUIRED');
+  });
+
   it('cria OWNER atomicamente, filtra listagem e bloqueia BOLA', async () => {
     const owner = await register('owner@example.invalid', 'Owner');
     const project = (

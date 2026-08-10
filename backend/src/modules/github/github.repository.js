@@ -125,17 +125,47 @@ export const githubRepository = {
       include: { installation: true }
     });
   },
-  findIntegrationByRepositoryId(githubRepositoryId) {
+  findIntegrationByRepositoryId(githubRepositoryId, userId) {
     return prisma.projectGitHubIntegration.findUnique({
       where: { githubRepositoryId: String(githubRepositoryId) },
-      select: { id: true, projectId: true, githubRepositoryId: true, status: true }
+      select: {
+        id: true,
+        projectId: true,
+        githubRepositoryId: true,
+        status: true,
+        project: {
+          select: {
+            id: true,
+            name: true,
+            memberships: {
+              where: { userId, isActive: true },
+              select: { id: true }
+            }
+          }
+        }
+      }
     });
   },
-  findIntegrationsByRepositoryIds(githubRepositoryIds) {
+  findIntegrationsByRepositoryIds(githubRepositoryIds, userId) {
     if (githubRepositoryIds.length === 0) return [];
     return prisma.projectGitHubIntegration.findMany({
       where: { githubRepositoryId: { in: githubRepositoryIds.map(String) } },
-      select: { id: true, projectId: true, githubRepositoryId: true, status: true }
+      select: {
+        id: true,
+        projectId: true,
+        githubRepositoryId: true,
+        status: true,
+        project: {
+          select: {
+            id: true,
+            name: true,
+            memberships: {
+              where: { userId, isActive: true },
+              select: { id: true }
+            }
+          }
+        }
+      }
     });
   },
   connectProject(projectId, installationId, repository) {

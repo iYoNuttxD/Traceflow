@@ -5,7 +5,10 @@ export const githubProjectParamsSchema = strictObject({
   projectId: positiveInteger('ID do projeto inválido.')
 });
 
-export const githubSearchQuerySchema = strictObject({ search: searchText });
+export const githubSearchQuerySchema = strictObject({
+  search: searchText,
+  branch: z.string().trim().min(1).max(191).optional()
+});
 export const githubAppStartBodySchema = strictObject({
   intendedAction: z.enum(['CONNECT_PROJECT', 'CREATE_PROJECT']),
   projectId: positiveInteger('ID do projeto inválido.').optional()

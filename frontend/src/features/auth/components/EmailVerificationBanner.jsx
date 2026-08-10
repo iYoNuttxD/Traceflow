@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { authApi } from '../api/auth.api.js';
-import { normalizeApiError } from '../../../shared/index.js';
+import { FeedbackRegion, normalizeApiError } from '../../../shared/index.js';
 
 export function EmailVerificationBanner({ user }) {
-  const [message, setMessage] = useState('');
+  const [feedback, setFeedback] = useState({ message: '', variant: 'success' });
   const [sending, setSending] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   useEffect(() => {
@@ -17,19 +17,22 @@ export function EmailVerificationBanner({ user }) {
     setSending(true);
     try {
       await authApi.resendEmailVerification();
-      setMessage('E-mail enviado');
+      setFeedback({ message: 'E-mail enviado com sucesso.', variant: 'success' });
     } catch (error) {
       const normalized = normalizeApiError(error);
-      setMessage(normalized.message);
+      setFeedback({
+        message: normalized.message,
+        variant: normalized.retryAfterSeconds ? 'rate-limit' : 'error'
+      });
       setCooldown(normalized.retryAfterSeconds || 0);
     } finally {
       setSending(false);
     }
   }
   return (
-    <aside className="email-verification-banner" role="status">
+    <aside className="email-verification-banner">
       <div>
-        <strong>Verifique seu e-mail.</strong>
+        <strong>⚠ Verifique seu e-mail.</strong>
         <span> Ações sensíveis permanecem bloqueadas até a confirmação.</span>
       </div>
       <button
@@ -45,7 +48,14 @@ export function EmailVerificationBanner({ user }) {
             ? `Reenviar em ${cooldown}s`
             : 'Reenviar verificação'}
       </button>
-      {message && <span>{message}</span>}
+      {feedback.message && (
+        <FeedbackRegion
+          success={feedback.variant === 'success' ? feedback.message : undefined}
+          error={feedback.variant === 'error' ? feedback.message : undefined}
+          rateLimit={feedback.variant === 'rate-limit' ? feedback.message : undefined}
+          retryAfterSeconds={cooldown}
+        />
+      )}
     </aside>
   );
 }

@@ -110,6 +110,37 @@ describe('contratos de conta e privacidade L2', () => {
     expect((await auth.mutate('delete', '/api/settings/account/email-change')).status).toBe(204);
   });
 
+  it('trata senha atual incorreta como 403 de domínio sem revogar a sessão', async () => {
+    const auth = await register('wrong-password@example.invalid');
+    const attempts = [
+      auth
+        .mutate('post', '/api/settings/account/email-change')
+        .send({ newEmail: 'other@example.invalid', currentPassword: 'incorreta' }),
+      auth.mutate('post', '/api/settings/security/password').send({
+        currentPassword: 'incorreta',
+        newPassword: 'SenhaNova456!',
+        confirmation: 'SenhaNova456!'
+      }),
+      auth
+        .mutate('post', '/api/settings/account/deactivate')
+        .send({ currentPassword: 'incorreta', confirmation: true }),
+      auth
+        .mutate('post', '/api/settings/privacy/deletion')
+        .send({ currentPassword: 'incorreta', confirmation: true }),
+      auth
+        .mutate('post', '/api/settings/integrations/github-identity/link/start')
+        .send({ password: 'incorreta' })
+    ];
+
+    for (const response of await Promise.all(attempts)) {
+      expect(response).toMatchObject({
+        status: 403,
+        body: { code: 'CURRENT_PASSWORD_INVALID' }
+      });
+    }
+    expect((await auth.agent.get('/api/auth/me')).status).toBe(200);
+  });
+
   it('confirma novo e-mail por token único e revoga todas as sessões', async () => {
     const auth = await register('old-email@example.invalid');
     clearCapturedEmails();

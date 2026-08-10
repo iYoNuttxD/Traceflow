@@ -3,6 +3,7 @@ import { normalizeApiError, useConfirm } from '../../shared/index.js';
 import { useAuth } from '../auth/index.js';
 import { settingsApi } from './settings.api.js';
 import { SettingsFeedback } from './SettingsFeedback.jsx';
+import { PasswordField } from '../auth/index.js';
 
 function download(blob) {
   const url = URL.createObjectURL(blob);
@@ -66,15 +67,13 @@ export function PrivacySettingsPage() {
             colaborativos e rastreabilidade serão preservados.
           </p>
         )}
-        <label>
-          Senha atual
-          <input
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-          />
-        </label>
+        <PasswordField
+          id="privacyCurrentPassword"
+          label="Senha atual"
+          autoComplete="current-password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+        />
         <div className="danger-zone-actions">
           {request ? (
             <button

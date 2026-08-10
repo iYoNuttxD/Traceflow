@@ -5,6 +5,7 @@ import { ProjectSectionNav } from '../../projects/index.js';
 import {
   compactParams,
   ErrorState,
+  FeedbackRegion,
   LoadingState,
   normalizeApiError,
   useAbortableRequest
@@ -12,6 +13,7 @@ import {
 
 const emptyFilters = {
   type: '',
+  branch: '',
   startDate: '',
   endDate: ''
 };
@@ -45,21 +47,28 @@ function getArtifactTypeLabel(type) {
 
 function getArtifactStatus(artifact) {
   if (artifact.type === 'commit') {
-    return artifact.metadata?.branch ? `Branch: ${artifact.metadata.branch}` : '-';
+    const branches = artifact.metadata?.branches || [];
+    if (branches.length === 0)
+      return artifact.metadata?.branch ? `Branch: ${artifact.metadata.branch}` : '-';
+    return branches.length <= 2
+      ? `Branches: ${branches.join(', ')}`
+      : `Branches: ${branches[0]} +${branches.length - 1}`;
   }
 
   const number = artifact.metadata?.number ? `#${artifact.metadata.number}` : null;
   const state = artifact.metadata?.state || null;
-
-  if (number && state) {
-    return `${number} - ${state}`;
-  }
-
-  return number || state || '-';
+  const flow =
+    artifact.type === 'pull_request' &&
+    artifact.metadata?.sourceBranch &&
+    artifact.metadata?.targetBranch
+      ? `${artifact.metadata.sourceBranch} → ${artifact.metadata.targetBranch}`
+      : null;
+  const status = number && state ? `${number} - ${state}` : number || state;
+  return [status, flow].filter(Boolean).join(' · ') || '-';
 }
 
 function hasActiveFilters(filters) {
-  return Boolean(filters.type || filters.startDate || filters.endDate);
+  return Boolean(filters.type || filters.branch || filters.startDate || filters.endDate);
 }
 
 function isValidDate(value) {
@@ -116,7 +125,10 @@ export function RepositoryInfoScreen() {
         const data = await runArtifactsRequest((signal) =>
           getProjectArtifacts(projectId, requestParams, { signal })
         );
-        if (!data) return;
+        if (!data) {
+          settled = true;
+          return;
+        }
         settled = true;
         setRepositoryData(data);
         setAppliedFilters({ ...emptyFilters, ...nextFilters });
@@ -160,6 +172,7 @@ export function RepositoryInfoScreen() {
   }
 
   const project = repositoryData?.project;
+  const repository = repositoryData?.repository || { branches: [] };
   const summary = repositoryData?.summary || {};
   const artifacts = repositoryData?.artifacts || [];
   const showFilteredEmptyState = hasActiveFilters(appliedFilters);
@@ -198,6 +211,22 @@ export function RepositoryInfoScreen() {
         </label>
 
         <label className="field">
+          <span>Branch</span>
+          <select
+            value={filters.branch}
+            onChange={(event) => handleFilterChange('branch', event.target.value)}
+          >
+            <option value="">Todas as branches</option>
+            {(repository.branches || []).map((branch) => (
+              <option key={branch.name} value={branch.name}>
+                {branch.name}
+                {branch.isDefault ? ' — padrão' : ''}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="field">
           <span>Data inicial</span>
           <input
             type="date"
@@ -230,6 +259,10 @@ export function RepositoryInfoScreen() {
         </div>
       </form>
 
+      {filters.type === 'issue' && filters.branch && (
+        <FeedbackRegion info="Issues pertencem ao repositório como um todo; o filtro de branch não se aplica a elas." />
+      )}
+
       {loading ? (
         <LoadingState message="Carregando artefatos do repositório..." />
       ) : error ? (
@@ -242,8 +275,8 @@ export function RepositoryInfoScreen() {
         <>
           <section className="repository-summary">
             <article className="repository-summary-card">
-              <span>Total de artefatos</span>
-              <strong>{summary.total ?? 0}</strong>
+              <span>Branches</span>
+              <strong>{repository.branches?.length ?? 0}</strong>
             </article>
             <article className="repository-summary-card">
               <span>Commits</span>
@@ -261,6 +294,27 @@ export function RepositoryInfoScreen() {
               <span>Completude</span>
               <strong>{formatCompleteness(summary.metadataCompletenessPercentage)}</strong>
             </article>
+          </section>
+
+          <section className="repository-branches" aria-labelledby="repository-branches-title">
+            <div>
+              <span>Branch padrão</span>
+              <strong>{repository.defaultBranch || 'Não identificada'}</strong>
+            </div>
+            <div>
+              <h2 id="repository-branches-title">Branches do repositório</h2>
+              <div className="branch-list">
+                {(repository.branches || []).map((branch) => (
+                  <span
+                    className={`branch-chip ${branch.isDefault ? 'branch-default' : ''}`}
+                    key={branch.name}
+                  >
+                    {branch.name}
+                    {branch.isDefault ? ' · padrão' : ''}
+                  </span>
+                ))}
+              </div>
+            </div>
           </section>
 
           {artifacts.length === 0 ? (

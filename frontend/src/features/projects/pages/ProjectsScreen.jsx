@@ -25,8 +25,9 @@ export function ProjectsScreen() {
   const [projects, setProjects] = useState([]);
   const [repositories, setRepositories] = useState([]);
   const [installations, setInstallations] = useState([]);
-  const [selectedInstallationId, setSelectedInstallationId] = useState('');
   const [formData, setFormData] = useState(emptyProjectForm);
+  const [duplicateRepository, setDuplicateRepository] = useState(null);
+  const [highlightedProjectId, setHighlightedProjectId] = useState(null);
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [loadingRepositories, setLoadingRepositories] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -54,46 +55,32 @@ export function ProjectsScreen() {
     }
   }, []);
 
-  const loadRepositories = useCallback(
-    async (installationId) => {
-      if (!installationId) {
-        setRepositories([]);
-        setLoadingRepositories(false);
-        return;
-      }
-      setLoadingRepositories(true);
-      setRepositoriesError('');
+  const loadRepositories = useCallback(async () => {
+    setLoadingRepositories(true);
+    setRepositoriesError('');
 
-      try {
-        const response = await projectsApi.listGithubRepositories(
-          installationId,
-          reconnectProjectId
+    try {
+      const response = await projectsApi.listAllGithubRepositories(reconnectProjectId);
+      const validRepositories = (response.data.repositories || [])
+        .map(normalizeRepository)
+        .filter(
+          (repository) =>
+            repository.owner && repository.name && repository.fullName && repository.url
         );
-        const validRepositories = (response.data.repositories || [])
-          .map(normalizeRepository)
-          .filter(
-            (repository) =>
-              repository.owner && repository.name && repository.fullName && repository.url
-          );
-        setRepositories(validRepositories);
-      } catch {
-        setRepositories([]);
-        setRepositoriesError('Não foi possível carregar os repositórios do GitHub.');
-      } finally {
-        setLoadingRepositories(false);
-      }
-    },
-    [reconnectProjectId]
-  );
+      setRepositories(validRepositories);
+    } catch {
+      setRepositories([]);
+      setRepositoriesError('Não foi possível carregar os repositórios do GitHub.');
+    } finally {
+      setLoadingRepositories(false);
+    }
+  }, [reconnectProjectId]);
 
   const loadInstallations = useCallback(async () => {
     try {
       const response = await projectsApi.listGithubInstallations();
       const available = response.data.installations || [];
       setInstallations(available);
-      if (available.length) {
-        setSelectedInstallationId((current) => current || available[0].githubInstallationId);
-      }
     } catch {
       setInstallations([]);
     }
@@ -102,25 +89,21 @@ export function ProjectsScreen() {
   useEffect(() => {
     loadProjects();
     loadInstallations();
-  }, [loadProjects, loadInstallations]);
+    void loadRepositories();
+  }, [loadProjects, loadInstallations, loadRepositories]);
 
   useEffect(() => {
-    void loadRepositories(selectedInstallationId);
-  }, [loadRepositories, selectedInstallationId]);
-
-  useEffect(() => {
-    const callbackInstallationId = searchParams.get('installationId');
-    if (callbackInstallationId) setSelectedInstallationId(callbackInstallationId);
     if (searchParams.get('github') === 'connected') {
       setSuccess('GitHub App vinculada ao TraceFlow. Os acessos foram atualizados.');
       setGithubCallbackError('');
       void loadInstallations();
+      void loadRepositories();
     } else if (searchParams.get('github') === 'error') {
       setGithubCallbackError(
         'Não foi possível concluir a autorização da GitHub App. Inicie o fluxo novamente.'
       );
     }
-  }, [loadInstallations, searchParams]);
+  }, [loadInstallations, loadRepositories, searchParams]);
 
   function handleChange(name, value) {
     setFormData((current) => updateProjectForm(current, name, value));
@@ -131,7 +114,8 @@ export function ProjectsScreen() {
       (repository) => normalizeRepository(repository).fullName === fullName
     );
 
-    if (!selectedRepository || normalizeRepository(selectedRepository).selectable === false) {
+    const normalized = selectedRepository ? normalizeRepository(selectedRepository) : null;
+    if (!normalized || normalized.selectable === false) {
       setFormData((current) => ({
         ...current,
         githubOwner: '',
@@ -141,11 +125,33 @@ export function ProjectsScreen() {
         githubRepositoryName: '',
         githubRepositoryFullName: '',
         githubRepositoryUrl: '',
-        githubDefaultBranch: ''
+        githubDefaultBranch: '',
+        githubInstallationId: ''
+      }));
+      setDuplicateRepository(null);
+      return;
+    }
+
+    if (normalized.alreadyConnected && !normalized.connectedToCurrentProject) {
+      setDuplicateRepository(normalized);
+      setHighlightedProjectId(normalized.connectedProject?.id || null);
+      window.setTimeout(() => setHighlightedProjectId(null), 4000);
+      setFormData((current) => ({
+        ...current,
+        githubOwner: '',
+        githubRepo: '',
+        githubUrl: '',
+        githubRepositoryId: '',
+        githubRepositoryName: '',
+        githubRepositoryFullName: '',
+        githubRepositoryUrl: '',
+        githubDefaultBranch: '',
+        githubInstallationId: ''
       }));
       return;
     }
 
+    setDuplicateRepository(null);
     setFormData((current) => applyRepositoryToProjectForm(current, selectedRepository));
   }
 
@@ -167,7 +173,7 @@ export function ProjectsScreen() {
 
     try {
       const response = await projectsApi.createFromGithub({
-        githubInstallationId: selectedInstallationId,
+        githubInstallationId: formData.githubInstallationId,
         githubRepositoryId: formData.githubRepositoryId,
         name: formData.name,
         description: formData.description,
@@ -177,6 +183,14 @@ export function ProjectsScreen() {
       setFormData(emptyProjectForm);
       await loadProjects();
     } catch (requestError) {
+      const connectedProject = requestError.response?.data?.details?.connectedProject;
+      if (requestError.response?.status === 409 && connectedProject) {
+        setDuplicateRepository({
+          fullName: formData.githubRepositoryFullName,
+          connectedProject
+        });
+        setHighlightedProjectId(connectedProject.id);
+      }
       setError(getErrorMessage(requestError, 'Não foi possível cadastrar o projeto.'));
     } finally {
       setSubmitting(false);
@@ -194,7 +208,7 @@ export function ProjectsScreen() {
     setSuccess('');
     try {
       const response = await projectsApi.connectGithubRepository(projectId, {
-        githubInstallationId: selectedInstallationId,
+        githubInstallationId: formData.githubInstallationId,
         githubRepositoryId: formData.githubRepositoryId
       });
       setSuccess(response.data.message);
@@ -221,49 +235,21 @@ export function ProjectsScreen() {
       <FeedbackRegion error={githubCallbackError} success={success} />
 
       <div className="projects-layout">
-        <Card title="Cadastrar projeto">
-          <div className="github-app-setup">
-            <span
+        <Card
+          title="Cadastrar projeto"
+          headerAction={
+            <Link
               className={`integration-status ${
                 installations.length > 0 ? 'is-connected' : 'is-disconnected'
               }`}
-              role="status"
+              to="/settings/integrations"
             >
               {installations.length > 0
-                ? `GitHub vinculado${
-                    installations.length === 1 ? ` · ${installations[0].accountLogin}` : ''
-                  }`
-                : 'GitHub não vinculado'}
-            </span>
-            {installations.length > 0 && (
-              <label className="field">
-                <span>Instalação GitHub</span>
-                <select
-                  value={selectedInstallationId}
-                  onChange={(event) => setSelectedInstallationId(event.target.value)}
-                >
-                  {installations.map((installation) => (
-                    <option
-                      key={installation.githubInstallationId}
-                      value={installation.githubInstallationId}
-                    >
-                      {installation.accountLogin}
-                      {installation.accountType ? ` (${installation.accountType})` : ''}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-            {installations.length === 0 && (
-              <p className="field-help">
-                Configure a integração em{' '}
-                <Link className="text-link" to="/settings/integrations">
-                  Integrações
-                </Link>
-                .
-              </p>
-            )}
-          </div>
+                ? `GitHub vinculado · ${installations[0].accountLogin}`
+                : '⚠ Vincular GitHub'}
+            </Link>
+          }
+        >
           <ProjectForm
             formData={formData}
             repositories={repositories}
@@ -280,6 +266,30 @@ export function ProjectsScreen() {
             submitting={submitting}
             showStatusField={false}
           />
+          {duplicateRepository && (
+            <aside className="repository-duplicate-callout" role="status">
+              <p>
+                {duplicateRepository.connectedProject ? (
+                  <>
+                    Este repositório já está vinculado ao projeto{' '}
+                    <strong>“{duplicateRepository.connectedProject.name}”</strong>.
+                  </>
+                ) : (
+                  'Este repositório já está vinculado a outro projeto.'
+                )}
+              </p>
+              <div>
+                {duplicateRepository.connectedProject && (
+                  <Link to={`/projects/${duplicateRepository.connectedProject.id}`}>
+                    Ver projeto
+                  </Link>
+                )}
+                <button type="button" onClick={() => setDuplicateRepository(null)}>
+                  Fechar
+                </button>
+              </div>
+            </aside>
+          )}
           {reconnectProjectId && (
             <div className="github-reconnect-action">
               <p>Selecione acima o repositório autorizado para reconectar o projeto.</p>
@@ -309,7 +319,12 @@ export function ProjectsScreen() {
           ) : (
             <div className="project-list">
               {projects.map((project) => (
-                <article className="project-item" key={project.id}>
+                <article
+                  className={`project-item ${
+                    highlightedProjectId === project.id ? 'project-highlight' : ''
+                  }`}
+                  key={project.id}
+                >
                   <div className="project-item-header">
                     <div>
                       <h3>{project.name}</h3>

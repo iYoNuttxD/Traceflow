@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router';
 import { normalizeApiError, useConfirm } from '../../shared/index.js';
 import { settingsApi } from './settings.api.js';
 import { SettingsFeedback } from './SettingsFeedback.jsx';
+import { PasswordField } from '../auth/index.js';
 
 export function IntegrationsSettingsPage() {
   const confirm = useConfirm();
@@ -129,15 +130,13 @@ export function IntegrationsSettingsPage() {
               </p>
               {account?.hasLocalPassword ? (
                 <>
-                  <label>
-                    Senha atual da conta
-                    <input
-                      type="password"
-                      autoComplete="current-password"
-                      value={identityPassword}
-                      onChange={(event) => setIdentityPassword(event.target.value)}
-                    />
-                  </label>
+                  <PasswordField
+                    id="unlinkGithubIdentityPassword"
+                    label="Senha atual da conta"
+                    autoComplete="current-password"
+                    value={identityPassword}
+                    onChange={(event) => setIdentityPassword(event.target.value)}
+                  />
                   <div className="danger-zone-actions">
                     <button
                       className="button button-danger"
@@ -160,15 +159,13 @@ export function IntegrationsSettingsPage() {
         ) : (
           <>
             <p>Nenhuma conta GitHub vinculada.</p>
-            <label>
-              Senha atual da conta TraceFlow
-              <input
-                type="password"
-                autoComplete="current-password"
-                value={identityPassword}
-                onChange={(event) => setIdentityPassword(event.target.value)}
-              />
-            </label>
+            <PasswordField
+              id="linkGithubIdentityPassword"
+              label="Senha atual da conta TraceFlow"
+              autoComplete="current-password"
+              value={identityPassword}
+              onChange={(event) => setIdentityPassword(event.target.value)}
+            />
             <button
               type="button"
               disabled={!identityPassword || linking}
@@ -241,17 +238,15 @@ export function IntegrationsSettingsPage() {
                     {projectCount === 1 ? 'projeto' : 'projetos'}.
                   </p>
                 )}
-                <label>
-                  Senha atual
-                  <input
-                    type="password"
-                    autoComplete="current-password"
-                    value={passwords[item.id] || ''}
-                    onChange={(event) =>
-                      setPasswords((current) => ({ ...current, [item.id]: event.target.value }))
-                    }
-                  />
-                </label>
+                <PasswordField
+                  id={`githubAuthorizationPassword-${item.id}`}
+                  label="Senha atual"
+                  autoComplete="current-password"
+                  value={passwords[item.id] || ''}
+                  onChange={(event) =>
+                    setPasswords((current) => ({ ...current, [item.id]: event.target.value }))
+                  }
+                />
                 <div className="danger-zone-actions">
                   <button
                     className="button button-danger"

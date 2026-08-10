@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { normalizeApiError, useConfirm } from '../../shared/index.js';
-import { useAuth } from '../auth/index.js';
+import { PasswordField, useAuth } from '../auth/index.js';
 import { settingsApi } from './settings.api.js';
 import { SettingsFeedback } from './SettingsFeedback.jsx';
 
@@ -118,16 +118,14 @@ export function AccountSettingsPage() {
               onChange={(event) => setEmail({ ...email, newEmail: event.target.value })}
             />
           </label>
-          <label>
-            Senha atual
-            <input
-              type="password"
-              autoComplete="current-password"
-              disabled={!active}
-              value={email.currentPassword}
-              onChange={(event) => setEmail({ ...email, currentPassword: event.target.value })}
-            />
-          </label>
+          <PasswordField
+            id="emailCurrentPassword"
+            label="Senha atual"
+            autoComplete="current-password"
+            disabled={!active}
+            value={email.currentPassword}
+            onChange={(event) => setEmail({ ...email, currentPassword: event.target.value })}
+          />
           <button disabled={!active} type="submit">
             Confirmar novo e-mail
           </button>
@@ -136,15 +134,14 @@ export function AccountSettingsPage() {
       <section className="settings-card danger-zone">
         <h2>Desativar conta</h2>
         <p>A conta entra em modo restrito. Projetos e dados permanecem preservados.</p>
-        <label>
-          Senha atual
-          <input
-            type="password"
-            disabled={!active}
-            value={deactivationPassword}
-            onChange={(event) => setDeactivationPassword(event.target.value)}
-          />
-        </label>
+        <PasswordField
+          id="deactivationPassword"
+          label="Senha atual"
+          autoComplete="current-password"
+          disabled={!active}
+          value={deactivationPassword}
+          onChange={(event) => setDeactivationPassword(event.target.value)}
+        />
         <div className="danger-zone-actions">
           <button
             className="button button-danger"

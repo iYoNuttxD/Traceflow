@@ -1,4 +1,4 @@
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -7,6 +7,11 @@ const auth = vi.hoisted(() => ({ login: vi.fn(), register: vi.fn() }));
 vi.mock('../../src/features/auth/AuthContext.jsx', () => ({ useAuth: () => auth }));
 import { LoginPage } from '../../src/pages/LoginPage.jsx';
 import { RegisterPage } from '../../src/pages/RegisterPage.jsx';
+
+function LocationProbe() {
+  const location = useLocation();
+  return <output>{`${location.pathname}${location.search}${location.hash}`}</output>;
+}
 
 describe('formulários de identidade acessíveis', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -70,5 +75,58 @@ describe('formulários de identidade acessíveis', () => {
     await user.click(screen.getByRole('button', { name: 'Mostrar senha' }));
     expect(password).toHaveAttribute('type', 'text');
     expect(screen.getByRole('button', { name: 'Entrar com GitHub' })).toBeEnabled();
+  });
+
+  it('preserva pathname, query e hash no retorno após login local', async () => {
+    auth.login.mockResolvedValue({ id: 'user-1' });
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter
+        initialEntries={[
+          { pathname: '/login', state: { from: '/projects/abc/tasks?status=open#task-42' } }
+        ]}
+      >
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="*" element={<LocationProbe />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await user.type(screen.getByLabelText(/Nome de usuário ou e-mail/), 'pessoa.teste');
+    await user.type(screen.getByLabelText('Senha *'), 'Frase longa segura 123');
+    await user.click(screen.getByRole('button', { name: 'Entrar' }));
+
+    await waitFor(() =>
+      expect(screen.getByText('/projects/abc/tasks?status=open#task-42')).toBeInTheDocument()
+    );
+  });
+
+  it('preserva pathname, query e hash no retorno após cadastro local', async () => {
+    auth.register.mockResolvedValue({ id: 'user-1' });
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter
+        initialEntries={[
+          { pathname: '/register', state: { from: '/invitations/accept?token=abc#details' } }
+        ]}
+      >
+        <Routes>
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="*" element={<LocationProbe />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await user.type(screen.getByLabelText(/Nome completo/), 'Pessoa Teste');
+    await user.type(screen.getByLabelText(/Nome de usuário/), 'pessoa.teste');
+    await user.type(screen.getByLabelText(/E-mail/), 'pessoa@example.com');
+    await user.type(screen.getByLabelText(/^Senha/), 'Frase longa segura 123');
+    await user.type(screen.getByLabelText(/Confirmar senha/), 'Frase longa segura 123');
+    await user.click(screen.getByRole('button', { name: 'Criar conta' }));
+
+    await waitFor(() =>
+      expect(screen.getByText('/invitations/accept?token=abc#details')).toBeInTheDocument()
+    );
   });
 });

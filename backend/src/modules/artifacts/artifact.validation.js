@@ -10,5 +10,6 @@ export const artifactQuerySchema = dateRangeSchema.extend({
     .enum(['commit', 'pull_request', 'issue'], {
       error: 'Tipo de artefato inválido.'
     })
-    .optional()
+    .optional(),
+  branch: z.string().trim().min(1).max(191).optional()
 });

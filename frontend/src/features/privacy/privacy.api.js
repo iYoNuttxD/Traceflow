@@ -25,8 +25,8 @@ export const privacyApi = {
   async requestDeletion(password) {
     return (await httpClient.post('/account/deletion-request', { password })).data.request;
   },
-  cancelDeletion() {
-    return httpClient.delete('/account/deletion-request');
+  cancelDeletion(password) {
+    return httpClient.delete('/account/deletion-request', { data: { password } });
   },
   deactivate(password) {
     return httpClient.post('/account/deactivate', { password });

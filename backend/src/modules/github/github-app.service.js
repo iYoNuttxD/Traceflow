@@ -16,11 +16,12 @@ const forbidden = (message = 'Instalação GitHub não autorizada.') =>
     code: ERROR_CODES.FORBIDDEN,
     exposeTechnicalDetails: true
   });
-const repositoryConflict = () =>
+const repositoryConflict = (connectedProject) =>
   new AppError({
     message: 'Este repositório GitHub já está conectado a outro projeto.',
     statusCode: 409,
     code: ERROR_CODES.CONFLICT,
+    details: connectedProject ? { connectedProject } : undefined,
     exposeTechnicalDetails: true
   });
 
@@ -38,6 +39,33 @@ function installationDto(item) {
     accountType: item.accountType,
     status: item.status
   };
+}
+
+async function addRepositoryAvailability(repositories, userId, projectId) {
+  const integrations = await githubRepository.findIntegrationsByRepositoryIds(
+    repositories.map((repository) => repository.githubRepositoryId),
+    userId
+  );
+  const integrationByRepositoryId = new Map(
+    integrations.map((integration) => [String(integration.githubRepositoryId), integration])
+  );
+  return repositories.map((repository) => {
+    const integration = integrationByRepositoryId.get(String(repository.githubRepositoryId));
+    const connectedToCurrentProject = Boolean(
+      integration && projectId && integration.projectId === Number(projectId)
+    );
+    const canViewConnectedProject = Boolean(integration?.project?.memberships?.length);
+    return {
+      ...repository,
+      availability: integration ? 'CONNECTED' : 'AVAILABLE',
+      alreadyConnected: Boolean(integration),
+      connectedToCurrentProject,
+      selectable: true,
+      connectedProject: canViewConnectedProject
+        ? { id: integration.project.id, name: integration.project.name }
+        : null
+    };
+  });
 }
 
 function validCallbackInput({ code, installationId, setupAction, state }) {
@@ -173,29 +201,45 @@ export const githubAppService = {
       installation.githubInstallationId
     );
     const repositories = await collectGithubPages(client.listRepositoryPages());
-    const integrations = await githubRepository.findIntegrationsByRepositoryIds(
-      repositories.map((repository) => repository.githubRepositoryId)
-    );
-    const integrationByRepositoryId = new Map(
-      integrations.map((integration) => [String(integration.githubRepositoryId), integration])
-    );
-    return repositories.map((repository) => {
-      const integration = integrationByRepositoryId.get(String(repository.githubRepositoryId));
-      const connectedToCurrentProject = Boolean(
-        integration && projectId && integration.projectId === Number(projectId)
-      );
-      return {
-        ...repository,
-        availability: integration ? 'CONNECTED' : 'AVAILABLE',
-        alreadyConnected: Boolean(integration),
-        connectedToCurrentProject,
-        selectable: !integration || connectedToCurrentProject
-      };
-    });
+    return addRepositoryAvailability(repositories, userId, projectId);
   },
-  async assertRepositoryAvailable(githubRepositoryId, projectId) {
-    const integration = await githubRepository.findIntegrationByRepositoryId(githubRepositoryId);
-    if (integration && integration.projectId !== Number(projectId)) throw repositoryConflict();
+  async listAllRepositories(userId, projectId) {
+    if (projectId) await requireOwner(projectId, userId);
+    const installations = await githubRepository.listAuthorizedInstallations(userId);
+    const repositoriesById = new Map();
+
+    for (const installation of installations) {
+      const client = await githubInstallationClientFactory.forInstallation(
+        installation.githubInstallationId
+      );
+      const repositories = await collectGithubPages(client.listRepositoryPages());
+      for (const repository of repositories) {
+        if (!repositoriesById.has(repository.githubRepositoryId)) {
+          repositoriesById.set(repository.githubRepositoryId, {
+            ...repository,
+            githubInstallationId: installation.githubInstallationId,
+            accountLogin: installation.accountLogin
+          });
+        }
+      }
+    }
+
+    const repositories = [...repositoriesById.values()].sort((first, second) =>
+      first.fullName.localeCompare(second.fullName)
+    );
+    return addRepositoryAvailability(repositories, userId, projectId);
+  },
+  async assertRepositoryAvailable(githubRepositoryId, projectId, userId) {
+    const integration = await githubRepository.findIntegrationByRepositoryId(
+      githubRepositoryId,
+      userId
+    );
+    if (integration && integration.projectId !== Number(projectId)) {
+      const connectedProject = integration.project?.memberships?.length
+        ? { id: integration.project.id, name: integration.project.name }
+        : null;
+      throw repositoryConflict(connectedProject);
+    }
     return integration;
   },
   async resolveAuthorizedRepository(userId, githubInstallationId, githubRepositoryId) {
@@ -227,7 +271,7 @@ export const githubAppService = {
       githubInstallationId,
       githubRepositoryId
     );
-    await this.assertRepositoryAvailable(repository.githubRepositoryId, projectId);
+    await this.assertRepositoryAvailable(repository.githubRepositoryId, projectId, userId);
     try {
       return await githubRepository.connectProject(Number(projectId), installation.id, {
         githubRepositoryId: repository.githubRepositoryId,

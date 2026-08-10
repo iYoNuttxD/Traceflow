@@ -202,7 +202,7 @@ export const githubAuthService = {
         ERROR_CODES.FORBIDDEN
       );
     if (!(await authService.verifyPassword(user.id, password)))
-      throw oauthError('Senha atual inválida.', 401, ERROR_CODES.CURRENT_PASSWORD_INVALID);
+      throw oauthError('Senha atual inválida.', 403, ERROR_CODES.CURRENT_PASSWORD_INVALID);
     if (await githubAuthRepository.findIdentityByUserId(user.id))
       throw oauthError(
         'Uma conta GitHub já está vinculada.',

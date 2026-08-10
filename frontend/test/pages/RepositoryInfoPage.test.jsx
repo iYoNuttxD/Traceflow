@@ -28,6 +28,7 @@ function artifactsResponse(overrides = {}) {
       issues: 0,
       metadataCompletenessPercentage: 0
     },
+    repository: { defaultBranch: 'main', branches: [] },
     artifacts: [],
     ...overrides
   };
@@ -46,6 +47,7 @@ describe('RepositoryInfoPage RF06', () => {
       await screen.findByText('Nenhum artefato GitHub foi importado para este projeto.')
     ).toBeInTheDocument();
     expect(getProjectArtifacts).toHaveBeenCalledWith('1', {}, { signal: expect.any(AbortSignal) });
+    expect(getProjectArtifacts).toHaveBeenCalledTimes(1);
   });
 
   it('combina tipo e intervalo de datas no filtro existente', async () => {
@@ -172,5 +174,75 @@ describe('RepositoryInfoPage RF06', () => {
     expect(await screen.findByText('feat: exemplo')).toBeInTheDocument();
     expect(screen.getByText('Autor minimizado')).toBeInTheDocument();
     expect(screen.getByText('100%')).toBeInTheDocument();
+  });
+
+  it('exibe branches, filtra commits e mostra fluxo completo de pull request', async () => {
+    const user = userEvent.setup();
+    getProjectArtifacts
+      .mockResolvedValueOnce(
+        artifactsResponse({
+          repository: {
+            defaultBranch: 'main',
+            branches: [
+              { name: 'main', isDefault: true },
+              { name: 'feature/login', isDefault: false }
+            ]
+          }
+        })
+      )
+      .mockResolvedValueOnce(
+        artifactsResponse({
+          repository: {
+            defaultBranch: 'main',
+            branches: [
+              { name: 'main', isDefault: true },
+              { name: 'feature/login', isDefault: false }
+            ]
+          },
+          summary: {
+            total: 2,
+            commits: 1,
+            pullRequests: 1,
+            issues: 0,
+            metadataCompletenessPercentage: 100
+          },
+          artifacts: [
+            {
+              id: 1,
+              type: 'commit',
+              title: 'feat: login',
+              author: 'Pessoa',
+              date: '2026-01-01T00:00:00.000Z',
+              metadata: { branches: ['feature/login', 'main'] }
+            },
+            {
+              id: 2,
+              type: 'pull_request',
+              title: 'Login',
+              author: 'Pessoa',
+              date: '2026-01-02T00:00:00.000Z',
+              metadata: {
+                number: 2,
+                state: 'open',
+                sourceBranch: 'feature/login',
+                targetBranch: 'main'
+              }
+            }
+          ]
+        })
+      );
+
+    renderPage();
+    await screen.findByRole('option', { name: 'feature/login' });
+    await user.selectOptions(screen.getByLabelText('Branch'), 'feature/login');
+    await user.click(screen.getByRole('button', { name: 'Aplicar filtros' }));
+
+    expect(getProjectArtifacts).toHaveBeenLastCalledWith(
+      '1',
+      { branch: 'feature/login' },
+      { signal: expect.any(AbortSignal) }
+    );
+    expect(await screen.findByText('Branches: feature/login, main')).toBeInTheDocument();
+    expect(screen.getByText(/feature\/login → main/)).toBeInTheDocument();
   });
 });

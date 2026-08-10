@@ -349,13 +349,24 @@ describe('fronteira GitHub App da L1', () => {
     expect(listRepos).toHaveBeenNthCalledWith(2, { per_page: 100, page: 2 });
   });
 
-  it('mantém commits, pull requests e issues compatíveis com respostas em array', async () => {
+  it('mantém branches, commits, pull requests e issues paginados em arrays', async () => {
+    const listBranches = vi.fn().mockResolvedValue({
+      data: [
+        { name: 'main', commit: { sha: 'abc' } },
+        { name: 'feature', commit: { sha: 'def' } }
+      ],
+      headers: {}
+    });
     const listCommits = vi.fn().mockResolvedValue({
       data: [{ sha: 'abc', commit: { message: 'commit', author: { date: '2030-01-01' } } }],
       headers: {}
     });
     const listPullRequests = vi.fn().mockResolvedValue({
-      data: [{ id: 2, number: 2, title: 'PR', base: { ref: 'main' } }],
+      data: [
+        { id: 2, number: 2, title: 'PR A', head: { ref: 'feature-a' }, base: { ref: 'main' } },
+        { id: 3, number: 3, title: 'PR B', head: { ref: 'feature-b' }, base: { ref: 'develop' } },
+        { id: 4, number: 4, title: 'PR C', head: { ref: 'main' }, base: { ref: 'release' } }
+      ],
       headers: {}
     });
     const listIssues = vi.fn().mockResolvedValue({
@@ -364,7 +375,7 @@ describe('fronteira GitHub App da L1', () => {
     });
     const OctokitClass = vi.fn(function OctokitDouble() {
       this.rest = {
-        repos: { listCommits },
+        repos: { listBranches, listCommits },
         pulls: { list: listPullRequests },
         issues: { listForRepo: listIssues }
       };
@@ -376,15 +387,35 @@ describe('fronteira GitHub App da L1', () => {
     });
 
     await expect(
+      collectGithubPages(client.listBranchPages({ owner: 'traceflow', repo: 'repo' }))
+    ).resolves.toEqual([
+      { name: 'main', headSha: 'abc' },
+      { name: 'feature', headSha: 'def' }
+    ]);
+
+    await expect(
       collectGithubPages(
         client.listCommitPages({ owner: 'traceflow', repo: 'repo', branch: 'main' })
       )
     ).resolves.toEqual([expect.objectContaining({ hash: 'abc', branch: 'main' })]);
     await expect(
-      collectGithubPages(
-        client.listPullRequestPages({ owner: 'traceflow', repo: 'repo', branch: 'main' })
-      )
-    ).resolves.toEqual([expect.objectContaining({ githubId: '2', targetBranch: 'main' })]);
+      collectGithubPages(client.listPullRequestPages({ owner: 'traceflow', repo: 'repo' }))
+    ).resolves.toEqual([
+      expect.objectContaining({ githubId: '2', sourceBranch: 'feature-a', targetBranch: 'main' }),
+      expect.objectContaining({
+        githubId: '3',
+        sourceBranch: 'feature-b',
+        targetBranch: 'develop'
+      }),
+      expect.objectContaining({ githubId: '4', sourceBranch: 'main', targetBranch: 'release' })
+    ]);
+    expect(listPullRequests).toHaveBeenCalledWith({
+      owner: 'traceflow',
+      repo: 'repo',
+      state: 'all',
+      per_page: 100,
+      page: 1
+    });
     await expect(
       collectGithubPages(client.listIssuePages({ owner: 'traceflow', repo: 'repo' }))
     ).resolves.toEqual([expect.objectContaining({ githubId: '3', title: 'Issue' })]);

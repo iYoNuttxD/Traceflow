@@ -22,7 +22,10 @@ export function PasswordField({
   onChange,
   error,
   autoComplete = 'new-password',
-  showRequirements = false
+  showRequirements = false,
+  disabled = false,
+  required = true,
+  minLength
 }) {
   const generatedId = useId();
   const inputId = id || generatedId;
@@ -45,7 +48,9 @@ export function PasswordField({
           type={visible ? 'text' : 'password'}
           value={value}
           onChange={onChange}
-          required
+          required={required}
+          disabled={disabled}
+          minLength={minLength}
           autoComplete={autoComplete}
           aria-invalid={Boolean(error)}
           aria-describedby={descriptionIds}
@@ -53,6 +58,7 @@ export function PasswordField({
         <button
           className="password-toggle"
           type="button"
+          disabled={disabled}
           onClick={() => setVisible((current) => !current)}
           aria-label={visible ? 'Ocultar senha' : 'Mostrar senha'}
         >

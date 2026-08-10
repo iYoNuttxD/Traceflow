@@ -13,6 +13,9 @@ export function ProtectedRoute({ children }) {
     );
   if (!user) return <Navigate to="/login" replace state={{ from: locationReturnTo(location) }} />;
   const status = user.accountStatus || (user.isActive === false ? 'DEACTIVATED' : 'ACTIVE');
+  if (status === 'ACTIVE' && location.pathname === '/restricted') {
+    return <Navigate to="/projects" replace />;
+  }
   const restrictedPaths =
     status === 'DELETION_PENDING'
       ? ['/restricted', '/settings/account', '/settings/privacy']

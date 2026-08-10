@@ -44,7 +44,7 @@ async function requireActive(userId) {
 
 async function requirePassword(userId, password) {
   if (!(await authService.verifyPassword(userId, password))) {
-    throw error('Senha atual inválida.', 401, ERROR_CODES.CURRENT_PASSWORD_INVALID);
+    throw error('Senha atual inválida.', 403, ERROR_CODES.CURRENT_PASSWORD_INVALID);
   }
 }
 

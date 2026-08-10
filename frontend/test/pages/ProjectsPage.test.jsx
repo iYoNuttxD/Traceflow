@@ -17,6 +17,10 @@ vi.mock('../../src/features/projects/api/projects.api.js', () => ({
       apiMock.get(`/github/app/installations/${installationId}/repositories`, {
         params: projectId ? { projectId } : undefined
       }),
+    listAllGithubRepositories: (projectId) =>
+      apiMock.get('/github/app/repositories', {
+        params: projectId ? { projectId } : undefined
+      }),
     startGithubInstallation: (data) => apiMock.post('/github/app/installations/start', data),
     connectGithubRepository: (projectId, data) =>
       apiMock.put(`/projects/${projectId}/github/integration`, data),
@@ -29,6 +33,8 @@ import { ProjectsPage } from '../../src/pages/ProjectsPage.jsx';
 
 const fakeRepository = {
   githubRepositoryId: '501',
+  githubInstallationId: '77',
+  accountLogin: 'usuario-artificial',
   name: 'repositorio-artificial',
   owner: 'usuario-artificial',
   fullName: 'usuario-artificial/repositorio-artificial',
@@ -70,7 +76,7 @@ function mockInitialRequests({
       });
     }
 
-    if (url === '/github/app/installations/77/repositories') {
+    if (url === '/github/app/repositories') {
       return Promise.resolve({ data: { repositories } });
     }
 
@@ -122,7 +128,7 @@ describe('ProjectsPage', () => {
     renderPage();
 
     expect(await screen.findByText('Falha artificial da API')).toBeInTheDocument();
-    expect(screen.getByText('GitHub não vinculado')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Vincular GitHub/ })).toBeInTheDocument();
     expect(screen.getByLabelText('Repositório GitHub *')).toBeDisabled();
   });
 
@@ -155,7 +161,7 @@ describe('ProjectsPage', () => {
     expect(await screen.findByText('Projeto cadastrado com sucesso.')).toBeInTheDocument();
   });
 
-  it('lista todos os repositórios e desabilita somente o já utilizado', async () => {
+  it('lista repositórios agregados e explica o projeto já vinculado sem ocultá-lo', async () => {
     const repositories = [
       { ...fakeRepository, selectable: true, alreadyConnected: false },
       {
@@ -165,8 +171,10 @@ describe('ProjectsPage', () => {
         fullName: 'usuario-artificial/ocupado',
         url: 'https://github.com/usuario-artificial/ocupado',
         defaultBranch: 'develop',
-        selectable: false,
-        alreadyConnected: true
+        selectable: true,
+        alreadyConnected: true,
+        connectedProject: { id: 12, name: 'Projeto existente' },
+        githubInstallationId: '77'
       },
       {
         ...fakeRepository,
@@ -177,19 +185,41 @@ describe('ProjectsPage', () => {
         defaultBranch: 'trunk',
         selectable: true,
         alreadyConnected: false
+      },
+      {
+        ...fakeRepository,
+        githubRepositoryId: '504',
+        name: 'ocupado-sem-acesso',
+        fullName: 'usuario-artificial/ocupado-sem-acesso',
+        url: 'https://github.com/usuario-artificial/ocupado-sem-acesso',
+        selectable: true,
+        alreadyConnected: true,
+        connectedProject: null
       }
     ];
     mockInitialRequests({ repositories });
     renderPage();
 
     const select = await screen.findByLabelText('Repositório GitHub *');
-    await waitFor(() => expect(select.querySelectorAll('option')).toHaveLength(4));
+    await waitFor(() => expect(select.querySelectorAll('option')).toHaveLength(5));
     const options = [...select.querySelectorAll('option')];
-    expect(options.find((option) => option.value.endsWith('/ocupado'))).toBeDisabled();
+    expect(options.find((option) => option.value.endsWith('/ocupado'))).toBeEnabled();
     expect(options.find((option) => option.value.endsWith('/disponivel'))).toBeEnabled();
     expect(options.find((option) => option.value.endsWith('/ocupado')).textContent).toMatch(
-      /branch develop.*já utilizado/
+      /branch develop.*vinculado a Projeto existente/
     );
+    await userEvent.setup().selectOptions(select, 'usuario-artificial/ocupado');
+    expect(screen.getByText(/já está vinculado ao projeto/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Ver projeto' })).toHaveAttribute(
+      'href',
+      '/projects/12'
+    );
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Fechar' }));
+    await userEvent.setup().selectOptions(select, 'usuario-artificial/ocupado-sem-acesso');
+    expect(
+      screen.getByText('Este repositório já está vinculado a outro projeto.')
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Ver projeto' })).not.toBeInTheDocument();
     expect(screen.getByText(/GitHub vinculado/)).toBeInTheDocument();
     expect(
       screen.queryByRole('link', { name: 'Gerenciar acesso no GitHub' })
@@ -208,9 +238,9 @@ describe('ProjectsPage', () => {
     mockInitialRequests({ installations: [], repositories: [] });
     renderPage();
 
-    expect(await screen.findByText('GitHub não vinculado')).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: /Vincular GitHub/ })).toBeInTheDocument();
     expect(screen.getByLabelText('Repositório GitHub *')).toBeDisabled();
-    expect(screen.getByRole('link', { name: 'Integrações' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /Vincular GitHub/ })).toHaveAttribute(
       'href',
       '/settings/integrations'
     );

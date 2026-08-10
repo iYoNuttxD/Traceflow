@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { normalizeApiError, useConfirm } from '../../shared/index.js';
-import { useAuth } from '../auth/index.js';
+import { PasswordField, useAuth } from '../auth/index.js';
 import { privacyApi } from './privacy.api.js';
 
 export function PrivacyPage() {
@@ -97,14 +97,13 @@ export function PrivacyPage() {
               onChange={(event) => setProfile({ ...profile, email: event.target.value })}
             />
           </label>
-          <label>
-            Senha atual
-            <input
-              type="password"
-              value={profile.currentPassword}
-              onChange={(event) => setProfile({ ...profile, currentPassword: event.target.value })}
-            />
-          </label>
+          <PasswordField
+            id="privacyProfilePassword"
+            label="Senha atual"
+            autoComplete="current-password"
+            value={profile.currentPassword}
+            onChange={(event) => setProfile({ ...profile, currentPassword: event.target.value })}
+          />
           <button type="submit">Salvar perfil</button>
         </form>
       </section>
@@ -136,18 +135,17 @@ export function PrivacyPage() {
       </section>
       <section>
         <h2>Exclusão</h2>
-        <label>
-          Confirme sua senha
-          <input
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-          />
-        </label>
+        <PasswordField
+          id="privacyActionPassword"
+          label="Confirme sua senha"
+          autoComplete="current-password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+        />
         {request ? (
           <button
             type="button"
-            onClick={() => run(() => privacyApi.cancelDeletion(), 'Solicitação cancelada.')}
+            onClick={() => run(() => privacyApi.cancelDeletion(password), 'Solicitação cancelada.')}
           >
             Cancelar solicitação de exclusão
           </button>

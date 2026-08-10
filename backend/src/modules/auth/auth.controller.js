@@ -65,7 +65,7 @@ export const authController = {
   }),
   me: asyncHandler(async (req, res) => res.json({ user: req.auth.user })),
   csrf: asyncHandler(async (req, res) => {
-    return res.json({ csrfToken: await authService.rotateCsrf(req.auth.session.id) });
+    return res.json({ csrfToken: authService.csrfToken(req.auth.session) });
   }),
   logout: asyncHandler(async (req, res) => {
     await authService.logout(req.auth.session.id);
