@@ -1992,56 +1992,6 @@ a {
   line-height: 1;
 }
 
-.repository-branches {
-  display: grid;
-  grid-template-columns: minmax(150px, 0.35fr) minmax(0, 1fr);
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-  padding: 1rem;
-  border: 1px solid #e2e7f0;
-  border-radius: 12px;
-  background: #fff;
-}
-
-.repository-branches h2,
-.repository-branches p {
-  margin-top: 0;
-}
-
-.repository-branches > div:first-child {
-  display: grid;
-  align-content: start;
-  gap: 0.25rem;
-}
-
-.branch-list {
-  display: flex;
-  max-height: 9rem;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-  overflow-y: auto;
-}
-
-.branch-chip {
-  display: inline-flex;
-  max-width: 100%;
-  padding: 0.25rem 0.55rem;
-  overflow: hidden;
-  border: 1px solid #d0d5dd;
-  border-radius: 999px;
-  color: #344054;
-  font-size: 0.78rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  background: #f9fafb;
-}
-
-.branch-default {
-  border-color: #84adff;
-  color: #1849a9;
-  background: #eff4ff;
-}
-
 @media (prefers-reduced-motion: no-preference) {
   .project-highlight {
     transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
@@ -2776,6 +2726,14 @@ a {
 .password-control {
   position: relative;
   display: flex;
+  align-items: center;
+}
+
+.password-field > label {
+  display: inline-flex;
+  align-items: baseline;
+  width: fit-content;
+  gap: 0;
 }
 
 .password-control input {
@@ -2784,13 +2742,32 @@ a {
 
 .password-toggle {
   position: absolute;
-  inset: 0.3rem 0.35rem 0.3rem auto;
+  top: 50%;
+  right: 0.35rem;
+  display: inline-flex;
+  height: calc(100% - 0.6rem);
+  align-items: center;
+  justify-content: center;
+  transform: translateY(-50%);
   padding: 0.2rem 0.55rem;
   border: 0;
   border-radius: 7px;
   background: #eef2ff;
   color: #315bce;
   font-weight: 700;
+}
+
+.github-sync-progress {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin-bottom: 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid #b2ccff;
+  border-radius: 10px;
+  color: #1849a9;
+  background: #eff4ff;
 }
 
 .password-requirements {

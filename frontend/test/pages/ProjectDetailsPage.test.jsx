@@ -1,12 +1,13 @@
 import { MemoryRouter, Route, Routes } from 'react-router';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfirmProvider } from '../../src/shared/index.js';
 
 const mocks = vi.hoisted(() => ({
   api: { get: vi.fn(), put: vi.fn() },
   syncProjectGithub: vi.fn(),
+  getProjectGithubSyncStatus: vi.fn(),
   membersApi: {
     list: vi.fn(),
     invitations: vi.fn(),
@@ -27,7 +28,8 @@ vi.mock('../../src/features/projects/api/projects.api.js', () => ({
   }
 }));
 vi.mock('../../src/features/github/api/github.api.js', () => ({
-  syncProjectGithub: mocks.syncProjectGithub
+  syncProjectGithub: mocks.syncProjectGithub,
+  getProjectGithubSyncStatus: mocks.getProjectGithubSyncStatus
 }));
 vi.mock('../../src/features/members/members.api.js', () => ({ membersApi: mocks.membersApi }));
 
@@ -64,6 +66,12 @@ function renderPage() {
 }
 
 describe('ProjectDetailsPage E9', () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllTimers();
+    vi.useRealTimers();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.api.get.mockResolvedValue({ data: { project } });
@@ -79,31 +87,142 @@ describe('ProjectDetailsPage E9', () => {
       ]
     });
     mocks.membersApi.invitations.mockResolvedValue([]);
+    mocks.getProjectGithubSyncStatus.mockResolvedValue({ run: null });
   });
 
   it('exibe loading, sincroniza uma vez e apresenta o summary atual', async () => {
-    const user = userEvent.setup();
+    vi.useFakeTimers();
     mocks.syncProjectGithub.mockResolvedValue({
-      message: 'Sincronização com GitHub concluída.',
-      project: {
-        ...project,
-        githubSyncStatus: 'SINCRONIZADO',
-        githubLastSyncAt: '2026-01-02T00:00:00Z'
-      },
-      summary: {
-        commits: { found: 2, created: 1 },
-        pullRequests: { found: 1, created: 0, updated: 1 },
-        issues: { found: 1, created: 1, updated: 0 }
+      message: 'Sincronização GitHub iniciada.',
+      run: {
+        id: 10,
+        status: 'QUEUED',
+        step: 'QUEUED',
+        progress: { branchCount: 0, processedBranches: 0 }
+      }
+    });
+    mocks.getProjectGithubSyncStatus.mockResolvedValueOnce({ run: null }).mockResolvedValue({
+      run: {
+        id: 10,
+        status: 'SUCCEEDED',
+        step: 'COMPLETED',
+        progress: { branchCount: 4, processedBranches: 4 },
+        error: null,
+        summary: {
+          branches: { found: 4, active: 4 },
+          commits: { found: 2, created: 1 },
+          pullRequests: { found: 1, created: 0, updated: 1 },
+          issues: { found: 1, created: 1, updated: 0 }
+        }
+      }
+    });
+    mocks.api.get.mockResolvedValueOnce({ data: { project } }).mockResolvedValue({
+      data: {
+        project: {
+          ...project,
+          githubSyncStatus: 'SINCRONIZADO',
+          githubLastSyncAt: '2026-01-02T00:00:00Z'
+        }
       }
     });
     renderPage();
     expect(screen.getByText('Carregando projeto...')).toBeInTheDocument();
-    const button = await screen.findByRole('button', { name: 'Sincronizar' });
-    await user.click(button);
-    expect(await screen.findByText(/Sincronização GitHub concluída com sucesso/)).toHaveTextContent(
-      'Commits: 2 encontrados, 1 novos.'
+    await act(async () => {});
+    const button = screen.getByRole('button', { name: 'Sincronizar' });
+    fireEvent.click(button);
+    await act(async () => {});
+    expect(screen.getByRole('status')).toHaveTextContent('Sincronizando GitHub...');
+    await act(async () => vi.advanceTimersByTimeAsync(2500));
+    expect(screen.getByText(/Sincronização GitHub concluída com sucesso/)).toHaveTextContent(
+      'Branches: 4 encontradas, 4 ativas. Commits: 2 encontrados, 1 novos.'
     );
     expect(mocks.syncProjectGithub).toHaveBeenCalledOnce();
+    vi.useRealTimers();
+  });
+
+  it('continua sincronizando por 30 segundos sem depender do timeout HTTP inicial', async () => {
+    vi.useFakeTimers();
+    const running = {
+      id: 11,
+      status: 'RUNNING',
+      step: 'COMMITS',
+      currentBranch: 'feature/longa',
+      progress: { branchCount: 25, processedBranches: 7 }
+    };
+    mocks.syncProjectGithub.mockResolvedValue({ run: { ...running, status: 'QUEUED' } });
+    mocks.getProjectGithubSyncStatus
+      .mockResolvedValueOnce({ run: null })
+      .mockImplementation(async () => ({
+        run: { ...running, progress: { ...running.progress } }
+      }));
+    const succeeded = {
+      run: {
+        ...running,
+        status: 'SUCCEEDED',
+        step: 'COMPLETED',
+        currentBranch: null,
+        progress: { branchCount: 25, processedBranches: 25 },
+        commits: { found: 2, created: 1 },
+        summary: {
+          branches: { found: 25, active: 25 },
+          commits: { found: 100, created: 0 },
+          pullRequests: { found: 10, created: 0, updated: 10 },
+          issues: { found: 2, created: 0, updated: 2 }
+        }
+      }
+    };
+    renderPage();
+    await act(async () => {});
+    fireEvent.click(screen.getByRole('button', { name: 'Sincronizar' }));
+    await act(async () => {});
+    for (let index = 0; index < 12; index += 1) {
+      await act(async () => vi.advanceTimersByTimeAsync(2500));
+    }
+    expect(screen.getByRole('status')).toHaveTextContent('Sincronizando GitHub...');
+    expect(screen.getByRole('status')).toHaveTextContent('Branches: 7/25');
+    expect(screen.queryByText(/Não foi possível sincronizar com o GitHub/)).not.toBeInTheDocument();
+    mocks.getProjectGithubSyncStatus.mockResolvedValue(succeeded);
+    await act(async () => vi.advanceTimersByTimeAsync(2500));
+    expect(screen.getByText(/Sincronização GitHub concluída/)).toBeInTheDocument();
+    vi.useRealTimers();
+  });
+
+  it('restaura uma execução ativa após reload e continua o polling', async () => {
+    vi.useFakeTimers();
+    const activeRun = {
+      id: 12,
+      status: 'RUNNING',
+      step: 'COMMITS',
+      currentBranch: 'develop',
+      progress: { branchCount: 8, processedBranches: 3 }
+    };
+    mocks.getProjectGithubSyncStatus.mockResolvedValueOnce({ run: activeRun }).mockResolvedValue({
+      run: {
+        ...activeRun,
+        status: 'SUCCEEDED',
+        step: 'COMPLETED',
+        currentBranch: null,
+        progress: { branchCount: 8, processedBranches: 8 },
+        summary: {
+          branches: { found: 8, active: 8 },
+          commits: { found: 20, created: 0 },
+          pullRequests: { found: 2, created: 0, updated: 2 },
+          issues: { found: 0, created: 0, updated: 0 }
+        }
+      }
+    });
+
+    renderPage();
+    await act(async () => {});
+    expect(screen.getByRole('status')).toHaveTextContent('Branches: 3/8');
+    expect(screen.getByRole('status')).toHaveTextContent('Branch: develop');
+    expect(mocks.syncProjectGithub).not.toHaveBeenCalled();
+
+    await act(async () => vi.advanceTimersByTimeAsync(2500));
+    expect(screen.getByText(/Sincronização GitHub concluída com sucesso/)).toHaveTextContent(
+      'Branches: 8 encontradas, 8 ativas.'
+    );
+    vi.useRealTimers();
   });
 
   it.each([

@@ -60,4 +60,26 @@ describe('syncProjectBranches', () => {
     ).rejects.toMatchObject({ statusCode: 502 });
     expect(repository.syncObserved).not.toHaveBeenCalled();
   });
+
+  it('não altera branches quando a paginação falha antes de terminar', async () => {
+    const failure = Object.assign(new Error('Página de branches indisponível.'), {
+      code: 'GITHUB_BRANCH_PAGE_FAILED'
+    });
+    const githubClient = {
+      listBranchPages: () =>
+        (async function* incompletePages() {
+          yield [{ name: 'main', headSha: 'A' }];
+          throw failure;
+        })()
+    };
+
+    await expect(
+      syncProjectBranches({
+        project: { id: 7 },
+        repository: { owner: 'owner', name: 'repo', defaultBranch: 'main' },
+        githubClient
+      })
+    ).rejects.toBe(failure);
+    expect(repository.syncObserved).not.toHaveBeenCalled();
+  });
 });

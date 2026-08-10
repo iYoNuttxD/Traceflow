@@ -296,27 +296,6 @@ export function RepositoryInfoScreen() {
             </article>
           </section>
 
-          <section className="repository-branches" aria-labelledby="repository-branches-title">
-            <div>
-              <span>Branch padrão</span>
-              <strong>{repository.defaultBranch || 'Não identificada'}</strong>
-            </div>
-            <div>
-              <h2 id="repository-branches-title">Branches do repositório</h2>
-              <div className="branch-list">
-                {(repository.branches || []).map((branch) => (
-                  <span
-                    className={`branch-chip ${branch.isDefault ? 'branch-default' : ''}`}
-                    key={branch.name}
-                  >
-                    {branch.name}
-                    {branch.isDefault ? ' · padrão' : ''}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </section>
-
           {artifacts.length === 0 ? (
             <p className="repository-empty empty-state">
               {showFilteredEmptyState

@@ -48,6 +48,11 @@ router.post(
   githubController.syncProjectGithubData
 );
 router.get(
+  '/projects/:projectId/github/sync/status',
+  validateRequest({ params: githubProjectParamsSchema }),
+  githubController.getProjectGithubSyncStatus
+);
+router.get(
   '/projects/:projectId/commits',
   validateRequest({ params: githubProjectParamsSchema, query: githubSearchQuerySchema }),
   githubController.listProjectCommits

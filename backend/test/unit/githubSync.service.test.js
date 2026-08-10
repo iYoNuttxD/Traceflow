@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   forInstallation: vi.fn(),
   githubIntegrationRepository: { findIntegration: vi.fn() },
-  githubBranchRepository: { syncObserved: vi.fn() },
+  githubBranchRepository: { syncObserved: vi.fn(), markSuccessfullySynced: vi.fn() },
   projectRepository: {
     findById: vi.fn(),
     updateGithubRepositoryMetadata: vi.fn(),
@@ -15,7 +15,8 @@ const mocks = vi.hoisted(() => ({
     findHashesByProjectId: vi.fn(),
     findByProjectIdAndHashes: vi.fn(),
     createMany: vi.fn(),
-    createBranchLinks: vi.fn()
+    createBranchLinks: vi.fn(),
+    findByBranchId: vi.fn()
   },
   commitSuggestionService: { detectForCommits: vi.fn() },
   pullRequestRepository: { upsertMany: vi.fn() },
@@ -91,6 +92,12 @@ function buildGithubDouble({
 describe('githubSyncService com client e persistência substituídos', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    const storedCommits = new Map([
+      [
+        'hash-existente',
+        { id: 1, projectId: project.id, hash: 'hash-existente', message: '[TASK-1]' }
+      ]
+    ]);
     mocks.githubIntegrationRepository.findIntegration.mockResolvedValue({
       status: 'ACTIVE',
       installation: { status: 'ACTIVE', githubInstallationId: '991' }
@@ -113,20 +120,25 @@ describe('githubSyncService com client e persistência substituídos', () => {
         }))
     );
     mocks.commitRepository.findHashesByProjectId.mockResolvedValue(['hash-existente']);
-    mocks.commitRepository.createMany.mockImplementation(async (items) => ({
-      count: items.length
-    }));
-    mocks.commitRepository.findByProjectIdAndHashes.mockImplementation(async (projectId, hashes) =>
-      hashes.map((hash, index) => ({
-        id: index + 1,
-        projectId,
-        message: `[TASK-${index + 1}]`,
-        hash
-      }))
+    mocks.commitRepository.createMany.mockImplementation(async (items) => {
+      items.forEach((item, index) =>
+        storedCommits.set(item.hash, {
+          id: storedCommits.size + index + 1,
+          projectId: item.projectId,
+          message: '[TASK-1]',
+          hash: item.hash
+        })
+      );
+      return { count: items.length };
+    });
+    mocks.commitRepository.findByProjectIdAndHashes.mockImplementation(async (_projectId, hashes) =>
+      hashes.map((hash) => storedCommits.get(hash)).filter(Boolean)
     );
     mocks.commitRepository.createBranchLinks.mockImplementation(async (items) => ({
       count: items.length
     }));
+    mocks.commitRepository.findByBranchId.mockResolvedValue([]);
+    mocks.githubBranchRepository.markSuccessfullySynced.mockResolvedValue(null);
     mocks.commitSuggestionService.detectForCommits.mockResolvedValue({ createdSuggestions: 0 });
     mocks.pullRequestRepository.upsertMany.mockImplementation(async (items) => ({
       created: items.length,
@@ -177,7 +189,9 @@ describe('githubSyncService com client e persistência substituídos', () => {
         unique: 2,
         created: 1,
         skipped: 1,
-        linksCreated: 2
+        linksCreated: 2,
+        pages: 2,
+        branchesSkipped: 0
       },
       pullRequests: { found: 1, created: 1, updated: 0 },
       issues: { found: 1, created: 0, updated: 1 }
@@ -261,7 +275,9 @@ describe('githubSyncService com client e persistência substituídos', () => {
       return { count: items.length };
     });
     mocks.commitRepository.findByProjectIdAndHashes.mockImplementation(async (projectId, hashes) =>
-      hashes.map((hash) => ({ id: ids.get(hash), projectId, hash, message: `[${hash}]` }))
+      hashes
+        .filter((hash) => stored.has(hash))
+        .map((hash) => ({ id: ids.get(hash), projectId, hash, message: `[${hash}]` }))
     );
     const links = [];
     mocks.commitRepository.createBranchLinks.mockImplementation(async (items) => {

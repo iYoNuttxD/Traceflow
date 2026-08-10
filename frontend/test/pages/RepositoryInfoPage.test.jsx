@@ -234,6 +234,11 @@ describe('RepositoryInfoPage RF06', () => {
 
     renderPage();
     await screen.findByRole('option', { name: 'feature/login' });
+    expect(screen.getByRole('option', { name: 'main — padrão' })).toBeInTheDocument();
+    expect(screen.getByText('Branches')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: 'Branches do repositório' })
+    ).not.toBeInTheDocument();
     await user.selectOptions(screen.getByLabelText('Branch'), 'feature/login');
     await user.click(screen.getByRole('button', { name: 'Aplicar filtros' }));
 

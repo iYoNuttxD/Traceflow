@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   cleanTestDatabase,
   configureTestDatabaseEnvironment,
@@ -58,10 +58,11 @@ async function fixture() {
 
 function client(commitsByBranch) {
   return {
-    listCommitPages: ({ branch }) =>
+    listCommitPages: vi.fn(({ branch }) =>
       (async function* commitPages() {
         yield (commitsByBranch[branch] || []).map((hash) => ({ hash, message: `[${hash}]` }));
       })()
+    )
   };
 }
 
@@ -126,6 +127,7 @@ describe('persistência multibranch', () => {
       commits: await prisma.commit.count({ where: { projectId: project.id } }),
       links: await prisma.commitBranch.count()
     };
+    branches = await githubBranchRepository.listByProjectId(project.id);
     const second = await syncProjectCommits({
       project,
       repository: { owner: 'owner', name: 'repo' },
@@ -134,7 +136,8 @@ describe('persistência multibranch', () => {
     });
 
     expect(first).toMatchObject({ unique: 4, created: 4, linksCreated: 6 });
-    expect(second.created).toBe(0);
+    expect(second).toMatchObject({ created: 0, branchesSkipped: 2, pages: 0 });
+    expect(githubClient.listCommitPages).toHaveBeenCalledTimes(2);
     expect(await prisma.commit.count({ where: { projectId: project.id } })).toBe(
       countsAfterFirst.commits
     );
@@ -166,5 +169,115 @@ describe('persistência multibranch', () => {
       })
     ).toMatchObject({ isActive: false });
     expect(await prisma.commit.count({ where: { projectId: project.id } })).toBe(4);
+  });
+
+  it('registra inativação e reativação sem confundir evolução normal do head', async () => {
+    const project = await fixture();
+    const firstSeenAt = new Date('2026-08-10T12:00:00.000Z');
+    const inactiveAt = new Date('2026-08-10T13:00:00.000Z');
+    const reactivatedAt = new Date('2026-08-10T14:00:00.000Z');
+
+    await githubBranchRepository.syncObserved(
+      project.id,
+      [
+        { name: 'main', headSha: 'M1' },
+        { name: 'feature-a', headSha: 'A' }
+      ],
+      'main',
+      firstSeenAt
+    );
+    const original = await prisma.gitBranch.findUnique({
+      where: { projectId_name: { projectId: project.id, name: 'feature-a' } }
+    });
+
+    await githubBranchRepository.syncObserved(
+      project.id,
+      [{ name: 'main', headSha: 'M1' }],
+      'main',
+      inactiveAt
+    );
+    expect(
+      await prisma.gitBranch.findUnique({
+        where: { projectId_name: { projectId: project.id, name: 'feature-a' } }
+      })
+    ).toMatchObject({
+      id: original.id,
+      isActive: false,
+      inactiveAt,
+      reactivationCount: 0
+    });
+
+    await githubBranchRepository.syncObserved(
+      project.id,
+      [
+        { name: 'main', headSha: 'M1' },
+        { name: 'feature-a', headSha: 'B' }
+      ],
+      'main',
+      reactivatedAt
+    );
+    const reactivated = await prisma.gitBranch.findUnique({
+      where: { projectId_name: { projectId: project.id, name: 'feature-a' } }
+    });
+    expect(reactivated).toMatchObject({
+      id: original.id,
+      isActive: true,
+      firstSeenAt,
+      inactiveAt,
+      reactivatedAt,
+      reactivationCount: 1,
+      headSha: 'B'
+    });
+
+    await githubBranchRepository.syncObserved(
+      project.id,
+      [
+        { name: 'main', headSha: 'M2' },
+        { name: 'feature-a', headSha: 'C' }
+      ],
+      'main',
+      new Date('2026-08-10T15:00:00.000Z')
+    );
+    expect(
+      await prisma.gitBranch.findUnique({
+        where: { projectId_name: { projectId: project.id, name: 'feature-a' } }
+      })
+    ).toMatchObject({ reactivationCount: 1, reactivatedAt, headSha: 'C' });
+  });
+
+  it('deduplica 25 branches com histórico compartilhado e mantém todos os vínculos', async () => {
+    const project = await fixture();
+    const observed = Array.from({ length: 25 }, (_, index) => ({
+      name: index === 0 ? 'main' : `feature-${index}`,
+      headSha: `head-${index}`
+    }));
+    const branches = await githubBranchRepository.syncObserved(project.id, observed, 'main');
+    const sharedHashes = ['A', 'B', 'C', 'D'];
+    const listCommitPages = vi.fn(({ branch }) =>
+      (async function* commitPages() {
+        yield sharedHashes.map((hash) => ({ hash, message: `[${branch}] ${hash}` }));
+      })()
+    );
+    const progress = [];
+
+    const summary = await syncProjectCommits({
+      project,
+      repository: { owner: 'owner', name: 'repo' },
+      branches,
+      githubClient: { listCommitPages },
+      onProgress: async (update) => progress.push(update)
+    });
+
+    expect(summary).toMatchObject({
+      found: 4,
+      foundAcrossBranches: 100,
+      created: 4,
+      linksCreated: 100,
+      pages: 25
+    });
+    expect(listCommitPages).toHaveBeenCalledTimes(25);
+    expect(await prisma.commit.count({ where: { projectId: project.id } })).toBe(4);
+    expect(await prisma.commitBranch.count()).toBe(100);
+    expect(progress).toContainEqual(expect.objectContaining({ processedBranches: 25 }));
   });
 });

@@ -70,6 +70,24 @@ enum GitHubIntegrationStatus {
   DISCONNECTED
 }
 
+enum GitHubSyncRunStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+enum GitHubSyncStep {
+  QUEUED
+  REPOSITORY
+  BRANCHES
+  COMMITS
+  PULL_REQUESTS
+  ISSUES
+  PERSIST
+  COMPLETED
+}
+
 enum AccountStatus {
   ACTIVE
   DEACTIVATED
@@ -121,6 +139,7 @@ model User {
   githubOAuthStates                GitHubOAuthState[]
   emailChangeRequests              EmailChangeRequest[]
   accountReactivationTokens        AccountReactivationToken[]
+  requestedGitHubSyncRuns          GitHubSyncRun[]
 
   @@index([accountStatus])
 }
@@ -290,6 +309,7 @@ model Project {
   githubIntegration      ProjectGitHubIntegration?
   githubConnectionStates GitHubAppConnectionState[]
   githubBranches         GitBranch[]
+  githubSyncRuns         GitHubSyncRun[]
 
   @@unique([githubRepositoryId])
   @@unique([githubRepositoryFullName])
@@ -687,15 +707,20 @@ model Commit {
 
 // Branch observada no repositório GitHub do projeto. Registros inativos preservam histórico.
 model GitBranch {
-  id         Int      @id @default(autoincrement())
-  projectId  Int
-  name       String
-  headSha    String?
-  isDefault  Boolean  @default(false)
-  isActive   Boolean  @default(true)
-  lastSeenAt DateTime
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id                Int       @id @default(autoincrement())
+  projectId         Int
+  name              String
+  headSha           String?
+  lastSyncedHeadSha String?
+  isDefault         Boolean   @default(false)
+  isActive          Boolean   @default(true)
+  firstSeenAt       DateTime  @default(now())
+  lastSeenAt        DateTime
+  inactiveAt        DateTime?
+  reactivatedAt     DateTime?
+  reactivationCount Int       @default(0)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   project     Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
   commitLinks CommitBranch[]
@@ -703,6 +728,45 @@ model GitBranch {
   @@unique([projectId, name])
   @@index([projectId, isActive])
   @@index([projectId, isDefault])
+}
+
+// Execução persistida permite polling, recuperação após reload e exclusão mútua no banco.
+model GitHubSyncRun {
+  id                  Int                 @id @default(autoincrement())
+  projectId           Int
+  requestedByUserId   Int
+  activeProjectId     Int?                @unique
+  status              GitHubSyncRunStatus @default(QUEUED)
+  step                GitHubSyncStep      @default(QUEUED)
+  currentBranch       String?
+  startedAt           DateTime?
+  heartbeatAt         DateTime?
+  finishedAt          DateTime?
+  durationMs          Int?
+  branchCount         Int                 @default(0)
+  processedBranches   Int                 @default(0)
+  commitPages         Int                 @default(0)
+  commitsFound        Int                 @default(0)
+  commitsObserved     Int                 @default(0)
+  commitsCreated      Int                 @default(0)
+  commitLinksCreated  Int                 @default(0)
+  pullRequestsFound   Int                 @default(0)
+  pullRequestsCreated Int                 @default(0)
+  pullRequestsUpdated Int                 @default(0)
+  issuesFound         Int                 @default(0)
+  issuesCreated       Int                 @default(0)
+  issuesUpdated       Int                 @default(0)
+  errorCode           String?
+  errorMessage        String?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  project         Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  requestedByUser User    @relation(fields: [requestedByUserId], references: [id])
+
+  @@index([projectId, createdAt])
+  @@index([status, updatedAt])
+  @@index([requestedByUserId, createdAt])
 }
 
 // Um commit canônico pode estar contido em várias branches simultaneamente.

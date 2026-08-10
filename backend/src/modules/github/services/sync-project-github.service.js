@@ -11,8 +11,10 @@ import { syncProjectCommits } from './sync-project-commits.service.js';
 import { syncProjectBranches } from './sync-project-branches.service.js';
 import { syncProjectIssues } from './sync-project-issues.service.js';
 import { syncProjectPullRequests } from './sync-project-pull-requests.service.js';
+import { logger } from '../../../shared/logger/index.js';
 
 const projectsInSync = new Set();
+const noProgress = async () => {};
 
 function linkedRepositoryCoordinates(project) {
   const repo = project.githubRepositoryName || project.githubRepo;
@@ -22,9 +24,19 @@ function linkedRepositoryCoordinates(project) {
   return { owner: project.githubOwner, repo };
 }
 
-function normalizeGithubSyncError(error) {
+export function normalizeGithubSyncError(error) {
   if (error instanceof ProjectServiceError) return error.message;
   return normalizeGithubError(error).message;
+}
+
+function logStep(event, projectId, step, startedAt, details = {}) {
+  logger.info(`Etapa de sincronização GitHub ${event === 'started' ? 'iniciada' : 'concluída'}.`, {
+    event: `github_sync_step_${event}`,
+    projectId,
+    step,
+    ...(event === 'completed' ? { durationMs: Date.now() - startedAt } : {}),
+    ...details
+  });
 }
 
 async function validateAndRefreshRepository(project, githubClient) {
@@ -47,7 +59,7 @@ async function validateAndRefreshRepository(project, githubClient) {
   return repository;
 }
 
-export async function syncProjectGithubData(projectId) {
+export async function syncProjectGithubData(projectId, { onProgress = noProgress } = {}) {
   const parsedProjectId = parseProjectId(projectId);
   if (projectsInSync.has(parsedProjectId)) {
     throw new ProjectServiceError(
@@ -80,20 +92,74 @@ export async function syncProjectGithubData(projectId) {
     const githubClient = await githubInstallationClientFactory.forInstallation(
       integration.installation.githubInstallationId
     );
+
+    let stepStartedAt = Date.now();
+    await onProgress({ step: 'REPOSITORY', currentBranch: null });
+    logStep('started', parsedProjectId, 'repository', stepStartedAt);
     const repository = await validateAndRefreshRepository(project, githubClient);
+    logStep('completed', parsedProjectId, 'repository', stepStartedAt);
+
+    stepStartedAt = Date.now();
+    await onProgress({ step: 'BRANCHES', currentBranch: null });
+    logStep('started', parsedProjectId, 'branches', stepStartedAt);
     const branchResult = await syncProjectBranches({ project, repository, githubClient });
+    await onProgress({ branchCount: branchResult.summary.found });
+    logStep('completed', parsedProjectId, 'branches', stepStartedAt, {
+      branchCount: branchResult.summary.found
+    });
+
+    stepStartedAt = Date.now();
+    await onProgress({ step: 'COMMITS', processedBranches: 0, currentBranch: null });
+    logStep('started', parsedProjectId, 'commits', stepStartedAt, {
+      branchCount: branchResult.summary.active
+    });
     const commitSummary = await syncProjectCommits({
       project,
       repository,
       branches: branchResult.branches,
-      githubClient
+      githubClient,
+      onProgress
     });
+    logStep('completed', parsedProjectId, 'commits', stepStartedAt, {
+      branchCount: branchResult.summary.active,
+      pages: commitSummary.pages,
+      items: commitSummary.foundAcrossBranches
+    });
+
+    stepStartedAt = Date.now();
+    await onProgress({ step: 'PULL_REQUESTS', currentBranch: null });
+    logStep('started', parsedProjectId, 'pull_requests', stepStartedAt);
     const pullRequestSummary = await syncProjectPullRequests({ project, repository, githubClient });
+    await onProgress({
+      pullRequestsFound: pullRequestSummary.found,
+      pullRequestsCreated: pullRequestSummary.created,
+      pullRequestsUpdated: pullRequestSummary.updated
+    });
+    logStep('completed', parsedProjectId, 'pull_requests', stepStartedAt, {
+      items: pullRequestSummary.found
+    });
+
+    stepStartedAt = Date.now();
+    await onProgress({ step: 'ISSUES' });
+    logStep('started', parsedProjectId, 'issues', stepStartedAt);
     const issueSummary = await syncProjectIssues({ project, repository, githubClient });
+    await onProgress({
+      issuesFound: issueSummary.found,
+      issuesCreated: issueSummary.created,
+      issuesUpdated: issueSummary.updated
+    });
+    logStep('completed', parsedProjectId, 'issues', stepStartedAt, {
+      items: issueSummary.found
+    });
+
+    stepStartedAt = Date.now();
+    await onProgress({ step: 'PERSIST' });
+    logStep('started', parsedProjectId, 'persist', stepStartedAt);
     const updatedProject = await projectRepository.markGithubSyncSucceeded(
       parsedProjectId,
       new Date()
     );
+    logStep('completed', parsedProjectId, 'persist', stepStartedAt);
 
     return {
       summary: {

@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router';
-import { syncProjectGithub } from '../../github/index.js';
+import { getProjectGithubSyncStatus, syncProjectGithub } from '../../github/index.js';
 import { Card } from '../../../shared/index.js';
 import { ProjectSectionNav } from '../components/ProjectSectionNav.jsx';
 import { ProjectForm, emptyProjectForm, updateProjectForm } from '../components/ProjectForm.jsx';
@@ -49,6 +49,12 @@ function formatSyncSummary(summary) {
 
   const parts = [];
 
+  if (summary.branches) {
+    parts.push(
+      `Branches: ${summary.branches.found ?? 0} encontradas, ${summary.branches.active ?? 0} ativas.`
+    );
+  }
+
   if (summary.commits) {
     parts.push(
       `Commits: ${summary.commits.found ?? 0} encontrados, ${summary.commits.created ?? 0} novos.`
@@ -67,6 +73,28 @@ function formatSyncSummary(summary) {
     );
   }
 
+  return parts.join(' ');
+}
+
+const syncStepLabels = {
+  QUEUED: 'aguardando início',
+  REPOSITORY: 'repositório',
+  BRANCHES: 'branches',
+  COMMITS: 'commits',
+  PULL_REQUESTS: 'pull requests',
+  ISSUES: 'issues',
+  PERSIST: 'persistência',
+  COMPLETED: 'concluída'
+};
+
+function isActiveSyncRun(run) {
+  return run && ['QUEUED', 'RUNNING'].includes(run.status);
+}
+
+function formatSyncFailure(run) {
+  const parts = [run.error?.message || 'Não foi possível concluir a sincronização.'];
+  if (run.step) parts.push(`Etapa: ${syncStepLabels[run.step] || run.step}.`);
+  if (run.currentBranch) parts.push(`Branch: ${run.currentBranch}.`);
   return parts.join(' ');
 }
 
@@ -154,17 +182,17 @@ export function ProjectDetailsScreen() {
   const [formData, setFormData] = useState(emptyProjectForm);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [syncingGithub, setSyncingGithub] = useState(false);
+  const [githubSyncRun, setGithubSyncRun] = useState(null);
   const [githubSyncStatus, setGithubSyncStatus] = useState('idle');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  async function refreshProjectDetails() {
+  const refreshProjectDetails = useCallback(async () => {
     const projectResponse = await projectsApi.get(id);
     setProject(projectResponse.data.project);
     setFormData(toFormData(projectResponse.data.project));
     return projectResponse.data.project;
-  }
+  }, [id]);
 
   useEffect(() => {
     async function loadProject() {
@@ -187,6 +215,62 @@ export function ProjectDetailsScreen() {
 
     loadProject();
   }, [id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getProjectGithubSyncStatus(id)
+      .then(({ run }) => {
+        if (!cancelled && isActiveSyncRun(run)) {
+          setGithubSyncRun(run);
+          setGithubSyncStatus('syncing');
+        }
+      })
+      .catch(() => {
+        // O status persistido do projeto continua sendo o fallback visual.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  useEffect(() => {
+    if (!isActiveSyncRun(githubSyncRun)) return undefined;
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      try {
+        const { run } = await getProjectGithubSyncStatus(id);
+        if (cancelled || !run) return;
+        setGithubSyncRun(run);
+        if (run.status === 'SUCCEEDED') {
+          setGithubSyncStatus('success');
+          setSuccess(
+            `Sincronização GitHub concluída com sucesso. ${formatSyncSummary(run.summary)}`
+          );
+          setError('');
+          await refreshProjectDetails();
+        } else if (run.status === 'FAILED') {
+          setGithubSyncStatus('error');
+          setSuccess('');
+          setError(formatSyncFailure(run));
+          await refreshProjectDetails();
+        }
+      } catch (requestError) {
+        if (!cancelled) {
+          setError(
+            getErrorMessage(
+              requestError,
+              'Não foi possível consultar o progresso da sincronização.'
+            )
+          );
+          setGithubSyncRun((current) => (current ? { ...current } : current));
+        }
+      }
+    }, 2500);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [githubSyncRun, id, refreshProjectDetails]);
 
   function handleChange(name, value) {
     setFormData((current) => updateProjectForm(current, name, value));
@@ -216,28 +300,13 @@ export function ProjectDetailsScreen() {
   }
 
   async function handleGithubSync() {
-    setSyncingGithub(true);
     setGithubSyncStatus('syncing');
     setError('');
     setSuccess('');
 
     try {
       const response = await syncProjectGithub(id);
-      const syncSummary = formatSyncSummary(response.summary);
-
-      if (response.project) {
-        setProject(response.project);
-        setFormData(toFormData(response.project));
-      } else {
-        await refreshProjectDetails();
-      }
-
-      setGithubSyncStatus('success');
-      setSuccess(
-        syncSummary
-          ? `Sincronização GitHub concluída com sucesso. ${syncSummary}`
-          : response.message || 'Sincronização GitHub concluída com sucesso.'
-      );
+      setGithubSyncRun(response.run);
     } catch (requestError) {
       setGithubSyncStatus('error');
       setError(
@@ -252,8 +321,6 @@ export function ProjectDetailsScreen() {
       } catch {
         // Mantem o estado local de falha se a atualização do projeto também falhar.
       }
-    } finally {
-      setSyncingGithub(false);
     }
   }
 
@@ -298,6 +365,7 @@ export function ProjectDetailsScreen() {
   const repositoryName = getRepositoryName(project);
   const repositoryUrl = getRepositoryUrl(project);
   const githubSyncDisplay = getGithubSyncDisplay(project, githubSyncStatus);
+  const syncingGithub = isActiveSyncRun(githubSyncRun);
 
   return (
     <main className="page-container">
@@ -322,6 +390,17 @@ export function ProjectDetailsScreen() {
 
       {error && <div className="message message-error">{error}</div>}
       {success && <div className="message message-success">{success}</div>}
+      {syncingGithub && (
+        <div className="github-sync-progress" role="status" aria-live="polite">
+          <strong>Sincronizando GitHub...</strong>
+          <span>
+            Branches: {githubSyncRun.progress?.processedBranches ?? 0}/
+            {githubSyncRun.progress?.branchCount ?? 0}
+          </span>
+          <span>Etapa atual: {syncStepLabels[githubSyncRun.step] || githubSyncRun.step}</span>
+          {githubSyncRun.currentBranch && <span>Branch: {githubSyncRun.currentBranch}</span>}
+        </div>
+      )}
 
       <section className="project-overview">
         <Card title="Visão geral do projeto">

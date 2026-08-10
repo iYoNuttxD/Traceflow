@@ -21,6 +21,9 @@ export const githubApi = {
   syncProject(projectId) {
     return data(httpClient.post(`/projects/${projectId}/github/sync`));
   },
+  syncStatus(projectId, options = {}) {
+    return data(httpClient.get(`/projects/${projectId}/github/sync/status`, options));
+  },
   artifacts(projectId, params = {}, options = {}) {
     return data(
       httpClient.get(`/projects/${projectId}/artifacts`, {
@@ -55,6 +58,8 @@ export const githubApi = {
 export const getProjectArtifacts = (projectId, filters = {}, options = {}) =>
   githubApi.artifacts(projectId, filters, options);
 export const syncProjectGithub = (projectId) => githubApi.syncProject(projectId);
+export const getProjectGithubSyncStatus = (projectId, options = {}) =>
+  githubApi.syncStatus(projectId, options);
 export const getProjectPullRequests = (projectId, filters = {}, options = {}) =>
   githubApi.pullRequests(projectId, filters, options);
 export const getProjectCommits = (projectId, filters = {}, options = {}) =>

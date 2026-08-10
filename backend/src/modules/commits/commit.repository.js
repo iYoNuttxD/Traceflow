@@ -53,6 +53,14 @@ export const commitRepository = {
     return prisma.commitBranch.createMany({ data, skipDuplicates: true });
   },
 
+  async findByBranchId(branchId) {
+    const links = await prisma.commitBranch.findMany({
+      where: { branchId },
+      select: { commit: { select: { id: true, projectId: true, hash: true, message: true } } }
+    });
+    return links.map(({ commit }) => commit);
+  },
+
   async listByProjectId(projectId, filters = {}) {
     return prisma.commit.findMany({
       where: {

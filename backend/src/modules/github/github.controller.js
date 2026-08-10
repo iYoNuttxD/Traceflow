@@ -17,18 +17,16 @@ export const githubController = {
         resourceId: req.params.projectId
       });
       try {
-        const { summary, project } = await githubSyncService.syncProjectGithubData(
-          req.params.projectId
+        const run = await githubSyncService.requestProjectGithubSync(
+          req.params.projectId,
+          req.auth.user.id
         );
-        await auditService.recordOperational({
-          actorUserId: req.auth.user.id,
-          projectId: req.params.projectId,
-          requestId: req.requestId,
-          action: 'GITHUB_SYNC_SUCCEEDED',
-          resourceType: 'Project',
-          resourceId: req.params.projectId
+        return res.status(202).json({
+          message: run.alreadyRunning
+            ? 'Já existe uma sincronização GitHub em andamento.'
+            : 'Sincronização GitHub iniciada.',
+          run
         });
-        return res.json({ message: 'Sincronização com GitHub concluída.', summary, project });
       } catch (error) {
         await auditService.recordOperational({
           actorUserId: req.auth.user.id,
@@ -44,6 +42,14 @@ export const githubController = {
       }
     },
     { fallbackMessage: 'Erro ao sincronizar artefatos do GitHub.' }
+  ),
+
+  getProjectGithubSyncStatus: asyncHandler(
+    async (req, res) => {
+      const run = await githubSyncService.getProjectGithubSyncStatus(req.params.projectId);
+      return res.json({ run });
+    },
+    { fallbackMessage: 'Não foi possível consultar a sincronização do GitHub.' }
   ),
 
   listProjectCommits: asyncHandler(

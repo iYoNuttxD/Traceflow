@@ -110,6 +110,33 @@ describe('infraestrutura acessível compartilhada', () => {
     expect(screen.queryByLabelText(/Força da senha/)).not.toBeInTheDocument();
   });
 
+  it('mantém indicador obrigatório condicional e controle de visibilidade no mesmo campo', () => {
+    const { rerender } = render(
+      <PasswordField id="required-password" label="Senha atual" value="" onChange={vi.fn()} />
+    );
+    const requiredInput = screen.getByLabelText('Senha atual *');
+    const requiredLabel = document.querySelector('label[for="required-password"]');
+    expect(requiredInput).toBeRequired();
+    expect(requiredLabel).toHaveTextContent('Senha atual *');
+    expect(requiredLabel.querySelector('[aria-hidden="true"]')).toHaveTextContent('*');
+    expect(screen.getByRole('button', { name: 'Mostrar senha' }).parentElement).toHaveClass(
+      'password-control'
+    );
+
+    rerender(
+      <PasswordField
+        id="optional-password"
+        label="Senha atual"
+        value=""
+        onChange={vi.fn()}
+        required={false}
+      />
+    );
+    const optionalInput = screen.getByLabelText('Senha atual');
+    expect(optionalInput).not.toBeRequired();
+    expect(document.querySelector('label[for="optional-password"]')).not.toHaveTextContent('*');
+  });
+
   it('cancela por Escape e restaura o foco no acionador', async () => {
     const user = userEvent.setup();
     render(

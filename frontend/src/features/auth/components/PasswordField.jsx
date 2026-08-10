@@ -39,7 +39,7 @@ export function PasswordField({
     <div className="form-field password-field">
       <label htmlFor={inputId}>
         {label}
-        <span aria-hidden="true"> *</span>
+        {required && <span aria-hidden="true"> *</span>}
       </label>
       <div className="password-control">
         <input
@@ -49,6 +49,7 @@ export function PasswordField({
           value={value}
           onChange={onChange}
           required={required}
+          aria-required={required || undefined}
           disabled={disabled}
           minLength={minLength}
           autoComplete={autoComplete}

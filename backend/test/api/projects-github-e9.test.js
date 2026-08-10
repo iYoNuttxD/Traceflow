@@ -104,6 +104,22 @@ async function createIntegratedProject(auth) {
   return response.body.project;
 }
 
+async function startAndWaitForSync(auth, projectId) {
+  const started = await auth.mutate('post', `/api/projects/${projectId}/github/sync`).send({});
+  expect(started.status, JSON.stringify(started.body)).toBe(202);
+
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const status = await auth.agent.get(`/api/projects/${projectId}/github/sync/status`);
+    expect(status.status, JSON.stringify(status.body)).toBe(200);
+    if (['SUCCEEDED', 'FAILED'].includes(status.body.run?.status)) {
+      return { started, status, run: status.body.run };
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+
+  throw new Error(`A execução GitHub do projeto ${projectId} não chegou a um estado terminal.`);
+}
+
 beforeAll(async () => {
   const url = configureTestDatabaseEnvironment();
   deployTestMigrations(url);
@@ -182,9 +198,7 @@ describe('Projetos e integração GitHub E9', () => {
       )
     );
     for (const project of projects) {
-      expect(
-        (await owner.mutate('post', `/api/projects/${project.id}/github/sync`).send({})).status
-      ).toBe(200);
+      expect((await startAndWaitForSync(owner, project.id)).run.status).toBe('SUCCEEDED');
     }
   }, 15000);
 
@@ -246,7 +260,10 @@ describe('Projetos e integração GitHub E9', () => {
       const response = await auth
         .mutate('post', `/api/projects/${project.id}/github/sync`)
         .send({});
-      expect(response.status).toBe(role === 'MANAGER' ? 200 : 403);
+      expect(response.status).toBe(role === 'MANAGER' ? 202 : 403);
+      if (role === 'MANAGER') {
+        expect((await startAndWaitForSync(auth, project.id)).run.status).toBe('SUCCEEDED');
+      }
     }
 
     const outsider = await register('outsider-e9@example.invalid');
@@ -254,9 +271,7 @@ describe('Projetos e integração GitHub E9', () => {
       (await outsider.mutate('post', `/api/projects/${project.id + 9999}/github/sync`).send({}))
         .status
     ).toBe(404);
-    expect(
-      (await owner.mutate('post', `/api/projects/${project.id}/github/sync`).send({})).status
-    ).toBe(200);
+    expect((await startAndWaitForSync(owner, project.id)).run.status).toBe('SUCCEEDED');
   }, 30000);
 
   it('pagina, reprocessa sem duplicar e preserva vínculos e artifacts canônicos', async () => {
@@ -310,12 +325,15 @@ describe('Projetos e integração GitHub E9', () => {
       ]
     });
 
-    const first = await owner.mutate('post', `/api/projects/${project.id}/github/sync`).send({});
-    expect(first.status).toBe(200);
-    expect(first.body.summary).toMatchObject({
-      commits: { found: 2, created: 2, skipped: 0 },
-      pullRequests: { found: 2, created: 1, updated: 1 },
-      issues: { found: 2, created: 1, updated: 1 }
+    const first = await startAndWaitForSync(owner, project.id);
+    expect(first.run).toMatchObject({
+      status: 'SUCCEEDED',
+      summary: {
+        branches: { found: 1, active: 1 },
+        commits: { found: 2, created: 2 },
+        pullRequests: { found: 2, created: 1, updated: 1 },
+        issues: { found: 2, created: 1, updated: 1 }
+      }
     });
     expect(await prisma.commit.count({ where: { projectId: project.id } })).toBe(2);
     expect(
@@ -333,8 +351,8 @@ describe('Projetos e integração GitHub E9', () => {
       await prisma.taskIssue.count({ where: { taskId: task.id, issueId: existingIssue.id } })
     ).toBe(1);
 
-    const second = await owner.mutate('post', `/api/projects/${project.id}/github/sync`).send({});
-    expect(second.body.summary.commits).toMatchObject({ found: 2, created: 0, skipped: 2 });
+    const second = await startAndWaitForSync(owner, project.id);
+    expect(second.run.summary.commits).toMatchObject({ found: 2, created: 0 });
     expect(await prisma.commit.count({ where: { projectId: project.id } })).toBe(2);
     expect(
       await prisma.taskCommitSuggestion.count({ where: { projectId: project.id, taskId: task.id } })
@@ -350,6 +368,55 @@ describe('Projetos e integração GitHub E9', () => {
       status: 200,
       body: { summary: { commits: 2, pullRequests: 0, issues: 0 } }
     });
+  });
+
+  it('mantém uma execução ativa por projeto no banco e expira execução abandonada', async () => {
+    const owner = await register('owner-exclusive@example.invalid');
+    const project = await createIntegratedProject(owner);
+    const { getProjectGithubSyncStatus, requestProjectGithubSync, GITHUB_SYNC_STALE_AFTER_MS } =
+      await import('../../src/modules/github/services/github-sync-run.service.js');
+    const schedule = vi.fn();
+    const createdAt = new Date('2026-08-10T12:00:00.000Z');
+
+    const first = await requestProjectGithubSync(project.id, owner.user.id, {
+      schedule,
+      now: createdAt
+    });
+    const repeated = await requestProjectGithubSync(project.id, owner.user.id, {
+      schedule,
+      now: createdAt
+    });
+
+    expect(first).toMatchObject({ status: 'QUEUED', alreadyRunning: false });
+    expect(repeated).toMatchObject({ id: first.id, status: 'QUEUED', alreadyRunning: true });
+    expect(schedule).toHaveBeenCalledOnce();
+    expect(
+      await prisma.gitHubSyncRun.count({
+        where: { projectId: project.id, activeProjectId: project.id }
+      })
+    ).toBe(1);
+
+    await prisma.gitHubSyncRun.update({
+      where: { id: first.id },
+      data: { updatedAt: createdAt }
+    });
+    const status = await getProjectGithubSyncStatus(project.id, {
+      now: new Date(createdAt.getTime() + GITHUB_SYNC_STALE_AFTER_MS + 1)
+    });
+
+    expect(status).toMatchObject({
+      id: first.id,
+      status: 'FAILED',
+      error: {
+        code: 'GITHUB_SYNC_STALE',
+        message: 'A execução foi interrompida antes da conclusão.'
+      }
+    });
+    expect(
+      await prisma.gitHubSyncRun.count({
+        where: { projectId: project.id, activeProjectId: project.id }
+      })
+    ).toBe(0);
   });
 
   it('mantém lote persistido, último sucesso e auditoria quando uma coleção posterior falha', async () => {
@@ -374,8 +441,12 @@ describe('Projetos e integração GitHub E9', () => {
       })()
     );
 
-    const response = await owner.mutate('post', `/api/projects/${project.id}/github/sync`).send({});
-    expect(response.status).toBe(500);
+    const response = await startAndWaitForSync(owner, project.id);
+    expect(response.run).toMatchObject({
+      status: 'FAILED',
+      step: 'PULL_REQUESTS',
+      error: { message: 'Falha de conexão com o GitHub.' }
+    });
     expect(
       await prisma.commit.count({ where: { projectId: project.id, hash: 'commit-parcial' } })
     ).toBe(1);

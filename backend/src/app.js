@@ -88,7 +88,8 @@ export function createApp({ logger = defaultLogger, readinessCheck, securityConf
       '/api/settings/integrations/github',
       '/api/settings/integrations/github-identity',
       '/api/github/app/installations',
-      '/api/github/app/installations/:installationId/repositories'
+      '/api/github/app/installations/:installationId/repositories',
+      '/api/projects/:projectId/github/sync/status'
     ],
     rateLimiters.authenticatedReadBurst,
     rateLimiters.authenticatedReadSustained
@@ -134,7 +135,7 @@ export function createApp({ logger = defaultLogger, readinessCheck, securityConf
     ['/api/account/personal-data/export', '/api/settings/privacy/export'],
     rateLimiters.dataExport
   );
-  app.use(
+  app.post(
     '/api/projects/:projectId/github/sync',
     createSensitiveAttemptLogger({ logger, event: 'github_sync' }),
     rateLimiters.sync
