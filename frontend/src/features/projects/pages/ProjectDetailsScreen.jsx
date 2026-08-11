@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { getProjectGithubSyncStatus, syncProjectGithub } from '../../github/index.js';
-import { Card } from '../../../shared/index.js';
+import {
+  Card,
+  ContextualErrorPage,
+  PAGE_ERROR_TYPES,
+  classifyPageError,
+  getErrorRequestId,
+  normalizeApiError
+} from '../../../shared/index.js';
 import { ProjectSectionNav } from '../components/ProjectSectionNav.jsx';
 import { ProjectForm, emptyProjectForm, updateProjectForm } from '../components/ProjectForm.jsx';
 import { projectsApi } from '../api/projects.api.js';
@@ -184,6 +191,7 @@ export function ProjectDetailsScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [githubSyncRun, setGithubSyncRun] = useState(null);
   const [githubSyncStatus, setGithubSyncStatus] = useState('idle');
+  const [pageError, setPageError] = useState(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -194,29 +202,27 @@ export function ProjectDetailsScreen() {
     return projectResponse.data.project;
   }, [id]);
 
-  useEffect(() => {
-    async function loadProject() {
-      setLoading(true);
-      setError('');
-      setGithubSyncStatus('idle');
+  const loadProject = useCallback(async () => {
+    setLoading(true);
+    setPageError(null);
+    setError('');
+    setGithubSyncStatus('idle');
 
-      try {
-        const projectResponse = await projectsApi.get(id);
-
-        const loadedProject = projectResponse.data.project;
-        setProject(loadedProject);
-        setFormData(toFormData(loadedProject));
-      } catch (requestError) {
-        setError(getErrorMessage(requestError, 'Não foi possível carregar o projeto.'));
-      } finally {
-        setLoading(false);
-      }
+    try {
+      await refreshProjectDetails();
+    } catch (requestError) {
+      setPageError(normalizeApiError(requestError, 'Não foi possível carregar o projeto.'));
+    } finally {
+      setLoading(false);
     }
-
-    loadProject();
-  }, [id]);
+  }, [refreshProjectDetails]);
 
   useEffect(() => {
+    void loadProject();
+  }, [loadProject]);
+
+  useEffect(() => {
+    if (!project?.id) return undefined;
     let cancelled = false;
     void getProjectGithubSyncStatus(id)
       .then(({ run }) => {
@@ -231,7 +237,7 @@ export function ProjectDetailsScreen() {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, project?.id]);
 
   useEffect(() => {
     if (!isActiveSyncRun(githubSyncRun)) return undefined;
@@ -352,13 +358,20 @@ export function ProjectDetailsScreen() {
   }
 
   if (!project) {
+    const type = classifyPageError(pageError);
     return (
-      <main className="page-container">
-        <div className="message message-error">{error || 'Projeto não encontrado.'}</div>
-        <Link className="text-link" to="/projects">
-          Voltar para projetos
-        </Link>
-      </main>
+      <ContextualErrorPage
+        type={type}
+        title={type === PAGE_ERROR_TYPES.NOT_FOUND ? 'Projeto não encontrado.' : undefined}
+        description={
+          type === PAGE_ERROR_TYPES.NOT_FOUND
+            ? 'O projeto solicitado não existe ou não está mais disponível.'
+            : undefined
+        }
+        onRetry={loadProject}
+        secondaryAction={{ label: 'Voltar aos projetos', href: '/projects' }}
+        requestId={getErrorRequestId(pageError)}
+      />
     );
   }
 

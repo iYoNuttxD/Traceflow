@@ -1,7 +1,7 @@
 import { Suspense } from 'react';
 import { Routes, Route, Navigate, Outlet } from 'react-router';
 import { GuestOnlyRoute, ProtectedRoute } from '../../features/auth/index.js';
-import { LoadingState } from '../../shared/index.js';
+import { ContextualErrorPage, LoadingState, PAGE_ERROR_TYPES } from '../../shared/index.js';
 import { lazyNamed } from './lazy-route.js';
 
 const LoginPage = lazyNamed(() => import('../../pages/LoginPage.jsx'), 'LoginPage');
@@ -153,6 +153,10 @@ export function AppRoutes() {
           </Route>
           <Route path="/projects/:projectId/audit" element={<ProjectAuditPage />} />
         </Route>
+        <Route
+          path="*"
+          element={<ContextualErrorPage type={PAGE_ERROR_TYPES.NOT_FOUND} showRetry={false} />}
+        />
       </Routes>
     </Suspense>
   );

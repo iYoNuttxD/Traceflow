@@ -188,6 +188,90 @@ a {
   padding: 3rem 0 4rem;
 }
 
+.error-page {
+  display: grid;
+  place-items: center;
+  min-height: calc(100vh - 68px);
+}
+
+.error-page-embedded {
+  min-height: min(32rem, 60vh);
+}
+
+.error-page-card {
+  display: grid;
+  justify-items: center;
+  width: min(100%, 40rem);
+  padding: clamp(1.75rem, 5vw, 3rem);
+  border: 1px solid #e2e7f0;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 18px 50px rgb(22 34 55 / 9%);
+  text-align: center;
+}
+
+.error-page-icon {
+  display: grid;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  margin-bottom: 1.25rem;
+  border: 1px solid #fda29b;
+  border-radius: 50%;
+  color: #b42318;
+  background: #fff5f4;
+  font-size: 1.4rem;
+  font-weight: 900;
+}
+
+.error-page-not-found .error-page-icon {
+  border-color: #b2ccff;
+  color: #1849a9;
+  background: #eff4ff;
+}
+
+.error-page-title {
+  margin: 0;
+  color: #172033;
+  font-size: clamp(1.5rem, 4vw, 2rem);
+  line-height: 1.2;
+}
+
+.error-page-description {
+  max-width: 34rem;
+  margin: 1rem 0 0;
+  color: #667085;
+  line-height: 1.6;
+}
+
+.error-page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: center;
+  margin-top: 1.75rem;
+}
+
+.error-page-actions .button {
+  min-width: 10.5rem;
+  text-decoration: none;
+}
+
+.error-page-reference {
+  margin: 1.5rem 0 0;
+  color: #667085;
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+
+.session-bootstrap-state {
+  display: grid;
+  justify-items: center;
+  gap: 1rem;
+  max-width: 40rem;
+  margin: 12vh auto 0;
+}
+
 .settings-shell > header {
   max-width: 760px;
   margin-bottom: 2rem;
@@ -2657,6 +2741,13 @@ a {
   box-shadow: 0 18px 50px rgba(22, 34, 55, 0.09);
 }
 
+.auth-bootstrap-feedback {
+  display: grid;
+  justify-items: start;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
 .auth-header {
   display: grid;
   gap: 0.55rem;
@@ -2885,8 +2976,19 @@ a {
   }
 
   .async-state.message .button,
-  .danger-zone-actions .button {
+  .danger-zone-actions .button,
+  .error-page-actions,
+  .error-page-actions .button {
     width: 100%;
+  }
+
+  .error-page-card {
+    padding: 1.5rem;
+    border-radius: 12px;
+  }
+
+  .error-page-actions {
+    flex-direction: column;
   }
 
   .auth-options {

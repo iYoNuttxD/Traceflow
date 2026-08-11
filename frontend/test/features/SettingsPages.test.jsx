@@ -40,6 +40,17 @@ vi.mock('../../src/features/auth/index.js', () => ({
 vi.mock('../../src/features/settings/settings.api.js', () => ({ settingsApi: mocks.api }));
 vi.mock('../../src/shared/index.js', () => ({
   normalizeApiError: (value) => ({ message: value?.message || 'Falha' }),
+  classifyPageError: (value) => (value?.status === 404 ? 'NOT_FOUND' : 'SERVER'),
+  getErrorRequestId: (value) => value?.requestId,
+  ContextualErrorPage: ({ type, onRetry }) => (
+    <section data-testid="contextual-error-page" data-error-type={type}>
+      <h1>O TRACEFLOW encontrou um problema.</h1>
+      <button type="button" onClick={onRetry}>
+        Tentar novamente
+      </button>
+      <a href="/projects">Ir para projetos</a>
+    </section>
+  ),
   useConfirm: () => mocks.confirm,
   LoadingState: ({ message }) => <p>{message}</p>,
   FeedbackRegion: ({ error, success }) => <div>{error || success}</div>
@@ -166,6 +177,22 @@ describe('configurações e estados restritos L2', () => {
     expect(mocks.api.updateProfile).toHaveBeenCalledWith('Daniel Atualizado');
     expect(await screen.findByText('Nome atualizado.')).toBeInTheDocument();
     expect(screen.getByText(/daniel@example.invalid/)).toBeInTheDocument();
+  });
+
+  it('usa a página contextual quando a conta falha de forma fatal', async () => {
+    mocks.api.account.mockRejectedValueOnce({ message: 'Falha interna', status: 500 });
+    render(
+      <MemoryRouter initialEntries={['/settings/account']}>
+        <AccountSettingsPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByTestId('contextual-error-page')).toHaveAttribute(
+      'data-error-type',
+      'SERVER'
+    );
+    expect(screen.getByRole('button', { name: 'Tentar novamente' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Ir para projetos' })).toBeInTheDocument();
   });
 
   it('lista sessão atual sem token e apresenta formulário de senha', async () => {

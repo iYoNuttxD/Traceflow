@@ -10,6 +10,15 @@ export { ConfirmProvider, useConfirm } from './components/ConfirmDialog.jsx';
 export { ErrorBoundary } from './components/ErrorBoundary.jsx';
 export { FeedbackRegion } from './components/FeedbackRegion.jsx';
 export { FormInput } from './components/FormInput.jsx';
+export { ContextualErrorPage, GenericErrorPage } from './components/GenericErrorPage.jsx';
 export { useAbortableRequest } from './hooks/useAbortableRequest.js';
 export { normalizeApiError } from './services/http-error.js';
+export {
+  PAGE_ERROR_TYPES,
+  classifyPageError,
+  getErrorRequestId,
+  isAuthenticationFailure,
+  isNetworkOrServiceUnavailable,
+  resolveErrorPageContext
+} from './services/page-error.js';
 export { compactParams } from './utils/compact-params.js';

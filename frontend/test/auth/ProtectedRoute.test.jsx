@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -47,7 +48,7 @@ function renderRoute(initialEntry = '/projects') {
 
 describe('ProtectedRoute', () => {
   beforeEach(() => {
-    authState = { user: null, loading: false };
+    authState = { user: null, loading: false, bootstrapError: null, refresh: vi.fn() };
   });
 
   it('redireciona visitante para login', () => {
@@ -95,5 +96,40 @@ describe('ProtectedRoute', () => {
     authState.user = { id: 1, accountStatus: 'ACTIVE' };
     renderRoute('/restricted');
     expect(screen.getByRole('heading', { name: 'Projetos privados' })).toBeInTheDocument();
+  });
+
+  it('não presume sessão ausente quando o bootstrap falha por rede', () => {
+    authState.bootstrapError = {
+      type: 'NETWORK',
+      message: 'Não foi possível conectar ao servidor do TRACEFLOW.'
+    };
+    renderRoute('/projects/7/tasks');
+
+    expect(
+      screen.getByRole('heading', { name: 'Não foi possível conectar ao TRACEFLOW.' })
+    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Voltar ao projeto' })).toHaveAttribute(
+      'href',
+      '/projects/7'
+    );
+    expect(screen.queryByRole('heading', { name: /Entrar/ })).not.toBeInTheDocument();
+  });
+
+  it('mantém 429 no feedback de rate limit e oferece retry explícito', async () => {
+    const user = userEvent.setup();
+    authState.bootstrapError = {
+      type: 'UNKNOWN',
+      message: 'Muitas tentativas.',
+      isRateLimit: true,
+      retryAfterSeconds: 30
+    };
+    renderRoute();
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Muitas tentativas.');
+    expect(
+      screen.queryByRole('heading', { name: 'Não foi possível exibir esta página.' })
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Tentar novamente' }));
+    expect(authState.refresh).toHaveBeenCalledOnce();
   });
 });

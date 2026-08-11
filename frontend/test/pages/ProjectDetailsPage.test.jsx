@@ -256,4 +256,36 @@ describe('ProjectDetailsPage E9', () => {
     expect(screen.queryByText('Analisar commits para sugestões')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Atualizar sugestões' })).not.toBeInTheDocument();
   });
+
+  it('apresenta projeto não encontrado com retorno contextual', async () => {
+    mocks.api.get.mockRejectedValueOnce({
+      response: { status: 404, data: { code: 'PROJECT_NOT_FOUND' } }
+    });
+    renderPage();
+
+    expect(
+      await screen.findByRole('heading', { name: 'Projeto não encontrado.' })
+    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Voltar aos projetos' })).toHaveAttribute(
+      'href',
+      '/projects'
+    );
+  });
+
+  it('apresenta erro fatal do projeto sem expor mensagem técnica', async () => {
+    mocks.api.get.mockRejectedValueOnce({
+      response: {
+        status: 500,
+        data: { message: 'Prisma connection failed', requestId: 'request-seguro-1' }
+      }
+    });
+    renderPage();
+
+    expect(
+      await screen.findByRole('heading', { name: 'O TRACEFLOW encontrou um problema.' })
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Tentar novamente' })).toBeInTheDocument();
+    expect(screen.getByText('Código de referência: request-seguro-1')).toBeInTheDocument();
+    expect(screen.queryByText(/Prisma connection failed/)).not.toBeInTheDocument();
+  });
 });

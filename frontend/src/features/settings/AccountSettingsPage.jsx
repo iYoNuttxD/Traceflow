@@ -1,5 +1,11 @@
-import { useEffect, useState } from 'react';
-import { normalizeApiError, useConfirm } from '../../shared/index.js';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  ContextualErrorPage,
+  classifyPageError,
+  getErrorRequestId,
+  normalizeApiError,
+  useConfirm
+} from '../../shared/index.js';
 import { PasswordField, useAuth } from '../auth/index.js';
 import { settingsApi } from './settings.api.js';
 import { SettingsFeedback } from './SettingsFeedback.jsx';
@@ -13,15 +19,26 @@ export function AccountSettingsPage() {
   const [deactivationPassword, setDeactivationPassword] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [initialError, setInitialError] = useState(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     const result = await settingsApi.account();
     setAccount(result);
     setProfile({ name: result.name, username: result.username || '' });
-  }
-  useEffect(() => {
-    load().catch((value) => setError(normalizeApiError(value).message));
   }, []);
+
+  const loadInitial = useCallback(async () => {
+    setInitialError(null);
+    try {
+      await load();
+    } catch (value) {
+      setInitialError(normalizeApiError(value, 'Não foi possível carregar sua conta.'));
+    }
+  }, [load]);
+
+  useEffect(() => {
+    void loadInitial();
+  }, [loadInitial]);
   async function run(operation, success) {
     setError('');
     setMessage('');
@@ -35,6 +52,16 @@ export function AccountSettingsPage() {
     }
   }
 
+  if (!account && initialError) {
+    return (
+      <ContextualErrorPage
+        type={classifyPageError(initialError)}
+        onRetry={loadInitial}
+        requestId={getErrorRequestId(initialError)}
+        embedded
+      />
+    );
+  }
   if (!account) return <p>Carregando conta...</p>;
   const active = account.accountStatus === 'ACTIVE';
   return (

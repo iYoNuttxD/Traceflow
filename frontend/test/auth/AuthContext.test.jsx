@@ -28,6 +28,7 @@ function AuthHarness() {
   return (
     <div>
       <p data-testid="auth-state">{auth.loading ? 'Carregando' : auth.user?.name || 'Visitante'}</p>
+      {auth.bootstrapError && <p data-testid="bootstrap-error">{auth.bootstrapError.message}</p>}
       <button type="button" onClick={() => auth.login({ email: 'login@example.test' })}>
         Login
       </button>
@@ -76,12 +77,31 @@ describe('AuthContext', () => {
     expect(mocks.setCsrfToken).toHaveBeenCalledWith('csrf-restaurado');
   });
 
-  it('encerra o loading e limpa a sessão quando a restauração falha', async () => {
-    mocks.authApi.me.mockRejectedValueOnce(new Error('sessão indisponível'));
+  it('encerra o loading e limpa a sessão quando a API comprova ausência de autenticação', async () => {
+    mocks.authApi.me.mockRejectedValueOnce({
+      response: { status: 401, data: { code: 'AUTHENTICATION_REQUIRED' } }
+    });
     renderProvider();
 
     expect(await screen.findByTestId('auth-state')).toHaveTextContent('Visitante');
     expect(mocks.setCsrfToken).toHaveBeenCalledWith();
+    expect(screen.queryByTestId('bootstrap-error')).not.toBeInTheDocument();
+  });
+
+  it('não transforma indisponibilidade de rede em sessão comprovadamente ausente', async () => {
+    mocks.authApi.me.mockRejectedValueOnce({
+      isAxiosError: true,
+      code: 'ERR_NETWORK',
+      request: {}
+    });
+    renderProvider();
+
+    expect(await screen.findByTestId('auth-state')).toHaveTextContent('Visitante');
+    expect(screen.getByTestId('bootstrap-error')).toHaveTextContent(
+      'Não foi possível conectar ao servidor do TRACEFLOW.'
+    );
+    expect(mocks.resetHttpSessionScope).not.toHaveBeenCalled();
+    expect(mocks.setCsrfToken).not.toHaveBeenCalledWith();
   });
 
   it('preserva os fluxos de login, registro e logout com rotação do CSRF', async () => {
