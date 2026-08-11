@@ -1,5 +1,5 @@
 import { StrictMode } from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -73,7 +73,9 @@ describe('AuthContext', () => {
 
     expect(await screen.findByTestId('auth-state')).toHaveTextContent('Daniel');
     expect(mocks.authApi.me).toHaveBeenCalledTimes(1);
+    expect(mocks.authApi.me).toHaveBeenCalledWith({ skipGlobalAuthHandling: true });
     expect(mocks.authApi.csrf).toHaveBeenCalledTimes(1);
+    expect(mocks.authApi.csrf).toHaveBeenCalledWith({ skipGlobalAuthHandling: true });
     expect(mocks.setCsrfToken).toHaveBeenCalledWith('csrf-restaurado');
   });
 
@@ -81,10 +83,14 @@ describe('AuthContext', () => {
     mocks.authApi.me.mockRejectedValueOnce({
       response: { status: 401, data: { code: 'AUTHENTICATION_REQUIRED' } }
     });
-    renderProvider();
+    renderProvider({ strict: true });
 
     expect(await screen.findByTestId('auth-state')).toHaveTextContent('Visitante');
+    expect(mocks.authApi.me).toHaveBeenCalledTimes(1);
+    expect(mocks.authApi.me).toHaveBeenCalledWith({ skipGlobalAuthHandling: true });
+    expect(mocks.authApi.csrf).not.toHaveBeenCalled();
     expect(mocks.setCsrfToken).toHaveBeenCalledWith();
+    expect(mocks.resetHttpSessionScope).not.toHaveBeenCalled();
     expect(screen.queryByTestId('bootstrap-error')).not.toBeInTheDocument();
   });
 
@@ -100,8 +106,65 @@ describe('AuthContext', () => {
     expect(screen.getByTestId('bootstrap-error')).toHaveTextContent(
       'Não foi possível conectar ao servidor do TRACEFLOW.'
     );
+    expect(mocks.authApi.me).toHaveBeenCalledTimes(1);
+    expect(mocks.authApi.csrf).not.toHaveBeenCalled();
     expect(mocks.resetHttpSessionScope).not.toHaveBeenCalled();
-    expect(mocks.setCsrfToken).not.toHaveBeenCalledWith();
+    expect(mocks.setCsrfToken).toHaveBeenCalledWith();
+  });
+
+  it('não repete o bootstrap sem remontagem, evento real ou retry explícito', async () => {
+    vi.useFakeTimers();
+    mocks.authApi.me.mockRejectedValueOnce({
+      response: { status: 401, data: { code: 'AUTHENTICATION_REQUIRED' } }
+    });
+    const view = renderProvider();
+
+    await act(async () => {});
+    expect(screen.getByTestId('auth-state')).toHaveTextContent('Visitante');
+    view.rerender(
+      <AuthProvider>
+        <AuthHarness />
+      </AuthProvider>
+    );
+    view.rerender(
+      <AuthProvider>
+        <AuthHarness />
+      </AuthProvider>
+    );
+    await act(async () => vi.advanceTimersByTimeAsync(20_000));
+
+    expect(mocks.authApi.me).toHaveBeenCalledTimes(1);
+    expect(mocks.authApi.csrf).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
+  it('não mantém autenticação parcial quando o CSRF falha após /me', async () => {
+    mocks.authApi.csrf.mockRejectedValueOnce({
+      response: { status: 503, data: { code: 'SERVICE_UNAVAILABLE', requestId: 'req-csrf-1' } }
+    });
+    renderProvider();
+
+    expect(await screen.findByTestId('auth-state')).toHaveTextContent('Visitante');
+    expect(screen.getByTestId('bootstrap-error')).toHaveTextContent(
+      'Não foi possível conectar ao servidor do TRACEFLOW.'
+    );
+    expect(mocks.authApi.me).toHaveBeenCalledTimes(1);
+    expect(mocks.authApi.csrf).toHaveBeenCalledTimes(1);
+    expect(mocks.authApi.csrf).toHaveBeenCalledWith({ skipGlobalAuthHandling: true });
+    expect(mocks.setCsrfToken).toHaveBeenLastCalledWith();
+  });
+
+  it('limpa a sessão se ela expirar entre /me e /csrf', async () => {
+    mocks.authApi.csrf.mockRejectedValueOnce({
+      response: { status: 401, data: { code: 'SESSION_EXPIRED' } }
+    });
+    renderProvider();
+
+    expect(await screen.findByTestId('auth-state')).toHaveTextContent('Visitante');
+    expect(screen.queryByTestId('bootstrap-error')).not.toBeInTheDocument();
+    expect(mocks.authApi.me).toHaveBeenCalledTimes(1);
+    expect(mocks.authApi.csrf).toHaveBeenCalledTimes(1);
+    expect(mocks.resetHttpSessionScope).toHaveBeenCalledTimes(1);
   });
 
   it('preserva os fluxos de login, registro e logout com rotação do CSRF', async () => {
@@ -142,9 +205,10 @@ describe('AuthContext', () => {
     await user.click(screen.getByRole('button', { name: 'Atualizar duas vezes' }));
 
     expect(mocks.authApi.me).toHaveBeenCalledTimes(1);
-    expect(mocks.authApi.csrf).toHaveBeenCalledTimes(1);
+    expect(mocks.authApi.csrf).not.toHaveBeenCalled();
     resolveMe({ data: { user: { id: 4, name: 'Atualizado' } } });
     await waitFor(() => expect(screen.getByTestId('auth-state')).toHaveTextContent('Atualizado'));
+    expect(mocks.authApi.csrf).toHaveBeenCalledTimes(1);
   });
 
   it('limpa a sessão no evento global de 401 sem tratar 403 como logout', async () => {

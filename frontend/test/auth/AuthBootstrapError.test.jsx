@@ -1,5 +1,5 @@
 import { MemoryRouter } from 'react-router';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -49,9 +49,8 @@ describe('bootstrap de autenticação indisponível', () => {
     mocks.authApi.logout.mockResolvedValue({ data: {} });
   });
 
-  it('mantém o login montado quando /auth/me e /auth/csrf falham por rede', async () => {
+  it('mantém o login montado quando /auth/me falha por rede sem consultar /auth/csrf', async () => {
     mocks.authApi.me.mockRejectedValueOnce(networkError());
-    mocks.authApi.csrf.mockRejectedValueOnce(networkError());
     renderLogin();
 
     expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeInTheDocument();
@@ -60,38 +59,46 @@ describe('bootstrap de autenticação indisponível', () => {
     );
     expect(screen.getByRole('button', { name: 'Tentar novamente' })).toBeInTheDocument();
     expect(screen.queryByText('Voltar aos projetos')).not.toBeInTheDocument();
+    expect(mocks.authApi.me).toHaveBeenCalledTimes(1);
+    expect(mocks.authApi.csrf).not.toHaveBeenCalled();
     expect(mocks.resetHttpSessionScope).not.toHaveBeenCalled();
+
+    vi.useFakeTimers();
+    await act(async () => vi.advanceTimersByTimeAsync(20_000));
+    expect(mocks.authApi.me).toHaveBeenCalledTimes(1);
+    expect(mocks.authApi.csrf).not.toHaveBeenCalled();
+    vi.useRealTimers();
   });
 
   it('mantém o login normal em 401 AUTHENTICATION_REQUIRED', async () => {
     mocks.authApi.me.mockRejectedValueOnce({
       response: { status: 401, data: { code: 'AUTHENTICATION_REQUIRED' } }
     });
-    mocks.authApi.csrf.mockResolvedValueOnce({ data: { csrfToken: 'csrf-guest' } });
     renderLogin();
 
     expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeInTheDocument();
     expect(screen.queryByText(/Não foi possível conectar/)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Tentar novamente' })).not.toBeInTheDocument();
+    expect(mocks.authApi.me).toHaveBeenCalledTimes(1);
+    expect(mocks.authApi.csrf).not.toHaveBeenCalled();
   });
 
   it('recupera o fluxo quando o backend volta e o usuário aciona retry', async () => {
     const user = userEvent.setup();
-    mocks.authApi.me.mockRejectedValueOnce(networkError()).mockResolvedValueOnce({
-      data: { user: null }
-    });
-    mocks.authApi.csrf.mockRejectedValueOnce(networkError()).mockResolvedValueOnce({
-      data: { csrfToken: 'csrf-recuperado' }
+    mocks.authApi.me.mockRejectedValueOnce(networkError()).mockRejectedValueOnce({
+      response: { status: 401, data: { code: 'AUTHENTICATION_REQUIRED' } }
     });
     renderLogin();
 
-    await user.click(await screen.findByRole('button', { name: 'Tentar novamente' }));
+    const retry = await screen.findByRole('button', { name: 'Tentar novamente' });
+    expect(mocks.authApi.me).toHaveBeenCalledTimes(1);
+    expect(mocks.authApi.csrf).not.toHaveBeenCalled();
+    await user.click(retry);
     await waitFor(() =>
       expect(screen.queryByText(/Não foi possível conectar/)).not.toBeInTheDocument()
     );
     expect(screen.getByRole('heading', { name: 'Entrar' })).toBeInTheDocument();
     expect(mocks.authApi.me).toHaveBeenCalledTimes(2);
-    expect(mocks.authApi.csrf).toHaveBeenCalledTimes(2);
-    expect(mocks.setCsrfToken).toHaveBeenCalledWith('csrf-recuperado');
+    expect(mocks.authApi.csrf).not.toHaveBeenCalled();
   });
 });

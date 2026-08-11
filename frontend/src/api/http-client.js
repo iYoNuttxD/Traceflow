@@ -71,7 +71,9 @@ export function createHttpClient(options = {}) {
   });
 
   client.interceptors.response.use(undefined, (error) => {
+    const skipGlobalAuthHandling = error?.config?.skipGlobalAuthHandling === true;
     if (
+      !skipGlobalAuthHandling &&
       error?.response?.status === 401 &&
       sessionFailureCodes.has(error.response.data?.code) &&
       typeof window !== 'undefined'
@@ -80,6 +82,7 @@ export function createHttpClient(options = {}) {
       window.dispatchEvent(new CustomEvent('traceflow:unauthorized'));
     }
     if (
+      !skipGlobalAuthHandling &&
       error?.response?.status === 403 &&
       ['ACCOUNT_DEACTIVATED', 'ACCOUNT_DELETION_PENDING', 'ACCOUNT_ANONYMIZED'].includes(
         error.response.data?.code

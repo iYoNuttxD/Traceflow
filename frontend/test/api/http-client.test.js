@@ -58,6 +58,23 @@ describe('cliente HTTP compartilhado', () => {
     window.removeEventListener('traceflow:unauthorized', listener);
   });
 
+  it('deixa o probe de bootstrap interpretar 401 sem emitir evento global', async () => {
+    const client = createHttpClient();
+    const listener = vi.fn();
+    window.addEventListener('traceflow:unauthorized', listener);
+    client.defaults.adapter = (config) =>
+      Promise.reject({
+        response: { status: 401, data: { code: 'AUTHENTICATION_REQUIRED' } },
+        config
+      });
+
+    await expect(client.get('/auth/me', { skipGlobalAuthHandling: true })).rejects.toBeTruthy();
+    expect(listener).not.toHaveBeenCalled();
+    await expect(client.get('/projects')).rejects.toBeTruthy();
+    expect(listener).toHaveBeenCalledTimes(1);
+    window.removeEventListener('traceflow:unauthorized', listener);
+  });
+
   it('emite atualização de estado apenas para 403 de conta restrita', async () => {
     const client = createHttpClient();
     const listener = vi.fn();

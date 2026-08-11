@@ -19,17 +19,51 @@ import {
 import { authApi } from './api/auth.api.js';
 
 const AuthContext = createContext(null);
+const bootstrapRequestOptions = Object.freeze({
+  // O AuthProvider é o único responsável por interpretar os probes de bootstrap.
+  skipGlobalAuthHandling: true
+});
+
+function createBootstrapError(error) {
+  const unavailable = isNetworkOrServiceUnavailable(error);
+  const normalized = normalizeApiError(error, 'Não foi possível verificar sua sessão.');
+  const isRateLimit = normalized.status === 429;
+  return {
+    type: unavailable ? PAGE_ERROR_TYPES.NETWORK : classifyPageError(error),
+    message: isRateLimit
+      ? normalized.message
+      : unavailable
+        ? 'Não foi possível conectar ao servidor do TRACEFLOW. Tente novamente em instantes.'
+        : 'Não foi possível verificar sua sessão. Tente novamente em instantes.',
+    requestId: getErrorRequestId(error),
+    isRateLimit,
+    retryAfterSeconds: normalized.retryAfterSeconds
+  };
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [bootstrapError, setBootstrapError] = useState(null);
   const refreshPromiseRef = useRef(null);
-  const clear = useCallback(() => {
-    resetHttpSessionScope();
+
+  const clearAuthenticatedState = useCallback(() => {
     setCsrfToken();
     setUser(null);
     setBootstrapError(null);
   }, []);
+
+  const invalidateAuthenticatedSession = useCallback(() => {
+    resetHttpSessionScope();
+    clearAuthenticatedState();
+  }, [clearAuthenticatedState]);
+
+  const handleBootstrapFailure = useCallback((error) => {
+    setCsrfToken();
+    setUser(null);
+    setBootstrapError(createBootstrapError(error));
+  }, []);
+
   const refresh = useCallback(() => {
     if (refreshPromiseRef.current) {
       return refreshPromiseRef.current;
@@ -37,45 +71,23 @@ export function AuthProvider({ children }) {
 
     const operation = (async () => {
       try {
-        const [meResult, csrfResult] = await Promise.allSettled([authApi.me(), authApi.csrf()]);
-
-        if (meResult.status === 'fulfilled' && csrfResult.status === 'fulfilled') {
-          setUser(meResult.value.data.user);
-          setCsrfToken(csrfResult.value.data.csrfToken);
-          setBootstrapError(null);
+        let meResponse;
+        try {
+          meResponse = await authApi.me(bootstrapRequestOptions);
+        } catch (error) {
+          if (isAuthenticationFailure(error)) clearAuthenticatedState();
+          else handleBootstrapFailure(error);
           return;
         }
 
-        const failures = [meResult, csrfResult]
-          .filter((result) => result.status === 'rejected')
-          .map((result) => result.reason);
-        const nonSessionFailure = failures.find((error) => !isAuthenticationFailure(error));
-
-        if (
-          meResult.status === 'rejected' &&
-          isAuthenticationFailure(meResult.reason) &&
-          !nonSessionFailure
-        ) {
-          clear();
-        } else {
-          const error =
-            failures.find((failure) => isNetworkOrServiceUnavailable(failure)) ||
-            nonSessionFailure ||
-            failures[0];
-          const unavailable = isNetworkOrServiceUnavailable(error);
-          const normalized = normalizeApiError(error, 'Não foi possível verificar sua sessão.');
-          const isRateLimit = normalized.status === 429;
-          setBootstrapError({
-            type: unavailable ? PAGE_ERROR_TYPES.NETWORK : classifyPageError(error),
-            message: isRateLimit
-              ? normalized.message
-              : unavailable
-                ? 'Não foi possível conectar ao servidor do TRACEFLOW. Tente novamente em instantes.'
-                : 'Não foi possível verificar sua sessão. Tente novamente em instantes.',
-            requestId: getErrorRequestId(error),
-            isRateLimit,
-            retryAfterSeconds: normalized.retryAfterSeconds
-          });
+        try {
+          const csrfResponse = await authApi.csrf(bootstrapRequestOptions);
+          setUser(meResponse.data.user);
+          setCsrfToken(csrfResponse.data.csrfToken);
+          setBootstrapError(null);
+        } catch (error) {
+          if (isAuthenticationFailure(error)) invalidateAuthenticatedSession();
+          else handleBootstrapFailure(error);
         }
       } finally {
         setLoading(false);
@@ -85,14 +97,14 @@ export function AuthProvider({ children }) {
 
     refreshPromiseRef.current = operation;
     return operation;
-  }, [clear]);
+  }, [clearAuthenticatedState, handleBootstrapFailure, invalidateAuthenticatedSession]);
   useEffect(() => {
     void refresh();
   }, [refresh]);
   useEffect(() => {
-    window.addEventListener('traceflow:unauthorized', clear);
-    return () => window.removeEventListener('traceflow:unauthorized', clear);
-  }, [clear]);
+    window.addEventListener('traceflow:unauthorized', clearAuthenticatedState);
+    return () => window.removeEventListener('traceflow:unauthorized', clearAuthenticatedState);
+  }, [clearAuthenticatedState]);
   useEffect(() => {
     const handleRestricted = () => void refresh();
     window.addEventListener('traceflow:account-restricted', handleRestricted);
@@ -116,11 +128,11 @@ export function AuthProvider({ children }) {
       updateUser: setUser,
       logout: async () => {
         await authApi.logout();
-        clear();
+        invalidateAuthenticatedSession();
       },
       refresh
     }),
-    [user, loading, bootstrapError, authenticate, clear, refresh]
+    [user, loading, bootstrapError, authenticate, invalidateAuthenticatedSession, refresh]
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
