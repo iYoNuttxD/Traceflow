@@ -297,15 +297,27 @@ describe('identidade, sessão, CSRF e autorização E6', () => {
     expect(
       (await viewer.mutate('put', `/api/projects/${project.id}`).send({ name: 'Negado' })).status
     ).toBe(403);
+    await owner
+      .mutate('post', `/api/projects/${project.id}/invitations`)
+      .send({ email: 'invitee@example.invalid', role: 'MEMBER' });
+    expect((await viewer.agent.get(`/api/projects/${project.id}/invitations`)).status).toBe(403);
   });
 
-  it('aceita convite uma vez, exige e-mail correspondente e rejeita reuso', async () => {
+  it('aceita convite uma vez, exige e-mail correspondente e distingue reuso', async () => {
     const owner = await register('owner@example.invalid');
     const project = (await owner.mutate('post', '/api/projects').send(projectBody())).body.project;
     const created = await owner
       .mutate('post', `/api/projects/${project.id}/invitations`)
       .send({ email: 'member@example.invalid', role: 'MEMBER' });
     const member = await register('member@example.invalid');
+    const other = await register('other@example.invalid');
+    expect(
+      (
+        await other
+          .mutate('post', '/api/projects/invitations/accept')
+          .send({ token: created.body.token })
+      ).body.code
+    ).toBe('INVITATION_INVALID');
     expect(
       (
         await member
@@ -319,7 +331,7 @@ describe('identidade, sessão, CSRF e autorização E6', () => {
           .mutate('post', '/api/projects/invitations/accept')
           .send({ token: created.body.token })
       ).body.code
-    ).toBe('INVITATION_INVALID');
+    ).toBe('INVITATION_ALREADY_USED');
   });
 
   it('administra memberships canônicas, minimiza e-mail e impede MEMBER de administrar', async () => {
@@ -396,7 +408,7 @@ describe('identidade, sessão, CSRF e autorização E6', () => {
     ).toBe(true);
   });
 
-  it('substitui convite ativo duplicado e invalida o token anterior', async () => {
+  it('bloqueia convite ativo duplicado e preserva o token anterior', async () => {
     const owner = await register('owner@example.invalid');
     const project = (await owner.mutate('post', '/api/projects').send(projectBody('Invites'))).body
       .project;
@@ -406,21 +418,217 @@ describe('identidade, sessão, CSRF e autorização E6', () => {
     const second = await owner
       .mutate('post', `/api/projects/${project.id}/invitations`)
       .send({ email: 'invitee@example.invalid', role: 'VIEWER' });
+    expect(second).toMatchObject({
+      status: 409,
+      body: { code: 'INVITATION_ALREADY_PENDING' }
+    });
     const invitee = await register('invitee@example.invalid');
     expect(
       (
         await invitee
           .mutate('post', '/api/projects/invitations/accept')
           .send({ token: first.body.token })
+      ).body.membership.role
+    ).toBe('MEMBER');
+  });
+
+  it('mantém somente um convite pendente em criação duplicada concorrente', async () => {
+    const owner = await register('owner-duplicate-race@example.invalid');
+    const project = (await owner.mutate('post', '/api/projects').send(projectBody('Concorrente')))
+      .body.project;
+    const responses = await Promise.all([
+      owner
+        .mutate('post', `/api/projects/${project.id}/invitations`)
+        .send({ email: 'invitee@example.invalid', role: 'MEMBER' }),
+      owner
+        .mutate('post', `/api/projects/${project.id}/invitations`)
+        .send({ email: 'invitee@example.invalid', role: 'VIEWER' })
+    ]);
+    expect(responses.map(({ status }) => status).sort()).toEqual([201, 409]);
+    expect(responses.find(({ status }) => status === 409)?.body.code).toBe(
+      'INVITATION_ALREADY_PENDING'
+    );
+    expect(
+      await prisma.projectInvitation.count({
+        where: {
+          projectId: project.id,
+          email: 'invitee@example.invalid',
+          revokedAt: null,
+          acceptedAt: null,
+          declinedAt: null,
+          expiresAt: { gt: new Date() }
+        }
+      })
+    ).toBe(1);
+  });
+
+  it('aceita atomicamente sob concorrência e cria uma única membership', async () => {
+    const owner = await register('owner-accept-race@example.invalid');
+    const project = (await owner.mutate('post', '/api/projects').send(projectBody('Aceite unico')))
+      .body.project;
+    const created = await owner
+      .mutate('post', `/api/projects/${project.id}/invitations`)
+      .send({ email: 'invitee@example.invalid', role: 'MEMBER' });
+    const invitee = await register('invitee@example.invalid');
+    const responses = await Promise.all([
+      invitee
+        .mutate('post', '/api/projects/invitations/accept')
+        .send({ token: created.body.token }),
+      invitee.mutate('post', '/api/projects/invitations/accept').send({ token: created.body.token })
+    ]);
+    expect(responses.map(({ status }) => status).sort()).toEqual([200, 409]);
+    const inviteeUser = await prisma.user.findUnique({
+      where: { email: 'invitee@example.invalid' }
+    });
+    expect(
+      await prisma.projectMembership.count({
+        where: { projectId: project.id, userId: inviteeUser.id }
+      })
+    ).toBe(1);
+  });
+
+  it('recusa convite, preserva histórico e distingue estados finais e expiração', async () => {
+    const owner = await register('owner-invite-state@example.invalid');
+    const project = (await owner.mutate('post', '/api/projects').send(projectBody('Recusa'))).body
+      .project;
+    const invitee = await register('invitee@example.invalid');
+    const declined = await owner
+      .mutate('post', `/api/projects/${project.id}/invitations`)
+      .send({ email: 'invitee@example.invalid', role: 'MEMBER' });
+    const details = await invitee
+      .mutate('post', '/api/projects/invitations/details')
+      .send({ token: declined.body.token });
+    expect(details.body.invitation).toMatchObject({
+      project: { id: project.id, name: 'Recusa' },
+      role: 'MEMBER',
+      status: 'PENDING'
+    });
+    expect(
+      (
+        await invitee
+          .mutate('post', '/api/projects/invitations/decline')
+          .send({ token: declined.body.token })
       ).status
-    ).toBe(400);
+    ).toBe(200);
     expect(
       (
         await invitee
           .mutate('post', '/api/projects/invitations/accept')
-          .send({ token: second.body.token })
-      ).body.membership.role
-    ).toBe('VIEWER');
+          .send({ token: declined.body.token })
+      ).body.code
+    ).toBe('INVITATION_DECLINED');
+    const storedDecline = await prisma.projectInvitation.findUnique({
+      where: { id: declined.body.invitation.id }
+    });
+    expect(storedDecline).toMatchObject({ declinedById: expect.any(Number) });
+    expect(storedDecline.declinedAt).toBeInstanceOf(Date);
+    expect(
+      await prisma.auditEvent.count({
+        where: {
+          projectId: project.id,
+          action: 'PROJECT_INVITATION_DECLINED',
+          resourceId: String(declined.body.invitation.id)
+        }
+      })
+    ).toBe(1);
+    const invitationList = await owner.agent.get(`/api/projects/${project.id}/invitations`);
+    const listedDecline = invitationList.body.invitations.find(
+      ({ id }) => id === declined.body.invitation.id
+    );
+    expect(listedDecline).toMatchObject({ status: 'DECLINED', declinedAt: expect.any(String) });
+    expect(listedDecline).not.toHaveProperty('token');
+    expect(listedDecline).not.toHaveProperty('tokenHash');
+
+    const expired = await owner
+      .mutate('post', `/api/projects/${project.id}/invitations`)
+      .send({ email: 'expired@example.invalid', role: 'VIEWER' });
+    await prisma.projectInvitation.update({
+      where: { id: expired.body.invitation.id },
+      data: { expiresAt: new Date(Date.now() - 1000) }
+    });
+    const expiredUser = await register('expired@example.invalid');
+    expect(
+      (
+        await expiredUser
+          .mutate('post', '/api/projects/invitations/accept')
+          .send({ token: expired.body.token })
+      ).body.code
+    ).toBe('INVITATION_EXPIRED');
+  });
+
+  it('não convida nem altera perfil de pessoa que já é membro ativo', async () => {
+    const owner = await register('owner-existing-member@example.invalid');
+    const project = (
+      await owner.mutate('post', '/api/projects').send(projectBody('Membro existente'))
+    ).body.project;
+    await register('member@example.invalid');
+    const memberUser = await prisma.user.findUnique({ where: { email: 'member@example.invalid' } });
+    await prisma.projectMembership.create({
+      data: { projectId: project.id, userId: memberUser.id, role: 'MEMBER' }
+    });
+    const blocked = await owner
+      .mutate('post', `/api/projects/${project.id}/invitations`)
+      .send({ email: 'MEMBER@example.invalid', role: 'OWNER' });
+    expect(blocked).toMatchObject({
+      status: 409,
+      body: { code: 'PROJECT_MEMBER_ALREADY_EXISTS' }
+    });
+
+    const staleInvitation = await owner
+      .mutate('post', `/api/projects/${project.id}/invitations`)
+      .send({ email: 'later-member@example.invalid', role: 'OWNER' });
+    const laterMember = await register('later-member@example.invalid');
+    const laterUser = await prisma.user.findUnique({
+      where: { email: 'later-member@example.invalid' }
+    });
+    await prisma.projectMembership.create({
+      data: { projectId: project.id, userId: laterUser.id, role: 'VIEWER' }
+    });
+    expect(
+      await laterMember
+        .mutate('post', '/api/projects/invitations/accept')
+        .send({ token: staleInvitation.body.token })
+    ).toMatchObject({
+      status: 409,
+      body: { code: 'PROJECT_MEMBER_ALREADY_EXISTS' }
+    });
+    expect(
+      await prisma.projectMembership.findUnique({
+        where: { projectId_userId: { projectId: project.id, userId: laterUser.id } }
+      })
+    ).toMatchObject({ role: 'VIEWER', isActive: true });
+  });
+
+  it('preserva ao menos um OWNER sob duas despromoções concorrentes', async () => {
+    const firstOwner = await register('owner-a@example.invalid', 'Owner A');
+    const project = (
+      await firstOwner.mutate('post', '/api/projects').send(projectBody('Owners concorrentes'))
+    ).body.project;
+    const secondOwner = await register('owner-b@example.invalid', 'Owner B');
+    const firstUser = await prisma.user.findUnique({ where: { email: 'owner-a@example.invalid' } });
+    const secondUser = await prisma.user.findUnique({
+      where: { email: 'owner-b@example.invalid' }
+    });
+    const firstMembership = await prisma.projectMembership.findUnique({
+      where: { projectId_userId: { projectId: project.id, userId: firstUser.id } }
+    });
+    const secondMembership = await prisma.projectMembership.create({
+      data: { projectId: project.id, userId: secondUser.id, role: 'OWNER' }
+    });
+    const responses = await Promise.all([
+      firstOwner
+        .mutate('patch', `/api/projects/${project.id}/members/${firstMembership.id}`)
+        .send({ role: 'MEMBER' }),
+      secondOwner
+        .mutate('patch', `/api/projects/${project.id}/members/${secondMembership.id}`)
+        .send({ role: 'MEMBER' })
+    ]);
+    expect(responses.map(({ status }) => status).sort()).toEqual([200, 409]);
+    expect(
+      await prisma.projectMembership.count({
+        where: { projectId: project.id, role: 'OWNER', isActive: true }
+      })
+    ).toBe(1);
   });
 
   it('aplica a matriz efetiva a MANAGER, MEMBER, VIEWER e membership inativa', async () => {

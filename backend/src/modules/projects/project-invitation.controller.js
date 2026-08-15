@@ -25,6 +25,11 @@ export const projectInvitationController = {
     );
     return res.status(204).end();
   }),
+  details: asyncHandler(async (req, res) =>
+    res.json({
+      invitation: await projectInvitationService.details(req.body.token, req.auth.user)
+    })
+  ),
   accept: asyncHandler(async (req, res) =>
     res.json({
       message: 'Convite aceito com sucesso.',
@@ -34,5 +39,9 @@ export const projectInvitationController = {
         req.requestId
       )
     })
-  )
+  ),
+  decline: asyncHandler(async (req, res) => {
+    await projectInvitationService.decline(req.body.token, req.auth.user, req.requestId);
+    return res.json({ message: 'Convite recusado.' });
+  })
 };

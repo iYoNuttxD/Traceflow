@@ -32,9 +32,19 @@ import {
 const router = Router();
 
 router.post(
+  '/invitations/details',
+  validateRequest({ body: acceptInvitationBody }),
+  projectInvitationController.details
+);
+router.post(
   '/invitations/accept',
   validateRequest({ body: acceptInvitationBody }),
   projectInvitationController.accept
+);
+router.post(
+  '/invitations/decline',
+  validateRequest({ body: acceptInvitationBody }),
+  projectInvitationController.decline
 );
 router.get(
   '/:projectId/invitations',

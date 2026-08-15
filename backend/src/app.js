@@ -89,7 +89,9 @@ export function createApp({ logger = defaultLogger, readinessCheck, securityConf
       '/api/settings/integrations/github-identity',
       '/api/github/app/installations',
       '/api/github/app/installations/:installationId/repositories',
-      '/api/projects/:projectId/github/sync/status'
+      '/api/projects/:projectId/github/sync/status',
+      '/api/projects/:projectId/members',
+      '/api/projects/:projectId/invitations'
     ],
     rateLimiters.authenticatedReadBurst,
     rateLimiters.authenticatedReadSustained
@@ -134,6 +136,33 @@ export function createApp({ logger = defaultLogger, readinessCheck, securityConf
   app.post(
     ['/api/account/personal-data/export', '/api/settings/privacy/export'],
     rateLimiters.dataExport
+  );
+  app.post(
+    [
+      '/api/projects/invitations/details',
+      '/api/projects/invitations/accept',
+      '/api/projects/invitations/decline'
+    ],
+    createSensitiveAttemptLogger({ logger, event: 'project_invitation_response' }),
+    rateLimiters.sensitiveMutation
+  );
+  app.post(
+    '/api/projects/:projectId/invitations',
+    createSensitiveAttemptLogger({ logger, event: 'project_invitation_create' }),
+    rateLimiters.sensitiveMutation,
+    rateLimiters.emailDelivery
+  );
+  app.patch('/api/projects/:projectId/members/:membershipId', rateLimiters.sensitiveMutation);
+  app.delete(
+    ['/api/projects/:projectId/members/me', '/api/projects/:projectId/members/:membershipId'],
+    rateLimiters.sensitiveMutation
+  );
+  app.post(
+    [
+      '/api/projects/:projectId/members/:membershipId/reactivate',
+      '/api/projects/:projectId/ownership/transfer'
+    ],
+    rateLimiters.sensitiveMutation
   );
   app.post(
     '/api/projects/:projectId/github/sync',

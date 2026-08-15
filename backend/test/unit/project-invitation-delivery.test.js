@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  repository: { createReplacingActive: vi.fn() },
+  repository: { createUnlessPending: vi.fn() },
   email: { sendProjectInvitation: vi.fn() },
   audit: { recordOperational: vi.fn() },
   logger: { info: vi.fn() }
@@ -24,13 +24,15 @@ describe('convite quando SMTP falha', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('preserva o convite e retorna o estado sanitizado de entrega ao OWNER', async () => {
-    mocks.repository.createReplacingActive.mockResolvedValue({
-      id: 12,
-      projectId: 9,
-      email: 'pessoa@example.invalid',
-      role: 'MEMBER',
-      expiresAt: new Date('2030-01-01'),
-      project: { name: 'Projeto' }
+    mocks.repository.createUnlessPending.mockResolvedValue({
+      invitation: {
+        id: 12,
+        projectId: 9,
+        email: 'pessoa@example.invalid',
+        role: 'MEMBER',
+        expiresAt: new Date('2030-01-01'),
+        project: { name: 'Projeto' }
+      }
     });
     mocks.email.sendProjectInvitation.mockResolvedValue({
       status: 'temporary_failure',

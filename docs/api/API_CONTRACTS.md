@@ -58,13 +58,13 @@ A cardinalidade funcional confirmada é Task 0..1 PullRequest e PullRequest 0..N
 
 Health permanece público. Também são públicos `POST /api/auth/register`, `login`, `forgot-password` e `reset-password`. As demais rotas `/api` exigem cookie de sessão; mutations exigem `X-CSRF-Token`. `GET /api/auth/me` restaura a identidade, `GET /api/auth/csrf` rotaciona CSRF, `POST /api/auth/logout` revoga a sessão e `POST /api/auth/change-password` revoga todas as sessões.
 
-Convites canônicos: `GET|POST /api/projects/:projectId/invitations`, `DELETE /api/projects/:projectId/invitations/:invitationId` e `POST /api/projects/invitations/accept`. O join por `accessCode` permanece autenticado e deprecado. Papéis: OWNER, MANAGER, MEMBER e VIEWER. Ausência de membership pode retornar 404; papel insuficiente, 403. Placeholders retornam 401 sem sessão e preservam 501 autenticados.
+Convites canônicos: `GET|POST /api/projects/:projectId/invitations`, `DELETE /api/projects/:projectId/invitations/:invitationId` e `POST /api/projects/invitations/details|accept|decline`. O join por `accessCode` permanece autenticado e deprecado. Papéis: OWNER, MANAGER, MEMBER e VIEWER. Ausência de membership pode retornar 404; papel insuficiente, 403. Placeholders retornam 401 sem sessão e preservam 501 autenticados.
 
 Na conclusão da E6, `GET /api/projects/:projectId/members` passou a representar a fonte canônica `ProjectMembership` e retorna `{projectId,currentMembership,members}`. OWNER recebe e-mail completo; demais papéis recebem valor mascarado. Administração canônica: `PATCH|DELETE /api/projects/:projectId/members/:membershipId`, `POST .../reactivate`, `DELETE .../members/me` e `POST /api/projects/:projectId/ownership/transfer`. Desativação/saída é lógica; o último OWNER recebe `409 LAST_PROJECT_OWNER`.
 
-Convite duplicado ativo é substituído (o anterior é revogado). Em produção, criação retorna somente `{invitation}` e o token segue pelo adapter de e-mail; o campo `token` existe apenas em testes controlados. Forgot-password continua uniforme e nunca retorna token fora de testes.
+Convite duplicado ativo é bloqueado com `INVITATION_ALREADY_PENDING`, inclusive sob concorrência, e o convite original permanece válido. Em produção, criação retorna `{invitation,emailDelivery}` e o token segue exclusivamente pelo adapter de e-mail; o campo `token` existe apenas em testes controlados. A resposta informa se a entrega foi aceita ou falhou de forma sanitizada. Forgot-password continua uniforme e nunca retorna token fora de testes.
 
-Novos erros seguem `{message,code,requestId}`: `AUTHENTICATION_REQUIRED`, `INVALID_CREDENTIALS`, `ACCOUNT_DISABLED`, `CSRF_INVALID`, `FORBIDDEN` e `INVITATION_INVALID`. Respostas de recuperação são uniformes. O cookie nunca é exposto a JavaScript e CORS usa credenciais somente para a allowlist.
+Erros seguem `{message,code,requestId}`. O fluxo de convite distingue `INVITATION_INVALID`, `INVITATION_EXPIRED`, `INVITATION_REVOKED`, `INVITATION_ALREADY_USED`, `INVITATION_DECLINED`, `INVITATION_ALREADY_PENDING` e `PROJECT_MEMBER_ALREADY_EXISTS`; incompatibilidade entre destinatário e sessão continua genérica. Respostas de recuperação são uniformes. O cookie nunca é exposto a JavaScript e CORS usa credenciais somente para a allowlist.
 
 ## Escopo e convenções
 
@@ -114,7 +114,9 @@ Na E5, respostas de sucesso permaneceram iguais. A API exige JSON para bodies, a
 | POST | `/projects/:projectId/ownership/transfer` | `projectId` positivo | `membershipId` positivo | `200`, `{message,membership}` |
 | GET/POST | `/projects/:projectId/invitations` | `projectId` positivo | POST: `email`, `role` | `200` lista / `201` criação |
 | DELETE | `/projects/:projectId/invitations/:invitationId` | IDs positivos | — | `204` |
+| POST | `/projects/invitations/details` | — | token opaco | `200`, `{invitation:{project,role,expiresAt,status}}` para o destinatário autenticado |
 | POST | `/projects/invitations/accept` | — | token opaco | `200`, `{message,membership}` |
+| POST | `/projects/invitations/decline` | — | token opaco | `200`, `{message}`; nenhuma membership é criada |
 | PATCH | `/projects/:projectId/github/sync-settings` | `projectId` positivo | boolean `githubAutoSyncEnabled` | `200`, `{message,project}` |
 
 Status de projeto: `ATIVO`, `INATIVO`, `ARQUIVADO`. URLs GitHub precisam usar HTTP(S) e host `github.com`. E-mails são validados, mas continuam opcionais. `accessCode` mantém o mecanismo atual e não representa autenticação.

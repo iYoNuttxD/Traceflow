@@ -22,7 +22,7 @@ Baseline E6, consolidado na E15 em 26/07/2026. A matriz descreve a política efe
 | `POST /api/projects/:projectId/ownership/transfer` | 401 | 403 | 403 | 403 | A | alvo ativo do mesmo projeto; solicitante permanece OWNER |
 | `GET /api/projects/:projectId/invitations` | 401 | 403 | 403 | 403 | A | e-mails visíveis apenas ao OWNER |
 | `POST/DELETE /api/projects/:projectId/invitations...` | 401 | 403 | 403 | 403 | A | criação exige e-mail verificado; token bruto não sai em produção |
-| `POST /api/projects/invitations/accept` | 401 | E | E | E | E | e-mail da sessão deve coincidir |
+| `POST /api/projects/invitations/details`, `accept`, `decline` | 401 | E | E | E | E | e-mail da sessão deve coincidir; conta deve estar ACTIVE |
 | Requirements: todos os `GET` | 401 | L | L | L | L | mesmo projeto |
 | Requirements: `POST`, `PUT`, `PATCH`, `DELETE` | 401 | 403 | E | E | E | invariantes no service |
 | `PUT /api/requirements/:id/tasks` | 401 | 403 | E | E | E | conjunto atômico; todas as tarefas no mesmo projeto |
@@ -49,6 +49,7 @@ Baseline E6, consolidado na E15 em 26/07/2026. A matriz descreve a política efe
 - `ACTIVE` segue a matriz por papel. `DEACTIVATED` acessa somente estado da conta e reativação. `DELETION_PENDING` acessa somente status/cancelamento/exportação. `ANONYMIZED` não autentica.
 
 - OWNER administra membros, convites e configuração; MANAGER coordena sync e também escreve domínio; MEMBER escreve tarefas/requisitos; VIEWER é leitura.
+- Respostas a convites são vinculadas ao destinatário, usam token hashado/expirável e recebem limiter de operação sensível; criação combina limiter sensível e de entrega de e-mail.
 - O middleware resolve o projeto por rota direta ou pelo recurso filho antes de avaliar a membership.
 - `ProjectMember` e `accessCode` permanecem apenas para compatibilidade; o contrato canônico usa `ProjectMembership`.
 - A E7 adiciona trilha de auditoria e direitos do titular; não concede administração de dados pessoais a um OWNER de projeto.

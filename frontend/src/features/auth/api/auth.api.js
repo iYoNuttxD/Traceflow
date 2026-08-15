@@ -39,8 +39,5 @@ export const authApi = {
   },
   changePassword(currentPassword, password) {
     return httpClient.post('/auth/change-password', { currentPassword, password });
-  },
-  acceptInvitation(token) {
-    return httpClient.post('/projects/invitations/accept', { token });
   }
 };

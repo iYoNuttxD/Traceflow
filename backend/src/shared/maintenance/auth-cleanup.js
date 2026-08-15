@@ -30,7 +30,8 @@ export async function cleanupAuthRecords({
       OR: [
         { expiresAt: { lt: invitationCutoff } },
         { revokedAt: { lt: invitationCutoff } },
-        { acceptedAt: { lt: invitationCutoff } }
+        { acceptedAt: { lt: invitationCutoff } },
+        { declinedAt: { lt: invitationCutoff } }
       ]
     },
     emailVerificationTokens: {

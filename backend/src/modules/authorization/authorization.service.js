@@ -17,6 +17,8 @@ export const authorizationService = {
     return null;
   },
   requiredRole(req) {
+    if (req.method === 'GET' && /^\/projects\/\d+\/invitations(?:\/|$)/.test(req.path))
+      return 'OWNER';
     if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return 'VIEWER';
     if (req.method === 'DELETE' && /\/members\/me$/.test(req.path)) return 'VIEWER';
     if (req.method === 'PUT' && /^\/projects\/\d+$/.test(req.path)) return 'OWNER';

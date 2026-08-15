@@ -84,11 +84,15 @@ export const privacyRepository = {
             expiresAt: true,
             revokedAt: true,
             acceptedAt: true,
+            declinedAt: true,
             createdAt: true
           }
         },
         acceptedInvitations: {
           select: { id: true, projectId: true, role: true, acceptedAt: true, createdAt: true }
+        },
+        declinedInvitations: {
+          select: { id: true, projectId: true, role: true, declinedAt: true, createdAt: true }
         },
         privacyRequests: {
           select: {
@@ -328,7 +332,12 @@ export const privacyRepository = {
         await tx.emailChangeRequest.deleteMany({ where: { userId: request.userId } });
         await tx.accountReactivationToken.deleteMany({ where: { userId: request.userId } });
         await tx.projectInvitation.updateMany({
-          where: { createdById: request.userId, revokedAt: null },
+          where: {
+            createdById: request.userId,
+            revokedAt: null,
+            acceptedAt: null,
+            declinedAt: null
+          },
           data: { revokedAt: now }
         });
         await tx.projectInvitation.updateMany({
@@ -338,6 +347,10 @@ export const privacyRepository = {
         await tx.projectInvitation.updateMany({
           where: { acceptedById: request.userId },
           data: { acceptedById: null }
+        });
+        await tx.projectInvitation.updateMany({
+          where: { declinedById: request.userId },
+          data: { declinedById: null }
         });
         await tx.projectMembership.updateMany({
           where: { userId: request.userId },

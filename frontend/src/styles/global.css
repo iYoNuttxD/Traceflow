@@ -1243,6 +1243,110 @@ a {
   font-size: 0.86rem;
 }
 
+.team-panel,
+.member-actions,
+.invitation-management,
+.invitation-list,
+.invitation-response-content {
+  display: grid;
+  gap: 1rem;
+}
+
+.member-identity,
+.invitation-item > div:first-child {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.member-action-buttons,
+.invitation-response-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.member-actions small {
+  color: #667085;
+  line-height: 1.45;
+}
+
+.status-chip {
+  justify-self: start;
+  border-radius: 999px;
+  padding: 0.25rem 0.55rem;
+  background: #eef2f8;
+  color: #475467;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.status-chip.status-active {
+  background: #e8f7ef;
+  color: #176b43;
+}
+
+.invitation-management {
+  margin-top: 1rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid #e2e7f0;
+}
+
+.invitation-form {
+  grid-template-columns: minmax(220px, 2fr) minmax(180px, 1fr) auto;
+  align-items: end;
+}
+
+.invitation-item {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.5fr) minmax(220px, 1fr) auto auto;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.85rem;
+  border: 1px solid #e2e7f0;
+  border-radius: 10px;
+  background: #fbfcfe;
+}
+
+.invitation-dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin: 0;
+}
+
+.invitation-dates dt {
+  color: #667085;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.invitation-dates dd {
+  margin: 0.15rem 0 0;
+  font-size: 0.82rem;
+}
+
+.invitation-response-page {
+  max-width: 760px;
+}
+
+.invitation-response-content {
+  text-align: center;
+}
+
+.invitation-response-content .feedback-region:empty {
+  display: none;
+}
+
+.invitation-response-actions {
+  justify-content: center;
+}
+
+.invitation-state {
+  color: #475467;
+  font-weight: 700;
+}
+
 .member-form {
   display: grid;
   gap: 0.75rem;
@@ -2078,7 +2182,10 @@ a {
 
 @media (prefers-reduced-motion: no-preference) {
   .project-highlight {
-    transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
+    transition:
+      border-color 180ms ease,
+      background 180ms ease,
+      box-shadow 180ms ease;
   }
 }
 
@@ -2989,6 +3096,23 @@ a {
 
   .error-page-actions {
     flex-direction: column;
+  }
+
+  .invitation-form,
+  .invitation-item {
+    grid-template-columns: 1fr;
+  }
+
+  .member-action-buttons,
+  .invitation-response-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .member-action-buttons .button,
+  .invitation-response-actions .button,
+  .invitation-item .button {
+    width: 100%;
   }
 
   .auth-options {

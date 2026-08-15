@@ -126,6 +126,7 @@ model User {
   memberships                      ProjectMembership[]
   createdInvitations               ProjectInvitation[]               @relation("InvitationCreator")
   acceptedInvitations              ProjectInvitation[]               @relation("InvitationAcceptor")
+  declinedInvitations              ProjectInvitation[]               @relation("InvitationDecliner")
   responsibleTasks                 Task[]
   taskMovements                    TaskMovement[]
   taskHistoryEntries               TaskHistoryEntry[]
@@ -254,17 +255,22 @@ model ProjectInvitation {
   expiresAt    DateTime
   revokedAt    DateTime?
   acceptedAt   DateTime?
+  declinedAt   DateTime?
   createdById  Int
   acceptedById Int?
+  declinedById Int?
   createdAt    DateTime    @default(now())
 
   project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   createdBy  User    @relation("InvitationCreator", fields: [createdById], references: [id])
   acceptedBy User?   @relation("InvitationAcceptor", fields: [acceptedById], references: [id])
+  declinedBy User?   @relation("InvitationDecliner", fields: [declinedById], references: [id])
 
   @@index([projectId])
   @@index([email])
+  @@index([projectId, email, createdAt])
   @@index([expiresAt])
+  @@index([declinedById])
 }
 
 // Entidade central do TRACEFLOW, com aliases GitHub legados preservados por compatibilidade.
