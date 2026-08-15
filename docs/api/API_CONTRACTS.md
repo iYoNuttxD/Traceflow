@@ -46,7 +46,7 @@ Os cinco placeholders baseados em `TraceLink`/`GithubArtifact` foram removidos e
 
 ## Atualização E9 — Projetos e sincronização GitHub
 
-O cadastro integrado usa a operação especializada `POST /projects/from-github` e revalida o repositório externo. A sincronização pagina commits, pull requests e issues, deduplica/upserta por identificadores externos dentro do projeto e só marca sucesso após todas as coleções. Falha parcial preserva lotes já confirmados, o último sucesso e os vínculos técnicos; a resposta de sucesso permanece `{message,summary,project}`.
+O cadastro integrado usa a operação especializada `POST /projects/from-github` e revalida o repositório externo. A sincronização assíncrona cria ou reutiliza uma execução persistida com `POST /projects/:projectId/github/sync`, responde `202 {message,run}` e expõe progresso/resultado em `GET /projects/:projectId/github/sync/status`. A execução pagina commits, pull requests e issues, deduplica/upserta por identificadores externos dentro do projeto e só marca `SUCCEEDED` após todas as coleções. Falha parcial preserva lotes já confirmados, o último sucesso e os vínculos técnicos.
 
 O alias legado redundante `GET /projects/:projectId/github/artifacts` foi removido após confirmação de ausência de consumidores; ele agora segue o `404 ROUTE_NOT_FOUND`. A rota canônica RF06 permanece `GET /projects/:projectId/artifacts`.
 
@@ -56,7 +56,7 @@ A cardinalidade funcional confirmada é Task 0..1 PullRequest e PullRequest 0..N
 
 ## Atualização E6 — identidade e privacidade dos endpoints
 
-Health permanece público. Também são públicos `POST /api/auth/register`, `login`, `forgot-password` e `reset-password`. As demais rotas `/api` exigem cookie de sessão; mutations exigem `X-CSRF-Token`. `GET /api/auth/me` restaura a identidade, `GET /api/auth/csrf` rotaciona CSRF, `POST /api/auth/logout` revoga a sessão e `POST /api/auth/change-password` revoga todas as sessões.
+Health permanece público. Também são públicos `POST /api/auth/register`, `login`, `forgot-password` e `reset-password`. As demais rotas `/api` exigem cookie de sessão; mutations exigem `X-CSRF-Token`. `GET /api/auth/me` restaura a identidade, `GET /api/auth/csrf` devolve o token estável derivado da sessão, `POST /api/auth/logout` revoga a sessão e `POST /api/auth/change-password` revoga todas as sessões.
 
 Convites canônicos: `GET|POST /api/projects/:projectId/invitations`, `DELETE /api/projects/:projectId/invitations/:invitationId` e `POST /api/projects/invitations/details|accept|decline`. O join por `accessCode` permanece autenticado e deprecado. Papéis: OWNER, MANAGER, MEMBER e VIEWER. Ausência de membership pode retornar 404; papel insuficiente, 403. Placeholders retornam 401 sem sessão e preservam 501 autenticados.
 
@@ -170,9 +170,13 @@ Priority: `BAIXA`, `MEDIA`, `ALTA`, `CRITICA`. Status: `A_FAZER`, `EM_ANDAMENTO`
 
 | Método | Caminho | Entrada | Sucesso |
 |---|---|---|---|
-| GET | `/github/auth/check` | — | `200`, estado sanitizado da credencial técnica configurada |
-| GET | `/github/repositories` | — | `200`, `{repositories}` |
-| POST | `/projects/:projectId/github/sync` | `projectId` positivo | `200`, `{message,summary,project}` |
+| POST | `/github/app/installations/start` | `intendedAction`; `projectId?` | `200`, `{url,expiresInMs}` para autorização da GitHub App |
+| GET | `/github/app/installations` | sessão | `200`, `{installations}` autorizadas ao usuário |
+| GET | `/github/app/repositories` | `projectId?` | `200`, repositórios agregados das instalações autorizadas |
+| GET | `/github/app/installations/:installationId/repositories` | instalação autorizada; `projectId?` | `200`, repositórios com disponibilidade e seleção segura |
+| PUT | `/projects/:projectId/github/integration` | instalação e repositório comprovados | `200`, integração do projeto |
+| POST | `/projects/:projectId/github/sync` | `projectId` positivo; body vazio | `202`, `{message,run}`; execução persistida iniciada ou já ativa |
+| GET | `/projects/:projectId/github/sync/status` | `projectId` positivo | `200`, `{run}` com status, progresso, summary e erro sanitizado |
 | GET | `/projects/:projectId/commits` | `projectId`, `search?` | `200`, `{commits}` |
 | GET | `/projects/:projectId/pull-requests` | `projectId`, `search?` | `200`, `{pullRequests}` |
 | GET | `/projects/:projectId/issues` | `projectId`, `search?` | `200`, `{issues}` |
