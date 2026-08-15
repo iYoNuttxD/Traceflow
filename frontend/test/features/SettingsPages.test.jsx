@@ -206,6 +206,23 @@ describe('configurações e estados restritos L2', () => {
     expect(document.body.textContent).not.toMatch(/tokenHash|csrfToken/);
   });
 
+  it('recupera a tela de segurança de uma falha fatal somente após retry explícito', async () => {
+    const user = userEvent.setup();
+    mocks.api.account.mockRejectedValueOnce({ message: 'Falha interna', status: 500 });
+    render(
+      <MemoryRouter initialEntries={['/settings/security']}>
+        <SecuritySettingsPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByTestId('contextual-error-page')).toBeInTheDocument();
+    expect(screen.queryByText('Carregando segurança...')).not.toBeInTheDocument();
+    expect(mocks.api.account).toHaveBeenCalledOnce();
+    await user.click(screen.getByRole('button', { name: 'Tentar novamente' }));
+    expect(await screen.findByText('Este dispositivo')).toBeInTheDocument();
+    expect(mocks.api.account).toHaveBeenCalledTimes(2);
+  });
+
   it('exige reautenticação antes de mostrar o formulário da primeira senha', async () => {
     mocks.api.account.mockResolvedValue({
       id: 7,
@@ -292,6 +309,20 @@ describe('configurações e estados restritos L2', () => {
     expect(
       screen.getByRole('button', { name: 'Instalar ou autorizar GitHub App' })
     ).toBeInTheDocument();
+  });
+
+  it.each([
+    ['privacidade', PrivacySettingsPage, 'deletion'],
+    ['integrações', IntegrationsSettingsPage, 'github']
+  ])('usa a página contextual quando a carga inicial de %s falha', async (_name, Page, method) => {
+    mocks.api[method].mockRejectedValueOnce({ message: 'Falha interna', status: 500 });
+    render(
+      <MemoryRouter>
+        <Page />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByTestId('contextual-error-page')).toBeInTheDocument();
   });
 
   it('separa dados e remoção da autorização GitHub em uma zona de risco', async () => {

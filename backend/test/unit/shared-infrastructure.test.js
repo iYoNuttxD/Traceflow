@@ -2,6 +2,10 @@ import express from 'express';
 import request from 'supertest';
 import { describe, expect, it, vi } from 'vitest';
 import { createErrorHandler } from '../../src/middlewares/error-handler.middleware.js';
+import {
+  createAuthenticationMiddleware,
+  parseCookies
+} from '../../src/middlewares/auth/authentication.middleware.js';
 import { notFoundMiddleware } from '../../src/middlewares/not-found.middleware.js';
 import {
   createRequestContextMiddleware,
@@ -54,6 +58,22 @@ describe('AppError', () => {
 });
 
 describe('request ID e middlewares HTTP', () => {
+  it('ignora cookies malformados sem transformar ausência de sessão em erro interno', () => {
+    expect(parseCookies('traceflow_session=abc%20123; inválido; ruim=%; tema=escuro')).toEqual({
+      traceflow_session: 'abc 123',
+      tema: 'escuro'
+    });
+  });
+
+  it('reutiliza autenticação já resolvida por middleware anterior na mesma requisição', async () => {
+    const service = { authenticate: vi.fn() };
+    const next = vi.fn();
+    const req = { auth: { user: { id: 7 }, session: { id: 9 } }, headers: {} };
+    await createAuthenticationMiddleware({ service, cookieName: 'session' })(req, {}, next);
+    expect(service.authenticate).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledWith();
+  });
+
   it('gera UUID e aceita somente identificador seguro', () => {
     expect(resolveRequestId()).toMatch(/^[0-9a-f-]{36}$/);
     expect(resolveRequestId('cliente-123')).toBe('cliente-123');

@@ -213,7 +213,7 @@ Sem `taskId`, a consulta preserva a visão paginada do projeto. Com `taskId`, re
 | POST | `/account/personal-data/export` | CSRF | `202`, metadata da exportação |
 | GET | `/account/personal-data/export/:exportId` | ID próprio | `200`, status; `404` cruzado |
 | GET | `/account/personal-data/export/:exportId/download` | ID próprio não expirado | `200`, ZIP/JSON; `410 EXPORT_EXPIRED` |
-| POST | `/account/deactivate` | `password` | `200`; `409 LAST_PROJECT_OWNER` |
+| POST | `/account/deactivate` | `password` | `200`; `409 SOLE_PROJECT_OWNER` |
 | GET/POST/DELETE | `/account/deletion-request` | POST/DELETE: `password` | compatibilidade com o ciclo L2 |
 | GET | `/account/audit-events` | `page`, `limit`, `action`, `result`, datas | `200`, página própria |
 | GET | `/projects/:projectId/audit-events` | mesmos filtros | `200` OWNER; `403` demais papéis |

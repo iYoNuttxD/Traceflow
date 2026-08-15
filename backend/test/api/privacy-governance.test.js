@@ -73,6 +73,8 @@ describe('direitos do titular e auditoria E7', () => {
     expect(download.headers['content-type']).toMatch(/application\/zip/);
     expect(Number(download.headers['content-length'])).toBeGreaterThan(0);
     expect(download.headers['content-disposition']).toMatch(/\.zip"$/);
+    const exportUser = await prisma.user.findUnique({ where: { email: 'export@example.invalid' } });
+    expect(await prisma.personalDataExport.count({ where: { userId: exportUser.id } })).toBe(1);
     await prisma.personalDataExport.update({
       where: { id },
       data: { expiresAt: new Date(Date.now() - 1000) }

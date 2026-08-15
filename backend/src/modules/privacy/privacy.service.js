@@ -1,17 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { env } from '../../config/env.js';
 import { AppError, ERROR_CODES } from '../../shared/errors/index.js';
-import { authService } from '../auth/auth.service.js';
 import { auditService, buildAuditEvent } from '../audit/audit.service.js';
 import { privacyRepository } from './privacy.repository.js';
 
-const invalidPassword = () =>
-  new AppError({
-    message: 'Senha atual inválida.',
-    statusCode: 403,
-    code: ERROR_CODES.CURRENT_PASSWORD_INVALID,
-    exposeTechnicalDetails: true
-  });
 const notFound = () =>
   new AppError({
     message: 'Recurso não encontrado.',
@@ -19,23 +11,6 @@ const notFound = () =>
     code: ERROR_CODES.RESOURCE_NOT_FOUND,
     exposeTechnicalDetails: true
   });
-
-async function requirePassword(userId, password) {
-  if (!(await authService.verifyPassword(userId, password))) throw invalidPassword();
-}
-
-async function ensureNoLastOwner(userId) {
-  const projects = await privacyRepository.lastOwnedProjects(userId);
-  if (projects.length) {
-    throw new AppError({
-      message: 'Transfira a propriedade dos projetos antes de continuar.',
-      statusCode: 409,
-      code: ERROR_CODES.LAST_PROJECT_OWNER,
-      details: projects.map((project) => ({ projectId: project.id, name: project.name })),
-      exposeTechnicalDetails: true
-    });
-  }
-}
 
 const audit = (userId, requestId, action, resourceType, resourceId, metadata) =>
   buildAuditEvent({ actorUserId: userId, requestId, action, resourceType, resourceId, metadata });
@@ -117,55 +92,10 @@ export const privacyService = {
         code: ERROR_CODES.EXPORT_EXPIRED,
         exposeTechnicalDetails: true
       });
-    return {
-      generatedAt: new Date().toISOString(),
-      exportId: record.id,
-      data: await this.personalData(userId)
-    };
-  },
-  async deactivate(userId, password, requestId) {
-    await requirePassword(userId, password);
-    await ensureNoLastOwner(userId);
-    const result = await privacyRepository.deactivate(
-      userId,
-      audit(userId, requestId, 'ACCOUNT_DEACTIVATION_REQUESTED', 'PrivacyRequest'),
-      audit(userId, requestId, 'ACCOUNT_DEACTIVATED', 'User', userId)
-    );
-    if (result.lastOwnerProjects)
-      throw new AppError({
-        message: 'Transfira a propriedade dos projetos antes de continuar.',
-        statusCode: 409,
-        code: ERROR_CODES.LAST_PROJECT_OWNER,
-        details: result.lastOwnerProjects.map((project) => ({
-          projectId: project.id,
-          name: project.name
-        })),
-        exposeTechnicalDetails: true
-      });
-    return result;
+    return record;
   },
   deletionRequest(userId) {
     return privacyRepository.pendingDeletion(userId);
-  },
-  async requestDeletion(userId, password, requestId) {
-    await requirePassword(userId, password);
-    await ensureNoLastOwner(userId);
-    const existing = await privacyRepository.pendingDeletion(userId);
-    if (existing) return existing;
-    const scheduledFor = new Date(Date.now() + env.accountDeletionGraceDays * 86400000);
-    return privacyRepository.requestDeletion(
-      userId,
-      scheduledFor,
-      audit(userId, requestId, 'ACCOUNT_DELETION_REQUESTED', 'PrivacyRequest')
-    );
-  },
-  async cancelDeletion(userId, requestId) {
-    const request = await privacyRepository.cancelDeletion(
-      userId,
-      audit(userId, requestId, 'ACCOUNT_DELETION_CANCELLED', 'PrivacyRequest')
-    );
-    if (!request) throw notFound();
-    return request;
   },
   async processDueDeletions({ now = new Date(), dryRun = true } = {}) {
     const due = await privacyRepository.dueDeletionRequests(now);

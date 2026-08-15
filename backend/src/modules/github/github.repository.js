@@ -17,9 +17,6 @@ export const githubRepository = {
       include: { user: true, session: true }
     });
   },
-  useConnectionState(id) {
-    return prisma.gitHubAppConnectionState.update({ where: { id }, data: { usedAt: new Date() } });
-  },
   async authorizeInstallationFromState({ stateId, now, userId, installation: data }) {
     try {
       return await prisma.$transaction(async (tx) => {
@@ -74,35 +71,6 @@ export const githubRepository = {
       if (error.callbackStep === 'consume_state' && !error.cause) return null;
       throw error;
     }
-  },
-  async authorizeInstallation({
-    userId,
-    githubInstallationId,
-    accountId,
-    accountLogin,
-    accountType,
-    installedAt
-  }) {
-    return prisma.$transaction(async (tx) => {
-      const installation = await tx.gitHubInstallation.upsert({
-        where: { githubInstallationId },
-        create: {
-          githubInstallationId,
-          accountId,
-          accountLogin,
-          accountType,
-          installedAt,
-          status: 'ACTIVE'
-        },
-        update: { accountId, accountLogin, accountType, status: 'ACTIVE', suspendedAt: null }
-      });
-      await tx.gitHubInstallationAuthorization.upsert({
-        where: { installationId_userId: { installationId: installation.id, userId } },
-        create: { installationId: installation.id, userId, verifiedAt: new Date() },
-        update: { verifiedAt: new Date() }
-      });
-      return installation;
-    });
   },
   findAuthorizedInstallation(userId, githubInstallationId) {
     return prisma.gitHubInstallation.findFirst({

@@ -324,35 +324,55 @@ describe('rate limiting pós-L2', () => {
         rateLimitReadMax: 80
       }
     });
-    const auth = await loginOn(navigationApp, 'navigation-rate@example.invalid');
-    const paths = [
-      '/api/auth/me',
-      '/api/auth/csrf',
-      '/api/projects',
-      '/api/settings/account',
-      '/api/settings/security/sessions',
-      '/api/settings/privacy/deletion',
-      '/api/settings/integrations/github',
-      '/api/github/app/installations'
-    ];
+    const navigationServer = await new Promise((resolve, reject) => {
+      const server = navigationApp.listen(0, '127.0.0.1', () => resolve(server));
+      server.once('error', reject);
+    });
+    try {
+      const auth = await loginOn(navigationServer, 'navigation-rate@example.invalid');
+      const paths = [
+        '/api/auth/me',
+        '/api/auth/csrf',
+        '/api/projects',
+        '/api/settings/account',
+        '/api/settings/security/sessions',
+        '/api/settings/privacy/deletion',
+        '/api/settings/integrations/github',
+        '/api/github/app/installations'
+      ];
 
-    for (let round = 0; round < 3; round += 1) {
-      const responses = await Promise.all(paths.map((path) => auth.agent.get(path)));
-      expect(responses.every((response) => response.status === 200)).toBe(true);
+      for (let round = 0; round < 3; round += 1) {
+        const responses = await Promise.all(
+          paths.map(async (path) => {
+            try {
+              return await auth.agent.get(path);
+            } catch (error) {
+              throw new Error(`GET ${path} falhou: ${error.code || error.message}`, {
+                cause: error
+              });
+            }
+          })
+        );
+        expect(responses.every((response) => response.status === 200)).toBe(true);
+      }
+      const duplicate = await Promise.all([
+        auth.agent.get('/api/settings/account'),
+        auth.agent.get('/api/settings/account')
+      ]);
+      expect(duplicate.map((response) => response.status)).toEqual([200, 200]);
+      expect(
+        (
+          await request(navigationServer)
+            .options('/api/settings/account')
+            .set('Origin', env.corsAllowedOrigins[0])
+            .set('Access-Control-Request-Method', 'GET')
+        ).status
+      ).toBe(204);
+    } finally {
+      await new Promise((resolve, reject) =>
+        navigationServer.close((error) => (error ? reject(error) : resolve()))
+      );
     }
-    const duplicate = await Promise.all([
-      auth.agent.get('/api/settings/account'),
-      auth.agent.get('/api/settings/account')
-    ]);
-    expect(duplicate.map((response) => response.status)).toEqual([200, 200]);
-    expect(
-      (
-        await request(navigationApp)
-          .options('/api/settings/account')
-          .set('Origin', env.corsAllowedOrigins[0])
-          .set('Access-Control-Request-Method', 'GET')
-      ).status
-    ).toBe(204);
   });
 
   it('mantém quotas de leitura independentes para duas contas no mesmo IP', async () => {
@@ -395,6 +415,33 @@ describe('rate limiting pós-L2', () => {
     expect(limited.headers['retry-after']).toBeDefined();
     expect(limited.headers.ratelimit).toBeDefined();
     expect(independent.status).toBe(200);
+  });
+
+  it('protege a listagem agregada de repositórios com a quota autenticada de leitura', async () => {
+    await register('rate-repositories@example.invalid');
+    const protectedApp = createApp({
+      securityConfig: {
+        ...env,
+        trustProxy: 1,
+        rateLimitGlobalMax: 1000,
+        rateLimitReadBurstWindowMs: 60_000,
+        rateLimitReadBurstMax: 2,
+        rateLimitReadWindowMs: 60_000,
+        rateLimitReadMax: 2
+      }
+    });
+    const auth = await loginOn(protectedApp, 'rate-repositories@example.invalid');
+    const path = '/api/github/app/repositories';
+
+    expect((await auth.agent.get(path)).status).toBe(200);
+    expect((await auth.agent.get(path)).status).toBe(200);
+    expect(await auth.agent.get(path)).toMatchObject({
+      status: 429,
+      body: expect.objectContaining({
+        code: 'RATE_LIMITED',
+        scope: 'authenticated-read-burst'
+      })
+    });
   });
 
   it('continua bloqueando autenticação, e-mail, mutação e exportação abusivas', async () => {

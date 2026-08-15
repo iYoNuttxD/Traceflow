@@ -71,7 +71,7 @@ describe('AuthContext', () => {
   it('restaura sessão e CSRF uma única vez mesmo sob StrictMode', async () => {
     renderProvider({ strict: true });
 
-    expect(await screen.findByTestId('auth-state')).toHaveTextContent('Daniel');
+    await waitFor(() => expect(screen.getByTestId('auth-state')).toHaveTextContent('Daniel'));
     expect(mocks.authApi.me).toHaveBeenCalledTimes(1);
     expect(mocks.authApi.me).toHaveBeenCalledWith({ skipGlobalAuthHandling: true });
     expect(mocks.authApi.csrf).toHaveBeenCalledTimes(1);
@@ -85,7 +85,7 @@ describe('AuthContext', () => {
     });
     renderProvider({ strict: true });
 
-    expect(await screen.findByTestId('auth-state')).toHaveTextContent('Visitante');
+    await waitFor(() => expect(screen.getByTestId('auth-state')).toHaveTextContent('Visitante'));
     expect(mocks.authApi.me).toHaveBeenCalledTimes(1);
     expect(mocks.authApi.me).toHaveBeenCalledWith({ skipGlobalAuthHandling: true });
     expect(mocks.authApi.csrf).not.toHaveBeenCalled();
@@ -102,7 +102,7 @@ describe('AuthContext', () => {
     });
     renderProvider();
 
-    expect(await screen.findByTestId('auth-state')).toHaveTextContent('Visitante');
+    await waitFor(() => expect(screen.getByTestId('auth-state')).toHaveTextContent('Visitante'));
     expect(screen.getByTestId('bootstrap-error')).toHaveTextContent(
       'Não foi possível conectar ao servidor do TRACEFLOW.'
     );
@@ -144,7 +144,7 @@ describe('AuthContext', () => {
     });
     renderProvider();
 
-    expect(await screen.findByTestId('auth-state')).toHaveTextContent('Visitante');
+    await waitFor(() => expect(screen.getByTestId('auth-state')).toHaveTextContent('Visitante'));
     expect(screen.getByTestId('bootstrap-error')).toHaveTextContent(
       'Não foi possível conectar ao servidor do TRACEFLOW.'
     );
@@ -160,7 +160,7 @@ describe('AuthContext', () => {
     });
     renderProvider();
 
-    expect(await screen.findByTestId('auth-state')).toHaveTextContent('Visitante');
+    await waitFor(() => expect(screen.getByTestId('auth-state')).toHaveTextContent('Visitante'));
     expect(screen.queryByTestId('bootstrap-error')).not.toBeInTheDocument();
     expect(mocks.authApi.me).toHaveBeenCalledTimes(1);
     expect(mocks.authApi.csrf).toHaveBeenCalledTimes(1);

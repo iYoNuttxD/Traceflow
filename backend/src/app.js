@@ -88,6 +88,7 @@ export function createApp({ logger = defaultLogger, readinessCheck, securityConf
       '/api/settings/integrations/github',
       '/api/settings/integrations/github-identity',
       '/api/github/app/installations',
+      '/api/github/app/repositories',
       '/api/github/app/installations/:installationId/repositories',
       '/api/projects/:projectId/github/sync/status',
       '/api/projects/:projectId/members',

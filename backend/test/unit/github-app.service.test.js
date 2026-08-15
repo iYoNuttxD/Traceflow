@@ -6,8 +6,6 @@ const mocks = vi.hoisted(() => ({
   repository: {
     createConnectionState: vi.fn(),
     findConnectionState: vi.fn(),
-    useConnectionState: vi.fn(),
-    authorizeInstallation: vi.fn(),
     authorizeInstallationFromState: vi.fn(),
     findAuthorizedInstallation: vi.fn(),
     listAuthorizedInstallations: vi.fn(),

@@ -1,6 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router';
-import { normalizeApiError, useConfirm } from '../../shared/index.js';
+import {
+  ContextualErrorPage,
+  LoadingState,
+  classifyPageError,
+  getErrorRequestId,
+  normalizeApiError,
+  useConfirm
+} from '../../shared/index.js';
 import { settingsApi } from './settings.api.js';
 import { SettingsFeedback } from './SettingsFeedback.jsx';
 import { PasswordField } from '../auth/index.js';
@@ -21,8 +28,10 @@ export function IntegrationsSettingsPage() {
       : ''
   );
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [initialError, setInitialError] = useState(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     const [nextAccount, nextIdentity, nextIntegrations] = await Promise.all([
       settingsApi.account(),
       settingsApi.githubIdentity(),
@@ -31,11 +40,23 @@ export function IntegrationsSettingsPage() {
     setAccount(nextAccount);
     setIdentity(nextIdentity);
     setIntegrations(nextIntegrations);
-  }
+  }, []);
+
+  const loadInitial = useCallback(async () => {
+    setLoading(true);
+    setInitialError(null);
+    try {
+      await load();
+    } catch (value) {
+      setInitialError(normalizeApiError(value, 'Não foi possível carregar suas integrações.'));
+    } finally {
+      setLoading(false);
+    }
+  }, [load]);
 
   useEffect(() => {
-    load().catch((value) => setError(normalizeApiError(value).message));
-  }, []);
+    void loadInitial();
+  }, [loadInitial]);
 
   async function removeAuthorization(id) {
     if (
@@ -103,6 +124,18 @@ export function IntegrationsSettingsPage() {
       setError(normalizeApiError(value).message);
       setAuthorizing(false);
     }
+  }
+
+  if (loading) return <LoadingState message="Carregando integrações..." />;
+  if (initialError) {
+    return (
+      <ContextualErrorPage
+        type={classifyPageError(initialError)}
+        onRetry={loadInitial}
+        requestId={getErrorRequestId(initialError)}
+        embedded
+      />
+    );
   }
 
   return (

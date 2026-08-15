@@ -53,7 +53,7 @@ export const privacyController = {
   ),
   downloadExport: asyncHandler(async (req, res) => {
     await privacyService.downloadExport(req.auth.user.id, req.params.exportId);
-    const payload = await settingsService.exportData(req.auth.user.id, req.requestId);
+    const payload = await settingsService.buildExportArchive(req.auth.user.id);
     await auditService.recordOperational({
       actorUserId: req.auth.user.id,
       requestId: req.requestId,

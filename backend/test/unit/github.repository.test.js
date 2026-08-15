@@ -12,7 +12,7 @@ const database = vi.hoisted(() => {
   return {
     tx,
     prisma: {
-      gitHubAppConnectionState: { create: method(), findUnique: method(), update: method() },
+      gitHubAppConnectionState: { create: method(), findUnique: method() },
       gitHubInstallation: {
         findFirst: method(),
         findMany: method(),
@@ -36,7 +36,6 @@ describe('persistência de metadados da GitHub App', () => {
   it('persiste state de uso único e consulta autorização sem credenciais', async () => {
     await githubRepository.createConnectionState({ tokenHash: 'hash' });
     await githubRepository.findConnectionState('hash');
-    await githubRepository.useConnectionState(3);
     await githubRepository.findAuthorizedInstallation(7, 77);
     await githubRepository.listAuthorizedInstallations(7);
     await githubRepository.findIntegration(9);
@@ -56,25 +55,6 @@ describe('persistência de metadados da GitHub App', () => {
     });
     expect(database.prisma.projectGitHubIntegration.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { githubRepositoryId: { in: ['501', '502'] } } })
-    );
-  });
-
-  it('faz upsert transacional da instalação e da autorização do usuário', async () => {
-    database.tx.gitHubInstallation.upsert.mockResolvedValue({ id: 12 });
-    await expect(
-      githubRepository.authorizeInstallation({
-        userId: 7,
-        githubInstallationId: '77',
-        accountId: '700',
-        accountLogin: 'traceflow',
-        accountType: 'Organization',
-        installedAt: new Date('2030-01-01')
-      })
-    ).resolves.toEqual({ id: 12 });
-    expect(database.tx.gitHubInstallationAuthorization.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { installationId_userId: { installationId: 12, userId: 7 } }
-      })
     );
   });
 

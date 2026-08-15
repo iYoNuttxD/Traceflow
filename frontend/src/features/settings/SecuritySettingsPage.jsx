@@ -1,7 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useLocation } from 'react-router';
 import { authApi, PasswordField, useAuth } from '../auth/index.js';
-import { LoadingState, normalizeApiError, useConfirm } from '../../shared/index.js';
+import {
+  ContextualErrorPage,
+  LoadingState,
+  classifyPageError,
+  getErrorRequestId,
+  normalizeApiError,
+  useConfirm
+} from '../../shared/index.js';
 import { settingsApi } from './settings.api.js';
 import { SettingsFeedback } from './SettingsFeedback.jsx';
 
@@ -25,19 +32,29 @@ export function SecuritySettingsPage() {
       : ''
   );
   const [error, setError] = useState('');
+  const [initialError, setInitialError] = useState(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     const [nextAccount, nextSessions] = await Promise.all([
       settingsApi.account(),
       settingsApi.sessions()
     ]);
     setAccount(nextAccount);
     setSessions(nextSessions);
-  }
+  }, []);
+
+  const loadInitial = useCallback(async () => {
+    setInitialError(null);
+    try {
+      await load();
+    } catch (value) {
+      setInitialError(normalizeApiError(value, 'Não foi possível carregar sua segurança.'));
+    }
+  }, [load]);
 
   useEffect(() => {
-    load().catch((value) => setError(normalizeApiError(value).message));
-  }, []);
+    void loadInitial();
+  }, [loadInitial]);
 
   async function run(operation, success) {
     setError('');
@@ -102,6 +119,17 @@ export function SecuritySettingsPage() {
     setPassword((current) => ({ ...current, [field]: value }));
     setPasswordErrors((current) => ({ ...current, [field]: undefined }));
     setError('');
+  }
+
+  if (!account && initialError) {
+    return (
+      <ContextualErrorPage
+        type={classifyPageError(initialError)}
+        onRetry={loadInitial}
+        requestId={getErrorRequestId(initialError)}
+        embedded
+      />
+    );
   }
 
   return (

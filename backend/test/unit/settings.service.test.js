@@ -270,6 +270,24 @@ describe('configurações de conta L2', () => {
     expect(result.zip.toString()).not.toMatch(/passwordHash|tokenHash|csrfToken|installationToken/);
   });
 
+  it('gera o arquivo de uma exportação já registrada sem criar outro registro', async () => {
+    mocks.repository.exportData.mockResolvedValue({
+      ...activeUser,
+      emailVerifiedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      memberships: [],
+      responsibleTasks: [],
+      sessions: [],
+      privacyRequests: [],
+      auditEvents: [],
+      githubInstallationAuthorizations: []
+    });
+    const result = await settingsService.buildExportArchive(7, new Date('2030-01-01T00:00:00Z'));
+    expect(result.zip.subarray(0, 2).toString()).toBe('PK');
+    expect(mocks.repository.recordExport).not.toHaveBeenCalled();
+  });
+
   it('remove somente autorização pessoal do GitHub após confirmar senha', async () => {
     mocks.repository.removeGithubAuthorization.mockResolvedValue({
       id: 5,

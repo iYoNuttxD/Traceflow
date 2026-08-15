@@ -1,5 +1,12 @@
-import { useEffect, useState } from 'react';
-import { normalizeApiError, useConfirm } from '../../shared/index.js';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  ContextualErrorPage,
+  LoadingState,
+  classifyPageError,
+  getErrorRequestId,
+  normalizeApiError,
+  useConfirm
+} from '../../shared/index.js';
 import { useAuth } from '../auth/index.js';
 import { settingsApi } from './settings.api.js';
 import { SettingsFeedback } from './SettingsFeedback.jsx';
@@ -21,12 +28,25 @@ export function PrivacySettingsPage() {
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  async function load() {
+  const [loading, setLoading] = useState(true);
+  const [initialError, setInitialError] = useState(null);
+  const load = useCallback(async () => {
     setRequest(await settingsApi.deletion());
-  }
-  useEffect(() => {
-    load().catch((value) => setError(normalizeApiError(value).message));
   }, []);
+  const loadInitial = useCallback(async () => {
+    setLoading(true);
+    setInitialError(null);
+    try {
+      await load();
+    } catch (value) {
+      setInitialError(normalizeApiError(value, 'Não foi possível carregar sua privacidade.'));
+    } finally {
+      setLoading(false);
+    }
+  }, [load]);
+  useEffect(() => {
+    void loadInitial();
+  }, [loadInitial]);
   async function run(operation, success) {
     setError('');
     try {
@@ -37,6 +57,17 @@ export function PrivacySettingsPage() {
     } catch (value) {
       setError(normalizeApiError(value).message);
     }
+  }
+  if (loading) return <LoadingState message="Carregando privacidade..." />;
+  if (initialError) {
+    return (
+      <ContextualErrorPage
+        type={classifyPageError(initialError)}
+        onRetry={loadInitial}
+        requestId={getErrorRequestId(initialError)}
+        embedded
+      />
+    );
   }
   return (
     <>

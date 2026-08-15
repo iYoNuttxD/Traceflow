@@ -57,6 +57,61 @@ function throwOwnership(blocked) {
   );
 }
 
+async function buildExportArchive(userId, now) {
+  const account = await settingsRepository.account(userId);
+  if (!account || !['ACTIVE', 'DELETION_PENDING'].includes(account.accountStatus)) {
+    throw error(
+      'Exportação indisponível para o estado atual.',
+      403,
+      ERROR_CODES.ACCOUNT_NOT_ACTIVE
+    );
+  }
+  const data = await settingsRepository.exportData(userId);
+  const projects = data.memberships.map(({ project }) => ({
+    id: project.id,
+    name: project.name,
+    description: project.description,
+    status: project.status,
+    createdAt: project.createdAt,
+    updatedAt: project.updatedAt
+  }));
+  const requirements = data.memberships.flatMap(({ project }) =>
+    project.requirements.map((requirement) => ({ ...requirement, projectId: project.id }))
+  );
+  const sections = {
+    'profile.json': {
+      id: data.id,
+      name: data.name,
+      username: data.username,
+      email: data.email,
+      accountStatus: data.accountStatus,
+      emailVerifiedAt: data.emailVerifiedAt,
+      createdAt: data.createdAt,
+      updatedAt: data.updatedAt
+    },
+    'memberships.json': data.memberships.map(({ project, ...membership }) => ({
+      ...membership,
+      project: { id: project.id, name: project.name, status: project.status }
+    })),
+    'projects.json': projects,
+    'requirements.json': requirements,
+    'tasks.json': data.responsibleTasks,
+    'sessions.json': data.sessions,
+    'privacy-requests.json': data.privacyRequests,
+    'audit-events.json': data.auditEvents,
+    'github-integrations.json': data.githubInstallationAuthorizations
+  };
+  const files = Object.keys(sections);
+  const manifest = {
+    schemaVersion: '1.0',
+    generatedAt: now.toISOString(),
+    format: 'TRACEFLOW_USER_DATA_EXPORT',
+    files: ['manifest.json', ...files]
+  };
+  const zip = createJsonZip({ 'manifest.json': manifest, ...sections }, now);
+  return { zip, filename: `traceflow-export-${now.toISOString().slice(0, 10)}.zip` };
+}
+
 export const settingsService = {
   async account(userId, session) {
     const user = await settingsRepository.account(userId);
@@ -397,58 +452,11 @@ export const settingsService = {
     }
     return result;
   },
+  buildExportArchive(userId, now = new Date()) {
+    return buildExportArchive(userId, now);
+  },
   async exportData(userId, requestId, now = new Date()) {
-    const account = await settingsRepository.account(userId);
-    if (!account || !['ACTIVE', 'DELETION_PENDING'].includes(account.accountStatus)) {
-      throw error(
-        'Exportação indisponível para o estado atual.',
-        403,
-        ERROR_CODES.ACCOUNT_NOT_ACTIVE
-      );
-    }
-    const data = await settingsRepository.exportData(userId);
-    const projects = data.memberships.map(({ project }) => ({
-      id: project.id,
-      name: project.name,
-      description: project.description,
-      status: project.status,
-      createdAt: project.createdAt,
-      updatedAt: project.updatedAt
-    }));
-    const requirements = data.memberships.flatMap(({ project }) =>
-      project.requirements.map((requirement) => ({ ...requirement, projectId: project.id }))
-    );
-    const sections = {
-      'profile.json': {
-        id: data.id,
-        name: data.name,
-        username: data.username,
-        email: data.email,
-        accountStatus: data.accountStatus,
-        emailVerifiedAt: data.emailVerifiedAt,
-        createdAt: data.createdAt,
-        updatedAt: data.updatedAt
-      },
-      'memberships.json': data.memberships.map(({ project, ...membership }) => ({
-        ...membership,
-        project: { id: project.id, name: project.name, status: project.status }
-      })),
-      'projects.json': projects,
-      'requirements.json': requirements,
-      'tasks.json': data.responsibleTasks,
-      'sessions.json': data.sessions,
-      'privacy-requests.json': data.privacyRequests,
-      'audit-events.json': data.auditEvents,
-      'github-integrations.json': data.githubInstallationAuthorizations
-    };
-    const files = Object.keys(sections);
-    const manifest = {
-      schemaVersion: '1.0',
-      generatedAt: now.toISOString(),
-      format: 'TRACEFLOW_USER_DATA_EXPORT',
-      files: ['manifest.json', ...files]
-    };
-    const zip = createJsonZip({ 'manifest.json': manifest, ...sections }, now);
+    const archive = await buildExportArchive(userId, now);
     const expiresAt = new Date(now.getTime() + (env.exportFileTtlMinutes || 15) * 60000);
     const record = await settingsRepository.recordExport(
       userId,
@@ -458,7 +466,7 @@ export const settingsService = {
         format: 'ZIP_JSON'
       })
     );
-    return { zip, record, filename: `traceflow-export-${now.toISOString().slice(0, 10)}.zip` };
+    return { ...archive, record };
   },
   async githubIntegrations(userId) {
     const authorizations = await settingsRepository.listGithubAuthorizations(userId);
