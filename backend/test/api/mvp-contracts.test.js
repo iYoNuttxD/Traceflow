@@ -165,7 +165,7 @@ describe('contratos HTTP de projetos', () => {
         githubRepo: 'fake-repo-create'
       }
     });
-    expect(response.body.project.accessCode).toMatch(/^TRC-/);
+    expect(response.body.project).not.toHaveProperty('accessCode');
   });
 
   it('preserva o erro 400 para body inválido', async () => {

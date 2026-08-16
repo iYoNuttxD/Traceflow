@@ -194,23 +194,28 @@ export function ProjectMembersPanel({ projectId, onCountChange, onMembershipLoad
               member.isActive && member.role === 'OWNER' && activeOwnerCount === 1;
             return (
               <article className="member-item" key={member.id}>
-                <div className="member-identity">
-                  <strong>
-                    {member.user.name}
-                    {member.id === currentMembership?.id ? ' — você' : ''}
-                  </strong>
-                  {member.user.username && <span>@{member.user.username}</span>}
-                  <span>{member.user.email || 'E-mail protegido'}</span>
+                <div className="member-item-header">
+                  <div className="member-identity">
+                    <strong>
+                      {member.user.name}
+                      {member.id === currentMembership?.id ? ' — você' : ''}
+                    </strong>
+                    {member.user.username && <span>@{member.user.username}</span>}
+                    <span>{member.user.email || 'E-mail protegido'}</span>
+                  </div>
+                  <span className={`status-chip ${member.isActive ? 'status-active' : ''}`}>
+                    {member.isActive ? 'Ativo' : 'Inativo'}
+                  </span>
                 </div>
-                <span className={`status-chip ${member.isActive ? 'status-active' : ''}`}>
-                  {member.isActive ? 'Ativo' : 'Inativo'}
+                <span className="member-joined-at">
+                  Entrou em {formatDateTime(member.joinedAt)}
                 </span>
-                <span>Entrou em {formatDateTime(member.joinedAt)}</span>
                 {isOwner ? (
                   <div className="member-actions">
-                    <label>
-                      Perfil de {member.user.name}
+                    <label className="field member-role-field">
+                      <span>Perfil</span>
                       <select
+                        aria-label={`Perfil de ${member.user.name}`}
                         value={member.role}
                         disabled={Boolean(busy) || isLastActiveOwner}
                         aria-describedby={isLastActiveOwner ? `last-owner-${member.id}` : undefined}
@@ -282,21 +287,32 @@ export function ProjectMembersPanel({ projectId, onCountChange, onMembershipLoad
         </div>
       )}
 
-      <button
-        className="button button-secondary"
-        type="button"
-        disabled={Boolean(busy) || loading}
-        onClick={() => void leaveProject()}
-      >
-        Sair do projeto
-      </button>
+      {currentMembership && (
+        <section className="membership-self-service" aria-labelledby="membership-self-title">
+          <div>
+            <h3 id="membership-self-title">Sua participação</h3>
+            <p>
+              Você pode sair deste projeto a qualquer momento, respeitando a regra do último
+              proprietário.
+            </p>
+          </div>
+          <button
+            className="button button-danger button-compact"
+            type="button"
+            disabled={Boolean(busy) || loading || (isOwner && activeOwnerCount === 1)}
+            onClick={() => void leaveProject()}
+          >
+            Sair do projeto
+          </button>
+        </section>
+      )}
 
       {isOwner && (
         <section className="invitation-management" aria-labelledby="invitations-title">
           <h3 id="invitations-title">Convites</h3>
           <form className="member-form invitation-form" onSubmit={submitInvitation}>
-            <label>
-              E-mail do convite
+            <label className="field">
+              <span>E-mail</span>
               <input
                 type="email"
                 required
@@ -307,9 +323,10 @@ export function ProjectMembersPanel({ projectId, onCountChange, onMembershipLoad
                 }
               />
             </label>
-            <label>
-              Perfil do convite
+            <label className="field">
+              <span>Perfil</span>
               <select
+                aria-label="Perfil do convite"
                 disabled={Boolean(busy)}
                 value={invite.role}
                 onChange={(event) => setInvite((value) => ({ ...value, role: event.target.value }))}

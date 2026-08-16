@@ -48,6 +48,7 @@ async function createFixture(repositoryIds = ['501', '502', '503']) {
       data: {
         name: `Projeto ${repositoryId}`,
         responsibleTeam: 'Equipe cardinalidade',
+        accessCode: `TEST-CARDINALITY-${repositoryId}`,
         githubRepositoryId: repositoryId,
         githubRepositoryFullName: `traceflow/repo-${repositoryId}`
       }
@@ -353,7 +354,11 @@ describe('cardinalidade persistida da GitHub App', () => {
     ).rejects.toMatchObject({ code: 'P2002' });
 
     const other = await prisma.project.create({
-      data: { name: 'Outro projeto', responsibleTeam: 'Equipe cardinalidade' }
+      data: {
+        name: 'Outro projeto',
+        responsibleTeam: 'Equipe cardinalidade',
+        accessCode: 'TEST-CARDINALITY-OTHER'
+      }
     });
     await expect(
       prisma.projectGitHubIntegration.create({

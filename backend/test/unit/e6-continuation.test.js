@@ -119,6 +119,12 @@ describe('matriz RBAC da E6', () => {
     expect(
       authorizationService.requiredRole({ method: 'POST', path: '/projects/1/github/sync' })
     ).toBe('MANAGER');
+    expect(
+      authorizationService.requiredRole({ method: 'GET', path: '/projects/1/access-code' })
+    ).toBe('OWNER');
+    expect(
+      authorizationService.requiredRole({ method: 'PATCH', path: '/projects/1/access-code' })
+    ).toBe('OWNER');
     expect(authorizationService.requiredRole({ method: 'GET', path: '/projects/1/tasks' })).toBe(
       'VIEWER'
     );

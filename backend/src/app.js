@@ -92,7 +92,9 @@ export function createApp({ logger = defaultLogger, readinessCheck, securityConf
       '/api/github/app/installations/:installationId/repositories',
       '/api/projects/:projectId/github/sync/status',
       '/api/projects/:projectId/members',
-      '/api/projects/:projectId/invitations'
+      '/api/projects/:projectId/invitations',
+      '/api/projects/:projectId/access-code',
+      '/api/projects/invitations/mine'
     ],
     rateLimiters.authenticatedReadBurst,
     rateLimiters.authenticatedReadSustained
@@ -106,6 +108,12 @@ export function createApp({ logger = defaultLogger, readinessCheck, securityConf
     rateLimiters.sensitiveMutation,
     rateLimiters.emailDelivery
   );
+  app.post(
+    '/api/projects/:projectId/access-code/regenerate',
+    createSensitiveAttemptLogger({ logger, event: 'project_access_code_regenerate' }),
+    rateLimiters.sensitiveMutation
+  );
+  app.patch('/api/projects/:projectId/access-code', rateLimiters.sensitiveMutation);
   app.delete('/api/settings/account/email-change', rateLimiters.sensitiveMutation);
   app.post(
     [
@@ -142,7 +150,9 @@ export function createApp({ logger = defaultLogger, readinessCheck, securityConf
     [
       '/api/projects/invitations/details',
       '/api/projects/invitations/accept',
-      '/api/projects/invitations/decline'
+      '/api/projects/invitations/decline',
+      '/api/projects/invitations/:invitationId/accept',
+      '/api/projects/invitations/:invitationId/decline'
     ],
     createSensitiveAttemptLogger({ logger, event: 'project_invitation_response' }),
     rateLimiters.sensitiveMutation

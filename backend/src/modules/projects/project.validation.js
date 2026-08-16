@@ -73,8 +73,15 @@ export const joinProjectBodySchema = strictObject({
     field: 'Código de acesso',
     max: INPUT_LIMITS.accessCode,
     message: 'Informe o código de acesso do projeto.'
-  }).transform((value) => value.toUpperCase()),
-  ...memberFields
+  }).transform((value) => value.toUpperCase())
+});
+
+export const joinProjectDetailsQuerySchema = joinProjectBodySchema;
+
+export const accessCodeRoleBodySchema = strictObject({
+  role: z.enum(['MEMBER', 'VIEWER'], {
+    error: 'O perfil do código deve ser Membro ou Visualizador.'
+  })
 });
 
 export const githubSyncSettingsBodySchema = strictObject({

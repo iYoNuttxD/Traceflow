@@ -21,7 +21,7 @@ async function projectWithLegacyIdentity() {
     }
   });
   const project = await prisma.project.create({
-    data: { name: 'Projeto E11', responsibleTeam: 'Equipe E11' }
+    data: { name: 'Projeto E11', responsibleTeam: 'Equipe E11', accessCode: 'TEST-E11-PROJECT' }
   });
   await prisma.projectMembership.create({
     data: { projectId: project.id, userId: user.id, role: 'MEMBER', isActive: true }
@@ -124,7 +124,7 @@ describe('E11 reconciliação legada no MySQL', () => {
   it('bloqueia User sem membership ativa e Task de outro projeto', async () => {
     const { user, project } = await projectWithLegacyIdentity();
     const otherProject = await prisma.project.create({
-      data: { name: 'Outro', responsibleTeam: 'Outra' }
+      data: { name: 'Outro', responsibleTeam: 'Outra', accessCode: 'TEST-E11-OTHER' }
     });
     const task = await prisma.task.create({
       data: { projectId: otherProject.id, title: 'Externa', responsible: 'Legado' }
@@ -138,7 +138,7 @@ describe('E11 reconciliação legada no MySQL', () => {
 
   it('preserva movimento sem evidência e não apaga histórico', async () => {
     const project = await prisma.project.create({
-      data: { name: 'Projeto', responsibleTeam: 'Equipe' }
+      data: { name: 'Projeto', responsibleTeam: 'Equipe', accessCode: 'TEST-E11-HISTORY' }
     });
     const task = await prisma.task.create({ data: { projectId: project.id, title: 'Tarefa' } });
     const member = await prisma.projectMember.create({

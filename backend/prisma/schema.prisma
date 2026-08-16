@@ -275,7 +275,7 @@ model ProjectInvitation {
 
 // Entidade central do TRACEFLOW, com aliases GitHub legados preservados por compatibilidade.
 model Project {
-  id                       Int       @id @default(autoincrement())
+  id                       Int         @id @default(autoincrement())
   name                     String
   description              String?
   responsibleTeam          String
@@ -289,16 +289,17 @@ model Project {
   githubDefaultBranch      String?
   githubIsPrivate          Boolean?
   githubIntegratedAt       DateTime?
-  githubAutoSyncEnabled    Boolean   @default(false)
+  githubAutoSyncEnabled    Boolean     @default(false)
   githubLastSyncAt         DateTime?
   githubSyncStatus         String?
   githubLastSyncError      String?
   githubLastSyncAttemptAt  DateTime?
-  status                   String    @default("ATIVO")
-  accessCode               String?   @unique
+  status                   String      @default("ATIVO")
+  accessCode               String      @unique
+  accessCodeRole           ProjectRole @default(MEMBER)
   inviteLink               String?
-  createdAt                DateTime  @default(now())
-  updatedAt                DateTime  @updatedAt
+  createdAt                DateTime    @default(now())
+  updatedAt                DateTime    @updatedAt
 
   requirements           Requirement[]
   tasks                  Task[]

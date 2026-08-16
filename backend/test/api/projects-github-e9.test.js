@@ -180,6 +180,7 @@ describe('Projetos e integração GitHub E9', () => {
         responsibleTeam: 'Equipe múltipla'
       });
       expect(response.status).toBe(201);
+      expect(response.body.project).not.toHaveProperty('accessCode');
       projects.push(response.body.project);
     }
 
@@ -190,6 +191,15 @@ describe('Projetos e integração GitHub E9', () => {
     expect(integrations).toHaveLength(3);
     expect(new Set(integrations.map(({ projectId }) => projectId)).size).toBe(3);
     expect(new Set(integrations.map(({ githubRepositoryId }) => githubRepositoryId)).size).toBe(3);
+    const storedProjects = await prisma.project.findMany({
+      where: { id: { in: projects.map(({ id }) => id) } },
+      select: { accessCode: true, accessCodeRole: true }
+    });
+    expect(storedProjects).toHaveLength(3);
+    expect(storedProjects.every(({ accessCode }) => /^TRC-[0-9A-F]{32}$/.test(accessCode))).toBe(
+      true
+    );
+    expect(storedProjects.every(({ accessCodeRole }) => accessCodeRole === 'MEMBER')).toBe(true);
 
     githubBoundary.client = createGithubDouble();
     githubBoundary.client.getRepository.mockImplementation(async (ownerName, repositoryName) =>

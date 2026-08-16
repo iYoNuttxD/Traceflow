@@ -8,6 +8,11 @@ const apiMock = vi.hoisted(() => ({
   post: vi.fn(),
   put: vi.fn()
 }));
+const invitationsMock = vi.hoisted(() => ({
+  list: vi.fn(),
+  accept: vi.fn(),
+  decline: vi.fn()
+}));
 
 vi.mock('../../src/features/projects/api/projects.api.js', () => ({
   projectsApi: {
@@ -27,6 +32,9 @@ vi.mock('../../src/features/projects/api/projects.api.js', () => ({
     create: (data) => apiMock.post('/projects', data),
     createFromGithub: (data) => apiMock.post('/projects/from-github', data)
   }
+}));
+vi.mock('../../src/features/invitations/personal-invitations.api.js', () => ({
+  personalInvitationsApi: invitationsMock
 }));
 
 import { ProjectsPage } from '../../src/pages/ProjectsPage.jsx';
@@ -87,6 +95,7 @@ function mockInitialRequests({
 describe('ProjectsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    invitationsMock.list.mockResolvedValue([]);
   });
 
   it('mostra loading e depois o estado vazio', async () => {
@@ -95,6 +104,55 @@ describe('ProjectsPage', () => {
 
     expect(screen.getByText('Carregando projetos...')).toBeInTheDocument();
     expect(await screen.findByText('Nenhum projeto cadastrado ainda.')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Entrar em um projeto' })).toBeInTheDocument();
+    expect(screen.getByText('Nenhum convite pendente.')).toBeInTheDocument();
+  });
+
+  it('lista convites pessoais, aceita e oferece abertura do projeto', async () => {
+    const user = userEvent.setup();
+    invitationsMock.list.mockResolvedValue([
+      {
+        id: 21,
+        project: { id: 9, name: 'Projeto convidado' },
+        role: 'VIEWER',
+        expiresAt: '2030-08-20T12:00:00.000Z'
+      }
+    ]);
+    invitationsMock.accept.mockResolvedValue({ membership: { projectId: 9, role: 'VIEWER' } });
+    mockInitialRequests({ projects: [] });
+    renderPage();
+
+    expect(await screen.findByText('Projeto convidado')).toBeInTheDocument();
+    expect(screen.getByText('Perfil: Visualizador')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Aceitar' }));
+    expect(invitationsMock.accept).toHaveBeenCalledWith(21);
+    expect(
+      await screen.findByText('Você agora participa do projeto “Projeto convidado”.')
+    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Abrir projeto' })).toHaveAttribute(
+      'href',
+      '/projects/9'
+    );
+  });
+
+  it('recusa convite pessoal e o remove da lista pendente', async () => {
+    const user = userEvent.setup();
+    invitationsMock.list.mockResolvedValue([
+      {
+        id: 22,
+        project: { id: 10, name: 'Projeto recusado' },
+        role: 'MEMBER',
+        expiresAt: '2030-08-20T12:00:00.000Z'
+      }
+    ]);
+    invitationsMock.decline.mockResolvedValue({});
+    mockInitialRequests({ projects: [] });
+    renderPage();
+
+    await user.click(await screen.findByRole('button', { name: 'Recusar' }));
+    expect(invitationsMock.decline).toHaveBeenCalledWith(22);
+    expect(await screen.findByText('Convite recusado.')).toBeInTheDocument();
+    expect(screen.queryByText('Projeto recusado')).not.toBeInTheDocument();
   });
 
   it('renderiza a lista no formato atual', async () => {

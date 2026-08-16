@@ -9,6 +9,10 @@ export const invitationParams = strictObject({
   projectId: positiveInteger(),
   invitationId: positiveInteger()
 });
+
+export const personalInvitationParams = strictObject({
+  invitationId: positiveInteger('ID do convite inválido.')
+});
 export const invitationProjectParams = strictObject({ projectId: positiveInteger() });
 export const createInvitationBody = strictObject({
   email,

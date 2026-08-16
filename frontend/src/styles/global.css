@@ -509,6 +509,26 @@ a {
   align-items: start;
 }
 
+.projects-entry-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.card-description {
+  margin: -0.5rem 0 1rem;
+  color: #667085;
+  line-height: 1.5;
+}
+
+.project-join-quick-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: end;
+}
+
 .details-layout {
   grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.6fr);
 }
@@ -1128,13 +1148,47 @@ a {
   margin: 0;
 }
 
-.overview-grid div {
+.overview-grid > div {
   display: grid;
   gap: 0.35rem;
   padding: 0.85rem;
   border: 1px solid #eef1f6;
   border-radius: 10px;
   background: #fbfcfe;
+}
+
+.overview-grid .overview-access-code {
+  grid-column: span 2;
+}
+
+.overview-access-code dd,
+.access-code-control {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.access-code-value-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.access-code-value-row code {
+  max-width: 100%;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #dbe2ee;
+  border-radius: 8px;
+  background: #fff;
+  overflow-wrap: anywhere;
+}
+
+.access-code-role {
+  max-width: 280px;
+}
+
+.access-code-copy {
+  justify-self: start;
 }
 
 .overview-grid dt {
@@ -1238,6 +1292,21 @@ a {
   background: #fbfcfe;
 }
 
+.member-item-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.member-joined-at {
+  margin-bottom: 0.6rem;
+}
+
+.member-role-field {
+  max-width: 260px;
+}
+
 .member-item span {
   color: #667085;
   font-size: 0.86rem;
@@ -1289,6 +1358,28 @@ a {
   margin-top: 1rem;
   padding-top: 1.25rem;
   border-top: 1px solid #e2e7f0;
+}
+
+.membership-self-service {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid #e2e7f0;
+  border-radius: 10px;
+  background: #fbfcfe;
+}
+
+.membership-self-service h3,
+.membership-self-service p {
+  margin: 0;
+}
+
+.membership-self-service p {
+  margin-top: 0.3rem;
+  color: #667085;
+  line-height: 1.45;
 }
 
 .invitation-form {
@@ -1363,6 +1454,69 @@ a {
 
 .join-form {
   grid-template-columns: 1fr;
+}
+
+.join-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 0 0 1.25rem;
+}
+
+.join-details div {
+  padding: 1rem;
+  border: 1px solid #e2e7f0;
+  border-radius: 10px;
+  background: #fbfcfe;
+}
+
+.join-details dt {
+  color: #667085;
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.join-details dd {
+  margin: 0.35rem 0 0;
+  color: #172033;
+  font-weight: 800;
+}
+
+.personal-invitation-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.personal-invitation-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem;
+  border: 1px solid #e2e7f0;
+  border-radius: 10px;
+  background: #fbfcfe;
+}
+
+.personal-invitation-item > div:first-child {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.personal-invitation-item span {
+  color: #667085;
+  font-size: 0.86rem;
+}
+
+.personal-invitation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.invitation-open-project {
+  margin-bottom: 1rem;
 }
 
 .join-project-link {
@@ -2659,6 +2813,7 @@ a {
 
 @media (max-width: 860px) {
   .projects-layout,
+  .projects-entry-grid,
   .details-layout,
   .tasks-layout,
   .requirements-layout,
@@ -2669,10 +2824,25 @@ a {
   .kanban-section-header,
   .kanban-board,
   .overview-grid,
+  .join-details,
   .member-form-wide,
   .repository-summary,
   .repository-filters {
     grid-template-columns: 1fr;
+  }
+
+  .overview-grid .overview-access-code {
+    grid-column: auto;
+  }
+
+  .project-join-quick-form {
+    grid-template-columns: 1fr;
+  }
+
+  .membership-self-service,
+  .personal-invitation-item {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .page-header {

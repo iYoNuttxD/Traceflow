@@ -5,6 +5,7 @@ import {
   ProjectServiceError,
   validateGithubAutoSyncEnabled
 } from '../project.schema.js';
+import { buildProjectAccessData } from './project-access-code.service.js';
 
 export const projectGithubService = {
   async createProjectFromGithubRepository(data, ownerUserId) {
@@ -32,7 +33,8 @@ export const projectGithubService = {
       githubDefaultBranch: repository.defaultBranch,
       githubIsPrivate: repository.private,
       githubIntegratedAt: new Date(),
-      githubSyncStatus: 'PENDENTE'
+      githubSyncStatus: 'PENDENTE',
+      ...(await buildProjectAccessData())
     };
     try {
       return await projectRepository.createGithubAppProject(

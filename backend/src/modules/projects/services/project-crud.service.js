@@ -4,7 +4,7 @@ import {
   parseProjectId,
   ProjectServiceError
 } from '../project.schema.js';
-import { buildProjectInviteData } from './project-invite.service.js';
+import { buildProjectAccessData } from './project-access-code.service.js';
 
 function protectGithubRepositoryIdentity(project, projectData) {
   const hasGithubIdentity = ['githubOwner', 'githubRepo', 'githubUrl'].some(
@@ -33,7 +33,7 @@ export const projectCrudService = {
   async createProject(data, ownerUserId) {
     const projectData = {
       ...buildEditableProjectData(data, true),
-      ...(await buildProjectInviteData())
+      ...(await buildProjectAccessData())
     };
     return projectRepository.createProject(projectData, ownerUserId);
   },

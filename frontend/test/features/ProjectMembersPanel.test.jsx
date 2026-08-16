@@ -56,6 +56,7 @@ describe('ProjectMembersPanel', () => {
     expect(screen.getByText('p***@example.invalid')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Desativar' })).not.toBeInTheDocument();
     expect(apiMock.get).not.toHaveBeenCalledWith('/projects/1/invitations');
+    expect(screen.getByRole('heading', { name: 'Sua participação' })).toBeInTheDocument();
   });
 
   it('permite ao OWNER alterar papel e recarrega a lista', async () => {
@@ -64,6 +65,7 @@ describe('ProjectMembersPanel', () => {
     const user = userEvent.setup();
     renderPanel();
     const select = await screen.findByLabelText('Perfil de Pessoa artificial');
+    expect(select.closest('label')).toHaveTextContent(/^Perfil/);
     await user.selectOptions(select, 'MANAGER');
     await waitFor(() =>
       expect(apiMock.patch).toHaveBeenCalledWith('/projects/1/members/2', { role: 'MANAGER' })
@@ -95,7 +97,7 @@ describe('ProjectMembersPanel', () => {
     await user.click(await screen.findByRole('button', { name: 'Desativar' }));
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Desativar' }));
     expect(apiMock.delete).toHaveBeenCalledWith('/projects/1/members/2');
-    await user.type(screen.getByLabelText('E-mail do convite'), 'invite@example.invalid');
+    await user.type(screen.getByLabelText('E-mail'), 'invite@example.invalid');
     await user.selectOptions(screen.getByLabelText('Perfil do convite'), 'VIEWER');
     await user.click(screen.getByRole('button', { name: 'Enviar convite' }));
     await waitFor(() =>

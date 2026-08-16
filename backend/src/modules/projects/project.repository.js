@@ -43,12 +43,6 @@ export const projectRepository = {
     });
   },
 
-  async findProjectByAccessCode(accessCode) {
-    return prisma.project.findUnique({
-      where: { accessCode }
-    });
-  },
-
   async updateProject(id, data) {
     return prisma.project.update({
       where: { id },
@@ -158,22 +152,6 @@ export const projectRepository = {
         ...data,
         projectId
       }
-    });
-  },
-
-  async upsertProjectMembership(projectId, userId, role = 'MEMBER') {
-    const normalizedRole =
-      { DONO: 'OWNER', GERENTE: 'MANAGER', MEMBRO: 'MEMBER', VISUALIZADOR: 'VIEWER' }[role] || role;
-    return prisma.projectMembership.upsert({
-      where: { projectId_userId: { projectId, userId } },
-      create: {
-        projectId,
-        userId,
-        role: ['OWNER', 'MANAGER', 'MEMBER', 'VIEWER'].includes(normalizedRole)
-          ? normalizedRole
-          : 'MEMBER'
-      },
-      update: { isActive: true }
     });
   }
 };

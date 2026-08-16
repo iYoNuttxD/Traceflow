@@ -25,6 +25,15 @@ export function normalizeAccessCode(value) {
   return typeof accessCode === 'string' ? accessCode.toUpperCase() : accessCode;
 }
 
+export function publicProject(project) {
+  if (!project) return project;
+  const data = { ...project };
+  delete data.accessCode;
+  delete data.accessCodeRole;
+  delete data.inviteLink;
+  return data;
+}
+
 export function buildMemberData(data, defaultRole = 'MEMBRO') {
   const payload = data && typeof data === 'object' ? data : {};
 

@@ -5,9 +5,9 @@ import { projectInvitationRepository } from '../project-invitation.repository.js
 import { emailService } from '../../../shared/email/index.js';
 import { logger } from '../../../shared/logger/index.js';
 import { auditService } from '../../audit/audit.service.js';
+import { normalizeEmail } from '../../../shared/identity/index.js';
 
 const tokenHash = (value) => createHash('sha256').update(value).digest('hex');
-const normalizeEmail = (value) => String(value).trim().toLowerCase();
 
 const invitationErrors = Object.freeze({
   EXPIRED: {
@@ -106,6 +106,68 @@ function publicInvitation(invitation) {
   };
 }
 
+function personalInvitation(invitation) {
+  return {
+    id: invitation.id,
+    project: { id: invitation.projectId, name: invitation.project.name },
+    role: invitation.role,
+    createdAt: invitation.createdAt,
+    expiresAt: invitation.expiresAt,
+    status: invitationState(invitation)
+  };
+}
+
+async function acceptResolved(invitation, user, requestId, reload) {
+  assertPending(invitation);
+  const result = await projectInvitationRepository.accept(invitation, user.id);
+  if (result.alreadyMember) throw alreadyMember();
+  if (!result.claimed) {
+    const current = await reload();
+    if (!current) throw invalidInvitation();
+    throw stateError(invitationState(current));
+  }
+
+  logger.info('Convite de projeto aceito.', {
+    event: 'project_invitation_accepted',
+    projectId: invitation.projectId,
+    invitationId: invitation.id,
+    actorId: user.id
+  });
+  await auditService.recordOperational({
+    actorUserId: user.id,
+    projectId: invitation.projectId,
+    requestId,
+    action: 'PROJECT_INVITATION_ACCEPTED',
+    resourceType: 'ProjectInvitation',
+    resourceId: invitation.id
+  });
+  return result.membership;
+}
+
+async function declineResolved(invitation, user, requestId, reload) {
+  assertPending(invitation);
+  if (!(await projectInvitationRepository.decline(invitation, user.id)).count) {
+    const current = await reload();
+    if (!current) throw invalidInvitation();
+    throw stateError(invitationState(current));
+  }
+
+  logger.info('Convite de projeto recusado.', {
+    event: 'project_invitation_declined',
+    projectId: invitation.projectId,
+    invitationId: invitation.id,
+    actorId: user.id
+  });
+  await auditService.recordOperational({
+    actorUserId: user.id,
+    projectId: invitation.projectId,
+    requestId,
+    action: 'PROJECT_INVITATION_DECLINED',
+    resourceType: 'ProjectInvitation',
+    resourceId: invitation.id
+  });
+}
+
 export const projectInvitationService = {
   async create(projectId, creatorId, { email, role }, requestId) {
     const token = randomBytes(32).toString('base64url');
@@ -155,6 +217,11 @@ export const projectInvitationService = {
     if (!(await projectInvitationRepository.findProjectById(projectId))) throw invitationNotFound();
     return (await projectInvitationRepository.list(projectId)).map(publicInvitation);
   },
+  async listMine(user) {
+    return (
+      await projectInvitationRepository.listPendingForRecipient(normalizeEmail(user.email))
+    ).map(personalInvitation);
+  },
   async details(token, user) {
     const invitation = await projectInvitationRepository.findByHash(tokenHash(token));
     assertRecipient(invitation, user);
@@ -183,58 +250,33 @@ export const projectInvitationService = {
     });
   },
   async accept(token, user, requestId) {
-    let invitation = await projectInvitationRepository.findByHash(tokenHash(token));
+    const invitation = await projectInvitationRepository.findByHash(tokenHash(token));
     assertRecipient(invitation, user);
-    assertPending(invitation);
-
-    const result = await projectInvitationRepository.accept(invitation, user.id);
-    if (result.alreadyMember) throw alreadyMember();
-    if (!result.claimed) {
-      invitation = await projectInvitationRepository.findByHash(tokenHash(token));
-      assertRecipient(invitation, user);
-      throw stateError(invitationState(invitation));
-    }
-
-    logger.info('Convite de projeto aceito.', {
-      event: 'project_invitation_accepted',
-      projectId: invitation.projectId,
-      invitationId: invitation.id,
-      actorId: user.id
-    });
-    await auditService.recordOperational({
-      actorUserId: user.id,
-      projectId: invitation.projectId,
-      requestId,
-      action: 'PROJECT_INVITATION_ACCEPTED',
-      resourceType: 'ProjectInvitation',
-      resourceId: invitation.id
-    });
-    return result.membership;
+    return acceptResolved(invitation, user, requestId, () =>
+      projectInvitationRepository.findByHash(tokenHash(token))
+    );
   },
   async decline(token, user, requestId) {
-    let invitation = await projectInvitationRepository.findByHash(tokenHash(token));
+    const invitation = await projectInvitationRepository.findByHash(tokenHash(token));
     assertRecipient(invitation, user);
-    assertPending(invitation);
-
-    if (!(await projectInvitationRepository.decline(invitation, user.id)).count) {
-      invitation = await projectInvitationRepository.findByHash(tokenHash(token));
-      assertRecipient(invitation, user);
-      throw stateError(invitationState(invitation));
-    }
-
-    logger.info('Convite de projeto recusado.', {
-      event: 'project_invitation_declined',
-      projectId: invitation.projectId,
-      invitationId: invitation.id,
-      actorId: user.id
-    });
-    await auditService.recordOperational({
-      actorUserId: user.id,
-      projectId: invitation.projectId,
-      requestId,
-      action: 'PROJECT_INVITATION_DECLINED',
-      resourceType: 'ProjectInvitation',
-      resourceId: invitation.id
-    });
+    return declineResolved(invitation, user, requestId, () =>
+      projectInvitationRepository.findByHash(tokenHash(token))
+    );
+  },
+  async acceptMine(invitationId, user, requestId) {
+    const email = normalizeEmail(user.email);
+    const invitation = await projectInvitationRepository.findByIdForRecipient(invitationId, email);
+    if (!invitation) throw invitationNotFound();
+    return acceptResolved(invitation, user, requestId, () =>
+      projectInvitationRepository.findByIdForRecipient(invitationId, email)
+    );
+  },
+  async declineMine(invitationId, user, requestId) {
+    const email = normalizeEmail(user.email);
+    const invitation = await projectInvitationRepository.findByIdForRecipient(invitationId, email);
+    if (!invitation) throw invitationNotFound();
+    return declineResolved(invitation, user, requestId, () =>
+      projectInvitationRepository.findByIdForRecipient(invitationId, email)
+    );
   }
 };

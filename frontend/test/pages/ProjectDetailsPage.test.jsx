@@ -1,11 +1,12 @@
 import { MemoryRouter, Route, Routes } from 'react-router';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfirmProvider } from '../../src/shared/index.js';
 
 const mocks = vi.hoisted(() => ({
   api: { get: vi.fn(), put: vi.fn() },
+  accessCodeApi: { get: vi.fn(), regenerate: vi.fn(), updateRole: vi.fn() },
   syncProjectGithub: vi.fn(),
   getProjectGithubSyncStatus: vi.fn(),
   membersApi: {
@@ -24,7 +25,10 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../src/features/projects/api/projects.api.js', () => ({
   projectsApi: {
     get: (id) => mocks.api.get(`/projects/${id}`),
-    update: (id, data) => mocks.api.put(`/projects/${id}`, data)
+    update: (id, data) => mocks.api.put(`/projects/${id}`, data),
+    getAccessCode: (id) => mocks.accessCodeApi.get(id),
+    regenerateAccessCode: (id) => mocks.accessCodeApi.regenerate(id),
+    updateAccessCodeRole: (id, role) => mocks.accessCodeApi.updateRole(id, role)
   }
 }));
 vi.mock('../../src/features/github/api/github.api.js', () => ({
@@ -75,6 +79,15 @@ describe('ProjectDetailsPage E9', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.api.get.mockResolvedValue({ data: { project } });
+    mocks.accessCodeApi.get.mockResolvedValue({
+      data: {
+        accessCode: {
+          accessCode: 'TRC-0123456789ABCDEF0123456789ABCDEF',
+          role: 'MEMBER',
+          inviteLink: 'http://frontend.test/join/TRC-0123456789ABCDEF0123456789ABCDEF'
+        }
+      }
+    });
     mocks.membersApi.list.mockResolvedValue({
       currentMembership: { id: 1, role: 'OWNER' },
       members: [
@@ -248,6 +261,50 @@ describe('ProjectDetailsPage E9', () => {
     await screen.findByRole('heading', { name: 'Projeto E9' });
     expect(screen.queryByRole('button', { name: 'Sincronizar' })).not.toBeInTheDocument();
     expect(screen.queryByText('Analisar commits para sugestões')).not.toBeInTheDocument();
+    expect(mocks.accessCodeApi.get).not.toHaveBeenCalled();
+  });
+
+  it('permite ao OWNER mostrar, ocultar, copiar, configurar e regenerar o código', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText }
+    });
+    mocks.accessCodeApi.updateRole.mockResolvedValue({
+      data: {
+        accessCode: {
+          accessCode: 'TRC-0123456789ABCDEF0123456789ABCDEF',
+          role: 'VIEWER',
+          inviteLink: 'http://frontend.test/join/TRC-0123456789ABCDEF0123456789ABCDEF'
+        }
+      }
+    });
+    mocks.accessCodeApi.regenerate.mockResolvedValue({
+      data: {
+        accessCode: {
+          accessCode: 'TRC-FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF',
+          role: 'VIEWER',
+          inviteLink: 'http://frontend.test/join/TRC-FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF'
+        }
+      }
+    });
+    renderPage();
+
+    expect(await screen.findByText('TRC-0123456789ABCDEF0123456789ABCDEF')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Ocultar código' }));
+    expect(screen.queryByText('TRC-0123456789ABCDEF0123456789ABCDEF')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Mostrar código' }));
+    await user.selectOptions(screen.getByLabelText('Perfil de entrada'), 'VIEWER');
+    expect(mocks.accessCodeApi.updateRole).toHaveBeenCalledWith(1, 'VIEWER');
+    await user.click(screen.getByRole('button', { name: 'Copiar link' }));
+    expect(writeText).toHaveBeenCalledWith(
+      'http://frontend.test/join/TRC-0123456789ABCDEF0123456789ABCDEF'
+    );
+    await user.click(screen.getByRole('button', { name: 'Regenerar código' }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Regenerar' }));
+    expect(mocks.accessCodeApi.regenerate).toHaveBeenCalledWith(1);
+    expect(await screen.findByText('TRC-FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF')).toBeInTheDocument();
   });
 
   it('não exibe ações do RF41 na visão geral do projeto', async () => {

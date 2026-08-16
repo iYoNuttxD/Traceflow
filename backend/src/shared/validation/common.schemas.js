@@ -5,7 +5,7 @@ export const INPUT_LIMITS = Object.freeze({
   shortText: 191,
   search: 255,
   url: 191,
-  accessCode: 32,
+  accessCode: 80,
   hash: 191
 });
 

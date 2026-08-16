@@ -50,6 +50,7 @@ async function fixture() {
       githubOwner: 'owner',
       githubRepo: 'repo',
       githubDefaultBranch: 'main',
+      accessCode: 'TEST-GITHUB-MULTIBRANCH',
       memberships: { create: { userId: user.id, role: 'OWNER' } }
     }
   });

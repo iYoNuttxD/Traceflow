@@ -11,7 +11,7 @@ const invitationSelect = {
   acceptedAt: true,
   declinedAt: true,
   createdAt: true,
-  project: { select: { name: true } }
+  project: { select: { id: true, name: true } }
 };
 
 export const projectInvitationRepository = {
@@ -62,6 +62,25 @@ export const projectInvitationRepository = {
     return prisma.projectInvitation.findUnique({
       where: { tokenHash },
       select: invitationSelect
+    });
+  },
+  findByIdForRecipient(id, email) {
+    return prisma.projectInvitation.findFirst({
+      where: { id, email },
+      select: invitationSelect
+    });
+  },
+  listPendingForRecipient(email) {
+    return prisma.projectInvitation.findMany({
+      where: {
+        email,
+        revokedAt: null,
+        acceptedAt: null,
+        declinedAt: null,
+        expiresAt: { gt: new Date() }
+      },
+      select: invitationSelect,
+      orderBy: { createdAt: 'desc' }
     });
   },
   revoke(projectId, id) {

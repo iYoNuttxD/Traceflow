@@ -43,5 +43,17 @@ export const projectsApi = {
 
   update(projectId, data) {
     return httpClient.put(`/projects/${projectId}`, data);
+  },
+
+  getAccessCode(projectId) {
+    return httpClient.get(`/projects/${projectId}/access-code`);
+  },
+
+  regenerateAccessCode(projectId) {
+    return httpClient.post(`/projects/${projectId}/access-code/regenerate`, {});
+  },
+
+  updateAccessCodeRole(projectId, role) {
+    return httpClient.patch(`/projects/${projectId}/access-code`, { role });
   }
 };

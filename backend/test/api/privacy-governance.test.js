@@ -192,7 +192,11 @@ describe('direitos do titular e auditoria E7', () => {
     const auth = await register('anonymize@example.invalid');
     const user = await prisma.user.findUnique({ where: { email: 'anonymize@example.invalid' } });
     const project = await prisma.project.create({
-      data: { name: 'Histórico preservado', responsibleTeam: 'Equipe' }
+      data: {
+        name: 'Histórico preservado',
+        responsibleTeam: 'Equipe',
+        accessCode: 'TEST-PRIVACY-HISTORY'
+      }
     });
     await prisma.projectMembership.create({
       data: { projectId: project.id, userId: user.id, role: 'MEMBER' }

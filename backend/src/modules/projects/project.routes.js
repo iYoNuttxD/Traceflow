@@ -5,20 +5,24 @@ import { projectController } from './project.controller.js';
 import artifactRoutes from '../artifacts/artifact.routes.js';
 import {
   addProjectMemberBodySchema,
+  accessCodeRoleBodySchema,
   createProjectBodySchema,
   createProjectFromGithubBodySchema,
   githubSyncSettingsBodySchema,
   joinProjectBodySchema,
+  joinProjectDetailsQuerySchema,
   projectIdParamsSchema,
   projectProjectIdParamsSchema,
   updateProjectBodySchema
 } from './project.validation.js';
+import { projectAccessCodeController } from './project-access-code.controller.js';
 import { projectInvitationController } from './project-invitation.controller.js';
 import {
   acceptInvitationBody,
   createInvitationBody,
   invitationParams,
-  invitationProjectParams
+  invitationProjectParams,
+  personalInvitationParams
 } from './project-invitation.validation.js';
 import { projectMembershipController } from './project-membership.controller.js';
 import { requireVerifiedEmail } from '../../middlewares/auth/email-verification.middleware.js';
@@ -31,10 +35,27 @@ import {
 
 const router = Router();
 
+router.get('/invitations/mine', projectInvitationController.mine);
+router.post(
+  '/invitations/:invitationId/accept',
+  validateRequest({ params: personalInvitationParams }),
+  projectInvitationController.acceptMine
+);
+router.post(
+  '/invitations/:invitationId/decline',
+  validateRequest({ params: personalInvitationParams }),
+  projectInvitationController.declineMine
+);
+
 router.post(
   '/invitations/details',
   validateRequest({ body: acceptInvitationBody }),
   projectInvitationController.details
+);
+router.get(
+  '/join/details',
+  validateRequest({ query: joinProjectDetailsQuerySchema }),
+  projectAccessCodeController.details
 );
 router.post(
   '/invitations/accept',
@@ -70,6 +91,23 @@ router.post(
   projectController.createFromGithub
 );
 router.post('/join', validateRequest({ body: joinProjectBodySchema }), projectController.join);
+router.get(
+  '/:projectId/access-code',
+  validateRequest({ params: projectProjectIdParamsSchema }),
+  projectAccessCodeController.configuration
+);
+router.post(
+  '/:projectId/access-code/regenerate',
+  requireVerifiedEmail,
+  validateRequest({ params: projectProjectIdParamsSchema }),
+  projectAccessCodeController.regenerate
+);
+router.patch(
+  '/:projectId/access-code',
+  requireVerifiedEmail,
+  validateRequest({ params: projectProjectIdParamsSchema, body: accessCodeRoleBodySchema }),
+  projectAccessCodeController.updateRole
+);
 router.patch(
   '/:projectId/github/sync-settings',
   requireVerifiedEmail,

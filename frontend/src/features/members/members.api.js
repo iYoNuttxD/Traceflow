@@ -45,6 +45,13 @@ export const membersApi = {
   },
   joinProject(data) {
     return httpClient.post('/projects/join', data);
+  },
+  async joinDetails(accessCode) {
+    return (
+      await httpClient.get('/projects/join/details', {
+        params: { accessCode }
+      })
+    ).data.details;
   }
 };
 

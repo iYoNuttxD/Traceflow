@@ -15,6 +15,8 @@ import {
   updateProjectForm
 } from '../components/ProjectForm.jsx';
 import { projectsApi } from '../api/projects.api.js';
+import { ProjectJoinCard } from '../components/ProjectJoinCard.jsx';
+import { PendingProjectInvitations } from '../../invitations/index.js';
 
 function getErrorMessage(error, fallback) {
   return error.response?.data?.message || fallback;
@@ -233,6 +235,11 @@ export function ProjectsScreen() {
       </header>
 
       <FeedbackRegion error={githubCallbackError} success={success} />
+
+      <section className="projects-entry-grid" aria-label="Formas de ingresso em projetos">
+        <ProjectJoinCard />
+        <PendingProjectInvitations onAccepted={loadProjects} />
+      </section>
 
       <div className="projects-layout">
         <Card

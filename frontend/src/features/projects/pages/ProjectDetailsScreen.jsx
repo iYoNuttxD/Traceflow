@@ -13,6 +13,7 @@ import { ProjectSectionNav } from '../components/ProjectSectionNav.jsx';
 import { ProjectForm, emptyProjectForm, updateProjectForm } from '../components/ProjectForm.jsx';
 import { projectsApi } from '../api/projects.api.js';
 import { ProjectMembersPanel } from '../../members/index.js';
+import { ProjectAccessCodePanel } from '../components/ProjectAccessCodePanel.jsx';
 
 function toFormData(project) {
   return {
@@ -129,18 +130,6 @@ function getRepositoryName(project) {
 
 function getRepositoryUrl(project) {
   return project.githubRepositoryUrl || project.githubUrl || '';
-}
-
-function buildInviteUrl(project) {
-  if (project.inviteLink) {
-    return project.inviteLink;
-  }
-
-  if (!project.accessCode) {
-    return '';
-  }
-
-  return `${window.location.origin}/join/${project.accessCode}`;
 }
 
 function getGithubSyncDisplay(project, syncStatus) {
@@ -330,25 +319,6 @@ export function ProjectDetailsScreen() {
     }
   }
 
-  async function handleCopyInviteLink() {
-    const inviteUrl = buildInviteUrl(project);
-
-    if (!inviteUrl) {
-      setError('Código de acesso não disponível para copiar convite.');
-      setSuccess('');
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(inviteUrl);
-      setError('');
-      setSuccess('Link de convite copiado.');
-    } catch {
-      setSuccess('');
-      setError('Não foi possível copiar o link de convite.');
-    }
-  }
-
   if (loading) {
     return (
       <main className="page-container">
@@ -468,21 +438,10 @@ export function ProjectDetailsScreen() {
               <dt>Membros</dt>
               <dd>{memberCount}</dd>
             </div>
-            <div>
-              <dt>Código de acesso</dt>
-              <dd className="overview-value-with-action">
-                <span>{project.accessCode || 'Não informado'}</span>
-                {project.accessCode && (
-                  <button
-                    className="copy-invite-button"
-                    type="button"
-                    onClick={handleCopyInviteLink}
-                  >
-                    Copiar convite
-                  </button>
-                )}
-              </dd>
-            </div>
+            <ProjectAccessCodePanel
+              projectId={project.id}
+              isOwner={currentMembership?.role === 'OWNER'}
+            />
             <div>
               <dt>Área ou equipe responsável</dt>
               <dd>{project.responsibleTeam || 'Não informada'}</dd>
