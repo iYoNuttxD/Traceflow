@@ -236,13 +236,12 @@ export function ProjectsScreen() {
 
       <FeedbackRegion error={githubCallbackError} success={success} />
 
-      <section className="projects-entry-grid" aria-label="Formas de ingresso em projetos">
+      <section className="projects-dashboard-grid" aria-label="Projetos e formas de ingresso">
         <ProjectJoinCard />
         <PendingProjectInvitations onAccepted={loadProjects} />
-      </section>
 
-      <div className="projects-layout">
         <Card
+          className="projects-dashboard-card project-create-card"
           title="Cadastrar projeto"
           headerAction={
             <Link
@@ -312,7 +311,7 @@ export function ProjectsScreen() {
           )}
         </Card>
 
-        <Card title="Projetos cadastrados">
+        <Card className="projects-dashboard-card project-list-card" title="Projetos cadastrados">
           {loadingProjects ? (
             <LoadingState message="Carregando projetos..." />
           ) : error ? (
@@ -365,7 +364,7 @@ export function ProjectsScreen() {
             </div>
           )}
         </Card>
-      </div>
+      </section>
     </main>
   );
 }

@@ -20,7 +20,7 @@ export function ProjectJoinCard() {
   }
 
   return (
-    <Card title="Entrar em um projeto">
+    <Card className="projects-dashboard-card project-entry-card" title="Entrar em um projeto">
       <p className="card-description">Cole um código ou link de acesso compartilhado.</p>
       <FeedbackRegion error={error} />
       <form className="project-join-quick-form" onSubmit={continueToJoin}>

@@ -291,17 +291,29 @@ describe('ProjectDetailsPage E9', () => {
     });
     renderPage();
 
-    expect(await screen.findByText('TRC-0123456789ABCDEF0123456789ABCDEF')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Ocultar código' }));
+    const code = await screen.findByText('TRC-0123456789ABCDEF0123456789ABCDEF');
+    expect(code.closest('.project-access-code-card')).toBeInTheDocument();
+    expect(code.closest('.access-code-value-row')).toBeInTheDocument();
+    const hideButton = screen.getByRole('button', { name: 'Ocultar código' });
+    const regenerateButton = screen.getByRole('button', { name: 'Regenerar código' });
+    const copyButton = screen.getByRole('button', { name: 'Copiar link' });
+    for (const button of [hideButton, regenerateButton, copyButton]) {
+      expect(button).toHaveClass('access-code-icon-button');
+      expect(button.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
+    }
+    expect(screen.getByLabelText('Perfil de entrada').closest('label')).toHaveClass(
+      'access-code-role'
+    );
+    await user.click(hideButton);
     expect(screen.queryByText('TRC-0123456789ABCDEF0123456789ABCDEF')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Mostrar código' }));
     await user.selectOptions(screen.getByLabelText('Perfil de entrada'), 'VIEWER');
     expect(mocks.accessCodeApi.updateRole).toHaveBeenCalledWith(1, 'VIEWER');
-    await user.click(screen.getByRole('button', { name: 'Copiar link' }));
+    await user.click(copyButton);
     expect(writeText).toHaveBeenCalledWith(
       'http://frontend.test/join/TRC-0123456789ABCDEF0123456789ABCDEF'
     );
-    await user.click(screen.getByRole('button', { name: 'Regenerar código' }));
+    await user.click(regenerateButton);
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Regenerar' }));
     expect(mocks.accessCodeApi.regenerate).toHaveBeenCalledWith(1);
     expect(await screen.findByText('TRC-FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF')).toBeInTheDocument();

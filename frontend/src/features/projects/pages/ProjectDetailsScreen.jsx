@@ -404,6 +404,10 @@ export function ProjectDetailsScreen() {
                 </span>
               </dd>
             </div>
+            <ProjectAccessCodePanel
+              projectId={project.id}
+              isOwner={currentMembership?.role === 'OWNER'}
+            />
             <div>
               <dt>Repositório GitHub</dt>
               <dd>
@@ -438,10 +442,6 @@ export function ProjectDetailsScreen() {
               <dt>Membros</dt>
               <dd>{memberCount}</dd>
             </div>
-            <ProjectAccessCodePanel
-              projectId={project.id}
-              isOwner={currentMembership?.role === 'OWNER'}
-            />
             <div>
               <dt>Área ou equipe responsável</dt>
               <dd>{project.responsibleTeam || 'Não informada'}</dd>

@@ -66,7 +66,10 @@ export function PendingProjectInvitations({ onAccepted }) {
   }
 
   return (
-    <Card title="Meus convites pendentes">
+    <Card
+      className="projects-dashboard-card personal-invitations-card"
+      title="Meus convites pendentes"
+    >
       <FeedbackRegion error={error} success={success} />
       {acceptedProject && (
         <Link

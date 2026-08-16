@@ -4,6 +4,34 @@ import { projectsApi } from '../api/projects.api.js';
 
 const roleLabels = Object.freeze({ MEMBER: 'Membro', VIEWER: 'Visualizador' });
 
+function EyeIcon({ hidden }) {
+  return (
+    <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
+      <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
+      <circle cx="12" cy="12" r="2.75" />
+      {hidden ? <path d="m4 4 16 16" /> : null}
+    </svg>
+  );
+}
+
+function RefreshIcon() {
+  return (
+    <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
+      <path d="M20 7v5h-5" />
+      <path d="M19 12a7 7 0 1 0-2.05 4.95" />
+    </svg>
+  );
+}
+
+function CopyIcon() {
+  return (
+    <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
+      <rect x="8" y="8" width="11" height="11" rx="2" />
+      <path d="M16 8V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h1" />
+    </svg>
+  );
+}
+
 export function ProjectAccessCodePanel({ projectId, isOwner }) {
   const confirm = useConfirm();
   const [configuration, setConfiguration] = useState(null);
@@ -90,7 +118,7 @@ export function ProjectAccessCodePanel({ projectId, isOwner }) {
   }
 
   return (
-    <div className="overview-access-code">
+    <div className="overview-access-code project-access-code-card">
       <dt>Código de acesso</dt>
       <dd>
         <FeedbackRegion error={error} success={success} />
@@ -100,25 +128,39 @@ export function ProjectAccessCodePanel({ projectId, isOwner }) {
           <div className="access-code-control">
             <div className="access-code-value-row">
               <code>{visible ? configuration.accessCode : '••••••••••••••••'}</code>
-              <button
-                className="button button-secondary button-compact"
-                type="button"
-                aria-label={visible ? 'Ocultar código' : 'Mostrar código'}
-                onClick={() => setVisible((value) => !value)}
-              >
-                {visible ? 'Ocultar' : 'Mostrar'}
-              </button>
-              <button
-                className="button button-secondary button-compact"
-                type="button"
-                disabled={Boolean(busy)}
-                aria-label="Regenerar código"
-                onClick={() => void regenerate()}
-              >
-                Regenerar
-              </button>
+              <div className="access-code-actions">
+                <button
+                  className="button button-secondary access-code-icon-button"
+                  type="button"
+                  title={visible ? 'Ocultar código' : 'Mostrar código'}
+                  aria-label={visible ? 'Ocultar código' : 'Mostrar código'}
+                  onClick={() => setVisible((value) => !value)}
+                >
+                  <EyeIcon hidden={visible} />
+                </button>
+                <button
+                  className="button button-secondary access-code-icon-button"
+                  type="button"
+                  title="Regenerar código"
+                  disabled={Boolean(busy)}
+                  aria-label="Regenerar código"
+                  onClick={() => void regenerate()}
+                >
+                  <RefreshIcon />
+                </button>
+                <button
+                  className="button button-secondary access-code-icon-button"
+                  type="button"
+                  title="Copiar link"
+                  disabled={Boolean(busy)}
+                  aria-label="Copiar link"
+                  onClick={() => void copyLink()}
+                >
+                  <CopyIcon />
+                </button>
+              </div>
             </div>
-            <label className="field access-code-role">
+            <label className="access-code-role">
               <span>Perfil de entrada</span>
               <select
                 value={configuration.role}
@@ -132,14 +174,6 @@ export function ProjectAccessCodePanel({ projectId, isOwner }) {
                 ))}
               </select>
             </label>
-            <button
-              className="button button-secondary button-compact access-code-copy"
-              type="button"
-              disabled={Boolean(busy)}
-              onClick={() => void copyLink()}
-            >
-              Copiar link
-            </button>
           </div>
         )}
       </dd>

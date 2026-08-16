@@ -106,6 +106,24 @@ describe('ProjectsPage', () => {
     expect(await screen.findByText('Nenhum projeto cadastrado ainda.')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Entrar em um projeto' })).toBeInTheDocument();
     expect(screen.getByText('Nenhum convite pendente.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Código ou link de acesso')).toBeInTheDocument();
+
+    const dashboard = screen.getByRole('region', { name: 'Projetos e formas de ingresso' });
+    expect(dashboard).toHaveClass('projects-dashboard-grid');
+    expect(dashboard.children).toHaveLength(4);
+    expect([...dashboard.children].every((card) => card.classList.contains('card'))).toBe(true);
+    expect(
+      screen.getByRole('heading', { name: 'Entrar em um projeto' }).closest('.card')
+    ).toHaveClass('project-entry-card');
+    expect(
+      screen.getByRole('heading', { name: 'Meus convites pendentes' }).closest('.card')
+    ).toHaveClass('personal-invitations-card');
+    expect(screen.getByRole('heading', { name: 'Cadastrar projeto' }).closest('.card')).toHaveClass(
+      'project-create-card'
+    );
+    expect(
+      screen.getByRole('heading', { name: 'Projetos cadastrados' }).closest('.card')
+    ).toHaveClass('project-list-card');
   });
 
   it('lista convites pessoais, aceita e oferece abertura do projeto', async () => {

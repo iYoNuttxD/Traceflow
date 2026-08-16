@@ -66,6 +66,10 @@ describe('ProjectMembersPanel', () => {
     renderPanel();
     const select = await screen.findByLabelText('Perfil de Pessoa artificial');
     expect(select.closest('label')).toHaveTextContent(/^Perfil/);
+    const memberCard = screen.getByText('Pessoa artificial').closest('.member-item');
+    expect(memberCard.querySelector('.member-item-header')).toBeInTheDocument();
+    expect(memberCard.querySelector('.member-actions')).toBeInTheDocument();
+    expect(memberCard.querySelector('.member-action-buttons')).toBeInTheDocument();
     await user.selectOptions(select, 'MANAGER');
     await waitFor(() =>
       expect(apiMock.patch).toHaveBeenCalledWith('/projects/1/members/2', { role: 'MANAGER' })
@@ -99,6 +103,7 @@ describe('ProjectMembersPanel', () => {
     expect(apiMock.delete).toHaveBeenCalledWith('/projects/1/members/2');
     await user.type(screen.getByLabelText('E-mail'), 'invite@example.invalid');
     await user.selectOptions(screen.getByLabelText('Perfil do convite'), 'VIEWER');
+    expect(screen.getByLabelText('E-mail').closest('form')).toHaveClass('invitation-form');
     await user.click(screen.getByRole('button', { name: 'Enviar convite' }));
     await waitFor(() =>
       expect(apiMock.post).toHaveBeenCalledWith('/projects/1/invitations', {
