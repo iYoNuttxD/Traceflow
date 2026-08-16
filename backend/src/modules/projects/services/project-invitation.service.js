@@ -49,6 +49,15 @@ function invalidInvitation() {
   });
 }
 
+function invitationNotFound() {
+  return new AppError({
+    message: 'Recurso não encontrado.',
+    statusCode: 404,
+    code: ERROR_CODES.RESOURCE_NOT_FOUND,
+    exposeTechnicalDetails: true
+  });
+}
+
 function stateError(state) {
   const details = invitationErrors[state];
   return details ? new AppError({ ...details, exposeTechnicalDetails: true }) : invalidInvitation();
@@ -143,6 +152,7 @@ export const projectInvitationService = {
     };
   },
   async list(projectId) {
+    if (!(await projectInvitationRepository.findProjectById(projectId))) throw invitationNotFound();
     return (await projectInvitationRepository.list(projectId)).map(publicInvitation);
   },
   async details(token, user) {
@@ -157,7 +167,7 @@ export const projectInvitationService = {
   },
   async revoke(projectId, invitationId, actorUserId, requestId) {
     if (!(await projectInvitationRepository.revoke(projectId, invitationId)).count)
-      throw invalidInvitation();
+      throw invitationNotFound();
     logger.info('Convite de projeto revogado.', {
       event: 'project_invitation_revoked',
       projectId,

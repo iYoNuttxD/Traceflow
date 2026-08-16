@@ -1,3 +1,4 @@
+import { StrictMode } from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
@@ -20,6 +21,7 @@ const mocks = vi.hoisted(() => ({
     removeGithubAuthorization: vi.fn(),
     startGithubInstallation: vi.fn(),
     confirmEmail: vi.fn(),
+    confirmReactivation: vi.fn(),
     startReactivation: vi.fn()
   }
 }));
@@ -101,6 +103,7 @@ describe('configurações e estados restritos L2', () => {
       data: { url: 'https://github.example/install' }
     });
     mocks.api.confirmEmail.mockResolvedValue({});
+    mocks.api.confirmReactivation.mockResolvedValue({});
     mocks.api.initializePassword.mockResolvedValue({});
   });
 
@@ -387,5 +390,25 @@ describe('configurações e estados restritos L2', () => {
     );
     expect(await screen.findByText(/Operação concluída/)).toBeInTheDocument();
     expect(mocks.api.confirmEmail).toHaveBeenCalledWith('token-valido');
+  });
+
+  it.each([
+    ['email', '/settings/account/email-change/confirm?token=email-strict', 'confirmEmail'],
+    [
+      'reactivation',
+      '/account/reactivation/confirm?token=reactivation-strict',
+      'confirmReactivation'
+    ]
+  ])('executa confirmação %s uma vez sob StrictMode', async (type, route, method) => {
+    render(
+      <StrictMode>
+        <MemoryRouter initialEntries={[route]}>
+          <ConfirmationPage type={type} />
+        </MemoryRouter>
+      </StrictMode>
+    );
+
+    expect(await screen.findByText(/Operação concluída/)).toBeInTheDocument();
+    expect(mocks.api[method]).toHaveBeenCalledTimes(1);
   });
 });

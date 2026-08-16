@@ -4,6 +4,7 @@ import { FeedbackRegion, LoadingState, normalizeApiError } from '../../../shared
 import { authApi } from '../api/auth.api.js';
 import { AuthShell } from '../components/AuthShell.jsx';
 import { useAuth } from '../AuthContext.jsx';
+import { runSingleFlight } from '../../../shared/services/single-flight.js';
 export function VerifyEmailScreen() {
   const auth = useAuth();
   const user = auth?.user;
@@ -11,6 +12,7 @@ export function VerifyEmailScreen() {
   const [params] = useSearchParams();
   const [state, setState] = useState({ loading: true, success: '', error: '' });
   useEffect(() => {
+    let active = true;
     const token = params.get('token');
     if (!token) {
       setState({
@@ -18,17 +20,24 @@ export function VerifyEmailScreen() {
         success: '',
         error: 'Link de verificação inválido ou incompleto.'
       });
-      return;
+      return () => {
+        active = false;
+      };
     }
-    authApi
-      .verifyEmail(token)
+    runSingleFlight(`verify-email:${token}`, () => authApi.verifyEmail(token))
       .then(async (response) => {
+        if (!active) return;
         if (user?.id === response.data.user?.id && refresh) await refresh();
+        if (!active) return;
         setState({ loading: false, success: response.data.message, error: '' });
       })
-      .catch((cause) =>
-        setState({ loading: false, success: '', error: normalizeApiError(cause).message })
-      );
+      .catch((cause) => {
+        if (active)
+          setState({ loading: false, success: '', error: normalizeApiError(cause).message });
+      });
+    return () => {
+      active = false;
+    };
   }, [params, refresh, user?.id]);
   return (
     <AuthShell

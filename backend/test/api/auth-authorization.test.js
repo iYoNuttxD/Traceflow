@@ -5,6 +5,7 @@ import {
   configureTestDatabaseEnvironment,
   deployTestMigrations
 } from '../helpers/test-database.js';
+import { ERROR_CODES } from '../../src/shared/errors/index.js';
 
 let app;
 let prisma;
@@ -285,6 +286,27 @@ describe('identidade, sessão, CSRF e autorização E6', () => {
     expect((await outsider.agent.get('/api/projects')).body.projects).toHaveLength(0);
   });
 
+  it('responde 404 determinístico para perspectivas de projeto inexistente', async () => {
+    const user = await register('missing-project@example.invalid');
+    const members = await user.agent.get('/api/projects/999999/members');
+    expect(members).toMatchObject({
+      status: 404,
+      body: { code: ERROR_CODES.RESOURCE_NOT_FOUND }
+    });
+
+    for (const path of [
+      '/api/projects/999999/invitations',
+      '/api/projects/999999/audit-events',
+      '/api/projects/999999/tasks',
+      '/api/projects/999999/requirements',
+      '/api/projects/999999/artifacts'
+    ]) {
+      const response = await user.agent.get(path);
+      expect(response.status, path).toBe(404);
+      expect(response.body).not.toHaveProperty('stack');
+    }
+  });
+
   it('permite leitura a VIEWER e nega escrita com 403', async () => {
     const owner = await register('owner@example.invalid');
     const project = (await owner.mutate('post', '/api/projects').send(projectBody())).body.project;
@@ -430,6 +452,51 @@ describe('identidade, sessão, CSRF e autorização E6', () => {
           .send({ token: first.body.token })
       ).body.membership.role
     ).toBe('MEMBER');
+  });
+
+  it('torna invitationId e membershipId de outro projeto opacos e preserva os recursos', async () => {
+    const ownerA = await register('owner-a-boundary@example.invalid');
+    const ownerB = await register('owner-b-boundary@example.invalid');
+    const projectA = (await ownerA.mutate('post', '/api/projects').send(projectBody('Boundary A')))
+      .body.project;
+    const projectB = (await ownerB.mutate('post', '/api/projects').send(projectBody('Boundary B')))
+      .body.project;
+    const invitationB = await ownerB
+      .mutate('post', `/api/projects/${projectB.id}/invitations`)
+      .send({ email: 'invitee-boundary@example.invalid', role: 'MEMBER' });
+    const ownerBUser = await prisma.user.findUnique({
+      where: { email: 'owner-b-boundary@example.invalid' }
+    });
+    const membershipB = await prisma.projectMembership.findUnique({
+      where: { projectId_userId: { projectId: projectB.id, userId: ownerBUser.id } }
+    });
+
+    const invitationResponse = await ownerA
+      .mutate(
+        'delete',
+        `/api/projects/${projectA.id}/invitations/${invitationB.body.invitation.id}`
+      )
+      .send({});
+    const membershipResponse = await ownerA
+      .mutate('delete', `/api/projects/${projectA.id}/members/${membershipB.id}`)
+      .send({});
+
+    expect(invitationResponse).toMatchObject({
+      status: 404,
+      body: { code: ERROR_CODES.RESOURCE_NOT_FOUND }
+    });
+    expect(membershipResponse).toMatchObject({
+      status: 404,
+      body: { code: ERROR_CODES.RESOURCE_NOT_FOUND }
+    });
+    expect(
+      await prisma.projectInvitation.findUnique({
+        where: { id: invitationB.body.invitation.id }
+      })
+    ).toMatchObject({ revokedAt: null, acceptedAt: null, declinedAt: null });
+    expect(
+      await prisma.projectMembership.findUnique({ where: { id: membershipB.id } })
+    ).toMatchObject({ projectId: projectB.id, isActive: true });
   });
 
   it('mantém somente um convite pendente em criação duplicada concorrente', async () => {
@@ -754,6 +821,51 @@ describe('identidade, sessão, CSRF e autorização E6', () => {
           .send({ token: existing.body.testToken, password: 'OutraSenhaSegura123' })
       ).status
     ).toBe(400);
+  });
+
+  it('devolve mensagens públicas para tokens curtos sem alterar conta ou senha', async () => {
+    const pendingAgent = request.agent(app);
+    await pendingAgent.post('/api/auth/register').send({
+      name: 'Token público',
+      username: 'token-publico',
+      email: 'short-token@example.invalid',
+      password
+    });
+    const before = await prisma.user.findUnique({
+      where: { email: 'short-token@example.invalid' }
+    });
+
+    const verification = await request(app)
+      .post('/api/auth/email-verification/verify')
+      .send({ token: 'invalid' });
+    const reset = await request(app)
+      .post('/api/auth/reset-password')
+      .send({ token: 'invalid', password: 'NovaSenhaSegura123' });
+    const after = await prisma.user.findUnique({
+      where: { email: 'short-token@example.invalid' }
+    });
+
+    expect(verification).toMatchObject({
+      status: 400,
+      body: {
+        code: ERROR_CODES.VALIDATION_ERROR,
+        message: 'Link de verificação inválido ou expirado.'
+      }
+    });
+    expect(reset).toMatchObject({
+      status: 400,
+      body: {
+        code: ERROR_CODES.VALIDATION_ERROR,
+        message: 'Link de redefinição de senha inválido ou expirado.'
+      }
+    });
+    expect(JSON.stringify([verification.body, reset.body])).not.toMatch(
+      /expected string|too small|>=\s*32/i
+    );
+    expect(after).toMatchObject({
+      emailVerifiedAt: null,
+      passwordHash: before.passwordHash
+    });
   });
 
   it('mantém placeholder privado: 401 sem sessão e 501 autenticado', async () => {

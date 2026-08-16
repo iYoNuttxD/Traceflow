@@ -1,3 +1,4 @@
+import { StrictMode } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -82,6 +83,21 @@ describe('verificação de e-mail', () => {
     );
     await waitFor(() => expect(mocks.verifyEmail).toHaveBeenCalledWith('token-artificial'));
     expect(await screen.findByText('E-mail verificado com sucesso.')).toBeInTheDocument();
+  });
+
+  it('envia uma única confirmação por token sob StrictMode', async () => {
+    mocks.verifyEmail.mockResolvedValue({ data: { message: 'E-mail verificado com sucesso.' } });
+    render(
+      <StrictMode>
+        <MemoryRouter initialEntries={['/verify-email?token=token-strict-mode']}>
+          <VerifyEmailScreen />
+        </MemoryRouter>
+      </StrictMode>
+    );
+
+    expect(await screen.findByText('E-mail verificado com sucesso.')).toBeInTheDocument();
+    expect(mocks.verifyEmail).toHaveBeenCalledTimes(1);
+    expect(mocks.verifyEmail).toHaveBeenCalledWith('token-strict-mode');
   });
 
   it('atualiza o AuthContext quando a sessão corresponde ao e-mail verificado', async () => {

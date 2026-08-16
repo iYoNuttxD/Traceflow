@@ -1,8 +1,21 @@
 import { z } from 'zod';
-import { email, requiredText, strictObject } from '../../shared/validation/index.js';
+import {
+  email,
+  publicCapabilityToken,
+  requiredText,
+  strictObject
+} from '../../shared/validation/index.js';
 import { normalizeUsername, passwordPolicyErrors, validateUsername } from './identity-policy.js';
 
 const password = z.string().min(12, 'A senha deve possuir ao menos 12 caracteres.').max(128);
+const verificationToken = publicCapabilityToken({
+  message: 'Link de verificação inválido ou expirado.',
+  max: 128
+});
+const passwordResetToken = publicCapabilityToken({
+  message: 'Link de redefinição de senha inválido ou expirado.',
+  max: 128
+});
 const username = z
   .string()
   .transform(normalizeUsername)
@@ -26,12 +39,12 @@ export const loginBodySchema = strictObject({
   rememberMe: z.boolean().optional().default(false)
 });
 export const forgotBodySchema = strictObject({ email });
-export const resetBodySchema = strictObject({ token: z.string().min(32).max(128), password });
+export const resetBodySchema = strictObject({ token: passwordResetToken, password });
 export const changePasswordBodySchema = strictObject({
   currentPassword: z.string().min(1).max(128),
   password
 });
-export const verifyEmailBodySchema = strictObject({ token: z.string().min(32).max(128) });
+export const verifyEmailBodySchema = strictObject({ token: verificationToken });
 export const emptyAuthBodySchema = strictObject({});
 export const githubLoginStartBodySchema = strictObject({
   rememberMe: z.boolean().optional().default(false),

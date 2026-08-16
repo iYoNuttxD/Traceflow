@@ -15,6 +15,9 @@ const invitationSelect = {
 };
 
 export const projectInvitationRepository = {
+  findProjectById(projectId) {
+    return prisma.project.findUnique({ where: { id: projectId }, select: { id: true } });
+  },
   createUnlessPending(data) {
     return serializableTransaction(async (tx) => {
       const activeMembership = await tx.projectMembership.findFirst({

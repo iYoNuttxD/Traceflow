@@ -39,6 +39,12 @@ export const requiredText = ({
     .min(1, message)
     .max(max, `${field} deve possuir no máximo ${max} caracteres.`);
 
+export const publicCapabilityToken = ({
+  message = 'Link inválido ou expirado.',
+  min = 32,
+  max = 256
+} = {}) => z.string({ error: message }).min(min, message).max(max, message);
+
 export const optionalText = ({ field = 'Campo', max = INPUT_LIMITS.shortText } = {}) =>
   z
     .union([

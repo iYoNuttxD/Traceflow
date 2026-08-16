@@ -1,8 +1,13 @@
 import { z } from 'zod';
-import { email, requiredText, strictObject } from '../../shared/validation/index.js';
+import {
+  email,
+  publicCapabilityToken,
+  requiredText,
+  strictObject
+} from '../../shared/validation/index.js';
 
 const password = z.string().min(8, 'Senha obrigatória.').max(128);
-const token = z.string().min(32).max(256);
+const token = publicCapabilityToken();
 
 export const profileBody = strictObject({ name: requiredText({ field: 'Nome' }).max(120) });
 export const usernameBody = strictObject({ username: z.string().min(3).max(39) });

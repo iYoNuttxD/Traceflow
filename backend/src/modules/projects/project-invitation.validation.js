@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { email, positiveInteger, strictObject } from '../../shared/validation/index.js';
+import {
+  email,
+  positiveInteger,
+  publicCapabilityToken,
+  strictObject
+} from '../../shared/validation/index.js';
 export const invitationParams = strictObject({
   projectId: positiveInteger(),
   invitationId: positiveInteger()
@@ -9,4 +14,6 @@ export const createInvitationBody = strictObject({
   email,
   role: z.enum(['OWNER', 'MANAGER', 'MEMBER', 'VIEWER']).default('MEMBER')
 });
-export const acceptInvitationBody = strictObject({ token: z.string().min(32).max(128) });
+export const acceptInvitationBody = strictObject({
+  token: publicCapabilityToken({ message: 'Convite inválido.', max: 128 })
+});
