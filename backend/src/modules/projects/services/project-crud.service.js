@@ -1,4 +1,5 @@
 import { projectRepository } from '../project.repository.js';
+import { resourceNotFoundError } from '../../../shared/errors/index.js';
 import {
   buildEditableProjectData,
   parseProjectId,
@@ -45,14 +46,14 @@ export const projectCrudService = {
   async getProjectById(projectId) {
     const parsedProjectId = parseProjectId(projectId);
     const project = await projectRepository.findById(parsedProjectId);
-    if (!project) throw new ProjectServiceError('Projeto não encontrado.', 404);
+    if (!project) throw resourceNotFoundError('Project');
     return project;
   },
 
   async updateProject(projectId, data) {
     const parsedProjectId = parseProjectId(projectId);
     const project = await projectRepository.findById(parsedProjectId);
-    if (!project) throw new ProjectServiceError('Projeto não encontrado.', 404);
+    if (!project) throw resourceNotFoundError('Project');
 
     const projectData = buildEditableProjectData(data);
     protectGithubRepositoryIdentity(project, projectData);

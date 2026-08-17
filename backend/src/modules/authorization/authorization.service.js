@@ -4,23 +4,39 @@ const levels = Object.freeze({ VIEWER: 0, MEMBER: 1, MANAGER: 2, OWNER: 3 });
 const matchId = (path, pattern) => Number(pattern.exec(path)?.[1]) || null;
 
 export const authorizationService = {
-  async resolveProjectId(path) {
+  // Resolve o projeto DONO do recurso endereçado e diz de que recurso se trata.
+  // O tipo importa para o 404: a resposta de "não existe" e a de "existe em
+  // projeto alheio" precisam ser idênticas, e para isso o middleware tem que
+  // falar o mesmo vocabulário que o service falaria.
+  async resolveResource(path) {
     const direct = matchId(path, /^\/projects\/(\d+)(?:\/|$)/);
-    if (direct) return direct;
+    if (direct) return { projectId: direct, resourceType: 'Project' };
+
     const requirementId = matchId(path, /^\/requirements\/(\d+)(?:\/|$)/);
-    if (requirementId)
-      return (
-        (await authorizationRepository.projectForRequirement(requirementId))?.projectId ?? null
-      );
+    if (requirementId) {
+      const owner = await authorizationRepository.projectForRequirement(requirementId);
+      return { projectId: owner?.projectId ?? null, resourceType: 'Requirement' };
+    }
     const taskId = matchId(path, /^\/tasks\/(\d+)(?:\/|$)/);
-    if (taskId) return (await authorizationRepository.projectForTask(taskId))?.projectId ?? null;
+    if (taskId) {
+      const owner = await authorizationRepository.projectForTask(taskId);
+      return { projectId: owner?.projectId ?? null, resourceType: 'Task' };
+    }
     const sprintId = matchId(path, /^\/sprints\/(\d+)(?:\/|$)/);
-    if (sprintId)
-      return (await authorizationRepository.projectForSprint(sprintId))?.projectId ?? null;
+    if (sprintId) {
+      const owner = await authorizationRepository.projectForSprint(sprintId);
+      return { projectId: owner?.projectId ?? null, resourceType: 'Sprint' };
+    }
     const milestoneId = matchId(path, /^\/milestones\/(\d+)(?:\/|$)/);
-    if (milestoneId)
-      return (await authorizationRepository.projectForMilestone(milestoneId))?.projectId ?? null;
-    return null;
+    if (milestoneId) {
+      const owner = await authorizationRepository.projectForMilestone(milestoneId);
+      return { projectId: owner?.projectId ?? null, resourceType: 'Milestone' };
+    }
+    return { projectId: null, resourceType: null };
+  },
+
+  async resolveProjectId(path) {
+    return (await this.resolveResource(path)).projectId;
   },
   requiredRole(req) {
     if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return 'VIEWER';

@@ -1,4 +1,5 @@
 import { DomainError as ProjectServiceError } from '../../shared/errors/index.js';
+import { resourceNotFoundError } from '../../shared/errors/index.js';
 export { ProjectServiceError };
 
 const requiredGithubFields = [
@@ -191,7 +192,7 @@ export function validateOptionalGithubAutoSyncEnabled(value) {
 }
 
 export function ensureGithubLinkedProject(project) {
-  if (!project) throw new ProjectServiceError('Projeto não encontrado.', 404);
+  if (!project) throw resourceNotFoundError('Project');
 
   const repositoryName = project.githubRepositoryName || project.githubRepo;
   if (!project.githubOwner || !repositoryName) {

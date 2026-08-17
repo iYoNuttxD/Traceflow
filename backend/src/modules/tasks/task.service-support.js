@@ -1,14 +1,18 @@
 import { taskRepository } from './task.repository.js';
+import { resourceNotFoundError } from '../../shared/errors/index.js';
 import { TaskServiceError, parseRequirementId } from './task.schema.js';
 
+// Recurso endereçado por ID usa a fábrica compartilhada: a resposta precisa ser
+// byte a byte igual à do middleware quando ele barra um recurso de projeto
+// alheio, senão a diferença revela a existência do ID.
 export async function ensureProjectExists(projectId) {
   const project = await taskRepository.findProjectById(projectId);
-  if (!project) throw new TaskServiceError('Projeto não encontrado.', 404);
+  if (!project) throw resourceNotFoundError('Project');
   return project;
 }
 export async function ensureTaskExists(taskId) {
   const task = await taskRepository.findTaskById(taskId);
-  if (!task) throw new TaskServiceError('Tarefa não encontrada.', 404);
+  if (!task) throw resourceNotFoundError('Task');
   return task;
 }
 export async function ensurePullRequestExists(id) {

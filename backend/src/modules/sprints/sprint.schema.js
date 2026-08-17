@@ -1,6 +1,6 @@
 // Parse, normalizacao e erros de dominio do modulo de sprints (RF10).
 // Sem Prisma, sem Express: apenas regras de forma e vocabulario do dominio.
-import { DomainError, ERROR_CODES } from '../../shared/errors/index.js';
+import { DomainError, ERROR_CODES, resourceNotFoundError } from '../../shared/errors/index.js';
 
 export class SprintServiceError extends DomainError {
   constructor(message, statusCode = 400, code) {
@@ -373,10 +373,12 @@ export function sprintNameConflictError() {
   );
 }
 
+// Delegam à fábrica compartilhada para não poderem divergir do 404 que o
+// middleware emite ao barrar um recurso de projeto alheio.
 export function sprintNotFoundError() {
-  return new SprintServiceError('Sprint não encontrada.', 404, ERROR_CODES.SPRINT_NOT_FOUND);
+  return resourceNotFoundError('Sprint');
 }
 
 export function milestoneNotFoundError() {
-  return new SprintServiceError('Marco não encontrado.', 404, ERROR_CODES.MILESTONE_NOT_FOUND);
+  return resourceNotFoundError('Milestone');
 }
