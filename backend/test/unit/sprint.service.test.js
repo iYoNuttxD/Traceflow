@@ -646,18 +646,26 @@ describe('marcos', () => {
 });
 
 describe('montagem do cronograma', () => {
+  // A composicao vem da participacao, e nao do ponteiro `Task.sprintId`: numa
+  // sprint encerrada o ponteiro ja pode apontar para a sprint seguinte.
   const sprintA = {
     ...baseSprint,
     id: 10,
-    tasks: [
+    sprintTasks: [
       {
-        id: 1,
-        title: 'T1',
-        status: 'A_FAZER',
-        priority: 'ALTA',
-        deadline: new Date('2026-08-20T00:00:00.000Z'),
-        responsibleUserId: 4,
-        sprintId: 10
+        addedAt: new Date('2026-08-02T00:00:00.000Z'),
+        addedAfterStart: false,
+        carriedFromSprintId: null,
+        exitStatus: null,
+        task: {
+          id: 1,
+          title: 'T1',
+          status: 'A_FAZER',
+          priority: 'ALTA',
+          deadline: new Date('2026-08-20T00:00:00.000Z'),
+          responsibleUserId: 4,
+          sprintId: 10
+        }
       }
     ]
   };
@@ -738,6 +746,8 @@ describe('montagem do cronograma', () => {
   it('minimiza o DTO de tarefa: sem descricao, esforco ou e-mail', async () => {
     const schedule = await sprintService.getSchedule(projectId, {});
     expect(Object.keys(schedule.sprints[0].tasks[0]).sort()).toEqual([
+      'addedAfterStart',
+      'carriedFromSprintId',
       'deadline',
       'deadlineOutsideWindow',
       'id',

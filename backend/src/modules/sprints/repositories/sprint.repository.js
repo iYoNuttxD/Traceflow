@@ -43,6 +43,19 @@ export const sprintTaskSelect = {
   closedAt: true
 };
 
+// DTO da tarefa dentro da sprint: o minimizado de sempre, mais o contexto da
+// participacao que a interface precisa para sinalizar inclusao posterior e
+// continuidade. Nenhum dado pessoal novo.
+function toParticipatingTask(participation) {
+  return {
+    ...participation.task,
+    addedAt: participation.addedAt,
+    addedAfterStart: participation.addedAfterStart,
+    carriedFromSprintId: participation.carriedFromSprintId,
+    exitStatus: participation.exitStatus
+  };
+}
+
 // Congela o ultimo status observado em cada participacao ainda ativa. Roda na
 // mesma transacao do encerramento: se o congelamento falhar, a sprint nao muda
 // de status, e nunca existe uma sprint fechada sem registro do que havia nela.
@@ -297,12 +310,26 @@ export const sprintRepository = {
     }));
   },
 
-  findTasksBySprint(sprintId) {
-    return prisma.task.findMany({
-      where: { sprintId },
-      select: scheduleTaskSelect,
-      orderBy: [{ id: 'asc' }]
+  // Tarefas da sprint COM o contexto da participacao: quem entrou depois do
+  // inicio, de onde veio e com que status saiu.
+  //
+  // A fonte e a participacao, e nao `Task.sprintId`. Numa sprint encerrada os
+  // dois divergem de proposito: a tarefa pode ter seguido para a sprint
+  // seguinte, e o ponteiro dela aponta para la — mas a composicao registrada
+  // aqui continua sendo a que existia no encerramento.
+  async findTasksBySprint(sprintId) {
+    const participations = await prisma.sprintTask.findMany({
+      where: { sprintId, removedAt: null },
+      select: {
+        addedAt: true,
+        addedAfterStart: true,
+        carriedFromSprintId: true,
+        exitStatus: true,
+        task: { select: scheduleTaskSelect }
+      },
+      orderBy: [{ taskId: 'asc' }]
     });
+    return participations.filter((participation) => participation.task).map(toParticipatingTask);
   },
 
   // Carrega tarefas do projeto para validacao de pertencimento em lote.
@@ -314,13 +341,31 @@ export const sprintRepository = {
   },
 
   // Agregado do cronograma em duas consultas com select explicito, sem N+1.
+  // A composicao de cada sprint vem da participacao pelo mesmo motivo de
+  // findTasksBySprint: numa sprint encerrada, `Task.sprintId` ja pode apontar
+  // para a sprint seguinte, e o cronograma passaria a mostrar um passado
+  // diferente do que aconteceu.
   scheduleData(projectId) {
     return prisma.$transaction([
       prisma.sprint.findMany({
         where: { projectId },
-        select: { ...sprintSelect, tasks: { select: scheduleTaskSelect, orderBy: { id: 'asc' } } },
+        select: {
+          ...sprintSelect,
+          sprintTasks: {
+            where: { removedAt: null },
+            select: {
+              addedAt: true,
+              addedAfterStart: true,
+              carriedFromSprintId: true,
+              exitStatus: true,
+              task: { select: scheduleTaskSelect }
+            },
+            orderBy: [{ taskId: 'asc' }]
+          }
+        },
         orderBy: [{ startDate: 'asc' }, { id: 'asc' }]
       }),
+      // "Sem sprint" e uma pergunta sobre o presente: aqui o ponteiro e a fonte certa.
       prisma.task.findMany({
         where: { projectId, sprintId: null },
         select: scheduleTaskSelect,

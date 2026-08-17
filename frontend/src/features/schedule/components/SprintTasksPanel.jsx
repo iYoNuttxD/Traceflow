@@ -6,10 +6,12 @@ import { isTerminalSprint, taskPriorityLabels, taskStatusLabels } from './schedu
 export function SprintTasksPanel({
   sprint,
   tasks,
+  sprintTasks = [],
   selectedTaskIds,
   sprintNames = {},
   loading = false,
   submitting,
+  readOnly = false,
   onSubmit,
   onCancel
 }) {
@@ -34,8 +36,21 @@ export function SprintTasksPanel({
   // Sprint encerrada e registro historico: o escopo nao muda em nenhuma direcao.
   // O painel vira leitura — antes ele permitia remover, quando a remocao era o
   // unico jeito de esvaziar a sprint para exclui-la; a exclusao deixou de existir.
-  const terminal = isTerminalSprint(sprint.status);
-  const membros = tasks.filter((task) => selectedTaskIds.includes(task.id));
+  // VIEWER cai no mesmo caminho, por falta de permissao e nao por estado.
+  const congelada = isTerminalSprint(sprint.status);
+  const somenteLeitura = congelada || readOnly;
+  // A composicao vem da API, e nao do cruzamento com as tarefas do projeto: numa
+  // sprint encerrada a tarefa pode ter seguido adiante, e ainda assim continua
+  // fazendo parte do que aconteceu aqui.
+  const membros = sprintTasks;
+  // Entrou depois do inicio: e o que distingue o escopo planejado do que foi
+  // acrescentado durante a execucao (RF35).
+  const posteriores = new Map(
+    sprintTasks.map((task) => [
+      task.id,
+      { depois: task.addedAfterStart === true, veioDe: task.carriedFromSprintId ?? null }
+    ])
+  );
 
   const toggle = (taskId) => {
     setSelection((current) =>
@@ -46,10 +61,14 @@ export function SprintTasksPanel({
   return (
     <section className="sprint-tasks-panel" aria-label={`Tarefas da sprint ${sprint.name}`}>
       <h3>Tarefas de {sprint.name}</h3>
-      {terminal ? (
+      {congelada ? (
         <p className="field-help">
           Sprint concluída ou cancelada: a composição abaixo é o registro do que aconteceu neste
           período e não pode mais ser alterada.
+        </p>
+      ) : readOnly ? (
+        <p className="field-help">
+          Seu perfil no projeto é somente leitura: esta é a composição atual da sprint.
         </p>
       ) : (
         <p className="field-help">
@@ -61,17 +80,24 @@ export function SprintTasksPanel({
         <p className="empty-state" role="status">
           Carregando tarefas do projeto...
         </p>
-      ) : terminal ? (
+      ) : somenteLeitura ? (
         // Somente a composicao registrada. Listar o projeto inteiro com caixas
-        // inertes ofereceria uma escolha que nao existe mais.
+        // inertes ofereceria uma escolha que nao existe.
         membros.length === 0 ? (
-          <p className="empty-state">Esta sprint foi encerrada sem tarefas associadas.</p>
+          <p className="empty-state">
+            {congelada
+              ? 'Esta sprint foi encerrada sem tarefas associadas.'
+              : 'Nenhuma tarefa associada a esta sprint.'}
+          </p>
         ) : (
           <ul className="sprint-tasks-frozen">
             {membros.map((task) => (
               <li key={task.id}>
                 {task.title} — {taskStatusLabels[task.status] || task.status} ·{' '}
                 {taskPriorityLabels[task.priority] || task.priority}
+                {posteriores.get(task.id)?.depois && (
+                  <span className="checkbox-field-hint">Incluída após o início da sprint</span>
+                )}
               </li>
             ))}
           </ul>
@@ -100,6 +126,11 @@ export function SprintTasksPanel({
                         Atualmente em {origem} — marcar move a tarefa para cá
                       </span>
                     )}
+                    {/* Já dentro da sprint e entrou depois do início: distinguir
+                        isso é o que o RF35 mede como mudança de escopo. */}
+                    {posteriores.get(task.id)?.depois && (
+                      <span className="checkbox-field-hint">Incluída após o início da sprint</span>
+                    )}
                   </span>
                 </label>
               </li>
@@ -119,7 +150,7 @@ export function SprintTasksPanel({
         </p>
       )}
       <div className="form-actions">
-        {!terminal && (
+        {!somenteLeitura && (
           <button
             type="button"
             className="button button-primary"

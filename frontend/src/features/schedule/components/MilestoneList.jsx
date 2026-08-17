@@ -1,11 +1,14 @@
 import { EmptyState } from '../../../shared/index.js';
-import {
-  formatCalendarDate,
-  isMilestoneOverdue,
-  milestoneStatusLabels
-} from './schedule-display.js';
+import { formatInstant, isMilestoneOverdue, milestoneStatusLabels } from './schedule-display.js';
 
-export function MilestoneList({ milestones, busyMilestoneId, onEdit, onDelete, onToggleStatus }) {
+export function MilestoneList({
+  milestones,
+  busyMilestoneId,
+  readOnly = false,
+  onEdit,
+  onDelete,
+  onToggleStatus
+}) {
   if (!milestones.length) {
     return (
       <EmptyState
@@ -36,7 +39,7 @@ export function MilestoneList({ milestones, busyMilestoneId, onEdit, onDelete, o
             </div>
 
             <p className="milestone-meta">
-              <span>Previsto para {formatCalendarDate(milestone.dueDate)}</span>
+              <span>Previsto para {formatInstant(milestone.dueDate)}</span>
               {/* Atraso comunicado por texto, nunca apenas por cor. */}
               {overdue && <span className="milestone-overdue">Atrasado</span>}
             </p>
@@ -45,47 +48,50 @@ export function MilestoneList({ milestones, busyMilestoneId, onEdit, onDelete, o
               <p className="milestone-description">{milestone.description}</p>
             )}
 
-            <div
-              className="milestone-actions"
-              role="group"
-              aria-label={`Ações do marco ${milestone.title}`}
-            >
-              <button
-                type="button"
-                className={`button ${done ? 'button-secondary' : 'button-primary'}`}
-                disabled={busy}
-                aria-label={`${done ? 'Reabrir' : 'Concluir'} o marco ${milestone.title}`}
-                title={
-                  done
-                    ? 'Volta o marco para pendente. Pode ser desfeito a qualquer momento.'
-                    : 'Marca o marco como entregue. Pode ser reaberto depois.'
-                }
-                onClick={() => onToggleStatus(milestone)}
+            {/* VIEWER lê o cronograma inteiro, mas não age sobre ele. */}
+            {readOnly ? null : (
+              <div
+                className="milestone-actions"
+                role="group"
+                aria-label={`Ações do marco ${milestone.title}`}
               >
-                {done ? 'Reabrir' : 'Concluir'}
-              </button>
-              <button
-                type="button"
-                className="button button-secondary"
-                aria-label={`Editar o marco ${milestone.title}`}
-                title="Carrega título, descrição e data no formulário acima."
-                onClick={() => onEdit(milestone)}
-              >
-                Editar
-              </button>
-              <div className="milestone-actions-end">
                 <button
                   type="button"
-                  className="button button-danger"
+                  className={`button ${done ? 'button-secondary' : 'button-primary'}`}
                   disabled={busy}
-                  aria-label={`Excluir o marco ${milestone.title}`}
-                  title="Remove o marco do projeto. Esta ação não pode ser desfeita."
-                  onClick={() => onDelete(milestone)}
+                  aria-label={`${done ? 'Reabrir' : 'Concluir'} o marco ${milestone.title}`}
+                  title={
+                    done
+                      ? 'Volta o marco para pendente. Pode ser desfeito a qualquer momento.'
+                      : 'Marca o marco como entregue. Pode ser reaberto depois.'
+                  }
+                  onClick={() => onToggleStatus(milestone)}
                 >
-                  Excluir
+                  {done ? 'Reabrir' : 'Concluir'}
                 </button>
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  aria-label={`Editar o marco ${milestone.title}`}
+                  title="Carrega título, descrição e data no formulário acima."
+                  onClick={() => onEdit(milestone)}
+                >
+                  Editar
+                </button>
+                <div className="milestone-actions-end">
+                  <button
+                    type="button"
+                    className="button button-danger"
+                    disabled={busy}
+                    aria-label={`Excluir o marco ${milestone.title}`}
+                    title="Remove o marco do projeto. Esta ação não pode ser desfeita."
+                    onClick={() => onDelete(milestone)}
+                  >
+                    Excluir
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
           </li>
         );
       })}
