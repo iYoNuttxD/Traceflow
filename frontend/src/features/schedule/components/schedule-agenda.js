@@ -58,14 +58,16 @@ const MESES = [
   'dezembro'
 ];
 
+// Dia em que o evento aparece na agenda. Dia de calendario puro fica como esta;
+// instante e ancorado no dia LOCAL, porque e o dia do usuario que importa —
+// uma sprint que comeca 31/07 as 23h em Brasilia nao pertence a 01/08.
 export function toIsoDay(value) {
   if (!value) return null;
-  if (value instanceof Date) {
-    if (Number.isNaN(value.getTime())) return null;
-    return value.toISOString().slice(0, 10);
-  }
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value));
-  return match ? match[0] : null;
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  const date = value instanceof Date ? value : new Date(String(value));
+  if (Number.isNaN(date.getTime())) return null;
+  const pad = (parte) => String(parte).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
 function diaUtc(iso) {

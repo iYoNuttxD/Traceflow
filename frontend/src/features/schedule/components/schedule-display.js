@@ -57,18 +57,59 @@ export const allowedSprintTransitions = {
   CANCELADA: []
 };
 
-// Datas de calendario chegam como YYYY-MM-DD e sao exibidas sem conversao de fuso,
-// para nao deslocar o dia. Instantes reais usam o fuso local do navegador.
+const pad = (value) => String(value).padStart(2, '0');
+
+// Duas formas convivem no cronograma, e confundi-las desloca o dia:
+//
+// - dia de calendario puro (YYYY-MM-DD), usado pela janela do filtro e pelo eixo
+//   da agenda: exibido sem conversao, senao 2026-08-08 viraria 07/08 no Brasil;
+// - instante (ISO-8601 com hora), usado por sprint, marco e prazo: exibido no
+//   fuso local, senao a tela mostraria o dia de Greenwich e nao o do usuario.
 export function formatCalendarDate(value) {
   if (!value) return 'Não informado';
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
-  if (!match) return 'Não informado';
-  const [, year, month, day] = match;
-  return `${day}/${month}/${year}`;
+  const texto = String(value);
+  const diaPuro = /^(\d{4})-(\d{2})-(\d{2})$/.exec(texto);
+  if (diaPuro) {
+    const [, year, month, day] = diaPuro;
+    return `${day}/${month}/${year}`;
+  }
+  const date = new Date(texto);
+  if (Number.isNaN(date.getTime())) return 'Não informado';
+  return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()}`;
+}
+
+// Instante com hora, quando ela existe. Meia-noite local costuma vir de quem
+// informou apenas a data: exibir "00:00" sugeriria uma precisao que o usuario
+// nao escolheu.
+export function formatInstant(value) {
+  if (!value) return 'Não informado';
+  const dia = formatCalendarDate(value);
+  // Dia de calendario puro nao tem hora para mostrar: converte-lo para instante
+  // acrescentaria um "21:00" que ninguem informou, vindo do fuso local.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(value))) return dia;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return dia;
+  if (date.getHours() === 0 && date.getMinutes() === 0) return dia;
+  return `${dia} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 export function formatDateTime(value) {
   return value ? new Date(value).toLocaleString('pt-BR') : 'Não informado';
+}
+
+// <input type="datetime-local"> fala no fuso local e sem offset. Converter nas
+// duas pontas e o que faz o instante sobreviver a ida e volta do formulario.
+export function toDateTimeLocalInput(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+export function fromDateTimeLocalInput(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
 // Derivacao de atraso apenas para exibicao na lista de marcos, que e sempre
@@ -77,16 +118,15 @@ export function formatDateTime(value) {
 // calculado de la. Vencer hoje nao e atraso, mesma regra do servidor.
 export function isMilestoneOverdue(milestone, today = new Date()) {
   if (!milestone || milestone.status !== 'PENDENTE') return false;
-  const due = /^(\d{4})-(\d{2})-(\d{2})/.exec(milestone.dueDate || '');
-  if (!due) return false;
-  const [, year, month, day] = due;
-  const dueDay = Date.UTC(Number(year), Number(month) - 1, Number(day));
-  const reference = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
-  return dueDay < reference;
+  // Comparacao entre instantes, como no servidor: o marco vence numa hora, e
+  // nao no fim de um dia inteiro.
+  const due = new Date(milestone.dueDate || '');
+  if (Number.isNaN(due.getTime())) return false;
+  return due.getTime() < today.getTime();
 }
 
 export function formatSprintPeriod(sprint) {
-  return `${formatCalendarDate(sprint.startDate)} a ${formatCalendarDate(sprint.endDate)}`;
+  return `${formatInstant(sprint.startDate)} a ${formatInstant(sprint.endDate)}`;
 }
 
 export function formatDuration(durationInDays) {

@@ -65,51 +65,74 @@ export function normalizeOptionalText(value) {
   return value.trim() || null;
 }
 
-// Converte data de calendario (YYYY-MM-DD) ou ISO-8601 completo em Date UTC
-// truncada no dia. Datas de cronograma sao dias, nao instantes: um prazo
-// 2026-08-14T23:59:59-03:00 pertence ao dia 2026-08-15 em UTC.
-export function parseCalendarDate(value, label) {
+// Converte data de calendario (YYYY-MM-DD) ou ISO-8601 completo no INSTANTE que
+// ele representa (ADR-010 D05). A versao anterior truncava para a meia-noite UTC,
+// o que nao era arredondamento: era descarte silencioso de hora, minuto, segundo
+// e fuso. `2026-08-14T23:59:59-03:00` virava `2026-08-15T00:00:00Z`, mudando ate
+// o dia percebido pelo usuario.
+//
+// `YYYY-MM-DD` continua aceito e significa o inicio daquele dia em UTC — um
+// atalho documentado para quem so tem data, nao uma normalizacao de quem tem hora.
+export function parseInstant(value, label) {
   if (value === undefined || value === null || value === '') return null;
   if (value instanceof Date) {
     if (Number.isNaN(value.getTime())) {
       throw new SprintServiceError(`${label} inválida.`, 400, ERROR_CODES.VALIDATION_ERROR);
     }
-    return truncateToUtcDay(value);
+    return value;
   }
   if (typeof value !== 'string') {
     throw new SprintServiceError(`${label} inválida.`, 400, ERROR_CODES.VALIDATION_ERROR);
   }
   const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (dateOnly) {
-    const [, yearText, monthText, dayText] = dateOnly;
-    const year = Number(yearText);
-    const month = Number(monthText);
-    const day = Number(dayText);
-    const date = new Date(Date.UTC(year, month - 1, day));
-    if (
-      date.getUTCFullYear() !== year ||
-      date.getUTCMonth() !== month - 1 ||
-      date.getUTCDate() !== day
-    ) {
-      throw new SprintServiceError(
-        `${label} inválida. Use o formato YYYY-MM-DD.`,
-        400,
-        ERROR_CODES.VALIDATION_ERROR
-      );
-    }
-    return date;
-  }
+  if (dateOnly) return parseUtcDay(dateOnly, label);
+
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) {
     throw new SprintServiceError(`${label} inválida.`, 400, ERROR_CODES.VALIDATION_ERROR);
   }
-  return truncateToUtcDay(parsed);
+  return parsed;
 }
 
-export function truncateToUtcDay(date) {
-  return new Date(
-    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 0, 0, 0, 0)
-  );
+function parseUtcDay([, yearText, monthText, dayText], label) {
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  // Data civil real: 2026-02-30 nao pode virar 02 de marco em silencio.
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    throw new SprintServiceError(
+      `${label} inválida. Use o formato YYYY-MM-DD.`,
+      400,
+      ERROR_CODES.VALIDATION_ERROR
+    );
+  }
+  return date;
+}
+
+// A janela do cronograma continua sendo dia de calendario, interpretado em UTC
+// (ADR-010 D15). `to` e convertido para o INICIO DO DIA SEGUINTE: o usuario que
+// filtra "até 14/08" espera o dia 14 inteiro, e comparar contra a meia-noite do
+// dia 14 excluiria tudo o que acontece nele.
+export function parseWindowDay(value, label) {
+  if (value === undefined || value === null || value === '') return null;
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value));
+  if (!dateOnly) {
+    throw new SprintServiceError(
+      `${label} inválida. Use o formato YYYY-MM-DD.`,
+      400,
+      ERROR_CODES.VALIDATION_ERROR
+    );
+  }
+  return parseUtcDay(dateOnly, label);
+}
+
+export function nextUtcDay(date) {
+  return date ? new Date(date.getTime() + 86400000) : null;
 }
 
 // Janela semiaberta [startDate, endDate): duracao zero nao e sprint, e a
@@ -263,7 +286,7 @@ export function buildSprintData(data, isCreate = false) {
     sprintData.objective = normalizeOptionalText(payload.objective);
   }
   if (isCreate || payload.startDate !== undefined) {
-    const startDate = parseCalendarDate(payload.startDate, 'Data de início');
+    const startDate = parseInstant(payload.startDate, 'Data de início');
     if (!startDate) {
       throw new SprintServiceError(
         'A data de início da sprint é obrigatória.',
@@ -274,7 +297,7 @@ export function buildSprintData(data, isCreate = false) {
     sprintData.startDate = startDate;
   }
   if (isCreate || payload.endDate !== undefined) {
-    const endDate = parseCalendarDate(payload.endDate, 'Data de fim');
+    const endDate = parseInstant(payload.endDate, 'Data de fim');
     if (!endDate) {
       throw new SprintServiceError(
         'A data de fim da sprint é obrigatória.',
@@ -305,7 +328,7 @@ export function buildMilestoneData(data, isCreate = false) {
     milestoneData.description = normalizeOptionalText(payload.description);
   }
   if (isCreate || payload.dueDate !== undefined) {
-    const dueDate = parseCalendarDate(payload.dueDate, 'Data prevista');
+    const dueDate = parseInstant(payload.dueDate, 'Data prevista');
     if (!dueDate) {
       throw new SprintServiceError(
         'A data prevista do marco é obrigatória.',

@@ -1,5 +1,9 @@
 // RF10: funcoes puras de data e derivacao do cronograma.
 // O "hoje" e sempre injetado; nenhum teste depende do relogio do ambiente.
+//
+// As datas de cronograma passaram a ser instantes (ADR-010 D05) e a janela e
+// semiaberta [inicio, fim) (D03). Estes testes fixam as duas convencoes nas
+// bordas, que e onde elas se distinguem da versao anterior.
 import { describe, expect, it } from 'vitest';
 import {
   durationInDays,
@@ -8,23 +12,28 @@ import {
   isMilestoneOverdue,
   isWithinRange,
   toDateOnlyString,
+  toIsoString,
   toUtcDay
 } from '../../src/modules/sprints/sprint.calculator.js';
 
-const start = '2026-08-01';
-const end = '2026-08-14';
+// Janela de 13 dias: cobre de 01/08 00:00 ate 13/08 23:59:59.999.
+const start = '2026-08-01T00:00:00.000Z';
+const end = '2026-08-14T00:00:00.000Z';
 
 describe('durationInDays', () => {
-  it('conta a duracao de forma inclusiva', () => {
-    expect(durationInDays(start, end)).toBe(14);
+  // Deixou de ser contagem inclusiva de dias de calendario: com o fim exclusivo,
+  // o dia 14 pertence a sprint seguinte, e contar 14 dias somaria um dia que
+  // esta sprint nao tem.
+  it('conta os dias abrangidos pela janela semiaberta', () => {
+    expect(durationInDays(start, end)).toBe(13);
   });
 
-  it('conta 1 dia para sprint que comeca e termina no mesmo dia', () => {
-    expect(durationInDays('2026-08-01', '2026-08-01')).toBe(1);
+  it('arredonda para cima quando sobra hora', () => {
+    expect(durationInDays(start, '2026-08-14T09:00:00.000Z')).toBe(14);
   });
 
-  it('conta a borda de virada de mes', () => {
-    expect(durationInDays('2026-08-31', '2026-09-01')).toBe(2);
+  it('conta 1 dia para uma janela de exatamente 24 horas', () => {
+    expect(durationInDays('2026-08-01T00:00:00.000Z', '2026-08-02T00:00:00.000Z')).toBe(1);
   });
 
   it('retorna null quando falta uma das datas', () => {
@@ -38,96 +47,115 @@ describe('isDeadlineOutsideWindow', () => {
     expect(isDeadlineOutsideWindow(null, start, end)).toBe(false);
   });
 
-  it('aceita o primeiro dia da sprint', () => {
-    expect(isDeadlineOutsideWindow('2026-08-01', start, end)).toBe(false);
+  it('aceita o instante inicial', () => {
+    expect(isDeadlineOutsideWindow(start, start, end)).toBe(false);
   });
 
-  it('aceita o ultimo dia da sprint', () => {
-    expect(isDeadlineOutsideWindow('2026-08-14', start, end)).toBe(false);
+  it('aceita o ultimo instante antes do fim', () => {
+    expect(isDeadlineOutsideWindow('2026-08-13T23:59:59.999Z', start, end)).toBe(false);
   });
 
-  it('marca um dia antes do inicio', () => {
-    expect(isDeadlineOutsideWindow('2026-07-31', start, end)).toBe(true);
+  // Fim exclusivo: o instante final ja pertence a sprint seguinte.
+  it('marca o instante final como fora', () => {
+    expect(isDeadlineOutsideWindow(end, start, end)).toBe(true);
   });
 
-  it('marca um dia depois do fim', () => {
-    expect(isDeadlineOutsideWindow('2026-08-15', start, end)).toBe(true);
+  it('marca um instante anterior ao inicio', () => {
+    expect(isDeadlineOutsideWindow('2026-07-31T23:59:59.999Z', start, end)).toBe(true);
   });
 });
 
 describe('isMilestoneOverdue', () => {
-  const today = '2026-08-10';
+  const agora = '2026-08-10T12:00:00.000Z';
 
-  it('nao considera atrasado o marco que vence hoje', () => {
-    expect(isMilestoneOverdue('PENDENTE', today, today)).toBe(false);
+  it('nao considera atrasado o marco que vence depois de agora', () => {
+    expect(isMilestoneOverdue('PENDENTE', '2026-08-10T18:00:00.000Z', agora)).toBe(false);
   });
 
-  it('considera atrasado o marco vencido ontem', () => {
-    expect(isMilestoneOverdue('PENDENTE', '2026-08-09', today)).toBe(true);
+  it('considera atrasado o marco ja vencido', () => {
+    expect(isMilestoneOverdue('PENDENTE', '2026-08-10T09:00:00.000Z', agora)).toBe(true);
   });
 
   it('nunca considera atrasado um marco concluido', () => {
-    expect(isMilestoneOverdue('CONCLUIDO', '2026-01-01', today)).toBe(false);
+    expect(isMilestoneOverdue('CONCLUIDO', '2026-01-01T00:00:00.000Z', agora)).toBe(false);
   });
 });
 
-describe('normalizacao de fuso', () => {
-  it('resolve um instante com offset para o dia UTC correto', () => {
-    // 2026-08-14T23:59:59-03:00 e 2026-08-15T02:59:59Z: pertence ao dia 15 em UTC.
-    expect(toDateOnlyString('2026-08-14T23:59:59-03:00')).toBe('2026-08-15');
-    expect(isDeadlineOutsideWindow('2026-08-14T23:59:59-03:00', start, end)).toBe(true);
+// A perda de hora era o defeito, nao a normalizacao: um prazo informado as
+// 23:59:59-03:00 tem que continuar sendo aquele instante.
+describe('preservacao do instante', () => {
+  it('serializa em ISO-8601 UTC sem descartar hora, minuto ou segundo', () => {
+    expect(toIsoString('2026-08-14T23:59:59-03:00')).toBe('2026-08-15T02:59:59.000Z');
+    expect(toIsoString(new Date('2026-08-01T18:45:30.000Z'))).toBe('2026-08-01T18:45:30.000Z');
   });
 
-  it('mantem o dia quando o offset nao cruza a meia-noite UTC', () => {
-    expect(toDateOnlyString('2026-08-14T10:00:00-03:00')).toBe('2026-08-14');
-    expect(isDeadlineOutsideWindow('2026-08-14T10:00:00-03:00', start, end)).toBe(false);
+  it('compara instantes, e nao dias, na janela da sprint', () => {
+    // 2026-08-13T23:59:59-03:00 e 2026-08-14T02:59:59Z: ja passou do fim.
+    expect(isDeadlineOutsideWindow('2026-08-13T23:59:59-03:00', start, end)).toBe(true);
+    expect(isDeadlineOutsideWindow('2026-08-13T10:00:00-03:00', start, end)).toBe(false);
   });
 
-  it('trunca a hora de um instante UTC', () => {
+  it('toUtcDay continua ancorando a agenda no dia', () => {
     expect(toUtcDay('2026-08-14T18:30:00.000Z')).toBe(Date.UTC(2026, 7, 14));
   });
 
   it('retorna null para valor invalido', () => {
     expect(toUtcDay('nao-e-data')).toBeNull();
+    expect(toIsoString('nao-e-data')).toBeNull();
     expect(toDateOnlyString(null)).toBeNull();
   });
 });
 
+// A janela do filtro chega ja convertida pelo service: `to` como inicio do dia
+// seguinte, exclusivo (D15).
 describe('intersectsRange', () => {
+  const janela = (fromDia, toDiaSeguinte) => [fromDia, toDiaSeguinte];
+
   it('inclui sprint que cobre toda a janela', () => {
-    expect(intersectsRange(start, end, '2026-08-05', '2026-08-06')).toBe(true);
+    const [de, ate] = janela('2026-08-05T00:00:00.000Z', '2026-08-07T00:00:00.000Z');
+    expect(intersectsRange(start, end, de, ate)).toBe(true);
   });
 
-  it('inclui sprint que encosta no inicio da janela', () => {
-    expect(intersectsRange(start, end, '2026-08-14', '2026-08-31')).toBe(true);
+  // A sprint termina em 14/08 00:00, exclusivo: uma janela que comeca ali nao a
+  // alcanca, porque nao existe instante em comum.
+  it('exclui sprint que termina no inicio da janela', () => {
+    const [de, ate] = janela('2026-08-14T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+    expect(intersectsRange(start, end, de, ate)).toBe(false);
   });
 
-  it('exclui sprint totalmente anterior a janela', () => {
-    expect(intersectsRange(start, end, '2026-08-15', '2026-08-31')).toBe(false);
+  it('inclui sprint que termina um instante depois do inicio da janela', () => {
+    const [de, ate] = janela('2026-08-13T23:00:00.000Z', '2026-09-01T00:00:00.000Z');
+    expect(intersectsRange(start, end, de, ate)).toBe(true);
   });
 
   it('exclui sprint totalmente posterior a janela', () => {
-    expect(intersectsRange(start, end, '2026-07-01', '2026-07-31')).toBe(false);
+    const [de, ate] = janela('2026-07-01T00:00:00.000Z', '2026-08-01T00:00:00.000Z');
+    expect(intersectsRange(start, end, de, ate)).toBe(false);
   });
 
   it('aceita janela aberta de um lado so', () => {
-    expect(intersectsRange(start, end, null, '2026-07-31')).toBe(false);
-    expect(intersectsRange(start, end, '2026-08-10', null)).toBe(true);
+    expect(intersectsRange(start, end, null, '2026-08-01T00:00:00.000Z')).toBe(false);
+    expect(intersectsRange(start, end, '2026-08-10T00:00:00.000Z', null)).toBe(true);
   });
 });
 
 describe('isWithinRange', () => {
-  it('inclui as bordas da janela', () => {
-    expect(isWithinRange('2026-08-01', start, end)).toBe(true);
-    expect(isWithinRange('2026-08-14', start, end)).toBe(true);
+  // `to` ja chega exclusivo, entao o dia 14 inteiro entra quando o usuario
+  // filtra "até 14/08".
+  const de = '2026-08-01T00:00:00.000Z';
+  const ate = '2026-08-15T00:00:00.000Z';
+
+  it('inclui o inicio e todo o ultimo dia pedido', () => {
+    expect(isWithinRange('2026-08-01T00:00:00.000Z', de, ate)).toBe(true);
+    expect(isWithinRange('2026-08-14T23:59:59.999Z', de, ate)).toBe(true);
   });
 
-  it('exclui datas fora da janela', () => {
-    expect(isWithinRange('2026-07-31', start, end)).toBe(false);
-    expect(isWithinRange('2026-08-15', start, end)).toBe(false);
+  it('exclui instantes fora da janela', () => {
+    expect(isWithinRange('2026-07-31T23:59:59.999Z', de, ate)).toBe(false);
+    expect(isWithinRange('2026-08-15T00:00:00.000Z', de, ate)).toBe(false);
   });
 
   it('trata data nula como fora', () => {
-    expect(isWithinRange(null, start, end)).toBe(false);
+    expect(isWithinRange(null, de, ate)).toBe(false);
   });
 });

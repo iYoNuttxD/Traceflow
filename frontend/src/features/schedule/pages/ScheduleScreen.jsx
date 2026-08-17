@@ -22,7 +22,11 @@ import { SprintForm, emptySprintForm, validateSprintForm } from '../components/S
 import { SprintList } from '../components/SprintList.jsx';
 import { SprintTasksPanel } from '../components/SprintTasksPanel.jsx';
 import { SprintProgressPanel } from '../components/SprintProgressPanel.jsx';
-import { isTerminalTransition } from '../components/schedule-display.js';
+import {
+  fromDateTimeLocalInput,
+  isTerminalTransition,
+  toDateTimeLocalInput
+} from '../components/schedule-display.js';
 
 export function ScheduleScreen() {
   const { projectId } = useParams();
@@ -182,11 +186,13 @@ export function ScheduleScreen() {
 
     setSubmitting(true);
     try {
+      // O campo fala no fuso local; a API fala em instante. Converter aqui é o
+      // que faz "14/08 às 18h" chegar como o instante que o usuário quis dizer.
       const payload = {
         name: sprintForm.name.trim(),
         objective: sprintForm.objective.trim() || null,
-        startDate: sprintForm.startDate,
-        endDate: sprintForm.endDate
+        startDate: fromDateTimeLocalInput(sprintForm.startDate),
+        endDate: fromDateTimeLocalInput(sprintForm.endDate)
       };
       if (editingSprintId) {
         await scheduleApi.updateSprint(editingSprintId, payload);
@@ -213,8 +219,10 @@ export function ScheduleScreen() {
     setSprintForm({
       name: sprint.name || '',
       objective: sprint.objective || '',
-      startDate: (sprint.startDate || '').slice(0, 10),
-      endDate: (sprint.endDate || '').slice(0, 10)
+      // `.slice(0, 10)` destruía a hora ao abrir a edição: salvar em seguida
+      // gravava meia-noite por cima do instante escolhido.
+      startDate: toDateTimeLocalInput(sprint.startDate),
+      endDate: toDateTimeLocalInput(sprint.endDate)
     });
   };
 
@@ -326,7 +334,7 @@ export function ScheduleScreen() {
       const payload = {
         title: milestoneForm.title.trim(),
         description: milestoneForm.description.trim() || null,
-        dueDate: milestoneForm.dueDate,
+        dueDate: fromDateTimeLocalInput(milestoneForm.dueDate),
         sprintId: Number(milestoneForm.sprintId)
       };
       if (editingMilestoneId) {
@@ -353,7 +361,7 @@ export function ScheduleScreen() {
     setMilestoneForm({
       title: milestone.title || '',
       description: milestone.description || '',
-      dueDate: (milestone.dueDate || '').slice(0, 10),
+      dueDate: toDateTimeLocalInput(milestone.dueDate),
       // O <select> compara por string: um id numerico nao casaria com o value
       // das opcoes e o campo abriria vazio numa edicao que ja tem sprint.
       sprintId: milestone.sprintId ? String(milestone.sprintId) : ''

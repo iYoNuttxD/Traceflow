@@ -8,10 +8,12 @@ export { emptyForm as emptySprintForm };
 export function validateSprintForm(formData) {
   const errors = {};
   if (!formData.name.trim()) errors.name = 'Informe o nome da sprint.';
-  if (!formData.startDate) errors.startDate = 'Informe a data de início.';
-  if (!formData.endDate) errors.endDate = 'Informe a data de fim.';
-  if (formData.startDate && formData.endDate && formData.startDate > formData.endDate) {
-    errors.endDate = 'A data de início não pode ser posterior à data de fim.';
+  if (!formData.startDate) errors.startDate = 'Informe o início da sprint.';
+  if (!formData.endDate) errors.endDate = 'Informe o fim da sprint.';
+  // Comparação de texto continua valendo: o formato de `datetime-local` é
+  // lexicograficamente ordenável. O fim é exclusivo, então igual também é erro.
+  if (formData.startDate && formData.endDate && formData.startDate >= formData.endDate) {
+    errors.endDate = 'O início precisa ser anterior ao fim.';
   }
   return errors;
 }
@@ -45,24 +47,29 @@ export function SprintForm({
           onChange={(event) => onChange('objective', event.target.value)}
         />
       </div>
+      {/* datetime-local, e nao date: a sprint guarda o instante exato, e um
+          campo só de data descartaria a hora que o usuário informou. */}
       <FormInput
-        label="Data de início"
+        label="Início"
         name="sprint-startDate"
-        type="date"
+        type="datetime-local"
         value={formData.startDate}
         required
         error={errors.startDate}
         onChange={(event) => onChange('startDate', event.target.value)}
       />
       <FormInput
-        label="Data de fim"
+        label="Fim"
         name="sprint-endDate"
-        type="date"
+        type="datetime-local"
         value={formData.endDate}
         required
         error={errors.endDate}
         onChange={(event) => onChange('endDate', event.target.value)}
       />
+      <p className="field-help">
+        O fim é exclusivo: a sprint seguinte pode começar exatamente neste instante.
+      </p>
       <div className="form-actions">
         <button className="button button-primary" type="submit" disabled={submitting}>
           {submitting ? 'Salvando...' : editing ? 'Salvar sprint' : 'Cadastrar sprint'}

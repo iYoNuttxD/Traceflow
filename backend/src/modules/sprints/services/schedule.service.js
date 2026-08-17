@@ -8,10 +8,27 @@ import {
   isDeadlineOutsideWindow,
   isMilestoneOverdue,
   isWithinRange,
-  toDateOnlyString
+  toDateOnlyString,
+  toIsoString
 } from '../sprint.calculator.js';
-import { parseCalendarDate, parseProjectId, ensureDateRange } from '../sprint.schema.js';
+import {
+  SprintServiceError,
+  nextUtcDay,
+  parseProjectId,
+  parseWindowDay
+} from '../sprint.schema.js';
+import { ERROR_CODES } from '../../../shared/errors/index.js';
 import { ensureProjectExists } from './sprint-crud.service.js';
+
+function ensureWindowOrder(from, to) {
+  if (from && to && from.getTime() > to.getTime()) {
+    throw new SprintServiceError(
+      'A data inicial não pode ser maior que a data final.',
+      400,
+      ERROR_CODES.SPRINT_DATE_RANGE_INVALID
+    );
+  }
+}
 
 function formatScheduleTask(task, sprint) {
   return {
@@ -19,7 +36,7 @@ function formatScheduleTask(task, sprint) {
     title: task.title,
     status: task.status,
     priority: task.priority,
-    deadline: toDateOnlyString(task.deadline),
+    deadline: toIsoString(task.deadline),
     responsibleUserId: task.responsibleUserId ?? null,
     ...(sprint
       ? {
@@ -38,9 +55,15 @@ export const scheduleService = {
     const parsedProjectId = parseProjectId(projectId);
     await ensureProjectExists(parsedProjectId);
 
-    const from = parseCalendarDate(query.from, 'Data inicial');
-    const to = parseCalendarDate(query.to, 'Data final');
-    ensureDateRange(from, to);
+    // A janela continua sendo dia de calendario (D15). `from` e o inicio do dia
+    // pedido; `to` vira o inicio do dia SEGUINTE, para que filtrar "até 14/08"
+    // inclua o dia 14 inteiro e nao pare na sua meia-noite.
+    const from = parseWindowDay(query.from, 'Data inicial');
+    const toDay = parseWindowDay(query.to, 'Data final');
+    // A comparacao acontece antes de tornar `to` exclusivo: from == to e uma
+    // janela de um dia, valida, e so from > to e erro.
+    ensureWindowOrder(from, toDay);
+    const to = nextUtcDay(toDay);
     const hasRange = Boolean(from || to);
 
     // O instante de consulta e capturado uma unica vez e injetado no calculator,
@@ -56,8 +79,8 @@ export const scheduleService = {
         id: sprint.id,
         name: sprint.name,
         objective: sprint.objective,
-        startDate: toDateOnlyString(sprint.startDate),
-        endDate: toDateOnlyString(sprint.endDate),
+        startDate: toIsoString(sprint.startDate),
+        endDate: toIsoString(sprint.endDate),
         status: sprint.status,
         startedAt: sprint.startedAt,
         completedAt: sprint.completedAt,
@@ -72,7 +95,8 @@ export const scheduleService = {
         id: milestone.id,
         title: milestone.title,
         description: milestone.description,
-        dueDate: toDateOnlyString(milestone.dueDate),
+        sprintId: milestone.sprintId,
+        dueDate: toIsoString(milestone.dueDate),
         status: milestone.status,
         overdue: isMilestoneOverdue(milestone.status, milestone.dueDate, generatedAt)
       }));
@@ -85,7 +109,9 @@ export const scheduleService = {
 
     return {
       projectId: parsedProjectId,
-      range: { from: toDateOnlyString(from), to: toDateOnlyString(to) },
+      // A janela devolvida repete o que o usuario pediu: dia de calendario, com
+      // `to` inclusivo. O fim exclusivo e detalhe interno da comparacao.
+      range: { from: toDateOnlyString(from), to: toDateOnlyString(toDay) },
       generatedAt: generatedAt.toISOString(),
       sprints,
       milestones,

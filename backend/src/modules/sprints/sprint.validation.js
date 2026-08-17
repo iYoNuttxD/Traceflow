@@ -10,6 +10,7 @@ import {
   searchText,
   strictObject
 } from '../../shared/validation/index.js';
+import { SPRINT_MAX_TASKS } from './sprint.schema.js';
 
 // Mesmo union ja usado em deadline: aceita data de calendario ou ISO-8601 completo.
 const scheduleDate = (label) => z.union([dateOnly(label), isoDateTime(label)]);
@@ -122,10 +123,17 @@ export const sprintProgressQuerySchema = strictObject({
     .optional()
 });
 
+// O limite vem do dominio, e nao de um numero digitado aqui: a associacao
+// individual aplica exatamente o mesmo (ADR-010 D14). Dois limites diferentes
+// para a mesma capacidade deixariam a sprint chegar a um estado que este
+// endpoint nao consegue representar.
 export const replaceSprintTasksBodySchema = strictObject({
   taskIds: z
     .array(positiveInteger('ID da tarefa inválido.'))
-    .max(100, 'No máximo 100 tarefas podem ser atualizadas por operação.')
+    .max(
+      SPRINT_MAX_TASKS,
+      `No máximo ${SPRINT_MAX_TASKS} tarefas podem ser atualizadas por operação.`
+    )
     .refine(
       (taskIds) => new Set(taskIds).size === taskIds.length,
       'A lista de tarefas não pode conter IDs duplicados.'
