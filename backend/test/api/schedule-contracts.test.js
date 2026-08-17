@@ -70,9 +70,13 @@ async function createMilestone(session, projectId, overrides = {}) {
   // Marco exige sprint (ADR-010 D02). Quem já tem uma sprint no teste passa o id;
   // os demais recebem a sua, sem precisar declarar o cronograma inteiro.
   const sprintId = overrides.sprintId ?? (await createSprint(session, projectId)).body.sprint.id;
-  return session
-    .mutate('post', `/api/projects/${projectId}/milestones`)
-    .send({ title: 'Entrega parcial', dueDate: '2026-08-14', ...overrides, sprintId });
+  return (
+    session
+      .mutate('post', `/api/projects/${projectId}/milestones`)
+      // Dentro da janela [2026-08-01, 2026-08-14) da sprint padrao: a data prevista
+      // do marco precisa descrever um periodo de desenvolvimento real.
+      .send({ title: 'Entrega parcial', dueDate: '2026-08-10', ...overrides, sprintId })
+  );
 }
 
 async function createTask(session, projectId, title = 'Tarefa') {
@@ -81,7 +85,7 @@ async function createTask(session, projectId, title = 'Tarefa') {
 }
 
 describe('contratos de sprint', () => {
-  it('cria, lista, consulta, edita e exclui sprint', async () => {
+  it('cria, lista, consulta e edita sprint; exclusao e recusada', async () => {
     const owner = await register('sprint-crud@example.invalid');
     const project = await createProject(owner);
 
@@ -111,8 +115,9 @@ describe('contratos de sprint', () => {
     expect(updated.body.sprint.name).toBe('Sprint renomeada');
 
     const removed = await owner.mutate('delete', `/api/sprints/${sprintId}`).send();
-    expect(removed.status).toBe(200);
-    expect(await prisma.sprint.count()).toBe(0);
+    expect(removed.status).toBe(405);
+    expect(removed.body.code).toBe('SPRINT_DELETE_NOT_SUPPORTED');
+    expect(await prisma.sprint.count()).toBe(1);
   });
 
   it('ordena a listagem por data de inicio', async () => {
@@ -136,7 +141,12 @@ describe('contratos de sprint', () => {
     const owner = await register('sprint-dup@example.invalid');
     const project = await createProject(owner);
     await createSprint(owner, project.id);
-    const conflict = await createSprint(owner, project.id);
+    // Janela seguinte, e nao a mesma: com sprints sequenciais, repetir o periodo
+    // falharia por sobreposicao antes de chegar na regra de nome.
+    const conflict = await createSprint(owner, project.id, {
+      startDate: '2026-09-01',
+      endDate: '2026-09-14'
+    });
     expect(conflict.status).toBe(409);
     expect(conflict.body.code).toBe('SPRINT_NAME_IN_USE');
   });
@@ -179,17 +189,115 @@ describe('contratos de sprint', () => {
     expect(locked.body.code).toBe('SPRINT_LOCKED');
   });
 
-  it('bloqueia exclusao de sprint com tarefa associada', async () => {
+  // Sprint nao e excluida em nenhum estado: o cronograma e registro historico do
+  // projeto. A rota segue existindo para o 405 nao virar um 404 ambiguo.
+  it('recusa exclusao de sprint com e sem tarefas', async () => {
     const owner = await register('sprint-has-tasks@example.invalid');
     const project = await createProject(owner);
     const sprintId = (await createSprint(owner, project.id)).body.sprint.id;
+
+    const vazia = await owner.mutate('delete', `/api/sprints/${sprintId}`).send();
+    expect(vazia.status).toBe(405);
+    expect(vazia.body.code).toBe('SPRINT_DELETE_NOT_SUPPORTED');
+
     const task = await createTask(owner, project.id);
     await owner.mutate('patch', `/api/tasks/${task.id}/sprint`).send({ sprintId });
 
-    const blocked = await owner.mutate('delete', `/api/sprints/${sprintId}`).send();
-    expect(blocked.status).toBe(409);
-    expect(blocked.body.code).toBe('SPRINT_HAS_TASKS');
+    const comTarefa = await owner.mutate('delete', `/api/sprints/${sprintId}`).send();
+    expect(comTarefa.status).toBe(405);
     expect(await prisma.sprint.count()).toBe(1);
+  });
+
+  // Sprints do mesmo projeto sao sequenciais.
+  it('recusa sprint sobreposta e aceita a que emenda na anterior', async () => {
+    const owner = await register('sprint-overlap@example.invalid');
+    const project = await createProject(owner);
+    await createSprint(owner, project.id);
+
+    const sobreposta = await createSprint(owner, project.id, {
+      name: 'Sprint 2',
+      startDate: '2026-08-10',
+      endDate: '2026-08-24'
+    });
+    expect(sobreposta.status).toBe(409);
+    expect(sobreposta.body.code).toBe('SPRINT_OVERLAP');
+
+    // Comecar no instante em que a anterior termina e emenda, nao cruzamento.
+    const emenda = await createSprint(owner, project.id, {
+      name: 'Sprint 2',
+      startDate: '2026-08-14',
+      endDate: '2026-08-28'
+    });
+    expect(emenda.status).toBe(201);
+  });
+
+  // "Consultar e depois inserir" nao e validacao: sem o lock, duas criacoes
+  // simultaneas leem o mesmo conjunto e ambas passam. Este teste falha se o
+  // FOR UPDATE sair do caminho de criacao.
+  it('serializa criacoes concorrentes de sprints sobrepostas', async () => {
+    const owner = await register('sprint-race-create@example.invalid');
+    const project = await createProject(owner);
+
+    const respostas = await Promise.all([
+      createSprint(owner, project.id, {
+        name: 'A',
+        startDate: '2026-08-01',
+        endDate: '2026-08-15'
+      }),
+      createSprint(owner, project.id, { name: 'B', startDate: '2026-08-10', endDate: '2026-08-20' })
+    ]);
+
+    const criadas = respostas.filter((resposta) => resposta.status === 201);
+    const recusadas = respostas.filter((resposta) => resposta.status === 409);
+    expect(criadas).toHaveLength(1);
+    expect(recusadas).toHaveLength(1);
+    expect(recusadas[0].body.code).toBe('SPRINT_OVERLAP');
+    expect(await prisma.sprint.count({ where: { projectId: project.id } })).toBe(1);
+  });
+
+  // Substituicao concorrente: o delta de cada requisicao e calculado sob o lock,
+  // entao o estado final e o payload de um dos dois — nunca a uniao dos dois nem
+  // uma composicao que nenhum cliente pediu.
+  it('serializa substituicoes concorrentes do escopo', async () => {
+    const owner = await register('sprint-race-scope@example.invalid');
+    const project = await createProject(owner);
+    const sprintId = (await createSprint(owner, project.id)).body.sprint.id;
+    const a = await createTask(owner, project.id, 'A');
+    const b = await createTask(owner, project.id, 'B');
+
+    await Promise.all([
+      owner.mutate('put', `/api/sprints/${sprintId}/tasks`).send({ taskIds: [a.id] }),
+      owner.mutate('put', `/api/sprints/${sprintId}/tasks`).send({ taskIds: [b.id] })
+    ]);
+
+    const finais = (await prisma.task.findMany({ where: { sprintId }, select: { id: true } })).map(
+      (task) => task.id
+    );
+    expect([[a.id], [b.id]]).toContainEqual(finais);
+
+    // A participacao ativa acompanha o ponteiro: uma dentro, a outra fechada.
+    const ativas = await prisma.sprintTask.findMany({
+      where: { sprintId, removedAt: null },
+      select: { taskId: true }
+    });
+    expect(ativas.map((participacao) => participacao.taskId)).toEqual(finais);
+  });
+
+  it('recusa edicao que passa a sobrepor outra sprint', async () => {
+    const owner = await register('sprint-overlap-edit@example.invalid');
+    const project = await createProject(owner);
+    const primeira = (await createSprint(owner, project.id)).body.sprint.id;
+    await createSprint(owner, project.id, {
+      name: 'Sprint 2',
+      startDate: '2026-08-14',
+      endDate: '2026-08-28'
+    });
+
+    const response = await owner
+      .mutate('put', `/api/sprints/${primeira}`)
+      .send({ endDate: '2026-08-20' });
+    expect(response.status).toBe(409);
+    expect(response.body.code).toBe('SPRINT_OVERLAP');
   });
 });
 
@@ -276,22 +384,20 @@ describe('associacao tarefa <-> sprint', () => {
     await owner.mutate('patch', `/api/sprints/${sprintId}/status`).send({ status: 'CONCLUIDA' });
 
     const blocked = await owner.mutate('delete', `/api/sprints/${sprintId}`).send();
-    expect(blocked.status).toBe(409);
-    expect(blocked.body.code).toBe('SPRINT_HAS_TASKS');
+    expect(blocked.status).toBe(405);
 
-    // Remover pelo lado da sprint deve funcionar mesmo com status terminal.
+    // Esvaziar tambem e recusado: a composicao da sprint encerrada e o registro
+    // do periodo, e apaga-la destruiria o que o RF35 mede.
     const emptied = await owner
       .mutate('put', `/api/sprints/${sprintId}/tasks`)
       .send({ taskIds: [] });
-    expect(emptied.status).toBe(200);
-    expect(await prisma.task.count({ where: { sprintId } })).toBe(0);
-
-    const removed = await owner.mutate('delete', `/api/sprints/${sprintId}`).send();
-    expect(removed.status).toBe(200);
-    expect(await prisma.sprint.count()).toBe(0);
+    expect(emptied.status).toBe(409);
+    expect(emptied.body.code).toBe('SPRINT_SCOPE_LOCKED');
+    expect(await prisma.task.count({ where: { sprintId } })).toBe(1);
+    expect(await prisma.sprint.count()).toBe(1);
   });
 
-  it('permite desassociar pelo lado da tarefa em sprint terminal', async () => {
+  it('bloqueia desassociar pelo lado da tarefa em sprint terminal', async () => {
     const owner = await register('terminal-unlink@example.invalid');
     const project = await createProject(owner);
     const sprintId = (await createSprint(owner, project.id)).body.sprint.id;
@@ -300,8 +406,9 @@ describe('associacao tarefa <-> sprint', () => {
     await owner.mutate('patch', `/api/sprints/${sprintId}/status`).send({ status: 'CANCELADA' });
 
     const unlinked = await owner.mutate('delete', `/api/tasks/${task.id}/sprint`).send();
-    expect(unlinked.status).toBe(200);
-    expect(unlinked.body.task.sprintId).toBeNull();
+    expect(unlinked.status).toBe(409);
+    expect(unlinked.body.code).toBe('SPRINT_SCOPE_LOCKED');
+    expect((await prisma.task.findUnique({ where: { id: task.id } })).sprintId).toBe(sprintId);
   });
 
   it('continua bloqueando ADICIONAR tarefa a sprint terminal pelo lado da sprint', async () => {
@@ -315,7 +422,7 @@ describe('associacao tarefa <-> sprint', () => {
       .mutate('put', `/api/sprints/${sprintId}/tasks`)
       .send({ taskIds: [task.id] });
     expect(response.status).toBe(409);
-    expect(response.body.code).toBe('SPRINT_ASSOCIATION_BLOCKED');
+    expect(response.body.code).toBe('SPRINT_SCOPE_LOCKED');
   });
 
   it('bloqueia associacao a sprint terminal', async () => {
@@ -327,7 +434,7 @@ describe('associacao tarefa <-> sprint', () => {
 
     const response = await owner.mutate('patch', `/api/tasks/${task.id}/sprint`).send({ sprintId });
     expect(response.status).toBe(409);
-    expect(response.body.code).toBe('SPRINT_ASSOCIATION_BLOCKED');
+    expect(response.body.code).toBe('SPRINT_SCOPE_LOCKED');
   });
 
   it('substitui o conjunto de forma atomica pelo lado da sprint', async () => {
@@ -351,8 +458,15 @@ describe('associacao tarefa <-> sprint', () => {
   it('preserva a sprint de origem no historico ao mover tarefa entre sprints', async () => {
     const owner = await register('sprint-move@example.invalid');
     const project = await createProject(owner);
+    // Sprints sequenciais: a segunda comeca quando a primeira termina.
     const origin = (await createSprint(owner, project.id, { name: 'Sprint origem' })).body.sprint;
-    const target = (await createSprint(owner, project.id, { name: 'Sprint destino' })).body.sprint;
+    const target = (
+      await createSprint(owner, project.id, {
+        name: 'Sprint destino',
+        startDate: '2026-08-14',
+        endDate: '2026-08-28'
+      })
+    ).body.sprint;
     const byTheSprint = await createTask(owner, project.id, 'Movida pela sprint');
     const byTheTask = await createTask(owner, project.id, 'Movida pela tarefa');
 

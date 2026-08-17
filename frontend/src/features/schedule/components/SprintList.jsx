@@ -24,7 +24,6 @@ export function SprintList({
   onSelect,
   onShowProgress,
   onEdit,
-  onDelete,
   onChangeStatus
 }) {
   if (!sprints.length) {
@@ -65,7 +64,9 @@ export function SprintList({
 
             {/* Cada botão diz o que faz por verbo, e o `title` explica a consequência.
                 O aria-label carrega o nome da sprint porque a lista tem vários
-                "Editar"/"Excluir" idênticos para quem navega por leitor de tela. */}
+                "Editar" idênticos para quem navega por leitor de tela.
+                Não há ação de excluir: o cronograma é registro histórico do
+                projeto e a sprint não é removida em nenhum estado. */}
             <div
               className="sprint-actions"
               role="group"
@@ -125,8 +126,8 @@ export function SprintList({
                 Editar
               </button>
 
-              <div className="sprint-actions-end">
-                {!terminal && (
+              {!terminal && (
+                <div className="sprint-actions-end">
                   <button
                     type="button"
                     className="button button-secondary"
@@ -137,18 +138,8 @@ export function SprintList({
                   >
                     Cancelar sprint
                   </button>
-                )}
-                <button
-                  type="button"
-                  className="button button-danger"
-                  disabled={busy}
-                  aria-label={`Excluir a sprint ${sprint.name}`}
-                  title="Remove a sprint do projeto. Exige que ela não tenha tarefas associadas."
-                  onClick={() => onDelete(sprint)}
-                >
-                  Excluir
-                </button>
-              </div>
+                </div>
+              )}
             </div>
           </li>
         );

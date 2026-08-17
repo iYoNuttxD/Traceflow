@@ -31,12 +31,11 @@ export function SprintTasksPanel({
     (task) => selection.includes(task.id) && !selectedTaskIds.includes(task.id) && outraSprint(task)
   );
 
+  // Sprint encerrada e registro historico: o escopo nao muda em nenhuma direcao.
+  // O painel vira leitura — antes ele permitia remover, quando a remocao era o
+  // unico jeito de esvaziar a sprint para exclui-la; a exclusao deixou de existir.
   const terminal = isTerminalSprint(sprint.status);
-  // Em sprint terminal so a remocao e permitida. Bloquear tambem a remocao
-  // prenderia a sprint: o DELETE exige conjunto vazio e o status nao volta atras.
-  const podeMarcar = (taskId) => !terminal || selectedTaskIds.includes(taskId);
-  const removeu = selectedTaskIds.some((id) => !selection.includes(id));
-  const podeSalvar = terminal ? removeu : true;
+  const membros = tasks.filter((task) => selectedTaskIds.includes(task.id));
 
   const toggle = (taskId) => {
     setSelection((current) =>
@@ -49,8 +48,8 @@ export function SprintTasksPanel({
       <h3>Tarefas de {sprint.name}</h3>
       {terminal ? (
         <p className="field-help">
-          Sprint concluída ou cancelada não aceita novas tarefas. Você ainda pode remover as que já
-          estão associadas — necessário, por exemplo, antes de excluir a sprint.
+          Sprint concluída ou cancelada: a composição abaixo é o registro do que aconteceu neste
+          período e não pode mais ser alterada.
         </p>
       ) : (
         <p className="field-help">
@@ -62,6 +61,21 @@ export function SprintTasksPanel({
         <p className="empty-state" role="status">
           Carregando tarefas do projeto...
         </p>
+      ) : terminal ? (
+        // Somente a composicao registrada. Listar o projeto inteiro com caixas
+        // inertes ofereceria uma escolha que nao existe mais.
+        membros.length === 0 ? (
+          <p className="empty-state">Esta sprint foi encerrada sem tarefas associadas.</p>
+        ) : (
+          <ul className="sprint-tasks-frozen">
+            {membros.map((task) => (
+              <li key={task.id}>
+                {task.title} — {taskStatusLabels[task.status] || task.status} ·{' '}
+                {taskPriorityLabels[task.priority] || task.priority}
+              </li>
+            ))}
+          </ul>
+        )
       ) : tasks.length === 0 ? (
         <p className="empty-state">Nenhuma tarefa cadastrada neste projeto.</p>
       ) : (
@@ -69,23 +83,13 @@ export function SprintTasksPanel({
           {tasks.map((task) => {
             const marcado = selection.includes(task.id);
             const origem = outraSprint(task);
-            const bloqueado = submitting || (!marcado && !podeMarcar(task.id));
-            // Uma caixa desabilitada precisa dizer por que esta desabilitada.
-            const motivo =
-              bloqueado && !submitting
-                ? 'Sprint concluída ou cancelada não aceita novas tarefas. O escopo de uma sprint encerrada é registro histórico.'
-                : undefined;
             return (
               <li key={task.id}>
-                <label
-                  className={`checkbox-field ${bloqueado ? 'checkbox-field-disabled' : ''}`}
-                  title={motivo}
-                >
+                <label className="checkbox-field">
                   <input
                     type="checkbox"
                     checked={marcado}
-                    disabled={bloqueado}
-                    aria-describedby={motivo ? `task-bloqueada-${task.id}` : undefined}
+                    disabled={submitting}
                     onChange={() => toggle(task.id)}
                   />
                   <span>
@@ -94,11 +98,6 @@ export function SprintTasksPanel({
                     {origem && (
                       <span className="checkbox-field-hint">
                         Atualmente em {origem} — marcar move a tarefa para cá
-                      </span>
-                    )}
-                    {motivo && (
-                      <span className="checkbox-field-hint" id={`task-bloqueada-${task.id}`}>
-                        Não pode ser adicionada a uma sprint encerrada
                       </span>
                     )}
                   </span>
@@ -120,22 +119,18 @@ export function SprintTasksPanel({
         </p>
       )}
       <div className="form-actions">
-        <button
-          type="button"
-          className="button button-primary"
-          // Salvar durante a carga enviaria a seleção vazia e esvaziaria a sprint.
-          disabled={loading || submitting || !podeSalvar}
-          title={
-            loading
-              ? 'Aguarde o carregamento das tarefas do projeto.'
-              : terminal && !removeu
-                ? 'Desmarque ao menos uma tarefa para remover da sprint.'
-                : undefined
-          }
-          onClick={() => onSubmit(selection)}
-        >
-          {submitting ? 'Salvando...' : terminal ? 'Confirmar remoção' : 'Salvar tarefas da sprint'}
-        </button>
+        {!terminal && (
+          <button
+            type="button"
+            className="button button-primary"
+            // Salvar durante a carga enviaria a seleção vazia e esvaziaria a sprint.
+            disabled={loading || submitting}
+            title={loading ? 'Aguarde o carregamento das tarefas do projeto.' : undefined}
+            onClick={() => onSubmit(selection)}
+          >
+            {submitting ? 'Salvando...' : 'Salvar tarefas da sprint'}
+          </button>
+        )}
         <button type="button" className="button button-secondary" onClick={onCancel}>
           Fechar
         </button>

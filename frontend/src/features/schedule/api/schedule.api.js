@@ -21,9 +21,7 @@ export const scheduleApi = {
   updateSprintStatus(sprintId, status) {
     return httpClient.patch(`/sprints/${sprintId}/status`, { status });
   },
-  removeSprint(sprintId) {
-    return httpClient.delete(`/sprints/${sprintId}`);
-  },
+  // Sprint nao e excluida: o endpoint responde 405 e a tela nao oferece a acao.
   listSprintTasks(sprintId, options = {}) {
     return httpClient.get(`/sprints/${sprintId}/tasks`, options);
   },

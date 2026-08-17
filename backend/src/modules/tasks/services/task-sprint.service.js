@@ -2,8 +2,6 @@
 // Espelha task-requirement.service.js, que ja resolveu esse padrao para requisitos.
 import { TaskServiceError, parseTaskId } from '../task.schema.js';
 import { ensureTaskExists, formatTask } from '../task.service-support.js';
-import { taskLinkRepository } from '../repositories/task-link.repository.js';
-import { buildAuditEvent } from '../../audit/audit.service.js';
 import { sprintService } from '../../sprints/index.js';
 import { authorizationService } from '../../authorization/index.js';
 import { ERROR_CODES } from '../../../shared/errors/index.js';
@@ -45,37 +43,15 @@ export const taskSprintService = {
         { exposeTechnicalDetails: true }
       );
     }
-    if (['CONCLUIDA', 'CANCELADA'].includes(sprint.status)) {
-      throw new TaskServiceError(
-        'Sprint concluída ou cancelada não aceita associação de tarefas.',
-        409,
-        ERROR_CODES.SPRINT_ASSOCIATION_BLOCKED,
-        { exposeTechnicalDetails: true }
-      );
-    }
     // Idempotente: tarefa ja associada a esta sprint nao gera historico nem auditoria.
     if (task.sprintId === sprintId) return formatTask(task);
 
-    const updated = await taskLinkRepository.setSprint(task, sprintId, {
-      historyEntry: {
-        projectId: task.projectId,
-        taskId: id,
-        actorUserId: context.actorUserId,
-        field: 'SPRINT',
-        fromValue: task.sprintId === null ? null : String(task.sprintId),
-        toValue: String(sprintId)
-      },
-      auditEvent: buildAuditEvent({
-        actorUserId: context.actorUserId,
-        projectId: task.projectId,
-        requestId: context.requestId,
-        action: 'TASK_SPRINT_LINKED',
-        resourceType: 'Sprint',
-        resourceId: sprintId,
-        metadata: { taskId: id, sprintId }
-      })
-    });
-    return formatTask(updated);
+    // A escrita passa pelo mesmo plano de escopo usado por PUT /sprints/:id/tasks:
+    // dois caminhos com regras proprias divergiriam no historico, e e justamente
+    // o historico que sustenta o RF35. As validacoes de estado terminal, limite e
+    // participacao anterior moram la, sob o lock da sprint.
+    await sprintService.attachTaskToSprint(sprintId, id, context);
+    return formatTask(await ensureTaskExists(id));
   },
 
   async unlinkSprint(taskId, context = {}) {
@@ -84,26 +60,7 @@ export const taskSprintService = {
     // Idempotente: tarefa ja sem sprint nao gera historico nem auditoria.
     if (!task.sprintId) return formatTask(task);
 
-    const previousSprintId = task.sprintId;
-    const updated = await taskLinkRepository.setSprint(task, null, {
-      historyEntry: {
-        projectId: task.projectId,
-        taskId: id,
-        actorUserId: context.actorUserId,
-        field: 'SPRINT',
-        fromValue: String(previousSprintId),
-        toValue: null
-      },
-      auditEvent: buildAuditEvent({
-        actorUserId: context.actorUserId,
-        projectId: task.projectId,
-        requestId: context.requestId,
-        action: 'TASK_SPRINT_UNLINKED',
-        resourceType: 'Sprint',
-        resourceId: previousSprintId,
-        metadata: { taskId: id, sprintId: previousSprintId }
-      })
-    });
-    return formatTask(updated);
+    await sprintService.detachTaskFromSprint(task.sprintId, id, context);
+    return formatTask(await ensureTaskExists(id));
   }
 };

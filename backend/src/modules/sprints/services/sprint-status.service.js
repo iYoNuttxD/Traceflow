@@ -4,7 +4,11 @@
 // Estados terminais nao transicionam.
 import { sprintRepository } from '../repositories/sprint.repository.js';
 import { buildAuditEvent } from '../../audit/audit.service.js';
-import { ensureTransitionAllowed, parseSprintId } from '../sprint.schema.js';
+import {
+  ensureTransitionAllowed,
+  isTerminalSprintStatus,
+  parseSprintId
+} from '../sprint.schema.js';
 import { ensureSprintExists } from './sprint-crud.service.js';
 
 export const sprintStatusService = {
@@ -13,13 +17,18 @@ export const sprintStatusService = {
     const current = await ensureSprintExists(id);
     const nextStatus = ensureTransitionAllowed(current.status, status);
 
-    // startedAt e completedAt sao a linha de base do planejamento que o RF35
-    // consumira. Aqui apenas persistimos; nenhum calculo deriva deles nesta entrega.
+    // Um unico instante para a transicao e para o congelamento: dois `new Date()`
+    // dariam a uma sprint um encerramento anterior ao fechamento das suas
+    // proprias participacoes.
+    const occurredAt = new Date();
+    // `startedAt` e a linha de base do planejamento (RF35), NAO uma trava: o
+    // escopo continua alteravel depois do inicio, apenas sinalizado como
+    // inclusao posterior. Quem congela e o estado terminal.
     const data = { status: nextStatus };
-    if (nextStatus === 'EM_ANDAMENTO') data.startedAt = new Date();
-    if (nextStatus === 'CONCLUIDA') data.completedAt = new Date();
+    if (nextStatus === 'EM_ANDAMENTO') data.startedAt = occurredAt;
+    if (nextStatus === 'CONCLUIDA') data.completedAt = occurredAt;
 
-    return sprintRepository.update(
+    return sprintRepository.updateStatus(
       id,
       data,
       buildAuditEvent({
@@ -30,7 +39,12 @@ export const sprintStatusService = {
         resourceType: 'Sprint',
         resourceId: id,
         metadata: { sprintId: id }
-      })
+      }),
+      // Entrar em estado terminal congela a composicao: cada participacao ainda
+      // ativa guarda o status que a tarefa tinha AQUI. Sem isso, conclui-la
+      // depois — ou leva-la para a sprint seguinte — reescreveria o resultado de
+      // um periodo ja encerrado (ADR-010 D04).
+      { freezeAt: isTerminalSprintStatus(nextStatus) ? occurredAt : null }
     );
   }
 };
