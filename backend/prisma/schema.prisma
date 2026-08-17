@@ -71,6 +71,15 @@ enum MilestoneStatus {
   CONCLUIDO
 }
 
+// Motivo da saida de uma tarefa do escopo de uma sprint (RF10/RF35).
+// Em portugues como SprintStatus e MilestoneStatus: e vocabulario de dominio
+// exibido ao usuario, nao identificador tecnico.
+enum SprintTaskRemovalReason {
+  MOVIDA
+  REMOVIDA
+  TAREFA_EXCLUIDA
+}
+
 model User {
   id              Int       @id @default(autoincrement())
   name            String
@@ -210,6 +219,7 @@ model Project {
   taskCommitSuggestions TaskCommitSuggestion[]
   sprints               Sprint[]
   milestones            Milestone[]
+  sprintTasks           SprintTask[]
 
   @@unique([githubRepositoryId])
   @@unique([githubRepositoryFullName])
@@ -321,7 +331,11 @@ model Task {
   project           Project                @relation(fields: [projectId], references: [id])
   requirement       Requirement?           @relation(fields: [requirementId], references: [id])
   pullRequest       PullRequest?           @relation(fields: [pullRequestId], references: [id], onDelete: SetNull)
+  // Ponteiro para a participacao ATIVA, escrito na mesma transacao que
+  // SprintTask. Garante no banco "no maximo uma sprint ativa por tarefa" e
+  // preserva as consultas existentes; o passado mora em sprintParticipations.
   sprint            Sprint?                @relation(fields: [sprintId], references: [id], onDelete: SetNull)
+  sprintParticipations SprintTask[]
   movements         TaskMovement[]
   historyEntries    TaskHistoryEntry[]
   commitLinks       TaskCommit[]
@@ -338,42 +352,100 @@ model Task {
 }
 
 // Sprint do cronograma do projeto (RF10); base para a evolucao do RF35.
+// Janela semiaberta [startDate, endDate): a sprint seguinte pode comecar no
+// instante exato em que esta termina, e nunca antes (ADR-010).
 model Sprint {
   id          Int          @id @default(autoincrement())
   projectId   Int
   name        String
   objective   String?      @db.Text
-  startDate   DateTime     @db.Date
-  endDate     DateTime     @db.Date
+  // DateTime, nao @db.Date: o dominio exige o instante exato. Truncar no dia
+  // descartaria hora, minuto e fuso informados pelo usuario (ADR-010).
+  startDate   DateTime
+  endDate     DateTime
   status      SprintStatus @default(PLANEJADA)
+  // Linha de base do planejamento (RF35). NAO fecha o escopo: tarefas ainda
+  // podem entrar depois, sinalizadas por SprintTask.addedAfterStart.
   startedAt   DateTime?
   completedAt DateTime?
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  tasks   Task[]
+  project          Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks            Task[]
+  sprintTasks      SprintTask[] @relation("SprintMembership")
+  carriedOverTasks SprintTask[] @relation("SprintCarryOver")
+  milestones       Milestone[]
 
   @@unique([projectId, name])
   @@index([projectId, status])
   @@index([projectId, startDate])
+  @@index([projectId, endDate])
 }
 
-// Marco do cronograma do projeto (RF10). Pertence ao projeto, nao a sprint.
+// Marco do cronograma do projeto (RF10). Pertence a uma sprint: a conclusao de
+// um marco fica ancorada no periodo de desenvolvimento que a produziu.
 model Milestone {
   id          Int             @id @default(autoincrement())
   projectId   Int
+  sprintId    Int
   title       String
   description String?         @db.Text
-  dueDate     DateTime        @db.Date
+  dueDate     DateTime
   status      MilestoneStatus @default(PENDENTE)
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  // Restrict, nao Cascade: sprint nunca e excluida (ADR-010 D06), e a restricao
+  // faz o banco recusar alto caso alguem reintroduza o caminho de exclusao.
+  sprint  Sprint  @relation(fields: [sprintId], references: [id], onDelete: Restrict)
 
   @@index([projectId, dueDate])
   @@index([projectId, status])
+  @@index([sprintId, status])
+}
+
+// Participacao de uma tarefa em uma sprint (RF10/RF35).
+//
+// Fonte de verdade do historico: sobrevive ao encerramento da sprint e a
+// exclusao da tarefa. Sem isso, mover uma tarefa da Sprint 1 para a Sprint 2
+// apagaria a participacao anterior, e concluir a tarefa depois reescreveria
+// retroativamente o resultado de um periodo ja encerrado.
+model SprintTask {
+  id                  Int                      @id @default(autoincrement())
+  projectId           Int
+  sprintId            Int
+  taskId              Int?
+  // Snapshot: o que sobra quando a tarefa e excluida do fluxo operacional.
+  taskTitleSnapshot   String
+  addedAt             DateTime                 @default(now())
+  // Gravado na entrada, nunca recalculado: `startedAt` pode ser lido de outro
+  // jeito depois, e a pergunta "entrou antes ou depois do inicio?" tem que ter
+  // uma resposta estavel.
+  addedAfterStart     Boolean                  @default(false)
+  carriedFromSprintId Int?
+  removedAt           DateTime?
+  removalReason       SprintTaskRemovalReason?
+  // Ultimo status observado NESTA sprint, congelado na saida ou no
+  // encerramento. E o que torna o RF35 da sprint fechada irretroativo.
+  exitStatus          String?
+  closedAt            DateTime?
+
+  project           Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sprint            Sprint  @relation("SprintMembership", fields: [sprintId], references: [id], onDelete: Cascade)
+  task              Task?   @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  carriedFromSprint Sprint? @relation("SprintCarryOver", fields: [carriedFromSprintId], references: [id], onDelete: SetNull)
+
+  // Uma participacao por par sprint+tarefa: reentrada REABRE o registro em vez
+  // de criar outro, coerente com a regra ja vigente de que "saiu e voltou" nao
+  // conta como entrada nem saida. taskId nulo (tarefa excluida) nao colide: no
+  // MySQL o indice unico admite multiplos NULL.
+  @@unique([sprintId, taskId])
+  @@index([sprintId, removedAt])
+  @@index([taskId, removedAt])
+  @@index([carriedFromSprintId])
+  @@index([projectId, addedAt])
 }
 
 // Vinculo de rastreabilidade entre tarefas e commits importados do GitHub.

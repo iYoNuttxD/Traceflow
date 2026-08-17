@@ -1,6 +1,6 @@
 import { FormInput } from '../../../shared/index.js';
 
-const emptyForm = { title: '', description: '', dueDate: '' };
+const emptyForm = { title: '', description: '', dueDate: '', sprintId: '' };
 
 export { emptyForm as emptyMilestoneForm };
 
@@ -9,11 +9,13 @@ export function validateMilestoneForm(formData) {
   const errors = {};
   if (!formData.title.trim()) errors.title = 'Informe o título do marco.';
   if (!formData.dueDate) errors.dueDate = 'Informe a data prevista.';
+  if (!formData.sprintId) errors.sprintId = 'Selecione a sprint do marco.';
   return errors;
 }
 
 export function MilestoneForm({
   formData,
+  sprints = [],
   errors = {},
   editing = false,
   submitting = false,
@@ -21,6 +23,9 @@ export function MilestoneForm({
   onSubmit,
   onCancel
 }) {
+  // Sem sprint nao ha marco (ADR-010 D02). Dizer isso antes do envio evita um
+  // formulario que so revela o impedimento no 400 do backend.
+  const semSprints = sprints.length === 0;
   return (
     <form className="schedule-form" onSubmit={onSubmit} noValidate>
       <FormInput
@@ -50,6 +55,40 @@ export function MilestoneForm({
         error={errors.dueDate}
         onChange={(event) => onChange('dueDate', event.target.value)}
       />
+      <div className="form-field">
+        <label htmlFor="milestone-sprintId">
+          Sprint
+          <span aria-hidden="true"> *</span>
+        </label>
+        <select
+          id="milestone-sprintId"
+          name="milestone-sprintId"
+          value={formData.sprintId}
+          required
+          aria-required="true"
+          aria-invalid={Boolean(errors.sprintId)}
+          aria-describedby={errors.sprintId ? 'milestone-sprintId-error' : undefined}
+          disabled={semSprints}
+          onChange={(event) => onChange('sprintId', event.target.value)}
+        >
+          <option value="">Selecione a sprint</option>
+          {sprints.map((sprint) => (
+            <option key={sprint.id} value={sprint.id}>
+              {sprint.name}
+            </option>
+          ))}
+        </select>
+        {semSprints && (
+          <span className="field-help">
+            Cadastre uma sprint antes: todo marco pertence a um período de desenvolvimento.
+          </span>
+        )}
+        {errors.sprintId && (
+          <span id="milestone-sprintId-error" className="field-error" role="alert">
+            {errors.sprintId}
+          </span>
+        )}
+      </div>
       <div className="form-actions">
         <button className="button button-primary" type="submit" disabled={submitting}>
           {submitting ? 'Salvando...' : editing ? 'Salvar marco' : 'Cadastrar marco'}

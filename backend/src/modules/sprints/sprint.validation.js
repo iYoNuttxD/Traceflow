@@ -73,13 +73,15 @@ export const sprintSearchQuerySchema = strictObject({
 export const createMilestoneBodySchema = strictObject({
   title: requiredText({ message: 'O título do marco é obrigatório.' }),
   description: optionalText({ field: 'Descrição', max: 2000 }),
-  dueDate: scheduleDate('Data prevista')
+  dueDate: scheduleDate('Data prevista'),
+  sprintId: positiveInteger('ID da sprint inválido.')
 });
 
 export const updateMilestoneBodySchema = strictObject({
   title: requiredText({ message: 'O título do marco é obrigatório.' }).optional(),
   description: optionalText({ field: 'Descrição', max: 2000 }),
-  dueDate: scheduleDate('Data prevista').optional()
+  dueDate: scheduleDate('Data prevista').optional(),
+  sprintId: positiveInteger('ID da sprint inválido.').optional()
 }).refine(
   (value) => Object.keys(value).length > 0,
   'Informe ao menos um campo para atualizar o marco.'

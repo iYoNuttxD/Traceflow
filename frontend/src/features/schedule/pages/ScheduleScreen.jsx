@@ -366,7 +366,8 @@ export function ScheduleScreen() {
       const payload = {
         title: milestoneForm.title.trim(),
         description: milestoneForm.description.trim() || null,
-        dueDate: milestoneForm.dueDate
+        dueDate: milestoneForm.dueDate,
+        sprintId: Number(milestoneForm.sprintId)
       };
       if (editingMilestoneId) {
         await scheduleApi.updateMilestone(editingMilestoneId, payload);
@@ -392,7 +393,10 @@ export function ScheduleScreen() {
     setMilestoneForm({
       title: milestone.title || '',
       description: milestone.description || '',
-      dueDate: (milestone.dueDate || '').slice(0, 10)
+      dueDate: (milestone.dueDate || '').slice(0, 10),
+      // O <select> compara por string: um id numerico nao casaria com o value
+      // das opcoes e o campo abriria vazio numa edicao que ja tem sprint.
+      sprintId: milestone.sprintId ? String(milestone.sprintId) : ''
     });
   };
 
@@ -568,6 +572,7 @@ export function ScheduleScreen() {
           <h2>{editingMilestoneId ? 'Editar marco' : 'Novo marco'}</h2>
           <MilestoneForm
             formData={milestoneForm}
+            sprints={sprints}
             errors={milestoneErrors}
             editing={Boolean(editingMilestoneId)}
             submitting={submitting}
