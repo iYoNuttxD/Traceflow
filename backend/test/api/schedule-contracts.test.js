@@ -283,6 +283,37 @@ describe('contratos de sprint', () => {
     expect(ativas.map((participacao) => participacao.taskId)).toEqual(finais);
   });
 
+  // O defeito que este teste fixa: a API aceitava um instante, gravava a
+  // meia-noite UTC e devolvia um dia diferente do informado.
+  it('preserva hora, minuto e fuso da janela da sprint', async () => {
+    const owner = await register('sprint-instant@example.invalid');
+    const project = await createProject(owner);
+
+    const criada = await createSprint(owner, project.id, {
+      startDate: '2026-08-01T09:30:00-03:00',
+      endDate: '2026-08-14T18:00:00-03:00'
+    });
+    expect(criada.status).toBe(201);
+    expect(criada.body.sprint.startDate).toBe('2026-08-01T12:30:00.000Z');
+    expect(criada.body.sprint.endDate).toBe('2026-08-14T21:00:00.000Z');
+
+    // A leitura devolve o mesmo instante: nada e reinterpretado no caminho.
+    const lida = await owner.agent.get(`/api/sprints/${criada.body.sprint.id}`);
+    expect(lida.body.sprint.startDate).toBe('2026-08-01T12:30:00.000Z');
+  });
+
+  // 2026-08-14T23:59:59-03:00 e 2026-08-15T02:59:59Z. Truncar no dia UTC movia o
+  // prazo para 15/08 00:00 e mudava o dia que o usuario tinha escolhido.
+  it('nao desloca o dia de um prazo perto da meia-noite local', async () => {
+    const owner = await register('sprint-midnight@example.invalid');
+    const project = await createProject(owner);
+    const criada = await createSprint(owner, project.id, {
+      startDate: '2026-08-01T00:00:00-03:00',
+      endDate: '2026-08-14T23:59:59-03:00'
+    });
+    expect(criada.body.sprint.endDate).toBe('2026-08-15T02:59:59.000Z');
+  });
+
   it('recusa edicao que passa a sobrepor outra sprint', async () => {
     const owner = await register('sprint-overlap-edit@example.invalid');
     const project = await createProject(owner);
@@ -544,7 +575,11 @@ describe('cronograma', () => {
     expect(response.status).toBe(200);
     expect(response.body.projectId).toBe(project.id);
     expect(response.body.sprints).toHaveLength(1);
-    expect(response.body.sprints[0]).toMatchObject({ durationInDays: 14, taskCount: 1 });
+    // Janela semiaberta: 01/08 00:00 a 14/08 00:00 sao 13 dias.
+    expect(response.body.sprints[0]).toMatchObject({ durationInDays: 13, taskCount: 1 });
+    // O contrato devolve instantes, nao dias truncados.
+    expect(response.body.sprints[0].startDate).toBe('2026-08-01T00:00:00.000Z');
+    expect(response.body.sprints[0].endDate).toBe('2026-08-14T00:00:00.000Z');
     expect(response.body.milestones).toHaveLength(1);
     expect(response.body.unassignedTasks).toHaveLength(1);
     expect(response.body.generatedAt).toMatch(/Z$/);

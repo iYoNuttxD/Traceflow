@@ -208,24 +208,38 @@ describe('estados da tela', () => {
   });
 });
 
+// O marco vence numa hora, nao no fim de um dia inteiro: a comparacao passou a
+// ser entre instantes, igual a do servidor.
 describe('isMilestoneOverdue (derivacao local para exibicao)', () => {
-  const hoje = new Date('2026-08-10T12:00:00.000Z');
+  const agora = new Date('2026-08-10T12:00:00.000Z');
 
-  it('nao considera atrasado o marco que vence hoje', () => {
-    expect(isMilestoneOverdue({ status: 'PENDENTE', dueDate: '2026-08-10' }, hoje)).toBe(false);
+  it('nao considera atrasado o marco que ainda vai vencer hoje', () => {
+    expect(
+      isMilestoneOverdue({ status: 'PENDENTE', dueDate: '2026-08-10T18:00:00.000Z' }, agora)
+    ).toBe(false);
+  });
+
+  it('considera atrasado o marco que ja venceu hoje', () => {
+    expect(
+      isMilestoneOverdue({ status: 'PENDENTE', dueDate: '2026-08-10T09:00:00.000Z' }, agora)
+    ).toBe(true);
   });
 
   it('considera atrasado o marco vencido ontem', () => {
-    expect(isMilestoneOverdue({ status: 'PENDENTE', dueDate: '2026-08-09' }, hoje)).toBe(true);
+    expect(
+      isMilestoneOverdue({ status: 'PENDENTE', dueDate: '2026-08-09T00:00:00.000Z' }, agora)
+    ).toBe(true);
   });
 
   it('nunca considera atrasado um marco concluido', () => {
-    expect(isMilestoneOverdue({ status: 'CONCLUIDO', dueDate: '2026-01-01' }, hoje)).toBe(false);
+    expect(
+      isMilestoneOverdue({ status: 'CONCLUIDO', dueDate: '2026-01-01T00:00:00.000Z' }, agora)
+    ).toBe(false);
   });
 
   it('trata data ausente ou invalida como nao atrasado', () => {
-    expect(isMilestoneOverdue({ status: 'PENDENTE', dueDate: null }, hoje)).toBe(false);
-    expect(isMilestoneOverdue(null, hoje)).toBe(false);
+    expect(isMilestoneOverdue({ status: 'PENDENTE', dueDate: null }, agora)).toBe(false);
+    expect(isMilestoneOverdue(null, agora)).toBe(false);
   });
 });
 
@@ -255,8 +269,8 @@ describe('economia de requisicoes', () => {
     mocks.schedule.createSprint.mockResolvedValue({ data: {} });
 
     await user.type(screen.getByLabelText(/Nome/), 'Sprint 1');
-    await user.type(screen.getByLabelText(/Data de início/), '2026-08-01');
-    await user.type(screen.getByLabelText(/Data de fim/), '2026-08-14');
+    await user.type(screen.getByLabelText(/^Início/), '2026-08-01T09:00');
+    await user.type(screen.getByLabelText(/^Fim/), '2026-08-14T18:00');
     await user.click(screen.getByRole('button', { name: 'Cadastrar sprint' }));
 
     await waitFor(() => expect(mocks.schedule.listSprints).toHaveBeenCalledTimes(1));
@@ -499,14 +513,49 @@ describe('formulario de sprint', () => {
     await screen.findByText('Cronograma vazio.');
 
     await user.type(screen.getByLabelText(/Nome/), 'Sprint 1');
-    await user.type(screen.getByLabelText(/Data de início/), '2026-08-20');
-    await user.type(screen.getByLabelText(/Data de fim/), '2026-08-01');
+    await user.type(screen.getByLabelText(/^Início/), '2026-08-20T09:00');
+    await user.type(screen.getByLabelText(/^Fim/), '2026-08-01T09:00');
     await user.click(screen.getByRole('button', { name: 'Cadastrar sprint' }));
 
-    expect(
-      await screen.findByText('A data de início não pode ser posterior à data de fim.')
-    ).toBeInTheDocument();
+    expect(await screen.findByText('O início precisa ser anterior ao fim.')).toBeInTheDocument();
     expect(mocks.schedule.createSprint).not.toHaveBeenCalled();
+  });
+
+  // O `.slice(0, 10)` da versao anterior destruia a hora ao abrir a edicao:
+  // salvar em seguida gravava meia-noite por cima do instante escolhido.
+  it('preserva a hora ao editar e salvar de novo', async () => {
+    const user = userEvent.setup();
+    const inicio = new Date('2026-08-01T09:30').toISOString();
+    const fim = new Date('2026-08-14T18:00').toISOString();
+    mocks.schedule.listSprints.mockResolvedValue({
+      data: {
+        total: 1,
+        sprints: [
+          {
+            id: 3,
+            name: 'Sprint 1',
+            objective: null,
+            startDate: inicio,
+            endDate: fim,
+            status: 'PLANEJADA'
+          }
+        ]
+      }
+    });
+    mocks.schedule.updateSprint.mockResolvedValue({ data: {} });
+    renderScreen();
+
+    await user.click(await screen.findByRole('button', { name: /^Editar a sprint/ }));
+    expect(screen.getByLabelText(/^Início/)).toHaveValue('2026-08-01T09:30');
+    expect(screen.getByLabelText(/^Fim/)).toHaveValue('2026-08-14T18:00');
+
+    await user.click(screen.getByRole('button', { name: 'Salvar sprint' }));
+    await waitFor(() =>
+      expect(mocks.schedule.updateSprint).toHaveBeenCalledWith(
+        3,
+        expect.objectContaining({ startDate: inicio, endDate: fim })
+      )
+    );
   });
 
   it('envia o payload correto quando valido', async () => {
@@ -516,16 +565,17 @@ describe('formulario de sprint', () => {
     await screen.findByText('Cronograma vazio.');
 
     await user.type(screen.getByLabelText(/Nome/), 'Sprint 1');
-    await user.type(screen.getByLabelText(/Data de início/), '2026-08-01');
-    await user.type(screen.getByLabelText(/Data de fim/), '2026-08-14');
+    await user.type(screen.getByLabelText(/^Início/), '2026-08-01T09:00');
+    await user.type(screen.getByLabelText(/^Fim/), '2026-08-14T18:00');
     await user.click(screen.getByRole('button', { name: 'Cadastrar sprint' }));
 
     await waitFor(() =>
       expect(mocks.schedule.createSprint).toHaveBeenCalledWith('1', {
         name: 'Sprint 1',
         objective: null,
-        startDate: '2026-08-01',
-        endDate: '2026-08-14'
+        // O campo fala no fuso local; a API recebe o instante correspondente.
+        startDate: new Date('2026-08-01T09:00').toISOString(),
+        endDate: new Date('2026-08-14T18:00').toISOString()
       })
     );
   });
@@ -542,8 +592,8 @@ describe('formulario de sprint', () => {
     await screen.findByText('Cronograma vazio.');
 
     await user.type(screen.getByLabelText(/Nome/), 'Sprint 1');
-    await user.type(screen.getByLabelText(/Data de início/), '2026-08-01');
-    await user.type(screen.getByLabelText(/Data de fim/), '2026-08-14');
+    await user.type(screen.getByLabelText(/^Início/), '2026-08-01T09:00');
+    await user.type(screen.getByLabelText(/^Fim/), '2026-08-14T18:00');
     await user.click(screen.getByRole('button', { name: 'Cadastrar sprint' }));
 
     expect(
@@ -600,7 +650,7 @@ describe('formulario de marco', () => {
     await screen.findByRole('option', { name: 'Sprint 1' });
 
     await user.type(screen.getByLabelText(/Título/), 'Entrega parcial');
-    await user.type(screen.getByLabelText(/Data prevista/), '2026-08-10');
+    await user.type(screen.getByLabelText(/Data prevista/), '2026-08-10T15:00');
     await user.selectOptions(screen.getByRole('combobox', { name: /Sprint/ }), '7');
     await user.click(screen.getByRole('button', { name: 'Cadastrar marco' }));
 

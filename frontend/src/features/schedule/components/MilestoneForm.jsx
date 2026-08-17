@@ -49,7 +49,7 @@ export function MilestoneForm({
       <FormInput
         label="Data prevista"
         name="milestone-dueDate"
-        type="date"
+        type="datetime-local"
         value={formData.dueDate}
         required
         error={errors.dueDate}

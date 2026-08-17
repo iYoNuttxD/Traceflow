@@ -149,14 +149,25 @@ describe('ordem das datas', () => {
     ).rejects.toMatchObject({ statusCode: 400 });
   });
 
-  it('normaliza datetime com offset para o dia UTC', async () => {
+  // Antes este teste fixava o truncamento como contrato. Descartar hora, minuto
+  // e segundo nunca foi normalizacao: era perda do dado que o usuario informou.
+  it('preserva o instante informado, com offset', async () => {
     const sprint = await sprintService.createSprint(projectId, {
       name: 'S',
       startDate: '2026-08-01T23:59:59-03:00',
       endDate: '2026-08-15'
     });
-    // 2026-08-01T23:59:59-03:00 e 2026-08-02T02:59:59Z: dia 2 em UTC.
-    expect(sprint.startDate.toISOString()).toBe('2026-08-02T00:00:00.000Z');
+    expect(sprint.startDate.toISOString()).toBe('2026-08-02T02:59:59.000Z');
+  });
+
+  // Data sem hora continua aceita e significa o inicio daquele dia em UTC.
+  it('interpreta data de calendario como inicio do dia em UTC', async () => {
+    const sprint = await sprintService.createSprint(projectId, {
+      name: 'S',
+      startDate: '2026-08-01',
+      endDate: '2026-08-15'
+    });
+    expect(sprint.startDate.toISOString()).toBe('2026-08-01T00:00:00.000Z');
   });
 
   it('valida a ordem considerando o campo nao alterado na edicao', async () => {
@@ -718,7 +729,8 @@ describe('montagem do cronograma', () => {
   it('deriva duracao, contagem e prazo fora da janela', async () => {
     const schedule = await sprintService.getSchedule(projectId, {});
     const [sprint] = schedule.sprints;
-    expect(sprint.durationInDays).toBe(14);
+    // 01/08 00:00 a 14/08 00:00 sao 13 dias: o dia 14 pertence a sprint seguinte.
+    expect(sprint.durationInDays).toBe(13);
     expect(sprint.taskCount).toBe(1);
     expect(sprint.tasks[0].deadlineOutsideWindow).toBe(true);
   });
