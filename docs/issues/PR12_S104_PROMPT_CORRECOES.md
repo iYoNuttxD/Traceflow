@@ -775,25 +775,31 @@ aprovada agora**, registre isso explicitamente na PR e **não declare o S1-04 pl
 
 Marque só o que estiver verificado por teste ou por execução real.
 
-- [ ] `SprintTask` criado, com backfill aplicado e histórico consultável (D01)
-- [ ] `Milestone.sprintId` obrigatório, validado por projeto e por janela (D02, D11)
-- [ ] Sobreposição de sprints recusada, inclusive sob concorrência (D03)
-- [ ] Sprint encerrada imutável: escopo, resultado e marcos congelados (D04, D12)
-- [ ] Datas preservam o instante exato de ponta a ponta, do formulário ao banco (D05)
-- [ ] `DELETE /sprints/:id` responde `405` sem efeito colateral; UI sem exclusão (D06, D13)
-- [ ] `startedAt` é baseline; inclusão posterior sinalizada e persistida (D07)
-- [ ] Toda mutação de escopo/janela roda em transação com lock (D08)
-- [ ] Exclusão de tarefa não reescreve sprint encerrada (D09)
-- [ ] Limite de 100 aplicado em todas as rotas (D10, D14)
-- [ ] Janela do cronograma em dia UTC, com a limitação de fuso documentada (D15)
-- [ ] Corrida de resposta no frontend eliminada e coberta por teste
-- [ ] VIEWER sem controles de mutação
-- [ ] 404 uniformizado **ou** decisão de adiamento registrada no backlog e na PR
-- [ ] ADR-010 escrito; ADR-009 marcado como parcialmente superado
-- [ ] `API_CONTRACTS.md` sem contradição sobre o RF35
-- [ ] Roadmap e backlog refletindo o estado real do cartão
-- [ ] `npm run lint`, `npm test` e `npm run build` verdes no backend e no frontend
-- [ ] Tela validada com dados mínimos **e** em escala
+- [x] `SprintTask` criado, com backfill aplicado e histórico consultável (D01)
+- [x] `Milestone.sprintId` obrigatório, validado por projeto e por janela (D02, D11)
+- [x] Sobreposição de sprints recusada, inclusive sob concorrência (D03)
+- [x] Sprint encerrada imutável: escopo, resultado e marcos congelados (D04, D12)
+- [x] Datas preservam o instante exato de ponta a ponta, do formulário ao banco (D05)
+- [x] `DELETE /sprints/:id` responde `405` sem efeito colateral; UI sem exclusão (D06, D13)
+- [x] `startedAt` é baseline; inclusão posterior sinalizada e persistida (D07)
+- [x] Toda mutação de escopo/janela roda em transação com lock (D08)
+- [x] Exclusão de tarefa não reescreve sprint encerrada (D09)
+- [x] Limite de 100 aplicado em todas as rotas (D10, D14)
+- [x] Janela do cronograma em dia UTC, com a limitação de fuso documentada (D15)
+- [x] Corrida de resposta no frontend eliminada e coberta por teste
+- [x] VIEWER sem controles de mutação
+- [x] 404 uniformizado (D16), com a indistinguibilidade testada nos cinco recursos
+- [x] ADR-010 escrito; ADR-009 marcado como parcialmente superado
+- [x] `API_CONTRACTS.md` sem contradição sobre o RF35
+- [x] Roadmap e backlog refletindo o estado real do cartão
+- [x] `npm run lint`, `npm test` e `npm run build` verdes no backend e no frontend
+- [ ] **Jornada E2E de navegador** — `S104-F02`, decisão pendente (fase 8)
+- [ ] **Tela validada com dados mínimos e em escala** — pendente, exige subir a aplicação
+
+> **Estado em 16/08/2026:** fases 1 a 7 concluídas e commitadas. Todos os achados HIGH e MEDIUM
+> do parecer estão fechados. Restam os dois itens acima, ambos de homologação e não de
+> implementação — enquanto abertos, o S1-04 é "concluído em implementação, aberto em
+> homologação".
 
 ### Plano de commits
 

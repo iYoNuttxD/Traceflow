@@ -160,11 +160,19 @@ Entregar identidade e acesso homologados, planejamento colaborativo e a cadeia a
 
 **Checklist técnico:**
 
-- [ ] definir contrato e migration versionada;
-- [ ] implementar repository, service, controller, rotas e validação;
-- [ ] implementar telas, filtros e associação de tarefas;
-- [ ] testar fórmulas, autorização e integridade;
-- [ ] documentar API, cálculo e RFs.
+- [x] definir contrato e migration versionada;
+- [x] implementar repository, service, controller, rotas e validação;
+- [x] implementar telas, filtros e associação de tarefas;
+- [x] testar fórmulas, autorização e integridade;
+- [x] documentar API, cálculo e RFs.
+
+**Estado:** implementação e documentação concluídas; correções do code review da PR #12
+aplicadas e registradas no [ADR-010](docs/architecture/ADR-010-SPRINT-DOMAIN-CORRECTIONS.md).
+
+**Pendência para homologação plena:** o DoD (§4) pede fluxos ponta a ponta proporcionais ao
+risco. As jornadas críticas estão cobertas por teste de API e de interface, mas não por E2E de
+navegador — `S104-F02` no backlog técnico. Até que essa decisão seja tomada, o cartão fica
+**concluído em implementação, aberto em homologação**.
 
 ### S1-05 - Implementar comentários e histórico nas tarefas
 
