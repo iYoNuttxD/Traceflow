@@ -260,7 +260,11 @@ export const taskRepository = {
       // o snapshot de titulo e o que resta para identifica-la (ADR-010 D09).
       const atual = await tx.task.findUnique({ where: { id }, select: { status: true } });
       await tx.sprintTask.updateMany({
-        where: { taskId: id, removedAt: null },
+        // `closedAt: null` exclui as participacoes ja congeladas: numa sprint
+        // encerrada a composicao e registro, e marcar a saida agora tiraria a
+        // tarefa do periodo que ela de fato integrou. Nessas, a FK apenas anula
+        // `taskId` e o snapshot de titulo passa a ser o que resta dela.
+        where: { taskId: id, removedAt: null, closedAt: null },
         data: {
           removedAt: new Date(),
           removalReason: 'TAREFA_EXCLUIDA',

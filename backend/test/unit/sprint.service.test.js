@@ -170,6 +170,36 @@ describe('ordem das datas', () => {
     expect(sprint.startDate.toISOString()).toBe('2026-08-01T00:00:00.000Z');
   });
 
+  // Os extremos do fuso horario mundial cruzam o dia nas DUAS direcoes. Sao os
+  // casos em que truncar para "o dia" seria mais obviamente errado.
+  it.each([
+    ['2026-08-01T00:00:00+14:00', '2026-07-31T10:00:00.000Z', 'para o dia anterior'],
+    ['2026-08-01T23:00:00-11:00', '2026-08-02T10:00:00.000Z', 'para o dia seguinte'],
+    ['2026-08-01T12:00:00+05:30', '2026-08-01T06:30:00.000Z', 'com offset de meia hora']
+  ])('preserva %s, que cruza o dia %s', async (entrada, esperado) => {
+    const sprint = await sprintService.createSprint(projectId, {
+      name: 'S',
+      startDate: entrada,
+      endDate: '2026-09-30'
+    });
+    expect(sprint.startDate.toISOString()).toBe(esperado);
+  });
+
+  // `Z` e `+00:00` sao o mesmo instante e precisam produzir o mesmo valor.
+  it('trata Z e +00:00 como o mesmo instante', async () => {
+    const comZ = await sprintService.createSprint(projectId, {
+      name: 'S',
+      startDate: '2026-08-01T09:00:00Z',
+      endDate: '2026-08-15'
+    });
+    const comOffset = await sprintService.createSprint(projectId, {
+      name: 'S',
+      startDate: '2026-08-01T09:00:00+00:00',
+      endDate: '2026-08-15'
+    });
+    expect(comZ.startDate.toISOString()).toBe(comOffset.startDate.toISOString());
+  });
+
   it('valida a ordem considerando o campo nao alterado na edicao', async () => {
     mocks.sprint.findById.mockResolvedValue(baseSprint);
     await expect(sprintService.updateSprint(10, { startDate: '2026-09-01' })).rejects.toMatchObject(

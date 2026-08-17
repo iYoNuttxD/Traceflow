@@ -1157,3 +1157,207 @@ describe('404 indistinguivel entre recurso alheio e inexistente', () => {
     expect(semRequestId(alheia.body)).toEqual(semRequestId(inexistente.body));
   });
 });
+
+// ADR-010 D01 assume uma duplicacao: `SprintTask` e a fonte de verdade do
+// historico e `Task.sprintId` e o ponteiro da participacao ativa. A mitigacao
+// declarada la e este invariante — sem ele, a deriva entre os dois seria
+// invisivel no uso normal e corromperia o RF35 em silencio.
+describe('invariante entre participacao e ponteiro', () => {
+  async function verificarInvariante() {
+    const comSprint = await prisma.task.findMany({
+      where: { sprintId: { not: null } },
+      select: { id: true, sprintId: true }
+    });
+    const participacoes = await prisma.sprintTask.findMany({
+      where: { removedAt: null },
+      select: { taskId: true, sprintId: true, closedAt: true }
+    });
+
+    // Todo ponteiro tem exatamente uma participacao aberta correspondente.
+    for (const task of comSprint) {
+      const correspondentes = participacoes.filter(
+        (p) => p.taskId === task.id && p.sprintId === task.sprintId
+      );
+      expect(correspondentes, `tarefa ${task.id} aponta para sprint ${task.sprintId}`).toHaveLength(
+        1
+      );
+    }
+
+    // Participacao ainda ABERTA (nao congelada) implica ponteiro apontando para
+    // ela. Participacao congelada pode divergir de proposito: a tarefa seguiu
+    // para a sprint seguinte e o registro anterior permanece.
+    const ponteiroPorTarefa = new Map(comSprint.map((task) => [task.id, task.sprintId]));
+    for (const p of participacoes.filter((item) => item.closedAt === null)) {
+      expect(ponteiroPorTarefa.get(p.taskId), `participacao aberta da tarefa ${p.taskId}`).toBe(
+        p.sprintId
+      );
+    }
+
+    // Nunca duas participacoes abertas para a mesma tarefa.
+    const abertasPorTarefa = new Map();
+    for (const p of participacoes.filter((item) => item.closedAt === null)) {
+      abertasPorTarefa.set(p.taskId, (abertasPorTarefa.get(p.taskId) || 0) + 1);
+    }
+    for (const [taskId, total] of abertasPorTarefa) {
+      expect(total, `tarefa ${taskId} em mais de uma sprint ativa`).toBe(1);
+    }
+  }
+
+  it('sobrevive a uma sequencia real de associacao, troca, remocao e encerramento', async () => {
+    const owner = await register('invariante@example.invalid');
+    const project = await createProject(owner);
+    const s1 = (await createSprint(owner, project.id, { name: 'S1' })).body.sprint.id;
+    const s2 = (
+      await createSprint(owner, project.id, {
+        name: 'S2',
+        startDate: '2026-08-14',
+        endDate: '2026-08-28'
+      })
+    ).body.sprint.id;
+
+    const a = await createTask(owner, project.id, 'A');
+    const b = await createTask(owner, project.id, 'B');
+    const c = await createTask(owner, project.id, 'C');
+
+    // Associa pelos dois caminhos.
+    await owner.mutate('put', `/api/sprints/${s1}/tasks`).send({ taskIds: [a.id, b.id] });
+    await verificarInvariante();
+
+    await owner.mutate('patch', `/api/tasks/${c.id}/sprint`).send({ sprintId: s1 });
+    await verificarInvariante();
+
+    // Remove uma pelo lado da tarefa.
+    await owner.mutate('delete', `/api/tasks/${b.id}/sprint`).send();
+    await verificarInvariante();
+
+    // Troca de sprint com a origem ainda aberta.
+    await owner.mutate('patch', `/api/tasks/${c.id}/sprint`).send({ sprintId: s2 });
+    await verificarInvariante();
+
+    // Encerra a S1 e leva a tarefa restante para a S2: o ponteiro muda, o
+    // registro congelado da S1 fica.
+    await owner.mutate('patch', `/api/sprints/${s1}/status`).send({ status: 'EM_ANDAMENTO' });
+    await owner.mutate('patch', `/api/sprints/${s1}/status`).send({ status: 'CONCLUIDA' });
+    await verificarInvariante();
+
+    await owner.mutate('patch', `/api/tasks/${a.id}/sprint`).send({ sprintId: s2 });
+    await verificarInvariante();
+
+    // A participacao da S1 continua la, congelada, apesar do ponteiro apontar S2.
+    const naS1 = await prisma.sprintTask.findFirst({
+      where: { sprintId: s1, taskId: a.id },
+      select: { removedAt: true, closedAt: true, exitStatus: true }
+    });
+    expect(naS1.removedAt).toBeNull();
+    expect(naS1.closedAt).not.toBeNull();
+    expect((await prisma.task.findUnique({ where: { id: a.id } })).sprintId).toBe(s2);
+  });
+});
+
+describe('limite de tarefas por sprint', () => {
+  // O limite tem que ser o MESMO nas duas rotas. Quando so o lote limitava, a
+  // sprint chegava a 101 tarefas pela rota individual e nenhum salvamento do
+  // painel passava mais — um estado que a API aceitava criar e nao aceitava
+  // representar.
+  it('recusa a centesima primeira tarefa tambem na associacao individual', async () => {
+    const owner = await register('limite-individual@example.invalid');
+    const project = await createProject(owner);
+    const sprintId = (await createSprint(owner, project.id)).body.sprint.id;
+
+    // As 100 primeiras entram direto pelo banco: cem chamadas de API nao
+    // acrescentariam nada ao que este teste verifica.
+    await prisma.task.createMany({
+      data: Array.from({ length: 100 }, (_, indice) => ({
+        projectId: project.id,
+        title: `Tarefa ${indice}`,
+        sprintId
+      }))
+    });
+    const dentro = await prisma.task.findMany({
+      where: { sprintId },
+      select: { id: true, title: true }
+    });
+    await prisma.sprintTask.createMany({
+      data: dentro.map((task) => ({
+        projectId: project.id,
+        sprintId,
+        taskId: task.id,
+        taskTitleSnapshot: task.title
+      }))
+    });
+
+    const extra = await createTask(owner, project.id, 'A centésima primeira');
+    const response = await owner
+      .mutate('patch', `/api/tasks/${extra.id}/sprint`)
+      .send({ sprintId });
+
+    expect(response.status).toBe(409);
+    expect(response.body.code).toBe('SPRINT_TASK_LIMIT_REACHED');
+    expect(await prisma.sprintTask.count({ where: { sprintId, removedAt: null } })).toBe(100);
+  });
+});
+
+// ADR-010 D09. O caso e o pior possivel: a tarefa e apagada DEPOIS que a sprint
+// virou registro. Se a exclusao mexesse no denominador, um periodo encerrado
+// mudaria de resultado por causa de uma operacao posterior.
+describe('exclusao de tarefa e o registro da sprint encerrada', () => {
+  it('nao altera o resultado de uma sprint ja encerrada', async () => {
+    const owner = await register('delete-task-frozen@example.invalid');
+    const project = await createProject(owner);
+    const sprintId = (await createSprint(owner, project.id)).body.sprint.id;
+    const feita = await createTask(owner, project.id, 'Concluída');
+    const aberta = await createTask(owner, project.id, 'Não concluída');
+
+    await owner.mutate('put', `/api/sprints/${sprintId}/tasks`).send({
+      taskIds: [feita.id, aberta.id]
+    });
+    await owner.mutate('patch', `/api/sprints/${sprintId}/status`).send({ status: 'EM_ANDAMENTO' });
+    await owner.mutate('patch', `/api/tasks/${feita.id}/status`).send({ status: 'CONCLUIDO' });
+    await owner.mutate('patch', `/api/sprints/${sprintId}/status`).send({ status: 'CONCLUIDA' });
+
+    const antes = (await owner.agent.get(`/api/sprints/${sprintId}/progress`)).body;
+    expect(antes.current).toMatchObject({ numerator: 1, denominator: 2, percentage: 50 });
+
+    const excluida = await owner.mutate('delete', `/api/tasks/${aberta.id}`).send();
+    expect(excluida.status).toBeLessThan(300);
+    expect(await prisma.task.findUnique({ where: { id: aberta.id } })).toBeNull();
+
+    const depois = (await owner.agent.get(`/api/sprints/${sprintId}/progress`)).body;
+    expect(depois.planned).toEqual(antes.planned);
+    expect(depois.current).toEqual(antes.current);
+
+    // O snapshot e o que resta da tarefa: a participacao sobrevive sem ela, e
+    // continua sendo membro do periodo. Marcar saida aqui seria dizer que a
+    // tarefa deixou uma sprint que ja estava encerrada quando ela foi apagada.
+    const participacao = await prisma.sprintTask.findFirst({
+      where: { sprintId, taskTitleSnapshot: 'Não concluída' },
+      select: { taskId: true, removedAt: true, removalReason: true, exitStatus: true }
+    });
+    expect(participacao.taskId).toBeNull();
+    expect(participacao.removedAt).toBeNull();
+    expect(participacao.removalReason).toBeNull();
+    expect(participacao.exitStatus).toBe('A_FAZER');
+  });
+
+  // Numa sprint ABERTA a exclusao e uma saida de verdade, e precisa aparecer
+  // como tal — o contrario do caso acima.
+  it('registra a saida quando a sprint ainda esta aberta', async () => {
+    const owner = await register('delete-task-open@example.invalid');
+    const project = await createProject(owner);
+    const sprintId = (await createSprint(owner, project.id)).body.sprint.id;
+    const task = await createTask(owner, project.id, 'Some no meio da sprint');
+    await owner.mutate('patch', `/api/tasks/${task.id}/sprint`).send({ sprintId });
+    await owner.mutate('patch', `/api/sprints/${sprintId}/status`).send({ status: 'EM_ANDAMENTO' });
+
+    await owner.mutate('delete', `/api/tasks/${task.id}`).send();
+
+    const participacao = await prisma.sprintTask.findFirst({
+      where: { sprintId, taskTitleSnapshot: 'Some no meio da sprint' },
+      select: { taskId: true, removedAt: true, removalReason: true, exitStatus: true }
+    });
+    expect(participacao.taskId).toBeNull();
+    expect(participacao.removedAt).not.toBeNull();
+    expect(participacao.removalReason).toBe('TAREFA_EXCLUIDA');
+    expect(participacao.exitStatus).toBe('A_FAZER');
+  });
+});
