@@ -662,6 +662,43 @@ describe('evolucao da sprint (RF35)', () => {
     expect(within(painel).getByText('1 tarefa saiu da sprint: #7')).toBeInTheDocument();
   });
 
+  // Sprint encerrada devolve um registro, nao uma medida do momento. Dizer
+  // "tarefas que estao na sprint agora" sobre um resultado congelado seria uma
+  // afirmacao falsa da tela sobre o proprio dado que ela exibe.
+  it('fala no passado quando o resultado esta congelado', async () => {
+    const user = userEvent.setup();
+    mocks.schedule.listSprints.mockResolvedValue({
+      data: { total: 1, sprints: [{ ...sprint, status: 'CONCLUIDA' }] }
+    });
+    mocks.schedule.getSprintProgress.mockResolvedValue({
+      data: {
+        sprintId: 3,
+        frozen: true,
+        baseline: { kind: 'STARTED_AT', at: '2026-08-01T12:00:00.000Z' },
+        cutoff: '2026-08-14T18:00:00.000Z',
+        planned: metrica(1, 2, 50),
+        current: metrica(1, 2, 50),
+        scopeChange: { added: [], removed: [] },
+        carryOver: [
+          { taskId: 9, toSprintId: 4, exitStatus: 'EM_ANDAMENTO', at: '2026-08-14T18:00:00.000Z' }
+        ]
+      }
+    });
+    renderScreen();
+    await abrir(user);
+
+    const painel = await screen.findByRole('region', { name: /Evolução da sprint/ });
+    expect(within(painel).getByText('Escopo no encerramento')).toBeInTheDocument();
+    expect(within(painel).queryByText('Escopo atual')).toBeNull();
+    expect(within(painel).getByText(/Resultado congelado no encerramento/)).toBeInTheDocument();
+    expect(
+      within(painel).getByText(/1 tarefa seguiu para a sprint seguinte: #9/)
+    ).toBeInTheDocument();
+    expect(
+      within(painel).getByText(/O status registrado aqui não muda com o que acontecer lá/)
+    ).toBeInTheDocument();
+  });
+
   // percentage null significa "nao ha o que medir"; 0% diria "nada concluido".
   it('sprint sem tarefas mostra sem dados, nunca 0%', async () => {
     const user = userEvent.setup();

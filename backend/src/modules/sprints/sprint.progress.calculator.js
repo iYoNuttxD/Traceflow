@@ -2,15 +2,16 @@
 // O instante de corte e SEMPRE injetado por parametro; nunca chamar new Date()
 // aqui dentro, pela mesma razao de sprint.calculator.js — o resultado precisa ser
 // identico em qualquer fuso e reproduzivel entre execucoes.
+//
+// A fonte do calculo e a participacao (SprintTask), nao o historico de eventos.
+// Reconstruir o escopo a partir de TaskHistoryEntry funcionava enquanto a tarefa
+// pertencia a uma sprint por vez, mas dependia de registros mutaveis e do status
+// ATUAL da tarefa: concluir a tarefa depois mudava o resultado de uma sprint ja
+// encerrada. A participacao guarda o que foi observado aqui, e isso nao muda.
 import { buildMetric } from '../traceability/index.js';
 
 const CONCLUIDO = 'CONCLUIDO';
-
-function toSprintId(value) {
-  if (value === null || value === undefined || value === '') return null;
-  const parsed = Number(value);
-  return Number.isInteger(parsed) ? parsed : null;
-}
+const TERMINAL = ['CONCLUIDA', 'CANCELADA'];
 
 function toIso(value) {
   if (!value) return null;
@@ -28,124 +29,94 @@ export function resolveBaseline(sprint) {
   return at ? { kind: 'STARTED_AT', at } : { kind: 'OPEN', at: null };
 }
 
-// Estado de cada tarefa NO INSTANTE DA BASE, reconstruido do historico.
-//
-// A regra que torna isso exato: para uma tarefa que se moveu depois da base, o
-// `fromValue` da PRIMEIRA movimentacao posterior descreve onde ela estava na base
-// — nada aconteceu entre a base e esse evento. Para uma tarefa sem movimentacao
-// posterior, o estado atual e o mesmo da base.
-//
-// Reconstruir assim, em vez de somar e subtrair conjuntos, e o que faz o calculo
-// sobreviver a sequencias como "saiu e voltou": a algebra de conjuntos erraria o
-// sinal nesse caso, a reconstrucao cronologica nao.
-export function membersAtBaseline({ currentTaskIds, history, sprintId }) {
-  const alvo = String(sprintId);
-  const primeiraMovimentacao = new Map();
-
-  for (const entry of history) {
-    const anterior = primeiraMovimentacao.get(entry.taskId);
-    if (!anterior || new Date(entry.occurredAt) < new Date(anterior.occurredAt)) {
-      primeiraMovimentacao.set(entry.taskId, entry);
-    }
-  }
-
-  const naBase = new Set();
-  for (const taskId of currentTaskIds) {
-    if (!primeiraMovimentacao.has(taskId)) naBase.add(taskId);
-  }
-  for (const [taskId, entry] of primeiraMovimentacao) {
-    if (entry.fromValue === alvo) naBase.add(taskId);
-  }
-  return naBase;
+// Status que vale PARA ESTA SPRINT. `exitStatus` congela o que foi observado
+// aqui — na saida da tarefa ou no encerramento —, e so na falta dele o status
+// atual entra. Uma sprint encerrada depois deste modelo sempre tem exitStatus;
+// as encerradas antes dele caem no status atual, limitacao conhecida do backfill.
+export function effectiveStatus(participation) {
+  return participation.exitStatus ?? participation.currentStatus;
 }
 
-// Entradas e saidas LIQUIDAS entre a base e o corte. Interessa o saldo, nao o
-// log bruto: uma tarefa que saiu e voltou nao entrou nem saiu do escopo.
-export function buildScopeChange({ plannedIds, currentTaskIds, history, sprintId }) {
-  const alvo = String(sprintId);
-  const atuais = new Set(currentTaskIds);
-  const ultimaEntrada = new Map();
-  const ultimaSaida = new Map();
-
-  for (const entry of history) {
-    if (entry.toValue === alvo) {
-      const anterior = ultimaEntrada.get(entry.taskId);
-      if (!anterior || new Date(entry.occurredAt) >= new Date(anterior.occurredAt)) {
-        ultimaEntrada.set(entry.taskId, entry);
-      }
-    }
-    if (entry.fromValue === alvo) {
-      const anterior = ultimaSaida.get(entry.taskId);
-      if (!anterior || new Date(entry.occurredAt) >= new Date(anterior.occurredAt)) {
-        ultimaSaida.set(entry.taskId, entry);
-      }
-    }
-  }
-
-  const added = [];
-  for (const taskId of atuais) {
-    if (plannedIds.has(taskId)) continue;
-    const entry = ultimaEntrada.get(taskId);
-    added.push({
-      taskId,
-      at: entry ? toIso(entry.occurredAt) : null,
-      fromSprintId: entry ? toSprintId(entry.fromValue) : null
-    });
-  }
-
-  const removed = [];
-  for (const taskId of plannedIds) {
-    if (atuais.has(taskId)) continue;
-    const entry = ultimaSaida.get(taskId);
-    removed.push({
-      taskId,
-      at: entry ? toIso(entry.occurredAt) : null,
-      toSprintId: entry ? toSprintId(entry.toValue) : null
-    });
-  }
-
-  const porTarefa = (a, b) => a.taskId - b.taskId;
-  return { added: added.sort(porTarefa), removed: removed.sort(porTarefa) };
+function metric(participations) {
+  const concluidas = participations.filter(
+    (participation) => effectiveStatus(participation) === CONCLUIDO
+  ).length;
+  // `buildMetric` devolve percentage null quando o denominador e zero. Zero e
+  // nulo sao estados diferentes: "nada concluido" nao e "nao ha o que medir".
+  return buildMetric(concluidas, participations.length);
 }
 
-// `buildMetric` devolve percentage null quando o denominador e zero. Zero e nulo
-// sao estados diferentes: "nada concluido" nao e "nao ha o que medir".
-function metric(taskIds, statusById) {
-  const concluidas = [...taskIds].filter((id) => statusById.get(id) === CONCLUIDO).length;
-  return buildMetric(concluidas, taskIds.size);
-}
+const porTarefa = (a, b) => (a.taskId ?? 0) - (b.taskId ?? 0);
 
 // Ponto de entrada. `cutoff` e um Date injetado pelo service.
-//
-// `historyTasks` existe porque o escopo planejado inclui tarefas que JA SAIRAM da
-// sprint: elas nao aparecem em `currentTasks` e, sem o status delas, o numerador
-// de `planned` contaria toda tarefa removida como nao concluida.
-export function buildSprintProgress({ sprint, currentTasks, historyTasks = [], history, cutoff }) {
+export function buildSprintProgress({ sprint, participations = [], cutoff }) {
+  const frozen = TERMINAL.includes(sprint.status);
   const baseline = resolveBaseline(sprint);
-  const currentTaskIds = currentTasks.map((task) => task.id);
-  const statusById = new Map(
-    [...historyTasks, ...currentTasks].map((task) => [task.id, task.status])
-  );
 
-  // Base aberta: nada e "posterior ao planejamento", entao o historico nao entra
-  // no calculo e planejado e atual coincidem por definicao.
-  const historico = baseline.kind === 'OPEN' ? [] : history;
-  const plannedIds = membersAtBaseline({ currentTaskIds, history: historico, sprintId: sprint.id });
-  const scopeChange = buildScopeChange({
-    plannedIds,
-    currentTaskIds,
-    history: historico,
-    sprintId: sprint.id
-  });
+  const current = participations.filter((participation) => participation.removedAt === null);
+  // Base aberta: nada e "posterior ao planejamento", entao planejado e atual
+  // coincidem por definicao e o vaivem durante o planejamento nao conta.
+  const planned =
+    baseline.kind === 'OPEN'
+      ? current
+      : // Removida continua no denominador do planejado: ela FOI planejada, e
+        // tira-la de la esconderia escopo que a sprint nao entregou.
+        participations.filter((participation) => !participation.addedAfterStart);
+
+  const scopeChange =
+    baseline.kind === 'OPEN'
+      ? { added: [], removed: [] }
+      : {
+          // Saldo liquido: quem entrou depois do inicio e saiu nao entrou nem
+          // saiu do escopo, e nao aparece em nenhuma das duas listas.
+          added: participations
+            .filter(
+              (participation) => participation.addedAfterStart && participation.removedAt === null
+            )
+            .map((participation) => ({
+              taskId: participation.taskId,
+              at: toIso(participation.addedAt),
+              fromSprintId: participation.carriedFromSprintId ?? null
+            }))
+            .sort(porTarefa),
+          removed: participations
+            .filter(
+              (participation) => !participation.addedAfterStart && participation.removedAt !== null
+            )
+            .map((participation) => ({
+              taskId: participation.taskId,
+              at: toIso(participation.removedAt),
+              toSprintId: participation.movedToSprintId ?? null,
+              reason: participation.removalReason ?? null,
+              exitStatus: participation.exitStatus ?? null
+            }))
+            .sort(porTarefa)
+        };
+
+  // Tarefas que continuaram em outra sprint. O registro daqui nao muda por causa
+  // disso: e justamente o que a continuidade precisa preservar.
+  const carryOver = participations
+    .filter((participation) => participation.movedToSprintId)
+    .map((participation) => ({
+      taskId: participation.taskId,
+      toSprintId: participation.movedToSprintId,
+      exitStatus: participation.exitStatus ?? null,
+      at: toIso(participation.removedAt)
+    }))
+    .sort(porTarefa);
 
   return {
     sprintId: sprint.id,
     projectId: sprint.projectId,
     status: sprint.status,
-    cutoff: toIso(cutoff),
+    // Sprint encerrada devolve sempre o mesmo resultado, entao o corte e o
+    // encerramento — nao o momento em que alguem consultou.
+    frozen,
+    cutoff: frozen ? (toIso(sprint.completedAt) ?? toIso(cutoff)) : toIso(cutoff),
     baseline,
-    planned: metric(plannedIds, statusById),
-    current: metric(new Set(currentTaskIds), statusById),
-    scopeChange
+    planned: metric(planned),
+    current: metric(current),
+    scopeChange,
+    carryOver
   };
 }

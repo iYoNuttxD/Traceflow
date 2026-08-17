@@ -36,7 +36,11 @@ export function SprintProgressPanel({ sprint, progress, loading = false, onClose
   if (!progress) return null;
 
   const aberta = progress.baseline.kind === 'OPEN';
+  // Sprint encerrada devolve um registro, nao uma medida do momento: os rótulos
+  // precisam falar no passado, senão a tela afirma "agora" sobre algo congelado.
+  const congelada = progress.frozen === true;
   const { added, removed } = progress.scopeChange;
+  const carryOver = progress.carryOver || [];
 
   return (
     <section className="sprint-progress-panel" aria-label={`Evolução da sprint ${sprint.name}`}>
@@ -55,11 +59,26 @@ export function SprintProgressPanel({ sprint, progress, loading = false, onClose
           descricao="Tarefas que estavam na sprint quando o planejamento fechou."
         />
         <Medida
-          titulo="Escopo atual"
+          titulo={congelada ? 'Escopo no encerramento' : 'Escopo atual'}
           metrica={progress.current}
-          descricao="Tarefas que estão na sprint agora."
+          descricao={
+            congelada
+              ? 'Tarefas que estavam na sprint quando ela foi encerrada.'
+              : 'Tarefas que estão na sprint agora.'
+          }
         />
       </div>
+
+      {carryOver.length > 0 && (
+        <div className="sprint-progress-scope">
+          <h4>Continuaram em outra sprint</h4>
+          <p>
+            {`${carryOver.length} ${carryOver.length === 1 ? 'tarefa seguiu' : 'tarefas seguiram'} para a sprint seguinte: ${carryOver
+              .map((item) => `#${item.taskId}`)
+              .join(', ')}. O status registrado aqui não muda com o que acontecer lá.`}
+          </p>
+        </div>
+      )}
 
       {!aberta && (added.length > 0 || removed.length > 0) && (
         <div className="sprint-progress-scope">
@@ -88,8 +107,11 @@ export function SprintProgressPanel({ sprint, progress, loading = false, onClose
       )}
 
       <p className="field-help">
-        Apurado em {formatDateTime(progress.cutoff)}. O percentual considera tarefas com status
-        concluído; tarefas removidas continuam no escopo planejado.
+        {congelada
+          ? `Resultado congelado no encerramento, em ${formatDateTime(progress.cutoff)}.`
+          : `Apurado em ${formatDateTime(progress.cutoff)}.`}{' '}
+        O percentual considera tarefas com status concluído; tarefas removidas continuam no escopo
+        planejado.
       </p>
 
       <div className="form-actions">
