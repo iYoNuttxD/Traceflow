@@ -44,7 +44,11 @@ function formatScheduleTask(task, sprint) {
             task.deadline,
             sprint.startDate,
             sprint.endDate
-          )
+          ),
+          // Contexto da participacao: sem isto a interface nao consegue
+          // distinguir o escopo planejado do que entrou depois do inicio.
+          addedAfterStart: task.addedAfterStart ?? false,
+          carriedFromSprintId: task.carriedFromSprintId ?? null
         }
       : {})
   };
@@ -85,8 +89,17 @@ export const scheduleService = {
         startedAt: sprint.startedAt,
         completedAt: sprint.completedAt,
         durationInDays: durationInDays(sprint.startDate, sprint.endDate),
-        taskCount: sprint.tasks.length,
-        tasks: sprint.tasks.map((task) => formatScheduleTask(task, sprint))
+        taskCount: sprint.sprintTasks.length,
+        tasks: sprint.sprintTasks.map((participation) =>
+          formatScheduleTask(
+            {
+              ...participation.task,
+              addedAfterStart: participation.addedAfterStart,
+              carriedFromSprintId: participation.carriedFromSprintId
+            },
+            sprint
+          )
+        )
       }));
 
     const milestones = milestonesRaw

@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
     updateMilestoneStatus: vi.fn(),
     removeMilestone: vi.fn(),
     listProjectTasks: vi.fn(),
+    getMembership: vi.fn(),
     getSprintProgress: vi.fn()
   },
   projects: { get: vi.fn() },
@@ -64,6 +65,10 @@ beforeEach(() => {
   mocks.schedule.listSprints.mockResolvedValue({ data: { total: 0, sprints: [] } });
   mocks.schedule.listMilestones.mockResolvedValue({ data: { total: 0, milestones: [] } });
   mocks.schedule.listProjectTasks.mockResolvedValue({ data: { total: 0, tasks: [] } });
+  // Papel padrao dos testes: quem pode agir. VIEWER e exercitado no bloco proprio.
+  mocks.schedule.getMembership.mockResolvedValue({
+    data: { currentMembership: { role: 'OWNER' } }
+  });
 });
 
 // Guarda contra mock divergente da API real: os mocks acima substituem modulos
@@ -109,6 +114,7 @@ describe('contrato dos modulos consumidos', () => {
       'updateSprintStatus',
       'listSprintTasks',
       'listProjectTasks',
+      'getMembership',
       'replaceSprintTasks',
       'createMilestone',
       'updateMilestone',
@@ -352,7 +358,23 @@ describe('escopo de sprint encerrada', () => {
         ]
       }
     });
-    mocks.schedule.listSprintTasks.mockResolvedValue({ data: { total: 1, tasks: [{ id: 10 }] } });
+    // A composição registrada vem completa da API, com o contexto da
+    // participação: é ela que a tela exibe, e não o cruzamento com o projeto.
+    mocks.schedule.listSprintTasks.mockResolvedValue({
+      data: {
+        total: 1,
+        tasks: [
+          {
+            id: 10,
+            title: 'Ja na sprint',
+            status: 'A_FAZER',
+            priority: 'ALTA',
+            addedAfterStart: false,
+            carriedFromSprintId: null
+          }
+        ]
+      }
+    });
   });
 
   async function abrirPainel(user) {
@@ -1074,5 +1096,294 @@ describe('listas roláveis', () => {
     // Se o painel rolasse junto com a lista, abrir tarefas empurraria o conteudo
     // para dentro de uma caixa apertada.
     expect(lista.contains(painel)).toBe(false);
+  });
+});
+
+// O achado HIGH do parecer: `selectSprint` e `showProgress` aplicavam qualquer
+// resposta que chegasse. Abrir A e logo B fazia a resposta lenta de A
+// sobrescrever B — a tela mostrava B com as tarefas de A, e salvar enviava
+// esses IDs para B, alterando o recurso errado.
+describe('respostas fora de ordem', () => {
+  const sprintA = {
+    id: 3,
+    name: 'Sprint A',
+    objective: null,
+    startDate: '2026-08-01T00:00:00.000Z',
+    endDate: '2026-08-14T00:00:00.000Z',
+    status: 'PLANEJADA'
+  };
+  const sprintB = { ...sprintA, id: 4, name: 'Sprint B' };
+
+  const tarefa = (id, title) => ({
+    id,
+    title,
+    status: 'A_FAZER',
+    priority: 'MEDIA',
+    addedAfterStart: false,
+    carriedFromSprintId: null
+  });
+
+  beforeEach(() => {
+    mocks.schedule.listSprints.mockResolvedValue({
+      data: { total: 2, sprints: [sprintA, sprintB] }
+    });
+    mocks.schedule.listProjectTasks.mockResolvedValue({
+      data: { total: 2, tasks: [tarefa(10, 'Da A'), tarefa(20, 'Da B')] }
+    });
+  });
+
+  // A resposta de A resolve DEPOIS da de B, que e o pior caso real.
+  const respostaLentaDeA = () => {
+    let liberarA;
+    mocks.schedule.listSprintTasks.mockImplementation((sprintId) => {
+      if (sprintId === sprintA.id) {
+        return new Promise((resolve) => {
+          liberarA = () => resolve({ data: { total: 1, tasks: [tarefa(10, 'Da A')] } });
+        });
+      }
+      return Promise.resolve({ data: { total: 1, tasks: [tarefa(20, 'Da B')] } });
+    });
+    return () => liberarA?.();
+  };
+
+  it('a resposta atrasada da sprint anterior nao sobrescreve a selecionada', async () => {
+    const user = userEvent.setup();
+    const liberarA = respostaLentaDeA();
+    renderScreen();
+
+    await user.click(
+      await screen.findByRole('button', { name: /Gerenciar tarefas da sprint Sprint A/ })
+    );
+    await user.click(screen.getByRole('button', { name: /Gerenciar tarefas da sprint Sprint B/ }));
+
+    const painel = await screen.findByRole('region', { name: /Tarefas da sprint Sprint B/ });
+    liberarA();
+
+    // A tarefa marcada continua sendo a de B, mesmo depois de A responder.
+    await waitFor(() => {
+      const marcadas = within(painel)
+        .getAllByRole('checkbox')
+        .filter((caixa) => caixa.checked);
+      expect(marcadas).toHaveLength(1);
+    });
+    const marcada = within(painel)
+      .getAllByRole('checkbox')
+      .find((caixa) => caixa.checked);
+    expect(marcada.closest('label')).toHaveTextContent('Da B');
+  });
+
+  it('salvar envia os IDs da sprint aberta, e nao os da anterior', async () => {
+    const user = userEvent.setup();
+    const liberarA = respostaLentaDeA();
+    mocks.schedule.replaceSprintTasks.mockResolvedValue({ data: {} });
+    renderScreen();
+
+    await user.click(
+      await screen.findByRole('button', { name: /Gerenciar tarefas da sprint Sprint A/ })
+    );
+    await user.click(screen.getByRole('button', { name: /Gerenciar tarefas da sprint Sprint B/ }));
+    const painel = await screen.findByRole('region', { name: /Tarefas da sprint Sprint B/ });
+    liberarA();
+
+    await user.click(within(painel).getByRole('button', { name: 'Salvar tarefas da sprint' }));
+    await waitFor(() => expect(mocks.schedule.replaceSprintTasks).toHaveBeenCalled());
+    expect(mocks.schedule.replaceSprintTasks).toHaveBeenCalledWith(sprintB.id, [20]);
+  });
+
+  it('fechar o painel durante a carga descarta a resposta que chega depois', async () => {
+    const user = userEvent.setup();
+    const liberarA = respostaLentaDeA();
+    renderScreen();
+
+    await user.click(
+      await screen.findByRole('button', { name: /Gerenciar tarefas da sprint Sprint A/ })
+    );
+    await user.click(screen.getByRole('button', { name: /Fechar tarefas da sprint Sprint A/ }));
+    liberarA();
+
+    await waitFor(() =>
+      expect(screen.queryByRole('region', { name: /Tarefas da sprint/ })).toBeNull()
+    );
+  });
+
+  it('a evolucao atrasada de uma sprint nao aparece sob a outra', async () => {
+    const user = userEvent.setup();
+    let liberarA;
+    const cheia = { numerator: 9, denominator: 9, percentage: 100, hasData: true };
+    const vazia = { numerator: 0, denominator: 0, percentage: null, hasData: false };
+    mocks.schedule.getSprintProgress.mockImplementation((sprintId) => {
+      const corpo = (metrica) => ({
+        data: {
+          sprintId,
+          frozen: false,
+          baseline: { kind: 'OPEN', at: null },
+          cutoff: '2026-08-09T15:00:00.000Z',
+          planned: metrica,
+          current: metrica,
+          scopeChange: { added: [], removed: [] },
+          carryOver: []
+        }
+      });
+      if (sprintId === sprintA.id) {
+        return new Promise((resolve) => {
+          liberarA = () => resolve(corpo(cheia));
+        });
+      }
+      return Promise.resolve(corpo(vazia));
+    });
+    renderScreen();
+
+    await user.click(
+      await screen.findByRole('button', { name: /Ver evolução da sprint Sprint A/ })
+    );
+    await user.click(screen.getByRole('button', { name: /Ver evolução da sprint Sprint B/ }));
+    const painel = await screen.findByRole('region', { name: /Evolução da sprint Sprint B/ });
+    liberarA?.();
+
+    // 100% e o numero de A: ele nao pode aparecer no painel de B.
+    await waitFor(() =>
+      expect(within(painel).getAllByText('Sem tarefas para medir.')).toHaveLength(2)
+    );
+    expect(within(painel).queryByText('100%')).toBeNull();
+  });
+});
+
+// VIEWER lê o cronograma inteiro e não age sobre ele. O backend recusa com 403;
+// oferecer o controle transformaria uma regra conhecida numa descoberta pelo erro.
+describe('perfil somente leitura', () => {
+  const sprint = {
+    id: 3,
+    name: 'Sprint 1',
+    objective: null,
+    startDate: '2026-08-01T00:00:00.000Z',
+    endDate: '2026-08-14T00:00:00.000Z',
+    status: 'PLANEJADA'
+  };
+
+  beforeEach(() => {
+    mocks.schedule.getMembership.mockResolvedValue({
+      data: { currentMembership: { role: 'VIEWER' } }
+    });
+    mocks.schedule.listSprints.mockResolvedValue({ data: { total: 1, sprints: [sprint] } });
+    mocks.schedule.listMilestones.mockResolvedValue({
+      data: {
+        total: 1,
+        milestones: [
+          {
+            id: 5,
+            sprintId: 3,
+            title: 'Entrega parcial',
+            description: null,
+            dueDate: '2026-08-10T00:00:00.000Z',
+            status: 'PENDENTE'
+          }
+        ]
+      }
+    });
+  });
+
+  it('nao oferece formularios de cadastro', async () => {
+    renderScreen();
+    await screen.findByRole('list', { name: 'Sprints do projeto' });
+
+    expect(screen.queryByRole('button', { name: 'Cadastrar sprint' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Cadastrar marco' })).toBeNull();
+  });
+
+  it('nao oferece acoes de mutacao nas listas', async () => {
+    renderScreen();
+    const sprints = await screen.findByRole('list', { name: 'Sprints do projeto' });
+    const marcos = screen.getByRole('list', { name: 'Marcos do projeto' });
+
+    expect(within(sprints).queryByRole('button', { name: /^Editar a sprint/ })).toBeNull();
+    expect(within(sprints).queryByRole('button', { name: /^Iniciar a sprint/ })).toBeNull();
+    expect(within(sprints).queryByRole('button', { name: /^Cancelar a sprint/ })).toBeNull();
+    expect(within(marcos).queryByRole('button', { name: /^Editar o marco/ })).toBeNull();
+    expect(within(marcos).queryByRole('button', { name: /^Concluir o marco/ })).toBeNull();
+    expect(within(marcos).queryByRole('button', { name: /^Excluir o marco/ })).toBeNull();
+  });
+
+  // Consultar continua disponivel: somente leitura nao e ausencia de acesso.
+  it('mantem a consulta de tarefas, sem permitir salvar', async () => {
+    const user = userEvent.setup();
+    mocks.schedule.listSprintTasks.mockResolvedValue({
+      data: {
+        total: 1,
+        tasks: [
+          {
+            id: 10,
+            title: 'Tarefa da sprint',
+            status: 'A_FAZER',
+            priority: 'ALTA',
+            addedAfterStart: false,
+            carriedFromSprintId: null
+          }
+        ]
+      }
+    });
+    renderScreen();
+
+    await user.click(await screen.findByRole('button', { name: /Ver tarefas da sprint Sprint 1/ }));
+    const painel = await screen.findByRole('region', { name: /Tarefas da sprint Sprint 1/ });
+    expect(within(painel).getByText(/Tarefa da sprint/)).toBeInTheDocument();
+    expect(within(painel).queryAllByRole('checkbox')).toHaveLength(0);
+    expect(within(painel).queryByRole('button', { name: /Salvar/ })).toBeNull();
+  });
+});
+
+// RF35: o que entrou depois do inicio precisa ser distinguivel do escopo
+// planejado, e nao apenas contado.
+describe('sinalizacao de inclusao posterior ao inicio', () => {
+  const emAndamento = {
+    id: 3,
+    name: 'Sprint 1',
+    objective: null,
+    startDate: '2026-08-01T00:00:00.000Z',
+    endDate: '2026-08-14T00:00:00.000Z',
+    status: 'EM_ANDAMENTO'
+  };
+
+  it('marca no painel a tarefa incluida depois do inicio', async () => {
+    const user = userEvent.setup();
+    mocks.schedule.listSprints.mockResolvedValue({ data: { total: 1, sprints: [emAndamento] } });
+    mocks.schedule.listProjectTasks.mockResolvedValue({
+      data: {
+        total: 2,
+        tasks: [
+          { id: 10, title: 'Planejada', status: 'A_FAZER', priority: 'ALTA' },
+          { id: 11, title: 'Entrou depois', status: 'A_FAZER', priority: 'BAIXA' }
+        ]
+      }
+    });
+    mocks.schedule.listSprintTasks.mockResolvedValue({
+      data: {
+        total: 2,
+        tasks: [
+          {
+            id: 10,
+            title: 'Planejada',
+            status: 'A_FAZER',
+            priority: 'ALTA',
+            addedAfterStart: false
+          },
+          {
+            id: 11,
+            title: 'Entrou depois',
+            status: 'A_FAZER',
+            priority: 'BAIXA',
+            addedAfterStart: true,
+            carriedFromSprintId: null
+          }
+        ]
+      }
+    });
+    renderScreen();
+
+    await user.click(await screen.findByRole('button', { name: /^Gerenciar tarefas da sprint/ }));
+    const painel = await screen.findByRole('region', { name: /Tarefas da sprint Sprint 1/ });
+
+    const avisos = within(painel).getAllByText('Incluída após o início da sprint');
+    expect(avisos).toHaveLength(1);
+    expect(avisos[0].closest('label')).toHaveTextContent('Entrou depois');
   });
 });

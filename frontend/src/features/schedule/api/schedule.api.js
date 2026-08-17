@@ -49,6 +49,14 @@ export const scheduleApi = {
     return httpClient.delete(`/milestones/${milestoneId}`);
   },
 
+  // Papel do usuario no projeto, para a tela nao oferecer acao que o backend vai
+  // recusar. Metodo proprio, e nao um import de `features/members`, pelo mesmo
+  // motivo de listProjectTasks: nao acoplar duas features por um endpoint.
+  // O backend continua sendo a autoridade — isto e UX, nao autorizacao.
+  getMembership(projectId, options = {}) {
+    return httpClient.get(`/projects/${projectId}/members`, options);
+  },
+
   // Tarefas do projeto para o painel de associacao.
   // Metodo proprio, e nao um import de `features/tasks`, para nao criar ciclo:
   // tasks/index.js -> KanbanScreen -> schedule/index.js -> ScheduleScreen.

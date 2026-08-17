@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router';
 import { scheduleApi } from '../api/schedule.api.js';
 import { projectsApi, ProjectSectionNav } from '../../projects/index.js';
@@ -32,6 +32,15 @@ export function ScheduleScreen() {
   const { projectId } = useParams();
   const confirm = useConfirm();
   const { run } = useAbortableRequest();
+  // Uma instância por painel: os dois carregam sob demanda e em paralelo, então
+  // compartilhar o controlador faria a abertura de um cancelar a carga do outro.
+  const sprintTasksRequest = useAbortableRequest();
+  const progressRequest = useAbortableRequest();
+  // A seleção vigente no momento em que a resposta chega. Abrir A e logo B fazia
+  // a resposta lenta de A sobrescrever B: a tela mostrava B com as tarefas de A,
+  // e salvar enviava esses IDs para B — alterando o recurso errado.
+  const selectedSprintRef = useRef(null);
+  const progressSprintRef = useRef(null);
 
   const [project, setProject] = useState(null);
   const [schedule, setSchedule] = useState(null);
@@ -52,7 +61,12 @@ export function ScheduleScreen() {
 
   const [selectedSprint, setSelectedSprint] = useState(null);
   const [selectedTaskIds, setSelectedTaskIds] = useState([]);
+  // Composição registrada na sprint, com o contexto da participação. Vem da API
+  // e não do cruzamento com as tarefas do projeto: numa sprint encerrada a
+  // tarefa pode já ter seguido adiante, e o registro daqui não muda por isso.
+  const [sprintTasks, setSprintTasks] = useState([]);
   const [tasksLoading, setTasksLoading] = useState(false);
+  const [currentMembership, setCurrentMembership] = useState(null);
   const [progressSprint, setProgressSprint] = useState(null);
   const [progress, setProgress] = useState(null);
   const [progressLoading, setProgressLoading] = useState(false);
@@ -84,18 +98,25 @@ export function ScheduleScreen() {
       setForbidden(false);
       try {
         const result = await run(async (signal) => {
-          const [projectResponse, scheduleResponse, sprintsResponse, milestonesResponse] =
-            await Promise.all([
-              projectsApi.get(projectId, { signal }),
-              scheduleApi.getSchedule(projectId, range, { signal }),
-              scheduleApi.listSprints(projectId, {}, { signal }),
-              scheduleApi.listMilestones(projectId, {}, { signal })
-            ]);
+          const [
+            projectResponse,
+            scheduleResponse,
+            sprintsResponse,
+            milestonesResponse,
+            membershipResponse
+          ] = await Promise.all([
+            projectsApi.get(projectId, { signal }),
+            scheduleApi.getSchedule(projectId, range, { signal }),
+            scheduleApi.listSprints(projectId, {}, { signal }),
+            scheduleApi.listMilestones(projectId, {}, { signal }),
+            scheduleApi.getMembership(projectId, { signal })
+          ]);
           return {
             project: projectResponse.data.project,
             schedule: scheduleResponse.data,
             sprints: sprintsResponse.data.sprints || [],
-            milestones: milestonesResponse.data.milestones || []
+            milestones: milestonesResponse.data.milestones || [],
+            membership: membershipResponse.data.currentMembership || null
           };
         });
         if (!result) return;
@@ -103,6 +124,7 @@ export function ScheduleScreen() {
         setSchedule(result.schedule);
         setSprints(result.sprints);
         setMilestones(result.milestones);
+        setCurrentMembership(result.membership);
       } catch (requestError) {
         reportFailure(requestError, 'Não foi possível carregar o cronograma.');
       } finally {
@@ -139,6 +161,9 @@ export function ScheduleScreen() {
 
   const filtered = Boolean(appliedPeriod.from || appliedPeriod.to);
   const unassignedCount = schedule?.unassignedTasks?.length ?? 0;
+  // VIEWER só lê. Oferecer formulário e botão que o backend recusará com 403
+  // transforma uma regra conhecida numa descoberta pelo erro.
+  const somenteLeitura = currentMembership?.role === 'VIEWER';
 
   const feedback = (message) => {
     setSuccess(message);
@@ -258,53 +283,76 @@ export function ScheduleScreen() {
 
   const selectSprint = async (sprint) => {
     if (selectedSprint?.id === sprint.id) {
+      selectedSprintRef.current = null;
+      sprintTasksRequest.cancel();
       setSelectedSprint(null);
       return;
     }
+    selectedSprintRef.current = sprint.id;
     setSelectedSprint(sprint);
     // O painel monta antes da resposta chegar. Sem limpar a seleção da sprint anterior
     // e sem sinalizar carga, ele exibiria as marcações da sprint errada e o botão
     // salvaria uma lista vazia — esvaziando a sprint recém-aberta.
     setSelectedTaskIds([]);
+    setSprintTasks([]);
     setTasksLoading(true);
     try {
       // As tarefas do projeto so sao necessarias aqui, entao sao buscadas ao abrir
       // o painel e nao na carga inicial da tela.
-      const [tasksResponse, sprintTasksResponse] = await Promise.all([
-        projectTasks.length ? null : scheduleApi.listProjectTasks(projectId),
-        scheduleApi.listSprintTasks(sprint.id)
-      ]);
-      if (tasksResponse) setProjectTasks(tasksResponse.data.tasks || []);
-      setSelectedTaskIds((sprintTasksResponse.data.tasks || []).map((task) => task.id));
+      const resultado = await sprintTasksRequest.run(async (signal) => {
+        const [projeto, daSprint] = await Promise.all([
+          projectTasks.length ? null : scheduleApi.listProjectTasks(projectId, { signal }),
+          scheduleApi.listSprintTasks(sprint.id, { signal })
+        ]);
+        return { projeto, daSprint };
+      });
+      // `run` já descarta resposta abortada; a guarda cobre a janela em que a
+      // requisição anterior resolveu antes de o cancelamento chegar ao axios.
+      if (!resultado || selectedSprintRef.current !== sprint.id) return;
+      if (resultado.projeto) setProjectTasks(resultado.projeto.data.tasks || []);
+      const tarefas = resultado.daSprint.data.tasks || [];
+      setSprintTasks(tarefas);
+      setSelectedTaskIds(tarefas.map((task) => task.id));
     } catch (requestError) {
+      if (selectedSprintRef.current !== sprint.id) return;
       // Fechar o painel: mantê-lo aberto deixaria uma afirmação sobre o conteúdo da
       // sprint ao lado da mensagem de erro que diz não ter conseguido lê-lo.
+      selectedSprintRef.current = null;
       setSelectedSprint(null);
       handleFailure(requestError, 'Não foi possível carregar as tarefas da sprint.');
     } finally {
-      setTasksLoading(false);
+      // Desligar o indicador da requisição errada é o mesmo bug com outra roupa.
+      if (selectedSprintRef.current === sprint.id) setTasksLoading(false);
     }
   };
 
   const showProgress = async (sprint) => {
     if (progressSprint?.id === sprint.id) {
+      progressSprintRef.current = null;
+      progressRequest.cancel();
       setProgressSprint(null);
       setProgress(null);
       return;
     }
     // Mesma disciplina do painel de tarefas: limpar o resultado anterior e
     // sinalizar carga, para a tela nunca afirmar um numero da sprint errada.
+    progressSprintRef.current = sprint.id;
     setProgressSprint(sprint);
     setProgress(null);
     setProgressLoading(true);
     try {
-      const { data } = await scheduleApi.getSprintProgress(sprint.id);
-      setProgress(data);
+      const resposta = await progressRequest.run((signal) =>
+        scheduleApi.getSprintProgress(sprint.id, { signal })
+      );
+      if (!resposta || progressSprintRef.current !== sprint.id) return;
+      setProgress(resposta.data);
     } catch (requestError) {
+      if (progressSprintRef.current !== sprint.id) return;
+      progressSprintRef.current = null;
       setProgressSprint(null);
       handleFailure(requestError, 'Não foi possível calcular a evolução da sprint.');
     } finally {
-      setProgressLoading(false);
+      if (progressSprintRef.current === sprint.id) setProgressLoading(false);
     }
   };
 
@@ -313,7 +361,13 @@ export function ScheduleScreen() {
     try {
       await scheduleApi.replaceSprintTasks(selectedSprint.id, taskIds);
       feedback('Tarefas da sprint atualizadas com sucesso.');
-      setSelectedTaskIds(taskIds);
+      // Rebusca em vez de confiar no que foi enviado: `addedAfterStart` e a
+      // origem do carry-over são decididos no servidor, e o painel precisa
+      // sinalizá-los logo após salvar.
+      const { data } = await scheduleApi.listSprintTasks(selectedSprint.id);
+      const tarefas = data.tasks || [];
+      setSprintTasks(tarefas);
+      setSelectedTaskIds(tarefas.map((task) => task.id));
       // Associar tarefa nao muda sprints nem marcos, so a composicao do agregado.
       await refreshSchedule();
     } catch (requestError) {
@@ -484,20 +538,26 @@ export function ScheduleScreen() {
 
       <div className="schedule-columns">
         <section className="card">
-          <h2>{editingSprintId ? 'Editar sprint' : 'Nova sprint'}</h2>
-          <SprintForm
-            formData={sprintForm}
-            errors={sprintErrors}
-            editing={Boolean(editingSprintId)}
-            submitting={submitting}
-            onChange={(field, value) => setSprintForm({ ...sprintForm, [field]: value })}
-            onSubmit={submitSprint}
-            onCancel={() => {
-              setEditingSprintId(null);
-              setSprintForm(emptySprintForm);
-              setSprintErrors({});
-            }}
-          />
+          {/* VIEWER não recebe formulário: o cadastro inteiro é uma ação que ele
+              não tem. Consultar sprints e evolução continua disponível. */}
+          {!somenteLeitura && (
+            <>
+              <h2>{editingSprintId ? 'Editar sprint' : 'Nova sprint'}</h2>
+              <SprintForm
+                formData={sprintForm}
+                errors={sprintErrors}
+                editing={Boolean(editingSprintId)}
+                submitting={submitting}
+                onChange={(field, value) => setSprintForm({ ...sprintForm, [field]: value })}
+                onSubmit={submitSprint}
+                onCancel={() => {
+                  setEditingSprintId(null);
+                  setSprintForm(emptySprintForm);
+                  setSprintErrors({});
+                }}
+              />
+            </>
+          )}
 
           <h3 className="schedule-section-title">Sprints do projeto</h3>
           <SprintList
@@ -505,6 +565,7 @@ export function ScheduleScreen() {
             selectedSprintId={selectedSprint?.id}
             busySprintId={busySprintId}
             progressSprintId={progressSprint?.id ?? null}
+            readOnly={somenteLeitura}
             onSelect={selectSprint}
             onShowProgress={showProgress}
             onEdit={editSprint}
@@ -516,6 +577,8 @@ export function ScheduleScreen() {
               progress={progress}
               loading={progressLoading}
               onClose={() => {
+                progressSprintRef.current = null;
+                progressRequest.cancel();
                 setProgressSprint(null);
                 setProgress(null);
               }}
@@ -525,37 +588,48 @@ export function ScheduleScreen() {
             <SprintTasksPanel
               sprint={selectedSprint}
               tasks={projectTasks}
+              sprintTasks={sprintTasks}
               selectedTaskIds={selectedTaskIds}
               sprintNames={sprintNames}
               loading={tasksLoading}
               submitting={submitting}
+              readOnly={somenteLeitura}
               onSubmit={submitSprintTasks}
-              onCancel={() => setSelectedSprint(null)}
+              onCancel={() => {
+                selectedSprintRef.current = null;
+                sprintTasksRequest.cancel();
+                setSelectedSprint(null);
+              }}
             />
           )}
         </section>
 
         <section className="card">
-          <h2>{editingMilestoneId ? 'Editar marco' : 'Novo marco'}</h2>
-          <MilestoneForm
-            formData={milestoneForm}
-            sprints={sprints}
-            errors={milestoneErrors}
-            editing={Boolean(editingMilestoneId)}
-            submitting={submitting}
-            onChange={(field, value) => setMilestoneForm({ ...milestoneForm, [field]: value })}
-            onSubmit={submitMilestone}
-            onCancel={() => {
-              setEditingMilestoneId(null);
-              setMilestoneForm(emptyMilestoneForm);
-              setMilestoneErrors({});
-            }}
-          />
+          {!somenteLeitura && (
+            <>
+              <h2>{editingMilestoneId ? 'Editar marco' : 'Novo marco'}</h2>
+              <MilestoneForm
+                formData={milestoneForm}
+                sprints={sprints}
+                errors={milestoneErrors}
+                editing={Boolean(editingMilestoneId)}
+                submitting={submitting}
+                onChange={(field, value) => setMilestoneForm({ ...milestoneForm, [field]: value })}
+                onSubmit={submitMilestone}
+                onCancel={() => {
+                  setEditingMilestoneId(null);
+                  setMilestoneForm(emptyMilestoneForm);
+                  setMilestoneErrors({});
+                }}
+              />
+            </>
+          )}
 
           <h3 className="schedule-section-title">Marcos do projeto</h3>
           <MilestoneList
             milestones={milestones}
             busyMilestoneId={busyMilestoneId}
+            readOnly={somenteLeitura}
             onEdit={editMilestone}
             onDelete={removeMilestone}
             onToggleStatus={toggleMilestoneStatus}

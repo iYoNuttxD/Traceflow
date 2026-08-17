@@ -21,6 +21,7 @@ export function SprintList({
   selectedSprintId,
   progressSprintId,
   busySprintId,
+  readOnly = false,
   onSelect,
   onShowProgress,
   onEdit,
@@ -77,14 +78,19 @@ export function SprintList({
                 className={`button ${selected ? 'button-secondary' : 'button-primary'}`}
                 onClick={() => onSelect(sprint)}
                 aria-expanded={selected}
-                aria-label={`${selected ? 'Fechar' : 'Gerenciar'} tarefas da sprint ${sprint.name}`}
+                // O rótulo acessível acompanha o texto visível: anunciar
+                // "Gerenciar" num botão escrito "Ver" descreveria uma ação que
+                // este usuário não tem.
+                aria-label={`${selected ? 'Fechar' : readOnly ? 'Ver' : 'Gerenciar'} tarefas da sprint ${sprint.name}`}
                 title={
                   selected
                     ? 'Fecha o painel de tarefas desta sprint.'
-                    : 'Abre o painel para escolher quais tarefas pertencem a esta sprint.'
+                    : readOnly
+                      ? 'Abre a composição atual desta sprint.'
+                      : 'Abre o painel para escolher quais tarefas pertencem a esta sprint.'
                 }
               >
-                {selected ? 'Fechar tarefas' : 'Gerenciar tarefas'}
+                {selected ? 'Fechar tarefas' : readOnly ? 'Ver tarefas' : 'Gerenciar tarefas'}
               </button>
 
               <button
@@ -98,7 +104,7 @@ export function SprintList({
                 {progressSprintId === sprint.id ? 'Fechar evolução' : 'Ver evolução'}
               </button>
 
-              {advance && (
+              {advance && !readOnly && (
                 <button
                   type="button"
                   className="button button-secondary"
@@ -111,22 +117,24 @@ export function SprintList({
                 </button>
               )}
 
-              <button
-                type="button"
-                className="button button-secondary"
-                disabled={terminal}
-                aria-label={`Editar a sprint ${sprint.name}`}
-                title={
-                  terminal
-                    ? 'Sprint concluída ou cancelada não pode ser editada.'
-                    : 'Carrega nome, objetivo e datas no formulário acima.'
-                }
-                onClick={() => onEdit(sprint)}
-              >
-                Editar
-              </button>
+              {!readOnly && (
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  disabled={terminal}
+                  aria-label={`Editar a sprint ${sprint.name}`}
+                  title={
+                    terminal
+                      ? 'Sprint concluída ou cancelada não pode ser editada.'
+                      : 'Carrega nome, objetivo e datas no formulário acima.'
+                  }
+                  onClick={() => onEdit(sprint)}
+                >
+                  Editar
+                </button>
+              )}
 
-              {!terminal && (
+              {!terminal && !readOnly && (
                 <div className="sprint-actions-end">
                   <button
                     type="button"

@@ -596,6 +596,8 @@ describe('cronograma', () => {
     const payload = JSON.stringify(body);
     expect(payload).not.toContain('@example.invalid');
     expect(Object.keys(body.sprints[0].tasks[0]).sort()).toEqual([
+      'addedAfterStart',
+      'carriedFromSprintId',
       'deadline',
       'deadlineOutsideWindow',
       'id',
