@@ -16,9 +16,16 @@ const executable = resolve(
   '.bin',
   process.platform === 'win32' ? 'prisma.cmd' : 'prisma'
 );
-const result = spawnSync(executable, prismaArgs, {
+// `shell: true` e obrigatorio no Windows: desde a correcao da CVE-2024-27980
+// (Node 18.20/20.12/22) o spawn recusa .cmd e .bat sem shell, devolvendo EINVAL.
+// O executavel vai entre aspas porque o shell reparte o caminho em espacos.
+const result = spawnSync(`"${executable}"`, prismaArgs, {
   cwd: process.cwd(),
   env: { ...process.env, NODE_ENV: 'test', DATABASE_URL: testUrl },
-  stdio: 'inherit'
+  stdio: 'inherit',
+  shell: true
 });
+// Sem isto o processo morre calado: `status` vem null quando o spawn nem
+// chega a rodar, e "exit 1 sem mensagem" parece migration reprovada.
+if (result.error) throw result.error;
 process.exitCode = result.status ?? 1;
