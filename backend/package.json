@@ -62,5 +62,8 @@
     "prisma": "^6.0.0",
     "supertest": "^7.2.2",
     "vitest": "^4.1.10"
+  },
+  "overrides": {
+    "deepmerge-ts": "^8.0.1"
   }
 }
