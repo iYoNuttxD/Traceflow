@@ -60,10 +60,12 @@ export const sprintController = {
     { fallbackMessage: sprintFallback }
   ),
 
+  // A rota continua registrada de proposito: removida, ela devolveria 404, que
+  // se confunde com "sprint nao existe". O service recusa antes de qualquer
+  // leitura ou mutacao (ADR-010 D06/D13).
   delete: asyncHandler(
-    async (req, res) => {
-      await sprintService.deleteSprint(req.params.id, actorContext(req));
-      return res.json({ message: 'Sprint excluída com sucesso.' });
+    async () => {
+      await sprintService.deleteSprint();
     },
     { fallbackMessage: 'Erro interno ao excluir sprint.' }
   ),

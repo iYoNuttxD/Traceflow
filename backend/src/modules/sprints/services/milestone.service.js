@@ -10,6 +10,8 @@ import {
   buildMilestoneData,
   ensureAtLeastOneField,
   ensureMilestoneStatus,
+  ensureMilestoneWithinSprint,
+  ensureSprintEditable,
   milestoneNotFoundError,
   parseMilestoneId,
   parseProjectId,
@@ -42,12 +44,22 @@ async function ensureMilestoneSprint(sprintId, projectId, context = {}) {
   return sprint;
 }
 
+// Marco de sprint encerrada acompanha a imutabilidade dela (ADR-010 D12): o
+// periodo virou registro, e mexer no marco reescreveria o que ficou registrado.
+async function ensureMilestoneMutable(milestone) {
+  const sprint = await ensureSprintExists(milestone.sprintId);
+  ensureSprintEditable(sprint);
+  return sprint;
+}
+
 export const milestoneService = {
   async createMilestone(projectId, data, context = {}) {
     const parsedProjectId = parseProjectId(projectId);
     await ensureProjectExists(parsedProjectId);
     const milestoneData = buildMilestoneData(data, true);
-    await ensureMilestoneSprint(milestoneData.sprintId, parsedProjectId, context);
+    const sprint = await ensureMilestoneSprint(milestoneData.sprintId, parsedProjectId, context);
+    ensureSprintEditable(sprint);
+    ensureMilestoneWithinSprint(milestoneData.dueDate, sprint);
     return milestoneRepository.create(
       parsedProjectId,
       milestoneData,
@@ -78,9 +90,15 @@ export const milestoneService = {
       buildMilestoneData(data),
       'Informe ao menos um campo para atualizar o marco.'
     );
-    if (milestoneData.sprintId !== undefined) {
-      await ensureMilestoneSprint(milestoneData.sprintId, current.projectId, context);
-    }
+    // A sprint atual precisa estar aberta ANTES da troca: mover um marco para
+    // fora de uma sprint encerrada mudaria a composicao do periodo fechado.
+    await ensureMilestoneMutable(current);
+    const sprint =
+      milestoneData.sprintId !== undefined
+        ? await ensureMilestoneSprint(milestoneData.sprintId, current.projectId, context)
+        : await ensureSprintExists(current.sprintId);
+    ensureSprintEditable(sprint);
+    ensureMilestoneWithinSprint(milestoneData.dueDate ?? current.dueDate, sprint);
     return milestoneRepository.update(
       id,
       milestoneData,
@@ -99,6 +117,7 @@ export const milestoneService = {
   async updateMilestoneStatus(milestoneId, status, context = {}) {
     const id = parseMilestoneId(milestoneId);
     const current = await ensureMilestoneExists(id);
+    await ensureMilestoneMutable(current);
     const nextStatus = ensureMilestoneStatus(status);
     return milestoneRepository.update(
       id,
@@ -118,6 +137,7 @@ export const milestoneService = {
   async deleteMilestone(milestoneId, context = {}) {
     const id = parseMilestoneId(milestoneId);
     const milestone = await ensureMilestoneExists(id);
+    await ensureMilestoneMutable(milestone);
     await milestoneRepository.delete(
       id,
       buildAuditEvent({

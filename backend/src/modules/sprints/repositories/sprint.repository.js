@@ -27,6 +27,48 @@ const scheduleTaskSelect = {
   sprintId: true
 };
 
+export const sprintTaskSelect = {
+  id: true,
+  projectId: true,
+  sprintId: true,
+  taskId: true,
+  taskTitleSnapshot: true,
+  addedAt: true,
+  addedAfterStart: true,
+  carriedFromSprintId: true,
+  removedAt: true,
+  removalReason: true,
+  exitStatus: true,
+  closedAt: true
+};
+
+// Congela o ultimo status observado em cada participacao ainda ativa. Roda na
+// mesma transacao do encerramento: se o congelamento falhar, a sprint nao muda
+// de status, e nunca existe uma sprint fechada sem registro do que havia nela.
+async function freezeParticipations(tx, sprintId, closedAt) {
+  const ativas = await tx.sprintTask.findMany({
+    where: { sprintId, removedAt: null },
+    select: { id: true, taskId: true }
+  });
+  const taskIds = ativas.map((participacao) => participacao.taskId).filter(Boolean);
+  const statusById = new Map(
+    taskIds.length
+      ? (
+          await tx.task.findMany({
+            where: { id: { in: taskIds } },
+            select: { id: true, status: true }
+          })
+        ).map((task) => [task.id, task.status])
+      : []
+  );
+  for (const participacao of ativas) {
+    await tx.sprintTask.update({
+      where: { id: participacao.id },
+      data: { closedAt, exitStatus: statusById.get(participacao.taskId) ?? null }
+    });
+  }
+}
+
 export const sprintRepository = {
   findProjectById(projectId) {
     return prisma.project.findUnique({ where: { id: projectId }, select: { id: true } });
@@ -53,12 +95,20 @@ export const sprintRepository = {
     });
   },
 
-  countTasks(sprintId) {
-    return prisma.task.count({ where: { sprintId } });
-  },
-
-  async create(projectId, data, auditEvent) {
+  // A validacao de sobreposicao so vale se as sprints do projeto ficarem
+  // estaveis entre a leitura e a escrita. Em MySQL/REPEATABLE READ, "consultar e
+  // depois inserir" continua sendo corrida: duas criacoes simultaneas leem o
+  // mesmo conjunto e ambas passam. O lock na linha do projeto serializa as
+  // escritas de cronograma daquele projeto — e apenas daquele.
+  //
+  // `validate` e a regra de dominio, entregue pelo service: recebe o retrato
+  // travado e lanca erro de dominio. Prisma nao sai do repository, regra nao sai
+  // do service, e as duas rodam na mesma transacao.
+  async createWithinProjectLock(projectId, data, auditEvent, validate) {
     return prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM Project WHERE id = ${projectId} FOR UPDATE`;
+      const sprints = await tx.sprint.findMany({ where: { projectId }, select: sprintSelect });
+      await validate(sprints);
       const sprint = await tx.sprint.create({
         data: { ...data, projectId },
         select: sprintSelect
@@ -70,41 +120,127 @@ export const sprintRepository = {
     });
   },
 
-  async update(id, data, auditEvent) {
+  async updateWithinProjectLock(id, projectId, data, auditEvent, validate) {
     return prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM Project WHERE id = ${projectId} FOR UPDATE`;
+      const sprints = await tx.sprint.findMany({ where: { projectId }, select: sprintSelect });
+      await validate(sprints);
       const sprint = await tx.sprint.update({ where: { id }, data, select: sprintSelect });
       if (auditEvent) await auditRepository.create(auditEvent, tx);
       return sprint;
     });
   },
 
-  async delete(id, auditEvent) {
+  async updateStatus(id, data, auditEvent, { freezeAt = null } = {}) {
     return prisma.$transaction(async (tx) => {
-      await tx.sprint.delete({ where: { id } });
+      await tx.$queryRaw`SELECT id FROM Sprint WHERE id = ${id} FOR UPDATE`;
+      const sprint = await tx.sprint.update({ where: { id }, data, select: sprintSelect });
+      if (freezeAt) await freezeParticipations(tx, id, freezeAt);
       if (auditEvent) await auditRepository.create(auditEvent, tx);
+      return sprint;
     });
   },
 
-  // Substituicao atomica do conjunto de tarefas da sprint.
-  // Falha em qualquer item nao persiste nenhum vinculo.
-  async replaceTasks(sprintId, { toAttach, toDetach, historyEntries, auditEvent }) {
+  // Mutacao do escopo com a sprint travada: leitura, validacao, calculo do delta
+  // e escrita na MESMA transacao. Calcular o delta fora dela permitia que dois
+  // PUT simultaneos partissem do mesmo retrato e aplicassem conjuntos
+  // incompativeis — atomicidade por item nao e semantica de substituicao.
+  async mutateScopeWithinSprintLock(sprintId, requestedTaskIds, buildPlan) {
     return prisma.$transaction(async (tx) => {
-      if (toDetach.length) {
+      const locked = await tx.$queryRaw`SELECT id FROM Sprint WHERE id = ${sprintId} FOR UPDATE`;
+      if (!locked.length) return null;
+
+      const sprint = await tx.sprint.findUnique({ where: { id: sprintId }, select: sprintSelect });
+      const participations = await tx.sprintTask.findMany({
+        where: { sprintId },
+        select: sprintTaskSelect
+      });
+
+      // Status e titulo de todo mundo que o plano pode tocar: as tarefas pedidas
+      // e as que ja estao dentro. Sem as de dentro, uma saida nao teria de onde
+      // tirar o status de saida a congelar.
+      const involvedIds = [
+        ...new Set([
+          ...requestedTaskIds,
+          ...participations
+            .filter((participacao) => participacao.removedAt === null && participacao.taskId)
+            .map((participacao) => participacao.taskId)
+        ])
+      ];
+      const tasks = involvedIds.length
+        ? await tx.task.findMany({
+            where: { id: { in: involvedIds } },
+            select: { id: true, projectId: true, sprintId: true, status: true, title: true }
+          })
+        : [];
+
+      // Participacoes ativas das tarefas pedidas em OUTRAS sprints: a troca
+      // fecha a anterior com status de saida, em vez de apagar a passagem por la.
+      const activeElsewhere = requestedTaskIds.length
+        ? await tx.sprintTask.findMany({
+            where: {
+              taskId: { in: requestedTaskIds },
+              removedAt: null,
+              sprintId: { not: sprintId }
+            },
+            select: sprintTaskSelect
+          })
+        : [];
+
+      const plan = await buildPlan({ sprint, participations, tasks, activeElsewhere });
+
+      for (const saida of plan.close) {
+        await tx.sprintTask.update({
+          where: { id: saida.id },
+          data: { removedAt: saida.at, removalReason: saida.reason, exitStatus: saida.exitStatus }
+        });
+      }
+      for (const entrada of plan.open) {
+        // Reentrada reabre a participacao em vez de criar outra: preserva
+        // `addedAt` e `addedAfterStart`, coerente com "saiu e voltou nao entrou".
+        if (entrada.id) {
+          await tx.sprintTask.update({
+            where: { id: entrada.id },
+            data: {
+              removedAt: null,
+              removalReason: null,
+              exitStatus: null,
+              closedAt: null,
+              taskTitleSnapshot: entrada.taskTitleSnapshot,
+              carriedFromSprintId: entrada.carriedFromSprintId
+            }
+          });
+        } else {
+          await tx.sprintTask.create({
+            data: {
+              projectId: sprint.projectId,
+              sprintId,
+              taskId: entrada.taskId,
+              taskTitleSnapshot: entrada.taskTitleSnapshot,
+              addedAt: entrada.addedAt,
+              addedAfterStart: entrada.addedAfterStart,
+              carriedFromSprintId: entrada.carriedFromSprintId
+            }
+          });
+        }
+      }
+      if (plan.detachTaskIds.length) {
         await tx.task.updateMany({
-          where: { id: { in: toDetach } },
+          where: { id: { in: plan.detachTaskIds } },
           data: { sprintId: null }
         });
       }
-      if (toAttach.length) {
+      if (plan.attachTaskIds.length) {
         await tx.task.updateMany({
-          where: { id: { in: toAttach } },
+          where: { id: { in: plan.attachTaskIds } },
           data: { sprintId }
         });
       }
-      if (historyEntries.length) {
-        await tx.taskHistoryEntry.createMany({ data: historyEntries });
+      if (plan.historyEntries.length) {
+        await tx.taskHistoryEntry.createMany({ data: plan.historyEntries });
       }
-      if (auditEvent) await auditRepository.create(auditEvent, tx);
+      if (plan.auditEvent) await auditRepository.create(plan.auditEvent, tx);
+
       return tx.task.findMany({
         where: { sprintId },
         select: scheduleTaskSelect,

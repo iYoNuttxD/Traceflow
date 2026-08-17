@@ -7,13 +7,11 @@ const mocks = vi.hoisted(() => ({
     findProjectById: vi.fn(),
     findById: vi.fn(),
     findByProject: vi.fn(),
-    countTasks: vi.fn(),
-    create: vi.fn(),
-    update: vi.fn(),
-    delete: vi.fn(),
-    replaceTasks: vi.fn(),
+    createWithinProjectLock: vi.fn(),
+    updateWithinProjectLock: vi.fn(),
+    updateStatus: vi.fn(),
+    mutateScopeWithinSprintLock: vi.fn(),
     findTasksBySprint: vi.fn(),
-    findTasksByIds: vi.fn(),
     scheduleData: vi.fn()
   },
   milestone: {
@@ -56,22 +54,79 @@ const baseSprint = {
   completedAt: null
 };
 
+// Retrato que o repository entregaria com a linha travada. Os testes descrevem
+// o estado do banco; o service continua sendo exercitado pelo caminho real,
+// inclusive as validacoes que so rodam dentro da transacao.
+let lockedSprints = [];
+let scopeSnapshot = null;
+let capturedPlan = null;
+
 beforeEach(() => {
   vi.clearAllMocks();
+  lockedSprints = [];
+  capturedPlan = null;
+  scopeSnapshot = { sprint: baseSprint, participations: [], tasks: [], activeElsewhere: [] };
+
   mocks.sprint.findProjectById.mockResolvedValue({ id: projectId });
-  mocks.sprint.create.mockImplementation(async (_p, data) => ({ ...baseSprint, ...data }));
-  mocks.sprint.update.mockImplementation(async (_id, data) => ({ ...baseSprint, ...data }));
+  mocks.sprint.createWithinProjectLock.mockImplementation(async (id, data, _audit, validate) => {
+    await validate(lockedSprints);
+    return { ...baseSprint, ...data, projectId: id };
+  });
+  mocks.sprint.updateWithinProjectLock.mockImplementation(
+    async (id, _projectId, data, _audit, validate) => {
+      await validate(lockedSprints);
+      return { ...baseSprint, ...data, id };
+    }
+  );
+  mocks.sprint.updateStatus.mockImplementation(async (id, data) => ({
+    ...baseSprint,
+    ...data,
+    id
+  }));
+  mocks.sprint.mutateScopeWithinSprintLock.mockImplementation(async (_id, _ids, buildPlan) => {
+    capturedPlan = await buildPlan(scopeSnapshot);
+    return [];
+  });
+});
+
+// Participacao ativa, no formato que o repository devolve.
+const participacao = (taskId, overrides = {}) => ({
+  id: taskId * 100,
+  projectId,
+  sprintId: 10,
+  taskId,
+  taskTitleSnapshot: `T${taskId}`,
+  addedAt: new Date('2026-08-02T00:00:00.000Z'),
+  addedAfterStart: false,
+  carriedFromSprintId: null,
+  removedAt: null,
+  removalReason: null,
+  exitStatus: null,
+  closedAt: null,
+  ...overrides
+});
+
+const tarefa = (id, overrides = {}) => ({
+  id,
+  projectId,
+  sprintId: null,
+  status: 'A_FAZER',
+  title: `T${id}`,
+  ...overrides
 });
 
 describe('ordem das datas', () => {
-  it('aceita inicio igual ao fim', async () => {
+  // Com a janela semiaberta [inicio, fim), duracao zero nao e sprint: ela nao
+  // conteria instante nenhum, e a comparacao estrita e o que permite a sprint
+  // seguinte comecar exatamente no fim da anterior sem sobrepor.
+  it('rejeita inicio igual ao fim', async () => {
     await expect(
       sprintService.createSprint(projectId, {
         name: 'S',
         startDate: '2026-08-01',
         endDate: '2026-08-01'
       })
-    ).resolves.toBeDefined();
+    ).rejects.toMatchObject({ statusCode: 400, code: 'SPRINT_DATE_RANGE_INVALID' });
   });
 
   it('rejeita inicio posterior ao fim com codigo estavel', async () => {
@@ -112,9 +167,57 @@ describe('ordem das datas', () => {
   });
 });
 
+describe('sobreposicao de janelas', () => {
+  const existente = {
+    ...baseSprint,
+    id: 99,
+    name: 'Sprint anterior',
+    startDate: new Date('2026-08-01T00:00:00.000Z'),
+    endDate: new Date('2026-08-15T00:00:00.000Z')
+  };
+
+  it('rejeita janela que cruza sprint do mesmo projeto', async () => {
+    lockedSprints = [existente];
+    await expect(
+      sprintService.createSprint(projectId, {
+        name: 'S2',
+        startDate: '2026-08-14',
+        endDate: '2026-08-28'
+      })
+    ).rejects.toMatchObject({ statusCode: 409, code: 'SPRINT_OVERLAP' });
+  });
+
+  // Emenda nao e cruzamento: a sprint seguinte comeca no instante em que a
+  // anterior termina, e a janela semiaberta garante que ninguem fica em duas.
+  it('aceita janela que comeca no instante em que a anterior termina', async () => {
+    lockedSprints = [existente];
+    await expect(
+      sprintService.createSprint(projectId, {
+        name: 'S2',
+        startDate: '2026-08-15',
+        endDate: '2026-08-29'
+      })
+    ).resolves.toBeDefined();
+  });
+
+  it('ignora a propria sprint ao editar', async () => {
+    mocks.sprint.findById.mockResolvedValue({ ...baseSprint, id: 99 });
+    lockedSprints = [existente];
+    await expect(sprintService.updateSprint(99, { name: 'Renomeada' })).resolves.toBeDefined();
+  });
+
+  it('rejeita edicao que passa a cruzar outra sprint', async () => {
+    mocks.sprint.findById.mockResolvedValue(baseSprint);
+    lockedSprints = [existente, { ...baseSprint, id: 10 }];
+    await expect(
+      sprintService.updateSprint(10, { startDate: '2026-08-10', endDate: '2026-08-20' })
+    ).rejects.toMatchObject({ statusCode: 409, code: 'SPRINT_OVERLAP' });
+  });
+});
+
 describe('unicidade de nome', () => {
   it('converte violacao P2002 do Prisma em conflito 409', async () => {
-    mocks.sprint.create.mockRejectedValue({ code: 'P2002' });
+    mocks.sprint.createWithinProjectLock.mockRejectedValue({ code: 'P2002' });
     await expect(
       sprintService.createSprint(projectId, {
         name: 'Sprint 1',
@@ -164,127 +267,132 @@ describe('maquina de estados da sprint', () => {
   it('grava startedAt ao entrar em EM_ANDAMENTO', async () => {
     mocks.sprint.findById.mockResolvedValue(baseSprint);
     await sprintService.updateSprintStatus(10, 'EM_ANDAMENTO');
-    expect(mocks.sprint.update.mock.calls[0][1].startedAt).toBeInstanceOf(Date);
+    expect(mocks.sprint.updateStatus.mock.calls[0][1].startedAt).toBeInstanceOf(Date);
   });
 
   it('grava completedAt ao entrar em CONCLUIDA', async () => {
     mocks.sprint.findById.mockResolvedValue({ ...baseSprint, status: 'EM_ANDAMENTO' });
     await sprintService.updateSprintStatus(10, 'CONCLUIDA');
-    expect(mocks.sprint.update.mock.calls[0][1].completedAt).toBeInstanceOf(Date);
+    expect(mocks.sprint.updateStatus.mock.calls[0][1].completedAt).toBeInstanceOf(Date);
+  });
+
+  // Iniciar e linha de base, nao fechamento: o escopo segue alteravel, apenas
+  // sinalizado. Congelar aqui impediria a inclusao posterior legitima.
+  it('nao congela participacoes ao iniciar', async () => {
+    mocks.sprint.findById.mockResolvedValue(baseSprint);
+    await sprintService.updateSprintStatus(10, 'EM_ANDAMENTO');
+    expect(mocks.sprint.updateStatus.mock.calls[0][3]).toEqual({ freezeAt: null });
+  });
+
+  it.each(['CONCLUIDA', 'CANCELADA'])('congela participacoes ao entrar em %s', async (status) => {
+    mocks.sprint.findById.mockResolvedValue({ ...baseSprint, status: 'EM_ANDAMENTO' });
+    await sprintService.updateSprintStatus(10, status);
+    expect(mocks.sprint.updateStatus.mock.calls[0][3].freezeAt).toBeInstanceOf(Date);
+  });
+
+  // Um unico instante para os dois campos: dois `new Date()` dariam a sprint um
+  // encerramento anterior ao fechamento das suas proprias participacoes.
+  it('usa o mesmo instante para completedAt e para o congelamento', async () => {
+    mocks.sprint.findById.mockResolvedValue({ ...baseSprint, status: 'EM_ANDAMENTO' });
+    await sprintService.updateSprintStatus(10, 'CONCLUIDA');
+    const [, data, , options] = mocks.sprint.updateStatus.mock.calls[0];
+    expect(options.freezeAt.getTime()).toBe(data.completedAt.getTime());
   });
 });
 
 describe('bloqueios de estado terminal', () => {
   it.each(['CONCLUIDA', 'CANCELADA'])('bloqueia edicao de sprint %s', async (status) => {
     mocks.sprint.findById.mockResolvedValue({ ...baseSprint, status });
+    lockedSprints = [{ ...baseSprint, id: 10, status }];
     await expect(sprintService.updateSprint(10, { name: 'Novo' })).rejects.toMatchObject({
       statusCode: 409,
       code: 'SPRINT_LOCKED'
     });
   });
 
-  it.each(['CONCLUIDA', 'CANCELADA'])('bloqueia associacao em sprint %s', async (status) => {
+  it.each(['CONCLUIDA', 'CANCELADA'])('bloqueia acrescimo em sprint %s', async (status) => {
     mocks.sprint.findById.mockResolvedValue({ ...baseSprint, status });
-    mocks.sprint.findTasksByIds.mockResolvedValue([{ id: 1, projectId, sprintId: null }]);
-    mocks.sprint.findTasksBySprint.mockResolvedValue([]);
+    scopeSnapshot = {
+      sprint: { ...baseSprint, status },
+      participations: [],
+      tasks: [tarefa(1)],
+      activeElsewhere: []
+    };
     await expect(sprintService.replaceTasks(10, [1])).rejects.toMatchObject({
       statusCode: 409,
-      code: 'SPRINT_ASSOCIATION_BLOCKED'
+      code: 'SPRINT_SCOPE_LOCKED'
     });
   });
 
-  // Sem isto a sprint ficaria presa: DELETE exige conjunto vazio e estados
-  // terminais nao transicionam de volta.
-  it.each(['CONCLUIDA', 'CANCELADA'])('permite REMOVER tarefa de sprint %s', async (status) => {
+  // Antes a remocao era permitida em estado terminal, para nao prender a sprint
+  // antes da exclusao. A exclusao deixou de existir (D06) e o escopo encerrado
+  // virou registro: esvaziar a sprint apagaria o periodo que ela documenta.
+  it.each(['CONCLUIDA', 'CANCELADA'])('bloqueia REMOCAO em sprint %s', async (status) => {
     mocks.sprint.findById.mockResolvedValue({ ...baseSprint, status });
-    mocks.sprint.findTasksByIds.mockResolvedValue([]);
-    mocks.sprint.findTasksBySprint.mockResolvedValue([{ id: 7 }]);
-    mocks.sprint.replaceTasks.mockResolvedValue([]);
-
-    await expect(sprintService.replaceTasks(10, [], { actorUserId: 3 })).resolves.toMatchObject({
-      sprintId: 10
+    scopeSnapshot = {
+      sprint: { ...baseSprint, status },
+      participations: [participacao(7)],
+      tasks: [tarefa(7, { sprintId: 10 })],
+      activeElsewhere: []
+    };
+    await expect(sprintService.replaceTasks(10, [], { actorUserId: 3 })).rejects.toMatchObject({
+      statusCode: 409,
+      code: 'SPRINT_SCOPE_LOCKED'
     });
-
-    const payload = mocks.sprint.replaceTasks.mock.calls[0][1];
-    expect(payload.toDetach).toEqual([7]);
-    expect(payload.toAttach).toEqual([]);
-    // A remocao continua rastreavel no historico funcional.
-    expect(payload.historyEntries).toEqual([
-      { projectId, taskId: 7, actorUserId: 3, field: 'SPRINT', fromValue: '10', toValue: null }
-    ]);
-  });
-
-  it('rejeita troca que remove uma e adiciona outra em sprint terminal', async () => {
-    mocks.sprint.findById.mockResolvedValue({ ...baseSprint, status: 'CONCLUIDA' });
-    mocks.sprint.findTasksByIds.mockResolvedValue([{ id: 5, projectId, sprintId: null }]);
-    mocks.sprint.findTasksBySprint.mockResolvedValue([{ id: 7 }]);
-
-    await expect(sprintService.replaceTasks(10, [5])).rejects.toMatchObject({
-      code: 'SPRINT_ASSOCIATION_BLOCKED'
-    });
-    expect(mocks.sprint.replaceTasks).not.toHaveBeenCalled();
   });
 });
 
 describe('exclusao de sprint', () => {
-  it('bloqueia exclusao com tarefas associadas', async () => {
-    mocks.sprint.findById.mockResolvedValue(baseSprint);
-    mocks.sprint.countTasks.mockResolvedValue(3);
-    await expect(sprintService.deleteSprint(10)).rejects.toMatchObject({
-      statusCode: 409,
-      code: 'SPRINT_HAS_TASKS'
-    });
-    expect(mocks.sprint.delete).not.toHaveBeenCalled();
-  });
+  // Sprint nao e excluida em nenhum estado. A rota permanece registrada para o
+  // 405 nao se confundir com o 404 de "sprint inexistente".
+  it.each(['PLANEJADA', 'EM_ANDAMENTO', 'CONCLUIDA', 'CANCELADA'])(
+    'recusa exclusao de sprint %s',
+    async (status) => {
+      mocks.sprint.findById.mockResolvedValue({ ...baseSprint, status });
+      await expect(sprintService.deleteSprint(10)).rejects.toMatchObject({
+        statusCode: 405,
+        code: 'SPRINT_DELETE_NOT_SUPPORTED'
+      });
+    }
+  );
 
-  it('permite exclusao sem tarefas', async () => {
-    mocks.sprint.findById.mockResolvedValue(baseSprint);
-    mocks.sprint.countTasks.mockResolvedValue(0);
-    await expect(sprintService.deleteSprint(10)).resolves.toEqual({ id: 10 });
-    expect(mocks.sprint.delete).toHaveBeenCalledOnce();
-  });
-
-  it('retorna 404 com codigo estavel para sprint inexistente', async () => {
-    mocks.sprint.findById.mockResolvedValue(null);
+  it('recusa antes de qualquer leitura, sem consultar a sprint', async () => {
     await expect(sprintService.deleteSprint(999)).rejects.toMatchObject({
-      statusCode: 404,
-      code: 'SPRINT_NOT_FOUND'
+      statusCode: 405
     });
+    expect(mocks.sprint.findById).not.toHaveBeenCalled();
   });
 });
 
 describe('substituicao do conjunto de tarefas', () => {
   beforeEach(() => {
     mocks.sprint.findById.mockResolvedValue(baseSprint);
-    mocks.sprint.replaceTasks.mockResolvedValue([]);
   });
 
   it('rejeita tarefa de outro projeto que o ator enxerga, com erro informativo', async () => {
     mocks.authorization.actorSeesProject.mockResolvedValue(true);
-    mocks.sprint.findTasksByIds.mockResolvedValue([{ id: 5, projectId: 99, sprintId: null }]);
+    scopeSnapshot.tasks = [tarefa(5, { projectId: 99 })];
     await expect(sprintService.replaceTasks(10, [5], { actorUserId: 3 })).rejects.toMatchObject({
       statusCode: 400,
       code: 'TASK_SPRINT_PROJECT_MISMATCH'
     });
     expect(mocks.authorization.actorSeesProject).toHaveBeenCalledWith(99, 3);
-    expect(mocks.sprint.replaceTasks).not.toHaveBeenCalled();
   });
 
   // Sem isto o par 400/404 enumeraria IDs de tarefa de projetos alheios.
   it('responde como ID inexistente quando o ator nao enxerga o projeto da tarefa', async () => {
     mocks.authorization.actorSeesProject.mockResolvedValue(false);
-    mocks.sprint.findTasksByIds.mockResolvedValue([{ id: 5, projectId: 99, sprintId: null }]);
+    scopeSnapshot.tasks = [tarefa(5, { projectId: 99 })];
     await expect(sprintService.replaceTasks(10, [5], { actorUserId: 3 })).rejects.toMatchObject({
       statusCode: 404,
       code: 'TASK_NOT_FOUND'
     });
-    expect(mocks.sprint.replaceTasks).not.toHaveBeenCalled();
   });
 
   // Falha fechado: sem ator identificado, nunca revelar a existencia da tarefa.
   it('sem actorUserId trata a tarefa alheia como inexistente', async () => {
     mocks.authorization.actorSeesProject.mockResolvedValue(false);
-    mocks.sprint.findTasksByIds.mockResolvedValue([{ id: 5, projectId: 99, sprintId: null }]);
+    scopeSnapshot.tasks = [tarefa(5, { projectId: 99 })];
     await expect(sprintService.replaceTasks(10, [5])).rejects.toMatchObject({
       statusCode: 404,
       code: 'TASK_NOT_FOUND'
@@ -293,72 +401,225 @@ describe('substituicao do conjunto de tarefas', () => {
   });
 
   it('rejeita a operacao inteira quando um ID nao existe', async () => {
-    mocks.sprint.findTasksByIds.mockResolvedValue([{ id: 5, projectId, sprintId: null }]);
+    scopeSnapshot.tasks = [tarefa(5)];
     await expect(sprintService.replaceTasks(10, [5, 6])).rejects.toMatchObject({
       statusCode: 404
     });
-    expect(mocks.sprint.replaceTasks).not.toHaveBeenCalled();
+  });
+
+  it('recusa conjunto acima do limite de dominio antes de abrir a transacao', async () => {
+    const ids = Array.from({ length: 101 }, (_, index) => index + 1);
+    await expect(sprintService.replaceTasks(10, ids)).rejects.toMatchObject({
+      statusCode: 409,
+      code: 'SPRINT_TASK_LIMIT_REACHED'
+    });
+    expect(mocks.sprint.mutateScopeWithinSprintLock).not.toHaveBeenCalled();
   });
 
   it('gera historico SPRINT para entradas e saidas', async () => {
-    mocks.sprint.findTasksByIds.mockResolvedValue([{ id: 5, projectId, sprintId: null }]);
-    mocks.sprint.findTasksBySprint.mockResolvedValue([{ id: 7 }]);
+    scopeSnapshot = {
+      sprint: baseSprint,
+      participations: [participacao(7)],
+      tasks: [tarefa(5), tarefa(7, { sprintId: 10 })],
+      activeElsewhere: []
+    };
     await sprintService.replaceTasks(10, [5], { actorUserId: 3 });
 
-    const payload = mocks.sprint.replaceTasks.mock.calls[0][1];
-    expect(payload.toAttach).toEqual([5]);
-    expect(payload.toDetach).toEqual([7]);
-    expect(payload.historyEntries).toEqual([
-      { projectId, taskId: 5, actorUserId: 3, field: 'SPRINT', fromValue: null, toValue: '10' },
-      { projectId, taskId: 7, actorUserId: 3, field: 'SPRINT', fromValue: '10', toValue: null }
+    expect(capturedPlan.attachTaskIds).toEqual([5]);
+    expect(capturedPlan.detachTaskIds).toEqual([7]);
+    expect(capturedPlan.historyEntries).toEqual([
+      { projectId, taskId: 7, actorUserId: 3, field: 'SPRINT', fromValue: '10', toValue: null },
+      { projectId, taskId: 5, actorUserId: 3, field: 'SPRINT', fromValue: null, toValue: '10' }
+    ]);
+  });
+
+  // A saida guarda o status que a tarefa tinha nesta sprint. Sem esse registro,
+  // concluir a tarefa depois mudaria o resultado de um periodo ja encerrado.
+  it('congela o status de saida de quem deixa a sprint', async () => {
+    scopeSnapshot = {
+      sprint: baseSprint,
+      participations: [participacao(7)],
+      tasks: [tarefa(7, { sprintId: 10, status: 'EM_ANDAMENTO' })],
+      activeElsewhere: []
+    };
+    await sprintService.replaceTasks(10, [], { actorUserId: 3 });
+
+    expect(capturedPlan.close).toEqual([
+      { id: 700, at: expect.any(Date), reason: 'REMOVIDA', exitStatus: 'EM_ANDAMENTO' }
     ]);
   });
 
   // Regressao: gravar fromValue null numa tarefa que veio de outra sprint
   // apagaria a saida da sprint de origem, e o criterio "tarefas adicionadas ou
   // removidas apos o planejamento sao identificaveis" deixaria de ser verificavel.
-  it('registra a sprint de origem quando a tarefa vem de outra sprint', async () => {
-    mocks.sprint.findTasksByIds.mockResolvedValue([
-      { id: 5, projectId, sprintId: 42 },
-      { id: 6, projectId, sprintId: null }
-    ]);
-    mocks.sprint.findTasksBySprint.mockResolvedValue([]);
+  it('registra a sprint de origem e fecha a participacao anterior no carry-over', async () => {
+    scopeSnapshot = {
+      sprint: baseSprint,
+      participations: [],
+      tasks: [tarefa(5, { sprintId: 42, status: 'EM_ANDAMENTO' }), tarefa(6)],
+      activeElsewhere: [participacao(5, { id: 555, sprintId: 42 })]
+    };
     await sprintService.replaceTasks(10, [5, 6], { actorUserId: 3 });
 
-    expect(mocks.sprint.replaceTasks.mock.calls[0][1].historyEntries).toEqual([
+    expect(capturedPlan.historyEntries).toEqual([
       { projectId, taskId: 5, actorUserId: 3, field: 'SPRINT', fromValue: '42', toValue: '10' },
       { projectId, taskId: 6, actorUserId: 3, field: 'SPRINT', fromValue: null, toValue: '10' }
     ]);
+    // A Sprint 42 nao perde a tarefa do seu historico: a participacao fecha com
+    // o status observado la, e a nova aponta de onde a tarefa veio.
+    expect(capturedPlan.close).toEqual([
+      { id: 555, at: expect.any(Date), reason: 'MOVIDA', exitStatus: 'EM_ANDAMENTO' }
+    ]);
+    expect(capturedPlan.open[0]).toMatchObject({ taskId: 5, carriedFromSprintId: 42 });
+    expect(capturedPlan.open[1]).toMatchObject({ taskId: 6, carriedFromSprintId: null });
   });
 
   it('nao gera historico quando o conjunto nao muda', async () => {
-    mocks.sprint.findTasksByIds.mockResolvedValue([{ id: 5, projectId, sprintId: 10 }]);
-    mocks.sprint.findTasksBySprint.mockResolvedValue([{ id: 5 }]);
+    scopeSnapshot = {
+      sprint: baseSprint,
+      participations: [participacao(5)],
+      tasks: [tarefa(5, { sprintId: 10 })],
+      activeElsewhere: []
+    };
     await sprintService.replaceTasks(10, [5], { actorUserId: 3 });
-    expect(mocks.sprint.replaceTasks.mock.calls[0][1].historyEntries).toEqual([]);
+    expect(capturedPlan.historyEntries).toEqual([]);
+  });
+
+  // Entrar em EM_ANDAMENTO nao fecha o escopo: a tarefa entra e fica marcada
+  // como inclusao posterior ao inicio, que e o que o RF35 precisa distinguir.
+  it('marca inclusao posterior ao inicio da sprint', async () => {
+    scopeSnapshot = {
+      sprint: { ...baseSprint, status: 'EM_ANDAMENTO', startedAt: new Date('2026-08-02') },
+      participations: [],
+      tasks: [tarefa(5)],
+      activeElsewhere: []
+    };
+    await sprintService.replaceTasks(10, [5], { actorUserId: 3 });
+    expect(capturedPlan.open[0]).toMatchObject({ taskId: 5, addedAfterStart: true });
+  });
+
+  it('nao marca inclusao posterior em sprint que ainda nao comecou', async () => {
+    scopeSnapshot.tasks = [tarefa(5)];
+    await sprintService.replaceTasks(10, [5], { actorUserId: 3 });
+    expect(capturedPlan.open[0]).toMatchObject({ taskId: 5, addedAfterStart: false });
+  });
+
+  // "Saiu e voltou" nao e entrada nova: recarimbar a participacao inventaria
+  // uma mudanca de escopo que nao houve.
+  it('reabre a participacao anterior preservando entrada e sinalizacao', async () => {
+    const anterior = participacao(5, {
+      removedAt: new Date('2026-08-05'),
+      removalReason: 'REMOVIDA',
+      exitStatus: 'A_FAZER',
+      addedAfterStart: true
+    });
+    scopeSnapshot = {
+      sprint: { ...baseSprint, status: 'EM_ANDAMENTO', startedAt: new Date('2026-08-02') },
+      participations: [anterior],
+      tasks: [tarefa(5)],
+      activeElsewhere: []
+    };
+    await sprintService.replaceTasks(10, [5], { actorUserId: 3 });
+
+    expect(capturedPlan.open[0]).toMatchObject({
+      id: anterior.id,
+      taskId: 5,
+      addedAt: anterior.addedAt,
+      addedAfterStart: true
+    });
   });
 });
 
 describe('marcos', () => {
+  const marco = (overrides = {}) => ({
+    id: 1,
+    projectId,
+    sprintId: 10,
+    status: 'PENDENTE',
+    dueDate: new Date('2026-08-10T00:00:00.000Z'),
+    ...overrides
+  });
+  // Explicito, e nao herdado de outro bloco: sem isto os testes de marco
+  // dependeriam do `findById` que algum describe anterior deixou configurado.
+  const criar = (overrides = {}) => ({
+    title: 'M',
+    dueDate: '2026-08-10',
+    sprintId: 10,
+    ...overrides
+  });
+
   beforeEach(() => {
+    mocks.sprint.findById.mockResolvedValue(baseSprint);
+    mocks.milestone.findById.mockResolvedValue(marco());
     mocks.milestone.create.mockImplementation(async (_p, data) => ({ id: 1, projectId, ...data }));
     mocks.milestone.update.mockImplementation(async (_id, data) => ({ id: 1, projectId, ...data }));
   });
 
   it('exige data prevista na criacao', async () => {
-    await expect(sprintService.createMilestone(projectId, { title: 'M' })).rejects.toMatchObject({
-      statusCode: 400
-    });
+    await expect(
+      sprintService.createMilestone(projectId, { title: 'M', sprintId: 10 })
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it('exige sprint na criacao', async () => {
+    await expect(
+      sprintService.createMilestone(projectId, { title: 'M', dueDate: '2026-08-10' })
+    ).rejects.toMatchObject({ statusCode: 400, code: 'MILESTONE_SPRINT_REQUIRED' });
+  });
+
+  // A conclusao do marco fica ancorada num periodo de desenvolvimento: uma data
+  // fora da janela nao descreve nenhum periodo.
+  it('rejeita data prevista fora da janela da sprint', async () => {
+    await expect(
+      sprintService.createMilestone(projectId, criar({ dueDate: '2026-08-20' }))
+    ).rejects.toMatchObject({ statusCode: 400, code: 'MILESTONE_DUE_DATE_OUTSIDE_SPRINT' });
+  });
+
+  // Convencao semiaberta: vencer no instante final ja pertence a sprint seguinte.
+  it('rejeita data prevista exatamente no fim da janela', async () => {
+    await expect(
+      sprintService.createMilestone(projectId, criar({ dueDate: '2026-08-14' }))
+    ).rejects.toMatchObject({ code: 'MILESTONE_DUE_DATE_OUTSIDE_SPRINT' });
+  });
+
+  it('rejeita sprint de outro projeto que o ator enxerga', async () => {
+    mocks.authorization.actorSeesProject.mockResolvedValue(true);
+    mocks.sprint.findById.mockResolvedValue({ ...baseSprint, projectId: 99 });
+    await expect(
+      sprintService.createMilestone(projectId, criar(), { actorUserId: 3 })
+    ).rejects.toMatchObject({ statusCode: 400, code: 'MILESTONE_SPRINT_PROJECT_MISMATCH' });
+  });
+
+  // Sem esta guarda o par 400/404 enumeraria sprints de projetos alheios.
+  it('responde como sprint inexistente quando o ator nao enxerga o projeto', async () => {
+    mocks.authorization.actorSeesProject.mockResolvedValue(false);
+    mocks.sprint.findById.mockResolvedValue({ ...baseSprint, projectId: 99 });
+    await expect(
+      sprintService.createMilestone(projectId, criar(), { actorUserId: 3 })
+    ).rejects.toMatchObject({ statusCode: 404, code: 'SPRINT_NOT_FOUND' });
   });
 
   it('alterna o status entre PENDENTE e CONCLUIDO', async () => {
-    mocks.milestone.findById.mockResolvedValue({ id: 1, projectId, status: 'PENDENTE' });
     const milestone = await sprintService.updateMilestoneStatus(1, 'CONCLUIDO');
     expect(milestone.status).toBe('CONCLUIDO');
   });
 
+  // O marco acompanha a imutabilidade da sprint: o periodo virou registro.
+  it.each(['CONCLUIDA', 'CANCELADA'])('bloqueia marco de sprint %s', async (status) => {
+    mocks.sprint.findById.mockResolvedValue({ ...baseSprint, status });
+    await expect(sprintService.updateMilestoneStatus(1, 'CONCLUIDO')).rejects.toMatchObject({
+      statusCode: 409,
+      code: 'SPRINT_LOCKED'
+    });
+    await expect(sprintService.updateMilestone(1, { title: 'X' })).rejects.toMatchObject({
+      code: 'SPRINT_LOCKED'
+    });
+    await expect(sprintService.deleteMilestone(1)).rejects.toMatchObject({
+      code: 'SPRINT_LOCKED'
+    });
+  });
+
   it('rejeita status fora do enum', async () => {
-    mocks.milestone.findById.mockResolvedValue({ id: 1, projectId, status: 'PENDENTE' });
     await expect(sprintService.updateMilestoneStatus(1, 'ARQUIVADO')).rejects.toMatchObject({
       statusCode: 400
     });

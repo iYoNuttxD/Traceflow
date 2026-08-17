@@ -28,6 +28,19 @@ export const SPRINT_TRANSITIONS = Object.freeze({
 
 export const isTerminalSprintStatus = (status) => TERMINAL_SPRINT_STATUSES.includes(status);
 
+// Limite unico de dominio (ADR-010 D14), aplicado tanto na substituicao em lote
+// quanto na associacao individual. Dois limites diferentes para a mesma
+// capacidade deixariam a sprint chegar a um estado que o editor nao consegue
+// representar: com 101 tarefas, nenhum salvamento do painel passaria.
+export const SPRINT_MAX_TASKS = 100;
+
+// Motivos de saida de uma participacao. Espelham SprintTaskRemovalReason.
+export const REMOVAL_REASONS = Object.freeze({
+  MOVIDA: 'MOVIDA',
+  REMOVIDA: 'REMOVIDA',
+  TAREFA_EXCLUIDA: 'TAREFA_EXCLUIDA'
+});
+
 function parsePositiveInteger(value, entityName, code) {
   const parsedValue = Number(value);
   if (!Number.isInteger(parsedValue) || parsedValue <= 0) {
@@ -99,12 +112,51 @@ export function truncateToUtcDay(date) {
   );
 }
 
+// Janela semiaberta [startDate, endDate): duracao zero nao e sprint, e a
+// comparacao estrita e o que permite a sprint seguinte comecar exatamente no
+// instante em que esta termina, sem sobreposicao (ADR-010 D03).
 export function ensureDateRange(startDate, endDate) {
-  if (startDate && endDate && startDate.getTime() > endDate.getTime()) {
+  if (startDate && endDate && startDate.getTime() >= endDate.getTime()) {
     throw new SprintServiceError(
-      'A data de início não pode ser posterior à data de fim.',
+      'A data de início precisa ser anterior à data de fim.',
       400,
       ERROR_CODES.SPRINT_DATE_RANGE_INVALID
+    );
+  }
+}
+
+// Duas janelas semiabertas se cruzam quando cada uma comeca antes do fim da
+// outra. Fim == inicio nao e cruzamento: e emenda.
+export function sprintsOverlap(a, b) {
+  return a.startDate < b.endDate && b.startDate < a.endDate;
+}
+
+// Sprints do mesmo projeto sao sequenciais (ADR-010 D03). A verificacao roda
+// dentro da transacao com o projeto travado: consultar e depois inserir, sem
+// lock, deixa duas criacoes simultaneas passarem pela mesma checagem.
+export function ensureNoOverlap(candidate, sprints, ignoreId = null) {
+  const conflito = sprints.find(
+    (sprint) => sprint.id !== ignoreId && sprintsOverlap(candidate, sprint)
+  );
+  if (conflito) {
+    throw new SprintServiceError(
+      `O período informado conflita com a sprint "${conflito.name}". As sprints do projeto não podem se sobrepor.`,
+      409,
+      ERROR_CODES.SPRINT_OVERLAP
+    );
+  }
+  return candidate;
+}
+
+// A data prevista do marco precisa cair na janela da sprint (ADR-010 D11).
+// Mesma convencao semiaberta: vencer no instante final ja e a sprint seguinte.
+export function ensureMilestoneWithinSprint(dueDate, sprint) {
+  if (!dueDate) return;
+  if (dueDate < sprint.startDate || dueDate >= sprint.endDate) {
+    throw new SprintServiceError(
+      'A data prevista do marco precisa estar dentro do período da sprint.',
+      400,
+      ERROR_CODES.MILESTONE_DUE_DATE_OUTSIDE_SPRINT
     );
   }
 }
@@ -155,15 +207,41 @@ export function ensureSprintEditable(sprint) {
   return sprint;
 }
 
-export function ensureSprintAcceptsTasks(sprint) {
+// Escopo de sprint encerrada e imutavel (ADR-010 D04): nem acrescenta nem
+// remove. A versao anterior permitia remover, para nao "prender" a sprint antes
+// da exclusao — mas a exclusao deixou de existir (D06), e o impasse com ela.
+export function ensureSprintScopeMutable(sprint) {
   if (isTerminalSprintStatus(sprint.status)) {
     throw new SprintServiceError(
-      'Sprint concluída ou cancelada não aceita associação de tarefas.',
+      'Sprint concluída ou cancelada é registro histórico: seu escopo não pode ser alterado.',
       409,
-      ERROR_CODES.SPRINT_ASSOCIATION_BLOCKED
+      ERROR_CODES.SPRINT_SCOPE_LOCKED
     );
   }
   return sprint;
+}
+
+export function ensureWithinTaskLimit(total) {
+  if (total > SPRINT_MAX_TASKS) {
+    throw new SprintServiceError(
+      `Uma sprint aceita no máximo ${SPRINT_MAX_TASKS} tarefas.`,
+      409,
+      ERROR_CODES.SPRINT_TASK_LIMIT_REACHED
+    );
+  }
+  return total;
+}
+
+export function sprintDeleteNotSupportedError() {
+  return new SprintServiceError(
+    'Sprint não pode ser excluída: o cronograma é registro histórico do projeto.',
+    405,
+    ERROR_CODES.SPRINT_DELETE_NOT_SUPPORTED
+  );
+}
+
+export function taskNotFoundError() {
+  return new SprintServiceError('Tarefa não encontrada.', 404, ERROR_CODES.TASK_NOT_FOUND);
 }
 
 // Constroi o payload de escrita da sprint a partir da entrada ja validada no HTTP.

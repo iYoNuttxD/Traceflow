@@ -22,7 +22,7 @@ import { SprintForm, emptySprintForm, validateSprintForm } from '../components/S
 import { SprintList } from '../components/SprintList.jsx';
 import { SprintTasksPanel } from '../components/SprintTasksPanel.jsx';
 import { SprintProgressPanel } from '../components/SprintProgressPanel.jsx';
-import { isTerminalSprint, isTerminalTransition } from '../components/schedule-display.js';
+import { isTerminalTransition } from '../components/schedule-display.js';
 
 export function ScheduleScreen() {
   const { projectId } = useParams();
@@ -248,28 +248,6 @@ export function ScheduleScreen() {
     }
   };
 
-  const removeSprint = async (sprint) => {
-    const confirmed = await confirm({
-      title: 'Excluir sprint',
-      description: `A sprint "${sprint.name}" será excluída. Esta ação não pode ser desfeita.`,
-      confirmLabel: 'Excluir'
-    });
-    if (!confirmed) return;
-
-    setBusySprintId(sprint.id);
-    try {
-      await scheduleApi.removeSprint(sprint.id);
-      feedback('Sprint excluída com sucesso.');
-      if (selectedSprint?.id === sprint.id) setSelectedSprint(null);
-      setSprints((current) => current.filter((item) => item.id !== sprint.id));
-      await refreshSchedule();
-    } catch (requestError) {
-      handleFailure(requestError, 'Não foi possível excluir a sprint.');
-    } finally {
-      setBusySprintId(null);
-    }
-  };
-
   const selectSprint = async (sprint) => {
     if (selectedSprint?.id === sprint.id) {
       setSelectedSprint(null);
@@ -323,24 +301,6 @@ export function ScheduleScreen() {
   };
 
   const submitSprintTasks = async (taskIds) => {
-    // Em sprint encerrada a remoção é mão única: o escopo é registro histórico e
-    // a API recusa reincluir. O usuário precisa saber disso antes, não depois.
-    if (isTerminalSprint(selectedSprint.status)) {
-      const removidas = selectedTaskIds
-        .filter((id) => !taskIds.includes(id))
-        .map((id) => projectTasks.find((task) => task.id === id)?.title)
-        .filter(Boolean);
-      const confirmed = await confirm({
-        title: 'Remover tarefa de sprint encerrada',
-        description:
-          `${removidas.length === 1 ? 'A tarefa' : 'As tarefas'} ${removidas.map((t) => `"${t}"`).join(', ')} ` +
-          `${removidas.length === 1 ? 'sairá' : 'sairão'} de "${selectedSprint.name}". ` +
-          'Não será possível recolocá-la: uma sprint concluída ou cancelada não aceita novas tarefas.',
-        confirmLabel: 'Remover'
-      });
-      if (!confirmed) return;
-    }
-
     setSubmitting(true);
     try {
       await scheduleApi.replaceSprintTasks(selectedSprint.id, taskIds);
@@ -540,7 +500,6 @@ export function ScheduleScreen() {
             onSelect={selectSprint}
             onShowProgress={showProgress}
             onEdit={editSprint}
-            onDelete={removeSprint}
             onChangeStatus={changeSprintStatus}
           />
           {progressSprint && (

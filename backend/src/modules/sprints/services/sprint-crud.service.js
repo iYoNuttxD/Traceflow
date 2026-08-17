@@ -1,21 +1,28 @@
-// Casos de uso de CRUD de sprint. Regras de negocio vivem aqui, nunca no controller.
+// Casos de uso de CRUD e de escopo da sprint. Regras de negocio vivem aqui,
+// nunca no controller e nunca no repository — o repository so garante que elas
+// rodem sobre um retrato travado, dentro da transacao que escreve.
 import { sprintRepository } from '../repositories/sprint.repository.js';
 import { buildAuditEvent } from '../../audit/audit.service.js';
 import { authorizationService } from '../../authorization/index.js';
 import { ERROR_CODES } from '../../../shared/errors/index.js';
 import {
+  REMOVAL_REASONS,
   SprintServiceError,
   buildSprintData,
   ensureAtLeastOneField,
   ensureDateRange,
-  ensureSprintAcceptsTasks,
+  ensureNoOverlap,
   ensureSprintEditable,
+  ensureSprintScopeMutable,
+  ensureWithinTaskLimit,
   isUniqueNameViolation,
   parseProjectId,
   parseSprintId,
   parseTaskId,
+  sprintDeleteNotSupportedError,
   sprintNameConflictError,
-  sprintNotFoundError
+  sprintNotFoundError,
+  taskNotFoundError
 } from '../sprint.schema.js';
 
 export async function ensureProjectExists(projectId) {
@@ -32,6 +39,170 @@ export async function ensureSprintExists(sprintId) {
   return sprint;
 }
 
+// A tarefa de outro projeto nao pode revelar que existe. Responder 400 para
+// "existe em outro projeto" e 404 para "nao existe" faria deste endpoint um
+// oraculo: iterando o ID, um membro mapearia tarefas de projetos a que nao tem
+// acesso. O erro informativo fica so para quem ja enxerga o outro projeto.
+async function rejectForeignTask(task, actorUserId) {
+  if (!(await authorizationService.actorSeesProject(task.projectId, actorUserId))) {
+    throw taskNotFoundError();
+  }
+  throw new SprintServiceError(
+    'A tarefa informada não pertence ao mesmo projeto da sprint.',
+    400,
+    ERROR_CODES.TASK_SPRINT_PROJECT_MISMATCH
+  );
+}
+
+// Traduz o conjunto desejado em entradas e saidas de participacao.
+//
+// `mode` decide como o alvo e formado, mas o resto e identico nos tres caminhos:
+// substituir o conjunto (painel do cronograma), acrescentar uma tarefa ou
+// remove-la (endpoints do lado da tarefa). Um caminho unico e o que impede que
+// `PATCH /tasks/:id/sprint` e `PUT /sprints/:id/tasks` divirjam no historico.
+async function buildScopePlan({
+  mode,
+  audit,
+  sprintId,
+  requestedIds,
+  occurredAt,
+  context,
+  sprint,
+  participations,
+  tasks,
+  activeElsewhere
+}) {
+  // Revalidado com a sprint travada: o status lido antes da transacao pode ter
+  // mudado entre a leitura e a escrita.
+  ensureSprintScopeMutable(sprint);
+
+  const taskById = new Map(tasks.map((task) => [task.id, task]));
+  if (mode !== 'detach') {
+    if (requestedIds.some((taskId) => !taskById.has(taskId))) throw taskNotFoundError();
+    // Nunca confiar no projectId do frontend: comparar com o registro persistido.
+    const foreign = requestedIds
+      .map((taskId) => taskById.get(taskId))
+      .find((task) => task.projectId !== sprint.projectId);
+    if (foreign) await rejectForeignTask(foreign, context.actorUserId);
+  }
+
+  const active = participations.filter((participacao) => participacao.removedAt === null);
+  const inside = active.map((participacao) => participacao.taskId).filter(Boolean);
+
+  const target =
+    mode === 'replace'
+      ? requestedIds
+      : mode === 'attach'
+        ? [...new Set([...inside, ...requestedIds])]
+        : inside.filter((taskId) => !requestedIds.includes(taskId));
+
+  ensureWithinTaskLimit(target.length);
+
+  const toAttach = target.filter((taskId) => !inside.includes(taskId));
+  const toDetach = inside.filter((taskId) => !target.includes(taskId));
+
+  const participationByTask = new Map(
+    participations.map((participacao) => [participacao.taskId, participacao])
+  );
+  const elsewhereByTask = new Map(
+    activeElsewhere.map((participacao) => [participacao.taskId, participacao])
+  );
+
+  const historyEntry = (taskId, fromValue, toValue) => ({
+    projectId: sprint.projectId,
+    taskId,
+    actorUserId: context.actorUserId,
+    field: 'SPRINT',
+    fromValue,
+    toValue
+  });
+
+  const close = [];
+  const open = [];
+  const historyEntries = [];
+
+  for (const taskId of toDetach) {
+    const participacao = participationByTask.get(taskId);
+    close.push({
+      id: participacao.id,
+      at: occurredAt,
+      reason: REMOVAL_REASONS.REMOVIDA,
+      exitStatus: taskById.get(taskId)?.status ?? null
+    });
+    historyEntries.push(historyEntry(taskId, String(sprintId), null));
+  }
+
+  for (const taskId of toAttach) {
+    // A tarefa pode estar ativa em outra sprint. Fechar aquela participacao com
+    // o status de saida — em vez de apaga-la — e o que permite a Sprint 1
+    // continuar afirmando o que aconteceu nela depois da tarefa seguir adiante.
+    const previous = elsewhereByTask.get(taskId) ?? null;
+    if (previous) {
+      close.push({
+        id: previous.id,
+        at: occurredAt,
+        reason: REMOVAL_REASONS.MOVIDA,
+        exitStatus: taskById.get(taskId)?.status ?? null
+      });
+    }
+    const existing = participationByTask.get(taskId) ?? null;
+    open.push({
+      id: existing?.id ?? null,
+      taskId,
+      taskTitleSnapshot: taskById.get(taskId)?.title ?? '',
+      // Reentrada preserva a entrada original: "saiu e voltou" nao e uma
+      // inclusao nova, e recarimbar `addedAfterStart` inventaria mudanca de
+      // escopo que nao houve.
+      addedAt: existing?.addedAt ?? occurredAt,
+      addedAfterStart: existing ? existing.addedAfterStart : sprint.startedAt !== null,
+      carriedFromSprintId: previous ? previous.sprintId : (existing?.carriedFromSprintId ?? null)
+    });
+    // Mesma convencao ja documentada: a troca A -> B e uma unica entrada,
+    // nunca uma saida seguida de uma entrada.
+    historyEntries.push(
+      historyEntry(taskId, previous ? String(previous.sprintId) : null, String(sprintId))
+    );
+  }
+
+  return {
+    close,
+    open,
+    detachTaskIds: toDetach,
+    attachTaskIds: toAttach,
+    historyEntries,
+    // O caminho de escrita e unico, mas a trilha de auditoria continua dizendo
+    // QUAL operacao o usuario pediu: "associou uma tarefa" e "substituiu o
+    // escopo da sprint" sao fatos diferentes para quem audita depois.
+    auditEvent: buildAuditEvent({
+      actorUserId: context.actorUserId,
+      projectId: sprint.projectId,
+      requestId: context.requestId,
+      action: audit.action,
+      resourceType: 'Sprint',
+      resourceId: sprintId,
+      metadata: {
+        sprintId,
+        ...audit.metadata,
+        attached: toAttach.length,
+        detached: toDetach.length
+      }
+    })
+  };
+}
+
+async function mutateScope(sprintId, requestedIds, mode, context, audit) {
+  const occurredAt = new Date();
+  const tasks = await sprintRepository.mutateScopeWithinSprintLock(
+    sprintId,
+    requestedIds,
+    (snapshot) =>
+      buildScopePlan({ mode, audit, sprintId, requestedIds, occurredAt, context, ...snapshot })
+  );
+  // null significa que a sprint sumiu entre a checagem e o lock.
+  if (tasks === null) throw sprintNotFoundError();
+  return tasks;
+}
+
 export const sprintCrudService = {
   async createSprint(projectId, data, context = {}) {
     const parsedProjectId = parseProjectId(projectId);
@@ -39,7 +210,7 @@ export const sprintCrudService = {
     const sprintData = buildSprintData(data, true);
     ensureDateRange(sprintData.startDate, sprintData.endDate);
     try {
-      return await sprintRepository.create(
+      return await sprintRepository.createWithinProjectLock(
         parsedProjectId,
         sprintData,
         buildAuditEvent({
@@ -48,7 +219,8 @@ export const sprintCrudService = {
           requestId: context.requestId,
           action: 'SPRINT_CREATED',
           resourceType: 'Sprint'
-        })
+        }),
+        (sprints) => ensureNoOverlap(sprintData, sprints)
       );
     } catch (error) {
       if (isUniqueNameViolation(error)) throw sprintNameConflictError();
@@ -72,18 +244,18 @@ export const sprintCrudService = {
   async updateSprint(sprintId, data, context = {}) {
     const id = parseSprintId(sprintId);
     const current = await ensureSprintExists(id);
-    ensureSprintEditable(current);
     const sprintData = ensureAtLeastOneField(
       buildSprintData(data),
       'Informe ao menos um campo para atualizar a sprint.'
     );
-    ensureDateRange(
-      sprintData.startDate ?? current.startDate,
-      sprintData.endDate ?? current.endDate
-    );
+    const startDate = sprintData.startDate ?? current.startDate;
+    const endDate = sprintData.endDate ?? current.endDate;
+    ensureDateRange(startDate, endDate);
+
     try {
-      return await sprintRepository.update(
+      return await sprintRepository.updateWithinProjectLock(
         id,
+        current.projectId,
         sprintData,
         buildAuditEvent({
           actorUserId: context.actorUserId,
@@ -93,7 +265,15 @@ export const sprintCrudService = {
           resourceType: 'Sprint',
           resourceId: id,
           metadata: { sprintId: id }
-        })
+        }),
+        (sprints) => {
+          // O status vem do retrato travado, nao da leitura anterior: entre uma
+          // e outra a sprint pode ter sido encerrada por outra requisicao.
+          const locked = sprints.find((sprint) => sprint.id === id);
+          if (!locked) throw sprintNotFoundError();
+          ensureSprintEditable(locked);
+          ensureNoOverlap({ startDate, endDate }, sprints, id);
+        }
       );
     } catch (error) {
       if (isUniqueNameViolation(error)) throw sprintNameConflictError();
@@ -101,30 +281,13 @@ export const sprintCrudService = {
     }
   },
 
-  async deleteSprint(sprintId, context = {}) {
-    const id = parseSprintId(sprintId);
-    const sprint = await ensureSprintExists(id);
-    const taskCount = await sprintRepository.countTasks(id);
-    if (taskCount > 0) {
-      throw new SprintServiceError(
-        'Não é possível excluir uma sprint com tarefas associadas. Desassocie as tarefas primeiro.',
-        409,
-        ERROR_CODES.SPRINT_HAS_TASKS
-      );
-    }
-    await sprintRepository.delete(
-      id,
-      buildAuditEvent({
-        actorUserId: context.actorUserId,
-        projectId: sprint.projectId,
-        requestId: context.requestId,
-        action: 'SPRINT_DELETED',
-        resourceType: 'Sprint',
-        resourceId: id,
-        metadata: { sprintId: id }
-      })
-    );
-    return { id };
+  // Sprint nao e excluida em nenhum estado (ADR-010 D06). A rota continua
+  // registrada e recusa explicitamente: removida, ela devolveria 404, que se
+  // confunde com "sprint nao existe". A recusa acontece antes de qualquer
+  // leitura ou mutacao, o que elimina tambem a corrida entre contar tarefas e
+  // apagar a sprint.
+  async deleteSprint() {
+    throw sprintDeleteNotSupportedError();
   },
 
   async findTasksBySprint(sprintId) {
@@ -133,89 +296,36 @@ export const sprintCrudService = {
     return sprintRepository.findTasksBySprint(id);
   },
 
-  // Substituicao atomica do conjunto de tarefas da sprint.
-  // Espelha PUT /requirements/:id/tasks: falha em qualquer item nao persiste nada.
+  // Substituicao do conjunto de tarefas da sprint (PUT /sprints/:id/tasks).
   async replaceTasks(sprintId, taskIds = [], context = {}) {
     const id = parseSprintId(sprintId);
-    const sprint = await ensureSprintExists(id);
-
+    await ensureSprintExists(id);
     const requestedIds = [...new Set(taskIds.map((value) => parseTaskId(value)))];
-    const tasks = requestedIds.length ? await sprintRepository.findTasksByIds(requestedIds) : [];
-
-    if (tasks.length !== requestedIds.length) {
-      throw new SprintServiceError('Tarefa não encontrada.', 404, ERROR_CODES.TASK_NOT_FOUND);
-    }
-    // Nunca confiar no projectId do frontend: comparar com o registro persistido.
-    const foreign = tasks.find((task) => task.projectId !== sprint.projectId);
-    if (foreign) {
-      // Responder 400 para "existe em outro projeto" e 404 para "não existe" faria deste
-      // endpoint um oráculo: iterando o ID, um membro mapearia tarefas de projetos a que
-      // não tem acesso. O erro informativo fica só para quem já enxerga o outro projeto;
-      // para os demais a resposta é idêntica à de um ID inexistente.
-      if (!(await authorizationService.actorSeesProject(foreign.projectId, context.actorUserId))) {
-        throw new SprintServiceError('Tarefa não encontrada.', 404, ERROR_CODES.TASK_NOT_FOUND);
-      }
-      throw new SprintServiceError(
-        'A tarefa informada não pertence ao mesmo projeto da sprint.',
-        400,
-        ERROR_CODES.TASK_SPRINT_PROJECT_MISMATCH
-      );
-    }
-
-    // Sprint de origem de cada tarefa pedida. Uma tarefa pode chegar vinda de
-    // outra sprint: gravar null como origem apagaria a saida da sprint anterior,
-    // que e justamente o que torna a troca identificavel no historico (RF10).
-    const previousSprintByTask = new Map(tasks.map((task) => [task.id, task.sprintId ?? null]));
-
-    const current = await sprintRepository.findTasksBySprint(id);
-    const currentIds = current.map((task) => task.id);
-    const toAttach = requestedIds.filter((taskId) => !currentIds.includes(taskId));
-    const toDetach = currentIds.filter((taskId) => !requestedIds.includes(taskId));
-
-    // A regra proibe ASSOCIAR tarefa a sprint terminal, nao desassociar.
-    // Bloquear a remocao criaria um impasse: DELETE exige sprint sem tarefas,
-    // e estados terminais nao transicionam de volta — a sprint ficaria presa.
-    if (toAttach.length) ensureSprintAcceptsTasks(sprint);
-
-    const historyEntries = [
-      // Mesma convencao de task-sprint.service.js: a troca A -> B e uma unica
-      // entrada, nao uma saida seguida de uma entrada.
-      ...toAttach.map((taskId) => {
-        const previousSprintId = previousSprintByTask.get(taskId) ?? null;
-        return {
-          projectId: sprint.projectId,
-          taskId,
-          actorUserId: context.actorUserId,
-          field: 'SPRINT',
-          fromValue: previousSprintId === null ? null : String(previousSprintId),
-          toValue: String(id)
-        };
-      }),
-      ...toDetach.map((taskId) => ({
-        projectId: sprint.projectId,
-        taskId,
-        actorUserId: context.actorUserId,
-        field: 'SPRINT',
-        fromValue: String(id),
-        toValue: null
-      }))
-    ];
-
-    const updated = await sprintRepository.replaceTasks(id, {
-      toAttach,
-      toDetach,
-      historyEntries,
-      auditEvent: buildAuditEvent({
-        actorUserId: context.actorUserId,
-        projectId: sprint.projectId,
-        requestId: context.requestId,
-        action: 'SPRINT_TASKS_REPLACED',
-        resourceType: 'Sprint',
-        resourceId: id,
-        metadata: { sprintId: id, count: historyEntries.length }
-      })
+    ensureWithinTaskLimit(requestedIds.length);
+    const tasks = await mutateScope(id, requestedIds, 'replace', context, {
+      action: 'SPRINT_TASKS_REPLACED',
+      metadata: {}
     });
+    return { sprintId: id, tasks };
+  },
 
-    return { sprintId: id, tasks: updated };
+  // Entrada e saida pelo lado da tarefa. Passam pelo mesmo plano da substituicao
+  // para que os dois caminhos produzam exatamente o mesmo historico.
+  async attachTaskToSprint(sprintId, taskId, context = {}) {
+    const id = parseSprintId(sprintId);
+    const task = parseTaskId(taskId);
+    return mutateScope(id, [task], 'attach', context, {
+      action: 'TASK_SPRINT_LINKED',
+      metadata: { taskId: task }
+    });
+  },
+
+  async detachTaskFromSprint(sprintId, taskId, context = {}) {
+    const id = parseSprintId(sprintId);
+    const task = parseTaskId(taskId);
+    return mutateScope(id, [task], 'detach', context, {
+      action: 'TASK_SPRINT_UNLINKED',
+      metadata: { taskId: task }
+    });
   }
 };

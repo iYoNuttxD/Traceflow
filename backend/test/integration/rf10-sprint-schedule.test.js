@@ -122,7 +122,45 @@ describe('integridade no banco', () => {
 });
 
 describe('transacoes dos repositories', () => {
-  it('replaceTasks grava vinculo, historico e auditoria no mesmo escopo', async () => {
+  const auditEvent = (projectId, sprintId, actorUserId) => ({
+    actorUserId,
+    actorType: 'USER',
+    projectId,
+    action: 'SPRINT_TASKS_REPLACED',
+    resourceType: 'Sprint',
+    resourceId: String(sprintId),
+    result: 'SUCCESS',
+    retentionUntil: new Date('2027-01-01T00:00:00.000Z')
+  });
+
+  const planoDeEntrada = (project, sprint, task, actorUserId) => () => ({
+    close: [],
+    open: [
+      {
+        id: null,
+        taskId: task.id,
+        taskTitleSnapshot: task.title,
+        addedAt: new Date('2026-08-02T10:00:00.000Z'),
+        addedAfterStart: false,
+        carriedFromSprintId: null
+      }
+    ],
+    detachTaskIds: [],
+    attachTaskIds: [task.id],
+    historyEntries: [
+      {
+        projectId: project.id,
+        taskId: task.id,
+        actorUserId,
+        field: 'SPRINT',
+        fromValue: null,
+        toValue: String(sprint.id)
+      }
+    ],
+    auditEvent: auditEvent(project.id, sprint.id, actorUserId)
+  });
+
+  it('a mutacao de escopo grava participacao, ponteiro, historico e auditoria juntos', async () => {
     const project = await createProject(prisma);
     const sprint = await createSprint(prisma, project.id);
     const task = await createTask(prisma, project.id);
@@ -130,61 +168,37 @@ describe('transacoes dos repositories', () => {
       data: { name: 'Ator', email: `ator-tx-${task.id}@example.invalid`, passwordHash: 'x' }
     });
 
-    await sprintRepository.replaceTasks(sprint.id, {
-      toAttach: [task.id],
-      toDetach: [],
-      historyEntries: [
-        {
-          projectId: project.id,
-          taskId: task.id,
-          actorUserId: user.id,
-          field: 'SPRINT',
-          fromValue: null,
-          toValue: String(sprint.id)
-        }
-      ],
-      auditEvent: {
-        actorUserId: user.id,
-        actorType: 'USER',
-        projectId: project.id,
-        action: 'SPRINT_TASKS_REPLACED',
-        resourceType: 'Sprint',
-        resourceId: String(sprint.id),
-        result: 'SUCCESS',
-        retentionUntil: new Date('2027-01-01T00:00:00.000Z')
-      }
-    });
+    await sprintRepository.mutateScopeWithinSprintLock(
+      sprint.id,
+      [task.id],
+      planoDeEntrada(project, sprint, task, user.id)
+    );
 
+    expect(await prisma.sprintTask.count({ where: { sprintId: sprint.id } })).toBe(1);
     expect((await prisma.task.findUnique({ where: { id: task.id } })).sprintId).toBe(sprint.id);
     expect(await prisma.taskHistoryEntry.count({ where: { field: 'SPRINT' } })).toBe(1);
     expect(await prisma.auditEvent.count({ where: { action: 'SPRINT_TASKS_REPLACED' } })).toBe(1);
   });
 
-  it('falha na auditoria desfaz o vinculo e o historico', async () => {
+  // A participacao entra na mesma transacao do vinculo: se a auditoria falhar,
+  // nao pode sobrar registro historico de uma associacao que nunca existiu.
+  it('falha na auditoria desfaz participacao, vinculo e historico', async () => {
     const project = await createProject(prisma);
     const sprint = await createSprint(prisma, project.id);
     const task = await createTask(prisma, project.id);
 
     await expect(
-      sprintRepository.replaceTasks(sprint.id, {
-        toAttach: [task.id],
-        toDetach: [],
-        historyEntries: [],
+      sprintRepository.mutateScopeWithinSprintLock(
+        sprint.id,
+        [task.id],
         // actorUserId inexistente viola a FK e deve derrubar a transacao inteira.
-        auditEvent: {
-          actorUserId: 999999,
-          actorType: 'USER',
-          projectId: project.id,
-          action: 'SPRINT_TASKS_REPLACED',
-          resourceType: 'Sprint',
-          resourceId: String(sprint.id),
-          result: 'SUCCESS',
-          retentionUntil: new Date('2027-01-01T00:00:00.000Z')
-        }
-      })
+        planoDeEntrada(project, sprint, task, 999999)
+      )
     ).rejects.toBeDefined();
 
+    expect(await prisma.sprintTask.count()).toBe(0);
     expect((await prisma.task.findUnique({ where: { id: task.id } })).sprintId).toBeNull();
+    expect(await prisma.taskHistoryEntry.count({ where: { field: 'SPRINT' } })).toBe(0);
     expect(await prisma.auditEvent.count()).toBe(0);
   });
 

@@ -254,6 +254,20 @@ export const taskRepository = {
 
   async deleteTask(id, { auditEvent, calculateRequirementStatus, requirementId } = {}) {
     return prisma.$transaction(async (tx) => {
+      // A participacao em sprints sobrevive a exclusao da tarefa: fecha com o
+      // status que ela tinha, e a FK deixa `taskId` nulo. O denominador de uma
+      // sprint encerrada nao pode mudar porque alguem apagou a tarefa depois —
+      // o snapshot de titulo e o que resta para identifica-la (ADR-010 D09).
+      const atual = await tx.task.findUnique({ where: { id }, select: { status: true } });
+      await tx.sprintTask.updateMany({
+        where: { taskId: id, removedAt: null },
+        data: {
+          removedAt: new Date(),
+          removalReason: 'TAREFA_EXCLUIDA',
+          exitStatus: atual?.status ?? null
+        }
+      });
+
       await tx.taskCommit.deleteMany({
         where: { taskId: id }
       });

@@ -12,7 +12,6 @@ const mocks = vi.hoisted(() => ({
     createSprint: vi.fn(),
     updateSprint: vi.fn(),
     updateSprintStatus: vi.fn(),
-    removeSprint: vi.fn(),
     listSprintTasks: vi.fn(),
     replaceSprintTasks: vi.fn(),
     createMilestone: vi.fn(),
@@ -108,7 +107,6 @@ describe('contrato dos modulos consumidos', () => {
       'createSprint',
       'updateSprint',
       'updateSprintStatus',
-      'removeSprint',
       'listSprintTasks',
       'listProjectTasks',
       'replaceSprintTasks',
@@ -285,9 +283,10 @@ describe('economia de requisicoes', () => {
   });
 });
 
-// O fluxo de exclusao usa o ConfirmProvider real: e o unico jeito de detectar
-// contrato errado no options do confirm (title/description/confirmLabel).
-describe('exclusao com confirmacao', () => {
+// Sprint nao e excluida em nenhum estado: o cronograma e registro historico do
+// projeto (ADR-010 D06). A tela nao oferece a acao — nem habilitada, nem
+// desabilitada com explicacao: nao existe fluxo de exclusao para explicar.
+describe('ausencia de exclusao de sprint', () => {
   const umaSprint = {
     id: 3,
     name: 'Sprint 1',
@@ -299,91 +298,24 @@ describe('exclusao com confirmacao', () => {
 
   beforeEach(() => {
     mocks.schedule.listSprints.mockResolvedValue({ data: { total: 1, sprints: [umaSprint] } });
-    mocks.schedule.listMilestones.mockResolvedValue({
-      data: {
-        total: 1,
-        milestones: [
-          {
-            id: 5,
-            title: 'Entrega parcial',
-            description: null,
-            dueDate: '2026-08-14',
-            status: 'PENDENTE'
-          }
-        ]
-      }
-    });
   });
 
-  it('exibe titulo e descricao no dialogo de exclusao de sprint', async () => {
-    const user = userEvent.setup();
+  it('nao oferece acao de excluir sprint', async () => {
     renderScreen();
-
     const lista = await screen.findByRole('list', { name: 'Sprints do projeto' });
-    await user.click(within(lista).getByRole('button', { name: /^Excluir a sprint/ }));
-
-    const dialog = await screen.findByRole('dialog');
-    expect(dialog).toHaveTextContent('Excluir sprint');
-    // O bug original: description ficava vazia porque a chave passada era `message`.
-    expect(dialog).toHaveTextContent(/A sprint "Sprint 1" será excluída/);
-    expect(dialog).toHaveTextContent('Esta ação não pode ser desfeita.');
-    expect(within(dialog).getByRole('button', { name: 'Excluir' })).toBeInTheDocument();
+    expect(within(lista).queryByRole('button', { name: /Excluir a sprint/ })).toBeNull();
   });
 
-  it('cancelar no dialogo nao chama a API', async () => {
-    const user = userEvent.setup();
-    renderScreen();
-
-    const lista = await screen.findByRole('list', { name: 'Sprints do projeto' });
-    await user.click(within(lista).getByRole('button', { name: /^Excluir a sprint/ }));
-    const dialog = await screen.findByRole('dialog');
-    await user.click(within(dialog).getByRole('button', { name: 'Cancelar' }));
-
-    expect(mocks.schedule.removeSprint).not.toHaveBeenCalled();
-  });
-
-  it('confirmar exclui a sprint e a remove da lista', async () => {
-    const user = userEvent.setup();
-    mocks.schedule.removeSprint.mockResolvedValue({ data: {} });
-    renderScreen();
-
-    const lista = await screen.findByRole('list', { name: 'Sprints do projeto' });
-    await user.click(within(lista).getByRole('button', { name: /^Excluir a sprint/ }));
-    const dialog = await screen.findByRole('dialog');
-    await user.click(within(dialog).getByRole('button', { name: 'Excluir' }));
-
-    await waitFor(() => expect(mocks.schedule.removeSprint).toHaveBeenCalledWith(3));
-    expect(await screen.findByText('Sprint excluída com sucesso.')).toBeInTheDocument();
-    expect(screen.getByText('Nenhuma sprint cadastrada.')).toBeInTheDocument();
-  });
-
-  it('exibe a mensagem do backend quando a exclusao e bloqueada', async () => {
-    const user = userEvent.setup();
-    mocks.schedule.removeSprint.mockRejectedValue({
-      response: {
-        status: 409,
-        data: {
-          message:
-            'Não é possível excluir uma sprint com tarefas associadas. Desassocie as tarefas primeiro.'
-        }
-      }
-    });
-    renderScreen();
-
-    const lista = await screen.findByRole('list', { name: 'Sprints do projeto' });
-    await user.click(within(lista).getByRole('button', { name: /^Excluir a sprint/ }));
-    const dialog = await screen.findByRole('dialog');
-    await user.click(within(dialog).getByRole('button', { name: 'Excluir' }));
-
-    expect(
-      await screen.findByText(/Não é possível excluir uma sprint com tarefas associadas/)
-    ).toBeInTheDocument();
+  it('a camada de API nao expoe exclusao de sprint', async () => {
+    const actual = await vi.importActual('../../src/features/schedule/api/schedule.api.js');
+    expect(actual.scheduleApi.removeSprint).toBeUndefined();
   });
 });
 
-// Em sprint encerrada a remocao e irreversivel: a API recusa reincluir.
-// O usuario precisa ser avisado antes de confirmar.
-describe('remocao em sprint encerrada', () => {
+// Sprint encerrada e registro historico: o escopo nao muda em nenhuma direcao.
+// Antes a remocao era permitida — era o unico jeito de esvaziar a sprint para
+// exclui-la. Sem exclusao, o painel vira leitura.
+describe('escopo de sprint encerrada', () => {
   const sprintEncerrada = {
     id: 3,
     name: 'Sprint 1',
@@ -414,59 +346,27 @@ describe('remocao em sprint encerrada', () => {
     return screen.findByRole('region', { name: /Tarefas da sprint Sprint 1/ });
   }
 
-  it('desabilita apenas as tarefas de fora e explica o motivo', async () => {
+  it('nao oferece caixas de selecao nem botao de salvar', async () => {
     const user = userEvent.setup();
     renderScreen();
     const painel = await abrirPainel(user);
 
-    const caixas = within(painel).getAllByRole('checkbox');
-    expect(caixas[0]).toBeEnabled(); // ja associada: pode remover
-    expect(caixas[1]).toBeDisabled(); // fora: nao pode entrar
+    expect(within(painel).queryAllByRole('checkbox')).toHaveLength(0);
+    expect(within(painel).queryByRole('button', { name: /Salvar|Confirmar/ })).toBeNull();
     expect(
-      within(painel).getByText(/Não pode ser adicionada a uma sprint encerrada/)
+      within(painel).getByText(/a composição abaixo é o registro do que aconteceu/)
     ).toBeInTheDocument();
   });
 
-  it('avisa que a remocao e irreversivel antes de confirmar', async () => {
+  // So a composicao registrada. Listar o projeto inteiro ofereceria uma escolha
+  // que nao existe mais, e sugeriria que a sprint ainda pode receber tarefas.
+  it('mostra apenas as tarefas que ficaram registradas na sprint', async () => {
     const user = userEvent.setup();
     renderScreen();
     const painel = await abrirPainel(user);
 
-    await user.click(within(painel).getAllByRole('checkbox')[0]);
-    await user.click(within(painel).getByRole('button', { name: 'Confirmar remoção' }));
-
-    const dialog = await screen.findByRole('dialog');
-    expect(dialog).toHaveTextContent('Remover tarefa de sprint encerrada');
-    expect(dialog).toHaveTextContent(/Não será possível recolocá-la/);
-    expect(dialog).toHaveTextContent(/"Ja na sprint"/);
-    expect(mocks.schedule.replaceSprintTasks).not.toHaveBeenCalled();
-  });
-
-  it('cancelar no aviso preserva a associacao', async () => {
-    const user = userEvent.setup();
-    renderScreen();
-    const painel = await abrirPainel(user);
-
-    await user.click(within(painel).getAllByRole('checkbox')[0]);
-    await user.click(within(painel).getByRole('button', { name: 'Confirmar remoção' }));
-    const dialog = await screen.findByRole('dialog');
-    await user.click(within(dialog).getByRole('button', { name: 'Cancelar' }));
-
-    expect(mocks.schedule.replaceSprintTasks).not.toHaveBeenCalled();
-  });
-
-  it('confirmar remove a tarefa da sprint', async () => {
-    const user = userEvent.setup();
-    mocks.schedule.replaceSprintTasks.mockResolvedValue({ data: {} });
-    renderScreen();
-    const painel = await abrirPainel(user);
-
-    await user.click(within(painel).getAllByRole('checkbox')[0]);
-    await user.click(within(painel).getByRole('button', { name: 'Confirmar remoção' }));
-    const dialog = await screen.findByRole('dialog');
-    await user.click(within(dialog).getByRole('button', { name: 'Remover' }));
-
-    await waitFor(() => expect(mocks.schedule.replaceSprintTasks).toHaveBeenCalledWith(3, []));
+    expect(within(painel).getByText(/Ja na sprint/)).toBeInTheDocument();
+    expect(within(painel).queryByText(/Fora da sprint/)).toBeNull();
   });
 
   it('sprint nao terminal salva sem aviso', async () => {
@@ -524,9 +424,9 @@ describe('clareza e confirmacao das transicoes de status', () => {
     renderScreen();
     const concluir = await screen.findByRole('button', { name: /^Concluir a sprint/ });
     expect(concluir).toHaveAttribute('title', expect.stringContaining('definitiva'));
-    expect(screen.getByRole('button', { name: /^Excluir a sprint/ })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: /^Cancelar a sprint/ })).toHaveAttribute(
       'title',
-      expect.stringContaining('não tenha tarefas associadas')
+      expect.stringContaining('definitiva')
     );
   });
 
