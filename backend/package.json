@@ -36,7 +36,9 @@
     "db:test:migrate": "node scripts/test-database.js migrate",
     "db:test:status": "node scripts/test-database.js status",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev"
+    "prisma:migrate": "prisma migrate dev",
+    "s104:dates:dry-run": "node scripts/s104-legacy-schedule-dates.js",
+    "s104:dates": "node scripts/s104-legacy-schedule-dates.js --apply"
   },
   "dependencies": {
     "@octokit/rest": "^21.0.0",
