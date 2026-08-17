@@ -1387,3 +1387,52 @@ describe('sinalizacao de inclusao posterior ao inicio', () => {
     expect(avisos[0].closest('label')).toHaveTextContent('Entrou depois');
   });
 });
+
+// Sprint encerrada nao recebe marco novo: o backend recusa com 409, e oferecer a
+// opcao na lista seria propor uma escolha que nao existe.
+describe('sprints oferecidas no formulario de marco', () => {
+  const sprint = (id, name, status) => ({
+    id,
+    name,
+    objective: null,
+    startDate: '2026-08-01T00:00:00.000Z',
+    endDate: '2026-08-14T00:00:00.000Z',
+    status
+  });
+
+  it('nao oferece sprint concluida nem cancelada', async () => {
+    mocks.schedule.listSprints.mockResolvedValue({
+      data: {
+        total: 4,
+        sprints: [
+          sprint(1, 'Planejada', 'PLANEJADA'),
+          sprint(2, 'Em andamento', 'EM_ANDAMENTO'),
+          sprint(3, 'Concluída', 'CONCLUIDA'),
+          sprint(4, 'Cancelada', 'CANCELADA')
+        ]
+      }
+    });
+    renderScreen();
+
+    const campo = await screen.findByRole('combobox', { name: /Sprint/ });
+    const opcoes = within(campo)
+      .getAllByRole('option')
+      .map((opcao) => opcao.textContent);
+
+    expect(opcoes).toEqual(['Selecione a sprint', 'Planejada', 'Em andamento']);
+  });
+
+  // "Nenhuma sprint" e "todas encerradas" sao situacoes diferentes, e mandar
+  // cadastrar uma sprint para quem ja tem tres seria conselho errado.
+  it('distingue projeto sem sprint de projeto com todas encerradas', async () => {
+    mocks.schedule.listSprints.mockResolvedValue({
+      data: { total: 1, sprints: [sprint(3, 'Concluída', 'CONCLUIDA')] }
+    });
+    renderScreen();
+
+    expect(
+      await screen.findByText(/Todas as sprints do projeto estão encerradas/)
+    ).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: /Sprint/ })).toBeDisabled();
+  });
+});

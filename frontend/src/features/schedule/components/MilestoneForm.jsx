@@ -1,4 +1,5 @@
 import { FormInput } from '../../../shared/index.js';
+import { isTerminalSprint } from './schedule-display.js';
 
 const emptyForm = { title: '', description: '', dueDate: '', sprintId: '' };
 
@@ -23,9 +24,20 @@ export function MilestoneForm({
   onSubmit,
   onCancel
 }) {
+  // Sprint encerrada é registro: não recebe marco novo, e o backend recusa com
+  // 409. Oferecê-la na lista seria propor uma escolha que não existe.
+  //
+  // A sprint já selecionada permanece na lista mesmo se encerrada — senão o
+  // campo abriria vazio numa edição e o formulário perderia o valor atual sem
+  // que o usuário tivesse mexido nele.
+  const selecionavel = (sprint) =>
+    !isTerminalSprint(sprint.status) || String(sprint.id) === String(formData.sprintId);
+  const disponiveis = sprints.filter(selecionavel);
+
   // Sem sprint nao ha marco (ADR-010 D02). Dizer isso antes do envio evita um
   // formulario que so revela o impedimento no 400 do backend.
-  const semSprints = sprints.length === 0;
+  const semSprints = disponiveis.length === 0;
+  const todasEncerradas = semSprints && sprints.length > 0;
   return (
     <form className="schedule-form" onSubmit={onSubmit} noValidate>
       <FormInput
@@ -72,7 +84,7 @@ export function MilestoneForm({
           onChange={(event) => onChange('sprintId', event.target.value)}
         >
           <option value="">Selecione a sprint</option>
-          {sprints.map((sprint) => (
+          {disponiveis.map((sprint) => (
             <option key={sprint.id} value={sprint.id}>
               {sprint.name}
             </option>
@@ -80,7 +92,9 @@ export function MilestoneForm({
         </select>
         {semSprints && (
           <span className="field-help">
-            Cadastre uma sprint antes: todo marco pertence a um período de desenvolvimento.
+            {todasEncerradas
+              ? 'Todas as sprints do projeto estão encerradas. Um marco precisa de um período ainda em aberto.'
+              : 'Cadastre uma sprint antes: todo marco pertence a um período de desenvolvimento.'}
           </span>
         )}
         {errors.sprintId && (
