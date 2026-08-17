@@ -2479,6 +2479,7 @@ a {
 }
 
 .schedule-form .form-field input,
+.schedule-form .form-field select,
 .schedule-form textarea {
   width: 100%;
   border: 1px solid #cfd6e4;
@@ -2493,7 +2494,32 @@ a {
     box-shadow 160ms ease;
 }
 
+/* O <select> nativo ignora altura, padding e borda de forma inconsistente entre
+   navegadores — por isso ele destoava dos demais campos do formulário.
+   `appearance: none` devolve o desenho ao CSS, e a seta volta como imagem de
+   fundo; o padding à direita reserva o espaço dela para o texto não passar por
+   baixo. */
+.schedule-form .form-field select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 2.5rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8' fill='none'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5' stroke='%23667085' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.9rem center;
+  background-size: 0.72rem;
+  cursor: pointer;
+  text-overflow: ellipsis;
+}
+
+.schedule-form .form-field select:disabled {
+  background-color: #f2f4f8;
+  border-color: #dde3ee;
+  color: #79839b;
+  cursor: not-allowed;
+}
+
 .schedule-form .form-field input:focus,
+.schedule-form .form-field select:focus,
 .schedule-form textarea:focus {
   border-color: #315bce;
   box-shadow: 0 0 0 3px rgba(49, 91, 206, 0.14);
