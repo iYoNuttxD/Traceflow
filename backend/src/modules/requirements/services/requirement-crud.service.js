@@ -1,20 +1,18 @@
 import { requirementRepository } from '../requirement.repository.js';
-import {
-  RequirementServiceError,
-  buildRequirementData,
-  parseProjectId,
-  parseRequirementId
-} from '../requirement.schema.js';
+import { resourceNotFoundError } from '../../../shared/errors/index.js';
+import { buildRequirementData, parseProjectId, parseRequirementId } from '../requirement.schema.js';
 
+// Mesma fábrica do middleware: "não existe" e "existe em projeto alheio"
+// precisam ser indistinguíveis.
 export async function ensureRequirementProjectExists(projectId) {
   const project = await requirementRepository.findProjectById(projectId);
-  if (!project) throw new RequirementServiceError('Projeto não encontrado.', 404);
+  if (!project) throw resourceNotFoundError('Project');
   return project;
 }
 
 export async function ensureRequirementExists(requirementId) {
   const requirement = await requirementRepository.findRequirementById(requirementId);
-  if (!requirement) throw new RequirementServiceError('Requisito não encontrado.', 404);
+  if (!requirement) throw resourceNotFoundError('Requirement');
   return requirement;
 }
 

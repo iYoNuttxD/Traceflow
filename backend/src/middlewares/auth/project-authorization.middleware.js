@@ -1,4 +1,4 @@
-import { AppError, ERROR_CODES } from '../../shared/errors/index.js';
+import { AppError, ERROR_CODES, resourceNotFoundError } from '../../shared/errors/index.js';
 import { authorizationService } from '../../modules/authorization/authorization.service.js';
 
 export function createProjectAuthorizationMiddleware({ service = authorizationService } = {}) {
@@ -8,19 +8,16 @@ export function createProjectAuthorizationMiddleware({ service = authorizationSe
       if ((req.method === 'POST' && req.path === '/projects') || req.path.startsWith('/github/'))
         return next();
       if (req.method === 'GET' && req.path === '/projects') return next();
-      const projectId = await service.resolveProjectId(req.path);
+      const { projectId, resourceType } = await service.resolveResource(req.path);
       if (!projectId) return next();
       const membership = await service.membership(projectId, req.auth.user.id);
       if (!membership) {
         if (!(await service.projectExists(projectId))) return next();
-        return next(
-          new AppError({
-            message: 'Recurso não encontrado.',
-            statusCode: 404,
-            code: ERROR_CODES.RESOURCE_NOT_FOUND,
-            exposeTechnicalDetails: true
-          })
-        );
+        // Resposta idêntica à que o service daria para um ID inexistente. Se as
+        // duas divergirem em status, código ou mensagem, o par vira oráculo:
+        // iterando o ID, um membro de um único projeto descobre quais recursos
+        // existem nos projetos a que não tem acesso.
+        return next(resourceNotFoundError(resourceType));
       }
       const required = service.requiredRole(req);
       if (!service.permits(membership.role, required)) {

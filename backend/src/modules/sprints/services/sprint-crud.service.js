@@ -4,7 +4,7 @@
 import { sprintRepository } from '../repositories/sprint.repository.js';
 import { buildAuditEvent } from '../../audit/audit.service.js';
 import { authorizationService } from '../../authorization/index.js';
-import { ERROR_CODES } from '../../../shared/errors/index.js';
+import { ERROR_CODES, resourceNotFoundError } from '../../../shared/errors/index.js';
 import {
   REMOVAL_REASONS,
   SprintServiceError,
@@ -27,9 +27,7 @@ import {
 
 export async function ensureProjectExists(projectId) {
   const project = await sprintRepository.findProjectById(projectId);
-  if (!project) {
-    throw new SprintServiceError('Projeto não encontrado.', 404, ERROR_CODES.PROJECT_NOT_FOUND);
-  }
+  if (!project) throw resourceNotFoundError('Project');
   return project;
 }
 

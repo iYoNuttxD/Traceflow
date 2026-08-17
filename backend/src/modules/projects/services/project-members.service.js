@@ -1,4 +1,5 @@
 import { projectRepository } from '../project.repository.js';
+import { resourceNotFoundError } from '../../../shared/errors/index.js';
 import {
   buildMemberData,
   normalizeAccessCode,
@@ -10,7 +11,7 @@ export const projectMembersService = {
   async addProjectMember(projectId, data, defaultRole = 'MEMBRO') {
     const parsedProjectId = parseProjectId(projectId);
     const project = await projectRepository.findById(parsedProjectId);
-    if (!project) throw new ProjectServiceError('Projeto não encontrado.', 404);
+    if (!project) throw resourceNotFoundError('Project');
 
     const memberData = buildMemberData(data, defaultRole);
     if (memberData.email) {
@@ -33,7 +34,7 @@ export const projectMembersService = {
     }
 
     const project = await projectRepository.findProjectByAccessCode(accessCode);
-    if (!project) throw new ProjectServiceError('Projeto não encontrado.', 404);
+    if (!project) throw resourceNotFoundError('Project');
     const member = await projectMembersService.addProjectMember(project.id, payload);
     if (authenticatedUser?.id) {
       await projectRepository.upsertProjectMembership(

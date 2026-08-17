@@ -769,17 +769,11 @@ describe('evolucao da sprint (RF35)', () => {
     expect((await request(app).get('/api/sprints/1/progress')).status).toBe(401);
   });
 
-  // Sprint alheia nao vaza conteudo nem status. O CODIGO, porem, difere: recurso
-  // de projeto alheio e barrado pelo middleware (RESOURCE_NOT_FOUND) e recurso
-  // inexistente cai no service (SPRINT_NOT_FOUND), porque resolveProjectId nao
-  // resolve projeto e o middleware deixa passar
-  // (project-authorization.middleware.js:14).
-  //
-  // Isso e pre-existente e vale para todo o app — /tasks/:id, /requirements/:id,
-  // /milestones/:id. Uniformizar muda o contrato publico do RF10 e esta fora do
-  // escopo do RF35; registrado no backlog tecnico. O teste fixa o comportamento
-  // atual para que qualquer mudanca seja deliberada, e nao um efeito colateral.
-  it('nao vaza conteudo de sprint alheia, com a divergencia de codigo fixada', async () => {
+  // Antes, este teste fixava a DIVERGENCIA: recurso de projeto alheio era
+  // barrado pelo middleware com RESOURCE_NOT_FOUND e recurso inexistente caia no
+  // service com SPRINT_NOT_FOUND. O par permitia iterar o ID e confirmar quais
+  // sprints existem fora do alcance do ator. Agora as duas respostas sao a mesma.
+  it('sprint alheia e sprint inexistente respondem exatamente igual', async () => {
     const owner = await register('progress-owner@example.invalid');
     const stranger = await register('progress-stranger@example.invalid');
     const alheio = await createProject(stranger, 'Projeto alheio');
@@ -788,12 +782,16 @@ describe('evolucao da sprint (RF35)', () => {
     const existente = await owner.agent.get(`/api/sprints/${sprintAlheia.id}/progress`);
     const inexistente = await owner.agent.get('/api/sprints/999999/progress');
 
+    expect(existente.status).toBe(inexistente.status);
     expect(existente.status).toBe(404);
-    expect(inexistente.status).toBe(404);
     expect(existente.body).not.toHaveProperty('planned');
     expect(existente.body).not.toHaveProperty('scopeChange');
-    expect(existente.body.code).toBe('RESOURCE_NOT_FOUND');
-    expect(inexistente.body.code).toBe('SPRINT_NOT_FOUND');
+    // `requestId` e o unico campo que pode diferir: ele identifica a requisicao,
+    // nao o recurso.
+    const semRequestId = (body) =>
+      Object.fromEntries(Object.entries(body).filter(([chave]) => chave !== 'requestId'));
+    expect(semRequestId(existente.body)).toEqual(semRequestId(inexistente.body));
+    expect(existente.body.code).toBe('SPRINT_NOT_FOUND');
   });
 
   it('VIEWER, MEMBER, MANAGER e OWNER leem a evolucao', async () => {
@@ -954,7 +952,6 @@ describe('isolamento entre projetos (IDOR/BOLA)', () => {
     expect(existente.status).toBe(inexistente.status);
     const semRequestId = ({ requestId: _requestId, ...resto }) => resto;
     expect(semRequestId(existente.body)).toEqual(semRequestId(inexistente.body));
-    expect(existente.body.code).toBe('TASK_NOT_FOUND');
     expect(await prisma.task.count({ where: { sprintId: minhaSprint.id } })).toBe(0);
   });
 
@@ -1064,5 +1061,99 @@ describe('auditoria', () => {
     const linked = await prisma.auditEvent.findMany({ where: { action: 'TASK_SPRINT_LINKED' } });
     expect(linked).toHaveLength(1);
     expect(linked[0].metadataJson).toMatchObject({ taskId: task.id, sprintId });
+  });
+});
+
+// S104-F05: o par de respostas 404 era um oraculo de enumeracao. Recurso de
+// projeto alheio era barrado pelo middleware e recurso inexistente caia no
+// service, com codigo, mensagem e ate presenca de `code` diferentes — bastava
+// iterar o ID para mapear o que existe fora do alcance do ator.
+//
+// A garantia agora e por recurso, e nao so por sprint: qualquer divergencia
+// futura entre middleware e service quebra este teste.
+describe('404 indistinguivel entre recurso alheio e inexistente', () => {
+  // `requestId` identifica a requisicao, nao o recurso: e o unico campo que pode
+  // variar entre as duas respostas.
+  const semRequestId = (body) =>
+    Object.fromEntries(Object.entries(body).filter(([chave]) => chave !== 'requestId'));
+
+  async function cenario() {
+    const owner = await register('oracle-owner@example.invalid');
+    const stranger = await register('oracle-stranger@example.invalid');
+    const alheio = await createProject(stranger, 'Projeto alheio');
+    return { owner, stranger, alheio };
+  }
+
+  it('projeto alheio e projeto inexistente sao indistinguiveis', async () => {
+    const { owner, alheio } = await cenario();
+
+    const existente = await owner.agent.get(`/api/projects/${alheio.id}`);
+    const inexistente = await owner.agent.get('/api/projects/999999');
+
+    expect(existente.status).toBe(404);
+    expect(inexistente.status).toBe(404);
+    expect(semRequestId(existente.body)).toEqual(semRequestId(inexistente.body));
+  });
+
+  it('sprint alheia e sprint inexistente sao indistinguiveis', async () => {
+    const { owner, stranger, alheio } = await cenario();
+    const sprint = (await createSprint(stranger, alheio.id)).body.sprint;
+
+    const existente = await owner.agent.get(`/api/sprints/${sprint.id}`);
+    const inexistente = await owner.agent.get('/api/sprints/999999');
+
+    expect(semRequestId(existente.body)).toEqual(semRequestId(inexistente.body));
+    expect(existente.body.code).toBe('SPRINT_NOT_FOUND');
+  });
+
+  it('marco alheio e marco inexistente sao indistinguiveis', async () => {
+    const { owner, stranger, alheio } = await cenario();
+    const marco = (await createMilestone(stranger, alheio.id)).body.milestone;
+
+    const existente = await owner.agent.get(`/api/milestones/${marco.id}`);
+    const inexistente = await owner.agent.get('/api/milestones/999999');
+
+    expect(semRequestId(existente.body)).toEqual(semRequestId(inexistente.body));
+    expect(existente.body.code).toBe('MILESTONE_NOT_FOUND');
+  });
+
+  it('tarefa alheia e tarefa inexistente sao indistinguiveis', async () => {
+    const { owner, stranger, alheio } = await cenario();
+    const task = await createTask(stranger, alheio.id, 'Tarefa alheia');
+
+    const existente = await owner.agent.get(`/api/tasks/${task.id}`);
+    const inexistente = await owner.agent.get('/api/tasks/999999');
+
+    expect(semRequestId(existente.body)).toEqual(semRequestId(inexistente.body));
+    // Tarefa segue o contrato do MVP, que devolve so a mensagem. O que importa
+    // aqui e que os dois caminhos devolvam o MESMO — inclusive na ausencia de
+    // `code`, que por si so ja distinguiria um do outro.
+    expect(existente.body).not.toHaveProperty('code');
+  });
+
+  it('requisito alheio e requisito inexistente sao indistinguiveis', async () => {
+    const { owner, stranger, alheio } = await cenario();
+    const requisito = (
+      await stranger.mutate('post', `/api/projects/${alheio.id}/requirements`).send({ title: 'RF' })
+    ).body.requirement;
+
+    const existente = await owner.agent.get(`/api/requirements/${requisito.id}`);
+    const inexistente = await owner.agent.get('/api/requirements/999999');
+
+    expect(semRequestId(existente.body)).toEqual(semRequestId(inexistente.body));
+  });
+
+  // A indistinguibilidade tem que valer em TODOS os metodos, e nao so na
+  // leitura: um PUT que responde diferente vaza a mesma informacao.
+  it('vale para os metodos de escrita tambem', async () => {
+    const { owner, stranger, alheio } = await cenario();
+    const sprint = (await createSprint(stranger, alheio.id)).body.sprint;
+
+    const alheia = await owner.mutate('put', `/api/sprints/${sprint.id}`).send({ name: 'X' });
+    const inexistente = await owner.mutate('put', '/api/sprints/999999').send({ name: 'X' });
+
+    expect(alheia.status).toBe(404);
+    expect(inexistente.status).toBe(404);
+    expect(semRequestId(alheia.body)).toEqual(semRequestId(inexistente.body));
   });
 });
