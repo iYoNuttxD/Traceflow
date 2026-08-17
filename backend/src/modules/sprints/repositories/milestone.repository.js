@@ -5,6 +5,7 @@ import { auditRepository } from '../../audit/audit.repository.js';
 export const milestoneSelect = {
   id: true,
   projectId: true,
+  sprintId: true,
   title: true,
   description: true,
   dueDate: true,

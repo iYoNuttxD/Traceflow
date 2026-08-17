@@ -663,6 +663,54 @@ describe('formulario de marco', () => {
     expect(screen.getByText('Informe a data prevista.')).toBeInTheDocument();
     expect(mocks.schedule.createMilestone).not.toHaveBeenCalled();
   });
+
+  // Todo marco pertence a uma sprint (ADR-010 D02). Sem sprint no projeto o campo
+  // nao tem o que oferecer, e a tela precisa dizer isso antes do envio.
+  it('desabilita a sprint e explica o impedimento quando o projeto nao tem sprints', async () => {
+    renderScreen();
+    await screen.findByText('Cronograma vazio.');
+
+    expect(screen.getByRole('combobox', { name: /Sprint/ })).toBeDisabled();
+    expect(
+      screen.getByText(
+        'Cadastre uma sprint antes: todo marco pertence a um período de desenvolvimento.'
+      )
+    ).toBeInTheDocument();
+  });
+
+  it('envia a sprint escolhida ao cadastrar o marco', async () => {
+    const user = userEvent.setup();
+    mocks.schedule.listSprints.mockResolvedValue({
+      data: {
+        total: 1,
+        sprints: [
+          {
+            id: 7,
+            name: 'Sprint 1',
+            objective: null,
+            startDate: '2026-08-01',
+            endDate: '2026-08-14',
+            status: 'PLANEJADA'
+          }
+        ]
+      }
+    });
+    mocks.schedule.createMilestone.mockResolvedValue({ data: {} });
+    renderScreen();
+    await screen.findByRole('option', { name: 'Sprint 1' });
+
+    await user.type(screen.getByLabelText(/Título/), 'Entrega parcial');
+    await user.type(screen.getByLabelText(/Data prevista/), '2026-08-10');
+    await user.selectOptions(screen.getByRole('combobox', { name: /Sprint/ }), '7');
+    await user.click(screen.getByRole('button', { name: 'Cadastrar marco' }));
+
+    await waitFor(() => expect(mocks.schedule.createMilestone).toHaveBeenCalledTimes(1));
+    // Numero, nao string: o contrato do backend valida inteiro positivo.
+    expect(mocks.schedule.createMilestone).toHaveBeenCalledWith(
+      '1',
+      expect.objectContaining({ title: 'Entrega parcial', sprintId: 7 })
+    );
+  });
 });
 
 describe('evolucao da sprint (RF35)', () => {

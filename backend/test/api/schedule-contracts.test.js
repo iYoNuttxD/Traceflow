@@ -67,9 +67,12 @@ async function createSprint(session, projectId, overrides = {}) {
 }
 
 async function createMilestone(session, projectId, overrides = {}) {
+  // Marco exige sprint (ADR-010 D02). Quem já tem uma sprint no teste passa o id;
+  // os demais recebem a sua, sem precisar declarar o cronograma inteiro.
+  const sprintId = overrides.sprintId ?? (await createSprint(session, projectId)).body.sprint.id;
   return session
     .mutate('post', `/api/projects/${projectId}/milestones`)
-    .send({ title: 'Entrega parcial', dueDate: '2026-08-14', ...overrides });
+    .send({ title: 'Entrega parcial', dueDate: '2026-08-14', ...overrides, sprintId });
 }
 
 async function createTask(session, projectId, title = 'Tarefa') {
@@ -420,7 +423,8 @@ describe('cronograma', () => {
     const inside = await createTask(owner, project.id, 'Dentro');
     await owner.mutate('patch', `/api/tasks/${inside.id}/sprint`).send({ sprintId });
     await createTask(owner, project.id, 'Sem sprint');
-    await createMilestone(owner, project.id);
+    // Reaproveita a sprint do teste: criar outra quebraria o `toHaveLength(1)` abaixo.
+    await createMilestone(owner, project.id, { sprintId });
 
     const response = await owner.agent.get(`/api/projects/${project.id}/schedule`);
     expect(response.status).toBe(200);

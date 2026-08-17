@@ -67,15 +67,18 @@ describe('migration add_sprint_milestone_schedule', () => {
     ]);
   });
 
-  it('trunca a hora das datas de calendario', async () => {
+  // Antes deste ajuste o teste fixava o comportamento oposto: `@db.Date` truncava
+  // a hora e a assercao guardava essa perda como se fosse contrato. Preservar o
+  // instante e a regra (ADR-010 D05) — 23:59:59 do dia 14 nao e meia-noite do 14.
+  it('preserva o instante exato das datas de cronograma', async () => {
     const project = await createProject(prisma);
     const sprint = await createSprint(prisma, project.id, {
       startDate: new Date('2026-08-01T18:45:30.000Z'),
       endDate: new Date('2026-08-14T23:59:59.000Z')
     });
     const stored = await prisma.sprint.findUnique({ where: { id: sprint.id } });
-    expect(stored.startDate.toISOString()).toBe('2026-08-01T00:00:00.000Z');
-    expect(stored.endDate.toISOString()).toBe('2026-08-14T00:00:00.000Z');
+    expect(stored.startDate.toISOString()).toBe('2026-08-01T18:45:30.000Z');
+    expect(stored.endDate.toISOString()).toBe('2026-08-14T23:59:59.000Z');
   });
 });
 

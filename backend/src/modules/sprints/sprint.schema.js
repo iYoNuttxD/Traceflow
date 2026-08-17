@@ -237,6 +237,18 @@ export function buildMilestoneData(data, isCreate = false) {
     }
     milestoneData.dueDate = dueDate;
   }
+  // Todo marco pertence a uma sprint: a conclusao fica ancorada no periodo de
+  // desenvolvimento que a produziu, e nao numa data solta do projeto (ADR-010 D02).
+  if (isCreate || payload.sprintId !== undefined) {
+    if (payload.sprintId === undefined || payload.sprintId === null) {
+      throw new SprintServiceError(
+        'A sprint do marco é obrigatória.',
+        400,
+        ERROR_CODES.MILESTONE_SPRINT_REQUIRED
+      );
+    }
+    milestoneData.sprintId = parseSprintId(payload.sprintId);
+  }
   return milestoneData;
 }
 
