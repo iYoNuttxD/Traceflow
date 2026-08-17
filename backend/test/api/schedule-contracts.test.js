@@ -625,6 +625,59 @@ describe('evolucao da sprint (RF35)', () => {
     expect(body.scopeChange.removed.map((item) => item.taskId)).toEqual([b.id]);
   });
 
+  // O criterio central do RF35 corrigido: a Sprint 1 continua afirmando o que
+  // aconteceu nela depois que a tarefa seguiu para a Sprint 2 e foi concluida la.
+  it('continuidade entre sprints nao reescreve o resultado da sprint encerrada', async () => {
+    const owner = await register('progress-carryover@example.invalid');
+    const project = await createProject(owner);
+    const s1 = (await createSprint(owner, project.id, { name: 'Sprint 1' })).body.sprint.id;
+    const s2 = (
+      await createSprint(owner, project.id, {
+        name: 'Sprint 2',
+        startDate: '2026-08-14',
+        endDate: '2026-08-28'
+      })
+    ).body.sprint.id;
+
+    const feita = await createTask(owner, project.id, 'Concluida na Sprint 1');
+    const arrastada = await createTask(owner, project.id, 'Continua na Sprint 2');
+    await owner.mutate('patch', `/api/tasks/${feita.id}/sprint`).send({ sprintId: s1 });
+    await owner.mutate('patch', `/api/tasks/${arrastada.id}/sprint`).send({ sprintId: s1 });
+
+    await owner.mutate('patch', `/api/sprints/${s1}/status`).send({ status: 'EM_ANDAMENTO' });
+    await owner.mutate('patch', `/api/tasks/${feita.id}/status`).send({ status: 'CONCLUIDO' });
+    await owner.mutate('patch', `/api/sprints/${s1}/status`).send({ status: 'CONCLUIDA' });
+
+    const antes = (await owner.agent.get(`/api/sprints/${s1}/progress`)).body;
+    expect(antes.frozen).toBe(true);
+    expect(antes.current).toMatchObject({ numerator: 1, denominator: 2, percentage: 50 });
+
+    // A tarefa nao concluida continua na sprint seguinte e e concluida la.
+    const movida = await owner
+      .mutate('patch', `/api/tasks/${arrastada.id}/sprint`)
+      .send({ sprintId: s2 });
+    expect(movida.status).toBe(200);
+    await owner.mutate('patch', `/api/tasks/${arrastada.id}/status`).send({ status: 'CONCLUIDO' });
+
+    const depois = (await owner.agent.get(`/api/sprints/${s1}/progress`)).body;
+    expect(depois.planned).toEqual(antes.planned);
+    expect(depois.current).toEqual(antes.current);
+    expect(depois.cutoff).toBe(antes.cutoff);
+    // O status observado na Sprint 1 continua sendo o de la, nao o de hoje.
+    expect(depois.carryOver).toEqual([
+      { taskId: arrastada.id, toSprintId: s2, exitStatus: 'A_FAZER', at: null }
+    ]);
+
+    // A Sprint 2 recebe a tarefa sabendo de onde ela veio.
+    const seguinte = (await owner.agent.get(`/api/sprints/${s2}/progress`)).body;
+    expect(seguinte.current).toMatchObject({ numerator: 1, denominator: 1 });
+    const participacao = await prisma.sprintTask.findFirst({
+      where: { sprintId: s2, taskId: arrastada.id },
+      select: { carriedFromSprintId: true }
+    });
+    expect(participacao.carriedFromSprintId).toBe(s1);
+  });
+
   it('sprint nao iniciada tem base aberta e nenhuma mudanca de escopo', async () => {
     const owner = await register('progress-open@example.invalid');
     const project = await createProject(owner);

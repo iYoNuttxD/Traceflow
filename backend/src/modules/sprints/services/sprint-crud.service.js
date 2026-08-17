@@ -133,11 +133,14 @@ async function buildScopePlan({
   }
 
   for (const taskId of toAttach) {
-    // A tarefa pode estar ativa em outra sprint. Fechar aquela participacao com
-    // o status de saida — em vez de apaga-la — e o que permite a Sprint 1
-    // continuar afirmando o que aconteceu nela depois da tarefa seguir adiante.
+    // A tarefa pode vir de outra sprint. Se aquela ainda esta aberta, a saida e
+    // registrada com o status de saida. Se ja foi encerrada, a participacao la
+    // esta congelada e NAO e tocada: reescreve-la com o status de hoje mudaria
+    // retroativamente o resultado de um periodo fechado — exatamente o que a
+    // continuidade entre sprints existe para evitar. O vinculo de origem e
+    // preservado nos dois casos.
     const previous = elsewhereByTask.get(taskId) ?? null;
-    if (previous) {
+    if (previous && previous.closedAt === null) {
       close.push({
         id: previous.id,
         at: occurredAt,

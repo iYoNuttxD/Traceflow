@@ -1,4 +1,5 @@
 // Repository de sprints. Todo acesso ao banco passa pelo Prisma parametrizado.
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../../database/prismaClient.js';
 import { auditRepository } from '../../audit/audit.repository.js';
 
@@ -174,8 +175,18 @@ export const sprintRepository = {
           })
         : [];
 
-      // Participacoes ativas das tarefas pedidas em OUTRAS sprints: a troca
-      // fecha a anterior com status de saida, em vez de apagar a passagem por la.
+      // Trava tambem as tarefas pedidas: o plano mexe em participacoes de OUTRAS
+      // sprints, que o lock da sprint alvo nao cobre. Sem isto, dois movimentos
+      // simultaneos da mesma tarefa para sprints diferentes se atropelariam.
+      // A ordem sprint -> tarefa e a mesma em todos os caminhos, o que evita
+      // ciclo de espera.
+      if (requestedTaskIds.length) {
+        await tx.$queryRaw`SELECT id FROM Task WHERE id IN (${Prisma.join(requestedTaskIds)}) FOR UPDATE`;
+      }
+
+      // Participacoes das tarefas pedidas em OUTRAS sprints, ainda nao removidas.
+      // Inclui as de sprint ja encerrada de proposito: e delas que sai o vinculo
+      // de continuidade. Quem decide fechar ou preservar e o plano.
       const activeElsewhere = requestedTaskIds.length
         ? await tx.sprintTask.findMany({
             where: {
@@ -249,33 +260,41 @@ export const sprintRepository = {
     });
   },
 
-  // Membros atuais da sprint, so o necessario para a metrica (RF35).
-  findTaskStatusesBySprint(sprintId) {
-    return prisma.task.findMany({
-      where: { sprintId },
-      select: { id: true, status: true },
-      orderBy: { id: 'asc' }
-    });
-  },
+  // Retrato da sprint para o RF35: participacoes com o status congelado, o
+  // status atual da tarefa e para onde ela seguiu depois.
+  //
+  // Duas consultas indexadas ([sprintId, removedAt] e [carriedFromSprintId]) em
+  // vez da varredura de TaskHistoryEntry que o calculo antigo exigia; a
+  // continuidade sai de um join, e nao de comparacao de strings em memoria.
+  async findParticipationsBySprint(sprintId) {
+    const [participations, continuations] = await prisma.$transaction([
+      prisma.sprintTask.findMany({
+        where: { sprintId },
+        select: { ...sprintTaskSelect, task: { select: { status: true } } },
+        orderBy: [{ taskId: 'asc' }]
+      }),
+      prisma.sprintTask.findMany({
+        where: { carriedFromSprintId: sprintId },
+        select: { taskId: true, sprintId: true }
+      })
+    ]);
 
-  // Movimentacoes de sprint posteriores a base do planejamento.
-  // Filtra por `projectId + field + occurredAt`, que usa os indices existentes
-  // ([projectId, occurredAt] e [field, occurredAt]); NAO ha indice em toValue nem
-  // em fromValue, entao a discriminacao por sprint acontece em memoria, sobre um
-  // conjunto ja limitado ao projeto e ao periodo.
-  findSprintHistorySince(projectId, since) {
-    return prisma.taskHistoryEntry.findMany({
-      where: { projectId, field: 'SPRINT', occurredAt: { gt: since } },
-      select: { taskId: true, fromValue: true, toValue: true, occurredAt: true },
-      orderBy: { occurredAt: 'asc' }
-    });
-  },
-
-  findTaskStatusesByIds(taskIds) {
-    return prisma.task.findMany({
-      where: { id: { in: taskIds } },
-      select: { id: true, status: true }
-    });
+    const movedTo = new Map(
+      continuations.map((continuation) => [continuation.taskId, continuation.sprintId])
+    );
+    return participations.map((participation) => ({
+      taskId: participation.taskId,
+      taskTitleSnapshot: participation.taskTitleSnapshot,
+      addedAt: participation.addedAt,
+      addedAfterStart: participation.addedAfterStart,
+      carriedFromSprintId: participation.carriedFromSprintId,
+      removedAt: participation.removedAt,
+      removalReason: participation.removalReason,
+      exitStatus: participation.exitStatus,
+      // Null quando a tarefa foi excluida: o snapshot e o que resta dela.
+      currentStatus: participation.task?.status ?? null,
+      movedToSprintId: movedTo.get(participation.taskId) ?? null
+    }));
   },
 
   findTasksBySprint(sprintId) {

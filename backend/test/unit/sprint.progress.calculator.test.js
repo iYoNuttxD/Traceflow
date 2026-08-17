@@ -3,212 +3,263 @@
 // calculo esta errado, nao o teste.
 import { describe, expect, it } from 'vitest';
 import {
-  buildScopeChange,
   buildSprintProgress,
-  membersAtBaseline,
+  effectiveStatus,
   resolveBaseline
 } from '../../src/modules/sprints/sprint.progress.calculator.js';
 
 const BASE = '2026-08-01T12:00:00.000Z';
 const CORTE = new Date('2026-08-09T15:00:00.000Z');
+const FIM = new Date('2026-08-14T18:00:00.000Z');
 
-const sprintEmAndamento = {
+const emAndamento = {
   id: 10,
   projectId: 1,
   status: 'EM_ANDAMENTO',
-  startedAt: new Date(BASE)
+  startedAt: new Date(BASE),
+  completedAt: null
 };
-const sprintPlanejada = { id: 10, projectId: 1, status: 'PLANEJADA', startedAt: null };
+const planejada = {
+  id: 10,
+  projectId: 1,
+  status: 'PLANEJADA',
+  startedAt: null,
+  completedAt: null
+};
+const concluida = { ...emAndamento, status: 'CONCLUIDA', completedAt: FIM };
 
-const tarefa = (id, status = 'A_FAZER') => ({ id, status });
-const evento = (taskId, fromValue, toValue, dia) => ({
+// Participacao ativa e planejada desde o inicio, salvo indicacao contraria.
+const participacao = (taskId, overrides = {}) => ({
   taskId,
-  fromValue,
-  toValue,
-  occurredAt: new Date(`2026-08-${dia}T10:00:00.000Z`)
+  taskTitleSnapshot: `T${taskId}`,
+  addedAt: new Date('2026-08-01T09:00:00.000Z'),
+  addedAfterStart: false,
+  carriedFromSprintId: null,
+  removedAt: null,
+  removalReason: null,
+  exitStatus: null,
+  currentStatus: 'A_FAZER',
+  movedToSprintId: null,
+  ...overrides
 });
 
-const progresso = (overrides = {}) =>
-  buildSprintProgress({
-    sprint: sprintEmAndamento,
-    currentTasks: [],
-    historyTasks: [],
-    history: [],
-    cutoff: CORTE,
-    ...overrides
-  });
+const progresso = (participations, sprint = emAndamento) =>
+  buildSprintProgress({ sprint, participations, cutoff: CORTE });
 
 describe('linha de base do planejamento', () => {
   it('usa startedAt quando a sprint ja comecou', () => {
-    expect(resolveBaseline(sprintEmAndamento)).toEqual({ kind: 'STARTED_AT', at: BASE });
+    expect(resolveBaseline(emAndamento)).toEqual({ kind: 'STARTED_AT', at: BASE });
   });
 
-  // Sprint ainda planejada nao fechou o escopo: "depois do planejamento" nao tem
-  // referencia, e isso e o comportamento correto, nao um caso degenerado.
-  it('fica ABERTA enquanto a sprint nao inicia', () => {
-    expect(resolveBaseline(sprintPlanejada)).toEqual({ kind: 'OPEN', at: null });
+  it('fica ABERTA enquanto a sprint nao comecou', () => {
+    expect(resolveBaseline(planejada)).toEqual({ kind: 'OPEN', at: null });
+  });
+
+  // Base aberta nao e caso degenerado: sem planejamento fechado, o escopo
+  // planejado E o atual, e o vaivem durante o planejamento nao vira mudanca.
+  it('com base aberta planejado e atual coincidem e nao ha mudanca de escopo', () => {
+    const resultado = progresso(
+      [
+        participacao(1, { currentStatus: 'CONCLUIDO' }),
+        participacao(2, { removedAt: new Date('2026-07-30T10:00:00.000Z') })
+      ],
+      planejada
+    );
+    expect(resultado.planned).toEqual(resultado.current);
+    expect(resultado.planned.denominator).toBe(1);
+    expect(resultado.scopeChange).toEqual({ added: [], removed: [] });
   });
 });
 
-describe('percentual', () => {
+describe('status que vale para a sprint', () => {
+  it('prefere o status congelado ao status atual da tarefa', () => {
+    expect(
+      effectiveStatus(participacao(1, { exitStatus: 'EM_ANDAMENTO', currentStatus: 'CONCLUIDO' }))
+    ).toBe('EM_ANDAMENTO');
+  });
+
+  it('usa o status atual enquanto a participacao segue aberta', () => {
+    expect(effectiveStatus(participacao(1, { currentStatus: 'CONCLUIDO' }))).toBe('CONCLUIDO');
+  });
+});
+
+describe('metricas', () => {
+  it('conta concluidas sobre o total de participacoes', () => {
+    const resultado = progresso([
+      participacao(1, { currentStatus: 'CONCLUIDO' }),
+      participacao(2, { currentStatus: 'CONCLUIDO' }),
+      participacao(3)
+    ]);
+    expect(resultado.current).toMatchObject({ numerator: 2, denominator: 3, hasData: true });
+    expect(resultado.current.percentage).toBeCloseTo(66.67, 2);
+  });
+
   // Zero e nulo sao estados diferentes: "nada concluido" nao e "nao ha o que medir".
-  it('sprint sem tarefas devolve null, nunca 0, e nao divide por zero', () => {
-    const resultado = progresso();
-    expect(resultado.planned).toEqual({
+  it('devolve percentual nulo quando nao ha participacao', () => {
+    const resultado = progresso([]);
+    expect(resultado.current).toMatchObject({
       numerator: 0,
       denominator: 0,
       percentage: null,
       hasData: false
     });
-    expect(resultado.current.percentage).toBeNull();
   });
 
-  it('todas concluidas devolve 100', () => {
-    const tarefas = [tarefa(1, 'CONCLUIDO'), tarefa(2, 'CONCLUIDO')];
-    expect(progresso({ currentTasks: tarefas }).current.percentage).toBe(100);
-  });
-
-  it('arredonda 1 de 3 para 33.33', () => {
-    const tarefas = [tarefa(1, 'CONCLUIDO'), tarefa(2), tarefa(3)];
-    expect(progresso({ currentTasks: tarefas }).current).toMatchObject({
-      numerator: 1,
-      denominator: 3,
-      percentage: 33.33
-    });
-  });
-
-  // 66.67 e nao 66.66: prova que arredonda em vez de truncar.
-  it('arredonda 2 de 3 para 66.67', () => {
-    const tarefas = [tarefa(1, 'CONCLUIDO'), tarefa(2, 'CONCLUIDO'), tarefa(3)];
-    expect(progresso({ currentTasks: tarefas }).current.percentage).toBe(66.67);
+  // A tarefa foi planejada; tira-la do denominador esconderia escopo que a
+  // sprint nao entregou.
+  it('mantem no planejado a tarefa que saiu depois do inicio', () => {
+    const resultado = progresso([
+      participacao(1, { currentStatus: 'CONCLUIDO' }),
+      participacao(2, { removedAt: new Date('2026-08-05T10:00:00.000Z'), exitStatus: 'A_FAZER' })
+    ]);
+    expect(resultado.planned).toMatchObject({ numerator: 1, denominator: 2 });
+    expect(resultado.current).toMatchObject({ numerator: 1, denominator: 1 });
   });
 });
 
-describe('sprint ainda planejada', () => {
-  it('ignora o historico: planejado e igual ao atual e nao ha mudanca de escopo', () => {
-    const resultado = progresso({
-      sprint: sprintPlanejada,
-      currentTasks: [tarefa(1, 'CONCLUIDO'), tarefa(2)],
-      history: [evento(9, null, '10', '05')]
-    });
-
-    expect(resultado.baseline).toEqual({ kind: 'OPEN', at: null });
-    expect(resultado.scopeChange).toEqual({ added: [], removed: [] });
-    expect(resultado.planned).toEqual(resultado.current);
-    expect(resultado.planned.denominator).toBe(2);
-  });
-});
-
-describe('escopo planejado versus escopo atual', () => {
-  it('tarefa adicionada apos a base fica fora do planejado e dentro do atual', () => {
-    const resultado = progresso({
-      currentTasks: [tarefa(1, 'CONCLUIDO'), tarefa(2, 'CONCLUIDO')],
-      history: [evento(2, null, '10', '05')]
-    });
-
-    expect(resultado.planned).toMatchObject({ numerator: 1, denominator: 1, percentage: 100 });
-    expect(resultado.current).toMatchObject({ numerator: 2, denominator: 2 });
+describe('mudanca de escopo depois do inicio', () => {
+  it('lista a inclusao posterior com o instante e a sprint de origem', () => {
+    const resultado = progresso([
+      participacao(1),
+      participacao(2, {
+        addedAfterStart: true,
+        addedAt: new Date('2026-08-05T10:00:00.000Z'),
+        carriedFromSprintId: 42
+      })
+    ]);
     expect(resultado.scopeChange.added).toEqual([
-      { taskId: 2, at: '2026-08-05T10:00:00.000Z', fromSprintId: null }
+      { taskId: 2, at: '2026-08-05T10:00:00.000Z', fromSprintId: 42 }
     ]);
-    expect(resultado.scopeChange.removed).toEqual([]);
   });
 
-  // A tarefa removida CONTINUA no denominador do planejado: ela estava planejada.
-  it('tarefa removida apos a base permanece no planejado', () => {
-    const resultado = progresso({
-      currentTasks: [tarefa(1)],
-      historyTasks: [tarefa(7, 'CONCLUIDO')],
-      history: [evento(7, '10', null, '04')]
-    });
-
-    expect(resultado.planned).toMatchObject({ numerator: 1, denominator: 2, percentage: 50 });
-    expect(resultado.current).toMatchObject({ numerator: 0, denominator: 1 });
+  it('lista a saida com motivo, destino e status congelado', () => {
+    const resultado = progresso([
+      participacao(7, {
+        removedAt: new Date('2026-08-06T10:00:00.000Z'),
+        removalReason: 'MOVIDA',
+        exitStatus: 'EM_ANDAMENTO',
+        movedToSprintId: 11
+      })
+    ]);
     expect(resultado.scopeChange.removed).toEqual([
-      { taskId: 7, at: '2026-08-04T10:00:00.000Z', toSprintId: null }
+      {
+        taskId: 7,
+        at: '2026-08-06T10:00:00.000Z',
+        toSprintId: 11,
+        reason: 'MOVIDA',
+        exitStatus: 'EM_ANDAMENTO'
+      }
     ]);
   });
 
-  it('registra a sprint de origem de quem veio de outra sprint', () => {
-    const resultado = progresso({
-      currentTasks: [tarefa(5)],
-      history: [evento(5, '42', '10', '06')]
-    });
-
-    expect(resultado.scopeChange.added).toEqual([
-      { taskId: 5, at: '2026-08-06T10:00:00.000Z', fromSprintId: 42 }
+  // Saldo liquido: entrar depois do inicio e sair de novo nao muda o escopo.
+  it('nao conta quem entrou depois do inicio e ja saiu', () => {
+    const resultado = progresso([
+      participacao(5, {
+        addedAfterStart: true,
+        removedAt: new Date('2026-08-07T10:00:00.000Z'),
+        removalReason: 'REMOVIDA'
+      })
     ]);
-  });
-
-  it('registra o destino de quem foi para outra sprint', () => {
-    const resultado = progresso({
-      currentTasks: [],
-      historyTasks: [tarefa(8)],
-      history: [evento(8, '10', '99', '07')]
-    });
-
-    expect(resultado.scopeChange.removed).toEqual([
-      { taskId: 8, at: '2026-08-07T10:00:00.000Z', toSprintId: 99 }
-    ]);
-  });
-
-  // O caso que a algebra de conjuntos erraria: saiu e voltou nao e entrada nem
-  // saida. So a reconstrucao cronologica acerta o sinal.
-  it('tarefa que saiu e voltou continua planejada e nao aparece como mudanca', () => {
-    const resultado = progresso({
-      currentTasks: [tarefa(5, 'CONCLUIDO')],
-      history: [evento(5, '10', null, '02'), evento(5, null, '10', '03')]
-    });
-
-    expect(resultado.planned).toMatchObject({ numerator: 1, denominator: 1 });
-    expect(resultado.scopeChange).toEqual({ added: [], removed: [] });
-  });
-
-  it('tarefa que entrou e saiu nao entra no planejado nem vira mudanca', () => {
-    const resultado = progresso({
-      currentTasks: [],
-      historyTasks: [tarefa(6)],
-      history: [evento(6, null, '10', '02'), evento(6, '10', null, '03')]
-    });
-
-    expect(resultado.planned.denominator).toBe(0);
     expect(resultado.scopeChange).toEqual({ added: [], removed: [] });
   });
 });
 
-describe('reconstrucao da base', () => {
-  it('usa o fromValue da PRIMEIRA movimentacao posterior, nao da ultima', () => {
-    const history = [evento(5, '10', '20', '03'), evento(5, '20', '30', '05')];
-    expect([...membersAtBaseline({ currentTaskIds: [], history, sprintId: 10 })]).toEqual([5]);
-  });
-
-  it('tarefa sem movimentacao posterior conserva o estado atual', () => {
-    expect([...membersAtBaseline({ currentTaskIds: [1, 2], history: [], sprintId: 10 })]).toEqual([
-      1, 2
+describe('continuidade entre sprints', () => {
+  it('aponta para onde a tarefa seguiu, preservando o status observado aqui', () => {
+    const resultado = progresso([
+      participacao(3, {
+        removedAt: new Date('2026-08-08T10:00:00.000Z'),
+        removalReason: 'MOVIDA',
+        exitStatus: 'EM_ANDAMENTO',
+        movedToSprintId: 11,
+        currentStatus: 'CONCLUIDO'
+      })
     ]);
-  });
-
-  it('ordena as listas de mudanca por taskId', () => {
-    const { added } = buildScopeChange({
-      plannedIds: new Set(),
-      currentTaskIds: [9, 3, 7],
-      history: [],
-      sprintId: 10
-    });
-    expect(added.map((item) => item.taskId)).toEqual([3, 7, 9]);
+    expect(resultado.carryOver).toEqual([
+      { taskId: 3, toSprintId: 11, exitStatus: 'EM_ANDAMENTO', at: '2026-08-08T10:00:00.000Z' }
+    ]);
   });
 });
 
-describe('determinismo', () => {
-  it('mesmo corte devolve resultado identico em duas execucoes', () => {
-    const entrada = {
-      currentTasks: [tarefa(1, 'CONCLUIDO'), tarefa(2)],
-      history: [evento(2, null, '10', '05')]
-    };
-    expect(progresso(entrada)).toEqual(progresso(entrada));
+// O centro do RF35 corrigido: uma sprint encerrada e um registro, e nada que
+// aconteca com a tarefa depois pode reescreve-lo.
+describe('imutabilidade da sprint encerrada', () => {
+  const congelada = [
+    participacao(1, { exitStatus: 'CONCLUIDO', currentStatus: 'CONCLUIDO' }),
+    participacao(2, { exitStatus: 'EM_ANDAMENTO', currentStatus: 'EM_ANDAMENTO' })
+  ];
+
+  it('marca o resultado como congelado e corta no encerramento', () => {
+    const resultado = buildSprintProgress({
+      sprint: concluida,
+      participations: congelada,
+      cutoff: CORTE
+    });
+    expect(resultado.frozen).toBe(true);
+    expect(resultado.cutoff).toBe(FIM.toISOString());
   });
 
-  it('serializa o corte em UTC, independente do fuso da maquina', () => {
-    expect(progresso().cutoff).toBe('2026-08-09T15:00:00.000Z');
+  it('concluir a tarefa depois nao altera o resultado da sprint fechada', () => {
+    const antes = buildSprintProgress({
+      sprint: concluida,
+      participations: congelada,
+      cutoff: CORTE
+    });
+    // A tarefa 2 e concluida em outra sprint, depois do encerramento desta.
+    const depois = buildSprintProgress({
+      sprint: concluida,
+      participations: [
+        congelada[0],
+        { ...congelada[1], currentStatus: 'CONCLUIDO', movedToSprintId: 11 }
+      ],
+      cutoff: new Date('2026-09-01T00:00:00.000Z')
+    });
+
+    expect(depois.planned).toEqual(antes.planned);
+    expect(depois.current).toEqual(antes.current);
+    expect(depois.cutoff).toBe(antes.cutoff);
+    expect(depois.current).toMatchObject({ numerator: 1, denominator: 2 });
+  });
+
+  // A tarefa deixa de existir, mas o periodo que ela integrou continua medindo
+  // o que mediu: o denominador nao encolhe.
+  it('excluir a tarefa depois nao muda o denominador', () => {
+    const resultado = buildSprintProgress({
+      sprint: concluida,
+      participations: [
+        congelada[0],
+        { ...congelada[1], currentStatus: null, removalReason: 'TAREFA_EXCLUIDA' }
+      ],
+      cutoff: CORTE
+    });
+    expect(resultado.planned).toMatchObject({ numerator: 1, denominator: 2 });
+  });
+
+  it('sprint aberta corta no instante da consulta', () => {
+    expect(progresso([]).frozen).toBe(false);
+    expect(progresso([]).cutoff).toBe(CORTE.toISOString());
+  });
+});
+
+describe('pureza e determinismo', () => {
+  it('nao depende do fuso da maquina nem do relogio', () => {
+    const participations = [
+      participacao(1, { currentStatus: 'CONCLUIDO' }),
+      participacao(2, { addedAfterStart: true, addedAt: new Date('2026-08-05T10:00:00.000Z') })
+    ];
+    const primeiro = progresso(participations);
+    const segundo = progresso(participations);
+    expect(primeiro).toEqual(segundo);
+    expect(primeiro.cutoff).toBe('2026-08-09T15:00:00.000Z');
+  });
+
+  it('ordena as listas por tarefa, independentemente da ordem de entrada', () => {
+    const resultado = progresso([
+      participacao(9, { addedAfterStart: true }),
+      participacao(2, { addedAfterStart: true }),
+      participacao(5, { addedAfterStart: true })
+    ]);
+    expect(resultado.scopeChange.added.map((item) => item.taskId)).toEqual([2, 5, 9]);
   });
 });
