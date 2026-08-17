@@ -184,50 +184,90 @@ Sem `taskId`, a consulta preserva a visão paginada do projeto. Com `taskId`, re
 
 Exportação não contém hashes, cookies, segredos nem dados pessoais de outros membros. Todos os caminhos possuem prefixo `/api`.
 
-## Atualização S1-04 (RF10) — Sprints, marcos e cronograma
+## S1-04 (RF10 e RF35) — Sprints, marcos, cronograma e evolução
 
-Entrega parcial do cartão S1-04. O **RF35 (evolução por sprint) não faz parte desta entrega**: nenhum endpoint calcula planejado, concluído, percentual ou instante de corte. O cartão S1-04 permanece aberto.
+Entrega completa do cartão S1-04: RF10 (cronograma) e RF35 (evolução por sprint).
+
+O modelo desta seção segue o [ADR-010](../architecture/ADR-010-SPRINT-DOMAIN-CORRECTIONS.md),
+que supersede parte do ADR-009. Três convenções valem para tudo abaixo:
+
+- **Janela semiaberta.** O intervalo de uma sprint é `[startDate, endDate)`. A sprint seguinte
+  pode começar exatamente no instante em que a anterior termina, e nunca antes.
+- **Instantes, não dias.** `startDate`, `endDate` e `dueDate` guardam data **e hora**, em UTC.
+  `YYYY-MM-DD` continua aceito na escrita e significa o início daquele dia em UTC. A leitura
+  sempre devolve ISO-8601 UTC.
+- **Sprint encerrada é registro.** `CONCLUIDA` e `CANCELADA` congelam composição e resultado.
 
 ### Sprints
 
 | Método | Caminho | Entrada | Sucesso | Regras |
 |---|---|---|---|---|
-| POST | `/projects/:projectId/sprints` | `name`, `objective?`, `startDate`, `endDate` | `201` `{message, sprint}` | `startDate <= endDate`; nome único no projeto |
+| POST | `/projects/:projectId/sprints` | `name`, `objective?`, `startDate`, `endDate` | `201` `{message, sprint}` | `startDate < endDate`; nome único no projeto; sem sobreposição com outra sprint do projeto |
 | GET | `/projects/:projectId/sprints` | `status?`, `search?` | `200` `{total, sprints}` | ordenado por `startDate` asc |
 | GET | `/sprints/:id` | — | `200` `{sprint}` | membership no projeto da sprint |
-| PUT | `/sprints/:id` | subconjunto de `name`, `objective`, `startDate`, `endDate` | `200` `{message, sprint}` | bloqueado em estado terminal |
-| PATCH | `/sprints/:id/status` | `status` | `200` `{message, sprint}` | somente transições válidas |
-| DELETE | `/sprints/:id` | — | `200` `{message}` | bloqueado com tarefa associada |
-| GET | `/sprints/:id/tasks` | — | `200` `{sprintId, total, tasks}` | DTO minimizado |
-| PUT | `/sprints/:id/tasks` | `taskIds: number[]` | `200` `{message, sprintId, total, tasks}` | substituição atômica; máx. 100; sem duplicados |
+| PUT | `/sprints/:id` | subconjunto de `name`, `objective`, `startDate`, `endDate` | `200` `{message, sprint}` | bloqueado em estado terminal; revalida sobreposição |
+| PATCH | `/sprints/:id/status` | `status` | `200` `{message, sprint}` | somente transições válidas; entrar em estado terminal congela a composição |
+| DELETE | `/sprints/:id` | — | **`405 SPRINT_DELETE_NOT_SUPPORTED`** | sprint não é excluída em nenhum estado |
+| GET | `/sprints/:id/tasks` | — | `200` `{sprintId, total, tasks}` | DTO minimizado + contexto da participação |
+| PUT | `/sprints/:id/tasks` | `taskIds: number[]` | `200` `{message, sprintId, total, tasks}` | substituição atômica; máx. 100; sem duplicados; bloqueado em estado terminal |
+
+**Por que o DELETE responde 405 e não some.** A rota removida devolveria `404`, indistinguível
+de "sprint não existe". O `405` diz que a operação não existe para o recurso, sem informar nada
+sobre ele. A recusa acontece antes de qualquer leitura ou mutação.
 
 ### Marcos
 
-| Método | Caminho | Entrada | Sucesso |
-|---|---|---|---|
-| POST | `/projects/:projectId/milestones` | `title`, `description?`, `dueDate` | `201` `{message, milestone}` |
-| GET | `/projects/:projectId/milestones` | `status?` | `200` `{total, milestones}` |
-| GET | `/milestones/:id` | — | `200` `{milestone}` |
-| PUT | `/milestones/:id` | subconjunto de `title`, `description`, `dueDate` | `200` `{message, milestone}` |
-| PATCH | `/milestones/:id/status` | `status` (`PENDENTE` ↔ `CONCLUIDO`) | `200` `{message, milestone}` |
-| DELETE | `/milestones/:id` | — | `200` `{message}` |
+| Método | Caminho | Entrada | Sucesso | Regras |
+|---|---|---|---|---|
+| POST | `/projects/:projectId/milestones` | `title`, `description?`, `dueDate`, **`sprintId`** | `201` `{message, milestone}` | sprint do mesmo projeto e não encerrada; `dueDate` dentro de `[startDate, endDate)` |
+| GET | `/projects/:projectId/milestones` | `status?` | `200` `{total, milestones}` | |
+| GET | `/milestones/:id` | — | `200` `{milestone}` | |
+| PUT | `/milestones/:id` | subconjunto de `title`, `description`, `dueDate`, `sprintId` | `200` `{message, milestone}` | bloqueado se a sprint atual ou a de destino estiver encerrada |
+| PATCH | `/milestones/:id/status` | `status` (`PENDENTE` ↔ `CONCLUIDO`) | `200` `{message, milestone}` | bloqueado em sprint encerrada |
+| DELETE | `/milestones/:id` | — | `200` `{message}` | bloqueado em sprint encerrada |
+
+`sprintId` é **obrigatório na criação**: todo marco pertence a um período de desenvolvimento.
 
 ### Associação tarefa ↔ sprint
 
 | Método | Caminho | Entrada | Sucesso | Regras |
 |---|---|---|---|---|
-| PATCH | `/tasks/:id/sprint` | `sprintId` | `200` `{message, task}` | mesmo `projectId`; sprint não terminal; idempotente |
-| DELETE | `/tasks/:id/sprint` | — | `200` `{message, task}` | idempotente; permitido inclusive em sprint terminal |
+| PATCH | `/tasks/:id/sprint` | `sprintId` | `200` `{message, task}` | mesmo `projectId`; sprint não terminal; idempotente; respeita o limite de 100 |
+| DELETE | `/tasks/:id/sprint` | — | `200` `{message, task}` | idempotente; **bloqueado em sprint terminal** |
 
-Toda inclusão, remoção ou troca gera `TaskHistoryEntry` com `field: SPRINT` e o `AuditEvent` correspondente, na mesma transação da escrita.
+Os três caminhos de escrita — `PUT /sprints/:id/tasks`, `PATCH` e `DELETE` do lado da tarefa —
+passam pelo **mesmo plano de escopo**, para que não divirjam no histórico. Toda inclusão,
+remoção ou troca gera `TaskHistoryEntry` com `field: SPRINT` e o `AuditEvent` correspondente, na
+mesma transação da escrita. A ação auditada continua distinguindo a operação pedida:
+`SPRINT_TASKS_REPLACED`, `TASK_SPRINT_LINKED` ou `TASK_SPRINT_UNLINKED`.
 
-**Convenção do histórico na troca de sprint.** Mover uma tarefa da sprint A para a B gera **uma única** entrada `fromValue: "A"` → `toValue: "B"`, nunca uma saída seguida de uma entrada, e nunca `fromValue: null`. Os dois caminhos produzem exatamente o mesmo registro: `PATCH /tasks/:id/sprint` e `PUT /sprints/B/tasks`. Isso é o que sustenta o critério de aceite "tarefas adicionadas ou removidas após o planejamento são identificáveis": a sprint de origem precisa sobreviver no histórico, porque é ela que distingue uma tarefa nova de uma tarefa realocada.
+**Convenção do histórico na troca de sprint.** Mover uma tarefa da sprint A para a B gera **uma
+única** entrada `fromValue: "A"` → `toValue: "B"`, nunca uma saída seguida de uma entrada.
 
-**Visibilidade decide o código de erro.** `TASK_SPRINT_PROJECT_MISMATCH` (400) só é devolvido quando o ator **enxerga os dois projetos** — tem membership ativa em ambos. Quando o recurso do outro lado pertence a um projeto que o ator não acessa, a resposta é `404` (`SPRINT_NOT_FOUND` ou `TASK_NOT_FOUND`) **byte a byte idêntica** à de um ID inexistente, exceto pelo `requestId`.
+**Visibilidade decide o código de erro.** `TASK_SPRINT_PROJECT_MISMATCH` (400) só é devolvido
+quando o ator **enxerga os dois projetos**. Quando o recurso do outro lado pertence a um projeto
+que o ator não acessa, a resposta é `404` byte a byte idêntica à de um ID inexistente. Sem isso
+o par 400/404 seria oráculo de enumeração.
 
-Sem isso os endpoints seriam oráculos de enumeração: a autorização de `PATCH /tasks/:id/sprint` resolve o projeto pela **tarefa**, e a de `PUT /sprints/:id/tasks` pelo **sprint**, então IDs do outro lado chegam ao service sem passar pelo middleware. O par 400/404 permitiria iterar o ID e mapear sprints e tarefas de projetos alheios. A verificação falha fechado: sem ator identificado, a resposta é sempre `404`.
+**Concorrência.** Leitura, validação, cálculo do delta e escrita rodam na mesma transação, com a
+linha travada. Duas substituições simultâneas produzem o payload de uma delas — nunca a união
+das duas.
 
-**Estado terminal e o conjunto de tarefas.** `PUT /sprints/:id/tasks` avalia a lista recebida contra o conjunto atual e só rejeita com `409 SPRINT_ASSOCIATION_BLOCKED` quando a operação **acrescenta** tarefa a uma sprint `CONCLUIDA` ou `CANCELADA`. Uma lista que apenas remove é aceita em qualquer status; uma lista que remove e acrescenta ao mesmo tempo é rejeitada por inteiro, sem persistir nada.
+### Participação da tarefa na sprint
+
+`GET /sprints/:id/tasks` devolve, além do DTO minimizado (`id`, `title`, `status`, `priority`,
+`deadline`, `responsibleUserId`), o contexto da participação:
+
+| Campo | Significado |
+|---|---|
+| `addedAt` | quando a tarefa entrou nesta sprint |
+| `addedAfterStart` | entrou depois de `startedAt`; é o que o RF35 mede como mudança de escopo |
+| `carriedFromSprintId` | sprint de onde a tarefa veio, quando houve continuidade |
+| `exitStatus` | status congelado, presente quando a participação foi encerrada |
+
+A composição vem da **participação**, e não de `Task.sprintId`: numa sprint encerrada a tarefa
+pode ter seguido para a sprint seguinte, e ainda assim continua fazendo parte do que aconteceu
+ali. O mesmo vale para `sprints[].tasks` no agregado do cronograma.
 
 ### Máquina de estados da sprint
 
@@ -238,7 +278,11 @@ CONCLUIDA    -> (terminal)
 CANCELADA    -> (terminal)
 ```
 
-Ao entrar em `EM_ANDAMENTO` grava-se `startedAt`; ao entrar em `CONCLUIDA`, `completedAt`. `startedAt` é a **linha de base do planejamento** consumida pelo RF35.
+Ao entrar em `EM_ANDAMENTO` grava-se `startedAt`; ao entrar em `CONCLUIDA`, `completedAt`.
+Entrar em estado terminal congela, na mesma transação, o status de cada participação ativa.
+
+**`startedAt` é linha de base, não trava.** O escopo continua alterável depois do início; o que
+muda é que as inclusões passam a ser sinalizadas. Quem congela é o estado terminal.
 
 ### Evolução por sprint (RF35)
 
@@ -246,15 +290,18 @@ Ao entrar em `EM_ANDAMENTO` grava-se `startedAt`; ao entrar em `CONCLUIDA`, `com
 
 ```json
 {
-  "sprintId": 4, "projectId": 2, "status": "EM_ANDAMENTO",
-  "cutoff": "2026-08-09T03:00:00.000Z",
+  "sprintId": 4, "projectId": 2, "status": "CONCLUIDA",
+  "frozen": true,
+  "cutoff": "2026-08-14T18:00:00.000Z",
   "baseline": { "kind": "STARTED_AT", "at": "2026-08-01T12:00:00.000Z" },
   "planned": { "numerator": 5, "denominator": 8, "percentage": 62.5, "hasData": true },
   "current": { "numerator": 6, "denominator": 9, "percentage": 66.67, "hasData": true },
   "scopeChange": {
     "added":   [{ "taskId": 12, "at": "...", "fromSprintId": 3 }],
-    "removed": [{ "taskId": 7, "at": "...", "toSprintId": null }]
-  }
+    "removed": [{ "taskId": 7, "at": "...", "toSprintId": null,
+                  "reason": "REMOVIDA", "exitStatus": "A_FAZER" }]
+  },
+  "carryOver": [{ "taskId": 9, "toSprintId": 5, "exitStatus": "EM_ANDAMENTO", "at": "..." }]
 }
 ```
 
@@ -264,46 +311,89 @@ Ao entrar em `EM_ANDAMENTO` grava-se `startedAt`; ao entrar em `CONCLUIDA`, `com
 |---|---|
 | Objetivo | acompanhar o avanço da sprint e tornar visível a mudança de escopo após o planejamento |
 | Fórmula | `buildMetric(concluídas, total)` — a **mesma** de `traceability.calculator.js`. Concluída é `status === 'CONCLUIDO'`; percentual com duas casas |
-| Dados de origem | `Task.status`, `Task.sprintId`, `Sprint.startedAt` e `TaskHistoryEntry` com `field: SPRINT` |
+| Dados de origem | `SprintTask` (participação, `addedAfterStart`, `exitStatus`, `carriedFromSprintId`), `Sprint.startedAt` e o status atual da tarefa |
+| Status que vale | `exitStatus ?? status atual`. Sprint encerrada nunca lê o status atual: ele já foi congelado |
 | Linha de base | `Sprint.startedAt`. Sem ele (`PLANEJADA`), a base é `OPEN`: o planejamento não fechou, `planned == current` e `scopeChange` é vazio |
-| Escopo planejado | membros no instante da base, reconstruídos do histórico: para tarefa movimentada depois da base, o `fromValue` da **primeira** movimentação posterior descreve onde ela estava; sem movimentação posterior, vale o estado atual |
-| Mudança de escopo | saldo líquido entre base e corte. Tarefa que saiu e voltou **não** conta como entrada nem saída |
-| Instante de corte | `cutoff`, sempre o momento da consulta, devolvido na resposta |
+| Escopo planejado | participações com `addedAfterStart: false`, inclusive as que já saíram |
+| Mudança de escopo | saldo líquido. Quem entrou depois do início e já saiu não aparece em nenhuma das duas listas |
+| `carryOver` | participações cuja tarefa continuou em outra sprint, com o status observado **aqui** |
+| Instante de corte | `cutoff`. Em sprint aberta é o momento da consulta; em sprint encerrada é o encerramento, porque o resultado não depende de quando se perguntou |
 | Interpretação | mede progresso do trabalho, **não** de pessoas. Não há recorte por responsável |
-| Limitações | (a) corte no passado não é suportado — `at` responde `400`, porque `Task.status` guarda apenas o estado atual e reconstruí-lo exigiria varrer `field: STATUS`; (b) tarefa removida permanece no denominador de `planned`, por ter sido planejada; (c) escopo depende do histórico: movimentação feita fora da API não aparece |
+| Limitações | (a) corte no passado não é suportado — `at` responde `400`; (b) tarefa removida permanece no denominador de `planned`, por ter sido planejada; (c) sprints encerradas antes da migration do ADR-010 não têm `exitStatus` e caem no status atual |
 | Atualização | calculado sob demanda; sem cache |
 
-`percentage` é `null` — nunca `0` — quando `denominator` é zero: "nada concluído" e "não há o que medir" são estados diferentes, e `hasData` distingue os dois.
+`percentage` é `null` — nunca `0` — quando `denominator` é zero: "nada concluído" e "não há o
+que medir" são estados diferentes, e `hasData` distingue os dois.
 
-Consulta não gera `AuditEvent`: a seção 13.9 lista exportação de dados e relatórios como auditáveis, e leitura de indicador não é exportação.
+**Imutabilidade.** Concluir a tarefa depois do encerramento, movê-la para a sprint seguinte ou
+excluí-la **não altera** nenhum número de uma sprint encerrada.
+
+Consulta não gera `AuditEvent`: leitura de indicador não é exportação (seção 13.9).
 
 ### Cronograma
 
-`GET /projects/:projectId/schedule?from=YYYY-MM-DD&to=YYYY-MM-DD` → `200` com `projectId`, `range`, `generatedAt` (ISO-8601 UTC), `sprints[]`, `milestones[]` e `unassignedTasks[]`.
+`GET /projects/:projectId/schedule?from=YYYY-MM-DD&to=YYYY-MM-DD` → `200` com `projectId`,
+`range`, `generatedAt` (ISO-8601 UTC), `sprints[]`, `milestones[]` e `unassignedTasks[]`.
 
-**Semântica do filtro:** sem `from`/`to` retorna tudo do projeto. Com período, incluem-se sprints cujo intervalo `[startDate, endDate]` **intersecta** a janela; marcos com `dueDate` na janela; e, em `unassignedTasks`, tarefas sem sprint com `deadline` na janela — tarefas sem sprint e sem `deadline` só aparecem quando não há filtro. `from <= to` é obrigatório.
+**Semântica do filtro:** sem `from`/`to` retorna tudo do projeto. A janela continua sendo **dia
+de calendário, interpretado em UTC**: `from` é o início do dia pedido e `to` é convertido para o
+início do dia seguinte, exclusivo, de modo que "até 14/08" inclua o dia 14 inteiro. `from <= to`
+é obrigatório, e `range` devolve o que foi pedido (`to` inclusivo).
 
-**Campos derivados:** `durationInDays` (inclusivo, em dias UTC), `deadlineOutsideWindow`, `overdue` (pendente com `dueDate` anterior a hoje; vencer hoje não é atraso), `taskCount`, `generatedAt`.
+Incluem-se sprints cuja janela intersecta o período; marcos com `dueDate` dentro dele; e, em
+`unassignedTasks`, tarefas sem sprint com `deadline` na janela — tarefas sem sprint e sem
+`deadline` só aparecem quando não há filtro.
 
-O DTO de tarefa é minimizado: `id`, `title`, `status`, `priority`, `deadline`, `responsibleUserId` e, dentro de sprint, `deadlineOutsideWindow`. Nunca e-mail.
+**Campos derivados:** `durationInDays`, `deadlineOutsideWindow`, `overdue`, `taskCount`,
+`generatedAt`.
 
-### Novos códigos de erro
+`durationInDays` conta os dias abrangidos pela janela semiaberta, arredondando para cima: de
+01/08 00:00 a 14/08 00:00 são **13 dias**, porque o dia 14 pertence à sprint seguinte.
 
-`SPRINT_NOT_FOUND` (404), `MILESTONE_NOT_FOUND` (404), `SPRINT_NAME_IN_USE` (409), `SPRINT_HAS_TASKS` (409), `SPRINT_INVALID_TRANSITION` (409), `SPRINT_LOCKED` (409), `SPRINT_DATE_RANGE_INVALID` (400), `TASK_SPRINT_PROJECT_MISMATCH` (400), `SPRINT_ASSOCIATION_BLOCKED` (409).
+**Limitação de fuso aceita.** A janela é interpretada em UTC. Para UTC−3, "até 14/08" recorta em
+`15/08T00:00Z`, ou seja `14/08 21:00` em Brasília.
+
+O DTO de tarefa é minimizado: nunca e-mail, descrição ou esforço.
+
+### Códigos de erro
+
+| Código | Status | Quando |
+|---|---|---|
+| `SPRINT_NOT_FOUND` | 404 | sprint inexistente **ou** de projeto que o ator não enxerga |
+| `MILESTONE_NOT_FOUND` | 404 | idem, para marco |
+| `SPRINT_NAME_IN_USE` | 409 | nome repetido no projeto |
+| `SPRINT_OVERLAP` | 409 | janela cruza outra sprint do projeto |
+| `SPRINT_INVALID_TRANSITION` | 409 | transição de status não permitida |
+| `SPRINT_LOCKED` | 409 | edição de sprint encerrada, ou de marco de sprint encerrada |
+| `SPRINT_SCOPE_LOCKED` | 409 | alteração de escopo de sprint encerrada, em qualquer direção |
+| `SPRINT_TASK_LIMIT_REACHED` | 409 | conjunto resultante acima de 100 tarefas |
+| `SPRINT_DELETE_NOT_SUPPORTED` | 405 | tentativa de excluir sprint |
+| `SPRINT_DATE_RANGE_INVALID` | 400 | `startDate >= endDate`, ou `from > to` no filtro |
+| `TASK_SPRINT_PROJECT_MISMATCH` | 400 | tarefa de outro projeto, visível ao ator |
+| `MILESTONE_SPRINT_REQUIRED` | 400 | criação de marco sem sprint |
+| `MILESTONE_SPRINT_PROJECT_MISMATCH` | 400 | sprint de outro projeto, visível ao ator |
+| `MILESTONE_DUE_DATE_OUTSIDE_SPRINT` | 400 | data prevista fora da janela da sprint |
+
+**Aposentados nesta revisão:** `SPRINT_HAS_TASKS` (não existe mais exclusão) e
+`SPRINT_ASSOCIATION_BLOCKED` (substituído por `SPRINT_SCOPE_LOCKED`, que cobre as duas direções).
+
+### 404 de recurso endereçado por ID
+
+Para `/projects/:id`, `/requirements/:id`, `/tasks/:id`, `/sprints/:id` e `/milestones/:id`, a
+resposta de **"não existe"** e a de **"existe, mas em projeto que você não acessa"** são
+idênticas em status, código e mensagem — só `requestId` difere. Antes elas divergiam, e o par
+permitia iterar o ID para descobrir o que existe fora do alcance do ator.
+
+A exposição de `code` segue o contrato de cada recurso: sprint e marco expõem; projeto,
+requisito e tarefa devolvem apenas `{ message }`. O que a garantia exige é que os dois caminhos
+do **mesmo recurso** respondam igual.
 
 ### Mudança de contrato em tarefas
 
-`Task.sprintId` passou a existir e, como `formatTask()` faz spread do registro, o campo **aparece automaticamente no payload de todos os endpoints de tarefa**. É dado do próprio projeto, sem informação pessoal adicional. `mvp-contracts.test.js` permanece verde.
+`Task.sprintId` aparece no payload de todos os endpoints de tarefa. É o ponteiro da participação
+ativa; o histórico completo vive em `SprintTask` e é exposto por `/sprints/:id/tasks` e
+`/sprints/:id/progress`.
 
-### Decisões
-
-- **(a)** Marcos pertencem ao **projeto**, sem `sprintId` nesta fase. O vínculo pode ser adicionado depois sem quebra de contrato.
-- **(b)** Nome de sprint é **único por projeto** (`@@unique([projectId, name])`); a violação Prisma `P2002` vira `409 SPRINT_NAME_IN_USE`.
-- **(c)** Edição da sprint é **bloqueada em estado terminal** (`CONCLUIDA`/`CANCELADA`). Quanto às tarefas, o bloqueio vale apenas para **adicionar**: remover continua permitido em qualquer status. Bloquear a remoção criaria um impasse sem saída — `DELETE /sprints/:id` exige conjunto vazio e estados terminais não transicionam de volta, então a sprint ficaria presa para sempre. Toda remoção continua gerando `TaskHistoryEntry` e `AuditEvent`.
-- **(d)** **Sobreposição de sprints é permitida.** Com `Task.sprintId` como FK singular, uma tarefa pertence a no máximo uma sprint, então janelas cruzadas não geram ambiguidade.
-- **(e)** `TaskMovement.sprintId` legado permanece **intocado** — sem FK, sem popular, sem remover. Follow-up registrado no backlog técnico.
-- **(f)** **Sem paginação** nestas coleções. A seção 12.1 do `TRACEFLOW_CONTEXTO_ARQUITETURA.md` pede paginação obrigatória em coleções potencialmente grandes, mas `tasks` e `requirements` na branch principal retornam `{total, itens}` sem paginar. Pela regra de precedência da seção 3 daquele documento, o código vence. A paginação deve ser reavaliada em conjunto para os três recursos, não isoladamente para sprints.
-- **(g)** `DELETE` de sprint com tarefas é **bloqueado no service** (`409 SPRINT_HAS_TASKS`). O `onDelete: SetNull` da FK é apenas rede de segurança contra cascata acidental: se fosse o caminho normal, apagaria vínculos sem gerar `TaskHistoryEntry` nem `AuditEvent`.
 
 ## Limites e erros
 

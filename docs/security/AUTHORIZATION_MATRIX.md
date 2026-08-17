@@ -29,7 +29,8 @@ Baseline E6, consolidado na E15 em 26/07/2026. A matriz descreve a política efe
 | Tasks/vínculos/Kanban: `POST`, `PUT`, `PATCH`, `DELETE` | 401 | 403 | E | E | E | pertencimento e ator canônico |
 | `GET /api/projects/:projectId/tasks/history` | 401 | L | L | L | L | paginado; ator e recursos do mesmo projeto |
 | Sprints: `GET /projects/:projectId/sprints`, `/sprints/:id`, `/sprints/:id/tasks` | 401 | L | L | L | L | RF10; `resolveProjectId` resolve `/sprints/:id` |
-| Sprints: `POST`, `PUT`, `PATCH /sprints/:id/status`, `DELETE`, `PUT /sprints/:id/tasks` | 401 | 403 | E | E | E | RF10; invariantes e estados terminais no service |
+| Sprints: `POST`, `PUT`, `PATCH /sprints/:id/status`, `PUT /sprints/:id/tasks` | 401 | 403 | E | E | E | RF10; invariantes, sobreposição e estados terminais no service, sob lock (ADR-010) |
+| Sprints: `DELETE /sprints/:id` | 401 | 405 | 405 | 405 | 405 | ADR-010 D06/D13: sprint não é excluída; a recusa vem antes de qualquer leitura, então não depende do papel |
 | Milestones: `GET /projects/:projectId/milestones`, `/milestones/:id` | 401 | L | L | L | L | RF10; `resolveProjectId` resolve `/milestones/:id` |
 | Milestones: `POST`, `PUT`, `PATCH /milestones/:id/status`, `DELETE` | 401 | 403 | E | E | E | RF10 |
 | `GET /api/projects/:projectId/schedule` | 401 | L | L | L | L | RF10; agregado somente-leitura, DTO minimizado |
@@ -56,3 +57,5 @@ Baseline E6, consolidado na E15 em 26/07/2026. A matriz descreve a política efe
 - Na E10, as rotas genéricas dependentes de `TraceLink` e `GithubArtifact` foram removidas. As perspectivas canônicas sempre incluem `projectId`, evitando autorização por ID global isolado.
 - No fechamento do RF41, VIEWER apenas consulta; MEMBER+ analisa e revisa. Confirmação e rejeição são transacionais e auditadas.
 - Na E11, `responsibleUserId` exige membership ativa; a autoria de movimento vem exclusivamente da sessão e não pode ser controlada pelo body.
+- No ADR-010 (S1-04), o 404 de recurso endereçado por ID passou a ser **indistinguível** entre "não existe" e "existe em projeto que o ator não acessa", para `/projects/:id`, `/requirements/:id`, `/tasks/:id`, `/sprints/:id` e `/milestones/:id`. Middleware e service constroem a resposta pela mesma fábrica; antes divergiam em código, mensagem e presença de `code`, e o par permitia enumerar IDs fora do alcance do ator.
+- A interface esconde ações de mutação de VIEWER no cronograma. Isso é UX: o backend continua sendo a autoridade e recusa com 403 independentemente do que a tela ofereça.

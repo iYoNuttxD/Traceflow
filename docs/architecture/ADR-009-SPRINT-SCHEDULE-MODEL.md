@@ -1,8 +1,15 @@
 # ADR-009 — Modelo de sprint, marco e cronograma
 
-- **Estado:** aceita no S1-04 (RF10)
+- **Estado:** **parcialmente superada** pelo [ADR-010](ADR-010-SPRINT-DOMAIN-CORRECTIONS.md) —
+  as decisões **1, 2, 3, 4, 7 e 9** não valem mais
 - **Data:** 05/08/2026
 - **Responsáveis:** equipe TraceFlow
+
+> **Leia o ADR-010 antes de usar este documento como referência.** A FK singular `Task.sprintId`,
+> o `@db.Date` nas datas de cronograma, a exclusão de sprint, a sobreposição permitida, o marco
+> sem sprint e o "fechamento do planejamento" no início da execução foram revistos após o
+> alinhamento de domínio. O texto abaixo é mantido íntegro como registro do que foi decidido em
+> 05/08/2026 e por quê.
 
 ## Contexto
 
