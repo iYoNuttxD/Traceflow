@@ -58,23 +58,33 @@ const baseSprint = {
 // o estado do banco; o service continua sendo exercitado pelo caminho real,
 // inclusive as validacoes que so rodam dentro da transacao.
 let lockedSprints = [];
+// Marcos da sprint travada, no mesmo retrato: encolher a janela precisa enxerga-los
+// dentro da transacao para recusar quem ficaria fora dela.
+let lockedMilestones = [];
 let scopeSnapshot = null;
 let capturedPlan = null;
 
 beforeEach(() => {
   vi.clearAllMocks();
   lockedSprints = [];
+  lockedMilestones = [];
   capturedPlan = null;
   scopeSnapshot = { sprint: baseSprint, participations: [], tasks: [], activeElsewhere: [] };
 
   mocks.sprint.findProjectById.mockResolvedValue({ id: projectId });
   mocks.sprint.createWithinProjectLock.mockImplementation(async (id, data, _audit, validate) => {
-    await validate(lockedSprints);
+    await validate({ sprints: lockedSprints, sprint: null, milestones: [] });
     return { ...baseSprint, ...data, projectId: id };
   });
+  // O retrato travado inclui a propria sprint: e dele, e nao da leitura anterior a
+  // transacao, que saem status e datas usados na validacao.
   mocks.sprint.updateWithinProjectLock.mockImplementation(
     async (id, _projectId, data, _audit, validate) => {
-      await validate(lockedSprints);
+      await validate({
+        sprints: lockedSprints,
+        sprint: lockedSprints.find((sprint) => sprint.id === id) ?? null,
+        milestones: lockedMilestones
+      });
       return { ...baseSprint, ...data, id };
     }
   );
@@ -202,9 +212,152 @@ describe('ordem das datas', () => {
 
   it('valida a ordem considerando o campo nao alterado na edicao', async () => {
     mocks.sprint.findById.mockResolvedValue(baseSprint);
+    lockedSprints = [baseSprint];
     await expect(sprintService.updateSprint(10, { startDate: '2026-09-01' })).rejects.toMatchObject(
       { code: 'SPRINT_DATE_RANGE_INVALID' }
     );
+  });
+
+  // O lado que a requisicao NAO envia vem do registro travado, e nao da leitura
+  // anterior a transacao. Sem isso, duas atualizacoes parciais simultaneas — uma
+  // so do inicio, outra so do fim — validam contra o mesmo retrato antigo e o
+  // banco termina com a janela invertida.
+  it('completa a janela parcial com o registro travado, nao com o lido antes', async () => {
+    // Quem chegou antes ja moveu o inicio para 20/08; a leitura pre-transacao
+    // ainda diz 01/08. Enviar apenas o fim em 15/08 so pode ser recusado se a
+    // validacao enxergar o inicio travado.
+    mocks.sprint.findById.mockResolvedValue(baseSprint);
+    lockedSprints = [{ ...baseSprint, startDate: new Date('2026-08-20T00:00:00.000Z') }];
+    await expect(sprintService.updateSprint(10, { endDate: '2026-08-15' })).rejects.toMatchObject({
+      statusCode: 400,
+      code: 'SPRINT_DATE_RANGE_INVALID'
+    });
+  });
+
+  it('aceita a janela parcial quando o registro travado a mantem coerente', async () => {
+    mocks.sprint.findById.mockResolvedValue(baseSprint);
+    lockedSprints = [baseSprint];
+    await expect(sprintService.updateSprint(10, { endDate: '2026-08-20' })).resolves.toBeDefined();
+  });
+
+  // Janela inteiramente informada nao depende do persistido: pode ser recusada
+  // antes de abrir transacao, e o repository nem chega a ser chamado.
+  it('recusa janela completa invalida sem abrir a transacao', async () => {
+    mocks.sprint.findById.mockResolvedValue(baseSprint);
+    await expect(
+      sprintService.updateSprint(10, { startDate: '2026-09-01', endDate: '2026-08-01' })
+    ).rejects.toMatchObject({ code: 'SPRINT_DATE_RANGE_INVALID' });
+    expect(mocks.sprint.updateWithinProjectLock).not.toHaveBeenCalled();
+  });
+
+  it('trata sprint ausente do retrato travado como inexistente', async () => {
+    mocks.sprint.findById.mockResolvedValue(baseSprint);
+    lockedSprints = [];
+    await expect(sprintService.updateSprint(10, { name: 'Novo' })).rejects.toMatchObject({
+      statusCode: 404,
+      code: 'SPRINT_NOT_FOUND'
+    });
+  });
+
+  it('propaga 404 quando o repository nao encontra a linha para travar', async () => {
+    mocks.sprint.findById.mockResolvedValue(baseSprint);
+    mocks.sprint.updateWithinProjectLock.mockResolvedValue(null);
+    await expect(sprintService.updateSprint(10, { name: 'Novo' })).rejects.toMatchObject({
+      statusCode: 404,
+      code: 'SPRINT_NOT_FOUND'
+    });
+  });
+});
+
+// A outra ponta de D11: validar a data do marco so na criacao dele deixava a
+// regra valer por um instante — bastava encolher a sprint depois.
+describe('janela da sprint e marcos vinculados', () => {
+  const marco = (dueDate, title = 'Entrega parcial') => ({
+    id: 5,
+    title,
+    dueDate: new Date(dueDate)
+  });
+
+  beforeEach(() => {
+    mocks.sprint.findById.mockResolvedValue(baseSprint);
+    lockedSprints = [baseSprint];
+  });
+
+  it('recusa encolher a janela deixando um marco de fora', async () => {
+    lockedMilestones = [marco('2026-08-12T00:00:00.000Z')];
+    await expect(sprintService.updateSprint(10, { endDate: '2026-08-10' })).rejects.toMatchObject({
+      statusCode: 409,
+      code: 'SPRINT_WINDOW_MILESTONE_CONFLICT'
+    });
+  });
+
+  it('nomeia o marco em conflito na mensagem', async () => {
+    lockedMilestones = [marco('2026-08-12T00:00:00.000Z', 'Homologação')];
+    await expect(sprintService.updateSprint(10, { endDate: '2026-08-10' })).rejects.toMatchObject({
+      message: expect.stringContaining('Homologação')
+    });
+  });
+
+  it('recusa mover o inicio para depois de um marco', async () => {
+    lockedMilestones = [marco('2026-08-02T00:00:00.000Z')];
+    await expect(sprintService.updateSprint(10, { startDate: '2026-08-05' })).rejects.toMatchObject(
+      { code: 'SPRINT_WINDOW_MILESTONE_CONFLICT' }
+    );
+  });
+
+  // Janela semiaberta, mesma convencao de D11: vencer no instante final ja e a
+  // sprint seguinte.
+  it('recusa marco exatamente no novo fim e aceita exatamente no novo inicio', async () => {
+    lockedMilestones = [marco('2026-08-10T00:00:00.000Z')];
+    await expect(sprintService.updateSprint(10, { endDate: '2026-08-10' })).rejects.toMatchObject({
+      code: 'SPRINT_WINDOW_MILESTONE_CONFLICT'
+    });
+
+    lockedMilestones = [marco('2026-08-05T00:00:00.000Z')];
+    await expect(
+      sprintService.updateSprint(10, { startDate: '2026-08-05' })
+    ).resolves.toBeDefined();
+  });
+
+  it('aceita ampliar a janela mantendo os marcos dentro', async () => {
+    lockedMilestones = [marco('2026-08-12T00:00:00.000Z')];
+    await expect(sprintService.updateSprint(10, { endDate: '2026-08-28' })).resolves.toBeDefined();
+  });
+
+  // O formulario do painel reenvia as QUATRO chaves a cada salvamento
+  // (ScheduleScreen.submitSprint). Se o criterio fosse "a janela veio no corpo",
+  // este rename seria recusado, e um marco que o backfill da s104 deixou fora da
+  // janela trancaria a sprint para sempre pelo unico caminho de UI que existe.
+  it('renomear reenviando a janela inalterada nao esbarra em marco legado', async () => {
+    lockedMilestones = [marco('2026-09-30T00:00:00.000Z')];
+    await expect(
+      sprintService.updateSprint(10, {
+        name: 'Renomeada',
+        objective: null,
+        startDate: '2026-08-01T00:00:00.000Z',
+        endDate: '2026-08-14T00:00:00.000Z'
+      })
+    ).resolves.toBeDefined();
+  });
+
+  // Marco que o backfill deixou fora nunca foi invariante desta sprint: cobra-lo
+  // agora nao consertaria nada e impediria qualquer reajuste de periodo.
+  it('marco ja fora da janela nao bloqueia uma mudanca de periodo', async () => {
+    lockedMilestones = [marco('2026-09-30T00:00:00.000Z')];
+    await expect(sprintService.updateSprint(10, { endDate: '2026-08-10' })).resolves.toBeDefined();
+  });
+
+  // O que importa e "estava dentro e saiu": um marco fora convivendo com outro
+  // dentro nao pode mascarar a recusa do que de fato foi empurrado.
+  it('recusa o marco empurrado para fora mesmo com outro ja fora da janela', async () => {
+    lockedMilestones = [
+      marco('2026-09-30T00:00:00.000Z', 'Legado'),
+      marco('2026-08-12T00:00:00.000Z', 'Homologação')
+    ];
+    await expect(sprintService.updateSprint(10, { endDate: '2026-08-10' })).rejects.toMatchObject({
+      code: 'SPRINT_WINDOW_MILESTONE_CONFLICT',
+      message: expect.stringContaining('Homologação')
+    });
   });
 });
 

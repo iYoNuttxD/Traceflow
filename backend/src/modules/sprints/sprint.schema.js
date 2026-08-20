@@ -171,17 +171,51 @@ export function ensureNoOverlap(candidate, sprints, ignoreId = null) {
   return candidate;
 }
 
+// Pertencimento a janela semiaberta, na mesma convencao de D03: vencer no
+// instante final ja e a sprint seguinte. Uma unica definicao para as duas regras
+// que dependem dela — a do marco e a da janela — porque duas comparacoes
+// separadas podem divergir na borda sem que nenhum teste perceba.
+export function isWithinWindow(instant, window) {
+  return instant >= window.startDate && instant < window.endDate;
+}
+
 // A data prevista do marco precisa cair na janela da sprint (ADR-010 D11).
-// Mesma convencao semiaberta: vencer no instante final ja e a sprint seguinte.
 export function ensureMilestoneWithinSprint(dueDate, sprint) {
   if (!dueDate) return;
-  if (dueDate < sprint.startDate || dueDate >= sprint.endDate) {
+  if (!isWithinWindow(dueDate, sprint)) {
     throw new SprintServiceError(
       'A data prevista do marco precisa estar dentro do período da sprint.',
       400,
       ERROR_CODES.MILESTONE_DUE_DATE_OUTSIDE_SPRINT
     );
   }
+}
+
+// A outra ponta de D11: mover a janela nao pode EMPURRAR PARA FORA um marco que
+// estava dentro dela. Validar so na escrita do marco deixava a regra valer por um
+// instante — bastava encolher a sprint depois para o marco passar a vencer fora
+// do periodo que ele deveria ancorar.
+//
+// O criterio e "estava dentro", e nao "a janela veio no corpo". Dois motivos:
+// o formulario do painel reenvia as quatro chaves a cada salvamento, entao a
+// presenca das datas nao distingue um rename de uma mudanca de periodo; e o
+// backfill da migration s104 vinculou a ultima sprint do projeto os marcos que
+// nao cabiam em janela nenhuma, de modo que cobrar o conjunto inteiro trancaria
+// a sprint por um legado que quem renomeia nao criou.
+export function ensureMilestonesStayWithinWindow(milestones, currentWindow, nextWindow) {
+  const empurrado = milestones.find(
+    (milestone) =>
+      isWithinWindow(milestone.dueDate, currentWindow) &&
+      !isWithinWindow(milestone.dueDate, nextWindow)
+  );
+  if (empurrado) {
+    throw new SprintServiceError(
+      `O período informado deixaria o marco "${empurrado.title}" fora da sprint. Ajuste o marco antes de alterar a janela.`,
+      409,
+      ERROR_CODES.SPRINT_WINDOW_MILESTONE_CONFLICT
+    );
+  }
+  return milestones;
 }
 
 export function ensureSprintStatus(status) {

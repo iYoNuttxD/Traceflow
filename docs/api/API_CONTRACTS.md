@@ -205,7 +205,7 @@ que supersede parte do ADR-009. Três convenções valem para tudo abaixo:
 | POST | `/projects/:projectId/sprints` | `name`, `objective?`, `startDate`, `endDate` | `201` `{message, sprint}` | `startDate < endDate`; nome único no projeto; sem sobreposição com outra sprint do projeto |
 | GET | `/projects/:projectId/sprints` | `status?`, `search?` | `200` `{total, sprints}` | ordenado por `startDate` asc |
 | GET | `/sprints/:id` | — | `200` `{sprint}` | membership no projeto da sprint |
-| PUT | `/sprints/:id` | subconjunto de `name`, `objective`, `startDate`, `endDate` | `200` `{message, sprint}` | bloqueado em estado terminal; revalida sobreposição |
+| PUT | `/sprints/:id` | subconjunto de `name`, `objective`, `startDate`, `endDate` | `200` `{message, sprint}` | bloqueado em estado terminal; revalida sobreposição; recusa a janela que empurraria para fora um marco que estava dentro |
 | PATCH | `/sprints/:id/status` | `status` | `200` `{message, sprint}` | somente transições válidas; entrar em estado terminal congela a composição |
 | DELETE | `/sprints/:id` | — | **`405 SPRINT_DELETE_NOT_SUPPORTED`** | sprint não é excluída em nenhum estado |
 | GET | `/sprints/:id/tasks` | — | `200` `{sprintId, total, tasks}` | DTO minimizado + contexto da participação |
@@ -363,6 +363,7 @@ O DTO de tarefa é minimizado: nunca e-mail, descrição ou esforço.
 | `MILESTONE_NOT_FOUND` | 404 | idem, para marco |
 | `SPRINT_NAME_IN_USE` | 409 | nome repetido no projeto |
 | `SPRINT_OVERLAP` | 409 | janela cruza outra sprint do projeto |
+| `SPRINT_WINDOW_MILESTONE_CONFLICT` | 409 | a janela informada empurraria para fora um marco que estava dentro da sprint |
 | `SPRINT_INVALID_TRANSITION` | 409 | transição de status não permitida |
 | `SPRINT_LOCKED` | 409 | edição de sprint encerrada, ou de marco de sprint encerrada |
 | `SPRINT_SCOPE_LOCKED` | 409 | alteração de escopo de sprint encerrada, em qualquer direção |

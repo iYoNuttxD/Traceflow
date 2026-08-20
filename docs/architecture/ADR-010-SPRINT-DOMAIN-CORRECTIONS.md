@@ -180,6 +180,65 @@ sprint e marco; o contrato do MVP devolve apenas `{ message }` em projeto, requi
 A propriedade de segurança não exige que todos exponham o mesmo — exige que os dois caminhos
 do **mesmo recurso** exponham exatamente igual.
 
+### D17 — Locks antes das leituras, em ordem global (completa D08)
+
+D08 exigiu que leitura, validação e escrita rodassem na mesma transação com a linha travada.
+Faltava dizer **em que ordem**, e sem isso o `FOR UPDATE` não entregava o que prometia.
+
+**Por que a ordem importa.** Em MySQL/InnoDB sob `REPEATABLE READ`, o *read view* da transação
+nasce na **primeira leitura comum** (`SELECT` sem `FOR UPDATE`). Dali em diante toda leitura comum
+enxerga aquele retrato — inclusive depois de a transação ter esperado por um lock. A leitura
+travada é *current read*: enxerga o último commit e **não** cria read view. Logo, quem lê antes de
+travar espera pelo lock e então valida um passado.
+
+**Regra 1.** Dentro de uma transação de cronograma, todos os `FOR UPDATE` vêm **antes** de
+qualquer leitura comum. Nenhum dado lido fora da transação decide a escrita: a leitura
+pré-transação serve apenas para responder `404` cedo e para descobrir **qual linha travar**.
+
+**Regra 2.** A ordem de aquisição é sempre `Project → Sprint → Task → SprintTask/Milestone`, e
+dentro de cada nível em ordem crescente de `id`. É o que impede que duas transações com conjuntos
+sobrepostos esperem uma pela outra em ordens opostas.
+
+**O que a regra corrigiu.** A atualização de janela completava o lado não informado com o registro
+lido antes da transação. Duas atualizações parciais complementares — uma só do início, outra só do
+fim — validavam contra o mesmo retrato antigo, e a janela persistida podia terminar invertida.
+
+**Adoção.** Aplicada ao caminho de janela (`updateWithinProjectLock`). Transição de status, mutação
+de escopo e mutações de marco ainda decidem sobre leitura anterior ao lock; a adoção nesses três
+caminhos é a continuação direta desta decisão.
+
+### D18 — Mover a janela não empurra para fora um marco que estava dentro
+
+D11 exigia que a data prevista do marco caísse na janela da sprint, mas só na escrita do marco.
+A regra valia por um instante: bastava encolher a sprint depois para o marco passar a vencer fora
+do período que ele deveria ancorar.
+
+Atualizar a sprint passa a comparar, **dentro da mesma transação e com os marcos travados**, a
+janela travada com a janela resultante. Um marco que estava dentro da primeira e ficaria fora da
+segunda provoca `409 SPRINT_WINDOW_MILESTONE_CONFLICT`, com o marco nomeado na mensagem.
+
+**Por que o critério é "estava dentro", e não "a janela mudou".** Duas razões, e a segunda é
+decisiva.
+
+A primeira é o legado: o backfill da migration `20260816120000_s104_domain_fixes` vinculou à última
+sprint do projeto justamente os marcos cuja data **não** caía em nenhuma janela. Por construção,
+todo marco atingido por aquele fallback já nasce fora da janela da sprint que o recebeu. Ele nunca
+foi invariante dessa sprint, e cobrá-lo agora não conserta nada — só impede qualquer edição.
+
+A segunda é o cliente: `ScheduleScreen.submitSprint` monta o payload com as quatro chaves a cada
+salvamento, inclusive num rename. "A janela veio no corpo" não distingue renomear de mudar o
+período, e uma condição baseada na presença dos campos nunca seria falsa no uso real — a exceção
+existiria só no papel. Comparar valores também não basta: o formulário tem precisão de minuto e a
+coluna é `DATETIME(3)`, então um round-trip pode devolver um instante diferente sem que o usuário
+tenha mexido na data.
+
+O critério de conjunto — quem estava dentro continua dentro — é imune ao formato do payload e diz
+exatamente o que a invariante é.
+
+**Pendente.** A outra ponta — mutação de marco travando e revalidando a sprint — ainda não foi
+implementada: uma criação de marco que perde a corrida para uma redução de janela pode confirmar
+depois dela.
+
 ## Consequências
 
 ### Positivas

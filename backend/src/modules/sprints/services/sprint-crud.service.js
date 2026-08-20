@@ -11,6 +11,7 @@ import {
   buildSprintData,
   ensureAtLeastOneField,
   ensureDateRange,
+  ensureMilestonesStayWithinWindow,
   ensureNoOverlap,
   ensureSprintEditable,
   ensureSprintScopeMutable,
@@ -221,7 +222,7 @@ export const sprintCrudService = {
           action: 'SPRINT_CREATED',
           resourceType: 'Sprint'
         }),
-        (sprints) => ensureNoOverlap(sprintData, sprints)
+        ({ sprints }) => ensureNoOverlap(sprintData, sprints)
       );
     } catch (error) {
       if (isUniqueNameViolation(error)) throw sprintNameConflictError();
@@ -244,17 +245,25 @@ export const sprintCrudService = {
 
   async updateSprint(sprintId, data, context = {}) {
     const id = parseSprintId(sprintId);
+    // A leitura de fora da transacao resolve o 404 cedo e diz qual projeto travar.
+    // Nada mais: as datas que decidem a janela final vem do registro relido sob
+    // lock. Completar um lado do intervalo com o valor lido aqui deixava duas
+    // atualizacoes parciais simultaneas — uma so do inicio, outra so do fim —
+    // validarem contra o mesmo retrato antigo e gravarem uma janela invertida.
     const current = await ensureSprintExists(id);
     const sprintData = ensureAtLeastOneField(
       buildSprintData(data),
       'Informe ao menos um campo para atualizar a sprint.'
     );
-    const startDate = sprintData.startDate ?? current.startDate;
-    const endDate = sprintData.endDate ?? current.endDate;
-    ensureDateRange(startDate, endDate);
+    // Janela inteiramente informada nao depende do persistido: pode falhar aqui,
+    // com 400 e sem abrir transacao. Janela parcial, nao — o complemento dela so e
+    // confiavel depois do lock.
+    if (sprintData.startDate && sprintData.endDate) {
+      ensureDateRange(sprintData.startDate, sprintData.endDate);
+    }
 
     try {
-      return await sprintRepository.updateWithinProjectLock(
+      const sprint = await sprintRepository.updateWithinProjectLock(
         id,
         current.projectId,
         sprintData,
@@ -267,15 +276,22 @@ export const sprintCrudService = {
           resourceId: id,
           metadata: { sprintId: id }
         }),
-        (sprints) => {
-          // O status vem do retrato travado, nao da leitura anterior: entre uma
-          // e outra a sprint pode ter sido encerrada por outra requisicao.
-          const locked = sprints.find((sprint) => sprint.id === id);
+        ({ sprints, sprint: locked, milestones }) => {
+          // Status E datas vem do retrato travado, nao da leitura anterior: entre
+          // uma e outra a sprint pode ter sido encerrada ou ter tido a outra ponta
+          // do intervalo movida por outra requisicao.
           if (!locked) throw sprintNotFoundError();
           ensureSprintEditable(locked);
+          const startDate = sprintData.startDate ?? locked.startDate;
+          const endDate = sprintData.endDate ?? locked.endDate;
+          ensureDateRange(startDate, endDate);
           ensureNoOverlap({ startDate, endDate }, sprints, id);
+          ensureMilestonesStayWithinWindow(milestones, locked, { startDate, endDate });
         }
       );
+      // null significa que a sprint sumiu entre a checagem e o lock.
+      if (sprint === null) throw sprintNotFoundError();
+      return sprint;
     } catch (error) {
       if (isUniqueNameViolation(error)) throw sprintNameConflictError();
       throw error;

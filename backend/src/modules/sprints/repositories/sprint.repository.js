@@ -116,13 +116,20 @@ export const sprintRepository = {
   // escritas de cronograma daquele projeto — e apenas daquele.
   //
   // `validate` e a regra de dominio, entregue pelo service: recebe o retrato
-  // travado e lanca erro de dominio. Prisma nao sai do repository, regra nao sai
-  // do service, e as duas rodam na mesma transacao.
+  // travado — `{ sprints, sprint, milestones }` — e lanca erro de dominio. Prisma
+  // nao sai do repository, regra nao sai do service, e as duas rodam na mesma
+  // transacao.
+  //
+  // Locks primeiro, leituras depois (ADR-010 D17). Em REPEATABLE READ o read view
+  // nasce na PRIMEIRA leitura comum da transacao, e `SELECT ... FOR UPDATE` nao o
+  // cria: ler antes de esperar pelo lock congela um retrato anterior a espera, e a
+  // validacao passa a julgar um passado. A ordem e sempre Project -> Sprint ->
+  // Milestone, para que duas transacoes nunca esperem uma pela outra invertidas.
   async createWithinProjectLock(projectId, data, auditEvent, validate) {
     return prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM Project WHERE id = ${projectId} FOR UPDATE`;
       const sprints = await tx.sprint.findMany({ where: { projectId }, select: sprintSelect });
-      await validate(sprints);
+      await validate({ sprints, sprint: null, milestones: [] });
       const sprint = await tx.sprint.create({
         data: { ...data, projectId },
         select: sprintSelect
@@ -137,11 +144,28 @@ export const sprintRepository = {
   async updateWithinProjectLock(id, projectId, data, auditEvent, validate) {
     return prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM Project WHERE id = ${projectId} FOR UPDATE`;
+      // A propria sprint travada: o lock do projeto serializa as escritas de
+      // cronograma, mas quem decide a janela final e o registro desta linha, e ele
+      // precisa estar estavel entre a releitura e a escrita.
+      const travada = await tx.$queryRaw`SELECT id FROM Sprint WHERE id = ${id} FOR UPDATE`;
+      if (!travada.length) return null;
+      // Marcos travados junto: encolher a janela precisa recusar quem ficaria fora
+      // dela, e uma criacao de marco simultanea nao pode escapar dessa checagem
+      // entrando depois da leitura (ADR-010 D18).
+      await tx.$queryRaw`SELECT id FROM Milestone WHERE sprintId = ${id} FOR UPDATE`;
+
       const sprints = await tx.sprint.findMany({ where: { projectId }, select: sprintSelect });
-      await validate(sprints);
-      const sprint = await tx.sprint.update({ where: { id }, data, select: sprintSelect });
+      const sprint = sprints.find((item) => item.id === id) ?? null;
+      const milestones = await tx.milestone.findMany({
+        where: { sprintId: id },
+        select: { id: true, title: true, dueDate: true }
+      });
+
+      await validate({ sprints, sprint, milestones });
+
+      const atualizada = await tx.sprint.update({ where: { id }, data, select: sprintSelect });
       if (auditEvent) await auditRepository.create(auditEvent, tx);
-      return sprint;
+      return atualizada;
     });
   },
 

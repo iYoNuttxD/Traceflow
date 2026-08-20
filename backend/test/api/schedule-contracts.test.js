@@ -330,6 +330,80 @@ describe('contratos de sprint', () => {
     expect(response.status).toBe(409);
     expect(response.body.code).toBe('SPRINT_OVERLAP');
   });
+
+  // A outra ponta de D11: validar a data do marco so na criacao dele deixava a
+  // regra valer por um instante — bastava encolher a sprint depois para o marco
+  // passar a vencer fora do periodo que ele deveria ancorar (ADR-010 D18).
+  it('recusa encolher a janela deixando um marco fora dela, sem efeito colateral', async () => {
+    const owner = await register('sprint-window-milestone@example.invalid');
+    const project = await createProject(owner);
+    const sprintId = (await createSprint(owner, project.id)).body.sprint.id;
+    await createMilestone(owner, project.id, { sprintId, dueDate: '2026-08-10' });
+
+    const response = await owner
+      .mutate('put', `/api/sprints/${sprintId}`)
+      .send({ endDate: '2026-08-05' });
+    expect(response.status).toBe(409);
+    expect(response.body.code).toBe('SPRINT_WINDOW_MILESTONE_CONFLICT');
+    // A mensagem nomeia o marco: sem isso, quem recebe o 409 nao sabe qual dos
+    // marcos da sprint precisa ajustar antes de tentar de novo.
+    expect(response.body.message).toContain('Entrega parcial');
+
+    const sprint = await prisma.sprint.findUnique({ where: { id: sprintId } });
+    expect(sprint.endDate.toISOString()).toBe('2026-08-14T00:00:00.000Z');
+  });
+
+  it('aceita ampliar a janela e mover o marco continua livre dentro dela', async () => {
+    const owner = await register('sprint-window-widen@example.invalid');
+    const project = await createProject(owner);
+    const sprintId = (await createSprint(owner, project.id)).body.sprint.id;
+    await createMilestone(owner, project.id, { sprintId, dueDate: '2026-08-10' });
+
+    const response = await owner
+      .mutate('put', `/api/sprints/${sprintId}`)
+      .send({ endDate: '2026-08-28' });
+    expect(response.status).toBe(200);
+    expect(response.body.sprint.endDate).toBe('2026-08-28T00:00:00.000Z');
+  });
+
+  // O painel do cronograma reenvia as quatro chaves a cada salvamento. Se o
+  // criterio de revalidacao fosse "a janela veio no corpo", um marco que o
+  // backfill da migration s104 deixou fora da janela trancaria ate o rename —
+  // pelo unico caminho de edicao que a interface oferece.
+  it('renomear reenviando a janela inalterada nao esbarra em marco legado', async () => {
+    const owner = await register('sprint-legacy-milestone@example.invalid');
+    const project = await createProject(owner);
+    const sprintId = (await createSprint(owner, project.id)).body.sprint.id;
+    const milestoneId = (await createMilestone(owner, project.id, { sprintId })).body.milestone.id;
+    // Estado que so o backfill produz: a API nunca aceitaria criar assim.
+    await prisma.milestone.update({
+      where: { id: milestoneId },
+      data: { dueDate: new Date('2026-10-15T00:00:00.000Z') }
+    });
+
+    const response = await owner.mutate('put', `/api/sprints/${sprintId}`).send({
+      name: 'Sprint renomeada',
+      objective: 'Identidade e acesso',
+      startDate: '2026-08-01T00:00:00.000Z',
+      endDate: '2026-08-14T00:00:00.000Z'
+    });
+    expect(response.status).toBe(200);
+    expect(response.body.sprint.name).toBe('Sprint renomeada');
+  });
+
+  // Editar apenas o fim precisa continuar valendo contra o inicio PERSISTIDO, e
+  // nao contra o que a requisicao supoe que ele seja.
+  it('recusa fim anterior ao inicio persistido numa atualizacao parcial', async () => {
+    const owner = await register('sprint-partial-window@example.invalid');
+    const project = await createProject(owner);
+    const sprintId = (await createSprint(owner, project.id)).body.sprint.id;
+
+    const response = await owner
+      .mutate('put', `/api/sprints/${sprintId}`)
+      .send({ endDate: '2026-07-20' });
+    expect(response.status).toBe(400);
+    expect(response.body.code).toBe('SPRINT_DATE_RANGE_INVALID');
+  });
 });
 
 describe('contratos de marco', () => {
