@@ -18,7 +18,7 @@ npm run db:test:migrate
 npm run db:test:status
 ```
 
-`db:test:migrate` executa `prisma migrate deploy` no datasource protegido. A CI aplica as 25 migrations em banco vazio e repete o deploy para comprovar ausência de pendências. Não use `prisma migrate reset` em desenvolvimento.
+`db:test:migrate` executa `prisma migrate deploy` no datasource protegido. A cadeia atual possui 35 migrations. `db:test:validate-empty` aplica a cadeia em banco temporário vazio; `db:test:validate-lr2-legacy` aplica o contract sobre fixtures legadas representativas. Não use `prisma migrate reset` em desenvolvimento.
 
 ## Produção
 
@@ -47,5 +47,4 @@ npx prisma migrate status
 6. `prisma migrate resolve` só pode ser usado por operador após comparar SQL e estado real.
 7. Rode novamente status, testes de integração e smoke.
 
-Scripts E8/E11 são dry-run/auditoria ou exigem confirmação explícita. Eles não substituem backup nem autorizam associação de dados por nome.
-
+Scripts E8 são dry-run/auditoria ou exigem confirmação explícita. Fontes E6/E11 que dependem de `ProjectMember`/`projectMemberId` só operam no checkout/schema pré-LR.2 e devem ser executadas antes do contract quando o guard bloquear. Nenhum script substitui backup nem autoriza associação de dados por nome.

@@ -1,102 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import { env } from '../../config/env.js';
-import { AppError, ERROR_CODES } from '../../shared/errors/index.js';
-import { auditService, buildAuditEvent } from '../audit/audit.service.js';
+import { buildAuditEvent } from '../audit/audit.service.js';
 import { privacyRepository } from './privacy.repository.js';
 
-const notFound = () =>
-  new AppError({
-    message: 'Recurso não encontrado.',
-    statusCode: 404,
-    code: ERROR_CODES.RESOURCE_NOT_FOUND,
-    exposeTechnicalDetails: true
-  });
-
-const audit = (userId, requestId, action, resourceType, resourceId, metadata) =>
-  buildAuditEvent({ actorUserId: userId, requestId, action, resourceType, resourceId, metadata });
-
+// O módulo de privacidade retém apenas o worker de anonimização. Os casos de uso HTTP
+// canônicos de conta, sessões, exportação e exclusão pertencem ao módulo Settings.
 export const privacyService = {
-  async personalData(userId, currentSessionId) {
-    const profile = await privacyRepository.personalData(userId);
-    if (!profile) throw notFound();
-    const [sessions, accountAudit, githubCommits] = await Promise.all([
-      this.sessions(userId, currentSessionId),
-      auditService.listAccount(userId, { page: 1, limit: 100 }),
-      privacyRepository.githubData(profile.email)
-    ]);
-    return {
-      ...profile,
-      sessions,
-      auditEvents: accountAudit.events,
-      github: {
-        commits: githubCommits,
-        identityMatch: 'authorEmail exato; associação pode ser incompleta'
-      }
-    };
-  },
-  async updateProfile(userId, input, requestId) {
-    return privacyRepository.updateProfile(
-      userId,
-      { name: input.name.trim() },
-      audit(userId, requestId, 'ACCOUNT_PROFILE_UPDATED', 'User', userId)
-    );
-  },
-  async sessions(userId, currentSessionId) {
-    const sessions = await privacyRepository.listSessions(userId);
-    return sessions.map(({ id, publicId, ...session }) => ({
-      ...session,
-      sessionId: publicId,
-      current: id === currentSessionId
-    }));
-  },
-  async revokeSession(userId, sessionId, requestId) {
-    const count = await privacyRepository.revokeSession(
-      userId,
-      sessionId,
-      audit(userId, requestId, 'SESSION_REVOKED', 'Session', sessionId, { sessionId })
-    );
-    if (!count) throw notFound();
-  },
-  revokeAllSessions(userId, requestId) {
-    return privacyRepository.revokeAllSessions(
-      userId,
-      audit(userId, requestId, 'ALL_SESSIONS_REVOKED', 'Session', userId, { scope: 'all' })
-    );
-  },
-  async requestExport(userId, requestId) {
-    const expiresAt = new Date(Date.now() + env.exportFileTtlMinutes * 60000);
-    return privacyRepository.createExport(
-      userId,
-      expiresAt,
-      audit(userId, requestId, 'PERSONAL_DATA_EXPORT_REQUESTED', 'PersonalDataExport', null, {
-        format: 'ZIP_JSON'
-      }),
-      audit(userId, requestId, 'PERSONAL_DATA_EXPORT_COMPLETED', 'PersonalDataExport', null, {
-        format: 'ZIP_JSON'
-      })
-    );
-  },
-  async exportStatus(userId, exportId) {
-    const record = await privacyRepository.findExport(userId, exportId);
-    if (!record) throw notFound();
-    if (record.expiresAt <= new Date() && record.status === 'COMPLETED')
-      return privacyRepository.expireExport(record.id);
-    return record;
-  },
-  async downloadExport(userId, exportId) {
-    const record = await this.exportStatus(userId, exportId);
-    if (record.status !== 'COMPLETED')
-      throw new AppError({
-        message: 'Exportação expirada ou indisponível.',
-        statusCode: 410,
-        code: ERROR_CODES.EXPORT_EXPIRED,
-        exposeTechnicalDetails: true
-      });
-    return record;
-  },
-  deletionRequest(userId) {
-    return privacyRepository.pendingDeletion(userId);
-  },
   async processDueDeletions({ now = new Date(), dryRun = true } = {}) {
     const due = await privacyRepository.dueDeletionRequests(now);
     if (dryRun) return { mode: 'dry-run', count: due.length };

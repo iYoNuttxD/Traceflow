@@ -44,7 +44,8 @@ afterAll(async () => {
   await prisma.$disconnect();
 });
 
-describe('E11 reconciliação legada no MySQL', () => {
+// N/A após LR.2: a reconciliação deve ocorrer antes do guard que remove ProjectMember.
+describe.skip('E11 reconciliação legada no MySQL (somente banco pré-LR.2)', () => {
   it('aplica Tasks e movimentos em uma transação e é idempotente', async () => {
     const { user, project, member } = await projectWithLegacyIdentity();
     const task = await prisma.task.create({

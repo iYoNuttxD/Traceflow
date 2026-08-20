@@ -11,7 +11,7 @@ anterior e alterar o perfil afeta somente ingressos futuros.
 `GET /projects/join/details?accessCode=...` apresenta somente nome do projeto e perfil. `POST
 /projects/join` aceita estritamente `{accessCode}`; identidade vem da sessão e o backend lê o perfil
 persistido. Membership ativa não é alterada e membership inativa continua dependendo de reativação
-por OWNER. O fluxo cria somente `ProjectMembership`; não faz dual-write em `ProjectMember`.
+por OWNER. O fluxo cria somente `ProjectMembership`; `ProjectMember` não existe no schema atual.
 
 UC05 usa `GET /projects/invitations/mine`. As respostas usam `POST
 /projects/invitations/:invitationId/accept` ou `POST /projects/invitations/:invitationId/decline`. A listagem contém somente convites `PENDING`, não
@@ -35,7 +35,8 @@ Todos os contratos abaixo exigem sessão e CSRF nas mutations, exceto as duas co
 | GET/DELETE      | `/settings/security/sessions[/:sessionId]`                      | UUID público e sessão própria                     |
 | POST            | `/settings/security/sessions/revoke-others`                     | preserva sessão atual                             |
 | POST            | `/settings/account/deactivate`                                  | senha, confirmação e bloqueio de último OWNER     |
-| POST/GET        | `/account/reactivation/start                                    | confirm`                                          | sessão restrita para start; confirmação pública |
+| POST            | `/account/reactivation/start`                                  | sessão restrita desativada                        |
+| GET             | `/account/reactivation/confirm`                                | público; token único                              |
 | GET/POST/DELETE | `/settings/privacy/deletion`                                    | 30 dias, modo restrito e cancelamento com senha   |
 | POST            | `/settings/privacy/export`                                      | ZIP/JSON; `ACTIVE` ou `DELETION_PENDING`          |
 | GET             | `/settings/integrations/github`                                 | autorizações pessoais, instalações/repos/projetos |
@@ -115,15 +116,15 @@ Na E5, respostas de sucesso permaneceram iguais. A API exige JSON para bodies, a
 | GET      | `/health/ready`   | Nenhuma | `200`, `{status:"ready"}`           | `503` dependência indisponível |
 | qualquer | rota desconhecida | —       | —                                   | `404`, `ROUTE_NOT_FOUND`       |
 
-## Projects e membros
+## Projects e memberships
 
 | Método   | Caminho                                                 | Params/query         | Body aceito                                                                                                                | Sucesso                                                                               |
 | -------- | ------------------------------------------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| POST     | `/projects`                                             | —                    | `name`, `responsibleTeam`, `githubOwner`, `githubRepo`, `githubUrl`; opcionais `description`, `status`                     | `201`, `{message,project}`                                                            |
-| POST     | `/projects/from-github`                                 | —                    | metadados `githubRepository*`, owner, branch; opcionais `name`/`nome`, descrição, equipe e boolean `githubAutoSyncEnabled` | `201`, `{message,project}`                                                            |
+| POST     | `/projects`                                             | —                    | `name`, `responsibleTeam`; opcionais `description`, `status`                                                               | `201`, `{message,project}`                                                            |
+| POST     | `/projects/from-github`                                 | —                    | `githubInstallationId`, `githubRepositoryId`; opcionais `name`, `description`, `responsibleTeam`                           | `201`, `{message,project}`                                                            |
 | GET      | `/projects`                                             | —                    | —                                                                                                                          | `200`, `{projects}`                                                                   |
 | GET      | `/projects/:id`                                         | `id` positivo        | —                                                                                                                          | `200`, `{project}`                                                                    |
-| PUT      | `/projects/:id`                                         | `id` positivo        | subconjunto de `name`, `description`, `responsibleTeam`, `status` e tripla GitHub legada                                   | `200`, `{message,project}`                                                            |
+| PUT      | `/projects/:id`                                         | `id` positivo        | subconjunto de `name`, `description`, `responsibleTeam` e `status`                                                         | `200`, `{message,project}`                                                            |
 | DELETE   | `/projects/:id`                                         | baseline placeholder | —                                                                                                                          | `501` inalterado                                                                      |
 | GET      | `/projects/join/details`                                | query `accessCode`   | —                                                                                                                          | `200`, `{details:{project,role}}`                                                     |
 | POST     | `/projects/join`                                        | —                    | somente `accessCode`                                                                                                       | `201`, `{message,project,membership}`                                                 |
@@ -131,7 +132,6 @@ Na E5, respostas de sucesso permaneceram iguais. A API exige JSON para bodies, a
 | PATCH    | `/projects/:projectId/access-code`                      | `projectId` positivo | `role`: MEMBER ou VIEWER                                                                                                   | `200`, configuração atualizada                                                        |
 | POST     | `/projects/:projectId/access-code/regenerate`           | `projectId` positivo | body vazio                                                                                                                 | `200`, novo código; anterior inválido                                                 |
 | GET      | `/projects/:projectId/members`                          | `projectId` positivo | —                                                                                                                          | `200`, `{projectId,currentMembership,members}`                                        |
-| POST     | `/projects/:projectId/members`                          | `projectId` positivo | `name`; opcionais `email`, `role`                                                                                          | `201`, `{message,member}`                                                             |
 | PATCH    | `/projects/:projectId/members/:membershipId`            | IDs positivos        | `role`: OWNER/MANAGER/MEMBER/VIEWER                                                                                        | `200`, `{message,membership}`                                                         |
 | DELETE   | `/projects/:projectId/members/:membershipId`            | IDs positivos        | —                                                                                                                          | `204`, desativação lógica                                                             |
 | POST     | `/projects/:projectId/members/:membershipId/reactivate` | IDs positivos        | body vazio                                                                                                                 | `200`, `{message,membership}`                                                         |
@@ -148,6 +148,12 @@ Na E5, respostas de sucesso permaneceram iguais. A API exige JSON para bodies, a
 | PATCH    | `/projects/:projectId/github/sync-settings`             | `projectId` positivo | boolean `githubAutoSyncEnabled`                                                                                            | `200`, `{message,project}`                                                            |
 
 Status de projeto: `ATIVO`, `INATIVO`, `ARQUIVADO`. URLs GitHub precisam usar HTTP(S) e host `github.com`. E-mails são validados, mas continuam opcionais. `accessCode` é uma capability secreta de ingresso, não uma credencial de autenticação.
+
+DTOs gerais de projeto expõem a integração, quando existente, em `githubIntegration`; não
+repetem `githubOwner`, `githubRepo`, `githubUrl` nem o estado de sync no nível de `Project`.
+`accessCode` e o `inviteLink` derivado aparecem apenas no contrato sensível de access code
+para OWNER. `POST /projects/:projectId/members` foi removido e retorna o `404
+ROUTE_NOT_FOUND` global.
 
 ## Requirements
 
@@ -192,7 +198,7 @@ Tipos preservados: `FUNCIONAL`, `NAO_FUNCIONAL`, `REGRA_NEGOCIO`. Status preserv
 | GET          | `/projects/:projectId/tasks/metrics`                                     | `startDate?`, `endDate?`                                                                                             | `200`, métricas atuais                                                          |
 | GET          | `/projects/:projectId/traceability/{pull-request,commit,issue}-coverage` | `projectId`                                                                                                          | `200`, cobertura atual                                                          |
 
-Priority: `BAIXA`, `MEDIA`, `ALTA`, `CRITICA`. Status: `A_FAZER`, `EM_ANDAMENTO`, `CONCLUIDO`. Efforts são inteiros não negativos. `responsibleUserId` deve identificar usuário com membership ativa no projeto; respostas expõem apenas `{id,name}` em `responsibleUser`. `Task.responsible`, `TaskMovement.movedBy` e `projectMemberId` permanecem somente para dados históricos/compatibilidade de leitura. O histórico funcional usa `STATUS`, `DEADLINE`, `RESPONSIBLE` e `PRIORITY`; mudanças sem efeito não geram entrada.
+Priority: `BAIXA`, `MEDIA`, `ALTA`, `CRITICA`. Status: `A_FAZER`, `EM_ANDAMENTO`, `CONCLUIDO`. Efforts são inteiros não negativos. `responsibleUserId` deve identificar usuário com membership ativa no projeto; respostas expõem apenas `{id,name}` em `responsibleUser`. `Task.responsible` e `TaskMovement.movedBy` permanecem somente como snapshots históricos de leitura; `projectMemberId` foi removido. O histórico funcional usa `STATUS`, `DEADLINE`, `RESPONSIBLE` e `PRIORITY`; mudanças sem efeito não geram entrada.
 
 ## GitHub e Artifacts
 
@@ -233,24 +239,19 @@ O parser RF41 usa somente `/\[TASK-(\d+)\]/gi`: aceita caixa variada, múltiplos
 
 Sem `taskId`, a consulta preserva a visão paginada do projeto. Com `taskId`, retorna somente sugestões da Task validada no mesmo projeto; ID inválido recebe `400` e Task inexistente ou de outro projeto recebe `404`. O DTO continua sem `Commit.authorEmail`.
 
-## Conta, privacidade e auditoria (E7)
+## Conta, privacidade e auditoria após LR.2
 
-| Método          | Caminho                                            | Entrada                                    | Sucesso                                                              |
-| --------------- | -------------------------------------------------- | ------------------------------------------ | -------------------------------------------------------------------- |
-| GET             | `/account/personal-data`                           | sessão                                     | `200`, `{data}` minimizado                                           |
-| PATCH           | `/account/profile`                                 | `name`                                     | `200`, `{message,user}`; compatibilidade, sem troca direta de e-mail |
-| GET             | `/account/sessions`                                | sessão                                     | `200`, sessões sem hashes                                            |
-| DELETE          | `/account/sessions/:sessionId`                     | ID próprio                                 | `204`                                                                |
-| DELETE          | `/account/sessions`                                | sessão                                     | `204`, revoga todas                                                  |
-| POST            | `/account/personal-data/export`                    | CSRF                                       | `202`, metadata da exportação                                        |
-| GET             | `/account/personal-data/export/:exportId`          | ID próprio                                 | `200`, status; `404` cruzado                                         |
-| GET             | `/account/personal-data/export/:exportId/download` | ID próprio não expirado                    | `200`, ZIP/JSON; `410 EXPORT_EXPIRED`                                |
-| POST            | `/account/deactivate`                              | `password`                                 | `200`; `409 SOLE_PROJECT_OWNER`                                      |
-| GET/POST/DELETE | `/account/deletion-request`                        | POST/DELETE: `password`                    | compatibilidade com o ciclo L2                                       |
-| GET             | `/account/audit-events`                            | `page`, `limit`, `action`, `result`, datas | `200`, página própria                                                |
-| GET             | `/projects/:projectId/audit-events`                | mesmos filtros                             | `200` OWNER; `403` demais papéis                                     |
+Conta, sessões, exportação, desativação e ciclo de exclusão usam exclusivamente os contratos
+`/settings/*` descritos no início deste catálogo. As rotas específicas
+`POST /account/reactivation/start` e `GET /account/reactivation/confirm` permanecem atuais.
+Auditoria usa `GET /account/audit-events` para a perspectiva do titular e `GET
+/projects/:projectId/audit-events` para OWNER.
 
-Exportação não contém hashes, cookies, segredos nem dados pessoais de outros membros. Todos os caminhos possuem prefixo `/api`.
+Os antigos paths `/account/personal-data`, `/account/profile`, `/account/sessions`,
+`/account/personal-data/export`, `/account/deactivate` e `/account/deletion-request`,
+incluindo seus subpaths, foram removidos e retornam `404 ROUTE_NOT_FOUND`. Exportação
+canônica não contém hashes, cookies, segredos nem dados pessoais de outros membros. Todos os
+caminhos possuem prefixo `/api`.
 
 ## Limites e erros
 

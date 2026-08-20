@@ -12,7 +12,7 @@ import {
   unlinkTaskFromPullRequest,
   unlinkTaskRequirement
 } from '../api/tasks.api.js';
-import { projectMembersApi } from '../../members/index.js';
+import { membersApi } from '../../members/index.js';
 import { requirementsApi } from '../../requirements/index.js';
 import { projectsApi } from '../../projects/index.js';
 import { getProjectCommits, getProjectIssues, getProjectPullRequests } from '../../github/index.js';
@@ -87,11 +87,11 @@ export function TasksScreen() {
         getProjectCommitCoverage(projectId),
         getProjectIssueCoverage(projectId),
         getProjectPullRequestCoverage(projectId),
-        projectMembersApi.listProjectMembers(projectId).catch((requestError) => {
+        membersApi.list(projectId).catch((requestError) => {
           setError(
             getErrorMessage(requestError, 'Não foi possível carregar os membros do projeto.')
           );
-          return { data: { members: [] } };
+          return { members: [] };
         })
       ]);
 
@@ -104,7 +104,7 @@ export function TasksScreen() {
       setCommitCoverage(commitCoverageResponse);
       setIssueCoverage(issueCoverageResponse);
       setPullRequestCoverage(coverageResponse);
-      setProjectMembers(membersResponse.data.members || []);
+      setProjectMembers(membersResponse.members || []);
     } catch (requestError) {
       setError(getErrorMessage(requestError, 'Não foi possível carregar as tarefas do projeto.'));
     } finally {

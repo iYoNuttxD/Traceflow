@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   forInstallation: vi.fn(),
-  githubIntegrationRepository: { findIntegration: vi.fn() },
   githubBranchRepository: { syncObserved: vi.fn(), markSuccessfullySynced: vi.fn() },
   projectRepository: {
     findById: vi.fn(),
@@ -25,9 +24,6 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../../src/modules/github/github.client.js', () => ({
   githubInstallationClientFactory: { forInstallation: mocks.forInstallation }
-}));
-vi.mock('../../src/modules/github/github.repository.js', () => ({
-  githubRepository: mocks.githubIntegrationRepository
 }));
 vi.mock('../../src/modules/github/github-branch.repository.js', () => ({
   githubBranchRepository: mocks.githubBranchRepository
@@ -53,11 +49,15 @@ import { ExternalServiceError, ERROR_CODES } from '../../src/shared/errors/index
 
 const project = {
   id: 7,
-  githubOwner: 'usuario-artificial',
-  githubRepositoryId: '200',
-  githubRepositoryName: 'repositorio-artificial',
-  githubDefaultBranch: 'main',
-  githubLastSyncAt: new Date('2026-01-01T00:00:00.000Z')
+  githubIntegration: {
+    githubRepositoryId: '200',
+    repositoryName: 'repositorio-artificial',
+    repositoryFullName: 'usuario-artificial/repositorio-artificial',
+    defaultBranch: 'main',
+    lastSyncAt: new Date('2026-01-01T00:00:00.000Z'),
+    status: 'ACTIVE',
+    installation: { status: 'ACTIVE', githubInstallationId: '991' }
+  }
 };
 const repository = {
   githubRepositoryId: '200',
@@ -98,16 +98,12 @@ describe('githubSyncService com client e persistência substituídos', () => {
         { id: 1, projectId: project.id, hash: 'hash-existente', message: '[TASK-1]' }
       ]
     ]);
-    mocks.githubIntegrationRepository.findIntegration.mockResolvedValue({
-      status: 'ACTIVE',
-      installation: { status: 'ACTIVE', githubInstallationId: '991' }
-    });
     mocks.projectRepository.findById.mockResolvedValue(project);
     mocks.projectRepository.updateGithubRepositoryMetadata.mockResolvedValue(project);
     mocks.projectRepository.markGithubSyncStarted.mockResolvedValue(project);
     mocks.projectRepository.markGithubSyncSucceeded.mockResolvedValue({
       ...project,
-      githubSyncStatus: 'SINCRONIZADO'
+      githubIntegration: { ...project.githubIntegration, lastSyncStatus: 'SINCRONIZADO' }
     });
     mocks.projectRepository.markGithubSyncFailed.mockResolvedValue(project);
     mocks.githubBranchRepository.syncObserved.mockImplementation(
@@ -160,10 +156,7 @@ describe('githubSyncService com client e persistência substituídos', () => {
 
     const result = await githubSyncService.syncProjectGithubData(String(project.id));
 
-    expect(github.getRepository).toHaveBeenCalledWith(
-      project.githubOwner,
-      project.githubRepositoryName
-    );
+    expect(github.getRepository).toHaveBeenCalledWith(repository.owner, repository.name);
     expect(github.listBranchPages).toHaveBeenCalledWith(
       expect.objectContaining({ owner: repository.owner, repo: repository.name })
     );
@@ -200,13 +193,16 @@ describe('githubSyncService com client e persistência substituídos', () => {
   });
 
   it('resolve branch ausente pela consulta do repositório e atualiza metadados canônicos', async () => {
-    mocks.projectRepository.findById.mockResolvedValue({ ...project, githubDefaultBranch: null });
+    mocks.projectRepository.findById.mockResolvedValue({
+      ...project,
+      githubIntegration: { ...project.githubIntegration, defaultBranch: null }
+    });
     const github = buildGithubDouble();
     mocks.forInstallation.mockResolvedValue(github);
     await githubSyncService.syncProjectGithubData(project.id);
     expect(mocks.projectRepository.updateGithubRepositoryMetadata).toHaveBeenCalledWith(
       project.id,
-      expect.objectContaining({ githubDefaultBranch: 'main', githubRepositoryId: '200' })
+      expect.objectContaining({ defaultBranch: 'main', githubRepositoryId: '200' })
     );
   });
 

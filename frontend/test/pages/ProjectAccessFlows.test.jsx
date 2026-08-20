@@ -9,7 +9,7 @@ const apiMock = vi.hoisted(() => ({
 }));
 
 vi.mock('../../src/features/members/index.js', () => ({
-  projectMembersApi: apiMock
+  membersApi: apiMock
 }));
 
 import { JoinProjectPage } from '../../src/pages/JoinProjectPage.jsx';
@@ -35,11 +35,9 @@ describe('ingresso por código de projeto', () => {
       role: 'MEMBER'
     });
     apiMock.joinProject.mockResolvedValue({
-      data: {
-        message: 'Entrada no projeto realizada com sucesso.',
-        project: { id: 7, name: 'Projeto compartilhado' },
-        membership: { role: 'MEMBER' }
-      }
+      message: 'Entrada no projeto realizada com sucesso.',
+      project: { id: 7, name: 'Projeto compartilhado' },
+      membership: { role: 'MEMBER' }
     });
   });
 

@@ -278,7 +278,8 @@ export const githubAppService = {
         repositoryName: repository.name,
         repositoryFullName: repository.fullName,
         repositoryUrl: repository.url,
-        defaultBranch: repository.defaultBranch
+        defaultBranch: repository.defaultBranch,
+        repositoryPrivate: repository.private
       });
     } catch (error) {
       if (error?.code === 'P2002') throw repositoryConflict();

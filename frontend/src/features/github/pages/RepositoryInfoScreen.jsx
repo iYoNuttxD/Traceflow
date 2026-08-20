@@ -49,7 +49,9 @@ function getArtifactStatus(artifact) {
   if (artifact.type === 'commit') {
     const branches = artifact.metadata?.branches || [];
     if (branches.length === 0)
-      return artifact.metadata?.branch ? `Branch: ${artifact.metadata.branch}` : '-';
+      return artifact.metadata?.branches?.length
+        ? `Branches: ${artifact.metadata.branches.join(', ')}`
+        : '-';
     return branches.length <= 2
       ? `Branches: ${branches.join(', ')}`
       : `Branches: ${branches[0]} +${branches.length - 1}`;

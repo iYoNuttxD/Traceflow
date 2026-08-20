@@ -73,7 +73,6 @@ export const commitRepository = {
                 { message: { contains: filters.search } },
                 { authorName: { contains: filters.search } },
                 { authorUsername: { contains: filters.search } },
-                { branch: { contains: filters.search } },
                 { branchLinks: { some: { branch: { name: { contains: filters.search } } } } }
               ]
             }

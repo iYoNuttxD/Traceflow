@@ -115,7 +115,7 @@ function NodeDetails({ type, detail }) {
         <DetailRow label="Mensagem" value={detail.message} />
         <DetailRow label="Autor" value={detail.authorName || detail.authorUsername} />
         <DetailRow label="Data" value={formatDate(detail.date)} />
-        <DetailRow label="Branch" value={detail.branch} />
+        <DetailRow label="Branches" value={detail.branches?.join(', ')} />
         {detail.githubUrl && (
           <DetailRow label="GitHub" value="Abrir no GitHub" href={detail.githubUrl} />
         )}

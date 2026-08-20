@@ -4,7 +4,6 @@ import { validateRequest } from '../../shared/validation/index.js';
 import { projectController } from './project.controller.js';
 import artifactRoutes from '../artifacts/artifact.routes.js';
 import {
-  addProjectMemberBodySchema,
   accessCodeRoleBodySchema,
   createProjectBodySchema,
   createProjectFromGithubBodySchema,
@@ -146,11 +145,6 @@ router.post(
   '/:projectId/ownership/transfer',
   validateRequest({ params: membershipProjectParams, body: ownershipTransferBody }),
   projectMembershipController.transferOwnership
-);
-router.post(
-  '/:projectId/members',
-  validateRequest({ params: projectProjectIdParamsSchema, body: addProjectMemberBodySchema }),
-  projectController.addMember
 );
 router.post(
   '/',

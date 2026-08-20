@@ -12,10 +12,7 @@ let prisma;
 const password = 'SenhaSegura123';
 const projectBody = (name = 'Projeto') => ({
   name,
-  responsibleTeam: 'Equipe',
-  githubOwner: 'fake-owner',
-  githubRepo: name.toLowerCase().replace(/\s/g, '-'),
-  githubUrl: `https://github.com/fake-owner/${name.toLowerCase().replace(/\s/g, '-')}`
+  responsibleTeam: 'Equipe'
 });
 beforeAll(async () => {
   const url = configureTestDatabaseEnvironment();
@@ -398,6 +395,21 @@ describe('identidade, sessão, CSRF e autorização E6', () => {
           .send({})
       ).body.membership.isActive
     ).toBe(true);
+  });
+
+  it('remove o POST legado de membro sem criar participação paralela', async () => {
+    const owner = await register('owner-legacy-member@example.invalid', 'Owner');
+    const project = (
+      await owner.mutate('post', '/api/projects').send(projectBody('Sem membro legado'))
+    ).body.project;
+    const before = await prisma.projectMembership.count({ where: { projectId: project.id } });
+
+    const response = await owner
+      .mutate('post', `/api/projects/${project.id}/members`)
+      .send({ name: 'Pessoa legada', email: 'legacy-member@example.invalid', role: 'MEMBRO' });
+
+    expect(response).toMatchObject({ status: 404, body: { code: 'ROUTE_NOT_FOUND' } });
+    expect(await prisma.projectMembership.count({ where: { projectId: project.id } })).toBe(before);
   });
 
   it('protege o último OWNER, permite transferência e saída lógica', async () => {

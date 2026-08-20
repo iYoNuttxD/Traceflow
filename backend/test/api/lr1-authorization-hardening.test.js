@@ -194,6 +194,7 @@ describe('LR.1 - autorização project-scoped fail closed', () => {
           method: 'patch',
           path: `/api/projects/${project.id}/github/sync-settings`,
           requiredRole: 'OWNER',
+          successStatus: 400,
           body: { githubAutoSyncEnabled: variantIndex % 2 === 0 }
         },
         {

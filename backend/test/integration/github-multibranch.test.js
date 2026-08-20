@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   cleanTestDatabase,
@@ -9,10 +8,6 @@ import {
 let prisma;
 let githubBranchRepository;
 let syncProjectCommits;
-const migrationPath = new URL(
-  '../../prisma/migrations/20260810120000_l1_2_github_multibranch/migration.sql',
-  import.meta.url
-);
 
 beforeAll(async () => {
   const testDatabaseUrl = configureTestDatabaseEnvironment();
@@ -47,11 +42,18 @@ async function fixture() {
     data: {
       name: 'Projeto multibranch',
       responsibleTeam: 'Equipe artificial',
-      githubOwner: 'owner',
-      githubRepo: 'repo',
-      githubDefaultBranch: 'main',
       accessCode: 'TEST-GITHUB-MULTIBRANCH',
-      memberships: { create: { userId: user.id, role: 'OWNER' } }
+      memberships: { create: { userId: user.id, role: 'OWNER' } },
+      githubIntegration: {
+        create: {
+          githubRepositoryId: 'multibranch-repository',
+          repositoryName: 'repo',
+          repositoryFullName: 'owner/repo',
+          repositoryUrl: 'https://github.com/owner/repo',
+          defaultBranch: 'main',
+          status: 'ACTIVE'
+        }
+      }
     }
   });
   return project;
@@ -68,10 +70,10 @@ function client(commitsByBranch) {
 }
 
 describe('persistência multibranch', () => {
-  it('faz backfill legado sem reduzir Project, Commit, PullRequest ou Issue', async () => {
+  it('cria vínculo canônico sem reduzir Project, Commit, PullRequest ou Issue', async () => {
     const project = await fixture();
     const commit = await prisma.commit.create({
-      data: { projectId: project.id, hash: 'legacy-main', branch: 'main' }
+      data: { projectId: project.id, hash: 'canonical-main' }
     });
     await prisma.pullRequest.create({
       data: { projectId: project.id, githubId: 'legacy-pr', number: 1, title: 'PR legada' }
@@ -86,19 +88,18 @@ describe('persistência multibranch', () => {
       issues: await prisma.issue.count()
     });
     const before = await counts();
-    const migration = await readFile(migrationPath, 'utf8');
-    const branchBackfill = migration.match(/INSERT INTO `GitBranch`[\s\S]*?;/)?.[0];
-    const linkBackfill = migration.match(/INSERT INTO `CommitBranch`[\s\S]*?;/)?.[0];
-
-    expect(branchBackfill).toBeTruthy();
-    expect(linkBackfill).toBeTruthy();
-    await prisma.$executeRawUnsafe(branchBackfill);
-    await prisma.$executeRawUnsafe(linkBackfill);
+    const branch = await prisma.gitBranch.create({
+      data: {
+        projectId: project.id,
+        name: 'main',
+        isDefault: true,
+        isActive: true,
+        lastSeenAt: new Date()
+      }
+    });
+    await prisma.commitBranch.create({ data: { commitId: commit.id, branchId: branch.id } });
 
     expect(await counts()).toEqual(before);
-    const branch = await prisma.gitBranch.findUnique({
-      where: { projectId_name: { projectId: project.id, name: 'main' } }
-    });
     expect(branch).toMatchObject({ isDefault: true, isActive: true });
     expect(
       await prisma.commitBranch.findUnique({

@@ -19,7 +19,12 @@ const database = vi.hoisted(() => {
         updateMany: method(),
         upsert: method()
       },
-      projectGitHubIntegration: { findUnique: method(), findMany: method(), updateMany: method() },
+      projectGitHubIntegration: {
+        findUnique: method(),
+        findMany: method(),
+        updateMany: method(),
+        upsert: method()
+      },
       gitHubWebhookDelivery: { create: method(), update: method() },
       $transaction: vi.fn((callback) => callback(tx))
     }
@@ -136,14 +141,15 @@ describe('persistência de metadados da GitHub App', () => {
       repositoryUrl: 'https://github.com/owner/repo',
       defaultBranch: 'main'
     };
-    database.tx.projectGitHubIntegration.upsert.mockResolvedValue({ id: 14 });
+    database.prisma.projectGitHubIntegration.upsert.mockResolvedValue({ id: 14 });
     await expect(githubRepository.connectProject(9, 12, repository)).resolves.toEqual({ id: 14 });
-    expect(database.tx.project.update).toHaveBeenCalledWith(
+    expect(database.prisma.projectGitHubIntegration.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: 9 },
-        data: expect.objectContaining({ githubOwner: 'owner', githubRepositoryId: '501' })
+        where: { projectId: 9 },
+        create: expect.objectContaining({ githubRepositoryId: '501' })
       })
     );
+    expect(database.tx.project.update).not.toHaveBeenCalled();
   });
 
   it('registra deliveries e marca instalações/repositórios para reconexão', async () => {

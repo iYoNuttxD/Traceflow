@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
     listTaskHistory: vi.fn(),
     moveTask: vi.fn()
   },
-  projectMembersApi: { listProjectMembers: vi.fn() }
+  membersApi: { list: vi.fn() }
 }));
 
 vi.mock('../../src/features/tasks/api/tasks.api.js', () => ({
@@ -24,7 +24,7 @@ vi.mock('../../src/features/tasks/api/tasks.api.js', () => ({
   unlinkTaskRequirement: vi.fn()
 }));
 vi.mock('../../src/features/members/members.api.js', () => ({
-  projectMembersApi: mocks.projectMembersApi
+  membersApi: mocks.membersApi
 }));
 vi.mock('../../src/features/projects/api/projects.api.js', () => ({
   projectsApi: { get: (id) => mocks.api.get(`/projects/${id}`) }
@@ -98,10 +98,8 @@ describe('KanbanPage E11', () => {
       data: { indicator: 'MOVIMENTACOES', metric: 'Movimentações', totalMovements: 0 }
     });
     mocks.kanbanApi.listTaskHistory.mockResolvedValue(historyResponse());
-    mocks.projectMembersApi.listProjectMembers.mockResolvedValue({
-      data: {
-        members: [{ id: 3, userId: 5, isActive: true, user: { id: 5, name: 'Responsável real' } }]
-      }
+    mocks.membersApi.list.mockResolvedValue({
+      members: [{ id: 3, userId: 5, isActive: true, user: { id: 5, name: 'Responsável real' } }]
     });
   });
 

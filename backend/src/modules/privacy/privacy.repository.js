@@ -2,29 +2,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../../database/prismaClient.js';
 import { auditRepository } from '../audit/audit.repository.js';
 
-const sessionSelect = {
-  id: true,
-  publicId: true,
-  expiresAt: true,
-  lastSeenAt: true,
-  revokedAt: true,
-  createdAt: true
-};
-
 export const privacyRepository = {
-  findUser(id) {
-    return prisma.user.findUnique({ where: { id } });
-  },
-  findUserByEmail(email) {
-    return prisma.user.findUnique({ where: { email } });
-  },
-  listSessions(userId) {
-    return prisma.session.findMany({
-      where: { userId, revokedAt: null, expiresAt: { gt: new Date() } },
-      select: sessionSelect,
-      orderBy: { lastSeenAt: 'desc' }
-    });
-  },
   lastOwnedProjects(userId) {
     return prisma.project
       .findMany({
@@ -40,153 +18,6 @@ export const privacyRepository = {
           .filter((project) => project._count.memberships <= 1)
           .map(({ _count, ...project }) => project)
       );
-  },
-  personalData(userId) {
-    return prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        isActive: true,
-        emailVerifiedAt: true,
-        lastLoginAt: true,
-        createdAt: true,
-        updatedAt: true,
-        memberships: {
-          select: {
-            id: true,
-            projectId: true,
-            role: true,
-            isActive: true,
-            joinedAt: true,
-            project: { select: { name: true } }
-          }
-        },
-        responsibleTasks: {
-          select: { id: true, projectId: true, title: true, status: true, createdAt: true }
-        },
-        taskMovements: {
-          select: {
-            id: true,
-            projectId: true,
-            taskId: true,
-            fromStatus: true,
-            toStatus: true,
-            movedAt: true
-          }
-        },
-        createdInvitations: {
-          select: {
-            id: true,
-            projectId: true,
-            role: true,
-            expiresAt: true,
-            revokedAt: true,
-            acceptedAt: true,
-            declinedAt: true,
-            createdAt: true
-          }
-        },
-        acceptedInvitations: {
-          select: { id: true, projectId: true, role: true, acceptedAt: true, createdAt: true }
-        },
-        declinedInvitations: {
-          select: { id: true, projectId: true, role: true, declinedAt: true, createdAt: true }
-        },
-        privacyRequests: {
-          select: {
-            id: true,
-            type: true,
-            status: true,
-            requestedAt: true,
-            scheduledFor: true,
-            completedAt: true,
-            cancelledAt: true
-          }
-        },
-        personalDataExports: {
-          select: { id: true, status: true, format: true, expiresAt: true, createdAt: true }
-        },
-        reviewedTaskCommitSuggestions: {
-          select: {
-            id: true,
-            projectId: true,
-            taskId: true,
-            commitId: true,
-            status: true,
-            reviewedAt: true
-          }
-        }
-      }
-    });
-  },
-  githubData(email) {
-    return prisma.commit.findMany({
-      where: { authorEmail: email },
-      select: { id: true, projectId: true, hash: true, date: true, authorUsername: true },
-      orderBy: { date: 'desc' },
-      take: 500
-    });
-  },
-  async updateProfile(userId, data, auditData) {
-    return prisma.$transaction(async (tx) => {
-      const user = await tx.user.update({
-        where: { id: userId },
-        data,
-        select: { id: true, name: true, email: true, isActive: true, updatedAt: true }
-      });
-      await auditRepository.create(auditData, tx);
-      return user;
-    });
-  },
-  async revokeSession(userId, sessionId, auditData) {
-    return prisma.$transaction(async (tx) => {
-      const result = await tx.session.updateMany({
-        where: { publicId: sessionId, userId, revokedAt: null },
-        data: { revokedAt: new Date() }
-      });
-      if (result.count) await auditRepository.create(auditData, tx);
-      return result.count;
-    });
-  },
-  async revokeAllSessions(userId, auditData) {
-    return prisma.$transaction(async (tx) => {
-      const result = await tx.session.updateMany({
-        where: { userId, revokedAt: null },
-        data: { revokedAt: new Date() }
-      });
-      await auditRepository.create(auditData, tx);
-      return result.count;
-    });
-  },
-  async createExport(userId, expiresAt, auditData, completedAuditData) {
-    return prisma.$transaction(async (tx) => {
-      const record = await tx.personalDataExport.create({
-        data: {
-          userId,
-          status: 'COMPLETED',
-          format: 'ZIP_JSON',
-          expiresAt,
-          completedAt: new Date()
-        }
-      });
-      await auditRepository.create(auditData, tx);
-      await auditRepository.create({ ...completedAuditData, resourceId: String(record.id) }, tx);
-      return record;
-    });
-  },
-  findExport(userId, id) {
-    return prisma.personalDataExport.findFirst({ where: { id, userId } });
-  },
-  expireExport(id) {
-    return prisma.personalDataExport.update({ where: { id }, data: { status: 'EXPIRED' } });
-  },
-  pendingDeletion(userId) {
-    return prisma.privacyRequest.findFirst({
-      where: { userId, type: 'ACCOUNT_DELETION', status: 'PENDING' },
-      orderBy: { requestedAt: 'desc' }
-    });
   },
   dueDeletionRequests(now = new Date()) {
     const staleLease = new Date(now.getTime() - 30 * 60 * 1000);
@@ -280,10 +111,6 @@ export const privacyRepository = {
         await tx.projectMembership.updateMany({
           where: { userId: request.userId },
           data: { isActive: false }
-        });
-        await tx.projectMember.updateMany({
-          where: { email: currentUser.email },
-          data: { name: anonymous.name, email: anonymous.email, isActive: false }
         });
         await tx.task.updateMany({
           where: { responsibleUserId: request.userId },

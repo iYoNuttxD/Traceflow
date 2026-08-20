@@ -4,7 +4,6 @@ import { auditService } from '../audit/audit.service.js';
 import { publicProject } from './project.schema.js';
 
 const projectFallback = 'Erro interno ao processar projeto.';
-const membersFallback = 'Erro interno ao processar membros do projeto.';
 
 export const projectController = {
   create: asyncHandler(
@@ -39,17 +38,6 @@ export const projectController = {
       return res.json({ project: publicProject(project) });
     },
     { fallbackMessage: projectFallback }
-  ),
-
-  addMember: asyncHandler(
-    async (req, res) => {
-      const member = await projectService.addProjectMember(req.params.projectId, req.body);
-      return res.status(201).json({
-        message: 'Membro adicionado ao projeto com sucesso.',
-        member
-      });
-    },
-    { fallbackMessage: membersFallback }
   ),
 
   join: asyncHandler(

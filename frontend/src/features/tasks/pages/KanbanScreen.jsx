@@ -8,7 +8,7 @@ import {
   unlinkTaskFromPullRequest,
   unlinkTaskRequirement
 } from '../api/tasks.api.js';
-import { projectMembersApi } from '../../members/index.js';
+import { membersApi } from '../../members/index.js';
 import { projectsApi } from '../../projects/index.js';
 import { ProjectSectionNav } from '../../projects/index.js';
 import { KanbanBoard } from '../components/KanbanBoard.jsx';
@@ -153,10 +153,10 @@ export function KanbanScreen() {
           kanbanApi.getBoard(projectId),
           kanbanApi.getMetrics(projectId, params),
           kanbanApi.listTaskHistory(projectId, { ...params, page: 1, limit: MOVEMENTS_PER_PAGE }),
-          projectMembersApi.listProjectMembers(projectId)
+          membersApi.list(projectId)
         ]);
 
-        const members = membersResponse.data.members || [];
+        const members = membersResponse.members || [];
         setProject(projectResponse.data.project);
         setBoard(boardResponse.data);
         setMetrics(metricsResponse.data);

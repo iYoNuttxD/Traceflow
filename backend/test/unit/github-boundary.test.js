@@ -199,9 +199,12 @@ describe('fronteira GitHub App da L1', () => {
         private: true
       })
     ).toMatchObject({ githubRepositoryId: '1', fullName: 'owner/repo', defaultBranch: 'trunk' });
-    expect(
-      mapGithubCommit({ sha: 'abc', commit: { author: { date: '2026-01-01T00:00:00Z' } } }, 'trunk')
-    ).toMatchObject({ hash: 'abc', branch: 'trunk', date: expect.any(Date) });
+    const commit = mapGithubCommit(
+      { sha: 'abc', commit: { author: { date: '2026-01-01T00:00:00Z' } } },
+      'trunk'
+    );
+    expect(commit).toMatchObject({ hash: 'abc', date: expect.any(Date) });
+    expect(commit).not.toHaveProperty('branch');
     expect(
       mapGithubPullRequest({ id: 2, number: 2, title: 'PR', base: { ref: 'trunk' } })
     ).toMatchObject({ githubId: '2', targetBranch: 'trunk' });
@@ -393,11 +396,11 @@ describe('fronteira GitHub App da L1', () => {
       { name: 'feature', headSha: 'def' }
     ]);
 
-    await expect(
-      collectGithubPages(
-        client.listCommitPages({ owner: 'traceflow', repo: 'repo', branch: 'main' })
-      )
-    ).resolves.toEqual([expect.objectContaining({ hash: 'abc', branch: 'main' })]);
+    const commits = await collectGithubPages(
+      client.listCommitPages({ owner: 'traceflow', repo: 'repo', branch: 'main' })
+    );
+    expect(commits).toEqual([expect.objectContaining({ hash: 'abc' })]);
+    expect(commits[0]).not.toHaveProperty('branch');
     await expect(
       collectGithubPages(client.listPullRequestPages({ owner: 'traceflow', repo: 'repo' }))
     ).resolves.toEqual([

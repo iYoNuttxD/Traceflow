@@ -230,9 +230,11 @@ describe('Projetos e integração GitHub E9', () => {
       repository.githubRepositoryId
     );
     expect(project).toMatchObject({
-      githubRepositoryId: repository.githubRepositoryId,
-      githubRepositoryFullName: repository.fullName,
-      githubDefaultBranch: 'trunk'
+      githubIntegration: {
+        githubRepositoryId: repository.githubRepositoryId,
+        repositoryFullName: repository.fullName,
+        defaultBranch: 'trunk'
+      }
     });
     expect(
       await prisma.projectMembership.findFirst({ where: { projectId: project.id, role: 'OWNER' } })
@@ -243,12 +245,8 @@ describe('Projetos e integração GitHub E9', () => {
       githubRepo: 'outro',
       githubUrl: 'https://github.com/outro/outro'
     });
-    expect(repositoryChange).toMatchObject({
-      status: 400,
-      body: {
-        message: 'O repositório integrado não pode ser alterado pela edição comum do projeto.'
-      }
-    });
+    expect(repositoryChange.status).toBe(400);
+    expect(repositoryChange.body.code).toBe('VALIDATION_ERROR');
 
     const duplicate = await owner.mutate('post', '/api/projects/from-github').send({
       githubInstallationId: '77',
@@ -287,7 +285,7 @@ describe('Projetos e integração GitHub E9', () => {
   it('pagina, reprocessa sem duplicar e preserva vínculos e artifacts canônicos', async () => {
     const owner = await register('owner-sync@example.invalid');
     const project = await createIntegratedProject(owner);
-    const integratedAt = new Date(project.githubIntegratedAt);
+    const integratedAt = new Date(project.githubIntegration.integratedAt);
     const existingPr = await prisma.pullRequest.create({
       data: {
         projectId: project.id,
@@ -368,7 +366,8 @@ describe('Projetos e integração GitHub E9', () => {
       await prisma.taskCommitSuggestion.count({ where: { projectId: project.id, taskId: task.id } })
     ).toBe(1);
     expect(
-      (await prisma.project.findUnique({ where: { id: project.id } })).githubIntegratedAt
+      (await prisma.projectGitHubIntegration.findUnique({ where: { projectId: project.id } }))
+        .integratedAt
     ).toEqual(integratedAt);
 
     const artifacts = await owner.agent.get(
@@ -433,9 +432,9 @@ describe('Projetos e integração GitHub E9', () => {
     const owner = await register('owner-partial@example.invalid');
     const project = await createIntegratedProject(owner);
     const previousSuccess = new Date('2026-01-01T00:00:00.000Z');
-    await prisma.project.update({
-      where: { id: project.id },
-      data: { githubLastSyncAt: previousSuccess, githubSyncStatus: 'SINCRONIZADO' }
+    await prisma.projectGitHubIntegration.update({
+      where: { projectId: project.id },
+      data: { lastSyncAt: previousSuccess, lastSyncStatus: 'SINCRONIZADO' }
     });
     const failure = new ExternalServiceError(
       'Falha de conexão com o GitHub.',
@@ -460,10 +459,12 @@ describe('Projetos e integração GitHub E9', () => {
     expect(
       await prisma.commit.count({ where: { projectId: project.id, hash: 'commit-parcial' } })
     ).toBe(1);
-    const failedProject = await prisma.project.findUnique({ where: { id: project.id } });
-    expect(failedProject.githubSyncStatus).toBe('FALHA');
-    expect(failedProject.githubLastSyncAt).toEqual(previousSuccess);
-    expect(failedProject.githubLastSyncError).toBe('Falha de conexão com o GitHub.');
+    const failedIntegration = await prisma.projectGitHubIntegration.findUnique({
+      where: { projectId: project.id }
+    });
+    expect(failedIntegration.lastSyncStatus).toBe('FALHA');
+    expect(failedIntegration.lastSyncAt).toEqual(previousSuccess);
+    expect(failedIntegration.lastSyncError).toBe('Falha de conexão com o GitHub.');
     const actions = await prisma.auditEvent.findMany({
       where: { projectId: project.id },
       select: { action: true }

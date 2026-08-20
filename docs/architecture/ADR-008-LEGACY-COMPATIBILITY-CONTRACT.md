@@ -1,5 +1,6 @@
 # ADR-008 — Contract final de compatibilidade e dados legados
 
+- **Substituída por:** ADR-011 na política de compatibilidade pré-release e no contract LR.2
 - **Estado:** aceita na E15
 - **Data:** 26/07/2026
 

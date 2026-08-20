@@ -8,15 +8,13 @@ export const emptyProjectForm = {
   name: '',
   description: '',
   responsibleTeam: '',
-  githubOwner: '',
-  githubRepo: '',
-  githubUrl: '',
-  githubRepositoryId: '',
-  githubRepositoryName: '',
-  githubRepositoryFullName: '',
-  githubRepositoryUrl: '',
-  githubDefaultBranch: '',
-  githubInstallationId: '',
+  selectedOwner: '',
+  selectedRepositoryName: '',
+  selectedRepositoryUrl: '',
+  selectedRepositoryId: '',
+  selectedRepositoryFullName: '',
+  selectedDefaultBranch: '',
+  selectedInstallationId: '',
   status: 'ATIVO'
 };
 
@@ -59,15 +57,13 @@ export function applyRepositoryToProjectForm(currentForm, repository) {
   return {
     ...currentForm,
     name: currentForm.name.trim() ? currentForm.name : normalizedRepository.name,
-    githubOwner: normalizedRepository.owner,
-    githubRepo: normalizedRepository.name,
-    githubUrl: normalizedRepository.url,
-    githubRepositoryId: normalizedRepository.id,
-    githubRepositoryName: normalizedRepository.name,
-    githubRepositoryFullName: normalizedRepository.fullName,
-    githubRepositoryUrl: normalizedRepository.url,
-    githubDefaultBranch: normalizedRepository.defaultBranch,
-    githubInstallationId: normalizedRepository.githubInstallationId
+    selectedOwner: normalizedRepository.owner,
+    selectedRepositoryName: normalizedRepository.name,
+    selectedRepositoryUrl: normalizedRepository.url,
+    selectedRepositoryId: normalizedRepository.id,
+    selectedRepositoryFullName: normalizedRepository.fullName,
+    selectedDefaultBranch: normalizedRepository.defaultBranch,
+    selectedInstallationId: normalizedRepository.githubInstallationId
   };
 }
 
@@ -86,10 +82,7 @@ export function ProjectForm({
   showRepositoryField = true,
   showStatusField = true
 }) {
-  const currentRepositoryFullName =
-    formData.githubOwner && formData.githubRepo
-      ? `${formData.githubOwner}/${formData.githubRepo}`
-      : '';
+  const currentRepositoryFullName = formData.selectedRepositoryFullName || '';
   const hasCurrentRepository = repositories.some(
     (repository) => normalizeRepository(repository).fullName === currentRepositoryFullName
   );
@@ -183,7 +176,7 @@ export function ProjectForm({
             repositoryEmptyMessage && (
               <p className="field-help field-full">{repositoryEmptyMessage}</p>
             )}
-          {formData.githubUrl && (
+          {formData.selectedRepositoryUrl && (
             <p className="field-help field-full">
               Repositório selecionado: <strong>{currentRepositoryFullName}</strong>
             </p>

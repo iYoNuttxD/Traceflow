@@ -110,9 +110,8 @@ export async function syncProjectCommits({
         repo: repository.name,
         branch: branch.name
       })) {
-        const commits = page.map((commit) => ({
+        const commits = page.map(({ branch: _legacyBranch, ...commit }) => ({
           ...commit,
-          branch: branch.name,
           projectId: project.id
         }));
         commits.forEach(({ hash }) => uniqueHashes.add(hash));

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
-import { projectMembersApi } from '../features/members/index.js';
+import { membersApi } from '../features/members/index.js';
 import { parseProjectAccessInput } from '../features/projects/services/project-access-input.js';
 import { Card, FeedbackRegion, LoadingState, normalizeApiError } from '../shared/index.js';
 
@@ -34,7 +34,7 @@ export function JoinProjectPage() {
     setInput(accessCode);
     setLoading(true);
     setError('');
-    void projectMembersApi
+    void membersApi
       .joinDetails(accessCode)
       .then((responseDetails) => {
         if (active) setDetails(responseDetails);
@@ -66,9 +66,9 @@ export function JoinProjectPage() {
     setError('');
     setSuccess('');
     try {
-      const response = await projectMembersApi.joinProject({ accessCode: input });
-      setJoinedProject(response.data.project);
-      setSuccess(response.data.message);
+      const response = await membersApi.joinProject({ accessCode: input });
+      setJoinedProject(response.project);
+      setSuccess(response.message);
     } catch (requestError) {
       setError(normalizeApiError(requestError, 'Não foi possível entrar no projeto.').message);
     } finally {

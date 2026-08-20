@@ -20,6 +20,7 @@ React/Vite → API REST/Express → Route → Controller → Service → Reposit
 - Sessões são opacas e server-side; mutações autenticadas exigem CSRF.
 - `ProjectMembership` é a fonte de autorização. Ausência de membership retorna `404`; papel insuficiente retorna `403`.
 - `Commit`, `PullRequest`, `Issue`, `TaskCommit`, `TaskIssue` e `Task.pullRequestId` são canônicos.
+- `ProjectGitHubIntegration` concentra identidade, configuração e estado do repositório; branches de commit usam `GitBranch` + `CommitBranch`.
 
 Consulte a [arquitetura vigente](docs/architecture/SYSTEM_ARCHITECTURE.md), as [convenções backend](docs/architecture/MODULE_CONVENTIONS.md) e a [estrutura frontend](docs/architecture/FRONTEND_STRUCTURE.md).
 
@@ -163,7 +164,8 @@ Evidências: [ASVS](docs/security/ASVS_BASELINE.md), [threat model](docs/securit
 ## Limitações conhecidas
 
 - `DELETE /api/projects/:id` permanece `501`; não existe política homologada de exclusão de projeto.
-- `ProjectMember`, `Project.accessCode/inviteLink`, aliases GitHub e snapshots textuais pré-identidade permanecem por compatibilidade/dados históricos.
+- `Project.accessCode` permanece como capability atual; o link de ingresso é derivado e não persistido.
+- `Task.responsible` e `TaskMovement.movedBy` permanecem como snapshots históricos, sem valor de identidade ou autorização.
 - O rate limiter e a trava de sincronização são por processo; produção horizontal exige store/lock distribuído.
 - Secret manager, store/lock distribuído e configuração operacional real da GitHub App/SMTP não são fornecidos pelo repositório.
 - TLS, headers do host da SPA, backups agendados, observabilidade e branch protection dependem do ambiente operacional.
@@ -174,7 +176,7 @@ Evidências: [ASVS](docs/security/ASVS_BASELINE.md), [threat model](docs/securit
 ```text
 backend/src/modules/       domínios e camadas da API
 backend/src/shared/        infraestrutura transversal
-backend/prisma/            schema e 25 migrations
+backend/prisma/            schema e 35 migrations
 frontend/src/features/     domínios da SPA
 frontend/src/shared/       UI, hooks e serviços compartilhados
 docs/architecture/         arquitetura e ADRs

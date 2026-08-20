@@ -14,13 +14,6 @@ const restrictedAccess = Object.freeze({
 });
 
 function allowed(req, status) {
-  if (
-    status === 'DELETION_PENDING' &&
-    (req.method === 'GET' || req.method === 'DELETE') &&
-    req.path === '/account/deletion-request'
-  ) {
-    return true;
-  }
   return (restrictedAccess[status] || []).some(
     ([method, path]) => req.method === method && req.path === path
   );

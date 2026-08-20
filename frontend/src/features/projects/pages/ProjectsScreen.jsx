@@ -120,15 +120,13 @@ export function ProjectsScreen() {
     if (!normalized || normalized.selectable === false) {
       setFormData((current) => ({
         ...current,
-        githubOwner: '',
-        githubRepo: '',
-        githubUrl: '',
-        githubRepositoryId: '',
-        githubRepositoryName: '',
-        githubRepositoryFullName: '',
-        githubRepositoryUrl: '',
-        githubDefaultBranch: '',
-        githubInstallationId: ''
+        selectedOwner: '',
+        selectedRepositoryName: '',
+        selectedRepositoryUrl: '',
+        selectedRepositoryId: '',
+        selectedRepositoryFullName: '',
+        selectedDefaultBranch: '',
+        selectedInstallationId: ''
       }));
       setDuplicateRepository(null);
       return;
@@ -140,15 +138,13 @@ export function ProjectsScreen() {
       window.setTimeout(() => setHighlightedProjectId(null), 4000);
       setFormData((current) => ({
         ...current,
-        githubOwner: '',
-        githubRepo: '',
-        githubUrl: '',
-        githubRepositoryId: '',
-        githubRepositoryName: '',
-        githubRepositoryFullName: '',
-        githubRepositoryUrl: '',
-        githubDefaultBranch: '',
-        githubInstallationId: ''
+        selectedOwner: '',
+        selectedRepositoryName: '',
+        selectedRepositoryUrl: '',
+        selectedRepositoryId: '',
+        selectedRepositoryFullName: '',
+        selectedDefaultBranch: '',
+        selectedInstallationId: ''
       }));
       return;
     }
@@ -163,9 +159,9 @@ export function ProjectsScreen() {
     setSuccess('');
 
     if (
-      !formData.githubRepositoryId ||
-      !formData.githubRepositoryFullName ||
-      !formData.githubDefaultBranch
+      !formData.selectedRepositoryId ||
+      !formData.selectedRepositoryFullName ||
+      !formData.selectedDefaultBranch
     ) {
       setError('Selecione um repositório GitHub para criar o projeto.');
       return;
@@ -175,8 +171,8 @@ export function ProjectsScreen() {
 
     try {
       const response = await projectsApi.createFromGithub({
-        githubInstallationId: formData.githubInstallationId,
-        githubRepositoryId: formData.githubRepositoryId,
+        githubInstallationId: formData.selectedInstallationId,
+        githubRepositoryId: formData.selectedRepositoryId,
         name: formData.name,
         description: formData.description,
         responsibleTeam: formData.responsibleTeam
@@ -188,7 +184,7 @@ export function ProjectsScreen() {
       const connectedProject = requestError.response?.data?.details?.connectedProject;
       if (requestError.response?.status === 409 && connectedProject) {
         setDuplicateRepository({
-          fullName: formData.githubRepositoryFullName,
+          fullName: formData.selectedRepositoryFullName,
           connectedProject
         });
         setHighlightedProjectId(connectedProject.id);
@@ -201,7 +197,7 @@ export function ProjectsScreen() {
 
   async function reconnectProject() {
     const projectId = searchParams.get('projectId');
-    if (!projectId || !formData.githubRepositoryId) {
+    if (!projectId || !formData.selectedRepositoryId) {
       setError('Selecione o repositório que será reconectado.');
       return;
     }
@@ -210,8 +206,8 @@ export function ProjectsScreen() {
     setSuccess('');
     try {
       const response = await projectsApi.connectGithubRepository(projectId, {
-        githubInstallationId: formData.githubInstallationId,
-        githubRepositoryId: formData.githubRepositoryId
+        githubInstallationId: formData.selectedInstallationId,
+        githubRepositoryId: formData.selectedRepositoryId
       });
       setSuccess(response.data.message);
       setSearchParams({}, { replace: true });
@@ -345,9 +341,7 @@ export function ProjectsScreen() {
                     <span>Equipe: {project.responsibleTeam}</span>
                     <span>
                       Repositório:{' '}
-                      {project.githubOwner && project.githubRepo
-                        ? `${project.githubOwner}/${project.githubRepo}`
-                        : 'não informado'}
+                      {project.githubIntegration?.repositoryFullName || 'não informado'}
                     </span>
                   </div>
 

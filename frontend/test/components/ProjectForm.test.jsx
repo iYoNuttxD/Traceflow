@@ -26,9 +26,10 @@ function ProjectFormHarness({ onSubmit, submitting = false, loadingRepositories 
         const selected = fullName ? repository : null;
         setFormData((current) => ({
           ...current,
-          githubOwner: selected?.owner || '',
-          githubRepo: selected?.name || '',
-          githubUrl: selected?.url || ''
+          selectedOwner: selected?.owner || '',
+          selectedRepositoryName: selected?.name || '',
+          selectedRepositoryFullName: selected?.fullName || '',
+          selectedRepositoryUrl: selected?.url || ''
         }));
       }}
       onSubmit={onSubmit}

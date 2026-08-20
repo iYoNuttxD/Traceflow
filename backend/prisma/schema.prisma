@@ -273,37 +273,20 @@ model ProjectInvitation {
   @@index([declinedById])
 }
 
-// Entidade central do TRACEFLOW, com aliases GitHub legados preservados por compatibilidade.
+// Entidade central do TRACEFLOW. A identidade GitHub pertence exclusivamente à integração.
 model Project {
-  id                       Int         @id @default(autoincrement())
-  name                     String
-  description              String?
-  responsibleTeam          String
-  githubOwner              String?
-  githubRepo               String?
-  githubUrl                String?
-  githubRepositoryId       String?
-  githubRepositoryName     String?
-  githubRepositoryFullName String?
-  githubRepositoryUrl      String?
-  githubDefaultBranch      String?
-  githubIsPrivate          Boolean?
-  githubIntegratedAt       DateTime?
-  githubAutoSyncEnabled    Boolean     @default(false)
-  githubLastSyncAt         DateTime?
-  githubSyncStatus         String?
-  githubLastSyncError      String?
-  githubLastSyncAttemptAt  DateTime?
-  status                   String      @default("ATIVO")
-  accessCode               String      @unique
-  accessCodeRole           ProjectRole @default(MEMBER)
-  inviteLink               String?
-  createdAt                DateTime    @default(now())
-  updatedAt                DateTime    @updatedAt
+  id              Int         @id @default(autoincrement())
+  name            String
+  description     String?
+  responsibleTeam String
+  status          String      @default("ATIVO")
+  accessCode      String      @unique
+  accessCodeRole  ProjectRole @default(MEMBER)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
 
   requirements           Requirement[]
   tasks                  Task[]
-  members                ProjectMember[]
   taskMovements          TaskMovement[]
   taskHistoryEntries     TaskHistoryEntry[]
   commits                Commit[]
@@ -318,10 +301,7 @@ model Project {
   githubBranches         GitBranch[]
   githubSyncRuns         GitHubSyncRun[]
 
-  @@unique([githubRepositoryId])
-  @@unique([githubRepositoryFullName])
   @@index([status])
-  @@index([githubSyncStatus])
   @@index([createdAt])
 }
 
@@ -367,11 +347,15 @@ model ProjectGitHubIntegration {
   repositoryFullName String?
   repositoryUrl      String?
   defaultBranch      String?
+  repositoryPrivate  Boolean?
+  integratedAt       DateTime?
+  autoSyncEnabled    Boolean                 @default(false)
   status             GitHubIntegrationStatus @default(RECONNECT_REQUIRED)
   lastValidatedAt    DateTime?
   lastSyncAt         DateTime?
   lastSyncStatus     String?
   lastSyncError      String?
+  lastSyncAttemptAt  DateTime?
   createdAt          DateTime                @default(now())
   updatedAt          DateTime                @updatedAt
 
@@ -619,45 +603,23 @@ model TaskIssue {
   @@index([issueId])
 }
 
-// Membro interno de um projeto no TRACEFLOW.
-model ProjectMember {
-  id        Int      @id @default(autoincrement())
-  projectId Int
-  name      String
-  email     String?
-  role      String   @default("MEMBRO")
-  isActive  Boolean  @default(true)
-  joinedAt  DateTime @default(now())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  project   Project        @relation(fields: [projectId], references: [id])
-  movements TaskMovement[]
-
-  @@unique([projectId, email])
-  @@index([projectId])
-}
-
 // Historico de movimentacoes do quadro Kanban do RF08.
 model TaskMovement {
-  id              Int      @id @default(autoincrement())
-  projectId       Int
-  taskId          Int
-  fromStatus      String
-  toStatus        String
-  movedBy         String
-  projectMemberId Int?
-  movedByUserId   Int?
-  movedAt         DateTime @default(now())
-  sprintId        Int?
-  createdAt       DateTime @default(now())
+  id            Int      @id @default(autoincrement())
+  projectId     Int
+  taskId        Int
+  fromStatus    String
+  toStatus      String
+  movedBy       String
+  movedByUserId Int?
+  movedAt       DateTime @default(now())
+  sprintId      Int?
+  createdAt     DateTime @default(now())
 
-  project       Project        @relation(fields: [projectId], references: [id])
-  task          Task           @relation(fields: [taskId], references: [id])
-  projectMember ProjectMember? @relation(fields: [projectMemberId], references: [id])
-  movedByUser   User?          @relation(fields: [movedByUserId], references: [id], onDelete: SetNull)
+  project     Project @relation(fields: [projectId], references: [id])
+  task        Task    @relation(fields: [taskId], references: [id])
+  movedByUser User?   @relation(fields: [movedByUserId], references: [id], onDelete: SetNull)
 
-  @@index([projectMemberId])
   @@index([movedByUserId])
   @@index([movedAt])
   @@index([projectId, movedAt])
@@ -696,7 +658,6 @@ model Commit {
   authorEmail    String?
   authorUsername String?
   date           DateTime?
-  branch         String?
   githubUrl      String?
   projectId      Int
   createdAt      DateTime  @default(now())

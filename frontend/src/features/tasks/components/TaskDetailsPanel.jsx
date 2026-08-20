@@ -150,7 +150,10 @@ export function TaskDetailsPanel({
                       <strong>{formatCommitLabel(commit)}</strong>
                       <p>Autor: {commit.authorName || commit.authorUsername || 'não informado'}</p>
                       <p>Data: {formatDateTime(commit.date)}</p>
-                      <p>Branch: {commit.branch || 'não informada'}</p>
+                      <p>
+                        Branches:{' '}
+                        {commit.branches?.length ? commit.branches.join(', ') : 'não informadas'}
+                      </p>
                       {commit.githubUrl && (
                         <a href={commit.githubUrl} target="_blank" rel="noopener noreferrer">
                           Abrir no GitHub

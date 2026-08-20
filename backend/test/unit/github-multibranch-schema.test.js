@@ -8,11 +8,12 @@ const migrationPath = new URL(
 );
 
 describe('schema e migration incremental multibranch L1.2', () => {
-  it('modela branch e relação N:N sem remover Commit.branch', async () => {
+  it('modela branch e relação N:N sem manter Commit.branch no schema atual', async () => {
     const schema = await readFile(schemaPath, 'utf8');
     expect(schema).toMatch(/model GitBranch[\s\S]*@@unique\(\[projectId, name\]\)/);
     expect(schema).toMatch(/model CommitBranch[\s\S]*@@id\(\[commitId, branchId\]\)/);
-    expect(schema).toMatch(/model Commit[\s\S]*branch\s+String\?/);
+    const commitModel = schema.match(/model Commit \{[\s\S]*?\n\}/)?.[0] || '';
+    expect(commitModel).not.toMatch(/\n\s+branch\s+String\?/);
     expect(schema).toMatch(/@@unique\(\[projectId, hash\]\)/);
   });
 

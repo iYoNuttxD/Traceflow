@@ -137,40 +137,27 @@ export const githubRepository = {
     });
   },
   connectProject(projectId, installationId, repository) {
-    return prisma.$transaction(async (tx) => {
-      const integration = await tx.projectGitHubIntegration.upsert({
-        where: { projectId },
-        create: {
-          projectId,
-          installationId,
-          ...repository,
-          status: 'ACTIVE',
-          lastValidatedAt: new Date()
-        },
-        update: {
-          installationId,
-          ...repository,
-          status: 'ACTIVE',
-          lastValidatedAt: new Date(),
-          lastSyncError: null
-        }
-      });
-      await tx.project.update({
-        where: { id: projectId },
-        data: {
-          githubRepositoryId: repository.githubRepositoryId,
-          githubRepositoryName: repository.repositoryName,
-          githubRepositoryFullName: repository.repositoryFullName,
-          githubRepositoryUrl: repository.repositoryUrl,
-          githubOwner: repository.repositoryFullName.split('/')[0],
-          githubRepo: repository.repositoryName,
-          githubUrl: repository.repositoryUrl,
-          githubDefaultBranch: repository.defaultBranch,
-          githubIntegratedAt: new Date(),
-          githubSyncStatus: 'PENDENTE'
-        }
-      });
-      return integration;
+    const integratedAt = new Date();
+    return prisma.projectGitHubIntegration.upsert({
+      where: { projectId },
+      create: {
+        projectId,
+        installationId,
+        ...repository,
+        integratedAt,
+        status: 'ACTIVE',
+        lastValidatedAt: integratedAt,
+        lastSyncStatus: 'PENDENTE'
+      },
+      update: {
+        installationId,
+        ...repository,
+        integratedAt,
+        status: 'ACTIVE',
+        lastValidatedAt: integratedAt,
+        lastSyncStatus: 'PENDENTE',
+        lastSyncError: null
+      }
     });
   },
   createWebhookDelivery(data) {

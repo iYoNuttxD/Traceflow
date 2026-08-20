@@ -1,6 +1,6 @@
 # Matriz de autorização da API TRACEFLOW
 
-Baseline E6, consolidado na E15 em 26/07/2026. A matriz descreve a política efetiva; não substitui os testes. `L` = leitura, `E` = escrita de domínio, `A` = administração. Sem membership ativa, recursos de projeto retornam `404` para reduzir enumeração; papel insuficiente retorna `403`. Mutations autenticadas exigem CSRF.
+Baseline E6, consolidado pela LR.2 em 20/08/2026. A matriz descreve a política efetiva; não substitui os testes. `L` = leitura, `E` = escrita de domínio, `A` = administração. Sem membership ativa, recursos de projeto retornam `404` para reduzir enumeração; papel insuficiente retorna `403`. Mutations autenticadas exigem CSRF.
 
 | Endpoints                                                                                                      | Anônimo | VIEWER | MEMBER | MANAGER | OWNER | Regra adicional                                                           |
 | -------------------------------------------------------------------------------------------------------------- | ------: | -----: | -----: | ------: | ----: | ------------------------------------------------------------------------- |
@@ -17,7 +17,6 @@ Baseline E6, consolidado na E15 em 26/07/2026. A matriz descreve a política efe
 | `GET /api/projects/:projectId/access-code`                                                                     |     401 |    403 |    403 |     403 |     A | código sensível somente no DTO OWNER                                      |
 | `PATCH /api/projects/:projectId/access-code`; `POST .../regenerate`                                            |     401 |    403 |    403 |     403 |     A | e-mail verificado, CSRF e limiter sensível                                |
 | `GET /api/projects/:projectId/members`                                                                         |     401 |      L |      L |       L |     L | e-mail completo somente para OWNER                                        |
-| `POST /api/projects/:projectId/members`                                                                        |     401 |    403 |    403 |     403 |     A | legado; não é autoelevação                                                |
 | `PATCH/DELETE /api/projects/:projectId/members/:membershipId`                                                  |     401 |    403 |    403 |     403 |     A | último OWNER protegido                                                    |
 | `POST .../members/:membershipId/reactivate`                                                                    |     401 |    403 |    403 |     403 |     A | membership do mesmo projeto                                               |
 | `DELETE /api/projects/:projectId/members/me`                                                                   |     401 |      E |      E |       E |     E | somente a própria membership; último OWNER protegido                      |
@@ -43,7 +42,6 @@ Baseline E6, consolidado na E15 em 26/07/2026. A matriz descreve a política efe
 | Traceability project-scoped: matriz, requisito, tarefa e artefato                                              |     401 |      L |      L |       L |     L | membership ativa e recurso no mesmo projeto                               |
 | `GET .../traceability/commit-suggestions`                                                                      |     401 |      L |      L |       L |     L | DTO minimizado; mesmo projeto                                             |
 | `POST .../commit-suggestions/scan`, `:id/confirm`, `:id/reject`                                                |     401 |    403 |      E |       E |     E | CSRF, membership ativa e relações no mesmo projeto                        |
-| `/api/account/personal-data`, perfil, sessões, exportação, desativação e exclusão                              |     401 |      E |      E |       E |     E | somente o próprio titular; mutations exigem CSRF/senha quando indicado    |
 | `/api/settings/account`, `/security`, `/privacy`, `/integrations`                                              |     401 |      E |      E |       E |     E | titular; middleware de estado restringe operações e mutations exigem CSRF |
 | `GET /api/account/audit-events`                                                                                |     401 |      L |      L |       L |     L | somente eventos cujo ator é o titular                                     |
 | `GET /api/projects/:projectId/audit-events`                                                                    |     401 |    403 |    403 |     403 |     A | paginado, metadata minimizada, sem enumeração entre projetos              |
@@ -55,10 +53,11 @@ Baseline E6, consolidado na E15 em 26/07/2026. A matriz descreve a política efe
 - OWNER administra membros, convites e configuração; MANAGER coordena sync e também escreve domínio; MEMBER escreve tarefas/requisitos; VIEWER é leitura.
 - Respostas a convites são vinculadas ao destinatário, usam token hashado/expirável e recebem limiter de operação sensível; criação combina limiter sensível e de entrega de e-mail.
 - O middleware resolve o projeto por rota direta ou pelo recurso filho antes de avaliar a membership.
-- `ProjectMember` permanece apenas para compatibilidade histórica. `accessCode` foi consolidado como capability de ingresso, mas cria exclusivamente `ProjectMembership` e nunca aceita identity/role do cliente.
+- `ProjectMembership` é a única fonte de participação. `ProjectMember` e `POST /api/projects/:projectId/members` foram removidos; o path antigo retorna `404`. `accessCode` é capability de ingresso e nunca aceita identity/role do cliente.
 - Código de acesso nunca concede OWNER/MANAGER. Somente OWNER vê, regenera e configura MEMBER/VIEWER; mudança de configuração não altera memberships existentes.
 - A E7 adiciona trilha de auditoria e direitos do titular; não concede administração de dados pessoais a um OWNER de projeto.
 - Na E9, o alias não canônico `/api/projects/:projectId/github/artifacts` foi removido e retorna 404; RF06 usa `/api/projects/:projectId/artifacts`. Sync permanece restrito a MANAGER/OWNER.
 - Na E10, as rotas genéricas dependentes de `TraceLink` e `GithubArtifact` foram removidas. As perspectivas canônicas sempre incluem `projectId`, evitando autorização por ID global isolado.
 - No fechamento do RF41, VIEWER apenas consulta; MEMBER+ analisa e revisa. Confirmação e rejeição são transacionais e auditadas.
 - Na E11, `responsibleUserId` exige membership ativa; a autoria de movimento vem exclusivamente da sessão e não pode ser controlada pelo body.
+- Na LR.2, os endpoints duplicados de conta/privacidade foram removidos. `/api/settings/*` é canônico; `/api/account/reactivation/*` e `/api/account/audit-events` permanecem por responsabilidade própria. Paths removidos retornam `404 ROUTE_NOT_FOUND`.

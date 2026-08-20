@@ -155,7 +155,7 @@ describe('L5.1 - código de acesso e convites pessoais', () => {
         where: { projectId_userId: { projectId: project.id, userId: user.id } }
       })
     ).toMatchObject({ role: 'VIEWER', isActive: true });
-    expect(await prisma.projectMember.count({ where: { projectId: project.id } })).toBe(0);
+    expect(prisma.projectMember).toBeUndefined();
 
     const memberProject = await createProject(owner, 'Projeto com acesso MEMBER');
     const memberCode = (await prisma.project.findUnique({ where: { id: memberProject.id } }))

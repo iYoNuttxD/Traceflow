@@ -40,11 +40,8 @@ export const membersApi = {
   declineInvitation(token) {
     return httpClient.post('/projects/invitations/decline', { token });
   },
-  listProjectMembers(projectId, options = {}) {
-    return httpClient.get(`/projects/${projectId}/members`, options);
-  },
-  joinProject(data) {
-    return httpClient.post('/projects/join', data);
+  async joinProject(data) {
+    return (await httpClient.post('/projects/join', data)).data;
   },
   async joinDetails(accessCode) {
     return (
@@ -54,5 +51,3 @@ export const membersApi = {
     ).data.details;
   }
 };
-
-export const projectMembersApi = membersApi;

@@ -2,7 +2,7 @@
 
 ## Escopo
 
-Este documento descreve a implementação consolidada após a E15. `TRACEFLOW_CONTEXTO_ARQUITETURA.md` continua sendo fonte de requisitos e diretrizes históricas; em caso de divergência sobre o estado executável, prevalecem código, migrations, testes, este documento e os ADRs aceitos.
+Este documento descreve a implementação consolidada após a LR.2. `TRACEFLOW_CONTEXTO_ARQUITETURA.md` continua sendo fonte de requisitos e diretrizes históricas; em caso de divergência sobre o estado executável, prevalecem código, migrations, testes, este documento e os ADRs aceitos.
 
 ## Visão geral
 
@@ -41,7 +41,7 @@ A direção permitida é `app/routes → pages → features → shared + http-cl
 | Repository | consulta/mutação orientada ao domínio | autorização ou mensagem HTTP |
 | External client | timeout, retry, paginação e DTO externo | persistência ou regra TRACEFLOW |
 
-`scripts/check-architecture.js` verifica essas fronteiras e impede a reintrodução de `TaskPullRequest`, `GithubArtifact` e `TraceLink` no runtime.
+`scripts/check-architecture.js` verifica essas fronteiras e impede a reintrodução, no runtime/schema atual, de `TaskPullRequest`, `GithubArtifact`, `TraceLink`, `ProjectMember`, `Commit.branch`, aliases GitHub de `Project` e rotas de conta removidas.
 
 ## Identidade, sessão e autorização
 
@@ -53,7 +53,7 @@ A direção permitida é `app/routes → pages → features → shared + http-cl
 - Ator de movimento e auditoria vem de `req.auth.user`.
 - Responsável por Task é `responsibleUserId` com membership ativa.
 
-Snapshots textuais anteriores à identidade são somente compatibilidade/histórico e nunca prova de identidade.
+`Task.responsible` e `TaskMovement.movedBy` são snapshots históricos anteriores à identidade e nunca prova de identidade. `TaskMovement` não mantém referência a `ProjectMember`.
 
 ## Modelo canônico e rastreabilidade
 
@@ -73,17 +73,17 @@ TaskCommitSuggestion → revisão humana → TaskCommit
 
 Uma `GitHubInstallation` pode alimentar várias `ProjectGitHubIntegration`. Cada integração aponta para um projeto e um repositório únicos; `installationId` é apenas FK/index, nunca unique. A listagem consulta ao vivo todos os repositórios da instalação e cruza seus IDs com as integrações para informar disponibilidade sem bloquear os demais.
 
-Projetos anteriores à L1 mantêm artifacts e metadados em uma integração `RECONNECT_REQUIRED`. `ProjectGitHubIntegration` é a única fonte operacional da conexão; aliases em `Project` permanecem apenas para compatibilidade de leitura.
+Projetos anteriores à L1 mantêm artifacts e metadados em uma integração `RECONNECT_REQUIRED`. `ProjectGitHubIntegration` é a única fonte operacional da conexão e concentra identidade do repositório, configuração e estado de sincronização; `Project` não mantém aliases concorrentes.
 
 ## Segurança e privacidade
 
-A API usa validação Zod, limite de body, Helmet, CORS allowlist, rate limiting, erros seguros, request ID, logging estruturado e redaction. Direitos técnicos do titular incluem consulta, correção, sessões, exportação, desativação e solicitação de exclusão. Auditoria e histórico têm finalidades e retenções diferentes.
+A API usa validação Zod, limite de body, Helmet, CORS allowlist, rate limiting, erros seguros, request ID, logging estruturado e redaction. Direitos técnicos do titular usam `/api/settings/*`; `/api/account/reactivation/*` permanece como fluxo específico. Direitos incluem consulta, correção, sessões, exportação, desativação e solicitação de exclusão. Auditoria e histórico têm finalidades e retenções diferentes.
 
 ASVS é referência, não certificação. LGPD depende de decisões jurídicas e operacionais externas sobre base legal, controlador, backups, logs e fornecedores.
 
 ## Banco e migrations
 
-Prisma é acessado somente por repositories e scripts de manutenção autorizados. As 25 migrations são imutáveis e aplicam do zero. Mudança destrutiva exige inventário, reconciliação, backup, guard e roll-forward. Scripts E8/E11 permanecem para auditoria/recovery e não são runtime.
+Prisma é acessado somente por repositories e scripts de manutenção autorizados. As 35 migrations são imutáveis e aplicam do zero. Mudança destrutiva exige inventário, reconciliação, backup, guard e roll-forward. Scripts E8 permanecem recovery-only; fontes E6/E11 dependentes do schema anterior à LR.2 exigem aquele checkout/schema e não são runtime.
 
 ## CI e operação
 

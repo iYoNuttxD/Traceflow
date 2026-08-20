@@ -73,7 +73,7 @@ export function createGithubClient({
           requestPage(
             octokit.rest.repos.listCommits,
             { owner, repo, sha: branch, per_page: perPage, page },
-            (item) => mapGithubCommit(item, branch)
+            mapGithubCommit
           ),
         { perPage: PAGE_SIZE }
       );

@@ -18,7 +18,7 @@ export const artifactRepository = {
       select: {
         id: true,
         name: true,
-        githubDefaultBranch: true,
+        githubIntegration: { select: { defaultBranch: true } },
         githubBranches: {
           where: { isActive: true },
           select: { name: true, headSha: true, isDefault: true },
@@ -42,7 +42,6 @@ export const artifactRepository = {
         authorName: true,
         authorUsername: true,
         date: true,
-        branch: true,
         githubUrl: true,
         branchLinks: {
           select: { branch: { select: { name: true, isActive: true, isDefault: true } } }

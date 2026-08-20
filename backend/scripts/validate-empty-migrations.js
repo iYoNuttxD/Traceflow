@@ -10,8 +10,8 @@ dotenv.config({ path: resolve(process.cwd(), '.env'), override: false, quiet: tr
 const sourceUrl = validateTestDatabaseUrl(process.env.TEST_DATABASE_URL, process.env.DATABASE_URL);
 const parsed = new URL(sourceUrl);
 const sourceDatabase = parsed.pathname.slice(1);
-const validationDatabase = `${sourceDatabase}_l2_empty_validation`;
-if (!/^[a-zA-Z0-9_]+_test_l2_empty_validation$/.test(validationDatabase)) {
+const validationDatabase = `${sourceDatabase}_lr2_empty_validation`;
+if (!/^[a-zA-Z0-9_]+_test_lr2_empty_validation$/.test(validationDatabase)) {
   throw new Error('Nome do banco temporário de validação recusado.');
 }
 
@@ -44,13 +44,14 @@ try {
 
   const validation = new PrismaClient({ datasourceUrl: parsed.toString() });
   try {
-    const [users, sessions, emailChanges] = await Promise.all([
+    const [users, sessions, emailChanges, integrations] = await Promise.all([
       validation.user.count(),
       validation.session.count(),
-      validation.emailChangeRequest.count()
+      validation.emailChangeRequest.count(),
+      validation.projectGitHubIntegration.count()
     ]);
     process.stdout.write(
-      `${JSON.stringify({ database: validationDatabase, migrations: 'ok', users, sessions, emailChanges })}\n`
+      `${JSON.stringify({ database: validationDatabase, migrations: 'ok', users, sessions, emailChanges, integrations })}\n`
     );
   } finally {
     await validation.$disconnect();

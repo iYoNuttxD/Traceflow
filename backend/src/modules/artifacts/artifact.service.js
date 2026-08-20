@@ -131,7 +131,6 @@ function mapCommit(commit, project) {
     projectName: project.name,
     githubUrl: commit.githubUrl || null,
     metadata: {
-      branch: commit.branch || null,
       branches: (commit.branchLinks || []).map(({ branch }) => branch.name).sort(),
       state: null,
       number: null
@@ -258,7 +257,7 @@ export const artifactService = {
     return {
       project: { id: project.id, name: project.name },
       repository: {
-        defaultBranch: project.githubDefaultBranch,
+        defaultBranch: project.githubIntegration?.defaultBranch || null,
         branches: project.githubBranches
       },
       filters: {

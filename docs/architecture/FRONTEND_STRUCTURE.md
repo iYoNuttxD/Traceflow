@@ -77,6 +77,6 @@ Toda API de domínio usa `httpClient`. Queries recebem `params` e, quando obsole
 - Pages de autenticação são adaptadores finos para screens em `features/auth/pages`; força de senha é informativa e o backend continua autoritativo.
 - Links externos em nova aba usam `noopener noreferrer`.
 
-## Compatibilidade
+## Compatibilidade pré-release
 
-Reexports legados podem permanecer apenas como adaptadores sem regra, desde que não sejam consumers de runtime. Sua remoção deve ocorrer após busca completa e regressão verde. Não se usa `TODO(E2.9)` como justificativa permanente.
+Wrappers `pages → features` e barrels públicos usados são fronteiras arquiteturais, não legado. Aliases sem consumidor não permanecem por compatibilidade pré-release: a LR.2 removeu `projectMembersApi`, `listProjectMembers` e o redirect `/account/privacy`. A API de membros é `membersApi`, e privacidade usa `/settings/privacy`. Novos aliases exigem consumidor, prazo e decisão explícitos.

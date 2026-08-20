@@ -142,10 +142,7 @@ export function createApp({ logger = defaultLogger, readinessCheck, securityConf
     rateLimiters.sensitiveMutation,
     rateLimiters.emailDelivery
   );
-  app.post(
-    ['/api/account/personal-data/export', '/api/settings/privacy/export'],
-    rateLimiters.dataExport
-  );
+  app.post('/api/settings/privacy/export', rateLimiters.dataExport);
   app.post(
     [
       '/api/projects/invitations/details',

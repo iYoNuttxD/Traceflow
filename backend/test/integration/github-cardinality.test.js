@@ -48,9 +48,7 @@ async function createFixture(repositoryIds = ['501', '502', '503']) {
       data: {
         name: `Projeto ${repositoryId}`,
         responsibleTeam: 'Equipe cardinalidade',
-        accessCode: `TEST-CARDINALITY-${repositoryId}`,
-        githubRepositoryId: repositoryId,
-        githubRepositoryFullName: `traceflow/repo-${repositoryId}`
+        accessCode: `TEST-CARDINALITY-${repositoryId}`
       }
     });
     await prisma.projectMembership.create({

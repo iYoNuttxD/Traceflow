@@ -27,11 +27,17 @@ export const projectRepository = {
           repositoryFullName: repository.fullName,
           repositoryUrl: repository.url,
           defaultBranch: repository.defaultBranch,
+          repositoryPrivate: repository.private,
+          integratedAt: new Date(),
           status: 'ACTIVE',
-          lastValidatedAt: new Date()
+          lastValidatedAt: new Date(),
+          lastSyncStatus: 'PENDENTE'
         }
       });
-      return project;
+      return tx.project.findUnique({
+        where: { id: project.id },
+        include: { githubIntegration: true }
+      });
     });
   },
 
@@ -39,7 +45,7 @@ export const projectRepository = {
     return prisma.project.findMany({
       ...(userId ? { where: { memberships: { some: { userId, isActive: true } } } } : {}),
       orderBy: { createdAt: 'desc' },
-      include: { githubIntegration: { select: { status: true, githubRepositoryId: true } } }
+      include: { githubIntegration: true }
     });
   },
 
@@ -53,104 +59,55 @@ export const projectRepository = {
   async findById(id) {
     return prisma.project.findUnique({
       where: { id },
-      include: { githubIntegration: true }
+      include: { githubIntegration: { include: { installation: true } } }
     });
-  },
-
-  async findByGithubRepositoryId(githubRepositoryId) {
-    return prisma.project.findFirst({
-      where: { githubRepositoryId }
-    });
-  },
-
-  async findByGithubRepositoryFullName(githubRepositoryFullName) {
-    return prisma.project.findFirst({
-      where: { githubRepositoryFullName }
-    });
-  },
-
-  async createFromGithub(data) {
-    return prisma.project.create({ data });
   },
 
   async updateGithubSyncSettings(id, githubAutoSyncEnabled) {
-    return prisma.project.update({
-      where: { id },
-      data: { githubAutoSyncEnabled }
+    await prisma.projectGitHubIntegration.update({
+      where: { projectId: id },
+      data: { autoSyncEnabled: githubAutoSyncEnabled }
     });
+    return this.findById(id);
   },
 
   async updateGithubRepositoryMetadata(id, data) {
-    return prisma.project.update({
-      where: { id },
+    return prisma.projectGitHubIntegration.update({
+      where: { projectId: id },
       data
     });
   },
 
-  async updateGithubLastSyncAt(id, githubLastSyncAt) {
-    return prisma.project.update({
-      where: { id },
-      data: { githubLastSyncAt }
-    });
-  },
-
   async markGithubSyncStarted(id, attemptedAt) {
-    return prisma.project.update({
-      where: { id },
+    return prisma.projectGitHubIntegration.update({
+      where: { projectId: id },
       data: {
-        githubSyncStatus: 'SINCRONIZANDO',
-        githubLastSyncAttemptAt: attemptedAt
+        lastSyncStatus: 'SINCRONIZANDO',
+        lastSyncAttemptAt: attemptedAt
       }
     });
   },
 
   async markGithubSyncSucceeded(id, syncedAt) {
-    return prisma.project.update({
-      where: { id },
+    await prisma.projectGitHubIntegration.update({
+      where: { projectId: id },
       data: {
-        githubLastSyncAt: syncedAt,
-        githubLastSyncAttemptAt: syncedAt,
-        githubSyncStatus: 'SINCRONIZADO',
-        githubLastSyncError: null
+        lastSyncAt: syncedAt,
+        lastSyncAttemptAt: syncedAt,
+        lastSyncStatus: 'SINCRONIZADO',
+        lastSyncError: null
       }
     });
+    return this.findById(id);
   },
 
   async markGithubSyncFailed(id, attemptedAt, errorMessage) {
-    return prisma.project.update({
-      where: { id },
+    return prisma.projectGitHubIntegration.update({
+      where: { projectId: id },
       data: {
-        githubLastSyncAttemptAt: attemptedAt,
-        githubSyncStatus: 'FALHA',
-        githubLastSyncError: errorMessage
-      }
-    });
-  },
-
-  async findActiveMembersByProject(projectId) {
-    return prisma.projectMember.findMany({
-      where: {
-        projectId,
-        isActive: true
-      },
-      orderBy: { name: 'asc' }
-    });
-  },
-
-  async findMemberByProjectEmail(projectId, email) {
-    return prisma.projectMember.findFirst({
-      where: {
-        projectId,
-        email
-      }
-    });
-  },
-
-  async createProjectMember(projectId, data) {
-    return prisma.projectMember.create({
-      data: {
-        ...data,
-        projectId
+        lastSyncAttemptAt: attemptedAt,
+        lastSyncStatus: 'FALHA',
+        lastSyncError: errorMessage
       }
     });
   }

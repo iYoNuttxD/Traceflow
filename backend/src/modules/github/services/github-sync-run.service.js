@@ -1,4 +1,3 @@
-import { githubRepository as githubIntegrationRepository } from '../github.repository.js';
 import { githubSyncRunRepository } from '../github-sync-run.repository.js';
 import { projectRepository } from '../../projects/project.repository.js';
 import { auditService } from '../../audit/audit.service.js';
@@ -55,10 +54,10 @@ function publicRun(run, { alreadyRunning = false } = {}) {
 async function assertProjectCanSync(projectId) {
   const project = await projectRepository.findById(projectId);
   if (!project) throw new ProjectServiceError('Projeto não encontrado.', 404);
-  if (!project.githubOwner || !(project.githubRepositoryName || project.githubRepo)) {
+  const integration = project.githubIntegration;
+  if (!integration?.repositoryFullName || !integration.repositoryName) {
     throw new ProjectServiceError('Projeto não possui repositório GitHub vinculado.', 400);
   }
-  const integration = await githubIntegrationRepository.findIntegration(projectId);
   if (
     !integration ||
     integration.status !== 'ACTIVE' ||

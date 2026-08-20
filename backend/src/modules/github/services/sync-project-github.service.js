@@ -1,5 +1,4 @@
 import { githubInstallationClientFactory } from '../github.client.js';
-import { githubRepository as githubIntegrationRepository } from '../github.repository.js';
 import { normalizeGithubError } from '../github-error.js';
 import { projectRepository } from '../../projects/project.repository.js';
 import {
@@ -16,12 +15,12 @@ import { logger } from '../../../shared/logger/index.js';
 const projectsInSync = new Set();
 const noProgress = async () => {};
 
-function linkedRepositoryCoordinates(project) {
-  const repo = project.githubRepositoryName || project.githubRepo;
-  if (!project.githubOwner || !repo) {
+function linkedRepositoryCoordinates(integration) {
+  const [owner, repo, ...extra] = integration?.repositoryFullName?.split('/') || [];
+  if (!owner || !repo || extra.length > 0 || repo !== integration.repositoryName) {
     throw new ProjectServiceError('Projeto não possui repositório GitHub vinculado.', 400);
   }
-  return { owner: project.githubOwner, repo };
+  return { owner, repo };
 }
 
 export function normalizeGithubSyncError(error) {
@@ -39,13 +38,13 @@ function logStep(event, projectId, step, startedAt, details = {}) {
   });
 }
 
-async function validateAndRefreshRepository(project, githubClient) {
-  const coordinates = linkedRepositoryCoordinates(project);
+async function validateAndRefreshRepository(project, integration, githubClient) {
+  const coordinates = linkedRepositoryCoordinates(integration);
   const repository = await githubClient.getRepository(coordinates.owner, coordinates.repo);
 
   if (
-    project.githubRepositoryId &&
-    repository.githubRepositoryId !== String(project.githubRepositoryId)
+    integration.githubRepositoryId &&
+    repository.githubRepositoryId !== String(integration.githubRepositoryId)
   ) {
     throw new ProjectServiceError(
       'Dados do repositório GitHub não correspondem ao projeto integrado.',
@@ -54,7 +53,7 @@ async function validateAndRefreshRepository(project, githubClient) {
   }
 
   const metadata = buildGithubRepositoryMetadata(repository);
-  if (!project.githubIntegratedAt) metadata.githubIntegratedAt = new Date();
+  if (!integration.integratedAt) metadata.integratedAt = new Date();
   await projectRepository.updateGithubRepositoryMetadata(project.id, metadata);
   return repository;
 }
@@ -75,10 +74,8 @@ export async function syncProjectGithubData(projectId, { onProgress = noProgress
   try {
     project = await projectRepository.findById(parsedProjectId);
     if (!project) throw new ProjectServiceError('Projeto não encontrado.', 404);
-    linkedRepositoryCoordinates(project);
-    await projectRepository.markGithubSyncStarted(parsedProjectId, attemptedAt);
-
-    const integration = await githubIntegrationRepository.findIntegration(parsedProjectId);
+    const integration = project.githubIntegration;
+    linkedRepositoryCoordinates(integration);
     if (
       !integration ||
       integration.status !== 'ACTIVE' ||
@@ -89,6 +86,7 @@ export async function syncProjectGithubData(projectId, { onProgress = noProgress
         409
       );
     }
+    await projectRepository.markGithubSyncStarted(parsedProjectId, attemptedAt);
     const githubClient = await githubInstallationClientFactory.forInstallation(
       integration.installation.githubInstallationId
     );
@@ -96,7 +94,7 @@ export async function syncProjectGithubData(projectId, { onProgress = noProgress
     let stepStartedAt = Date.now();
     await onProgress({ step: 'REPOSITORY', currentBranch: null });
     logStep('started', parsedProjectId, 'repository', stepStartedAt);
-    const repository = await validateAndRefreshRepository(project, githubClient);
+    const repository = await validateAndRefreshRepository(project, integration, githubClient);
     logStep('completed', parsedProjectId, 'repository', stepStartedAt);
 
     stepStartedAt = Date.now();

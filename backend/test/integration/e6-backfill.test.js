@@ -18,7 +18,8 @@ afterAll(async () => {
   await prisma.$disconnect();
 });
 
-describe('backfill E6', () => {
+// N/A após LR.2: este arquivo permanece como especificação executável da ferramenta pré-contract.
+describe.skip('backfill E6 (somente banco pré-LR.2)', () => {
   it('trata base vazia, casos ambíguos, projeto sem owner e execução idempotente', async () => {
     expect((await runMembershipBackfill({ client: prisma })).examined).toBe(0);
     const [owned, manual, ambiguous, partial] = await Promise.all([

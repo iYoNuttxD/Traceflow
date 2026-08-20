@@ -36,10 +36,10 @@ export const projectAccessCodeRepository = {
     });
   },
 
-  regenerate(projectId, accessCode, inviteLink) {
+  regenerate(projectId, accessCode) {
     return prisma.project.update({
       where: { id: projectId },
-      data: { accessCode, inviteLink },
+      data: { accessCode },
       select: accessConfigurationSelect
     });
   },

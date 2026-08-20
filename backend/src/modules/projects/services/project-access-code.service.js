@@ -78,8 +78,7 @@ export async function buildProjectAccessData() {
   const accessCode = await createUniqueAccessCode();
   return {
     accessCode,
-    accessCodeRole: 'MEMBER',
-    inviteLink: buildInviteLink(accessCode)
+    accessCodeRole: 'MEMBER'
   };
 }
 
@@ -111,8 +110,7 @@ export const projectAccessCodeService = {
       try {
         const configuration = await projectAccessCodeRepository.regenerate(
           parsedProjectId,
-          accessCode,
-          buildInviteLink(accessCode)
+          accessCode
         );
         await auditService.recordOperational({
           actorUserId,

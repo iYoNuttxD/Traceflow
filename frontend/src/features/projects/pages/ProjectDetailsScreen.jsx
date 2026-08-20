@@ -20,9 +20,6 @@ function toFormData(project) {
     name: project.name || '',
     description: project.description || '',
     responsibleTeam: project.responsibleTeam || '',
-    githubOwner: project.githubOwner || '',
-    githubRepo: project.githubRepo || '',
-    githubUrl: project.githubUrl || '',
     status: project.status || 'ATIVO'
   };
 }
@@ -117,24 +114,16 @@ function formatProjectStatus(status) {
 }
 
 function getRepositoryName(project) {
-  if (project.githubRepositoryFullName) {
-    return project.githubRepositoryFullName;
-  }
-
-  if (project.githubOwner && (project.githubRepositoryName || project.githubRepo)) {
-    return `${project.githubOwner}/${project.githubRepositoryName || project.githubRepo}`;
-  }
-
-  return project.githubRepo || project.githubRepositoryName || '';
+  return project.githubIntegration?.repositoryFullName || '';
 }
 
 function getRepositoryUrl(project) {
-  return project.githubRepositoryUrl || project.githubUrl || '';
+  return project.githubIntegration?.repositoryUrl || '';
 }
 
 function getGithubSyncDisplay(project, syncStatus) {
   const hasRepository = Boolean(getRepositoryName(project));
-  const persistedStatus = project.githubSyncStatus;
+  const persistedStatus = project.githubIntegration?.lastSyncStatus;
 
   if (!hasRepository) {
     return {
@@ -157,7 +146,7 @@ function getGithubSyncDisplay(project, syncStatus) {
     };
   }
 
-  if (persistedStatus === 'SINCRONIZADO' || project.githubLastSyncAt) {
+  if (persistedStatus === 'SINCRONIZADO' || project.githubIntegration?.lastSyncAt) {
     return {
       label: 'Sincronizado',
       className: 'status-ativo'
@@ -426,18 +415,19 @@ export function ProjectDetailsScreen() {
             </div>
             <div>
               <dt>Última sincronização bem-sucedida</dt>
-              <dd>{formatLastSuccessfulSync(project.githubLastSyncAt)}</dd>
+              <dd>{formatLastSuccessfulSync(project.githubIntegration?.lastSyncAt)}</dd>
             </div>
             <div>
               <dt>Última tentativa</dt>
-              <dd>{formatLastSuccessfulSync(project.githubLastSyncAttemptAt)}</dd>
+              <dd>{formatLastSuccessfulSync(project.githubIntegration?.lastSyncAttemptAt)}</dd>
             </div>
-            {project.githubSyncStatus === 'FALHA' && project.githubLastSyncError && (
-              <div>
-                <dt>Último erro</dt>
-                <dd>{project.githubLastSyncError}</dd>
-              </div>
-            )}
+            {project.githubIntegration?.lastSyncStatus === 'FALHA' &&
+              project.githubIntegration.lastSyncError && (
+                <div>
+                  <dt>Último erro</dt>
+                  <dd>{project.githubIntegration.lastSyncError}</dd>
+                </div>
+              )}
             <div>
               <dt>Membros</dt>
               <dd>{memberCount}</dd>

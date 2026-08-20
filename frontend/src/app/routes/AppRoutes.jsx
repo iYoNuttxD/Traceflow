@@ -143,7 +143,6 @@ export function AppRoutes() {
           <Route path="/projects/:projectId/kanban" element={<KanbanPage />} />
           <Route path="/projects/:projectId/repository" element={<RepositoryInfoPage />} />
           <Route path="/projects/:projectId/traceability" element={<TraceabilityPage />} />
-          <Route path="/account/privacy" element={<Navigate to="/settings/privacy" replace />} />
           <Route path="/settings" element={<SettingsLayout />}>
             <Route index element={<Navigate to="account" replace />} />
             <Route path="account" element={<AccountSettingsPage />} />

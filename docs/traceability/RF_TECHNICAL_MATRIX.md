@@ -34,7 +34,7 @@ Estado consolidado na branch `daniel-dev`, baseline pós-L5.1/L6.1 no commit `fd
 | RF41 | sugerir Commit–Task | commit-suggestions scan/list/review | commit-suggestion | TaskCommitSuggestion, TaskCommit | Task edit/suggestions | rf41 API/unit, CommitSuggestionsCard | IMPLEMENTADO |
 | RF48 | Requirement–Task | `PUT /requirements/:id/tasks` | requirement-task | Task.requirementId | RequirementsScreen | mvp-contracts, RequirementsPage | IMPLEMENTADO |
 | RF49 | rastreabilidade do requisito | `GET .../traceability/requirements/:id` | traceability | relações canônicas | TraceabilityScreen/Flow | mvp-contracts, traceability tests | IMPLEMENTADO |
-| RF50 | sync de PRs da branch principal | `POST .../github/sync` | sync-project-github/PRs | Project.defaultBranch, PullRequest | ProjectDetails/Repository | projects-github-e9, githubSync | IMPLEMENTADO |
+| RF50 | sync de PRs da branch principal | `POST .../github/sync` | sync-project-github/PRs | ProjectGitHubIntegration.defaultBranch, PullRequest | ProjectDetails/Repository | projects-github-e9, githubSync | IMPLEMENTADO |
 | RF51 | responsável ativo | Task create/update | task-crud | Task.responsibleUserId | TaskForm | mvp-contracts, TaskForm | IMPLEMENTADO; legado preservado |
 | RF52 | rastreabilidade da Task | `GET .../traceability/tasks/:taskId` | traceability | Task e vínculos tipados | TraceabilityScreen/Flow | mvp-contracts, TraceabilityPage | IMPLEMENTADO |
 | RF53 | rastreabilidade reversa do artefato | `GET .../traceability/artifacts/:type/:id` | traceability | artefato, Task links, Requirement | TraceabilityScreen/Flow | mvp-contracts, TraceabilityPage | IMPLEMENTADO |

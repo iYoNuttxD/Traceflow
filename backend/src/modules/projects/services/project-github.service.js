@@ -23,17 +23,6 @@ export const projectGithubService = {
       name: (data.name || repository.name).trim(),
       description: data.description?.trim() || repository.description || null,
       responsibleTeam: data.responsibleTeam?.trim() || 'Equipe do projeto',
-      githubOwner: repository.owner,
-      githubRepo: repository.name,
-      githubUrl: repository.url,
-      githubRepositoryId: repository.githubRepositoryId,
-      githubRepositoryName: repository.name,
-      githubRepositoryFullName: repository.fullName,
-      githubRepositoryUrl: repository.url,
-      githubDefaultBranch: repository.defaultBranch,
-      githubIsPrivate: repository.private,
-      githubIntegratedAt: new Date(),
-      githubSyncStatus: 'PENDENTE',
       ...(await buildProjectAccessData())
     };
     try {
@@ -58,6 +47,8 @@ export const projectGithubService = {
     validateGithubAutoSyncEnabled(data.githubAutoSyncEnabled);
     const project = await projectRepository.findById(parsedProjectId);
     if (!project) throw new ProjectServiceError('Projeto não encontrado.', 404);
+    if (!project.githubIntegration)
+      throw new ProjectServiceError('Projeto não possui repositório GitHub vinculado.', 400);
     return projectRepository.updateGithubSyncSettings(parsedProjectId, data.githubAutoSyncEnabled);
   }
 };

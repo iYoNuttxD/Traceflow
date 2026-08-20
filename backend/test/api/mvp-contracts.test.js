@@ -86,9 +86,6 @@ function projectBody(suffix = 'a') {
     name: `Projeto HTTP ${suffix}`,
     description: 'Projeto fictício para caracterização',
     responsibleTeam: 'Equipe HTTP artificial',
-    githubOwner: 'fake-owner',
-    githubRepo: `fake-repo-${suffix}`,
-    githubUrl: `https://github.com/fake-owner/fake-repo-${suffix}`,
     status: 'ATIVO'
   };
 }
@@ -160,9 +157,7 @@ describe('contratos HTTP de projetos', () => {
       project: {
         name: 'Projeto HTTP create',
         responsibleTeam: 'Equipe HTTP artificial',
-        status: 'ATIVO',
-        githubOwner: 'fake-owner',
-        githubRepo: 'fake-repo-create'
+        status: 'ATIVO'
       }
     });
     expect(response.body.project).not.toHaveProperty('accessCode');
@@ -670,8 +665,7 @@ describe('Kanban e histórico', () => {
         taskId: task.id,
         fromStatus: 'A_FAZER',
         toStatus: 'EM_ANDAMENTO',
-        movedBy: 'Usuário E6 artificial',
-        projectMemberId: null
+        movedBy: 'Usuário E6 artificial'
       }
     });
 
@@ -727,7 +721,8 @@ describe('Kanban e histórico', () => {
 
     await api.patch(`/api/tasks/${task.id}/move`).send({ toStatus: 'EM_ANDAMENTO' });
     const movement = await prisma.taskMovement.findFirst({ where: { taskId: task.id } });
-    expect(movement).toMatchObject({ movedBy: 'Usuário E6 artificial', projectMemberId: null });
+    expect(movement).toMatchObject({ movedBy: 'Usuário E6 artificial' });
+    expect(movement).not.toHaveProperty('projectMemberId');
     expect(movement.movedByUserId).not.toBeNull();
   });
 
@@ -1105,12 +1100,13 @@ describe('validação HTTP negativa da E4', () => {
         .send({ githubAutoSyncEnabled: 'true' }),
       'githubAutoSyncEnabled'
     );
-    expectValidationError(
-      await api
-        .post(`/api/projects/${project.id}/members`)
-        .send({ name: 'Pessoa', email: 'invalido', role: 'MEMBRO' }),
-      'email'
-    );
+    const removedMemberRoute = await api
+      .post(`/api/projects/${project.id}/members`)
+      .send({ name: 'Pessoa', email: 'invalido', role: 'MEMBRO' });
+    expect(removedMemberRoute).toMatchObject({
+      status: 404,
+      body: { code: 'ROUTE_NOT_FOUND' }
+    });
     expectValidationError(
       await api.post('/api/projects/join').send({ accessCode: '', name: 'Pessoa' }),
       'accessCode'

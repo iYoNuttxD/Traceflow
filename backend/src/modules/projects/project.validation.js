@@ -1,8 +1,6 @@
 import { z } from 'zod';
 import {
   INPUT_LIMITS,
-  email,
-  githubUrl,
   optionalText,
   positiveInteger,
   requiredText,
@@ -26,30 +24,18 @@ export const projectProjectIdParamsSchema = strictObject({
   projectId: positiveInteger('ID do projeto inválido.')
 });
 
-const repositoryShape = {
-  githubOwner: requiredText({ field: 'githubOwner' }),
-  githubRepo: requiredText({ field: 'githubRepo' }),
-  githubUrl
-};
-
 export const createProjectBodySchema = strictObject({
   name: requiredText({ message: 'O nome do projeto é obrigatório.' }),
   description: optionalProjectText('Descrição'),
   responsibleTeam: requiredText({ message: 'A equipe responsável é obrigatória.' }),
-  status: projectStatus.optional(),
-  githubOwner: repositoryShape.githubOwner.optional(),
-  githubRepo: repositoryShape.githubRepo.optional(),
-  githubUrl: githubUrl.optional()
+  status: projectStatus.optional()
 });
 
 export const updateProjectBodySchema = strictObject({
   name: requiredText({ message: 'O nome do projeto é obrigatório.' }).optional(),
   description: optionalProjectText('Descrição'),
   responsibleTeam: requiredText({ message: 'A equipe responsável é obrigatória.' }).optional(),
-  status: projectStatus.optional(),
-  githubOwner: repositoryShape.githubOwner.optional(),
-  githubRepo: repositoryShape.githubRepo.optional(),
-  githubUrl: githubUrl.optional()
+  status: projectStatus.optional()
 });
 
 export const createProjectFromGithubBodySchema = strictObject({
@@ -59,14 +45,6 @@ export const createProjectFromGithubBodySchema = strictObject({
   description: optionalProjectText('Descrição'),
   responsibleTeam: optionalProjectText('Equipe responsável')
 });
-
-const memberFields = {
-  name: requiredText({ message: 'O nome do membro é obrigatório.' }),
-  email: z.union([email, z.literal('').transform(() => null), z.null()]).optional(),
-  role: optionalText({ field: 'Papel' })
-};
-
-export const addProjectMemberBodySchema = strictObject(memberFields);
 
 export const joinProjectBodySchema = strictObject({
   accessCode: requiredText({
