@@ -104,12 +104,23 @@ export const authService = {
       });
     }
     ensurePasswordPolicy(password, { username: normalizedUsername, email: normalizedEmail });
-    const user = await authRepository.createUser({
-      name: name.trim(),
-      username: normalizedUsername,
-      email: normalizedEmail,
-      passwordHash: await this.hashPassword(password)
-    });
+    let user;
+    try {
+      user = await authRepository.createUser({
+        name: name.trim(),
+        username: normalizedUsername,
+        email: normalizedEmail,
+        passwordHash: await this.hashPassword(password)
+      });
+    } catch (error) {
+      if (!authRepository.isUniqueViolation(error)) throw error;
+      throw new AppError({
+        message: 'Não foi possível criar a conta.',
+        statusCode: 409,
+        code: ERROR_CODES.CONFLICT,
+        exposeTechnicalDetails: true
+      });
+    }
     const session = await issueSession(user, false);
     const emailVerification = await issueEmailVerification(user);
     return { user: publicUser(user), ...session, emailVerification };
@@ -203,11 +214,7 @@ export const authService = {
         exposeTechnicalDetails: true
       });
     ensurePasswordPolicy(password, user);
-    await authRepository.updateUser(userId, {
-      passwordHash: await this.hashPassword(password),
-      sessionVersion: { increment: 1 }
-    });
-    await authRepository.revokeUserSessions(userId);
+    await authRepository.changePassword(userId, await this.hashPassword(password));
   },
   async verifyPassword(userId, password) {
     const user = await authRepository.findUserById(userId);
@@ -232,6 +239,15 @@ export const authService = {
     return publicUser(await authRepository.findUserById(record.userId));
   },
   async updateUsername(userId, username) {
+    const user = await authRepository.findUserById(userId);
+    if (!user?.mustSetUsername) {
+      throw new AppError({
+        message: 'A definição inicial de username não está disponível para esta conta.',
+        statusCode: 409,
+        code: ERROR_CODES.CONFLICT,
+        exposeTechnicalDetails: true
+      });
+    }
     const result = validateUsername(username);
     if (!result.valid)
       throw new AppError({
@@ -248,8 +264,21 @@ export const authService = {
         code: ERROR_CODES.CONFLICT,
         exposeTechnicalDetails: true
       });
-    return publicUser(
-      await authRepository.updateUser(userId, { username: result.username, mustSetUsername: false })
-    );
+    try {
+      return publicUser(
+        await authRepository.updateUser(userId, {
+          username: result.username,
+          mustSetUsername: false
+        })
+      );
+    } catch (error) {
+      if (!authRepository.isUniqueViolation(error)) throw error;
+      throw new AppError({
+        message: 'Este nome de usuário não está disponível.',
+        statusCode: 409,
+        code: ERROR_CODES.CONFLICT,
+        exposeTechnicalDetails: true
+      });
+    }
   }
 };

@@ -3,6 +3,7 @@ import { env } from '../../config/env.js';
 import { validateRequest } from '../../shared/validation/index.js';
 import { createAuthenticationMiddleware } from '../../middlewares/auth/authentication.middleware.js';
 import { createCsrfMiddleware } from '../../middlewares/auth/csrf.middleware.js';
+import { requireAccountState } from '../../middlewares/auth/account-state.middleware.js';
 import { authController } from './auth.controller.js';
 import { githubAuthController } from './github-auth.controller.js';
 import {
@@ -32,6 +33,7 @@ router.post(
   '/github/reauth/start',
   authenticate,
   csrf,
+  requireAccountState,
   validateRequest({ body: emptyAuthBodySchema }),
   githubAuthController.startPasswordReauthentication
 );
@@ -44,6 +46,7 @@ router.patch(
   '/username',
   authenticate,
   csrf,
+  requireAccountState,
   validateRequest({ body: usernameBodySchema }),
   authController.updateUsername
 );
@@ -64,6 +67,7 @@ router.post(
   '/email-verification/resend',
   authenticate,
   csrf,
+  requireAccountState,
   validateRequest({ body: emptyAuthBodySchema }),
   authController.resendEmailVerification
 );
@@ -71,6 +75,7 @@ router.post(
   '/change-password',
   authenticate,
   csrf,
+  requireAccountState,
   validateRequest({ body: changePasswordBodySchema }),
   authController.changePassword
 );

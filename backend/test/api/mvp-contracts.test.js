@@ -205,8 +205,14 @@ describe('contratos HTTP de projetos', () => {
   it('preserva 404 e o formato de erro para projeto inexistente', async () => {
     const response = await api.get('/api/projects/999999');
 
-    expect(response.status).toBe(404);
-    expect(response.body).toEqual({ message: 'Projeto não encontrado.' });
+    expect(response).toMatchObject({
+      status: 404,
+      body: {
+        message: 'Recurso não encontrado.',
+        code: 'RESOURCE_NOT_FOUND',
+        requestId: expect.any(String)
+      }
+    });
   });
 });
 
@@ -1084,6 +1090,7 @@ describe('matriz e detalhe de rastreabilidade', () => {
 
 describe('validação HTTP negativa da E4', () => {
   it('valida IDs, URL, boolean, e-mail, accessCode e campos de Projects', async () => {
+    const project = await createProject(prisma);
     expectValidationError(await api.get('/api/projects/invalido'), 'id');
 
     expectValidationError(
@@ -1094,13 +1101,13 @@ describe('validação HTTP negativa da E4', () => {
     );
     expectValidationError(
       await api
-        .patch('/api/projects/1/github/sync-settings')
+        .patch(`/api/projects/${project.id}/github/sync-settings`)
         .send({ githubAutoSyncEnabled: 'true' }),
       'githubAutoSyncEnabled'
     );
     expectValidationError(
       await api
-        .post('/api/projects/1/members')
+        .post(`/api/projects/${project.id}/members`)
         .send({ name: 'Pessoa', email: 'invalido', role: 'MEMBRO' }),
       'email'
     );
@@ -1115,73 +1122,104 @@ describe('validação HTTP negativa da E4', () => {
   });
 
   it('valida entradas de Requirements sem alterar erros de domínio', async () => {
+    const project = await createProject(prisma);
+    const requirement = await createRequirement(prisma, project.id);
     expectValidationError(await api.get('/api/requirements/invalido'), 'id');
     expectValidationError(
-      await api.post('/api/projects/1/requirements').send({ title: '' }),
+      await api.post(`/api/projects/${project.id}/requirements`).send({ title: '' }),
       'title'
     );
     expectValidationError(
-      await api.post('/api/projects/1/requirements').send({ title: 'RF', type: 'OUTRO' }),
+      await api
+        .post(`/api/projects/${project.id}/requirements`)
+        .send({ title: 'RF', type: 'OUTRO' }),
       'type'
     );
     expectValidationError(
-      await api.patch('/api/requirements/1/status').send({ status: 'OUTRO' }),
+      await api.patch(`/api/requirements/${requirement.id}/status`).send({ status: 'OUTRO' }),
       'status'
     );
     expectValidationError(
-      await api.get(`/api/projects/1/requirements?search=${'a'.repeat(256)}`),
+      await api.get(`/api/projects/${project.id}/requirements?search=${'a'.repeat(256)}`),
       'search'
     );
     expectValidationError(
-      await api.post('/api/projects/1/requirements').send({ title: 'RF', segredo: 'nao-retornar' }),
+      await api
+        .post(`/api/projects/${project.id}/requirements`)
+        .send({ title: 'RF', segredo: 'nao-retornar' }),
       'segredo'
     );
   });
 
   it('valida entradas de Tasks, vínculos e filtros', async () => {
+    const project = await createProject(prisma);
+    const task = await createTask(prisma, project.id);
     expectValidationError(await api.get('/api/tasks/1.5'), 'id');
-    expectValidationError(await api.post('/api/projects/1/tasks').send({ title: '' }), 'title');
     expectValidationError(
-      await api.post('/api/projects/1/tasks').send({ title: 'Tarefa', estimatedEffort: -1 }),
+      await api.post(`/api/projects/${project.id}/tasks`).send({ title: '' }),
+      'title'
+    );
+    expectValidationError(
+      await api
+        .post(`/api/projects/${project.id}/tasks`)
+        .send({ title: 'Tarefa', estimatedEffort: -1 }),
       'estimatedEffort'
     );
     expectValidationError(
-      await api.post('/api/projects/1/tasks').send({ title: 'Tarefa', deadline: '2026-02-30' }),
+      await api
+        .post(`/api/projects/${project.id}/tasks`)
+        .send({ title: 'Tarefa', deadline: '2026-02-30' }),
       'deadline'
     );
     expectValidationError(
-      await api.post('/api/projects/1/tasks').send({ title: 'Tarefa', priority: 'URGENTE' }),
+      await api
+        .post(`/api/projects/${project.id}/tasks`)
+        .send({ title: 'Tarefa', priority: 'URGENTE' }),
       'priority'
     );
     expectValidationError(
-      await api.patch('/api/tasks/1/status').send({ status: 'OUTRO' }),
+      await api.patch(`/api/tasks/${task.id}/status`).send({ status: 'OUTRO' }),
       'status'
     );
     expectValidationError(
-      await api.patch('/api/tasks/1/requirement').send({ requirementId: 'abc' }),
+      await api.patch(`/api/tasks/${task.id}/requirement`).send({ requirementId: 'abc' }),
       'requirementId'
     );
-    expectValidationError(await api.post('/api/tasks/1/commits').send({ commitId: 0 }), 'commitId');
-    expectValidationError(await api.post('/api/tasks/1/issues').send({ issueId: -2 }), 'issueId');
     expectValidationError(
-      await api.get('/api/projects/1/tasks/metrics?startDate=2026-12-31&endDate=2026-01-01'),
+      await api.post(`/api/tasks/${task.id}/commits`).send({ commitId: 0 }),
+      'commitId'
+    );
+    expectValidationError(
+      await api.post(`/api/tasks/${task.id}/issues`).send({ issueId: -2 }),
+      'issueId'
+    );
+    expectValidationError(
+      await api.get(
+        `/api/projects/${project.id}/tasks/metrics?startDate=2026-12-31&endDate=2026-01-01`
+      ),
       'endDate'
     );
     expectValidationError(
-      await api.post('/api/projects/1/tasks').send({ title: 'Tarefa', campoInventado: true }),
+      await api
+        .post(`/api/projects/${project.id}/tasks`)
+        .send({ title: 'Tarefa', campoInventado: true }),
       'campoInventado'
     );
   });
 
   it('valida GitHub, Artifacts e Traceability sem acessar dependências', async () => {
+    const project = await createProject(prisma);
     expectValidationError(await api.get('/api/projects/x/commits'), 'projectId');
     expectValidationError(
-      await api.get(`/api/projects/1/issues?search=${'a'.repeat(256)}`),
+      await api.get(`/api/projects/${project.id}/issues?search=${'a'.repeat(256)}`),
       'search'
     );
-    expectValidationError(await api.get('/api/projects/1/artifacts?type=branch'), 'type');
     expectValidationError(
-      await api.get('/api/projects/1/artifacts?startDate=2026-02-30'),
+      await api.get(`/api/projects/${project.id}/artifacts?type=branch`),
+      'type'
+    );
+    expectValidationError(
+      await api.get(`/api/projects/${project.id}/artifacts?startDate=2026-02-30`),
       'startDate'
     );
     expectValidationError(
@@ -1189,7 +1227,7 @@ describe('validação HTTP negativa da E4', () => {
       'projectId'
     );
     expectValidationError(
-      await api.get('/api/projects/1/traceability/requirements/x'),
+      await api.get(`/api/projects/${project.id}/traceability/requirements/x`),
       'requirementId'
     );
   });
@@ -1226,7 +1264,8 @@ describe('baseline dos endpoints 501', () => {
   });
 
   it('remove o placeholder GitHub redundante sem afetar o endpoint canônico de artifacts', async () => {
-    const response = await api.get('/api/projects/1/github/artifacts');
+    const project = await createProject(prisma);
+    const response = await api.get(`/api/projects/${project.id}/github/artifacts`);
     expect(response.status).toBe(404);
     expect(response.body.code).toBe('ROUTE_NOT_FOUND');
   });

@@ -96,6 +96,33 @@ describe('cliente HTTP compartilhado', () => {
     window.removeEventListener('traceflow:account-restricted', listener);
   });
 
+  it('mantém a sessão e delega EMAIL_VERIFICATION_REQUIRED ao consumidor', async () => {
+    const client = createHttpClient();
+    const unauthorized = vi.fn();
+    const restricted = vi.fn();
+    window.addEventListener('traceflow:unauthorized', unauthorized);
+    window.addEventListener('traceflow:account-restricted', restricted);
+    client.defaults.adapter = (config) =>
+      Promise.reject({
+        response: {
+          status: 403,
+          data: {
+            code: 'EMAIL_VERIFICATION_REQUIRED',
+            message: 'Verifique seu e-mail para realizar esta ação.'
+          }
+        },
+        config
+      });
+
+    await expect(client.post('/projects/invitations/1/accept', {})).rejects.toMatchObject({
+      response: { data: { code: 'EMAIL_VERIFICATION_REQUIRED' } }
+    });
+    expect(unauthorized).not.toHaveBeenCalled();
+    expect(restricted).not.toHaveBeenCalled();
+    window.removeEventListener('traceflow:unauthorized', unauthorized);
+    window.removeEventListener('traceflow:account-restricted', restricted);
+  });
+
   it('deduplica GET simultâneo por URL e parâmetros na mesma geração de sessão', async () => {
     const client = createHttpClient();
     let resolveRequest;

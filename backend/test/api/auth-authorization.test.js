@@ -226,17 +226,17 @@ describe('identidade, sessão, CSRF e autorização E6', () => {
     expect(
       (
         await auth.agent
-          .patch('/api/auth/username')
+          .patch('/api/settings/account/profile')
           .set('X-CSRF-Token', auth.csrf)
-          .send({ username: 'csrf_tab_a' })
+          .send({ name: 'CSRF aba A' })
       ).status
     ).toBe(200);
     expect(
       (
         await auth.agent
-          .patch('/api/auth/username')
+          .patch('/api/settings/account/profile')
           .set('X-CSRF-Token', tabB)
-          .send({ username: 'csrf_tab_b' })
+          .send({ name: 'CSRF aba B' })
       ).status
     ).toBe(200);
     expect(

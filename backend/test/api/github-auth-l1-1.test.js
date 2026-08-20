@@ -91,6 +91,28 @@ async function completeGithub(agent, state) {
 }
 
 describe('API de autenticação GitHub L1.1', () => {
+  it.each([
+    '/..//evil.com',
+    '/.//evil.com',
+    '/%2e%2e//evil.com',
+    '/%2E%2E//evil.com',
+    '/x/..//evil.com',
+    '/x/%2e%2e//evil.com'
+  ])(
+    'persiste fallback interno e nunca redireciona para fora com returnTo %s',
+    async (returnTo) => {
+      const agent = request.agent(app);
+      const state = await startGithub(agent, { rememberMe: false, returnTo });
+      const stored = await prisma.gitHubOAuthState.findFirst({ orderBy: { id: 'desc' } });
+      expect(stored.returnTo).toBe('/projects');
+
+      const callback = await completeGithub(agent, state);
+      expect(callback.status).toBe(302);
+      expect(new URL(callback.headers.location).origin).toBe('http://frontend.test');
+      expect(callback.headers.location).toBe('http://frontend.test/projects');
+    }
+  );
+
   it('cria conta GitHub-only, persiste rememberMe e permite inicializar senha na sessão reautenticada', async () => {
     const agent = request.agent(app);
     const state = await startGithub(agent, {

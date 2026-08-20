@@ -1,7 +1,10 @@
 import { authorizationRepository } from './authorization.repository.js';
 
 const levels = Object.freeze({ VIEWER: 0, MEMBER: 1, MANAGER: 2, OWNER: 3 });
-const matchId = (path, pattern) => Number(pattern.exec(path)?.[1]) || null;
+const matchId = (path, pattern) => {
+  const value = Number(pattern.exec(path)?.[1]);
+  return Number.isSafeInteger(value) && value > 0 ? value : null;
+};
 
 export const authorizationService = {
   async resolveProjectId(path) {
@@ -16,20 +19,26 @@ export const authorizationService = {
     if (taskId) return (await authorizationRepository.projectForTask(taskId))?.projectId ?? null;
     return null;
   },
-  requiredRole(req) {
-    if (req.method === 'GET' && /^\/projects\/\d+\/invitations(?:\/|$)/.test(req.path))
-      return 'OWNER';
-    if (/\/access-code(?:\/|$)/.test(req.path)) return 'OWNER';
-    if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return 'VIEWER';
-    if (req.method === 'DELETE' && /\/members\/me$/.test(req.path)) return 'VIEWER';
-    if (req.method === 'PUT' && /^\/projects\/\d+$/.test(req.path)) return 'OWNER';
+  isProjectScoped(path) {
+    return (
+      /^\/projects\/\d+(?:\/|$)/.test(path) ||
+      /^\/requirements\/\d+(?:\/|$)/.test(path) ||
+      /^\/tasks\/\d+(?:\/|$)/.test(path)
+    );
+  },
+  requiredRole({ method, path }) {
+    if (method === 'GET' && /^\/projects\/\d+\/invitations(?:\/|$)/.test(path)) return 'OWNER';
+    if (/\/access-code(?:\/|$)/.test(path)) return 'OWNER';
+    if (['GET', 'HEAD', 'OPTIONS'].includes(method)) return 'VIEWER';
+    if (method === 'DELETE' && /\/members\/me$/.test(path)) return 'VIEWER';
+    if (method === 'PUT' && /^\/projects\/\d+$/.test(path)) return 'OWNER';
     if (
       /\/members(?:\/|$)|\/invitations(?:\/|$)|\/ownership\/transfer$|\/github\/(?:sync-settings|integration)/.test(
-        req.path
+        path
       )
     )
       return 'OWNER';
-    if (/\/github\/sync(?:\/|$)/.test(req.path)) return 'MANAGER';
+    if (/\/github\/sync(?:\/|$)/.test(path)) return 'MANAGER';
     return 'MEMBER';
   },
   permits(role, required) {
@@ -37,8 +46,5 @@ export const authorizationService = {
   },
   membership(projectId, userId) {
     return authorizationRepository.membership(projectId, userId);
-  },
-  projectExists(projectId) {
-    return authorizationRepository.projectExists(projectId);
   }
 };

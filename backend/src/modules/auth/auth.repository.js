@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../database/prismaClient.js';
 
 export const authRepository = {
@@ -15,6 +16,23 @@ export const authRepository = {
   },
   updateUser(id, data) {
     return prisma.user.update({ where: { id }, data });
+  },
+  changePassword(userId, passwordHash, now = new Date()) {
+    return prisma.$transaction(async (tx) => {
+      const user = await tx.user.update({
+        where: { id: userId },
+        data: { passwordHash, sessionVersion: { increment: 1 } }
+      });
+      await tx.session.updateMany({
+        where: { userId, revokedAt: null },
+        data: { revokedAt: now }
+      });
+      await tx.passwordResetToken.updateMany({
+        where: { userId, usedAt: null },
+        data: { usedAt: now }
+      });
+      return user;
+    });
   },
   createSession(data) {
     return prisma.session.create({ data });
@@ -69,5 +87,8 @@ export const authRepository = {
   },
   useEmailVerificationToken(id) {
     return prisma.emailVerificationToken.update({ where: { id }, data: { usedAt: new Date() } });
+  },
+  isUniqueViolation(error) {
+    return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
   }
 };

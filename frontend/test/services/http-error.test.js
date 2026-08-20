@@ -46,6 +46,26 @@ describe('normalização mínima de erros HTTP', () => {
     ).toMatchObject({ requestId: 'req-header', isNetworkError: false });
   });
 
+  it('preserva o código e a orientação de verificação de e-mail', () => {
+    expect(
+      normalizeApiError({
+        response: {
+          status: 403,
+          data: {
+            code: 'EMAIL_VERIFICATION_REQUIRED',
+            message: 'Verifique seu e-mail para realizar esta ação.'
+          },
+          headers: {}
+        }
+      })
+    ).toMatchObject({
+      status: 403,
+      code: 'EMAIL_VERIFICATION_REQUIRED',
+      message: 'Verifique seu e-mail para realizar esta ação.',
+      isNetworkError: false
+    });
+  });
+
   it('normaliza o prazo e o escopo de um 429 sem expor detalhes internos', () => {
     expect(
       normalizeApiError({

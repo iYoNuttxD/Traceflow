@@ -1,4 +1,4 @@
-import { AppError } from '../../shared/errors/index.js';
+import { AppError, ERROR_CODES } from '../../shared/errors/index.js';
 
 export function requireVerifiedEmail(req, res, next) {
   if (req.auth?.user?.emailVerifiedAt) return next();
@@ -6,7 +6,7 @@ export function requireVerifiedEmail(req, res, next) {
     new AppError({
       message: 'Verifique seu e-mail para realizar esta ação.',
       statusCode: 403,
-      code: 'EMAIL_VERIFICATION_REQUIRED',
+      code: ERROR_CODES.EMAIL_VERIFICATION_REQUIRED,
       exposeTechnicalDetails: true
     })
   );

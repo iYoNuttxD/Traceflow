@@ -102,7 +102,7 @@ export const projectController = {
       const project = await projectService.updateGithubSyncSettings(req.params.projectId, req.body);
       return res.json({
         message: 'Configuração de sincronização GitHub atualizada com sucesso.',
-        project
+        project: publicProject(project)
       });
     },
     { fallbackMessage: 'Erro ao atualizar configuração de sincronização GitHub.' }

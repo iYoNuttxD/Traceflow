@@ -35,14 +35,16 @@ import {
 
 const router = Router();
 
-router.get('/invitations/mine', projectInvitationController.mine);
+router.get('/invitations/mine', requireVerifiedEmail, projectInvitationController.mine);
 router.post(
   '/invitations/:invitationId/accept',
+  requireVerifiedEmail,
   validateRequest({ params: personalInvitationParams }),
   projectInvitationController.acceptMine
 );
 router.post(
   '/invitations/:invitationId/decline',
+  requireVerifiedEmail,
   validateRequest({ params: personalInvitationParams }),
   projectInvitationController.declineMine
 );

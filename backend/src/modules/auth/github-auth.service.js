@@ -8,6 +8,7 @@ import { githubAuthRepository } from './github-auth.repository.js';
 import { normalizeUsername, validateUsername } from './identity-policy.js';
 
 const hashToken = (value) => createHash('sha256').update(value).digest('hex');
+const internalOrigin = 'https://traceflow.invalid';
 const oauthError = (message, statusCode, code) =>
   new AppError({ message, statusCode, code, exposeTechnicalDetails: true });
 
@@ -20,19 +21,43 @@ function safeEqual(left, right) {
 export function sanitizeInternalReturnTo(value, fallback = '/projects') {
   if (typeof value !== 'string' || value.length === 0 || value.length > 191) return fallback;
   if (!value.startsWith('/') || value.startsWith('//') || value.includes('\\')) return fallback;
-  if (
-    [...value].some((character) => {
+  const hasControlCharacter = (candidate) =>
+    [...candidate].some((character) => {
       const code = character.charCodeAt(0);
       return code <= 31 || code === 127;
-    })
-  )
-    return fallback;
+    });
+  const hasDotSegment = (candidate) =>
+    candidate
+      .split(/[?#]/, 1)[0]
+      .split('/')
+      .some((segment) => segment === '.' || segment === '..');
+  if (hasControlCharacter(value) || hasDotSegment(value)) return fallback;
   try {
     const decoded = decodeURIComponent(value);
-    if (decoded.startsWith('//') || decoded.includes('\\')) return fallback;
-    const parsed = new URL(value, 'https://traceflow.invalid');
-    if (parsed.origin !== 'https://traceflow.invalid') return fallback;
-    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    if (
+      !decoded.startsWith('/') ||
+      decoded.startsWith('//') ||
+      decoded.includes('\\') ||
+      hasControlCharacter(decoded) ||
+      hasDotSegment(decoded)
+    )
+      return fallback;
+    const parsed = new URL(value, internalOrigin);
+    if (
+      parsed.origin !== internalOrigin ||
+      !parsed.pathname.startsWith('/') ||
+      parsed.pathname.startsWith('//') ||
+      parsed.pathname.includes('\\')
+    )
+      return fallback;
+    const normalized = `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    if (!normalized.startsWith('/') || normalized.startsWith('//') || normalized.includes('\\'))
+      return fallback;
+    const reparsed = new URL(normalized, internalOrigin);
+    return reparsed.origin === internalOrigin &&
+      `${reparsed.pathname}${reparsed.search}${reparsed.hash}` === normalized
+      ? normalized
+      : fallback;
   } catch {
     return fallback;
   }
@@ -147,44 +172,46 @@ async function createGithubAccount({ token, profile, githubUserId, githubLogin, 
       ERROR_CODES.GITHUB_VERIFIED_EMAIL_REQUIRED
     );
   }
-  if (await githubAuthRepository.findUserByEmail(email)) {
-    throw oauthError(
+  const emailConflict = () =>
+    oauthError(
       'Já existe uma conta TraceFlow associada a este endereço. Entre com sua conta atual e vincule o GitHub em Configurações.',
       409,
       ERROR_CODES.GITHUB_EMAIL_ACCOUNT_CONFLICT
     );
-  }
-  const username = await availableUsername(githubLogin);
+  if (await githubAuthRepository.findUserByEmail(email)) throw emailConflict();
+  let username = await availableUsername(githubLogin);
   const profileName = typeof profile.name === 'string' ? profile.name.trim() : '';
   const name = profileName && profileName.length <= 120 ? profileName : githubLogin.slice(0, 120);
-  try {
-    const created = await githubAuthRepository.createGithubAccount({
-      user: {
-        name,
-        username: username.username,
-        mustSetUsername: username.mustSetUsername,
-        email,
-        emailVerifiedAt: now,
-        passwordHash: null,
-        lastLoginAt: now
-      },
-      identity: { githubUserId, githubLogin, lastAuthenticatedAt: now }
-    });
-    return {
-      user: authService.publicUser(created.user),
-      ...(await authService.issueSession(created.user, rememberMe, { lastReauthenticatedAt: now })),
-      accountCreated: true
-    };
-  } catch (error) {
-    if (!githubAuthRepository.isUniqueViolation(error)) throw error;
-    const racedIdentity = await githubAuthRepository.findIdentityByGithubUserId(githubUserId);
-    if (racedIdentity) return loginWithIdentity(racedIdentity, githubLogin, now, rememberMe);
-    throw oauthError(
-      'Já existe uma conta TraceFlow associada a este endereço. Entre com sua conta atual e vincule o GitHub em Configurações.',
-      409,
-      ERROR_CODES.GITHUB_EMAIL_ACCOUNT_CONFLICT
-    );
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const created = await githubAuthRepository.createGithubAccount({
+        user: {
+          name,
+          username: username.username,
+          mustSetUsername: username.mustSetUsername,
+          email,
+          emailVerifiedAt: now,
+          passwordHash: null,
+          lastLoginAt: now
+        },
+        identity: { githubUserId, githubLogin, lastAuthenticatedAt: now }
+      });
+      return {
+        user: authService.publicUser(created.user),
+        ...(await authService.issueSession(created.user, rememberMe, {
+          lastReauthenticatedAt: now
+        })),
+        accountCreated: true
+      };
+    } catch (error) {
+      if (!githubAuthRepository.isUniqueViolation(error)) throw error;
+      const racedIdentity = await githubAuthRepository.findIdentityByGithubUserId(githubUserId);
+      if (racedIdentity) return loginWithIdentity(racedIdentity, githubLogin, now, rememberMe);
+      if (await githubAuthRepository.findUserByEmail(email)) throw emailConflict();
+      username = await availableUsername(githubLogin);
+    }
   }
+  throw oauthError('Não foi possível criar a conta.', 409, ERROR_CODES.CONFLICT);
 }
 
 export const githubAuthService = {
@@ -288,7 +315,11 @@ export const githubAuthService = {
               now,
               rememberMe: record.rememberMe
             });
-        return { purpose: record.purpose, returnTo: record.returnTo || '/projects', ...login };
+        return {
+          purpose: record.purpose,
+          returnTo: sanitizeInternalReturnTo(record.returnTo),
+          ...login
+        };
       }
 
       if (record.purpose === 'LINK_IDENTITY') {
@@ -321,7 +352,11 @@ export const githubAuthService = {
             409,
             ERROR_CODES.GITHUB_IDENTITY_ALREADY_EXISTS
           );
-        return { purpose: record.purpose, userId: record.userId, returnTo: record.returnTo };
+        return {
+          purpose: record.purpose,
+          userId: record.userId,
+          returnTo: sanitizeInternalReturnTo(record.returnTo, '/settings/integrations')
+        };
       }
 
       const identity = await githubAuthRepository.findIdentityByUserId(record.userId);
@@ -339,7 +374,11 @@ export const githubAuthService = {
       );
       if (updated.count !== 1)
         throw oauthError('Reautenticação inválida.', 401, ERROR_CODES.GITHUB_OAUTH_STATE_INVALID);
-      return { purpose: record.purpose, userId: record.userId, returnTo: record.returnTo };
+      return {
+        purpose: record.purpose,
+        userId: record.userId,
+        returnTo: sanitizeInternalReturnTo(record.returnTo, '/settings/security')
+      };
     } catch (error) {
       logger.warn('Fluxo de autenticação GitHub interrompido.', {
         event: 'github_auth_failed',
