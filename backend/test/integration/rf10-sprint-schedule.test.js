@@ -10,6 +10,7 @@ import { createMilestone, createProject, createSprint, createTask } from '../fix
 let prisma;
 let sprintRepository;
 let milestoneRepository;
+let sprintService;
 let testDatabaseUrl;
 
 beforeAll(async () => {
@@ -20,6 +21,9 @@ beforeAll(async () => {
     await import('../../src/modules/sprints/repositories/sprint.repository.js'));
   ({ milestoneRepository } =
     await import('../../src/modules/sprints/repositories/milestone.repository.js'));
+  // O service entra aqui porque a invariante de janela nasce da combinacao entre
+  // regra e lock: exercitar so o repository provaria a transacao, nao a decisao.
+  ({ sprintService } = await import('../../src/modules/sprints/sprint.service.js'));
   await cleanTestDatabase(prisma);
 });
 afterEach(() => cleanTestDatabase(prisma));
@@ -212,5 +216,110 @@ describe('transacoes dos repositories', () => {
     expect(await sprintRepository.findByIdInProject(sprint.id, first.id)).not.toBeNull();
     expect(await milestoneRepository.findByIdInProject(milestone.id, second.id)).toBeNull();
     expect(await milestoneRepository.findByIdInProject(milestone.id, first.id)).not.toBeNull();
+  });
+});
+
+// O lock so vale se a decisao vier DEPOIS dele. Estes testes afirmam sobre o
+// estado final do banco, nunca sobre qual requisicao venceu: sob concorrencia
+// real a ordem nao e do teste, e depender dela seria testar o escalonador.
+describe('concorrencia sob lock (ADR-010 D17)', () => {
+  const inicio = new Date('2026-08-01T00:00:00.000Z');
+  const fim = new Date('2026-08-30T00:00:00.000Z');
+
+  async function sprintDeTeste(overrides = {}) {
+    const project = await createProject(prisma);
+    const sprint = await createSprint(prisma, project.id, {
+      startDate: inicio,
+      endDate: fim,
+      ...overrides
+    });
+    return { project, sprint };
+  }
+
+  // Partindo de [01, 30], uma requisicao move so o fim para 15 e outra so o
+  // inicio para 20. Completar o lado ausente com o registro lido ANTES da
+  // transacao deixava as duas passarem pela mesma validacao, e o banco terminava
+  // com [20, 15] — janela invertida, que nenhuma das duas requisicoes pediu.
+  it('duas atualizacoes parciais complementares nunca gravam janela invertida', async () => {
+    const { sprint } = await sprintDeTeste();
+
+    const resultados = await Promise.allSettled([
+      sprintService.updateSprint(sprint.id, { endDate: '2026-08-15' }),
+      sprintService.updateSprint(sprint.id, { startDate: '2026-08-20' })
+    ]);
+
+    const persistida = await prisma.sprint.findUnique({ where: { id: sprint.id } });
+    expect(persistida.startDate.getTime()).toBeLessThan(persistida.endDate.getTime());
+
+    // Uma das duas precisa ter sido recusada: as duas juntas sao contraditorias.
+    const recusadas = resultados.filter((resultado) => resultado.status === 'rejected');
+    expect(recusadas).toHaveLength(1);
+    expect(recusadas[0].reason).toMatchObject({ code: 'SPRINT_DATE_RANGE_INVALID' });
+
+    // A janela final e exatamente a de quem venceu, sem mistura das duas.
+    const vencedora = [
+      { startDate: inicio.getTime(), endDate: new Date('2026-08-15T00:00:00.000Z').getTime() },
+      { startDate: new Date('2026-08-20T00:00:00.000Z').getTime(), endDate: fim.getTime() }
+    ];
+    expect(vencedora).toContainEqual({
+      startDate: persistida.startDate.getTime(),
+      endDate: persistida.endDate.getTime()
+    });
+  });
+
+  // Encolher a janela e recusado DENTRO da transacao: nem a sprint muda, nem
+  // sobra evento de auditoria de uma atualizacao que nao aconteceu.
+  it('recusar por marco fora da janela nao deixa escrita parcial', async () => {
+    const { project, sprint } = await sprintDeTeste();
+    await createMilestone(prisma, project.id, {
+      sprintId: sprint.id,
+      dueDate: new Date('2026-08-20T00:00:00.000Z')
+    });
+
+    await expect(
+      sprintService.updateSprint(sprint.id, { endDate: '2026-08-10' })
+    ).rejects.toMatchObject({ statusCode: 409, code: 'SPRINT_WINDOW_MILESTONE_CONFLICT' });
+
+    const persistida = await prisma.sprint.findUnique({ where: { id: sprint.id } });
+    expect(persistida.endDate.getTime()).toBe(fim.getTime());
+    expect(await prisma.auditEvent.count({ where: { action: 'SPRINT_UPDATED' } })).toBe(0);
+  });
+
+  // A leitura dos marcos acontece depois do lock, entao ela enxerga o que ja foi
+  // confirmado. Recusar a criacao que perde a corrida para a reducao ainda depende
+  // do lock nas mutacoes de marco (Fase 4).
+  it('a reducao de janela enxerga marco criado imediatamente antes dela', async () => {
+    const { project, sprint } = await sprintDeTeste();
+    await createMilestone(prisma, project.id, {
+      sprintId: sprint.id,
+      dueDate: new Date('2026-08-25T00:00:00.000Z')
+    });
+
+    await expect(
+      sprintService.updateSprint(sprint.id, { startDate: '2026-08-02', endDate: '2026-08-20' })
+    ).rejects.toMatchObject({ code: 'SPRINT_WINDOW_MILESTONE_CONFLICT' });
+  });
+
+  // Estado que so o backfill da migration s104 produz: marco vinculado a uma
+  // sprint cuja janela nunca o conteve. Ele nao pode trancar a sprint — nem para
+  // renomear, nem para reajustar o periodo.
+  it('marco legado fora da janela nao tranca a sprint', async () => {
+    const { project, sprint } = await sprintDeTeste();
+    await createMilestone(prisma, project.id, {
+      sprintId: sprint.id,
+      dueDate: new Date('2026-10-15T00:00:00.000Z')
+    });
+
+    await expect(
+      sprintService.updateSprint(sprint.id, {
+        name: 'Sprint renomeada',
+        startDate: '2026-08-01T00:00:00.000Z',
+        endDate: '2026-08-30T00:00:00.000Z'
+      })
+    ).resolves.toMatchObject({ name: 'Sprint renomeada' });
+
+    await expect(
+      sprintService.updateSprint(sprint.id, { endDate: '2026-08-20' })
+    ).resolves.toBeDefined();
   });
 });
