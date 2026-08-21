@@ -424,6 +424,104 @@ describe('escopo de sprint encerrada', () => {
   });
 });
 
+// Salvar A e selecionar B antes da resposta chegar. `selectedSprint` e estado de
+// render: aplicar a resposta atrasada de A no painel de B fazia o salvamento
+// seguinte enviar os IDs de A para B, alterando o recurso errado.
+describe('salvamento de uma sprint nao invade o painel de outra', () => {
+  const sprintA = {
+    id: 3,
+    name: 'Sprint A',
+    objective: null,
+    startDate: '2026-08-01',
+    endDate: '2026-08-14',
+    status: 'PLANEJADA'
+  };
+  const sprintB = { ...sprintA, id: 4, name: 'Sprint B' };
+
+  const tarefas = {
+    3: [{ id: 10, title: 'Da A', status: 'A_FAZER', priority: 'ALTA', addedAfterStart: false }],
+    4: [{ id: 20, title: 'Da B', status: 'A_FAZER', priority: 'ALTA', addedAfterStart: false }]
+  };
+
+  // Promise controlada: o replace de A so resolve quando o teste mandar, e nesse
+  // intervalo o usuario seleciona B.
+  let liberarReplace;
+
+  beforeEach(() => {
+    mocks.schedule.listSprints.mockResolvedValue({
+      data: { total: 2, sprints: [sprintA, sprintB] }
+    });
+    mocks.schedule.listProjectTasks.mockResolvedValue({
+      data: {
+        total: 2,
+        tasks: [
+          { id: 10, title: 'Da A', status: 'A_FAZER', priority: 'ALTA' },
+          { id: 20, title: 'Da B', status: 'A_FAZER', priority: 'ALTA' }
+        ]
+      }
+    });
+    mocks.schedule.listSprintTasks.mockImplementation(async (sprintId) => ({
+      data: { total: tarefas[sprintId].length, tasks: tarefas[sprintId] }
+    }));
+    mocks.schedule.replaceSprintTasks.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          liberarReplace = () => resolve({ data: {} });
+        })
+    );
+  });
+
+  const abrir = async (user, nome) => {
+    await user.click(
+      await screen.findByRole('button', {
+        name: new RegExp(`^Gerenciar tarefas da sprint ${nome}`)
+      })
+    );
+    return screen.findByRole('region', { name: new RegExp(`Tarefas da sprint ${nome}`) });
+  };
+
+  it('a resposta atrasada de A nao sobrescreve o painel de B', async () => {
+    const user = userEvent.setup();
+    renderScreen();
+
+    const painelA = await abrir(user, 'Sprint A');
+    await user.click(within(painelA).getByRole('button', { name: 'Salvar tarefas da sprint' }));
+    await waitFor(() => expect(mocks.schedule.replaceSprintTasks).toHaveBeenCalledWith(3, [10]));
+
+    // Enquanto o replace de A esta em voo, o usuario abre B.
+    const painelB = await abrir(user, 'Sprint B');
+    liberarReplace();
+
+    // A lista de opcoes traz o projeto inteiro; o que nao pode vazar e a SELECAO.
+    // Marcada tem de ser a tarefa de B, nunca a de A.
+    const marcadas = () =>
+      within(painelB)
+        .getAllByRole('checkbox')
+        .filter((caixa) => caixa.checked)
+        .map((caixa) => caixa.closest('label').textContent);
+    await waitFor(() => expect(marcadas()).toHaveLength(1));
+    expect(marcadas()[0]).toMatch(/Da B/);
+
+    // E o proximo salvamento vai para B, com os IDs de B.
+    await user.click(within(painelB).getByRole('button', { name: 'Salvar tarefas da sprint' }));
+    await waitFor(() => expect(mocks.schedule.replaceSprintTasks).toHaveBeenCalledWith(4, [20]));
+  });
+
+  it('o aviso de sucesso nomeia a sprint salva', async () => {
+    const user = userEvent.setup();
+    renderScreen();
+
+    const painelA = await abrir(user, 'Sprint A');
+    await user.click(within(painelA).getByRole('button', { name: 'Salvar tarefas da sprint' }));
+    await waitFor(() => expect(mocks.schedule.replaceSprintTasks).toHaveBeenCalled());
+    liberarReplace();
+
+    expect(
+      await screen.findByText(/Tarefas da sprint "Sprint A" atualizadas com sucesso\./)
+    ).toBeInTheDocument();
+  });
+});
+
 // CONCLUIDA e CANCELADA sao terminais: nao ha transicao de volta. Um clique
 // sem aviso travaria a sprint para edicao e para novas tarefas.
 describe('clareza e confirmacao das transicoes de status', () => {

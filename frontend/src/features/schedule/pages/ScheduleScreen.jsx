@@ -357,20 +357,37 @@ export function ScheduleScreen() {
   };
 
   const submitSprintTasks = async (taskIds) => {
+    // A sprint alvo é congelada no início da operação. `selectedSprint` é estado
+    // de render: ao voltar do servidor ele já pode ser outra sprint, e aplicar a
+    // resposta de A no painel de B fazia o salvamento seguinte enviar os IDs de A
+    // para B — alterando o recurso errado.
+    const sprintId = selectedSprint.id;
+    const sprintName = selectedSprint.name;
     setSubmitting(true);
     try {
-      await scheduleApi.replaceSprintTasks(selectedSprint.id, taskIds);
-      feedback('Tarefas da sprint atualizadas com sucesso.');
+      // A mutação NÃO é abortada quando o usuário troca de sprint: cancelar um PUT
+      // em voo deixaria o servidor num estado que a tela não sabe qual é. O que se
+      // descarta é o resultado.
+      await scheduleApi.replaceSprintTasks(sprintId, taskIds);
+      // Nomear a sprint no aviso: sem isso, "tarefas atualizadas" aparece enquanto
+      // a tela já mostra outra, e o usuário lê como se fosse sobre esta.
+      feedback(`Tarefas da sprint "${sprintName}" atualizadas com sucesso.`);
+      // Associar tarefa nao muda sprints nem marcos, so a composicao do agregado.
+      await refreshSchedule();
+      if (selectedSprintRef.current !== sprintId) return;
+
       // Rebusca em vez de confiar no que foi enviado: `addedAfterStart` e a
       // origem do carry-over são decididos no servidor, e o painel precisa
       // sinalizá-los logo após salvar.
-      const { data } = await scheduleApi.listSprintTasks(selectedSprint.id);
-      const tarefas = data.tasks || [];
+      const resultado = await sprintTasksRequest.run((signal) =>
+        scheduleApi.listSprintTasks(sprintId, { signal })
+      );
+      if (!resultado || selectedSprintRef.current !== sprintId) return;
+      const tarefas = resultado.data.tasks || [];
       setSprintTasks(tarefas);
       setSelectedTaskIds(tarefas.map((task) => task.id));
-      // Associar tarefa nao muda sprints nem marcos, so a composicao do agregado.
-      await refreshSchedule();
     } catch (requestError) {
+      if (selectedSprintRef.current !== sprintId) return;
       handleFailure(requestError, 'Não foi possível atualizar as tarefas da sprint.');
     } finally {
       setSubmitting(false);
