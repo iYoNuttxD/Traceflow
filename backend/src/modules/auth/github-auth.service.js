@@ -2,6 +2,7 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { env } from '../../config/env.js';
 import { AppError, ERROR_CODES } from '../../shared/errors/index.js';
 import { logger } from '../../shared/logger/index.js';
+import { fingerprintGithubUserId } from '../../shared/security/pseudonymization.js';
 import { githubAppCredentialProvider } from '../github/github-credential.provider.js';
 import { authService } from './auth.service.js';
 import { githubAuthRepository } from './github-auth.repository.js';
@@ -107,11 +108,15 @@ async function createState({ purpose, userId, sessionId, rememberMe = false, ret
 }
 
 function validSessionState(record, now) {
+  const allowedAccountStates =
+    record.purpose === 'REAUTH_SENSITIVE_ACTION'
+      ? new Set(['ACTIVE', 'DELETION_PENDING'])
+      : new Set(['ACTIVE']);
   return Boolean(
     record.user &&
     record.session &&
     record.userId === record.session.userId &&
-    record.user.accountStatus === 'ACTIVE' &&
+    allowedAccountStates.has(record.user.accountStatus) &&
     !record.session.revokedAt &&
     record.session.expiresAt > now &&
     record.session.sessionVersion === record.user.sessionVersion
@@ -171,6 +176,9 @@ async function createGithubAccount({ token, profile, githubUserId, githubLogin, 
       422,
       ERROR_CODES.GITHUB_VERIFIED_EMAIL_REQUIRED
     );
+  }
+  if (await githubAuthRepository.findIdentityTombstone(fingerprintGithubUserId(githubUserId))) {
+    throw oauthError('Não foi possível autenticar.', 403, ERROR_CODES.ACCOUNT_ANONYMIZED);
   }
   const emailConflict = () =>
     oauthError(
@@ -243,8 +251,8 @@ export const githubAuthService = {
       returnTo: '/settings/integrations'
     });
   },
-  async startPasswordReauthentication({ user, session }) {
-    if (user.accountStatus !== 'ACTIVE')
+  async startSensitiveReauthentication({ user, session }, { returnTo } = {}) {
+    if (!['ACTIVE', 'DELETION_PENDING'].includes(user.accountStatus))
       throw oauthError('A conta precisa estar ativa.', 403, ERROR_CODES.ACCOUNT_NOT_ACTIVE);
     if (user.hasLocalPassword)
       throw oauthError('A senha local já foi cadastrada.', 409, ERROR_CODES.PASSWORD_ALREADY_SET);
@@ -255,15 +263,16 @@ export const githubAuthService = {
         ERROR_CODES.GITHUB_IDENTITY_NOT_LINKED
       );
     return createState({
-      purpose: 'REAUTH_SET_PASSWORD',
+      purpose: 'REAUTH_SENSITIVE_ACTION',
       userId: user.id,
       sessionId: session.id,
-      returnTo: '/settings/security'
+      returnTo: sanitizeInternalReturnTo(returnTo, '/settings/security')
     });
   },
   async completeCallback({ code, state, browserCookie }) {
     let step = 'validate_state';
     let purpose = 'UNKNOWN';
+    let oauthReturnTo = '/settings/security';
     try {
       assertConfigured();
       if (typeof code !== 'string' || !code || code.length > 512 || typeof state !== 'string') {
@@ -279,6 +288,7 @@ export const githubAuthService = {
         throw oauthError('Estado OAuth inválido.', 400, ERROR_CODES.GITHUB_OAUTH_STATE_INVALID);
       }
       purpose = record.purpose;
+      oauthReturnTo = sanitizeInternalReturnTo(record.returnTo, '/settings/security');
       if (record.expiresAt <= now) {
         throw oauthError('Estado OAuth expirado.', 400, ERROR_CODES.GITHUB_OAUTH_STATE_EXPIRED);
       }
@@ -301,6 +311,9 @@ export const githubAuthService = {
       step = 'fetch_user';
       const profile = await githubAppCredentialProvider.getAuthenticatedUser(token);
       const { githubUserId, githubLogin } = assertGithubProfile(profile);
+      if (await githubAuthRepository.findIdentityTombstone(fingerprintGithubUserId(githubUserId))) {
+        throw oauthError('Não foi possível autenticar.', 403, ERROR_CODES.ACCOUNT_ANONYMIZED);
+      }
 
       if (record.purpose === 'LOGIN') {
         step = 'resolve_identity';
@@ -367,9 +380,10 @@ export const githubAuthService = {
           ERROR_CODES.GITHUB_IDENTITY_MISMATCH
         );
       }
-      const updated = await githubAuthRepository.markSessionReauthenticated(
+      const updated = await githubAuthRepository.markSensitiveReauthenticated(
         record.sessionId,
         record.userId,
+        githubUserId,
         now
       );
       if (updated.count !== 1)
@@ -397,6 +411,7 @@ export const githubAuthService = {
       }
       if (error instanceof AppError) {
         error.oauthPurpose = purpose;
+        error.oauthReturnTo = oauthReturnTo;
         throw error;
       }
       throw oauthError(

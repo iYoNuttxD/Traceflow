@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
     createOAuthState: vi.fn(),
     findOAuthState: vi.fn(),
     consumeOAuthState: vi.fn(),
+    findIdentityTombstone: vi.fn(),
     findIdentityByGithubUserId: vi.fn(),
     findIdentityByUserId: vi.fn(),
     findUserByEmail: vi.fn(),
@@ -13,7 +14,7 @@ const mocks = vi.hoisted(() => ({
     createGithubAccount: vi.fn(),
     refreshIdentity: vi.fn(),
     linkIdentity: vi.fn(),
-    markSessionReauthenticated: vi.fn(),
+    markSensitiveReauthenticated: vi.fn(),
     isUniqueViolation: vi.fn()
   },
   provider: {
@@ -40,7 +41,8 @@ vi.mock('../../src/config/env.js', () => ({
     githubAppConfigured: true,
     githubAppClientId: 'Iv1.artificial',
     githubLoginCallbackUrl: 'https://api.traceflow.test/api/auth/github/callback',
-    githubOAuthStateTtlMs: 600000
+    githubOAuthStateTtlMs: 600000,
+    privacyPseudonymizationKey: 'artificial-test-pseudonymization-key-32-bytes'
   }
 }));
 vi.mock('../../src/modules/auth/github-auth.repository.js', () => ({
@@ -84,6 +86,8 @@ describe('autenticação GitHub L1.1', () => {
     mocks.repository.findUserByUsername.mockResolvedValue(null);
     mocks.repository.findIdentityByGithubUserId.mockResolvedValue(null);
     mocks.repository.findIdentityByUserId.mockResolvedValue(null);
+    mocks.repository.findIdentityTombstone.mockResolvedValue(null);
+    mocks.repository.markSensitiveReauthenticated.mockResolvedValue({ count: 1 });
     mocks.repository.isUniqueViolation.mockReturnValue(false);
     mocks.provider.exchangeLoginUserCode.mockResolvedValue('token-efemero');
     mocks.provider.getAuthenticatedUser.mockResolvedValue({ id: 123, login: 'octocat' });
@@ -326,10 +330,66 @@ describe('autenticação GitHub L1.1', () => {
     });
   });
 
-  it('reautentica somente quando o GitHub ID corresponde à identidade da sessão', async () => {
+  it('inicia reautenticação sensível para conta GitHub-only inclusive em exclusão pendente', async () => {
+    mocks.repository.findIdentityByUserId.mockResolvedValue({
+      githubUserId: '123',
+      githubLogin: 'octocat'
+    });
+    const result = await githubAuthService.startSensitiveReauthentication(
+      {
+        user: { id: 7, accountStatus: 'DELETION_PENDING', hasLocalPassword: false },
+        session: { id: 8 }
+      },
+      { returnTo: '/settings/privacy' }
+    );
+
+    expect(result.url).toContain('github.com/login/oauth/authorize');
+    expect(mocks.repository.createOAuthState).toHaveBeenCalledWith(
+      expect.objectContaining({
+        purpose: 'REAUTH_SENSITIVE_ACTION',
+        userId: 7,
+        sessionId: 8,
+        returnTo: '/settings/privacy'
+      })
+    );
+  });
+
+  it('registra reautenticação sensível somente para identidade GitHub correspondente', async () => {
     const started = await githubAuthService.startLogin({});
     const state = callbackState(started, {
-      purpose: 'REAUTH_SET_PASSWORD',
+      purpose: 'REAUTH_SENSITIVE_ACTION',
+      userId: 7,
+      sessionId: 8,
+      returnTo: '/settings/account',
+      user: { id: 7, accountStatus: 'ACTIVE', sessionVersion: 2 },
+      session: {
+        id: 8,
+        userId: 7,
+        sessionVersion: 2,
+        revokedAt: null,
+        expiresAt: new Date(Date.now() + 60000)
+      }
+    });
+    mocks.repository.findOAuthState.mockResolvedValue(state.record);
+    mocks.repository.findIdentityByUserId.mockResolvedValue({ githubUserId: '123' });
+
+    await expect(githubAuthService.completeCallback(state.input)).resolves.toMatchObject({
+      purpose: 'REAUTH_SENSITIVE_ACTION',
+      userId: 7,
+      returnTo: '/settings/account'
+    });
+    expect(mocks.repository.markSensitiveReauthenticated).toHaveBeenCalledWith(
+      8,
+      7,
+      '123',
+      expect.any(Date)
+    );
+  });
+
+  it('reautentica operação sensível somente quando o GitHub ID corresponde à identidade da sessão', async () => {
+    const started = await githubAuthService.startLogin({});
+    const state = callbackState(started, {
+      purpose: 'REAUTH_SENSITIVE_ACTION',
       userId: 7,
       sessionId: 8,
       user: { id: 7, accountStatus: 'ACTIVE', sessionVersion: 2 },
@@ -346,6 +406,20 @@ describe('autenticação GitHub L1.1', () => {
     await expect(githubAuthService.completeCallback(state.input)).rejects.toMatchObject({
       code: 'GITHUB_IDENTITY_MISMATCH'
     });
-    expect(mocks.repository.markSessionReauthenticated).not.toHaveBeenCalled();
+    expect(mocks.repository.markSensitiveReauthenticated).not.toHaveBeenCalled();
+  });
+
+  it('bloqueia recriação automática de identidade GitHub anonimizada', async () => {
+    const start = await githubAuthService.startLogin({});
+    const state = callbackState(start);
+    mocks.repository.findOAuthState.mockResolvedValue(state.record);
+    mocks.repository.findIdentityTombstone.mockResolvedValue({ id: 90 });
+
+    await expect(githubAuthService.completeCallback(state.input)).rejects.toMatchObject({
+      code: 'ACCOUNT_ANONYMIZED',
+      statusCode: 403
+    });
+    expect(mocks.repository.findIdentityByGithubUserId).not.toHaveBeenCalled();
+    expect(mocks.repository.createGithubAccount).not.toHaveBeenCalled();
   });
 });

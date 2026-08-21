@@ -50,4 +50,7 @@ export const githubLoginStartBodySchema = strictObject({
   rememberMe: z.boolean().optional().default(false),
   returnTo: z.string().max(191).optional()
 });
+export const githubSensitiveReauthenticationBodySchema = strictObject({
+  returnTo: z.string().max(191).optional()
+});
 export const usernameBodySchema = strictObject({ username });

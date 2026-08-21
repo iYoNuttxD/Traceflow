@@ -81,17 +81,15 @@ describe('E7 auditoria, privacidade e retenção', () => {
     );
   });
 
-  it('processa anonimização vencida sem espera e ignora último owner', async () => {
+  it('processa anonimização vencida e contabiliza impedimento de governança', async () => {
     vi.spyOn(privacyRepository, 'dueDeletionRequests').mockResolvedValue([
-      { id: 1, userId: 4 },
-      { id: 2, userId: 5 }
+      { id: 1, userId: 4, user: { githubIdentity: null } },
+      { id: 2, userId: 5, user: { githubIdentity: null } }
     ]);
-    vi.spyOn(privacyRepository, 'lastOwnedProjects')
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ id: 8, name: 'Projeto' }]);
     const anonymize = vi
       .spyOn(privacyRepository, 'anonymize')
-      .mockResolvedValue({ userId: 4, requestId: 1 });
+      .mockResolvedValueOnce({ userId: 4, requestId: 1 })
+      .mockResolvedValueOnce({ userId: 5, requestId: 2, blocked: true });
     expect(await privacyService.processDueDeletions({ dryRun: true })).toEqual({
       mode: 'dry-run',
       count: 2
@@ -99,9 +97,42 @@ describe('E7 auditoria, privacidade e retenção', () => {
     expect(await privacyService.processDueDeletions({ dryRun: false })).toEqual({
       mode: 'apply',
       count: 2,
-      processed: 1
+      processed: 1,
+      blocked: 1,
+      failed: 0
     });
-    expect(anonymize).toHaveBeenCalledOnce();
+    expect(anonymize).toHaveBeenCalledTimes(2);
+    vi.restoreAllMocks();
+  });
+
+  it('registra falha de anonimização com código seguro e libera retry', async () => {
+    vi.spyOn(privacyRepository, 'dueDeletionRequests').mockResolvedValue([
+      { id: 9, userId: 7, user: { githubIdentity: null } }
+    ]);
+    vi.spyOn(privacyRepository, 'anonymize').mockRejectedValue(
+      new Error('token=segredo-nao-pode-aparecer')
+    );
+    const markFailure = vi
+      .spyOn(privacyRepository, 'markDeletionFailure')
+      .mockResolvedValue({ count: 1 });
+
+    expect(await privacyService.processDueDeletions({ dryRun: false })).toMatchObject({
+      count: 1,
+      processed: 0,
+      blocked: 0,
+      failed: 1
+    });
+    expect(markFailure).toHaveBeenCalledWith(
+      9,
+      'ANONYMIZATION_FAILED',
+      expect.objectContaining({
+        action: 'ACCOUNT_ANONYMIZATION_FAILED',
+        result: 'FAILURE',
+        reasonCode: 'ANONYMIZATION_FAILED'
+      }),
+      expect.any(Date)
+    );
+    expect(JSON.stringify(markFailure.mock.calls)).not.toContain('segredo-nao-pode-aparecer');
     vi.restoreAllMocks();
   });
 });

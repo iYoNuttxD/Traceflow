@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const client = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() }));
 vi.mock('../../src/api/http-client.js', () => ({ httpClient: client }));
 const { settingsApi } = await import('../../src/features/settings/settings.api.js');
+const { authApi } = await import('../../src/features/auth/api/auth.api.js');
 
 describe('contratos da API de configurações L2', () => {
   beforeEach(() => {
@@ -57,5 +58,20 @@ describe('contratos da API de configurações L2', () => {
     const data = { newPassword: 'SenhaNovaSegura123!', confirmation: 'SenhaNovaSegura123!' };
     await settingsApi.initializePassword(data);
     expect(client.post).toHaveBeenCalledWith('/settings/security/password/initialize', data);
+  });
+
+  it('envia operações GitHub-only sem senha artificial e inicia reautenticação sensível', async () => {
+    await settingsApi.requestDeletion();
+    expect(client.post).toHaveBeenCalledWith('/settings/privacy/deletion', {
+      confirmation: true
+    });
+    await settingsApi.removeGithubAuthorization(12);
+    expect(client.delete).toHaveBeenCalledWith('/settings/integrations/github/authorizations/12', {
+      data: { confirmation: true }
+    });
+    await authApi.startGithubSensitiveReauthentication('/settings/privacy');
+    expect(client.post).toHaveBeenCalledWith('/auth/github/reauth/start', {
+      returnTo: '/settings/privacy'
+    });
   });
 });

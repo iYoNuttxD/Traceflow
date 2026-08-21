@@ -11,6 +11,7 @@ import {
 import { settingsApi } from './settings.api.js';
 import { SettingsFeedback } from './SettingsFeedback.jsx';
 import { PasswordField } from '../auth/index.js';
+import { GithubSensitiveReauthentication } from './GithubSensitiveReauthentication.jsx';
 
 export function IntegrationsSettingsPage() {
   const confirm = useConfirm();
@@ -25,7 +26,9 @@ export function IntegrationsSettingsPage() {
   const [message, setMessage] = useState(
     new URLSearchParams(location.search).get('githubIdentity') === 'success'
       ? 'Conta GitHub vinculada com sucesso.'
-      : ''
+      : new URLSearchParams(location.search).get('githubReauth') === 'success'
+        ? 'Identidade GitHub confirmada para ações sensíveis.'
+        : ''
   );
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -137,6 +140,7 @@ export function IntegrationsSettingsPage() {
       />
     );
   }
+  const sensitiveActionReady = account?.hasLocalPassword || account?.recentlyReauthenticated;
 
   return (
     <>
@@ -211,6 +215,18 @@ export function IntegrationsSettingsPage() {
         )}
       </section>
 
+      {!account?.hasLocalPassword && integrations.length > 0 && (
+        <section className="settings-card">
+          <h2>Confirmação para remover autorizações</h2>
+          <p>Confirme sua identidade GitHub antes de remover uma autorização pessoal.</p>
+          <GithubSensitiveReauthentication
+            account={account}
+            returnTo="/settings/integrations"
+            onError={setError}
+          />
+        </section>
+      )}
+
       <section className="settings-card">
         <h2>GitHub App</h2>
         <p>
@@ -271,20 +287,24 @@ export function IntegrationsSettingsPage() {
                     {projectCount === 1 ? 'projeto' : 'projetos'}.
                   </p>
                 )}
-                <PasswordField
-                  id={`githubAuthorizationPassword-${item.id}`}
-                  label="Senha atual"
-                  autoComplete="current-password"
-                  value={passwords[item.id] || ''}
-                  onChange={(event) =>
-                    setPasswords((current) => ({ ...current, [item.id]: event.target.value }))
-                  }
-                />
+                {account?.hasLocalPassword && (
+                  <PasswordField
+                    id={`githubAuthorizationPassword-${item.id}`}
+                    label="Senha atual"
+                    autoComplete="current-password"
+                    value={passwords[item.id] || ''}
+                    onChange={(event) =>
+                      setPasswords((current) => ({ ...current, [item.id]: event.target.value }))
+                    }
+                  />
+                )}
                 <div className="danger-zone-actions">
                   <button
                     className="button button-danger"
                     type="button"
-                    disabled={!passwords[item.id]}
+                    disabled={
+                      !sensitiveActionReady || (account?.hasLocalPassword && !passwords[item.id])
+                    }
                     onClick={() => void removeAuthorization(item.id)}
                   >
                     Remover minha autorização

@@ -7,18 +7,19 @@ import {
 } from '../../shared/validation/index.js';
 
 const password = z.string().min(8, 'Senha obrigatória.').max(128);
+const optionalPassword = z.string().max(128).optional();
 const token = publicCapabilityToken();
 
 export const profileBody = strictObject({ name: requiredText({ field: 'Nome' }).max(120) });
 export const usernameBody = strictObject({ username: z.string().min(3).max(39) });
-export const emailChangeBody = strictObject({ newEmail: email, currentPassword: password });
+export const emailChangeBody = strictObject({ newEmail: email, currentPassword: optionalPassword });
 export const passwordChangeBody = strictObject({
   currentPassword: password,
   newPassword: password,
   confirmation: password
 });
 export const passwordConfirmationBody = strictObject({
-  currentPassword: password,
+  currentPassword: optionalPassword,
   confirmation: z.literal(true, { error: 'Confirmação explícita obrigatória.' })
 });
 export const reactivationStartBody = strictObject({});

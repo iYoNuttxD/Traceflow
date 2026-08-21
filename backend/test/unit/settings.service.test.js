@@ -84,6 +84,7 @@ describe('configurações de conta L2', () => {
     mocks.repository.findUserByEmail.mockResolvedValue(null);
     mocks.auth.verifyPassword.mockResolvedValue(true);
     mocks.auth.hashPassword.mockResolvedValue('argon2-hash');
+    mocks.githubAuth.identity.mockResolvedValue(null);
     for (const method of Object.values(mocks.email))
       method.mockResolvedValue({ status: 'accepted' });
   });
@@ -127,6 +128,7 @@ describe('configurações de conta L2', () => {
     });
     await settingsService.requestEmailChange(
       7,
+      { id: 22, lastReauthenticatedAt: null },
       { newEmail: 'novo@example.test', currentPassword: 'senha-segura' },
       'req-3',
       new Date('2030-01-01T00:00:00Z')
@@ -167,8 +169,17 @@ describe('configurações de conta L2', () => {
   it('expõe somente hasLocalPassword e autorização recente calculada', async () => {
     mocks.repository.account.mockResolvedValue({ ...activeUser, passwordHash: null });
     const recent = new Date();
+    mocks.githubAuth.identity.mockResolvedValue({
+      githubLogin: 'daniel',
+      lastAuthenticatedAt: recent
+    });
     const account = await settingsService.account(7, { lastReauthenticatedAt: recent });
-    expect(account).toMatchObject({ hasLocalPassword: false, canInitializePassword: true });
+    expect(account).toMatchObject({
+      hasLocalPassword: false,
+      hasGithubIdentity: true,
+      recentlyReauthenticated: true,
+      canInitializePassword: true
+    });
     expect(account).not.toHaveProperty('passwordHash');
   });
 
@@ -227,7 +238,7 @@ describe('configurações de conta L2', () => {
     await expect(
       settingsService.deactivate(
         7,
-        22,
+        { id: 22, lastReauthenticatedAt: null },
         { currentPassword: 'senha-segura', confirmation: true },
         'req-5'
       )
@@ -236,7 +247,7 @@ describe('configurações de conta L2', () => {
     mocks.repository.requestDeletion.mockResolvedValue({ request: { id: 3 } });
     await settingsService.requestDeletion(
       7,
-      22,
+      { id: 22, lastReauthenticatedAt: null },
       { currentPassword: 'senha-segura', confirmation: true },
       'req-6',
       new Date('2030-01-01T00:00:00Z')
@@ -295,6 +306,7 @@ describe('configurações de conta L2', () => {
     });
     await settingsService.removeGithubAuthorization(
       7,
+      { id: 22, lastReauthenticatedAt: null },
       5,
       { currentPassword: 'senha-segura', confirmation: true },
       'req-8'
@@ -305,5 +317,36 @@ describe('configurações de conta L2', () => {
       expect.any(Date),
       expect.objectContaining({ action: 'GITHUB_AUTHORIZATION_REMOVED' })
     );
+  });
+
+  it('exige reautenticação GitHub recente para operação sensível de conta GitHub-only', async () => {
+    const now = new Date('2030-01-01T00:10:00Z');
+    mocks.repository.account.mockResolvedValue({ ...activeUser, passwordHash: null });
+    mocks.githubAuth.identity.mockResolvedValue({
+      githubLogin: 'daniel',
+      lastAuthenticatedAt: new Date('2030-01-01T00:09:00Z')
+    });
+
+    await expect(
+      settingsService.requestDeletion(
+        7,
+        { id: 22, lastReauthenticatedAt: new Date('2029-12-31T23:00:00Z') },
+        { confirmation: true },
+        'req-github-stale',
+        now
+      )
+    ).rejects.toMatchObject({ code: 'GITHUB_REAUTHENTICATION_REQUIRED' });
+
+    mocks.repository.requestDeletion.mockResolvedValue({ request: { id: 12 } });
+    await expect(
+      settingsService.requestDeletion(
+        7,
+        { id: 22, lastReauthenticatedAt: new Date('2030-01-01T00:09:00Z') },
+        { confirmation: true },
+        'req-github-recent',
+        now
+      )
+    ).resolves.toEqual({ id: 12 });
+    expect(mocks.auth.verifyPassword).not.toHaveBeenCalled();
   });
 });

@@ -2,7 +2,7 @@
 
 ## Objetivo e escopo
 
-A L2 transforma os controles parciais da E7 em fluxos completos de perfil, username, e-mail, senha, sessões, desativação, exclusão, anonimização, exportação e autorizações pessoais da GitHub App. Exclusão de projeto, MFA, login com GitHub, upload de avatar e infraestrutura distribuída permanecem fora do escopo.
+A L2 transforma os controles parciais da E7 em fluxos completos de perfil, username, e-mail, senha, sessões, desativação, exclusão, anonimização, exportação e autorizações pessoais da GitHub App. Este registro é histórico; login GitHub foi entregue na L1.1 e os limites de exportação/lifecycle foram endurecidos pela LR.4.
 
 ## Decisões e modelo de dados
 
@@ -29,7 +29,7 @@ A migration incremental `20260802120000_l2_account_security_privacy` cria essas 
 
 Nome e username têm endpoints separados. Username reutiliza normalização, formato e reservados da L1, respeita a unicidade do banco e tem cooldown de 30 dias; `mustSetUsername=true` recebe a alteração inicial sem cooldown.
 
-Troca de e-mail exige conta ativa, senha, CSRF e e-mail disponível. O endereço atual continua válido enquanto a solicitação guarda o novo endereço e somente o hash do token. A confirmação pública revalida expiração, uso único, estado e unicidade dentro de transação; depois altera `User.email`, verifica o endereço, revoga todas as sessões, audita e notifica o e-mail anterior. Novo pedido, cancelamento, desativação, exclusão e anonimização invalidam solicitações pendentes. Falhas do adapter de e-mail são sanitizadas e não expõem tokens.
+Troca de e-mail exige conta ativa, autenticação sensível (senha ou, desde a LR.4, GitHub recente), CSRF e e-mail disponível. O endereço atual continua válido enquanto a solicitação guarda o novo endereço e somente o hash do token. A confirmação pública revalida expiração, uso único, estado e unicidade dentro de transação; depois altera `User.email`, verifica o endereço, revoga todas as sessões, audita e notifica o e-mail anterior. Novo pedido, cancelamento, desativação, exclusão e anonimização invalidam solicitações pendentes. Falhas do adapter de e-mail são sanitizadas e não expõem tokens.
 
 ## Senha e sessões
 
@@ -37,11 +37,11 @@ A troca de senha reutiliza Argon2id e a política L1. A transação preserva som
 
 ## Desativação e reativação
 
-Desativar exige senha, confirmação explícita, CSRF e verificação transacional de último OWNER. A operação cancela troca de e-mail, muda para `DEACTIVATED`, revoga outras sessões e mantém a atual restrita. Reativação requer token hashado, expirável e de uso único enviado ao e-mail; a confirmação volta a `ACTIVE`, revoga sessões restritas e exige novo login.
+Desativar exige autenticação sensível, confirmação explícita, CSRF e verificação transacional de último OWNER. A operação cancela troca de e-mail, muda para `DEACTIVATED`, revoga outras sessões e mantém a atual restrita. Reativação requer token hashado, expirável e de uso único enviado ao e-mail; a confirmação volta a `ACTIVE`, revoga sessões restritas e exige novo login.
 
 ## Exclusão e anonimização
 
-O pedido repete a verificação de ownership, agenda 30 dias em UTC e, na mesma transação, muda para `DELETION_PENDING` e revoga outras sessões. O cancelamento dentro do prazo volta a `ACTIVE`, revoga sessões restritas e exige novo login.
+O pedido agenda 30 dias em UTC e, na mesma transação, muda para `DELETION_PENDING` e revoga outras sessões. Desde a LR.4, ownership é revalidado no vencimento: impedimento de último OWNER encerra o pedido como `REJECTED`, retorna a conta a `ACTIVE`, revoga sessões e exige um novo ciclo depois da regularização. O cancelamento dentro do prazo também volta a `ACTIVE`, revoga sessões restritas e exige novo login.
 
 O processor busca pedidos vencidos, adquire lease de 30 minutos e processa cada usuário isoladamente. Falhas registram código/tentativa e liberam a operação para retry. A anonimização troca nome, username e e-mail por valores opacos, remove senha, verificação, sessões, tokens e autorizações pessoais GitHub, desativa memberships e neutraliza snapshots pessoais conhecidos. Instalações GitHub, projetos, requisitos, tarefas, commits, pull requests, issues, movimentos e trilha necessária permanecem.
 
@@ -56,7 +56,7 @@ O comando é idempotente e pode ser repetido; falha deve gerar alerta operaciona
 
 ## Exportação
 
-`POST /api/settings/privacy/export` gera em memória `traceflow-export-AAAA-MM-DD.zip`, sem arquivo temporário. `manifest.json` versão 1.0 referencia JSONs de perfil, memberships, projetos, requisitos, tarefas atribuídas, sessões sanitizadas, privacidade, auditoria e integrações. O schema atual não possui autoria canônica de projeto/requisito/tarefa nem comentários; a exportação não inventa essa autoria.
+`POST /api/settings/privacy/export` gera em memória `traceflow-export-AAAA-MM-DD.zip`, sem arquivo temporário. Desde a LR.4, `manifest.json` versão 2.0 referencia dados próprios e inclui projetos, requisitos, tarefas atribuídas e integrações somente quando a membership está ativa. O schema atual não possui autoria canônica de projeto/requisito/tarefa nem comentários; a exportação não inventa essa autoria.
 
 Não entram senha, hashes, cookies, CSRF, tokens, chaves, secrets ou dados privados de terceiros. O endpoint aceita `ACTIVE` e `DELETION_PENDING`, exige sessão, CSRF e rate limit, audita e envia headers de download. Se o volume crescer, consultas e ZIP devem migrar para paginação/streaming.
 

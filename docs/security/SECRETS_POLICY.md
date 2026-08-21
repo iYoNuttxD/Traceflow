@@ -2,7 +2,7 @@
 
 ## Escopo
 
-Os segredos atuais são a chave privada/client secret/webhook secret da GitHub App, as credenciais contidas em `DATABASE_URL`/`TEST_DATABASE_URL` e `SMTP_PASSWORD`. Qualquer futura chave de sessão, JWT, e-mail, cloud ou criptografia entra automaticamente nesta política.
+Os segredos atuais são a chave privada/client secret/webhook secret da GitHub App, `PRIVACY_PSEUDONYMIZATION_KEY`, as credenciais contidas em `DATABASE_URL`/`TEST_DATABASE_URL` e `SMTP_PASSWORD`. Qualquer futura chave de sessão, JWT, e-mail, cloud ou criptografia entra automaticamente nesta política.
 
 Tokens opacos de sessão, recuperação, verificação, convite e state são segredos efêmeros: valores brutos existem somente no cookie HttpOnly, memória ou entrega/redirect de uso único; o banco guarda SHA-256. Senhas guardam somente Argon2id. User e installation access tokens GitHub existem apenas em memória durante o caso de uso e nunca são persistidos ou logados. PAT sistêmico/por usuário/por projeto não integra o runtime L1 (ADR-009).
 
@@ -24,6 +24,7 @@ Tokens opacos de sessão, recuperação, verificação, convite e state são seg
 | `GITHUB_APP_PRIVATE_KEY_BASE64` | plataforma | autenticar somente a App TRACEFLOW | política do provedor; rotação ao menos anual | revogar chave no GitHub, cadastrar nova e reiniciar workloads |
 | `GITHUB_APP_CLIENT_SECRET` | plataforma | troca controlada do callback de instalação | política do provedor ou a cada 90 dias | gerar novo secret, atualizar secret store e revogar anterior |
 | `GITHUB_APP_WEBHOOK_SECRET` | plataforma | validar exclusivamente webhooks da App | a cada 90 dias ou incidente | rotacionar coordenando GitHub e backend |
+| `PRIVACY_PSEUDONYMIZATION_KEY` | plataforma/privacidade | HMAC deny-only de identidades GitHub anonimizadas | somente por incidente ou migração planejada | reprocessar fingerprints de forma coordenada antes da troca; perda sem migração rompe comparações anteriores |
 | `DATABASE_URL` | administração de dados/plataforma | usuário próprio da aplicação, sem privilégios administrativos | a cada 90 dias ou política corporativa | trocar credencial, revogar usuário antigo e verificar logs/conexões |
 | `TEST_DATABASE_URL` | desenvolvimento/CI | banco descartável cujo nome identifica teste | junto do ambiente/runner | destruir ou rotacionar ao comprometer o runner |
 | `SMTP_PASSWORD` | plataforma/comunicação | conta limitada ao envio transacional do TRACEFLOW | a cada 90 dias ou política do provedor | revogar credencial e tokens de reset/verificação/convite potencialmente expostos |

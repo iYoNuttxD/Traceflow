@@ -53,6 +53,7 @@ export async function cleanTestDatabase(prisma) {
     prisma.gitHubOAuthState.deleteMany(),
     prisma.gitHubAppConnectionState.deleteMany(),
     prisma.gitHubIdentity.deleteMany(),
+    prisma.gitHubIdentityTombstone.deleteMany(),
     prisma.projectGitHubIntegration.deleteMany(),
     prisma.gitHubRepositoryAuthorization.deleteMany(),
     prisma.gitHubInstallationAuthorization.deleteMany(),

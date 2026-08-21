@@ -69,6 +69,28 @@ async function loginOn(targetApp, identifier) {
   };
 }
 
+function readStoredJsonFiles(zip) {
+  const files = {};
+  let offset = 0;
+  while (zip.readUInt32LE(offset) === 0x04034b50) {
+    const size = zip.readUInt32LE(offset + 18);
+    const filenameLength = zip.readUInt16LE(offset + 26);
+    const extraLength = zip.readUInt16LE(offset + 28);
+    const nameStart = offset + 30;
+    const contentStart = nameStart + filenameLength + extraLength;
+    const name = zip.subarray(nameStart, nameStart + filenameLength).toString('utf8');
+    files[name] = JSON.parse(zip.subarray(contentStart, contentStart + size).toString('utf8'));
+    offset = contentStart + size;
+  }
+  return files;
+}
+
+function parseBinary(response, callback) {
+  const chunks = [];
+  response.on('data', (chunk) => chunks.push(chunk));
+  response.on('end', () => callback(null, Buffer.concat(chunks)));
+}
+
 describe('contratos de conta e privacidade L2', () => {
   it('altera perfil/username e cria troca de e-mail sem alterar o login atual', async () => {
     const auth = await register();
@@ -185,9 +207,75 @@ describe('contratos de conta e privacidade L2', () => {
       ).status
     ).toBe(200);
     expect((await auth.agent.get('/api/settings/security/sessions')).status).toBe(200);
-    const exported = await auth.mutate('post', '/api/settings/privacy/export').send({});
+    const exported = await auth
+      .mutate('post', '/api/settings/privacy/export')
+      .buffer(true)
+      .parse(parseBinary)
+      .send({});
     expect(exported).toMatchObject({ status: 200 });
     expect(exported.headers['content-type']).toMatch(/application\/zip/);
+  });
+
+  it('exporta conteúdo de projeto somente com membership atual', async () => {
+    const auth = await register('export-scope@example.invalid');
+    const user = await prisma.user.findUnique({ where: { email: 'export-scope@example.invalid' } });
+    const currentProject = await prisma.project.create({
+      data: {
+        name: 'Projeto atual exportável',
+        responsibleTeam: 'Equipe atual',
+        accessCode: 'EXPORT-CURRENT'
+      }
+    });
+    const formerProject = await prisma.project.create({
+      data: {
+        name: 'Projeto histórico privado',
+        responsibleTeam: 'Equipe histórica',
+        accessCode: 'EXPORT-FORMER'
+      }
+    });
+    await prisma.projectMembership.createMany({
+      data: [
+        { projectId: currentProject.id, userId: user.id, role: 'MEMBER', isActive: true },
+        { projectId: formerProject.id, userId: user.id, role: 'MEMBER', isActive: false }
+      ]
+    });
+    await prisma.requirement.createMany({
+      data: [
+        { projectId: currentProject.id, title: 'Requisito autorizado atual' },
+        { projectId: formerProject.id, title: 'Requisito privado posterior' }
+      ]
+    });
+    await prisma.task.createMany({
+      data: [
+        {
+          projectId: currentProject.id,
+          title: 'Tarefa autorizada atual',
+          responsibleUserId: user.id
+        },
+        {
+          projectId: formerProject.id,
+          title: 'Tarefa privada posterior',
+          responsibleUserId: user.id
+        }
+      ]
+    });
+
+    const exported = await auth
+      .mutate('post', '/api/settings/privacy/export')
+      .buffer(true)
+      .parse(parseBinary)
+      .send({});
+    expect(exported.status).toBe(200);
+    const files = readStoredJsonFiles(exported.body);
+    expect(files['manifest.json'].authorizationScope).toBe(
+      'CURRENT_PROJECT_ACCESS_AND_DATA_SUBJECT'
+    );
+    expect(files['projects.json'].map(({ name }) => name)).toEqual(['Projeto atual exportável']);
+    expect(files['requirements.json'].map(({ title }) => title)).toEqual([
+      'Requisito autorizado atual'
+    ]);
+    expect(files['tasks.json'].map(({ title }) => title)).toEqual(['Tarefa autorizada atual']);
+    expect(JSON.stringify(files)).not.toMatch(/Projeto histórico privado|posterior/);
   });
 
   it('revoga sessões próprias por UUID e encerra todas as outras', async () => {
@@ -263,6 +351,46 @@ describe('contratos de conta e privacidade L2', () => {
       (await request(app).get('/api/account/reactivation/confirm').query({ token })).status
     ).toBe(200);
     expect((await deactivated.agent.get('/api/auth/me')).status).toBe(401);
+  });
+
+  it('permite exclusão e cancelamento GitHub-only somente após autenticação recente da identidade', async () => {
+    const auth = await register('github-only-sensitive@example.invalid');
+    const user = await prisma.user.update({
+      where: { email: 'github-only-sensitive@example.invalid' },
+      data: { passwordHash: null }
+    });
+    await prisma.gitHubIdentity.create({
+      data: {
+        userId: user.id,
+        githubUserId: '81818181',
+        githubLogin: 'github-only-sensitive',
+        lastAuthenticatedAt: new Date(Date.now() - 60 * 60 * 1000)
+      }
+    });
+
+    expect(
+      await auth.mutate('post', '/api/settings/privacy/deletion').send({ confirmation: true })
+    ).toMatchObject({
+      status: 403,
+      body: { code: 'GITHUB_REAUTHENTICATION_REQUIRED' }
+    });
+
+    const reauthenticatedAt = new Date();
+    await prisma.gitHubIdentity.update({
+      where: { userId: user.id },
+      data: { lastAuthenticatedAt: reauthenticatedAt }
+    });
+    await prisma.session.updateMany({
+      where: { userId: user.id, revokedAt: null },
+      data: { lastReauthenticatedAt: reauthenticatedAt }
+    });
+
+    expect(
+      await auth.mutate('post', '/api/settings/privacy/deletion').send({ confirmation: true })
+    ).toMatchObject({ status: 202, body: { request: { status: 'PENDING' } } });
+    expect(
+      await auth.mutate('delete', '/api/settings/privacy/deletion').send({ confirmation: true })
+    ).toMatchObject({ status: 200, body: { request: { status: 'CANCELLED' } } });
   });
 
   it('lista instalação indisponível sem chamada externa e remove somente autorização pessoal', async () => {

@@ -43,9 +43,40 @@ async function requireActive(userId) {
 }
 
 async function requirePassword(userId, password) {
-  if (!(await authService.verifyPassword(userId, password))) {
+  if (
+    typeof password !== 'string' ||
+    !password ||
+    !(await authService.verifyPassword(userId, password))
+  ) {
     throw error('Senha atual inválida.', 403, ERROR_CODES.CURRENT_PASSWORD_INVALID);
   }
+}
+
+async function requireSensitiveAuthentication(userId, session, currentPassword, now = new Date()) {
+  const account = await settingsRepository.account(userId);
+  if (!account) throw error('Conta não encontrada.', 404, ERROR_CODES.RESOURCE_NOT_FOUND);
+  if (account.passwordHash) {
+    await requirePassword(userId, currentPassword);
+    return 'LOCAL_PASSWORD';
+  }
+  const identity = await githubAuthService.identity(userId);
+  if (!identity) {
+    throw error('Nenhuma conta GitHub vinculada.', 409, ERROR_CODES.GITHUB_IDENTITY_NOT_LINKED);
+  }
+  const cutoff = now.getTime() - env.githubReauthenticationTtlMs;
+  if (
+    !session?.lastReauthenticatedAt ||
+    session.lastReauthenticatedAt.getTime() < cutoff ||
+    !identity.lastAuthenticatedAt ||
+    identity.lastAuthenticatedAt.getTime() < cutoff
+  ) {
+    throw error(
+      'Confirme sua identidade com GitHub novamente.',
+      403,
+      ERROR_CODES.GITHUB_REAUTHENTICATION_REQUIRED
+    );
+  }
+  return 'GITHUB_REAUTHENTICATION';
 }
 
 function throwOwnership(blocked) {
@@ -86,6 +117,7 @@ async function buildExportArchive(userId, now) {
       email: data.email,
       accountStatus: data.accountStatus,
       emailVerifiedAt: data.emailVerifiedAt,
+      lastLoginAt: data.lastLoginAt,
       createdAt: data.createdAt,
       updatedAt: data.updatedAt
     },
@@ -98,14 +130,18 @@ async function buildExportArchive(userId, now) {
     'tasks.json': data.responsibleTasks,
     'sessions.json': data.sessions,
     'privacy-requests.json': data.privacyRequests,
+    'data-exports.json': data.personalDataExports || [],
+    'email-change-history.json': data.emailChangeRequests || [],
     'audit-events.json': data.auditEvents,
+    'github-identity.json': data.githubIdentity || null,
     'github-integrations.json': data.githubInstallationAuthorizations
   };
   const files = Object.keys(sections);
   const manifest = {
-    schemaVersion: '1.0',
+    schemaVersion: '2.0',
     generatedAt: now.toISOString(),
     format: 'TRACEFLOW_USER_DATA_EXPORT',
+    authorizationScope: 'CURRENT_PROJECT_ACCESS_AND_DATA_SUBJECT',
     files: ['manifest.json', ...files]
   };
   const zip = createJsonZip({ 'manifest.json': manifest, ...sections }, now);
@@ -116,7 +152,17 @@ export const settingsService = {
   async account(userId, session) {
     const user = await settingsRepository.account(userId);
     if (!user) throw error('Conta não encontrada.', 404, ERROR_CODES.RESOURCE_NOT_FOUND);
-    const pendingEmailChange = await settingsRepository.pendingEmailChange(userId);
+    const [pendingEmailChange, githubIdentity] = await Promise.all([
+      settingsRepository.pendingEmailChange(userId),
+      githubAuthService.identity(userId)
+    ]);
+    const recentAuthenticationCutoff = Date.now() - env.githubReauthenticationTtlMs;
+    const recentlyReauthenticated = Boolean(
+      githubIdentity?.lastAuthenticatedAt &&
+      githubIdentity.lastAuthenticatedAt.getTime() >= recentAuthenticationCutoff &&
+      session?.lastReauthenticatedAt &&
+      session.lastReauthenticatedAt.getTime() >= recentAuthenticationCutoff
+    );
     const nextUsernameChangeAt = user.usernameChangedAt
       ? new Date(user.usernameChangedAt.getTime() + 30 * day)
       : null;
@@ -124,11 +170,9 @@ export const settingsService = {
     return {
       ...safeUser,
       hasLocalPassword: Boolean(passwordHash),
-      canInitializePassword: Boolean(
-        !passwordHash &&
-        session?.lastReauthenticatedAt &&
-        session.lastReauthenticatedAt.getTime() >= Date.now() - env.githubReauthenticationTtlMs
-      ),
+      hasGithubIdentity: Boolean(githubIdentity),
+      recentlyReauthenticated,
+      canInitializePassword: Boolean(!passwordHash && githubIdentity && recentlyReauthenticated),
       pendingEmailChange,
       nextUsernameChangeAt
     };
@@ -234,9 +278,9 @@ export const settingsService = {
   emailChangeStatus(userId) {
     return settingsRepository.pendingEmailChange(userId);
   },
-  async requestEmailChange(userId, input, requestId, now = new Date()) {
+  async requestEmailChange(userId, session, input, requestId, now = new Date()) {
     const user = await requireActive(userId);
-    await requirePassword(userId, input.currentPassword);
+    await requireSensitiveAuthentication(userId, session, input.currentPassword, now);
     const newEmail = input.newEmail.trim().toLowerCase();
     if (newEmail === user.email) {
       throw error('O novo e-mail deve ser diferente do atual.', 400, ERROR_CODES.VALIDATION_ERROR);
@@ -355,12 +399,12 @@ export const settingsService = {
       audit(userId, requestId, 'OTHER_SESSIONS_REVOKED', 'Session', null)
     );
   },
-  async deactivate(userId, currentSessionId, input, requestId, now = new Date()) {
+  async deactivate(userId, currentSession, input, requestId, now = new Date()) {
     await requireActive(userId);
-    await requirePassword(userId, input.currentPassword);
+    await requireSensitiveAuthentication(userId, currentSession, input.currentPassword, now);
     const result = await settingsRepository.deactivate(
       userId,
-      currentSessionId,
+      currentSession.id,
       now,
       audit(userId, requestId, 'ACCOUNT_DEACTIVATED')
     );
@@ -411,18 +455,17 @@ export const settingsService = {
   deletion(userId) {
     return settingsRepository.pendingDeletion(userId);
   },
-  async requestDeletion(userId, sessionId, input, requestId, now = new Date()) {
+  async requestDeletion(userId, session, input, requestId, now = new Date()) {
     await requireActive(userId);
-    await requirePassword(userId, input.currentPassword);
+    await requireSensitiveAuthentication(userId, session, input.currentPassword, now);
     const scheduledFor = new Date(now.getTime() + (env.accountDeletionGraceDays || 30) * day);
     const result = await settingsRepository.requestDeletion(
       userId,
-      sessionId,
+      session.id,
       now,
       scheduledFor,
       audit(userId, requestId, 'ACCOUNT_DELETION_REQUESTED', 'PrivacyRequest', null)
     );
-    if (result.blocked) throwOwnership(result.blocked);
     const user = await settingsRepository.account(userId);
     await emailService.sendAccountDeletionRequested({
       to: user.email,
@@ -432,8 +475,8 @@ export const settingsService = {
     });
     return result.request;
   },
-  async cancelDeletion(userId, input, requestId, now = new Date()) {
-    await requirePassword(userId, input.currentPassword);
+  async cancelDeletion(userId, session, input, requestId, now = new Date()) {
+    await requireSensitiveAuthentication(userId, session, input.currentPassword, now);
     const result = await settingsRepository.cancelDeletion(
       userId,
       now,
@@ -500,9 +543,16 @@ export const settingsService = {
       })
     );
   },
-  async removeGithubAuthorization(userId, authorizationId, input, requestId, now = new Date()) {
+  async removeGithubAuthorization(
+    userId,
+    session,
+    authorizationId,
+    input,
+    requestId,
+    now = new Date()
+  ) {
     await requireActive(userId);
-    await requirePassword(userId, input.currentPassword);
+    await requireSensitiveAuthentication(userId, session, input.currentPassword, now);
     const result = await settingsRepository.removeGithubAuthorization(
       userId,
       authorizationId,

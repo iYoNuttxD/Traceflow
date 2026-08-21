@@ -1,6 +1,6 @@
 # Matriz de autorização da API TRACEFLOW
 
-Baseline E6, consolidado pelas LR.2/LR.3 em 20/08/2026. A matriz descreve a política efetiva; não substitui os testes. `L` = leitura, `E` = escrita de domínio, `A` = administração. Sem membership ativa, recursos de projeto retornam `404` para reduzir enumeração; papel insuficiente retorna `403`. Mutations autenticadas exigem CSRF.
+Baseline E6, consolidado pelas LR.2/LR.3/LR.4 em 20/08/2026. A matriz descreve a política efetiva; não substitui os testes. `L` = leitura, `E` = escrita de domínio, `A` = administração. Sem membership ativa, recursos de projeto retornam `404` para reduzir enumeração; papel insuficiente retorna `403`. Mutations autenticadas exigem CSRF.
 
 | Endpoints                                                                                                      | Anônimo | VIEWER | MEMBER | MANAGER | OWNER | Regra adicional                                                           |
 | -------------------------------------------------------------------------------------------------------------- | ------: | -----: | -----: | ------: | ----: | ------------------------------------------------------------------------- |
@@ -43,12 +43,13 @@ Baseline E6, consolidado pelas LR.2/LR.3 em 20/08/2026. A matriz descreve a pol�
 | `GET .../traceability/commit-suggestions`                                                                      |     401 |      L |      L |       L |     L | DTO minimizado; mesmo projeto                                             |
 | `POST .../commit-suggestions/scan`, `:id/confirm`, `:id/reject`                                                |     401 |    403 |      E |       E |     E | CSRF, membership ativa e relações no mesmo projeto                        |
 | `/api/settings/account`, `/security`, `/privacy`, `/integrations`                                              |     401 |      E |      E |       E |     E | titular; middleware de estado restringe operações e mutations exigem CSRF |
+| `POST /api/auth/github/reauth/start`                                                                           |     401 |      E |      E |       E |     E | somente GitHub-only; identidade vinculada, sessão e state; também permite `DELETION_PENDING` para cancelamento |
 | `GET /api/account/audit-events`                                                                                |     401 |      L |      L |       L |     L | somente eventos cujo ator é o titular                                     |
 | `GET /api/projects/:projectId/audit-events`                                                                    |     401 |    403 |    403 |     403 |     A | paginado, metadata minimizada, sem enumeração entre projetos              |
 
 ## Decisões
 
-- `ACTIVE` segue a matriz por papel. `DEACTIVATED` acessa somente estado da conta e reativação. `DELETION_PENDING` acessa somente status/cancelamento/exportação. `ANONYMIZED` não autentica.
+- `ACTIVE` segue a matriz por papel. `DEACTIVATED` acessa somente estado da conta e reativação. `DELETION_PENDING` acessa somente status/cancelamento/exportação e reautenticação GitHub necessária ao cancelamento de conta GitHub-only. `ANONYMIZED` não autentica nem pode reassociar automaticamente uma identidade GitHub anterior.
 
 - OWNER administra membros, convites e configuração; MANAGER coordena sync e também escreve domínio; MEMBER escreve tarefas/requisitos; VIEWER é leitura.
 - Respostas a convites são vinculadas ao destinatário, usam token hashado/expirável e recebem limiter de operação sensível; criação combina limiter sensível e de entrega de e-mail.
@@ -62,3 +63,4 @@ Baseline E6, consolidado pelas LR.2/LR.3 em 20/08/2026. A matriz descreve a pol�
 - Na E11, `responsibleUserId` exige membership ativa; a autoria de movimento vem exclusivamente da sessão e não pode ser controlada pelo body.
 - Na LR.2, os endpoints duplicados de conta/privacidade foram removidos. `/api/settings/*` é canônico; `/api/account/reactivation/*` e `/api/account/audit-events` permanecem por responsabilidade própria. Paths removidos retornam `404 ROUTE_NOT_FOUND`.
 - Na LR.3, autorização de repositório vem da permissão do usuário GitHub e aceita somente `OWNER`/`ADMIN`; a GitHub App é autoridade técnica independente. `READ`, `WRITE`, `TRIAGE` e colaboração simples não selecionam nem conectam repositórios.
+- Na LR.4, participação histórica/inativa não autoriza exportar conteúdo atual de projeto. Operações sensíveis usam senha local ou reautenticação GitHub recente na mesma sessão; último OWNER bloqueia a anonimização no vencimento e provoca retorno auditado para `ACTIVE`.

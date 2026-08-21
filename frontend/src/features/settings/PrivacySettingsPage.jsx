@@ -11,6 +11,7 @@ import { useAuth } from '../auth/index.js';
 import { settingsApi } from './settings.api.js';
 import { SettingsFeedback } from './SettingsFeedback.jsx';
 import { PasswordField } from '../auth/index.js';
+import { GithubSensitiveReauthentication } from './GithubSensitiveReauthentication.jsx';
 
 function download(blob) {
   const url = URL.createObjectURL(blob);
@@ -25,13 +26,19 @@ export function PrivacySettingsPage() {
   const confirm = useConfirm();
   const { refresh } = useAuth();
   const [request, setRequest] = useState(null);
+  const [account, setAccount] = useState(null);
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [initialError, setInitialError] = useState(null);
   const load = useCallback(async () => {
-    setRequest(await settingsApi.deletion());
+    const [nextRequest, nextAccount] = await Promise.all([
+      settingsApi.deletion(),
+      settingsApi.account()
+    ]);
+    setRequest(nextRequest);
+    setAccount(nextAccount);
   }, []);
   const loadInitial = useCallback(async () => {
     setLoading(true);
@@ -69,6 +76,7 @@ export function PrivacySettingsPage() {
       />
     );
   }
+  const sensitiveActionReady = account?.hasLocalPassword || account?.recentlyReauthenticated;
   return (
     <>
       <SettingsFeedback error={error} message={message} />
@@ -98,18 +106,27 @@ export function PrivacySettingsPage() {
             colaborativos e rastreabilidade serão preservados.
           </p>
         )}
-        <PasswordField
-          id="privacyCurrentPassword"
-          label="Senha atual"
-          autoComplete="current-password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-        />
+        {account?.hasLocalPassword ? (
+          <PasswordField
+            id="privacyCurrentPassword"
+            label="Senha atual"
+            autoComplete="current-password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+          />
+        ) : (
+          <GithubSensitiveReauthentication
+            account={account}
+            returnTo="/settings/privacy"
+            onError={setError}
+          />
+        )}
         <div className="danger-zone-actions">
           {request ? (
             <button
               className="button button-secondary"
               type="button"
+              disabled={!sensitiveActionReady}
               onClick={async () => {
                 if (
                   !(await confirm({
@@ -131,6 +148,7 @@ export function PrivacySettingsPage() {
             <button
               className="button button-danger"
               type="button"
+              disabled={!sensitiveActionReady}
               onClick={async () => {
                 if (
                   !(await confirm({

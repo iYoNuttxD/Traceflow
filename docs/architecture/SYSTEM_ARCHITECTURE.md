@@ -2,7 +2,7 @@
 
 ## Escopo
 
-Este documento descreve a implementação consolidada após a LR.3. `TRACEFLOW_CONTEXTO_ARQUITETURA.md` continua sendo fonte de requisitos e diretrizes históricas; em caso de divergência sobre o estado executável, prevalecem código, migrations, testes, este documento e os ADRs aceitos.
+Este documento descreve a implementação consolidada após a LR.4. `TRACEFLOW_CONTEXTO_ARQUITETURA.md` continua sendo fonte de requisitos e diretrizes históricas; em caso de divergência sobre o estado executável, prevalecem código, migrations, testes, este documento e os ADRs aceitos.
 
 ## Visão geral
 
@@ -81,13 +81,17 @@ Projetos anteriores à L1 mantêm artifacts e metadados em uma integração `REC
 
 ## Segurança e privacidade
 
-A API usa validação Zod, limite de body, Helmet, CORS allowlist, rate limiting, erros seguros, request ID, logging estruturado e redaction. Direitos técnicos do titular usam `/api/settings/*`; `/api/account/reactivation/*` permanece como fluxo específico. Direitos incluem consulta, correção, sessões, exportação, desativação e solicitação de exclusão. Auditoria e histórico têm finalidades e retenções diferentes.
+A API usa validação Zod, limite de body, Helmet, CORS allowlist, rate limiting, erros seguros, request ID, logging estruturado e redaction. Direitos técnicos do titular usam `/api/settings/*`; `/api/account/reactivation/*` permanece como fluxo específico. Direitos incluem consulta, correção, sessões, exportação, desativação e solicitação de exclusão. Conteúdo colaborativo entra na exportação somente com `ProjectMembership.isActive=true`; relação histórica não concede acesso atual.
+
+Operações sensíveis aceitam senha local ou, para conta GitHub-only, reautenticação GitHub recente vinculada à mesma sessão e identidade. O user access token é efêmero. A anonimização transacional remove credenciais, states, autorizações pessoais GitHub e PII dispensável; preserva IDs e rastreabilidade pseudonimizados. Um tombstone sem FK e sem GitHub ID bruto guarda apenas fingerprint HMAC para negar login/reassociação automática da identidade anonimizada. A chave `PRIVACY_PSEUDONYMIZATION_KEY` é configuração protegida, estável e obrigatória em produção.
+
+No vencimento de `DELETION_PENDING`, o worker revalida ownership dentro da mesma transação. Último OWNER não é removido nem anonimizado: a solicitação termina `REJECTED`, a conta volta `ACTIVE`, sessões são revogadas e eventos mínimos registram tentativa, impedimento e retorno. Auditoria e histórico têm finalidades e retenções diferentes.
 
 ASVS é referência, não certificação. LGPD depende de decisões jurídicas e operacionais externas sobre base legal, controlador, backups, logs e fornecedores.
 
 ## Banco e migrations
 
-Prisma é acessado somente por repositories e scripts de manutenção autorizados. As 36 migrations são imutáveis e aplicam do zero. Mudança destrutiva exige inventário, reconciliação, backup, guard e roll-forward. Scripts E8 permanecem recovery-only; fontes E6/E11 dependentes do schema anterior à LR.2 exigem aquele checkout/schema e não são runtime.
+Prisma é acessado somente por repositories e scripts de manutenção autorizados. As 37 migrations são imutáveis e aplicam do zero. Mudança destrutiva exige inventário, reconciliação, backup, guard e roll-forward. Scripts E8 permanecem recovery-only; fontes E6/E11 dependentes do schema anterior à LR.2 exigem aquele checkout/schema e não são runtime.
 
 ## CI e operação
 

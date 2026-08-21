@@ -10,8 +10,8 @@ export const authApi = {
   async startGithubLogin(data) {
     return (await httpClient.post('/auth/github/start', data)).data;
   },
-  async startGithubPasswordReauthentication() {
-    return (await httpClient.post('/auth/github/reauth/start', {})).data;
+  async startGithubSensitiveReauthentication(returnTo) {
+    return (await httpClient.post('/auth/github/reauth/start', { returnTo })).data;
   },
   me(options = {}) {
     return httpClient.get('/auth/me', options);

@@ -86,9 +86,16 @@ describe('LR.1 - hardening de autenticação e identidade', () => {
           currentPassword: password,
           password: 'NovaSenhaRobusta456!'
         }),
-        await auth.mutate('post', '/api/auth/email-verification/resend').send({}),
-        await auth.mutate('post', '/api/auth/github/reauth/start').send({})
+        await auth.mutate('post', '/api/auth/email-verification/resend').send({})
       ];
+      if (status === 'DEACTIVATED') {
+        blocked.push(await auth.mutate('post', '/api/auth/github/reauth/start').send({}));
+      } else {
+        expect(await auth.mutate('post', '/api/auth/github/reauth/start').send({})).toMatchObject({
+          status: 409,
+          body: { code: ERROR_CODES.PASSWORD_ALREADY_SET }
+        });
+      }
       for (const response of blocked) {
         expect(response).toMatchObject({ status: 403, body: { code: expectedCode } });
       }

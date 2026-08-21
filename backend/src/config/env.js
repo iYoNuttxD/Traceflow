@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import { Buffer } from 'node:buffer';
 import { ConfigurationError } from '../shared/errors/index.js';
 
 dotenv.config();
@@ -139,6 +140,21 @@ function parseBoolean(value, key, defaultValue = false) {
   if (value === 'true') return true;
   if (value === 'false') return false;
   throw new ConfigurationError(`Configuração inválida: ${key} deve ser true ou false.`);
+}
+
+function parsePrivacyPseudonymizationKey(source, nodeEnv) {
+  const value =
+    source.PRIVACY_PSEUDONYMIZATION_KEY ||
+    (nodeEnv === 'production' ? undefined : 'traceflow-nonproduction-pseudonymization-key');
+  if (!value) {
+    throw new ConfigurationError('Configuração obrigatória ausente: PRIVACY_PSEUDONYMIZATION_KEY.');
+  }
+  if (Buffer.byteLength(value, 'utf8') < 32) {
+    throw new ConfigurationError(
+      'Configuração inválida: PRIVACY_PSEUDONYMIZATION_KEY deve possuir ao menos 32 bytes.'
+    );
+  }
+  return value;
 }
 
 function parseEmailConfiguration(source, nodeEnv) {
@@ -285,6 +301,7 @@ export function createEnvironment(source = {}) {
     databaseUrl,
     testDatabaseUrl,
     ...githubAppConfiguration,
+    privacyPseudonymizationKey: parsePrivacyPseudonymizationKey(source, nodeEnv),
     frontendUrl,
     bodyLimit: parseBodyLimit(source.BODY_LIMIT),
     corsAllowedOrigins: Object.freeze(corsAllowedOrigins),

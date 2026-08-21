@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   auth: { user: null, logout: vi.fn(), refresh: vi.fn() },
-  authApi: { startGithubPasswordReauthentication: vi.fn() },
+  authApi: { startGithubSensitiveReauthentication: vi.fn() },
   confirm: vi.fn(),
   api: {
     account: vi.fn(),
@@ -72,6 +72,7 @@ const { Navbar } = await import('../../src/components/Navbar.jsx');
 
 describe('configurações e estados restritos L2', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     mocks.auth.user = { id: 7, name: 'Daniel', accountStatus: 'DEACTIVATED' };
     mocks.auth.refresh.mockResolvedValue();
     mocks.confirm.mockResolvedValue(true);
@@ -85,6 +86,8 @@ describe('configurações e estados restritos L2', () => {
       pendingEmailChange: null,
       nextUsernameChangeAt: null,
       hasLocalPassword: true,
+      hasGithubIdentity: false,
+      recentlyReauthenticated: false,
       canInitializePassword: false
     });
     mocks.api.updateProfile.mockResolvedValue({});
@@ -312,6 +315,26 @@ describe('configurações e estados restritos L2', () => {
     expect(
       screen.getByRole('button', { name: 'Instalar ou autorizar GitHub App' })
     ).toBeInTheDocument();
+  });
+
+  it('exige reautenticação recente para excluir uma conta GitHub-only', async () => {
+    mocks.api.account.mockResolvedValue({
+      id: 7,
+      accountStatus: 'ACTIVE',
+      hasLocalPassword: false,
+      hasGithubIdentity: true,
+      recentlyReauthenticated: false
+    });
+    render(
+      <MemoryRouter>
+        <PrivacySettingsPage />
+      </MemoryRouter>
+    );
+
+    expect(
+      await screen.findByRole('button', { name: 'Confirmar identidade com GitHub' })
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Solicitar exclusão' })).toBeDisabled();
   });
 
   it.each([

@@ -11,8 +11,12 @@ export const settingsApi = {
     return (await httpClient.patch('/settings/account/username', { username })).data.account;
   },
   async requestEmailChange(newEmail, currentPassword) {
-    return (await httpClient.post('/settings/account/email-change', { newEmail, currentPassword }))
-      .data.request;
+    return (
+      await httpClient.post('/settings/account/email-change', {
+        newEmail,
+        ...(currentPassword ? { currentPassword } : {})
+      })
+    ).data.request;
   },
   cancelEmailChange() {
     return httpClient.delete('/settings/account/email-change');
@@ -35,7 +39,7 @@ export const settingsApi = {
   async deactivate(currentPassword) {
     return (
       await httpClient.post('/settings/account/deactivate', {
-        currentPassword,
+        ...(currentPassword ? { currentPassword } : {}),
         confirmation: true
       })
     ).data.account;
@@ -49,14 +53,14 @@ export const settingsApi = {
   async requestDeletion(currentPassword) {
     return (
       await httpClient.post('/settings/privacy/deletion', {
-        currentPassword,
+        ...(currentPassword ? { currentPassword } : {}),
         confirmation: true
       })
     ).data.request;
   },
   cancelDeletion(currentPassword) {
     return httpClient.delete('/settings/privacy/deletion', {
-      data: { currentPassword, confirmation: true }
+      data: { ...(currentPassword ? { currentPassword } : {}), confirmation: true }
     });
   },
   async exportData() {
@@ -85,7 +89,7 @@ export const settingsApi = {
   },
   removeGithubAuthorization(authorizationId, currentPassword) {
     return httpClient.delete(`/settings/integrations/github/authorizations/${authorizationId}`, {
-      data: { currentPassword, confirmation: true }
+      data: { ...(currentPassword ? { currentPassword } : {}), confirmation: true }
     });
   },
   confirmEmail(token) {

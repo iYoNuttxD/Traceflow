@@ -37,7 +37,12 @@ export const settingsController = {
   ),
   requestEmail: asyncHandler(async (req, res) =>
     res.status(202).json({
-      request: await settingsService.requestEmailChange(req.auth.user.id, req.body, req.requestId)
+      request: await settingsService.requestEmailChange(
+        req.auth.user.id,
+        req.auth.session,
+        req.body,
+        req.requestId
+      )
     })
   ),
   cancelEmail: asyncHandler(async (req, res) => {
@@ -87,7 +92,7 @@ export const settingsController = {
       message: 'Conta desativada.',
       account: await settingsService.deactivate(
         req.auth.user.id,
-        req.auth.session.id,
+        req.auth.session,
         req.body,
         req.requestId
       )
@@ -110,14 +115,19 @@ export const settingsController = {
     res.status(202).json({
       request: await settingsService.requestDeletion(
         req.auth.user.id,
-        req.auth.session.id,
+        req.auth.session,
         req.body,
         req.requestId
       )
     })
   ),
   cancelDeletion: asyncHandler(async (req, res) => {
-    const result = await settingsService.cancelDeletion(req.auth.user.id, req.body, req.requestId);
+    const result = await settingsService.cancelDeletion(
+      req.auth.user.id,
+      req.auth.session,
+      req.body,
+      req.requestId
+    );
     if (result.changed) clearCookie(res);
     return res.json({
       message: result.changed
@@ -185,6 +195,7 @@ export const settingsController = {
     res.json({
       result: await settingsService.removeGithubAuthorization(
         req.auth.user.id,
+        req.auth.session,
         req.params.authorizationId,
         req.body,
         req.requestId

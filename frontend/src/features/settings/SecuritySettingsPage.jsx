@@ -72,7 +72,7 @@ export function SecuritySettingsPage() {
     setError('');
     setReauthenticating(true);
     try {
-      const result = await authApi.startGithubPasswordReauthentication();
+      const result = await authApi.startGithubSensitiveReauthentication('/settings/security');
       window.location.assign(result.url);
     } catch (value) {
       setError(normalizeApiError(value).message);

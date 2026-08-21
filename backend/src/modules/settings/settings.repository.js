@@ -367,8 +367,6 @@ export const settingsRepository = {
   async requestDeletion(userId, currentSessionId, now, scheduledFor, auditData) {
     return prisma.$transaction(
       async (tx) => {
-        const blocked = await soleOwnerProjects(tx, userId);
-        if (blocked.length) return { blocked };
         const existing = await tx.privacyRequest.findFirst({
           where: { userId, type: 'ACCOUNT_DELETION', status: 'PENDING' }
         });
@@ -431,7 +429,17 @@ export const settingsRepository = {
       where: { id: userId },
       select: {
         ...accountSelect,
+        lastLoginAt: true,
+        githubIdentity: {
+          select: {
+            githubUserId: true,
+            githubLogin: true,
+            linkedAt: true,
+            lastAuthenticatedAt: true
+          }
+        },
         memberships: {
+          where: { isActive: true },
           select: {
             projectId: true,
             role: true,
@@ -461,6 +469,9 @@ export const settingsRepository = {
           }
         },
         responsibleTasks: {
+          where: {
+            project: { memberships: { some: { userId, isActive: true } } }
+          },
           select: {
             id: true,
             projectId: true,
@@ -488,18 +499,45 @@ export const settingsRepository = {
             requestedAt: true,
             scheduledFor: true,
             completedAt: true,
-            cancelledAt: true
+            cancelledAt: true,
+            reasonCode: true,
+            failureCode: true
+          }
+        },
+        personalDataExports: {
+          select: {
+            id: true,
+            status: true,
+            format: true,
+            expiresAt: true,
+            completedAt: true,
+            failedAt: true,
+            errorCode: true,
+            createdAt: true
+          }
+        },
+        emailChangeRequests: {
+          select: {
+            id: true,
+            currentEmailSnapshot: true,
+            newEmail: true,
+            expiresAt: true,
+            verifiedAt: true,
+            cancelledAt: true,
+            createdAt: true
           }
         },
         auditEvents: {
           select: {
             id: true,
             occurredAt: true,
+            actorType: true,
             action: true,
             resourceType: true,
             resourceId: true,
             result: true,
-            reasonCode: true
+            reasonCode: true,
+            requestId: true
           }
         },
         githubInstallationAuthorizations: {
@@ -514,6 +552,9 @@ export const settingsRepository = {
                 status: true,
                 installedAt: true,
                 projectIntegrations: {
+                  where: {
+                    project: { memberships: { some: { userId, isActive: true } } }
+                  },
                   select: {
                     repositoryFullName: true,
                     status: true,

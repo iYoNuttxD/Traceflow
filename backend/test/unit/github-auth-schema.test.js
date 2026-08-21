@@ -7,6 +7,10 @@ const migration = readFileSync(
   resolve('prisma/migrations/20260808120000_l1_1_github_identity_login/migration.sql'),
   'utf8'
 );
+const privacyMigration = readFileSync(
+  resolve('prisma/migrations/20260820220000_lr4_privacy_lifecycle_hardening/migration.sql'),
+  'utf8'
+);
 
 describe('schema incremental da autenticação GitHub L1.1', () => {
   it('mantém identidade 1:0..1 separada de instalações e com IDs únicos', () => {
@@ -32,5 +36,13 @@ describe('schema incremental da autenticação GitHub L1.1', () => {
     expect(migration).toContain('CREATE TABLE `GitHubIdentity`');
     expect(migration).toContain('CREATE TABLE `GitHubOAuthState`');
     expect(migration).not.toMatch(/DROP TABLE|TRUNCATE|DELETE FROM|UPDATE `User`/i);
+  });
+
+  it('mantém tombstone pseudonimizado sem GitHub ID bruto ou vínculo de usuário', () => {
+    const tombstone = schema.match(/model GitHubIdentityTombstone \{([\s\S]*?)\n\}/)?.[1];
+    expect(tombstone).toMatch(/githubUserFingerprint\s+String\s+@unique/);
+    expect(tombstone).not.toMatch(/githubUserId|userId|accessToken|refreshToken/i);
+    expect(privacyMigration).toContain('CREATE TABLE `GitHubIdentityTombstone`');
+    expect(privacyMigration).not.toMatch(/DROP TABLE|TRUNCATE|DELETE FROM/i);
   });
 });

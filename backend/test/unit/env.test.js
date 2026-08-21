@@ -25,7 +25,8 @@ const productionInfrastructure = {
   EMAIL_FROM: 'no-reply@traceflow.example',
   SMTP_HOST: 'smtp.traceflow.example',
   SMTP_USER: 'mailer',
-  SMTP_PASSWORD: 'secret'
+  SMTP_PASSWORD: 'secret',
+  PRIVACY_PSEUDONYMIZATION_KEY: 'artificial-production-pseudonymization-key'
 };
 
 describe('configuração centralizada', () => {
@@ -161,6 +162,24 @@ describe('configuração centralizada', () => {
     expect(() =>
       createEnvironment({ ...validSource, EMAIL_PROVIDER: 'smtp', EMAIL_FROM: 'mail@example.com' })
     ).toThrowError(/SMTP_HOST/);
+  });
+
+  it('exige chave estável e suficientemente longa para pseudonimização em produção', () => {
+    expect(() =>
+      createEnvironment({
+        ...validSource,
+        ...productionInfrastructure,
+        ...githubAppSource,
+        NODE_ENV: 'production',
+        PRIVACY_PSEUDONYMIZATION_KEY: undefined
+      })
+    ).toThrowError(/PRIVACY_PSEUDONYMIZATION_KEY/);
+    expect(() =>
+      createEnvironment({
+        ...validSource,
+        PRIVACY_PSEUDONYMIZATION_KEY: 'curta'
+      })
+    ).toThrowError(/32 bytes/);
   });
 
   it('valida configuração de segurança sem expor valores', () => {

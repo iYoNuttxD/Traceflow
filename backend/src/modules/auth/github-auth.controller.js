@@ -37,6 +37,7 @@ const reasonByCode = Object.freeze({
   GITHUB_IDENTITY_ALREADY_LINKED: 'identity_conflict',
   GITHUB_IDENTITY_ALREADY_EXISTS: 'identity_exists',
   GITHUB_IDENTITY_MISMATCH: 'identity_mismatch',
+  ACCOUNT_ANONYMIZED: 'account_anonymized',
   GITHUB_LOGIN_UNAVAILABLE: 'unavailable'
 });
 
@@ -44,8 +45,8 @@ function errorRedirect(error) {
   const path =
     error.oauthPurpose === 'LINK_IDENTITY'
       ? '/settings/integrations'
-      : error.oauthPurpose === 'REAUTH_SET_PASSWORD'
-        ? '/settings/security'
+      : error.oauthPurpose === 'REAUTH_SENSITIVE_ACTION'
+        ? error.oauthReturnTo || '/settings/security'
         : '/login';
   const url = new URL(path, env.frontendUrl);
   url.searchParams.set('github', 'error');
@@ -63,8 +64,8 @@ export const githubAuthController = {
     });
     return res.json(setGithubOAuthCookie(res, result));
   }),
-  startPasswordReauthentication: asyncHandler(async (req, res) => {
-    const result = await githubAuthService.startPasswordReauthentication(req.auth);
+  startSensitiveReauthentication: asyncHandler(async (req, res) => {
+    const result = await githubAuthService.startSensitiveReauthentication(req.auth, req.body);
     await auditService.recordOperational({
       actorUserId: req.auth.user.id,
       requestId: req.requestId,
@@ -123,7 +124,7 @@ export const githubAuthController = {
       await auditService.recordOperational({
         requestId: req.requestId,
         action:
-          error.oauthPurpose === 'REAUTH_SET_PASSWORD'
+          error.oauthPurpose === 'REAUTH_SENSITIVE_ACTION'
             ? 'GITHUB_REAUTH_FAILURE'
             : 'GITHUB_LOGIN_FAILURE',
         resourceType: 'GitHubIdentity',

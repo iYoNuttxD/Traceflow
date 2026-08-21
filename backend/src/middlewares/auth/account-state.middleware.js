@@ -9,7 +9,8 @@ const restrictedAccess = Object.freeze({
     ['GET', '/settings/account'],
     ['GET', '/settings/privacy/deletion'],
     ['DELETE', '/settings/privacy/deletion'],
-    ['POST', '/settings/privacy/export']
+    ['POST', '/settings/privacy/export'],
+    ['POST', '/github/reauth/start']
   ]
 });
 

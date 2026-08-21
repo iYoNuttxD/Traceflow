@@ -111,7 +111,7 @@ enum AccountStatus {
 enum GitHubOAuthPurpose {
   LOGIN
   LINK_IDENTITY
-  REAUTH_SET_PASSWORD
+  REAUTH_SENSITIVE_ACTION
 }
 
 model User {
@@ -431,6 +431,16 @@ model GitHubIdentity {
   updatedAt           DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Marcador deny-only pseudonimizado. Impede que uma identidade GitHub removida pela
+// anonimização recrie ou reassocie automaticamente uma conta, sem persistir o GitHub user ID.
+model GitHubIdentityTombstone {
+  id                    Int      @id @default(autoincrement())
+  githubUserFingerprint String   @unique @db.Char(64)
+  createdAt             DateTime @default(now())
+
+  @@index([createdAt])
 }
 
 model GitHubOAuthState {

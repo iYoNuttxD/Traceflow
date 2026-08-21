@@ -35,6 +35,12 @@ export const githubAuthRepository = {
   findIdentityByUserId(userId) {
     return prisma.gitHubIdentity.findUnique({ where: { userId }, select: identitySelect });
   },
+  findIdentityTombstone(githubUserFingerprint) {
+    return prisma.gitHubIdentityTombstone.findUnique({
+      where: { githubUserFingerprint },
+      select: { id: true }
+    });
+  },
   findUserByEmail(email) {
     return prisma.user.findUnique({ where: { email } });
   },
@@ -81,11 +87,26 @@ export const githubAuthRepository = {
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
     );
   },
-  markSessionReauthenticated(sessionId, userId, now) {
-    return prisma.session.updateMany({
-      where: { id: sessionId, userId, revokedAt: null, expiresAt: { gt: now } },
-      data: { lastReauthenticatedAt: now }
-    });
+  markSensitiveReauthenticated(sessionId, userId, githubUserId, now) {
+    return prisma.$transaction(
+      async (tx) => {
+        const identity = await tx.gitHubIdentity.findFirst({ where: { userId, githubUserId } });
+        const session = await tx.session.findFirst({
+          where: { id: sessionId, userId, revokedAt: null, expiresAt: { gt: now } }
+        });
+        if (!identity || !session) return { count: 0 };
+        await tx.gitHubIdentity.update({
+          where: { id: identity.id },
+          data: { lastAuthenticatedAt: now }
+        });
+        await tx.session.update({
+          where: { id: session.id },
+          data: { lastReauthenticatedAt: now }
+        });
+        return { count: 1 };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+    );
   },
   isUniqueViolation(error) {
     return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';

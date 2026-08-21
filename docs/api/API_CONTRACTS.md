@@ -21,28 +21,33 @@ Tokens, hashes e códigos de acesso nunca integram logs ou auditoria.
 
 ## L2 — conta, segurança, privacidade e integrações
 
-Todos os contratos abaixo exigem sessão e CSRF nas mutations, exceto as duas confirmações públicas. `requireAccountState` limita `DEACTIVATED` à conta/reativação e `DELETION_PENDING` ao status/cancelamento/exportação; `ANONYMIZED` não autentica.
+Todos os contratos abaixo exigem sessão e CSRF nas mutations, exceto as duas confirmações públicas. `requireAccountState` limita `DEACTIVATED` à conta/reativação e `DELETION_PENDING` ao status, cancelamento, exportação e reautenticação GitHub necessária para cancelar uma exclusão em conta GitHub-only; `ANONYMIZED` não autentica.
 
 | Método          | Caminho                                                         | Regra principal                                   |
 | --------------- | --------------------------------------------------------------- | ------------------------------------------------- |
 | GET             | `/settings/account`                                             | conta própria e estado                            |
 | PATCH           | `/settings/account/profile`                                     | altera somente nome; conta ativa                  |
 | PATCH           | `/settings/account/username`                                    | política L1 e cooldown de 30 dias                 |
-| POST/DELETE     | `/settings/account/email-change`                                | senha; solicitação hashada/cancelamento           |
+| POST/DELETE     | `/settings/account/email-change`                                | senha ou reautenticação GitHub; token hashado      |
 | GET             | `/settings/account/email-change/status`                         | solicitação própria pendente                      |
 | GET             | `/settings/account/email-change/confirm`                        | público; token único; revoga todas as sessões     |
 | POST            | `/settings/security/password`                                   | preserva sessão atual e revoga demais             |
 | GET/DELETE      | `/settings/security/sessions[/:sessionId]`                      | UUID público e sessão própria                     |
 | POST            | `/settings/security/sessions/revoke-others`                     | preserva sessão atual                             |
-| POST            | `/settings/account/deactivate`                                  | senha, confirmação e bloqueio de último OWNER     |
+| POST            | `/settings/account/deactivate`                                  | autenticação recente, confirmação e último OWNER  |
 | POST            | `/account/reactivation/start`                                  | sessão restrita desativada                        |
 | GET             | `/account/reactivation/confirm`                                | público; token único                              |
-| GET/POST/DELETE | `/settings/privacy/deletion`                                    | 30 dias, modo restrito e cancelamento com senha   |
+| GET/POST/DELETE | `/settings/privacy/deletion`                                    | 30 dias e autenticação recente para pedir/cancelar |
 | POST            | `/settings/privacy/export`                                      | ZIP/JSON; `ACTIVE` ou `DELETION_PENDING`          |
 | GET             | `/settings/integrations/github`                                 | autorizações pessoais, instalações/repos/projetos |
-| DELETE          | `/settings/integrations/github/authorizations/:authorizationId` | remove somente autorização própria                |
+| DELETE          | `/settings/integrations/github/authorizations/:authorizationId` | autenticação recente; remove autorização própria  |
+| POST            | `/auth/github/reauth/start`                                     | GitHub-only; state, sessão e retorno interno       |
 
-A exportação retorna `application/zip` com manifesto 1.0 e não persiste o arquivo. IDs de sessão internos, tokens, hashes e secrets não integram DTOs. Instalações GitHub suspensas/removidas não acionam listagem externa.
+A autenticação recente de uma conta com senha é a confirmação da senha local. Para conta GitHub-only (`passwordHash=null`), o backend exige identidade vinculada e OAuth GitHub recente na mesma sessão; o token de usuário permanece somente em memória. O callback aceita `ACTIVE` e `DELETION_PENDING` apenas nesse purpose, valida state/sessão/GitHub ID e atualiza os timestamps da sessão e da identidade.
+
+A exportação retorna `application/zip` com manifesto 2.0 e não persiste o arquivo. Conteúdo de projetos, requisitos, tarefas atribuídas e integrações entra somente para memberships atualmente ativas. Membership histórica/inativa não autoriza exportar conteúdo atual. Dados próprios incluem perfil, identidade GitHub, sessões sanitizadas, solicitações, histórico de e-mail sem token, metadata de exportações e auditoria permitida. IDs de sessão internos, senhas, cookies, tokens, hashes e secrets não integram DTOs. Instalações GitHub suspensas/removidas não acionam listagem externa.
+
+Ao vencer a carência, o processor faz claim e revalida ownership dentro da transação. Sem impedimento, anonimiza. Se o titular ainda for o único OWNER de projeto não excluído, encerra a solicitação como `REJECTED`, registra `SOLE_PROJECT_OWNER`, retorna a conta para `ACTIVE`, revoga sessões e preserva projeto/membership; uma nova solicitação será necessária após a regularização.
 
 ## L1 — identidade, verificação e GitHub App
 
@@ -243,7 +248,7 @@ O parser RF41 usa somente `/\[TASK-(\d+)\]/gi`: aceita caixa variada, múltiplos
 
 Sem `taskId`, a consulta preserva a visão paginada do projeto. Com `taskId`, retorna somente sugestões da Task validada no mesmo projeto; ID inválido recebe `400` e Task inexistente ou de outro projeto recebe `404`. O DTO continua sem `Commit.authorEmail`.
 
-## Conta, privacidade e auditoria após LR.2
+## Conta, privacidade e auditoria após LR.4
 
 Conta, sessões, exportação, desativação e ciclo de exclusão usam exclusivamente os contratos
 `/settings/*` descritos no início deste catálogo. As rotas específicas
@@ -254,8 +259,10 @@ Auditoria usa `GET /account/audit-events` para a perspectiva do titular e `GET
 Os antigos paths `/account/personal-data`, `/account/profile`, `/account/sessions`,
 `/account/personal-data/export`, `/account/deactivate` e `/account/deletion-request`,
 incluindo seus subpaths, foram removidos e retornam `404 ROUTE_NOT_FOUND`. Exportação
-canônica não contém hashes, cookies, segredos nem dados pessoais de outros membros. Todos os
-caminhos possuem prefixo `/api`.
+canônica não contém hashes, cookies, segredos nem dados pessoais de outros membros e só inclui
+conteúdo de projeto com membership atualmente ativa. A anonimização elimina credenciais e PII
+dispensável, pseudonimiza referências históricas conhecidas e cria somente um fingerprint HMAC do
+GitHub ID para impedir reassociação automática futura. Todos os caminhos possuem prefixo `/api`.
 
 ## Limites e erros
 

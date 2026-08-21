@@ -12,8 +12,8 @@ O login nunca cria instalação, autorização de instalação, projeto, members
 ## Modelos
 
 - `GitHubIdentity`: relação opcional e única com `User`; `userId` e `githubUserId` são únicos.
-- `GitHubOAuthState`: state por hash, finalidade (`LOGIN`, `LINK_IDENTITY` ou `REAUTH_SET_PASSWORD`), contexto de usuário/sessão, `rememberMe`, `returnTo`, expiração e consumo único.
-- `Session.lastReauthenticatedAt`: autorização recente, vinculada à sessão, para inicializar a primeira senha.
+- `GitHubOAuthState`: state por hash, finalidade (`LOGIN`, `LINK_IDENTITY` ou, desde a LR.4, `REAUTH_SENSITIVE_ACTION`), contexto de usuário/sessão, `rememberMe`, `returnTo`, expiração e consumo único.
+- `Session.lastReauthenticatedAt`: autorização recente vinculada à sessão para inicializar a primeira senha ou confirmar outra ação sensível em conta GitHub-only.
 
 A migration incremental é `20260808120000_l1_1_github_identity_login`. Nenhuma migration anterior é alterada e não há backfill de identidade.
 
@@ -41,7 +41,7 @@ Desvincular remove somente `GitHubIdentity`, preserva a sessão atual, revoga as
 
 ### Primeira senha local
 
-Uma sessão criada por login GitHub é marcada como recentemente reautenticada. Depois da janela configurada, `POST /api/auth/github/reauth/start` inicia OAuth com finalidade `REAUTH_SET_PASSWORD` e exige o mesmo GitHub ID vinculado.
+Uma sessão criada por login GitHub é marcada como recentemente reautenticada. Depois da janela configurada, `POST /api/auth/github/reauth/start` inicia OAuth com finalidade canônica `REAUTH_SENSITIVE_ACTION` e exige o mesmo GitHub ID vinculado. A LR.4 ampliou o uso para e-mail, desativação, exclusão/cancelamento e remoção de autorização pessoal, sem tornar a senha local obrigatória.
 
 `POST /api/settings/security/password/initialize` exige reautenticação recente, ausência de senha, identidade GitHub, política de senha e confirmação. A operação incrementa `sessionVersion`, revoga outras sessões, atualiza a versão da sessão atual e consome `lastReauthenticatedAt`.
 
@@ -66,7 +66,7 @@ O DTO de conta expõe somente `hasLocalPassword` e `canInitializePassword`; hash
 | --- | --- | --- |
 | POST | `/api/auth/github/start` | Iniciar login/cadastro GitHub |
 | GET | `/api/auth/github/callback` | Concluir finalidade persistida no state |
-| POST | `/api/auth/github/reauth/start` | Reautenticar para criar a primeira senha |
+| POST | `/api/auth/github/reauth/start` | Reautenticar conta GitHub-only para ação sensível |
 | GET | `/api/settings/integrations/github-identity` | Consultar identidade vinculada |
 | POST | `/api/settings/integrations/github-identity/link/start` | Iniciar vínculo explícito |
 | DELETE | `/api/settings/integrations/github-identity` | Desvincular identidade |

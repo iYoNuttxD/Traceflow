@@ -3,22 +3,6 @@ import { prisma } from '../../database/prismaClient.js';
 import { auditRepository } from '../audit/audit.repository.js';
 
 export const privacyRepository = {
-  lastOwnedProjects(userId) {
-    return prisma.project
-      .findMany({
-        where: { memberships: { some: { userId, role: 'OWNER', isActive: true } } },
-        select: {
-          id: true,
-          name: true,
-          _count: { select: { memberships: { where: { role: 'OWNER', isActive: true } } } }
-        }
-      })
-      .then((projects) =>
-        projects
-          .filter((project) => project._count.memberships <= 1)
-          .map(({ _count, ...project }) => project)
-      );
-  },
   dueDeletionRequests(now = new Date()) {
     const staleLease = new Date(now.getTime() - 30 * 60 * 1000);
     return prisma.privacyRequest.findMany({
@@ -28,16 +12,35 @@ export const privacyRepository = {
         scheduledFor: { lte: now },
         OR: [{ processingStartedAt: null }, { processingStartedAt: { lte: staleLease } }]
       },
-      select: { id: true, userId: true, scheduledFor: true, lastAttemptAt: true }
+      select: {
+        id: true,
+        userId: true,
+        scheduledFor: true,
+        lastAttemptAt: true,
+        user: {
+          select: {
+            githubIdentity: { select: { githubUserId: true } }
+          }
+        }
+      }
     });
   },
-  markDeletionFailure(requestId, failureCode, now = new Date()) {
-    return prisma.privacyRequest.updateMany({
-      where: { id: requestId, status: 'PENDING' },
-      data: { failureCode, lastAttemptAt: now, processingStartedAt: null }
+  markDeletionFailure(requestId, failureCode, auditData, now = new Date()) {
+    return prisma.$transaction(async (tx) => {
+      const updated = await tx.privacyRequest.updateMany({
+        where: { id: requestId, status: 'PENDING' },
+        data: { failureCode, lastAttemptAt: now, processingStartedAt: null }
+      });
+      if (updated.count) await auditRepository.create(auditData, tx);
+      return updated;
     });
   },
-  async anonymize(requestId, anonymous, startedAuditData, completedAuditData, now = new Date()) {
+  async anonymize(
+    requestId,
+    anonymous,
+    { startedAuditData, blockedAuditData, returnedActiveAuditData, completedAuditData },
+    now = new Date()
+  ) {
     return prisma.$transaction(
       async (tx) => {
         const request = await tx.privacyRequest.findUnique({ where: { id: requestId } });
@@ -48,7 +51,10 @@ export const privacyRepository = {
           request.scheduledFor > now
         )
           return null;
-        const currentUser = await tx.user.findUnique({ where: { id: request.userId } });
+        const currentUser = await tx.user.findUnique({
+          where: { id: request.userId },
+          include: { githubIdentity: true }
+        });
         if (!currentUser || currentUser.accountStatus === 'ANONYMIZED') return null;
         const staleLease = new Date(now.getTime() - 30 * 60 * 1000);
         const claim = await tx.privacyRequest.updateMany({
@@ -63,20 +69,57 @@ export const privacyRepository = {
         await auditRepository.create(startedAuditData, tx);
         const owned = await tx.projectMembership.findMany({
           where: { userId: request.userId, role: 'OWNER', isActive: true },
-          select: { projectId: true }
+          select: { projectId: true, project: { select: { status: true } } }
         });
         for (const membership of owned) {
           if (
+            membership.project.status !== 'EXCLUIDO' &&
             (await tx.projectMembership.count({
               where: { projectId: membership.projectId, role: 'OWNER', isActive: true }
             })) <= 1
           ) {
             await tx.privacyRequest.update({
               where: { id: request.id },
-              data: { processingStartedAt: null, failureCode: 'SOLE_PROJECT_OWNER' }
+              data: {
+                status: 'REJECTED',
+                completedAt: now,
+                reasonCode: 'SOLE_PROJECT_OWNER',
+                processingStartedAt: null,
+                failureCode: null
+              }
             });
-            return { blocked: true };
+            await tx.user.update({
+              where: { id: request.userId },
+              data: {
+                accountStatus: 'ACTIVE',
+                isActive: true,
+                deactivatedAt: null,
+                sessionVersion: { increment: 1 }
+              }
+            });
+            await tx.session.updateMany({
+              where: { userId: request.userId, revokedAt: null },
+              data: { revokedAt: now }
+            });
+            await auditRepository.create(blockedAuditData, tx);
+            await auditRepository.create(returnedActiveAuditData, tx);
+            return {
+              blocked: true,
+              reasonCode: 'SOLE_PROJECT_OWNER',
+              userId: request.userId,
+              requestId: request.id
+            };
           }
+        }
+        if (currentUser.githubIdentity) {
+          if (!anonymous.githubUserFingerprint) {
+            throw new Error('GITHUB_IDENTITY_FINGERPRINT_REQUIRED');
+          }
+          await tx.gitHubIdentityTombstone.upsert({
+            where: { githubUserFingerprint: anonymous.githubUserFingerprint },
+            create: { githubUserFingerprint: anonymous.githubUserFingerprint },
+            update: {}
+          });
         }
         await tx.session.deleteMany({ where: { userId: request.userId } });
         await tx.passwordResetToken.deleteMany({ where: { userId: request.userId } });
@@ -85,6 +128,7 @@ export const privacyRepository = {
         await tx.gitHubOAuthState.deleteMany({ where: { userId: request.userId } });
         await tx.gitHubIdentity.deleteMany({ where: { userId: request.userId } });
         await tx.gitHubInstallationAuthorization.deleteMany({ where: { userId: request.userId } });
+        await tx.gitHubRepositoryAuthorization.deleteMany({ where: { userId: request.userId } });
         await tx.emailChangeRequest.deleteMany({ where: { userId: request.userId } });
         await tx.accountReactivationToken.deleteMany({ where: { userId: request.userId } });
         await tx.projectInvitation.updateMany({
@@ -97,16 +141,24 @@ export const privacyRepository = {
           data: { revokedAt: now }
         });
         await tx.projectInvitation.updateMany({
-          where: { email: currentUser.email },
+          where: {
+            email: currentUser.email,
+            revokedAt: null,
+            acceptedAt: null,
+            declinedAt: null
+          },
           data: { email: anonymous.email, revokedAt: now }
         });
         await tx.projectInvitation.updateMany({
-          where: { acceptedById: request.userId },
-          data: { acceptedById: null }
-        });
-        await tx.projectInvitation.updateMany({
-          where: { declinedById: request.userId },
-          data: { declinedById: null }
+          where: {
+            email: currentUser.email,
+            OR: [
+              { revokedAt: { not: null } },
+              { acceptedAt: { not: null } },
+              { declinedAt: { not: null } }
+            ]
+          },
+          data: { email: anonymous.email }
         });
         await tx.projectMembership.updateMany({
           where: { userId: request.userId },
@@ -128,6 +180,25 @@ export const privacyRepository = {
             authorUsername: anonymous.username
           }
         });
+        if (currentUser.githubIdentity) {
+          const githubLogin = currentUser.githubIdentity.githubLogin;
+          await tx.commit.updateMany({
+            where: { authorUsername: githubLogin },
+            data: { authorUsername: anonymous.username }
+          });
+          await tx.pullRequest.updateMany({
+            where: { authorUsername: githubLogin },
+            data: { authorUsername: anonymous.username }
+          });
+          await tx.issue.updateMany({
+            where: { authorUsername: githubLogin },
+            data: { authorUsername: anonymous.username }
+          });
+          await tx.issue.updateMany({
+            where: { assigneeUsername: githubLogin },
+            data: { assigneeUsername: anonymous.username }
+          });
+        }
         await tx.user.update({
           where: { id: request.userId },
           data: {

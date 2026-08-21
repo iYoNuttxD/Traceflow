@@ -9,6 +9,7 @@ import {
 import { PasswordField, useAuth } from '../auth/index.js';
 import { settingsApi } from './settings.api.js';
 import { SettingsFeedback } from './SettingsFeedback.jsx';
+import { GithubSensitiveReauthentication } from './GithubSensitiveReauthentication.jsx';
 
 export function AccountSettingsPage() {
   const confirm = useConfirm();
@@ -64,9 +65,24 @@ export function AccountSettingsPage() {
   }
   if (!account) return <p>Carregando conta...</p>;
   const active = account.accountStatus === 'ACTIVE';
+  const sensitiveActionReady = account.hasLocalPassword || account.recentlyReauthenticated;
   return (
     <>
       <SettingsFeedback error={error} message={message} />
+      {!account.hasLocalPassword && (
+        <section className="settings-card">
+          <h2>Confirmação para ações sensíveis</h2>
+          <p>
+            Esta conta usa GitHub para autenticação. Confirme a identidade no GitHub antes de
+            alterar o e-mail, desativar ou excluir a conta.
+          </p>
+          <GithubSensitiveReauthentication
+            account={account}
+            returnTo="/settings/account"
+            onError={setError}
+          />
+        </section>
+      )}
       <section className="settings-card">
         <h2>Perfil</h2>
         <form
@@ -145,15 +161,17 @@ export function AccountSettingsPage() {
               onChange={(event) => setEmail({ ...email, newEmail: event.target.value })}
             />
           </label>
-          <PasswordField
-            id="emailCurrentPassword"
-            label="Senha atual"
-            autoComplete="current-password"
-            disabled={!active}
-            value={email.currentPassword}
-            onChange={(event) => setEmail({ ...email, currentPassword: event.target.value })}
-          />
-          <button disabled={!active} type="submit">
+          {account.hasLocalPassword && (
+            <PasswordField
+              id="emailCurrentPassword"
+              label="Senha atual"
+              autoComplete="current-password"
+              disabled={!active}
+              value={email.currentPassword}
+              onChange={(event) => setEmail({ ...email, currentPassword: event.target.value })}
+            />
+          )}
+          <button disabled={!active || !sensitiveActionReady} type="submit">
             Confirmar novo e-mail
           </button>
         </form>
@@ -161,18 +179,20 @@ export function AccountSettingsPage() {
       <section className="settings-card danger-zone">
         <h2>Desativar conta</h2>
         <p>A conta entra em modo restrito. Projetos e dados permanecem preservados.</p>
-        <PasswordField
-          id="deactivationPassword"
-          label="Senha atual"
-          autoComplete="current-password"
-          disabled={!active}
-          value={deactivationPassword}
-          onChange={(event) => setDeactivationPassword(event.target.value)}
-        />
+        {account.hasLocalPassword && (
+          <PasswordField
+            id="deactivationPassword"
+            label="Senha atual"
+            autoComplete="current-password"
+            disabled={!active}
+            value={deactivationPassword}
+            onChange={(event) => setDeactivationPassword(event.target.value)}
+          />
+        )}
         <div className="danger-zone-actions">
           <button
             className="button button-danger"
-            disabled={!active}
+            disabled={!active || !sensitiveActionReady}
             type="button"
             onClick={async () => {
               if (
