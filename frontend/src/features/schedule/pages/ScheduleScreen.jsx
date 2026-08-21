@@ -73,6 +73,9 @@ export function ScheduleScreen() {
   // Nome por id para o painel dizer de QUAL sprint a tarefa sairia. A tarefa só
   // carrega `sprintId`; sem o mapa a origem seria um número sem significado.
   const sprintNames = Object.fromEntries(sprints.map((item) => [item.id, item.name]));
+  // Status por id, pelo mesmo motivo: a lista de marcos precisa saber se a sprint
+  // dona esta encerrada para nao oferecer acao que o backend recusara com 409.
+  const sprintStatuses = Object.fromEntries(sprints.map((item) => [item.id, item.status]));
 
   const [loading, setLoading] = useState(true);
   const [forbidden, setForbidden] = useState(false);
@@ -645,6 +648,7 @@ export function ScheduleScreen() {
           <h3 className="schedule-section-title">Marcos do projeto</h3>
           <MilestoneList
             milestones={milestones}
+            sprintStatuses={sprintStatuses}
             busyMilestoneId={busyMilestoneId}
             readOnly={somenteLeitura}
             onEdit={editMilestone}

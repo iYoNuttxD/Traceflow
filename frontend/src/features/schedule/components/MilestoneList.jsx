@@ -1,8 +1,16 @@
 import { EmptyState } from '../../../shared/index.js';
-import { formatInstant, isMilestoneOverdue, milestoneStatusLabels } from './schedule-display.js';
+import {
+  formatInstant,
+  isMilestoneOverdue,
+  isTerminalSprint,
+  milestoneStatusLabels
+} from './schedule-display.js';
 
 export function MilestoneList({
   milestones,
+  // Status da sprint dona, por id. O marco carrega `sprintId`, mas não o estado
+  // dela: sem o mapa a lista não teria como saber que está congelada.
+  sprintStatuses = {},
   busyMilestoneId,
   readOnly = false,
   onEdit,
@@ -28,6 +36,10 @@ export function MilestoneList({
         const overdue = milestone.overdue ?? isMilestoneOverdue(milestone);
         const done = milestone.status === 'CONCLUIDO';
         const busy = busyMilestoneId === milestone.id;
+        // Marco de sprint encerrada acompanha a imutabilidade dela (ADR-010 D12).
+        // Oferecer o botão transforma uma regra conhecida numa descoberta pelo
+        // 409, que é exatamente o que a revisão do painel de tarefas já corrigiu.
+        const congelada = isTerminalSprint(sprintStatuses[milestone.sprintId]);
 
         return (
           <li className="milestone-item" key={milestone.id}>
@@ -48,8 +60,16 @@ export function MilestoneList({
               <p className="milestone-description">{milestone.description}</p>
             )}
 
+            {/* O congelamento precisa ser legível, não apenas ausente: sem dizer
+                o motivo, a lista pareceria ter perdido os botões. VIEWER não
+                recebe o aviso — para ele o motivo é permissão, não estado, e a
+                tela já comunica isso em outro lugar. */}
+            {congelada && !readOnly && (
+              <p className="milestone-frozen">Sprint encerrada: este marco é registro histórico.</p>
+            )}
+
             {/* VIEWER lê o cronograma inteiro, mas não age sobre ele. */}
-            {readOnly ? null : (
+            {readOnly || congelada ? null : (
               <div
                 className="milestone-actions"
                 role="group"
