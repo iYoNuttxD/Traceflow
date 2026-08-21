@@ -140,6 +140,28 @@ contract. Os três comandos de recovery correspondentes foram executados em dry-
 atual e encerraram com código zero e `reason=LR2_CONTRACT_APPLIED`, sem tentar acessar colunas
 removidas.
 
+## Correção pós-verificação — LR.2.1
+
+A verificação independente posterior à LR.2 encontrou duas inconsistências reais antes da LR.3:
+
+1. os recoveries E6/E11 conseguiam criar/reconciliar estado canônico, porém deixavam
+   `ProjectMember` e/ou `TaskMovement.projectMemberId`; por isso o guard da própria LR.2
+   continuaria bloqueando uma base pré-contract populada;
+2. este relatório registrou `git diff --check` como `PASS`, mas a verificação independente
+   encontrou trailing whitespace em `docs/legacy/LR_2_LEGACY_AUDIT.md`.
+
+A LR.2.1 não alterou a migration aplicada nem enfraqueceu seus guards. Foi criado o recovery
+operacional dedicado `backend/scripts/lr2-legacy-recovery.js`, dry-run por padrão, apoiado por SQL
+para o schema histórico e por uma transação atômica no apply. Ele exige identidade determinística,
+associação equivalente, ator canônico coerente e zero irresolúveis antes de materializar
+`movedByUserId`, nulificar `projectMemberId` e remover `ProjectMember`. O preflight é repetido após
+a operação e somente então retorna `SAFE_TO_CONTRACT`.
+
+O validador E2E `db:test:validate-lr2-recovery` cobre legado reconciliável, dado irresolúvel sem
+perda, segunda execução idempotente, banco já canônico e aplicação/status da LR.2 após o recovery.
+O whitespace foi removido e o gate foi reexecutado de verdade na LR.2.1. A evidência detalhada e
+o parecer de prontidão estão em `docs/deliveries/LR_2_1_LEGACY_RECOVERY_CLOSURE.md`.
+
 ### Frontend
 
 | Gate | Resultado |

@@ -33,10 +33,13 @@
     "e11:legacy:audit": "node scripts/e11-legacy-responsibility-audit.js",
     "e11:legacy:reconcile:dry-run": "node scripts/e11-reconcile-legacy-responsibilities.js",
     "e11:legacy:reconcile": "node scripts/e11-reconcile-legacy-responsibilities.js --apply",
+    "lr2:recovery:dry-run": "node scripts/lr2-legacy-recovery.js",
+    "lr2:recovery": "node scripts/lr2-legacy-recovery.js --apply",
     "db:test:migrate": "node scripts/test-database.js migrate",
     "db:test:status": "node scripts/test-database.js status",
     "db:test:validate-empty": "node scripts/validate-empty-migrations.js",
     "db:test:validate-lr2-legacy": "node scripts/validate-lr2-legacy-migration.js",
+    "db:test:validate-lr2-recovery": "node scripts/validate-lr2-recovery.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev"
   },
