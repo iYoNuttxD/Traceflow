@@ -91,6 +91,25 @@ async function freezeParticipations(tx, sprintId, closedAt) {
   }
 }
 
+// Serializa as escritas de cronograma de UM projeto travando as linhas de Sprint
+// dele, e nao a linha de Project.
+//
+// A diferenca importa. Toda mutacao de qualquer modulo grava um `AuditEvent` com
+// `projectId`, e a FK dessa coluna pede lock COMPARTILHADO na linha do projeto no
+// fim da transacao. Enquanto o cronograma tomava o EXCLUSIVO dessa mesma linha na
+// entrada, qualquer transacao de outro modulo que ja segurasse uma linha disputada
+// — a exclusao de tarefa, por exemplo — fechava ciclo de espera com ele. Sao 15
+// servicos gravando auditoria de projeto: a lista de parceiros de deadlock era o
+// sistema inteiro.
+//
+// Travando as sprints, ninguem mais pede o exclusivo do projeto, e os
+// compartilhados que a FK exige nao conflitam entre si. O `WHERE projectId` toma
+// lock de intervalo no indice e barra tambem a INSERCAO de uma sprint nova, que e
+// o que a checagem de sobreposicao precisa impedir.
+function lockProjectSprints(tx, projectId) {
+  return tx.$queryRaw`SELECT id FROM Sprint WHERE projectId = ${projectId} ORDER BY id FOR UPDATE`;
+}
+
 export const sprintRepository = {
   findProjectById(projectId) {
     return prisma.project.findUnique({ where: { id: projectId }, select: { id: true } });
@@ -135,7 +154,7 @@ export const sprintRepository = {
   // Milestone, para que duas transacoes nunca esperem uma pela outra invertidas.
   async createWithinProjectLock(projectId, data, auditEvent, validate) {
     return prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT id FROM Project WHERE id = ${projectId} FOR UPDATE`;
+      await lockProjectSprints(tx, projectId);
       const sprints = await tx.sprint.findMany({ where: { projectId }, select: sprintSelect });
       await validate({ sprints, sprint: null, milestones: [] });
       const sprint = await tx.sprint.create({
@@ -151,12 +170,11 @@ export const sprintRepository = {
 
   async updateWithinProjectLock(id, projectId, data, auditEvent, validate) {
     return prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT id FROM Project WHERE id = ${projectId} FOR UPDATE`;
-      // A propria sprint travada: o lock do projeto serializa as escritas de
-      // cronograma, mas quem decide a janela final e o registro desta linha, e ele
-      // precisa estar estavel entre a releitura e a escrita.
-      const travada = await tx.$queryRaw`SELECT id FROM Sprint WHERE id = ${id} FOR UPDATE`;
-      if (!travada.length) return null;
+      // Trava todas as sprints do projeto, a desta inclusive: a validacao de
+      // sobreposicao so vale se o conjunto ficar estavel, e a janela final so vale
+      // se ESTA linha ficar estavel entre a releitura e a escrita.
+      const travadas = await lockProjectSprints(tx, projectId);
+      if (!travadas.some((linha) => Number(linha.id) === id)) return null;
       // Marcos travados junto: encolher a janela precisa recusar quem ficaria fora
       // dela, e uma criacao de marco simultanea nao pode escapar dessa checagem
       // entrando depois da leitura (ADR-010 D18).
@@ -185,13 +203,8 @@ export const sprintRepository = {
   //
   // `buildChange` e a regra, entregue pelo service: recebe o registro travado e
   // devolve `{ data, auditEvent, freezeAt }`, ou lanca erro de dominio.
-  async transitionWithinSprintLock(id, projectId, buildChange) {
+  async transitionWithinSprintLock(id, buildChange) {
     return prisma.$transaction(async (tx) => {
-      // Project antes de Sprint, na ordem global de D17. A auditoria gravada no
-      // fim desta transacao pede lock compartilhado na linha do projeto pela FK;
-      // sem tomar o exclusivo agora, esta transacao e a de janela — que trava o
-      // projeto primeiro e a sprint depois — se esperariam em ordens opostas.
-      await tx.$queryRaw`SELECT id FROM Project WHERE id = ${projectId} FOR UPDATE`;
       const travada = await tx.$queryRaw`SELECT id FROM Sprint WHERE id = ${id} FOR UPDATE`;
       if (!travada.length) return null;
 
@@ -209,17 +222,33 @@ export const sprintRepository = {
   // e escrita na MESMA transacao. Calcular o delta fora dela permitia que dois
   // PUT simultaneos partissem do mesmo retrato e aplicassem conjuntos
   // incompativeis — atomicidade por item nao e semantica de substituicao.
-  async mutateScopeWithinSprintLock(sprintId, projectId, requestedTaskIds, buildPlan) {
+  async mutateScopeWithinSprintLock(sprintId, requestedTaskIds, buildPlan) {
     return prisma.$transaction(async (tx) => {
-      // Project antes de Sprint, na ordem global de D17 — o mesmo motivo dos
-      // outros dois caminhos. Este era o ultimo que travava a sprint primeiro e
-      // so pedia o projeto no fim, pela FK da auditoria: contra a transicao de
-      // status e contra a atualizacao de janela, que travam o projeto na entrada,
-      // o ciclo de espera fechava de forma reproduzivel.
-      await tx.$queryRaw`SELECT id FROM Project WHERE id = ${projectId} FOR UPDATE`;
       const locked = await tx.$queryRaw`SELECT id FROM Sprint WHERE id = ${sprintId} FOR UPDATE`;
       if (!locked.length) return null;
 
+      // Leitura TRAVADA — nao cria read view — so para descobrir quem ja esta
+      // dentro. A saida de uma tarefa mexe na participacao dela tanto quanto a
+      // entrada: sem travar as duas pontas, um `replace` que remove X e outro que
+      // leva X para outra sprint se atropelam, e X termina aberta nas duas.
+      const dentro = await tx.$queryRaw`
+        SELECT taskId FROM SprintTask
+        WHERE sprintId = ${sprintId} AND removedAt IS NULL AND taskId IS NOT NULL
+        FOR UPDATE`;
+
+      // Ordem crescente de id: e o que impede que duas transacoes com conjuntos
+      // sobrepostos esperem uma pela outra em ordens opostas.
+      const taskIdsParaTravar = [
+        ...new Set([...requestedTaskIds, ...dentro.map((linha) => Number(linha.taskId))])
+      ].sort((a, b) => a - b);
+      if (taskIdsParaTravar.length) {
+        await tx.$queryRaw`SELECT id FROM Task WHERE id IN (${Prisma.join(taskIdsParaTravar)}) FOR UPDATE`;
+      }
+
+      // Todos os locks tomados: so agora as leituras comuns. O read view nasce
+      // aqui, depois de toda espera, e enxerga o que os vizinhos confirmaram
+      // (ADR-010 D17). Planejar sobre leituras feitas antes do lock deixava duas
+      // transacoes moverem a mesma tarefa para sprints diferentes sem se verem.
       const sprint = await tx.sprint.findUnique({ where: { id: sprintId }, select: sprintSelect });
       const participations = await tx.sprintTask.findMany({
         where: { sprintId },
@@ -229,33 +258,22 @@ export const sprintRepository = {
       // Status e titulo de todo mundo que o plano pode tocar: as tarefas pedidas
       // e as que ja estao dentro. Sem as de dentro, uma saida nao teria de onde
       // tirar o status de saida a congelar.
-      const involvedIds = [
-        ...new Set([
-          ...requestedTaskIds,
-          ...participations
-            .filter((participacao) => participacao.removedAt === null && participacao.taskId)
-            .map((participacao) => participacao.taskId)
-        ])
-      ];
-      const tasks = involvedIds.length
+      const tasks = taskIdsParaTravar.length
         ? await tx.task.findMany({
-            where: { id: { in: involvedIds } },
+            where: { id: { in: taskIdsParaTravar } },
             select: { id: true, projectId: true, sprintId: true, status: true, title: true }
           })
         : [];
 
-      // Trava tambem as tarefas pedidas: o plano mexe em participacoes de OUTRAS
-      // sprints, que o lock da sprint alvo nao cobre. Sem isto, dois movimentos
-      // simultaneos da mesma tarefa para sprints diferentes se atropelariam.
-      // A ordem sprint -> tarefa e a mesma em todos os caminhos, o que evita
-      // ciclo de espera.
-      if (requestedTaskIds.length) {
-        await tx.$queryRaw`SELECT id FROM Task WHERE id IN (${Prisma.join(requestedTaskIds)}) FOR UPDATE`;
-      }
-
       // Participacoes das tarefas pedidas em OUTRAS sprints, ainda nao removidas.
       // Inclui as de sprint ja encerrada de proposito: e delas que sai o vinculo
       // de continuidade. Quem decide fechar ou preservar e o plano.
+      //
+      // A ordem e deterministica porque o plano precisa distinguir a participacao
+      // VIVA da congelada: sem `orderBy`, a mesma consulta podia entregar as duas
+      // em qualquer ordem, e a escolha virava sorteio. Entre congeladas, a ordem
+      // crescente de `closedAt` faz a ULTIMA do conjunto ser a mais recente, que e
+      // a origem certa do vinculo de continuidade.
       const activeElsewhere = requestedTaskIds.length
         ? await tx.sprintTask.findMany({
             where: {
@@ -263,7 +281,8 @@ export const sprintRepository = {
               removedAt: null,
               sprintId: { not: sprintId }
             },
-            select: sprintTaskSelect
+            select: sprintTaskSelect,
+            orderBy: [{ taskId: 'asc' }, { closedAt: 'asc' }, { sprintId: 'asc' }]
           })
         : [];
 

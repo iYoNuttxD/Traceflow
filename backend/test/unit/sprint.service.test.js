@@ -94,22 +94,18 @@ beforeEach(() => {
       return { ...baseSprint, ...data, id };
     }
   );
-  mocks.sprint.transitionWithinSprintLock.mockImplementation(
-    async (id, _projectId, buildChange) => {
-      // `lockedStatusSprint` e o registro que a transacao rele DEPOIS do lock. Por
-      // padrao ele coincide com a leitura anterior; os testes de concorrencia o
-      // fazem divergir para descrever a sprint que outra requisicao ja mudou.
-      const atual = lockedStatusSprint ?? baseSprint;
-      capturedTransition = await buildChange({ ...atual, id });
-      return { ...atual, ...capturedTransition.data, id };
-    }
-  );
-  mocks.sprint.mutateScopeWithinSprintLock.mockImplementation(
-    async (_id, _projectId, _ids, buildPlan) => {
-      capturedPlan = await buildPlan(scopeSnapshot);
-      return [];
-    }
-  );
+  mocks.sprint.transitionWithinSprintLock.mockImplementation(async (id, buildChange) => {
+    // `lockedStatusSprint` e o registro que a transacao rele DEPOIS do lock. Por
+    // padrao ele coincide com a leitura anterior; os testes de concorrencia o
+    // fazem divergir para descrever a sprint que outra requisicao ja mudou.
+    const atual = lockedStatusSprint ?? baseSprint;
+    capturedTransition = await buildChange({ ...atual, id });
+    return { ...atual, ...capturedTransition.data, id };
+  });
+  mocks.sprint.mutateScopeWithinSprintLock.mockImplementation(async (_id, _ids, buildPlan) => {
+    capturedPlan = await buildPlan(scopeSnapshot);
+    return [];
+  });
 });
 
 // Participacao ativa, no formato que o repository devolve.
@@ -538,12 +534,6 @@ describe('maquina de estados da sprint', () => {
     });
   });
 
-  it('trava o projeto do registro lido antes da transacao', async () => {
-    comStatus('PLANEJADA');
-    await sprintService.updateSprintStatus(10, 'EM_ANDAMENTO');
-    expect(mocks.sprint.transitionWithinSprintLock.mock.calls[0][1]).toBe(projectId);
-  });
-
   // Um unico instante para os dois campos: dois `new Date()` dariam a sprint um
   // encerramento anterior ao fechamento das suas proprias participacoes.
   it('usa o mesmo instante para completedAt e para o congelamento', async () => {
@@ -727,6 +717,71 @@ describe('substituicao do conjunto de tarefas', () => {
     ]);
     expect(capturedPlan.open[0]).toMatchObject({ taskId: 5, carriedFromSprintId: 42 });
     expect(capturedPlan.open[1]).toMatchObject({ taskId: 6, carriedFromSprintId: null });
+  });
+
+  // Uma tarefa que ja passou por uma sprint ENCERRADA e depois entrou numa sprint
+  // ABERTA tem duas participacoes com `removedAt` nulo: a congelada, que nao saiu
+  // porque a sprint fechou, e a viva. Reduzir as duas ao mesmo mapa deixava a
+  // ultima do array vencer — e, quando a congelada vinha por ultimo, a viva nao
+  // era fechada e a tarefa ficava aberta nas duas sprints.
+  describe.each([
+    ['congelada primeiro', ['congelada', 'viva']],
+    ['viva primeiro', ['viva', 'congelada']]
+  ])('participacao congelada e viva na mesma tarefa (%s)', (_rotulo, ordem) => {
+    const congelada = participacao(5, {
+      id: 400,
+      sprintId: 40,
+      closedAt: new Date('2026-07-31T00:00:00.000Z'),
+      exitStatus: 'EM_ANDAMENTO'
+    });
+    const viva = participacao(5, { id: 500, sprintId: 50 });
+    const porRotulo = { congelada, viva };
+
+    beforeEach(() => {
+      scopeSnapshot = {
+        sprint: baseSprint,
+        participations: [],
+        tasks: [tarefa(5, { sprintId: 50, status: 'A_FAZER' })],
+        activeElsewhere: ordem.map((rotulo) => porRotulo[rotulo])
+      };
+    });
+
+    it('fecha a participacao viva e nao toca na congelada', async () => {
+      await sprintService.replaceTasks(10, [5], { actorUserId: 3 });
+      expect(capturedPlan.close).toEqual([
+        { id: 500, at: expect.any(Date), reason: 'MOVIDA', exitStatus: 'A_FAZER' }
+      ]);
+    });
+
+    // A origem e a sprint onde a tarefa estava de fato. Apontar para a encerrada
+    // inventaria uma continuidade que pulou o periodo do meio.
+    it('registra a sprint viva como origem do carry-over', async () => {
+      await sprintService.replaceTasks(10, [5], { actorUserId: 3 });
+      expect(capturedPlan.open[0]).toMatchObject({ taskId: 5, carriedFromSprintId: 50 });
+      expect(capturedPlan.historyEntries[0]).toMatchObject({ fromValue: '50', toValue: '10' });
+    });
+  });
+
+  // Sem participacao viva, a congelada volta a responder pela origem: e dela que
+  // a tarefa veio, e o vinculo de continuidade e o unico registro disso.
+  it('usa a sprint encerrada como origem quando nao ha participacao viva', async () => {
+    scopeSnapshot = {
+      sprint: baseSprint,
+      participations: [],
+      tasks: [tarefa(5)],
+      activeElsewhere: [
+        participacao(5, {
+          id: 400,
+          sprintId: 40,
+          closedAt: new Date('2026-07-31T00:00:00.000Z'),
+          exitStatus: 'EM_ANDAMENTO'
+        })
+      ]
+    };
+    await sprintService.replaceTasks(10, [5], { actorUserId: 3 });
+
+    expect(capturedPlan.close).toEqual([]);
+    expect(capturedPlan.open[0]).toMatchObject({ taskId: 5, carriedFromSprintId: 40 });
   });
 
   it('nao gera historico quando o conjunto nao muda', async () => {
