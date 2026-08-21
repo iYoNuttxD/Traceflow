@@ -300,6 +300,78 @@ describe('concorrencia sob lock (ADR-010 D17)', () => {
     ).rejects.toMatchObject({ code: 'SPRINT_WINDOW_MILESTONE_CONFLICT' });
   });
 
+  // Duas transicoes terminais partindo de EM_ANDAMENTO. Validar antes da
+  // transacao deixava as duas passarem, e a sprint recebia DOIS encerramentos:
+  // a segunda escrita sobrepunha status e `completedAt` de um periodo que a
+  // primeira ja tinha fechado, e `freezeParticipations` rodava de novo, movendo
+  // o `closedAt` das participacoes para depois do encerramento real.
+  it('duas transicoes terminais concorrentes: exatamente uma acontece', async () => {
+    const { project, sprint } = await sprintDeTeste({ status: 'EM_ANDAMENTO' });
+    const task = await createTask(prisma, project.id);
+    await prisma.sprintTask.create({
+      data: {
+        projectId: project.id,
+        sprintId: sprint.id,
+        taskId: task.id,
+        taskTitleSnapshot: task.title
+      }
+    });
+
+    const resultados = await Promise.allSettled([
+      sprintService.updateSprintStatus(sprint.id, 'CONCLUIDA'),
+      sprintService.updateSprintStatus(sprint.id, 'CANCELADA')
+    ]);
+
+    const recusadas = resultados.filter((resultado) => resultado.status === 'rejected');
+    expect(recusadas).toHaveLength(1);
+    expect(recusadas[0].reason).toMatchObject({ code: 'SPRINT_INVALID_TRANSITION' });
+    // Uma transicao, um evento. Dois eventos significariam que a sprint foi
+    // encerrada duas vezes.
+    expect(await prisma.auditEvent.count({ where: { action: 'SPRINT_STATUS_CHANGED' } })).toBe(1);
+
+    const persistida = await prisma.sprint.findUnique({ where: { id: sprint.id } });
+    expect(['CONCLUIDA', 'CANCELADA']).toContain(persistida.status);
+    // Sprint cancelada nao carrega instante de conclusao: seria o carimbo da
+    // transicao que perdeu a corrida sobrevivendo na que venceu.
+    if (persistida.status === 'CANCELADA') expect(persistida.completedAt).toBeNull();
+    else expect(persistida.completedAt).toBeInstanceOf(Date);
+
+    const participacao = await prisma.sprintTask.findFirst({ where: { sprintId: sprint.id } });
+    expect(participacao.closedAt).toBeInstanceOf(Date);
+  });
+
+  // Cancelar e iniciar ao mesmo tempo uma sprint PLANEJADA. As duas ordens de
+  // commit convergem para CANCELADA: se o cancelamento vem primeiro, o inicio e
+  // recusado sobre o registro terminal; se o inicio vem primeiro, o cancelamento
+  // e uma transicao valida a partir de EM_ANDAMENTO.
+  //
+  // Detecta o defeito em uma das duas ordens — a invariante que ele afirma, essa
+  // sim, vale sempre: status e congelamento nao podem discordar.
+  it('cancelar e iniciar ao mesmo tempo nao deixa sprint aberta com escopo congelado', async () => {
+    const { project, sprint } = await sprintDeTeste();
+    const task = await createTask(prisma, project.id);
+    await prisma.sprintTask.create({
+      data: {
+        projectId: project.id,
+        sprintId: sprint.id,
+        taskId: task.id,
+        taskTitleSnapshot: task.title
+      }
+    });
+
+    await Promise.allSettled([
+      sprintService.updateSprintStatus(sprint.id, 'CANCELADA'),
+      sprintService.updateSprintStatus(sprint.id, 'EM_ANDAMENTO')
+    ]);
+
+    const persistida = await prisma.sprint.findUnique({ where: { id: sprint.id } });
+    expect(persistida.status).toBe('CANCELADA');
+
+    const participacao = await prisma.sprintTask.findFirst({ where: { sprintId: sprint.id } });
+    const terminal = ['CONCLUIDA', 'CANCELADA'].includes(persistida.status);
+    expect(participacao.closedAt === null).toBe(!terminal);
+  });
+
   // Estado que so o backfill da migration s104 produz: marco vinculado a uma
   // sprint cuja janela nunca o conteve. Ele nao pode trancar a sprint — nem para
   // renomear, nem para reajustar o periodo.

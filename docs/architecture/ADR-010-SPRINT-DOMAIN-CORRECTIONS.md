@@ -200,12 +200,23 @@ dentro de cada nível em ordem crescente de `id`. É o que impede que duas trans
 sobrepostos esperem uma pela outra em ordens opostas.
 
 **O que a regra corrigiu.** A atualização de janela completava o lado não informado com o registro
-lido antes da transação. Duas atualizações parciais complementares — uma só do início, outra só do
-fim — validavam contra o mesmo retrato antigo, e a janela persistida podia terminar invertida.
+lido antes da transação: duas atualizações parciais complementares — uma só do início, outra só do
+fim — validavam contra o mesmo retrato antigo, e a janela persistida podia terminar invertida. A
+transição de status validava a transição antes da transação e escrevia sem reler: cancelar e
+iniciar simultaneamente uma sprint `PLANEJADA` passava nas duas checagens, e a segunda escrita
+deixava status aberto convivendo com participações já congeladas.
 
-**Adoção.** Aplicada ao caminho de janela (`updateWithinProjectLock`). Transição de status, mutação
-de escopo e mutações de marco ainda decidem sobre leitura anterior ao lock; a adoção nesses três
-caminhos é a continuação direta desta decisão.
+**Por que o lock do projeto aparece onde a regra não parece exigir.** Toda mutação de cronograma
+grava um `AuditEvent` com `projectId`, e a chave estrangeira dessa coluna pede lock compartilhado na
+linha do projeto no fim da transação. Um caminho que travasse só a sprint acabaria pedindo o projeto
+**por último** — ordem oposta à do caminho de janela, que o trava primeiro — e as duas transações se
+esperariam em ciclo, resolvido pelo InnoDB abortando uma delas. Tomar o exclusivo do projeto na
+entrada custa uma instrução e elimina o ciclo.
+
+**Adoção.** Aplicada aos caminhos de janela (`updateWithinProjectLock`) e de status
+(`transitionWithinSprintLock`), ambos tomando `Project` antes de `Sprint`. A mutação de escopo
+(`mutateScopeWithinSprintLock`) e as mutações de marco ainda decidem sobre leitura anterior ao lock;
+a adoção nesses dois caminhos é a continuação direta desta decisão.
 
 ### D18 — Mover a janela não empurra para fora um marco que estava dentro
 

@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
     findByProject: vi.fn(),
     createWithinProjectLock: vi.fn(),
     updateWithinProjectLock: vi.fn(),
-    updateStatus: vi.fn(),
+    transitionWithinSprintLock: vi.fn(),
     mutateScopeWithinSprintLock: vi.fn(),
     findTasksBySprint: vi.fn(),
     scheduleData: vi.fn()
@@ -61,6 +61,10 @@ let lockedSprints = [];
 // Marcos da sprint travada, no mesmo retrato: encolher a janela precisa enxerga-los
 // dentro da transacao para recusar quem ficaria fora dela.
 let lockedMilestones = [];
+// Retrato travado da propria sprint no caminho de transicao de status, e o
+// `{ data, auditEvent, freezeAt }` que o service derivou dele.
+let lockedStatusSprint = null;
+let capturedTransition = null;
 let scopeSnapshot = null;
 let capturedPlan = null;
 
@@ -68,6 +72,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   lockedSprints = [];
   lockedMilestones = [];
+  lockedStatusSprint = null;
+  capturedTransition = null;
   capturedPlan = null;
   scopeSnapshot = { sprint: baseSprint, participations: [], tasks: [], activeElsewhere: [] };
 
@@ -88,11 +94,16 @@ beforeEach(() => {
       return { ...baseSprint, ...data, id };
     }
   );
-  mocks.sprint.updateStatus.mockImplementation(async (id, data) => ({
-    ...baseSprint,
-    ...data,
-    id
-  }));
+  mocks.sprint.transitionWithinSprintLock.mockImplementation(
+    async (id, _projectId, buildChange) => {
+      // `lockedStatusSprint` e o registro que a transacao rele DEPOIS do lock. Por
+      // padrao ele coincide com a leitura anterior; os testes de concorrencia o
+      // fazem divergir para descrever a sprint que outra requisicao ja mudou.
+      const atual = lockedStatusSprint ?? baseSprint;
+      capturedTransition = await buildChange({ ...atual, id });
+      return { ...atual, ...capturedTransition.data, id };
+    }
+  );
   mocks.sprint.mutateScopeWithinSprintLock.mockImplementation(async (_id, _ids, buildPlan) => {
     capturedPlan = await buildPlan(scopeSnapshot);
     return [];
@@ -434,13 +445,22 @@ describe('unicidade de nome', () => {
 });
 
 describe('maquina de estados da sprint', () => {
+  // A leitura anterior a transacao e o registro travado descrevem a MESMA sprint
+  // no caminho normal. Os testes de concorrencia mais abaixo os fazem divergir.
+  const comStatus = (status) => {
+    const sprint = { ...baseSprint, status };
+    mocks.sprint.findById.mockResolvedValue(sprint);
+    lockedStatusSprint = sprint;
+    return sprint;
+  };
+
   it.each([
     ['PLANEJADA', 'EM_ANDAMENTO'],
     ['PLANEJADA', 'CANCELADA'],
     ['EM_ANDAMENTO', 'CONCLUIDA'],
     ['EM_ANDAMENTO', 'CANCELADA']
   ])('permite %s -> %s', async (from, to) => {
-    mocks.sprint.findById.mockResolvedValue({ ...baseSprint, status: from });
+    comStatus(from);
     await expect(sprintService.updateSprintStatus(10, to)).resolves.toBeDefined();
   });
 
@@ -451,7 +471,7 @@ describe('maquina de estados da sprint', () => {
     ['CANCELADA', 'PLANEJADA'],
     ['CONCLUIDA', 'CANCELADA']
   ])('rejeita %s -> %s', async (from, to) => {
-    mocks.sprint.findById.mockResolvedValue({ ...baseSprint, status: from });
+    comStatus(from);
     await expect(sprintService.updateSprintStatus(10, to)).rejects.toMatchObject({
       statusCode: 409,
       code: 'SPRINT_INVALID_TRANSITION'
@@ -459,38 +479,77 @@ describe('maquina de estados da sprint', () => {
   });
 
   it('grava startedAt ao entrar em EM_ANDAMENTO', async () => {
-    mocks.sprint.findById.mockResolvedValue(baseSprint);
+    comStatus('PLANEJADA');
     await sprintService.updateSprintStatus(10, 'EM_ANDAMENTO');
-    expect(mocks.sprint.updateStatus.mock.calls[0][1].startedAt).toBeInstanceOf(Date);
+    expect(capturedTransition.data.startedAt).toBeInstanceOf(Date);
   });
 
   it('grava completedAt ao entrar em CONCLUIDA', async () => {
-    mocks.sprint.findById.mockResolvedValue({ ...baseSprint, status: 'EM_ANDAMENTO' });
+    comStatus('EM_ANDAMENTO');
     await sprintService.updateSprintStatus(10, 'CONCLUIDA');
-    expect(mocks.sprint.updateStatus.mock.calls[0][1].completedAt).toBeInstanceOf(Date);
+    expect(capturedTransition.data.completedAt).toBeInstanceOf(Date);
   });
 
   // Iniciar e linha de base, nao fechamento: o escopo segue alteravel, apenas
   // sinalizado. Congelar aqui impediria a inclusao posterior legitima.
   it('nao congela participacoes ao iniciar', async () => {
-    mocks.sprint.findById.mockResolvedValue(baseSprint);
+    comStatus('PLANEJADA');
     await sprintService.updateSprintStatus(10, 'EM_ANDAMENTO');
-    expect(mocks.sprint.updateStatus.mock.calls[0][3]).toEqual({ freezeAt: null });
+    expect(capturedTransition.freezeAt).toBeNull();
   });
 
   it.each(['CONCLUIDA', 'CANCELADA'])('congela participacoes ao entrar em %s', async (status) => {
-    mocks.sprint.findById.mockResolvedValue({ ...baseSprint, status: 'EM_ANDAMENTO' });
+    comStatus('EM_ANDAMENTO');
     await sprintService.updateSprintStatus(10, status);
-    expect(mocks.sprint.updateStatus.mock.calls[0][3].freezeAt).toBeInstanceOf(Date);
+    expect(capturedTransition.freezeAt).toBeInstanceOf(Date);
+  });
+
+  // O nucleo do H2: a leitura anterior a transacao diz PLANEJADA, mas outra
+  // requisicao ja encerrou a sprint. Decidir pelo que foi lido antes gravaria
+  // EM_ANDAMENTO sobre um registro terminal, com as participacoes ja congeladas.
+  it.each(['CONCLUIDA', 'CANCELADA'])(
+    'recusa a transicao quando o registro travado ja esta %s',
+    async (status) => {
+      mocks.sprint.findById.mockResolvedValue({ ...baseSprint, status: 'PLANEJADA' });
+      lockedStatusSprint = { ...baseSprint, status };
+      await expect(sprintService.updateSprintStatus(10, 'EM_ANDAMENTO')).rejects.toMatchObject({
+        statusCode: 409,
+        code: 'SPRINT_INVALID_TRANSITION'
+      });
+    }
+  );
+
+  // O inverso tambem: a leitura anterior recusaria uma transicao que o registro
+  // travado permite. Quem manda e o travado, nos dois sentidos.
+  it('aceita a transicao que so o registro travado permite', async () => {
+    mocks.sprint.findById.mockResolvedValue({ ...baseSprint, status: 'PLANEJADA' });
+    lockedStatusSprint = { ...baseSprint, status: 'EM_ANDAMENTO' };
+    await expect(sprintService.updateSprintStatus(10, 'CONCLUIDA')).resolves.toBeDefined();
+  });
+
+  it('propaga 404 quando o repository nao encontra a linha para travar', async () => {
+    comStatus('PLANEJADA');
+    mocks.sprint.transitionWithinSprintLock.mockResolvedValue(null);
+    await expect(sprintService.updateSprintStatus(10, 'EM_ANDAMENTO')).rejects.toMatchObject({
+      statusCode: 404,
+      code: 'SPRINT_NOT_FOUND'
+    });
+  });
+
+  it('trava o projeto do registro lido antes da transacao', async () => {
+    comStatus('PLANEJADA');
+    await sprintService.updateSprintStatus(10, 'EM_ANDAMENTO');
+    expect(mocks.sprint.transitionWithinSprintLock.mock.calls[0][1]).toBe(projectId);
   });
 
   // Um unico instante para os dois campos: dois `new Date()` dariam a sprint um
   // encerramento anterior ao fechamento das suas proprias participacoes.
   it('usa o mesmo instante para completedAt e para o congelamento', async () => {
-    mocks.sprint.findById.mockResolvedValue({ ...baseSprint, status: 'EM_ANDAMENTO' });
+    comStatus('EM_ANDAMENTO');
     await sprintService.updateSprintStatus(10, 'CONCLUIDA');
-    const [, data, , options] = mocks.sprint.updateStatus.mock.calls[0];
-    expect(options.freezeAt.getTime()).toBe(data.completedAt.getTime());
+    expect(capturedTransition.freezeAt.getTime()).toBe(
+      capturedTransition.data.completedAt.getTime()
+    );
   });
 });
 
