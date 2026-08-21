@@ -104,10 +104,12 @@ beforeEach(() => {
       return { ...atual, ...capturedTransition.data, id };
     }
   );
-  mocks.sprint.mutateScopeWithinSprintLock.mockImplementation(async (_id, _ids, buildPlan) => {
-    capturedPlan = await buildPlan(scopeSnapshot);
-    return [];
-  });
+  mocks.sprint.mutateScopeWithinSprintLock.mockImplementation(
+    async (_id, _projectId, _ids, buildPlan) => {
+      capturedPlan = await buildPlan(scopeSnapshot);
+      return [];
+    }
+  );
 });
 
 // Participacao ativa, no formato que o repository devolve.
