@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ContextualErrorPage,
   LoadingState,
   classifyPageError,
   getErrorRequestId,
   normalizeApiError,
+  useCountdown,
   useConfirm
 } from '../../shared/index.js';
 import { useAuth } from '../auth/index.js';
@@ -32,6 +33,10 @@ export function PrivacySettingsPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [initialError, setInitialError] = useState(null);
+  const [busy, setBusy] = useState('');
+  const [retryAfterSeconds, setRetryAfterSeconds] = useState(0);
+  const actionLock = useRef(false);
+  const cooldown = useCountdown(retryAfterSeconds);
   const load = useCallback(async () => {
     const [nextRequest, nextAccount] = await Promise.all([
       settingsApi.deletion(),
@@ -54,15 +59,24 @@ export function PrivacySettingsPage() {
   useEffect(() => {
     void loadInitial();
   }, [loadInitial]);
-  async function run(operation, success) {
+  async function run(key, operation, success) {
+    if (actionLock.current || cooldown > 0) return;
+    actionLock.current = true;
+    setBusy(key);
     setError('');
+    setRetryAfterSeconds(0);
     try {
       await operation();
       setMessage(success);
       await load();
       await refresh();
     } catch (value) {
-      setError(normalizeApiError(value).message);
+      const normalized = normalizeApiError(value);
+      setError(normalized.message);
+      setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
+    } finally {
+      actionLock.current = false;
+      setBusy('');
     }
   }
   if (loading) return <LoadingState message="Carregando privacidade..." />;
@@ -72,6 +86,7 @@ export function PrivacySettingsPage() {
         type={classifyPageError(initialError)}
         onRetry={loadInitial}
         requestId={getErrorRequestId(initialError)}
+        retryAfterSeconds={initialError.retryAfterSeconds}
         embedded
       />
     );
@@ -79,17 +94,23 @@ export function PrivacySettingsPage() {
   const sensitiveActionReady = account?.hasLocalPassword || account?.recentlyReauthenticated;
   return (
     <>
-      <SettingsFeedback error={error} message={message} />
+      <SettingsFeedback error={error} message={message} retryAfterSeconds={cooldown} />
       <section className="settings-card">
         <h2>Portabilidade</h2>
         <p>Baixe um arquivo ZIP com documentos JSON versionados e sem credenciais.</p>
         <button
           type="button"
+          disabled={Boolean(busy) || cooldown > 0}
+          aria-busy={busy === 'export'}
           onClick={() =>
-            void run(async () => download(await settingsApi.exportData()), 'Exportação concluída.')
+            void run(
+              'export',
+              async () => download(await settingsApi.exportData()),
+              'Exportação concluída.'
+            )
           }
         >
-          Exportar meus dados
+          {busy === 'export' ? 'Preparando exportação...' : 'Exportar meus dados'}
         </button>
       </section>
       <section className="settings-card danger-zone">
@@ -126,7 +147,8 @@ export function PrivacySettingsPage() {
             <button
               className="button button-secondary"
               type="button"
-              disabled={!sensitiveActionReady}
+              disabled={!sensitiveActionReady || Boolean(busy) || cooldown > 0}
+              aria-busy={busy === 'cancel-deletion'}
               onClick={async () => {
                 if (
                   !(await confirm({
@@ -137,6 +159,7 @@ export function PrivacySettingsPage() {
                 )
                   return;
                 await run(
+                  'cancel-deletion',
                   () => settingsApi.cancelDeletion(password),
                   'Exclusão cancelada. Entre novamente.'
                 );
@@ -148,7 +171,8 @@ export function PrivacySettingsPage() {
             <button
               className="button button-danger"
               type="button"
-              disabled={!sensitiveActionReady}
+              disabled={!sensitiveActionReady || Boolean(busy) || cooldown > 0}
+              aria-busy={busy === 'request-deletion'}
               onClick={async () => {
                 if (
                   !(await confirm({
@@ -158,7 +182,11 @@ export function PrivacySettingsPage() {
                   }))
                 )
                   return;
-                await run(() => settingsApi.requestDeletion(password), 'Exclusão agendada.');
+                await run(
+                  'request-deletion',
+                  () => settingsApi.requestDeletion(password),
+                  'Exclusão agendada.'
+                );
               }}
             >
               Solicitar exclusão

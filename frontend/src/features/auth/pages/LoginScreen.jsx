@@ -1,6 +1,11 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
-import { FeedbackRegion, FormInput, normalizeApiError } from '../../../shared/index.js';
+import {
+  FeedbackRegion,
+  FormInput,
+  normalizeApiError,
+  useCountdown
+} from '../../../shared/index.js';
 import { useAuth } from '../AuthContext.jsx';
 import { AuthShell } from '../components/AuthShell.jsx';
 import { PasswordField } from '../components/PasswordField.jsx';
@@ -27,6 +32,10 @@ export function LoginScreen() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [githubSubmitting, setGithubSubmitting] = useState(false);
+  const [retryAfterSeconds, setRetryAfterSeconds] = useState(0);
+  const cooldown = useCountdown(retryAfterSeconds);
+  const submitLock = useRef(false);
+  const githubLock = useRef(false);
   const returnTo = sanitizeInternalReturnTo(location.state?.from || '/projects');
   const githubReason = new URLSearchParams(location.search).get('reason');
   function change(field, value) {
@@ -35,6 +44,7 @@ export function LoginScreen() {
   }
   async function submit(event) {
     event.preventDefault();
+    if (submitLock.current) return;
     const validation = {};
     if (!values.identifier.trim()) validation.identifier = 'Campo obrigatório.';
     if (!values.password) validation.password = 'Campo obrigatório.';
@@ -44,6 +54,8 @@ export function LoginScreen() {
       return;
     }
     setError('');
+    setRetryAfterSeconds(0);
+    submitLock.current = true;
     setSubmitting(true);
     try {
       await login(values);
@@ -51,17 +63,21 @@ export function LoginScreen() {
     } catch (cause) {
       const normalized = normalizeApiError(cause);
       setError(normalized.message);
+      setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
       setFieldErrors(normalized.fieldErrors);
       const firstInvalidField = Object.keys(normalized.fieldErrors)[0];
       if (firstInvalidField)
         queueMicrotask(() => document.getElementById(firstInvalidField)?.focus());
     } finally {
+      submitLock.current = false;
       setSubmitting(false);
     }
   }
   async function loginWithGithub() {
-    if (githubSubmitting) return;
+    if (githubLock.current) return;
     setError('');
+    setRetryAfterSeconds(0);
+    githubLock.current = true;
     setGithubSubmitting(true);
     try {
       const result = await authApi.startGithubLogin({
@@ -70,7 +86,10 @@ export function LoginScreen() {
       });
       window.location.assign(result.url);
     } catch (cause) {
-      setError(normalizeApiError(cause).message);
+      const normalized = normalizeApiError(cause);
+      setError(normalized.message);
+      setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
+      githubLock.current = false;
       setGithubSubmitting(false);
     }
   }
@@ -118,9 +137,18 @@ export function LoginScreen() {
           </label>
           <Link to="/forgot-password">Esqueci minha senha</Link>
         </div>
-        <FeedbackRegion error={error || githubErrors[githubReason]} />
-        <button className="button button-primary auth-submit" type="submit" disabled={submitting}>
-          {submitting ? 'Entrando...' : 'Entrar'}
+        <FeedbackRegion
+          error={cooldown ? undefined : error || githubErrors[githubReason]}
+          rateLimit={cooldown ? error : undefined}
+          retryAfterSeconds={retryAfterSeconds}
+        />
+        <button
+          className="button button-primary auth-submit"
+          type="submit"
+          disabled={submitting || cooldown > 0}
+          aria-busy={submitting}
+        >
+          {submitting ? 'Entrando...' : cooldown > 0 ? `Entrar em ${cooldown}s` : 'Entrar'}
         </button>
         <div className="auth-divider">
           <span>ou</span>
@@ -128,7 +156,7 @@ export function LoginScreen() {
         <button
           className="button github-login-button"
           type="button"
-          disabled={submitting || githubSubmitting}
+          disabled={submitting || githubSubmitting || cooldown > 0}
           aria-busy={githubSubmitting}
           onClick={() => void loginWithGithub()}
         >

@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { membersApi } from '../features/members/members.api.js';
-import { Card, FeedbackRegion, normalizeApiError } from '../shared/index.js';
+import { Card, FeedbackRegion, normalizeApiError, useCountdown } from '../shared/index.js';
 
 const roleLabels = Object.freeze({
   OWNER: 'Proprietário',
@@ -32,6 +32,8 @@ export function AcceptInvitationPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [retryAfterSeconds, setRetryAfterSeconds] = useState(0);
+  const cooldown = useCountdown(retryAfterSeconds);
+  const actionLock = useRef(false);
 
   function showError(cause) {
     const normalized = normalizeApiError(cause);
@@ -53,6 +55,8 @@ export function AcceptInvitationPage() {
   }, [token]);
 
   async function accept() {
+    if (actionLock.current || cooldown > 0) return;
+    actionLock.current = true;
     setBusy('accept');
     setError('');
     setSuccess('');
@@ -63,10 +67,13 @@ export function AcceptInvitationPage() {
     } catch (cause) {
       showError(cause);
       setBusy('');
+      actionLock.current = false;
     }
   }
 
   async function decline() {
+    if (actionLock.current || cooldown > 0) return;
+    actionLock.current = true;
     setBusy('decline');
     setError('');
     setSuccess('');
@@ -78,6 +85,7 @@ export function AcceptInvitationPage() {
     } catch (cause) {
       showError(cause);
     } finally {
+      actionLock.current = false;
       setBusy('');
     }
   }
@@ -106,8 +114,8 @@ export function AcceptInvitationPage() {
           )}
 
           <FeedbackRegion
-            error={retryAfterSeconds ? undefined : error}
-            rateLimit={retryAfterSeconds ? error : undefined}
+            error={cooldown ? undefined : error}
+            rateLimit={cooldown ? error : undefined}
             retryAfterSeconds={retryAfterSeconds}
             success={success}
           />
@@ -118,20 +126,28 @@ export function AcceptInvitationPage() {
                 <button
                   className="button button-primary"
                   type="button"
-                  disabled={Boolean(busy)}
+                  disabled={Boolean(busy) || cooldown > 0}
                   aria-busy={busy === 'accept'}
                   onClick={() => void accept()}
                 >
-                  {busy === 'accept' ? 'Aceitando...' : 'Aceitar convite'}
+                  {busy === 'accept'
+                    ? 'Aceitando...'
+                    : cooldown > 0
+                      ? `Aceitar em ${cooldown}s`
+                      : 'Aceitar convite'}
                 </button>
                 <button
                   className="button button-secondary"
                   type="button"
-                  disabled={Boolean(busy)}
+                  disabled={Boolean(busy) || cooldown > 0}
                   aria-busy={busy === 'decline'}
                   onClick={() => void decline()}
                 >
-                  {busy === 'decline' ? 'Recusando...' : 'Recusar convite'}
+                  {busy === 'decline'
+                    ? 'Recusando...'
+                    : cooldown > 0
+                      ? `Recusar em ${cooldown}s`
+                      : 'Recusar convite'}
                 </button>
               </>
             )}

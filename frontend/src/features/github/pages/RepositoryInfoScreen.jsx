@@ -4,9 +4,12 @@ import { getProjectArtifacts } from '../index.js';
 import { ProjectSectionNav } from '../../projects/index.js';
 import {
   compactParams,
+  ContextualErrorPage,
   ErrorState,
   FeedbackRegion,
   LoadingState,
+  classifyPageError,
+  getErrorRequestId,
   normalizeApiError,
   useAbortableRequest
 } from '../../../shared/index.js';
@@ -105,6 +108,7 @@ export function RepositoryInfoScreen() {
   const [appliedFilters, setAppliedFilters] = useState(emptyFilters);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [pageError, setPageError] = useState(null);
   const [retryAfterSeconds, setRetryAfterSeconds] = useState(0);
 
   const loadArtifacts = useCallback(
@@ -120,6 +124,7 @@ export function RepositoryInfoScreen() {
       const requestParams = compactParams(nextFilters);
       setLoading(true);
       setError('');
+      setPageError(null);
       setRetryAfterSeconds(0);
       let settled = false;
 
@@ -142,6 +147,7 @@ export function RepositoryInfoScreen() {
           'Não foi possível carregar os artefatos do repositório.'
         );
         setError(normalized.message);
+        setPageError(normalized);
         setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
       } finally {
         if (settled) setLoading(false);
@@ -178,6 +184,18 @@ export function RepositoryInfoScreen() {
   const summary = repositoryData?.summary || {};
   const artifacts = repositoryData?.artifacts || [];
   const showFilteredEmptyState = hasActiveFilters(appliedFilters);
+
+  if (!loading && !repositoryData && pageError) {
+    return (
+      <ContextualErrorPage
+        type={classifyPageError(pageError)}
+        description={pageError.message}
+        requestId={getErrorRequestId(pageError)}
+        retryAfterSeconds={pageError.retryAfterSeconds}
+        onRetry={() => loadArtifacts(appliedFilters)}
+      />
+    );
+  }
 
   return (
     <main className="page-container repository-page">

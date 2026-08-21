@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -73,5 +73,58 @@ describe('AcceptInvitationPage', () => {
     renderPage('/invitations/accept');
     expect(await screen.findByText(/link do convite está incompleto/i)).toBeInTheDocument();
     await waitFor(() => expect(apiMock.post).not.toHaveBeenCalled());
+  });
+
+  it.each([
+    ['EXPIRED', 'Este convite expirou.'],
+    ['REVOKED', 'Este convite foi revogado pelo projeto.'],
+    ['ACCEPTED', 'Este convite já foi aceito.']
+  ])('explica o estado %s sem oferecer nova mutação', async (status, message) => {
+    apiMock.post.mockResolvedValueOnce({
+      data: {
+        invitation: {
+          project: { id: 9, name: 'Projeto artificial' },
+          role: 'MEMBER',
+          expiresAt: '2030-01-08T12:00:00.000Z',
+          status
+        }
+      }
+    });
+    renderPage();
+
+    expect(await screen.findByText(message)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Aceitar convite' })).not.toBeInTheDocument();
+  });
+
+  it('impede aceite duplicado enquanto a primeira mutação está pendente', async () => {
+    let resolveAccept;
+    apiMock.post.mockImplementation((path) => {
+      if (path === '/projects/invitations/details')
+        return Promise.resolve({
+          data: {
+            invitation: {
+              project: { id: 9, name: 'Projeto artificial' },
+              role: 'MEMBER',
+              expiresAt: '2030-01-08T12:00:00.000Z',
+              status: 'PENDING'
+            }
+          }
+        });
+      if (path === '/projects/invitations/accept')
+        return new Promise((resolve) => {
+          resolveAccept = resolve;
+        });
+      return Promise.reject(new Error(`URL inesperada: ${path}`));
+    });
+    renderPage();
+    const button = await screen.findByRole('button', { name: 'Aceitar convite' });
+
+    fireEvent.click(button);
+    fireEvent.click(button);
+    expect(
+      apiMock.post.mock.calls.filter(([path]) => path === '/projects/invitations/accept')
+    ).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'Aceitando...' })).toBeDisabled();
+    await act(async () => resolveAccept({ data: { membership: { projectId: 9 } } }));
   });
 });

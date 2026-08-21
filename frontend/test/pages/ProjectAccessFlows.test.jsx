@@ -102,4 +102,15 @@ describe('ingresso por código de projeto', () => {
     expect(await screen.findByText('Código de acesso inválido.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Entrar no projeto' })).not.toBeInTheDocument();
   });
+
+  it.each([
+    [410, 'Código de acesso expirado.'],
+    [403, 'Você não possui permissão para usar este código.']
+  ])('mantém feedback funcional para falha HTTP %s', async (status, message) => {
+    apiMock.joinDetails.mockRejectedValue({ response: { status, data: { message } } });
+    renderJoin('/join/TRC-ABCDEF12');
+
+    expect(await screen.findByText(message)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Entrar no projeto' })).not.toBeInTheDocument();
+  });
 });

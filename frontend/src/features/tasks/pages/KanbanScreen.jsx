@@ -15,12 +15,20 @@ import { KanbanBoard } from '../components/KanbanBoard.jsx';
 import { KANBAN_COLUMNS } from '../components/kanban-display.js';
 import { MovementHistory } from '../components/MovementHistory.jsx';
 import { TaskDetailsPanel } from '../components/TaskDetailsPanel.jsx';
-import { FeedbackRegion, LoadingState, useConfirm } from '../../../shared/index.js';
+import {
+  FeedbackRegion,
+  ContextualErrorPage,
+  LoadingState,
+  classifyPageError,
+  getErrorRequestId,
+  normalizeApiError,
+  useConfirm
+} from '../../../shared/index.js';
 
 const MOVEMENTS_PER_PAGE = 10;
 
 function getErrorMessage(error, fallback) {
-  return error.response?.data?.message || fallback;
+  return normalizeApiError(error, fallback).message;
 }
 
 function buildPeriodParams(period) {
@@ -115,6 +123,7 @@ export function KanbanScreen() {
   const [draggingTaskId, setDraggingTaskId] = useState(null);
   const [dragOverStatus, setDragOverStatus] = useState('');
   const [error, setError] = useState('');
+  const [pageError, setPageError] = useState(null);
   const [success, setSuccess] = useState('');
   const suppressTaskClickRef = useRef(false);
   const loadedProjectIdRef = useRef(null);
@@ -140,6 +149,7 @@ export function KanbanScreen() {
     async (params = {}) => {
       setLoading(true);
       setError('');
+      setPageError(null);
 
       try {
         const [
@@ -171,7 +181,7 @@ export function KanbanScreen() {
         );
         setProjectMembers(members);
       } catch (requestError) {
-        setError(getErrorMessage(requestError, 'Não foi possível carregar o Kanban.'));
+        setPageError(normalizeApiError(requestError, 'Não foi possível carregar o Kanban.'));
       } finally {
         setLoading(false);
       }
@@ -184,6 +194,18 @@ export function KanbanScreen() {
     loadedProjectIdRef.current = projectId;
     void loadKanban();
   }, [loadKanban, projectId]);
+
+  if (!loading && !project && pageError) {
+    return (
+      <ContextualErrorPage
+        type={classifyPageError(pageError)}
+        description={pageError.message}
+        requestId={getErrorRequestId(pageError)}
+        retryAfterSeconds={pageError.retryAfterSeconds}
+        onRetry={loadKanban}
+      />
+    );
+  }
 
   async function refreshKanban(
     params = {

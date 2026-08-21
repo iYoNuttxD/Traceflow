@@ -4,7 +4,16 @@ import {
   getRequirementTraceability,
   getRequirementsTraceabilityMatrix
 } from '../api/traceability.api.js';
-import { Card, ErrorState, LoadingState, useAbortableRequest } from '../../../shared/index.js';
+import {
+  Card,
+  ContextualErrorPage,
+  ErrorState,
+  LoadingState,
+  classifyPageError,
+  getErrorRequestId,
+  normalizeApiError,
+  useAbortableRequest
+} from '../../../shared/index.js';
 import { ProjectSectionNav } from '../../projects/index.js';
 import { TraceabilityFlow } from '../components/TraceabilityFlow.jsx';
 
@@ -28,11 +37,11 @@ const implementationStatusLabels = {
 };
 
 function getErrorMessage(error, fallback) {
-  return error.response?.data?.message || fallback;
+  return normalizeApiError(error, fallback).message;
 }
 
-function formatPercentage(value) {
-  const percentage = typeof value === 'object' ? value?.percentage : value;
+function formatPercentage(metric) {
+  const percentage = metric?.percentage;
   if (percentage == null) return 'Sem dados';
   return `${Number(percentage).toLocaleString('pt-BR', {
     maximumFractionDigits: 2
@@ -56,13 +65,13 @@ export function TraceabilityScreen() {
   const [requirementTraceability, setRequirementTraceability] = useState(null);
   const [loadingMatrix, setLoadingMatrix] = useState(true);
   const [loadingRequirement, setLoadingRequirement] = useState(false);
-  const [matrixError, setMatrixError] = useState('');
+  const [matrixError, setMatrixError] = useState(null);
   const [requirementError, setRequirementError] = useState('');
   const [page, setPage] = useState(1);
 
   const loadMatrix = useCallback(async () => {
     setLoadingMatrix(true);
-    setMatrixError('');
+    setMatrixError(null);
     let settled = false;
 
     try {
@@ -76,7 +85,7 @@ export function TraceabilityScreen() {
       settled = true;
       setMatrixData(null);
       setMatrixError(
-        getErrorMessage(requestError, 'Não foi possível carregar a matriz de rastreabilidade.')
+        normalizeApiError(requestError, 'Não foi possível carregar a matriz de rastreabilidade.')
       );
     } finally {
       if (settled) setLoadingMatrix(false);
@@ -118,6 +127,18 @@ export function TraceabilityScreen() {
   const requirements = matrixData?.requirements || [];
   const pagination = matrixData?.pagination || {};
 
+  if (!loadingMatrix && !matrixData && matrixError) {
+    return (
+      <ContextualErrorPage
+        type={classifyPageError(matrixError)}
+        description={matrixError.message}
+        requestId={getErrorRequestId(matrixError)}
+        retryAfterSeconds={matrixError.retryAfterSeconds}
+        onRetry={loadMatrix}
+      />
+    );
+  }
+
   return (
     <main className="page-container traceability-page">
       <Link className="back-link" to={`/projects/${projectId}`}>
@@ -136,7 +157,11 @@ export function TraceabilityScreen() {
       {loadingMatrix ? (
         <LoadingState message="Carregando rastreabilidade..." />
       ) : matrixError ? (
-        <ErrorState message={matrixError} onRetry={loadMatrix} />
+        <ErrorState
+          message={matrixError.message}
+          onRetry={loadMatrix}
+          retryAfterSeconds={matrixError.retryAfterSeconds}
+        />
       ) : requirements.length === 0 ? (
         <Card title="Matriz de rastreabilidade">
           <p className="empty-state">Nenhum requisito cadastrado para este projeto.</p>
@@ -159,9 +184,7 @@ export function TraceabilityScreen() {
               <strong className="metric-value">{summary.implementedRequirements ?? 0}</strong>
             </Card>
             <Card title="Progresso médio">
-              <strong className="metric-value">
-                {formatPercentage(summary.averageProgress || summary.averageProgressPercentage)}
-              </strong>
+              <strong className="metric-value">{formatPercentage(summary.averageProgress)}</strong>
             </Card>
           </section>
 
@@ -200,16 +223,12 @@ export function TraceabilityScreen() {
                         <td>{formatRequirementStatus(requirement.status)}</td>
                         <td>
                           <div className="traceability-progress">
-                            <span>
-                              {formatPercentage(
-                                requirement.progress || requirement.progressPercentage
-                              )}
-                            </span>
+                            <span>{formatPercentage(requirement.progress)}</span>
                             <div className="traceability-progress-bar">
                               <span
                                 style={{
                                   width: `${Math.min(
-                                    Number(requirement.progressPercentage || 0),
+                                    Number(requirement.progress?.percentage ?? 0),
                                     100
                                   )}%`
                                 }}

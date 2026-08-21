@@ -9,7 +9,14 @@ import {
 import { getRequirementTaskCoverage } from '../../traceability/index.js';
 import { projectsApi } from '../../projects/index.js';
 import { tasksApi } from '../../tasks/index.js';
-import { Card, useConfirm } from '../../../shared/index.js';
+import {
+  Card,
+  ContextualErrorPage,
+  classifyPageError,
+  getErrorRequestId,
+  normalizeApiError,
+  useConfirm
+} from '../../../shared/index.js';
 import { ProjectSectionNav } from '../../projects/index.js';
 
 const emptyRequirementForm = {
@@ -38,7 +45,7 @@ const statusLabels = {
 };
 
 function getErrorMessage(error, fallback) {
-  return error.response?.data?.message || fallback;
+  return normalizeApiError(error, fallback).message;
 }
 
 function formatDateTime(value) {
@@ -93,11 +100,13 @@ export function RequirementsScreen() {
   const [confirmingRequirementId, setConfirmingRequirementId] = useState(null);
   const [deletingRequirementId, setDeletingRequirementId] = useState(null);
   const [error, setError] = useState('');
+  const [pageError, setPageError] = useState(null);
   const [success, setSuccess] = useState('');
 
   const loadRequirementsData = useCallback(async () => {
     setLoading(true);
     setError('');
+    setPageError(null);
 
     try {
       const [projectResponse, requirementsResponse, coverageResponse] = await Promise.all([
@@ -110,8 +119,8 @@ export function RequirementsScreen() {
       setRequirements(requirementsResponse.data.requirements || []);
       setTaskCoverage(coverageResponse);
     } catch (requestError) {
-      setError(
-        getErrorMessage(requestError, 'Não foi possível carregar os requisitos do projeto.')
+      setPageError(
+        normalizeApiError(requestError, 'Não foi possível carregar os requisitos do projeto.')
       );
     } finally {
       setLoading(false);
@@ -309,6 +318,18 @@ export function RequirementsScreen() {
       <main className="page-container">
         <p className="empty-state">Carregando requisitos...</p>
       </main>
+    );
+  }
+
+  if (!project && pageError) {
+    return (
+      <ContextualErrorPage
+        type={classifyPageError(pageError)}
+        description={pageError.message}
+        requestId={getErrorRequestId(pageError)}
+        retryAfterSeconds={pageError.retryAfterSeconds}
+        onRetry={loadRequirementsData}
+      />
     );
   }
 

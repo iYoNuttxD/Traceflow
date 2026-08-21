@@ -45,9 +45,12 @@ const project = {
   description: 'Descrição',
   responsibleTeam: 'Equipe',
   status: 'ATIVO',
-  githubRepositoryFullName: 'owner/repo',
-  githubRepositoryUrl: 'https://github.com/owner/repo',
-  githubSyncStatus: 'NUNCA_SINCRONIZADO',
+  githubIntegration: {
+    repositoryFullName: 'owner/repo',
+    repositoryUrl: 'https://github.com/owner/repo',
+    lastSyncStatus: null,
+    lastSyncAt: null
+  },
   createdAt: '2026-01-01T00:00:00Z',
   updatedAt: '2026-01-01T00:00:00Z'
 };
@@ -133,8 +136,11 @@ describe('ProjectDetailsPage E9', () => {
       data: {
         project: {
           ...project,
-          githubSyncStatus: 'SINCRONIZADO',
-          githubLastSyncAt: '2026-01-02T00:00:00Z'
+          githubIntegration: {
+            ...project.githubIntegration,
+            lastSyncStatus: 'SINCRONIZADO',
+            lastSyncAt: '2026-01-02T00:00:00Z'
+          }
         }
       }
     });
@@ -142,6 +148,7 @@ describe('ProjectDetailsPage E9', () => {
     expect(screen.getByText('Carregando projeto...')).toBeInTheDocument();
     await act(async () => {});
     const button = screen.getByRole('button', { name: 'Sincronizar' });
+    fireEvent.click(button);
     fireEvent.click(button);
     await act(async () => {});
     expect(screen.getByRole('status')).toHaveTextContent('Sincronizando GitHub...');
@@ -250,6 +257,43 @@ describe('ProjectDetailsPage E9', () => {
     expect(await screen.findByText(message)).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Projeto E9' })).toBeInTheDocument();
     await waitFor(() => expect(mocks.api.get).toHaveBeenCalledTimes(2));
+  });
+
+  it('respeita Retry-After antes de permitir novo sync', async () => {
+    const user = userEvent.setup();
+    mocks.syncProjectGithub.mockRejectedValueOnce({
+      response: {
+        status: 429,
+        data: { message: 'Muitas requisições.' },
+        headers: { 'retry-after': '9' }
+      }
+    });
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Sincronizar' }));
+
+    expect(await screen.findByRole('button', { name: 'Sincronizar em 9s' })).toBeDisabled();
+    expect(screen.getByRole('alert')).toHaveTextContent('Tente novamente em 9s.');
+  });
+
+  it('não expõe erro técnico persistido pela integração', async () => {
+    mocks.api.get.mockResolvedValueOnce({
+      data: {
+        project: {
+          ...project,
+          githubIntegration: {
+            ...project.githubIntegration,
+            lastSyncStatus: 'FALHA',
+            lastSyncError: 'Prisma stack em /app/github-sync.js'
+          }
+        }
+      }
+    });
+    renderPage();
+
+    expect(
+      await screen.findByText('A última sincronização não pôde ser concluída.')
+    ).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/Prisma|\/app\/github-sync/);
   });
 
   it('oculta a ação de sync para MEMBER', async () => {

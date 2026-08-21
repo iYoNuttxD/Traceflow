@@ -1,12 +1,15 @@
 import { useState } from 'react';
-import { FeedbackRegion } from '../../../shared/index.js';
+import { FeedbackRegion, useCountdown } from '../../../shared/index.js';
 import { useAuth } from '../AuthContext.jsx';
 
 export function AuthShell({ eyebrow, title, description, children, footer }) {
   const { bootstrapError, refresh } = useAuth();
   const [retrying, setRetrying] = useState(false);
+  const retryAfterSeconds = bootstrapError?.retryAfterSeconds || 0;
+  const remaining = useCountdown(retryAfterSeconds);
 
   async function retryBootstrap() {
+    if (retrying || remaining > 0) return;
     setRetrying(true);
     try {
       await refresh();
@@ -30,15 +33,19 @@ export function AuthShell({ eyebrow, title, description, children, footer }) {
               <FeedbackRegion
                 error={bootstrapError.isRateLimit ? undefined : bootstrapError.message}
                 rateLimit={bootstrapError.isRateLimit ? bootstrapError.message : undefined}
-                retryAfterSeconds={bootstrapError.retryAfterSeconds}
+                retryAfterSeconds={retryAfterSeconds}
               />
               <button
                 className="button button-secondary button-compact"
                 type="button"
-                disabled={retrying}
+                disabled={retrying || remaining > 0}
                 onClick={() => void retryBootstrap()}
               >
-                {retrying ? 'Tentando novamente...' : 'Tentar novamente'}
+                {retrying
+                  ? 'Tentando novamente...'
+                  : remaining > 0
+                    ? `Tentar novamente em ${remaining}s`
+                    : 'Tentar novamente'}
               </button>
             </div>
           )}

@@ -1,13 +1,15 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { getProjectGithubSyncStatus, syncProjectGithub } from '../../github/index.js';
 import {
   Card,
   ContextualErrorPage,
+  FeedbackRegion,
   PAGE_ERROR_TYPES,
   classifyPageError,
   getErrorRequestId,
-  normalizeApiError
+  normalizeApiError,
+  useCountdown
 } from '../../../shared/index.js';
 import { ProjectSectionNav } from '../components/ProjectSectionNav.jsx';
 import { ProjectForm, emptyProjectForm, updateProjectForm } from '../components/ProjectForm.jsx';
@@ -22,10 +24,6 @@ function toFormData(project) {
     responsibleTeam: project.responsibleTeam || '',
     status: project.status || 'ATIVO'
   };
-}
-
-function getErrorMessage(error, fallback) {
-  return error.response?.data?.message || fallback;
 }
 
 function formatDateTime(value) {
@@ -97,7 +95,7 @@ function isActiveSyncRun(run) {
 }
 
 function formatSyncFailure(run) {
-  const parts = [run.error?.message || 'Não foi possível concluir a sincronização.'];
+  const parts = ['Não foi possível concluir a sincronização.'];
   if (run.step) parts.push(`Etapa: ${syncStepLabels[run.step] || run.step}.`);
   if (run.currentBranch) parts.push(`Branch: ${run.currentBranch}.`);
   return parts.join(' ');
@@ -172,6 +170,10 @@ export function ProjectDetailsScreen() {
   const [pageError, setPageError] = useState(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [retryAfterSeconds, setRetryAfterSeconds] = useState(0);
+  const cooldown = useCountdown(retryAfterSeconds);
+  const updateLock = useRef(false);
+  const syncLock = useRef(false);
 
   const refreshProjectDetails = useCallback(async () => {
     const projectResponse = await projectsApi.get(id);
@@ -184,6 +186,7 @@ export function ProjectDetailsScreen() {
     setLoading(true);
     setPageError(null);
     setError('');
+    setRetryAfterSeconds(0);
     setGithubSyncStatus('idle');
 
     try {
@@ -209,8 +212,15 @@ export function ProjectDetailsScreen() {
           setGithubSyncStatus('syncing');
         }
       })
-      .catch(() => {
-        // O status persistido do projeto continua sendo o fallback visual.
+      .catch((requestError) => {
+        if (!cancelled) {
+          const normalized = normalizeApiError(
+            requestError,
+            'Não foi possível consultar o estado atual da sincronização.'
+          );
+          setError(normalized.message);
+          setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
+        }
       });
     return () => {
       cancelled = true;
@@ -241,11 +251,12 @@ export function ProjectDetailsScreen() {
       } catch (requestError) {
         if (!cancelled) {
           setError(
-            getErrorMessage(
+            normalizeApiError(
               requestError,
               'Não foi possível consultar o progresso da sincronização.'
-            )
+            ).message
           );
+          setRetryAfterSeconds(normalizeApiError(requestError).retryAfterSeconds || 0);
           setGithubSyncRun((current) => (current ? { ...current } : current));
         }
       }
@@ -262,8 +273,11 @@ export function ProjectDetailsScreen() {
 
   async function handleSubmit(event) {
     event.preventDefault();
+    if (updateLock.current || cooldown > 0) return;
+    updateLock.current = true;
     setSubmitting(true);
     setError('');
+    setRetryAfterSeconds(0);
     setSuccess('');
 
     try {
@@ -277,15 +291,21 @@ export function ProjectDetailsScreen() {
       setFormData(toFormData(response.data.project));
       setSuccess(response.data.message);
     } catch (requestError) {
-      setError(getErrorMessage(requestError, 'Não foi possível atualizar o projeto.'));
+      const normalized = normalizeApiError(requestError, 'Não foi possível atualizar o projeto.');
+      setError(normalized.message);
+      setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
     } finally {
+      updateLock.current = false;
       setSubmitting(false);
     }
   }
 
   async function handleGithubSync() {
+    if (syncLock.current || isActiveSyncRun(githubSyncRun) || cooldown > 0) return;
+    syncLock.current = true;
     setGithubSyncStatus('syncing');
     setError('');
+    setRetryAfterSeconds(0);
     setSuccess('');
 
     try {
@@ -293,18 +313,20 @@ export function ProjectDetailsScreen() {
       setGithubSyncRun(response.run);
     } catch (requestError) {
       setGithubSyncStatus('error');
-      setError(
-        getErrorMessage(
-          requestError,
-          'Não foi possível sincronizar com o GitHub no momento. Verifique sua conexão ou tente novamente mais tarde.'
-        )
+      const normalized = normalizeApiError(
+        requestError,
+        'Não foi possível sincronizar com o GitHub no momento. Verifique sua conexão ou tente novamente mais tarde.'
       );
+      setError(normalized.message);
+      setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
 
       try {
         await refreshProjectDetails();
       } catch {
         // Mantem o estado local de falha se a atualização do projeto também falhar.
       }
+    } finally {
+      syncLock.current = false;
     }
   }
 
@@ -330,6 +352,7 @@ export function ProjectDetailsScreen() {
         onRetry={loadProject}
         secondaryAction={{ label: 'Voltar aos projetos', href: '/projects' }}
         requestId={getErrorRequestId(pageError)}
+        retryAfterSeconds={pageError?.retryAfterSeconds}
       />
     );
   }
@@ -337,7 +360,7 @@ export function ProjectDetailsScreen() {
   const repositoryName = getRepositoryName(project);
   const repositoryUrl = getRepositoryUrl(project);
   const githubSyncDisplay = getGithubSyncDisplay(project, githubSyncStatus);
-  const syncingGithub = isActiveSyncRun(githubSyncRun);
+  const syncingGithub = githubSyncStatus === 'syncing' || isActiveSyncRun(githubSyncRun);
 
   return (
     <main className="page-container">
@@ -357,12 +380,17 @@ export function ProjectDetailsScreen() {
           showSyncButton={['MANAGER', 'OWNER'].includes(currentMembership?.role)}
           onSync={handleGithubSync}
           isSyncing={syncingGithub}
+          retryAfterSeconds={cooldown}
         />
       </header>
 
-      {error && <div className="message message-error">{error}</div>}
-      {success && <div className="message message-success">{success}</div>}
-      {syncingGithub && (
+      <FeedbackRegion
+        error={cooldown ? undefined : error}
+        rateLimit={cooldown ? error : undefined}
+        retryAfterSeconds={retryAfterSeconds}
+        success={success}
+      />
+      {githubSyncRun && syncingGithub && (
         <div className="github-sync-progress" role="status" aria-live="polite">
           <strong>Sincronizando GitHub...</strong>
           <span>
@@ -425,7 +453,7 @@ export function ProjectDetailsScreen() {
               project.githubIntegration.lastSyncError && (
                 <div>
                   <dt>Último erro</dt>
-                  <dd>{project.githubIntegration.lastSyncError}</dd>
+                  <dd>A última sincronização não pôde ser concluída.</dd>
                 </div>
               )}
             <div>

@@ -1,5 +1,5 @@
 import { MemoryRouter } from 'react-router';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -181,8 +181,10 @@ describe('ProjectsPage', () => {
           name: 'Projeto artificial',
           description: 'Descrição artificial',
           responsibleTeam: 'Equipe artificial',
-          githubOwner: 'usuario-artificial',
-          githubRepo: 'repositorio-artificial',
+          githubIntegration: {
+            repositoryFullName: 'usuario-artificial/repositorio-artificial',
+            status: 'ACTIVE'
+          },
           status: 'ATIVO'
         }
       ]
@@ -203,8 +205,8 @@ describe('ProjectsPage', () => {
     });
     renderPage();
 
-    expect(await screen.findByText('Falha artificial da API')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Vincular GitHub/ })).toBeInTheDocument();
+    expect(await screen.findAllByText('Falha artificial da API')).toHaveLength(3);
+    expect(screen.getByRole('link', { name: /Status do GitHub indisponível/ })).toBeInTheDocument();
     expect(screen.getByLabelText('Repositório GitHub *')).toBeDisabled();
   });
 
@@ -235,6 +237,33 @@ describe('ProjectsPage', () => {
       );
     });
     expect(await screen.findByText('Projeto cadastrado com sucesso.')).toBeInTheDocument();
+  });
+
+  it('impede duas criações concorrentes antes da atualização visual do botão', async () => {
+    let resolveCreate;
+    mockInitialRequests({ projects: [] });
+    apiMock.post.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveCreate = resolve;
+        })
+    );
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText('Nenhum projeto cadastrado ainda.');
+    await user.type(screen.getByLabelText('Nome do projeto *'), 'Projeto único');
+    await user.type(screen.getByLabelText('Área ou equipe responsável *'), 'Equipe única');
+    await user.selectOptions(
+      screen.getByLabelText('Repositório GitHub *'),
+      fakeRepository.fullName
+    );
+    const form = screen.getByRole('button', { name: 'Cadastrar projeto' }).closest('form');
+
+    fireEvent.submit(form);
+    fireEvent.submit(form);
+    expect(apiMock.post).toHaveBeenCalledOnce();
+    expect(screen.getByRole('button', { name: 'Salvando...' })).toBeDisabled();
+    await act(async () => resolveCreate({ data: { message: 'Projeto cadastrado com sucesso.' } }));
   });
 
   it('lista repositórios agregados e explica o projeto já vinculado sem ocultá-lo', async () => {

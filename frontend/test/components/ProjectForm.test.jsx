@@ -5,12 +5,14 @@ import { describe, expect, it, vi } from 'vitest';
 import { ProjectForm, emptyProjectForm } from '../../src/features/projects/index.js';
 
 const repository = {
-  id: '101',
+  githubRepositoryId: '101',
+  githubInstallationId: '77',
   owner: 'usuario-artificial',
   name: 'repositorio-artificial',
   fullName: 'usuario-artificial/repositorio-artificial',
   url: 'https://github.com/usuario-artificial/repositorio-artificial',
-  private: false
+  private: false,
+  defaultBranch: 'main'
 };
 
 function ProjectFormHarness({ onSubmit, submitting = false, loadingRepositories = false }) {

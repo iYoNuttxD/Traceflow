@@ -1,5 +1,4 @@
 import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -115,10 +114,9 @@ describe('ProtectedRoute', () => {
     expect(screen.queryByRole('heading', { name: /Entrar/ })).not.toBeInTheDocument();
   });
 
-  it('mantém 429 no feedback de rate limit e oferece retry explícito', async () => {
-    const user = userEvent.setup();
+  it('mantém 429 em página própria e bloqueia retry durante o cooldown', () => {
     authState.bootstrapError = {
-      type: 'UNKNOWN',
+      type: 'RATE_LIMIT',
       message: 'Muitas tentativas.',
       isRateLimit: true,
       retryAfterSeconds: 30
@@ -127,9 +125,9 @@ describe('ProtectedRoute', () => {
 
     expect(screen.getByRole('alert')).toHaveTextContent('Muitas tentativas.');
     expect(
-      screen.queryByRole('heading', { name: 'Não foi possível exibir esta página.' })
-    ).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Tentar novamente' }));
-    expect(authState.refresh).toHaveBeenCalledOnce();
+      screen.getByRole('heading', { name: 'Muitas solicitações em pouco tempo.' })
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Tentar novamente em 30s' })).toBeDisabled();
+    expect(authState.refresh).not.toHaveBeenCalled();
   });
 });

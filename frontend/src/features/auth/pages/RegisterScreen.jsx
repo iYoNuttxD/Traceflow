@@ -1,6 +1,11 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
-import { FeedbackRegion, FormInput, normalizeApiError } from '../../../shared/index.js';
+import {
+  FeedbackRegion,
+  FormInput,
+  normalizeApiError,
+  useCountdown
+} from '../../../shared/index.js';
 import { useAuth } from '../AuthContext.jsx';
 import { AuthShell } from '../components/AuthShell.jsx';
 import { PasswordField } from '../components/PasswordField.jsx';
@@ -21,12 +26,16 @@ export function RegisterScreen() {
   const [fieldErrors, setFieldErrors] = useState({});
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [retryAfterSeconds, setRetryAfterSeconds] = useState(0);
+  const cooldown = useCountdown(retryAfterSeconds);
+  const submitLock = useRef(false);
   function change(field, value) {
     setValues((current) => ({ ...current, [field]: value }));
     setFieldErrors((current) => ({ ...current, [field]: undefined }));
   }
   async function submit(event) {
     event.preventDefault();
+    if (submitLock.current) return;
     const validation = {};
     for (const field of ['name', 'username', 'email', 'password', 'passwordConfirmation'])
       if (!values[field]) validation[field] = 'Campo obrigatório.';
@@ -43,6 +52,8 @@ export function RegisterScreen() {
       return;
     }
     setError('');
+    setRetryAfterSeconds(0);
+    submitLock.current = true;
     setSubmitting(true);
     try {
       const payload = { ...values };
@@ -52,11 +63,13 @@ export function RegisterScreen() {
     } catch (cause) {
       const normalized = normalizeApiError(cause);
       setError(normalized.message);
+      setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
       setFieldErrors(normalized.fieldErrors);
       const firstInvalidField = Object.keys(normalized.fieldErrors)[0];
       if (firstInvalidField)
         queueMicrotask(() => document.getElementById(firstInvalidField)?.focus());
     } finally {
+      submitLock.current = false;
       setSubmitting(false);
     }
   }
@@ -126,9 +139,18 @@ export function RegisterScreen() {
           onChange={(event) => change('passwordConfirmation', event.target.value)}
           error={fieldErrors.passwordConfirmation}
         />
-        <FeedbackRegion error={error} />
-        <button className="button button-primary auth-submit" type="submit" disabled={submitting}>
-          {submitting ? 'Criando...' : 'Criar conta'}
+        <FeedbackRegion
+          error={cooldown ? undefined : error}
+          rateLimit={cooldown ? error : undefined}
+          retryAfterSeconds={retryAfterSeconds}
+        />
+        <button
+          className="button button-primary auth-submit"
+          type="submit"
+          disabled={submitting || cooldown > 0}
+          aria-busy={submitting}
+        >
+          {submitting ? 'Criando...' : cooldown > 0 ? `Criar conta em ${cooldown}s` : 'Criar conta'}
         </button>
       </form>
     </AuthShell>

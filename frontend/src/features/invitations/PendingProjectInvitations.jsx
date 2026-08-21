@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
-import { Card, FeedbackRegion, normalizeApiError } from '../../shared/index.js';
+import { Card, FeedbackRegion, normalizeApiError, useCountdown } from '../../shared/index.js';
 import { personalInvitationsApi } from './personal-invitations.api.js';
 
 const roleLabels = Object.freeze({
@@ -21,6 +21,9 @@ export function PendingProjectInvitations({ onAccepted }) {
   const [acceptedProject, setAcceptedProject] = useState(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [retryAfterSeconds, setRetryAfterSeconds] = useState(0);
+  const cooldown = useCountdown(retryAfterSeconds);
+  const actionLock = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -30,10 +33,14 @@ export function PendingProjectInvitations({ onAccepted }) {
         if (active) setInvitations(items || []);
       })
       .catch((requestError) => {
-        if (active)
-          setError(
-            normalizeApiError(requestError, 'Não foi possível carregar seus convites.').message
+        if (active) {
+          const normalized = normalizeApiError(
+            requestError,
+            'Não foi possível carregar seus convites.'
           );
+          setError(normalized.message);
+          setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
+        }
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -44,9 +51,12 @@ export function PendingProjectInvitations({ onAccepted }) {
   }, []);
 
   async function respond(invitation, action) {
+    if (actionLock.current || cooldown > 0) return;
+    actionLock.current = true;
     setBusy(invitation.id);
     setError('');
     setSuccess('');
+    setRetryAfterSeconds(0);
     try {
       if (action === 'accept') {
         await personalInvitationsApi.accept(invitation.id);
@@ -59,8 +69,11 @@ export function PendingProjectInvitations({ onAccepted }) {
       }
       setInvitations((current) => current.filter(({ id }) => id !== invitation.id));
     } catch (requestError) {
-      setError(normalizeApiError(requestError, 'Não foi possível responder ao convite.').message);
+      const normalized = normalizeApiError(requestError, 'Não foi possível responder ao convite.');
+      setError(normalized.message);
+      setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
     } finally {
+      actionLock.current = false;
       setBusy(null);
     }
   }
@@ -70,7 +83,12 @@ export function PendingProjectInvitations({ onAccepted }) {
       className="projects-dashboard-card personal-invitations-card"
       title="Meus convites pendentes"
     >
-      <FeedbackRegion error={error} success={success} />
+      <FeedbackRegion
+        error={cooldown ? undefined : error}
+        rateLimit={cooldown ? error : undefined}
+        retryAfterSeconds={retryAfterSeconds}
+        success={success}
+      />
       {acceptedProject && (
         <Link
           className="button button-secondary link-button invitation-open-project"
@@ -96,18 +114,20 @@ export function PendingProjectInvitations({ onAccepted }) {
                 <button
                   className="button button-primary button-compact"
                   type="button"
-                  disabled={busy !== null}
+                  disabled={busy !== null || cooldown > 0}
+                  aria-busy={busy === invitation.id}
                   onClick={() => void respond(invitation, 'accept')}
                 >
-                  Aceitar
+                  {cooldown > 0 ? `Aceitar em ${cooldown}s` : 'Aceitar'}
                 </button>
                 <button
                   className="button button-secondary button-compact"
                   type="button"
-                  disabled={busy !== null}
+                  disabled={busy !== null || cooldown > 0}
+                  aria-busy={busy === invitation.id}
                   onClick={() => void respond(invitation, 'decline')}
                 >
-                  Recusar
+                  {cooldown > 0 ? `Recusar em ${cooldown}s` : 'Recusar'}
                 </button>
               </div>
             </article>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCountdown } from '../hooks/useCountdown.js';
 
 const feedback = Object.freeze({
   error: { icon: '!', role: 'alert' },
@@ -16,14 +16,7 @@ export function FeedbackRegion({
   rateLimit,
   retryAfterSeconds = 0
 }) {
-  const [remaining, setRemaining] = useState(retryAfterSeconds);
-
-  useEffect(() => setRemaining(retryAfterSeconds), [retryAfterSeconds]);
-  useEffect(() => {
-    if (remaining <= 0) return undefined;
-    const timer = window.setTimeout(() => setRemaining((value) => Math.max(0, value - 1)), 1000);
-    return () => window.clearTimeout(timer);
-  }, [remaining]);
+  const remaining = useCountdown(retryAfterSeconds);
 
   const entry = error
     ? ['error', error]

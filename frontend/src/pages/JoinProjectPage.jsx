@@ -1,8 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { membersApi } from '../features/members/index.js';
 import { parseProjectAccessInput } from '../features/projects/services/project-access-input.js';
-import { Card, FeedbackRegion, LoadingState, normalizeApiError } from '../shared/index.js';
+import {
+  Card,
+  FeedbackRegion,
+  LoadingState,
+  normalizeApiError,
+  useCountdown
+} from '../shared/index.js';
 
 const roleLabels = Object.freeze({ MEMBER: 'Membro', VIEWER: 'Visualizador' });
 
@@ -16,6 +22,9 @@ export function JoinProjectPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [retryAfterSeconds, setRetryAfterSeconds] = useState(0);
+  const cooldown = useCountdown(retryAfterSeconds);
+  const submitLock = useRef(false);
 
   useEffect(() => {
     if (!routeAccessCode) {
@@ -40,8 +49,14 @@ export function JoinProjectPage() {
         if (active) setDetails(responseDetails);
       })
       .catch((requestError) => {
-        if (active)
-          setError(normalizeApiError(requestError, 'Não foi possível consultar o código.').message);
+        if (active) {
+          const normalized = normalizeApiError(
+            requestError,
+            'Não foi possível consultar o código.'
+          );
+          setError(normalized.message);
+          setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
+        }
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -62,16 +77,22 @@ export function JoinProjectPage() {
   }
 
   async function joinProject() {
+    if (submitLock.current || cooldown > 0) return;
+    submitLock.current = true;
     setSubmitting(true);
     setError('');
     setSuccess('');
+    setRetryAfterSeconds(0);
     try {
       const response = await membersApi.joinProject({ accessCode: input });
       setJoinedProject(response.project);
       setSuccess(response.message);
     } catch (requestError) {
-      setError(normalizeApiError(requestError, 'Não foi possível entrar no projeto.').message);
+      const normalized = normalizeApiError(requestError, 'Não foi possível entrar no projeto.');
+      setError(normalized.message);
+      setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
     } finally {
+      submitLock.current = false;
       setSubmitting(false);
     }
   }
@@ -86,7 +107,12 @@ export function JoinProjectPage() {
         </div>
       </header>
 
-      <FeedbackRegion error={error} success={success} />
+      <FeedbackRegion
+        error={cooldown ? undefined : error}
+        rateLimit={cooldown ? error : undefined}
+        retryAfterSeconds={retryAfterSeconds}
+        success={success}
+      />
 
       {!routeAccessCode && (
         <Card title="Código de acesso">
@@ -123,10 +149,15 @@ export function JoinProjectPage() {
           <button
             className="button button-primary"
             type="button"
-            disabled={submitting}
+            disabled={submitting || cooldown > 0}
+            aria-busy={submitting}
             onClick={() => void joinProject()}
           >
-            {submitting ? 'Entrando...' : 'Entrar no projeto'}
+            {submitting
+              ? 'Entrando...'
+              : cooldown > 0
+                ? `Entrar em ${cooldown}s`
+                : 'Entrar no projeto'}
           </button>
         </Card>
       )}

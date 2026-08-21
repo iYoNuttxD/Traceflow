@@ -56,4 +56,21 @@ describe('GenericErrorPage', () => {
     );
     expect(screen.getByRole('link', { name: 'Ir para o início' })).toHaveAttribute('href', '/');
   });
+
+  it('bloqueia retry durante o cooldown de rate limit', () => {
+    render(
+      <MemoryRouter>
+        <GenericErrorPage
+          type={PAGE_ERROR_TYPES.RATE_LIMIT}
+          retryAfterSeconds={12}
+          onRetry={vi.fn()}
+        />
+      </MemoryRouter>
+    );
+
+    expect(
+      screen.getByRole('heading', { name: 'Muitas solicitações em pouco tempo.' })
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Tentar novamente em 12s' })).toBeDisabled();
+  });
 });

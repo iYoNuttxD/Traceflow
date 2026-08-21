@@ -21,7 +21,8 @@ vi.mock('../../src/api/http-client.js', () => ({
   resetHttpSessionScope: mocks.resetHttpSessionScope
 }));
 
-const { AuthProvider, useAuth } = await import('../../src/features/auth/AuthContext.jsx');
+const { AuthProvider, AUTH_SESSION_EVENT_KEY, useAuth } =
+  await import('../../src/features/auth/AuthContext.jsx');
 
 function AuthHarness() {
   const auth = useAuth();
@@ -57,6 +58,7 @@ function renderProvider({ strict = false } = {}) {
 describe('AuthContext', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
     mocks.authApi.me.mockResolvedValue({ data: { user: { id: 1, name: 'Daniel' } } });
     mocks.authApi.csrf.mockResolvedValue({ data: { csrfToken: 'csrf-restaurado' } });
     mocks.authApi.login.mockResolvedValue({
@@ -233,5 +235,55 @@ describe('AuthContext', () => {
     await waitFor(() =>
       expect(screen.getByTestId('auth-state')).toHaveTextContent('Daniel restrito')
     );
+  });
+
+  it('encerra a sessão local ao receber logout de outra aba', async () => {
+    renderProvider();
+    await waitFor(() => expect(screen.getByTestId('auth-state')).toHaveTextContent('Daniel'));
+
+    window.dispatchEvent(
+      new StorageEvent('storage', {
+        key: AUTH_SESSION_EVENT_KEY,
+        newValue: JSON.stringify({ type: 'signed-out', at: Date.now(), sequence: 9 })
+      })
+    );
+
+    await waitFor(() => expect(screen.getByTestId('auth-state')).toHaveTextContent('Visitante'));
+    expect(mocks.resetHttpSessionScope).toHaveBeenCalled();
+    expect(mocks.setCsrfToken).toHaveBeenLastCalledWith();
+  });
+
+  it('revalida cookie HttpOnly e CSRF após autenticação em outra aba', async () => {
+    renderProvider();
+    await waitFor(() => expect(screen.getByTestId('auth-state')).toHaveTextContent('Daniel'));
+    vi.clearAllMocks();
+    mocks.authApi.me.mockResolvedValueOnce({
+      data: { user: { id: 5, name: 'Outra aba' } }
+    });
+    mocks.authApi.csrf.mockResolvedValueOnce({ data: { csrfToken: 'csrf-outra-aba' } });
+
+    window.dispatchEvent(
+      new StorageEvent('storage', {
+        key: AUTH_SESSION_EVENT_KEY,
+        newValue: JSON.stringify({ type: 'authenticated', at: Date.now(), sequence: 10 })
+      })
+    );
+
+    await waitFor(() => expect(screen.getByTestId('auth-state')).toHaveTextContent('Outra aba'));
+    expect(mocks.resetHttpSessionScope).toHaveBeenCalledOnce();
+    expect(mocks.authApi.me).toHaveBeenCalledOnce();
+    expect(mocks.authApi.csrf).toHaveBeenCalledOnce();
+    expect(mocks.setCsrfToken).toHaveBeenLastCalledWith('csrf-outra-aba');
+  });
+
+  it('ignora evento entre abas inválido sem derrubar a sessão', async () => {
+    renderProvider();
+    await waitFor(() => expect(screen.getByTestId('auth-state')).toHaveTextContent('Daniel'));
+
+    window.dispatchEvent(
+      new StorageEvent('storage', { key: AUTH_SESSION_EVENT_KEY, newValue: '{invalido' })
+    );
+
+    expect(screen.getByTestId('auth-state')).toHaveTextContent('Daniel');
   });
 });

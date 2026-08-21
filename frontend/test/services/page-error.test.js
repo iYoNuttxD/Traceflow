@@ -36,6 +36,10 @@ describe('classificação de falhas de página', () => {
     expect(classifyPageError({ response: { status: 404 } })).toBe(PAGE_ERROR_TYPES.NOT_FOUND);
     expect(classifyPageError({ response: { status: 403 } })).toBe(PAGE_ERROR_TYPES.FORBIDDEN);
     expect(classifyPageError({ response: { status: 500 } })).toBe(PAGE_ERROR_TYPES.SERVER);
+    expect(classifyPageError({ response: { status: 429 } })).toBe(PAGE_ERROR_TYPES.RATE_LIMIT);
+    expect(classifyPageError(new Error('Failed to fetch dynamically imported module'))).toBe(
+      PAGE_ERROR_TYPES.NETWORK
+    );
     expect(classifyPageError(new Error('render'))).toBe(PAGE_ERROR_TYPES.UNKNOWN);
   });
 

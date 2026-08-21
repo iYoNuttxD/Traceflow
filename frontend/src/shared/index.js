@@ -12,6 +12,7 @@ export { FeedbackRegion } from './components/FeedbackRegion.jsx';
 export { FormInput } from './components/FormInput.jsx';
 export { ContextualErrorPage, GenericErrorPage } from './components/GenericErrorPage.jsx';
 export { useAbortableRequest } from './hooks/useAbortableRequest.js';
+export { useCountdown } from './hooks/useCountdown.js';
 export { normalizeApiError } from './services/http-error.js';
 export {
   PAGE_ERROR_TYPES,

@@ -125,4 +125,22 @@ describe('verificação de e-mail', () => {
     ).toBeInTheDocument();
     expect(mocks.verifyEmail).not.toHaveBeenCalled();
   });
+
+  it.each([
+    ['inválido', 'Token de verificação inválido.'],
+    ['expirado', 'Token de verificação expirado.'],
+    ['já utilizado', 'Token de verificação já utilizado.']
+  ])('apresenta erro seguro para token %s', async (_state, message) => {
+    mocks.verifyEmail.mockRejectedValueOnce({
+      response: { status: 400, data: { message } }
+    });
+    render(
+      <MemoryRouter initialEntries={['/verify-email?token=token-artificial']}>
+        <VerifyEmailScreen />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText(message)).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/Prisma|node_modules|stack/i);
+  });
 });

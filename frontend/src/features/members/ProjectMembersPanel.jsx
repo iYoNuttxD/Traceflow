@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { FeedbackRegion, normalizeApiError, useConfirm } from '../../shared/index.js';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { FeedbackRegion, normalizeApiError, useConfirm, useCountdown } from '../../shared/index.js';
 import { membersApi } from './members.api.js';
 
 const roles = ['OWNER', 'MANAGER', 'MEMBER', 'VIEWER'];
@@ -43,6 +43,8 @@ export function ProjectMembersPanel({ projectId, onCountChange, onMembershipLoad
   const [message, setMessage] = useState('');
   const [warning, setWarning] = useState('');
   const [retryAfterSeconds, setRetryAfterSeconds] = useState(0);
+  const cooldown = useCountdown(retryAfterSeconds);
+  const invitationLock = useRef(false);
   const isOwner = currentMembership?.role === 'OWNER';
   const activeOwnerCount = useMemo(
     () => members.filter((member) => member.isActive && member.role === 'OWNER').length,
@@ -99,6 +101,8 @@ export function ProjectMembersPanel({ projectId, onCountChange, onMembershipLoad
 
   async function submitInvitation(event) {
     event.preventDefault();
+    if (invitationLock.current || cooldown > 0) return;
+    invitationLock.current = true;
     clearFeedback();
     setBusy('invite');
     try {
@@ -111,6 +115,7 @@ export function ProjectMembersPanel({ projectId, onCountChange, onMembershipLoad
     } catch (requestError) {
       showError(requestError);
     } finally {
+      invitationLock.current = false;
       setBusy('');
     }
   }
@@ -176,8 +181,8 @@ export function ProjectMembersPanel({ projectId, onCountChange, onMembershipLoad
   return (
     <section className="team-panel" aria-label="Administração de membros" aria-busy={loading}>
       <FeedbackRegion
-        error={retryAfterSeconds ? undefined : error}
-        rateLimit={retryAfterSeconds ? error : undefined}
+        error={cooldown ? undefined : error}
+        rateLimit={cooldown ? error : undefined}
         retryAfterSeconds={retryAfterSeconds}
         warning={warning}
         success={message}
@@ -341,10 +346,14 @@ export function ProjectMembersPanel({ projectId, onCountChange, onMembershipLoad
             <button
               className="button button-primary"
               type="submit"
-              disabled={Boolean(busy)}
+              disabled={Boolean(busy) || cooldown > 0}
               aria-busy={busy === 'invite'}
             >
-              {busy === 'invite' ? 'Enviando...' : 'Enviar convite'}
+              {busy === 'invite'
+                ? 'Enviando...'
+                : cooldown > 0
+                  ? `Enviar convite em ${cooldown}s`
+                  : 'Enviar convite'}
             </button>
           </form>
 

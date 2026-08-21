@@ -118,7 +118,7 @@ describe('RepositoryInfoPage RF06', () => {
     renderPage();
     expect(await screen.findByRole('alert')).toHaveTextContent('Falha artificial.');
     expect(screen.queryByText(/Nenhum artefato/)).not.toBeInTheDocument();
-    expect(screen.getAllByRole('link', { name: 'Voltar para o projeto' })).toHaveLength(1);
+    expect(screen.getAllByRole('link', { name: 'Voltar ao projeto' })).toHaveLength(1);
 
     await user.click(screen.getByRole('button', { name: 'Tentar novamente' }));
     expect(

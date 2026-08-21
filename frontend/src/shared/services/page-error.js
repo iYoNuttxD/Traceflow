@@ -1,5 +1,6 @@
 export const PAGE_ERROR_TYPES = Object.freeze({
   NETWORK: 'NETWORK',
+  RATE_LIMIT: 'RATE_LIMIT',
   SERVER: 'SERVER',
   NOT_FOUND: 'NOT_FOUND',
   FORBIDDEN: 'FORBIDDEN',
@@ -61,6 +62,9 @@ export function isNetworkOrServiceUnavailable(error) {
 
   return (
     code === 'ERR_NETWORK' ||
+    /(?:failed to fetch dynamically imported module|importing a module script failed|error loading dynamically imported module)/i.test(
+      source?.message || ''
+    ) ||
     (source?.isAxiosError === true && !source.response) ||
     Boolean(source?.request && !source.response)
   );
@@ -68,6 +72,7 @@ export function isNetworkOrServiceUnavailable(error) {
 
 export function classifyPageError(error) {
   const status = getErrorStatus(error);
+  if (status === 429) return PAGE_ERROR_TYPES.RATE_LIMIT;
   if (status === 404) return PAGE_ERROR_TYPES.NOT_FOUND;
   if (status === 403) return PAGE_ERROR_TYPES.FORBIDDEN;
   if (isNetworkOrServiceUnavailable(error)) return PAGE_ERROR_TYPES.NETWORK;

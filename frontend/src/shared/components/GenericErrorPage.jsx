@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { useLocation } from 'react-router';
+import { useCountdown } from '../hooks/useCountdown.js';
 import { PAGE_ERROR_TYPES, resolveErrorPageContext } from '../services/page-error.js';
 
 const ERROR_CONTENT = Object.freeze({
@@ -7,6 +8,10 @@ const ERROR_CONTENT = Object.freeze({
     title: 'Não foi possível conectar ao TRACEFLOW.',
     description:
       'O servidor parece estar indisponível no momento. Verifique sua conexão e tente novamente.'
+  },
+  [PAGE_ERROR_TYPES.RATE_LIMIT]: {
+    title: 'Muitas solicitações em pouco tempo.',
+    description: 'Aguarde o tempo indicado antes de tentar novamente.'
   },
   [PAGE_ERROR_TYPES.SERVER]: {
     title: 'O TRACEFLOW encontrou um problema.',
@@ -36,11 +41,13 @@ export function GenericErrorPage({
   primaryLabel = 'Tentar novamente',
   secondaryAction,
   requestId,
+  retryAfterSeconds = 0,
   embedded = false
 }) {
   const headingRef = useRef(null);
   const headingId = useId();
   const [retrying, setRetrying] = useState(false);
+  const remaining = useCountdown(retryAfterSeconds);
   const content = ERROR_CONTENT[type] || ERROR_CONTENT[PAGE_ERROR_TYPES.UNKNOWN];
   const Container = embedded ? 'section' : 'main';
   const typeClassName = type.toLowerCase().replaceAll('_', '-');
@@ -50,7 +57,7 @@ export function GenericErrorPage({
   }, []);
 
   async function handleRetry() {
-    if (retrying) return;
+    if (retrying || remaining > 0) return;
     setRetrying(true);
     try {
       if (onRetry) await onRetry();
@@ -82,10 +89,14 @@ export function GenericErrorPage({
               className="button button-primary"
               type="button"
               onClick={handleRetry}
-              disabled={retrying}
+              disabled={retrying || remaining > 0}
               aria-busy={retrying}
             >
-              {retrying ? 'Tentando novamente...' : primaryLabel}
+              {retrying
+                ? 'Tentando novamente...'
+                : remaining > 0
+                  ? `Tentar novamente em ${remaining}s`
+                  : primaryLabel}
             </button>
           )}
           {secondaryAction && (

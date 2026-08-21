@@ -13,11 +13,17 @@ const mocks = vi.hoisted(() => ({
     updateProfile: vi.fn(),
     sessions: vi.fn(),
     deletion: vi.fn(),
+    requestDeletion: vi.fn(),
+    cancelDeletion: vi.fn(),
+    exportData: vi.fn(),
     github: vi.fn(),
     githubIdentity: vi.fn(),
     startGithubIdentityLink: vi.fn(),
     unlinkGithubIdentity: vi.fn(),
     initializePassword: vi.fn(),
+    changePassword: vi.fn(),
+    revokeSession: vi.fn(),
+    revokeOtherSessions: vi.fn(),
     removeGithubAuthorization: vi.fn(),
     startGithubInstallation: vi.fn(),
     confirmEmail: vi.fn(),
@@ -54,6 +60,7 @@ vi.mock('../../src/shared/index.js', () => ({
     </section>
   ),
   useConfirm: () => mocks.confirm,
+  useCountdown: (seconds) => seconds,
   LoadingState: ({ message }) => <p>{message}</p>,
   FeedbackRegion: ({ error, success }) => <div>{error || success}</div>
 }));
@@ -99,6 +106,9 @@ describe('configurações e estados restritos L2', () => {
       }
     ]);
     mocks.api.deletion.mockResolvedValue(null);
+    mocks.api.requestDeletion.mockResolvedValue({});
+    mocks.api.cancelDeletion.mockResolvedValue({});
+    mocks.api.exportData.mockResolvedValue(new Blob());
     mocks.api.github.mockResolvedValue([]);
     mocks.api.githubIdentity.mockResolvedValue({ linked: false });
     mocks.api.removeGithubAuthorization.mockResolvedValue({});
@@ -108,6 +118,9 @@ describe('configurações e estados restritos L2', () => {
     mocks.api.confirmEmail.mockResolvedValue({});
     mocks.api.confirmReactivation.mockResolvedValue({});
     mocks.api.initializePassword.mockResolvedValue({});
+    mocks.api.changePassword.mockResolvedValue({});
+    mocks.api.revokeSession.mockResolvedValue({});
+    mocks.api.revokeOtherSessions.mockResolvedValue({});
   });
 
   it('oferece reativação por e-mail para conta desativada', async () => {
@@ -271,6 +284,33 @@ describe('configurações e estados restritos L2', () => {
     );
   });
 
+  it('envia uma única alteração de senha enquanto a mutação está pendente', async () => {
+    let resolveChange;
+    mocks.api.changePassword.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveChange = resolve;
+        })
+    );
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <SecuritySettingsPage />
+      </MemoryRouter>
+    );
+    await user.type(await screen.findByLabelText('Senha atual'), 'Senha antiga segura 123');
+    await user.type(screen.getByLabelText('Nova senha'), 'Senha nova segura 456');
+    await user.type(screen.getByLabelText('Confirmar nova senha'), 'Senha nova segura 456');
+    const button = screen.getByRole('button', { name: 'Alterar senha' });
+
+    await user.click(button);
+    await user.click(button);
+    expect(mocks.api.changePassword).toHaveBeenCalledOnce();
+    expect(screen.getByRole('button', { name: 'Alterando senha...' })).toBeDisabled();
+    resolveChange({});
+    await waitFor(() => expect(screen.getByText(/Senha alterada com sucesso/)).toBeInTheDocument());
+  });
+
   it('explica confirmação divergente da primeira senha e limpa erro obsoleto ao editar', async () => {
     const user = userEvent.setup();
     mocks.api.account.mockResolvedValue({
@@ -335,6 +375,32 @@ describe('configurações e estados restritos L2', () => {
       await screen.findByRole('button', { name: 'Confirmar identidade com GitHub' })
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Solicitar exclusão' })).toBeDisabled();
+  });
+
+  it('envia uma única solicitação de exclusão enquanto a mutação está pendente', async () => {
+    let resolveDeletion;
+    mocks.api.requestDeletion.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveDeletion = resolve;
+        })
+    );
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <PrivacySettingsPage />
+      </MemoryRouter>
+    );
+    await user.type(await screen.findByLabelText('Senha atual'), 'Senha local segura 123');
+    const button = screen.getByRole('button', { name: 'Solicitar exclusão' });
+
+    await user.click(button);
+    await user.click(button);
+    expect(mocks.confirm).toHaveBeenCalledOnce();
+    expect(mocks.api.requestDeletion).toHaveBeenCalledOnce();
+    expect(button).toBeDisabled();
+    resolveDeletion({});
+    await waitFor(() => expect(screen.getByText('Exclusão agendada.')).toBeInTheDocument());
   });
 
   it.each([

@@ -194,4 +194,20 @@ describe('KanbanPage E11', () => {
     );
     expect(await screen.findByText(/Prioridade: Média para Alta/)).toBeInTheDocument();
   });
+
+  it('apresenta projeto inexistente em fallback recuperável', async () => {
+    mocks.api.get.mockRejectedValueOnce({
+      response: { status: 404, data: { code: 'PROJECT_NOT_FOUND' } }
+    });
+    renderPage();
+
+    expect(
+      await screen.findByRole('heading', { name: 'Página não encontrada.' })
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Tentar novamente' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Voltar ao projeto' })).toHaveAttribute(
+      'href',
+      '/projects/1'
+    );
+  });
 });

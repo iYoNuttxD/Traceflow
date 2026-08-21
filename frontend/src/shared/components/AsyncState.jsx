@@ -1,3 +1,6 @@
+import { useState } from 'react';
+import { useCountdown } from '../hooks/useCountdown.js';
+
 export function LoadingState({ message = 'Carregando...' }) {
   return (
     <div className="async-state" role="status" aria-live="polite">
@@ -17,14 +20,8 @@ export function EmptyState({ title = 'Nenhum resultado encontrado.', description
 }
 
 export function ErrorState({ message, onRetry, retryAfterSeconds = 0 }) {
-  const [remaining, setRemaining] = useState(retryAfterSeconds);
+  const remaining = useCountdown(retryAfterSeconds);
   const [retrying, setRetrying] = useState(false);
-  useEffect(() => setRemaining(retryAfterSeconds), [retryAfterSeconds]);
-  useEffect(() => {
-    if (remaining <= 0) return undefined;
-    const timer = window.setTimeout(() => setRemaining((value) => Math.max(0, value - 1)), 1000);
-    return () => window.clearTimeout(timer);
-  }, [remaining]);
 
   async function retry() {
     if (!onRetry || remaining > 0 || retrying) return;
@@ -85,4 +82,3 @@ export function RequestState({
   if (empty) return <EmptyState />;
   return children;
 }
-import { useEffect, useState } from 'react';

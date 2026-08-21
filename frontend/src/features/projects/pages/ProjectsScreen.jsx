@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import {
   Card,
   ErrorState,
   FeedbackRegion,
   LoadingState,
-  normalizeApiError
+  normalizeApiError,
+  useCountdown
 } from '../../../shared/index.js';
 import {
   ProjectForm,
@@ -17,10 +18,6 @@ import {
 import { projectsApi } from '../api/projects.api.js';
 import { ProjectJoinCard } from '../components/ProjectJoinCard.jsx';
 import { PendingProjectInvitations } from '../../invitations/index.js';
-
-function getErrorMessage(error, fallback) {
-  return error.response?.data?.message || fallback;
-}
 
 export function ProjectsScreen() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -34,24 +31,29 @@ export function ProjectsScreen() {
   const [loadingRepositories, setLoadingRepositories] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [repositoriesError, setRepositoriesError] = useState('');
-  const [error, setError] = useState('');
-  const [retryAfterSeconds, setRetryAfterSeconds] = useState(0);
+  const [projectsError, setProjectsError] = useState('');
+  const [projectsRetryAfterSeconds, setProjectsRetryAfterSeconds] = useState(0);
+  const [operationError, setOperationError] = useState('');
+  const [operationRetryAfterSeconds, setOperationRetryAfterSeconds] = useState(0);
+  const [installationsError, setInstallationsError] = useState('');
   const [success, setSuccess] = useState('');
   const [githubCallbackError, setGithubCallbackError] = useState('');
+  const operationCooldown = useCountdown(operationRetryAfterSeconds);
+  const operationLock = useRef(false);
   const reconnectProjectId = searchParams.get('projectId');
 
   const loadProjects = useCallback(async () => {
     setLoadingProjects(true);
-    setError('');
-    setRetryAfterSeconds(0);
+    setProjectsError('');
+    setProjectsRetryAfterSeconds(0);
 
     try {
       const response = await projectsApi.list();
       setProjects(response.data.projects);
     } catch (requestError) {
       const normalized = normalizeApiError(requestError, 'Não foi possível carregar os projetos.');
-      setError(normalized.message);
-      setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
+      setProjectsError(normalized.message);
+      setProjectsRetryAfterSeconds(normalized.retryAfterSeconds || 0);
     } finally {
       setLoadingProjects(false);
     }
@@ -67,24 +69,38 @@ export function ProjectsScreen() {
         .map(normalizeRepository)
         .filter(
           (repository) =>
-            repository.owner && repository.name && repository.fullName && repository.url
+            repository.id &&
+            repository.owner &&
+            repository.name &&
+            repository.fullName &&
+            repository.url &&
+            repository.defaultBranch &&
+            repository.githubInstallationId
         );
       setRepositories(validRepositories);
-    } catch {
+    } catch (requestError) {
       setRepositories([]);
-      setRepositoriesError('Não foi possível carregar os repositórios do GitHub.');
+      setRepositoriesError(
+        normalizeApiError(requestError, 'Não foi possível carregar os repositórios do GitHub.')
+          .message
+      );
     } finally {
       setLoadingRepositories(false);
     }
   }, [reconnectProjectId]);
 
   const loadInstallations = useCallback(async () => {
+    setInstallationsError('');
     try {
       const response = await projectsApi.listGithubInstallations();
       const available = response.data.installations || [];
       setInstallations(available);
-    } catch {
+    } catch (requestError) {
       setInstallations([]);
+      setInstallationsError(
+        normalizeApiError(requestError, 'Não foi possível verificar a conexão com o GitHub.')
+          .message
+      );
     }
   }, []);
 
@@ -155,7 +171,9 @@ export function ProjectsScreen() {
 
   async function handleSubmit(event) {
     event.preventDefault();
-    setError('');
+    if (operationLock.current || operationCooldown > 0) return;
+    setOperationError('');
+    setOperationRetryAfterSeconds(0);
     setSuccess('');
 
     if (
@@ -163,10 +181,11 @@ export function ProjectsScreen() {
       !formData.selectedRepositoryFullName ||
       !formData.selectedDefaultBranch
     ) {
-      setError('Selecione um repositório GitHub para criar o projeto.');
+      setOperationError('Selecione um repositório GitHub para criar o projeto.');
       return;
     }
 
+    operationLock.current = true;
     setSubmitting(true);
 
     try {
@@ -189,20 +208,26 @@ export function ProjectsScreen() {
         });
         setHighlightedProjectId(connectedProject.id);
       }
-      setError(getErrorMessage(requestError, 'Não foi possível cadastrar o projeto.'));
+      const normalized = normalizeApiError(requestError, 'Não foi possível cadastrar o projeto.');
+      setOperationError(normalized.message);
+      setOperationRetryAfterSeconds(normalized.retryAfterSeconds || 0);
     } finally {
+      operationLock.current = false;
       setSubmitting(false);
     }
   }
 
   async function reconnectProject() {
+    if (operationLock.current || operationCooldown > 0) return;
     const projectId = searchParams.get('projectId');
     if (!projectId || !formData.selectedRepositoryId) {
-      setError('Selecione o repositório que será reconectado.');
+      setOperationError('Selecione o repositório que será reconectado.');
       return;
     }
+    operationLock.current = true;
     setSubmitting(true);
-    setError('');
+    setOperationError('');
+    setOperationRetryAfterSeconds(0);
     setSuccess('');
     try {
       const response = await projectsApi.connectGithubRepository(projectId, {
@@ -214,8 +239,14 @@ export function ProjectsScreen() {
       setFormData(emptyProjectForm);
       await loadProjects();
     } catch (requestError) {
-      setError(getErrorMessage(requestError, 'Não foi possível reconectar o repositório.'));
+      const normalized = normalizeApiError(
+        requestError,
+        'Não foi possível reconectar o repositório.'
+      );
+      setOperationError(normalized.message);
+      setOperationRetryAfterSeconds(normalized.retryAfterSeconds || 0);
     } finally {
+      operationLock.current = false;
       setSubmitting(false);
     }
   }
@@ -230,7 +261,12 @@ export function ProjectsScreen() {
         </div>
       </header>
 
-      <FeedbackRegion error={githubCallbackError} success={success} />
+      <FeedbackRegion
+        error={operationCooldown ? undefined : operationError || githubCallbackError}
+        rateLimit={operationCooldown ? operationError : undefined}
+        retryAfterSeconds={operationRetryAfterSeconds}
+        success={success}
+      />
 
       <section className="projects-dashboard-grid" aria-label="Projetos e formas de ingresso">
         <ProjectJoinCard />
@@ -242,13 +278,15 @@ export function ProjectsScreen() {
           headerAction={
             <Link
               className={`integration-status ${
-                installations.length > 0 ? 'is-connected' : 'is-disconnected'
+                installations.length > 0 && !installationsError ? 'is-connected' : 'is-disconnected'
               }`}
               to="/settings/integrations"
             >
-              {installations.length > 0
-                ? `GitHub vinculado · ${installations[0].accountLogin}`
-                : '⚠ Vincular GitHub'}
+              {installationsError
+                ? '⚠ Status do GitHub indisponível'
+                : installations.length > 0
+                  ? `GitHub vinculado · ${installations[0].accountLogin}`
+                  : '⚠ Vincular GitHub'}
             </Link>
           }
         >
@@ -257,12 +295,13 @@ export function ProjectsScreen() {
             repositories={repositories}
             loadingRepositories={loadingRepositories}
             repositoriesError={repositoriesError}
+            onRetryRepositories={() => void loadRepositories()}
             repositoryEmptyMessage={
               installations.length === 0
                 ? ''
                 : 'Nenhum repositório com permissão OWNER ou ADMIN foi autorizado recentemente.'
             }
-            repositoryDisabled={installations.length === 0}
+            repositoryDisabled={Boolean(installationsError) || installations.length === 0}
             onChange={handleChange}
             onRepositoryChange={handleRepositoryChange}
             onSubmit={handleSubmit}
@@ -270,6 +309,7 @@ export function ProjectsScreen() {
             submitting={submitting}
             showStatusField={false}
           />
+          {installationsError && <FeedbackRegion error={installationsError} />}
           {duplicateRepository && (
             <aside className="repository-duplicate-callout" role="status">
               <p>
@@ -301,7 +341,8 @@ export function ProjectsScreen() {
                 className="button button-primary"
                 type="button"
                 onClick={() => void reconnectProject()}
-                disabled={submitting}
+                disabled={submitting || operationCooldown > 0}
+                aria-busy={submitting}
               >
                 Concluir reconexão
               </button>
@@ -312,11 +353,11 @@ export function ProjectsScreen() {
         <Card className="projects-dashboard-card project-list-card" title="Projetos cadastrados">
           {loadingProjects ? (
             <LoadingState message="Carregando projetos..." />
-          ) : error ? (
+          ) : projectsError ? (
             <ErrorState
-              message={error}
+              message={projectsError}
               onRetry={loadProjects}
-              retryAfterSeconds={retryAfterSeconds}
+              retryAfterSeconds={projectsRetryAfterSeconds}
             />
           ) : projects.length === 0 ? (
             <p className="empty-state">Nenhum projeto cadastrado ainda.</p>

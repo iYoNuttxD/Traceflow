@@ -1,6 +1,6 @@
 import { Navigate, useLocation } from 'react-router';
 import { useAuth } from './AuthContext.jsx';
-import { ContextualErrorPage, FeedbackRegion, LoadingState } from '../../shared/index.js';
+import { ContextualErrorPage, LoadingState } from '../../shared/index.js';
 import { locationReturnTo } from './return-to.js';
 export function ProtectedRoute({ children }) {
   const { user, loading, bootstrapError, refresh } = useAuth();
@@ -12,26 +12,12 @@ export function ProtectedRoute({ children }) {
       </main>
     );
   if (!user && bootstrapError) {
-    if (bootstrapError.isRateLimit) {
-      return (
-        <main className="page-container">
-          <section className="session-bootstrap-state">
-            <FeedbackRegion
-              rateLimit={bootstrapError.message}
-              retryAfterSeconds={bootstrapError.retryAfterSeconds}
-            />
-            <button className="button button-primary" type="button" onClick={() => void refresh()}>
-              Tentar novamente
-            </button>
-          </section>
-        </main>
-      );
-    }
     return (
       <ContextualErrorPage
         type={bootstrapError.type}
         description={bootstrapError.message}
         requestId={bootstrapError.requestId}
+        retryAfterSeconds={bootstrapError.retryAfterSeconds}
         onRetry={refresh}
       />
     );

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router';
 import { authApi, PasswordField, useAuth } from '../auth/index.js';
 import {
@@ -7,6 +7,7 @@ import {
   classifyPageError,
   getErrorRequestId,
   normalizeApiError,
+  useCountdown,
   useConfirm
 } from '../../shared/index.js';
 import { settingsApi } from './settings.api.js';
@@ -33,6 +34,10 @@ export function SecuritySettingsPage() {
   );
   const [error, setError] = useState('');
   const [initialError, setInitialError] = useState(null);
+  const [busy, setBusy] = useState('');
+  const [retryAfterSeconds, setRetryAfterSeconds] = useState(0);
+  const actionLock = useRef(false);
+  const cooldown = useCountdown(retryAfterSeconds);
 
   const load = useCallback(async () => {
     const [nextAccount, nextSessions] = await Promise.all([
@@ -56,14 +61,28 @@ export function SecuritySettingsPage() {
     void loadInitial();
   }, [loadInitial]);
 
-  async function run(operation, success) {
+  async function run(key, operation, success) {
+    if (actionLock.current || cooldown > 0) return;
+    actionLock.current = true;
+    setBusy(key);
     setError('');
+    setRetryAfterSeconds(0);
     try {
       await operation();
       setMessage(success);
       await load();
     } catch (value) {
-      setError(normalizeApiError(value).message);
+      const normalized = normalizeApiError(value);
+      setError(normalized.message);
+      const fieldErrors = normalized.fieldErrors || {};
+      setPasswordErrors(fieldErrors);
+      setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
+      const firstInvalidField = Object.keys(fieldErrors)[0];
+      if (firstInvalidField)
+        queueMicrotask(() => document.getElementById(firstInvalidField)?.focus());
+    } finally {
+      actionLock.current = false;
+      setBusy('');
     }
   }
 
@@ -87,12 +106,16 @@ export function SecuritySettingsPage() {
       setPasswordErrors({ confirmation: 'As senhas não coincidem.' });
       return;
     }
-    await run(async () => {
-      await settingsApi.initializePassword(initialPassword);
-      setInitialPassword({ newPassword: '', confirmation: '' });
-      setPasswordErrors({});
-      await refresh();
-    }, 'Senha criada. Você também pode entrar com e-mail ou nome de usuário.');
+    await run(
+      'initialize-password',
+      async () => {
+        await settingsApi.initializePassword(initialPassword);
+        setInitialPassword({ newPassword: '', confirmation: '' });
+        setPasswordErrors({});
+        await refresh();
+      },
+      'Senha criada. Você também pode entrar com e-mail ou nome de usuário.'
+    );
   }
 
   async function changePassword(event) {
@@ -102,11 +125,15 @@ export function SecuritySettingsPage() {
       setPasswordErrors({ confirmation: 'As senhas não coincidem.' });
       return;
     }
-    await run(async () => {
-      await settingsApi.changePassword(password);
-      setPassword({ currentPassword: '', newPassword: '', confirmation: '' });
-      setPasswordErrors({});
-    }, 'Senha alterada com sucesso. As outras sessões foram encerradas.');
+    await run(
+      'change-password',
+      async () => {
+        await settingsApi.changePassword(password);
+        setPassword({ currentPassword: '', newPassword: '', confirmation: '' });
+        setPasswordErrors({});
+      },
+      'Senha alterada com sucesso. As outras sessões foram encerradas.'
+    );
   }
 
   function updateInitialPassword(field, value) {
@@ -127,6 +154,7 @@ export function SecuritySettingsPage() {
         type={classifyPageError(initialError)}
         onRetry={loadInitial}
         requestId={getErrorRequestId(initialError)}
+        retryAfterSeconds={initialError.retryAfterSeconds}
         embedded
       />
     );
@@ -134,7 +162,7 @@ export function SecuritySettingsPage() {
 
   return (
     <>
-      <SettingsFeedback error={error} message={message} />
+      <SettingsFeedback error={error} message={message} retryAfterSeconds={cooldown} />
       <section className="settings-card">
         {!account ? (
           <LoadingState message="Carregando segurança..." />
@@ -166,9 +194,15 @@ export function SecuritySettingsPage() {
                 />
                 <button
                   type="submit"
-                  disabled={!initialPassword.newPassword || !initialPassword.confirmation}
+                  disabled={
+                    !initialPassword.newPassword ||
+                    !initialPassword.confirmation ||
+                    Boolean(busy) ||
+                    cooldown > 0
+                  }
+                  aria-busy={busy === 'initialize-password'}
                 >
-                  Criar senha
+                  {busy === 'initialize-password' ? 'Criando senha...' : 'Criar senha'}
                 </button>
               </form>
             ) : (
@@ -209,7 +243,13 @@ export function SecuritySettingsPage() {
                 onChange={(event) => updatePassword('confirmation', event.target.value)}
                 error={passwordErrors.confirmation}
               />
-              <button type="submit">Alterar senha</button>
+              <button
+                type="submit"
+                disabled={Boolean(busy) || cooldown > 0}
+                aria-busy={busy === 'change-password'}
+              >
+                {busy === 'change-password' ? 'Alterando senha...' : 'Alterar senha'}
+              </button>
             </form>
           </>
         )}
@@ -227,6 +267,7 @@ export function SecuritySettingsPage() {
               </div>
               <button
                 type="button"
+                disabled={Boolean(busy) || cooldown > 0}
                 onClick={async () => {
                   if (
                     !(await confirm({
@@ -238,7 +279,11 @@ export function SecuritySettingsPage() {
                     }))
                   )
                     return;
-                  await run(() => settingsApi.revokeSession(session.sessionId), 'Sessão revogada.');
+                  await run(
+                    `revoke-session-${session.sessionId}`,
+                    () => settingsApi.revokeSession(session.sessionId),
+                    'Sessão revogada.'
+                  );
                 }}
               >
                 Revogar
@@ -250,7 +295,14 @@ export function SecuritySettingsPage() {
         )}
         <button
           type="button"
-          onClick={() => void run(settingsApi.revokeOtherSessions, 'Outras sessões revogadas.')}
+          disabled={Boolean(busy) || cooldown > 0}
+          onClick={() =>
+            void run(
+              'revoke-other-sessions',
+              settingsApi.revokeOtherSessions,
+              'Outras sessões revogadas.'
+            )
+          }
         >
           Encerrar outras sessões
         </button>

@@ -1,19 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useRef, useState } from 'react';
 import { authApi } from '../api/auth.api.js';
-import { FeedbackRegion, normalizeApiError } from '../../../shared/index.js';
+import { FeedbackRegion, normalizeApiError, useCountdown } from '../../../shared/index.js';
 
 export function EmailVerificationBanner({ user }) {
   const [feedback, setFeedback] = useState({ message: '', variant: 'success' });
   const [sending, setSending] = useState(false);
-  const [cooldown, setCooldown] = useState(0);
-  useEffect(() => {
-    if (cooldown <= 0) return undefined;
-    const timer = window.setTimeout(() => setCooldown((value) => Math.max(0, value - 1)), 1000);
-    return () => window.clearTimeout(timer);
-  }, [cooldown]);
+  const [retryAfterSeconds, setRetryAfterSeconds] = useState(0);
+  const cooldown = useCountdown(retryAfterSeconds);
+  const resendLock = useRef(false);
   if (!user || user.emailVerifiedAt) return null;
   async function resend() {
-    if (sending || cooldown > 0) return;
+    if (resendLock.current || cooldown > 0) return;
+    resendLock.current = true;
     setSending(true);
     try {
       await authApi.resendEmailVerification();
@@ -24,8 +22,9 @@ export function EmailVerificationBanner({ user }) {
         message: normalized.message,
         variant: normalized.retryAfterSeconds ? 'rate-limit' : 'error'
       });
-      setCooldown(normalized.retryAfterSeconds || 0);
+      setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
     } finally {
+      resendLock.current = false;
       setSending(false);
     }
   }
@@ -53,7 +52,7 @@ export function EmailVerificationBanner({ user }) {
           success={feedback.variant === 'success' ? feedback.message : undefined}
           error={feedback.variant === 'error' ? feedback.message : undefined}
           rateLimit={feedback.variant === 'rate-limit' ? feedback.message : undefined}
-          retryAfterSeconds={cooldown}
+          retryAfterSeconds={retryAfterSeconds}
         />
       )}
     </aside>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router';
 import {
   ContextualErrorPage,
@@ -6,6 +6,7 @@ import {
   classifyPageError,
   getErrorRequestId,
   normalizeApiError,
+  useCountdown,
   useConfirm
 } from '../../shared/index.js';
 import { settingsApi } from './settings.api.js';
@@ -33,6 +34,10 @@ export function IntegrationsSettingsPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [initialError, setInitialError] = useState(null);
+  const [busy, setBusy] = useState('');
+  const [retryAfterSeconds, setRetryAfterSeconds] = useState(0);
+  const actionLock = useRef(false);
+  const cooldown = useCountdown(retryAfterSeconds);
 
   const load = useCallback(async () => {
     const [nextAccount, nextIdentity, nextIntegrations] = await Promise.all([
@@ -71,26 +76,38 @@ export function IntegrationsSettingsPage() {
       }))
     )
       return;
+    if (actionLock.current || cooldown > 0) return;
+    actionLock.current = true;
+    setBusy(`authorization-${id}`);
     setError('');
+    setRetryAfterSeconds(0);
     try {
       await settingsApi.removeGithubAuthorization(id, passwords[id] || '');
       setMessage('Autorização pessoal removida.');
       setPasswords((current) => ({ ...current, [id]: '' }));
       await load();
     } catch (value) {
-      setError(normalizeApiError(value).message);
+      const normalized = normalizeApiError(value);
+      setError(normalized.message);
+      setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
+    } finally {
+      actionLock.current = false;
+      setBusy('');
     }
   }
 
   async function startIdentityLink() {
-    if (linking) return;
+    if (linking || cooldown > 0) return;
     setLinking(true);
     setError('');
+    setRetryAfterSeconds(0);
     try {
       const result = await settingsApi.startGithubIdentityLink(identityPassword);
       window.location.assign(result.url);
     } catch (value) {
-      setError(normalizeApiError(value).message);
+      const normalized = normalizeApiError(value);
+      setError(normalized.message);
+      setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
       setLinking(false);
     }
   }
@@ -105,26 +122,38 @@ export function IntegrationsSettingsPage() {
       }))
     )
       return;
+    if (actionLock.current || cooldown > 0) return;
+    actionLock.current = true;
+    setBusy('unlink-identity');
     setError('');
+    setRetryAfterSeconds(0);
     try {
       await settingsApi.unlinkGithubIdentity(identityPassword);
       setIdentityPassword('');
       setMessage('Conta GitHub desvinculada.');
       await load();
     } catch (value) {
-      setError(normalizeApiError(value).message);
+      const normalized = normalizeApiError(value);
+      setError(normalized.message);
+      setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
+    } finally {
+      actionLock.current = false;
+      setBusy('');
     }
   }
 
   async function authorize() {
-    if (authorizing) return;
+    if (authorizing || cooldown > 0) return;
     setAuthorizing(true);
     setError('');
+    setRetryAfterSeconds(0);
     try {
       const response = await settingsApi.startGithubInstallation();
       window.location.assign(response.data.url);
     } catch (value) {
-      setError(normalizeApiError(value).message);
+      const normalized = normalizeApiError(value);
+      setError(normalized.message);
+      setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
       setAuthorizing(false);
     }
   }
@@ -136,6 +165,7 @@ export function IntegrationsSettingsPage() {
         type={classifyPageError(initialError)}
         onRetry={loadInitial}
         requestId={getErrorRequestId(initialError)}
+        retryAfterSeconds={initialError.retryAfterSeconds}
         embedded
       />
     );
@@ -144,7 +174,7 @@ export function IntegrationsSettingsPage() {
 
   return (
     <>
-      <SettingsFeedback error={error} message={message} />
+      <SettingsFeedback error={error} message={message} retryAfterSeconds={cooldown} />
       <section className="settings-card github-identity-card">
         <h2>Conta GitHub</h2>
         <p>
@@ -178,7 +208,8 @@ export function IntegrationsSettingsPage() {
                     <button
                       className="button button-danger"
                       type="button"
-                      disabled={!identityPassword}
+                      disabled={!identityPassword || Boolean(busy) || cooldown > 0}
+                      aria-busy={busy === 'unlink-identity'}
                       onClick={() => void unlinkIdentity()}
                     >
                       Desvincular conta GitHub
@@ -205,7 +236,7 @@ export function IntegrationsSettingsPage() {
             />
             <button
               type="button"
-              disabled={!identityPassword || linking}
+              disabled={!identityPassword || linking || cooldown > 0}
               aria-busy={linking}
               onClick={() => void startIdentityLink()}
             >
@@ -236,7 +267,7 @@ export function IntegrationsSettingsPage() {
         <button
           className="button button-secondary"
           type="button"
-          disabled={authorizing}
+          disabled={authorizing || Boolean(busy) || cooldown > 0}
           aria-busy={authorizing}
           onClick={() => void authorize()}
         >
@@ -303,8 +334,12 @@ export function IntegrationsSettingsPage() {
                     className="button button-danger"
                     type="button"
                     disabled={
-                      !sensitiveActionReady || (account?.hasLocalPassword && !passwords[item.id])
+                      !sensitiveActionReady ||
+                      (account?.hasLocalPassword && !passwords[item.id]) ||
+                      Boolean(busy) ||
+                      cooldown > 0
                     }
+                    aria-busy={busy === `authorization-${item.id}`}
                     onClick={() => void removeAuthorization(item.id)}
                   >
                     Remover minha autorização

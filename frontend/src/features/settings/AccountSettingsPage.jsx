@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ContextualErrorPage,
   classifyPageError,
   getErrorRequestId,
   normalizeApiError,
+  useCountdown,
   useConfirm
 } from '../../shared/index.js';
 import { PasswordField, useAuth } from '../auth/index.js';
@@ -21,6 +22,10 @@ export function AccountSettingsPage() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [initialError, setInitialError] = useState(null);
+  const [busy, setBusy] = useState('');
+  const [retryAfterSeconds, setRetryAfterSeconds] = useState(0);
+  const actionLock = useRef(false);
+  const cooldown = useCountdown(retryAfterSeconds);
 
   const load = useCallback(async () => {
     const result = await settingsApi.account();
@@ -40,16 +45,25 @@ export function AccountSettingsPage() {
   useEffect(() => {
     void loadInitial();
   }, [loadInitial]);
-  async function run(operation, success) {
+  async function run(key, operation, success) {
+    if (actionLock.current || cooldown > 0) return;
+    actionLock.current = true;
+    setBusy(key);
     setError('');
     setMessage('');
+    setRetryAfterSeconds(0);
     try {
       await operation();
       setMessage(success);
       await load();
       await refresh();
     } catch (value) {
-      setError(normalizeApiError(value).message);
+      const normalized = normalizeApiError(value);
+      setError(normalized.message);
+      setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
+    } finally {
+      actionLock.current = false;
+      setBusy('');
     }
   }
 
@@ -59,6 +73,7 @@ export function AccountSettingsPage() {
         type={classifyPageError(initialError)}
         onRetry={loadInitial}
         requestId={getErrorRequestId(initialError)}
+        retryAfterSeconds={initialError.retryAfterSeconds}
         embedded
       />
     );
@@ -68,7 +83,7 @@ export function AccountSettingsPage() {
   const sensitiveActionReady = account.hasLocalPassword || account.recentlyReauthenticated;
   return (
     <>
-      <SettingsFeedback error={error} message={message} />
+      <SettingsFeedback error={error} message={message} retryAfterSeconds={cooldown} />
       {!account.hasLocalPassword && (
         <section className="settings-card">
           <h2>Confirmação para ações sensíveis</h2>
@@ -88,7 +103,7 @@ export function AccountSettingsPage() {
         <form
           onSubmit={(event) => {
             event.preventDefault();
-            void run(() => settingsApi.updateProfile(profile.name), 'Nome atualizado.');
+            void run('profile', () => settingsApi.updateProfile(profile.name), 'Nome atualizado.');
           }}
         >
           <label>
@@ -99,14 +114,22 @@ export function AccountSettingsPage() {
               onChange={(event) => setProfile({ ...profile, name: event.target.value })}
             />
           </label>
-          <button disabled={!active} type="submit">
-            Salvar nome
+          <button
+            disabled={!active || Boolean(busy) || cooldown > 0}
+            aria-busy={busy === 'profile'}
+            type="submit"
+          >
+            {busy === 'profile' ? 'Salvando nome...' : 'Salvar nome'}
           </button>
         </form>
         <form
           onSubmit={(event) => {
             event.preventDefault();
-            void run(() => settingsApi.updateUsername(profile.username), 'Username atualizado.');
+            void run(
+              'username',
+              () => settingsApi.updateUsername(profile.username),
+              'Username atualizado.'
+            );
           }}
         >
           <label>
@@ -122,8 +145,12 @@ export function AccountSettingsPage() {
               Próxima alteração: {new Date(account.nextUsernameChangeAt).toLocaleString('pt-BR')}
             </small>
           )}
-          <button disabled={!active} type="submit">
-            Salvar username
+          <button
+            disabled={!active || Boolean(busy) || cooldown > 0}
+            aria-busy={busy === 'username'}
+            type="submit"
+          >
+            {busy === 'username' ? 'Salvando username...' : 'Salvar username'}
           </button>
         </form>
       </section>
@@ -137,7 +164,11 @@ export function AccountSettingsPage() {
             Confirmação pendente para {account.pendingEmailChange.newEmail}.
             <button
               type="button"
-              onClick={() => void run(settingsApi.cancelEmailChange, 'Alteração cancelada.')}
+              disabled={Boolean(busy) || cooldown > 0}
+              aria-busy={busy === 'cancel-email'}
+              onClick={() =>
+                void run('cancel-email', settingsApi.cancelEmailChange, 'Alteração cancelada.')
+              }
             >
               Cancelar
             </button>
@@ -147,6 +178,7 @@ export function AccountSettingsPage() {
           onSubmit={(event) => {
             event.preventDefault();
             void run(
+              'email',
               () => settingsApi.requestEmailChange(email.newEmail, email.currentPassword),
               'Enviamos a confirmação para o novo e-mail.'
             );
@@ -171,8 +203,12 @@ export function AccountSettingsPage() {
               onChange={(event) => setEmail({ ...email, currentPassword: event.target.value })}
             />
           )}
-          <button disabled={!active || !sensitiveActionReady} type="submit">
-            Confirmar novo e-mail
+          <button
+            disabled={!active || !sensitiveActionReady || Boolean(busy) || cooldown > 0}
+            aria-busy={busy === 'email'}
+            type="submit"
+          >
+            {busy === 'email' ? 'Confirmando e-mail...' : 'Confirmar novo e-mail'}
           </button>
         </form>
       </section>
@@ -192,7 +228,8 @@ export function AccountSettingsPage() {
         <div className="danger-zone-actions">
           <button
             className="button button-danger"
-            disabled={!active || !sensitiveActionReady}
+            disabled={!active || !sensitiveActionReady || Boolean(busy) || cooldown > 0}
+            aria-busy={busy === 'deactivate'}
             type="button"
             onClick={async () => {
               if (
@@ -204,7 +241,11 @@ export function AccountSettingsPage() {
                 }))
               )
                 return;
-              await run(() => settingsApi.deactivate(deactivationPassword), 'Conta desativada.');
+              await run(
+                'deactivate',
+                () => settingsApi.deactivate(deactivationPassword),
+                'Conta desativada.'
+              );
             }}
           >
             Desativar conta

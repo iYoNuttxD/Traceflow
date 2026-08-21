@@ -19,25 +19,19 @@ export const emptyProjectForm = {
 };
 
 export function normalizeRepository(repository) {
-  const fullName = repository.fullName || repository.full_name || '';
-  const [fullNameOwner, fullNameRepo] = fullName.split('/');
-  const owner =
-    repository.owner?.login ||
-    (typeof repository.owner === 'string' ? repository.owner : '') ||
-    fullNameOwner ||
-    '';
-  const name = repository.name || fullNameRepo || '';
-  const url = repository.url || repository.html_url || '';
+  const fullName = repository.fullName || '';
+  const githubRepositoryId = String(repository.githubRepositoryId || '');
 
   return {
-    id: String(repository.githubRepositoryId || repository.id || fullName || url),
-    owner,
-    name,
-    fullName: fullName || (owner && name ? `${owner}/${name}` : ''),
-    url,
+    id: githubRepositoryId,
+    githubRepositoryId,
+    owner: typeof repository.owner === 'string' ? repository.owner : '',
+    name: repository.name || '',
+    fullName,
+    url: repository.url || '',
     description: repository.description || '',
     private: repository.private === true,
-    defaultBranch: repository.defaultBranch || repository.default_branch || '',
+    defaultBranch: repository.defaultBranch || '',
     alreadyConnected: repository.alreadyConnected === true,
     connectedToCurrentProject: repository.connectedToCurrentProject === true,
     selectable: repository.selectable !== false,
@@ -75,6 +69,7 @@ export function ProjectForm({
   repositoriesError = '',
   repositoryEmptyMessage = 'A instalação não possui repositórios acessíveis.',
   repositoryDisabled = false,
+  onRetryRepositories,
   onChange,
   onRepositoryChange,
   onSubmit,
@@ -171,7 +166,19 @@ export function ProjectForm({
           </label>
 
           {repositoriesError && (
-            <p className="field-help field-error field-full">{repositoriesError}</p>
+            <div className="field-help field-error field-full" role="alert">
+              <span>{repositoriesError}</span>
+              {onRetryRepositories && (
+                <button
+                  className="button button-secondary button-compact"
+                  type="button"
+                  disabled={loadingRepositories}
+                  onClick={onRetryRepositories}
+                >
+                  Tentar carregar novamente
+                </button>
+              )}
+            </div>
           )}
           {!repositoryDisabled &&
             !loadingRepositories &&
@@ -206,7 +213,12 @@ export function ProjectForm({
       )}
 
       <div className="form-actions field-full">
-        <button className="button button-primary" type="submit" disabled={submitting}>
+        <button
+          className="button button-primary"
+          type="submit"
+          disabled={submitting}
+          aria-busy={submitting}
+        >
           {submitting ? 'Salvando...' : submitLabel}
         </button>
       </div>

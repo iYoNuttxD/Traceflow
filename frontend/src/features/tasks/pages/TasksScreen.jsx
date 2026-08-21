@@ -21,7 +21,15 @@ import {
   getProjectIssueCoverage,
   getProjectPullRequestCoverage
 } from '../../traceability/index.js';
-import { Card, useAbortableRequest, useConfirm } from '../../../shared/index.js';
+import {
+  Card,
+  ContextualErrorPage,
+  classifyPageError,
+  getErrorRequestId,
+  normalizeApiError,
+  useAbortableRequest,
+  useConfirm
+} from '../../../shared/index.js';
 import { ProjectSectionNav } from '../../projects/index.js';
 import {
   TaskForm,
@@ -33,7 +41,7 @@ import { TaskMetrics } from '../components/TaskMetrics.jsx';
 import { TaskList } from '../components/TaskList.jsx';
 
 function getErrorMessage(error, fallback) {
-  return error.response?.data?.message || fallback;
+  return normalizeApiError(error, fallback).message;
 }
 
 export function TasksScreen() {
@@ -63,11 +71,13 @@ export function TasksScreen() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [pageError, setPageError] = useState(null);
   const [success, setSuccess] = useState('');
   const loadedProjectIdRef = useRef(null);
   const loadTaskData = useCallback(async () => {
     setLoading(true);
     setError('');
+    setPageError(null);
 
     try {
       const [
@@ -106,7 +116,9 @@ export function TasksScreen() {
       setPullRequestCoverage(coverageResponse);
       setProjectMembers(membersResponse.members || []);
     } catch (requestError) {
-      setError(getErrorMessage(requestError, 'Não foi possível carregar as tarefas do projeto.'));
+      setPageError(
+        normalizeApiError(requestError, 'Não foi possível carregar as tarefas do projeto.')
+      );
     } finally {
       setLoading(false);
     }
@@ -618,6 +630,18 @@ export function TasksScreen() {
       <main className="page-container">
         <p className="empty-state">Carregando tarefas...</p>
       </main>
+    );
+  }
+
+  if (!project && pageError) {
+    return (
+      <ContextualErrorPage
+        type={classifyPageError(pageError)}
+        description={pageError.message}
+        requestId={getErrorRequestId(pageError)}
+        retryAfterSeconds={pageError.retryAfterSeconds}
+        onRetry={loadTaskData}
+      />
     );
   }
 
