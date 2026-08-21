@@ -19,6 +19,19 @@ import { projectsApi } from '../api/projects.api.js';
 import { ProjectJoinCard } from '../components/ProjectJoinCard.jsx';
 import { PendingProjectInvitations } from '../../invitations/index.js';
 
+function clearRepositorySelection(current) {
+  return {
+    ...current,
+    selectedOwner: '',
+    selectedRepositoryName: '',
+    selectedRepositoryUrl: '',
+    selectedRepositoryId: '',
+    selectedRepositoryFullName: '',
+    selectedDefaultBranch: '',
+    selectedInstallationId: ''
+  };
+}
+
 export function ProjectsScreen() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [projects, setProjects] = useState([]);
@@ -166,6 +179,15 @@ export function ProjectsScreen() {
     setFormData((current) => updateProjectForm(current, name, value));
   }
 
+  function applyRepositoryReauthenticationState(requestError) {
+    if (requestError.response?.data?.code !== 'GITHUB_USER_REAUTH_REQUIRED') return;
+
+    setRepositories([]);
+    setRepositoryAuthorizationStatus('REAUTH_REQUIRED');
+    setFormData(clearRepositorySelection);
+    setDuplicateRepository(null);
+  }
+
   function handleRepositoryChange(fullName) {
     const selectedRepository = repositories.find(
       (repository) => normalizeRepository(repository).fullName === fullName
@@ -173,16 +195,7 @@ export function ProjectsScreen() {
 
     const normalized = selectedRepository ? normalizeRepository(selectedRepository) : null;
     if (!normalized || normalized.selectable === false) {
-      setFormData((current) => ({
-        ...current,
-        selectedOwner: '',
-        selectedRepositoryName: '',
-        selectedRepositoryUrl: '',
-        selectedRepositoryId: '',
-        selectedRepositoryFullName: '',
-        selectedDefaultBranch: '',
-        selectedInstallationId: ''
-      }));
+      setFormData(clearRepositorySelection);
       setDuplicateRepository(null);
       return;
     }
@@ -191,16 +204,7 @@ export function ProjectsScreen() {
       setDuplicateRepository(normalized);
       setHighlightedProjectId(normalized.connectedProject?.id || null);
       window.setTimeout(() => setHighlightedProjectId(null), 4000);
-      setFormData((current) => ({
-        ...current,
-        selectedOwner: '',
-        selectedRepositoryName: '',
-        selectedRepositoryUrl: '',
-        selectedRepositoryId: '',
-        selectedRepositoryFullName: '',
-        selectedDefaultBranch: '',
-        selectedInstallationId: ''
-      }));
+      setFormData(clearRepositorySelection);
       return;
     }
 
@@ -239,6 +243,7 @@ export function ProjectsScreen() {
       setFormData(emptyProjectForm);
       await loadProjects();
     } catch (requestError) {
+      applyRepositoryReauthenticationState(requestError);
       const connectedProject = requestError.response?.data?.details?.connectedProject;
       if (requestError.response?.status === 409 && connectedProject) {
         setDuplicateRepository({
@@ -278,6 +283,7 @@ export function ProjectsScreen() {
       setFormData(emptyProjectForm);
       await loadProjects();
     } catch (requestError) {
+      applyRepositoryReauthenticationState(requestError);
       const normalized = normalizeApiError(
         requestError,
         'Não foi possível reconectar o repositório.'
@@ -349,6 +355,7 @@ export function ProjectsScreen() {
             onRepositoryChange={handleRepositoryChange}
             onSubmit={handleSubmit}
             submitLabel="Cadastrar projeto"
+            submitDisabled={repositoryAuthorizationStatus === 'REAUTH_REQUIRED'}
             submitting={submitting}
             showStatusField={false}
           />
@@ -398,7 +405,11 @@ export function ProjectsScreen() {
                 className="button button-primary"
                 type="button"
                 onClick={() => void reconnectProject()}
-                disabled={submitting || operationCooldown > 0}
+                disabled={
+                  submitting ||
+                  operationCooldown > 0 ||
+                  repositoryAuthorizationStatus === 'REAUTH_REQUIRED'
+                }
                 aria-busy={submitting}
               >
                 Concluir reconexão

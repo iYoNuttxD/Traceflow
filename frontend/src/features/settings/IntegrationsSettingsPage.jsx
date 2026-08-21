@@ -287,8 +287,8 @@ export function IntegrationsSettingsPage() {
       <section className="settings-card">
         <h2>GitHub App</h2>
         <p>
-          Autoriza o acesso a repositórios. Este domínio é independente da conta GitHub usada para
-          entrar.
+          Concede ao TRACEFLOW o acesso técnico usado na sincronização. A seleção de repositórios
+          também exige sua autorização pessoal e é independente da conta GitHub usada para entrar.
         </p>
         <button
           className="button button-secondary"

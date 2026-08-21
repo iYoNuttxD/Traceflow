@@ -74,6 +74,7 @@ export function ProjectForm({
   onRepositoryChange,
   onSubmit,
   submitLabel,
+  submitDisabled = false,
   submitting,
   showRepositoryField = true,
   showStatusField = true
@@ -216,7 +217,7 @@ export function ProjectForm({
         <button
           className="button button-primary"
           type="submit"
-          disabled={submitting}
+          disabled={submitting || submitDisabled}
           aria-busy={submitting}
         >
           {submitting ? 'Salvando...' : submitLabel}

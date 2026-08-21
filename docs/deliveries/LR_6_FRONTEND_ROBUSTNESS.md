@@ -10,6 +10,16 @@
 - backend, Prisma, migrations, TCC, commit, push, merge, rebase, reset, stash e PR não foram
   alterados.
 
+### Retomada pós-LR.3.1
+
+- branch: `daniel-dev`;
+- SHA inicial da retomada: `6e912d439e4be69918d1a13eba8e5af5c4e45649`;
+- working tree inicial da retomada: limpa;
+- objetivo adicional: validar a UX de `AUTHORIZED`/`REAUTH_REQUIRED` e a corrida entre descoberta
+  e mutação sem enfraquecer a autorização da LR.3;
+- escopo mantido: frontend, testes frontend e esta documentação técnica; backend e Prisma não
+  foram alterados.
+
 ## Decisões preservadas
 
 ```text
@@ -37,6 +47,7 @@ stacks e mensagens de infraestrutura não são exibidos nem persistidos pelo tra
 | LR6-08 | textos longos e controles estreitos podiam provocar overflow | regras responsivas defensivas para grids, navegação, settings, sessões, nomes e ações; breakpoints existentes preservados | build e inspeção estática `PASS`; homologação visual por viewport `BLOCKED` |
 | LR6-09 | normalizadores ainda aceitavam campos GitHub crus e progresso escalar histórico | removidos fallbacks `full_name`, `html_url`, `default_branch`, `owner.login` e `progressPercentage`; somente DTOs atuais são consumidos | fixtures canônicas de projetos, GitHub e traceability |
 | LR6-10 | falhas iniciais em páginas de domínio podiam deixar conteúdo parcial | projetos, repositório, requisitos, tarefas, kanban e rastreabilidade separam erro fatal de erro operacional e oferecem retry explícito | páginas críticas cobrem não encontrado, erro interno e indisponibilidade |
+| LR6-11 | a evidência pessoal podia expirar entre `GET /github/app/repositories` e a criação/reconexão, deixando a tela apenas com um `409` | `GITHUB_USER_REAUTH_REQUIRED` migra imediatamente a tela para `REAUTH_REQUIRED`, limpa somente a seleção vencida, preserva os dados digitados e desabilita ações dependentes até a renovação | criação e reconexão cobertas com resposta `409`, CTA, campos preservados e seleção/ações bloqueadas |
 
 ## AuthContext e navegação
 
@@ -56,15 +67,32 @@ componentes visuais ou wrappers legados. Os módulos de GitHub, Projects, Privac
 Membership e Traceability usam os nomes atuais dos contratos. O fallback do escalar histórico de
 progresso foi removido em favor do objeto métrico canônico.
 
+## GitHub Repository Authorization
+
+| Cenário | Resultado automatizado | Evidência visual/externa |
+|---|---|---|
+| autorização pessoal válida com repositórios | `PASS`; lista DTO atual e permite seleção | `BLOCKED`; browser indisponível |
+| autorização válida sem repositórios | `PASS`; apresenta ausência de OWNER/ADMIN | `BLOCKED`; browser indisponível |
+| usuário pré-LR.3 ou evidência expirada na listagem | `PASS`; apresenta `REAUTH_REQUIRED` e CTA dedicado | `BLOCKED`; browser/GitHub real indisponíveis |
+| evidência expira durante criação | `PASS`; trata `409`, preserva campos e exige renovação | `BLOCKED`; browser/GitHub real indisponíveis |
+| evidência expira durante reconexão | `PASS`; trata `409`, limpa seleção e bloqueia reconexão | `BLOCKED`; browser/GitHub real indisponíveis |
+| sincronização de projeto existente | não foi alterada pela LR.6; permanece contrato de Installation Token | não reclassificada sem GitHub real |
+
+A tela de integrações descreve explicitamente a GitHub App como acesso técnico para sincronização.
+A descoberta e a criação/reconexão continuam dependentes da autorização pessoal validada pelo
+backend. O frontend não infere permissão pela Installation e não recebe, persiste ou exibe User
+Access Token.
+
 ## Acessibilidade e responsividade
 
 Foram preservados foco visível, navegação por teclado, labels associados e anúncios de erro. Os
 estados de envio impedem repetição e informam ocupação. As regras CSS foram endurecidas contra
 overflow e corte de ações em desktop, tablet e mobile sem alterar a identidade visual.
 
-O runtime Browser disponibilizado nesta execução não expôs navegador algum (`[]`). Portanto, a
-homologação visual direta dos três viewports permanece `BLOCKED`; inspeção estática, testes DOM e
-build não são registrados como substitutos de evidência visual/manual.
+Na retomada pós-LR.3.1, o runtime Browser voltou a não expor navegador: a abertura do navegador
+padrão retornou `No browser is available` e a listagem retornou `[]`. Portanto, a homologação
+visual direta dos três viewports e do fluxo OAuth permanece `BLOCKED`; inspeção estática, testes
+DOM e build não são registrados como substitutos de evidência visual/manual.
 
 ## Gates
 
@@ -73,9 +101,9 @@ Todos os comandos abaixo usaram Node.js `v22.23.2`.
 | Gate | Resultado |
 |---|---|
 | `npm run lint` | `PASS` |
-| `npm run format:check` | `PASS` após formatação dos dois arquivos apontados |
-| `npm test` | `PASS`; 34 arquivos, 239 testes |
-| `npm run test:coverage` | `PASS`; 62,62% statements, 59,81% branches, 54,46% functions, 63,94% lines |
+| `npm run format:check` | `PASS` |
+| `npm test` | `PASS`; 34 arquivos, 243 testes |
+| `npm run test:coverage` | `PASS`; 63,28% statements, 60,70% branches, 54,88% functions, 64,69% lines |
 | `npm run build` | `PASS`; 382 módulos transformados |
 | `npm audit` | `PASS`; zero vulnerabilidades |
 | `git diff --check` | `PASS` |

@@ -369,6 +369,82 @@ describe('ProjectsPage', () => {
     expect(screen.getByRole('button', { name: 'Abrindo GitHub...' })).toBeDisabled();
   });
 
+  it('migra para renovação quando a autorização expira durante a criação', async () => {
+    const user = userEvent.setup();
+    mockInitialRequests();
+    apiMock.post.mockRejectedValue({
+      response: {
+        status: 409,
+        data: {
+          code: 'GITHUB_USER_REAUTH_REQUIRED',
+          message: 'Renove sua autorização GitHub para acessar os repositórios.'
+        }
+      }
+    });
+    renderPage();
+
+    await user.type(screen.getByLabelText('Nome do projeto *'), 'Projeto com autorização vencida');
+    await user.type(screen.getByLabelText('Área ou equipe responsável *'), 'Equipe artificial');
+    await user.selectOptions(
+      screen.getByLabelText('Repositório GitHub *'),
+      fakeRepository.fullName
+    );
+    await user.click(screen.getByRole('button', { name: 'Cadastrar projeto' }));
+
+    expect(
+      await screen.findByText(
+        'Sua autorização GitHub precisa ser renovada para listar repositórios.'
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Renove sua autorização GitHub para acessar os repositórios.')
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Renovar acesso GitHub' })).toBeEnabled();
+    expect(screen.getByLabelText('Repositório GitHub *')).toBeDisabled();
+    expect(screen.getByLabelText('Repositório GitHub *')).toHaveValue('');
+    expect(screen.getByLabelText('Nome do projeto *')).toHaveValue(
+      'Projeto com autorização vencida'
+    );
+    expect(screen.getByRole('button', { name: 'Cadastrar projeto' })).toBeDisabled();
+  });
+
+  it('migra para renovação quando a autorização expira durante a reconexão', async () => {
+    const user = userEvent.setup();
+    mockInitialRequests();
+    apiMock.put.mockRejectedValue({
+      response: {
+        status: 409,
+        data: {
+          code: 'GITHUB_USER_REAUTH_REQUIRED',
+          message: 'Renove sua autorização GitHub para acessar os repositórios.'
+        }
+      }
+    });
+    renderPage(['/projects?projectId=12']);
+
+    await user.selectOptions(
+      await screen.findByLabelText('Repositório GitHub *'),
+      fakeRepository.fullName
+    );
+    await user.click(screen.getByRole('button', { name: 'Concluir reconexão' }));
+
+    await waitFor(() => {
+      expect(apiMock.put).toHaveBeenCalledWith('/projects/12/github/integration', {
+        githubInstallationId: '77',
+        githubRepositoryId: fakeRepository.githubRepositoryId
+      });
+    });
+    expect(
+      await screen.findByText(
+        'Sua autorização GitHub precisa ser renovada para listar repositórios.'
+      )
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Renovar acesso GitHub' })).toBeEnabled();
+    expect(screen.getByLabelText('Repositório GitHub *')).toBeDisabled();
+    expect(screen.getByLabelText('Repositório GitHub *')).toHaveValue('');
+    expect(screen.getByRole('button', { name: 'Concluir reconexão' })).toBeDisabled();
+  });
+
   it('distingue quando nenhuma instalação foi registrada', async () => {
     mockInitialRequests({ installations: [], repositories: [] });
     renderPage();
