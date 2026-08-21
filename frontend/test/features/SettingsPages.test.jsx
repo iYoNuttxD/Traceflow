@@ -26,6 +26,7 @@ const mocks = vi.hoisted(() => ({
     revokeOtherSessions: vi.fn(),
     removeGithubAuthorization: vi.fn(),
     startGithubInstallation: vi.fn(),
+    startGithubRepositoryAuthorization: vi.fn(),
     confirmEmail: vi.fn(),
     confirmReactivation: vi.fn(),
     startReactivation: vi.fn()
@@ -114,6 +115,9 @@ describe('configurações e estados restritos L2', () => {
     mocks.api.removeGithubAuthorization.mockResolvedValue({});
     mocks.api.startGithubInstallation.mockResolvedValue({
       data: { url: 'https://github.example/install' }
+    });
+    mocks.api.startGithubRepositoryAuthorization.mockResolvedValue({
+      data: { url: 'https://github.example/authorize' }
     });
     mocks.api.confirmEmail.mockResolvedValue({});
     mocks.api.confirmReactivation.mockResolvedValue({});
@@ -450,6 +454,41 @@ describe('configurações e estados restritos L2', () => {
     expect(
       screen.getByRole('button', { name: 'Adicionar ou atualizar acesso' })
     ).toBeInTheDocument();
+  });
+
+  it('não apresenta zero repositórios quando a autorização pessoal precisa ser renovada', async () => {
+    const user = userEvent.setup();
+    mocks.api.github.mockResolvedValue([
+      {
+        id: 12,
+        authorizationStatus: 'REAUTH_REQUIRED',
+        installation: {
+          accountLogin: 'traceflow-org',
+          accountType: 'Organization',
+          status: 'ACTIVE',
+          manageUrl: 'https://github.com/settings/installations/12'
+        },
+        repositories: [],
+        projects: [{ id: 20 }, { id: 21 }]
+      }
+    ]);
+    mocks.api.startGithubRepositoryAuthorization.mockImplementation(() => new Promise(() => {}));
+    render(
+      <MemoryRouter>
+        <IntegrationsSettingsPage />
+      </MemoryRouter>
+    );
+
+    const status = await screen.findByText(
+      (_content, element) =>
+        element?.tagName === 'P' &&
+        element.textContent.includes('Autorização pessoal pendente de renovação')
+    );
+    expect(status).toHaveTextContent('2 projeto(s) conectado(s)');
+    expect(screen.queryByText(/0 repositório\(s\) acessível\(is\)/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Renovar acesso GitHub' }));
+    expect(mocks.api.startGithubRepositoryAuthorization).toHaveBeenCalledWith();
+    expect(screen.getByRole('button', { name: 'Abrindo GitHub...' })).toBeDisabled();
   });
 
   it('bloqueia desvínculo visual de conta GitHub-only e preserva a área da GitHub App', async () => {

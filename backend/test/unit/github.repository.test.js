@@ -5,7 +5,7 @@ const database = vi.hoisted(() => {
   const tx = {
     gitHubAppConnectionState: { findFirst: method(), updateMany: method() },
     gitHubInstallation: { findUnique: method(), create: method(), update: method() },
-    gitHubInstallationAuthorization: { upsert: method() },
+    gitHubInstallationAuthorization: { upsert: method(), updateMany: method() },
     gitHubRepositoryAuthorization: { deleteMany: method(), createMany: method() },
     projectGitHubIntegration: { findUnique: method(), create: method(), update: method() },
     project: { update: method() }
@@ -76,6 +76,7 @@ describe('persistência de metadados da GitHub App', () => {
       userId: 7
     });
     const now = new Date('2030-01-01');
+    const repositoryAuthorizationExpiresAt = new Date('2030-01-02');
     await expect(
       githubRepository.authorizeInstallationFromState({
         stateId: 3,
@@ -87,7 +88,8 @@ describe('persistência de metadados da GitHub App', () => {
           accountLogin: 'traceflow',
           accountType: 'Organization',
           installedAt: now
-        }
+        },
+        repositoryAuthorizationExpiresAt
       })
     ).resolves.toEqual({
       installation: { id: 12 },
@@ -99,8 +101,18 @@ describe('persistência de metadados da GitHub App', () => {
     );
     expect(database.tx.gitHubInstallationAuthorization.upsert).toHaveBeenCalledWith({
       where: { installationId_userId: { installationId: 12, userId: 7 } },
-      create: { installationId: 12, userId: 7, verifiedAt: now },
-      update: { verifiedAt: now }
+      create: {
+        installationId: 12,
+        userId: 7,
+        verifiedAt: now,
+        repositoryAuthorizationVerifiedAt: now,
+        repositoryAuthorizationExpiresAt
+      },
+      update: {
+        verifiedAt: now,
+        repositoryAuthorizationVerifiedAt: now,
+        repositoryAuthorizationExpiresAt
+      }
     });
     expect(database.tx.gitHubAppConnectionState.updateMany).toHaveBeenCalledWith({
       where: { id: 3, userId: 7, usedAt: null, expiresAt: { gt: now } },
@@ -119,6 +131,33 @@ describe('persistência de metadados da GitHub App', () => {
         installation: { githubInstallationId: '77' }
       })
     ).resolves.toBeNull();
+  });
+
+  it('persiste verificação válida mesmo quando o usuário possui zero repositórios', async () => {
+    database.tx.gitHubInstallationAuthorization.updateMany.mockResolvedValue({ count: 1 });
+    database.tx.gitHubRepositoryAuthorization.deleteMany.mockResolvedValue({ count: 2 });
+    const verifiedAt = new Date('2030-01-01');
+    const expiresAt = new Date('2030-01-02');
+
+    await expect(
+      githubRepository.replaceRepositoryAuthorizationsForUser({
+        userId: 7,
+        installations: [{ installationId: 12, repositories: [] }],
+        verifiedAt,
+        expiresAt
+      })
+    ).resolves.toEqual({ installationCount: 1, repositoryCount: 0 });
+    expect(database.tx.gitHubInstallationAuthorization.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ installationId: 12, userId: 7 }),
+        data: {
+          verifiedAt,
+          repositoryAuthorizationVerifiedAt: verifiedAt,
+          repositoryAuthorizationExpiresAt: expiresAt
+        }
+      })
+    );
+    expect(database.tx.gitHubRepositoryAuthorization.createMany).not.toHaveBeenCalled();
   });
 
   it('não tenta consumir o state quando o upsert da autorização falha', async () => {

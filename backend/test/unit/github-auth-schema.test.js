@@ -11,6 +11,12 @@ const privacyMigration = readFileSync(
   resolve('prisma/migrations/20260820220000_lr4_privacy_lifecycle_hardening/migration.sql'),
   'utf8'
 );
+const repositoryAuthorizationMigration = readFileSync(
+  resolve(
+    'prisma/migrations/20260821180000_lr3_1_github_repository_authorization_migration/migration.sql'
+  ),
+  'utf8'
+);
 
 describe('schema incremental da autenticação GitHub L1.1', () => {
   it('mantém identidade 1:0..1 separada de instalações e com IDs únicos', () => {
@@ -44,5 +50,17 @@ describe('schema incremental da autenticação GitHub L1.1', () => {
     expect(tombstone).not.toMatch(/githubUserId|userId|accessToken|refreshToken/i);
     expect(privacyMigration).toContain('CREATE TABLE `GitHubIdentityTombstone`');
     expect(privacyMigration).not.toMatch(/DROP TABLE|TRUNCATE|DELETE FROM/i);
+  });
+
+  it('modela propósito dedicado e evidência de autorização válida sem persistir token', () => {
+    const authorization = schema.match(
+      /model GitHubInstallationAuthorization \{([\s\S]*?)\n\}/
+    )?.[1];
+    expect(schema).toContain('REPOSITORY_AUTHORIZATION');
+    expect(authorization).toContain('repositoryAuthorizationVerifiedAt');
+    expect(authorization).toContain('repositoryAuthorizationExpiresAt');
+    expect(authorization).not.toMatch(/accessToken|refreshToken|userToken/i);
+    expect(repositoryAuthorizationMigration).toContain("'REPOSITORY_AUTHORIZATION'");
+    expect(repositoryAuthorizationMigration).not.toMatch(/UPDATE|DELETE|DROP|TRUNCATE/i);
   });
 });

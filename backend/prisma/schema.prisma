@@ -112,6 +112,7 @@ enum GitHubOAuthPurpose {
   LOGIN
   LINK_IDENTITY
   REAUTH_SENSITIVE_ACTION
+  REPOSITORY_AUTHORIZATION
 }
 
 model User {
@@ -360,11 +361,13 @@ model GitHubRepositoryAuthorization {
 }
 
 model GitHubInstallationAuthorization {
-  id             Int      @id @default(autoincrement())
-  installationId Int
-  userId         Int
-  verifiedAt     DateTime
-  createdAt      DateTime @default(now())
+  id                                Int       @id @default(autoincrement())
+  installationId                    Int
+  userId                            Int
+  verifiedAt                        DateTime
+  repositoryAuthorizationVerifiedAt DateTime?
+  repositoryAuthorizationExpiresAt  DateTime?
+  createdAt                         DateTime  @default(now())
 
   installation GitHubInstallation @relation(fields: [installationId], references: [id], onDelete: Cascade)
   user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)

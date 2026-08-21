@@ -53,4 +53,7 @@ export const githubLoginStartBodySchema = strictObject({
 export const githubSensitiveReauthenticationBodySchema = strictObject({
   returnTo: z.string().max(191).optional()
 });
+export const githubRepositoryAuthorizationBodySchema = strictObject({
+  returnTo: z.string().max(191).optional()
+});
 export const usernameBodySchema = strictObject({ username });

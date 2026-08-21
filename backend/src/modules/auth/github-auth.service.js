@@ -4,6 +4,7 @@ import { AppError, ERROR_CODES } from '../../shared/errors/index.js';
 import { logger } from '../../shared/logger/index.js';
 import { fingerprintGithubUserId } from '../../shared/security/pseudonymization.js';
 import { githubAppCredentialProvider } from '../github/github-credential.provider.js';
+import { githubRepository } from '../github/github.repository.js';
 import { authService } from './auth.service.js';
 import { githubAuthRepository } from './github-auth.repository.js';
 import { normalizeUsername, validateUsername } from './identity-policy.js';
@@ -222,6 +223,53 @@ async function createGithubAccount({ token, profile, githubUserId, githubLogin, 
   throw oauthError('Não foi possível criar a conta.', 409, ERROR_CODES.CONFLICT);
 }
 
+async function renewRepositoryAuthorization({ userId, token, githubLogin, now }) {
+  const installations = await githubRepository.listAuthorizedInstallations(userId);
+  if (installations.length === 0) {
+    throw oauthError(
+      'Nenhuma instalação GitHub está autorizada para esta conta.',
+      409,
+      ERROR_CODES.GITHUB_AUTHORIZATION_NOT_FOUND
+    );
+  }
+
+  const accessibleInstallations =
+    await githubAppCredentialProvider.listInstallationsAccessibleToUser(token);
+  const accessibleById = new Map(
+    accessibleInstallations.map((installation) => [
+      String(installation.githubInstallationId),
+      installation
+    ])
+  );
+  const inaccessible = installations.filter(
+    (installation) => !accessibleById.has(String(installation.githubInstallationId))
+  );
+  if (inaccessible.length > 0) {
+    throw oauthError(
+      'Uma instalação GitHub vinculada não está acessível à identidade autorizada.',
+      403,
+      ERROR_CODES.GITHUB_AUTHORIZATION_NOT_FOUND
+    );
+  }
+
+  const refreshed = [];
+  for (const installation of installations) {
+    const repositories = await githubAppCredentialProvider.listRepositoriesAccessibleToUser(
+      token,
+      installation.githubInstallationId,
+      githubLogin
+    );
+    refreshed.push({ installationId: installation.id, repositories });
+  }
+  const expiresAt = new Date(now.getTime() + env.githubRepositoryAuthorizationTtlMs);
+  return githubRepository.replaceRepositoryAuthorizationsForUser({
+    userId,
+    installations: refreshed,
+    verifiedAt: now,
+    expiresAt
+  });
+}
+
 export const githubAuthService = {
   sanitizeInternalReturnTo,
   startLogin({ rememberMe = false, returnTo }) {
@@ -269,10 +317,33 @@ export const githubAuthService = {
       returnTo: sanitizeInternalReturnTo(returnTo, '/settings/security')
     });
   },
+  async startRepositoryAuthorization({ user, session }, { returnTo } = {}) {
+    if (user.accountStatus !== 'ACTIVE')
+      throw oauthError('A conta precisa estar ativa.', 403, ERROR_CODES.ACCOUNT_NOT_ACTIVE);
+    if (!(await githubAuthRepository.findIdentityByUserId(user.id)))
+      throw oauthError(
+        'Nenhuma conta GitHub vinculada.',
+        409,
+        ERROR_CODES.GITHUB_IDENTITY_NOT_LINKED
+      );
+    if ((await githubRepository.listAuthorizedInstallations(user.id)).length === 0)
+      throw oauthError(
+        'Nenhuma instalação GitHub está autorizada para esta conta.',
+        409,
+        ERROR_CODES.GITHUB_AUTHORIZATION_NOT_FOUND
+      );
+    return createState({
+      purpose: 'REPOSITORY_AUTHORIZATION',
+      userId: user.id,
+      sessionId: session.id,
+      returnTo: sanitizeInternalReturnTo(returnTo, '/projects')
+    });
+  },
   async completeCallback({ code, state, browserCookie }) {
     let step = 'validate_state';
     let purpose = 'UNKNOWN';
     let oauthReturnTo = '/settings/security';
+    let oauthUserId;
     try {
       assertConfigured();
       if (typeof code !== 'string' || !code || code.length > 512 || typeof state !== 'string') {
@@ -288,6 +359,7 @@ export const githubAuthService = {
         throw oauthError('Estado OAuth inválido.', 400, ERROR_CODES.GITHUB_OAUTH_STATE_INVALID);
       }
       purpose = record.purpose;
+      oauthUserId = record.userId;
       oauthReturnTo = sanitizeInternalReturnTo(record.returnTo, '/settings/security');
       if (record.expiresAt <= now) {
         throw oauthError('Estado OAuth expirado.', 400, ERROR_CODES.GITHUB_OAUTH_STATE_EXPIRED);
@@ -380,6 +452,21 @@ export const githubAuthService = {
           ERROR_CODES.GITHUB_IDENTITY_MISMATCH
         );
       }
+      if (record.purpose === 'REPOSITORY_AUTHORIZATION') {
+        step = 'renew_repository_authorization';
+        const renewed = await renewRepositoryAuthorization({
+          userId: record.userId,
+          token,
+          githubLogin,
+          now
+        });
+        return {
+          purpose: record.purpose,
+          userId: record.userId,
+          returnTo: sanitizeInternalReturnTo(record.returnTo, '/projects'),
+          ...renewed
+        };
+      }
       const updated = await githubAuthRepository.markSensitiveReauthenticated(
         record.sessionId,
         record.userId,
@@ -407,18 +494,27 @@ export const githubAuthService = {
           ERROR_CODES.GITHUB_OAUTH_FAILED
         );
         normalized.oauthPurpose = purpose;
+        normalized.oauthReturnTo = oauthReturnTo;
+        normalized.oauthUserId = oauthUserId;
         throw normalized;
       }
       if (error instanceof AppError) {
         error.oauthPurpose = purpose;
         error.oauthReturnTo = oauthReturnTo;
+        if (typeof error.oauthUserId !== 'number' && typeof oauthUserId === 'number') {
+          error.oauthUserId = oauthUserId;
+        }
         throw error;
       }
-      throw oauthError(
+      const normalized = oauthError(
         'Não foi possível concluir a autenticação GitHub.',
         502,
         ERROR_CODES.GITHUB_OAUTH_FAILED
       );
+      normalized.oauthPurpose = purpose;
+      normalized.oauthReturnTo = oauthReturnTo;
+      normalized.oauthUserId = oauthUserId;
+      throw normalized;
     }
   },
   identity(userId) {

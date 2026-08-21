@@ -29,6 +29,8 @@ export function ProjectsScreen() {
   const [highlightedProjectId, setHighlightedProjectId] = useState(null);
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [loadingRepositories, setLoadingRepositories] = useState(false);
+  const [authorizingRepositories, setAuthorizingRepositories] = useState(false);
+  const [repositoryAuthorizationStatus, setRepositoryAuthorizationStatus] = useState('AUTHORIZED');
   const [submitting, setSubmitting] = useState(false);
   const [repositoriesError, setRepositoriesError] = useState('');
   const [projectsError, setProjectsError] = useState('');
@@ -65,6 +67,8 @@ export function ProjectsScreen() {
 
     try {
       const response = await projectsApi.listAllGithubRepositories(reconnectProjectId);
+      const nextAuthorizationStatus = response.data.authorizationStatus || 'AUTHORIZED';
+      setRepositoryAuthorizationStatus(nextAuthorizationStatus);
       const validRepositories = (response.data.repositories || [])
         .map(normalizeRepository)
         .filter(
@@ -80,6 +84,7 @@ export function ProjectsScreen() {
       setRepositories(validRepositories);
     } catch (requestError) {
       setRepositories([]);
+      setRepositoryAuthorizationStatus('AUTHORIZED');
       setRepositoriesError(
         normalizeApiError(requestError, 'Não foi possível carregar os repositórios do GitHub.')
           .message
@@ -120,8 +125,42 @@ export function ProjectsScreen() {
       setGithubCallbackError(
         'Não foi possível concluir a autorização da GitHub App. Inicie o fluxo novamente.'
       );
+    } else if (searchParams.get('githubRepositoryAuthorization') === 'success') {
+      setSuccess('Autorização pessoal do GitHub renovada. Os repositórios foram atualizados.');
+      setGithubCallbackError('');
+      void loadRepositories();
+    } else if (searchParams.get('githubRepositoryAuthorization') === 'error') {
+      setGithubCallbackError(
+        'Não foi possível renovar sua autorização pessoal do GitHub. Tente novamente.'
+      );
     }
   }, [loadInstallations, loadRepositories, searchParams]);
+
+  async function renewRepositoryAuthorization() {
+    if (authorizingRepositories || operationCooldown > 0) return;
+    setAuthorizingRepositories(true);
+    setOperationError('');
+    setOperationRetryAfterSeconds(0);
+    try {
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete('github');
+      nextParams.delete('githubRepositoryAuthorization');
+      nextParams.delete('reason');
+      const query = nextParams.toString();
+      const response = await projectsApi.startGithubRepositoryAuthorization(
+        `/projects${query ? `?${query}` : ''}`
+      );
+      window.location.assign(response.data.url);
+    } catch (requestError) {
+      const normalized = normalizeApiError(
+        requestError,
+        'Não foi possível iniciar a renovação da autorização GitHub.'
+      );
+      setOperationError(normalized.message);
+      setOperationRetryAfterSeconds(normalized.retryAfterSeconds || 0);
+      setAuthorizingRepositories(false);
+    }
+  }
 
   function handleChange(name, value) {
     setFormData((current) => updateProjectForm(current, name, value));
@@ -297,11 +336,15 @@ export function ProjectsScreen() {
             repositoriesError={repositoriesError}
             onRetryRepositories={() => void loadRepositories()}
             repositoryEmptyMessage={
-              installations.length === 0
+              installations.length === 0 || repositoryAuthorizationStatus === 'REAUTH_REQUIRED'
                 ? ''
                 : 'Nenhum repositório com permissão OWNER ou ADMIN foi autorizado recentemente.'
             }
-            repositoryDisabled={Boolean(installationsError) || installations.length === 0}
+            repositoryDisabled={
+              Boolean(installationsError) ||
+              installations.length === 0 ||
+              repositoryAuthorizationStatus === 'REAUTH_REQUIRED'
+            }
             onChange={handleChange}
             onRepositoryChange={handleRepositoryChange}
             onSubmit={handleSubmit}
@@ -309,6 +352,20 @@ export function ProjectsScreen() {
             submitting={submitting}
             showStatusField={false}
           />
+          {repositoryAuthorizationStatus === 'REAUTH_REQUIRED' && (
+            <aside className="repository-authorization-callout" role="status">
+              <p>Sua autorização GitHub precisa ser renovada para listar repositórios.</p>
+              <button
+                className="button button-secondary"
+                type="button"
+                disabled={authorizingRepositories || operationCooldown > 0}
+                aria-busy={authorizingRepositories}
+                onClick={() => void renewRepositoryAuthorization()}
+              >
+                {authorizingRepositories ? 'Abrindo GitHub...' : 'Renovar acesso GitHub'}
+              </button>
+            </aside>
+          )}
           {installationsError && <FeedbackRegion error={installationsError} />}
           {duplicateRepository && (
             <aside className="repository-duplicate-callout" role="status">

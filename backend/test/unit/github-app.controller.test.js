@@ -64,13 +64,19 @@ describe('controllers da GitHub App L1', () => {
     const installations = await invoke(githubAppController.listInstallations, { auth });
     expect(installations.json).toHaveBeenCalledWith({ installations: [{ id: 1 }] });
 
-    mocks.service.listRepositories.mockResolvedValue([{ id: 2 }]);
+    mocks.service.listRepositories.mockResolvedValue({
+      repositories: [{ id: 2 }],
+      authorizationStatus: 'AUTHORIZED'
+    });
     const repositories = await invoke(githubAppController.listRepositories, {
       auth,
       params: { installationId: '77' }
     });
     expect(mocks.service.listRepositories).toHaveBeenCalledWith(7, '77', undefined);
-    expect(repositories.json).toHaveBeenCalledWith({ repositories: [{ id: 2 }] });
+    expect(repositories.json).toHaveBeenCalledWith({
+      repositories: [{ id: 2 }],
+      authorizationStatus: 'AUTHORIZED'
+    });
   });
 
   it('conclui callback, registra auditoria e preserva contexto no redirect', async () => {

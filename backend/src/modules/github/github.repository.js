@@ -70,8 +70,18 @@ export const githubRepository = {
         try {
           authorization = await tx.gitHubInstallationAuthorization.upsert({
             where: { installationId_userId: { installationId: installation.id, userId } },
-            create: { installationId: installation.id, userId, verifiedAt: now },
-            update: { verifiedAt: now }
+            create: {
+              installationId: installation.id,
+              userId,
+              verifiedAt: now,
+              repositoryAuthorizationVerifiedAt: now,
+              repositoryAuthorizationExpiresAt
+            },
+            update: {
+              verifiedAt: now,
+              repositoryAuthorizationVerifiedAt: now,
+              repositoryAuthorizationExpiresAt
+            }
           });
         } catch (error) {
           throw callbackPersistenceError('upsert_authorization', error);
@@ -122,13 +132,73 @@ export const githubRepository = {
         githubInstallationId: String(githubInstallationId),
         status: 'ACTIVE',
         authorizations: { some: { userId } }
+      },
+      include: {
+        authorizations: {
+          where: { userId },
+          select: {
+            repositoryAuthorizationVerifiedAt: true,
+            repositoryAuthorizationExpiresAt: true
+          }
+        }
       }
     });
   },
   listAuthorizedInstallations(userId) {
     return prisma.gitHubInstallation.findMany({
       where: { status: 'ACTIVE', authorizations: { some: { userId } } },
+      include: {
+        authorizations: {
+          where: { userId },
+          select: {
+            repositoryAuthorizationVerifiedAt: true,
+            repositoryAuthorizationExpiresAt: true
+          }
+        }
+      },
       orderBy: { accountLogin: 'asc' }
+    });
+  },
+  async replaceRepositoryAuthorizationsForUser({ userId, installations, verifiedAt, expiresAt }) {
+    return prisma.$transaction(async (tx) => {
+      let repositoryCount = 0;
+      for (const item of installations) {
+        const updated = await tx.gitHubInstallationAuthorization.updateMany({
+          where: {
+            installationId: item.installationId,
+            userId,
+            installation: { status: 'ACTIVE' }
+          },
+          data: {
+            verifiedAt,
+            repositoryAuthorizationVerifiedAt: verifiedAt,
+            repositoryAuthorizationExpiresAt: expiresAt
+          }
+        });
+        if (updated.count !== 1) {
+          throw Object.assign(new Error('Autorização GitHub não encontrada.'), {
+            code: 'GITHUB_AUTHORIZATION_NOT_FOUND'
+          });
+        }
+        await tx.gitHubRepositoryAuthorization.deleteMany({
+          where: { installationId: item.installationId, userId }
+        });
+        if (item.repositories.length > 0) {
+          await tx.gitHubRepositoryAuthorization.createMany({
+            data: item.repositories.map((repository) => ({
+              installationId: item.installationId,
+              userId,
+              githubRepositoryId: String(repository.githubRepositoryId),
+              repositoryFullName: repository.fullName,
+              permission: repository.permission,
+              verifiedAt,
+              expiresAt
+            }))
+          });
+          repositoryCount += item.repositories.length;
+        }
+      }
+      return { installationCount: installations.length, repositoryCount };
     });
   },
   findRepositoryAuthorizations(userId, installationId, now = new Date()) {

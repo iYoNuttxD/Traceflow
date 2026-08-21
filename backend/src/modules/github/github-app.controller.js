@@ -48,21 +48,16 @@ export const githubAppController = {
     res.json({ installations: await githubAppService.listInstallations(req.auth.user.id) })
   ),
   listRepositories: asyncHandler(async (req, res) =>
-    res.json({
-      repositories: await githubAppService.listRepositories(
+    res.json(
+      await githubAppService.listRepositories(
         req.auth.user.id,
         req.params.installationId,
         req.query?.projectId
       )
-    })
+    )
   ),
   listAllRepositories: asyncHandler(async (req, res) =>
-    res.json({
-      repositories: await githubAppService.listAllRepositories(
-        req.auth.user.id,
-        req.query?.projectId
-      )
-    })
+    res.json(await githubAppService.listAllRepositories(req.auth.user.id, req.query?.projectId))
   ),
   connectProject: asyncHandler(async (req, res) => {
     const integration = await githubAppService.connectProject({

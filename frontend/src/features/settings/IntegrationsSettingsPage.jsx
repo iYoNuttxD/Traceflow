@@ -24,14 +24,21 @@ export function IntegrationsSettingsPage() {
   const [identityPassword, setIdentityPassword] = useState('');
   const [linking, setLinking] = useState(false);
   const [authorizing, setAuthorizing] = useState(false);
+  const [renewingRepositoryAuthorization, setRenewingRepositoryAuthorization] = useState(false);
   const [message, setMessage] = useState(
     new URLSearchParams(location.search).get('githubIdentity') === 'success'
       ? 'Conta GitHub vinculada com sucesso.'
       : new URLSearchParams(location.search).get('githubReauth') === 'success'
         ? 'Identidade GitHub confirmada para ações sensíveis.'
-        : ''
+        : new URLSearchParams(location.search).get('githubRepositoryAuthorization') === 'success'
+          ? 'Autorização pessoal do GitHub renovada com sucesso.'
+          : ''
   );
-  const [error, setError] = useState('');
+  const [error, setError] = useState(
+    new URLSearchParams(location.search).get('githubRepositoryAuthorization') === 'error'
+      ? 'Não foi possível renovar sua autorização pessoal do GitHub. Tente novamente.'
+      : ''
+  );
   const [loading, setLoading] = useState(true);
   const [initialError, setInitialError] = useState(null);
   const [busy, setBusy] = useState('');
@@ -158,6 +165,25 @@ export function IntegrationsSettingsPage() {
     }
   }
 
+  async function renewRepositoryAuthorization() {
+    if (renewingRepositoryAuthorization || cooldown > 0) return;
+    setRenewingRepositoryAuthorization(true);
+    setError('');
+    setRetryAfterSeconds(0);
+    try {
+      const response = await settingsApi.startGithubRepositoryAuthorization();
+      window.location.assign(response.data.url);
+    } catch (value) {
+      const normalized = normalizeApiError(
+        value,
+        'Não foi possível iniciar a renovação da autorização GitHub.'
+      );
+      setError(normalized.message);
+      setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
+      setRenewingRepositoryAuthorization(false);
+    }
+  }
+
   if (loading) return <LoadingState message="Carregando integrações..." />;
   if (initialError) {
     return (
@@ -278,6 +304,23 @@ export function IntegrationsSettingsPage() {
               : 'Instalar ou autorizar GitHub App'}
         </button>
         {!integrations.length && <p>Nenhuma autorização GitHub vinculada à sua conta.</p>}
+        {integrations.some(
+          (item) =>
+            item.authorizationStatus === 'REAUTH_REQUIRED' && item.installation.status === 'ACTIVE'
+        ) && (
+          <aside className="repository-authorization-callout" role="status">
+            <p>Sua autorização GitHub precisa ser renovada para listar repositórios.</p>
+            <button
+              className="button button-secondary"
+              type="button"
+              disabled={renewingRepositoryAuthorization || Boolean(busy) || cooldown > 0}
+              aria-busy={renewingRepositoryAuthorization}
+              onClick={() => void renewRepositoryAuthorization()}
+            >
+              {renewingRepositoryAuthorization ? 'Abrindo GitHub...' : 'Renovar acesso GitHub'}
+            </button>
+          </aside>
+        )}
         {integrations.map((item) => {
           const projectCount = item.projects.length;
           return (
@@ -290,8 +333,10 @@ export function IntegrationsSettingsPage() {
                   </small>
                 </div>
                 <p>
-                  {item.repositories.length} repositório(s) acessível(is) · {projectCount}{' '}
-                  projeto(s) conectado(s)
+                  {item.authorizationStatus === 'REAUTH_REQUIRED'
+                    ? 'Autorização pessoal pendente de renovação'
+                    : `${item.repositories.length} repositório(s) acessível(is)`}{' '}
+                  · {projectCount} projeto(s) conectado(s)
                 </p>
                 <a
                   className="text-link"

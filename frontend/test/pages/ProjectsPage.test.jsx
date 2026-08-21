@@ -27,6 +27,8 @@ vi.mock('../../src/features/projects/api/projects.api.js', () => ({
         params: projectId ? { projectId } : undefined
       }),
     startGithubInstallation: (data) => apiMock.post('/github/app/installations/start', data),
+    startGithubRepositoryAuthorization: (returnTo) =>
+      apiMock.post('/auth/github/repositories/authorization/start', { returnTo }),
     connectGithubRepository: (projectId, data) =>
       apiMock.put(`/projects/${projectId}/github/integration`, data),
     create: (data) => apiMock.post('/projects', data),
@@ -63,6 +65,7 @@ function renderPage(initialEntries = ['/projects']) {
 function mockInitialRequests({
   projects = [],
   repositories = [fakeRepository],
+  authorizationStatus = 'AUTHORIZED',
   installations = [
     {
       githubInstallationId: '77',
@@ -85,7 +88,7 @@ function mockInitialRequests({
     }
 
     if (url === '/github/app/repositories') {
-      return Promise.resolve({ data: { repositories } });
+      return Promise.resolve({ data: { repositories, authorizationStatus } });
     }
 
     return Promise.reject(new Error(`URL inesperada: ${url}`));
@@ -339,6 +342,31 @@ describe('ProjectsPage', () => {
         'Nenhum repositório com permissão OWNER ou ADMIN foi autorizado recentemente.'
       )
     ).toBeInTheDocument();
+  });
+
+  it('diferencia usuário pré-LR.3 e inicia renovação dedicada sem usar a Installation', async () => {
+    const user = userEvent.setup();
+    mockInitialRequests({ repositories: [], authorizationStatus: 'REAUTH_REQUIRED' });
+    apiMock.post.mockImplementation(() => new Promise(() => {}));
+    renderPage();
+
+    expect(
+      await screen.findByText(
+        'Sua autorização GitHub precisa ser renovada para listar repositórios.'
+      )
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText('Repositório GitHub *')).toBeDisabled();
+    expect(
+      screen.queryByText(
+        'Nenhum repositório com permissão OWNER ou ADMIN foi autorizado recentemente.'
+      )
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Renovar acesso GitHub' }));
+    expect(apiMock.post).toHaveBeenCalledWith('/auth/github/repositories/authorization/start', {
+      returnTo: '/projects'
+    });
+    expect(screen.getByRole('button', { name: 'Abrindo GitHub...' })).toBeDisabled();
   });
 
   it('distingue quando nenhuma instalação foi registrada', async () => {

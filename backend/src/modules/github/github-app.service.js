@@ -10,6 +10,10 @@ import { githubRepository } from './github.repository.js';
 
 const hashToken = (value) => createHash('sha256').update(value).digest('hex');
 export const GITHUB_WEBHOOK_STALE_AFTER_MS = 5 * 60 * 1000;
+export const GITHUB_REPOSITORY_AUTHORIZATION_STATUS = Object.freeze({
+  AUTHORIZED: 'AUTHORIZED',
+  REAUTH_REQUIRED: 'REAUTH_REQUIRED'
+});
 const forbidden = (message = 'Instalação GitHub não autorizada.') =>
   new AppError({
     message,
@@ -117,10 +121,35 @@ function validStateRecord(record, now) {
   return record.intendedAction === 'CREATE_PROJECT' && !record.projectId;
 }
 
-async function filterRepositoriesAuthorizedForUser(userId, installation, repositories) {
+function repositoryAuthorizationStatus(installations, now = new Date()) {
+  if (installations.length === 0) return GITHUB_REPOSITORY_AUTHORIZATION_STATUS.AUTHORIZED;
+  const allValid = installations.every((installation) => {
+    const authorization = installation.authorizations?.[0];
+    return Boolean(
+      authorization?.repositoryAuthorizationVerifiedAt &&
+      authorization?.repositoryAuthorizationExpiresAt &&
+      authorization.repositoryAuthorizationExpiresAt > now
+    );
+  });
+  return allValid
+    ? GITHUB_REPOSITORY_AUTHORIZATION_STATUS.AUTHORIZED
+    : GITHUB_REPOSITORY_AUTHORIZATION_STATUS.REAUTH_REQUIRED;
+}
+
+function repositoryReauthenticationRequired() {
+  return new AppError({
+    message: 'Renove sua autorização GitHub para acessar os repositórios.',
+    statusCode: 409,
+    code: ERROR_CODES.GITHUB_USER_REAUTH_REQUIRED,
+    exposeTechnicalDetails: true
+  });
+}
+
+async function filterRepositoriesAuthorizedForUser(userId, installation, repositories, now) {
   const authorizations = await githubRepository.findRepositoryAuthorizations(
     userId,
-    installation.id
+    installation.id,
+    now
   );
   const authorizationByRepositoryId = new Map(
     authorizations.map((authorization) => [String(authorization.githubRepositoryId), authorization])
@@ -251,13 +280,17 @@ export const githubAppService = {
   async listInstallations(userId) {
     return (await githubRepository.listAuthorizedInstallations(userId)).map(installationDto);
   },
-  async listRepositories(userId, githubInstallationId, projectId) {
+  async listRepositories(userId, githubInstallationId, projectId, now = new Date()) {
     if (projectId) await requireOwner(projectId, userId);
     const installation = await githubRepository.findAuthorizedInstallation(
       userId,
       githubInstallationId
     );
     if (!installation) throw forbidden();
+    const authorizationStatus = repositoryAuthorizationStatus([installation], now);
+    if (authorizationStatus === GITHUB_REPOSITORY_AUTHORIZATION_STATUS.REAUTH_REQUIRED) {
+      return { repositories: [], authorizationStatus };
+    }
     const client = await githubInstallationClientFactory.forInstallation(
       installation.githubInstallationId
     );
@@ -265,13 +298,21 @@ export const githubAppService = {
     const authorizedRepositories = await filterRepositoriesAuthorizedForUser(
       userId,
       installation,
-      repositories
+      repositories,
+      now
     );
-    return addRepositoryAvailability(authorizedRepositories, userId, projectId);
+    return {
+      repositories: await addRepositoryAvailability(authorizedRepositories, userId, projectId),
+      authorizationStatus
+    };
   },
-  async listAllRepositories(userId, projectId) {
+  async listAllRepositories(userId, projectId, now = new Date()) {
     if (projectId) await requireOwner(projectId, userId);
     const installations = await githubRepository.listAuthorizedInstallations(userId);
+    const authorizationStatus = repositoryAuthorizationStatus(installations, now);
+    if (authorizationStatus === GITHUB_REPOSITORY_AUTHORIZATION_STATUS.REAUTH_REQUIRED) {
+      return { repositories: [], authorizationStatus };
+    }
     const repositoriesById = new Map();
 
     for (const installation of installations) {
@@ -282,7 +323,8 @@ export const githubAppService = {
       const authorizedRepositories = await filterRepositoriesAuthorizedForUser(
         userId,
         installation,
-        repositories
+        repositories,
+        now
       );
       for (const repository of authorizedRepositories) {
         if (!repositoriesById.has(repository.githubRepositoryId)) {
@@ -298,7 +340,10 @@ export const githubAppService = {
     const repositories = [...repositoriesById.values()].sort((first, second) =>
       first.fullName.localeCompare(second.fullName)
     );
-    return addRepositoryAvailability(repositories, userId, projectId);
+    return {
+      repositories: await addRepositoryAvailability(repositories, userId, projectId),
+      authorizationStatus
+    };
   },
   async assertRepositoryAvailable(githubRepositoryId, projectId, userId) {
     const integration = await githubRepository.findIntegrationByRepositoryId(
@@ -319,6 +364,12 @@ export const githubAppService = {
       githubInstallationId
     );
     if (!installation) throw forbidden();
+    if (
+      repositoryAuthorizationStatus([installation]) ===
+      GITHUB_REPOSITORY_AUTHORIZATION_STATUS.REAUTH_REQUIRED
+    ) {
+      throw repositoryReauthenticationRequired();
+    }
     const client = await githubInstallationClientFactory.forInstallation(
       installation.githubInstallationId
     );
@@ -326,7 +377,8 @@ export const githubAppService = {
     const authorizedRepositories = await filterRepositoriesAuthorizedForUser(
       userId,
       installation,
-      repositories
+      repositories,
+      new Date()
     );
     const repository = authorizedRepositories.find(
       (item) => item.githubRepositoryId === String(githubRepositoryId)

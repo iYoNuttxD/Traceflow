@@ -65,6 +65,12 @@ export function createApp({ logger = defaultLogger, readinessCheck, securityConf
   app.use('/api/auth/username', authenticate, csrf, rateLimiters.sensitiveMutation);
   app.use('/api/auth/change-password', authenticate, csrf, rateLimiters.sensitiveMutation);
   app.use('/api/auth/github/reauth/start', authenticate, csrf, rateLimiters.sensitiveMutation);
+  app.use(
+    '/api/auth/github/repositories/authorization/start',
+    authenticate,
+    csrf,
+    rateLimiters.sensitiveMutation
+  );
   app.get(
     ['/api/auth/me', '/api/auth/csrf'],
     authenticate,

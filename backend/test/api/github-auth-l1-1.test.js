@@ -15,12 +15,20 @@ const provider = vi.hoisted(() => ({
   isConfigured: vi.fn(() => true),
   exchangeInstallationUserCode: vi.fn(),
   listInstallationsAccessibleToUser: vi.fn(),
+  listRepositoriesAccessibleToUser: vi.fn(),
   createInstallationToken: vi.fn()
+}));
+const installationClient = vi.hoisted(() => ({
+  repositories: [],
+  forInstallation: vi.fn()
 }));
 
 vi.mock('../../src/modules/github/github-credential.provider.js', () => ({
   githubAppCredentialProvider: provider,
   createGithubAppCredentialProvider: vi.fn()
+}));
+vi.mock('../../src/modules/github/github.client.js', () => ({
+  githubInstallationClientFactory: { forInstallation: installationClient.forInstallation }
 }));
 
 let app;
@@ -55,7 +63,14 @@ beforeAll(async () => {
 beforeEach(() => {
   provider.profile = { id: 123, login: 'octocat', name: 'Octo Cat' };
   provider.email = 'octocat@example.test';
+  installationClient.repositories = [];
   vi.clearAllMocks();
+  installationClient.forInstallation.mockImplementation(async () => ({
+    listRepositoryPages: () =>
+      (async function* repositoryPages() {
+        yield installationClient.repositories;
+      })()
+  }));
 });
 
 afterEach(async () => cleanTestDatabase(prisma));
@@ -239,5 +254,103 @@ describe('API de autenticação GitHub L1.1', () => {
       await prisma.gitHubInstallationAuthorization.findUnique({ where: { id: authorization.id } })
     ).toBeTruthy();
     expect((await local.agent.get('/api/auth/me')).status).toBe(200);
+  });
+
+  it('migra usuário pré-LR.3 por OAuth dedicado sem persistir o token pessoal', async () => {
+    const local = await registerLocal('legacy-github@example.test', 'legacy-github');
+    await prisma.gitHubIdentity.create({
+      data: { userId: local.user.id, githubUserId: '123', githubLogin: 'octocat' }
+    });
+    const installation = await prisma.gitHubInstallation.create({
+      data: {
+        githubInstallationId: '7007',
+        accountId: '123',
+        accountLogin: 'octocat',
+        accountType: 'User',
+        installedAt: new Date(),
+        status: 'ACTIVE'
+      }
+    });
+    await prisma.gitHubInstallationAuthorization.create({
+      data: { installationId: installation.id, userId: local.user.id, verifiedAt: new Date() }
+    });
+
+    expect(await local.agent.get('/api/github/app/repositories')).toMatchObject({
+      status: 200,
+      body: { repositories: [], authorizationStatus: 'REAUTH_REQUIRED' }
+    });
+
+    const started = await local.agent
+      .post('/api/auth/github/repositories/authorization/start')
+      .set('X-CSRF-Token', local.csrf)
+      .send({ returnTo: '/projects' });
+    expect(started.status).toBe(200);
+    const state = new URL(started.body.url).searchParams.get('state');
+    const storedState = await prisma.gitHubOAuthState.findFirst({ orderBy: { id: 'desc' } });
+    expect(storedState).toMatchObject({
+      purpose: 'REPOSITORY_AUTHORIZATION',
+      userId: local.user.id,
+      returnTo: '/projects'
+    });
+
+    provider.listInstallationsAccessibleToUser.mockResolvedValue([
+      { githubInstallationId: '7007' }
+    ]);
+    provider.listRepositoriesAccessibleToUser.mockResolvedValue([
+      {
+        githubRepositoryId: '501',
+        fullName: 'octocat/traceflow',
+        permission: 'OWNER'
+      }
+    ]);
+    const callback = await completeGithub(local.agent, state);
+    expect(callback.headers.location).toBe(
+      'http://frontend.test/projects?githubRepositoryAuthorization=success'
+    );
+
+    const authorization = await prisma.gitHubInstallationAuthorization.findFirst({
+      where: { installationId: installation.id, userId: local.user.id }
+    });
+    expect(authorization).toMatchObject({
+      repositoryAuthorizationVerifiedAt: expect.any(Date),
+      repositoryAuthorizationExpiresAt: expect.any(Date)
+    });
+    expect(await prisma.gitHubRepositoryAuthorization.findMany()).toEqual([
+      expect.objectContaining({
+        githubRepositoryId: '501',
+        repositoryFullName: 'octocat/traceflow',
+        permission: 'OWNER'
+      })
+    ]);
+    expect(JSON.stringify(await prisma.gitHubOAuthState.findMany())).not.toContain(
+      'user-token-efemero'
+    );
+
+    installationClient.repositories = [
+      {
+        githubRepositoryId: '501',
+        owner: 'octocat',
+        name: 'traceflow',
+        fullName: 'octocat/traceflow',
+        url: 'https://github.com/octocat/traceflow',
+        description: '',
+        private: false,
+        defaultBranch: 'main'
+      }
+    ];
+    expect(await local.agent.get('/api/github/app/repositories')).toMatchObject({
+      status: 200,
+      body: {
+        authorizationStatus: 'AUTHORIZED',
+        repositories: [
+          expect.objectContaining({
+            githubRepositoryId: '501',
+            fullName: 'octocat/traceflow',
+            userPermission: 'OWNER'
+          })
+        ]
+      }
+    });
+    expect(installationClient.forInstallation).toHaveBeenCalledWith('7007');
   });
 });

@@ -516,10 +516,10 @@ export const settingsService = {
     return Promise.all(
       authorizations.map(async (authorization) => {
         const installation = authorization.installation;
-        const repositories =
+        const repositoryDiscovery =
           installation.status === 'ACTIVE'
             ? await githubAppService.listRepositories(userId, installation.githubInstallationId)
-            : [];
+            : { repositories: [], authorizationStatus: 'REAUTH_REQUIRED' };
         return {
           id: authorization.id,
           verifiedAt: authorization.verifiedAt,
@@ -532,7 +532,8 @@ export const settingsService = {
             installedAt: installation.installedAt,
             manageUrl: `https://github.com/settings/installations/${installation.githubInstallationId}`
           },
-          repositories,
+          repositories: repositoryDiscovery.repositories,
+          authorizationStatus: repositoryDiscovery.authorizationStatus,
           projects: installation.projectIntegrations.map((integration) => ({
             id: integration.project.id,
             name: integration.project.name,

@@ -42,6 +42,7 @@ Todos os contratos abaixo exigem sessão e CSRF nas mutations, exceto as duas co
 | GET             | `/settings/integrations/github`                                 | autorizações pessoais, instalações/repos/projetos |
 | DELETE          | `/settings/integrations/github/authorizations/:authorizationId` | autenticação recente; remove autorização própria  |
 | POST            | `/auth/github/reauth/start`                                     | GitHub-only; state, sessão e retorno interno       |
+| POST            | `/auth/github/repositories/authorization/start`                 | renova evidências OWNER/ADMIN; state e CSRF        |
 
 A autenticação recente de uma conta com senha é a confirmação da senha local. Para conta GitHub-only (`passwordHash=null`), o backend exige identidade vinculada e OAuth GitHub recente na mesma sessão; o token de usuário permanece somente em memória. O callback aceita `ACTIVE` e `DELETION_PENDING` apenas nesse purpose, valida state/sessão/GitHub ID e atualiza os timestamps da sessão e da identidade.
 
@@ -55,7 +56,9 @@ Ao vencer a carência, o processor faz claim e revalida ownership dentro da tran
 
 GitHub App: `POST /github/app/installations/start`, `GET /github-app/callback`, `GET /github/app/installations`, `GET /github/app/installations/:installationId/repositories`, `PUT /projects/:projectId/github/integration` e `POST /webhooks/github-app`. Start/list/connect exigem sessão; start/connect e sync exigem e-mail verificado. O callback é público e valida o state de uso único, sessão inicial, conta `ACTIVE` e `GitHubIdentity`. Após trocar o code, a fronteira externa confirma `GET /user`, pagina `GET /user/installations` e `GET /user/installations/{installation_id}/repositories` com user access token temporário. Somente `OWNER`/`ADMIN` gera evidência curta; o token nunca é persistido, registrado ou retornado. O webhook é público, sem CSRF, e exige HMAC/body raw/delivery ID. `POST /projects/from-github` aceita `{githubInstallationId,githubRepositoryId,name?,description?,responsibleTeam?}` e exige simultaneamente evidência de permissão do usuário e acesso técnico atual da Installation; metadados enviados pelo navegador não são autoridade.
 
-`GET /github/app/installations/:installationId/repositories` e `GET /github/app/repositories` retornam somente a interseção entre repositórios autorizados ao usuário (`OWNER`/`ADMIN`) e repositórios acessíveis à App. Cada item é DTO minimizado e inclui `userPermission`, `availability`, `alreadyConnected`, `connectedToCurrentProject` e `selectable`, nunca token/secret. Repositório ocupado por outro projeto é listado, mas não selecionável. Com `projectId`, somente a repo já vinculada pode ser reconectada; tentar outra recebe `409 GITHUB_REPOSITORY_SWAP_FORBIDDEN`. Uma instalação pode servir N projetos, mas `projectId` e `githubRepositoryId` são exclusivos em `ProjectGitHubIntegration`.
+`GET /github/app/installations/:installationId/repositories` e `GET /github/app/repositories` retornam `{repositories,authorizationStatus}`. `authorizationStatus` é `AUTHORIZED` quando a evidência pessoal ainda é válida, inclusive quando `repositories` está vazio, e `REAUTH_REQUIRED` quando a evidência está ausente ou expirada. No segundo caso o backend não consulta nem expõe a lista da Installation. `POST /auth/github/repositories/authorization/start` inicia OAuth dedicado com sessão, CSRF, PKCE, state de uso único e `returnTo` interno; o callback confirma a `GitHubIdentity`, consulta as instalações e permissões com token pessoal efêmero e substitui atomicamente somente as evidências minimizadas. O token nunca é persistido, registrado ou retornado.
+
+Quando autorizado, a listagem contém somente a interseção entre repositórios `OWNER`/`ADMIN` do usuário e repositórios acessíveis à App. Cada item é DTO minimizado e inclui `userPermission`, `availability`, `alreadyConnected`, `connectedToCurrentProject` e `selectable`, nunca token/secret. Repositório ocupado por outro projeto é listado, mas não selecionável. Com `projectId`, somente a repo já vinculada pode ser reconectada; tentar outra recebe `409 GITHUB_REPOSITORY_SWAP_FORBIDDEN`. A criação/conexão com evidência ausente ou expirada recebe `409 GITHUB_USER_REAUTH_REQUIRED`, independentemente dos IDs enviados pelo navegador. Uma instalação pode servir N projetos, mas `projectId` e `githubRepositoryId` são exclusivos em `ProjectGitHubIntegration`.
 
 Installation lifecycle: `PENDING` aguarda autorização concluída, `ACTIVE` permite seleção/sync/webhook, `SUSPENDED` e `REMOVED` bloqueiam operações novas sem apagar projetos ou artifacts. Callback não reativa estados bloqueados. Delivery webhook assinado é processado uma vez; duplicata `PROCESSING/PROCESSED` retorna sucesso idempotente e `FAILED`/stale pode ser reivindicado novamente. Falhas guardam somente etapa, código seguro e timestamps.
 
@@ -211,19 +214,20 @@ Priority: `BAIXA`, `MEDIA`, `ALTA`, `CRITICA`. Status: `A_FAZER`, `EM_ANDAMENTO`
 
 ## GitHub e Artifacts
 
-| Método | Caminho                                                  | Entrada                                        | Sucesso                                                          |
-| ------ | -------------------------------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------- |
-| POST   | `/github/app/installations/start`                        | `intendedAction`; `projectId?`                 | `200`, `{url,expiresInMs}` para autorização da GitHub App        |
-| GET    | `/github/app/installations`                              | sessão                                         | `200`, `{installations}` autorizadas ao usuário                  |
-| GET    | `/github/app/repositories`                               | `projectId?`                                   | `200`, interseção usuário OWNER/ADMIN + instalações ACTIVE       |
-| GET    | `/github/app/installations/:installationId/repositories` | instalação autorizada; `projectId?`            | `200`, DTOs autorizados com `userPermission` e disponibilidade   |
-| PUT    | `/projects/:projectId/github/integration`                | instalação e repositório comprovados           | `200`; repo diferente da já vinculada retorna `409`              |
-| POST   | `/projects/:projectId/github/sync`                       | `projectId` positivo; body vazio               | `202`, `{message,run}`; execução persistida iniciada ou já ativa |
-| GET    | `/projects/:projectId/github/sync/status`                | `projectId` positivo                           | `200`, `{run}` com status, progresso, summary e erro sanitizado  |
-| GET    | `/projects/:projectId/commits`                           | `projectId`, `search?`                         | `200`, `{commits}`                                               |
-| GET    | `/projects/:projectId/pull-requests`                     | `projectId`, `search?`                         | `200`, `{pullRequests}`                                          |
-| GET    | `/projects/:projectId/issues`                            | `projectId`, `search?`                         | `200`, `{issues}`                                                |
-| GET    | `/projects/:projectId/artifacts`                         | `projectId`; `type?`, `startDate?`, `endDate?` | `200`, projeto, filtros, resumo e artefatos                      |
+| Método | Caminho                                                  | Entrada                                        | Sucesso                                                               |
+| ------ | -------------------------------------------------------- | ---------------------------------------------- | --------------------------------------------------------------------- |
+| POST   | `/auth/github/repositories/authorization/start`          | `returnTo?` interno; sessão + CSRF             | `200`, `{url,expiresInMs}` para autorização pessoal efêmera           |
+| POST   | `/github/app/installations/start`                        | `intendedAction`; `projectId?`                 | `200`, `{url,expiresInMs}` para autorização da GitHub App             |
+| GET    | `/github/app/installations`                              | sessão                                         | `200`, `{installations}` autorizadas ao usuário                       |
+| GET    | `/github/app/repositories`                               | `projectId?`                                   | `200`, `{repositories,authorizationStatus}`                           |
+| GET    | `/github/app/installations/:installationId/repositories` | instalação autorizada; `projectId?`            | `200`, `{repositories,authorizationStatus}`                           |
+| PUT    | `/projects/:projectId/github/integration`                | instalação e repositório comprovados           | `200`; evidência ausente/expirada `409 GITHUB_USER_REAUTH_REQUIRED`   |
+| POST   | `/projects/:projectId/github/sync`                       | `projectId` positivo; body vazio               | `202`, `{message,run}`; execução persistida iniciada ou já ativa      |
+| GET    | `/projects/:projectId/github/sync/status`                | `projectId` positivo                           | `200`, `{run}` com status, progresso, summary e erro sanitizado       |
+| GET    | `/projects/:projectId/commits`                           | `projectId`, `search?`                         | `200`, `{commits}`                                                    |
+| GET    | `/projects/:projectId/pull-requests`                     | `projectId`, `search?`                         | `200`, `{pullRequests}`                                               |
+| GET    | `/projects/:projectId/issues`                            | `projectId`, `search?`                         | `200`, `{issues}`                                                     |
+| GET    | `/projects/:projectId/artifacts`                         | `projectId`; `type?`, `startDate?`, `endDate?` | `200`, projeto, filtros, resumo e artefatos                           |
 
 Tipos de artifacts: `commit`, `pull_request`, `issue`. A paginação E9 ocorre somente na leitura externa do GitHub; os contratos públicos de listagem permanecem inalterados.
 
