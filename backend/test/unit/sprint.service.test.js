@@ -17,9 +17,9 @@ const mocks = vi.hoisted(() => ({
   milestone: {
     findById: vi.fn(),
     findByProject: vi.fn(),
-    create: vi.fn(),
-    update: vi.fn(),
-    delete: vi.fn()
+    createWithinSprintLock: vi.fn(),
+    updateWithinSprintLock: vi.fn(),
+    deleteWithinSprintLock: vi.fn()
   },
   authorization: {
     actorSeesProject: vi.fn()
@@ -862,11 +862,40 @@ describe('marcos', () => {
     ...overrides
   });
 
+  // Retrato travado do caminho de marco. Por padrao coincide com o que
+  // `sprint.findById` devolve; os testes de concorrencia o fazem divergir.
+  let lockedMilestoneSprints = null;
+
   beforeEach(() => {
     mocks.sprint.findById.mockResolvedValue(baseSprint);
     mocks.milestone.findById.mockResolvedValue(marco());
-    mocks.milestone.create.mockImplementation(async (_p, data) => ({ id: 1, projectId, ...data }));
-    mocks.milestone.update.mockImplementation(async (_id, data) => ({ id: 1, projectId, ...data }));
+    lockedMilestoneSprints = null;
+    const travadas = async () => lockedMilestoneSprints ?? [await mocks.sprint.findById()];
+
+    mocks.milestone.createWithinSprintLock.mockImplementation(
+      async (_p, data, _audit, validate) => {
+        await validate({ sprints: await travadas(), milestone: null });
+        return { id: 1, projectId, ...data };
+      }
+    );
+    mocks.milestone.updateWithinSprintLock.mockImplementation(
+      async (id, _p, _ids, data, _audit, validate) => {
+        await validate({
+          sprints: await travadas(),
+          milestone: await mocks.milestone.findById(id)
+        });
+        return { id, projectId, ...data };
+      }
+    );
+    mocks.milestone.deleteWithinSprintLock.mockImplementation(
+      async (id, _p, _ids, _audit, validate) => {
+        await validate({
+          sprints: await travadas(),
+          milestone: await mocks.milestone.findById(id)
+        });
+        return { id };
+      }
+    );
   });
 
   it('exige data prevista na criacao', async () => {

@@ -239,9 +239,8 @@ outro) e fecham ciclo entre si. O comportamento é anterior a esta revisão — 
 antes de qualquer lock de projeto existir no caminho de escopo — e a correção mora no módulo de
 tarefas. Registrado como `S104-F10`, junto do mapeamento ausente de `P2034`/`P2024` para `409`/`503`.
 
-**Adoção.** Regra 1 (locks antes das leituras) aplicada aos caminhos de janela, de status e de
-escopo. As mutações de marco ainda validam a sprint fora da transação; a adoção nesse caminho é a
-continuação direta desta decisão.
+**Adoção.** Completa: os caminhos de janela, de status, de escopo e de marco tomam os locks antes
+das leituras que decidem a escrita, todos começando pela linha do projeto.
 
 ### D18 — Mover a janela não empurra para fora um marco que estava dentro
 
@@ -271,9 +270,19 @@ tenha mexido na data.
 O critério de conjunto — quem estava dentro continua dentro — é imune ao formato do payload e diz
 exatamente o que a invariante é.
 
-**Pendente.** A outra ponta — mutação de marco travando e revalidando a sprint — ainda não foi
-implementada: uma criação de marco que perde a corrida para uma redução de janela pode confirmar
-depois dela.
+**A outra ponta.** `create`, `update`, `updateMilestoneStatus` e `delete` de marco travam a sprint —
+as duas, quando a atualização move o marco de uma para outra, em ordem crescente de `id` — e
+revalidam estado e janela sobre o registro relido. Uma mutação de marco não confirma mais depois que
+outra requisição encerrou a sprint, e uma redução de janela não deixa passar o marco que a criação
+concorrente estava gravando.
+
+A guarda anti-oráculo de `ensureMilestoneSprint` continua **fora** da transação: ela faz I/O de
+autorização, e prolongar o lock do cronograma por isso trocaria um defeito por outro. Dentro do lock
+ficam apenas as invariantes de domínio.
+
+Se o marco mudar de sprint entre a leitura que escolhe qual linha travar e o lock, a operação é
+recusada com `409 MILESTONE_SPRINT_CHANGED`: travamos a sprint errada, e decidir sobre uma sprint
+que já não é a dele seria pior do que pedir nova tentativa.
 
 ## Consequências
 

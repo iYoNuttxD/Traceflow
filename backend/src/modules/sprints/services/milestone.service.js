@@ -13,6 +13,7 @@ import {
   ensureMilestoneWithinSprint,
   ensureSprintEditable,
   milestoneNotFoundError,
+  milestoneSprintChangedError,
   parseMilestoneId,
   parseProjectId,
   sprintNotFoundError
@@ -29,6 +30,10 @@ export async function ensureMilestoneExists(milestoneId) {
 // O par 400/404 sem esta guarda seria oraculo: iterando o sprintId, um membro de
 // um unico projeto descobriria quais sprints existem em projetos alheios. Quem
 // nao enxerga o outro projeto recebe exatamente a resposta de sprint inexistente.
+//
+// Roda FORA da transacao de proposito: ela faz I/O de autorizacao, e prolongar o
+// lock do cronograma por isso trocaria um defeito por outro. Dentro do lock ficam
+// apenas as invariantes de dominio.
 async function ensureMilestoneSprint(sprintId, projectId, context = {}) {
   const sprint = await ensureSprintExists(sprintId);
   if (sprint.projectId !== projectId) {
@@ -46,9 +51,20 @@ async function ensureMilestoneSprint(sprintId, projectId, context = {}) {
 
 // Marco de sprint encerrada acompanha a imutabilidade dela (ADR-010 D12): o
 // periodo virou registro, e mexer no marco reescreveria o que ficou registrado.
+//
+// Recusa cedo, antes de abrir transacao. A decisao que vale, porem, e a refeita
+// sobre a sprint relida sob lock: entre esta leitura e a escrita, outra
+// requisicao pode encerrar a sprint.
 async function ensureMilestoneMutable(milestone) {
   const sprint = await ensureSprintExists(milestone.sprintId);
   ensureSprintEditable(sprint);
+  return sprint;
+}
+
+// Retrato travado -> a sprint pedida, ja conferida contra o projeto do marco.
+function lockedSprint(sprints, sprintId, projectId) {
+  const sprint = sprints.find((item) => item.id === sprintId);
+  if (!sprint || sprint.projectId !== projectId) throw sprintNotFoundError();
   return sprint;
 }
 
@@ -60,7 +76,8 @@ export const milestoneService = {
     const sprint = await ensureMilestoneSprint(milestoneData.sprintId, parsedProjectId, context);
     ensureSprintEditable(sprint);
     ensureMilestoneWithinSprint(milestoneData.dueDate, sprint);
-    return milestoneRepository.create(
+
+    return milestoneRepository.createWithinSprintLock(
       parsedProjectId,
       milestoneData,
       buildAuditEvent({
@@ -69,7 +86,14 @@ export const milestoneService = {
         requestId: context.requestId,
         action: 'MILESTONE_CREATED',
         resourceType: 'Milestone'
-      })
+      }),
+      ({ sprints }) => {
+        // Revalidado sobre o registro travado: a sprint pode ter sido encerrada,
+        // ou ter tido a janela encolhida, entre a checagem acima e esta escrita.
+        const travada = lockedSprint(sprints, milestoneData.sprintId, parsedProjectId);
+        ensureSprintEditable(travada);
+        ensureMilestoneWithinSprint(milestoneData.dueDate, travada);
+      }
     );
   },
 
@@ -92,15 +116,19 @@ export const milestoneService = {
     );
     // A sprint atual precisa estar aberta ANTES da troca: mover um marco para
     // fora de uma sprint encerrada mudaria a composicao do periodo fechado.
-    await ensureMilestoneMutable(current);
-    const sprint =
+    const sprintAtual = await ensureMilestoneMutable(current);
+    const destinoId = milestoneData.sprintId ?? current.sprintId;
+    const destino =
       milestoneData.sprintId !== undefined
-        ? await ensureMilestoneSprint(milestoneData.sprintId, current.projectId, context)
-        : await ensureSprintExists(current.sprintId);
-    ensureSprintEditable(sprint);
-    ensureMilestoneWithinSprint(milestoneData.dueDate ?? current.dueDate, sprint);
-    return milestoneRepository.update(
+        ? await ensureMilestoneSprint(destinoId, current.projectId, context)
+        : sprintAtual;
+    ensureSprintEditable(destino);
+    ensureMilestoneWithinSprint(milestoneData.dueDate ?? current.dueDate, destino);
+
+    const milestone = await milestoneRepository.updateWithinSprintLock(
       id,
+      current.projectId,
+      [current.sprintId, destinoId],
       milestoneData,
       buildAuditEvent({
         actorUserId: context.actorUserId,
@@ -110,8 +138,18 @@ export const milestoneService = {
         resourceType: 'Milestone',
         resourceId: id,
         metadata: { milestoneId: id }
-      })
+      }),
+      ({ sprints, milestone: travado }) => {
+        if (travado.sprintId !== current.sprintId) throw milestoneSprintChangedError();
+        ensureSprintEditable(lockedSprint(sprints, travado.sprintId, current.projectId));
+        const destino = lockedSprint(sprints, destinoId, current.projectId);
+        ensureSprintEditable(destino);
+        ensureMilestoneWithinSprint(milestoneData.dueDate ?? travado.dueDate, destino);
+      }
     );
+
+    if (milestone === null) throw milestoneNotFoundError();
+    return milestone;
   },
 
   async updateMilestoneStatus(milestoneId, status, context = {}) {
@@ -119,8 +157,11 @@ export const milestoneService = {
     const current = await ensureMilestoneExists(id);
     await ensureMilestoneMutable(current);
     const nextStatus = ensureMilestoneStatus(status);
-    return milestoneRepository.update(
+
+    const milestone = await milestoneRepository.updateWithinSprintLock(
       id,
+      current.projectId,
+      [current.sprintId],
       { status: nextStatus },
       buildAuditEvent({
         actorUserId: context.actorUserId,
@@ -130,26 +171,42 @@ export const milestoneService = {
         resourceType: 'Milestone',
         resourceId: id,
         metadata: { milestoneId: id }
-      })
+      }),
+      ({ sprints, milestone: travado }) => {
+        if (travado.sprintId !== current.sprintId) throw milestoneSprintChangedError();
+        ensureSprintEditable(lockedSprint(sprints, travado.sprintId, current.projectId));
+      }
     );
+
+    if (milestone === null) throw milestoneNotFoundError();
+    return milestone;
   },
 
   async deleteMilestone(milestoneId, context = {}) {
     const id = parseMilestoneId(milestoneId);
-    const milestone = await ensureMilestoneExists(id);
-    await ensureMilestoneMutable(milestone);
-    await milestoneRepository.delete(
+    const current = await ensureMilestoneExists(id);
+    await ensureMilestoneMutable(current);
+
+    const removido = await milestoneRepository.deleteWithinSprintLock(
       id,
+      current.projectId,
+      [current.sprintId],
       buildAuditEvent({
         actorUserId: context.actorUserId,
-        projectId: milestone.projectId,
+        projectId: current.projectId,
         requestId: context.requestId,
         action: 'MILESTONE_DELETED',
         resourceType: 'Milestone',
         resourceId: id,
         metadata: { milestoneId: id }
-      })
+      }),
+      ({ sprints, milestone: travado }) => {
+        if (travado.sprintId !== current.sprintId) throw milestoneSprintChangedError();
+        ensureSprintEditable(lockedSprint(sprints, travado.sprintId, current.projectId));
+      }
     );
-    return { id };
+
+    if (removido === null) throw milestoneNotFoundError();
+    return removido;
   }
 };

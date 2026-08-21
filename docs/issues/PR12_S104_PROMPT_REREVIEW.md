@@ -897,12 +897,12 @@ teste falha na implementação atual — é a prova de que o achado adicional é
 
 Marque só o que estiver verificado por teste ou por execução real.
 
-- [ ] H1 — janela validada sobre o registro relido sob lock; update parcial concorrente coberto
-- [ ] H2 — transição decidida depois do lock; transições concorrentes cobertas
-- [ ] H3 — locks de `Task` e `SprintTask` tomados antes das leituras de planejamento; movimento
+- [x] H1 — janela validada sobre o registro relido sob lock; update parcial concorrente coberto
+- [x] H2 — transição decidida depois do lock; transições concorrentes cobertas
+- [x] H3 — locks de `Task` e `SprintTask` tomados antes das leituras de planejamento; movimento
       concorrente para dois destinos coberto
-- [ ] H3 (adicional) — participação viva distinguida da congelada; caso sequencial A→B→C coberto
-- [ ] H5 — redução de janela revalida marcos; mutações de marco travam e revalidam a sprint
+- [x] H3 (adicional) — participação viva distinguida da congelada; caso sequencial A→B→C coberto
+- [x] H5 — redução de janela revalida marcos; mutações de marco travam e revalidam a sprint
 - [ ] H4 — salvamento de A não escreve no painel de B; regressão coberta
 - [ ] L1 — marcos de sprint terminal em modo leitura, com motivo legível, coberto por teste
 - [ ] M1 — matriz técnica alinhada ao modelo persistente; nenhum intervalo engolindo RF implementado
