@@ -163,7 +163,7 @@ Situação atual por caminho, e para onde ela vai:
 |---|---|---|
 | Criar sprint | `Project` | `Project` (inalterado) |
 | Atualizar janela da sprint | `Project`, e lê depois | `Project` → `Sprint(id)` → `Milestone(sprintId)`, e só então lê |
-| Transição de status | `Sprint(id)`, e escreve sem reler | `Sprint(id)` → relê → valida → escreve |
+| Transição de status | `Sprint(id)`, e escreve sem reler | `Project` → `Sprint(id)` → relê → valida → escreve |
 | Mutação de escopo | `Sprint(id)` → **lê** → `Task(...)` | `Sprint(id)` → `SprintTask(abertas)` → `Task(ids ordenados)` → **só então lê** |
 | Marco (create/update/status/delete) | nenhum | `Sprint(id ou ids ordenados)` → `Milestone(id)` → relê → valida → escreve |
 
@@ -344,8 +344,13 @@ O repository passa a expor um método que trava, relê e delega a decisão ao se
 // A transicao e decidida DEPOIS do lock, sobre o status relido: validar antes da
 // transacao deixa duas requisicoes partirem do mesmo estado e a segunda escrever
 // por cima de uma sprint que a primeira ja encerrou.
-async transitionWithinSprintLock(id, buildChange) {
+async transitionWithinSprintLock(id, projectId, buildChange) {
   return prisma.$transaction(async (tx) => {
+    // Project antes de Sprint, na ordem global de D17. A auditoria gravada no fim
+    // desta transacao pede lock compartilhado na linha do projeto pela FK; sem
+    // tomar o exclusivo agora, esta transacao e a de janela — que trava o projeto
+    // primeiro e a sprint depois — se esperariam em ordens opostas.
+    await tx.$queryRaw`SELECT id FROM Project WHERE id = ${projectId} FOR UPDATE`;
     const travada = await tx.$queryRaw`SELECT id FROM Sprint WHERE id = ${id} FOR UPDATE`;
     if (!travada.length) return null;
 
@@ -366,10 +371,11 @@ service:
 ```js
 async updateSprintStatus(sprintId, status, context = {}) {
   const id = parseSprintId(sprintId);
-  // Pre-leitura so para o 404 cedo. O status que decide e o relido sob lock.
-  await ensureSprintExists(id);
+  // Pre-leitura so para o 404 cedo e para saber qual projeto travar. O status
+  // que decide e o relido sob lock.
+  const current = await ensureSprintExists(id);
 
-  const sprint = await sprintRepository.transitionWithinSprintLock(id, (atual) => {
+  const sprint = await sprintRepository.transitionWithinSprintLock(id, current.projectId, (atual) => {
     const nextStatus = ensureTransitionAllowed(atual.status, status);
     // Um unico instante para a transicao e para o congelamento: dois `new Date()`
     // dariam a sprint um encerramento anterior ao fechamento das suas proprias

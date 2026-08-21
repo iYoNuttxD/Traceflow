@@ -169,9 +169,27 @@ export const sprintRepository = {
     });
   },
 
-  async updateStatus(id, data, auditEvent, { freezeAt = null } = {}) {
+  // A transicao e decidida DEPOIS do lock, sobre o status relido. Validar antes
+  // da transacao deixava duas requisicoes partirem do mesmo estado: cancelar e
+  // iniciar simultaneamente uma sprint PLANEJADA passava nas duas checagens, e a
+  // segunda escrita gravava EM_ANDAMENTO sobre uma sprint ja encerrada — status
+  // aberto convivendo com participacoes congeladas.
+  //
+  // `buildChange` e a regra, entregue pelo service: recebe o registro travado e
+  // devolve `{ data, auditEvent, freezeAt }`, ou lanca erro de dominio.
+  async transitionWithinSprintLock(id, projectId, buildChange) {
     return prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT id FROM Sprint WHERE id = ${id} FOR UPDATE`;
+      // Project antes de Sprint, na ordem global de D17. A auditoria gravada no
+      // fim desta transacao pede lock compartilhado na linha do projeto pela FK;
+      // sem tomar o exclusivo agora, esta transacao e a de janela — que trava o
+      // projeto primeiro e a sprint depois — se esperariam em ordens opostas.
+      await tx.$queryRaw`SELECT id FROM Project WHERE id = ${projectId} FOR UPDATE`;
+      const travada = await tx.$queryRaw`SELECT id FROM Sprint WHERE id = ${id} FOR UPDATE`;
+      if (!travada.length) return null;
+
+      const atual = await tx.sprint.findUnique({ where: { id }, select: sprintSelect });
+      const { data, auditEvent, freezeAt } = await buildChange(atual);
+
       const sprint = await tx.sprint.update({ where: { id }, data, select: sprintSelect });
       if (freezeAt) await freezeParticipations(tx, id, freezeAt);
       if (auditEvent) await auditRepository.create(auditEvent, tx);
