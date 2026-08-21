@@ -1,6 +1,6 @@
 # ADR-003 — Modelo de autorização
 
-- **Estado:** aceita na E6
+- **Estado:** aceita na E6; consolidada pelas LR.1 e LR.2
 - **Data:** 24/07/2026
 
 ## Decisão
@@ -14,7 +14,7 @@
 | sincronização GitHub | não | não | sim | sim |
 | membros, convites e configuração GitHub | não | não | não | sim |
 
-Criação de projeto e membership OWNER são uma transação. Listagem de projetos é filtrada por membership. O ator de `TaskMovement` passa a ser o usuário da sessão. `ProjectMember`, `movedBy` e `projectMemberId` permanecem apenas para compatibilidade expand/backfill/switch; não são prova de identidade.
+Criação de projeto e membership OWNER são uma transação. Listagem de projetos é filtrada por membership. O ator de `TaskMovement` vem do usuário da sessão. A LR.2 removeu `ProjectMember` e `TaskMovement.projectMemberId` do schema/runtime; `TaskMovement.movedBy` permanece somente como snapshot histórico e nunca é prova de identidade.
 
 O único endpoint `501` restante é `DELETE /api/projects/:id`: sem sessão retorna `401`; autenticado continua `501`. O middleware não implementa a exclusão.
 

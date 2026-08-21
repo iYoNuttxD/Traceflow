@@ -1,6 +1,6 @@
 # Matriz vigente RF → código → teste
 
-Estado consolidado na branch `daniel-dev`, baseline pós-L5.1/L6.1 no commit `fd8e484f34a8181485ed80c6a82a6f610f7c89a8`. `IMPLEMENTADO` significa fluxo presente e protegido pela suíte; `PARCIAL` indica apenas parte do RF; `NÃO IMPLEMENTADO` não deve ser inferido de campos isolados. A evidência automatizada mais recente registrada na L5.1 corresponde a 49 arquivos/356 testes de backend e 33 arquivos/184 testes de frontend, executados com Node 22. Homologações externas de SMTP e GitHub permanecem distintas dessa cobertura e não são declaradas como `PASS`.
+Estado consolidado na branch `daniel-dev`, baseline LR.7 no commit `59f2628eb6f750f0fc83018f749cee72364d5d64`. `IMPLEMENTADO` significa fluxo presente e protegido pela suíte; `PARCIAL` indica apenas parte do RF; `NÃO IMPLEMENTADO` não deve ser inferido de campos isolados. A evidência automatizada LR.7 corresponde a 51 arquivos/418 testes backend executados, com 2 arquivos/5 testes históricos pré-LR.2 explicitamente ignorados, e 34 arquivos/243 testes frontend, usando Node 22. Homologações externas de SMTP, GitHub, webhook e browser permanecem distintas dessa cobertura e não são declaradas como `PASS`.
 
 ## Decisões vigentes de identidade e acesso
 
@@ -12,7 +12,7 @@ Estado consolidado na branch `daniel-dev`, baseline pós-L5.1/L6.1 no commit `fd
 | RF | Fluxo funcional | Endpoint principal | Service | Persistência | Frontend | Evidência de teste | Estado |
 |---|---|---|---|---|---|---|---|
 | RF01 | cadastrar projeto | `POST /api/projects` | project-crud | Project, ProjectMembership | ProjectsScreen/ProjectForm | mvp-contracts, ProjectsPage | IMPLEMENTADO |
-| RF02 | integrar repositório GitHub | GitHub App callback + `POST /api/projects/from-github` | github-app/project-github | GitHubInstallation, ProjectGitHubIntegration, Project | ProjectsScreen | github-app, projects-github-e9, ProjectsPage | IMPLEMENTADO; HOMOLOGAÇÃO EXTERNA PENDENTE |
+| RF02 | integrar repositório GitHub | OAuth dedicado de autorização + GitHub App callback + `POST /api/projects/from-github` | github-app/project-github | GitHubInstallation, GitHubInstallationAuthorization, GitHubRepositoryAuthorization, ProjectGitHubIntegration, Project | ProjectsScreen, IntegrationsSettingsPage | github-app service/controller, github-boundary, projects-github-e9, ProjectsPage, SettingsPages | IMPLEMENTADO; HOMOLOGAÇÃO EXTERNA PENDENTE |
 | RF03 | importar commits | `POST .../github/sync` | sync-project-commits | Commit | ProjectDetails/Repository | projects-github-e9, githubSync | IMPLEMENTADO |
 | RF04 | importar Pull Requests | `POST .../github/sync` | sync-project-pull-requests | PullRequest | Repository | projects-github-e9, githubSync | IMPLEMENTADO |
 | RF05 | importar Issues | `POST .../github/sync` | sync-project-issues | Issue | Repository | projects-github-e9, githubSync | IMPLEMENTADO |

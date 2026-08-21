@@ -2,7 +2,7 @@
 
 ## Escopo
 
-Este documento descreve a implementação consolidada após a LR.4. `TRACEFLOW_CONTEXTO_ARQUITETURA.md` continua sendo fonte de requisitos e diretrizes históricas; em caso de divergência sobre o estado executável, prevalecem código, migrations, testes, este documento e os ADRs aceitos.
+Este documento descreve a implementação consolidada após LR.1–LR.6, incluindo LR.2.1 e LR.3.1. `TRACEFLOW_CONTEXTO_ARQUITETURA.md` continua sendo fonte de requisitos e diretrizes históricas; em caso de divergência sobre o estado executável, prevalecem código, migrations, testes, este documento e os ADRs vigentes.
 
 ## Visão geral
 
@@ -91,10 +91,10 @@ ASVS é referência, não certificação. LGPD depende de decisões jurídicas e
 
 ## Banco e migrations
 
-Prisma é acessado somente por repositories e scripts de manutenção autorizados. As 37 migrations são imutáveis e aplicam do zero. Mudança destrutiva exige inventário, reconciliação, backup, guard e roll-forward. Scripts E8 permanecem recovery-only; fontes E6/E11 dependentes do schema anterior à LR.2 exigem aquele checkout/schema e não são runtime.
+Prisma é acessado somente por repositories e scripts de manutenção autorizados. As 39 migrations são imutáveis e aplicam do zero. Mudança destrutiva exige inventário, reconciliação, backup, guard e roll-forward. Scripts E8 permanecem recovery-only; fontes E6/E11 dependentes do schema anterior à LR.2 exigem aquele checkout/schema e não são runtime.
 
 ## CI e operação
 
 GitHub Actions executa Quality, Backend Tests, Frontend Tests, Supply Chain e Dependency Review. Backend usa MySQL descartável e migrations do zero. Coverage, architecture check, secret scan, audit policy e build são gates.
 
-TLS termina no proxy. Rate limit/trava GitHub são locais ao processo. Logs, backup, restore, secret manager, monitoramento e proteção de branch precisam ser configurados no ambiente conforme os runbooks.
+TLS termina no proxy. Os contadores de rate limit HTTP ainda usam memória local; a exclusão mútua do sync usa claim persistido em `GitHubSyncRun`, unique por projeto e stale detection, portanto não depende de lock em memória. Logs, backup, restore, secret manager, monitoramento e proteção de branch precisam ser configurados no ambiente conforme os runbooks.

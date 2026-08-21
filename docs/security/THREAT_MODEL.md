@@ -4,11 +4,11 @@
 
 Username/e-mail compartilham mensagem genérica; rate limit reduz brute force/credential stuffing. Sessão persistente usa o mesmo token opaco, com TTL distinto persistido. Verificação, reset, convite e state usam valor aleatório, hash, expiração e uso único. SMTP falho não reverte a conta nem produz alegação de entrega aceita.
 
-A integração migrou diretamente para GitHub App. O callback liga state à sessão, comprova a instalação na lista do usuário e descarta o user token. Installation token é gerado sob demanda. Webhook exige HMAC SHA-256 constant-time e delivery ID. Foram considerados callback/installation ID forjados, replay, instalação de outro usuário, BOLA/non-OWNER, private key/client/webhook secret, token em log, suspensão/remoção e repositório removido. Permanecem riscos operacionais de secret manager, permissões/configuração real, lock/rate limit distribuído e indisponibilidade externa.
+A integração migrou diretamente para GitHub App. Os callbacks ligam state à sessão, confirmam identidade/instalações e descartam o User Token. A autorização pessoal de repositório aceita somente `OWNER`/`ADMIN`; o Installation Token é gerado sob demanda para provar acesso técnico e sincronizar. Webhook exige HMAC SHA-256 constant-time e delivery ID. Foram considerados callback/installation ID forjados, replay, instalação de outro usuário, BOLA/non-OWNER, private key/client/webhook secret, token em log, suspensão/remoção e repositório removido. Permanecem riscos operacionais de secret manager, permissões/configuração real, rate limit distribuído e indisponibilidade externa.
 
 ## Atualização E9
 
-Esta seção descreve o estado histórico E9. A L1 substituiu o provider sistêmico pela GitHub App descrita acima. DTOs mínimos, paginação, idempotência e trava por instância permanecem.
+Esta seção descreve o estado histórico E9. A L1 substituiu o provider sistêmico pela GitHub App descrita acima. DTOs mínimos, paginação e idempotência permanecem; a LR.3 substituiu a trava por instância pelo claim persistido de `GitHubSyncRun` com stale detection.
 
 ## Atualização E6
 
@@ -79,7 +79,7 @@ O backend não faz fetch genérico de URLs informadas pelo cliente. A integraç�
 
 | Categoria | Ameaça | Impacto | Controles E5 | Risco residual |
 |---|---|---|---|---|
-| Spoofing | Cliente assume identidade textual/membro | ALTO | E6 usa User/sessão e ator canônico | concluir contract/backfill legado |
+| Spoofing | Cliente assume identidade textual/membro | ALTO | E6 usa User/sessão e ator canônico; LR.2 removeu `ProjectMember`/`projectMemberId` | manter regressões de identidade e autorização ao adicionar fluxos |
 | Tampering | Alteração por ID/BOLA | MÉDIO | membership, resolução de recurso, deny-by-default e matriz de papéis | manter testes ao adicionar endpoints |
 | Elevação de privilégio | MEMBER altera papel, desativa OWNER ou projeto fica sem OWNER | ALTO | OWNER-only, IDs do mesmo projeto, transação serializável e `LAST_PROJECT_OWNER` | concorrência deve continuar coberta em mudanças futuras |
 | Information disclosure | Reset/convite exposto em resposta, log ou adapter | CRÍTICO | hash no banco, resposta apenas em teste, SMTP/capture explícito, redaction e templates escapados | proteger caixa postal e SMTP; rotação após incidente |
@@ -88,9 +88,9 @@ O backend não faz fetch genérico de URLs informadas pelo cliente. A integraç�
 | Information disclosure/BOLA | Exportação usa vínculo histórico para revelar conteúdo atual de projeto | CRÍTICO | `ProjectMembership.isActive=true` em todos os datasets de projeto e teste ZIP de regressão | texto livre autorizado ainda pode conter PII de terceiros |
 | Spoofing | Identidade GitHub anonimizada recria/reassocia automaticamente uma conta | ALTO | tombstone deny-only com fingerprint HMAC, verificado antes de login, link ou criação | custódia/rotação da chave e GitHub real dependem da operação |
 | Elevation of privilege/Integrity | Worker anonimiza último OWNER ou deixa `DELETION_PENDING` indefinido | CRÍTICO | revalidação transacional; solicitação `REJECTED`, conta `ACTIVE`, sessões revogadas e auditoria | job e alertas do scheduler são externos |
-| Information disclosure | Enumeração de projetos/códigos | CRÍTICO | membership/BOLA, convite canônico e rate limit/log do join legado | `accessCode` legado ainda distingue falha e deve ser descontinuado após migração |
+| Information disclosure | Enumeração de projetos/códigos | CRÍTICO | membership/BOLA, convite canônico, `accessCode` forte e rate limit/log de ingresso | capability continua sensível e exige monitoramento operacional |
 | Denial of service | JSON grande ou malformado | ALTO | limite explícito de 100kb, `413`, `400` e `415` seguros | Limites de proxy e coleções devem ser alinhados no deploy |
-| Denial of service | Abuso geral/join/GitHub sync | ALTO | limiters geral/sensíveis, chave IP+projectId, paginação e trava concorrente por projeto | MemoryStore e trava não são distribuídos; IP não equivale a usuário |
+| Denial of service | Abuso geral/join/GitHub sync | ALTO | limiters geral/sensíveis, chave IP+projectId, paginação e claim persistido único por projeto | MemoryStore do rate limit não é distribuído; IP não equivale a usuário |
 | Denial of service | GitHub lento/indisponível | ALTO | timeout 15s, retry limitado, backoff/jitter e normalização 403/429 | Sem circuit breaker, fila, checkpoint ou scheduler |
 | SSRF | URL externa aponta para localhost, rede privada ou metadata | ALTO | somente HTTPS e hosts `github.com`/`api.github.com`; base Octokit fixa | GitHub Enterprise não suportado; novas integrações exigem revisão |
 | Supply chain | Dependência vulnerável ou segredo versionado | ALTO | lockfiles, política executável de audit, Dependency Review, scanner obrigatório e actions fixadas | SBOM, gate de licenças e revisão operacional contínua ainda necessários |
@@ -101,7 +101,7 @@ O backend não faz fetch genérico de URLs informadas pelo cliente. A integraç�
 
 - CORS não é autenticação e requisições sem `Origin` continuam permitidas para clientes não navegador.
 - O limiter em memória é aceito apenas para instância única; produção horizontal exige store distribuído.
-- `accessCode` legado com `Math.random()` permanece deprecado e com rate limit; convites canônicos usam token aleatório, hash, expiração, revogação e consumo único.
+- `accessCode` é capability canônica, gerada com entropia criptográfica, limitada a MEMBER/VIEWER e protegida por rate limit; convites pessoais usam token hashado, expiração, revogação e consumo único.
 - TLS termina no reverse proxy; Express não implementa TLS. HSTS é habilitado apenas quando `NODE_ENV=production`.
 - O frontend é servido separadamente; CSP/HSTS do documento HTML precisam ser aplicados no host da SPA.
 - E7 adicionou minimização de exportação, auditoria persistente crítica/operacional, retenção manual e anonimização seletiva. A LR.4 isolou exportação por autorização atual, tornou o impedimento de ownership resolvível e bloqueou reassociação GitHub pós-anonimização. Jobs/logs/backups do deploy, confirmação de e-mail, secret manager e revisão jurídica permanecem riscos residuais.

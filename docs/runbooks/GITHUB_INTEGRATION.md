@@ -4,7 +4,7 @@
 
 1. No GitHub, crie uma GitHub App com callback igual a `GITHUB_APP_CALLBACK_URL` (`/api/github-app/callback`) e webhook apontando para `POST /api/webhooks/github-app`.
 2. No callback, confirme nos logs sanitizados que a validação consulta `GET /user/installations`; chamadas a `/users/{username}/installation` indicam backend desatualizado.
-3. Habilite instalação apenas nas contas/repositórios necessários. Permissões mínimas de repositório: Metadata read-only, Contents read-only, Pull requests read-only e Issues read-only. Não habilite login de usuários como funcionalidade do TRACEFLOW.
+3. Habilite instalação apenas nas contas/repositórios necessários. Permissões mínimas de repositório: Metadata read-only, Contents read-only, Pull requests read-only e Issues read-only. Mantenha separados o callback de instalação (`GITHUB_APP_CALLBACK_URL`) e o callback de login/vínculo/autorização pessoal (`GITHUB_LOGIN_CALLBACK_URL`); identidade não concede acesso técnico e Installation não concede autoridade pessoal.
 4. Gere private key e configure seu conteúdo PEM em base64 no secret store como `GITHUB_APP_PRIVATE_KEY_BASE64`.
 5. Configure App ID, client ID/secret, slug, webhook secret e URLs de sucesso/erro listadas em `.env.example`.
 6. Não configure PAT nem `GITHUB_TOKEN`; não existe fallback operacional.
@@ -31,7 +31,7 @@ A migration L1 cria integração `RECONNECT_REQUIRED` para projetos com metadado
 
 - `POST /api/projects/:projectId/github/sync` exige MANAGER+, e-mail verificado e integração/instalação `ACTIVE`.
 - O token de instalação é gerado sob demanda; sync pagina, deduplica/upserta e preserva artifacts ausentes em execuções posteriores.
-- Falha parcial preserva lotes confirmados e último sucesso; uma trava local impede concorrência no mesmo processo.
+- Falha parcial preserva lotes confirmados e último sucesso; `GitHubSyncRun.activeProjectId` garante um claim ativo por projeto no banco e stale detection permite recuperação controlada.
 - Webhooks de instalação/repositório apenas atualizam estado. Não disparam sync automático.
 - `installation_repositories.added` atualiza metadados e o novo repositório aparece na listagem ao vivo, sem alterar projetos existentes.
 - `installation_repositories.removed` bloqueia somente integrações dos IDs removidos e preserva as demais integrações e todos os artifacts já importados.

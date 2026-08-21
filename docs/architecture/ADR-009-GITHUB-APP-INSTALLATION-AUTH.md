@@ -1,6 +1,6 @@
 # ADR-009 — GitHub App por instalação
 
-**Status:** aceito na L1  
+**Status:** aceito na L1; consolidado pelas LR.3 e LR.3.1
 **Data:** 2026-08-01
 
 ## Contexto
@@ -9,7 +9,9 @@ O provider sistêmico anterior concentrava acesso e quota em uma credencial comp
 
 ## Decisão
 
-A única autenticação operacional para leitura de repositórios é GitHub App. Um user access token existe apenas durante o callback para comprovar que a instalação aparece entre as instalações acessíveis ao usuário. Toda leitura posterior usa installation access token criado sob demanda. Nenhum token é persistido.
+A única credencial operacional de sincronização é o Installation Token da GitHub App, criado sob demanda. Um User Access Token existe apenas durante callbacks autorizados: login/vínculo de identidade, comprovação da instalação e renovação da autorização pessoal de repositórios. Nenhum token é persistido.
+
+A seleção exige duas autoridades independentes. `GitHubRepositoryAuthorization` comprova que o usuário possui `OWNER` ou `ADMIN`; a consulta com Installation Token comprova que a App possui acesso técnico. A lista e a criação/conexão usam somente a interseção. Ausência ou expiração da evidência pessoal retorna `REAUTH_REQUIRED`/`GITHUB_USER_REAUTH_REQUIRED` e nunca é preenchida por inferência da Installation.
 
 `GitHubInstallation` e sua autorização guardam metadados/prova temporal. `ProjectGitHubIntegration` é a fonte canônica da conexão. Projetos anteriores ficam `RECONNECT_REQUIRED`. O callback usa state aleatório hashado, vinculado à sessão e de uso único. Webhooks assinados controlam suspensão/remoção sem disparar sync automático.
 
@@ -26,4 +28,4 @@ Uma instalação pode atender vários projetos, cada qual com um repositório di
 
 Operação precisa criar/configurar a App e seus segredos. Repositórios antigos exigem ação de OWNER. Em troca, acesso, revogação e escopo passam a seguir a instalação e tokens temporários não integram o patrimônio de dados do TRACEFLOW. Secret manager, store distribuído e validação operacional externa permanecem necessários.
 
-Na L2, `GitHubInstallationAuthorization` também é autorização pessoal: o titular pode removê-la sem apagar instalação, projetos, integrações, artefatos ou autorizações de terceiros. A anonimização aplica a mesma separação.
+Na L2, `GitHubInstallationAuthorization` também é autorização pessoal: o titular pode removê-la sem apagar instalação, projetos, integrações, artefatos ou autorizações de terceiros. A LR.3.1 acrescentou timestamps de verificação mesmo quando a consulta pessoal retorna zero repositórios. A anonimização aplica a mesma separação.

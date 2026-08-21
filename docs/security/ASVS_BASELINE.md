@@ -14,7 +14,7 @@ Estados: `ATENDIDO`, `PARCIAL`, `NÃO ATENDIDO` e `NÃO APLICÁVEL`.
 | Autenticação e recuperação de conta | PARCIAL | username/e-mail, Argon2id, GitHub-only com reautenticação sensível por state/sessão/identidade, reset e verificação de e-mail com token hashado/TTL/uso único | MFA, SSO e validação GitHub operacional externa não existem |
 | Sessão e CSRF | ATENDIDO no escopo atual | sessão opaca hashada, TTL comum/persistente, cookie seguro por ambiente, expiração/revogação e CSRF | store distribuído e revogação central entre instâncias não existem |
 | Autorização por projeto e objeto | ATENDIDO no escopo RBAC atual | `backend/src/shared/auth/`; `docs/security/AUTHORIZATION_MATRIX.md`; testes 403/404 e isolamento entre projetos | não representa ABAC nem autorização fora dos papéis atuais |
-| Proteção contra automação e abuso | PARCIAL | limiters geral, convite e GitHub em `backend/src/shared/security/`; lock de sync por projeto | contadores e lock são locais à instância; produção horizontal requer store distribuído |
+| Proteção contra automação e abuso | PARCIAL | limiters geral, convite e GitHub em `backend/src/shared/security/`; claim persistido de sync por projeto com stale detection | contadores HTTP usam memória local; produção horizontal requer store distribuído para rate limit |
 | CORS, headers e fingerprint | ATENDIDO na API | allowlist em `backend/src/shared/security/cors.js`; Helmet; `X-Powered-By` removido; testes HTTP | headers do documento HTML pertencem ao host da SPA |
 | HSTS e confiança no proxy | PARCIAL | HSTS condicionado a produção; `TRUST_PROXY` explícito e validado | depende de HTTPS e topologia reais do ingress |
 | Limite e parsing seguro de body | ATENDIDO | `BODY_LIMIT`; tratamento 400/413/415 seguro no middleware global; testes | uploads não fazem parte do produto atual |
@@ -33,7 +33,7 @@ Estados: `ATENDIDO`, `PARCIAL`, `NÃO ATENDIDO` e `NÃO APLICÁVEL`.
 
 ## Lacunas prioritárias
 
-1. store distribuído para sessões operacionais, rate limiting e exclusão mútua do sync;
+1. store distribuído para rate limiting em implantação horizontal; sessões e exclusão mútua do sync já usam persistência no banco;
 2. secret manager, rotação automatizada e telemetria/alertas operacionais;
 3. MFA e endurecimento operacional adicional da recuperação/verificação de conta;
 4. TLS, proxy, CSP do host da SPA, backup e retenção comprovados no ambiente real;

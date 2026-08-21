@@ -24,7 +24,7 @@ route → controller → service → repository → Prisma/MySQL
 - Extrai `params`, `query` e `body`, chama service e preserva a resposta HTTP atual.
 - Não acessa Prisma, repository ou Octokit.
 - Não contém regra de negócio nem constrói query de banco.
-- Encaminha falhas ao middleware global por `asyncHandler`, preservando a mensagem pública histórica como fallback compatível.
+- Encaminha falhas ao middleware global por `asyncHandler`, preservando somente mensagem pública segura quando o contrato exigir.
 
 ### Service
 
@@ -77,18 +77,13 @@ export { projectService } from './project.service.js';
 export { default as projectRoutes } from './project.routes.js';
 ```
 
-## Compatibilidade incremental
+## APIs públicas internas e compatibilidade
 
-Uma movimentação mantém o caminho antigo somente quando há consumidores ainda não migrados. O arquivo antigo deve conter exclusivamente um reexport, um `TODO(E2.9)` e nenhuma implementação duplicada.
-
-Exemplo no frontend:
-
-```js
-// TODO(E2.9): remover após migração dos consumidores.
-export * from '../features/projects/components/ProjectForm.jsx';
-```
-
-No backend, `project.service.js` funciona temporariamente como fachada e delega aos casos de uso em `services/`. A regra existe em um único arquivo.
+O ADR-011 não permite manter alias ou reexport apenas por origem histórica. Barrels usados e
+agregadores públicos de domínio são fronteiras canônicas quando possuem consumidores atuais e não
+duplicam regra. `project.service.js`, por exemplo, é a API pública interna que agrega casos de uso
+coesos em `services/`; não é uma fachada temporária de compatibilidade. Um caminho antigo somente
+pode existir com consumidor comprovado, prazo, teste e decisão explícita.
 
 ## Dependências proibidas
 

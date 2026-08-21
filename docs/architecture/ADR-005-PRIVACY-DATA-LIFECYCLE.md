@@ -1,11 +1,11 @@
 # ADR-005 — Ciclo de vida de dados pessoais
 
-- Estado: aceita e consolidada na L2
+- Estado: aceita na L2; consolidada pela LR.4
 - Data: 02/08/2026
 
 ## Decisão
 
-Desativação é reversível por confirmação de e-mail e permite somente login restrito. Exclusão é uma solicitação com senha, carência de 30 dias e cancelamento. Ao vencer a carência, o comando controlado adquire lease e aplica anonimização seletiva: mantém o `User.id` e relações históricas, neutraliza snapshots conhecidos, troca o e-mail por identificador opaco não entregável, remove credenciais e desativa memberships. Hard delete foi rejeitado por quebrar autoria, movimentos e auditoria.
+Desativação é reversível por confirmação de e-mail e permite somente login restrito. Exclusão é uma solicitação com senha local ou reautenticação GitHub recente, carência de 30 dias e cancelamento. Ao vencer a carência, o comando controlado adquire lease e revalida ownership. Sem impedimento, aplica anonimização seletiva: mantém o `User.id` e relações históricas, neutraliza snapshots conhecidos, troca o e-mail por identificador opaco não entregável, remove credenciais e desativa memberships. Se a pessoa ainda for o último OWNER, a solicitação termina `REJECTED`, a conta retorna `ACTIVE`, as sessões são revogadas e a tentativa é auditada. Hard delete foi rejeitado por quebrar autoria, movimentos e auditoria.
 
 Auditoria é retida separadamente e mantém `actorUserId` apontando para a identidade já anonimizada enquanto necessário. Conteúdo GitHub permanece como histórico externo; correlação automática por e-mail/login não prova identidade. Exportação é ZIP com JSONs e manifesto, gerado sob demanda, autenticado e sem arquivo público.
 

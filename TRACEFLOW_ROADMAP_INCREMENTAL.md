@@ -4,6 +4,14 @@
 >
 > **Fontes:** documento oficial do TCC, especialmente os Capítulos 3 e 4 e o Apêndice B; estado da branch `main`; matriz técnica `RF -> código -> teste`; documentação arquitetural do repositório.
 
+> **Atualização técnica LR.7 — 21/08/2026:** auditoria na branch `daniel-dev`, baseline
+> `59f2628eb6f750f0fc83018f749cee72364d5d64`, após LR.1–LR.6, LR.2.1 e LR.3.1. As LR
+> endureceram segurança, legado, GitHub, privacidade, banco e frontend, mas não implementaram os RFs
+> futuros das Sprints 1/2; por isso os checklists funcionais abaixo não foram promovidos. Os gates
+> locais atuais passaram com 418 testes backend executados, 243 frontend e 39 migrations. SMTP,
+> GitHub/webhook reais, viewports em navegador, OCI e operação continuam homologações externas,
+> não bugs inferidos.
+
 ## 1. Objetivo e regra de organização
 
 O desenvolvimento será organizado em **três sprints**. As Sprints 1 e 2 dividem aproximadamente 50% do escopo de implementação em cada uma; a Sprint 3 ocorre depois delas e é dedicada à validação e ao aperfeiçoamento da ferramenta:

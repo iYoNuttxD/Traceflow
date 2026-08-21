@@ -1,4 +1,4 @@
-// Fachada compatível: mantém o export histórico enquanto delega casos de uso coesos.
+// API pública interna: agrega casos de uso coesos sem duplicar regras.
 import { projectCrudService } from './services/project-crud.service.js';
 import { projectGithubService } from './services/project-github.service.js';
 import { projectAccessCodeService } from './services/project-access-code.service.js';
