@@ -206,17 +206,33 @@ transição de status validava a transição antes da transação e escrevia sem
 iniciar simultaneamente uma sprint `PLANEJADA` passava nas duas checagens, e a segunda escrita
 deixava status aberto convivendo com participações já congeladas.
 
-**Por que o lock do projeto aparece onde a regra não parece exigir.** Toda mutação de cronograma
-grava um `AuditEvent` com `projectId`, e a chave estrangeira dessa coluna pede lock compartilhado na
-linha do projeto no fim da transação. Um caminho que travasse só a sprint acabaria pedindo o projeto
-**por último** — ordem oposta à do caminho de janela, que o trava primeiro — e as duas transações se
-esperariam em ciclo, resolvido pelo InnoDB abortando uma delas. Tomar o exclusivo do projeto na
-entrada custa uma instrução e elimina o ciclo.
+**Por que toda transação de cronograma trava o projeto, mesmo quando a regra não parece exigir.**
+Toda mutação de cronograma grava um `AuditEvent` com `projectId`, e a chave estrangeira dessa coluna
+pede lock compartilhado na linha do projeto **no fim da transação**. Isso significa que o projeto
+entra na ordem de aquisição de todo caminho, queira ele ou não — a única escolha é se entra no
+começo ou no fim.
 
-**Adoção.** Aplicada aos caminhos de janela (`updateWithinProjectLock`) e de status
-(`transitionWithinSprintLock`), ambos tomando `Project` antes de `Sprint`. A mutação de escopo
-(`mutateScopeWithinSprintLock`) e as mutações de marco ainda decidem sobre leitura anterior ao lock;
-a adoção nesses dois caminhos é a continuação direta desta decisão.
+Um caminho que trave só a sprint acaba pedindo o projeto por último, em ordem oposta à de quem o
+trava na entrada, e o par fecha ciclo de espera. Isso não é hipótese: medido com 25 execuções por
+par, o cruzamento entre mutação de escopo e transição de status deu `ER_LOCK_DEADLOCK` em 25 de 25
+enquanto o escopo era o único caminho a travar a sprint primeiro. O mesmo valia entre escopo e
+janela, e esse par já vinha quebrado de antes desta revisão.
+
+A conclusão é que a meia adoção é pior que nenhuma: enquanto um único caminho divergir da ordem,
+ele forma ciclo com todos os outros. Os quatro caminhos de escrita de cronograma —
+`createWithinProjectLock`, `updateWithinProjectLock`, `transitionWithinSprintLock` e
+`mutateScopeWithinSprintLock` — tomam `Project` na entrada.
+
+**Consequência sobre o tempo de posse.** Com o exclusivo do projeto retido do início ao fim, o que
+roda dentro da transação passa a bloquear todo o cronograma daquele projeto. Por isso o
+congelamento de participações escreve agrupado por status de saída, em vez de um `UPDATE` por
+participação: uma sprint no limite de 100 tarefas custaria 100 idas ao banco com o projeto parado
+atrás, perto demais do tempo limite de transação do Prisma.
+
+**Adoção.** Regra 1 (locks antes das leituras) aplicada aos caminhos de janela e de status. A
+mutação de escopo já toma os locks na ordem certa, mas ainda faz as leituras de planejamento antes
+de travar as tarefas; as mutações de marco ainda validam a sprint fora da transação. A adoção nesses
+dois caminhos é a continuação direta desta decisão.
 
 ### D18 — Mover a janela não empurra para fora um marco que estava dentro
 

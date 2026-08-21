@@ -174,6 +174,7 @@ describe('transacoes dos repositories', () => {
 
     await sprintRepository.mutateScopeWithinSprintLock(
       sprint.id,
+      project.id,
       [task.id],
       planoDeEntrada(project, sprint, task, user.id)
     );
@@ -194,6 +195,7 @@ describe('transacoes dos repositories', () => {
     await expect(
       sprintRepository.mutateScopeWithinSprintLock(
         sprint.id,
+        project.id,
         [task.id],
         // actorUserId inexistente viola a FK e deve derrubar a transacao inteira.
         planoDeEntrada(project, sprint, task, 999999)
@@ -370,6 +372,61 @@ describe('concorrencia sob lock (ADR-010 D17)', () => {
     const participacao = await prisma.sprintTask.findFirst({ where: { sprintId: sprint.id } });
     const terminal = ['CONCLUIDA', 'CANCELADA'].includes(persistida.status);
     expect(participacao.closedAt === null).toBe(!terminal);
+  });
+
+  // Ordem global de locks (D17 Regra 2), verificada onde ela de fato vale: entre
+  // caminhos DIFERENTES.
+  //
+  // Todo caminho de cronograma grava um AuditEvent com `projectId`, e a FK dessa
+  // coluna pede lock compartilhado na linha do projeto no fim da transacao. Um
+  // caminho que travasse a sprint primeiro pediria o projeto por ultimo, em ordem
+  // oposta a de quem trava o projeto na entrada — e o par fechava ciclo de espera
+  // de forma reproduzivel, nao esporadica. Erro de infraestrutura (P2010, P2034,
+  // P2024) e a assinatura disso; erro de dominio (409) e resultado legitimo.
+  const cruzaCaminhos = async (rotulo, operacoes) => {
+    const resultados = await Promise.allSettled(operacoes);
+    const infraestrutura = resultados.filter(
+      (resultado) =>
+        resultado.status === 'rejected' && /^P\d{4}$/.test(String(resultado.reason?.code ?? ''))
+    );
+    expect(infraestrutura.map((resultado) => `${rotulo}: ${resultado.reason.code}`)).toStrictEqual(
+      []
+    );
+  };
+
+  it('escopo contra transicao de status nao fecha ciclo de espera', async () => {
+    for (let rodada = 0; rodada < 5; rodada += 1) {
+      const { project, sprint } = await sprintDeTeste({ status: 'EM_ANDAMENTO' });
+      const task = await createTask(prisma, project.id);
+      await cruzaCaminhos('escopo x status', [
+        sprintService.replaceTasks(sprint.id, [task.id]),
+        sprintService.updateSprintStatus(sprint.id, 'CONCLUIDA')
+      ]);
+      await cleanTestDatabase(prisma);
+    }
+  });
+
+  it('escopo contra atualizacao de janela nao fecha ciclo de espera', async () => {
+    for (let rodada = 0; rodada < 5; rodada += 1) {
+      const { project, sprint } = await sprintDeTeste();
+      const task = await createTask(prisma, project.id);
+      await cruzaCaminhos('escopo x janela', [
+        sprintService.replaceTasks(sprint.id, [task.id]),
+        sprintService.updateSprint(sprint.id, { endDate: '2026-08-25' })
+      ]);
+      await cleanTestDatabase(prisma);
+    }
+  });
+
+  it('janela contra transicao de status nao fecha ciclo de espera', async () => {
+    for (let rodada = 0; rodada < 5; rodada += 1) {
+      const { sprint } = await sprintDeTeste();
+      await cruzaCaminhos('janela x status', [
+        sprintService.updateSprint(sprint.id, { endDate: '2026-08-25' }),
+        sprintService.updateSprintStatus(sprint.id, 'EM_ANDAMENTO')
+      ]);
+      await cleanTestDatabase(prisma);
+    }
   });
 
   // Estado que so o backfill da migration s104 produz: marco vinculado a uma

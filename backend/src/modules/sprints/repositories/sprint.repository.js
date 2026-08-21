@@ -75,11 +75,19 @@ async function freezeParticipations(tx, sprintId, closedAt) {
         ).map((task) => [task.id, task.status])
       : []
   );
+  // Agrupado por status de saida, e nao um UPDATE por participacao: o
+  // encerramento roda segurando o lock do projeto, e uma sprint no limite de 100
+  // tarefas custaria 100 idas ao banco com todo o cronograma parado atras — perto
+  // demais do timeout de transacao do Prisma. Os status distintos de um quadro
+  // sao poucos, entao o laco fica em um punhado de escritas.
+  const idsPorStatus = new Map();
   for (const participacao of ativas) {
-    await tx.sprintTask.update({
-      where: { id: participacao.id },
-      data: { closedAt, exitStatus: statusById.get(participacao.taskId) ?? null }
-    });
+    const exitStatus = statusById.get(participacao.taskId) ?? null;
+    if (!idsPorStatus.has(exitStatus)) idsPorStatus.set(exitStatus, []);
+    idsPorStatus.get(exitStatus).push(participacao.id);
+  }
+  for (const [exitStatus, ids] of idsPorStatus) {
+    await tx.sprintTask.updateMany({ where: { id: { in: ids } }, data: { closedAt, exitStatus } });
   }
 }
 
@@ -201,8 +209,14 @@ export const sprintRepository = {
   // e escrita na MESMA transacao. Calcular o delta fora dela permitia que dois
   // PUT simultaneos partissem do mesmo retrato e aplicassem conjuntos
   // incompativeis — atomicidade por item nao e semantica de substituicao.
-  async mutateScopeWithinSprintLock(sprintId, requestedTaskIds, buildPlan) {
+  async mutateScopeWithinSprintLock(sprintId, projectId, requestedTaskIds, buildPlan) {
     return prisma.$transaction(async (tx) => {
+      // Project antes de Sprint, na ordem global de D17 — o mesmo motivo dos
+      // outros dois caminhos. Este era o ultimo que travava a sprint primeiro e
+      // so pedia o projeto no fim, pela FK da auditoria: contra a transicao de
+      // status e contra a atualizacao de janela, que travam o projeto na entrada,
+      // o ciclo de espera fechava de forma reproduzivel.
+      await tx.$queryRaw`SELECT id FROM Project WHERE id = ${projectId} FOR UPDATE`;
       const locked = await tx.$queryRaw`SELECT id FROM Sprint WHERE id = ${sprintId} FOR UPDATE`;
       if (!locked.length) return null;
 

@@ -164,8 +164,8 @@ Situação atual por caminho, e para onde ela vai:
 | Criar sprint | `Project` | `Project` (inalterado) |
 | Atualizar janela da sprint | `Project`, e lê depois | `Project` → `Sprint(id)` → `Milestone(sprintId)`, e só então lê |
 | Transição de status | `Sprint(id)`, e escreve sem reler | `Project` → `Sprint(id)` → relê → valida → escreve |
-| Mutação de escopo | `Sprint(id)` → **lê** → `Task(...)` | `Sprint(id)` → `SprintTask(abertas)` → `Task(ids ordenados)` → **só então lê** |
-| Marco (create/update/status/delete) | nenhum | `Sprint(id ou ids ordenados)` → `Milestone(id)` → relê → valida → escreve |
+| Mutação de escopo | `Sprint(id)` → **lê** → `Task(...)` | `Project` → `Sprint(id)` → `SprintTask(abertas)` → `Task(ids ordenados)` → **só então lê** |
+| Marco (create/update/status/delete) | nenhum | `Project` → `Sprint(id ou ids ordenados)` → `Milestone(id)` → relê → valida → escreve |
 
 O lock de `Task` continua vindo **depois** do de `Sprint` em todos os caminhos, e `deleteTask`
 (`backend/src/modules/tasks/task.repository.js`) continua tocando `Task` antes de `SprintTask` —
