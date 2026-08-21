@@ -7,6 +7,7 @@ import {
 
 let prisma;
 let githubBranchRepository;
+let commitRepository;
 let syncProjectCommits;
 
 beforeAll(async () => {
@@ -15,6 +16,7 @@ beforeAll(async () => {
   ({ prisma } = await import('../../src/database/prismaClient.js'));
   ({ githubBranchRepository } =
     await import('../../src/modules/github/github-branch.repository.js'));
+  ({ commitRepository } = await import('../../src/modules/commits/commit.repository.js'));
   ({ syncProjectCommits } =
     await import('../../src/modules/github/services/sync-project-commits.service.js'));
   await cleanTestDatabase(prisma);
@@ -70,6 +72,42 @@ function client(commitsByBranch) {
 }
 
 describe('persistência multibranch', () => {
+  it('preserva caixa em criação, busca, filtro, sincronização e rastreabilidade', async () => {
+    const project = await fixture();
+    const names = ['Feature/Login', 'feature/login', 'FEATURE/LOGIN'];
+    const branches = await githubBranchRepository.syncObserved(
+      project.id,
+      names.map((name, index) => ({ name, headSha: `case-${index}` })),
+      'Feature/Login'
+    );
+
+    expect(branches).toHaveLength(3);
+    expect(new Set(branches.map(({ name }) => name))).toEqual(new Set(names));
+    for (const name of names) {
+      expect(
+        await prisma.gitBranch.findUnique({
+          where: { projectId_name: { projectId: project.id, name } }
+        })
+      ).toMatchObject({ name });
+    }
+
+    const summary = await syncProjectCommits({
+      project,
+      repository: { owner: 'owner', name: 'repo' },
+      branches,
+      githubClient: client(Object.fromEntries(names.map((name) => [name, ['CASE-SHARED']])))
+    });
+    expect(summary).toMatchObject({ unique: 1, created: 1, linksCreated: 3 });
+
+    for (const name of names) {
+      const filtered = await commitRepository.listByProjectId(project.id, { branch: name });
+      expect(filtered).toHaveLength(1);
+      expect(filtered[0].branchLinks.map(({ branch }) => branch.name)).toEqual(
+        expect.arrayContaining(names)
+      );
+    }
+  });
+
   it('cria vínculo canônico sem reduzir Project, Commit, PullRequest ou Issue', async () => {
     const project = await fixture();
     const commit = await prisma.commit.create({

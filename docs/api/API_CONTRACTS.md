@@ -227,6 +227,10 @@ Priority: `BAIXA`, `MEDIA`, `ALTA`, `CRITICA`. Status: `A_FAZER`, `EM_ANDAMENTO`
 
 Tipos de artifacts: `commit`, `pull_request`, `issue`. A paginação E9 ocorre somente na leitura externa do GitHub; os contratos públicos de listagem permanecem inalterados.
 
+Nomes de branch preservam exatamente a caixa recebida do Git. `Feature/Login`, `feature/login`
+e `FEATURE/LOGIN` são identidades distintas na persistência, nos filtros e nos vínculos de
+rastreabilidade; o backend não normaliza esses nomes.
+
 Coberturas preservam os campos históricos e acrescentam `coverage: {numerator,denominator,percentage,hasData}`. Quando não há denominador, `percentage` é `null` e `hasData` é `false`; o escalar histórico permanece `0` por compatibilidade.
 
 ## Traceability canônica

@@ -437,7 +437,7 @@ model GitHubIdentity {
 // anonimização recrie ou reassocie automaticamente uma conta, sem persistir o GitHub user ID.
 model GitHubIdentityTombstone {
   id                    Int      @id @default(autoincrement())
-  githubUserFingerprint String   @unique @db.Char(64)
+  githubUserFingerprint String   @unique(map: "GitHubIdentityTombstone_fingerprint_key") @db.Char(64)
   createdAt             DateTime @default(now())
 
   @@index([createdAt])
@@ -728,7 +728,9 @@ model Commit {
 model GitBranch {
   id                Int       @id @default(autoincrement())
   projectId         Int
-  name              String
+  // A collation case-sensitive desta coluna é aplicada pela migration LR.5.
+  // O Prisma não representa collation por campo; o tipo nativo documenta o contrato físico.
+  name              String    @db.VarChar(191)
   headSha           String?
   lastSyncedHeadSha String?
   isDefault         Boolean   @default(false)

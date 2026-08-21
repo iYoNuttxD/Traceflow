@@ -18,7 +18,56 @@ npm run db:test:migrate
 npm run db:test:status
 ```
 
-`db:test:migrate` executa `prisma migrate deploy` no datasource protegido. A cadeia atual possui 35 migrations. `db:test:validate-empty` aplica a cadeia em banco temporário vazio; `db:test:validate-lr2-legacy` valida os guards e aliases da LR.2; `db:test:validate-lr2-recovery` prova o recovery completo sobre bancos temporários imediatamente pré-LR.2. Não use `prisma migrate reset` em desenvolvimento.
+`db:test:migrate` executa `prisma migrate deploy` no datasource protegido. A cadeia atual possui 38 migrations. `db:test:validate-empty` aplica a cadeia em banco temporário vazio; `db:test:validate-lr2-legacy` valida os guards e aliases da LR.2; `db:test:validate-lr2-recovery` prova o recovery completo sobre bancos temporários imediatamente pré-LR.2; `db:test:validate-lr5` prova o upgrade de collation sobre bancos temporários populado e histórico. Não use `prisma migrate reset` em desenvolvimento.
+
+## LR.5 — preflight, collation e evolução representativa
+
+`GitBranch.name` usa `utf8mb4_bin` para preservar a caixa original dos nomes recebidos do Git.
+O schema Prisma documenta o tipo `VARCHAR(191)`, mas a collation por coluna continua sendo uma
+propriedade física aplicada pela migration incremental
+`20260821120000_lr5_gitbranch_case_sensitive`.
+
+Antes do deploy, faça o inventário sanitizado, sem nomes de branches ou dados pessoais:
+
+```bash
+cd backend
+npm run db:lr5:preflight
+```
+
+O relatório informa quantidade total, cardinalidade exata, cardinalidade ignorando caixa,
+grupos duplicados exatos, grupos com variantes de caixa, collation, FKs, órfãos, projetos sem
+OWNER ativo e definições de índices duplicadas. `BLOCKED_EXACT_DUPLICATES` exige correção e nova
+análise; `MIGRATION_REQUIRED` é o estado esperado antes da LR.5; `SCHEMA_CONSISTENT` é o estado
+esperado depois dela. Variantes como `Feature/Login` e `feature/login` são válidas e não são um
+blocker.
+
+Valide os três estados sem resetar banco existente:
+
+```bash
+npm run db:test:validate-empty
+npm run db:test:validate-lr5
+npm run db:test:validate-lr2-legacy
+```
+
+- vazio: aplica toda a cadeia em banco temporário;
+- populado: aplica a baseline pré-LR.5, semeia entidades canônicas, executa o upgrade e compara
+  contagens antes/depois;
+- histórico: preserva branch inativa/reativada, `CommitBranch`, convite, privacy request e
+  integração em transição;
+- contract: dados incompatíveis continuam bloqueados pelos guards LR.2 antes dos `DROP`s.
+
+Depois do deploy, confira a propriedade física e o alinhamento Prisma/MySQL:
+
+```bash
+npm run db:lr5:audit
+npx prisma migrate diff \
+  --from-schema-datasource prisma/schema.prisma \
+  --to-schema-datamodel prisma/schema.prisma \
+  --script
+```
+
+O diff esperado é uma migration vazia. `prisma validate` e `prisma generate`, isoladamente, não
+substituem `migrate status`, a auditoria física ou os validadores de evolução.
 
 ## Recovery de pessoa antes do contract LR.2
 

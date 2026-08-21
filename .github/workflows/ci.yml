@@ -82,6 +82,7 @@ jobs:
           MYSQL_USER: traceflow
           MYSQL_PASSWORD: traceflow
           MYSQL_ROOT_PASSWORD: traceflow_root_ci
+          MYSQL_ROOT_HOST: "%"
         ports:
           - 3306:3306
         options: >-
@@ -119,6 +120,28 @@ jobs:
       - name: Verify migration status
         working-directory: backend
         run: npm run db:test:status
+
+      - name: Audit physical schema and referential integrity
+        working-directory: backend
+        run: npm run db:lr5:audit -- --test
+
+      - name: Validate complete migration chain on an empty database
+        working-directory: backend
+        env:
+          TEST_DATABASE_URL: mysql://root:traceflow_root_ci@localhost:3306/traceflow_test
+        run: npm run db:test:validate-empty
+
+      - name: Validate LR.5 populated and historical upgrades
+        working-directory: backend
+        env:
+          TEST_DATABASE_URL: mysql://root:traceflow_root_ci@localhost:3306/traceflow_test
+        run: npm run db:test:validate-lr5
+
+      - name: Validate destructive migration contract guards
+        working-directory: backend
+        env:
+          TEST_DATABASE_URL: mysql://root:traceflow_root_ci@localhost:3306/traceflow_test
+        run: npm run db:test:validate-lr2-legacy
 
       - name: Check architecture
         working-directory: backend
