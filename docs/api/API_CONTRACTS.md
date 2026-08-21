@@ -222,7 +222,7 @@ sobre ele. A recusa acontece antes de qualquer leitura ou mutação.
 | POST | `/projects/:projectId/milestones` | `title`, `description?`, `dueDate`, **`sprintId`** | `201` `{message, milestone}` | sprint do mesmo projeto e não encerrada; `dueDate` dentro de `[startDate, endDate)` |
 | GET | `/projects/:projectId/milestones` | `status?` | `200` `{total, milestones}` | |
 | GET | `/milestones/:id` | — | `200` `{milestone}` | |
-| PUT | `/milestones/:id` | subconjunto de `title`, `description`, `dueDate`, `sprintId` | `200` `{message, milestone}` | bloqueado se a sprint atual ou a de destino estiver encerrada |
+| PUT | `/milestones/:id` | subconjunto de `title`, `description`, `dueDate`, `sprintId` | `200` `{message, milestone}` | bloqueado se a sprint atual ou a de destino estiver encerrada; a checagem é refeita com as sprints travadas |
 | PATCH | `/milestones/:id/status` | `status` (`PENDENTE` ↔ `CONCLUIDO`) | `200` `{message, milestone}` | bloqueado em sprint encerrada |
 | DELETE | `/milestones/:id` | — | `200` `{message}` | bloqueado em sprint encerrada |
 
@@ -374,6 +374,7 @@ O DTO de tarefa é minimizado: nunca e-mail, descrição ou esforço.
 | `MILESTONE_SPRINT_REQUIRED` | 400 | criação de marco sem sprint |
 | `MILESTONE_SPRINT_PROJECT_MISMATCH` | 400 | sprint de outro projeto, visível ao ator |
 | `MILESTONE_DUE_DATE_OUTSIDE_SPRINT` | 400 | data prevista fora da janela da sprint |
+| `MILESTONE_SPRINT_CHANGED` | 409 | o marco mudou de sprint entre a leitura e a escrita; refazer a operação |
 
 **Aposentados nesta revisão:** `SPRINT_HAS_TASKS` (não existe mais exclusão) e
 `SPRINT_ASSOCIATION_BLOCKED` (substituído por `SPRINT_SCOPE_LOCKED`, que cobre as duas direções).

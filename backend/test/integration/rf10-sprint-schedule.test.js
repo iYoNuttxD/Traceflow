@@ -552,6 +552,106 @@ describe('concorrencia sob lock (ADR-010 D17)', () => {
     expect(emB.removalReason).toBe('MOVIDA');
   });
 
+  // Mutacao de marco contra o encerramento da sprint. Validar a sprint fora da
+  // transacao deixava a escrita do marco confirmar DEPOIS do encerramento: a
+  // sprint virava registro e ainda recebia marco novo, ou perdia um.
+  const cruzaComEncerramento = async (sprintId, mutacaoDeMarco) => {
+    const resultados = await Promise.allSettled([
+      mutacaoDeMarco(),
+      sprintService.updateSprintStatus(sprintId, 'CONCLUIDA')
+    ]);
+    const sprint = await prisma.sprint.findUnique({ where: { id: sprintId } });
+    return { resultados, sprint };
+  };
+
+  it('criacao de marco nao confirma depois do encerramento da sprint', async () => {
+    for (let rodada = 0; rodada < 5; rodada += 1) {
+      const { project, sprint } = await sprintDeTeste({ status: 'EM_ANDAMENTO' });
+      const { resultados, sprint: persistida } = await cruzaComEncerramento(sprint.id, () =>
+        sprintService.createMilestone(project.id, {
+          title: 'Entrega',
+          dueDate: '2026-08-15',
+          sprintId: sprint.id
+        })
+      );
+
+      const criou = resultados[0].status === 'fulfilled';
+      // Ou o marco entrou antes do encerramento, ou foi recusado. Nunca marco
+      // gravado numa sprint que ja e registro.
+      if (persistida.status === 'CONCLUIDA' && criou) {
+        const marco = await prisma.milestone.findFirst({ where: { sprintId: sprint.id } });
+        expect(marco.createdAt.getTime()).toBeLessThanOrEqual(persistida.completedAt.getTime());
+      }
+      if (!criou) {
+        expect(resultados[0].reason).toMatchObject({ code: 'SPRINT_LOCKED' });
+        expect(await prisma.milestone.count({ where: { sprintId: sprint.id } })).toBe(0);
+      }
+      await cleanTestDatabase(prisma);
+    }
+  });
+
+  it.each([
+    ['exclusao', (servico, marco) => () => servico.deleteMilestone(marco.id)],
+    ['conclusao', (servico, marco) => () => servico.updateMilestoneStatus(marco.id, 'CONCLUIDO')],
+    ['edicao', (servico, marco) => () => servico.updateMilestone(marco.id, { title: 'Outro' })]
+  ])('%s de marco nao confirma depois do encerramento da sprint', async (_rotulo, montar) => {
+    let recusas = 0;
+    for (let rodada = 0; rodada < 5; rodada += 1) {
+      const { project, sprint } = await sprintDeTeste({ status: 'EM_ANDAMENTO' });
+      const marco = await createMilestone(prisma, project.id, {
+        sprintId: sprint.id,
+        dueDate: new Date('2026-08-15T00:00:00.000Z'),
+        title: 'Entrega'
+      });
+
+      const { resultados, sprint: persistida } = await cruzaComEncerramento(
+        sprint.id,
+        montar(sprintService, marco)
+      );
+
+      expect(persistida.status).toBe('CONCLUIDA');
+      const atual = await prisma.milestone.findUnique({ where: { id: marco.id } });
+      if (resultados[0].status === 'rejected') {
+        recusas += 1;
+        // Recusado: o marco continua exatamente como o encerramento o congelou.
+        expect(resultados[0].reason).toMatchObject({ code: 'SPRINT_LOCKED' });
+        expect(atual).not.toBeNull();
+        expect(atual.status).toBe('PENDENTE');
+        expect(atual.title).toBe('Entrega');
+      }
+      await cleanTestDatabase(prisma);
+    }
+
+    // O encerramento vence a corrida na pratica; sem a revalidacao sob lock a
+    // mutacao passaria assim mesmo, e nenhuma rodada seria recusada. E essa
+    // ausencia de recusa que denuncia o defeito.
+    expect(recusas).toBeGreaterThan(0);
+  });
+
+  // A outra ponta da mesma corrida: encolher a janela nao pode deixar passar um
+  // marco que a criacao concorrente estava gravando.
+  it('reducao de janela e criacao de marco nao confirmam uma fora da outra', async () => {
+    for (let rodada = 0; rodada < 5; rodada += 1) {
+      const { project, sprint } = await sprintDeTeste();
+      await Promise.allSettled([
+        sprintService.updateSprint(sprint.id, { endDate: '2026-08-10' }),
+        sprintService.createMilestone(project.id, {
+          title: 'Entrega',
+          dueDate: '2026-08-20',
+          sprintId: sprint.id
+        })
+      ]);
+
+      const persistida = await prisma.sprint.findUnique({ where: { id: sprint.id } });
+      const marcos = await prisma.milestone.findMany({ where: { sprintId: sprint.id } });
+      for (const marco of marcos) {
+        expect(marco.dueDate.getTime()).toBeGreaterThanOrEqual(persistida.startDate.getTime());
+        expect(marco.dueDate.getTime()).toBeLessThan(persistida.endDate.getTime());
+      }
+      await cleanTestDatabase(prisma);
+    }
+  });
+
   // Estado que so o backfill da migration s104 produz: marco vinculado a uma
   // sprint cuja janela nunca o conteve. Ele nao pode trancar a sprint — nem para
   // renomear, nem para reajustar o periodo.

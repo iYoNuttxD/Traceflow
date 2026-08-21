@@ -297,6 +297,18 @@ export function sprintDeleteNotSupportedError() {
   );
 }
 
+// A sprint a travar sai do marco lido ANTES da transacao. Se outra requisicao o
+// moveu nesse intervalo, travamos a sprint errada e nao ha como validar com
+// honestidade: recusar e pedir nova tentativa e melhor do que decidir sobre uma
+// sprint que ja nao e a dele.
+export function milestoneSprintChangedError() {
+  return new SprintServiceError(
+    'O marco mudou de sprint durante a operação. Recarregue e tente novamente.',
+    409,
+    ERROR_CODES.MILESTONE_SPRINT_CHANGED
+  );
+}
+
 export function taskNotFoundError() {
   return new SprintServiceError('Tarefa não encontrada.', 404, ERROR_CODES.TASK_NOT_FOUND);
 }
