@@ -907,10 +907,29 @@ Marque só o que estiver verificado por teste ou por execução real.
 - [x] L1 — marcos de sprint terminal em modo leitura, com motivo legível, coberto por teste
 - [x] M1 — matriz técnica alinhada ao modelo persistente; nenhum intervalo engolindo RF implementado
 - [x] ADR-010 com D17 e D18; `API_CONTRACTS.md` com os códigos novos e a precedência do `405`
-- [ ] `npm run lint`, `npm run format:check` e `npm test` verdes no backend e no frontend
-- [ ] `npm run build` verde no frontend; `architecture:check` e `security:secrets` verdes no backend
+- [x] `npm run lint`, `npm run format:check` e `npm test` verdes no backend e no frontend — 443 e 222 testes
+- [x] `npm run build` verde no frontend; `architecture:check` e `security:secrets` verdes no backend; cobertura acima dos limiares nos dois projetos; política de `npm audit` aprovada
 - [ ] Tela validada **com dados mínimos e em escala** (sprint sem marco, sprint com dezenas deles)
-- [ ] E2E (`S104-F02`) permanece aberta no backlog, com a decisão de não bloquear o merge registrada
+- [x] E2E (`S104-F02`) permanece aberta no backlog, com a decisão de não bloquear o merge registrada
+
+### Bateria de mutação (conferência da Fase 8)
+
+Cada correção foi neutralizada no `HEAD` atual e a suíte reexecutada. Uma correção cujo teste
+continua verde depois de removida não está coberta — é o único jeito de distinguir cobertura real
+de cobertura nominal.
+
+| Mutação aplicada | Testes vermelhos |
+|---|---|
+| janela parcial volta a usar o registro pré-transacional (H1) | 2 |
+| transição volta a ser decidida antes do lock (H2) | 5 |
+| participação viva e congelada voltam ao mapa único (H3) | 3 |
+| janela deixa de revalidar marcos (D18) | 8 |
+| mutação de marco deixa de revalidar a sprint sob lock (H5) | 5 |
+| caminho de escopo perde o lock do projeto (D17) | 2 |
+| painel volta a aplicar resposta de sprint não selecionada (H4) | 1 |
+| lista de marcos ignora o congelamento (L1) | 2 |
+
+Nenhuma mutação sobreviveu.
 
 ### Plano de commits
 
