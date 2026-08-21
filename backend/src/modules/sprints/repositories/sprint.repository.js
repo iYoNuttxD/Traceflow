@@ -91,23 +91,23 @@ async function freezeParticipations(tx, sprintId, closedAt) {
   }
 }
 
-// Serializa as escritas de cronograma de UM projeto travando as linhas de Sprint
-// dele, e nao a linha de Project.
+// Serializa as escritas de cronograma de UM projeto — e apenas daquele.
 //
-// A diferenca importa. Toda mutacao de qualquer modulo grava um `AuditEvent` com
-// `projectId`, e a FK dessa coluna pede lock COMPARTILHADO na linha do projeto no
-// fim da transacao. Enquanto o cronograma tomava o EXCLUSIVO dessa mesma linha na
-// entrada, qualquer transacao de outro modulo que ja segurasse uma linha disputada
-// — a exclusao de tarefa, por exemplo — fechava ciclo de espera com ele. Sao 15
-// servicos gravando auditoria de projeto: a lista de parceiros de deadlock era o
-// sistema inteiro.
+// A linha de `Project` e o unico ponto que serve de mutex aqui. Travar as linhas
+// de `Sprint` do projeto parece mais contido, mas nao serializa a CRIACAO: num
+// projeto ainda sem sprint a leitura travada nao casa com registro nenhum, os
+// locks de intervalo que ela toma sao compativeis entre si, e as duas insercoes
+// seguintes se bloqueiam mutuamente — medido, nenhuma das duas criacoes passa.
 //
-// Travando as sprints, ninguem mais pede o exclusivo do projeto, e os
-// compartilhados que a FK exige nao conflitam entre si. O `WHERE projectId` toma
-// lock de intervalo no indice e barra tambem a INSERCAO de uma sprint nova, que e
-// o que a checagem de sobreposicao precisa impedir.
-function lockProjectSprints(tx, projectId) {
-  return tx.$queryRaw`SELECT id FROM Sprint WHERE projectId = ${projectId} ORDER BY id FOR UPDATE`;
+// O preco e conhecido: toda mutacao de qualquer modulo grava um `AuditEvent` com
+// `projectId`, e a FK dessa coluna pede o lock COMPARTILHADO da mesma linha no fim
+// da transacao. Por isso todo caminho de cronograma toma o exclusivo na ENTRADA:
+// meia adocao e pior que nenhuma — enquanto um caminho pedir o projeto por
+// ultimo, ele fecha ciclo de espera com os que o pedem primeiro. Medido: com a
+// transicao de status travando o projeto e a mutacao de escopo nao, o par deu
+// deadlock em 25 de 25 execucoes.
+function lockProject(tx, projectId) {
+  return tx.$queryRaw`SELECT id FROM Project WHERE id = ${projectId} FOR UPDATE`;
 }
 
 export const sprintRepository = {
@@ -154,7 +154,7 @@ export const sprintRepository = {
   // Milestone, para que duas transacoes nunca esperem uma pela outra invertidas.
   async createWithinProjectLock(projectId, data, auditEvent, validate) {
     return prisma.$transaction(async (tx) => {
-      await lockProjectSprints(tx, projectId);
+      await lockProject(tx, projectId);
       const sprints = await tx.sprint.findMany({ where: { projectId }, select: sprintSelect });
       await validate({ sprints, sprint: null, milestones: [] });
       const sprint = await tx.sprint.create({
@@ -170,11 +170,12 @@ export const sprintRepository = {
 
   async updateWithinProjectLock(id, projectId, data, auditEvent, validate) {
     return prisma.$transaction(async (tx) => {
-      // Trava todas as sprints do projeto, a desta inclusive: a validacao de
-      // sobreposicao so vale se o conjunto ficar estavel, e a janela final so vale
-      // se ESTA linha ficar estavel entre a releitura e a escrita.
-      const travadas = await lockProjectSprints(tx, projectId);
-      if (!travadas.some((linha) => Number(linha.id) === id)) return null;
+      await lockProject(tx, projectId);
+      // A propria sprint travada: o lock do projeto serializa as escritas de
+      // cronograma, mas quem decide a janela final e o registro desta linha, e ele
+      // precisa estar estavel entre a releitura e a escrita.
+      const travada = await tx.$queryRaw`SELECT id FROM Sprint WHERE id = ${id} FOR UPDATE`;
+      if (!travada.length) return null;
       // Marcos travados junto: encolher a janela precisa recusar quem ficaria fora
       // dela, e uma criacao de marco simultanea nao pode escapar dessa checagem
       // entrando depois da leitura (ADR-010 D18).
@@ -203,8 +204,9 @@ export const sprintRepository = {
   //
   // `buildChange` e a regra, entregue pelo service: recebe o registro travado e
   // devolve `{ data, auditEvent, freezeAt }`, ou lanca erro de dominio.
-  async transitionWithinSprintLock(id, buildChange) {
+  async transitionWithinSprintLock(id, projectId, buildChange) {
     return prisma.$transaction(async (tx) => {
+      await lockProject(tx, projectId);
       const travada = await tx.$queryRaw`SELECT id FROM Sprint WHERE id = ${id} FOR UPDATE`;
       if (!travada.length) return null;
 
@@ -222,8 +224,9 @@ export const sprintRepository = {
   // e escrita na MESMA transacao. Calcular o delta fora dela permitia que dois
   // PUT simultaneos partissem do mesmo retrato e aplicassem conjuntos
   // incompativeis — atomicidade por item nao e semantica de substituicao.
-  async mutateScopeWithinSprintLock(sprintId, requestedTaskIds, buildPlan) {
+  async mutateScopeWithinSprintLock(sprintId, projectId, requestedTaskIds, buildPlan) {
     return prisma.$transaction(async (tx) => {
+      await lockProject(tx, projectId);
       const locked = await tx.$queryRaw`SELECT id FROM Sprint WHERE id = ${sprintId} FOR UPDATE`;
       if (!locked.length) return null;
 

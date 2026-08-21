@@ -151,7 +151,7 @@ Toda **decisão de domínio** é refeita sobre o registro relido dentro da trans
 
 ### 3.3 Regra 2 — ordem global de aquisição
 
-> `Sprint → Task → SprintTask/Milestone`, sempre nessa ordem, e dentro de cada nível em
+> `Project → Sprint → Task → SprintTask/Milestone`, sempre nessa ordem, e dentro de cada nível em
 > **ordem crescente de `id`** quando houver mais de uma linha.
 
 Essa é a única forma de garantir que não existe ciclo de espera entre as transações do módulo.
@@ -161,11 +161,11 @@ Situação atual por caminho, e para onde ela vai:
 
 | Caminho | Locks hoje | Locks depois |
 |---|---|---|
-| Criar sprint | `Project` | `Sprint(projectId)` |
-| Atualizar janela da sprint | `Project`, e lê depois | `Sprint(projectId)` → `Milestone(sprintId)`, e só então lê |
-| Transição de status | `Sprint(id)`, e escreve sem reler | `Sprint(id)` → relê → valida → escreve |
-| Mutação de escopo | `Sprint(id)` → **lê** → `Task(...)` | `Sprint(id)` → `SprintTask(abertas)` → `Task(ids ordenados)` → **só então lê** |
-| Marco (create/update/status/delete) | nenhum | `Sprint(id ou ids ordenados)` → `Milestone(id)` → relê → valida → escreve |
+| Criar sprint | `Project` | `Project` (inalterado) |
+| Atualizar janela da sprint | `Project`, e lê depois | `Project` → `Sprint(id)` → `Milestone(sprintId)`, e só então lê |
+| Transição de status | `Sprint(id)`, e escreve sem reler | `Project` → `Sprint(id)` → relê → valida → escreve |
+| Mutação de escopo | `Sprint(id)` → **lê** → `Task(...)` | `Project` → `Sprint(id)` → `SprintTask(abertas)` → `Task(ids ordenados)` → **só então lê** |
+| Marco (create/update/status/delete) | nenhum | `Project` → `Sprint(id ou ids ordenados)` → `Milestone(id)` → relê → valida → escreve |
 
 O lock de `Task` continua vindo **depois** do de `Sprint` em todos os caminhos, e `deleteTask`
 (`backend/src/modules/tasks/task.repository.js`) continua tocando `Task` antes de `SprintTask` —
@@ -812,8 +812,8 @@ Acrescente duas decisões, no mesmo tom das existentes:
 
 - **D17 — Ordem global de locks e leitura pós-lock.** O conteúdo da §3 deste documento: por que o
   `FOR UPDATE` sozinho não basta sob `REPEATABLE READ`, a regra "locks primeiro, leituras depois", e
-  a ordem `Sprint → Task → SprintTask/Milestone`, com ids crescentes dentro de cada nível, e a razão
-  de o cronograma nunca tomar o exclusivo da linha de `Project`.
+  a ordem `Project → Sprint → Task → SprintTask/Milestone`, com ids crescentes dentro de cada nível,
+  e a razão de todo caminho tomar o exclusivo do projeto já na entrada.
   Referencie D08, que ela completa (não substitui).
 - **D18 — A janela da sprint e seus marcos são validados juntos.** Reduzir a janela recusa com `409`
   se algum marco vinculado ficaria fora dela; mutações de marco revalidam a sprint sob o mesmo lock.

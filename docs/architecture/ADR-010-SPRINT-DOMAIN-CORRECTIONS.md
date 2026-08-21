@@ -114,9 +114,9 @@ Três conceitos distintos, que o ADR-009 misturava:
 ### D08 — Mutação de escopo e de janela é serializada
 
 Leitura, validação, cálculo do delta e escrita acontecem na mesma transação, com as linhas
-travadas por `SELECT ... FOR UPDATE`: as sprints do projeto para janelas de sprint, a da sprint
-para escopo e status, e a da tarefa quando o plano toca participações de outras sprints.
-A escolha de travar as sprints do projeto, e não a linha de `Project`, é de D17 Regra 3.
+travadas por `SELECT ... FOR UPDATE`: a do projeto em todo caminho de cronograma, a da sprint para
+escopo e status, e a da tarefa quando o plano toca participações de outras sprints. Por que a linha
+do projeto entra em todos, e sempre na entrada, é assunto de D17 Regra 3.
 
 **Por que o lock é necessário.** Em MySQL sob REPEATABLE READ, "consultar e depois inserir"
 continua sendo corrida: duas criações simultâneas leem o mesmo conjunto e ambas passam, e dois
@@ -196,9 +196,9 @@ travar espera pelo lock e então valida um passado.
 qualquer leitura comum. Nenhum dado lido fora da transação decide a escrita: a leitura
 pré-transação serve apenas para responder `404` cedo e para descobrir **qual linha travar**.
 
-**Regra 2.** A ordem de aquisição é sempre `Sprint → Task → SprintTask/Milestone`, e dentro de cada
-nível em ordem crescente de `id`. É o que impede que duas transações com conjuntos sobrepostos
-esperem uma pela outra em ordens opostas.
+**Regra 2.** A ordem de aquisição é sempre `Project → Sprint → Task → SprintTask/Milestone`, e
+dentro de cada nível em ordem crescente de `id`. É o que impede que duas transações com conjuntos
+sobrepostos esperem uma pela outra em ordens opostas.
 
 **O que a regra corrigiu.** A atualização de janela completava o lado não informado com o registro
 lido antes da transação: duas atualizações parciais complementares — uma só do início, outra só do
@@ -207,23 +207,26 @@ transição de status validava a transição antes da transação e escrevia sem
 iniciar simultaneamente uma sprint `PLANEJADA` passava nas duas checagens, e a segunda escrita
 deixava status aberto convivendo com participações já congeladas.
 
-**Regra 3 — o cronograma não toma o lock exclusivo da linha do projeto.** A serialização por projeto
-que a checagem de sobreposição exige é feita travando as **linhas de `Sprint` daquele projeto**
-(`SELECT id FROM Sprint WHERE projectId = ? ORDER BY id FOR UPDATE`), e não a linha de `Project`.
+**Regra 3 — todo caminho de cronograma toma o exclusivo do projeto na entrada.** A serialização por
+projeto que a checagem de sobreposição exige é feita travando a linha de `Project`, e os quatro
+caminhos de escrita — `createWithinProjectLock`, `updateWithinProjectLock`,
+`transitionWithinSprintLock` e `mutateScopeWithinSprintLock` — a tomam antes de qualquer outro lock.
 
-O motivo é externo ao módulo. Toda mutação de qualquer módulo grava um `AuditEvent` com `projectId`,
-e a chave estrangeira dessa coluna pede lock **compartilhado** na linha do projeto no fim da
-transação. Enquanto o cronograma tomava o **exclusivo** da mesma linha na entrada, qualquer
-transação que já segurasse uma linha disputada fechava ciclo de espera com ele — e são quinze
-serviços gravando auditoria de projeto. A lista de parceiros de deadlock era o sistema inteiro.
+**Por que a linha do projeto, e não as sprints dele.** Travar as linhas de `Sprint` do projeto parece
+mais contido e evitaria o custo descrito abaixo, mas não serializa a **criação**: num projeto ainda
+sem sprint a leitura travada não casa com registro nenhum, os locks de intervalo que ela toma são
+compatíveis entre si, e as duas inserções seguintes se bloqueiam mutuamente. Medido: nesse arranjo,
+duas criações simultâneas de sprints sobrepostas falham as duas, em vez de uma passar e a outra
+receber `409`.
 
-Isso foi medido, não deduzido: com o exclusivo do projeto na transição de status, o cruzamento entre
-mutação de escopo e transição deu `ER_LOCK_DEADLOCK` em 25 de 25 execuções. Travando as sprints, os
-compartilhados que a FK exige não conflitam entre si, e os três cruzamentos internos do cronograma
-— escopo × status, escopo × janela e janela × status — passam a rodar limpos, cobertos por teste.
-
-O `WHERE projectId` toma lock de intervalo no índice e barra também a **inserção** de uma sprint
-nova, que é exatamente o que a checagem de sobreposição precisa impedir.
+**Por que na entrada, e por que em todos.** Toda mutação de qualquer módulo grava um `AuditEvent` com
+`projectId`, e a chave estrangeira dessa coluna pede lock **compartilhado** na linha do projeto no
+fim da transação. O projeto entra na ordem de aquisição de todo caminho, queira ele ou não — a única
+escolha é se entra no começo ou no fim. Meia adoção é pior que nenhuma: enquanto um caminho pedir o
+projeto por último, ele fecha ciclo de espera com os que o pedem primeiro. Medido: com a transição
+de status travando o projeto na entrada e a mutação de escopo não, o par deu `ER_LOCK_DEADLOCK` em
+25 de 25 execuções. Com os quatro alinhados, os três cruzamentos internos do cronograma — escopo ×
+status, escopo × janela e janela × status — rodam limpos, cobertos por teste.
 
 **Consequência sobre o tempo de posse.** O que roda dentro da transação bloqueia o cronograma
 daquele projeto. Por isso o congelamento de participações escreve agrupado por status de saída, em
@@ -232,8 +235,9 @@ com o cronograma parado atrás, perto demais do tempo limite de transação do P
 
 **Limite conhecido.** A mutação de escopo e a exclusão de tarefa alcançam as mesmas linhas de
 `SprintTask` por índices diferentes (`[sprintId, removedAt]` de um lado, `[taskId, removedAt]` do
-outro) e continuam fechando ciclo entre si. O comportamento é anterior a esta revisão — medido em
-`07663ce` — e a correção mora no módulo de tarefas. Registrado como `S104-F10`.
+outro) e fecham ciclo entre si. O comportamento é anterior a esta revisão — medido em `07663ce`,
+antes de qualquer lock de projeto existir no caminho de escopo — e a correção mora no módulo de
+tarefas. Registrado como `S104-F10`, junto do mapeamento ausente de `P2034`/`P2024` para `409`/`503`.
 
 **Adoção.** Regra 1 (locks antes das leituras) aplicada aos caminhos de janela, de status e de
 escopo. As mutações de marco ainda validam a sprint fora da transação; a adoção nesse caminho é a

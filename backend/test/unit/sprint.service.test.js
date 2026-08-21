@@ -94,18 +94,22 @@ beforeEach(() => {
       return { ...baseSprint, ...data, id };
     }
   );
-  mocks.sprint.transitionWithinSprintLock.mockImplementation(async (id, buildChange) => {
-    // `lockedStatusSprint` e o registro que a transacao rele DEPOIS do lock. Por
-    // padrao ele coincide com a leitura anterior; os testes de concorrencia o
-    // fazem divergir para descrever a sprint que outra requisicao ja mudou.
-    const atual = lockedStatusSprint ?? baseSprint;
-    capturedTransition = await buildChange({ ...atual, id });
-    return { ...atual, ...capturedTransition.data, id };
-  });
-  mocks.sprint.mutateScopeWithinSprintLock.mockImplementation(async (_id, _ids, buildPlan) => {
-    capturedPlan = await buildPlan(scopeSnapshot);
-    return [];
-  });
+  mocks.sprint.transitionWithinSprintLock.mockImplementation(
+    async (id, _projectId, buildChange) => {
+      // `lockedStatusSprint` e o registro que a transacao rele DEPOIS do lock. Por
+      // padrao ele coincide com a leitura anterior; os testes de concorrencia o
+      // fazem divergir para descrever a sprint que outra requisicao ja mudou.
+      const atual = lockedStatusSprint ?? baseSprint;
+      capturedTransition = await buildChange({ ...atual, id });
+      return { ...atual, ...capturedTransition.data, id };
+    }
+  );
+  mocks.sprint.mutateScopeWithinSprintLock.mockImplementation(
+    async (_id, _projectId, _ids, buildPlan) => {
+      capturedPlan = await buildPlan(scopeSnapshot);
+      return [];
+    }
+  );
 });
 
 // Participacao ativa, no formato que o repository devolve.

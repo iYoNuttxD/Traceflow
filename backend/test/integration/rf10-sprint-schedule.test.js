@@ -174,6 +174,7 @@ describe('transacoes dos repositories', () => {
 
     await sprintRepository.mutateScopeWithinSprintLock(
       sprint.id,
+      project.id,
       [task.id],
       planoDeEntrada(project, sprint, task, user.id)
     );
@@ -194,6 +195,7 @@ describe('transacoes dos repositories', () => {
     await expect(
       sprintRepository.mutateScopeWithinSprintLock(
         sprint.id,
+        project.id,
         [task.id],
         // actorUserId inexistente viola a FK e deve derrubar a transacao inteira.
         planoDeEntrada(project, sprint, task, 999999)
