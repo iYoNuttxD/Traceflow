@@ -213,7 +213,13 @@ que supersede parte do ADR-009. Três convenções valem para tudo abaixo:
 
 **Por que o DELETE responde 405 e não some.** A rota removida devolveria `404`, indistinguível
 de "sprint não existe". O `405` diz que a operação não existe para o recurso, sem informar nada
-sobre ele. A recusa acontece antes de qualquer leitura ou mutação.
+sobre ele. A recusa acontece antes de qualquer leitura ou mutação **do service**.
+
+**Precedência.** Autorização e visibilidade são avaliadas antes do contrato de método: quem não
+tem sessão recebe `401`, quem não enxerga o projeto da sprint recebe `404`, e quem não tem papel
+suficiente recebe `403` — todos antes de chegar ao `405`. O `405` é a resposta para quem já passou
+por essas camadas. Isso é deliberado: informar "este método não existe" a quem não pode nem saber
+que a sprint existe transformaria o contrato num oráculo.
 
 ### Marcos
 

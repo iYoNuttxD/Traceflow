@@ -13,9 +13,9 @@ Estado consolidado após a E15. `IMPLEMENTADO` significa fluxo presente e proteg
 | RF07 | CRUD de tarefas | `/projects/:id/tasks`, `/tasks/:id` | task-crud | Task | TasksScreen/TaskForm/List | mvp-contracts, TaskForm/Presentation | IMPLEMENTADO |
 | RF08 | quadro Kanban | `GET .../kanban`, `PATCH /tasks/:id/move` | task-kanban/movement | Task, TaskMovement | KanbanScreen/Board | mvp-contracts, KanbanPage | IMPLEMENTADO |
 | RF09 | Task–PullRequest singular | `PATCH/DELETE /tasks/:id/pull-request` | task-pull-request | Task.pullRequestId | TaskForm/List | mvp-contracts, traceability | IMPLEMENTADO |
-| RF10 | definir cronograma do projeto | `GET /projects/:projectId/schedule`; CRUD `/sprints`, `/milestones`; `PATCH/DELETE /tasks/:id/sprint` | sprint-crud, sprint-status, milestone, schedule, task-sprint | Sprint, Milestone, Task.sprintId, TaskHistoryEntry (`SPRINT`) | ScheduleScreen, ScheduleAgenda (agenda por data), SprintTasksPanel; histórico ajustado | sprint.calculator, sprint.service, schedule-contracts, rf10-sprint-schedule, ScheduleScreen, ScheduleAgenda, TaskHistorySprint | IMPLEMENTADO |
+| RF10 | definir cronograma do projeto | `GET /projects/:projectId/schedule`; CRUD `/sprints`, `/milestones`; `PATCH/DELETE /tasks/:id/sprint` | sprint-crud, sprint-status, milestone, schedule, task-sprint | Sprint, Milestone (`sprintId`), **SprintTask** (fonte histórica), Task.sprintId (ponteiro corrente), TaskHistoryEntry (`SPRINT`) | ScheduleScreen, ScheduleAgenda (agenda por data), SprintTasksPanel, MilestoneList; histórico ajustado | sprint.calculator, sprint.service, schedule-contracts, rf10-sprint-schedule, ScheduleScreen, ScheduleAgenda, TaskHistorySprint | IMPLEMENTADO |
 | RF11 | Task–Commit | `GET/POST/DELETE /tasks/:id/commits` | task-commit | TaskCommit | TaskForm/List | mvp-contracts, RF41 | IMPLEMENTADO |
-| RF35 | evolução por sprint | `GET /sprints/:id/progress` | sprint-progress; `sprint.progress.calculator` (puro) | Sprint.startedAt, Task.status/sprintId, TaskHistoryEntry (`SPRINT`) | SprintProgressPanel, SprintList | sprint.progress.calculator, schedule-contracts, ScheduleScreen | IMPLEMENTADO |
+| RF35 | evolução por sprint | `GET /sprints/:id/progress` | sprint-progress; `sprint.progress.calculator` (puro) | **SprintTask** (`exitStatus`, `addedAfterStart`, `carriedFromSprintId`, `removedAt`, `closedAt`), Sprint.startedAt/completedAt | SprintProgressPanel, SprintList | sprint.progress.calculator, sprint.service, schedule-contracts, rf10-sprint-schedule, ScheduleScreen | IMPLEMENTADO |
 | RF12 | Task–Issue | `GET/POST/DELETE /tasks/:id/issues` | task-issue | TaskIssue | TaskForm/List | mvp-contracts | IMPLEMENTADO |
 | RF21 | atualizar sync GitHub | `POST .../github/sync` | sync-project-github | Project + artefatos | ProjectDetails | projects-github-e9 | IMPLEMENTADO |
 | RF22 | editar projeto | `PUT /api/projects/:id` | project-crud | Project | ProjectDetails/ProjectForm | mvp-contracts, ProjectDetailsPage | IMPLEMENTADO |
@@ -36,8 +36,8 @@ Estado consolidado após a E15. `IMPLEMENTADO` significa fluxo presente e proteg
 
 ## Parcial ou fora do estado atual
 
-- Esforço estimado/real e métricas técnicas existentes não constituem, sozinhos, RF33–RF36 completos; esses RFs permanecem `PARCIAL` ou `NÃO IMPLEMENTADO` conforme o roadmap.
-- RF13, RF15–RF18, RF29–RF37, RF39–RF40, RF42–RF46 e RF54–RF64 não foram implementados como capacidades completas.
+- Esforço estimado/real e métricas técnicas existentes não constituem, sozinhos, RF33, RF34 e RF36 completos; esses RFs permanecem `PARCIAL` ou `NÃO IMPLEMENTADO` conforme o roadmap. O RF35 saiu deste conjunto: ele é entregue por `GET /sprints/:id/progress` sobre `SprintTask`.
+- RF13, RF15–RF18, RF29–RF34, RF36, RF37, RF39–RF40, RF42–RF46 e RF54–RF64 não foram implementados como capacidades completas. O intervalo é enumerado em torno do RF35 de propósito: escrevê-lo como `RF29–RF37` engoliria um requisito que esta mesma matriz marca como `IMPLEMENTADO`.
 - A numeração oficial não define RF14, RF19, RF20 e RF47; eles não foram inventados.
 
 Matriz histórica da E0: [E0_TRACEABILITY_MATRIX.md](../refactoring/E0_TRACEABILITY_MATRIX.md).

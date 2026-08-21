@@ -904,9 +904,9 @@ Marque só o que estiver verificado por teste ou por execução real.
 - [x] H3 (adicional) — participação viva distinguida da congelada; caso sequencial A→B→C coberto
 - [x] H5 — redução de janela revalida marcos; mutações de marco travam e revalidam a sprint
 - [x] H4 — salvamento de A não escreve no painel de B; regressão coberta
-- [ ] L1 — marcos de sprint terminal em modo leitura, com motivo legível, coberto por teste
-- [ ] M1 — matriz técnica alinhada ao modelo persistente; nenhum intervalo engolindo RF implementado
-- [ ] ADR-010 com D17 e D18; `API_CONTRACTS.md` com os códigos novos e a precedência do `405`
+- [x] L1 — marcos de sprint terminal em modo leitura, com motivo legível, coberto por teste
+- [x] M1 — matriz técnica alinhada ao modelo persistente; nenhum intervalo engolindo RF implementado
+- [x] ADR-010 com D17 e D18; `API_CONTRACTS.md` com os códigos novos e a precedência do `405`
 - [ ] `npm run lint`, `npm run format:check` e `npm test` verdes no backend e no frontend
 - [ ] `npm run build` verde no frontend; `architecture:check` e `security:secrets` verdes no backend
 - [ ] Tela validada **com dados mínimos e em escala** (sprint sem marco, sprint com dezenas deles)
