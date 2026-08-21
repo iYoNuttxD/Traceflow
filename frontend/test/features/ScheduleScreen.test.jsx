@@ -424,6 +424,84 @@ describe('escopo de sprint encerrada', () => {
   });
 });
 
+// Marco de sprint encerrada acompanha a imutabilidade dela (ADR-010 D12). Antes
+// os controles eram escondidos so para VIEWER, e numa sprint terminal editar,
+// concluir, reabrir e apagar continuavam clicaveis — terminando em 409.
+describe('marcos de sprint encerrada', () => {
+  const encerrada = {
+    id: 3,
+    name: 'Sprint encerrada',
+    objective: null,
+    startDate: '2026-08-01',
+    endDate: '2026-08-14',
+    status: 'CONCLUIDA'
+  };
+  const aberta = { ...encerrada, id: 4, name: 'Sprint aberta', status: 'EM_ANDAMENTO' };
+
+  const marcoDe = (id, sprintId, title) => ({
+    id,
+    title,
+    description: null,
+    dueDate: '2026-08-10',
+    status: 'PENDENTE',
+    sprintId
+  });
+
+  beforeEach(() => {
+    mocks.schedule.listSprints.mockResolvedValue({
+      data: { total: 2, sprints: [encerrada, aberta] }
+    });
+    mocks.schedule.listMilestones.mockResolvedValue({
+      data: {
+        total: 2,
+        milestones: [marcoDe(1, 3, 'Marco congelado'), marcoDe(2, 4, 'Marco vivo')]
+      }
+    });
+  });
+
+  const itemDoMarco = async (title) => (await screen.findByText(title)).closest('li');
+
+  it('nao oferece concluir, editar nem excluir no marco congelado', async () => {
+    renderScreen();
+    const congelado = await itemDoMarco('Marco congelado');
+
+    expect(within(congelado).queryByRole('group', { name: /Ações do marco/ })).toBeNull();
+    expect(within(congelado).queryByRole('button')).toBeNull();
+  });
+
+  it('diz por que o marco congelado nao tem acoes', async () => {
+    renderScreen();
+    const congelado = await itemDoMarco('Marco congelado');
+
+    expect(
+      within(congelado).getByText(/Sprint encerrada: este marco é registro histórico\./)
+    ).toBeInTheDocument();
+  });
+
+  it('mantem as tres acoes no marco de sprint aberta', async () => {
+    renderScreen();
+    const vivo = await itemDoMarco('Marco vivo');
+
+    expect(within(vivo).getByRole('button', { name: /^Concluir o marco/ })).toBeInTheDocument();
+    expect(within(vivo).getByRole('button', { name: /^Editar o marco/ })).toBeInTheDocument();
+    expect(within(vivo).getByRole('button', { name: /^Excluir o marco/ })).toBeInTheDocument();
+    expect(within(vivo).queryByText(/registro histórico/)).toBeNull();
+  });
+
+  // Para VIEWER o motivo e permissao, nao estado: o aviso de congelamento seria
+  // ruido sobre uma acao que ele nao teria em sprint nenhuma.
+  it('VIEWER nao ve acoes nem aviso de congelamento', async () => {
+    mocks.schedule.getMembership.mockResolvedValue({
+      data: { currentMembership: { role: 'VIEWER' } }
+    });
+    renderScreen();
+    const congelado = await itemDoMarco('Marco congelado');
+
+    expect(within(congelado).queryByRole('button')).toBeNull();
+    expect(within(congelado).queryByText(/registro histórico/)).toBeNull();
+  });
+});
+
 // Salvar A e selecionar B antes da resposta chegar. `selectedSprint` e estado de
 // render: aplicar a resposta atrasada de A no painel de B fazia o salvamento
 // seguinte enviar os IDs de A para B, alterando o recurso errado.
