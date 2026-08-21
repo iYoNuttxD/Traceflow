@@ -59,9 +59,22 @@ enum TaskHistoryField {
 }
 
 enum GitHubInstallationStatus {
+  PENDING
   ACTIVE
   SUSPENDED
-  DELETED
+  REMOVED
+}
+
+enum GitHubRepositoryPermission {
+  OWNER
+  ADMIN
+}
+
+enum GitHubWebhookDeliveryStatus {
+  RECEIVED
+  PROCESSING
+  PROCESSED
+  FAILED
 }
 
 enum GitHubIntegrationStatus {
@@ -135,6 +148,7 @@ model User {
   personalDataExports              PersonalDataExport[]
   reviewedTaskCommitSuggestions    TaskCommitSuggestion[]            @relation("TaskCommitSuggestionReviewer")
   githubInstallationAuthorizations GitHubInstallationAuthorization[]
+  githubRepositoryAuthorizations   GitHubRepositoryAuthorization[]
   githubAppConnectionStates        GitHubAppConnectionState[]
   githubIdentity                   GitHubIdentity?
   githubOAuthStates                GitHubOAuthState[]
@@ -311,17 +325,38 @@ model GitHubInstallation {
   accountId            String
   accountLogin         String
   accountType          String
-  status               GitHubInstallationStatus @default(ACTIVE)
+  status               GitHubInstallationStatus @default(PENDING)
   suspendedAt          DateTime?
   installedAt          DateTime
   createdAt            DateTime                 @default(now())
   updatedAt            DateTime                 @updatedAt
 
-  authorizations      GitHubInstallationAuthorization[]
-  projectIntegrations ProjectGitHubIntegration[]
+  authorizations           GitHubInstallationAuthorization[]
+  repositoryAuthorizations GitHubRepositoryAuthorization[]
+  projectIntegrations      ProjectGitHubIntegration[]
 
   @@index([accountId])
   @@index([status])
+}
+
+model GitHubRepositoryAuthorization {
+  id                 Int                        @id @default(autoincrement())
+  installationId     Int
+  userId             Int
+  githubRepositoryId String
+  repositoryFullName String
+  permission         GitHubRepositoryPermission
+  verifiedAt         DateTime
+  expiresAt          DateTime
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+
+  installation GitHubInstallation @relation(fields: [installationId], references: [id], onDelete: Cascade, map: "GHRepoAuth_installation_fkey")
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade, map: "GHRepoAuth_user_fkey")
+
+  @@unique([installationId, userId, githubRepositoryId], map: "GHRepoAuth_installation_user_repo_key")
+  @@index([userId, expiresAt], map: "GHRepoAuth_user_expires_idx")
+  @@index([installationId, expiresAt], map: "GHRepoAuth_installation_expires_idx")
 }
 
 model GitHubInstallationAuthorization {
@@ -419,16 +454,22 @@ model GitHubOAuthState {
 }
 
 model GitHubWebhookDelivery {
-  id             Int       @id @default(autoincrement())
-  deliveryId     String    @unique
+  id             Int                         @id @default(autoincrement())
+  deliveryId     String                      @unique
   event          String
   action         String?
   installationId String?
-  receivedAt     DateTime  @default(now())
+  status         GitHubWebhookDeliveryStatus @default(RECEIVED)
+  attemptCount   Int                         @default(0)
+  lastAttemptAt  DateTime?
+  failureStep    String?
+  failureCode    String?
+  receivedAt     DateTime                    @default(now())
   processedAt    DateTime?
 
   @@index([installationId])
   @@index([receivedAt])
+  @@index([status, lastAttemptAt])
 }
 
 model AuditEvent {

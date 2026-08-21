@@ -9,20 +9,27 @@ const mocks = vi.hoisted(() => ({
     authorizeInstallationFromState: vi.fn(),
     findAuthorizedInstallation: vi.fn(),
     listAuthorizedInstallations: vi.fn(),
+    findRepositoryAuthorizations: vi.fn(),
+    findIntegration: vi.fn(),
     findIntegrationByRepositoryId: vi.fn(),
     findIntegrationsByRepositoryIds: vi.fn(),
     connectProject: vi.fn(),
-    createWebhookDelivery: vi.fn(),
+    startWebhookDelivery: vi.fn(),
     completeWebhookDelivery: vi.fn(),
+    failWebhookDelivery: vi.fn(),
     updateInstallationStatus: vi.fn(),
     refreshInstallationMetadata: vi.fn(),
     upsertInstallationFromWebhook: vi.fn(),
     requireReconnectForInstallation: vi.fn(),
-    requireReconnectForRepositories: vi.fn()
+    requireReconnectForRepositories: vi.fn(),
+    expireRepositoryAuthorizationsForInstallation: vi.fn(),
+    expireRepositoryAuthorizationsForRepositories: vi.fn()
   },
   credentialProvider: {
     exchangeInstallationUserCode: vi.fn(),
-    listInstallationsAccessibleToUser: vi.fn()
+    getAuthenticatedUser: vi.fn(),
+    listInstallationsAccessibleToUser: vi.fn(),
+    listRepositoriesAccessibleToUser: vi.fn()
   },
   authorization: { membership: vi.fn() },
   clientFactory: { forInstallation: vi.fn() }
@@ -33,6 +40,7 @@ vi.mock('../../src/config/env.js', () => ({
     githubAppConfigured: true,
     githubAppSlug: 'traceflow-test',
     githubAppStateTtlMs: 600000,
+    githubRepositoryAuthorizationTtlMs: 900000,
     githubAppWebhookSecret: 'webhook-secret-artificial'
   }
 }));
@@ -62,7 +70,13 @@ function validStateRecord(overrides = {}) {
     usedAt: null,
     intendedAction: 'CREATE_PROJECT',
     projectId: null,
-    user: { id: 7, isActive: true, sessionVersion: 1 },
+    user: {
+      id: 7,
+      isActive: true,
+      accountStatus: 'ACTIVE',
+      sessionVersion: 1,
+      githubIdentity: { githubUserId: '7007', githubLogin: 'traceflow-user' }
+    },
     session: {
       id: 8,
       userId: 7,
@@ -79,8 +93,20 @@ describe('autorização e webhooks da GitHub App L1', () => {
     vi.clearAllMocks();
     mocks.authorization.membership.mockResolvedValue({ role: 'OWNER' });
     mocks.repository.createConnectionState.mockResolvedValue({ id: 1 });
+    mocks.repository.findIntegration.mockResolvedValue(null);
     mocks.repository.findIntegrationByRepositoryId.mockResolvedValue(null);
     mocks.repository.findIntegrationsByRepositoryIds.mockResolvedValue([]);
+    mocks.repository.findRepositoryAuthorizations.mockResolvedValue([]);
+    mocks.repository.startWebhookDelivery.mockResolvedValue({
+      delivery: { id: 12 },
+      duplicate: false,
+      retried: false
+    });
+    mocks.credentialProvider.getAuthenticatedUser.mockResolvedValue({
+      id: 7007,
+      login: 'traceflow-user'
+    });
+    mocks.credentialProvider.listRepositoriesAccessibleToUser.mockResolvedValue([]);
   });
 
   it('salva somente hash do state e vincula usuário, sessão e intenção', async () => {
@@ -212,7 +238,12 @@ describe('autorização e webhooks da GitHub App L1', () => {
       'token-efemero'
     );
     expect(mocks.repository.authorizeInstallationFromState).toHaveBeenCalledWith(
-      expect.objectContaining({ stateId: 1, userId: 7 })
+      expect.objectContaining({
+        stateId: 1,
+        userId: 7,
+        repositories: [],
+        repositoryAuthorizationExpiresAt: expect.any(Date)
+      })
     );
     expect(
       JSON.stringify(mocks.repository.authorizeInstallationFromState.mock.calls)
@@ -220,8 +251,10 @@ describe('autorização e webhooks da GitHub App L1', () => {
     expect(mocks.logger.info.mock.calls.map(([, context]) => context.step)).toEqual([
       'validate_state',
       'exchange_code',
+      'validate_github_identity',
       'list_user_installations',
       'validate_installation',
+      'list_user_repositories',
       'upsert_installation',
       'upsert_authorization',
       'consume_state'
@@ -234,6 +267,33 @@ describe('autorização e webhooks da GitHub App L1', () => {
     await expect(githubAppService.completeCallback(callback)).rejects.toMatchObject({
       statusCode: 403
     });
+  });
+
+  it('valida conta ativa e identidade GitHub antes de autorizar a instalação', async () => {
+    const callback = {
+      code: 'oauth-code-artificial',
+      installationId: '77',
+      state: 'state-artificial-com-mais-de-trinta-caracteres'
+    };
+    mocks.repository.findConnectionState.mockResolvedValue(
+      validStateRecord({ user: { ...validStateRecord().user, accountStatus: 'DEACTIVATED' } })
+    );
+    await expect(githubAppService.completeCallback(callback)).rejects.toMatchObject({
+      statusCode: 403
+    });
+    expect(mocks.credentialProvider.exchangeInstallationUserCode).not.toHaveBeenCalled();
+
+    mocks.repository.findConnectionState.mockResolvedValue(validStateRecord());
+    mocks.credentialProvider.exchangeInstallationUserCode.mockResolvedValue('token-efemero');
+    mocks.credentialProvider.getAuthenticatedUser.mockResolvedValue({
+      id: 9999,
+      login: 'outra-pessoa'
+    });
+    await expect(githubAppService.completeCallback(callback)).rejects.toMatchObject({
+      statusCode: 403
+    });
+    expect(mocks.credentialProvider.listInstallationsAccessibleToUser).not.toHaveBeenCalled();
+    expect(JSON.stringify(mocks.logger.warn.mock.calls)).not.toContain('token-efemero');
   });
 
   it('nega não OWNER e instalação/repositório não autorizados', async () => {
@@ -287,6 +347,12 @@ describe('autorização e webhooks da GitHub App L1', () => {
       { githubRepositoryId: '502', fullName: 'org/b', defaultBranch: 'develop' },
       { githubRepositoryId: '503', fullName: 'org/c', defaultBranch: 'trunk' }
     ];
+    mocks.repository.findRepositoryAuthorizations.mockResolvedValue(
+      repositories.map((repository, index) => ({
+        githubRepositoryId: repository.githubRepositoryId,
+        permission: index === 0 ? 'OWNER' : 'ADMIN'
+      }))
+    );
     repositoryPages.mockReturnValueOnce(
       (async function* multiplePages() {
         yield repositories.slice(0, 2);
@@ -302,9 +368,37 @@ describe('autorização e webhooks da GitHub App L1', () => {
     expect(listed[1]).toMatchObject({
       availability: 'CONNECTED',
       alreadyConnected: true,
-      selectable: true
+      selectable: false
     });
     expect(listed[2]).toMatchObject({ availability: 'AVAILABLE', selectable: true });
+  });
+
+  it('não deixa o acesso da Installation ampliar permissões READ ou WRITE do usuário', async () => {
+    mocks.repository.findAuthorizedInstallation.mockResolvedValue({
+      id: 12,
+      githubInstallationId: '77'
+    });
+    const repositories = [
+      { githubRepositoryId: '501', fullName: 'pessoa/owner' },
+      { githubRepositoryId: '502', fullName: 'empresa/admin' },
+      { githubRepositoryId: '503', fullName: 'empresa/write' },
+      { githubRepositoryId: '504', fullName: 'empresa/read' }
+    ];
+    mocks.clientFactory.forInstallation.mockResolvedValue({
+      listRepositoryPages: () =>
+        (async function* repositoryPages() {
+          yield repositories;
+        })()
+    });
+    mocks.repository.findRepositoryAuthorizations.mockResolvedValue([
+      { githubRepositoryId: '501', permission: 'OWNER' },
+      { githubRepositoryId: '502', permission: 'ADMIN' }
+    ]);
+
+    await expect(githubAppService.listRepositories(7, 77)).resolves.toEqual([
+      expect.objectContaining({ githubRepositoryId: '501', userPermission: 'OWNER' }),
+      expect.objectContaining({ githubRepositoryId: '502', userPermission: 'ADMIN' })
+    ]);
   });
 
   it('agrega instalações, deduplica repositórios e mantém a instalação apenas como metadata interna', async () => {
@@ -326,6 +420,15 @@ describe('autorização e webhooks da GitHub App L1', () => {
           ];
         })()
     }));
+    mocks.repository.findRepositoryAuthorizations.mockImplementation(
+      async (_userId, installationId) =>
+        installationId === 1
+          ? [{ githubRepositoryId: '501', permission: 'OWNER' }]
+          : [
+              { githubRepositoryId: '502', permission: 'ADMIN' },
+              { githubRepositoryId: '501', permission: 'ADMIN' }
+            ]
+    );
     mocks.repository.findIntegrationsByRepositoryIds.mockResolvedValue([
       {
         githubRepositoryId: '501',
@@ -363,6 +466,27 @@ describe('autorização e webhooks da GitHub App L1', () => {
     });
   });
 
+  it('bloqueia troca de repo X por repo Y antes da chamada externa', async () => {
+    mocks.repository.findIntegration.mockResolvedValue({
+      projectId: 9,
+      githubRepositoryId: '501'
+    });
+
+    await expect(
+      githubAppService.connectProject({
+        projectId: 9,
+        userId: 7,
+        githubInstallationId: '77',
+        githubRepositoryId: '502'
+      })
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      code: 'GITHUB_REPOSITORY_SWAP_FORBIDDEN'
+    });
+    expect(mocks.clientFactory.forInstallation).not.toHaveBeenCalled();
+    expect(mocks.repository.connectProject).not.toHaveBeenCalled();
+  });
+
   it('valida HMAC, trata delivery duplicado e desconecta repositórios removidos sem apagar artifacts', async () => {
     const rawBody = Buffer.from(
       JSON.stringify({
@@ -372,7 +496,6 @@ describe('autorização e webhooks da GitHub App L1', () => {
       })
     );
     const signature = `sha256=${createHmac('sha256', 'webhook-secret-artificial').update(rawBody).digest('hex')}`;
-    mocks.repository.createWebhookDelivery.mockResolvedValue({ id: 12 });
     await expect(
       githubAppService.processWebhook({
         rawBody,
@@ -388,7 +511,11 @@ describe('autorização e webhooks da GitHub App L1', () => {
     );
     expect(mocks.repository.completeWebhookDelivery).toHaveBeenCalledWith(12);
 
-    mocks.repository.createWebhookDelivery.mockRejectedValue({ code: 'P2002' });
+    mocks.repository.startWebhookDelivery.mockResolvedValueOnce({
+      delivery: null,
+      duplicate: true,
+      retried: false
+    });
     await expect(
       githubAppService.processWebhook({
         rawBody,
@@ -411,7 +538,6 @@ describe('autorização e webhooks da GitHub App L1', () => {
   });
 
   it('cria, remove e reativa instalação pelos eventos assinados', async () => {
-    mocks.repository.createWebhookDelivery.mockResolvedValue({ id: 20 });
     for (const action of ['created', 'deleted', 'unsuspend']) {
       const rawBody = Buffer.from(
         JSON.stringify({
@@ -435,7 +561,7 @@ describe('autorização e webhooks da GitHub App L1', () => {
       77,
       expect.objectContaining({ id: 77 })
     );
-    expect(mocks.repository.updateInstallationStatus).toHaveBeenCalledWith(77, 'DELETED');
+    expect(mocks.repository.updateInstallationStatus).toHaveBeenCalledWith(77, 'REMOVED');
     expect(mocks.repository.updateInstallationStatus).toHaveBeenCalledWith(77, 'ACTIVE', null);
     expect(mocks.repository.requireReconnectForInstallation).toHaveBeenCalledTimes(1);
   });
@@ -443,7 +569,6 @@ describe('autorização e webhooks da GitHub App L1', () => {
   it('marca instalação suspensa e seus projetos para reconexão', async () => {
     const rawBody = Buffer.from(JSON.stringify({ action: 'suspend', installation: { id: 77 } }));
     const signature = `sha256=${createHmac('sha256', 'webhook-secret-artificial').update(rawBody).digest('hex')}`;
-    mocks.repository.createWebhookDelivery.mockResolvedValue({ id: 13 });
     await githubAppService.processWebhook({
       rawBody,
       signature,
@@ -470,7 +595,6 @@ describe('autorização e webhooks da GitHub App L1', () => {
       })
     );
     const signature = `sha256=${createHmac('sha256', 'webhook-secret-artificial').update(rawBody).digest('hex')}`;
-    mocks.repository.createWebhookDelivery.mockResolvedValue({ id: 14 });
     await githubAppService.processWebhook({
       rawBody,
       signature,
@@ -483,5 +607,48 @@ describe('autorização e webhooks da GitHub App L1', () => {
     );
     expect(mocks.repository.requireReconnectForRepositories).not.toHaveBeenCalled();
     expect(mocks.repository.requireReconnectForInstallation).not.toHaveBeenCalled();
+  });
+
+  it('marca falha interna e permite retomar o mesmo delivery', async () => {
+    const rawBody = Buffer.from(
+      JSON.stringify({
+        action: 'added',
+        installation: { id: 77, account: { id: 700, login: 'traceflow' } }
+      })
+    );
+    const signature = `sha256=${createHmac('sha256', 'webhook-secret-artificial').update(rawBody).digest('hex')}`;
+    mocks.repository.refreshInstallationMetadata.mockRejectedValueOnce({
+      code: 'TRANSIENT_DATABASE_FAILURE'
+    });
+
+    await expect(
+      githubAppService.processWebhook({
+        rawBody,
+        signature,
+        deliveryId: 'delivery-retry',
+        event: 'installation_repositories'
+      })
+    ).rejects.toMatchObject({ code: 'TRANSIENT_DATABASE_FAILURE' });
+    expect(mocks.repository.failWebhookDelivery).toHaveBeenCalledWith(
+      12,
+      'refresh_installation_metadata',
+      'TRANSIENT_DATABASE_FAILURE',
+      expect.any(Date)
+    );
+
+    mocks.repository.startWebhookDelivery.mockResolvedValueOnce({
+      delivery: { id: 12 },
+      duplicate: false,
+      retried: true
+    });
+    await expect(
+      githubAppService.processWebhook({
+        rawBody,
+        signature,
+        deliveryId: 'delivery-retry',
+        event: 'installation_repositories'
+      })
+    ).resolves.toEqual({ duplicate: false });
+    expect(mocks.repository.completeWebhookDelivery).toHaveBeenLastCalledWith(12);
   });
 });

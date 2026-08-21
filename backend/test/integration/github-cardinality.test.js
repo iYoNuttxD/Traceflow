@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   cleanTestDatabase,
   configureTestDatabaseEnvironment,
@@ -66,7 +66,7 @@ async function createFixture(repositoryIds = ['501', '502', '503']) {
     });
     projects.push(project);
   }
-  return { installation, projects };
+  return { user, installation, projects };
 }
 
 describe('cardinalidade persistida da GitHub App', () => {
@@ -108,7 +108,12 @@ describe('cardinalidade persistida da GitHub App', () => {
         accountLogin: 'traceflow',
         accountType: 'Organization',
         installedAt: new Date()
-      }
+      },
+      repositories: [
+        { githubRepositoryId: '501', fullName: 'owner/repo', permission: 'OWNER' },
+        { githubRepositoryId: '502', fullName: 'org/admin', permission: 'ADMIN' }
+      ],
+      repositoryAuthorizationExpiresAt: new Date(Date.now() + 900_000)
     });
     const { installation } = result;
 
@@ -121,6 +126,15 @@ describe('cardinalidade persistida da GitHub App', () => {
     expect(
       await prisma.gitHubAppConnectionState.findUnique({ where: { id: state.id } })
     ).toMatchObject({ usedAt: expect.any(Date) });
+    expect(
+      await prisma.gitHubRepositoryAuthorization.findMany({
+        where: { installationId: installation.id, userId: user.id },
+        orderBy: { githubRepositoryId: 'asc' }
+      })
+    ).toEqual([
+      expect.objectContaining({ githubRepositoryId: '501', permission: 'OWNER' }),
+      expect.objectContaining({ githubRepositoryId: '502', permission: 'ADMIN' })
+    ]);
     await expect(
       githubRepository.authorizeInstallationFromState({
         stateId: state.id,
@@ -165,6 +179,7 @@ describe('cardinalidade persistida da GitHub App', () => {
     const existing = await githubRepository.upsertInstallationFromWebhook('150628891', {
       account: { id: 700, login: 'traceflow', type: 'Organization' }
     });
+    expect(existing.status).toBe('PENDING');
 
     const result = await githubRepository.authorizeInstallationFromState({
       stateId: state.id,
@@ -413,5 +428,114 @@ describe('cardinalidade persistida da GitHub App', () => {
     expect(uniqueColumns).toContain('projectId');
     expect(uniqueColumns).toContain('githubRepositoryId');
     expect(uniqueColumns).not.toContain('installationId');
+  });
+
+  it('reconecta repo X, rejeita repo Y e preserva integração e artifacts', async () => {
+    const { installation, projects } = await createFixture(['501']);
+    const project = projects[0];
+    await prisma.commit.create({
+      data: { projectId: project.id, hash: 'history-before-reconnect', message: 'Preservar' }
+    });
+
+    await expect(
+      githubRepository.connectProject(project.id, installation.id, {
+        githubRepositoryId: '501',
+        repositoryName: 'repo-501',
+        repositoryFullName: 'traceflow/repo-501',
+        repositoryUrl: 'https://github.com/traceflow/repo-501',
+        defaultBranch: 'main',
+        repositoryPrivate: false
+      })
+    ).resolves.toMatchObject({ githubRepositoryId: '501', status: 'ACTIVE' });
+
+    await expect(
+      githubRepository.connectProject(project.id, installation.id, {
+        githubRepositoryId: '502',
+        repositoryName: 'repo-502',
+        repositoryFullName: 'traceflow/repo-502',
+        repositoryUrl: 'https://github.com/traceflow/repo-502',
+        defaultBranch: 'main',
+        repositoryPrivate: false
+      })
+    ).rejects.toMatchObject({ code: 'GITHUB_REPOSITORY_SWAP_FORBIDDEN' });
+    await expect(
+      prisma.projectGitHubIntegration.findUnique({ where: { projectId: project.id } })
+    ).resolves.toMatchObject({ githubRepositoryId: '501' });
+    await expect(prisma.commit.count({ where: { projectId: project.id } })).resolves.toBe(1);
+  });
+
+  it('bloqueia sync SUSPENDED/REMOVED e preserva histórico', async () => {
+    const { user, installation, projects } = await createFixture(['501']);
+    const project = projects[0];
+    const { requestProjectGithubSync } =
+      await import('../../src/modules/github/services/github-sync-run.service.js');
+    const schedule = vi.fn();
+    const activeRun = await requestProjectGithubSync(project.id, user.id, { schedule });
+    expect(activeRun).toMatchObject({ status: 'QUEUED' });
+    expect(schedule).toHaveBeenCalledOnce();
+    await prisma.gitHubSyncRun.update({
+      where: { id: activeRun.id },
+      data: { status: 'FAILED', activeProjectId: null, finishedAt: new Date() }
+    });
+    await prisma.commit.create({
+      data: { projectId: project.id, hash: 'history-lifecycle', message: 'Preservar lifecycle' }
+    });
+
+    await prisma.gitHubInstallation.update({
+      where: { id: installation.id },
+      data: { status: 'SUSPENDED', suspendedAt: new Date() }
+    });
+    await expect(requestProjectGithubSync(project.id, user.id, { schedule })).rejects.toMatchObject(
+      { statusCode: 409 }
+    );
+
+    await prisma.gitHubInstallation.update({
+      where: { id: installation.id },
+      data: { status: 'REMOVED', suspendedAt: null }
+    });
+    await expect(requestProjectGithubSync(project.id, user.id, { schedule })).rejects.toMatchObject(
+      { statusCode: 409 }
+    );
+    await expect(prisma.commit.count({ where: { projectId: project.id } })).resolves.toBe(1);
+  });
+
+  it('retoma delivery FAILED e mantém PROCESSING/PROCESSED idempotentes', async () => {
+    const first = await githubRepository.startWebhookDelivery({
+      deliveryId: 'delivery-integration-retry',
+      event: 'installation',
+      action: 'created',
+      installationId: '77'
+    });
+    expect(first).toMatchObject({ duplicate: false, retried: false });
+    await githubRepository.failWebhookDelivery(
+      first.delivery.id,
+      'create_pending_installation',
+      'TRANSIENT_DATABASE_FAILURE'
+    );
+
+    const retried = await githubRepository.startWebhookDelivery({
+      deliveryId: 'delivery-integration-retry',
+      event: 'installation',
+      action: 'created',
+      installationId: '77'
+    });
+    expect(retried).toMatchObject({
+      duplicate: false,
+      retried: true,
+      delivery: { attemptCount: 2, status: 'PROCESSING' }
+    });
+    await expect(
+      githubRepository.startWebhookDelivery({
+        deliveryId: 'delivery-integration-retry',
+        event: 'installation'
+      })
+    ).resolves.toMatchObject({ duplicate: true });
+    await githubRepository.completeWebhookDelivery(retried.delivery.id);
+    await expect(
+      githubRepository.startWebhookDelivery({
+        deliveryId: 'delivery-integration-retry',
+        event: 'installation'
+      })
+    ).resolves.toMatchObject({ duplicate: true });
   });
 });

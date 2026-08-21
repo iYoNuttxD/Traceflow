@@ -302,11 +302,13 @@ describe('ProjectsPage', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('mostra estado vazio quando a instalação não possui repositórios', async () => {
+  it('explica quando não há repositório OWNER/ADMIN autorizado recentemente', async () => {
     mockInitialRequests({ repositories: [] });
     renderPage();
     expect(
-      await screen.findByText('A instalação não possui repositórios acessíveis.')
+      await screen.findByText(
+        'Nenhum repositório com permissão OWNER ou ADMIN foi autorizado recentemente.'
+      )
     ).toBeInTheDocument();
   });
 

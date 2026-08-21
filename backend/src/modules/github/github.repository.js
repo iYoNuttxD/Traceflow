@@ -1,5 +1,13 @@
 import { prisma } from '../../database/prismaClient.js';
 
+const blockedInstallationStatuses = new Set(['SUSPENDED', 'REMOVED']);
+
+function repositorySwapError() {
+  return Object.assign(new Error('O projeto já está vinculado a outro repositório GitHub.'), {
+    code: 'GITHUB_REPOSITORY_SWAP_FORBIDDEN'
+  });
+}
+
 function callbackPersistenceError(callbackStep, cause) {
   return Object.assign(new Error(`Falha na etapa ${callbackStep} do callback da GitHub App.`), {
     callbackStep,
@@ -14,10 +22,17 @@ export const githubRepository = {
   findConnectionState(tokenHash) {
     return prisma.gitHubAppConnectionState.findUnique({
       where: { tokenHash },
-      include: { user: true, session: true }
+      include: { user: { include: { githubIdentity: true } }, session: true }
     });
   },
-  async authorizeInstallationFromState({ stateId, now, userId, installation: data }) {
+  async authorizeInstallationFromState({
+    stateId,
+    now,
+    userId,
+    installation: data,
+    repositories = [],
+    repositoryAuthorizationExpiresAt
+  }) {
     try {
       return await prisma.$transaction(async (tx) => {
         const availableState = await tx.gitHubAppConnectionState.findFirst({
@@ -28,17 +43,25 @@ export const githubRepository = {
 
         let installation;
         try {
-          installation = await tx.gitHubInstallation.upsert({
-            where: { githubInstallationId: data.githubInstallationId },
-            create: { ...data, status: 'ACTIVE' },
-            update: {
-              accountId: data.accountId,
-              accountLogin: data.accountLogin,
-              accountType: data.accountType,
-              status: 'ACTIVE',
-              suspendedAt: null
-            }
+          const current = await tx.gitHubInstallation.findUnique({
+            where: { githubInstallationId: data.githubInstallationId }
           });
+          if (blockedInstallationStatuses.has(current?.status)) {
+            return { lifecycleBlocked: current.status };
+          }
+          installation = current
+            ? await tx.gitHubInstallation.update({
+                where: { id: current.id },
+                data: {
+                  accountId: data.accountId,
+                  accountLogin: data.accountLogin,
+                  accountType: data.accountType,
+                  ...(current.status === 'PENDING' ? { status: 'ACTIVE' } : {})
+                }
+              })
+            : await tx.gitHubInstallation.create({
+                data: { ...data, status: 'ACTIVE' }
+              });
         } catch (error) {
           throw callbackPersistenceError('upsert_installation', error);
         }
@@ -54,6 +77,27 @@ export const githubRepository = {
           throw callbackPersistenceError('upsert_authorization', error);
         }
 
+        try {
+          await tx.gitHubRepositoryAuthorization.deleteMany({
+            where: { installationId: installation.id, userId }
+          });
+          if (repositories.length > 0) {
+            await tx.gitHubRepositoryAuthorization.createMany({
+              data: repositories.map((repository) => ({
+                installationId: installation.id,
+                userId,
+                githubRepositoryId: String(repository.githubRepositoryId),
+                repositoryFullName: repository.fullName,
+                permission: repository.permission,
+                verifiedAt: now,
+                expiresAt: repositoryAuthorizationExpiresAt
+              }))
+            });
+          }
+        } catch (error) {
+          throw callbackPersistenceError('replace_repository_authorizations', error);
+        }
+
         let claimed;
         try {
           claimed = await tx.gitHubAppConnectionState.updateMany({
@@ -65,7 +109,7 @@ export const githubRepository = {
         }
         if (claimed.count !== 1) throw callbackPersistenceError('consume_state');
 
-        return { installation, authorization };
+        return { installation, authorization, authorizedRepositoryCount: repositories.length };
       });
     } catch (error) {
       if (error.callbackStep === 'consume_state' && !error.cause) return null;
@@ -85,6 +129,23 @@ export const githubRepository = {
     return prisma.gitHubInstallation.findMany({
       where: { status: 'ACTIVE', authorizations: { some: { userId } } },
       orderBy: { accountLogin: 'asc' }
+    });
+  },
+  findRepositoryAuthorizations(userId, installationId, now = new Date()) {
+    return prisma.gitHubRepositoryAuthorization.findMany({
+      where: {
+        userId,
+        installationId,
+        expiresAt: { gt: now },
+        permission: { in: ['OWNER', 'ADMIN'] }
+      },
+      select: {
+        githubRepositoryId: true,
+        repositoryFullName: true,
+        permission: true,
+        verifiedAt: true,
+        expiresAt: true
+      }
     });
   },
   findIntegration(projectId) {
@@ -138,18 +199,15 @@ export const githubRepository = {
   },
   connectProject(projectId, installationId, repository) {
     const integratedAt = new Date();
-    return prisma.projectGitHubIntegration.upsert({
-      where: { projectId },
-      create: {
-        projectId,
-        installationId,
-        ...repository,
-        integratedAt,
-        status: 'ACTIVE',
-        lastValidatedAt: integratedAt,
-        lastSyncStatus: 'PENDENTE'
-      },
-      update: {
+    return prisma.$transaction(async (tx) => {
+      const current = await tx.projectGitHubIntegration.findUnique({ where: { projectId } });
+      if (
+        current?.githubRepositoryId &&
+        String(current.githubRepositoryId) !== String(repository.githubRepositoryId)
+      ) {
+        throw repositorySwapError();
+      }
+      const data = {
         installationId,
         ...repository,
         integratedAt,
@@ -157,16 +215,70 @@ export const githubRepository = {
         lastValidatedAt: integratedAt,
         lastSyncStatus: 'PENDENTE',
         lastSyncError: null
+      };
+      return current
+        ? tx.projectGitHubIntegration.update({ where: { id: current.id }, data })
+        : tx.projectGitHubIntegration.create({ data: { projectId, ...data } });
+    });
+  },
+  async startWebhookDelivery(data, now = new Date(), staleBefore = new Date(0)) {
+    try {
+      const delivery = await prisma.gitHubWebhookDelivery.create({
+        data: {
+          ...data,
+          status: 'PROCESSING',
+          attemptCount: 1,
+          lastAttemptAt: now
+        }
+      });
+      return { delivery, duplicate: false, retried: false };
+    } catch (error) {
+      if (error?.code !== 'P2002') throw error;
+    }
+
+    const claimed = await prisma.gitHubWebhookDelivery.updateMany({
+      where: {
+        deliveryId: data.deliveryId,
+        OR: [{ status: 'FAILED' }, { status: 'PROCESSING', lastAttemptAt: { lt: staleBefore } }]
+      },
+      data: {
+        status: 'PROCESSING',
+        attemptCount: { increment: 1 },
+        lastAttemptAt: now,
+        processedAt: null,
+        failureStep: null,
+        failureCode: null
+      }
+    });
+    if (claimed.count !== 1) return { delivery: null, duplicate: true, retried: false };
+    return {
+      delivery: await prisma.gitHubWebhookDelivery.findUnique({
+        where: { deliveryId: data.deliveryId }
+      }),
+      duplicate: false,
+      retried: true
+    };
+  },
+  completeWebhookDelivery(id) {
+    return prisma.gitHubWebhookDelivery.updateMany({
+      where: { id, status: 'PROCESSING' },
+      data: {
+        status: 'PROCESSED',
+        processedAt: new Date(),
+        failureStep: null,
+        failureCode: null
       }
     });
   },
-  createWebhookDelivery(data) {
-    return prisma.gitHubWebhookDelivery.create({ data });
-  },
-  completeWebhookDelivery(id) {
-    return prisma.gitHubWebhookDelivery.update({
-      where: { id },
-      data: { processedAt: new Date() }
+  failWebhookDelivery(id, failureStep, failureCode, now = new Date()) {
+    return prisma.gitHubWebhookDelivery.updateMany({
+      where: { id, status: 'PROCESSING' },
+      data: {
+        status: 'FAILED',
+        lastAttemptAt: now,
+        failureStep: String(failureStep).slice(0, 191),
+        failureCode: String(failureCode).slice(0, 191)
+      }
     });
   },
   updateInstallationStatus(githubInstallationId, status, suspendedAt = null) {
@@ -181,9 +293,7 @@ export const githubRepository = {
       ...(installation.account?.login || installation.account?.name
         ? { accountLogin: installation.account.login || installation.account.name }
         : {}),
-      ...(installation.account?.type ? { accountType: installation.account.type } : {}),
-      status: 'ACTIVE',
-      suspendedAt: null
+      ...(installation.account?.type ? { accountType: installation.account.type } : {})
     };
     return prisma.gitHubInstallation.updateMany({
       where: { githubInstallationId: String(githubInstallationId) },
@@ -200,14 +310,12 @@ export const githubRepository = {
         accountLogin,
         accountType: installation.account?.type || 'Unknown',
         installedAt: installation.created_at ? new Date(installation.created_at) : new Date(),
-        status: 'ACTIVE'
+        status: 'PENDING'
       },
       update: {
         ...(installation.account?.id ? { accountId: String(installation.account.id) } : {}),
         accountLogin,
-        ...(installation.account?.type ? { accountType: installation.account.type } : {}),
-        status: 'ACTIVE',
-        suspendedAt: null
+        ...(installation.account?.type ? { accountType: installation.account.type } : {})
       }
     });
   },
@@ -232,6 +340,25 @@ export const githubRepository = {
         lastSyncStatus: 'BLOQUEADO',
         lastSyncError: 'O repositório não está mais acessível pela GitHub App.'
       }
+    });
+  },
+  expireRepositoryAuthorizationsForInstallation(githubInstallationId, now = new Date()) {
+    return prisma.gitHubRepositoryAuthorization.updateMany({
+      where: { installation: { githubInstallationId: String(githubInstallationId) } },
+      data: { expiresAt: now }
+    });
+  },
+  expireRepositoryAuthorizationsForRepositories(
+    githubInstallationId,
+    repositoryIds,
+    now = new Date()
+  ) {
+    return prisma.gitHubRepositoryAuthorization.updateMany({
+      where: {
+        installation: { githubInstallationId: String(githubInstallationId) },
+        githubRepositoryId: { in: repositoryIds.map(String) }
+      },
+      data: { expiresAt: now }
     });
   }
 };

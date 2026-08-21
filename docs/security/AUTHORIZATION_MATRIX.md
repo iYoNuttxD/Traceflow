@@ -1,6 +1,6 @@
 # Matriz de autorização da API TRACEFLOW
 
-Baseline E6, consolidado pela LR.2 em 20/08/2026. A matriz descreve a política efetiva; não substitui os testes. `L` = leitura, `E` = escrita de domínio, `A` = administração. Sem membership ativa, recursos de projeto retornam `404` para reduzir enumeração; papel insuficiente retorna `403`. Mutations autenticadas exigem CSRF.
+Baseline E6, consolidado pelas LR.2/LR.3 em 20/08/2026. A matriz descreve a política efetiva; não substitui os testes. `L` = leitura, `E` = escrita de domínio, `A` = administração. Sem membership ativa, recursos de projeto retornam `404` para reduzir enumeração; papel insuficiente retorna `403`. Mutations autenticadas exigem CSRF.
 
 | Endpoints                                                                                                      | Anônimo | VIEWER | MEMBER | MANAGER | OWNER | Regra adicional                                                           |
 | -------------------------------------------------------------------------------------------------------------- | ------: | -----: | -----: | ------: | ----: | ------------------------------------------------------------------------- |
@@ -32,9 +32,9 @@ Baseline E6, consolidado pela LR.2 em 20/08/2026. A matriz descreve a política 
 | Tasks/vínculos/Kanban/métricas: todos os `GET`                                                                 |     401 |      L |      L |       L |     L | mesmo projeto/recurso                                                     |
 | Tasks/vínculos/Kanban: `POST`, `PUT`, `PATCH`, `DELETE`                                                        |     401 |    403 |      E |       E |     E | pertencimento e ator canônico                                             |
 | `GET /api/projects/:projectId/tasks/history`                                                                   |     401 |      L |      L |       L |     L | paginado; ator e recursos do mesmo projeto                                |
-| `POST /api/github/app/installations/start`; `GET /github/app/installations...`                                 |     401 |      E |      E |       E |     E | start exige e-mail verificado; somente instalações comprovadas            |
-| `GET /api/github-app/callback`                                                                                 |     302 |    302 |    302 |     302 |   302 | público; state vinculado à sessão inicial, sem depender do cookie         |
-| `PUT /api/projects/:projectId/github/integration`                                                              |     401 |    403 |    403 |     403 |     A | e-mail verificado; OWNER e instalação comprovada                          |
+| `POST /api/github/app/installations/start`; `GET /github/app/installations...`                                 |     401 |      E |      E |       E |     E | start exige e-mail verificado; lista = permissão GitHub OWNER/ADMIN + App ACTIVE |
+| `GET /api/github-app/callback`                                                                                 |     302 |    302 |    302 |     302 |   302 | state/sessão/conta/GitHubIdentity; token de usuário somente em memória    |
+| `PUT /api/projects/:projectId/github/integration`                                                              |     401 |    403 |    403 |     403 |     A | OWNER; mesma repo reconecta, repo diferente retorna 409                   |
 | `POST /api/webhooks/github-app`                                                                                |       E |      E |      E |       E |     E | público; HMAC/raw body/delivery ID, sem sessão ou CSRF                    |
 | `POST /api/projects/:projectId/github/sync`                                                                    |     401 |    403 |    403 |       E |     E | MANAGER+, e-mail verificado, integração ACTIVE e trava por projeto        |
 | `PATCH /api/projects/:projectId/github/sync-settings`                                                          |     401 |    403 |    403 |     403 |     A | OWNER                                                                     |
@@ -61,3 +61,4 @@ Baseline E6, consolidado pela LR.2 em 20/08/2026. A matriz descreve a política 
 - No fechamento do RF41, VIEWER apenas consulta; MEMBER+ analisa e revisa. Confirmação e rejeição são transacionais e auditadas.
 - Na E11, `responsibleUserId` exige membership ativa; a autoria de movimento vem exclusivamente da sessão e não pode ser controlada pelo body.
 - Na LR.2, os endpoints duplicados de conta/privacidade foram removidos. `/api/settings/*` é canônico; `/api/account/reactivation/*` e `/api/account/audit-events` permanecem por responsabilidade própria. Paths removidos retornam `404 ROUTE_NOT_FOUND`.
+- Na LR.3, autorização de repositório vem da permissão do usuário GitHub e aceita somente `OWNER`/`ADMIN`; a GitHub App é autoridade técnica independente. `READ`, `WRITE`, `TRIAGE` e colaboração simples não selecionam nem conectam repositórios.

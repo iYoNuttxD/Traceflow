@@ -386,6 +386,11 @@ export function createEnvironment(source = {}) {
       min: 0,
       max: 5
     }),
+    githubRetryMaxDelayMs: parseInteger(
+      source.GITHUB_RETRY_MAX_DELAY_MS,
+      'GITHUB_RETRY_MAX_DELAY_MS',
+      { defaultValue: 60 * 1000, min: 1000, max: 5 * 60 * 1000 }
+    ),
     sessionTtlMs: parseInteger(source.SESSION_TTL_MS, 'SESSION_TTL_MS', {
       defaultValue: 8 * 60 * 60 * 1000,
       min: 5 * 60 * 1000,
@@ -430,6 +435,11 @@ export function createEnvironment(source = {}) {
       min: 60 * 1000,
       max: 30 * 60 * 1000
     }),
+    githubRepositoryAuthorizationTtlMs: parseInteger(
+      source.GITHUB_REPOSITORY_AUTHORIZATION_TTL_MS,
+      'GITHUB_REPOSITORY_AUTHORIZATION_TTL_MS',
+      { defaultValue: 15 * 60 * 1000, min: 60 * 1000, max: 60 * 60 * 1000 }
+    ),
     githubOAuthStateTtlMs: parseInteger(
       source.GITHUB_OAUTH_STATE_TTL_MS,
       'GITHUB_OAUTH_STATE_TTL_MS',

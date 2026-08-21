@@ -44,7 +44,7 @@ GitHub deve enviar `Content-Type: application/json`, `X-Hub-Signature-256`, `X-G
 
 1. Verifique `ProjectGitHubIntegration.status` e `GitHubInstallation.status` sem consultar segredos.
 2. `RECONNECT_REQUIRED`: OWNER deve reinstalar/autorizar e selecionar o repositório.
-3. `SUSPENDED`/`DELETED`: confirme no GitHub; não force sync.
+3. `SUSPENDED`/`REMOVED`: confirme no GitHub; não force sync.
 4. `GITHUB_AUTH_FAILED`: verifique App ID/private key/permissões e rotação, sem imprimir valores.
 5. Rate limit/5xx: respeite retry limitado e aguarde recuperação.
 6. Após correção, execute um sync manual e confira contagens/vínculos.

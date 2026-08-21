@@ -53,6 +53,8 @@ describe('configuração centralizada', () => {
       rateLimitExportMax: 3,
       githubRequestTimeoutMs: 15000,
       githubRetryMax: 2,
+      githubRetryMaxDelayMs: 60000,
+      githubRepositoryAuthorizationTtlMs: 900000,
       trustProxy: false
     });
     expect(Object.isFrozen(config)).toBe(true);

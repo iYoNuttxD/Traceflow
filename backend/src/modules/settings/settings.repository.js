@@ -565,6 +565,9 @@ export const settingsRepository = {
         }
       });
       if (!authorization) return null;
+      await tx.gitHubRepositoryAuthorization.deleteMany({
+        where: { installationId: authorization.installationId, userId }
+      });
       await tx.gitHubInstallationAuthorization.delete({ where: { id: authorization.id } });
       await auditRepository.create({ ...auditData, resourceId: String(authorization.id) }, tx);
       return {

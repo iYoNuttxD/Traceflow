@@ -387,17 +387,21 @@ describe('Projetos e integração GitHub E9', () => {
     const schedule = vi.fn();
     const createdAt = new Date('2026-08-10T12:00:00.000Z');
 
-    const first = await requestProjectGithubSync(project.id, owner.user.id, {
-      schedule,
-      now: createdAt
-    });
-    const repeated = await requestProjectGithubSync(project.id, owner.user.id, {
-      schedule,
-      now: createdAt
-    });
+    const [first, repeated] = await Promise.all([
+      requestProjectGithubSync(project.id, owner.user.id, {
+        schedule,
+        now: createdAt
+      }),
+      requestProjectGithubSync(project.id, owner.user.id, {
+        schedule,
+        now: createdAt
+      })
+    ]);
 
-    expect(first).toMatchObject({ status: 'QUEUED', alreadyRunning: false });
-    expect(repeated).toMatchObject({ id: first.id, status: 'QUEUED', alreadyRunning: true });
+    const created = [first, repeated].find((run) => run.alreadyRunning === false);
+    const controlled = [first, repeated].find((run) => run.alreadyRunning === true);
+    expect(created).toMatchObject({ status: 'QUEUED', alreadyRunning: false });
+    expect(controlled).toMatchObject({ id: created.id, status: 'QUEUED', alreadyRunning: true });
     expect(schedule).toHaveBeenCalledOnce();
     expect(
       await prisma.gitHubSyncRun.count({
@@ -406,7 +410,7 @@ describe('Projetos e integração GitHub E9', () => {
     ).toBe(1);
 
     await prisma.gitHubSyncRun.update({
-      where: { id: first.id },
+      where: { id: created.id },
       data: { updatedAt: createdAt }
     });
     const status = await getProjectGithubSyncStatus(project.id, {
@@ -414,7 +418,7 @@ describe('Projetos e integração GitHub E9', () => {
     });
 
     expect(status).toMatchObject({
-      id: first.id,
+      id: created.id,
       status: 'FAILED',
       error: {
         code: 'GITHUB_SYNC_STALE',

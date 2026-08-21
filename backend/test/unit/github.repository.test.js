@@ -4,9 +4,10 @@ const database = vi.hoisted(() => {
   const method = () => vi.fn();
   const tx = {
     gitHubAppConnectionState: { findFirst: method(), updateMany: method() },
-    gitHubInstallation: { upsert: method() },
+    gitHubInstallation: { findUnique: method(), create: method(), update: method() },
     gitHubInstallationAuthorization: { upsert: method() },
-    projectGitHubIntegration: { upsert: method() },
+    gitHubRepositoryAuthorization: { deleteMany: method(), createMany: method() },
+    projectGitHubIntegration: { findUnique: method(), create: method(), update: method() },
     project: { update: method() }
   };
   return {
@@ -25,7 +26,8 @@ const database = vi.hoisted(() => {
         updateMany: method(),
         upsert: method()
       },
-      gitHubWebhookDelivery: { create: method(), update: method() },
+      gitHubRepositoryAuthorization: { findMany: method(), updateMany: method() },
+      gitHubWebhookDelivery: { create: method(), findUnique: method(), updateMany: method() },
       $transaction: vi.fn((callback) => callback(tx))
     }
   };
@@ -66,7 +68,8 @@ describe('persistência de metadados da GitHub App', () => {
   it('consome state e autoriza instalação na mesma transação', async () => {
     database.tx.gitHubAppConnectionState.findFirst.mockResolvedValue({ id: 3 });
     database.tx.gitHubAppConnectionState.updateMany.mockResolvedValue({ count: 1 });
-    database.tx.gitHubInstallation.upsert.mockResolvedValue({ id: 12 });
+    database.tx.gitHubInstallation.findUnique.mockResolvedValue(null);
+    database.tx.gitHubInstallation.create.mockResolvedValue({ id: 12 });
     database.tx.gitHubInstallationAuthorization.upsert.mockResolvedValue({
       id: 30,
       installationId: 12,
@@ -88,10 +91,11 @@ describe('persistência de metadados da GitHub App', () => {
       })
     ).resolves.toEqual({
       installation: { id: 12 },
-      authorization: { id: 30, installationId: 12, userId: 7 }
+      authorization: { id: 30, installationId: 12, userId: 7 },
+      authorizedRepositoryCount: 0
     });
-    expect(database.tx.gitHubInstallation.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { githubInstallationId: '77' } })
+    expect(database.tx.gitHubInstallation.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ githubInstallationId: '77' }) })
     );
     expect(database.tx.gitHubInstallationAuthorization.upsert).toHaveBeenCalledWith({
       where: { installationId_userId: { installationId: 12, userId: 7 } },
@@ -119,7 +123,8 @@ describe('persistência de metadados da GitHub App', () => {
 
   it('não tenta consumir o state quando o upsert da autorização falha', async () => {
     database.tx.gitHubAppConnectionState.findFirst.mockResolvedValue({ id: 3 });
-    database.tx.gitHubInstallation.upsert.mockResolvedValue({ id: 12 });
+    database.tx.gitHubInstallation.findUnique.mockResolvedValue(null);
+    database.tx.gitHubInstallation.create.mockResolvedValue({ id: 12 });
     database.tx.gitHubInstallationAuthorization.upsert.mockRejectedValue(new Error('db failure'));
 
     await expect(
@@ -141,19 +146,47 @@ describe('persistência de metadados da GitHub App', () => {
       repositoryUrl: 'https://github.com/owner/repo',
       defaultBranch: 'main'
     };
-    database.prisma.projectGitHubIntegration.upsert.mockResolvedValue({ id: 14 });
+    database.tx.projectGitHubIntegration.findUnique.mockResolvedValue(null);
+    database.tx.projectGitHubIntegration.create.mockResolvedValue({ id: 14 });
     await expect(githubRepository.connectProject(9, 12, repository)).resolves.toEqual({ id: 14 });
-    expect(database.prisma.projectGitHubIntegration.upsert).toHaveBeenCalledWith(
+    expect(database.tx.projectGitHubIntegration.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { projectId: 9 },
-        create: expect.objectContaining({ githubRepositoryId: '501' })
+        data: expect.objectContaining({ projectId: 9, githubRepositoryId: '501' })
       })
     );
     expect(database.tx.project.update).not.toHaveBeenCalled();
   });
 
+  it('reconecta o mesmo repositório e rejeita troca sem alterar o histórico', async () => {
+    const current = { id: 14, projectId: 9, githubRepositoryId: '501' };
+    database.tx.projectGitHubIntegration.findUnique.mockResolvedValue(current);
+    database.tx.projectGitHubIntegration.update.mockResolvedValue({ ...current, status: 'ACTIVE' });
+
+    await expect(
+      githubRepository.connectProject(9, 12, {
+        githubRepositoryId: '501',
+        repositoryFullName: 'owner/repo'
+      })
+    ).resolves.toMatchObject({ githubRepositoryId: '501', status: 'ACTIVE' });
+    expect(database.tx.projectGitHubIntegration.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 14 },
+        data: expect.objectContaining({ githubRepositoryId: '501', installationId: 12 })
+      })
+    );
+
+    await expect(
+      githubRepository.connectProject(9, 13, {
+        githubRepositoryId: '502',
+        repositoryFullName: 'owner/outro'
+      })
+    ).rejects.toMatchObject({ code: 'GITHUB_REPOSITORY_SWAP_FORBIDDEN' });
+    expect(database.tx.projectGitHubIntegration.update).toHaveBeenCalledTimes(1);
+  });
+
   it('registra deliveries e marca instalações/repositórios para reconexão', async () => {
-    await githubRepository.createWebhookDelivery({ deliveryId: 'delivery-1' });
+    database.prisma.gitHubWebhookDelivery.create.mockResolvedValue({ id: 4 });
+    await githubRepository.startWebhookDelivery({ deliveryId: 'delivery-1' });
     await githubRepository.completeWebhookDelivery(4);
     await githubRepository.updateInstallationStatus(77, 'SUSPENDED', new Date('2030-01-01'));
     await githubRepository.refreshInstallationMetadata(77, {
@@ -166,7 +199,11 @@ describe('persistência de metadados da GitHub App', () => {
     await githubRepository.requireReconnectForRepositories(77, [501, '502']);
 
     expect(database.prisma.gitHubWebhookDelivery.create).toHaveBeenCalledWith({
-      data: { deliveryId: 'delivery-1' }
+      data: expect.objectContaining({
+        deliveryId: 'delivery-1',
+        status: 'PROCESSING',
+        attemptCount: 1
+      })
     });
     expect(database.prisma.gitHubInstallation.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { githubInstallationId: '77' } })
@@ -176,5 +213,39 @@ describe('persistência de metadados da GitHub App', () => {
         where: expect.objectContaining({ githubRepositoryId: { in: ['501', '502'] } })
       })
     );
+  });
+
+  it('reivindica delivery falho uma vez e mantém duplicata concorrente idempotente', async () => {
+    database.prisma.gitHubWebhookDelivery.create.mockRejectedValue({ code: 'P2002' });
+    database.prisma.gitHubWebhookDelivery.updateMany.mockResolvedValueOnce({ count: 1 });
+    database.prisma.gitHubWebhookDelivery.findUnique.mockResolvedValue({
+      id: 4,
+      deliveryId: 'delivery-retry',
+      status: 'PROCESSING',
+      attemptCount: 2
+    });
+
+    await expect(
+      githubRepository.startWebhookDelivery(
+        { deliveryId: 'delivery-retry', event: 'push' },
+        new Date('2030-01-01T00:10:00Z'),
+        new Date('2030-01-01T00:05:00Z')
+      )
+    ).resolves.toMatchObject({
+      duplicate: false,
+      retried: true,
+      delivery: { attemptCount: 2 }
+    });
+    expect(database.prisma.gitHubWebhookDelivery.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ deliveryId: 'delivery-retry' }),
+        data: expect.objectContaining({ attemptCount: { increment: 1 } })
+      })
+    );
+
+    database.prisma.gitHubWebhookDelivery.updateMany.mockResolvedValueOnce({ count: 0 });
+    await expect(
+      githubRepository.startWebhookDelivery({ deliveryId: 'delivery-retry', event: 'push' })
+    ).resolves.toMatchObject({ duplicate: true, delivery: null });
   });
 });

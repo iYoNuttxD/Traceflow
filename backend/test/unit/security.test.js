@@ -287,8 +287,11 @@ describe('GitHub, SSRF e segredos', () => {
   it('normaliza timeout e rate limit 403/429 sem carregar token', async () => {
     expect(isRetryableGithubError({ code: 'ETIMEDOUT' })).toBe(true);
     expect(isRetryableGithubError({ status: 403 })).toBe(false);
+    expect(
+      isRetryableGithubError({ status: 403, response: { headers: { 'retry-after': '9' } } })
+    ).toBe(true);
     expect(calculateGithubRetryDelay({ response: { headers: { 'retry-after': '9' } } }, 0)).toBe(
-      2000
+      9000
     );
     await expect(
       executeGithubRequest(
@@ -311,6 +314,26 @@ describe('GitHub, SSRF e segredos', () => {
         { maxRetries: 0 }
       )
     ).rejects.toMatchObject({ statusCode: 429, code: ERROR_CODES.GITHUB_RATE_LIMITED });
+    await expect(
+      executeGithubRequest(
+        vi.fn().mockRejectedValue({
+          status: 403,
+          response: { headers: { 'x-ratelimit-remaining': '4999' } }
+        }),
+        { maxRetries: 3, wait: vi.fn() }
+      )
+    ).rejects.toMatchObject({ statusCode: 403, code: ERROR_CODES.GITHUB_AUTH_FAILED });
+
+    const wait = vi.fn().mockResolvedValue();
+    const secondaryRateLimit = vi
+      .fn()
+      .mockRejectedValueOnce({ status: 403, response: { headers: { 'retry-after': '1' } } })
+      .mockResolvedValue({ data: 'ok' });
+    await expect(
+      executeGithubRequest(secondaryRateLimit, { maxRetries: 1, wait, random: () => 0 })
+    ).resolves.toEqual({ data: 'ok' });
+    expect(wait).toHaveBeenCalledWith(1000);
+    expect(calculateGithubRetryDelay({ status: 429 }, 0, () => 0)).toBe(250);
   });
 
   it('scanner detecta fixture controlada e ignora placeholder permitido', () => {

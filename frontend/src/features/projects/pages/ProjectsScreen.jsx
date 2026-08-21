@@ -258,7 +258,9 @@ export function ProjectsScreen() {
             loadingRepositories={loadingRepositories}
             repositoriesError={repositoriesError}
             repositoryEmptyMessage={
-              installations.length === 0 ? '' : 'A instalação não possui repositórios acessíveis.'
+              installations.length === 0
+                ? ''
+                : 'Nenhum repositório com permissão OWNER ou ADMIN foi autorizado recentemente.'
             }
             repositoryDisabled={installations.length === 0}
             onChange={handleChange}
