@@ -103,9 +103,17 @@ async function buildScopePlan({
   const participationByTask = new Map(
     participations.map((participacao) => [participacao.taskId, participacao])
   );
-  const elsewhereByTask = new Map(
-    activeElsewhere.map((participacao) => [participacao.taskId, participacao])
-  );
+  // "Aberta" e `removedAt IS NULL AND closedAt IS NULL`. Uma participacao
+  // congelada tambem tem `removedAt` nulo — ela nao saiu, a sprint e que fechou —
+  // e reduzir as duas ao mesmo mapa deixava a ultima do array vencer: com uma
+  // congelada e uma viva da mesma tarefa, a viva podia nao ser fechada, e a
+  // tarefa terminava aberta em duas sprints sem concorrencia nenhuma.
+  const vivaPorTarefa = new Map();
+  const congeladaPorTarefa = new Map();
+  for (const participacao of activeElsewhere) {
+    const alvo = participacao.closedAt === null ? vivaPorTarefa : congeladaPorTarefa;
+    alvo.set(participacao.taskId, participacao);
+  }
 
   const historyEntry = (taskId, fromValue, toValue) => ({
     projectId: sprint.projectId,
@@ -138,15 +146,18 @@ async function buildScopePlan({
     // retroativamente o resultado de um periodo fechado — exatamente o que a
     // continuidade entre sprints existe para evitar. O vinculo de origem e
     // preservado nos dois casos.
-    const previous = elsewhereByTask.get(taskId) ?? null;
-    if (previous && previous.closedAt === null) {
+    const viva = vivaPorTarefa.get(taskId) ?? null;
+    if (viva) {
       close.push({
-        id: previous.id,
+        id: viva.id,
         at: occurredAt,
         reason: REMOVAL_REASONS.MOVIDA,
         exitStatus: taskById.get(taskId)?.status ?? null
       });
     }
+    // Origem do carry-over: de onde a tarefa veio de fato. A sprint encerrada so
+    // responde por isso quando nao havia participacao viva.
+    const origem = viva ?? congeladaPorTarefa.get(taskId) ?? null;
     const existing = participationByTask.get(taskId) ?? null;
     open.push({
       id: existing?.id ?? null,
@@ -157,12 +168,12 @@ async function buildScopePlan({
       // escopo que nao houve.
       addedAt: existing?.addedAt ?? occurredAt,
       addedAfterStart: existing ? existing.addedAfterStart : sprint.startedAt !== null,
-      carriedFromSprintId: previous ? previous.sprintId : (existing?.carriedFromSprintId ?? null)
+      carriedFromSprintId: origem ? origem.sprintId : (existing?.carriedFromSprintId ?? null)
     });
     // Mesma convencao ja documentada: a troca A -> B e uma unica entrada,
     // nunca uma saida seguida de uma entrada.
     historyEntries.push(
-      historyEntry(taskId, previous ? String(previous.sprintId) : null, String(sprintId))
+      historyEntry(taskId, origem ? String(origem.sprintId) : null, String(sprintId))
     );
   }
 
@@ -192,15 +203,10 @@ async function buildScopePlan({
   };
 }
 
-// `sprint` e a leitura de fora da transacao, que ja resolveu o 404: aqui ela
-// serve apenas para dizer qual projeto travar. O retrato que decide o plano
-// continua sendo o relido sob lock.
-async function mutateScope(sprint, requestedIds, mode, context, audit) {
-  const sprintId = sprint.id;
+async function mutateScope(sprintId, requestedIds, mode, context, audit) {
   const occurredAt = new Date();
   const tasks = await sprintRepository.mutateScopeWithinSprintLock(
     sprintId,
-    sprint.projectId,
     requestedIds,
     (snapshot) =>
       buildScopePlan({ mode, audit, sprintId, requestedIds, occurredAt, context, ...snapshot })
@@ -321,10 +327,10 @@ export const sprintCrudService = {
   // Substituicao do conjunto de tarefas da sprint (PUT /sprints/:id/tasks).
   async replaceTasks(sprintId, taskIds = [], context = {}) {
     const id = parseSprintId(sprintId);
-    const sprint = await ensureSprintExists(id);
+    await ensureSprintExists(id);
     const requestedIds = [...new Set(taskIds.map((value) => parseTaskId(value)))];
     ensureWithinTaskLimit(requestedIds.length);
-    const tasks = await mutateScope(sprint, requestedIds, 'replace', context, {
+    const tasks = await mutateScope(id, requestedIds, 'replace', context, {
       action: 'SPRINT_TASKS_REPLACED',
       metadata: {}
     });
@@ -336,8 +342,7 @@ export const sprintCrudService = {
   async attachTaskToSprint(sprintId, taskId, context = {}) {
     const id = parseSprintId(sprintId);
     const task = parseTaskId(taskId);
-    const sprint = await ensureSprintExists(id);
-    return mutateScope(sprint, [task], 'attach', context, {
+    return mutateScope(id, [task], 'attach', context, {
       action: 'TASK_SPRINT_LINKED',
       metadata: { taskId: task }
     });
@@ -346,8 +351,7 @@ export const sprintCrudService = {
   async detachTaskFromSprint(sprintId, taskId, context = {}) {
     const id = parseSprintId(sprintId);
     const task = parseTaskId(taskId);
-    const sprint = await ensureSprintExists(id);
-    return mutateScope(sprint, [task], 'detach', context, {
+    return mutateScope(id, [task], 'detach', context, {
       action: 'TASK_SPRINT_UNLINKED',
       metadata: { taskId: task }
     });

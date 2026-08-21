@@ -174,7 +174,6 @@ describe('transacoes dos repositories', () => {
 
     await sprintRepository.mutateScopeWithinSprintLock(
       sprint.id,
-      project.id,
       [task.id],
       planoDeEntrada(project, sprint, task, user.id)
     );
@@ -195,7 +194,6 @@ describe('transacoes dos repositories', () => {
     await expect(
       sprintRepository.mutateScopeWithinSprintLock(
         sprint.id,
-        project.id,
         [task.id],
         // actorUserId inexistente viola a FK e deve derrubar a transacao inteira.
         planoDeEntrada(project, sprint, task, 999999)
@@ -227,6 +225,22 @@ describe('transacoes dos repositories', () => {
 describe('concorrencia sob lock (ADR-010 D17)', () => {
   const inicio = new Date('2026-08-01T00:00:00.000Z');
   const fim = new Date('2026-08-30T00:00:00.000Z');
+
+  // `TaskHistoryEntry.actorUserId` e obrigatorio: sem ator, a mutacao de escopo
+  // aborta na escrita do historico e o teste passa a exercitar um caminho que nao
+  // chega ao fim.
+  let sequencia = 0;
+  const comAtor = async () => {
+    sequencia += 1;
+    const user = await prisma.user.create({
+      data: {
+        name: 'Ator',
+        email: `ator-concorrencia-${sequencia}@example.invalid`,
+        passwordHash: 'x'
+      }
+    });
+    return { actorUserId: user.id };
+  };
 
   async function sprintDeTeste(overrides = {}) {
     const project = await createProject(prisma);
@@ -398,8 +412,9 @@ describe('concorrencia sob lock (ADR-010 D17)', () => {
     for (let rodada = 0; rodada < 5; rodada += 1) {
       const { project, sprint } = await sprintDeTeste({ status: 'EM_ANDAMENTO' });
       const task = await createTask(prisma, project.id);
+      const contexto = await comAtor();
       await cruzaCaminhos('escopo x status', [
-        sprintService.replaceTasks(sprint.id, [task.id]),
+        sprintService.replaceTasks(sprint.id, [task.id], contexto),
         sprintService.updateSprintStatus(sprint.id, 'CONCLUIDA')
       ]);
       await cleanTestDatabase(prisma);
@@ -410,14 +425,19 @@ describe('concorrencia sob lock (ADR-010 D17)', () => {
     for (let rodada = 0; rodada < 5; rodada += 1) {
       const { project, sprint } = await sprintDeTeste();
       const task = await createTask(prisma, project.id);
+      const contexto = await comAtor();
       await cruzaCaminhos('escopo x janela', [
-        sprintService.replaceTasks(sprint.id, [task.id]),
+        sprintService.replaceTasks(sprint.id, [task.id], contexto),
         sprintService.updateSprint(sprint.id, { endDate: '2026-08-25' })
       ]);
       await cleanTestDatabase(prisma);
     }
   });
 
+  // O par escopo x exclusao de tarefa FICA DE FORA: ele deadlocka desde o commit
+  // base (07663ce), por acesso as mesmas linhas de SprintTask por indices
+  // diferentes (`sprintId` de um lado, `taskId` do outro), e a correcao mora no
+  // modulo de tarefas. Medido e registrado como S104-F10.
   it('janela contra transicao de status nao fecha ciclo de espera', async () => {
     for (let rodada = 0; rodada < 5; rodada += 1) {
       const { sprint } = await sprintDeTeste();
@@ -427,6 +447,107 @@ describe('concorrencia sob lock (ADR-010 D17)', () => {
       ]);
       await cleanTestDatabase(prisma);
     }
+  });
+
+  // "Aberta" e `removedAt IS NULL AND closedAt IS NULL`. A participacao congelada
+  // tambem tem `removedAt` nulo — ela nao saiu, a sprint e que fechou —, entao
+  // contar so por `removedAt` ou so por `closedAt` daria a resposta errada.
+  const abertas = (taskId) =>
+    prisma.sprintTask.findMany({
+      where: { taskId, removedAt: null, closedAt: null },
+      select: { sprintId: true }
+    });
+
+  // Mover a mesma tarefa para dois destinos ao mesmo tempo. Planejar sobre
+  // leituras feitas antes do lock das tarefas deixava cada transacao enxergar o
+  // retrato anterior a espera: uma abria B, a outra abria C, e nenhuma via a
+  // outra. A tarefa terminava aberta em duas sprints.
+  it('mover a mesma tarefa para dois destinos deixa uma unica participacao aberta', async () => {
+    const project = await createProject(prisma);
+    const origem = await createSprint(prisma, project.id, {
+      name: 'Origem',
+      startDate: new Date('2026-08-01T00:00:00.000Z'),
+      endDate: new Date('2026-08-10T00:00:00.000Z')
+    });
+    const destinoB = await createSprint(prisma, project.id, {
+      name: 'Destino B',
+      startDate: new Date('2026-08-10T00:00:00.000Z'),
+      endDate: new Date('2026-08-20T00:00:00.000Z')
+    });
+    const destinoC = await createSprint(prisma, project.id, {
+      name: 'Destino C',
+      startDate: new Date('2026-08-20T00:00:00.000Z'),
+      endDate: new Date('2026-08-30T00:00:00.000Z')
+    });
+    const task = await createTask(prisma, project.id);
+    const contexto = await comAtor();
+    await sprintService.replaceTasks(origem.id, [task.id], contexto);
+
+    await Promise.allSettled([
+      sprintService.replaceTasks(destinoB.id, [task.id], contexto),
+      sprintService.replaceTasks(destinoC.id, [task.id], contexto)
+    ]);
+
+    expect(await abertas(task.id)).toHaveLength(1);
+    // O ponteiro corrente aponta para a mesma sprint da participacao viva: a
+    // divergencia entre os dois e o que o invariante de D01 proibe.
+    const [viva] = await abertas(task.id);
+    const persistida = await prisma.task.findUnique({ where: { id: task.id } });
+    expect(persistida.sprintId).toBe(viva.sprintId);
+  });
+
+  // Sem concorrencia nenhuma: A encerrada, depois B, depois C. Com a congelada e
+  // a viva no mesmo mapa, a ordem de retorno do MySQL decidia qual delas o plano
+  // enxergava — e quando a congelada vinha por ultimo, B nao era fechada.
+  it('tarefa que passou por sprint encerrada continua com uma unica participacao aberta', async () => {
+    const project = await createProject(prisma);
+    const encerrada = await createSprint(prisma, project.id, {
+      name: 'A',
+      startDate: new Date('2026-08-01T00:00:00.000Z'),
+      endDate: new Date('2026-08-10T00:00:00.000Z')
+    });
+    const aberta = await createSprint(prisma, project.id, {
+      name: 'B',
+      startDate: new Date('2026-08-10T00:00:00.000Z'),
+      endDate: new Date('2026-08-20T00:00:00.000Z')
+    });
+    const seguinte = await createSprint(prisma, project.id, {
+      name: 'C',
+      startDate: new Date('2026-08-20T00:00:00.000Z'),
+      endDate: new Date('2026-08-30T00:00:00.000Z')
+    });
+    const task = await createTask(prisma, project.id);
+    const contexto = await comAtor();
+
+    await sprintService.replaceTasks(encerrada.id, [task.id], contexto);
+    await sprintService.updateSprintStatus(encerrada.id, 'EM_ANDAMENTO');
+    await sprintService.updateSprintStatus(encerrada.id, 'CONCLUIDA');
+    await sprintService.replaceTasks(aberta.id, [task.id], contexto);
+    await sprintService.replaceTasks(seguinte.id, [task.id], contexto);
+
+    expect(await abertas(task.id)).toEqual([{ sprintId: seguinte.id }]);
+
+    // A sprint encerrada permanece intocada: seu registro e o do periodo que ela
+    // documenta, e reescreve-lo mudaria retroativamente o resultado dela.
+    const congelada = await prisma.sprintTask.findFirst({
+      where: { sprintId: encerrada.id, taskId: task.id }
+    });
+    expect(congelada.removedAt).toBeNull();
+    expect(congelada.closedAt).toBeInstanceOf(Date);
+    expect(congelada.exitStatus).toBe('A_FAZER');
+
+    // A origem do carry-over e B, onde a tarefa estava de fato — nao A, que ela
+    // ja tinha deixado.
+    const emC = await prisma.sprintTask.findFirst({
+      where: { sprintId: seguinte.id, taskId: task.id }
+    });
+    expect(emC.carriedFromSprintId).toBe(aberta.id);
+
+    const emB = await prisma.sprintTask.findFirst({
+      where: { sprintId: aberta.id, taskId: task.id }
+    });
+    expect(emB.removedAt).toBeInstanceOf(Date);
+    expect(emB.removalReason).toBe('MOVIDA');
   });
 
   // Estado que so o backfill da migration s104 produz: marco vinculado a uma
