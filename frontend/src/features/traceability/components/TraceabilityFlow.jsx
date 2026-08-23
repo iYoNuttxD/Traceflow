@@ -48,9 +48,9 @@ function formatDate(value) {
     : new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(date);
 }
 
-function formatPercentage(metric, legacyValue) {
+function formatPercentage(metric) {
   if (metric?.hasData === false) return 'Sem dados';
-  const value = metric?.percentage ?? legacyValue;
+  const value = metric?.percentage;
   return value == null
     ? 'Sem dados'
     : `${Number(value).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`;
@@ -86,10 +86,7 @@ function NodeDetails({ type, detail }) {
         <DetailRow label="Descrição" value={detail.description} />
         <DetailRow label="Tipo" value={detail.type} />
         <DetailRow label="Status" value={statusLabels[detail.status] || detail.status} />
-        <DetailRow
-          label="Progresso"
-          value={formatPercentage(detail.progress, detail.progressPercentage)}
-        />
+        <DetailRow label="Progresso" value={formatPercentage(detail.progress)} />
         <DetailRow label="Situação" value={detail.implementationStatus} />
         <DetailRow label="Evidência técnica" value={detail.hasTechnicalEvidence ? 'Sim' : 'Não'} />
         <DetailRow label="Criado em" value={formatDate(detail.createdAt)} />
@@ -115,7 +112,7 @@ function NodeDetails({ type, detail }) {
         <DetailRow label="Mensagem" value={detail.message} />
         <DetailRow label="Autor" value={detail.authorName || detail.authorUsername} />
         <DetailRow label="Data" value={formatDate(detail.date)} />
-        <DetailRow label="Branch" value={detail.branch} />
+        <DetailRow label="Branches" value={detail.branches?.join(', ')} />
         {detail.githubUrl && (
           <DetailRow label="GitHub" value="Abrir no GitHub" href={detail.githubUrl} />
         )}
@@ -164,7 +161,7 @@ function nodeTitle(node) {
 function nodeMeta(node) {
   const data = node.data || {};
   if (node.type === 'REQUIREMENT')
-    return `${statusLabels[data.status] || data.status} · ${formatPercentage(data.progress, data.progressPercentage)}`;
+    return `${statusLabels[data.status] || data.status} · ${formatPercentage(data.progress)}`;
   if (node.type === 'TASK') return statusLabels[data.status] || data.status;
   if (node.type === 'COMMIT')
     return data.authorName || data.authorUsername || 'Autor não informado';

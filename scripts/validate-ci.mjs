@@ -24,6 +24,10 @@ const REQUIRED_SCRIPTS = {
     "security:secrets",
     "db:test:migrate",
     "db:test:status",
+    "db:test:validate-empty",
+    "db:test:validate-lr2-legacy",
+    "db:test:validate-lr5",
+    "db:lr5:audit",
   ],
   frontend: ["lint", "format:check", "test", "test:coverage", "build"],
 };
@@ -74,6 +78,26 @@ export function validateCi({ workflow, backendPackage, frontendPackage }) {
     workflow,
     /npm run db:test:status/,
     "Status das migrations ausente.",
+  );
+  requireMatch(
+    workflow,
+    /npm run db:test:validate-empty/,
+    "Validação da cadeia vazia ausente.",
+  );
+  requireMatch(
+    workflow,
+    /npm run db:test:validate-lr5/,
+    "Validação de upgrade populado e histórico LR.5 ausente.",
+  );
+  requireMatch(
+    workflow,
+    /npm run db:test:validate-lr2-legacy/,
+    "Validação de contract guard ausente.",
+  );
+  requireMatch(
+    workflow,
+    /npm run db:lr5:audit/,
+    "Auditoria física LR.5 ausente.",
   );
   requireMatch(
     workflow,

@@ -4,6 +4,11 @@ import dotenv from 'dotenv';
 export { validateTestDatabaseUrl } from '../../scripts/lib/database-safety.js';
 import { validateTestDatabaseUrl } from '../../scripts/lib/database-safety.js';
 
+// Define o ambiente antes de qualquer import dinâmico da aplicação. Isso evita
+// que um NODE_ENV de desenvolvimento do arquivo local seja congelado no singleton de configuração.
+process.env.NODE_ENV = 'test';
+process.env.EMAIL_PROVIDER = 'capture';
+
 export function configureTestDatabaseEnvironment() {
   dotenv.config({ path: resolve(process.cwd(), '.env.test'), override: false, quiet: true });
   dotenv.config({ path: resolve(process.cwd(), '.env'), override: false, quiet: true });
@@ -44,6 +49,16 @@ export function deployTestMigrations(testDatabaseUrl) {
 
 export async function cleanTestDatabase(prisma) {
   await prisma.$transaction([
+    prisma.gitHubWebhookDelivery.deleteMany(),
+    prisma.gitHubOAuthState.deleteMany(),
+    prisma.gitHubAppConnectionState.deleteMany(),
+    prisma.gitHubIdentity.deleteMany(),
+    prisma.gitHubIdentityTombstone.deleteMany(),
+    prisma.projectGitHubIntegration.deleteMany(),
+    prisma.gitHubRepositoryAuthorization.deleteMany(),
+    prisma.gitHubInstallationAuthorization.deleteMany(),
+    prisma.gitHubInstallation.deleteMany(),
+    prisma.gitHubSyncRun.deleteMany(),
     prisma.auditEvent.deleteMany(),
     prisma.personalDataExport.deleteMany(),
     prisma.privacyRequest.deleteMany(),
@@ -56,12 +71,14 @@ export async function cleanTestDatabase(prisma) {
     prisma.requirement.deleteMany(),
     prisma.projectInvitation.deleteMany(),
     prisma.projectMembership.deleteMany(),
-    prisma.projectMember.deleteMany(),
+    prisma.commitBranch.deleteMany(),
+    prisma.gitBranch.deleteMany(),
     prisma.commit.deleteMany(),
     prisma.pullRequest.deleteMany(),
     prisma.issue.deleteMany(),
     prisma.project.deleteMany(),
     prisma.passwordResetToken.deleteMany(),
+    prisma.emailVerificationToken.deleteMany(),
     prisma.session.deleteMany(),
     prisma.user.deleteMany()
   ]);

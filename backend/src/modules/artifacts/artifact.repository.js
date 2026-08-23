@@ -17,15 +17,22 @@ export const artifactRepository = {
       where: { id: projectId },
       select: {
         id: true,
-        name: true
+        name: true,
+        githubIntegration: { select: { defaultBranch: true } },
+        githubBranches: {
+          where: { isActive: true },
+          select: { name: true, headSha: true, isDefault: true },
+          orderBy: [{ isDefault: 'desc' }, { name: 'asc' }]
+        }
       }
     });
   },
 
-  async listCommits(projectId, dateFilter) {
+  async listCommits(projectId, dateFilter, branch) {
     return prisma.commit.findMany({
       where: {
         projectId,
+        ...(branch ? { branchLinks: { some: { branch: { name: branch, isActive: true } } } } : {}),
         ...buildDateWhere('date', dateFilter)
       },
       select: {
@@ -35,17 +42,20 @@ export const artifactRepository = {
         authorName: true,
         authorUsername: true,
         date: true,
-        branch: true,
-        githubUrl: true
+        githubUrl: true,
+        branchLinks: {
+          select: { branch: { select: { name: true, isActive: true, isDefault: true } } }
+        }
       },
       orderBy: [{ date: 'desc' }, { id: 'desc' }]
     });
   },
 
-  async listPullRequests(projectId, dateFilter) {
+  async listPullRequests(projectId, dateFilter, branch) {
     return prisma.pullRequest.findMany({
       where: {
         projectId,
+        ...(branch ? { OR: [{ sourceBranch: branch }, { targetBranch: branch }] } : {}),
         ...buildDateWhere('createdAtGithub', dateFilter)
       },
       select: {

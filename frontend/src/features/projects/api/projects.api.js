@@ -5,8 +5,32 @@ export const projectsApi = {
     return httpClient.get('/projects');
   },
 
-  listGithubRepositories() {
-    return httpClient.get('/github/repositories');
+  listGithubInstallations() {
+    return httpClient.get('/github/app/installations');
+  },
+
+  listGithubRepositories(installationId, projectId) {
+    return httpClient.get(`/github/app/installations/${installationId}/repositories`, {
+      params: projectId ? { projectId } : undefined
+    });
+  },
+
+  listAllGithubRepositories(projectId) {
+    return httpClient.get('/github/app/repositories', {
+      params: projectId ? { projectId } : undefined
+    });
+  },
+
+  startGithubInstallation(data) {
+    return httpClient.post('/github/app/installations/start', data);
+  },
+
+  startGithubRepositoryAuthorization(returnTo) {
+    return httpClient.post('/auth/github/repositories/authorization/start', { returnTo });
+  },
+
+  connectGithubRepository(projectId, data) {
+    return httpClient.put(`/projects/${projectId}/github/integration`, data);
   },
 
   create(data) {
@@ -23,5 +47,17 @@ export const projectsApi = {
 
   update(projectId, data) {
     return httpClient.put(`/projects/${projectId}`, data);
+  },
+
+  getAccessCode(projectId) {
+    return httpClient.get(`/projects/${projectId}/access-code`);
+  },
+
+  regenerateAccessCode(projectId) {
+    return httpClient.post(`/projects/${projectId}/access-code/regenerate`, {});
+  },
+
+  updateAccessCodeRole(projectId, role) {
+    return httpClient.patch(`/projects/${projectId}/access-code`, { role });
   }
 };

@@ -81,6 +81,51 @@ function inspectBackendImports(files, backendRoot, violations, graph) {
     const isTaskRuntime = relativeFile.slice(0, 2).join('/') === 'modules/tasks';
     const imports = extractImportSpecifiers(source);
 
+    if (/prisma\.projectMember\b|\bProjectMember\b|\bprojectMemberId\b/.test(source)) {
+      addViolation(
+        violations,
+        file,
+        'lr2-no-project-member',
+        'ProjectMember',
+        'Runtime deve usar User e ProjectMembership; ProjectMember é apenas legado pré-LR.2.'
+      );
+    }
+    if (/\bcommit\.branch\b|\bbranch\s*:\s*commit\.branch\b/.test(source)) {
+      addViolation(
+        violations,
+        file,
+        'lr2-commit-branches-only',
+        'Commit.branch',
+        'Runtime deve usar GitBranch, CommitBranch e o contrato branches[].'
+      );
+    }
+    if (
+      /\bproject\.(?:githubOwner|githubRepo|githubUrl|githubRepositoryName|githubRepositoryFullName|githubRepositoryUrl|githubDefaultBranch|githubIsPrivate|githubIntegratedAt|githubAutoSyncEnabled|githubLastSyncAt|githubSyncStatus|githubLastSyncError|githubLastSyncAttemptAt)\b/.test(
+        source
+      )
+    ) {
+      addViolation(
+        violations,
+        file,
+        'lr2-project-github-integration-only',
+        'Project GitHub alias',
+        'Runtime deve ler metadados GitHub exclusivamente de ProjectGitHubIntegration.'
+      );
+    }
+    if (
+      /\/api\/account\/(?:personal-data|profile|sessions|deactivate|deletion-request)(?:\b|\/)/.test(
+        source
+      )
+    ) {
+      addViolation(
+        violations,
+        file,
+        'lr2-settings-routes-only',
+        '/api/account/*',
+        'Operações autenticadas de conta e privacidade devem usar /api/settings/*.'
+      );
+    }
+
     if (isTaskRuntime && /req\.body(?:\.|\?\.)(?:movedBy|projectMemberId)\b/.test(source)) {
       addViolation(
         violations,
@@ -469,6 +514,16 @@ function inspectFrontendImports(files, frontendRoot, violations) {
       );
     }
 
+    if (/\bprojectMembersApi\b|\blistProjectMembers\b|\/account\/privacy/.test(source)) {
+      addViolation(
+        violations,
+        file,
+        'lr2-frontend-no-legacy-alias',
+        'legacy frontend alias',
+        'Frontend deve usar membersApi e as rotas canônicas de settings.'
+      );
+    }
+
     for (const specifier of extractImportSpecifiers(source)) {
       const target = resolveImport(file, specifier);
       const leavesFrontend = target && !relative(frontendRoot, target).startsWith('..');
@@ -548,6 +603,32 @@ export function checkArchitecture({ backendRoot, frontendRoot }) {
 
   inspectBackendImports(backendFiles, resolvedBackendRoot, violations, new Map());
   inspectFrontendImports(frontendFiles, resolvedFrontendRoot, violations);
+
+  const schemaPath = resolve(resolvedBackendRoot, '../prisma/schema.prisma');
+  if (existsSync(schemaPath)) {
+    const schema = readFileSync(schemaPath, 'utf8');
+    const removedSchemaElements = [
+      ['ProjectMember', /\bmodel\s+ProjectMember\b/],
+      ['TaskMovement.projectMemberId', /\bprojectMemberId\s+Int\??/],
+      ['Commit.branch', /model\s+Commit\s*\{[\s\S]*?\n\s+branch\s+String\??/],
+      ['Project.inviteLink', /model\s+Project\s*\{[\s\S]*?\n\s+inviteLink\s+String\??/],
+      [
+        'Project GitHub aliases',
+        /model\s+Project\s*\{[\s\S]*?\n\s+(?:githubOwner|githubRepo|githubRepositoryFullName|githubDefaultBranch|githubSyncStatus)\s+/
+      ]
+    ];
+    for (const [element, pattern] of removedSchemaElements) {
+      if (pattern.test(schema)) {
+        addViolation(
+          violations,
+          schemaPath,
+          'lr2-schema-no-contracted-legacy',
+          element,
+          `Schema atual não pode reintroduzir ${element}.`
+        );
+      }
+    }
+  }
 
   return violations.map((violation) => ({
     ...violation,

@@ -13,7 +13,8 @@ export function ProjectSectionNav({
   activeSection,
   showSyncButton = false,
   onSync,
-  isSyncing = false
+  isSyncing = false,
+  retryAfterSeconds = 0
 }) {
   return (
     <nav className="project-section-nav" aria-label="Navegação do projeto">
@@ -33,9 +34,14 @@ export function ProjectSectionNav({
           className="project-section-nav-link project-section-nav-sync"
           type="button"
           onClick={onSync}
-          disabled={isSyncing}
+          disabled={isSyncing || retryAfterSeconds > 0}
+          aria-busy={isSyncing}
         >
-          {isSyncing ? 'Sincronizando...' : 'Sincronizar'}
+          {isSyncing
+            ? 'Sincronizando...'
+            : retryAfterSeconds > 0
+              ? `Sincronizar em ${retryAfterSeconds}s`
+              : 'Sincronizar'}
         </button>
       )}
     </nav>

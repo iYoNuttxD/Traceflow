@@ -9,7 +9,7 @@ Route → Controller → Service → Repository → Prisma → MySQL
                          └→ external client
 ```
 
-Routes aplicam autenticação, CSRF, autorização e validação; controllers adaptam HTTP; services coordenam regras e transações; repositories encapsulam Prisma. O verificador `architecture:check` bloqueia dependências proibidas e reintrodução dos models removidos na E8.
+Routes aplicam autenticação, CSRF, autorização e validação; controllers adaptam HTTP; services coordenam regras e transações; repositories encapsulam Prisma. O verificador `architecture:check` bloqueia dependências proibidas e a reintrodução de estruturas contraídas nas E8 e LR.2.
 
 ## Instalação e configuração
 
@@ -28,7 +28,7 @@ Use Node `22.22.0+` e MySQL 8.4 compatível. `.env.example` contém placeholders
 ## Módulos
 
 - `auth`, `authorization`: sessão opaca, CSRF e RBAC;
-- `projects`: projeto, memberships, convites e compatibilidades legadas;
+- `projects`: projeto, memberships, convites, access code e integração canônica;
 - `github`, `commits`, `pullRequests`, `issues`, `artifacts`: integração e leitura tipada;
 - `requirements`, `tasks`, `traceability`: domínio e cadeia canônica;
 - `audit`, `privacy`: trilha transversal e direitos técnicos do titular;
@@ -52,7 +52,7 @@ npm run db:test:migrate
 npm run db:test:status
 ```
 
-Há 25 migrations versionadas. Não edite migration aplicada e não use reset em desenvolvimento. Scripts E6/E8/E11 e privacidade são manutenção protegida, dry-run por padrão quando aplicável; consulte os relatórios da etapa e os runbooks antes de `--apply`.
+Há 35 migrations versionadas. Não edite migration aplicada e não use reset em desenvolvimento. `db:test:validate-empty` valida a cadeia vazia e `db:test:validate-lr2-legacy` valida a reconciliação LR.2 em banco temporário. Scripts E8 e privacidade são manutenção protegida, dry-run por padrão quando aplicável. Fontes E6/E11 que dependem de `ProjectMember`/`projectMemberId` são recuperação pré-LR.2 e exigem o checkout/schema anterior ao contract; não são runtime atual.
 
 ## Qualidade
 
@@ -78,6 +78,6 @@ Integração/API usa MySQL real indicado por `TEST_DATABASE_URL`. A cobertura m�
 
 Runbooks: [GitHub](../docs/runbooks/GITHUB_INTEGRATION.md), [migrations](../docs/runbooks/DATABASE_MIGRATIONS.md), [backup](../docs/runbooks/BACKUP_RESTORE.md) e [incidentes](../docs/runbooks/INCIDENT_RESPONSE.md).
 
-## Legado preservado
+## Contrato canônico após LR.2
 
-`ProjectMember`, `accessCode/inviteLink`, aliases GitHub, `Task.responsible`, `TaskMovement.movedBy` e `projectMemberId` permanecem somente onde contratos ou dados históricos exigem. Identidade e autorização usam `User`, `ProjectMembership`, `responsibleUserId` e `movedByUserId`. Não associe snapshots por nome.
+`ProjectMember`, `TaskMovement.projectMemberId`, `Commit.branch`, `Project.inviteLink` e os aliases GitHub de `Project` foram removidos. Identidade e autorização usam `User`, `ProjectMembership`, `responsibleUserId` e `movedByUserId`; integração usa `ProjectGitHubIntegration`; branches usam `GitBranch` + `CommitBranch`. `accessCode` é capability vigente. Os campos textuais `Task.responsible` e `TaskMovement.movedBy` são apenas snapshots históricos: não associe pessoas por nome.

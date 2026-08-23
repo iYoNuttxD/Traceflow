@@ -4,13 +4,19 @@ import { getProjectArtifacts } from '../index.js';
 import { ProjectSectionNav } from '../../projects/index.js';
 import {
   compactParams,
+  ContextualErrorPage,
   ErrorState,
+  FeedbackRegion,
   LoadingState,
+  classifyPageError,
+  getErrorRequestId,
+  normalizeApiError,
   useAbortableRequest
 } from '../../../shared/index.js';
 
 const emptyFilters = {
   type: '',
+  branch: '',
   startDate: '',
   endDate: ''
 };
@@ -20,10 +26,6 @@ const typeLabels = {
   pull_request: 'Pull Request',
   issue: 'Issue'
 };
-
-function getErrorMessage(error, fallback) {
-  return error.response?.data?.message || fallback;
-}
 
 function formatDate(value) {
   if (!value) {
@@ -48,21 +50,30 @@ function getArtifactTypeLabel(type) {
 
 function getArtifactStatus(artifact) {
   if (artifact.type === 'commit') {
-    return artifact.metadata?.branch ? `Branch: ${artifact.metadata.branch}` : '-';
+    const branches = artifact.metadata?.branches || [];
+    if (branches.length === 0)
+      return artifact.metadata?.branches?.length
+        ? `Branches: ${artifact.metadata.branches.join(', ')}`
+        : '-';
+    return branches.length <= 2
+      ? `Branches: ${branches.join(', ')}`
+      : `Branches: ${branches[0]} +${branches.length - 1}`;
   }
 
   const number = artifact.metadata?.number ? `#${artifact.metadata.number}` : null;
   const state = artifact.metadata?.state || null;
-
-  if (number && state) {
-    return `${number} - ${state}`;
-  }
-
-  return number || state || '-';
+  const flow =
+    artifact.type === 'pull_request' &&
+    artifact.metadata?.sourceBranch &&
+    artifact.metadata?.targetBranch
+      ? `${artifact.metadata.sourceBranch} → ${artifact.metadata.targetBranch}`
+      : null;
+  const status = number && state ? `${number} - ${state}` : number || state;
+  return [status, flow].filter(Boolean).join(' · ') || '-';
 }
 
 function hasActiveFilters(filters) {
-  return Boolean(filters.type || filters.startDate || filters.endDate);
+  return Boolean(filters.type || filters.branch || filters.startDate || filters.endDate);
 }
 
 function isValidDate(value) {
@@ -97,6 +108,8 @@ export function RepositoryInfoScreen() {
   const [appliedFilters, setAppliedFilters] = useState(emptyFilters);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [pageError, setPageError] = useState(null);
+  const [retryAfterSeconds, setRetryAfterSeconds] = useState(0);
 
   const loadArtifacts = useCallback(
     async (nextFilters = emptyFilters) => {
@@ -111,22 +124,31 @@ export function RepositoryInfoScreen() {
       const requestParams = compactParams(nextFilters);
       setLoading(true);
       setError('');
+      setPageError(null);
+      setRetryAfterSeconds(0);
       let settled = false;
 
       try {
         const data = await runArtifactsRequest((signal) =>
           getProjectArtifacts(projectId, requestParams, { signal })
         );
-        if (!data) return;
+        if (!data) {
+          settled = true;
+          return;
+        }
         settled = true;
         setRepositoryData(data);
         setAppliedFilters({ ...emptyFilters, ...nextFilters });
       } catch (requestError) {
         settled = true;
         setRepositoryData(null);
-        setError(
-          getErrorMessage(requestError, 'Não foi possível carregar os artefatos do repositório.')
+        const normalized = normalizeApiError(
+          requestError,
+          'Não foi possível carregar os artefatos do repositório.'
         );
+        setError(normalized.message);
+        setPageError(normalized);
+        setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
       } finally {
         if (settled) setLoading(false);
       }
@@ -158,9 +180,22 @@ export function RepositoryInfoScreen() {
   }
 
   const project = repositoryData?.project;
+  const repository = repositoryData?.repository || { branches: [] };
   const summary = repositoryData?.summary || {};
   const artifacts = repositoryData?.artifacts || [];
   const showFilteredEmptyState = hasActiveFilters(appliedFilters);
+
+  if (!loading && !repositoryData && pageError) {
+    return (
+      <ContextualErrorPage
+        type={classifyPageError(pageError)}
+        description={pageError.message}
+        requestId={getErrorRequestId(pageError)}
+        retryAfterSeconds={pageError.retryAfterSeconds}
+        onRetry={() => loadArtifacts(appliedFilters)}
+      />
+    );
+  }
 
   return (
     <main className="page-container repository-page">
@@ -192,6 +227,22 @@ export function RepositoryInfoScreen() {
             <option value="commit">Commits</option>
             <option value="pull_request">Pull Requests</option>
             <option value="issue">Issues</option>
+          </select>
+        </label>
+
+        <label className="field">
+          <span>Branch</span>
+          <select
+            value={filters.branch}
+            onChange={(event) => handleFilterChange('branch', event.target.value)}
+          >
+            <option value="">Todas as branches</option>
+            {(repository.branches || []).map((branch) => (
+              <option key={branch.name} value={branch.name}>
+                {branch.name}
+                {branch.isDefault ? ' — padrão' : ''}
+              </option>
+            ))}
           </select>
         </label>
 
@@ -228,16 +279,24 @@ export function RepositoryInfoScreen() {
         </div>
       </form>
 
+      {filters.type === 'issue' && filters.branch && (
+        <FeedbackRegion info="Issues pertencem ao repositório como um todo; o filtro de branch não se aplica a elas." />
+      )}
+
       {loading ? (
         <LoadingState message="Carregando artefatos do repositório..." />
       ) : error ? (
-        <ErrorState message={error} onRetry={() => loadArtifacts(filters)} />
+        <ErrorState
+          message={error}
+          onRetry={() => loadArtifacts(filters)}
+          retryAfterSeconds={retryAfterSeconds}
+        />
       ) : (
         <>
           <section className="repository-summary">
             <article className="repository-summary-card">
-              <span>Total de artefatos</span>
-              <strong>{summary.total ?? 0}</strong>
+              <span>Branches</span>
+              <strong>{repository.branches?.length ?? 0}</strong>
             </article>
             <article className="repository-summary-card">
               <span>Commits</span>

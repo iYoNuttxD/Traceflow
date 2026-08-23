@@ -6,6 +6,8 @@
 
 > **Estado executável após a E15:** este documento contém contexto e diretrizes evolutivas, inclusive capacidades futuras. Para a arquitetura efetivamente implementada, use `docs/architecture/SYSTEM_ARCHITECTURE.md`; para contratos ativos, `docs/api/API_CONTRACTS.md`; e para a cobertura real dos requisitos, `docs/traceability/RF_TECHNICAL_MATRIX.md`. Uma diretriz futura descrita aqui não deve ser interpretada como funcionalidade já entregue.
 
+> **Atualização L1:** identidade passou a usar username único, verificação de e-mail e sessão comum/persistente. A integração operacional com GitHub usa exclusivamente GitHub App por instalação, com tokens efêmeros somente em memória; PAT compartilhado não é alternativa suportada. Consulte `docs/deliveries/L1_IDENTITY_EMAIL_GITHUB_APP.md` e ADR-009.
+
 ---
 
 ## 1. Finalidade deste documento
@@ -698,10 +700,10 @@ A estratégia de sessão deve ser definida antes da implementação de autentica
 - Tokens do GitHub nunca devem ser enviados ao frontend.
 - Tokens não podem aparecer em URL, log, erro, banco sem proteção ou repositório.
 - Segredos devem ser obtidos por variáveis de ambiente ou serviço de secrets.
-- Em produção, preferir GitHub App ou fluxo OAuth adequado em vez de token pessoal compartilhado.
+- A integração implementada usa GitHub App por instalação; token pessoal compartilhado e PAT por usuário/projeto não são suportados.
 - Solicitar apenas permissões necessárias.
 - Implementar rotação e revogação.
-- Criptografar credenciais persistidas com chave externa ao banco.
+- Não persistir installation access tokens nem user access tokens; segredos estáticos da App pertencem ao ambiente/secret manager.
 
 ### 13.7 Comunicação segura
 
@@ -1072,7 +1074,7 @@ Cada etapa deve manter compatibilidade com o que já está funcional e possuir c
 Criar um ADR quando houver decisão relevante, como:
 
 - estratégia de autenticação e sessão;
-- migração de token pessoal para GitHub App/OAuth;
+- alteração da estratégia vigente de GitHub App por instalação;
 - consolidação dos modelos de artefato GitHub;
 - estratégia de vínculos genéricos versus tipados;
 - processamento assíncrono de sincronizações;

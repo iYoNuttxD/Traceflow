@@ -8,37 +8,37 @@ export const emptyProjectForm = {
   name: '',
   description: '',
   responsibleTeam: '',
-  githubOwner: '',
-  githubRepo: '',
-  githubUrl: '',
-  githubRepositoryId: '',
-  githubRepositoryName: '',
-  githubRepositoryFullName: '',
-  githubRepositoryUrl: '',
-  githubDefaultBranch: '',
+  selectedOwner: '',
+  selectedRepositoryName: '',
+  selectedRepositoryUrl: '',
+  selectedRepositoryId: '',
+  selectedRepositoryFullName: '',
+  selectedDefaultBranch: '',
+  selectedInstallationId: '',
   status: 'ATIVO'
 };
 
 export function normalizeRepository(repository) {
-  const fullName = repository.fullName || repository.full_name || '';
-  const [fullNameOwner, fullNameRepo] = fullName.split('/');
-  const owner =
-    repository.owner?.login ||
-    (typeof repository.owner === 'string' ? repository.owner : '') ||
-    fullNameOwner ||
-    '';
-  const name = repository.name || fullNameRepo || '';
-  const url = repository.url || repository.html_url || '';
+  const fullName = repository.fullName || '';
+  const githubRepositoryId = String(repository.githubRepositoryId || '');
 
   return {
-    id: String(repository.githubRepositoryId || repository.id || fullName || url),
-    owner,
-    name,
-    fullName: fullName || (owner && name ? `${owner}/${name}` : ''),
-    url,
+    id: githubRepositoryId,
+    githubRepositoryId,
+    owner: typeof repository.owner === 'string' ? repository.owner : '',
+    name: repository.name || '',
+    fullName,
+    url: repository.url || '',
     description: repository.description || '',
     private: repository.private === true,
-    defaultBranch: repository.defaultBranch || repository.default_branch || ''
+    defaultBranch: repository.defaultBranch || '',
+    alreadyConnected: repository.alreadyConnected === true,
+    connectedToCurrentProject: repository.connectedToCurrentProject === true,
+    selectable: repository.selectable !== false,
+    githubInstallationId: String(repository.githubInstallationId || ''),
+    accountLogin: repository.accountLogin || '',
+    userPermission: repository.userPermission || '',
+    connectedProject: repository.connectedProject || null
   };
 }
 
@@ -52,14 +52,13 @@ export function applyRepositoryToProjectForm(currentForm, repository) {
   return {
     ...currentForm,
     name: currentForm.name.trim() ? currentForm.name : normalizedRepository.name,
-    githubOwner: normalizedRepository.owner,
-    githubRepo: normalizedRepository.name,
-    githubUrl: normalizedRepository.url,
-    githubRepositoryId: normalizedRepository.id,
-    githubRepositoryName: normalizedRepository.name,
-    githubRepositoryFullName: normalizedRepository.fullName,
-    githubRepositoryUrl: normalizedRepository.url,
-    githubDefaultBranch: normalizedRepository.defaultBranch
+    selectedOwner: normalizedRepository.owner,
+    selectedRepositoryName: normalizedRepository.name,
+    selectedRepositoryUrl: normalizedRepository.url,
+    selectedRepositoryId: normalizedRepository.id,
+    selectedRepositoryFullName: normalizedRepository.fullName,
+    selectedDefaultBranch: normalizedRepository.defaultBranch,
+    selectedInstallationId: normalizedRepository.githubInstallationId
   };
 }
 
@@ -68,18 +67,19 @@ export function ProjectForm({
   repositories = [],
   loadingRepositories = false,
   repositoriesError = '',
+  repositoryEmptyMessage = 'A instalação não possui repositórios acessíveis.',
+  repositoryDisabled = false,
+  onRetryRepositories,
   onChange,
   onRepositoryChange,
   onSubmit,
   submitLabel,
+  submitDisabled = false,
   submitting,
   showRepositoryField = true,
   showStatusField = true
 }) {
-  const currentRepositoryFullName =
-    formData.githubOwner && formData.githubRepo
-      ? `${formData.githubOwner}/${formData.githubRepo}`
-      : '';
+  const currentRepositoryFullName = formData.selectedRepositoryFullName || '';
   const hasCurrentRepository = repositories.some(
     (repository) => normalizeRepository(repository).fullName === currentRepositoryFullName
   );
@@ -127,7 +127,7 @@ export function ProjectForm({
               name="githubRepository"
               value={currentRepositoryFullName}
               onChange={(event) => onRepositoryChange(event.target.value)}
-              disabled={loadingRepositories || Boolean(repositoriesError)}
+              disabled={repositoryDisabled || loadingRepositories || Boolean(repositoriesError)}
               required
             >
               <option value="">
@@ -140,9 +140,26 @@ export function ProjectForm({
                 const normalizedRepository = normalizeRepository(repository);
 
                 return (
-                  <option key={normalizedRepository.id} value={normalizedRepository.fullName}>
+                  <option
+                    key={normalizedRepository.id}
+                    value={normalizedRepository.fullName}
+                    disabled={!normalizedRepository.selectable}
+                  >
                     {normalizedRepository.fullName}
+                    {normalizedRepository.defaultBranch
+                      ? ` — branch ${normalizedRepository.defaultBranch}`
+                      : ''}
                     {normalizedRepository.private ? ' (privado)' : ''}
+                    {normalizedRepository.userPermission
+                      ? ` — ${normalizedRepository.userPermission}`
+                      : ''}
+                    {normalizedRepository.alreadyConnected &&
+                    !normalizedRepository.connectedToCurrentProject
+                      ? ` — vinculado a ${normalizedRepository.connectedProject?.name || 'outro projeto'}`
+                      : ''}
+                    {normalizedRepository.connectedToCurrentProject
+                      ? ' — conectado a este projeto'
+                      : ''}
                   </option>
                 );
               })}
@@ -150,14 +167,28 @@ export function ProjectForm({
           </label>
 
           {repositoriesError && (
-            <p className="field-help field-error field-full">{repositoriesError}</p>
+            <div className="field-help field-error field-full" role="alert">
+              <span>{repositoriesError}</span>
+              {onRetryRepositories && (
+                <button
+                  className="button button-secondary button-compact"
+                  type="button"
+                  disabled={loadingRepositories}
+                  onClick={onRetryRepositories}
+                >
+                  Tentar carregar novamente
+                </button>
+              )}
+            </div>
           )}
-          {!loadingRepositories && !repositoriesError && repositories.length === 0 && (
-            <p className="field-help field-full">
-              Nenhum repositório GitHub encontrado para este usuário.
-            </p>
-          )}
-          {formData.githubUrl && (
+          {!repositoryDisabled &&
+            !loadingRepositories &&
+            !repositoriesError &&
+            repositories.length === 0 &&
+            repositoryEmptyMessage && (
+              <p className="field-help field-full">{repositoryEmptyMessage}</p>
+            )}
+          {formData.selectedRepositoryUrl && (
             <p className="field-help field-full">
               Repositório selecionado: <strong>{currentRepositoryFullName}</strong>
             </p>
@@ -183,7 +214,12 @@ export function ProjectForm({
       )}
 
       <div className="form-actions field-full">
-        <button className="button button-primary" type="submit" disabled={submitting}>
+        <button
+          className="button button-primary"
+          type="submit"
+          disabled={submitting || submitDisabled}
+          aria-busy={submitting}
+        >
           {submitting ? 'Salvando...' : submitLabel}
         </button>
       </div>

@@ -10,6 +10,9 @@ import {
   strictObject,
   validateRequest
 } from '../../src/shared/validation/index.js';
+import { resetBodySchema, verifyEmailBodySchema } from '../../src/modules/auth/auth.validation.js';
+import { acceptInvitationBody } from '../../src/modules/projects/project-invitation.validation.js';
+import { tokenQuery } from '../../src/modules/settings/settings.validation.js';
 
 function execute(schemas, request) {
   const next = vi.fn();
@@ -90,5 +93,43 @@ describe('infraestrutura de validação HTTP', () => {
     );
     expect(JSON.stringify(result.details)).not.toContain('segredo-que-nao-pode-voltar');
     expect(JSON.stringify(result.details)).not.toContain('Zod');
+  });
+
+  it.each([
+    [
+      { body: verifyEmailBodySchema },
+      { params: {}, query: {}, body: { token: 'invalid' } },
+      'Link de verificação inválido ou expirado.'
+    ],
+    [
+      { body: resetBodySchema },
+      { params: {}, query: {}, body: { token: 'invalid', password: 'NovaSenhaSegura123' } },
+      'Link de redefinição de senha inválido ou expirado.'
+    ],
+    [
+      { body: acceptInvitationBody },
+      { params: {}, query: {}, body: { token: 'invalid' } },
+      'Convite inválido.'
+    ],
+    [
+      { query: tokenQuery },
+      { params: {}, query: { token: 'invalid' }, body: {} },
+      'Link inválido ou expirado.'
+    ]
+  ])('sanitiza capability pública curta sem mensagem técnica', (schemas, request, message) => {
+    const { result } = execute(schemas, request);
+    expect(result).toBeInstanceOf(ValidationError);
+    expect(result.message).toBe(message);
+    expect(JSON.stringify(result.details)).not.toMatch(/expected string|too small|>=\s*32/i);
+  });
+
+  it.each([undefined, 123, null])('sanitiza capability pública de tipo inválido (%s)', (token) => {
+    const { result } = execute(
+      { body: verifyEmailBodySchema },
+      { params: {}, query: {}, body: { token } }
+    );
+    expect(result).toBeInstanceOf(ValidationError);
+    expect(result.message).toBe('Link de verificação inválido ou expirado.');
+    expect(JSON.stringify(result.details)).not.toMatch(/expected string|invalid input|zod/i);
   });
 });

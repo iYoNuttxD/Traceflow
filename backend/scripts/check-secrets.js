@@ -18,6 +18,7 @@ const allowedPlaceholders = [
   /mysql:\/\/usuario:senha@localhost/i,
   /mysql:\/\/user:password@localhost/i,
   /mysql:\/\/traceflow:traceflow@localhost/i,
+  /mysql:\/\/root:traceflow_root_ci@localhost/i,
   /seu_token_do_github/i
 ];
 

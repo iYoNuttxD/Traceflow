@@ -1,4 +1,4 @@
-import { getGithubClient } from '../github.client.js';
+import { githubInstallationClientFactory } from '../github.client.js';
 import { normalizeGithubError } from '../github-error.js';
 import { projectRepository } from '../../projects/project.repository.js';
 import {
@@ -7,31 +7,44 @@ import {
   ProjectServiceError
 } from '../../projects/project.schema.js';
 import { syncProjectCommits } from './sync-project-commits.service.js';
+import { syncProjectBranches } from './sync-project-branches.service.js';
 import { syncProjectIssues } from './sync-project-issues.service.js';
 import { syncProjectPullRequests } from './sync-project-pull-requests.service.js';
+import { logger } from '../../../shared/logger/index.js';
 
 const projectsInSync = new Set();
+const noProgress = async () => {};
 
-function linkedRepositoryCoordinates(project) {
-  const repo = project.githubRepositoryName || project.githubRepo;
-  if (!project.githubOwner || !repo) {
+function linkedRepositoryCoordinates(integration) {
+  const [owner, repo, ...extra] = integration?.repositoryFullName?.split('/') || [];
+  if (!owner || !repo || extra.length > 0 || repo !== integration.repositoryName) {
     throw new ProjectServiceError('Projeto não possui repositório GitHub vinculado.', 400);
   }
-  return { owner: project.githubOwner, repo };
+  return { owner, repo };
 }
 
-function normalizeGithubSyncError(error) {
+export function normalizeGithubSyncError(error) {
   if (error instanceof ProjectServiceError) return error.message;
   return normalizeGithubError(error).message;
 }
 
-async function validateAndRefreshRepository(project, githubClient) {
-  const coordinates = linkedRepositoryCoordinates(project);
+function logStep(event, projectId, step, startedAt, details = {}) {
+  logger.info(`Etapa de sincronização GitHub ${event === 'started' ? 'iniciada' : 'concluída'}.`, {
+    event: `github_sync_step_${event}`,
+    projectId,
+    step,
+    ...(event === 'completed' ? { durationMs: Date.now() - startedAt } : {}),
+    ...details
+  });
+}
+
+async function validateAndRefreshRepository(project, integration, githubClient) {
+  const coordinates = linkedRepositoryCoordinates(integration);
   const repository = await githubClient.getRepository(coordinates.owner, coordinates.repo);
 
   if (
-    project.githubRepositoryId &&
-    repository.githubRepositoryId !== String(project.githubRepositoryId)
+    integration.githubRepositoryId &&
+    repository.githubRepositoryId !== String(integration.githubRepositoryId)
   ) {
     throw new ProjectServiceError(
       'Dados do repositório GitHub não correspondem ao projeto integrado.',
@@ -40,12 +53,12 @@ async function validateAndRefreshRepository(project, githubClient) {
   }
 
   const metadata = buildGithubRepositoryMetadata(repository);
-  if (!project.githubIntegratedAt) metadata.githubIntegratedAt = new Date();
+  if (!integration.integratedAt) metadata.integratedAt = new Date();
   await projectRepository.updateGithubRepositoryMetadata(project.id, metadata);
   return repository;
 }
 
-export async function syncProjectGithubData(projectId) {
+export async function syncProjectGithubData(projectId, { onProgress = noProgress } = {}) {
   const parsedProjectId = parseProjectId(projectId);
   if (projectsInSync.has(parsedProjectId)) {
     throw new ProjectServiceError(
@@ -61,21 +74,94 @@ export async function syncProjectGithubData(projectId) {
   try {
     project = await projectRepository.findById(parsedProjectId);
     if (!project) throw new ProjectServiceError('Projeto não encontrado.', 404);
-    linkedRepositoryCoordinates(project);
+    const integration = project.githubIntegration;
+    linkedRepositoryCoordinates(integration);
+    if (
+      !integration ||
+      integration.status !== 'ACTIVE' ||
+      integration.installation?.status !== 'ACTIVE'
+    ) {
+      throw new ProjectServiceError(
+        'Reconecte a GitHub App antes de sincronizar este projeto.',
+        409
+      );
+    }
     await projectRepository.markGithubSyncStarted(parsedProjectId, attemptedAt);
+    const githubClient = await githubInstallationClientFactory.forInstallation(
+      integration.installation.githubInstallationId
+    );
 
-    const githubClient = getGithubClient();
-    const repository = await validateAndRefreshRepository(project, githubClient);
-    const commitSummary = await syncProjectCommits({ project, repository, githubClient });
+    let stepStartedAt = Date.now();
+    await onProgress({ step: 'REPOSITORY', currentBranch: null });
+    logStep('started', parsedProjectId, 'repository', stepStartedAt);
+    const repository = await validateAndRefreshRepository(project, integration, githubClient);
+    logStep('completed', parsedProjectId, 'repository', stepStartedAt);
+
+    stepStartedAt = Date.now();
+    await onProgress({ step: 'BRANCHES', currentBranch: null });
+    logStep('started', parsedProjectId, 'branches', stepStartedAt);
+    const branchResult = await syncProjectBranches({ project, repository, githubClient });
+    await onProgress({ branchCount: branchResult.summary.found });
+    logStep('completed', parsedProjectId, 'branches', stepStartedAt, {
+      branchCount: branchResult.summary.found
+    });
+
+    stepStartedAt = Date.now();
+    await onProgress({ step: 'COMMITS', processedBranches: 0, currentBranch: null });
+    logStep('started', parsedProjectId, 'commits', stepStartedAt, {
+      branchCount: branchResult.summary.active
+    });
+    const commitSummary = await syncProjectCommits({
+      project,
+      repository,
+      branches: branchResult.branches,
+      githubClient,
+      onProgress
+    });
+    logStep('completed', parsedProjectId, 'commits', stepStartedAt, {
+      branchCount: branchResult.summary.active,
+      pages: commitSummary.pages,
+      items: commitSummary.foundAcrossBranches
+    });
+
+    stepStartedAt = Date.now();
+    await onProgress({ step: 'PULL_REQUESTS', currentBranch: null });
+    logStep('started', parsedProjectId, 'pull_requests', stepStartedAt);
     const pullRequestSummary = await syncProjectPullRequests({ project, repository, githubClient });
+    await onProgress({
+      pullRequestsFound: pullRequestSummary.found,
+      pullRequestsCreated: pullRequestSummary.created,
+      pullRequestsUpdated: pullRequestSummary.updated
+    });
+    logStep('completed', parsedProjectId, 'pull_requests', stepStartedAt, {
+      items: pullRequestSummary.found
+    });
+
+    stepStartedAt = Date.now();
+    await onProgress({ step: 'ISSUES' });
+    logStep('started', parsedProjectId, 'issues', stepStartedAt);
     const issueSummary = await syncProjectIssues({ project, repository, githubClient });
+    await onProgress({
+      issuesFound: issueSummary.found,
+      issuesCreated: issueSummary.created,
+      issuesUpdated: issueSummary.updated
+    });
+    logStep('completed', parsedProjectId, 'issues', stepStartedAt, {
+      items: issueSummary.found
+    });
+
+    stepStartedAt = Date.now();
+    await onProgress({ step: 'PERSIST' });
+    logStep('started', parsedProjectId, 'persist', stepStartedAt);
     const updatedProject = await projectRepository.markGithubSyncSucceeded(
       parsedProjectId,
       new Date()
     );
+    logStep('completed', parsedProjectId, 'persist', stepStartedAt);
 
     return {
       summary: {
+        branches: branchResult.summary,
         commits: commitSummary,
         pullRequests: pullRequestSummary,
         issues: issueSummary

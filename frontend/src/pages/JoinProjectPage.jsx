@@ -1,54 +1,98 @@
-import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router';
-import { projectMembersApi } from '../features/members/index.js';
-import { Card } from '../shared/index.js';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router';
+import { membersApi } from '../features/members/index.js';
+import { parseProjectAccessInput } from '../features/projects/services/project-access-input.js';
+import {
+  Card,
+  FeedbackRegion,
+  LoadingState,
+  normalizeApiError,
+  useCountdown
+} from '../shared/index.js';
 
-function getErrorMessage(error, fallback) {
-  return error.response?.data?.message || fallback;
-}
+const roleLabels = Object.freeze({ MEMBER: 'Membro', VIEWER: 'Visualizador' });
 
 export function JoinProjectPage() {
+  const navigate = useNavigate();
   const { accessCode: routeAccessCode } = useParams();
-  const [formData, setFormData] = useState({
-    accessCode: routeAccessCode?.toUpperCase() || '',
-    name: '',
-    email: ''
-  });
+  const [input, setInput] = useState(routeAccessCode || '');
+  const [details, setDetails] = useState(null);
   const [joinedProject, setJoinedProject] = useState(null);
+  const [loading, setLoading] = useState(Boolean(routeAccessCode));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [retryAfterSeconds, setRetryAfterSeconds] = useState(0);
+  const cooldown = useCountdown(retryAfterSeconds);
+  const submitLock = useRef(false);
 
   useEffect(() => {
-    setFormData((current) => ({
-      ...current,
-      accessCode: routeAccessCode?.toUpperCase() || ''
-    }));
+    if (!routeAccessCode) {
+      setDetails(null);
+      setLoading(false);
+      return undefined;
+    }
+    const accessCode = parseProjectAccessInput(routeAccessCode);
+    if (!accessCode) {
+      setError('Código de acesso inválido.');
+      setDetails(null);
+      setLoading(false);
+      return undefined;
+    }
+    let active = true;
+    setInput(accessCode);
+    setLoading(true);
+    setError('');
+    void membersApi
+      .joinDetails(accessCode)
+      .then((responseDetails) => {
+        if (active) setDetails(responseDetails);
+      })
+      .catch((requestError) => {
+        if (active) {
+          const normalized = normalizeApiError(
+            requestError,
+            'Não foi possível consultar o código.'
+          );
+          setError(normalized.message);
+          setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, [routeAccessCode]);
 
-  function handleChange(name, value) {
-    setFormData((current) => ({
-      ...current,
-      [name]: name === 'accessCode' ? value.toUpperCase() : value
-    }));
+  function continueToDetails(event) {
+    event.preventDefault();
+    const accessCode = parseProjectAccessInput(input);
+    if (!accessCode) {
+      setError('Informe um código ou link de acesso válido do TRACEFLOW.');
+      return;
+    }
+    navigate(`/join/${encodeURIComponent(accessCode)}`);
   }
 
-  async function handleSubmit(event) {
-    event.preventDefault();
+  async function joinProject() {
+    if (submitLock.current || cooldown > 0) return;
+    submitLock.current = true;
     setSubmitting(true);
     setError('');
     setSuccess('');
-
+    setRetryAfterSeconds(0);
     try {
-      const response = await projectMembersApi.joinProject({
-        ...formData,
-        accessCode: formData.accessCode.toUpperCase()
-      });
-      setJoinedProject(response.data.project);
-      setSuccess(response.data.message);
+      const response = await membersApi.joinProject({ accessCode: input });
+      setJoinedProject(response.project);
+      setSuccess(response.message);
     } catch (requestError) {
-      setError(getErrorMessage(requestError, 'Não foi possível entrar no projeto.'));
+      const normalized = normalizeApiError(requestError, 'Não foi possível entrar no projeto.');
+      setError(normalized.message);
+      setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
     } finally {
+      submitLock.current = false;
       setSubmitting(false);
     }
   }
@@ -59,47 +103,64 @@ export function JoinProjectPage() {
         <div>
           <span className="eyebrow">TRACEFLOW</span>
           <h1>Entrar no projeto</h1>
-          <p>Use o código de acesso para se tornar membro interno do projeto.</p>
+          <p>Confirme o projeto e o perfil antes de ingressar.</p>
         </div>
       </header>
 
-      {error && <div className="message message-error">{error}</div>}
-      {success && <div className="message message-success">{success}</div>}
+      <FeedbackRegion
+        error={cooldown ? undefined : error}
+        rateLimit={cooldown ? error : undefined}
+        retryAfterSeconds={retryAfterSeconds}
+        success={success}
+      />
 
-      <Card title="Dados de entrada">
-        <form className="member-form join-form" onSubmit={handleSubmit}>
-          <label className="field">
-            <span>Código de acesso</span>
-            <input
-              type="text"
-              value={formData.accessCode}
-              onChange={(event) => handleChange('accessCode', event.target.value)}
-              placeholder="TRC-ABC123"
-            />
-          </label>
-          <label className="field">
-            <span>Nome</span>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(event) => handleChange('name', event.target.value)}
-              placeholder="Seu nome"
-            />
-          </label>
-          <label className="field">
-            <span>Email</span>
-            <input
-              type="email"
-              value={formData.email}
-              onChange={(event) => handleChange('email', event.target.value)}
-              placeholder="email@exemplo.com"
-            />
-          </label>
-          <button className="button button-primary" type="submit" disabled={submitting}>
-            {submitting ? 'Entrando...' : 'Entrar no projeto'}
+      {!routeAccessCode && (
+        <Card title="Código de acesso">
+          <form className="member-form join-form" onSubmit={continueToDetails}>
+            <label className="field">
+              <span>Código ou link de acesso</span>
+              <input
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                placeholder="TRC-... ou https://.../join/TRC-..."
+              />
+            </label>
+            <button className="button button-primary" type="submit">
+              Continuar
+            </button>
+          </form>
+        </Card>
+      )}
+
+      {loading && <LoadingState message="Consultando código de acesso..." />}
+
+      {details && !joinedProject && (
+        <Card title="Confirmar entrada">
+          <dl className="join-details">
+            <div>
+              <dt>Projeto</dt>
+              <dd>{details.project.name}</dd>
+            </div>
+            <div>
+              <dt>Seu perfil ao entrar</dt>
+              <dd>{roleLabels[details.role] || details.role}</dd>
+            </div>
+          </dl>
+          <button
+            className="button button-primary"
+            type="button"
+            disabled={submitting || cooldown > 0}
+            aria-busy={submitting}
+            onClick={() => void joinProject()}
+          >
+            {submitting
+              ? 'Entrando...'
+              : cooldown > 0
+                ? `Entrar em ${cooldown}s`
+                : 'Entrar no projeto'}
           </button>
-        </form>
-      </Card>
+        </Card>
+      )}
 
       {joinedProject && (
         <Link

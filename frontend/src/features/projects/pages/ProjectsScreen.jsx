@@ -1,6 +1,13 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router';
-import { Card, ErrorState, FeedbackRegion, LoadingState } from '../../../shared/index.js';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router';
+import {
+  Card,
+  ErrorState,
+  FeedbackRegion,
+  LoadingState,
+  normalizeApiError,
+  useCountdown
+} from '../../../shared/index.js';
 import {
   ProjectForm,
   applyRepositoryToProjectForm,
@@ -9,31 +16,59 @@ import {
   updateProjectForm
 } from '../components/ProjectForm.jsx';
 import { projectsApi } from '../api/projects.api.js';
+import { ProjectJoinCard } from '../components/ProjectJoinCard.jsx';
+import { PendingProjectInvitations } from '../../invitations/index.js';
 
-function getErrorMessage(error, fallback) {
-  return error.response?.data?.message || fallback;
+function clearRepositorySelection(current) {
+  return {
+    ...current,
+    selectedOwner: '',
+    selectedRepositoryName: '',
+    selectedRepositoryUrl: '',
+    selectedRepositoryId: '',
+    selectedRepositoryFullName: '',
+    selectedDefaultBranch: '',
+    selectedInstallationId: ''
+  };
 }
 
 export function ProjectsScreen() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [projects, setProjects] = useState([]);
   const [repositories, setRepositories] = useState([]);
+  const [installations, setInstallations] = useState([]);
   const [formData, setFormData] = useState(emptyProjectForm);
+  const [duplicateRepository, setDuplicateRepository] = useState(null);
+  const [highlightedProjectId, setHighlightedProjectId] = useState(null);
   const [loadingProjects, setLoadingProjects] = useState(true);
-  const [loadingRepositories, setLoadingRepositories] = useState(true);
+  const [loadingRepositories, setLoadingRepositories] = useState(false);
+  const [authorizingRepositories, setAuthorizingRepositories] = useState(false);
+  const [repositoryAuthorizationStatus, setRepositoryAuthorizationStatus] = useState('AUTHORIZED');
   const [submitting, setSubmitting] = useState(false);
   const [repositoriesError, setRepositoriesError] = useState('');
-  const [error, setError] = useState('');
+  const [projectsError, setProjectsError] = useState('');
+  const [projectsRetryAfterSeconds, setProjectsRetryAfterSeconds] = useState(0);
+  const [operationError, setOperationError] = useState('');
+  const [operationRetryAfterSeconds, setOperationRetryAfterSeconds] = useState(0);
+  const [installationsError, setInstallationsError] = useState('');
   const [success, setSuccess] = useState('');
+  const [githubCallbackError, setGithubCallbackError] = useState('');
+  const operationCooldown = useCountdown(operationRetryAfterSeconds);
+  const operationLock = useRef(false);
+  const reconnectProjectId = searchParams.get('projectId');
 
   const loadProjects = useCallback(async () => {
     setLoadingProjects(true);
-    setError('');
+    setProjectsError('');
+    setProjectsRetryAfterSeconds(0);
 
     try {
       const response = await projectsApi.list();
       setProjects(response.data.projects);
     } catch (requestError) {
-      setError(getErrorMessage(requestError, 'Não foi possível carregar os projetos.'));
+      const normalized = normalizeApiError(requestError, 'Não foi possível carregar os projetos.');
+      setProjectsError(normalized.message);
+      setProjectsRetryAfterSeconds(normalized.retryAfterSeconds || 0);
     } finally {
       setLoadingProjects(false);
     }
@@ -44,29 +79,113 @@ export function ProjectsScreen() {
     setRepositoriesError('');
 
     try {
-      const response = await projectsApi.listGithubRepositories();
+      const response = await projectsApi.listAllGithubRepositories(reconnectProjectId);
+      const nextAuthorizationStatus = response.data.authorizationStatus || 'AUTHORIZED';
+      setRepositoryAuthorizationStatus(nextAuthorizationStatus);
       const validRepositories = (response.data.repositories || [])
         .map(normalizeRepository)
         .filter(
           (repository) =>
-            repository.owner && repository.name && repository.fullName && repository.url
+            repository.id &&
+            repository.owner &&
+            repository.name &&
+            repository.fullName &&
+            repository.url &&
+            repository.defaultBranch &&
+            repository.githubInstallationId
         );
       setRepositories(validRepositories);
-    } catch {
+    } catch (requestError) {
       setRepositories([]);
-      setRepositoriesError('Não foi possível carregar os repositórios do GitHub.');
+      setRepositoryAuthorizationStatus('AUTHORIZED');
+      setRepositoriesError(
+        normalizeApiError(requestError, 'Não foi possível carregar os repositórios do GitHub.')
+          .message
+      );
     } finally {
       setLoadingRepositories(false);
+    }
+  }, [reconnectProjectId]);
+
+  const loadInstallations = useCallback(async () => {
+    setInstallationsError('');
+    try {
+      const response = await projectsApi.listGithubInstallations();
+      const available = response.data.installations || [];
+      setInstallations(available);
+    } catch (requestError) {
+      setInstallations([]);
+      setInstallationsError(
+        normalizeApiError(requestError, 'Não foi possível verificar a conexão com o GitHub.')
+          .message
+      );
     }
   }, []);
 
   useEffect(() => {
     loadProjects();
-    loadRepositories();
-  }, [loadProjects, loadRepositories]);
+    loadInstallations();
+    void loadRepositories();
+  }, [loadProjects, loadInstallations, loadRepositories]);
+
+  useEffect(() => {
+    if (searchParams.get('github') === 'connected') {
+      setSuccess('GitHub App vinculada ao TraceFlow. Os acessos foram atualizados.');
+      setGithubCallbackError('');
+      void loadInstallations();
+      void loadRepositories();
+    } else if (searchParams.get('github') === 'error') {
+      setGithubCallbackError(
+        'Não foi possível concluir a autorização da GitHub App. Inicie o fluxo novamente.'
+      );
+    } else if (searchParams.get('githubRepositoryAuthorization') === 'success') {
+      setSuccess('Autorização pessoal do GitHub renovada. Os repositórios foram atualizados.');
+      setGithubCallbackError('');
+      void loadRepositories();
+    } else if (searchParams.get('githubRepositoryAuthorization') === 'error') {
+      setGithubCallbackError(
+        'Não foi possível renovar sua autorização pessoal do GitHub. Tente novamente.'
+      );
+    }
+  }, [loadInstallations, loadRepositories, searchParams]);
+
+  async function renewRepositoryAuthorization() {
+    if (authorizingRepositories || operationCooldown > 0) return;
+    setAuthorizingRepositories(true);
+    setOperationError('');
+    setOperationRetryAfterSeconds(0);
+    try {
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete('github');
+      nextParams.delete('githubRepositoryAuthorization');
+      nextParams.delete('reason');
+      const query = nextParams.toString();
+      const response = await projectsApi.startGithubRepositoryAuthorization(
+        `/projects${query ? `?${query}` : ''}`
+      );
+      window.location.assign(response.data.url);
+    } catch (requestError) {
+      const normalized = normalizeApiError(
+        requestError,
+        'Não foi possível iniciar a renovação da autorização GitHub.'
+      );
+      setOperationError(normalized.message);
+      setOperationRetryAfterSeconds(normalized.retryAfterSeconds || 0);
+      setAuthorizingRepositories(false);
+    }
+  }
 
   function handleChange(name, value) {
     setFormData((current) => updateProjectForm(current, name, value));
+  }
+
+  function applyRepositoryReauthenticationState(requestError) {
+    if (requestError.response?.data?.code !== 'GITHUB_USER_REAUTH_REQUIRED') return;
+
+    setRepositories([]);
+    setRepositoryAuthorizationStatus('REAUTH_REQUIRED');
+    setFormData(clearRepositorySelection);
+    setDuplicateRepository(null);
   }
 
   function handleRepositoryChange(fullName) {
@@ -74,48 +193,48 @@ export function ProjectsScreen() {
       (repository) => normalizeRepository(repository).fullName === fullName
     );
 
-    if (!selectedRepository) {
-      setFormData((current) => ({
-        ...current,
-        githubOwner: '',
-        githubRepo: '',
-        githubUrl: '',
-        githubRepositoryId: '',
-        githubRepositoryName: '',
-        githubRepositoryFullName: '',
-        githubRepositoryUrl: '',
-        githubDefaultBranch: ''
-      }));
+    const normalized = selectedRepository ? normalizeRepository(selectedRepository) : null;
+    if (!normalized || normalized.selectable === false) {
+      setFormData(clearRepositorySelection);
+      setDuplicateRepository(null);
       return;
     }
 
+    if (normalized.alreadyConnected && !normalized.connectedToCurrentProject) {
+      setDuplicateRepository(normalized);
+      setHighlightedProjectId(normalized.connectedProject?.id || null);
+      window.setTimeout(() => setHighlightedProjectId(null), 4000);
+      setFormData(clearRepositorySelection);
+      return;
+    }
+
+    setDuplicateRepository(null);
     setFormData((current) => applyRepositoryToProjectForm(current, selectedRepository));
   }
 
   async function handleSubmit(event) {
     event.preventDefault();
-    setError('');
+    if (operationLock.current || operationCooldown > 0) return;
+    setOperationError('');
+    setOperationRetryAfterSeconds(0);
     setSuccess('');
 
     if (
-      !formData.githubRepositoryId ||
-      !formData.githubRepositoryFullName ||
-      !formData.githubDefaultBranch
+      !formData.selectedRepositoryId ||
+      !formData.selectedRepositoryFullName ||
+      !formData.selectedDefaultBranch
     ) {
-      setError('Selecione um repositório GitHub para criar o projeto.');
+      setOperationError('Selecione um repositório GitHub para criar o projeto.');
       return;
     }
 
+    operationLock.current = true;
     setSubmitting(true);
 
     try {
       const response = await projectsApi.createFromGithub({
-        githubRepositoryId: formData.githubRepositoryId,
-        githubOwner: formData.githubOwner,
-        githubRepositoryName: formData.githubRepositoryName,
-        githubRepositoryFullName: formData.githubRepositoryFullName,
-        githubRepositoryUrl: formData.githubRepositoryUrl,
-        githubDefaultBranch: formData.githubDefaultBranch,
+        githubInstallationId: formData.selectedInstallationId,
+        githubRepositoryId: formData.selectedRepositoryId,
         name: formData.name,
         description: formData.description,
         responsibleTeam: formData.responsibleTeam
@@ -124,8 +243,55 @@ export function ProjectsScreen() {
       setFormData(emptyProjectForm);
       await loadProjects();
     } catch (requestError) {
-      setError(getErrorMessage(requestError, 'Não foi possível cadastrar o projeto.'));
+      applyRepositoryReauthenticationState(requestError);
+      const connectedProject = requestError.response?.data?.details?.connectedProject;
+      if (requestError.response?.status === 409 && connectedProject) {
+        setDuplicateRepository({
+          fullName: formData.selectedRepositoryFullName,
+          connectedProject
+        });
+        setHighlightedProjectId(connectedProject.id);
+      }
+      const normalized = normalizeApiError(requestError, 'Não foi possível cadastrar o projeto.');
+      setOperationError(normalized.message);
+      setOperationRetryAfterSeconds(normalized.retryAfterSeconds || 0);
     } finally {
+      operationLock.current = false;
+      setSubmitting(false);
+    }
+  }
+
+  async function reconnectProject() {
+    if (operationLock.current || operationCooldown > 0) return;
+    const projectId = searchParams.get('projectId');
+    if (!projectId || !formData.selectedRepositoryId) {
+      setOperationError('Selecione o repositório que será reconectado.');
+      return;
+    }
+    operationLock.current = true;
+    setSubmitting(true);
+    setOperationError('');
+    setOperationRetryAfterSeconds(0);
+    setSuccess('');
+    try {
+      const response = await projectsApi.connectGithubRepository(projectId, {
+        githubInstallationId: formData.selectedInstallationId,
+        githubRepositoryId: formData.selectedRepositoryId
+      });
+      setSuccess(response.data.message);
+      setSearchParams({}, { replace: true });
+      setFormData(emptyProjectForm);
+      await loadProjects();
+    } catch (requestError) {
+      applyRepositoryReauthenticationState(requestError);
+      const normalized = normalizeApiError(
+        requestError,
+        'Não foi possível reconectar o repositório.'
+      );
+      setOperationError(normalized.message);
+      setOperationRetryAfterSeconds(normalized.retryAfterSeconds || 0);
+    } finally {
+      operationLock.current = false;
       setSubmitting(false);
     }
   }
@@ -140,35 +306,138 @@ export function ProjectsScreen() {
         </div>
       </header>
 
-      <FeedbackRegion success={success} />
+      <FeedbackRegion
+        error={operationCooldown ? undefined : operationError || githubCallbackError}
+        rateLimit={operationCooldown ? operationError : undefined}
+        retryAfterSeconds={operationRetryAfterSeconds}
+        success={success}
+      />
 
-      <div className="projects-layout">
-        <Card title="Cadastrar projeto">
+      <section className="projects-dashboard-grid" aria-label="Projetos e formas de ingresso">
+        <ProjectJoinCard />
+        <PendingProjectInvitations onAccepted={loadProjects} />
+
+        <Card
+          className="projects-dashboard-card project-create-card"
+          title="Cadastrar projeto"
+          headerAction={
+            <Link
+              className={`integration-status ${
+                installations.length > 0 && !installationsError ? 'is-connected' : 'is-disconnected'
+              }`}
+              to="/settings/integrations"
+            >
+              {installationsError
+                ? '⚠ Status do GitHub indisponível'
+                : installations.length > 0
+                  ? `GitHub vinculado · ${installations[0].accountLogin}`
+                  : '⚠ Vincular GitHub'}
+            </Link>
+          }
+        >
           <ProjectForm
             formData={formData}
             repositories={repositories}
             loadingRepositories={loadingRepositories}
             repositoriesError={repositoriesError}
+            onRetryRepositories={() => void loadRepositories()}
+            repositoryEmptyMessage={
+              installations.length === 0 || repositoryAuthorizationStatus === 'REAUTH_REQUIRED'
+                ? ''
+                : 'Nenhum repositório com permissão OWNER ou ADMIN foi autorizado recentemente.'
+            }
+            repositoryDisabled={
+              Boolean(installationsError) ||
+              installations.length === 0 ||
+              repositoryAuthorizationStatus === 'REAUTH_REQUIRED'
+            }
             onChange={handleChange}
             onRepositoryChange={handleRepositoryChange}
             onSubmit={handleSubmit}
             submitLabel="Cadastrar projeto"
+            submitDisabled={repositoryAuthorizationStatus === 'REAUTH_REQUIRED'}
             submitting={submitting}
             showStatusField={false}
           />
+          {repositoryAuthorizationStatus === 'REAUTH_REQUIRED' && (
+            <aside className="repository-authorization-callout" role="status">
+              <p>Sua autorização GitHub precisa ser renovada para listar repositórios.</p>
+              <button
+                className="button button-secondary"
+                type="button"
+                disabled={authorizingRepositories || operationCooldown > 0}
+                aria-busy={authorizingRepositories}
+                onClick={() => void renewRepositoryAuthorization()}
+              >
+                {authorizingRepositories ? 'Abrindo GitHub...' : 'Renovar acesso GitHub'}
+              </button>
+            </aside>
+          )}
+          {installationsError && <FeedbackRegion error={installationsError} />}
+          {duplicateRepository && (
+            <aside className="repository-duplicate-callout" role="status">
+              <p>
+                {duplicateRepository.connectedProject ? (
+                  <>
+                    Este repositório já está vinculado ao projeto{' '}
+                    <strong>“{duplicateRepository.connectedProject.name}”</strong>.
+                  </>
+                ) : (
+                  'Este repositório já está vinculado a outro projeto.'
+                )}
+              </p>
+              <div>
+                {duplicateRepository.connectedProject && (
+                  <Link to={`/projects/${duplicateRepository.connectedProject.id}`}>
+                    Ver projeto
+                  </Link>
+                )}
+                <button type="button" onClick={() => setDuplicateRepository(null)}>
+                  Fechar
+                </button>
+              </div>
+            </aside>
+          )}
+          {reconnectProjectId && (
+            <div className="github-reconnect-action">
+              <p>Selecione acima o repositório autorizado para reconectar o projeto.</p>
+              <button
+                className="button button-primary"
+                type="button"
+                onClick={() => void reconnectProject()}
+                disabled={
+                  submitting ||
+                  operationCooldown > 0 ||
+                  repositoryAuthorizationStatus === 'REAUTH_REQUIRED'
+                }
+                aria-busy={submitting}
+              >
+                Concluir reconexão
+              </button>
+            </div>
+          )}
         </Card>
 
-        <Card title="Projetos cadastrados">
+        <Card className="projects-dashboard-card project-list-card" title="Projetos cadastrados">
           {loadingProjects ? (
             <LoadingState message="Carregando projetos..." />
-          ) : error ? (
-            <ErrorState message={error} onRetry={loadProjects} />
+          ) : projectsError ? (
+            <ErrorState
+              message={projectsError}
+              onRetry={loadProjects}
+              retryAfterSeconds={projectsRetryAfterSeconds}
+            />
           ) : projects.length === 0 ? (
             <p className="empty-state">Nenhum projeto cadastrado ainda.</p>
           ) : (
             <div className="project-list">
               {projects.map((project) => (
-                <article className="project-item" key={project.id}>
+                <article
+                  className={`project-item ${
+                    highlightedProjectId === project.id ? 'project-highlight' : ''
+                  }`}
+                  key={project.id}
+                >
                   <div className="project-item-header">
                     <div>
                       <h3>{project.name}</h3>
@@ -183,21 +452,24 @@ export function ProjectsScreen() {
                     <span>Equipe: {project.responsibleTeam}</span>
                     <span>
                       Repositório:{' '}
-                      {project.githubOwner && project.githubRepo
-                        ? `${project.githubOwner}/${project.githubRepo}`
-                        : 'não informado'}
+                      {project.githubIntegration?.repositoryFullName || 'não informado'}
                     </span>
                   </div>
 
                   <Link className="text-link" to={`/projects/${project.id}`}>
                     Ver detalhes e editar
                   </Link>
+                  {project.githubIntegration?.status === 'RECONNECT_REQUIRED' && (
+                    <Link className="text-link" to={`/projects?projectId=${project.id}`}>
+                      Selecionar repositório para reconectar
+                    </Link>
+                  )}
                 </article>
               ))}
             </div>
           )}
         </Card>
-      </div>
+      </section>
     </main>
   );
 }

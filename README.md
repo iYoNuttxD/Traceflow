@@ -12,7 +12,7 @@ O produto atual inclui projetos e memberships, autenticação por sessão, integ
 
 ```text
 React/Vite → API REST/Express → Route → Controller → Service → Repository → Prisma → MySQL
-                                           └→ GitHub client/Octokit → GitHub API
+                                           └→ GitHub App client por instalação/Octokit → GitHub API
 ```
 
 - O frontend usa pages finas, features por domínio, componentes compartilhados e um único client Axios.
@@ -20,6 +20,7 @@ React/Vite → API REST/Express → Route → Controller → Service → Reposit
 - Sessões são opacas e server-side; mutações autenticadas exigem CSRF.
 - `ProjectMembership` é a fonte de autorização. Ausência de membership retorna `404`; papel insuficiente retorna `403`.
 - `Commit`, `PullRequest`, `Issue`, `TaskCommit`, `TaskIssue` e `Task.pullRequestId` são canônicos.
+- `ProjectGitHubIntegration` concentra identidade, configuração e estado do repositório; branches de commit usam `GitBranch` + `CommitBranch`.
 
 Consulte a [arquitetura vigente](docs/architecture/SYSTEM_ARCHITECTURE.md), as [convenções backend](docs/architecture/MODULE_CONVENTIONS.md) e a [estrutura frontend](docs/architecture/FRONTEND_STRUCTURE.md).
 
@@ -38,7 +39,7 @@ Consulte a [arquitetura vigente](docs/architecture/SYSTEM_ARCHITECTURE.md), as [
 - Node.js `22.22.0` ou superior dentro da linha 22;
 - npm compatível com os lockfiles;
 - MySQL 8.4 compatível;
-- credencial GitHub com o menor escopo de leitura necessário, quando a integração for usada.
+- GitHub App configurada com o menor conjunto de permissões de leitura necessário, quando a integração for usada.
 
 ## Instalação
 
@@ -62,7 +63,9 @@ O backend valida a configuração no startup. O arquivo [backend/.env.example](b
 ```env
 NODE_ENV=development
 DATABASE_URL="mysql://usuario:senha@localhost:3306/traceflow"
-GITHUB_TOKEN="token_local"
+GITHUB_APP_ID="123456"
+GITHUB_APP_CLIENT_ID="Iv1.valor_artificial"
+GITHUB_APP_PRIVATE_KEY_BASE64="base64_da_chave_privada"
 FRONTEND_URL="http://localhost:5173"
 ```
 
@@ -146,7 +149,7 @@ Os checks obrigatórios são `Quality`, `Backend Tests`, `Frontend Tests`, `Supp
 
 ## Integração GitHub
 
-O backend usa uma credencial técnica sistêmica por meio de um provider único. A sincronização é manual, paginada, idempotente por identificador externo, possui timeout/retry limitado e não remove automaticamente artefatos ausentes em uma execução posterior. Operação, rate limit, falhas e reprocessamento estão no [runbook GitHub](docs/runbooks/GITHUB_INTEGRATION.md).
+O backend usa exclusivamente GitHub App por instalação. O callback comprova acesso do usuário à instalação; a leitura usa installation access token gerado sob demanda e nunca persistido. A sincronização permanece manual, paginada, idempotente e preserva artefatos. Projetos anteriores à L1 ficam `RECONNECT_REQUIRED` até um OWNER reconectar. Operação, permissões e incidentes estão no [runbook GitHub](docs/runbooks/GITHUB_INTEGRATION.md).
 
 ## Segurança e privacidade
 
@@ -161,9 +164,10 @@ Evidências: [ASVS](docs/security/ASVS_BASELINE.md), [threat model](docs/securit
 ## Limitações conhecidas
 
 - `DELETE /api/projects/:id` permanece `501`; não existe política homologada de exclusão de projeto.
-- `ProjectMember`, `Project.accessCode/inviteLink`, aliases GitHub e snapshots textuais pré-identidade permanecem por compatibilidade/dados históricos.
+- `Project.accessCode` permanece como capability atual; o link de ingresso é derivado e não persistido.
+- `Task.responsible` e `TaskMovement.movedBy` permanecem como snapshots históricos, sem valor de identidade ou autorização.
 - O rate limiter e a trava de sincronização são por processo; produção horizontal exige store/lock distribuído.
-- O PAT GitHub é sistêmico; GitHub App por instalação e secret manager ainda não existem.
+- Secret manager, store/lock distribuído e configuração operacional real da GitHub App/SMTP não são fornecidos pelo repositório.
 - TLS, headers do host da SPA, backups agendados, observabilidade e branch protection dependem do ambiente operacional.
 - Não há SBOM/proveniência automatizada, E2E em navegador ou gate automatizado de licenças.
 
@@ -172,7 +176,7 @@ Evidências: [ASVS](docs/security/ASVS_BASELINE.md), [threat model](docs/securit
 ```text
 backend/src/modules/       domínios e camadas da API
 backend/src/shared/        infraestrutura transversal
-backend/prisma/            schema e 25 migrations
+backend/prisma/            schema e 35 migrations
 frontend/src/features/     domínios da SPA
 frontend/src/shared/       UI, hooks e serviços compartilhados
 docs/architecture/         arquitetura e ADRs
