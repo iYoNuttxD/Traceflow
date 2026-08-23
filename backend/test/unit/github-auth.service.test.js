@@ -48,7 +48,7 @@ vi.mock('../../src/config/env.js', () => ({
     githubAppClientId: 'Iv1.artificial',
     githubLoginCallbackUrl: 'https://api.traceflow.test/api/auth/github/callback',
     githubOAuthStateTtlMs: 600000,
-    githubRepositoryAuthorizationTtlMs: 900000,
+    githubRepositoryAuthorizationTtlMs: 7 * 24 * 60 * 60 * 1000,
     privacyPseudonymizationKey: 'artificial-test-pseudonymization-key-32-bytes'
   }
 }));
@@ -474,6 +474,11 @@ describe('autenticação GitHub L1.1', () => {
       verifiedAt: expect.any(Date),
       expiresAt: expect.any(Date)
     });
+    const persistedSnapshot =
+      mocks.githubRepository.replaceRepositoryAuthorizationsForUser.mock.calls[0][0];
+    expect(persistedSnapshot.expiresAt.getTime() - persistedSnapshot.verifiedAt.getTime()).toBe(
+      7 * 24 * 60 * 60 * 1000
+    );
     expect(
       JSON.stringify(mocks.githubRepository.replaceRepositoryAuthorizationsForUser.mock.calls)
     ).not.toContain('token-efemero');

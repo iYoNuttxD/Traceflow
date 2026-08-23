@@ -139,7 +139,9 @@ function getGithubSyncDisplay(project, syncStatus) {
 
   if (syncStatus === 'error' || persistedStatus === 'FALHA') {
     return {
-      label: 'Falha na sincronização',
+      label: project.githubIntegration?.lastSyncAt
+        ? 'Sincronizado anteriormente'
+        : 'Falha na sincronização',
       className: 'status-cancelado'
     };
   }
@@ -361,6 +363,9 @@ export function ProjectDetailsScreen() {
   const repositoryUrl = getRepositoryUrl(project);
   const githubSyncDisplay = getGithubSyncDisplay(project, githubSyncStatus);
   const syncingGithub = githubSyncStatus === 'syncing' || isActiveSyncRun(githubSyncRun);
+  const githubIntegration = project.githubIntegration;
+  const githubSyncFailed =
+    githubSyncStatus === 'error' || githubIntegration?.lastSyncStatus === 'FALHA';
 
   return (
     <main className="page-container">
@@ -404,75 +409,95 @@ export function ProjectDetailsScreen() {
 
       <section className="project-overview">
         <Card title="Visão geral do projeto">
-          <dl className="overview-grid">
-            <div>
-              <dt>Status do projeto</dt>
-              <dd>
-                <span className={`status-badge status-${project.status.toLowerCase()}`}>
-                  {formatProjectStatus(project.status)}
-                </span>
-              </dd>
-            </div>
-            <div>
-              <dt>Status GitHub</dt>
-              <dd>
-                <span className={`status-badge ${githubSyncDisplay.className}`}>
-                  {githubSyncDisplay.label}
-                </span>
-              </dd>
-            </div>
+          <div className="overview-grid" aria-label="Resumo do projeto">
+            <section className="overview-summary-card overview-project-card">
+              <h3>Projeto</h3>
+              <dl className="overview-details-list">
+                <div>
+                  <dt>Status</dt>
+                  <dd>
+                    <span className={`status-badge status-${project.status.toLowerCase()}`}>
+                      {formatProjectStatus(project.status)}
+                    </span>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Área ou equipe responsável</dt>
+                  <dd>{project.responsibleTeam || 'Não informada'}</dd>
+                </div>
+              </dl>
+            </section>
+
+            <section className="overview-summary-card overview-github-card">
+              <h3>GitHub</h3>
+              <dl className="overview-details-list">
+                <div>
+                  <dt>Status</dt>
+                  <dd>
+                    <span className={`status-badge ${githubSyncDisplay.className}`}>
+                      {githubSyncDisplay.label}
+                    </span>
+                  </dd>
+                </div>
+                {repositoryName ? (
+                  <>
+                    <div>
+                      <dt>Repositório</dt>
+                      <dd>
+                        {repositoryUrl ? (
+                          <a
+                            href={repositoryUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            aria-label={`Abrir repositório GitHub ${repositoryName}`}
+                          >
+                            {repositoryName}
+                          </a>
+                        ) : (
+                          repositoryName
+                        )}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>{githubSyncFailed ? 'Último sucesso' : 'Última sincronização'}</dt>
+                      <dd>{formatLastSuccessfulSync(githubIntegration?.lastSyncAt)}</dd>
+                    </div>
+                    {githubSyncFailed && (
+                      <div className="overview-sync-failure">
+                        <dt>Última tentativa falhou</dt>
+                        <dd>
+                          {formatLastSuccessfulSync(githubIntegration?.lastSyncAttemptAt)}
+                          <span>A última sincronização não pôde ser concluída.</span>
+                        </dd>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="overview-empty-detail">
+                    <dt>Integração</dt>
+                    <dd>Nenhum repositório conectado.</dd>
+                  </div>
+                )}
+              </dl>
+            </section>
+
+            <section className="overview-summary-card overview-team-card">
+              <h3>Equipe</h3>
+              <p className="overview-member-count">
+                <strong>{memberCount}</strong>
+                <span>{memberCount === 1 ? 'membro ativo' : 'membros ativos'}</span>
+              </p>
+            </section>
+
             <ProjectAccessCodePanel
               projectId={project.id}
               isOwner={currentMembership?.role === 'OWNER'}
             />
-            <div>
-              <dt>Repositório GitHub</dt>
-              <dd>
-                {repositoryName ? (
-                  repositoryUrl ? (
-                    <a href={repositoryUrl} target="_blank" rel="noopener noreferrer">
-                      {repositoryName}
-                    </a>
-                  ) : (
-                    repositoryName
-                  )
-                ) : (
-                  'Não informado'
-                )}
-              </dd>
-            </div>
-            <div>
-              <dt>Última sincronização bem-sucedida</dt>
-              <dd>{formatLastSuccessfulSync(project.githubIntegration?.lastSyncAt)}</dd>
-            </div>
-            <div>
-              <dt>Última tentativa</dt>
-              <dd>{formatLastSuccessfulSync(project.githubIntegration?.lastSyncAttemptAt)}</dd>
-            </div>
-            {project.githubIntegration?.lastSyncStatus === 'FALHA' &&
-              project.githubIntegration.lastSyncError && (
-                <div>
-                  <dt>Último erro</dt>
-                  <dd>A última sincronização não pôde ser concluída.</dd>
-                </div>
-              )}
-            <div>
-              <dt>Membros</dt>
-              <dd>{memberCount}</dd>
-            </div>
-            <div>
-              <dt>Área ou equipe responsável</dt>
-              <dd>{project.responsibleTeam || 'Não informada'}</dd>
-            </div>
-            <div>
-              <dt>Criado em</dt>
-              <dd>{formatDateTime(project.createdAt)}</dd>
-            </div>
-            <div>
-              <dt>Atualizado em</dt>
-              <dd>{formatDateTime(project.updatedAt)}</dd>
-            </div>
-          </dl>
+          </div>
+          <p className="overview-metadata">
+            Criado em {formatDateTime(project.createdAt)} · Atualizado em{' '}
+            {formatDateTime(project.updatedAt)}
+          </p>
         </Card>
       </section>
 

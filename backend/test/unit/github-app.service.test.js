@@ -40,7 +40,7 @@ vi.mock('../../src/config/env.js', () => ({
     githubAppConfigured: true,
     githubAppSlug: 'traceflow-test',
     githubAppStateTtlMs: 600000,
-    githubRepositoryAuthorizationTtlMs: 900000,
+    githubRepositoryAuthorizationTtlMs: 7 * 24 * 60 * 60 * 1000,
     githubAppWebhookSecret: 'webhook-secret-artificial'
   }
 }));
@@ -259,6 +259,11 @@ describe('autorização e webhooks da GitHub App L1', () => {
         repositoryAuthorizationExpiresAt: expect.any(Date)
       })
     );
+    const installationSnapshot = mocks.repository.authorizeInstallationFromState.mock.calls[0][0];
+    expect(
+      installationSnapshot.repositoryAuthorizationExpiresAt.getTime() -
+        installationSnapshot.now.getTime()
+    ).toBe(7 * 24 * 60 * 60 * 1000);
     expect(
       JSON.stringify(mocks.repository.authorizeInstallationFromState.mock.calls)
     ).not.toContain('token-efemero');

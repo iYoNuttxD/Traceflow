@@ -1228,29 +1228,101 @@ a {
 
 .overview-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-auto-flow: dense;
   gap: 1rem;
-  align-items: start;
-  margin: 0;
+  align-items: stretch;
 }
 
-.overview-grid > div {
+.overview-summary-card {
   display: grid;
   min-width: 0;
-  min-height: 6.25rem;
-  gap: 0.35rem;
+  min-height: 9rem;
+  gap: 0.85rem;
   align-content: start;
-  padding: 0.85rem;
+  padding: 1rem;
   border: 1px solid #eef1f6;
   border-radius: 10px;
   background: #fbfcfe;
 }
 
-.overview-grid .overview-access-code {
-  grid-column: span 2;
+.overview-project-card,
+.overview-team-card {
+  grid-column: span 3;
 }
 
-.overview-access-code dd,
+.overview-github-card {
+  grid-column: span 6;
+}
+
+.overview-grid .overview-access-code {
+  grid-column: span 12;
+}
+
+.overview-summary-card h3 {
+  margin: 0;
+  color: #475467;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.overview-details-list {
+  display: grid;
+  min-width: 0;
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.overview-details-list > div {
+  display: grid;
+  min-width: 0;
+  gap: 0.25rem;
+}
+
+.overview-details-list dt {
+  color: #667085;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.overview-details-list dd {
+  min-width: 0;
+  margin: 0;
+  color: #172033;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.overview-sync-failure dd span {
+  display: block;
+  margin-top: 0.25rem;
+  color: #667085;
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.overview-member-count {
+  display: flex;
+  margin: 0;
+  gap: 0.35rem;
+  align-items: baseline;
+  color: #667085;
+}
+
+.overview-member-count strong {
+  color: #172033;
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.overview-metadata {
+  margin: 1rem 0 0;
+  color: #667085;
+  font-size: 0.78rem;
+}
+
 .access-code-control {
   display: grid;
   min-width: 0;
@@ -1325,20 +1397,6 @@ a {
   color: #172033;
   background: #fff;
   font: inherit;
-}
-
-.overview-grid dt {
-  color: #667085;
-  font-size: 0.72rem;
-  font-weight: 800;
-  text-transform: uppercase;
-}
-
-.overview-grid dd {
-  margin: 0;
-  color: #172033;
-  font-weight: 700;
-  overflow-wrap: anywhere;
 }
 
 .overview-grid a {
@@ -2974,10 +3032,18 @@ a {
 
 @media (max-width: 1100px) {
   .overview-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .overview-project-card,
+  .overview-team-card,
+  .overview-github-card,
   .overview-grid .overview-access-code {
+    grid-column: span 2;
+  }
+
+  .overview-project-card,
+  .overview-team-card {
     grid-column: span 1;
   }
 }
@@ -2999,14 +3065,6 @@ a {
   .repository-summary,
   .repository-filters {
     grid-template-columns: 1fr;
-  }
-
-  .overview-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .overview-grid .overview-access-code {
-    grid-column: span 2;
   }
 
   .project-entry-card,
@@ -3097,7 +3155,13 @@ a {
   }
 
   .overview-grid .overview-access-code {
-    grid-column: auto;
+    grid-column: span 1;
+  }
+
+  .overview-project-card,
+  .overview-team-card,
+  .overview-github-card {
+    grid-column: span 1;
   }
 
   .access-code-value-row {
@@ -3112,6 +3176,10 @@ a {
   .access-code-role select {
     width: 100%;
     min-width: 0;
+  }
+
+  .access-code-actions {
+    flex-wrap: wrap;
   }
 
   .member-actions {

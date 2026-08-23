@@ -118,65 +118,63 @@ export function ProjectAccessCodePanel({ projectId, isOwner }) {
   }
 
   return (
-    <div className="overview-access-code project-access-code-card">
-      <dt>Código de acesso</dt>
-      <dd>
-        <FeedbackRegion error={error} success={success} />
-        {!configuration ? (
-          <span>Carregando configuração...</span>
-        ) : (
-          <div className="access-code-control">
-            <div className="access-code-value-row">
-              <code>{visible ? configuration.accessCode : '••••••••••••••••'}</code>
-              <div className="access-code-actions">
-                <button
-                  className="button button-secondary access-code-icon-button"
-                  type="button"
-                  title={visible ? 'Ocultar código' : 'Mostrar código'}
-                  aria-label={visible ? 'Ocultar código' : 'Mostrar código'}
-                  onClick={() => setVisible((value) => !value)}
-                >
-                  <EyeIcon hidden={visible} />
-                </button>
-                <button
-                  className="button button-secondary access-code-icon-button"
-                  type="button"
-                  title="Regenerar código"
-                  disabled={Boolean(busy)}
-                  aria-label="Regenerar código"
-                  onClick={() => void regenerate()}
-                >
-                  <RefreshIcon />
-                </button>
-                <button
-                  className="button button-secondary access-code-icon-button"
-                  type="button"
-                  title="Copiar link"
-                  disabled={Boolean(busy)}
-                  aria-label="Copiar link"
-                  onClick={() => void copyLink()}
-                >
-                  <CopyIcon />
-                </button>
-              </div>
-            </div>
-            <label className="access-code-role">
-              <span>Perfil de entrada</span>
-              <select
-                value={configuration.role}
-                disabled={Boolean(busy)}
-                onChange={(event) => void updateRole(event.target.value)}
+    <section className="overview-summary-card overview-access-code project-access-code-card">
+      <h3>Acesso ao projeto</h3>
+      <FeedbackRegion error={error} success={success} />
+      {!configuration ? (
+        <span>Carregando configuração...</span>
+      ) : (
+        <div className="access-code-control">
+          <div className="access-code-value-row">
+            <code>{visible ? configuration.accessCode : '••••••••••••••••'}</code>
+            <div className="access-code-actions">
+              <button
+                className="button button-secondary access-code-icon-button"
+                type="button"
+                title={visible ? 'Ocultar código' : 'Mostrar código'}
+                aria-label={visible ? 'Ocultar código' : 'Mostrar código'}
+                onClick={() => setVisible((value) => !value)}
               >
-                {Object.entries(roleLabels).map(([role, label]) => (
-                  <option key={role} value={role}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </label>
+                <EyeIcon hidden={visible} />
+              </button>
+              <button
+                className="button button-secondary access-code-icon-button"
+                type="button"
+                title="Regenerar código"
+                disabled={Boolean(busy)}
+                aria-label="Regenerar código"
+                onClick={() => void regenerate()}
+              >
+                <RefreshIcon />
+              </button>
+              <button
+                className="button button-secondary access-code-icon-button"
+                type="button"
+                title="Copiar link"
+                disabled={Boolean(busy)}
+                aria-label="Copiar link"
+                onClick={() => void copyLink()}
+              >
+                <CopyIcon />
+              </button>
+            </div>
           </div>
-        )}
-      </dd>
-    </div>
+          <label className="access-code-role">
+            <span>Perfil de entrada</span>
+            <select
+              value={configuration.role}
+              disabled={Boolean(busy)}
+              onChange={(event) => void updateRole(event.target.value)}
+            >
+              {Object.entries(roleLabels).map(([role, label]) => (
+                <option key={role} value={role}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      )}
+    </section>
   );
 }

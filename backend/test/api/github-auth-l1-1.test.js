@@ -47,6 +47,7 @@ function configureGithubEnvironment() {
     GITHUB_APP_FRONTEND_SUCCESS_URL: 'http://frontend.test/projects?github=connected',
     GITHUB_APP_FRONTEND_ERROR_URL: 'http://frontend.test/projects?github=error',
     GITHUB_LOGIN_CALLBACK_URL: 'http://localhost:3001/api/auth/github/callback',
+    GITHUB_REPOSITORY_AUTHORIZATION_TTL_MS: String(7 * 24 * 60 * 60 * 1000),
     FRONTEND_URL: 'http://frontend.test'
   });
 }
@@ -256,7 +257,7 @@ describe('API de autenticação GitHub L1.1', () => {
     expect((await local.agent.get('/api/auth/me')).status).toBe(200);
   });
 
-  it('migra usuário pré-LR.3 por OAuth dedicado sem persistir o token pessoal', async () => {
+  it('persiste autorização entre sessões e reconcilia o snapshot OWNER/ADMIN na renovação', async () => {
     const local = await registerLocal('legacy-github@example.test', 'legacy-github');
     await prisma.gitHubIdentity.create({
       data: { userId: local.user.id, githubUserId: '123', githubLogin: 'octocat' }
@@ -315,6 +316,10 @@ describe('API de autenticação GitHub L1.1', () => {
       repositoryAuthorizationVerifiedAt: expect.any(Date),
       repositoryAuthorizationExpiresAt: expect.any(Date)
     });
+    expect(
+      authorization.repositoryAuthorizationExpiresAt.getTime() -
+        authorization.repositoryAuthorizationVerifiedAt.getTime()
+    ).toBe(7 * 24 * 60 * 60 * 1000);
     expect(await prisma.gitHubRepositoryAuthorization.findMany()).toEqual([
       expect.objectContaining({
         githubRepositoryId: '501',
@@ -352,5 +357,62 @@ describe('API de autenticação GitHub L1.1', () => {
       }
     });
     expect(installationClient.forInstallation).toHaveBeenCalledWith('7007');
+
+    const firstSession = await prisma.session.findFirst({
+      where: { userId: local.user.id, revokedAt: null },
+      orderBy: { id: 'desc' }
+    });
+    expect(
+      (await local.agent.post('/api/auth/logout').set('X-CSRF-Token', local.csrf).send({})).status
+    ).toBe(204);
+
+    const newSessionAgent = request.agent(app);
+    const loggedInAgain = await newSessionAgent.post('/api/auth/login').send({
+      identifier: 'legacy-github@example.test',
+      password: localPassword,
+      rememberMe: false
+    });
+    expect(loggedInAgain.status).toBe(200);
+    const secondSession = await prisma.session.findFirst({
+      where: { userId: local.user.id, revokedAt: null },
+      orderBy: { id: 'desc' }
+    });
+    expect(secondSession.id).not.toBe(firstSession.id);
+    expect(await newSessionAgent.get('/api/github/app/repositories')).toMatchObject({
+      status: 200,
+      body: {
+        authorizationStatus: 'AUTHORIZED',
+        repositories: [expect.objectContaining({ githubRepositoryId: '501' })]
+      }
+    });
+
+    provider.listRepositoriesAccessibleToUser.mockResolvedValue([]);
+    const renewal = await newSessionAgent
+      .post('/api/auth/github/repositories/authorization/start')
+      .set('X-CSRF-Token', loggedInAgain.body.csrfToken)
+      .send({ returnTo: '/projects' });
+    expect(renewal.status).toBe(200);
+    const renewalState = new URL(renewal.body.url).searchParams.get('state');
+    expect((await completeGithub(newSessionAgent, renewalState)).status).toBe(302);
+
+    const renewedAuthorization = await prisma.gitHubInstallationAuthorization.findFirst({
+      where: { installationId: installation.id, userId: local.user.id }
+    });
+    expect(renewedAuthorization.repositoryAuthorizationVerifiedAt.getTime()).toBeGreaterThanOrEqual(
+      authorization.repositoryAuthorizationVerifiedAt.getTime()
+    );
+    expect(
+      renewedAuthorization.repositoryAuthorizationExpiresAt.getTime() -
+        renewedAuthorization.repositoryAuthorizationVerifiedAt.getTime()
+    ).toBe(7 * 24 * 60 * 60 * 1000);
+    expect(
+      await prisma.gitHubRepositoryAuthorization.count({
+        where: { installationId: installation.id, userId: local.user.id }
+      })
+    ).toBe(0);
+    expect(await newSessionAgent.get('/api/github/app/repositories')).toMatchObject({
+      status: 200,
+      body: { authorizationStatus: 'AUTHORIZED', repositories: [] }
+    });
   });
 });

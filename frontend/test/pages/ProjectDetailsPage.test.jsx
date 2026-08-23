@@ -106,6 +106,46 @@ describe('ProjectDetailsPage E9', () => {
     mocks.getProjectGithubSyncStatus.mockResolvedValue({ run: null });
   });
 
+  it('consolida a visão geral em quatro cards e mantém datas como metadata secundária', async () => {
+    renderPage();
+
+    const overviewHeading = await screen.findByRole('heading', {
+      name: 'Visão geral do projeto'
+    });
+    const overview = overviewHeading.closest('.card');
+    await within(overview).findByRole('heading', { name: 'Acesso ao projeto' });
+    expect(overview.querySelectorAll('.overview-summary-card')).toHaveLength(4);
+    for (const heading of ['Projeto', 'GitHub', 'Equipe', 'Acesso ao projeto']) {
+      expect(within(overview).getByRole('heading', { name: heading })).toBeInTheDocument();
+    }
+    const projectCard = within(overview)
+      .getByRole('heading', { name: 'Projeto' })
+      .closest('.overview-project-card');
+    expect(within(projectCard).getByText('Ativo')).toBeInTheDocument();
+    expect(within(projectCard).getByText('Equipe')).toBeInTheDocument();
+    const teamCard = within(overview)
+      .getByRole('heading', { name: 'Equipe' })
+      .closest('.overview-team-card');
+    expect(teamCard).toHaveTextContent(/1\s*membro ativo/);
+    expect(
+      within(overview).getByRole('link', { name: 'Abrir repositório GitHub owner/repo' })
+    ).toHaveAttribute('href', 'https://github.com/owner/repo');
+    expect(within(overview).getByText(/Criado em .* · Atualizado em/)).toHaveClass(
+      'overview-metadata'
+    );
+    for (const oldCard of [
+      'Status do projeto',
+      'Status GitHub',
+      'Código de acesso',
+      'Última sincronização bem-sucedida',
+      'Última tentativa',
+      'Criado em',
+      'Atualizado em'
+    ]) {
+      expect(within(overview).queryByText(oldCard, { exact: true })).not.toBeInTheDocument();
+    }
+  });
+
   it('exibe loading, sincroniza uma vez e apresenta o summary atual', async () => {
     vi.useFakeTimers();
     mocks.syncProjectGithub.mockResolvedValue({
@@ -283,6 +323,8 @@ describe('ProjectDetailsPage E9', () => {
           githubIntegration: {
             ...project.githubIntegration,
             lastSyncStatus: 'FALHA',
+            lastSyncAt: '2026-01-02T10:00:00Z',
+            lastSyncAttemptAt: '2026-01-02T11:00:00Z',
             lastSyncError: 'Prisma stack em /app/github-sync.js'
           }
         }
@@ -293,7 +335,25 @@ describe('ProjectDetailsPage E9', () => {
     expect(
       await screen.findByText('A última sincronização não pôde ser concluída.')
     ).toBeInTheDocument();
+    expect(screen.getByText('Sincronizado anteriormente')).toBeInTheDocument();
+    expect(screen.getByText('Último sucesso')).toBeInTheDocument();
+    expect(screen.getByText('Última tentativa falhou')).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/Prisma|\/app\/github-sync/);
+  });
+
+  it('apresenta o GitHub sem campos artificiais quando não existe integração', async () => {
+    mocks.api.get.mockResolvedValueOnce({
+      data: { project: { ...project, githubIntegration: null } }
+    });
+    renderPage();
+
+    const githubCard = (await screen.findByRole('heading', { name: 'GitHub' })).closest(
+      '.overview-github-card'
+    );
+    expect(within(githubCard).getByText('Não integrado')).toBeInTheDocument();
+    expect(within(githubCard).getByText('Nenhum repositório conectado.')).toBeInTheDocument();
+    expect(within(githubCard).queryByText('Repositório')).not.toBeInTheDocument();
+    expect(within(githubCard).queryByText('Última sincronização')).not.toBeInTheDocument();
   });
 
   it('oculta a ação de sync para MEMBER', async () => {
@@ -305,6 +365,7 @@ describe('ProjectDetailsPage E9', () => {
     await screen.findByRole('heading', { name: 'Projeto E9' });
     expect(screen.queryByRole('button', { name: 'Sincronizar' })).not.toBeInTheDocument();
     expect(screen.queryByText('Analisar commits para sugestões')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Acesso ao projeto' })).not.toBeInTheDocument();
     expect(mocks.accessCodeApi.get).not.toHaveBeenCalled();
   });
 
