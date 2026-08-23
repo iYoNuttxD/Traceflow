@@ -134,6 +134,10 @@ Todos os resultados finais abaixo usaram Node.js `v22.23.2`.
 | Prisma format / validate / generate / status | `PASS`; 39 migrations, schema atualizado |
 | npm audit backend/frontend | `PASS`; zero vulnerabilidades |
 
+O percentual de 60,94% de branches acima preserva o snapshot da execução original da LR.8. Na
+repetição do QA final, a mesma baseline funcional produziu 60,91%; a diferença de 0,03 p.p. não
+alterou nenhum gate.
+
 A execução sandboxed inicial dos testes HTTP/backend não pôde abrir sockets locais (`EPERM`) e o
 Prisma não alcançou o MySQL. As mesmas rodadas, autorizadas para sockets/MySQL locais, passaram.
 A primeira cobertura backend reproduziu o `401` transitório já conhecido no cadastro do teste E9;

@@ -9,7 +9,7 @@ O TRACEFLOW usa sessão opaca server-side. Após cadastro/login, o navegador rec
 
 Tokens de sessão não ficam em localStorage, sessionStorage, URL ou logs. Login sempre cria nova sessão e logout revoga a atual. Contas anonimizadas não autenticam; contas `DEACTIVATED` e `DELETION_PENDING` recebem somente sessão restrita governada por `requireAccountState`. Erros de credencial e recuperação evitam enumeração.
 
-Mutations autenticadas exigem `X-CSRF-Token`. O valor bruto existe apenas no cliente em memória, é rotacionado por `GET /api/auth/csrf`, e somente seu hash é persistido. CORS aceita credenciais apenas para a allowlist existente.
+Mutations autenticadas exigem `X-CSRF-Token`. O valor bruto existe apenas no cliente em memória, e somente seu hash é persistido. `GET /api/auth/csrf` retorna o token CSRF estável associado à sessão atual. O token acompanha o ciclo de vida da sessão e deixa de ser válido quando ela é revogada, expira ou é substituída. CORS aceita credenciais apenas para a allowlist existente.
 
 ## Alternativas rejeitadas
 
