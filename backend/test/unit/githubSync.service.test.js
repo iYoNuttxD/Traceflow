@@ -146,7 +146,7 @@ describe('githubSyncService com client e persistência substituídos', () => {
     }));
   });
 
-  it('pagina as três coleções, usa a branch validada e preserva o summary', async () => {
+  it('sincroniza pela Installation sem consultar ou exigir GitHubIdentity', async () => {
     const github = buildGithubDouble({
       commits: [[{ hash: 'hash-existente' }], [{ hash: 'hash-novo' }]],
       pullRequests: [[{ githubId: '301', number: 3 }], []],
@@ -156,6 +156,7 @@ describe('githubSyncService com client e persistência substituídos', () => {
 
     const result = await githubSyncService.syncProjectGithubData(String(project.id));
 
+    expect(project).not.toHaveProperty('githubIdentity');
     expect(github.getRepository).toHaveBeenCalledWith(repository.owner, repository.name);
     expect(github.listBranchPages).toHaveBeenCalledWith(
       expect.objectContaining({ owner: repository.owner, repo: repository.name })

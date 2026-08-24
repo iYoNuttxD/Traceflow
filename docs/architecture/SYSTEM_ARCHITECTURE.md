@@ -69,9 +69,9 @@ TaskCommitSuggestion → revisão humana → TaskCommit
 
 ## GitHub
 
-`github-credential.provider.js` lê somente segredos da GitHub App, assina JWT e cria tokens temporários. `github.client.js` é uma factory por instalação; não existe singleton nem fallback para credencial sistêmica. O state do callback é hashado e ligado à sessão. O user access token permanece somente em memória durante o callback: confirma a `GitHubIdentity`, pagina `GET /user/installations/{installation_id}/repositories` e materializa uma evidência persistente apenas para `OWNER` ou `ADMIN`. Token pessoal não é persistido, registrado nem retornado.
+`github-credential.provider.js` lê somente segredos da GitHub App, assina JWT e cria tokens temporários. `github.client.js` é uma factory por instalação; não existe singleton nem fallback para credencial sistêmica. O state do callback da App é hashado, ligado ao usuário/sessão/intenção e separado do state OAuth de autenticação. Quando a autorização de usuário durante a instalação está habilitada, o user access token permanece somente em memória: pagina `GET /user/installations` para provar o `installation_id` devolvido pelo GitHub. O callback também consulta a Installation com JWT da App e seus repositórios com Installation Token. Nenhum token é persistido, registrado ou retornado.
 
-A seleção cruza duas autoridades independentes: `GitHubRepositoryAuthorization` prova a permissão do usuário e a consulta ao vivo com installation token prova o acesso técnico da App. Somente a interseção é listada ou conectada. A Installation nunca amplia a autoridade do usuário. A prova pessoal é ligada ao `User`, à `GitHubIdentity`, à Installation e ao repositório, não à `Session`; seu TTL específico possui default de sete dias, independente do state OAuth de minutos. Evidências vencidas exigem novo fluxo de autorização, enquanto logout/login preserva evidências ainda válidas.
+GitHub OAuth pertence ao módulo Auth e cria `GitHubIdentity` somente para cadastro, login, vínculo e reautenticação sensível. A GitHub App pertence ao módulo GitHub e é a autoridade de repositórios e artefatos. `GitHubIdentity` não é requisito para instalar a App, descobrir repositórios, criar/reconectar projeto ou sincronizar. `GitHubInstallationAuthorization` registra apenas qual conta TraceFlow conectou a Installation. Listagem e conexão consultam ao vivo os repositórios concedidos à Installation; não existe snapshot pessoal, TTL ou renovação OAuth de repositório.
 
 Uma `GitHubInstallation` pode alimentar várias `ProjectGitHubIntegration`. Cada integração aponta para um projeto e um repositório únicos; `installationId` é apenas FK/index, nunca unique. Reconectar o mesmo repositório revalida a conexão; trocar para outro repositório retorna `409 GITHUB_REPOSITORY_SWAP_FORBIDDEN`, preservando artifacts e histórico. O lifecycle da instalação é `PENDING`, `ACTIVE`, `SUSPENDED` ou `REMOVED`; somente `ACTIVE` seleciona e sincroniza. Callback não reativa `SUSPENDED`/`REMOVED`.
 
@@ -91,7 +91,7 @@ ASVS é referência, não certificação. LGPD depende de decisões jurídicas e
 
 ## Banco e migrations
 
-Prisma é acessado somente por repositories e scripts de manutenção autorizados. As 39 migrations são imutáveis e aplicam do zero. Mudança destrutiva exige inventário, reconciliação, backup, guard e roll-forward. Scripts E8 permanecem recovery-only; fontes E6/E11 dependentes do schema anterior à LR.2 exigem aquele checkout/schema e não são runtime.
+Prisma é acessado somente por repositories e scripts de manutenção autorizados. As 40 migrations são imutáveis e aplicam do zero. Mudança destrutiva exige inventário, reconciliação, backup, guard e roll-forward. Scripts E8 permanecem recovery-only; fontes E6/E11 dependentes do schema anterior à LR.2 exigem aquele checkout/schema e não são runtime.
 
 ## CI e operação
 

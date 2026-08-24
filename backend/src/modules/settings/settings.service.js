@@ -519,7 +519,7 @@ export const settingsService = {
         const repositoryDiscovery =
           installation.status === 'ACTIVE'
             ? await githubAppService.listRepositories(userId, installation.githubInstallationId)
-            : { repositories: [], authorizationStatus: 'REAUTH_REQUIRED' };
+            : { repositories: [] };
         return {
           id: authorization.id,
           verifiedAt: authorization.verifiedAt,
@@ -533,7 +533,6 @@ export const settingsService = {
             manageUrl: `https://github.com/settings/installations/${installation.githubInstallationId}`
           },
           repositories: repositoryDiscovery.repositories,
-          authorizationStatus: repositoryDiscovery.authorizationStatus,
           projects: installation.projectIntegrations.map((integration) => ({
             id: integration.project.id,
             name: integration.project.name,
@@ -561,7 +560,7 @@ export const settingsService = {
       audit(
         userId,
         requestId,
-        'GITHUB_AUTHORIZATION_REMOVED',
+        'GITHUB_APP_CONNECTION_REMOVED',
         'GitHubInstallationAuthorization',
         authorizationId
       )

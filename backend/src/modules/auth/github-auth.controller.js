@@ -45,16 +45,11 @@ function errorRedirect(error) {
   const path =
     error.oauthPurpose === 'LINK_IDENTITY'
       ? '/settings/integrations'
-      : error.oauthPurpose === 'REPOSITORY_AUTHORIZATION'
-        ? error.oauthReturnTo || '/projects'
-        : error.oauthPurpose === 'REAUTH_SENSITIVE_ACTION'
-          ? error.oauthReturnTo || '/settings/security'
-          : '/login';
+      : error.oauthPurpose === 'REAUTH_SENSITIVE_ACTION'
+        ? error.oauthReturnTo || '/settings/security'
+        : '/login';
   const url = new URL(path, env.frontendUrl);
-  url.searchParams.set(
-    error.oauthPurpose === 'REPOSITORY_AUTHORIZATION' ? 'githubRepositoryAuthorization' : 'github',
-    'error'
-  );
+  url.searchParams.set('github', 'error');
   url.searchParams.set('reason', reasonByCode[error.code] || 'oauth_failed');
   return url.toString();
 }
@@ -77,16 +72,6 @@ export const githubAuthController = {
       action: 'GITHUB_REAUTH_STARTED',
       resourceType: 'Session',
       resourceId: req.auth.session.id
-    });
-    return res.json(setGithubOAuthCookie(res, result));
-  }),
-  startRepositoryAuthorization: asyncHandler(async (req, res) => {
-    const result = await githubAuthService.startRepositoryAuthorization(req.auth, req.body);
-    await auditService.recordOperational({
-      actorUserId: req.auth.user.id,
-      requestId: req.requestId,
-      action: 'GITHUB_REPOSITORY_AUTHORIZATION_STARTED',
-      resourceType: 'GitHubInstallationAuthorization'
     });
     return res.json(setGithubOAuthCookie(res, result));
   }),
@@ -121,29 +106,16 @@ export const githubAuthController = {
         return res.redirect(302, new URL(returnTo, env.frontendUrl).toString());
       }
       const action =
-        result.purpose === 'LINK_IDENTITY'
-          ? 'GITHUB_IDENTITY_LINKED'
-          : result.purpose === 'REPOSITORY_AUTHORIZATION'
-            ? 'GITHUB_REPOSITORY_AUTHORIZATION_RENEWED'
-            : 'GITHUB_REAUTH_SUCCESS';
+        result.purpose === 'LINK_IDENTITY' ? 'GITHUB_IDENTITY_LINKED' : 'GITHUB_REAUTH_SUCCESS';
       await auditService.recordOperational({
         actorUserId: result.userId,
         requestId: req.requestId,
         action,
-        resourceType:
-          result.purpose === 'LINK_IDENTITY'
-            ? 'GitHubIdentity'
-            : result.purpose === 'REPOSITORY_AUTHORIZATION'
-              ? 'GitHubInstallationAuthorization'
-              : 'Session'
+        resourceType: result.purpose === 'LINK_IDENTITY' ? 'GitHubIdentity' : 'Session'
       });
       const url = new URL(result.returnTo, env.frontendUrl);
       url.searchParams.set(
-        result.purpose === 'LINK_IDENTITY'
-          ? 'githubIdentity'
-          : result.purpose === 'REPOSITORY_AUTHORIZATION'
-            ? 'githubRepositoryAuthorization'
-            : 'githubReauth',
+        result.purpose === 'LINK_IDENTITY' ? 'githubIdentity' : 'githubReauth',
         'success'
       );
       return res.redirect(302, url.toString());
@@ -155,13 +127,8 @@ export const githubAuthController = {
         action:
           error.oauthPurpose === 'REAUTH_SENSITIVE_ACTION'
             ? 'GITHUB_REAUTH_FAILURE'
-            : error.oauthPurpose === 'REPOSITORY_AUTHORIZATION'
-              ? 'GITHUB_REPOSITORY_AUTHORIZATION_FAILURE'
-              : 'GITHUB_LOGIN_FAILURE',
-        resourceType:
-          error.oauthPurpose === 'REPOSITORY_AUTHORIZATION'
-            ? 'GitHubInstallationAuthorization'
-            : 'GitHubIdentity',
+            : 'GITHUB_LOGIN_FAILURE',
+        resourceType: 'GitHubIdentity',
         result: 'FAILURE',
         reasonCode: error.code || 'GITHUB_OAUTH_FAILED'
       });

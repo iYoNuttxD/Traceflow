@@ -1,7 +1,11 @@
 # ADR-009 — GitHub App por instalação
 
-**Status:** aceito na L1; consolidado pelas LR.3, LR.3.1 e LR.8
+**Status:** parcialmente substituído pelo ADR-012 na LR.9
 **Data:** 2026-08-01
+
+> Registro histórico: a LR.9 substituiu a autoridade pessoal `OWNER`/`ADMIN`, seu TTL e a
+> reautorização OAuth. O uso de Installation Token, lifecycle, cardinalidade e proibição de PAT
+> permanecem vigentes. Consulte o ADR-012 para a decisão atual.
 
 ## Contexto
 

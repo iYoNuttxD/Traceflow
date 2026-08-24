@@ -102,17 +102,6 @@ describe('LR.2 — consolidação das rotas e worker de privacidade', () => {
     await prisma.gitHubInstallationAuthorization.create({
       data: { installationId: installation.id, userId: user.id, verifiedAt: new Date() }
     });
-    await prisma.gitHubRepositoryAuthorization.create({
-      data: {
-        installationId: installation.id,
-        userId: user.id,
-        githubRepositoryId: '78787801',
-        repositoryFullName: 'traceflow-history/private-repository',
-        permission: 'ADMIN',
-        verifiedAt: new Date(),
-        expiresAt: new Date(Date.now() + 60_000)
-      }
-    });
     await prisma.gitHubIdentity.create({
       data: {
         userId: user.id,
@@ -176,9 +165,6 @@ describe('LR.2 — consolidação das rotas e worker de privacidade', () => {
     expect(anonymized.email).toMatch(/^anonymous_.+@deleted\.traceflow\.invalid$/);
     expect(await prisma.session.count({ where: { userId: user.id } })).toBe(0);
     expect(await prisma.gitHubInstallationAuthorization.count({ where: { userId: user.id } })).toBe(
-      0
-    );
-    expect(await prisma.gitHubRepositoryAuthorization.count({ where: { userId: user.id } })).toBe(
       0
     );
     expect(await prisma.gitHubIdentity.count({ where: { userId: user.id } })).toBe(0);

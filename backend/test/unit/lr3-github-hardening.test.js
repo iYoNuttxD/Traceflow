@@ -7,6 +7,10 @@ const migration = readFileSync(
   resolve('prisma/migrations/20260820180000_lr3_github_hardening/migration.sql'),
   'utf8'
 );
+const decouplingMigration = readFileSync(
+  resolve('prisma/migrations/20260824120000_lr9_github_oauth_app_decoupling/migration.sql'),
+  'utf8'
+);
 
 describe('contratos persistidos LR.3', () => {
   it('modela lifecycle canônico sem estado DELETED no schema atual', () => {
@@ -28,12 +32,14 @@ describe('contratos persistidos LR.3', () => {
     expect(migration).not.toMatch(/DROP TABLE `Project|DROP TABLE `Commit|TRUNCATE/i);
   });
 
-  it('persiste somente evidência OWNER/ADMIN com validade e nunca token pessoal', () => {
-    const authorization = schema.match(/model GitHubRepositoryAuthorization \{([\s\S]*?)\n\}/)?.[1];
-    expect(authorization).toMatch(/permission\s+GitHubRepositoryPermission/);
-    expect(authorization).toMatch(/expiresAt\s+DateTime/);
-    expect(authorization).toMatch(/@@unique\(\[installationId, userId, githubRepositoryId\]/);
-    expect(authorization).not.toMatch(/token|secret|credential/i);
+  it('mantém a evidência LR.3 apenas no histórico e a remove do modelo vigente na LR.9', () => {
+    expect(migration).toContain('CREATE TABLE `GitHubRepositoryAuthorization`');
+    expect(schema).not.toContain('model GitHubRepositoryAuthorization');
+    expect(schema).not.toContain('GitHubRepositoryPermission');
+    expect(decouplingMigration).toContain('DROP TABLE `GitHubRepositoryAuthorization`');
+    expect(decouplingMigration).not.toMatch(
+      /DROP TABLE `GitHubInstallation`|DROP TABLE `ProjectGitHubIntegration`/
+    );
   });
 
   it('mantém estado de processamento e retry idempotente por deliveryId', () => {

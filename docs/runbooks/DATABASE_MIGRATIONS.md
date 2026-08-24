@@ -18,9 +18,12 @@ npm run db:test:migrate
 npm run db:test:status
 ```
 
-`db:test:migrate` executa `prisma migrate deploy` no datasource protegido. A cadeia atual possui 39 migrations. `db:test:validate-empty` aplica a cadeia em banco temporário vazio; `db:test:validate-lr2-legacy` valida os guards e aliases da LR.2; `db:test:validate-lr2-recovery` prova o recovery completo sobre bancos temporários imediatamente pré-LR.2; `db:test:validate-lr5` prova o upgrade de collation sobre bancos temporários populado e histórico. Não use `prisma migrate reset` em desenvolvimento.
+`db:test:migrate` executa `prisma migrate deploy` no datasource protegido. A cadeia atual possui 40 migrations. `db:test:validate-empty` aplica a cadeia em banco temporário vazio; `db:test:validate-lr2-legacy` valida os guards e aliases da LR.2; `db:test:validate-lr2-recovery` prova o recovery completo sobre bancos temporários imediatamente pré-LR.2; `db:test:validate-lr5` prova o upgrade de collation sobre bancos temporários populado e histórico; `db:test:validate-lr9` prova o contract sobre uma base LR.8 representativa. Não use `prisma migrate reset` em desenvolvimento.
 
 ## LR.3.1 — evidência de autorização pessoal GitHub
+
+> Histórico: este modelo foi aplicado na LR.3.1 e substituído pela LR.9. Não editar nem remover
+> sua migration.
 
 A migration incremental
 `20260821180000_lr3_1_github_repository_authorization_migration` adiciona o purpose OAuth
@@ -28,6 +31,35 @@ A migration incremental
 `GitHubInstallationAuthorization`. Não há backfill: `NULL` significa que a permissão pessoal não
 foi comprovada depois da LR.3 e o usuário deve concluir o OAuth dedicado. A Installation não pode
 ser usada para preencher esses campos.
+
+## LR.9 — contract do snapshot pessoal de repositórios
+
+A migration incremental `20260824120000_lr9_github_oauth_app_decoupling` elimina states pendentes
+do purpose obsoleto, remove `GitHubRepositoryAuthorization`, contrai `GitHubOAuthPurpose` e remove
+os dois timestamps de snapshot de `GitHubInstallationAuthorization`. Ela não altera
+`GitHubInstallation`, `ProjectGitHubIntegration`, `GitHubSyncRun`, commits, pull requests, issues ou
+branches. O acesso atual vem da Installation e seu token efêmero.
+
+Antes do deploy em banco vindo da LR.8, inventarie sem payload pessoal:
+
+```sql
+SELECT COUNT(*) AS repository_authorization_rows FROM GitHubRepositoryAuthorization;
+SELECT COUNT(*) AS installations FROM GitHubInstallation;
+SELECT COUNT(*) AS integrations FROM ProjectGitHubIntegration;
+```
+
+O primeiro total é informativo porque os registros são snapshots obsoletos e não são fonte de
+projeto ou sync. Os totais de Installation e integração devem ser idênticos antes/depois. Aplique
+somente por `prisma migrate deploy`; não use reset nem marque a migration como resolvida
+manualmente.
+
+```bash
+npm run db:test:validate-lr9
+```
+
+O validador cria um banco temporário protegido, aplica a cadeia até LR.8, semeia Installation,
+autorização, projeto, integração, commit, PR, issue, branch, sync run e snapshot pessoal; depois
+aplica a LR.9 e compara as contagens preservadas antes de remover o banco temporário.
 
 ## LR.5 — preflight, collation e evolução representativa
 

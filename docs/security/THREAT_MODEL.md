@@ -4,7 +4,9 @@
 
 Username/e-mail compartilham mensagem genérica; rate limit reduz brute force/credential stuffing. Sessão persistente usa o mesmo token opaco, com TTL distinto persistido. Verificação, reset, convite e state usam valor aleatório, hash, expiração e uso único. SMTP falho não reverte a conta nem produz alegação de entrega aceita.
 
-A integração migrou diretamente para GitHub App. Os callbacks ligam state à sessão, confirmam identidade/instalações e descartam o User Token. A autorização pessoal de repositório aceita somente `OWNER`/`ADMIN`; o Installation Token é gerado sob demanda para provar acesso técnico e sincronizar. Webhook exige HMAC SHA-256 constant-time e delivery ID. Foram considerados callback/installation ID forjados, replay, instalação de outro usuário, BOLA/non-OWNER, private key/client/webhook secret, token em log, suspensão/remoção e repositório removido. Permanecem riscos operacionais de secret manager, permissões/configuração real, rate limit distribuído e indisponibilidade externa.
+## Atualização LR.9
+
+A LR.9 separou a integração técnica da identidade OAuth. O callback da App liga state ao usuário, à sessão e à intenção TraceFlow; quando a autorização de usuário durante a instalação está habilitada, descarta o User Access Token depois de provar que o ator GitHub acessa a `installation_id`. A Installation também é validada com App JWT, e o Installation Token temporário é a única autoridade para descobrir repositórios e sincronizar. Nenhuma `GitHubIdentity` ou evidência pessoal `OWNER`/`ADMIN` participa desse fluxo. Webhook exige HMAC SHA-256 constant-time e delivery ID. Foram considerados callback/installation ID forjados, replay, instalação inacessível ao ator, BOLA/non-OWNER de projeto, private key/client/webhook secret, token em log, suspensão/remoção e repositório removido. Permanecem riscos operacionais de secret manager, permissões/configuração real, rate limit distribuído e indisponibilidade externa.
 
 ## Atualização E9
 

@@ -20,13 +20,7 @@ const mocks = vi.hoisted(() => ({
   provider: {
     exchangeLoginUserCode: vi.fn(),
     getAuthenticatedUser: vi.fn(),
-    getPrimaryVerifiedEmail: vi.fn(),
-    listInstallationsAccessibleToUser: vi.fn(),
-    listRepositoriesAccessibleToUser: vi.fn()
-  },
-  githubRepository: {
-    listAuthorizedInstallations: vi.fn(),
-    replaceRepositoryAuthorizationsForUser: vi.fn()
+    getPrimaryVerifiedEmail: vi.fn()
   },
   auth: {
     publicUser: vi.fn((user) => ({
@@ -48,7 +42,6 @@ vi.mock('../../src/config/env.js', () => ({
     githubAppClientId: 'Iv1.artificial',
     githubLoginCallbackUrl: 'https://api.traceflow.test/api/auth/github/callback',
     githubOAuthStateTtlMs: 600000,
-    githubRepositoryAuthorizationTtlMs: 7 * 24 * 60 * 60 * 1000,
     privacyPseudonymizationKey: 'artificial-test-pseudonymization-key-32-bytes'
   }
 }));
@@ -57,9 +50,6 @@ vi.mock('../../src/modules/auth/github-auth.repository.js', () => ({
 }));
 vi.mock('../../src/modules/github/github-credential.provider.js', () => ({
   githubAppCredentialProvider: mocks.provider
-}));
-vi.mock('../../src/modules/github/github.repository.js', () => ({
-  githubRepository: mocks.githubRepository
 }));
 vi.mock('../../src/modules/auth/auth.service.js', () => ({ authService: mocks.auth }));
 vi.mock('../../src/shared/logger/index.js', () => ({ logger: mocks.logger }));
@@ -102,13 +92,6 @@ describe('autenticação GitHub L1.1', () => {
     mocks.provider.exchangeLoginUserCode.mockResolvedValue('token-efemero');
     mocks.provider.getAuthenticatedUser.mockResolvedValue({ id: 123, login: 'octocat' });
     mocks.provider.getPrimaryVerifiedEmail.mockResolvedValue('octocat@example.test');
-    mocks.provider.listInstallationsAccessibleToUser.mockResolvedValue([]);
-    mocks.provider.listRepositoriesAccessibleToUser.mockResolvedValue([]);
-    mocks.githubRepository.listAuthorizedInstallations.mockResolvedValue([]);
-    mocks.githubRepository.replaceRepositoryAuthorizationsForUser.mockResolvedValue({
-      installationCount: 1,
-      repositoryCount: 0
-    });
     mocks.auth.issueSession.mockResolvedValue({
       token: 'sessao',
       csrfToken: 'csrf',
@@ -403,89 +386,7 @@ describe('autenticação GitHub L1.1', () => {
     );
   });
 
-  it('renova evidências OWNER/ADMIN com token efêmero e propósito OAuth dedicado', async () => {
-    mocks.repository.findIdentityByUserId.mockResolvedValue({
-      githubUserId: '123',
-      githubLogin: 'octocat'
-    });
-    mocks.githubRepository.listAuthorizedInstallations.mockResolvedValue([
-      { id: 12, githubInstallationId: '77' }
-    ]);
-    const started = await githubAuthService.startRepositoryAuthorization(
-      { user: { id: 7, accountStatus: 'ACTIVE' }, session: { id: 8 } },
-      { returnTo: '/projects?projectId=9' }
-    );
-    expect(mocks.repository.createOAuthState).toHaveBeenCalledWith(
-      expect.objectContaining({
-        purpose: 'REPOSITORY_AUTHORIZATION',
-        userId: 7,
-        sessionId: 8,
-        returnTo: '/projects?projectId=9'
-      })
-    );
-
-    const state = callbackState(started, {
-      purpose: 'REPOSITORY_AUTHORIZATION',
-      userId: 7,
-      sessionId: 8,
-      returnTo: '/projects?projectId=9',
-      user: { id: 7, accountStatus: 'ACTIVE', sessionVersion: 2 },
-      session: {
-        id: 8,
-        userId: 7,
-        sessionVersion: 2,
-        revokedAt: null,
-        expiresAt: new Date(Date.now() + 60000)
-      }
-    });
-    mocks.repository.findOAuthState.mockResolvedValue(state.record);
-    mocks.provider.listInstallationsAccessibleToUser.mockResolvedValue([
-      { githubInstallationId: '77' }
-    ]);
-    mocks.provider.listRepositoriesAccessibleToUser.mockResolvedValue([
-      {
-        githubRepositoryId: '501',
-        fullName: 'octocat/repo',
-        permission: 'OWNER'
-      }
-    ]);
-    mocks.githubRepository.replaceRepositoryAuthorizationsForUser.mockResolvedValue({
-      installationCount: 1,
-      repositoryCount: 1
-    });
-
-    await expect(githubAuthService.completeCallback(state.input)).resolves.toMatchObject({
-      purpose: 'REPOSITORY_AUTHORIZATION',
-      userId: 7,
-      returnTo: '/projects?projectId=9',
-      installationCount: 1,
-      repositoryCount: 1
-    });
-    expect(mocks.githubRepository.replaceRepositoryAuthorizationsForUser).toHaveBeenCalledWith({
-      userId: 7,
-      installations: [
-        {
-          installationId: 12,
-          repositories: [
-            expect.objectContaining({ githubRepositoryId: '501', permission: 'OWNER' })
-          ]
-        }
-      ],
-      verifiedAt: expect.any(Date),
-      expiresAt: expect.any(Date)
-    });
-    const persistedSnapshot =
-      mocks.githubRepository.replaceRepositoryAuthorizationsForUser.mock.calls[0][0];
-    expect(persistedSnapshot.expiresAt.getTime() - persistedSnapshot.verifiedAt.getTime()).toBe(
-      7 * 24 * 60 * 60 * 1000
-    );
-    expect(
-      JSON.stringify(mocks.githubRepository.replaceRepositoryAuthorizationsForUser.mock.calls)
-    ).not.toContain('token-efemero');
-    expect(JSON.stringify(mocks.logger.warn.mock.calls)).not.toContain('token-efemero');
-  });
-
-  it('rejeita renovação quando a instalação não pertence à identidade GitHub atual', async () => {
+  it('rejeita o propósito OAuth obsoleto de autorização de repositórios', async () => {
     const started = await githubAuthService.startLogin({});
     const state = callbackState(started, {
       purpose: 'REPOSITORY_AUTHORIZATION',
@@ -501,17 +402,13 @@ describe('autenticação GitHub L1.1', () => {
       }
     });
     mocks.repository.findOAuthState.mockResolvedValue(state.record);
-    mocks.repository.findIdentityByUserId.mockResolvedValue({ githubUserId: '123' });
-    mocks.githubRepository.listAuthorizedInstallations.mockResolvedValue([
-      { id: 12, githubInstallationId: '77' }
-    ]);
-    mocks.provider.listInstallationsAccessibleToUser.mockResolvedValue([]);
 
     await expect(githubAuthService.completeCallback(state.input)).rejects.toMatchObject({
-      code: 'GITHUB_AUTHORIZATION_NOT_FOUND',
-      statusCode: 403
+      code: 'GITHUB_OAUTH_STATE_INVALID',
+      statusCode: 400
     });
-    expect(mocks.githubRepository.replaceRepositoryAuthorizationsForUser).not.toHaveBeenCalled();
+    expect(mocks.repository.findIdentityByUserId).not.toHaveBeenCalled();
+    expect(mocks.repository.markSensitiveReauthenticated).not.toHaveBeenCalled();
   });
 
   it('reautentica operação sensível somente quando o GitHub ID corresponde à identidade da sessão', async () => {

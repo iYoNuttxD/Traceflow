@@ -9,7 +9,6 @@ const mocks = vi.hoisted(() => ({
     authorizeInstallationFromState: vi.fn(),
     findAuthorizedInstallation: vi.fn(),
     listAuthorizedInstallations: vi.fn(),
-    findRepositoryAuthorizations: vi.fn(),
     findIntegration: vi.fn(),
     findIntegrationByRepositoryId: vi.fn(),
     findIntegrationsByRepositoryIds: vi.fn(),
@@ -21,15 +20,12 @@ const mocks = vi.hoisted(() => ({
     refreshInstallationMetadata: vi.fn(),
     upsertInstallationFromWebhook: vi.fn(),
     requireReconnectForInstallation: vi.fn(),
-    requireReconnectForRepositories: vi.fn(),
-    expireRepositoryAuthorizationsForInstallation: vi.fn(),
-    expireRepositoryAuthorizationsForRepositories: vi.fn()
+    requireReconnectForRepositories: vi.fn()
   },
   credentialProvider: {
     exchangeInstallationUserCode: vi.fn(),
-    getAuthenticatedUser: vi.fn(),
     listInstallationsAccessibleToUser: vi.fn(),
-    listRepositoriesAccessibleToUser: vi.fn()
+    getInstallation: vi.fn()
   },
   authorization: { membership: vi.fn() },
   clientFactory: { forInstallation: vi.fn() }
@@ -40,7 +36,6 @@ vi.mock('../../src/config/env.js', () => ({
     githubAppConfigured: true,
     githubAppSlug: 'traceflow-test',
     githubAppStateTtlMs: 600000,
-    githubRepositoryAuthorizationTtlMs: 7 * 24 * 60 * 60 * 1000,
     githubAppWebhookSecret: 'webhook-secret-artificial'
   }
 }));
@@ -75,7 +70,7 @@ function validStateRecord(overrides = {}) {
       isActive: true,
       accountStatus: 'ACTIVE',
       sessionVersion: 1,
-      githubIdentity: { githubUserId: '7007', githubLogin: 'traceflow-user' }
+      githubIdentity: null
     },
     session: {
       id: 8,
@@ -92,12 +87,6 @@ function authorizedInstallation(overrides = {}) {
   return {
     id: 12,
     githubInstallationId: '77',
-    authorizations: [
-      {
-        repositoryAuthorizationVerifiedAt: new Date('2030-01-01T00:00:00.000Z'),
-        repositoryAuthorizationExpiresAt: new Date('2030-01-02T00:00:00.000Z')
-      }
-    ],
     ...overrides
   };
 }
@@ -110,17 +99,11 @@ describe('autorização e webhooks da GitHub App L1', () => {
     mocks.repository.findIntegration.mockResolvedValue(null);
     mocks.repository.findIntegrationByRepositoryId.mockResolvedValue(null);
     mocks.repository.findIntegrationsByRepositoryIds.mockResolvedValue([]);
-    mocks.repository.findRepositoryAuthorizations.mockResolvedValue([]);
     mocks.repository.startWebhookDelivery.mockResolvedValue({
       delivery: { id: 12 },
       duplicate: false,
       retried: false
     });
-    mocks.credentialProvider.getAuthenticatedUser.mockResolvedValue({
-      id: 7007,
-      login: 'traceflow-user'
-    });
-    mocks.credentialProvider.listRepositoriesAccessibleToUser.mockResolvedValue([]);
   });
 
   it('salva somente hash do state e vincula usuário, sessão e intenção', async () => {
@@ -234,6 +217,13 @@ describe('autorização e webhooks da GitHub App L1', () => {
       { ...metadata, githubInstallationId: '76' },
       metadata
     ]);
+    mocks.credentialProvider.getInstallation.mockResolvedValue(metadata);
+    mocks.clientFactory.forInstallation.mockResolvedValue({
+      listRepositoryPages: () =>
+        (async function* repositoryPages() {
+          yield [{ githubRepositoryId: '501', fullName: 'traceflow/repo' }];
+        })()
+    });
     mocks.logger.info.mockClear();
     mocks.repository.authorizeInstallationFromState.mockResolvedValue({
       installation: {
@@ -255,28 +245,23 @@ describe('autorização e webhooks da GitHub App L1', () => {
       expect.objectContaining({
         stateId: 1,
         userId: 7,
-        repositories: [],
-        repositoryAuthorizationExpiresAt: expect.any(Date)
+        installation: metadata
       })
     );
-    const installationSnapshot = mocks.repository.authorizeInstallationFromState.mock.calls[0][0];
-    expect(
-      installationSnapshot.repositoryAuthorizationExpiresAt.getTime() -
-        installationSnapshot.now.getTime()
-    ).toBe(7 * 24 * 60 * 60 * 1000);
+    expect(mocks.credentialProvider.getInstallation).toHaveBeenCalledWith('77');
+    expect(mocks.clientFactory.forInstallation).toHaveBeenCalledWith('77');
     expect(
       JSON.stringify(mocks.repository.authorizeInstallationFromState.mock.calls)
     ).not.toContain('token-efemero');
     expect(mocks.logger.info.mock.calls.map(([, context]) => context.step)).toEqual([
       'validate_state',
-      'exchange_code',
-      'validate_github_identity',
-      'list_user_installations',
+      'exchange_installation_user_code',
       'validate_installation',
-      'list_user_repositories',
-      'upsert_installation',
-      'upsert_authorization',
-      'consume_state'
+      'fetch_installation',
+      'fetch_repositories',
+      'persist_installation',
+      'consume_state',
+      'complete'
     ]);
     expect(JSON.stringify(mocks.logger.info.mock.calls)).not.toMatch(
       /token-efemero|state-artificial|oauth-code-confidential/
@@ -288,7 +273,7 @@ describe('autorização e webhooks da GitHub App L1', () => {
     });
   });
 
-  it('valida conta ativa e identidade GitHub antes de autorizar a instalação', async () => {
+  it('valida conta ativa e aceita conta local sem GitHub Identity', async () => {
     const callback = {
       code: 'oauth-code-artificial',
       installationId: '77',
@@ -304,15 +289,127 @@ describe('autorização e webhooks da GitHub App L1', () => {
 
     mocks.repository.findConnectionState.mockResolvedValue(validStateRecord());
     mocks.credentialProvider.exchangeInstallationUserCode.mockResolvedValue('token-efemero');
-    mocks.credentialProvider.getAuthenticatedUser.mockResolvedValue({
-      id: 9999,
-      login: 'outra-pessoa'
+    const metadata = {
+      githubInstallationId: '77',
+      accountId: '700',
+      accountLogin: 'traceflow',
+      accountType: 'Organization',
+      installedAt: new Date('2030-01-01T00:00:00Z')
+    };
+    mocks.credentialProvider.listInstallationsAccessibleToUser.mockResolvedValue([metadata]);
+    mocks.credentialProvider.getInstallation.mockResolvedValue(metadata);
+    mocks.clientFactory.forInstallation.mockResolvedValue({
+      listRepositoryPages: () =>
+        (async function* emptyPages() {
+          yield [];
+        })()
     });
-    await expect(githubAppService.completeCallback(callback)).rejects.toMatchObject({
-      statusCode: 403
+    mocks.repository.authorizeInstallationFromState.mockResolvedValue({
+      installation: { id: 12, ...metadata, status: 'ACTIVE' },
+      authorization: { id: 30, installationId: 12, userId: 7 }
     });
-    expect(mocks.credentialProvider.listInstallationsAccessibleToUser).not.toHaveBeenCalled();
+
+    await expect(githubAppService.completeCallback(callback)).resolves.toMatchObject({
+      installation: { githubInstallationId: '77' },
+      userId: 7
+    });
     expect(JSON.stringify(mocks.logger.warn.mock.calls)).not.toContain('token-efemero');
+  });
+
+  it('trata GitHubIdentity existente como metadata irrelevante para o callback da App', async () => {
+    const callback = {
+      code: 'oauth-code-artificial',
+      installationId: '77',
+      state: 'state-artificial-com-mais-de-trinta-caracteres'
+    };
+    const metadata = {
+      githubInstallationId: '77',
+      accountId: '700',
+      accountLogin: 'traceflow',
+      accountType: 'Organization',
+      installedAt: new Date('2030-01-01T00:00:00Z')
+    };
+    mocks.repository.findConnectionState.mockResolvedValue(
+      validStateRecord({
+        user: {
+          ...validStateRecord().user,
+          githubIdentity: { githubUserId: '999', githubLogin: 'outra-identidade' }
+        }
+      })
+    );
+    mocks.credentialProvider.exchangeInstallationUserCode.mockResolvedValue('token-efemero');
+    mocks.credentialProvider.listInstallationsAccessibleToUser.mockResolvedValue([metadata]);
+    mocks.credentialProvider.getInstallation.mockResolvedValue(metadata);
+    mocks.clientFactory.forInstallation.mockResolvedValue({
+      listRepositoryPages: () =>
+        (async function* emptyPages() {
+          yield [];
+        })()
+    });
+    mocks.repository.authorizeInstallationFromState.mockResolvedValue({
+      installation: { id: 12, ...metadata, status: 'ACTIVE' },
+      authorization: { id: 30, installationId: 12, userId: 7 }
+    });
+
+    await expect(githubAppService.completeCallback(callback)).resolves.toMatchObject({ userId: 7 });
+  });
+
+  it('falha fechado para state cross-user e sessão expirada ou com versão divergente', async () => {
+    const callback = {
+      code: 'oauth-code-artificial',
+      installationId: '77',
+      state: 'state-artificial-com-mais-de-trinta-caracteres'
+    };
+    const base = validStateRecord();
+    const invalidRecords = [
+      validStateRecord({ user: { ...base.user, id: 8 } }),
+      validStateRecord({ session: { ...base.session, userId: 8 } }),
+      validStateRecord({ session: { ...base.session, expiresAt: new Date(Date.now() - 1000) } }),
+      validStateRecord({ session: { ...base.session, sessionVersion: 2 } })
+    ];
+
+    for (const record of invalidRecords) {
+      mocks.repository.findConnectionState.mockResolvedValueOnce(record);
+      await expect(githubAppService.completeCallback(callback)).rejects.toMatchObject({
+        statusCode: 403
+      });
+    }
+    expect(mocks.credentialProvider.exchangeInstallationUserCode).not.toHaveBeenCalled();
+  });
+
+  it.each(['SUSPENDED', 'REMOVED'])('não reativa Installation %s pelo callback', async (status) => {
+    const metadata = {
+      githubInstallationId: '77',
+      accountId: '700',
+      accountLogin: 'traceflow',
+      accountType: 'Organization',
+      installedAt: new Date('2030-01-01T00:00:00Z')
+    };
+    mocks.repository.findConnectionState.mockResolvedValue(validStateRecord());
+    mocks.credentialProvider.exchangeInstallationUserCode.mockResolvedValue('token-efemero');
+    mocks.credentialProvider.listInstallationsAccessibleToUser.mockResolvedValue([metadata]);
+    mocks.credentialProvider.getInstallation.mockResolvedValue(metadata);
+    mocks.clientFactory.forInstallation.mockResolvedValue({
+      listRepositoryPages: () =>
+        (async function* emptyPages() {
+          yield [];
+        })()
+    });
+    mocks.repository.authorizeInstallationFromState.mockResolvedValue({
+      lifecycleBlocked: status
+    });
+
+    await expect(
+      githubAppService.completeCallback({
+        code: 'oauth-code-artificial',
+        installationId: '77',
+        state: 'state-artificial-com-mais-de-trinta-caracteres'
+      })
+    ).rejects.toMatchObject({ statusCode: 403 });
+    expect(mocks.logger.warn).toHaveBeenCalledWith(
+      'Callback da GitHub App interrompido.',
+      expect.objectContaining({ errorCode: `INSTALLATION_${status}` })
+    );
   });
 
   it('nega não OWNER e instalação/repositório não autorizados', async () => {
@@ -356,8 +453,7 @@ describe('autorização e webhooks da GitHub App L1', () => {
       })()
     );
     await expect(githubAppService.listRepositories(7, 77)).resolves.toEqual({
-      repositories: [],
-      authorizationStatus: 'AUTHORIZED'
+      repositories: []
     });
 
     const repositories = [
@@ -365,12 +461,6 @@ describe('autorização e webhooks da GitHub App L1', () => {
       { githubRepositoryId: '502', fullName: 'org/b', defaultBranch: 'develop' },
       { githubRepositoryId: '503', fullName: 'org/c', defaultBranch: 'trunk' }
     ];
-    mocks.repository.findRepositoryAuthorizations.mockResolvedValue(
-      repositories.map((repository, index) => ({
-        githubRepositoryId: repository.githubRepositoryId,
-        permission: index === 0 ? 'OWNER' : 'ADMIN'
-      }))
-    );
     repositoryPages.mockReturnValueOnce(
       (async function* multiplePages() {
         yield repositories.slice(0, 2);
@@ -381,7 +471,6 @@ describe('autorização e webhooks da GitHub App L1', () => {
       { githubRepositoryId: '502', projectId: 20, status: 'ACTIVE' }
     ]);
     const listed = await githubAppService.listRepositories(7, 77);
-    expect(listed.authorizationStatus).toBe('AUTHORIZED');
     expect(listed.repositories).toHaveLength(3);
     expect(listed.repositories[0]).toMatchObject({ availability: 'AVAILABLE', selectable: true });
     expect(listed.repositories[1]).toMatchObject({
@@ -392,52 +481,18 @@ describe('autorização e webhooks da GitHub App L1', () => {
     expect(listed.repositories[2]).toMatchObject({ availability: 'AVAILABLE', selectable: true });
   });
 
-  it('distingue usuário pré-LR.3 e evidência expirada de autorização válida sem repositórios', async () => {
-    const installation = authorizedInstallation({ authorizations: [] });
-    mocks.repository.listAuthorizedInstallations.mockResolvedValue([installation]);
-
-    await expect(githubAppService.listAllRepositories(7)).resolves.toEqual({
-      repositories: [],
-      authorizationStatus: 'REAUTH_REQUIRED'
-    });
-    expect(mocks.clientFactory.forInstallation).not.toHaveBeenCalled();
-
-    mocks.repository.listAuthorizedInstallations.mockResolvedValue([
-      authorizedInstallation({
-        authorizations: [
-          {
-            repositoryAuthorizationVerifiedAt: new Date('2029-12-31T00:00:00.000Z'),
-            repositoryAuthorizationExpiresAt: new Date('2029-12-31T23:59:59.000Z')
-          }
-        ]
-      })
-    ]);
-    await expect(
-      githubAppService.listAllRepositories(7, undefined, new Date('2030-01-01T00:00:00.000Z'))
-    ).resolves.toEqual({ repositories: [], authorizationStatus: 'REAUTH_REQUIRED' });
-
-    mocks.repository.listAuthorizedInstallations.mockResolvedValue([
-      authorizedInstallation({
-        authorizations: [
-          {
-            repositoryAuthorizationVerifiedAt: new Date('2030-01-01T00:00:00.000Z'),
-            repositoryAuthorizationExpiresAt: new Date('2030-01-02T00:00:00.000Z')
-          }
-        ]
-      })
-    ]);
+  it('lista pela GitHub App sem depender de identidade OAuth ou TTL pessoal', async () => {
+    mocks.repository.listAuthorizedInstallations.mockResolvedValue([authorizedInstallation()]);
     mocks.clientFactory.forInstallation.mockResolvedValue({
       listRepositoryPages: () =>
         (async function* emptyPages() {
           yield [];
         })()
     });
-    await expect(
-      githubAppService.listAllRepositories(7, undefined, new Date('2030-01-01T00:00:00.000Z'))
-    ).resolves.toEqual({ repositories: [], authorizationStatus: 'AUTHORIZED' });
+    await expect(githubAppService.listAllRepositories(7)).resolves.toEqual({ repositories: [] });
   });
 
-  it('não deixa o acesso da Installation ampliar permissões READ ou WRITE do usuário', async () => {
+  it('lista exatamente os repositórios concedidos à Installation', async () => {
     mocks.repository.findAuthorizedInstallation.mockResolvedValue(authorizedInstallation());
     const repositories = [
       { githubRepositoryId: '501', fullName: 'pessoa/owner' },
@@ -451,16 +506,12 @@ describe('autorização e webhooks da GitHub App L1', () => {
           yield repositories;
         })()
     });
-    mocks.repository.findRepositoryAuthorizations.mockResolvedValue([
-      { githubRepositoryId: '501', permission: 'OWNER' },
-      { githubRepositoryId: '502', permission: 'ADMIN' }
-    ]);
-
     await expect(githubAppService.listRepositories(7, 77)).resolves.toEqual({
-      authorizationStatus: 'AUTHORIZED',
       repositories: [
-        expect.objectContaining({ githubRepositoryId: '501', userPermission: 'OWNER' }),
-        expect.objectContaining({ githubRepositoryId: '502', userPermission: 'ADMIN' })
+        expect.objectContaining({ githubRepositoryId: '501' }),
+        expect.objectContaining({ githubRepositoryId: '502' }),
+        expect.objectContaining({ githubRepositoryId: '503' }),
+        expect.objectContaining({ githubRepositoryId: '504' })
       ]
     });
   });
@@ -484,15 +535,6 @@ describe('autorização e webhooks da GitHub App L1', () => {
           ];
         })()
     }));
-    mocks.repository.findRepositoryAuthorizations.mockImplementation(
-      async (_userId, installationId) =>
-        installationId === 1
-          ? [{ githubRepositoryId: '501', permission: 'OWNER' }]
-          : [
-              { githubRepositoryId: '502', permission: 'ADMIN' },
-              { githubRepositoryId: '501', permission: 'ADMIN' }
-            ]
-    );
     mocks.repository.findIntegrationsByRepositoryIds.mockResolvedValue([
       {
         githubRepositoryId: '501',
@@ -504,7 +546,6 @@ describe('autorização e webhooks da GitHub App L1', () => {
     const result = await githubAppService.listAllRepositories(7);
     const repositories = result.repositories;
 
-    expect(result.authorizationStatus).toBe('AUTHORIZED');
     expect(repositories).toHaveLength(2);
     expect(repositories[0]).toMatchObject({
       githubRepositoryId: '502',
@@ -553,10 +594,24 @@ describe('autorização e webhooks da GitHub App L1', () => {
     expect(mocks.repository.connectProject).not.toHaveBeenCalled();
   });
 
-  it('revalida autorização pessoal na criação mesmo com acesso técnico da Installation', async () => {
-    mocks.repository.findAuthorizedInstallation.mockResolvedValue(
-      authorizedInstallation({ authorizations: [] })
-    );
+  it('revalida o repositório ao criar usando o acesso atual da Installation', async () => {
+    mocks.repository.findAuthorizedInstallation.mockResolvedValue(authorizedInstallation());
+    mocks.clientFactory.forInstallation.mockResolvedValue({
+      listRepositoryPages: () =>
+        (async function* repositoryPages() {
+          yield [
+            {
+              githubRepositoryId: '501',
+              name: 'repo',
+              fullName: 'traceflow/repo',
+              url: 'https://github.com/traceflow/repo',
+              defaultBranch: 'main',
+              private: true
+            }
+          ];
+        })()
+    });
+    mocks.repository.connectProject.mockResolvedValue({ id: 14, projectId: 9 });
 
     await expect(
       githubAppService.connectProject({
@@ -565,12 +620,12 @@ describe('autorização e webhooks da GitHub App L1', () => {
         githubInstallationId: '77',
         githubRepositoryId: '501'
       })
-    ).rejects.toMatchObject({
-      statusCode: 409,
-      code: 'GITHUB_USER_REAUTH_REQUIRED'
-    });
-    expect(mocks.clientFactory.forInstallation).not.toHaveBeenCalled();
-    expect(mocks.repository.connectProject).not.toHaveBeenCalled();
+    ).resolves.toMatchObject({ id: 14, projectId: 9 });
+    expect(mocks.repository.connectProject).toHaveBeenCalledWith(
+      9,
+      12,
+      expect.objectContaining({ githubRepositoryId: '501', repositoryPrivate: true })
+    );
   });
 
   it('valida HMAC, trata delivery duplicado e desconecta repositórios removidos sem apagar artifacts', async () => {

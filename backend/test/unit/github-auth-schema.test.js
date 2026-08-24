@@ -17,6 +17,10 @@ const repositoryAuthorizationMigration = readFileSync(
   ),
   'utf8'
 );
+const decouplingMigration = readFileSync(
+  resolve('prisma/migrations/20260824120000_lr9_github_oauth_app_decoupling/migration.sql'),
+  'utf8'
+);
 
 describe('schema incremental da autenticação GitHub L1.1', () => {
   it('mantém identidade 1:0..1 separada de instalações e com IDs únicos', () => {
@@ -52,15 +56,16 @@ describe('schema incremental da autenticação GitHub L1.1', () => {
     expect(privacyMigration).not.toMatch(/DROP TABLE|TRUNCATE|DELETE FROM/i);
   });
 
-  it('modela propósito dedicado e evidência de autorização válida sem persistir token', () => {
-    const authorization = schema.match(
-      /model GitHubInstallationAuthorization \{([\s\S]*?)\n\}/
-    )?.[1];
-    expect(schema).toContain('REPOSITORY_AUTHORIZATION');
-    expect(authorization).toContain('repositoryAuthorizationVerifiedAt');
-    expect(authorization).toContain('repositoryAuthorizationExpiresAt');
-    expect(authorization).not.toMatch(/accessToken|refreshToken|userToken/i);
+  it('preserva a migration histórica e remove o snapshot pessoal somente por migration incremental', () => {
     expect(repositoryAuthorizationMigration).toContain("'REPOSITORY_AUTHORIZATION'");
     expect(repositoryAuthorizationMigration).not.toMatch(/UPDATE|DELETE|DROP|TRUNCATE/i);
+    expect(schema).not.toContain('REPOSITORY_AUTHORIZATION');
+    expect(schema).not.toContain('GitHubRepositoryAuthorization');
+    expect(schema).not.toContain('repositoryAuthorizationExpiresAt');
+    expect(decouplingMigration).toContain('DROP TABLE `GitHubRepositoryAuthorization`');
+    expect(decouplingMigration).toContain('DELETE FROM `GitHubOAuthState`');
+    expect(decouplingMigration).toMatch(
+      /ENUM\(\s*'LOGIN',\s*'LINK_IDENTITY',\s*'REAUTH_SENSITIVE_ACTION'\s*\)/
+    );
   });
 });

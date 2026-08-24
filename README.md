@@ -66,6 +66,8 @@ DATABASE_URL="mysql://usuario:senha@localhost:3306/traceflow"
 GITHUB_APP_ID="123456"
 GITHUB_APP_CLIENT_ID="Iv1.valor_artificial"
 GITHUB_APP_PRIVATE_KEY_BASE64="base64_da_chave_privada"
+GITHUB_APP_CALLBACK_URL="http://localhost:3001/api/github-app/callback"
+GITHUB_LOGIN_CALLBACK_URL="http://localhost:3001/api/auth/github/callback"
 FRONTEND_URL="http://localhost:5173"
 ```
 
@@ -149,7 +151,7 @@ Os checks obrigatórios são `Quality`, `Backend Tests`, `Frontend Tests`, `Supp
 
 ## Integração GitHub
 
-O backend usa exclusivamente GitHub App por instalação. O callback comprova acesso do usuário à instalação; a leitura usa installation access token gerado sob demanda e nunca persistido. A sincronização permanece manual, paginada, idempotente e preserva artefatos. Projetos anteriores à L1 ficam `RECONNECT_REQUIRED` até um OWNER reconectar. Operação, permissões e incidentes estão no [runbook GitHub](docs/runbooks/GITHUB_INTEGRATION.md).
+GitHub OAuth é opcional e serve apenas para cadastro/login, vínculo de identidade e reautenticação sensível. Repositórios e artefatos usam exclusivamente GitHub App por instalação, inclusive para contas locais sem `GitHubIdentity`. O callback comprova o acesso do ator à Installation sem transformar essa prova em identidade TraceFlow; leitura e sync usam Installation Access Token gerado sob demanda e nunca persistido. A sincronização permanece manual, paginada, idempotente e preserva artefatos. Projetos anteriores à L1 ficam `RECONNECT_REQUIRED` até um OWNER reconectar. Operação, permissões e incidentes estão no [runbook GitHub](docs/runbooks/GITHUB_INTEGRATION.md).
 
 ## Segurança e privacidade
 
@@ -176,7 +178,7 @@ Evidências: [ASVS](docs/security/ASVS_BASELINE.md), [threat model](docs/securit
 ```text
 backend/src/modules/       domínios e camadas da API
 backend/src/shared/        infraestrutura transversal
-backend/prisma/            schema e 35 migrations
+backend/prisma/            schema e 40 migrations
 frontend/src/features/     domínios da SPA
 frontend/src/shared/       UI, hooks e serviços compartilhados
 docs/architecture/         arquitetura e ADRs

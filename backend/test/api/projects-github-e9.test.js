@@ -155,8 +155,9 @@ afterAll(async () => {
 });
 
 describe('Projetos e integração GitHub E9', () => {
-  it('reutiliza uma instalação em três projetos com repositórios diferentes', async () => {
+  it('conta local sem GitHubIdentity reutiliza a App e sincroniza três projetos', async () => {
     const owner = await register('owner-multiple@example.invalid');
+    expect(await prisma.gitHubIdentity.findUnique({ where: { userId: owner.user.id } })).toBeNull();
     const repositories = [
       repositoryFor(9101, 'a'),
       repositoryFor(9102, 'b'),
@@ -211,6 +212,28 @@ describe('Projetos e integração GitHub E9', () => {
       expect((await startAndWaitForSync(owner, project.id)).run.status).toBe('SUCCEEDED');
     }
   }, 15000);
+
+  it('GitHubIdentity vinculada ou removida não altera criação e sync pela App', async () => {
+    const owner = await register('owner-oauth-independent@example.invalid');
+    await prisma.gitHubIdentity.create({
+      data: {
+        userId: owner.user.id,
+        githubUserId: '9000001',
+        githubLogin: 'oauth-independent'
+      }
+    });
+
+    const project = await createIntegratedProject(owner);
+    expect(project.githubIntegration.githubRepositoryId).toBe(repository.githubRepositoryId);
+
+    const unlinked = await owner
+      .mutate('delete', '/api/settings/integrations/github-identity')
+      .send({ currentPassword: password, confirmation: true });
+    expect(unlinked.status, JSON.stringify(unlinked.body)).toBe(204);
+    expect(await prisma.gitHubIdentity.findUnique({ where: { userId: owner.user.id } })).toBeNull();
+
+    expect((await startAndWaitForSync(owner, project.id)).run.status).toBe('SUCCEEDED');
+  });
 
   it('preserva cadastro comum e usa revalidação externa no cadastro GitHub', async () => {
     const owner = await register('owner-e9@example.invalid');

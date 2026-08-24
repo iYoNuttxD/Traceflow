@@ -393,7 +393,7 @@ describe('contratos de conta e privacidade L2', () => {
     ).toMatchObject({ status: 200, body: { request: { status: 'CANCELLED' } } });
   });
 
-  it('lista instalação indisponível sem chamada externa e remove somente autorização pessoal', async () => {
+  it('lista instalação indisponível sem chamada externa e remove somente a conexão da App', async () => {
     const auth = await register('github-settings@example.invalid');
     const user = await prisma.user.findUnique({
       where: { email: 'github-settings@example.invalid' }
@@ -410,17 +410,6 @@ describe('contratos de conta e privacidade L2', () => {
     });
     const authorization = await prisma.gitHubInstallationAuthorization.create({
       data: { installationId: installation.id, userId: user.id, verifiedAt: new Date() }
-    });
-    await prisma.gitHubRepositoryAuthorization.create({
-      data: {
-        installationId: installation.id,
-        userId: user.id,
-        githubRepositoryId: '91919101',
-        repositoryFullName: 'traceflow-org/authorized-repository',
-        permission: 'ADMIN',
-        verifiedAt: new Date(),
-        expiresAt: new Date(Date.now() + 60_000)
-      }
     });
     const listed = await auth.agent.get('/api/settings/integrations/github');
     expect(listed).toMatchObject({
@@ -448,11 +437,6 @@ describe('contratos de conta e privacidade L2', () => {
     expect(
       await prisma.gitHubInstallationAuthorization.findUnique({ where: { id: authorization.id } })
     ).toBeNull();
-    expect(
-      await prisma.gitHubRepositoryAuthorization.count({
-        where: { installationId: installation.id, userId: user.id }
-      })
-    ).toBe(0);
   });
 });
 

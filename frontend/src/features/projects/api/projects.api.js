@@ -25,10 +25,6 @@ export const projectsApi = {
     return httpClient.post('/github/app/installations/start', data);
   },
 
-  startGithubRepositoryAuthorization(returnTo) {
-    return httpClient.post('/auth/github/repositories/authorization/start', { returnTo });
-  },
-
   connectGithubRepository(projectId, data) {
     return httpClient.put(`/projects/${projectId}/github/integration`, data);
   },

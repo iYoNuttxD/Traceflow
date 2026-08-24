@@ -87,9 +87,6 @@ export const settingsApi = {
       intendedAction: 'CREATE_PROJECT'
     });
   },
-  startGithubRepositoryAuthorization(returnTo = '/settings/integrations') {
-    return httpClient.post('/auth/github/repositories/authorization/start', { returnTo });
-  },
   removeGithubAuthorization(authorizationId, currentPassword) {
     return httpClient.delete(`/settings/integrations/github/authorizations/${authorizationId}`, {
       data: { ...(currentPassword ? { currentPassword } : {}), confirmation: true }

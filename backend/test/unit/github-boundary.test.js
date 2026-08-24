@@ -187,56 +187,26 @@ describe('fronteira GitHub App da L1', () => {
     });
   });
 
-  it('lista somente repositórios OWNER ou ADMIN na interseção usuário e instalação', async () => {
-    const request = vi.fn().mockResolvedValue({
+  it('consulta a instalação com credencial da App e retorna somente metadata técnica', async () => {
+    const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const getInstallation = vi.fn().mockResolvedValue({
       data: {
-        total_count: 4,
-        repositories: [
-          {
-            id: 1,
-            name: 'proprio',
-            full_name: 'pessoa/proprio',
-            html_url: 'https://github.com/pessoa/proprio',
-            default_branch: 'main',
-            owner: { login: 'pessoa' },
-            permissions: { admin: true, push: true, pull: true }
-          },
-          {
-            id: 2,
-            name: 'admin',
-            full_name: 'empresa/admin',
-            html_url: 'https://github.com/empresa/admin',
-            default_branch: 'main',
-            owner: { login: 'empresa' },
-            permissions: { admin: true, push: true, pull: true }
-          },
-          {
-            id: 3,
-            name: 'write',
-            full_name: 'empresa/write',
-            html_url: 'https://github.com/empresa/write',
-            default_branch: 'main',
-            owner: { login: 'empresa' },
-            permissions: { admin: false, push: true, pull: true }
-          },
-          {
-            id: 4,
-            name: 'read',
-            full_name: 'empresa/read',
-            html_url: 'https://github.com/empresa/read',
-            default_branch: 'main',
-            owner: { login: 'empresa' },
-            permissions: { admin: false, push: false, pull: true }
-          }
-        ]
+        id: 77,
+        account: { id: 700, login: 'traceflow', type: 'Organization' },
+        created_at: '2030-01-01T00:00:00Z',
+        permissions: { contents: 'read' }
       }
     });
     const OctokitClass = vi.fn(function OctokitDouble() {
-      this.request = request;
+      this.rest = { apps: { getInstallation } };
     });
     const provider = createGithubAppCredentialProvider({
       environment: {
         githubAppConfigured: true,
+        githubAppId: '123',
+        githubAppPrivateKeyBase64: Buffer.from(
+          privateKey.export({ type: 'pkcs8', format: 'pem' })
+        ).toString('base64'),
         githubRequestTimeoutMs: 15000,
         githubRetryMax: 2
       },
@@ -244,18 +214,15 @@ describe('fronteira GitHub App da L1', () => {
       requestExecutor: (operation) => operation()
     });
 
-    await expect(
-      provider.listRepositoriesAccessibleToUser('token-efemero', '77', 'pessoa')
-    ).resolves.toEqual([
-      expect.objectContaining({ githubRepositoryId: '1', permission: 'OWNER' }),
-      expect.objectContaining({ githubRepositoryId: '2', permission: 'ADMIN' })
-    ]);
-    expect(request).toHaveBeenCalledWith('GET /user/installations/{installation_id}/repositories', {
-      installation_id: 77,
-      per_page: 100,
-      page: 1
+    await expect(provider.getInstallation('77')).resolves.toEqual({
+      githubInstallationId: '77',
+      accountId: '700',
+      accountLogin: 'traceflow',
+      accountType: 'Organization',
+      installedAt: new Date('2030-01-01T00:00:00Z')
     });
-    expect(JSON.stringify(request.mock.calls)).not.toContain('token-efemero');
+    expect(getInstallation).toHaveBeenCalledWith({ installation_id: 77 });
+    expect(JSON.stringify(getInstallation.mock.calls)).not.toContain('permissions');
   });
 
   it('normaliza os DTOs sem payload Octokit', () => {
