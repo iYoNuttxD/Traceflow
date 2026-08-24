@@ -1,13 +1,17 @@
 import { FormInput } from '../../../shared/index.js';
 
-const emptyForm = { name: '', objective: '', startDate: '', endDate: '' };
+const emptyForm = { name: '', objective: '', startDate: '', endDate: '', milestoneId: '' };
 
 export { emptyForm as emptySprintForm };
 
 // Validacao no cliente e apenas UX; a fonte de verdade e o backend.
-export function validateSprintForm(formData) {
+export function validateSprintForm(formData, { editing = false } = {}) {
   const errors = {};
   if (!formData.name.trim()) errors.name = 'Informe o nome da sprint.';
+  // Obrigatório só na criação, como no backend (ADR-011 D02): a edição de uma
+  // sprint legada sem marco não pode ser bloqueada por uma regra que ela é
+  // anterior a — o formulário ficaria intransponível.
+  if (!editing && !formData.milestoneId) errors.milestoneId = 'Selecione o marco da sprint.';
   if (!formData.startDate) errors.startDate = 'Informe o início da sprint.';
   if (!formData.endDate) errors.endDate = 'Informe o fim da sprint.';
   // Comparação de texto continua valendo: o formato de `datetime-local` é
@@ -20,6 +24,7 @@ export function validateSprintForm(formData) {
 
 export function SprintForm({
   formData,
+  milestones = [],
   errors = {},
   editing = false,
   submitting = false,
@@ -47,6 +52,34 @@ export function SprintForm({
           onChange={(event) => onChange('objective', event.target.value)}
         />
       </div>
+      <div className="form-field">
+        <label htmlFor="sprint-milestoneId">Marco</label>
+        <select
+          id="sprint-milestoneId"
+          name="sprint-milestoneId"
+          value={formData.milestoneId}
+          aria-invalid={errors.milestoneId ? 'true' : undefined}
+          aria-describedby={errors.milestoneId ? 'sprint-milestoneId-error' : undefined}
+          onChange={(event) => onChange('milestoneId', event.target.value)}
+        >
+          <option value="">Selecione o marco</option>
+          {milestones.map((milestone) => (
+            <option key={milestone.id} value={String(milestone.id)}>
+              {milestone.title}
+            </option>
+          ))}
+        </select>
+        {errors.milestoneId && (
+          <p className="field-error" id="sprint-milestoneId-error" role="alert">
+            {errors.milestoneId}
+          </p>
+        )}
+        {!milestones.length && (
+          <p className="field-help">
+            Nenhum marco cadastrado ainda. Cadastre um marco antes de criar a sprint.
+          </p>
+        )}
+      </div>
       {/* datetime-local, e nao date: a sprint guarda o instante exato, e um
           campo só de data descartaria a hora que o usuário informou. */}
       <FormInput
@@ -68,7 +101,8 @@ export function SprintForm({
         onChange={(event) => onChange('endDate', event.target.value)}
       />
       <p className="field-help">
-        O fim é exclusivo: a sprint seguinte pode começar exatamente neste instante.
+        Novas sprints entram como planejadas. As datas não podem sobrepor outra sprint — o fim é
+        exclusivo, então a seguinte pode começar exatamente neste instante.
       </p>
       <div className="form-actions">
         <button className="button button-primary" type="submit" disabled={submitting}>

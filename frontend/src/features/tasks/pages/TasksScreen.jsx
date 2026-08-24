@@ -14,6 +14,7 @@ import {
 } from '../api/tasks.api.js';
 import { projectMembersApi } from '../../members/index.js';
 import { requirementsApi } from '../../requirements/index.js';
+import { scheduleApi } from '../../schedule/index.js';
 import { projectsApi } from '../../projects/index.js';
 import { getProjectCommits, getProjectIssues, getProjectPullRequests } from '../../github/index.js';
 import {
@@ -57,6 +58,8 @@ export function TasksScreen() {
   const [commitCoverage, setCommitCoverage] = useState(null);
   const [issueCoverage, setIssueCoverage] = useState(null);
   const [projectMembers, setProjectMembers] = useState([]);
+  const [sprints, setSprints] = useState([]);
+  const [milestones, setMilestones] = useState([]);
   const [formData, setFormData] = useState(emptyTaskForm);
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [deletingTaskId, setDeletingTaskId] = useState(null);
@@ -78,7 +81,9 @@ export function TasksScreen() {
         commitCoverageResponse,
         issueCoverageResponse,
         coverageResponse,
-        membersResponse
+        membersResponse,
+        sprintsResponse,
+        milestonesResponse
       ] = await Promise.all([
         projectsApi.get(projectId),
         tasksApi.list(projectId),
@@ -92,7 +97,12 @@ export function TasksScreen() {
             getErrorMessage(requestError, 'Não foi possível carregar os membros do projeto.')
           );
           return { data: { members: [] } };
-        })
+        }),
+        // Sprints e marcos alimentam o campo de sprint e as colunas da lista.
+        // Falha aqui não derruba a tela: o campo cai para "backlog" e a lista
+        // exibe o vínculo como ausente, que é o estado da maioria das tarefas.
+        scheduleApi.listSprints(projectId).catch(() => ({ data: { sprints: [] } })),
+        scheduleApi.listMilestones(projectId).catch(() => ({ data: { milestones: [] } }))
       ]);
 
       setProject(projectResponse.data.project);
@@ -105,6 +115,8 @@ export function TasksScreen() {
       setIssueCoverage(issueCoverageResponse);
       setPullRequestCoverage(coverageResponse);
       setProjectMembers(membersResponse.data.members || []);
+      setSprints(sprintsResponse.data.sprints || []);
+      setMilestones(milestonesResponse.data.milestones || []);
     } catch (requestError) {
       setError(getErrorMessage(requestError, 'Não foi possível carregar as tarefas do projeto.'));
     } finally {
@@ -369,6 +381,24 @@ export function TasksScreen() {
       let requirementWarning = '';
       let commitWarning = '';
       let issueWarning = '';
+      let sprintWarning = '';
+
+      try {
+        const selectedSprintId = formData.sprintId ? Number(formData.sprintId) : null;
+        const currentSprintId = savedTask.sprintId ?? null;
+        // Só age quando o vínculo muda de fato: reenviar o mesmo id abriria e
+        // fecharia uma participação a cada salvamento, poluindo o histórico do
+        // RF35 com entradas que não representam decisão nenhuma.
+        if (selectedSprintId !== currentSprintId) {
+          if (selectedSprintId) await scheduleApi.linkTaskSprint(savedTask.id, selectedSprintId);
+          else await scheduleApi.unlinkTaskSprint(savedTask.id);
+        }
+      } catch (sprintError) {
+        sprintWarning = getErrorMessage(
+          sprintError,
+          'Tarefa salva, mas não foi possível atualizar o vínculo com a sprint.'
+        );
+      }
 
       try {
         if (selectedRequirementId) {
@@ -443,9 +473,15 @@ export function TasksScreen() {
       setSuccess(response.data.message);
       resetForm();
       await loadTaskData();
-      if (requirementWarning || pullRequestWarning || commitWarning || issueWarning) {
+      if (
+        requirementWarning ||
+        pullRequestWarning ||
+        commitWarning ||
+        issueWarning ||
+        sprintWarning
+      ) {
         setError(
-          [requirementWarning, pullRequestWarning, commitWarning, issueWarning]
+          [requirementWarning, pullRequestWarning, commitWarning, issueWarning, sprintWarning]
             .filter(Boolean)
             .join(' ')
         );
@@ -662,6 +698,7 @@ export function TasksScreen() {
             pullRequests={pullRequests}
             projectMembers={projectMembers}
             requirements={requirements}
+            sprints={sprints}
             selectedRequirement={selectedRequirement}
             selectedPullRequest={selectedPullRequest}
             selectedCommits={selectedCommits}
@@ -690,6 +727,8 @@ export function TasksScreen() {
 
       <TaskList
         tasks={tasks}
+        sprints={sprints}
+        milestones={milestones}
         deletingTaskId={deletingTaskId}
         onEdit={startEditing}
         onDelete={handleDeleteTask}

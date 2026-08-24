@@ -13,17 +13,23 @@ export const sprintSelect = {
   status: true,
   startedAt: true,
   completedAt: true,
+  milestoneId: true,
   createdAt: true,
   updatedAt: true
 };
 
-// DTO minimizado de tarefa no cronograma: sem e-mail, sem descricao, sem esforco.
+// DTO minimizado de tarefa no cronograma: sem e-mail, sem descricao.
+//
+// `estimatedEffort` entrou com o painel de andamento: a sprint passou a se
+// descrever tambem em pontos, e derivar isso de outra chamada obrigaria a tela a
+// baixar a lista completa de tarefas so para somar um numero. Nao e dado pessoal.
 const scheduleTaskSelect = {
   id: true,
   title: true,
   status: true,
   priority: true,
   deadline: true,
+  estimatedEffort: true,
   responsibleUserId: true,
   sprintId: true
 };
@@ -156,7 +162,15 @@ export const sprintRepository = {
     return prisma.$transaction(async (tx) => {
       await lockProject(tx, projectId);
       const sprints = await tx.sprint.findMany({ where: { projectId }, select: sprintSelect });
-      await validate({ sprints, sprint: null, milestones: [] });
+      // Marcos do projeto pelo id: a sprint aponta para um deles, e a exclusao do
+      // marco tambem passa pelo lock do projeto. Ler aqui — depois do lock — e o
+      // que faz a validacao decidir sobre o estado que a escrita vai encontrar,
+      // em vez de estourar uma violacao de FK que a interface nao sabe traduzir.
+      const milestones = await tx.milestone.findMany({
+        where: { projectId },
+        select: { id: true }
+      });
+      await validate({ sprints, sprint: null, milestones });
       const sprint = await tx.sprint.create({
         data: { ...data, projectId },
         select: sprintSelect
@@ -176,16 +190,15 @@ export const sprintRepository = {
       // precisa estar estavel entre a releitura e a escrita.
       const travada = await tx.$queryRaw`SELECT id FROM Sprint WHERE id = ${id} FOR UPDATE`;
       if (!travada.length) return null;
-      // Marcos travados junto: encolher a janela precisa recusar quem ficaria fora
-      // dela, e uma criacao de marco simultanea nao pode escapar dessa checagem
-      // entrando depois da leitura (ADR-010 D18).
-      await tx.$queryRaw`SELECT id FROM Milestone WHERE sprintId = ${id} FOR UPDATE`;
 
       const sprints = await tx.sprint.findMany({ where: { projectId }, select: sprintSelect });
       const sprint = sprints.find((item) => item.id === id) ?? null;
+      // Marcos do projeto pelo id. Nao ha mais janela de marco a preservar
+      // (ADR-011 D03): a leitura serve so para confirmar que o marco escolhido
+      // ainda existe no instante da escrita.
       const milestones = await tx.milestone.findMany({
-        where: { sprintId: id },
-        select: { id: true, title: true, dueDate: true }
+        where: { projectId },
+        select: { id: true }
       });
 
       await validate({ sprints, sprint, milestones });
@@ -202,21 +215,105 @@ export const sprintRepository = {
   // segunda escrita gravava EM_ANDAMENTO sobre uma sprint ja encerrada — status
   // aberto convivendo com participacoes congeladas.
   //
-  // `buildChange` e a regra, entregue pelo service: recebe o registro travado e
-  // devolve `{ data, auditEvent, freezeAt }`, ou lanca erro de dominio.
+  // `buildChange` e a regra, entregue pelo service: recebe o retrato travado e
+  // devolve `{ data, auditEvent, freezeAt, backlog, milestone }`, ou lanca erro de
+  // dominio.
+  //
+  // Ordem de locks Project -> Sprint -> Task -> Milestone (ADR-010 D17 Regra 2).
+  // As tarefas entram porque o encerramento devolve ao backlog o que nao foi
+  // concluido (ADR-011 D07), e o marco porque pode ser concluido junto (D05).
   async transitionWithinSprintLock(id, projectId, buildChange) {
     return prisma.$transaction(async (tx) => {
       await lockProject(tx, projectId);
-      const travada = await tx.$queryRaw`SELECT id FROM Sprint WHERE id = ${id} FOR UPDATE`;
+      // `milestoneId` vem junto da propria linha travada: e o unico dado que
+      // decide qual marco travar, e ler por uma consulta comum aqui abriria o
+      // read view antes dos locks seguintes.
+      const travada = await tx.$queryRaw`
+        SELECT id, milestoneId FROM Sprint WHERE id = ${id} FOR UPDATE`;
       if (!travada.length) return null;
+      // `Number` porque o driver devolve o inteiro do SQL cru sem passar pelo
+      // mapeamento do Prisma, e a comparacao com `sprint.milestoneId` abaixo e
+      // estrita.
+      const milestoneId = travada[0].milestoneId == null ? null : Number(travada[0].milestoneId);
 
+      // Leitura TRAVADA — nao cria read view — so para descobrir quem esta dentro.
+      // Sem isto, uma mutacao de escopo simultanea poderia acrescentar uma tarefa
+      // depois desta leitura e ela terminaria presa numa sprint ja encerrada.
+      const dentro = await tx.$queryRaw`
+        SELECT taskId FROM SprintTask
+        WHERE sprintId = ${id} AND removedAt IS NULL AND taskId IS NOT NULL
+        FOR UPDATE`;
+      // Ordem crescente de id, pela mesma razao de `mutateScopeWithinSprintLock`:
+      // e o que impede que duas transacoes com conjuntos sobrepostos se esperem em
+      // ordens opostas.
+      const taskIds = [...new Set(dentro.map((linha) => Number(linha.taskId)))].sort(
+        (a, b) => a - b
+      );
+      if (taskIds.length) {
+        await tx.$queryRaw`SELECT id FROM Task WHERE id IN (${Prisma.join(taskIds)}) FOR UPDATE`;
+      }
+
+      // Marco por ultimo, fechando a ordem global de D17 Regra 2.
+      if (milestoneId) {
+        await tx.$queryRaw`SELECT id FROM Milestone WHERE id = ${milestoneId} FOR UPDATE`;
+      }
+
+      // Todos os locks tomados: so agora as leituras comuns (ADR-010 D17 Regra 1).
       const atual = await tx.sprint.findUnique({ where: { id }, select: sprintSelect });
-      const { data, auditEvent, freezeAt } = await buildChange(atual);
+      const sprints = await tx.sprint.findMany({ where: { projectId }, select: sprintSelect });
+      const tasks = taskIds.length
+        ? await tx.task.findMany({
+            where: { id: { in: taskIds } },
+            select: { id: true, title: true, status: true, sprintId: true }
+          })
+        : [];
+      // Irmas do mesmo marco, para decidir a conclusao automatica. Ja estao em
+      // `sprints` quando pertencem a este projeto — e um marco nunca cruza
+      // projetos, entao filtrar aqui basta.
+      const milestoneSprints = milestoneId
+        ? sprints.filter((sprint) => sprint.milestoneId === milestoneId)
+        : [];
+
+      const { data, auditEvent, freezeAt, backlog, milestone } = await buildChange({
+        sprint: atual,
+        sprints,
+        tasks,
+        milestoneSprints
+      });
 
       const sprint = await tx.sprint.update({ where: { id }, data, select: sprintSelect });
       if (freezeAt) await freezeParticipations(tx, id, freezeAt);
+
+      // Devolucao ao backlog DEPOIS do congelamento: `freezeParticipations` le o
+      // status atual da tarefa para gravar `exitStatus`, e zerar o ponteiro antes
+      // nao mudaria o status, mas inverter a ordem aqui e o tipo de coisa que uma
+      // refatoracao futura quebra em silencio.
+      let returnedToBacklog = 0;
+      if (backlog?.taskIds?.length) {
+        // `sprintId: id` no where e defesa em profundidade: o lock ja garante que
+        // ninguem moveu a tarefa, e ainda assim a escrita se recusa a limpar o
+        // ponteiro de uma tarefa que ja pertence a outra sprint.
+        const alterados = await tx.task.updateMany({
+          where: { id: { in: backlog.taskIds }, sprintId: id },
+          data: { sprintId: null }
+        });
+        returnedToBacklog = alterados.count;
+        if (backlog.historyEntries?.length) {
+          await tx.taskHistoryEntry.createMany({ data: backlog.historyEntries });
+        }
+      }
+
+      let milestoneCompleted = null;
+      if (milestone) {
+        milestoneCompleted = await tx.milestone.update({
+          where: { id: milestone.id },
+          data: { status: milestone.status },
+          select: { id: true, title: true, status: true }
+        });
+      }
+
       if (auditEvent) await auditRepository.create(auditEvent, tx);
-      return sprint;
+      return { sprint, returnedToBacklog, milestoneCompleted };
     });
   },
 
@@ -386,6 +483,72 @@ export const sprintRepository = {
       currentStatus: participation.task?.status ?? null,
       movedToSprintId: movedTo.get(participation.taskId) ?? null
     }));
+  },
+
+  // Dados do burndown (RF35): participacao, esforco estimado e o instante em que
+  // cada tarefa foi concluida DENTRO desta sprint.
+  //
+  // O instante nao existe em `SprintTask` — a participacao guarda o resultado, nao
+  // a data em que ele aconteceu — entao vem de `TaskHistoryEntry`. E a unica
+  // serie temporal de status que o sistema tem; `TaskMovement` cobriria o mesmo
+  // caso, mas o historico funcional e o registro canonico do RF38.
+  //
+  // O recorte pelo intervalo da participacao e o que impede contaminacao: uma
+  // tarefa que passou pela Sprint 3 e foi concluida na Sprint 4 nao queimou
+  // escopo da 3, e sem o recorte a conclusao apareceria nas duas.
+  async findBurndownDataBySprint(sprint) {
+    const participations = await prisma.sprintTask.findMany({
+      where: { sprintId: sprint.id },
+      select: {
+        taskId: true,
+        addedAt: true,
+        removedAt: true,
+        exitStatus: true,
+        closedAt: true,
+        task: { select: { status: true, estimatedEffort: true } }
+      },
+      orderBy: [{ taskId: 'asc' }]
+    });
+
+    const taskIds = participations.map((participation) => participation.taskId).filter(Boolean);
+    const conclusoes = taskIds.length
+      ? await prisma.taskHistoryEntry.findMany({
+          where: {
+            projectId: sprint.projectId,
+            taskId: { in: taskIds },
+            field: 'STATUS',
+            toValue: 'CONCLUIDO'
+          },
+          select: { taskId: true, occurredAt: true },
+          orderBy: [{ occurredAt: 'asc' }]
+        })
+      : [];
+
+    const porTarefa = new Map();
+    for (const entrada of conclusoes) {
+      if (!porTarefa.has(entrada.taskId)) porTarefa.set(entrada.taskId, []);
+      porTarefa.get(entrada.taskId).push(entrada.occurredAt);
+    }
+
+    return participations.map((participation) => {
+      // Fim da participacao: a saida, ou o encerramento da sprint, ou o presente.
+      const fim = participation.removedAt ?? participation.closedAt ?? null;
+      const primeira = (porTarefa.get(participation.taskId) || []).find(
+        (instante) => instante >= participation.addedAt && (!fim || instante <= fim)
+      );
+      return {
+        taskId: participation.taskId,
+        // Tarefa sem estimativa nao pesa no grafico. Assumir um valor padrao
+        // inventaria escopo; contar zero apenas diz que ela nao foi medida.
+        points: participation.task?.estimatedEffort ?? 0,
+        addedAt: participation.addedAt,
+        removedAt: participation.removedAt,
+        closedAt: participation.closedAt,
+        exitStatus: participation.exitStatus,
+        currentStatus: participation.task?.status ?? null,
+        completedAt: primeira ?? null
+      };
+    });
   },
 
   // Tarefas da sprint COM o contexto da participacao: quem entrou depois do

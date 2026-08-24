@@ -67,19 +67,16 @@ export async function createSprint(prisma, projectId, overrides = {}) {
   });
 }
 
+// O marco agrupa sprints e nasce sozinho (ADR-011 D01): quem declara o vinculo
+// e a sprint, por `createSprint(..., { milestoneId })`.
 export async function createMilestone(prisma, projectId, overrides = {}) {
-  // Todo marco pertence a uma sprint (ADR-010 D02). Sem sprint no override a
-  // fixture cria a sua, para que cada teste continue declarando apenas o que
-  // realmente lhe interessa.
-  const sprintId = overrides.sprintId ?? (await createSprint(prisma, projectId)).id;
   return prisma.milestone.create({
     data: {
       projectId,
       title: `Marco artificial ${nextId()}`,
       dueDate: new Date('2026-08-14T00:00:00.000Z'),
       status: 'PENDENTE',
-      ...overrides,
-      sprintId
+      ...overrides
     }
   });
 }

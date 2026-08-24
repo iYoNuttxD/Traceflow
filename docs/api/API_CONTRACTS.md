@@ -186,10 +186,11 @@ Exportação não contém hashes, cookies, segredos nem dados pessoais de outros
 
 ## S1-04 (RF10 e RF35) — Sprints, marcos, cronograma e evolução
 
-Entrega completa do cartão S1-04: RF10 (cronograma) e RF35 (evolução por sprint).
+RF10 (cronograma) e RF35 (evolução por sprint).
 
-O modelo desta seção segue o [ADR-010](../architecture/ADR-010-SPRINT-DOMAIN-CORRECTIONS.md),
-que supersede parte do ADR-009. Três convenções valem para tudo abaixo:
+O modelo segue o [ADR-010](../architecture/ADR-010-SPRINT-DOMAIN-CORRECTIONS.md) e o
+[ADR-011](../architecture/ADR-011-MILESTONE-SPRINT-INVERSION.md), que supersede D02, D11 e parte
+de D12. Quatro convenções valem para tudo abaixo:
 
 - **Janela semiaberta.** O intervalo de uma sprint é `[startDate, endDate)`. A sprint seguinte
   pode começar exatamente no instante em que a anterior termina, e nunca antes.
@@ -197,19 +198,40 @@ que supersede parte do ADR-009. Três convenções valem para tudo abaixo:
   `YYYY-MM-DD` continua aceito na escrita e significa o início daquele dia em UTC. A leitura
   sempre devolve ISO-8601 UTC.
 - **Sprint encerrada é registro.** `CONCLUIDA` e `CANCELADA` congelam composição e resultado.
+- **O marco agrupa sprints.** O vínculo é declarado pela sprint (`Sprint.milestoneId`); o marco
+  tem prazo próprio, independente da janela de qualquer sprint.
 
 ### Sprints
 
 | Método | Caminho | Entrada | Sucesso | Regras |
 |---|---|---|---|---|
-| POST | `/projects/:projectId/sprints` | `name`, `objective?`, `startDate`, `endDate` | `201` `{message, sprint}` | `startDate < endDate`; nome único no projeto; sem sobreposição com outra sprint do projeto |
+| POST | `/projects/:projectId/sprints` | `name`, `objective?`, `startDate`, `endDate`, **`milestoneId`** | `201` `{message, sprint}` | `startDate < endDate`; nome único no projeto; sem sobreposição com outra sprint do projeto; marco do mesmo projeto |
 | GET | `/projects/:projectId/sprints` | `status?`, `search?` | `200` `{total, sprints}` | ordenado por `startDate` asc |
 | GET | `/sprints/:id` | — | `200` `{sprint}` | membership no projeto da sprint |
-| PUT | `/sprints/:id` | subconjunto de `name`, `objective`, `startDate`, `endDate` | `200` `{message, sprint}` | bloqueado em estado terminal; revalida sobreposição; recusa a janela que empurraria para fora um marco que estava dentro |
-| PATCH | `/sprints/:id/status` | `status` | `200` `{message, sprint}` | somente transições válidas; entrar em estado terminal congela a composição |
+| PUT | `/sprints/:id` | subconjunto de `name`, `objective`, `startDate`, `endDate`, `milestoneId` | `200` `{message, sprint}` | bloqueado em estado terminal; revalida sobreposição; `milestoneId: null` desvincula |
+| PATCH | `/sprints/:id/status` | `status` | `200` `{message, sprint, returnedToBacklog, milestoneCompleted}` | somente transições válidas; uma sprint `EM_ANDAMENTO` por projeto; entrar em estado terminal congela a composição, devolve as pendentes ao backlog e pode concluir o marco |
 | DELETE | `/sprints/:id` | — | **`405 SPRINT_DELETE_NOT_SUPPORTED`** | sprint não é excluída em nenhum estado |
 | GET | `/sprints/:id/tasks` | — | `200` `{sprintId, total, tasks}` | DTO minimizado + contexto da participação |
 | PUT | `/sprints/:id/tasks` | `taskIds: number[]` | `200` `{message, sprintId, total, tasks}` | substituição atômica; máx. 100; sem duplicados; bloqueado em estado terminal |
+
+`milestoneId` é **obrigatório na criação** e opcional na edição, inclusive como `null`. A
+coluna aceita nulo porque sprints anteriores à inversão podem não ter marco — a obrigatoriedade
+é da regra, não do banco (ADR-011 D02). Marco inexistente responde `404 MILESTONE_NOT_FOUND`;
+marco de outro projeto responde `400 SPRINT_MILESTONE_PROJECT_MISMATCH` **apenas** para quem
+enxerga os dois projetos, e `404` idêntico ao de ID inexistente para quem não enxerga.
+
+**Efeitos do encerramento.** `PATCH /sprints/:id/status` devolve, além da sprint:
+
+| Campo | Significado |
+|---|---|
+| `returnedToBacklog` | quantas tarefas não concluídas tiveram `Task.sprintId` zerado (ADR-011 D07) |
+| `milestoneCompleted` | `{id, title, status}` quando esta foi a última sprint pendente do marco, ou `null` |
+
+A participação **não** é removida na devolução: ela já foi congelada com `exitStatus` e continua
+respondendo pelo RF35 do período. O que se limpa é o ponteiro da participação ativa.
+
+Iniciar uma sprint com outra já `EM_ANDAMENTO` no projeto responde `409 SPRINT_ALREADY_ACTIVE`,
+com o nome da sprint que bloqueia.
 
 **Por que o DELETE responde 405 e não some.** A rota removida devolveria `404`, indistinguível
 de "sprint não existe". O `405` diz que a operação não existe para o recurso, sem informar nada
@@ -225,14 +247,29 @@ que a sprint existe transformaria o contrato num oráculo.
 
 | Método | Caminho | Entrada | Sucesso | Regras |
 |---|---|---|---|---|
-| POST | `/projects/:projectId/milestones` | `title`, `description?`, `dueDate`, **`sprintId`** | `201` `{message, milestone}` | sprint do mesmo projeto e não encerrada; `dueDate` dentro de `[startDate, endDate)` |
+| POST | `/projects/:projectId/milestones` | `title`, `description?`, `dueDate` | `201` `{message, milestone}` | prazo livre; sem vínculo com sprint no corpo |
 | GET | `/projects/:projectId/milestones` | `status?` | `200` `{total, milestones}` | |
 | GET | `/milestones/:id` | — | `200` `{milestone}` | |
-| PUT | `/milestones/:id` | subconjunto de `title`, `description`, `dueDate`, `sprintId` | `200` `{message, milestone}` | bloqueado se a sprint atual ou a de destino estiver encerrada; a checagem é refeita com as sprints travadas |
-| PATCH | `/milestones/:id/status` | `status` (`PENDENTE` ↔ `CONCLUIDO`) | `200` `{message, milestone}` | bloqueado em sprint encerrada |
-| DELETE | `/milestones/:id` | — | `200` `{message}` | bloqueado em sprint encerrada |
+| PUT | `/milestones/:id` | subconjunto de `title`, `description`, `dueDate` | `200` `{message, milestone}` | editável enquanto o projeto existir |
+| PATCH | `/milestones/:id/status` | `status` (`PENDENTE` ↔ `CONCLUIDO`) | `200` `{message, milestone}` | conclusão manual convive com a automática |
+| DELETE | `/milestones/:id` | — | `200` `{message}` | **`409 MILESTONE_HAS_SPRINTS`** enquanto houver sprint apontando para ele |
 
-`sprintId` é **obrigatório na criação**: todo marco pertence a um período de desenvolvimento.
+**O corpo não aceita `sprintId`.** O objeto é estrito, então um cliente anterior à inversão
+recebe `400` em vez de ter o vínculo descartado em silêncio.
+
+**Marco não congela com a sprint** (ADR-011 D04). Com um marco atravessando várias sprints,
+encerrar uma delas trancaria a edição de um marco que as outras ainda vão entregar. O que
+continua congelado é a composição e o resultado da sprint encerrada.
+
+**Conclusão automática** (ADR-011 D05): ao concluir uma sprint, o marco dela é concluído na
+mesma transação quando existe ao menos uma sprint não cancelada apontando para ele e **todas** as
+não canceladas estão `CONCLUIDA`. `CANCELADA` não bloqueia nem conclui sozinha. Não há coluna
+distinguindo automático de manual: o fato é derivável do estado.
+
+**A exclusão é a única proteção do agrupamento.** A FK é `SetNull` de propósito — `Restrict`
+quebraria a exclusão em cascata do projeto, porque `Sprint` e `Milestone` são filhos irmãos de
+`Project` e o InnoDB não garante a ordem entre eles. A contagem que decide o `409` é lida sob o
+lock do projeto, na mesma transação da exclusão.
 
 ### Associação tarefa ↔ sprint
 
@@ -262,7 +299,7 @@ das duas.
 ### Participação da tarefa na sprint
 
 `GET /sprints/:id/tasks` devolve, além do DTO minimizado (`id`, `title`, `status`, `priority`,
-`deadline`, `responsibleUserId`), o contexto da participação:
+`deadline`, `estimatedEffort`, `responsibleUserId`), o contexto da participação:
 
 | Campo | Significado |
 |---|---|
@@ -307,9 +344,33 @@ muda é que as inclusões passam a ser sinalizadas. Quem congela é o estado ter
     "removed": [{ "taskId": 7, "at": "...", "toSprintId": null,
                   "reason": "REMOVIDA", "exitStatus": "A_FAZER" }]
   },
-  "carryOver": [{ "taskId": 9, "toSprintId": 5, "exitStatus": "EM_ANDAMENTO", "at": "..." }]
+  "carryOver": [{ "taskId": 9, "toSprintId": 5, "exitStatus": "EM_ANDAMENTO", "at": "..." }],
+  "burndown": {
+    "hasData": true, "totalPoints": 8, "frozen": true, "cutoffDate": "2026-08-12",
+    "days": [
+      { "date": "2026-08-10", "ideal": 8,   "remaining": 8 },
+      { "date": "2026-08-11", "ideal": 5.3, "remaining": 5 },
+      { "date": "2026-08-12", "ideal": 2.7, "remaining": null }
+    ]
+  }
 }
 ```
+
+**Bloco `burndown`.** Série diária sobre a janela `[startDate, endDate)`, em dias de calendário
+UTC. `ideal` é a reta do planejamento — do total no primeiro dia a zero no último — e não reage
+ao que aconteceu. `remaining` são os pontos que ainda faltavam ao **fim** daquele dia, e é
+`null` nos dias posteriores ao corte: zero diria "nada restante" onde o certo é "esse dia ainda
+não chegou".
+
+O denominador soma `estimatedEffort` das participações não removidas; tarefa sem estimativa não
+pesa. Sem pontos ou com janela de menos de dois dias, `hasData` é `false` e `days` vem vazio.
+
+O instante em que cada tarefa deixou de pesar vem da primeira `TaskHistoryEntry` de
+`field: STATUS` para `CONCLUIDO`, **interseccionada com o intervalo da participação** — uma
+conclusão ocorrida enquanto a tarefa estava em outra sprint não queima escopo desta. Tarefa que
+entra já concluída queima na entrada, e não no início da sprint.
+
+Vem embutido no `progress`, e não em endpoint próprio: o painel do Kanban exibe os dois juntos.
 
 **Ficha da métrica** (seção 10.5 do documento de arquitetura):
 
@@ -353,13 +414,18 @@ Incluem-se sprints cuja janela intersecta o período; marcos com `dueDate` dentr
 **Campos derivados:** `durationInDays`, `deadlineOutsideWindow`, `overdue`, `taskCount`,
 `generatedAt`.
 
+`sprints[]` expõe `milestoneId`; `milestones[]` **não** expõe mais `sprintId`. O agrupamento é
+lido do lado da sprint (ADR-011 D01). O DTO de tarefa do agregado passou a incluir
+`estimatedEffort`, para o painel de andamento somar pontos sem baixar a lista completa de
+tarefas.
+
 `durationInDays` conta os dias abrangidos pela janela semiaberta, arredondando para cima: de
 01/08 00:00 a 14/08 00:00 são **13 dias**, porque o dia 14 pertence à sprint seguinte.
 
 **Limitação de fuso aceita.** A janela é interpretada em UTC. Para UTC−3, "até 14/08" recorta em
 `15/08T00:00Z`, ou seja `14/08 21:00` em Brasília.
 
-O DTO de tarefa é minimizado: nunca e-mail, descrição ou esforço.
+O DTO de tarefa é minimizado: nunca e-mail nem descrição.
 
 ### Códigos de erro
 
@@ -369,20 +435,24 @@ O DTO de tarefa é minimizado: nunca e-mail, descrição ou esforço.
 | `MILESTONE_NOT_FOUND` | 404 | idem, para marco |
 | `SPRINT_NAME_IN_USE` | 409 | nome repetido no projeto |
 | `SPRINT_OVERLAP` | 409 | janela cruza outra sprint do projeto |
-| `SPRINT_WINDOW_MILESTONE_CONFLICT` | 409 | a janela informada empurraria para fora um marco que estava dentro da sprint |
+| `SPRINT_ALREADY_ACTIVE` | 409 | já existe outra sprint `EM_ANDAMENTO` no projeto |
 | `SPRINT_INVALID_TRANSITION` | 409 | transição de status não permitida |
-| `SPRINT_LOCKED` | 409 | edição de sprint encerrada, ou de marco de sprint encerrada |
+| `SPRINT_LOCKED` | 409 | edição de sprint encerrada |
 | `SPRINT_SCOPE_LOCKED` | 409 | alteração de escopo de sprint encerrada, em qualquer direção |
 | `SPRINT_TASK_LIMIT_REACHED` | 409 | conjunto resultante acima de 100 tarefas |
 | `SPRINT_DELETE_NOT_SUPPORTED` | 405 | tentativa de excluir sprint |
 | `SPRINT_DATE_RANGE_INVALID` | 400 | `startDate >= endDate`, ou `from > to` no filtro |
+| `SPRINT_MILESTONE_REQUIRED` | 400 | criação de sprint sem marco |
+| `SPRINT_MILESTONE_PROJECT_MISMATCH` | 400 | marco de outro projeto, visível ao ator |
+| `MILESTONE_HAS_SPRINTS` | 409 | exclusão de marco com sprints apontando para ele |
 | `TASK_SPRINT_PROJECT_MISMATCH` | 400 | tarefa de outro projeto, visível ao ator |
-| `MILESTONE_SPRINT_REQUIRED` | 400 | criação de marco sem sprint |
-| `MILESTONE_SPRINT_PROJECT_MISMATCH` | 400 | sprint de outro projeto, visível ao ator |
-| `MILESTONE_DUE_DATE_OUTSIDE_SPRINT` | 400 | data prevista fora da janela da sprint |
-| `MILESTONE_SPRINT_CHANGED` | 409 | o marco mudou de sprint entre a leitura e a escrita; refazer a operação |
 
-**Aposentados nesta revisão:** `SPRINT_HAS_TASKS` (não existe mais exclusão) e
+**Aposentados nesta revisão (ADR-011):** `MILESTONE_SPRINT_REQUIRED`,
+`MILESTONE_SPRINT_PROJECT_MISMATCH`, `MILESTONE_DUE_DATE_OUTSIDE_SPRINT`,
+`MILESTONE_SPRINT_CHANGED` e `SPRINT_WINDOW_MILESTONE_CONFLICT` — todos falavam da "sprint do
+marco", que deixou de existir.
+
+**Aposentados na revisão anterior:** `SPRINT_HAS_TASKS` (não existe mais exclusão) e
 `SPRINT_ASSOCIATION_BLOCKED` (substituído por `SPRINT_SCOPE_LOCKED`, que cobre as duas direções).
 
 ### 404 de recurso endereçado por ID

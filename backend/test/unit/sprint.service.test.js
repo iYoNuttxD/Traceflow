@@ -17,9 +17,9 @@ const mocks = vi.hoisted(() => ({
   milestone: {
     findById: vi.fn(),
     findByProject: vi.fn(),
-    createWithinSprintLock: vi.fn(),
-    updateWithinSprintLock: vi.fn(),
-    deleteWithinSprintLock: vi.fn()
+    createWithinProjectLock: vi.fn(),
+    updateWithinProjectLock: vi.fn(),
+    deleteWithinProjectLock: vi.fn()
   },
   authorization: {
     actorSeesProject: vi.fn()
@@ -51,19 +51,23 @@ const baseSprint = {
   endDate: new Date('2026-08-14T00:00:00.000Z'),
   status: 'PLANEJADA',
   startedAt: null,
-  completedAt: null
+  completedAt: null,
+  milestoneId: null
 };
 
 // Retrato que o repository entregaria com a linha travada. Os testes descrevem
 // o estado do banco; o service continua sendo exercitado pelo caminho real,
 // inclusive as validacoes que so rodam dentro da transacao.
 let lockedSprints = [];
-// Marcos da sprint travada, no mesmo retrato: encolher a janela precisa enxerga-los
-// dentro da transacao para recusar quem ficaria fora dela.
+// Marcos do projeto no retrato travado, por id: a sprint aponta para um deles, e
+// a escrita precisa confirmar que ele ainda existe (ADR-011 D01).
 let lockedMilestones = [];
 // Retrato travado da propria sprint no caminho de transicao de status, e o
-// `{ data, auditEvent, freezeAt }` que o service derivou dele.
+// `{ data, auditEvent, freezeAt, backlog, milestone }` que o service derivou dele.
 let lockedStatusSprint = null;
+// Tarefas e sprints irmas que o retrato travado entrega a transicao.
+let lockedTasks = [];
+let lockedMilestoneSprints = [];
 let capturedTransition = null;
 let scopeSnapshot = null;
 let capturedPlan = null;
@@ -71,15 +75,21 @@ let capturedPlan = null;
 beforeEach(() => {
   vi.clearAllMocks();
   lockedSprints = [];
-  lockedMilestones = [];
   lockedStatusSprint = null;
+  lockedTasks = [];
+  lockedMilestoneSprints = [];
   capturedTransition = null;
   capturedPlan = null;
   scopeSnapshot = { sprint: baseSprint, participations: [], tasks: [], activeElsewhere: [] };
 
   mocks.sprint.findProjectById.mockResolvedValue({ id: projectId });
+  // Marco padrao do projeto: a criacao de sprint o exige (ADR-011 D02), e sem
+  // ele todo teste de data, sobreposicao ou nome pararia no campo obrigatorio
+  // antes de chegar ao que pretende exercitar.
+  mocks.milestone.findById.mockResolvedValue({ id: 7, projectId, title: 'Marco' });
+  lockedMilestones = [{ id: 7 }];
   mocks.sprint.createWithinProjectLock.mockImplementation(async (id, data, _audit, validate) => {
-    await validate({ sprints: lockedSprints, sprint: null, milestones: [] });
+    await validate({ sprints: lockedSprints, sprint: null, milestones: lockedMilestones });
     return { ...baseSprint, ...data, projectId: id };
   });
   // O retrato travado inclui a propria sprint: e dele, e nao da leitura anterior a
@@ -99,9 +109,20 @@ beforeEach(() => {
       // `lockedStatusSprint` e o registro que a transacao rele DEPOIS do lock. Por
       // padrao ele coincide com a leitura anterior; os testes de concorrencia o
       // fazem divergir para descrever a sprint que outra requisicao ja mudou.
-      const atual = lockedStatusSprint ?? baseSprint;
-      capturedTransition = await buildChange({ ...atual, id });
-      return { ...atual, ...capturedTransition.data, id };
+      const atual = { ...(lockedStatusSprint ?? baseSprint), id };
+      capturedTransition = await buildChange({
+        sprint: atual,
+        sprints: lockedSprints.length ? lockedSprints : [atual],
+        tasks: lockedTasks,
+        milestoneSprints: lockedMilestoneSprints
+      });
+      return {
+        sprint: { ...atual, ...capturedTransition.data },
+        returnedToBacklog: capturedTransition.backlog?.taskIds.length ?? 0,
+        milestoneCompleted: capturedTransition.milestone
+          ? { id: capturedTransition.milestone.id, title: 'Marco', status: 'CONCLUIDO' }
+          : null
+      };
     }
   );
   mocks.sprint.mutateScopeWithinSprintLock.mockImplementation(
@@ -146,6 +167,7 @@ describe('ordem das datas', () => {
     await expect(
       sprintService.createSprint(projectId, {
         name: 'S',
+        milestoneId: 7,
         startDate: '2026-08-01',
         endDate: '2026-08-01'
       })
@@ -156,6 +178,7 @@ describe('ordem das datas', () => {
     await expect(
       sprintService.createSprint(projectId, {
         name: 'S',
+        milestoneId: 7,
         startDate: '2026-08-15',
         endDate: '2026-08-01'
       })
@@ -166,6 +189,7 @@ describe('ordem das datas', () => {
     await expect(
       sprintService.createSprint(projectId, {
         name: 'S',
+        milestoneId: 7,
         startDate: '2026-13-45',
         endDate: '2026-08-01'
       })
@@ -177,6 +201,7 @@ describe('ordem das datas', () => {
   it('preserva o instante informado, com offset', async () => {
     const sprint = await sprintService.createSprint(projectId, {
       name: 'S',
+      milestoneId: 7,
       startDate: '2026-08-01T23:59:59-03:00',
       endDate: '2026-08-15'
     });
@@ -187,6 +212,7 @@ describe('ordem das datas', () => {
   it('interpreta data de calendario como inicio do dia em UTC', async () => {
     const sprint = await sprintService.createSprint(projectId, {
       name: 'S',
+      milestoneId: 7,
       startDate: '2026-08-01',
       endDate: '2026-08-15'
     });
@@ -202,6 +228,7 @@ describe('ordem das datas', () => {
   ])('preserva %s, que cruza o dia %s', async (entrada, esperado) => {
     const sprint = await sprintService.createSprint(projectId, {
       name: 'S',
+      milestoneId: 7,
       startDate: entrada,
       endDate: '2026-09-30'
     });
@@ -212,11 +239,13 @@ describe('ordem das datas', () => {
   it('trata Z e +00:00 como o mesmo instante', async () => {
     const comZ = await sprintService.createSprint(projectId, {
       name: 'S',
+      milestoneId: 7,
       startDate: '2026-08-01T09:00:00Z',
       endDate: '2026-08-15'
     });
     const comOffset = await sprintService.createSprint(projectId, {
       name: 'S',
+      milestoneId: 7,
       startDate: '2026-08-01T09:00:00+00:00',
       endDate: '2026-08-15'
     });
@@ -284,93 +313,86 @@ describe('ordem das datas', () => {
 
 // A outra ponta de D11: validar a data do marco so na criacao dele deixava a
 // regra valer por um instante — bastava encolher a sprint depois.
-describe('janela da sprint e marcos vinculados', () => {
-  const marco = (dueDate, title = 'Entrega parcial') => ({
-    id: 5,
-    title,
-    dueDate: new Date(dueDate)
+// O marco deixou de caber "dentro" da janela: ele agrupa sprints e tem prazo
+// proprio (ADR-011 D03). O que sobrou a validar e a existencia e o projeto.
+describe('marco da sprint', () => {
+  const criar = (overrides = {}) => ({
+    name: 'Sprint 1',
+    startDate: '2026-08-01',
+    endDate: '2026-08-14',
+    milestoneId: 7,
+    ...overrides
   });
 
   beforeEach(() => {
     mocks.sprint.findById.mockResolvedValue(baseSprint);
+    mocks.milestone.findById.mockResolvedValue({ id: 7, projectId, title: 'Marco' });
+    lockedSprints = [];
+    lockedMilestones = [{ id: 7 }];
+  });
+
+  it('exige marco na criacao', async () => {
+    const semMarco = criar();
+    delete semMarco.milestoneId;
+    await expect(sprintService.createSprint(projectId, semMarco)).rejects.toMatchObject({
+      statusCode: 400,
+      code: 'SPRINT_MILESTONE_REQUIRED'
+    });
+  });
+
+  it('grava o marco informado', async () => {
+    const sprint = await sprintService.createSprint(projectId, criar());
+    expect(sprint.milestoneId).toBe(7);
+  });
+
+  it('rejeita marco inexistente', async () => {
+    mocks.milestone.findById.mockResolvedValue(null);
+    await expect(sprintService.createSprint(projectId, criar())).rejects.toMatchObject({
+      statusCode: 404,
+      code: 'MILESTONE_NOT_FOUND'
+    });
+  });
+
+  it('rejeita marco de outro projeto que o ator enxerga', async () => {
+    mocks.authorization.actorSeesProject.mockResolvedValue(true);
+    mocks.milestone.findById.mockResolvedValue({ id: 7, projectId: 99, title: 'Alheio' });
+    await expect(
+      sprintService.createSprint(projectId, criar(), { actorUserId: 3 })
+    ).rejects.toMatchObject({ statusCode: 400, code: 'SPRINT_MILESTONE_PROJECT_MISMATCH' });
+  });
+
+  // Sem esta guarda o par 400/404 enumeraria marcos de projetos alheios.
+  it('responde como marco inexistente quando o ator nao enxerga o projeto', async () => {
+    mocks.authorization.actorSeesProject.mockResolvedValue(false);
+    mocks.milestone.findById.mockResolvedValue({ id: 7, projectId: 99, title: 'Alheio' });
+    await expect(
+      sprintService.createSprint(projectId, criar(), { actorUserId: 3 })
+    ).rejects.toMatchObject({ statusCode: 404, code: 'MILESTONE_NOT_FOUND' });
+  });
+
+  // Entre a checagem e a escrita o marco pode ter sido excluido: quem decide e o
+  // retrato travado, e nao a leitura anterior a transacao.
+  it('recusa quando o marco sumiu do retrato travado', async () => {
+    lockedMilestones = [];
+    await expect(sprintService.createSprint(projectId, criar())).rejects.toMatchObject({
+      statusCode: 404,
+      code: 'MILESTONE_NOT_FOUND'
+    });
+  });
+
+  it('aceita desvincular o marco na edicao', async () => {
     lockedSprints = [baseSprint];
+    const sprint = await sprintService.updateSprint(10, { milestoneId: null });
+    expect(sprint.milestoneId).toBeNull();
+    expect(mocks.milestone.findById).not.toHaveBeenCalled();
   });
 
-  it('recusa encolher a janela deixando um marco de fora', async () => {
-    lockedMilestones = [marco('2026-08-12T00:00:00.000Z')];
-    await expect(sprintService.updateSprint(10, { endDate: '2026-08-10' })).rejects.toMatchObject({
-      statusCode: 409,
-      code: 'SPRINT_WINDOW_MILESTONE_CONFLICT'
-    });
-  });
-
-  it('nomeia o marco em conflito na mensagem', async () => {
-    lockedMilestones = [marco('2026-08-12T00:00:00.000Z', 'Homologação')];
-    await expect(sprintService.updateSprint(10, { endDate: '2026-08-10' })).rejects.toMatchObject({
-      message: expect.stringContaining('Homologação')
-    });
-  });
-
-  it('recusa mover o inicio para depois de um marco', async () => {
-    lockedMilestones = [marco('2026-08-02T00:00:00.000Z')];
-    await expect(sprintService.updateSprint(10, { startDate: '2026-08-05' })).rejects.toMatchObject(
-      { code: 'SPRINT_WINDOW_MILESTONE_CONFLICT' }
-    );
-  });
-
-  // Janela semiaberta, mesma convencao de D11: vencer no instante final ja e a
-  // sprint seguinte.
-  it('recusa marco exatamente no novo fim e aceita exatamente no novo inicio', async () => {
-    lockedMilestones = [marco('2026-08-10T00:00:00.000Z')];
-    await expect(sprintService.updateSprint(10, { endDate: '2026-08-10' })).rejects.toMatchObject({
-      code: 'SPRINT_WINDOW_MILESTONE_CONFLICT'
-    });
-
-    lockedMilestones = [marco('2026-08-05T00:00:00.000Z')];
+  // A janela nao esbarra mais em marco nenhum: o prazo do marco e do projeto.
+  it('encolher a janela nao consulta marcos', async () => {
+    lockedSprints = [baseSprint];
     await expect(
-      sprintService.updateSprint(10, { startDate: '2026-08-05' })
+      sprintService.updateSprint(10, { startDate: '2026-08-02', endDate: '2026-08-05' })
     ).resolves.toBeDefined();
-  });
-
-  it('aceita ampliar a janela mantendo os marcos dentro', async () => {
-    lockedMilestones = [marco('2026-08-12T00:00:00.000Z')];
-    await expect(sprintService.updateSprint(10, { endDate: '2026-08-28' })).resolves.toBeDefined();
-  });
-
-  // O formulario do painel reenvia as QUATRO chaves a cada salvamento
-  // (ScheduleScreen.submitSprint). Se o criterio fosse "a janela veio no corpo",
-  // este rename seria recusado, e um marco que o backfill da s104 deixou fora da
-  // janela trancaria a sprint para sempre pelo unico caminho de UI que existe.
-  it('renomear reenviando a janela inalterada nao esbarra em marco legado', async () => {
-    lockedMilestones = [marco('2026-09-30T00:00:00.000Z')];
-    await expect(
-      sprintService.updateSprint(10, {
-        name: 'Renomeada',
-        objective: null,
-        startDate: '2026-08-01T00:00:00.000Z',
-        endDate: '2026-08-14T00:00:00.000Z'
-      })
-    ).resolves.toBeDefined();
-  });
-
-  // Marco que o backfill deixou fora nunca foi invariante desta sprint: cobra-lo
-  // agora nao consertaria nada e impediria qualquer reajuste de periodo.
-  it('marco ja fora da janela nao bloqueia uma mudanca de periodo', async () => {
-    lockedMilestones = [marco('2026-09-30T00:00:00.000Z')];
-    await expect(sprintService.updateSprint(10, { endDate: '2026-08-10' })).resolves.toBeDefined();
-  });
-
-  // O que importa e "estava dentro e saiu": um marco fora convivendo com outro
-  // dentro nao pode mascarar a recusa do que de fato foi empurrado.
-  it('recusa o marco empurrado para fora mesmo com outro ja fora da janela', async () => {
-    lockedMilestones = [
-      marco('2026-09-30T00:00:00.000Z', 'Legado'),
-      marco('2026-08-12T00:00:00.000Z', 'Homologação')
-    ];
-    await expect(sprintService.updateSprint(10, { endDate: '2026-08-10' })).rejects.toMatchObject({
-      code: 'SPRINT_WINDOW_MILESTONE_CONFLICT',
-      message: expect.stringContaining('Homologação')
-    });
   });
 });
 
@@ -388,6 +410,7 @@ describe('sobreposicao de janelas', () => {
     await expect(
       sprintService.createSprint(projectId, {
         name: 'S2',
+        milestoneId: 7,
         startDate: '2026-08-14',
         endDate: '2026-08-28'
       })
@@ -401,6 +424,7 @@ describe('sobreposicao de janelas', () => {
     await expect(
       sprintService.createSprint(projectId, {
         name: 'S2',
+        milestoneId: 7,
         startDate: '2026-08-15',
         endDate: '2026-08-29'
       })
@@ -428,6 +452,7 @@ describe('unicidade de nome', () => {
     await expect(
       sprintService.createSprint(projectId, {
         name: 'Sprint 1',
+        milestoneId: 7,
         startDate: '2026-08-01',
         endDate: '2026-08-14'
       })
@@ -436,9 +461,13 @@ describe('unicidade de nome', () => {
 
   it('aceita o mesmo nome em projeto diferente', async () => {
     mocks.sprint.findProjectById.mockResolvedValue({ id: 2 });
+    // O marco acompanha o projeto: um do projeto 1 seria recusado por
+    // pertencer a outro, e o teste falharia por um motivo que nao e o dele.
+    mocks.milestone.findById.mockResolvedValue({ id: 7, projectId: 2, title: 'Marco' });
     await expect(
       sprintService.createSprint(2, {
         name: 'Sprint 1',
+        milestoneId: 7,
         startDate: '2026-08-01',
         endDate: '2026-08-14'
       })
@@ -546,6 +575,169 @@ describe('maquina de estados da sprint', () => {
     expect(capturedTransition.freezeAt.getTime()).toBe(
       capturedTransition.data.completedAt.getTime()
     );
+  });
+
+  // ADR-011 D06: uma sprint em andamento por projeto.
+  describe('sprint unica em andamento', () => {
+    it('recusa iniciar quando outra ja esta em andamento', async () => {
+      comStatus('PLANEJADA');
+      lockedSprints = [
+        { ...baseSprint, id: 10, status: 'PLANEJADA' },
+        { ...baseSprint, id: 11, name: 'Sprint 2', status: 'EM_ANDAMENTO' }
+      ];
+      await expect(sprintService.updateSprintStatus(10, 'EM_ANDAMENTO')).rejects.toMatchObject({
+        statusCode: 409,
+        code: 'SPRINT_ALREADY_ACTIVE'
+      });
+    });
+
+    it('nomeia a sprint que bloqueia', async () => {
+      comStatus('PLANEJADA');
+      lockedSprints = [
+        { ...baseSprint, id: 10, status: 'PLANEJADA' },
+        { ...baseSprint, id: 11, name: 'Sprint 2', status: 'EM_ANDAMENTO' }
+      ];
+      await expect(sprintService.updateSprintStatus(10, 'EM_ANDAMENTO')).rejects.toThrow(
+        /Sprint 2/
+      );
+    });
+
+    it('aceita iniciar quando so ha sprints planejadas e encerradas', async () => {
+      comStatus('PLANEJADA');
+      lockedSprints = [
+        { ...baseSprint, id: 10, status: 'PLANEJADA' },
+        { ...baseSprint, id: 11, status: 'CONCLUIDA' },
+        { ...baseSprint, id: 12, status: 'CANCELADA' }
+      ];
+      await expect(sprintService.updateSprintStatus(10, 'EM_ANDAMENTO')).resolves.toBeDefined();
+    });
+
+    // A decisao sai do retrato travado: validar contra a leitura anterior
+    // deixaria duas requisicoes iniciarem sprints diferentes ao mesmo tempo.
+    it('decide pelo retrato travado, e nao pela leitura anterior', async () => {
+      mocks.sprint.findById.mockResolvedValue({ ...baseSprint, status: 'PLANEJADA' });
+      lockedStatusSprint = { ...baseSprint, status: 'PLANEJADA' };
+      lockedSprints = [
+        { ...baseSprint, id: 10, status: 'PLANEJADA' },
+        { ...baseSprint, id: 11, name: 'Sprint 2', status: 'EM_ANDAMENTO' }
+      ];
+      await expect(sprintService.updateSprintStatus(10, 'EM_ANDAMENTO')).rejects.toMatchObject({
+        code: 'SPRINT_ALREADY_ACTIVE'
+      });
+    });
+  });
+
+  // ADR-011 D07: o encerramento devolve ao backlog o que nao foi concluido.
+  describe('devolucao ao backlog', () => {
+    const tarefas = [
+      { id: 1, title: 'A', status: 'CONCLUIDO', sprintId: 10 },
+      { id: 2, title: 'B', status: 'EM_ANDAMENTO', sprintId: 10 },
+      { id: 3, title: 'C', status: 'A_FAZER', sprintId: 10 }
+    ];
+
+    it.each(['CONCLUIDA', 'CANCELADA'])(
+      'devolve as pendentes ao encerrar em %s',
+      async (status) => {
+        comStatus('EM_ANDAMENTO');
+        lockedTasks = tarefas;
+        const resultado = await sprintService.updateSprintStatus(10, status);
+        expect(capturedTransition.backlog.taskIds).toEqual([2, 3]);
+        expect(resultado.returnedToBacklog).toBe(2);
+      }
+    );
+
+    it('nao devolve a tarefa concluida', async () => {
+      comStatus('EM_ANDAMENTO');
+      lockedTasks = tarefas;
+      await sprintService.updateSprintStatus(10, 'CONCLUIDA');
+      expect(capturedTransition.backlog.taskIds).not.toContain(1);
+    });
+
+    // A saida da sprint e uma entrada de historico com `toValue` nulo, mesma
+    // convencao da mutacao de escopo.
+    it('registra historico de sprint para cada devolucao', async () => {
+      comStatus('EM_ANDAMENTO');
+      lockedTasks = tarefas;
+      await sprintService.updateSprintStatus(10, 'CONCLUIDA', { actorUserId: 7 });
+      expect(capturedTransition.backlog.historyEntries).toEqual([
+        { projectId, taskId: 2, actorUserId: 7, field: 'SPRINT', fromValue: '10', toValue: null },
+        { projectId, taskId: 3, actorUserId: 7, field: 'SPRINT', fromValue: '10', toValue: null }
+      ]);
+    });
+
+    it('nao devolve nada ao iniciar', async () => {
+      comStatus('PLANEJADA');
+      lockedTasks = tarefas;
+      await sprintService.updateSprintStatus(10, 'EM_ANDAMENTO');
+      expect(capturedTransition.backlog).toBeNull();
+    });
+
+    // A tarefa que ja migrou para outra sprint nao pode ter o ponteiro limpo:
+    // ele nao aponta mais para esta.
+    it('ignora tarefa cujo ponteiro ja aponta para outra sprint', async () => {
+      comStatus('EM_ANDAMENTO');
+      lockedTasks = [{ id: 4, title: 'D', status: 'A_FAZER', sprintId: 99 }];
+      await sprintService.updateSprintStatus(10, 'CONCLUIDA');
+      expect(capturedTransition.backlog.taskIds).toEqual([]);
+    });
+  });
+
+  // ADR-011 D05: o marco fecha quando todas as suas sprints nao canceladas terminam.
+  describe('conclusao automatica do marco', () => {
+    const comMarco = (status) => {
+      const sprint = { ...baseSprint, status, milestoneId: 7 };
+      mocks.sprint.findById.mockResolvedValue(sprint);
+      lockedStatusSprint = sprint;
+      return sprint;
+    };
+
+    it('conclui o marco quando esta era a ultima sprint pendente', async () => {
+      comMarco('EM_ANDAMENTO');
+      lockedMilestoneSprints = [
+        { id: 10, status: 'EM_ANDAMENTO', milestoneId: 7 },
+        { id: 11, status: 'CONCLUIDA', milestoneId: 7 }
+      ];
+      const resultado = await sprintService.updateSprintStatus(10, 'CONCLUIDA');
+      expect(capturedTransition.milestone).toEqual({ id: 7, status: 'CONCLUIDO' });
+      expect(resultado.milestoneCompleted).toMatchObject({ id: 7 });
+    });
+
+    it('nao conclui o marco com outra sprint ainda aberta', async () => {
+      comMarco('EM_ANDAMENTO');
+      lockedMilestoneSprints = [
+        { id: 10, status: 'EM_ANDAMENTO', milestoneId: 7 },
+        { id: 11, status: 'PLANEJADA', milestoneId: 7 }
+      ];
+      await sprintService.updateSprintStatus(10, 'CONCLUIDA');
+      expect(capturedTransition.milestone).toBeNull();
+    });
+
+    // Cancelada nao bloqueia: tranca-lo para sempre por causa de uma sprint que
+    // o projeto decidiu nao fazer seria pior do que fecha-lo.
+    it('ignora sprint cancelada na conta', async () => {
+      comMarco('EM_ANDAMENTO');
+      lockedMilestoneSprints = [
+        { id: 10, status: 'EM_ANDAMENTO', milestoneId: 7 },
+        { id: 11, status: 'CANCELADA', milestoneId: 7 }
+      ];
+      await sprintService.updateSprintStatus(10, 'CONCLUIDA');
+      expect(capturedTransition.milestone).toEqual({ id: 7, status: 'CONCLUIDO' });
+    });
+
+    // Cancelar tambem nao conclui: diria "entregue" sobre trabalho cancelado.
+    it('nao conclui o marco ao cancelar a ultima sprint', async () => {
+      comMarco('EM_ANDAMENTO');
+      lockedMilestoneSprints = [{ id: 10, status: 'EM_ANDAMENTO', milestoneId: 7 }];
+      await sprintService.updateSprintStatus(10, 'CANCELADA');
+      expect(capturedTransition.milestone).toBeNull();
+    });
+
+    it('nao toca em marco nenhum quando a sprint nao tem marco', async () => {
+      comStatus('EM_ANDAMENTO');
+      lockedMilestoneSprints = [];
+      await sprintService.updateSprintStatus(10, 'CONCLUIDA');
+      expect(capturedTransition.milestone).toBeNull();
+    });
   });
 });
 
@@ -848,98 +1040,69 @@ describe('marcos', () => {
   const marco = (overrides = {}) => ({
     id: 1,
     projectId,
-    sprintId: 10,
     status: 'PENDENTE',
+    title: 'Fundacao',
     dueDate: new Date('2026-08-10T00:00:00.000Z'),
     ...overrides
   });
-  // Explicito, e nao herdado de outro bloco: sem isto os testes de marco
-  // dependeriam do `findById` que algum describe anterior deixou configurado.
-  const criar = (overrides = {}) => ({
-    title: 'M',
-    dueDate: '2026-08-10',
-    sprintId: 10,
-    ...overrides
-  });
+  const criar = (overrides = {}) => ({ title: 'M', dueDate: '2026-08-10', ...overrides });
 
-  // Retrato travado do caminho de marco. Por padrao coincide com o que
-  // `sprint.findById` devolve; os testes de concorrencia o fazem divergir.
-  let lockedMilestoneSprints = null;
+  // Quantas sprints o retrato travado enxerga apontando para o marco.
+  let lockedSprintCount = 0;
 
   beforeEach(() => {
-    mocks.sprint.findById.mockResolvedValue(baseSprint);
     mocks.milestone.findById.mockResolvedValue(marco());
-    lockedMilestoneSprints = null;
-    const travadas = async () => lockedMilestoneSprints ?? [await mocks.sprint.findById()];
+    lockedSprintCount = 0;
 
-    mocks.milestone.createWithinSprintLock.mockImplementation(
+    mocks.milestone.createWithinProjectLock.mockImplementation(
       async (_p, data, _audit, validate) => {
-        await validate({ sprints: await travadas(), milestone: null });
+        await validate({ milestone: null, sprintCount: lockedSprintCount });
         return { id: 1, projectId, ...data };
       }
     );
-    mocks.milestone.updateWithinSprintLock.mockImplementation(
-      async (id, _p, _ids, data, _audit, validate) => {
+    mocks.milestone.updateWithinProjectLock.mockImplementation(
+      async (id, _p, data, _audit, validate) => {
         await validate({
-          sprints: await travadas(),
-          milestone: await mocks.milestone.findById(id)
+          milestone: await mocks.milestone.findById(id),
+          sprintCount: lockedSprintCount
         });
         return { id, projectId, ...data };
       }
     );
-    mocks.milestone.deleteWithinSprintLock.mockImplementation(
-      async (id, _p, _ids, _audit, validate) => {
-        await validate({
-          sprints: await travadas(),
-          milestone: await mocks.milestone.findById(id)
-        });
-        return { id };
-      }
-    );
+    mocks.milestone.deleteWithinProjectLock.mockImplementation(async (id, _p, _audit, validate) => {
+      await validate({
+        milestone: await mocks.milestone.findById(id),
+        sprintCount: lockedSprintCount
+      });
+      return { id };
+    });
   });
 
-  it('exige data prevista na criacao', async () => {
+  it('exige titulo na criacao', async () => {
     await expect(
-      sprintService.createMilestone(projectId, { title: 'M', sprintId: 10 })
+      sprintService.createMilestone(projectId, { dueDate: '2026-08-10' })
     ).rejects.toMatchObject({ statusCode: 400 });
   });
 
-  it('exige sprint na criacao', async () => {
-    await expect(
-      sprintService.createMilestone(projectId, { title: 'M', dueDate: '2026-08-10' })
-    ).rejects.toMatchObject({ statusCode: 400, code: 'MILESTONE_SPRINT_REQUIRED' });
+  it('exige prazo na criacao', async () => {
+    await expect(sprintService.createMilestone(projectId, { title: 'M' })).rejects.toMatchObject({
+      statusCode: 400
+    });
   });
 
-  // A conclusao do marco fica ancorada num periodo de desenvolvimento: uma data
-  // fora da janela nao descreve nenhum periodo.
-  it('rejeita data prevista fora da janela da sprint', async () => {
+  // O marco atravessa varias sprints: ele nao tem uma janela para caber dentro,
+  // e o campo de sprint saiu do corpo (ADR-011 D01/D03).
+  it('recusa sprintId no corpo, em vez de descarta-lo em silencio', async () => {
     await expect(
-      sprintService.createMilestone(projectId, criar({ dueDate: '2026-08-20' }))
-    ).rejects.toMatchObject({ statusCode: 400, code: 'MILESTONE_DUE_DATE_OUTSIDE_SPRINT' });
+      sprintService.createMilestone(projectId, criar({ sprintId: 10 }))
+    ).resolves.toMatchObject({ title: 'M' });
+    expect(mocks.milestone.createWithinProjectLock.mock.calls[0][1]).not.toHaveProperty('sprintId');
   });
 
-  // Convencao semiaberta: vencer no instante final ja pertence a sprint seguinte.
-  it('rejeita data prevista exatamente no fim da janela', async () => {
+  it('aceita prazo em qualquer data do projeto', async () => {
     await expect(
-      sprintService.createMilestone(projectId, criar({ dueDate: '2026-08-14' }))
-    ).rejects.toMatchObject({ code: 'MILESTONE_DUE_DATE_OUTSIDE_SPRINT' });
-  });
-
-  it('rejeita sprint de outro projeto que o ator enxerga', async () => {
-    mocks.authorization.actorSeesProject.mockResolvedValue(true);
-    mocks.sprint.findById.mockResolvedValue({ ...baseSprint, projectId: 99 });
-    await expect(
-      sprintService.createMilestone(projectId, criar(), { actorUserId: 3 })
-    ).rejects.toMatchObject({ statusCode: 400, code: 'MILESTONE_SPRINT_PROJECT_MISMATCH' });
-  });
-
-  // Sem esta guarda o par 400/404 enumeraria sprints de projetos alheios.
-  it('responde como sprint inexistente quando o ator nao enxerga o projeto', async () => {
-    mocks.authorization.actorSeesProject.mockResolvedValue(false);
-    mocks.sprint.findById.mockResolvedValue({ ...baseSprint, projectId: 99 });
-    await expect(
-      sprintService.createMilestone(projectId, criar(), { actorUserId: 3 })
-    ).rejects.toMatchObject({ statusCode: 404, code: 'SPRINT_NOT_FOUND' });
+      sprintService.createMilestone(projectId, criar({ dueDate: '2027-01-31' }))
+    ).resolves.toBeDefined();
   });
 
   it('alterna o status entre PENDENTE e CONCLUIDO', async () => {
@@ -947,19 +1110,30 @@ describe('marcos', () => {
     expect(milestone.status).toBe('CONCLUIDO');
   });
 
-  // O marco acompanha a imutabilidade da sprint: o periodo virou registro.
-  it.each(['CONCLUIDA', 'CANCELADA'])('bloqueia marco de sprint %s', async (status) => {
-    mocks.sprint.findById.mockResolvedValue({ ...baseSprint, status });
-    await expect(sprintService.updateMilestoneStatus(1, 'CONCLUIDO')).rejects.toMatchObject({
-      statusCode: 409,
-      code: 'SPRINT_LOCKED'
-    });
-    await expect(sprintService.updateMilestone(1, { title: 'X' })).rejects.toMatchObject({
-      code: 'SPRINT_LOCKED'
-    });
+  // Marco nao congela mais junto com a sprint: com varias sprints, encerrar uma
+  // delas trancaria a edicao de um marco que as outras ainda vao entregar.
+  it.each(['CONCLUIDA', 'CANCELADA'])(
+    'permite editar o marco com sprint %s no projeto',
+    async (status) => {
+      mocks.sprint.findById.mockResolvedValue({ ...baseSprint, status });
+      await expect(sprintService.updateMilestone(1, { title: 'X' })).resolves.toBeDefined();
+      await expect(sprintService.updateMilestoneStatus(1, 'CONCLUIDO')).resolves.toBeDefined();
+    }
+  );
+
+  it('exclui marco sem sprints', async () => {
+    await expect(sprintService.deleteMilestone(1)).resolves.toEqual({ id: 1 });
+  });
+
+  // A FK Restrict recusaria no banco; a checagem aqui existe para a resposta
+  // dizer QUANTAS sprints seguram o marco.
+  it('recusa excluir marco com sprints, dizendo quantas', async () => {
+    lockedSprintCount = 3;
     await expect(sprintService.deleteMilestone(1)).rejects.toMatchObject({
-      code: 'SPRINT_LOCKED'
+      statusCode: 409,
+      code: 'MILESTONE_HAS_SPRINTS'
     });
+    await expect(sprintService.deleteMilestone(1)).rejects.toThrow(/3 sprint/);
   });
 
   it('rejeita status fora do enum', async () => {
@@ -1075,19 +1249,29 @@ describe('montagem do cronograma', () => {
     expect(sprint.tasks[0].deadlineOutsideWindow).toBe(true);
   });
 
-  it('minimiza o DTO de tarefa: sem descricao, esforco ou e-mail', async () => {
+  // `estimatedEffort` entrou com o painel de andamento: a sprint passou a se
+  // descrever tambem em pontos. Descricao e e-mail continuam de fora.
+  it('minimiza o DTO de tarefa: sem descricao e sem e-mail', async () => {
     const schedule = await sprintService.getSchedule(projectId, {});
     expect(Object.keys(schedule.sprints[0].tasks[0]).sort()).toEqual([
       'addedAfterStart',
       'carriedFromSprintId',
       'deadline',
       'deadlineOutsideWindow',
+      'estimatedEffort',
       'id',
       'priority',
       'responsibleUserId',
       'status',
       'title'
     ]);
+  });
+
+  // O vinculo mudou de lado (ADR-011 D01): quem aponta e a sprint.
+  it('expoe o marco na sprint, e nao a sprint no marco', async () => {
+    const schedule = await sprintService.getSchedule(projectId, {});
+    expect(schedule.sprints[0]).toHaveProperty('milestoneId');
+    expect(schedule.milestones[0]).not.toHaveProperty('sprintId');
   });
 
   it('nao calcula evolucao: planejado, concluido e percentual sao do RF35', async () => {

@@ -55,28 +55,28 @@ async function createProject(session, name = 'Projeto') {
   return response.body.project;
 }
 
+// A sprint exige marco (ADR-011 D02). Quem já tem um marco no teste passa o id;
+// os demais recebem o seu, sem precisar declarar o cronograma inteiro.
 async function createSprint(session, projectId, overrides = {}) {
+  const milestoneId =
+    overrides.milestoneId ?? (await createMilestone(session, projectId)).body.milestone.id;
   const response = await session.mutate('post', `/api/projects/${projectId}/sprints`).send({
     name: 'Sprint 1',
     objective: 'Identidade e acesso',
     startDate: '2026-08-01',
     endDate: '2026-08-14',
-    ...overrides
+    ...overrides,
+    milestoneId
   });
   return response;
 }
 
+// O marco agrupa sprints e tem prazo proprio: nao ha sprint no corpo, nem janela
+// a respeitar (ADR-011 D01/D03).
 async function createMilestone(session, projectId, overrides = {}) {
-  // Marco exige sprint (ADR-010 D02). Quem já tem uma sprint no teste passa o id;
-  // os demais recebem a sua, sem precisar declarar o cronograma inteiro.
-  const sprintId = overrides.sprintId ?? (await createSprint(session, projectId)).body.sprint.id;
-  return (
-    session
-      .mutate('post', `/api/projects/${projectId}/milestones`)
-      // Dentro da janela [2026-08-01, 2026-08-14) da sprint padrao: a data prevista
-      // do marco precisa descrever um periodo de desenvolvimento real.
-      .send({ title: 'Entrega parcial', dueDate: '2026-08-10', ...overrides, sprintId })
-  );
+  return session
+    .mutate('post', `/api/projects/${projectId}/milestones`)
+    .send({ title: 'Entrega parcial', dueDate: '2026-08-10', ...overrides });
 }
 
 async function createTask(session, projectId, title = 'Tarefa') {
@@ -331,64 +331,53 @@ describe('contratos de sprint', () => {
     expect(response.body.code).toBe('SPRINT_OVERLAP');
   });
 
-  // A outra ponta de D11: validar a data do marco so na criacao dele deixava a
-  // regra valer por um instante — bastava encolher a sprint depois para o marco
-  // passar a vencer fora do periodo que ele deveria ancorar (ADR-010 D18).
-  it('recusa encolher a janela deixando um marco fora dela, sem efeito colateral', async () => {
+  // O prazo do marco deixou de depender da janela (ADR-011 D03): um marco que
+  // atravessa tres sprints nao tem uma janela para caber dentro.
+  it('encolher a janela nao esbarra em marco nenhum', async () => {
     const owner = await register('sprint-window-milestone@example.invalid');
     const project = await createProject(owner);
-    const sprintId = (await createSprint(owner, project.id)).body.sprint.id;
-    await createMilestone(owner, project.id, { sprintId, dueDate: '2026-08-10' });
+    const milestoneId = (await createMilestone(owner, project.id, { dueDate: '2026-10-15' })).body
+      .milestone.id;
+    const sprintId = (await createSprint(owner, project.id, { milestoneId })).body.sprint.id;
 
     const response = await owner
       .mutate('put', `/api/sprints/${sprintId}`)
       .send({ endDate: '2026-08-05' });
-    expect(response.status).toBe(409);
-    expect(response.body.code).toBe('SPRINT_WINDOW_MILESTONE_CONFLICT');
-    // A mensagem nomeia o marco: sem isso, quem recebe o 409 nao sabe qual dos
-    // marcos da sprint precisa ajustar antes de tentar de novo.
-    expect(response.body.message).toContain('Entrega parcial');
-
-    const sprint = await prisma.sprint.findUnique({ where: { id: sprintId } });
-    expect(sprint.endDate.toISOString()).toBe('2026-08-14T00:00:00.000Z');
+    expect(response.status).toBe(200);
+    expect(response.body.sprint.endDate).toBe('2026-08-05T00:00:00.000Z');
   });
 
-  it('aceita ampliar a janela e mover o marco continua livre dentro dela', async () => {
-    const owner = await register('sprint-window-widen@example.invalid');
+  it('permite trocar e remover o marco da sprint na edicao', async () => {
+    const owner = await register('sprint-milestone-swap@example.invalid');
     const project = await createProject(owner);
-    const sprintId = (await createSprint(owner, project.id)).body.sprint.id;
-    await createMilestone(owner, project.id, { sprintId, dueDate: '2026-08-10' });
+    const primeiro = (await createMilestone(owner, project.id)).body.milestone.id;
+    const segundo = (await createMilestone(owner, project.id, { title: 'Outra entrega' })).body
+      .milestone.id;
+    const sprintId = (await createSprint(owner, project.id, { milestoneId: primeiro })).body.sprint
+      .id;
 
-    const response = await owner
+    const trocado = await owner
       .mutate('put', `/api/sprints/${sprintId}`)
-      .send({ endDate: '2026-08-28' });
-    expect(response.status).toBe(200);
-    expect(response.body.sprint.endDate).toBe('2026-08-28T00:00:00.000Z');
+      .send({ milestoneId: segundo });
+    expect(trocado.status).toBe(200);
+    expect(trocado.body.sprint.milestoneId).toBe(segundo);
+
+    const removido = await owner
+      .mutate('put', `/api/sprints/${sprintId}`)
+      .send({ milestoneId: null });
+    expect(removido.status).toBe(200);
+    expect(removido.body.sprint.milestoneId).toBeNull();
   });
 
-  // O painel do cronograma reenvia as quatro chaves a cada salvamento. Se o
-  // criterio de revalidacao fosse "a janela veio no corpo", um marco que o
-  // backfill da migration s104 deixou fora da janela trancaria ate o rename —
-  // pelo unico caminho de edicao que a interface oferece.
-  it('renomear reenviando a janela inalterada nao esbarra em marco legado', async () => {
-    const owner = await register('sprint-legacy-milestone@example.invalid');
+  it('exige marco na criacao da sprint', async () => {
+    const owner = await register('sprint-milestone-required@example.invalid');
     const project = await createProject(owner);
-    const sprintId = (await createSprint(owner, project.id)).body.sprint.id;
-    const milestoneId = (await createMilestone(owner, project.id, { sprintId })).body.milestone.id;
-    // Estado que so o backfill produz: a API nunca aceitaria criar assim.
-    await prisma.milestone.update({
-      where: { id: milestoneId },
-      data: { dueDate: new Date('2026-10-15T00:00:00.000Z') }
+    const response = await owner.mutate('post', `/api/projects/${project.id}/sprints`).send({
+      name: 'Sem marco',
+      startDate: '2026-08-01',
+      endDate: '2026-08-14'
     });
-
-    const response = await owner.mutate('put', `/api/sprints/${sprintId}`).send({
-      name: 'Sprint renomeada',
-      objective: 'Identidade e acesso',
-      startDate: '2026-08-01T00:00:00.000Z',
-      endDate: '2026-08-14T00:00:00.000Z'
-    });
-    expect(response.status).toBe(200);
-    expect(response.body.sprint.name).toBe('Sprint renomeada');
+    expect(response.status).toBe(400);
   });
 
   // Editar apenas o fim precisa continuar valendo contra o inicio PERSISTIDO, e
@@ -433,6 +422,138 @@ describe('contratos de marco', () => {
       200
     );
     expect(await prisma.milestone.count()).toBe(0);
+  });
+
+  // A FK e SetNull (ADR-011 D01): sem esta recusa, a exclusao passaria e as
+  // sprints perderiam o agrupamento em silencio.
+  it('recusa excluir marco com sprints e diz quantas', async () => {
+    const owner = await register('milestone-in-use@example.invalid');
+    const project = await createProject(owner);
+    const milestoneId = (await createMilestone(owner, project.id)).body.milestone.id;
+    await createSprint(owner, project.id, { milestoneId });
+
+    const response = await owner.mutate('delete', `/api/milestones/${milestoneId}`).send();
+    expect(response.status).toBe(409);
+    expect(response.body.code).toBe('MILESTONE_HAS_SPRINTS');
+    expect(response.body.message).toContain('1 sprint');
+    expect(await prisma.milestone.count()).toBe(1);
+  });
+
+  // O marco nao aceita mais `sprintId`: o objeto e estrito, entao um cliente
+  // antigo recebe 400 em vez de ter o vinculo descartado em silencio.
+  it('recusa sprintId no corpo do marco', async () => {
+    const owner = await register('milestone-legacy-body@example.invalid');
+    const project = await createProject(owner);
+    const response = await owner
+      .mutate('post', `/api/projects/${project.id}/milestones`)
+      .send({ title: 'Entrega', dueDate: '2026-08-10', sprintId: 1 });
+    expect(response.status).toBe(400);
+  });
+});
+
+describe('ciclo da sprint (ADR-011)', () => {
+  const iniciar = (session, sprintId) =>
+    session.mutate('patch', `/api/sprints/${sprintId}/status`).send({ status: 'EM_ANDAMENTO' });
+  const concluir = (session, sprintId) =>
+    session.mutate('patch', `/api/sprints/${sprintId}/status`).send({ status: 'CONCLUIDA' });
+
+  it('recusa iniciar uma segunda sprint enquanto outra esta em andamento', async () => {
+    const owner = await register('sprint-single-active@example.invalid');
+    const project = await createProject(owner);
+    const milestoneId = (await createMilestone(owner, project.id)).body.milestone.id;
+    const primeira = (await createSprint(owner, project.id, { milestoneId })).body.sprint.id;
+    const segunda = (
+      await createSprint(owner, project.id, {
+        milestoneId,
+        name: 'Sprint 2',
+        startDate: '2026-08-14',
+        endDate: '2026-08-28'
+      })
+    ).body.sprint.id;
+
+    expect((await iniciar(owner, primeira)).status).toBe(200);
+    const bloqueada = await iniciar(owner, segunda);
+    expect(bloqueada.status).toBe(409);
+    expect(bloqueada.body.code).toBe('SPRINT_ALREADY_ACTIVE');
+
+    // Concluida a primeira, a segunda destrava.
+    expect((await concluir(owner, primeira)).status).toBe(200);
+    expect((await iniciar(owner, segunda)).status).toBe(200);
+  });
+
+  it('concluir devolve as tarefas pendentes ao backlog e diz quantas', async () => {
+    const owner = await register('sprint-backlog-return@example.invalid');
+    const project = await createProject(owner);
+    const sprintId = (await createSprint(owner, project.id)).body.sprint.id;
+    const pendente = await createTask(owner, project.id, 'Pendente');
+    await owner.mutate('patch', `/api/tasks/${pendente.id}/sprint`).send({ sprintId });
+    await iniciar(owner, sprintId);
+
+    const response = await concluir(owner, sprintId);
+    expect(response.status).toBe(200);
+    expect(response.body.returnedToBacklog).toBe(1);
+    expect(response.body.message).toContain('backlog');
+    expect((await prisma.task.findUnique({ where: { id: pendente.id } })).sprintId).toBeNull();
+    // A participacao continua registrando o periodo, congelada.
+    const participacao = await prisma.sprintTask.findFirst({ where: { sprintId } });
+    expect(participacao.closedAt).not.toBeNull();
+    expect(participacao.exitStatus).toBe('A_FAZER');
+  });
+
+  it('a ultima sprint do marco o conclui automaticamente', async () => {
+    const owner = await register('milestone-auto-complete@example.invalid');
+    const project = await createProject(owner);
+    const milestoneId = (await createMilestone(owner, project.id)).body.milestone.id;
+    const sprintId = (await createSprint(owner, project.id, { milestoneId })).body.sprint.id;
+
+    await iniciar(owner, sprintId);
+    const response = await concluir(owner, sprintId);
+
+    expect(response.body.milestoneCompleted).toMatchObject({ status: 'CONCLUIDO' });
+    expect(response.body.message).toContain('automaticamente');
+    expect((await prisma.milestone.findUnique({ where: { id: milestoneId } })).status).toBe(
+      'CONCLUIDO'
+    );
+  });
+
+  it('marco com outra sprint pendente nao e concluido', async () => {
+    const owner = await register('milestone-still-open@example.invalid');
+    const project = await createProject(owner);
+    const milestoneId = (await createMilestone(owner, project.id)).body.milestone.id;
+    const primeira = (await createSprint(owner, project.id, { milestoneId })).body.sprint.id;
+    await createSprint(owner, project.id, {
+      milestoneId,
+      name: 'Sprint 2',
+      startDate: '2026-08-14',
+      endDate: '2026-08-28'
+    });
+
+    await iniciar(owner, primeira);
+    const response = await concluir(owner, primeira);
+
+    expect(response.body.milestoneCompleted).toBeNull();
+    expect((await prisma.milestone.findUnique({ where: { id: milestoneId } })).status).toBe(
+      'PENDENTE'
+    );
+  });
+
+  it('a evolucao da sprint traz o bloco de burndown', async () => {
+    const owner = await register('sprint-burndown@example.invalid');
+    const project = await createProject(owner);
+    const sprintId = (await createSprint(owner, project.id)).body.sprint.id;
+    const task = await createTask(owner, project.id, 'Pontuada');
+    await owner
+      .mutate('put', `/api/tasks/${task.id}`)
+      .send({ title: 'Pontuada', estimatedEffort: 5 });
+    await owner.mutate('patch', `/api/tasks/${task.id}/sprint`).send({ sprintId });
+
+    const response = await owner.agent.get(`/api/sprints/${sprintId}/progress`);
+    expect(response.status).toBe(200);
+    expect(response.body.burndown).toMatchObject({ hasData: true, totalPoints: 5 });
+    // Janela [01/08, 14/08): 13 dias de calendario.
+    expect(response.body.burndown.days).toHaveLength(13);
+    expect(response.body.burndown.days[0].ideal).toBe(5);
+    expect(response.body.burndown.days[12].ideal).toBe(0);
   });
 });
 
@@ -498,12 +619,39 @@ describe('associacao tarefa <-> sprint', () => {
       .send({ taskIds: [] });
     expect(emptied.status).toBe(409);
     expect(emptied.body.code).toBe('SPRINT_SCOPE_LOCKED');
-    expect(await prisma.task.count({ where: { sprintId } })).toBe(1);
     expect(await prisma.sprint.count()).toBe(1);
+
+    // A tarefa nao estava concluida, entao o encerramento a devolveu ao backlog
+    // (ADR-011 D07). Sao coisas diferentes: o PONTEIRO saiu, a PARTICIPACAO
+    // ficou — e e ela que o 409 acima protege.
+    expect(await prisma.task.count({ where: { sprintId } })).toBe(0);
+    const participacao = await prisma.sprintTask.findFirst({ where: { sprintId } });
+    expect(participacao).not.toBeNull();
+    expect(participacao.removedAt).toBeNull();
+    expect(participacao.exitStatus).toBe('A_FAZER');
   });
 
-  it('bloqueia desassociar pelo lado da tarefa em sprint terminal', async () => {
+  // A tarefa CONCLUIDA nao volta ao backlog: ela terminou ali, e o ponteiro
+  // registra isso. Desassocia-la depois reescreveria o resultado do periodo.
+  it('bloqueia desassociar pelo lado da tarefa que ficou na sprint terminal', async () => {
     const owner = await register('terminal-unlink@example.invalid');
+    const project = await createProject(owner);
+    const sprintId = (await createSprint(owner, project.id)).body.sprint.id;
+    const task = await createTask(owner, project.id);
+    await owner.mutate('patch', `/api/tasks/${task.id}/sprint`).send({ sprintId });
+    await owner.mutate('patch', `/api/tasks/${task.id}/status`).send({ status: 'CONCLUIDO' });
+    await owner.mutate('patch', `/api/sprints/${sprintId}/status`).send({ status: 'CANCELADA' });
+
+    const unlinked = await owner.mutate('delete', `/api/tasks/${task.id}/sprint`).send();
+    expect(unlinked.status).toBe(409);
+    expect(unlinked.body.code).toBe('SPRINT_SCOPE_LOCKED');
+    expect((await prisma.task.findUnique({ where: { id: task.id } })).sprintId).toBe(sprintId);
+  });
+
+  // A que voltou ao backlog ja nao esta em sprint nenhuma: desassociar e um
+  // pedido sem efeito, e responder 409 afirmaria um vinculo que nao existe.
+  it('desassociar a tarefa devolvida ao backlog e no-op idempotente', async () => {
+    const owner = await register('terminal-unlink-backlog@example.invalid');
     const project = await createProject(owner);
     const sprintId = (await createSprint(owner, project.id)).body.sprint.id;
     const task = await createTask(owner, project.id);
@@ -511,9 +659,13 @@ describe('associacao tarefa <-> sprint', () => {
     await owner.mutate('patch', `/api/sprints/${sprintId}/status`).send({ status: 'CANCELADA' });
 
     const unlinked = await owner.mutate('delete', `/api/tasks/${task.id}/sprint`).send();
-    expect(unlinked.status).toBe(409);
-    expect(unlinked.body.code).toBe('SPRINT_SCOPE_LOCKED');
-    expect((await prisma.task.findUnique({ where: { id: task.id } })).sprintId).toBe(sprintId);
+    expect(unlinked.status).toBe(200);
+    expect(unlinked.body.task.sprintId).toBeNull();
+    // Nenhum historico novo: o pedido nao mudou nada.
+    const historico = await prisma.taskHistoryEntry.count({
+      where: { taskId: task.id, field: 'SPRINT' }
+    });
+    expect(historico).toBe(2);
   });
 
   it('continua bloqueando ADICIONAR tarefa a sprint terminal pelo lado da sprint', async () => {
@@ -638,12 +790,13 @@ describe('cronograma', () => {
   it('apresenta sprints, tarefas, prazos, marcos e tarefas sem sprint', async () => {
     const owner = await register('schedule@example.invalid');
     const project = await createProject(owner);
-    const sprintId = (await createSprint(owner, project.id)).body.sprint.id;
+    // O marco vem primeiro e e reaproveitado pela sprint: deixar `createSprint`
+    // criar o seu daria dois marcos e quebraria o `toHaveLength(1)` abaixo.
+    const milestoneId = (await createMilestone(owner, project.id)).body.milestone.id;
+    const sprintId = (await createSprint(owner, project.id, { milestoneId })).body.sprint.id;
     const inside = await createTask(owner, project.id, 'Dentro');
     await owner.mutate('patch', `/api/tasks/${inside.id}/sprint`).send({ sprintId });
     await createTask(owner, project.id, 'Sem sprint');
-    // Reaproveita a sprint do teste: criar outra quebraria o `toHaveLength(1)` abaixo.
-    await createMilestone(owner, project.id, { sprintId });
 
     const response = await owner.agent.get(`/api/projects/${project.id}/schedule`);
     expect(response.status).toBe(200);
@@ -674,6 +827,7 @@ describe('cronograma', () => {
       'carriedFromSprintId',
       'deadline',
       'deadlineOutsideWindow',
+      'estimatedEffort',
       'id',
       'priority',
       'responsibleUserId',

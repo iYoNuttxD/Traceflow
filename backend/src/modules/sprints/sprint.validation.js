@@ -51,14 +51,19 @@ export const createSprintBodySchema = strictObject({
   name: requiredText({ message: 'O nome da sprint é obrigatório.' }),
   objective: optionalText({ field: 'Objetivo', max: 2000 }),
   startDate: scheduleDate('Data de início'),
-  endDate: scheduleDate('Data de fim')
+  endDate: scheduleDate('Data de fim'),
+  // Obrigatorio na criacao (ADR-011 D02): o marco e o agrupador, e uma sprint
+  // nova sem ele nasceria fora de qualquer entrega.
+  milestoneId: positiveInteger('ID do marco inválido.')
 });
 
 export const updateSprintBodySchema = strictObject({
   name: requiredText({ message: 'O nome da sprint é obrigatório.' }).optional(),
   objective: optionalText({ field: 'Objetivo', max: 2000 }),
   startDate: scheduleDate('Data de início').optional(),
-  endDate: scheduleDate('Data de fim').optional()
+  endDate: scheduleDate('Data de fim').optional(),
+  // `null` aqui e desvinculo explicito, nao ausencia: o service distingue os dois.
+  milestoneId: positiveInteger('ID do marco inválido.').nullable().optional()
 }).refine(
   (value) => Object.keys(value).length > 0,
   'Informe ao menos um campo para atualizar a sprint.'
@@ -71,18 +76,19 @@ export const sprintSearchQuerySchema = strictObject({
   search: searchText
 });
 
+// Sem `sprintId`: quem declara o vinculo e a sprint (ADR-011 D01). O objeto e
+// estrito, entao um cliente antigo que ainda enviar o campo recebe 400 em vez de
+// ter o vinculo descartado em silencio.
 export const createMilestoneBodySchema = strictObject({
   title: requiredText({ message: 'O título do marco é obrigatório.' }),
   description: optionalText({ field: 'Descrição', max: 2000 }),
-  dueDate: scheduleDate('Data prevista'),
-  sprintId: positiveInteger('ID da sprint inválido.')
+  dueDate: scheduleDate('Data prevista')
 });
 
 export const updateMilestoneBodySchema = strictObject({
   title: requiredText({ message: 'O título do marco é obrigatório.' }).optional(),
   description: optionalText({ field: 'Descrição', max: 2000 }),
-  dueDate: scheduleDate('Data prevista').optional(),
-  sprintId: positiveInteger('ID da sprint inválido.').optional()
+  dueDate: scheduleDate('Data prevista').optional()
 }).refine(
   (value) => Object.keys(value).length > 0,
   'Informe ao menos um campo para atualizar o marco.'

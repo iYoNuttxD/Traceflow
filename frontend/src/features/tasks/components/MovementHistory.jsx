@@ -26,6 +26,13 @@ export function MovementHistory({
       <div className="kanban-section-header">
         <div>
           <h2>Histórico de tarefas</h2>
+          {/* O indicador de movimentações morava na barra do quadro, que passou a
+              contar tarefas visíveis. Ele pertence aqui: é a mesma pergunta que
+              esta seção responde, e sobre o mesmo recorte de período. */}
+          <p>
+            {metrics?.metric || 'Número de movimentações entre colunas'}:{' '}
+            {metrics?.totalMovements ?? 0}
+          </p>
           <p>Total filtrado: {pagination.total}</p>
           <p>
             Exibindo {rangeStart}–{rangeEnd} de {pagination.total}

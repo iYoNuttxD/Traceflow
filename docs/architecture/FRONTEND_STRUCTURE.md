@@ -34,6 +34,7 @@ src/
 │   ├── privacy/
 │   ├── projects/
 │   ├── requirements/
+│   ├── schedule/
 │   ├── tasks/
 │   └── traceability/
 └── shared/
@@ -50,13 +51,30 @@ Somente pastas com implementação real devem existir.
 
 O build separa as telas públicas e protegidas, os módulos de domínio e o grafo. `TraceabilityFlow` e `@xyflow/react` são alcançados apenas pelo chunk de rastreabilidade e não pertencem à entrada inicial.
 
+## Seções de cronograma
+
+`schedule` atende três rotas irmãs, e não uma tela só: `/sprints` (ciclo de execução),
+`/milestones` (entrega agrupada) e `/schedule` (agenda em calendário). Elas nasceram de uma tela
+única, que empilhava os três assuntos e obrigava a rolar a página inteira para trocar de um para
+o outro. Cada uma tem URL própria, compartilhável e recarregável.
+
+A carga comum — projeto, agregado, sprints, marcos e membership — vive em
+`features/schedule/hooks/useScheduleData.js`. O que **não** vive lá é o estado de cada tela
+(painel aberto, sprint selecionada, mês do calendário): centralizá-lo devolveria a tela única por
+outro caminho.
+
+O Kanban consome `SprintBoardPanel` pelo `index.js` público de `schedule`, e não por importação
+de internals: tudo que o painel mostra é vocabulário de sprint.
+
 ## Consolidação de Tasks e Kanban
 
 As screens de Tasks e Kanban coordenam estado e casos de uso, enquanto componentes do próprio domínio apresentam responsabilidades delimitadas:
 
 - `TaskMetrics` e `TaskList` apresentam resumo, tarefas e vínculos;
 - `KanbanBoard` apresenta colunas e cartões com interação por teclado e drag-and-drop;
-- `MovementHistory` apresenta filtros e paginação do backend;
+- `KanbanSprintFilter` recorta o quadro por sprint, com o resumo em texto;
+- `MovementHistory` apresenta filtros e paginação do backend, e carrega o indicador de
+  movimentações que antes vivia na barra do quadro;
 - `TaskDetailsPanel` apresenta o detalhe e delega mutações;
 - `kanban-display` centraliza somente labels e formatação de apresentação.
 

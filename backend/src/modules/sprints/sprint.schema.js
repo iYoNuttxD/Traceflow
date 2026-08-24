@@ -172,50 +172,41 @@ export function ensureNoOverlap(candidate, sprints, ignoreId = null) {
 }
 
 // Pertencimento a janela semiaberta, na mesma convencao de D03: vencer no
-// instante final ja e a sprint seguinte. Uma unica definicao para as duas regras
-// que dependem dela — a do marco e a da janela — porque duas comparacoes
-// separadas podem divergir na borda sem que nenhum teste perceba.
+// instante final ja e a sprint seguinte.
 export function isWithinWindow(instant, window) {
   return instant >= window.startDate && instant < window.endDate;
 }
 
-// A data prevista do marco precisa cair na janela da sprint (ADR-010 D11).
-export function ensureMilestoneWithinSprint(dueDate, sprint) {
-  if (!dueDate) return;
-  if (!isWithinWindow(dueDate, sprint)) {
+// So uma sprint EM_ANDAMENTO por projeto (ADR-011 D06). `sprints` e o retrato
+// TRAVADO do projeto: chamar isto sobre uma leitura feita antes do lock deixaria
+// duas requisicoes partirem do mesmo estado e ambas passarem (ADR-010 D17).
+//
+// Nao e redundante com a nao sobreposicao de datas: aquela fala do planejado,
+// esta fala do que a equipe esta fazendo agora. Nada impedia iniciar uma sprint
+// cujo periodo ainda nem chegou enquanto a anterior seguia aberta.
+export function ensureSingleActiveSprint(sprints, targetId) {
+  const ativa = sprints.find(
+    (sprint) => sprint.id !== targetId && sprint.status === 'EM_ANDAMENTO'
+  );
+  if (ativa) {
     throw new SprintServiceError(
-      'A data prevista do marco precisa estar dentro do período da sprint.',
-      400,
-      ERROR_CODES.MILESTONE_DUE_DATE_OUTSIDE_SPRINT
+      `A sprint "${ativa.name}" já está em andamento. Conclua-a antes de iniciar outra.`,
+      409,
+      ERROR_CODES.SPRINT_ALREADY_ACTIVE
     );
   }
+  return sprints;
 }
 
-// A outra ponta de D11: mover a janela nao pode EMPURRAR PARA FORA um marco que
-// estava dentro dela. Validar so na escrita do marco deixava a regra valer por um
-// instante — bastava encolher a sprint depois para o marco passar a vencer fora
-// do periodo que ele deveria ancorar.
+// Regra da conclusao automatica do marco (ADR-011 D05): existe ao menos uma
+// sprint nao cancelada, e todas as nao canceladas estao concluidas.
 //
-// O criterio e "estava dentro", e nao "a janela veio no corpo". Dois motivos:
-// o formulario do painel reenvia as quatro chaves a cada salvamento, entao a
-// presenca das datas nao distingue um rename de uma mudanca de periodo; e o
-// backfill da migration s104 vinculou a ultima sprint do projeto os marcos que
-// nao cabiam em janela nenhuma, de modo que cobrar o conjunto inteiro trancaria
-// a sprint por um legado que quem renomeia nao criou.
-export function ensureMilestonesStayWithinWindow(milestones, currentWindow, nextWindow) {
-  const empurrado = milestones.find(
-    (milestone) =>
-      isWithinWindow(milestone.dueDate, currentWindow) &&
-      !isWithinWindow(milestone.dueDate, nextWindow)
-  );
-  if (empurrado) {
-    throw new SprintServiceError(
-      `O período informado deixaria o marco "${empurrado.title}" fora da sprint. Ajuste o marco antes de alterar a janela.`,
-      409,
-      ERROR_CODES.SPRINT_WINDOW_MILESTONE_CONFLICT
-    );
-  }
-  return milestones;
+// CANCELADA nao bloqueia nem conclui sozinha. Bloquear trancaria o marco para
+// sempre por causa de uma sprint que o projeto decidiu nao fazer; deixar concluir
+// sozinha diria "entregue" sobre um marco cujo trabalho inteiro foi cancelado.
+export function allMilestoneSprintsConcluded(sprints) {
+  const consideradas = sprints.filter((sprint) => sprint.status !== 'CANCELADA');
+  return consideradas.length > 0 && consideradas.every((sprint) => sprint.status === 'CONCLUIDA');
 }
 
 export function ensureSprintStatus(status) {
@@ -297,15 +288,15 @@ export function sprintDeleteNotSupportedError() {
   );
 }
 
-// A sprint a travar sai do marco lido ANTES da transacao. Se outra requisicao o
-// moveu nesse intervalo, travamos a sprint errada e nao ha como validar com
-// honestidade: recusar e pedir nova tentativa e melhor do que decidir sobre uma
-// sprint que ja nao e a dele.
-export function milestoneSprintChangedError() {
+// Excluir o marco com sprints apontando para ele desfaria em silencio o
+// agrupamento que decide a conclusao automatica. Esta recusa e a UNICA protecao:
+// a FK e `SetNull`, porque `Restrict` quebraria a exclusao em cascata do projeto
+// (ADR-011 D01).
+export function milestoneHasSprintsError(total) {
   return new SprintServiceError(
-    'O marco mudou de sprint durante a operação. Recarregue e tente novamente.',
+    `O marco não pode ser excluído: ${total} sprint(s) ainda pertencem a ele. Mova-as para outro marco antes.`,
     409,
-    ERROR_CODES.MILESTONE_SPRINT_CHANGED
+    ERROR_CODES.MILESTONE_HAS_SPRINTS
   );
 }
 
@@ -353,6 +344,23 @@ export function buildSprintData(data, isCreate = false) {
     }
     sprintData.endDate = endDate;
   }
+  // Marco obrigatorio na criacao e alteravel depois, inclusive para null
+  // (ADR-011 D02). O banco aceita nulo porque sprints anteriores a inversao podem
+  // nao ter marco; a obrigatoriedade vive aqui, onde a regra e aplicada.
+  if (isCreate || payload.milestoneId !== undefined) {
+    if (payload.milestoneId === undefined || payload.milestoneId === null) {
+      if (isCreate) {
+        throw new SprintServiceError(
+          'O marco da sprint é obrigatório.',
+          400,
+          ERROR_CODES.SPRINT_MILESTONE_REQUIRED
+        );
+      }
+      sprintData.milestoneId = null;
+    } else {
+      sprintData.milestoneId = parseMilestoneId(payload.milestoneId);
+    }
+  }
   return sprintData;
 }
 
@@ -384,18 +392,9 @@ export function buildMilestoneData(data, isCreate = false) {
     }
     milestoneData.dueDate = dueDate;
   }
-  // Todo marco pertence a uma sprint: a conclusao fica ancorada no periodo de
-  // desenvolvimento que a produziu, e nao numa data solta do projeto (ADR-010 D02).
-  if (isCreate || payload.sprintId !== undefined) {
-    if (payload.sprintId === undefined || payload.sprintId === null) {
-      throw new SprintServiceError(
-        'A sprint do marco é obrigatória.',
-        400,
-        ERROR_CODES.MILESTONE_SPRINT_REQUIRED
-      );
-    }
-    milestoneData.sprintId = parseSprintId(payload.sprintId);
-  }
+  // Sem `sprintId`: o marco agrupa sprints, e quem declara o vinculo e a sprint
+  // (ADR-011 D01). O prazo tambem nao e mais conferido contra janela nenhuma —
+  // um marco que atravessa tres sprints nao tem uma janela para caber (D03).
   return milestoneData;
 }
 

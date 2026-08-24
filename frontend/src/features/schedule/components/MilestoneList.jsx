@@ -2,15 +2,18 @@ import { EmptyState } from '../../../shared/index.js';
 import {
   formatInstant,
   isMilestoneOverdue,
-  isTerminalSprint,
-  milestoneStatusLabels
+  milestoneProgress,
+  milestoneStatusLabels,
+  sprintStatusKey,
+  sprintStatusKeyLabels,
+  statusBadgeClass
 } from './schedule-display.js';
 
 export function MilestoneList({
   milestones,
-  // Status da sprint dona, por id. O marco carrega `sprintId`, mas não o estado
-  // dela: sem o mapa a lista não teria como saber que está congelada.
-  sprintStatuses = {},
+  // Sprints do projeto. O marco não carrega a lista das suas: o agrupamento é
+  // lido do outro lado (`sprint.milestoneId`), e é aqui que ele vira progresso.
+  sprints = [],
   busyMilestoneId,
   readOnly = false,
   onEdit,
@@ -36,40 +39,66 @@ export function MilestoneList({
         const overdue = milestone.overdue ?? isMilestoneOverdue(milestone);
         const done = milestone.status === 'CONCLUIDO';
         const busy = busyMilestoneId === milestone.id;
-        // Marco de sprint encerrada acompanha a imutabilidade dela (ADR-010 D12).
-        // Oferecer o botão transforma uma regra conhecida numa descoberta pelo
-        // 409, que é exatamente o que a revisão do painel de tarefas já corrigiu.
-        const congelada = isTerminalSprint(sprintStatuses[milestone.sprintId]);
+        const progresso = milestoneProgress(milestone.id, sprints);
+        // O badge diz o estado real: concluído, atrasado ou pendente. "Atrasado"
+        // só faz sentido enquanto há o que entregar.
+        const statusKey = done ? 'CONCLUIDO' : overdue ? 'ATRASADO' : 'PENDENTE';
 
         return (
           <li className="milestone-item" key={milestone.id}>
             <div className="milestone-item-header">
               <h3>{milestone.title}</h3>
-              <span className={`status-badge status-${milestone.status.toLowerCase()}`}>
-                {milestoneStatusLabels[milestone.status] || milestone.status}
+              <span className={statusBadgeClass(statusKey)}>
+                {statusKey === 'ATRASADO'
+                  ? 'Atrasado'
+                  : milestoneStatusLabels[milestone.status] || milestone.status}
               </span>
             </div>
 
             <p className="milestone-meta">
-              <span>Previsto para {formatInstant(milestone.dueDate)}</span>
-              {/* Atraso comunicado por texto, nunca apenas por cor. */}
-              {overdue && <span className="milestone-overdue">Atrasado</span>}
+              <span>Prazo: {formatInstant(milestone.dueDate)}</span>
+              <span>
+                {progresso.done} de {progresso.total}{' '}
+                {progresso.total === 1 ? 'sprint concluída' : 'sprints concluídas'}
+              </span>
             </p>
+
+            {/* A barra repete em forma o que a linha acima já diz em número: ela
+                acelera a leitura, não a substitui. */}
+            <div className="traceability-progress">
+              <div className="traceability-progress-bar">
+                <span style={{ width: `${progresso.percent}%` }} />
+              </div>
+            </div>
 
             {milestone.description && (
               <p className="milestone-description">{milestone.description}</p>
             )}
 
-            {/* O congelamento precisa ser legível, não apenas ausente: sem dizer
-                o motivo, a lista pareceria ter perdido os botões. VIEWER não
-                recebe o aviso — para ele o motivo é permissão, não estado, e a
-                tela já comunica isso em outro lugar. */}
-            {congelada && !readOnly && (
-              <p className="milestone-frozen">Sprint encerrada: este marco é registro histórico.</p>
+            {progresso.sprints.length > 0 && (
+              <p className="milestone-meta" aria-label={`Sprints do marco ${milestone.title}`}>
+                {progresso.sprints.map((sprint) => {
+                  const key = sprintStatusKey(sprint);
+                  return (
+                    <span className={statusBadgeClass(key)} key={sprint.id}>
+                      {sprint.name} · {sprintStatusKeyLabels[key] || sprint.status}
+                    </span>
+                  );
+                })}
+              </p>
+            )}
+
+            {/* Explicar a automação onde ela aconteceu: sem isso, o marco aparece
+                concluído sem que ninguém tenha clicado em concluir, e a tela
+                parece ter feito algo por conta própria. */}
+            {done && progresso.allConcluded && (
+              <p className="milestone-frozen">
+                Concluído automaticamente — todas as sprints deste marco foram concluídas.
+              </p>
             )}
 
             {/* VIEWER lê o cronograma inteiro, mas não age sobre ele. */}
-            {readOnly || congelada ? null : (
+            {readOnly ? null : (
               <div
                 className="milestone-actions"
                 role="group"
@@ -83,7 +112,7 @@ export function MilestoneList({
                   title={
                     done
                       ? 'Volta o marco para pendente. Pode ser desfeito a qualquer momento.'
-                      : 'Marca o marco como entregue. Pode ser reaberto depois.'
+                      : 'Marca o marco como entregue antes de todas as sprints terminarem. Pode ser reaberto depois.'
                   }
                   onClick={() => onToggleStatus(milestone)}
                 >
@@ -93,7 +122,7 @@ export function MilestoneList({
                   type="button"
                   className="button button-secondary"
                   aria-label={`Editar o marco ${milestone.title}`}
-                  title="Carrega título, descrição e data no formulário acima."
+                  title="Carrega título, descrição e prazo no formulário ao lado."
                   onClick={() => onEdit(milestone)}
                 >
                   Editar
@@ -102,9 +131,16 @@ export function MilestoneList({
                   <button
                     type="button"
                     className="button button-danger"
-                    disabled={busy}
+                    // Excluir um marco com sprints desfaria o agrupamento; o
+                    // backend recusa com 409. Desabilitar aqui evita transformar
+                    // uma regra conhecida numa descoberta pelo erro.
+                    disabled={busy || progresso.sprints.length > 0}
                     aria-label={`Excluir o marco ${milestone.title}`}
-                    title="Remove o marco do projeto. Esta ação não pode ser desfeita."
+                    title={
+                      progresso.sprints.length > 0
+                        ? 'Marco com sprints não pode ser excluído. Mova-as para outro marco antes.'
+                        : 'Remove o marco do projeto. Esta ação não pode ser desfeita.'
+                    }
                     onClick={() => onDelete(milestone)}
                   >
                     Excluir

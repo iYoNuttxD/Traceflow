@@ -43,7 +43,13 @@ export const taskMovementRepository = {
           toStatus,
           movedBy: actor.name,
           movedByUserId: actor.id,
-          projectMemberId: null
+          projectMemberId: null,
+          // A sprint em que a tarefa estava no momento da movimentacao. A coluna
+          // e filtro declarado do historico desde o RF10, mas nunca era gravada:
+          // filtrar por sprint nao podia casar com nada. Gravada aqui, o filtro
+          // passa a valer para as movimentacoes novas — as antigas continuam sem
+          // sprint, e carimba-las com o vinculo de hoje reescreveria o passado.
+          sprintId: task.sprintId ?? null
         },
         include: { movedByUser: { select: { id: true, name: true } } }
       });
