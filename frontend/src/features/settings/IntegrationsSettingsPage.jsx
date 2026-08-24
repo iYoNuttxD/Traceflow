@@ -11,7 +11,7 @@ import {
 } from '../../shared/index.js';
 import { settingsApi } from './settings.api.js';
 import { SettingsFeedback } from './SettingsFeedback.jsx';
-import { PasswordField } from '../auth/index.js';
+import { PasswordField, githubOAuthErrorMessage } from '../auth/index.js';
 import { GithubSensitiveReauthentication } from './GithubSensitiveReauthentication.jsx';
 
 export function IntegrationsSettingsPage() {
@@ -24,14 +24,21 @@ export function IntegrationsSettingsPage() {
   const [identityPassword, setIdentityPassword] = useState('');
   const [linking, setLinking] = useState(false);
   const [authorizing, setAuthorizing] = useState(false);
+  const searchParams = new URLSearchParams(location.search);
+  const githubError =
+    searchParams.get('github') === 'error'
+      ? githubOAuthErrorMessage(searchParams.get('reason'))
+      : '';
   const [message, setMessage] = useState(
-    new URLSearchParams(location.search).get('githubIdentity') === 'success'
-      ? 'Conta GitHub vinculada com sucesso.'
-      : new URLSearchParams(location.search).get('githubReauth') === 'success'
-        ? 'Identidade GitHub confirmada para ações sensíveis.'
-        : ''
+    githubError
+      ? ''
+      : searchParams.get('githubIdentity') === 'success'
+        ? 'Conta GitHub vinculada com sucesso.'
+        : searchParams.get('githubReauth') === 'success'
+          ? 'Identidade GitHub confirmada para ações sensíveis.'
+          : ''
   );
-  const [error, setError] = useState('');
+  const [error, setError] = useState(githubError);
   const [loading, setLoading] = useState(true);
   const [initialError, setInitialError] = useState(null);
   const [busy, setBusy] = useState('');

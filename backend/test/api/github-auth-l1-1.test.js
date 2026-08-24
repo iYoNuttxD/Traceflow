@@ -66,6 +66,7 @@ beforeEach(() => {
   installationClient.repositories = [];
   vi.clearAllMocks();
   installationClient.forInstallation.mockImplementation(async () => ({
+    verifyRepositoryAccess: vi.fn().mockResolvedValue(undefined),
     listRepositoryPages: () =>
       (async function* repositoryPages() {
         yield installationClient.repositories;

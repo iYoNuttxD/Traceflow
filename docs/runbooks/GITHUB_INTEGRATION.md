@@ -3,7 +3,7 @@
 ## Criar a App
 
 1. No GitHub, crie uma GitHub App e habilite **Request user authorization (OAuth) during installation**. Configure a Callback URL como `GITHUB_APP_CALLBACK_URL` (`/api/github-app/callback`). Nesse modo, não configure Setup URL: o GitHub usa o callback OAuth da App e fornece `code`, `installation_id`, `setup_action` e `state`.
-2. Configure o webhook para `POST /api/webhooks/github-app`. No callback, confirme nos logs sanitizados as etapas `validate_state`, `exchange_installation_user_code`, `validate_installation`, `fetch_installation`, `fetch_repositories`, `persist_installation`, `consume_state` e `complete`.
+2. Configure o webhook para `POST /api/webhooks/github-app`. No callback, confirme nos logs sanitizados as etapas `validate_state`, `exchange_installation_user_code`, `validate_installation`, `fetch_installation`, `verify_repository_access`, `persist_installation`, `consume_state` e `complete`.
 3. Habilite instalação apenas nas contas/repositórios necessários. Permissões mínimas de repositório: Metadata read-only, Contents read-only, Pull requests read-only e Issues read-only. Mantenha separados o callback da App (`GITHUB_APP_CALLBACK_URL`) e o callback de login/vínculo (`GITHUB_LOGIN_CALLBACK_URL`); `GitHubIdentity` não autoriza a App e a App não autentica a conta TraceFlow.
 4. Gere private key e configure seu conteúdo PEM em base64 no secret store como `GITHUB_APP_PRIVATE_KEY_BASE64`.
 5. Configure App ID, client ID/secret, slug, webhook secret e URLs de sucesso/erro listadas em `.env.example`.
@@ -16,7 +16,7 @@ Nenhuma variável `VITE_*` pode conter private key, client secret, webhook secre
 
 1. Usuário com e-mail verificado inicia a instalação pela tela de Projetos.
 2. O backend cria state curto, hashado e ligado à sessão/intenção.
-3. Após instalar, o callback troca `code` por token de usuário efêmero, comprova `installation_id` em `GET /user/installations`, confirma a mesma Installation com JWT da App, lista seu escopo com Installation Token, salva somente metadados e redireciona. Não consulta nem cria `GitHubIdentity`.
+3. Após instalar, o callback troca `code` por token de usuário efêmero, comprova `installation_id` em `GET /user/installations`, confirma a mesma Installation com JWT da App e valida o Installation Token com uma única consulta mínima (`per_page=1`), que aceita zero repositórios. O callback salva somente metadados e redireciona; a listagem completa ocorre apenas nos endpoints de descoberta. Não consulta nem cria `GitHubIdentity`.
 4. Para projeto existente, somente OWNER escolhe o repositório e conclui `PUT /api/projects/:projectId/github/integration`.
 5. Criação por repositório usa `POST /api/projects/from-github` com installation/repository IDs; o backend consulta o DTO real.
 6. Reutilize a mesma instalação para todos os projetos/repositórios autorizados. Não reinstale a App por projeto; use “Gerenciar acesso da instalação no GitHub” somente para adicionar ou remover repositórios do escopo.

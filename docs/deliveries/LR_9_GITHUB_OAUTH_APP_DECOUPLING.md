@@ -68,7 +68,8 @@ revogação, expiração, `sessionVersion`, intenção e `projectId`. Depois:
 1. troca o code por token de usuário efêmero;
 2. comprova a `installation_id` em `GET /user/installations`;
 3. consulta a mesma Installation com JWT da App e compara o account id;
-4. consulta repositories com Installation Token;
+4. valida o acesso técnico com uma única consulta mínima (`per_page=1`) usando Installation Token,
+   aceitando zero repositórios e sem paginar o escopo completo;
 5. persiste Installation/autorização e consome o state na mesma transação.
 
 Replay, cross-user/cross-session, installation spoofing, conta inativa e Installation
@@ -119,16 +120,27 @@ metadata irrelevante, criação e sync sem identity, unlink preservando integra�
 spoofing de Installation, state adversarial, repository swap, project isolation, webhook e token
 leakage.
 
+## Correções pós-code review
+
+- **CR-FIX-01:** Login e as páginas Integrações/Segurança passaram a compartilhar o mesmo mapping
+  seguro para `github=error&reason=...`. Reasons desconhecidos usam fallback genérico; os sucessos
+  `githubIdentity=success` e `githubReauth=success` foram preservados.
+- **CR-FIX-02:** o callback deixou de coletar e descartar todas as páginas de repositórios. O client
+  expõe `verifyRepositoryAccess()`, que faz uma única chamada com `per_page=1`; resposta vazia é
+  válida, enquanto 403/429 continuam seguindo a normalização e o retry já existentes. A paginação
+  completa permanece em `listRepositories`, `listAllRepositories` e
+  `resolveAuthorizedRepository`.
+
 ## Resultados automatizados
 
 | Gate | Resultado |
 | --- | --- |
-| Backend unit | PASS — 257/257 |
+| Backend unit | PASS — 262/262 |
 | Backend integration/API | PASS — 166/166; 5 skips condicionais |
-| Backend total | PASS — 423/423; 5 skips condicionais |
-| Backend coverage | PASS — 88,85% statements; 75,56% branches; 92,85% functions; 91,42% lines |
-| Frontend | PASS — 245/245 |
-| Frontend coverage | PASS — 63,31% statements; 60,81% branches; 54,71% functions; 64,68% lines |
+| Backend total | PASS — 428/428; 5 skips condicionais |
+| Backend coverage | PASS — 88,86% statements; 75,66% branches; 92,86% functions; 91,43% lines |
+| Frontend | PASS — 252/252 |
+| Frontend coverage | PASS — 63,38% statements; 61,02% branches; 54,76% functions; 64,76% lines |
 | Frontend build | PASS |
 | Lint/format/architecture | PASS |
 | Secret scan | PASS — nenhum segredo encontrado |

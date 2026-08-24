@@ -51,6 +51,12 @@ export function createGithubClient({
     return { items, hasNext: hasNextPage(response, pageItems.length) };
   }
   return Object.freeze({
+    async verifyRepositoryAccess() {
+      const response = await requestExecutor(() =>
+        octokit.rest.apps.listReposAccessibleToInstallation({ per_page: 1, page: 1 })
+      );
+      extractInstallationRepositories(response.data);
+    },
     async getRepository(owner, repo) {
       const response = await requestExecutor(() => octokit.rest.repos.get({ owner, repo }));
       return mapGithubRepository(response.data);

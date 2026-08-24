@@ -34,8 +34,10 @@ App deve habilitar **Request user authorization (OAuth) during installation** e 
 O `code` produz um user access token efêmero da instalação. Ele serve exclusivamente para paginar
 `GET /user/installations` e provar que `installation_id` está acessível ao ator que concluiu a
 operação no GitHub. O backend não consulta nem compara esse ator com `GitHubIdentity`. Em seguida,
-um JWT da App consulta a Installation informada e um Installation Access Token lista os repositórios
-concedidos. Nenhum token é persistido, retornado ou registrado.
+um JWT da App consulta a Installation informada e um Installation Access Token executa uma única
+chamada mínima (`per_page=1`) para validar o acesso técnico. Resposta vazia é válida e o callback
+não percorre o escopo completo. A descoberta integral permanece nos endpoints próprios de
+repositórios. Nenhum token é persistido, retornado ou registrado.
 
 `GitHubInstallationAuthorization` permanece como vínculo entre uma conta TraceFlow e a
 Installation que ela conectou. Ela não representa identidade OAuth nem permissão pessoal no

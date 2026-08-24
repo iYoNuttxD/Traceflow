@@ -249,6 +249,45 @@ describe('fronteira GitHub App da L1', () => {
     expect(mapGithubIssue({ id: 4, pull_request: {} })).toBeNull();
   });
 
+  it('valida acesso da instalação com uma única chamada e aceita zero repositórios', async () => {
+    const listRepos = vi.fn().mockResolvedValue({
+      data: { total_count: 0, repositories: [] },
+      headers: {
+        link: '<https://api.github.com/installation/repositories?page=2>; rel="next"'
+      }
+    });
+    const requestExecutor = vi.fn((operation) => operation());
+    const OctokitClass = vi.fn(function OctokitDouble() {
+      this.rest = { apps: { listReposAccessibleToInstallation: listRepos } };
+    });
+    const client = createGithubClient({
+      auth: 'installation-token-artificial',
+      OctokitClass,
+      requestExecutor
+    });
+
+    await expect(client.verifyRepositoryAccess()).resolves.toBeUndefined();
+    expect(listRepos).toHaveBeenCalledOnce();
+    expect(listRepos).toHaveBeenCalledWith({ per_page: 1, page: 1 });
+    expect(requestExecutor).toHaveBeenCalledOnce();
+  });
+
+  it.each([403, 429])('propaga erro GitHub %s na verificação mínima de acesso', async (status) => {
+    const githubError = Object.assign(new Error('Falha GitHub normalizada'), { status });
+    const listRepos = vi.fn().mockRejectedValue(githubError);
+    const OctokitClass = vi.fn(function OctokitDouble() {
+      this.rest = { apps: { listReposAccessibleToInstallation: listRepos } };
+    });
+    const client = createGithubClient({
+      auth: 'installation-token-artificial',
+      OctokitClass,
+      requestExecutor: (operation) => operation()
+    });
+
+    await expect(client.verifyRepositoryAccess()).rejects.toBe(githubError);
+    expect(listRepos).toHaveBeenCalledOnce();
+  });
+
   it('pagina até o fim e cria client exclusivamente com token de instalação recebido', async () => {
     const fetchPage = vi
       .fn()

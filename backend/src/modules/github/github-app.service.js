@@ -204,10 +204,10 @@ export const githubAppService = {
         );
       }
 
-      logStep('fetch_repositories');
+      logStep('verify_repository_access');
       const installationClient =
         await githubInstallationClientFactory.forInstallation(installationId);
-      await collectGithubPages(installationClient.listRepositoryPages());
+      await installationClient.verifyRepositoryAccess();
 
       logStep('persist_installation');
       const authorizationResult = await githubRepository.authorizeInstallationFromState({

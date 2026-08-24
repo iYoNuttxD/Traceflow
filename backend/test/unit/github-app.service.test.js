@@ -218,11 +218,16 @@ describe('autorização e webhooks da GitHub App L1', () => {
       metadata
     ]);
     mocks.credentialProvider.getInstallation.mockResolvedValue(metadata);
+    const verifyRepositoryAccess = vi.fn().mockResolvedValue(undefined);
+    const listRepositoryPages = vi.fn(() =>
+      (async function* repositoryPages() {
+        yield [{ githubRepositoryId: '501', fullName: 'traceflow/repo-1' }];
+        yield [{ githubRepositoryId: '502', fullName: 'traceflow/repo-2' }];
+      })()
+    );
     mocks.clientFactory.forInstallation.mockResolvedValue({
-      listRepositoryPages: () =>
-        (async function* repositoryPages() {
-          yield [{ githubRepositoryId: '501', fullName: 'traceflow/repo' }];
-        })()
+      verifyRepositoryAccess,
+      listRepositoryPages
     });
     mocks.logger.info.mockClear();
     mocks.repository.authorizeInstallationFromState.mockResolvedValue({
@@ -250,6 +255,8 @@ describe('autorização e webhooks da GitHub App L1', () => {
     );
     expect(mocks.credentialProvider.getInstallation).toHaveBeenCalledWith('77');
     expect(mocks.clientFactory.forInstallation).toHaveBeenCalledWith('77');
+    expect(verifyRepositoryAccess).toHaveBeenCalledOnce();
+    expect(listRepositoryPages).not.toHaveBeenCalled();
     expect(
       JSON.stringify(mocks.repository.authorizeInstallationFromState.mock.calls)
     ).not.toContain('token-efemero');
@@ -258,7 +265,7 @@ describe('autorização e webhooks da GitHub App L1', () => {
       'exchange_installation_user_code',
       'validate_installation',
       'fetch_installation',
-      'fetch_repositories',
+      'verify_repository_access',
       'persist_installation',
       'consume_state',
       'complete'
@@ -299,10 +306,7 @@ describe('autorização e webhooks da GitHub App L1', () => {
     mocks.credentialProvider.listInstallationsAccessibleToUser.mockResolvedValue([metadata]);
     mocks.credentialProvider.getInstallation.mockResolvedValue(metadata);
     mocks.clientFactory.forInstallation.mockResolvedValue({
-      listRepositoryPages: () =>
-        (async function* emptyPages() {
-          yield [];
-        })()
+      verifyRepositoryAccess: vi.fn().mockResolvedValue(undefined)
     });
     mocks.repository.authorizeInstallationFromState.mockResolvedValue({
       installation: { id: 12, ...metadata, status: 'ACTIVE' },
@@ -315,6 +319,46 @@ describe('autorização e webhooks da GitHub App L1', () => {
     });
     expect(JSON.stringify(mocks.logger.warn.mock.calls)).not.toContain('token-efemero');
   });
+
+  it.each([
+    ['GITHUB_FORBIDDEN', 403],
+    ['GITHUB_RATE_LIMITED', 429]
+  ])(
+    'interrompe o callback quando a verificação mínima falha com %s',
+    async (errorCode, statusCode) => {
+      const callback = {
+        code: 'oauth-code-artificial',
+        installationId: '77',
+        state: 'state-artificial-com-mais-de-trinta-caracteres'
+      };
+      const metadata = {
+        githubInstallationId: '77',
+        accountId: '700',
+        accountLogin: 'traceflow',
+        accountType: 'Organization',
+        installedAt: new Date('2030-01-01T00:00:00Z')
+      };
+      const githubError = Object.assign(new Error('Falha GitHub normalizada'), {
+        code: errorCode,
+        statusCode
+      });
+      mocks.repository.findConnectionState.mockResolvedValue(validStateRecord());
+      mocks.credentialProvider.exchangeInstallationUserCode.mockResolvedValue('token-efemero');
+      mocks.credentialProvider.listInstallationsAccessibleToUser.mockResolvedValue([metadata]);
+      mocks.credentialProvider.getInstallation.mockResolvedValue(metadata);
+      mocks.clientFactory.forInstallation.mockResolvedValue({
+        verifyRepositoryAccess: vi.fn().mockRejectedValue(githubError)
+      });
+
+      await expect(githubAppService.completeCallback(callback)).rejects.toBe(githubError);
+      expect(mocks.repository.authorizeInstallationFromState).not.toHaveBeenCalled();
+      expect(mocks.logger.warn).toHaveBeenCalledWith(
+        'Callback da GitHub App interrompido.',
+        expect.objectContaining({ step: 'verify_repository_access', errorCode })
+      );
+      expect(JSON.stringify(mocks.logger.warn.mock.calls)).not.toContain('token-efemero');
+    }
+  );
 
   it('trata GitHubIdentity existente como metadata irrelevante para o callback da App', async () => {
     const callback = {
@@ -341,10 +385,7 @@ describe('autorização e webhooks da GitHub App L1', () => {
     mocks.credentialProvider.listInstallationsAccessibleToUser.mockResolvedValue([metadata]);
     mocks.credentialProvider.getInstallation.mockResolvedValue(metadata);
     mocks.clientFactory.forInstallation.mockResolvedValue({
-      listRepositoryPages: () =>
-        (async function* emptyPages() {
-          yield [];
-        })()
+      verifyRepositoryAccess: vi.fn().mockResolvedValue(undefined)
     });
     mocks.repository.authorizeInstallationFromState.mockResolvedValue({
       installation: { id: 12, ...metadata, status: 'ACTIVE' },
@@ -390,10 +431,7 @@ describe('autorização e webhooks da GitHub App L1', () => {
     mocks.credentialProvider.listInstallationsAccessibleToUser.mockResolvedValue([metadata]);
     mocks.credentialProvider.getInstallation.mockResolvedValue(metadata);
     mocks.clientFactory.forInstallation.mockResolvedValue({
-      listRepositoryPages: () =>
-        (async function* emptyPages() {
-          yield [];
-        })()
+      verifyRepositoryAccess: vi.fn().mockResolvedValue(undefined)
     });
     mocks.repository.authorizeInstallationFromState.mockResolvedValue({
       lifecycleBlocked: status
