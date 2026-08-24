@@ -4,6 +4,13 @@
 - **Data:** 16/08/2026
 - **Responsáveis:** equipe TraceFlow
 - **Supersede:** decisões 1, 2, 3, 4, 7 e 9 do [ADR-009](ADR-009-SPRINT-SCHEDULE-MODEL.md)
+- **Parcialmente superado por:** [ADR-011](ADR-011-MILESTONE-SPRINT-INVERSION.md) — D02 e D11
+  deixaram de valer, e D12 vale só para a sprint
+
+> **Aviso de leitura.** As decisões **D02** (marco pertence a uma sprint), **D11** (prazo do marco
+> dentro da janela) e a parte de **D12** que congela o marco junto com a sprint foram revertidas
+> pelo ADR-011: o marco passou a **agrupar** sprints. O restante deste ADR continua em vigor.
+> Ler D02/D11/D12 isoladamente leva à conclusão oposta à do modelo atual.
 
 ## Contexto
 
@@ -43,6 +50,10 @@ ativa por tarefa" viraria regra apenas de aplicação) e quebraria o payload de 
 endpoints de tarefa.
 
 ### D02 — Marco pertence a uma sprint (supersede ADR-009 §7)
+
+> **Revertida pelo [ADR-011](ADR-011-MILESTONE-SPRINT-INVERSION.md) D01.** O marco agrupa
+> sprints; o vínculo é declarado por `Sprint.milestoneId`.
+
 
 `Milestone.sprintId` é obrigatório, com FK `onDelete: Restrict`. A conclusão de um marco fica
 ancorada no período de desenvolvimento que a produziu; sem esse vínculo o cronograma não
@@ -146,9 +157,17 @@ com 101 tarefas, nenhum salvamento do painel passava.
 
 ### D11 — A data prevista do marco cai dentro da janela da sprint
 
+> **Revertida pelo [ADR-011](ADR-011-MILESTONE-SPRINT-INVERSION.md) D03.** Um marco que
+> atravessa várias sprints não tem uma janela para caber dentro.
+
+
 Mesma convenção semiaberta: vencer no instante final já pertence à sprint seguinte.
 
 ### D12 — Marco de sprint encerrada acompanha a imutabilidade dela
+
+> **Restringida pelo [ADR-011](ADR-011-MILESTONE-SPRINT-INVERSION.md) D04.** Congelado
+> continua o que é da sprint: composição e resultado. O marco permanece editável.
+
 
 Não pode ser editado, concluído, reaberto nem excluído. O período virou registro.
 

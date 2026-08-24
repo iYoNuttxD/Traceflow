@@ -368,6 +368,9 @@ model Sprint {
   // podem entrar depois, sinalizadas por SprintTask.addedAfterStart.
   startedAt   DateTime?
   completedAt DateTime?
+  // Marco que esta sprint ajuda a entregar (ADR-011). Nulo apenas para as
+  // sprints anteriores a inversao: a criacao exige o marco.
+  milestoneId Int?
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
@@ -375,20 +378,28 @@ model Sprint {
   tasks            Task[]
   sprintTasks      SprintTask[] @relation("SprintMembership")
   carriedOverTasks SprintTask[] @relation("SprintCarryOver")
-  milestones       Milestone[]
+  // SetNull, e nao Restrict: Sprint e Milestone sao os DOIS filhos de Project em
+  // cascata, e o MySQL nao garante a ordem entre elas. Com Restrict, apagar um
+  // projeto falharia sempre que o banco processasse Milestone antes de Sprint.
+  // Quem protege o agrupamento e a recusa do service (MILESTONE_HAS_SPRINTS),
+  // dentro do lock do projeto — a FK aqui so precisa nao inventar um ponteiro
+  // orfao (ADR-011 D01).
+  milestone        Milestone?   @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
 
   @@unique([projectId, name])
   @@index([projectId, status])
   @@index([projectId, startDate])
   @@index([projectId, endDate])
+  @@index([projectId, milestoneId])
 }
 
-// Marco do cronograma do projeto (RF10). Pertence a uma sprint: a conclusao de
-// um marco fica ancorada no periodo de desenvolvimento que a produziu.
+// Marco do cronograma do projeto (RF10). AGRUPA sprints (ADR-011): o marco e a
+// entrega de longo prazo, com prazo proprio, e as sprints sao os periodos de
+// desenvolvimento que o produzem. Concluido automaticamente quando todas as suas
+// sprints nao canceladas terminam.
 model Milestone {
   id          Int             @id @default(autoincrement())
   projectId   Int
-  sprintId    Int
   title       String
   description String?         @db.Text
   dueDate     DateTime
@@ -396,14 +407,11 @@ model Milestone {
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  // Restrict, nao Cascade: sprint nunca e excluida (ADR-010 D06), e a restricao
-  // faz o banco recusar alto caso alguem reintroduza o caminho de exclusao.
-  sprint  Sprint  @relation(fields: [sprintId], references: [id], onDelete: Restrict)
+  project Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sprints Sprint[]
 
   @@index([projectId, dueDate])
   @@index([projectId, status])
-  @@index([sprintId, status])
 }
 
 // Participacao de uma tarefa em uma sprint (RF10/RF35).

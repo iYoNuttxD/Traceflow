@@ -38,7 +38,8 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "s104:dates:dry-run": "node scripts/s104-legacy-schedule-dates.js",
-    "s104:dates": "node scripts/s104-legacy-schedule-dates.js --apply"
+    "s104:dates": "node scripts/s104-legacy-schedule-dates.js --apply",
+    "adr011:audit": "node scripts/adr011-milestone-sprint-audit.js"
   },
   "dependencies": {
     "@octokit/rest": "^21.0.0",

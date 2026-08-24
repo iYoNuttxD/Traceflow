@@ -2410,6 +2410,15 @@ a {
   background: #ffe1e1;
 }
 
+/* Atraso é estado derivado, não coluna: sprint em andamento que passou do fim, e
+   marco pendente que passou do prazo. Cor própria porque "atrasada" não é
+   "cancelada" — o vermelho de cancelamento diria que o trabalho parou. */
+.status-atrasada,
+.status-atrasado {
+  color: #9a3412;
+  background: #ffe4d5;
+}
+
 /* --- Painel de associacao de tarefas --- */
 
 .sprint-tasks-panel {
@@ -2572,9 +2581,287 @@ a {
 }
 
 /* ==========================================================================
+   Filtro de sprints do Kanban — ADR-011 / RF10
+   ========================================================================== */
+
+.kanban-sprint-filter {
+  position: relative;
+}
+
+.kanban-sprint-filter strong {
+  color: #344054;
+  font-size: 0.86rem;
+}
+
+.kanban-sprint-filter .field-help {
+  margin: 0.35rem 0 0.75rem;
+}
+
+.kanban-sprint-filter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+/* Sobreposto, e não empurrando o quadro para baixo: abrir o filtro não pode
+   reposicionar as colunas que o usuário está lendo. */
+.kanban-sprint-filter-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  left: 0;
+  z-index: 40;
+  padding: 0.85rem;
+  border: 1px solid #e2e7f0;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 24px 48px rgb(16 24 40 / 18%);
+}
+
+.kanban-sprint-filter-title {
+  margin: 0 0 0.6rem;
+  color: #344054;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.kanban-sprint-filter-hint {
+  display: inline;
+  margin-left: 0.3rem;
+}
+
+/* ==========================================================================
+   Burndown da sprint — ADR-011 / RF35
+   ========================================================================== */
+
+.burndown-title {
+  margin: 0.75rem 0 0.35rem;
+  color: #344054;
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.burndown-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  align-items: center;
+  margin: 0 0 0.5rem;
+  color: #667085;
+  font-size: 0.8rem;
+}
+
+.burndown-legend span {
+  display: inline-flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.burndown-swatch {
+  display: inline-block;
+  width: 16px;
+  height: 0;
+}
+
+.burndown-swatch--real {
+  border-top: 3px solid #315bce;
+}
+
+.burndown-swatch--ideal {
+  border-top: 2px dashed #98a2b3;
+}
+
+.burndown-chart {
+  display: block;
+  width: 100%;
+  max-width: 760px;
+  height: auto;
+}
+
+/* ==========================================================================
+   Calendário do cronograma — ADR-011 / RF10
+   A grade mostra DURAÇÃO, que a lista por data não mostra: a faixa contínua diz
+   quanto tempo a sprint ocupa e onde estão os vãos entre uma e outra. O
+   significado nunca é só a cor — cada dia continua sendo um botão com data
+   acessível, a legenda nomeia cada faixa com o seu período, e o painel do dia
+   selecionado repete tudo em texto.
+   ========================================================================== */
+
+.calendar-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.9rem;
+  border-bottom: 1px solid #eef1f6;
+}
+
+.calendar-selected-day {
+  color: #172033;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.calendar-month {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.9rem;
+}
+
+.calendar-month strong {
+  color: #101828;
+  font-size: 1.02rem;
+}
+
+.calendar-nav {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.calendar-nav-button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid #e2e7f0;
+  border-radius: 8px;
+  background: #fff;
+  color: #475467;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+.calendar-nav-button:hover {
+  border-color: #cfd6e4;
+  background: #f7f9fc;
+}
+
+.calendar-weekdays,
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+
+.calendar-weekdays {
+  justify-items: center;
+  margin-bottom: 0.35rem;
+}
+
+.calendar-weekdays span {
+  display: grid;
+  place-items: center;
+  height: 28px;
+  color: #475467;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.calendar-grid {
+  row-gap: 4px;
+}
+
+/* O fundo da célula é a faixa da sprint; o arredondamento vem de variáveis
+   escritas pelo componente, porque só ele sabe onde a faixa começa e acaba. */
+.calendar-day {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--calendar-day-radius, 999px);
+  background: var(--calendar-day-bg, transparent);
+  font: inherit;
+  font-size: 0.92rem;
+  cursor: pointer;
+}
+
+.calendar-day-inner {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  color: var(--calendar-day-fg, #172033);
+}
+
+.calendar-day--fora .calendar-day-inner {
+  color: #b6bec9;
+}
+
+.calendar-day--selecionado .calendar-day-inner {
+  box-shadow: inset 0 0 0 2px #315bce;
+  font-weight: 700;
+}
+
+/* Hoje vence a seleção: são dois destaques no mesmo lugar, e o de hoje é o que
+   o usuário não escolheu e portanto precisa continuar reconhecível. */
+.calendar-day--hoje .calendar-day-inner {
+  background: #315bce;
+  color: #fff;
+  font-weight: 700;
+}
+
+.calendar-day-dot {
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: var(--calendar-day-fg, #315bce);
+}
+
+.calendar-legend {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0.65rem 1rem;
+  margin: 1.15rem 0 0;
+  padding: 1rem 0 0;
+  border-top: 1px solid #eef1f6;
+  list-style: none;
+}
+
+.calendar-legend-item {
+  display: flex;
+  gap: 0.55rem;
+  align-items: center;
+  min-width: 0;
+}
+
+.calendar-legend-swatch {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+}
+
+.calendar-legend-text {
+  display: grid;
+  min-width: 0;
+}
+
+.calendar-legend-name {
+  color: #172033;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.calendar-legend-period {
+  color: #667085;
+  font-size: 0.76rem;
+}
+
+/* ==========================================================================
    Agenda do cronograma — S1-04 / RF10
-   Substitui o gráfico de barras. Nenhuma geometria proporcional: a leitura é
-   vertical por data, e todo significado é palavra, não posição nem cor.
+   Lista por data, agora no painel do dia selecionado e em "Próximos eventos".
+   Nenhuma geometria proporcional aqui: o significado é palavra, não posição.
    ========================================================================== */
 
 .agenda {

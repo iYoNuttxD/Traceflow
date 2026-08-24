@@ -2,6 +2,7 @@
 // nunca no controller e nunca no repository — o repository so garante que elas
 // rodem sobre um retrato travado, dentro da transacao que escreve.
 import { sprintRepository } from '../repositories/sprint.repository.js';
+import { milestoneRepository } from '../repositories/milestone.repository.js';
 import { buildAuditEvent } from '../../audit/audit.service.js';
 import { authorizationService } from '../../authorization/index.js';
 import { ERROR_CODES, resourceNotFoundError } from '../../../shared/errors/index.js';
@@ -11,7 +12,6 @@ import {
   buildSprintData,
   ensureAtLeastOneField,
   ensureDateRange,
-  ensureMilestonesStayWithinWindow,
   ensureNoOverlap,
   ensureSprintEditable,
   ensureSprintScopeMutable,
@@ -20,6 +20,7 @@ import {
   parseProjectId,
   parseSprintId,
   parseTaskId,
+  milestoneNotFoundError,
   sprintDeleteNotSupportedError,
   sprintNameConflictError,
   sprintNotFoundError,
@@ -51,6 +52,40 @@ async function rejectForeignTask(task, actorUserId) {
     400,
     ERROR_CODES.TASK_SPRINT_PROJECT_MISMATCH
   );
+}
+
+// O marco da sprint precisa existir e ser do mesmo projeto (ADR-011 D01). Mesma
+// disciplina de visibilidade de `rejectForeignTask`: responder 400 para "existe
+// em outro projeto" e 404 para "nao existe" faria deste campo um oraculo, e quem
+// nao enxerga o outro projeto recebe exatamente a resposta de marco inexistente.
+//
+// Roda FORA da transacao de proposito: faz I/O de autorizacao, e prolongar o lock
+// do cronograma por isso trocaria um defeito por outro. O que decide sob lock e a
+// revalidacao feita sobre o retrato travado.
+async function ensureSprintMilestone(milestoneId, projectId, context = {}) {
+  if (milestoneId === undefined || milestoneId === null) return null;
+  const milestone = await milestoneRepository.findById(milestoneId);
+  if (!milestone) throw milestoneNotFoundError();
+  if (milestone.projectId !== projectId) {
+    if (!(await authorizationService.actorSeesProject(milestone.projectId, context.actorUserId))) {
+      throw milestoneNotFoundError();
+    }
+    throw new SprintServiceError(
+      'O marco informado não pertence ao mesmo projeto da sprint.',
+      400,
+      ERROR_CODES.SPRINT_MILESTONE_PROJECT_MISMATCH
+    );
+  }
+  return milestone;
+}
+
+// Revalidacao sob lock: entre a checagem acima e a escrita, o marco pode ter sido
+// excluido por outra requisicao. `milestones` e o retrato travado do projeto.
+function ensureMilestoneStillThere(milestoneId, milestones) {
+  if (milestoneId === undefined || milestoneId === null) return;
+  if (!milestones.some((milestone) => milestone.id === milestoneId)) {
+    throw milestoneNotFoundError();
+  }
 }
 
 // Traduz o conjunto desejado em entradas e saidas de participacao.
@@ -227,6 +262,7 @@ export const sprintCrudService = {
     await ensureProjectExists(parsedProjectId);
     const sprintData = buildSprintData(data, true);
     ensureDateRange(sprintData.startDate, sprintData.endDate);
+    await ensureSprintMilestone(sprintData.milestoneId, parsedProjectId, context);
     try {
       return await sprintRepository.createWithinProjectLock(
         parsedProjectId,
@@ -238,7 +274,10 @@ export const sprintCrudService = {
           action: 'SPRINT_CREATED',
           resourceType: 'Sprint'
         }),
-        ({ sprints }) => ensureNoOverlap(sprintData, sprints)
+        ({ sprints, milestones }) => {
+          ensureNoOverlap(sprintData, sprints);
+          ensureMilestoneStillThere(sprintData.milestoneId, milestones);
+        }
       );
     } catch (error) {
       if (isUniqueNameViolation(error)) throw sprintNameConflictError();
@@ -277,6 +316,11 @@ export const sprintCrudService = {
     if (sprintData.startDate && sprintData.endDate) {
       ensureDateRange(sprintData.startDate, sprintData.endDate);
     }
+    // `undefined` significa "nao mexeu no marco"; `null` significa "desvincular",
+    // e nesse caso nao ha o que conferir.
+    if (sprintData.milestoneId !== undefined) {
+      await ensureSprintMilestone(sprintData.milestoneId, current.projectId, context);
+    }
 
     try {
       const sprint = await sprintRepository.updateWithinProjectLock(
@@ -302,7 +346,7 @@ export const sprintCrudService = {
           const endDate = sprintData.endDate ?? locked.endDate;
           ensureDateRange(startDate, endDate);
           ensureNoOverlap({ startDate, endDate }, sprints, id);
-          ensureMilestonesStayWithinWindow(milestones, locked, { startDate, endDate });
+          ensureMilestoneStillThere(sprintData.milestoneId, milestones);
         }
       );
       // null significa que a sprint sumiu entre a checagem e o lock.

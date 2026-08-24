@@ -37,6 +37,9 @@ function formatScheduleTask(task, sprint) {
     status: task.status,
     priority: task.priority,
     deadline: toIsoString(task.deadline),
+    // Null e "nao estimada", que e diferente de zero: a soma da sprint ignora,
+    // e a tela consegue dizer que falta estimar em vez de afirmar zero ponto.
+    estimatedEffort: task.estimatedEffort ?? null,
     responsibleUserId: task.responsibleUserId ?? null,
     ...(sprint
       ? {
@@ -88,6 +91,9 @@ export const scheduleService = {
         status: sprint.status,
         startedAt: sprint.startedAt,
         completedAt: sprint.completedAt,
+        // O vinculo com o marco mora aqui desde a inversao (ADR-011 D01): e a
+        // sprint que aponta, e o cronograma agrupa por este campo.
+        milestoneId: sprint.milestoneId ?? null,
         durationInDays: durationInDays(sprint.startDate, sprint.endDate),
         taskCount: sprint.sprintTasks.length,
         tasks: sprint.sprintTasks.map((participation) =>
@@ -108,7 +114,6 @@ export const scheduleService = {
         id: milestone.id,
         title: milestone.title,
         description: milestone.description,
-        sprintId: milestone.sprintId,
         dueDate: toIsoString(milestone.dueDate),
         status: milestone.status,
         overdue: isMilestoneOverdue(milestone.status, milestone.dueDate, generatedAt)

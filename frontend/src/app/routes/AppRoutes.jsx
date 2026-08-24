@@ -34,6 +34,8 @@ const RequirementsPage = lazyNamed(
 const TasksPage = lazyNamed(() => import('../../pages/TasksPage.jsx'), 'TasksPage');
 const KanbanPage = lazyNamed(() => import('../../pages/KanbanPage.jsx'), 'KanbanPage');
 const SchedulePage = lazyNamed(() => import('../../pages/SchedulePage.jsx'), 'SchedulePage');
+const SprintsPage = lazyNamed(() => import('../../pages/SprintsPage.jsx'), 'SprintsPage');
+const MilestonesPage = lazyNamed(() => import('../../pages/MilestonesPage.jsx'), 'MilestonesPage');
 const RepositoryInfoPage = lazyNamed(
   () => import('../../pages/RepositoryInfoPage.jsx'),
   'RepositoryInfoPage'
@@ -80,6 +82,8 @@ export function AppRoutes() {
           <Route path="/projects/:projectId/requirements" element={<RequirementsPage />} />
           <Route path="/projects/:projectId/tasks" element={<TasksPage />} />
           <Route path="/projects/:projectId/kanban" element={<KanbanPage />} />
+          <Route path="/projects/:projectId/sprints" element={<SprintsPage />} />
+          <Route path="/projects/:projectId/milestones" element={<MilestonesPage />} />
           <Route path="/projects/:projectId/schedule" element={<SchedulePage />} />
           <Route path="/projects/:projectId/repository" element={<RepositoryInfoPage />} />
           <Route path="/projects/:projectId/traceability" element={<TraceabilityPage />} />

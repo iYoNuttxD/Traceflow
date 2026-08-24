@@ -129,6 +129,83 @@ export function formatSprintPeriod(sprint) {
   return `${formatInstant(sprint.startDate)} a ${formatInstant(sprint.endDate)}`;
 }
 
+// Texto da confirmação de encerramento, montado num lugar só porque duas telas
+// oferecem a mesma ação: se divergirem, uma delas passa a prometer um efeito que
+// a outra não promete — e o efeito é irreversível.
+//
+// A contagem de pendentes é o número que o backend usará para devolvê-las ao
+// backlog (ADR-011 D07). Prometer "nenhuma" e devolver três seria pior do que
+// não avisar.
+export function sprintTerminalConfirm(sprint, status, pendentes) {
+  return {
+    title: status === 'CONCLUIDA' ? 'Concluir sprint?' : 'Cancelar sprint',
+    description:
+      `A sprint "${sprint.name}" será encerrada e congelada: ela não poderá ser editada, ` +
+      'reaberta nem receber novas tarefas. ' +
+      (pendentes
+        ? `${pendentes} tarefa(s) não concluída(s) voltarão ao backlog.`
+        : 'Todas as tarefas da sprint foram concluídas.'),
+    confirmLabel: status === 'CONCLUIDA' ? 'Concluir e congelar' : 'Cancelar sprint'
+  };
+}
+
+// Chave de exibição da sprint. ATRASADA não é um status do banco: é uma sprint
+// EM_ANDAMENTO cuja janela já passou. Derivar aqui, e não persistir, evita um
+// campo que envelhece sozinho e precisa de alguém para atualizá-lo.
+export function sprintStatusKey(sprint, today = new Date()) {
+  if (sprint.status !== 'EM_ANDAMENTO') return sprint.status;
+  const fim = new Date(sprint.endDate || '');
+  if (Number.isNaN(fim.getTime())) return sprint.status;
+  return fim.getTime() < today.getTime() ? 'ATRASADA' : 'EM_ANDAMENTO';
+}
+
+export const sprintStatusKeyLabels = {
+  ...sprintStatusLabels,
+  ATRASADA: 'Atrasada'
+};
+
+// Classe do badge a partir da chave derivada. Minúsculas porque é assim que as
+// classes de status são nomeadas no CSS do produto.
+export const statusBadgeClass = (key) => `status-badge status-${String(key).toLowerCase()}`;
+
+// Composição da sprint vinda do agregado do cronograma: tarefas concluídas,
+// total e pontos. `estimatedEffort` nulo é "não estimada" e não entra na soma —
+// contá-la como zero misturaria "não medido" com "não custa nada".
+export function summarizeSprintTasks(scheduleSprint) {
+  const tasks = scheduleSprint?.tasks || [];
+  const pontos = (list) =>
+    list.reduce((soma, task) => soma + (Number(task.estimatedEffort) || 0), 0);
+  const concluidas = tasks.filter((task) => task.status === 'CONCLUIDO');
+  const total = pontos(tasks);
+  const feitos = pontos(concluidas);
+  return {
+    total: tasks.length,
+    done: concluidas.length,
+    points: total,
+    donePoints: feitos,
+    // Null, e não 0, quando não há pontos a medir: "nada concluído" e "não há o
+    // que concluir" são estados diferentes, mesma regra do RF35 no backend.
+    percent: total > 0 ? Math.round((feitos / total) * 100) : null
+  };
+}
+
+// Progresso do marco (ADR-011 D05): sprints concluídas sobre as não canceladas.
+// A cancelada sai das duas pontas — ela não foi entregue nem está pendente.
+export function milestoneProgress(milestoneId, sprints) {
+  const doMarco = sprints.filter((sprint) => sprint.milestoneId === milestoneId);
+  const consideradas = doMarco.filter((sprint) => sprint.status !== 'CANCELADA');
+  const done = consideradas.filter((sprint) => sprint.status === 'CONCLUIDA').length;
+  return {
+    sprints: doMarco,
+    total: consideradas.length,
+    done,
+    percent: consideradas.length ? Math.round((done / consideradas.length) * 100) : 0,
+    // Mesma condição do backend. A interface não guarda "foi automático": esse
+    // fato é derivável do estado, e persistí-lo criaria uma cópia que diverge.
+    allConcluded: consideradas.length > 0 && done === consideradas.length
+  };
+}
+
 export function formatDuration(durationInDays) {
   if (!durationInDays && durationInDays !== 0) return 'Não informado';
   return durationInDays === 1 ? '1 dia' : `${durationInDays} dias`;

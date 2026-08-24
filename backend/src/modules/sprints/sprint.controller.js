@@ -11,6 +11,25 @@ const actorContext = (req) => ({
   requestId: req.requestId
 });
 
+// A transicao pode ter tres efeitos, e quem clicou precisa saber de todos: a
+// sprint mudou de estado, tarefas voltaram ao backlog (ADR-011 D07) e o marco
+// pode ter sido concluido automaticamente (D05). Silenciar os dois ultimos faria
+// a tela mudar sozinha em lugares que ninguem tocou.
+function statusMessage(sprint, returnedToBacklog, milestoneCompleted) {
+  const partes = ['Status da sprint atualizado com sucesso.'];
+  if (returnedToBacklog > 0) {
+    partes.push(
+      returnedToBacklog === 1
+        ? '1 tarefa não concluída voltou ao backlog.'
+        : `${returnedToBacklog} tarefas não concluídas voltaram ao backlog.`
+    );
+  }
+  if (milestoneCompleted) {
+    partes.push(`O marco "${milestoneCompleted.title}" foi concluído automaticamente.`);
+  }
+  return partes.join(' ');
+}
+
 export const sprintController = {
   create: asyncHandler(
     async (req, res) => {
@@ -50,12 +69,17 @@ export const sprintController = {
 
   updateStatus: asyncHandler(
     async (req, res) => {
-      const sprint = await sprintService.updateSprintStatus(
-        req.params.id,
-        req.body.status,
-        actorContext(req)
-      );
-      return res.json({ message: 'Status da sprint atualizado com sucesso.', sprint });
+      const { sprint, returnedToBacklog, milestoneCompleted } =
+        await sprintService.updateSprintStatus(req.params.id, req.body.status, actorContext(req));
+      return res.json({
+        message: statusMessage(sprint, returnedToBacklog, milestoneCompleted),
+        sprint,
+        // Efeitos colaterais explicitos no corpo, e nao apenas embutidos na
+        // frase: a interface precisa reagir a eles (recarregar o quadro, marcar o
+        // marco) sem interpretar texto.
+        returnedToBacklog,
+        milestoneCompleted
+      });
     },
     { fallbackMessage: sprintFallback }
   ),

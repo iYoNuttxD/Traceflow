@@ -59,6 +59,8 @@ function TraceabilityItem({ children, href, removeLabel, removeTitle, onRemove }
 
 function TaskListItem({
   task,
+  sprintName,
+  milestoneName,
   deleting,
   onEdit,
   onDelete,
@@ -82,6 +84,14 @@ function TaskListItem({
       </div>
       <p>{task.description || 'Sem descrição cadastrada.'}</p>
       <dl className="task-details">
+        <div>
+          <dt>Sprint</dt>
+          <dd>{sprintName || 'Backlog'}</dd>
+        </div>
+        <div>
+          <dt>Marco</dt>
+          <dd>{milestoneName || '—'}</dd>
+        </div>
         <div>
           <dt>Responsável</dt>
           <dd>{task.responsibleUser?.name || task.responsible || 'Não informado'}</dd>
@@ -194,6 +204,10 @@ function TaskListItem({
 
 export function TaskList({
   tasks,
+  // Nome por id: a tarefa carrega apenas `sprintId`, e o marco chega por
+  // transitividade — é a sprint que aponta para ele (ADR-011 D01).
+  sprints = [],
+  milestones = [],
   deletingTaskId,
   onEdit,
   onDelete,
@@ -202,6 +216,10 @@ export function TaskList({
   onUnlinkCommit,
   onUnlinkIssue
 }) {
+  const sprintById = Object.fromEntries(sprints.map((sprint) => [sprint.id, sprint]));
+  const milestoneNames = Object.fromEntries(
+    milestones.map((milestone) => [milestone.id, milestone.title])
+  );
   return (
     <section className="tasks-list-section">
       <Card title="Tarefas cadastradas">
@@ -213,6 +231,8 @@ export function TaskList({
               <TaskListItem
                 key={task.id}
                 task={task}
+                sprintName={sprintById[task.sprintId]?.name}
+                milestoneName={milestoneNames[sprintById[task.sprintId]?.milestoneId]}
                 deleting={deletingTaskId === task.id}
                 onEdit={onEdit}
                 onDelete={onDelete}
