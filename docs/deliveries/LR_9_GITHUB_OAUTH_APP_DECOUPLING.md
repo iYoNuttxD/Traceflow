@@ -130,14 +130,33 @@ leakage.
   válida, enquanto 403/429 continuam seguindo a normalização e o retry já existentes. A paginação
   completa permanece em `listRepositories`, `listAllRepositories` e
   `resolveAuthorizedRepository`.
+- **CR-FIX-03 — GitHub Sync Run Determinism:** a causa confirmada estava no teste E9, não no
+  runtime. O cenário MANAGER iniciava um sync e chamava um helper que fazia um segundo `POST`; o
+  helper também aceitava qualquer run terminal sem comparar seu ID com o run iniciado. A
+  instrumentação diagnóstica capturou os dois POSTs no mesmo run artificial `1408`: o primeiro com
+  `alreadyRunning=false`, o segundo com `alreadyRunning=true`, exatamente um registro no banco e
+  terminal `SUCCEEDED`. Não houve evidência de worker duplo, divergência de `projectsInSync` ou
+  falha de produto.
+
+  A falha terminal relatada anteriormente não se reproduziu na baseline: antes da correção, o
+  cenário isolado passou 30/30, o arquivo E9 passou 10/10 e a integração/API passou 3/3. Ainda
+  assim, a dupla intenção era temporalmente não determinística: se o primeiro run terminasse antes
+  do segundo `POST`, o helper poderia iniciar e observar outro run. A correção separou
+  `waitForSyncRun(runId)` de `startAndWaitForSync()`, eliminou o segundo `POST` do cenário MANAGER e
+  passou a exigir igualdade de ID em todo polling. Um novo teste HTTP concorrente prova dois 202,
+  o mesmo `run.id`, flags `alreadyRunning` complementares, um único worker e um único registro.
+
+  Pós-correção: cenário alvo 50/50, arquivo E9 10/10, integração/API 167/167 e backend total
+  429/429. Não houve aumento de timeout, sleep ou polling, retry, skip, mudança de coverage ou
+  alteração de runtime; a instrumentação temporária foi removida.
 
 ## Resultados automatizados
 
 | Gate | Resultado |
 | --- | --- |
 | Backend unit | PASS — 262/262 |
-| Backend integration/API | PASS — 166/166; 5 skips condicionais |
-| Backend total | PASS — 428/428; 5 skips condicionais |
+| Backend integration/API | PASS — 167/167; 5 skips condicionais |
+| Backend total | PASS — 429/429; 5 skips condicionais |
 | Backend coverage | PASS — 88,86% statements; 75,66% branches; 92,86% functions; 91,43% lines |
 | Frontend | PASS — 252/252 |
 | Frontend coverage | PASS — 63,38% statements; 61,02% branches; 54,76% functions; 64,76% lines |

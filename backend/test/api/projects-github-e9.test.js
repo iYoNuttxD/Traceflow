@@ -104,20 +104,27 @@ async function createIntegratedProject(auth) {
   return response.body.project;
 }
 
-async function startAndWaitForSync(auth, projectId) {
-  const started = await auth.mutate('post', `/api/projects/${projectId}/github/sync`).send({});
-  expect(started.status, JSON.stringify(started.body)).toBe(202);
-
+async function waitForSyncRun(auth, projectId, expectedRunId) {
   for (let attempt = 0; attempt < 200; attempt += 1) {
     const status = await auth.agent.get(`/api/projects/${projectId}/github/sync/status`);
     expect(status.status, JSON.stringify(status.body)).toBe(200);
+    expect(status.body.run?.id, JSON.stringify(status.body)).toBe(expectedRunId);
     if (['SUCCEEDED', 'FAILED'].includes(status.body.run?.status)) {
-      return { started, status, run: status.body.run };
+      return { status, run: status.body.run };
     }
     await new Promise((resolve) => setTimeout(resolve, 5));
   }
 
-  throw new Error(`A execução GitHub do projeto ${projectId} não chegou a um estado terminal.`);
+  throw new Error(
+    `A execução GitHub ${expectedRunId} do projeto ${projectId} não chegou a um estado terminal.`
+  );
+}
+
+async function startAndWaitForSync(auth, projectId) {
+  const started = await auth.mutate('post', `/api/projects/${projectId}/github/sync`).send({});
+  expect(started.status, JSON.stringify(started.body)).toBe(202);
+  const observed = await waitForSyncRun(auth, projectId, started.body.run.id);
+  return { started, ...observed };
 }
 
 beforeAll(async () => {
@@ -293,7 +300,9 @@ describe('Projetos e integração GitHub E9', () => {
         .send({});
       expect(response.status).toBe(role === 'MANAGER' ? 202 : 403);
       if (role === 'MANAGER') {
-        expect((await startAndWaitForSync(auth, project.id)).run.status).toBe('SUCCEEDED');
+        const observed = await waitForSyncRun(auth, project.id, response.body.run.id);
+        expect(observed.run.status).toBe('SUCCEEDED');
+        expect(await prisma.gitHubSyncRun.count({ where: { projectId: project.id } })).toBe(1);
       }
     }
 
@@ -304,6 +313,38 @@ describe('Projetos e integração GitHub E9', () => {
     ).toBe(404);
     expect((await startAndWaitForSync(owner, project.id)).run.status).toBe('SUCCEEDED');
   }, 30000);
+
+  it('coalesce duas solicitações concorrentes no mesmo run e agenda um único worker', async () => {
+    const owner = await register('owner-concurrent@example.invalid');
+    const project = await createIntegratedProject(owner);
+    let releaseRepository;
+    const repositoryGate = new Promise((resolve) => {
+      releaseRepository = resolve;
+    });
+    githubBoundary.client.getRepository.mockImplementation(async () => {
+      await repositoryGate;
+      return repository;
+    });
+
+    const requests = [
+      owner.mutate('post', `/api/projects/${project.id}/github/sync`).send({}),
+      owner.mutate('post', `/api/projects/${project.id}/github/sync`).send({})
+    ];
+    const responses = await Promise.all(requests);
+    releaseRepository();
+
+    expect(responses.map(({ status }) => status)).toEqual([202, 202]);
+    const runs = responses.map(({ body }) => body.run);
+    const created = runs.find(({ alreadyRunning }) => alreadyRunning === false);
+    const controlled = runs.find(({ alreadyRunning }) => alreadyRunning === true);
+    expect(created).toMatchObject({ status: 'QUEUED', alreadyRunning: false });
+    expect(controlled).toMatchObject({ id: created.id, alreadyRunning: true });
+
+    const observed = await waitForSyncRun(owner, project.id, created.id);
+    expect(observed.run.status).toBe('SUCCEEDED');
+    expect(githubBoundary.client.getRepository).toHaveBeenCalledOnce();
+    expect(await prisma.gitHubSyncRun.count({ where: { projectId: project.id } })).toBe(1);
+  });
 
   it('pagina, reprocessa sem duplicar e preserva vínculos e artifacts canônicos', async () => {
     const owner = await register('owner-sync@example.invalid');

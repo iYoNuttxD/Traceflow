@@ -30,6 +30,7 @@ A migration L1 cria integração `RECONNECT_REQUIRED` para projetos com metadado
 ## Sincronização
 
 - `POST /api/projects/:projectId/github/sync` exige MANAGER+, e-mail verificado e integração/instalação `ACTIVE`.
+- Duas solicitações concorrentes para o mesmo projeto retornam `202` e o mesmo `run.id`; somente a criadora informa `alreadyRunning=false` e agenda o worker.
 - O token de instalação é gerado sob demanda; sync pagina, deduplica/upserta e preserva artifacts ausentes em execuções posteriores.
 - Falha parcial preserva lotes confirmados e último sucesso; `GitHubSyncRun.activeProjectId` garante um claim ativo por projeto no banco e stale detection permite recuperação controlada.
 - Webhooks de instalação/repositório apenas atualizam estado. Não disparam sync automático.
