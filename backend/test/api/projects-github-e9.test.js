@@ -13,7 +13,6 @@ const githubBoundary = vi.hoisted(() => ({
   resolveAuthorizedRepository: vi.fn(),
   assertRepositoryAvailable: vi.fn()
 }));
-
 vi.mock('../../src/modules/github/github.client.js', () => ({
   githubInstallationClientFactory: {
     forInstallation: () => githubBoundary.client
@@ -107,7 +106,16 @@ async function createIntegratedProject(auth) {
 async function waitForSyncRun(auth, projectId, expectedRunId) {
   for (let attempt = 0; attempt < 200; attempt += 1) {
     const status = await auth.agent.get(`/api/projects/${projectId}/github/sync/status`);
-    expect(status.status, JSON.stringify(status.body)).toBe(200);
+    expect(
+      status.status,
+      JSON.stringify({
+        body: status.body,
+        headers: {
+          contentType: status.headers['content-type'],
+          requestId: status.headers['x-request-id']
+        }
+      })
+    ).toBe(200);
     expect(status.body.run?.id, JSON.stringify(status.body)).toBe(expectedRunId);
     if (['SUCCEEDED', 'FAILED'].includes(status.body.run?.status)) {
       return { status, run: status.body.run };
@@ -496,6 +504,46 @@ describe('Projetos e integração GitHub E9', () => {
     ).toBe(0);
   });
 
+  it('usa heartbeat como autoridade de liveness para execução em andamento', async () => {
+    const owner = await register('owner-heartbeat@example.invalid');
+    const project = await createIntegratedProject(owner);
+    const { getProjectGithubSyncStatus, requestProjectGithubSync, GITHUB_SYNC_STALE_AFTER_MS } =
+      await import('../../src/modules/github/services/github-sync-run.service.js');
+    const createdAt = new Date('2026-08-10T12:00:00.000Z');
+    const recentHeartbeat = new Date(createdAt.getTime() + GITHUB_SYNC_STALE_AFTER_MS);
+    const run = await requestProjectGithubSync(project.id, owner.user.id, {
+      schedule: vi.fn(),
+      now: createdAt
+    });
+
+    await prisma.gitHubSyncRun.update({
+      where: { id: run.id },
+      data: {
+        status: 'RUNNING',
+        step: 'COMMITS',
+        heartbeatAt: recentHeartbeat,
+        updatedAt: createdAt
+      }
+    });
+    const running = await getProjectGithubSyncStatus(project.id, {
+      now: new Date(createdAt.getTime() + GITHUB_SYNC_STALE_AFTER_MS + 1)
+    });
+    expect(running).toMatchObject({ id: run.id, status: 'RUNNING', step: 'COMMITS' });
+
+    await prisma.gitHubSyncRun.update({
+      where: { id: run.id },
+      data: { heartbeatAt: createdAt, updatedAt: recentHeartbeat }
+    });
+    const stale = await getProjectGithubSyncStatus(project.id, {
+      now: new Date(createdAt.getTime() + GITHUB_SYNC_STALE_AFTER_MS + 1)
+    });
+    expect(stale).toMatchObject({
+      id: run.id,
+      status: 'FAILED',
+      error: { code: 'GITHUB_SYNC_STALE' }
+    });
+  });
+
   it('mantém lote persistido, último sucesso e auditoria quando uma coleção posterior falha', async () => {
     const owner = await register('owner-partial@example.invalid');
     const project = await createIntegratedProject(owner);
@@ -540,5 +588,71 @@ describe('Projetos e integração GitHub E9', () => {
     expect(actions.map(({ action }) => action)).toEqual(
       expect.arrayContaining(['GITHUB_SYNC_REQUESTED', 'GITHUB_SYNC_FAILED'])
     );
+  });
+
+  it('mantém polling consistente durante a transição para FAILED', async () => {
+    const owner = await register('owner-failure-race@example.invalid');
+    const project = await createIntegratedProject(owner);
+    const { projectRepository } = await import('../../src/modules/projects/project.repository.js');
+    const { githubSyncRunRepository } =
+      await import('../../src/modules/github/github-sync-run.repository.js');
+    const failure = new ExternalServiceError(
+      'Falha de conexão com o GitHub.',
+      500,
+      ERROR_CODES.EXTERNAL_SERVICE_ERROR
+    );
+    githubBoundary.client = createGithubDouble();
+    githubBoundary.client.listPullRequestPages.mockReturnValue(
+      (async function* fail() {
+        throw failure;
+      })()
+    );
+
+    let integrationFailed;
+    let releaseTerminalTransition;
+    const integrationFailedSignal = new Promise((resolve) => {
+      integrationFailed = resolve;
+    });
+    const terminalTransitionGate = new Promise((resolve) => {
+      releaseTerminalTransition = resolve;
+    });
+    const originalMarkFailed = projectRepository.markGithubSyncFailed.bind(projectRepository);
+    const expireSpy = vi.spyOn(githubSyncRunRepository, 'expireIfStillStale');
+    const markFailedSpy = vi
+      .spyOn(projectRepository, 'markGithubSyncFailed')
+      .mockImplementation(async (...args) => {
+        const result = await originalMarkFailed(...args);
+        integrationFailed();
+        await terminalTransitionGate;
+        return result;
+      });
+
+    const started = await owner.mutate('post', `/api/projects/${project.id}/github/sync`).send({});
+    expect(started.status).toBe(202);
+    await integrationFailedSignal;
+
+    const running = await owner.agent.get(`/api/projects/${project.id}/github/sync/status`);
+    expect(running.status, JSON.stringify(running.body)).toBe(200);
+    expect(running.body.run).toMatchObject({ id: started.body.run.id, status: 'RUNNING' });
+
+    const polls = Array.from({ length: 8 }, () =>
+      owner.agent.get(`/api/projects/${project.id}/github/sync/status`)
+    );
+    releaseTerminalTransition();
+    const responses = await Promise.all(polls);
+    markFailedSpy.mockRestore();
+
+    const observed = await waitForSyncRun(owner, project.id, started.body.run.id);
+    expect(responses.every(({ status }) => status === 200)).toBe(true);
+    expect(responses.every(({ body }) => body.run?.id === started.body.run.id)).toBe(true);
+    expect(responses.every(({ body }) => ['RUNNING', 'FAILED'].includes(body.run?.status))).toBe(
+      true
+    );
+    expect(expireSpy).not.toHaveBeenCalled();
+    expireSpy.mockRestore();
+    expect(observed.run).toMatchObject({ status: 'FAILED', step: 'PULL_REQUESTS' });
+    const failed = await owner.agent.get(`/api/projects/${project.id}/github/sync/status`);
+    expect(failed.status, JSON.stringify(failed.body)).toBe(200);
+    expect(failed.body.run).toMatchObject({ id: started.body.run.id, status: 'FAILED' });
   });
 });

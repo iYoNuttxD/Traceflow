@@ -150,14 +150,70 @@ leakage.
   429/429. Não houve aumento de timeout, sleep ou polling, retry, skip, mudança de coverage ou
   alteração de runtime; a instrumentação temporária foi removida.
 
+### CR-FIX-04 — Sync Status Failure-Transition Reliability
+
+O CI do SHA `b1f2bd052f026fba56de714888080ce65de682d9`, em Ubuntu 24.04, Node.js
+22.23.2 e MySQL 8.4.8, expôs `HTTP 500 / INTERNAL_ERROR` no requestId
+`12030b9b-007f-49f2-bde8-e0610704acea` enquanto o run intencionalmente falhava em
+`PULL_REQUESTS`. O estado `FAILED` era esperado; o endpoint de status deveria continuar sendo uma
+leitura HTTP 200.
+
+A causa estrutural estava no caminho write-first do polling. Cada
+`GET /api/projects/:projectId/github/sync/status` executava primeiro um `updateMany` de stale
+recovery por projeto, mesmo quando o run tinha liveness recente. Esse update disputava a mesma
+linha e os mesmos índices alterados por `GitHubSyncRun.fail()` durante a transição terminal. O
+error handler converteu a rejeição não operacional no fallback seguro `INTERNAL_ERROR`. O log
+daquela execução não preservou a classe/código de baixo nível; por isso este relatório não atribui
+sem evidência o erro a `P2034`, deadlock ou lock wait específico.
+
+A consulta passou a ser read-first:
+
+- lê o run ativo e retorna imediatamente quando o heartbeat é recente, sem executar escrita;
+- usa `heartbeatAt` como liveness do worker e `updatedAt` apenas como fallback para o estado
+  `QUEUED`, que ainda não possui heartbeat;
+- quando o run está realmente stale, expira atomicamente somente o `run.id` observado, desde que
+  status, projeto, vínculo ativo e cutoff continuem válidos;
+- se o worker concluir entre a leitura e a expiração condicional, relê o estado em vez de impor um
+  terminal concorrente;
+- preserva `GITHUB_SYNC_STALE`, `activeProjectId @unique`, coalescing e o mesmo `run.id`.
+
+O ambiente local não era equivalente ao CI: Node.js 22.23.2 e MySQL 9.7.1 com
+`REPEATABLE-READ`; Docker/MySQL 8.4.8 não estavam disponíveis. Antes da correção, o cenário alvo
+passou 50/50, o E9 10/10 e integração/API 3/3 localmente, portanto o erro de baixo nível não foi
+reproduzido fora do CI. A race controlada também passou 30/30, confirmando a diferença ambiental,
+mas demonstrou a janela funcional em que a integração já estava em `FALHA` e o run ainda em
+`RUNNING`.
+
+Depois da correção:
+
+- cenário alvo: 50/50, zero HTTP 500;
+- E9 definitivo: 10/10 execuções do arquivo, com 10 testes por execução;
+- integração/API: 3/3 execuções, 169/169 testes por execução e 5 skips condicionais;
+- backend total e coverage: 431/431, 5 skips; 88,85% statements, 75,70% branches, 92,86%
+  functions e 91,42% lines;
+- polling controlado: HTTP 200 em `RUNNING`, durante a transição e em `FAILED`; oito consultas
+  simultâneas observaram o mesmo run e não acionaram stale update;
+- heartbeat recente não expirou mesmo com `updatedAt` antigo; heartbeat antigo expirou com
+  `GITHUB_SYNC_STALE` mesmo com `updatedAt` recente;
+- papéis/isolamento e coalescing do CR-FIX-03 permaneceram verdes;
+- lint, format, architecture, secrets, npm audit, Prisma e validadores de migration passaram; 40
+  migrations continuam aplicadas e nenhuma migration foi criada.
+
+Houve duas respostas locais esporádicas com payload externo
+`authentication_error / Invalid authentication` durante baterias de coverage/E9; esse contrato
+não existe no TRACEFLOW e não corresponde ao `INTERNAL_ERROR` investigado. As repetições focadas,
+o E9 final 10/10, o backend total e o coverage consolidado subsequentes passaram. O CR-FIX-04 está
+concluído localmente, mas permanece **AGUARDANDO CI** em MySQL 8.4.8; nenhum PASS remoto novo é
+inferido destes resultados locais.
+
 ## Resultados automatizados
 
 | Gate | Resultado |
 | --- | --- |
 | Backend unit | PASS — 262/262 |
-| Backend integration/API | PASS — 167/167; 5 skips condicionais |
-| Backend total | PASS — 429/429; 5 skips condicionais |
-| Backend coverage | PASS — 88,86% statements; 75,66% branches; 92,86% functions; 91,43% lines |
+| Backend integration/API | PASS — 169/169; 5 skips condicionais |
+| Backend total | PASS — 431/431; 5 skips condicionais |
+| Backend coverage | PASS — 88,85% statements; 75,70% branches; 92,86% functions; 91,42% lines |
 | Frontend | PASS — 252/252 |
 | Frontend coverage | PASS — 63,38% statements; 61,02% branches; 54,76% functions; 64,76% lines |
 | Frontend build | PASS |

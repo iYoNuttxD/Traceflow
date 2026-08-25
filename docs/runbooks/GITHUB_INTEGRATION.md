@@ -33,6 +33,7 @@ A migration L1 cria integração `RECONNECT_REQUIRED` para projetos com metadado
 - Duas solicitações concorrentes para o mesmo projeto retornam `202` e o mesmo `run.id`; somente a criadora informa `alreadyRunning=false` e agenda o worker.
 - O token de instalação é gerado sob demanda; sync pagina, deduplica/upserta e preserva artifacts ausentes em execuções posteriores.
 - Falha parcial preserva lotes confirmados e último sucesso; `GitHubSyncRun.activeProjectId` garante um claim ativo por projeto no banco e stale detection permite recuperação controlada.
+- O polling de status é read-first: runs com `heartbeatAt` recente não geram escrita. Apenas um run realmente stale é expirado condicionalmente pelo próprio `run.id`; para `QUEUED` sem heartbeat, `updatedAt` é o fallback de liveness.
 - Webhooks de instalação/repositório apenas atualizam estado. Não disparam sync automático.
 - `installation_repositories.added` atualiza metadados e o novo repositório aparece na listagem ao vivo, sem alterar projetos existentes.
 - `installation_repositories.removed` bloqueia somente integrações dos IDs removidos e preserva as demais integrações e todos os artifacts já importados.

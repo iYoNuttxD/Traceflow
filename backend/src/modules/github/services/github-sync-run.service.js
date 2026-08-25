@@ -159,16 +159,34 @@ function scheduleInProcess(runId) {
   });
 }
 
-async function expireStaleRun(projectId, now = new Date()) {
+function isStale(run, cutoff) {
+  const livenessAt = run.heartbeatAt || run.updatedAt;
+  return livenessAt instanceof Date && livenessAt < cutoff;
+}
+
+async function findActiveRun(projectId, now = new Date()) {
+  const active = await githubSyncRunRepository.findActive(projectId);
+  if (!active) return null;
+
   const cutoff = new Date(now.getTime() - GITHUB_SYNC_STALE_AFTER_MS);
-  const expired = await githubSyncRunRepository.expireStale(projectId, cutoff, now);
+  if (!isStale(active, cutoff)) return active;
+
+  const expired = await githubSyncRunRepository.expireIfStillStale(
+    active.id,
+    projectId,
+    cutoff,
+    now
+  );
   if (expired.count > 0) {
     await projectRepository.markGithubSyncFailed(
       projectId,
       now,
       'A execução foi interrompida antes da conclusão.'
     );
+    return null;
   }
+
+  return githubSyncRunRepository.findActive(projectId);
 }
 
 export async function requestProjectGithubSync(
@@ -178,9 +196,7 @@ export async function requestProjectGithubSync(
 ) {
   const parsedProjectId = parseProjectId(projectId);
   await assertProjectCanSync(parsedProjectId);
-  await expireStaleRun(parsedProjectId, now);
-
-  const active = await githubSyncRunRepository.findActive(parsedProjectId);
+  const active = await findActiveRun(parsedProjectId, now);
   if (active) return publicRun(active, { alreadyRunning: true });
 
   let run;
@@ -199,7 +215,6 @@ export async function requestProjectGithubSync(
 
 export async function getProjectGithubSyncStatus(projectId, { now = new Date() } = {}) {
   const parsedProjectId = parseProjectId(projectId);
-  await expireStaleRun(parsedProjectId, now);
-  const active = await githubSyncRunRepository.findActive(parsedProjectId);
+  const active = await findActiveRun(parsedProjectId, now);
   return publicRun(active || (await githubSyncRunRepository.findLatest(parsedProjectId)));
 }
