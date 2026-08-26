@@ -10,18 +10,8 @@ import { useAuth } from '../AuthContext.jsx';
 import { AuthShell } from '../components/AuthShell.jsx';
 import { PasswordField } from '../components/PasswordField.jsx';
 import { authApi } from '../api/auth.api.js';
+import { githubOAuthErrorMessage } from '../github-oauth-error.js';
 import { sanitizeInternalReturnTo } from '../return-to.js';
-
-const githubErrors = Object.freeze({
-  email_conflict:
-    'Já existe uma conta TraceFlow associada a este endereço. Entre com sua conta atual e vincule o GitHub em Configurações.',
-  verified_email_required:
-    'Sua conta GitHub precisa ter um e-mail principal verificado para criar uma conta TraceFlow.',
-  invalid_state: 'A confirmação com GitHub não é mais válida. Inicie novamente.',
-  expired_state: 'A confirmação com GitHub expirou. Inicie novamente.',
-  unavailable: 'O login com GitHub está indisponível agora. Tente novamente mais tarde.',
-  oauth_failed: 'Não foi possível conectar ao GitHub agora. Tente novamente mais tarde.'
-});
 
 export function LoginScreen() {
   const { login } = useAuth();
@@ -37,7 +27,11 @@ export function LoginScreen() {
   const submitLock = useRef(false);
   const githubLock = useRef(false);
   const returnTo = sanitizeInternalReturnTo(location.state?.from || '/projects');
-  const githubReason = new URLSearchParams(location.search).get('reason');
+  const searchParams = new URLSearchParams(location.search);
+  const githubError =
+    searchParams.get('github') === 'error'
+      ? githubOAuthErrorMessage(searchParams.get('reason'))
+      : undefined;
   function change(field, value) {
     setValues((current) => ({ ...current, [field]: value }));
     setFieldErrors((current) => ({ ...current, [field]: undefined }));
@@ -138,7 +132,7 @@ export function LoginScreen() {
           <Link to="/forgot-password">Esqueci minha senha</Link>
         </div>
         <FeedbackRegion
-          error={cooldown ? undefined : error || githubErrors[githubReason]}
+          error={cooldown ? undefined : error || githubError}
           rateLimit={cooldown ? error : undefined}
           retryAfterSeconds={retryAfterSeconds}
         />

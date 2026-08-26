@@ -3,7 +3,7 @@
 - **Estado:** histórica; substituída operacionalmente pelo ADR-009 na L1
 - **Data:** 24/07/2026
 
-> Esta decisão registra a transição E6. O runtime vigente não usa PAT: a GitHub App e a separação entre autorização pessoal e acesso técnico estão no [ADR-009](ADR-009-GITHUB-APP-INSTALLATION-AUTH.md).
+> Esta decisão registra a transição E6. O runtime vigente não usa PAT: a separação entre GitHub OAuth de identidade e GitHub App técnica está no [ADR-012](ADR-012-GITHUB-OAUTH-APP-DECOUPLING.md).
 
 ## Decisão histórica
 
@@ -13,4 +13,4 @@ OAuth/GitHub App por usuário/instalação não foi introduzido naquela etapa. A
 
 ## Estado vigente
 
-Não existe fallback `GITHUB_TOKEN`. A autorização pessoal `OWNER`/`ADMIN` define quais repositórios o usuário pode selecionar; a GitHub App fornece o Installation Token técnico para descoberta cruzada e sincronização. User e Installation Tokens não são persistidos. Secret manager, rotação e homologação externa permanecem responsabilidades operacionais.
+Não existe fallback `GITHUB_TOKEN`. A GitHub App e seu Installation Token definem os repositórios concedidos e executam a sincronização. GitHub OAuth identifica apenas a conta para autenticação e não participa da descoberta. User e Installation Tokens não são persistidos. Secret manager, rotação e homologação externa permanecem responsabilidades operacionais.

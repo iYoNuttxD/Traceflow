@@ -43,6 +43,7 @@
     "db:lr5:preflight": "node scripts/lr5-schema-audit.js",
     "db:lr5:audit": "node scripts/lr5-schema-audit.js --enforce",
     "db:test:validate-lr5": "node scripts/validate-lr5-migration.js",
+    "db:test:validate-lr9": "node scripts/validate-lr9-migration.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev"
   },

@@ -65,8 +65,7 @@ describe('controllers da GitHub App L1', () => {
     expect(installations.json).toHaveBeenCalledWith({ installations: [{ id: 1 }] });
 
     mocks.service.listRepositories.mockResolvedValue({
-      repositories: [{ id: 2 }],
-      authorizationStatus: 'AUTHORIZED'
+      repositories: [{ id: 2 }]
     });
     const repositories = await invoke(githubAppController.listRepositories, {
       auth,
@@ -74,8 +73,7 @@ describe('controllers da GitHub App L1', () => {
     });
     expect(mocks.service.listRepositories).toHaveBeenCalledWith(7, '77', undefined);
     expect(repositories.json).toHaveBeenCalledWith({
-      repositories: [{ id: 2 }],
-      authorizationStatus: 'AUTHORIZED'
+      repositories: [{ id: 2 }]
     });
   });
 

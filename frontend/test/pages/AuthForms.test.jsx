@@ -84,6 +84,26 @@ describe('formulários de identidade acessíveis', () => {
     expect(screen.getByRole('button', { name: 'Entrar com GitHub' })).toBeEnabled();
   });
 
+  it.each([
+    [
+      '/login?github=error&reason=invalid_state',
+      'A confirmação com GitHub não é mais válida. Inicie novamente.'
+    ],
+    [
+      '/login?github=error&reason=internal_raw_failure',
+      'Não foi possível concluir a operação com o GitHub. Tente novamente.'
+    ]
+  ])('usa o mapping OAuth compartilhado em %s', (route, expected) => {
+    render(
+      <MemoryRouter initialEntries={[route]}>
+        <LoginPage />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText(expected)).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent('internal_raw_failure');
+  });
+
   it('preserva pathname, query e hash no retorno após login local', async () => {
     auth.login.mockResolvedValue({ id: 'user-1' });
     const user = userEvent.setup();

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router';
-import { authApi, PasswordField, useAuth } from '../auth/index.js';
+import { authApi, githubOAuthErrorMessage, PasswordField, useAuth } from '../auth/index.js';
 import {
   ContextualErrorPage,
   LoadingState,
@@ -27,12 +27,17 @@ export function SecuritySettingsPage() {
   const [initialPassword, setInitialPassword] = useState({ newPassword: '', confirmation: '' });
   const [passwordErrors, setPasswordErrors] = useState({});
   const [reauthenticating, setReauthenticating] = useState(false);
+  const searchParams = new URLSearchParams(location.search);
+  const githubError =
+    searchParams.get('github') === 'error'
+      ? githubOAuthErrorMessage(searchParams.get('reason'))
+      : '';
   const [message, setMessage] = useState(
-    new URLSearchParams(location.search).get('githubReauth') === 'success'
+    !githubError && searchParams.get('githubReauth') === 'success'
       ? 'Identidade confirmada. Agora crie sua senha.'
       : ''
   );
-  const [error, setError] = useState('');
+  const [error, setError] = useState(githubError);
   const [initialError, setInitialError] = useState(null);
   const [busy, setBusy] = useState('');
   const [retryAfterSeconds, setRetryAfterSeconds] = useState(0);

@@ -299,7 +299,7 @@ describe('configurações de conta L2', () => {
     expect(mocks.repository.recordExport).not.toHaveBeenCalled();
   });
 
-  it('remove somente autorização pessoal do GitHub após confirmar senha', async () => {
+  it('remove somente a conexão pessoal com a GitHub App após confirmar senha', async () => {
     mocks.repository.removeGithubAuthorization.mockResolvedValue({
       id: 5,
       projects: [{ id: 9, name: 'Preservado' }]
@@ -315,7 +315,7 @@ describe('configurações de conta L2', () => {
       7,
       5,
       expect.any(Date),
-      expect.objectContaining({ action: 'GITHUB_AUTHORIZATION_REMOVED' })
+      expect.objectContaining({ action: 'GITHUB_APP_CONNECTION_REMOVED' })
     );
   });
 

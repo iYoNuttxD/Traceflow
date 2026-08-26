@@ -37,7 +37,6 @@ export function normalizeRepository(repository) {
     selectable: repository.selectable !== false,
     githubInstallationId: String(repository.githubInstallationId || ''),
     accountLogin: repository.accountLogin || '',
-    userPermission: repository.userPermission || '',
     connectedProject: repository.connectedProject || null
   };
 }
@@ -150,9 +149,6 @@ export function ProjectForm({
                       ? ` — branch ${normalizedRepository.defaultBranch}`
                       : ''}
                     {normalizedRepository.private ? ' (privado)' : ''}
-                    {normalizedRepository.userPermission
-                      ? ` — ${normalizedRepository.userPermission}`
-                      : ''}
                     {normalizedRepository.alreadyConnected &&
                     !normalizedRepository.connectedToCurrentProject
                       ? ` — vinculado a ${normalizedRepository.connectedProject?.name || 'outro projeto'}`

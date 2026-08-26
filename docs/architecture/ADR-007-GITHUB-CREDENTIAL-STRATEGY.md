@@ -25,4 +25,4 @@ Testes substituem somente a fronteira exportada; não existe resposta falsa no r
 
 ## Evolução vigente
 
-A evolução recomendada foi implementada na L1 e endurecida na LR.3/LR.3.1. O provider atual assina JWT da GitHub App e cria Installation Tokens sob demanda; User Tokens são efêmeros nos callbacks autorizados. Não existe PAT operacional ou fallback `GITHUB_TOKEN`. Permanecem válidas as decisões E9 de base externa fixa, timeout/retry, paginação, DTO mínimo e isolamento do client, agora aplicadas à GitHub App conforme o ADR-009.
+A evolução recomendada foi implementada na L1 e consolidada pela LR.9. O provider atual assina JWT da GitHub App e cria Installation Tokens sob demanda; User Tokens são efêmeros e restritos aos callbacks de autenticação ou à prova do install flow. Não existe PAT operacional ou fallback `GITHUB_TOKEN`. Permanecem válidas as decisões E9 de base externa fixa, timeout/retry, paginação, DTO mínimo e isolamento do client, agora aplicadas à GitHub App conforme o ADR-012.

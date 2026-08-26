@@ -22,17 +22,10 @@ export const githubRepository = {
   findConnectionState(tokenHash) {
     return prisma.gitHubAppConnectionState.findUnique({
       where: { tokenHash },
-      include: { user: { include: { githubIdentity: true } }, session: true }
+      include: { user: true, session: true }
     });
   },
-  async authorizeInstallationFromState({
-    stateId,
-    now,
-    userId,
-    installation: data,
-    repositories = [],
-    repositoryAuthorizationExpiresAt
-  }) {
+  async authorizeInstallationFromState({ stateId, now, userId, installation: data }) {
     try {
       return await prisma.$transaction(async (tx) => {
         const availableState = await tx.gitHubAppConnectionState.findFirst({
@@ -73,39 +66,12 @@ export const githubRepository = {
             create: {
               installationId: installation.id,
               userId,
-              verifiedAt: now,
-              repositoryAuthorizationVerifiedAt: now,
-              repositoryAuthorizationExpiresAt
+              verifiedAt: now
             },
-            update: {
-              verifiedAt: now,
-              repositoryAuthorizationVerifiedAt: now,
-              repositoryAuthorizationExpiresAt
-            }
+            update: { verifiedAt: now }
           });
         } catch (error) {
           throw callbackPersistenceError('upsert_authorization', error);
-        }
-
-        try {
-          await tx.gitHubRepositoryAuthorization.deleteMany({
-            where: { installationId: installation.id, userId }
-          });
-          if (repositories.length > 0) {
-            await tx.gitHubRepositoryAuthorization.createMany({
-              data: repositories.map((repository) => ({
-                installationId: installation.id,
-                userId,
-                githubRepositoryId: String(repository.githubRepositoryId),
-                repositoryFullName: repository.fullName,
-                permission: repository.permission,
-                verifiedAt: now,
-                expiresAt: repositoryAuthorizationExpiresAt
-              }))
-            });
-          }
-        } catch (error) {
-          throw callbackPersistenceError('replace_repository_authorizations', error);
         }
 
         let claimed;
@@ -119,7 +85,7 @@ export const githubRepository = {
         }
         if (claimed.count !== 1) throw callbackPersistenceError('consume_state');
 
-        return { installation, authorization, authorizedRepositoryCount: repositories.length };
+        return { installation, authorization };
       });
     } catch (error) {
       if (error.callbackStep === 'consume_state' && !error.cause) return null;
@@ -132,90 +98,13 @@ export const githubRepository = {
         githubInstallationId: String(githubInstallationId),
         status: 'ACTIVE',
         authorizations: { some: { userId } }
-      },
-      include: {
-        authorizations: {
-          where: { userId },
-          select: {
-            repositoryAuthorizationVerifiedAt: true,
-            repositoryAuthorizationExpiresAt: true
-          }
-        }
       }
     });
   },
   listAuthorizedInstallations(userId) {
     return prisma.gitHubInstallation.findMany({
       where: { status: 'ACTIVE', authorizations: { some: { userId } } },
-      include: {
-        authorizations: {
-          where: { userId },
-          select: {
-            repositoryAuthorizationVerifiedAt: true,
-            repositoryAuthorizationExpiresAt: true
-          }
-        }
-      },
       orderBy: { accountLogin: 'asc' }
-    });
-  },
-  async replaceRepositoryAuthorizationsForUser({ userId, installations, verifiedAt, expiresAt }) {
-    return prisma.$transaction(async (tx) => {
-      let repositoryCount = 0;
-      for (const item of installations) {
-        const updated = await tx.gitHubInstallationAuthorization.updateMany({
-          where: {
-            installationId: item.installationId,
-            userId,
-            installation: { status: 'ACTIVE' }
-          },
-          data: {
-            verifiedAt,
-            repositoryAuthorizationVerifiedAt: verifiedAt,
-            repositoryAuthorizationExpiresAt: expiresAt
-          }
-        });
-        if (updated.count !== 1) {
-          throw Object.assign(new Error('Autorização GitHub não encontrada.'), {
-            code: 'GITHUB_AUTHORIZATION_NOT_FOUND'
-          });
-        }
-        await tx.gitHubRepositoryAuthorization.deleteMany({
-          where: { installationId: item.installationId, userId }
-        });
-        if (item.repositories.length > 0) {
-          await tx.gitHubRepositoryAuthorization.createMany({
-            data: item.repositories.map((repository) => ({
-              installationId: item.installationId,
-              userId,
-              githubRepositoryId: String(repository.githubRepositoryId),
-              repositoryFullName: repository.fullName,
-              permission: repository.permission,
-              verifiedAt,
-              expiresAt
-            }))
-          });
-          repositoryCount += item.repositories.length;
-        }
-      }
-      return { installationCount: installations.length, repositoryCount };
-    });
-  },
-  findRepositoryAuthorizations(userId, installationId, now = new Date()) {
-    return prisma.gitHubRepositoryAuthorization.findMany({
-      where: {
-        userId,
-        installationId,
-        expiresAt: { gt: now },
-        permission: { in: ['OWNER', 'ADMIN'] }
-      },
-      select: {
-        githubRepositoryId: true,
-        repositoryFullName: true,
-        permission: true,
-        verifiedAt: true,
-        expiresAt: true
-      }
     });
   },
   findIntegration(projectId) {
@@ -410,25 +299,6 @@ export const githubRepository = {
         lastSyncStatus: 'BLOQUEADO',
         lastSyncError: 'O repositório não está mais acessível pela GitHub App.'
       }
-    });
-  },
-  expireRepositoryAuthorizationsForInstallation(githubInstallationId, now = new Date()) {
-    return prisma.gitHubRepositoryAuthorization.updateMany({
-      where: { installation: { githubInstallationId: String(githubInstallationId) } },
-      data: { expiresAt: now }
-    });
-  },
-  expireRepositoryAuthorizationsForRepositories(
-    githubInstallationId,
-    repositoryIds,
-    now = new Date()
-  ) {
-    return prisma.gitHubRepositoryAuthorization.updateMany({
-      where: {
-        installation: { githubInstallationId: String(githubInstallationId) },
-        githubRepositoryId: { in: repositoryIds.map(String) }
-      },
-      data: { expiresAt: now }
     });
   }
 };

@@ -452,15 +452,6 @@ export function createEnvironment(source = {}) {
       min: 60 * 1000,
       max: 30 * 60 * 1000
     }),
-    githubRepositoryAuthorizationTtlMs: parseInteger(
-      source.GITHUB_REPOSITORY_AUTHORIZATION_TTL_MS,
-      'GITHUB_REPOSITORY_AUTHORIZATION_TTL_MS',
-      {
-        defaultValue: 7 * 24 * 60 * 60 * 1000,
-        min: 24 * 60 * 60 * 1000,
-        max: 30 * 24 * 60 * 60 * 1000
-      }
-    ),
     githubOAuthStateTtlMs: parseInteger(
       source.GITHUB_OAUTH_STATE_TTL_MS,
       'GITHUB_OAUTH_STATE_TTL_MS',

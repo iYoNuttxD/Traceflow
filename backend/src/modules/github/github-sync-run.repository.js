@@ -95,13 +95,14 @@ export const githubSyncRunRepository = {
     });
   },
 
-  expireStale(projectId, cutoff, now = new Date()) {
+  expireIfStillStale(id, projectId, cutoff, now = new Date()) {
     return prisma.gitHubSyncRun.updateMany({
       where: {
+        id,
         projectId,
         activeProjectId: projectId,
         status: { in: activeStatuses },
-        updatedAt: { lt: cutoff }
+        OR: [{ heartbeatAt: { lt: cutoff } }, { heartbeatAt: null, updatedAt: { lt: cutoff } }]
       },
       data: {
         status: 'FAILED',

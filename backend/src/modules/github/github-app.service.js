@@ -10,17 +10,19 @@ import { githubRepository } from './github.repository.js';
 
 const hashToken = (value) => createHash('sha256').update(value).digest('hex');
 export const GITHUB_WEBHOOK_STALE_AFTER_MS = 5 * 60 * 1000;
-export const GITHUB_REPOSITORY_AUTHORIZATION_STATUS = Object.freeze({
-  AUTHORIZED: 'AUTHORIZED',
-  REAUTH_REQUIRED: 'REAUTH_REQUIRED'
-});
-const forbidden = (message = 'Instalação GitHub não autorizada.') =>
-  new AppError({
+const forbidden = (
+  message = 'Instalação GitHub não autorizada.',
+  githubCallbackFailureCode = 'FORBIDDEN'
+) => {
+  const error = new AppError({
     message,
     statusCode: 403,
     code: ERROR_CODES.FORBIDDEN,
     exposeTechnicalDetails: true
   });
+  error.githubCallbackFailureCode = githubCallbackFailureCode;
+  return error;
+};
 const repositoryConflict = (connectedProject) =>
   new AppError({
     message: 'Este repositório GitHub já está conectado a outro projeto.',
@@ -101,64 +103,35 @@ function validCallbackInput({ code, installationId, setupAction, state }) {
   );
 }
 
-function validStateRecord(record, now) {
-  if (!record || record.usedAt || record.expiresAt <= now) return false;
+function assertValidStateRecord(record, now) {
+  if (!record || record.usedAt || record.expiresAt <= now) {
+    throw forbidden(
+      'Estado da conexão GitHub inválido, expirado ou já utilizado.',
+      'INVALID_STATE'
+    );
+  }
   if (
     !record.user?.isActive ||
-    record.user.accountStatus !== 'ACTIVE' ||
-    !record.user.githubIdentity ||
-    !record.session ||
-    record.session.userId !== record.userId
-  )
-    return false;
+    record.user.id !== record.userId ||
+    record.user.accountStatus !== 'ACTIVE'
+  ) {
+    throw forbidden('A conta precisa estar ativa.', 'ACCOUNT_NOT_ACTIVE');
+  }
   if (
+    !record.session ||
+    record.session.userId !== record.userId ||
     record.session.revokedAt ||
     record.session.expiresAt <= now ||
     record.session.sessionVersion !== record.user.sessionVersion
-  )
-    return false;
-  if (record.intendedAction === 'CONNECT_PROJECT') return Boolean(record.projectId);
-  return record.intendedAction === 'CREATE_PROJECT' && !record.projectId;
-}
-
-function repositoryAuthorizationStatus(installations, now = new Date()) {
-  if (installations.length === 0) return GITHUB_REPOSITORY_AUTHORIZATION_STATUS.AUTHORIZED;
-  const allValid = installations.every((installation) => {
-    const authorization = installation.authorizations?.[0];
-    return Boolean(
-      authorization?.repositoryAuthorizationVerifiedAt &&
-      authorization?.repositoryAuthorizationExpiresAt &&
-      authorization.repositoryAuthorizationExpiresAt > now
-    );
-  });
-  return allValid
-    ? GITHUB_REPOSITORY_AUTHORIZATION_STATUS.AUTHORIZED
-    : GITHUB_REPOSITORY_AUTHORIZATION_STATUS.REAUTH_REQUIRED;
-}
-
-function repositoryReauthenticationRequired() {
-  return new AppError({
-    message: 'Renove sua autorização GitHub para acessar os repositórios.',
-    statusCode: 409,
-    code: ERROR_CODES.GITHUB_USER_REAUTH_REQUIRED,
-    exposeTechnicalDetails: true
-  });
-}
-
-async function filterRepositoriesAuthorizedForUser(userId, installation, repositories, now) {
-  const authorizations = await githubRepository.findRepositoryAuthorizations(
-    userId,
-    installation.id,
-    now
-  );
-  const authorizationByRepositoryId = new Map(
-    authorizations.map((authorization) => [String(authorization.githubRepositoryId), authorization])
-  );
-  return repositories.flatMap((repository) => {
-    const authorization = authorizationByRepositoryId.get(String(repository.githubRepositoryId));
-    if (!authorization) return [];
-    return [{ ...repository, userPermission: authorization.permission }];
-  });
+  ) {
+    throw forbidden('Sessão do fluxo GitHub inválida.', 'INVALID_SESSION');
+  }
+  const intendedActionValid =
+    (record.intendedAction === 'CONNECT_PROJECT' && Boolean(record.projectId)) ||
+    (record.intendedAction === 'CREATE_PROJECT' && !record.projectId);
+  if (!intendedActionValid) {
+    throw forbidden('Intenção da conexão GitHub inválida.', 'INVALID_STATE');
+  }
 }
 
 export const githubAppService = {
@@ -198,44 +171,45 @@ export const githubAppService = {
     try {
       logStep('validate_state');
       if (!validCallbackInput({ code, installationId, setupAction, state }))
-        throw forbidden('Callback da GitHub App inválido.');
+        throw forbidden('Callback da GitHub App inválido.', 'INVALID_STATE');
       const now = new Date();
       const record = await githubRepository.findConnectionState(hashToken(state));
-      if (!validStateRecord(record, now)) {
-        throw forbidden('Estado da conexão GitHub inválido, expirado ou já utilizado.');
-      }
+      assertValidStateRecord(record, now);
 
-      logStep('exchange_code');
+      logStep('exchange_installation_user_code');
       const userToken = await githubAppCredentialProvider.exchangeInstallationUserCode(code);
 
-      logStep('validate_github_identity');
-      const githubUser = await githubAppCredentialProvider.getAuthenticatedUser(userToken);
-      if (
-        !githubUser?.id ||
-        String(githubUser.id) !== String(record.user.githubIdentity.githubUserId)
-      ) {
-        throw forbidden('A identidade GitHub do callback não corresponde ao usuário autenticado.');
-      }
-
-      logStep('list_user_installations');
+      logStep('validate_installation');
       const installations =
         await githubAppCredentialProvider.listInstallationsAccessibleToUser(userToken);
-
-      logStep('validate_installation');
-      const metadata = installations.find(
+      const userInstallation = installations.find(
         (item) => item.githubInstallationId === String(installationId)
       );
-      if (!metadata)
-        throw forbidden('A instalação informada não está acessível ao usuário autorizado.');
+      if (!userInstallation) {
+        throw forbidden(
+          'A instalação informada não está acessível ao usuário que concluiu o fluxo.',
+          'INSTALLATION_NOT_ACCESSIBLE'
+        );
+      }
 
-      logStep('list_user_repositories');
-      const repositories = await githubAppCredentialProvider.listRepositoriesAccessibleToUser(
-        userToken,
-        installationId,
-        githubUser.login
-      );
+      logStep('fetch_installation');
+      const metadata = await githubAppCredentialProvider.getInstallation(installationId);
+      if (
+        metadata.githubInstallationId !== String(installationId) ||
+        metadata.accountId !== userInstallation.accountId
+      ) {
+        throw forbidden(
+          'A instalação GitHub não corresponde ao contexto validado.',
+          'INSTALLATION_NOT_FOUND'
+        );
+      }
 
-      logStep('upsert_installation');
+      logStep('verify_repository_access');
+      const installationClient =
+        await githubInstallationClientFactory.forInstallation(installationId);
+      await installationClient.verifyRepositoryAccess();
+
+      logStep('persist_installation');
       const authorizationResult = await githubRepository.authorizeInstallationFromState({
         stateId: record.id,
         now,
@@ -246,22 +220,19 @@ export const githubAppService = {
           accountLogin: metadata.accountLogin,
           accountType: metadata.accountType,
           installedAt: metadata.installedAt
-        },
-        repositories,
-        repositoryAuthorizationExpiresAt: new Date(
-          now.getTime() + env.githubRepositoryAuthorizationTtlMs
-        )
+        }
       });
       if (!authorizationResult)
         throw forbidden('Estado da conexão GitHub inválido, expirado ou já utilizado.');
       if (authorizationResult.lifecycleBlocked) {
         throw forbidden(
-          `A instalação GitHub está ${authorizationResult.lifecycleBlocked.toLowerCase()} e não pode ser reativada pelo callback.`
+          `A instalação GitHub está ${authorizationResult.lifecycleBlocked.toLowerCase()} e não pode ser reativada pelo callback.`,
+          `INSTALLATION_${authorizationResult.lifecycleBlocked}`
         );
       }
       const { installation } = authorizationResult;
-      logStep('upsert_authorization');
       logStep('consume_state');
+      logStep('complete');
       return {
         installation: installationDto(installation),
         userId: record.userId,
@@ -272,7 +243,9 @@ export const githubAppService = {
       logger.warn('Callback da GitHub App interrompido.', {
         event: 'github_app_callback_failed',
         step: error.callbackStep || callbackStep,
-        errorCode: error.code || ERROR_CODES.INTERNAL_ERROR
+        errorCode:
+          error.githubCallbackFailureCode ||
+          (error.callbackStep ? 'PERSISTENCE_FAILURE' : error.code || 'GITHUB_API_FAILURE')
       });
       throw error;
     }
@@ -280,39 +253,24 @@ export const githubAppService = {
   async listInstallations(userId) {
     return (await githubRepository.listAuthorizedInstallations(userId)).map(installationDto);
   },
-  async listRepositories(userId, githubInstallationId, projectId, now = new Date()) {
+  async listRepositories(userId, githubInstallationId, projectId) {
     if (projectId) await requireOwner(projectId, userId);
     const installation = await githubRepository.findAuthorizedInstallation(
       userId,
       githubInstallationId
     );
     if (!installation) throw forbidden();
-    const authorizationStatus = repositoryAuthorizationStatus([installation], now);
-    if (authorizationStatus === GITHUB_REPOSITORY_AUTHORIZATION_STATUS.REAUTH_REQUIRED) {
-      return { repositories: [], authorizationStatus };
-    }
     const client = await githubInstallationClientFactory.forInstallation(
       installation.githubInstallationId
     );
     const repositories = await collectGithubPages(client.listRepositoryPages());
-    const authorizedRepositories = await filterRepositoriesAuthorizedForUser(
-      userId,
-      installation,
-      repositories,
-      now
-    );
     return {
-      repositories: await addRepositoryAvailability(authorizedRepositories, userId, projectId),
-      authorizationStatus
+      repositories: await addRepositoryAvailability(repositories, userId, projectId)
     };
   },
-  async listAllRepositories(userId, projectId, now = new Date()) {
+  async listAllRepositories(userId, projectId) {
     if (projectId) await requireOwner(projectId, userId);
     const installations = await githubRepository.listAuthorizedInstallations(userId);
-    const authorizationStatus = repositoryAuthorizationStatus(installations, now);
-    if (authorizationStatus === GITHUB_REPOSITORY_AUTHORIZATION_STATUS.REAUTH_REQUIRED) {
-      return { repositories: [], authorizationStatus };
-    }
     const repositoriesById = new Map();
 
     for (const installation of installations) {
@@ -320,13 +278,7 @@ export const githubAppService = {
         installation.githubInstallationId
       );
       const repositories = await collectGithubPages(client.listRepositoryPages());
-      const authorizedRepositories = await filterRepositoriesAuthorizedForUser(
-        userId,
-        installation,
-        repositories,
-        now
-      );
-      for (const repository of authorizedRepositories) {
+      for (const repository of repositories) {
         if (!repositoriesById.has(repository.githubRepositoryId)) {
           repositoriesById.set(repository.githubRepositoryId, {
             ...repository,
@@ -341,8 +293,7 @@ export const githubAppService = {
       first.fullName.localeCompare(second.fullName)
     );
     return {
-      repositories: await addRepositoryAvailability(repositories, userId, projectId),
-      authorizationStatus
+      repositories: await addRepositoryAvailability(repositories, userId, projectId)
     };
   },
   async assertRepositoryAvailable(githubRepositoryId, projectId, userId) {
@@ -364,28 +315,16 @@ export const githubAppService = {
       githubInstallationId
     );
     if (!installation) throw forbidden();
-    if (
-      repositoryAuthorizationStatus([installation]) ===
-      GITHUB_REPOSITORY_AUTHORIZATION_STATUS.REAUTH_REQUIRED
-    ) {
-      throw repositoryReauthenticationRequired();
-    }
     const client = await githubInstallationClientFactory.forInstallation(
       installation.githubInstallationId
     );
     const repositories = await collectGithubPages(client.listRepositoryPages());
-    const authorizedRepositories = await filterRepositoriesAuthorizedForUser(
-      userId,
-      installation,
-      repositories,
-      new Date()
-    );
-    const repository = authorizedRepositories.find(
+    const repository = repositories.find(
       (item) => item.githubRepositoryId === String(githubRepositoryId)
     );
     if (!repository)
       throw new AppError({
-        message: 'Repositório não autorizado para este usuário ou inacessível pela instalação.',
+        message: 'Repositório inacessível pela instalação GitHub App.',
         statusCode: 404,
         code: ERROR_CODES.RESOURCE_NOT_FOUND,
         exposeTechnicalDetails: true
@@ -501,12 +440,10 @@ export const githubAppService = {
         } else if (payload.action === 'suspend') {
           processingStep = 'suspend_installation';
           await githubRepository.updateInstallationStatus(installationId, 'SUSPENDED', now);
-          await githubRepository.expireRepositoryAuthorizationsForInstallation(installationId, now);
           await githubRepository.requireReconnectForInstallation(installationId);
         } else if (payload.action === 'deleted') {
           processingStep = 'remove_installation';
           await githubRepository.updateInstallationStatus(installationId, 'REMOVED');
-          await githubRepository.expireRepositoryAuthorizationsForInstallation(installationId, now);
           await githubRepository.requireReconnectForInstallation(installationId);
         } else if (payload.action === 'unsuspend') {
           processingStep = 'unsuspend_installation';
@@ -516,11 +453,6 @@ export const githubAppService = {
       if (event === 'installation_repositories' && payload.action === 'removed' && installationId) {
         const repositoryIds = (payload.repositories_removed || []).map((item) => item.id);
         processingStep = 'remove_repository_access';
-        await githubRepository.expireRepositoryAuthorizationsForRepositories(
-          installationId,
-          repositoryIds,
-          now
-        );
         await githubRepository.requireReconnectForRepositories(installationId, repositoryIds);
       }
       processingStep = 'complete_delivery';

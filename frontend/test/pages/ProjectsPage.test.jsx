@@ -27,8 +27,6 @@ vi.mock('../../src/features/projects/api/projects.api.js', () => ({
         params: projectId ? { projectId } : undefined
       }),
     startGithubInstallation: (data) => apiMock.post('/github/app/installations/start', data),
-    startGithubRepositoryAuthorization: (returnTo) =>
-      apiMock.post('/auth/github/repositories/authorization/start', { returnTo }),
     connectGithubRepository: (projectId, data) =>
       apiMock.put(`/projects/${projectId}/github/integration`, data),
     create: (data) => apiMock.post('/projects', data),
@@ -65,7 +63,6 @@ function renderPage(initialEntries = ['/projects']) {
 function mockInitialRequests({
   projects = [],
   repositories = [fakeRepository],
-  authorizationStatus = 'AUTHORIZED',
   installations = [
     {
       githubInstallationId: '77',
@@ -88,7 +85,7 @@ function mockInitialRequests({
     }
 
     if (url === '/github/app/repositories') {
-      return Promise.resolve({ data: { repositories, authorizationStatus } });
+      return Promise.resolve({ data: { repositories } });
     }
 
     return Promise.reject(new Error(`URL inesperada: ${url}`));
@@ -328,62 +325,51 @@ describe('ProjectsPage', () => {
       screen.getByText('Este repositório já está vinculado a outro projeto.')
     ).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Ver projeto' })).not.toBeInTheDocument();
-    expect(screen.getByText(/GitHub vinculado/)).toBeInTheDocument();
+    expect(screen.getByText(/GitHub App conectada/)).toBeInTheDocument();
     expect(
       screen.queryByRole('link', { name: 'Gerenciar acesso no GitHub' })
     ).not.toBeInTheDocument();
   });
 
-  it('explica quando não há repositório OWNER/ADMIN autorizado recentemente', async () => {
+  it('explica quando a GitHub App não possui repositórios concedidos', async () => {
     mockInitialRequests({ repositories: [] });
     renderPage();
     expect(
       await screen.findByText(
-        'Nenhum repositório com permissão OWNER ou ADMIN foi autorizado recentemente.'
+        'A GitHub App não possui repositórios concedidos. Gerencie o acesso da instalação no GitHub.'
       )
     ).toBeInTheDocument();
   });
 
-  it('diferencia usuário pré-LR.3 e inicia renovação dedicada sem usar a Installation', async () => {
-    const user = userEvent.setup();
-    mockInitialRequests({ repositories: [], authorizationStatus: 'REAUTH_REQUIRED' });
-    apiMock.post.mockImplementation(() => new Promise(() => {}));
+  it('não exige renovação OAuth pessoal quando a GitHub App está conectada', async () => {
+    mockInitialRequests();
     renderPage();
 
     expect(
-      await screen.findByText(
-        'Sua autorização GitHub precisa ser renovada para listar repositórios.'
-      )
+      await screen.findByRole('option', { name: /usuario-artificial\/repositorio-artificial/ })
     ).toBeInTheDocument();
-    expect(screen.getByLabelText('Repositório GitHub *')).toBeDisabled();
+    expect(screen.getByLabelText('Repositório GitHub *')).toBeEnabled();
+    expect(screen.queryByText(/autorização GitHub precisa ser renovada/i)).not.toBeInTheDocument();
     expect(
-      screen.queryByText(
-        'Nenhum repositório com permissão OWNER ou ADMIN foi autorizado recentemente.'
-      )
+      screen.queryByRole('button', { name: /Renovar acesso GitHub/i })
     ).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: 'Renovar acesso GitHub' }));
-    expect(apiMock.post).toHaveBeenCalledWith('/auth/github/repositories/authorization/start', {
-      returnTo: '/projects'
-    });
-    expect(screen.getByRole('button', { name: 'Abrindo GitHub...' })).toBeDisabled();
   });
 
-  it('migra para renovação quando a autorização expira durante a criação', async () => {
+  it('mantém o formulário e mostra erro da Installation durante a criação', async () => {
     const user = userEvent.setup();
     mockInitialRequests();
     apiMock.post.mockRejectedValue({
       response: {
         status: 409,
         data: {
-          code: 'GITHUB_USER_REAUTH_REQUIRED',
-          message: 'Renove sua autorização GitHub para acessar os repositórios.'
+          code: 'CONFLICT',
+          message: 'O repositório não está mais disponível para esta instalação.'
         }
       }
     });
     renderPage();
 
-    await user.type(screen.getByLabelText('Nome do projeto *'), 'Projeto com autorização vencida');
+    await user.type(screen.getByLabelText('Nome do projeto *'), 'Projeto com acesso alterado');
     await user.type(screen.getByLabelText('Área ou equipe responsável *'), 'Equipe artificial');
     await user.selectOptions(
       screen.getByLabelText('Repositório GitHub *'),
@@ -392,31 +378,21 @@ describe('ProjectsPage', () => {
     await user.click(screen.getByRole('button', { name: 'Cadastrar projeto' }));
 
     expect(
-      await screen.findByText(
-        'Sua autorização GitHub precisa ser renovada para listar repositórios.'
-      )
+      await screen.findByText('O repositório não está mais disponível para esta instalação.')
     ).toBeInTheDocument();
-    expect(
-      screen.getByText('Renove sua autorização GitHub para acessar os repositórios.')
-    ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Renovar acesso GitHub' })).toBeEnabled();
-    expect(screen.getByLabelText('Repositório GitHub *')).toBeDisabled();
-    expect(screen.getByLabelText('Repositório GitHub *')).toHaveValue('');
-    expect(screen.getByLabelText('Nome do projeto *')).toHaveValue(
-      'Projeto com autorização vencida'
-    );
-    expect(screen.getByRole('button', { name: 'Cadastrar projeto' })).toBeDisabled();
+    expect(screen.getByLabelText('Repositório GitHub *')).toBeEnabled();
+    expect(screen.getByLabelText('Nome do projeto *')).toHaveValue('Projeto com acesso alterado');
   });
 
-  it('migra para renovação quando a autorização expira durante a reconexão', async () => {
+  it('mostra erro da Installation durante a reconexão sem oferecer OAuth pessoal', async () => {
     const user = userEvent.setup();
     mockInitialRequests();
     apiMock.put.mockRejectedValue({
       response: {
         status: 409,
         data: {
-          code: 'GITHUB_USER_REAUTH_REQUIRED',
-          message: 'Renove sua autorização GitHub para acessar os repositórios.'
+          code: 'CONFLICT',
+          message: 'A GitHub App não pode mais acessar este repositório.'
         }
       }
     });
@@ -435,26 +411,23 @@ describe('ProjectsPage', () => {
       });
     });
     expect(
-      await screen.findByText(
-        'Sua autorização GitHub precisa ser renovada para listar repositórios.'
-      )
+      await screen.findByText('A GitHub App não pode mais acessar este repositório.')
     ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Renovar acesso GitHub' })).toBeEnabled();
-    expect(screen.getByLabelText('Repositório GitHub *')).toBeDisabled();
-    expect(screen.getByLabelText('Repositório GitHub *')).toHaveValue('');
-    expect(screen.getByRole('button', { name: 'Concluir reconexão' })).toBeDisabled();
+    expect(
+      screen.queryByRole('button', { name: /Renovar acesso GitHub/i })
+    ).not.toBeInTheDocument();
   });
 
   it('distingue quando nenhuma instalação foi registrada', async () => {
     mockInitialRequests({ installations: [], repositories: [] });
     renderPage();
 
-    expect(await screen.findByRole('link', { name: /Vincular GitHub/ })).toBeInTheDocument();
+    const connectLinks = await screen.findAllByRole('link', { name: /Conectar GitHub App/ });
+    expect(connectLinks).toHaveLength(2);
     expect(screen.getByLabelText('Repositório GitHub *')).toBeDisabled();
-    expect(screen.getByRole('link', { name: /Vincular GitHub/ })).toHaveAttribute(
-      'href',
-      '/settings/integrations'
-    );
+    for (const link of connectLinks) {
+      expect(link).toHaveAttribute('href', '/settings/integrations');
+    }
     expect(
       screen.queryByRole('button', { name: /Instalar|autorizar|atualizar acesso/i })
     ).not.toBeInTheDocument();
@@ -475,7 +448,7 @@ describe('ProjectsPage', () => {
         apiMock.get.mock.calls.filter(([url]) => url === '/github/app/installations').length
       ).toBeGreaterThanOrEqual(2);
     });
-    expect(screen.getByText('GitHub vinculado · usuario-artificial')).toBeInTheDocument();
+    expect(screen.getByText('GitHub App conectada · usuario-artificial')).toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: 'Adicionar ou atualizar acesso' })
     ).not.toBeInTheDocument();

@@ -55,25 +55,17 @@ describe('configuração centralizada', () => {
       githubRequestTimeoutMs: 15000,
       githubRetryMax: 2,
       githubRetryMaxDelayMs: 60000,
-      githubRepositoryAuthorizationTtlMs: 604800000,
       trustProxy: false
     });
     expect(Object.isFrozen(config)).toBe(true);
   });
 
-  it('mantém o TTL de autorização de repositórios separado e com mínimo de 24 horas', () => {
-    expect(
-      createEnvironment({
-        ...validSource,
-        GITHUB_REPOSITORY_AUTHORIZATION_TTL_MS: String(7 * 24 * 60 * 60 * 1000)
-      }).githubRepositoryAuthorizationTtlMs
-    ).toBe(604800000);
-    expect(() =>
-      createEnvironment({
-        ...validSource,
-        GITHUB_REPOSITORY_AUTHORIZATION_TTL_MS: String(23 * 60 * 60 * 1000)
-      })
-    ).toThrowError(/GITHUB_REPOSITORY_AUTHORIZATION_TTL_MS/);
+  it('não reutiliza TTL OAuth como autorização de repositórios', () => {
+    const config = createEnvironment({
+      ...validSource,
+      GITHUB_REPOSITORY_AUTHORIZATION_TTL_MS: '900000'
+    });
+    expect(config).not.toHaveProperty('githubRepositoryAuthorizationTtlMs');
   });
 
   it('falha sem banco obrigatório e não inclui segredo na mensagem', () => {

@@ -3,7 +3,6 @@ import { Octokit } from '@octokit/rest';
 import { env } from '../../config/env.js';
 import { ERROR_CODES, ExternalServiceError } from '../../shared/errors/index.js';
 import { executeGithubRequest } from './github-request.js';
-import { mapGithubRepository } from './github.mapper.js';
 
 const encode = (value) => Buffer.from(JSON.stringify(value)).toString('base64url');
 
@@ -24,17 +23,6 @@ function unavailable(cause) {
     ERROR_CODES.GITHUB_AUTH_FAILED,
     { cause }
   );
-}
-
-function repositoryPermission(item, githubLogin) {
-  if (
-    typeof item.owner?.login === 'string' &&
-    typeof githubLogin === 'string' &&
-    item.owner.login.toLowerCase() === githubLogin.toLowerCase()
-  ) {
-    return 'OWNER';
-  }
-  return item.permissions?.admin === true ? 'ADMIN' : null;
 }
 
 export function createGithubAppCredentialProvider({
@@ -115,6 +103,20 @@ export function createGithubAppCredentialProvider({
         throw unavailable(error);
       }
     },
+    async getInstallation(installationId) {
+      try {
+        const response = await requestExecutor(
+          () =>
+            appClient().rest.apps.getInstallation({
+              installation_id: Number(installationId)
+            }),
+          { maxRetries: environment.githubRetryMax }
+        );
+        return installationDto(response.data);
+      } catch (error) {
+        throw unavailable(error);
+      }
+    },
     exchangeInstallationUserCode(code) {
       return exchangeUserCode({ code, redirectUri: environment.githubAppCallbackUrl });
     },
@@ -174,35 +176,6 @@ export function createGithubAppCredentialProvider({
         page += 1;
       }
       return installations;
-    },
-    async listRepositoriesAccessibleToUser(userAccessToken, githubInstallationId, githubLogin) {
-      const client = userClient(userAccessToken);
-      const repositories = [];
-      let page = 1;
-      while (true) {
-        const response = await requestExecutor(
-          () =>
-            client.request('GET /user/installations/{installation_id}/repositories', {
-              installation_id: Number(githubInstallationId),
-              per_page: 100,
-              page
-            }),
-          { maxRetries: environment.githubRetryMax }
-        );
-        const currentPage = Array.isArray(response.data?.repositories)
-          ? response.data.repositories
-          : [];
-        for (const item of currentPage) {
-          const permission = repositoryPermission(item, githubLogin);
-          if (permission) repositories.push({ ...mapGithubRepository(item), permission });
-        }
-        const totalCount = Number(response.data?.total_count);
-        if (currentPage.length < 100 || (Number.isFinite(totalCount) && page * 100 >= totalCount)) {
-          break;
-        }
-        page += 1;
-      }
-      return repositories;
     }
   });
 }

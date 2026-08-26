@@ -16,8 +16,7 @@ import {
   emptyAuthBodySchema,
   usernameBodySchema,
   githubLoginStartBodySchema,
-  githubSensitiveReauthenticationBodySchema,
-  githubRepositoryAuthorizationBodySchema
+  githubSensitiveReauthenticationBodySchema
 } from './auth.validation.js';
 
 const router = Router();
@@ -38,14 +37,6 @@ router.post(
   requireAccountState,
   validateRequest({ body: githubSensitiveReauthenticationBodySchema }),
   githubAuthController.startSensitiveReauthentication
-);
-router.post(
-  '/github/repositories/authorization/start',
-  authenticate,
-  csrf,
-  requireAccountState,
-  validateRequest({ body: githubRepositoryAuthorizationBodySchema }),
-  githubAuthController.startRepositoryAuthorization
 );
 router.post(
   '/forgot-password',

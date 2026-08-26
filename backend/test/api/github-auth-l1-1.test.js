@@ -15,7 +15,7 @@ const provider = vi.hoisted(() => ({
   isConfigured: vi.fn(() => true),
   exchangeInstallationUserCode: vi.fn(),
   listInstallationsAccessibleToUser: vi.fn(),
-  listRepositoriesAccessibleToUser: vi.fn(),
+  getInstallation: vi.fn(),
   createInstallationToken: vi.fn()
 }));
 const installationClient = vi.hoisted(() => ({
@@ -47,7 +47,6 @@ function configureGithubEnvironment() {
     GITHUB_APP_FRONTEND_SUCCESS_URL: 'http://frontend.test/projects?github=connected',
     GITHUB_APP_FRONTEND_ERROR_URL: 'http://frontend.test/projects?github=error',
     GITHUB_LOGIN_CALLBACK_URL: 'http://localhost:3001/api/auth/github/callback',
-    GITHUB_REPOSITORY_AUTHORIZATION_TTL_MS: String(7 * 24 * 60 * 60 * 1000),
     FRONTEND_URL: 'http://frontend.test'
   });
 }
@@ -67,6 +66,7 @@ beforeEach(() => {
   installationClient.repositories = [];
   vi.clearAllMocks();
   installationClient.forInstallation.mockImplementation(async () => ({
+    verifyRepositoryAccess: vi.fn().mockResolvedValue(undefined),
     listRepositoryPages: () =>
       (async function* repositoryPages() {
         yield installationClient.repositories;
@@ -257,80 +257,32 @@ describe('API de autenticação GitHub L1.1', () => {
     expect((await local.agent.get('/api/auth/me')).status).toBe(200);
   });
 
-  it('persiste autorização entre sessões e reconcilia o snapshot OWNER/ADMIN na renovação', async () => {
-    const local = await registerLocal('legacy-github@example.test', 'legacy-github');
-    await prisma.gitHubIdentity.create({
-      data: { userId: local.user.id, githubUserId: '123', githubLogin: 'octocat' }
-    });
-    const installation = await prisma.gitHubInstallation.create({
-      data: {
-        githubInstallationId: '7007',
-        accountId: '123',
-        accountLogin: 'octocat',
-        accountType: 'User',
-        installedAt: new Date(),
-        status: 'ACTIVE'
-      }
-    });
-    await prisma.gitHubInstallationAuthorization.create({
-      data: { installationId: installation.id, userId: local.user.id, verifiedAt: new Date() }
-    });
-
-    expect(await local.agent.get('/api/github/app/repositories')).toMatchObject({
-      status: 200,
-      body: { repositories: [], authorizationStatus: 'REAUTH_REQUIRED' }
-    });
-
+  it('conecta a GitHub App em conta local sem GitHub Identity e preserva o acesso entre sessões', async () => {
+    const local = await registerLocal('local-app@example.test', 'local-app');
     const started = await local.agent
-      .post('/api/auth/github/repositories/authorization/start')
+      .post('/api/github/app/installations/start')
       .set('X-CSRF-Token', local.csrf)
-      .send({ returnTo: '/projects' });
+      .send({ intendedAction: 'CREATE_PROJECT' });
     expect(started.status).toBe(200);
     const state = new URL(started.body.url).searchParams.get('state');
-    const storedState = await prisma.gitHubOAuthState.findFirst({ orderBy: { id: 'desc' } });
-    expect(storedState).toMatchObject({
-      purpose: 'REPOSITORY_AUTHORIZATION',
-      userId: local.user.id,
-      returnTo: '/projects'
-    });
-
-    provider.listInstallationsAccessibleToUser.mockResolvedValue([
-      { githubInstallationId: '7007' }
-    ]);
-    provider.listRepositoriesAccessibleToUser.mockResolvedValue([
-      {
-        githubRepositoryId: '501',
-        fullName: 'octocat/traceflow',
-        permission: 'OWNER'
-      }
-    ]);
-    const callback = await completeGithub(local.agent, state);
-    expect(callback.headers.location).toBe(
-      'http://frontend.test/projects?githubRepositoryAuthorization=success'
-    );
-
-    const authorization = await prisma.gitHubInstallationAuthorization.findFirst({
-      where: { installationId: installation.id, userId: local.user.id }
-    });
-    expect(authorization).toMatchObject({
-      repositoryAuthorizationVerifiedAt: expect.any(Date),
-      repositoryAuthorizationExpiresAt: expect.any(Date)
-    });
+    expect(await prisma.gitHubIdentity.findUnique({ where: { userId: local.user.id } })).toBeNull();
     expect(
-      authorization.repositoryAuthorizationExpiresAt.getTime() -
-        authorization.repositoryAuthorizationVerifiedAt.getTime()
-    ).toBe(7 * 24 * 60 * 60 * 1000);
-    expect(await prisma.gitHubRepositoryAuthorization.findMany()).toEqual([
-      expect.objectContaining({
-        githubRepositoryId: '501',
-        repositoryFullName: 'octocat/traceflow',
-        permission: 'OWNER'
-      })
-    ]);
-    expect(JSON.stringify(await prisma.gitHubOAuthState.findMany())).not.toContain(
-      'user-token-efemero'
-    );
+      await prisma.gitHubAppConnectionState.findFirst({ orderBy: { id: 'desc' } })
+    ).toMatchObject({
+      userId: local.user.id,
+      intendedAction: 'CREATE_PROJECT'
+    });
 
+    const installationMetadata = {
+      githubInstallationId: '7007',
+      accountId: '123',
+      accountLogin: 'octocat',
+      accountType: 'User',
+      installedAt: new Date('2030-01-01T00:00:00Z')
+    };
+    provider.exchangeInstallationUserCode.mockResolvedValue('user-token-efemero');
+    provider.listInstallationsAccessibleToUser.mockResolvedValue([installationMetadata]);
+    provider.getInstallation.mockResolvedValue(installationMetadata);
     installationClient.repositories = [
       {
         githubRepositoryId: '501',
@@ -343,16 +295,24 @@ describe('API de autenticação GitHub L1.1', () => {
         defaultBranch: 'main'
       }
     ];
+    const callback = await local.agent.get('/api/github-app/callback').query({
+      code: 'installation-code',
+      installation_id: '7007',
+      setup_action: 'install',
+      state
+    });
+    expect(callback.status).toBe(302);
+    expect(callback.headers.location).toContain('github=connected');
+    expect(await prisma.gitHubIdentity.findUnique({ where: { userId: local.user.id } })).toBeNull();
+    expect(await prisma.gitHubInstallationAuthorization.count()).toBe(1);
+    expect(JSON.stringify(await prisma.gitHubAppConnectionState.findMany())).not.toContain(
+      'user-token-efemero'
+    );
     expect(await local.agent.get('/api/github/app/repositories')).toMatchObject({
       status: 200,
       body: {
-        authorizationStatus: 'AUTHORIZED',
         repositories: [
-          expect.objectContaining({
-            githubRepositoryId: '501',
-            fullName: 'octocat/traceflow',
-            userPermission: 'OWNER'
-          })
+          expect.objectContaining({ githubRepositoryId: '501', fullName: 'octocat/traceflow' })
         ]
       }
     });
@@ -368,7 +328,7 @@ describe('API de autenticação GitHub L1.1', () => {
 
     const newSessionAgent = request.agent(app);
     const loggedInAgain = await newSessionAgent.post('/api/auth/login').send({
-      identifier: 'legacy-github@example.test',
+      identifier: 'local-app@example.test',
       password: localPassword,
       rememberMe: false
     });
@@ -380,39 +340,14 @@ describe('API de autenticação GitHub L1.1', () => {
     expect(secondSession.id).not.toBe(firstSession.id);
     expect(await newSessionAgent.get('/api/github/app/repositories')).toMatchObject({
       status: 200,
-      body: {
-        authorizationStatus: 'AUTHORIZED',
-        repositories: [expect.objectContaining({ githubRepositoryId: '501' })]
-      }
+      body: { repositories: [expect.objectContaining({ githubRepositoryId: '501' })] }
     });
-
-    provider.listRepositoriesAccessibleToUser.mockResolvedValue([]);
-    const renewal = await newSessionAgent
-      .post('/api/auth/github/repositories/authorization/start')
-      .set('X-CSRF-Token', loggedInAgain.body.csrfToken)
-      .send({ returnTo: '/projects' });
-    expect(renewal.status).toBe(200);
-    const renewalState = new URL(renewal.body.url).searchParams.get('state');
-    expect((await completeGithub(newSessionAgent, renewalState)).status).toBe(302);
-
-    const renewedAuthorization = await prisma.gitHubInstallationAuthorization.findFirst({
-      where: { installationId: installation.id, userId: local.user.id }
-    });
-    expect(renewedAuthorization.repositoryAuthorizationVerifiedAt.getTime()).toBeGreaterThanOrEqual(
-      authorization.repositoryAuthorizationVerifiedAt.getTime()
-    );
     expect(
-      renewedAuthorization.repositoryAuthorizationExpiresAt.getTime() -
-        renewedAuthorization.repositoryAuthorizationVerifiedAt.getTime()
-    ).toBe(7 * 24 * 60 * 60 * 1000);
-    expect(
-      await prisma.gitHubRepositoryAuthorization.count({
-        where: { installationId: installation.id, userId: local.user.id }
-      })
-    ).toBe(0);
-    expect(await newSessionAgent.get('/api/github/app/repositories')).toMatchObject({
-      status: 200,
-      body: { authorizationStatus: 'AUTHORIZED', repositories: [] }
-    });
+      (
+        await newSessionAgent
+          .post('/api/auth/github/repositories/authorization/start')
+          .set('X-CSRF-Token', loggedInAgain.body.csrfToken)
+      ).status
+    ).toBe(404);
   });
 });

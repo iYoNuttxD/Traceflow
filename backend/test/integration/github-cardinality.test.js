@@ -108,12 +108,7 @@ describe('cardinalidade persistida da GitHub App', () => {
         accountLogin: 'traceflow',
         accountType: 'Organization',
         installedAt: new Date()
-      },
-      repositories: [
-        { githubRepositoryId: '501', fullName: 'owner/repo', permission: 'OWNER' },
-        { githubRepositoryId: '502', fullName: 'org/admin', permission: 'ADMIN' }
-      ],
-      repositoryAuthorizationExpiresAt: new Date(Date.now() + 900_000)
+      }
     });
     const { installation } = result;
 
@@ -126,15 +121,6 @@ describe('cardinalidade persistida da GitHub App', () => {
     expect(
       await prisma.gitHubAppConnectionState.findUnique({ where: { id: state.id } })
     ).toMatchObject({ usedAt: expect.any(Date) });
-    expect(
-      await prisma.gitHubRepositoryAuthorization.findMany({
-        where: { installationId: installation.id, userId: user.id },
-        orderBy: { githubRepositoryId: 'asc' }
-      })
-    ).toEqual([
-      expect.objectContaining({ githubRepositoryId: '501', permission: 'OWNER' }),
-      expect.objectContaining({ githubRepositoryId: '502', permission: 'ADMIN' })
-    ]);
     await expect(
       githubRepository.authorizeInstallationFromState({
         stateId: state.id,
