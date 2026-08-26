@@ -96,6 +96,14 @@ describe('estados da tela', () => {
     renderScreen();
     expect(await screen.findByRole('heading', { name: 'Acesso restrito' })).toBeInTheDocument();
   });
+
+  // Bateria RF10/RF35: dos quatro estados do DoD (carregando, vazio, erro,
+  // acesso negado), o erro recuperavel era o unico sem teste nesta tela.
+  it('exibe erro recuperavel em falha generica', async () => {
+    mocks.projects.get.mockRejectedValue({ response: { status: 500, data: {} } });
+    renderScreen();
+    expect(await screen.findByRole('button', { name: 'Tentar novamente' })).toBeInTheDocument();
+  });
 });
 
 describe('progresso por sprints', () => {
@@ -245,6 +253,68 @@ describe('exclusao', () => {
     mocks.schedule.listMilestones.mockResolvedValue({ data: { total: 1, milestones: [marco()] } });
     renderScreen();
     expect(await screen.findByRole('button', { name: /^Excluir o marco/ })).toBeEnabled();
+  });
+});
+
+// Bateria RF10/RF35 — itens do design de 24/08 que estavam sem prova.
+describe('rodape e sinalizacoes do marco (design de 24/08)', () => {
+  it('marco sem sprints diz onde o vinculo e declarado', async () => {
+    mocks.schedule.listMilestones.mockResolvedValue({ data: { total: 1, milestones: [marco()] } });
+    renderScreen();
+    expect(
+      await screen.findByText(/Nenhuma sprint associada — cadastre sprints vinculadas/)
+    ).toBeInTheDocument();
+  });
+
+  it('marco concluido manualmente enche a barra mesmo com sprint aberta', async () => {
+    mocks.schedule.listMilestones.mockResolvedValue({
+      data: { total: 1, milestones: [marco({ status: 'CONCLUIDO' })] }
+    });
+    mocks.schedule.listSprints.mockResolvedValue({
+      data: { total: 2, sprints: [sprint(1, 'S1', 'CONCLUIDA'), sprint(2, 'S2', 'EM_ANDAMENTO')] }
+    });
+    const { container } = renderScreen();
+    await screen.findByText('Concluído manualmente.');
+    // A barra segue o estado declarado, nao a contagem: badge "Concluído"
+    // sobre barra pela metade diria duas coisas ao mesmo tempo.
+    const preenchimento = container.querySelector('.traceability-progress-bar span');
+    expect(preenchimento).toHaveStyle({ width: '100%' });
+  });
+
+  it('reabrir dispensa confirmacao — e reversivel e nao afirma entrega', async () => {
+    const user = userEvent.setup();
+    mocks.schedule.listMilestones.mockResolvedValue({
+      data: { total: 1, milestones: [marco({ status: 'CONCLUIDO' })] }
+    });
+    mocks.schedule.updateMilestoneStatus.mockResolvedValue({
+      data: { milestone: marco({ status: 'PENDENTE' }) }
+    });
+    renderScreen();
+
+    await user.click(await screen.findByRole('button', { name: /^Reabrir o marco/ }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(mocks.schedule.updateMilestoneStatus).toHaveBeenCalledWith(5, 'PENDENTE')
+    );
+  });
+
+  it('o dialogo de concluir usa o botao primario — confirmar nao e destrutivo', async () => {
+    const user = userEvent.setup();
+    mocks.schedule.listMilestones.mockResolvedValue({ data: { total: 1, milestones: [marco()] } });
+    mocks.schedule.listSprints.mockResolvedValue({
+      data: { total: 1, sprints: [sprint(1, 'S1', 'EM_ANDAMENTO')] }
+    });
+    renderScreen();
+
+    await user.click(await screen.findByRole('button', { name: /^Concluir o marco/ }));
+    const dialog = await screen.findByRole('dialog');
+    const confirmar = within(dialog).getByRole('button', { name: 'Concluir marco' });
+    // A classe e a materializacao visual do "nao destrutivo" (design de
+    // 24/08): vermelho aqui diria "perigo" sobre uma acao reversivel.
+    expect(confirmar).toHaveClass('button-primary');
+    expect(confirmar).not.toHaveClass('button-danger');
+    // E a recusa se chama "Voltar" tambem nesta tela.
+    expect(within(dialog).getByRole('button', { name: 'Voltar' })).toBeInTheDocument();
   });
 });
 

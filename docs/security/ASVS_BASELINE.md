@@ -42,7 +42,7 @@ Controles conferidos contra o texto oficial do ASVS 5.0.0 durante a entrega de s
 | 2.2.3 consistência entre dados relacionados | `startDate <= endDate`; tarefa e sprint no mesmo projeto | `sprint.service.test.js` |
 | 2.3.1 fluxo na ordem esperada | máquina de estados da sprint; transição inválida → `409 SPRINT_INVALID_TRANSITION` | matriz de transições em `sprint.service.test.js` |
 | 2.3.3 transações no nível de negócio | link/unlink e `PUT /sprints/:id/tasks` em `prisma.$transaction` com auditoria no mesmo escopo | `rf10-sprint-schedule.test.js` (falha parcial sem persistência residual) |
-| 4.1.1 `Content-Type` correto | respostas JSON com charset; limites de payload globais | testes HTTP existentes |
+| 4.1.1 `Content-Type` correto | respostas JSON com charset; limites de payload globais | asserção direta de header em `backend/test/api/rf10-rf35-bateria.test.js` (bateria de 25/08) |
 | 8.2.1 acesso a função por permissão explícita | `requiredRole` vigente aplicado às rotas novas, sem alterar o resolvedor de papéis | teste `403` para VIEWER em mutação |
 | 8.2.2 acesso a dado (IDOR/BOLA) | `resolveProjectId` estendido + filtro por `projectId` nos repositories | teste obrigatório de isolamento entre projetos, todos os métodos |
 | 8.3.1 autorização em camada confiável | middleware + verificação de pertencimento no service; nada depende da UI | teste de API sem passar pelo frontend |
@@ -50,6 +50,32 @@ Controles conferidos contra o texto oficial do ASVS 5.0.0 durante a entrega de s
 | 16.3.2 falhas de autorização registradas | `403`/`404` chegam ao logger sem dado sensível | logger com redaction existente |
 | 16.3.3 eventos de segurança definidos | `AuditEvent` em todas as mutações de sprint, marco e vínculo | `schedule-contracts.test.js` |
 | 16.5.1 mensagem genérica em erro inesperado | `asyncHandler` com `fallbackMessage` por operação; `details` sem eco de valor recebido | teste de resposta de erro |
+
+### Controles acrescentados pela bateria RF10/RF35 (25/08/2026)
+
+Verificação descrita em `docs/issues/RF10_RF35_PROMPT_TESTES.md` (Fase 6) e mapeada em
+`docs/issues/RF10_RF35_MAPA_TESTES.md`. Todos L1/L2, conferidos contra o texto oficial do 5.0.0.
+
+| Controle | Aplicação no RF10/RF35 | Evidência |
+|---|---|---|
+| 2.1.3 limites de negócio documentados | teto de 100 tarefas por sprint documentado; o teto de 180 dias da série do burndown foi acrescentado pela bateria | `docs/api/API_CONTRACTS.md`; truncamento congelado em `backend/test/unit/rf10-rf35-bateria.test.js` |
+| 2.3.2 limites implementados como documentados | 100 tarefas recusam com `SPRINT_TASK_LIMIT_REACHED` no lote e na associação individual | `schedule-contracts.test.js` (limite em lote e individual) |
+| 2.3.4 lock de negócio contra dupla reserva | janela de datas e posto único de sprint ativa disputados por requisições concorrentes reais | `rf10-sprint-schedule.test.js` (concorrência sob lock); `schedule-contracts.test.js` (criações e substituições concorrentes) |
+| 2.4.1 anti-automação | limiter geral e sensível com app isolado (`rateLimitMax: 1`), sem contaminar o resto da suíte | `security.test.js` |
+| 3.3.1/3.3.2/3.3.4 cookies de sessão | `HttpOnly` + `SameSite=Lax` asseridos; `Secure` condicionado a produção | `auth-authorization.test.js` (fora do módulo, mesma sessão usada pelas rotas do cronograma) |
+| 3.5.1 anti-CSRF | mutação de sprint/marco sem `X-CSRF-Token` recusa; leitura não exige | `schedule-contracts.test.js` |
+| 3.5.3 método safe não muta | rotas `GET` do módulo não geram mutação nem auditoria de escrita | inspeção de `sprint.routes.js` + auditoria só em mutação (`schedule-contracts.test.js`) |
+| 7.4.1 sessão encerrada é recusada | logout invalida a sessão no servidor | `auth-authorization.test.js` |
+| 14.2.1 nada sensível em URL/query | query do módulo carrega apenas datas, status e paginação; sessão em cookie, CSRF em header | inspeção de `sprint.validation.js` |
+| 14.3.2 anti-cache | `Cache-Control: no-store` asserido em resposta de sucesso e de erro do módulo — implementado desde a E5, **sem teste até esta bateria** | `backend/test/api/rf10-rf35-bateria.test.js` |
+| 16.2.1 metadado de investigação | AuditEvent com ator da sessão, ação e alvo, um por mutação | `schedule-contracts.test.js` |
+| 16.4.1 codificação contra log injection | nome de sprint com CRLF/ANSI/NUL sai numa única linha JSON com C0 escapado — garantia estrutural do formato JSON-line | `backend/test/unit/rf10-rf35-bateria.test.js` |
+| 16.5.3 falha segura, sem fail-open | falha no meio da transação desfaz participação, ponteiro, histórico e auditoria; validação precede a escrita | `rf10-sprint-schedule.test.js` |
+
+Não aplicáveis à superfície RF10/RF35, com justificativa: V4.3 (sem GraphQL), V4.4/V17 (sem
+WebSocket/WebRTC), V5 (sem upload — já registrado acima), V9/V10 (sessão opaca de referência; não
+há token autocontido nem OAuth no runtime), V6.5–V6.8 (MFA/out-of-band inexistentes — lacuna 3
+abaixo, fora do escopo do módulo).
 
 ## Lacunas prioritárias
 

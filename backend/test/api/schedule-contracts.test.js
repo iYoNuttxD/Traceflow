@@ -597,9 +597,11 @@ describe('associacao tarefa <-> sprint', () => {
     expect(response.body.code).toBe('TASK_SPRINT_PROJECT_MISMATCH');
   });
 
-  // Regressao do impasse encontrado em uso real: sprint concluida com tarefa
-  // nao podia ser esvaziada nem excluida, e o status nao volta atras.
-  it('permite esvaziar e excluir uma sprint concluida', async () => {
+  // Nascido do impasse encontrado em uso real (sprint concluida com tarefa
+  // "presa"), o cenario inverteu de sentido com o ADR-010 D04/D06: hoje ele
+  // prova que a exclusao responde 405 e o esvaziamento 409 — a participacao
+  // da sprint encerrada e registro historico e nao se apaga.
+  it('recusa esvaziar e excluir a sprint concluida, preservando a participacao', async () => {
     const owner = await register('terminal-escape@example.invalid');
     const project = await createProject(owner);
     const sprintId = (await createSprint(owner, project.id)).body.sprint.id;
