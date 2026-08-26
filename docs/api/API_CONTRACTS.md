@@ -364,6 +364,9 @@ não chegou".
 
 O denominador soma `estimatedEffort` das participações não removidas; tarefa sem estimativa não
 pesa. Sem pontos ou com janela de menos de dois dias, `hasData` é `false` e `days` vem vazio.
+A série tem teto de **180 dias**: uma janela maior é truncada em silêncio no 180º ponto — teto de
+segurança para payload e tela, não uma regra de domínio (limite documentado pela bateria RF10/RF35
+de 25/08/2026, que congelou o comportamento em teste; ASVS 2.1.3).
 
 O instante em que cada tarefa deixou de pesar vem da primeira `TaskHistoryEntry` de
 `field: STATUS` para `CONCLUIDO`, **interseccionada com o intervalo da participação** — uma

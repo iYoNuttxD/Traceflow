@@ -1,0 +1,251 @@
+# Relatório final — bateria de testes RF10 (cronograma) e RF35 (evolução por sprint)
+
+> Execução, em 25/08/2026, do enunciado `docs/issues/RF10_RF35_PROMPT_TESTES.md`, sobre a branch
+> `joao-dev-v2` com o design de 24/08 aplicado. Mapa de auditoria em
+> `docs/issues/RF10_RF35_MAPA_TESTES.md`. As Fases 1 a 8 foram executadas na ordem; a árvore de
+> trabalho carrega o resultado (a bateria não commitou — plano de commits na seção 7).
+
+## 1. Resumo
+
+**RF10** — o comportamento entregue corresponde ao especificado (cartão S1-04, ADR-009/010/011 na
+precedência vigente, contratos ativos) em **tudo o que foi exercitado**: janela semiaberta sem
+sobreposição com cancelada liberando datas, ciclo com estados terminais imutáveis, marco
+agrupador com conclusão automática/manual/reabertura, exclusões recusadas nos dois sentidos,
+devolução ao backlog preservando a participação congelada e agregado do cronograma com `to`
+inclusivo. Nenhum defeito de comportamento foi encontrado.
+
+**RF35** — idem: baseline `STARTED_AT`/`OPEN`, escopo planejado × atual com saldo líquido,
+percentual nulo distinto de zero, corte congelado no encerramento, carry-over preservando o
+`exitStatus`, burndown com janela semiaberta, linha ideal indiferente ao real e `remaining` nulo
+após o corte. Determinismo confirmado com `TZ=UTC` e `TZ=America/Sao_Paulo`.
+
+**Segurança (meta ASVS 5.0.0 L2)** — as 14 declarações da `ASVS_BASELINE.md` para o S1-04 foram
+verificadas e resistem à neutralização (Fase 7); 13 controles aplicáveis foram acrescentados à
+matriz com evidência de teste. A postura do módulo é consistente com L1/L2 no escopo verificável
+em repositório; as lacunas L2 conhecidas (MFA, store distribuído, operação) permanecem as já
+registradas na baseline, fora do escopo deste módulo.
+
+O que a bateria de fato encontrou foram **quatro lacunas de cobertura** (regras corretas que
+podiam regredir sem nenhum teste ficar vermelho), **uma deriva documental** e **um título de
+teste enganoso** — seção 3. Três das lacunas foram fechadas com testes-assassinos na própria
+bateria; a quarta virou item de backlog com análise.
+
+## 2. Números
+
+| Medida | Antes | Depois |
+|---|---|---|
+| Backend — testes | 483 (36 arquivos) | **501 (38 arquivos)** |
+| Frontend — testes | 214 (29 arquivos) | **230 (31 arquivos)** |
+| Backend — cobertura (stmts/branch/func/lines) | — | **88.22 / 76.79 / 90.24 / 90.47** (limiares 85/70/85/87) |
+| Frontend — cobertura | — | **63.52 / 60.96 / 56.36 / 65.00** (limiares 50/45/40/53) |
+
+Nenhum limiar foi alterado. Suítes completas executadas **duas vezes** com resultado idêntico
+(backend `501 passed` × 2; frontend `230 passed` × 2). Calculadoras executadas com `TZ=UTC` e
+`TZ=America/Sao_Paulo`: 66/66 nas duas. `lint`, `format:check`, `build` (frontend),
+`architecture:check` (nenhuma violação) e `security:secrets` (300 arquivos) verdes.
+
+Arquivos novos de teste:
+
+- `backend/test/unit/rf10-rf35-bateria.test.js` — 8 casos (teto de 180 dias, equivalência de
+  offset nos dois calculadores, log injection no logger, guardas normativas M05/M10);
+- `backend/test/api/rf10-rf35-bateria.test.js` — 10 casos (forma A1, I03 no HTTP, 405 com id
+  inexistente, marco editável com sprint terminal, cutoff estável, headers `no-store`/charset,
+  assassinos de M13/M17/M33);
+- `frontend/test/components/SprintActionsMenu.test.jsx` — 6 casos (ARIA, clique fora, Escape com
+  devolução de foco, rolagem, seleção, desabilitado);
+- `frontend/test/components/SprintBurndownChart.test.jsx` — 4 casos (acessibilidade do gráfico);
+- adições em `MilestonesScreen.test.jsx` (5 casos: erro recuperável, "Nenhuma sprint associada",
+  barra cheia no manual, reabrir sem confirmação, botão primário no diálogo) e
+  `ScheduleScreen.test.jsx` (1 caso: erro recuperável).
+
+## 3. Achados
+
+Nenhum achado HIGH. Convenção do enunciado: HIGH exigiria dado incorreto persistido, invariante
+violável ou controle ASVS ausente/contornável — as lacunas abaixo são de **prova**, não de
+comportamento: em todas, o produto faz a coisa certa hoje; o que faltava era o teste que impediria
+a regressão silenciosa.
+
+### [MEDIUM] Janela `to` do cronograma podia regredir para exclusivo sem nenhum teste vermelho
+
+**Onde:** emenda `sprint.schema.js` (`nextUtcDay`) → `services/schedule.service.js`
+**Norma:** I08 (ADR-010 D15)
+**Esperado:** filtrar "até 10/08" inclui o dia 10 inteiro.
+**Observado:** o comportamento está correto, mas a mutação M13 (remover o `+86400000`) sobreviveu
+a **toda** a suíte — unit, contratos e integração. Nenhum teste usava um evento que existisse
+apenas no dia `to`.
+**Reprodução:** `mutate.py M13 apply && npm test` antes da bateria.
+**Consequência da regressão não detectada:** eventos do último dia do filtro sumiriam do
+cronograma sem aviso.
+**Desfecho:** teste-assassino em `rf10-rf35-bateria.test.js` (sprint que começa e marco que vence
+exatamente no dia `to`); mutação agora mata 1 teste.
+
+### [MEDIUM] Congelamento do encerramento podia passar a reescrever a participação removida
+
+**Onde:** `sprint.repository.js` (`freezeParticipations`, filtro `removedAt: null`)
+**Norma:** I19 (ADR-011 D07) e I04 (ADR-010 D04)
+**Esperado:** quem saiu antes do encerramento mantém o registro da saída (`exitStatus` da saída,
+`closedAt` nulo); o congelamento toca só as vivas.
+**Observado:** correto em produção, mas a mutação M17 (freeze sem o filtro) sobreviveu a unit,
+contratos e integração — o unit mocka o repository, e nenhum teste de API afirmava a participação
+removida **depois** do encerramento.
+**Consequência da regressão não detectada:** o encerramento sobrescreveria `exitStatus`/`closedAt`
+de registros históricos com o status atual da tarefa — exatamente a reescrita que o RF35 existe
+para impedir.
+**Desfecho:** teste-assassino em `rf10-rf35-bateria.test.js`; mutação agora mata 1 teste.
+
+### [MEDIUM] Auditoria da transição de status fora do contrato de teste (ASVS 16.3.3)
+
+**Onde:** `sprint-status.service.js` (`auditEvent` da transição)
+**Norma:** ASVS 5.0.0 16.3.3; CONTEXTO §13.9
+**Esperado:** toda mutação do módulo gera `AuditEvent` — e o teste "gera exatamente um AuditEvent
+por mutação" deveria cobrir a transição.
+**Observado:** o evento é gravado, mas a mutação M33 (auditEvent nulo na transição) sobreviveu aos
+72 testes de contrato: o caso de auditoria não incluía `PATCH /status`.
+**Consequência da regressão não detectada:** iniciar/concluir/cancelar sprint sem trilha de
+auditoria.
+**Desfecho:** teste-assassino em `rf10-rf35-bateria.test.js` (`SPRINT_STATUS_CHANGED`, ator da
+sessão); mutação agora mata 1 teste.
+
+### [MEDIUM] Lock de projeto do caminho de escopo sem cobertura própria — ABERTO
+
+**Onde:** `sprint.repository.js` (`mutateScopeWithinSprintLock`, `lockProject`)
+**Norma:** I09 (ADR-010 D17)
+**Esperado:** remover o primeiro lock da ordem global deveria derrubar os testes de concorrência.
+**Observado:** a mutação M15 sobreviveu a toda a suíte. Análise: os locks finos que entraram com o
+H3 da PR#12 (`Sprint FOR UPDATE` + `Task FOR UPDATE`) serializam todos os cenários hoje
+exercitados — dois replaces da mesma sprint disputam a linha da sprint; replaces de sprints
+diferentes sobre a mesma tarefa disputam a linha da tarefa; replace × transição disputam a linha
+da sprint. O lock do projeto virou defesa em profundidade sem nenhum teste que dependa dele.
+**Não corrigido nesta bateria** (não identifiquei, em tempo de bateria, um interleaving concreto
+que só ele previna). Proposta registrada em `TECHNICAL_BACKLOG.md` **S104-F07**: ou constrói-se o
+teste de interleaving cross-recurso, ou documenta-se no ADR-010 D17 que a camada é
+deliberadamente redundante.
+
+### [LOW] Título de teste afirmava o contrário do que o teste prova — corrigido
+
+**Onde:** `schedule-contracts.test.js:602`
+**Observado:** "permite esvaziar e excluir uma sprint concluida" — o corpo assert `405` na
+exclusão e `409 SPRINT_SCOPE_LOCKED` no esvaziamento. O título era o cenário da regressão antiga;
+as asserções inverteram com o ADR-010 D04/D06 e o nome ficou para trás, induzindo a erro quem lê o
+relatório da suíte.
+**Desfecho:** renomeado para "recusa esvaziar e excluir a sprint concluida, preservando a
+participacao", com comentário explicando a inversão.
+
+### [LOW–doc] Deriva na matriz de rastreabilidade e no contrato — corrigidas
+
+`RF_TECHNICAL_MATRIX.md` afirmava persistência em `Milestone (sprintId)` (invertida pelo ADR-011
+D01; a coluna nem existe mais) e citava `ScheduleAgenda`, componente que não existe (substituído
+pelo `ScheduleCalendar`); RF35 não citava `SprintBurndownChart`. `API_CONTRACTS.md` não
+documentava o teto de 180 dias da série do burndown (ASVS 2.1.3). Tudo corrigido na Fase 8.
+
+### Observação (não é defeito): guardas normativas inalcançáveis no fluxo atual
+
+`ensureSingleActiveSprint` (exclusão do próprio id) e `allMilestoneSprintsConcluded`
+(`length > 0`) têm guardas que o fluxo atual do service nunca alcança — M05 e M10 sobreviveram
+por equivalência, não por lacuna. Como as duas funções são a codificação do ADR-011 D05/D06 e o
+service pode ser reordenado no futuro, ganharam teste direto de contrato na bateria.
+
+## 4. Bateria de mutação (Fase 7)
+
+Cada mutação foi aplicada isolada sobre o `HEAD`, a suíte-alvo reexecutada e o arquivo restaurado
+por backup (nunca via git — a árvore tem trabalho não commitado). Suítes-alvo: as citadas na
+coluna; "unit" = os 4–5 arquivos de sprint + bateria.
+
+| # | Mutação | Item | Vermelhos |
+|---|---|---|---|
+| M01 | overlap volta a contar `CANCELADA` | I03 | 1 |
+| M02 | emenda vira conflito (`<` → `<=`) | I01 | 1 |
+| M03 | aceita `startDate == endDate` | I02 | 1 |
+| M04 | overlap deixa de ignorar o próprio id | I01 | 4 |
+| M05 | unicidade deixa de excluir o próprio id | I18 | 0 → **1** com o teste da bateria |
+| M06 | transição aceita qualquer destino | I20 | 7 |
+| M07 | escopo terminal deixa de bloquear | I04 | 4 |
+| M08 | edição terminal deixa de bloquear | I04 | 2 |
+| M09 | conclusão automática conta `CANCELADA` | I15 | 1 |
+| M10 | marco vazio "conclui" (`every([])`) | I15 | 0 → **1** com o teste da bateria |
+| M11 | exclusão de marco com sprints deixa de recusar | I11 | 2 |
+| M12 | `parseInstant` volta a truncar para meia-noite | I05 | 4 |
+| M13 | `to` vira exclusivo (`nextUtcDay` sem +1) | I08 | **0 → 1** (lacuna real; assassino escrito) |
+| M14 | 405 passa a consultar a sprint antes | I06 | 2 |
+| M15 | escopo perde o lock do projeto | I09 | **0 — SOBREVIVEU** (achado MEDIUM; S104-F07) |
+| M16 | conclusão deixa de devolver ao backlog | I19 | 9 |
+| M17 | freeze sobrescreve a participação removida | I19/I04 | **0 → 1** (lacuna real; assassino escrito) |
+| M18 | `effectiveStatus` ignora o congelado | I24 | 2 |
+| M19 | baseline cai para `startDate` | I25 | 2 |
+| M20 | planejado perde as removidas | I27 | 1 |
+| M21 | saldo líquido conta quem já saiu | I28 | 1 |
+| M22 | percentual `0` no denominador zero | I29 | 1 |
+| M23 | corte congelado envelhece | I30 | 2 |
+| M24 | burndown inventa `0` após o corte | I33 | 2 |
+| M25 | série inclui o dia do fim | I32 | 8 |
+| M26 | calendário volta a mostrar cancelada | 3.3 | 1 |
+| M27 | menu deixa de fechar na rolagem | 3.3 | 1 (teste da bateria) |
+| M28 | Excluir marco com sprints habilitado | I11 | 1 |
+| M29 | nota do marco sempre "automaticamente" | I16 | 2 |
+| M30 | mutação sem CSRF passa | ASVS 3.5.1 | 1 |
+| M31 | `/sprints/:id` sem resolução de projeto | ASVS 8.2.2 | 5 |
+| M32 | mutação exige só VIEWER | ASVS 8.2.1 | 1 |
+| M33 | transição sem AuditEvent | ASVS 16.3.3 | **0 → 1** (lacuna real; assassino escrito) |
+| M34 | `/api` sem `no-store` | ASVS 14.3.2 | 2 (testes da bateria) |
+| M35 | stack no body do 500 | ASVS 16.5.1 | 1 |
+| M36 | validação falha e segue (fail-open) | ASVS 16.5.3 | 4 |
+| M37 | logger deixa de emitir JSON-line | ASVS 16.4.1 | 2 (testes da bateria) |
+
+**36 de 37 mutações mortas. Uma sobrevivente: M15**, registrada como achado MEDIUM com item de
+backlog S104-F07. Cinco mutações (M05, M10, M13, M17, M33) só morrem por testes escritos nesta
+bateria — foram re-executadas após os assassinos e cada uma derruba exatamente o teste esperado.
+
+## 5. Deriva documental (Fase 8)
+
+Corrigido: linhas RF10/RF35 da `RF_TECHNICAL_MATRIX.md`; teto de 180 dias no `API_CONTRACTS.md`;
+`ASVS_BASELINE.md` com a seção "Controles acrescentados pela bateria" (13 controles + NÃO
+APLICÁVEIS justificados) e evidência de 4.1.1 atualizada. Conferido sem correção necessária:
+nota do refinamento de 24/08 no ADR-010 D03 (presente); `AUTHORIZATION_MATRIX.md` (papéis e
+resolução de projeto batem com o código). Acrescentado: `TECHNICAL_BACKLOG.md` S104-F07 (M15).
+Higiene de suíte: título de `schedule-contracts.test.js:602` corrigido. A única mudança em
+`src/` de produção foi formatação Prettier pré-existente pendente em `sprint.schema.js`
+(comprovadamente só quebra de linha; o conteúdo ignorando whitespace é idêntico).
+
+## 6. O que não foi testado e por quê
+
+- **Jornada E2E de navegador** — sem infraestrutura no repositório; decisão registrada de não
+  bloquear (`S104-F02`, prioridade ALTA no backlog: enquanto aberta, o S1-04 não se declara
+  plenamente homologado). As jornadas estão cobertas por API real + interface com API mockada.
+- **ASVS L3** — fora da meta declarada (L2).
+- **O que só o ambiente real prova** — TLS de borda, headers do host da SPA, retenção operacional
+  de logs, backup: responsabilidade da implantação (Sprint 2 do roadmap), já listada como lacuna
+  na `ASVS_BASELINE.md`.
+- **Interleaving que exija o lock de projeto do escopo** — não construído (análise em S104-F07).
+- **Rate limit sob carga real** — o teste existente prova o contrato do limiter em app isolado;
+  comportamento sob carga é operação, não suíte.
+
+## 7. Plano de commits proposto (a árvore não foi commitada)
+
+A árvore carrega junto o trabalho do design de 24/08 (anterior à bateria). Sugestão em dois
+commits, na ordem:
+
+1. `feat(schedule): aplica o design de sprints e marcos de 24/08` — os componentes/telas/CSS já
+   modificados na árvore antes da bateria (inclui `SprintActionsMenu.jsx`).
+2. `test(schedule): bateria RF10/RF35 — mapa, 34 casos novos, mutação e docs` — os dois arquivos
+   `rf10-rf35-bateria.test.js`, os dois testes de componente novos, as adições nas suítes de
+   tela, o título corrigido em `schedule-contracts.test.js`, o Prettier de `sprint.schema.js` e
+   os documentos (`RF10_RF35_{PROMPT,MAPA,RELATORIO}_TESTES.md`, `ASVS_BASELINE.md`,
+   `RF_TECHNICAL_MATRIX.md`, `API_CONTRACTS.md`, `TECHNICAL_BACKLOG.md`).
+
+## 8. Checklist de DoD do enunciado
+
+- [x] Mapa item ↔ teste publicado, A1–A6 e I01–I36 classificados — nenhum AUSENTE restante
+- [x] Fase 2: calculadoras puras (fronteiras, zero-vs-nulo, determinismo com `TZ` variado)
+- [x] Fase 3: rotas com feliz, recusa de domínio, papel, isolamento e validação (pré-existente
+      verificado + lacunas fechadas)
+- [x] Fase 4: concorrência com `Promise.all` + rollback transacional (pré-existente verificado
+      pela mutação M16/M36; estado impossível coberto por `schedule-contracts:1393`)
+- [x] Fase 5: menu, ausência-com-menu-aberto, VIEWER, marcos, calendário, diálogo, 4 estados por
+      tela, extremos, burndown acessível
+- [x] Fase 6: 14 declarações verificadas; 13 controles acrescentados; LGPD conferida; matriz
+      atualizada
+- [x] Fase 7: tabela M01–M37 preenchida — **uma sobrevivente (M15), nominal e com backlog**
+- [x] Fase 8: matriz, contratos, baseline, backlog e higiene de suíte
+- [x] Cobertura acima dos limiares, sem tê-los baixado
+- [x] `lint`, `format:check`, `architecture:check`, `security:secrets`, `build` verdes
+- [x] Suíte completa 2× com o mesmo resultado (501/501 e 230/230)

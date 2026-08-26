@@ -370,6 +370,14 @@ describe('tela do cronograma', () => {
     expect(await screen.findByRole('heading', { name: 'Acesso restrito' })).toBeInTheDocument();
   });
 
+  // Bateria RF10/RF35: dos quatro estados do DoD (carregando, vazio, erro,
+  // acesso negado), o erro recuperavel era o unico sem teste nesta tela.
+  it('exibe erro recuperavel em falha generica', async () => {
+    mocks.projects.get.mockRejectedValue({ response: { status: 500, data: {} } });
+    renderScreen();
+    expect(await screen.findByRole('button', { name: 'Tentar novamente' })).toBeInTheDocument();
+  });
+
   it('filtrar periodo rebusca somente o agregado', async () => {
     const user = userEvent.setup();
     renderScreen();
