@@ -59,6 +59,13 @@ function renderScreen() {
   );
 }
 
+// As consultas (tarefas, Kanban, evolucao) e as mutacoes raras (editar,
+// cancelar) vivem no menu "Mais acoes" de cada sprint: interagir com elas exige
+// abrir o menu primeiro, exatamente como o usuario faz.
+async function abrirMenu(user, nome) {
+  await user.click(await screen.findByRole('button', { name: `Mais ações da sprint ${nome}` }));
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.projects.get.mockResolvedValue({ data: { project: { id: 1, name: 'TraceFlow' } } });
@@ -289,7 +296,7 @@ describe('economia de requisicoes', () => {
     await user.selectOptions(screen.getByLabelText('Marco'), '7');
     await user.type(screen.getByLabelText(/^Início/), '2026-08-01T09:00');
     await user.type(screen.getByLabelText(/^Fim/), '2026-08-14T18:00');
-    await user.click(screen.getByRole('button', { name: 'Cadastrar sprint' }));
+    await user.click(screen.getByRole('button', { name: 'Salvar sprint' }));
 
     await waitFor(() => expect(mocks.schedule.listSprints).toHaveBeenCalledTimes(1));
     expect(mocks.schedule.getSchedule).toHaveBeenCalledTimes(1);
@@ -317,8 +324,12 @@ describe('ausencia de exclusao de sprint', () => {
   });
 
   it('nao oferece acao de excluir sprint', async () => {
+    const user = userEvent.setup();
     renderScreen();
     const lista = await screen.findByRole('list', { name: 'Sprints do projeto' });
+    // O menu aberto e onde a acao moraria: afirmar a ausencia com ele fechado
+    // seria trivialmente verdadeiro.
+    await abrirMenu(user, 'Sprint 1');
     expect(within(lista).queryByRole('button', { name: /Excluir a sprint/ })).toBeNull();
   });
 
@@ -374,7 +385,8 @@ describe('escopo de sprint encerrada', () => {
   });
 
   async function abrirPainel(user) {
-    await user.click(await screen.findByRole('button', { name: /^Gerenciar tarefas da sprint/ }));
+    await abrirMenu(user, 'Sprint 1');
+    await user.click(await screen.findByRole('button', { name: /^Ver tarefas da sprint/ }));
     return screen.findByRole('region', { name: /Tarefas da sprint Sprint 1/ });
   }
 
@@ -468,9 +480,10 @@ describe('salvamento de uma sprint nao invade o painel de outra', () => {
   });
 
   const abrir = async (user, nome) => {
+    await abrirMenu(user, nome);
     await user.click(
       await screen.findByRole('button', {
-        name: new RegExp(`^Gerenciar tarefas da sprint ${nome}`)
+        name: new RegExp(`^Ver tarefas da sprint ${nome}`)
       })
     );
     return screen.findByRole('region', { name: new RegExp(`Tarefas da sprint ${nome}`) });
@@ -545,15 +558,19 @@ describe('clareza e confirmacao das transicoes de status', () => {
   });
 
   it('distingue cancelar a sprint de cancelar a operacao', async () => {
+    const user = userEvent.setup();
     renderScreen();
+    await abrirMenu(user, 'Sprint 1');
     const botao = await screen.findByRole('button', { name: /^Cancelar a sprint/ });
     expect(botao).toHaveTextContent('Cancelar sprint');
   });
 
   it('cada acao explica a consequencia no title', async () => {
+    const user = userEvent.setup();
     renderScreen();
     const concluir = await screen.findByRole('button', { name: /^Concluir a sprint/ });
     expect(concluir).toHaveAttribute('title', expect.stringContaining('definitiva'));
+    await abrirMenu(user, 'Sprint 1');
     expect(screen.getByRole('button', { name: /^Cancelar a sprint/ })).toHaveAttribute(
       'title',
       expect.stringContaining('definitiva')
@@ -569,7 +586,7 @@ describe('clareza e confirmacao das transicoes de status', () => {
     expect(dialog).toHaveTextContent('Concluir sprint');
     expect(dialog).toHaveTextContent(/não poderá ser editada, reaberta nem receber novas tarefas/);
 
-    await user.click(within(dialog).getByRole('button', { name: 'Cancelar' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Voltar' }));
     expect(mocks.schedule.updateSprintStatus).not.toHaveBeenCalled();
   });
 
@@ -624,9 +641,11 @@ describe('clareza e confirmacao das transicoes de status', () => {
     const user = userEvent.setup();
     renderScreen();
 
+    await abrirMenu(user, 'Sprint 1');
     await user.click(await screen.findByRole('button', { name: /^Cancelar a sprint/ }));
     const dialog = await screen.findByRole('dialog');
     expect(dialog).toHaveTextContent('Cancelar sprint');
+    expect(dialog).toHaveTextContent(/deixa de ocupar o cronograma/);
     expect(mocks.schedule.updateSprintStatus).not.toHaveBeenCalled();
   });
 
@@ -652,7 +671,7 @@ describe('formulario de sprint', () => {
     renderScreen();
     await screen.findByText('Nenhuma sprint cadastrada.');
 
-    await user.click(screen.getByRole('button', { name: 'Cadastrar sprint' }));
+    await user.click(screen.getByRole('button', { name: 'Salvar sprint' }));
     expect(await screen.findByText('Informe o nome da sprint.')).toBeInTheDocument();
     expect(mocks.schedule.createSprint).not.toHaveBeenCalled();
   });
@@ -665,7 +684,7 @@ describe('formulario de sprint', () => {
     await user.type(screen.getByLabelText(/Nome/), 'Sprint 1');
     await user.type(screen.getByLabelText(/^Início/), '2026-08-20T09:00');
     await user.type(screen.getByLabelText(/^Fim/), '2026-08-01T09:00');
-    await user.click(screen.getByRole('button', { name: 'Cadastrar sprint' }));
+    await user.click(screen.getByRole('button', { name: 'Salvar sprint' }));
 
     expect(await screen.findByText('O início precisa ser anterior ao fim.')).toBeInTheDocument();
     expect(mocks.schedule.createSprint).not.toHaveBeenCalled();
@@ -695,11 +714,12 @@ describe('formulario de sprint', () => {
     mocks.schedule.updateSprint.mockResolvedValue({ data: {} });
     renderScreen();
 
+    await abrirMenu(user, 'Sprint 1');
     await user.click(await screen.findByRole('button', { name: /^Editar a sprint/ }));
     expect(screen.getByLabelText(/^Início/)).toHaveValue('2026-08-01T09:30');
     expect(screen.getByLabelText(/^Fim/)).toHaveValue('2026-08-14T18:00');
 
-    await user.click(screen.getByRole('button', { name: 'Salvar sprint' }));
+    await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
     await waitFor(() =>
       expect(mocks.schedule.updateSprint).toHaveBeenCalledWith(
         3,
@@ -721,7 +741,7 @@ describe('formulario de sprint', () => {
     await user.selectOptions(screen.getByLabelText('Marco'), '7');
     await user.type(screen.getByLabelText(/^Início/), '2026-08-01T09:00');
     await user.type(screen.getByLabelText(/^Fim/), '2026-08-14T18:00');
-    await user.click(screen.getByRole('button', { name: 'Cadastrar sprint' }));
+    await user.click(screen.getByRole('button', { name: 'Salvar sprint' }));
 
     await waitFor(() =>
       expect(mocks.schedule.createSprint).toHaveBeenCalledWith('1', {
@@ -748,7 +768,7 @@ describe('formulario de sprint', () => {
     await user.type(screen.getByLabelText(/Nome/), 'Sprint 1');
     await user.type(screen.getByLabelText(/^Início/), '2026-08-01T09:00');
     await user.type(screen.getByLabelText(/^Fim/), '2026-08-14T18:00');
-    await user.click(screen.getByRole('button', { name: 'Cadastrar sprint' }));
+    await user.click(screen.getByRole('button', { name: 'Salvar sprint' }));
 
     expect(await screen.findByText('Selecione o marco da sprint.')).toBeInTheDocument();
     expect(mocks.schedule.createSprint).not.toHaveBeenCalled();
@@ -780,7 +800,7 @@ describe('formulario de sprint', () => {
     await user.selectOptions(screen.getByLabelText('Marco'), '7');
     await user.type(screen.getByLabelText(/^Início/), '2026-08-01T09:00');
     await user.type(screen.getByLabelText(/^Fim/), '2026-08-14T18:00');
-    await user.click(screen.getByRole('button', { name: 'Cadastrar sprint' }));
+    await user.click(screen.getByRole('button', { name: 'Salvar sprint' }));
 
     expect(
       await screen.findByText('Já existe uma sprint com este nome neste projeto.')
@@ -808,8 +828,10 @@ describe('evolucao da sprint (RF35)', () => {
     mocks.schedule.listSprints.mockResolvedValue({ data: { total: 1, sprints: [sprint] } });
   });
 
-  const abrir = async (user) =>
-    user.click(await screen.findByRole('button', { name: /^Ver evolução da sprint/ }));
+  const abrir = async (user) => {
+    await abrirMenu(user, 'Sprint 1');
+    await user.click(await screen.findByRole('button', { name: /^Ver evolução da sprint/ }));
+  };
 
   it('apresenta escopo planejado, escopo atual e o que mudou', async () => {
     const user = userEvent.setup();
@@ -1034,9 +1056,8 @@ describe('painel de tarefas da sprint', () => {
     renderScreen();
 
     // Duas sprints na lista: o seletor precisa nomear qual, senao casa as duas.
-    await user.click(
-      await screen.findByRole('button', { name: 'Gerenciar tarefas da sprint Sprint 1' })
-    );
+    await abrirMenu(user, 'Sprint 1');
+    await user.click(await screen.findByRole('button', { name: 'Ver tarefas da sprint Sprint 1' }));
     const painel = await screen.findByRole('region', { name: /Tarefas da sprint/ });
 
     // A origem precisa estar visivel ANTES de marcar, e nomeada.
@@ -1060,7 +1081,8 @@ describe('painel de tarefas da sprint', () => {
     mocks.schedule.replaceSprintTasks.mockResolvedValue({ data: {} });
     renderScreen();
 
-    await user.click(await screen.findByRole('button', { name: /^Gerenciar tarefas da sprint/ }));
+    await abrirMenu(user, 'Sprint 1');
+    await user.click(await screen.findByRole('button', { name: /^Ver tarefas da sprint/ }));
     await user.click(await screen.findByRole('checkbox'));
     await user.click(screen.getByRole('button', { name: 'Salvar tarefas da sprint' }));
 
@@ -1080,7 +1102,8 @@ describe('painel de tarefas da sprint', () => {
     );
     renderScreen();
 
-    await user.click(await screen.findByRole('button', { name: /^Gerenciar tarefas da sprint/ }));
+    await abrirMenu(user, 'Sprint 1');
+    await user.click(await screen.findByRole('button', { name: /^Ver tarefas da sprint/ }));
     const painel = await screen.findByRole('region', { name: /Tarefas da sprint/ });
 
     expect(within(painel).getByText('Carregando tarefas do projeto...')).toBeInTheDocument();
@@ -1108,7 +1131,8 @@ describe('painel de tarefas da sprint', () => {
     mocks.schedule.listSprintTasks.mockRejectedValue({ response: { status: 500, data: {} } });
     renderScreen();
 
-    await user.click(await screen.findByRole('button', { name: /^Gerenciar tarefas da sprint/ }));
+    await abrirMenu(user, 'Sprint 1');
+    await user.click(await screen.findByRole('button', { name: /^Ver tarefas da sprint/ }));
 
     expect(
       await screen.findByText('Não foi possível carregar as tarefas da sprint.')
@@ -1129,7 +1153,8 @@ describe('painel de tarefas da sprint', () => {
     });
     renderScreen();
 
-    await user.click(await screen.findByRole('button', { name: /^Gerenciar tarefas da sprint/ }));
+    await abrirMenu(user, 'Sprint 1');
+    await user.click(await screen.findByRole('button', { name: /^Ver tarefas da sprint/ }));
     await user.click(await screen.findByRole('checkbox'));
     await user.click(screen.getByRole('button', { name: 'Salvar tarefas da sprint' }));
 
@@ -1171,7 +1196,8 @@ describe('listas roláveis', () => {
     mocks.schedule.listProjectTasks.mockResolvedValue({ data: { total: 0, tasks: [] } });
     renderScreen();
 
-    await user.click(await screen.findByRole('button', { name: /^Gerenciar tarefas da sprint/ }));
+    await abrirMenu(user, 'Alfa');
+    await user.click(await screen.findByRole('button', { name: /^Ver tarefas da sprint/ }));
 
     const lista = screen.getByRole('list', { name: 'Sprints do projeto' });
     const painel = await screen.findByRole('region', { name: /Tarefas da sprint Alfa/ });
@@ -1233,10 +1259,10 @@ describe('respostas fora de ordem', () => {
     const liberarA = respostaLentaDeA();
     renderScreen();
 
-    await user.click(
-      await screen.findByRole('button', { name: /Gerenciar tarefas da sprint Sprint A/ })
-    );
-    await user.click(screen.getByRole('button', { name: /Gerenciar tarefas da sprint Sprint B/ }));
+    await abrirMenu(user, 'Sprint A');
+    await user.click(await screen.findByRole('button', { name: /Ver tarefas da sprint Sprint A/ }));
+    await abrirMenu(user, 'Sprint B');
+    await user.click(screen.getByRole('button', { name: /Ver tarefas da sprint Sprint B/ }));
 
     const painel = await screen.findByRole('region', { name: /Tarefas da sprint Sprint B/ });
     liberarA();
@@ -1260,10 +1286,10 @@ describe('respostas fora de ordem', () => {
     mocks.schedule.replaceSprintTasks.mockResolvedValue({ data: {} });
     renderScreen();
 
-    await user.click(
-      await screen.findByRole('button', { name: /Gerenciar tarefas da sprint Sprint A/ })
-    );
-    await user.click(screen.getByRole('button', { name: /Gerenciar tarefas da sprint Sprint B/ }));
+    await abrirMenu(user, 'Sprint A');
+    await user.click(await screen.findByRole('button', { name: /Ver tarefas da sprint Sprint A/ }));
+    await abrirMenu(user, 'Sprint B');
+    await user.click(screen.getByRole('button', { name: /Ver tarefas da sprint Sprint B/ }));
     const painel = await screen.findByRole('region', { name: /Tarefas da sprint Sprint B/ });
     liberarA();
 
@@ -1277,10 +1303,10 @@ describe('respostas fora de ordem', () => {
     const liberarA = respostaLentaDeA();
     renderScreen();
 
-    await user.click(
-      await screen.findByRole('button', { name: /Gerenciar tarefas da sprint Sprint A/ })
-    );
-    await user.click(screen.getByRole('button', { name: /Fechar tarefas da sprint Sprint A/ }));
+    await abrirMenu(user, 'Sprint A');
+    await user.click(await screen.findByRole('button', { name: /Ver tarefas da sprint Sprint A/ }));
+    await abrirMenu(user, 'Sprint A');
+    await user.click(screen.getByRole('button', { name: /Ocultar tarefas da sprint Sprint A/ }));
     liberarA();
 
     await waitFor(() =>
@@ -1315,9 +1341,11 @@ describe('respostas fora de ordem', () => {
     });
     renderScreen();
 
+    await abrirMenu(user, 'Sprint A');
     await user.click(
       await screen.findByRole('button', { name: /Ver evolução da sprint Sprint A/ })
     );
+    await abrirMenu(user, 'Sprint B');
     await user.click(screen.getByRole('button', { name: /Ver evolução da sprint Sprint B/ }));
     const painel = await screen.findByRole('region', { name: /Evolução da sprint Sprint B/ });
     liberarA?.();
@@ -1368,17 +1396,20 @@ describe('perfil somente leitura', () => {
     renderScreen();
     await screen.findByRole('list', { name: 'Sprints do projeto' });
 
-    expect(screen.queryByRole('button', { name: 'Cadastrar sprint' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Cadastrar marco' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Salvar sprint' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Salvar marco' })).toBeNull();
   });
 
   it('nao oferece acoes de mutacao nas listas', async () => {
+    const user = userEvent.setup();
     renderScreen();
     const sprints = await screen.findByRole('list', { name: 'Sprints do projeto' });
 
-    expect(within(sprints).queryByRole('button', { name: /^Editar a sprint/ })).toBeNull();
     expect(within(sprints).queryByRole('button', { name: /^Iniciar a sprint/ })).toBeNull();
     expect(within(sprints).queryByRole('button', { name: /^Concluir a sprint/ })).toBeNull();
+    // Editar e cancelar morariam no menu: e com ele aberto que a ausencia vale.
+    await abrirMenu(user, 'Sprint 1');
+    expect(within(sprints).queryByRole('button', { name: /^Editar a sprint/ })).toBeNull();
     expect(within(sprints).queryByRole('button', { name: /^Cancelar a sprint/ })).toBeNull();
     // Consultar continua disponivel: VIEWER le o cronograma inteiro.
     expect(
@@ -1406,6 +1437,7 @@ describe('perfil somente leitura', () => {
     });
     renderScreen();
 
+    await abrirMenu(user, 'Sprint 1');
     await user.click(await screen.findByRole('button', { name: /Ver tarefas da sprint Sprint 1/ }));
     const painel = await screen.findByRole('region', { name: /Tarefas da sprint Sprint 1/ });
     expect(within(painel).getByText(/Tarefa da sprint/)).toBeInTheDocument();
@@ -1462,7 +1494,8 @@ describe('sinalizacao de inclusao posterior ao inicio', () => {
     });
     renderScreen();
 
-    await user.click(await screen.findByRole('button', { name: /^Gerenciar tarefas da sprint/ }));
+    await abrirMenu(user, 'Sprint 1');
+    await user.click(await screen.findByRole('button', { name: /^Ver tarefas da sprint/ }));
     const painel = await screen.findByRole('region', { name: /Tarefas da sprint Sprint 1/ });
 
     const avisos = within(painel).getAllByText('Incluída após o início da sprint');

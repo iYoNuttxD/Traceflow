@@ -57,15 +57,16 @@ export function MilestoneForm({
         Um marco pode ter várias sprints e é concluído automaticamente quando todas forem
         concluídas.
       </p>
+      {/* Mesma ordem do formulário de sprint: cancelar antes, submit por último. */}
       <div className="form-actions">
-        <button className="button button-primary" type="submit" disabled={submitting}>
-          {submitting ? 'Salvando...' : editing ? 'Salvar marco' : 'Cadastrar marco'}
-        </button>
         {editing && (
           <button className="button button-secondary" type="button" onClick={onCancel}>
             Cancelar edição
           </button>
         )}
+        <button className="button button-primary" type="submit" disabled={submitting}>
+          {submitting ? 'Salvando...' : editing ? 'Salvar alterações' : 'Salvar marco'}
+        </button>
       </div>
     </form>
   );

@@ -183,6 +183,8 @@ describe('conclusao automatica', () => {
     renderScreen();
     await screen.findByText('Fundação do produto');
     expect(screen.queryByText(/Concluído automaticamente/)).toBeNull();
+    // A nota diz COMO chegou a concluído: aqui foi alguém, não a automação.
+    expect(screen.getByText('Concluído manualmente.')).toBeInTheDocument();
   });
 
   it('avisa antes de concluir a mao um marco com sprints abertas', async () => {
@@ -195,11 +197,15 @@ describe('conclusao automatica', () => {
 
     await user.click(await screen.findByRole('button', { name: /^Concluir o marco/ }));
     const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByText(/ainda tem 1 sprint\(s\)/)).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(/1 sprint\(s\) deste marco ainda não foram concluídas/)
+    ).toBeInTheDocument();
     expect(mocks.schedule.updateMilestoneStatus).not.toHaveBeenCalled();
   });
 
-  it('conclui direto quando todas as sprints ja terminaram', async () => {
+  // Concluir a mao e sempre uma afirmacao sobre a entrega: confirma mesmo sem
+  // pendencia — mas sem inventar uma no aviso.
+  it('confirma a conclusao manual mesmo com todas as sprints terminadas', async () => {
     const user = userEvent.setup();
     mocks.schedule.listMilestones.mockResolvedValue({ data: { total: 1, milestones: [marco()] } });
     mocks.schedule.listSprints.mockResolvedValue({
@@ -211,6 +217,9 @@ describe('conclusao automatica', () => {
     renderScreen();
 
     await user.click(await screen.findByRole('button', { name: /^Concluir o marco/ }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).queryByText(/ainda não foram concluídas/)).toBeNull();
+    await user.click(within(dialog).getByRole('button', { name: 'Concluir marco' }));
     await waitFor(() =>
       expect(mocks.schedule.updateMilestoneStatus).toHaveBeenCalledWith(5, 'CONCLUIDO')
     );
@@ -255,7 +264,7 @@ describe('formulario de marco', () => {
     renderScreen();
     await screen.findByText('Nenhum marco cadastrado.');
 
-    await user.click(screen.getByRole('button', { name: 'Cadastrar marco' }));
+    await user.click(screen.getByRole('button', { name: 'Salvar marco' }));
     expect(await screen.findByText('Informe o título do marco.')).toBeInTheDocument();
     expect(screen.getByText('Informe a data prevista.')).toBeInTheDocument();
     expect(mocks.schedule.createMilestone).not.toHaveBeenCalled();
@@ -270,7 +279,7 @@ describe('formulario de marco', () => {
     await user.type(screen.getByLabelText(/Título/), 'Gestão de sprints');
     await user.type(screen.getByLabelText(/Descrição/), 'Ciclo completo.');
     await user.type(screen.getByLabelText(/Prazo/), '2026-09-04T18:00');
-    await user.click(screen.getByRole('button', { name: 'Cadastrar marco' }));
+    await user.click(screen.getByRole('button', { name: 'Salvar marco' }));
 
     await waitFor(() =>
       expect(mocks.schedule.createMilestone).toHaveBeenCalledWith('1', {
@@ -293,7 +302,7 @@ describe('formulario de marco', () => {
 
     await user.type(screen.getByLabelText(/Título/), 'Muito depois');
     await user.type(screen.getByLabelText(/Prazo/), '2027-06-30T12:00');
-    await user.click(screen.getByRole('button', { name: 'Cadastrar marco' }));
+    await user.click(screen.getByRole('button', { name: 'Salvar marco' }));
 
     await waitFor(() => expect(mocks.schedule.createMilestone).toHaveBeenCalledTimes(1));
   });
@@ -310,7 +319,7 @@ describe('perfil somente leitura', () => {
   it('nao oferece formulario nem acoes', async () => {
     renderScreen();
     await screen.findByText('Fundação do produto');
-    expect(screen.queryByRole('button', { name: 'Cadastrar marco' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Salvar marco' })).toBeNull();
     const lista = screen.getByRole('list', { name: 'Marcos do projeto' });
     expect(within(lista).queryByRole('button')).toBeNull();
   });

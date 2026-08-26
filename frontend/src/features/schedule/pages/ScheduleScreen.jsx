@@ -32,6 +32,11 @@ export function ScheduleScreen() {
 
   const filtered = Boolean(appliedPeriod.from || appliedPeriod.to);
   const unassignedCount = schedule?.unassignedTasks?.length ?? 0;
+  // A contagem acompanha o que o calendário desenha: sprint cancelada saiu das
+  // faixas e da legenda, então também não entra no "no período".
+  const sprintCount = (schedule?.sprints || []).filter(
+    (sprint) => sprint.status !== 'CANCELADA'
+  ).length;
 
   const applyPeriod = async (event) => {
     event.preventDefault();
@@ -96,7 +101,7 @@ export function ScheduleScreen() {
           </p>
           {/* Resumo numerico orienta antes de rolar a pagina. */}
           <p className="schedule-summary">
-            {schedule?.sprints?.length ?? 0} no período · {unassignedCount}{' '}
+            {sprintCount} no período · {unassignedCount}{' '}
             {unassignedCount === 1 ? 'tarefa sem sprint' : 'tarefas sem sprint'}
           </p>
         </div>

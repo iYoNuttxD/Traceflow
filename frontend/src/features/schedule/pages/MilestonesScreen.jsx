@@ -92,17 +92,20 @@ export function MilestonesScreen() {
 
   const toggleMilestoneStatus = async (milestone) => {
     const next = milestone.status === 'PENDENTE' ? 'CONCLUIDO' : 'PENDENTE';
-    // Concluir à mão um marco cujas sprints ainda correm é legítimo, mas é uma
-    // afirmação sobre a entrega — vale confirmar, senão um clique diz "pronto"
-    // sobre trabalho em curso.
-    const progresso = milestoneProgress(milestone.id, sprints);
-    if (next === 'CONCLUIDO' && progresso.total > 0 && !progresso.allConcluded) {
+    // Concluir à mão é sempre uma afirmação sobre a entrega — vale confirmar,
+    // senão um clique diz "pronto" por decisão de ninguém. Reabrir dispensa
+    // aviso: é reversível e não afirma nada. Quando ainda há sprints abertas, a
+    // confirmação diz quantas, porque é isso que o clique está atropelando.
+    if (next === 'CONCLUIDO') {
+      const progresso = milestoneProgress(milestone.id, sprints);
+      const pendentes = progresso.total - progresso.done;
       const confirmed = await confirm({
         title: 'Concluir marco?',
         description:
-          `O marco "${milestone.title}" ainda tem ${progresso.total - progresso.done} sprint(s) ` +
-          'não concluída(s). Concluí-lo agora é uma decisão manual e pode ser desfeita depois.',
-        confirmLabel: 'Concluir mesmo assim'
+          `O marco "${milestone.title}" será marcado como concluído manualmente.` +
+          (pendentes > 0 ? ` ${pendentes} sprint(s) deste marco ainda não foram concluídas.` : ''),
+        confirmLabel: 'Concluir marco',
+        destructive: false
       });
       if (!confirmed) return;
     }
@@ -125,9 +128,11 @@ export function MilestonesScreen() {
 
   const removeMilestone = async (milestone) => {
     const confirmed = await confirm({
-      title: 'Excluir marco',
-      description: `O marco "${milestone.title}" será excluído. Esta ação não pode ser desfeita.`,
-      confirmLabel: 'Excluir'
+      title: 'Excluir marco?',
+      description:
+        `O marco "${milestone.title}" será excluído definitivamente. ` +
+        'Esta ação não pode ser desfeita.',
+      confirmLabel: 'Excluir marco'
     });
     if (!confirmed) return;
 

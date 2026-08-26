@@ -337,6 +337,24 @@ describe('interacao do calendario', () => {
     expect(screen.getByText('agosto de 2026')).toBeInTheDocument();
     expect(screen.getByText('Nenhum evento futuro no cronograma.')).toBeInTheDocument();
   });
+
+  // Sprint cancelada deixa de ocupar o cronograma: nada de faixa, legenda ou
+  // eventos sobre um trabalho que nao vai acontecer. A lista de Sprints
+  // continua a exibi-la — la ela e registro, aqui seria plano.
+  it('sprint cancelada sai da faixa, da legenda e dos eventos', () => {
+    const { container } = renderCalendar({
+      schedule: {
+        ...emptySchedule,
+        sprints: [sprint({ status: 'CANCELADA' })]
+      }
+    });
+    const legenda = within(container.querySelector('.calendar-legend'));
+    expect(legenda.queryByText('Sprint 1')).toBeNull();
+    expect(screen.queryByText('Início — Sprint 1')).toBeNull();
+    expect(screen.queryByText('Fim — Sprint 1')).toBeNull();
+    // Nenhum dia da grade recebe a faixa da sprint cancelada.
+    expect(screen.queryByRole('button', { name: /Sprint 1/ })).toBeNull();
+  });
 });
 
 describe('tela do cronograma', () => {

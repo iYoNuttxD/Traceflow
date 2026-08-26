@@ -40,6 +40,7 @@ export function MilestoneList({
         const done = milestone.status === 'CONCLUIDO';
         const busy = busyMilestoneId === milestone.id;
         const progresso = milestoneProgress(milestone.id, sprints);
+        const temSprints = progresso.sprints.length > 0;
         // O badge diz o estado real: concluído, atrasado ou pendente. "Atrasado"
         // só faz sentido enquanto há o que entregar.
         const statusKey = done ? 'CONCLUIDO' : overdue ? 'ATRASADO' : 'PENDENTE';
@@ -64,10 +65,12 @@ export function MilestoneList({
             </p>
 
             {/* A barra repete em forma o que a linha acima já diz em número: ela
-                acelera a leitura, não a substitui. */}
+                acelera a leitura, não a substitui. Marco concluído enche a barra
+                mesmo com sprint aberta — o estado declarado vence a contagem,
+                senão o badge diria "entregue" sobre uma barra pela metade. */}
             <div className="traceability-progress">
               <div className="traceability-progress-bar">
-                <span style={{ width: `${progresso.percent}%` }} />
+                <span style={{ width: `${done ? 100 : progresso.percent}%` }} />
               </div>
             </div>
 
@@ -75,7 +78,7 @@ export function MilestoneList({
               <p className="milestone-description">{milestone.description}</p>
             )}
 
-            {progresso.sprints.length > 0 && (
+            {temSprints ? (
               <p className="milestone-meta" aria-label={`Sprints do marco ${milestone.title}`}>
                 {progresso.sprints.map((sprint) => {
                   const key = sprintStatusKey(sprint);
@@ -86,58 +89,74 @@ export function MilestoneList({
                   );
                 })}
               </p>
+            ) : (
+              // Dizer que não há sprints — e onde criá-las — em vez de deixar um
+              // vão: um marco sem sprint nunca conclui sozinho, e o usuário
+              // precisa saber que o vínculo é declarado do lado da sprint.
+              <p className="field-help milestone-no-sprints">
+                Nenhuma sprint associada — cadastre sprints vinculadas a este marco na tela de
+                Sprints.
+              </p>
             )}
 
-            {/* Explicar a automação onde ela aconteceu: sem isso, o marco aparece
-                concluído sem que ninguém tenha clicado em concluir, e a tela
-                parece ter feito algo por conta própria. */}
-            {done && progresso.allConcluded && (
+            {/* Explicar COMO o marco chegou a concluído: automático quando todas
+                as sprints terminaram, manual quando alguém decidiu. Sem a nota,
+                o primeiro caso parece a tela agindo por conta própria — e o
+                segundo, um engano dela. */}
+            {done && (
               <p className="milestone-frozen">
-                Concluído automaticamente — todas as sprints deste marco foram concluídas.
+                {progresso.allConcluded
+                  ? 'Concluído automaticamente — todas as sprints deste marco foram concluídas.'
+                  : 'Concluído manualmente.'}
               </p>
             )}
 
             {/* VIEWER lê o cronograma inteiro, mas não age sobre ele. */}
             {readOnly ? null : (
               <div
-                className="milestone-actions"
+                className="milestone-item-footer"
                 role="group"
                 aria-label={`Ações do marco ${milestone.title}`}
               >
-                <button
-                  type="button"
-                  className={`button ${done ? 'button-secondary' : 'button-primary'}`}
-                  disabled={busy}
-                  aria-label={`${done ? 'Reabrir' : 'Concluir'} o marco ${milestone.title}`}
-                  title={
-                    done
-                      ? 'Volta o marco para pendente. Pode ser desfeito a qualquer momento.'
-                      : 'Marca o marco como entregue antes de todas as sprints terminarem. Pode ser reaberto depois.'
-                  }
-                  onClick={() => onToggleStatus(milestone)}
-                >
-                  {done ? 'Reabrir' : 'Concluir'}
-                </button>
-                <button
-                  type="button"
-                  className="button button-secondary"
-                  aria-label={`Editar o marco ${milestone.title}`}
-                  title="Carrega título, descrição e prazo no formulário ao lado."
-                  onClick={() => onEdit(milestone)}
-                >
-                  Editar
-                </button>
-                <div className="milestone-actions-end">
+                <div className="milestone-item-footer-main">
                   <button
                     type="button"
-                    className="button button-danger"
+                    className="button button-secondary"
+                    disabled={busy}
+                    aria-label={`${done ? 'Reabrir' : 'Concluir'} o marco ${milestone.title}`}
+                    title={
+                      done
+                        ? 'Volta o marco para pendente. Pode ser desfeito a qualquer momento.'
+                        : 'Marca o marco como entregue antes de todas as sprints terminarem. Pode ser reaberto depois.'
+                    }
+                    onClick={() => onToggleStatus(milestone)}
+                  >
+                    {done ? 'Reabrir marco' : 'Concluir marco'}
+                  </button>
+                </div>
+                {/* Editar e excluir como ações-texto, longe do botão de status:
+                    são raras, e em forma de botão disputavam peso com a ação
+                    que define a entrega. */}
+                <div className="milestone-item-footer-links">
+                  <button
+                    type="button"
+                    className="link-action"
+                    aria-label={`Editar o marco ${milestone.title}`}
+                    title="Carrega título, descrição e prazo no formulário ao lado."
+                    onClick={() => onEdit(milestone)}
+                  >
+                    Editar
+                  </button>
+                  <button
+                    type="button"
+                    className="link-action link-action-danger"
                     // Excluir um marco com sprints desfaria o agrupamento; o
                     // backend recusa com 409. Desabilitar aqui evita transformar
                     // uma regra conhecida numa descoberta pelo erro.
-                    disabled={busy || progresso.sprints.length > 0}
+                    disabled={busy || temSprints}
                     aria-label={`Excluir o marco ${milestone.title}`}
                     title={
-                      progresso.sprints.length > 0
+                      temSprints
                         ? 'Marco com sprints não pode ser excluído. Mova-as para outro marco antes.'
                         : 'Remove o marco do projeto. Esta ação não pode ser desfeita.'
                     }

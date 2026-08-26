@@ -61,6 +61,12 @@ consegue dizer em qual sprint o marco foi planejado nem validar consistência te
 
 ### D03 — Sprints do mesmo projeto não se sobrepõem (supersede ADR-009 §4)
 
+> **Refinada em 24/08/2026.** Sprint `CANCELADA` não conta para a sobreposição: cancelar é
+> decidir que aquele trabalho não vai acontecer, e o período dele volta a ficar livre. Sem a
+> exclusão, cada cancelamento congelaria um pedaço do calendário para sempre — a sprint
+> cancelada não pode ser editada nem excluída (D04/D06). O calendário do cronograma acompanha
+> a regra: faixas, legenda e eventos omitem a cancelada.
+
 Sprints são sequenciais. A janela é **semiaberta `[startDate, endDate)`**: a sprint seguinte
 pode começar exatamente no instante em que a anterior termina, e nunca antes.
 
