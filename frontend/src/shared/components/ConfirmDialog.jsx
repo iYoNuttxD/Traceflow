@@ -48,17 +48,20 @@ function ConfirmDialog({ dialog, close }) {
         <h2 id="confirm-dialog-title">{dialog.title}</h2>
         <p id="confirm-dialog-description">{dialog.description}</p>
         <div className="dialog-actions">
+          {/* "Voltar", e não "Cancelar": quando a ação confirmada é "Cancelar
+              sprint", dois botões escritos "Cancelar" disputariam o mesmo verbo
+              com efeitos opostos. */}
           <button
             ref={cancelRef}
             type="button"
             className="button button-secondary"
             onClick={() => close(false)}
           >
-            Cancelar
+            Voltar
           </button>
           <button
             type="button"
-            className={dialog.destructive ? 'button button-danger' : 'button'}
+            className={dialog.destructive ? 'button button-danger' : 'button button-primary'}
             onClick={() => close(true)}
           >
             {dialog.confirmLabel || 'Confirmar'}

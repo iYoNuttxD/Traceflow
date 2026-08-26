@@ -21,6 +21,9 @@ function prazoLabel(sprint, statusKey, hojeIso) {
     const dias = diffDaysIso(fim, hojeIso);
     return `Venceu há ${dias} ${dias === 1 ? 'dia' : 'dias'}`;
   }
+  // Cancelada nao "encerrou" em data nenhuma: o fim planejado nao aconteceu, e
+  // exibi-lo como encerramento afirmaria uma entrega que nao houve.
+  if (statusKey === 'CANCELADA') return 'Sprint cancelada';
   return `Encerrada em ${shortDate(fim)}`;
 }
 

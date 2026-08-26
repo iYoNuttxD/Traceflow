@@ -136,16 +136,34 @@ export function formatSprintPeriod(sprint) {
 // A contagem de pendentes é o número que o backend usará para devolvê-las ao
 // backlog (ADR-011 D07). Prometer "nenhuma" e devolver três seria pior do que
 // não avisar.
+//
+// Cada transição fala do SEU efeito: concluir congela um resultado, cancelar
+// libera as datas no cronograma. `destructive` distingue as duas no botão —
+// concluir é o desfecho esperado da sprint, cancelar é desistir dela.
 export function sprintTerminalConfirm(sprint, status, pendentes) {
+  if (status === 'CONCLUIDA') {
+    return {
+      title: 'Concluir sprint?',
+      description:
+        `A sprint "${sprint.name}" será marcada como concluída e congelada: ela não poderá ` +
+        'ser editada, reaberta nem receber novas tarefas. ' +
+        (pendentes
+          ? `${pendentes} tarefa(s) não concluída(s) voltarão ao backlog.`
+          : 'Todas as tarefas da sprint foram concluídas.'),
+      confirmLabel: 'Concluir e congelar',
+      destructive: false
+    };
+  }
   return {
-    title: status === 'CONCLUIDA' ? 'Concluir sprint?' : 'Cancelar sprint',
+    title: 'Cancelar sprint?',
     description:
-      `A sprint "${sprint.name}" será encerrada e congelada: ela não poderá ser editada, ` +
-      'reaberta nem receber novas tarefas. ' +
+      `A sprint "${sprint.name}" será marcada como cancelada e deixa de ocupar o cronograma: ` +
+      'ela não poderá ser editada, reaberta nem receber novas tarefas. ' +
       (pendentes
-        ? `${pendentes} tarefa(s) não concluída(s) voltarão ao backlog.`
-        : 'Todas as tarefas da sprint foram concluídas.'),
-    confirmLabel: status === 'CONCLUIDA' ? 'Concluir e congelar' : 'Cancelar sprint'
+        ? `${pendentes} tarefa(s) pendente(s) voltarão ao backlog.`
+        : 'As tarefas concluídas permanecem registradas.'),
+    confirmLabel: 'Cancelar sprint',
+    destructive: true
   };
 }
 

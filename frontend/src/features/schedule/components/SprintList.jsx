@@ -1,4 +1,5 @@
 import { EmptyState } from '../../../shared/index.js';
+import { SprintActionsMenu } from './SprintActionsMenu.jsx';
 import {
   formatSprintPeriod,
   isTerminalSprint,
@@ -6,8 +7,7 @@ import {
   sprintStatusKeyLabels,
   statusBadgeClass,
   summarizeSprintTasks,
-  transitionHints,
-  transitionLabels
+  transitionHints
 } from './schedule-display.js';
 
 export function SprintList({
@@ -48,6 +48,7 @@ export function SprintList({
         const terminal = isTerminalSprint(sprint.status);
         const busy = busySprintId === sprint.id;
         const selected = selectedSprintId === sprint.id;
+        const progressOpen = progressSprintId === sprint.id;
         const statusKey = sprintStatusKey(sprint);
         const resumo = summarizeSprintTasks(scheduleById[sprint.id]);
         // Só uma sprint em andamento por projeto: iniciar fica desabilitado
@@ -57,6 +58,65 @@ export function SprintList({
         // ATRASADA é EM_ANDAMENTO com a janela vencida: concluir continua sendo a
         // ação esperada, e é justamente quando ela mais importa.
         const podeConcluir = sprint.status === 'EM_ANDAMENTO';
+
+        // Itens do "Mais ações": consultas primeiro, sempre; editar e cancelar
+        // entram só quando a sprint ainda os aceita. Numa terminal, oferecer
+        // Editar desabilitado seria propor uma escolha que não existe — o texto
+        // "Congelada" acima já explica o porquê da ausência.
+        // Não há ação de excluir em nenhum estado: o cronograma é registro
+        // histórico do projeto (ADR-010 D06).
+        const menuItems = [
+          {
+            key: 'tarefas',
+            label: selected ? 'Ocultar tarefas' : 'Ver tarefas',
+            // O aria-label carrega o nome da sprint porque a lista tem vários
+            // rótulos idênticos para quem navega por leitor de tela.
+            ariaLabel: `${selected ? 'Ocultar' : 'Ver'} tarefas da sprint ${sprint.name}`,
+            expanded: selected,
+            title: selected
+              ? 'Fecha o painel de tarefas desta sprint.'
+              : readOnly
+                ? 'Abre a composição atual desta sprint.'
+                : 'Abre o painel para escolher quais tarefas pertencem a esta sprint.',
+            onSelect: () => onSelect(sprint)
+          },
+          {
+            key: 'kanban',
+            label: 'Ver no Kanban',
+            ariaLabel: `Ver a sprint ${sprint.name} no Kanban`,
+            title: 'Abre o quadro filtrado por esta sprint.',
+            onSelect: () => onViewInKanban(sprint)
+          },
+          {
+            key: 'evolucao',
+            label: progressOpen ? 'Fechar evolução' : 'Ver evolução',
+            ariaLabel: `${progressOpen ? 'Fechar' : 'Ver'} evolução da sprint ${sprint.name}`,
+            expanded: progressOpen,
+            title:
+              'Mostra o escopo planejado, o escopo atual e o que mudou depois do planejamento.',
+            onSelect: () => onShowProgress(sprint)
+          }
+        ];
+        if (!terminal && !readOnly) {
+          menuItems.push(
+            {
+              key: 'editar',
+              label: 'Editar sprint',
+              ariaLabel: `Editar a sprint ${sprint.name}`,
+              title: 'Carrega nome, objetivo, marco e datas no formulário ao lado.',
+              onSelect: () => onEdit(sprint)
+            },
+            {
+              key: 'cancelar',
+              label: 'Cancelar sprint',
+              danger: true,
+              disabled: busy,
+              ariaLabel: `Cancelar a sprint ${sprint.name}`,
+              title: transitionHints.CANCELADA,
+              onSelect: () => onChangeStatus(sprint, 'CANCELADA')
+            }
+          );
+        }
 
         return (
           <li className={`sprint-item ${selected ? 'sprint-item-selected' : ''}`} key={sprint.id}>
@@ -79,124 +139,58 @@ export function SprintList({
 
             {sprint.objective && <p className="sprint-objective">{sprint.objective}</p>}
 
+            {/* Congelamento por texto, nunca só pela ausência dos botões — e
+                nomeando o estado certo: cancelada não é concluída. */}
             {terminal && (
               <p className="milestone-frozen">
-                Congelada — tarefas e associações desta sprint estão bloqueadas.
+                {sprint.status === 'CANCELADA'
+                  ? 'Cancelada — tarefas e associações desta sprint estão bloqueadas.'
+                  : 'Congelada — tarefas e associações desta sprint estão bloqueadas.'}
               </p>
             )}
 
-            {/* Cada botão diz o que faz por verbo, e o `title` explica a consequência.
-                O aria-label carrega o nome da sprint porque a lista tem vários
-                rótulos idênticos para quem navega por leitor de tela.
-                Não há ação de excluir: o cronograma é registro histórico do
-                projeto e a sprint não é removida em nenhum estado. */}
+            {/* Rodapé em duas metades: à esquerda a transição de status que a
+                sprint aceita agora — a ação do dia a dia —, à direita o menu com
+                todo o resto. Cada botão diz o que faz por verbo, e o `title`
+                explica a consequência. */}
             <div
-              className="sprint-actions"
+              className="sprint-item-footer"
               role="group"
               aria-label={`Ações da sprint ${sprint.name}`}
             >
-              {sprint.status === 'PLANEJADA' && !readOnly && (
-                <button
-                  type="button"
-                  className="button button-primary"
-                  disabled={busy || bloqueadaPorOutra}
-                  aria-label={`Iniciar a sprint ${sprint.name}`}
-                  title={
-                    bloqueadaPorOutra
-                      ? `Conclua a sprint "${activeSprintName}" para iniciar outra.`
-                      : transitionHints.EM_ANDAMENTO
-                  }
-                  onClick={() => onChangeStatus(sprint, 'EM_ANDAMENTO')}
-                >
-                  {transitionLabels.EM_ANDAMENTO} sprint
-                </button>
-              )}
-
-              {podeConcluir && !readOnly && (
-                <button
-                  type="button"
-                  className="button button-primary"
-                  disabled={busy}
-                  aria-label={`Concluir a sprint ${sprint.name}`}
-                  title={transitionHints.CONCLUIDA}
-                  onClick={() => onChangeStatus(sprint, 'CONCLUIDA')}
-                >
-                  Concluir sprint
-                </button>
-              )}
-
-              <button
-                type="button"
-                className="button button-secondary"
-                onClick={() => onSelect(sprint)}
-                aria-expanded={selected}
-                // O rótulo acessível acompanha o texto visível: anunciar
-                // "Gerenciar" num botão escrito "Ver" descreveria uma ação que
-                // este usuário não tem.
-                aria-label={`${selected ? 'Fechar' : readOnly ? 'Ver' : 'Gerenciar'} tarefas da sprint ${sprint.name}`}
-                title={
-                  selected
-                    ? 'Fecha o painel de tarefas desta sprint.'
-                    : readOnly
-                      ? 'Abre a composição atual desta sprint.'
-                      : 'Abre o painel para escolher quais tarefas pertencem a esta sprint.'
-                }
-              >
-                {selected ? 'Ocultar tarefas' : 'Tarefas'}
-              </button>
-
-              <button
-                type="button"
-                className="button button-secondary"
-                onClick={() => onViewInKanban(sprint)}
-                aria-label={`Ver a sprint ${sprint.name} no Kanban`}
-                title="Abre o quadro filtrado por esta sprint."
-              >
-                Ver no Kanban
-              </button>
-
-              <button
-                type="button"
-                className="button button-secondary"
-                onClick={() => onShowProgress(sprint)}
-                aria-expanded={progressSprintId === sprint.id}
-                aria-label={`${progressSprintId === sprint.id ? 'Fechar' : 'Ver'} evolução da sprint ${sprint.name}`}
-                title="Mostra o escopo planejado, o escopo atual e o que mudou depois do planejamento."
-              >
-                {progressSprintId === sprint.id ? 'Fechar evolução' : 'Ver evolução'}
-              </button>
-
-              {!readOnly && (
-                <button
-                  type="button"
-                  className="button button-secondary"
-                  disabled={terminal}
-                  aria-label={`Editar a sprint ${sprint.name}`}
-                  title={
-                    terminal
-                      ? 'Sprint concluída ou cancelada não pode ser editada.'
-                      : 'Carrega nome, objetivo, marco e datas no formulário ao lado.'
-                  }
-                  onClick={() => onEdit(sprint)}
-                >
-                  Editar
-                </button>
-              )}
-
-              {!terminal && !readOnly && (
-                <div className="sprint-actions-end">
+              <div className="sprint-item-footer-main">
+                {sprint.status === 'PLANEJADA' && !readOnly && (
                   <button
                     type="button"
-                    className="button button-secondary"
-                    disabled={busy}
-                    aria-label={`Cancelar a sprint ${sprint.name}`}
-                    title={transitionHints.CANCELADA}
-                    onClick={() => onChangeStatus(sprint, 'CANCELADA')}
+                    className="button button-primary"
+                    disabled={busy || bloqueadaPorOutra}
+                    aria-label={`Iniciar a sprint ${sprint.name}`}
+                    title={
+                      bloqueadaPorOutra
+                        ? `Conclua a sprint "${activeSprintName}" para iniciar outra.`
+                        : transitionHints.EM_ANDAMENTO
+                    }
+                    onClick={() => onChangeStatus(sprint, 'EM_ANDAMENTO')}
                   >
-                    Cancelar sprint
+                    Iniciar sprint
                   </button>
-                </div>
-              )}
+                )}
+
+                {podeConcluir && !readOnly && (
+                  <button
+                    type="button"
+                    className="button button-primary"
+                    disabled={busy}
+                    aria-label={`Concluir a sprint ${sprint.name}`}
+                    title={transitionHints.CONCLUIDA}
+                    onClick={() => onChangeStatus(sprint, 'CONCLUIDA')}
+                  >
+                    Concluir sprint
+                  </button>
+                )}
+              </div>
+
+              <SprintActionsMenu sprintName={sprint.name} items={menuItems} />
             </div>
           </li>
         );

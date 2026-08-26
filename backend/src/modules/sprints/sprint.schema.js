@@ -157,9 +157,15 @@ export function sprintsOverlap(a, b) {
 // Sprints do mesmo projeto sao sequenciais (ADR-010 D03). A verificacao roda
 // dentro da transacao com o projeto travado: consultar e depois inserir, sem
 // lock, deixa duas criacoes simultaneas passarem pela mesma checagem.
+//
+// CANCELADA nao ocupa datas: cancelar e decidir que aquele trabalho nao vai
+// acontecer, e o periodo dele volta a estar livre para a sprint que vai. Sem
+// esta exclusao, cada cancelamento congelaria um pedaco do calendario para
+// sempre — a sprint cancelada nao pode ser editada nem excluida (D04/D06).
 export function ensureNoOverlap(candidate, sprints, ignoreId = null) {
   const conflito = sprints.find(
-    (sprint) => sprint.id !== ignoreId && sprintsOverlap(candidate, sprint)
+    (sprint) =>
+      sprint.id !== ignoreId && sprint.status !== 'CANCELADA' && sprintsOverlap(candidate, sprint)
   );
   if (conflito) {
     throw new SprintServiceError(

@@ -2372,26 +2372,141 @@ a {
   line-height: 1.5;
 }
 
-.sprint-actions,
-.milestone-actions {
+/* Ainda usado pelo painel de andamento do Kanban; as listas de sprint e marco
+   migraram para os rodapes abaixo. */
+.sprint-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
   align-items: center;
 }
 
-.sprint-actions .button,
-.milestone-actions .button {
+.sprint-actions .button {
   padding: 0.5rem 0.8rem;
   font-size: 0.85rem;
 }
 
-/* Acoes destrutivas empurradas para a direita, longe das construtivas. */
-.sprint-actions-end,
-.milestone-actions-end {
+/* Rodapé do item: a transição de status à esquerda, o resto à direita. A borda
+   superior separa as ações do conteúdo — sem ela, botão e objetivo se leem como
+   um bloco só. */
+.sprint-item-footer,
+.milestone-item-footer {
   display: flex;
-  gap: 0.5rem;
-  margin-left: auto;
+  flex-wrap: wrap;
+  gap: 0.6rem 1rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid #eef1f6;
+}
+
+.sprint-item-footer-main,
+.milestone-item-footer-main {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.sprint-item-footer .button,
+.milestone-item-footer .button {
+  padding: 0.5rem 1.05rem;
+  font-size: 0.85rem;
+}
+
+/* --- Menu "Mais ações" do item de sprint --- */
+
+.sprint-menu-trigger {
+  display: inline-flex;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.sprint-menu-caret {
+  font-size: 0.58rem;
+}
+
+/* position: fixed, e nao absolute: a lista de sprints rola, e um menu absoluto
+   seria cortado pela borda do scroll. As coordenadas vem por style inline,
+   medidas do botao no momento da abertura. */
+.sprint-menu {
+  position: fixed;
+  z-index: 30;
+  display: grid;
+  min-width: 210px;
+  padding: 0.35rem;
+  border: 1px solid #e2e7f0;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 16px 32px rgb(16 24 40 / 14%);
+}
+
+.sprint-menu-item {
+  padding: 0.55rem 0.75rem;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #172033;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-align: left;
+}
+
+.sprint-menu-item:hover:not(:disabled) {
+  background: #f5f7fb;
+}
+
+.sprint-menu-item:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+/* A acao destrutiva fecha o menu, separada das consultas por um fio. */
+.sprint-menu-item-danger {
+  margin-top: 0.25rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid #eef1f6;
+  border-radius: 0 0 7px 7px;
+  color: #9f2d2d;
+}
+
+/* --- Acoes-texto do item de marco --- */
+
+.milestone-item-footer-links {
+  display: flex;
+  gap: 1.15rem;
+  align-items: center;
+}
+
+.link-action {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #475467;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.link-action:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.link-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.link-action-danger {
+  color: #9f2d2d;
+}
+
+.milestone-no-sprints {
+  margin: 0 0 0.6rem;
 }
 
 /* Status da sprint e do marco, no mesmo vocabulario visual dos badges do produto. */
@@ -2557,11 +2672,6 @@ a {
 
   .schedule-filters {
     width: 100%;
-  }
-
-  .sprint-actions-end,
-  .milestone-actions-end {
-    margin-left: 0;
   }
 }
 

@@ -104,15 +104,17 @@ export function SprintForm({
         Novas sprints entram como planejadas. As datas não podem sobrepor outra sprint — o fim é
         exclusivo, então a seguinte pode começar exatamente neste instante.
       </p>
+      {/* Cancelar antes de salvar: a ação que descarta fica longe da borda do
+          formulário, e o submit — o destino natural do Tab — encerra a linha. */}
       <div className="form-actions">
-        <button className="button button-primary" type="submit" disabled={submitting}>
-          {submitting ? 'Salvando...' : editing ? 'Salvar sprint' : 'Cadastrar sprint'}
-        </button>
         {editing && (
           <button className="button button-secondary" type="button" onClick={onCancel}>
             Cancelar edição
           </button>
         )}
+        <button className="button button-primary" type="submit" disabled={submitting}>
+          {submitting ? 'Salvando...' : editing ? 'Salvar alterações' : 'Salvar sprint'}
+        </button>
       </div>
     </form>
   );

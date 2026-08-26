@@ -37,7 +37,14 @@ export function ScheduleCalendar({ schedule, milestoneNames = {}, hoje = new Dat
     mes: hoje.getMonth()
   }));
 
-  const sprints = useMemo(() => schedule?.sprints || [], [schedule]);
+  // Sprint cancelada sai do calendário inteiro — faixa, legenda e eventos. Ela
+  // deixou de ocupar as datas (o backend nem a considera na sobreposição), e
+  // pintar o período de um trabalho que não vai acontecer diria o contrário.
+  // A lista de Sprints continua a exibi-la: lá ela é registro, aqui seria plano.
+  const sprints = useMemo(
+    () => (schedule?.sprints || []).filter((sprint) => sprint.status !== 'CANCELADA'),
+    [schedule]
+  );
   const milestones = useMemo(() => schedule?.milestones || [], [schedule]);
   const cores = useMemo(() => sprintColors(sprints), [sprints]);
   const celulas = useMemo(

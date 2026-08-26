@@ -444,6 +444,21 @@ describe('sobreposicao de janelas', () => {
       sprintService.updateSprint(10, { startDate: '2026-08-10', endDate: '2026-08-20' })
     ).rejects.toMatchObject({ statusCode: 409, code: 'SPRINT_OVERLAP' });
   });
+
+  // Cancelada nao ocupa datas: o periodo de um trabalho que nao vai acontecer
+  // volta a estar livre. Sem isso, cada cancelamento congelaria um pedaco do
+  // calendario para sempre, porque a sprint cancelada nao e editavel.
+  it('aceita janela sobre o periodo de uma sprint cancelada', async () => {
+    lockedSprints = [{ ...existente, status: 'CANCELADA' }];
+    await expect(
+      sprintService.createSprint(projectId, {
+        name: 'S2',
+        milestoneId: 7,
+        startDate: '2026-08-05',
+        endDate: '2026-08-12'
+      })
+    ).resolves.toBeDefined();
+  });
 });
 
 describe('unicidade de nome', () => {
