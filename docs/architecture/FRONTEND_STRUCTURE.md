@@ -79,4 +79,40 @@ Toda API de domínio usa `httpClient`. Queries recebem `params` e, quando obsole
 
 ## Compatibilidade pré-release
 
-Wrappers `pages → features` e barrels públicos usados são fronteiras arquiteturais, não legado. Aliases sem consumidor não permanecem por compatibilidade pré-release: a LR.2 removeu `projectMembersApi`, `listProjectMembers` e o redirect `/account/privacy`. A API de membros é `membersApi`, e privacidade usa `/settings/privacy`. Novos aliases exigem consumidor, prazo e decisão explícitos.
+Wrappers `pages → features` e barrels públicos usados são fronteiras arquiteturais, não legado.
+Aliases sem consumidor não permanecem por compatibilidade pré-release. A API de membros é
+`membersApi`, e privacidade usa `/settings/privacy`. Novos aliases exigem consumidor, prazo e decisão
+explícitos.
+
+## Ownership de estilos
+
+CSS continua convencional. Esta decisão não introduz CSS Modules, CSS-in-JS ou biblioteca nova.
+Para novas implementações e alterações em estilos existentes, cada regra deve ter owner rastreável:
+
+- componente shared → CSS junto do componente em `shared`;
+- componente, page ou fluxo de domínio → CSS junto da feature correspondente;
+- page adaptadora com apresentação própria → CSS junto da page;
+- responsive rule → mesmo arquivo/owner do seletor que ela adapta;
+- token, reset, elemento base ou regra transversal verdadeira → `frontend/src/styles/`.
+
+`frontend/src/styles/` pode evoluir para `tokens.css`, `base.css` e `global.css`, sem exigir essa
+separação de uma vez. `global.css` não é depósito de feature: novas implementações não adicionam
+`.project-*`, `.settings-*`, `.auth-*`, `.kanban-*` ou seletores equivalentes específicos de domínio.
+Overrides cross-feature são evitados; reutilização visual real deve virar shared component ou token.
+
+Inline style só é usado para valor realmente calculado em runtime. Cor, espaçamento, layout e demais
+estilos estáticos pertencem ao CSS do owner.
+
+## Migração futura do `global.css`
+
+O arquivo `frontend/src/styles/global.css` ainda concentra estilos base, shared e específicos de
+features. Esta documentação não altera a UI nem move regras agora. Uma migração futura deve ocorrer
+por owner, em mudanças pequenas, seguindo este roteiro:
+
+1. mapear seletores, markup consumidor, media queries e overrides associados;
+2. mover uma unidade coesa sem renomear classes ou reordenar regras sem necessidade;
+3. preservar ordem de cascade, especificidade e breakpoints;
+4. executar lint, Prettier, testes e build;
+5. validar visualmente estados e breakpoints afetados antes de remover a origem.
+
+Não faça split mecânico cego nem aproveite a migração para redesenhar a interface.

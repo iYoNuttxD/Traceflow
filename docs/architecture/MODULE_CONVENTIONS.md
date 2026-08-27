@@ -79,11 +79,11 @@ export { default as projectRoutes } from './project.routes.js';
 
 ## APIs públicas internas e compatibilidade
 
-O ADR-011 não permite manter alias ou reexport apenas por origem histórica. Barrels usados e
-agregadores públicos de domínio são fronteiras canônicas quando possuem consumidores atuais e não
-duplicam regra. `project.service.js`, por exemplo, é a API pública interna que agrega casos de uso
-coesos em `services/`; não é uma fachada temporária de compatibilidade. Um caminho antigo somente
-pode existir com consumidor comprovado, prazo, teste e decisão explícita.
+Alias ou reexport não é mantido apenas por origem histórica. Barrels usados e agregadores públicos
+de domínio são fronteiras canônicas quando possuem consumidores atuais e não duplicam regra.
+`project.service.js`, por exemplo, é a API pública interna que agrega casos de uso coesos em
+`services/`; não é uma fachada temporária de compatibilidade. Um caminho antigo somente pode existir
+com consumidor comprovado, prazo, teste e decisão explícita.
 
 ## Dependências proibidas
 
@@ -118,6 +118,27 @@ pode existir com consumidor comprovado, prazo, teste e decisão explícita.
 - `traceability.service.js → traceability.mapper.js → traceability.calculator.js`: coordenação, DTO e cálculo são responsabilidades distintas.
 - `project.service.js → services/project-*.service.js`: agregador público do domínio, sem segunda implementação nem alias de contrato.
 - `privacy.service.js → privacy.repository.js → audit.repository.js`: direitos do titular coordenam adapters; somente o adapter central persiste auditoria.
+
+## Assíncronos e concorrência
+
+- Job persistido possui ID correlacionável e o DTO público preserva esse ID.
+- Polling acompanha o ID iniciado/reutilizado quando `latest` puder confundir execuções.
+- Coalescing e exclusão mútua definem se chamadas concorrentes criam, rejeitam ou reutilizam o job.
+- Retry, stale recovery e estados terminais são parte do contrato, não detalhe acidental do worker.
+- `FAILED` permanece estado de domínio; consultar esse estado com sucesso não vira erro HTTP da
+  leitura.
+- Testes coordenam transições por gates/sinais controlados, sem sleep arbitrário ou retry que esconda
+  race.
+
+## Comentários e formatação
+
+Comentários explicam o porquê de decisão não óbvia, invariante, controle de segurança, race,
+comportamento estranho de API externa ou workaround inevitável. Não narram cada `if`, loop ou linha
+de JavaScript. Prefira uma ou duas linhas; use bloco maior somente quando a complexidade exigir.
+
+Prettier é a autoridade de formatação automática; ESLint cobre qualidade e erros estáticos;
+`architecture:check` cobre fronteiras. Não reformate por preferência pessoal nem transforme em
+finding algo que o Prettier resolve, salvo arquivo fora do formatter ou gate falhando.
 
 ## Verificação
 

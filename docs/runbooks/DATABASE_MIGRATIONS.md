@@ -2,7 +2,8 @@
 
 ## Preparação
 
-- Use MySQL 8.4 compatível e credencial de menor privilégio.
+- Use a mesma imagem/versão e configuração MySQL declaradas em `.github/workflows/ci.yml`, com
+  credencial de menor privilégio.
 - Confirme host, porta e nome do schema sem imprimir senha.
 - Em testes, `TEST_DATABASE_URL` deve conter `test` e ser diferente de `DATABASE_URL`.
 - Faça backup verificado antes de alteração destrutiva.
@@ -18,7 +19,11 @@ npm run db:test:migrate
 npm run db:test:status
 ```
 
-`db:test:migrate` executa `prisma migrate deploy` no datasource protegido. A cadeia atual possui 40 migrations. `db:test:validate-empty` aplica a cadeia em banco temporário vazio; `db:test:validate-lr2-legacy` valida os guards e aliases da LR.2; `db:test:validate-lr2-recovery` prova o recovery completo sobre bancos temporários imediatamente pré-LR.2; `db:test:validate-lr5` prova o upgrade de collation sobre bancos temporários populado e histórico; `db:test:validate-lr9` prova o contract sobre uma base LR.8 representativa. Não use `prisma migrate reset` em desenvolvimento.
+`db:test:migrate` executa `prisma migrate deploy` no datasource protegido.
+`db:test:validate-empty` aplica toda a cadeia descoberta no checkout em banco temporário vazio;
+`db:test:validate-lr2-legacy`, `db:test:validate-lr2-recovery`, `db:test:validate-lr5` e
+`db:test:validate-lr9` exercitam contratos de evolução históricos específicos. Não fixe a quantidade
+de migrations em normas permanentes e não use `prisma migrate reset` em desenvolvimento.
 
 ## LR.3.1 — evidência de autorização pessoal GitHub
 
