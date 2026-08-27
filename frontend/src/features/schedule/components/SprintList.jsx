@@ -103,7 +103,7 @@ export function SprintList({
               key: 'editar',
               label: 'Editar sprint',
               ariaLabel: `Editar a sprint ${sprint.name}`,
-              title: 'Carrega nome, objetivo, marco e datas no formulário ao lado.',
+              title: 'Carrega nome, objetivo, marco e datas no formulário de edição.',
               onSelect: () => onEdit(sprint)
             },
             {

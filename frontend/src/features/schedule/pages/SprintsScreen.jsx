@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { scheduleApi } from '../api/schedule.api.js';
 import { ProjectSectionNav } from '../../projects/index.js';
@@ -35,6 +35,8 @@ export function SprintsScreen() {
   // e salvar enviava esses IDs para B — alterando o recurso errado.
   const selectedSprintRef = useRef(null);
   const progressSprintRef = useRef(null);
+  // Card do formulário: alvo do foco quando a edição começa ou é cancelada.
+  const formCardRef = useRef(null);
 
   const {
     project,
@@ -147,6 +149,16 @@ export function SprintsScreen() {
       milestoneId: sprint.milestoneId ? String(sprint.milestoneId) : ''
     });
   };
+
+  // Editar promete "carrega no formulário de edição" — o foco completa a
+  // promessa. No desktop pareado o campo já está visível e nada rola; no
+  // empilhado (≤960px) o focus() nativo rola até ele, respeitando
+  // prefers-reduced-motion (um scrollIntoView animado não respeitaria).
+  // Disparar pelo id cobre também trocar a edição de uma sprint para outra.
+  useEffect(() => {
+    if (!editingSprintId) return;
+    formCardRef.current?.querySelector('input, select, textarea')?.focus();
+  }, [editingSprintId]);
 
   const changeSprintStatus = async (sprint, status) => {
     // CONCLUIDA e CANCELADA são terminais: não há transição de volta. Um clique
@@ -339,7 +351,13 @@ export function SprintsScreen() {
       </header>
       <FeedbackRegion error={error} success={success} />
 
-      <div className="schedule-columns">
+      {/* Pareadas: lista e formulário dividem a mesma altura no desktop. Sem
+          formulário (VIEWER), coluna única — nada de coluna fantasma. */}
+      <div
+        className={`schedule-columns ${
+          somenteLeitura ? 'schedule-columns--unica' : 'schedule-columns--pareadas'
+        }`}
+      >
         <section className="card">
           <div className="schedule-card-header">
             <h2>Sprints do projeto</h2>
@@ -400,7 +418,7 @@ export function SprintsScreen() {
         {/* VIEWER não recebe formulário: o cadastro inteiro é uma ação que ele
             não tem. Consultar sprints e evolução continua disponível. */}
         {!somenteLeitura && (
-          <section className="card">
+          <section className="card" ref={formCardRef}>
             <h2>{editingSprintId ? 'Editar sprint' : 'Cadastrar sprint'}</h2>
             <SprintForm
               formData={sprintForm}
@@ -414,6 +432,9 @@ export function SprintsScreen() {
                 setEditingSprintId(null);
                 setSprintForm(emptySprintForm);
                 setSprintErrors({});
+                // O botão "Cancelar edição" desaparece ao ser clicado; sem
+                // realocar o foco, ele cai no body e o teclado perde o lugar.
+                formCardRef.current?.querySelector('input, select, textarea')?.focus();
               }}
             />
           </section>

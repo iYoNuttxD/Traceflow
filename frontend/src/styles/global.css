@@ -2243,6 +2243,37 @@ a {
   min-width: 0;
 }
 
+/* Pareadas: as telas de gestão (lista + formulário) dividem a mesma altura no
+   desktop, em vez de um card baixo com rolagem ao lado de um card alto. O teto
+   da lista passa a ser o card irmão — flex-basis 0 impede a lista longa de
+   inflar a linha do grid, e o piso de 12rem impede os painéis internos (tarefas
+   e evolução moram no mesmo card) de esmagá-la. Abaixo de 960px o grid empilha
+   e o clamp original da lista volta a valer: no empilhado não há vizinho para
+   servir de teto. */
+@media (min-width: 961px) {
+  .schedule-columns--pareadas {
+    align-items: stretch;
+  }
+
+  .schedule-columns--pareadas > .card {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .schedule-columns--pareadas .sprint-list,
+  .schedule-columns--pareadas .milestone-list {
+    flex: 1 1 0;
+    min-height: 12rem;
+    max-height: none;
+  }
+}
+
+/* Única: VIEWER não recebe formulário; o card de leitura ocupa a largura toda
+   em vez de deixar uma coluna fantasma. */
+.schedule-columns--unica {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .schedule-section-title {
   margin: 2rem 0 1rem;
   padding-top: 1.5rem;

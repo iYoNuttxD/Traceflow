@@ -142,7 +142,7 @@ export function MilestoneList({
                     type="button"
                     className="link-action"
                     aria-label={`Editar o marco ${milestone.title}`}
-                    title="Carrega título, descrição e prazo no formulário ao lado."
+                    title="Carrega título, descrição e prazo no formulário de edição."
                     onClick={() => onEdit(milestone)}
                   >
                     Editar
