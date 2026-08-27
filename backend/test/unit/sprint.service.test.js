@@ -1,5 +1,3 @@
-// RF10: invariantes de dominio das sprints, marcos e cronograma.
-// Repositories mockados: nenhum acesso real ao banco.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -55,17 +53,9 @@ const baseSprint = {
   milestoneId: null
 };
 
-// Retrato que o repository entregaria com a linha travada. Os testes descrevem
-// o estado do banco; o service continua sendo exercitado pelo caminho real,
-// inclusive as validacoes que so rodam dentro da transacao.
 let lockedSprints = [];
-// Marcos do projeto no retrato travado, por id: a sprint aponta para um deles, e
-// a escrita precisa confirmar que ele ainda existe (ADR-011 D01).
 let lockedMilestones = [];
-// Retrato travado da propria sprint no caminho de transicao de status, e o
-// `{ data, auditEvent, freezeAt, backlog, milestone }` que o service derivou dele.
 let lockedStatusSprint = null;
-// Tarefas e sprints irmas que o retrato travado entrega a transicao.
 let lockedTasks = [];
 let lockedMilestoneSprints = [];
 let capturedTransition = null;
@@ -83,17 +73,12 @@ beforeEach(() => {
   scopeSnapshot = { sprint: baseSprint, participations: [], tasks: [], activeElsewhere: [] };
 
   mocks.sprint.findProjectById.mockResolvedValue({ id: projectId });
-  // Marco padrao do projeto: a criacao de sprint o exige (ADR-011 D02), e sem
-  // ele todo teste de data, sobreposicao ou nome pararia no campo obrigatorio
-  // antes de chegar ao que pretende exercitar.
   mocks.milestone.findById.mockResolvedValue({ id: 7, projectId, title: 'Marco' });
   lockedMilestones = [{ id: 7 }];
   mocks.sprint.createWithinProjectLock.mockImplementation(async (id, data, _audit, validate) => {
     await validate({ sprints: lockedSprints, sprint: null, milestones: lockedMilestones });
     return { ...baseSprint, ...data, projectId: id };
   });
-  // O retrato travado inclui a propria sprint: e dele, e nao da leitura anterior a
-  // transacao, que saem status e datas usados na validacao.
   mocks.sprint.updateWithinProjectLock.mockImplementation(
     async (id, _projectId, data, _audit, validate) => {
       await validate({
@@ -106,9 +91,6 @@ beforeEach(() => {
   );
   mocks.sprint.transitionWithinSprintLock.mockImplementation(
     async (id, _projectId, buildChange) => {
-      // `lockedStatusSprint` e o registro que a transacao rele DEPOIS do lock. Por
-      // padrao ele coincide com a leitura anterior; os testes de concorrencia o
-      // fazem divergir para descrever a sprint que outra requisicao ja mudou.
       const atual = { ...(lockedStatusSprint ?? baseSprint), id };
       capturedTransition = await buildChange({
         sprint: atual,
@@ -133,7 +115,6 @@ beforeEach(() => {
   );
 });
 
-// Participacao ativa, no formato que o repository devolve.
 const participacao = (taskId, overrides = {}) => ({
   id: taskId * 100,
   projectId,
@@ -160,9 +141,6 @@ const tarefa = (id, overrides = {}) => ({
 });
 
 describe('ordem das datas', () => {
-  // Com a janela semiaberta [inicio, fim), duracao zero nao e sprint: ela nao
-  // conteria instante nenhum, e a comparacao estrita e o que permite a sprint
-  // seguinte comecar exatamente no fim da anterior sem sobrepor.
   it('rejeita inicio igual ao fim', async () => {
     await expect(
       sprintService.createSprint(projectId, {
@@ -196,8 +174,6 @@ describe('ordem das datas', () => {
     ).rejects.toMatchObject({ statusCode: 400 });
   });
 
-  // Antes este teste fixava o truncamento como contrato. Descartar hora, minuto
-  // e segundo nunca foi normalizacao: era perda do dado que o usuario informou.
   it('preserva o instante informado, com offset', async () => {
     const sprint = await sprintService.createSprint(projectId, {
       name: 'S',
@@ -208,7 +184,6 @@ describe('ordem das datas', () => {
     expect(sprint.startDate.toISOString()).toBe('2026-08-02T02:59:59.000Z');
   });
 
-  // Data sem hora continua aceita e significa o inicio daquele dia em UTC.
   it('interpreta data de calendario como inicio do dia em UTC', async () => {
     const sprint = await sprintService.createSprint(projectId, {
       name: 'S',
@@ -219,8 +194,6 @@ describe('ordem das datas', () => {
     expect(sprint.startDate.toISOString()).toBe('2026-08-01T00:00:00.000Z');
   });
 
-  // Os extremos do fuso horario mundial cruzam o dia nas DUAS direcoes. Sao os
-  // casos em que truncar para "o dia" seria mais obviamente errado.
   it.each([
     ['2026-08-01T00:00:00+14:00', '2026-07-31T10:00:00.000Z', 'para o dia anterior'],
     ['2026-08-01T23:00:00-11:00', '2026-08-02T10:00:00.000Z', 'para o dia seguinte'],
@@ -235,7 +208,6 @@ describe('ordem das datas', () => {
     expect(sprint.startDate.toISOString()).toBe(esperado);
   });
 
-  // `Z` e `+00:00` sao o mesmo instante e precisam produzir o mesmo valor.
   it('trata Z e +00:00 como o mesmo instante', async () => {
     const comZ = await sprintService.createSprint(projectId, {
       name: 'S',
@@ -260,14 +232,7 @@ describe('ordem das datas', () => {
     );
   });
 
-  // O lado que a requisicao NAO envia vem do registro travado, e nao da leitura
-  // anterior a transacao. Sem isso, duas atualizacoes parciais simultaneas — uma
-  // so do inicio, outra so do fim — validam contra o mesmo retrato antigo e o
-  // banco termina com a janela invertida.
   it('completa a janela parcial com o registro travado, nao com o lido antes', async () => {
-    // Quem chegou antes ja moveu o inicio para 20/08; a leitura pre-transacao
-    // ainda diz 01/08. Enviar apenas o fim em 15/08 so pode ser recusado se a
-    // validacao enxergar o inicio travado.
     mocks.sprint.findById.mockResolvedValue(baseSprint);
     lockedSprints = [{ ...baseSprint, startDate: new Date('2026-08-20T00:00:00.000Z') }];
     await expect(sprintService.updateSprint(10, { endDate: '2026-08-15' })).rejects.toMatchObject({
@@ -282,8 +247,6 @@ describe('ordem das datas', () => {
     await expect(sprintService.updateSprint(10, { endDate: '2026-08-20' })).resolves.toBeDefined();
   });
 
-  // Janela inteiramente informada nao depende do persistido: pode ser recusada
-  // antes de abrir transacao, e o repository nem chega a ser chamado.
   it('recusa janela completa invalida sem abrir a transacao', async () => {
     mocks.sprint.findById.mockResolvedValue(baseSprint);
     await expect(
@@ -311,10 +274,6 @@ describe('ordem das datas', () => {
   });
 });
 
-// A outra ponta de D11: validar a data do marco so na criacao dele deixava a
-// regra valer por um instante — bastava encolher a sprint depois.
-// O marco deixou de caber "dentro" da janela: ele agrupa sprints e tem prazo
-// proprio (ADR-011 D03). O que sobrou a validar e a existencia e o projeto.
 describe('marco da sprint', () => {
   const criar = (overrides = {}) => ({
     name: 'Sprint 1',
@@ -361,7 +320,6 @@ describe('marco da sprint', () => {
     ).rejects.toMatchObject({ statusCode: 400, code: 'SPRINT_MILESTONE_PROJECT_MISMATCH' });
   });
 
-  // Sem esta guarda o par 400/404 enumeraria marcos de projetos alheios.
   it('responde como marco inexistente quando o ator nao enxerga o projeto', async () => {
     mocks.authorization.actorSeesProject.mockResolvedValue(false);
     mocks.milestone.findById.mockResolvedValue({ id: 7, projectId: 99, title: 'Alheio' });
@@ -370,8 +328,6 @@ describe('marco da sprint', () => {
     ).rejects.toMatchObject({ statusCode: 404, code: 'MILESTONE_NOT_FOUND' });
   });
 
-  // Entre a checagem e a escrita o marco pode ter sido excluido: quem decide e o
-  // retrato travado, e nao a leitura anterior a transacao.
   it('recusa quando o marco sumiu do retrato travado', async () => {
     lockedMilestones = [];
     await expect(sprintService.createSprint(projectId, criar())).rejects.toMatchObject({
@@ -387,7 +343,6 @@ describe('marco da sprint', () => {
     expect(mocks.milestone.findById).not.toHaveBeenCalled();
   });
 
-  // A janela nao esbarra mais em marco nenhum: o prazo do marco e do projeto.
   it('encolher a janela nao consulta marcos', async () => {
     lockedSprints = [baseSprint];
     await expect(
@@ -417,8 +372,6 @@ describe('sobreposicao de janelas', () => {
     ).rejects.toMatchObject({ statusCode: 409, code: 'SPRINT_OVERLAP' });
   });
 
-  // Emenda nao e cruzamento: a sprint seguinte comeca no instante em que a
-  // anterior termina, e a janela semiaberta garante que ninguem fica em duas.
   it('aceita janela que comeca no instante em que a anterior termina', async () => {
     lockedSprints = [existente];
     await expect(
@@ -445,9 +398,6 @@ describe('sobreposicao de janelas', () => {
     ).rejects.toMatchObject({ statusCode: 409, code: 'SPRINT_OVERLAP' });
   });
 
-  // Cancelada nao ocupa datas: o periodo de um trabalho que nao vai acontecer
-  // volta a estar livre. Sem isso, cada cancelamento congelaria um pedaco do
-  // calendario para sempre, porque a sprint cancelada nao e editavel.
   it('aceita janela sobre o periodo de uma sprint cancelada', async () => {
     lockedSprints = [{ ...existente, status: 'CANCELADA' }];
     await expect(
@@ -476,8 +426,6 @@ describe('unicidade de nome', () => {
 
   it('aceita o mesmo nome em projeto diferente', async () => {
     mocks.sprint.findProjectById.mockResolvedValue({ id: 2 });
-    // O marco acompanha o projeto: um do projeto 1 seria recusado por
-    // pertencer a outro, e o teste falharia por um motivo que nao e o dele.
     mocks.milestone.findById.mockResolvedValue({ id: 7, projectId: 2, title: 'Marco' });
     await expect(
       sprintService.createSprint(2, {
@@ -491,8 +439,6 @@ describe('unicidade de nome', () => {
 });
 
 describe('maquina de estados da sprint', () => {
-  // A leitura anterior a transacao e o registro travado descrevem a MESMA sprint
-  // no caminho normal. Os testes de concorrencia mais abaixo os fazem divergir.
   const comStatus = (status) => {
     const sprint = { ...baseSprint, status };
     mocks.sprint.findById.mockResolvedValue(sprint);
@@ -536,8 +482,6 @@ describe('maquina de estados da sprint', () => {
     expect(capturedTransition.data.completedAt).toBeInstanceOf(Date);
   });
 
-  // Iniciar e linha de base, nao fechamento: o escopo segue alteravel, apenas
-  // sinalizado. Congelar aqui impediria a inclusao posterior legitima.
   it('nao congela participacoes ao iniciar', async () => {
     comStatus('PLANEJADA');
     await sprintService.updateSprintStatus(10, 'EM_ANDAMENTO');
@@ -550,9 +494,6 @@ describe('maquina de estados da sprint', () => {
     expect(capturedTransition.freezeAt).toBeInstanceOf(Date);
   });
 
-  // O nucleo do H2: a leitura anterior a transacao diz PLANEJADA, mas outra
-  // requisicao ja encerrou a sprint. Decidir pelo que foi lido antes gravaria
-  // EM_ANDAMENTO sobre um registro terminal, com as participacoes ja congeladas.
   it.each(['CONCLUIDA', 'CANCELADA'])(
     'recusa a transicao quando o registro travado ja esta %s',
     async (status) => {
@@ -565,8 +506,6 @@ describe('maquina de estados da sprint', () => {
     }
   );
 
-  // O inverso tambem: a leitura anterior recusaria uma transicao que o registro
-  // travado permite. Quem manda e o travado, nos dois sentidos.
   it('aceita a transicao que so o registro travado permite', async () => {
     mocks.sprint.findById.mockResolvedValue({ ...baseSprint, status: 'PLANEJADA' });
     lockedStatusSprint = { ...baseSprint, status: 'EM_ANDAMENTO' };
@@ -582,8 +521,6 @@ describe('maquina de estados da sprint', () => {
     });
   });
 
-  // Um unico instante para os dois campos: dois `new Date()` dariam a sprint um
-  // encerramento anterior ao fechamento das suas proprias participacoes.
   it('usa o mesmo instante para completedAt e para o congelamento', async () => {
     comStatus('EM_ANDAMENTO');
     await sprintService.updateSprintStatus(10, 'CONCLUIDA');
@@ -592,7 +529,6 @@ describe('maquina de estados da sprint', () => {
     );
   });
 
-  // ADR-011 D06: uma sprint em andamento por projeto.
   describe('sprint unica em andamento', () => {
     it('recusa iniciar quando outra ja esta em andamento', async () => {
       comStatus('PLANEJADA');
@@ -627,8 +563,6 @@ describe('maquina de estados da sprint', () => {
       await expect(sprintService.updateSprintStatus(10, 'EM_ANDAMENTO')).resolves.toBeDefined();
     });
 
-    // A decisao sai do retrato travado: validar contra a leitura anterior
-    // deixaria duas requisicoes iniciarem sprints diferentes ao mesmo tempo.
     it('decide pelo retrato travado, e nao pela leitura anterior', async () => {
       mocks.sprint.findById.mockResolvedValue({ ...baseSprint, status: 'PLANEJADA' });
       lockedStatusSprint = { ...baseSprint, status: 'PLANEJADA' };
@@ -642,7 +576,6 @@ describe('maquina de estados da sprint', () => {
     });
   });
 
-  // ADR-011 D07: o encerramento devolve ao backlog o que nao foi concluido.
   describe('devolucao ao backlog', () => {
     const tarefas = [
       { id: 1, title: 'A', status: 'CONCLUIDO', sprintId: 10 },
@@ -668,8 +601,6 @@ describe('maquina de estados da sprint', () => {
       expect(capturedTransition.backlog.taskIds).not.toContain(1);
     });
 
-    // A saida da sprint e uma entrada de historico com `toValue` nulo, mesma
-    // convencao da mutacao de escopo.
     it('registra historico de sprint para cada devolucao', async () => {
       comStatus('EM_ANDAMENTO');
       lockedTasks = tarefas;
@@ -687,8 +618,6 @@ describe('maquina de estados da sprint', () => {
       expect(capturedTransition.backlog).toBeNull();
     });
 
-    // A tarefa que ja migrou para outra sprint nao pode ter o ponteiro limpo:
-    // ele nao aponta mais para esta.
     it('ignora tarefa cujo ponteiro ja aponta para outra sprint', async () => {
       comStatus('EM_ANDAMENTO');
       lockedTasks = [{ id: 4, title: 'D', status: 'A_FAZER', sprintId: 99 }];
@@ -697,7 +626,6 @@ describe('maquina de estados da sprint', () => {
     });
   });
 
-  // ADR-011 D05: o marco fecha quando todas as suas sprints nao canceladas terminam.
   describe('conclusao automatica do marco', () => {
     const comMarco = (status) => {
       const sprint = { ...baseSprint, status, milestoneId: 7 };
@@ -727,8 +655,6 @@ describe('maquina de estados da sprint', () => {
       expect(capturedTransition.milestone).toBeNull();
     });
 
-    // Cancelada nao bloqueia: tranca-lo para sempre por causa de uma sprint que
-    // o projeto decidiu nao fazer seria pior do que fecha-lo.
     it('ignora sprint cancelada na conta', async () => {
       comMarco('EM_ANDAMENTO');
       lockedMilestoneSprints = [
@@ -739,7 +665,6 @@ describe('maquina de estados da sprint', () => {
       expect(capturedTransition.milestone).toEqual({ id: 7, status: 'CONCLUIDO' });
     });
 
-    // Cancelar tambem nao conclui: diria "entregue" sobre trabalho cancelado.
     it('nao conclui o marco ao cancelar a ultima sprint', async () => {
       comMarco('EM_ANDAMENTO');
       lockedMilestoneSprints = [{ id: 10, status: 'EM_ANDAMENTO', milestoneId: 7 }];
@@ -780,9 +705,6 @@ describe('bloqueios de estado terminal', () => {
     });
   });
 
-  // Antes a remocao era permitida em estado terminal, para nao prender a sprint
-  // antes da exclusao. A exclusao deixou de existir (D06) e o escopo encerrado
-  // virou registro: esvaziar a sprint apagaria o periodo que ela documenta.
   it.each(['CONCLUIDA', 'CANCELADA'])('bloqueia REMOCAO em sprint %s', async (status) => {
     mocks.sprint.findById.mockResolvedValue({ ...baseSprint, status });
     scopeSnapshot = {
@@ -799,8 +721,6 @@ describe('bloqueios de estado terminal', () => {
 });
 
 describe('exclusao de sprint', () => {
-  // Sprint nao e excluida em nenhum estado. A rota permanece registrada para o
-  // 405 nao se confundir com o 404 de "sprint inexistente".
   it.each(['PLANEJADA', 'EM_ANDAMENTO', 'CONCLUIDA', 'CANCELADA'])(
     'recusa exclusao de sprint %s',
     async (status) => {
@@ -835,7 +755,6 @@ describe('substituicao do conjunto de tarefas', () => {
     expect(mocks.authorization.actorSeesProject).toHaveBeenCalledWith(99, 3);
   });
 
-  // Sem isto o par 400/404 enumeraria IDs de tarefa de projetos alheios.
   it('responde como ID inexistente quando o ator nao enxerga o projeto da tarefa', async () => {
     mocks.authorization.actorSeesProject.mockResolvedValue(false);
     scopeSnapshot.tasks = [tarefa(5, { projectId: 99 })];
@@ -845,7 +764,6 @@ describe('substituicao do conjunto de tarefas', () => {
     });
   });
 
-  // Falha fechado: sem ator identificado, nunca revelar a existencia da tarefa.
   it('sem actorUserId trata a tarefa alheia como inexistente', async () => {
     mocks.authorization.actorSeesProject.mockResolvedValue(false);
     scopeSnapshot.tasks = [tarefa(5, { projectId: 99 })];
@@ -889,8 +807,6 @@ describe('substituicao do conjunto de tarefas', () => {
     ]);
   });
 
-  // A saida guarda o status que a tarefa tinha nesta sprint. Sem esse registro,
-  // concluir a tarefa depois mudaria o resultado de um periodo ja encerrado.
   it('congela o status de saida de quem deixa a sprint', async () => {
     scopeSnapshot = {
       sprint: baseSprint,
@@ -905,9 +821,6 @@ describe('substituicao do conjunto de tarefas', () => {
     ]);
   });
 
-  // Regressao: gravar fromValue null numa tarefa que veio de outra sprint
-  // apagaria a saida da sprint de origem, e o criterio "tarefas adicionadas ou
-  // removidas apos o planejamento sao identificaveis" deixaria de ser verificavel.
   it('registra a sprint de origem e fecha a participacao anterior no carry-over', async () => {
     scopeSnapshot = {
       sprint: baseSprint,
@@ -921,8 +834,6 @@ describe('substituicao do conjunto de tarefas', () => {
       { projectId, taskId: 5, actorUserId: 3, field: 'SPRINT', fromValue: '42', toValue: '10' },
       { projectId, taskId: 6, actorUserId: 3, field: 'SPRINT', fromValue: null, toValue: '10' }
     ]);
-    // A Sprint 42 nao perde a tarefa do seu historico: a participacao fecha com
-    // o status observado la, e a nova aponta de onde a tarefa veio.
     expect(capturedPlan.close).toEqual([
       { id: 555, at: expect.any(Date), reason: 'MOVIDA', exitStatus: 'EM_ANDAMENTO' }
     ]);
@@ -930,11 +841,6 @@ describe('substituicao do conjunto de tarefas', () => {
     expect(capturedPlan.open[1]).toMatchObject({ taskId: 6, carriedFromSprintId: null });
   });
 
-  // Uma tarefa que ja passou por uma sprint ENCERRADA e depois entrou numa sprint
-  // ABERTA tem duas participacoes com `removedAt` nulo: a congelada, que nao saiu
-  // porque a sprint fechou, e a viva. Reduzir as duas ao mesmo mapa deixava a
-  // ultima do array vencer — e, quando a congelada vinha por ultimo, a viva nao
-  // era fechada e a tarefa ficava aberta nas duas sprints.
   describe.each([
     ['congelada primeiro', ['congelada', 'viva']],
     ['viva primeiro', ['viva', 'congelada']]
@@ -964,8 +870,6 @@ describe('substituicao do conjunto de tarefas', () => {
       ]);
     });
 
-    // A origem e a sprint onde a tarefa estava de fato. Apontar para a encerrada
-    // inventaria uma continuidade que pulou o periodo do meio.
     it('registra a sprint viva como origem do carry-over', async () => {
       await sprintService.replaceTasks(10, [5], { actorUserId: 3 });
       expect(capturedPlan.open[0]).toMatchObject({ taskId: 5, carriedFromSprintId: 50 });
@@ -973,8 +877,6 @@ describe('substituicao do conjunto de tarefas', () => {
     });
   });
 
-  // Sem participacao viva, a congelada volta a responder pela origem: e dela que
-  // a tarefa veio, e o vinculo de continuidade e o unico registro disso.
   it('usa a sprint encerrada como origem quando nao ha participacao viva', async () => {
     scopeSnapshot = {
       sprint: baseSprint,
@@ -1006,8 +908,6 @@ describe('substituicao do conjunto de tarefas', () => {
     expect(capturedPlan.historyEntries).toEqual([]);
   });
 
-  // Entrar em EM_ANDAMENTO nao fecha o escopo: a tarefa entra e fica marcada
-  // como inclusao posterior ao inicio, que e o que o RF35 precisa distinguir.
   it('marca inclusao posterior ao inicio da sprint', async () => {
     scopeSnapshot = {
       sprint: { ...baseSprint, status: 'EM_ANDAMENTO', startedAt: new Date('2026-08-02') },
@@ -1025,8 +925,6 @@ describe('substituicao do conjunto de tarefas', () => {
     expect(capturedPlan.open[0]).toMatchObject({ taskId: 5, addedAfterStart: false });
   });
 
-  // "Saiu e voltou" nao e entrada nova: recarimbar a participacao inventaria
-  // uma mudanca de escopo que nao houve.
   it('reabre a participacao anterior preservando entrada e sinalizacao', async () => {
     const anterior = participacao(5, {
       removedAt: new Date('2026-08-05'),
@@ -1062,7 +960,6 @@ describe('marcos', () => {
   });
   const criar = (overrides = {}) => ({ title: 'M', dueDate: '2026-08-10', ...overrides });
 
-  // Quantas sprints o retrato travado enxerga apontando para o marco.
   let lockedSprintCount = 0;
 
   beforeEach(() => {
@@ -1105,8 +1002,6 @@ describe('marcos', () => {
     });
   });
 
-  // O marco atravessa varias sprints: ele nao tem uma janela para caber dentro,
-  // e o campo de sprint saiu do corpo (ADR-011 D01/D03).
   it('recusa sprintId no corpo, em vez de descarta-lo em silencio', async () => {
     await expect(
       sprintService.createMilestone(projectId, criar({ sprintId: 10 }))
@@ -1125,8 +1020,6 @@ describe('marcos', () => {
     expect(milestone.status).toBe('CONCLUIDO');
   });
 
-  // Marco nao congela mais junto com a sprint: com varias sprints, encerrar uma
-  // delas trancaria a edicao de um marco que as outras ainda vao entregar.
   it.each(['CONCLUIDA', 'CANCELADA'])(
     'permite editar o marco com sprint %s no projeto',
     async (status) => {
@@ -1140,8 +1033,6 @@ describe('marcos', () => {
     await expect(sprintService.deleteMilestone(1)).resolves.toEqual({ id: 1 });
   });
 
-  // A FK Restrict recusaria no banco; a checagem aqui existe para a resposta
-  // dizer QUANTAS sprints seguram o marco.
   it('recusa excluir marco com sprints, dizendo quantas', async () => {
     lockedSprintCount = 3;
     await expect(sprintService.deleteMilestone(1)).rejects.toMatchObject({
@@ -1167,8 +1058,6 @@ describe('marcos', () => {
 });
 
 describe('montagem do cronograma', () => {
-  // A composicao vem da participacao, e nao do ponteiro `Task.sprintId`: numa
-  // sprint encerrada o ponteiro ja pode apontar para a sprint seguinte.
   const sprintA = {
     ...baseSprint,
     id: 10,
@@ -1258,14 +1147,11 @@ describe('montagem do cronograma', () => {
   it('deriva duracao, contagem e prazo fora da janela', async () => {
     const schedule = await sprintService.getSchedule(projectId, {});
     const [sprint] = schedule.sprints;
-    // 01/08 00:00 a 14/08 00:00 sao 13 dias: o dia 14 pertence a sprint seguinte.
     expect(sprint.durationInDays).toBe(13);
     expect(sprint.taskCount).toBe(1);
     expect(sprint.tasks[0].deadlineOutsideWindow).toBe(true);
   });
 
-  // `estimatedEffort` entrou com o painel de andamento: a sprint passou a se
-  // descrever tambem em pontos. Descricao e e-mail continuam de fora.
   it('minimiza o DTO de tarefa: sem descricao e sem e-mail', async () => {
     const schedule = await sprintService.getSchedule(projectId, {});
     expect(Object.keys(schedule.sprints[0].tasks[0]).sort()).toEqual([
@@ -1282,7 +1168,6 @@ describe('montagem do cronograma', () => {
     ]);
   });
 
-  // O vinculo mudou de lado (ADR-011 D01): quem aponta e a sprint.
   it('expoe o marco na sprint, e nao a sprint no marco', async () => {
     const schedule = await sprintService.getSchedule(projectId, {});
     expect(schedule.sprints[0]).toHaveProperty('milestoneId');

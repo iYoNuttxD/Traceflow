@@ -1,6 +1,3 @@
-// Rotulos e helpers puros de apresentacao do cronograma (RF10).
-// Sem React, sem I/O: facil de testar isoladamente.
-
 export const sprintStatusLabels = {
   PLANEJADA: 'Planejada',
   EM_ANDAMENTO: 'Em andamento',
@@ -28,8 +25,6 @@ export const taskPriorityLabels = {
 
 export const TERMINAL_SPRINT_STATUSES = ['CONCLUIDA', 'CANCELADA'];
 
-// Botao de transicao usa VERBO, nao o nome do estado de destino: "Concluir",
-// e nao "Concluída", que se confunde com rotulo de status.
 export const transitionLabels = {
   EM_ANDAMENTO: 'Iniciar',
   CONCLUIDA: 'Concluir',
@@ -44,12 +39,10 @@ export const transitionHints = {
     'Encerra a sprint sem concluí-la. Ação definitiva: depois disso ela não pode ser editada, reaberta nem receber novas tarefas.'
 };
 
-// Transicoes que levam a estado terminal exigem confirmacao: nao ha volta.
 export const isTerminalTransition = (status) => TERMINAL_SPRINT_STATUSES.includes(status);
 
 export const isTerminalSprint = (status) => TERMINAL_SPRINT_STATUSES.includes(status);
 
-// Transicoes oferecidas na interface. O backend continua sendo a fonte de verdade.
 export const allowedSprintTransitions = {
   PLANEJADA: ['EM_ANDAMENTO', 'CANCELADA'],
   EM_ANDAMENTO: ['CONCLUIDA', 'CANCELADA'],
@@ -59,12 +52,6 @@ export const allowedSprintTransitions = {
 
 const pad = (value) => String(value).padStart(2, '0');
 
-// Duas formas convivem no cronograma, e confundi-las desloca o dia:
-//
-// - dia de calendario puro (YYYY-MM-DD), usado pela janela do filtro e pelo eixo
-//   da agenda: exibido sem conversao, senao 2026-08-08 viraria 07/08 no Brasil;
-// - instante (ISO-8601 com hora), usado por sprint, marco e prazo: exibido no
-//   fuso local, senao a tela mostraria o dia de Greenwich e nao o do usuario.
 export function formatCalendarDate(value) {
   if (!value) return 'Não informado';
   const texto = String(value);
@@ -78,14 +65,9 @@ export function formatCalendarDate(value) {
   return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()}`;
 }
 
-// Instante com hora, quando ela existe. Meia-noite local costuma vir de quem
-// informou apenas a data: exibir "00:00" sugeriria uma precisao que o usuario
-// nao escolheu.
 export function formatInstant(value) {
   if (!value) return 'Não informado';
   const dia = formatCalendarDate(value);
-  // Dia de calendario puro nao tem hora para mostrar: converte-lo para instante
-  // acrescentaria um "21:00" que ninguem informou, vindo do fuso local.
   if (/^\d{4}-\d{2}-\d{2}$/.test(String(value))) return dia;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return dia;
@@ -97,8 +79,6 @@ export function formatDateTime(value) {
   return value ? new Date(value).toLocaleString('pt-BR') : 'Não informado';
 }
 
-// <input type="datetime-local"> fala no fuso local e sem offset. Converter nas
-// duas pontas e o que faz o instante sobreviver a ida e volta do formulario.
 export function toDateTimeLocalInput(value) {
   if (!value) return '';
   const date = new Date(value);
@@ -112,14 +92,8 @@ export function fromDateTimeLocalInput(value) {
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
-// Derivacao de atraso apenas para exibicao na lista de marcos, que e sempre
-// completa e portanto nao vem do agregado (esse e filtrado por periodo).
-// O backend continua sendo a fonte de verdade: no cronograma, `overdue` vem
-// calculado de la. Vencer hoje nao e atraso, mesma regra do servidor.
 export function isMilestoneOverdue(milestone, today = new Date()) {
   if (!milestone || milestone.status !== 'PENDENTE') return false;
-  // Comparacao entre instantes, como no servidor: o marco vence numa hora, e
-  // nao no fim de um dia inteiro.
   const due = new Date(milestone.dueDate || '');
   if (Number.isNaN(due.getTime())) return false;
   return due.getTime() < today.getTime();
@@ -129,17 +103,6 @@ export function formatSprintPeriod(sprint) {
   return `${formatInstant(sprint.startDate)} a ${formatInstant(sprint.endDate)}`;
 }
 
-// Texto da confirmação de encerramento, montado num lugar só porque duas telas
-// oferecem a mesma ação: se divergirem, uma delas passa a prometer um efeito que
-// a outra não promete — e o efeito é irreversível.
-//
-// A contagem de pendentes é o número que o backend usará para devolvê-las ao
-// backlog (ADR-011 D07). Prometer "nenhuma" e devolver três seria pior do que
-// não avisar.
-//
-// Cada transição fala do SEU efeito: concluir congela um resultado, cancelar
-// libera as datas no cronograma. `destructive` distingue as duas no botão —
-// concluir é o desfecho esperado da sprint, cancelar é desistir dela.
 export function sprintTerminalConfirm(sprint, status, pendentes) {
   if (status === 'CONCLUIDA') {
     return {
@@ -167,9 +130,6 @@ export function sprintTerminalConfirm(sprint, status, pendentes) {
   };
 }
 
-// Chave de exibição da sprint. ATRASADA não é um status do banco: é uma sprint
-// EM_ANDAMENTO cuja janela já passou. Derivar aqui, e não persistir, evita um
-// campo que envelhece sozinho e precisa de alguém para atualizá-lo.
 export function sprintStatusKey(sprint, today = new Date()) {
   if (sprint.status !== 'EM_ANDAMENTO') return sprint.status;
   const fim = new Date(sprint.endDate || '');
@@ -182,13 +142,8 @@ export const sprintStatusKeyLabels = {
   ATRASADA: 'Atrasada'
 };
 
-// Classe do badge a partir da chave derivada. Minúsculas porque é assim que as
-// classes de status são nomeadas no CSS do produto.
 export const statusBadgeClass = (key) => `status-badge status-${String(key).toLowerCase()}`;
 
-// Composição da sprint vinda do agregado do cronograma: tarefas concluídas,
-// total e pontos. `estimatedEffort` nulo é "não estimada" e não entra na soma —
-// contá-la como zero misturaria "não medido" com "não custa nada".
 export function summarizeSprintTasks(scheduleSprint) {
   const tasks = scheduleSprint?.tasks || [];
   const pontos = (list) =>
@@ -201,14 +156,10 @@ export function summarizeSprintTasks(scheduleSprint) {
     done: concluidas.length,
     points: total,
     donePoints: feitos,
-    // Null, e não 0, quando não há pontos a medir: "nada concluído" e "não há o
-    // que concluir" são estados diferentes, mesma regra do RF35 no backend.
     percent: total > 0 ? Math.round((feitos / total) * 100) : null
   };
 }
 
-// Progresso do marco (ADR-011 D05): sprints concluídas sobre as não canceladas.
-// A cancelada sai das duas pontas — ela não foi entregue nem está pendente.
 export function milestoneProgress(milestoneId, sprints) {
   const doMarco = sprints.filter((sprint) => sprint.milestoneId === milestoneId);
   const consideradas = doMarco.filter((sprint) => sprint.status !== 'CANCELADA');
@@ -218,8 +169,6 @@ export function milestoneProgress(milestoneId, sprints) {
     total: consideradas.length,
     done,
     percent: consideradas.length ? Math.round((done / consideradas.length) * 100) : 0,
-    // Mesma condição do backend. A interface não guarda "foi automático": esse
-    // fato é derivável do estado, e persistí-lo criaria uma cópia que diverge.
     allConcluded: consideradas.length > 0 && done === consideradas.length
   };
 }

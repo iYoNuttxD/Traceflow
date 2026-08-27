@@ -4,18 +4,12 @@ const emptyForm = { name: '', objective: '', startDate: '', endDate: '', milesto
 
 export { emptyForm as emptySprintForm };
 
-// Validacao no cliente e apenas UX; a fonte de verdade e o backend.
 export function validateSprintForm(formData, { editing = false } = {}) {
   const errors = {};
   if (!formData.name.trim()) errors.name = 'Informe o nome da sprint.';
-  // Obrigatório só na criação, como no backend (ADR-011 D02): a edição de uma
-  // sprint legada sem marco não pode ser bloqueada por uma regra que ela é
-  // anterior a — o formulário ficaria intransponível.
   if (!editing && !formData.milestoneId) errors.milestoneId = 'Selecione o marco da sprint.';
   if (!formData.startDate) errors.startDate = 'Informe o início da sprint.';
   if (!formData.endDate) errors.endDate = 'Informe o fim da sprint.';
-  // Comparação de texto continua valendo: o formato de `datetime-local` é
-  // lexicograficamente ordenável. O fim é exclusivo, então igual também é erro.
   if (formData.startDate && formData.endDate && formData.startDate >= formData.endDate) {
     errors.endDate = 'O início precisa ser anterior ao fim.';
   }
@@ -80,8 +74,6 @@ export function SprintForm({
           </p>
         )}
       </div>
-      {/* datetime-local, e nao date: a sprint guarda o instante exato, e um
-          campo só de data descartaria a hora que o usuário informou. */}
       <FormInput
         label="Início"
         name="sprint-startDate"
@@ -104,8 +96,6 @@ export function SprintForm({
         Novas sprints entram como planejadas. As datas não podem sobrepor outra sprint — o fim é
         exclusivo, então a seguinte pode começar exatamente neste instante.
       </p>
-      {/* Cancelar antes de salvar: a ação que descarta fica longe da borda do
-          formulário, e o submit — o destino natural do Tab — encerra a linha. */}
       <div className="form-actions">
         {editing && (
           <button className="button button-secondary" type="button" onClick={onCancel}>

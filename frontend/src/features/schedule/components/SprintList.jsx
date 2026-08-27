@@ -12,17 +12,11 @@ import {
 
 export function SprintList({
   sprints,
-  // Composição por sprint vinda do agregado, indexada por id. Não é derivada do
-  // cruzamento com as tarefas do projeto: numa sprint encerrada a tarefa pode já
-  // ter seguido adiante, e o registro daqui não muda por isso.
   scheduleById = {},
   milestoneNames = {},
   selectedSprintId,
   progressSprintId,
   busySprintId,
-  // Nome da sprint que hoje bloqueia o início de qualquer outra (ADR-011 D06).
-  // Vem pronto para o título explicar QUAL sprint bloqueia — "não é possível
-  // iniciar" sem dizer por quê vira adivinhação.
   activeSprintName = '',
   readOnly = false,
   onSelect,
@@ -41,8 +35,6 @@ export function SprintList({
   }
 
   return (
-    // tabIndex torna a lista rolavel por teclado. Nao viramos role="region"
-    // aqui: isso apagaria a semantica de lista, que o aria-label ja nomeia.
     <ul className="sprint-list" aria-label="Sprints do projeto" tabIndex={0}>
       {sprints.map((sprint) => {
         const terminal = isTerminalSprint(sprint.status);
@@ -51,26 +43,13 @@ export function SprintList({
         const progressOpen = progressSprintId === sprint.id;
         const statusKey = sprintStatusKey(sprint);
         const resumo = summarizeSprintTasks(scheduleById[sprint.id]);
-        // Só uma sprint em andamento por projeto: iniciar fica desabilitado
-        // enquanto outra estiver aberta. Oferecer o botão para o backend recusar
-        // com 409 transformaria uma regra conhecida numa descoberta pelo erro.
         const bloqueadaPorOutra = Boolean(activeSprintName) && sprint.status === 'PLANEJADA';
-        // ATRASADA é EM_ANDAMENTO com a janela vencida: concluir continua sendo a
-        // ação esperada, e é justamente quando ela mais importa.
         const podeConcluir = sprint.status === 'EM_ANDAMENTO';
 
-        // Itens do "Mais ações": consultas primeiro, sempre; editar e cancelar
-        // entram só quando a sprint ainda os aceita. Numa terminal, oferecer
-        // Editar desabilitado seria propor uma escolha que não existe — o texto
-        // "Congelada" acima já explica o porquê da ausência.
-        // Não há ação de excluir em nenhum estado: o cronograma é registro
-        // histórico do projeto (ADR-010 D06).
         const menuItems = [
           {
             key: 'tarefas',
             label: selected ? 'Ocultar tarefas' : 'Ver tarefas',
-            // O aria-label carrega o nome da sprint porque a lista tem vários
-            // rótulos idênticos para quem navega por leitor de tela.
             ariaLabel: `${selected ? 'Ocultar' : 'Ver'} tarefas da sprint ${sprint.name}`,
             expanded: selected,
             title: selected
@@ -122,7 +101,6 @@ export function SprintList({
           <li className={`sprint-item ${selected ? 'sprint-item-selected' : ''}`} key={sprint.id}>
             <div className="sprint-item-header">
               <h3>{sprint.name}</h3>
-              {/* Status por texto dentro do badge: nunca apenas por cor. */}
               <span className={statusBadgeClass(statusKey)}>
                 {sprintStatusKeyLabels[statusKey] || sprint.status}
               </span>
@@ -139,8 +117,6 @@ export function SprintList({
 
             {sprint.objective && <p className="sprint-objective">{sprint.objective}</p>}
 
-            {/* Congelamento por texto, nunca só pela ausência dos botões — e
-                nomeando o estado certo: cancelada não é concluída. */}
             {terminal && (
               <p className="milestone-frozen">
                 {sprint.status === 'CANCELADA'
@@ -149,10 +125,6 @@ export function SprintList({
               </p>
             )}
 
-            {/* Rodapé em duas metades: à esquerda a transição de status que a
-                sprint aceita agora — a ação do dia a dia —, à direita o menu com
-                todo o resto. Cada botão diz o que faz por verbo, e o `title`
-                explica a consequência. */}
             <div
               className="sprint-item-footer"
               role="group"

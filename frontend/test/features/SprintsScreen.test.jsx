@@ -1,4 +1,3 @@
-// RF10: estados da tela de Sprints e comportamento dos formularios.
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
@@ -50,8 +49,6 @@ function renderScreen() {
       <MemoryRouter initialEntries={['/projects/1/sprints']}>
         <Routes>
           <Route path="/projects/:projectId/sprints" element={<SprintsScreen />} />
-          {/* A acao "Ver no Kanban" navega para fora: a rota existe so para o
-              teste poder afirmar que a navegacao aconteceu. */}
           <Route path="/projects/:projectId/kanban" element={<p>Quadro do projeto</p>} />
         </Routes>
       </MemoryRouter>
@@ -59,9 +56,6 @@ function renderScreen() {
   );
 }
 
-// As consultas (tarefas, Kanban, evolucao) e as mutacoes raras (editar,
-// cancelar) vivem no menu "Mais acoes" de cada sprint: interagir com elas exige
-// abrir o menu primeiro, exatamente como o usuario faz.
 async function abrirMenu(user, nome) {
   await user.click(await screen.findByRole('button', { name: `Mais ações da sprint ${nome}` }));
 }
@@ -73,25 +67,16 @@ beforeEach(() => {
   mocks.schedule.listSprints.mockResolvedValue({ data: { total: 0, sprints: [] } });
   mocks.schedule.listMilestones.mockResolvedValue({ data: { total: 0, milestones: [] } });
   mocks.schedule.listProjectTasks.mockResolvedValue({ data: { total: 0, tasks: [] } });
-  // Papel padrao dos testes: quem pode agir. VIEWER e exercitado no bloco proprio.
   mocks.schedule.getMembership.mockResolvedValue({
     data: { currentMembership: { role: 'OWNER' } }
   });
 });
 
-// Guarda contra mock divergente da API real: os mocks acima substituem modulos
-// inteiros, entao um metodo inexistente passaria despercebido no teste e quebraria
-// so em producao. Aqui importamos os modulos de verdade e conferimos a superficie
-// que a SprintsScreen consome.
 describe('contrato dos modulos consumidos', () => {
-  // A feature schedule nao pode importar `features/tasks`: isso fecharia um ciclo
-  // tasks/index -> KanbanScreen -> schedule/index -> ScheduleScreen -> tasks/index,
-  // que ja causou falha intermitente nesta suite.
   it('nao depende da feature tasks', async () => {
     const { readdirSync, readFileSync } = await vi.importActual('node:fs');
     const { join } = await vi.importActual('node:path');
 
-    // process.cwd() e a pasta frontend quando o vitest roda a suite.
     const raiz = join(process.cwd(), 'src', 'features', 'schedule');
     const arquivos = readdirSync(raiz, { recursive: true }).filter((nome) =>
       /\.jsx?$/.test(String(nome))
@@ -233,13 +218,10 @@ describe('estados da tela', () => {
     expect(await screen.findAllByText('Sprint 1')).not.toHaveLength(0);
     expect(screen.getByText('Marco: Entrega parcial')).toBeInTheDocument();
     expect(screen.getAllByText(/01\/08\/2026 a 14\/08\/2026/).length).toBeGreaterThan(0);
-    // Composicao e esforco vem do agregado, e nao de uma segunda chamada.
     expect(screen.getByText('0 de 1 tarefa')).toBeInTheDocument();
     expect(screen.getByText('5 pts')).toBeInTheDocument();
   });
 
-  // Sprint sem marco e estado legado valido: dizer "Sem marco" e melhor do que
-  // exibir um campo vazio que se le como defeito.
   it('nomeia a ausencia de marco em vez de deixar em branco', async () => {
     mocks.schedule.listSprints.mockResolvedValue({
       data: {
@@ -262,8 +244,6 @@ describe('estados da tela', () => {
   });
 });
 
-// O marco vence numa hora, nao no fim de um dia inteiro: a comparacao passou a
-// ser entre instantes, igual a do servidor.
 describe('economia de requisicoes', () => {
   it('a carga inicial nao busca as tarefas do projeto', async () => {
     renderScreen();
@@ -273,7 +253,6 @@ describe('economia de requisicoes', () => {
     expect(mocks.schedule.getSchedule).toHaveBeenCalledTimes(1);
     expect(mocks.schedule.listSprints).toHaveBeenCalledTimes(1);
     expect(mocks.schedule.listMilestones).toHaveBeenCalledTimes(1);
-    // Tarefas so sao necessarias no painel de associacao.
     expect(mocks.schedule.listProjectTasks).not.toHaveBeenCalled();
   });
 
@@ -291,8 +270,6 @@ describe('economia de requisicoes', () => {
     mocks.schedule.createSprint.mockResolvedValue({ data: {} });
 
     await user.type(screen.getByLabelText(/Nome/), 'Sprint 1');
-    // As opcoes vieram da carga inicial e sobrevivem ao `clearAllMocks`: o que
-    // se mede aqui e quais requisicoes o SALVAMENTO dispara.
     await user.selectOptions(screen.getByLabelText('Marco'), '7');
     await user.type(screen.getByLabelText(/^Início/), '2026-08-01T09:00');
     await user.type(screen.getByLabelText(/^Fim/), '2026-08-14T18:00');
@@ -306,9 +283,6 @@ describe('economia de requisicoes', () => {
   });
 });
 
-// Sprint nao e excluida em nenhum estado: o cronograma e registro historico do
-// projeto (ADR-010 D06). A tela nao oferece a acao — nem habilitada, nem
-// desabilitada com explicacao: nao existe fluxo de exclusao para explicar.
 describe('ausencia de exclusao de sprint', () => {
   const umaSprint = {
     id: 3,
@@ -327,8 +301,6 @@ describe('ausencia de exclusao de sprint', () => {
     const user = userEvent.setup();
     renderScreen();
     const lista = await screen.findByRole('list', { name: 'Sprints do projeto' });
-    // O menu aberto e onde a acao moraria: afirmar a ausencia com ele fechado
-    // seria trivialmente verdadeiro.
     await abrirMenu(user, 'Sprint 1');
     expect(within(lista).queryByRole('button', { name: /Excluir a sprint/ })).toBeNull();
   });
@@ -339,9 +311,6 @@ describe('ausencia de exclusao de sprint', () => {
   });
 });
 
-// Sprint encerrada e registro historico: o escopo nao muda em nenhuma direcao.
-// Antes a remocao era permitida — era o unico jeito de esvaziar a sprint para
-// exclui-la. Sem exclusao, o painel vira leitura.
 describe('escopo de sprint encerrada', () => {
   const sprintEncerrada = {
     id: 3,
@@ -365,8 +334,6 @@ describe('escopo de sprint encerrada', () => {
         ]
       }
     });
-    // A composição registrada vem completa da API, com o contexto da
-    // participação: é ela que a tela exibe, e não o cruzamento com o projeto.
     mocks.schedule.listSprintTasks.mockResolvedValue({
       data: {
         total: 1,
@@ -402,8 +369,6 @@ describe('escopo de sprint encerrada', () => {
     ).toBeInTheDocument();
   });
 
-  // So a composicao registrada. Listar o projeto inteiro ofereceria uma escolha
-  // que nao existe mais, e sugeriria que a sprint ainda pode receber tarefas.
   it('mostra apenas as tarefas que ficaram registradas na sprint', async () => {
     const user = userEvent.setup();
     renderScreen();
@@ -432,9 +397,6 @@ describe('escopo de sprint encerrada', () => {
   });
 });
 
-// Marco de sprint encerrada acompanha a imutabilidade dela (ADR-010 D12). Antes
-// os controles eram escondidos so para VIEWER, e numa sprint terminal editar,
-// concluir, reabrir e apagar continuavam clicaveis — terminando em 409.
 describe('salvamento de uma sprint nao invade o painel de outra', () => {
   const sprintA = {
     id: 3,
@@ -451,8 +413,6 @@ describe('salvamento de uma sprint nao invade o painel de outra', () => {
     4: [{ id: 20, title: 'Da B', status: 'A_FAZER', priority: 'ALTA', addedAfterStart: false }]
   };
 
-  // Promise controlada: o replace de A so resolve quando o teste mandar, e nesse
-  // intervalo o usuario seleciona B.
   let liberarReplace;
 
   beforeEach(() => {
@@ -497,12 +457,9 @@ describe('salvamento de uma sprint nao invade o painel de outra', () => {
     await user.click(within(painelA).getByRole('button', { name: 'Salvar tarefas da sprint' }));
     await waitFor(() => expect(mocks.schedule.replaceSprintTasks).toHaveBeenCalledWith(3, [10]));
 
-    // Enquanto o replace de A esta em voo, o usuario abre B.
     const painelB = await abrir(user, 'Sprint B');
     liberarReplace();
 
-    // A lista de opcoes traz o projeto inteiro; o que nao pode vazar e a SELECAO.
-    // Marcada tem de ser a tarefa de B, nunca a de A.
     const marcadas = () =>
       within(painelB)
         .getAllByRole('checkbox')
@@ -511,7 +468,6 @@ describe('salvamento de uma sprint nao invade o painel de outra', () => {
     await waitFor(() => expect(marcadas()).toHaveLength(1));
     expect(marcadas()[0]).toMatch(/Da B/);
 
-    // E o proximo salvamento vai para B, com os IDs de B.
     await user.click(within(painelB).getByRole('button', { name: 'Salvar tarefas da sprint' }));
     await waitFor(() => expect(mocks.schedule.replaceSprintTasks).toHaveBeenCalledWith(4, [20]));
   });
@@ -531,8 +487,6 @@ describe('salvamento de uma sprint nao invade o painel de outra', () => {
   });
 });
 
-// CONCLUIDA e CANCELADA sao terminais: nao ha transicao de volta. Um clique
-// sem aviso travaria a sprint para edicao e para novas tarefas.
 describe('clareza e confirmacao das transicoes de status', () => {
   const emAndamento = {
     id: 3,
@@ -552,7 +506,6 @@ describe('clareza e confirmacao das transicoes de status', () => {
 
   it('usa verbo no botao, nao o nome do estado', async () => {
     renderScreen();
-    // "Concluir" (acao) e nao "Concluída" (rotulo de status).
     expect(await screen.findByRole('button', { name: /^Concluir a sprint/ })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Concluída/ })).not.toBeInTheDocument();
   });
@@ -606,8 +559,6 @@ describe('clareza e confirmacao das transicoes de status', () => {
     );
   });
 
-  // O aviso precisa dizer QUANTAS tarefas voltam ao backlog: e o efeito
-  // irreversivel que o clique dispara (ADR-011 D07).
   it('a confirmacao conta as tarefas que voltarao ao backlog', async () => {
     const user = userEvent.setup();
     mocks.schedule.getSchedule.mockResolvedValue({
@@ -690,8 +641,6 @@ describe('formulario de sprint', () => {
     expect(mocks.schedule.createSprint).not.toHaveBeenCalled();
   });
 
-  // O `.slice(0, 10)` da versao anterior destruia a hora ao abrir a edicao:
-  // salvar em seguida gravava meia-noite por cima do instante escolhido.
   it('preserva a hora ao editar e salvar de novo', async () => {
     const user = userEvent.setup();
     const inicio = new Date('2026-08-01T09:30').toISOString();
@@ -728,9 +677,6 @@ describe('formulario de sprint', () => {
     );
   });
 
-  // Editar promete "carrega no formulario de edicao" — o foco completa a
-  // promessa: no desktop pareado o teclado ja cai no campo preenchido, e no
-  // empilhado (≤960px) o focus() nativo rola a pagina ate o formulario.
   it('editar leva o foco ao formulario preenchido', async () => {
     const user = userEvent.setup();
     mocks.schedule.listSprints.mockResolvedValue({
@@ -758,8 +704,6 @@ describe('formulario de sprint', () => {
     await waitFor(() => expect(nome).toHaveFocus());
   });
 
-  // O botao "Cancelar edicao" desaparece ao ser clicado; sem realocar o foco,
-  // ele cairia no body e o teclado perderia o lugar.
   it('cancelar edicao devolve o foco ao formulario', async () => {
     const user = userEvent.setup();
     mocks.schedule.listSprints.mockResolvedValue({
@@ -807,7 +751,6 @@ describe('formulario de sprint', () => {
       expect(mocks.schedule.createSprint).toHaveBeenCalledWith('1', {
         name: 'Sprint 1',
         objective: null,
-        // O campo fala no fuso local; a API recebe o instante correspondente.
         startDate: new Date('2026-08-01T09:00').toISOString(),
         endDate: new Date('2026-08-14T18:00').toISOString(),
         milestoneId: 7
@@ -815,8 +758,6 @@ describe('formulario de sprint', () => {
     );
   });
 
-  // O marco e obrigatorio na criacao (ADR-011 D02). Recusar aqui evita um 400
-  // que o formulario ja tinha como prever.
   it('exige marco antes de enviar', async () => {
     const user = userEvent.setup();
     mocks.schedule.listMilestones.mockResolvedValue({
@@ -834,8 +775,6 @@ describe('formulario de sprint', () => {
     expect(mocks.schedule.createSprint).not.toHaveBeenCalled();
   });
 
-  // Sem marco cadastrado nao ha o que escolher: dizer isso e melhor do que
-  // deixar o formulario travar num campo vazio sem explicacao.
   it('avisa quando o projeto ainda nao tem marcos', async () => {
     renderScreen();
     await screen.findByText('Nenhuma sprint cadastrada.');
@@ -919,9 +858,6 @@ describe('evolucao da sprint (RF35)', () => {
     expect(within(painel).getByText('1 tarefa saiu da sprint: #7')).toBeInTheDocument();
   });
 
-  // Sprint encerrada devolve um registro, nao uma medida do momento. Dizer
-  // "tarefas que estao na sprint agora" sobre um resultado congelado seria uma
-  // afirmacao falsa da tela sobre o proprio dado que ela exibe.
   it('fala no passado quando o resultado esta congelado', async () => {
     const user = userEvent.setup();
     mocks.schedule.listSprints.mockResolvedValue({
@@ -956,7 +892,6 @@ describe('evolucao da sprint (RF35)', () => {
     ).toBeInTheDocument();
   });
 
-  // percentage null significa "nao ha o que medir"; 0% diria "nada concluido".
   it('sprint sem tarefas mostra sem dados, nunca 0%', async () => {
     const user = userEvent.setup();
     mocks.schedule.getSprintProgress.mockResolvedValue({
@@ -1000,7 +935,6 @@ describe('evolucao da sprint (RF35)', () => {
 
     const painel = await screen.findByRole('region', { name: /Evolução da sprint/ });
     expect(within(painel).getByText(/o planejamento não está fechado/)).toBeInTheDocument();
-    // Base aberta: nao ha "depois do planejamento" a relatar.
     expect(within(painel).queryByText(/Mudanças depois do planejamento/)).not.toBeInTheDocument();
   });
 
@@ -1028,7 +962,6 @@ describe('evolucao da sprint (RF35)', () => {
         scopeChange: { added: [], removed: [] }
       }
     });
-    // Planejado e atual coincidem aqui, entao 100% aparece nas duas medidas.
     expect(await within(painel).findAllByText('100%')).toHaveLength(2);
   });
 
@@ -1075,10 +1008,6 @@ describe('painel de tarefas da sprint', () => {
     mocks.schedule.listSprintTasks.mockResolvedValue({ data: { total: 0, tasks: [] } });
   });
 
-  // Regressao: a lista traz todas as tarefas do projeto, inclusive as ja alocadas
-  // em outra sprint, renderizadas identicas a uma tarefa livre. Marcar uma delas
-  // MOVE a tarefa, esvaziando o escopo da sprint de origem sem qualquer aviso —
-  // e o titulo de uma tarefa real nao denuncia a que sprint ela pertence.
   it('avisa que marcar tarefa de outra sprint move a tarefa', async () => {
     const user = userEvent.setup();
     mocks.schedule.listSprints.mockResolvedValue({
@@ -1115,12 +1044,10 @@ describe('painel de tarefas da sprint', () => {
     });
     renderScreen();
 
-    // Duas sprints na lista: o seletor precisa nomear qual, senao casa as duas.
     await abrirMenu(user, 'Sprint 1');
     await user.click(await screen.findByRole('button', { name: 'Ver tarefas da sprint Sprint 1' }));
     const painel = await screen.findByRole('region', { name: /Tarefas da sprint/ });
 
-    // A origem precisa estar visivel ANTES de marcar, e nomeada.
     expect(within(painel).getByText(/Atualmente em Sprint 2/)).toBeInTheDocument();
     const livre = within(painel).getByRole('checkbox', { name: /Livre/ });
     expect(within(painel).queryByText(/será movida/)).not.toBeInTheDocument();
@@ -1130,7 +1057,6 @@ describe('painel de tarefas da sprint', () => {
       await within(painel).findByText(/"Alocada" será movida de Sprint 2 para Sprint 1\./)
     ).toBeInTheDocument();
 
-    // Marcar uma tarefa livre nao gera aviso de movimentacao.
     await user.click(within(painel).getByRole('checkbox', { name: /Alocada/ }));
     await user.click(livre);
     expect(within(painel).queryByText(/será movida/)).not.toBeInTheDocument();
@@ -1149,9 +1075,6 @@ describe('painel de tarefas da sprint', () => {
     await waitFor(() => expect(mocks.schedule.replaceSprintTasks).toHaveBeenCalledWith(3, [10]));
   });
 
-  // Regressao: o painel montava antes da resposta chegar e afirmava que o projeto nao
-  // tinha tarefas enquanto ainda carregava — com o botao Salvar habilitado sobre uma
-  // selecao vazia, o que esvaziaria a sprint recem-aberta.
   it('mostra carregando em vez de afirmar que o projeto nao tem tarefas', async () => {
     const user = userEvent.setup();
     let liberar;
@@ -1184,8 +1107,6 @@ describe('painel de tarefas da sprint', () => {
     expect(mocks.schedule.replaceSprintTasks).not.toHaveBeenCalled();
   });
 
-  // Regressao: no erro o painel ficava aberto para sempre exibindo a frase falsa, ao
-  // lado de uma mensagem de erro que a contradizia.
   it('fecha o painel quando nao consegue carregar as tarefas da sprint', async () => {
     const user = userEvent.setup();
     mocks.schedule.listSprintTasks.mockRejectedValue({ response: { status: 500, data: {} } });
@@ -1224,7 +1145,6 @@ describe('painel de tarefas da sprint', () => {
   });
 });
 
-// As listas de CRUD nao podem esticar a pagina indefinidamente.
 describe('listas roláveis', () => {
   const sprintDe = (id, nome) => ({
     id,
@@ -1242,7 +1162,6 @@ describe('listas roláveis', () => {
     renderScreen();
 
     const lista = await screen.findByRole('list', { name: 'Sprints do projeto' });
-    // role="list" preservado: virar region apagaria a contagem de itens no leitor.
     expect(lista).toHaveAttribute('tabindex', '0');
     expect(lista.tagName).toBe('UL');
   });
@@ -1261,16 +1180,10 @@ describe('listas roláveis', () => {
 
     const lista = screen.getByRole('list', { name: 'Sprints do projeto' });
     const painel = await screen.findByRole('region', { name: /Tarefas da sprint Alfa/ });
-    // Se o painel rolasse junto com a lista, abrir tarefas empurraria o conteudo
-    // para dentro de uma caixa apertada.
     expect(lista.contains(painel)).toBe(false);
   });
 });
 
-// O achado HIGH do parecer: `selectSprint` e `showProgress` aplicavam qualquer
-// resposta que chegasse. Abrir A e logo B fazia a resposta lenta de A
-// sobrescrever B — a tela mostrava B com as tarefas de A, e salvar enviava
-// esses IDs para B, alterando o recurso errado.
 describe('respostas fora de ordem', () => {
   const sprintA = {
     id: 3,
@@ -1300,7 +1213,6 @@ describe('respostas fora de ordem', () => {
     });
   });
 
-  // A resposta de A resolve DEPOIS da de B, que e o pior caso real.
   const respostaLentaDeA = () => {
     let liberarA;
     mocks.schedule.listSprintTasks.mockImplementation((sprintId) => {
@@ -1327,7 +1239,6 @@ describe('respostas fora de ordem', () => {
     const painel = await screen.findByRole('region', { name: /Tarefas da sprint Sprint B/ });
     liberarA();
 
-    // A tarefa marcada continua sendo a de B, mesmo depois de A responder.
     await waitFor(() => {
       const marcadas = within(painel)
         .getAllByRole('checkbox')
@@ -1410,7 +1321,6 @@ describe('respostas fora de ordem', () => {
     const painel = await screen.findByRole('region', { name: /Evolução da sprint Sprint B/ });
     liberarA?.();
 
-    // 100% e o numero de A: ele nao pode aparecer no painel de B.
     await waitFor(() =>
       expect(within(painel).getAllByText('Sem tarefas para medir.')).toHaveLength(2)
     );
@@ -1418,8 +1328,6 @@ describe('respostas fora de ordem', () => {
   });
 });
 
-// VIEWER lê o cronograma inteiro e não age sobre ele. O backend recusa com 403;
-// oferecer o controle transformaria uma regra conhecida numa descoberta pelo erro.
 describe('perfil somente leitura', () => {
   const sprint = {
     id: 3,
@@ -1467,17 +1375,14 @@ describe('perfil somente leitura', () => {
 
     expect(within(sprints).queryByRole('button', { name: /^Iniciar a sprint/ })).toBeNull();
     expect(within(sprints).queryByRole('button', { name: /^Concluir a sprint/ })).toBeNull();
-    // Editar e cancelar morariam no menu: e com ele aberto que a ausencia vale.
     await abrirMenu(user, 'Sprint 1');
     expect(within(sprints).queryByRole('button', { name: /^Editar a sprint/ })).toBeNull();
     expect(within(sprints).queryByRole('button', { name: /^Cancelar a sprint/ })).toBeNull();
-    // Consultar continua disponivel: VIEWER le o cronograma inteiro.
     expect(
       within(sprints).getByRole('button', { name: /^Ver a sprint .* no Kanban/ })
     ).toBeInTheDocument();
   });
 
-  // Consultar continua disponivel: somente leitura nao e ausencia de acesso.
   it('mantem a consulta de tarefas, sem permitir salvar', async () => {
     const user = userEvent.setup();
     mocks.schedule.listSprintTasks.mockResolvedValue({
@@ -1506,8 +1411,6 @@ describe('perfil somente leitura', () => {
   });
 });
 
-// RF35: o que entrou depois do inicio precisa ser distinguivel do escopo
-// planejado, e nao apenas contado.
 describe('sinalizacao de inclusao posterior ao inicio', () => {
   const emAndamento = {
     id: 3,
@@ -1563,6 +1466,3 @@ describe('sinalizacao de inclusao posterior ao inicio', () => {
     expect(avisos[0].closest('label')).toHaveTextContent('Entrou depois');
   });
 });
-
-// Sprint encerrada nao recebe marco novo: o backend recusa com 409, e oferecer a
-// opcao na lista seria propor uma escolha que nao existe.

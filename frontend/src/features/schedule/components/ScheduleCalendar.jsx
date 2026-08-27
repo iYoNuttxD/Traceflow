@@ -29,8 +29,6 @@ const DIAS_SEMANA_LONGOS = [
   'sábado'
 ];
 
-// `hoje` entra por prop para o componente ser testável sem congelar o relógio do
-// processo inteiro. Em produção ninguém passa, e o padrão é o agora.
 export function ScheduleCalendar({ schedule, milestoneNames = {}, hoje = new Date() }) {
   const hojeIso = todayIsoDay(hoje);
   const [selecionado, setSelecionado] = useState(hojeIso);
@@ -39,21 +37,12 @@ export function ScheduleCalendar({ schedule, milestoneNames = {}, hoje = new Dat
     mes: hoje.getMonth()
   }));
 
-  // Sprint cancelada sai do calendário inteiro — faixa, legenda e eventos. Ela
-  // deixou de ocupar as datas (o backend nem a considera na sobreposição), e
-  // pintar o período de um trabalho que não vai acontecer diria o contrário.
-  // A lista de Sprints continua a exibi-la: lá ela é registro, aqui seria plano.
   const sprints = useMemo(
     () => (schedule?.sprints || []).filter((sprint) => sprint.status !== 'CANCELADA'),
     [schedule]
   );
   const milestones = useMemo(() => schedule?.milestones || [], [schedule]);
 
-  // Navegação presa ao que a grade pinta — faixas de sprint e prazos de marco
-  // do MESMO agregado, então o filtro de período re-limita junto. Sem nada
-  // pintado, o calendário descansa no mês de hoje, travado: não há cronograma
-  // para navegar. O fallback deriva do hojeIso (string estável); a prop `hoje`
-  // é um Date novo a cada render e estouraria o memo.
   const limites = useMemo(() => {
     const pintado = calendarBounds({ sprints, milestones });
     if (pintado) return pintado;
@@ -62,9 +51,6 @@ export function ScheduleCalendar({ schedule, milestoneNames = {}, hoje = new Dat
     return { min: mesCorrente, max: mesCorrente };
   }, [sprints, milestones, hojeIso]);
 
-  // A vista nunca sai do intervalo, venha o desvio de onde vier: hoje fora do
-  // cronograma (a vista gruda no limite mais próximo) ou filtro que acabou de
-  // encolher o agregado sob um mês que deixou de existir.
   const mesExibido = clampMonth(limites, { ano, mes });
   const noInicio = mesExibido.ano === limites.min.ano && mesExibido.mes === limites.min.mes;
   const noFim = mesExibido.ano === limites.max.ano && mesExibido.mes === limites.max.mes;
@@ -93,10 +79,6 @@ export function ScheduleCalendar({ schedule, milestoneNames = {}, hoje = new Dat
     [sprints, milestones, hojeIso]
   );
 
-  // Clicar num dia de outro mês leva o calendário até lá: sem isso a seleção
-  // sairia da vista e o painel abaixo falaria de um dia que a grade não mostra.
-  // Num dia cinza na borda de um mês-limite, a seleção vale (o dia está
-  // visível na grade), mas a vista não atravessa o limite atrás dele.
   const escolherDia = (iso) => {
     const [novoAno, novoMes] = iso.split('-').map(Number);
     setSelecionado(iso);
@@ -112,10 +94,6 @@ export function ScheduleCalendar({ schedule, milestoneNames = {}, hoje = new Dat
 
         <div className="calendar-month">
           <strong>{monthLabel(mesExibido.ano, mesExibido.mes)}</strong>
-          {/* aria-disabled em vez de disabled nativo, de propósito: quem chega
-              ao limite clicando está com o foco na seta, e desabilitar de
-              verdade nesse instante o derrubaria para o body. O handler é quem
-              ignora o clique no limite; o title diz por que ele não faz nada. */}
           <div className="calendar-nav">
             <button
               type="button"
@@ -154,9 +132,6 @@ export function ScheduleCalendar({ schedule, milestoneNames = {}, hoje = new Dat
           ))}
         </div>
 
-        {/* Cada dia é um botão nomeado pela data por extenso: a grade visual é
-            atalho, não o único caminho. Quem navega por leitor de tela ouve
-            "sexta-feira, 21 de agosto — Sprint 4" e não uma matriz de números. */}
         <div
           className="calendar-grid"
           role="group"

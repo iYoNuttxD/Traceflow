@@ -1,9 +1,3 @@
-// Casos de uso de marcos do cronograma (RF10).
-//
-// Marco AGRUPA sprints (ADR-011 D01): e a entrega de medio prazo, com prazo
-// proprio, e as sprints sao os periodos que a produzem. Quem declara o vinculo e
-// a sprint, entao aqui nao ha nada de sprint na escrita — nem sprintId no corpo,
-// nem janela a conferir (D03), nem congelamento herdado (D04).
 import { milestoneRepository } from '../repositories/milestone.repository.js';
 import { buildAuditEvent } from '../../audit/audit.service.js';
 import {
@@ -39,9 +33,6 @@ export const milestoneService = {
         action: 'MILESTONE_CREATED',
         resourceType: 'Milestone'
       }),
-      // Nada a revalidar sob lock na criacao: o marco nasce sem sprints, e titulo,
-      // descricao e prazo nao dependem de nenhum outro registro. O lock do projeto
-      // permanece porque e ele que serializa o cronograma inteiro.
       () => {}
     );
   },
@@ -84,8 +75,6 @@ export const milestoneService = {
     return milestone;
   },
 
-  // A conclusao manual continua existindo ao lado da automatica (ADR-011 D05): a
-  // automacao antecipa o caso comum, nao retira a decisao de quem gerencia.
   async updateMilestoneStatus(milestoneId, status, context = {}) {
     const id = parseMilestoneId(milestoneId);
     const current = await ensureMilestoneExists(id);
@@ -127,8 +116,6 @@ export const milestoneService = {
         resourceId: id,
         metadata: { milestoneId: id }
       }),
-      // A contagem vem do retrato travado, e nao de uma leitura anterior: entre
-      // uma e outra, uma sprint pode ter passado a apontar para este marco.
       ({ sprintCount }) => {
         if (sprintCount > 0) throw milestoneHasSprintsError(sprintCount);
       }

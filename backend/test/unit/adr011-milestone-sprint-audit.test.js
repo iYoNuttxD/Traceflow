@@ -1,15 +1,6 @@
-// Auditoria previa da inversao Marco <-> Sprint (ADR-011).
-//
-// O que este script protege e a unica perda de informacao da migration: uma
-// sprint podia ter varios marcos e passa a apontar para um. Se o relatorio
-// escolher um marco diferente do que a migration escolhe, ele mente sobre o que
-// vai acontecer — por isso os testes fixam o criterio, e nao so a contagem.
 import { describe, expect, it, vi } from 'vitest';
 import { runAdr011MilestoneSprintAudit } from '../../scripts/lib/adr011-milestone-sprint-audit.js';
 
-// A consulta de vinculos ja chega ORDENADA pelo SQL (sprintId, dueDate, id), a
-// mesma ordem da migration. O cliente falso respeita isso para o teste descrever
-// o banco, e nao um atalho do script.
 function clienteFalso(vinculos, { totalSprints, totalMarcos } = {}) {
   const ordenados = [...vinculos].sort(
     (a, b) =>
@@ -45,7 +36,6 @@ describe('relatorio', () => {
     expect(relatorio.sprintsQueGanhamMarco).toBe(2);
   });
 
-  // O criterio da migration: menor prazo primeiro.
   it('escolhe o marco de menor prazo e reporta os demais', async () => {
     const relatorio = await runAdr011MilestoneSprintAudit({
       client: clienteFalso(
@@ -63,8 +53,6 @@ describe('relatorio', () => {
     expect(relatorio.marcosQueFicamSemSprint).toBe(2);
   });
 
-  // Empate no prazo decide pelo menor id: o resultado nao pode depender da ordem
-  // fisica das linhas, senao duas replicas divergem.
   it('desempata prazos iguais pelo menor id', async () => {
     const relatorio = await runAdr011MilestoneSprintAudit({
       client: clienteFalso(
@@ -75,8 +63,6 @@ describe('relatorio', () => {
     expect(relatorio.sprintsComVariosMarcos[0].escolhido.marcoId).toBe(4);
   });
 
-  // Sprint sem marco nenhum e estado valido depois da inversao: `milestoneId`
-  // fica nulo e so a criacao de sprints NOVAS exige o marco.
   it('conta as sprints que ficam sem marco', async () => {
     const relatorio = await runAdr011MilestoneSprintAudit({
       client: clienteFalso([vinculo(1, 10, '2026-08-10')], { totalSprints: 4 })
@@ -97,8 +83,6 @@ describe('relatorio', () => {
 });
 
 describe('migration ja aplicada', () => {
-  // Depois da migration a coluna nao existe. Explicar isso e mais util do que
-  // devolver o stack de um erro de SQL para quem rodou o script duas vezes.
   it('reconhece a ausencia de Milestone.sprintId', async () => {
     const client = {
       $queryRawUnsafe: vi.fn(async () => {
@@ -110,8 +94,6 @@ describe('migration ja aplicada', () => {
     expect(relatorio.mensagem).toMatch(/migration ja foi aplicada/);
   });
 
-  // Qualquer outra falha continua subindo: engolir erro de conexao faria o
-  // script relatar "tudo certo" sobre um banco que ele nao conseguiu ler.
   it('propaga erro que nao e coluna ausente', async () => {
     const client = {
       $queryRawUnsafe: vi.fn(async () => {

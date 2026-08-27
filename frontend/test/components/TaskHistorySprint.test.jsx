@@ -1,4 +1,3 @@
-// RF10 §9.4: regressao do historico de tarefas apos estender TaskHistoryField.
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import {

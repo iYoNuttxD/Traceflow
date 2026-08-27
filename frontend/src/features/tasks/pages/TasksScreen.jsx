@@ -98,9 +98,6 @@ export function TasksScreen() {
           );
           return { data: { members: [] } };
         }),
-        // Sprints e marcos alimentam o campo de sprint e as colunas da lista.
-        // Falha aqui não derruba a tela: o campo cai para "backlog" e a lista
-        // exibe o vínculo como ausente, que é o estado da maioria das tarefas.
         scheduleApi.listSprints(projectId).catch(() => ({ data: { sprints: [] } })),
         scheduleApi.listMilestones(projectId).catch(() => ({ data: { milestones: [] } }))
       ]);
@@ -386,9 +383,6 @@ export function TasksScreen() {
       try {
         const selectedSprintId = formData.sprintId ? Number(formData.sprintId) : null;
         const currentSprintId = savedTask.sprintId ?? null;
-        // Só age quando o vínculo muda de fato: reenviar o mesmo id abriria e
-        // fecharia uma participação a cada salvamento, poluindo o histórico do
-        // RF35 com entradas que não representam decisão nenhuma.
         if (selectedSprintId !== currentSprintId) {
           if (selectedSprintId) await scheduleApi.linkTaskSprint(savedTask.id, selectedSprintId);
           else await scheduleApi.unlinkTaskSprint(savedTask.id);

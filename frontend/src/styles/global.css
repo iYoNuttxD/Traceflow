@@ -2219,12 +2219,6 @@ a {
   }
 }
 
-/* ==========================================================================
-   Cronograma — S1-04 / RF10
-   Reaproveita os tokens do sistema: cartao branco raio 16, azul #315bce,
-   texto #172033 / #667085, bordas #e2e7f0 / #cfd6e4.
-   ========================================================================== */
-
 .schedule-summary {
   margin: 0;
   color: #667085;
@@ -2243,13 +2237,6 @@ a {
   min-width: 0;
 }
 
-/* Pareadas: as telas de gestão (lista + formulário) dividem a mesma altura no
-   desktop, em vez de um card baixo com rolagem ao lado de um card alto. O teto
-   da lista passa a ser o card irmão — flex-basis 0 impede a lista longa de
-   inflar a linha do grid, e o piso de 12rem impede os painéis internos (tarefas
-   e evolução moram no mesmo card) de esmagá-la. Abaixo de 960px o grid empilha
-   e o clamp original da lista volta a valer: no empilhado não há vizinho para
-   servir de teto. */
 @media (min-width: 961px) {
   .schedule-columns--pareadas {
     align-items: stretch;
@@ -2268,8 +2255,6 @@ a {
   }
 }
 
-/* Única: VIEWER não recebe formulário; o card de leitura ocupa a largura toda
-   em vez de deixar uma coluna fantasma. */
 .schedule-columns--unica {
   grid-template-columns: minmax(0, 1fr);
 }
@@ -2319,10 +2304,6 @@ a {
 .schedule-filters .button {
   padding: 0.6rem 0.95rem;
 }
-
-/* --- Linha do tempo --- */
-
-/* --- Listas de sprint e marco --- */
 
 .sprint-list,
 .milestone-list {
@@ -2387,7 +2368,6 @@ a {
   font-weight: 800;
 }
 
-/* Congelamento comunicado por texto, nunca apenas pela ausencia dos botoes. */
 .milestone-frozen {
   margin: 0 0 0.6rem;
   color: #475467;
@@ -2403,8 +2383,6 @@ a {
   line-height: 1.5;
 }
 
-/* Ainda usado pelo painel de andamento do Kanban; as listas de sprint e marco
-   migraram para os rodapes abaixo. */
 .sprint-actions {
   display: flex;
   flex-wrap: wrap;
@@ -2417,9 +2395,6 @@ a {
   font-size: 0.85rem;
 }
 
-/* Rodapé do item: a transição de status à esquerda, o resto à direita. A borda
-   superior separa as ações do conteúdo — sem ela, botão e objetivo se leem como
-   um bloco só. */
 .sprint-item-footer,
 .milestone-item-footer {
   display: flex;
@@ -2446,8 +2421,6 @@ a {
   font-size: 0.85rem;
 }
 
-/* --- Menu "Mais ações" do item de sprint --- */
-
 .sprint-menu-trigger {
   display: inline-flex;
   gap: 0.45rem;
@@ -2458,9 +2431,6 @@ a {
   font-size: 0.58rem;
 }
 
-/* position: fixed, e nao absolute: a lista de sprints rola, e um menu absoluto
-   seria cortado pela borda do scroll. As coordenadas vem por style inline,
-   medidas do botao no momento da abertura. */
 .sprint-menu {
   position: fixed;
   z-index: 30;
@@ -2495,7 +2465,6 @@ a {
   opacity: 0.45;
 }
 
-/* A acao destrutiva fecha o menu, separada das consultas por um fio. */
 .sprint-menu-item-danger {
   margin-top: 0.25rem;
   padding-top: 0.6rem;
@@ -2503,8 +2472,6 @@ a {
   border-radius: 0 0 7px 7px;
   color: #9f2d2d;
 }
-
-/* --- Acoes-texto do item de marco --- */
 
 .milestone-item-footer-links {
   display: flex;
@@ -2540,7 +2507,6 @@ a {
   margin: 0 0 0.6rem;
 }
 
-/* Status da sprint e do marco, no mesmo vocabulario visual dos badges do produto. */
 .status-planejada {
   color: #475467;
   background: #e9edf3;
@@ -2556,16 +2522,11 @@ a {
   background: #ffe1e1;
 }
 
-/* Atraso é estado derivado, não coluna: sprint em andamento que passou do fim, e
-   marco pendente que passou do prazo. Cor própria porque "atrasada" não é
-   "cancelada" — o vermelho de cancelamento diria que o trabalho parou. */
 .status-atrasada,
 .status-atrasado {
   color: #9a3412;
   background: #ffe4d5;
 }
-
-/* --- Painel de associacao de tarefas --- */
 
 .sprint-tasks-panel {
   margin-top: 1.25rem;
@@ -2617,8 +2578,6 @@ a {
   cursor: not-allowed;
 }
 
-/* --- Formularios do cronograma --- */
-
 .schedule-form {
   display: grid;
   gap: 1rem;
@@ -2657,11 +2616,6 @@ a {
     box-shadow 160ms ease;
 }
 
-/* O <select> nativo ignora altura, padding e borda de forma inconsistente entre
-   navegadores — por isso ele destoava dos demais campos do formulário.
-   `appearance: none` devolve o desenho ao CSS, e a seta volta como imagem de
-   fundo; o padding à direita reserva o espaço dela para o texto não passar por
-   baixo. */
 .schedule-form .form-field select {
   appearance: none;
   -webkit-appearance: none;
@@ -2721,10 +2675,6 @@ a {
   font-style: italic;
 }
 
-/* ==========================================================================
-   Filtro de sprints do Kanban — ADR-011 / RF10
-   ========================================================================== */
-
 .kanban-sprint-filter {
   position: relative;
 }
@@ -2745,8 +2695,6 @@ a {
   align-items: center;
 }
 
-/* Sobreposto, e não empurrando o quadro para baixo: abrir o filtro não pode
-   reposicionar as colunas que o usuário está lendo. */
 .kanban-sprint-filter-popover {
   position: absolute;
   top: calc(100% + 8px);
@@ -2771,10 +2719,6 @@ a {
   display: inline;
   margin-left: 0.3rem;
 }
-
-/* ==========================================================================
-   Burndown da sprint — ADR-011 / RF35
-   ========================================================================== */
 
 .burndown-title {
   margin: 0.75rem 0 0.35rem;
@@ -2820,15 +2764,6 @@ a {
   max-width: 760px;
   height: auto;
 }
-
-/* ==========================================================================
-   Calendário do cronograma — ADR-011 / RF10
-   A grade mostra DURAÇÃO, que a lista por data não mostra: a faixa contínua diz
-   quanto tempo a sprint ocupa e onde estão os vãos entre uma e outra. O
-   significado nunca é só a cor — cada dia continua sendo um botão com data
-   acessível, a legenda nomeia cada faixa com o seu período, e o painel do dia
-   selecionado repete tudo em texto.
-   ========================================================================== */
 
 .calendar-toolbar {
   display: flex;
@@ -2881,9 +2816,6 @@ a {
   background: #f7f9fc;
 }
 
-/* Seta no limite do cronograma: apagada e inerte, mas ainda focável — o
-   aria-disabled preserva o foco de quem chegou ao limite navegando por
-   teclado; é o handler que ignora o clique. */
 .calendar-nav-button[aria-disabled='true'] {
   border-color: #eef1f6;
   background: #f8fafc;
@@ -2920,8 +2852,6 @@ a {
   row-gap: 4px;
 }
 
-/* O fundo da célula é a faixa da sprint; o arredondamento vem de variáveis
-   escritas pelo componente, porque só ele sabe onde a faixa começa e acaba. */
 .calendar-day {
   position: relative;
   display: grid;
@@ -2955,8 +2885,6 @@ a {
   font-weight: 700;
 }
 
-/* Hoje vence a seleção: são dois destaques no mesmo lugar, e o de hoje é o que
-   o usuário não escolheu e portanto precisa continuar reconhecível. */
 .calendar-day--hoje .calendar-day-inner {
   background: #315bce;
   color: #fff;
@@ -3014,18 +2942,11 @@ a {
   font-size: 0.76rem;
 }
 
-/* ==========================================================================
-   Agenda do cronograma — S1-04 / RF10
-   Lista por data, agora no painel do dia selecionado e em "Próximos eventos".
-   Nenhuma geometria proporcional aqui: o significado é palavra, não posição.
-   ========================================================================== */
-
 .agenda {
   display: grid;
   gap: 1.25rem;
 }
 
-/* Recorte auditável: conta coisas, não linhas. */
 .agenda-window {
   margin: 0;
   padding: 0.65rem 0.85rem;
@@ -3042,8 +2963,6 @@ a {
   color: #667085;
   font-size: 0.82rem;
 }
-
-/* --- Faixa de situação: responde "e agora?" antes da lista --- */
 
 .agenda-now-title {
   margin: 0 0 0.6rem;
@@ -3098,8 +3017,6 @@ a {
   font-size: 0.82rem;
 }
 
-/* --- O eixo --- */
-
 .agenda-month {
   margin: 0.5rem 0 0;
   padding-top: 0.75rem;
@@ -3124,11 +3041,6 @@ a {
   padding: 0.9rem 0;
 }
 
-/* tabular-nums alinha a coluna de datas na vertical: é isso que faz a
-   varredura de cima para baixo funcionar, sem desenhar régua nenhuma. */
-/* align-self: start e o conserto do defeito visual: sem ele o bloco da data
-   estica na altura da linha e o espaco livre e distribuido entre as linhas,
-   espalhando data, dia da semana e distancia como se fossem itens soltos. */
 .agenda-date {
   display: grid;
   align-self: start;
@@ -3145,7 +3057,6 @@ a {
   line-height: 1.15;
 }
 
-/* Linha de apoio: descreve a data acima, nunca se le como item independente. */
 .agenda-date-sub {
   color: #667085;
   font-size: 0.74rem;
@@ -3161,7 +3072,6 @@ a {
   text-align: center;
 }
 
-/* Trilho por border-left, não pseudo-elemento posicionado. */
 .agenda-day-body {
   padding-left: 1rem;
   border-left: 2px solid #e2e7f0;
@@ -3203,7 +3113,6 @@ a {
   color: #667085;
 }
 
-/* Remate de sprint: referência, não cartão. */
 .agenda-entry--nota {
   padding: 0.2rem 0;
   border: 0;
@@ -3220,7 +3129,6 @@ a {
   margin: 0 0 0.35rem;
 }
 
-/* Tipo inline e discreto: o token menos útil não pode dominar a linha. */
 .agenda-kind {
   color: #667085;
   font-size: 0.72rem;
@@ -3329,9 +3237,6 @@ a {
   }
 }
 
-/* --- Correções da verificação adversarial da agenda --- */
-
-/* Situação degradada do caso mínimo: uma linha em vez de três tiles de "nada". */
 .agenda-now-line {
   margin: 0;
   color: #475467;
@@ -3347,7 +3252,6 @@ a {
   font-size: 0.85rem;
 }
 
-/* Lacuna entre meses: inerte, visível mesmo com tudo colapsado. */
 .agenda-month-gap {
   margin: 0.75rem 0 0;
   color: #98a2b3;
@@ -3371,20 +3275,17 @@ a {
   cursor: pointer;
 }
 
-/* Summary não está na allowlist global de focus-visible. */
 .agenda summary:focus-visible {
   outline: 3px solid #2563eb;
   outline-offset: 2px;
 }
 
-/* Alvo mínimo de toque (WCAG 2.5.8): densidade aperta cartões, nunca controles. */
 .agenda-tasks summary {
   display: flex;
   align-items: center;
   min-height: 24px;
 }
 
-/* Densidade só quando há muito conteúdo: o caso pequeno mantém o respiro. */
 .agenda--colapsada .agenda-entry {
   padding: 0.6rem 0.85rem;
   border-radius: 12px;
@@ -3403,10 +3304,6 @@ a {
   border-radius: 12px;
 }
 
-/* --- Área rolável da agenda --- */
-
-/* max-height, não height: a agenda pequena não ganha caixa vazia com barra de
-   rolagem. Só passa a rolar quando de fato ultrapassa a altura. */
 .agenda-scroll {
   max-height: clamp(22rem, 58vh, 42rem);
   overflow-y: auto;
@@ -3423,10 +3320,6 @@ a {
   outline-offset: 2px;
 }
 
-/* Sem position: sticky aqui, de proposito. O cabecalho grudento mantinha o mes
-   anterior fixo no topo enquanto o conteudo visivel ja era de outro mes —
-   rotulo que contradiz a tela e pior que rotulo nenhum. E, na escala real
-   (poucas datas por mes), a secao cabe na tela e o recurso nao se paga. */
 .agenda-scroll .agenda-month {
   margin: 0;
   padding: 0.6rem 0 0.4rem;
@@ -3437,11 +3330,6 @@ a {
   border-top: 1px solid #e2e7f0;
 }
 
-/* --- Listas roláveis de sprint e marco --- */
-
-/* Mesma regra da agenda: max-height, não height. Com uma ou duas sprints a
-   lista não vira caixa vazia com barra de rolagem; só rola quando ultrapassa.
-   O padding lateral evita que o foco e a sombra do item sejam cortados. */
 .sprint-list,
 .milestone-list {
   max-height: clamp(20rem, 46vh, 34rem);
@@ -3458,9 +3346,6 @@ a {
   border-radius: 12px;
 }
 
-/* Evolucao por sprint (RF35). Segue o mesmo cartao do painel de tarefas para
-   que os dois paineis da sprint sejam lidos como irmaos, nao como telas
-   diferentes. */
 .sprint-progress-panel {
   margin-top: 1.25rem;
   padding: 1.1rem;
@@ -3483,8 +3368,6 @@ a {
   letter-spacing: 0.04em;
 }
 
-/* auto-fit permite que as duas medidas caiam uma sob a outra em telas
-   estreitas, sem media query dedicada. */
 .sprint-progress-metrics {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));

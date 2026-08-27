@@ -103,8 +103,6 @@ export const movementQuerySchema = dateRangeSchema.extend({
 export const taskHistoryQuerySchema = dateRangeSchema.extend({
   taskId: positiveInteger('ID da tarefa inválido.').optional(),
   actorUserId: positiveInteger('ID do ator inválido.').optional(),
-  // Espelha o enum TaskHistoryField do Prisma. Todo valor novo lá precisa entrar aqui,
-  // ou o campo fica gravável e não filtrável (foi o que aconteceu com SPRINT no RF10).
   field: z.enum(['STATUS', 'DEADLINE', 'RESPONSIBLE', 'PRIORITY', 'SPRINT']).optional(),
   ...paginationSchema
 });

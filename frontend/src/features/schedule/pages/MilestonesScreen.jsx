@@ -48,14 +48,8 @@ export function MilestonesScreen() {
   const [editingMilestoneId, setEditingMilestoneId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [busyMilestoneId, setBusyMilestoneId] = useState(null);
-  // Card do formulário: alvo do foco quando a edição começa ou é cancelada.
   const formCardRef = useRef(null);
 
-  // Editar promete "carrega no formulário de edição" — o foco completa a
-  // promessa. No desktop pareado o campo já está visível e nada rola; no
-  // empilhado (≤960px) o focus() nativo rola até ele, respeitando
-  // prefers-reduced-motion (um scrollIntoView animado não respeitaria).
-  // Disparar pelo id cobre também trocar a edição de um marco para outro.
   useEffect(() => {
     if (!editingMilestoneId) return;
     formCardRef.current?.querySelector('input, select, textarea')?.focus();
@@ -83,7 +77,6 @@ export function MilestonesScreen() {
       }
       setMilestoneForm(emptyMilestoneForm);
       setEditingMilestoneId(null);
-      // Mexer em marco nao altera sprints nem tarefas.
       await Promise.all([refreshMilestones(), refreshSchedule()]);
     } catch (requestError) {
       handleFailure(requestError, 'Não foi possível salvar o marco.');
@@ -104,10 +97,6 @@ export function MilestonesScreen() {
 
   const toggleMilestoneStatus = async (milestone) => {
     const next = milestone.status === 'PENDENTE' ? 'CONCLUIDO' : 'PENDENTE';
-    // Concluir à mão é sempre uma afirmação sobre a entrega — vale confirmar,
-    // senão um clique diz "pronto" por decisão de ninguém. Reabrir dispensa
-    // aviso: é reversível e não afirma nada. Quando ainda há sprints abertas, a
-    // confirmação diz quantas, porque é isso que o clique está atropelando.
     if (next === 'CONCLUIDO') {
       const progresso = milestoneProgress(milestone.id, sprints);
       const pendentes = progresso.total - progresso.done;
@@ -124,7 +113,6 @@ export function MilestonesScreen() {
 
     setBusyMilestoneId(milestone.id);
     try {
-      // A resposta traz o marco atualizado; aplica no estado sem rebuscar a lista.
       const { data } = await scheduleApi.updateMilestoneStatus(milestone.id, next);
       setMilestones((current) =>
         current.map((item) => (item.id === milestone.id ? data.milestone : item))
@@ -202,8 +190,6 @@ export function MilestonesScreen() {
       </header>
       <FeedbackRegion error={error} success={success} />
 
-      {/* Pareadas: lista e formulário dividem a mesma altura no desktop. Sem
-          formulário (VIEWER), coluna única — nada de coluna fantasma. */}
       <div
         className={`schedule-columns ${
           somenteLeitura ? 'schedule-columns--unica' : 'schedule-columns--pareadas'
@@ -242,8 +228,6 @@ export function MilestonesScreen() {
                 setEditingMilestoneId(null);
                 setMilestoneForm(emptyMilestoneForm);
                 setMilestoneErrors({});
-                // O botão "Cancelar edição" desaparece ao ser clicado; sem
-                // realocar o foco, ele cai no body e o teclado perde o lugar.
                 formCardRef.current?.querySelector('input, select, textarea')?.focus();
               }}
             />

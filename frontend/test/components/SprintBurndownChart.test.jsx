@@ -1,7 +1,3 @@
-// Bateria RF10/RF35 — o burndown (RF35) não tinha nenhum teste de componente.
-// O que importa aqui é o que sobra para quem NÃO enxerga o desenho: o svg é
-// role="img" com a nota inteira no aria-label, a legenda nomeia as curvas por
-// texto, e "sem dados" é uma frase — nunca um eixo zerado fingindo medida.
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { SprintBurndownChart } from '../../src/features/schedule/components/SprintBurndownChart.jsx';
@@ -33,13 +29,10 @@ describe('SprintBurndownChart', () => {
         }}
       />
     );
-    // A nota compara o real com o ideal DO MESMO dia — é ela que o leitor de
-    // tela anuncia no lugar das curvas.
     const grafico = screen.getByRole('img', {
       name: 'Restam 4 de 10 pontos. A linha ideal previa 5 para este dia.'
     });
     expect(grafico).toBeInTheDocument();
-    // E a mesma frase existe como texto visível para todo mundo.
     expect(
       screen.getByText('Restam 4 de 10 pontos. A linha ideal previa 5 para este dia.')
     ).toBeInTheDocument();
@@ -82,7 +75,6 @@ describe('SprintBurndownChart', () => {
     expect(
       screen.getByText('Sprint encerrada com 2 de 10 ponto(s) restante(s) — gráfico congelado.')
     ).toBeInTheDocument();
-    // O corte congelado se chama "fim", não "hoje": a sprint não envelhece.
     expect(screen.getByText('fim')).toBeInTheDocument();
     expect(screen.queryByText('hoje')).not.toBeInTheDocument();
   });

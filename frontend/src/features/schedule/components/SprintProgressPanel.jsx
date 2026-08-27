@@ -1,8 +1,5 @@
 import { formatDateTime } from './schedule-display.js';
 
-// Evolucao da sprint (RF35). "Sem dados" e "zero" sao estados distintos: a API
-// devolve percentage null quando nao ha tarefa para medir, e exibir 0% ali diria
-// que nada foi concluido — o que e diferente de nao haver o que concluir.
 function Medida({ titulo, metrica, descricao }) {
   return (
     <div className="sprint-progress-metric">
@@ -36,8 +33,6 @@ export function SprintProgressPanel({ sprint, progress, loading = false, onClose
   if (!progress) return null;
 
   const aberta = progress.baseline.kind === 'OPEN';
-  // Sprint encerrada devolve um registro, nao uma medida do momento: os rótulos
-  // precisam falar no passado, senão a tela afirma "agora" sobre algo congelado.
   const congelada = progress.frozen === true;
   const { added, removed } = progress.scopeChange;
   const carryOver = progress.carryOver || [];
@@ -83,8 +78,6 @@ export function SprintProgressPanel({ sprint, progress, loading = false, onClose
       {!aberta && (added.length > 0 || removed.length > 0) && (
         <div className="sprint-progress-scope">
           <h4>Mudanças depois do planejamento</h4>
-          {/* Frase em um único nó de texto: quebrá-la em vários elementos faz o
-              leitor de tela anunciar pedaços soltos. */}
           {added.length > 0 && (
             <p>
               {`${added.length} ${added.length === 1 ? 'tarefa entrou' : 'tarefas entraram'} na sprint: ${added
