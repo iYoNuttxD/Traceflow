@@ -3,6 +3,8 @@ import {
   INICIAIS_SEMANA,
   buildEvents,
   buildMonthGrid,
+  calendarBounds,
+  clampMonth,
   eventsForDay,
   longDayLabel,
   monthLabel,
@@ -46,18 +48,39 @@ export function ScheduleCalendar({ schedule, milestoneNames = {}, hoje = new Dat
     [schedule]
   );
   const milestones = useMemo(() => schedule?.milestones || [], [schedule]);
+
+  // Navegação presa ao que a grade pinta — faixas de sprint e prazos de marco
+  // do MESMO agregado, então o filtro de período re-limita junto. Sem nada
+  // pintado, o calendário descansa no mês de hoje, travado: não há cronograma
+  // para navegar. O fallback deriva do hojeIso (string estável); a prop `hoje`
+  // é um Date novo a cada render e estouraria o memo.
+  const limites = useMemo(() => {
+    const pintado = calendarBounds({ sprints, milestones });
+    if (pintado) return pintado;
+    const [anoDeHoje, mesDeHoje] = hojeIso.split('-').map(Number);
+    const mesCorrente = { ano: anoDeHoje, mes: mesDeHoje - 1 };
+    return { min: mesCorrente, max: mesCorrente };
+  }, [sprints, milestones, hojeIso]);
+
+  // A vista nunca sai do intervalo, venha o desvio de onde vier: hoje fora do
+  // cronograma (a vista gruda no limite mais próximo) ou filtro que acabou de
+  // encolher o agregado sob um mês que deixou de existir.
+  const mesExibido = clampMonth(limites, { ano, mes });
+  const noInicio = mesExibido.ano === limites.min.ano && mesExibido.mes === limites.min.mes;
+  const noFim = mesExibido.ano === limites.max.ano && mesExibido.mes === limites.max.mes;
+
   const cores = useMemo(() => sprintColors(sprints), [sprints]);
   const celulas = useMemo(
     () =>
       buildMonthGrid({
-        ano,
-        mes,
+        ano: mesExibido.ano,
+        mes: mesExibido.mes,
         sprints,
         milestones,
         hojeIso,
         selecionadoIso: selecionado
       }),
-    [ano, mes, sprints, milestones, hojeIso, selecionado]
+    [mesExibido.ano, mesExibido.mes, sprints, milestones, hojeIso, selecionado]
   );
   const eventos = useMemo(
     () => buildEvents({ sprints, milestones, milestoneNames, hojeIso }),
@@ -72,10 +95,12 @@ export function ScheduleCalendar({ schedule, milestoneNames = {}, hoje = new Dat
 
   // Clicar num dia de outro mês leva o calendário até lá: sem isso a seleção
   // sairia da vista e o painel abaixo falaria de um dia que a grade não mostra.
+  // Num dia cinza na borda de um mês-limite, a seleção vale (o dia está
+  // visível na grade), mas a vista não atravessa o limite atrás dele.
   const escolherDia = (iso) => {
     const [novoAno, novoMes] = iso.split('-').map(Number);
     setSelecionado(iso);
-    setMesVisivel({ ano: novoAno, mes: novoMes - 1 });
+    setMesVisivel(clampMonth(limites, { ano: novoAno, mes: novoMes - 1 }));
   };
 
   return (
@@ -86,13 +111,22 @@ export function ScheduleCalendar({ schedule, milestoneNames = {}, hoje = new Dat
         </div>
 
         <div className="calendar-month">
-          <strong>{monthLabel(ano, mes)}</strong>
+          <strong>{monthLabel(mesExibido.ano, mesExibido.mes)}</strong>
+          {/* aria-disabled em vez de disabled nativo, de propósito: quem chega
+              ao limite clicando está com o foco na seta, e desabilitar de
+              verdade nesse instante o derrubaria para o body. O handler é quem
+              ignora o clique no limite; o title diz por que ele não faz nada. */}
           <div className="calendar-nav">
             <button
               type="button"
               className="calendar-nav-button"
               aria-label="Mês anterior"
-              onClick={() => setMesVisivel(previousMonth(ano, mes))}
+              aria-disabled={noInicio}
+              title={noInicio ? 'O cronograma exibido começa neste mês.' : undefined}
+              onClick={() => {
+                if (noInicio) return;
+                setMesVisivel(previousMonth(mesExibido.ano, mesExibido.mes));
+              }}
             >
               ▲
             </button>
@@ -100,7 +134,12 @@ export function ScheduleCalendar({ schedule, milestoneNames = {}, hoje = new Dat
               type="button"
               className="calendar-nav-button"
               aria-label="Próximo mês"
-              onClick={() => setMesVisivel(nextMonth(ano, mes))}
+              aria-disabled={noFim}
+              title={noFim ? 'O cronograma exibido termina neste mês.' : undefined}
+              onClick={() => {
+                if (noFim) return;
+                setMesVisivel(nextMonth(mesExibido.ano, mesExibido.mes));
+              }}
             >
               ▼
             </button>
@@ -118,7 +157,11 @@ export function ScheduleCalendar({ schedule, milestoneNames = {}, hoje = new Dat
         {/* Cada dia é um botão nomeado pela data por extenso: a grade visual é
             atalho, não o único caminho. Quem navega por leitor de tela ouve
             "sexta-feira, 21 de agosto — Sprint 4" e não uma matriz de números. */}
-        <div className="calendar-grid" role="group" aria-label={`Dias de ${monthLabel(ano, mes)}`}>
+        <div
+          className="calendar-grid"
+          role="group"
+          aria-label={`Dias de ${monthLabel(mesExibido.ano, mesExibido.mes)}`}
+        >
           {celulas.map((celula) => {
             const cor = celula.sprintId ? cores[celula.sprintId] : null;
             const canto = celula.sprintId

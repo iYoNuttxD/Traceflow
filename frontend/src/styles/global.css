@@ -2850,6 +2850,21 @@ a {
   background: #f7f9fc;
 }
 
+/* Seta no limite do cronograma: apagada e inerte, mas ainda focável — o
+   aria-disabled preserva o foco de quem chegou ao limite navegando por
+   teclado; é o handler que ignora o clique. */
+.calendar-nav-button[aria-disabled='true'] {
+  border-color: #eef1f6;
+  background: #f8fafc;
+  color: #98a2b3;
+  cursor: not-allowed;
+}
+
+.calendar-nav-button[aria-disabled='true']:hover {
+  border-color: #eef1f6;
+  background: #f8fafc;
+}
+
 .calendar-weekdays,
 .calendar-grid {
   display: grid;

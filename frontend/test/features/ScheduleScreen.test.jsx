@@ -172,6 +172,51 @@ describe('grade do mes', () => {
   });
 });
 
+describe('limites do calendario', () => {
+  it('vao do primeiro ao ultimo dia pintado, entre sprints e marcos', () => {
+    expect(
+      calendario.calendarBounds({
+        sprints: [sprint()],
+        milestones: [marco({ dueDate: '2026-10-05T00:00:00' })]
+      })
+    ).toEqual({ min: { ano: 2026, mes: 7 }, max: { ano: 2026, mes: 9 } });
+  });
+
+  it('sem nada pintado devolvem null', () => {
+    expect(calendario.calendarBounds({ sprints: [], milestones: [] })).toBeNull();
+  });
+
+  // O limite usa a mesma janela da faixa: fim a meia-noite recua um dia, entao
+  // uma sprint que termina em 01/09 00:00 nao poe setembro no intervalo.
+  it('usam a janela pintada da sprint, nao a data crua do fim', () => {
+    expect(
+      calendario.calendarBounds({
+        sprints: [sprint({ endDate: '2026-09-01T00:00:00' })],
+        milestones: []
+      })
+    ).toEqual({ min: { ano: 2026, mes: 7 }, max: { ano: 2026, mes: 7 } });
+  });
+
+  it('clampMonth prende abaixo, prende acima e deixa passar por dentro', () => {
+    const limites = { min: { ano: 2026, mes: 7 }, max: { ano: 2026, mes: 9 } };
+    expect(calendario.clampMonth(limites, { ano: 2026, mes: 5 })).toEqual({ ano: 2026, mes: 7 });
+    expect(calendario.clampMonth(limites, { ano: 2027, mes: 0 })).toEqual({ ano: 2026, mes: 9 });
+    expect(calendario.clampMonth(limites, { ano: 2026, mes: 8 })).toEqual({ ano: 2026, mes: 8 });
+    expect(calendario.clampMonth(null, { ano: 2030, mes: 3 })).toEqual({ ano: 2030, mes: 3 });
+  });
+
+  // Dezembro/2026 vem antes de janeiro/2027: a comparacao e por ano e mes
+  // juntos, nao por mes solto.
+  it('comparam ano e mes juntos na virada de ano', () => {
+    const limites = { min: { ano: 2026, mes: 11 }, max: { ano: 2027, mes: 1 } };
+    expect(calendario.clampMonth(limites, { ano: 2027, mes: 0 })).toEqual({ ano: 2027, mes: 0 });
+    expect(calendario.clampMonth(limites, { ano: 2026, mes: 10 })).toEqual({
+      ano: 2026,
+      mes: 11
+    });
+  });
+});
+
 describe('eventos', () => {
   const eventos = () =>
     calendario.buildEvents({
@@ -247,17 +292,102 @@ describe('cartoes de agora', () => {
 });
 
 describe('interacao do calendario', () => {
-  it('navega entre meses', async () => {
+  // Navegacao presa ao intervalo pintado (terceira iteracao do design,
+  // docs/issues/RF10_PROMPT_UI_CALENDARIO_E_LAYOUT.md): dentro dele as setas
+  // funcionam; nos extremos ficam aria-disabled e o clique e no-op. Antes este
+  // teste navegava sobre agregado vazio — a grade vazia infinita que a mudanca
+  // eliminou.
+  it('navega entre meses dentro do intervalo do cronograma', async () => {
     const user = userEvent.setup();
-    renderCalendar();
+    renderCalendar({
+      schedule: {
+        ...emptySchedule,
+        sprints: [sprint()],
+        milestones: [marco({ dueDate: '2026-09-20T00:00:00' })]
+      }
+    });
     expect(screen.getByText('agosto de 2026')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Próximo mês' }));
+    const anterior = screen.getByRole('button', { name: 'Mês anterior' });
+    const proximo = screen.getByRole('button', { name: 'Próximo mês' });
+    expect(anterior).toHaveAttribute('aria-disabled', 'true');
+    expect(proximo).toHaveAttribute('aria-disabled', 'false');
+
+    await user.click(proximo);
+    expect(screen.getByText('setembro de 2026')).toBeInTheDocument();
+    expect(proximo).toHaveAttribute('aria-disabled', 'true');
+
+    // Clique na seta do limite e no-op: o mes nao muda.
+    await user.click(proximo);
     expect(screen.getByText('setembro de 2026')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Mês anterior' }));
-    await user.click(screen.getByRole('button', { name: 'Mês anterior' }));
-    expect(screen.getByText('julho de 2026')).toBeInTheDocument();
+    await user.click(anterior);
+    expect(screen.getByText('agosto de 2026')).toBeInTheDocument();
+    await user.click(anterior);
+    expect(screen.getByText('agosto de 2026')).toBeInTheDocument();
+  });
+
+  // Sem nada pintado nao ha cronograma para navegar: o calendario descansa no
+  // mes de hoje com as duas setas travadas.
+  it('agregado vazio trava a navegacao no mes corrente', () => {
+    renderCalendar();
+    expect(screen.getByText('agosto de 2026')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Mês anterior' })).toHaveAttribute(
+      'aria-disabled',
+      'true'
+    );
+    expect(screen.getByRole('button', { name: 'Próximo mês' })).toHaveAttribute(
+      'aria-disabled',
+      'true'
+    );
+  });
+
+  // Cancelada saiu do calendario inteiro — tambem nao estica o intervalo
+  // navegavel ate um periodo que a grade nao pinta.
+  it('sprint cancelada nao estende o intervalo navegavel', () => {
+    renderCalendar({
+      schedule: {
+        ...emptySchedule,
+        sprints: [
+          sprint(),
+          sprint({
+            id: 2,
+            name: 'Cancelada',
+            startDate: '2026-12-01T00:00:00',
+            endDate: '2026-12-10T00:00:00',
+            status: 'CANCELADA'
+          })
+        ]
+      }
+    });
+    expect(screen.getByRole('button', { name: 'Próximo mês' })).toHaveAttribute(
+      'aria-disabled',
+      'true'
+    );
+  });
+
+  // Janela semiaberta: fim a meia-noite do dia 1o pinta so ate 31/08, entao
+  // setembro nao entra no intervalo.
+  it('fim a meia-noite nao desbloqueia o mes seguinte', () => {
+    renderCalendar({
+      schedule: { ...emptySchedule, sprints: [sprint({ endDate: '2026-09-01T00:00:00' })] }
+    });
+    expect(screen.getByRole('button', { name: 'Próximo mês' })).toHaveAttribute(
+      'aria-disabled',
+      'true'
+    );
+  });
+
+  // Projeto todo no passado (ou no futuro): abrir num mes corrente vazio
+  // esconderia o cronograma. A vista gruda no limite mais proximo; o dia
+  // selecionado continua sendo hoje e o painel do dia segue verdadeiro.
+  it('hoje fora do intervalo abre no limite mais proximo', () => {
+    renderCalendar({
+      schedule: { ...emptySchedule, sprints: [sprint()] },
+      hoje: new Date(2027, 0, 15, 12)
+    });
+    expect(screen.getByText('agosto de 2026')).toBeInTheDocument();
+    expect(screen.getByText('Agenda de sexta-feira, 15 de janeiro')).toBeInTheDocument();
   });
 
   // A grade e atalho visual, nao o unico caminho: cada dia e um botao nomeado
@@ -292,12 +422,48 @@ describe('interacao do calendario', () => {
 
   // Clicar num dia de outro mes leva o calendario ate la: sem isso a selecao
   // sairia da vista e o painel falaria de um dia que a grade nao mostra.
-  it('selecionar dia de outro mes navega para o mes dele', async () => {
+  it('selecionar dia de outro mes navega para o mes dele dentro do intervalo', async () => {
     const user = userEvent.setup();
-    renderCalendar();
+    renderCalendar({
+      schedule: {
+        ...emptySchedule,
+        sprints: [sprint()],
+        milestones: [marco({ dueDate: '2026-09-20T00:00:00' })]
+      }
+    });
 
     await user.click(screen.getByRole('button', { name: /quarta-feira, 2 de setembro/ }));
     expect(screen.getByText('setembro de 2026')).toBeInTheDocument();
+  });
+
+  // Dia cinza na borda de um mes-limite: a selecao vale — o dia esta visivel
+  // na grade —, mas a vista nao atravessa o limite atras dele.
+  it('dia cinza alem do limite seleciona sem mover a vista', async () => {
+    const user = userEvent.setup();
+    renderCalendar({ schedule: { ...emptySchedule, sprints: [sprint()] } });
+
+    await user.click(screen.getByRole('button', { name: /quarta-feira, 2 de setembro/ }));
+    expect(screen.getByText('Agenda de quarta-feira, 2 de setembro')).toBeInTheDocument();
+    expect(screen.getByText('agosto de 2026')).toBeInTheDocument();
+  });
+
+  // O prazo de marco e livre (ADR-011 D03) e pode cair fora de toda janela de
+  // sprint; o ponto pintado precisa ser alcancavel.
+  it('prazo de marco fora das sprints estende o intervalo', async () => {
+    const user = userEvent.setup();
+    renderCalendar({
+      schedule: {
+        ...emptySchedule,
+        sprints: [sprint()],
+        milestones: [marco({ dueDate: '2026-10-05T00:00:00' })]
+      }
+    });
+
+    const proximo = screen.getByRole('button', { name: 'Próximo mês' });
+    await user.click(proximo);
+    await user.click(proximo);
+    expect(screen.getByText('outubro de 2026')).toBeInTheDocument();
+    expect(proximo).toHaveAttribute('aria-disabled', 'true');
   });
 
   // A cor sozinha nao identifica a sprint: a legenda nomeia cada faixa com o

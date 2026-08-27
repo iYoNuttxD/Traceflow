@@ -283,3 +283,50 @@ export function previousMonth(ano, mes) {
 export function nextMonth(ano, mes) {
   return mes === 11 ? { ano: ano + 1, mes: 0 } : { ano, mes: mes + 1 };
 }
+
+// Mês (0-based, o vocabulário de previousMonth/nextMonth) do dia ISO.
+const monthOfDay = (iso) => {
+  const [ano, mes] = iso.split('-').map(Number);
+  return { ano, mes: mes - 1 };
+};
+
+// Meses navegáveis do calendário: do mês do primeiro dia pintado ao mês do
+// último. Pintado é o que a grade desenha — faixa de sprint (a janela de
+// sprintDayRange, a mesma que resolve o fim à meia-noite) e prazo de marco; o
+// prazo entra porque ele é livre (ADR-011 D03) e pode cair fora de toda janela
+// de sprint — um ponto pintado num mês inalcançável seria informação que a
+// tela afirma ter e não deixa ver.
+//
+// A função não filtra status: opera sobre o que recebe. Quem exclui a
+// CANCELADA é o chamador, que já faz isso para pintar — uma regra, um dono.
+// Devolve null quando não há nada pintado: quem chama decide o mês de descanso.
+export function calendarBounds({ sprints = [], milestones = [] }) {
+  const dias = [];
+  for (const sprint of sprints) {
+    const { inicio, fim } = sprintDayRange(sprint);
+    if (inicio) dias.push(inicio, fim);
+  }
+  for (const milestone of milestones) {
+    const dia = toIsoDay(milestone.dueDate);
+    if (dia) dias.push(dia);
+  }
+  if (!dias.length) return null;
+  let menor = dias[0];
+  let maior = dias[0];
+  for (const dia of dias) {
+    if (dia < menor) menor = dia;
+    if (dia > maior) maior = dia;
+  }
+  return { min: monthOfDay(menor), max: monthOfDay(maior) };
+}
+
+// Prende um {ano, mes} ao intervalo navegável. A comparação é por índice
+// absoluto de mês — ano e mês juntos, senão dezembro/2026 pareceria depois de
+// janeiro/2027. Sem limites (null), devolve como veio.
+export function clampMonth(limites, { ano, mes }) {
+  if (!limites) return { ano, mes };
+  const indice = ano * 12 + mes;
+  if (indice < limites.min.ano * 12 + limites.min.mes) return { ...limites.min };
+  if (indice > limites.max.ano * 12 + limites.max.mes) return { ...limites.max };
+  return { ano, mes };
+}
