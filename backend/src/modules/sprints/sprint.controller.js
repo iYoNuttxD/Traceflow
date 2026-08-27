@@ -1,5 +1,3 @@
-// Controller do modulo de sprints. Apenas extrai entrada ja validada,
-// chama o service e formata a resposta HTTP.
 import { asyncHandler } from '../../shared/http/index.js';
 import { sprintService } from './sprint.service.js';
 
@@ -11,10 +9,6 @@ const actorContext = (req) => ({
   requestId: req.requestId
 });
 
-// A transicao pode ter tres efeitos, e quem clicou precisa saber de todos: a
-// sprint mudou de estado, tarefas voltaram ao backlog (ADR-011 D07) e o marco
-// pode ter sido concluido automaticamente (D05). Silenciar os dois ultimos faria
-// a tela mudar sozinha em lugares que ninguem tocou.
 function statusMessage(sprint, returnedToBacklog, milestoneCompleted) {
   const partes = ['Status da sprint atualizado com sucesso.'];
   if (returnedToBacklog > 0) {
@@ -74,9 +68,6 @@ export const sprintController = {
       return res.json({
         message: statusMessage(sprint, returnedToBacklog, milestoneCompleted),
         sprint,
-        // Efeitos colaterais explicitos no corpo, e nao apenas embutidos na
-        // frase: a interface precisa reagir a eles (recarregar o quadro, marcar o
-        // marco) sem interpretar texto.
         returnedToBacklog,
         milestoneCompleted
       });
@@ -84,9 +75,6 @@ export const sprintController = {
     { fallbackMessage: sprintFallback }
   ),
 
-  // A rota continua registrada de proposito: removida, ela devolveria 404, que
-  // se confunde com "sprint nao existe". O service recusa antes de qualquer
-  // leitura ou mutacao (ADR-010 D06/D13).
   delete: asyncHandler(
     async () => {
       await sprintService.deleteSprint();

@@ -1,5 +1,3 @@
-// RF10: contratos, autorizacao, isolamento entre projetos, atomicidade e auditoria
-// de sprints, marcos e cronograma.
 import request from 'supertest';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -37,8 +35,6 @@ async function register(email, name = 'Pessoa artificial') {
   };
 }
 
-// POST /api/projects exige os campos de repositorio; o slug deriva do nome
-// para nao violar a unicidade de githubRepositoryFullName entre projetos.
 function projectBody(name) {
   const slug = name.toLowerCase().replace(/\s+/g, '-');
   return {
@@ -55,8 +51,6 @@ async function createProject(session, name = 'Projeto') {
   return response.body.project;
 }
 
-// A sprint exige marco (ADR-011 D02). Quem já tem um marco no teste passa o id;
-// os demais recebem o seu, sem precisar declarar o cronograma inteiro.
 async function createSprint(session, projectId, overrides = {}) {
   const milestoneId =
     overrides.milestoneId ?? (await createMilestone(session, projectId)).body.milestone.id;
@@ -71,8 +65,6 @@ async function createSprint(session, projectId, overrides = {}) {
   return response;
 }
 
-// O marco agrupa sprints e tem prazo proprio: nao ha sprint no corpo, nem janela
-// a respeitar (ADR-011 D01/D03).
 async function createMilestone(session, projectId, overrides = {}) {
   return session
     .mutate('post', `/api/projects/${projectId}/milestones`)
@@ -141,8 +133,6 @@ describe('contratos de sprint', () => {
     const owner = await register('sprint-dup@example.invalid');
     const project = await createProject(owner);
     await createSprint(owner, project.id);
-    // Janela seguinte, e nao a mesma: com sprints sequenciais, repetir o periodo
-    // falharia por sobreposicao antes de chegar na regra de nome.
     const conflict = await createSprint(owner, project.id, {
       startDate: '2026-09-01',
       endDate: '2026-09-14'
@@ -189,8 +179,6 @@ describe('contratos de sprint', () => {
     expect(locked.body.code).toBe('SPRINT_LOCKED');
   });
 
-  // Sprint nao e excluida em nenhum estado: o cronograma e registro historico do
-  // projeto. A rota segue existindo para o 405 nao virar um 404 ambiguo.
   it('recusa exclusao de sprint com e sem tarefas', async () => {
     const owner = await register('sprint-has-tasks@example.invalid');
     const project = await createProject(owner);
@@ -208,7 +196,6 @@ describe('contratos de sprint', () => {
     expect(await prisma.sprint.count()).toBe(1);
   });
 
-  // Sprints do mesmo projeto sao sequenciais.
   it('recusa sprint sobreposta e aceita a que emenda na anterior', async () => {
     const owner = await register('sprint-overlap@example.invalid');
     const project = await createProject(owner);
@@ -222,7 +209,6 @@ describe('contratos de sprint', () => {
     expect(sobreposta.status).toBe(409);
     expect(sobreposta.body.code).toBe('SPRINT_OVERLAP');
 
-    // Comecar no instante em que a anterior termina e emenda, nao cruzamento.
     const emenda = await createSprint(owner, project.id, {
       name: 'Sprint 2',
       startDate: '2026-08-14',
@@ -231,9 +217,6 @@ describe('contratos de sprint', () => {
     expect(emenda.status).toBe(201);
   });
 
-  // "Consultar e depois inserir" nao e validacao: sem o lock, duas criacoes
-  // simultaneas leem o mesmo conjunto e ambas passam. Este teste falha se o
-  // FOR UPDATE sair do caminho de criacao.
   it('serializa criacoes concorrentes de sprints sobrepostas', async () => {
     const owner = await register('sprint-race-create@example.invalid');
     const project = await createProject(owner);
@@ -255,9 +238,6 @@ describe('contratos de sprint', () => {
     expect(await prisma.sprint.count({ where: { projectId: project.id } })).toBe(1);
   });
 
-  // Substituicao concorrente: o delta de cada requisicao e calculado sob o lock,
-  // entao o estado final e o payload de um dos dois — nunca a uniao dos dois nem
-  // uma composicao que nenhum cliente pediu.
   it('serializa substituicoes concorrentes do escopo', async () => {
     const owner = await register('sprint-race-scope@example.invalid');
     const project = await createProject(owner);
@@ -275,7 +255,6 @@ describe('contratos de sprint', () => {
     );
     expect([[a.id], [b.id]]).toContainEqual(finais);
 
-    // A participacao ativa acompanha o ponteiro: uma dentro, a outra fechada.
     const ativas = await prisma.sprintTask.findMany({
       where: { sprintId, removedAt: null },
       select: { taskId: true }
@@ -283,8 +262,6 @@ describe('contratos de sprint', () => {
     expect(ativas.map((participacao) => participacao.taskId)).toEqual(finais);
   });
 
-  // O defeito que este teste fixa: a API aceitava um instante, gravava a
-  // meia-noite UTC e devolvia um dia diferente do informado.
   it('preserva hora, minuto e fuso da janela da sprint', async () => {
     const owner = await register('sprint-instant@example.invalid');
     const project = await createProject(owner);
@@ -297,13 +274,10 @@ describe('contratos de sprint', () => {
     expect(criada.body.sprint.startDate).toBe('2026-08-01T12:30:00.000Z');
     expect(criada.body.sprint.endDate).toBe('2026-08-14T21:00:00.000Z');
 
-    // A leitura devolve o mesmo instante: nada e reinterpretado no caminho.
     const lida = await owner.agent.get(`/api/sprints/${criada.body.sprint.id}`);
     expect(lida.body.sprint.startDate).toBe('2026-08-01T12:30:00.000Z');
   });
 
-  // 2026-08-14T23:59:59-03:00 e 2026-08-15T02:59:59Z. Truncar no dia UTC movia o
-  // prazo para 15/08 00:00 e mudava o dia que o usuario tinha escolhido.
   it('nao desloca o dia de um prazo perto da meia-noite local', async () => {
     const owner = await register('sprint-midnight@example.invalid');
     const project = await createProject(owner);
@@ -331,8 +305,6 @@ describe('contratos de sprint', () => {
     expect(response.body.code).toBe('SPRINT_OVERLAP');
   });
 
-  // O prazo do marco deixou de depender da janela (ADR-011 D03): um marco que
-  // atravessa tres sprints nao tem uma janela para caber dentro.
   it('encolher a janela nao esbarra em marco nenhum', async () => {
     const owner = await register('sprint-window-milestone@example.invalid');
     const project = await createProject(owner);
@@ -380,8 +352,6 @@ describe('contratos de sprint', () => {
     expect(response.status).toBe(400);
   });
 
-  // Editar apenas o fim precisa continuar valendo contra o inicio PERSISTIDO, e
-  // nao contra o que a requisicao supoe que ele seja.
   it('recusa fim anterior ao inicio persistido numa atualizacao parcial', async () => {
     const owner = await register('sprint-partial-window@example.invalid');
     const project = await createProject(owner);
@@ -424,8 +394,6 @@ describe('contratos de marco', () => {
     expect(await prisma.milestone.count()).toBe(0);
   });
 
-  // A FK e SetNull (ADR-011 D01): sem esta recusa, a exclusao passaria e as
-  // sprints perderiam o agrupamento em silencio.
   it('recusa excluir marco com sprints e diz quantas', async () => {
     const owner = await register('milestone-in-use@example.invalid');
     const project = await createProject(owner);
@@ -439,8 +407,6 @@ describe('contratos de marco', () => {
     expect(await prisma.milestone.count()).toBe(1);
   });
 
-  // O marco nao aceita mais `sprintId`: o objeto e estrito, entao um cliente
-  // antigo recebe 400 em vez de ter o vinculo descartado em silencio.
   it('recusa sprintId no corpo do marco', async () => {
     const owner = await register('milestone-legacy-body@example.invalid');
     const project = await createProject(owner);
@@ -476,7 +442,6 @@ describe('ciclo da sprint (ADR-011)', () => {
     expect(bloqueada.status).toBe(409);
     expect(bloqueada.body.code).toBe('SPRINT_ALREADY_ACTIVE');
 
-    // Concluida a primeira, a segunda destrava.
     expect((await concluir(owner, primeira)).status).toBe(200);
     expect((await iniciar(owner, segunda)).status).toBe(200);
   });
@@ -494,7 +459,6 @@ describe('ciclo da sprint (ADR-011)', () => {
     expect(response.body.returnedToBacklog).toBe(1);
     expect(response.body.message).toContain('backlog');
     expect((await prisma.task.findUnique({ where: { id: pendente.id } })).sprintId).toBeNull();
-    // A participacao continua registrando o periodo, congelada.
     const participacao = await prisma.sprintTask.findFirst({ where: { sprintId } });
     expect(participacao.closedAt).not.toBeNull();
     expect(participacao.exitStatus).toBe('A_FAZER');
@@ -550,7 +514,6 @@ describe('ciclo da sprint (ADR-011)', () => {
     const response = await owner.agent.get(`/api/sprints/${sprintId}/progress`);
     expect(response.status).toBe(200);
     expect(response.body.burndown).toMatchObject({ hasData: true, totalPoints: 5 });
-    // Janela [01/08, 14/08): 13 dias de calendario.
     expect(response.body.burndown.days).toHaveLength(13);
     expect(response.body.burndown.days[0].ideal).toBe(5);
     expect(response.body.burndown.days[12].ideal).toBe(0);
@@ -569,7 +532,6 @@ describe('associacao tarefa <-> sprint', () => {
     expect(linked.body.task.sprintId).toBe(sprintId);
     expect(await prisma.taskHistoryEntry.count({ where: { field: 'SPRINT' } })).toBe(1);
 
-    // Idempotente: repetir nao gera novo historico.
     await owner.mutate('patch', `/api/tasks/${task.id}/sprint`).send({ sprintId });
     expect(await prisma.taskHistoryEntry.count({ where: { field: 'SPRINT' } })).toBe(1);
 
@@ -577,14 +539,10 @@ describe('associacao tarefa <-> sprint', () => {
     expect(unlinked.body.task.sprintId).toBeNull();
     expect(await prisma.taskHistoryEntry.count({ where: { field: 'SPRINT' } })).toBe(2);
 
-    // Idempotente na remocao tambem.
     await owner.mutate('delete', `/api/tasks/${task.id}/sprint`).send();
     expect(await prisma.taskHistoryEntry.count({ where: { field: 'SPRINT' } })).toBe(2);
   });
 
-  // O mesmo ator e dono dos DOIS projetos, entao enxerga ambos: aqui o erro informativo
-  // e correto e nao vaza nada. Quando o ator nao enxerga o outro projeto a resposta vira
-  // 404 indistinguivel — ver os testes de oraculo no bloco de isolamento.
   it('rejeita tarefa e sprint de projetos diferentes', async () => {
     const owner = await register('cross-project@example.invalid');
     const projectA = await createProject(owner, 'Projeto A');
@@ -597,10 +555,6 @@ describe('associacao tarefa <-> sprint', () => {
     expect(response.body.code).toBe('TASK_SPRINT_PROJECT_MISMATCH');
   });
 
-  // Nascido do impasse encontrado em uso real (sprint concluida com tarefa
-  // "presa"), o cenario inverteu de sentido com o ADR-010 D04/D06: hoje ele
-  // prova que a exclusao responde 405 e o esvaziamento 409 — a participacao
-  // da sprint encerrada e registro historico e nao se apaga.
   it('recusa esvaziar e excluir a sprint concluida, preservando a participacao', async () => {
     const owner = await register('terminal-escape@example.invalid');
     const project = await createProject(owner);
@@ -614,8 +568,6 @@ describe('associacao tarefa <-> sprint', () => {
     const blocked = await owner.mutate('delete', `/api/sprints/${sprintId}`).send();
     expect(blocked.status).toBe(405);
 
-    // Esvaziar tambem e recusado: a composicao da sprint encerrada e o registro
-    // do periodo, e apaga-la destruiria o que o RF35 mede.
     const emptied = await owner
       .mutate('put', `/api/sprints/${sprintId}/tasks`)
       .send({ taskIds: [] });
@@ -623,9 +575,6 @@ describe('associacao tarefa <-> sprint', () => {
     expect(emptied.body.code).toBe('SPRINT_SCOPE_LOCKED');
     expect(await prisma.sprint.count()).toBe(1);
 
-    // A tarefa nao estava concluida, entao o encerramento a devolveu ao backlog
-    // (ADR-011 D07). Sao coisas diferentes: o PONTEIRO saiu, a PARTICIPACAO
-    // ficou — e e ela que o 409 acima protege.
     expect(await prisma.task.count({ where: { sprintId } })).toBe(0);
     const participacao = await prisma.sprintTask.findFirst({ where: { sprintId } });
     expect(participacao).not.toBeNull();
@@ -633,8 +582,6 @@ describe('associacao tarefa <-> sprint', () => {
     expect(participacao.exitStatus).toBe('A_FAZER');
   });
 
-  // A tarefa CONCLUIDA nao volta ao backlog: ela terminou ali, e o ponteiro
-  // registra isso. Desassocia-la depois reescreveria o resultado do periodo.
   it('bloqueia desassociar pelo lado da tarefa que ficou na sprint terminal', async () => {
     const owner = await register('terminal-unlink@example.invalid');
     const project = await createProject(owner);
@@ -650,8 +597,6 @@ describe('associacao tarefa <-> sprint', () => {
     expect((await prisma.task.findUnique({ where: { id: task.id } })).sprintId).toBe(sprintId);
   });
 
-  // A que voltou ao backlog ja nao esta em sprint nenhuma: desassociar e um
-  // pedido sem efeito, e responder 409 afirmaria um vinculo que nao existe.
   it('desassociar a tarefa devolvida ao backlog e no-op idempotente', async () => {
     const owner = await register('terminal-unlink-backlog@example.invalid');
     const project = await createProject(owner);
@@ -663,7 +608,6 @@ describe('associacao tarefa <-> sprint', () => {
     const unlinked = await owner.mutate('delete', `/api/tasks/${task.id}/sprint`).send();
     expect(unlinked.status).toBe(200);
     expect(unlinked.body.task.sprintId).toBeNull();
-    // Nenhum historico novo: o pedido nao mudou nada.
     const historico = await prisma.taskHistoryEntry.count({
       where: { taskId: task.id, field: 'SPRINT' }
     });
@@ -711,13 +655,9 @@ describe('associacao tarefa <-> sprint', () => {
     expect(await prisma.taskHistoryEntry.count({ where: { field: 'SPRINT' } })).toBe(2);
   });
 
-  // Regressao: a interface lista todas as tarefas do projeto, inclusive as ja
-  // alocadas em outra sprint, entao a troca A -> B e alcancavel pelo usuario.
-  // Os dois caminhos de associacao precisam gravar a mesma origem.
   it('preserva a sprint de origem no historico ao mover tarefa entre sprints', async () => {
     const owner = await register('sprint-move@example.invalid');
     const project = await createProject(owner);
-    // Sprints sequenciais: a segunda comeca quando a primeira termina.
     const origin = (await createSprint(owner, project.id, { name: 'Sprint origem' })).body.sprint;
     const target = (
       await createSprint(owner, project.id, {
@@ -733,13 +673,11 @@ describe('associacao tarefa <-> sprint', () => {
       .mutate('put', `/api/sprints/${origin.id}/tasks`)
       .send({ taskIds: [byTheSprint.id, byTheTask.id] });
 
-    // Caminho 1: mover pelo lado da sprint de destino.
     const moved = await owner
       .mutate('put', `/api/sprints/${target.id}/tasks`)
       .send({ taskIds: [byTheSprint.id] });
     expect(moved.status).toBe(200);
 
-    // Caminho 2: mover pelo lado da tarefa.
     await owner.mutate('patch', `/api/tasks/${byTheTask.id}/sprint`).send({ sprintId: target.id });
 
     const entries = await prisma.taskHistoryEntry.findMany({
@@ -792,8 +730,6 @@ describe('cronograma', () => {
   it('apresenta sprints, tarefas, prazos, marcos e tarefas sem sprint', async () => {
     const owner = await register('schedule@example.invalid');
     const project = await createProject(owner);
-    // O marco vem primeiro e e reaproveitado pela sprint: deixar `createSprint`
-    // criar o seu daria dois marcos e quebraria o `toHaveLength(1)` abaixo.
     const milestoneId = (await createMilestone(owner, project.id)).body.milestone.id;
     const sprintId = (await createSprint(owner, project.id, { milestoneId })).body.sprint.id;
     const inside = await createTask(owner, project.id, 'Dentro');
@@ -804,9 +740,7 @@ describe('cronograma', () => {
     expect(response.status).toBe(200);
     expect(response.body.projectId).toBe(project.id);
     expect(response.body.sprints).toHaveLength(1);
-    // Janela semiaberta: 01/08 00:00 a 14/08 00:00 sao 13 dias.
     expect(response.body.sprints[0]).toMatchObject({ durationInDays: 13, taskCount: 1 });
-    // O contrato devolve instantes, nao dias truncados.
     expect(response.body.sprints[0].startDate).toBe('2026-08-01T00:00:00.000Z');
     expect(response.body.sprints[0].endDate).toBe('2026-08-14T00:00:00.000Z');
     expect(response.body.milestones).toHaveLength(1);
@@ -865,14 +799,11 @@ describe('evolucao da sprint (RF35)', () => {
     const a = await createTask(owner, project.id, 'Planejada e concluida');
     const b = await createTask(owner, project.id, 'Planejada e removida');
 
-    // Escopo do planejamento, antes de iniciar a sprint.
     await owner.mutate('patch', `/api/tasks/${a.id}/sprint`).send({ sprintId });
     await owner.mutate('patch', `/api/tasks/${b.id}/sprint`).send({ sprintId });
 
-    // Iniciar grava startedAt: e este instante que fecha o planejamento.
     await owner.mutate('patch', `/api/sprints/${sprintId}/status`).send({ status: 'EM_ANDAMENTO' });
 
-    // Depois da base: uma entra, uma sai, e a que ficou e concluida.
     const c = await createTask(owner, project.id, 'Entrou depois');
     await owner.mutate('patch', `/api/tasks/${c.id}/sprint`).send({ sprintId });
     await owner.mutate('delete', `/api/tasks/${b.id}/sprint`).send();
@@ -885,15 +816,12 @@ describe('evolucao da sprint (RF35)', () => {
     expect(body.baseline.kind).toBe('STARTED_AT');
     expect(body.cutoff).toMatch(/Z$/);
 
-    // Planejado = {a, b}: b saiu, mas estava planejada. Atual = {a, c}.
     expect(body.planned).toMatchObject({ numerator: 1, denominator: 2, percentage: 50 });
     expect(body.current).toMatchObject({ numerator: 1, denominator: 2, percentage: 50 });
     expect(body.scopeChange.added.map((item) => item.taskId)).toEqual([c.id]);
     expect(body.scopeChange.removed.map((item) => item.taskId)).toEqual([b.id]);
   });
 
-  // O criterio central do RF35 corrigido: a Sprint 1 continua afirmando o que
-  // aconteceu nela depois que a tarefa seguiu para a Sprint 2 e foi concluida la.
   it('continuidade entre sprints nao reescreve o resultado da sprint encerrada', async () => {
     const owner = await register('progress-carryover@example.invalid');
     const project = await createProject(owner);
@@ -919,7 +847,6 @@ describe('evolucao da sprint (RF35)', () => {
     expect(antes.frozen).toBe(true);
     expect(antes.current).toMatchObject({ numerator: 1, denominator: 2, percentage: 50 });
 
-    // A tarefa nao concluida continua na sprint seguinte e e concluida la.
     const movida = await owner
       .mutate('patch', `/api/tasks/${arrastada.id}/sprint`)
       .send({ sprintId: s2 });
@@ -930,12 +857,10 @@ describe('evolucao da sprint (RF35)', () => {
     expect(depois.planned).toEqual(antes.planned);
     expect(depois.current).toEqual(antes.current);
     expect(depois.cutoff).toBe(antes.cutoff);
-    // O status observado na Sprint 1 continua sendo o de la, nao o de hoje.
     expect(depois.carryOver).toEqual([
       { taskId: arrastada.id, toSprintId: s2, exitStatus: 'A_FAZER', at: null }
     ]);
 
-    // A Sprint 2 recebe a tarefa sabendo de onde ela veio.
     const seguinte = (await owner.agent.get(`/api/sprints/${s2}/progress`)).body;
     expect(seguinte.current).toMatchObject({ numerator: 1, denominator: 1 });
     const participacao = await prisma.sprintTask.findFirst({
@@ -972,7 +897,6 @@ describe('evolucao da sprint (RF35)', () => {
     });
   });
 
-  // Corte no passado e recusado de proposito: Task.status guarda so o presente.
   it('recusa corte no passado com 400 em vez de responder com dados de agora', async () => {
     const owner = await register('progress-at@example.invalid');
     const project = await createProject(owner);
@@ -999,10 +923,6 @@ describe('evolucao da sprint (RF35)', () => {
     expect((await request(app).get('/api/sprints/1/progress')).status).toBe(401);
   });
 
-  // Antes, este teste fixava a DIVERGENCIA: recurso de projeto alheio era
-  // barrado pelo middleware com RESOURCE_NOT_FOUND e recurso inexistente caia no
-  // service com SPRINT_NOT_FOUND. O par permitia iterar o ID e confirmar quais
-  // sprints existem fora do alcance do ator. Agora as duas respostas sao a mesma.
   it('sprint alheia e sprint inexistente respondem exatamente igual', async () => {
     const owner = await register('progress-owner@example.invalid');
     const stranger = await register('progress-stranger@example.invalid');
@@ -1016,8 +936,6 @@ describe('evolucao da sprint (RF35)', () => {
     expect(existente.status).toBe(404);
     expect(existente.body).not.toHaveProperty('planned');
     expect(existente.body).not.toHaveProperty('scopeChange');
-    // `requestId` e o unico campo que pode diferir: ele identifica a requisicao,
-    // nao o recurso.
     const semRequestId = (body) =>
       Object.fromEntries(Object.entries(body).filter(([chave]) => chave !== 'requestId'));
     expect(semRequestId(existente.body)).toEqual(semRequestId(inexistente.body));
@@ -1136,9 +1054,6 @@ describe('isolamento entre projetos (IDOR/BOLA)', () => {
     expect((await stranger.agent.get(`/api/projects/${project.id}/schedule`)).status).toBe(404);
   });
 
-  // Regressao: a autorizacao resolve o projeto pela TAREFA, entao qualquer sprintId do
-  // sistema chega ao service. Se "existe em outro projeto" respondesse 400 e "nao existe"
-  // respondesse 404, bastava iterar o ID para mapear sprints de projetos alheios.
   it('nao distingue sprint alheia de sprint inexistente pelo lado da tarefa', async () => {
     const owner = await register('oracle-task-owner@example.invalid');
     const stranger = await register('oracle-task-stranger@example.invalid');
@@ -1156,7 +1071,6 @@ describe('isolamento entre projetos (IDOR/BOLA)', () => {
 
     expect(existente.status).toBe(404);
     expect(existente.status).toBe(inexistente.status);
-    // requestId e por requisicao; o resto do corpo precisa ser byte a byte igual.
     const semRequestId = ({ requestId: _requestId, ...resto }) => resto;
     expect(semRequestId(existente.body)).toEqual(semRequestId(inexistente.body));
     expect(existente.body.code).toBe('SPRINT_NOT_FOUND');
@@ -1248,14 +1162,9 @@ describe('auditoria', () => {
     await owner.mutate('put', `/api/sprints/${sprintId}`).send({ name: 'Renomeada' });
     const updated = await prisma.auditEvent.findMany({ where: { action: 'SPRINT_UPDATED' } });
     expect(updated).toHaveLength(1);
-    // sprintId precisa sobreviver a allowlist de minimizacao de metadata.
     expect(updated[0].metadataJson).toMatchObject({ sprintId });
   });
 
-  // Regressao: o enum TaskHistoryField ganhou SPRINT e a interface passou a oferecer o
-  // filtro, mas taskHistoryQuerySchema nao foi estendido — o campo ficava gravavel e nao
-  // filtravel. Este e o unico caminho que responde "quais tarefas entraram ou sairam
-  // desta sprint", entao sem ele o criterio de aceite do RF10 fica sem consulta.
   it('permite filtrar o historico de tarefas por field=SPRINT', async () => {
     const owner = await register('history-sprint-filter@example.invalid');
     const project = await createProject(owner);
@@ -1275,7 +1184,6 @@ describe('auditoria', () => {
       items: [expect.objectContaining({ field: 'SPRINT', toValue: String(sprintId) })]
     });
 
-    // O filtro discrimina de fato: outros campos do mesmo projeto ficam de fora.
     const semFiltro = await owner.agent.get(`/api/projects/${project.id}/tasks/history`);
     expect(semFiltro.body.total).toBeGreaterThan(1);
   });
@@ -1294,16 +1202,7 @@ describe('auditoria', () => {
   });
 });
 
-// S104-F05: o par de respostas 404 era um oraculo de enumeracao. Recurso de
-// projeto alheio era barrado pelo middleware e recurso inexistente caia no
-// service, com codigo, mensagem e ate presenca de `code` diferentes — bastava
-// iterar o ID para mapear o que existe fora do alcance do ator.
-//
-// A garantia agora e por recurso, e nao so por sprint: qualquer divergencia
-// futura entre middleware e service quebra este teste.
 describe('404 indistinguivel entre recurso alheio e inexistente', () => {
-  // `requestId` identifica a requisicao, nao o recurso: e o unico campo que pode
-  // variar entre as duas respostas.
   const semRequestId = (body) =>
     Object.fromEntries(Object.entries(body).filter(([chave]) => chave !== 'requestId'));
 
@@ -1355,9 +1254,6 @@ describe('404 indistinguivel entre recurso alheio e inexistente', () => {
     const inexistente = await owner.agent.get('/api/tasks/999999');
 
     expect(semRequestId(existente.body)).toEqual(semRequestId(inexistente.body));
-    // Tarefa segue o contrato do MVP, que devolve so a mensagem. O que importa
-    // aqui e que os dois caminhos devolvam o MESMO — inclusive na ausencia de
-    // `code`, que por si so ja distinguiria um do outro.
     expect(existente.body).not.toHaveProperty('code');
   });
 
@@ -1373,8 +1269,6 @@ describe('404 indistinguivel entre recurso alheio e inexistente', () => {
     expect(semRequestId(existente.body)).toEqual(semRequestId(inexistente.body));
   });
 
-  // A indistinguibilidade tem que valer em TODOS os metodos, e nao so na
-  // leitura: um PUT que responde diferente vaza a mesma informacao.
   it('vale para os metodos de escrita tambem', async () => {
     const { owner, stranger, alheio } = await cenario();
     const sprint = (await createSprint(stranger, alheio.id)).body.sprint;
@@ -1388,10 +1282,6 @@ describe('404 indistinguivel entre recurso alheio e inexistente', () => {
   });
 });
 
-// ADR-010 D01 assume uma duplicacao: `SprintTask` e a fonte de verdade do
-// historico e `Task.sprintId` e o ponteiro da participacao ativa. A mitigacao
-// declarada la e este invariante — sem ele, a deriva entre os dois seria
-// invisivel no uso normal e corromperia o RF35 em silencio.
 describe('invariante entre participacao e ponteiro', () => {
   async function verificarInvariante() {
     const comSprint = await prisma.task.findMany({
@@ -1403,7 +1293,6 @@ describe('invariante entre participacao e ponteiro', () => {
       select: { taskId: true, sprintId: true, closedAt: true }
     });
 
-    // Todo ponteiro tem exatamente uma participacao aberta correspondente.
     for (const task of comSprint) {
       const correspondentes = participacoes.filter(
         (p) => p.taskId === task.id && p.sprintId === task.sprintId
@@ -1413,9 +1302,6 @@ describe('invariante entre participacao e ponteiro', () => {
       );
     }
 
-    // Participacao ainda ABERTA (nao congelada) implica ponteiro apontando para
-    // ela. Participacao congelada pode divergir de proposito: a tarefa seguiu
-    // para a sprint seguinte e o registro anterior permanece.
     const ponteiroPorTarefa = new Map(comSprint.map((task) => [task.id, task.sprintId]));
     for (const p of participacoes.filter((item) => item.closedAt === null)) {
       expect(ponteiroPorTarefa.get(p.taskId), `participacao aberta da tarefa ${p.taskId}`).toBe(
@@ -1423,7 +1309,6 @@ describe('invariante entre participacao e ponteiro', () => {
       );
     }
 
-    // Nunca duas participacoes abertas para a mesma tarefa.
     const abertasPorTarefa = new Map();
     for (const p of participacoes.filter((item) => item.closedAt === null)) {
       abertasPorTarefa.set(p.taskId, (abertasPorTarefa.get(p.taskId) || 0) + 1);
@@ -1449,23 +1334,18 @@ describe('invariante entre participacao e ponteiro', () => {
     const b = await createTask(owner, project.id, 'B');
     const c = await createTask(owner, project.id, 'C');
 
-    // Associa pelos dois caminhos.
     await owner.mutate('put', `/api/sprints/${s1}/tasks`).send({ taskIds: [a.id, b.id] });
     await verificarInvariante();
 
     await owner.mutate('patch', `/api/tasks/${c.id}/sprint`).send({ sprintId: s1 });
     await verificarInvariante();
 
-    // Remove uma pelo lado da tarefa.
     await owner.mutate('delete', `/api/tasks/${b.id}/sprint`).send();
     await verificarInvariante();
 
-    // Troca de sprint com a origem ainda aberta.
     await owner.mutate('patch', `/api/tasks/${c.id}/sprint`).send({ sprintId: s2 });
     await verificarInvariante();
 
-    // Encerra a S1 e leva a tarefa restante para a S2: o ponteiro muda, o
-    // registro congelado da S1 fica.
     await owner.mutate('patch', `/api/sprints/${s1}/status`).send({ status: 'EM_ANDAMENTO' });
     await owner.mutate('patch', `/api/sprints/${s1}/status`).send({ status: 'CONCLUIDA' });
     await verificarInvariante();
@@ -1473,7 +1353,6 @@ describe('invariante entre participacao e ponteiro', () => {
     await owner.mutate('patch', `/api/tasks/${a.id}/sprint`).send({ sprintId: s2 });
     await verificarInvariante();
 
-    // A participacao da S1 continua la, congelada, apesar do ponteiro apontar S2.
     const naS1 = await prisma.sprintTask.findFirst({
       where: { sprintId: s1, taskId: a.id },
       select: { removedAt: true, closedAt: true, exitStatus: true }
@@ -1485,17 +1364,11 @@ describe('invariante entre participacao e ponteiro', () => {
 });
 
 describe('limite de tarefas por sprint', () => {
-  // O limite tem que ser o MESMO nas duas rotas. Quando so o lote limitava, a
-  // sprint chegava a 101 tarefas pela rota individual e nenhum salvamento do
-  // painel passava mais — um estado que a API aceitava criar e nao aceitava
-  // representar.
   it('recusa a centesima primeira tarefa tambem na associacao individual', async () => {
     const owner = await register('limite-individual@example.invalid');
     const project = await createProject(owner);
     const sprintId = (await createSprint(owner, project.id)).body.sprint.id;
 
-    // As 100 primeiras entram direto pelo banco: cem chamadas de API nao
-    // acrescentariam nada ao que este teste verifica.
     await prisma.task.createMany({
       data: Array.from({ length: 100 }, (_, indice) => ({
         projectId: project.id,
@@ -1527,9 +1400,6 @@ describe('limite de tarefas por sprint', () => {
   });
 });
 
-// ADR-010 D09. O caso e o pior possivel: a tarefa e apagada DEPOIS que a sprint
-// virou registro. Se a exclusao mexesse no denominador, um periodo encerrado
-// mudaria de resultado por causa de uma operacao posterior.
 describe('exclusao de tarefa e o registro da sprint encerrada', () => {
   it('nao altera o resultado de uma sprint ja encerrada', async () => {
     const owner = await register('delete-task-frozen@example.invalid');
@@ -1556,9 +1426,6 @@ describe('exclusao de tarefa e o registro da sprint encerrada', () => {
     expect(depois.planned).toEqual(antes.planned);
     expect(depois.current).toEqual(antes.current);
 
-    // O snapshot e o que resta da tarefa: a participacao sobrevive sem ela, e
-    // continua sendo membro do periodo. Marcar saida aqui seria dizer que a
-    // tarefa deixou uma sprint que ja estava encerrada quando ela foi apagada.
     const participacao = await prisma.sprintTask.findFirst({
       where: { sprintId, taskTitleSnapshot: 'Não concluída' },
       select: { taskId: true, removedAt: true, removalReason: true, exitStatus: true }
@@ -1569,8 +1436,6 @@ describe('exclusao de tarefa e o registro da sprint encerrada', () => {
     expect(participacao.exitStatus).toBe('A_FAZER');
   });
 
-  // Numa sprint ABERTA a exclusao e uma saida de verdade, e precisa aparecer
-  // como tal — o contrario do caso acima.
   it('registra a saida quando a sprint ainda esta aberta', async () => {
     const owner = await register('delete-task-open@example.invalid');
     const project = await createProject(owner);

@@ -1,4 +1,3 @@
-// Rotas de sprints, marcos e cronograma. Regras de negocio ficam no service.
 import { Router } from 'express';
 import { emptyBodySchema, validateRequest } from '../../shared/validation/index.js';
 import { sprintController } from './sprint.controller.js';

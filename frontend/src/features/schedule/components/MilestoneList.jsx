@@ -11,8 +11,6 @@ import {
 
 export function MilestoneList({
   milestones,
-  // Sprints do projeto. O marco não carrega a lista das suas: o agrupamento é
-  // lido do outro lado (`sprint.milestoneId`), e é aqui que ele vira progresso.
   sprints = [],
   busyMilestoneId,
   readOnly = false,
@@ -30,19 +28,13 @@ export function MilestoneList({
   }
 
   return (
-    // Mesmo tratamento da lista de sprints: rolavel por teclado, sem perder a
-    // semantica de lista.
     <ul className="milestone-list" aria-label="Marcos do projeto" tabIndex={0}>
       {milestones.map((milestone) => {
-        // `overdue` vem do backend no agregado; nesta lista completa ele nao
-        // existe, entao e derivado localmente apenas para exibicao.
         const overdue = milestone.overdue ?? isMilestoneOverdue(milestone);
         const done = milestone.status === 'CONCLUIDO';
         const busy = busyMilestoneId === milestone.id;
         const progresso = milestoneProgress(milestone.id, sprints);
         const temSprints = progresso.sprints.length > 0;
-        // O badge diz o estado real: concluído, atrasado ou pendente. "Atrasado"
-        // só faz sentido enquanto há o que entregar.
         const statusKey = done ? 'CONCLUIDO' : overdue ? 'ATRASADO' : 'PENDENTE';
 
         return (
@@ -64,10 +56,6 @@ export function MilestoneList({
               </span>
             </p>
 
-            {/* A barra repete em forma o que a linha acima já diz em número: ela
-                acelera a leitura, não a substitui. Marco concluído enche a barra
-                mesmo com sprint aberta — o estado declarado vence a contagem,
-                senão o badge diria "entregue" sobre uma barra pela metade. */}
             <div className="traceability-progress">
               <div className="traceability-progress-bar">
                 <span style={{ width: `${done ? 100 : progresso.percent}%` }} />
@@ -90,19 +78,12 @@ export function MilestoneList({
                 })}
               </p>
             ) : (
-              // Dizer que não há sprints — e onde criá-las — em vez de deixar um
-              // vão: um marco sem sprint nunca conclui sozinho, e o usuário
-              // precisa saber que o vínculo é declarado do lado da sprint.
               <p className="field-help milestone-no-sprints">
                 Nenhuma sprint associada — cadastre sprints vinculadas a este marco na tela de
                 Sprints.
               </p>
             )}
 
-            {/* Explicar COMO o marco chegou a concluído: automático quando todas
-                as sprints terminaram, manual quando alguém decidiu. Sem a nota,
-                o primeiro caso parece a tela agindo por conta própria — e o
-                segundo, um engano dela. */}
             {done && (
               <p className="milestone-frozen">
                 {progresso.allConcluded
@@ -111,7 +92,6 @@ export function MilestoneList({
               </p>
             )}
 
-            {/* VIEWER lê o cronograma inteiro, mas não age sobre ele. */}
             {readOnly ? null : (
               <div
                 className="milestone-item-footer"
@@ -134,9 +114,6 @@ export function MilestoneList({
                     {done ? 'Reabrir marco' : 'Concluir marco'}
                   </button>
                 </div>
-                {/* Editar e excluir como ações-texto, longe do botão de status:
-                    são raras, e em forma de botão disputavam peso com a ação
-                    que define a entrega. */}
                 <div className="milestone-item-footer-links">
                   <button
                     type="button"
@@ -150,9 +127,6 @@ export function MilestoneList({
                   <button
                     type="button"
                     className="link-action link-action-danger"
-                    // Excluir um marco com sprints desfaria o agrupamento; o
-                    // backend recusa com 409. Desabilitar aqui evita transformar
-                    // uma regra conhecida numa descoberta pelo erro.
                     disabled={busy || temSprints}
                     aria-label={`Excluir o marco ${milestone.title}`}
                     title={

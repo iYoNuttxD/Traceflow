@@ -71,9 +71,6 @@ enum MilestoneStatus {
   CONCLUIDO
 }
 
-// Motivo da saida de uma tarefa do escopo de uma sprint (RF10/RF35).
-// Em portugues como SprintStatus e MilestoneStatus: e vocabulario de dominio
-// exibido ao usuario, nao identificador tecnico.
 enum SprintTaskRemovalReason {
   MOVIDA
   REMOVIDA
@@ -331,9 +328,6 @@ model Task {
   project           Project                @relation(fields: [projectId], references: [id])
   requirement       Requirement?           @relation(fields: [requirementId], references: [id])
   pullRequest       PullRequest?           @relation(fields: [pullRequestId], references: [id], onDelete: SetNull)
-  // Ponteiro para a participacao ATIVA, escrito na mesma transacao que
-  // SprintTask. Garante no banco "no maximo uma sprint ativa por tarefa" e
-  // preserva as consultas existentes; o passado mora em sprintParticipations.
   sprint            Sprint?                @relation(fields: [sprintId], references: [id], onDelete: SetNull)
   sprintParticipations SprintTask[]
   movements         TaskMovement[]
@@ -351,25 +345,16 @@ model Task {
   @@index([projectId, sprintId])
 }
 
-// Sprint do cronograma do projeto (RF10); base para a evolucao do RF35.
-// Janela semiaberta [startDate, endDate): a sprint seguinte pode comecar no
-// instante exato em que esta termina, e nunca antes (ADR-010).
 model Sprint {
   id          Int          @id @default(autoincrement())
   projectId   Int
   name        String
   objective   String?      @db.Text
-  // DateTime, nao @db.Date: o dominio exige o instante exato. Truncar no dia
-  // descartaria hora, minuto e fuso informados pelo usuario (ADR-010).
   startDate   DateTime
   endDate     DateTime
   status      SprintStatus @default(PLANEJADA)
-  // Linha de base do planejamento (RF35). NAO fecha o escopo: tarefas ainda
-  // podem entrar depois, sinalizadas por SprintTask.addedAfterStart.
   startedAt   DateTime?
   completedAt DateTime?
-  // Marco que esta sprint ajuda a entregar (ADR-011). Nulo apenas para as
-  // sprints anteriores a inversao: a criacao exige o marco.
   milestoneId Int?
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
@@ -378,12 +363,6 @@ model Sprint {
   tasks            Task[]
   sprintTasks      SprintTask[] @relation("SprintMembership")
   carriedOverTasks SprintTask[] @relation("SprintCarryOver")
-  // SetNull, e nao Restrict: Sprint e Milestone sao os DOIS filhos de Project em
-  // cascata, e o MySQL nao garante a ordem entre elas. Com Restrict, apagar um
-  // projeto falharia sempre que o banco processasse Milestone antes de Sprint.
-  // Quem protege o agrupamento e a recusa do service (MILESTONE_HAS_SPRINTS),
-  // dentro do lock do projeto — a FK aqui so precisa nao inventar um ponteiro
-  // orfao (ADR-011 D01).
   milestone        Milestone?   @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
 
   @@unique([projectId, name])
@@ -393,10 +372,6 @@ model Sprint {
   @@index([projectId, milestoneId])
 }
 
-// Marco do cronograma do projeto (RF10). AGRUPA sprints (ADR-011): o marco e a
-// entrega de longo prazo, com prazo proprio, e as sprints sao os periodos de
-// desenvolvimento que o produzem. Concluido automaticamente quando todas as suas
-// sprints nao canceladas terminam.
 model Milestone {
   id          Int             @id @default(autoincrement())
   projectId   Int
@@ -414,29 +389,17 @@ model Milestone {
   @@index([projectId, status])
 }
 
-// Participacao de uma tarefa em uma sprint (RF10/RF35).
-//
-// Fonte de verdade do historico: sobrevive ao encerramento da sprint e a
-// exclusao da tarefa. Sem isso, mover uma tarefa da Sprint 1 para a Sprint 2
-// apagaria a participacao anterior, e concluir a tarefa depois reescreveria
-// retroativamente o resultado de um periodo ja encerrado.
 model SprintTask {
   id                  Int                      @id @default(autoincrement())
   projectId           Int
   sprintId            Int
   taskId              Int?
-  // Snapshot: o que sobra quando a tarefa e excluida do fluxo operacional.
   taskTitleSnapshot   String
   addedAt             DateTime                 @default(now())
-  // Gravado na entrada, nunca recalculado: `startedAt` pode ser lido de outro
-  // jeito depois, e a pergunta "entrou antes ou depois do inicio?" tem que ter
-  // uma resposta estavel.
   addedAfterStart     Boolean                  @default(false)
   carriedFromSprintId Int?
   removedAt           DateTime?
   removalReason       SprintTaskRemovalReason?
-  // Ultimo status observado NESTA sprint, congelado na saida ou no
-  // encerramento. E o que torna o RF35 da sprint fechada irretroativo.
   exitStatus          String?
   closedAt            DateTime?
 
@@ -445,10 +408,6 @@ model SprintTask {
   task              Task?   @relation(fields: [taskId], references: [id], onDelete: SetNull)
   carriedFromSprint Sprint? @relation("SprintCarryOver", fields: [carriedFromSprintId], references: [id], onDelete: SetNull)
 
-  // Uma participacao por par sprint+tarefa: reentrada REABRE o registro em vez
-  // de criar outro, coerente com a regra ja vigente de que "saiu e voltou" nao
-  // conta como entrada nem saida. taskId nulo (tarefa excluida) nao colide: no
-  // MySQL o indice unico admite multiplos NULL.
   @@unique([sprintId, taskId])
   @@index([sprintId, removedAt])
   @@index([taskId, removedAt])

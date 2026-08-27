@@ -3,16 +3,6 @@ import { scheduleApi } from '../api/schedule.api.js';
 import { projectsApi } from '../../projects/index.js';
 import { normalizeApiError, useAbortableRequest } from '../../../shared/index.js';
 
-// Carga comum das três telas de cronograma — Sprints, Marcos e a agenda.
-//
-// Elas nasceram de uma tela só e continuam precisando exatamente do mesmo
-// conjunto: as sprints trazem status e ações, os marcos trazem o agrupamento, e
-// o agregado traz a composição e os pontos de cada sprint. Duplicar essa carga
-// em três arquivos faria as três divergirem no primeiro ajuste.
-//
-// O que NÃO vive aqui é o estado de cada tela — painel aberto, sprint
-// selecionada, mês do calendário. Esses são de cada uma, e centralizá-los
-// devolveria a tela única por outro caminho.
 export function useScheduleData(projectId) {
   const { run } = useAbortableRequest();
 
@@ -29,7 +19,6 @@ export function useScheduleData(projectId) {
 
   const reportFailure = useCallback((requestError, fallback) => {
     const normalized = normalizeApiError(requestError, fallback);
-    // 403 e 404 recebem tratamento de acesso negado, como em Tarefas e Kanban.
     if ([403, 404].includes(requestError.response?.status)) setForbidden(true);
     setError(normalized.message);
   }, []);
@@ -77,8 +66,6 @@ export function useScheduleData(projectId) {
     [projectId, reportFailure, run]
   );
 
-  // Recargas dirigidas: cada mutação rebusca apenas o que ela pode ter mudado,
-  // em vez de recarregar a tela inteira.
   const refreshSchedule = useCallback(
     async (range = {}) => {
       const response = await scheduleApi.getSchedule(projectId, range);
@@ -112,9 +99,6 @@ export function useScheduleData(projectId) {
     setError(normalizeApiError(requestError, fallback).message);
   }, []);
 
-  // Recusa decidida no cliente, antes de qualquer requisição. Passar por
-  // `handleFailure` obrigaria a inventar um objeto de erro só para o
-  // normalizador desmontá-lo de volta.
   const fail = useCallback((message) => {
     setSuccess('');
     setError(message);
@@ -127,8 +111,6 @@ export function useScheduleData(projectId) {
     milestones,
     setSprints,
     setMilestones,
-    // VIEWER só lê. Oferecer formulário e botão que o backend recusará com 403
-    // transforma uma regra conhecida numa descoberta pelo erro.
     somenteLeitura: currentMembership?.role === 'VIEWER',
     loading,
     forbidden,

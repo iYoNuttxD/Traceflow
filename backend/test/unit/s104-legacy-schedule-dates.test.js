@@ -1,6 +1,3 @@
-// Correcao pontual dos registros de cronograma criados antes do ADR-010 D05,
-// quando `@db.Date` truncava a escrita para a meia-noite UTC. O risco do script
-// nao e falhar: e acertar demais e mexer em quem informou hora de verdade.
 import { describe, expect, it, vi } from 'vitest';
 import {
   paraMeiaNoiteLocal,
@@ -36,8 +33,6 @@ const sprint = (id, name, startDate, endDate, projectId = 1) => ({
 });
 
 describe('paraMeiaNoiteLocal', () => {
-  // O dia civil e o que a pessoa escolheu; o que muda e o fuso em que ele
-  // comeca. Se o dia mudasse, a correcao estaria trocando um erro por outro.
   it('preserva o dia civil e move para a meia-noite local', () => {
     const resultado = paraMeiaNoiteLocal(utc('2026-08-09T00:00:00.000Z'));
     expect(resultado.getFullYear()).toBe(2026);
@@ -60,8 +55,6 @@ describe('runS104LegacyScheduleDates', () => {
     expect(client.$transaction).not.toHaveBeenCalled();
   });
 
-  // A guarda que importa: quem informou hora nao pode ser tocado, senao o script
-  // destroi justamente o dado que o D05 existe para preservar.
   it('ignora valores que nao estao na meia-noite UTC exata', async () => {
     const client = clienteFalso({
       sprints: [
@@ -75,7 +68,6 @@ describe('runS104LegacyScheduleDates', () => {
     expect(client.escritas.sprint).toHaveLength(0);
   });
 
-  // Uma ponta legada e outra informada com hora convivem no mesmo registro.
   it('corrige apenas a ponta legada de uma sprint mista', async () => {
     const client = clienteFalso({
       sprints: [sprint(1, 'Mista', '2026-08-09T00:00:00.000Z', '2026-08-10T18:00:00.000Z')]
@@ -100,13 +92,10 @@ describe('runS104LegacyScheduleDates', () => {
     expect(client.escritas.milestone).toHaveLength(1);
   });
 
-  // Deslocar todo mundo pelo mesmo offset preserva a ordem, mas a verificacao
-  // nao custa nada — e um invariante vale mais que a suposicao de que ele vale.
   it('recusa a aplicacao se a correcao criar sobreposicao', async () => {
     const client = clienteFalso({
       sprints: [
         sprint(1, 'A', '2026-08-01T00:00:00.000Z', '2026-08-10T00:00:00.000Z'),
-        // Comeca antes do fim da anterior: o banco ja estava inconsistente.
         sprint(2, 'B', '2026-08-05T00:00:00.000Z', '2026-08-20T00:00:00.000Z')
       ]
     });

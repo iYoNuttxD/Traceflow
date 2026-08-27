@@ -32,8 +32,6 @@ export function ScheduleScreen() {
 
   const filtered = Boolean(appliedPeriod.from || appliedPeriod.to);
   const unassignedCount = schedule?.unassignedTasks?.length ?? 0;
-  // A contagem acompanha o que o calendário desenha: sprint cancelada saiu das
-  // faixas e da legenda, então também não entra no "no período".
   const sprintCount = (schedule?.sprints || []).filter(
     (sprint) => sprint.status !== 'CANCELADA'
   ).length;
@@ -99,7 +97,6 @@ export function ScheduleScreen() {
             Agenda do projeto em formato de calendário, com inícios e fins de sprint e prazos de
             marco.
           </p>
-          {/* Resumo numerico orienta antes de rolar a pagina. */}
           <p className="schedule-summary">
             {sprintCount} no período · {unassignedCount}{' '}
             {unassignedCount === 1 ? 'tarefa sem sprint' : 'tarefas sem sprint'}
@@ -112,7 +109,6 @@ export function ScheduleScreen() {
       <section className="card">
         <div className="schedule-card-header">
           <h2>Período exibido</h2>
-          {/* O filtro pertence a linha do tempo: e ela que ele recorta. */}
           <form className="schedule-filters" onSubmit={applyPeriod}>
             <label className="field">
               <span>Data inicial</span>

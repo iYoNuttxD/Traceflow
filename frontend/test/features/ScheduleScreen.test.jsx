@@ -1,6 +1,3 @@
-// RF10: cronograma em calendario. A grade mostra DURACAO, que a lista por data
-// nao mostrava; o que a lista entregava continua no painel do dia e em
-// "Proximos eventos".
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
@@ -36,8 +33,6 @@ const emptySchedule = {
   unassignedTasks: []
 };
 
-// Datas escritas sem `Z`: o calendario ancora no dia LOCAL, e usar UTC nos
-// fixtures faria o teste passar ou falhar conforme o fuso da maquina.
 const sprint = (overrides = {}) => ({
   id: 1,
   name: 'Sprint 1',
@@ -83,8 +78,6 @@ function renderScreen() {
   );
 }
 
-// O componente recebe `hoje` por prop justamente para o teste nao depender do
-// relogio do processo.
 function renderCalendar(props = {}) {
   return render(
     <ScheduleCalendar
@@ -97,8 +90,6 @@ function renderCalendar(props = {}) {
 }
 
 describe('faixa da sprint no calendario', () => {
-  // Janela semiaberta: o dia do fim as 00:00 ja pertence a sprint seguinte, e
-  // pintar a faixa ate la sugeriria uma sobreposicao que nao existe.
   it('fim a meia-noite nao pinta o proprio dia', () => {
     expect(calendario.sprintDayRange(sprint())).toEqual({
       inicio: '2026-08-03',
@@ -112,7 +103,6 @@ describe('faixa da sprint no calendario', () => {
     );
   });
 
-  // Sprint degenerada nao pode recuar para antes do proprio inicio.
   it('nunca termina antes de comecar', () => {
     const faixa = calendario.sprintDayRange(
       sprint({ startDate: '2026-08-03T00:00:00', endDate: '2026-08-03T00:00:00' })
@@ -133,8 +123,6 @@ describe('grade do mes', () => {
       ...opcoes
     });
 
-  // Seis semanas sempre: um mes de cinco linhas e outro de seis fariam o painel
-  // abaixo pular de altura ao navegar.
   it('tem sempre 42 celulas', () => {
     expect(grade()).toHaveLength(42);
   });
@@ -147,14 +135,11 @@ describe('grade do mes', () => {
     expect(cobertos[cobertos.length - 1]).toBe('2026-08-14');
   });
 
-  // A ponta arredondada so onde a faixa comeca ou acaba — e no limite da semana,
-  // senao a faixa vazaria visualmente para a linha seguinte.
   it('arredonda so as pontas da faixa e as bordas da semana', () => {
     const celulas = grade();
     const porDia = Object.fromEntries(celulas.map((celula) => [celula.iso, celula]));
     expect(porDia['2026-08-03']).toMatchObject({ inicioDaFaixa: true, fimDaFaixa: false });
     expect(porDia['2026-08-14']).toMatchObject({ inicioDaFaixa: false, fimDaFaixa: true });
-    // 08/08/2026 e sabado: fim de linha.
     expect(porDia['2026-08-08'].fimDaFaixa).toBe(true);
     expect(porDia['2026-08-05']).toMatchObject({ inicioDaFaixa: false, fimDaFaixa: false });
   });
@@ -186,8 +171,6 @@ describe('limites do calendario', () => {
     expect(calendario.calendarBounds({ sprints: [], milestones: [] })).toBeNull();
   });
 
-  // O limite usa a mesma janela da faixa: fim a meia-noite recua um dia, entao
-  // uma sprint que termina em 01/09 00:00 nao poe setembro no intervalo.
   it('usam a janela pintada da sprint, nao a data crua do fim', () => {
     expect(
       calendario.calendarBounds({
@@ -205,8 +188,6 @@ describe('limites do calendario', () => {
     expect(calendario.clampMonth(null, { ano: 2030, mes: 3 })).toEqual({ ano: 2030, mes: 3 });
   });
 
-  // Dezembro/2026 vem antes de janeiro/2027: a comparacao e por ano e mes
-  // juntos, nao por mes solto.
   it('comparam ano e mes juntos na virada de ano', () => {
     const limites = { min: { ano: 2026, mes: 11 }, max: { ano: 2027, mes: 1 } };
     expect(calendario.clampMonth(limites, { ano: 2027, mes: 0 })).toEqual({ ano: 2027, mes: 0 });
@@ -238,7 +219,6 @@ describe('eventos', () => {
     expect(eventos()[0].meta).toBe('Fundação · Em andamento');
   });
 
-  // Atraso e derivado: sprint em andamento cuja janela ja passou.
   it('avisa sobre sprint vencida sem conclusao', () => {
     const [, fim] = calendario.buildEvents({
       sprints: [sprint()],
@@ -275,7 +255,6 @@ describe('cartoes de agora', () => {
     expect(atencao).toMatchObject({ value: 'Nada atrasado', note: 'Tudo dentro do prazo' });
   });
 
-  // Marco concluido nao e "o proximo", mesmo com prazo no futuro.
   it('ignora marco concluido ao apontar o proximo', () => {
     const [, , proximo] = calendario.nowTiles({
       sprints: [],
@@ -292,11 +271,6 @@ describe('cartoes de agora', () => {
 });
 
 describe('interacao do calendario', () => {
-  // Navegacao presa ao intervalo pintado (terceira iteracao do design,
-  // docs/issues/RF10_PROMPT_UI_CALENDARIO_E_LAYOUT.md): dentro dele as setas
-  // funcionam; nos extremos ficam aria-disabled e o clique e no-op. Antes este
-  // teste navegava sobre agregado vazio — a grade vazia infinita que a mudanca
-  // eliminou.
   it('navega entre meses dentro do intervalo do cronograma', async () => {
     const user = userEvent.setup();
     renderCalendar({
@@ -317,7 +291,6 @@ describe('interacao do calendario', () => {
     expect(screen.getByText('setembro de 2026')).toBeInTheDocument();
     expect(proximo).toHaveAttribute('aria-disabled', 'true');
 
-    // Clique na seta do limite e no-op: o mes nao muda.
     await user.click(proximo);
     expect(screen.getByText('setembro de 2026')).toBeInTheDocument();
 
@@ -327,8 +300,6 @@ describe('interacao do calendario', () => {
     expect(screen.getByText('agosto de 2026')).toBeInTheDocument();
   });
 
-  // Sem nada pintado nao ha cronograma para navegar: o calendario descansa no
-  // mes de hoje com as duas setas travadas.
   it('agregado vazio trava a navegacao no mes corrente', () => {
     renderCalendar();
     expect(screen.getByText('agosto de 2026')).toBeInTheDocument();
@@ -342,8 +313,6 @@ describe('interacao do calendario', () => {
     );
   });
 
-  // Cancelada saiu do calendario inteiro — tambem nao estica o intervalo
-  // navegavel ate um periodo que a grade nao pinta.
   it('sprint cancelada nao estende o intervalo navegavel', () => {
     renderCalendar({
       schedule: {
@@ -366,8 +335,6 @@ describe('interacao do calendario', () => {
     );
   });
 
-  // Janela semiaberta: fim a meia-noite do dia 1o pinta so ate 31/08, entao
-  // setembro nao entra no intervalo.
   it('fim a meia-noite nao desbloqueia o mes seguinte', () => {
     renderCalendar({
       schedule: { ...emptySchedule, sprints: [sprint({ endDate: '2026-09-01T00:00:00' })] }
@@ -378,9 +345,6 @@ describe('interacao do calendario', () => {
     );
   });
 
-  // Projeto todo no passado (ou no futuro): abrir num mes corrente vazio
-  // esconderia o cronograma. A vista gruda no limite mais proximo; o dia
-  // selecionado continua sendo hoje e o painel do dia segue verdadeiro.
   it('hoje fora do intervalo abre no limite mais proximo', () => {
     renderCalendar({
       schedule: { ...emptySchedule, sprints: [sprint()] },
@@ -390,8 +354,6 @@ describe('interacao do calendario', () => {
     expect(screen.getByText('Agenda de sexta-feira, 15 de janeiro')).toBeInTheDocument();
   });
 
-  // A grade e atalho visual, nao o unico caminho: cada dia e um botao nomeado
-  // pela data por extenso, e o que ele cobre entra no rotulo.
   it('nomeia cada dia por extenso, com a sprint que o cobre', () => {
     renderCalendar({ schedule: { ...emptySchedule, sprints: [sprint()], milestones: [marco()] } });
     expect(
@@ -420,8 +382,6 @@ describe('interacao do calendario', () => {
     expect(screen.getByText(/Inícios e fins de sprint e prazos de marco/)).toBeInTheDocument();
   });
 
-  // Clicar num dia de outro mes leva o calendario ate la: sem isso a selecao
-  // sairia da vista e o painel falaria de um dia que a grade nao mostra.
   it('selecionar dia de outro mes navega para o mes dele dentro do intervalo', async () => {
     const user = userEvent.setup();
     renderCalendar({
@@ -436,8 +396,6 @@ describe('interacao do calendario', () => {
     expect(screen.getByText('setembro de 2026')).toBeInTheDocument();
   });
 
-  // Dia cinza na borda de um mes-limite: a selecao vale — o dia esta visivel
-  // na grade —, mas a vista nao atravessa o limite atras dele.
   it('dia cinza alem do limite seleciona sem mover a vista', async () => {
     const user = userEvent.setup();
     renderCalendar({ schedule: { ...emptySchedule, sprints: [sprint()] } });
@@ -447,8 +405,6 @@ describe('interacao do calendario', () => {
     expect(screen.getByText('agosto de 2026')).toBeInTheDocument();
   });
 
-  // O prazo de marco e livre (ADR-011 D03) e pode cair fora de toda janela de
-  // sprint; o ponto pintado precisa ser alcancavel.
   it('prazo de marco fora das sprints estende o intervalo', async () => {
     const user = userEvent.setup();
     renderCalendar({
@@ -466,22 +422,16 @@ describe('interacao do calendario', () => {
     expect(proximo).toHaveAttribute('aria-disabled', 'true');
   });
 
-  // A cor sozinha nao identifica a sprint: a legenda nomeia cada faixa com o
-  // periodo dela.
   it('a legenda nomeia cada sprint com o periodo', () => {
     const { container } = renderCalendar({
       schedule: { ...emptySchedule, sprints: [sprint()] }
     });
-    // Escopo na legenda: "Sprint 1" tambem aparece no cartao "Sprint ativa", e
-    // uma busca solta encontraria os dois.
     const legenda = within(container.querySelector('.calendar-legend'));
     expect(legenda.getByText('Sprint 1')).toBeInTheDocument();
     expect(legenda.getByText('03/08 – 14/08')).toBeInTheDocument();
     expect(legenda.getByText('Prazo de marco')).toBeInTheDocument();
   });
 
-  // Extremo de dados: a paleta cicla a cada seis, e a legenda continua sendo
-  // quem desfaz a ambiguidade.
   it('projeto com muitas sprints continua nomeando todas na legenda', () => {
     const muitas = Array.from({ length: 14 }, (_, indice) =>
       sprint({
@@ -504,9 +454,6 @@ describe('interacao do calendario', () => {
     expect(screen.getByText('Nenhum evento futuro no cronograma.')).toBeInTheDocument();
   });
 
-  // Sprint cancelada deixa de ocupar o cronograma: nada de faixa, legenda ou
-  // eventos sobre um trabalho que nao vai acontecer. A lista de Sprints
-  // continua a exibi-la — la ela e registro, aqui seria plano.
   it('sprint cancelada sai da faixa, da legenda e dos eventos', () => {
     const { container } = renderCalendar({
       schedule: {
@@ -518,7 +465,6 @@ describe('interacao do calendario', () => {
     expect(legenda.queryByText('Sprint 1')).toBeNull();
     expect(screen.queryByText('Início — Sprint 1')).toBeNull();
     expect(screen.queryByText('Fim — Sprint 1')).toBeNull();
-    // Nenhum dia da grade recebe a faixa da sprint cancelada.
     expect(screen.queryByRole('button', { name: /Sprint 1/ })).toBeNull();
   });
 });
@@ -536,8 +482,6 @@ describe('tela do cronograma', () => {
     expect(await screen.findByRole('heading', { name: 'Acesso restrito' })).toBeInTheDocument();
   });
 
-  // Bateria RF10/RF35: dos quatro estados do DoD (carregando, vazio, erro,
-  // acesso negado), o erro recuperavel era o unico sem teste nesta tela.
   it('exibe erro recuperavel em falha generica', async () => {
     mocks.projects.get.mockRejectedValue({ response: { status: 500, data: {} } });
     renderScreen();
@@ -576,8 +520,6 @@ describe('tela do cronograma', () => {
     expect(mocks.schedule.getSchedule).not.toHaveBeenCalled();
   });
 
-  // "Proximos eventos" so lista o futuro, entao o fixture e ancorado no relogio
-  // do teste: datas fixas envelheceriam e o teste passaria a falhar sozinho.
   it('o nome do marco chega ao evento pela sprint', async () => {
     const emDias = (dias) => {
       const data = new Date();

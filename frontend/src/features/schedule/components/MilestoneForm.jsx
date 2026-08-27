@@ -4,7 +4,6 @@ const emptyForm = { title: '', description: '', dueDate: '' };
 
 export { emptyForm as emptyMilestoneForm };
 
-// Validacao no cliente e apenas UX; a fonte de verdade e o backend.
 export function validateMilestoneForm(formData) {
   const errors = {};
   if (!formData.title.trim()) errors.title = 'Informe o título do marco.';
@@ -12,9 +11,6 @@ export function validateMilestoneForm(formData) {
   return errors;
 }
 
-// Sem campo de sprint: o marco agrupa sprints, e quem declara o vínculo é o
-// formulário da sprint (ADR-011 D01). O prazo também não é mais conferido contra
-// janela nenhuma — um marco que atravessa três sprints não tem uma para caber.
 export function MilestoneForm({
   formData,
   errors = {},
@@ -57,7 +53,6 @@ export function MilestoneForm({
         Um marco pode ter várias sprints e é concluído automaticamente quando todas forem
         concluídas.
       </p>
-      {/* Mesma ordem do formulário de sprint: cancelar antes, submit por último. */}
       <div className="form-actions">
         {editing && (
           <button className="button button-secondary" type="button" onClick={onCancel}>

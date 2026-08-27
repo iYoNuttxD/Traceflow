@@ -111,9 +111,6 @@ export function taskFormToPayload(formData, editing = false) {
 
   delete payload.pullRequestId;
   delete payload.requirementId;
-  // A associação com sprint tem endpoint próprio: ela cria a participação
-  // histórica (RF35), o que o CRUD de tarefa não faz. Mandá-la no corpo aqui
-  // seria rejeitado pelo schema estrito do backend.
   delete payload.sprintId;
   delete payload.status;
   delete payload.commitIds;

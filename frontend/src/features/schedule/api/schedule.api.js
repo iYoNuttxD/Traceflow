@@ -2,7 +2,6 @@ import { httpClient } from '../../../api/http-client.js';
 import { compactParams } from '../../../shared/utils/compact-params.js';
 
 export const scheduleApi = {
-  // Sprints
   listSprints(projectId, params = {}, options = {}) {
     return httpClient.get(`/projects/${projectId}/sprints`, {
       ...options,
@@ -21,7 +20,6 @@ export const scheduleApi = {
   updateSprintStatus(sprintId, status) {
     return httpClient.patch(`/sprints/${sprintId}/status`, { status });
   },
-  // Sprint nao e excluida: o endpoint responde 405 e a tela nao oferece a acao.
   listSprintTasks(sprintId, options = {}) {
     return httpClient.get(`/sprints/${sprintId}/tasks`, options);
   },
@@ -29,7 +27,6 @@ export const scheduleApi = {
     return httpClient.put(`/sprints/${sprintId}/tasks`, { taskIds });
   },
 
-  // Marcos
   listMilestones(projectId, params = {}, options = {}) {
     return httpClient.get(`/projects/${projectId}/milestones`, {
       ...options,
@@ -49,22 +46,14 @@ export const scheduleApi = {
     return httpClient.delete(`/milestones/${milestoneId}`);
   },
 
-  // Papel do usuario no projeto, para a tela nao oferecer acao que o backend vai
-  // recusar. Metodo proprio, e nao um import de `features/members`, pelo mesmo
-  // motivo de listProjectTasks: nao acoplar duas features por um endpoint.
-  // O backend continua sendo a autoridade — isto e UX, nao autorizacao.
   getMembership(projectId, options = {}) {
     return httpClient.get(`/projects/${projectId}/members`, options);
   },
 
-  // Tarefas do projeto para o painel de associacao.
-  // Metodo proprio, e nao um import de `features/tasks`, para nao criar ciclo:
-  // tasks/index.js -> KanbanScreen -> schedule/index.js -> ScheduleScreen.
   listProjectTasks(projectId, options = {}) {
     return httpClient.get(`/projects/${projectId}/tasks`, options);
   },
 
-  // Cronograma agregado
   getSchedule(projectId, params = {}, options = {}) {
     return httpClient.get(`/projects/${projectId}/schedule`, {
       ...options,
@@ -72,12 +61,10 @@ export const scheduleApi = {
     });
   },
 
-  // Evolucao por sprint (RF35)
   getSprintProgress(sprintId, options = {}) {
     return httpClient.get(`/sprints/${sprintId}/progress`, options);
   },
 
-  // Vinculo pelo lado da tarefa
   linkTaskSprint(taskId, sprintId) {
     return httpClient.patch(`/tasks/${taskId}/sprint`, { sprintId });
   },

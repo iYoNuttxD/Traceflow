@@ -1,6 +1,4 @@
 export { scheduleApi } from './api/schedule.api.js';
-// Consumido pelo Kanban: tudo que o painel mostra é vocabulário de sprint, e a
-// fronteira entre features exige que a integração passe por aqui.
 export { SprintBoardPanel } from './components/SprintBoardPanel.jsx';
 export {
   sprintStatusKey,

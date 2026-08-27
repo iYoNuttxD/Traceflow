@@ -14,11 +14,6 @@ import { ERROR_CODES } from './error-codes.js';
 // Manter o vocabulário por recurso (e não colapsar tudo em RESOURCE_NOT_FOUND)
 // preserva a informação de que um cliente legítimo precisa: saber QUE tipo de
 // recurso não foi encontrado não revela nada sobre a existência dele.
-// `expose` acompanha o contrato já publicado de cada recurso: o RF10 promete
-// código estável em sprint e marco, enquanto o contrato do MVP devolve apenas
-// `{ message }` em projeto, requisito e tarefa. O que a unificação exige não é
-// que todos exponham o mesmo, e sim que os DOIS CAMINHOS do mesmo recurso —
-// service e middleware — exponham exatamente igual.
 const NOT_FOUND_BY_RESOURCE = Object.freeze({
   Project: {
     code: ERROR_CODES.PROJECT_NOT_FOUND,

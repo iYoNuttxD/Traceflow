@@ -1,10 +1,6 @@
-// RF35: burndown da sprint. Modulo puro — nenhum mock, nenhum banco.
-// O instante de corte e sempre injetado: se algum teste passar a depender do
-// relogio, e porque o calculador voltou a chamar `new Date()` por dentro.
 import { describe, expect, it } from 'vitest';
 import { buildSprintBurndown } from '../../src/modules/sprints/sprint.burndown.calculator.js';
 
-// Janela de 5 dias: 01/08 a 05/08. O fim e exclusivo, entao 06/08 nao entra.
 const sprint = (overrides = {}) => ({
   id: 1,
   projectId: 1,
@@ -45,8 +41,6 @@ describe('janela e denominador', () => {
     ]);
   });
 
-  // Sprint sem tarefa pontuada nao tem escopo a queimar: um grafico com eixo
-  // zerado afirmaria "nada restante" onde o certo e "nada medido".
   it('sem pontos nao ha grafico', () => {
     const resultado = buildSprintBurndown({
       sprint: sprint(),
@@ -65,7 +59,6 @@ describe('janela e denominador', () => {
     expect(resultado.hasData).toBe(false);
   });
 
-  // Um unico dia nao desenha reta: a linha ideal precisa de dois pontos.
   it('janela de um dia nao gera grafico', () => {
     const resultado = buildSprintBurndown({
       sprint: sprint({ endDate: new Date('2026-08-02T00:00:00.000Z') }),
@@ -75,8 +68,6 @@ describe('janela e denominador', () => {
     expect(resultado.hasData).toBe(false);
   });
 
-  // Quem saiu levou o escopo embora. Mante-la no denominador desenharia uma
-  // linha que nunca chega a zero por trabalho que a sprint deixou de ter.
   it('participacao removida sai do denominador', () => {
     const resultado = buildSprintBurndown({
       sprint: sprint(),
@@ -100,8 +91,6 @@ describe('linha ideal', () => {
     expect(resultado.days.map((dia) => dia.ideal)).toEqual([8, 6, 4, 2, 0]);
   });
 
-  // A ideal descreve o planejamento e nao reage ao que aconteceu: ela e a mesma
-  // numa sprint adiantada e numa atrasada.
   it('nao muda com o que foi concluido', () => {
     const comum = { sprint: sprint(), cutoff: corte('2026-08-05T12:00:00.000Z') };
     const parada = buildSprintBurndown({ ...comum, participations: [participacao({ points: 4 })] });
@@ -128,8 +117,6 @@ describe('linha real', () => {
     expect(resultado.days.map((dia) => dia.remaining)).toEqual([8, 5, 5, 0, 0]);
   });
 
-  // Conclusao no fim do dia ainda pertence AQUELE dia: comparar contra o inicio
-  // jogaria a conclusao de hoje para o degrau de amanha.
   it('conta a conclusao das 23h no proprio dia', () => {
     const resultado = buildSprintBurndown({
       sprint: sprint(),
@@ -141,8 +128,6 @@ describe('linha real', () => {
     expect(resultado.days[1].remaining).toBe(0);
   });
 
-  // Dia futuro nao foi medido. Zero diria "nada restante"; null diz "ainda nao
-  // aconteceu", e a linha real simplesmente para no corte.
   it('deixa os dias posteriores ao corte em null', () => {
     const resultado = buildSprintBurndown({
       sprint: sprint(),
@@ -153,7 +138,6 @@ describe('linha real', () => {
     expect(resultado.cutoffDate).toBe('2026-08-02');
   });
 
-  // A sprint ainda nao comecou: nao ha dia medido, e o corte nao cai na janela.
   it('sem corte dentro da janela, nenhum dia e medido', () => {
     const resultado = buildSprintBurndown({
       sprint: sprint(),
@@ -164,7 +148,6 @@ describe('linha real', () => {
     expect(resultado.cutoffDate).toBeNull();
   });
 
-  // Sprint vencida: o corte passa do fim, e a serie inteira e medida.
   it('corte depois do fim mede a janela inteira', () => {
     const resultado = buildSprintBurndown({
       sprint: sprint(),
@@ -175,8 +158,6 @@ describe('linha real', () => {
     expect(resultado.cutoffDate).toBe('2026-08-05');
   });
 
-  // Tarefa que entrou ja concluida nunca esteve pendente aqui: dat[a-la no
-  // inicio da sprint criaria trabalho que a sprint nao recebeu.
   it('tarefa que entra ja concluida queima na entrada, e nao no inicio', () => {
     const resultado = buildSprintBurndown({
       sprint: sprint(),
@@ -195,7 +176,6 @@ describe('linha real', () => {
     expect(resultado.days.map((dia) => dia.remaining)).toEqual([10, 10, 4, 4, 4]);
   });
 
-  // `exitStatus` congela o que foi observado NESTA sprint e vence o status atual.
   it('usa exitStatus em vez do status atual da tarefa', () => {
     const resultado = buildSprintBurndown({
       sprint: sprint(),
@@ -209,8 +189,6 @@ describe('linha real', () => {
 });
 
 describe('sprint encerrada', () => {
-  // O corte e o encerramento, e nao o momento da consulta: consultar amanha tem
-  // que devolver exatamente o mesmo grafico.
   it('congela o corte no encerramento', () => {
     const encerrada = sprint({
       status: 'CONCLUIDA',

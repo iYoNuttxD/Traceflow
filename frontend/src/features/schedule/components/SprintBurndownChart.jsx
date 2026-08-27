@@ -1,15 +1,5 @@
 import { shortDate } from './schedule-calendar.js';
 
-// Burndown da sprint (RF35).
-//
-// Geometria proporcional é exatamente o que a agenda do cronograma evitou, e por
-// um bom motivo: barra sem eixo nem rótulo obriga a estimar valor por
-// comprimento. Aqui ela se justifica porque a pergunta é sobre RITMO — "estamos
-// à frente ou atrás do necessário?" —, que é uma comparação entre duas curvas e
-// não um número. Para não repetir o defeito, o gráfico vem com eixo rotulado,
-// legenda em texto, `role="img"` com descrição completa e uma frase abaixo que
-// diz o mesmo em palavras. Quem não enxerga o desenho não perde a informação.
-
 const ESQUERDA = 46;
 const DIREITA = 544;
 const TOPO = 18;
@@ -40,8 +30,6 @@ export function SprintBurndownChart({ burndown }) {
   const ponta = medidos[medidos.length - 1] || null;
   const indiceCorte = cutoffDate ? days.findIndex((dia) => dia.date === cutoffDate) : -1;
 
-  // Três marcas no eixo: começo, meio e fim. Uma por dia viraria uma faixa
-  // ilegível em qualquer sprint de duas semanas.
   const marcas = [...new Set([0, Math.floor(ultimo / 2), ultimo])];
 
   const restante = ponta ? ponta.remaining : totalPoints;
@@ -55,8 +43,6 @@ export function SprintBurndownChart({ burndown }) {
   return (
     <div>
       <h4 className="burndown-title">Burndown</h4>
-      {/* A legenda é texto, não só traço colorido: quem não distingue as cores
-          ainda precisa saber qual curva é qual. */}
       <p className="burndown-legend">
         <span>
           <span className="burndown-swatch burndown-swatch--real" aria-hidden="true" />

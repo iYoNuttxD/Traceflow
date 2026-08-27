@@ -1,9 +1,3 @@
-// RF10: funcoes puras de data e derivacao do cronograma.
-// O "hoje" e sempre injetado; nenhum teste depende do relogio do ambiente.
-//
-// As datas de cronograma passaram a ser instantes (ADR-010 D05) e a janela e
-// semiaberta [inicio, fim) (D03). Estes testes fixam as duas convencoes nas
-// bordas, que e onde elas se distinguem da versao anterior.
 import { describe, expect, it } from 'vitest';
 import {
   durationInDays,
@@ -16,14 +10,10 @@ import {
   toUtcDay
 } from '../../src/modules/sprints/sprint.calculator.js';
 
-// Janela de 13 dias: cobre de 01/08 00:00 ate 13/08 23:59:59.999.
 const start = '2026-08-01T00:00:00.000Z';
 const end = '2026-08-14T00:00:00.000Z';
 
 describe('durationInDays', () => {
-  // Deixou de ser contagem inclusiva de dias de calendario: com o fim exclusivo,
-  // o dia 14 pertence a sprint seguinte, e contar 14 dias somaria um dia que
-  // esta sprint nao tem.
   it('conta os dias abrangidos pela janela semiaberta', () => {
     expect(durationInDays(start, end)).toBe(13);
   });
@@ -55,7 +45,6 @@ describe('isDeadlineOutsideWindow', () => {
     expect(isDeadlineOutsideWindow('2026-08-13T23:59:59.999Z', start, end)).toBe(false);
   });
 
-  // Fim exclusivo: o instante final ja pertence a sprint seguinte.
   it('marca o instante final como fora', () => {
     expect(isDeadlineOutsideWindow(end, start, end)).toBe(true);
   });
@@ -81,8 +70,6 @@ describe('isMilestoneOverdue', () => {
   });
 });
 
-// A perda de hora era o defeito, nao a normalizacao: um prazo informado as
-// 23:59:59-03:00 tem que continuar sendo aquele instante.
 describe('preservacao do instante', () => {
   it('serializa em ISO-8601 UTC sem descartar hora, minuto ou segundo', () => {
     expect(toIsoString('2026-08-14T23:59:59-03:00')).toBe('2026-08-15T02:59:59.000Z');
@@ -90,7 +77,6 @@ describe('preservacao do instante', () => {
   });
 
   it('compara instantes, e nao dias, na janela da sprint', () => {
-    // 2026-08-13T23:59:59-03:00 e 2026-08-14T02:59:59Z: ja passou do fim.
     expect(isDeadlineOutsideWindow('2026-08-13T23:59:59-03:00', start, end)).toBe(true);
     expect(isDeadlineOutsideWindow('2026-08-13T10:00:00-03:00', start, end)).toBe(false);
   });
@@ -106,8 +92,6 @@ describe('preservacao do instante', () => {
   });
 });
 
-// A janela do filtro chega ja convertida pelo service: `to` como inicio do dia
-// seguinte, exclusivo (D15).
 describe('intersectsRange', () => {
   const janela = (fromDia, toDiaSeguinte) => [fromDia, toDiaSeguinte];
 
@@ -116,8 +100,6 @@ describe('intersectsRange', () => {
     expect(intersectsRange(start, end, de, ate)).toBe(true);
   });
 
-  // A sprint termina em 14/08 00:00, exclusivo: uma janela que comeca ali nao a
-  // alcanca, porque nao existe instante em comum.
   it('exclui sprint que termina no inicio da janela', () => {
     const [de, ate] = janela('2026-08-14T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
     expect(intersectsRange(start, end, de, ate)).toBe(false);
@@ -140,8 +122,6 @@ describe('intersectsRange', () => {
 });
 
 describe('isWithinRange', () => {
-  // `to` ja chega exclusivo, entao o dia 14 inteiro entra quando o usuario
-  // filtra "até 14/08".
   const de = '2026-08-01T00:00:00.000Z';
   const ate = '2026-08-15T00:00:00.000Z';
 

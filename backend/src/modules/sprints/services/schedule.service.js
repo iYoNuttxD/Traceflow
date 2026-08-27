@@ -1,5 +1,3 @@
-// Agregacao somente-leitura da visao de cronograma (RF10).
-// Nenhum calculo de planejado, concluido ou percentual: isso e RF35.
 import { sprintRepository } from '../repositories/sprint.repository.js';
 import { milestoneRepository } from '../repositories/milestone.repository.js';
 import {
@@ -37,8 +35,6 @@ function formatScheduleTask(task, sprint) {
     status: task.status,
     priority: task.priority,
     deadline: toIsoString(task.deadline),
-    // Null e "nao estimada", que e diferente de zero: a soma da sprint ignora,
-    // e a tela consegue dizer que falta estimar em vez de afirmar zero ponto.
     estimatedEffort: task.estimatedEffort ?? null,
     responsibleUserId: task.responsibleUserId ?? null,
     ...(sprint
@@ -48,8 +44,6 @@ function formatScheduleTask(task, sprint) {
             sprint.startDate,
             sprint.endDate
           ),
-          // Contexto da participacao: sem isto a interface nao consegue
-          // distinguir o escopo planejado do que entrou depois do inicio.
           addedAfterStart: task.addedAfterStart ?? false,
           carriedFromSprintId: task.carriedFromSprintId ?? null
         }
@@ -62,19 +56,12 @@ export const scheduleService = {
     const parsedProjectId = parseProjectId(projectId);
     await ensureProjectExists(parsedProjectId);
 
-    // A janela continua sendo dia de calendario (D15). `from` e o inicio do dia
-    // pedido; `to` vira o inicio do dia SEGUINTE, para que filtrar "até 14/08"
-    // inclua o dia 14 inteiro e nao pare na sua meia-noite.
     const from = parseWindowDay(query.from, 'Data inicial');
     const toDay = parseWindowDay(query.to, 'Data final');
-    // A comparacao acontece antes de tornar `to` exclusivo: from == to e uma
-    // janela de um dia, valida, e so from > to e erro.
     ensureWindowOrder(from, toDay);
     const to = nextUtcDay(toDay);
     const hasRange = Boolean(from || to);
 
-    // O instante de consulta e capturado uma unica vez e injetado no calculator,
-    // que permanece puro e testavel de forma deterministica.
     const generatedAt = new Date();
 
     const [sprintsRaw, unassignedRaw] = await sprintRepository.scheduleData(parsedProjectId);
@@ -91,8 +78,6 @@ export const scheduleService = {
         status: sprint.status,
         startedAt: sprint.startedAt,
         completedAt: sprint.completedAt,
-        // O vinculo com o marco mora aqui desde a inversao (ADR-011 D01): e a
-        // sprint que aponta, e o cronograma agrupa por este campo.
         milestoneId: sprint.milestoneId ?? null,
         durationInDays: durationInDays(sprint.startDate, sprint.endDate),
         taskCount: sprint.sprintTasks.length,
@@ -119,16 +104,12 @@ export const scheduleService = {
         overdue: isMilestoneOverdue(milestone.status, milestone.dueDate, generatedAt)
       }));
 
-    // Com janela, tarefa sem sprint entra apenas se tiver prazo dentro do periodo.
-    // Tarefa sem sprint e sem prazo so aparece quando nao ha filtro.
     const unassignedTasks = unassignedRaw
       .filter((task) => !hasRange || isWithinRange(task.deadline, from, to))
       .map((task) => formatScheduleTask(task, null));
 
     return {
       projectId: parsedProjectId,
-      // A janela devolvida repete o que o usuario pediu: dia de calendario, com
-      // `to` inclusivo. O fim exclusivo e detalhe interno da comparacao.
       range: { from: toDateOnlyString(from), to: toDateOnlyString(toDay) },
       generatedAt: generatedAt.toISOString(),
       sprints,

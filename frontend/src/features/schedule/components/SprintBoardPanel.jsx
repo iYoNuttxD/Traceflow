@@ -8,8 +8,6 @@ import {
   transitionHints
 } from './schedule-display.js';
 
-// Prazo em linguagem de quem acompanha, não em data solta: o que importa é
-// quanto falta, e "termina em 20/08" sem o "(3 dias)" obriga a contar de cabeça.
 function prazoLabel(sprint, statusKey, hojeIso) {
   const { inicio, fim } = sprintDayRange(sprint);
   if (statusKey === 'PLANEJADA') return `Início em ${shortDate(inicio)}`;
@@ -21,8 +19,6 @@ function prazoLabel(sprint, statusKey, hojeIso) {
     const dias = diffDaysIso(fim, hojeIso);
     return `Venceu há ${dias} ${dias === 1 ? 'dia' : 'dias'}`;
   }
-  // Cancelada nao "encerrou" em data nenhuma: o fim planejado nao aconteceu, e
-  // exibi-lo como encerramento afirmaria uma entrega que nao houve.
   if (statusKey === 'CANCELADA') return 'Sprint cancelada';
   return `Encerrada em ${shortDate(fim)}`;
 }
@@ -37,9 +33,6 @@ function Metrica({ titulo, valor, children }) {
   );
 }
 
-// Andamento da sprint dentro do Kanban. Vive na feature de cronograma, e não na
-// de tarefas, porque tudo que ele mostra é vocabulário de sprint; o Kanban o
-// consome pelo `index.js` público, como manda a fronteira entre features.
 export function SprintBoardPanel({
   sprints,
   scheduleById = {},
@@ -73,8 +66,6 @@ export function SprintBoardPanel({
   const statusKey = sprint ? sprintStatusKey(sprint, hoje) : null;
   const resumo = summarizeSprintTasks(scheduleById[sprint?.id]);
   const congelada = sprint ? sprint.status === 'CONCLUIDA' || sprint.status === 'CANCELADA' : false;
-  // Só uma sprint em andamento por projeto: se outra estiver aberta, iniciar
-  // esta é impossível, e o motivo precisa aparecer junto do botão desligado.
   const bloqueadaPorOutra =
     Boolean(activeSprintName) && sprint?.status === 'PLANEJADA' && activeSprintName !== sprint.name;
   const { inicio, fim } = sprint ? sprintDayRange(sprint) : { inicio: '', fim: '' };
@@ -133,8 +124,6 @@ export function SprintBoardPanel({
               <Metrica titulo="Pontos" valor={`${resumo.donePoints} de ${resumo.points}`} />
               <Metrica
                 titulo="Progresso"
-                // Null é "não há o que medir", e não zero: a sprint sem tarefas
-                // pontuadas não está com 0% de avanço, ela não tem denominador.
                 valor={resumo.percent === null ? 'Sem pontos' : `${resumo.percent}%`}
               >
                 {resumo.percent !== null && (

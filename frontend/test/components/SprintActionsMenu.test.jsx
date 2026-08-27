@@ -1,7 +1,3 @@
-// Bateria RF10/RF35 — o menu "Mais ações" entrou com o design de 24/08 e a
-// suíte da tela só exercitava abrir e escolher. Fechar é metade do contrato:
-// um menu fixed que não fecha na rolagem flutua longe do botão, e um Escape
-// que não devolve o foco derruba o teclado no <body>.
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
@@ -40,8 +36,6 @@ describe('SprintActionsMenu', () => {
 
     await user.click(trigger);
     expect(trigger).toHaveAttribute('aria-expanded', 'true');
-    // O grupo aberto carrega o nome da sprint: a lista tem varios menus com o
-    // mesmo rotulo visivel, e o leitor de tela precisa saber de qual e.
     expect(screen.getByRole('group', { name: 'Ações da sprint Sprint 1' })).toBeInTheDocument();
   });
 
@@ -72,8 +66,6 @@ describe('SprintActionsMenu', () => {
 
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('button', { name: 'Ver tarefas' })).not.toBeInTheDocument();
-    // Sem isso o teclado cai no <body> e quem navega por leitor de tela perde
-    // o lugar de onde o menu foi aberto.
     expect(gatilho()).toHaveFocus();
   });
 
@@ -84,9 +76,6 @@ describe('SprintActionsMenu', () => {
     await user.click(gatilho());
     expect(screen.getByRole('button', { name: 'Ver tarefas' })).toBeInTheDocument();
 
-    // O listener usa capture no window porque o scroll da lista de sprints nao
-    // borbulha ate o document — o teste rola um elemento qualquer, como a
-    // lista faria.
     fireEvent.scroll(document.body);
     expect(screen.queryByRole('button', { name: 'Ver tarefas' })).not.toBeInTheDocument();
   });

@@ -1,4 +1,3 @@
-// Fachada que agrega os casos de uso do modulo, no mesmo padrao de task.service.js.
 import { sprintCrudService } from './services/sprint-crud.service.js';
 import { sprintStatusService } from './services/sprint-status.service.js';
 import { sprintProgressService } from './services/sprint-progress.service.js';

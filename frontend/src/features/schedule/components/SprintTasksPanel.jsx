@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
 import { isTerminalSprint, taskPriorityLabels, taskStatusLabels } from './schedule-display.js';
 
-// Associa e desassocia tarefas da sprint selecionada.
-// A substituicao e atomica no backend: falha em qualquer item nao persiste nada.
 export function SprintTasksPanel({
   sprint,
   tasks,
@@ -21,10 +19,6 @@ export function SprintTasksPanel({
     setSelection(selectedTaskIds);
   }, [selectedTaskIds]);
 
-  // A lista traz TODAS as tarefas do projeto, inclusive as ja alocadas em outra
-  // sprint. Marcar uma delas nao a copia: move, e a sprint de origem perde a
-  // tarefa do escopo. Sem dizer isso, o usuario esvazia o planejamento alheio
-  // sem perceber — o titulo da tarefa nao anuncia a que sprint ela pertence.
   const outraSprint = (task) =>
     task.sprintId && task.sprintId !== sprint.id
       ? sprintNames[task.sprintId] || 'outra sprint'
@@ -33,18 +27,9 @@ export function SprintTasksPanel({
     (task) => selection.includes(task.id) && !selectedTaskIds.includes(task.id) && outraSprint(task)
   );
 
-  // Sprint encerrada e registro historico: o escopo nao muda em nenhuma direcao.
-  // O painel vira leitura — antes ele permitia remover, quando a remocao era o
-  // unico jeito de esvaziar a sprint para exclui-la; a exclusao deixou de existir.
-  // VIEWER cai no mesmo caminho, por falta de permissao e nao por estado.
   const congelada = isTerminalSprint(sprint.status);
   const somenteLeitura = congelada || readOnly;
-  // A composicao vem da API, e nao do cruzamento com as tarefas do projeto: numa
-  // sprint encerrada a tarefa pode ter seguido adiante, e ainda assim continua
-  // fazendo parte do que aconteceu aqui.
   const membros = sprintTasks;
-  // Entrou depois do inicio: e o que distingue o escopo planejado do que foi
-  // acrescentado durante a execucao (RF35).
   const posteriores = new Map(
     sprintTasks.map((task) => [
       task.id,
@@ -75,14 +60,11 @@ export function SprintTasksPanel({
           Marque as tarefas que pertencem a esta sprint. Somente tarefas deste projeto são listadas.
         </p>
       )}
-      {/* Tres estados distintos. "Ainda nao sei" nunca pode ser exibido como "nao ha". */}
       {loading ? (
         <p className="empty-state" role="status">
           Carregando tarefas do projeto...
         </p>
       ) : somenteLeitura ? (
-        // Somente a composicao registrada. Listar o projeto inteiro com caixas
-        // inertes ofereceria uma escolha que nao existe.
         membros.length === 0 ? (
           <p className="empty-state">
             {congelada
@@ -126,8 +108,6 @@ export function SprintTasksPanel({
                         Atualmente em {origem} — marcar move a tarefa para cá
                       </span>
                     )}
-                    {/* Já dentro da sprint e entrou depois do início: distinguir
-                        isso é o que o RF35 mede como mudança de escopo. */}
                     {posteriores.get(task.id)?.depois && (
                       <span className="checkbox-field-hint">Incluída após o início da sprint</span>
                     )}
@@ -138,8 +118,6 @@ export function SprintTasksPanel({
           })}
         </ul>
       )}
-      {/* O rotulo por linha sai de vista quando a lista rola; o resumo fica junto
-          do botao, onde a decisao e de fato tomada. */}
       {seraoMovidas.length > 0 && (
         <p className="field-help" role="status">
           {seraoMovidas.length === 1
@@ -154,7 +132,6 @@ export function SprintTasksPanel({
           <button
             type="button"
             className="button button-primary"
-            // Salvar durante a carga enviaria a seleção vazia e esvaziaria a sprint.
             disabled={loading || submitting}
             title={loading ? 'Aguarde o carregamento das tarefas do projeto.' : undefined}
             onClick={() => onSubmit(selection)}

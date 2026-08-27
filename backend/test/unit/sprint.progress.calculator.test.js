@@ -1,6 +1,3 @@
-// RF35: evolucao por sprint. Modulo puro — nenhum acesso a banco, instante de
-// corte sempre injetado. Se algum destes testes depender do fuso da maquina, o
-// calculo esta errado, nao o teste.
 import { describe, expect, it } from 'vitest';
 import {
   buildSprintProgress,
@@ -28,7 +25,6 @@ const planejada = {
 };
 const concluida = { ...emAndamento, status: 'CONCLUIDA', completedAt: FIM };
 
-// Participacao ativa e planejada desde o inicio, salvo indicacao contraria.
 const participacao = (taskId, overrides = {}) => ({
   taskId,
   taskTitleSnapshot: `T${taskId}`,
@@ -55,8 +51,6 @@ describe('linha de base do planejamento', () => {
     expect(resolveBaseline(planejada)).toEqual({ kind: 'OPEN', at: null });
   });
 
-  // Base aberta nao e caso degenerado: sem planejamento fechado, o escopo
-  // planejado E o atual, e o vaivem durante o planejamento nao vira mudanca.
   it('com base aberta planejado e atual coincidem e nao ha mudanca de escopo', () => {
     const resultado = progresso(
       [
@@ -94,7 +88,6 @@ describe('metricas', () => {
     expect(resultado.current.percentage).toBeCloseTo(66.67, 2);
   });
 
-  // Zero e nulo sao estados diferentes: "nada concluido" nao e "nao ha o que medir".
   it('devolve percentual nulo quando nao ha participacao', () => {
     const resultado = progresso([]);
     expect(resultado.current).toMatchObject({
@@ -105,8 +98,6 @@ describe('metricas', () => {
     });
   });
 
-  // A tarefa foi planejada; tira-la do denominador esconderia escopo que a
-  // sprint nao entregou.
   it('mantem no planejado a tarefa que saiu depois do inicio', () => {
     const resultado = progresso([
       participacao(1, { currentStatus: 'CONCLUIDO' }),
@@ -152,7 +143,6 @@ describe('mudanca de escopo depois do inicio', () => {
     ]);
   });
 
-  // Saldo liquido: entrar depois do inicio e sair de novo nao muda o escopo.
   it('nao conta quem entrou depois do inicio e ja saiu', () => {
     const resultado = progresso([
       participacao(5, {
@@ -182,8 +172,6 @@ describe('continuidade entre sprints', () => {
   });
 });
 
-// O centro do RF35 corrigido: uma sprint encerrada e um registro, e nada que
-// aconteca com a tarefa depois pode reescreve-lo.
 describe('imutabilidade da sprint encerrada', () => {
   const congelada = [
     participacao(1, { exitStatus: 'CONCLUIDO', currentStatus: 'CONCLUIDO' }),
@@ -206,7 +194,6 @@ describe('imutabilidade da sprint encerrada', () => {
       participations: congelada,
       cutoff: CORTE
     });
-    // A tarefa 2 e concluida em outra sprint, depois do encerramento desta.
     const depois = buildSprintProgress({
       sprint: concluida,
       participations: [
@@ -222,8 +209,6 @@ describe('imutabilidade da sprint encerrada', () => {
     expect(depois.current).toMatchObject({ numerator: 1, denominator: 2 });
   });
 
-  // A tarefa deixa de existir, mas o periodo que ela integrou continua medindo
-  // o que mediu: o denominador nao encolhe.
   it('excluir a tarefa depois nao muda o denominador', () => {
     const resultado = buildSprintProgress({
       sprint: concluida,

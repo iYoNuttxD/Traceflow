@@ -1,20 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 
-// Menu "Mais ações" do item de sprint.
-//
-// As consultas (tarefas, Kanban, evolução) e as mutações raras (editar,
-// cancelar) saíram da fileira de botões: com sete ações lado a lado, as duas
-// que importam no dia a dia — iniciar e concluir — disputavam atenção com as
-// cinco que não. O menu guarda o resto atrás de um clique.
-//
-// `position: fixed`, e não `absolute`: a lista de sprints rola
-// (`.sprint-list` tem overflow), e um menu absoluto seria cortado pela borda
-// do scroll. O preço do fixed é o menu não acompanhar a rolagem — por isso
-// rolar fecha o menu em vez de deixá-lo flutuando longe do botão.
-//
-// A altura estimada decide só a DIREÇÃO de abertura: perto da borda inferior
-// da janela o menu abre para cima, senão as últimas ações nasceriam fora da
-// tela.
 const ALTURA_ESTIMADA = 240;
 
 export function SprintActionsMenu({ sprintName, disabled = false, items }) {
@@ -23,9 +8,6 @@ export function SprintActionsMenu({ sprintName, disabled = false, items }) {
   const triggerRef = useRef(null);
   const aberto = posicao !== null;
 
-  // Mesma disciplina do popover de filtro do Kanban: fechar ao clicar fora e
-  // no Escape. Um menu que só fecha pelo próprio botão vira obstáculo assim
-  // que o usuário decide fazer outra coisa.
   useEffect(() => {
     if (!aberto) return undefined;
     const foraDoMenu = (event) => {
@@ -34,14 +16,11 @@ export function SprintActionsMenu({ sprintName, disabled = false, items }) {
     const noEscape = (event) => {
       if (event.key !== 'Escape') return;
       setPosicao(null);
-      // Devolver o foco: sem isso o teclado cai no <body> e o leitor de tela
-      // perde o lugar de onde o menu foi aberto.
       triggerRef.current?.focus();
     };
     const aoRolar = () => setPosicao(null);
     document.addEventListener('pointerdown', foraDoMenu);
     document.addEventListener('keydown', noEscape);
-    // capture: o scroll da lista de sprints não borbulha até o document.
     window.addEventListener('scroll', aoRolar, true);
     window.addEventListener('resize', aoRolar);
     return () => {

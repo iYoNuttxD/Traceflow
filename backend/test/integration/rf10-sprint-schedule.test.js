@@ -1,4 +1,3 @@
-// RF10: migration e repositories contra MySQL real.
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import {
   cleanTestDatabase,
@@ -21,8 +20,6 @@ beforeAll(async () => {
     await import('../../src/modules/sprints/repositories/sprint.repository.js'));
   ({ milestoneRepository } =
     await import('../../src/modules/sprints/repositories/milestone.repository.js'));
-  // O service entra aqui porque a invariante de janela nasce da combinacao entre
-  // regra e lock: exercitar so o repository provaria a transacao, nao a decisao.
   ({ sprintService } = await import('../../src/modules/sprints/sprint.service.js'));
   await cleanTestDatabase(prisma);
 });
@@ -42,8 +39,6 @@ describe('migration add_sprint_milestone_schedule', () => {
     await expect(prisma.milestone.count()).resolves.toBe(0);
   });
 
-  // O lado do vinculo inverteu (ADR-011 D01). As duas asserces juntas provam a
-  // migration do ADR-011: a coluna nova responde, e a antiga nao existe mais.
   it('moveu o vinculo de Milestone.sprintId para Sprint.milestoneId', async () => {
     const project = await createProject(prisma);
     const marco = await createMilestone(prisma, project.id);
@@ -86,9 +81,6 @@ describe('migration add_sprint_milestone_schedule', () => {
     ]);
   });
 
-  // Antes deste ajuste o teste fixava o comportamento oposto: `@db.Date` truncava
-  // a hora e a assercao guardava essa perda como se fosse contrato. Preservar o
-  // instante e a regra (ADR-010 D05) — 23:59:59 do dia 14 nao e meia-noite do 14.
   it('preserva o instante exato das datas de cronograma', async () => {
     const project = await createProject(prisma);
     const sprint = await createSprint(prisma, project.id, {
@@ -128,10 +120,6 @@ describe('integridade no banco', () => {
     expect(stored.sprintId).toBeNull();
   });
 
-  // Sprint e Milestone sao os dois filhos de Project em cascata, e a sprint ainda
-  // aponta para o marco. Com FK `Restrict` no lugar de `SetNull`, esta exclusao
-  // falharia sempre que o InnoDB processasse Milestone primeiro — e a ordem entre
-  // FKs irmas nao e garantida (ADR-011 D01).
   it('exclusao de projeto remove sprints e marcos em cascata, mesmo vinculados', async () => {
     const project = await createProject(prisma);
     const marco = await createMilestone(prisma, project.id);
@@ -143,9 +131,6 @@ describe('integridade no banco', () => {
     expect(await prisma.milestone.count()).toBe(0);
   });
 
-  // SetNull na FK e rede de seguranca, nao a regra: quem protege o agrupamento e
-  // a recusa do service. Apagar o marco por fora deixa a sprint sem marco, e nao
-  // um ponteiro orfao.
   it('exclusao direta do marco desvincula a sprint em vez de orfanar o ponteiro', async () => {
     const project = await createProject(prisma);
     const marco = await createMilestone(prisma, project.id);
@@ -217,8 +202,6 @@ describe('transacoes dos repositories', () => {
     expect(await prisma.auditEvent.count({ where: { action: 'SPRINT_TASKS_REPLACED' } })).toBe(1);
   });
 
-  // A participacao entra na mesma transacao do vinculo: se a auditoria falhar,
-  // nao pode sobrar registro historico de uma associacao que nunca existiu.
   it('falha na auditoria desfaz participacao, vinculo e historico', async () => {
     const project = await createProject(prisma);
     const sprint = await createSprint(prisma, project.id);
@@ -229,7 +212,6 @@ describe('transacoes dos repositories', () => {
         sprint.id,
         project.id,
         [task.id],
-        // actorUserId inexistente viola a FK e deve derrubar a transacao inteira.
         planoDeEntrada(project, sprint, task, 999999)
       )
     ).rejects.toBeDefined();
@@ -253,16 +235,10 @@ describe('transacoes dos repositories', () => {
   });
 });
 
-// O lock so vale se a decisao vier DEPOIS dele. Estes testes afirmam sobre o
-// estado final do banco, nunca sobre qual requisicao venceu: sob concorrencia
-// real a ordem nao e do teste, e depender dela seria testar o escalonador.
 describe('concorrencia sob lock (ADR-010 D17)', () => {
   const inicio = new Date('2026-08-01T00:00:00.000Z');
   const fim = new Date('2026-08-30T00:00:00.000Z');
 
-  // `TaskHistoryEntry.actorUserId` e obrigatorio: sem ator, a mutacao de escopo
-  // aborta na escrita do historico e o teste passa a exercitar um caminho que nao
-  // chega ao fim.
   let sequencia = 0;
   const comAtor = async () => {
     sequencia += 1;
@@ -286,10 +262,6 @@ describe('concorrencia sob lock (ADR-010 D17)', () => {
     return { project, sprint };
   }
 
-  // Partindo de [01, 30], uma requisicao move so o fim para 15 e outra so o
-  // inicio para 20. Completar o lado ausente com o registro lido ANTES da
-  // transacao deixava as duas passarem pela mesma validacao, e o banco terminava
-  // com [20, 15] — janela invertida, que nenhuma das duas requisicoes pediu.
   it('duas atualizacoes parciais complementares nunca gravam janela invertida', async () => {
     const { sprint } = await sprintDeTeste();
 
@@ -301,12 +273,10 @@ describe('concorrencia sob lock (ADR-010 D17)', () => {
     const persistida = await prisma.sprint.findUnique({ where: { id: sprint.id } });
     expect(persistida.startDate.getTime()).toBeLessThan(persistida.endDate.getTime());
 
-    // Uma das duas precisa ter sido recusada: as duas juntas sao contraditorias.
     const recusadas = resultados.filter((resultado) => resultado.status === 'rejected');
     expect(recusadas).toHaveLength(1);
     expect(recusadas[0].reason).toMatchObject({ code: 'SPRINT_DATE_RANGE_INVALID' });
 
-    // A janela final e exatamente a de quem venceu, sem mistura das duas.
     const vencedora = [
       { startDate: inicio.getTime(), endDate: new Date('2026-08-15T00:00:00.000Z').getTime() },
       { startDate: new Date('2026-08-20T00:00:00.000Z').getTime(), endDate: fim.getTime() }
@@ -317,9 +287,6 @@ describe('concorrencia sob lock (ADR-010 D17)', () => {
     });
   });
 
-  // ADR-011 D06: duas requisicoes tentam iniciar sprints diferentes do mesmo
-  // projeto. Validar fora do lock deixaria as duas partirem do mesmo retrato,
-  // e o projeto terminaria com duas sprints em andamento.
   it('duas sprints nao entram em andamento ao mesmo tempo', async () => {
     for (let rodada = 0; rodada < 5; rodada += 1) {
       const project = await createProject(prisma);
@@ -350,9 +317,6 @@ describe('concorrencia sob lock (ADR-010 D17)', () => {
     }
   });
 
-  // ADR-011 D07: o encerramento devolve ao backlog o que nao foi concluido, na
-  // MESMA transacao que congela as participacoes. Metade disso deixaria a tarefa
-  // presa numa sprint congelada, ou o registro sem o que havia nela.
   it('encerrar devolve a tarefa pendente ao backlog e congela a participacao', async () => {
     const contexto = await comAtor();
     const project = await createProject(prisma);
@@ -370,10 +334,8 @@ describe('concorrencia sob lock (ADR-010 D17)', () => {
 
     expect(resultado.returnedToBacklog).toBe(1);
     expect((await prisma.task.findUnique({ where: { id: pendente.id } })).sprintId).toBeNull();
-    // A concluida fica: ela terminou aqui, e o ponteiro registra isso.
     expect((await prisma.task.findUnique({ where: { id: pronta.id } })).sprintId).toBe(sprint.id);
 
-    // A participacao NAO e removida: ela guarda o que aconteceu no periodo.
     const participacoes = await prisma.sprintTask.findMany({ where: { sprintId: sprint.id } });
     expect(participacoes).toHaveLength(2);
     for (const participacao of participacoes) {
@@ -383,8 +345,6 @@ describe('concorrencia sob lock (ADR-010 D17)', () => {
     const congelada = participacoes.find((item) => item.taskId === pendente.id);
     expect(congelada.exitStatus).toBe('A_FAZER');
 
-    // A saida vira historico, com `toValue` nulo — mesma convencao da mutacao
-    // de escopo.
     const historico = await prisma.taskHistoryEntry.findMany({
       where: { taskId: pendente.id, field: 'SPRINT' },
       orderBy: { id: 'asc' }
@@ -395,9 +355,6 @@ describe('concorrencia sob lock (ADR-010 D17)', () => {
     });
   });
 
-  // ADR-011 D05: o marco fecha na mesma transacao da ultima sprint. Fora dela,
-  // uma falha depois do encerramento deixaria o marco eternamente pendente com
-  // todas as sprints concluidas.
   it('a ultima sprint conclui o marco na mesma transacao', async () => {
     const project = await createProject(prisma);
     const marco = await createMilestone(prisma, project.id);
@@ -450,9 +407,6 @@ describe('concorrencia sob lock (ADR-010 D17)', () => {
     );
   });
 
-  // Exclusao de marco contra a criacao de uma sprint que o escolhe. Sem a
-  // revalidacao sob lock, a sprint confirmaria apontando para uma linha apagada
-  // e a FK estouraria uma violacao que a interface nao sabe traduzir.
   it('exclusao de marco e criacao de sprint nao confirmam uma fora da outra', async () => {
     for (let rodada = 0; rodada < 5; rodada += 1) {
       const project = await createProject(prisma);
@@ -470,8 +424,6 @@ describe('concorrencia sob lock (ADR-010 D17)', () => {
 
       const sprints = await prisma.sprint.findMany({ where: { projectId: project.id } });
       const marcos = await prisma.milestone.count({ where: { id: marco.id } });
-      // Ou a sprint entrou e o marco sobreviveu (a exclusao foi recusada), ou o
-      // marco sumiu e a sprint nao existe. Nunca sprint apontando para o vazio.
       for (const sprint of sprints) {
         if (sprint.milestoneId !== null) expect(marcos).toBe(1);
       }

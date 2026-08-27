@@ -1,5 +1,3 @@
-// RF10: tela de Marcos depois da inversao (ADR-011). O marco agrupa sprints, tem
-// prazo proprio e nao congela junto com nenhuma delas.
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
@@ -97,8 +95,6 @@ describe('estados da tela', () => {
     expect(await screen.findByRole('heading', { name: 'Acesso restrito' })).toBeInTheDocument();
   });
 
-  // Bateria RF10/RF35: dos quatro estados do DoD (carregando, vazio, erro,
-  // acesso negado), o erro recuperavel era o unico sem teste nesta tela.
   it('exibe erro recuperavel em falha generica', async () => {
     mocks.projects.get.mockRejectedValue({ response: { status: 500, data: {} } });
     renderScreen();
@@ -111,8 +107,6 @@ describe('progresso por sprints', () => {
     mocks.schedule.listMilestones.mockResolvedValue({ data: { total: 1, milestones: [marco()] } });
   });
 
-  // O numero e a barra dizem a mesma coisa; a barra so acelera a leitura. Sem o
-  // texto, "metade preenchida" exigiria medir pixel.
   it('conta as sprints concluidas do marco', async () => {
     mocks.schedule.listSprints.mockResolvedValue({
       data: {
@@ -128,8 +122,6 @@ describe('progresso por sprints', () => {
     expect(await screen.findByText('1 de 3 sprints concluídas')).toBeInTheDocument();
   });
 
-  // Cancelada sai das duas pontas: nao foi entregue nem esta pendente
-  // (ADR-011 D05).
   it('ignora sprint cancelada na contagem', async () => {
     mocks.schedule.listSprints.mockResolvedValue({
       data: {
@@ -164,8 +156,6 @@ describe('progresso por sprints', () => {
 });
 
 describe('conclusao automatica', () => {
-  // O marco aparece concluido sem que ninguem tenha clicado em concluir: sem a
-  // nota, a tela parece ter feito algo por conta propria.
   it('explica a conclusao quando todas as sprints terminaram', async () => {
     mocks.schedule.listMilestones.mockResolvedValue({
       data: { total: 1, milestones: [marco({ status: 'CONCLUIDO' })] }
@@ -179,8 +169,6 @@ describe('conclusao automatica', () => {
     ).toBeInTheDocument();
   });
 
-  // Concluido a mao com sprint aberta nao e automatico: dizer que foi mentiria
-  // sobre como o estado chegou ali.
   it('nao chama de automatica a conclusao manual', async () => {
     mocks.schedule.listMilestones.mockResolvedValue({
       data: { total: 1, milestones: [marco({ status: 'CONCLUIDO' })] }
@@ -191,7 +179,6 @@ describe('conclusao automatica', () => {
     renderScreen();
     await screen.findByText('Fundação do produto');
     expect(screen.queryByText(/Concluído automaticamente/)).toBeNull();
-    // A nota diz COMO chegou a concluído: aqui foi alguém, não a automação.
     expect(screen.getByText('Concluído manualmente.')).toBeInTheDocument();
   });
 
@@ -211,8 +198,6 @@ describe('conclusao automatica', () => {
     expect(mocks.schedule.updateMilestoneStatus).not.toHaveBeenCalled();
   });
 
-  // Concluir a mao e sempre uma afirmacao sobre a entrega: confirma mesmo sem
-  // pendencia — mas sem inventar uma no aviso.
   it('confirma a conclusao manual mesmo com todas as sprints terminadas', async () => {
     const user = userEvent.setup();
     mocks.schedule.listMilestones.mockResolvedValue({ data: { total: 1, milestones: [marco()] } });
@@ -235,8 +220,6 @@ describe('conclusao automatica', () => {
 });
 
 describe('exclusao', () => {
-  // A FK e SetNull: a recusa do backend e a unica protecao do agrupamento, e
-  // desabilitar aqui evita transformar a regra numa descoberta pelo 409.
   it('desabilita a exclusao e explica quando o marco tem sprints', async () => {
     mocks.schedule.listMilestones.mockResolvedValue({ data: { total: 1, milestones: [marco()] } });
     mocks.schedule.listSprints.mockResolvedValue({
@@ -256,7 +239,6 @@ describe('exclusao', () => {
   });
 });
 
-// Bateria RF10/RF35 — itens do design de 24/08 que estavam sem prova.
 describe('rodape e sinalizacoes do marco (design de 24/08)', () => {
   it('marco sem sprints diz onde o vinculo e declarado', async () => {
     mocks.schedule.listMilestones.mockResolvedValue({ data: { total: 1, milestones: [marco()] } });
@@ -275,8 +257,6 @@ describe('rodape e sinalizacoes do marco (design de 24/08)', () => {
     });
     const { container } = renderScreen();
     await screen.findByText('Concluído manualmente.');
-    // A barra segue o estado declarado, nao a contagem: badge "Concluído"
-    // sobre barra pela metade diria duas coisas ao mesmo tempo.
     const preenchimento = container.querySelector('.traceability-progress-bar span');
     expect(preenchimento).toHaveStyle({ width: '100%' });
   });
@@ -309,17 +289,13 @@ describe('rodape e sinalizacoes do marco (design de 24/08)', () => {
     await user.click(await screen.findByRole('button', { name: /^Concluir o marco/ }));
     const dialog = await screen.findByRole('dialog');
     const confirmar = within(dialog).getByRole('button', { name: 'Concluir marco' });
-    // A classe e a materializacao visual do "nao destrutivo" (design de
-    // 24/08): vermelho aqui diria "perigo" sobre uma acao reversivel.
     expect(confirmar).toHaveClass('button-primary');
     expect(confirmar).not.toHaveClass('button-danger');
-    // E a recusa se chama "Voltar" tambem nesta tela.
     expect(within(dialog).getByRole('button', { name: 'Voltar' })).toBeInTheDocument();
   });
 });
 
 describe('formulario de marco', () => {
-  // O campo de sprint saiu (ADR-011 D01): quem declara o vinculo e a sprint.
   it('nao oferece campo de sprint', async () => {
     renderScreen();
     await screen.findByText('Nenhum marco cadastrado.');
@@ -360,7 +336,6 @@ describe('formulario de marco', () => {
     );
   });
 
-  // O prazo do marco nao depende de janela nenhuma (ADR-011 D03).
   it('aceita prazo fora do periodo de qualquer sprint', async () => {
     const user = userEvent.setup();
     mocks.schedule.createMilestone.mockResolvedValue({ data: {} });
@@ -377,9 +352,6 @@ describe('formulario de marco', () => {
     await waitFor(() => expect(mocks.schedule.createMilestone).toHaveBeenCalledTimes(1));
   });
 
-  // Editar promete "carrega no formulario de edicao" — o foco completa a
-  // promessa: no desktop pareado o teclado ja cai no campo preenchido, e no
-  // empilhado (≤960px) o focus() nativo rola a pagina ate o formulario.
   it('editar leva o foco ao formulario preenchido', async () => {
     const user = userEvent.setup();
     mocks.schedule.listMilestones.mockResolvedValue({
@@ -396,8 +368,6 @@ describe('formulario de marco', () => {
     await waitFor(() => expect(titulo).toHaveFocus());
   });
 
-  // O botao "Cancelar edicao" desaparece ao ser clicado; sem realocar o foco,
-  // ele cairia no body e o teclado perderia o lugar.
   it('cancelar edicao devolve o foco ao formulario', async () => {
     const user = userEvent.setup();
     mocks.schedule.listMilestones.mockResolvedValue({
