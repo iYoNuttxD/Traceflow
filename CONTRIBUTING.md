@@ -99,7 +99,7 @@ Use Conventional Commits preservando o type no início:
 
 ```text
 type(scope): description
-type(scope): [TASK-ID] description
+type(scope): [TASK-<ID>] description
 ```
 
 Exemplos:
