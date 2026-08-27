@@ -376,6 +376,44 @@ describe('formulario de marco', () => {
 
     await waitFor(() => expect(mocks.schedule.createMilestone).toHaveBeenCalledTimes(1));
   });
+
+  // Editar promete "carrega no formulario de edicao" — o foco completa a
+  // promessa: no desktop pareado o teclado ja cai no campo preenchido, e no
+  // empilhado (≤960px) o focus() nativo rola a pagina ate o formulario.
+  it('editar leva o foco ao formulario preenchido', async () => {
+    const user = userEvent.setup();
+    mocks.schedule.listMilestones.mockResolvedValue({
+      data: { total: 1, milestones: [marco()] }
+    });
+    renderScreen();
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Editar o marco Fundação do produto' })
+    );
+
+    const titulo = screen.getByLabelText(/Título/);
+    expect(titulo).toHaveValue('Fundação do produto');
+    await waitFor(() => expect(titulo).toHaveFocus());
+  });
+
+  // O botao "Cancelar edicao" desaparece ao ser clicado; sem realocar o foco,
+  // ele cairia no body e o teclado perderia o lugar.
+  it('cancelar edicao devolve o foco ao formulario', async () => {
+    const user = userEvent.setup();
+    mocks.schedule.listMilestones.mockResolvedValue({
+      data: { total: 1, milestones: [marco()] }
+    });
+    renderScreen();
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Editar o marco Fundação do produto' })
+    );
+    await user.click(screen.getByRole('button', { name: 'Cancelar edição' }));
+
+    const titulo = screen.getByLabelText(/Título/);
+    expect(titulo).toHaveValue('');
+    await waitFor(() => expect(titulo).toHaveFocus());
+  });
 });
 
 describe('perfil somente leitura', () => {

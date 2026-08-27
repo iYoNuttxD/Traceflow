@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router';
 import { scheduleApi } from '../api/schedule.api.js';
 import { ProjectSectionNav } from '../../projects/index.js';
@@ -48,6 +48,18 @@ export function MilestonesScreen() {
   const [editingMilestoneId, setEditingMilestoneId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [busyMilestoneId, setBusyMilestoneId] = useState(null);
+  // Card do formulário: alvo do foco quando a edição começa ou é cancelada.
+  const formCardRef = useRef(null);
+
+  // Editar promete "carrega no formulário de edição" — o foco completa a
+  // promessa. No desktop pareado o campo já está visível e nada rola; no
+  // empilhado (≤960px) o focus() nativo rola até ele, respeitando
+  // prefers-reduced-motion (um scrollIntoView animado não respeitaria).
+  // Disparar pelo id cobre também trocar a edição de um marco para outro.
+  useEffect(() => {
+    if (!editingMilestoneId) return;
+    formCardRef.current?.querySelector('input, select, textarea')?.focus();
+  }, [editingMilestoneId]);
 
   const submitMilestone = async (event) => {
     event.preventDefault();
@@ -190,7 +202,13 @@ export function MilestonesScreen() {
       </header>
       <FeedbackRegion error={error} success={success} />
 
-      <div className="schedule-columns">
+      {/* Pareadas: lista e formulário dividem a mesma altura no desktop. Sem
+          formulário (VIEWER), coluna única — nada de coluna fantasma. */}
+      <div
+        className={`schedule-columns ${
+          somenteLeitura ? 'schedule-columns--unica' : 'schedule-columns--pareadas'
+        }`}
+      >
         <section className="card">
           <div className="schedule-card-header">
             <h2>Marcos do projeto</h2>
@@ -211,7 +229,7 @@ export function MilestonesScreen() {
         </section>
 
         {!somenteLeitura && (
-          <section className="card">
+          <section className="card" ref={formCardRef}>
             <h2>{editingMilestoneId ? 'Editar marco' : 'Cadastrar marco'}</h2>
             <MilestoneForm
               formData={milestoneForm}
@@ -224,6 +242,9 @@ export function MilestonesScreen() {
                 setEditingMilestoneId(null);
                 setMilestoneForm(emptyMilestoneForm);
                 setMilestoneErrors({});
+                // O botão "Cancelar edição" desaparece ao ser clicado; sem
+                // realocar o foco, ele cai no body e o teclado perde o lugar.
+                formCardRef.current?.querySelector('input, select, textarea')?.focus();
               }}
             />
           </section>

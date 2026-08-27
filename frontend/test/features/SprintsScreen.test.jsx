@@ -728,6 +728,66 @@ describe('formulario de sprint', () => {
     );
   });
 
+  // Editar promete "carrega no formulario de edicao" — o foco completa a
+  // promessa: no desktop pareado o teclado ja cai no campo preenchido, e no
+  // empilhado (≤960px) o focus() nativo rola a pagina ate o formulario.
+  it('editar leva o foco ao formulario preenchido', async () => {
+    const user = userEvent.setup();
+    mocks.schedule.listSprints.mockResolvedValue({
+      data: {
+        total: 1,
+        sprints: [
+          {
+            id: 3,
+            name: 'Sprint 1',
+            objective: null,
+            startDate: new Date('2026-08-01T09:30').toISOString(),
+            endDate: new Date('2026-08-14T18:00').toISOString(),
+            status: 'PLANEJADA'
+          }
+        ]
+      }
+    });
+    renderScreen();
+
+    await abrirMenu(user, 'Sprint 1');
+    await user.click(await screen.findByRole('button', { name: /^Editar a sprint/ }));
+
+    const nome = screen.getByLabelText(/Nome/);
+    expect(nome).toHaveValue('Sprint 1');
+    await waitFor(() => expect(nome).toHaveFocus());
+  });
+
+  // O botao "Cancelar edicao" desaparece ao ser clicado; sem realocar o foco,
+  // ele cairia no body e o teclado perderia o lugar.
+  it('cancelar edicao devolve o foco ao formulario', async () => {
+    const user = userEvent.setup();
+    mocks.schedule.listSprints.mockResolvedValue({
+      data: {
+        total: 1,
+        sprints: [
+          {
+            id: 3,
+            name: 'Sprint 1',
+            objective: null,
+            startDate: new Date('2026-08-01T09:30').toISOString(),
+            endDate: new Date('2026-08-14T18:00').toISOString(),
+            status: 'PLANEJADA'
+          }
+        ]
+      }
+    });
+    renderScreen();
+
+    await abrirMenu(user, 'Sprint 1');
+    await user.click(await screen.findByRole('button', { name: /^Editar a sprint/ }));
+    await user.click(screen.getByRole('button', { name: 'Cancelar edição' }));
+
+    const nome = screen.getByLabelText(/Nome/);
+    expect(nome).toHaveValue('');
+    await waitFor(() => expect(nome).toHaveFocus());
+  });
+
   it('envia o payload correto quando valido', async () => {
     const user = userEvent.setup();
     mocks.schedule.createSprint.mockResolvedValue({ data: {} });
