@@ -1,12 +1,14 @@
 # TRACEFLOW - Contexto, Arquitetura e Diretrizes de Desenvolvimento
 
-> Documento de referência para desenvolvedores, revisores e agentes de IA que atuem no TRACEFLOW.
+> Documento de referência para desenvolvimento e revisão do TRACEFLOW.
 >
 > Este documento substitui a visão limitada ao MVP. O código produzido no MVP passa a ser tratado como base evolutiva de um produto real, sujeito a requisitos de segurança, qualidade, privacidade, testes, integração contínua e manutenção.
 
-> **Estado executável após a E15:** este documento contém contexto e diretrizes evolutivas, inclusive capacidades futuras. Para a arquitetura efetivamente implementada, use `docs/architecture/SYSTEM_ARCHITECTURE.md`; para contratos ativos, `docs/api/API_CONTRACTS.md`; e para a cobertura real dos requisitos, `docs/traceability/RF_TECHNICAL_MATRIX.md`. Uma diretriz futura descrita aqui não deve ser interpretada como funcionalidade já entregue.
-
-> **Atualização L1:** identidade passou a usar username único, verificação de e-mail e sessão comum/persistente. A integração operacional com GitHub usa exclusivamente GitHub App por instalação, com tokens efêmeros somente em memória; PAT compartilhado não é alternativa suportada. Consulte `docs/deliveries/L1_IDENTITY_EMAIL_GITHUB_APP.md` e ADR-009.
+> Este documento contém contexto e diretrizes evolutivas, inclusive capacidades futuras. Para a
+> arquitetura efetivamente implementada, use `docs/architecture/SYSTEM_ARCHITECTURE.md`; para
+> contratos ativos, `docs/api/API_CONTRACTS.md`; e para a cobertura real dos requisitos,
+> `docs/traceability/RF_TECHNICAL_MATRIX.md`. Uma diretriz futura descrita aqui não deve ser
+> interpretada como funcionalidade já entregue.
 
 ---
 
@@ -227,7 +229,10 @@ Requisito oficial
             -> documentação alterada
 ```
 
-Commits e pull requests devem mencionar os RFs relacionados sempre que possível.
+Commits e pull requests devem mencionar os RFs relacionados sempre que possível. Commits seguem
+Conventional Commits e podem incluir o `[TASK-ID]` quando houver uma Task real relacionada, conforme
+`CONTRIBUTING.md`; o identificador é opcional e não concede autorização nem cria vínculo definitivo
+sozinho.
 
 ### 6.4 Alterações incrementais e compatíveis
 
@@ -965,6 +970,7 @@ Toda pull request deve informar:
 - mudanças de API;
 - impactos de segurança;
 - impactos de privacidade;
+- documentação canônica atualizada ou `Documentação: N/A` quando não houver impacto real;
 - testes executados;
 - evidências visuais quando houver frontend;
 - pendências ou limitações reais.
@@ -985,35 +991,24 @@ Um item só está concluído quando:
 - [ ] build e pipeline passaram;
 - [ ] riscos ASVS foram avaliados;
 - [ ] impactos LGPD foram avaliados;
-- [ ] documentação foi atualizada;
+- [ ] documentação canônica foi atualizada ou `Documentação: N/A` foi registrado sem edição
+      cosmética;
 - [ ] rastreabilidade entre RF, código, testes e PR foi registrada;
 - [ ] não existem segredos, dados pessoais reais ou logs sensíveis no repositório.
 
 ---
 
-## 18. Diretrizes para agentes de IA
+## 18. Diretrizes de desenvolvimento e decisão técnica
 
-Agentes de IA que atuem no TRACEFLOW devem seguir estas regras:
+Escolhas técnicas locais, reversíveis e inequívocas podem ser decididas durante a implementação
+quando decorrem claramente dos padrões vigentes. Não se deve inventar regra de negócio, permissão,
+cardinalidade, lifecycle, retenção, escopo, autorização ou decisão arquitetural relevante para
+preencher uma lacuna. Quando alternativas válidas tiverem impacto relevante, a equipe deve registrar
+a dúvida e decidir antes de implementar.
 
-1. Ler este documento, o README atual, o schema Prisma e os módulos envolvidos antes de alterar código.
-2. Consultar o requisito oficial correspondente; não confiar apenas na lista resumida do MVP.
-3. Não inventar requisitos, endpoints, entidades, permissões ou comportamentos.
-4. Não renumerar RFs.
-5. Não gerar mocks no código de produção.
-6. Não substituir integrações reais por dados estáticos.
-7. Não adicionar dependências sem verificar a stack existente.
-8. Não acessar Prisma em routes ou controllers.
-9. Não acessar Octokit no frontend.
-10. Não expor tokens ou segredos.
-11. Não alterar schema sem migration.
-12. Não declarar uma funcionalidade concluída sem testes.
-13. Não remover código ou dados existentes sem análise de impacto.
-14. Não criar uma arquitetura paralela ao padrão adotado.
-15. Apontar ambiguidades documentais e adotar a fonte de maior precedência.
-16. Manter mudanças pequenas, revisáveis e relacionadas ao requisito solicitado.
-17. Informar claramente tudo o que não pôde ser validado.
-
-Quando uma tarefa solicitar apenas preparação estrutural, o agente não deve implementar funcionalidade. Quando solicitar implementação, deve entregar o fluxo real completo dentro do escopo informado.
+Uma arquitetura nova nasce em decisão/requisito, arquitetura/ADR/contrato, código/testes e
+documentação afetada. As normas de contribuição e revisão apenas aplicam decisões já formalizadas.
+Toda validação não executada ou externa permanece declarada sem overclaim.
 
 ---
 
