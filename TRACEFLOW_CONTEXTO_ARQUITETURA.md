@@ -230,7 +230,7 @@ Requisito oficial
 ```
 
 Commits e pull requests devem mencionar os RFs relacionados sempre que possível. Commits seguem
-Conventional Commits e podem incluir o `[TASK-ID]` quando houver uma Task real relacionada, conforme
+Conventional Commits e podem incluir o `[TASK-<ID>]` quando houver uma Task real relacionada, conforme
 `CONTRIBUTING.md`; o identificador é opcional e não concede autorização nem cria vínculo definitivo
 sozinho.
 
