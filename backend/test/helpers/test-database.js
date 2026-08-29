@@ -25,13 +25,10 @@ export function configureTestDatabaseEnvironment() {
 }
 
 export function deployTestMigrations(testDatabaseUrl) {
-  const prismaExecutable = resolve(
-    process.cwd(),
-    'node_modules',
-    '.bin',
-    process.platform === 'win32' ? 'prisma.cmd' : 'prisma'
-  );
-  const result = spawnSync(prismaExecutable, ['migrate', 'deploy'], {
+  // Invoca o entrypoint JS da CLI com o Node atual: o shim .cmd do Windows não pode
+  // ser executado por spawnSync sem shell (EINVAL desde a mitigação CVE-2024-27980).
+  const prismaEntry = resolve(process.cwd(), 'node_modules', 'prisma', 'build', 'index.js');
+  const result = spawnSync(process.execPath, [prismaEntry, 'migrate', 'deploy'], {
     cwd: process.cwd(),
     env: {
       ...process.env,
@@ -62,6 +59,7 @@ export async function cleanTestDatabase(prisma) {
     prisma.personalDataExport.deleteMany(),
     prisma.privacyRequest.deleteMany(),
     prisma.taskCommitSuggestion.deleteMany(),
+    prisma.taskComment.deleteMany(),
     prisma.taskCommit.deleteMany(),
     prisma.taskIssue.deleteMany(),
     prisma.taskHistoryEntry.deleteMany(),

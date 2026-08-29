@@ -269,6 +269,7 @@ export const taskRepository = {
         where: { taskId: id }
       });
       await tx.taskHistoryEntry.deleteMany({ where: { taskId: id } });
+      await tx.taskComment.deleteMany({ where: { taskId: id } });
       const deleted = await tx.task.delete({
         where: { id }
       });

@@ -1,11 +1,24 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('../../src/features/tasks/api/tasks.api.js', async (importOriginal) => ({
+  ...(await importOriginal()),
+  getTaskComments: vi.fn().mockResolvedValue({
+    taskId: 7,
+    total: 0,
+    comments: [],
+    permissions: { canComment: false, canModerate: false },
+    pagination: { page: 1, limit: 5, total: 0, totalPages: 0 }
+  })
+}));
+
 import { KanbanBoard } from '../../src/features/tasks/components/KanbanBoard.jsx';
 import { MovementHistory } from '../../src/features/tasks/components/MovementHistory.jsx';
 import { TaskDetailsPanel } from '../../src/features/tasks/components/TaskDetailsPanel.jsx';
 import { TaskList } from '../../src/features/tasks/components/TaskList.jsx';
 import { TaskMetrics } from '../../src/features/tasks/components/TaskMetrics.jsx';
+import { ConfirmProvider } from '../../src/shared/index.js';
 
 const task = {
   id: 7,
@@ -152,7 +165,11 @@ describe('apresentação de Tasks e Kanban', () => {
       onUnlinkCommit: vi.fn(),
       onUnlinkIssue: vi.fn()
     };
-    render(<TaskDetailsPanel task={task} deleting={false} {...handlers} />);
+    render(
+      <ConfirmProvider>
+        <TaskDetailsPanel task={task} deleting={false} {...handlers} />
+      </ConfirmProvider>
+    );
 
     expect(screen.getByRole('dialog', { name: 'Consolidar frontend' })).toBeInTheDocument();
     for (const link of screen.getAllByRole('link', { name: 'Abrir no GitHub' })) {
