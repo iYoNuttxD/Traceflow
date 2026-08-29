@@ -43,8 +43,7 @@
 
 .team-panel,
 .invitation-management,
-.invitation-list,
-.invitation-response-content {
+.invitation-list {
   display: grid;
   gap: 1rem;
 }
@@ -71,8 +70,7 @@
   overflow-wrap: anywhere;
 }
 
-.member-action-buttons,
-.invitation-response-actions {
+.member-action-buttons {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
