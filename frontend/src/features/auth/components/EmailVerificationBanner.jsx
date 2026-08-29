@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { authApi } from '../api/auth.api.js';
 import { FeedbackRegion, normalizeApiError, useCountdown } from '../../../shared/index.js';
+import './IdentityBanner.css';
 
 export function EmailVerificationBanner({ user }) {
   const [feedback, setFeedback] = useState({ message: '', variant: 'success' });

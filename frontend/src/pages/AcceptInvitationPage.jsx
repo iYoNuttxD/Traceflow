@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { membersApi } from '../features/members/members.api.js';
 import { Card, FeedbackRegion, normalizeApiError, useCountdown } from '../shared/index.js';
+import './AcceptInvitationPage.css';
 
 const roleLabels = Object.freeze({
   OWNER: 'Proprietário',

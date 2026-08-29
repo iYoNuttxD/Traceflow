@@ -1,4 +1,5 @@
 import { useId, useState } from 'react';
+import './PasswordField.css';
 
 export function passwordStrength(password) {
   let score = 0;

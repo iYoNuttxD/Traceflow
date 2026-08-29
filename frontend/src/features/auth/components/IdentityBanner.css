@@ -1,0 +1,16 @@
+.email-verification-banner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid #f4d58d;
+  background: #fff8e7;
+  color: #6b4f00;
+}
+
+.email-verification-banner button {
+  border-color: #b7791f;
+  color: #6b4f00;
+}

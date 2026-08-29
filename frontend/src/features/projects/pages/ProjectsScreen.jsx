@@ -18,6 +18,7 @@ import {
 import { projectsApi } from '../api/projects.api.js';
 import { ProjectJoinCard } from '../components/ProjectJoinCard.jsx';
 import { PendingProjectInvitations } from '../../invitations/index.js';
+import './ProjectsScreen.css';
 
 function clearRepositorySelection(current) {
   return {

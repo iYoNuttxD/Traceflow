@@ -9,6 +9,8 @@ import {
   normalizeApiError,
   useCountdown
 } from '../shared/index.js';
+import '../shared/styles/form-layouts.css';
+import './JoinProjectPage.css';
 
 const roleLabels = Object.freeze({ MEMBER: 'Membro', VIEWER: 'Visualizador' });
 

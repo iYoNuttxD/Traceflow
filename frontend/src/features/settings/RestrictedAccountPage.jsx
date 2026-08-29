@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { normalizeApiError } from '../../shared/index.js';
 import { useAuth } from '../auth/index.js';
 import { settingsApi } from './settings.api.js';
+import './RestrictedAccountPage.css';
 
 export function RestrictedAccountPage() {
   const { user, logout } = useAuth();

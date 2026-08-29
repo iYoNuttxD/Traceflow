@@ -1,3 +1,5 @@
+import './ProjectForm.css';
+
 const statusOptions = [
   { value: 'ATIVO', label: 'Ativo' },
   { value: 'INATIVO', label: 'Inativo' },

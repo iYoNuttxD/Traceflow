@@ -9,6 +9,8 @@ import {
   requirementStatusLabels,
   statusLabels
 } from './kanban-display.js';
+import '../../../shared/styles/traceability-controls.css';
+import './TaskDetailsPanel.css';
 
 export function TaskDetailsPanel({
   task,

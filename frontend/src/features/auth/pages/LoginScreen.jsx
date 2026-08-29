@@ -12,6 +12,7 @@ import { PasswordField } from '../components/PasswordField.jsx';
 import { authApi } from '../api/auth.api.js';
 import { githubOAuthErrorMessage } from '../github-oauth-error.js';
 import { sanitizeInternalReturnTo } from '../return-to.js';
+import './LoginScreen.css';
 
 export function LoginScreen() {
   const { login } = useAuth();

@@ -1,0 +1,117 @@
+.session-bootstrap-state {
+  display: grid;
+  justify-items: center;
+  gap: 1rem;
+  max-width: 40rem;
+  margin: 12vh auto 0;
+}
+/* Jornadas públicas de identidade L1. */
+.auth-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 2rem 1rem;
+  background: #f5f7fb;
+}
+
+.auth-shell {
+  width: min(100%, 520px);
+}
+
+.auth-card {
+  padding: clamp(1.5rem, 4vw, 2.5rem);
+  border: 1px solid #e2e7f0;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 18px 50px rgba(22, 34, 55, 0.09);
+}
+
+.auth-bootstrap-feedback {
+  display: grid;
+  justify-items: start;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.auth-header {
+  display: grid;
+  gap: 0.55rem;
+  margin-bottom: 1.5rem;
+}
+
+.auth-header h1,
+.auth-header p,
+.auth-footer p {
+  margin: 0;
+}
+
+.auth-header h1 {
+  color: #172033;
+}
+
+.auth-header p,
+.auth-footer {
+  color: #667085;
+  line-height: 1.55;
+}
+
+.auth-brand {
+  color: #315bce;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.auth-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.auth-form .form-field {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.auth-form .form-field > label {
+  color: #344054;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.auth-form input:not([type='checkbox']) {
+  width: 100%;
+  min-width: 0;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid #cfd6e4;
+  border-radius: 9px;
+  background: #fff;
+  color: #172033;
+  font: inherit;
+}
+
+.auth-form input:focus-visible,
+.auth-form button:focus-visible,
+.auth-form a:focus-visible {
+  outline: 3px solid rgba(49, 91, 206, 0.22);
+  outline-offset: 2px;
+}
+
+.auth-submit {
+  width: 100%;
+  justify-content: center;
+}
+
+.auth-footer {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid #e2e7f0;
+  text-align: center;
+}
+
+@media (max-width: 560px) {
+  .auth-card {
+    border-radius: 12px;
+  }
+}

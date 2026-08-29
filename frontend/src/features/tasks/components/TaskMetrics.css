@@ -1,0 +1,21 @@
+.task-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.9rem;
+  margin-bottom: 1.5rem;
+}
+
+.task-summary .card {
+  padding: 1rem;
+}
+
+.task-summary .card h2 {
+  margin-bottom: 0.75rem;
+  font-size: 0.95rem;
+}
+
+@media (max-width: 860px) {
+  .task-summary {
+    grid-template-columns: 1fr;
+  }
+}

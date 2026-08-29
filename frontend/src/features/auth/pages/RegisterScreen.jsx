@@ -10,6 +10,7 @@ import { useAuth } from '../AuthContext.jsx';
 import { AuthShell } from '../components/AuthShell.jsx';
 import { PasswordField } from '../components/PasswordField.jsx';
 import { sanitizeInternalReturnTo } from '../return-to.js';
+import './RegisterScreen.css';
 
 export function RegisterScreen() {
   const { register } = useAuth();

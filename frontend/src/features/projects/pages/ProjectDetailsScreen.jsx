@@ -16,6 +16,7 @@ import { ProjectForm, emptyProjectForm, updateProjectForm } from '../components/
 import { projectsApi } from '../api/projects.api.js';
 import { ProjectMembersPanel } from '../../members/index.js';
 import { ProjectAccessCodePanel } from '../components/ProjectAccessCodePanel.jsx';
+import './ProjectDetailsScreen.css';
 
 function toFormData(project) {
   return {

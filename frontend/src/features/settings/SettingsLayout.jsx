@@ -1,4 +1,6 @@
 import { NavLink, Outlet } from 'react-router';
+import './SettingsLayout.css';
+import './styles/settings-shared.css';
 
 const sections = [
   ['/settings/account', 'Conta'],

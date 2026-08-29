@@ -32,9 +32,11 @@ A direção permitida é `app/routes → pages → features → shared + http-cl
 - Hooks e screens controlam requests canceláveis, mutações e rollback visual.
 - Shared não importa pages/features; features não importam internals umas das outras.
 - `TraceabilityFlow` renderiza o DTO de nodes/edges sem recalcular cobertura.
-- CSS convencional pertence ao componente, page, feature ou shared owner. `frontend/src/styles/` é
-  reservado a tokens, base e regras realmente globais; `global.css` não recebe novos estilos
-  específicos de feature.
+- CSS convencional acompanha o owner em `pages`, `features` e `shared`. Componentes e screens
+  importam a folha colocada ao lado do JSX; grupos em `shared/styles` ou `features/*/styles` existem
+  somente quando há múltiplos consumidores reais. Media queries permanecem com o mesmo owner do
+  seletor. `frontend/src/styles/base.css` concentra reset e elementos base, enquanto `global.css`
+  mantém apenas primitives transversais; estilos específicos de feature não entram nessa pasta.
 
 ## Backend
 

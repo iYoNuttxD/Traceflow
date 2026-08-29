@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { FeedbackRegion, normalizeApiError, useConfirm, useCountdown } from '../../shared/index.js';
 import { membersApi } from './members.api.js';
+import '../../shared/styles/form-layouts.css';
+import './ProjectMembersPanel.css';
 
 const roles = ['OWNER', 'MANAGER', 'MEMBER', 'VIEWER'];
 const roleLabels = Object.freeze({

@@ -1,0 +1,174 @@
+.projects-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(360px, 1.1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.projects-dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem;
+  align-items: stretch;
+}
+
+.projects-dashboard-card {
+  min-width: 0;
+}
+
+.project-create-card .card-heading {
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.project-create-card .integration-status {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.github-app-setup {
+  display: grid;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.integration-status {
+  display: inline-flex;
+  width: fit-content;
+  gap: 0.4rem;
+  align-items: center;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.integration-status::before {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: currentColor;
+  content: '';
+}
+
+.integration-status.is-connected {
+  border-color: #a6f4c5;
+  color: #067647;
+  background: #ecfdf3;
+}
+
+.integration-status.is-disconnected {
+  border-color: #fedf89;
+  color: #93370d;
+  background: #fffaeb;
+}
+
+.project-list {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.project-item {
+  border: 1px solid #e2e7f0;
+  border-radius: 12px;
+  padding: 1rem;
+  background: #fbfcfe;
+}
+
+.project-highlight {
+  border-color: #6172f3;
+  background: #eef4ff;
+  box-shadow: 0 0 0 3px rgba(97, 114, 243, 0.18);
+}
+
+.repository-duplicate-callout {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid #f5c451;
+  border-radius: 10px;
+  color: #7a2e0e;
+  background: #fffaeb;
+}
+
+.repository-duplicate-callout p {
+  margin: 0;
+}
+
+.repository-duplicate-callout div {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.repository-authorization-callout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  margin: 1rem 0;
+  padding: 0.9rem 1rem;
+  border: 1px solid #b2ccff;
+  border-radius: 10px;
+  color: #1849a9;
+  background: #eff8ff;
+}
+
+.repository-authorization-callout p {
+  margin: 0;
+}
+
+.project-item-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.project-item h3 {
+  margin: 0 0 0.35rem;
+  color: #101828;
+}
+
+.project-item p {
+  margin: 0;
+  color: #667085;
+  line-height: 1.5;
+}
+
+.project-meta {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0.85rem 0;
+  color: #475467;
+  font-size: 0.86rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .project-highlight {
+    transition:
+      border-color 180ms ease,
+      background 180ms ease,
+      box-shadow 180ms ease;
+  }
+}
+
+@media (max-width: 860px) {
+  .projects-layout,
+  .projects-dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .project-item-header {
+    flex-direction: column;
+  }
+}

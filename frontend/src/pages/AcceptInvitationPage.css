@@ -1,0 +1,31 @@
+.invitation-response-page {
+  max-width: 760px;
+}
+
+.invitation-response-content {
+  text-align: center;
+}
+
+.invitation-response-content .feedback-region:empty {
+  display: none;
+}
+
+.invitation-response-actions {
+  justify-content: center;
+}
+
+.invitation-state {
+  color: #475467;
+  font-weight: 700;
+}
+
+@media (max-width: 560px) {
+  .invitation-response-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .invitation-response-actions .button {
+    width: 100%;
+  }
+}

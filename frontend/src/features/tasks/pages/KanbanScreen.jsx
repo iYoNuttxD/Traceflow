@@ -24,6 +24,7 @@ import {
   normalizeApiError,
   useConfirm
 } from '../../../shared/index.js';
+import './KanbanScreen.css';
 
 const MOVEMENTS_PER_PAGE = 10;
 

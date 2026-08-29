@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Card, FeedbackRegion } from '../../../shared/index.js';
 import { parseProjectAccessInput } from '../services/project-access-input.js';
+import './ProjectJoinCard.css';
 
 export function ProjectJoinCard() {
   const navigate = useNavigate();

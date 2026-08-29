@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router';
 import { normalizeApiError } from '../../shared/index.js';
 import { runSingleFlight } from '../../shared/services/single-flight.js';
 import { settingsApi } from './settings.api.js';
+import './ConfirmationPage.css';
 
 export function ConfirmationPage({ type }) {
   const [params] = useSearchParams();

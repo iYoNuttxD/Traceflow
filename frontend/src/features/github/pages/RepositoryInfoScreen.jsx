@@ -13,6 +13,7 @@ import {
   normalizeApiError,
   useAbortableRequest
 } from '../../../shared/index.js';
+import './RepositoryInfoScreen.css';
 
 const emptyFilters = {
   type: '',

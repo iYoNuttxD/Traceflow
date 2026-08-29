@@ -1,0 +1,119 @@
+.access-code-control {
+  display: grid;
+  min-width: 0;
+  gap: 0.65rem;
+}
+
+.access-code-value-row {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.access-code-value-row code {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid #dbe2ee;
+  border-radius: 8px;
+  background: #fff;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.access-code-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.access-code-icon-button {
+  display: inline-grid;
+  flex: none;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  place-items: center;
+}
+
+.access-code-icon-button svg {
+  width: 1.05rem;
+  height: 1.05rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.access-code-role {
+  display: flex;
+  min-width: 0;
+  gap: 0.65rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.access-code-role span {
+  color: #667085;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.access-code-role select {
+  min-width: 8.5rem;
+  border: 1px solid #cfd6e4;
+  border-radius: 8px;
+  padding: 0.45rem 0.65rem;
+  color: #172033;
+  background: #fff;
+  font: inherit;
+}
+
+.overview-value-with-action {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.copy-invite-button {
+  border: 1px solid #cfd6e4;
+  border-radius: 999px;
+  padding: 0.35rem 0.65rem;
+  color: #315bce;
+  background: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.copy-invite-button:hover {
+  border-color: #315bce;
+  background: #eef4ff;
+}
+
+@media (max-width: 560px) {
+  .access-code-value-row {
+    grid-template-columns: 1fr;
+  }
+
+  .access-code-role {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .access-code-role select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .access-code-actions {
+    flex-wrap: wrap;
+  }
+}

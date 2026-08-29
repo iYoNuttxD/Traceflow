@@ -12,6 +12,7 @@ import {
 } from '../../shared/index.js';
 import { settingsApi } from './settings.api.js';
 import { SettingsFeedback } from './SettingsFeedback.jsx';
+import './SecuritySettingsPage.css';
 
 export function SecuritySettingsPage() {
   const confirm = useConfirm();

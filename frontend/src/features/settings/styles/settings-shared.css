@@ -1,0 +1,96 @@
+.settings-card {
+  min-width: 0;
+  padding: 1.5rem;
+  border: 1px solid #e2e7f0;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 12px 32px rgb(30 50 90 / 6%);
+}
+
+.settings-card h2 {
+  margin-top: 0;
+}
+
+.settings-card form,
+.settings-card label {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.settings-card form {
+  gap: 0.9rem;
+  margin-top: 1rem;
+}
+
+.settings-card input {
+  width: 100%;
+  border: 1px solid #cfd6e4;
+  border-radius: 9px;
+  padding: 0.75rem;
+  font: inherit;
+}
+
+.settings-card button {
+  width: fit-content;
+  border: 1px solid #cfd6e4;
+  border-radius: 9px;
+  padding: 0.7rem 0.9rem;
+  color: #344054;
+  background: #fff;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.settings-card p,
+.settings-card strong,
+.settings-card small,
+.settings-card a {
+  overflow-wrap: anywhere;
+}
+
+.settings-card button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.settings-card .button-danger,
+.danger-zone .button-danger {
+  border-color: #fda29b;
+  color: #b42318;
+  background: #fff5f4;
+}
+
+.danger-zone {
+  border-color: #fecdca;
+}
+
+.danger-zone-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.settings-callout {
+  margin: 0.75rem 0;
+  padding: 1rem;
+  border: 1px solid #e2e7f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+@media (max-width: 560px) {
+  .danger-zone-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .danger-zone-actions .button,
+  .settings-card form > button {
+    width: 100%;
+  }
+}

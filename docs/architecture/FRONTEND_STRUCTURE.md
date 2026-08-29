@@ -30,16 +30,22 @@ src/
 ├── features/
 │   ├── auth/
 │   ├── github/
+│   ├── invitations/
 │   ├── members/
 │   ├── privacy/
 │   ├── projects/
 │   ├── requirements/
+│   ├── settings/
 │   ├── tasks/
 │   └── traceability/
-└── shared/
-    ├── components/
-    ├── hooks/
-    └── services/
+├── shared/
+│   ├── components/
+│   ├── hooks/
+│   ├── services/
+│   └── styles/                # exceções com múltiplos consumers reais
+└── styles/
+    ├── base.css
+    └── global.css
 ```
 
 Somente pastas com implementação real devem existir.
@@ -95,24 +101,36 @@ Para novas implementações e alterações em estilos existentes, cada regra dev
 - responsive rule → mesmo arquivo/owner do seletor que ela adapta;
 - token, reset, elemento base ou regra transversal verdadeira → `frontend/src/styles/`.
 
-`frontend/src/styles/` pode evoluir para `tokens.css`, `base.css` e `global.css`, sem exigir essa
-separação de uma vez. `global.css` não é depósito de feature: novas implementações não adicionam
-`.project-*`, `.settings-*`, `.auth-*`, `.kanban-*` ou seletores equivalentes específicos de domínio.
-Overrides cross-feature são evitados; reutilização visual real deve virar shared component ou token.
+`frontend/src/styles/` contém somente fundamentos globais. `base.css` concentra reset, elementos
+base, `:root`, `body`, `#root` e foco transversal; `global.css` contém primitives realmente usadas em
+vários domínios, como layout de página, campos, botões, feedback e badges. Um `tokens.css` só deve ser
+criado quando houver tokens reais a extrair, sem introduzir paleta, tema ou nomenclatura artificial.
+
+`global.css` não é depósito de feature: novas implementações não adicionam `.project-*`,
+`.settings-*`, `.auth-*`, `.kanban-*` ou seletores equivalentes específicos de domínio. Overrides
+cross-feature são evitados; reutilização visual real deve virar shared component, estilo shared com
+múltiplos consumers comprovados ou token.
+
+CSS de componente ou screen usa o mesmo basename e diretório do JSX sempre que existe um owner
+único. Não há pasta obrigatória por componente: a árvore existente é preservada com pares como
+`ProjectForm.jsx` + `ProjectForm.css`. Componentes shared também importam o próprio CSS; ser
+reutilizável não torna a regra global.
+
+`shared/styles/` e `features/<domain>/styles/` são exceções pequenas para regras com múltiplos
+consumers reais. Não substituem `global.css` por um monólito de feature, não funcionam como barrel de
+CSS e são importados pelos consumers ou pelo layout owner correspondente.
 
 Inline style só é usado para valor realmente calculado em runtime. Cor, espaçamento, layout e demais
 estilos estáticos pertencem ao CSS do owner.
 
-## Migração futura do `global.css`
+## Estado vigente da modularização
 
-O arquivo `frontend/src/styles/global.css` ainda concentra estilos base, shared e específicos de
-features. Esta documentação não altera a UI nem move regras agora. Uma migração futura deve ocorrer
-por owner, em mudanças pequenas, seguindo este roteiro:
+O CSS legado foi distribuído entre fundamentos globais, shared e owners de pages/features sem mudar
+selectors, valores ou breakpoints. Cada media query acompanha o arquivo que possui o seletor base.
+Seletores dinâmicos e regras sem consumer textual conclusivo foram preservados no owner provável; a
+busca textual isolada não autoriza remoção.
 
-1. mapear seletores, markup consumidor, media queries e overrides associados;
-2. mover uma unidade coesa sem renomear classes ou reordenar regras sem necessidade;
-3. preservar ordem de cascade, especificidade e breakpoints;
-4. executar lint, Prettier, testes e build;
-5. validar visualmente estados e breakpoints afetados antes de remover a origem.
-
-Não faça split mecânico cego nem aproveite a migração para redesenhar a interface.
+Mudanças futuras mantêm a mesma disciplina: mapear markup, estados, media queries, specificity e
+ordem de carregamento antes de mover uma regra; executar os gates do frontend; e validar visualmente
+os fluxos e breakpoints afetados. Refatoração de ownership não é oportunidade para redesign,
+responsividade nova, dark mode ou troca de identidade visual.

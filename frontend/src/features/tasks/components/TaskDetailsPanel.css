@@ -1,0 +1,138 @@
+.text-button:hover {
+  text-decoration: underline;
+}
+
+.text-button {
+  width: fit-content;
+  padding: 0;
+  border: 0;
+  color: #315bce;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+}
+
+.task-detail-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(16, 24, 40, 0.48);
+}
+
+.task-detail-modal {
+  width: min(760px, 100%);
+  max-height: min(86vh, 820px);
+  overflow-y: auto;
+  padding: 1.5rem;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 24px 64px rgba(16, 24, 40, 0.24);
+}
+
+.task-detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.task-detail-header h2 {
+  margin: 0.25rem 0 0;
+  color: #101828;
+}
+
+.task-detail-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.task-detail-description {
+  margin: 0 0 1rem;
+  color: #667085;
+  line-height: 1.6;
+}
+
+.task-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+  margin: 0 0 1rem;
+}
+
+.task-detail-grid div,
+.task-detail-traceability {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.8rem;
+  border: 1px solid #eef1f6;
+  border-radius: 10px;
+  background: #fbfcfe;
+}
+
+.task-detail-grid dt,
+.task-detail-traceability span {
+  color: #667085;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.task-detail-grid dd {
+  margin: 0;
+  color: #172033;
+}
+
+.task-detail-traceability p {
+  margin: 0;
+  color: #667085;
+}
+
+.task-detail-traceability a {
+  color: #315bce;
+  font-weight: 800;
+}
+
+.task-detail-traceability-section,
+.task-detail-commit-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.task-detail-traceability-section {
+  margin-top: 0.5rem;
+}
+
+.task-detail-traceability-item {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 0.75rem;
+  border: 1px solid #e2e7f0;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.task-detail-traceability-item > div {
+  display: grid;
+  min-width: 0;
+  gap: 0.2rem;
+}
+
+.task-detail-traceability-item strong {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 560px) {
+  .task-detail-grid {
+    grid-template-columns: 1fr;
+  }
+}

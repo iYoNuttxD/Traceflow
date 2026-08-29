@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { FeedbackRegion, useCountdown } from '../../../shared/index.js';
 import { useAuth } from '../AuthContext.jsx';
+import './AuthShell.css';
 
 export function AuthShell({ eyebrow, title, description, children, footer }) {
   const { bootstrapError, refresh } = useAuth();

@@ -2,6 +2,7 @@
 // Navegação global; a navegação contextual de projeto fica em ProjectSectionNav.
 import { Link } from 'react-router';
 import { useAuth } from '../features/auth/index.js';
+import './Navbar.css';
 
 function initials(name = '') {
   return name

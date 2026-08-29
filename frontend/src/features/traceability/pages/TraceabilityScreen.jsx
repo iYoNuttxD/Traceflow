@@ -16,6 +16,7 @@ import {
 } from '../../../shared/index.js';
 import { ProjectSectionNav } from '../../projects/index.js';
 import { TraceabilityFlow } from '../components/TraceabilityFlow.jsx';
+import './TraceabilityScreen.css';
 
 const requirementStatusLabels = {
   CADASTRADO: 'Cadastrado',

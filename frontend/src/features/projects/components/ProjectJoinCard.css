@@ -1,0 +1,32 @@
+.project-entry-card {
+  display: flex;
+  min-height: 13rem;
+  flex-direction: column;
+}
+
+.project-entry-card .project-join-quick-form {
+  margin-top: auto;
+}
+
+.card-description {
+  margin: -0.5rem 0 1rem;
+  color: #667085;
+  line-height: 1.5;
+}
+
+.project-join-quick-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: end;
+}
+
+@media (max-width: 860px) {
+  .project-entry-card {
+    min-height: auto;
+  }
+
+  .project-join-quick-form {
+    grid-template-columns: 1fr;
+  }
+}

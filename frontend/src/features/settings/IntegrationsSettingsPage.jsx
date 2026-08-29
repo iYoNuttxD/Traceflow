@@ -13,6 +13,7 @@ import { settingsApi } from './settings.api.js';
 import { SettingsFeedback } from './SettingsFeedback.jsx';
 import { PasswordField, githubOAuthErrorMessage } from '../auth/index.js';
 import { GithubSensitiveReauthentication } from './GithubSensitiveReauthentication.jsx';
+import './IntegrationsSettingsPage.css';
 
 export function IntegrationsSettingsPage() {
   const confirm = useConfirm();

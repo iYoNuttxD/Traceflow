@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { FeedbackRegion, normalizeApiError, useConfirm } from '../../../shared/index.js';
 import { projectsApi } from '../api/projects.api.js';
+import './ProjectAccessCodePanel.css';
 
 const roleLabels = Object.freeze({ MEMBER: 'Membro', VIEWER: 'Visualizador' });
 

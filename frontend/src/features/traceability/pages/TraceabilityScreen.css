@@ -1,0 +1,121 @@
+.traceability-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.9rem;
+  margin-bottom: 1.5rem;
+}
+
+.traceability-summary-grid .card {
+  padding: 1rem;
+}
+
+.traceability-summary-grid .card h2 {
+  margin-bottom: 0.75rem;
+  font-size: 0.95rem;
+}
+
+.traceability-table-wrapper {
+  overflow-x: auto;
+  border: 1px solid #e2e7f0;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.traceability-table {
+  width: 100%;
+  min-width: 980px;
+  border-collapse: collapse;
+}
+
+.traceability-table th,
+.traceability-table td {
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid #eef1f6;
+  color: #344054;
+  text-align: left;
+  vertical-align: top;
+}
+
+.traceability-table th {
+  color: #667085;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  background: #f8fafc;
+}
+
+.traceability-table tr {
+  cursor: pointer;
+}
+
+.traceability-table tbody tr:hover,
+.traceability-row-selected {
+  background: #f3f6ff;
+}
+
+.traceability-row-button {
+  display: grid;
+  gap: 0.25rem;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  cursor: pointer;
+}
+
+.traceability-row-button strong {
+  color: #101828;
+}
+
+.traceability-row-button span {
+  display: -webkit-box;
+  overflow: hidden;
+  color: #667085;
+  font-size: 0.85rem;
+  line-clamp: 2;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.traceability-progress {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 120px;
+}
+
+.traceability-progress span {
+  font-weight: 800;
+}
+
+.traceability-progress-bar {
+  overflow: hidden;
+  height: 8px;
+  border-radius: 999px;
+  background: #e7edff;
+}
+
+.traceability-progress-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #315bce;
+}
+
+.traceability-flow-placeholder {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (max-width: 860px) {
+  .traceability-summary-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .traceability-summary-grid {
+    grid-template-columns: 1fr;
+  }
+}

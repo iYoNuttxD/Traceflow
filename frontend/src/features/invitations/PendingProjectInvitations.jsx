@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { Card, FeedbackRegion, normalizeApiError, useCountdown } from '../../shared/index.js';
 import { personalInvitationsApi } from './personal-invitations.api.js';
+import './PendingProjectInvitations.css';
 
 const roleLabels = Object.freeze({
   OWNER: 'Proprietário',

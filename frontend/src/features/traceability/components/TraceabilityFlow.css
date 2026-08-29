@@ -1,0 +1,291 @@
+.traceability-flow {
+  display: grid;
+  gap: 1rem;
+}
+
+.traceability-flow-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.traceability-flow-toolbar p {
+  margin: 0.25rem 0 0;
+  color: #667085;
+}
+
+.traceability-flow-empty {
+  margin: 0;
+  padding: 0.85rem 1rem;
+  border: 1px dashed #b8c4de;
+  border-radius: 12px;
+  color: #475467;
+  background: #f8fafc;
+}
+
+.traceability-flow-canvas {
+  overflow: hidden;
+  height: 720px;
+  min-height: 480px;
+  border: 1px solid #d8e0ee;
+  border-radius: 18px;
+  background: #f8fafc;
+}
+
+.trace-node {
+  display: grid;
+  gap: 0.35rem;
+  width: 260px;
+  max-width: 360px;
+  min-height: 96px;
+  padding: 0.9rem;
+  border: 1px solid #d8e0ee;
+  border-radius: 14px;
+  color: #101828;
+  background: #fff;
+  box-shadow: 0 14px 30px rgba(30, 50, 90, 0.12);
+}
+
+.trace-node-expanded {
+  width: 360px;
+  max-width: 420px;
+  gap: 0.75rem;
+}
+
+.trace-node-content {
+  display: grid;
+  gap: 0.35rem;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  cursor: pointer;
+}
+
+.trace-node span,
+.trace-node-detail dt {
+  color: #667085;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.trace-node strong {
+  display: -webkit-box;
+  overflow: hidden;
+  color: #101828;
+  line-height: 1.25;
+  line-clamp: 2;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.trace-node-expanded strong {
+  display: block;
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+}
+
+.trace-node p {
+  margin: 0;
+  color: #475467;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.trace-node small {
+  color: #667085;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.trace-node-detail {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+  padding-top: 0.65rem;
+  border-top: 1px solid rgba(102, 112, 133, 0.2);
+}
+
+.trace-node-detail-row {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.trace-node-detail dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: #101828;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.trace-node-detail a {
+  color: #315bce;
+  text-decoration: none;
+}
+
+.trace-node-detail a:hover {
+  text-decoration: underline;
+}
+
+.trace-node-requirement {
+  border-color: #315bce;
+  background: #eff4ff;
+}
+
+.trace-node-requirement span,
+.trace-node-requirement p {
+  color: #274899;
+}
+
+.trace-node-task {
+  border-color: #9c7c2f;
+  background: #fff8e7;
+}
+
+.trace-node-task span,
+.trace-node-task p {
+  color: #875a13;
+}
+
+.trace-node-issue {
+  border-color: #38a169;
+  background: #ecfdf3;
+}
+
+.trace-node-issue span,
+.trace-node-issue p {
+  color: #17643b;
+}
+
+.trace-node-pull-request {
+  border-color: #7c3aed;
+  background: #f4f0ff;
+}
+
+.trace-node-pull-request span,
+.trace-node-pull-request p {
+  color: #5b21b6;
+}
+
+.trace-node-commit {
+  border-color: #0ea5e9;
+  background: #eff9ff;
+}
+
+.trace-node-commit span,
+.trace-node-commit p {
+  color: #075985;
+}
+
+.react-flow__handle {
+  width: 9px;
+  height: 9px;
+  border: 2px solid #fff;
+  background: #315bce;
+}
+
+.react-flow__edge-path {
+  stroke: #667085;
+  stroke-width: 2;
+}
+
+.traceability-flow-summary {
+  display: grid;
+  gap: 1rem;
+}
+
+.traceability-flow-summary h3 {
+  margin: 0.25rem 0 0.5rem;
+}
+
+.traceability-flow-summary p {
+  margin: 0.25rem 0;
+  color: #475467;
+}
+
+.traceability-flow-note {
+  padding: 0.85rem 1rem;
+  border: 1px dashed #b8c4de;
+  border-radius: 12px;
+  color: #475467;
+  background: #f8fafc;
+}
+
+.traceability-task-chain {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.traceability-task-chain h4 {
+  margin: 0;
+}
+
+.traceability-task-item {
+  display: grid;
+  gap: 0.65rem;
+  padding: 1rem;
+  border: 1px solid #e2e7f0;
+  border-radius: 12px;
+  background: #fbfcfe;
+}
+
+.traceability-task-item > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.traceability-task-item > div span {
+  color: #667085;
+  font-weight: 800;
+}
+
+.traceability-task-item p {
+  margin: 0;
+  color: #667085;
+}
+
+.traceability-task-item dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.traceability-task-item dt {
+  color: #667085;
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.traceability-task-item dd {
+  margin: 0.2rem 0 0;
+  overflow-wrap: anywhere;
+  color: #101828;
+  font-weight: 700;
+}
+
+@media (max-width: 860px) {
+  .traceability-flow-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .traceability-task-item dl {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .traceability-flow-canvas {
+    height: 560px;
+  }
+}

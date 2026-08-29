@@ -1,0 +1,43 @@
+.integration-entry {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+
+.github-authorization-danger {
+  padding: 1rem;
+  border: 1px solid #fecdca;
+  border-radius: 10px;
+  background: #fffbfa;
+}
+
+.github-authorization-danger h3 {
+  margin: 0 0 0.5rem;
+  color: #b42318;
+}
+
+.github-authorization-danger label {
+  margin-top: 1rem;
+}
+
+.danger-impact {
+  color: #7a271a;
+  font-weight: 700;
+}
+
+.integration-card {
+  margin: 0.75rem 0;
+  padding: 1rem;
+  border: 1px solid #e2e7f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.integration-card > div {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.integration-card small {
+  color: #667085;
+}

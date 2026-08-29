@@ -1,0 +1,224 @@
+.member-list {
+  display: grid;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+
+.member-list-wide {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.member-item {
+  display: grid;
+  min-width: 0;
+  gap: 0.65rem;
+  align-content: start;
+  padding: 1rem;
+  border: 1px solid #e2e7f0;
+  border-radius: 10px;
+  background: #fbfcfe;
+}
+
+.member-item-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.member-joined-at {
+  margin-bottom: 0.1rem;
+}
+
+.member-role-field {
+  grid-column: 1;
+  grid-row: 1;
+  max-width: 240px;
+}
+
+.member-item span {
+  color: #667085;
+  font-size: 0.86rem;
+}
+
+.team-panel,
+.invitation-management,
+.invitation-list,
+.invitation-response-content {
+  display: grid;
+  gap: 1rem;
+}
+
+.member-actions {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.65fr) minmax(0, 1.35fr);
+  gap: 0.65rem 1rem;
+  align-items: end;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e2e7f0;
+}
+
+.member-identity,
+.invitation-item > div:first-child {
+  display: grid;
+  min-width: 0;
+  gap: 0.2rem;
+}
+
+.member-identity strong,
+.member-identity span,
+.invitation-item strong {
+  overflow-wrap: anywhere;
+}
+
+.member-action-buttons,
+.invitation-response-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.member-action-buttons {
+  grid-column: 2;
+  grid-row: 1;
+  justify-content: flex-end;
+}
+
+.member-actions small {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  color: #667085;
+  line-height: 1.45;
+}
+
+.status-chip {
+  justify-self: start;
+  border-radius: 999px;
+  padding: 0.25rem 0.55rem;
+  background: #eef2f8;
+  color: #475467;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.status-chip.status-active {
+  background: #e8f7ef;
+  color: #176b43;
+}
+
+.invitation-management {
+  margin-top: 1rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid #e2e7f0;
+}
+
+.membership-self-service {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid #e2e7f0;
+  border-radius: 10px;
+  background: #fbfcfe;
+}
+
+.membership-self-service h3,
+.membership-self-service p {
+  margin: 0;
+}
+
+.membership-self-service p {
+  margin-top: 0.3rem;
+  color: #667085;
+  line-height: 1.45;
+}
+
+.invitation-form {
+  grid-template-columns: minmax(0, 1fr) 11rem auto;
+  align-items: end;
+}
+
+.invitation-item {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.5fr) minmax(220px, 1fr) auto auto;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.85rem;
+  border: 1px solid #e2e7f0;
+  border-radius: 10px;
+  background: #fbfcfe;
+}
+
+.invitation-dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin: 0;
+}
+
+.invitation-dates dt {
+  color: #667085;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.invitation-dates dd {
+  margin: 0.15rem 0 0;
+  font-size: 0.82rem;
+}
+
+.member-form-wide {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  align-items: end;
+}
+
+@media (max-width: 860px) {
+  .member-form-wide {
+    grid-template-columns: 1fr;
+  }
+
+  .member-list-wide {
+    grid-template-columns: 1fr;
+  }
+
+  .membership-self-service {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 560px) {
+  .member-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .member-role-field,
+  .member-action-buttons,
+  .member-actions small {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .member-action-buttons {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 560px) {
+  .invitation-form,
+  .invitation-item {
+    grid-template-columns: 1fr;
+  }
+
+  .member-action-buttons {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .member-action-buttons .button,
+  .invitation-item .button {
+    width: 100%;
+  }
+}

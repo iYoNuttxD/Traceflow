@@ -1,0 +1,34 @@
+.session-row {
+  margin: 0.75rem 0;
+  padding: 1rem;
+  border: 1px solid #e2e7f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.session-row {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.session-row div {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.session-row small {
+  color: #667085;
+}
+
+@media (max-width: 560px) {
+  .session-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .session-row button {
+    width: 100%;
+  }
+}

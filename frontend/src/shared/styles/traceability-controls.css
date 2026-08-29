@@ -1,0 +1,210 @@
+.form-section-title {
+  display: block;
+  color: #172033;
+  font-size: 0.95rem;
+  font-weight: 900;
+}
+
+.task-traceability-form {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid #dce2ec;
+  border-radius: 12px;
+  background: #fbfcfe;
+}
+
+.traceability-picker {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.traceability-picker > span {
+  color: #344054;
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.traceability-picker input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #cfd6e4;
+  border-radius: 9px;
+  padding: 0.75rem 0.85rem;
+  color: #172033;
+  background: #fff;
+  font: inherit;
+}
+
+.traceability-search-field {
+  position: relative;
+}
+
+.traceability-search-field input {
+  padding-right: 2.8rem;
+}
+
+.traceability-search-field input::-webkit-search-cancel-button {
+  appearance: none;
+}
+
+.traceability-search-clear {
+  position: absolute;
+  top: 50%;
+  right: 0.65rem;
+  display: inline-flex;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  transform: translateY(-50%);
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  color: #475467;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.traceability-search-clear:hover {
+  background: #eef2f8;
+}
+
+.traceability-results,
+.traceability-selected-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.traceability-results {
+  max-height: 220px;
+  overflow: auto;
+}
+
+.traceability-results button,
+.traceability-selected-item {
+  width: 100%;
+  min-width: 0;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #e2e7f0;
+  border-radius: 9px;
+  background: #fff;
+  color: #172033;
+  text-align: left;
+}
+
+.traceability-results button {
+  cursor: pointer;
+  font: inherit;
+}
+
+.traceability-results button:hover {
+  border-color: #9db4ff;
+  background: #f4f7ff;
+}
+
+.traceability-results p {
+  margin: 0;
+  color: #667085;
+}
+
+.traceability-selected-item {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.traceability-selected-item strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.traceability-remove-button {
+  flex: 0 0 auto;
+  display: inline-flex;
+  width: 1.6rem;
+  height: 1.6rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #f3b8b3;
+  border-radius: 999px;
+  color: #b42318;
+  background: #fff5f4;
+  cursor: pointer;
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  font-weight: 800;
+}
+
+.traceability-remove-button:hover {
+  border-color: #d92d20;
+  background: #fee4e2;
+  text-decoration: none;
+}
+
+.task-pr-card {
+  display: grid;
+  gap: 0.35rem;
+  margin: 1rem 0;
+  padding: 0.85rem;
+  border: 1px solid #dce2ec;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.task-pr-card > span {
+  color: #667085;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.task-pr-link {
+  color: #315bce;
+  font-weight: 800;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.task-pr-link:hover {
+  text-decoration: underline;
+}
+
+.task-pr-meta {
+  margin: 0;
+  color: #667085;
+  font-size: 0.9rem;
+}
+
+.task-traceability-group,
+.task-traceability-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.task-traceability-group > strong {
+  color: #344054;
+  font-size: 0.82rem;
+}
+
+.task-traceability-item {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.task-traceability-item span,
+.task-traceability-item a {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow-wrap: anywhere;
+}
