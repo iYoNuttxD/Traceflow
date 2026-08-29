@@ -1,6 +1,8 @@
 # Matriz de autorização da API TRACEFLOW
 
-Baseline E6, consolidado pelas LR.2/LR.3/LR.4 em 20/08/2026. A matriz descreve a política efetiva; não substitui os testes. `L` = leitura, `E` = escrita de domínio, `A` = administração. Sem membership ativa, recursos de projeto retornam `404` para reduzir enumeração; papel insuficiente retorna `403`. Mutations autenticadas exigem CSRF.
+A matriz descreve a política efetiva vigente e não substitui os testes. `L` = leitura, `E` = escrita
+de domínio, `A` = administração. Sem membership ativa, recursos de projeto retornam `404` para
+reduzir enumeração; papel insuficiente retorna `403`. Mutations autenticadas exigem CSRF.
 
 | Endpoints                                                                                                      | Anônimo | VIEWER | MEMBER | MANAGER | OWNER | Regra adicional                                                           |
 | -------------------------------------------------------------------------------------------------------------- | ------: | -----: | -----: | ------: | ----: | ------------------------------------------------------------------------- |
@@ -60,13 +62,28 @@ Baseline E6, consolidado pelas LR.2/LR.3/LR.4 em 20/08/2026. A matriz descreve a
 - O middleware resolve o projeto por rota direta ou pelo recurso filho antes de avaliar a membership.
 - `ProjectMembership` é a única fonte de participação. `ProjectMember` e `POST /api/projects/:projectId/members` foram removidos; o path antigo retorna `404`. `accessCode` é capability de ingresso e nunca aceita identity/role do cliente.
 - Código de acesso nunca concede OWNER/MANAGER. Somente OWNER vê, regenera e configura MEMBER/VIEWER; mudança de configuração não altera memberships existentes.
-- A E7 adiciona trilha de auditoria e direitos do titular; não concede administração de dados pessoais a um OWNER de projeto.
-- Na E9, o alias não canônico `/api/projects/:projectId/github/artifacts` foi removido e retorna 404; RF06 usa `/api/projects/:projectId/artifacts`. Sync permanece restrito a MANAGER/OWNER.
-- Na E10, as rotas genéricas dependentes de `TraceLink` e `GithubArtifact` foram removidas. As perspectivas canônicas sempre incluem `projectId`, evitando autorização por ID global isolado.
+- A trilha de auditoria e os direitos do titular não concedem administração de dados pessoais a um
+  OWNER de projeto.
+- O alias não canônico `/api/projects/:projectId/github/artifacts` foi removido e retorna 404; RF06
+  usa `/api/projects/:projectId/artifacts`. Sync permanece restrito a MANAGER/OWNER.
+- As rotas genéricas dependentes de `TraceLink` e `GithubArtifact` foram removidas. As perspectivas
+  canônicas sempre incluem `projectId`, evitando autorização por ID global isolado.
 - No fechamento do RF41, VIEWER apenas consulta; MEMBER+ analisa e revisa. Confirmação e rejeição são transacionais e auditadas.
-- Na E11, `responsibleUserId` exige membership ativa; a autoria de movimento vem exclusivamente da sessão e não pode ser controlada pelo body.
-- Na LR.2, os endpoints duplicados de conta/privacidade foram removidos. `/api/settings/*` é canônico; `/api/account/reactivation/*` e `/api/account/audit-events` permanecem por responsabilidade própria. Paths removidos retornam `404 ROUTE_NOT_FOUND`.
-- Na LR.9, GitHub OAuth é exclusivamente autenticação/identidade. A GitHub App é a autoridade de repositórios e artefatos; uma conta local sem `GitHubIdentity` pode conectar a App, criar projeto e sincronizar. O callback comprova state, sessão, ator da instalação e Installation, sem transformar o token efêmero em identidade TraceFlow.
-- A LR.9 substituiu as decisões LR.3/LR.3.1/LR.8 de snapshot pessoal `OWNER`/`ADMIN`, `REAUTH_REQUIRED` e TTL de sete dias. O histórico permanece nos respectivos relatórios e ADR-009; o contrato vigente está no ADR-012.
-- Na LR.4, participação histórica/inativa não autoriza exportar conteúdo atual de projeto. Operações sensíveis usam senha local ou reautenticação GitHub recente na mesma sessão; último OWNER bloqueia a anonimização no vencimento e provoca retorno auditado para `ACTIVE`.
-- Na S1-05, comentários de tarefa (`TaskComment`) usam autoria exclusiva da sessão. VIEWER só lê; MEMBER cria e edita/exclui apenas o próprio comentário; MANAGER e OWNER excluem qualquer comentário do projeto por moderação, mas não editam texto de terceiros. Exclusão é lógica (`deletedAt`/`deletedById`) e toda operação é auditada.
+- `responsibleUserId` exige membership ativa; a autoria de movimento vem exclusivamente da sessão e
+  não pode ser controlada pelo body.
+- `/api/settings/*` é canônico para conta/privacidade. `/api/account/reactivation/*` e
+  `/api/account/audit-events` permanecem por responsabilidade própria; paths duplicados removidos
+  retornam `404 ROUTE_NOT_FOUND`.
+- GitHub OAuth pertence à autenticação/identidade. A GitHub App é autoridade de repositórios,
+  artefatos, sync e webhooks; conta local sem `GitHubIdentity` pode conectar a App, criar projeto e
+  sincronizar. O callback comprova state, sessão, ator da instalação e Installation sem transformar
+  token efêmero em identidade TraceFlow.
+- Snapshot pessoal `OWNER`/`ADMIN`, `REAUTH_REQUIRED` e TTL OAuth de repositório não pertencem ao
+  contrato vigente. O ADR-009 preserva o histórico e o ADR-012 formaliza a decisão atual.
+- Participação histórica/inativa não autoriza exportar conteúdo atual de projeto. Operações
+  sensíveis usam senha local ou reautenticação GitHub recente na mesma sessão; último OWNER bloqueia
+  a anonimização no vencimento e provoca retorno auditado para `ACTIVE`.
+- Comentários de tarefa (`TaskComment`) usam autoria exclusiva da sessão. VIEWER só lê; MEMBER cria
+  e edita/exclui apenas o próprio comentário; MANAGER e OWNER excluem qualquer comentário do projeto
+  por moderação, mas não editam texto de terceiros. Exclusão é lógica (`deletedAt`/`deletedById`) e
+  toda operação é auditada.

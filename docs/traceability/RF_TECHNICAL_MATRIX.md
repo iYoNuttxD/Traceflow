@@ -1,6 +1,10 @@
 # Matriz vigente RF → código → teste
 
-Estado vigente da LR.9 na branch `daniel-dev`, iniciado sobre `04a954977e40e356f49640df3cf2d94ff75ff4fc`. `IMPLEMENTADO` significa fluxo presente e protegido pela suíte; `PARCIAL` indica apenas parte do RF; `NÃO IMPLEMENTADO` não deve ser inferido de campos isolados. GitHub OAuth é identidade de autenticação; GitHub App/Installation é a autoridade de repositórios e artefatos. Homologações externas de SMTP, GitHub, webhook e browser permanecem distintas da cobertura automatizada e não são declaradas como `PASS`.
+`IMPLEMENTADO` significa fluxo presente e protegido pela suíte; `PARCIAL` indica apenas parte do RF;
+`NÃO IMPLEMENTADO` não deve ser inferido de campos isolados. GitHub OAuth é identidade de
+autenticação; GitHub App/Installation é a autoridade de repositórios e artefatos. Homologações
+externas de SMTP, GitHub, webhook e browser permanecem distintas da cobertura automatizada e não
+são declaradas como `PASS`.
 
 ## Decisões vigentes de identidade e acesso
 
@@ -12,7 +16,7 @@ Estado vigente da LR.9 na branch `daniel-dev`, iniciado sobre `04a954977e40e356f
 | RF | Fluxo funcional | Endpoint principal | Service | Persistência | Frontend | Evidência de teste | Estado |
 |---|---|---|---|---|---|---|---|
 | RF01 | cadastrar projeto | `POST /api/projects` | project-crud | Project, ProjectMembership | ProjectsScreen/ProjectForm | mvp-contracts, ProjectsPage | IMPLEMENTADO |
-| RF02 | integrar repositório GitHub | GitHub App callback + Installation Token + `POST /api/projects/from-github`; independente de GitHubIdentity | github-app/project-github | GitHubInstallation, GitHubInstallationAuthorization, ProjectGitHubIntegration, Project | ProjectsScreen, IntegrationsSettingsPage | github-app service/controller, github-boundary, github-auth-l1-1, projects-github-e9, ProjectsPage, SettingsPages | IMPLEMENTADO; HOMOLOGAÇÃO EXTERNA LR.9 PENDENTE |
+| RF02 | integrar repositório GitHub | GitHub App callback + Installation Token + `POST /api/projects/from-github`; independente de GitHubIdentity | github-app/project-github | GitHubInstallation, GitHubInstallationAuthorization, ProjectGitHubIntegration, Project | ProjectsScreen, IntegrationsSettingsPage | github-app service/controller, github-boundary, github-auth-l1-1, projects-github-e9, ProjectsPage, SettingsPages | IMPLEMENTADO; HOMOLOGAÇÃO GITHUB EXTERNA PENDENTE |
 | RF03 | importar commits | `POST .../github/sync` | sync-project-commits | Commit | ProjectDetails/Repository | projects-github-e9, githubSync | IMPLEMENTADO |
 | RF04 | importar Pull Requests | `POST .../github/sync` | sync-project-pull-requests | PullRequest | Repository | projects-github-e9, githubSync | IMPLEMENTADO |
 | RF05 | importar Issues | `POST .../github/sync` | sync-project-issues | Issue | Repository | projects-github-e9, githubSync | IMPLEMENTADO |

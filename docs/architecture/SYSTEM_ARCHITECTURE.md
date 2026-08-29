@@ -2,7 +2,9 @@
 
 ## Escopo
 
-Este documento descreve a implementação consolidada após LR.1–LR.6, incluindo LR.2.1 e LR.3.1. `TRACEFLOW_CONTEXTO_ARQUITETURA.md` continua sendo fonte de requisitos e diretrizes históricas; em caso de divergência sobre o estado executável, prevalecem código, migrations, testes, este documento e os ADRs vigentes.
+Este documento descreve a arquitetura executável vigente. `TRACEFLOW_CONTEXTO_ARQUITETURA.md`
+continua sendo fonte de requisitos e diretrizes evolutivas; em caso de divergência sobre o estado
+executável, prevalecem código, migrations, testes, este documento e os ADRs vigentes.
 
 ## Visão geral
 
@@ -30,6 +32,9 @@ A direção permitida é `app/routes → pages → features → shared + http-cl
 - Hooks e screens controlam requests canceláveis, mutações e rollback visual.
 - Shared não importa pages/features; features não importam internals umas das outras.
 - `TraceabilityFlow` renderiza o DTO de nodes/edges sem recalcular cobertura.
+- CSS convencional pertence ao componente, page, feature ou shared owner. `frontend/src/styles/` é
+  reservado a tokens, base e regras realmente globais; `global.css` não recebe novos estilos
+  específicos de feature.
 
 ## Backend
 
@@ -75,9 +80,24 @@ GitHub OAuth pertence ao módulo Auth e cria `GitHubIdentity` somente para cadas
 
 Uma `GitHubInstallation` pode alimentar várias `ProjectGitHubIntegration`. Cada integração aponta para um projeto e um repositório únicos; `installationId` é apenas FK/index, nunca unique. Reconectar o mesmo repositório revalida a conexão; trocar para outro repositório retorna `409 GITHUB_REPOSITORY_SWAP_FORBIDDEN`, preservando artifacts e histórico. O lifecycle da instalação é `PENDING`, `ACTIVE`, `SUSPENDED` ou `REMOVED`; somente `ACTIVE` seleciona e sincroniza. Callback não reativa `SUSPENDED`/`REMOVED`.
 
-Sync pagina coleções, persiste por identificador externo e usa `GitHubSyncRun.activeProjectId` para exclusão mútua no banco, com stale detection. Webhook público usa raw body, HMAC e delivery ID, sem sessão/CSRF. Delivery possui claim `PROCESSING`, estado terminal e retry de `FAILED` ou processamento stale; duplicatas concorrentes não reexecutam o evento. Não há fetch genérico de URL fornecida pelo cliente.
+Sync pagina coleções, persiste por identificador externo e usa `GitHubSyncRun.activeProjectId` para
+exclusão mútua no banco, com stale detection. Webhook público usa raw body, HMAC e delivery ID, sem
+sessão/CSRF. Delivery possui claim `PROCESSING`, estado terminal e retry de `FAILED` ou processamento
+stale; duplicatas concorrentes não reexecutam o evento. Não há fetch genérico de URL fornecida pelo
+cliente.
 
-Projetos anteriores à L1 mantêm artifacts e metadados em uma integração `RECONNECT_REQUIRED`. `ProjectGitHubIntegration` é a única fonte operacional da conexão e concentra identidade do repositório, configuração e estado de sincronização; `Project` não mantém aliases concorrentes.
+Projetos que ainda possuam metadados anteriores à integração canônica mantêm artifacts e metadados
+em uma integração `RECONNECT_REQUIRED`. `ProjectGitHubIntegration` é a única fonte operacional da
+conexão e concentra identidade do repositório, configuração e estado de sincronização; `Project`
+não mantém aliases concorrentes.
+
+## Assíncronos e concorrência
+
+Jobs persistidos possuem ID correlacionável. Em novas operações assíncronas ou na evolução de um
+polling existente, a consulta deve acompanhar aquele ID quando execuções puderem se confundir, em
+vez de selecionar `latest` por conveniência. Coalescing, exclusão mútua, retry e recuperação de stale
+possuem contrato explícito e testes determinísticos. `FAILED` é um estado de domínio representado no
+DTO do job; a consulta de status continua usando o contrato HTTP adequado a uma leitura bem-sucedida.
 
 ## Segurança e privacidade
 
@@ -91,10 +111,21 @@ ASVS é referência, não certificação. LGPD depende de decisões jurídicas e
 
 ## Banco e migrations
 
-Prisma é acessado somente por repositories e scripts de manutenção autorizados. As 40 migrations são imutáveis e aplicam do zero. Mudança destrutiva exige inventário, reconciliação, backup, guard e roll-forward. Scripts E8 permanecem recovery-only; fontes E6/E11 dependentes do schema anterior à LR.2 exigem aquele checkout/schema e não são runtime.
+Prisma é acessado somente por repositories e scripts de manutenção autorizados. Migrations
+versionadas são imutáveis e devem aplicar do zero. Mudança destrutiva exige inventário,
+reconciliação, backup, guard e roll-forward. Scripts de recovery ligados a schemas históricos
+exigem o checkout/schema correspondente e não pertencem ao runtime.
 
 ## CI e operação
 
-GitHub Actions executa Quality, Backend Tests, Frontend Tests, Supply Chain e Dependency Review. Backend usa MySQL descartável e migrations do zero. Coverage, architecture check, secret scan, audit policy e build são gates.
+GitHub Actions executa Quality, Backend Tests, Frontend Tests, Supply Chain e Dependency Review.
+Backend usa MySQL descartável e migrations do zero. Coverage, ESLint, Prettier,
+`architecture:check`, secret scan, audit policy e build são gates.
+
+Validações locais sensíveis a banco, migrations ou concorrência reproduzem, quando possível, a mesma
+versão/configuração MySQL declarada no workflow ou um ambiente containerizado equivalente. Uma
+execução só é chamada de `CI-equivalent` quando Node, banco e ordem dos gates relevantes também são
+equivalentes. A CI de pull request pode testar um merge ref sintético; diagnósticos distinguem esse
+resultado do commit isolado da branch.
 
 TLS termina no proxy. Os contadores de rate limit HTTP ainda usam memória local; a exclusão mútua do sync usa claim persistido em `GitHubSyncRun`, unique por projeto e stale detection, portanto não depende de lock em memória. Logs, backup, restore, secret manager, monitoramento e proteção de branch precisam ser configurados no ambiente conforme os runbooks.

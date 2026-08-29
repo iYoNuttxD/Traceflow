@@ -1,6 +1,6 @@
 # Catálogo atual de contratos HTTP do TRACEFLOW
 
-## L5.1 — ingresso por código e convites pessoais
+## Ingresso por código e convites pessoais
 
 Cada projeto possui um único `accessCode` ativo de 128 bits gerado com `node:crypto`; a configuração
 sensível é separada dos DTOs gerais e somente OWNER usa `GET|PATCH
@@ -19,7 +19,7 @@ expirados e cujo e-mail normalizado coincide com o usuário autenticado. O ID se
 retorna `404` opaco. Respostas por ID e por token reutilizam a mesma transação de claim/membership.
 Tokens, hashes e códigos de acesso nunca integram logs ou auditoria.
 
-## L2 — conta, segurança, privacidade e integrações
+## Conta, segurança, privacidade e integrações
 
 Todos os contratos abaixo exigem sessão e CSRF nas mutations, exceto as duas confirmações públicas. `requireAccountState` limita `DEACTIVATED` à conta/reativação e `DELETION_PENDING` ao status, cancelamento, exportação e reautenticação GitHub necessária para cancelar uma exclusão em conta GitHub-only; `ANONYMIZED` não autentica.
 
@@ -49,7 +49,7 @@ A exportação retorna `application/zip` com manifesto 2.0 e não persiste o arq
 
 Ao vencer a carência, o processor faz claim e revalida ownership dentro da transação. Sem impedimento, anonimiza. Se o titular ainda for o único OWNER de projeto não excluído, encerra a solicitação como `REJECTED`, registra `SOLE_PROJECT_OWNER`, retorna a conta para `ACTIVE`, revoga sessões e preserva projeto/membership; uma nova solicitação será necessária após a regularização.
 
-## L1 — identidade, verificação e GitHub App
+## Identidade, verificação e GitHub App
 
 `POST /auth/register` recebe `{name,username,email,password}` e cria conta/sessão mesmo quando a entrega SMTP falha; `emailVerification.status` informa `accepted`, `temporary_failure` ou `permanent_failure`. `POST /auth/login` recebe `{identifier,password,rememberMe}` e aceita username/e-mail sem enumerar contas. `PATCH /auth/username` substitui o identificador técnico de usuário migrado. `POST /auth/email-verification/resend` exige sessão+CSRF; `POST /auth/email-verification/verify` é público e consome token único.
 
@@ -69,31 +69,43 @@ Os contratos sistêmicos `GET /github/auth/check` e `GET /github/repositories` f
 
 ## Evidência e rastreabilidade
 
-Os caminhos abaixo são relativos ao prefixo `/api`, exceto os endpoints de health. Autenticação e autorização por papel estão consolidadas em `docs/security/AUTHORIZATION_MATRIX.md`; a relação entre requisito funcional, fluxo, endpoint, service, persistência, frontend e testes está em `docs/traceability/RF_TECHNICAL_MATRIX.md`. A auditoria E15 reconciliou este catálogo com os arquivos `*.routes.js`: o único contrato ativo deliberadamente não implementado é `DELETE /api/projects/:id`, que permanece `501`.
+Os caminhos abaixo são relativos ao prefixo `/api`, exceto os endpoints de health. Autenticação e
+autorização por papel estão consolidadas em `docs/security/AUTHORIZATION_MATRIX.md`; a relação entre
+requisito funcional, fluxo, endpoint, service, persistência, frontend e testes está em
+`docs/traceability/RF_TECHNICAL_MATRIX.md`. Este catálogo deve permanecer reconciliado com os
+arquivos `*.routes.js`: o único contrato ativo deliberadamente não implementado é
+`DELETE /api/projects/:id`, que permanece `501`.
 
-## Atualização E10 — requisitos e rastreabilidade canônica
+## Requisitos e rastreabilidade canônica
 
 `Task.requirementId`, `Task.pullRequestId`, `TaskCommit` e `TaskIssue` são as únicas fontes dos vínculos. A matriz passou a ser paginada sem carregar conteúdo integral de artefatos e mantém um summary global independente da página. As perspectivas de requisito, tarefa e artefato usam o mesmo DTO `{projectId,perspective,summary,nodes,edges,pagination}`; IDs de node são namespaced e as arestas usam `REQUIREMENT_TASK`, `TASK_COMMIT`, `TASK_PULL_REQUEST` ou `TASK_ISSUE`.
 
 Os cinco placeholders baseados em `TraceLink`/`GithubArtifact` foram removidos e seguem o `404` global. O único `501` restante é `DELETE /projects/:id`. O fechamento definitivo do RF41 adotou exclusivamente `[TASK-<ID>]`, persiste sugestões revisáveis e só cria `TaskCommit` após confirmação humana.
 
-## Atualização E9 — Projetos e sincronização GitHub
+## Projetos e sincronização GitHub
 
 O cadastro integrado usa a operação especializada `POST /projects/from-github` e revalida o repositório externo. A sincronização assíncrona cria ou reutiliza uma execução persistida com `POST /projects/:projectId/github/sync`, responde `202 {message,run}` e expõe progresso/resultado em `GET /projects/:projectId/github/sync/status`. A execução pagina commits, pull requests e issues, deduplica/upserta por identificadores externos dentro do projeto e só marca `SUCCEEDED` após todas as coleções. Falha parcial preserva lotes já confirmados, o último sucesso e os vínculos técnicos.
 
 O alias legado redundante `GET /projects/:projectId/github/artifacts` foi removido após confirmação de ausência de consumidores; ele agora segue o `404 ROUTE_NOT_FOUND`. A rota canônica RF06 permanece `GET /projects/:projectId/artifacts`.
 
-## Atualização E8 — persistência canônica sem ruptura HTTP
+## Persistência canônica sem ruptura HTTP
 
-A cardinalidade funcional confirmada é Task 0..1 PullRequest e PullRequest 0..N Tasks. `Task.pullRequestId` é a única fonte canônica; o join experimental N:N, o dual-write e o fallback foram removidos. Os endpoints continuam singulares e preservam paths, status, mensagens e payloads. Na E8, nenhum dos sete placeholders 501 então existentes foi implementado.
+A cardinalidade funcional confirmada é Task 0..1 PullRequest e PullRequest 0..N Tasks.
+`Task.pullRequestId` é a única fonte canônica; o join experimental N:N, o dual-write e o fallback
+foram removidos. Os endpoints continuam singulares e preservam paths, status, mensagens e payloads.
 
-## Atualização E6 — identidade e privacidade dos endpoints
+## Identidade e privacidade dos endpoints
 
 Health permanece público. Também são públicos `POST /api/auth/register`, `login`, `forgot-password` e `reset-password`. As demais rotas `/api` exigem cookie de sessão; mutations exigem `X-CSRF-Token`. `GET /api/auth/me` restaura a identidade, `GET /api/auth/csrf` devolve o token estável derivado da sessão, `POST /api/auth/logout` revoga a sessão e `POST /api/auth/change-password` revoga todas as sessões.
 
 Convites canônicos: `GET|POST /api/projects/:projectId/invitations`, `DELETE /api/projects/:projectId/invitations/:invitationId`, respostas por token e a perspectiva pessoal L5.1. O join por `accessCode` é autenticado e cria `ProjectMembership` usando exclusivamente identidade da sessão e papel persistido. Papéis: OWNER, MANAGER, MEMBER e VIEWER. Ausência de membership pode retornar 404; papel insuficiente, 403. Placeholders retornam 401 sem sessão e preservam 501 autenticados.
 
-Na conclusão da E6, `GET /api/projects/:projectId/members` passou a representar a fonte canônica `ProjectMembership` e retorna `{projectId,currentMembership,members}`. OWNER recebe e-mail completo; demais papéis recebem valor mascarado. Administração canônica: `PATCH|DELETE /api/projects/:projectId/members/:membershipId`, `POST .../reactivate`, `DELETE .../members/me` e `POST /api/projects/:projectId/ownership/transfer`. Desativação/saída é lógica; o último OWNER recebe `409 LAST_PROJECT_OWNER`.
+`GET /api/projects/:projectId/members` representa a fonte canônica `ProjectMembership` e retorna
+`{projectId,currentMembership,members}`. OWNER recebe e-mail completo; demais papéis recebem valor
+mascarado. Administração canônica: `PATCH|DELETE /api/projects/:projectId/members/:membershipId`,
+`POST .../reactivate`, `DELETE .../members/me` e
+`POST /api/projects/:projectId/ownership/transfer`. Desativação/saída é lógica; o último OWNER recebe
+`409 LAST_PROJECT_OWNER`.
 
 Convite duplicado ativo é bloqueado com `INVITATION_ALREADY_PENDING`, inclusive sob concorrência, e o convite original permanece válido. Em produção, criação retorna `{invitation,emailDelivery}` e o token segue exclusivamente pelo adapter de e-mail; o campo `token` existe apenas em testes controlados. A resposta informa se a entrega foi aceita ou falhou de forma sanitizada. Forgot-password continua uniforme e nunca retorna token fora de testes.
 
@@ -101,7 +113,9 @@ Erros seguem `{message,code,requestId}`. O fluxo de convite distingue `INVITATIO
 
 ## Escopo e convenções
 
-As seções abaixo preservam os contratos funcionais documentados na conclusão da E4, agora sujeitos à autenticação/autorização descrita na atualização E6. Este catálogo não é uma especificação OpenAPI definitiva.
+As seções abaixo descrevem os contratos funcionais vigentes, sujeitos à autenticação/autorização
+documentada neste catálogo e na matriz correspondente. Este catálogo não é uma especificação
+OpenAPI definitiva.
 
 Todas as respostas incluem o header `X-Request-Id`. Erros de domínio preservam `{ "message": "..." }`. Erros de validação usam HTTP `400`:
 
@@ -118,7 +132,13 @@ Todas as respostas incluem o header `X-Request-Id`. Erros de domínio preservam 
 
 `details` nunca contém o valor recebido. Bodies mutáveis são estritos e rejeitam campos desconhecidos. Params numéricos aceitam somente inteiro decimal positivo e são convertidos para `number`. Datas de filtro usam `YYYY-MM-DD`; `deadline` aceita esse formato ou datetime ISO-8601 completo. Query `search` é opcional e limitada a 255 caracteres.
 
-Na E5, respostas de sucesso permaneceram iguais. A API exige JSON para bodies, aplica limite padrão de 100kb, CORS por allowlist e rate limiting. Novos erros de infraestrutura usam o formato seguro `{message,code,requestId}`: origem proibida `403 CORS_ORIGIN_DENIED`, JSON malformado `400 MALFORMED_JSON`, payload excessivo `413 PAYLOAD_TOO_LARGE`, content type incompatível `415 UNSUPPORTED_MEDIA_TYPE` e limite excedido `429 RATE_LIMITED`. Respostas `/api` incluem `Cache-Control: no-store`. O 429 inclui os headers `RateLimit` e `Retry-After` e o corpo `{message,code,requestId,retryAfterSeconds,scope}`; `scope` identifica apenas a categoria pública da quota, sem expor sua chave, usuário ou IP.
+A API exige JSON para bodies, aplica limite padrão de 100kb, CORS por allowlist e rate limiting.
+Erros de infraestrutura usam o formato seguro `{message,code,requestId}`: origem proibida
+`403 CORS_ORIGIN_DENIED`, JSON malformado `400 MALFORMED_JSON`, payload excessivo
+`413 PAYLOAD_TOO_LARGE`, content type incompatível `415 UNSUPPORTED_MEDIA_TYPE` e limite excedido
+`429 RATE_LIMITED`. Respostas `/api` incluem `Cache-Control: no-store`. O 429 inclui os headers
+`RateLimit` e `Retry-After` e o corpo `{message,code,requestId,retryAfterSeconds,scope}`; `scope`
+identifica apenas a categoria pública da quota, sem expor sua chave, usuário ou IP.
 
 ## Infraestrutura
 
@@ -239,7 +259,8 @@ Política de edição/exclusão: VIEWER só lê. MEMBER cria e edita/exclui some
 | GET    | `/projects/:projectId/issues`                            | `projectId`, `search?`                         | `200`, `{issues}`                                                     |
 | GET    | `/projects/:projectId/artifacts`                         | `projectId`; `type?`, `startDate?`, `endDate?` | `200`, projeto, filtros, resumo e artefatos                           |
 
-Tipos de artifacts: `commit`, `pull_request`, `issue`. A paginação E9 ocorre somente na leitura externa do GitHub; os contratos públicos de listagem permanecem inalterados.
+Tipos de artifacts: `commit`, `pull_request`, `issue`. A paginação ocorre somente na leitura externa
+do GitHub; os contratos públicos de listagem permanecem inalterados.
 
 Nomes de branch preservam exatamente a caixa recebida do Git. `Feature/Login`, `feature/login`
 e `FEATURE/LOGIN` são identidades distintas na persistência, nos filtros e nos vínculos de
@@ -266,7 +287,7 @@ O parser RF41 usa somente `/\[TASK-(\d+)\]/gi`: aceita caixa variada, múltiplos
 
 Sem `taskId`, a consulta preserva a visão paginada do projeto. Com `taskId`, retorna somente sugestões da Task validada no mesmo projeto; ID inválido recebe `400` e Task inexistente ou de outro projeto recebe `404`. O DTO continua sem `Commit.authorEmail`.
 
-## Conta, privacidade e auditoria após LR.4
+## Conta, privacidade e auditoria
 
 Conta, sessões, exportação, desativação e ciclo de exclusão usam exclusivamente os contratos
 `/settings/*` descritos no início deste catálogo. As rotas específicas
