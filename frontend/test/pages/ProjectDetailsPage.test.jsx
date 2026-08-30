@@ -98,7 +98,21 @@ describe('ProjectDetailsPage E9', () => {
           id: 1,
           role: 'OWNER',
           isActive: true,
-          user: { name: 'Owner', email: 'owner@example.invalid' }
+          user: {
+            name: 'Daniel Ganz Musse',
+            username: 'daniel',
+            email: 'owner@example.invalid'
+          }
+        },
+        {
+          id: 2,
+          role: 'MEMBER',
+          isActive: false,
+          user: {
+            name: 'Ana Martins',
+            username: 'ana',
+            email: 'ana@example.invalid'
+          }
         }
       ]
     });
@@ -124,8 +138,10 @@ describe('ProjectDetailsPage E9', () => {
       .getByRole('heading', { name: 'Equipe' })
       .closest('.project-overview-group--team');
     expect(teamGroup).toHaveTextContent(/1\s*membro ativo/);
-    const teamMetric = teamGroup.querySelector('.project-overview-team-count');
-    expect(teamMetric.querySelector('[data-icon="users"]')).toBeInTheDocument();
+    expect(within(teamGroup).getByRole('img', { name: '1 membro do projeto' })).toHaveTextContent(
+      'DG'
+    );
+    expect(within(teamGroup).queryByText('AM')).not.toBeInTheDocument();
     expect(
       within(overview).getByRole('link', { name: 'Abrir repositório GitHub owner/repo' })
     ).toHaveAttribute('href', 'https://github.com/owner/repo');
@@ -139,7 +155,7 @@ describe('ProjectDetailsPage E9', () => {
     expect(projectGroup).toHaveTextContent('Equipe responsávelEquipe');
     expect(projectGroup.querySelector('.traceflow-icon')).toBeInTheDocument();
     expect(overview.querySelector('[data-icon="branch"]')).toBeInTheDocument();
-    expect(teamGroup.querySelectorAll('[data-icon="users"]')).toHaveLength(2);
+    expect(teamGroup.querySelectorAll('[data-icon="users"]')).toHaveLength(1);
     const pageHeader = screen.getByRole('heading', { name: 'Projeto E9' }).closest('header');
     expect(within(pageHeader).queryByText('Descrição')).not.toBeInTheDocument();
     const projectNavigation = screen.getByRole('navigation', { name: 'Navegação do projeto' });

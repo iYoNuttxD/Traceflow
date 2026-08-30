@@ -10,6 +10,7 @@ const projectStylePaths = [
   'src/features/projects/components/ProjectForm.css',
   'src/features/projects/components/ProjectJoinCard.css',
   'src/features/projects/components/ProjectStatusBadge.css',
+  'src/features/projects/components/MemberAvatarStack.css',
   'src/features/projects/styles/project-admin.css',
   'src/features/projects/styles/project-tabs.css',
   'src/features/projects/pages/ProjectMembersScreen.css',

@@ -15,6 +15,7 @@ import {
 } from '../../../shared/index.js';
 import { ProjectSectionNav } from '../components/ProjectSectionNav.jsx';
 import { ProjectStatusBadge } from '../components/ProjectStatusBadge.jsx';
+import { MemberAvatarStack } from '../components/MemberAvatarStack.jsx';
 import { projectsApi } from '../api/projects.api.js';
 import './ProjectDetailsScreen.css';
 
@@ -115,7 +116,7 @@ function getGithubSyncDisplay(project, syncStatus) {
 export function ProjectDetailsScreen() {
   const { id } = useParams();
   const [project, setProject] = useState(null);
-  const [memberCount, setMemberCount] = useState(null);
+  const [activeMembers, setActiveMembers] = useState(null);
   const [currentMembership, setCurrentMembership] = useState(null);
   const [loading, setLoading] = useState(true);
   const [githubSyncRun, setGithubSyncRun] = useState(null);
@@ -146,10 +147,10 @@ export function ProjectDetailsScreen() {
       await refreshProjectDetails();
       try {
         const membershipData = await membersApi.list(id);
-        setMemberCount((membershipData.members || []).filter((member) => member.isActive).length);
+        setActiveMembers((membershipData.members || []).filter((member) => member.isActive));
         setCurrentMembership(membershipData.currentMembership || null);
       } catch (requestError) {
-        setMemberCount(null);
+        setActiveMembers(null);
         setCurrentMembership(null);
         setMembershipError(
           normalizeApiError(requestError, 'Não foi possível carregar o resumo da equipe.').message
@@ -295,6 +296,7 @@ export function ProjectDetailsScreen() {
   const githubIntegration = project.githubIntegration;
   const githubSyncFailed =
     githubSyncStatus === 'error' || githubIntegration?.lastSyncStatus === 'FALHA';
+  const memberCount = activeMembers?.length ?? null;
   const isOwner = currentMembership?.role === 'OWNER';
   const canSync = ['MANAGER', 'OWNER'].includes(currentMembership?.role);
 
@@ -463,9 +465,8 @@ export function ProjectDetailsScreen() {
               <TraceFlowIcon name="users" />
               <h3>Equipe</h3>
             </header>
-            <p className="project-overview-team-count">
-              <TraceFlowIcon name="users" className="project-overview-team-count__icon" />
-              <span className="project-overview-team-count__value">
+            <div className="project-overview-team-summary">
+              <p className="project-overview-team-count">
                 <strong>{memberCount ?? '—'}</strong>
                 <span>
                   {memberCount === null
@@ -474,8 +475,9 @@ export function ProjectDetailsScreen() {
                       ? 'membro ativo'
                       : 'membros ativos'}
                 </span>
-              </span>
-            </p>
+              </p>
+              {activeMembers && <MemberAvatarStack members={activeMembers} />}
+            </div>
           </section>
         </div>
 
