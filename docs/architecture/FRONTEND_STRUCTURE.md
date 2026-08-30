@@ -80,6 +80,20 @@ mesma resolução antes do mount. Não existe opção visual System.
 por usuário, limita a exibição a cinco e cruza todos os IDs com esse catálogo. LocalStorage não
 concede membership ou acesso. Loading ou erro no catálogo não bloqueiam a navegação principal.
 
+## Projects e visão do projeto
+
+`/projects` apresenta projetos e convites pendentes no mesmo grid responsivo. O card inteiro do
+projeto navega para sua visão geral, enquanto o card Novo projeto abre um dialog acessível que só
+então expõe os fluxos existentes de criação ou entrada por código. Essa apresentação não altera os
+casos de uso, contratos HTTP ou critérios de autorização desses fluxos.
+
+`/projects/:projectId` é a visão geral do projeto e agrupa Projeto, GitHub e Equipe em uma única
+surface. A navegação horizontal interna parte de Visão geral e mantém Tasks, Requirements, Kanban,
+Repositório e Rastreabilidade como destinos do mesmo projeto. Ações administrativas não ficam
+embutidas na Overview: edição usa `/projects/:projectId/edit`, e membros, convites e código de acesso
+usam `/projects/:projectId/members`. As telas continuam exibindo ações conforme o papel retornado
+pela API; o backend permanece autoritativo para autorização e lifecycle.
+
 ## Consolidação de Tasks e Kanban
 
 As screens de Tasks e Kanban coordenam estado e casos de uso, enquanto componentes do próprio domínio apresentam responsabilidades delimitadas:

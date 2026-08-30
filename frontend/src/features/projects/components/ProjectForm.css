@@ -1,7 +1,58 @@
 .project-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
+  gap: var(--space-4);
+}
+
+.project-form .field span {
+  color: var(--color-text-primary);
+}
+
+.project-form .field input,
+.project-form .field textarea,
+.project-form .field select {
+  min-height: var(--size-touch-target);
+  border-color: var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
+  background: var(--color-bg-input);
+}
+
+.project-form .field input:focus,
+.project-form .field textarea:focus,
+.project-form .field select:focus {
+  border-color: var(--color-border-interactive);
+  box-shadow: 0 0 0 var(--focus-ring-width)
+    color-mix(in srgb, var(--color-focus-ring) 22%, transparent);
+}
+
+.project-form .field-help {
+  color: var(--color-text-secondary);
+}
+
+.project-form .field-error {
+  color: var(--color-danger-text);
+}
+
+.project-form .button {
+  min-height: var(--size-touch-target);
+  border-radius: var(--radius-sm);
+}
+
+.project-form .button-primary {
+  color: var(--color-text-on-accent);
+  background: var(--color-accent-strong);
+}
+
+.project-form .button-secondary {
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+  background: var(--color-surface-primary);
+}
+
+.project-form :focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
 }
 
 @media (max-width: 560px) {

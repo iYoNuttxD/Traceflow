@@ -4,7 +4,7 @@ import { Card, FeedbackRegion } from '../../../shared/index.js';
 import { parseProjectAccessInput } from '../services/project-access-input.js';
 import './ProjectJoinCard.css';
 
-export function ProjectJoinCard() {
+export function ProjectJoinForm() {
   const navigate = useNavigate();
   const [value, setValue] = useState('');
   const [error, setError] = useState('');
@@ -21,7 +21,7 @@ export function ProjectJoinCard() {
   }
 
   return (
-    <Card className="projects-dashboard-card project-entry-card" title="Entrar em um projeto">
+    <div className="project-entry-content">
       <p className="card-description">Cole um código ou link de acesso compartilhado.</p>
       <FeedbackRegion error={error} />
       <form className="project-join-quick-form" onSubmit={continueToJoin}>
@@ -37,6 +37,14 @@ export function ProjectJoinCard() {
           Continuar
         </button>
       </form>
+    </div>
+  );
+}
+
+export function ProjectJoinCard() {
+  return (
+    <Card className="projects-dashboard-card project-entry-card" title="Entrar em um projeto">
+      <ProjectJoinForm />
     </Card>
   );
 }

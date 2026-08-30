@@ -1,7 +1,24 @@
+.project-access-code-card {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-6);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  color: var(--color-text-primary);
+  background: var(--color-surface-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.project-access-code-card h2 {
+  margin: 0;
+  color: var(--color-text-strong);
+  font-size: var(--font-size-4);
+}
+
 .access-code-control {
   display: grid;
   min-width: 0;
-  gap: 0.65rem;
+  gap: var(--space-3);
 }
 
 .access-code-value-row {
@@ -9,7 +26,7 @@
   min-width: 0;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 0.6rem;
+  gap: var(--space-3);
 }
 
 .access-code-value-row code {
@@ -17,32 +34,38 @@
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
-  padding: 0.55rem 0.65rem;
-  border: 1px solid #dbe2ee;
-  border-radius: 8px;
-  background: #fff;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  padding: var(--space-3);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-xs);
+  color: var(--color-text-primary);
+  background: var(--color-bg-input);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-2);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .access-code-actions {
   display: flex;
-  gap: 0.4rem;
+  gap: var(--space-2);
 }
 
 .access-code-icon-button {
   display: inline-grid;
-  flex: none;
-  width: 2.25rem;
-  height: 2.25rem;
-  padding: 0;
+  width: var(--size-touch-target);
+  height: var(--size-touch-target);
+  flex: 0 0 var(--size-touch-target);
   place-items: center;
+  padding: 0;
+  border-color: var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
+  background: var(--color-surface-primary);
 }
 
 .access-code-icon-button svg {
-  width: 1.05rem;
-  height: 1.05rem;
+  width: var(--size-icon-sm);
+  height: var(--size-icon-sm);
   fill: none;
   stroke: currentColor;
   stroke-linecap: round;
@@ -53,49 +76,31 @@
 .access-code-role {
   display: flex;
   min-width: 0;
-  gap: 0.65rem;
   align-items: center;
   justify-content: space-between;
+  gap: var(--space-3);
 }
 
 .access-code-role span {
-  color: #667085;
-  font-size: 0.78rem;
-  font-weight: 700;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-2);
+  font-weight: var(--font-weight-semibold);
 }
 
 .access-code-role select {
   min-width: 8.5rem;
-  border: 1px solid #cfd6e4;
-  border-radius: 8px;
-  padding: 0.45rem 0.65rem;
-  color: #172033;
-  background: #fff;
+  min-height: var(--size-touch-target);
+  border: var(--border-width-default) solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-text-primary);
+  background: var(--color-bg-input);
   font: inherit;
 }
 
-.overview-value-with-action {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  flex-wrap: wrap;
-}
-
-.copy-invite-button {
-  border: 1px solid #cfd6e4;
-  border-radius: 999px;
-  padding: 0.35rem 0.65rem;
-  color: #315bce;
-  background: #fff;
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.78rem;
-  font-weight: 800;
-}
-
-.copy-invite-button:hover {
-  border-color: #315bce;
-  background: #eef4ff;
+.project-access-code-card :focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
 }
 
 @media (max-width: 560px) {

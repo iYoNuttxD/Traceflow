@@ -1,0 +1,9 @@
+.project-members-screen {
+  display: grid;
+  gap: var(--space-6);
+}
+
+.project-members-screen .project-breadcrumb,
+.project-members-screen .project-admin-screen__header {
+  margin-bottom: 0;
+}

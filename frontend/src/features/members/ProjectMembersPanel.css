@@ -1,7 +1,7 @@
 .member-list {
   display: grid;
-  gap: 0.6rem;
-  margin-bottom: 1rem;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
 }
 
 .member-list-wide {
@@ -11,57 +11,58 @@
 .member-item {
   display: grid;
   min-width: 0;
-  gap: 0.65rem;
+  gap: var(--space-3);
   align-content: start;
-  padding: 1rem;
-  border: 1px solid #e2e7f0;
-  border-radius: 10px;
-  background: #fbfcfe;
+  padding: var(--space-4);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  background: var(--color-surface-secondary);
 }
 
 .member-item-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 1rem;
+  gap: var(--space-4);
 }
 
 .member-joined-at {
-  margin-bottom: 0.1rem;
+  margin-bottom: var(--space-1);
 }
 
 .member-role-field {
   grid-column: 1;
   grid-row: 1;
-  max-width: 240px;
+  max-width: 15rem;
 }
 
 .member-item span {
-  color: #667085;
-  font-size: 0.86rem;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-2);
 }
 
 .team-panel,
 .invitation-management,
 .invitation-list {
   display: grid;
-  gap: 1rem;
+  gap: var(--space-4);
 }
 
 .member-actions {
   display: grid;
-  grid-template-columns: minmax(150px, 0.65fr) minmax(0, 1.35fr);
-  gap: 0.65rem 1rem;
+  grid-template-columns: minmax(9.375rem, 0.65fr) minmax(0, 1.35fr);
   align-items: end;
-  padding-top: 0.75rem;
-  border-top: 1px solid #e2e7f0;
+  gap: var(--space-3) var(--space-4);
+  padding-top: var(--space-3);
+  border-top: var(--border-width-default) solid var(--color-border-default);
 }
 
 .member-identity,
 .invitation-item > div:first-child {
   display: grid;
   min-width: 0;
-  gap: 0.2rem;
+  gap: var(--space-1);
 }
 
 .member-identity strong,
@@ -72,53 +73,57 @@
 
 .member-action-buttons {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.member-action-buttons {
   grid-column: 2;
   grid-row: 1;
+  flex-wrap: wrap;
   justify-content: flex-end;
+  gap: var(--space-2);
 }
 
 .member-actions small {
   grid-column: 1 / -1;
   grid-row: 2;
-  color: #667085;
-  line-height: 1.45;
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-body);
 }
 
 .status-chip {
   justify-self: start;
-  border-radius: 999px;
-  padding: 0.25rem 0.55rem;
-  background: #eef2f8;
-  color: #475467;
-  font-size: 0.78rem;
-  font-weight: 800;
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-pill);
+  padding: var(--space-1) var(--space-2);
+  color: var(--color-neutral-text);
+  background: var(--color-neutral-surface);
+  font-size: var(--font-size-1);
+  font-weight: var(--font-weight-bold);
 }
 
 .status-chip.status-active {
-  background: #e8f7ef;
-  color: #176b43;
+  border-color: var(--color-success-border);
+  color: var(--color-success-text);
+  background: var(--color-success-surface);
 }
 
 .invitation-management {
-  margin-top: 1rem;
-  padding-top: 1.25rem;
-  border-top: 1px solid #e2e7f0;
+  margin-top: var(--space-4);
+  padding-top: var(--space-5);
+  border-top: var(--border-width-default) solid var(--color-border-default);
+}
+
+.invitation-management h3 {
+  margin: 0;
+  color: var(--color-text-strong);
 }
 
 .membership-self-service {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  padding: 1rem;
-  border: 1px solid #e2e7f0;
-  border-radius: 10px;
-  background: #fbfcfe;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-secondary);
 }
 
 .membership-self-service h3,
@@ -127,9 +132,9 @@
 }
 
 .membership-self-service p {
-  margin-top: 0.3rem;
-  color: #667085;
-  line-height: 1.45;
+  margin-top: var(--space-1);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-body);
 }
 
 .invitation-form {
@@ -139,32 +144,32 @@
 
 .invitation-item {
   display: grid;
-  grid-template-columns: minmax(180px, 1.5fr) minmax(220px, 1fr) auto auto;
-  gap: 1rem;
+  grid-template-columns: minmax(11.25rem, 1.5fr) minmax(13.75rem, 1fr) auto auto;
   align-items: center;
-  padding: 0.85rem;
-  border: 1px solid #e2e7f0;
-  border-radius: 10px;
-  background: #fbfcfe;
+  gap: var(--space-4);
+  padding: var(--space-3);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-secondary);
 }
 
 .invitation-dates {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem 1rem;
+  gap: var(--space-2) var(--space-4);
   margin: 0;
 }
 
 .invitation-dates dt {
-  color: #667085;
-  font-size: 0.72rem;
-  font-weight: 800;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-1);
+  font-weight: var(--font-weight-bold);
   text-transform: uppercase;
 }
 
 .invitation-dates dd {
-  margin: 0.15rem 0 0;
-  font-size: 0.82rem;
+  margin: var(--space-1) 0 0;
+  font-size: var(--font-size-1);
 }
 
 .member-form-wide {
@@ -172,11 +177,48 @@
   align-items: end;
 }
 
-@media (max-width: 860px) {
-  .member-form-wide {
-    grid-template-columns: 1fr;
-  }
+.team-panel .field span {
+  color: var(--color-text-primary);
+}
 
+.team-panel .field input,
+.team-panel .field select {
+  min-height: var(--size-touch-target);
+  border-color: var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
+  background: var(--color-bg-input);
+}
+
+.team-panel .button {
+  min-height: var(--size-touch-target);
+  border-radius: var(--radius-sm);
+}
+
+.team-panel .button-primary {
+  color: var(--color-text-on-accent);
+  background: var(--color-accent-strong);
+}
+
+.team-panel .button-secondary {
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+  background: var(--color-surface-primary);
+}
+
+.team-panel .button-danger {
+  border-color: var(--color-danger-border);
+  color: var(--color-danger-text);
+  background: var(--color-danger-surface);
+}
+
+.team-panel :focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+@media (max-width: 860px) {
+  .member-form-wide,
   .member-list-wide {
     grid-template-columns: 1fr;
   }
@@ -184,6 +226,13 @@
   .membership-self-service {
     align-items: stretch;
     flex-direction: column;
+  }
+}
+
+@media (max-width: 720px) {
+  .invitation-form,
+  .invitation-item {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -200,19 +249,9 @@
   }
 
   .member-action-buttons {
-    justify-content: flex-start;
-  }
-}
-
-@media (max-width: 560px) {
-  .invitation-form,
-  .invitation-item {
-    grid-template-columns: 1fr;
-  }
-
-  .member-action-buttons {
     align-items: stretch;
     flex-direction: column;
+    justify-content: flex-start;
   }
 
   .member-action-buttons .button,

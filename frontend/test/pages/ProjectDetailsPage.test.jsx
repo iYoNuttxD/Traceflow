@@ -106,44 +106,51 @@ describe('ProjectDetailsPage E9', () => {
     mocks.getProjectGithubSyncStatus.mockResolvedValue({ run: null });
   });
 
-  it('consolida a visão geral em quatro cards e mantém datas como metadata secundária', async () => {
+  it('renderiza breadcrumb, tabs e uma surface integrada sem blocos administrativos', async () => {
     renderPage();
 
-    const overviewHeading = await screen.findByRole('heading', {
-      name: 'Visão geral do projeto'
-    });
-    const overview = overviewHeading.closest('.card');
-    await within(overview).findByRole('heading', { name: 'Acesso ao projeto' });
-    expect(overview.querySelectorAll('.overview-summary-card')).toHaveLength(4);
-    for (const heading of ['Projeto', 'GitHub', 'Equipe', 'Acesso ao projeto']) {
+    const overviewHeading = await screen.findByRole('heading', { name: 'Visão geral' });
+    const overview = overviewHeading.closest('.project-overview-surface');
+    expect(overview.querySelectorAll('.project-overview-group')).toHaveLength(3);
+    for (const heading of ['Projeto', 'GitHub', 'Equipe']) {
       expect(within(overview).getByRole('heading', { name: heading })).toBeInTheDocument();
     }
-    const projectCard = within(overview)
-      .getByRole('heading', { name: 'Projeto' })
-      .closest('.overview-project-card');
-    expect(within(projectCard).getByText('Ativo')).toBeInTheDocument();
-    expect(within(projectCard).getByText('Equipe')).toBeInTheDocument();
-    const teamCard = within(overview)
+    expect(within(overview).getByText('Ativo')).toBeInTheDocument();
+    const teamGroup = within(overview)
       .getByRole('heading', { name: 'Equipe' })
-      .closest('.overview-team-card');
-    expect(teamCard).toHaveTextContent(/1\s*membro ativo/);
+      .closest('.project-overview-group--team');
+    expect(teamGroup).toHaveTextContent(/1\s*membro ativo/);
     expect(
       within(overview).getByRole('link', { name: 'Abrir repositório GitHub owner/repo' })
     ).toHaveAttribute('href', 'https://github.com/owner/repo');
-    expect(within(overview).getByText(/Criado em .* · Atualizado em/)).toHaveClass(
-      'overview-metadata'
+    expect(within(overview).getByText(/Criado em/)).toBeInTheDocument();
+    expect(within(overview).getByText(/Atualizado em/)).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toHaveTextContent(
+      'Projetos/Projeto E9'
     );
-    for (const oldCard of [
-      'Status do projeto',
-      'Status GitHub',
-      'Código de acesso',
-      'Última sincronização bem-sucedida',
-      'Última tentativa',
-      'Criado em',
-      'Atualizado em'
+    const projectNavigation = screen.getByRole('navigation', { name: 'Navegação do projeto' });
+    expect(within(projectNavigation).getAllByRole('link')).toHaveLength(6);
+    expect(within(projectNavigation).getByRole('link', { name: 'Visão geral' })).toHaveAttribute(
+      'aria-current',
+      'page'
+    );
+    expect(screen.getByRole('link', { name: 'Editar projeto' })).toHaveAttribute(
+      'href',
+      '/projects/1/edit'
+    );
+    expect(screen.getByRole('link', { name: 'Membros do projeto' })).toHaveAttribute(
+      'href',
+      '/projects/1/members'
+    );
+    for (const removed of [
+      'Acesso ao projeto',
+      'Área preparada para indicadores',
+      'Concept C2',
+      'Prototype'
     ]) {
-      expect(within(overview).queryByText(oldCard, { exact: true })).not.toBeInTheDocument();
+      expect(screen.queryByText(removed, { exact: true })).not.toBeInTheDocument();
     }
+    expect(mocks.accessCodeApi.get).not.toHaveBeenCalled();
   });
 
   it('exibe loading, sincroniza uma vez e apresenta o summary atual', async () => {
@@ -348,11 +355,11 @@ describe('ProjectDetailsPage E9', () => {
     renderPage();
 
     const githubCard = (await screen.findByRole('heading', { name: 'GitHub' })).closest(
-      '.overview-github-card'
+      '.project-overview-group--github'
     );
     expect(within(githubCard).getByText('Não integrado')).toBeInTheDocument();
     expect(within(githubCard).getByText('Nenhum repositório conectado.')).toBeInTheDocument();
-    expect(within(githubCard).queryByText('Repositório')).not.toBeInTheDocument();
+    expect(within(githubCard).getByText('Repositório')).toBeInTheDocument();
     expect(within(githubCard).queryByText('Última sincronização')).not.toBeInTheDocument();
   });
 
@@ -364,64 +371,24 @@ describe('ProjectDetailsPage E9', () => {
     renderPage();
     await screen.findByRole('heading', { name: 'Projeto E9' });
     expect(screen.queryByRole('button', { name: 'Sincronizar' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Editar projeto' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Membros do projeto' })).toHaveAttribute(
+      'href',
+      '/projects/1/members'
+    );
     expect(screen.queryByText('Analisar commits para sugestões')).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Acesso ao projeto' })).not.toBeInTheDocument();
     expect(mocks.accessCodeApi.get).not.toHaveBeenCalled();
   });
 
-  it('permite ao OWNER mostrar, ocultar, copiar, configurar e regenerar o código', async () => {
-    const user = userEvent.setup();
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.defineProperty(navigator, 'clipboard', {
-      configurable: true,
-      value: { writeText }
-    });
-    mocks.accessCodeApi.updateRole.mockResolvedValue({
-      data: {
-        accessCode: {
-          accessCode: 'TRC-0123456789ABCDEF0123456789ABCDEF',
-          role: 'VIEWER',
-          inviteLink: 'http://frontend.test/join/TRC-0123456789ABCDEF0123456789ABCDEF'
-        }
-      }
-    });
-    mocks.accessCodeApi.regenerate.mockResolvedValue({
-      data: {
-        accessCode: {
-          accessCode: 'TRC-FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF',
-          role: 'VIEWER',
-          inviteLink: 'http://frontend.test/join/TRC-FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF'
-        }
-      }
-    });
+  it('mantém status GitHub somente na seção correspondente e status do projeto no topo', async () => {
     renderPage();
-
-    const code = await screen.findByText('TRC-0123456789ABCDEF0123456789ABCDEF');
-    expect(code.closest('.project-access-code-card')).toBeInTheDocument();
-    expect(code.closest('.access-code-value-row')).toBeInTheDocument();
-    const hideButton = screen.getByRole('button', { name: 'Ocultar código' });
-    const regenerateButton = screen.getByRole('button', { name: 'Regenerar código' });
-    const copyButton = screen.getByRole('button', { name: 'Copiar link' });
-    for (const button of [hideButton, regenerateButton, copyButton]) {
-      expect(button).toHaveClass('access-code-icon-button');
-      expect(button.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
-    }
-    expect(screen.getByLabelText('Perfil de entrada').closest('label')).toHaveClass(
-      'access-code-role'
+    const overview = (await screen.findByRole('heading', { name: 'Visão geral' })).closest(
+      '.project-overview-surface'
     );
-    await user.click(hideButton);
-    expect(screen.queryByText('TRC-0123456789ABCDEF0123456789ABCDEF')).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Mostrar código' }));
-    await user.selectOptions(screen.getByLabelText('Perfil de entrada'), 'VIEWER');
-    expect(mocks.accessCodeApi.updateRole).toHaveBeenCalledWith(1, 'VIEWER');
-    await user.click(copyButton);
-    expect(writeText).toHaveBeenCalledWith(
-      'http://frontend.test/join/TRC-0123456789ABCDEF0123456789ABCDEF'
-    );
-    await user.click(regenerateButton);
-    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Regenerar' }));
-    expect(mocks.accessCodeApi.regenerate).toHaveBeenCalledWith(1);
-    expect(await screen.findByText('TRC-FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF')).toBeInTheDocument();
+    expect(within(overview).getByText('Ativo')).toBeInTheDocument();
+    expect(within(overview).getByText('Nunca sincronizado')).toBeInTheDocument();
+    expect(screen.queryByText('GitHub sincronizado')).not.toBeInTheDocument();
   });
 
   it('não exibe ações do RF41 na visão geral do projeto', async () => {

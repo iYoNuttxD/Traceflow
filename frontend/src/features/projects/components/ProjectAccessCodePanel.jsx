@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { FeedbackRegion, normalizeApiError, useConfirm } from '../../../shared/index.js';
 import { projectsApi } from '../api/projects.api.js';
 import './ProjectAccessCodePanel.css';
@@ -35,6 +35,7 @@ function CopyIcon() {
 
 export function ProjectAccessCodePanel({ projectId, isOwner }) {
   const confirm = useConfirm();
+  const headingId = useId();
   const [configuration, setConfiguration] = useState(null);
   const [visible, setVisible] = useState(true);
   const [busy, setBusy] = useState('');
@@ -119,8 +120,8 @@ export function ProjectAccessCodePanel({ projectId, isOwner }) {
   }
 
   return (
-    <section className="overview-summary-card overview-access-code project-access-code-card">
-      <h3>Acesso ao projeto</h3>
+    <section className="project-access-code-card" aria-labelledby={headingId}>
+      <h2 id={headingId}>Acesso ao projeto</h2>
       <FeedbackRegion error={error} success={success} />
       {!configuration ? (
         <span>Carregando configuração...</span>

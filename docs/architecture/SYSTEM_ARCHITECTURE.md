@@ -38,6 +38,10 @@ A direção permitida é `app/routes → pages → features → shared + http-cl
   públicas e contas restritas permanecem fora do shell autenticado.
 - A sidebar e a tela Projects compartilham o catálogo autorizado de `GET /projects`. IDs fixados e
   recentes são preferências locais filtradas pelo catálogo e nunca concedem acesso.
+- Projects reúne projetos, convites pendentes e a entrada progressiva dos fluxos existentes em um
+  grid responsivo. A visão geral de `/projects/:projectId` integra os resumos de Projeto, GitHub e
+  Equipe; edição e administração de membros/acesso usam, respectivamente,
+  `/projects/:projectId/edit` e `/projects/:projectId/members`, sempre sob autorização do backend.
 - CSS convencional acompanha o owner em `pages`, `features` e `shared`. Componentes e screens
   importam a folha colocada ao lado do JSX; grupos em `shared/styles` ou `features/*/styles` existem
   somente quando há múltiplos consumidores reais. Media queries permanecem com o mesmo owner do

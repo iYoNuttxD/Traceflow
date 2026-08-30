@@ -1,76 +1,56 @@
 .project-section-nav {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  justify-content: flex-end;
-  max-width: 100%;
+  min-width: 0;
+  gap: var(--space-1);
+  overflow-x: auto;
+  border-bottom: var(--border-width-default) solid var(--color-border-default);
+  scrollbar-width: thin;
 }
 
 .project-section-nav-link {
+  position: relative;
   display: inline-flex;
+  min-height: 3rem;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  min-height: 2.75rem;
-  padding: 0.7rem 1rem;
-  border: 1px solid #cfd6e4;
-  border-radius: 10px;
-  color: #344054;
-  background: #fff;
-  font-family: inherit;
-  font-size: 0.95rem;
-  font-weight: 700;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-2);
+  font-weight: var(--font-weight-semibold);
   text-decoration: none;
-  cursor: pointer;
-  transition:
-    border-color 0.2s ease,
-    background 0.2s ease,
-    color 0.2s ease;
+  transition: color var(--duration-fast) var(--ease-standard);
 }
 
-.project-section-nav-link:hover:not(:disabled) {
-  border-color: #9ca9bd;
-  background: #f8fafc;
-}
-
-.project-section-nav-link:disabled {
-  cursor: not-allowed;
-  opacity: 0.7;
+.project-section-nav-link:hover {
+  color: var(--color-text-strong);
 }
 
 .project-section-nav-link-active {
-  border-color: #244aa5;
-  color: #fff;
-  background: #244aa5;
+  color: var(--color-accent-text);
 }
 
-.project-section-nav-link-active:hover:not(:disabled) {
-  border-color: #244aa5;
-  background: #244aa5;
+.project-section-nav-link-active::after {
+  position: absolute;
+  right: var(--space-3);
+  bottom: -1px;
+  left: var(--space-3);
+  height: 3px;
+  border-radius: var(--radius-pill) var(--radius-pill) 0 0;
+  background: var(--color-accent-primary);
+  content: '';
 }
 
-.project-section-nav-sync {
-  border-color: #244aa5;
-  color: #fff;
-  background: #244aa5;
+.project-section-nav-link:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: calc(var(--focus-ring-offset) * -1);
 }
 
-.project-section-nav-sync:hover:not(:disabled) {
-  border-color: #183a84;
-  background: #183a84;
-}
-
-@media (max-width: 860px) {
+@media (max-width: 720px) {
   .project-section-nav {
-    justify-content: flex-start;
-  }
-}
-
-@media (max-width: 560px) {
-  .project-section-nav {
-    align-items: stretch;
-  }
-
-  .project-section-nav-link {
-    flex: 1 1 100%;
+    margin-right: calc(var(--space-4) * -1);
+    margin-left: calc(var(--space-4) * -1);
+    padding: 0 var(--space-4);
   }
 }

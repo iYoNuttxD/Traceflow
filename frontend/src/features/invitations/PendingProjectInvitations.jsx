@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
-import { Card, FeedbackRegion, normalizeApiError, useCountdown } from '../../shared/index.js';
+import { FeedbackRegion, normalizeApiError, useCountdown } from '../../shared/index.js';
 import { personalInvitationsApi } from './personal-invitations.api.js';
 import './PendingProjectInvitations.css';
 
@@ -15,7 +15,7 @@ function formatDate(value) {
   return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' }).format(new Date(value));
 }
 
-export function PendingProjectInvitations({ onAccepted }) {
+export function PendingProjectInvitations({ onAccepted, onStateChange }) {
   const [invitations, setInvitations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(null);
@@ -51,6 +51,10 @@ export function PendingProjectInvitations({ onAccepted }) {
     };
   }, []);
 
+  useEffect(() => {
+    onStateChange?.({ count: invitations.length, loading });
+  }, [invitations.length, loading, onStateChange]);
+
   async function respond(invitation, action) {
     if (actionLock.current || cooldown > 0) return;
     actionLock.current = true;
@@ -80,61 +84,69 @@ export function PendingProjectInvitations({ onAccepted }) {
   }
 
   return (
-    <Card
-      className="projects-dashboard-card personal-invitations-card"
-      title="Meus convites pendentes"
-    >
-      <FeedbackRegion
-        error={cooldown ? undefined : error}
-        rateLimit={cooldown ? error : undefined}
-        retryAfterSeconds={retryAfterSeconds}
-        success={success}
-      />
-      {acceptedProject && (
-        <Link
-          className="button button-secondary link-button invitation-open-project"
-          to={`/projects/${acceptedProject.id}`}
-        >
-          Abrir projeto
-        </Link>
-      )}
-      {loading ? (
-        <p className="empty-state">Carregando convites...</p>
-      ) : invitations.length === 0 ? (
-        <p className="empty-state">Nenhum convite pendente.</p>
-      ) : (
-        <div className="personal-invitation-list">
-          {invitations.map((invitation) => (
-            <article className="personal-invitation-item" key={invitation.id}>
-              <div>
-                <strong>{invitation.project.name}</strong>
-                <span>Perfil: {roleLabels[invitation.role] || invitation.role}</span>
-                <span>Expira em: {formatDate(invitation.expiresAt)}</span>
-              </div>
-              <div className="personal-invitation-actions">
-                <button
-                  className="button button-primary button-compact"
-                  type="button"
-                  disabled={busy !== null || cooldown > 0}
-                  aria-busy={busy === invitation.id}
-                  onClick={() => void respond(invitation, 'accept')}
-                >
-                  {cooldown > 0 ? `Aceitar em ${cooldown}s` : 'Aceitar'}
-                </button>
-                <button
-                  className="button button-secondary button-compact"
-                  type="button"
-                  disabled={busy !== null || cooldown > 0}
-                  aria-busy={busy === invitation.id}
-                  onClick={() => void respond(invitation, 'decline')}
-                >
-                  {cooldown > 0 ? `Recusar em ${cooldown}s` : 'Recusar'}
-                </button>
-              </div>
-            </article>
-          ))}
+    <>
+      {(error || success || acceptedProject) && (
+        <div className="projects-grid__feedback">
+          <FeedbackRegion
+            error={cooldown ? undefined : error}
+            rateLimit={cooldown ? error : undefined}
+            retryAfterSeconds={retryAfterSeconds}
+            success={success}
+          />
+          {acceptedProject && (
+            <Link
+              className="button button-secondary link-button invitation-open-project"
+              to={`/projects/${acceptedProject.id}`}
+            >
+              Abrir projeto
+            </Link>
+          )}
         </div>
       )}
-    </Card>
+
+      {loading && (
+        <article className="invitation-card invitation-card--loading" aria-busy="true">
+          <span className="invitation-card__label">Convites</span>
+          <p>Carregando convites...</p>
+        </article>
+      )}
+
+      {!loading &&
+        invitations.map((invitation) => (
+          <article className="invitation-card" key={invitation.id}>
+            <span className="invitation-card__label">Convite</span>
+            <div className="invitation-card__copy">
+              <h3>{invitation.project.name}</h3>
+              <p>Você foi convidado para participar deste projeto.</p>
+            </div>
+            <div className="invitation-card__metadata">
+              <span>
+                Papel: <strong>{roleLabels[invitation.role] || invitation.role}</strong>
+              </span>
+              <span>Expira em {formatDate(invitation.expiresAt)}</span>
+            </div>
+            <div className="invitation-card__actions">
+              <button
+                className="button button-secondary"
+                type="button"
+                disabled={busy !== null || cooldown > 0}
+                aria-busy={busy === invitation.id}
+                onClick={() => void respond(invitation, 'decline')}
+              >
+                {cooldown > 0 ? `Recusar em ${cooldown}s` : 'Recusar'}
+              </button>
+              <button
+                className="button button-primary"
+                type="button"
+                disabled={busy !== null || cooldown > 0}
+                aria-busy={busy === invitation.id}
+                onClick={() => void respond(invitation, 'accept')}
+              >
+                {cooldown > 0 ? `Aceitar em ${cooldown}s` : 'Aceitar'}
+              </button>
+            </div>
+          </article>
+        ))}
+    </>
   );
 }

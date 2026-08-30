@@ -8,17 +8,47 @@
   margin-top: auto;
 }
 
+.project-entry-content {
+  display: grid;
+  gap: var(--space-4);
+}
+
 .card-description {
-  margin: -0.5rem 0 1rem;
-  color: #667085;
-  line-height: 1.5;
+  margin: 0;
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-body);
 }
 
 .project-join-quick-form {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.75rem;
+  gap: var(--space-3);
   align-items: end;
+}
+
+.project-entry-content .field span {
+  color: var(--color-text-primary);
+}
+
+.project-entry-content .field input {
+  min-height: var(--size-touch-target);
+  border-color: var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
+  background: var(--color-bg-input);
+}
+
+.project-entry-content .field input:focus {
+  border-color: var(--color-border-interactive);
+  box-shadow: 0 0 0 var(--focus-ring-width)
+    color-mix(in srgb, var(--color-focus-ring) 22%, transparent);
+}
+
+.project-entry-content .button-primary {
+  min-height: var(--size-touch-target);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-on-accent);
+  background: var(--color-accent-strong);
 }
 
 @media (max-width: 860px) {

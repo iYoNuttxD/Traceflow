@@ -1,5 +1,5 @@
 import { MemoryRouter } from 'react-router';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -95,6 +95,13 @@ function mockInitialRequests({
   });
 }
 
+async function openCreateFlow(user) {
+  await user.click(screen.getByRole('button', { name: /^Novo projeto/ }));
+  const dialog = screen.getByRole('dialog', { name: 'Novo projeto' });
+  await user.click(within(dialog).getByRole('button', { name: /Criar projeto/ }));
+  return screen.getByRole('dialog', { name: 'Criar projeto' });
+}
+
 describe('ProjectsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -102,32 +109,28 @@ describe('ProjectsPage', () => {
   });
 
   it('mostra loading e depois o estado vazio', async () => {
+    const user = userEvent.setup();
     mockInitialRequests({ projects: [] });
     renderPage();
 
     expect(screen.getByText('Carregando projetos...')).toBeInTheDocument();
     expect(await screen.findByText('Nenhum projeto cadastrado ainda.')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Entrar em um projeto' })).toBeInTheDocument();
-    expect(screen.getByText('Nenhum convite pendente.')).toBeInTheDocument();
-    expect(screen.getByLabelText('Código ou link de acesso')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Projetos' })).toBeInTheDocument();
+    expect(screen.getByText('Gerencie e acompanhe seus projetos.')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Código ou link de acesso')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Nome do projeto *')).not.toBeInTheDocument();
     expect(apiMock.get.mock.calls.filter(([url]) => url === '/projects')).toHaveLength(1);
 
-    const dashboard = screen.getByRole('region', { name: 'Projetos e formas de ingresso' });
-    expect(dashboard).toHaveClass('projects-dashboard-grid');
-    expect(dashboard.children).toHaveLength(4);
-    expect([...dashboard.children].every((card) => card.classList.contains('card'))).toBe(true);
-    expect(
-      screen.getByRole('heading', { name: 'Entrar em um projeto' }).closest('.card')
-    ).toHaveClass('project-entry-card');
-    expect(
-      screen.getByRole('heading', { name: 'Meus convites pendentes' }).closest('.card')
-    ).toHaveClass('personal-invitations-card');
-    expect(screen.getByRole('heading', { name: 'Cadastrar projeto' }).closest('.card')).toHaveClass(
-      'project-create-card'
-    );
-    expect(
-      screen.getByRole('heading', { name: 'Projetos cadastrados' }).closest('.card')
-    ).toHaveClass('project-list-card');
+    const newProject = screen.getByRole('button', { name: /^Novo projeto/ });
+    expect(newProject).toHaveAttribute('aria-haspopup', 'dialog');
+    await user.click(newProject);
+    const chooser = screen.getByRole('dialog', { name: 'Novo projeto' });
+    expect(within(chooser).getByRole('button', { name: /Criar projeto/ })).toBeInTheDocument();
+    await user.click(within(chooser).getByRole('button', { name: /Entrar com código/ }));
+    expect(screen.getByLabelText('Código ou link de acesso')).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(newProject).toHaveFocus();
   });
 
   it('lista convites pessoais, aceita e oferece abertura do projeto', async () => {
@@ -145,7 +148,7 @@ describe('ProjectsPage', () => {
     renderPage();
 
     expect(await screen.findByText('Projeto convidado')).toBeInTheDocument();
-    expect(screen.getByText('Perfil: Visualizador')).toBeInTheDocument();
+    expect(screen.getByText(/Papel:/)).toHaveTextContent('Visualizador');
     await user.click(screen.getByRole('button', { name: 'Aceitar' }));
     expect(invitationsMock.accept).toHaveBeenCalledWith(21);
     expect(
@@ -177,7 +180,7 @@ describe('ProjectsPage', () => {
     expect(screen.queryByText('Projeto recusado')).not.toBeInTheDocument();
   });
 
-  it('renderiza a lista no formato atual', async () => {
+  it('renderiza project card como link único sem botão redundante', async () => {
     mockInitialRequests({
       projects: [
         {
@@ -195,12 +198,14 @@ describe('ProjectsPage', () => {
     });
     renderPage();
 
-    expect(await screen.findByRole('heading', { name: 'Projeto artificial' })).toBeInTheDocument();
-    expect(screen.getByText('Equipe: Equipe artificial')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Ver detalhes e editar' })).toHaveAttribute(
-      'href',
-      '/projects/1'
-    );
+    const projectLink = await screen.findByRole('link', {
+      name: 'Abrir projeto Projeto artificial'
+    });
+    expect(projectLink).toHaveAttribute('href', '/projects/1');
+    expect(projectLink).toHaveTextContent('Equipe artificial');
+    expect(projectLink).toHaveTextContent('usuario-artificial/repositorio-artificial');
+    expect(projectLink).toHaveTextContent('Ativo');
+    expect(screen.queryByText(/Ver detalhes/)).not.toBeInTheDocument();
   });
 
   it('mostra o erro atual quando projetos não carregam', async () => {
@@ -209,9 +214,8 @@ describe('ProjectsPage', () => {
     });
     renderPage();
 
-    expect(await screen.findAllByText('Falha artificial da API')).toHaveLength(3);
-    expect(screen.getByRole('link', { name: /Status do GitHub indisponível/ })).toBeInTheDocument();
-    expect(screen.getByLabelText('Repositório GitHub *')).toBeDisabled();
+    expect(await screen.findByText('Falha artificial da API')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Tentar novamente' })).toBeInTheDocument();
   });
 
   it('submete o formulário pelo endpoint especializado e recarrega a lista', async () => {
@@ -220,6 +224,7 @@ describe('ProjectsPage', () => {
     apiMock.post.mockResolvedValue({ data: { message: 'Projeto cadastrado com sucesso.' } });
     renderPage();
     await screen.findByText('Nenhum projeto cadastrado ainda.');
+    await openCreateFlow(user);
 
     await user.type(screen.getByLabelText('Nome do projeto *'), 'Projeto submetido');
     await user.type(screen.getByLabelText('Área ou equipe responsável *'), 'Equipe submetida');
@@ -255,6 +260,7 @@ describe('ProjectsPage', () => {
     const user = userEvent.setup();
     renderPage();
     await screen.findByText('Nenhum projeto cadastrado ainda.');
+    await openCreateFlow(user);
     await user.type(screen.getByLabelText('Nome do projeto *'), 'Projeto único');
     await user.type(screen.getByLabelText('Área ou equipe responsável *'), 'Equipe única');
     await user.selectOptions(
@@ -308,6 +314,7 @@ describe('ProjectsPage', () => {
     ];
     mockInitialRequests({ repositories });
     renderPage();
+    await openCreateFlow(userEvent.setup());
 
     const select = await screen.findByLabelText('Repositório GitHub *');
     await waitFor(() => expect(select.querySelectorAll('option')).toHaveLength(5));
@@ -318,12 +325,13 @@ describe('ProjectsPage', () => {
       /branch develop.*vinculado a Projeto existente/
     );
     await userEvent.setup().selectOptions(select, 'usuario-artificial/ocupado');
-    expect(screen.getByText(/já está vinculado ao projeto/)).toBeInTheDocument();
+    const duplicateCallout = screen.getByText(/já está vinculado ao projeto/).closest('aside');
+    expect(duplicateCallout).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Ver projeto' })).toHaveAttribute(
       'href',
       '/projects/12'
     );
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Fechar' }));
+    await userEvent.setup().click(within(duplicateCallout).getByRole('button', { name: 'Fechar' }));
     await userEvent.setup().selectOptions(select, 'usuario-artificial/ocupado-sem-acesso');
     expect(
       screen.getByText('Este repositório já está vinculado a outro projeto.')
@@ -336,8 +344,10 @@ describe('ProjectsPage', () => {
   });
 
   it('explica quando a GitHub App não possui repositórios concedidos', async () => {
+    const user = userEvent.setup();
     mockInitialRequests({ repositories: [] });
     renderPage();
+    await openCreateFlow(user);
     expect(
       await screen.findByText(
         'A GitHub App não possui repositórios concedidos. Gerencie o acesso da instalação no GitHub.'
@@ -346,8 +356,10 @@ describe('ProjectsPage', () => {
   });
 
   it('não exige renovação OAuth pessoal quando a GitHub App está conectada', async () => {
+    const user = userEvent.setup();
     mockInitialRequests();
     renderPage();
+    await openCreateFlow(user);
 
     expect(
       await screen.findByRole('option', { name: /usuario-artificial\/repositorio-artificial/ })
@@ -372,6 +384,7 @@ describe('ProjectsPage', () => {
       }
     });
     renderPage();
+    await openCreateFlow(user);
 
     await user.type(screen.getByLabelText('Nome do projeto *'), 'Projeto com acesso alterado');
     await user.type(screen.getByLabelText('Área ou equipe responsável *'), 'Equipe artificial');
@@ -423,8 +436,10 @@ describe('ProjectsPage', () => {
   });
 
   it('distingue quando nenhuma instalação foi registrada', async () => {
+    const user = userEvent.setup();
     mockInitialRequests({ installations: [], repositories: [] });
     renderPage();
+    await openCreateFlow(user);
 
     const connectLinks = await screen.findAllByRole('link', { name: /Conectar GitHub App/ });
     expect(connectLinks).toHaveLength(2);
@@ -441,6 +456,7 @@ describe('ProjectsPage', () => {
   });
 
   it('atualiza instalações e informa sucesso após retorno do callback', async () => {
+    const user = userEvent.setup();
     mockInitialRequests();
     renderPage(['/projects?github=connected&installationId=77']);
 
@@ -452,6 +468,7 @@ describe('ProjectsPage', () => {
         apiMock.get.mock.calls.filter(([url]) => url === '/github/app/installations').length
       ).toBeGreaterThanOrEqual(2);
     });
+    await openCreateFlow(user);
     expect(screen.getByText('GitHub App conectada · usuario-artificial')).toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: 'Adicionar ou atualizar acesso' })

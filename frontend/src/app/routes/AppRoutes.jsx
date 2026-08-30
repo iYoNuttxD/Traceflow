@@ -32,6 +32,14 @@ const ProjectDetailsPage = lazyNamed(
   () => import('../../pages/ProjectDetailsPage.jsx'),
   'ProjectDetailsPage'
 );
+const ProjectEditPage = lazyNamed(
+  () => import('../../pages/ProjectEditPage.jsx'),
+  'ProjectEditPage'
+);
+const ProjectMembersPage = lazyNamed(
+  () => import('../../pages/ProjectMembersPage.jsx'),
+  'ProjectMembersPage'
+);
 const RequirementsPage = lazyNamed(
   () => import('../../pages/RequirementsPage.jsx'),
   'RequirementsPage'
@@ -139,6 +147,8 @@ export function AppRoutes() {
           <Route path="/join/:accessCode" element={<JoinProjectPage />} />
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/projects/:id" element={<ProjectDetailsPage />} />
+          <Route path="/projects/:projectId/edit" element={<ProjectEditPage />} />
+          <Route path="/projects/:projectId/members" element={<ProjectMembersPage />} />
           <Route path="/projects/:projectId/requirements" element={<RequirementsPage />} />
           <Route path="/projects/:projectId/tasks" element={<TasksPage />} />
           <Route path="/projects/:projectId/kanban" element={<KanbanPage />} />

@@ -1,0 +1,40 @@
+.project-breadcrumb {
+  margin-bottom: var(--space-5);
+}
+
+.project-breadcrumb ol {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-2);
+  list-style: none;
+}
+
+.project-breadcrumb li {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.project-breadcrumb a {
+  display: inline-flex;
+  min-height: var(--size-touch-target);
+  align-items: center;
+  border-radius: var(--radius-sm);
+  color: var(--color-accent-text);
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+}
+
+.project-breadcrumb a:hover {
+  text-decoration: underline;
+}
+
+.project-breadcrumb a:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
