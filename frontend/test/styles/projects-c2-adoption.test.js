@@ -16,7 +16,13 @@ const projectStylePaths = [
   'src/features/projects/pages/ProjectMembersScreen.css',
   'src/features/invitations/PendingProjectInvitations.css',
   'src/features/members/ProjectMembersPanel.css',
+  'src/pages/AcceptInvitationPage.css',
+  'src/pages/JoinProjectPage.css',
+  'src/shared/components/AsyncState.css',
   'src/shared/components/BackButton.css',
+  'src/shared/components/Card.css',
+  'src/shared/components/ConfirmDialog.css',
+  'src/shared/components/GenericErrorPage.css',
   'src/shared/components/TraceFlowIcon.css'
 ];
 
@@ -36,6 +42,16 @@ const overviewSource = readFileSync(
   resolve('src/features/projects/pages/ProjectDetailsScreen.jsx'),
   'utf8'
 );
+const globalCss = readFileSync(resolve('src/styles/global.css'), 'utf8');
+const confirmDialogCss = readFileSync(resolve('src/shared/components/ConfirmDialog.css'), 'utf8');
+
+function rule(css, selector) {
+  const start = css.indexOf(`${selector} {`);
+  expect(start, `Regra CSS ausente: ${selector}`).toBeGreaterThanOrEqual(0);
+  const bodyStart = css.indexOf('{', start) + 1;
+  const bodyEnd = css.indexOf('}', bodyStart);
+  return css.slice(bodyStart, bodyEnd);
+}
 
 describe('adoção do Concept C2 em Projects', () => {
   it('mantém os owners redesenhados dependentes de tokens semânticos', () => {
@@ -64,6 +80,30 @@ describe('adoção do Concept C2 em Projects', () => {
     expect(backButtonCss).toContain('width: var(--size-touch-target)');
     expect(backButtonCss).toContain('height: var(--size-touch-target)');
     expect(backButtonCss).toContain('.back-button:focus-visible');
+  });
+
+  it('mantém confirmações e feedbacks auxiliares no sistema semântico C2', () => {
+    expect(rule(confirmDialogCss, '.dialog-backdrop')).toContain(
+      'background: var(--color-overlay)'
+    );
+    expect(rule(confirmDialogCss, '.confirm-dialog')).toContain(
+      'background: var(--color-surface-elevated)'
+    );
+    expect(rule(confirmDialogCss, '.confirm-dialog')).toContain('color: var(--color-text-primary)');
+    expect(rule(confirmDialogCss, '.confirm-dialog .button-danger')).toContain(
+      'background: var(--color-danger-surface)'
+    );
+
+    for (const [selector, token] of [
+      ['.message-error', '--color-danger-surface'],
+      ['.message-success', '--color-success-surface'],
+      ['.message-info', '--color-info-surface']
+    ]) {
+      expect(rule(globalCss, selector)).toContain(`background: var(${token})`);
+    }
+    expect(rule(globalCss, '.message-warning,\n.message-rate-limit')).toContain(
+      'background: var(--color-warning-surface)'
+    );
   });
 
   it('reserva espaço para a busca e normaliza as ações do código de acesso', () => {

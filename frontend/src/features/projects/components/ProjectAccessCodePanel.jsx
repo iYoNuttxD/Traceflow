@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import {
   FeedbackRegion,
   TraceFlowIcon,
@@ -13,6 +13,7 @@ const roleLabels = Object.freeze({ MEMBER: 'Membro', VIEWER: 'Visualizador' });
 export function ProjectAccessCodePanel({ projectId, isOwner }) {
   const confirm = useConfirm();
   const headingId = useId();
+  const visibilityButtonRef = useRef(null);
   const [configuration, setConfiguration] = useState(null);
   const [visible, setVisible] = useState(true);
   const [busy, setBusy] = useState('');
@@ -60,7 +61,8 @@ export function ProjectAccessCodePanel({ projectId, isOwner }) {
         title: 'Regenerar código de acesso',
         description:
           'O código atual deixará de funcionar imediatamente. Deseja gerar um novo código?',
-        confirmLabel: 'Regenerar'
+        confirmLabel: 'Regenerar',
+        focusAfterConfirmRef: visibilityButtonRef
       }))
     )
       return;
@@ -108,6 +110,7 @@ export function ProjectAccessCodePanel({ projectId, isOwner }) {
             <code>{visible ? configuration.accessCode : '••••••••••••••••'}</code>
             <div className="access-code-actions">
               <button
+                ref={visibilityButtonRef}
                 className="access-code-icon-button"
                 type="button"
                 title={visible ? 'Ocultar código' : 'Mostrar código'}
@@ -121,7 +124,8 @@ export function ProjectAccessCodePanel({ projectId, isOwner }) {
                 type="button"
                 title="Regenerar código"
                 disabled={Boolean(busy)}
-                aria-label="Regenerar código"
+                aria-label={busy === 'regenerate' ? 'Regenerando código' : 'Regenerar código'}
+                aria-busy={busy === 'regenerate'}
                 onClick={() => void regenerate()}
               >
                 <TraceFlowIcon name="refresh" />

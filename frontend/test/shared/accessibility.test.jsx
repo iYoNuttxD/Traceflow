@@ -153,6 +153,29 @@ describe('infraestrutura acessível compartilhada', () => {
     expect(trigger).toHaveFocus();
   });
 
+  it('inicia na ação segura, mantém o foco contido e o restaura ao cancelar', async () => {
+    const user = userEvent.setup();
+    render(
+      <ConfirmProvider>
+        <ConfirmFixture />
+      </ConfirmProvider>
+    );
+    const trigger = screen.getByRole('button', { name: 'Abrir confirmação' });
+    await user.click(trigger);
+    const cancel = screen.getByRole('button', { name: 'Cancelar' });
+    const confirm = screen.getByRole('button', { name: 'Excluir' });
+
+    expect(cancel).toHaveFocus();
+    await user.keyboard('{Shift>}{Tab}{/Shift}');
+    expect(confirm).toHaveFocus();
+    await user.tab();
+    expect(cancel).toHaveFocus();
+
+    await user.click(cancel);
+    expect(await screen.findByText('cancelado')).toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
   it('confirma por teclado dentro do dialog', async () => {
     const user = userEvent.setup();
     render(

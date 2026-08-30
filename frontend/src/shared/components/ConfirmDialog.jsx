@@ -59,7 +59,7 @@ function ConfirmDialog({ dialog, close }) {
           </button>
           <button
             type="button"
-            className={dialog.destructive ? 'button button-danger' : 'button'}
+            className={dialog.destructive ? 'button button-danger' : 'button button-primary'}
             onClick={() => close(true)}
           >
             {dialog.confirmLabel || 'Confirmar'}
@@ -75,8 +75,12 @@ export function ConfirmProvider({ children }) {
 
   const close = useCallback((confirmed) => {
     setDialog((current) => {
+      const focusTarget =
+        confirmed && current?.focusAfterConfirmRef?.current
+          ? current.focusAfterConfirmRef.current
+          : current?.trigger;
       current?.resolve(confirmed);
-      queueMicrotask(() => current?.trigger?.focus?.());
+      queueMicrotask(() => focusTarget?.focus?.());
       return null;
     });
   }, []);
@@ -89,6 +93,7 @@ export function ConfirmProvider({ children }) {
           description: options.description,
           confirmLabel: options.confirmLabel,
           destructive: options.destructive !== false,
+          focusAfterConfirmRef: options.focusAfterConfirmRef,
           trigger: document.activeElement,
           resolve
         });

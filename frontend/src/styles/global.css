@@ -208,41 +208,41 @@
 
 .message {
   display: flex;
-  gap: 0.7rem;
+  gap: var(--space-3);
   align-items: flex-start;
-  margin-bottom: 1.25rem;
-  border: 1px solid;
-  border-radius: 10px;
-  padding: 0.85rem 1rem;
+  margin-bottom: var(--space-5);
+  border: var(--border-width-default) solid;
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
 }
 
 .message-error {
-  border-color: #f3b9b9;
-  color: #9f2d2d;
-  background: #fff2f2;
+  border-color: var(--color-danger-border);
+  color: var(--color-danger-text);
+  background: var(--color-danger-surface);
 }
 
 .message-success {
-  border-color: #a8ddc1;
-  color: #17643b;
-  background: #effaf4;
+  border-color: var(--color-success-border);
+  color: var(--color-success-text);
+  background: var(--color-success-surface);
 }
 
 .message-info {
-  border-color: #b2ccff;
-  color: #1849a9;
-  background: #eff4ff;
+  border-color: var(--color-info-border);
+  color: var(--color-info-text);
+  background: var(--color-info-surface);
 }
 
 .message-warning,
 .message-rate-limit {
-  border-color: #f5c451;
-  color: #7a2e0e;
-  background: #fffaeb;
+  border-color: var(--color-warning-border);
+  color: var(--color-warning-text);
+  background: var(--color-warning-surface);
 }
 
 .message-rate-limit {
-  border-width: 2px;
+  border-width: var(--border-width-strong);
 }
 
 .status-badge {

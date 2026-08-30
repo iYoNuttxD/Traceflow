@@ -195,7 +195,8 @@ export function ProjectMembersPanel({
       !(await confirm({
         title: 'Adicionar proprietário',
         description: 'Este membro também passará a ser proprietário do projeto.',
-        confirmLabel: 'Adicionar proprietário'
+        confirmLabel: 'Adicionar proprietário',
+        destructive: false
       }))
     )
       return;

@@ -212,10 +212,15 @@ describe('rotas administrativas de projeto', () => {
     expect(writeText).toHaveBeenCalledWith(
       'http://frontend.test/join/TRC-0123456789ABCDEF0123456789ABCDEF'
     );
-    await user.click(screen.getByRole('button', { name: 'Regenerar código' }));
-    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Regenerar' }));
+    const regenerateTrigger = screen.getByRole('button', { name: 'Regenerar código' });
+    const visibilityControl = screen.getByRole('button', { name: 'Ocultar código' });
+    await user.click(regenerateTrigger);
+    const confirmation = screen.getByRole('dialog', { name: 'Regenerar código de acesso' });
+    expect(within(confirmation).getByRole('button', { name: 'Cancelar' })).toHaveFocus();
+    await user.click(within(confirmation).getByRole('button', { name: 'Regenerar' }));
     expect(mocks.projects.regenerateAccessCode).toHaveBeenCalledWith('7');
     expect(await screen.findByText('TRC-FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF')).toBeInTheDocument();
+    expect(visibilityControl).toHaveFocus();
   });
 
   it('mantém consulta de membros para MEMBER sem expor administração do código', async () => {
