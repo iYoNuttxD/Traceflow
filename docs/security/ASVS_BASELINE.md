@@ -86,3 +86,20 @@ abaixo, fora do escopo do módulo).
 5. SBOM, gate de licenças e validação jurídica da política de privacidade.
 
 As lacunas possuem rastreabilidade em `docs/issues/TECHNICAL_BACKLOG.md`. O estado `ATENDIDO` sempre se limita à evidência citada e não equivale a conformidade total do produto ou da operação.
+
+## Adendo — segunda bateria RF10/RF35 (30/08/2026, design v4)
+
+A quarta iteração do design de sprints e marcos é exclusivamente frontend e não altera a
+superfície HTTP do módulo — as declarações acima permanecem válidas e foram reexecutadas
+(backend 501/501, duas vezes). O que a segunda bateria acrescenta de verificação:
+
+| Controle | O que o design v4 muda | Evidência |
+|---|---|---|
+| 8.2.1/8.2.2 sob composição | os fluxos compostos do cliente (criar sprint + substituir tarefas; mover sprints de marco por `PUT` parcial) não abrem mutação para `VIEWER`: o perfil não carrega o catálogo de tarefas, não recebe formulário e o backend segue recusando com `403` | `frontend/test/features/SprintsScreen.test.jsx` (VIEWER sem `listProjectTasks`), `MilestonesScreen.test.jsx`; `schedule-contracts.test.js` (403 inalterado) |
+| 2.3.3/16.5.x na falha parcial do cliente | criar sprint com falha na substituição de tarefas preserva a sprint salva, avisa com mensagem própria (sem eco de dado) e ressincroniza; a sequência de PUTs do formulário de marcos interrompe no erro, avisa e ressincroniza — cada PUT é atômico no servidor (S104-F13) | `SprintsScreen.test.jsx` ("avisa quando a sprint salva mas as tarefas falham"); `MilestonesScreen.test.jsx` |
+| 14 (minimização) | as informações novas na tela — títulos de tarefa, nomes de sprint/marco, deadlines — vêm do payload já existente do agregado; nenhum dado pessoal novo entra no cronograma, nos cartões, nos eventos ou no expansor | forma renderizada asserida em `ScheduleScreen.test.jsx`; payload conferido em `schedule.service.js` (sem nome/e-mail) |
+
+Nenhum capítulo novo do ASVS passa a incidir com o delta: sem upload, sem token novo, sem origem
+nova, sem canal novo. Mutações de segurança da segunda bateria (VIEWER buscando catálogo, falha de
+substituição engolida, PUT para sprint congelada): todas mortas — tabela completa em
+`docs/issues/RF10_RF35_RELATORIO_TESTES.md`, seção da segunda bateria.
