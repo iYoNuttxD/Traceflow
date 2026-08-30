@@ -54,6 +54,28 @@ describe('SprintBurndownChart', () => {
     expect(screen.getByText('Linha ideal')).toBeInTheDocument();
   });
 
+  it('marca o eixo em quatro datas', () => {
+    const dez = Array.from({ length: 10 }, (_, indice) => ({
+      date: `2026-08-${String(indice + 1).padStart(2, '0')}`,
+      ideal: Math.round((10 - (indice * 10) / 9) * 10) / 10,
+      remaining: indice < 5 ? 10 - indice : null
+    }));
+    render(
+      <SprintBurndownChart
+        burndown={{
+          hasData: true,
+          totalPoints: 10,
+          frozen: false,
+          cutoffDate: '2026-08-05',
+          days: dez
+        }}
+      />
+    );
+    for (const data of ['01/08', '04/08', '07/08', '10/08']) {
+      expect(screen.getByText(data)).toBeInTheDocument();
+    }
+  });
+
   it('sprint encerrada fala no passado e se declara congelada', () => {
     render(
       <SprintBurndownChart

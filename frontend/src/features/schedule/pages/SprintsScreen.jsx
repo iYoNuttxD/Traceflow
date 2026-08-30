@@ -28,9 +28,11 @@ export function SprintsScreen() {
   const confirm = useConfirm();
   const sprintTasksRequest = useAbortableRequest();
   const progressRequest = useAbortableRequest();
+  const formTasksRequest = useAbortableRequest();
   const selectedSprintRef = useRef(null);
   const progressSprintRef = useRef(null);
   const formCardRef = useRef(null);
+  const formTasksCarregadasRef = useRef(false);
 
   const {
     project,
@@ -54,6 +56,8 @@ export function SprintsScreen() {
   const [sprintForm, setSprintForm] = useState(emptySprintForm);
   const [sprintErrors, setSprintErrors] = useState({});
   const [editingSprintId, setEditingSprintId] = useState(null);
+  const [formTaskIds, setFormTaskIds] = useState([]);
+  const [formTasksLoading, setFormTasksLoading] = useState(false);
 
   const [selectedSprint, setSelectedSprint] = useState(null);
   const [selectedTaskIds, setSelectedTaskIds] = useState([]);
@@ -83,6 +87,25 @@ export function SprintsScreen() {
     [sprints]
   );
 
+  useEffect(() => {
+    if (loading) {
+      formTasksCarregadasRef.current = false;
+      return;
+    }
+    if (somenteLeitura || formTasksCarregadasRef.current) return;
+    formTasksCarregadasRef.current = true;
+    setFormTasksLoading(true);
+    formTasksRequest
+      .run((signal) => scheduleApi.listProjectTasks(projectId, { signal }))
+      .then((resposta) => {
+        if (resposta) setProjectTasks(resposta.data.tasks || []);
+      })
+      .catch((requestError) => {
+        handleFailure(requestError, 'Não foi possível carregar as tarefas do projeto.');
+      })
+      .finally(() => setFormTasksLoading(false));
+  }, [loading, somenteLeitura, projectId, formTasksRequest, handleFailure]);
+
   const submitSprint = async (event) => {
     event.preventDefault();
     const errors = validateSprintForm(sprintForm, { editing: Boolean(editingSprintId) });
@@ -98,15 +121,42 @@ export function SprintsScreen() {
         endDate: fromDateTimeLocalInput(sprintForm.endDate),
         milestoneId: sprintForm.milestoneId ? Number(sprintForm.milestoneId) : null
       };
+      let alvoId = editingSprintId;
       if (editingSprintId) {
         await scheduleApi.updateSprint(editingSprintId, payload);
-        feedback('Sprint atualizada com sucesso.');
       } else {
-        await scheduleApi.createSprint(projectId, payload);
-        feedback('Sprint cadastrada com sucesso.');
+        const { data } = await scheduleApi.createSprint(projectId, payload);
+        alvoId = data.sprint?.id ?? null;
       }
+
+      const originais = editingSprintId
+        ? (scheduleById[editingSprintId]?.tasks || []).map((task) => task.id)
+        : [];
+      const mudouTarefas =
+        formTaskIds.length !== originais.length ||
+        formTaskIds.some((id) => !originais.includes(id));
+      let avisoTarefas = null;
+      if (alvoId && mudouTarefas) {
+        try {
+          await scheduleApi.replaceSprintTasks(alvoId, formTaskIds);
+        } catch (requestError) {
+          avisoTarefas = requestError;
+        }
+      }
+
       setSprintForm(emptySprintForm);
       setEditingSprintId(null);
+      setFormTaskIds([]);
+      if (avisoTarefas) {
+        handleFailure(
+          avisoTarefas,
+          'Sprint salva, mas não foi possível atualizar as tarefas da sprint.'
+        );
+      } else {
+        feedback(
+          editingSprintId ? 'Sprint atualizada com sucesso.' : 'Sprint cadastrada com sucesso.'
+        );
+      }
       await Promise.all([refreshSprints(), refreshSchedule()]);
     } catch (requestError) {
       handleFailure(requestError, 'Não foi possível salvar a sprint.');
@@ -125,6 +175,7 @@ export function SprintsScreen() {
       endDate: toDateTimeLocalInput(sprint.endDate),
       milestoneId: sprint.milestoneId ? String(sprint.milestoneId) : ''
     });
+    setFormTaskIds((scheduleById[sprint.id]?.tasks || []).map((task) => task.id));
   };
 
   useEffect(() => {
@@ -288,11 +339,41 @@ export function SprintsScreen() {
       </header>
       <FeedbackRegion error={error} success={success} />
 
-      <div
-        className={`schedule-columns ${
-          somenteLeitura ? 'schedule-columns--unica' : 'schedule-columns--pareadas'
-        }`}
-      >
+      <div className="schedule-columns schedule-columns--unica">
+        {!somenteLeitura && (
+          <section className="card" ref={formCardRef}>
+            <h2>{editingSprintId ? 'Editar sprint' : 'Cadastrar sprint'}</h2>
+            <SprintForm
+              formData={sprintForm}
+              milestones={milestones}
+              tasks={projectTasks}
+              sprintNames={sprintNames}
+              taskIds={formTaskIds}
+              tasksLoading={formTasksLoading}
+              editingSprintId={editingSprintId}
+              errors={sprintErrors}
+              editing={Boolean(editingSprintId)}
+              submitting={submitting}
+              onChange={(field, value) => setSprintForm({ ...sprintForm, [field]: value })}
+              onToggleTask={(taskId) =>
+                setFormTaskIds((current) =>
+                  current.includes(taskId)
+                    ? current.filter((id) => id !== taskId)
+                    : [...current, taskId]
+                )
+              }
+              onSubmit={submitSprint}
+              onCancel={() => {
+                setEditingSprintId(null);
+                setSprintForm(emptySprintForm);
+                setSprintErrors({});
+                setFormTaskIds([]);
+                formCardRef.current?.querySelector('input, select, textarea')?.focus();
+              }}
+            />
+          </section>
+        )}
+
         <section className="card">
           <div className="schedule-card-header">
             <h2>Sprints do projeto</h2>
@@ -317,58 +398,39 @@ export function SprintsScreen() {
             onChangeStatus={changeSprintStatus}
             onViewInKanban={viewInKanban}
           />
-          {progressSprint && (
-            <SprintProgressPanel
-              sprint={progressSprint}
-              progress={progress}
-              loading={progressLoading}
-              onClose={() => {
-                progressSprintRef.current = null;
-                progressRequest.cancel();
-                setProgressSprint(null);
-                setProgress(null);
-              }}
-            />
-          )}
-          {selectedSprint && (
-            <SprintTasksPanel
-              sprint={selectedSprint}
-              tasks={projectTasks}
-              sprintTasks={sprintTasks}
-              selectedTaskIds={selectedTaskIds}
-              sprintNames={sprintNames}
-              loading={tasksLoading}
-              submitting={submitting}
-              readOnly={somenteLeitura}
-              onSubmit={submitSprintTasks}
-              onCancel={() => {
-                selectedSprintRef.current = null;
-                sprintTasksRequest.cancel();
-                setSelectedSprint(null);
-              }}
-            />
-          )}
         </section>
 
-        {!somenteLeitura && (
-          <section className="card" ref={formCardRef}>
-            <h2>{editingSprintId ? 'Editar sprint' : 'Cadastrar sprint'}</h2>
-            <SprintForm
-              formData={sprintForm}
-              milestones={milestones}
-              errors={sprintErrors}
-              editing={Boolean(editingSprintId)}
-              submitting={submitting}
-              onChange={(field, value) => setSprintForm({ ...sprintForm, [field]: value })}
-              onSubmit={submitSprint}
-              onCancel={() => {
-                setEditingSprintId(null);
-                setSprintForm(emptySprintForm);
-                setSprintErrors({});
-                formCardRef.current?.querySelector('input, select, textarea')?.focus();
-              }}
-            />
-          </section>
+        {progressSprint && (
+          <SprintProgressPanel
+            sprint={progressSprint}
+            scheduleSprint={scheduleById[progressSprint.id]}
+            progress={progress}
+            loading={progressLoading}
+            onClose={() => {
+              progressSprintRef.current = null;
+              progressRequest.cancel();
+              setProgressSprint(null);
+              setProgress(null);
+            }}
+          />
+        )}
+        {selectedSprint && (
+          <SprintTasksPanel
+            sprint={selectedSprint}
+            tasks={projectTasks}
+            sprintTasks={sprintTasks}
+            selectedTaskIds={selectedTaskIds}
+            sprintNames={sprintNames}
+            loading={tasksLoading}
+            submitting={submitting}
+            readOnly={somenteLeitura}
+            onSubmit={submitSprintTasks}
+            onCancel={() => {
+              selectedSprintRef.current = null;
+              sprintTasksRequest.cancel();
+              setSelectedSprint(null);
+            }}
+          />
         )}
       </div>
     </main>

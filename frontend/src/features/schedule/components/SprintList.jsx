@@ -72,7 +72,7 @@ export function SprintList({
             ariaLabel: `${progressOpen ? 'Fechar' : 'Ver'} evolução da sprint ${sprint.name}`,
             expanded: progressOpen,
             title:
-              'Mostra o escopo planejado, o escopo atual e o que mudou depois do planejamento.',
+              'Mostra o escopo planejado, o escopo atual, o burndown e o que mudou depois do planejamento.',
             onSelect: () => onShowProgress(sprint)
           }
         ];

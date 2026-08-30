@@ -2237,26 +2237,101 @@ a {
   min-width: 0;
 }
 
+.schedule-columns--unica {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.calendar-month-card h2 {
+  margin: 0 0 0.35rem;
+}
+
+.calendar-month-summary {
+  margin: 0 0 1.15rem;
+  color: #667085;
+  font-size: 0.85rem;
+}
+
+.calendar-month-panel {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  max-height: clamp(20rem, 46vh, 34rem);
+  padding-right: 0.35rem;
+  margin-right: -0.35rem;
+}
+
 @media (min-width: 961px) {
-  .schedule-columns--pareadas {
+  .schedule-columns--cronograma {
     align-items: stretch;
   }
 
-  .schedule-columns--pareadas > .card {
+  .schedule-columns--cronograma > .card {
     display: flex;
     flex-direction: column;
+    min-height: 0;
   }
 
-  .schedule-columns--pareadas .sprint-list,
-  .schedule-columns--pareadas .milestone-list {
+  .schedule-columns--cronograma .calendar-month-panel {
     flex: 1 1 0;
     min-height: 12rem;
     max-height: none;
   }
 }
 
-.schedule-columns--unica {
-  grid-template-columns: minmax(0, 1fr);
+.calendar-month-block {
+  margin-bottom: 1.15rem;
+}
+
+.calendar-month-block h3 {
+  margin: 0 0 0.5rem;
+  color: #344054;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.calendar-month-items {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.calendar-month-item {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid #e2e7f0;
+  border-left: 3px solid #315bce;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.calendar-month-item-name {
+  color: #172033;
+  font-size: 0.92rem;
+  overflow-wrap: anywhere;
+}
+
+.calendar-month-item-meta {
+  color: #667085;
+  font-size: 0.8rem;
+}
+
+.calendar-month-empty {
+  margin: 0;
+  color: #98a2b3;
+  font-size: 0.85rem;
+}
+
+.agenda-upcoming {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .schedule-section-title {
@@ -2529,10 +2604,9 @@ a {
 }
 
 .sprint-tasks-panel {
-  margin-top: 1.25rem;
-  padding: 1.1rem;
+  padding: 1.5rem;
   border: 1px solid #d7e0f4;
-  border-radius: 12px;
+  border-radius: 16px;
   background: #f7f9ff;
 }
 
@@ -2673,6 +2747,45 @@ a {
   color: #98a2b3;
   font-size: 0.76rem;
   font-style: italic;
+}
+
+.schedule-form-checklist {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+  min-inline-size: auto;
+  margin: 0;
+  padding: 1rem;
+  border: 1px solid #dce2ec;
+  border-radius: 12px;
+  background: #fbfcfe;
+}
+
+.schedule-form-checklist legend {
+  padding: 0;
+  color: #344054;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.schedule-form-checklist .field-help {
+  margin: 0;
+}
+
+.schedule-form-checklist .sprint-tasks-options {
+  max-height: 22rem;
+  margin: 0.35rem 0 0;
+}
+
+.schedule-form-checklist-resumo {
+  margin: 0.35rem 0 0;
+  padding: 0.55rem 0.7rem;
+  border-radius: 9px;
+  background: #f2f6ff;
+  color: #315bce;
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 .kanban-sprint-filter {
@@ -2829,7 +2942,7 @@ a {
 }
 
 .calendar-weekdays,
-.calendar-grid {
+.calendar-week-days {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
 }
@@ -2849,7 +2962,46 @@ a {
 }
 
 .calendar-grid {
+  display: grid;
   row-gap: 4px;
+}
+
+.calendar-week {
+  position: relative;
+}
+
+.calendar-week-seg {
+  position: absolute;
+  height: 3px;
+  opacity: 0.8;
+}
+
+.calendar-week-marker {
+  position: absolute;
+  z-index: 4;
+  box-sizing: border-box;
+  width: 13px;
+  height: 13px;
+  padding: 0;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.calendar-week-marker-chip {
+  position: absolute;
+  z-index: 5;
+  overflow: hidden;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid #e2e7f0;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 6px 16px rgba(16, 24, 40, 0.12);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .calendar-day {
@@ -2857,17 +3009,51 @@ a {
   display: grid;
   place-items: center;
   width: 100%;
-  height: 40px;
+  height: 44px;
   padding: 0;
   border: 0;
-  border-radius: var(--calendar-day-radius, 999px);
-  background: var(--calendar-day-bg, transparent);
+  background: transparent;
   font: inherit;
   font-size: 0.92rem;
   cursor: pointer;
 }
 
+.calendar-day-marco {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--calendar-day-marco-radius, 0);
+  background: var(--calendar-day-marco-bg, transparent);
+}
+
+.calendar-day-faixa {
+  position: absolute;
+  top: 5px;
+  right: 0;
+  bottom: 5px;
+  left: 0;
+  border-radius: var(--calendar-day-radius, 999px);
+  background: var(--calendar-day-bg, transparent);
+}
+
+.calendar-day-tick {
+  position: absolute;
+  top: 11px;
+  bottom: 11px;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--calendar-day-fg, #315bce);
+}
+
+.calendar-day-tick--inicio {
+  left: 4px;
+}
+
+.calendar-day-tick--fim {
+  right: 4px;
+}
+
 .calendar-day-inner {
+  position: relative;
   display: grid;
   place-items: center;
   width: 32px;
@@ -2893,7 +3079,7 @@ a {
 
 .calendar-day-dot {
   position: absolute;
-  bottom: 3px;
+  bottom: 7px;
   left: 50%;
   width: 4px;
   height: 4px;
@@ -2924,6 +3110,10 @@ a {
   width: 14px;
   height: 14px;
   border-radius: 999px;
+}
+
+.calendar-legend-swatch--marco {
+  height: 6px;
 }
 
 .calendar-legend-text {
@@ -3347,11 +3537,20 @@ a {
 }
 
 .sprint-progress-panel {
+  padding: 1.5rem;
+  border: 1px solid #d7e0f4;
+  border-radius: 16px;
+  background: #f7f9ff;
+}
+
+.kanban-history .sprint-progress-panel {
   margin-top: 1.25rem;
   padding: 1.1rem;
-  border: 1px solid #d7e0f4;
   border-radius: 12px;
-  background: #f7f9ff;
+}
+
+.sprint-progress-panel .burndown-chart {
+  max-width: none;
 }
 
 .sprint-progress-panel h3 {

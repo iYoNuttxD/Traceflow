@@ -1,9 +1,15 @@
 import { shortDate } from './schedule-calendar.js';
 
-const ESQUERDA = 46;
-const DIREITA = 544;
-const TOPO = 18;
-const BASE = 180;
+const CAIXA = '0 0 1100 300';
+const ESQUERDA = 60;
+const DIREITA = 1080;
+const TOPO = 26;
+const BASE = 258;
+const FONTE = 13;
+const FONTE_CORTE = 12;
+const CORTE_Y = 18;
+const MARCAS_Y = 284;
+const RAIO = 5;
 
 const arredonda = (valor) => Math.round(valor * 10) / 10;
 
@@ -30,7 +36,7 @@ export function SprintBurndownChart({ burndown }) {
   const ponta = medidos[medidos.length - 1] || null;
   const indiceCorte = cutoffDate ? days.findIndex((dia) => dia.date === cutoffDate) : -1;
 
-  const marcas = [...new Set([0, Math.floor(ultimo / 2), ultimo])];
+  const marcas = [...new Set([0, Math.round(ultimo / 3), Math.round((2 * ultimo) / 3), ultimo])];
 
   const restante = ponta ? ponta.remaining : totalPoints;
   const esperado = ponta ? days[ponta.indice].ideal : totalPoints;
@@ -53,13 +59,13 @@ export function SprintBurndownChart({ burndown }) {
           Linha ideal
         </span>
       </p>
-      <svg viewBox="0 0 560 210" className="burndown-chart" role="img" aria-label={nota}>
+      <svg viewBox={CAIXA} className="burndown-chart" role="img" aria-label={nota}>
         <line x1={ESQUERDA} y1={TOPO} x2={ESQUERDA} y2={BASE} stroke="#e2e7f0" strokeWidth="1.5" />
         <line x1={ESQUERDA} y1={BASE} x2={DIREITA} y2={BASE} stroke="#e2e7f0" strokeWidth="1.5" />
-        <text x={ESQUERDA - 6} y={TOPO + 5} fill="#667085" fontSize="11" textAnchor="end">
+        <text x={ESQUERDA - 6} y={TOPO + 5} fill="#667085" fontSize={FONTE} textAnchor="end">
           {totalPoints}
         </text>
-        <text x={ESQUERDA - 6} y={BASE + 4} fill="#667085" fontSize="11" textAnchor="end">
+        <text x={ESQUERDA - 6} y={BASE + 4} fill="#667085" fontSize={FONTE} textAnchor="end">
           0
         </text>
         {indiceCorte >= 0 && (
@@ -73,7 +79,13 @@ export function SprintBurndownChart({ burndown }) {
               strokeWidth="1"
               strokeDasharray="3 4"
             />
-            <text x={x(indiceCorte)} y="12" fill="#667085" fontSize="10" textAnchor="middle">
+            <text
+              x={x(indiceCorte)}
+              y={CORTE_Y}
+              fill="#667085"
+              fontSize={FONTE_CORTE}
+              textAnchor="middle"
+            >
               {frozen ? 'fim' : 'hoje'}
             </text>
           </>
@@ -83,12 +95,19 @@ export function SprintBurndownChart({ burndown }) {
           fill="none"
           stroke="#98a2b3"
           strokeWidth="2"
-          strokeDasharray="5 5"
+          strokeDasharray="6 6"
         />
         {real && <polyline points={real} fill="none" stroke="#315bce" strokeWidth="2.5" />}
-        {ponta && <circle cx={x(ponta.indice)} cy={y(ponta.remaining)} r="4.5" fill="#315bce" />}
+        {ponta && <circle cx={x(ponta.indice)} cy={y(ponta.remaining)} r={RAIO} fill="#315bce" />}
         {marcas.map((indice) => (
-          <text key={indice} x={x(indice)} y="198" fill="#667085" fontSize="11" textAnchor="middle">
+          <text
+            key={indice}
+            x={x(indice)}
+            y={MARCAS_Y}
+            fill="#667085"
+            fontSize={FONTE}
+            textAnchor={indice === 0 ? 'start' : indice === ultimo ? 'end' : 'middle'}
+          >
             {shortDate(days[indice].date)}
           </text>
         ))}
