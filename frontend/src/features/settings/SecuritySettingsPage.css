@@ -19,7 +19,7 @@
 }
 
 .session-row small {
-  color: #667085;
+  color: var(--color-text-on-light-secondary);
 }
 
 @media (max-width: 560px) {

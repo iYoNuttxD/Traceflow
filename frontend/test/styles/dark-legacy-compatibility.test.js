@@ -6,6 +6,26 @@ const globalCss = readFileSync(resolve('src/styles/global.css'), 'utf8');
 const tokensCss = readFileSync(resolve('src/styles/tokens.css'), 'utf8');
 const kanbanCss = readFileSync(resolve('src/features/tasks/pages/KanbanScreen.css'), 'utf8');
 const settingsCss = readFileSync(resolve('src/features/settings/SettingsLayout.css'), 'utf8');
+const settingsSharedCss = readFileSync(
+  resolve('src/features/settings/styles/settings-shared.css'),
+  'utf8'
+);
+const securitySettingsCss = readFileSync(
+  resolve('src/features/settings/SecuritySettingsPage.css'),
+  'utf8'
+);
+const integrationsSettingsCss = readFileSync(
+  resolve('src/features/settings/IntegrationsSettingsPage.css'),
+  'utf8'
+);
+const confirmationSettingsCss = readFileSync(
+  resolve('src/features/settings/ConfirmationPage.css'),
+  'utf8'
+);
+const restrictedSettingsCss = readFileSync(
+  resolve('src/features/settings/RestrictedAccountPage.css'),
+  'utf8'
+);
 
 function rule(css, selector) {
   const start = css.lastIndexOf(`${selector} {`);
@@ -87,5 +107,43 @@ describe('compatibilidade de conteúdo legado com os temas', () => {
         expect(contrastRatio(token(theme, textToken), pageBackground)).toBeGreaterThanOrEqual(4.5);
       }
     }
+  });
+
+  it('estabelece texto próprio nas surfaces claras fixas de Settings', () => {
+    for (const [css, selector] of [
+      [settingsSharedCss, '.settings-card'],
+      [confirmationSettingsCss, '.auth-status-page'],
+      [restrictedSettingsCss, '.restricted-page']
+    ]) {
+      expect(rule(css, selector)).toContain('background: #fff');
+      expect(rule(css, selector)).toContain('color: var(--color-text-on-light-primary)');
+    }
+
+    expect(rule(securitySettingsCss, '.session-row small')).toContain(
+      'color: var(--color-text-on-light-secondary)'
+    );
+    expect(rule(integrationsSettingsCss, '.integration-card small')).toContain(
+      'color: var(--color-text-on-light-secondary)'
+    );
+  });
+
+  it('mantém os tokens on-light invariantes e legíveis sobre branco', () => {
+    const rootTheme = rule(tokensCss, ':root');
+    const darkTheme = rule(tokensCss, "[data-theme='dark']");
+
+    for (const textToken of ['--color-text-on-light-primary', '--color-text-on-light-secondary']) {
+      expect(darkTheme).not.toContain(`${textToken}:`);
+      expect(contrastRatio(token(rootTheme, textToken), '#ffffff')).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it('preserva as cores explícitas das danger zones de Settings', () => {
+    expect(
+      rule(settingsSharedCss, '.settings-card .button-danger,\n.danger-zone .button-danger')
+    ).toContain('color: #b42318');
+    expect(rule(integrationsSettingsCss, '.github-authorization-danger h3')).toContain(
+      'color: #b42318'
+    );
+    expect(rule(integrationsSettingsCss, '.danger-impact')).toContain('color: #7a271a');
   });
 });

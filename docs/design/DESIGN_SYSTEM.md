@@ -114,30 +114,36 @@ históricas para formar escalas reutilizáveis.
 
 ## Tokens
 
-A primeira versão possui 114 tokens únicos. O conjunto permanece abaixo do limite de 150 e evita
+A primeira versão possui 116 tokens únicos. O conjunto permanece abaixo do limite de 150 e evita
 nomes ligados a páginas, features ou produtos de referência.
 
 ### Cores estruturais
 
-| Token                         | Light                 | Dark                | Uso                          |
-| ----------------------------- | --------------------- | ------------------- | ---------------------------- |
-| `--color-bg-page`             | `#f1f4f8`             | `#0d121b`           | fundo da aplicação           |
-| `--color-bg-sidebar`          | `#f8fafd`             | `#101721`           | navegação global             |
-| `--color-surface-primary`     | `#ffffff`             | `#151c27`           | cards e containers           |
-| `--color-surface-secondary`   | `#f7f9fc`             | `#111823`           | áreas agrupadas e metadata   |
-| `--color-surface-elevated`    | `#ffffff`             | `#1d2735`           | popover, dialog e menus      |
-| `--color-surface-interactive` | `#e9eef6`             | `#1d2735`           | hover e affordances neutras  |
-| `--color-bg-input`            | surface secondary     | surface secondary   | campos e controles editáveis |
-| `--color-text-primary`        | `#172033`             | `#dce5f2`           | corpo e conteúdo             |
-| `--color-text-strong`         | `#0e1627`             | `#f5f8fc`           | títulos e ênfase             |
-| `--color-text-secondary`      | `#526078`             | `#9baac0`           | descrição e apoio            |
-| `--color-text-muted`          | text secondary        | text secondary      | caption e metadata           |
-| `--color-text-on-accent`      | `#ffffff`             | `#0b1728`           | conteúdo sobre accent forte  |
-| `--color-border-default`      | `#d9e1ed`             | `#293649`           | separação padrão             |
-| `--color-border-strong`       | `#c4cfdf`             | `#3a4a61`           | controles e elevação         |
-| `--color-border-interactive`  | `#2859c5`             | `#65a8ff`           | hover, active e seleção      |
-| `--color-focus-ring`          | `#2d67dc`             | `#77b5ff`           | foco visível                 |
-| `--color-overlay`             | `rgb(11 18 31 / 48%)` | `rgb(2 6 12 / 72%)` | backdrop                     |
+| Token                             | Light                 | Dark                | Uso                            |
+| --------------------------------- | --------------------- | ------------------- | ------------------------------ |
+| `--color-bg-page`                 | `#f1f4f8`             | `#0d121b`           | fundo da aplicação             |
+| `--color-bg-sidebar`              | `#f8fafd`             | `#101721`           | navegação global               |
+| `--color-surface-primary`         | `#ffffff`             | `#151c27`           | cards e containers             |
+| `--color-surface-secondary`       | `#f7f9fc`             | `#111823`           | áreas agrupadas e metadata     |
+| `--color-surface-elevated`        | `#ffffff`             | `#1d2735`           | popover, dialog e menus        |
+| `--color-surface-interactive`     | `#e9eef6`             | `#1d2735`           | hover e affordances neutras    |
+| `--color-bg-input`                | surface secondary     | surface secondary   | campos e controles editáveis   |
+| `--color-text-primary`            | `#172033`             | `#dce5f2`           | corpo e conteúdo               |
+| `--color-text-strong`             | `#0e1627`             | `#f5f8fc`           | títulos e ênfase               |
+| `--color-text-secondary`          | `#526078`             | `#9baac0`           | descrição e apoio              |
+| `--color-text-muted`              | text secondary        | text secondary      | caption e metadata             |
+| `--color-text-on-accent`          | `#ffffff`             | `#0b1728`           | conteúdo sobre accent forte    |
+| `--color-text-on-light-primary`   | `#172033`             | `#172033`           | conteúdo em surface clara fixa |
+| `--color-text-on-light-secondary` | `#667085`             | `#667085`           | apoio em surface clara fixa    |
+| `--color-border-default`          | `#d9e1ed`             | `#293649`           | separação padrão               |
+| `--color-border-strong`           | `#c4cfdf`             | `#3a4a61`           | controles e elevação           |
+| `--color-border-interactive`      | `#2859c5`             | `#65a8ff`           | hover, active e seleção        |
+| `--color-focus-ring`              | `#2d67dc`             | `#77b5ff`           | foco visível                   |
+| `--color-overlay`                 | `rgb(11 18 31 / 48%)` | `rgb(2 6 12 / 72%)` | backdrop                       |
+
+Os tokens `on-light` são invariantes e existem somente para surfaces claras fixas que ainda não
+podem acompanhar o tema, como a compatibilidade temporária dos cards legados de Settings. Eles não
+formam uma segunda paleta e não devem substituir os pares normais de surface e texto temáticos.
 
 ### Accent e semântica
 
