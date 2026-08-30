@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { BackButton, TraceFlowIcon } from '../../../shared/index.js';
 import './NewProjectDialog.css';
 
@@ -22,7 +22,29 @@ export function NewProjectDialog({
   const descriptionId = useId();
   const panelRef = useRef(null);
   const triggerRef = useRef(null);
+  const contentRef = useRef(null);
+  const createChoiceRef = useRef(null);
+  const joinChoiceRef = useRef(null);
+  const pendingFocusRef = useRef(null);
+  const initialFocusFrameRef = useRef(null);
   const [view, setView] = useState(initialView);
+
+  useLayoutEffect(() => {
+    if (!open || !pendingFocusRef.current) return;
+
+    const focusRequest = pendingFocusRef.current;
+    let target = null;
+
+    if (view === 'choose') {
+      target = focusRequest === 'create' ? createChoiceRef.current : joinChoiceRef.current;
+    } else if (focusRequest === view) {
+      target = contentRef.current?.querySelector(focusableSelector);
+    }
+
+    if (!target) return;
+    target.focus();
+    pendingFocusRef.current = null;
+  }, [open, view]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -31,8 +53,9 @@ export function NewProjectDialog({
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 
-    const frame = window.requestAnimationFrame(() => {
+    initialFocusFrameRef.current = window.requestAnimationFrame(() => {
       panelRef.current?.querySelector(focusableSelector)?.focus();
+      initialFocusFrameRef.current = null;
     });
 
     function handleKeyDown(event) {
@@ -59,9 +82,13 @@ export function NewProjectDialog({
 
     document.addEventListener('keydown', handleKeyDown);
     return () => {
-      window.cancelAnimationFrame(frame);
+      if (initialFocusFrameRef.current !== null) {
+        window.cancelAnimationFrame(initialFocusFrameRef.current);
+        initialFocusFrameRef.current = null;
+      }
       document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = previousOverflow;
+      pendingFocusRef.current = null;
       queueMicrotask(() => triggerRef.current?.focus?.());
     };
   }, [initialView, onClose, open]);
@@ -70,6 +97,20 @@ export function NewProjectDialog({
 
   const heading =
     view === 'create' ? 'Criar projeto' : view === 'join' ? 'Entrar com código' : 'Novo projeto';
+
+  function changeView(nextView) {
+    if (initialFocusFrameRef.current !== null) {
+      window.cancelAnimationFrame(initialFocusFrameRef.current);
+      initialFocusFrameRef.current = null;
+    }
+    pendingFocusRef.current = nextView;
+    setView(nextView);
+  }
+
+  function returnToChooser() {
+    pendingFocusRef.current = view;
+    setView('choose');
+  }
 
   return (
     <div
@@ -97,9 +138,7 @@ export function NewProjectDialog({
             </p>
           </div>
           <div className="new-project-dialog__actions">
-            {view !== 'choose' && (
-              <BackButton onClick={() => setView('choose')} label="Voltar às opções" />
-            )}
+            {view !== 'choose' && <BackButton onClick={returnToChooser} label="Voltar às opções" />}
             <button
               className="new-project-dialog__close"
               type="button"
@@ -114,14 +153,14 @@ export function NewProjectDialog({
 
         {view === 'choose' ? (
           <div className="new-project-dialog__choices">
-            <button type="button" onClick={() => setView('create')}>
+            <button ref={createChoiceRef} type="button" onClick={() => changeView('create')}>
               <TraceFlowIcon name="plus" />
               <span>
                 <strong>Criar projeto</strong>
                 <small>Use a integração GitHub já autorizada.</small>
               </span>
             </button>
-            <button type="button" onClick={() => setView('join')}>
+            <button ref={joinChoiceRef} type="button" onClick={() => changeView('join')}>
               <TraceFlowIcon name="code" />
               <span>
                 <strong>Entrar com código</strong>
@@ -130,7 +169,7 @@ export function NewProjectDialog({
             </button>
           </div>
         ) : (
-          <div className="new-project-dialog__content">
+          <div ref={contentRef} className="new-project-dialog__content">
             {view === 'create' ? createContent : joinContent}
           </div>
         )}

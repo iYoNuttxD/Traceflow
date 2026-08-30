@@ -158,6 +158,70 @@ describe('ProjectsPage', () => {
     expect(trigger).toHaveFocus();
   });
 
+  it('transfere o foco entre chooser e criação sem alterar a restauração do Close', async () => {
+    const user = userEvent.setup();
+    mockInitialRequests({ projects: [] });
+    renderPage();
+    await screen.findByText('Nenhum projeto cadastrado ainda.');
+    const trigger = screen.getByRole('button', { name: /^Novo projeto/ });
+
+    await user.click(trigger);
+    let dialog = screen.getByRole('dialog', { name: 'Novo projeto' });
+    await user.click(within(dialog).getByRole('button', { name: /Criar projeto/ }));
+    dialog = screen.getByRole('dialog', { name: 'Criar projeto' });
+    expect(screen.getByLabelText('Nome do projeto *')).toHaveFocus();
+    expect(document.activeElement).not.toBe(document.body);
+
+    const submit = within(dialog).getByRole('button', { name: 'Cadastrar projeto' });
+    submit.focus();
+    await user.tab();
+    const back = within(dialog).getByRole('button', { name: 'Voltar às opções' });
+    expect(back).toHaveFocus();
+    await user.click(back);
+
+    dialog = screen.getByRole('dialog', { name: 'Novo projeto' });
+    const createChoice = within(dialog).getByRole('button', { name: /Criar projeto/ });
+    expect(createChoice).toHaveFocus();
+    await user.click(createChoice);
+    expect(screen.getByLabelText('Nome do projeto *')).toHaveFocus();
+    await user.click(screen.getByRole('button', { name: 'Fechar' }));
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
+  it('transfere o foco entre chooser e entrada por código e preserva Escape', async () => {
+    const user = userEvent.setup();
+    mockInitialRequests({ projects: [] });
+    renderPage();
+    await screen.findByText('Nenhum projeto cadastrado ainda.');
+    const trigger = screen.getByRole('button', { name: /^Novo projeto/ });
+
+    await user.click(trigger);
+    let dialog = screen.getByRole('dialog', { name: 'Novo projeto' });
+    await user.click(within(dialog).getByRole('button', { name: /Entrar com código/ }));
+    dialog = screen.getByRole('dialog', { name: 'Entrar com código' });
+    expect(screen.getByLabelText('Código ou link de acesso')).toHaveFocus();
+    expect(document.activeElement).not.toBe(document.body);
+
+    const continueButton = within(dialog).getByRole('button', { name: 'Continuar' });
+    continueButton.focus();
+    await user.tab();
+    const back = within(dialog).getByRole('button', { name: 'Voltar às opções' });
+    expect(back).toHaveFocus();
+    await user.click(back);
+
+    dialog = screen.getByRole('dialog', { name: 'Novo projeto' });
+    const joinChoice = within(dialog).getByRole('button', { name: /Entrar com código/ });
+    expect(joinChoice).toHaveFocus();
+    await user.click(joinChoice);
+    expect(screen.getByLabelText('Código ou link de acesso')).toHaveFocus();
+    await user.keyboard('{Escape}');
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
   it('lista convites pessoais, aceita e oferece abertura do projeto', async () => {
     const user = userEvent.setup();
     invitationsMock.list.mockResolvedValue([

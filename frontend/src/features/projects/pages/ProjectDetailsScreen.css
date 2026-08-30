@@ -354,6 +354,10 @@
     flex-direction: column;
   }
 
+  .project-details-screen__title-group {
+    flex: 0 1 auto;
+  }
+
   .project-details-screen__actions {
     width: 100%;
     justify-content: flex-start;

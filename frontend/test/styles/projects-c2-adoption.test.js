@@ -54,6 +54,12 @@ describe('adoção do Concept C2 em Projects', () => {
     expect(membersCss).toMatch(/@container member-panel \(max-width: 46rem\)/);
   });
 
+  it('remove o flex-basis horizontal do título quando o header vira coluna', () => {
+    expect(overviewCss).toMatch(
+      /@container project-overview-page \(max-width: 45rem\)[\s\S]*\.project-details-screen__title-group \{\s*flex: 0 1 auto;/
+    );
+  });
+
   it('mantém o retorno compartilhado como icon button de touch target completo', () => {
     expect(backButtonCss).toContain('width: var(--size-touch-target)');
     expect(backButtonCss).toContain('height: var(--size-touch-target)');
