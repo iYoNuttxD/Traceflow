@@ -4,8 +4,7 @@
 }
 
 .nav-link,
-.text-link,
-.back-link {
+.text-link {
   color: #315bce;
   font-weight: 700;
   text-decoration: none;
@@ -33,7 +32,7 @@
 
 .page-header h1 {
   margin: 0.25rem 0 0.5rem;
-  color: #101828;
+  color: var(--color-text-strong);
   font-size: clamp(2rem, 5vw, 3rem);
   letter-spacing: -0.04em;
 }
@@ -41,8 +40,12 @@
 .page-header p {
   max-width: 720px;
   margin: 0;
-  color: #667085;
+  color: var(--color-text-secondary);
   line-height: 1.6;
+}
+
+.page-header .eyebrow {
+  color: var(--color-accent-primary);
 }
 
 .eyebrow {
@@ -284,11 +287,18 @@
   text-align: center;
 }
 
+.page-container > .empty-state {
+  color: var(--color-text-secondary);
+}
+
 .back-link {
   display: inline-flex;
   min-height: var(--size-touch-target);
   align-items: center;
   margin-bottom: 1.25rem;
+  color: var(--color-accent-primary);
+  font-weight: 700;
+  text-decoration: none;
 }
 
 .metric-value {

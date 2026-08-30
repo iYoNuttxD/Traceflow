@@ -3,6 +3,10 @@
   margin-bottom: 2rem;
 }
 
+.settings-shell > header .eyebrow {
+  color: var(--color-accent-primary);
+}
+
 .settings-grid {
   display: grid;
   grid-template-columns: 220px minmax(0, 1fr);
@@ -20,15 +24,15 @@
 .settings-nav a {
   padding: 0.75rem 0.9rem;
   border-radius: 9px;
-  color: #475467;
+  color: var(--color-text-secondary);
   font-weight: 700;
   text-decoration: none;
 }
 
 .settings-nav a:hover,
 .settings-nav a.active {
-  color: #183b86;
-  background: #eaf0ff;
+  color: var(--color-accent-text);
+  background: var(--color-accent-surface);
 }
 
 .settings-content {
