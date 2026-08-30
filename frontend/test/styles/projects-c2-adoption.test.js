@@ -26,6 +26,10 @@ const overviewCss = readFileSync(
   'utf8'
 );
 const membersCss = readFileSync(resolve('src/features/members/ProjectMembersPanel.css'), 'utf8');
+const accessCodeCss = readFileSync(
+  resolve('src/features/projects/components/ProjectAccessCodePanel.css'),
+  'utf8'
+);
 const backButtonCss = readFileSync(resolve('src/shared/components/BackButton.css'), 'utf8');
 const overviewSource = readFileSync(
   resolve('src/features/projects/pages/ProjectDetailsScreen.jsx'),
@@ -53,6 +57,19 @@ describe('adoção do Concept C2 em Projects', () => {
     expect(backButtonCss).toContain('width: var(--size-touch-target)');
     expect(backButtonCss).toContain('height: var(--size-touch-target)');
     expect(backButtonCss).toContain('.back-button:focus-visible');
+  });
+
+  it('reserva espaço para a busca e normaliza as ações do código de acesso', () => {
+    expect(membersCss).toContain('.team-panel .member-search-control input');
+    expect(membersCss).toContain('padding-inline-start: calc(');
+    expect(membersCss).toContain('pointer-events: none');
+    expect(accessCodeCss).toContain('display: inline-flex');
+    expect(accessCodeCss).toContain('min-width: var(--size-touch-target)');
+    expect(accessCodeCss).toContain('height: var(--size-touch-target)');
+    expect(accessCodeCss).toContain('align-items: center');
+    expect(accessCodeCss).toContain('justify-content: center');
+    expect(accessCodeCss).toContain('background: var(--color-surface-interactive)');
+    expect(accessCodeCss).not.toContain('[data-theme');
   });
 
   it('adapta o grid ao container e preserva uma largura mínima saudável', () => {

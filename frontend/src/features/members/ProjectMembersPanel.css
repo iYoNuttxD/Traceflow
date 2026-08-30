@@ -28,8 +28,9 @@
   pointer-events: none;
 }
 
-.member-search-control input {
-  padding-left: var(--space-10);
+.team-panel .member-search-control input {
+  padding-inline-start: calc(var(--space-3) + var(--size-icon-sm) + var(--space-3));
+  padding-inline-end: var(--space-3);
 }
 
 .member-list,

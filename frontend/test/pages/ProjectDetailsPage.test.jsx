@@ -124,6 +124,8 @@ describe('ProjectDetailsPage E9', () => {
       .getByRole('heading', { name: 'Equipe' })
       .closest('.project-overview-group--team');
     expect(teamGroup).toHaveTextContent(/1\s*membro ativo/);
+    const teamMetric = teamGroup.querySelector('.project-overview-team-count');
+    expect(teamMetric.querySelector('[data-icon="users"]')).toBeInTheDocument();
     expect(
       within(overview).getByRole('link', { name: 'Abrir repositório GitHub owner/repo' })
     ).toHaveAttribute('href', 'https://github.com/owner/repo');
@@ -137,7 +139,7 @@ describe('ProjectDetailsPage E9', () => {
     expect(projectGroup).toHaveTextContent('Equipe responsávelEquipe');
     expect(projectGroup.querySelector('.traceflow-icon')).toBeInTheDocument();
     expect(overview.querySelector('[data-icon="branch"]')).toBeInTheDocument();
-    expect(teamGroup.querySelector('[data-icon="users"]')).toBeInTheDocument();
+    expect(teamGroup.querySelectorAll('[data-icon="users"]')).toHaveLength(2);
     const pageHeader = screen.getByRole('heading', { name: 'Projeto E9' }).closest('header');
     expect(within(pageHeader).queryByText('Descrição')).not.toBeInTheDocument();
     const projectNavigation = screen.getByRole('navigation', { name: 'Navegação do projeto' });

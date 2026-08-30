@@ -288,20 +288,33 @@
 
 .project-overview-team-count {
   display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
+  align-items: center;
+  gap: var(--space-3);
   margin: 0;
   color: var(--color-text-secondary);
 }
 
-.project-overview-team-count strong {
+.project-overview-team-count__icon {
+  width: var(--size-icon-md);
+  height: var(--size-icon-md);
+  color: var(--color-accent-text);
+}
+
+.project-overview-team-count__value {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.project-overview-team-count__value strong {
   color: var(--color-text-strong);
   font-size: var(--font-size-6);
   letter-spacing: var(--letter-spacing-tight);
   line-height: var(--line-height-tight);
 }
 
-.project-overview-team-count span {
+.project-overview-team-count__value > span {
   font-size: var(--font-size-1);
 }
 

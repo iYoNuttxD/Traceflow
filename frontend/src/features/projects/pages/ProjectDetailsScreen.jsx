@@ -464,13 +464,16 @@ export function ProjectDetailsScreen() {
               <h3>Equipe</h3>
             </header>
             <p className="project-overview-team-count">
-              <strong>{memberCount ?? '—'}</strong>
-              <span>
-                {memberCount === null
-                  ? 'contagem indisponível'
-                  : memberCount === 1
-                    ? 'membro ativo'
-                    : 'membros ativos'}
+              <TraceFlowIcon name="users" className="project-overview-team-count__icon" />
+              <span className="project-overview-team-count__value">
+                <strong>{memberCount ?? '—'}</strong>
+                <span>
+                  {memberCount === null
+                    ? 'contagem indisponível'
+                    : memberCount === 1
+                      ? 'membro ativo'
+                      : 'membros ativos'}
+                </span>
               </span>
             </p>
           </section>

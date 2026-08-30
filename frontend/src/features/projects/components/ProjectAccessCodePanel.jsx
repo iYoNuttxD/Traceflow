@@ -108,7 +108,7 @@ export function ProjectAccessCodePanel({ projectId, isOwner }) {
             <code>{visible ? configuration.accessCode : '••••••••••••••••'}</code>
             <div className="access-code-actions">
               <button
-                className="button button-secondary access-code-icon-button"
+                className="access-code-icon-button"
                 type="button"
                 title={visible ? 'Ocultar código' : 'Mostrar código'}
                 aria-label={visible ? 'Ocultar código' : 'Mostrar código'}
@@ -117,7 +117,7 @@ export function ProjectAccessCodePanel({ projectId, isOwner }) {
                 <TraceFlowIcon name={visible ? 'eyeOff' : 'eye'} />
               </button>
               <button
-                className="button button-secondary access-code-icon-button"
+                className="access-code-icon-button"
                 type="button"
                 title="Regenerar código"
                 disabled={Boolean(busy)}
@@ -127,7 +127,7 @@ export function ProjectAccessCodePanel({ projectId, isOwner }) {
                 <TraceFlowIcon name="refresh" />
               </button>
               <button
-                className="button button-secondary access-code-icon-button"
+                className="access-code-icon-button"
                 type="button"
                 title="Copiar link"
                 disabled={Boolean(busy)}

@@ -209,6 +209,9 @@ describe('ProjectMembersPanel', () => {
     renderPanel();
 
     const search = await screen.findByLabelText('Buscar membro');
+    const searchControl = search.closest('.member-search-control');
+    expect(searchControl).toBeInTheDocument();
+    expect(searchControl.querySelector('[data-icon="search"]')).toBeInTheDocument();
     await user.type(search, 'BETADEV');
     expect(screen.getByText('Bruno Artificial')).toBeInTheDocument();
     expect(screen.queryByText(/Ana Artificial/)).not.toBeInTheDocument();

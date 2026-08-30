@@ -203,6 +203,7 @@ describe('rotas administrativas de projeto', () => {
     for (const name of ['Ocultar código', 'Regenerar código', 'Copiar link']) {
       const iconButton = screen.getByRole('button', { name });
       expect(iconButton).toHaveClass('access-code-icon-button');
+      expect(iconButton).not.toHaveClass('button-secondary');
       expect(iconButton.querySelector('.traceflow-icon')).toBeInTheDocument();
     }
     await user.selectOptions(screen.getByLabelText('Perfil de entrada'), 'VIEWER');
