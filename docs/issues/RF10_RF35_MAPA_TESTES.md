@@ -155,3 +155,40 @@ M05 e M10 sobreviveram por serem **guardas inalcançáveis no fluxo atual** (mut
 por fluxo): a própria sprint nunca está `EM_ANDAMENTO` no retrato da checagem de unicidade, e o
 retrato do marco nunca chega vazio ao fechamento. As duas funções são a codificação normativa do
 ADR-011 D05/D06 e ganharam teste direto na bateria — as mutações agora morrem.
+
+---
+
+# Segunda bateria (30/08/2026, design v4) — `RF10_RF35_PROMPT_SEGUNDA_BATERIA.md`
+
+Baseline da largada: backend 501/38 verdes; frontend 295/31. Fechamento: backend 501/38 (delta
+sem backend); frontend **304/31**. Todas as citações de arquivo abaixo são de
+`frontend/test/features/ScheduleScreen.test.jsx` quando não qualificadas.
+
+## Invariantes novos I37–I49
+
+| # | Prova | Situação |
+|---|---|---|
+| I37 trilha só para marco que agrupa sprint | `'marco sem sprint nao tem trilha…'`, `'marco sem sprint nao ganha segmento nem marcador'`, `'marco sem sprint marca so o prazo…'`, `'marcos so de prazo nao viram trilha nem entrada de legenda'`, `'dez marcos so de prazo mantem a grade limpa em escala'` | PROVADA |
+| I38 período = primeira sprint → prazo; colapso; normalização | `'comecam na primeira sprint…'`, `'marco sem sprint nao tem trilha e ocupa apenas o dia do prazo'`, `'prazo anterior a primeira sprint normaliza…'`, `'marco sem prazo e descartado'`, `'ordena os marcos pelo inicio derivado'` | PROVADA |
+| I39 marcador acessível, um por marco, um aberto por vez, Escape | `'poe o marcador…apenas na primeira semana'`, `'marcadores…linhas proprias'`, `'desenha a trilha…abre o nome ao clicar'`, `'abrir um marcador fecha o que estava aberto'`, `'escape fecha o marcador mantendo o foco'` | PROVADA |
+| I40 hoje só no mês exibido; dia cinza sem mover a vista | `'hoje so marca a celula do mes exibido…'`, `'distingue hoje, selecionado e dias de fora do mes'`, `'dia cinza alem do limite seleciona sem mover a vista'` | PROVADA |
+| I41 legenda do mês exibido | `'a legenda nomeia sprint e marco do mes exibido'`, `'a legenda acompanha o mes ao navegar'`, `'sem prazo de marco no mes o ponto sai da legenda'`, `'projeto vazio esconde a legenda…'`, `'filtra sprints e marcos pelo mes exibido'`, `'marco sem sprint sai das entradas de marco…'` | PROVADA |
+| I42 eventos: tipos, metas e ordem total | `'gera sprint, marco e prazo em ordem de dia'`, `'explica que o marco comeca com a primeira sprint'`, `'marco sem sprint gera apenas o prazo'`, `'gera deadline de tarefa…'`, `'descarta tarefa sem deadline'`, `'desempata o mesmo dia pelo id'`, `'empates de dia preservam a ordem de emissao mesmo em volume'` | PROVADA |
+| I43 cartões de agora | describe `'cartoes de agora'` completo (8 casos, incl. `'com todos os marcos vencidos o atual e o ultimo prazo'` e `'deadline…nao vira atencao'` via fixture concluída) | PROVADA |
+| I44 blocos do mês por calendário real | describe `'blocos do mes exibido'` (4 casos) + `'o painel do mes exibido resume…'`, `'o painel do mes diz quando um grupo esta vazio'`; o fim do mês usa `new Date(ano, mes+1, 0)` — o mutante "31 fixo" (M47) é **equivalente** por comparação lexicográfica | PROVADA (com equivalência documentada) |
+| I45 formulário de sprint: replace só quando muda; falha avisa | `SprintsScreen.test.jsx`: `'cria a sprint e entrega as tarefas marcadas'`, `'editar preenche…envia so a nova composicao'`, `'editar sem mexer nas tarefas nao chama a substituicao'`, `'salvar sprint sem tarefas marcadas nao rebusca…'`, `'avisa quando a sprint salva mas as tarefas falham'` | PROVADA |
+| I46 formulário de marco: congelada imóvel; mover/soltar exatos | `MilestonesScreen.test.jsx`: `'sprint congelada aparece marcada…sem poder sair'`, `'criar marco ja leva as sprints marcadas'`, `'salvar a edicao move as marcadas e solta as desmarcadas'` (com `toHaveBeenCalledTimes(2)`), `'sprint que nao mudou de marco e sprint congelada nao geram requisicao'`, `'avisa que marcar sprint de outro marco move a sprint'` | PROVADA |
+| I47 VIEWER: sem formulário, sem catálogo, sem mutação | `SprintsScreen.test.jsx` `'perfil somente leitura nao busca as tarefas do projeto'` + describe `'perfil somente leitura'`; `MilestonesScreen.test.jsx` `'nao oferece formulario nem acoes'` | PROVADA |
+| I48 variante ampla = só geometria | `SprintBurndownChart.test.jsx` `'a variante ampla marca o eixo em quatro datas'` + suíte compacta intacta; `SprintsScreen.test.jsx` `'mostra o burndown apurado junto do escopo'` (nota idêntica) | PROVADA |
+| I49 economia de requisições | `SprintsScreen.test.jsx`: `'a carga inicial busca as tarefas do projeto uma unica vez…'`, `'salvar sprint sem tarefas marcadas nao rebusca marcos, projeto nem tarefas'`, `'mostra carregando…'` (painel reaproveita o catálogo) | PROVADA |
+
+## Reclassificação de regressão (itens antigos cujas provas mudaram de lugar)
+
+| Item antigo | Situação após o design v4 |
+|---|---|
+| A3 (cronograma apresenta tarefas, sprints, prazos e marcos) | prova ampliada: agregado HTTP inalterado + telas novas (blocos do mês, eventos de tarefa, trilhas) — casos citados em I41/I42/I44 |
+| A6 (permissões, fórmulas, fusos, limites) | permissões reconfirmadas sob composição (I45–I47); limites de navegação da 3ª iteração intactos (describe `'limites do calendario'` e `'interacao do calendario'`) |
+| Economia de requisições (2 testes da 1ª bateria) | **reescritos às claras** — o formulário passou a exigir o catálogo na carga; a nova regra é I49 |
+| "não oferece campo de sprint" no formulário de marco | **reescrito às claras** — o design v4 inverte a decisão de UI (bloco "Sprints do marco"); a autoridade de domínio segue sendo `PUT /sprints/:id` (ADR-011 D02), inalterada |
+| Testes de tela citados no mapa da 1ª bateria por linha | as linhas mudaram com a reescrita das três suítes; os casos nomeados continuam existindo (menu, VIEWER, quatro estados, respostas fora de ordem, diálogo) e seguem verdes — conferido pela suíte completa 304/31, duas vezes |
+| Filtro "Período exibido" | removido pelo design v4 (S104-F12); os dois testes de filtro da tela saíram e o recorte passou a ser provado pelos limites de navegação |

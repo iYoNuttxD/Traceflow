@@ -249,3 +249,123 @@ commits, na ordem:
 - [x] Cobertura acima dos limiares, sem tê-los baixado
 - [x] `lint`, `format:check`, `architecture:check`, `security:secrets`, `build` verdes
 - [x] Suíte completa 2× com o mesmo resultado (501/501 e 230/230)
+
+---
+
+# Segunda bateria (30/08/2026, design v4)
+
+> Execução do enunciado `docs/issues/RF10_RF35_PROMPT_SEGUNDA_BATERIA.md` sobre a branch
+> `joao-dev-v2` com a quarta iteração do design aplicada. Mapa atualizado na seção "Segunda
+> bateria" de `RF10_RF35_MAPA_TESTES.md`.
+
+## S1. Resumo
+
+**RF10** — os comportamentos novos do design v4 correspondem ao especificado nos artboards e às
+regras vigentes (ADR-011 > 010 > 009, intocadas): trilhas apenas para marcos que agrupam sprints,
+marcador acessível que abre o nome, "hoje" restrito ao mês exibido, legenda e painel recortados
+pelo mês, tarefas no cronograma, formulários com composição movendo vínculos pelo contrato
+existente (`PUT` parcial). **RF35** — burndown na tela de Sprints com a variante ampla
+matematicamente idêntica à compacta; fallback correto sem tarefas pontuadas. Nenhum defeito de
+comportamento encontrado. **Segurança** — superfície HTTP inalterada; declarações da baseline
+reexecutadas e adendo com a verificação dos fluxos compostos (falha parcial avisada e
+ressincronizada, VIEWER sem catálogo nem mutação, nenhum dado pessoal novo na tela).
+
+**Fase 0 (gate de zero comentários)** — as três varreduras devolvem **vazio** em produção, CSS e
+nos 16 arquivos de teste do escopo. Duas diretivas `eslint-disable no-control-regex` da primeira
+bateria foram eliminadas trocando a asserção por verificação de `charCodeAt` (equivalente, sem
+regex de controle); a diretiva `exhaustive-deps` de `useScheduleData.js` já havia sido resolvida
+em 30/08 trocando a dependência do efeito para `[loadAll]` (comportamento idêntico — `loadAll` só
+muda com `projectId`). **Nenhum comentário no código de RF10/RF35.**
+
+## S2. Números
+
+| Medida | Largada | Fechamento |
+|---|---|---|
+| Backend — testes | 501 (38 arquivos) | **501 (38)** — delta sem backend; suíte 2× idêntica |
+| Frontend — testes | 295 (31 arquivos) | **304 (31)** — 9 casos novos; suíte 2× idêntica |
+| Frontend — cobertura | 66.94 / 64.96 / 59.87 / 68.13 | **67.10 / 65.48 / 60.14 / 68.25** (limiares 50/45/40/53) |
+
+`lint`, `format:check`, `build` verdes nos dois projetos; `prisma validate` verde; banco de teste
+com as 28 migrations em dia. Casos novos: normalização de prazo anterior à primeira sprint; marco
+sem `dueDate` descartado; desempate por id em `deadlineTasks`; marco atual com todos vencidos;
+ordem de emissão em volume (30 empates); Escape no marcador; dez marcos só-prazo em escala;
+edição sem mudança de tarefas não chama replace; sprint congelada e sprint imóvel sem requisição
+no formulário de marcos. Ajuste de fixture: a tarefa concluída dos cartões ganhou deadline para
+provar que deadline de concluída não vira "Atenção".
+
+## S3. Achados
+
+Nenhum achado HIGH ou MEDIUM. O produto faz a coisa certa em tudo o que foi exercitado.
+
+### [LOW — observação] M43 e M47 são mutantes equivalentes, não lacunas
+
+O comparator de eventos com empate inconsistente (M43) é indistinguível no motor do projeto
+(Node/V8) mesmo com 30 eventos empatados — o teste de volume foi escrito e mantido como contrato
+da ordem de emissão, mas não diferencia o mutante; a forma total (`0` no empate) permanece por ser
+a única com estabilidade garantida por especificação. O fim de mês fixado em "31" (M47) é
+lexicograficamente equivalente para qualquer dia ISO real, como o próprio enunciado antecipava.
+Mesma categoria dos M05/M10 da primeira bateria: equivalência documentada, não sobrevivência.
+
+## S4. Bateria de mutação (M38–M56)
+
+Protocolo idêntico ao da primeira: uma por vez sobre o `HEAD`, suíte-alvo reexecutada, reversão
+por edição exata (a árvore segue sem commit).
+
+| # | Mutação | Item | Vermelhos |
+|---|---|---|---|
+| M38 | marco sem sprint ganha `comTrilha` | I37 | 7 |
+| M39 | `milestoneWeekLayout` desenha marco sem trilha | I37 | 3 |
+| M40 | `hoje` sem a trava do mês exibido | I40 | 1 |
+| M41 | abrir outro marcador fecha tudo em vez de trocar | I39 | 1 |
+| M42 | marcador perde `aria-expanded` | I39 | 1 |
+| M43 | comparator de eventos inconsistente no empate | I42 | **0 — equivalente no motor** (S3) |
+| M44 | `deadlineTasks` mantém tarefa sem deadline | I42 | 1 |
+| M45 | próximo deadline conta tarefa concluída | I43 | 1 |
+| M46 | cartão de tarefas em aberto sem sprint ativa | I43 | 1 |
+| M47 | fim do mês fixado em "31" | I44 | **0 — equivalente** (previsto no enunciado) |
+| M48 | legenda sem o filtro do mês | I41 | 2 |
+| M49 | replace disparado sem mudança na seleção | I45/I49 | 1 |
+| M50 | falha do replace engolida sem aviso | I45 | 1 |
+| M51 | formulário de marco emite PUT para congelada | I46 | 1 |
+| M52 | desmarcadas deixam de ser soltas | I46 | 1 |
+| M53 | VIEWER passa a buscar o catálogo de tarefas | I47 | 1 |
+| M54 | variante ampla altera a nota calculada | I48 | 1 |
+| M55 | expansor da agenda perde o teto de 6 | design v4 | 1 |
+| M56 | todo ponto de prazo colorido | I37 | 1 |
+
+**17 de 19 mutações mortas; duas equivalentes (M43, M47), nenhuma sobrevivente real.** Três só
+morrem por assassinos escritos nesta bateria antes da rodada (M45 via fixture com deadline em
+concluída; M49 via "editar sem mexer"; M51 via congelada no fixture de não-requisição).
+
+## S5. Deriva documental
+
+- `RF_TECHNICAL_MATRIX.md` (linhas RF10/RF35): **conferidas, nada falso** — não citam o filtro
+  removido nem componente inexistente; `SprintProgressPanel`/`SprintBurndownChart` seguem
+  corretos e agora mais verdadeiros (burndown na tela de Sprints).
+- `TECHNICAL_BACKLOG.md`: S104-F12 (parâmetros `from`/`to` sem consumidor de UI) e S104-F13
+  (PUTs sequenciais do formulário de marcos) já registrados; nenhum achado novo a acrescentar.
+- `ASVS_BASELINE.md`: adendo da segunda bateria acrescentado (composição, falha parcial,
+  minimização; nenhum capítulo novo aplicável).
+- `API_CONTRACTS.md` e `AUTHORIZATION_MATRIX.md`: sem mudança — o delta não tocou contrato nem
+  papel. Nenhum ADR novo: o design v4 não altera regra de domínio.
+
+## S6. O que não foi testado e por quê
+
+- **Verificação visual da seção 9 do enunciado** — depende do dev server no ambiente do João
+  (regra 13); matriz de capturas proposta e aguardando execução. Os comportamentos têm prova
+  funcional; o que fica pendente é o julgamento visual dos extremos.
+- **Sobreposição de rótulos herdada do design** quando dois marcos com trilha estreiam na mesma
+  semana — mitigada pelo empilhamento de marcadores (I39); julgamento final é visual.
+- **E2E de navegador** — segue em `S104-F02`; **ASVS L3** — fora da meta; **ambiente real** —
+  Sprint 2 do roadmap.
+
+## S7. Checklist de DoD do enunciado
+
+- [x] Fase 0 fechada: nenhum comentário no código de RF10/RF35 (diretivas remanescentes eliminadas)
+- [x] Mapa atualizado: I37–I49 classificados (todos PROVADA); regressão reclassificada
+- [x] Frontend 304/304 e backend 501/501, duas vezes, com `lint`/`format`/`build`/`prisma validate` verdes
+- [x] Cobertura acima dos limiares, sem tê-los baixado
+- [x] Mutação M38–M56 preenchida e fechada: 17 mortas, 2 equivalentes, 0 sobreviventes
+- [ ] Matriz visual da seção 9 — **aguardando o dev server do João**
+- [x] Nenhum teste novo alterou código de produção (exceção única da Fase 0: remoção de diretivas em teste)
+- [x] Documentos da Fase 8 conferidos; baseline com adendo
