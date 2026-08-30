@@ -9,13 +9,7 @@ import {
   unlinkTaskRequirement
 } from '../api/tasks.api.js';
 import { projectMembersApi } from '../../members/index.js';
-import {
-  SprintBoardPanel,
-  scheduleApi,
-  sprintStatusKey,
-  sprintStatusKeyLabels,
-  sprintTerminalConfirm
-} from '../../schedule/index.js';
+import { scheduleApi, sprintStatusKey, sprintStatusKeyLabels } from '../../schedule/index.js';
 import { projectsApi } from '../../projects/index.js';
 import { ProjectSectionNav } from '../../projects/index.js';
 import { KanbanBoard } from '../components/KanbanBoard.jsx';
@@ -23,12 +17,7 @@ import { KanbanSprintFilter } from '../components/KanbanSprintFilter.jsx';
 import { KANBAN_COLUMNS } from '../components/kanban-display.js';
 import { MovementHistory } from '../components/MovementHistory.jsx';
 import { TaskDetailsPanel } from '../components/TaskDetailsPanel.jsx';
-import {
-  FeedbackRegion,
-  LoadingState,
-  useAbortableRequest,
-  useConfirm
-} from '../../../shared/index.js';
+import { FeedbackRegion, LoadingState, useConfirm } from '../../../shared/index.js';
 
 const MOVEMENTS_PER_PAGE = 10;
 const TERMINAL_SPRINT_STATUSES = ['CONCLUIDA', 'CANCELADA'];
@@ -122,26 +111,15 @@ export function KanbanScreen() {
   const confirm = useConfirm();
   const { projectId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
-  const progressRequest = useAbortableRequest();
   const [project, setProject] = useState(null);
   const [board, setBoard] = useState(null);
   const [metrics, setMetrics] = useState(null);
   const [movements, setMovements] = useState([]);
   const [projectMembers, setProjectMembers] = useState([]);
   const [projectSprints, setProjectSprints] = useState([]);
-  const [projectMilestones, setProjectMilestones] = useState([]);
-  const [schedule, setSchedule] = useState(null);
-  // Filtro e sprint em foco vivem na URL: o link "Ver no Kanban" da tela de
-  // Sprints chega por aqui, e assim ele é compartilhável e sobrevive ao F5.
+  // O filtro de sprints vive na URL: o link "Ver no Kanban" da tela de Sprints
+  // chega por aqui, e assim ele é compartilhável e sobrevive ao F5.
   const [sprintFilter, setSprintFilter] = useState([]);
-  const [andamentoId, setAndamentoId] = useState(null);
-  const [progress, setProgress] = useState(null);
-  const [progressLoading, setProgressLoading] = useState(false);
-  // Contador de invalidação: mover uma tarefa ou encerrar a sprint muda o
-  // burndown, e o id em foco continua o mesmo — sem isto o gráfico ficaria
-  // afirmando um estado anterior ao que o quadro já mostra.
-  const [progressVersion, setProgressVersion] = useState(0);
-  const [busySprint, setBusySprint] = useState(false);
   const [period, setPeriod] = useState({ startDate: '', endDate: '' });
   const [movementMemberFilter, setMovementMemberFilter] = useState('');
   const [historyFieldFilter, setHistoryFieldFilter] = useState('');
@@ -187,10 +165,6 @@ export function KanbanScreen() {
     () => Object.fromEntries(projectSprints.map((sprint) => [sprint.id, sprint.name])),
     [projectSprints]
   );
-  const milestoneNames = useMemo(
-    () => Object.fromEntries(projectMilestones.map((item) => [item.id, item.title])),
-    [projectMilestones]
-  );
   const sprintStatusText = useMemo(
     () =>
       Object.fromEntries(
@@ -214,15 +188,6 @@ export function KanbanScreen() {
       ),
     [projectSprints]
   );
-  const scheduleById = useMemo(
-    () => Object.fromEntries((schedule?.sprints || []).map((item) => [item.id, item])),
-    [schedule]
-  );
-  const activeSprint = useMemo(
-    () => projectSprints.find((sprint) => sprint.status === 'EM_ANDAMENTO') || null,
-    [projectSprints]
-  );
-
   const totalMovementPages = Math.max(1, movementPagination.totalPages || 1);
   const currentMovementPage = Math.min(movementPage, totalMovementPages);
   const movementStartIndex = (currentMovementPage - 1) * MOVEMENTS_PER_PAGE;
@@ -244,21 +209,17 @@ export function KanbanScreen() {
           metricsResponse,
           movementsResponse,
           membersResponse,
-          sprintsResponse,
-          milestonesResponse,
-          scheduleResponse
+          sprintsResponse
         ] = await Promise.all([
           projectsApi.get(projectId),
           kanbanApi.getBoard(projectId),
           kanbanApi.getMetrics(projectId, params),
           kanbanApi.listTaskHistory(projectId, { ...params, page: 1, limit: MOVEMENTS_PER_PAGE }),
           projectMembersApi.listProjectMembers(projectId),
-          // Sprints alimentam os rótulos do histórico, o filtro e o painel de
-          // andamento. Falha aqui não pode derrubar o Kanban: cai para lista
-          // vazia, o quadro continua funcionando e o painel some.
-          scheduleApi.listSprints(projectId).catch(() => ({ data: { sprints: [] } })),
-          scheduleApi.listMilestones(projectId).catch(() => ({ data: { milestones: [] } })),
-          scheduleApi.getSchedule(projectId).catch(() => ({ data: null }))
+          // Sprints alimentam os rótulos do histórico e o filtro. Falha aqui não
+          // pode derrubar o Kanban: cai para lista vazia e o quadro continua
+          // funcionando.
+          scheduleApi.listSprints(projectId).catch(() => ({ data: { sprints: [] } }))
         ]);
 
         const members = membersResponse.data.members || [];
@@ -277,24 +238,14 @@ export function KanbanScreen() {
         setProjectMembers(members);
         const sprints = sprintsResponse.data.sprints || [];
         setProjectSprints(sprints);
-        setProjectMilestones(milestonesResponse.data.milestones || []);
-        setSchedule(scheduleResponse.data);
 
-        // As sprints pedidas na URL vencem; sem elas, o painel abre na que está
-        // em andamento, e sem nenhuma aberta, na última do cronograma — que é a
-        // mais provável de interessar. Ids inexistentes são descartados em
+        // As sprints pedidas na URL vencem. Ids inexistentes são descartados em
         // silêncio: uma URL antiga não deve travar a tela.
         const pedidas = (searchParams.get('sprint') || '')
           .split(',')
           .map((valor) => Number(valor))
           .filter((id) => sprints.some((sprint) => sprint.id === id));
         setSprintFilter(pedidas);
-        setAndamentoId(
-          pedidas[0] ||
-            sprints.find((sprint) => sprint.status === 'EM_ANDAMENTO')?.id ||
-            sprints[sprints.length - 1]?.id ||
-            null
-        );
       } catch (requestError) {
         setError(getErrorMessage(requestError, 'Não foi possível carregar o Kanban.'));
       } finally {
@@ -312,35 +263,6 @@ export function KanbanScreen() {
     loadedProjectIdRef.current = projectId;
     void loadKanban();
   }, [loadKanban, projectId]);
-
-  // Evolução da sprint em foco. Cada troca cancela a consulta anterior: sem isso
-  // a resposta lenta da sprint A sobrescreveria o painel já mostrando a B.
-  useEffect(() => {
-    if (!andamentoId) {
-      setProgress(null);
-      return;
-    }
-    let atual = true;
-    setProgressLoading(true);
-    progressRequest
-      .run((signal) => scheduleApi.getSprintProgress(andamentoId, { signal }))
-      .then((resposta) => {
-        if (!atual || !resposta) return;
-        setProgress(resposta.data);
-      })
-      .catch(() => {
-        // O painel degrada para "sem burndown" em vez de derrubar o quadro: a
-        // evolução é leitura auxiliar, e o Kanban continua utilizável sem ela.
-        if (atual) setProgress(null);
-      })
-      .finally(() => {
-        if (atual) setProgressLoading(false);
-      });
-    return () => {
-      atual = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [andamentoId, progressVersion]);
 
   // O filtro viaja na URL para o link continuar compartilhável depois de o
   // usuário mexer nele. `replace` evita encher o histórico do navegador com uma
@@ -365,22 +287,14 @@ export function KanbanScreen() {
       ...(historyFieldFilter ? { field: historyFieldFilter } : {})
     }
   ) {
-    const [boardResponse, metricsResponse, movementsResponse, scheduleResponse] = await Promise.all(
-      [
-        kanbanApi.getBoard(projectId),
-        kanbanApi.getMetrics(projectId, params),
-        kanbanApi.listTaskHistory(projectId, params),
-        // O agregado alimenta as métricas do painel de andamento: mover uma
-        // tarefa muda "3 de 8" e a barra de progresso, e deixar isso parado
-        // faria o painel discordar do quadro logo acima dele.
-        scheduleApi.getSchedule(projectId).catch(() => ({ data: schedule }))
-      ]
-    );
+    const [boardResponse, metricsResponse, movementsResponse] = await Promise.all([
+      kanbanApi.getBoard(projectId),
+      kanbanApi.getMetrics(projectId, params),
+      kanbanApi.listTaskHistory(projectId, params)
+    ]);
 
     setBoard(boardResponse.data);
     setMetrics(metricsResponse.data);
-    setSchedule(scheduleResponse.data);
-    setProgressVersion((atual) => atual + 1);
     setMovements(movementsResponse.data.items || []);
     setMovementPagination(
       movementsResponse.data.pagination || {
@@ -446,42 +360,6 @@ export function KanbanScreen() {
       }
     } finally {
       setMovingTaskId(null);
-    }
-  }
-
-  // Iniciar e concluir sprint a partir do quadro. A ação vive aqui e na tela de
-  // Sprints; o texto da confirmação é o mesmo módulo, para as duas não
-  // prometerem efeitos diferentes de uma operação irreversível.
-  async function changeSprintStatus(sprint, status) {
-    if (status === 'CONCLUIDA' || status === 'CANCELADA') {
-      const pendentes = (scheduleById[sprint.id]?.tasks || []).filter(
-        (task) => task.status !== 'CONCLUIDO'
-      ).length;
-      const confirmed = await confirm(sprintTerminalConfirm(sprint, status, pendentes));
-      if (!confirmed) return;
-    }
-
-    setBusySprint(true);
-    setError('');
-    setSuccess('');
-    try {
-      const { data } = await scheduleApi.updateSprintStatus(sprint.id, status);
-      setProjectSprints((current) =>
-        current.map((item) => (item.id === sprint.id ? data.sprint : item))
-      );
-      setSuccess(data.message);
-      // Concluir devolve tarefas ao backlog: o quadro inteiro muda, não só a
-      // sprint. Recarregar tudo é o que impede a tela de mostrar uma tarefa
-      // ainda dentro de uma sprint que acabou de congelar.
-      await refreshKanban();
-      if (data.milestoneCompleted) {
-        const resposta = await scheduleApi.listMilestones(projectId);
-        setProjectMilestones(resposta.data.milestones || []);
-      }
-    } catch (requestError) {
-      setError(getErrorMessage(requestError, 'Não foi possível atualizar o status da sprint.'));
-    } finally {
-      setBusySprint(false);
     }
   }
 
@@ -798,19 +676,6 @@ export function KanbanScreen() {
             onColumnDragLeave={handleColumnDragLeave}
             onColumnDrop={handleColumnDrop}
             onChangeTaskStatus={moveTaskToStatus}
-          />
-
-          <SprintBoardPanel
-            sprints={projectSprints}
-            scheduleById={scheduleById}
-            milestoneNames={milestoneNames}
-            selectedSprintId={andamentoId}
-            progress={progress}
-            progressLoading={progressLoading}
-            busy={busySprint}
-            activeSprintName={activeSprint?.name || ''}
-            onSelectSprint={setAndamentoId}
-            onChangeStatus={changeSprintStatus}
           />
 
           <MovementHistory
