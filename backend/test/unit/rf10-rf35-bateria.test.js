@@ -168,8 +168,7 @@ describe('logger resiste a injecao de linha (ASVS 16.4.1)', () => {
 
     expect(linhas).toHaveLength(1);
     const linha = linhas[0];
-    // eslint-disable-next-line no-control-regex
-    expect(linha).not.toMatch(/[\u0000-\u001f]/);
+    expect([...linha].some((letra) => letra.charCodeAt(0) < 32)).toBe(false);
     const evento = JSON.parse(linha);
     expect(evento.sprintName).toBe(hostil);
     expect(evento.message).toBe('sprint criada');
@@ -183,8 +182,7 @@ describe('logger resiste a injecao de linha (ASVS 16.4.1)', () => {
     });
     logger.warn('primeira\r\nsegunda');
     expect(linhas).toHaveLength(1);
-    // eslint-disable-next-line no-control-regex
-    expect(linhas[0]).not.toMatch(/[\u0000-\u001f]/);
+    expect([...linhas[0]].some((letra) => letra.charCodeAt(0) < 32)).toBe(false);
     expect(JSON.parse(linhas[0]).message).toBe('primeira\r\nsegunda');
   });
 });

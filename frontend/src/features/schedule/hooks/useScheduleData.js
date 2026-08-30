@@ -86,8 +86,7 @@ export function useScheduleData(projectId) {
 
   useEffect(() => {
     void loadAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId]);
+  }, [loadAll]);
 
   const feedback = useCallback((message) => {
     setSuccess(message);
