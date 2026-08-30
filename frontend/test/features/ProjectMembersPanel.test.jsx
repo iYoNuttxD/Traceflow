@@ -24,10 +24,10 @@ const member = {
   }
 };
 
-function renderPanel() {
+function renderPanel(activeView = 'team') {
   return render(
     <ConfirmProvider>
-      <ProjectMembersPanel projectId="1" />
+      <ProjectMembersPanel projectId="1" activeView={activeView} />
     </ConfirmProvider>
   );
 }
@@ -87,9 +87,18 @@ describe('ProjectMembersPanel', () => {
     expect(await screen.findByText('Você saiu do projeto.')).toBeInTheDocument();
   });
 
-  it('confirma desativação e envia convite sem expor token', async () => {
+  it('confirma a desativação de membro', async () => {
     mockList('OWNER');
     apiMock.delete.mockResolvedValue({});
+    const user = userEvent.setup();
+    renderPanel();
+    await user.click(await screen.findByRole('button', { name: 'Desativar' }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Desativar' }));
+    expect(apiMock.delete).toHaveBeenCalledWith('/projects/1/members/2');
+  });
+
+  it('envia convite na visualização de Convites sem expor token', async () => {
+    mockList('OWNER');
     apiMock.post.mockResolvedValue({
       data: {
         invitation: { id: 4, email: 'invite@example.invalid', role: 'VIEWER' },
@@ -97,11 +106,9 @@ describe('ProjectMembersPanel', () => {
       }
     });
     const user = userEvent.setup();
-    renderPanel();
-    await user.click(await screen.findByRole('button', { name: 'Desativar' }));
-    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Desativar' }));
-    expect(apiMock.delete).toHaveBeenCalledWith('/projects/1/members/2');
-    await user.type(screen.getByLabelText('E-mail'), 'invite@example.invalid');
+    renderPanel('invitations');
+    expect(await screen.findByText('Nenhum convite pendente.')).toBeInTheDocument();
+    await user.type(await screen.findByLabelText('E-mail'), 'invite@example.invalid');
     await user.selectOptions(screen.getByLabelText('Perfil do convite'), 'VIEWER');
     expect(screen.getByLabelText('E-mail').closest('form')).toHaveClass('invitation-form');
     await user.click(screen.getByRole('button', { name: 'Enviar convite' }));
@@ -145,7 +152,7 @@ describe('ProjectMembersPanel', () => {
         });
       return Promise.reject(new Error(`URL inesperada: ${path}`));
     });
-    renderPanel();
+    renderPanel('invitations');
     expect(await screen.findByText('pending@example.invalid')).toBeInTheDocument();
     expect(screen.getByText('Recusado')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Revogar' })).toHaveLength(1);
@@ -167,5 +174,54 @@ describe('ProjectMembersPanel', () => {
     expect(await screen.findByText(/Adicione outro proprietário/)).toBeInTheDocument();
     expect(screen.getByLabelText('Perfil de Pessoa artificial')).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Desativar' })).toBeDisabled();
+  });
+
+  it('filtra membros por nome, username e perfil de forma combinada', async () => {
+    const members = [
+      {
+        ...member,
+        id: 1,
+        role: 'OWNER',
+        user: { ...member.user, name: 'Ana Artificial', username: 'alpha-owner' }
+      },
+      {
+        ...member,
+        id: 2,
+        role: 'MEMBER',
+        user: { ...member.user, name: 'Bruno Artificial', username: 'BetaDev' }
+      },
+      {
+        ...member,
+        id: 3,
+        role: 'VIEWER',
+        user: { ...member.user, name: 'Carla Artificial', username: 'gamma-viewer' }
+      }
+    ];
+    apiMock.get.mockImplementation((path) => {
+      if (path.endsWith('/members'))
+        return Promise.resolve({
+          data: { currentMembership: { id: 1, role: 'OWNER', isActive: true }, members }
+        });
+      if (path.endsWith('/invitations')) return Promise.resolve({ data: { invitations: [] } });
+      return Promise.reject(new Error(`URL inesperada: ${path}`));
+    });
+    const user = userEvent.setup();
+    renderPanel();
+
+    const search = await screen.findByLabelText('Buscar membro');
+    await user.type(search, 'BETADEV');
+    expect(screen.getByText('Bruno Artificial')).toBeInTheDocument();
+    expect(screen.queryByText(/Ana Artificial/)).not.toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText('Filtrar por perfil'), 'OWNER');
+    expect(screen.getByText('Nenhum membro encontrado.')).toBeInTheDocument();
+
+    await user.clear(search);
+    expect(screen.getByText(/Ana Artificial/)).toBeInTheDocument();
+    expect(screen.queryByText('Bruno Artificial')).not.toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText('Filtrar por perfil'), 'VIEWER');
+    await user.type(search, 'carla');
+    expect(screen.getByText('Carla Artificial')).toBeInTheDocument();
   });
 });

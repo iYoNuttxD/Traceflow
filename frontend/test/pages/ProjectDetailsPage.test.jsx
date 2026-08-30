@@ -106,7 +106,7 @@ describe('ProjectDetailsPage E9', () => {
     mocks.getProjectGithubSyncStatus.mockResolvedValue({ run: null });
   });
 
-  it('renderiza breadcrumb, tabs e uma surface integrada sem blocos administrativos', async () => {
+  it('renderiza retorno, tabs e uma surface integrada sem blocos administrativos', async () => {
     renderPage();
 
     const overviewHeading = await screen.findByRole('heading', { name: 'Visão geral' });
@@ -115,7 +115,11 @@ describe('ProjectDetailsPage E9', () => {
     for (const heading of ['Projeto', 'GitHub', 'Equipe']) {
       expect(within(overview).getByRole('heading', { name: heading })).toBeInTheDocument();
     }
-    expect(within(overview).getByText('Ativo')).toBeInTheDocument();
+    expect(screen.getByText('Ativo')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Voltar para projetos' })).toHaveAttribute(
+      'href',
+      '/projects'
+    );
     const teamGroup = within(overview)
       .getByRole('heading', { name: 'Equipe' })
       .closest('.project-overview-group--team');
@@ -125,9 +129,17 @@ describe('ProjectDetailsPage E9', () => {
     ).toHaveAttribute('href', 'https://github.com/owner/repo');
     expect(within(overview).getByText(/Criado em/)).toBeInTheDocument();
     expect(within(overview).getByText(/Atualizado em/)).toBeInTheDocument();
-    expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toHaveTextContent(
-      'Projetos/Projeto E9'
-    );
+    expect(screen.queryByRole('navigation', { name: 'Breadcrumb' })).not.toBeInTheDocument();
+    const projectGroup = within(overview)
+      .getByRole('heading', { name: 'Projeto' })
+      .closest('.project-overview-group');
+    expect(projectGroup).toHaveTextContent('DescriçãoDescrição');
+    expect(projectGroup).toHaveTextContent('Equipe responsávelEquipe');
+    expect(projectGroup.querySelector('.traceflow-icon')).toBeInTheDocument();
+    expect(overview.querySelector('[data-icon="branch"]')).toBeInTheDocument();
+    expect(teamGroup.querySelector('[data-icon="users"]')).toBeInTheDocument();
+    const pageHeader = screen.getByRole('heading', { name: 'Projeto E9' }).closest('header');
+    expect(within(pageHeader).queryByText('Descrição')).not.toBeInTheDocument();
     const projectNavigation = screen.getByRole('navigation', { name: 'Navegação do projeto' });
     expect(within(projectNavigation).getAllByRole('link')).toHaveLength(6);
     expect(within(projectNavigation).getByRole('link', { name: 'Visão geral' })).toHaveAttribute(
@@ -386,7 +398,7 @@ describe('ProjectDetailsPage E9', () => {
     const overview = (await screen.findByRole('heading', { name: 'Visão geral' })).closest(
       '.project-overview-surface'
     );
-    expect(within(overview).getByText('Ativo')).toBeInTheDocument();
+    expect(screen.getByText('Ativo')).toBeInTheDocument();
     expect(within(overview).getByText('Nunca sincronizado')).toBeInTheDocument();
     expect(screen.queryByText('GitHub sincronizado')).not.toBeInTheDocument();
   });

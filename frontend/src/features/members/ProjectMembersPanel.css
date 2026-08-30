@@ -1,61 +1,78 @@
-.member-list {
+.team-panel {
   display: grid;
-  gap: var(--space-3);
-  margin-bottom: var(--space-4);
+  min-width: 0;
+  gap: var(--space-5);
+  container-name: member-panel;
+  container-type: inline-size;
 }
 
-.member-list-wide {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.member-filter-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 13rem;
+  gap: var(--space-4);
+}
+
+.member-search-control {
+  position: relative;
+  display: grid;
+  color: var(--color-text-secondary);
+}
+
+.member-search-control .traceflow-icon {
+  position: absolute;
+  top: 50%;
+  left: var(--space-3);
+  width: var(--size-icon-sm);
+  height: var(--size-icon-sm);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.member-search-control input {
+  padding-left: var(--space-10);
+}
+
+.member-list,
+.invitation-list {
+  display: grid;
+  overflow: hidden;
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-md);
+}
+
+.member-item,
+.invitation-item {
+  min-width: 0;
+  padding: var(--space-4);
+  color: var(--color-text-primary);
+  background: var(--color-surface-primary);
 }
 
 .member-item {
   display: grid;
-  min-width: 0;
   gap: var(--space-3);
-  align-content: start;
-  padding: var(--space-4);
-  border: var(--border-width-default) solid var(--color-border-default);
-  border-radius: var(--radius-md);
-  color: var(--color-text-primary);
-  background: var(--color-surface-secondary);
+}
+
+.member-item + .member-item,
+.invitation-item + .invitation-item {
+  border-top: var(--border-width-default) solid var(--color-border-default);
 }
 
 .member-item-header {
   display: flex;
+  min-width: 0;
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-4);
 }
 
-.member-joined-at {
-  margin-bottom: var(--space-1);
-}
-
-.member-role-field {
-  grid-column: 1;
-  grid-row: 1;
-  max-width: 15rem;
-}
-
-.member-item span {
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-2);
-}
-
-.team-panel,
-.invitation-management,
-.invitation-list {
-  display: grid;
-  gap: var(--space-4);
-}
-
-.member-actions {
-  display: grid;
-  grid-template-columns: minmax(9.375rem, 0.65fr) minmax(0, 1.35fr);
-  align-items: end;
-  gap: var(--space-3) var(--space-4);
-  padding-top: var(--space-3);
-  border-top: var(--border-width-default) solid var(--color-border-default);
+.member-item-summary {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
 }
 
 .member-identity,
@@ -68,7 +85,34 @@
 .member-identity strong,
 .member-identity span,
 .invitation-item strong {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+.member-item span,
+.member-joined-at,
+.member-role-label {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-2);
+}
+
+.member-role-label {
+  font-weight: var(--font-weight-semibold);
+}
+
+.member-actions {
+  display: grid;
+  grid-template-columns: minmax(9.375rem, 0.65fr) minmax(0, 1.35fr);
+  align-items: end;
+  gap: var(--space-3) var(--space-4);
+  padding-top: var(--space-3);
+  border-top: var(--border-width-default) solid var(--color-border-default);
+}
+
+.member-role-field {
+  grid-column: 1;
+  grid-row: 1;
+  max-width: 15rem;
 }
 
 .member-action-buttons {
@@ -104,17 +148,6 @@
   background: var(--color-success-surface);
 }
 
-.invitation-management {
-  margin-top: var(--space-4);
-  padding-top: var(--space-5);
-  border-top: var(--border-width-default) solid var(--color-border-default);
-}
-
-.invitation-management h3 {
-  margin: 0;
-  color: var(--color-text-strong);
-}
-
 .membership-self-service {
   display: flex;
   align-items: center;
@@ -127,7 +160,8 @@
 }
 
 .membership-self-service h3,
-.membership-self-service p {
+.membership-self-service p,
+.invitation-management h3 {
   margin: 0;
 }
 
@@ -135,6 +169,23 @@
   margin-top: var(--space-1);
   color: var(--color-text-secondary);
   line-height: var(--line-height-body);
+}
+
+.invitation-management,
+.invitation-management > section,
+.invitation-section {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.invitation-section {
+  padding-top: var(--space-5);
+  border-top: var(--border-width-default) solid var(--color-border-default);
+}
+
+.invitation-management h3 {
+  color: var(--color-text-strong);
+  font-size: var(--font-size-3);
 }
 
 .invitation-form {
@@ -147,10 +198,6 @@
   grid-template-columns: minmax(11.25rem, 1.5fr) minmax(13.75rem, 1fr) auto auto;
   align-items: center;
   gap: var(--space-4);
-  padding: var(--space-3);
-  border: var(--border-width-default) solid var(--color-border-default);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-secondary);
 }
 
 .invitation-dates {
@@ -172,13 +219,12 @@
   font-size: var(--font-size-1);
 }
 
-.member-form-wide {
-  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
-  align-items: end;
-}
-
 .team-panel .field span {
   color: var(--color-text-primary);
+}
+
+.team-panel .member-search-control {
+  color: var(--color-text-secondary);
 }
 
 .team-panel .field input,
@@ -217,9 +263,10 @@
   outline-offset: var(--focus-ring-offset);
 }
 
-@media (max-width: 860px) {
-  .member-form-wide,
-  .member-list-wide {
+@container member-panel (max-width: 46rem) {
+  .member-filter-bar,
+  .invitation-form,
+  .invitation-item {
     grid-template-columns: 1fr;
   }
 
@@ -229,14 +276,15 @@
   }
 }
 
-@media (max-width: 720px) {
-  .invitation-form,
-  .invitation-item {
-    grid-template-columns: 1fr;
+@container member-panel (max-width: 34rem) {
+  .member-item-header {
+    flex-direction: column;
   }
-}
 
-@media (max-width: 560px) {
+  .member-item-summary {
+    justify-content: flex-start;
+  }
+
   .member-actions {
     grid-template-columns: 1fr;
   }
@@ -244,6 +292,7 @@
   .member-role-field,
   .member-action-buttons,
   .member-actions small {
+    max-width: none;
     grid-column: auto;
     grid-row: auto;
   }

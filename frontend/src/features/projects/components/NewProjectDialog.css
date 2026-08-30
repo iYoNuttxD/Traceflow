@@ -55,6 +55,12 @@
   cursor: pointer;
 }
 
+.new-project-dialog__actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--space-1);
+}
+
 .new-project-dialog__close {
   display: inline-grid;
   width: var(--size-touch-target);
@@ -94,7 +100,7 @@
   background: var(--color-accent-surface);
 }
 
-.new-project-dialog__choices .project-icon {
+.new-project-dialog__choices .traceflow-icon {
   width: var(--size-icon-lg);
   height: var(--size-icon-lg);
   flex: 0 0 var(--size-icon-lg);
@@ -120,32 +126,9 @@
   padding: var(--space-6);
 }
 
-.new-project-dialog__back {
-  width: fit-content;
-  min-height: var(--size-touch-target);
-  border: 0;
-  padding: 0 var(--space-2);
-  color: var(--color-accent-text);
-  background: transparent;
-  font: inherit;
-  font-size: var(--font-size-2);
-  font-weight: var(--font-weight-semibold);
-  cursor: pointer;
-}
-
 .new-project-dialog :focus-visible {
   outline: var(--focus-ring-width) solid var(--color-focus-ring);
   outline-offset: var(--focus-ring-offset);
-}
-
-.project-icon {
-  width: var(--size-icon-md);
-  height: var(--size-icon-md);
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.8;
 }
 
 @media (max-width: 720px) {

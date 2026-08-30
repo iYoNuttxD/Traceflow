@@ -1,0 +1,25 @@
+.back-button {
+  display: inline-grid;
+  width: var(--size-touch-target);
+  min-width: var(--size-touch-target);
+  height: var(--size-touch-target);
+  place-items: center;
+  border: var(--border-width-default) solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  background: transparent;
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.back-button:hover {
+  border-color: var(--color-border-default);
+  color: var(--color-text-strong);
+  background: var(--color-surface-interactive);
+}
+
+.back-button:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}

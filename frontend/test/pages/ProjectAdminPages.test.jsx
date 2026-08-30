@@ -124,8 +124,11 @@ describe('rotas administrativas de projeto', () => {
     renderEdit();
 
     expect(await screen.findByRole('heading', { name: 'Editar projeto' })).toBeInTheDocument();
-    expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toHaveTextContent(
-      'Projetos/Projeto administrativo/Editar'
+    expect(screen.queryByRole('navigation', { name: 'Breadcrumb' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Voltar à visão geral')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Voltar para visão geral' })).toHaveAttribute(
+      'href',
+      '/projects/7'
     );
     const nameInput = screen.getByLabelText('Nome do projeto *');
     await user.clear(nameInput);
@@ -186,8 +189,22 @@ describe('rotas administrativas de projeto', () => {
     renderMembers();
 
     expect(await screen.findByText(/Pessoa proprietária/)).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Acesso ao projeto' })).toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Breadcrumb' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Voltar à visão geral')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Voltar para visão geral' })).toHaveAttribute(
+      'href',
+      '/projects/7'
+    );
+    expect(screen.getByRole('tab', { name: 'Equipe' })).toHaveAttribute('aria-selected', 'true');
+    await user.click(screen.getByRole('tab', { name: 'Convites' }));
+    expect(screen.getByRole('tab', { name: 'Convites' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('heading', { name: 'Acesso por código ou link' })).toBeInTheDocument();
     expect(await screen.findByText('TRC-0123456789ABCDEF0123456789ABCDEF')).toBeInTheDocument();
+    for (const name of ['Ocultar código', 'Regenerar código', 'Copiar link']) {
+      const iconButton = screen.getByRole('button', { name });
+      expect(iconButton).toHaveClass('access-code-icon-button');
+      expect(iconButton.querySelector('.traceflow-icon')).toBeInTheDocument();
+    }
     await user.selectOptions(screen.getByLabelText('Perfil de entrada'), 'VIEWER');
     expect(mocks.projects.updateAccessCodeRole).toHaveBeenCalledWith('7', 'VIEWER');
     await user.click(screen.getByRole('button', { name: 'Copiar link' }));
@@ -208,7 +225,10 @@ describe('rotas administrativas de projeto', () => {
     renderMembers();
 
     expect(await screen.findByText(/Pessoa proprietária/)).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Acesso ao projeto' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Convites' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: 'Acesso por código ou link' })
+    ).not.toBeInTheDocument();
     expect(mocks.projects.getAccessCode).not.toHaveBeenCalled();
     expect(screen.queryByRole('button', { name: 'Enviar convite' })).not.toBeInTheDocument();
   });

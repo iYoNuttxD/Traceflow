@@ -82,10 +82,12 @@ concede membership ou acesso. Loading ou erro no catálogo não bloqueiam a nave
 
 ## Projects e visão do projeto
 
-`/projects` apresenta projetos e convites pendentes no mesmo grid responsivo. O card inteiro do
-projeto navega para sua visão geral, enquanto o card Novo projeto abre um dialog acessível que só
-então expõe os fluxos existentes de criação ou entrada por código. Essa apresentação não altera os
-casos de uso, contratos HTTP ou critérios de autorização desses fluxos.
+`/projects` apresenta projetos e convites pendentes no mesmo grid responsivo. O grid responde à
+largura útil do container — inclusive quando a sidebar está expandida — e preserva uma largura
+mínima legível para os cards. O card inteiro do projeto navega para sua visão geral, enquanto o card
+Novo projeto abre um dialog acessível que só então expõe os fluxos existentes de criação ou entrada
+por código. Essa apresentação não altera os casos de uso, contratos HTTP ou critérios de
+autorização desses fluxos.
 
 `/projects/:projectId` é a visão geral do projeto e agrupa Projeto, GitHub e Equipe em uma única
 surface. A navegação horizontal interna parte de Visão geral e mantém Tasks, Requirements, Kanban,
@@ -93,6 +95,13 @@ Repositório e Rastreabilidade como destinos do mesmo projeto. Ações administr
 embutidas na Overview: edição usa `/projects/:projectId/edit`, e membros, convites e código de acesso
 usam `/projects/:projectId/members`. As telas continuam exibindo ações conforme o papel retornado
 pela API; o backend permanece autoritativo para autorização e lifecycle.
+
+Overview, edição e membros usam `BackButton`, primitive shared com destino conhecido, nome acessível
+e touch target. A rota de membros organiza Equipe e Convites em tabs com a mesma primitive visual da
+navegação interna do projeto. Nome, username e perfil são filtrados client-side sobre a lista já
+autorizada; convites e código/link permanecem disponíveis somente conforme a autorização vigente.
+`TraceFlowIcon` centraliza a família outline utilizada por essas ações sem introduzir biblioteca
+externa.
 
 ## Consolidação de Tasks e Kanban
 

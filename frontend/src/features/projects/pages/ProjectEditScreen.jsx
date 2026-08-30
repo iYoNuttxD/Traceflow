@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { useParams } from 'react-router';
 import { membersApi } from '../../members/index.js';
 import {
+  BackButton,
   ContextualErrorPage,
   FeedbackRegion,
   PAGE_ERROR_TYPES,
@@ -10,7 +11,6 @@ import {
   normalizeApiError,
   useCountdown
 } from '../../../shared/index.js';
-import { ProjectBreadcrumb } from '../components/ProjectBreadcrumb.jsx';
 import { ProjectForm, emptyProjectForm, updateProjectForm } from '../components/ProjectForm.jsx';
 import { useProjectsCatalog } from '../hooks/ProjectsCatalogContext.jsx';
 import { projectsApi } from '../api/projects.api.js';
@@ -133,15 +133,14 @@ export function ProjectEditScreen() {
 
   return (
     <main className="page-container project-admin-screen">
-      <ProjectBreadcrumb projectName={project.name} currentLabel="Editar" />
+      <div className="project-admin-screen__return">
+        <BackButton to={`/projects/${project.id}`} label="Voltar para visão geral" />
+      </div>
       <header className="project-admin-screen__header">
         <div>
           <h1>Editar projeto</h1>
           <p>Atualize os dados de {project.name} sem alterar suas integrações ou permissões.</p>
         </div>
-        <Link className="project-admin-screen__back" to={`/projects/${project.id}`}>
-          Voltar à visão geral
-        </Link>
       </header>
 
       <FeedbackRegion

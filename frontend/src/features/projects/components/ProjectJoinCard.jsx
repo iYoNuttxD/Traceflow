@@ -22,7 +22,6 @@ export function ProjectJoinForm() {
 
   return (
     <div className="project-entry-content">
-      <p className="card-description">Cole um código ou link de acesso compartilhado.</p>
       <FeedbackRegion error={error} />
       <form className="project-join-quick-form" onSubmit={continueToJoin}>
         <label className="field">

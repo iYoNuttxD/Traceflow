@@ -1,5 +1,5 @@
 import { Link } from 'react-router';
-import './ProjectSectionNav.css';
+import '../styles/project-tabs.css';
 
 const projectSections = [
   { key: 'overview', label: 'Visão geral', path: '' },
@@ -12,12 +12,10 @@ const projectSections = [
 
 export function ProjectSectionNav({ projectId, activeSection }) {
   return (
-    <nav className="project-section-nav" aria-label="Navegação do projeto">
+    <nav className="project-tabs project-section-tabs" aria-label="Navegação do projeto">
       {projectSections.map((section) => (
         <Link
-          className={`project-section-nav-link ${
-            activeSection === section.key ? 'project-section-nav-link-active' : ''
-          }`}
+          className={`project-tab ${activeSection === section.key ? 'project-tab--active' : ''}`}
           key={section.key}
           to={`/projects/${projectId}${section.path ? `/${section.path}` : ''}`}
           aria-current={activeSection === section.key ? 'page' : undefined}

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { useParams } from 'react-router';
 import { ProjectMembersPanel } from '../../members/index.js';
 import {
+  BackButton,
   ContextualErrorPage,
   PAGE_ERROR_TYPES,
   classifyPageError,
@@ -9,9 +10,9 @@ import {
   normalizeApiError
 } from '../../../shared/index.js';
 import { ProjectAccessCodePanel } from '../components/ProjectAccessCodePanel.jsx';
-import { ProjectBreadcrumb } from '../components/ProjectBreadcrumb.jsx';
 import { projectsApi } from '../api/projects.api.js';
 import '../styles/project-admin.css';
+import '../styles/project-tabs.css';
 import './ProjectMembersScreen.css';
 
 export function ProjectMembersScreen() {
@@ -20,6 +21,7 @@ export function ProjectMembersScreen() {
   const [currentMembership, setCurrentMembership] = useState(null);
   const [loading, setLoading] = useState(true);
   const [pageError, setPageError] = useState(null);
+  const [activeTab, setActiveTab] = useState('team');
 
   const loadProject = useCallback(async () => {
     setLoading(true);
@@ -63,27 +65,59 @@ export function ProjectMembersScreen() {
 
   return (
     <main className="page-container project-admin-screen project-members-screen">
-      <ProjectBreadcrumb projectName={project.name} currentLabel="Membros" />
+      <div className="project-admin-screen__return">
+        <BackButton to={`/projects/${project.id}`} label="Voltar para visão geral" />
+      </div>
       <header className="project-admin-screen__header">
         <div>
           <h1>Membros do projeto</h1>
-          <p>
-            Consulte a equipe e, quando permitido, administre membros e acessos de {project.name}.
-          </p>
+          <p>Gerencie a equipe, os convites e as formas de acesso ao projeto.</p>
         </div>
-        <Link className="project-admin-screen__back" to={`/projects/${project.id}`}>
-          Voltar à visão geral
-        </Link>
       </header>
 
-      <section className="project-admin-surface" aria-labelledby="project-members-title">
-        <h2 id="project-members-title">Equipe</h2>
-        <ProjectMembersPanel projectId={projectId} onMembershipLoaded={setCurrentMembership} />
-      </section>
+      <nav className="project-tabs project-members-tabs" role="tablist" aria-label="Membros">
+        <button
+          id="project-members-team-tab"
+          className={`project-tab ${activeTab === 'team' ? 'project-tab--active' : ''}`}
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'team'}
+          aria-controls="project-members-team-panel"
+          onClick={() => setActiveTab('team')}
+        >
+          Equipe
+        </button>
+        {currentMembership?.role === 'OWNER' && (
+          <button
+            id="project-members-invitations-tab"
+            className={`project-tab ${activeTab === 'invitations' ? 'project-tab--active' : ''}`}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'invitations'}
+            aria-controls="project-members-invitations-panel"
+            onClick={() => setActiveTab('invitations')}
+          >
+            Convites
+          </button>
+        )}
+      </nav>
 
-      {currentMembership?.role === 'OWNER' && (
-        <ProjectAccessCodePanel projectId={projectId} isOwner />
-      )}
+      <section
+        id={`project-members-${activeTab}-panel`}
+        className="project-admin-surface project-members-surface"
+        role="tabpanel"
+        aria-labelledby={`project-members-${activeTab === 'team' ? 'team' : 'invitations'}-tab`}
+      >
+        <h2>{activeTab === 'team' ? 'Equipe' : 'Convites'}</h2>
+        <ProjectMembersPanel
+          projectId={projectId}
+          activeView={activeTab}
+          onMembershipLoaded={setCurrentMembership}
+        />
+        {activeTab === 'invitations' && currentMembership?.role === 'OWNER' && (
+          <ProjectAccessCodePanel projectId={projectId} isOwner />
+        )}
+      </section>
     </main>
   );
 }

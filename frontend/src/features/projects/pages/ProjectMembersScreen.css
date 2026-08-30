@@ -1,9 +1,20 @@
-.project-members-screen {
+.project-members-screen.project-admin-screen.page-container {
   display: grid;
-  gap: var(--space-6);
+  width: min(var(--layout-page-max), calc(100% - (2 * var(--layout-page-gutter))));
+  gap: var(--space-5);
 }
 
-.project-members-screen .project-breadcrumb,
+.project-members-screen .project-admin-screen__return,
 .project-members-screen .project-admin-screen__header {
   margin-bottom: 0;
+}
+
+.project-members-surface {
+  min-width: 0;
+}
+
+@media (max-width: 720px) {
+  .project-members-screen.project-admin-screen.page-container {
+    width: min(100% - (2 * var(--space-4)), 40rem);
+  }
 }

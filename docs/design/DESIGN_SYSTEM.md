@@ -304,6 +304,10 @@ hover/focus; disponibilidade de logout não o transforma em danger button perman
 `--size-control-sm` representa apenas uma dimensão visual/interna de 40 px. Ele não autoriza hit
 box menor que 44 × 44 px; ações interativas usam no mínimo `--size-touch-target`.
 
+O retorno entre fluxos conhecidos usa o mesmo padrão ghost em um icon button de seta para a
+esquerda. O destino é determinístico — por exemplo, edição retorna à visão do projeto — e não
+depende cegamente do histórico do navegador. A ação mantém tooltip, nome acessível e touch target.
+
 ### Inputs
 
 - altura mínima de 44 px;
@@ -369,6 +373,9 @@ pertence ao shell; o Design System define apenas sua apresentação.
 - foco visível global;
 - overflow horizontal preserva todos os destinos em largura reduzida.
 
+Tabs internas de um projeto e tabs de administração reutilizam esta mesma linguagem; uma nova
+área não cria uma segunda aparência de navegação horizontal.
+
 ### Breadcrumb
 
 - size 1–2;
@@ -415,19 +422,25 @@ Composição: ícone opcional, título, descrição, ação opcional e spacing c
 - gutter desktop: 32 px por lado;
 - grid gap racionalizado: 20 px;
 - section gap: 24 px;
-- Projects: três colunas quando houver espaço, duas no intermediário e uma no mobile;
+- Projects: três, duas ou uma coluna conforme a largura realmente disponível no container;
 - Overview: uma surface integrada; divisões internas se reorganizam sem virar cards independentes.
+
+Pages dentro do shell respondem primeiro ao espaço útil do próprio container. Grid intrínseco e
+container queries têm preferência sobre regras baseadas apenas no viewport, pois a sidebar pode
+estar expandida ou recolhida na mesma largura de tela. Larguras mínimas preservam leitura de cards e
+ações quebram para uma nova linha antes de comprimir títulos indefinidamente.
 
 ### Breakpoints provisórios
 
-| Faixa de referência       | Evidência do C2                          | Estado                     |
-| ------------------------- | ---------------------------------------- | -------------------------- |
-| Mobile, até 720 px        | drawer e grid de uma coluna              | provisório até reflow real |
-| Tablet, 721–1180 px       | grid de duas colunas e sidebar recolhida | provisório                 |
-| Desktop, acima de 1180 px | grid de três colunas e sidebar expandida | provisório                 |
+| Faixa de referência       | Evidência do C2               | Estado                     |
+| ------------------------- | ----------------------------- | -------------------------- |
+| Mobile, até 720 px        | drawer e gutters compactos    | provisório até reflow real |
+| Tablet, 721–1180 px       | comportamento padrão do shell | provisório                 |
+| Desktop, acima de 1180 px | comportamento padrão do shell | provisório                 |
 
 Breakpoints não são tokens CSS. Os valores permanecem provisórios até a homologação nos viewports
-390 × 844, 768 × 1024 e 1440 × 900.
+390 × 844, 768 × 1024 e 1440 × 900. O número de colunas e o reflow interno não são inferidos desta
+tabela: cada owner usa o espaço disponível e valida seu limite no contexto real.
 
 ## Motion
 

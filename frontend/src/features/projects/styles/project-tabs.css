@@ -1,4 +1,4 @@
-.project-section-nav {
+.project-tabs {
   display: flex;
   min-width: 0;
   gap: var(--space-1);
@@ -7,7 +7,7 @@
   scrollbar-width: thin;
 }
 
-.project-section-nav-link {
+.project-tab {
   position: relative;
   display: inline-flex;
   min-height: 3rem;
@@ -15,23 +15,27 @@
   align-items: center;
   justify-content: center;
   padding: var(--space-2) var(--space-4);
+  border: 0;
   border-radius: var(--radius-sm) var(--radius-sm) 0 0;
   color: var(--color-text-secondary);
+  background: transparent;
+  font: inherit;
   font-size: var(--font-size-2);
   font-weight: var(--font-weight-semibold);
   text-decoration: none;
+  cursor: pointer;
   transition: color var(--duration-fast) var(--ease-standard);
 }
 
-.project-section-nav-link:hover {
+.project-tab:hover {
   color: var(--color-text-strong);
 }
 
-.project-section-nav-link-active {
+.project-tab--active {
   color: var(--color-accent-text);
 }
 
-.project-section-nav-link-active::after {
+.project-tab--active::after {
   position: absolute;
   right: var(--space-3);
   bottom: -1px;
@@ -42,13 +46,13 @@
   content: '';
 }
 
-.project-section-nav-link:focus-visible {
+.project-tab:focus-visible {
   outline: var(--focus-ring-width) solid var(--color-focus-ring);
   outline-offset: calc(var(--focus-ring-offset) * -1);
 }
 
 @media (max-width: 720px) {
-  .project-section-nav {
+  .project-section-tabs {
     margin-right: calc(var(--space-4) * -1);
     margin-left: calc(var(--space-4) * -1);
     padding: 0 var(--space-4);

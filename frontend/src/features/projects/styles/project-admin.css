@@ -1,6 +1,12 @@
 .project-admin-screen.page-container {
   width: min(58rem, calc(100% - (2 * var(--layout-page-gutter))));
   padding: var(--space-8) 0 var(--space-16);
+  container-name: project-admin-page;
+  container-type: inline-size;
+}
+
+.project-admin-screen__return {
+  margin-bottom: var(--space-4);
 }
 
 .project-admin-screen__loading {
@@ -11,10 +17,6 @@
 }
 
 .project-admin-screen__header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-6);
   margin-bottom: var(--space-6);
 }
 
@@ -37,27 +39,6 @@
   line-height: var(--line-height-body);
 }
 
-.project-admin-screen__back {
-  display: inline-flex;
-  min-height: var(--size-touch-target);
-  flex: 0 0 auto;
-  align-items: center;
-  border-radius: var(--radius-sm);
-  color: var(--color-accent-text);
-  font-size: var(--font-size-2);
-  font-weight: var(--font-weight-semibold);
-  text-decoration: none;
-}
-
-.project-admin-screen__back:hover {
-  text-decoration: underline;
-}
-
-.project-admin-screen__back:focus-visible {
-  outline: var(--focus-ring-width) solid var(--color-focus-ring);
-  outline-offset: var(--focus-ring-offset);
-}
-
 .project-admin-surface {
   display: grid;
   gap: var(--space-5);
@@ -78,9 +59,5 @@
   .project-admin-screen.page-container {
     width: min(100% - (2 * var(--space-4)), 40rem);
     padding: var(--space-6) 0 var(--space-12);
-  }
-
-  .project-admin-screen__header {
-    flex-direction: column;
   }
 }

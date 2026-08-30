@@ -4,6 +4,7 @@ import {
   ErrorState,
   FeedbackRegion,
   LoadingState,
+  TraceFlowIcon,
   normalizeApiError,
   useCountdown
 } from '../../../shared/index.js';
@@ -17,7 +18,6 @@ import {
 import { projectsApi } from '../api/projects.api.js';
 import { ProjectJoinForm } from '../components/ProjectJoinCard.jsx';
 import { NewProjectDialog } from '../components/NewProjectDialog.jsx';
-import { ProjectIcon } from '../components/ProjectIcon.jsx';
 import { ProjectStatusBadge } from '../components/ProjectStatusBadge.jsx';
 import { useProjectsCatalog } from '../hooks/ProjectsCatalogContext.jsx';
 import { PendingProjectInvitations } from '../../invitations/index.js';
@@ -276,18 +276,6 @@ export function ProjectsScreen() {
         rateLimit={operationCooldown ? operationError : undefined}
         retryAfterSeconds={operationRetryAfterSeconds}
       />
-      <Link
-        className={`integration-status ${
-          installations.length > 0 && !installationsError ? 'is-connected' : 'is-disconnected'
-        }`}
-        to="/settings/integrations"
-      >
-        {installationsError
-          ? 'Status do GitHub indisponível'
-          : installations.length > 0
-            ? `GitHub App conectada · ${installations[0].accountLogin}`
-            : 'Conectar GitHub App'}
-      </Link>
       <ProjectForm
         formData={formData}
         repositories={repositories}
@@ -300,6 +288,20 @@ export function ProjectsScreen() {
             : 'A GitHub App não possui repositórios concedidos. Gerencie o acesso da instalação no GitHub.'
         }
         repositoryDisabled={Boolean(installationsError) || installations.length === 0}
+        repositoryContext={
+          <Link
+            className={`integration-status ${
+              installations.length > 0 && !installationsError ? 'is-connected' : 'is-disconnected'
+            }`}
+            to="/settings/integrations"
+          >
+            {installationsError
+              ? 'Status do GitHub indisponível'
+              : installations.length > 0
+                ? `GitHub App conectada · ${installations[0].accountLogin}`
+                : 'Conectar GitHub App'}
+          </Link>
+        }
         onChange={handleChange}
         onRepositoryChange={handleRepositoryChange}
         onSubmit={handleSubmit}
@@ -425,12 +427,12 @@ export function ProjectsScreen() {
                       </span>
                       <span className="project-card__details">
                         <span>
-                          <ProjectIcon name="users" />
+                          <TraceFlowIcon name="users" />
                           {project.responsibleTeam || 'Equipe não informada'}
                         </span>
                         {repository && (
                           <span>
-                            <ProjectIcon name="repository" />
+                            <TraceFlowIcon name="branch" />
                             <code>{repository}</code>
                           </span>
                         )}
@@ -438,7 +440,7 @@ export function ProjectsScreen() {
                       <span className="project-card__footer">
                         <span>{formatUpdatedAt(project.updatedAt)}</span>
                         <span className="project-card__affordance" aria-hidden="true">
-                          <ProjectIcon name="arrow" />
+                          <TraceFlowIcon name="arrowRight" />
                         </span>
                       </span>
                     </Link>
@@ -463,7 +465,7 @@ export function ProjectsScreen() {
             onClick={() => setNewProjectDialogOpen(true)}
           >
             <span className="new-project-card__icon" aria-hidden="true">
-              <ProjectIcon name="plus" />
+              <TraceFlowIcon name="plus" />
             </span>
             <strong>Novo projeto</strong>
             <span>Crie um projeto ou entre usando um código de acesso.</span>

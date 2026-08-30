@@ -3,16 +3,16 @@ import { Link, useParams } from 'react-router';
 import { getProjectGithubSyncStatus, syncProjectGithub } from '../../github/index.js';
 import { membersApi } from '../../members/index.js';
 import {
+  BackButton,
   ContextualErrorPage,
   FeedbackRegion,
   PAGE_ERROR_TYPES,
   classifyPageError,
   getErrorRequestId,
   normalizeApiError,
+  TraceFlowIcon,
   useCountdown
 } from '../../../shared/index.js';
-import { ProjectBreadcrumb } from '../components/ProjectBreadcrumb.jsx';
-import { ProjectIcon } from '../components/ProjectIcon.jsx';
 import { ProjectSectionNav } from '../components/ProjectSectionNav.jsx';
 import { ProjectStatusBadge } from '../components/ProjectStatusBadge.jsx';
 import { projectsApi } from '../api/projects.api.js';
@@ -300,12 +300,14 @@ export function ProjectDetailsScreen() {
 
   return (
     <main className="page-container project-details-screen">
-      <ProjectBreadcrumb projectName={project.name} />
+      <div className="project-details-screen__return">
+        <BackButton to="/projects" label="Voltar para projetos" />
+      </div>
 
       <header className="project-details-screen__header">
-        <div>
+        <div className="project-details-screen__title-group">
           <h1>{project.name}</h1>
-          <p>{project.description || 'Sem descrição cadastrada.'}</p>
+          <ProjectStatusBadge status={project.status} />
         </div>
         <div className="project-details-screen__actions" aria-label="Ações do projeto">
           {isOwner && (
@@ -315,7 +317,7 @@ export function ProjectDetailsScreen() {
               aria-label="Editar projeto"
               title="Editar projeto"
             >
-              <ProjectIcon name="edit" />
+              <TraceFlowIcon name="edit" />
             </Link>
           )}
           {currentMembership && (
@@ -325,7 +327,7 @@ export function ProjectDetailsScreen() {
               aria-label="Membros do projeto"
               title="Membros do projeto"
             >
-              <ProjectIcon name="users" />
+              <TraceFlowIcon name="users" />
             </Link>
           )}
           {canSync && (
@@ -336,7 +338,7 @@ export function ProjectDetailsScreen() {
               disabled={syncingGithub || cooldown > 0}
               aria-busy={syncingGithub}
             >
-              <ProjectIcon name="refresh" />
+              <TraceFlowIcon name="refresh" />
               {syncingGithub
                 ? 'Sincronizando...'
                 : cooldown > 0
@@ -376,16 +378,19 @@ export function ProjectDetailsScreen() {
             <h2 id="project-overview-title">Visão geral</h2>
             <p>Contexto essencial do projeto, da integração GitHub e da equipe.</p>
           </div>
-          <ProjectStatusBadge status={project.status} />
         </header>
 
         <div className="project-overview-surface__groups">
           <section className="project-overview-group">
             <header>
-              <ProjectIcon name="info" />
+              <TraceFlowIcon name="info" />
               <h3>Projeto</h3>
             </header>
             <dl>
+              <div>
+                <dt>Descrição</dt>
+                <dd>{project.description || 'Sem descrição cadastrada.'}</dd>
+              </div>
               <div>
                 <dt>Equipe responsável</dt>
                 <dd>{project.responsibleTeam || 'Não informada'}</dd>
@@ -395,7 +400,7 @@ export function ProjectDetailsScreen() {
 
           <section className="project-overview-group project-overview-group--github">
             <header>
-              <ProjectIcon name="repository" />
+              <TraceFlowIcon name="branch" />
               <h3>GitHub</h3>
             </header>
             <dl>
@@ -455,7 +460,7 @@ export function ProjectDetailsScreen() {
 
           <section className="project-overview-group project-overview-group--team">
             <header>
-              <ProjectIcon name="users" />
+              <TraceFlowIcon name="users" />
               <h3>Equipe</h3>
             </header>
             <p className="project-overview-team-count">

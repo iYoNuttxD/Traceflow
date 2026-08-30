@@ -7,19 +7,26 @@ const projectStylePaths = [
   'src/features/projects/pages/ProjectDetailsScreen.css',
   'src/features/projects/components/ProjectAccessCodePanel.css',
   'src/features/projects/components/NewProjectDialog.css',
-  'src/features/projects/components/ProjectBreadcrumb.css',
   'src/features/projects/components/ProjectForm.css',
   'src/features/projects/components/ProjectJoinCard.css',
-  'src/features/projects/components/ProjectSectionNav.css',
   'src/features/projects/components/ProjectStatusBadge.css',
   'src/features/projects/styles/project-admin.css',
+  'src/features/projects/styles/project-tabs.css',
   'src/features/projects/pages/ProjectMembersScreen.css',
   'src/features/invitations/PendingProjectInvitations.css',
-  'src/features/members/ProjectMembersPanel.css'
+  'src/features/members/ProjectMembersPanel.css',
+  'src/shared/components/BackButton.css',
+  'src/shared/components/TraceFlowIcon.css'
 ];
 
 const projectStyles = projectStylePaths.map((path) => [path, readFileSync(resolve(path), 'utf8')]);
 const projectsCss = readFileSync(resolve('src/features/projects/pages/ProjectsScreen.css'), 'utf8');
+const overviewCss = readFileSync(
+  resolve('src/features/projects/pages/ProjectDetailsScreen.css'),
+  'utf8'
+);
+const membersCss = readFileSync(resolve('src/features/members/ProjectMembersPanel.css'), 'utf8');
+const backButtonCss = readFileSync(resolve('src/shared/components/BackButton.css'), 'utf8');
 const overviewSource = readFileSync(
   resolve('src/features/projects/pages/ProjectDetailsScreen.jsx'),
   'utf8'
@@ -34,12 +41,32 @@ describe('adoção do Concept C2 em Projects', () => {
     }
   });
 
-  it('preserva o grid responsivo aprovado de três, duas e uma coluna', () => {
-    expect(projectsCss).toContain('grid-template-columns: repeat(3, minmax(0, 1fr))');
+  it('reorganiza Overview e Members pela largura disponível no owner', () => {
+    expect(overviewCss).toContain('container-name: project-overview-page');
+    expect(overviewCss).toMatch(/@container project-overview-page \(max-width: 45rem\)/);
+    expect(overviewCss).not.toContain('@media (max-width: 1180px)');
+    expect(membersCss).toContain('container-name: member-panel');
+    expect(membersCss).toMatch(/@container member-panel \(max-width: 46rem\)/);
+  });
+
+  it('mantém o retorno compartilhado como icon button de touch target completo', () => {
+    expect(backButtonCss).toContain('width: var(--size-touch-target)');
+    expect(backButtonCss).toContain('height: var(--size-touch-target)');
+    expect(backButtonCss).toContain('.back-button:focus-visible');
+  });
+
+  it('adapta o grid ao container e preserva uma largura mínima saudável', () => {
+    expect(projectsCss).toContain('container-type: inline-size');
+    expect(projectsCss).toContain('repeat(3, minmax(min(100%, 17.5rem), 1fr))');
     expect(projectsCss).toMatch(
-      /@media \(max-width: 1180px\)[\s\S]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/
+      /@container projects-page \(max-width: 58rem\)[\s\S]*repeat\(2, minmax\(min\(100%, 17\.5rem\), 1fr\)\)/
     );
-    expect(projectsCss).toMatch(/@media \(max-width: 720px\)[\s\S]*grid-template-columns: 1fr/);
+    expect(projectsCss).toMatch(
+      /@container projects-page \(max-width: 37\.5rem\)[\s\S]*grid-template-columns: minmax\(0, 1fr\)/
+    );
+    expect(projectsCss).not.toMatch(
+      /@media \(max-width: 1180px\)[\s\S]*grid-template-columns: repeat\(2/
+    );
   });
 
   it('não reintroduz conteúdo fictício ou redundante na Overview', () => {

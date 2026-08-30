@@ -128,9 +128,34 @@ describe('ProjectsPage', () => {
     expect(within(chooser).getByRole('button', { name: /Criar projeto/ })).toBeInTheDocument();
     await user.click(within(chooser).getByRole('button', { name: /Entrar com código/ }));
     expect(screen.getByLabelText('Código ou link de acesso')).toBeInTheDocument();
+    expect(
+      screen.getByText('Use o código ou link compartilhado pelo proprietário do projeto.')
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('Cole um código ou link de acesso compartilhado.')
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText('Voltar às opções')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Voltar às opções' }));
+    expect(screen.getByRole('dialog', { name: 'Novo projeto' })).toBeInTheDocument();
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(newProject).toHaveFocus();
+  });
+
+  it('retorna do fluxo de criação ao chooser e mantém o fechamento explícito', async () => {
+    const user = userEvent.setup();
+    mockInitialRequests({ projects: [] });
+    renderPage();
+    await screen.findByText('Nenhum projeto cadastrado ainda.');
+    const trigger = screen.getByRole('button', { name: /^Novo projeto/ });
+    await openCreateFlow(user);
+
+    expect(screen.queryByText('Voltar às opções')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Voltar às opções' }));
+    const chooser = screen.getByRole('dialog', { name: 'Novo projeto' });
+    await user.click(within(chooser).getByRole('button', { name: 'Fechar' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
   });
 
   it('lista convites pessoais, aceita e oferece abertura do projeto', async () => {
@@ -341,6 +366,9 @@ describe('ProjectsPage', () => {
     expect(
       screen.queryByRole('link', { name: 'Gerenciar acesso no GitHub' })
     ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/GitHub App conectada/).closest('.project-form__repository-field')
+    ).toBeInTheDocument();
   });
 
   it('explica quando a GitHub App não possui repositórios concedidos', async () => {
