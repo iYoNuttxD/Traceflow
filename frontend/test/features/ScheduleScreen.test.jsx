@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -57,6 +57,22 @@ const marco = (overrides = {}) => ({
   ...overrides
 });
 
+const tarefa = (overrides = {}) => ({
+  id: 10,
+  title: 'Finalizar login',
+  status: 'A_FAZER',
+  priority: 'ALTA',
+  deadline: '2026-08-12T00:00:00',
+  estimatedEffort: 5,
+  ...overrides
+});
+
+const periodosDe = (opcoes = {}) =>
+  calendario.milestonePeriods({
+    milestones: opcoes.milestones ?? [marco()],
+    sprints: opcoes.sprints ?? [sprint()]
+  });
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.projects.get.mockResolvedValue({ data: { project: { id: 1, name: 'TraceFlow' } } });
@@ -111,13 +127,77 @@ describe('faixa da sprint no calendario', () => {
   });
 });
 
+describe('periodos de marco', () => {
+  it('comecam na primeira sprint do marco e terminam no prazo', () => {
+    const [periodo] = periodosDe();
+    expect(periodo).toMatchObject({
+      id: 5,
+      inicio: '2026-08-03',
+      fim: '2026-08-20',
+      prazo: '2026-08-20',
+      nSprints: 1,
+      nConcluidas: 0,
+      comTrilha: true
+    });
+  });
+
+  it('marco sem sprint nao tem trilha e ocupa apenas o dia do prazo', () => {
+    const [periodo] = periodosDe({ sprints: [] });
+    expect(periodo).toMatchObject({
+      inicio: '2026-08-20',
+      fim: '2026-08-20',
+      nSprints: 0,
+      comTrilha: false
+    });
+  });
+
+  it('conta as sprints concluidas do marco', () => {
+    const [periodo] = periodosDe({
+      sprints: [
+        sprint({ status: 'CONCLUIDA' }),
+        sprint({ id: 2, startDate: '2026-08-16T00:00:00', endDate: '2026-08-19T00:00:00' })
+      ]
+    });
+    expect(periodo).toMatchObject({ nSprints: 2, nConcluidas: 1 });
+  });
+
+  it('prazo anterior a primeira sprint normaliza o periodo sem inverter', () => {
+    const [periodo] = periodosDe({
+      milestones: [marco({ dueDate: '2026-07-20T00:00:00' })]
+    });
+    expect(periodo.inicio <= periodo.fim).toBe(true);
+    expect(periodo).toMatchObject({ inicio: '2026-07-20', fim: '2026-08-03', prazo: '2026-07-20' });
+  });
+
+  it('marco sem prazo e descartado dos periodos', () => {
+    const periodos = periodosDe({ milestones: [marco({ dueDate: null })] });
+    expect(periodos).toHaveLength(0);
+  });
+
+  it('ordena os marcos pelo inicio derivado', () => {
+    const periodos = calendario.milestonePeriods({
+      milestones: [marco(), marco({ id: 6, title: 'Depois', dueDate: '2026-09-10T00:00:00' })],
+      sprints: [
+        sprint(),
+        sprint({
+          id: 2,
+          milestoneId: 6,
+          startDate: '2026-07-01T00:00:00',
+          endDate: '2026-07-10T00:00:00'
+        })
+      ]
+    });
+    expect(periodos.map((periodo) => periodo.id)).toEqual([6, 5]);
+  });
+});
+
 describe('grade do mes', () => {
   const grade = (opcoes = {}) =>
     calendario.buildMonthGrid({
       ano: 2026,
       mes: 7,
       sprints: [sprint()],
-      milestones: [marco()],
+      periodos: periodosDe(),
       hojeIso: '2026-08-10',
       selecionadoIso: '2026-08-10',
       ...opcoes
@@ -144,9 +224,48 @@ describe('grade do mes', () => {
     expect(porDia['2026-08-05']).toMatchObject({ inicioDaFaixa: false, fimDaFaixa: false });
   });
 
-  it('aponta o dia com prazo de marco', () => {
+  it('so o dia exato de inicio e fim ganha o traco da sprint', () => {
+    const porDia = Object.fromEntries(grade().map((celula) => [celula.iso, celula]));
+    expect(porDia['2026-08-03']).toMatchObject({ inicioDaSprint: true, fimDaSprint: false });
+    expect(porDia['2026-08-14']).toMatchObject({ inicioDaSprint: false, fimDaSprint: true });
+    expect(porDia['2026-08-08']).toMatchObject({ inicioDaSprint: false, fimDaSprint: false });
+  });
+
+  it('pinta o periodo do marco por baixo da faixa', () => {
+    const porDia = Object.fromEntries(grade().map((celula) => [celula.iso, celula]));
+    expect(porDia['2026-08-03']).toMatchObject({ marcoId: 5, inicioDoMarco: true });
+    expect(porDia['2026-08-20']).toMatchObject({ marcoId: 5, fimDoMarco: true });
+    expect(porDia['2026-08-21'].marcoId).toBeNull();
+  });
+
+  it('aponta o dia com prazo de marco e o marco dono do ponto', () => {
     const comPrazo = grade().filter((celula) => celula.temPrazoDeMarco);
-    expect(comPrazo.map((celula) => celula.iso)).toEqual(['2026-08-20']);
+    expect(comPrazo.map((celula) => [celula.iso, celula.prazoDoMarcoId])).toEqual([
+      ['2026-08-20', 5]
+    ]);
+    expect(comPrazo[0].prazoAgrupado).toBe(true);
+  });
+
+  it('marco sem sprint marca so o prazo, sem pintar periodo', () => {
+    const celulas = grade({ sprints: [], periodos: periodosDe({ sprints: [] }) });
+    const porDia = Object.fromEntries(celulas.map((celula) => [celula.iso, celula]));
+    expect(porDia['2026-08-20']).toMatchObject({
+      marcoId: null,
+      temPrazoDeMarco: true,
+      prazoAgrupado: false,
+      descricao: 'quinta-feira, 20 de agosto — prazo do marco Fundação'
+    });
+    expect(celulas.some((celula) => celula.marcoId !== null)).toBe(false);
+  });
+
+  it('descreve o dia com sprint e marco no acessivel', () => {
+    const porDia = Object.fromEntries(grade().map((celula) => [celula.iso, celula]));
+    expect(porDia['2026-08-03'].descricao).toBe(
+      'segunda-feira, 3 de agosto — início de Sprint 1 — início do marco Fundação (agrupa 1 sprint)'
+    );
+    expect(porDia['2026-08-20'].descricao).toBe(
+      'quinta-feira, 20 de agosto — prazo do marco Fundação'
+    );
   });
 
   it('distingue hoje, selecionado e dias de fora do mes', () => {
@@ -154,6 +273,86 @@ describe('grade do mes', () => {
     expect(celulas.find((celula) => celula.iso === '2026-08-10').hoje).toBe(true);
     expect(celulas.find((celula) => celula.iso === '2026-08-12').selecionado).toBe(true);
     expect(celulas.find((celula) => celula.iso === '2026-07-31').noMes).toBe(false);
+  });
+
+  it('hoje so marca a celula do mes exibido, nunca a repetida do mes vizinho', () => {
+    const agosto = grade({ hojeIso: '2026-08-30' });
+    expect(agosto.find((celula) => celula.iso === '2026-08-30').hoje).toBe(true);
+
+    const setembro = grade({
+      ano: 2026,
+      mes: 8,
+      hojeIso: '2026-08-30',
+      selecionadoIso: '2026-08-30'
+    });
+    const repetida = setembro.find((celula) => celula.iso === '2026-08-30');
+    expect(repetida.noMes).toBe(false);
+    expect(repetida.hoje).toBe(false);
+    expect(repetida.selecionado).toBe(true);
+  });
+});
+
+describe('trilhas de marco por semana', () => {
+  const semanasDe = (opcoes = {}) => {
+    const periodos = opcoes.periodos ?? periodosDe();
+    const celulas = calendario.buildMonthGrid({
+      ano: 2026,
+      mes: 7,
+      sprints: opcoes.sprints ?? [sprint()],
+      periodos,
+      hojeIso: '2026-08-10',
+      selecionadoIso: '2026-08-10'
+    });
+    return calendario.milestoneWeekLayout({ celulas, periodos });
+  };
+
+  it('recorta o segmento em cada semana coberta', () => {
+    const semanas = semanasDe();
+    expect(semanas[0].segmentos).toHaveLength(0);
+    expect(semanas[1].segmentos[0]).toMatchObject({ c0: 1, c1: 6, arredondaEsquerda: true });
+    expect(semanas[2].segmentos[0]).toMatchObject({ c0: 0, c1: 6 });
+    expect(semanas[3].segmentos[0]).toMatchObject({ c1: 4, arredondaDireita: true });
+    expect(semanas[4].segmentos).toHaveLength(0);
+  });
+
+  it('poe o marcador do marco apenas na primeira semana em que aparece', () => {
+    const semanas = semanasDe();
+    expect(semanas[1].marcadores).toHaveLength(1);
+    expect(semanas[1].marcadores[0].texto).toBe('Fundação · marco · 03/08 – 20/08');
+    expect(semanas[1].marcadores[0].topo).toBe(semanas[1].segmentos[0].topo - 5);
+    expect(semanas[2].marcadores).toHaveLength(0);
+  });
+
+  it('empilha marcos que se sobrepoem na mesma semana', () => {
+    const periodos = calendario.milestonePeriods({
+      milestones: [marco(), marco({ id: 6, title: 'Paralelo', dueDate: '2026-08-25T00:00:00' })],
+      sprints: [sprint(), sprint({ id: 2, milestoneId: 6 })]
+    });
+    const semanas = semanasDe({ periodos });
+    const linhas = semanas[2].segmentos.map((segmento) => segmento.linha).sort();
+    expect(linhas).toEqual([0, 1]);
+    expect(semanas[2].segmentos[1].topo).toBeGreaterThan(semanas[2].segmentos[0].topo);
+  });
+
+  it('marcadores que estreiam na mesma semana acompanham a propria linha', () => {
+    const periodos = calendario.milestonePeriods({
+      milestones: [marco(), marco({ id: 6, title: 'Paralelo', dueDate: '2026-08-25T00:00:00' })],
+      sprints: [sprint(), sprint({ id: 2, milestoneId: 6 })]
+    });
+    const semanas = semanasDe({ periodos });
+    const estreia = semanas.find((semana) => semana.marcadores.length > 0);
+    expect(estreia.marcadores).toHaveLength(2);
+    const topos = estreia.marcadores.map((marcador) => marcador.topo);
+    expect(new Set(topos).size).toBe(2);
+    expect(Math.abs(topos[1] - topos[0])).toBeGreaterThanOrEqual(12);
+    expect(estreia.alturaTopo).toBeGreaterThan(semanas[3].alturaTopo);
+  });
+
+  it('marco sem sprint nao ganha segmento nem marcador', () => {
+    const semanas = semanasDe({ sprints: [], periodos: periodosDe({ sprints: [] }) });
+    expect(semanas.every((semana) => semana.segmentos.length === 0)).toBe(true);
+    expect(semanas.every((semana) => semana.marcadores.length === 0)).toBe(true);
+    expect(semanas.every((semana) => semana.alturaTopo === 4)).toBe(true);
   });
 });
 
@@ -198,18 +397,50 @@ describe('limites do calendario', () => {
   });
 });
 
+describe('tarefas com deadline', () => {
+  it('reune tarefas da sprint e sem sprint em ordem de deadline', () => {
+    const tarefas = calendario.deadlineTasks({
+      sprints: [sprint({ tasks: [tarefa({ id: 62, deadline: '2026-08-30T00:00:00' })] })],
+      unassignedTasks: [tarefa({ id: 44, deadline: '2026-08-10T00:00:00' })]
+    });
+    expect(tarefas.map((item) => [item.id, item.dia, item.sprintNome])).toEqual([
+      [44, '2026-08-10', null],
+      [62, '2026-08-30', 'Sprint 1']
+    ]);
+  });
+
+  it('descarta tarefa sem deadline', () => {
+    const tarefas = calendario.deadlineTasks({
+      sprints: [sprint({ tasks: [tarefa({ deadline: null })] })],
+      unassignedTasks: []
+    });
+    expect(tarefas).toHaveLength(0);
+  });
+
+  it('desempata o mesmo dia pelo id da tarefa', () => {
+    const tarefas = calendario.deadlineTasks({
+      sprints: [sprint({ tasks: [tarefa({ id: 20 }), tarefa({ id: 7 })] })],
+      unassignedTasks: [tarefa({ id: 12 })]
+    });
+    expect(tarefas.map((item) => item.id)).toEqual([7, 12, 20]);
+  });
+});
+
 describe('eventos', () => {
-  const eventos = () =>
+  const eventos = (opcoes = {}) =>
     calendario.buildEvents({
       sprints: [sprint()],
-      milestones: [marco()],
+      periodos: periodosDe(),
       milestoneNames: { 5: 'Fundação' },
-      hojeIso: '2026-08-10'
+      tarefas: [],
+      hojeIso: '2026-08-10',
+      ...opcoes
     });
 
-  it('gera inicio e fim de sprint e prazo de marco', () => {
+  it('gera sprint, marco e prazo em ordem de dia', () => {
     expect(eventos().map((evento) => [evento.dia, evento.titulo])).toEqual([
       ['2026-08-03', 'Início — Sprint 1'],
+      ['2026-08-03', 'Início — Fundação'],
       ['2026-08-14', 'Fim — Sprint 1'],
       ['2026-08-20', 'Fundação']
     ]);
@@ -219,11 +450,55 @@ describe('eventos', () => {
     expect(eventos()[0].meta).toBe('Fundação · Em andamento');
   });
 
+  it('explica que o marco comeca com a primeira sprint', () => {
+    const inicioDoMarco = eventos().find((evento) => evento.titulo === 'Início — Fundação');
+    expect(inicioDoMarco.meta).toBe('Agrupa 1 sprint · começa com a primeira delas');
+  });
+
+  it('marco sem sprint gera apenas o prazo', () => {
+    const soPrazo = eventos({ periodos: periodosDe({ sprints: [] }), sprints: [] });
+    expect(soPrazo.map((evento) => evento.titulo)).toEqual(['Fundação']);
+  });
+
+  it('gera deadline de tarefa com status, prioridade e sprint', () => {
+    const [deadline] = eventos({
+      sprints: [],
+      periodos: [],
+      tarefas: calendario.deadlineTasks({
+        sprints: [sprint({ tasks: [tarefa({ id: 62, title: 'Burndown da sprint' })] })],
+        unassignedTasks: []
+      })
+    });
+    expect(deadline).toMatchObject({
+      dia: '2026-08-12',
+      kind: 'Tarefa',
+      titulo: '#62 Burndown da sprint',
+      meta: 'Deadline · A fazer · Alta · Sprint 1'
+    });
+  });
+
+  it('empates de dia preservam a ordem de emissao mesmo em volume', () => {
+    const muitas = Array.from({ length: 30 }, (_, indice) =>
+      sprint({ id: indice + 1, name: `S${indice + 1}`, milestoneId: null })
+    );
+    const volume = calendario.buildEvents({
+      sprints: muitas,
+      periodos: [],
+      milestoneNames: {},
+      tarefas: [],
+      hojeIso: '2026-08-10'
+    });
+    expect(volume.slice(0, 30).map((evento) => evento.titulo)).toEqual(
+      muitas.map((item) => `Início — ${item.name}`)
+    );
+  });
+
   it('avisa sobre sprint vencida sem conclusao', () => {
     const [, fim] = calendario.buildEvents({
       sprints: [sprint()],
-      milestones: [],
+      periodos: [],
       milestoneNames: {},
+      tarefas: [],
       hojeIso: '2026-09-01'
     });
     expect(fim.meta).toContain('Atrasada');
@@ -236,37 +511,204 @@ describe('eventos', () => {
   });
 });
 
+describe('blocos do mes exibido', () => {
+  const blocos = (opcoes = {}) =>
+    calendario.monthBlocks({
+      ano: 2026,
+      mes: 7,
+      sprints: [sprint()],
+      periodos: periodosDe(),
+      milestoneNames: { 5: 'Fundação' },
+      tarefas: [],
+      ...opcoes
+    });
+
+  it('agrupa marcos, sprints e tarefas do mes com contagem', () => {
+    const { blocos: grupos, resumo } = blocos({
+      tarefas: calendario.deadlineTasks({
+        sprints: [sprint({ tasks: [tarefa()] })],
+        unassignedTasks: []
+      })
+    });
+    expect(grupos.map((grupo) => grupo.titulo)).toEqual([
+      'Marcos (1)',
+      'Sprints (1)',
+      'Tarefas com deadline (1)'
+    ]);
+    expect(grupos[0].itens[0].meta).toBe('03/08 – 20/08 · Pendente · agrupa 1 sprint');
+    expect(grupos[1].itens[0].meta).toBe('03/08 – 14/08 · Em andamento · marco Fundação');
+    expect(grupos[2].itens[0]).toMatchObject({
+      nome: '#10 Finalizar login',
+      meta: '12/08 · A fazer · Alta · Sprint 1'
+    });
+    expect(resumo).toBe('1 marco · 1 sprint · 1 tarefa');
+  });
+
+  it('fora do mes exibido nada entra nos blocos', () => {
+    const { blocos: grupos, resumo } = blocos({ ano: 2026, mes: 10 });
+    expect(grupos[0].itens).toHaveLength(0);
+    expect(grupos[0].vazio).toBe('Nenhum marco neste mês.');
+    expect(grupos[1].vazio).toBe('Nenhuma sprint neste mês.');
+    expect(grupos[2].vazio).toBe('Nenhuma tarefa com deadline neste mês.');
+    expect(resumo).toBe('nada no calendário');
+  });
+
+  it('marco sem sprint entra no bloco pelo prazo', () => {
+    const { blocos: grupos } = blocos({ sprints: [], periodos: periodosDe({ sprints: [] }) });
+    expect(grupos[0].itens[0].meta).toBe('Prazo 20/08 · Pendente · agrupa 0 sprints');
+  });
+
+  it('sprint sem marco e tarefa sem sprint sao nomeadas assim', () => {
+    const { blocos: grupos } = blocos({
+      sprints: [sprint({ milestoneId: null })],
+      periodos: [],
+      tarefas: calendario.deadlineTasks({
+        sprints: [],
+        unassignedTasks: [tarefa({ id: 44 })]
+      })
+    });
+    expect(grupos[1].itens[0].meta).toContain('sem marco');
+    expect(grupos[2].itens[0].meta).toContain('Sem sprint');
+  });
+});
+
+describe('legenda do mes', () => {
+  it('filtra sprints e marcos pelo mes exibido', () => {
+    const legenda = calendario.monthLegend({
+      ano: 2026,
+      mes: 7,
+      sprints: [
+        sprint(),
+        sprint({ id: 2, startDate: '2026-09-01T00:00:00', endDate: '2026-09-10T00:00:00' })
+      ],
+      periodos: periodosDe()
+    });
+    expect(legenda.sprints.map((item) => item.sprint.id)).toEqual([1]);
+    expect(legenda.marcos.map((item) => item.id)).toEqual([5]);
+    expect(legenda.temPrazoNoMes).toBe(true);
+  });
+
+  it('so oferece o ponto de prazo quando ha prazo no mes', () => {
+    const legenda = calendario.monthLegend({
+      ano: 2026,
+      mes: 7,
+      sprints: [sprint()],
+      periodos: periodosDe({ milestones: [marco({ dueDate: '2026-09-20T00:00:00' })] })
+    });
+    expect(legenda.marcos).toHaveLength(1);
+    expect(legenda.temPrazoNoMes).toBe(false);
+  });
+
+  it('marco sem sprint sai das entradas de marco, mas conta como prazo', () => {
+    const legenda = calendario.monthLegend({
+      ano: 2026,
+      mes: 7,
+      sprints: [],
+      periodos: periodosDe({ sprints: [] })
+    });
+    expect(legenda.marcos).toHaveLength(0);
+    expect(legenda.temPrazoNoMes).toBe(true);
+  });
+});
+
 describe('cartoes de agora', () => {
-  const tiles = (opcoes) =>
-    calendario.nowTiles({ sprints: [sprint()], milestones: [marco()], ...opcoes });
+  const tarefasDaSprint = [
+    tarefa({
+      id: 10,
+      title: 'Planejada',
+      status: 'CONCLUIDO',
+      deadline: '2026-08-11T00:00:00'
+    }),
+    tarefa({ id: 11, title: 'Entrou depois', status: 'A_FAZER', deadline: '2026-08-12T00:00:00' })
+  ];
+  const tiles = (opcoes = {}) => {
+    const sprints = opcoes.sprints ?? [sprint({ tasks: tarefasDaSprint })];
+    return calendario.nowTiles({
+      sprints,
+      periodos: calendario.milestonePeriods({
+        milestones: opcoes.milestones ?? [marco()],
+        sprints
+      }),
+      tarefas: calendario.deadlineTasks({ sprints, unassignedTasks: [] }),
+      hojeIso: opcoes.hojeIso ?? '2026-08-10'
+    });
+  };
 
-  it('nomeia a sprint ativa e quando ela termina', () => {
-    const [ativa] = tiles({ hojeIso: '2026-08-10' });
-    expect(ativa).toMatchObject({ value: 'Sprint 1', note: 'Termina 14/08' });
+  it('nomeia a sprint atual com periodo e progresso de tarefas', () => {
+    const [atual] = tiles();
+    expect(atual).toMatchObject({
+      label: 'Sprint atual',
+      value: 'Sprint 1',
+      note: '03/08 – 14/08 · 1 de 2 tarefas concluídas'
+    });
   });
 
-  it('conta as sprints atrasadas', () => {
-    const [, atencao] = tiles({ hojeIso: '2026-09-01' });
-    expect(atencao.value).toBe('1 sprint atrasada');
+  it('nomeia o marco atual com prazo, agrupamento e concluidas', () => {
+    const [, marcoAtual] = tiles();
+    expect(marcoAtual).toMatchObject({
+      label: 'Marco atual',
+      value: 'Fundação',
+      note: 'Prazo 20/08 · agrupa 1 sprint · 0 concluídas'
+    });
   });
 
-  it('sem nada atrasado diz isso por extenso', () => {
-    const [, atencao] = tiles({ hojeIso: '2026-08-10' });
+  it('lista as tarefas em aberto da sprint atual', () => {
+    const [, , emAberto] = tiles();
+    expect(emAberto).toMatchObject({
+      label: 'Tarefas em aberto na sprint atual',
+      value: '1 de 2 em aberto',
+      note: '#11 Entrou depois'
+    });
+  });
+
+  it('sem sprint ativa o cartao de tarefas em aberto sai da tela', () => {
+    const cartoes = tiles({ sprints: [sprint({ status: 'PLANEJADA', tasks: [] })] });
+    expect(cartoes.map((cartao) => cartao.label)).toEqual([
+      'Sprint atual',
+      'Marco atual',
+      'Atenção'
+    ]);
+    expect(cartoes[0]).toMatchObject({ value: 'Nenhuma', note: 'Inicie uma sprint planejada' });
+  });
+
+  it('aponta o proximo deadline quando nada esta atrasado', () => {
+    const atencao = tiles().at(-1);
+    expect(atencao).toMatchObject({
+      value: 'Nada atrasado',
+      note: 'Próximo deadline: 12/08 · #11 Entrou depois'
+    });
+  });
+
+  it('sem deadline futuro diz que esta tudo no prazo', () => {
+    const atencao = tiles({ sprints: [sprint({ tasks: [] })] }).at(-1);
     expect(atencao).toMatchObject({ value: 'Nada atrasado', note: 'Tudo dentro do prazo' });
   });
 
-  it('ignora marco concluido ao apontar o proximo', () => {
-    const [, , proximo] = calendario.nowTiles({
-      sprints: [],
-      milestones: [marco({ status: 'CONCLUIDO' })],
-      hojeIso: '2026-08-10'
+  it('conta as sprints atrasadas', () => {
+    const atencao = tiles({ hojeIso: '2026-09-01' }).at(-1);
+    expect(atencao).toMatchObject({
+      value: '1 sprint atrasada',
+      note: 'Conclua para liberar a próxima'
     });
-    expect(proximo).toMatchObject({ value: '—', note: 'Todos os marcos concluídos' });
   });
 
-  it('projeto sem sprint diz o que fazer', () => {
-    const [ativa] = calendario.nowTiles({ sprints: [], milestones: [], hojeIso: '2026-08-10' });
-    expect(ativa).toMatchObject({ value: 'Nenhuma', note: 'Inicie uma sprint planejada' });
+  it('todos os marcos concluidos e nenhum marco sao ditos por extenso', () => {
+    const [, concluidos] = tiles({ milestones: [marco({ status: 'CONCLUIDO' })] });
+    expect(concluidos).toMatchObject({ value: '—', note: 'Todos os marcos concluídos' });
+    const [, nenhum] = tiles({ milestones: [] });
+    expect(nenhum).toMatchObject({ value: '—', note: 'Nenhum marco cadastrado' });
+  });
+
+  it('com todos os marcos vencidos o atual e o ultimo prazo', () => {
+    const [, vencido] = tiles({
+      milestones: [
+        marco({ id: 5, title: 'Antigo', dueDate: '2026-07-10T00:00:00' }),
+        marco({ id: 6, title: 'Recente', dueDate: '2026-07-25T00:00:00' })
+      ],
+      hojeIso: '2026-09-15'
+    });
+    expect(vencido.value).toBe('Recente');
+    expect(vencido.note).toContain('Prazo 25/07');
   });
 });
 
@@ -354,13 +796,15 @@ describe('interacao do calendario', () => {
     expect(screen.getByText('Agenda de sexta-feira, 15 de janeiro')).toBeInTheDocument();
   });
 
-  it('nomeia cada dia por extenso, com a sprint que o cobre', () => {
+  it('nomeia cada dia por extenso, com sprint e marco', () => {
     renderCalendar({ schedule: { ...emptySchedule, sprints: [sprint()], milestones: [marco()] } });
     expect(
-      screen.getByRole('button', { name: 'segunda-feira, 3 de agosto — Sprint 1' })
+      screen.getByRole('button', {
+        name: 'segunda-feira, 3 de agosto — início de Sprint 1 — início do marco Fundação (agrupa 1 sprint)'
+      })
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: /quinta-feira, 20 de agosto — prazo de marco/ })
+      screen.getByRole('button', { name: /quinta-feira, 20 de agosto — prazo do marco Fundação/ })
     ).toBeInTheDocument();
   });
 
@@ -371,6 +815,17 @@ describe('interacao do calendario', () => {
     await user.click(screen.getByRole('button', { name: /segunda-feira, 3 de agosto/ }));
     expect(screen.getByText('Agenda de segunda-feira, 3 de agosto')).toBeInTheDocument();
     expect(screen.getByText('Início — Sprint 1')).toBeInTheDocument();
+    expect(screen.getByText('Início — Fundação')).toBeInTheDocument();
+  });
+
+  it('a agenda contextualiza o dia dentro da sprint', async () => {
+    const user = userEvent.setup();
+    renderCalendar({ schedule: { ...emptySchedule, sprints: [sprint()], milestones: [marco()] } });
+
+    await user.click(screen.getByRole('button', { name: /quarta-feira, 5 de agosto/ }));
+    expect(
+      screen.getByText('Dentro de Sprint 1 (03/08 – 14/08) · marco Fundação')
+    ).toBeInTheDocument();
   });
 
   it('dia sem evento diz o que apareceria ali', async () => {
@@ -379,7 +834,25 @@ describe('interacao do calendario', () => {
 
     await user.click(screen.getByRole('button', { name: /quarta-feira, 5 de agosto/ }));
     expect(screen.getByText('Nenhum evento neste dia.')).toBeInTheDocument();
-    expect(screen.getByText(/Inícios e fins de sprint e prazos de marco/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Inícios e fins de sprint e de marco, prazos e deadlines de tarefa/)
+    ).toBeInTheDocument();
+  });
+
+  it('lista as tarefas da sprint do dia num expansor com teto', () => {
+    const muitas = Array.from({ length: 8 }, (_, indice) =>
+      tarefa({ id: indice + 1, title: `Tarefa ${indice + 1}`, deadline: null })
+    );
+    renderCalendar({
+      schedule: { ...emptySchedule, sprints: [sprint({ tasks: muitas })] }
+    });
+
+    const expansor = screen.getByText('Tarefas de Sprint 1 neste dia (8)').closest('details');
+    expect(within(expansor).getByText(/#1 Tarefa 1 — A fazer · Alta/)).toBeInTheDocument();
+    expect(
+      within(expansor).getByText('… e mais 2 tarefas no Kanban da sprint')
+    ).toBeInTheDocument();
+    expect(within(expansor).queryByText(/#7 Tarefa 7/)).toBeNull();
   });
 
   it('selecionar dia de outro mes navega para o mes dele dentro do intervalo', async () => {
@@ -422,50 +895,208 @@ describe('interacao do calendario', () => {
     expect(proximo).toHaveAttribute('aria-disabled', 'true');
   });
 
-  it('a legenda nomeia cada sprint com o periodo', () => {
+  it('desenha a trilha do marco com um marcador que abre o nome ao clicar', async () => {
+    const user = userEvent.setup();
     const { container } = renderCalendar({
-      schedule: { ...emptySchedule, sprints: [sprint()] }
+      schedule: { ...emptySchedule, sprints: [sprint()], milestones: [marco()] }
     });
-    const legenda = within(container.querySelector('.calendar-legend'));
-    expect(legenda.getByText('Sprint 1')).toBeInTheDocument();
-    expect(legenda.getByText('03/08 – 14/08')).toBeInTheDocument();
-    expect(legenda.getByText('Prazo de marco')).toBeInTheDocument();
+    expect(container.querySelectorAll('.calendar-week-seg').length).toBeGreaterThan(1);
+
+    const marcador = screen.getByRole('button', {
+      name: 'Marco Fundação · 03/08 – 20/08 · agrupa 1 sprint'
+    });
+    expect(marcador).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText('Fundação · marco · 03/08 – 20/08')).toBeNull();
+
+    await user.click(marcador);
+    expect(marcador).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('Fundação · marco · 03/08 – 20/08')).toBeInTheDocument();
+
+    await user.click(marcador);
+    expect(marcador).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText('Fundação · marco · 03/08 – 20/08')).toBeNull();
   });
 
-  it('projeto com muitas sprints continua nomeando todas na legenda', () => {
-    const muitas = Array.from({ length: 14 }, (_, indice) =>
-      sprint({
+  it('escape fecha o marcador mantendo o foco no botao', async () => {
+    const user = userEvent.setup();
+    renderCalendar({
+      schedule: { ...emptySchedule, sprints: [sprint()], milestones: [marco()] }
+    });
+
+    const marcador = screen.getByRole('button', { name: /^Marco Fundação/ });
+    await user.click(marcador);
+    expect(screen.getByText('Fundação · marco · 03/08 – 20/08')).toBeInTheDocument();
+
+    await user.keyboard('{Escape}');
+    expect(screen.queryByText('Fundação · marco · 03/08 – 20/08')).toBeNull();
+    expect(marcador).toHaveFocus();
+  });
+
+  it('dez marcos so de prazo mantem a grade limpa em escala', () => {
+    const muitos = Array.from({ length: 10 }, (_, indice) =>
+      marco({
         id: indice + 1,
-        name: `Sprint ${indice + 1}`,
-        startDate: `2026-0${(indice % 9) + 1}-01T00:00:00`,
-        endDate: `2026-0${(indice % 9) + 1}-10T00:00:00`
+        title: `Entrega ${indice + 1}`,
+        dueDate: `2026-08-${String(indice + 3).padStart(2, '0')}T00:00:00`
       })
     );
-    const { container } = renderCalendar({ schedule: { ...emptySchedule, sprints: muitas } });
-    const legenda = within(container.querySelector('.calendar-legend'));
-    for (const item of muitas) {
-      expect(legenda.getByText(item.name)).toBeInTheDocument();
-    }
+    const { container } = renderCalendar({
+      schedule: { ...emptySchedule, milestones: muitos }
+    });
+    expect(container.querySelectorAll('.calendar-week-seg')).toHaveLength(0);
+    expect(container.querySelectorAll('.calendar-week-marker')).toHaveLength(0);
+    expect(container.querySelectorAll('.calendar-day-dot')).toHaveLength(10);
+    const painel = screen.getByRole('heading', { name: 'No mês exibido' }).closest('section');
+    expect(within(painel).getByRole('heading', { name: 'Marcos (10)' })).toBeInTheDocument();
   });
 
-  it('projeto vazio mostra a grade e nenhum evento futuro', () => {
+  it('abrir um marcador fecha o que estava aberto', async () => {
+    const user = userEvent.setup();
+    renderCalendar({
+      schedule: {
+        ...emptySchedule,
+        sprints: [sprint(), sprint({ id: 2, milestoneId: 6 })],
+        milestones: [marco(), marco({ id: 6, title: 'Paralelo', dueDate: '2026-08-25T00:00:00' })]
+      }
+    });
+
+    await user.click(screen.getByRole('button', { name: /^Marco Fundação/ }));
+    expect(screen.getByText('Fundação · marco · 03/08 – 20/08')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /^Marco Paralelo/ }));
+    expect(screen.getByText('Paralelo · marco · 03/08 – 25/08')).toBeInTheDocument();
+    expect(screen.queryByText('Fundação · marco · 03/08 – 20/08')).toBeNull();
+  });
+
+  it('marcos so de prazo nao viram trilha nem entrada de legenda', () => {
+    const { container } = renderCalendar({
+      schedule: {
+        ...emptySchedule,
+        milestones: [marco(), marco({ id: 6, title: 'Outro', dueDate: '2026-08-25T00:00:00' })]
+      }
+    });
+    expect(container.querySelectorAll('.calendar-week-seg')).toHaveLength(0);
+    expect(container.querySelectorAll('.calendar-week-marker')).toHaveLength(0);
+    expect(
+      screen.getByRole('button', { name: 'quinta-feira, 20 de agosto — prazo do marco Fundação' })
+    ).toBeInTheDocument();
+    const legenda = screen.getByRole('list', { name: 'Legenda do mês exibido' });
+    expect(within(legenda).queryByText('Fundação')).toBeNull();
+    expect(within(legenda).getByText('Prazo de marco')).toBeInTheDocument();
+    const painel = screen.getByRole('heading', { name: 'No mês exibido' }).closest('section');
+    expect(within(painel).getByRole('heading', { name: 'Marcos (2)' })).toBeInTheDocument();
+    expect(
+      within(painel).getByText('Prazo 20/08 · Pendente · agrupa 0 sprints')
+    ).toBeInTheDocument();
+  });
+
+  it('a legenda nomeia sprint e marco do mes exibido', () => {
+    const legenda = () => screen.getByRole('list', { name: 'Legenda do mês exibido' });
+    renderCalendar({
+      schedule: { ...emptySchedule, sprints: [sprint()], milestones: [marco()] }
+    });
+    expect(within(legenda()).getByText('Sprint 1')).toBeInTheDocument();
+    expect(within(legenda()).getByText('Sprint · 03/08 – 14/08')).toBeInTheDocument();
+    expect(within(legenda()).getByText('Fundação')).toBeInTheDocument();
+    expect(
+      within(legenda()).getByText('Marco · agrupa 1 sprint · 03/08 – 20/08')
+    ).toBeInTheDocument();
+    expect(within(legenda()).getByText('Prazo de marco')).toBeInTheDocument();
+  });
+
+  it('a legenda acompanha o mes ao navegar', async () => {
+    const user = userEvent.setup();
+    renderCalendar({
+      schedule: {
+        ...emptySchedule,
+        sprints: [
+          sprint(),
+          sprint({
+            id: 2,
+            name: 'Sprint 2',
+            startDate: '2026-09-01T00:00:00',
+            endDate: '2026-09-10T00:00:00'
+          })
+        ]
+      }
+    });
+    const legenda = () => screen.getByRole('list', { name: 'Legenda do mês exibido' });
+    expect(within(legenda()).getByText('Sprint 1')).toBeInTheDocument();
+    expect(within(legenda()).queryByText('Sprint 2')).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Próximo mês' }));
+    expect(within(legenda()).getByText('Sprint 2')).toBeInTheDocument();
+    expect(within(legenda()).queryByText('Sprint 1')).toBeNull();
+  });
+
+  it('sem prazo de marco no mes o ponto sai da legenda', () => {
+    renderCalendar({
+      schedule: { ...emptySchedule, sprints: [sprint()] }
+    });
+    const legenda = screen.getByRole('list', { name: 'Legenda do mês exibido' });
+    expect(within(legenda).queryByText('Prazo de marco')).toBeNull();
+  });
+
+  it('projeto vazio esconde a legenda e mostra a grade', () => {
     renderCalendar();
     expect(screen.getByText('agosto de 2026')).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Legenda do mês exibido' })).toBeNull();
     expect(screen.getByText('Nenhum evento futuro no cronograma.')).toBeInTheDocument();
   });
 
   it('sprint cancelada sai da faixa, da legenda e dos eventos', () => {
-    const { container } = renderCalendar({
+    renderCalendar({
       schedule: {
         ...emptySchedule,
         sprints: [sprint({ status: 'CANCELADA' })]
       }
     });
-    const legenda = within(container.querySelector('.calendar-legend'));
-    expect(legenda.queryByText('Sprint 1')).toBeNull();
+    expect(screen.queryByRole('list', { name: 'Legenda do mês exibido' })).toBeNull();
     expect(screen.queryByText('Início — Sprint 1')).toBeNull();
     expect(screen.queryByText('Fim — Sprint 1')).toBeNull();
     expect(screen.queryByRole('button', { name: /Sprint 1/ })).toBeNull();
+  });
+
+  it('o painel do mes exibido resume marcos, sprints e tarefas', () => {
+    renderCalendar({
+      schedule: {
+        ...emptySchedule,
+        sprints: [sprint({ tasks: [tarefa()] })],
+        milestones: [marco()]
+      }
+    });
+    const painel = screen.getByRole('heading', { name: 'No mês exibido' }).closest('section');
+    expect(
+      within(painel).getByText('agosto de 2026 · 1 marco · 1 sprint · 1 tarefa')
+    ).toBeInTheDocument();
+    expect(within(painel).getByRole('heading', { name: 'Marcos (1)' })).toBeInTheDocument();
+    expect(within(painel).getByRole('heading', { name: 'Sprints (1)' })).toBeInTheDocument();
+    expect(
+      within(painel).getByRole('heading', { name: 'Tarefas com deadline (1)' })
+    ).toBeInTheDocument();
+    expect(within(painel).getByText('#10 Finalizar login')).toBeInTheDocument();
+  });
+
+  it('o painel do mes diz quando um grupo esta vazio', () => {
+    renderCalendar({ schedule: { ...emptySchedule, sprints: [sprint()] } });
+    const painel = screen.getByRole('heading', { name: 'No mês exibido' }).closest('section');
+    expect(within(painel).getByText('Nenhum marco neste mês.')).toBeInTheDocument();
+    expect(within(painel).getByText('Nenhuma tarefa com deadline neste mês.')).toBeInTheDocument();
+  });
+
+  it('proximos eventos misturam sprint, marco e tarefa em cartoes', () => {
+    renderCalendar({
+      schedule: {
+        ...emptySchedule,
+        sprints: [sprint({ tasks: [tarefa({ id: 62, title: 'Burndown da sprint' })] })],
+        milestones: [marco()]
+      }
+    });
+    const secao = screen.getByRole('heading', { name: 'Próximos eventos' }).closest('section');
+    expect(within(secao).getByText('Fim — Sprint 1')).toBeInTheDocument();
+    expect(within(secao).getByText('Fundação')).toBeInTheDocument();
+    expect(within(secao).getByText('#62 Burndown da sprint')).toBeInTheDocument();
+    expect(within(secao).getByText(/qua, 12\/08 · Deadline · A fazer · Alta/)).toBeInTheDocument();
   });
 });
 
@@ -488,36 +1119,19 @@ describe('tela do cronograma', () => {
     expect(await screen.findByRole('button', { name: 'Tentar novamente' })).toBeInTheDocument();
   });
 
-  it('filtrar periodo rebusca somente o agregado', async () => {
-    const user = userEvent.setup();
+  it('nao oferece mais o filtro de periodo — o mes exibido faz o recorte', async () => {
     renderScreen();
-    await screen.findByRole('heading', { name: 'Período exibido' });
-    vi.clearAllMocks();
-    mocks.schedule.getSchedule.mockResolvedValue({ data: emptySchedule });
-
-    await user.type(screen.getByLabelText('Data inicial'), '2026-08-01');
-    await user.click(screen.getByRole('button', { name: 'Filtrar' }));
-
-    await waitFor(() => expect(mocks.schedule.getSchedule).toHaveBeenCalledTimes(1));
-    expect(mocks.schedule.listSprints).not.toHaveBeenCalled();
-    expect(mocks.schedule.listMilestones).not.toHaveBeenCalled();
-    expect(mocks.projects.get).not.toHaveBeenCalled();
+    await screen.findByRole('heading', { name: 'No mês exibido' });
+    expect(screen.queryByRole('heading', { name: 'Período exibido' })).toBeNull();
+    expect(screen.queryByLabelText('Data inicial')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Filtrar' })).toBeNull();
   });
 
-  it('recusa periodo invertido sem chamar a API', async () => {
-    const user = userEvent.setup();
+  it('anuncia tarefas e marcos na descricao da pagina', async () => {
     renderScreen();
-    await screen.findByRole('heading', { name: 'Período exibido' });
-    vi.clearAllMocks();
-
-    await user.type(screen.getByLabelText('Data inicial'), '2026-08-20');
-    await user.type(screen.getByLabelText('Data final'), '2026-08-01');
-    await user.click(screen.getByRole('button', { name: 'Filtrar' }));
-
     expect(
-      await screen.findByText('A data inicial não pode ser maior que a data final.')
+      await screen.findByText(/inícios e fins de sprint e de marco, prazos e tarefas/)
     ).toBeInTheDocument();
-    expect(mocks.schedule.getSchedule).not.toHaveBeenCalled();
   });
 
   it('o nome do marco chega ao evento pela sprint', async () => {

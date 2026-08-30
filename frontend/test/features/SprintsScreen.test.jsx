@@ -245,7 +245,7 @@ describe('estados da tela', () => {
 });
 
 describe('economia de requisicoes', () => {
-  it('a carga inicial nao busca as tarefas do projeto', async () => {
+  it('a carga inicial busca as tarefas do projeto uma unica vez, para o formulario', async () => {
     renderScreen();
     await screen.findByText('Nenhuma sprint cadastrada.');
 
@@ -253,10 +253,20 @@ describe('economia de requisicoes', () => {
     expect(mocks.schedule.getSchedule).toHaveBeenCalledTimes(1);
     expect(mocks.schedule.listSprints).toHaveBeenCalledTimes(1);
     expect(mocks.schedule.listMilestones).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(mocks.schedule.listProjectTasks).toHaveBeenCalledTimes(1));
+  });
+
+  it('perfil somente leitura nao busca as tarefas do projeto', async () => {
+    mocks.schedule.getMembership.mockResolvedValue({
+      data: { currentMembership: { role: 'VIEWER' } }
+    });
+    renderScreen();
+    await screen.findByText('Nenhuma sprint cadastrada.');
+
     expect(mocks.schedule.listProjectTasks).not.toHaveBeenCalled();
   });
 
-  it('salvar sprint nao rebusca marcos, projeto nem tarefas', async () => {
+  it('salvar sprint sem tarefas marcadas nao rebusca marcos, projeto nem tarefas', async () => {
     const user = userEvent.setup();
     mocks.schedule.createSprint.mockResolvedValue({ data: {} });
     mocks.schedule.listMilestones.mockResolvedValue({
@@ -264,6 +274,7 @@ describe('economia de requisicoes', () => {
     });
     renderScreen();
     await screen.findByText('Nenhuma sprint cadastrada.');
+    await waitFor(() => expect(mocks.schedule.listProjectTasks).toHaveBeenCalledTimes(1));
     vi.clearAllMocks();
     mocks.schedule.getSchedule.mockResolvedValue({ data: emptySchedule });
     mocks.schedule.listSprints.mockResolvedValue({ data: { total: 0, sprints: [] } });
@@ -280,6 +291,7 @@ describe('economia de requisicoes', () => {
     expect(mocks.schedule.listMilestones).not.toHaveBeenCalled();
     expect(mocks.projects.get).not.toHaveBeenCalled();
     expect(mocks.schedule.listProjectTasks).not.toHaveBeenCalled();
+    expect(mocks.schedule.replaceSprintTasks).not.toHaveBeenCalled();
   });
 });
 
@@ -807,6 +819,236 @@ describe('formulario de sprint', () => {
   });
 });
 
+describe('tarefas no formulario de sprint', () => {
+  beforeEach(() => {
+    mocks.schedule.listMilestones.mockResolvedValue({
+      data: { total: 1, milestones: [{ id: 7, title: 'Fundação' }] }
+    });
+    mocks.schedule.listSprints.mockResolvedValue({
+      data: {
+        total: 1,
+        sprints: [
+          {
+            id: 4,
+            name: 'Sprint 4',
+            objective: null,
+            startDate: '2026-09-01T00:00:00.000Z',
+            endDate: '2026-09-14T00:00:00.000Z',
+            status: 'PLANEJADA'
+          }
+        ]
+      }
+    });
+    mocks.schedule.listProjectTasks.mockResolvedValue({
+      data: {
+        total: 2,
+        tasks: [
+          {
+            id: 10,
+            title: 'Finalizar login',
+            status: 'A_FAZER',
+            priority: 'ALTA',
+            estimatedEffort: 5,
+            sprintId: null
+          },
+          {
+            id: 11,
+            title: 'Alocada',
+            status: 'A_FAZER',
+            priority: 'MEDIA',
+            estimatedEffort: 3,
+            sprintId: 4
+          }
+        ]
+      }
+    });
+  });
+
+  const grupoDeTarefas = async () => screen.findByRole('group', { name: 'Tarefas da sprint' });
+
+  it('oferece as tarefas do projeto com pontos e resumo da selecao', async () => {
+    const user = userEvent.setup();
+    renderScreen();
+    const grupo = await grupoDeTarefas();
+
+    expect(
+      await within(grupo).findByRole('checkbox', {
+        name: /Finalizar login — A fazer · Alta · 5 pts/
+      })
+    ).toBeInTheDocument();
+    expect(within(grupo).getByText('0 tarefas selecionadas · 0 pts')).toBeInTheDocument();
+    expect(
+      within(grupo).getByText('Atualmente em Sprint 4 — marcar move a tarefa para cá')
+    ).toBeInTheDocument();
+
+    await user.click(within(grupo).getByRole('checkbox', { name: /Finalizar login/ }));
+    expect(within(grupo).getByText('1 tarefa selecionada · 5 pts')).toBeInTheDocument();
+
+    await user.click(within(grupo).getByRole('checkbox', { name: /Alocada/ }));
+    expect(within(grupo).getByText('2 tarefas selecionadas · 8 pts')).toBeInTheDocument();
+  });
+
+  it('cria a sprint e entrega as tarefas marcadas a ela', async () => {
+    const user = userEvent.setup();
+    mocks.schedule.createSprint.mockResolvedValue({ data: { sprint: { id: 9 } } });
+    mocks.schedule.replaceSprintTasks.mockResolvedValue({ data: {} });
+    renderScreen();
+    const grupo = await grupoDeTarefas();
+
+    await user.click(await within(grupo).findByRole('checkbox', { name: /Finalizar login/ }));
+    await user.type(screen.getByLabelText(/Nome/), 'Sprint nova');
+    await user.selectOptions(screen.getByLabelText('Marco'), '7');
+    await user.type(screen.getByLabelText(/^Início/), '2026-10-01T09:00');
+    await user.type(screen.getByLabelText(/^Fim/), '2026-10-14T18:00');
+    await user.click(screen.getByRole('button', { name: 'Salvar sprint' }));
+
+    await waitFor(() => expect(mocks.schedule.replaceSprintTasks).toHaveBeenCalledWith(9, [10]));
+    expect(await screen.findByText('Sprint cadastrada com sucesso.')).toBeInTheDocument();
+  });
+
+  it('editar preenche as tarefas atuais e salvar envia so a nova composicao', async () => {
+    const user = userEvent.setup();
+    mocks.schedule.listSprints.mockResolvedValue({
+      data: {
+        total: 1,
+        sprints: [
+          {
+            id: 3,
+            name: 'Sprint 1',
+            objective: null,
+            startDate: '2026-08-01T00:00:00.000Z',
+            endDate: '2026-08-14T00:00:00.000Z',
+            status: 'PLANEJADA'
+          }
+        ]
+      }
+    });
+    mocks.schedule.listProjectTasks.mockResolvedValue({
+      data: {
+        total: 2,
+        tasks: [
+          {
+            id: 10,
+            title: 'Finalizar login',
+            status: 'A_FAZER',
+            priority: 'ALTA',
+            estimatedEffort: 5,
+            sprintId: null
+          },
+          {
+            id: 11,
+            title: 'Alocada',
+            status: 'A_FAZER',
+            priority: 'MEDIA',
+            estimatedEffort: 3,
+            sprintId: 3
+          }
+        ]
+      }
+    });
+    mocks.schedule.getSchedule.mockResolvedValue({
+      data: {
+        ...emptySchedule,
+        sprints: [
+          {
+            id: 3,
+            name: 'Sprint 1',
+            startDate: '2026-08-01T00:00:00.000Z',
+            endDate: '2026-08-14T00:00:00.000Z',
+            status: 'PLANEJADA',
+            milestoneId: 7,
+            taskCount: 1,
+            tasks: [{ id: 11, title: 'Alocada', status: 'A_FAZER', priority: 'MEDIA' }]
+          }
+        ]
+      }
+    });
+    mocks.schedule.updateSprint.mockResolvedValue({ data: {} });
+    mocks.schedule.replaceSprintTasks.mockResolvedValue({ data: {} });
+    renderScreen();
+
+    await abrirMenu(user, 'Sprint 1');
+    await user.click(await screen.findByRole('button', { name: /^Editar a sprint/ }));
+
+    const grupo = await grupoDeTarefas();
+    expect(within(grupo).getByRole('checkbox', { name: /Alocada/ })).toBeChecked();
+    expect(within(grupo).queryByText(/marcar move a tarefa para cá/)).toBeNull();
+
+    await user.click(within(grupo).getByRole('checkbox', { name: /Alocada/ }));
+    await user.click(within(grupo).getByRole('checkbox', { name: /Finalizar login/ }));
+    await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
+
+    await waitFor(() => expect(mocks.schedule.updateSprint).toHaveBeenCalledTimes(1));
+    expect(mocks.schedule.replaceSprintTasks).toHaveBeenCalledWith(3, [10]);
+  });
+
+  it('editar sem mexer nas tarefas nao chama a substituicao', async () => {
+    const user = userEvent.setup();
+    mocks.schedule.listSprints.mockResolvedValue({
+      data: {
+        total: 1,
+        sprints: [
+          {
+            id: 3,
+            name: 'Sprint 1',
+            objective: null,
+            startDate: '2026-08-01T00:00:00.000Z',
+            endDate: '2026-08-14T00:00:00.000Z',
+            status: 'PLANEJADA'
+          }
+        ]
+      }
+    });
+    mocks.schedule.getSchedule.mockResolvedValue({
+      data: {
+        ...emptySchedule,
+        sprints: [
+          {
+            id: 3,
+            name: 'Sprint 1',
+            startDate: '2026-08-01T00:00:00.000Z',
+            endDate: '2026-08-14T00:00:00.000Z',
+            status: 'PLANEJADA',
+            milestoneId: 7,
+            taskCount: 1,
+            tasks: [{ id: 11, title: 'Alocada', status: 'A_FAZER', priority: 'MEDIA' }]
+          }
+        ]
+      }
+    });
+    mocks.schedule.updateSprint.mockResolvedValue({ data: {} });
+    renderScreen();
+
+    await abrirMenu(user, 'Sprint 1');
+    await user.click(await screen.findByRole('button', { name: /^Editar a sprint/ }));
+    await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
+
+    await waitFor(() => expect(mocks.schedule.updateSprint).toHaveBeenCalledTimes(1));
+    expect(mocks.schedule.replaceSprintTasks).not.toHaveBeenCalled();
+  });
+
+  it('avisa quando a sprint salva mas as tarefas falham', async () => {
+    const user = userEvent.setup();
+    mocks.schedule.createSprint.mockResolvedValue({ data: { sprint: { id: 9 } } });
+    mocks.schedule.replaceSprintTasks.mockRejectedValue({
+      response: { status: 409, data: {} }
+    });
+    renderScreen();
+    const grupo = await grupoDeTarefas();
+
+    await user.click(await within(grupo).findByRole('checkbox', { name: /Finalizar login/ }));
+    await user.type(screen.getByLabelText(/Nome/), 'Sprint nova');
+    await user.selectOptions(screen.getByLabelText('Marco'), '7');
+    await user.type(screen.getByLabelText(/^Início/), '2026-10-01T09:00');
+    await user.type(screen.getByLabelText(/^Fim/), '2026-10-14T18:00');
+    await user.click(screen.getByRole('button', { name: 'Salvar sprint' }));
+
+    expect(
+      await screen.findByText('Sprint salva, mas não foi possível atualizar as tarefas da sprint.')
+    ).toBeInTheDocument();
+  });
+});
+
 describe('evolucao da sprint (RF35)', () => {
   const sprint = {
     id: 3,
@@ -856,6 +1098,85 @@ describe('evolucao da sprint (RF35)', () => {
     expect(within(painel).getAllByText('50%')).toHaveLength(2);
     expect(within(painel).getByText('1 tarefa entrou na sprint: #12')).toBeInTheDocument();
     expect(within(painel).getByText('1 tarefa saiu da sprint: #7')).toBeInTheDocument();
+    expect(within(painel).getByText(/Sem tarefas pontuadas nesta sprint/)).toBeInTheDocument();
+  });
+
+  it('mostra o burndown apurado junto do escopo', async () => {
+    const user = userEvent.setup();
+    mocks.schedule.getSprintProgress.mockResolvedValue({
+      data: {
+        sprintId: 3,
+        baseline: { kind: 'STARTED_AT', at: '2026-08-01T12:00:00.000Z' },
+        cutoff: '2026-08-09T15:00:00.000Z',
+        planned: metrica(1, 2, 50),
+        current: metrica(1, 2, 50),
+        scopeChange: { added: [], removed: [] },
+        burndown: {
+          hasData: true,
+          totalPoints: 10,
+          frozen: false,
+          cutoffDate: '2026-08-02',
+          days: [
+            { date: '2026-08-01', ideal: 10, remaining: 10 },
+            { date: '2026-08-02', ideal: 5, remaining: 8 },
+            { date: '2026-08-03', ideal: 0, remaining: null }
+          ]
+        }
+      }
+    });
+    renderScreen();
+    await abrir(user);
+
+    const painel = await screen.findByRole('region', { name: /Evolução da sprint/ });
+    expect(within(painel).getByText('Burndown')).toBeInTheDocument();
+    expect(
+      within(painel).getByText('Restam 8 de 10 pontos. A linha ideal previa 5 para este dia.')
+    ).toBeInTheDocument();
+  });
+
+  it('resume tarefas, pontos, progresso e prazo da sprint em foco', async () => {
+    const user = userEvent.setup();
+    mocks.schedule.listSprints.mockResolvedValue({
+      data: { total: 1, sprints: [{ ...sprint, status: 'PLANEJADA' }] }
+    });
+    mocks.schedule.getSchedule.mockResolvedValue({
+      data: {
+        ...emptySchedule,
+        sprints: [
+          {
+            id: 3,
+            name: 'Sprint 1',
+            startDate: '2026-08-01',
+            endDate: '2026-08-14',
+            status: 'PLANEJADA',
+            taskCount: 2,
+            tasks: [
+              { id: 8, title: 'Aberta', status: 'A_FAZER', estimatedEffort: 5 },
+              { id: 11, title: 'Feita', status: 'CONCLUIDO', estimatedEffort: 3 }
+            ]
+          }
+        ]
+      }
+    });
+    mocks.schedule.getSprintProgress.mockResolvedValue({
+      data: {
+        sprintId: 3,
+        baseline: { kind: 'OPEN', at: null },
+        cutoff: '2026-08-09T15:00:00.000Z',
+        planned: metrica(1, 2, 50),
+        current: metrica(1, 2, 50),
+        scopeChange: { added: [], removed: [] }
+      }
+    });
+    renderScreen();
+    await abrir(user);
+
+    const painel = await screen.findByRole('region', { name: /Evolução da sprint/ });
+    expect(within(painel).getByText('Tarefas')).toBeInTheDocument();
+    expect(within(painel).getByText('1 de 2')).toBeInTheDocument();
+    expect(within(painel).getByText('3 de 8')).toBeInTheDocument();
+    expect(within(painel).getByText('38%')).toBeInTheDocument();
+    expect(within(painel).getByText('Início em 01/08')).toBeInTheDocument();
   });
 
   it('fala no passado quando o resultado esta congelado', async () => {
@@ -1069,8 +1390,9 @@ describe('painel de tarefas da sprint', () => {
 
     await abrirMenu(user, 'Sprint 1');
     await user.click(await screen.findByRole('button', { name: /^Ver tarefas da sprint/ }));
-    await user.click(await screen.findByRole('checkbox'));
-    await user.click(screen.getByRole('button', { name: 'Salvar tarefas da sprint' }));
+    const painel = await screen.findByRole('region', { name: /Tarefas da sprint/ });
+    await user.click(await within(painel).findByRole('checkbox'));
+    await user.click(within(painel).getByRole('button', { name: 'Salvar tarefas da sprint' }));
 
     await waitFor(() => expect(mocks.schedule.replaceSprintTasks).toHaveBeenCalledWith(3, [10]));
   });
@@ -1136,8 +1458,9 @@ describe('painel de tarefas da sprint', () => {
 
     await abrirMenu(user, 'Sprint 1');
     await user.click(await screen.findByRole('button', { name: /^Ver tarefas da sprint/ }));
-    await user.click(await screen.findByRole('checkbox'));
-    await user.click(screen.getByRole('button', { name: 'Salvar tarefas da sprint' }));
+    const painel = await screen.findByRole('region', { name: /Tarefas da sprint/ });
+    await user.click(await within(painel).findByRole('checkbox'));
+    await user.click(within(painel).getByRole('button', { name: 'Salvar tarefas da sprint' }));
 
     expect(
       await screen.findByText('A tarefa informada não pertence ao mesmo projeto da sprint.')

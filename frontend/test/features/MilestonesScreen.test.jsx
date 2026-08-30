@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
     updateMilestone: vi.fn(),
     updateMilestoneStatus: vi.fn(),
     removeMilestone: vi.fn(),
+    updateSprint: vi.fn(),
     getMembership: vi.fn()
   },
   projects: { get: vi.fn() }
@@ -151,7 +152,8 @@ describe('progresso por sprints', () => {
     });
     renderScreen();
     expect(await screen.findByText('0 de 0 sprints concluídas')).toBeInTheDocument();
-    expect(screen.queryByText(/De outro marco/)).toBeNull();
+    const lista = screen.getByRole('list', { name: 'Marcos do projeto' });
+    expect(within(lista).queryByText(/De outro marco/)).toBeNull();
   });
 });
 
@@ -296,13 +298,140 @@ describe('rodape e sinalizacoes do marco (design de 24/08)', () => {
 });
 
 describe('formulario de marco', () => {
-  it('nao oferece campo de sprint', async () => {
+  const grupoDeSprints = async () => screen.findByRole('group', { name: 'Sprints do marco' });
+
+  it('oferece as sprints do projeto como caixas de selecao', async () => {
+    mocks.schedule.listSprints.mockResolvedValue({
+      data: { total: 1, sprints: [sprint(1, 'S1', 'PLANEJADA', null)] }
+    });
     renderScreen();
     await screen.findByText('Nenhum marco cadastrado.');
-    expect(screen.queryByLabelText(/Sprint/)).toBeNull();
+
+    const grupo = await grupoDeSprints();
+    expect(within(grupo).getByRole('checkbox', { name: 'S1 — Planejada' })).toBeInTheDocument();
+    expect(within(grupo).getByText('0 sprints selecionadas')).toBeInTheDocument();
     expect(
       screen.getByText(/Um marco pode ter várias sprints e é concluído automaticamente/)
     ).toBeInTheDocument();
+  });
+
+  it('sem sprints o bloco explica o vazio', async () => {
+    renderScreen();
+    await screen.findByText('Nenhum marco cadastrado.');
+    const grupo = await grupoDeSprints();
+    expect(within(grupo).getByText('Nenhuma sprint cadastrada neste projeto.')).toBeInTheDocument();
+  });
+
+  it('sprint congelada aparece marcada no proprio marco, sem poder sair', async () => {
+    const user = userEvent.setup();
+    mocks.schedule.listMilestones.mockResolvedValue({ data: { total: 1, milestones: [marco()] } });
+    mocks.schedule.listSprints.mockResolvedValue({
+      data: {
+        total: 2,
+        sprints: [sprint(1, 'Velha', 'CONCLUIDA', 5), sprint(2, 'Ativa', 'EM_ANDAMENTO', 5)]
+      }
+    });
+    renderScreen();
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Editar o marco Fundação do produto' })
+    );
+
+    const grupo = await grupoDeSprints();
+    const congelada = within(grupo).getByRole('checkbox', { name: /Velha — Concluída/ });
+    expect(congelada).toBeChecked();
+    expect(congelada).toBeDisabled();
+    expect(within(grupo).getByText('Congelada — não pode mudar de marco')).toBeInTheDocument();
+    expect(within(grupo).getByRole('checkbox', { name: /Ativa — Em andamento/ })).toBeChecked();
+    expect(within(grupo).getByText('1 sprint selecionada')).toBeInTheDocument();
+  });
+
+  it('avisa que marcar sprint de outro marco move a sprint', async () => {
+    mocks.schedule.listMilestones.mockResolvedValue({ data: { total: 1, milestones: [marco()] } });
+    mocks.schedule.listSprints.mockResolvedValue({
+      data: { total: 1, sprints: [sprint(2, 'Alheia', 'PLANEJADA', 5)] }
+    });
+    renderScreen();
+
+    const grupo = await grupoDeSprints();
+    expect(
+      within(grupo).getByText(
+        'Atualmente no marco Fundação do produto — marcar move a sprint para cá'
+      )
+    ).toBeInTheDocument();
+  });
+
+  it('criar marco ja leva as sprints marcadas para ele', async () => {
+    const user = userEvent.setup();
+    mocks.schedule.createMilestone.mockResolvedValue({ data: { milestone: { id: 9 } } });
+    mocks.schedule.updateSprint.mockResolvedValue({ data: {} });
+    mocks.schedule.listSprints.mockResolvedValue({
+      data: { total: 1, sprints: [sprint(3, 'Livre', 'PLANEJADA', null)] }
+    });
+    renderScreen();
+    await screen.findByText('Nenhum marco cadastrado.');
+
+    const grupo = await grupoDeSprints();
+    await user.click(within(grupo).getByRole('checkbox', { name: /Livre/ }));
+    await user.type(screen.getByLabelText(/Título/), 'Gestão de sprints');
+    await user.type(screen.getByLabelText(/Prazo/), '2026-09-04T18:00');
+    await user.click(screen.getByRole('button', { name: 'Salvar marco' }));
+
+    await waitFor(() =>
+      expect(mocks.schedule.updateSprint).toHaveBeenCalledWith(3, { milestoneId: 9 })
+    );
+    expect(await screen.findByText('Marco cadastrado com sucesso.')).toBeInTheDocument();
+  });
+
+  it('salvar a edicao move as marcadas e solta as desmarcadas', async () => {
+    const user = userEvent.setup();
+    mocks.schedule.updateMilestone.mockResolvedValue({ data: {} });
+    mocks.schedule.updateSprint.mockResolvedValue({ data: {} });
+    mocks.schedule.listMilestones.mockResolvedValue({ data: { total: 1, milestones: [marco()] } });
+    mocks.schedule.listSprints.mockResolvedValue({
+      data: {
+        total: 2,
+        sprints: [sprint(2, 'Ativa', 'EM_ANDAMENTO', 5), sprint(3, 'Livre', 'PLANEJADA', null)]
+      }
+    });
+    renderScreen();
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Editar o marco Fundação do produto' })
+    );
+    const grupo = await grupoDeSprints();
+    await user.click(within(grupo).getByRole('checkbox', { name: /Ativa/ }));
+    await user.click(within(grupo).getByRole('checkbox', { name: /Livre/ }));
+    await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
+
+    await waitFor(() =>
+      expect(mocks.schedule.updateSprint).toHaveBeenCalledWith(3, { milestoneId: 5 })
+    );
+    expect(mocks.schedule.updateSprint).toHaveBeenCalledWith(2, { milestoneId: null });
+    expect(mocks.schedule.updateSprint).toHaveBeenCalledTimes(2);
+    expect(mocks.schedule.updateMilestone).toHaveBeenCalledTimes(1);
+  });
+
+  it('sprint que nao mudou de marco e sprint congelada nao geram requisicao', async () => {
+    const user = userEvent.setup();
+    mocks.schedule.updateMilestone.mockResolvedValue({ data: {} });
+    mocks.schedule.updateSprint.mockResolvedValue({ data: {} });
+    mocks.schedule.listMilestones.mockResolvedValue({ data: { total: 1, milestones: [marco()] } });
+    mocks.schedule.listSprints.mockResolvedValue({
+      data: {
+        total: 2,
+        sprints: [sprint(2, 'Permanece', 'PLANEJADA', 5), sprint(3, 'Velha', 'CONCLUIDA', 5)]
+      }
+    });
+    renderScreen();
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Editar o marco Fundação do produto' })
+    );
+    await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
+
+    await waitFor(() => expect(mocks.schedule.updateMilestone).toHaveBeenCalledTimes(1));
+    expect(mocks.schedule.updateSprint).not.toHaveBeenCalled();
   });
 
   it('valida titulo e prazo sem chamar a API', async () => {

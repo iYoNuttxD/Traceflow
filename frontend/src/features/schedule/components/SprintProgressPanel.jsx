@@ -1,4 +1,31 @@
-import { formatDateTime } from './schedule-display.js';
+import { diffDaysIso, shortDate, sprintDayRange, todayIsoDay } from './schedule-calendar.js';
+import { formatDateTime, sprintStatusKey, summarizeSprintTasks } from './schedule-display.js';
+import { SprintBurndownChart } from './SprintBurndownChart.jsx';
+
+function prazoLabel(sprint, statusKey, hojeIso) {
+  const { inicio, fim } = sprintDayRange(sprint);
+  if (statusKey === 'PLANEJADA') return `Início em ${shortDate(inicio)}`;
+  if (statusKey === 'EM_ANDAMENTO') {
+    const dias = diffDaysIso(hojeIso, fim);
+    return `Termina em ${shortDate(fim)} (${dias} ${dias === 1 ? 'dia' : 'dias'})`;
+  }
+  if (statusKey === 'ATRASADA') {
+    const dias = diffDaysIso(fim, hojeIso);
+    return `Venceu há ${dias} ${dias === 1 ? 'dia' : 'dias'}`;
+  }
+  if (statusKey === 'CANCELADA') return 'Sprint cancelada';
+  return `Encerrada em ${shortDate(fim)}`;
+}
+
+function Metrica({ titulo, valor, children }) {
+  return (
+    <div className="sprint-progress-metric">
+      <h4>{titulo}</h4>
+      <p className="sprint-progress-value">{valor}</p>
+      {children}
+    </div>
+  );
+}
 
 function Medida({ titulo, metrica, descricao }) {
   return (
@@ -19,7 +46,14 @@ function Medida({ titulo, metrica, descricao }) {
   );
 }
 
-export function SprintProgressPanel({ sprint, progress, loading = false, onClose }) {
+export function SprintProgressPanel({
+  sprint,
+  scheduleSprint,
+  progress,
+  loading = false,
+  hoje = new Date(),
+  onClose
+}) {
   if (loading) {
     return (
       <section className="sprint-progress-panel" aria-label={`Evolução da sprint ${sprint.name}`}>
@@ -36,6 +70,8 @@ export function SprintProgressPanel({ sprint, progress, loading = false, onClose
   const congelada = progress.frozen === true;
   const { added, removed } = progress.scopeChange;
   const carryOver = progress.carryOver || [];
+  const statusKey = sprintStatusKey(sprint, hoje);
+  const resumo = summarizeSprintTasks(scheduleSprint);
 
   return (
     <section className="sprint-progress-panel" aria-label={`Evolução da sprint ${sprint.name}`}>
@@ -46,6 +82,22 @@ export function SprintProgressPanel({ sprint, progress, loading = false, onClose
           ? 'A sprint ainda não começou: o planejamento não está fechado, então o escopo planejado é o escopo atual.'
           : `Planejamento fechado em ${formatDateTime(progress.baseline.at)}, quando a sprint foi iniciada.`}
       </p>
+
+      <div className="sprint-progress-metrics">
+        <Metrica titulo="Tarefas" valor={`${resumo.done} de ${resumo.total}`} />
+        <Metrica titulo="Pontos" valor={`${resumo.donePoints} de ${resumo.points}`} />
+        <Metrica
+          titulo="Progresso"
+          valor={resumo.percent === null ? 'Sem pontos' : `${resumo.percent}%`}
+        >
+          {resumo.percent !== null && (
+            <div className="traceability-progress-bar">
+              <span style={{ width: `${resumo.percent}%` }} />
+            </div>
+          )}
+        </Metrica>
+        <Metrica titulo="Prazo" valor={prazoLabel(sprint, statusKey, todayIsoDay(hoje))} />
+      </div>
 
       <div className="sprint-progress-metrics">
         <Medida
@@ -63,6 +115,8 @@ export function SprintProgressPanel({ sprint, progress, loading = false, onClose
           }
         />
       </div>
+
+      <SprintBurndownChart burndown={progress.burndown} />
 
       {carryOver.length > 0 && (
         <div className="sprint-progress-scope">

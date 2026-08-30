@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router';
 import { scheduleApi } from '../api/schedule.api.js';
 import { ProjectSectionNav } from '../../projects/index.js';
@@ -17,6 +17,7 @@ import {
 import { MilestoneList } from '../components/MilestoneList.jsx';
 import {
   fromDateTimeLocalInput,
+  isTerminalSprint,
   milestoneProgress,
   toDateTimeLocalInput
 } from '../components/schedule-display.js';
@@ -38,6 +39,7 @@ export function MilestonesScreen() {
     success,
     loadAll,
     refreshSchedule,
+    refreshSprints,
     refreshMilestones,
     feedback,
     handleFailure
@@ -46,9 +48,15 @@ export function MilestonesScreen() {
   const [milestoneForm, setMilestoneForm] = useState(emptyMilestoneForm);
   const [milestoneErrors, setMilestoneErrors] = useState({});
   const [editingMilestoneId, setEditingMilestoneId] = useState(null);
+  const [formSprintIds, setFormSprintIds] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [busyMilestoneId, setBusyMilestoneId] = useState(null);
   const formCardRef = useRef(null);
+
+  const milestoneNames = useMemo(
+    () => Object.fromEntries(milestones.map((item) => [item.id, item.title])),
+    [milestones]
+  );
 
   useEffect(() => {
     if (!editingMilestoneId) return;
@@ -68,16 +76,56 @@ export function MilestonesScreen() {
         description: milestoneForm.description.trim() || null,
         dueDate: fromDateTimeLocalInput(milestoneForm.dueDate)
       };
+      let alvoId = editingMilestoneId;
       if (editingMilestoneId) {
         await scheduleApi.updateMilestone(editingMilestoneId, payload);
-        feedback('Marco atualizado com sucesso.');
       } else {
-        await scheduleApi.createMilestone(projectId, payload);
-        feedback('Marco cadastrado com sucesso.');
+        const { data } = await scheduleApi.createMilestone(projectId, payload);
+        alvoId = data.milestone?.id ?? null;
       }
+
+      const mudaveis = sprints.filter((sprint) => !isTerminalSprint(sprint.status));
+      const mover = alvoId
+        ? mudaveis.filter(
+            (sprint) => formSprintIds.includes(sprint.id) && sprint.milestoneId !== alvoId
+          )
+        : [];
+      const soltar =
+        alvoId && editingMilestoneId
+          ? mudaveis.filter(
+              (sprint) => !formSprintIds.includes(sprint.id) && sprint.milestoneId === alvoId
+            )
+          : [];
+      let avisoSprints = null;
+      try {
+        for (const sprint of mover) {
+          await scheduleApi.updateSprint(sprint.id, { milestoneId: alvoId });
+        }
+        for (const sprint of soltar) {
+          await scheduleApi.updateSprint(sprint.id, { milestoneId: null });
+        }
+      } catch (requestError) {
+        avisoSprints = requestError;
+      }
+
       setMilestoneForm(emptyMilestoneForm);
       setEditingMilestoneId(null);
-      await Promise.all([refreshMilestones(), refreshSchedule()]);
+      setFormSprintIds([]);
+      if (avisoSprints) {
+        handleFailure(
+          avisoSprints,
+          'Marco salvo, mas não foi possível mover as sprints selecionadas.'
+        );
+      } else {
+        feedback(
+          editingMilestoneId ? 'Marco atualizado com sucesso.' : 'Marco cadastrado com sucesso.'
+        );
+      }
+      await Promise.all([
+        refreshMilestones(),
+        refreshSchedule(),
+        mover.length || soltar.length ? refreshSprints() : Promise.resolve()
+      ]);
     } catch (requestError) {
       handleFailure(requestError, 'Não foi possível salvar o marco.');
     } finally {
@@ -93,6 +141,11 @@ export function MilestonesScreen() {
       description: milestone.description || '',
       dueDate: toDateTimeLocalInput(milestone.dueDate)
     });
+    setFormSprintIds(
+      sprints
+        .filter((sprint) => !isTerminalSprint(sprint.status) && sprint.milestoneId === milestone.id)
+        .map((sprint) => sprint.id)
+    );
   };
 
   const toggleMilestoneStatus = async (milestone) => {
@@ -190,11 +243,39 @@ export function MilestonesScreen() {
       </header>
       <FeedbackRegion error={error} success={success} />
 
-      <div
-        className={`schedule-columns ${
-          somenteLeitura ? 'schedule-columns--unica' : 'schedule-columns--pareadas'
-        }`}
-      >
+      <div className="schedule-columns schedule-columns--unica">
+        {!somenteLeitura && (
+          <section className="card" ref={formCardRef}>
+            <h2>{editingMilestoneId ? 'Editar marco' : 'Cadastrar marco'}</h2>
+            <MilestoneForm
+              formData={milestoneForm}
+              sprints={sprints}
+              milestoneNames={milestoneNames}
+              sprintIds={formSprintIds}
+              editingMilestoneId={editingMilestoneId}
+              errors={milestoneErrors}
+              editing={Boolean(editingMilestoneId)}
+              submitting={submitting}
+              onChange={(field, value) => setMilestoneForm({ ...milestoneForm, [field]: value })}
+              onToggleSprint={(sprintId) =>
+                setFormSprintIds((current) =>
+                  current.includes(sprintId)
+                    ? current.filter((id) => id !== sprintId)
+                    : [...current, sprintId]
+                )
+              }
+              onSubmit={submitMilestone}
+              onCancel={() => {
+                setEditingMilestoneId(null);
+                setMilestoneForm(emptyMilestoneForm);
+                setMilestoneErrors({});
+                setFormSprintIds([]);
+                formCardRef.current?.querySelector('input, select, textarea')?.focus();
+              }}
+            />
+          </section>
+        )}
+
         <section className="card">
           <div className="schedule-card-header">
             <h2>Marcos do projeto</h2>
@@ -213,26 +294,6 @@ export function MilestonesScreen() {
             onToggleStatus={toggleMilestoneStatus}
           />
         </section>
-
-        {!somenteLeitura && (
-          <section className="card" ref={formCardRef}>
-            <h2>{editingMilestoneId ? 'Editar marco' : 'Cadastrar marco'}</h2>
-            <MilestoneForm
-              formData={milestoneForm}
-              errors={milestoneErrors}
-              editing={Boolean(editingMilestoneId)}
-              submitting={submitting}
-              onChange={(field, value) => setMilestoneForm({ ...milestoneForm, [field]: value })}
-              onSubmit={submitMilestone}
-              onCancel={() => {
-                setEditingMilestoneId(null);
-                setMilestoneForm(emptyMilestoneForm);
-                setMilestoneErrors({});
-                formCardRef.current?.querySelector('input, select, textarea')?.focus();
-              }}
-            />
-          </section>
-        )}
       </div>
     </main>
   );
