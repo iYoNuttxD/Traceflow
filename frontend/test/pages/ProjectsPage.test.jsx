@@ -37,6 +37,7 @@ vi.mock('../../src/features/invitations/personal-invitations.api.js', () => ({
   personalInvitationsApi: invitationsMock
 }));
 
+import { ProjectsCatalogProvider } from '../../src/features/projects/index.js';
 import { ProjectsPage } from '../../src/pages/ProjectsPage.jsx';
 
 const fakeRepository = {
@@ -55,7 +56,9 @@ const fakeRepository = {
 function renderPage(initialEntries = ['/projects']) {
   return render(
     <MemoryRouter initialEntries={initialEntries}>
-      <ProjectsPage />
+      <ProjectsCatalogProvider>
+        <ProjectsPage />
+      </ProjectsCatalogProvider>
     </MemoryRouter>
   );
 }
@@ -107,6 +110,7 @@ describe('ProjectsPage', () => {
     expect(screen.getByRole('heading', { name: 'Entrar em um projeto' })).toBeInTheDocument();
     expect(screen.getByText('Nenhum convite pendente.')).toBeInTheDocument();
     expect(screen.getByLabelText('Código ou link de acesso')).toBeInTheDocument();
+    expect(apiMock.get.mock.calls.filter(([url]) => url === '/projects')).toHaveLength(1);
 
     const dashboard = screen.getByRole('region', { name: 'Projetos e formas de ingresso' });
     expect(dashboard).toHaveClass('projects-dashboard-grid');

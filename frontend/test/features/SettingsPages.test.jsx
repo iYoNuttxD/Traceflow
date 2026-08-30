@@ -76,7 +76,6 @@ const { PrivacySettingsPage } = await import('../../src/features/settings/Privac
 const { IntegrationsSettingsPage } =
   await import('../../src/features/settings/IntegrationsSettingsPage.jsx');
 const { ConfirmationPage } = await import('../../src/features/settings/ConfirmationPage.jsx');
-const { Navbar } = await import('../../src/components/Navbar.jsx');
 
 describe('configurações e estados restritos L2', () => {
   beforeEach(() => {
@@ -161,26 +160,6 @@ describe('configurações e estados restritos L2', () => {
     for (const name of ['Conta', 'Segurança', 'Privacidade', 'Integrações']) {
       expect(screen.getByRole('link', { name })).toBeInTheDocument();
     }
-  });
-
-  it('mostra menu acessível com avatar de iniciais', () => {
-    mocks.auth.user = {
-      id: 7,
-      name: 'Daniel Ganz Musse',
-      email: 'daniel@example.invalid',
-      accountStatus: 'ACTIVE'
-    };
-    render(
-      <MemoryRouter>
-        <Navbar />
-      </MemoryRouter>
-    );
-    expect(screen.getByText('DG')).toBeInTheDocument();
-    expect(screen.getByLabelText('Abrir menu de Daniel Ganz Musse')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Configurações' })).toHaveAttribute(
-      'href',
-      '/settings/account'
-    );
   });
 
   it('carrega e atualiza o perfil sem alterar e-mail diretamente', async () => {

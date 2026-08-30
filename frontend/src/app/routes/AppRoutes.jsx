@@ -1,7 +1,8 @@
 import { Suspense } from 'react';
-import { Routes, Route, Navigate, Outlet } from 'react-router';
+import { Routes, Route, Navigate } from 'react-router';
 import { GuestOnlyRoute, ProtectedRoute } from '../../features/auth/index.js';
 import { ContextualErrorPage, LoadingState, PAGE_ERROR_TYPES } from '../../shared/index.js';
+import { AuthenticatedLayout } from '../layout/AuthenticatedLayout.jsx';
 import { lazyNamed } from './lazy-route.js';
 
 const LoginPage = lazyNamed(() => import('../../pages/LoginPage.jsx'), 'LoginPage');
@@ -127,7 +128,7 @@ export function AppRoutes() {
         <Route
           element={
             <ProtectedRoute>
-              <Outlet />
+              <AuthenticatedLayout />
             </ProtectedRoute>
           }
         >

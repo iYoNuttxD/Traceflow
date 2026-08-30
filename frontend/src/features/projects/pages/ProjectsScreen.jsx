@@ -17,6 +17,7 @@ import {
 } from '../components/ProjectForm.jsx';
 import { projectsApi } from '../api/projects.api.js';
 import { ProjectJoinCard } from '../components/ProjectJoinCard.jsx';
+import { useProjectsCatalog } from '../hooks/ProjectsCatalogContext.jsx';
 import { PendingProjectInvitations } from '../../invitations/index.js';
 import './ProjectsScreen.css';
 
@@ -35,18 +36,20 @@ function clearRepositorySelection(current) {
 
 export function ProjectsScreen() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [projects, setProjects] = useState([]);
+  const {
+    projects,
+    loading: loadingProjects,
+    error: projectsRequestError,
+    refreshProjects
+  } = useProjectsCatalog();
   const [repositories, setRepositories] = useState([]);
   const [installations, setInstallations] = useState([]);
   const [formData, setFormData] = useState(emptyProjectForm);
   const [duplicateRepository, setDuplicateRepository] = useState(null);
   const [highlightedProjectId, setHighlightedProjectId] = useState(null);
-  const [loadingProjects, setLoadingProjects] = useState(true);
   const [loadingRepositories, setLoadingRepositories] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [repositoriesError, setRepositoriesError] = useState('');
-  const [projectsError, setProjectsError] = useState('');
-  const [projectsRetryAfterSeconds, setProjectsRetryAfterSeconds] = useState(0);
   const [operationError, setOperationError] = useState('');
   const [operationRetryAfterSeconds, setOperationRetryAfterSeconds] = useState(0);
   const [installationsError, setInstallationsError] = useState('');
@@ -55,23 +58,8 @@ export function ProjectsScreen() {
   const operationCooldown = useCountdown(operationRetryAfterSeconds);
   const operationLock = useRef(false);
   const reconnectProjectId = searchParams.get('projectId');
-
-  const loadProjects = useCallback(async () => {
-    setLoadingProjects(true);
-    setProjectsError('');
-    setProjectsRetryAfterSeconds(0);
-
-    try {
-      const response = await projectsApi.list();
-      setProjects(response.data.projects);
-    } catch (requestError) {
-      const normalized = normalizeApiError(requestError, 'Não foi possível carregar os projetos.');
-      setProjectsError(normalized.message);
-      setProjectsRetryAfterSeconds(normalized.retryAfterSeconds || 0);
-    } finally {
-      setLoadingProjects(false);
-    }
-  }, []);
+  const projectsError = projectsRequestError?.message || '';
+  const projectsRetryAfterSeconds = projectsRequestError?.retryAfterSeconds || 0;
 
   const loadRepositories = useCallback(async () => {
     setLoadingRepositories(true);
@@ -119,10 +107,9 @@ export function ProjectsScreen() {
   }, []);
 
   useEffect(() => {
-    loadProjects();
     loadInstallations();
     void loadRepositories();
-  }, [loadProjects, loadInstallations, loadRepositories]);
+  }, [loadInstallations, loadRepositories]);
 
   useEffect(() => {
     if (searchParams.get('github') === 'connected') {
@@ -194,7 +181,7 @@ export function ProjectsScreen() {
       });
       setSuccess(response.data.message);
       setFormData(emptyProjectForm);
-      await loadProjects();
+      await refreshProjects();
     } catch (requestError) {
       const connectedProject = requestError.response?.data?.details?.connectedProject;
       if (requestError.response?.status === 409 && connectedProject) {
@@ -233,7 +220,7 @@ export function ProjectsScreen() {
       setSuccess(response.data.message);
       setSearchParams({}, { replace: true });
       setFormData(emptyProjectForm);
-      await loadProjects();
+      await refreshProjects();
     } catch (requestError) {
       const normalized = normalizeApiError(
         requestError,
@@ -266,7 +253,7 @@ export function ProjectsScreen() {
 
       <section className="projects-dashboard-grid" aria-label="Projetos e formas de ingresso">
         <ProjectJoinCard />
-        <PendingProjectInvitations onAccepted={loadProjects} />
+        <PendingProjectInvitations onAccepted={refreshProjects} />
 
         <Card
           className="projects-dashboard-card project-create-card"
@@ -361,7 +348,7 @@ export function ProjectsScreen() {
           ) : projectsError ? (
             <ErrorState
               message={projectsError}
-              onRetry={loadProjects}
+              onRetry={refreshProjects}
               retryAfterSeconds={projectsRetryAfterSeconds}
             />
           ) : projects.length === 0 ? (

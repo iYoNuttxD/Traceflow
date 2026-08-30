@@ -285,7 +285,9 @@
 }
 
 .back-link {
-  display: inline-block;
+  display: inline-flex;
+  min-height: var(--size-touch-target);
+  align-items: center;
   margin-bottom: 1.25rem;
 }
 

@@ -26,27 +26,34 @@ O backend é a autoridade para identidade, autorização, validação, domínio 
 
 A direção permitida é `app/routes → pages → features → shared + http-client`.
 
-- `AppRoutes` aplica lazy loading, `ProtectedRoute` e fallback acessível.
+- `AppRoutes` aplica lazy loading, `ProtectedRoute`, shell autenticado e fallback acessível.
 - Pages adaptam parâmetros e compõem features.
 - APIs de feature usam exclusivamente `api/http-client.js`.
 - Hooks e screens controlam requests canceláveis, mutações e rollback visual.
 - Shared não importa pages/features; features não importam internals umas das outras.
 - `TraceabilityFlow` renderiza o DTO de nodes/edges sem recalcular cobertura.
+- `app/theme` aplica Light/Dark por tokens semânticos; escolha manual local prevalece sobre a
+  preferência inicial do sistema.
+- `app/layout` concentra sidebar responsiva, drawer acessível, navegação, identidade e logout. Rotas
+  públicas e contas restritas permanecem fora do shell autenticado.
+- A sidebar e a tela Projects compartilham o catálogo autorizado de `GET /projects`. IDs fixados e
+  recentes são preferências locais filtradas pelo catálogo e nunca concedem acesso.
 - CSS convencional acompanha o owner em `pages`, `features` e `shared`. Componentes e screens
   importam a folha colocada ao lado do JSX; grupos em `shared/styles` ou `features/*/styles` existem
   somente quando há múltiplos consumidores reais. Media queries permanecem com o mesmo owner do
-  seletor. `frontend/src/styles/base.css` concentra reset e elementos base, enquanto `global.css`
-  mantém apenas primitives transversais; estilos específicos de feature não entram nessa pasta.
+  seletor. `frontend/src/styles/tokens.css` contém tokens semânticos Light/Dark, `base.css` concentra
+  reset e elementos base e `global.css` mantém apenas primitives transversais; estilos específicos
+  de feature não entram nessa pasta.
 
 ## Backend
 
-| Camada | Responsabilidade | Não pode |
-|---|---|---|
-| Route | método, caminho, auth/CSRF/RBAC e schema HTTP | regra, Prisma, client externo |
-| Controller | adaptar HTTP e contexto autenticado | repository, Prisma, regra |
-| Service | caso de uso, invariantes, transação e auditoria | `req`/`res`, DOM |
-| Repository | consulta/mutação orientada ao domínio | autorização ou mensagem HTTP |
-| External client | timeout, retry, paginação e DTO externo | persistência ou regra TRACEFLOW |
+| Camada          | Responsabilidade                                | Não pode                        |
+| --------------- | ----------------------------------------------- | ------------------------------- |
+| Route           | método, caminho, auth/CSRF/RBAC e schema HTTP   | regra, Prisma, client externo   |
+| Controller      | adaptar HTTP e contexto autenticado             | repository, Prisma, regra       |
+| Service         | caso de uso, invariantes, transação e auditoria | `req`/`res`, DOM                |
+| Repository      | consulta/mutação orientada ao domínio           | autorização ou mensagem HTTP    |
+| External client | timeout, retry, paginação e DTO externo         | persistência ou regra TRACEFLOW |
 
 `scripts/check-architecture.js` verifica essas fronteiras e impede a reintrodução, no runtime/schema atual, de `TaskPullRequest`, `GithubArtifact`, `TraceLink`, `ProjectMember`, `Commit.branch`, aliases GitHub de `Project` e rotas de conta removidas.
 

@@ -21,9 +21,10 @@ app/routes → pages → features/<domain> → shared + api/http-client
 
 ```text
 src/
-├── app/routes/
-│   ├── AppRoutes.jsx
-│   └── lazy-route.js
+├── app/
+│   ├── layout/                  # shell autenticado e preferências de navegação
+│   ├── routes/                  # composição e lazy loading de rotas
+│   └── theme/                   # resolução e persistência Light/Dark
 ├── api/
 │   └── http-client.js
 ├── pages/                     # adaptadores finos de rota
@@ -45,16 +46,39 @@ src/
 │   └── styles/                # exceções com múltiplos consumers reais
 └── styles/
     ├── base.css
-    └── global.css
+    ├── global.css
+    └── tokens.css
 ```
 
 Somente pastas com implementação real devem existir.
 
 ## Rotas e chunks
 
-`AppRoutes` declara as páginas com `React.lazy` por meio do adaptador mínimo `lazyNamed`. Um único `Suspense` na fronteira das rotas fornece fallback anunciado por `role="status"`; o `ErrorBoundary` global captura também falhas de importação dinâmica. `ProtectedRoute`, restauração da sessão, CSRF e os providers globais permanecem fora dos chunks de página.
+`AppRoutes` declara as páginas com `React.lazy` por meio do adaptador mínimo `lazyNamed`. Um único
+`Suspense` na fronteira das rotas fornece fallback anunciado por `role="status"`; o `ErrorBoundary`
+global captura também falhas de importação dinâmica. `ProtectedRoute`, restauração da sessão, CSRF
+e os providers globais permanecem fora dos chunks de página. `AuthenticatedLayout` aplica o shell
+somente às rotas protegidas de contas ativas; rotas públicas e páginas de conta restrita não recebem
+a sidebar.
 
 O build separa as telas públicas e protegidas, os módulos de domínio e o grafo. `TraceabilityFlow` e `@xyflow/react` são alcançados apenas pelo chunk de rastreabilidade e não pertencem à entrada inicial.
+
+## Shell, tema e catálogo de projetos
+
+`app/layout` é owner do shell transversal: sidebar 272/88 px, drawer mobile, navegação global,
+identidade e os controles de tema, Settings e logout. A antiga navbar não permanece em paralelo. O
+drawer gerencia Escape, foco inicial, contenção do foco, conteúdo de fundo inerte e retorno ao
+trigger; as transições respeitam reduced motion. Todos os controles expostos preservam área mínima
+de 44 × 44 px.
+
+`app/theme` resolve Light/Dark, aplica `data-theme` no elemento `html` e persiste apenas a escolha
+manual. Sem preferência válida, usa `prefers-color-scheme`; o script mínimo em `index.html` aplica a
+mesma resolução antes do mount. Não existe opção visual System.
+
+`ProjectsCatalogProvider` pertence a `features/projects` e compartilha a resposta autorizada de
+`GET /projects` entre shell e Projects. O shell mantém fixados e recentes como preferências locais
+por usuário, limita a exibição a cinco e cruza todos os IDs com esse catálogo. LocalStorage não
+concede membership ou acesso. Loading ou erro no catálogo não bloqueiam a navegação principal.
 
 ## Consolidação de Tasks e Kanban
 
@@ -101,10 +125,10 @@ Para novas implementações e alterações em estilos existentes, cada regra dev
 - responsive rule → mesmo arquivo/owner do seletor que ela adapta;
 - token, reset, elemento base ou regra transversal verdadeira → `frontend/src/styles/`.
 
-`frontend/src/styles/` contém somente fundamentos globais. `base.css` concentra reset, elementos
-base, `:root`, `body`, `#root` e foco transversal; `global.css` contém primitives realmente usadas em
-vários domínios, como layout de página, campos, botões, feedback e badges. Um `tokens.css` só deve ser
-criado quando houver tokens reais a extrair, sem introduzir paleta, tema ou nomenclatura artificial.
+`frontend/src/styles/` contém somente fundamentos globais. `tokens.css` é a fonte executável dos
+tokens semânticos Light/Dark; `base.css` concentra reset, elementos base, `:root`, `body`, `#root` e
+foco transversal; `global.css` contém primitives realmente usadas em vários domínios, como layout
+de página, campos, botões, feedback e badges.
 
 `global.css` não é depósito de feature: novas implementações não adicionam `.project-*`,
 `.settings-*`, `.auth-*`, `.kanban-*` ou seletores equivalentes específicos de domínio. Overrides

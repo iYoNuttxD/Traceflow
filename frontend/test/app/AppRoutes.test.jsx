@@ -26,6 +26,7 @@ describe('AppRoutes com chunks por rota', () => {
     );
 
     expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Navegação global')).not.toBeInTheDocument();
     await user.click(screen.getByRole('link', { name: 'Criar conta' }));
     expect(await screen.findByRole('heading', { name: 'Criar conta' })).toBeInTheDocument();
   });
