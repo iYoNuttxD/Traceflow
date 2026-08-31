@@ -369,3 +369,137 @@ concluída; M49 via "editar sem mexer"; M51 via congelada no fixture de não-req
 - [ ] Matriz visual da seção 9 — **aguardando o dev server do João**
 - [x] Nenhum teste novo alterou código de produção (exceção única da Fase 0: remoção de diretivas em teste)
 - [x] Documentos da Fase 8 conferidos; baseline com adendo
+
+---
+
+# Terceira bateria (31/08/2026, quinta iteração — inclui RF08)
+
+> Execução do enunciado `docs/issues/RF10_RF08_PROMPT_TERCEIRA_BATERIA.md` sobre a branch
+> `joao-dev-v2` com a quinta iteração aplicada (`f4f4796`, `d538505`, `da04918`, `58e49b7`). Mapa
+> atualizado na seção "Terceira bateria" de `RF10_RF35_MAPA_TESTES.md`.
+
+## T1. Resumo
+
+**RF10** — os três comportamentos novos conferem com a especificação e com o ADR-011 intocado: a
+barra do marco alcança o fim da sprint agrupada que termina primeiro (`max(prazo, menor fim)`),
+com o ponto e o evento de prazo firmes no `dueDate` e o sufixo `· prazo DD/MM` exatamente onde e
+quando a barra passa dele; o painel do mês opera como tablist de quatro abas com "Todos" padrão,
+seleção no foco, sobrevivência à navegação e vazios nomeados. **RF08** — o cartão está limpo de
+combobox e o caminho sem mouse vive no diálogo de detalhes com o mesmo nome acessível, regras de
+congelada/em-voo e sincronização quadro↔diálogo; arrasto e histórico intactos. **Segurança** — um
+achado real (T-A1, abaixo): a imutabilidade do quadro congelado existe só no cliente.
+
+**Fase 0** — as três varreduras devolvem **vazio** (sem sequer falso-positivo de URL): **nenhum
+comentário no código de RF10/RF35**. No Kanban (fora do gate, registro próprio): `git show
+da04918` confirma que todo comentário adicionado é reedição de comentário existente e o do
+seletor saiu com o seletor — **nenhum comentário novo no Kanban**.
+
+**Fase 6 (visual)** — executada em navegador real, sem backend: o cronograma pelo harness de
+props e o Kanban montando a **tela real** (`KanbanScreen` completa) com o HTTP interceptado no
+adapter do axios e estado em memória — as interações rodam o código de produção de ponta a ponta,
+só a rede é sintética. Matriz completa: extremos 0/1/escala nas duas telas; marco 12/08–21/08 com
+ponto em 17/08 e legenda `· prazo 17/08`; filtro por clique medido no DOM (Marcos → 6 itens sem
+grupos; Tarefas → 14; Todos → 3 grupos/23); trilho de 4 segmentos sem sobra em desktop e 375px;
+mover pelo diálogo derrubou "A Fazer" de 10 para 9 com o seletor refletindo sem reabrir;
+congelada com seletor desabilitado e `title` conferidos por inspeção.
+
+## T2. Números
+
+| Medida | Largada | Fechamento |
+|---|---|---|
+| Backend — testes | 501 (38 arquivos) | **502 (39)** — arquivo novo `rf08-terceira-bateria.test.js`; suíte 2× idêntica |
+| Backend — cobertura | — | **88.22 / 76.79 / 90.24 / 90.47** (limiares 85/70/85/87) |
+| Frontend — testes | 316 (31 arquivos) | **322 (31)** — 6 casos novos; suíte 2× idêntica; 103/103 do cronograma sob TZ padrão, UTC e Pacific/Kiritimati |
+| Frontend — cobertura | 67.03 / 65.53 / 60.03 / 68.11 | **67.25 / 65.80 / 60.21 / 68.25** (limiares 50/45/40/53) |
+
+`lint`, `format:check`, `build`, `prisma validate`, `architecture:check` e `security:secrets`
+verdes. Casos novos: T-F1 data inválida degrada para o colapso; T-F2 Tab sai da aba para o
+tabpanel sem mudar seleção; T-F3 mês vazio no meio do intervalo mantém a aba filtrada; T-F4
+Espaço abre o diálogo; T-F5 409 reabilita o seletor com a mensagem do quadro; T-F6 status atual
+não dispara requisição; e o teste de API do shape completo do move.
+
+## T3. Achados
+
+### [MEDIUM] T-A1 — A imutabilidade do quadro congelado existe só no cliente
+
+- **Onde:** `backend/src/modules/tasks/services/task-kanban.service.js::moveTask` (nenhuma
+  leitura do status da sprint da tarefa).
+- **Norma violada:** CONTEXTO §13.5 ("não confiar em ocultação de botões no frontend"); ASVS 5.0
+  V2 (lógica de negócio no servidor); ADR-010 D04 como o Kanban o aplica; o comentário de
+  `KanbanBoard.jsx` promete "o backend recusaria a movimentação com 409".
+- **Esperado:** `PATCH /tasks/:id/move` de tarefa cuja sprint está `CONCLUIDA`/`CANCELADA`
+  recusado com `409` de código estável.
+- **Observado:** `200` com o status mutado (sonda da Fase 4, 31/08).
+- **Reprodução:** criar sprint `CONCLUIDA`, tarefa `CONCLUIDO` com `sprintId` apontando para ela,
+  `PATCH /api/tasks/:id/move {toStatus: 'A_FAZER'}` autenticado com escrita no projeto.
+- **Consequência:** a composição visível de uma sprint encerrada muda por chamada direta; a
+  participação congelada do RF35 (`SprintTask`) não é tocada — o registro histórico permanece
+  íntegro, o que limita a severidade a MEDIUM.
+- **Proposta:** guarda no service com `409` + teste de API (registrada em `TECHNICAL_BACKLOG.md`
+  **S104-F14**; declarada como pendência ativa de L2 no adendo da baseline). **Não corrigida na
+  bateria**, por regra.
+
+Nenhum outro achado. A primeira aplicação do M64 foi **nula** (padrão com `\n` dentro de `\Q` não
+casa) e detectada pela contagem de ocorrências antes do veredito — refeita e morta; registrado
+como armadilha de protocolo, não como sobrevivência.
+
+## T4. Bateria de mutação (M57–M72)
+
+Uma por vez sobre o `HEAD`, suíte completa do frontend reexecutada, reversão por `git checkout`
+dentro da mesma operação.
+
+| # | Mutação | Item | Vermelhos |
+|---|---|---|---|
+| M57 | extensão pelo **maior** fim | I50 | 1 (o assassino da Fase 2) |
+| M58 | `alcance` estende sempre para `menorFim` | I50 | 9 |
+| M59 | sufixo de prazo emitido sempre (legenda) | I51 | 1 |
+| M60 | ponto de prazo apontando o fim estendido | I51 | 1 |
+| M61 | evento de início por `inicio !== prazo` | I53 | 1 |
+| M62 | início vence o prazo no dia degenerado | I53 | 1 |
+| M63 | aba padrão volta a `'marcos'` | I55 | 6 |
+| M64 | `ativarAba` move o foco sem selecionar | I54 | 1 |
+| M65 | navegar de mês reseta a aba | I54 | 2 |
+| M66 | visão Todos omite grupo vazio | I55 | 1 |
+| M67 | badge da aba fixado em `0` | I55 | 9 |
+| M68 | `<select>` de volta ao cartão | I56 | 1 |
+| M69 | diálogo ignora `frozen` | I57 | 1 |
+| M70 | diálogo ignora `moving` | I57 | 1 |
+| M71 | move sem sincronizar `selectedTask` | I58 | 1 |
+| M72 | Enter/Espaço deixam de abrir o diálogo | I56 | 3 |
+
+**16 de 16 mortas. Nenhuma mutação sobreviveu.** Quatro morrem por assassinos escritos nesta
+bateria (M57 pelo caso do menor fim; M65 pelo T-F3 além do caso de sobrevivência; M66 pelos
+vazios juntos; M70/M72 em parte pelos T-F4/T-F5).
+
+## T5. Deriva documental
+
+- `RF_TECHNICAL_MATRIX.md`: linha do RF08 já citava `TaskDetailsPanel` (commit `11587a9`);
+  linha do RF10 nada afirma do painel de blocos nem do desenho antigo da barra — **nada falso**.
+- `TECHNICAL_BACKLOG.md`: **S104-F14** (achado T-A1) acrescentado; o segundo `S104-F07`
+  renumerado para o **S104-F11** vago (dois itens dividiam o mesmo ID).
+- `ASVS_BASELINE.md`: adendo da terceira bateria acrescentado, com o T-A1 declarado como
+  pendência ativa de L2.
+- `API_CONTRACTS.md` e `AUTHORIZATION_MATRIX.md`: sem mudança — delta sem backend; a autorização
+  do move segue provada em `auth-authorization.test.js`. Nenhum ADR novo: a quinta iteração não
+  altera regra de domínio (ADR-011 D03 preservado).
+
+## T6. O que não foi testado e por quê
+
+- **Smoke no ambiente completo** (backend + MySQL + seed reais): a verificação visual usou a tela
+  real com HTTP interceptado no adapter — cobre o código de produção do frontend, não o
+  integração viva com o servidor; o smoke ponta a ponta permanece com o João (o mesmo recorte que
+  `S104-F02` já registra como pendência de E2E).
+- **A largura igual dos segmentos e o alinhamento do seletor no `dl`** foram julgados por captura
+  (Fase 6), não por asserção — por regra do enunciado.
+- **ASVS L3** — fora da meta; **ambiente real** — Sprint 2 do roadmap.
+
+## T7. Checklist de DoD do enunciado
+
+- [x] Fase 0 fechada nos dois escopos (zero em RF10/RF35; nenhum comentário novo no Kanban)
+- [x] Mapa atualizado: I50–I58 classificados (todos PROVADA); I38/I44 reescritos; RF08 no mapa; Fase 4 com a linha CONTRADITA do T-A1
+- [x] Frontend 322/322 e backend 502/502, duas vezes, com todos os gates verdes
+- [x] Cobertura acima dos limiares e acima dos números de partida
+- [x] Mutação M57–M72 preenchida e fechada: 16 mortas, 0 sobreviventes
+- [x] Matriz visual da seção 9 completa em navegador real (harness sem backend); capturas no registro da sessão; harness apagado antes dos commits
+- [x] Nenhum teste novo alterou código de produção (o achado T-A1 ficou registrado, não corrigido)
+- [x] Documentos da Fase 8 conferidos ou corrigidos; relatório escrito
