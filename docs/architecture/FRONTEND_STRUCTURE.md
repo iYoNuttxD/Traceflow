@@ -115,6 +115,28 @@ As rotas públicas continuam fora do AppShell. Contas autenticadas em estado res
 recebem a sidebar, mas preservam seus guards e as ações permitidas pelo domínio. GitHub OAuth em
 Auth representa identidade; GitHub App e autorização de repositórios permanecem em integrações.
 
+## Settings e ações sensíveis
+
+`SettingsLayout` compõe header, tabs internas e o outlet dentro do AppShell; `/projects` permanece a
+entrada autenticada canônica e nenhuma Home paralela é criada. `AccountSettingsPage`,
+`SecuritySettingsPage`, `PrivacySettingsPage` e `IntegrationsSettingsPage` continuam owners de suas
+queries, mutações, loading, erro inicial e feedback.
+
+`shared/styles/internal-tabs.css` concentra a navegação horizontal realmente reutilizada por
+Project Overview, Members e Settings. Cada consumer mantém apenas o layout contextual no CSS da
+própria feature; Settings não importa estilos internos de Projects.
+
+`PasswordField` é exposto pelo barrel público de Auth e concentra visibilidade, força informativa,
+requisitos reativos e confirmação de nova senha para Cadastro, Reset e Security. Settings não
+importa internals de Auth nem duplica a apresentação dessas regras; validações do backend permanecem
+autoritativas.
+
+`SensitiveActionDialog` pertence à feature Settings porque combina impacto e reautenticação dos
+fluxos de integração. Ele preserva o mecanismo existente por tipo de conta e delega requests ao
+owner da página. `GithubSensitiveReauthentication` continua owner da iniciação OAuth para ação
+sensível; GitHub App não autentica identidade, e GitHub OAuth não concede autorização de
+repositório.
+
 ## Consolidação de Tasks e Kanban
 
 As screens de Tasks e Kanban coordenam estado e casos de uso, enquanto componentes do próprio domínio apresentam responsabilidades delimitadas:

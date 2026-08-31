@@ -516,6 +516,44 @@ ou informa o próximo passo. Eyebrows institucionais, slogans e referências a t
 inexistentes não pertencem à interface. GitHub OAuth representa autenticação/identidade; GitHub App
 permanece restrita aos fluxos de integração de repositórios.
 
+## Settings C2
+
+Settings permanece dentro do AppShell autenticado e usa a mesma navegação interna horizontal de
+Project Overview: texto, divisor inferior, indicador ativo, hover e focus-visible. Em mobile, as tabs
+preservam largura legível e scroll horizontal controlado. O conteúdo usa largura contextual, sem
+adotar a coluna estreita de Auth nem ocupar toda a área disponível do shell.
+
+Conta, Segurança, Privacidade e Integrações usam uma surface temática integrada, dividida em seções
+internas. Grupos do mesmo formulário usam gap pequeno; grupos distintos usam gap médio; status,
+callout ou feedback seguido de novo bloco recebe separação explícita. Divisores não substituem
+padding. Danger permanece localizada no título, borda, background semântico e ação — nunca colore a
+seção inteira de forma indiscriminada.
+
+Campos de senha digitáveis usam o mesmo controle show/hide de Auth, com nome acessível “Mostrar
+senha”/“Ocultar senha” e target mínimo de 44 × 44 px. Campos que definem uma nova senha podem expor
+o padrão reativo compartilhado:
+
+- força informativa, inicialmente “Não avaliada”;
+- requisito obrigatório com ícone e texto Pendente/Atendido/Não atendido;
+- comportamento permitido identificado como informativo;
+- confirmação vazia, coincidente ou divergente por texto e estado semântico.
+
+Cadastro, Reset e Segurança reutilizam esse padrão visual. O backend continua autoritativo para a
+política e a força não cria requisito funcional adicional. Campos de senha atual não exibem força ou
+requisitos de nova senha.
+
+Ações sensíveis iniciadas em Integrações usam um único dialog C2 que reúne impacto,
+reautenticação e ação final. Não existe sequência de dois dialogs nem senha permanente no estado
+normal da integração. Cancelar recebe foco inicial; trap, Escape, erro inline, processamento sem
+submit duplicado e retorno de foco são obrigatórios. O mecanismo de reautenticação continua vindo do
+contrato vigente — senha local, pré-requisito de senha ou reautenticação GitHub conforme a conta.
+
+GitHub OAuth e GitHub App são integrações independentes. OAuth apresenta identidade/login em row
+compacta quando vinculada; App apresenta instalação, contagens autorizadas e link externo de gestão
+em uma row detalhada. As duas usam a mesma linguagem de surface, mas a densidade acompanha os dados
+reais e não força alturas iguais. Desvincular OAuth não implica desconectar App, e desconectar App
+não implica remover OAuth.
+
 ## Acessibilidade foundations
 
 - referência: WCAG 2.2 AA, sem declaração de conformidade nesta fase;

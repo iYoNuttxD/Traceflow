@@ -127,6 +127,7 @@ export function RegisterScreen() {
           onChange={(event) => change('password', event.target.value)}
           error={fieldErrors.password}
           showRequirements
+          policyContext={{ username: values.username, email: values.email }}
         />
         <PasswordField
           id="passwordConfirmation"
@@ -134,6 +135,8 @@ export function RegisterScreen() {
           value={values.passwordConfirmation}
           onChange={(event) => change('passwordConfirmation', event.target.value)}
           error={fieldErrors.passwordConfirmation}
+          showConfirmationStatus
+          confirmationValue={values.password}
         />
         <FeedbackRegion
           error={cooldown ? undefined : error}

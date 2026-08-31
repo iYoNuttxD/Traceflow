@@ -11,6 +11,7 @@ import {
 } from '../../../shared/index.js';
 import { ProjectAccessCodePanel } from '../components/ProjectAccessCodePanel.jsx';
 import { projectsApi } from '../api/projects.api.js';
+import '../../../shared/styles/internal-tabs.css';
 import '../styles/project-admin.css';
 import '../styles/project-tabs.css';
 import './ProjectMembersScreen.css';
@@ -75,10 +76,10 @@ export function ProjectMembersScreen() {
         </div>
       </header>
 
-      <nav className="project-tabs project-members-tabs" role="tablist" aria-label="Membros">
+      <nav className="internal-tabs project-members-tabs" role="tablist" aria-label="Membros">
         <button
           id="project-members-team-tab"
-          className={`project-tab ${activeTab === 'team' ? 'project-tab--active' : ''}`}
+          className={`internal-tab ${activeTab === 'team' ? 'internal-tab--active' : ''}`}
           type="button"
           role="tab"
           aria-selected={activeTab === 'team'}
@@ -90,7 +91,7 @@ export function ProjectMembersScreen() {
         {currentMembership?.role === 'OWNER' && (
           <button
             id="project-members-invitations-tab"
-            className={`project-tab ${activeTab === 'invitations' ? 'project-tab--active' : ''}`}
+            className={`internal-tab ${activeTab === 'invitations' ? 'internal-tab--active' : ''}`}
             type="button"
             role="tab"
             aria-selected={activeTab === 'invitations'}

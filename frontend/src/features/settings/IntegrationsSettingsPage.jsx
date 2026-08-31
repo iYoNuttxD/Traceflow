@@ -1,29 +1,26 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useLocation } from 'react-router';
+import { useCallback, useEffect, useState } from 'react';
+import { useLocation } from 'react-router';
 import {
   ContextualErrorPage,
   LoadingState,
+  TraceFlowIcon,
   classifyPageError,
   getErrorRequestId,
   normalizeApiError,
-  useCountdown,
-  useConfirm
+  useCountdown
 } from '../../shared/index.js';
+import { githubOAuthErrorMessage } from '../auth/index.js';
 import { settingsApi } from './settings.api.js';
+import { SensitiveActionDialog } from './SensitiveActionDialog.jsx';
 import { SettingsFeedback } from './SettingsFeedback.jsx';
-import { PasswordField, githubOAuthErrorMessage } from '../auth/index.js';
-import { GithubSensitiveReauthentication } from './GithubSensitiveReauthentication.jsx';
 import './IntegrationsSettingsPage.css';
 
 export function IntegrationsSettingsPage() {
-  const confirm = useConfirm();
   const location = useLocation();
   const [account, setAccount] = useState(null);
   const [identity, setIdentity] = useState({ linked: false });
   const [integrations, setIntegrations] = useState([]);
-  const [passwords, setPasswords] = useState({});
-  const [identityPassword, setIdentityPassword] = useState('');
-  const [linking, setLinking] = useState(false);
+  const [dialog, setDialog] = useState(null);
   const [authorizing, setAuthorizing] = useState(false);
   const searchParams = new URLSearchParams(location.search);
   const githubError =
@@ -34,7 +31,7 @@ export function IntegrationsSettingsPage() {
     githubError
       ? ''
       : searchParams.get('githubIdentity') === 'success'
-        ? 'Conta GitHub vinculada com sucesso.'
+        ? 'GitHub OAuth vinculado.'
         : searchParams.get('githubReauth') === 'success'
           ? 'Identidade GitHub confirmada para ações sensíveis.'
           : ''
@@ -42,9 +39,7 @@ export function IntegrationsSettingsPage() {
   const [error, setError] = useState(githubError);
   const [loading, setLoading] = useState(true);
   const [initialError, setInitialError] = useState(null);
-  const [busy, setBusy] = useState('');
   const [retryAfterSeconds, setRetryAfterSeconds] = useState(0);
-  const actionLock = useRef(false);
   const cooldown = useCountdown(retryAfterSeconds);
 
   const load = useCallback(async () => {
@@ -74,79 +69,18 @@ export function IntegrationsSettingsPage() {
     void loadInitial();
   }, [loadInitial]);
 
-  async function removeAuthorization(id) {
-    if (
-      !(await confirm({
-        title: 'Desconectar GitHub App',
-        description:
-          'A instalação no GitHub e os projetos serão preservados. Esta conta TraceFlow deixará de gerenciar a instalação.',
-        confirmLabel: 'Desconectar'
-      }))
-    )
-      return;
-    if (actionLock.current || cooldown > 0) return;
-    actionLock.current = true;
-    setBusy(`authorization-${id}`);
+  async function completeSensitiveAction(operation, success) {
     setError('');
+    setMessage('');
     setRetryAfterSeconds(0);
     try {
-      await settingsApi.removeGithubAuthorization(id, passwords[id] || '');
-      setMessage('GitHub App desconectada desta conta TraceFlow.');
-      setPasswords((current) => ({ ...current, [id]: '' }));
+      await operation();
+      setMessage(success);
       await load();
     } catch (value) {
       const normalized = normalizeApiError(value);
-      setError(normalized.message);
       setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
-    } finally {
-      actionLock.current = false;
-      setBusy('');
-    }
-  }
-
-  async function startIdentityLink() {
-    if (linking || cooldown > 0) return;
-    setLinking(true);
-    setError('');
-    setRetryAfterSeconds(0);
-    try {
-      const result = await settingsApi.startGithubIdentityLink(identityPassword);
-      window.location.assign(result.url);
-    } catch (value) {
-      const normalized = normalizeApiError(value);
-      setError(normalized.message);
-      setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
-      setLinking(false);
-    }
-  }
-
-  async function unlinkIdentity() {
-    if (
-      !(await confirm({
-        title: 'Desvincular conta GitHub',
-        description:
-          'Você não poderá mais entrar com esta conta GitHub. Projetos e integrações com repositórios serão preservados.',
-        confirmLabel: 'Desvincular'
-      }))
-    )
-      return;
-    if (actionLock.current || cooldown > 0) return;
-    actionLock.current = true;
-    setBusy('unlink-identity');
-    setError('');
-    setRetryAfterSeconds(0);
-    try {
-      await settingsApi.unlinkGithubIdentity(identityPassword);
-      setIdentityPassword('');
-      setMessage('Conta GitHub desvinculada.');
-      await load();
-    } catch (value) {
-      const normalized = normalizeApiError(value);
-      setError(normalized.message);
-      setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
-    } finally {
-      actionLock.current = false;
-      setBusy('');
+      throw value;
     }
   }
 
@@ -166,7 +100,74 @@ export function IntegrationsSettingsPage() {
     }
   }
 
-  if (loading) return <LoadingState message="Carregando integrações..." />;
+  function openDialog(kind, trigger, authorization = null) {
+    setDialog({ kind, trigger, authorization });
+  }
+
+  async function confirmDialog(password) {
+    if (dialog.kind === 'link') {
+      const result = await settingsApi.startGithubIdentityLink(password);
+      window.location.assign(result.url);
+      return;
+    }
+    if (dialog.kind === 'unlink') {
+      await completeSensitiveAction(
+        () => settingsApi.unlinkGithubIdentity(password),
+        'GitHub OAuth desvinculado.'
+      );
+      return;
+    }
+    await completeSensitiveAction(
+      () => settingsApi.removeGithubAuthorization(dialog.authorization.id, password),
+      'GitHub App desconectada desta conta TraceFlow.'
+    );
+  }
+
+  function dialogProps() {
+    if (!dialog) return null;
+    if (dialog.kind === 'link') {
+      return {
+        title: 'Vincular GitHub OAuth',
+        description: 'Confirme sua senha atual antes de continuar para o GitHub.',
+        independence: 'Esta ação não instala a GitHub App.',
+        confirmLabel: 'Continuar com GitHub',
+        destructive: false,
+        mode: 'password'
+      };
+    }
+    if (dialog.kind === 'unlink') {
+      const prerequisite = !account?.hasLocalPassword;
+      return {
+        title: prerequisite ? 'Crie uma senha antes de desvincular' : 'Desvincular GitHub OAuth?',
+        description: prerequisite
+          ? 'O GitHub OAuth é o único método de entrada disponível para esta conta.'
+          : 'Você não poderá mais entrar usando esta conta GitHub.',
+        independence: 'A integração por GitHub App continuará funcionando normalmente.',
+        confirmLabel: 'Desvincular',
+        mode: prerequisite ? 'prerequisite' : 'password'
+      };
+    }
+
+    const needsGithubReauth = !account?.hasLocalPassword && !account?.recentlyReauthenticated;
+    const mode = account?.hasLocalPassword ? 'password' : needsGithubReauth ? 'github' : 'confirm';
+    return {
+      title: 'Desconectar GitHub App?',
+      description: 'A integração com repositórios, sincronização e webhooks será interrompida.',
+      independence: 'O login com GitHub não será afetado.',
+      confirmLabel: 'Desconectar',
+      mode,
+      account,
+      returnTo: '/settings/integrations'
+    };
+  }
+
+  if (loading) {
+    return (
+      <div className="settings-loading">
+        <LoadingState message="Carregando integrações..." />
+      </div>
+    );
+  }
   if (initialError) {
     return (
       <ContextualErrorPage
@@ -178,186 +179,150 @@ export function IntegrationsSettingsPage() {
       />
     );
   }
-  const sensitiveActionReady = account?.hasLocalPassword || account?.recentlyReauthenticated;
+
+  const activeDialogProps = dialogProps();
 
   return (
-    <>
+    <div className="settings-stack">
       <SettingsFeedback error={error} message={message} retryAfterSeconds={cooldown} />
-      <section className="settings-card github-identity-card">
-        <h2>Login com GitHub</h2>
-        <p>
-          Usada para autenticar sua conta TraceFlow. Não concede acesso a projetos ou repositórios.
-        </p>
-        {identity.linked ? (
-          <>
-            <div className="integration-card">
-              <div>
-                <strong>@{identity.githubLogin}</strong>
-                <small>Vinculada</small>
-              </div>
-              <p>Você pode utilizar esta conta para entrar no TraceFlow.</p>
+      <article className="settings-surface">
+        <section className="settings-section" aria-labelledby="settings-github-oauth-title">
+          <div className="settings-section-heading">
+            <div>
+              <h2 id="settings-github-oauth-title">GitHub OAuth</h2>
+              <p>Usado para entrar no TraceFlow.</p>
             </div>
-            <section className="github-authorization-danger danger-zone">
-              <h3>Desvincular conta GitHub</h3>
-              <p>
-                Você não poderá mais entrar com esta conta GitHub. Seus projetos e integrações com
-                repositórios não serão removidos.
-              </p>
-              {account?.hasLocalPassword ? (
-                <>
-                  <PasswordField
-                    id="unlinkGithubIdentityPassword"
-                    label="Senha atual da conta"
-                    autoComplete="current-password"
-                    value={identityPassword}
-                    onChange={(event) => setIdentityPassword(event.target.value)}
-                  />
-                  <div className="danger-zone-actions">
-                    <button
-                      className="button button-danger"
-                      type="button"
-                      disabled={!identityPassword || Boolean(busy) || cooldown > 0}
-                      aria-busy={busy === 'unlink-identity'}
-                      onClick={() => void unlinkIdentity()}
-                    >
-                      Desvincular conta GitHub
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <p className="danger-impact">
-                  Antes de desvincular o GitHub,{' '}
-                  <Link to="/settings/security">crie uma senha em Segurança</Link>.
-                </p>
-              )}
-            </section>
-          </>
-        ) : (
-          <>
-            <p>Nenhuma conta GitHub vinculada.</p>
-            <PasswordField
-              id="linkGithubIdentityPassword"
-              label="Senha atual da conta TraceFlow"
-              autoComplete="current-password"
-              value={identityPassword}
-              onChange={(event) => setIdentityPassword(event.target.value)}
-            />
-            <button
-              type="button"
-              disabled={!identityPassword || linking || cooldown > 0}
-              aria-busy={linking}
-              onClick={() => void startIdentityLink()}
-            >
-              {linking ? 'Conectando ao GitHub...' : 'Vincular conta GitHub'}
-            </button>
-          </>
-        )}
-      </section>
-
-      {!account?.hasLocalPassword && integrations.length > 0 && (
-        <section className="settings-card">
-          <h2>Confirmação para desconectar a GitHub App</h2>
-          <p>Confirme sua identidade antes de desconectar uma instalação desta conta.</p>
-          <GithubSensitiveReauthentication
-            account={account}
-            returnTo="/settings/integrations"
-            onError={setError}
-          />
-        </section>
-      )}
-
-      <section className="settings-card">
-        <h2>GitHub App</h2>
-        <p>
-          Conecta repositórios e sincroniza commits, branches, pull requests e issues. Funciona
-          independentemente da conta GitHub usada para entrar no TraceFlow.
-        </p>
-        <button
-          className="button button-secondary"
-          type="button"
-          disabled={authorizing || Boolean(busy) || cooldown > 0}
-          aria-busy={authorizing}
-          onClick={() => void authorize()}
-        >
-          {authorizing
-            ? 'Abrindo GitHub...'
-            : integrations.length > 0
-              ? 'Adicionar ou atualizar acesso'
-              : 'Instalar ou autorizar GitHub App'}
-        </button>
-        {!integrations.length && <p>Nenhuma GitHub App conectada à sua conta.</p>}
-        {integrations.map((item) => {
-          const projectCount = item.projects.length;
-          return (
-            <div className="integration-entry" key={item.id}>
-              <article className="integration-card">
-                <div>
-                  <strong>{item.installation.accountLogin}</strong>
-                  <small>
-                    {item.installation.accountType} · {item.installation.status}
-                  </small>
-                </div>
-                <p>
-                  {item.repositories.length} repositório(s) concedido(s) à instalação ·{' '}
-                  {projectCount} projeto(s) conectado(s)
-                </p>
-                <a
-                  className="text-link"
-                  href={item.installation.manageUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Gerenciar acesso no GitHub
-                </a>
-              </article>
-              <section
-                className="github-authorization-danger danger-zone"
-                aria-labelledby={`github-danger-${item.id}`}
+          </div>
+          {identity.linked ? (
+            <div className="integration-box integration-box-compact">
+              <strong className="integration-identity">@{identity.githubLogin}</strong>
+              <span className="settings-status-badge settings-status-success">Vinculada</span>
+              <button
+                className="button button-danger"
+                type="button"
+                disabled={cooldown > 0}
+                onClick={(event) => openDialog('unlink', event.currentTarget)}
               >
-                <h3 id={`github-danger-${item.id}`}>Zona de risco</h3>
-                <strong>Desconectar desta conta TraceFlow</strong>
-                <p>
-                  A GitHub App não será desinstalada no GitHub. Projetos, integrações e artefatos
-                  históricos não serão excluídos.
-                </p>
-                {projectCount > 0 && (
-                  <p className="danger-impact" role="status">
-                    Esta autorização está relacionada a {projectCount}{' '}
-                    {projectCount === 1 ? 'projeto' : 'projetos'}.
-                  </p>
-                )}
-                {account?.hasLocalPassword && (
-                  <PasswordField
-                    id={`githubAuthorizationPassword-${item.id}`}
-                    label="Senha atual"
-                    autoComplete="current-password"
-                    value={passwords[item.id] || ''}
-                    onChange={(event) =>
-                      setPasswords((current) => ({ ...current, [item.id]: event.target.value }))
-                    }
-                  />
-                )}
-                <div className="danger-zone-actions">
-                  <button
-                    className="button button-danger"
-                    type="button"
-                    disabled={
-                      !sensitiveActionReady ||
-                      (account?.hasLocalPassword && !passwords[item.id]) ||
-                      Boolean(busy) ||
-                      cooldown > 0
-                    }
-                    aria-busy={busy === `authorization-${item.id}`}
-                    onClick={() => void removeAuthorization(item.id)}
-                  >
-                    Desconectar GitHub App
-                  </button>
-                </div>
-              </section>
+                Desvincular
+              </button>
             </div>
-          );
-        })}
-      </section>
-    </>
+          ) : (
+            <div className="settings-panel">
+              <h3>GitHub OAuth não vinculado</h3>
+              <p>Vincule uma identidade GitHub para também usá-la no login.</p>
+              <div className="settings-actions">
+                <button
+                  className="button button-provider"
+                  type="button"
+                  disabled={cooldown > 0}
+                  onClick={(event) => openDialog('link', event.currentTarget)}
+                >
+                  Vincular GitHub OAuth
+                </button>
+              </div>
+            </div>
+          )}
+        </section>
+
+        <section className="settings-section" aria-labelledby="settings-github-app-title">
+          <div className="settings-section-heading">
+            <div>
+              <h2 id="settings-github-app-title">GitHub App</h2>
+              <p>Usada para integração com repositórios, sincronização e webhooks.</p>
+            </div>
+          </div>
+          <div className="settings-section-flow">
+            <div className="settings-actions">
+              <button
+                className="button button-secondary"
+                type="button"
+                disabled={authorizing || cooldown > 0}
+                aria-busy={authorizing}
+                onClick={() => void authorize()}
+              >
+                {authorizing
+                  ? 'Abrindo GitHub...'
+                  : integrations.length > 0
+                    ? 'Adicionar ou atualizar acesso'
+                    : 'Instalar ou autorizar GitHub App'}
+              </button>
+            </div>
+            {!integrations.length ? (
+              <div className="settings-panel">
+                <h3>GitHub App não instalada</h3>
+                <p>Autorize a App para integrar repositórios e sincronização.</p>
+              </div>
+            ) : (
+              <div className="integration-list">
+                {integrations.map((item) => {
+                  const projectCount = item.projects.length;
+                  const repositoryCount = item.repositories.length;
+                  return (
+                    <article className="integration-box" key={item.id}>
+                      <div className="integration-box-header">
+                        <strong className="integration-identity">
+                          {item.installation.accountLogin}
+                        </strong>
+                        <span
+                          className={`settings-status-badge ${
+                            item.installation.status === 'ACTIVE'
+                              ? 'settings-status-success'
+                              : 'settings-status-warning'
+                          }`}
+                        >
+                          {item.installation.status === 'ACTIVE'
+                            ? 'Ativa'
+                            : item.installation.status}
+                        </span>
+                      </div>
+                      <div className="integration-metadata">
+                        <span>
+                          {repositoryCount}{' '}
+                          {repositoryCount === 1
+                            ? 'repositório autorizado'
+                            : 'repositórios autorizados'}
+                        </span>
+                        <span>
+                          {projectCount}{' '}
+                          {projectCount === 1 ? 'projeto vinculado' : 'projetos vinculados'}
+                        </span>
+                      </div>
+                      <div className="integration-box-actions">
+                        <a
+                          className="button integration-external-link"
+                          href={item.installation.manageUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          aria-label="Gerenciar acesso no GitHub"
+                        >
+                          Gerenciar no GitHub
+                          <TraceFlowIcon name="externalLink" />
+                        </a>
+                        <button
+                          className="button button-danger"
+                          type="button"
+                          disabled={cooldown > 0}
+                          onClick={(event) => openDialog('disconnect', event.currentTarget, item)}
+                        >
+                          Desconectar
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </section>
+      </article>
+      {dialog && activeDialogProps && (
+        <SensitiveActionDialog
+          {...activeDialogProps}
+          trigger={dialog.trigger}
+          onConfirm={confirmDialog}
+          onClose={() => setDialog(null)}
+        />
+      )}
+    </div>
   );
 }

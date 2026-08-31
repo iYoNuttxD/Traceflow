@@ -99,6 +99,8 @@ export function ResetPasswordScreen() {
             setFieldErrors((current) => ({ ...current, passwordConfirmation: undefined }));
           }}
           error={fieldErrors.passwordConfirmation}
+          showConfirmationStatus
+          confirmationValue={password}
         />
         <FeedbackRegion
           error={cooldown ? undefined : error}

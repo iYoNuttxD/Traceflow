@@ -6,6 +6,8 @@ const globalCss = readFileSync(resolve('src/styles/global.css'), 'utf8');
 const tokensCss = readFileSync(resolve('src/styles/tokens.css'), 'utf8');
 const kanbanCss = readFileSync(resolve('src/features/tasks/pages/KanbanScreen.css'), 'utf8');
 const settingsCss = readFileSync(resolve('src/features/settings/SettingsLayout.css'), 'utf8');
+const settingsLayout = readFileSync(resolve('src/features/settings/SettingsLayout.jsx'), 'utf8');
+const internalTabsCss = readFileSync(resolve('src/shared/styles/internal-tabs.css'), 'utf8');
 const settingsSharedCss = readFileSync(
   resolve('src/features/settings/styles/settings-shared.css'),
   'utf8'
@@ -80,15 +82,16 @@ describe('compatibilidade de conteúdo legado com os temas', () => {
   });
 
   it('preserva a navegação de Settings no mesmo sistema semântico', () => {
-    expect(rule(settingsCss, '.settings-shell > header .eyebrow')).toContain(
+    expect(rule(settingsCss, '.settings-header .eyebrow')).toContain(
       'color: var(--color-accent-primary)'
     );
-    expect(rule(settingsCss, '.settings-nav a')).toContain('color: var(--color-text-secondary)');
-    expect(rule(settingsCss, '.settings-nav a:hover,\n.settings-nav a.active')).toContain(
+    expect(settingsLayout).toContain("import '../../shared/styles/internal-tabs.css'");
+    expect(rule(internalTabsCss, '.internal-tab')).toContain('color: var(--color-text-secondary)');
+    expect(rule(internalTabsCss, '.internal-tab--active')).toContain(
       'color: var(--color-accent-text)'
     );
-    expect(rule(settingsCss, '.settings-nav a:hover,\n.settings-nav a.active')).toContain(
-      'background: var(--color-accent-surface)'
+    expect(rule(internalTabsCss, '.internal-tab--active::after')).toContain(
+      'background: var(--color-accent-primary)'
     );
   });
 
@@ -108,18 +111,36 @@ describe('compatibilidade de conteúdo legado com os temas', () => {
     }
   });
 
-  it('estabelece texto próprio nas surfaces claras fixas de Settings', () => {
-    expect(rule(settingsSharedCss, '.settings-card')).toContain('background: #fff');
-    expect(rule(settingsSharedCss, '.settings-card')).toContain(
-      'color: var(--color-text-on-light-primary)'
+  it('usa surfaces C2 temáticas em Settings sem manter cards brancos legados', () => {
+    expect(rule(settingsSharedCss, '.settings-surface')).toContain(
+      'background: var(--color-surface-primary)'
     );
+    expect(rule(settingsSharedCss, '.settings-surface')).toContain(
+      'color: var(--color-text-primary)'
+    );
+    expect(rule(securitySettingsCss.split('@media')[0], '.session-row')).toContain(
+      'background: var(--color-surface-secondary)'
+    );
+    expect(rule(securitySettingsCss, '.session-copy small')).toContain(
+      'color: var(--color-text-secondary)'
+    );
+    expect(rule(integrationsSettingsCss, '.integration-box')).toContain(
+      'background: var(--color-surface-secondary)'
+    );
+    expect(settingsSharedCss).not.toContain('background: #fff');
+    expect(settingsSharedCss).not.toContain('--color-text-on-light');
+  });
 
-    expect(rule(securitySettingsCss, '.session-row small')).toContain(
-      'color: var(--color-text-on-light-secondary)'
-    );
-    expect(rule(integrationsSettingsCss, '.integration-card small')).toContain(
-      'color: var(--color-text-on-light-secondary)'
-    );
+  it('mantém controles C2 e a row OAuth compacta sem reduzir o touch target', () => {
+    expect(
+      rule(
+        settingsSharedCss,
+        '.settings-actions .button,\n.settings-surface button,\n.settings-surface .button,\n.settings-sensitive-dialog .button'
+      )
+    ).toContain('min-height: var(--size-touch-target)');
+    const compactRow = rule(integrationsSettingsCss.split('@media')[0], '.integration-box-compact');
+    expect(compactRow).toContain('display: flex');
+    expect(compactRow).toContain('padding-block: var(--space-2)');
   });
 
   it('mantém as surfaces Focused de Auth temáticas e sem paleta local fixa', () => {
@@ -163,12 +184,15 @@ describe('compatibilidade de conteúdo legado com os temas', () => {
   });
 
   it('preserva as cores explícitas das danger zones de Settings', () => {
-    expect(
-      rule(settingsSharedCss, '.settings-card .button-danger,\n.danger-zone .button-danger')
-    ).toContain('color: #b42318');
-    expect(rule(integrationsSettingsCss, '.github-authorization-danger h3')).toContain(
-      'color: #b42318'
+    expect(rule(settingsSharedCss, '.settings-danger-section')).toContain(
+      'var(--color-danger-surface)'
     );
-    expect(rule(integrationsSettingsCss, '.danger-impact')).toContain('color: #7a271a');
+    expect(
+      rule(
+        settingsSharedCss,
+        '.settings-danger-section .settings-section-heading h2,\n.settings-danger-section .settings-section-heading h3'
+      )
+    ).toContain('color: var(--color-danger-text)');
+    expect(rule(settingsSharedCss, '.danger-impact')).toContain('color: var(--color-danger-text)');
   });
 });

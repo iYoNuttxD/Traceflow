@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ContextualErrorPage,
+  LoadingState,
   classifyPageError,
   getErrorRequestId,
   normalizeApiError,
@@ -17,6 +18,7 @@ export function AccountSettingsPage() {
   const { refresh } = useAuth();
   const [account, setAccount] = useState(null);
   const [profile, setProfile] = useState({ name: '', username: '' });
+  const savedProfile = useRef(profile);
   const [email, setEmail] = useState({ newEmail: '', currentPassword: '' });
   const [deactivationPassword, setDeactivationPassword] = useState('');
   const [message, setMessage] = useState('');
@@ -29,8 +31,10 @@ export function AccountSettingsPage() {
 
   const load = useCallback(async () => {
     const result = await settingsApi.account();
+    const nextProfile = { name: result.name, username: result.username || '' };
     setAccount(result);
-    setProfile({ name: result.name, username: result.username || '' });
+    setProfile(nextProfile);
+    savedProfile.current = nextProfile;
   }, []);
 
   const loadInitial = useCallback(async () => {
@@ -45,6 +49,7 @@ export function AccountSettingsPage() {
   useEffect(() => {
     void loadInitial();
   }, [loadInitial]);
+
   async function run(key, operation, success) {
     if (actionLock.current || cooldown > 0) return;
     actionLock.current = true;
@@ -78,180 +83,246 @@ export function AccountSettingsPage() {
       />
     );
   }
-  if (!account) return <p>Carregando conta...</p>;
+  if (!account) {
+    return (
+      <div className="settings-loading">
+        <LoadingState message="Carregando conta..." />
+      </div>
+    );
+  }
+
   const active = account.accountStatus === 'ACTIVE';
   const sensitiveActionReady = account.hasLocalPassword || account.recentlyReauthenticated;
+  const profileChanged =
+    profile.name !== savedProfile.current.name ||
+    profile.username !== savedProfile.current.username;
+
   return (
-    <>
+    <div className="settings-stack">
       <SettingsFeedback error={error} message={message} retryAfterSeconds={cooldown} />
-      {!account.hasLocalPassword && (
-        <section className="settings-card">
-          <h2>Confirmação para ações sensíveis</h2>
-          <p>
-            Esta conta usa GitHub para autenticação. Confirme a identidade no GitHub antes de
-            alterar o e-mail, desativar ou excluir a conta.
-          </p>
-          <GithubSensitiveReauthentication
-            account={account}
-            returnTo="/settings/account"
-            onError={setError}
-          />
-        </section>
-      )}
-      <section className="settings-card">
-        <h2>Perfil</h2>
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            void run('profile', () => settingsApi.updateProfile(profile.name), 'Nome atualizado.');
-          }}
-        >
-          <label>
-            Nome
-            <input
-              value={profile.name}
-              disabled={!active}
-              onChange={(event) => setProfile({ ...profile, name: event.target.value })}
-            />
-          </label>
-          <button
-            disabled={!active || Boolean(busy) || cooldown > 0}
-            aria-busy={busy === 'profile'}
-            type="submit"
-          >
-            {busy === 'profile' ? 'Salvando nome...' : 'Salvar nome'}
-          </button>
-        </form>
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            void run(
-              'username',
-              () => settingsApi.updateUsername(profile.username),
-              'Username atualizado.'
-            );
-          }}
-        >
-          <label>
-            Username
-            <input
-              value={profile.username}
-              disabled={!active}
-              onChange={(event) => setProfile({ ...profile, username: event.target.value })}
-            />
-          </label>
-          {account.nextUsernameChangeAt && (
-            <small>
-              Próxima alteração: {new Date(account.nextUsernameChangeAt).toLocaleString('pt-BR')}
-            </small>
-          )}
-          <button
-            disabled={!active || Boolean(busy) || cooldown > 0}
-            aria-busy={busy === 'username'}
-            type="submit"
-          >
-            {busy === 'username' ? 'Salvando username...' : 'Salvar username'}
-          </button>
-        </form>
-      </section>
-      <section className="settings-card">
-        <h2>E-mail</h2>
-        <p>
-          Atual: <strong>{account.email}</strong>
-        </p>
-        {account.pendingEmailChange && (
-          <div className="settings-callout">
-            Confirmação pendente para {account.pendingEmailChange.newEmail}.
-            <button
-              type="button"
-              disabled={Boolean(busy) || cooldown > 0}
-              aria-busy={busy === 'cancel-email'}
-              onClick={() =>
-                void run('cancel-email', settingsApi.cancelEmailChange, 'Alteração cancelada.')
-              }
-            >
-              Cancelar
-            </button>
+      <article className="settings-surface">
+        <section className="settings-section" aria-labelledby="settings-profile-title">
+          <div className="settings-section-heading">
+            <div>
+              <h2 id="settings-profile-title">Perfil</h2>
+              <p>Dados usados para identificar sua conta no TraceFlow.</p>
+            </div>
           </div>
-        )}
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            void run(
-              'email',
-              () => settingsApi.requestEmailChange(email.newEmail, email.currentPassword),
-              'Enviamos a confirmação para o novo e-mail.'
-            );
-          }}
-        >
-          <label>
-            Novo e-mail
-            <input
-              type="email"
-              disabled={!active}
-              value={email.newEmail}
-              onChange={(event) => setEmail({ ...email, newEmail: event.target.value })}
-            />
-          </label>
-          {account.hasLocalPassword && (
-            <PasswordField
-              id="emailCurrentPassword"
-              label="Senha atual"
-              autoComplete="current-password"
-              disabled={!active}
-              value={email.currentPassword}
-              onChange={(event) => setEmail({ ...email, currentPassword: event.target.value })}
-            />
-          )}
-          <button
-            disabled={!active || !sensitiveActionReady || Boolean(busy) || cooldown > 0}
-            aria-busy={busy === 'email'}
-            type="submit"
-          >
-            {busy === 'email' ? 'Confirmando e-mail...' : 'Confirmar novo e-mail'}
-          </button>
-        </form>
-      </section>
-      <section className="settings-card danger-zone">
-        <h2>Desativar conta</h2>
-        <p>A conta entra em modo restrito. Projetos e dados permanecem preservados.</p>
-        {account.hasLocalPassword && (
-          <PasswordField
-            id="deactivationPassword"
-            label="Senha atual"
-            autoComplete="current-password"
-            disabled={!active}
-            value={deactivationPassword}
-            onChange={(event) => setDeactivationPassword(event.target.value)}
-          />
-        )}
-        <div className="danger-zone-actions">
-          <button
-            className="button button-danger"
-            disabled={!active || !sensitiveActionReady || Boolean(busy) || cooldown > 0}
-            aria-busy={busy === 'deactivate'}
-            type="button"
-            onClick={async () => {
-              if (
-                !(await confirm({
-                  title: 'Desativar conta',
-                  description:
-                    'Você perderá acesso às áreas operacionais até confirmar a reativação.',
-                  confirmLabel: 'Desativar'
-                }))
-              )
-                return;
-              await run(
-                'deactivate',
-                () => settingsApi.deactivate(deactivationPassword),
-                'Conta desativada.'
+          <form
+            className="settings-field-grid"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void run(
+                'profile',
+                () => {
+                  const operations = [];
+                  if (profile.name !== savedProfile.current.name)
+                    operations.push(settingsApi.updateProfile(profile.name));
+                  if (profile.username !== savedProfile.current.username)
+                    operations.push(settingsApi.updateUsername(profile.username));
+                  return Promise.all(operations);
+                },
+                'Alterações salvas.'
               );
             }}
           >
-            Desativar conta
-          </button>
-        </div>
-      </section>
-    </>
+            <div className="form-field">
+              <label htmlFor="settings-profile-name">Nome</label>
+              <input
+                id="settings-profile-name"
+                name="name"
+                autoComplete="name"
+                value={profile.name}
+                disabled={!active}
+                onChange={(event) => setProfile({ ...profile, name: event.target.value })}
+              />
+            </div>
+            <div className="form-field">
+              <label htmlFor="settings-profile-username">Username</label>
+              <input
+                id="settings-profile-username"
+                name="username"
+                autoComplete="username"
+                value={profile.username}
+                disabled={!active}
+                aria-describedby={account.nextUsernameChangeAt ? 'username-change-help' : undefined}
+                onChange={(event) => setProfile({ ...profile, username: event.target.value })}
+              />
+              {account.nextUsernameChangeAt && (
+                <small className="settings-field-help" id="username-change-help">
+                  Nova alteração disponível em{' '}
+                  {new Date(account.nextUsernameChangeAt).toLocaleString('pt-BR')}.
+                </small>
+              )}
+            </div>
+            <div className="settings-actions settings-field-full">
+              <button
+                className="button button-primary"
+                disabled={!active || !profileChanged || Boolean(busy) || cooldown > 0}
+                aria-busy={busy === 'profile'}
+                type="submit"
+              >
+                {busy === 'profile' ? 'Salvando...' : 'Salvar alterações'}
+              </button>
+            </div>
+          </form>
+        </section>
+
+        <section className="settings-section" aria-labelledby="settings-email-title">
+          <div className="settings-section-heading">
+            <div>
+              <h2 id="settings-email-title">E-mail</h2>
+              <p>Altere o endereço usado pela conta.</p>
+            </div>
+          </div>
+          <div className="settings-section-flow">
+            <div className="settings-inline-status">
+              <div>
+                <h3>{account.email}</h3>
+                <p>E-mail atual da conta.</p>
+              </div>
+            </div>
+            {account.pendingEmailChange ? (
+              <div className="settings-panel settings-panel-warning" role="status">
+                <h3>Alteração pendente</h3>
+                <p>Aguardando confirmação de {account.pendingEmailChange.newEmail}.</p>
+                <div className="settings-actions">
+                  <button
+                    className="button button-secondary"
+                    type="button"
+                    disabled={Boolean(busy) || cooldown > 0}
+                    aria-busy={busy === 'cancel-email'}
+                    onClick={() =>
+                      void run(
+                        'cancel-email',
+                        settingsApi.cancelEmailChange,
+                        'Alteração cancelada.'
+                      )
+                    }
+                  >
+                    Cancelar alteração
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <form
+                className="settings-field-grid"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void run(
+                    'email',
+                    () => settingsApi.requestEmailChange(email.newEmail, email.currentPassword),
+                    'Enviamos a confirmação para o novo e-mail.'
+                  );
+                }}
+              >
+                <div className="form-field">
+                  <label htmlFor="settings-new-email">Novo e-mail</label>
+                  <input
+                    id="settings-new-email"
+                    name="newEmail"
+                    type="email"
+                    autoComplete="email"
+                    disabled={!active}
+                    value={email.newEmail}
+                    onChange={(event) => setEmail({ ...email, newEmail: event.target.value })}
+                  />
+                </div>
+                {account.hasLocalPassword ? (
+                  <PasswordField
+                    id="emailCurrentPassword"
+                    label="Senha atual"
+                    autoComplete="current-password"
+                    disabled={!active}
+                    value={email.currentPassword}
+                    onChange={(event) =>
+                      setEmail({ ...email, currentPassword: event.target.value })
+                    }
+                  />
+                ) : (
+                  <div className="settings-field-full settings-panel settings-panel-info">
+                    <h3>Confirme sua identidade</h3>
+                    <p>Esta ação exige uma confirmação GitHub recente.</p>
+                    <GithubSensitiveReauthentication
+                      account={account}
+                      returnTo="/settings/account"
+                      onError={setError}
+                    />
+                  </div>
+                )}
+                <div className="settings-actions settings-field-full">
+                  <button
+                    className="button button-secondary"
+                    disabled={!active || !sensitiveActionReady || Boolean(busy) || cooldown > 0}
+                    aria-busy={busy === 'email'}
+                    type="submit"
+                  >
+                    {busy === 'email' ? 'Solicitando...' : 'Solicitar alteração'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </section>
+
+        <section
+          className="settings-section settings-danger-section"
+          aria-labelledby="settings-account-management-title"
+        >
+          <div className="settings-section-heading">
+            <div>
+              <h2 id="settings-account-management-title">Gerenciamento da conta</h2>
+              <p>Desativar interrompe o acesso sem remover os dados imediatamente.</p>
+            </div>
+          </div>
+          <div className="settings-section-flow">
+            {account.hasLocalPassword ? (
+              <div className="settings-form">
+                <PasswordField
+                  id="deactivationPassword"
+                  label="Senha atual"
+                  autoComplete="current-password"
+                  disabled={!active}
+                  value={deactivationPassword}
+                  onChange={(event) => setDeactivationPassword(event.target.value)}
+                />
+              </div>
+            ) : (
+              <GithubSensitiveReauthentication
+                account={account}
+                returnTo="/settings/account"
+                onError={setError}
+              />
+            )}
+            <div className="settings-actions">
+              <button
+                className="button button-danger"
+                disabled={!active || !sensitiveActionReady || Boolean(busy) || cooldown > 0}
+                aria-busy={busy === 'deactivate'}
+                type="button"
+                onClick={async () => {
+                  if (
+                    !(await confirm({
+                      title: 'Desativar conta',
+                      description:
+                        'Você perderá acesso às áreas operacionais até confirmar a reativação.',
+                      confirmLabel: 'Desativar'
+                    }))
+                  )
+                    return;
+                  await run(
+                    'deactivate',
+                    () => settingsApi.deactivate(deactivationPassword),
+                    'Conta desativada.'
+                  );
+                }}
+              >
+                Desativar conta
+              </button>
+            </div>
+          </div>
+        </section>
+      </article>
+    </div>
   );
 }

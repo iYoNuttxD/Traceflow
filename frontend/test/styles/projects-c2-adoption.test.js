@@ -13,6 +13,7 @@ const projectStylePaths = [
   'src/features/projects/components/MemberAvatarStack.css',
   'src/features/projects/styles/project-admin.css',
   'src/features/projects/styles/project-tabs.css',
+  'src/shared/styles/internal-tabs.css',
   'src/features/projects/pages/ProjectMembersScreen.css',
   'src/features/invitations/PendingProjectInvitations.css',
   'src/features/members/ProjectMembersPanel.css',

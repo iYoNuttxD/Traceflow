@@ -110,6 +110,84 @@ describe('infraestrutura acessível compartilhada', () => {
     expect(screen.queryByLabelText(/Força da senha/)).not.toBeInTheDocument();
   });
 
+  it('atualiza requisitos e confirmação de nova senha com ícone, texto e semântica', () => {
+    const { rerender } = render(
+      <PasswordField
+        id="reactive-password"
+        value=""
+        onChange={vi.fn()}
+        showRequirements
+        policyContext={{ username: 'pessoa', email: 'pessoa@example.invalid' }}
+      />
+    );
+
+    expect(screen.getByLabelText('Força da senha: Não avaliada')).toHaveValue(0);
+    for (const item of screen.getAllByRole('listitem').slice(0, 2)) {
+      expect(item).toHaveAttribute('data-status', 'neutral');
+    }
+
+    rerender(
+      <PasswordField
+        id="reactive-password"
+        value="curta"
+        onChange={vi.fn()}
+        showRequirements
+        policyContext={{ username: 'pessoa', email: 'pessoa@example.invalid' }}
+      />
+    );
+    expect(screen.getAllByRole('listitem')[0]).toHaveAttribute('data-status', 'unmet');
+    expect(screen.getAllByRole('listitem')[1]).toHaveAttribute('data-status', 'met');
+
+    rerender(
+      <PasswordField
+        id="reactive-password"
+        value="Frase longa segura 123!"
+        onChange={vi.fn()}
+        showRequirements
+        policyContext={{ username: 'pessoa', email: 'pessoa@example.invalid' }}
+      />
+    );
+    for (const item of screen.getAllByRole('listitem').slice(0, 2)) {
+      expect(item).toHaveAttribute('data-status', 'met');
+    }
+
+    rerender(
+      <PasswordField
+        id="confirm-password"
+        label="Confirmar senha"
+        value=""
+        onChange={vi.fn()}
+        showConfirmationStatus
+        confirmationValue="Frase longa segura 123!"
+      />
+    );
+    expect(screen.getByRole('status')).toHaveTextContent('Confirmação ainda não preenchida');
+
+    rerender(
+      <PasswordField
+        id="confirm-password"
+        label="Confirmar senha"
+        value="diferente"
+        onChange={vi.fn()}
+        showConfirmationStatus
+        confirmationValue="Frase longa segura 123!"
+      />
+    );
+    expect(screen.getByRole('status')).toHaveTextContent('As senhas não coincidem');
+
+    rerender(
+      <PasswordField
+        id="confirm-password"
+        label="Confirmar senha"
+        value="Frase longa segura 123!"
+        onChange={vi.fn()}
+        showConfirmationStatus
+        confirmationValue="Frase longa segura 123!"
+      />
+    );
+    expect(screen.getByRole('status')).toHaveTextContent('As senhas coincidem');
+  });
+
   it('mantém indicador obrigatório condicional e controle de visibilidade no mesmo campo', () => {
     const { rerender } = render(
       <PasswordField id="required-password" label="Senha atual" value="" onChange={vi.fn()} />

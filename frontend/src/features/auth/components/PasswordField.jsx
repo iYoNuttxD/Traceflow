@@ -2,7 +2,26 @@ import { useId, useState } from 'react';
 import { TraceFlowIcon } from '../../../shared/index.js';
 import './PasswordField.css';
 
+const COMMON_PASSWORDS = new Set([
+  '123456789012',
+  '1234567890',
+  'password1234',
+  'password123',
+  'qwerty123456',
+  'qwertyuiop12',
+  'administrator',
+  'iloveyou1234',
+  'welcome12345',
+  'letmein123456',
+  'senha123456',
+  'senha12345678',
+  'traceflow123',
+  'abc123456789',
+  '000000000000'
+]);
+
 export function passwordStrength(password) {
+  if (!password) return { score: 0, label: 'Não avaliada' };
   let score = 0;
   if (password.length >= 12) score += 1;
   if (password.length >= 16) score += 1;
@@ -17,6 +36,43 @@ export function passwordStrength(password) {
   };
 }
 
+export function passwordRequirementStates(password, { username = '', email = '' } = {}) {
+  if (!password) return { length: 'neutral', policy: 'neutral' };
+  const normalizedPassword = password.toLocaleLowerCase('pt-BR');
+  const normalizedUsername = String(username).trim().toLocaleLowerCase('pt-BR');
+  const normalizedEmail = String(email).trim().toLocaleLowerCase('pt-BR');
+  const emailLocalPart = normalizedEmail.split('@')[0];
+  const violatesAccountPolicy =
+    COMMON_PASSWORDS.has(normalizedPassword) ||
+    (normalizedUsername && normalizedPassword === normalizedUsername) ||
+    (normalizedEmail && normalizedPassword === normalizedEmail) ||
+    (normalizedUsername.length >= 3 && normalizedPassword.includes(normalizedUsername)) ||
+    (emailLocalPart.length >= 3 && normalizedPassword.includes(emailLocalPart));
+  return {
+    length: password.length >= 12 && password.length <= 128 ? 'met' : 'unmet',
+    policy: violatesAccountPolicy ? 'unmet' : 'met'
+  };
+}
+
+function Requirement({ status, children }) {
+  const copy = {
+    met: ['✓', 'Atendido'],
+    unmet: ['!', 'Não atendido'],
+    neutral: ['○', 'Pendente'],
+    info: ['i', 'Permitido']
+  }[status];
+  return (
+    <li className="password-rule" data-status={status}>
+      <span className="password-rule-icon" aria-hidden="true">
+        {copy[0]}
+      </span>
+      <span>
+        <strong>{copy[1]}</strong> — {children}
+      </span>
+    </li>
+  );
+}
+
 export function PasswordField({
   id,
   label = 'Senha',
@@ -25,6 +81,9 @@ export function PasswordField({
   error,
   autoComplete = 'new-password',
   showRequirements = false,
+  showConfirmationStatus = false,
+  confirmationValue = '',
+  policyContext,
   disabled = false,
   required = true,
   minLength
@@ -33,10 +92,17 @@ export function PasswordField({
   const inputId = id || generatedId;
   const [visible, setVisible] = useState(false);
   const strength = passwordStrength(value);
+  const requirements = passwordRequirementStates(value, policyContext);
+  const confirmationStatus = !value ? 'neutral' : value === confirmationValue ? 'met' : 'unmet';
   const descriptionIds =
-    [error ? `${inputId}-error` : null, showRequirements ? `${inputId}-requirements` : null]
+    [
+      error ? `${inputId}-error` : null,
+      showRequirements ? `${inputId}-requirements` : null,
+      showConfirmationStatus && !error ? `${inputId}-confirmation-status` : null
+    ]
       .filter(Boolean)
       .join(' ') || undefined;
+
   return (
     <div className="form-field password-field">
       <label htmlFor={inputId}>
@@ -75,22 +141,39 @@ export function PasswordField({
         </span>
       )}
       {showRequirements && (
-        <div id={`${inputId}-requirements`} className="password-requirements">
+        <div id={`${inputId}-requirements`} className="password-requirements" aria-live="polite">
+          <div className="password-strength-copy">
+            <strong>Força da senha</strong>
+            <span>{strength.label}</span>
+          </div>
           <progress
             className="password-strength"
             max="5"
-            value={Math.max(strength.score, 1)}
+            value={strength.score}
             aria-label={`Força da senha: ${strength.label}`}
           />
-          <p>
-            Força informativa: <strong>{strength.label}</strong>
-          </p>
-          <ul>
-            <li data-met={value.length >= 12}>Entre 12 e 128 caracteres</li>
-            <li>Evite senhas comuns e dados da conta</li>
-            <li>Espaços, Unicode e colagem são permitidos</li>
+          <ul className="password-requirement-list">
+            <Requirement status={requirements.length}>Entre 12 e 128 caracteres</Requirement>
+            <Requirement status={requirements.policy}>
+              Evite senhas comuns e dados da conta
+            </Requirement>
+            <Requirement status="info">Espaços, Unicode e colagem</Requirement>
           </ul>
         </div>
+      )}
+      {showConfirmationStatus && (
+        <p
+          id={`${inputId}-confirmation-status`}
+          className="password-confirmation-status"
+          data-status={confirmationStatus}
+          role="status"
+        >
+          {confirmationStatus === 'neutral'
+            ? '○ Confirmação ainda não preenchida.'
+            : confirmationStatus === 'met'
+              ? '✓ As senhas coincidem.'
+              : '! As senhas não coincidem.'}
+        </p>
       )}
     </div>
   );
