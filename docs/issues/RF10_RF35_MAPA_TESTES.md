@@ -229,6 +229,6 @@ Itens PARCIAL apontam a fase desta bateria que os fecha.
 | Item | Prova | Situação |
 |---|---|---|
 | Corpo de sucesso do move devolve a tarefa completa que o diálogo espalha | `backend/test/api/rf08-terceira-bateria.test.js::'o corpo de sucesso devolve a tarefa completa que o dialogo espalha'` (status, sprintId, prioridade, deadline, responsible, pullRequest, commits[], issues[]) | PROVADA |
-| Move de tarefa em sprint terminal recusado com 409 (rede de segurança do `disabled` do diálogo) | sonda executada em 31/08: `PATCH /tasks/:id/move` de tarefa `CONCLUIDO` em sprint `CONCLUIDA` respondeu **200** e mutou o status — a guarda não existe no servidor | **CONTRADITA** → achado T-A1 / `TECHNICAL_BACKLOG.md` S104-F14 |
+| Move de tarefa em sprint terminal recusado com 409 (rede de segurança do `disabled` do diálogo) | sonda de 31/08 provou a ausência da guarda (achado T-A1); **corrigido no mesmo dia** (`ad71a19`) e provado por `rf08-terceira-bateria.test.js::'recusa mover tarefa de sprint concluida e nao registra nada'` e `::'recusa mover tarefa de sprint cancelada'` (409 `TASK_SPRINT_LOCKED`, status intacto, nada registrado) | CONTRADITA → **PROVADA** (S104-F14 encerrado) |
 | Autorização do move inalterada pelo caminho novo de UI | `auth-authorization.test.js:312` (matriz permitir/negar sobre `PATCH /tasks/:id/move`) | PROVADA |
 | Suítes de backend completas, duas vezes | largada 501/38; fechamento registrado no relatório (inclui o arquivo novo da bateria) | PROVADA |
