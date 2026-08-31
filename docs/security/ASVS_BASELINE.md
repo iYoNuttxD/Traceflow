@@ -103,3 +103,23 @@ Nenhum capítulo novo do ASVS passa a incidir com o delta: sem upload, sem token
 nova, sem canal novo. Mutações de segurança da segunda bateria (VIEWER buscando catálogo, falha de
 substituição engolida, PUT para sprint congelada): todas mortas — tabela completa em
 `docs/issues/RF10_RF35_RELATORIO_TESTES.md`, seção da segunda bateria.
+
+## Adendo — terceira bateria RF10/RF08 (31/08/2026, quinta iteração)
+
+A quinta iteração (barra do marco, abas do painel do mês, Kanban sem seletor no cartão) também é
+exclusivamente frontend e não altera a superfície HTTP — o que muda é **quem chama** o endpoint de
+movimentação (o diálogo de detalhes em vez do cartão) e a semântica de interface. Verificação do
+delta:
+
+| Controle | O que a quinta iteração muda | Evidência |
+|---|---|---|
+| 8.2.1\8.2.2 no caminho novo de UI | mover pelo diálogo usa o mesmo `PATCH /tasks/:id/move` com a mesma autorização; nenhum caminho de mutação novo | `auth-authorization.test.js:312` (matriz do move inalterada); `KanbanPage.test.jsx` (o diálogo chama a mesma API do arrasto) |
+| V3 (semântica nativa) | tablist e diálogo usam controles reais (`button role="tab"`, `select`, `role="dialog"` com `aria-modal`); nenhum handler novo em elemento não interativo | `ScheduleScreen.test.jsx` (tablist por papel acessível); `KanbanPage.test.jsx` (diálogo por papel) |
+| 16.5.1 nas mensagens novas | `title` de sprint congelada e avisos de movimentação não ecoam valor recebido nem detalhe interno; corpo de erro do backend segue genérico | `KanbanPage.test.jsx` (mensagem do 409 é a do servidor, genérica); inspeção de `TaskDetailsPanel.jsx` |
+| V2 (lógica de negócio no servidor) | **ACHADO T-A1**: a imutabilidade do quadro de sprint congelada é aplicada só no cliente — `PATCH /tasks/:id/move` aceita (`200`) tarefa de sprint `CONCLUIDA`, contrariando o `409` que o comentário do quadro promete. Sem impacto no registro histórico do RF35 (`SprintTask` intacta); exige sessão com escrita no projeto | sonda da terceira bateria (Fase 4); registrado em `TECHNICAL_BACKLOG.md` S104-F14 — **pendência ativa de L2** |
+| 14 (minimização) | o seletor do diálogo e as abas não adicionam dado pessoal: o diálogo já exibia responsável e rastreabilidade; o painel de abas reorganiza texto já presente | forma renderizada asserida nas duas suítes; payloads inalterados |
+
+Fora o T-A1, nenhum capítulo novo do ASVS passa a incidir: sem upload, sem token novo, sem origem
+nova, sem canal novo. Mutações de segurança da terceira bateria (seletor de volta ao cartão,
+diálogo ignorando congelada/em-voo, dessincronização do diálogo): tabela M57–M72 em
+`docs/issues/RF10_RF35_RELATORIO_TESTES.md`, seção da terceira bateria.
