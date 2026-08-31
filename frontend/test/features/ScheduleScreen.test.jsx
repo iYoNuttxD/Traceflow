@@ -1175,8 +1175,7 @@ describe('interacao do calendario', () => {
     expect(screen.queryByRole('button', { name: /Sprint 1/ })).toBeNull();
   });
 
-  it('o painel do mes exibido resume marcos, sprints e tarefas em abas', async () => {
-    const user = userEvent.setup();
+  it('o painel do mes exibido resume marcos, sprints e tarefas em abas', () => {
     renderCalendar({
       schedule: {
         ...emptySchedule,
@@ -1188,14 +1187,14 @@ describe('interacao do calendario', () => {
     expect(
       within(painel).getByText('agosto de 2026 · 1 marco · 1 sprint · 1 tarefa')
     ).toBeInTheDocument();
+    expect(within(painel).getByRole('tab', { name: 'Todos 3' })).toBeInTheDocument();
     expect(within(painel).getByRole('tab', { name: 'Marcos 1' })).toBeInTheDocument();
     expect(within(painel).getByRole('tab', { name: 'Sprints 1' })).toBeInTheDocument();
     expect(within(painel).getByRole('tab', { name: 'Tarefas 1' })).toBeInTheDocument();
-    await user.click(within(painel).getByRole('tab', { name: 'Tarefas 1' }));
     expect(within(painel).getByText('#10 Finalizar login')).toBeInTheDocument();
   });
 
-  it('o painel do mes e um tablist com marcos ativos por padrao', () => {
+  it('o painel do mes e um tablist com todos ativo por padrao', () => {
     renderCalendar({
       schedule: {
         ...emptySchedule,
@@ -1204,9 +1203,12 @@ describe('interacao do calendario', () => {
       }
     });
     const painel = screen.getByRole('heading', { name: 'No mês exibido' }).closest('section');
-    expect(within(painel).getAllByRole('tab')).toHaveLength(3);
-    expect(within(painel).getByRole('tab', { selected: true })).toHaveAccessibleName('Marcos 1');
-    expect(within(painel).getByRole('tabpanel')).toHaveAccessibleName('Marcos 1');
+    expect(within(painel).getAllByRole('tab')).toHaveLength(4);
+    expect(within(painel).getByRole('tab', { selected: true })).toHaveAccessibleName('Todos 3');
+    expect(within(painel).getByRole('tabpanel')).toHaveAccessibleName('Todos 3');
+    expect(within(painel).getByRole('heading', { name: 'Marcos (1)' })).toBeInTheDocument();
+    expect(within(painel).getByRole('heading', { name: 'Sprints (1)' })).toBeInTheDocument();
+    expect(within(painel).getByRole('heading', { name: 'Tarefas (1)' })).toBeInTheDocument();
   });
 
   it('trocar de aba filtra o conteudo do painel', async () => {
@@ -1220,9 +1222,19 @@ describe('interacao do calendario', () => {
     });
     const painel = screen.getByRole('heading', { name: 'No mês exibido' }).closest('section');
     expect(within(painel).getByText('Fundação')).toBeInTheDocument();
+    expect(within(painel).getByText('#10 Finalizar login')).toBeInTheDocument();
+
+    await user.click(within(painel).getByRole('tab', { name: 'Marcos 1' }));
+    expect(within(painel).getByText('Fundação')).toBeInTheDocument();
+    expect(within(painel).queryByText('#10 Finalizar login')).toBeNull();
+
     await user.click(within(painel).getByRole('tab', { name: 'Tarefas 1' }));
     expect(within(painel).getByText('#10 Finalizar login')).toBeInTheDocument();
     expect(within(painel).queryByText('Fundação')).toBeNull();
+
+    await user.click(within(painel).getByRole('tab', { name: 'Todos 3' }));
+    expect(within(painel).getByText('Fundação')).toBeInTheDocument();
+    expect(within(painel).getByText('#10 Finalizar login')).toBeInTheDocument();
   });
 
   it('setas movem e ativam as abas do painel', async () => {
@@ -1235,17 +1247,17 @@ describe('interacao do calendario', () => {
       }
     });
     const painel = screen.getByRole('heading', { name: 'No mês exibido' }).closest('section');
-    const abaMarcos = within(painel).getByRole('tab', { name: 'Marcos 1' });
-    abaMarcos.focus();
+    const abaTodos = within(painel).getByRole('tab', { name: 'Todos 3' });
+    abaTodos.focus();
     await user.keyboard('{ArrowRight}');
-    const abaSprints = within(painel).getByRole('tab', { name: 'Sprints 1' });
-    expect(abaSprints).toHaveFocus();
-    expect(abaSprints).toHaveAttribute('aria-selected', 'true');
+    const abaMarcos = within(painel).getByRole('tab', { name: 'Marcos 1' });
+    expect(abaMarcos).toHaveFocus();
+    expect(abaMarcos).toHaveAttribute('aria-selected', 'true');
     await user.keyboard('{End}');
     expect(within(painel).getByRole('tab', { name: 'Tarefas 1' })).toHaveFocus();
     await user.keyboard('{Home}');
-    expect(abaMarcos).toHaveFocus();
-    expect(abaMarcos).toHaveAttribute('aria-selected', 'true');
+    expect(abaTodos).toHaveFocus();
+    expect(abaTodos).toHaveAttribute('aria-selected', 'true');
   });
 
   it('o painel do mes diz quando a aba esta vazia', async () => {
@@ -1253,8 +1265,11 @@ describe('interacao do calendario', () => {
     renderCalendar({ schedule: { ...emptySchedule, sprints: [sprint()] } });
     const painel = screen.getByRole('heading', { name: 'No mês exibido' }).closest('section');
     expect(within(painel).getByText('Nenhum marco neste mês.')).toBeInTheDocument();
-    await user.click(within(painel).getByRole('tab', { name: 'Tarefas 0' }));
     expect(within(painel).getByText('Nenhuma tarefa com deadline neste mês.')).toBeInTheDocument();
+
+    await user.click(within(painel).getByRole('tab', { name: 'Marcos 0' }));
+    expect(within(painel).getByText('Nenhum marco neste mês.')).toBeInTheDocument();
+    expect(within(painel).queryByText('Nenhuma tarefa com deadline neste mês.')).toBeNull();
   });
 
   it('a aba ativa sobrevive a navegacao de mes', async () => {

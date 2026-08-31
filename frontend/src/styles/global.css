@@ -2252,7 +2252,7 @@ a {
 }
 
 .calendar-month-tabs {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 0.25rem;
   margin: 0 0 0.85rem;
@@ -2262,10 +2262,13 @@ a {
 }
 
 .calendar-month-tab {
+  flex: 1 1 0;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.4rem;
-  padding: 0.4rem 0.85rem;
+  min-width: 0;
+  padding: 0.4rem 0.5rem;
   border: 1px solid transparent;
   border-radius: 999px;
   background: transparent;
@@ -2273,6 +2276,7 @@ a {
   font-family: inherit;
   font-size: 0.85rem;
   font-weight: 700;
+  white-space: nowrap;
   cursor: pointer;
   transition:
     background 0.2s ease,
@@ -2312,6 +2316,19 @@ a {
 .calendar-month-tab--ativa .calendar-month-tab-count {
   background: #e8eefc;
   color: #244aa5;
+}
+
+.calendar-month-group {
+  margin-bottom: 1.15rem;
+}
+
+.calendar-month-group h3 {
+  margin: 0 0 0.5rem;
+  color: #344054;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .calendar-month-panel {
