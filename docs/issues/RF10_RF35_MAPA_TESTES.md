@@ -192,3 +192,34 @@ sem backend); frontend **304/31**. Todas as citações de arquivo abaixo são de
 | "não oferece campo de sprint" no formulário de marco | **reescrito às claras** — o design v4 inverte a decisão de UI (bloco "Sprints do marco"); a autoridade de domínio segue sendo `PUT /sprints/:id` (ADR-011 D02), inalterada |
 | Testes de tela citados no mapa da 1ª bateria por linha | as linhas mudaram com a reescrita das três suítes; os casos nomeados continuam existindo (menu, VIEWER, quatro estados, respostas fora de ordem, diálogo) e seguem verdes — conferido pela suíte completa 304/31, duas vezes |
 | Filtro "Período exibido" | removido pelo design v4 (S104-F12); os dois testes de filtro da tela saíram e o recorte passou a ser provado pelos limites de navegação |
+
+---
+
+# Terceira bateria (31/08/2026, quinta iteração — inclui RF08) — `RF10_RF08_PROMPT_TERCEIRA_BATERIA.md`
+
+Baseline da largada: backend 501/38 verdes; frontend 316/31; cobertura frontend
+67,03 / 65,53 / 60,03 / 68,11. Citações não qualificadas são de
+`frontend/test/features/ScheduleScreen.test.jsx`; `K::` = `frontend/test/pages/KanbanPage.test.jsx`.
+Itens PARCIAL apontam a fase desta bateria que os fecha.
+
+## Invariantes novos I50–I58
+
+| # | Prova | Situação |
+|---|---|---|
+| I50 fim do período = `max(prazo, menor fim pintado)`; para na primeira que termina; colapso sem sprint | `'prazo antes do fim da sprint estende a barra ate esse fim'`, `'a extensao para na sprint agrupada que termina primeiro'`, `'prazo anterior a primeira sprint estende do prazo ate o fim dela'`, `'comecam na primeira sprint do marco e terminam no prazo'` (no-op com prazo além), `'marco sem sprint nao tem trilha e ocupa apenas o dia do prazo'`; **sprint agrupada com data inválida sem prova** → Fase 2 | PARCIAL → coberta (T-F1) |
+| I51 ponto/evento de prazo no `dueDate`; sufixo `· prazo DD/MM` sse `fim !== prazo`; chip e tile sem sufixo | `'o titulo do segmento ganha o prazo quando a barra passa dele'` (título com sufixo + chip sem), `'meta do marco ganha o prazo quando a barra passa dele'`, `'sprint cancelada nao estende a barra do marco'` (legenda com sufixo); negativo pela igualdade exata dos casos pré-existentes (`'a legenda nomeia sprint e marco do mes exibido'`, `'agrupa marcos, sprints e tarefas do mes com contagem'`); tile em `'nomeia o marco atual com prazo, agrupamento e concluidas'` | PROVADA |
+| I52 cancelada não estende; meia-noite; extensão não desbloqueia mês | `'sprint cancelada nao estende a barra do marco'`, `'a extensao respeita o fim a meia-noite da sprint'`, `'a extensao da barra nao desbloqueia mes novo na navegacao'` | PROVADA |
+| I53 início por `inicio !== fim`; dia prazo+início anuncia o prazo | `'prazo no dia do inicio ainda anuncia o comeco da barra estendida'` (evento), `'dia que e prazo e inicio ao mesmo tempo anuncia o prazo'` (descrição), `'com barra estendida o ponto continua no prazo e o fim ganha o canto'` | PROVADA |
+| I54 tablist de 4 abas; roving tabindex; seleção no foco; sobrevive à navegação; vazia clicável | `'o painel do mes e um tablist com todos ativo por padrao'`, `'setas movem e ativam as abas do painel'`, `'a aba ativa sobrevive a navegacao de mes'`, `'o painel do mes diz quando a aba esta vazia'`; **guarda de tecla neutra (Tab → tabpanel) e mês vazio com aba filtrada sem prova** → Fase 3 | PARCIAL → coberta (T-F2, T-F3) |
+| I55 "Todos" primeira e padrão; grupos titulados; badges do mês exibido | `'o painel do mes e um tablist com todos ativo por padrao'` (grupos com título), `'trocar de aba filtra o conteudo do painel'` (ciclo todos → marcos → tarefas → todos), `'o painel do mes exibido resume marcos, sprints e tarefas em abas'` (badges incl. soma), `'dez marcos so de prazo mantem a grade limpa em escala'` (`Marcos 10`), unit `'agrupa marcos, sprints e tarefas do mes com contagem'` (`rotulo`/`descricao`/contagem por `itens.length`) | PROVADA |
+| I56 cartão sem combobox; caminho sem mouse via diálogo | K::`'o cartao nao tem mais seletor de status'`, K::`'move a tarefa pelo seletor do painel de detalhes, sem mouse'` (Enter abre, nome acessível `Mover a tarefa …`); **abertura por Espaço sem prova** → Fase 3 | PARCIAL → coberta (T-F4) |
+| I57 congelada e em-voo desabilitam o seletor do diálogo | K::`'bloqueia a tarefa de sprint congelada no cartao e no painel'` (disabled + `title` + cartão sem arrasto), K::`'desabilita o seletor do painel enquanto a movimentacao esta em voo'`; **409 reabilitando o seletor com a mensagem do quadro sem prova** → Fase 3 | PARCIAL → coberta (T-F5) |
+| I58 mover sincroniza quadro e diálogo; arrasto e histórico intactos | K::`'move a tarefa pelo seletor do painel de detalhes, sem mouse'` (`toHaveValue` pós-move), K::`'move a tarefa enviando somente o status e usa o responsável canônico'` (arrasto), K::`'mantém o quadro coerente e recarrega os dados diante de conflito 409'`, K::`'pagina o histórico no backend…'`, K::`'mantem o historico de tarefas com o indicador de movimentacoes'`; **selecionar o status atual sem requisição sem prova** → Fase 3 | PARCIAL → coberta (T-F6) |
+
+## Redações superadas pela quinta iteração
+
+| Item | Situação após a quinta iteração |
+|---|---|
+| I38 (período = primeira sprint → **prazo**) | o início derivado permanece; o fim virou o **alcance** de I50. O caso `'prazo anterior a primeira sprint normaliza o periodo sem inverter'` foi **reescrito às claras** como `'prazo anterior a primeira sprint estende do prazo ate o fim dela'` (citado no commit `f4f4796`); os demais casos citados em I38 seguem existindo e verdes |
+| I44 (blocos do mês com `titulo`) | o painel virou o tablist de I54/I55; `monthBlocks` expõe `rotulo`/`descricao`. Reescritos às claras (citados nos commits `d538505`/`58e49b7`): `'agrupa marcos, sprints e tarefas do mes com contagem'` (asserções), `'dez marcos so de prazo…'` e `'marcos so de prazo…'` (heading → tab), `'o painel do mes exibido resume…'` (+ sufixo "em abas"), `'o painel do mes diz quando um grupo esta vazio'` → `'…quando a aba esta vazia'`. A interseção por calendário real e a equivalência do mutante M47 continuam como declaradas |
+| RF08 (quadro Kanban — entra no mapa) | provas vigentes em `KanbanPage.test.jsx`: arrasto/409/histórico (describe `'KanbanPage E11'`), filtro por sprint e congelada (describe `'KanbanPage ADR-011'`), e os casos da quinta iteração citados em I56–I58. Reescritos às claras (citados no commit `da04918`): `'move a tarefa pelo seletor do cartao'` → `'…pelo seletor do painel de detalhes, sem mouse'`; `'bloqueia o cartao de sprint congelada'` → `'bloqueia a tarefa de sprint congelada no cartao e no painel'` |
