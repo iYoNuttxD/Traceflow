@@ -474,7 +474,7 @@ export function monthBlocks({
   const blocos = [
     {
       chave: 'marcos',
-      titulo: `Marcos (${marcosDoMes.length})`,
+      rotulo: 'Marcos',
       vazio: 'Nenhum marco neste mês.',
       itens: marcosDoMes.map((periodo) => ({
         chave: `marco-${periodo.id}`,
@@ -493,7 +493,7 @@ export function monthBlocks({
     },
     {
       chave: 'sprints',
-      titulo: `Sprints (${sprintsDoMes.length})`,
+      rotulo: 'Sprints',
       vazio: 'Nenhuma sprint neste mês.',
       itens: sprintsDoMes.map(({ sprint, inicio, fim }) => ({
         chave: `sprint-${sprint.id}`,
@@ -508,7 +508,8 @@ export function monthBlocks({
     },
     {
       chave: 'tarefas',
-      titulo: `Tarefas com deadline (${tarefasDoMes.length})`,
+      rotulo: 'Tarefas',
+      descricao: 'Somente tarefas com deadline dentro do mês exibido.',
       vazio: 'Nenhuma tarefa com deadline neste mês.',
       itens: tarefasDoMes.map((tarefa) => ({
         chave: `tarefa-${tarefa.id}`,
