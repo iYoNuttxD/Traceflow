@@ -331,6 +331,11 @@ export function KanbanScreen() {
 
       setSuccess(response.data.message);
       setBoard((currentBoard) => updateBoardWithMovedTask(currentBoard, movedTask));
+      setSelectedTask((current) =>
+        current && String(current.id) === String(movedTask.id)
+          ? { ...current, ...movedTask }
+          : current
+      );
 
       if (response.data.movement) {
         setMetrics((current) =>
@@ -675,7 +680,6 @@ export function KanbanScreen() {
             onColumnDragOver={handleColumnDragOver}
             onColumnDragLeave={handleColumnDragLeave}
             onColumnDrop={handleColumnDrop}
-            onChangeTaskStatus={moveTaskToStatus}
           />
 
           <MovementHistory
@@ -711,8 +715,11 @@ export function KanbanScreen() {
           <TaskDetailsPanel
             task={selectedTask}
             deleting={deletingTaskId === selectedTask?.id}
+            moving={movingTaskId === selectedTask?.id}
+            frozen={Boolean(selectedTask?.sprintId) && frozenSprintIds.has(selectedTask.sprintId)}
             onClose={() => setSelectedTask(null)}
             onDelete={handleDeleteSelectedTask}
+            onChangeStatus={moveTaskToStatus}
             onUnlinkRequirement={handleUnlinkSelectedTaskRequirement}
             onUnlinkPullRequest={handleUnlinkSelectedPullRequest}
             onUnlinkCommit={handleUnlinkSelectedTaskCommit}

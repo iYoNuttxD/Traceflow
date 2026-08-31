@@ -120,7 +120,9 @@ export function milestonePeriods({ milestones = [], sprints = [] }) {
       const inicios = doMarco
         .map((sprint) => sprintDayRange(sprint).inicio)
         .filter((dia) => Boolean(dia));
-      const fins = doMarco.map((sprint) => sprintDayRange(sprint).fim).filter((dia) => Boolean(dia));
+      const fins = doMarco
+        .map((sprint) => sprintDayRange(sprint).fim)
+        .filter((dia) => Boolean(dia));
       const primeiro = inicios.length
         ? inicios.reduce((menor, dia) => (dia < menor ? dia : menor))
         : prazo;

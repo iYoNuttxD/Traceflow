@@ -634,7 +634,9 @@ describe('blocos do mes exibido', () => {
     const { blocos: grupos } = blocos({
       periodos: periodosDe({ milestones: [marco({ dueDate: '2026-08-10T00:00:00' })] })
     });
-    expect(grupos[0].itens[0].meta).toBe('03/08 – 14/08 · prazo 10/08 · Pendente · agrupa 1 sprint');
+    expect(grupos[0].itens[0].meta).toBe(
+      '03/08 – 14/08 · prazo 10/08 · Pendente · agrupa 1 sprint'
+    );
   });
 
   it('sprint sem marco e tarefa sem sprint sao nomeadas assim', () => {

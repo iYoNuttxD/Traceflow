@@ -3,8 +3,7 @@ import {
   formatDate,
   getTraceabilitySummary,
   KANBAN_COLUMNS,
-  priorityLabels,
-  statusLabels
+  priorityLabels
 } from './kanban-display.js';
 
 function KanbanTaskCard({
@@ -16,13 +15,11 @@ function KanbanTaskCard({
   onSelect,
   onKeyboardSelect,
   onDragStart,
-  onDragEnd,
-  onChangeStatus
+  onDragEnd
 }) {
   const priority = task.priority || 'MEDIA';
   // Sprint encerrada é registro (ADR-010 D04): o quadro dela vira somente
-  // leitura. Arrastar e o seletor ficam desligados juntos — deixar um dos dois
-  // ativo faria a regra valer só pela metade e o backend recusaria com 409.
+  // leitura e o arrasto desliga — o backend recusaria a movimentação com 409.
   const bloqueado = frozen || moving;
   return (
     <article
@@ -69,24 +66,6 @@ function KanbanTaskCard({
       </dl>
       {frozen && <span className="kanban-task-moving-label">Sprint congelada</span>}
       {moving && <span className="kanban-task-moving-label">Movendo...</span>}
-      {/* Alternativa ao arrasto, não substituta: arrastar não existe para quem
-          usa teclado ou toque, e antes disto mover uma tarefa exigia mouse.
-          O clique e as teclas param aqui — sem isso, escolher uma opção também
-          abriria o painel de detalhes do cartão. */}
-      <select
-        aria-label={`Mover a tarefa ${task.title}`}
-        value={task.status}
-        disabled={bloqueado}
-        onClick={(event) => event.stopPropagation()}
-        onKeyDown={(event) => event.stopPropagation()}
-        onChange={(event) => onChangeStatus(task, event.target.value)}
-      >
-        {KANBAN_COLUMNS.map((column) => (
-          <option key={column.status} value={column.status}>
-            {statusLabels[column.status]}
-          </option>
-        ))}
-      </select>
     </article>
   );
 }
@@ -106,8 +85,7 @@ export function KanbanBoard({
   onTaskDragEnd,
   onColumnDragOver,
   onColumnDragLeave,
-  onColumnDrop,
-  onChangeTaskStatus
+  onColumnDrop
 }) {
   return (
     <div className="kanban-board">
@@ -141,7 +119,6 @@ export function KanbanBoard({
                     onKeyboardSelect={onKeyboardSelectTask}
                     onDragStart={onTaskDragStart}
                     onDragEnd={onTaskDragEnd}
-                    onChangeStatus={onChangeTaskStatus}
                   />
                 ))}
               </div>
