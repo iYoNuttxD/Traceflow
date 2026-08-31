@@ -1,3 +1,8 @@
+.security-settings-surface {
+  container-type: inline-size;
+  container-name: security-settings;
+}
+
 .session-list {
   display: grid;
   gap: var(--space-3);
@@ -38,6 +43,16 @@
 
 .session-secondary-empty {
   margin-top: var(--space-1);
+}
+
+@container security-settings (max-width: 34rem) {
+  .security-settings-surface .settings-field-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .security-settings-surface .settings-field-full {
+    grid-column: auto;
+  }
 }
 
 @media (max-width: 560px) {

@@ -183,7 +183,7 @@ export function SecuritySettingsPage() {
           <LoadingState message="Carregando segurança..." />
         </div>
       ) : (
-        <article className="settings-surface">
+        <article className="settings-surface security-settings-surface">
           <section className="settings-section" aria-labelledby="settings-password-title">
             <div className="settings-section-heading">
               <div>
