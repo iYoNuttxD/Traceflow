@@ -1303,9 +1303,7 @@ describe('interacao do calendario', () => {
     await user.click(within(painel).getByRole('tab', { name: 'Sprints 1' }));
 
     await user.click(screen.getByRole('button', { name: 'Próximo mês' }));
-    expect(
-      within(painel).getByText('setembro de 2026 · nada no calendário')
-    ).toBeInTheDocument();
+    expect(within(painel).getByText('setembro de 2026 · nada no calendário')).toBeInTheDocument();
     expect(within(painel).getByRole('tab', { selected: true })).toHaveAccessibleName('Sprints 0');
     expect(within(painel).getByText('Nenhuma sprint neste mês.')).toBeInTheDocument();
   });
