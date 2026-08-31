@@ -1,5 +1,5 @@
 import { MemoryRouter, Route, Routes } from 'react-router';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfirmProvider } from '../../src/shared/index.js';
@@ -205,9 +205,10 @@ describe('KanbanPage E11', () => {
   });
 });
 
-// ADR-011: o quadro passou a ser filtravel por sprint e a mover por <select>.
-// O painel de andamento saiu do Kanban no design de 30/08: a evolucao vive no
-// painel da tela de Sprints.
+// ADR-011: o quadro passou a ser filtravel por sprint; a troca de status sem
+// arrasto vive no painel de detalhes desde a quinta iteracao do design
+// (docs/issues/RF10_RF08_PROMPT_QUINTA_ITERACAO.md). O painel de andamento
+// saiu do Kanban no design de 30/08: a evolucao vive na tela de Sprints.
 describe('KanbanPage ADR-011', () => {
   const sprintAtiva = {
     id: 4,
@@ -293,9 +294,17 @@ describe('KanbanPage ADR-011', () => {
     ).toBeInTheDocument();
   });
 
-  // O <select> e alternativa ao arrasto, nao substituto: arrastar nao existe
-  // para quem usa teclado ou toque.
-  it('move a tarefa pelo seletor do cartao', async () => {
+  // O cartao nao carrega mais seletor: a alternativa ao arrasto para teclado e
+  // toque e o seletor do painel de detalhes, que abre por Enter no cartao.
+  it('o cartao nao tem mais seletor de status', async () => {
+    renderPage();
+    await screen.findByText('Da sprint');
+
+    const cartao = screen.getByRole('button', { name: /Da sprint/ });
+    expect(within(cartao).queryByRole('combobox')).toBeNull();
+  });
+
+  it('move a tarefa pelo seletor do painel de detalhes, sem mouse', async () => {
     const user = userEvent.setup();
     mocks.kanbanApi.moveTask.mockResolvedValue({
       data: {
@@ -307,26 +316,50 @@ describe('KanbanPage ADR-011', () => {
     renderPage();
     await screen.findByText('Da sprint');
 
-    await user.selectOptions(
-      screen.getByRole('combobox', { name: 'Mover a tarefa Da sprint' }),
-      'EM_ANDAMENTO'
-    );
+    const cartao = screen.getByRole('button', { name: /Da sprint/ });
+    cartao.focus();
+    await user.keyboard('{Enter}');
+
+    const dialogo = screen.getByRole('dialog', { name: 'Da sprint' });
+    const seletor = within(dialogo).getByRole('combobox', { name: 'Mover a tarefa Da sprint' });
+    await user.selectOptions(seletor, 'EM_ANDAMENTO');
 
     await waitFor(() =>
       expect(mocks.kanbanApi.moveTask).toHaveBeenCalledWith(8, { toStatus: 'EM_ANDAMENTO' })
     );
+    await waitFor(() => expect(seletor).toHaveValue('EM_ANDAMENTO'));
   });
 
-  // Sprint encerrada e registro (ADR-010 D04): o cartao vira somente leitura, e
-  // dizer isso evita que a regra apareca como um 409 generico.
-  it('bloqueia o cartao de sprint congelada', async () => {
+  it('desabilita o seletor do painel enquanto a movimentacao esta em voo', async () => {
+    const user = userEvent.setup();
+    mocks.kanbanApi.moveTask.mockReturnValue(new Promise(() => {}));
+    renderPage();
+    await screen.findByText('Da sprint');
+
+    await user.click(screen.getByRole('button', { name: /Da sprint/ }));
+    const dialogo = screen.getByRole('dialog', { name: 'Da sprint' });
+    const seletor = within(dialogo).getByRole('combobox', { name: 'Mover a tarefa Da sprint' });
+    await user.selectOptions(seletor, 'EM_ANDAMENTO');
+
+    await waitFor(() => expect(seletor).toBeDisabled());
+  });
+
+  // Sprint encerrada e registro (ADR-010 D04): o cartao nao arrasta e o seletor
+  // do painel desabilita, para a regra nao aparecer como um 409 generico.
+  it('bloqueia a tarefa de sprint congelada no cartao e no painel', async () => {
+    const user = userEvent.setup();
     renderPage();
     await screen.findByText('Congelada');
 
-    const seletor = screen.getByRole('combobox', { name: 'Mover a tarefa Congelada' });
-    expect(seletor).toBeDisabled();
     expect(screen.getByText('Sprint congelada')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Congelada/ })).toHaveAttribute('draggable', 'false');
+    const cartao = screen.getByRole('button', { name: /Congelada/ });
+    expect(cartao).toHaveAttribute('draggable', 'false');
+
+    await user.click(cartao);
+    const dialogo = screen.getByRole('dialog', { name: 'Congelada' });
+    const seletor = within(dialogo).getByRole('combobox', { name: 'Mover a tarefa Congelada' });
+    expect(seletor).toBeDisabled();
+    expect(seletor).toHaveAttribute('title');
   });
 
   it('nomeia a sprint de cada cartao, e o backlog quando nao ha', async () => {
@@ -336,8 +369,8 @@ describe('KanbanPage ADR-011', () => {
     expect(screen.getByText('Backlog')).toBeInTheDocument();
   });
 
-  // O historico continua no Kanban (RF38): o seletor do cartao substituiu o
-  // painel de metrica da barra, nao a auditoria.
+  // O historico continua no Kanban (RF38): mover a troca de status para o
+  // painel de detalhes nao tira a auditoria do quadro.
   it('mantem o historico de tarefas com o indicador de movimentacoes', async () => {
     renderPage();
     await screen.findByText('Da sprint');

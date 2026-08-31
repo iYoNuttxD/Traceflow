@@ -5,6 +5,7 @@ import {
   formatIssueLabel,
   formatIssueLabels,
   formatRequirementLabel,
+  KANBAN_COLUMNS,
   priorityLabels,
   requirementStatusLabels,
   statusLabels
@@ -13,8 +14,11 @@ import {
 export function TaskDetailsPanel({
   task,
   deleting,
+  moving,
+  frozen,
   onClose,
   onDelete,
+  onChangeStatus,
   onUnlinkRequirement,
   onUnlinkPullRequest,
   onUnlinkCommit,
@@ -66,7 +70,25 @@ export function TaskDetailsPanel({
           </div>
           <div>
             <dt>Status atual</dt>
-            <dd>{statusLabels[task.status] || task.status}</dd>
+            <dd>
+              <select
+                aria-label={`Mover a tarefa ${task.title}`}
+                value={task.status}
+                disabled={frozen || moving}
+                title={
+                  frozen
+                    ? 'A sprint desta tarefa está congelada — o status é registro do período.'
+                    : undefined
+                }
+                onChange={(event) => onChangeStatus(task, event.target.value)}
+              >
+                {KANBAN_COLUMNS.map((column) => (
+                  <option key={column.status} value={column.status}>
+                    {statusLabels[column.status]}
+                  </option>
+                ))}
+              </select>
+            </dd>
           </div>
           <div>
             <dt>Esforço estimado</dt>
