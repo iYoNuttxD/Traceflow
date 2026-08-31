@@ -1,6 +1,12 @@
 import { useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
-import { FeedbackRegion, normalizeApiError, useCountdown } from '../../../shared/index.js';
+import {
+  FeedbackRegion,
+  PublicPageShell,
+  StatusSurface,
+  normalizeApiError,
+  useCountdown
+} from '../../../shared/index.js';
 import { authApi } from '../api/auth.api.js';
 import { AuthShell } from '../components/AuthShell.jsx';
 import { PasswordField } from '../components/PasswordField.jsx';
@@ -15,10 +21,10 @@ export function ResetPasswordScreen() {
   const [retryAfterSeconds, setRetryAfterSeconds] = useState(0);
   const cooldown = useCountdown(retryAfterSeconds);
   const submitLock = useRef(false);
+  const token = params.get('token');
   async function submit(event) {
     event.preventDefault();
     if (submitLock.current) return;
-    if (!params.get('token')) return setError('Link de redefinição inválido ou incompleto.');
     if (password !== confirmation) {
       setError('');
       setFieldErrors({ passwordConfirmation: 'As senhas não coincidem.' });
@@ -31,7 +37,7 @@ export function ResetPasswordScreen() {
     setFieldErrors({});
     setRetryAfterSeconds(0);
     try {
-      await authApi.resetPassword(params.get('token'), password);
+      await authApi.resetPassword(token, password);
       navigate('/login', { replace: true });
     } catch (cause) {
       const normalized = normalizeApiError(cause);
@@ -46,12 +52,31 @@ export function ResetPasswordScreen() {
       setSubmitting(false);
     }
   }
+
+  if (!token) {
+    return (
+      <PublicPageShell>
+        <StatusSurface
+          title="Link de redefinição inválido"
+          description="Link de redefinição inválido ou incompleto."
+          icon="key"
+          tone="danger"
+          role="alert"
+          actions={
+            <Link className="button button-primary link-button" to="/login">
+              Voltar para entrar
+            </Link>
+          }
+        />
+      </PublicPageShell>
+    );
+  }
+
   return (
     <AuthShell
       title="Redefinir senha"
-      eyebrow="Segurança da conta"
       description="Defina uma nova senha. Todas as sessões anteriores serão revogadas."
-      footer={<Link to="/login">Voltar para entrar</Link>}
+      backTo="/login"
     >
       <form className="auth-form" onSubmit={submit}>
         <PasswordField

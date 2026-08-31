@@ -1,26 +1,13 @@
 import { Navigate, useLocation } from 'react-router';
 import { useAuth } from './AuthContext.jsx';
-import { ContextualErrorPage, LoadingState } from '../../shared/index.js';
+import { SessionBootstrapStatus } from './components/SessionBootstrapStatus.jsx';
 import { locationReturnTo } from './return-to.js';
 export function ProtectedRoute({ children }) {
   const { user, loading, bootstrapError, refresh } = useAuth();
   const location = useLocation();
-  if (loading)
-    return (
-      <main className="page">
-        <LoadingState message="Carregando sessão..." />
-      </main>
-    );
+  if (loading) return <SessionBootstrapStatus />;
   if (!user && bootstrapError) {
-    return (
-      <ContextualErrorPage
-        type={bootstrapError.type}
-        description={bootstrapError.message}
-        requestId={bootstrapError.requestId}
-        retryAfterSeconds={bootstrapError.retryAfterSeconds}
-        onRetry={refresh}
-      />
-    );
+    return <SessionBootstrapStatus error={bootstrapError} onRetry={refresh} />;
   }
   if (!user) return <Navigate to="/login" replace state={{ from: locationReturnTo(location) }} />;
   const status = user.accountStatus || (user.isActive === false ? 'DEACTIVATED' : 'ACTIVE');

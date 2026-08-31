@@ -6,6 +6,7 @@
 Concept C2 — TraceFlow Hybrid
 DIREÇÃO VISUAL APROVADA
 TOKENS E SHELL AUTENTICADO — IMPLEMENTADOS
+AUTH FOCUSED — IMPLEMENTADO
 VISUAL HOMOLOGATION: DEFERRED TO WORK
 ```
 
@@ -46,6 +47,7 @@ package, Storybook ou dependência visual nova e não transfere regra de domíni
 - temas visíveis Light e Dark, com preferência manual persistida;
 - preferência do sistema como resolução inicial quando não há escolha manual;
 - shell autenticado com sidebar expandida, recolhida e drawer mobile.
+- composição pública Focused para autenticação e estados de ciclo de conta.
 
 ### PROVISIONAL
 
@@ -114,7 +116,7 @@ históricas para formar escalas reutilizáveis.
 
 ## Tokens
 
-A primeira versão possui 116 tokens únicos. O conjunto permanece abaixo do limite de 150 e evita
+A primeira versão possui 120 tokens únicos. O conjunto permanece abaixo do limite de 150 e evita
 nomes ligados a páginas, features ou produtos de referência.
 
 ### Cores estruturais
@@ -168,6 +170,18 @@ formam uma segunda paleta e não devem substituir os pares normais de surface e 
 
 Border e icon tokens semânticos reutilizam a mesma família. Cor nunca atua sozinha: status inclui
 label e pode incluir dot ou ícone; feedback inclui texto e semântica apropriada.
+
+### Ação de provider
+
+| Token                            | Light     | Dark      | Uso                                      |
+| -------------------------------- | --------- | --------- | ---------------------------------------- |
+| `--color-provider-surface`       | `#172033` | `#0f151f` | ação de autenticação de provider externo |
+| `--color-provider-surface-hover` | `#253044` | `#1b2532` | hover da ação de provider                |
+| `--color-provider-text`          | `#f5f8fc` | `#f5f8fc` | conteúdo sobre a surface de provider     |
+| `--color-provider-border`        | `#2c374b` | `#3a4a61` | separação da ação de provider            |
+
+A família é genérica para provedores externos e não representa integração de repositórios. A ação
+continua secundária ao primary do formulário, mesmo com tratamento graphite nos dois temas.
 
 ### Mapeamento de estados conhecidos
 
@@ -288,6 +302,7 @@ Todos os buttons usam altura mínima de 44 px, radius sm, spacing da escala e fo
 | Secondary | surface primary + border strong             | alternativa ou cancelamento não destrutivo   |
 | Ghost     | transparente; surface apenas em hover/focus | header, sidebar, tabs e icon actions         |
 | Danger    | danger text/surface/border                  | somente ação realmente destrutiva            |
+| Provider  | graphite temático + foreground claro        | autenticação com provider externo            |
 
 Logout permanece ghost e neutro no estado normal. Pode adquirir danger discreto somente em
 hover/focus; disponibilidade de logout não o transforma em danger button permanente.
@@ -483,6 +498,23 @@ resolve, aplica e alterna tema sem conhecer autenticação ou domínio.
   backend e nunca usadas como prova de acesso;
 - Theme, Configurações e Sair compartilham estado normal neutro; logout reutiliza a sessão vigente;
 - motion da sidebar e do drawer respeita `prefers-reduced-motion`.
+
+## Auth público Focused
+
+Login, cadastro, recuperação, redefinição e callbacks públicos usam uma composição Focused: marca
+discreta, grande respiro e uma única surface central. Essas rotas não recebem AppShell, sidebar,
+navegação de projeto nem controle de tema próprio; elas consomem a mesma resolução Light/Dark do
+runtime.
+
+`PublicPageShell` concentra background, marca e posicionamento. `AuthShell` é owner dos formulários
+de autenticação, e `StatusSurface` apresenta resultados, restrições e callbacks quando não há campo
+editável. A abstração não reúne regras de domínio: cada screen continua responsável por request,
+validação, redirect e autorização.
+
+Copy de autenticação é funcional: orienta ação, explica estado ou restrição, identifica campo/ação
+ou informa o próximo passo. Eyebrows institucionais, slogans e referências a termos ou avisos
+inexistentes não pertencem à interface. GitHub OAuth representa autenticação/identidade; GitHub App
+permanece restrita aos fluxos de integração de repositórios.
 
 ## Acessibilidade foundations
 

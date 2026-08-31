@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router';
 import {
   FeedbackRegion,
   FormInput,
+  TraceFlowIcon,
   normalizeApiError,
   useCountdown
 } from '../../../shared/index.js';
@@ -91,7 +92,6 @@ export function LoginScreen() {
   return (
     <AuthShell
       title="Entrar"
-      eyebrow="Acesso seguro"
       description="Acesse com seu nome de usuário ou e-mail."
       footer={
         <p>
@@ -155,7 +155,8 @@ export function LoginScreen() {
           aria-busy={githubSubmitting}
           onClick={() => void loginWithGithub()}
         >
-          {githubSubmitting ? 'Conectando ao GitHub...' : 'Entrar com GitHub'}
+          <TraceFlowIcon name="branch" />
+          {githubSubmitting ? 'Conectando ao GitHub...' : 'Continuar com GitHub'}
         </button>
       </form>
     </AuthShell>

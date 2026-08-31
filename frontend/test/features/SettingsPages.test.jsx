@@ -63,7 +63,16 @@ vi.mock('../../src/shared/index.js', () => ({
   useConfirm: () => mocks.confirm,
   useCountdown: (seconds) => seconds,
   LoadingState: ({ message }) => <p>{message}</p>,
-  FeedbackRegion: ({ error, success }) => <div>{error || success}</div>
+  FeedbackRegion: ({ error, success }) => <div>{error || success}</div>,
+  PublicPageShell: ({ children }) => <main>{children}</main>,
+  StatusSurface: ({ title, description, actions, children, role }) => (
+    <section role={role}>
+      <h1>{title}</h1>
+      <p>{description}</p>
+      {children}
+      {actions}
+    </section>
+  )
 }));
 
 const { RestrictedAccountPage } =
@@ -549,8 +558,23 @@ describe('configurações e estados restritos L2', () => {
         <ConfirmationPage type="email" />
       </MemoryRouter>
     );
-    expect(await screen.findByText(/Operação concluída/)).toBeInTheDocument();
+    expect(await screen.findByText('E-mail alterado. Faça login novamente.')).toBeInTheDocument();
     expect(mocks.api.confirmEmail).toHaveBeenCalledWith('token-valido');
+  });
+
+  it.each([
+    ['email', '/settings/account/email-change/confirm', 'confirmEmail'],
+    ['reactivation', '/account/reactivation/confirm', 'confirmReactivation']
+  ])('rejeita confirmação %s sem token sem chamar a API', async (type, route, method) => {
+    render(
+      <MemoryRouter initialEntries={[route]}>
+        <ConfirmationPage type={type} />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('Link inválido ou incompleto.')).toBeInTheDocument();
+    expect(mocks.api[method]).not.toHaveBeenCalled();
+    expect(screen.getByRole('link', { name: 'Ir para o login' })).toHaveAttribute('href', '/login');
   });
 
   it.each([
@@ -569,7 +593,13 @@ describe('configurações e estados restritos L2', () => {
       </StrictMode>
     );
 
-    expect(await screen.findByText(/Operação concluída/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        type === 'email'
+          ? 'E-mail alterado. Faça login novamente.'
+          : 'Conta reativada. Faça login novamente.'
+      )
+    ).toBeInTheDocument();
     expect(mocks.api[method]).toHaveBeenCalledTimes(1);
   });
 });

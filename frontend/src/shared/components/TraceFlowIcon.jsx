@@ -1,6 +1,12 @@
 import './TraceFlowIcon.css';
 
 const paths = {
+  alert: (
+    <>
+      <path d="M10.3 4.1 2.7 17.3A2 2 0 0 0 4.4 20h15.2a2 2 0 0 0 1.7-2.7L13.7 4.1a2 2 0 0 0-3.4 0Z" />
+      <path d="M12 9v4M12 17h.01" />
+    </>
+  ),
   arrowLeft: <path d="m15 18-6-6 6-6" />,
   arrowRight: <path d="m9 18 6-6-6-6" />,
   branch: (
@@ -19,6 +25,7 @@ const paths = {
       <path d="m14 5-4 14" />
     </>
   ),
+  check: <path d="m5 12 4 4L19 6" />,
   copy: (
     <>
       <rect x="8" y="8" width="11" height="11" rx="2" />
@@ -48,6 +55,24 @@ const paths = {
     <>
       <circle cx="12" cy="12" r="9" />
       <path d="M12 11v6M12 7h.01" />
+    </>
+  ),
+  key: (
+    <>
+      <circle cx="8" cy="15" r="4" />
+      <path d="m11 12 8-8M15 8l3 3M17 6l2 2" />
+    </>
+  ),
+  lock: (
+    <>
+      <rect x="4" y="10" width="16" height="10" rx="2" />
+      <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+    </>
+  ),
+  mail: (
+    <>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="m3 7 9 6 9-6" />
     </>
   ),
   plus: <path d="M12 5v14M5 12h14" />,

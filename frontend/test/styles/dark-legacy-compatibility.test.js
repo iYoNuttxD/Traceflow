@@ -18,14 +18,13 @@ const integrationsSettingsCss = readFileSync(
   resolve('src/features/settings/IntegrationsSettingsPage.css'),
   'utf8'
 );
-const confirmationSettingsCss = readFileSync(
-  resolve('src/features/settings/ConfirmationPage.css'),
+const authShellCss = readFileSync(resolve('src/features/auth/components/AuthShell.css'), 'utf8');
+const authLoginCss = readFileSync(resolve('src/features/auth/pages/LoginScreen.css'), 'utf8');
+const publicPageShellCss = readFileSync(
+  resolve('src/shared/components/PublicPageShell.css'),
   'utf8'
 );
-const restrictedSettingsCss = readFileSync(
-  resolve('src/features/settings/RestrictedAccountPage.css'),
-  'utf8'
-);
+const statusSurfaceCss = readFileSync(resolve('src/shared/components/StatusSurface.css'), 'utf8');
 
 function rule(css, selector) {
   const start = css.lastIndexOf(`${selector} {`);
@@ -110,14 +109,10 @@ describe('compatibilidade de conteúdo legado com os temas', () => {
   });
 
   it('estabelece texto próprio nas surfaces claras fixas de Settings', () => {
-    for (const [css, selector] of [
-      [settingsSharedCss, '.settings-card'],
-      [confirmationSettingsCss, '.auth-status-page'],
-      [restrictedSettingsCss, '.restricted-page']
-    ]) {
-      expect(rule(css, selector)).toContain('background: #fff');
-      expect(rule(css, selector)).toContain('color: var(--color-text-on-light-primary)');
-    }
+    expect(rule(settingsSharedCss, '.settings-card')).toContain('background: #fff');
+    expect(rule(settingsSharedCss, '.settings-card')).toContain(
+      'color: var(--color-text-on-light-primary)'
+    );
 
     expect(rule(securitySettingsCss, '.session-row small')).toContain(
       'color: var(--color-text-on-light-secondary)'
@@ -125,6 +120,28 @@ describe('compatibilidade de conteúdo legado com os temas', () => {
     expect(rule(integrationsSettingsCss, '.integration-card small')).toContain(
       'color: var(--color-text-on-light-secondary)'
     );
+  });
+
+  it('mantém as surfaces Focused de Auth temáticas e sem paleta local fixa', () => {
+    expect(authShellCss).toContain('background: var(--color-surface-primary)');
+    expect(publicPageShellCss).toContain('background: var(--color-bg-page)');
+    expect(statusSurfaceCss).toContain('background: var(--color-surface-primary)');
+    expect(rule(authLoginCss, '.github-login-button')).toContain(
+      'background: var(--color-provider-surface)'
+    );
+  });
+
+  it('mantém a action de provider acima de 4.5:1 nos dois temas', () => {
+    const themes = [rule(tokensCss, ':root'), rule(tokensCss, "[data-theme='dark']")];
+
+    for (const theme of themes) {
+      expect(
+        contrastRatio(
+          token(theme, '--color-provider-text'),
+          token(theme, '--color-provider-surface')
+        )
+      ).toBeGreaterThanOrEqual(4.5);
+    }
   });
 
   it('mantém os tokens on-light invariantes e legíveis sobre branco', () => {

@@ -103,6 +103,18 @@ autorizada; convites e código/link permanecem disponíveis somente conforme a a
 `TraceFlowIcon` centraliza a família outline utilizada por essas ações sem introduzir biblioteca
 externa.
 
+## Auth público e ciclo de conta
+
+Login, cadastro, recuperação e callbacks públicos reutilizam `PublicPageShell`, primitive shared
+que concentra a composição Focused, a marca e a integração visual com os temas do runtime.
+`AuthShell` permanece no domínio de autenticação e organiza formulários, feedback de bootstrap e
+navegação secundária. Estados sem formulário, como verificação, confirmação pública e restrição de
+conta, reutilizam `StatusSurface` sem transferir requests, guards ou lifecycle para `shared`.
+
+As rotas públicas continuam fora do AppShell. Contas autenticadas em estado restrito também não
+recebem a sidebar, mas preservam seus guards e as ações permitidas pelo domínio. GitHub OAuth em
+Auth representa identidade; GitHub App e autorização de repositórios permanecem em integrações.
+
 ## Consolidação de Tasks e Kanban
 
 As screens de Tasks e Kanban coordenam estado e casos de uso, enquanto componentes do próprio domínio apresentam responsabilidades delimitadas:

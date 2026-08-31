@@ -1,4 +1,5 @@
 import { useId, useState } from 'react';
+import { TraceFlowIcon } from '../../../shared/index.js';
 import './PasswordField.css';
 
 export function passwordStrength(password) {
@@ -63,8 +64,9 @@ export function PasswordField({
           disabled={disabled}
           onClick={() => setVisible((current) => !current)}
           aria-label={visible ? 'Ocultar senha' : 'Mostrar senha'}
+          title={visible ? 'Ocultar senha' : 'Mostrar senha'}
         >
-          {visible ? 'Ocultar' : 'Mostrar'}
+          <TraceFlowIcon name={visible ? 'eyeOff' : 'eye'} />
         </button>
       </div>
       {error && (

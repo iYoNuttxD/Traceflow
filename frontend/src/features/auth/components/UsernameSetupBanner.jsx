@@ -1,6 +1,11 @@
 import { useRef, useState } from 'react';
 import { authApi } from '../api/auth.api.js';
-import { FeedbackRegion, normalizeApiError, useCountdown } from '../../../shared/index.js';
+import {
+  FeedbackRegion,
+  TraceFlowIcon,
+  normalizeApiError,
+  useCountdown
+} from '../../../shared/index.js';
 import './IdentityBanner.css';
 
 export function UsernameSetupBanner({ user, onUpdated }) {
@@ -31,30 +36,49 @@ export function UsernameSetupBanner({ user, onUpdated }) {
     }
   }
   return (
-    <aside className="email-verification-banner">
+    <aside className="identity-banner">
       <form className="username-setup-form" onSubmit={submit}>
-        <strong>Escolha seu nome de usuário público.</strong>
-        <input
-          aria-label="Novo nome de usuário"
-          value={username}
-          onChange={(event) => setUsername(event.target.value.toLowerCase())}
-          minLength="3"
-          maxLength="30"
-          required
-        />
-        <button type="submit" disabled={saving || cooldown > 0} aria-busy={saving}>
-          {saving
-            ? 'Salvando...'
-            : cooldown > 0
-              ? `Salvar username em ${cooldown}s`
-              : 'Salvar username'}
-        </button>
+        <div className="identity-banner__content">
+          <span className="identity-banner__icon" aria-hidden="true">
+            <TraceFlowIcon name="users" />
+          </span>
+          <strong>Escolha seu nome de usuário.</strong>
+        </div>
+        <div className="username-setup-form__controls">
+          <div className="username-setup-form__field">
+            <label htmlFor="setup-username">Novo nome de usuário</label>
+            <input
+              id="setup-username"
+              name="username"
+              value={username}
+              onChange={(event) => setUsername(event.target.value.toLowerCase())}
+              autoComplete="username"
+              minLength="3"
+              maxLength="30"
+              required
+            />
+          </div>
+          <button
+            className="button button-primary identity-banner__action"
+            type="submit"
+            disabled={saving || cooldown > 0}
+            aria-busy={saving}
+          >
+            {saving
+              ? 'Salvando...'
+              : cooldown > 0
+                ? `Salvar username em ${cooldown}s`
+                : 'Salvar username'}
+          </button>
+        </div>
         {message && (
-          <FeedbackRegion
-            error={cooldown ? undefined : message}
-            rateLimit={cooldown ? message : undefined}
-            retryAfterSeconds={retryAfterSeconds}
-          />
+          <div className="identity-banner__feedback">
+            <FeedbackRegion
+              error={cooldown ? undefined : message}
+              rateLimit={cooldown ? message : undefined}
+              retryAfterSeconds={retryAfterSeconds}
+            />
+          </div>
         )}
       </form>
     </aside>
