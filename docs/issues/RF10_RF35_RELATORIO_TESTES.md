@@ -438,6 +438,10 @@ não dispara requisição; e o teste de API do shape completo do move.
 - **Proposta:** guarda no service com `409` + teste de API (registrada em `TECHNICAL_BACKLOG.md`
   **S104-F14**; declarada como pendência ativa de L2 no adendo da baseline). **Não corrigida na
   bateria**, por regra.
+- **Desfecho:** corrigida **após** a bateria, como entrega própria aprovada pelo João em
+  31/08/2026 (`ad71a19`): `409 TASK_SPRINT_LOCKED` no `task-kanban.service.moveTask`, regra
+  reusada de `isTerminalSprintStatus`, testes de API nos dois status terminais; suíte do backend
+  504/39 verde, duas vezes. S104-F14 encerrado; baseline e mapa atualizados.
 
 Nenhum outro achado. A primeira aplicação do M64 foi **nula** (padrão com `\n` dentro de `\Q` não
 casa) e detectada pela contagem de ocorrências antes do veredito — refeita e morta; registrado
