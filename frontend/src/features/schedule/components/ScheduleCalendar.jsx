@@ -356,6 +356,7 @@ export function ScheduleCalendar({ schedule, milestoneNames = {}, hoje = new Dat
                       Marco · agrupa {periodo.nSprints}{' '}
                       {periodo.nSprints === 1 ? 'sprint' : 'sprints'} · {shortDate(periodo.inicio)}{' '}
                       – {shortDate(periodo.fim)}
+                      {periodo.fim !== periodo.prazo ? ` · prazo ${shortDate(periodo.prazo)}` : ''}
                     </span>
                   </span>
                 </li>

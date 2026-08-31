@@ -120,16 +120,21 @@ export function milestonePeriods({ milestones = [], sprints = [] }) {
       const inicios = doMarco
         .map((sprint) => sprintDayRange(sprint).inicio)
         .filter((dia) => Boolean(dia));
+      const fins = doMarco.map((sprint) => sprintDayRange(sprint).fim).filter((dia) => Boolean(dia));
       const primeiro = inicios.length
         ? inicios.reduce((menor, dia) => (dia < menor ? dia : menor))
         : prazo;
+      const menorFim = fins.length
+        ? fins.reduce((menor, dia) => (dia < menor ? dia : menor))
+        : null;
+      const alcance = menorFim && menorFim > prazo ? menorFim : prazo;
       return {
         id: milestone.id,
         title: milestone.title,
         status: milestone.status,
         overdue: milestone.overdue ?? false,
         inicio: primeiro < prazo ? primeiro : prazo,
-        fim: primeiro < prazo ? prazo : primeiro,
+        fim: primeiro < alcance ? alcance : primeiro,
         prazo,
         nSprints: doMarco.length,
         nConcluidas: doMarco.filter((sprint) => sprint.status === 'CONCLUIDA').length,
@@ -156,7 +161,9 @@ export function milestoneWeekLayout({ celulas, periodos = [] }) {
       if (inicio > fim) continue;
       const c0 = dias.findIndex((dia) => dia.iso === inicio);
       const c1 = dias.findIndex((dia) => dia.iso === fim);
-      const titulo = `Marco ${periodo.title} · ${shortDate(periodo.inicio)} – ${shortDate(periodo.fim)} · agrupa ${pluralSprints(periodo.nSprints)}`;
+      const prazoNoTitulo =
+        periodo.fim !== periodo.prazo ? ` · prazo ${shortDate(periodo.prazo)}` : '';
+      const titulo = `Marco ${periodo.title} · ${shortDate(periodo.inicio)} – ${shortDate(periodo.fim)}${prazoNoTitulo} · agrupa ${pluralSprints(periodo.nSprints)}`;
       segmentos.push({
         marcoId: periodo.id,
         c0,
@@ -229,10 +236,10 @@ export function buildMonthGrid({ ano, mes, sprints = [], periodos = [], hojeIso,
     if (janela && iso === janela.inicio) partes.push(`início de ${janela.sprint.name}`);
     else if (janela && iso === janela.fim) partes.push(`fim de ${janela.sprint.name}`);
     else if (janela) partes.push(janela.sprint.name);
-    if (periodo && iso === periodo.inicio && periodo.inicio !== periodo.prazo) {
-      partes.push(`início do marco ${periodo.title} (agrupa ${pluralSprints(periodo.nSprints)})`);
-    } else if (periodo && iso === periodo.prazo) {
+    if (periodo && iso === periodo.prazo) {
       partes.push(`prazo do marco ${periodo.title}`);
+    } else if (periodo && iso === periodo.inicio && periodo.inicio !== periodo.fim) {
+      partes.push(`início do marco ${periodo.title} (agrupa ${pluralSprints(periodo.nSprints)})`);
     } else if (periodo) {
       partes.push(`marco ${periodo.title}`);
     }
@@ -311,7 +318,7 @@ export function buildEvents({
   }
 
   for (const periodo of periodos) {
-    if (periodo.nSprints > 0 && periodo.inicio !== periodo.prazo) {
+    if (periodo.nSprints > 0 && periodo.inicio !== periodo.fim) {
       eventos.push({
         dia: periodo.inicio,
         tipo: 'MARCO',
@@ -475,7 +482,9 @@ export function monthBlocks({
         nome: periodo.title,
         meta: `${
           periodo.comTrilha
-            ? `${shortDate(periodo.inicio)} – ${shortDate(periodo.fim)}`
+            ? `${shortDate(periodo.inicio)} – ${shortDate(periodo.fim)}${
+                periodo.fim !== periodo.prazo ? ` · prazo ${shortDate(periodo.prazo)}` : ''
+              }`
             : `Prazo ${shortDate(periodo.prazo)}`
         } · ${
           periodo.status === 'CONCLUIDO' ? 'Concluído' : periodo.overdue ? 'Atrasado' : 'Pendente'

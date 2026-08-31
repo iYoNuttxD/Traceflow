@@ -161,12 +161,43 @@ describe('periodos de marco', () => {
     expect(periodo).toMatchObject({ nSprints: 2, nConcluidas: 1 });
   });
 
-  it('prazo anterior a primeira sprint normaliza o periodo sem inverter', () => {
+  it('prazo antes do fim da sprint estende a barra ate esse fim', () => {
+    const [periodo] = periodosDe({
+      milestones: [marco({ dueDate: '2026-08-10T00:00:00' })]
+    });
+    expect(periodo).toMatchObject({
+      inicio: '2026-08-03',
+      fim: '2026-08-14',
+      prazo: '2026-08-10',
+      comTrilha: true
+    });
+  });
+
+  it('a extensao para na sprint agrupada que termina primeiro', () => {
+    const [periodo] = periodosDe({
+      milestones: [marco({ dueDate: '2026-08-01T00:00:00' })],
+      sprints: [
+        sprint(),
+        sprint({ id: 2, startDate: '2026-08-16T00:00:00', endDate: '2026-08-29T00:00:00' })
+      ]
+    });
+    expect(periodo).toMatchObject({ inicio: '2026-08-01', fim: '2026-08-14', prazo: '2026-08-01' });
+  });
+
+  it('prazo anterior a primeira sprint estende do prazo ate o fim dela', () => {
     const [periodo] = periodosDe({
       milestones: [marco({ dueDate: '2026-07-20T00:00:00' })]
     });
     expect(periodo.inicio <= periodo.fim).toBe(true);
-    expect(periodo).toMatchObject({ inicio: '2026-07-20', fim: '2026-08-03', prazo: '2026-07-20' });
+    expect(periodo).toMatchObject({ inicio: '2026-07-20', fim: '2026-08-14', prazo: '2026-07-20' });
+  });
+
+  it('a extensao respeita o fim a meia-noite da sprint', () => {
+    const [periodo] = periodosDe({
+      milestones: [marco({ dueDate: '2026-08-10T00:00:00' })],
+      sprints: [sprint({ endDate: '2026-09-01T00:00:00' })]
+    });
+    expect(periodo.fim).toBe('2026-08-31');
   });
 
   it('marco sem prazo e descartado dos periodos', () => {
@@ -244,6 +275,30 @@ describe('grade do mes', () => {
       ['2026-08-20', 5]
     ]);
     expect(comPrazo[0].prazoAgrupado).toBe(true);
+  });
+
+  it('com barra estendida o ponto continua no prazo e o fim ganha o canto', () => {
+    const periodos = periodosDe({ milestones: [marco({ dueDate: '2026-08-10T00:00:00' })] });
+    const porDia = Object.fromEntries(grade({ periodos }).map((celula) => [celula.iso, celula]));
+    expect(porDia['2026-08-10']).toMatchObject({
+      marcoId: 5,
+      temPrazoDeMarco: true,
+      fimDoMarco: false
+    });
+    expect(porDia['2026-08-14']).toMatchObject({
+      marcoId: 5,
+      fimDoMarco: true,
+      temPrazoDeMarco: false
+    });
+    expect(porDia['2026-08-15'].marcoId).toBeNull();
+  });
+
+  it('dia que e prazo e inicio ao mesmo tempo anuncia o prazo', () => {
+    const periodos = periodosDe({ milestones: [marco({ dueDate: '2026-08-03T00:00:00' })] });
+    const porDia = Object.fromEntries(grade({ periodos }).map((celula) => [celula.iso, celula]));
+    expect(porDia['2026-08-03'].descricao).toBe(
+      'segunda-feira, 3 de agosto — início de Sprint 1 — prazo do marco Fundação'
+    );
   });
 
   it('marco sem sprint marca so o prazo, sem pintar periodo', () => {
@@ -346,6 +401,15 @@ describe('trilhas de marco por semana', () => {
     expect(new Set(topos).size).toBe(2);
     expect(Math.abs(topos[1] - topos[0])).toBeGreaterThanOrEqual(12);
     expect(estreia.alturaTopo).toBeGreaterThan(semanas[3].alturaTopo);
+  });
+
+  it('o titulo do segmento ganha o prazo quando a barra passa dele', () => {
+    const periodos = periodosDe({ milestones: [marco({ dueDate: '2026-08-10T00:00:00' })] });
+    const semanas = semanasDe({ periodos });
+    expect(semanas[1].segmentos[0].titulo).toBe(
+      'Marco Fundação · 03/08 – 14/08 · prazo 10/08 · agrupa 1 sprint'
+    );
+    expect(semanas[1].marcadores[0].texto).toBe('Fundação · marco · 03/08 – 14/08');
   });
 
   it('marco sem sprint nao ganha segmento nem marcador', () => {
@@ -460,6 +524,16 @@ describe('eventos', () => {
     expect(soPrazo.map((evento) => evento.titulo)).toEqual(['Fundação']);
   });
 
+  it('prazo no dia do inicio ainda anuncia o comeco da barra estendida', () => {
+    const inicioDoMarco = eventos({
+      periodos: periodosDe({ milestones: [marco({ dueDate: '2026-08-03T00:00:00' })] })
+    }).find((evento) => evento.titulo === 'Início — Fundação');
+    expect(inicioDoMarco).toMatchObject({
+      dia: '2026-08-03',
+      meta: 'Agrupa 1 sprint · começa com a primeira delas'
+    });
+  });
+
   it('gera deadline de tarefa com status, prioridade e sprint', () => {
     const [deadline] = eventos({
       sprints: [],
@@ -556,6 +630,13 @@ describe('blocos do mes exibido', () => {
   it('marco sem sprint entra no bloco pelo prazo', () => {
     const { blocos: grupos } = blocos({ sprints: [], periodos: periodosDe({ sprints: [] }) });
     expect(grupos[0].itens[0].meta).toBe('Prazo 20/08 · Pendente · agrupa 0 sprints');
+  });
+
+  it('meta do marco ganha o prazo quando a barra passa dele', () => {
+    const { blocos: grupos } = blocos({
+      periodos: periodosDe({ milestones: [marco({ dueDate: '2026-08-10T00:00:00' })] })
+    });
+    expect(grupos[0].itens[0].meta).toBe('03/08 – 14/08 · prazo 10/08 · Pendente · agrupa 1 sprint');
   });
 
   it('sprint sem marco e tarefa sem sprint sao nomeadas assim', () => {
@@ -780,6 +861,43 @@ describe('interacao do calendario', () => {
   it('fim a meia-noite nao desbloqueia o mes seguinte', () => {
     renderCalendar({
       schedule: { ...emptySchedule, sprints: [sprint({ endDate: '2026-09-01T00:00:00' })] }
+    });
+    expect(screen.getByRole('button', { name: 'Próximo mês' })).toHaveAttribute(
+      'aria-disabled',
+      'true'
+    );
+  });
+
+  it('sprint cancelada nao estende a barra do marco', () => {
+    renderCalendar({
+      schedule: {
+        ...emptySchedule,
+        sprints: [
+          sprint(),
+          sprint({
+            id: 2,
+            name: 'Cancelada',
+            startDate: '2026-08-05T00:00:00',
+            endDate: '2026-08-29T00:00:00',
+            status: 'CANCELADA'
+          })
+        ],
+        milestones: [marco({ dueDate: '2026-08-10T00:00:00' })]
+      }
+    });
+    const legenda = screen.getByRole('list', { name: 'Legenda do mês exibido' });
+    expect(
+      within(legenda).getByText('Marco · agrupa 1 sprint · 03/08 – 14/08 · prazo 10/08')
+    ).toBeInTheDocument();
+  });
+
+  it('a extensao da barra nao desbloqueia mes novo na navegacao', () => {
+    renderCalendar({
+      schedule: {
+        ...emptySchedule,
+        sprints: [sprint({ endDate: '2026-09-01T00:00:00' })],
+        milestones: [marco({ dueDate: '2026-08-20T00:00:00' })]
+      }
     });
     expect(screen.getByRole('button', { name: 'Próximo mês' })).toHaveAttribute(
       'aria-disabled',
