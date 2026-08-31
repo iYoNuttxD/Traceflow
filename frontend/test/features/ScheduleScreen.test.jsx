@@ -200,6 +200,19 @@ describe('periodos de marco', () => {
     expect(periodo.fim).toBe('2026-08-31');
   });
 
+  it('sprint agrupada com data invalida degrada para o colapso no prazo', () => {
+    const [periodo] = periodosDe({
+      sprints: [sprint({ startDate: 'sem-data', endDate: 'sem-data' })]
+    });
+    expect(periodo).toMatchObject({
+      inicio: '2026-08-20',
+      fim: '2026-08-20',
+      prazo: '2026-08-20',
+      nSprints: 1,
+      comTrilha: true
+    });
+  });
+
   it('marco sem prazo e descartado dos periodos', () => {
     const periodos = periodosDe({ milestones: [marco({ dueDate: null })] });
     expect(periodos).toHaveLength(0);
