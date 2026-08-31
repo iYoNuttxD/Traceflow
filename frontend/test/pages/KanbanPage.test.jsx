@@ -344,6 +344,52 @@ describe('KanbanPage ADR-011', () => {
     await waitFor(() => expect(seletor).toBeDisabled());
   });
 
+  it('espaco no cartao tambem abre o painel de detalhes', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText('Da sprint');
+
+    const cartao = screen.getByRole('button', { name: /Da sprint/ });
+    cartao.focus();
+    await user.keyboard(' ');
+    expect(screen.getByRole('dialog', { name: 'Da sprint' })).toBeInTheDocument();
+  });
+
+  it('conflito 409 no painel reabilita o seletor e mostra a mensagem do quadro', async () => {
+    const user = userEvent.setup();
+    mocks.kanbanApi.moveTask.mockRejectedValue({
+      response: { status: 409, data: { message: 'A tarefa foi alterada por outra operação.' } }
+    });
+    renderPage();
+    await screen.findByText('Da sprint');
+
+    await user.click(screen.getByRole('button', { name: /Da sprint/ }));
+    const dialogo = screen.getByRole('dialog', { name: 'Da sprint' });
+    const seletor = within(dialogo).getByRole('combobox', { name: 'Mover a tarefa Da sprint' });
+    await user.selectOptions(seletor, 'EM_ANDAMENTO');
+
+    expect(
+      await screen.findByText('A tarefa foi alterada por outra operação.')
+    ).toBeInTheDocument();
+    expect(seletor).not.toBeDisabled();
+    expect(seletor).toHaveValue('A_FAZER');
+  });
+
+  it('escolher o status atual no painel nao dispara requisicao', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText('Da sprint');
+
+    await user.click(screen.getByRole('button', { name: /Da sprint/ }));
+    const dialogo = screen.getByRole('dialog', { name: 'Da sprint' });
+    await user.selectOptions(
+      within(dialogo).getByRole('combobox', { name: 'Mover a tarefa Da sprint' }),
+      'A_FAZER'
+    );
+
+    expect(mocks.kanbanApi.moveTask).not.toHaveBeenCalled();
+  });
+
   // Sprint encerrada e registro (ADR-010 D04): o cartao nao arrasta e o seletor
   // do painel desabilita, para a regra nao aparecer como um 409 generico.
   it('bloqueia a tarefa de sprint congelada no cartao e no painel', async () => {

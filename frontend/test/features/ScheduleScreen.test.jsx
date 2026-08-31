@@ -1273,6 +1273,43 @@ describe('interacao do calendario', () => {
     expect(abaTodos).toHaveAttribute('aria-selected', 'true');
   });
 
+  it('tab sai da aba ativa para o conteudo sem mudar a selecao', async () => {
+    const user = userEvent.setup();
+    renderCalendar({
+      schedule: {
+        ...emptySchedule,
+        sprints: [sprint({ tasks: [tarefa()] })],
+        milestones: [marco()]
+      }
+    });
+    const painel = screen.getByRole('heading', { name: 'No mês exibido' }).closest('section');
+    const abaTodos = within(painel).getByRole('tab', { name: 'Todos 3' });
+    abaTodos.focus();
+    await user.tab();
+    expect(within(painel).getByRole('tabpanel')).toHaveFocus();
+    expect(abaTodos).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('mes vazio no meio do intervalo mantem a aba filtrada com o vazio dela', async () => {
+    const user = userEvent.setup();
+    renderCalendar({
+      schedule: {
+        ...emptySchedule,
+        sprints: [sprint()],
+        milestones: [marco({ id: 6, title: 'Distante', dueDate: '2026-10-10T00:00:00' })]
+      }
+    });
+    const painel = screen.getByRole('heading', { name: 'No mês exibido' }).closest('section');
+    await user.click(within(painel).getByRole('tab', { name: 'Sprints 1' }));
+
+    await user.click(screen.getByRole('button', { name: 'Próximo mês' }));
+    expect(
+      within(painel).getByText('setembro de 2026 · nada no calendário')
+    ).toBeInTheDocument();
+    expect(within(painel).getByRole('tab', { selected: true })).toHaveAccessibleName('Sprints 0');
+    expect(within(painel).getByText('Nenhuma sprint neste mês.')).toBeInTheDocument();
+  });
+
   it('o painel do mes diz quando a aba esta vazia', async () => {
     const user = userEvent.setup();
     renderCalendar({ schedule: { ...emptySchedule, sprints: [sprint()] } });
