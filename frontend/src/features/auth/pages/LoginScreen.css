@@ -21,6 +21,12 @@
   accent-color: var(--color-accent-primary);
 }
 
+.auth-recovery-link {
+  display: inline-flex;
+  min-height: var(--size-touch-target);
+  align-items: center;
+}
+
 .auth-divider {
   display: flex;
   align-items: center;

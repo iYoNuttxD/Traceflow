@@ -78,6 +78,13 @@ describe('formulários de identidade acessíveis', () => {
       </MemoryRouter>
     );
     expect(screen.getByLabelText('Manter sessão ativa')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Esqueci minha senha' })).toHaveAttribute(
+      'href',
+      '/forgot-password'
+    );
+    expect(screen.getByRole('link', { name: 'Esqueci minha senha' })).toHaveClass(
+      'auth-recovery-link'
+    );
     const password = screen.getByLabelText('Senha *');
     expect(password).toHaveAttribute('type', 'password');
     await user.click(screen.getByRole('button', { name: 'Mostrar senha' }));

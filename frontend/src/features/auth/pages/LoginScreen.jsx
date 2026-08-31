@@ -130,7 +130,9 @@ export function LoginScreen() {
             />{' '}
             Manter sessão ativa
           </label>
-          <Link to="/forgot-password">Esqueci minha senha</Link>
+          <Link className="auth-recovery-link" to="/forgot-password">
+            Esqueci minha senha
+          </Link>
         </div>
         <FeedbackRegion
           error={cooldown ? undefined : error || githubError}

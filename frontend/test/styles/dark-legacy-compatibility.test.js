@@ -131,6 +131,14 @@ describe('compatibilidade de conteúdo legado com os temas', () => {
     );
   });
 
+  it('mantém o link de recuperação com touch target completo', () => {
+    expect(rule(authLoginCss, '.auth-recovery-link')).toContain('display: inline-flex');
+    expect(rule(authLoginCss, '.auth-recovery-link')).toContain(
+      'min-height: var(--size-touch-target)'
+    );
+    expect(rule(authLoginCss, '.auth-recovery-link')).toContain('align-items: center');
+  });
+
   it('mantém a action de provider acima de 4.5:1 nos dois temas', () => {
     const themes = [rule(tokensCss, ':root'), rule(tokensCss, "[data-theme='dark']")];
 
