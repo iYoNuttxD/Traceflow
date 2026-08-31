@@ -223,3 +223,12 @@ Itens PARCIAL apontam a fase desta bateria que os fecha.
 | I38 (período = primeira sprint → **prazo**) | o início derivado permanece; o fim virou o **alcance** de I50. O caso `'prazo anterior a primeira sprint normaliza o periodo sem inverter'` foi **reescrito às claras** como `'prazo anterior a primeira sprint estende do prazo ate o fim dela'` (citado no commit `f4f4796`); os demais casos citados em I38 seguem existindo e verdes |
 | I44 (blocos do mês com `titulo`) | o painel virou o tablist de I54/I55; `monthBlocks` expõe `rotulo`/`descricao`. Reescritos às claras (citados nos commits `d538505`/`58e49b7`): `'agrupa marcos, sprints e tarefas do mes com contagem'` (asserções), `'dez marcos so de prazo…'` e `'marcos so de prazo…'` (heading → tab), `'o painel do mes exibido resume…'` (+ sufixo "em abas"), `'o painel do mes diz quando um grupo esta vazio'` → `'…quando a aba esta vazia'`. A interseção por calendário real e a equivalência do mutante M47 continuam como declaradas |
 | RF08 (quadro Kanban — entra no mapa) | provas vigentes em `KanbanPage.test.jsx`: arrasto/409/histórico (describe `'KanbanPage E11'`), filtro por sprint e congelada (describe `'KanbanPage ADR-011'`), e os casos da quinta iteração citados em I56–I58. Reescritos às claras (citados no commit `da04918`): `'move a tarefa pelo seletor do cartao'` → `'…pelo seletor do painel de detalhes, sem mouse'`; `'bloqueia o cartao de sprint congelada'` → `'bloqueia a tarefa de sprint congelada no cartao e no painel'` |
+
+## Fase 4 da terceira bateria — contratos quentes do painel de detalhes
+
+| Item | Prova | Situação |
+|---|---|---|
+| Corpo de sucesso do move devolve a tarefa completa que o diálogo espalha | `backend/test/api/rf08-terceira-bateria.test.js::'o corpo de sucesso devolve a tarefa completa que o dialogo espalha'` (status, sprintId, prioridade, deadline, responsible, pullRequest, commits[], issues[]) | PROVADA |
+| Move de tarefa em sprint terminal recusado com 409 (rede de segurança do `disabled` do diálogo) | sonda executada em 31/08: `PATCH /tasks/:id/move` de tarefa `CONCLUIDO` em sprint `CONCLUIDA` respondeu **200** e mutou o status — a guarda não existe no servidor | **CONTRADITA** → achado T-A1 / `TECHNICAL_BACKLOG.md` S104-F14 |
+| Autorização do move inalterada pelo caminho novo de UI | `auth-authorization.test.js:312` (matriz permitir/negar sobre `PATCH /tasks/:id/move`) | PROVADA |
+| Suítes de backend completas, duas vezes | largada 501/38; fechamento registrado no relatório (inclui o arquivo novo da bateria) | PROVADA |
