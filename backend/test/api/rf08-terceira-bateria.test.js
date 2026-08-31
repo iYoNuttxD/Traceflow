@@ -51,11 +51,12 @@ beforeEach(async () => {
     }
   });
   setAuthenticatedFixtureUser(user.id);
-  const secured = (method) => (path) =>
-    request(app)
-      [method](path)
+  const secured = (method) => (path) => {
+    const client = request(app);
+    return client[method](path)
       .set('Cookie', `traceflow_session=${sessionToken}`)
       .set('x-csrf-token', csrfToken);
+  };
   api = {
     get: (path) => request(app).get(path).set('Cookie', `traceflow_session=${sessionToken}`),
     patch: secured('patch')
@@ -87,5 +88,4 @@ describe('RF08 terceira bateria — contrato do move consumido pelo painel de de
     expect(Array.isArray(response.body.task.commits)).toBe(true);
     expect(Array.isArray(response.body.task.issues)).toBe(true);
   });
-
 });
