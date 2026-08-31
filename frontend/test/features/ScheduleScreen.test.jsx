@@ -604,11 +604,9 @@ describe('blocos do mes exibido', () => {
         unassignedTasks: []
       })
     });
-    expect(grupos.map((grupo) => grupo.titulo)).toEqual([
-      'Marcos (1)',
-      'Sprints (1)',
-      'Tarefas com deadline (1)'
-    ]);
+    expect(grupos.map((grupo) => grupo.rotulo)).toEqual(['Marcos', 'Sprints', 'Tarefas']);
+    expect(grupos.map((grupo) => grupo.itens.length)).toEqual([1, 1, 1]);
+    expect(grupos[2].descricao).toBe('Somente tarefas com deadline dentro do mês exibido.');
     expect(grupos[0].itens[0].meta).toBe('03/08 – 20/08 · Pendente · agrupa 1 sprint');
     expect(grupos[1].itens[0].meta).toBe('03/08 – 14/08 · Em andamento · marco Fundação');
     expect(grupos[2].itens[0]).toMatchObject({
@@ -1065,7 +1063,7 @@ describe('interacao do calendario', () => {
     expect(container.querySelectorAll('.calendar-week-marker')).toHaveLength(0);
     expect(container.querySelectorAll('.calendar-day-dot')).toHaveLength(10);
     const painel = screen.getByRole('heading', { name: 'No mês exibido' }).closest('section');
-    expect(within(painel).getByRole('heading', { name: 'Marcos (10)' })).toBeInTheDocument();
+    expect(within(painel).getByRole('tab', { name: 'Marcos 10' })).toBeInTheDocument();
   });
 
   it('abrir um marcador fecha o que estava aberto', async () => {
@@ -1102,7 +1100,7 @@ describe('interacao do calendario', () => {
     expect(within(legenda).queryByText('Fundação')).toBeNull();
     expect(within(legenda).getByText('Prazo de marco')).toBeInTheDocument();
     const painel = screen.getByRole('heading', { name: 'No mês exibido' }).closest('section');
-    expect(within(painel).getByRole('heading', { name: 'Marcos (2)' })).toBeInTheDocument();
+    expect(within(painel).getByRole('tab', { name: 'Marcos 2' })).toBeInTheDocument();
     expect(
       within(painel).getByText('Prazo 20/08 · Pendente · agrupa 0 sprints')
     ).toBeInTheDocument();
@@ -1175,7 +1173,8 @@ describe('interacao do calendario', () => {
     expect(screen.queryByRole('button', { name: /Sprint 1/ })).toBeNull();
   });
 
-  it('o painel do mes exibido resume marcos, sprints e tarefas', () => {
+  it('o painel do mes exibido resume marcos, sprints e tarefas em abas', async () => {
+    const user = userEvent.setup();
     renderCalendar({
       schedule: {
         ...emptySchedule,
@@ -1187,19 +1186,99 @@ describe('interacao do calendario', () => {
     expect(
       within(painel).getByText('agosto de 2026 · 1 marco · 1 sprint · 1 tarefa')
     ).toBeInTheDocument();
-    expect(within(painel).getByRole('heading', { name: 'Marcos (1)' })).toBeInTheDocument();
-    expect(within(painel).getByRole('heading', { name: 'Sprints (1)' })).toBeInTheDocument();
-    expect(
-      within(painel).getByRole('heading', { name: 'Tarefas com deadline (1)' })
-    ).toBeInTheDocument();
+    expect(within(painel).getByRole('tab', { name: 'Marcos 1' })).toBeInTheDocument();
+    expect(within(painel).getByRole('tab', { name: 'Sprints 1' })).toBeInTheDocument();
+    expect(within(painel).getByRole('tab', { name: 'Tarefas 1' })).toBeInTheDocument();
+    await user.click(within(painel).getByRole('tab', { name: 'Tarefas 1' }));
     expect(within(painel).getByText('#10 Finalizar login')).toBeInTheDocument();
   });
 
-  it('o painel do mes diz quando um grupo esta vazio', () => {
+  it('o painel do mes e um tablist com marcos ativos por padrao', () => {
+    renderCalendar({
+      schedule: {
+        ...emptySchedule,
+        sprints: [sprint({ tasks: [tarefa()] })],
+        milestones: [marco()]
+      }
+    });
+    const painel = screen.getByRole('heading', { name: 'No mês exibido' }).closest('section');
+    expect(within(painel).getAllByRole('tab')).toHaveLength(3);
+    expect(within(painel).getByRole('tab', { selected: true })).toHaveAccessibleName('Marcos 1');
+    expect(within(painel).getByRole('tabpanel')).toHaveAccessibleName('Marcos 1');
+  });
+
+  it('trocar de aba filtra o conteudo do painel', async () => {
+    const user = userEvent.setup();
+    renderCalendar({
+      schedule: {
+        ...emptySchedule,
+        sprints: [sprint({ tasks: [tarefa()] })],
+        milestones: [marco()]
+      }
+    });
+    const painel = screen.getByRole('heading', { name: 'No mês exibido' }).closest('section');
+    expect(within(painel).getByText('Fundação')).toBeInTheDocument();
+    await user.click(within(painel).getByRole('tab', { name: 'Tarefas 1' }));
+    expect(within(painel).getByText('#10 Finalizar login')).toBeInTheDocument();
+    expect(within(painel).queryByText('Fundação')).toBeNull();
+  });
+
+  it('setas movem e ativam as abas do painel', async () => {
+    const user = userEvent.setup();
+    renderCalendar({
+      schedule: {
+        ...emptySchedule,
+        sprints: [sprint({ tasks: [tarefa()] })],
+        milestones: [marco()]
+      }
+    });
+    const painel = screen.getByRole('heading', { name: 'No mês exibido' }).closest('section');
+    const abaMarcos = within(painel).getByRole('tab', { name: 'Marcos 1' });
+    abaMarcos.focus();
+    await user.keyboard('{ArrowRight}');
+    const abaSprints = within(painel).getByRole('tab', { name: 'Sprints 1' });
+    expect(abaSprints).toHaveFocus();
+    expect(abaSprints).toHaveAttribute('aria-selected', 'true');
+    await user.keyboard('{End}');
+    expect(within(painel).getByRole('tab', { name: 'Tarefas 1' })).toHaveFocus();
+    await user.keyboard('{Home}');
+    expect(abaMarcos).toHaveFocus();
+    expect(abaMarcos).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('o painel do mes diz quando a aba esta vazia', async () => {
+    const user = userEvent.setup();
     renderCalendar({ schedule: { ...emptySchedule, sprints: [sprint()] } });
     const painel = screen.getByRole('heading', { name: 'No mês exibido' }).closest('section');
     expect(within(painel).getByText('Nenhum marco neste mês.')).toBeInTheDocument();
+    await user.click(within(painel).getByRole('tab', { name: 'Tarefas 0' }));
     expect(within(painel).getByText('Nenhuma tarefa com deadline neste mês.')).toBeInTheDocument();
+  });
+
+  it('a aba ativa sobrevive a navegacao de mes', async () => {
+    const user = userEvent.setup();
+    renderCalendar({
+      schedule: {
+        ...emptySchedule,
+        sprints: [
+          sprint(),
+          sprint({
+            id: 2,
+            name: 'Sprint 2',
+            startDate: '2026-09-01T00:00:00',
+            endDate: '2026-09-10T00:00:00'
+          })
+        ]
+      }
+    });
+    const painel = screen.getByRole('heading', { name: 'No mês exibido' }).closest('section');
+    await user.click(within(painel).getByRole('tab', { name: 'Sprints 1' }));
+    expect(within(painel).getByText('Sprint 1')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Próximo mês' }));
+    expect(within(painel).getByRole('tab', { selected: true })).toHaveAccessibleName('Sprints 1');
+    expect(within(painel).getByText('Sprint 2')).toBeInTheDocument();
+    expect(within(painel).queryByText('Sprint 1')).toBeNull();
   });
 
   it('proximos eventos misturam sprint, marco e tarefa em cartoes', () => {

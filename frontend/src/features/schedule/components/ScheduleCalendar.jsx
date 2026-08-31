@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useMemo, useRef, useState } from 'react';
 import { taskPriorityLabels, taskStatusLabels } from './schedule-display.js';
 import {
   INICIAIS_SEMANA,
@@ -42,6 +42,8 @@ export function ScheduleCalendar({ schedule, milestoneNames = {}, hoje = new Dat
   const hojeIso = todayIsoDay(hoje);
   const [selecionado, setSelecionado] = useState(hojeIso);
   const [marcoAberto, setMarcoAberto] = useState(null);
+  const [abaAtiva, setAbaAtiva] = useState('marcos');
+  const abasRef = useRef({});
   const [{ ano, mes }, setMesVisivel] = useState(() => ({
     ano: hoje.getFullYear(),
     mes: hoje.getMonth()
@@ -128,6 +130,24 @@ export function ScheduleCalendar({ schedule, milestoneNames = {}, hoje = new Dat
     const [novoAno, novoMes] = iso.split('-').map(Number);
     setSelecionado(iso);
     setMesVisivel(clampMonth(limites, { ano: novoAno, mes: novoMes - 1 }));
+  };
+
+  const blocoAtivo = noMes.blocos.find((bloco) => bloco.chave === abaAtiva) ?? noMes.blocos[0];
+
+  const ativarAba = (chave) => {
+    setAbaAtiva(chave);
+    abasRef.current[chave]?.focus();
+  };
+
+  const teclasDeAba = (event) => {
+    const ordem = noMes.blocos.map((bloco) => bloco.chave);
+    const atual = ordem.indexOf(blocoAtivo.chave);
+    if (event.key === 'ArrowRight') ativarAba(ordem[(atual + 1) % ordem.length]);
+    else if (event.key === 'ArrowLeft') ativarAba(ordem[(atual + ordem.length - 1) % ordem.length]);
+    else if (event.key === 'Home') ativarAba(ordem[0]);
+    else if (event.key === 'End') ativarAba(ordem[ordem.length - 1]);
+    else return;
+    event.preventDefault();
   };
 
   const corDoItem = (item) => {
@@ -446,28 +466,58 @@ export function ScheduleCalendar({ schedule, milestoneNames = {}, hoje = new Dat
           <p className="calendar-month-summary">
             {monthLabel(mesExibido.ano, mesExibido.mes)} · {noMes.resumo}
           </p>
-          <div className="calendar-month-panel">
+          <div
+            className="calendar-month-tabs"
+            role="tablist"
+            aria-label="Conteúdo do mês exibido"
+            onKeyDown={teclasDeAba}
+          >
             {noMes.blocos.map((bloco) => (
-              <div className="calendar-month-block" key={bloco.chave}>
-                <h3>{bloco.titulo}</h3>
-                {bloco.itens.length === 0 ? (
-                  <p className="calendar-month-empty">{bloco.vazio}</p>
-                ) : (
-                  <ul className="calendar-month-items">
-                    {bloco.itens.map((item) => (
-                      <li
-                        className="calendar-month-item"
-                        key={item.chave}
-                        style={{ borderLeftColor: corDoItem(item) }}
-                      >
-                        <span className="calendar-month-item-name">{item.nome}</span>
-                        <span className="calendar-month-item-meta">{item.meta}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
+              <button
+                key={bloco.chave}
+                ref={(no) => {
+                  abasRef.current[bloco.chave] = no;
+                }}
+                type="button"
+                role="tab"
+                id={`calendar-month-tab-${bloco.chave}`}
+                aria-selected={bloco.chave === blocoAtivo.chave}
+                aria-controls="calendar-month-tabpanel"
+                tabIndex={bloco.chave === blocoAtivo.chave ? 0 : -1}
+                title={bloco.descricao}
+                className={`calendar-month-tab ${
+                  bloco.chave === blocoAtivo.chave ? 'calendar-month-tab--ativa' : ''
+                }`.trim()}
+                onClick={() => setAbaAtiva(bloco.chave)}
+              >
+                {bloco.rotulo}{' '}
+                <span className="calendar-month-tab-count">{bloco.itens.length}</span>
+              </button>
             ))}
+          </div>
+          <div
+            className="calendar-month-panel"
+            role="tabpanel"
+            id="calendar-month-tabpanel"
+            aria-labelledby={`calendar-month-tab-${blocoAtivo.chave}`}
+            tabIndex={0}
+          >
+            {blocoAtivo.itens.length === 0 ? (
+              <p className="calendar-month-empty">{blocoAtivo.vazio}</p>
+            ) : (
+              <ul className="calendar-month-items">
+                {blocoAtivo.itens.map((item) => (
+                  <li
+                    className="calendar-month-item"
+                    key={item.chave}
+                    style={{ borderLeftColor: corDoItem(item) }}
+                  >
+                    <span className="calendar-month-item-name">{item.nome}</span>
+                    <span className="calendar-month-item-meta">{item.meta}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </section>
       </div>

@@ -2246,9 +2246,72 @@ a {
 }
 
 .calendar-month-summary {
-  margin: 0 0 1.15rem;
+  margin: 0 0 0.85rem;
   color: #667085;
   font-size: 0.85rem;
+}
+
+.calendar-month-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin: 0 0 0.85rem;
+  padding: 0.25rem;
+  border-radius: 999px;
+  background: #eef1f7;
+}
+
+.calendar-month-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.85rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: #475467;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.calendar-month-tab:hover {
+  color: #172033;
+}
+
+.calendar-month-tab:focus-visible {
+  outline: 2px solid #244aa5;
+  outline-offset: 2px;
+}
+
+.calendar-month-tab--ativa {
+  border-color: #cfd6e4;
+  background: #fff;
+  color: #172033;
+}
+
+.calendar-month-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: #e2e7f0;
+  color: #475467;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.calendar-month-tab--ativa .calendar-month-tab-count {
+  background: #e8eefc;
+  color: #244aa5;
 }
 
 .calendar-month-panel {
@@ -2275,19 +2338,6 @@ a {
     min-height: 12rem;
     max-height: none;
   }
-}
-
-.calendar-month-block {
-  margin-bottom: 1.15rem;
-}
-
-.calendar-month-block h3 {
-  margin: 0 0 0.5rem;
-  color: #344054;
-  font-size: 0.75rem;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
 }
 
 .calendar-month-items {
