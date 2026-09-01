@@ -19,3 +19,12 @@ frontend/.env
 
 .vscode/
 rest.http
+
+# /design-sync — staged converter, build output and machine-local state.
+# Everything else under .design-sync/ (config.json, NOTES.md, conventions.md,
+# entry.js, previews/, overrides/) is durable and committed.
+.ds-sync/
+ds-bundle/
+.design-sync/.cache/
+.design-sync/learnings/
+.design-sync/node_modules
