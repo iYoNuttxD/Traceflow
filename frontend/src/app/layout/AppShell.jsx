@@ -154,6 +154,7 @@ export function AppShell({ user, onLogout, children }) {
   const closeButtonRef = useRef(null);
   const menuButtonRef = useRef(null);
   const mainRef = useRef(null);
+  const contentRef = useRef(null);
   const previousPathRef = useRef(location.pathname);
   const activeProjectId = activeProjectFromPath(location.pathname);
   const { quickProjects, feedback, togglePinned } = useQuickProjects({
@@ -244,6 +245,13 @@ export function AppShell({ user, onLogout, children }) {
       data-sidebar-state={sidebarState}
       data-drawer-state={drawerOpen ? 'open' : 'closed'}
     >
+      <a
+        className="trace-shell__skip-link"
+        href="#main-content"
+        onClick={() => contentRef.current?.focus()}
+      >
+        Pular para o conteúdo
+      </a>
       <aside
         ref={sidebarRef}
         id="traceflow-global-navigation"
@@ -436,7 +444,7 @@ export function AppShell({ user, onLogout, children }) {
             <ShellIcon name="menu" />
           </button>
         </header>
-        <div className="trace-shell__content" id="traceflow-global-navigation-content">
+        <div className="trace-shell__content" id="main-content" ref={contentRef} tabIndex={-1}>
           {children}
         </div>
       </div>

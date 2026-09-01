@@ -397,6 +397,11 @@ pertence ao shell; o Design System define apenas sua apresentação.
 Tabs internas de um projeto e tabs de administração reutilizam esta mesma linguagem; uma nova
 área não cria uma segunda aparência de navegação horizontal.
 
+A aparência compartilhada não determina a semântica. Destinos que trocam de rota usam `nav`, links
+e `aria-current="page"`. Conteúdo alternado na mesma rota pode usar `tablist`, `tab` e `tabpanel`,
+desde que implemente associação completa dos painéis, roving tabindex e navegação por setas,
+Home/End. Roles de tab não são aplicados a links de navegação apenas por semelhança visual.
+
 ### Breadcrumb
 
 - size 1–2;
@@ -500,6 +505,8 @@ aplicam a mesma semântica sem detecção de navegador ou sistema operacional po
 ## Shell autenticado
 
 - rotas públicas não recebem a navegação autenticada;
+- o primeiro controle focável oferece “Pular para o conteúdo” e direciona o foco ao início estável
+  do conteúdo, evitando a navegação repetitiva da sidebar;
 - sidebar usa 272 px expandida e 88 px recolhida, com escolha persistida;
 - tablet inicia recolhido quando não há escolha explícita;
 - mobile usa drawer fechado inicialmente, backdrop, Escape, contenção e retorno de foco;

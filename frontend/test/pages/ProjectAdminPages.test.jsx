@@ -241,6 +241,49 @@ describe('rotas administrativas de projeto', () => {
     expect(visibilityControl).toHaveFocus();
   });
 
+  it('mantém associação dos painéis e navegação completa por teclado nas tabs de membros', async () => {
+    const user = userEvent.setup();
+    renderMembers();
+
+    await screen.findByText(/Pessoa proprietária/);
+    const tablist = screen.getByRole('tablist', { name: 'Membros' });
+    const teamTab = within(tablist).getByRole('tab', { name: 'Equipe' });
+    const invitationsTab = within(tablist).getByRole('tab', { name: 'Convites' });
+
+    expect(teamTab).toHaveAttribute('aria-selected', 'true');
+    expect(teamTab).toHaveAttribute('tabindex', '0');
+    expect(invitationsTab).toHaveAttribute('aria-selected', 'false');
+    expect(invitationsTab).toHaveAttribute('tabindex', '-1');
+
+    for (const tab of [teamTab, invitationsTab]) {
+      const panel = document.getElementById(tab.getAttribute('aria-controls'));
+      expect(panel).toHaveAttribute('role', 'tabpanel');
+      expect(panel).toHaveAttribute('aria-labelledby', tab.id);
+    }
+
+    teamTab.focus();
+    await user.keyboard('{ArrowRight}');
+    expect(invitationsTab).toHaveFocus();
+    expect(invitationsTab).toHaveAttribute('aria-selected', 'true');
+    expect(document.getElementById('project-members-team-panel')).toHaveAttribute('hidden');
+    expect(document.getElementById('project-members-invitations-panel')).not.toHaveAttribute(
+      'hidden'
+    );
+
+    await user.keyboard('{ArrowRight}');
+    expect(teamTab).toHaveFocus();
+    await user.keyboard('{ArrowLeft}');
+    expect(invitationsTab).toHaveFocus();
+    await user.keyboard('{Home}');
+    expect(teamTab).toHaveFocus();
+    await user.keyboard('{End}');
+    expect(invitationsTab).toHaveFocus();
+    await user.click(teamTab);
+    expect(teamTab).toHaveFocus();
+    expect(teamTab).toHaveAttribute('aria-selected', 'true');
+    expect(mocks.members.list).toHaveBeenCalledOnce();
+  });
+
   it('mantém consulta de membros para MEMBER sem expor administração do código', async () => {
     mocks.members.list.mockResolvedValue({
       ...ownerMembershipData,

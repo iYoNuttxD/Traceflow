@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { ProjectMembersPanel } from '../../members/index.js';
 import {
@@ -18,6 +18,19 @@ import '../styles/project-admin.css';
 import '../styles/project-tabs.css';
 import './ProjectMembersScreen.css';
 
+const memberTabs = {
+  team: {
+    label: 'Equipe',
+    tabId: 'project-members-team-tab',
+    panelId: 'project-members-team-panel'
+  },
+  invitations: {
+    label: 'Convites',
+    tabId: 'project-members-invitations-tab',
+    panelId: 'project-members-invitations-panel'
+  }
+};
+
 export function ProjectMembersScreen() {
   const { projectId } = useParams();
   const navigate = useNavigate();
@@ -28,6 +41,7 @@ export function ProjectMembersScreen() {
   const [loading, setLoading] = useState(true);
   const [pageError, setPageError] = useState(null);
   const [activeTab, setActiveTab] = useState('team');
+  const tabRefs = useRef({});
   const { run: runProjectLoad } = useAbortableRequest();
 
   const loadProject = useCallback(
@@ -62,6 +76,35 @@ export function ProjectMembersScreen() {
     void refreshProjects();
     navigate('/projects', { replace: true });
   }, [navigate, refreshProjects]);
+
+  const availableTabs = currentMembership?.role === 'OWNER' ? ['team', 'invitations'] : ['team'];
+
+  function handleTabKeyDown(event, currentTab) {
+    const currentIndex = availableTabs.indexOf(currentTab);
+    let nextIndex;
+
+    switch (event.key) {
+      case 'ArrowRight':
+        nextIndex = (currentIndex + 1) % availableTabs.length;
+        break;
+      case 'ArrowLeft':
+        nextIndex = (currentIndex - 1 + availableTabs.length) % availableTabs.length;
+        break;
+      case 'Home':
+        nextIndex = 0;
+        break;
+      case 'End':
+        nextIndex = availableTabs.length - 1;
+        break;
+      default:
+        return;
+    }
+
+    event.preventDefault();
+    const nextTab = availableTabs[nextIndex];
+    setActiveTab(nextTab);
+    tabRefs.current[nextTab]?.focus();
+  }
 
   if (loading || String(loadedProjectId) !== String(projectId)) {
     return (
@@ -98,40 +141,40 @@ export function ProjectMembersScreen() {
         </div>
       </header>
 
-      <nav className="internal-tabs project-members-tabs" role="tablist" aria-label="Membros">
-        <button
-          id="project-members-team-tab"
-          className={`internal-tab ${activeTab === 'team' ? 'internal-tab--active' : ''}`}
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'team'}
-          aria-controls="project-members-team-panel"
-          onClick={() => setActiveTab('team')}
-        >
-          Equipe
-        </button>
-        {currentMembership?.role === 'OWNER' && (
+      <div
+        className="internal-tabs project-members-tabs"
+        role="tablist"
+        aria-label="Membros"
+        aria-orientation="horizontal"
+      >
+        {availableTabs.map((tab) => (
           <button
-            id="project-members-invitations-tab"
-            className={`internal-tab ${activeTab === 'invitations' ? 'internal-tab--active' : ''}`}
+            id={memberTabs[tab].tabId}
+            className={`internal-tab ${activeTab === tab ? 'internal-tab--active' : ''}`}
+            key={tab}
+            ref={(element) => {
+              tabRefs.current[tab] = element;
+            }}
             type="button"
             role="tab"
-            aria-selected={activeTab === 'invitations'}
-            aria-controls="project-members-invitations-panel"
-            onClick={() => setActiveTab('invitations')}
+            tabIndex={activeTab === tab ? 0 : -1}
+            aria-selected={activeTab === tab}
+            aria-controls={memberTabs[tab].panelId}
+            onClick={() => setActiveTab(tab)}
+            onKeyDown={(event) => handleTabKeyDown(event, tab)}
           >
-            Convites
+            {memberTabs[tab].label}
           </button>
-        )}
-      </nav>
+        ))}
+      </div>
 
       <section
-        id={`project-members-${activeTab}-panel`}
+        id={memberTabs[activeTab].panelId}
         className="project-admin-surface project-members-surface"
         role="tabpanel"
-        aria-labelledby={`project-members-${activeTab === 'team' ? 'team' : 'invitations'}-tab`}
+        aria-labelledby={memberTabs[activeTab].tabId}
       >
-        <h2>{activeTab === 'team' ? 'Equipe' : 'Convites'}</h2>
+        <h2>{memberTabs[activeTab].label}</h2>
         <ProjectMembersPanel
           key={projectId}
           projectId={projectId}
@@ -143,6 +186,17 @@ export function ProjectMembersScreen() {
           <ProjectAccessCodePanel projectId={projectId} isOwner />
         )}
       </section>
+      {availableTabs
+        .filter((tab) => tab !== activeTab)
+        .map((tab) => (
+          <section
+            id={memberTabs[tab].panelId}
+            key={tab}
+            role="tabpanel"
+            aria-labelledby={memberTabs[tab].tabId}
+            hidden
+          />
+        ))}
     </main>
   );
 }

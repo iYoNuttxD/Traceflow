@@ -170,14 +170,19 @@ describe('configurações e estados restritos L2', () => {
 
   it('expõe navegação separada para conta, segurança, privacidade e integrações', () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter initialEntries={['/settings/security']}>
         <SettingsLayout />
       </MemoryRouter>
     );
-    expect(screen.getByRole('navigation', { name: 'Configurações da conta' })).toBeInTheDocument();
+    const navigation = screen.getByRole('navigation', { name: 'Configurações da conta' });
+    expect(within(navigation).queryByRole('tab')).not.toBeInTheDocument();
     for (const name of ['Conta', 'Segurança', 'Privacidade', 'Integrações']) {
-      expect(screen.getByRole('link', { name })).toBeInTheDocument();
+      expect(within(navigation).getByRole('link', { name })).toBeInTheDocument();
     }
+    expect(within(navigation).getByRole('link', { name: 'Segurança' })).toHaveAttribute(
+      'aria-current',
+      'page'
+    );
   });
 
   it('carrega e atualiza o perfil sem alterar e-mail diretamente', async () => {

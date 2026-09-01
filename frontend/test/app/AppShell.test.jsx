@@ -124,6 +124,20 @@ describe('AppShell', () => {
     );
   });
 
+  it('oferece o bypass como primeira parada e move o foco para o conteúdo', async () => {
+    const interaction = userEvent.setup();
+    renderShell();
+
+    const skipLink = screen.getByRole('link', { name: 'Pular para o conteúdo' });
+    expect(document.querySelector('.trace-shell').firstElementChild).toBe(skipLink);
+
+    await interaction.tab();
+    expect(skipLink).toHaveFocus();
+    await interaction.keyboard('{Enter}');
+
+    expect(document.getElementById('main-content')).toHaveFocus();
+  });
+
   it('abre o drawer mobile com foco interno e fecha por Escape retornando o foco', async () => {
     mockViewport({ mobile: true });
     const interaction = userEvent.setup();
@@ -140,6 +154,24 @@ describe('AppShell', () => {
     await interaction.keyboard('{Escape}');
     expect(document.querySelector('.trace-shell')).toHaveAttribute('data-drawer-state', 'closed');
     expect(trigger).toHaveFocus();
+  });
+
+  it('contém Tab e Shift+Tab dentro do drawer mobile', async () => {
+    mockViewport({ mobile: true });
+    const interaction = userEvent.setup();
+    renderShell();
+    fireEvent.click(document.querySelector('[aria-label="Abrir navegação"]'));
+
+    const sidebar = screen.getByRole('dialog', { name: 'Navegação global' });
+    const first = within(sidebar).getByRole('link', { name: 'TRACEFLOW — Projetos' });
+    const last = within(sidebar).getByRole('button', { name: 'Sair' });
+
+    last.focus();
+    await interaction.keyboard('{Tab}');
+    expect(first).toHaveFocus();
+
+    await interaction.keyboard('{Shift>}{Tab}{/Shift}');
+    expect(last).toHaveFocus();
   });
 
   it('ordena fixados e recentes, marca o projeto ativo e filtra IDs sem acesso', async () => {

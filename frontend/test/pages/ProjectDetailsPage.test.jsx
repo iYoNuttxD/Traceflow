@@ -173,6 +173,7 @@ describe('ProjectDetailsPage E9', () => {
     expect(within(pageHeader).queryByText('Descrição')).not.toBeInTheDocument();
     const projectNavigation = screen.getByRole('navigation', { name: 'Navegação do projeto' });
     expect(within(projectNavigation).getAllByRole('link')).toHaveLength(6);
+    expect(within(projectNavigation).queryByRole('tab')).not.toBeInTheDocument();
     expect(within(projectNavigation).getByRole('link', { name: 'Visão geral' })).toHaveAttribute(
       'aria-current',
       'page'
