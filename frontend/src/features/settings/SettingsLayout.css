@@ -1,0 +1,54 @@
+.settings-shell {
+  width: min(var(--layout-page-max), calc(100% - (2 * var(--layout-page-gutter))));
+}
+
+.settings-header {
+  max-width: 45rem;
+  margin-bottom: var(--space-6);
+}
+
+.settings-header .eyebrow {
+  margin: 0 0 var(--space-2);
+  color: var(--color-accent-primary);
+}
+
+.settings-header h1 {
+  margin: 0;
+  color: var(--color-text-strong);
+  font-size: clamp(var(--font-size-6), 3.1vw, var(--font-size-7));
+  line-height: var(--line-height-tight);
+  letter-spacing: var(--letter-spacing-tight);
+}
+
+.settings-header > p:last-child {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-relaxed);
+}
+
+.settings-tabs {
+  margin-bottom: var(--space-6);
+}
+
+.settings-tab {
+  white-space: nowrap;
+}
+
+.settings-content {
+  display: grid;
+  width: min(100%, 55rem);
+  min-width: 0;
+  gap: var(--space-6);
+}
+
+@media (max-width: 720px) {
+  .settings-shell {
+    width: calc(100% - (2 * var(--space-4)));
+  }
+
+  .settings-tabs {
+    margin-right: calc(var(--space-4) * -1);
+    margin-left: calc(var(--space-4) * -1);
+    padding-inline: var(--space-4);
+  }
+}

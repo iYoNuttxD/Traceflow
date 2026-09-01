@@ -1,0 +1,230 @@
+/*
+ * Especificação visual de referência.
+ * Ainda não importada pelo frontend de produção.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* COLOR */
+  --color-bg-page: #f1f4f8;
+  --color-bg-sidebar: #f8fafd;
+  --color-surface-primary: #ffffff;
+  --color-surface-secondary: #f7f9fc;
+  --color-surface-elevated: #ffffff;
+  --color-surface-interactive: #e9eef6;
+  --color-bg-input: var(--color-surface-secondary);
+
+  --color-text-primary: #172033;
+  --color-text-strong: #0e1627;
+  --color-text-secondary: #526078;
+  --color-text-muted: var(--color-text-secondary);
+  --color-text-on-accent: #ffffff;
+  --color-text-on-light-primary: #172033;
+  --color-text-on-light-secondary: #667085;
+
+  --color-border-default: #d9e1ed;
+  --color-border-strong: #c4cfdf;
+  --color-border-interactive: #2859c5;
+
+  --color-accent-primary: #2859c5;
+  --color-accent-strong: #1d45a0;
+  --color-accent-surface: #e9f0ff;
+  --color-accent-text: #173d92;
+
+  --color-provider-surface: #172033;
+  --color-provider-surface-hover: #253044;
+  --color-provider-text: #f5f8fc;
+  --color-provider-border: #2c374b;
+
+  --color-success-text: #17643b;
+  --color-success-surface: #e8f7ef;
+  --color-warning-text: #8b4d09;
+  --color-warning-surface: #fff3dc;
+  --color-danger-text: #a6333f;
+  --color-danger-surface: color-mix(
+    in srgb,
+    var(--color-danger-text) 10%,
+    var(--color-surface-primary)
+  );
+  --color-info-text: var(--color-accent-text);
+  --color-info-surface: var(--color-accent-surface);
+  --color-highlight-text: #6b46b6;
+  --color-highlight-surface: #f2edff;
+  --color-neutral-text: var(--color-text-secondary);
+  --color-neutral-surface: var(--color-surface-interactive);
+
+  --color-success-border: color-mix(
+    in srgb,
+    var(--color-success-text) 30%,
+    var(--color-border-default)
+  );
+  --color-warning-border: color-mix(
+    in srgb,
+    var(--color-warning-text) 30%,
+    var(--color-border-default)
+  );
+  --color-danger-border: color-mix(
+    in srgb,
+    var(--color-danger-text) 30%,
+    var(--color-border-default)
+  );
+  --color-info-border: color-mix(
+    in srgb,
+    var(--color-info-text) 30%,
+    var(--color-border-default)
+  );
+  --color-highlight-border: color-mix(
+    in srgb,
+    var(--color-highlight-text) 30%,
+    var(--color-border-default)
+  );
+  --color-success-icon: var(--color-success-text);
+  --color-warning-icon: var(--color-warning-text);
+  --color-danger-icon: var(--color-danger-text);
+  --color-info-icon: var(--color-info-text);
+
+  --color-focus-ring: #2d67dc;
+  --color-overlay: rgb(11 18 31 / 48%);
+  --color-disabled-text: color-mix(
+    in srgb,
+    var(--color-text-secondary) 72%,
+    transparent
+  );
+  --color-disabled-surface: color-mix(
+    in srgb,
+    var(--color-surface-interactive) 70%,
+    transparent
+  );
+
+  /* TYPOGRAPHY */
+  --font-family-sans:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+  --font-family-mono:
+    ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  --font-size-1: 0.75rem;
+  --font-size-2: 0.875rem;
+  --font-size-3: 1rem;
+  --font-size-4: 1.125rem;
+  --font-size-5: 1.5rem;
+  --font-size-6: 2rem;
+  --font-size-7: 2.5rem;
+  --font-size-8: 3rem;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --line-height-tight: 1.1;
+  --line-height-title: 1.25;
+  --line-height-body: 1.5;
+  --line-height-relaxed: 1.625;
+  --letter-spacing-tight: -0.04em;
+  --letter-spacing-normal: 0;
+  --letter-spacing-wide: 0.08em;
+
+  /* SPACING */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  /* RADIUS */
+  --radius-xs: 0.5rem;
+  --radius-sm: 0.625rem;
+  --radius-md: 0.875rem;
+  --radius-lg: 1.25rem;
+  --radius-xl: 1.75rem;
+  --radius-pill: 999px;
+
+  /* BORDER */
+  --border-width-default: 1px;
+  --border-width-strong: 2px;
+  --focus-ring-width: 3px;
+  --focus-ring-offset: 3px;
+
+  /* SHADOW */
+  --shadow-sm: 0 1px 2px rgb(20 34 59 / 5%);
+  --shadow-md: 0 16px 38px rgb(27 44 76 / 9%);
+
+  /* SIZE */
+  --size-control-sm: 2.5rem;
+  --size-control-md: 2.75rem;
+  --size-control-lg: 3rem;
+  --size-icon-sm: 1rem;
+  --size-icon-md: 1.25rem;
+  --size-icon-lg: 1.5rem;
+  --size-touch-target: 2.75rem;
+  --size-avatar-sm: 2rem;
+  --size-avatar-md: 2.25rem;
+  --size-avatar-lg: 2.75rem;
+  --layout-sidebar-expanded: 17rem;
+  --layout-sidebar-collapsed: 5.5rem;
+  --layout-page-max: 82.5rem;
+  --layout-page-gutter: var(--space-8);
+  --layout-grid-gap: var(--space-5);
+  --layout-section-gap: var(--space-6);
+
+  /* MOTION */
+  --duration-fast: 120ms;
+  --duration-normal: 180ms;
+  --duration-slow: 240ms;
+  --ease-standard: ease;
+  --opacity-disabled: 0.6;
+
+  /* Z-INDEX */
+  --z-base: 0;
+  --z-popover: 20;
+  --z-navigation: 30;
+  --z-overlay: 40;
+  --z-modal: 60;
+  --z-tooltip: 80;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --color-bg-page: #0d121b;
+  --color-bg-sidebar: #101721;
+  --color-surface-primary: #151c27;
+  --color-surface-secondary: #111823;
+  --color-surface-elevated: #1d2735;
+  --color-surface-interactive: #1d2735;
+
+  --color-text-primary: #dce5f2;
+  --color-text-strong: #f5f8fc;
+  --color-text-secondary: #9baac0;
+  --color-text-on-accent: #0b1728;
+
+  --color-border-default: #293649;
+  --color-border-strong: #3a4a61;
+  --color-border-interactive: #65a8ff;
+
+  --color-accent-primary: #65a8ff;
+  --color-accent-strong: #89bcff;
+  --color-accent-surface: #172c48;
+  --color-accent-text: #a9ceff;
+
+  --color-provider-surface: #0f151f;
+  --color-provider-surface-hover: #1b2532;
+  --color-provider-text: #f5f8fc;
+  --color-provider-border: #3a4a61;
+
+  --color-success-text: #72d49c;
+  --color-success-surface: #153528;
+  --color-warning-text: #f2bd6b;
+  --color-warning-surface: #3a2b18;
+  --color-danger-text: #ff9ba5;
+  --color-highlight-text: #bba2ff;
+  --color-highlight-surface: #2a2342;
+
+  --color-focus-ring: #77b5ff;
+  --color-overlay: rgb(2 6 12 / 72%);
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 22%);
+  --shadow-md: 0 18px 44px rgb(0 0 0 / 24%);
+}

@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import './ConfirmDialog.css';
 
 const ConfirmContext = createContext(null);
 
@@ -48,16 +49,13 @@ function ConfirmDialog({ dialog, close }) {
         <h2 id="confirm-dialog-title">{dialog.title}</h2>
         <p id="confirm-dialog-description">{dialog.description}</p>
         <div className="dialog-actions">
-          {/* "Voltar", e não "Cancelar": quando a ação confirmada é "Cancelar
-              sprint", dois botões escritos "Cancelar" disputariam o mesmo verbo
-              com efeitos opostos. */}
           <button
             ref={cancelRef}
             type="button"
             className="button button-secondary"
             onClick={() => close(false)}
           >
-            Voltar
+            {dialog.cancelLabel || 'Cancelar'}
           </button>
           <button
             type="button"
@@ -77,8 +75,12 @@ export function ConfirmProvider({ children }) {
 
   const close = useCallback((confirmed) => {
     setDialog((current) => {
+      const focusTarget =
+        confirmed && current?.focusAfterConfirmRef?.current
+          ? current.focusAfterConfirmRef.current
+          : current?.trigger;
       current?.resolve(confirmed);
-      queueMicrotask(() => current?.trigger?.focus?.());
+      queueMicrotask(() => focusTarget?.focus?.());
       return null;
     });
   }, []);
@@ -89,8 +91,10 @@ export function ConfirmProvider({ children }) {
         setDialog({
           title: options.title || 'Confirmar ação',
           description: options.description,
+          cancelLabel: options.cancelLabel,
           confirmLabel: options.confirmLabel,
           destructive: options.destructive !== false,
+          focusAfterConfirmRef: options.focusAfterConfirmRef,
           trigger: document.activeElement,
           resolve
         });

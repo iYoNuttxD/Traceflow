@@ -29,7 +29,7 @@ export const commitRepository = {
     if (!hashes.length) return [];
     return prisma.commit.findMany({
       where: { projectId, hash: { in: hashes } },
-      select: { id: true, projectId: true, message: true }
+      select: { id: true, projectId: true, hash: true, message: true }
     });
   },
 
@@ -48,10 +48,24 @@ export const commitRepository = {
     });
   },
 
+  async createBranchLinks(data) {
+    if (data.length === 0) return { count: 0 };
+    return prisma.commitBranch.createMany({ data, skipDuplicates: true });
+  },
+
+  async findByBranchId(branchId) {
+    const links = await prisma.commitBranch.findMany({
+      where: { branchId },
+      select: { commit: { select: { id: true, projectId: true, hash: true, message: true } } }
+    });
+    return links.map(({ commit }) => commit);
+  },
+
   async listByProjectId(projectId, filters = {}) {
     return prisma.commit.findMany({
       where: {
         projectId,
+        ...(filters.branch ? { branchLinks: { some: { branch: { name: filters.branch } } } } : {}),
         ...(filters.search
           ? {
               OR: [
@@ -59,10 +73,16 @@ export const commitRepository = {
                 { message: { contains: filters.search } },
                 { authorName: { contains: filters.search } },
                 { authorUsername: { contains: filters.search } },
-                { branch: { contains: filters.search } }
+                { branchLinks: { some: { branch: { name: { contains: filters.search } } } } }
               ]
             }
           : {})
+      },
+      include: {
+        branchLinks: {
+          include: { branch: { select: { name: true, isActive: true, isDefault: true } } },
+          orderBy: { branch: { name: 'asc' } }
+        }
       },
       orderBy: [{ date: 'desc' }, { createdAt: 'desc' }]
     });

@@ -113,6 +113,7 @@ export function sprintTerminalConfirm(sprint, status, pendentes) {
         (pendentes
           ? `${pendentes} tarefa(s) não concluída(s) voltarão ao backlog.`
           : 'Todas as tarefas da sprint foram concluídas.'),
+      cancelLabel: 'Voltar',
       confirmLabel: 'Concluir e congelar',
       destructive: false
     };
@@ -125,6 +126,7 @@ export function sprintTerminalConfirm(sprint, status, pendentes) {
       (pendentes
         ? `${pendentes} tarefa(s) pendente(s) voltarão ao backlog.`
         : 'As tarefas concluídas permanecem registradas.'),
+    cancelLabel: 'Voltar',
     confirmLabel: 'Cancelar sprint',
     destructive: true
   };

@@ -1,0 +1,209 @@
+.form-section-title {
+  display: block;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-3);
+  font-weight: var(--font-weight-bold);
+}
+
+.task-traceability-form {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-secondary);
+}
+
+.traceability-picker {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.traceability-picker > span {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-2);
+  font-weight: var(--font-weight-bold);
+}
+
+.traceability-picker input {
+  width: 100%;
+  min-width: 0;
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3) 0.85rem;
+  color: var(--color-text-primary);
+  background: var(--color-bg-input);
+  font: inherit;
+}
+
+.traceability-search-field {
+  position: relative;
+}
+
+.traceability-search-field input {
+  padding-right: 2.8rem;
+}
+
+.traceability-search-field input::-webkit-search-cancel-button {
+  appearance: none;
+}
+
+.traceability-search-clear {
+  position: absolute;
+  top: 50%;
+  right: 0.65rem;
+  display: inline-flex;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  transform: translateY(-50%);
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: var(--color-text-secondary);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-4);
+  line-height: 1;
+}
+
+.traceability-search-clear:hover {
+  background: var(--color-surface-interactive);
+}
+
+.traceability-results,
+.traceability-selected-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.traceability-results {
+  max-height: 220px;
+  overflow: auto;
+}
+
+.traceability-results button,
+.traceability-selected-item {
+  width: 100%;
+  min-width: 0;
+  padding: 0.65rem var(--space-3);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-primary);
+  color: var(--color-text-primary);
+  text-align: left;
+}
+
+.traceability-results button {
+  cursor: pointer;
+  font: inherit;
+}
+
+.traceability-results button:hover {
+  border-color: var(--color-border-interactive);
+  background: var(--color-accent-surface);
+}
+
+.traceability-results p {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
+.traceability-selected-item {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.traceability-selected-item strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.traceability-remove-button {
+  flex: 0 0 auto;
+  display: inline-flex;
+  width: 1.6rem;
+  height: 1.6rem;
+  align-items: center;
+  justify-content: center;
+  border: var(--border-width-default) solid var(--color-danger-border);
+  border-radius: var(--radius-pill);
+  color: var(--color-danger-text);
+  background: var(--color-danger-surface);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-3);
+  line-height: 1;
+  font-weight: var(--font-weight-bold);
+}
+
+.traceability-remove-button:hover {
+  border-color: var(--color-danger-text);
+  text-decoration: none;
+}
+
+.task-pr-card {
+  display: grid;
+  gap: 0.35rem;
+  margin: var(--space-4) 0;
+  padding: 0.85rem;
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-primary);
+}
+
+.task-pr-card > span {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-1);
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+}
+
+.task-pr-link {
+  color: var(--color-accent-primary);
+  font-weight: var(--font-weight-bold);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.task-pr-link:hover {
+  text-decoration: underline;
+}
+
+.task-pr-meta {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-2);
+}
+
+.task-traceability-group,
+.task-traceability-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.task-traceability-group > strong {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-2);
+}
+
+.task-traceability-item {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.task-traceability-item span,
+.task-traceability-item a {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow-wrap: anywhere;
+}

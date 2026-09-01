@@ -21,6 +21,15 @@ describe('normalização de falhas GitHub', () => {
       code: ERROR_CODES.GITHUB_RATE_LIMITED,
       externalStatus: 403
     });
+    expect(
+      normalizeGithubError({ status: 403, response: { headers: { 'retry-after': '2' } } })
+    ).toMatchObject({ code: ERROR_CODES.GITHUB_RATE_LIMITED, externalStatus: 403 });
+    expect(
+      normalizeGithubError({
+        status: 403,
+        response: { headers: { 'x-ratelimit-remaining': '4999' } }
+      })
+    ).toMatchObject({ code: ERROR_CODES.GITHUB_AUTH_FAILED, externalStatus: 403 });
   });
 
   it('normaliza not found, rede e falha genérica', () => {

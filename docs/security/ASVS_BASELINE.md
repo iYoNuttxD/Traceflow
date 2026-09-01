@@ -11,18 +11,19 @@ Estados: `ATENDIDO`, `PARCIAL`, `NÃO ATENDIDO` e `NÃO APLICÁVEL`.
 | Arquitetura em camadas e fronteiras | ATENDIDO | `docs/architecture/SYSTEM_ARCHITECTURE.md`; `backend/scripts/check-architecture.js`; `npm run architecture:check` | revisão contínua é necessária para novos módulos |
 | Validação de entrada e queries parametrizadas | ATENDIDO | `backend/src/shared/validation/`; schemas dos módulos; Prisma sem SQL raw no runtime; testes de validação | novos endpoints devem aderir aos mesmos schemas |
 | Prevenção de SSRF na integração GitHub | ATENDIDO | `backend/src/shared/security/ssrf.js`; testes de hosts/esquemas; base fixa do Octokit | deve ser reavaliado ao adicionar outra integração externa |
-| Autenticação e recuperação de conta | PARCIAL | `backend/src/modules/auth/`; Argon2id, respostas uniformes, reset com TTL e testes | MFA, verificação de e-mail e SSO não existem |
-| Sessão e CSRF | ATENDIDO no escopo atual | sessão opaca hashada, cookie seguro por ambiente, expiração/revogação, middleware CSRF e testes em `backend/test` | store distribuído e revogação central entre instâncias não existem |
-| Autorização por projeto e objeto | ATENDIDO no escopo RBAC atual | `backend/src/shared/auth/`; `docs/security/AUTHORIZATION_MATRIX.md`; testes 403/404 e isolamento entre projetos. **S1-04/RF10:** `resolveProjectId` estendido para `/sprints/:id` e `/milestones/:id` em `authorization.service.js`; sem essa extensão o middleware liberaria o recurso sem checar membership (ASVS 8.2.2, IDOR/BOLA). Evidência em `backend/test/api/schedule-contracts.test.js`, incluindo regressão dos recursos antigos. **S1-04/RF35:** `GET /sprints/:id/progress` reaproveita a mesma resolução, sem nova regra em `requiredRole`; testes cobrem 401, papéis `VIEWER`–`OWNER` e ausência de vazamento de conteúdo para projeto alheio | não representa ABAC nem autorização fora dos papéis atuais. A divergência de 404 entre recurso alheio e inexistente — que permitia confirmar existência de ID fora do alcance do ator — foi **corrigida** no ADR-010 D16: middleware e service constroem a resposta pela mesma fábrica, e a indistinguibilidade é testada em `/projects/:id`, `/requirements/:id`, `/tasks/:id`, `/sprints/:id` e `/milestones/:id`, inclusive em método de escrita |
-| Proteção contra automação e abuso | PARCIAL | limiters geral, convite e GitHub em `backend/src/shared/security/`; lock de sync por projeto | contadores e lock são locais à instância; produção horizontal requer store distribuído |
+| Autenticação e recuperação de conta | PARCIAL | username/e-mail, Argon2id, GitHub-only com reautenticação sensível por state/sessão/identidade, reset e verificação de e-mail com token hashado/TTL/uso único | MFA, SSO e validação GitHub operacional externa não existem |
+| Sessão e CSRF | ATENDIDO no escopo atual | sessão opaca hashada, TTL comum/persistente, cookie seguro por ambiente, expiração/revogação e CSRF | store distribuído e revogação central entre instâncias não existem |
+| Autorização por projeto e objeto | ATENDIDO no escopo RBAC atual | `backend/src/shared/auth/`; `docs/security/AUTHORIZATION_MATRIX.md`; testes 403/404 e isolamento entre projetos. No S1-04/RF10, `resolveProjectId` também cobre `/sprints/:id` e `/milestones/:id`; o RF35 reutiliza essa resolução. `backend/test/api/schedule-contracts.test.js` cobre os papéis, recursos antigos e isolamento das rotas novas | não representa ABAC nem autorização fora dos papéis atuais; recursos inexistentes e recursos de projeto alheio preservam resposta 404 indistinguível |
+| Proteção contra automação e abuso | PARCIAL | limiters geral, convite e GitHub em `backend/src/shared/security/`; claim persistido de sync por projeto com stale detection | contadores HTTP usam memória local; produção horizontal requer store distribuído para rate limit |
 | CORS, headers e fingerprint | ATENDIDO na API | allowlist em `backend/src/shared/security/cors.js`; Helmet; `X-Powered-By` removido; testes HTTP | headers do documento HTML pertencem ao host da SPA |
 | HSTS e confiança no proxy | PARCIAL | HSTS condicionado a produção; `TRUST_PROXY` explícito e validado | depende de HTTPS e topologia reais do ingress |
 | Limite e parsing seguro de body | ATENDIDO | `BODY_LIMIT`; tratamento 400/413/415 seguro no middleware global; testes | uploads não fazem parte do produto atual |
-| TLS de saída e timeout/retry | ATENDIDO para GitHub | HTTPS, timeout e retry limitados no client GitHub; testes de falhas transitórias | TLS de entrada e MySQL dependem da infraestrutura |
+| GitHub App/callback/webhook | PARCIAL | state hashado ligado à sessão, prova de instalação, token efêmero, HMAC constant-time e delivery ID | configuração/permissões reais e secret manager dependem da operação |
+| TLS de saída e timeout/retry | ATENDIDO para GitHub | HTTPS, timeout e retry limitados no client por instalação; testes de falhas transitórias | TLS de entrada e MySQL dependem da infraestrutura |
 | Segredos e redaction | PARCIAL | `docs/security/SECRETS_POLICY.md`; scanner obrigatório na CI; env validado; testes de redaction | secret manager e rotação automatizada não existem |
 | Erros seguros e correlação | ATENDIDO | erros compartilhados, request ID, ausência de stack/valor recebido e testes | agregador operacional externo não está configurado no repositório |
 | Logging e auditoria de domínio | ATENDIDO no escopo definido | logger estruturado/redacted; `AuditEvent`; metadata allowlist; consultas restritas; testes | alertas, SIEM e garantia externa de retenção não são verificáveis aqui |
-| Privacidade e direitos do titular | PARCIAL | `backend/src/modules/privacy/`; inventário, exportação, desativação/anomização e testes | bases legais, prazos e procedimento humano exigem validação jurídica |
+| Privacidade e direitos do titular | PARCIAL | `backend/src/modules/privacy/`; exportação limitada à autorização atual; último OWNER retorna `ACTIVE`; anonimização/tombstone e testes | bases legais, prazos, backups e procedimento humano exigem validação jurídica/operacional |
 | Dependências e lockfiles | ATENDIDO para high/critical conhecidos | `package-lock.json`; `scripts/check-npm-audit.mjs`; Dependency Review; audits E15 com zero vulnerabilidades | SBOM e gate automatizado de compatibilidade de licenças não existem |
 | CI e gates de merge | ATENDIDO no workflow | `.github/workflows/ci.yml`; lint, format, Prisma, migrations, testes, cobertura, build, audit, secrets e dependency review | branch protection é configuração remota e deve seguir `docs/ci/BRANCH_PROTECTION.md` |
 | Health/liveness/readiness | ATENDIDO | `/health`, `/health/live`, `/health/ready`; smoke e testes | política de exposição pública depende do deploy |
@@ -79,9 +80,9 @@ abaixo, fora do escopo do módulo).
 
 ## Lacunas prioritárias
 
-1. store distribuído para sessões operacionais, rate limiting e exclusão mútua do sync;
+1. store distribuído para rate limiting em implantação horizontal; sessões e exclusão mútua do sync já usam persistência no banco;
 2. secret manager, rotação automatizada e telemetria/alertas operacionais;
-3. MFA, confirmação de e-mail e endurecimento adicional da recuperação de conta;
+3. MFA e endurecimento operacional adicional da recuperação/verificação de conta;
 4. TLS, proxy, CSP do host da SPA, backup e retenção comprovados no ambiente real;
 5. SBOM, gate de licenças e validação jurídica da política de privacidade.
 

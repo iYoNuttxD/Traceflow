@@ -15,7 +15,14 @@ export function mapGithubRepository(item) {
   };
 }
 
-export function mapGithubCommit(item, branch) {
+export function mapGithubBranch(item) {
+  return {
+    name: item.name,
+    headSha: item.commit?.sha ?? null
+  };
+}
+
+export function mapGithubCommit(item) {
   return {
     hash: item.sha,
     message: item.commit?.message ?? null,
@@ -23,7 +30,6 @@ export function mapGithubCommit(item, branch) {
     authorEmail: item.commit?.author?.email ?? null,
     authorUsername: item.author?.login ?? null,
     date: toDate(item.commit?.author?.date),
-    branch,
     githubUrl: item.html_url ?? null
   };
 }

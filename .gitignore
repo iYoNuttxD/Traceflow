@@ -19,3 +19,6 @@ frontend/.env
 
 .vscode/
 rest.http
+docs/design/experiments/
+docs/design/screenshots/
+docs/design/DESIGN_EXPLORATION.md

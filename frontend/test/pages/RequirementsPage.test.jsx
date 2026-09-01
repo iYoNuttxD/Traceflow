@@ -61,6 +61,7 @@ function renderPage() {
 
 describe('RequirementsPage E10', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     mocks.api.get.mockResolvedValue({ data: { project: { id: 9, name: 'Projeto artificial' } } });
     mocks.requirementsApi.listByProject.mockResolvedValue({
       data: { requirements: [requirement] }
@@ -96,5 +97,21 @@ describe('RequirementsPage E10', () => {
       10,
       expect.objectContaining({ title: 'Requisito editado' })
     );
+  });
+
+  it('não exibe detalhes técnicos quando a carga inicial falha', async () => {
+    mocks.api.get.mockRejectedValueOnce({
+      response: {
+        status: 500,
+        data: { message: 'PrismaClientKnownRequestError em /app/requirements.js' }
+      }
+    });
+    renderPage();
+
+    expect(
+      await screen.findByRole('heading', { name: 'O TRACEFLOW encontrou um problema.' })
+    ).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/Prisma|\/app\/requirements/);
+    expect(screen.getByRole('button', { name: 'Tentar novamente' })).toBeInTheDocument();
   });
 });

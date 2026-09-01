@@ -4,13 +4,14 @@
 
 Preserve evidências, minimize acesso, use request IDs e nunca copie segredo, body, cookie, e-mail ou dump para ticket/log não autorizado. Registre horário, ambiente, alcance, responsável e decisões. Este runbook técnico não substitui plano jurídico, comunicação LGPD ou gestão corporativa de incidentes.
 
-## Token GitHub comprometido
+## Segredo da GitHub App comprometido
 
-1. Revogue o token no GitHub imediatamente.
-2. Pause syncs e rotacione `GITHUB_TOKEN` com escopo mínimo.
-3. Procure abuso por metadata, projeto e request ID, não pelo valor do token.
-4. Avalie repositórios alcançáveis e necessidade de comunicação.
-5. Valide auth check e um sync controlado após restaurar.
+1. Pause instalações, callbacks, webhooks e syncs afetados.
+2. Revogue/rotacione private key, client secret ou webhook secret no GitHub conforme o valor afetado.
+3. Atualize o secret store e reinicie workloads; nunca mantenha o valor anterior como fallback.
+4. Procure abuso por installation/project/delivery/request ID, não pelo segredo ou payload integral.
+5. Avalie repositórios alcançáveis e necessidade de comunicação.
+6. Valide callback/webhook e um sync controlado após restaurar.
 
 ## Segredo ou dado pessoal vazado
 

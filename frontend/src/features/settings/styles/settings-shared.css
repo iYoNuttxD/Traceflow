@@ -1,0 +1,269 @@
+.settings-stack,
+.settings-section-flow,
+.settings-block-stack {
+  display: grid;
+}
+
+.settings-stack {
+  gap: var(--space-6);
+}
+
+.settings-section-flow {
+  gap: var(--space-5);
+}
+
+.settings-block-stack {
+  gap: var(--space-4);
+}
+
+.settings-surface {
+  min-width: 0;
+  overflow: hidden;
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  color: var(--color-text-primary);
+  background: var(--color-surface-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.settings-section {
+  padding: calc(var(--space-6) + var(--space-1)) var(--space-8);
+}
+
+.settings-section + .settings-section {
+  border-top: var(--border-width-default) solid var(--color-border-default);
+}
+
+.settings-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-5);
+  margin-bottom: var(--space-5);
+}
+
+.settings-section-heading h2,
+.settings-section-heading h3,
+.settings-inline-status h3,
+.settings-panel h3 {
+  margin: 0;
+  color: var(--color-text-strong);
+}
+
+.settings-section-heading h2,
+.settings-section-heading h3 {
+  font-size: var(--font-size-4);
+  line-height: var(--line-height-title);
+}
+
+.settings-section-heading p,
+.settings-inline-status p,
+.settings-panel p {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-2);
+  line-height: var(--line-height-relaxed);
+}
+
+.settings-field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: var(--space-4);
+}
+
+.settings-field-grid .form-field,
+.settings-form .form-field {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: var(--space-2);
+}
+
+.settings-field-grid .form-field > label,
+.settings-form .form-field > label {
+  color: var(--color-text-strong);
+  font-size: var(--font-size-2);
+  font-weight: var(--font-weight-semibold);
+}
+
+.settings-field-grid .form-field > input,
+.settings-form .form-field > input,
+.settings-shell .password-control > input {
+  width: 100%;
+  min-height: var(--size-touch-target);
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width-default) solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-strong);
+  background: var(--color-bg-input);
+  font: inherit;
+}
+
+.settings-field-grid input:hover,
+.settings-form input:hover {
+  border-color: var(--color-border-interactive);
+}
+
+.settings-field-grid input:focus-visible,
+.settings-form input:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.settings-field-grid input[aria-invalid='true'],
+.settings-form input[aria-invalid='true'] {
+  border-color: var(--color-danger-text);
+}
+
+.settings-field-full {
+  grid-column: 1 / -1;
+}
+
+.settings-field-help {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-1);
+  line-height: var(--line-height-body);
+}
+
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.settings-actions-end {
+  justify-content: flex-end;
+}
+
+.settings-actions .button,
+.settings-surface button,
+.settings-surface .button,
+.settings-sensitive-dialog .button {
+  min-height: var(--size-touch-target);
+}
+
+.settings-inline-status,
+.settings-panel {
+  padding: var(--space-4);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-secondary);
+}
+
+.settings-inline-status {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-5);
+}
+
+.settings-panel-warning {
+  border-color: var(--color-warning-border);
+  background: var(--color-warning-surface);
+}
+
+.settings-panel-info {
+  border-color: var(--color-info-border);
+  background: var(--color-info-surface);
+}
+
+.settings-danger-section {
+  background: color-mix(in srgb, var(--color-danger-surface) 48%, var(--color-surface-primary));
+}
+
+.settings-danger-section .settings-section-heading h2,
+.settings-danger-section .settings-section-heading h3 {
+  color: var(--color-danger-text);
+}
+
+.settings-status-badge {
+  display: inline-flex;
+  min-height: 1.75rem;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-pill);
+  color: var(--color-text-secondary);
+  background: var(--color-surface-secondary);
+  font-size: var(--font-size-1);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+}
+
+.settings-status-badge::before {
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border-radius: var(--radius-pill);
+  background: currentColor;
+  content: '';
+}
+
+.settings-status-success {
+  border-color: var(--color-success-border);
+  color: var(--color-success-text);
+  background: var(--color-success-surface);
+}
+
+.settings-status-warning {
+  border-color: var(--color-warning-border);
+  color: var(--color-warning-text);
+  background: var(--color-warning-surface);
+}
+
+.settings-callout {
+  margin: 0;
+  padding: var(--space-4);
+  border: var(--border-width-default) solid var(--color-info-border);
+  border-radius: var(--radius-md);
+  color: var(--color-info-text);
+  background: var(--color-info-surface);
+  line-height: var(--line-height-body);
+}
+
+.danger-impact {
+  color: var(--color-danger-text);
+  font-weight: var(--font-weight-semibold);
+}
+
+.settings-loading {
+  min-height: 16rem;
+  padding: var(--space-6);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-primary);
+}
+
+@media (max-width: 560px) {
+  .settings-section {
+    padding: var(--space-5) var(--space-4);
+  }
+
+  .settings-section-heading,
+  .settings-inline-status {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .settings-field-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-field-full {
+    grid-column: auto;
+  }
+
+  .settings-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .settings-actions .button,
+  .settings-actions button {
+    width: 100%;
+  }
+}

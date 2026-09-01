@@ -64,6 +64,10 @@ describe('limpeza operacional da E6', () => {
       session: model('session'),
       passwordResetToken: model('reset'),
       projectInvitation: model('invitation'),
+      emailVerificationToken: model('verification'),
+      gitHubAppConnectionState: model('github-state'),
+      gitHubOAuthState: model('github-oauth-state'),
+      gitHubWebhookDelivery: model('github-delivery'),
       $transaction: async (operations) => {
         calls.push(['transaction', operations]);
       }
@@ -71,7 +75,10 @@ describe('limpeza operacional da E6', () => {
     const configuration = {
       sessionRetentionDays: 30,
       passwordResetRetentionDays: 7,
-      invitationRetentionDays: 30
+      invitationRetentionDays: 30,
+      emailVerificationRetentionDays: 7,
+      githubConnectionStateRetentionDays: 7,
+      githubWebhookDeliveryRetentionDays: 30
     };
     expect((await cleanupAuthRecords({ client, configuration })).mode).toBe('dry-run');
     expect(calls.some(([type]) => type === 'transaction')).toBe(false);
@@ -112,6 +119,12 @@ describe('matriz RBAC da E6', () => {
     expect(
       authorizationService.requiredRole({ method: 'POST', path: '/projects/1/github/sync' })
     ).toBe('MANAGER');
+    expect(
+      authorizationService.requiredRole({ method: 'GET', path: '/projects/1/access-code' })
+    ).toBe('OWNER');
+    expect(
+      authorizationService.requiredRole({ method: 'PATCH', path: '/projects/1/access-code' })
+    ).toBe('OWNER');
     expect(authorizationService.requiredRole({ method: 'GET', path: '/projects/1/tasks' })).toBe(
       'VIEWER'
     );

@@ -1295,7 +1295,9 @@ describe('evolucao da sprint (RF35)', () => {
     await abrir(user);
 
     expect(
-      await screen.findByText('Não foi possível calcular a evolução da sprint.')
+      await screen.findByText(
+        'O TRACEFLOW encontrou um problema interno. Tente novamente em instantes.'
+      )
     ).toBeInTheDocument();
     await waitFor(() =>
       expect(screen.queryByRole('region', { name: /Evolução da sprint/ })).not.toBeInTheDocument()
@@ -1438,7 +1440,9 @@ describe('painel de tarefas da sprint', () => {
     await user.click(await screen.findByRole('button', { name: /^Ver tarefas da sprint/ }));
 
     expect(
-      await screen.findByText('Não foi possível carregar as tarefas da sprint.')
+      await screen.findByText(
+        'O TRACEFLOW encontrou um problema interno. Tente novamente em instantes.'
+      )
     ).toBeInTheDocument();
     await waitFor(() =>
       expect(screen.queryByRole('region', { name: /Tarefas da sprint/ })).not.toBeInTheDocument()

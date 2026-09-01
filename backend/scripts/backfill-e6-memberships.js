@@ -23,7 +23,17 @@ if (
 }
 
 try {
-  const report = await runMembershipBackfill({ client: prisma, apply, projectId });
+  const legacyTables = await prisma.$queryRawUnsafe(
+    `SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'ProjectMember'`
+  );
+  const report = legacyTables.length
+    ? await runMembershipBackfill({ client: prisma, apply, projectId })
+    : {
+        mode: 'not-applicable',
+        reason: 'LR2_CONTRACT_APPLIED',
+        message: 'ProjectMember não existe no schema atual; o backfill E6 precede a LR.2.'
+      };
   const output = { target: sanitizedDatabaseTarget(process.env.DATABASE_URL), ...report };
   process.stdout.write(`${JSON.stringify(output)}\n`);
   if (reportPath)

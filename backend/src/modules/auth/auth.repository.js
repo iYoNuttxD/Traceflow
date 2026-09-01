@@ -1,8 +1,12 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../database/prismaClient.js';
 
 export const authRepository = {
   findUserByEmail(email) {
     return prisma.user.findUnique({ where: { email } });
+  },
+  findUserByUsername(username) {
+    return prisma.user.findUnique({ where: { username } });
   },
   findUserById(id) {
     return prisma.user.findUnique({ where: { id } });
@@ -12,6 +16,23 @@ export const authRepository = {
   },
   updateUser(id, data) {
     return prisma.user.update({ where: { id }, data });
+  },
+  changePassword(userId, passwordHash, now = new Date()) {
+    return prisma.$transaction(async (tx) => {
+      const user = await tx.user.update({
+        where: { id: userId },
+        data: { passwordHash, sessionVersion: { increment: 1 } }
+      });
+      await tx.session.updateMany({
+        where: { userId, revokedAt: null },
+        data: { revokedAt: now }
+      });
+      await tx.passwordResetToken.updateMany({
+        where: { userId, usedAt: null },
+        data: { usedAt: now }
+      });
+      return user;
+    });
   },
   createSession(data) {
     return prisma.session.create({ data });
@@ -48,5 +69,26 @@ export const authRepository = {
       where: { userId, usedAt: null },
       data: { usedAt: new Date() }
     });
+  },
+  createEmailVerificationToken(data) {
+    return prisma.emailVerificationToken.create({ data });
+  },
+  findEmailVerificationToken(tokenHash) {
+    return prisma.emailVerificationToken.findUnique({
+      where: { tokenHash },
+      include: { user: true }
+    });
+  },
+  expireEmailVerificationTokens(userId) {
+    return prisma.emailVerificationToken.updateMany({
+      where: { userId, usedAt: null },
+      data: { usedAt: new Date() }
+    });
+  },
+  useEmailVerificationToken(id) {
+    return prisma.emailVerificationToken.update({ where: { id }, data: { usedAt: new Date() } });
+  },
+  isUniqueViolation(error) {
+    return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
   }
 };

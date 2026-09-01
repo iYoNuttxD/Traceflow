@@ -1,0 +1,32 @@
+.card {
+  padding: 1.5rem;
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: 16px;
+  color: var(--color-text-primary);
+  background: var(--color-surface-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.card h2 {
+  margin: 0 0 1.25rem;
+  color: var(--color-text-strong);
+  font-size: 1.1rem;
+}
+
+.card-heading {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.card-heading h2 {
+  margin: 0;
+}
+
+@media (max-width: 560px) {
+  .card {
+    padding: 1.1rem;
+  }
+}

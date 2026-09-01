@@ -6,6 +6,32 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>TRACEFLOW</title>
+    <script>
+      (() => {
+        let preference = 'system';
+        try {
+          const savedTheme = window.localStorage.getItem('traceflow.theme');
+          if (savedTheme === 'system' || savedTheme === 'light' || savedTheme === 'dark') {
+            preference = savedTheme;
+          }
+        } catch {
+          // O provider aplica o fallback se o armazenamento local estiver indisponível.
+        }
+        let resolvedTheme = preference;
+        if (preference === 'system') {
+          try {
+            resolvedTheme =
+              typeof window.matchMedia === 'function' &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'dark'
+                : 'light';
+          } catch {
+            resolvedTheme = 'light';
+          }
+        }
+        document.documentElement.dataset.theme = resolvedTheme;
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -57,7 +57,7 @@ describe('E8 reconciliação e contract definitivos', () => {
 
   it('reconcilia TaskPullRequest singular e permanece idempotente', async () => {
     const project = await prisma.project.create({
-      data: { name: 'Projeto', responsibleTeam: 'Equipe' }
+      data: { name: 'Projeto', responsibleTeam: 'Equipe', accessCode: 'TEST-E8-PR-SINGLE' }
     });
     const pullRequest = await prisma.pullRequest.create({
       data: { projectId: project.id, githubId: 'pr-1', number: 1, title: 'PR' }
@@ -80,7 +80,7 @@ describe('E8 reconciliação e contract definitivos', () => {
 
   it('detecta múltiplas PRs e bloqueia contract sem escolher vínculo', async () => {
     const project = await prisma.project.create({
-      data: { name: 'Projeto', responsibleTeam: 'Equipe' }
+      data: { name: 'Projeto', responsibleTeam: 'Equipe', accessCode: 'TEST-E8-PR-CONFLICT' }
     });
     const task = await prisma.task.create({ data: { projectId: project.id, title: 'Tarefa' } });
     for (const number of [1, 2]) {
@@ -103,7 +103,7 @@ describe('E8 reconciliação e contract definitivos', () => {
 
   it('reconcilia GithubArtifact correspondente e convertível sem expor conteúdo', async () => {
     const project = await prisma.project.create({
-      data: { name: 'Projeto', responsibleTeam: 'Equipe' }
+      data: { name: 'Projeto', responsibleTeam: 'Equipe', accessCode: 'TEST-E8-ARTIFACT' }
     });
     await prisma.commit.create({ data: { projectId: project.id, hash: 'existente' } });
     await prisma.$executeRawUnsafe(
@@ -135,7 +135,7 @@ describe('E8 reconciliação e contract definitivos', () => {
 
   it('detecta GithubArtifact ambíguo e TraceLink desconhecido', async () => {
     const project = await prisma.project.create({
-      data: { name: 'Projeto', responsibleTeam: 'Equipe' }
+      data: { name: 'Projeto', responsibleTeam: 'Equipe', accessCode: 'TEST-E8-AMBIGUOUS' }
     });
     await prisma.pullRequest.create({
       data: { projectId: project.id, githubId: '1', number: 2, title: 'PR A' }
@@ -164,7 +164,7 @@ describe('E8 reconciliação e contract definitivos', () => {
 
   it('materializa TraceLink reconhecido e libera contract idempotente', async () => {
     const project = await prisma.project.create({
-      data: { name: 'Projeto', responsibleTeam: 'Equipe' }
+      data: { name: 'Projeto', responsibleTeam: 'Equipe', accessCode: 'TEST-E8-TRACE' }
     });
     const task = await prisma.task.create({ data: { projectId: project.id, title: 'Tarefa' } });
     const commit = await prisma.commit.create({ data: { projectId: project.id, hash: 'hash' } });
