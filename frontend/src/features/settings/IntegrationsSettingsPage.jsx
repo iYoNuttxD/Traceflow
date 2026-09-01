@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router';
 import {
   ContextualErrorPage,
@@ -21,7 +21,10 @@ export function IntegrationsSettingsPage() {
   const [identity, setIdentity] = useState({ linked: false });
   const [integrations, setIntegrations] = useState([]);
   const [dialog, setDialog] = useState(null);
+  const [successFocus, setSuccessFocus] = useState(null);
   const [authorizing, setAuthorizing] = useState(false);
+  const oauthHeadingRef = useRef(null);
+  const appHeadingRef = useRef(null);
   const searchParams = new URLSearchParams(location.search);
   const githubError =
     searchParams.get('github') === 'error'
@@ -69,19 +72,19 @@ export function IntegrationsSettingsPage() {
     void loadInitial();
   }, [loadInitial]);
 
-  async function completeSensitiveAction(operation, success) {
-    setError('');
-    setMessage('');
-    setRetryAfterSeconds(0);
-    try {
-      await operation();
-      setMessage(success);
-      await load();
-    } catch (value) {
-      const normalized = normalizeApiError(value);
-      setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
-      throw value;
+  useEffect(() => {
+    if (dialog || !successFocus) return;
+    const target = successFocus === 'oauth' ? oauthHeadingRef.current : appHeadingRef.current;
+    if (target?.isConnected) {
+      target.focus();
+      setSuccessFocus(null);
     }
+  }, [dialog, successFocus]);
+
+  async function completeSensitiveAction(operation, success) {
+    await operation();
+    setMessage(success);
+    await load();
   }
 
   async function authorize() {
@@ -101,10 +104,14 @@ export function IntegrationsSettingsPage() {
   }
 
   function openDialog(kind, trigger, authorization = null) {
+    if (cooldown > 0) return;
     setDialog({ kind, trigger, authorization });
   }
 
   async function confirmDialog(password) {
+    setError('');
+    setMessage('');
+    setRetryAfterSeconds(0);
     if (dialog.kind === 'link') {
       const result = await settingsApi.startGithubIdentityLink(password);
       window.location.assign(result.url);
@@ -150,9 +157,10 @@ export function IntegrationsSettingsPage() {
 
     const needsGithubReauth = !account?.hasLocalPassword && !account?.recentlyReauthenticated;
     const mode = account?.hasLocalPassword ? 'password' : needsGithubReauth ? 'github' : 'confirm';
+    const projectCount = dialog.authorization?.projects?.length ?? 0;
     return {
       title: 'Desconectar GitHub App?',
-      description: 'A integração com repositórios, sincronização e webhooks será interrompida.',
+      description: `A integração com repositórios, sincronização e webhooks será interrompida. Esta autorização está vinculada a ${projectCount} ${projectCount === 1 ? 'projeto' : 'projetos'}.`,
       independence: 'O login com GitHub não será afetado.',
       confirmLabel: 'Desconectar',
       mode,
@@ -189,7 +197,9 @@ export function IntegrationsSettingsPage() {
         <section className="settings-section" aria-labelledby="settings-github-oauth-title">
           <div className="settings-section-heading">
             <div>
-              <h2 id="settings-github-oauth-title">GitHub OAuth</h2>
+              <h2 id="settings-github-oauth-title" ref={oauthHeadingRef} tabIndex="-1">
+                GitHub OAuth
+              </h2>
               <p>Usado para entrar no TraceFlow.</p>
             </div>
           </div>
@@ -200,7 +210,7 @@ export function IntegrationsSettingsPage() {
               <button
                 className="button button-danger"
                 type="button"
-                disabled={cooldown > 0}
+                aria-disabled={cooldown > 0 || undefined}
                 onClick={(event) => openDialog('unlink', event.currentTarget)}
               >
                 Desvincular
@@ -214,7 +224,7 @@ export function IntegrationsSettingsPage() {
                 <button
                   className="button button-provider"
                   type="button"
-                  disabled={cooldown > 0}
+                  aria-disabled={cooldown > 0 || undefined}
                   onClick={(event) => openDialog('link', event.currentTarget)}
                 >
                   Vincular GitHub OAuth
@@ -227,7 +237,9 @@ export function IntegrationsSettingsPage() {
         <section className="settings-section" aria-labelledby="settings-github-app-title">
           <div className="settings-section-heading">
             <div>
-              <h2 id="settings-github-app-title">GitHub App</h2>
+              <h2 id="settings-github-app-title" ref={appHeadingRef} tabIndex="-1">
+                GitHub App
+              </h2>
               <p>Usada para integração com repositórios, sincronização e webhooks.</p>
             </div>
           </div>
@@ -236,7 +248,8 @@ export function IntegrationsSettingsPage() {
               <button
                 className="button button-secondary"
                 type="button"
-                disabled={authorizing || cooldown > 0}
+                disabled={authorizing}
+                aria-disabled={cooldown > 0 || undefined}
                 aria-busy={authorizing}
                 onClick={() => void authorize()}
               >
@@ -301,7 +314,7 @@ export function IntegrationsSettingsPage() {
                         <button
                           className="button button-danger"
                           type="button"
-                          disabled={cooldown > 0}
+                          aria-disabled={cooldown > 0 || undefined}
                           onClick={(event) => openDialog('disconnect', event.currentTarget, item)}
                         >
                           Desconectar
@@ -319,7 +332,16 @@ export function IntegrationsSettingsPage() {
         <SensitiveActionDialog
           {...activeDialogProps}
           trigger={dialog.trigger}
+          cooldown={cooldown}
           onConfirm={confirmDialog}
+          onError={(normalized) => {
+            setError(normalized.message);
+            setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
+          }}
+          onSuccess={() => {
+            if (dialog.kind === 'unlink') setSuccessFocus('oauth');
+            if (dialog.kind === 'disconnect') setSuccessFocus('app');
+          }}
           onClose={() => setDialog(null)}
         />
       )}

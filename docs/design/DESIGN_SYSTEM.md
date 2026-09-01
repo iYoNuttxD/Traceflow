@@ -557,8 +557,12 @@ requisitos de nova senha.
 Ações sensíveis iniciadas em Integrações usam um único dialog C2 que reúne impacto,
 reautenticação e ação final. Não existe sequência de dois dialogs nem senha permanente no estado
 normal da integração. Cancelar recebe foco inicial; trap, Escape, erro inline, processamento sem
-submit duplicado e retorno de foco são obrigatórios. O mecanismo de reautenticação continua vindo do
-contrato vigente — senha local, pré-requisito de senha ou reautenticação GitHub conforme a conta.
+submit duplicado e retorno de foco são obrigatórios. Durante o processamento, o dialog conserva ao
+menos um controle focável e possui fallback programático no próprio painel; erro de credencial
+retorna o foco à senha. Cancelar ou Escape devolvem foco ao trigger, enquanto sucesso que remove o
+trigger direciona foco a um heading estável da seção resultante. O mecanismo de reautenticação
+continua vindo do contrato vigente — senha local, pré-requisito de senha ou reautenticação GitHub
+conforme a conta.
 
 GitHub OAuth e GitHub App são integrações independentes. OAuth apresenta identidade/login em row
 compacta quando vinculada; App apresenta instalação, contagens autorizadas e link externo de gestão

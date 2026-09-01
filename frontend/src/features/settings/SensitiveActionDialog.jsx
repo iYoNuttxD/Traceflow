@@ -14,7 +14,10 @@ export function SensitiveActionDialog({
   account,
   returnTo,
   trigger,
+  cooldown = 0,
   onConfirm,
+  onError,
+  onSuccess,
   onClose
 }) {
   const titleId = useId();
@@ -25,16 +28,30 @@ export function SensitiveActionDialog({
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const displayedError =
+    error && cooldown > 0 ? `${error} Tente novamente em ${cooldown}s.` : error;
 
   const close = useCallback(() => {
     if (busy) return;
     onClose();
-    queueMicrotask(() => trigger?.focus?.());
+    queueMicrotask(() => {
+      if (trigger?.isConnected) trigger.focus();
+    });
   }, [busy, onClose, trigger]);
 
   useEffect(() => {
     cancelRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    if (busy) cancelRef.current?.focus();
+  }, [busy]);
+
+  useEffect(() => {
+    if (!busy && error && mode === 'password') {
+      panelRef.current?.querySelector('#sensitiveActionPassword')?.focus();
+    }
+  }, [busy, error, mode]);
 
   useEffect(() => {
     function onKeyDown(event) {
@@ -44,15 +61,22 @@ export function SensitiveActionDialog({
         return;
       }
       if (event.key !== 'Tab') return;
+      const panel = panelRef.current;
+      if (!panel) return;
       const focusable = [
-        ...panelRef.current.querySelectorAll(
-          'button:not([disabled]), input:not([disabled]), a[href]'
-        )
+        ...panel.querySelectorAll('button:not([disabled]), input:not([disabled]), a[href]')
       ];
-      if (!focusable.length) return;
+      if (!focusable.length) {
+        event.preventDefault();
+        panel.focus();
+        return;
+      }
       const first = focusable[0];
       const last = focusable.at(-1);
-      if (event.shiftKey && document.activeElement === first) {
+      if (!panel.contains(document.activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (event.shiftKey && document.activeElement === first) {
         event.preventDefault();
         last.focus();
       } else if (!event.shiftKey && document.activeElement === last) {
@@ -66,15 +90,17 @@ export function SensitiveActionDialog({
 
   async function submit(event) {
     event?.preventDefault();
-    if (busy || (mode === 'password' && !password)) return;
+    if (busy || cooldown > 0 || (mode === 'password' && !password)) return;
     setBusy(true);
     setError('');
     try {
       await onConfirm(password);
+      onSuccess?.();
       onClose();
-      queueMicrotask(() => trigger?.focus?.());
     } catch (value) {
-      setError(normalizeApiError(value).message);
+      const normalized = normalizeApiError(value);
+      setError(normalized.message);
+      onError?.(normalized);
       setBusy(false);
     }
   }
@@ -89,6 +115,7 @@ export function SensitiveActionDialog({
         ref={panelRef}
         className="confirm-dialog settings-sensitive-dialog"
         role="dialog"
+        tabIndex="-1"
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={`${descriptionId}${independence ? ` ${independenceId}` : ''}`}
@@ -112,7 +139,7 @@ export function SensitiveActionDialog({
                 setPassword(event.target.value);
                 setError('');
               }}
-              error={error}
+              error={displayedError}
               disabled={busy}
             />
           )}
@@ -122,7 +149,11 @@ export function SensitiveActionDialog({
               <GithubSensitiveReauthentication
                 account={account}
                 returnTo={returnTo}
-                onError={setError}
+                cooldown={cooldown}
+                onError={(message, normalized) => {
+                  setError(message);
+                  onError?.(normalized);
+                }}
               />
             </div>
           )}
@@ -131,10 +162,10 @@ export function SensitiveActionDialog({
               <p>Crie uma senha em Segurança antes de remover o GitHub OAuth.</p>
             </div>
           )}
-          {error && mode !== 'password' && (
+          {displayedError && mode !== 'password' && (
             <div className="message message-error" role="alert">
               <span aria-hidden="true">!</span>
-              <span>{error}</span>
+              <span>{displayedError}</span>
             </div>
           )}
           <div className="dialog-actions">
@@ -142,7 +173,7 @@ export function SensitiveActionDialog({
               ref={cancelRef}
               className="button button-secondary"
               type="button"
-              disabled={busy}
+              aria-disabled={busy || undefined}
               onClick={close}
             >
               Cancelar
@@ -155,7 +186,7 @@ export function SensitiveActionDialog({
               <button
                 className={`button ${destructive ? 'button-danger' : 'button-provider'}`}
                 type="button"
-                disabled={(mode === 'password' && !password) || busy}
+                disabled={(mode === 'password' && !password) || busy || cooldown > 0}
                 aria-busy={busy}
                 onClick={() => void submit()}
               >

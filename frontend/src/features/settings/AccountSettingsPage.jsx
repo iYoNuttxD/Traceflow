@@ -23,6 +23,7 @@ export function AccountSettingsPage() {
   const [deactivationPassword, setDeactivationPassword] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [warning, setWarning] = useState('');
   const [initialError, setInitialError] = useState(null);
   const [busy, setBusy] = useState('');
   const [retryAfterSeconds, setRetryAfterSeconds] = useState(0);
@@ -55,6 +56,7 @@ export function AccountSettingsPage() {
     actionLock.current = true;
     setBusy(key);
     setError('');
+    setWarning('');
     setMessage('');
     setRetryAfterSeconds(0);
     try {
@@ -66,6 +68,84 @@ export function AccountSettingsPage() {
       const normalized = normalizeApiError(value);
       setError(normalized.message);
       setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
+    } finally {
+      actionLock.current = false;
+      setBusy('');
+    }
+  }
+
+  async function saveProfile() {
+    if (actionLock.current || cooldown > 0) return;
+    const changes = [];
+    if (profile.name !== savedProfile.current.name) {
+      changes.push({
+        operation: () => settingsApi.updateProfile(profile.name),
+        success: 'Nome atualizado.',
+        failure: 'Não foi possível alterar o nome'
+      });
+    }
+    if (profile.username !== savedProfile.current.username) {
+      changes.push({
+        operation: () => settingsApi.updateUsername(profile.username),
+        success: 'Username atualizado.',
+        failure: 'Não foi possível alterar o username'
+      });
+    }
+    if (!changes.length) return;
+
+    actionLock.current = true;
+    setBusy('profile');
+    setError('');
+    setWarning('');
+    setMessage('');
+    setRetryAfterSeconds(0);
+    try {
+      const results = await Promise.allSettled(changes.map(({ operation }) => operation()));
+      const normalizedResults = results.map((result, index) => {
+        if (result.status === 'fulfilled') {
+          return { status: result.status, message: changes[index].success };
+        }
+        const normalized = normalizeApiError(result.reason);
+        return {
+          status: result.status,
+          message: `${changes[index].failure}: ${normalized.message}`,
+          retryAfterSeconds: normalized.retryAfterSeconds || 0
+        };
+      });
+
+      const [accountReload, authReload] = await Promise.allSettled([load(), refresh()]);
+      if (accountReload.status === 'rejected') {
+        const normalized = normalizeApiError(
+          accountReload.reason,
+          'As alterações terminaram, mas não foi possível recarregar o perfil.'
+        );
+        setError(normalized.message);
+        setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
+        return;
+      }
+      if (authReload.status === 'rejected') {
+        setError(
+          normalizeApiError(
+            authReload.reason,
+            'O perfil foi recarregado, mas a sessão não pôde ser atualizada.'
+          ).message
+        );
+        return;
+      }
+
+      const successes = normalizedResults.filter((result) => result.status === 'fulfilled');
+      const failures = normalizedResults.filter((result) => result.status === 'rejected');
+      const failureMessage = failures.map((result) => result.message).join(' ');
+      setRetryAfterSeconds(
+        failures.reduce((maximum, result) => Math.max(maximum, result.retryAfterSeconds), 0)
+      );
+      if (!failures.length) {
+        setMessage('Alterações salvas.');
+      } else if (successes.length) {
+        setWarning(`${successes.map((result) => result.message).join(' ')} ${failureMessage}`);
+      } else {
+        setError(failureMessage);
+      }
     } finally {
       actionLock.current = false;
       setBusy('');
@@ -99,7 +179,12 @@ export function AccountSettingsPage() {
 
   return (
     <div className="settings-stack">
-      <SettingsFeedback error={error} message={message} retryAfterSeconds={cooldown} />
+      <SettingsFeedback
+        error={error}
+        warning={warning}
+        message={message}
+        retryAfterSeconds={cooldown}
+      />
       <article className="settings-surface">
         <section className="settings-section" aria-labelledby="settings-profile-title">
           <div className="settings-section-heading">
@@ -112,18 +197,7 @@ export function AccountSettingsPage() {
             className="settings-field-grid"
             onSubmit={(event) => {
               event.preventDefault();
-              void run(
-                'profile',
-                () => {
-                  const operations = [];
-                  if (profile.name !== savedProfile.current.name)
-                    operations.push(settingsApi.updateProfile(profile.name));
-                  if (profile.username !== savedProfile.current.username)
-                    operations.push(settingsApi.updateUsername(profile.username));
-                  return Promise.all(operations);
-                },
-                'Alterações salvas.'
-              );
+              void saveProfile();
             }}
           >
             <div className="form-field">

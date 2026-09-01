@@ -101,6 +101,12 @@
   margin-top: 0;
 }
 
+.settings-sensitive-dialog .button[aria-disabled='true'],
+.settings-surface .button[aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
 @media (max-width: 560px) {
   .integration-box-compact {
     padding-block: var(--space-3);

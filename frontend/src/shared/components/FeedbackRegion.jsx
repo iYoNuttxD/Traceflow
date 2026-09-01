@@ -15,9 +15,13 @@ export function FeedbackRegion({
   warning,
   info,
   rateLimit,
-  retryAfterSeconds = 0
+  retryAfterSeconds = 0,
+  remainingRetryAfterSeconds
 }) {
-  const remaining = useCountdown(retryAfterSeconds);
+  const internalRemaining = useCountdown(
+    remainingRetryAfterSeconds === undefined ? retryAfterSeconds : 0
+  );
+  const remaining = remainingRetryAfterSeconds ?? internalRemaining;
 
   const entry = error
     ? ['error', error]
