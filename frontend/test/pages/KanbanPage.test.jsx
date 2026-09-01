@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
     listTaskHistory: vi.fn(),
     moveTask: vi.fn()
   },
-  projectMembersApi: { listProjectMembers: vi.fn() },
+  membersApi: { list: vi.fn() },
   scheduleApi: { listSprints: vi.fn() }
 }));
 
@@ -25,7 +25,7 @@ vi.mock('../../src/features/tasks/api/tasks.api.js', () => ({
   unlinkTaskRequirement: vi.fn()
 }));
 vi.mock('../../src/features/members/members.api.js', () => ({
-  projectMembersApi: mocks.projectMembersApi
+  membersApi: mocks.membersApi
 }));
 vi.mock('../../src/features/projects/api/projects.api.js', () => ({
   projectsApi: { get: (id) => mocks.api.get(`/projects/${id}`) }
@@ -104,10 +104,8 @@ describe('KanbanPage E11', () => {
       data: { indicator: 'MOVIMENTACOES', metric: 'Movimentações', totalMovements: 0 }
     });
     mocks.kanbanApi.listTaskHistory.mockResolvedValue(historyResponse());
-    mocks.projectMembersApi.listProjectMembers.mockResolvedValue({
-      data: {
-        members: [{ id: 3, userId: 5, isActive: true, user: { id: 5, name: 'Responsável real' } }]
-      }
+    mocks.membersApi.list.mockResolvedValue({
+      members: [{ id: 3, userId: 5, isActive: true, user: { id: 5, name: 'Responsável real' } }]
     });
     mocks.scheduleApi.listSprints.mockResolvedValue({ data: { total: 0, sprints: [] } });
   });
@@ -203,6 +201,22 @@ describe('KanbanPage E11', () => {
     );
     expect(await screen.findByText(/Prioridade: Média para Alta/)).toBeInTheDocument();
   });
+
+  it('apresenta projeto inexistente em fallback recuperável', async () => {
+    mocks.api.get.mockRejectedValueOnce({
+      response: { status: 404, data: { code: 'PROJECT_NOT_FOUND' } }
+    });
+    renderPage();
+
+    expect(
+      await screen.findByRole('heading', { name: 'Página não encontrada.' })
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Tentar novamente' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Voltar ao projeto' })).toHaveAttribute(
+      'href',
+      '/projects/1'
+    );
+  });
 });
 
 // ADR-011: o quadro passou a ser filtravel por sprint; a troca de status sem
@@ -245,7 +259,7 @@ describe('KanbanPage ADR-011', () => {
       data: { indicator: 'MOVIMENTACOES', metric: 'Movimentações', totalMovements: 4 }
     });
     mocks.kanbanApi.listTaskHistory.mockResolvedValue(historyResponse());
-    mocks.projectMembersApi.listProjectMembers.mockResolvedValue({ data: { members: [] } });
+    mocks.membersApi.list.mockResolvedValue({ members: [] });
     mocks.scheduleApi.listSprints.mockResolvedValue({
       data: { total: 2, sprints: [sprintCongelada, sprintAtiva] }
     });

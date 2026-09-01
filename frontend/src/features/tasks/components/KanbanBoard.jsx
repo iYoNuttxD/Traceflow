@@ -5,6 +5,8 @@ import {
   KANBAN_COLUMNS,
   priorityLabels
 } from './kanban-display.js';
+import '../styles/task-cards.css';
+import './KanbanBoard.css';
 
 function KanbanTaskCard({
   task,

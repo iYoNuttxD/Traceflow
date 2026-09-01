@@ -26,6 +26,7 @@ describe('AppRoutes com chunks por rota', () => {
     );
 
     expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Navegação global')).not.toBeInTheDocument();
     await user.click(screen.getByRole('link', { name: 'Criar conta' }));
     expect(await screen.findByRole('heading', { name: 'Criar conta' })).toBeInTheDocument();
   });
@@ -48,5 +49,19 @@ describe('AppRoutes com chunks por rota', () => {
     );
 
     expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeInTheDocument();
+  });
+
+  it('reutiliza a página contextual em rota inexistente sem assumir projeto', async () => {
+    render(
+      <MemoryRouter initialEntries={['/rota-inexistente']}>
+        <AppRoutes />
+      </MemoryRouter>
+    );
+
+    expect(
+      await screen.findByRole('heading', { name: 'Página não encontrada.' })
+    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Ir para o início' })).toHaveAttribute('href', '/');
+    expect(screen.queryByText('Voltar aos projetos')).not.toBeInTheDocument();
   });
 });

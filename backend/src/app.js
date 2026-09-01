@@ -5,9 +5,13 @@ import { notFoundMiddleware } from './middlewares/not-found.middleware.js';
 import { createRequestContextMiddleware } from './middlewares/request-context.middleware.js';
 import routes from './routes/index.js';
 import { authRoutes } from './modules/auth/index.js';
+import { githubWebhookController } from './modules/github/github-app.controller.js';
+import { githubAppCallbackRoutes } from './modules/github/github-public.routes.js';
 import { createAuthenticationMiddleware } from './middlewares/auth/authentication.middleware.js';
 import { createCsrfMiddleware } from './middlewares/auth/csrf.middleware.js';
 import { createProjectAuthorizationMiddleware } from './middlewares/auth/project-authorization.middleware.js';
+import { requireAccountState } from './middlewares/auth/account-state.middleware.js';
+import { settingsPublicRoutes } from './modules/settings/index.js';
 import { createHealthHandlers } from './shared/http/index.js';
 import { logger as defaultLogger } from './shared/logger/index.js';
 import {
@@ -22,46 +26,165 @@ import {
 export function createApp({ logger = defaultLogger, readinessCheck, securityConfig = env } = {}) {
   const app = express();
   const health = createHealthHandlers({ readinessCheck });
-  const rateLimiters = createRateLimiters({
-    windowMs: securityConfig.rateLimitWindowMs,
-    generalMax: securityConfig.rateLimitMax,
-    sensitiveMax: securityConfig.sensitiveRateLimitMax
+  const rateLimiters = createRateLimiters({ ...securityConfig, logger });
+  const authenticate = createAuthenticationMiddleware({
+    cookieName: securityConfig.sessionCookieName
   });
+  const csrf = createCsrfMiddleware();
 
   app.disable('x-powered-by');
   app.set('trust proxy', securityConfig.trustProxy);
   app.use(createRequestContextMiddleware({ logger }));
   app.use(createSecurityHeadersMiddleware(securityConfig));
   app.use(createCorsMiddleware(securityConfig));
+  app.use('/api', noStoreApiResponses);
+  app.use('/api', rateLimiters.globalAbuse);
+  app.use('/api/github-app/callback', githubAppCallbackRoutes);
+  app.use('/api/settings/account/email-change/confirm', rateLimiters.authentication);
+  app.use('/api/account/reactivation/confirm', rateLimiters.authentication);
+  app.use('/api', settingsPublicRoutes);
+  app.post(
+    '/api/webhooks/github-app',
+    express.raw({ type: 'application/json', limit: '1mb' }),
+    githubWebhookController.handle
+  );
   app.use(requireJsonContentType);
   app.use(express.json({ limit: securityConfig.bodyLimit, strict: true }));
 
   app.get('/health', health.health);
   app.get('/health/live', health.live);
   app.get('/health/ready', health.ready);
-  app.use('/api', noStoreApiResponses);
-  app.use('/api/auth/register', rateLimiters.sensitive);
-  app.use('/api/auth/login', rateLimiters.sensitive);
-  app.use('/api/auth/forgot-password', rateLimiters.sensitive);
-  app.use('/api/auth/reset-password', rateLimiters.sensitive);
+  app.use('/api/auth/register', rateLimiters.authentication, rateLimiters.emailDelivery);
+  app.use('/api/auth/login', rateLimiters.authentication);
+  app.use('/api/auth/github/start', rateLimiters.authentication);
+  app.use('/api/auth/github/callback', rateLimiters.authentication);
+  app.use('/api/auth/forgot-password', rateLimiters.authentication, rateLimiters.emailDelivery);
+  app.use('/api/auth/reset-password', rateLimiters.authentication);
+  app.use('/api/auth/email-verification/verify', rateLimiters.authentication);
+  app.use('/api/auth/email-verification/resend', authenticate, csrf, rateLimiters.emailDelivery);
+  app.use('/api/auth/username', authenticate, csrf, rateLimiters.sensitiveMutation);
+  app.use('/api/auth/change-password', authenticate, csrf, rateLimiters.sensitiveMutation);
+  app.use('/api/auth/github/reauth/start', authenticate, csrf, rateLimiters.sensitiveMutation);
+  app.use(
+    '/api/auth/github/repositories/authorization/start',
+    authenticate,
+    csrf,
+    rateLimiters.sensitiveMutation
+  );
+  app.get(
+    ['/api/auth/me', '/api/auth/csrf'],
+    authenticate,
+    rateLimiters.authenticatedReadBurst,
+    rateLimiters.authenticatedReadSustained
+  );
   app.use('/api/auth', authRoutes);
   app.use(
     '/api/projects/join',
     createSensitiveAttemptLogger({ logger, event: 'project_join' }),
     rateLimiters.join
   );
-  app.use('/api/github/auth/check', rateLimiters.sensitive);
-  app.use('/api/github/repositories', rateLimiters.sensitive);
-  app.use('/api/projects/from-github', rateLimiters.sensitive);
-  app.use('/api/account/personal-data/export', rateLimiters.sensitive);
-  app.use(
+  app.use('/api', authenticate);
+  app.get(
+    [
+      '/api/projects',
+      '/api/settings/account',
+      '/api/settings/account/email-change/status',
+      '/api/settings/security/sessions',
+      '/api/settings/privacy/deletion',
+      '/api/settings/integrations/github',
+      '/api/settings/integrations/github-identity',
+      '/api/github/app/installations',
+      '/api/github/app/repositories',
+      '/api/github/app/installations/:installationId/repositories',
+      '/api/projects/:projectId/github/sync/status',
+      '/api/projects/:projectId/members',
+      '/api/projects/:projectId/invitations',
+      '/api/projects/:projectId/access-code',
+      '/api/projects/invitations/mine'
+    ],
+    rateLimiters.authenticatedReadBurst,
+    rateLimiters.authenticatedReadSustained
+  );
+  app.patch(
+    ['/api/settings/account/profile', '/api/settings/account/username'],
+    rateLimiters.sensitiveMutation
+  );
+  app.post(
+    '/api/settings/account/email-change',
+    rateLimiters.sensitiveMutation,
+    rateLimiters.emailDelivery
+  );
+  app.post(
+    '/api/projects/:projectId/access-code/regenerate',
+    createSensitiveAttemptLogger({ logger, event: 'project_access_code_regenerate' }),
+    rateLimiters.sensitiveMutation
+  );
+  app.patch('/api/projects/:projectId/access-code', rateLimiters.sensitiveMutation);
+  app.delete('/api/settings/account/email-change', rateLimiters.sensitiveMutation);
+  app.post(
+    [
+      '/api/settings/security/password',
+      '/api/settings/security/password/initialize',
+      '/api/settings/integrations/github-identity/link/start',
+      '/api/settings/security/sessions/revoke-others',
+      '/api/settings/account/deactivate',
+      '/api/settings/privacy/deletion',
+      '/api/github/app/installations/start',
+      '/api/projects/from-github'
+    ],
+    rateLimiters.sensitiveMutation
+  );
+  app.delete(
+    [
+      '/api/settings/security/sessions/:sessionId',
+      '/api/settings/privacy/deletion',
+      '/api/settings/integrations/github/authorizations/:authorizationId',
+      '/api/settings/integrations/github-identity'
+    ],
+    rateLimiters.sensitiveMutation
+  );
+  app.post(
+    '/api/account/reactivation/start',
+    rateLimiters.sensitiveMutation,
+    rateLimiters.emailDelivery
+  );
+  app.post('/api/settings/privacy/export', rateLimiters.dataExport);
+  app.post(
+    [
+      '/api/projects/invitations/details',
+      '/api/projects/invitations/accept',
+      '/api/projects/invitations/decline',
+      '/api/projects/invitations/:invitationId/accept',
+      '/api/projects/invitations/:invitationId/decline'
+    ],
+    createSensitiveAttemptLogger({ logger, event: 'project_invitation_response' }),
+    rateLimiters.sensitiveMutation
+  );
+  app.post(
+    '/api/projects/:projectId/invitations',
+    createSensitiveAttemptLogger({ logger, event: 'project_invitation_create' }),
+    rateLimiters.sensitiveMutation,
+    rateLimiters.emailDelivery
+  );
+  app.patch('/api/projects/:projectId/members/:membershipId', rateLimiters.sensitiveMutation);
+  app.delete(
+    ['/api/projects/:projectId/members/me', '/api/projects/:projectId/members/:membershipId'],
+    rateLimiters.sensitiveMutation
+  );
+  app.post(
+    [
+      '/api/projects/:projectId/members/:membershipId/reactivate',
+      '/api/projects/:projectId/ownership/transfer'
+    ],
+    rateLimiters.sensitiveMutation
+  );
+  app.post(
     '/api/projects/:projectId/github/sync',
     createSensitiveAttemptLogger({ logger, event: 'github_sync' }),
     rateLimiters.sync
   );
-  app.use('/api', rateLimiters.general);
-  app.use('/api', createAuthenticationMiddleware({ cookieName: securityConfig.sessionCookieName }));
-  app.use('/api', createCsrfMiddleware());
+  app.use('/api', csrf);
+  app.use('/api', requireAccountState);
   app.use('/api', createProjectAuthorizationMiddleware());
   app.use('/api', routes);
   app.use(notFoundMiddleware);

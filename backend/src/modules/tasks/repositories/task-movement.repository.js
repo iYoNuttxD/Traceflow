@@ -43,7 +43,6 @@ export const taskMovementRepository = {
           toStatus,
           movedBy: actor.name,
           movedByUserId: actor.id,
-          projectMemberId: null,
           sprintId: task.sprintId ?? null
         },
         include: { movedByUser: { select: { id: true, name: true } } }

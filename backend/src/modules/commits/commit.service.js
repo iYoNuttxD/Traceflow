@@ -11,8 +11,13 @@ export const commitService = {
       throw new CommitServiceError('Projeto não encontrado.', 404);
     }
 
-    return commitRepository.listByProjectId(projectId, {
-      search: query.search
+    const commits = await commitRepository.listByProjectId(projectId, {
+      search: query.search,
+      branch: query.branch
     });
+    return commits.map(({ branchLinks, ...commit }) => ({
+      ...commit,
+      branches: (branchLinks || []).map(({ branch }) => branch.name)
+    }));
   }
 };

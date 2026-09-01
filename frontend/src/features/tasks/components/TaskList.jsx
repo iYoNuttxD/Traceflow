@@ -1,4 +1,7 @@
 import { Card } from '../../../shared/index.js';
+import '../../../shared/styles/traceability-controls.css';
+import '../styles/task-cards.css';
+import './TaskList.css';
 
 const statusLabels = {
   A_FAZER: 'A Fazer',

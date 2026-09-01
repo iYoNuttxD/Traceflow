@@ -17,8 +17,11 @@ const commitFields = {
   authorName: true,
   authorUsername: true,
   date: true,
-  branch: true,
-  githubUrl: true
+  githubUrl: true,
+  branchLinks: {
+    select: { branch: { select: { name: true } } },
+    orderBy: { branch: { name: 'asc' } }
+  }
 };
 
 const issueFields = {

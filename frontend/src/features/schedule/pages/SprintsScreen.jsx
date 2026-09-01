@@ -21,6 +21,7 @@ import {
   toDateTimeLocalInput
 } from '../components/schedule-display.js';
 import { useScheduleData } from '../hooks/useScheduleData.js';
+import '../styles/schedule.css';
 
 export function SprintsScreen() {
   const { projectId } = useParams();
@@ -50,7 +51,8 @@ export function SprintsScreen() {
     refreshSprints,
     refreshMilestones,
     feedback,
-    handleFailure
+    handleFailure,
+    fail
   } = useScheduleData(projectId);
 
   const [sprintForm, setSprintForm] = useState(emptySprintForm);
@@ -148,10 +150,7 @@ export function SprintsScreen() {
       setEditingSprintId(null);
       setFormTaskIds([]);
       if (avisoTarefas) {
-        handleFailure(
-          avisoTarefas,
-          'Sprint salva, mas não foi possível atualizar as tarefas da sprint.'
-        );
+        fail('Sprint salva, mas não foi possível atualizar as tarefas da sprint.');
       } else {
         feedback(
           editingSprintId ? 'Sprint atualizada com sucesso.' : 'Sprint cadastrada com sucesso.'

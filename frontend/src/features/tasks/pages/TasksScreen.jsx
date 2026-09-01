@@ -12,7 +12,7 @@ import {
   unlinkTaskFromPullRequest,
   unlinkTaskRequirement
 } from '../api/tasks.api.js';
-import { projectMembersApi } from '../../members/index.js';
+import { membersApi } from '../../members/index.js';
 import { requirementsApi } from '../../requirements/index.js';
 import { scheduleApi } from '../../schedule/index.js';
 import { projectsApi } from '../../projects/index.js';
@@ -22,7 +22,15 @@ import {
   getProjectIssueCoverage,
   getProjectPullRequestCoverage
 } from '../../traceability/index.js';
-import { Card, useAbortableRequest, useConfirm } from '../../../shared/index.js';
+import {
+  Card,
+  ContextualErrorPage,
+  classifyPageError,
+  getErrorRequestId,
+  normalizeApiError,
+  useAbortableRequest,
+  useConfirm
+} from '../../../shared/index.js';
 import { ProjectSectionNav } from '../../projects/index.js';
 import {
   TaskForm,
@@ -32,9 +40,10 @@ import {
 } from '../components/TaskForm.jsx';
 import { TaskMetrics } from '../components/TaskMetrics.jsx';
 import { TaskList } from '../components/TaskList.jsx';
+import './TasksScreen.css';
 
 function getErrorMessage(error, fallback) {
-  return error.response?.data?.message || fallback;
+  return normalizeApiError(error, fallback).message;
 }
 
 export function TasksScreen() {
@@ -66,11 +75,13 @@ export function TasksScreen() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [pageError, setPageError] = useState(null);
   const [success, setSuccess] = useState('');
   const loadedProjectIdRef = useRef(null);
   const loadTaskData = useCallback(async () => {
     setLoading(true);
     setError('');
+    setPageError(null);
 
     try {
       const [
@@ -92,11 +103,11 @@ export function TasksScreen() {
         getProjectCommitCoverage(projectId),
         getProjectIssueCoverage(projectId),
         getProjectPullRequestCoverage(projectId),
-        projectMembersApi.listProjectMembers(projectId).catch((requestError) => {
+        membersApi.list(projectId).catch((requestError) => {
           setError(
             getErrorMessage(requestError, 'Não foi possível carregar os membros do projeto.')
           );
-          return { data: { members: [] } };
+          return { members: [] };
         }),
         scheduleApi.listSprints(projectId).catch(() => ({ data: { sprints: [] } })),
         scheduleApi.listMilestones(projectId).catch(() => ({ data: { milestones: [] } }))
@@ -111,11 +122,13 @@ export function TasksScreen() {
       setCommitCoverage(commitCoverageResponse);
       setIssueCoverage(issueCoverageResponse);
       setPullRequestCoverage(coverageResponse);
-      setProjectMembers(membersResponse.data.members || []);
+      setProjectMembers(membersResponse.members || []);
       setSprints(sprintsResponse.data.sprints || []);
       setMilestones(milestonesResponse.data.milestones || []);
     } catch (requestError) {
-      setError(getErrorMessage(requestError, 'Não foi possível carregar as tarefas do projeto.'));
+      setPageError(
+        normalizeApiError(requestError, 'Não foi possível carregar as tarefas do projeto.')
+      );
     } finally {
       setLoading(false);
     }
@@ -648,6 +661,18 @@ export function TasksScreen() {
       <main className="page-container">
         <p className="empty-state">Carregando tarefas...</p>
       </main>
+    );
+  }
+
+  if (!project && pageError) {
+    return (
+      <ContextualErrorPage
+        type={classifyPageError(pageError)}
+        description={pageError.message}
+        requestId={getErrorRequestId(pageError)}
+        retryAfterSeconds={pageError.retryAfterSeconds}
+        onRetry={loadTaskData}
+      />
     );
   }
 

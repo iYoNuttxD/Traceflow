@@ -4,6 +4,14 @@
 >
 > **Fontes:** documento oficial do TCC, especialmente os Capítulos 3 e 4 e o Apêndice B; estado da branch `main`; matriz técnica `RF -> código -> teste`; documentação arquitetural do repositório.
 
+> **Atualização técnica LR.7 — 21/08/2026:** auditoria na branch `daniel-dev`, baseline
+> `59f2628eb6f750f0fc83018f749cee72364d5d64`, após LR.1–LR.6, LR.2.1 e LR.3.1. As LR
+> endureceram segurança, legado, GitHub, privacidade, banco e frontend, mas não implementaram os RFs
+> futuros das Sprints 1/2; por isso os checklists funcionais abaixo não foram promovidos. Os gates
+> locais atuais passaram com 418 testes backend executados, 243 frontend e 39 migrations. SMTP,
+> GitHub/webhook reais, viewports em navegador, OCI e operação continuam homologações externas,
+> não bugs inferidos.
+
 ## 1. Objetivo e regra de organização
 
 O desenvolvimento será organizado em **três sprints**. As Sprints 1 e 2 dividem aproximadamente 50% do escopo de implementação em cada uma; a Sprint 3 ocorre depois delas e é dedicada à validação e ao aperfeiçoamento da ferramenta:
@@ -70,8 +78,11 @@ Entregar identidade e acesso homologados, planejamento colaborativo e a cadeia a
 
 ### S1-01 - Finalizar cadastro, login e ciclo de sessão
 
-**Requisitos:** RF23 e RF27; UC01 e UC05.  
+**Requisitos:** RF23 e RF27; UC01.
+
 **Descrição:** homologar cadastro, autenticação, sessão, logout e proteção de rotas a partir da base existente, incluindo a decisão e implementação de sessão persistente prevista no TCC.
+
+**Estado na baseline pós-L5.1/L6.1:** **IMPLEMENTAÇÃO TÉCNICA CONCLUÍDA**. Cadastro, login local, sessão persistente, logout, CSRF, proteção de rotas e retorno ao destino solicitado estão implementados e cobertos por testes automatizados. A validação ponta a ponta com SMTP real e com a autenticação externa do GitHub permanece pendente e não é considerada `PASS` por esta atualização documental.
 
 **Dependências:** base de autenticação E0-E15; serviço de usuários; proteção CSRF.  
 **Entregáveis:** fluxos completos no backend e frontend; política documentada de TTL e revogação; auditoria; testes E2E.
@@ -87,16 +98,21 @@ Entregar identidade e acesso homologados, planejamento colaborativo e a cadeia a
 
 **Checklist técnico:**
 
-- [ ] revisar contratos, cookies, CSRF, TTL e versionamento de sessão;
-- [ ] completar backend, frontend e estados de erro;
-- [ ] registrar eventos de autenticação sem dados sensíveis;
-- [ ] adicionar testes unitários, API e E2E;
-- [ ] atualizar documentação e matriz RF.
+- [x] revisar contratos, cookies, CSRF, TTL e versionamento de sessão;
+- [x] completar backend, frontend e estados de erro;
+- [x] registrar eventos de autenticação sem dados sensíveis;
+- [x] adicionar testes unitários, API e frontend automatizados;
+- [x] atualizar documentação e matriz RF;
+- [ ] homologar os fluxos dependentes de SMTP e GitHub em ambiente externo controlado.
 
 ### S1-02 - Finalizar recuperação e alteração de senha
 
 **Requisitos:** RF28; UC02.  
 **Descrição:** concluir recuperação por e-mail e gestão de senha com tokens de uso único, expiração, revogação e provider real no ambiente de homologação.
+
+**Estado na baseline pós-L5.1/L6.1:** **IMPLEMENTAÇÃO TÉCNICA CONCLUÍDA; HOMOLOGAÇÃO SMTP PENDENTE**. Solicitação uniforme, token hashado, expiração, uso único, redefinição, revogação de sessões, telas e adapter de e-mail estão implementados e cobertos por testes automatizados. O envio e o consumo do link em uma caixa postal real ainda não foram homologados e não são considerados `PASS`.
+
+**Decisão de segurança:** a solicitação de recuperação responde de forma genérica tanto para e-mail cadastrado quanto para e-mail inexistente. Essa divergência do texto literal do UC02 é intencional e impede enumeração de contas.
 
 **Dependências:** S1-01; configuração segura de e-mail.  
 **Entregáveis:** solicitação, envio, redefinição e alteração de senha; interface; auditoria; testes.
@@ -111,16 +127,22 @@ Entregar identidade e acesso homologados, planejamento colaborativo e a cadeia a
 
 **Checklist técnico:**
 
-- [ ] validar persistência por hash e expiração;
-- [ ] configurar provider e variáveis sem versionar segredos;
-- [ ] completar telas e feedbacks;
-- [ ] testar solicitação, link, troca, revogação e abuso;
-- [ ] atualizar documentação operacional e matriz RF.
+- [x] validar persistência por hash e expiração;
+- [x] implementar configuração do provider por variáveis sem versionar segredos;
+- [x] completar telas e feedbacks;
+- [x] testar solicitação, link, troca, revogação e abuso;
+- [x] atualizar documentação operacional e matriz RF;
+- [ ] homologar entrega e consumo do link com SMTP e caixa postal reais.
 
 ### S1-03 - Homologar membros, convites e perfis de acesso
 
-**Requisitos:** RF24, RF25 e RF26; UC06 e UC07.  
+**Requisitos:** RF24, RF25 e RF26; UC05, UC06 e UC07.
+
 **Descrição:** concluir vínculo de usuários ao projeto, consulta de equipe, convites e perfis `OWNER`, `MANAGER`, `MEMBER` e `VIEWER` com autorização real no backend.
+
+**Estado na baseline pós-L5.1/L6.1:** **IMPLEMENTAÇÃO TÉCNICA CONCLUÍDA; HOMOLOGAÇÃO EXTERNA PENDENTE**. A L2.1 consolidou `ProjectMembership`, `ProjectInvitation`, equipe, convites e perfis; a L5.1 acrescentou os convites pessoais do UC05 e, como capacidade adicional ao TCC, ingresso por código/link. Os fluxos estão cobertos por testes automatizados. A entrega de convite por SMTP real e a homologação manual focada da L5.1 permanecem pendentes e não são consideradas `PASS`.
+
+**Decisões de produto:** `OWNER` é um papel contextual ao projeto e **não** representa Administrador do Sistema; nenhuma administração global está implementada. Usuário sem conta não autentica nem acessa a plataforma. Usuário com conta, mas sem `ProjectMembership` ativa, pode autenticar e permanecer sem projetos acessíveis; isso é comportamento correto, não uma lacuna.
 
 **Dependências:** S1-01; memberships existentes.  
 **Entregáveis:** gestão de equipe e perfis; regras de convite; isolamento por projeto; testes de autorização.
@@ -135,11 +157,12 @@ Entregar identidade e acesso homologados, planejamento colaborativo e a cadeia a
 
 **Checklist técnico:**
 
-- [ ] revisar regras e contratos de membership/invite;
-- [ ] completar UI de equipe, convites e perfis;
-- [ ] aplicar autorização por projeto e perfil;
-- [ ] testar matriz permitir/negar e isolamento;
-- [ ] atualizar documentação, auditoria e matriz RF.
+- [x] revisar regras e contratos de membership/invite;
+- [x] completar UI de equipe, convites e perfis;
+- [x] aplicar autorização por projeto e perfil;
+- [x] testar matriz permitir/negar e isolamento;
+- [x] atualizar documentação, auditoria e matriz RF;
+- [ ] homologar a entrega de convites por SMTP real e os cenários manuais focados da L5.1.
 
 ### S1-04 - Implementar sprints, cronograma e marcos
 

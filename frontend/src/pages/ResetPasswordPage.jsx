@@ -1,37 +1,4 @@
-import { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router';
-import { authApi } from '../features/auth/index.js';
-import { normalizeApiError } from '../shared/index.js';
+import { ResetPasswordScreen } from '../features/auth/pages/ResetPasswordScreen.jsx';
 export function ResetPasswordPage() {
-  const [params] = useSearchParams();
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const navigate = useNavigate();
-  async function submit(event) {
-    event.preventDefault();
-    try {
-      await authApi.resetPassword(params.get('token'), password);
-      navigate('/login');
-    } catch (cause) {
-      setError(normalizeApiError(cause).message);
-    }
-  }
-  return (
-    <main className="page">
-      <h1>Redefinir senha</h1>
-      <form onSubmit={submit}>
-        <label>
-          Nova senha
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-        </label>
-        {error && <p role="alert">{error}</p>}
-        <button type="submit">Redefinir</button>
-      </form>
-    </main>
-  );
+  return <ResetPasswordScreen />;
 }

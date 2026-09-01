@@ -68,3 +68,31 @@ test("bloqueia ausência do gate de migrations", () => {
     /Migration do banco de teste ausente/,
   );
 });
+
+test("bloqueia ausência dos cenários de evolução LR.5", () => {
+  assert.throws(
+    () =>
+      validateCi({
+        ...baseline,
+        workflow: baseline.workflow.replace(
+          "npm run db:test:validate-lr5",
+          "npm run test",
+        ),
+      }),
+    /Validação de upgrade populado e histórico LR.5 ausente/,
+  );
+});
+
+test("bloqueia ausência do upgrade representativo LR.8 para LR.9", () => {
+  assert.throws(
+    () =>
+      validateCi({
+        ...baseline,
+        workflow: baseline.workflow.replace(
+          "npm run db:test:validate-lr9",
+          "npm run test",
+        ),
+      }),
+    /Validação de upgrade representativo LR\.8 para LR\.9 ausente/,
+  );
+});

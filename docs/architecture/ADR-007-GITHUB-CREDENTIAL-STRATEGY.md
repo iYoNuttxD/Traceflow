@@ -1,16 +1,16 @@
 # ADR-007 — Estratégia de credencial e fronteira GitHub
 
-- **Estado:** aceita na E9
+- **Estado:** histórica; substituída operacionalmente pelo ADR-009 na L1
 - **Data:** 25/07/2026
 - **Relacionada:** [ADR-004](ADR-004-GITHUB-CREDENTIAL-OWNERSHIP.md)
 
-## Contexto
+## Contexto histórico
 
-O TRACEFLOW usa hoje um PAT técnico do servidor para consultar a API do GitHub. Esse segredo é sistêmico: não identifica o usuário autenticado no TRACEFLOW nem substitui a autorização por projeto. A E9 precisava tornar essa decisão explícita e impedir que módulos de domínio lessem o token ou construíssem clientes Octokit diretamente.
+Na E9, o TRACEFLOW usava um PAT técnico do servidor para consultar a API do GitHub. Esse segredo sistêmico não identificava o usuário autenticado nem substituía a autorização por projeto. A E9 tornou essa fronteira explícita e impediu que módulos de domínio lessem o token ou construíssem clientes Octokit diretamente.
 
 ## Decisão
 
-Enquanto não houver GitHub App ou OAuth, `GITHUB_TOKEN` permanece uma credencial técnica única do backend. Somente `github-credential.provider.js` lê a configuração validada e entrega a credencial ao factory de `github.client.js`. Controllers, services, repositories, frontend e persistência não recebem o token.
+Enquanto ainda não havia GitHub App ou OAuth, `GITHUB_TOKEN` era a credencial técnica única do backend. Controllers, repositories, frontend e persistência não recebiam o token.
 
 O client externo:
 
@@ -23,8 +23,6 @@ O client externo:
 
 Testes substituem somente a fronteira exportada; não existe resposta falsa no runtime. Falta de credencial gera erro público sanitizado, sem revelar nome, valor ou headers do segredo.
 
-## Consequências
+## Evolução vigente
 
-A quota, os escopos e o raio de impacto continuam compartilhados por todos os projetos. A autorização TRACEFLOW limita quem pode disparar operações, mas não reduz os privilégios do PAT no GitHub. Rotação e revogação seguem a política de segredos.
-
-A evolução recomendada é GitHub App por instalação, com escopos mínimos, credenciais por organização/repositório, armazenamento em secret manager e trilha de auditoria. Essa mudança exige novo ADR, fluxo de consentimento, modelo de persistência e migração; não faz parte da E9.
+A evolução recomendada foi implementada na L1 e consolidada pela LR.9. O provider atual assina JWT da GitHub App e cria Installation Tokens sob demanda; User Tokens são efêmeros e restritos aos callbacks de autenticação ou à prova do install flow. Não existe PAT operacional ou fallback `GITHUB_TOKEN`. Permanecem válidas as decisões E9 de base externa fixa, timeout/retry, paginação, DTO mínimo e isolamento do client, agora aplicadas à GitHub App conforme o ADR-012.

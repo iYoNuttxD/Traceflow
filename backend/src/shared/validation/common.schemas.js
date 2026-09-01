@@ -5,7 +5,7 @@ export const INPUT_LIMITS = Object.freeze({
   shortText: 191,
   search: 255,
   url: 191,
-  accessCode: 32,
+  accessCode: 80,
   hash: 191
 });
 
@@ -38,6 +38,12 @@ export const requiredText = ({
     .trim()
     .min(1, message)
     .max(max, `${field} deve possuir no máximo ${max} caracteres.`);
+
+export const publicCapabilityToken = ({
+  message = 'Link inválido ou expirado.',
+  min = 32,
+  max = 256
+} = {}) => z.string({ error: message }).min(min, message).max(max, message);
 
 export const optionalText = ({ field = 'Campo', max = INPUT_LIMITS.shortText } = {}) =>
   z

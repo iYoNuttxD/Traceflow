@@ -80,17 +80,24 @@ export const pullRequestRepository = {
     return prisma.pullRequest.findMany({
       where: {
         projectId,
-        ...(filters.search
-          ? {
-              OR: [
-                { title: { contains: filters.search } },
-                { authorUsername: { contains: filters.search } },
-                ...(numericSearch && Number.isInteger(pullRequestNumber)
-                  ? [{ number: pullRequestNumber }]
-                  : [])
+        AND: [
+          ...(filters.branch
+            ? [{ OR: [{ sourceBranch: filters.branch }, { targetBranch: filters.branch }] }]
+            : []),
+          ...(filters.search
+            ? [
+                {
+                  OR: [
+                    { title: { contains: filters.search } },
+                    { authorUsername: { contains: filters.search } },
+                    ...(numericSearch && Number.isInteger(pullRequestNumber)
+                      ? [{ number: pullRequestNumber }]
+                      : [])
+                  ]
+                }
               ]
-            }
-          : {})
+            : [])
+        ]
       },
       orderBy: [{ updatedAtGithub: 'desc' }, { createdAtGithub: 'desc' }, { createdAt: 'desc' }]
     });

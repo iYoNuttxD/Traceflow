@@ -1,0 +1,11 @@
+.tasks-layout {
+  display: grid;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+@media (max-width: 860px) {
+  .tasks-layout {
+    grid-template-columns: 1fr;
+  }
+}
