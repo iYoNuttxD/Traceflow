@@ -44,8 +44,8 @@ package, Storybook ou dependência visual nova e não transfere regra de domíni
 - progressive disclosure para ações complexas;
 - iconografia outline consistente, sem emoji como interface;
 - foco visível e feedback que não depende somente de cor;
-- temas visíveis Light e Dark, com preferência manual persistida;
-- preferência do sistema como resolução inicial quando não há escolha manual;
+- preferência visível em três estados: Sistema, Claro e Escuro;
+- Sistema como padrão, resolvido por `prefers-color-scheme`, com overrides manuais persistidos;
 - shell autenticado com sidebar expandida, recolhida e drawer mobile.
 - composição pública Focused para autenticação e estados de ciclo de conta.
 
@@ -144,8 +144,14 @@ nomes ligados a páginas, features ou produtos de referência.
 | `--color-overlay`                 | `rgb(11 18 31 / 48%)` | `rgb(2 6 12 / 72%)` | backdrop                       |
 
 Os tokens `on-light` são invariantes e existem somente para surfaces claras fixas que ainda não
-podem acompanhar o tema, como a compatibilidade temporária dos cards legados de Settings. Eles não
-formam uma segunda paleta e não devem substituir os pares normais de surface e texto temáticos.
+podem acompanhar o tema, como a compatibilidade temporária do canvas categórico legado de
+Traceability. Eles não formam uma segunda paleta e não devem substituir os pares normais de surface
+e texto temáticos.
+
+Surfaces legadas neutras devem preferir os pares temáticos normais quando a troca altera somente
+cor, sem mudar estrutura ou hierarquia. Uma light island é reservada a composições invariantes cuja
+tokenização mudaria a linguagem visual adiada — por exemplo, o canvas categórico de Traceability —
+e deve declarar foreground `on-light` legível. Compatibilidade Dark não promove a surface para C2.
 
 ### Accent e semântica
 
@@ -479,11 +485,17 @@ sem eliminar feedback de estado.
 
 ## Temas no runtime
 
-A interface oferece Light e Dark. Light é o `:root`; Dark sobrescreve somente tokens temáticos em
-`[data-theme="dark"]`. Sem preferência manual salva, o bootstrap consulta
-`prefers-color-scheme` antes do mount para reduzir flash de tema incorreto. Uma escolha manual passa
-a prevalecer e é persistida localmente; não existe uma terceira opção visível de tema. O provider
-resolve, aplica e alterna tema sem conhecer autenticação ou domínio.
+A interface oferece as preferências Sistema, Claro e Escuro em um único botão. Sistema é o default;
+Claro e Escuro são overrides manuais. Light é o `:root`, e Dark sobrescreve somente tokens temáticos
+em `[data-theme="dark"]`. A preferência persistida é sempre um dos valores `system`, `light` ou
+`dark`, preservando escolhas Light/Dark já existentes e tratando valor ausente ou inválido como
+Sistema.
+
+Sistema resolve o tema por meio da media feature padrão `prefers-color-scheme` antes do mount e
+acompanha mudanças do sistema operacional enquanto permanece selecionado. Browsers que suportam a
+media query recebem essa atualização sem reload; quando `matchMedia` não está disponível, o fallback
+é Light. Overrides Claro/Escuro ignoram eventos do sistema. O bootstrap anti-FOUC e o provider
+aplicam a mesma semântica sem detecção de navegador ou sistema operacional por user-agent.
 
 ## Shell autenticado
 

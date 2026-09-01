@@ -12,25 +12,26 @@
 
 .traceability-flow-toolbar p {
   margin: 0.25rem 0 0;
-  color: #667085;
+  color: var(--color-text-secondary);
 }
 
 .traceability-flow-empty {
   margin: 0;
   padding: 0.85rem 1rem;
-  border: 1px dashed #b8c4de;
+  border: 1px dashed var(--color-border-strong);
   border-radius: 12px;
-  color: #475467;
-  background: #f8fafc;
+  color: var(--color-text-secondary);
+  background: var(--color-surface-secondary);
 }
 
 .traceability-flow-canvas {
   overflow: hidden;
   height: 720px;
   min-height: 480px;
-  border: 1px solid #d8e0ee;
+  border: 1px solid var(--color-border-default);
   border-radius: 18px;
   background: #f8fafc;
+  color: var(--color-text-on-light-primary);
 }
 
 .trace-node {
@@ -40,11 +41,11 @@
   max-width: 360px;
   min-height: 96px;
   padding: 0.9rem;
-  border: 1px solid #d8e0ee;
+  border: 1px solid var(--color-border-default);
   border-radius: 14px;
-  color: #101828;
+  color: var(--color-text-on-light-primary);
   background: #fff;
-  box-shadow: 0 14px 30px rgba(30, 50, 90, 0.12);
+  box-shadow: var(--shadow-md);
 }
 
 .trace-node-expanded {
@@ -67,7 +68,7 @@
 
 .trace-node span,
 .trace-node-detail dt {
-  color: #667085;
+  color: var(--color-text-on-light-secondary);
   font-size: 0.72rem;
   font-weight: 900;
   letter-spacing: 0.06em;
@@ -77,7 +78,7 @@
 .trace-node strong {
   display: -webkit-box;
   overflow: hidden;
-  color: #101828;
+  color: var(--color-text-on-light-primary);
   line-height: 1.25;
   line-clamp: 2;
   -webkit-line-clamp: 2;
@@ -92,13 +93,13 @@
 
 .trace-node p {
   margin: 0;
-  color: #475467;
+  color: var(--color-text-on-light-secondary);
   font-size: 0.82rem;
   font-weight: 700;
 }
 
 .trace-node small {
-  color: #667085;
+  color: var(--color-text-on-light-secondary);
   font-size: 0.72rem;
   font-weight: 700;
 }
@@ -108,7 +109,7 @@
   gap: 0.55rem;
   margin: 0;
   padding-top: 0.65rem;
-  border-top: 1px solid rgba(102, 112, 133, 0.2);
+  border-top: 1px solid color-mix(in srgb, var(--color-text-on-light-secondary) 20%, transparent);
 }
 
 .trace-node-detail-row {
@@ -119,7 +120,7 @@
 .trace-node-detail dd {
   margin: 0;
   overflow-wrap: anywhere;
-  color: #101828;
+  color: var(--color-text-on-light-primary);
   font-size: 0.82rem;
   font-weight: 700;
   line-height: 1.35;
@@ -192,7 +193,7 @@
 }
 
 .react-flow__edge-path {
-  stroke: #667085;
+  stroke: var(--color-text-on-light-secondary);
   stroke-width: 2;
 }
 
@@ -207,15 +208,15 @@
 
 .traceability-flow-summary p {
   margin: 0.25rem 0;
-  color: #475467;
+  color: var(--color-text-secondary);
 }
 
 .traceability-flow-note {
   padding: 0.85rem 1rem;
-  border: 1px dashed #b8c4de;
+  border: 1px dashed var(--color-border-strong);
   border-radius: 12px;
-  color: #475467;
-  background: #f8fafc;
+  color: var(--color-text-secondary);
+  background: var(--color-surface-secondary);
 }
 
 .traceability-task-chain {
@@ -231,9 +232,10 @@
   display: grid;
   gap: 0.65rem;
   padding: 1rem;
-  border: 1px solid #e2e7f0;
+  border: 1px solid var(--color-border-default);
   border-radius: 12px;
-  background: #fbfcfe;
+  color: var(--color-text-primary);
+  background: var(--color-surface-secondary);
 }
 
 .traceability-task-item > div {
@@ -243,13 +245,13 @@
 }
 
 .traceability-task-item > div span {
-  color: #667085;
+  color: var(--color-text-secondary);
   font-weight: 800;
 }
 
 .traceability-task-item p {
   margin: 0;
-  color: #667085;
+  color: var(--color-text-secondary);
 }
 
 .traceability-task-item dl {
@@ -260,7 +262,7 @@
 }
 
 .traceability-task-item dt {
-  color: #667085;
+  color: var(--color-text-secondary);
   font-size: 0.75rem;
   font-weight: 800;
   text-transform: uppercase;
@@ -269,7 +271,7 @@
 .traceability-task-item dd {
   margin: 0.2rem 0 0;
   overflow-wrap: anywhere;
-  color: #101828;
+  color: var(--color-text-strong);
   font-weight: 700;
 }
 

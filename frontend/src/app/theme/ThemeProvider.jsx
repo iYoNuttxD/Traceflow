@@ -10,43 +10,61 @@ import {
 import {
   DARK_THEME_QUERY,
   applyTheme,
+  isThemePreference,
+  nextThemePreference,
   persistTheme,
-  readStoredTheme,
-  resolveInitialTheme
+  resolveInitialTheme,
+  resolveTheme
 } from './theme-preference.js';
 
 const ThemeContext = createContext(null);
 
 export function ThemeProvider({ children }) {
-  const [manualTheme, setManualTheme] = useState(() => readStoredTheme());
-  const [theme, setResolvedTheme] = useState(() => resolveInitialTheme());
+  const [themeState, setThemeState] = useState(() => resolveInitialTheme());
+  const { preference: themePreference, resolvedTheme } = themeState;
 
   useLayoutEffect(() => {
-    applyTheme(theme);
-  }, [theme]);
+    applyTheme(resolvedTheme);
+  }, [resolvedTheme]);
 
   useEffect(() => {
-    if (manualTheme || typeof window.matchMedia !== 'function') return undefined;
+    if (themePreference !== 'system' || typeof window.matchMedia !== 'function') return undefined;
     const media = window.matchMedia(DARK_THEME_QUERY);
-    const synchronizeWithSystem = (event) => setResolvedTheme(event.matches ? 'dark' : 'light');
-    media.addEventListener?.('change', synchronizeWithSystem);
-    return () => media.removeEventListener?.('change', synchronizeWithSystem);
-  }, [manualTheme]);
+    const synchronizeWithSystem = (event) =>
+      setThemeState((current) => ({
+        ...current,
+        resolvedTheme: event.matches ? 'dark' : 'light'
+      }));
 
-  const selectTheme = useCallback((nextTheme) => {
-    if (nextTheme !== 'light' && nextTheme !== 'dark') return;
-    persistTheme(nextTheme);
-    setManualTheme(nextTheme);
-    setResolvedTheme(nextTheme);
+    if (typeof media.addEventListener === 'function') {
+      media.addEventListener('change', synchronizeWithSystem);
+      return () => media.removeEventListener('change', synchronizeWithSystem);
+    }
+
+    if (typeof media.addListener === 'function') {
+      media.addListener(synchronizeWithSystem);
+      return () => media.removeListener(synchronizeWithSystem);
+    }
+
+    return undefined;
+  }, [themePreference]);
+
+  const selectTheme = useCallback((nextPreference) => {
+    if (!isThemePreference(nextPreference)) return;
+    persistTheme(nextPreference);
+    setThemeState({
+      preference: nextPreference,
+      resolvedTheme: resolveTheme(nextPreference)
+    });
   }, []);
 
-  const toggleTheme = useCallback(() => {
-    selectTheme(theme === 'dark' ? 'light' : 'dark');
-  }, [selectTheme, theme]);
+  const cycleTheme = useCallback(() => {
+    selectTheme(nextThemePreference(themePreference));
+  }, [selectTheme, themePreference]);
 
   const value = useMemo(
-    () => ({ theme, selectTheme, toggleTheme }),
-    [selectTheme, theme, toggleTheme]
+    () => ({ themePreference, resolvedTheme, selectTheme, cycleTheme }),
+    [cycleTheme, resolvedTheme, selectTheme, themePreference]
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

@@ -95,6 +95,12 @@ function ShellIcon({ name }) {
         <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3A1.7 1.7 0 0 0 14 21v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14h-.2v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6 1.7 1.7 0 0 0 10 3v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z" />
       </>
     ),
+    system: (
+      <>
+        <rect x="3" y="4" width="18" height="14" rx="2" />
+        <path d="M8 22h8M12 18v4" />
+      </>
+    ),
     sun: (
       <>
         <circle cx="12" cy="12" r="4" />
@@ -127,7 +133,7 @@ function TraceflowMark() {
 
 export function AppShell({ user, onLogout, children }) {
   const location = useLocation();
-  const { theme, toggleTheme } = useTheme();
+  const { themePreference, cycleTheme } = useTheme();
   const {
     projects,
     loading: projectsLoading,
@@ -225,8 +231,11 @@ export function AppShell({ user, onLogout, children }) {
     persistSidebarPreference(next);
   };
 
-  const nextThemeLabel = theme === 'dark' ? 'claro' : 'escuro';
-  const currentThemeLabel = theme === 'dark' ? 'Escuro' : 'Claro';
+  const themeControl = {
+    system: { label: 'Sistema', nextLabel: 'Claro', icon: 'system' },
+    light: { label: 'Claro', nextLabel: 'Escuro', icon: 'sun' },
+    dark: { label: 'Escuro', nextLabel: 'Sistema', icon: 'moon' }
+  }[themePreference];
   const sidebarState = collapsed ? 'collapsed' : 'expanded';
 
   return (
@@ -357,14 +366,14 @@ export function AppShell({ user, onLogout, children }) {
             <button
               className="trace-shell__nav-item"
               type="button"
-              onClick={toggleTheme}
-              aria-label={`Ativar tema ${nextThemeLabel}`}
-              data-tooltip={`Tema: ${currentThemeLabel}`}
+              onClick={cycleTheme}
+              aria-label={`Tema atual: ${themeControl.label}. Alterar para ${themeControl.nextLabel}.`}
+              data-tooltip={`Tema: ${themeControl.label}`}
             >
-              <ShellIcon name={theme === 'dark' ? 'moon' : 'sun'} />
+              <ShellIcon name={themeControl.icon} />
               <span className="trace-shell__theme-copy">
                 <span>Tema</span>
-                <small>{currentThemeLabel}</small>
+                <small>{themeControl.label}</small>
               </span>
             </button>
             <NavLink

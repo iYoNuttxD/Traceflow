@@ -12,10 +12,11 @@
   min-width: 0;
   height: 100%;
   flex-direction: column;
-  border: 1px solid #e2e7f0;
+  border: 1px solid var(--color-border-default);
   border-radius: 12px;
   padding: 1rem;
-  background: #fbfcfe;
+  color: var(--color-text-primary);
+  background: var(--color-surface-secondary);
 }
 
 .task-item-header {
@@ -32,7 +33,7 @@
 
 .task-item > p {
   margin: 0.75rem 0;
-  color: #667085;
+  color: var(--color-text-secondary);
   line-height: 1.5;
   display: -webkit-box;
   overflow: hidden;

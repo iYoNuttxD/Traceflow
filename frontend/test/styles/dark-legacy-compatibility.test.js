@@ -5,6 +5,36 @@ import { describe, expect, it } from 'vitest';
 const globalCss = readFileSync(resolve('src/styles/global.css'), 'utf8');
 const tokensCss = readFileSync(resolve('src/styles/tokens.css'), 'utf8');
 const kanbanCss = readFileSync(resolve('src/features/tasks/pages/KanbanScreen.css'), 'utf8');
+const kanbanBoardCss = readFileSync(
+  resolve('src/features/tasks/components/KanbanBoard.css'),
+  'utf8'
+);
+const movementHistoryCss = readFileSync(
+  resolve('src/features/tasks/components/MovementHistory.css'),
+  'utf8'
+);
+const taskDetailsCss = readFileSync(
+  resolve('src/features/tasks/components/TaskDetailsPanel.css'),
+  'utf8'
+);
+const taskListCss = readFileSync(resolve('src/features/tasks/components/TaskList.css'), 'utf8');
+const taskCardsCss = readFileSync(resolve('src/features/tasks/styles/task-cards.css'), 'utf8');
+const requirementsCss = readFileSync(
+  resolve('src/features/requirements/pages/RequirementsScreen.css'),
+  'utf8'
+);
+const traceabilityCss = readFileSync(
+  resolve('src/features/traceability/pages/TraceabilityScreen.css'),
+  'utf8'
+);
+const traceabilityFlowCss = readFileSync(
+  resolve('src/features/traceability/components/TraceabilityFlow.css'),
+  'utf8'
+);
+const repositoryCss = readFileSync(
+  resolve('src/features/github/pages/RepositoryInfoScreen.css'),
+  'utf8'
+);
 const settingsCss = readFileSync(resolve('src/features/settings/SettingsLayout.css'), 'utf8');
 const settingsLayout = readFileSync(resolve('src/features/settings/SettingsLayout.jsx'), 'utf8');
 const internalTabsCss = readFileSync(resolve('src/shared/styles/internal-tabs.css'), 'utf8');
@@ -41,6 +71,37 @@ function token(theme, name) {
   const match = theme.match(new RegExp(`${name}:\\s*(#[0-9a-f]{6})`, 'i'));
   expect(match, `Token CSS ausente ou não resolvido: ${name}`).not.toBeNull();
   return match[1];
+}
+
+function tokenMap(theme) {
+  return Object.fromEntries(
+    [...theme.matchAll(/(--[\w-]+):\s*([^;]+);/g)].map((match) => [match[1], match[2].trim()])
+  );
+}
+
+function resolvedToken(theme, name) {
+  const rootTokens = tokenMap(rule(tokensCss, ':root'));
+  const themeTokens =
+    theme === 'dark'
+      ? { ...rootTokens, ...tokenMap(rule(tokensCss, "[data-theme='dark']")) }
+      : rootTokens;
+  let value = themeTokens[name];
+  const visited = new Set();
+
+  while (value?.startsWith('var(')) {
+    expect(visited.has(value), `Ciclo de tokens ao resolver ${name}`).toBe(false);
+    visited.add(value);
+    value = themeTokens[value.slice(4, -1).trim()];
+  }
+
+  expect(value, `Token CSS não resolvido: ${name} (${theme})`).toMatch(/^#[0-9a-f]{6}$/i);
+  return value;
+}
+
+function property(cssRule, name) {
+  const match = cssRule.match(new RegExp(`${name}:\\s*([^;]+);`));
+  expect(match, `Propriedade CSS ausente: ${name}`).not.toBeNull();
+  return match[1].trim();
 }
 
 function relativeLuminance(hexColor) {
@@ -194,5 +255,123 @@ describe('compatibilidade de conteúdo legado com os temas', () => {
       )
     ).toContain('color: var(--color-danger-text)');
     expect(rule(settingsSharedCss, '.danger-impact')).toContain('color: var(--color-danger-text)');
+  });
+
+  it('torna forms, métricas e erros globais temáticos na origem', () => {
+    const controls = rule(globalCss, '.field input,\n.field textarea,\n.field select');
+    expect(rule(globalCss, '.field span')).toContain('color: var(--color-text-primary)');
+    expect(controls).toContain('color: var(--color-text-primary)');
+    expect(controls).toContain('background: var(--color-bg-input)');
+    expect(controls).toContain('border: 1px solid var(--color-border-default)');
+    expect(rule(globalCss, '.field-error')).toContain('color: var(--color-danger-text)');
+    expect(rule(globalCss, '.metric-value')).toContain('color: var(--color-accent-text)');
+    expect(rule(globalCss, '.metric-description')).toContain('color: var(--color-text-secondary)');
+  });
+
+  it('cobre os panels que causaram o finding HIGH sem alterar seu layout', () => {
+    expect(rule(taskListCss, '.task-item')).toContain('background: var(--color-surface-secondary)');
+    expect(rule(kanbanBoardCss, '.kanban-column')).toContain(
+      'background: var(--color-surface-secondary)'
+    );
+    expect(rule(kanbanBoardCss, '.kanban-task')).toContain(
+      'background: var(--color-surface-primary)'
+    );
+    expect(rule(movementHistoryCss, '.kanban-history')).toContain(
+      'background: var(--color-surface-primary)'
+    );
+    expect(
+      rule(requirementsCss, '.requirement-item,\n.requirement-detail-panel,\n.linked-task-item')
+    ).toContain('background: var(--color-surface-secondary)');
+    expect(rule(traceabilityCss, '.traceability-table-wrapper')).toContain(
+      'background: var(--color-surface-primary)'
+    );
+    expect(rule(repositoryCss, '.repository-table-wrapper')).toContain(
+      'background: var(--color-surface-primary)'
+    );
+  });
+
+  it('mantém foreground e background dos principais pares acima de 4.5:1', () => {
+    const pairs = [
+      ['--color-text-primary', '--color-bg-input'],
+      ['--color-text-primary', '--color-surface-secondary'],
+      ['--color-text-secondary', '--color-surface-secondary'],
+      ['--color-text-strong', '--color-surface-primary'],
+      ['--color-accent-text', '--color-surface-primary'],
+      ['--color-danger-text', '--color-surface-primary'],
+      ['--color-success-text', '--color-success-surface'],
+      ['--color-warning-text', '--color-warning-surface'],
+      ['--color-neutral-text', '--color-neutral-surface']
+    ];
+
+    for (const theme of ['light', 'dark']) {
+      for (const [foreground, background] of pairs) {
+        expect(
+          contrastRatio(resolvedToken(theme, foreground), resolvedToken(theme, background)),
+          `${foreground} sobre ${background} em ${theme}`
+        ).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  });
+
+  it('preserva o canvas categórico como light island com pares explícitos legíveis', () => {
+    expect(rule(traceabilityFlowCss.split('@media')[0], '.traceability-flow-canvas')).toContain(
+      'color: var(--color-text-on-light-primary)'
+    );
+    expect(rule(traceabilityFlowCss, '.trace-node strong')).toContain(
+      'color: var(--color-text-on-light-primary)'
+    );
+    expect(rule(traceabilityFlowCss, '.trace-node span,\n.trace-node-detail dt')).toContain(
+      'color: var(--color-text-on-light-secondary)'
+    );
+
+    const categoricalPairs = [
+      ['.trace-node-requirement', '.trace-node-requirement span,\n.trace-node-requirement p'],
+      ['.trace-node-task', '.trace-node-task span,\n.trace-node-task p'],
+      ['.trace-node-issue', '.trace-node-issue span,\n.trace-node-issue p'],
+      ['.trace-node-pull-request', '.trace-node-pull-request span,\n.trace-node-pull-request p'],
+      ['.trace-node-commit', '.trace-node-commit span,\n.trace-node-commit p']
+    ];
+
+    for (const [surfaceSelector, textSelector] of categoricalPairs) {
+      expect(
+        contrastRatio(
+          property(rule(traceabilityFlowCss, textSelector), 'color'),
+          property(rule(traceabilityFlowCss, surfaceSelector), 'background')
+        )
+      ).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it('usa a camada semântica de modal acima da navegação', () => {
+    expect(rule(taskDetailsCss, '.task-detail-overlay')).toContain('z-index: var(--z-modal)');
+    expect(rule(taskDetailsCss, '.task-detail-overlay')).toContain(
+      'background: var(--color-overlay)'
+    );
+    expect(rule(taskDetailsCss, '.task-detail-modal')).toContain(
+      'background: var(--color-surface-elevated)'
+    );
+    const foundations = rule(tokensCss, ':root');
+    const navigationLayer = Number(foundations.match(/--z-navigation:\s*(\d+)/)?.[1]);
+    const modalLayer = Number(foundations.match(/--z-modal:\s*(\d+)/)?.[1]);
+    expect(modalLayer).toBeGreaterThan(navigationLayer);
+  });
+
+  it('não reintroduz literais de tema nos owners neutros auditados', () => {
+    const semanticOwners = [
+      globalCss,
+      taskListCss,
+      taskCardsCss,
+      kanbanBoardCss,
+      movementHistoryCss,
+      taskDetailsCss,
+      kanbanCss,
+      requirementsCss,
+      traceabilityCss,
+      repositoryCss
+    ];
+
+    for (const css of semanticOwners) {
+      expect(css).not.toMatch(/#[0-9a-f]{3,8}|rgba?\(/i);
+    }
   });
 });

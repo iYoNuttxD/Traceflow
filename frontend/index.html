@@ -8,21 +8,28 @@
     <title>TRACEFLOW</title>
     <script>
       (() => {
-        let theme;
+        let preference = 'system';
         try {
           const savedTheme = window.localStorage.getItem('traceflow.theme');
-          if (savedTheme === 'light' || savedTheme === 'dark') theme = savedTheme;
+          if (savedTheme === 'system' || savedTheme === 'light' || savedTheme === 'dark') {
+            preference = savedTheme;
+          }
         } catch {
           // O provider aplica o fallback se o armazenamento local estiver indisponível.
         }
-        if (!theme) {
+        let resolvedTheme = preference;
+        if (preference === 'system') {
           try {
-            theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            resolvedTheme =
+              typeof window.matchMedia === 'function' &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'dark'
+                : 'light';
           } catch {
-            theme = 'light';
+            resolvedTheme = 'light';
           }
         }
-        document.documentElement.dataset.theme = theme;
+        document.documentElement.dataset.theme = resolvedTheme;
       })();
     </script>
   </head>

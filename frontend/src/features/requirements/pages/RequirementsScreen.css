@@ -39,10 +39,11 @@
 .requirement-item,
 .requirement-detail-panel,
 .linked-task-item {
-  border: 1px solid #e2e7f0;
+  border: 1px solid var(--color-border-default);
   border-radius: 12px;
   padding: 1rem;
-  background: #fbfcfe;
+  color: var(--color-text-primary);
+  background: var(--color-surface-secondary);
 }
 
 .requirement-item {
@@ -62,14 +63,14 @@
 .requirement-detail-panel h3,
 .linked-tasks-panel h3 {
   margin: 0.35rem 0 0;
-  color: #101828;
+  color: var(--color-text-strong);
 }
 
 .requirement-item p,
 .requirement-detail-panel p,
 .linked-task-item p {
   margin: 0.75rem 0;
-  color: #667085;
+  color: var(--color-text-secondary);
   line-height: 1.5;
 }
 
@@ -90,7 +91,7 @@
 }
 
 .requirement-details dt {
-  color: #667085;
+  color: var(--color-text-secondary);
   font-size: 0.72rem;
   font-weight: 800;
   text-transform: uppercase;
@@ -124,7 +125,7 @@
 }
 
 .linked-task-item span {
-  color: #667085;
+  color: var(--color-text-secondary);
   font-size: 0.82rem;
   font-weight: 800;
   text-transform: uppercase;

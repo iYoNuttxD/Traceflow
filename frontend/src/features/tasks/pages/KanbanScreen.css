@@ -20,9 +20,10 @@
 .kanban-owner-field,
 .kanban-metric-panel {
   padding: 1rem;
-  border: 1px solid #e2e7f0;
+  border: 1px solid var(--color-border-default);
   border-radius: 12px;
-  background: #fff;
+  color: var(--color-text-primary);
+  background: var(--color-surface-primary);
 }
 
 .kanban-metric-panel {

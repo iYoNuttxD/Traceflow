@@ -204,8 +204,30 @@ describe('AppShell', () => {
     renderShell();
     expect(await screen.findByText('Projetos rápidos indisponíveis.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Projetos' })).toHaveAttribute('href', '/projects');
-    expect(screen.getByRole('button', { name: 'Ativar tema escuro' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Tema atual: Sistema. Alterar para Claro.' })
+    ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Sair' })).toBeInTheDocument();
     expect(window.localStorage.getItem(keys.pinned)).toBe('["1"]');
+  });
+
+  it('expõe o estado e a próxima ação no ciclo Sistema → Claro → Escuro → Sistema', async () => {
+    const interaction = userEvent.setup();
+    renderShell();
+
+    await interaction.click(
+      screen.getByRole('button', { name: 'Tema atual: Sistema. Alterar para Claro.' })
+    );
+    await interaction.click(
+      screen.getByRole('button', { name: 'Tema atual: Claro. Alterar para Escuro.' })
+    );
+    await interaction.click(
+      screen.getByRole('button', { name: 'Tema atual: Escuro. Alterar para Sistema.' })
+    );
+
+    expect(
+      screen.getByRole('button', { name: 'Tema atual: Sistema. Alterar para Claro.' })
+    ).toHaveAttribute('data-tooltip', 'Tema: Sistema');
+    expect(window.localStorage.getItem('traceflow.theme')).toBe('system');
   });
 });

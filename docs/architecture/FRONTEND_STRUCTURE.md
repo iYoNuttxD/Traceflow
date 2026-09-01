@@ -24,7 +24,7 @@ src/
 ├── app/
 │   ├── layout/                  # shell autenticado e preferências de navegação
 │   ├── routes/                  # composição e lazy loading de rotas
-│   └── theme/                   # resolução e persistência Light/Dark
+│   └── theme/                   # preferência System/Light/Dark e tema resolvido
 ├── api/
 │   └── http-client.js
 ├── pages/                     # adaptadores finos de rota
@@ -71,9 +71,11 @@ drawer gerencia Escape, foco inicial, contenção do foco, conteúdo de fundo in
 trigger; as transições respeitam reduced motion. Todos os controles expostos preservam área mínima
 de 44 × 44 px.
 
-`app/theme` resolve Light/Dark, aplica `data-theme` no elemento `html` e persiste apenas a escolha
-manual. Sem preferência válida, usa `prefers-color-scheme`; o script mínimo em `index.html` aplica a
-mesma resolução antes do mount. Não existe opção visual System.
+`app/theme` separa a preferência `system | light | dark` do tema resolvido `light | dark`, aplica
+`data-theme` no elemento `html` e persiste os três estados. Sistema é o default e usa
+`prefers-color-scheme`, acompanhando mudanças do sistema operacional; Claro/Escuro ignoram esses
+eventos. O script mínimo em `index.html` aplica a mesma resolução antes do mount e usa Light quando
+`matchMedia` não está disponível.
 
 `ProjectsCatalogProvider` pertence a `features/projects` e compartilha a resposta autorizada de
 `GET /projects` entre shell e Projects. O shell mantém fixados e recentes como preferências locais

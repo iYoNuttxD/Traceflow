@@ -16,9 +16,10 @@
 
 .traceability-table-wrapper {
   overflow-x: auto;
-  border: 1px solid #e2e7f0;
+  border: 1px solid var(--color-border-default);
   border-radius: 14px;
-  background: #fff;
+  color: var(--color-text-primary);
+  background: var(--color-surface-primary);
 }
 
 .traceability-table {
@@ -30,18 +31,18 @@
 .traceability-table th,
 .traceability-table td {
   padding: 0.9rem 1rem;
-  border-bottom: 1px solid #eef1f6;
-  color: #344054;
+  border-bottom: 1px solid var(--color-border-default);
+  color: var(--color-text-primary);
   text-align: left;
   vertical-align: top;
 }
 
 .traceability-table th {
-  color: #667085;
+  color: var(--color-text-secondary);
   font-size: 0.78rem;
   font-weight: 800;
   text-transform: uppercase;
-  background: #f8fafc;
+  background: var(--color-surface-secondary);
 }
 
 .traceability-table tr {
@@ -50,7 +51,7 @@
 
 .traceability-table tbody tr:hover,
 .traceability-row-selected {
-  background: #f3f6ff;
+  background: var(--color-accent-surface);
 }
 
 .traceability-row-button {
@@ -66,13 +67,13 @@
 }
 
 .traceability-row-button strong {
-  color: #101828;
+  color: var(--color-text-strong);
 }
 
 .traceability-row-button span {
   display: -webkit-box;
   overflow: hidden;
-  color: #667085;
+  color: var(--color-text-secondary);
   font-size: 0.85rem;
   line-clamp: 2;
   -webkit-line-clamp: 2;
@@ -92,15 +93,15 @@
 .traceability-progress-bar {
   overflow: hidden;
   height: 8px;
-  border-radius: 999px;
-  background: #e7edff;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-surface);
 }
 
 .traceability-progress-bar span {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: #315bce;
+  background: var(--color-accent-primary);
 }
 
 .traceability-flow-placeholder {

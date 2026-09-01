@@ -6,7 +6,7 @@
 
 .priority-badge {
   display: inline-flex;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 0.25rem 0.55rem;
   font-size: 0.7rem;
   font-weight: 800;
@@ -14,23 +14,23 @@
 }
 
 .priority-baixa {
-  color: #17643b;
-  background: #dcf4e7;
+  color: var(--color-success-text);
+  background: var(--color-success-surface);
 }
 
 .priority-media {
-  color: #315bce;
-  background: #e7edff;
+  color: var(--color-info-text);
+  background: var(--color-info-surface);
 }
 
 .priority-alta {
-  color: #875a13;
-  background: #fff0cd;
+  color: var(--color-warning-text);
+  background: var(--color-warning-surface);
 }
 
 .priority-critica {
-  color: #9f2d2d;
-  background: #ffe1e1;
+  color: var(--color-danger-text);
+  background: var(--color-danger-surface);
 }
 
 .task-details {
@@ -46,7 +46,7 @@
 }
 
 .task-details dt {
-  color: #667085;
+  color: var(--color-text-secondary);
   font-size: 0.72rem;
   font-weight: 800;
   text-transform: uppercase;

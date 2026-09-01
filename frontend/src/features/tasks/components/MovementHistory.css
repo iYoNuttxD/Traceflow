@@ -4,9 +4,10 @@
 
 .kanban-history {
   padding: 1.25rem;
-  border: 1px solid #e2e7f0;
+  border: 1px solid var(--color-border-default);
   border-radius: 12px;
-  background: #fff;
+  color: var(--color-text-primary);
+  background: var(--color-surface-primary);
 }
 
 .kanban-section-header {
@@ -19,13 +20,13 @@
 
 .kanban-section-header h2 {
   margin: 0 0 0.35rem;
-  color: #101828;
+  color: var(--color-text-strong);
   font-size: 1.2rem;
 }
 
 .kanban-section-header p {
   margin: 0;
-  color: #667085;
+  color: var(--color-text-secondary);
 }
 
 .kanban-history-filters {
@@ -60,7 +61,7 @@
   justify-content: center;
   gap: 0.85rem;
   margin-top: 1rem;
-  color: #475467;
+  color: var(--color-text-secondary);
   font-weight: 800;
 }
 
@@ -73,14 +74,15 @@
   gap: 0.75rem;
   align-items: center;
   padding: 0.85rem;
-  border: 1px solid #e2e7f0;
+  border: 1px solid var(--color-border-default);
   border-radius: 10px;
-  background: #fbfcfe;
+  color: var(--color-text-primary);
+  background: var(--color-surface-secondary);
 }
 
 .movement-item span,
 .movement-item time {
-  color: #667085;
+  color: var(--color-text-secondary);
   font-size: 0.9rem;
 }
 
