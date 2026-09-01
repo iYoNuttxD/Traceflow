@@ -6,6 +6,7 @@ import {
   LoadingState,
   TraceFlowIcon,
   normalizeApiError,
+  useAbortableRequest,
   useCountdown
 } from '../../../shared/index.js';
 import {
@@ -61,14 +62,17 @@ export function ProjectsScreen() {
     error: projectsRequestError,
     refreshProjects
   } = useProjectsCatalog();
-  const [repositories, setRepositories] = useState([]);
+  const [repositoryRequestState, setRepositoryRequestState] = useState({
+    projectId: null,
+    repositories: [],
+    loading: false,
+    error: ''
+  });
   const [installations, setInstallations] = useState([]);
   const [formData, setFormData] = useState(emptyProjectForm);
   const [duplicateRepository, setDuplicateRepository] = useState(null);
   const [highlightedProjectId, setHighlightedProjectId] = useState(null);
-  const [loadingRepositories, setLoadingRepositories] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [repositoriesError, setRepositoriesError] = useState('');
   const [operationError, setOperationError] = useState('');
   const [operationRetryAfterSeconds, setOperationRetryAfterSeconds] = useState(0);
   const [installationsError, setInstallationsError] = useState('');
@@ -77,53 +81,99 @@ export function ProjectsScreen() {
   const [newProjectDialogOpen, setNewProjectDialogOpen] = useState(Boolean(reconnectProjectId));
   const [invitationState, setInvitationState] = useState({ count: 0, loading: true });
   const operationCooldown = useCountdown(operationRetryAfterSeconds);
+  const { run: runRepositoriesRequest } = useAbortableRequest();
+  const { run: runInstallationsRequest } = useAbortableRequest();
   const operationLock = useRef(false);
+  const repositoryStateBelongsToContext =
+    String(repositoryRequestState.projectId || '') === String(reconnectProjectId || '');
+  const repositories = repositoryStateBelongsToContext ? repositoryRequestState.repositories : [];
+  const loadingRepositories = repositoryStateBelongsToContext
+    ? repositoryRequestState.loading
+    : true;
+  const repositoriesError = repositoryStateBelongsToContext ? repositoryRequestState.error : '';
   const projectsError = projectsRequestError?.message || '';
   const projectsRetryAfterSeconds = projectsRequestError?.retryAfterSeconds || 0;
 
-  const loadRepositories = useCallback(async () => {
-    setLoadingRepositories(true);
-    setRepositoriesError('');
+  const loadRepositories = useCallback(
+    () =>
+      runRepositoriesRequest(async (signal) => {
+        const requestedProjectId = reconnectProjectId || null;
+        setRepositoryRequestState((current) => ({
+          projectId: requestedProjectId,
+          repositories:
+            String(current.projectId || '') === String(requestedProjectId || '')
+              ? current.repositories
+              : [],
+          loading: true,
+          error: ''
+        }));
 
-    try {
-      const response = await projectsApi.listAllGithubRepositories(reconnectProjectId);
-      const validRepositories = (response.data.repositories || [])
-        .map(normalizeRepository)
-        .filter(
-          (repository) =>
-            repository.id &&
-            repository.owner &&
-            repository.name &&
-            repository.fullName &&
-            repository.url &&
-            repository.defaultBranch &&
-            repository.githubInstallationId
-        );
-      setRepositories(validRepositories);
-    } catch (requestError) {
-      setRepositories([]);
-      setRepositoriesError(
-        normalizeApiError(requestError, 'Não foi possível carregar os repositórios do GitHub.')
-          .message
-      );
-    } finally {
-      setLoadingRepositories(false);
-    }
-  }, [reconnectProjectId]);
+        try {
+          const response = await projectsApi.listAllGithubRepositories(reconnectProjectId, {
+            signal
+          });
+          if (signal.aborted) return;
+          const validRepositories = (response.data.repositories || [])
+            .map(normalizeRepository)
+            .filter(
+              (repository) =>
+                repository.id &&
+                repository.owner &&
+                repository.name &&
+                repository.fullName &&
+                repository.url &&
+                repository.defaultBranch &&
+                repository.githubInstallationId
+            );
+          setRepositoryRequestState({
+            projectId: requestedProjectId,
+            repositories: validRepositories,
+            loading: false,
+            error: ''
+          });
+        } catch (requestError) {
+          if (signal.aborted) throw requestError;
+          setRepositoryRequestState({
+            projectId: requestedProjectId,
+            repositories: [],
+            loading: false,
+            error: normalizeApiError(
+              requestError,
+              'Não foi possível carregar os repositórios do GitHub.'
+            ).message
+          });
+        } finally {
+          if (!signal.aborted) {
+            setRepositoryRequestState((current) =>
+              String(current.projectId || '') === String(requestedProjectId || '')
+                ? { ...current, loading: false }
+                : current
+            );
+          }
+        }
+      }),
+    [reconnectProjectId, runRepositoriesRequest]
+  );
 
-  const loadInstallations = useCallback(async () => {
-    setInstallationsError('');
-    try {
-      const response = await projectsApi.listGithubInstallations();
-      setInstallations(response.data.installations || []);
-    } catch (requestError) {
-      setInstallations([]);
-      setInstallationsError(
-        normalizeApiError(requestError, 'Não foi possível verificar a conexão com o GitHub.')
-          .message
-      );
-    }
-  }, []);
+  const loadInstallations = useCallback(
+    () =>
+      runInstallationsRequest(async (signal) => {
+        setInstallationsError('');
+        try {
+          const response = await projectsApi.listGithubInstallations({ signal });
+          if (signal.aborted) return;
+          setInstallations(response.data.installations || []);
+        } catch (requestError) {
+          if (signal.aborted) throw requestError;
+          setInstallations([]);
+          setInstallationsError(
+            normalizeApiError(requestError, 'Não foi possível verificar a conexão com o GitHub.')
+              .message
+          );
+        }
+      }),
+    [runInstallationsRequest]
+  );
 
   useEffect(() => {
     loadInstallations();

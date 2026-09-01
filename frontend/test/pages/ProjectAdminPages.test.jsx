@@ -1,5 +1,5 @@
-import { MemoryRouter, Route, Routes } from 'react-router';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter, Route, Routes, useNavigate } from 'react-router';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfirmProvider } from '../../src/shared/index.js';
@@ -62,18 +62,39 @@ const ownerMembershipData = {
   ]
 };
 
+let navigateAdmin;
+
+function deferred() {
+  let resolve;
+  const promise = new Promise((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
+function EditHarness() {
+  navigateAdmin = useNavigate();
+  return (
+    <ConfirmProvider>
+      <ProjectEditPage />
+    </ConfirmProvider>
+  );
+}
+
+function MembersHarness() {
+  navigateAdmin = useNavigate();
+  return (
+    <ConfirmProvider>
+      <ProjectMembersPage />
+    </ConfirmProvider>
+  );
+}
+
 function renderEdit() {
   return render(
     <MemoryRouter initialEntries={['/projects/7/edit']}>
       <Routes>
-        <Route
-          path="/projects/:projectId/edit"
-          element={
-            <ConfirmProvider>
-              <ProjectEditPage />
-            </ConfirmProvider>
-          }
-        />
+        <Route path="/projects/:projectId/edit" element={<EditHarness />} />
       </Routes>
     </MemoryRouter>
   );
@@ -83,14 +104,8 @@ function renderMembers() {
   return render(
     <MemoryRouter initialEntries={['/projects/7/members']}>
       <Routes>
-        <Route
-          path="/projects/:projectId/members"
-          element={
-            <ConfirmProvider>
-              <ProjectMembersPage />
-            </ConfirmProvider>
-          }
-        />
+        <Route path="/projects/:projectId/members" element={<MembersHarness />} />
+        <Route path="/projects" element={<h1>Projetos</h1>} />
       </Routes>
     </MemoryRouter>
   );
@@ -99,6 +114,7 @@ function renderMembers() {
 describe('rotas administrativas de projeto', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    navigateAdmin = undefined;
     mocks.projects.get.mockResolvedValue({ data: { project } });
     mocks.projects.getAccessCode.mockResolvedValue({
       data: {
@@ -111,6 +127,8 @@ describe('rotas administrativas de projeto', () => {
     });
     mocks.members.list.mockResolvedValue(ownerMembershipData);
     mocks.members.invitations.mockResolvedValue([]);
+    mocks.members.leave.mockResolvedValue({});
+    mocks.refreshProjects.mockResolvedValue([]);
   });
 
   it('migra edição para rota OWNER e preserva campos e payload', async () => {
@@ -237,5 +255,139 @@ describe('rotas administrativas de projeto', () => {
     ).not.toBeInTheDocument();
     expect(mocks.projects.getAccessCode).not.toHaveBeenCalled();
     expect(screen.queryByRole('button', { name: 'Enviar convite' })).not.toBeInTheDocument();
+  });
+
+  it('invalida o catálogo e substitui a rota após saída confirmada', async () => {
+    mocks.members.list.mockResolvedValue({
+      ...ownerMembershipData,
+      currentMembership: { id: 2, role: 'MEMBER', isActive: true }
+    });
+    const user = userEvent.setup();
+    renderMembers();
+
+    await user.click(await screen.findByRole('button', { name: 'Sair do projeto' }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Sair' }));
+
+    expect(mocks.members.leave).toHaveBeenCalledWith('7');
+    expect(mocks.refreshProjects).toHaveBeenCalledOnce();
+    expect(await screen.findByRole('heading', { name: 'Projetos' })).toBeInTheDocument();
+  });
+
+  it('preserva a rota e o catálogo quando a saída falha', async () => {
+    mocks.members.list.mockResolvedValue({
+      ...ownerMembershipData,
+      currentMembership: { id: 2, role: 'MEMBER', isActive: true }
+    });
+    mocks.members.leave.mockRejectedValue({
+      response: { status: 409, data: { message: 'Não foi possível sair deste projeto.' } }
+    });
+    const user = userEvent.setup();
+    renderMembers();
+
+    await user.click(await screen.findByRole('button', { name: 'Sair do projeto' }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Sair' }));
+
+    expect(await screen.findByText('Não foi possível sair deste projeto.')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Membros do projeto' })).toBeInTheDocument();
+    expect(mocks.refreshProjects).not.toHaveBeenCalled();
+  });
+
+  it('não deixa a autorização OWNER de A habilitar o formulário MEMBER de B', async () => {
+    const membershipA = deferred();
+    const projectB = { ...project, id: 8, name: 'Projeto B' };
+    mocks.projects.get.mockImplementation((projectId) =>
+      Promise.resolve({ data: { project: projectId === '7' ? project : projectB } })
+    );
+    mocks.members.list.mockImplementation((projectId) =>
+      projectId === '7'
+        ? membershipA.promise
+        : Promise.resolve({
+            currentMembership: { id: 8, role: 'MEMBER', isActive: true },
+            members: []
+          })
+    );
+    renderEdit();
+    await waitFor(() => expect(mocks.members.list).toHaveBeenCalledWith('7', expect.any(Object)));
+
+    act(() => navigateAdmin('/projects/8/edit'));
+    expect(
+      await screen.findByRole('heading', { name: 'Você não possui acesso a esta página.' })
+    ).toBeInTheDocument();
+
+    await act(async () => {
+      membershipA.resolve(ownerMembershipData);
+      await membershipA.promise;
+    });
+    expect(
+      screen.getByRole('heading', { name: 'Você não possui acesso a esta página.' })
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText('Nome do projeto *')).not.toBeInTheDocument();
+  });
+
+  it('mantém members B sem controls OWNER quando a lista de A chega atrasada', async () => {
+    const membersA = deferred();
+    const projectB = { ...project, id: 8, name: 'Projeto B' };
+    mocks.projects.get.mockImplementation((projectId) =>
+      Promise.resolve({ data: { project: projectId === '7' ? project : projectB } })
+    );
+    mocks.members.list.mockImplementation((projectId) =>
+      projectId === '7'
+        ? membersA.promise
+        : Promise.resolve({
+            ...ownerMembershipData,
+            currentMembership: { id: 8, role: 'MEMBER', isActive: true }
+          })
+    );
+    renderMembers();
+    await waitFor(() => expect(mocks.members.list).toHaveBeenCalledWith('7', expect.any(Object)));
+
+    act(() => navigateAdmin('/projects/8/members'));
+    await waitFor(() =>
+      expect(screen.getByRole('link', { name: 'Voltar para visão geral' })).toHaveAttribute(
+        'href',
+        '/projects/8'
+      )
+    );
+    expect(screen.queryByRole('tab', { name: 'Convites' })).not.toBeInTheDocument();
+
+    await act(async () => {
+      membersA.resolve(ownerMembershipData);
+      await membersA.promise;
+    });
+    expect(screen.queryByRole('tab', { name: 'Convites' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Desativar' })).not.toBeInTheDocument();
+    expect(mocks.projects.getAccessCode).not.toHaveBeenCalledWith('8');
+  });
+
+  it('ignora o projeto A atrasado no loader da rota de membros', async () => {
+    const projectA = deferred();
+    const projectB = { ...project, id: 8, name: 'Projeto B' };
+    mocks.projects.get.mockImplementation((projectId) =>
+      projectId === '7' ? projectA.promise : Promise.resolve({ data: { project: projectB } })
+    );
+    mocks.members.list.mockResolvedValue({
+      ...ownerMembershipData,
+      currentMembership: { id: 8, role: 'MEMBER', isActive: true }
+    });
+    renderMembers();
+    await waitFor(() => expect(mocks.projects.get).toHaveBeenCalledWith('7', expect.any(Object)));
+
+    act(() => navigateAdmin('/projects/8/members'));
+    await waitFor(() =>
+      expect(screen.getByRole('link', { name: 'Voltar para visão geral' })).toHaveAttribute(
+        'href',
+        '/projects/8'
+      )
+    );
+
+    await act(async () => {
+      projectA.resolve({ data: { project } });
+      await projectA.promise;
+    });
+    expect(screen.getByRole('link', { name: 'Voltar para visão geral' })).toHaveAttribute(
+      'href',
+      '/projects/8'
+    );
+    expect(screen.queryByText('Projeto administrativo')).not.toBeInTheDocument();
   });
 });

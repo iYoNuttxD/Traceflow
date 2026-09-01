@@ -11,6 +11,7 @@ import {
   getErrorRequestId,
   normalizeApiError,
   TraceFlowIcon,
+  useAbortableRequest,
   useCountdown
 } from '../../../shared/index.js';
 import { ProjectSectionNav } from '../components/ProjectSectionNav.jsx';
@@ -116,69 +117,117 @@ function getGithubSyncDisplay(project, syncStatus) {
 export function ProjectDetailsScreen() {
   const { id } = useParams();
   const [project, setProject] = useState(null);
+  const [loadedProjectId, setLoadedProjectId] = useState(null);
   const [activeMembers, setActiveMembers] = useState(null);
   const [currentMembership, setCurrentMembership] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [githubSyncRun, setGithubSyncRun] = useState(null);
-  const [githubSyncStatus, setGithubSyncStatus] = useState('idle');
+  const [githubSyncState, setGithubSyncState] = useState({
+    projectId: null,
+    run: null,
+    status: 'idle'
+  });
   const [pageError, setPageError] = useState(null);
   const [membershipError, setMembershipError] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [retryAfterSeconds, setRetryAfterSeconds] = useState(0);
   const cooldown = useCountdown(retryAfterSeconds);
-  const syncLock = useRef(false);
+  const { run: runProjectLoad } = useAbortableRequest();
+  const { run: runProjectRefresh } = useAbortableRequest();
+  const { run: runSyncStatusProbe, cancel: cancelSyncStatusProbe } = useAbortableRequest();
+  const routeProjectIdRef = useRef(id);
+  const syncLock = useRef(null);
+  routeProjectIdRef.current = id;
+  const syncStateBelongsToRoute = String(githubSyncState.projectId) === String(id);
+  const githubSyncRun = syncStateBelongsToRoute ? githubSyncState.run : null;
+  const githubSyncStatus = syncStateBelongsToRoute ? githubSyncState.status : 'idle';
 
   const refreshProjectDetails = useCallback(async () => {
-    const projectResponse = await projectsApi.get(id);
+    const requestedProjectId = id;
+    const projectResponse = await runProjectRefresh((signal) =>
+      projectsApi.get(requestedProjectId, { signal })
+    );
+    if (!projectResponse || routeProjectIdRef.current !== requestedProjectId) return null;
     setProject(projectResponse.data.project);
+    setLoadedProjectId(requestedProjectId);
     return projectResponse.data.project;
-  }, [id]);
+  }, [id, runProjectRefresh]);
 
-  const loadProject = useCallback(async () => {
-    setLoading(true);
-    setPageError(null);
-    setMembershipError('');
-    setError('');
-    setRetryAfterSeconds(0);
-    setGithubSyncStatus('idle');
-
-    try {
-      await refreshProjectDetails();
-      try {
-        const membershipData = await membersApi.list(id);
-        setActiveMembers((membershipData.members || []).filter((member) => member.isActive));
-        setCurrentMembership(membershipData.currentMembership || null);
-      } catch (requestError) {
+  const loadProject = useCallback(
+    () =>
+      runProjectLoad(async (signal) => {
+        setLoading(true);
+        setPageError(null);
+        setMembershipError('');
+        setError('');
+        setSuccess('');
+        setRetryAfterSeconds(0);
         setActiveMembers(null);
         setCurrentMembership(null);
-        setMembershipError(
-          normalizeApiError(requestError, 'Não foi possível carregar o resumo da equipe.').message
-        );
-      }
-    } catch (requestError) {
-      setPageError(normalizeApiError(requestError, 'Não foi possível carregar o projeto.'));
-    } finally {
-      setLoading(false);
-    }
-  }, [id, refreshProjectDetails]);
+        setGithubSyncState({ projectId: id, run: null, status: 'idle' });
+        syncLock.current = null;
+
+        try {
+          const projectResponse = await projectsApi.get(id, { signal });
+          if (signal.aborted) return;
+          const loadedProject = projectResponse.data.project;
+          let membershipData = null;
+          let nextMembershipError = '';
+
+          try {
+            membershipData = await membersApi.list(id, { signal });
+          } catch (requestError) {
+            if (signal.aborted) throw requestError;
+            nextMembershipError = normalizeApiError(
+              requestError,
+              'Não foi possível carregar o resumo da equipe.'
+            ).message;
+          }
+
+          if (signal.aborted) return;
+          setProject(loadedProject);
+          setLoadedProjectId(id);
+          setActiveMembers(
+            membershipData
+              ? (membershipData.members || []).filter((member) => member.isActive)
+              : null
+          );
+          setCurrentMembership(membershipData?.currentMembership || null);
+          setMembershipError(nextMembershipError);
+        } catch (requestError) {
+          if (signal.aborted) throw requestError;
+          setProject(null);
+          setLoadedProjectId(id);
+          setPageError(normalizeApiError(requestError, 'Não foi possível carregar o projeto.'));
+        } finally {
+          if (!signal.aborted) setLoading(false);
+        }
+      }),
+    [id, runProjectLoad]
+  );
 
   useEffect(() => {
     void loadProject();
   }, [loadProject]);
 
   useEffect(() => {
-    if (!project?.id) return undefined;
-    let cancelled = false;
-    void getProjectGithubSyncStatus(id)
-      .then(({ run }) => {
-        if (!cancelled && isActiveSyncRun(run)) {
-          setGithubSyncRun(run);
-          setGithubSyncStatus('syncing');
+    if (!project?.id || String(project.id) !== String(id)) return undefined;
+    const requestedProjectId = id;
+    void runSyncStatusProbe((signal) => getProjectGithubSyncStatus(requestedProjectId, { signal }))
+      .then((result) => {
+        if (!result || routeProjectIdRef.current !== requestedProjectId) return;
+        if (isActiveSyncRun(result.run)) {
+          setGithubSyncState({
+            projectId: requestedProjectId,
+            run: result.run,
+            status: 'syncing'
+          });
+        } else {
+          setGithubSyncState({ projectId: requestedProjectId, run: null, status: 'idle' });
         }
       })
       .catch((requestError) => {
-        if (!cancelled) {
+        if (routeProjectIdRef.current === requestedProjectId) {
           const normalized = normalizeApiError(
             requestError,
             'Não foi possível consultar o estado atual da sincronização.'
@@ -188,79 +237,112 @@ export function ProjectDetailsScreen() {
         }
       });
     return () => {
-      cancelled = true;
+      cancelSyncStatusProbe();
     };
-  }, [id, project?.id]);
+  }, [cancelSyncStatusProbe, id, project?.id, runSyncStatusProbe]);
 
   useEffect(() => {
     if (!isActiveSyncRun(githubSyncRun)) return undefined;
+    const requestedProjectId = id;
     let cancelled = false;
+    const controller = new AbortController();
     const timer = window.setTimeout(async () => {
       try {
-        const { run } = await getProjectGithubSyncStatus(id);
-        if (cancelled || !run) return;
-        setGithubSyncRun(run);
+        const { run } = await getProjectGithubSyncStatus(requestedProjectId, {
+          signal: controller.signal
+        });
+        if (
+          cancelled ||
+          controller.signal.aborted ||
+          routeProjectIdRef.current !== requestedProjectId
+        )
+          return;
+        if (!run) {
+          setGithubSyncState({ projectId: requestedProjectId, run: null, status: 'idle' });
+          return;
+        }
+        setGithubSyncState({ projectId: requestedProjectId, run, status: 'syncing' });
         if (run.status === 'SUCCEEDED') {
-          setGithubSyncStatus('success');
+          setGithubSyncState({ projectId: requestedProjectId, run, status: 'success' });
           setSuccess(
             `Sincronização GitHub concluída com sucesso. ${formatSyncSummary(run.summary)}`
           );
           setError('');
           await refreshProjectDetails();
         } else if (run.status === 'FAILED') {
-          setGithubSyncStatus('error');
+          setGithubSyncState({ projectId: requestedProjectId, run, status: 'error' });
           setSuccess('');
           setError(formatSyncFailure(run));
           await refreshProjectDetails();
         }
       } catch (requestError) {
-        if (!cancelled) {
+        if (
+          !cancelled &&
+          !controller.signal.aborted &&
+          routeProjectIdRef.current === requestedProjectId
+        ) {
           const normalized = normalizeApiError(
             requestError,
             'Não foi possível consultar o progresso da sincronização.'
           );
           setError(normalized.message);
           setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
-          setGithubSyncRun((current) => (current ? { ...current } : current));
+          setGithubSyncState((current) =>
+            String(current.projectId) === String(requestedProjectId) && current.run
+              ? { ...current, run: { ...current.run } }
+              : current
+          );
         }
       }
     }, 2500);
     return () => {
       cancelled = true;
+      controller.abort();
       window.clearTimeout(timer);
     };
   }, [githubSyncRun, id, refreshProjectDetails]);
 
   async function handleGithubSync() {
-    if (syncLock.current || isActiveSyncRun(githubSyncRun) || cooldown > 0) return;
-    syncLock.current = true;
-    setGithubSyncStatus('syncing');
+    if (syncLock.current?.projectId === id || isActiveSyncRun(githubSyncRun) || cooldown > 0)
+      return;
+    const requestedProjectId = id;
+    const operation = Symbol('github-sync');
+    syncLock.current = { projectId: requestedProjectId, operation };
+    setGithubSyncState({ projectId: requestedProjectId, run: null, status: 'syncing' });
     setError('');
     setRetryAfterSeconds(0);
     setSuccess('');
 
     try {
-      const response = await syncProjectGithub(id);
-      setGithubSyncRun(response.run);
+      const response = await syncProjectGithub(requestedProjectId);
+      if (routeProjectIdRef.current === requestedProjectId) {
+        setGithubSyncState({
+          projectId: requestedProjectId,
+          run: response.run,
+          status: 'syncing'
+        });
+      }
     } catch (requestError) {
-      setGithubSyncStatus('error');
-      const normalized = normalizeApiError(
-        requestError,
-        'Não foi possível sincronizar com o GitHub no momento. Verifique sua conexão ou tente novamente mais tarde.'
-      );
-      setError(normalized.message);
-      setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
-      try {
-        await refreshProjectDetails();
-      } catch {
-        // Mantém o feedback local quando a atualização do projeto também falha.
+      if (routeProjectIdRef.current === requestedProjectId) {
+        setGithubSyncState({ projectId: requestedProjectId, run: null, status: 'error' });
+        const normalized = normalizeApiError(
+          requestError,
+          'Não foi possível sincronizar com o GitHub no momento. Verifique sua conexão ou tente novamente mais tarde.'
+        );
+        setError(normalized.message);
+        setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
+        try {
+          await refreshProjectDetails();
+        } catch {
+          // Mantém o feedback local quando a atualização do projeto também falha.
+        }
       }
     } finally {
-      syncLock.current = false;
+      if (syncLock.current?.operation === operation) syncLock.current = null;
     }
   }
 
-  if (loading) {
+  if (loading || String(loadedProjectId) !== String(id)) {
     return (
       <main className="page-container project-details-screen">
         <p className="project-details-screen__loading" role="status">
@@ -270,7 +352,7 @@ export function ProjectDetailsScreen() {
     );
   }
 
-  if (!project) {
+  if (!project || String(project.id) !== String(id)) {
     const type = classifyPageError(pageError);
     return (
       <ContextualErrorPage

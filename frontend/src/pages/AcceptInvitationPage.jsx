@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { membersApi } from '../features/members/members.api.js';
+import { useProjectsCatalog } from '../features/projects/index.js';
 import { Card, FeedbackRegion, normalizeApiError, useCountdown } from '../shared/index.js';
 import './AcceptInvitationPage.css';
 
@@ -26,6 +27,7 @@ function formatDateTime(value) {
 export function AcceptInvitationPage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
+  const { refreshProjects } = useProjectsCatalog();
   const token = params.get('token') || '';
   const [invitation, setInvitation] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -64,6 +66,7 @@ export function AcceptInvitationPage() {
     setRetryAfterSeconds(0);
     try {
       const data = await membersApi.acceptInvitation(token);
+      void refreshProjects();
       navigate(`/projects/${data.membership.projectId}`, { replace: true });
     } catch (cause) {
       showError(cause);

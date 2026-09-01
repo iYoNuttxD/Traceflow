@@ -15,13 +15,20 @@ const ProjectsCatalogContext = createContext(null);
 export function ProjectsCatalogProvider({ children }) {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const mountedRef = useRef(false);
   const initialRequestStartedRef = useRef(false);
+  const hasLoadedRef = useRef(false);
+  const latestRequestIdRef = useRef(0);
 
   const refreshProjects = useCallback(async () => {
+    const requestId = ++latestRequestIdRef.current;
+    const initialLoad = !hasLoadedRef.current;
+
     if (mountedRef.current) {
-      setLoading(true);
+      setLoading(initialLoad);
+      setRefreshing(!initialLoad);
       setError(null);
     }
 
@@ -30,16 +37,21 @@ export function ProjectsCatalogProvider({ children }) {
       const accessibleProjects = Array.isArray(response.data?.projects)
         ? response.data.projects
         : [];
-      if (mountedRef.current) setProjects(accessibleProjects);
+      if (mountedRef.current && requestId === latestRequestIdRef.current) {
+        hasLoadedRef.current = true;
+        setProjects(accessibleProjects);
+      }
       return accessibleProjects;
     } catch (requestError) {
-      const normalized = normalizeApiError(requestError, 'Não foi possível carregar os projetos.');
-      if (mountedRef.current) {
-        setError(normalized);
+      if (mountedRef.current && requestId === latestRequestIdRef.current) {
+        setError(normalizeApiError(requestError, 'Não foi possível carregar os projetos.'));
       }
       return [];
     } finally {
-      if (mountedRef.current) setLoading(false);
+      if (mountedRef.current && requestId === latestRequestIdRef.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, []);
 
@@ -55,8 +67,8 @@ export function ProjectsCatalogProvider({ children }) {
   }, [refreshProjects]);
 
   const value = useMemo(
-    () => ({ projects, loading, error, refreshProjects }),
-    [error, loading, projects, refreshProjects]
+    () => ({ projects, loading, refreshing, error, refreshProjects }),
+    [error, loading, projects, refreshing, refreshProjects]
   );
 
   return (

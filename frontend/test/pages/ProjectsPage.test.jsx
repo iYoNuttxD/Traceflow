@@ -1,4 +1,4 @@
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useNavigate } from 'react-router';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -53,11 +53,26 @@ const fakeRepository = {
   description: 'Repositório artificial'
 };
 
+let navigateProjects;
+
+function deferred() {
+  let resolve;
+  const promise = new Promise((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
+function ProjectsHarness() {
+  navigateProjects = useNavigate();
+  return <ProjectsPage />;
+}
+
 function renderPage(initialEntries = ['/projects']) {
   return render(
     <MemoryRouter initialEntries={initialEntries}>
       <ProjectsCatalogProvider>
-        <ProjectsPage />
+        <ProjectsHarness />
       </ProjectsCatalogProvider>
     </MemoryRouter>
   );
@@ -105,6 +120,7 @@ async function openCreateFlow(user) {
 describe('ProjectsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    navigateProjects = undefined;
     invitationsMock.list.mockResolvedValue([]);
   });
 
@@ -247,6 +263,7 @@ describe('ProjectsPage', () => {
       'href',
       '/projects/9'
     );
+    expect(apiMock.get.mock.calls.filter(([url]) => url === '/projects')).toHaveLength(2);
   });
 
   it('recusa convite pessoal e o remove da lista pendente', async () => {
@@ -579,5 +596,74 @@ describe('ProjectsPage', () => {
         'Não foi possível concluir a autorização da GitHub App. Inicie o fluxo novamente.'
       )
     ).toBeInTheDocument();
+  });
+
+  it('ignora repositórios da reconexão anterior após troca de projectId', async () => {
+    const projectOneRepositories = deferred();
+    const projectTwoRepositories = deferred();
+    apiMock.get.mockImplementation((url, config = {}) => {
+      if (url === '/projects') return Promise.resolve({ data: { projects: [] } });
+      if (url === '/github/app/installations') {
+        return Promise.resolve({
+          data: {
+            installations: [{ githubInstallationId: '77', accountLogin: 'usuario-artificial' }]
+          }
+        });
+      }
+      if (url === '/github/app/repositories') {
+        return config.params?.projectId === '1'
+          ? projectOneRepositories.promise
+          : projectTwoRepositories.promise;
+      }
+      return Promise.reject(new Error(`URL inesperada: ${url}`));
+    });
+    renderPage(['/projects?projectId=1']);
+
+    await waitFor(() =>
+      expect(apiMock.get).toHaveBeenCalledWith('/github/app/repositories', {
+        params: { projectId: '1' }
+      })
+    );
+    act(() => navigateProjects('/projects?projectId=2'));
+    await act(async () => {
+      projectTwoRepositories.resolve({
+        data: {
+          repositories: [
+            {
+              ...fakeRepository,
+              githubRepositoryId: '602',
+              name: 'projeto-dois',
+              fullName: 'usuario-artificial/projeto-dois',
+              url: 'https://github.com/usuario-artificial/projeto-dois'
+            }
+          ]
+        }
+      });
+    });
+    expect(
+      await screen.findByRole('option', { name: /usuario-artificial\/projeto-dois/ })
+    ).toBeInTheDocument();
+
+    await act(async () => {
+      projectOneRepositories.resolve({
+        data: {
+          repositories: [
+            {
+              ...fakeRepository,
+              githubRepositoryId: '601',
+              name: 'projeto-um',
+              fullName: 'usuario-artificial/projeto-um',
+              url: 'https://github.com/usuario-artificial/projeto-um'
+            }
+          ]
+        }
+      });
+    });
+    expect(
+      screen.getByRole('option', { name: /usuario-artificial\/projeto-dois/ })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('option', { name: /usuario-artificial\/projeto-um/ })
+    ).not.toBeInTheDocument();
   });
 });

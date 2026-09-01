@@ -80,7 +80,10 @@ eventos. O script mínimo em `index.html` aplica a mesma resolução antes do mo
 `ProjectsCatalogProvider` pertence a `features/projects` e compartilha a resposta autorizada de
 `GET /projects` entre shell e Projects. O shell mantém fixados e recentes como preferências locais
 por usuário, limita a exibição a cinco e cruza todos os IDs com esse catálogo. LocalStorage não
-concede membership ou acesso. Loading ou erro no catálogo não bloqueiam a navegação principal.
+concede membership ou acesso. O catálogo é invalidado depois de create, join, aceite de convite,
+leave e atualização de metadata exibida. Refreshes concorrentes são latest-wins; a revalidação
+preserva o catálogo existente e não retorna ao loading da primeira carga. Loading ou erro no
+catálogo não bloqueiam a navegação principal.
 
 ## Projects e visão do projeto
 
@@ -154,6 +157,11 @@ A restauração de sessão coalesce chamadas concorrentes e as cargas iniciais d
 ## Cliente HTTP
 
 Toda API de domínio usa `httpClient`. Queries recebem `params` e, quando obsoletas, `signal`. A UI consome erros normalizados com `status`, `code`, `message`, `fieldErrors` e `requestId`. 401 encerra a sessão local; 403 mantém a sessão e é apresentado como acesso restrito.
+
+Respostas assíncronas ligadas a rota ou entidade somente podem atualizar estado enquanto ainda
+pertencem ao contexto que iniciou a request. A troca de `projectId` cancela ou invalida loaders,
+polling e feedback anteriores; uma resposta stale não altera dados, autorização, loading ou erro do
+projeto corrente.
 
 ## Estado e acessibilidade
 

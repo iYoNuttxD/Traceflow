@@ -3,6 +3,7 @@ import {
   FeedbackRegion,
   TraceFlowIcon,
   normalizeApiError,
+  useAbortableRequest,
   useConfirm,
   useCountdown
 } from '../../shared/index.js';
@@ -43,7 +44,8 @@ export function ProjectMembersPanel({
   projectId,
   activeView = 'team',
   onCountChange,
-  onMembershipLoaded
+  onMembershipLoaded,
+  onLeftProject
 }) {
   const confirm = useConfirm();
   const [members, setMembers] = useState([]);
@@ -59,6 +61,7 @@ export function ProjectMembersPanel({
   const [roleFilter, setRoleFilter] = useState('ALL');
   const [retryAfterSeconds, setRetryAfterSeconds] = useState(0);
   const cooldown = useCountdown(retryAfterSeconds);
+  const { run: runMembersLoad } = useAbortableRequest();
   const invitationLock = useRef(false);
   const isOwner = currentMembership?.role === 'OWNER';
   const activeOwnerCount = useMemo(
@@ -93,14 +96,24 @@ export function ProjectMembersPanel({
   }
 
   async function load() {
-    const data = await membersApi.list(projectId);
+    const result = await runMembersLoad(async (signal) => {
+      const data = await membersApi.list(projectId, { signal });
+      if (signal.aborted) return undefined;
+      const invitationsForProject =
+        data.currentMembership?.role === 'OWNER'
+          ? await membersApi.invitations(projectId, { signal })
+          : [];
+      if (signal.aborted) return undefined;
+      return { data, invitationsForProject };
+    });
+    if (!result) return;
+
+    const { data, invitationsForProject } = result;
     setMembers(data.members || []);
     setCurrentMembership(data.currentMembership);
     onCountChange?.((data.members || []).filter((member) => member.isActive).length);
     onMembershipLoaded?.(data.currentMembership);
-    setInvitations(
-      data.currentMembership?.role === 'OWNER' ? await membersApi.invitations(projectId) : []
-    );
+    setInvitations(invitationsForProject);
   }
 
   useEffect(() => {
@@ -167,6 +180,7 @@ export function ProjectMembersPanel({
       onCountChange?.(0);
       onMembershipLoaded?.(null);
       setMessage('Você saiu do projeto.');
+      onLeftProject?.();
     } catch (requestError) {
       showError(requestError);
     } finally {

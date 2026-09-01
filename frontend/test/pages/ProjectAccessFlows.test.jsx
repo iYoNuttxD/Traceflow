@@ -7,9 +7,13 @@ const apiMock = vi.hoisted(() => ({
   joinDetails: vi.fn(),
   joinProject: vi.fn()
 }));
+const catalogMock = vi.hoisted(() => ({ refreshProjects: vi.fn() }));
 
 vi.mock('../../src/features/members/index.js', () => ({
   membersApi: apiMock
+}));
+vi.mock('../../src/features/projects/index.js', () => ({
+  useProjectsCatalog: () => catalogMock
 }));
 
 import { JoinProjectPage } from '../../src/pages/JoinProjectPage.jsx';
@@ -30,6 +34,7 @@ function renderJoin(path) {
 describe('ingresso por código de projeto', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    catalogMock.refreshProjects.mockResolvedValue([]);
     apiMock.joinDetails.mockResolvedValue({
       project: { id: 7, name: 'Projeto compartilhado' },
       role: 'MEMBER'
@@ -66,6 +71,7 @@ describe('ingresso por código de projeto', () => {
     expect(screen.queryByLabelText(/Nome|E-mail/)).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Entrar no projeto' }));
     expect(apiMock.joinProject).toHaveBeenCalledWith({ accessCode: 'TRC-ABCDEF12' });
+    expect(catalogMock.refreshProjects).toHaveBeenCalledOnce();
     expect(
       await screen.findByText('Entrada no projeto realizada com sucesso.')
     ).toBeInTheDocument();

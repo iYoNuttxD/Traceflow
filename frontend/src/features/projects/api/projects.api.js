@@ -1,12 +1,12 @@
 import { httpClient } from '../../../api/http-client.js';
 
 export const projectsApi = {
-  list() {
-    return httpClient.get('/projects');
+  list(options = {}) {
+    return httpClient.get('/projects', options);
   },
 
-  listGithubInstallations() {
-    return httpClient.get('/github/app/installations');
+  listGithubInstallations(options = {}) {
+    return httpClient.get('/github/app/installations', options);
   },
 
   listGithubRepositories(installationId, projectId) {
@@ -15,8 +15,9 @@ export const projectsApi = {
     });
   },
 
-  listAllGithubRepositories(projectId) {
+  listAllGithubRepositories(projectId, options = {}) {
     return httpClient.get('/github/app/repositories', {
+      ...options,
       params: projectId ? { projectId } : undefined
     });
   },

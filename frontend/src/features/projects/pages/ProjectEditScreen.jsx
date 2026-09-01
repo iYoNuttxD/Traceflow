@@ -9,6 +9,7 @@ import {
   classifyPageError,
   getErrorRequestId,
   normalizeApiError,
+  useAbortableRequest,
   useCountdown
 } from '../../../shared/index.js';
 import { ProjectForm, emptyProjectForm, updateProjectForm } from '../components/ProjectForm.jsx';
@@ -30,6 +31,7 @@ export function ProjectEditScreen() {
   const { projectId } = useParams();
   const { refreshProjects } = useProjectsCatalog();
   const [project, setProject] = useState(null);
+  const [loadedProjectId, setLoadedProjectId] = useState(null);
   const [currentMembership, setCurrentMembership] = useState(null);
   const [formData, setFormData] = useState(emptyProjectForm);
   const [loading, setLoading] = useState(true);
@@ -39,26 +41,43 @@ export function ProjectEditScreen() {
   const [success, setSuccess] = useState('');
   const [retryAfterSeconds, setRetryAfterSeconds] = useState(0);
   const cooldown = useCountdown(retryAfterSeconds);
-  const updateLock = useRef(false);
+  const { run: runProjectLoad } = useAbortableRequest();
+  const updateLock = useRef(null);
+  const routeProjectIdRef = useRef(projectId);
+  routeProjectIdRef.current = projectId;
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setPageError(null);
-    try {
-      const [projectResponse, membershipData] = await Promise.all([
-        projectsApi.get(projectId),
-        membersApi.list(projectId)
-      ]);
-      const loadedProject = projectResponse.data.project;
-      setProject(loadedProject);
-      setCurrentMembership(membershipData.currentMembership || null);
-      setFormData(toFormData(loadedProject));
-    } catch (requestError) {
-      setPageError(normalizeApiError(requestError, 'Não foi possível carregar o projeto.'));
-    } finally {
-      setLoading(false);
-    }
-  }, [projectId]);
+  const load = useCallback(
+    () =>
+      runProjectLoad(async (signal) => {
+        setLoading(true);
+        setPageError(null);
+        setError('');
+        setSuccess('');
+        updateLock.current = null;
+        setSubmitting(false);
+        try {
+          const [projectResponse, membershipData] = await Promise.all([
+            projectsApi.get(projectId, { signal }),
+            membersApi.list(projectId, { signal })
+          ]);
+          if (signal.aborted) return;
+          const loadedProject = projectResponse.data.project;
+          setProject(loadedProject);
+          setCurrentMembership(membershipData.currentMembership || null);
+          setFormData(toFormData(loadedProject));
+          setLoadedProjectId(projectId);
+        } catch (requestError) {
+          if (signal.aborted) throw requestError;
+          setProject(null);
+          setCurrentMembership(null);
+          setPageError(normalizeApiError(requestError, 'Não foi possível carregar o projeto.'));
+          setLoadedProjectId(projectId);
+        } finally {
+          if (!signal.aborted) setLoading(false);
+        }
+      }),
+    [projectId, runProjectLoad]
+  );
 
   useEffect(() => {
     void load();
@@ -71,7 +90,9 @@ export function ProjectEditScreen() {
   async function handleSubmit(event) {
     event.preventDefault();
     if (updateLock.current || cooldown > 0) return;
-    updateLock.current = true;
+    const operation = Symbol('project-update');
+    const requestedProjectId = projectId;
+    updateLock.current = operation;
     setSubmitting(true);
     setError('');
     setSuccess('');
@@ -84,21 +105,27 @@ export function ProjectEditScreen() {
         responsibleTeam: formData.responsibleTeam,
         status: formData.status
       });
-      setProject(response.data.project);
-      setFormData(toFormData(response.data.project));
-      setSuccess(response.data.message);
+      if (routeProjectIdRef.current === requestedProjectId) {
+        setProject(response.data.project);
+        setFormData(toFormData(response.data.project));
+        setSuccess(response.data.message);
+      }
       await refreshProjects();
     } catch (requestError) {
-      const normalized = normalizeApiError(requestError, 'Não foi possível atualizar o projeto.');
-      setError(normalized.message);
-      setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
+      if (routeProjectIdRef.current === requestedProjectId) {
+        const normalized = normalizeApiError(requestError, 'Não foi possível atualizar o projeto.');
+        setError(normalized.message);
+        setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
+      }
     } finally {
-      updateLock.current = false;
-      setSubmitting(false);
+      if (updateLock.current === operation) {
+        updateLock.current = null;
+        if (routeProjectIdRef.current === requestedProjectId) setSubmitting(false);
+      }
     }
   }
 
-  if (loading) {
+  if (loading || String(loadedProjectId) !== String(projectId)) {
     return (
       <main className="page-container project-admin-screen">
         <p className="project-admin-screen__loading" role="status">

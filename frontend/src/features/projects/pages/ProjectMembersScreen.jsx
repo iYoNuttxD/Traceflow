@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useParams } from 'react-router';
+import { useNavigate, useParams } from 'react-router';
 import { ProjectMembersPanel } from '../../members/index.js';
 import {
   BackButton,
@@ -7,9 +7,11 @@ import {
   PAGE_ERROR_TYPES,
   classifyPageError,
   getErrorRequestId,
-  normalizeApiError
+  normalizeApiError,
+  useAbortableRequest
 } from '../../../shared/index.js';
 import { ProjectAccessCodePanel } from '../components/ProjectAccessCodePanel.jsx';
+import { useProjectsCatalog } from '../hooks/ProjectsCatalogContext.jsx';
 import { projectsApi } from '../api/projects.api.js';
 import '../../../shared/styles/internal-tabs.css';
 import '../styles/project-admin.css';
@@ -18,30 +20,50 @@ import './ProjectMembersScreen.css';
 
 export function ProjectMembersScreen() {
   const { projectId } = useParams();
+  const navigate = useNavigate();
+  const { refreshProjects } = useProjectsCatalog();
   const [project, setProject] = useState(null);
+  const [loadedProjectId, setLoadedProjectId] = useState(null);
   const [currentMembership, setCurrentMembership] = useState(null);
   const [loading, setLoading] = useState(true);
   const [pageError, setPageError] = useState(null);
   const [activeTab, setActiveTab] = useState('team');
+  const { run: runProjectLoad } = useAbortableRequest();
 
-  const loadProject = useCallback(async () => {
-    setLoading(true);
-    setPageError(null);
-    try {
-      const response = await projectsApi.get(projectId);
-      setProject(response.data.project);
-    } catch (requestError) {
-      setPageError(normalizeApiError(requestError, 'Não foi possível carregar o projeto.'));
-    } finally {
-      setLoading(false);
-    }
-  }, [projectId]);
+  const loadProject = useCallback(
+    () =>
+      runProjectLoad(async (signal) => {
+        setLoading(true);
+        setPageError(null);
+        setCurrentMembership(null);
+        setActiveTab('team');
+        try {
+          const response = await projectsApi.get(projectId, { signal });
+          if (signal.aborted) return;
+          setProject(response.data.project);
+          setLoadedProjectId(projectId);
+        } catch (requestError) {
+          if (signal.aborted) throw requestError;
+          setProject(null);
+          setPageError(normalizeApiError(requestError, 'Não foi possível carregar o projeto.'));
+          setLoadedProjectId(projectId);
+        } finally {
+          if (!signal.aborted) setLoading(false);
+        }
+      }),
+    [projectId, runProjectLoad]
+  );
 
   useEffect(() => {
     void loadProject();
   }, [loadProject]);
 
-  if (loading) {
+  const handleLeftProject = useCallback(() => {
+    void refreshProjects();
+    navigate('/projects', { replace: true });
+  }, [navigate, refreshProjects]);
+
+  if (loading || String(loadedProjectId) !== String(projectId)) {
     return (
       <main className="page-container project-admin-screen">
         <p className="project-admin-screen__loading" role="status">
@@ -111,9 +133,11 @@ export function ProjectMembersScreen() {
       >
         <h2>{activeTab === 'team' ? 'Equipe' : 'Convites'}</h2>
         <ProjectMembersPanel
+          key={projectId}
           projectId={projectId}
           activeView={activeTab}
           onMembershipLoaded={setCurrentMembership}
+          onLeftProject={handleLeftProject}
         />
         {activeTab === 'invitations' && currentMembership?.role === 'OWNER' && (
           <ProjectAccessCodePanel projectId={projectId} isOwner />
