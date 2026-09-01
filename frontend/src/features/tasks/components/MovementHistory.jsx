@@ -1,4 +1,5 @@
 import { formatDateTime, formatHistoryValue, historyFieldLabels } from './kanban-display.js';
+import './MovementHistory.css';
 
 export function MovementHistory({
   movements,

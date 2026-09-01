@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router';
 import {
   FeedbackRegion,
   FormInput,
+  TraceFlowIcon,
   normalizeApiError,
   useCountdown
 } from '../../../shared/index.js';
@@ -12,6 +13,7 @@ import { PasswordField } from '../components/PasswordField.jsx';
 import { authApi } from '../api/auth.api.js';
 import { githubOAuthErrorMessage } from '../github-oauth-error.js';
 import { sanitizeInternalReturnTo } from '../return-to.js';
+import './LoginScreen.css';
 
 export function LoginScreen() {
   const { login } = useAuth();
@@ -90,7 +92,6 @@ export function LoginScreen() {
   return (
     <AuthShell
       title="Entrar"
-      eyebrow="Acesso seguro"
       description="Acesse com seu nome de usuário ou e-mail."
       footer={
         <p>
@@ -129,7 +130,9 @@ export function LoginScreen() {
             />{' '}
             Manter sessão ativa
           </label>
-          <Link to="/forgot-password">Esqueci minha senha</Link>
+          <Link className="auth-recovery-link" to="/forgot-password">
+            Esqueci minha senha
+          </Link>
         </div>
         <FeedbackRegion
           error={cooldown ? undefined : error || githubError}
@@ -154,7 +157,8 @@ export function LoginScreen() {
           aria-busy={githubSubmitting}
           onClick={() => void loginWithGithub()}
         >
-          {githubSubmitting ? 'Conectando ao GitHub...' : 'Entrar com GitHub'}
+          <TraceFlowIcon name="branch" />
+          {githubSubmitting ? 'Conectando ao GitHub...' : 'Continuar com GitHub'}
         </button>
       </form>
     </AuthShell>

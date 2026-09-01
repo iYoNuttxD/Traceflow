@@ -1,0 +1,33 @@
+:root {
+  font-family: var(--font-family-sans);
+  color: var(--color-text-primary);
+  background: var(--color-bg-page);
+  font-synthesis: none;
+}
+
+:where(a, button, input, select, textarea):focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+#root {
+  max-width: 100%;
+  min-width: 0;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  color: var(--color-text-primary);
+  background: var(--color-bg-page);
+}
+
+a {
+  color: inherit;
+}

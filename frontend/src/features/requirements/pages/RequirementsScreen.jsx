@@ -18,6 +18,8 @@ import {
   useConfirm
 } from '../../../shared/index.js';
 import { ProjectSectionNav } from '../../projects/index.js';
+import '../../../shared/styles/traceability-controls.css';
+import './RequirementsScreen.css';
 
 const emptyRequirementForm = {
   title: '',

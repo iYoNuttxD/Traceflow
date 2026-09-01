@@ -1,39 +1,19 @@
-import { useEffect, useState } from 'react';
-import { FeedbackRegion, normalizeApiError, useConfirm } from '../../../shared/index.js';
+import { useEffect, useId, useRef, useState } from 'react';
+import {
+  FeedbackRegion,
+  TraceFlowIcon,
+  normalizeApiError,
+  useConfirm
+} from '../../../shared/index.js';
 import { projectsApi } from '../api/projects.api.js';
+import './ProjectAccessCodePanel.css';
 
 const roleLabels = Object.freeze({ MEMBER: 'Membro', VIEWER: 'Visualizador' });
 
-function EyeIcon({ hidden }) {
-  return (
-    <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
-      <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
-      <circle cx="12" cy="12" r="2.75" />
-      {hidden ? <path d="m4 4 16 16" /> : null}
-    </svg>
-  );
-}
-
-function RefreshIcon() {
-  return (
-    <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
-      <path d="M20 7v5h-5" />
-      <path d="M19 12a7 7 0 1 0-2.05 4.95" />
-    </svg>
-  );
-}
-
-function CopyIcon() {
-  return (
-    <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
-      <rect x="8" y="8" width="11" height="11" rx="2" />
-      <path d="M16 8V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h1" />
-    </svg>
-  );
-}
-
 export function ProjectAccessCodePanel({ projectId, isOwner }) {
   const confirm = useConfirm();
+  const headingId = useId();
+  const visibilityButtonRef = useRef(null);
   const [configuration, setConfiguration] = useState(null);
   const [visible, setVisible] = useState(true);
   const [busy, setBusy] = useState('');
@@ -81,7 +61,8 @@ export function ProjectAccessCodePanel({ projectId, isOwner }) {
         title: 'Regenerar código de acesso',
         description:
           'O código atual deixará de funcionar imediatamente. Deseja gerar um novo código?',
-        confirmLabel: 'Regenerar'
+        confirmLabel: 'Regenerar',
+        focusAfterConfirmRef: visibilityButtonRef
       }))
     )
       return;
@@ -118,8 +99,8 @@ export function ProjectAccessCodePanel({ projectId, isOwner }) {
   }
 
   return (
-    <section className="overview-summary-card overview-access-code project-access-code-card">
-      <h3>Acesso ao projeto</h3>
+    <section className="project-access-code-section" aria-labelledby={headingId}>
+      <h3 id={headingId}>Acesso por código ou link</h3>
       <FeedbackRegion error={error} success={success} />
       {!configuration ? (
         <span>Carregando configuração...</span>
@@ -129,33 +110,35 @@ export function ProjectAccessCodePanel({ projectId, isOwner }) {
             <code>{visible ? configuration.accessCode : '••••••••••••••••'}</code>
             <div className="access-code-actions">
               <button
-                className="button button-secondary access-code-icon-button"
+                ref={visibilityButtonRef}
+                className="access-code-icon-button"
                 type="button"
                 title={visible ? 'Ocultar código' : 'Mostrar código'}
                 aria-label={visible ? 'Ocultar código' : 'Mostrar código'}
                 onClick={() => setVisible((value) => !value)}
               >
-                <EyeIcon hidden={visible} />
+                <TraceFlowIcon name={visible ? 'eyeOff' : 'eye'} />
               </button>
               <button
-                className="button button-secondary access-code-icon-button"
+                className="access-code-icon-button"
                 type="button"
                 title="Regenerar código"
                 disabled={Boolean(busy)}
-                aria-label="Regenerar código"
+                aria-label={busy === 'regenerate' ? 'Regenerando código' : 'Regenerar código'}
+                aria-busy={busy === 'regenerate'}
                 onClick={() => void regenerate()}
               >
-                <RefreshIcon />
+                <TraceFlowIcon name="refresh" />
               </button>
               <button
-                className="button button-secondary access-code-icon-button"
+                className="access-code-icon-button"
                 type="button"
                 title="Copiar link"
                 disabled={Boolean(busy)}
                 aria-label="Copiar link"
                 onClick={() => void copyLink()}
               >
-                <CopyIcon />
+                <TraceFlowIcon name="copy" />
               </button>
             </div>
           </div>

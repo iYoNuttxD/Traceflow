@@ -1,5 +1,4 @@
 import { useRef, useState } from 'react';
-import { Link } from 'react-router';
 import {
   FeedbackRegion,
   FormInput,
@@ -38,9 +37,8 @@ export function ForgotPasswordScreen() {
   return (
     <AuthShell
       title="Recuperar senha"
-      eyebrow="Acesso à conta"
-      description="Se a conta existir, enviaremos instruções para o e-mail informado."
-      footer={<Link to="/login">Voltar para entrar</Link>}
+      description="Informe seu e-mail para receber as instruções de recuperação."
+      backTo="/login"
     >
       <form className="auth-form" onSubmit={submit}>
         <FormInput

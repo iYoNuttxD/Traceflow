@@ -1,5 +1,5 @@
 import { StrictMode } from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -11,6 +11,10 @@ const mocks = vi.hoisted(() => ({
   api: {
     account: vi.fn(),
     updateProfile: vi.fn(),
+    updateUsername: vi.fn(),
+    requestEmailChange: vi.fn(),
+    cancelEmailChange: vi.fn(),
+    deactivate: vi.fn(),
     sessions: vi.fn(),
     deletion: vi.fn(),
     requestDeletion: vi.fn(),
@@ -63,7 +67,17 @@ vi.mock('../../src/shared/index.js', () => ({
   useConfirm: () => mocks.confirm,
   useCountdown: (seconds) => seconds,
   LoadingState: ({ message }) => <p>{message}</p>,
-  FeedbackRegion: ({ error, success }) => <div>{error || success}</div>
+  TraceFlowIcon: ({ name }) => <svg data-icon={name} />,
+  FeedbackRegion: ({ error, success }) => <div>{error || success}</div>,
+  PublicPageShell: ({ children }) => <main>{children}</main>,
+  StatusSurface: ({ title, description, actions, children, role }) => (
+    <section role={role}>
+      <h1>{title}</h1>
+      <p>{description}</p>
+      {children}
+      {actions}
+    </section>
+  )
 }));
 
 const { RestrictedAccountPage } =
@@ -76,7 +90,6 @@ const { PrivacySettingsPage } = await import('../../src/features/settings/Privac
 const { IntegrationsSettingsPage } =
   await import('../../src/features/settings/IntegrationsSettingsPage.jsx');
 const { ConfirmationPage } = await import('../../src/features/settings/ConfirmationPage.jsx');
-const { Navbar } = await import('../../src/components/Navbar.jsx');
 
 describe('configurações e estados restritos L2', () => {
   beforeEach(() => {
@@ -99,6 +112,10 @@ describe('configurações e estados restritos L2', () => {
       canInitializePassword: false
     });
     mocks.api.updateProfile.mockResolvedValue({});
+    mocks.api.updateUsername.mockResolvedValue({});
+    mocks.api.requestEmailChange.mockResolvedValue({});
+    mocks.api.cancelEmailChange.mockResolvedValue({});
+    mocks.api.deactivate.mockResolvedValue({});
     mocks.api.sessions.mockResolvedValue([
       {
         sessionId: 'b6360643-0216-4cb7-873b-4e851250f524',
@@ -153,33 +170,18 @@ describe('configurações e estados restritos L2', () => {
 
   it('expõe navegação separada para conta, segurança, privacidade e integrações', () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter initialEntries={['/settings/security']}>
         <SettingsLayout />
       </MemoryRouter>
     );
-    expect(screen.getByRole('navigation', { name: 'Configurações da conta' })).toBeInTheDocument();
+    const navigation = screen.getByRole('navigation', { name: 'Configurações da conta' });
+    expect(within(navigation).queryByRole('tab')).not.toBeInTheDocument();
     for (const name of ['Conta', 'Segurança', 'Privacidade', 'Integrações']) {
-      expect(screen.getByRole('link', { name })).toBeInTheDocument();
+      expect(within(navigation).getByRole('link', { name })).toBeInTheDocument();
     }
-  });
-
-  it('mostra menu acessível com avatar de iniciais', () => {
-    mocks.auth.user = {
-      id: 7,
-      name: 'Daniel Ganz Musse',
-      email: 'daniel@example.invalid',
-      accountStatus: 'ACTIVE'
-    };
-    render(
-      <MemoryRouter>
-        <Navbar />
-      </MemoryRouter>
-    );
-    expect(screen.getByText('DG')).toBeInTheDocument();
-    expect(screen.getByLabelText('Abrir menu de Daniel Ganz Musse')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Configurações' })).toHaveAttribute(
-      'href',
-      '/settings/account'
+    expect(within(navigation).getByRole('link', { name: 'Segurança' })).toHaveAttribute(
+      'aria-current',
+      'page'
     );
   });
 
@@ -193,9 +195,10 @@ describe('configurações e estados restritos L2', () => {
     const name = await screen.findByLabelText('Nome');
     await user.clear(name);
     await user.type(name, 'Daniel Atualizado');
-    await user.click(screen.getByRole('button', { name: 'Salvar nome' }));
+    await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
     expect(mocks.api.updateProfile).toHaveBeenCalledWith('Daniel Atualizado');
-    expect(await screen.findByText('Nome atualizado.')).toBeInTheDocument();
+    expect(mocks.api.updateUsername).not.toHaveBeenCalled();
+    expect(await screen.findByText('Alterações salvas.')).toBeInTheDocument();
     expect(screen.getByText(/daniel@example.invalid/)).toBeInTheDocument();
   });
 
@@ -247,6 +250,7 @@ describe('configurações e estados restritos L2', () => {
     mocks.api.account.mockResolvedValue({
       id: 7,
       hasLocalPassword: false,
+      hasGithubIdentity: true,
       canInitializePassword: false
     });
     render(
@@ -272,7 +276,7 @@ describe('configurações e estados restritos L2', () => {
         <SecuritySettingsPage />
       </MemoryRouter>
     );
-    await screen.findByRole('heading', { name: 'Criar senha de acesso' });
+    await screen.findByRole('heading', { name: 'Senha' });
     const password = await screen.findByLabelText('Nova senha');
     await user.type(password, 'SenhaNovaSegura123!');
     await user.type(screen.getByLabelText('Confirmar nova senha'), 'SenhaNovaSegura123!');
@@ -342,7 +346,7 @@ describe('configurações e estados restritos L2', () => {
     );
     expect(await screen.findByRole('button', { name: 'Exportar meus dados' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Solicitar exclusão' }).parentElement).toHaveClass(
-      'danger-zone-actions'
+      'settings-actions'
     );
     unmount();
     render(
@@ -350,9 +354,7 @@ describe('configurações e estados restritos L2', () => {
         <IntegrationsSettingsPage />
       </MemoryRouter>
     );
-    expect(
-      await screen.findByText('Nenhuma GitHub App conectada à sua conta.')
-    ).toBeInTheDocument();
+    expect(await screen.findByText('GitHub App não instalada')).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: 'Instalar ou autorizar GitHub App' })
     ).toBeInTheDocument();
@@ -368,7 +370,7 @@ describe('configurações e estados restritos L2', () => {
     expect(
       await screen.findByText('A confirmação com GitHub não é mais válida. Inicie novamente.')
     ).toBeInTheDocument();
-    expect(screen.getByText('Nenhuma GitHub App conectada à sua conta.')).toBeInTheDocument();
+    expect(screen.getByText('GitHub App não instalada')).toBeInTheDocument();
   });
 
   it('exibe falha OAuth segura em Segurança sem prender o carregamento', async () => {
@@ -404,7 +406,7 @@ describe('configurações e estados restritos L2', () => {
       'vínculo de identidade',
       '/settings/integrations?githubIdentity=success',
       IntegrationsSettingsPage,
-      'Conta GitHub vinculada com sucesso.'
+      'GitHub OAuth vinculado.'
     ],
     [
       'reautenticação sensível',
@@ -482,7 +484,8 @@ describe('configurações e estados restritos L2', () => {
     expect(await screen.findByTestId('contextual-error-page')).toBeInTheDocument();
   });
 
-  it('separa dados e desconexão da GitHub App em uma zona de risco', async () => {
+  it('mantém a senha fora do estado normal e desconecta a App em um único dialog', async () => {
+    const user = userEvent.setup();
     mocks.api.github.mockResolvedValue([
       {
         id: 12,
@@ -503,14 +506,22 @@ describe('configurações e estados restritos L2', () => {
     );
 
     expect(await screen.findByText('traceflow-org')).toBeInTheDocument();
-    const password = screen.getByLabelText('Senha atual');
-    const dangerZone = password.closest('.github-authorization-danger');
-    expect(dangerZone).toHaveClass('danger-zone');
-    expect(dangerZone).toHaveTextContent('Esta autorização está relacionada a 1 projeto.');
-    expect(screen.getByRole('button', { name: 'Desconectar GitHub App' })).toBeDisabled();
+    expect(screen.queryByLabelText('Senha atual')).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Gerenciar acesso no GitHub' })).toHaveAttribute(
       'href',
       'https://github.com/settings/installations/12'
+    );
+    await user.click(screen.getByRole('button', { name: 'Desconectar' }));
+    const dialog = screen.getByRole('dialog', { name: 'Desconectar GitHub App?' });
+    expect(within(dialog).getByRole('button', { name: 'Cancelar' })).toHaveFocus();
+    expect(dialog).toHaveTextContent('O login com GitHub não será afetado.');
+    await user.type(within(dialog).getByLabelText('Senha atual'), 'senha local segura');
+    const confirmDisconnect = within(dialog).getByRole('button', { name: 'Desconectar' });
+    expect(confirmDisconnect).toBeEnabled();
+    await user.click(confirmDisconnect);
+    expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(mocks.api.removeGithubAuthorization).toHaveBeenCalledWith(12, 'senha local segura')
     );
     expect(
       screen.getByRole('button', { name: 'Adicionar ou atualizar acesso' })
@@ -537,15 +548,16 @@ describe('configurações e estados restritos L2', () => {
       </MemoryRouter>
     );
 
-    const status = await screen.findByText(/0 repositório\(s\) concedido\(s\) à instalação/);
-    expect(status).toHaveTextContent('2 projeto(s) conectado(s)');
+    expect(await screen.findByText('0 repositórios autorizados')).toBeInTheDocument();
+    expect(screen.getByText('2 projetos vinculados')).toBeInTheDocument();
     expect(screen.queryByText(/autorização pessoal pendente/i)).not.toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: /Renovar acesso GitHub/i })
     ).not.toBeInTheDocument();
   });
 
-  it('bloqueia desvínculo visual de conta GitHub-only e preserva a área da GitHub App', async () => {
+  it('mantém OAuth e App independentes e explica o pré-requisito no dialog', async () => {
+    const user = userEvent.setup();
     mocks.api.account.mockResolvedValue({ hasLocalPassword: false });
     mocks.api.githubIdentity.mockResolvedValue({ linked: true, githubLogin: 'octocat' });
     render(
@@ -554,13 +566,15 @@ describe('configurações e estados restritos L2', () => {
       </MemoryRouter>
     );
     expect(await screen.findByText('@octocat')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'crie uma senha em Segurança' })).toHaveAttribute(
+    expect(screen.getByText('@octocat').parentElement).toHaveClass('integration-box-compact');
+    await user.click(screen.getByRole('button', { name: 'Desvincular' }));
+    const dialog = screen.getByRole('dialog', { name: 'Crie uma senha antes de desvincular' });
+    expect(within(dialog).queryByLabelText('Senha atual')).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('link', { name: 'Ir para Segurança' })).toHaveAttribute(
       'href',
       '/settings/security'
     );
-    expect(
-      screen.queryByRole('button', { name: 'Desvincular conta GitHub' })
-    ).not.toBeInTheDocument();
+    expect(dialog).toHaveTextContent('GitHub App continuará funcionando normalmente.');
     expect(screen.getByRole('heading', { name: 'GitHub App' })).toBeInTheDocument();
   });
 
@@ -570,8 +584,23 @@ describe('configurações e estados restritos L2', () => {
         <ConfirmationPage type="email" />
       </MemoryRouter>
     );
-    expect(await screen.findByText(/Operação concluída/)).toBeInTheDocument();
+    expect(await screen.findByText('E-mail alterado. Faça login novamente.')).toBeInTheDocument();
     expect(mocks.api.confirmEmail).toHaveBeenCalledWith('token-valido');
+  });
+
+  it.each([
+    ['email', '/settings/account/email-change/confirm', 'confirmEmail'],
+    ['reactivation', '/account/reactivation/confirm', 'confirmReactivation']
+  ])('rejeita confirmação %s sem token sem chamar a API', async (type, route, method) => {
+    render(
+      <MemoryRouter initialEntries={[route]}>
+        <ConfirmationPage type={type} />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('Link inválido ou incompleto.')).toBeInTheDocument();
+    expect(mocks.api[method]).not.toHaveBeenCalled();
+    expect(screen.getByRole('link', { name: 'Ir para o login' })).toHaveAttribute('href', '/login');
   });
 
   it.each([
@@ -590,7 +619,13 @@ describe('configurações e estados restritos L2', () => {
       </StrictMode>
     );
 
-    expect(await screen.findByText(/Operação concluída/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        type === 'email'
+          ? 'E-mail alterado. Faça login novamente.'
+          : 'Conta reativada. Faça login novamente.'
+      )
+    ).toBeInTheDocument();
     expect(mocks.api[method]).toHaveBeenCalledTimes(1);
   });
 });

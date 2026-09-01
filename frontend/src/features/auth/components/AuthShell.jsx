@@ -1,8 +1,22 @@
 import { useState } from 'react';
-import { FeedbackRegion, useCountdown } from '../../../shared/index.js';
+import {
+  BackButton,
+  FeedbackRegion,
+  PublicPageShell,
+  useCountdown
+} from '../../../shared/index.js';
 import { useAuth } from '../AuthContext.jsx';
+import './AuthShell.css';
 
-export function AuthShell({ eyebrow, title, description, children, footer }) {
+export function AuthShell({
+  title,
+  description,
+  children,
+  footer,
+  backTo,
+  backLabel = 'Voltar para entrar',
+  wide = false
+}) {
   const { bootstrapError, refresh } = useAuth();
   const [retrying, setRetrying] = useState(false);
   const retryAfterSeconds = bootstrapError?.retryAfterSeconds || 0;
@@ -19,12 +33,18 @@ export function AuthShell({ eyebrow, title, description, children, footer }) {
   }
 
   return (
-    <main className="auth-page">
-      <section className="auth-shell" aria-labelledby="auth-title">
+    <PublicPageShell>
+      <section
+        className={`auth-shell${wide ? ' auth-shell--wide' : ''}`}
+        aria-labelledby="auth-title"
+      >
         <div className="auth-card">
+          {backTo && (
+            <div className="auth-back-row">
+              <BackButton to={backTo} label={backLabel} />
+            </div>
+          )}
           <header className="auth-header">
-            <span className="auth-brand">TRACEFLOW</span>
-            {eyebrow && <span className="eyebrow">{eyebrow}</span>}
             <h1 id="auth-title">{title}</h1>
             {description && <p>{description}</p>}
           </header>
@@ -53,6 +73,6 @@ export function AuthShell({ eyebrow, title, description, children, footer }) {
           {footer && <footer className="auth-footer">{footer}</footer>}
         </div>
       </section>
-    </main>
+    </PublicPageShell>
   );
 }

@@ -1,4 +1,7 @@
 import { NavLink, Outlet } from 'react-router';
+import '../../shared/styles/internal-tabs.css';
+import './SettingsLayout.css';
+import './styles/settings-shared.css';
 
 const sections = [
   ['/settings/account', 'Conta'],
@@ -10,22 +13,26 @@ const sections = [
 export function SettingsLayout() {
   return (
     <main className="page-container settings-shell">
-      <header>
-        <p className="eyebrow">Preferências pessoais</p>
+      <header className="settings-header">
+        <p className="eyebrow">Configurações</p>
         <h1>Configurações</h1>
-        <p>Gerencie sua identidade, segurança, privacidade e autorizações externas.</p>
+        <p>Gerencie sua conta, segurança, privacidade e integrações.</p>
       </header>
-      <div className="settings-grid">
-        <nav className="settings-nav" aria-label="Configurações da conta">
-          {sections.map(([to, label]) => (
-            <NavLink key={to} to={to} className={({ isActive }) => (isActive ? 'active' : '')}>
-              {label}
-            </NavLink>
-          ))}
-        </nav>
-        <div className="settings-content">
-          <Outlet />
-        </div>
+      <nav className="internal-tabs settings-tabs" aria-label="Configurações da conta">
+        {sections.map(([to, label]) => (
+          <NavLink
+            key={to}
+            to={to}
+            className={({ isActive }) =>
+              `internal-tab settings-tab${isActive ? ' internal-tab--active' : ''}`
+            }
+          >
+            {label}
+          </NavLink>
+        ))}
+      </nav>
+      <div className="settings-content">
+        <Outlet />
       </div>
     </main>
   );

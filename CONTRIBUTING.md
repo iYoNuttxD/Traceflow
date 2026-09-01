@@ -68,15 +68,32 @@ Prettier é a autoridade de formatação automática e ESLint cobre qualidade/er
 reformate por preferência pessoal. Código novo deve ser compatível com o formatter e com
 `architecture:check` quando a fronteira backend for afetada.
 
+### Rastreabilidade de superfícies de UI
+
+Mudanças que adicionem, removam ou redesenhem uma página, dialog, confirmação ou estado visual de
+fluxo devem manter o [inventário de surfaces](docs/design/UI_SURFACE_INVENTORY.md) atualizado. Uma
+área não é considerada completamente revisada apenas pela rota principal: empty, loading, error,
+success, permission e demais surfaces auxiliares diretamente associadas também pertencem ao escopo
+visual. Alterações internas que não criem nem mudem uma surface não exigem uma nova entrada.
+
+Uma surface só pode receber `VISUALLY APPROVED` quando a matriz manual/renderizada correspondente
+estiver registrada no
+[Visual Validation Log](docs/design/validation/VISUAL_VALIDATION_LOG.md). Testes automatizados podem
+sustentar `TECHNICALLY VERIFIED`, mas não substituem essa evidência. Quando uma alteração posterior
+afetar materialmente layout ou interação já homologados, reavalie o status no inventário; preserve a
+entrada histórica no log e registre a necessidade de nova validação em vez de herdar a aprovação
+automaticamente. `ENVIRONMENT BLOCKED` documenta uma limitação objetiva e não conta como aprovação
+ou falha visual.
+
 ## Equivalência com a CI
 
-| Check | Equivalente local |
-|---|---|
-| `Quality` | lint e `format:check` dos dois projetos, mais testes estruturais do workflow |
-| `Backend Tests` | Prisma, migrations, arquitetura, segredos, unitários, integração e cobertura com MySQL real |
-| `Frontend Tests` | lint, formatação, cobertura e build de produção |
-| `Supply Chain` | política de `npm audit` e scanner de segredos |
-| `Dependency Review` | análise do delta de dependências disponível somente no pull request |
+| Check               | Equivalente local                                                                           |
+| ------------------- | ------------------------------------------------------------------------------------------- |
+| `Quality`           | lint e `format:check` dos dois projetos, mais testes estruturais do workflow                |
+| `Backend Tests`     | Prisma, migrations, arquitetura, segredos, unitários, integração e cobertura com MySQL real |
+| `Frontend Tests`    | lint, formatação, cobertura e build de produção                                             |
+| `Supply Chain`      | política de `npm audit` e scanner de segredos                                               |
+| `Dependency Review` | análise do delta de dependências disponível somente no pull request                         |
 
 Não declare uma execução local como `CI-equivalent` quando versão/configuração de Node ou MySQL e a
 ordem dos gates relevantes não tiverem sido reproduzidas. O workflow de pull request também pode

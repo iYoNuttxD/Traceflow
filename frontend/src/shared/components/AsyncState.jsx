@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useCountdown } from '../hooks/useCountdown.js';
+import './AsyncState.css';
 
 export function LoadingState({ message = 'Carregando...' }) {
   return (

@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -97,7 +98,7 @@ describe('ProtectedRoute', () => {
     expect(screen.getByRole('heading', { name: 'Projetos privados' })).toBeInTheDocument();
   });
 
-  it('não presume sessão ausente quando o bootstrap falha por rede', () => {
+  it('não presume sessão ausente quando o bootstrap falha por rede e permite retry explícito', async () => {
     authState.bootstrapError = {
       type: 'NETWORK',
       message: 'Não foi possível conectar ao servidor do TRACEFLOW.'
@@ -105,13 +106,16 @@ describe('ProtectedRoute', () => {
     renderRoute('/projects/7/tasks');
 
     expect(
-      screen.getByRole('heading', { name: 'Não foi possível conectar ao TRACEFLOW.' })
+      screen.getByRole('heading', { name: 'Não foi possível restaurar a sessão' })
     ).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Voltar ao projeto' })).toHaveAttribute(
-      'href',
-      '/projects/7'
-    );
+    expect(
+      screen.getByText('Não foi possível conectar ao servidor do TRACEFLOW.')
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Tentar novamente' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: /Entrar/ })).not.toBeInTheDocument();
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Tentar novamente' }));
+    expect(authState.refresh).toHaveBeenCalledOnce();
   });
 
   it('mantém 429 em página própria e bloqueia retry durante o cooldown', () => {
@@ -124,9 +128,7 @@ describe('ProtectedRoute', () => {
     renderRoute();
 
     expect(screen.getByRole('alert')).toHaveTextContent('Muitas tentativas.');
-    expect(
-      screen.getByRole('heading', { name: 'Muitas solicitações em pouco tempo.' })
-    ).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Muitas solicitações' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Tentar novamente em 30s' })).toBeDisabled();
     expect(authState.refresh).not.toHaveBeenCalled();
   });

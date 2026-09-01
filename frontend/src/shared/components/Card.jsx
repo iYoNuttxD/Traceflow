@@ -1,4 +1,6 @@
 // Card compartilhado usado pelas telas atuais.
+import './Card.css';
+
 export function Card({ title, headerAction, className = '', children }) {
   return (
     <section className={['card', className].filter(Boolean).join(' ')}>
