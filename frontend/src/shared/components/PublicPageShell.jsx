@@ -5,7 +5,7 @@ export function PublicPageShell({ children, className = '' }) {
 
   return (
     <main className={classes}>
-      <div className="public-page-brand" aria-label="TRACEFLOW">
+      <div className="public-page-brand">
         <span className="public-page-brand__mark" aria-hidden="true">
           <span />
         </span>

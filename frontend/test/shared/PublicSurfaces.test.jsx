@@ -4,13 +4,21 @@ import { PublicPageShell, StatusSurface } from '../../src/shared/index.js';
 
 describe('surfaces públicas Focused', () => {
   it('mantém marca única e conteúdo dentro da composição pública', () => {
-    render(
+    const { container } = render(
       <PublicPageShell>
         <p>Conteúdo público</p>
       </PublicPageShell>
     );
 
-    expect(screen.getByLabelText('TRACEFLOW')).toBeInTheDocument();
+    const brandName = screen.getByText('TRACEFLOW');
+    const decorativeMark = container.querySelector('.public-page-brand__mark');
+
+    expect(brandName).toBeVisible();
+    expect(brandName).not.toHaveAttribute('aria-hidden');
+    expect(screen.getAllByText('TRACEFLOW')).toHaveLength(1);
+    expect(screen.queryByLabelText('TRACEFLOW')).not.toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'TRACEFLOW' })).not.toBeInTheDocument();
+    expect(decorativeMark).toHaveAttribute('aria-hidden', 'true');
     expect(screen.getByText('Conteúdo público')).toBeInTheDocument();
   });
 
