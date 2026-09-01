@@ -127,5 +127,26 @@ dois extremos (projeto zerado e seed em escala). Status inicial: **PENDENTE DE A
 
 ## 4. Resultados
 
-Preenchidos pelas Fases 2 (API) e 3 (UI); resumo e veredito por requisito na seção "Campanha de
-caixa preta" do [RF10_RF35_RELATORIO_TESTES.md](RF10_RF35_RELATORIO_TESTES.md).
+### 4.1 Nível API (Fase 2 — executada em 31/08/2026, `rf08-rf10-rf35-caixa-preta.test.js`, 46 verdes)
+
+| Casos | Resultado | Veredito |
+|---|---|---|
+| CP-TE-01..11, CP-TE-30 | comportamento idêntico ao esperado, incluindo `returnedToBacklog: 2` (TE-05), `milestoneCompleted` (TE-11) e os 409 de transição/edição/exclusão | APROVADO |
+| CP-TD-01..06, CP-TD-28 | idem; a congelada vence a mesma-coluna com `409 TASK_SPRINT_LOCKED` nos dois caminhos (move e status) | APROVADO |
+| CP-PE-02..04, CP-VL-05..09, CP-PE-10..12, CP-PE-15..16, CP-VL-17, CP-VL-29 | códigos e efeitos exatamente os do contrato | APROVADO |
+| **CP-PE-01** | a recusa acontece (400) nas duas formas — campo ausente **e** `milestoneId: null` — mas com `VALIDATION_ERROR` genérico; o `SPRINT_MILESTONE_REQUIRED` prometido pelo contrato não é devolvido em nenhuma delas | **ACHADO CP-A1** (deriva contrato × comportamento; LOW) |
+| **CP-VL-13/14** | refinado pela releitura do contrato: payload com 101 ids → `400` (regra "máx. 100" da camada de payload, também `VALIDATION_ERROR`); excedente **incremental** (100 na sprint + `PATCH /tasks/:id/sprint` da 101ª) → `409 SPRINT_TASK_LIMIT_REACHED`; composição de 100 intacta no `GET` | APROVADO (com a camada de payload anotada em CP-A1) |
+| CP-PE-18..21, CP-TE-22, CP-PE-23 | percentuais exatos (25; 66.67 no CU), `null ≠ 0`, escopo sinalizado/preservado, congelamento com corpos idênticos em três consultas, burndown 8 pontos vs `hasData: false` | APROVADO |
+| CP-TD-24..26 | VIEWER lê as três interfaces e recebe 403 nas três mutações; não-membro recebe resposta idêntica à de recurso inexistente no progresso e no quadro | APROVADO |
+| CP-CU-27 | fluxo central inteiro conforme o contrato, encerrando na recusa `409 TASK_SPRINT_LOCKED` | APROVADO |
+
+Observação de execução (**CP-A2**): na primeira rodada da suíte completa com a campanha, o teste
+pré-existente de corrida `'protege atualização concorrente do mesmo status…'` falhou uma vez e
+passou nas rodadas 2 e 3 (550/550 idênticas) — flake de concorrência alheio à campanha,
+registrado no backlog.
+
+### 4.2 Nível UI (Fase 3)
+
+**PENDENTE DE AVAL** — roteiro da seção 3 aguardando o ambiente completo do João. Resumo e
+veredito por requisito na seção "Campanha de caixa preta" do
+[RF10_RF35_RELATORIO_TESTES.md](RF10_RF35_RELATORIO_TESTES.md).
