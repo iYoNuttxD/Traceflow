@@ -7,14 +7,16 @@ Concept C2 — TraceFlow Hybrid
 DIREÇÃO VISUAL APROVADA
 TOKENS E SHELL AUTENTICADO — IMPLEMENTADOS
 AUTH FOCUSED — IMPLEMENTADO
-VISUAL HOMOLOGATION: DEFERRED TO WORK
+VALIDAÇÃO RENDERIZADA — RASTREADA POR SURFACE
 ```
 
 Este documento é a referência humana inicial da linguagem visual do TRACEFLOW. A especificação
 visual aprovada permanece em [`traceflow-tokens.css`](./traceflow-tokens.css), enquanto a fonte
 executável do frontend está em `frontend/src/styles/tokens.css`. O runtime não importa arquivos de
-`docs/`. Os protótipos aprovados permanecem em
-[`experiments/concept-c2/`](./experiments/concept-c2/).
+`docs/`. O estado atual de cada surface está no
+[inventário de UI](./UI_SURFACE_INVENTORY.md), e a evidência renderizada versionada está no
+[Visual Validation Log](./validation/VISUAL_VALIDATION_LOG.md). Protótipos locais e arquivos
+ignorados pelo Git não são evidência canônica.
 
 ## Escopo e fronteira
 
@@ -116,7 +118,7 @@ históricas para formar escalas reutilizáveis.
 
 ## Tokens
 
-A primeira versão possui 120 tokens únicos. O conjunto permanece abaixo do limite de 150 e evita
+O conjunto atual possui 120 tokens únicos. Ele permanece abaixo do limite de 150 e evita
 nomes ligados a páginas, features ou produtos de referência.
 
 ### Cores estruturais
@@ -532,14 +534,17 @@ validação, redirect e autorização.
 
 Copy de autenticação é funcional: orienta ação, explica estado ou restrição, identifica campo/ação
 ou informa o próximo passo. Eyebrows institucionais, slogans e referências a termos ou avisos
-inexistentes não pertencem à interface. GitHub OAuth representa autenticação/identidade; GitHub App
+inexistentes não pertencem à interface. A remoção da referência pública a um aviso de privacidade
+inexistente é intencional; o frontend não deve inventar link, documento ou promessa jurídica sem
+uma fonte canônica de produto/jurídica. GitHub OAuth representa autenticação/identidade; GitHub App
 permanece restrita aos fluxos de integração de repositórios.
 
 ## Settings C2
 
 Settings permanece dentro do AppShell autenticado e usa a mesma navegação interna horizontal de
-Project Overview: texto, divisor inferior, indicador ativo, hover e focus-visible. Em mobile, as tabs
-preservam largura legível e scroll horizontal controlado. O conteúdo usa largura contextual, sem
+Project Overview: texto, divisor inferior, indicador ativo, hover e focus-visible. Como os itens
+navegam entre rotas, usam links em uma `nav` com `aria-current`, não semântica de tabs ARIA. Em
+mobile, os links preservam largura legível e scroll horizontal controlado. O conteúdo usa largura contextual, sem
 adotar a coluna estreita de Auth nem ocupar toda a área disponível do shell.
 
 Conta, Segurança, Privacidade e Integrações usam uma surface temática integrada, dividida em seções
@@ -584,7 +589,8 @@ não implica remover OAuth.
 - touch target mínimo de 44 × 44 px;
 - texto, ícone, label ou forma acompanham a cor semântica;
 - ordem de leitura e heading hierarchy refletem a hierarquia visual;
-- zoom, reflow, contraste, teclado e tecnologias assistivas serão validados na homologação;
+- zoom, reflow, contraste, teclado e tecnologias assistivas são registrados por surface quando
+  realmente validados;
 - reduced motion é requisito;
 - tooltips não são a única fonte de informação necessária.
 
@@ -612,10 +618,13 @@ Lighthouse não substitui validação completa de WCAG.
 
 ## Homologação
 
-```text
-VISUAL HOMOLOGATION: DEFERRED TO WORK
-```
+A homologação é granular por surface. O
+[Visual Validation Log](./validation/VISUAL_VALIDATION_LOG.md) é a fonte versionada para a matriz
+renderizada realmente executada; o [inventário](./UI_SURFACE_INVENTORY.md) registra o estado atual e
+deve ser reavaliado quando uma mudança posterior afetar materialmente layout ou interação.
 
-A homologação deve comparar os tokens em Light/Dark, componentes básicos, sidebar
-expandida/recolhida e viewports de referência. Esta especificação não equivale a implementação nem
-a PASS visual do frontend; a inspeção renderizada permanece delegada ao Work.
+A matriz aplicável compara Light/Dark, componentes e estados relevantes, sidebar
+expandida/recolhida quando presente e viewports de referência. `VISUALLY APPROVED` exige uma entrada
+correspondente no log e não equivale a certificação WCAG ou cobertura histórica de todos os
+browsers. Testes automatizados sustentam `TECHNICALLY VERIFIED`, mas não substituem inspeção
+renderizada. `ENVIRONMENT BLOCKED` registra uma limitação objetiva; não é aprovação nem falha visual.

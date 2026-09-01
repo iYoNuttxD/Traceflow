@@ -43,7 +43,8 @@ src/
 │   ├── components/
 │   ├── hooks/
 │   ├── services/
-│   └── styles/                # exceções com múltiplos consumers reais
+│   ├── styles/                # exceções com múltiplos consumers reais
+│   └── utils/                 # utilitários puros e independentes de domínio
 └── styles/
     ├── base.css
     ├── global.css

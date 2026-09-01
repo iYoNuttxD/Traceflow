@@ -32,8 +32,9 @@ A direção permitida é `app/routes → pages → features → shared + http-cl
 - Hooks e screens controlam requests canceláveis, mutações e rollback visual.
 - Shared não importa pages/features; features não importam internals umas das outras.
 - `TraceabilityFlow` renderiza o DTO de nodes/edges sem recalcular cobertura.
-- `app/theme` aplica Light/Dark por tokens semânticos; escolha manual local prevalece sobre a
-  preferência inicial do sistema.
+- `app/theme` separa a preferência persistida `system | light | dark` do tema resolvido
+  `light | dark`. Sistema é o default, acompanha `prefers-color-scheme` enquanto selecionado e usa
+  Light quando `matchMedia` não está disponível; overrides manuais ignoram mudanças do sistema.
 - `app/layout` concentra sidebar responsiva, drawer acessível, navegação, identidade e logout. Rotas
   públicas e contas restritas permanecem fora do shell autenticado.
 - A sidebar e a tela Projects compartilham o catálogo autorizado de `GET /projects`. IDs fixados e

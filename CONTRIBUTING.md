@@ -76,6 +76,15 @@ fluxo devem manter o [inventário de surfaces](docs/design/UI_SURFACE_INVENTORY.
 success, permission e demais surfaces auxiliares diretamente associadas também pertencem ao escopo
 visual. Alterações internas que não criem nem mudem uma surface não exigem uma nova entrada.
 
+Uma surface só pode receber `VISUALLY APPROVED` quando a matriz manual/renderizada correspondente
+estiver registrada no
+[Visual Validation Log](docs/design/validation/VISUAL_VALIDATION_LOG.md). Testes automatizados podem
+sustentar `TECHNICALLY VERIFIED`, mas não substituem essa evidência. Quando uma alteração posterior
+afetar materialmente layout ou interação já homologados, reavalie o status no inventário; preserve a
+entrada histórica no log e registre a necessidade de nova validação em vez de herdar a aprovação
+automaticamente. `ENVIRONMENT BLOCKED` documenta uma limitação objetiva e não conta como aprovação
+ou falha visual.
+
 ## Equivalência com a CI
 
 | Check               | Equivalente local                                                                           |

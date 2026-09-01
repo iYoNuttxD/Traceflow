@@ -17,7 +17,7 @@ const settingsSharedCss = readFileSync(
   'utf8'
 );
 
-describe('regressões responsivas de Settings E5.1.1', () => {
+describe('regressões responsivas de dialogs e formulários de Settings', () => {
   it('remove o flex-basis vertical apenas das ações do dialog sensível mobile', () => {
     expect(integrationsCss).toMatch(
       /@media \(max-width: 560px\)[\s\S]*\.settings-sensitive-dialog \.dialog-actions \.button \{[\s\S]*flex: 0 0 auto;[\s\S]*width: 100%;/
