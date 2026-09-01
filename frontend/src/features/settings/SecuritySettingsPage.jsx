@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router';
-import { authApi, githubOAuthErrorMessage, PasswordField, useAuth } from '../auth/index.js';
+import { githubOAuthErrorMessage, PasswordField, useAuth } from '../auth/index.js';
 import {
   ContextualErrorPage,
   LoadingState,
@@ -11,6 +11,7 @@ import {
   useConfirm
 } from '../../shared/index.js';
 import { settingsApi } from './settings.api.js';
+import { GithubSensitiveReauthentication } from './GithubSensitiveReauthentication.jsx';
 import { SettingsFeedback } from './SettingsFeedback.jsx';
 import './SecuritySettingsPage.css';
 
@@ -27,7 +28,6 @@ export function SecuritySettingsPage() {
   });
   const [initialPassword, setInitialPassword] = useState({ newPassword: '', confirmation: '' });
   const [passwordErrors, setPasswordErrors] = useState({});
-  const [reauthenticating, setReauthenticating] = useState(false);
   const searchParams = new URLSearchParams(location.search);
   const githubError =
     searchParams.get('github') === 'error'
@@ -93,19 +93,6 @@ export function SecuritySettingsPage() {
     }
   }
 
-  async function reauthenticate() {
-    if (reauthenticating) return;
-    setError('');
-    setReauthenticating(true);
-    try {
-      const result = await authApi.startGithubSensitiveReauthentication('/settings/security');
-      window.location.assign(result.url);
-    } catch (value) {
-      setError(normalizeApiError(value).message);
-      setReauthenticating(false);
-    }
-  }
-
   async function initializePassword(event) {
     event.preventDefault();
     if (initialPassword.newPassword !== initialPassword.confirmation) {
@@ -157,6 +144,12 @@ export function SecuritySettingsPage() {
     setError('');
   }
 
+  function handleGithubReauthenticationError(message, normalized) {
+    setError(message);
+    setMessage('');
+    setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
+  }
+
   if (!account && initialError) {
     return (
       <ContextualErrorPage
@@ -200,17 +193,12 @@ export function SecuritySettingsPage() {
                 <h3>Confirme sua identidade</h3>
                 <p>Confirme novamente com GitHub para criar uma senha local.</p>
                 <div className="settings-actions">
-                  <button
-                    className="button button-secondary"
-                    type="button"
-                    disabled={reauthenticating}
-                    aria-busy={reauthenticating}
-                    onClick={() => void reauthenticate()}
-                  >
-                    {reauthenticating
-                      ? 'Conectando ao GitHub...'
-                      : 'Confirmar identidade com GitHub'}
-                  </button>
+                  <GithubSensitiveReauthentication
+                    account={account}
+                    returnTo="/settings/security"
+                    cooldown={cooldown}
+                    onError={handleGithubReauthenticationError}
+                  />
                 </div>
               </div>
             ) : account.hasLocalPassword === false ? (

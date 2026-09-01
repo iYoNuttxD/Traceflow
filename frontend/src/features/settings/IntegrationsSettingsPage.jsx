@@ -23,6 +23,9 @@ export function IntegrationsSettingsPage() {
   const [dialog, setDialog] = useState(null);
   const [successFocus, setSuccessFocus] = useState(null);
   const [authorizing, setAuthorizing] = useState(false);
+  const [refreshWarning, setRefreshWarning] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshLock = useRef(false);
   const oauthHeadingRef = useRef(null);
   const appHeadingRef = useRef(null);
   const searchParams = new URLSearchParams(location.search);
@@ -83,12 +86,36 @@ export function IntegrationsSettingsPage() {
 
   async function completeSensitiveAction(operation, success) {
     await operation();
+    setError('');
     setMessage(success);
-    await load();
+    setRefreshWarning('');
+    try {
+      await load();
+    } catch {
+      setMessage('');
+      setRefreshWarning(`${success} Não foi possível atualizar os dados exibidos.`);
+    }
+  }
+
+  async function retryLoad() {
+    if (!refreshWarning || refreshLock.current) return;
+    refreshLock.current = true;
+    setRefreshing(true);
+    setError('');
+    try {
+      await load();
+      setRefreshWarning('');
+      setMessage('Dados de integrações atualizados.');
+    } catch {
+      // The existing warning remains actionable; recovery is user-triggered and never loops.
+    } finally {
+      refreshLock.current = false;
+      setRefreshing(false);
+    }
   }
 
   async function authorize() {
-    if (authorizing || cooldown > 0) return;
+    if (authorizing || cooldown > 0 || refreshWarning) return;
     setAuthorizing(true);
     setError('');
     setRetryAfterSeconds(0);
@@ -104,7 +131,7 @@ export function IntegrationsSettingsPage() {
   }
 
   function openDialog(kind, trigger, authorization = null) {
-    if (cooldown > 0) return;
+    if (cooldown > 0 || refreshWarning) return;
     setDialog({ kind, trigger, authorization });
   }
 
@@ -192,7 +219,25 @@ export function IntegrationsSettingsPage() {
 
   return (
     <div className="settings-stack">
-      <SettingsFeedback error={error} message={message} retryAfterSeconds={cooldown} />
+      <SettingsFeedback
+        error={error}
+        warning={refreshWarning}
+        message={message}
+        retryAfterSeconds={cooldown}
+      />
+      {refreshWarning && (
+        <div className="settings-actions">
+          <button
+            className="button button-secondary"
+            type="button"
+            disabled={refreshing}
+            aria-busy={refreshing}
+            onClick={() => void retryLoad()}
+          >
+            {refreshing ? 'Atualizando integrações...' : 'Tentar atualizar integrações'}
+          </button>
+        </div>
+      )}
       <article className="settings-surface">
         <section className="settings-section" aria-labelledby="settings-github-oauth-title">
           <div className="settings-section-heading">
@@ -210,7 +255,7 @@ export function IntegrationsSettingsPage() {
               <button
                 className="button button-danger"
                 type="button"
-                aria-disabled={cooldown > 0 || undefined}
+                aria-disabled={cooldown > 0 || Boolean(refreshWarning) || undefined}
                 onClick={(event) => openDialog('unlink', event.currentTarget)}
               >
                 Desvincular
@@ -224,7 +269,7 @@ export function IntegrationsSettingsPage() {
                 <button
                   className="button button-provider"
                   type="button"
-                  aria-disabled={cooldown > 0 || undefined}
+                  aria-disabled={cooldown > 0 || Boolean(refreshWarning) || undefined}
                   onClick={(event) => openDialog('link', event.currentTarget)}
                 >
                   Vincular GitHub OAuth
@@ -249,7 +294,7 @@ export function IntegrationsSettingsPage() {
                 className="button button-secondary"
                 type="button"
                 disabled={authorizing}
-                aria-disabled={cooldown > 0 || undefined}
+                aria-disabled={cooldown > 0 || Boolean(refreshWarning) || undefined}
                 aria-busy={authorizing}
                 onClick={() => void authorize()}
               >
@@ -314,7 +359,7 @@ export function IntegrationsSettingsPage() {
                         <button
                           className="button button-danger"
                           type="button"
-                          aria-disabled={cooldown > 0 || undefined}
+                          aria-disabled={cooldown > 0 || Boolean(refreshWarning) || undefined}
                           onClick={(event) => openDialog('disconnect', event.currentTarget, item)}
                         >
                           Desconectar

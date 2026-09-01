@@ -159,6 +159,10 @@ A restauração de sessão coalesce chamadas concorrentes e as cargas iniciais d
 
 Toda API de domínio usa `httpClient`. Queries recebem `params` e, quando obsoletas, `signal`. A UI consome erros normalizados com `status`, `code`, `message`, `fieldErrors` e `requestId`. 401 encerra a sessão local; 403 mantém a sessão e é apresentado como acesso restrito.
 
+Uma mutation confirmada não é reclassificada como falha somente porque a leitura subsequente não
+pôde atualizar a interface. Nesse caso, o owner informa que a ação foi concluída, marca o estado
+local como desatualizado e oferece recuperação que repete apenas a leitura.
+
 Respostas assíncronas ligadas a rota ou entidade somente podem atualizar estado enquanto ainda
 pertencem ao contexto que iniciou a request. A troca de `projectId` cancela ou invalida loaders,
 polling e feedback anteriores; uma resposta stale não altera dados, autorização, loading ou erro do

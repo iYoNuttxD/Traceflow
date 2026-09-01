@@ -14,6 +14,11 @@ const mocks = vi.hoisted(() => ({
     requestEmailChange: vi.fn(),
     cancelEmailChange: vi.fn(),
     deactivate: vi.fn(),
+    sessions: vi.fn(),
+    deletion: vi.fn(),
+    requestDeletion: vi.fn(),
+    cancelDeletion: vi.fn(),
+    exportData: vi.fn(),
     github: vi.fn(),
     githubIdentity: vi.fn(),
     startGithubIdentityLink: vi.fn(),
@@ -31,6 +36,9 @@ vi.mock('../../src/features/auth/index.js', async (importOriginal) => ({
 }));
 
 const { AccountSettingsPage } = await import('../../src/features/settings/AccountSettingsPage.jsx');
+const { PrivacySettingsPage } = await import('../../src/features/settings/PrivacySettingsPage.jsx');
+const { SecuritySettingsPage } =
+  await import('../../src/features/settings/SecuritySettingsPage.jsx');
 const { IntegrationsSettingsPage } =
   await import('../../src/features/settings/IntegrationsSettingsPage.jsx');
 
@@ -104,6 +112,11 @@ describe('Settings consistency', () => {
     mocks.api.account.mockResolvedValue(account);
     mocks.api.updateProfile.mockResolvedValue({});
     mocks.api.updateUsername.mockResolvedValue({});
+    mocks.api.sessions.mockResolvedValue([]);
+    mocks.api.deletion.mockResolvedValue(null);
+    mocks.api.requestDeletion.mockResolvedValue({});
+    mocks.api.cancelDeletion.mockResolvedValue({});
+    mocks.api.exportData.mockResolvedValue(new Blob());
     mocks.api.github.mockResolvedValue([]);
     mocks.api.githubIdentity.mockResolvedValue({ linked: false });
     mocks.api.unlinkGithubIdentity.mockResolvedValue({});
@@ -111,6 +124,7 @@ describe('Settings consistency', () => {
     mocks.api.startGithubInstallation.mockResolvedValue({
       data: { url: 'https://github.example/install' }
     });
+    mocks.authApi.startGithubSensitiveReauthentication.mockReset();
   });
 
   afterEach(() => vi.useRealTimers());
@@ -265,6 +279,165 @@ describe('Settings consistency', () => {
       within(dialog).getByRole('button', { name: 'Confirmar identidade em 9s' })
     ).toBeDisabled();
     expect(mocks.authApi.startGithubSensitiveReauthentication).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ['Account', AccountSettingsPage, 2],
+    ['Privacy', PrivacySettingsPage, 1],
+    ['Security', SecuritySettingsPage, 1]
+  ])(
+    'preserva e expira o cooldown da reautenticação GitHub em %s',
+    async (_name, Page, expectedButtons) => {
+      mocks.api.account.mockResolvedValue({
+        ...account,
+        hasLocalPassword: false,
+        hasGithubIdentity: true,
+        recentlyReauthenticated: false,
+        canInitializePassword: false
+      });
+      mocks.authApi.startGithubSensitiveReauthentication
+        .mockRejectedValueOnce(apiError(429, 'Confirmações temporariamente limitadas.', 3))
+        .mockImplementationOnce(() => new Promise(() => {}));
+      render(
+        <MemoryRouter>
+          <ConfirmProvider>
+            <Page />
+          </ConfirmProvider>
+        </MemoryRouter>
+      );
+
+      const initialButtons = await screen.findAllByRole('button', {
+        name: 'Confirmar identidade com GitHub'
+      });
+      expect(initialButtons).toHaveLength(expectedButtons);
+      vi.useFakeTimers();
+      await act(async () => {
+        fireEvent.click(initialButtons[0]);
+        await Promise.resolve();
+      });
+
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Confirmações temporariamente limitadas.'
+      );
+      expect(screen.getByRole('alert')).toHaveTextContent('Tente novamente em 3s.');
+      const limitedButtons = screen.getAllByRole('button', {
+        name: 'Confirmar identidade em 3s'
+      });
+      expect(limitedButtons).toHaveLength(expectedButtons);
+      limitedButtons.forEach((button) => expect(button).toBeDisabled());
+      fireEvent.click(limitedButtons[0]);
+      expect(mocks.authApi.startGithubSensitiveReauthentication).toHaveBeenCalledOnce();
+
+      for (let second = 0; second < 3; second += 1) {
+        await act(async () => vi.advanceTimersByTime(1000));
+      }
+      const retryButtons = screen.getAllByRole('button', {
+        name: 'Confirmar identidade com GitHub'
+      });
+      retryButtons.forEach((button) => expect(button).toBeEnabled());
+      fireEvent.click(retryButtons[0]);
+      expect(mocks.authApi.startGithubSensitiveReauthentication).toHaveBeenCalledTimes(2);
+    }
+  );
+
+  it('mantém mutation failure no dialog sem marcar unlink como concluído', async () => {
+    const user = userEvent.setup();
+    mocks.api.githubIdentity.mockResolvedValue({ linked: true, githubLogin: 'octocat' });
+    mocks.api.unlinkGithubIdentity.mockRejectedValue(apiError(409, 'Vínculo já foi alterado.'));
+    render(
+      <MemoryRouter>
+        <IntegrationsSettingsPage />
+      </MemoryRouter>
+    );
+
+    await user.click(await screen.findByRole('button', { name: 'Desvincular' }));
+    const dialog = screen.getByRole('dialog', { name: 'Desvincular GitHub OAuth?' });
+    await user.type(within(dialog).getByLabelText(/Senha atual/), 'senha local segura');
+    await user.click(within(dialog).getByRole('button', { name: 'Desvincular' }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Vínculo já foi alterado.');
+    expect(screen.queryByText('GitHub OAuth desvinculado.')).not.toBeInTheDocument();
+    expect(mocks.api.account).toHaveBeenCalledOnce();
+  });
+
+  it('separa unlink concluído de refresh falho e recupera apenas a leitura', async () => {
+    const user = userEvent.setup();
+    mocks.api.account
+      .mockResolvedValueOnce(account)
+      .mockRejectedValueOnce(apiError(503, 'Falha transitória.'))
+      .mockResolvedValue(account);
+    mocks.api.githubIdentity
+      .mockResolvedValueOnce({ linked: true, githubLogin: 'octocat' })
+      .mockResolvedValue({ linked: false });
+    render(
+      <MemoryRouter>
+        <IntegrationsSettingsPage />
+      </MemoryRouter>
+    );
+
+    await user.click(await screen.findByRole('button', { name: 'Desvincular' }));
+    const dialog = screen.getByRole('dialog', { name: 'Desvincular GitHub OAuth?' });
+    await user.type(within(dialog).getByLabelText(/Senha atual/), 'senha local segura');
+    await user.click(within(dialog).getByRole('button', { name: 'Desvincular' }));
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'GitHub OAuth desvinculado. Não foi possível atualizar os dados exibidos.'
+    );
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: 'GitHub OAuth' })).toHaveFocus()
+    );
+    const staleTrigger = screen.getByRole('button', { name: 'Desvincular' });
+    expect(staleTrigger).toHaveAttribute('aria-disabled', 'true');
+    await user.click(staleTrigger);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(mocks.api.unlinkGithubIdentity).toHaveBeenCalledOnce();
+
+    await user.click(screen.getByRole('button', { name: 'Tentar atualizar integrações' }));
+    expect(mocks.api.unlinkGithubIdentity).toHaveBeenCalledOnce();
+    expect(
+      await screen.findByRole('button', { name: 'Vincular GitHub OAuth' })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Não foi possível atualizar os dados exibidos/)
+    ).not.toBeInTheDocument();
+  });
+
+  it('separa disconnect concluído de refresh falho e recupera apenas a leitura', async () => {
+    const user = userEvent.setup();
+    mocks.api.account
+      .mockResolvedValueOnce(account)
+      .mockRejectedValueOnce(apiError(503, 'Falha transitória.'))
+      .mockResolvedValue(account);
+    mocks.api.github.mockResolvedValueOnce([githubAuthorization()]).mockResolvedValue([]);
+    render(
+      <MemoryRouter>
+        <IntegrationsSettingsPage />
+      </MemoryRouter>
+    );
+
+    await user.click(await screen.findByRole('button', { name: 'Desconectar' }));
+    const dialog = screen.getByRole('dialog', { name: 'Desconectar GitHub App?' });
+    await user.type(within(dialog).getByLabelText(/Senha atual/), 'senha local segura');
+    await user.click(within(dialog).getByRole('button', { name: 'Desconectar' }));
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'GitHub App desconectada desta conta TraceFlow. Não foi possível atualizar os dados exibidos.'
+    );
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'GitHub App' })).toHaveFocus());
+    const staleTrigger = screen.getByRole('button', { name: 'Desconectar' });
+    expect(staleTrigger).toHaveAttribute('aria-disabled', 'true');
+    await user.click(staleTrigger);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(mocks.api.removeGithubAuthorization).toHaveBeenCalledOnce();
+
+    await user.click(screen.getByRole('button', { name: 'Tentar atualizar integrações' }));
+    expect(mocks.api.removeGithubAuthorization).toHaveBeenCalledOnce();
+    expect(await screen.findByText('GitHub App não instalada')).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Não foi possível atualizar os dados exibidos/)
+    ).not.toBeInTheDocument();
   });
 
   it('recarrega o estado canônico quando nome e username são salvos', async () => {

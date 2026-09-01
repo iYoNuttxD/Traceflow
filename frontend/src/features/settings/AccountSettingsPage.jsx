@@ -152,6 +152,13 @@ export function AccountSettingsPage() {
     }
   }
 
+  function handleGithubReauthenticationError(message, normalized) {
+    setError(message);
+    setWarning('');
+    setMessage('');
+    setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
+  }
+
   if (!account && initialError) {
     return (
       <ContextualErrorPage
@@ -320,7 +327,8 @@ export function AccountSettingsPage() {
                     <GithubSensitiveReauthentication
                       account={account}
                       returnTo="/settings/account"
-                      onError={setError}
+                      cooldown={cooldown}
+                      onError={handleGithubReauthenticationError}
                     />
                   </div>
                 )}
@@ -365,7 +373,8 @@ export function AccountSettingsPage() {
               <GithubSensitiveReauthentication
                 account={account}
                 returnTo="/settings/account"
-                onError={setError}
+                cooldown={cooldown}
+                onError={handleGithubReauthenticationError}
               />
             )}
             <div className="settings-actions">

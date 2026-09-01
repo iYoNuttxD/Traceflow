@@ -84,6 +84,12 @@ export function PrivacySettingsPage() {
     }
   }
 
+  function handleGithubReauthenticationError(message, normalized) {
+    setError(message);
+    setMessage('');
+    setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
+  }
+
   if (loading) {
     return (
       <div className="settings-loading">
@@ -182,7 +188,8 @@ export function PrivacySettingsPage() {
                 <GithubSensitiveReauthentication
                   account={account}
                   returnTo="/settings/privacy"
-                  onError={setError}
+                  cooldown={cooldown}
+                  onError={handleGithubReauthenticationError}
                 />
               </div>
             )}

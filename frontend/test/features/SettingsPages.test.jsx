@@ -250,6 +250,7 @@ describe('configurações e estados restritos L2', () => {
     mocks.api.account.mockResolvedValue({
       id: 7,
       hasLocalPassword: false,
+      hasGithubIdentity: true,
       canInitializePassword: false
     });
     render(
