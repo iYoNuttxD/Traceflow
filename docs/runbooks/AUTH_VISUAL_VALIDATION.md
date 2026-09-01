@@ -7,9 +7,11 @@ as surfaces de Auth e ciclo de conta que dependem de estado persistido. Ele não
 autenticação, rota especial, API, migration ou envio de e-mail externo. Login, guards, lifecycle e
 tokens continuam usando os mesmos services do runtime.
 
-As fixtures são aditivas e idempotentes. Uma nova execução restaura apenas as identidades artificiais
-exatas listadas neste runbook, remove somente relações desses IDs e emite novos tokens locais. O
-script não reseta, trunca nem limpa o restante do banco.
+As fixtures são idempotentes dentro do namespace reservado. Uma nova execução restaura apenas as
+identidades artificiais exatas listadas neste runbook, remove relações desses IDs e emite novos
+tokens locais. Projetos vazios cujas memberships pertençam exclusivamente a essas identidades podem
+ser removidos para restaurar o lifecycle canônico. Projetos compartilhados, integrados ou com
+artefatos causam abort seguro; o script não reseta, trunca nem limpa o restante do banco.
 
 ## Proteções obrigatórias
 
@@ -25,6 +27,9 @@ O comando aborta antes de importar Prisma ou services quando qualquer condição
 
 Nunca aponte o comando para banco remoto, compartilhado, de desenvolvimento ou produção. Confirme
 host, porta e schema sem imprimir usuário ou senha. Não use conta, e-mail, senha ou token pessoal.
+Para a comparação de segurança, `localhost`, `127.0.0.1` e `[::1]` são aliases do mesmo host local;
+schema é comparado sem diferenciar maiúsculas e minúsculas. `0.0.0.0`, outros endereços de loopback,
+subdomínios de `localhost` e hosts terminados em `.local` não pertencem à allowlist.
 
 ## Pré-requisitos
 
@@ -37,26 +42,56 @@ host, porta e schema sem imprimir usuário ou senha. Não use conta, e-mail, sen
 
 ## Preparação
 
-No diretório `backend/`, defina as variáveis apenas na sessão local e execute:
+No diretório `backend/`, defina as variáveis apenas na sessão local e execute. Substitua todos os
+placeholders pelos valores do ambiente local:
 
 ```bash
 NODE_ENV=test \
 AUTH_VISUAL_FIXTURES=true \
 EMAIL_PROVIDER=capture \
-AUTH_VISUAL_FIXTURE_PASSWORD='[SENHA_LOCAL_DE_FIXTURE]' \
+DATABASE_URL='mysql://<usuario-local>:<senha-local-do-banco>@localhost:3306/traceflow_development' \
+TEST_DATABASE_URL='mysql://<usuario-local>:<senha-local-do-banco>@localhost:3306/traceflow_auth_visual_test' \
+FRONTEND_URL='http://localhost:5173' \
+AUTH_VISUAL_FIXTURE_PASSWORD='<senha-descartavel-local>' \
 npm run fixtures:auth-visual
 ```
 
 O placeholder precisa ser substituído localmente por um valor descartável de ao menos 16
 caracteres. Não copie esse valor para Git, documentação, screenshot ou relatório.
 
-Antes de qualquer escrita, o script valida o destino. A saída contém somente host, porta e schema
-sanitizados, usernames artificiais e URLs com `LOCAL DEV TOKEN`. Revise o destino sanitizado. Os
-tokens são de uso único e não são gravados em arquivo; execute novamente para renovar o conjunto.
+No Windows PowerShell, o fluxo equivalente é:
+
+```powershell
+$env:NODE_ENV = "test"
+$env:AUTH_VISUAL_FIXTURES = "true"
+$env:EMAIL_PROVIDER = "capture"
+$env:DATABASE_URL = "mysql://<usuario-local>:<senha-local-do-banco>@localhost:3306/traceflow_development"
+$env:TEST_DATABASE_URL = "mysql://<usuario-local>:<senha-local-do-banco>@localhost:3306/traceflow_auth_visual_test"
+$env:FRONTEND_URL = "http://localhost:5173"
+$env:AUTH_VISUAL_FIXTURE_PASSWORD = "<senha-descartavel-local>"
+
+npm run fixtures:auth-visual
+
+Remove-Item Env:NODE_ENV
+Remove-Item Env:AUTH_VISUAL_FIXTURES
+Remove-Item Env:EMAIL_PROVIDER
+Remove-Item Env:DATABASE_URL
+Remove-Item Env:TEST_DATABASE_URL
+Remove-Item Env:FRONTEND_URL
+Remove-Item Env:AUTH_VISUAL_FIXTURE_PASSWORD
+```
+
+Antes de importar Prisma ou qualquer service, o script valida o destino. A saída contém somente
+host, porta e schema sanitizados, a contagem de projetos de fixture restaurados, usernames
+artificiais e URLs com `LOCAL DEV TOKEN`. Revise o destino sanitizado. Os tokens são de uso único e
+não são gravados em arquivo; execute novamente para renovar o conjunto.
 
 ## Contas artificiais
 
 Todas usam a senha fornecida em `AUTH_VISUAL_FIXTURE_PASSWORD`.
+
+Essas identidades existem somente para validação visual de Auth. Não as use como contas gerais de
+desenvolvimento nem associe a elas dados que precisem ser preservados.
 
 | Estado                | Username                       | E-mail artificial                             |
 | --------------------- | ------------------------------ | --------------------------------------------- |
@@ -118,9 +153,16 @@ ser promovido a homologação visual.
 
 ## Retorno ao baseline
 
-Não há cleanup geral. As contas usam namespace e domínio reservados, são seguras no banco local de
-teste e a preparação idempotente restaura o conjunto lógico a cada execução. Para abandonar o
-ambiente, descarte apenas o schema de teste pelo procedimento operacional autorizado do ambiente;
+Não há cleanup geral. A preparação restaura o conjunto lógico reservado e remove somente projetos
+vazios cujas memberships pertençam exclusivamente às fixtures. Portanto, um projeto manual vazio
+criado por uma dessas contas pode ser removido no próximo run. Se qualquer projeto associado tiver
+membro não-fixture, integração ou artefato, a execução aborta e informa apenas o ID do projeto; os
+dados permanecem intactos.
+
+Nesse abort, não force nem edite o banco para contornar a guarda. Inspecione o projeto indicado e,
+somente depois de confirmar que todo o conteúdo é artificial, remova ou transfira os vínculos pelos
+fluxos canônicos. A alternativa mais segura é preparar um schema local de teste novo. Para abandonar
+o ambiente, descarte apenas o schema de teste pelo procedimento operacional autorizado do ambiente;
 jamais execute limpeza ampla a partir deste runbook.
 
 ## Precauções finais

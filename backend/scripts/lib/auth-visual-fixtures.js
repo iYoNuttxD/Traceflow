@@ -1,6 +1,9 @@
-import { sanitizedDatabaseTarget, validateTestDatabaseUrl } from './database-safety.js';
+import {
+  canonicalizeLocalDatabaseHost,
+  sanitizedDatabaseTarget,
+  validateTestDatabaseUrl
+} from './database-safety.js';
 
-const localDatabaseHosts = new Set(['localhost', '127.0.0.1', '::1']);
 const verifiedAt = new Date('2026-01-15T12:00:00.000Z');
 
 export const AUTH_VISUAL_FIXTURE_USERS = Object.freeze([
@@ -70,8 +73,11 @@ function localHttpUrl(value, label) {
   } catch {
     throw new Error(`${label} deve ser uma URL HTTP(S) local válida.`);
   }
-  if (!['http:', 'https:'].includes(parsed.protocol) || !localDatabaseHosts.has(parsed.hostname)) {
-    throw new Error(`${label} deve apontar para localhost, 127.0.0.1 ou ::1.`);
+  if (
+    !['http:', 'https:'].includes(parsed.protocol) ||
+    canonicalizeLocalDatabaseHost(parsed.hostname) !== 'local'
+  ) {
+    throw new Error(`${label} deve apontar para localhost, 127.0.0.1 ou [::1].`);
   }
   return parsed.toString().replace(/\/$/, '');
 }
@@ -92,18 +98,8 @@ export function validateAuthVisualFixtureEnvironment(source) {
 
   const testDatabaseUrl = validateTestDatabaseUrl(source.TEST_DATABASE_URL, source.DATABASE_URL);
   const database = new URL(testDatabaseUrl);
-  if (!localDatabaseHosts.has(database.hostname)) {
+  if (canonicalizeLocalDatabaseHost(database.hostname) !== 'local') {
     throw new Error('TEST_DATABASE_URL deve apontar para um MySQL local.');
-  }
-  if (source.DATABASE_URL) {
-    const developmentDatabase = new URL(source.DATABASE_URL);
-    const sameTarget =
-      developmentDatabase.hostname === database.hostname &&
-      (developmentDatabase.port || '3306') === (database.port || '3306') &&
-      developmentDatabase.pathname === database.pathname;
-    if (sameTarget) {
-      throw new Error('TEST_DATABASE_URL deve usar um schema diferente de DATABASE_URL.');
-    }
   }
 
   const password = source.AUTH_VISUAL_FIXTURE_PASSWORD;
@@ -170,6 +166,58 @@ function fixtureUserData(fixture, passwordHash) {
   };
 }
 
+const projectContentRelations = [
+  'invitations',
+  'requirements',
+  'tasks',
+  'taskMovements',
+  'taskHistoryEntries',
+  'commits',
+  'pullRequests',
+  'issues',
+  'auditEvents',
+  'taskCommitSuggestions',
+  'githubConnectionStates',
+  'githubBranches',
+  'githubSyncRuns'
+];
+
+async function removeFixtureOwnedProjects(tx, userIds) {
+  if (userIds.length === 0) return 0;
+
+  const projects = await tx.project.findMany({
+    where: { memberships: { some: { userId: { in: userIds } } } },
+    select: {
+      id: true,
+      memberships: { select: { userId: true } },
+      githubIntegration: { select: { id: true } },
+      _count: {
+        select: Object.fromEntries(projectContentRelations.map((relation) => [relation, true]))
+      }
+    }
+  });
+  const fixtureUserIds = new Set(userIds);
+  const contaminatedProjectIds = projects
+    .filter(
+      (project) =>
+        project.memberships.some(({ userId }) => !fixtureUserIds.has(userId)) ||
+        Boolean(project.githubIntegration) ||
+        projectContentRelations.some((relation) => project._count[relation] > 0)
+    )
+    .map(({ id }) => id);
+
+  if (contaminatedProjectIds.length > 0) {
+    throw new Error(
+      `Projetos ${contaminatedProjectIds.join(', ')} relacionados às fixtures contêm dados externos ou ambíguos. A limpeza automática foi recusada.`
+    );
+  }
+
+  const fixtureOwnedProjectIds = projects.map(({ id }) => id);
+  if (fixtureOwnedProjectIds.length === 0) return 0;
+  const result = await tx.project.deleteMany({ where: { id: { in: fixtureOwnedProjectIds } } });
+  return result.count;
+}
+
 export async function resetAuthVisualFixtureUsers({ client, passwordHash }) {
   const usernames = AUTH_VISUAL_FIXTURE_USERS.map(({ username }) => username);
   const emails = AUTH_VISUAL_FIXTURE_USERS.flatMap(({ email, confirmationEmail }) =>
@@ -182,6 +230,20 @@ export async function resetAuthVisualFixtureUsers({ client, passwordHash }) {
       select: { id: true, username: true, email: true }
     });
     const userIds = existing.map(({ id }) => id);
+
+    for (const fixture of AUTH_VISUAL_FIXTURE_USERS) {
+      const candidates = existing.filter(
+        (user) =>
+          user.username === fixture.username ||
+          user.email === fixture.email ||
+          (fixture.confirmationEmail && user.email === fixture.confirmationEmail)
+      );
+      if (candidates.length > 1) {
+        throw new Error(`Namespace de fixture ambíguo para ${fixture.username}.`);
+      }
+    }
+
+    const projectsRemoved = await removeFixtureOwnedProjects(tx, userIds);
 
     if (userIds.length > 0) {
       const ownedByFixtures = { userId: { in: userIds } };
@@ -204,14 +266,11 @@ export async function resetAuthVisualFixtureUsers({ client, passwordHash }) {
           user.email === fixture.email ||
           (fixture.confirmationEmail && user.email === fixture.confirmationEmail)
       );
-      if (candidates.length > 1) {
-        throw new Error(`Namespace de fixture ambíguo para ${fixture.username}.`);
-      }
       users[fixture.key] = candidates[0]
         ? await tx.user.update({ where: { id: candidates[0].id }, data })
         : await tx.user.create({ data });
     }
-    return users;
+    return { users, cleanup: { projectsRemoved } };
   });
 }
 
@@ -240,7 +299,7 @@ export async function prepareAuthVisualFixtures({
 }) {
   emailCapture.clear();
   const passwordHash = await authService.hashPassword(password);
-  const users = await resetAuthVisualFixtureUsers({ client, passwordHash });
+  const { users, cleanup } = await resetAuthVisualFixtureUsers({ client, passwordHash });
 
   await authService.resendEmailVerification(users.unverified);
   await authService.resendEmailVerification(users.verification);
@@ -364,6 +423,7 @@ export async function prepareAuthVisualFixtures({
   }
 
   return Object.freeze({
+    cleanup: Object.freeze(cleanup),
     users: AUTH_VISUAL_FIXTURE_USERS.map(({ key, name, username, email }) => ({
       key,
       name,

@@ -43,6 +43,7 @@ try {
         status: 'AUTH VISUAL FIXTURES READY',
         environment: 'LOCAL TEST ONLY',
         target: configuration.target,
+        cleanup: fixtures.cleanup,
         password: 'AUTH_VISUAL_FIXTURE_PASSWORD supplied by the operator',
         anonymous: {
           instruction: 'Use an isolated browser context without a session cookie.',
