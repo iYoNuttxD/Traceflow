@@ -507,3 +507,80 @@ vazios juntos; M70/M72 em parte pelos T-F4/T-F5).
 - [x] Matriz visual da seção 9 completa em navegador real (harness sem backend); capturas no registro da sessão; harness apagado antes dos commits
 - [x] Nenhum teste novo alterou código de produção (o achado T-A1 ficou registrado, não corrigido)
 - [x] Documentos da Fase 8 conferidos ou corrigidos; relatório escrito
+
+---
+
+# Campanha de caixa preta (31/08/2026, RF08 + RF10 + RF35)
+
+> Execução do enunciado `docs/issues/RF08_RF10_RF35_PROMPT_CAIXA_PRETA.md`. Registro primário:
+> [RF08_RF10_RF35_CASOS_CAIXA_PRETA.md](RF08_RF10_RF35_CASOS_CAIXA_PRETA.md) (catálogo com
+> resultados). Diferente das baterias, o desenho partiu **só da especificação** (Cap. 3; A1–A6 do
+> S1-04; ADRs 011 > 010 > 009; contratos e matriz de autorização) e o oráculo foi **só interface**
+> — sem leitura de código no desenho e sem banco nas asserções; setup 100% pelos endpoints
+> públicos, com o registro de usuários pela própria API de auth. Instrumentação declarada única:
+> membership VIEWER via Prisma (RF24–26 fora do escopo), o mesmo padrão da suíte de autorização.
+
+## C1. Resumo
+
+33 casos projetados (27 obrigatórios + 6 extras), 46 execuções no nível da API, todas verdes
+após dois refinamentos de desenho sustentados pela releitura do contrato. O produto faz o que a
+especificação diz em toda a superfície exercitada dos três requisitos — máquina de estados
+completa da sprint, tabela de decisão do quadro (incluindo a congelada vencendo a mesma-coluna
+nos dois caminhos), janelas e limites do cronograma, evolução com escopo sinalizado e
+congelamento, autorização por papel e o não-vazamento de existência para não-membros. Um achado
+de **deriva documental** (CP-A1) e uma **observação de flake** pré-existente (CP-A2), ambos LOW e
+registrados no backlog; nenhuma correção feita na campanha, por regra.
+
+## C2. Números
+
+| Medida | Valor |
+|---|---|
+| Casos projetados | 33 (12 TE, 10 TD, 16 PE/VL, 1 CU — com sobreposições declaradas na matriz do catálogo) |
+| Execuções de API | 46, todas verdes (`rf08-rf10-rf35-caixa-preta.test.js`) |
+| Suíte completa do backend | 550/40; rodadas 2 e 3 idênticas (flake único da rodada 1 = CP-A2) |
+| Roteiro de UI | 10 passos projetados (CP-UI-01..10) — **pendente de aval** |
+
+`lint` e `format:check` verdes; nenhuma linha de código de produção alterada.
+
+## C3. Achados
+
+### [LOW — doc] CP-A1 — Códigos específicos não cobrem a camada de payload
+
+- **Onde:** `POST /projects/:id/sprints` sem `milestoneId` (ausente ou `null`) e
+  `PUT /sprints/:id/tasks` com mais de 100 ids.
+- **Norma:** `API_CONTRACTS.md` §Códigos de erro (`SPRINT_MILESTONE_REQUIRED`;
+  `SPRINT_TASK_LIMIT_REACHED` para "conjunto resultante acima de 100").
+- **Esperado/Observado:** códigos específicos prometidos vs `400 VALIDATION_ERROR` genérico nas
+  duas recusas de payload; o `SPRINT_TASK_LIMIT_REACHED` (409) existe e funciona no caminho
+  **incremental** (101ª tarefa via `PATCH /tasks/:id/sprint` numa sprint cheia).
+- **Consequência:** cliente que programa contra o código documentado não o recebe nesses dois
+  pontos; a recusa em si está correta.
+- **Proposta:** `TECHNICAL_BACKLOG.md` **S104-F15** — alinhar contrato ou emissor, por ponto.
+
+### [LOW — observação] CP-A2 — Flake no teste de corrida pré-existente
+
+`'protege atualização concorrente do mesmo status…'` falhou uma vez na primeira rodada completa
+e passou nas rodadas 2 e 3. Alheio à campanha (teste e produção intocados); registrado como
+**S104-F16** para medição e estabilização antes que o CI o veja.
+
+## C4. Veredito por requisito
+
+| RF | Veredito | Justificativa |
+|---|---|---|
+| RF08 — quadro Kanban | **APROVADO** | tabela de decisão completa, seis transições de coluna, congelada dominante nos dois caminhos, quadro coerente após cada efeito |
+| RF10 — cronograma | **APROVADO COM RESSALVAS** | comportamento integralmente conforme; a ressalva é documental (CP-A1: dois códigos de erro prometidos que a camada de payload não devolve) |
+| RF35 — evolução por sprint | **APROVADO** | fórmula, `null ≠ 0`, escopo sinalizado/preservado, congelamento imutável provado por igualdade de corpos, burndown com e sem pontos |
+
+Vereditos do nível da API; o roteiro de UI (Fase 3) complementa sem substituir — os três RFs têm
+as regras de negócio integralmente provadas pela interface HTTP, e a parcela exclusiva de tela
+(arrasto, diálogo, abas, burndown visual) segue coberta pelas provas de jsdom das baterias e
+pelas capturas da quinta iteração até a execução do roteiro.
+
+## C5. O que não foi executado e por quê
+
+- **Fase 3 (roteiro de UI no ambiente completo)** — aguardando aval e ambiente do João; os 10
+  passos estão projetados no catálogo com status PENDENTE.
+- **RF38 (histórico) como alvo** — fora do escopo declarado (armadilha 6 do enunciado); tocado
+  apenas como efeito observável onde os casos do RF08 o exigiram.
+- **Registro/login como alvo** — RF23/RF27 são instrumentação da campanha, não requisito sob
+  teste.
