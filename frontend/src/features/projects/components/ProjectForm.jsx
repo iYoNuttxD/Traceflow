@@ -1,3 +1,6 @@
+import { useId } from 'react';
+import './ProjectForm.css';
+
 const statusOptions = [
   { value: 'ATIVO', label: 'Ativo' },
   { value: 'INATIVO', label: 'Inativo' },
@@ -75,9 +78,11 @@ export function ProjectForm({
   submitLabel,
   submitDisabled = false,
   submitting,
+  repositoryContext,
   showRepositoryField = true,
   showStatusField = true
 }) {
+  const repositoryFieldId = useId();
   const currentRepositoryFullName = formData.selectedRepositoryFullName || '';
   const hasCurrentRepository = repositories.some(
     (repository) => normalizeRepository(repository).fullName === currentRepositoryFullName
@@ -120,9 +125,13 @@ export function ProjectForm({
 
       {showRepositoryField && (
         <>
-          <label className="field field-full">
-            <span>Repositório GitHub *</span>
+          <div className="field field-full project-form__repository-field">
+            <div className="project-form__repository-heading">
+              <label htmlFor={repositoryFieldId}>Repositório GitHub *</label>
+              {repositoryContext}
+            </div>
             <select
+              id={repositoryFieldId}
               name="githubRepository"
               value={currentRepositoryFullName}
               onChange={(event) => onRepositoryChange(event.target.value)}
@@ -160,7 +169,7 @@ export function ProjectForm({
                 );
               })}
             </select>
-          </label>
+          </div>
 
           {repositoriesError && (
             <div className="field-help field-error field-full" role="alert">

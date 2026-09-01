@@ -13,6 +13,7 @@ vi.mock('../../src/features/auth/AuthContext.jsx', () => ({ useAuth: () => auth 
 vi.mock('../../src/features/auth/api/auth.api.js', () => ({ authApi }));
 import { LoginPage } from '../../src/pages/LoginPage.jsx';
 import { RegisterPage } from '../../src/pages/RegisterPage.jsx';
+import { ForgotPasswordPage } from '../../src/pages/ForgotPasswordPage.jsx';
 import { ResetPasswordPage } from '../../src/pages/ResetPasswordPage.jsx';
 
 function LocationProbe() {
@@ -77,11 +78,133 @@ describe('formulários de identidade acessíveis', () => {
       </MemoryRouter>
     );
     expect(screen.getByLabelText('Manter sessão ativa')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Esqueci minha senha' })).toHaveAttribute(
+      'href',
+      '/forgot-password'
+    );
+    expect(screen.getByRole('link', { name: 'Esqueci minha senha' })).toHaveClass(
+      'auth-recovery-link'
+    );
     const password = screen.getByLabelText('Senha *');
     expect(password).toHaveAttribute('type', 'password');
     await user.click(screen.getByRole('button', { name: 'Mostrar senha' }));
     expect(password).toHaveAttribute('type', 'text');
-    expect(screen.getByRole('button', { name: 'Entrar com GitHub' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Continuar com GitHub' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Continuar com GitHub' })).toHaveClass(
+      'github-login-button'
+    );
+  });
+
+  it('inicia o OAuth preservando rememberMe e o retorno interno', async () => {
+    authApi.startGithubLogin.mockRejectedValueOnce({
+      response: { status: 503, data: { message: 'GitHub indisponível.' } }
+    });
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter
+        initialEntries={[
+          { pathname: '/login', state: { from: '/projects/abc/tasks?status=open#task-42' } }
+        ]}
+      >
+        <LoginPage />
+      </MemoryRouter>
+    );
+
+    await user.click(screen.getByLabelText('Manter sessão ativa'));
+    await user.click(screen.getByRole('button', { name: 'Continuar com GitHub' }));
+
+    expect(authApi.startGithubLogin).toHaveBeenCalledWith({
+      rememberMe: true,
+      returnTo: '/projects/abc/tasks?status=open#task-42'
+    });
+    expect(
+      await screen.findByText(
+        'O serviço está temporariamente indisponível. Tente novamente em instantes.'
+      )
+    ).toBeInTheDocument();
+  });
+
+  it('preserva identifier, senha e rememberMe no contrato de login local', async () => {
+    auth.login.mockResolvedValue({ id: 'user-1' });
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <LoginPage />
+      </MemoryRouter>
+    );
+
+    await user.type(screen.getByLabelText(/Nome de usuário ou e-mail/), 'pessoa.teste');
+    await user.type(screen.getByLabelText('Senha *'), 'Frase longa segura 123');
+    await user.click(screen.getByLabelText('Manter sessão ativa'));
+    await user.click(screen.getByRole('button', { name: 'Entrar' }));
+
+    expect(auth.login).toHaveBeenCalledWith({
+      identifier: 'pessoa.teste',
+      password: 'Frase longa segura 123',
+      rememberMe: true
+    });
+  });
+
+  it('mantém a copy pública funcional e não reintroduz conteúdo institucional', () => {
+    const { unmount } = render(
+      <MemoryRouter>
+        <LoginPage />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('Acesse com seu nome de usuário ou e-mail.')).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent(/Acesso seguro|Identidade TRACEFLOW/i);
+    expect(document.body).not.toHaveTextContent(/ambiente seguro|aviso de privacidade/i);
+
+    unmount();
+    render(
+      <MemoryRouter>
+        <RegisterPage />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('Preencha os campos para criar sua conta.')).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent(/Acesso seguro|Identidade TRACEFLOW/i);
+    expect(document.body).not.toHaveTextContent(/ambiente seguro|aviso de privacidade/i);
+    expect(document.body).not.toHaveTextContent(/GitHub App|repositório|instalação/i);
+  });
+
+  it('preserva a resposta genérica de recuperação e usa retorno determinístico', async () => {
+    authApi.forgotPassword.mockResolvedValue({
+      data: { message: 'Se a conta existir, enviaremos instruções para o e-mail informado.' }
+    });
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <ForgotPasswordPage />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole('link', { name: 'Voltar para entrar' })).toHaveAttribute(
+      'href',
+      '/login'
+    );
+    await user.type(screen.getByLabelText('E-mail *'), 'pessoa@example.com');
+    await user.click(screen.getByRole('button', { name: 'Enviar instruções' }));
+
+    expect(authApi.forgotPassword).toHaveBeenCalledWith('pessoa@example.com');
+    expect(
+      await screen.findByText('Se a conta existir, enviaremos instruções para o e-mail informado.')
+    ).toBeInTheDocument();
+  });
+
+  it('apresenta token ausente de reset como status Focused sem chamar a API', () => {
+    render(
+      <MemoryRouter initialEntries={['/reset-password']}>
+        <ResetPasswordPage />
+      </MemoryRouter>
+    );
+
+    expect(
+      screen.getByRole('heading', { name: 'Link de redefinição inválido' })
+    ).toBeInTheDocument();
+    expect(screen.getByText('Link de redefinição inválido ou incompleto.')).toBeInTheDocument();
+    expect(authApi.resetPassword).not.toHaveBeenCalled();
   });
 
   it.each([

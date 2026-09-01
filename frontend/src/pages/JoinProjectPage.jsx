@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { membersApi } from '../features/members/index.js';
+import { useProjectsCatalog } from '../features/projects/index.js';
 import { parseProjectAccessInput } from '../features/projects/services/project-access-input.js';
 import {
   Card,
@@ -9,11 +10,14 @@ import {
   normalizeApiError,
   useCountdown
 } from '../shared/index.js';
+import '../shared/styles/form-layouts.css';
+import './JoinProjectPage.css';
 
 const roleLabels = Object.freeze({ MEMBER: 'Membro', VIEWER: 'Visualizador' });
 
 export function JoinProjectPage() {
   const navigate = useNavigate();
+  const { refreshProjects } = useProjectsCatalog();
   const { accessCode: routeAccessCode } = useParams();
   const [input, setInput] = useState(routeAccessCode || '');
   const [details, setDetails] = useState(null);
@@ -87,6 +91,7 @@ export function JoinProjectPage() {
       const response = await membersApi.joinProject({ accessCode: input });
       setJoinedProject(response.project);
       setSuccess(response.message);
+      void refreshProjects();
     } catch (requestError) {
       const normalized = normalizeApiError(requestError, 'Não foi possível entrar no projeto.');
       setError(normalized.message);

@@ -1,0 +1,122 @@
+.traceability-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.9rem;
+  margin-bottom: 1.5rem;
+}
+
+.traceability-summary-grid .card {
+  padding: 1rem;
+}
+
+.traceability-summary-grid .card h2 {
+  margin-bottom: 0.75rem;
+  font-size: 0.95rem;
+}
+
+.traceability-table-wrapper {
+  overflow-x: auto;
+  border: 1px solid var(--color-border-default);
+  border-radius: 14px;
+  color: var(--color-text-primary);
+  background: var(--color-surface-primary);
+}
+
+.traceability-table {
+  width: 100%;
+  min-width: 980px;
+  border-collapse: collapse;
+}
+
+.traceability-table th,
+.traceability-table td {
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid var(--color-border-default);
+  color: var(--color-text-primary);
+  text-align: left;
+  vertical-align: top;
+}
+
+.traceability-table th {
+  color: var(--color-text-secondary);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  background: var(--color-surface-secondary);
+}
+
+.traceability-table tr {
+  cursor: pointer;
+}
+
+.traceability-table tbody tr:hover,
+.traceability-row-selected {
+  background: var(--color-accent-surface);
+}
+
+.traceability-row-button {
+  display: grid;
+  gap: 0.25rem;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  cursor: pointer;
+}
+
+.traceability-row-button strong {
+  color: var(--color-text-strong);
+}
+
+.traceability-row-button span {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+  line-clamp: 2;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.traceability-progress {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 120px;
+}
+
+.traceability-progress span {
+  font-weight: 800;
+}
+
+.traceability-progress-bar {
+  overflow: hidden;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-surface);
+}
+
+.traceability-progress-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-accent-primary);
+}
+
+.traceability-flow-placeholder {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (max-width: 860px) {
+  .traceability-summary-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .traceability-summary-grid {
+    grid-template-columns: 1fr;
+  }
+}

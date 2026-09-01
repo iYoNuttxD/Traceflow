@@ -76,61 +76,58 @@ export function RegisterScreen() {
   return (
     <AuthShell
       title="Criar conta"
-      eyebrow="Identidade TRACEFLOW"
-      description="Cadastre somente os dados necessários para usar o produto."
+      description="Preencha os campos para criar sua conta."
+      wide
       footer={
-        <>
-          <p>
-            Já possui conta?{' '}
-            <Link to="/login" state={{ from: returnTo }}>
-              Entrar
-            </Link>
-          </p>
-          <p className="auth-privacy">
-            Usamos estes dados para autenticação, colaboração e comunicações transacionais. Consulte
-            o aviso de privacidade após entrar.
-          </p>
-        </>
+        <p>
+          Já possui conta?{' '}
+          <Link to="/login" state={{ from: returnTo }}>
+            Entrar
+          </Link>
+        </p>
       }
     >
       <form className="auth-form" onSubmit={submit} noValidate>
-        <FormInput
-          id="name"
-          name="name"
-          label="Nome completo"
-          value={values.name}
-          onChange={(event) => change('name', event.target.value)}
-          autoComplete="name"
-          required
-          error={fieldErrors.name}
-        />
-        <FormInput
-          id="username"
-          name="username"
-          label="Nome de usuário"
-          value={values.username}
-          onChange={(event) => change('username', event.target.value.toLowerCase())}
-          autoComplete="username"
-          required
-          error={fieldErrors.username}
-        />
-        <FormInput
-          id="email"
-          name="email"
-          label="E-mail"
-          type="email"
-          value={values.email}
-          onChange={(event) => change('email', event.target.value)}
-          autoComplete="email"
-          required
-          error={fieldErrors.email}
-        />
+        <div className="auth-form-grid">
+          <FormInput
+            id="name"
+            name="name"
+            label="Nome completo"
+            value={values.name}
+            onChange={(event) => change('name', event.target.value)}
+            autoComplete="name"
+            required
+            error={fieldErrors.name}
+          />
+          <FormInput
+            id="username"
+            name="username"
+            label="Nome de usuário"
+            value={values.username}
+            onChange={(event) => change('username', event.target.value.toLowerCase())}
+            autoComplete="username"
+            required
+            error={fieldErrors.username}
+          />
+          <FormInput
+            id="email"
+            name="email"
+            label="E-mail"
+            type="email"
+            value={values.email}
+            onChange={(event) => change('email', event.target.value)}
+            autoComplete="email"
+            required
+            error={fieldErrors.email}
+          />
+        </div>
         <PasswordField
           id="password"
           value={values.password}
           onChange={(event) => change('password', event.target.value)}
           error={fieldErrors.password}
           showRequirements
+          policyContext={{ username: values.username, email: values.email }}
         />
         <PasswordField
           id="passwordConfirmation"
@@ -138,6 +135,8 @@ export function RegisterScreen() {
           value={values.passwordConfirmation}
           onChange={(event) => change('passwordConfirmation', event.target.value)}
           error={fieldErrors.passwordConfirmation}
+          showConfirmationStatus
+          confirmationValue={values.password}
         />
         <FeedbackRegion
           error={cooldown ? undefined : error}

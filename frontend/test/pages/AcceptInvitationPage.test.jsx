@@ -4,7 +4,11 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const apiMock = vi.hoisted(() => ({ post: vi.fn() }));
+const catalogMock = vi.hoisted(() => ({ refreshProjects: vi.fn() }));
 vi.mock('../../src/api/http-client.js', () => ({ httpClient: apiMock }));
+vi.mock('../../src/features/projects/index.js', () => ({
+  useProjectsCatalog: () => catalogMock
+}));
 
 import { AcceptInvitationPage } from '../../src/pages/AcceptInvitationPage.jsx';
 
@@ -41,7 +45,10 @@ function mockPendingInvitation() {
 }
 
 describe('AcceptInvitationPage', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    catalogMock.refreshProjects.mockResolvedValue([]);
+  });
 
   it('exibe contexto seguro e aceita o convite', async () => {
     mockPendingInvitation();
@@ -55,6 +62,7 @@ describe('AcceptInvitationPage', () => {
     expect(apiMock.post).toHaveBeenCalledWith('/projects/invitations/accept', {
       token: 'token-artificial-valid-1234567890'
     });
+    expect(catalogMock.refreshProjects).toHaveBeenCalledOnce();
   });
 
   it('recusa explicitamente sem criar associação', async () => {
@@ -67,6 +75,7 @@ describe('AcceptInvitationPage', () => {
     expect(apiMock.post).toHaveBeenCalledWith('/projects/invitations/decline', {
       token: 'token-artificial-valid-1234567890'
     });
+    expect(catalogMock.refreshProjects).not.toHaveBeenCalled();
   });
 
   it('não faz requisição com link sem token', async () => {

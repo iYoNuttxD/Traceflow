@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { useLocation } from 'react-router';
 import { useCountdown } from '../hooks/useCountdown.js';
 import { PAGE_ERROR_TYPES, resolveErrorPageContext } from '../services/page-error.js';
+import './GenericErrorPage.css';
 
 const ERROR_CONTENT = Object.freeze({
   [PAGE_ERROR_TYPES.NETWORK]: {

@@ -17,6 +17,7 @@
     "test:coverage": "vitest run --coverage",
     "architecture:check": "node scripts/check-architecture.js",
     "security:secrets": "node scripts/check-secrets.js",
+    "fixtures:auth-visual": "node scripts/auth-visual-fixtures.js",
     "e6:backfill:dry-run": "node scripts/backfill-e6-memberships.js",
     "e6:backfill": "node scripts/backfill-e6-memberships.js --apply",
     "e6:cleanup:dry-run": "node scripts/cleanup-auth-records.js",

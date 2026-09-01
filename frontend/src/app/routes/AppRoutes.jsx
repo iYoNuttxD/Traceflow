@@ -1,7 +1,8 @@
 import { Suspense } from 'react';
-import { Routes, Route, Navigate, Outlet } from 'react-router';
+import { Routes, Route, Navigate } from 'react-router';
 import { GuestOnlyRoute, ProtectedRoute } from '../../features/auth/index.js';
 import { ContextualErrorPage, LoadingState, PAGE_ERROR_TYPES } from '../../shared/index.js';
+import { AuthenticatedLayout } from '../layout/AuthenticatedLayout.jsx';
 import { lazyNamed } from './lazy-route.js';
 
 const LoginPage = lazyNamed(() => import('../../pages/LoginPage.jsx'), 'LoginPage');
@@ -30,6 +31,14 @@ const ProjectsPage = lazyNamed(() => import('../../pages/ProjectsPage.jsx'), 'Pr
 const ProjectDetailsPage = lazyNamed(
   () => import('../../pages/ProjectDetailsPage.jsx'),
   'ProjectDetailsPage'
+);
+const ProjectEditPage = lazyNamed(
+  () => import('../../pages/ProjectEditPage.jsx'),
+  'ProjectEditPage'
+);
+const ProjectMembersPage = lazyNamed(
+  () => import('../../pages/ProjectMembersPage.jsx'),
+  'ProjectMembersPage'
 );
 const RequirementsPage = lazyNamed(
   () => import('../../pages/RequirementsPage.jsx'),
@@ -127,7 +136,7 @@ export function AppRoutes() {
         <Route
           element={
             <ProtectedRoute>
-              <Outlet />
+              <AuthenticatedLayout />
             </ProtectedRoute>
           }
         >
@@ -138,6 +147,8 @@ export function AppRoutes() {
           <Route path="/join/:accessCode" element={<JoinProjectPage />} />
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/projects/:id" element={<ProjectDetailsPage />} />
+          <Route path="/projects/:projectId/edit" element={<ProjectEditPage />} />
+          <Route path="/projects/:projectId/members" element={<ProjectMembersPage />} />
           <Route path="/projects/:projectId/requirements" element={<RequirementsPage />} />
           <Route path="/projects/:projectId/tasks" element={<TasksPage />} />
           <Route path="/projects/:projectId/kanban" element={<KanbanPage />} />

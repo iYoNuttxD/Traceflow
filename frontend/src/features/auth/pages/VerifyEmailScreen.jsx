@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
-import { FeedbackRegion, LoadingState, normalizeApiError } from '../../../shared/index.js';
+import { PublicPageShell, StatusSurface, normalizeApiError } from '../../../shared/index.js';
 import { authApi } from '../api/auth.api.js';
-import { AuthShell } from '../components/AuthShell.jsx';
 import { useAuth } from '../AuthContext.jsx';
 import { runSingleFlight } from '../../../shared/services/single-flight.js';
 export function VerifyEmailScreen() {
@@ -39,17 +38,45 @@ export function VerifyEmailScreen() {
       active = false;
     };
   }, [params, refresh, user?.id]);
+
+  const visualState = state.loading ? 'loading' : state.error ? 'error' : 'success';
+  const content = {
+    loading: {
+      title: 'Verificando e-mail',
+      description: 'Aguarde enquanto validamos o link.',
+      icon: 'refresh',
+      tone: 'info',
+      role: 'status'
+    },
+    success: {
+      title: 'E-mail verificado',
+      description: state.success,
+      icon: 'check',
+      tone: 'success',
+      role: 'status'
+    },
+    error: {
+      title: 'Não foi possível verificar',
+      description: state.error,
+      icon: 'mail',
+      tone: 'danger',
+      role: 'alert'
+    }
+  }[visualState];
+
   return (
-    <AuthShell
-      title="Verificar e-mail"
-      eyebrow="Confirmação de conta"
-      footer={<Link to="/projects">Ir para projetos</Link>}
-    >
-      {state.loading ? (
-        <LoadingState message="Verificando e-mail..." />
-      ) : (
-        <FeedbackRegion success={state.success} error={state.error} />
-      )}
-    </AuthShell>
+    <PublicPageShell>
+      <StatusSurface
+        {...content}
+        focusKey={visualState}
+        actions={
+          visualState === 'loading' ? undefined : (
+            <Link className="button button-primary link-button" to="/projects">
+              Ir para projetos
+            </Link>
+          )
+        }
+      />
+    </PublicPageShell>
   );
 }

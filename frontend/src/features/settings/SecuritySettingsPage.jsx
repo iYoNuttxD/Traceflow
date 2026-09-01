@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router';
-import { authApi, githubOAuthErrorMessage, PasswordField, useAuth } from '../auth/index.js';
+import { githubOAuthErrorMessage, PasswordField, useAuth } from '../auth/index.js';
 import {
   ContextualErrorPage,
   LoadingState,
@@ -11,7 +11,9 @@ import {
   useConfirm
 } from '../../shared/index.js';
 import { settingsApi } from './settings.api.js';
+import { GithubSensitiveReauthentication } from './GithubSensitiveReauthentication.jsx';
 import { SettingsFeedback } from './SettingsFeedback.jsx';
+import './SecuritySettingsPage.css';
 
 export function SecuritySettingsPage() {
   const confirm = useConfirm();
@@ -26,7 +28,6 @@ export function SecuritySettingsPage() {
   });
   const [initialPassword, setInitialPassword] = useState({ newPassword: '', confirmation: '' });
   const [passwordErrors, setPasswordErrors] = useState({});
-  const [reauthenticating, setReauthenticating] = useState(false);
   const searchParams = new URLSearchParams(location.search);
   const githubError =
     searchParams.get('github') === 'error'
@@ -71,6 +72,7 @@ export function SecuritySettingsPage() {
     actionLock.current = true;
     setBusy(key);
     setError('');
+    setMessage('');
     setRetryAfterSeconds(0);
     try {
       await operation();
@@ -91,24 +93,12 @@ export function SecuritySettingsPage() {
     }
   }
 
-  async function reauthenticate() {
-    if (reauthenticating) return;
-    setError('');
-    setReauthenticating(true);
-    try {
-      const result = await authApi.startGithubSensitiveReauthentication('/settings/security');
-      window.location.assign(result.url);
-    } catch (value) {
-      setError(normalizeApiError(value).message);
-      setReauthenticating(false);
-    }
-  }
-
   async function initializePassword(event) {
     event.preventDefault();
     if (initialPassword.newPassword !== initialPassword.confirmation) {
       setError('');
       setPasswordErrors({ confirmation: 'As senhas não coincidem.' });
+      queueMicrotask(() => document.getElementById('initialPasswordConfirmation')?.focus());
       return;
     }
     await run(
@@ -128,6 +118,7 @@ export function SecuritySettingsPage() {
     if (password.newPassword !== password.confirmation) {
       setError('');
       setPasswordErrors({ confirmation: 'As senhas não coincidem.' });
+      queueMicrotask(() => document.getElementById('passwordConfirmation')?.focus());
       return;
     }
     await run(
@@ -153,6 +144,12 @@ export function SecuritySettingsPage() {
     setError('');
   }
 
+  function handleGithubReauthenticationError(message, normalized) {
+    setError(message);
+    setMessage('');
+    setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
+  }
+
   if (!account && initialError) {
     return (
       <ContextualErrorPage
@@ -165,21 +162,50 @@ export function SecuritySettingsPage() {
     );
   }
 
+  const orderedSessions = [...sessions].sort(
+    (left, right) => Number(right.current) - Number(left.current)
+  );
+  const otherSessionCount = sessions.filter((session) => !session.current).length;
+  const policyContext = account ? { username: account.username, email: account.email } : undefined;
+
   return (
-    <>
+    <div className="settings-stack">
       <SettingsFeedback error={error} message={message} retryAfterSeconds={cooldown} />
-      <section className="settings-card">
-        {!account ? (
+      {!account ? (
+        <div className="settings-loading">
           <LoadingState message="Carregando segurança..." />
-        ) : account.hasLocalPassword === false ? (
-          <>
-            <h2>Criar senha de acesso</h2>
-            <p>
-              Sua conta utiliza atualmente o GitHub para autenticação. Cadastre uma senha para
-              também entrar usando seu e-mail ou nome de usuário.
-            </p>
-            {account.canInitializePassword ? (
-              <form onSubmit={(event) => void initializePassword(event)}>
+        </div>
+      ) : (
+        <article className="settings-surface security-settings-surface">
+          <section className="settings-section" aria-labelledby="settings-password-title">
+            <div className="settings-section-heading">
+              <div>
+                <h2 id="settings-password-title">Senha</h2>
+                <p>
+                  {account.hasLocalPassword
+                    ? 'Atualize a senha usada no login local.'
+                    : 'Crie uma senha local para sua conta.'}
+                </p>
+              </div>
+            </div>
+            {account.hasLocalPassword === false && !account.canInitializePassword ? (
+              <div className="settings-panel settings-panel-info">
+                <h3>Confirme sua identidade</h3>
+                <p>Confirme novamente com GitHub para criar uma senha local.</p>
+                <div className="settings-actions">
+                  <GithubSensitiveReauthentication
+                    account={account}
+                    returnTo="/settings/security"
+                    cooldown={cooldown}
+                    onError={handleGithubReauthenticationError}
+                  />
+                </div>
+              </div>
+            ) : account.hasLocalPassword === false ? (
+              <form
+                className="settings-field-grid"
+                onSubmit={(event) => void initializePassword(event)}
+              >
                 <PasswordField
                   id="initialPassword"
                   label="Nova senha"
@@ -188,6 +214,7 @@ export function SecuritySettingsPage() {
                   error={passwordErrors.newPassword}
                   minLength={12}
                   showRequirements
+                  policyContext={policyContext}
                 />
                 <PasswordField
                   id="initialPasswordConfirmation"
@@ -196,122 +223,162 @@ export function SecuritySettingsPage() {
                   onChange={(event) => updateInitialPassword('confirmation', event.target.value)}
                   error={passwordErrors.confirmation}
                   minLength={12}
+                  showConfirmationStatus
+                  confirmationValue={initialPassword.newPassword}
                 />
-                <button
-                  type="submit"
-                  disabled={
-                    !initialPassword.newPassword ||
-                    !initialPassword.confirmation ||
-                    Boolean(busy) ||
-                    cooldown > 0
-                  }
-                  aria-busy={busy === 'initialize-password'}
-                >
-                  {busy === 'initialize-password' ? 'Criando senha...' : 'Criar senha'}
-                </button>
+                <div className="settings-actions settings-field-full">
+                  <button
+                    className="button button-primary"
+                    type="submit"
+                    disabled={
+                      !initialPassword.newPassword ||
+                      !initialPassword.confirmation ||
+                      Boolean(busy) ||
+                      cooldown > 0
+                    }
+                    aria-busy={busy === 'initialize-password'}
+                  >
+                    {busy === 'initialize-password' ? 'Criando senha...' : 'Criar senha'}
+                  </button>
+                </div>
               </form>
             ) : (
-              <button
-                type="button"
-                disabled={reauthenticating}
-                aria-busy={reauthenticating}
-                onClick={() => void reauthenticate()}
+              <form
+                className="settings-field-grid"
+                onSubmit={(event) => void changePassword(event)}
               >
-                {reauthenticating ? 'Conectando ao GitHub...' : 'Confirmar identidade com GitHub'}
-              </button>
+                <div className="settings-field-full settings-form">
+                  <PasswordField
+                    id="currentPassword"
+                    label="Senha atual"
+                    autoComplete="current-password"
+                    value={password.currentPassword}
+                    onChange={(event) => updatePassword('currentPassword', event.target.value)}
+                    error={passwordErrors.currentPassword}
+                  />
+                </div>
+                <PasswordField
+                  id="newPassword"
+                  label="Nova senha"
+                  value={password.newPassword}
+                  onChange={(event) => updatePassword('newPassword', event.target.value)}
+                  error={passwordErrors.newPassword}
+                  minLength={12}
+                  showRequirements
+                  policyContext={policyContext}
+                />
+                <PasswordField
+                  id="passwordConfirmation"
+                  label="Confirmar nova senha"
+                  value={password.confirmation}
+                  onChange={(event) => updatePassword('confirmation', event.target.value)}
+                  error={passwordErrors.confirmation}
+                  minLength={12}
+                  showConfirmationStatus
+                  confirmationValue={password.newPassword}
+                />
+                <div className="settings-actions settings-field-full">
+                  <button
+                    className="button button-primary"
+                    type="submit"
+                    disabled={Boolean(busy) || cooldown > 0}
+                    aria-busy={busy === 'change-password'}
+                  >
+                    {busy === 'change-password' ? 'Alterando senha...' : 'Alterar senha'}
+                  </button>
+                </div>
+              </form>
             )}
-          </>
-        ) : (
-          <>
-            <h2>Alterar senha</h2>
-            <form onSubmit={(event) => void changePassword(event)}>
-              <PasswordField
-                id="currentPassword"
-                label="Senha atual"
-                autoComplete="current-password"
-                value={password.currentPassword}
-                onChange={(event) => updatePassword('currentPassword', event.target.value)}
-                error={passwordErrors.currentPassword}
-              />
-              <PasswordField
-                id="newPassword"
-                label="Nova senha"
-                value={password.newPassword}
-                onChange={(event) => updatePassword('newPassword', event.target.value)}
-                error={passwordErrors.newPassword}
-                showRequirements
-              />
-              <PasswordField
-                id="passwordConfirmation"
-                label="Confirmar nova senha"
-                value={password.confirmation}
-                onChange={(event) => updatePassword('confirmation', event.target.value)}
-                error={passwordErrors.confirmation}
-              />
-              <button
-                type="submit"
-                disabled={Boolean(busy) || cooldown > 0}
-                aria-busy={busy === 'change-password'}
-              >
-                {busy === 'change-password' ? 'Alterando senha...' : 'Alterar senha'}
-              </button>
-            </form>
-          </>
-        )}
-      </section>
-      <section className="settings-card">
-        <h2>Sessões ativas</h2>
-        {sessions.length ? (
-          sessions.map((session) => (
-            <article className="session-row" key={session.sessionId}>
+          </section>
+
+          <section className="settings-section" aria-labelledby="settings-sessions-title">
+            <div className="settings-section-heading">
               <div>
-                <strong>{session.current ? 'Este dispositivo' : 'Outra sessão'}</strong>
-                <small>
-                  Última atividade: {new Date(session.lastSeenAt).toLocaleString('pt-BR')}
-                </small>
+                <h2 id="settings-sessions-title">Sessões</h2>
+                <p>Revise e encerre sessões ativas da sua conta.</p>
               </div>
-              <button
-                type="button"
-                disabled={Boolean(busy) || cooldown > 0}
-                onClick={async () => {
-                  if (
-                    !(await confirm({
-                      title: 'Revogar sessão',
-                      description: session.current
-                        ? 'Você precisará entrar novamente.'
-                        : 'Esse dispositivo perderá o acesso.',
-                      confirmLabel: 'Revogar'
-                    }))
-                  )
-                    return;
-                  await run(
-                    `revoke-session-${session.sessionId}`,
-                    () => settingsApi.revokeSession(session.sessionId),
-                    'Sessão revogada.'
-                  );
-                }}
-              >
-                Revogar
-              </button>
-            </article>
-          ))
-        ) : (
-          <p>Nenhuma sessão ativa.</p>
-        )}
-        <button
-          type="button"
-          disabled={Boolean(busy) || cooldown > 0}
-          onClick={() =>
-            void run(
-              'revoke-other-sessions',
-              settingsApi.revokeOtherSessions,
-              'Outras sessões revogadas.'
-            )
-          }
-        >
-          Encerrar outras sessões
-        </button>
-      </section>
-    </>
+            </div>
+            <div className="settings-block-stack">
+              {orderedSessions.length ? (
+                <div className="session-list">
+                  {orderedSessions.map((session) => (
+                    <article className="session-row" key={session.sessionId}>
+                      <div className="session-copy">
+                        <div className="session-title">
+                          <strong>{session.current ? 'Este dispositivo' : 'Outra sessão'}</strong>
+                          {session.current && (
+                            <span className="settings-status-badge settings-status-success">
+                              Sessão atual
+                            </span>
+                          )}
+                        </div>
+                        <small>
+                          Última atividade: {new Date(session.lastSeenAt).toLocaleString('pt-BR')}
+                        </small>
+                      </div>
+                      <button
+                        className="button button-danger"
+                        type="button"
+                        disabled={Boolean(busy) || cooldown > 0}
+                        aria-busy={busy === `revoke-session-${session.sessionId}`}
+                        onClick={async () => {
+                          if (
+                            !(await confirm({
+                              title: 'Revogar sessão',
+                              description: session.current
+                                ? 'Você precisará entrar novamente.'
+                                : 'Esse dispositivo perderá o acesso.',
+                              confirmLabel: 'Revogar'
+                            }))
+                          )
+                            return;
+                          await run(
+                            `revoke-session-${session.sessionId}`,
+                            () => settingsApi.revokeSession(session.sessionId),
+                            'Sessão revogada.'
+                          );
+                        }}
+                      >
+                        Revogar
+                      </button>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className="settings-panel">
+                  <h3>Nenhuma sessão ativa</h3>
+                  <p>Não foi possível identificar uma sessão ativa.</p>
+                </div>
+              )}
+              {orderedSessions.length > 0 && otherSessionCount === 0 && (
+                <div className="settings-panel session-secondary-empty">
+                  <h3>Nenhuma outra sessão ativa</h3>
+                  <p>Somente a sessão atual está conectada.</p>
+                </div>
+              )}
+              {otherSessionCount > 0 && (
+                <div className="settings-actions">
+                  <button
+                    className="button button-secondary"
+                    type="button"
+                    disabled={Boolean(busy) || cooldown > 0}
+                    aria-busy={busy === 'revoke-other-sessions'}
+                    onClick={() =>
+                      void run(
+                        'revoke-other-sessions',
+                        settingsApi.revokeOtherSessions,
+                        'Outras sessões revogadas.'
+                      )
+                    }
+                  >
+                    Encerrar outras sessões
+                  </button>
+                </div>
+              )}
+            </div>
+          </section>
+        </article>
+      )}
+    </div>
   );
 }

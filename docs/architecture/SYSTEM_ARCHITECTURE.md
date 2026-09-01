@@ -26,25 +26,39 @@ O backend é a autoridade para identidade, autorização, validação, domínio 
 
 A direção permitida é `app/routes → pages → features → shared + http-client`.
 
-- `AppRoutes` aplica lazy loading, `ProtectedRoute` e fallback acessível.
+- `AppRoutes` aplica lazy loading, `ProtectedRoute`, shell autenticado e fallback acessível.
 - Pages adaptam parâmetros e compõem features.
 - APIs de feature usam exclusivamente `api/http-client.js`.
 - Hooks e screens controlam requests canceláveis, mutações e rollback visual.
 - Shared não importa pages/features; features não importam internals umas das outras.
 - `TraceabilityFlow` renderiza o DTO de nodes/edges sem recalcular cobertura.
-- CSS convencional pertence ao componente, page, feature ou shared owner. `frontend/src/styles/` é
-  reservado a tokens, base e regras realmente globais; `global.css` não recebe novos estilos
-  específicos de feature.
+- `app/theme` separa a preferência persistida `system | light | dark` do tema resolvido
+  `light | dark`. Sistema é o default, acompanha `prefers-color-scheme` enquanto selecionado e usa
+  Light quando `matchMedia` não está disponível; overrides manuais ignoram mudanças do sistema.
+- `app/layout` concentra sidebar responsiva, drawer acessível, navegação, identidade e logout. Rotas
+  públicas e contas restritas permanecem fora do shell autenticado.
+- A sidebar e a tela Projects compartilham o catálogo autorizado de `GET /projects`. IDs fixados e
+  recentes são preferências locais filtradas pelo catálogo e nunca concedem acesso.
+- Projects reúne projetos, convites pendentes e a entrada progressiva dos fluxos existentes em um
+  grid responsivo. A visão geral de `/projects/:projectId` integra os resumos de Projeto, GitHub e
+  Equipe; edição e administração de membros/acesso usam, respectivamente,
+  `/projects/:projectId/edit` e `/projects/:projectId/members`, sempre sob autorização do backend.
+- CSS convencional acompanha o owner em `pages`, `features` e `shared`. Componentes e screens
+  importam a folha colocada ao lado do JSX; grupos em `shared/styles` ou `features/*/styles` existem
+  somente quando há múltiplos consumidores reais. Media queries permanecem com o mesmo owner do
+  seletor. `frontend/src/styles/tokens.css` contém tokens semânticos Light/Dark, `base.css` concentra
+  reset e elementos base e `global.css` mantém apenas primitives transversais; estilos específicos
+  de feature não entram nessa pasta.
 
 ## Backend
 
-| Camada | Responsabilidade | Não pode |
-|---|---|---|
-| Route | método, caminho, auth/CSRF/RBAC e schema HTTP | regra, Prisma, client externo |
-| Controller | adaptar HTTP e contexto autenticado | repository, Prisma, regra |
-| Service | caso de uso, invariantes, transação e auditoria | `req`/`res`, DOM |
-| Repository | consulta/mutação orientada ao domínio | autorização ou mensagem HTTP |
-| External client | timeout, retry, paginação e DTO externo | persistência ou regra TRACEFLOW |
+| Camada          | Responsabilidade                                | Não pode                        |
+| --------------- | ----------------------------------------------- | ------------------------------- |
+| Route           | método, caminho, auth/CSRF/RBAC e schema HTTP   | regra, Prisma, client externo   |
+| Controller      | adaptar HTTP e contexto autenticado             | repository, Prisma, regra       |
+| Service         | caso de uso, invariantes, transação e auditoria | `req`/`res`, DOM                |
+| Repository      | consulta/mutação orientada ao domínio           | autorização ou mensagem HTTP    |
+| External client | timeout, retry, paginação e DTO externo         | persistência ou regra TRACEFLOW |
 
 `scripts/check-architecture.js` verifica essas fronteiras e impede a reintrodução, no runtime/schema atual, de `TaskPullRequest`, `GithubArtifact`, `TraceLink`, `ProjectMember`, `Commit.branch`, aliases GitHub de `Project` e rotas de conta removidas.
 

@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { CommitSuggestionsCard } from './CommitSuggestionsCard.jsx';
+import '../../../shared/styles/traceability-controls.css';
+import './TaskForm.css';
 
 export const emptyTaskForm = {
   title: '',

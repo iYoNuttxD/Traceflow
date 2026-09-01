@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   resendEmailVerification: vi.fn(),
   verifyEmail: vi.fn(),
+  updateUsername: vi.fn(),
   auth: { user: null, refresh: vi.fn() }
 }));
 vi.mock('../../src/features/auth/api/auth.api.js', () => ({ authApi: mocks }));
@@ -14,6 +15,8 @@ vi.mock('../../src/features/auth/AuthContext.jsx', () => ({ useAuth: () => mocks
 
 const { EmailVerificationBanner } =
   await import('../../src/features/auth/components/EmailVerificationBanner.jsx');
+const { UsernameSetupBanner } =
+  await import('../../src/features/auth/components/UsernameSetupBanner.jsx');
 const { VerifyEmailScreen } = await import('../../src/features/auth/pages/VerifyEmailScreen.jsx');
 
 describe('verificação de e-mail', () => {
@@ -31,8 +34,8 @@ describe('verificação de e-mail', () => {
     expect(mocks.resendEmailVerification).toHaveBeenCalledOnce();
     expect(await screen.findByText('E-mail enviado com sucesso.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Reenviar verificação' })).toHaveClass(
-      'button-outline',
-      'button-compact'
+      'button-primary',
+      'identity-banner__action'
     );
   });
 
@@ -142,5 +145,27 @@ describe('verificação de e-mail', () => {
 
     expect(await screen.findByText(message)).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/Prisma|node_modules|stack/i);
+  });
+
+  it('mantém username completion contextual, acessível e sem copy institucional', async () => {
+    mocks.updateUsername.mockResolvedValue({
+      data: { user: { id: 7, username: 'pessoa.teste', mustSetUsername: false } }
+    });
+    const onUpdated = vi.fn();
+    const user = userEvent.setup();
+
+    render(<UsernameSetupBanner user={{ mustSetUsername: true }} onUpdated={onUpdated} />);
+
+    const input = screen.getByLabelText('Novo nome de usuário');
+    await user.type(input, 'Pessoa.Teste');
+    await user.click(screen.getByRole('button', { name: 'Salvar username' }));
+
+    expect(mocks.updateUsername).toHaveBeenCalledWith('pessoa.teste');
+    expect(onUpdated).toHaveBeenCalledWith({
+      id: 7,
+      username: 'pessoa.teste',
+      mustSetUsername: false
+    });
+    expect(document.body).not.toHaveTextContent(/Identidade TRACEFLOW/i);
   });
 });

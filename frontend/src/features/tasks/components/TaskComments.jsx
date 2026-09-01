@@ -3,6 +3,7 @@ import { useTaskComments } from '../hooks/useTaskComments.js';
 import { formatDateTime } from './kanban-display.js';
 import { useAuth } from '../../auth/index.js';
 import { useConfirm } from '../../../shared/index.js';
+import './TaskComments.css';
 
 const COMMENT_MAX_LENGTH = 2000;
 

@@ -1,6 +1,12 @@
 import { useRef, useState } from 'react';
 import { authApi } from '../api/auth.api.js';
-import { FeedbackRegion, normalizeApiError, useCountdown } from '../../../shared/index.js';
+import {
+  FeedbackRegion,
+  TraceFlowIcon,
+  normalizeApiError,
+  useCountdown
+} from '../../../shared/index.js';
+import './IdentityBanner.css';
 
 export function EmailVerificationBanner({ user }) {
   const [feedback, setFeedback] = useState({ message: '', variant: 'success' });
@@ -29,13 +35,18 @@ export function EmailVerificationBanner({ user }) {
     }
   }
   return (
-    <aside className="email-verification-banner">
-      <div>
-        <strong>⚠ Verifique seu e-mail.</strong>
-        <span> Ações sensíveis permanecem bloqueadas até a confirmação.</span>
+    <aside className="identity-banner">
+      <div className="identity-banner__content">
+        <span className="identity-banner__icon" aria-hidden="true">
+          <TraceFlowIcon name="mail" />
+        </span>
+        <div>
+          <strong>Verifique seu e-mail.</strong>
+          <p>Ações sensíveis permanecem bloqueadas até a confirmação.</p>
+        </div>
       </div>
       <button
-        className="button button-outline button-compact"
+        className="button button-primary identity-banner__action"
         type="button"
         onClick={resend}
         disabled={sending || cooldown > 0}
@@ -48,12 +59,14 @@ export function EmailVerificationBanner({ user }) {
             : 'Reenviar verificação'}
       </button>
       {feedback.message && (
-        <FeedbackRegion
-          success={feedback.variant === 'success' ? feedback.message : undefined}
-          error={feedback.variant === 'error' ? feedback.message : undefined}
-          rateLimit={feedback.variant === 'rate-limit' ? feedback.message : undefined}
-          retryAfterSeconds={retryAfterSeconds}
-        />
+        <div className="identity-banner__feedback">
+          <FeedbackRegion
+            success={feedback.variant === 'success' ? feedback.message : undefined}
+            error={feedback.variant === 'error' ? feedback.message : undefined}
+            rateLimit={feedback.variant === 'rate-limit' ? feedback.message : undefined}
+            retryAfterSeconds={retryAfterSeconds}
+          />
+        </div>
       )}
     </aside>
   );
