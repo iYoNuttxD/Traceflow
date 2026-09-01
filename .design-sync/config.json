@@ -1,0 +1,51 @@
+{
+  "projectId": "5ddb55f3-b30a-48ed-ad82-0067b0329373",
+  "shape": "package",
+  "pkg": "traceflow",
+  "globalName": "Traceflow",
+  "srcDir": "frontend/src/shared/components",
+  "cssEntry": "frontend/src/styles/global.css",
+  "provider": {
+    "component": "MemoryRouter"
+  },
+  "componentSrcMap": {
+    "Card": "frontend/src/shared/components/Card.jsx",
+    "FormInput": "frontend/src/shared/components/FormInput.jsx",
+    "FeedbackRegion": "frontend/src/shared/components/FeedbackRegion.jsx",
+    "ErrorBoundary": "frontend/src/shared/components/ErrorBoundary.jsx",
+    "ConfirmProvider": "frontend/src/shared/components/ConfirmDialog.jsx",
+    "LoadingState": "frontend/src/shared/components/AsyncState.jsx",
+    "EmptyState": "frontend/src/shared/components/AsyncState.jsx",
+    "ErrorState": "frontend/src/shared/components/AsyncState.jsx",
+    "ForbiddenState": "frontend/src/shared/components/AsyncState.jsx",
+    "RequestState": "frontend/src/shared/components/AsyncState.jsx",
+    "Layout": "frontend/src/components/Layout.jsx",
+    "Navbar": "frontend/src/components/Navbar.jsx"
+  },
+  "dtsPropsFor": {
+    "Card": "  /** Heading rendered as an <h2> above the content. Omit for an untitled card. */\n  title?: React.ReactNode;\n  /** Card body. */\n  children?: React.ReactNode;",
+    "FormInput": "  /** Visible <label> text for the field. */\n  label: React.ReactNode;\n  /** Validation message. When set the input gets aria-invalid and the message is announced with role=\"alert\". */\n  error?: React.ReactNode;\n  /** Marks the field required and appends a decorative asterisk to the label. */\n  required?: boolean;\n  /** Input id. Defaults to `name` — this is what ties the label and the error message to the input. */\n  id?: string;\n  /** Field name; doubles as the fallback id. */\n  name?: string;\n  /** Input type (text, email, password, date, number, ...). */\n  type?: string;\n  value?: string | number;\n  defaultValue?: string | number;\n  onChange?: React.ChangeEventHandler<HTMLInputElement>;\n  placeholder?: string;\n  disabled?: boolean;\n  autoComplete?: string;\n  /** Every other prop is forwarded verbatim to the underlying <input>. */\n  [key: string]: unknown;",
+    "FeedbackRegion": "  /** Error message, rendered in the error style with role=\"alert\". Takes precedence over `success`. */\n  error?: React.ReactNode;\n  /** Success message, rendered in the success style and announced politely. */\n  success?: React.ReactNode;",
+    "ErrorBoundary": "  /** Subtree to guard. A render error inside it swaps in the full-page fallback with a retry action. */\n  children?: React.ReactNode;",
+    "ConfirmProvider": "  /** App subtree that may call `useConfirm()`. The dialog renders as a sibling of these children. */\n  children?: React.ReactNode;",
+    "LoadingState": "  /** Text shown beside the spinner. Defaults to \"Carregando...\". */\n  message?: React.ReactNode;",
+    "EmptyState": "  /** Headline. Defaults to \"Nenhum resultado encontrado.\". */\n  title?: React.ReactNode;\n  /** Optional supporting line under the headline. */\n  description?: React.ReactNode;",
+    "ErrorState": "  /** Error message to display. */\n  message?: React.ReactNode;\n  /** When provided, renders a \"Tentar novamente\" button that calls this handler. */\n  onRetry?: () => void;",
+    "ForbiddenState": "  /** Explanation under the \"Acesso restrito\" heading. Defaults to the standard permission message. */\n  message?: React.ReactNode;",
+    "RequestState": "  /** Show the loading state. Checked first. */\n  loading?: boolean;\n  /** Error message. Renders ForbiddenState when `forbidden` is also set, otherwise ErrorState. */\n  error?: string;\n  /** Show the empty state. Checked after loading, forbidden and error. */\n  empty?: boolean;\n  /** Render the forbidden state instead of the generic error. */\n  forbidden?: boolean;\n  /** Retry handler forwarded to ErrorState. */\n  onRetry?: () => void;\n  /** Rendered when none of the state flags apply. */\n  children?: React.ReactNode;",
+    "Layout": "  /** Page content rendered below the global Navbar. */\n  children?: React.ReactNode;",
+    "Navbar": "  /** Navbar takes no props: it reads the session from the auth context and renders the global links itself. */"
+  },
+  "docsDir": ".design-sync/docs",
+  "overrides": {
+    "ConfirmProvider": {
+      "cardMode": "single",
+      "primaryStory": "Destructive",
+      "viewport": "760x460"
+    },
+    "ErrorBoundary": {
+      "cardMode": "column"
+    }
+  },
+  "readmeHeader": ".design-sync/conventions.md"
+}
