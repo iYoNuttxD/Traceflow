@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../../database/prismaClient.js';
+import { lockMilestone, lockProject } from '../../../database/locks.js';
 import { auditRepository } from '../../audit/audit.repository.js';
 
 export const sprintSelect = {
@@ -78,10 +79,6 @@ async function freezeParticipations(tx, sprintId, closedAt) {
   for (const [exitStatus, ids] of idsPorStatus) {
     await tx.sprintTask.updateMany({ where: { id: { in: ids } }, data: { closedAt, exitStatus } });
   }
-}
-
-function lockProject(tx, projectId) {
-  return tx.$queryRaw`SELECT id FROM Project WHERE id = ${projectId} FOR UPDATE`;
 }
 
 export const sprintRepository = {
@@ -170,7 +167,7 @@ export const sprintRepository = {
       }
 
       if (milestoneId) {
-        await tx.$queryRaw`SELECT id FROM Milestone WHERE id = ${milestoneId} FOR UPDATE`;
+        await lockMilestone(tx, milestoneId);
       }
 
       const atual = await tx.sprint.findUnique({ where: { id }, select: sprintSelect });

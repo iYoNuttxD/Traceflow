@@ -136,16 +136,6 @@ export const taskRepository = {
     });
   },
 
-  async findSprintById(id) {
-    return prisma.sprint.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        status: true
-      }
-    });
-  },
-
   async findPullRequestById(id) {
     return prisma.pullRequest.findUnique({
       where: { id },

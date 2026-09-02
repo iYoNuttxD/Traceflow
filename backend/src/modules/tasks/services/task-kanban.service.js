@@ -45,26 +45,25 @@ export const taskKanbanService = {
     await ensureProjectExists(task.projectId);
     const payload = data && typeof data === 'object' ? data : {};
     validateStatus(payload.toStatus);
-    if (task.sprintId) {
-      const sprint = await taskRepository.findSprintById(task.sprintId);
-      if (sprint && isTerminalSprintStatus(sprint.status)) {
-        throw new TaskServiceError(
-          'Sprint concluída ou cancelada não pode ter tarefas movidas.',
-          409,
-          ERROR_CODES.TASK_SPRINT_LOCKED,
-          { exposeTechnicalDetails: true }
-        );
-      }
-    }
     const actor = context.actor;
-    if (task.status === payload.toStatus) {
-      throw new TaskServiceError('A tarefa já está nesta coluna.', 400);
-    }
     const result = await taskMovementRepository.transitionStatus({
       task,
       toStatus: payload.toStatus,
       actor,
       calculateRequirementStatus,
+      validate: ({ sprint }) => {
+        if (sprint && isTerminalSprintStatus(sprint.status)) {
+          throw new TaskServiceError(
+            'Sprint concluída ou cancelada não pode ter tarefas movidas.',
+            409,
+            ERROR_CODES.TASK_SPRINT_LOCKED,
+            { exposeTechnicalDetails: true }
+          );
+        }
+        if (task.status === payload.toStatus) {
+          throw new TaskServiceError('A tarefa já está nesta coluna.', 400);
+        }
+      },
       auditEvent: buildAuditEvent({
         actorUserId: actor.id,
         projectId: task.projectId,

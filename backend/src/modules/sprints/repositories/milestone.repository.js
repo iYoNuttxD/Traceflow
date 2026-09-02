@@ -1,4 +1,5 @@
 import { prisma } from '../../../database/prismaClient.js';
+import { lockMilestone, lockProject } from '../../../database/locks.js';
 import { auditRepository } from '../../audit/audit.repository.js';
 
 export const milestoneSelect = {
@@ -14,9 +15,9 @@ export const milestoneSelect = {
 
 async function withMilestoneLocks(projectId, milestoneId, run) {
   return prisma.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT id FROM Project WHERE id = ${projectId} FOR UPDATE`;
+    await lockProject(tx, projectId);
     if (milestoneId) {
-      await tx.$queryRaw`SELECT id FROM Milestone WHERE id = ${milestoneId} FOR UPDATE`;
+      await lockMilestone(tx, milestoneId);
     }
 
     const milestone = milestoneId

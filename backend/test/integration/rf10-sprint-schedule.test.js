@@ -10,6 +10,7 @@ let prisma;
 let sprintRepository;
 let milestoneRepository;
 let sprintService;
+let taskKanbanService;
 let testDatabaseUrl;
 
 beforeAll(async () => {
@@ -21,6 +22,7 @@ beforeAll(async () => {
   ({ milestoneRepository } =
     await import('../../src/modules/sprints/repositories/milestone.repository.js'));
   ({ sprintService } = await import('../../src/modules/sprints/sprint.service.js'));
+  ({ taskKanbanService } = await import('../../src/modules/tasks/services/task-kanban.service.js'));
   await cleanTestDatabase(prisma);
 });
 afterEach(() => cleanTestDatabase(prisma));
@@ -430,6 +432,121 @@ describe('concorrencia sob lock (ADR-010 D17)', () => {
       const recusadas = resultados.filter((resultado) => resultado.status === 'rejected');
       for (const recusada of recusadas) {
         expect(['MILESTONE_HAS_SPRINTS', 'MILESTONE_NOT_FOUND']).toContain(recusada.reason.code);
+      }
+      await cleanTestDatabase(prisma);
+    }
+  });
+});
+
+describe('encerramento de sprint versus movimento de tarefa', () => {
+  const inicio = new Date('2026-08-01T00:00:00.000Z');
+  const fim = new Date('2026-08-30T00:00:00.000Z');
+
+  let sequencia = 0;
+  async function cenario(statusDaTarefa) {
+    sequencia += 1;
+    const user = await prisma.user.create({
+      data: {
+        name: 'Ator',
+        email: `ator-movimento-${sequencia}@example.invalid`,
+        passwordHash: 'x'
+      }
+    });
+    const project = await createProject(prisma);
+    const sprint = await createSprint(prisma, project.id, {
+      startDate: inicio,
+      endDate: fim,
+      status: 'EM_ANDAMENTO',
+      startedAt: inicio
+    });
+    const task = await createTask(prisma, project.id, { status: statusDaTarefa });
+    await sprintService.replaceTasks(sprint.id, [task.id], { actorUserId: user.id });
+    return {
+      sprint,
+      task,
+      contextoSprint: { actorUserId: user.id },
+      contextoTask: { actor: { id: user.id, name: user.name } }
+    };
+  }
+
+  async function estadoFinal(sprint, task) {
+    return {
+      tarefa: await prisma.task.findUnique({ where: { id: task.id } }),
+      participacao: await prisma.sprintTask.findFirst({
+        where: { sprintId: sprint.id, taskId: task.id }
+      }),
+      movimentos: await prisma.taskMovement.findMany({ where: { taskId: task.id } }),
+      historico: await prisma.taskHistoryEntry.findMany({
+        where: { taskId: task.id, field: 'STATUS' }
+      })
+    };
+  }
+
+  it('recusa mover tarefa de sprint ja encerrada', async () => {
+    const { sprint, task, contextoSprint, contextoTask } = await cenario('CONCLUIDO');
+    await sprintService.updateSprintStatus(sprint.id, 'CONCLUIDA', contextoSprint);
+
+    await expect(
+      taskKanbanService.moveTask(task.id, { toStatus: 'EM_ANDAMENTO' }, contextoTask)
+    ).rejects.toMatchObject({ code: 'TASK_SPRINT_LOCKED' });
+
+    const { tarefa, participacao, movimentos } = await estadoFinal(sprint, task);
+    expect(tarefa.status).toBe('CONCLUIDO');
+    expect(participacao.exitStatus).toBe('CONCLUIDO');
+    expect(movimentos).toHaveLength(0);
+  });
+
+  it('o snapshot terminal nunca congela status diferente do que a tarefa termina', async () => {
+    for (let rodada = 0; rodada < 5; rodada += 1) {
+      const { sprint, task, contextoSprint, contextoTask } = await cenario('CONCLUIDO');
+
+      const [encerramento, movimento] = await Promise.allSettled([
+        sprintService.updateSprintStatus(sprint.id, 'CONCLUIDA', contextoSprint),
+        taskKanbanService.moveTask(task.id, { toStatus: 'EM_ANDAMENTO' }, contextoTask)
+      ]);
+
+      expect(encerramento.status).toBe('fulfilled');
+      const { tarefa, participacao, movimentos, historico } = await estadoFinal(sprint, task);
+      expect(participacao.exitStatus).toBe(tarefa.status);
+
+      if (movimento.status === 'fulfilled') {
+        expect(tarefa.status).toBe('EM_ANDAMENTO');
+        expect(movimentos).toHaveLength(1);
+        expect(movimentos[0].fromStatus).toBe('CONCLUIDO');
+        expect(movimentos[0].sprintId).toBe(sprint.id);
+        expect(historico).toHaveLength(1);
+      } else {
+        expect(movimento.reason).toMatchObject({ code: 'TASK_SPRINT_LOCKED' });
+        expect(tarefa.status).toBe('CONCLUIDO');
+        expect(movimentos).toHaveLength(0);
+        expect(historico).toHaveLength(0);
+      }
+      await cleanTestDatabase(prisma);
+    }
+  });
+
+  it('movimento posterior ao backlog nao registra a sprint encerrada', async () => {
+    for (let rodada = 0; rodada < 5; rodada += 1) {
+      const { sprint, task, contextoSprint, contextoTask } = await cenario('A_FAZER');
+
+      const [encerramento, movimento] = await Promise.allSettled([
+        sprintService.updateSprintStatus(sprint.id, 'CONCLUIDA', contextoSprint),
+        taskKanbanService.moveTask(task.id, { toStatus: 'EM_ANDAMENTO' }, contextoTask)
+      ]);
+
+      expect(encerramento.status).toBe('fulfilled');
+      expect(movimento.status).toBe('fulfilled');
+
+      const { tarefa, participacao, movimentos } = await estadoFinal(sprint, task);
+      expect(tarefa.status).toBe('EM_ANDAMENTO');
+      expect(tarefa.sprintId).toBeNull();
+      expect(movimentos).toHaveLength(1);
+
+      if (participacao.exitStatus === 'EM_ANDAMENTO') {
+        expect(movimentos[0].sprintId).toBe(sprint.id);
+      } else {
+        expect(participacao.exitStatus).toBe('A_FAZER');
+        expect(movimentos[0].sprintId).toBeNull();
       }
       await cleanTestDatabase(prisma);
     }
