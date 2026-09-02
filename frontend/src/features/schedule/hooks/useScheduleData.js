@@ -176,7 +176,6 @@ export function useScheduleData(projectId) {
     refreshSchedule,
     refreshSprints,
     refreshMilestones,
-    feedback,
     handleFailure,
     fail,
     settle
