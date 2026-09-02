@@ -7,6 +7,27 @@ const validSource = {
   DATABASE_URL: 'mysql://user:password@localhost:3306/traceflow',
   FRONTEND_URL: 'http://localhost:5173'
 };
+const githubAppSource = {
+  GITHUB_APP_ID: '123',
+  GITHUB_APP_CLIENT_ID: 'Iv1.artificial',
+  GITHUB_APP_CLIENT_SECRET: 'client-secret-artificial',
+  GITHUB_APP_SLUG: 'traceflow-test',
+  GITHUB_APP_PRIVATE_KEY_BASE64: 'Y2hhdmUtYXJ0aWZpY2lhbA==',
+  GITHUB_APP_WEBHOOK_SECRET: 'webhook-artificial',
+  GITHUB_APP_CALLBACK_URL: 'https://api.traceflow.example/api/github-app/callback',
+  GITHUB_LOGIN_CALLBACK_URL: 'https://api.traceflow.example/api/auth/github/callback',
+  GITHUB_APP_FRONTEND_SUCCESS_URL: 'https://traceflow.example/projects?github=connected',
+  GITHUB_APP_FRONTEND_ERROR_URL: 'https://traceflow.example/projects?github=error'
+};
+const productionInfrastructure = {
+  CORS_ALLOWED_ORIGINS: 'https://traceflow.example',
+  EMAIL_PROVIDER: 'smtp',
+  EMAIL_FROM: 'no-reply@traceflow.example',
+  SMTP_HOST: 'smtp.traceflow.example',
+  SMTP_USER: 'mailer',
+  SMTP_PASSWORD: 'secret',
+  PRIVACY_PSEUDONYMIZATION_KEY: 'artificial-production-pseudonymization-key'
+};
 
 describe('configuração centralizada', () => {
   it('carrega e congela uma configuração válida', () => {
@@ -20,20 +41,48 @@ describe('configuração centralizada', () => {
       rateLimitWindowMs: 900000,
       rateLimitMax: 200,
       sensitiveRateLimitMax: 20,
+      rateLimitProfile: 'development',
+      rateLimitGlobalWindowMs: 60000,
+      rateLimitGlobalMax: 4000,
+      rateLimitReadBurstWindowMs: 10000,
+      rateLimitReadBurstMax: 120,
+      rateLimitReadWindowMs: 300000,
+      rateLimitReadMax: 1200,
+      rateLimitAuthMax: 20,
+      rateLimitEmailMax: 5,
+      rateLimitSensitiveMax: 20,
+      rateLimitExportMax: 3,
       githubRequestTimeoutMs: 15000,
       githubRetryMax: 2,
+      githubRetryMaxDelayMs: 60000,
       trustProxy: false
     });
     expect(Object.isFrozen(config)).toBe(true);
   });
 
+  it('não reutiliza TTL OAuth como autorização de repositórios', () => {
+    const config = createEnvironment({
+      ...validSource,
+      GITHUB_REPOSITORY_AUTHORIZATION_TTL_MS: '900000'
+    });
+    expect(config).not.toHaveProperty('githubRepositoryAuthorizationTtlMs');
+  });
+
   it('falha sem banco obrigatório e não inclui segredo na mensagem', () => {
     const secret = 'segredo-nao-pode-aparecer';
     expect(() =>
-      createEnvironment({ ...validSource, DATABASE_URL: undefined, GITHUB_TOKEN: secret })
+      createEnvironment({
+        ...validSource,
+        DATABASE_URL: undefined,
+        GITHUB_APP_CLIENT_SECRET: secret
+      })
     ).toThrowError(/DATABASE_URL/);
     try {
-      createEnvironment({ ...validSource, DATABASE_URL: undefined, GITHUB_TOKEN: secret });
+      createEnvironment({
+        ...validSource,
+        DATABASE_URL: undefined,
+        GITHUB_APP_CLIENT_SECRET: secret
+      });
     } catch (error) {
       expect(error.message).not.toContain(secret);
     }
@@ -49,6 +98,30 @@ describe('configuração centralizada', () => {
     );
   });
 
+  it('valida perfil e valores centralizados de rate limiting', () => {
+    const config = createEnvironment({
+      ...validSource,
+      RATE_LIMIT_PROFILE: 'production',
+      RATE_LIMIT_GLOBAL_MAX: '900',
+      RATE_LIMIT_READ_MAX: '500',
+      RATE_LIMIT_EMAIL_MAX: '4',
+      RATE_LIMIT_EXPORT_MAX: '2'
+    });
+    expect(config).toMatchObject({
+      rateLimitProfile: 'production',
+      rateLimitGlobalMax: 900,
+      rateLimitReadMax: 500,
+      rateLimitEmailMax: 4,
+      rateLimitExportMax: 2
+    });
+    expect(() =>
+      createEnvironment({ ...validSource, RATE_LIMIT_PROFILE: 'disabled' })
+    ).toThrowError(/RATE_LIMIT_PROFILE/);
+    expect(() => createEnvironment({ ...validSource, RATE_LIMIT_READ_MAX: '0' })).toThrowError(
+      /RATE_LIMIT_READ_MAX/
+    );
+  });
+
   it('usa TEST_DATABASE_URL no ambiente de teste sem exigir DATABASE_URL', () => {
     const config = createEnvironment({
       NODE_ENV: 'test',
@@ -58,23 +131,34 @@ describe('configuração centralizada', () => {
     expect(config.isTest).toBe(true);
   });
 
-  it('exige token GitHub somente em produção', () => {
-    expect(() => createEnvironment({ ...validSource, NODE_ENV: 'production' })).toThrowError(
-      /GITHUB_TOKEN/
-    );
+  it('exige configuração completa da GitHub App em produção', () => {
+    expect(() =>
+      createEnvironment({ ...validSource, ...productionInfrastructure, NODE_ENV: 'production' })
+    ).toThrowError(/GitHub App/);
     expect(
       createEnvironment({
         ...validSource,
         NODE_ENV: 'production',
-        GITHUB_TOKEN: 'fake',
-        CORS_ALLOWED_ORIGINS: 'https://traceflow.example',
-        EMAIL_PROVIDER: 'smtp',
-        EMAIL_FROM: 'no-reply@traceflow.example',
-        SMTP_HOST: 'smtp.traceflow.example',
-        SMTP_USER: 'mailer',
-        SMTP_PASSWORD: 'secret'
+        ...githubAppSource,
+        ...productionInfrastructure
       })
-    ).toMatchObject({ isProduction: true });
+    ).toMatchObject({ isProduction: true, githubAppConfigured: true });
+  });
+
+  it('separa o callback de login e exige HTTPS em produção', () => {
+    const configured = createEnvironment({ ...validSource, ...githubAppSource });
+    expect(configured.githubLoginCallbackUrl).toBe(
+      'https://api.traceflow.example/api/auth/github/callback'
+    );
+    expect(() =>
+      createEnvironment({
+        ...validSource,
+        NODE_ENV: 'production',
+        ...productionInfrastructure,
+        ...githubAppSource,
+        GITHUB_LOGIN_CALLBACK_URL: 'http://api.traceflow.example/api/auth/github/callback'
+      })
+    ).toThrowError(/HTTPS/);
   });
 
   it('valida o provedor de e-mail sem revelar credenciais', () => {
@@ -87,12 +171,30 @@ describe('configuração centralizada', () => {
     ).toThrowError(/SMTP_HOST/);
   });
 
+  it('exige chave estável e suficientemente longa para pseudonimização em produção', () => {
+    expect(() =>
+      createEnvironment({
+        ...validSource,
+        ...productionInfrastructure,
+        ...githubAppSource,
+        NODE_ENV: 'production',
+        PRIVACY_PSEUDONYMIZATION_KEY: undefined
+      })
+    ).toThrowError(/PRIVACY_PSEUDONYMIZATION_KEY/);
+    expect(() =>
+      createEnvironment({
+        ...validSource,
+        PRIVACY_PSEUDONYMIZATION_KEY: 'curta'
+      })
+    ).toThrowError(/32 bytes/);
+  });
+
   it('valida configuração de segurança sem expor valores', () => {
     expect(() =>
       createEnvironment({
         ...validSource,
         NODE_ENV: 'production',
-        GITHUB_TOKEN: 'fake'
+        ...githubAppSource
       })
     ).toThrowError(/CORS_ALLOWED_ORIGINS/);
     expect(() => createEnvironment({ ...validSource, BODY_LIMIT: '100gb' })).toThrowError(

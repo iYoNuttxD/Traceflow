@@ -1,0 +1,113 @@
+.error-page {
+  display: grid;
+  place-items: center;
+  min-height: calc(100vh - 68px);
+}
+
+.error-page-embedded {
+  min-height: min(32rem, 60vh);
+}
+
+.error-page-card {
+  display: grid;
+  justify-items: center;
+  width: min(100%, 40rem);
+  padding: clamp(1.75rem, 5vw, 3rem);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: 16px;
+  color: var(--color-text-primary);
+  background: var(--color-surface-elevated);
+  box-shadow: var(--shadow-md);
+  text-align: center;
+}
+
+.error-page-icon {
+  display: grid;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  margin-bottom: 1.25rem;
+  border: var(--border-width-default) solid var(--color-danger-border);
+  border-radius: 50%;
+  color: var(--color-danger-icon);
+  background: var(--color-danger-surface);
+  font-size: 1.4rem;
+  font-weight: 900;
+}
+
+.error-page-not-found .error-page-icon {
+  border-color: var(--color-info-border);
+  color: var(--color-info-icon);
+  background: var(--color-info-surface);
+}
+
+.error-page-title {
+  margin: 0;
+  color: var(--color-text-strong);
+  font-size: clamp(1.5rem, 4vw, 2rem);
+  line-height: 1.2;
+}
+
+.error-page-description {
+  max-width: 34rem;
+  margin: 1rem 0 0;
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+}
+
+.error-page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: center;
+  margin-top: 1.75rem;
+}
+
+.error-page-actions .button {
+  min-width: 10.5rem;
+  text-decoration: none;
+}
+
+.error-page-actions .button-primary {
+  color: var(--color-text-on-accent);
+  background: var(--color-accent-strong);
+}
+
+.error-page-actions .button-secondary {
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+  background: var(--color-surface-primary);
+}
+
+.error-page-actions .button-secondary:hover:not(:disabled) {
+  border-color: var(--color-border-interactive);
+  background: var(--color-surface-interactive);
+}
+
+.error-page-reference {
+  margin: 1.5rem 0 0;
+  color: var(--color-text-secondary);
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+
+.error-page :focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+@media (max-width: 560px) {
+  .error-page-actions,
+  .error-page-actions .button {
+    width: 100%;
+  }
+
+  .error-page-card {
+    padding: 1.5rem;
+    border-radius: 12px;
+  }
+
+  .error-page-actions {
+    flex-direction: column;
+  }
+}

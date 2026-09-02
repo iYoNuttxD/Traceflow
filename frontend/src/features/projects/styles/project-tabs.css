@@ -1,0 +1,7 @@
+@media (max-width: 720px) {
+  .project-section-tabs {
+    margin-right: calc(var(--space-4) * -1);
+    margin-left: calc(var(--space-4) * -1);
+    padding: 0 var(--space-4);
+  }
+}

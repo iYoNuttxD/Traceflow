@@ -77,43 +77,163 @@ enum SprintTaskRemovalReason {
   TAREFA_EXCLUIDA
 }
 
-model User {
-  id              Int       @id @default(autoincrement())
-  name            String
-  email           String    @unique
-  passwordHash    String?
-  isActive        Boolean   @default(true)
-  emailVerifiedAt DateTime?
-  mustSetPassword Boolean   @default(false)
-  sessionVersion  Int       @default(1)
-  lastLoginAt     DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+enum GitHubInstallationStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  REMOVED
+}
 
-  sessions                      Session[]
-  passwordResetTokens           PasswordResetToken[]
-  memberships                   ProjectMembership[]
-  createdInvitations            ProjectInvitation[]    @relation("InvitationCreator")
-  acceptedInvitations           ProjectInvitation[]    @relation("InvitationAcceptor")
-  responsibleTasks              Task[]
-  taskMovements                 TaskMovement[]
-  taskHistoryEntries            TaskHistoryEntry[]
-  auditEvents                   AuditEvent[]
-  privacyRequests               PrivacyRequest[]
-  personalDataExports           PersonalDataExport[]
-  reviewedTaskCommitSuggestions TaskCommitSuggestion[] @relation("TaskCommitSuggestionReviewer")
+enum GitHubWebhookDeliveryStatus {
+  RECEIVED
+  PROCESSING
+  PROCESSED
+  FAILED
+}
+
+enum GitHubIntegrationStatus {
+  ACTIVE
+  RECONNECT_REQUIRED
+  DISCONNECTED
+}
+
+enum GitHubSyncRunStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+enum GitHubSyncStep {
+  QUEUED
+  REPOSITORY
+  BRANCHES
+  COMMITS
+  PULL_REQUESTS
+  ISSUES
+  PERSIST
+  COMPLETED
+}
+
+enum AccountStatus {
+  ACTIVE
+  DEACTIVATED
+  DELETION_PENDING
+  ANONYMIZED
+}
+
+enum GitHubOAuthPurpose {
+  LOGIN
+  LINK_IDENTITY
+  REAUTH_SENSITIVE_ACTION
+}
+
+model User {
+  id                Int           @id @default(autoincrement())
+  name              String
+  email             String        @unique
+  username          String        @unique
+  mustSetUsername   Boolean       @default(false)
+  passwordHash      String?
+  isActive          Boolean       @default(true)
+  emailVerifiedAt   DateTime?
+  mustSetPassword   Boolean       @default(false)
+  sessionVersion    Int           @default(1)
+  accountStatus     AccountStatus @default(ACTIVE)
+  deactivatedAt     DateTime?
+  usernameChangedAt DateTime?
+  anonymizedAt      DateTime?
+  lastLoginAt       DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  sessions                         Session[]
+  passwordResetTokens              PasswordResetToken[]
+  emailVerificationTokens          EmailVerificationToken[]
+  memberships                      ProjectMembership[]
+  createdInvitations               ProjectInvitation[]               @relation("InvitationCreator")
+  acceptedInvitations              ProjectInvitation[]               @relation("InvitationAcceptor")
+  declinedInvitations              ProjectInvitation[]               @relation("InvitationDecliner")
+  responsibleTasks                 Task[]
+  taskMovements                    TaskMovement[]
+  taskHistoryEntries               TaskHistoryEntry[]
+  auditEvents                      AuditEvent[]
+  privacyRequests                  PrivacyRequest[]
+  personalDataExports              PersonalDataExport[]
+  reviewedTaskCommitSuggestions    TaskCommitSuggestion[]            @relation("TaskCommitSuggestionReviewer")
+  githubInstallationAuthorizations GitHubInstallationAuthorization[]
+  githubAppConnectionStates        GitHubAppConnectionState[]
+  githubIdentity                   GitHubIdentity?
+  githubOAuthStates                GitHubOAuthState[]
+  emailChangeRequests              EmailChangeRequest[]
+  accountReactivationTokens        AccountReactivationToken[]
+  requestedGitHubSyncRuns          GitHubSyncRun[]
+
+  @@index([accountStatus])
 }
 
 model Session {
   id             Int       @id @default(autoincrement())
+  publicId       String    @unique @default(uuid())
   userId         Int
   tokenHash      String    @unique
   csrfTokenHash  String
   sessionVersion Int
   expiresAt      DateTime
+  rememberMe     Boolean   @default(false)
   lastSeenAt     DateTime  @default(now())
   revokedAt      DateTime?
   createdAt      DateTime  @default(now())
+
+  user                      User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  githubAppConnectionStates GitHubAppConnectionState[]
+  githubOAuthStates         GitHubOAuthState[]
+  lastReauthenticatedAt     DateTime?
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model EmailChangeRequest {
+  id                   Int       @id @default(autoincrement())
+  userId               Int
+  currentEmailSnapshot String
+  newEmail             String
+  tokenHash            String    @unique
+  expiresAt            DateTime
+  verifiedAt           DateTime?
+  cancelledAt          DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([expiresAt])
+  @@index([newEmail])
+}
+
+model AccountReactivationToken {
+  id        Int       @id @default(autoincrement())
+  userId    Int
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model EmailVerificationToken {
+  id        Int       @id @default(autoincrement())
+  userId    Int
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -162,67 +282,199 @@ model ProjectInvitation {
   expiresAt    DateTime
   revokedAt    DateTime?
   acceptedAt   DateTime?
+  declinedAt   DateTime?
   createdById  Int
   acceptedById Int?
+  declinedById Int?
   createdAt    DateTime    @default(now())
 
   project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   createdBy  User    @relation("InvitationCreator", fields: [createdById], references: [id])
   acceptedBy User?   @relation("InvitationAcceptor", fields: [acceptedById], references: [id])
+  declinedBy User?   @relation("InvitationDecliner", fields: [declinedById], references: [id])
 
   @@index([projectId])
   @@index([email])
+  @@index([projectId, email, createdAt])
   @@index([expiresAt])
+  @@index([declinedById])
 }
 
-// Entidade central do TRACEFLOW, com aliases GitHub legados preservados por compatibilidade.
+// Entidade central do TRACEFLOW. A identidade GitHub pertence exclusivamente à integração.
 model Project {
-  id                       Int       @id @default(autoincrement())
-  name                     String
-  description              String?
-  responsibleTeam          String
-  githubOwner              String?
-  githubRepo               String?
-  githubUrl                String?
-  githubRepositoryId       String?
-  githubRepositoryName     String?
-  githubRepositoryFullName String?
-  githubRepositoryUrl      String?
-  githubDefaultBranch      String?
-  githubIsPrivate          Boolean?
-  githubIntegratedAt       DateTime?
-  githubAutoSyncEnabled    Boolean   @default(false)
-  githubLastSyncAt         DateTime?
-  githubSyncStatus         String?
-  githubLastSyncError      String?
-  githubLastSyncAttemptAt  DateTime?
-  status                   String    @default("ATIVO")
-  accessCode               String?   @unique
-  inviteLink               String?
-  createdAt                DateTime  @default(now())
-  updatedAt                DateTime  @updatedAt
+  id              Int         @id @default(autoincrement())
+  name            String
+  description     String?
+  responsibleTeam String
+  status          String      @default("ATIVO")
+  accessCode      String      @unique
+  accessCodeRole  ProjectRole @default(MEMBER)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
 
-  requirements          Requirement[]
-  tasks                 Task[]
-  members               ProjectMember[]
-  taskMovements         TaskMovement[]
-  taskHistoryEntries    TaskHistoryEntry[]
-  commits               Commit[]
-  pullRequests          PullRequest[]
-  issues                Issue[]
-  memberships           ProjectMembership[]
-  invitations           ProjectInvitation[]
-  auditEvents           AuditEvent[]
-  taskCommitSuggestions TaskCommitSuggestion[]
-  sprints               Sprint[]
-  milestones            Milestone[]
-  sprintTasks           SprintTask[]
+  requirements           Requirement[]
+  tasks                  Task[]
+  taskMovements          TaskMovement[]
+  taskHistoryEntries     TaskHistoryEntry[]
+  commits                Commit[]
+  pullRequests           PullRequest[]
+  issues                 Issue[]
+  memberships            ProjectMembership[]
+  invitations            ProjectInvitation[]
+  auditEvents            AuditEvent[]
+  taskCommitSuggestions  TaskCommitSuggestion[]
+  githubIntegration      ProjectGitHubIntegration?
+  githubConnectionStates GitHubAppConnectionState[]
+  githubBranches         GitBranch[]
+  githubSyncRuns         GitHubSyncRun[]
+  sprints                Sprint[]
+  milestones             Milestone[]
+  sprintTasks            SprintTask[]
 
-  @@unique([githubRepositoryId])
-  @@unique([githubRepositoryFullName])
   @@index([status])
-  @@index([githubSyncStatus])
   @@index([createdAt])
+}
+
+model GitHubInstallation {
+  id                   Int                      @id @default(autoincrement())
+  githubInstallationId String                   @unique
+  accountId            String
+  accountLogin         String
+  accountType          String
+  status               GitHubInstallationStatus @default(PENDING)
+  suspendedAt          DateTime?
+  installedAt          DateTime
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+
+  authorizations      GitHubInstallationAuthorization[]
+  projectIntegrations ProjectGitHubIntegration[]
+
+  @@index([accountId])
+  @@index([status])
+}
+
+model GitHubInstallationAuthorization {
+  id             Int      @id @default(autoincrement())
+  installationId Int
+  userId         Int
+  verifiedAt     DateTime
+  createdAt      DateTime @default(now())
+
+  installation GitHubInstallation @relation(fields: [installationId], references: [id], onDelete: Cascade)
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([installationId, userId])
+  @@index([userId])
+}
+
+model ProjectGitHubIntegration {
+  id                 Int                     @id @default(autoincrement())
+  projectId          Int                     @unique
+  installationId     Int?
+  githubRepositoryId String?                 @unique
+  repositoryName     String?
+  repositoryFullName String?
+  repositoryUrl      String?
+  defaultBranch      String?
+  repositoryPrivate  Boolean?
+  integratedAt       DateTime?
+  autoSyncEnabled    Boolean                 @default(false)
+  status             GitHubIntegrationStatus @default(RECONNECT_REQUIRED)
+  lastValidatedAt    DateTime?
+  lastSyncAt         DateTime?
+  lastSyncStatus     String?
+  lastSyncError      String?
+  lastSyncAttemptAt  DateTime?
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+
+  project      Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  installation GitHubInstallation? @relation(fields: [installationId], references: [id], onDelete: SetNull)
+
+  @@index([installationId, status])
+}
+
+model GitHubAppConnectionState {
+  id             Int       @id @default(autoincrement())
+  userId         Int
+  sessionId      Int
+  tokenHash      String    @unique
+  intendedAction String
+  projectId      Int?
+  expiresAt      DateTime
+  usedAt         DateTime?
+  createdAt      DateTime  @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@index([sessionId])
+  @@index([projectId])
+}
+
+model GitHubIdentity {
+  id                  Int       @id @default(autoincrement())
+  userId              Int       @unique
+  githubUserId        String    @unique
+  githubLogin         String
+  linkedAt            DateTime  @default(now())
+  lastAuthenticatedAt DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Marcador deny-only pseudonimizado. Impede que uma identidade GitHub removida pela
+// anonimização recrie ou reassocie automaticamente uma conta, sem persistir o GitHub user ID.
+model GitHubIdentityTombstone {
+  id                    Int      @id @default(autoincrement())
+  githubUserFingerprint String   @unique(map: "GitHubIdentityTombstone_fingerprint_key") @db.Char(64)
+  createdAt             DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model GitHubOAuthState {
+  id         Int                @id @default(autoincrement())
+  tokenHash  String             @unique
+  purpose    GitHubOAuthPurpose
+  userId     Int?
+  sessionId  Int?
+  rememberMe Boolean            @default(false)
+  returnTo   String?
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime           @default(now())
+
+  user    User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session Session? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@index([sessionId])
+  @@index([purpose, expiresAt])
+}
+
+model GitHubWebhookDelivery {
+  id             Int                         @id @default(autoincrement())
+  deliveryId     String                      @unique
+  event          String
+  action         String?
+  installationId String?
+  status         GitHubWebhookDeliveryStatus @default(RECEIVED)
+  attemptCount   Int                         @default(0)
+  lastAttemptAt  DateTime?
+  failureStep    String?
+  failureCode    String?
+  receivedAt     DateTime                    @default(now())
+  processedAt    DateTime?
+
+  @@index([installationId])
+  @@index([receivedAt])
+  @@index([status, lastAttemptAt])
 }
 
 model AuditEvent {
@@ -251,17 +503,20 @@ model AuditEvent {
 }
 
 model PrivacyRequest {
-  id           Int                  @id @default(autoincrement())
-  userId       Int
-  type         PrivacyRequestType
-  status       PrivacyRequestStatus @default(PENDING)
-  requestedAt  DateTime             @default(now())
-  scheduledFor DateTime?
-  completedAt  DateTime?
-  cancelledAt  DateTime?
-  reasonCode   String?
-  createdAt    DateTime             @default(now())
-  updatedAt    DateTime             @updatedAt
+  id                  Int                  @id @default(autoincrement())
+  userId              Int
+  type                PrivacyRequestType
+  status              PrivacyRequestStatus @default(PENDING)
+  requestedAt         DateTime             @default(now())
+  scheduledFor        DateTime?
+  completedAt         DateTime?
+  cancelledAt         DateTime?
+  reasonCode          String?
+  processingStartedAt DateTime?
+  failureCode         String?
+  lastAttemptAt       DateTime?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -468,45 +723,23 @@ model TaskIssue {
   @@index([issueId])
 }
 
-// Membro interno de um projeto no TRACEFLOW.
-model ProjectMember {
-  id        Int      @id @default(autoincrement())
-  projectId Int
-  name      String
-  email     String?
-  role      String   @default("MEMBRO")
-  isActive  Boolean  @default(true)
-  joinedAt  DateTime @default(now())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  project   Project        @relation(fields: [projectId], references: [id])
-  movements TaskMovement[]
-
-  @@unique([projectId, email])
-  @@index([projectId])
-}
-
 // Historico de movimentacoes do quadro Kanban do RF08.
 model TaskMovement {
-  id              Int      @id @default(autoincrement())
-  projectId       Int
-  taskId          Int
-  fromStatus      String
-  toStatus        String
-  movedBy         String
-  projectMemberId Int?
-  movedByUserId   Int?
-  movedAt         DateTime @default(now())
-  sprintId        Int?
-  createdAt       DateTime @default(now())
+  id            Int      @id @default(autoincrement())
+  projectId     Int
+  taskId        Int
+  fromStatus    String
+  toStatus      String
+  movedBy       String
+  movedByUserId Int?
+  movedAt       DateTime @default(now())
+  sprintId      Int?
+  createdAt     DateTime @default(now())
 
-  project       Project        @relation(fields: [projectId], references: [id])
-  task          Task           @relation(fields: [taskId], references: [id])
-  projectMember ProjectMember? @relation(fields: [projectMemberId], references: [id])
-  movedByUser   User?          @relation(fields: [movedByUserId], references: [id], onDelete: SetNull)
+  project     Project @relation(fields: [projectId], references: [id])
+  task        Task    @relation(fields: [taskId], references: [id])
+  movedByUser User?   @relation(fields: [movedByUserId], references: [id], onDelete: SetNull)
 
-  @@index([projectMemberId])
   @@index([movedByUserId])
   @@index([movedAt])
   @@index([projectId, movedAt])
@@ -545,7 +778,6 @@ model Commit {
   authorEmail    String?
   authorUsername String?
   date           DateTime?
-  branch         String?
   githubUrl      String?
   projectId      Int
   createdAt      DateTime  @default(now())
@@ -554,10 +786,89 @@ model Commit {
   project         Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
   taskLinks       TaskCommit[]
   taskSuggestions TaskCommitSuggestion[]
+  branchLinks     CommitBranch[]
 
   @@unique([projectId, hash])
   @@index([projectId, date])
   @@index([projectId, createdAt])
+}
+
+// Branch observada no repositório GitHub do projeto. Registros inativos preservam histórico.
+model GitBranch {
+  id                Int       @id @default(autoincrement())
+  projectId         Int
+  // A collation case-sensitive desta coluna é aplicada pela migration LR.5.
+  // O Prisma não representa collation por campo; o tipo nativo documenta o contrato físico.
+  name              String    @db.VarChar(191)
+  headSha           String?
+  lastSyncedHeadSha String?
+  isDefault         Boolean   @default(false)
+  isActive          Boolean   @default(true)
+  firstSeenAt       DateTime  @default(now())
+  lastSeenAt        DateTime
+  inactiveAt        DateTime?
+  reactivatedAt     DateTime?
+  reactivationCount Int       @default(0)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  project     Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  commitLinks CommitBranch[]
+
+  @@unique([projectId, name])
+  @@index([projectId, isActive])
+  @@index([projectId, isDefault])
+}
+
+// Execução persistida permite polling, recuperação após reload e exclusão mútua no banco.
+model GitHubSyncRun {
+  id                  Int                 @id @default(autoincrement())
+  projectId           Int
+  requestedByUserId   Int
+  activeProjectId     Int?                @unique
+  status              GitHubSyncRunStatus @default(QUEUED)
+  step                GitHubSyncStep      @default(QUEUED)
+  currentBranch       String?
+  startedAt           DateTime?
+  heartbeatAt         DateTime?
+  finishedAt          DateTime?
+  durationMs          Int?
+  branchCount         Int                 @default(0)
+  processedBranches   Int                 @default(0)
+  commitPages         Int                 @default(0)
+  commitsFound        Int                 @default(0)
+  commitsObserved     Int                 @default(0)
+  commitsCreated      Int                 @default(0)
+  commitLinksCreated  Int                 @default(0)
+  pullRequestsFound   Int                 @default(0)
+  pullRequestsCreated Int                 @default(0)
+  pullRequestsUpdated Int                 @default(0)
+  issuesFound         Int                 @default(0)
+  issuesCreated       Int                 @default(0)
+  issuesUpdated       Int                 @default(0)
+  errorCode           String?
+  errorMessage        String?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  project         Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  requestedByUser User    @relation(fields: [requestedByUserId], references: [id])
+
+  @@index([projectId, createdAt])
+  @@index([status, updatedAt])
+  @@index([requestedByUserId, createdAt])
+}
+
+// Um commit canônico pode estar contido em várias branches simultaneamente.
+model CommitBranch {
+  commitId Int
+  branchId Int
+
+  commit Commit    @relation(fields: [commitId], references: [id], onDelete: Cascade)
+  branch GitBranch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@id([commitId, branchId])
+  @@index([branchId])
 }
 
 // Pull Request importada do repositorio GitHub e vinculada às Tasks pela FK singular canônica.

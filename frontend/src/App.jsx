@@ -1,21 +1,21 @@
 import { BrowserRouter } from 'react-router';
 import { AppRoutes } from './app/routes/AppRoutes.jsx';
-import { Layout } from './components/Layout.jsx';
+import { ThemeProvider } from './app/theme/ThemeProvider.jsx';
 import { AuthProvider } from './features/auth/index.js';
 import { ConfirmProvider, ErrorBoundary } from './shared/index.js';
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <ErrorBoundary>
-        <AuthProvider>
-          <ConfirmProvider>
-            <Layout>
+    <ThemeProvider>
+      <BrowserRouter>
+        <ErrorBoundary>
+          <AuthProvider>
+            <ConfirmProvider>
               <AppRoutes />
-            </Layout>
-          </ConfirmProvider>
-        </AuthProvider>
-      </ErrorBoundary>
-    </BrowserRouter>
+            </ConfirmProvider>
+          </AuthProvider>
+        </ErrorBoundary>
+      </BrowserRouter>
+    </ThemeProvider>
   );
 }

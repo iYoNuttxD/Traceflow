@@ -5,8 +5,7 @@ export async function syncProjectPullRequests({ project, repository, githubClien
 
   for await (const page of githubClient.listPullRequestPages({
     owner: repository.owner,
-    repo: repository.name,
-    branch: repository.defaultBranch
+    repo: repository.name
   })) {
     const pullRequests = page.map((pullRequest) => ({ ...pullRequest, projectId: project.id }));
     const result = await pullRequestRepository.upsertMany(pullRequests);

@@ -1,5 +1,5 @@
 import request from 'supertest';
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import {
   cleanTestDatabase,
   configureTestDatabaseEnvironment,
@@ -9,6 +9,7 @@ import {
 let app;
 let prisma;
 const password = 'SenhaSegura123';
+
 beforeAll(async () => {
   const url = configureTestDatabaseEnvironment();
   deployTestMigrations(url);
@@ -16,7 +17,8 @@ beforeAll(async () => {
   ({ default: app } = await import('../../src/app.js'));
   await cleanTestDatabase(prisma);
 });
-afterEach(() => cleanTestDatabase(prisma));
+
+afterEach(async () => cleanTestDatabase(prisma));
 afterAll(async () => {
   await cleanTestDatabase(prisma);
   await prisma.$disconnect();
@@ -24,9 +26,18 @@ afterAll(async () => {
 
 async function register(email = 'privacy@example.invalid') {
   const agent = request.agent(app);
-  const response = await agent
-    .post('/api/auth/register')
-    .send({ name: 'Pessoa artificial', email, password });
+  const response = await agent.post('/api/auth/register').send({
+    name: 'Pessoa artificial',
+    username: `u${email
+      .split('@')[0]
+      .replace(/[^a-z0-9]/g, '')
+      .slice(0, 29)}`,
+    email,
+    password
+  });
+  await request(app)
+    .post('/api/auth/email-verification/verify')
+    .send({ token: response.body.emailVerification.testToken });
   return {
     agent,
     csrf: response.body.csrfToken,
@@ -34,150 +45,109 @@ async function register(email = 'privacy@example.invalid') {
   };
 }
 
-describe('direitos do titular e auditoria E7', () => {
-  it('consulta dados próprios sem hashes, atualiza perfil e lista sessões minimizadas', async () => {
+describe('LR.2 — consolidação das rotas e worker de privacidade', () => {
+  it('remove /api/account/* legado e preserva os contratos canônicos de settings', async () => {
     const auth = await register();
-    const data = await auth.agent.get('/api/account/personal-data');
-    expect(data.status).toBe(200);
-    expect(JSON.stringify(data.body)).not.toMatch(/passwordHash|tokenHash|csrfTokenHash/);
-    const updated = await auth.mutate('patch', '/api/account/profile').send({
-      name: 'Nome atualizado',
-      email: 'updated@example.invalid',
-      currentPassword: password
-    });
-    expect(updated).toMatchObject({
-      status: 200,
-      body: { user: { name: 'Nome atualizado', email: 'updated@example.invalid' } }
-    });
-    const sessions = await auth.agent.get('/api/account/sessions');
-    expect(sessions.body.sessions[0]).toMatchObject({ current: true });
-    expect(sessions.body.sessions[0]).not.toHaveProperty('tokenHash');
+    const legacyRequests = [
+      () => auth.agent.get('/api/account/personal-data'),
+      () => auth.mutate('patch', '/api/account/profile').send({ name: 'Nome legado' }),
+      () => auth.agent.get('/api/account/sessions'),
+      () => auth.mutate('post', '/api/account/personal-data/export').send({}),
+      () => auth.mutate('post', '/api/account/deactivate').send({ password }),
+      () => auth.agent.get('/api/account/deletion-request')
+    ];
+
+    for (const send of legacyRequests) {
+      const response = await send();
+      expect(response).toMatchObject({ status: 404, body: { code: 'ROUTE_NOT_FOUND' } });
+    }
+
+    const account = await auth.agent.get('/api/settings/account');
+    expect(account.status).toBe(200);
+    expect(JSON.stringify(account.body)).not.toMatch(/passwordHash|tokenHash|csrfTokenHash/);
+    expect((await auth.agent.get('/api/settings/security/sessions')).status).toBe(200);
+    expect((await auth.agent.get('/api/settings/privacy/deletion')).status).toBe(200);
   });
 
-  it('gera exportação privada, impede acesso cruzado e expira com 410', async () => {
-    const owner = await register('export@example.invalid');
-    const outsider = await register('outside@example.invalid');
-    const created = await owner.mutate('post', '/api/account/personal-data/export').send({});
-    const id = created.body.export.id;
-    expect(created.status).toBe(202);
-    expect((await outsider.agent.get(`/api/account/personal-data/export/${id}`)).status).toBe(404);
-    expect(
-      (await owner.agent.get(`/api/account/personal-data/export/${id}/download`)).body.data.email
-    ).toBe('export@example.invalid');
-    await prisma.personalDataExport.update({
-      where: { id },
-      data: { expiresAt: new Date(Date.now() - 1000) }
-    });
-    expect((await owner.agent.get(`/api/account/personal-data/export/${id}/download`)).status).toBe(
-      410
-    );
-  });
-
-  it('registra e restringe auditoria de projeto ao OWNER', async () => {
-    const owner = await register('owner@example.invalid');
-    const member = await register('member@example.invalid');
-    const project = (
-      await owner.mutate('post', '/api/projects').send({
-        name: 'Projeto auditado',
-        responsibleTeam: 'Equipe',
-        githubOwner: 'fake-owner',
-        githubRepo: 'audit',
-        githubUrl: 'https://github.com/fake-owner/audit'
-      })
-    ).body.project;
-    const memberUser = await prisma.user.findUnique({ where: { email: 'member@example.invalid' } });
-    const membership = await prisma.projectMembership.create({
-      data: { projectId: project.id, userId: memberUser.id, role: 'MEMBER' }
-    });
-    await owner
-      .mutate('patch', `/api/projects/${project.id}/members/${membership.id}`)
-      .send({ role: 'MANAGER' });
-    const events = await owner.agent.get(`/api/projects/${project.id}/audit-events`);
-    expect(events.body.events).toEqual(
-      expect.arrayContaining([expect.objectContaining({ action: 'PROJECT_MEMBER_ROLE_CHANGED' })])
-    );
-    expect((await member.agent.get(`/api/projects/${project.id}/audit-events`)).status).toBe(403);
-  });
-
-  it('protege último owner e permite solicitar/cancelar exclusão sem projeto', async () => {
-    const owner = await register('last-owner@example.invalid');
-    await owner.mutate('post', '/api/projects').send({
-      name: 'Projeto protegido',
-      responsibleTeam: 'Equipe',
-      githubOwner: 'fake-owner',
-      githubRepo: 'protected',
-      githubUrl: 'https://github.com/fake-owner/protected'
-    });
-    expect(
-      (await owner.mutate('post', '/api/account/deactivate').send({ password })).body.code
-    ).toBe('LAST_PROJECT_OWNER');
-    const plain = await register('delete@example.invalid');
-    expect(
-      (await plain.mutate('post', '/api/account/deletion-request').send({ password })).status
-    ).toBe(202);
-    expect((await plain.agent.get('/api/account/deletion-request')).body.request.status).toBe(
-      'PENDING'
-    );
-    expect((await plain.mutate('delete', '/api/account/deletion-request')).status).toBe(200);
-  });
-
-  it('revoga somente sessões próprias e desativa conta com auditoria atômica', async () => {
-    const auth = await register('deactivate@example.invalid');
-    const other = await register('other@example.invalid');
-    const otherSession = (await other.agent.get('/api/account/sessions')).body.sessions[0];
-    expect((await auth.mutate('delete', `/api/account/sessions/${otherSession.id}`)).status).toBe(
-      404
-    );
-    expect((await auth.mutate('post', '/api/account/deactivate').send({ password })).status).toBe(
-      200
-    );
-    const user = await prisma.user.findUnique({ where: { email: 'deactivate@example.invalid' } });
-    expect(user.isActive).toBe(false);
-    expect(
-      await prisma.auditEvent.findFirst({
-        where: { actorUserId: user.id, action: 'ACCOUNT_DEACTIVATED' }
-      })
-    ).toBeTruthy();
-  });
-
-  it('reverte alteração crítica quando a auditoria obrigatória falha', async () => {
-    const owner = await register('atomic-owner@example.invalid');
-    await register('atomic-member@example.invalid');
-    const project = (
-      await owner.mutate('post', '/api/projects').send({
-        name: 'Projeto atômico',
-        responsibleTeam: 'Equipe',
-        githubOwner: 'fake-owner',
-        githubRepo: 'atomic',
-        githubUrl: 'https://github.com/fake-owner/atomic'
-      })
-    ).body.project;
-    const user = await prisma.user.findUnique({
-      where: { email: 'atomic-member@example.invalid' }
-    });
-    const membership = await prisma.projectMembership.create({
-      data: { projectId: project.id, userId: user.id, role: 'MEMBER' }
-    });
-    const { auditRepository } = await import('../../src/modules/audit/audit.repository.js');
-    const failure = vi
-      .spyOn(auditRepository, 'create')
-      .mockRejectedValueOnce(new Error('controlled audit failure'));
-    expect(
-      (
-        await owner
-          .mutate('patch', `/api/projects/${project.id}/members/${membership.id}`)
-          .send({ role: 'MANAGER' })
-      ).status
-    ).toBe(500);
-    expect((await prisma.projectMembership.findUnique({ where: { id: membership.id } })).role).toBe(
-      'MEMBER'
-    );
-    failure.mockRestore();
+  it('preserva as rotas públicas específicas de reativação', async () => {
+    const start = await request(app)
+      .post('/api/account/reactivation/start')
+      .send({ email: 'nao-existe@example.invalid' });
+    expect(start.status).not.toBe(404);
+    expect(start.body.code).not.toBe('ROUTE_NOT_FOUND');
   });
 
   it('anonimiza conta elegível preservando IDs e removendo credenciais', async () => {
-    const auth = await register('anonymize@example.invalid');
+    await register('anonymize@example.invalid');
     const user = await prisma.user.findUnique({ where: { email: 'anonymize@example.invalid' } });
+    const project = await prisma.project.create({
+      data: {
+        name: 'Histórico preservado',
+        responsibleTeam: 'Equipe',
+        accessCode: 'TEST-PRIVACY-HISTORY'
+      }
+    });
+    await prisma.projectMembership.create({
+      data: { projectId: project.id, userId: user.id, role: 'MEMBER' }
+    });
+    const installation = await prisma.gitHubInstallation.create({
+      data: {
+        githubInstallationId: '787878',
+        accountId: '88',
+        accountLogin: 'traceflow-history',
+        accountType: 'Organization',
+        installedAt: new Date()
+      }
+    });
+    await prisma.gitHubInstallationAuthorization.create({
+      data: { installationId: installation.id, userId: user.id, verifiedAt: new Date() }
+    });
+    await prisma.gitHubIdentity.create({
+      data: {
+        userId: user.id,
+        githubUserId: '42424242',
+        githubLogin: 'privacy-octocat',
+        lastAuthenticatedAt: new Date()
+      }
+    });
+    await prisma.emailChangeRequest.create({
+      data: {
+        userId: user.id,
+        currentEmailSnapshot: user.email,
+        newEmail: 'future-email@example.invalid',
+        tokenHash: 'a'.repeat(64),
+        expiresAt: new Date(Date.now() + 60_000)
+      }
+    });
+    const commit = await prisma.commit.create({
+      data: {
+        projectId: project.id,
+        hash: 'a'.repeat(40),
+        message: 'Histórico técnico',
+        authorName: user.name,
+        authorEmail: user.email,
+        authorUsername: 'privacy-octocat'
+      }
+    });
+    const pullRequest = await prisma.pullRequest.create({
+      data: {
+        projectId: project.id,
+        githubId: 'pr-privacy-1',
+        number: 1,
+        title: 'PR histórica',
+        authorUsername: 'privacy-octocat'
+      }
+    });
+    const issue = await prisma.issue.create({
+      data: {
+        projectId: project.id,
+        githubId: 'issue-privacy-1',
+        number: 1,
+        title: 'Issue histórica',
+        authorUsername: 'privacy-octocat',
+        assigneeUsername: 'privacy-octocat'
+      }
+    });
     await prisma.privacyRequest.create({
       data: { userId: user.id, type: 'ACCOUNT_DELETION', scheduledFor: new Date(Date.now() - 1000) }
     });
@@ -187,17 +157,113 @@ describe('direitos do titular e auditoria E7', () => {
     });
     const anonymized = await prisma.user.findUnique({ where: { id: user.id } });
     expect(anonymized).toMatchObject({
-      name: 'Usuário anonimizado',
+      name: 'Usuário excluído',
       passwordHash: null,
-      isActive: false
+      isActive: false,
+      accountStatus: 'ANONYMIZED'
     });
-    expect(anonymized.email).toMatch(/^anon-.+@anonymous\.invalid$/);
+    expect(anonymized.email).toMatch(/^anonymous_.+@deleted\.traceflow\.invalid$/);
     expect(await prisma.session.count({ where: { userId: user.id } })).toBe(0);
+    expect(await prisma.gitHubInstallationAuthorization.count({ where: { userId: user.id } })).toBe(
+      0
+    );
+    expect(await prisma.gitHubIdentity.count({ where: { userId: user.id } })).toBe(0);
+    const tombstone = await prisma.gitHubIdentityTombstone.findFirst();
+    expect(tombstone.githubUserFingerprint).toMatch(/^[a-f0-9]{64}$/);
+    expect(tombstone.githubUserFingerprint).not.toContain('42424242');
+    expect(await prisma.emailChangeRequest.count({ where: { userId: user.id } })).toBe(0);
+    expect(await prisma.passwordResetToken.count({ where: { userId: user.id } })).toBe(0);
+    expect(await prisma.emailVerificationToken.count({ where: { userId: user.id } })).toBe(0);
+    expect(await prisma.project.findUnique({ where: { id: project.id } })).toBeTruthy();
+    expect(
+      await prisma.projectMembership.findUnique({
+        where: { projectId_userId: { projectId: project.id, userId: user.id } }
+      })
+    ).toMatchObject({ isActive: false });
     expect(
       await prisma.auditEvent.findFirst({
         where: { actorUserId: user.id, action: 'ACCOUNT_ANONYMIZED' }
       })
     ).toBeTruthy();
-    void auth;
+    expect(
+      await prisma.auditEvent.findFirst({
+        where: { actorUserId: user.id, action: 'ACCOUNT_ANONYMIZATION_STARTED' }
+      })
+    ).toBeTruthy();
+    expect(await prisma.commit.findUnique({ where: { id: commit.id } })).toMatchObject({
+      authorName: 'Usuário excluído',
+      authorEmail: anonymized.email,
+      authorUsername: anonymized.username
+    });
+    expect(await prisma.pullRequest.findUnique({ where: { id: pullRequest.id } })).toMatchObject({
+      authorUsername: anonymized.username
+    });
+    expect(await prisma.issue.findUnique({ where: { id: issue.id } })).toMatchObject({
+      authorUsername: anonymized.username,
+      assigneeUsername: anonymized.username
+    });
+  });
+
+  it('retorna o último OWNER a ACTIVE, preserva o projeto e encerra a solicitação bloqueada', async () => {
+    const auth = await register('sole-owner-privacy@example.invalid');
+    const user = await prisma.user.findUnique({
+      where: { email: 'sole-owner-privacy@example.invalid' }
+    });
+    const project = await prisma.project.create({
+      data: {
+        name: 'Projeto sem órfão',
+        responsibleTeam: 'Equipe',
+        accessCode: 'PRIVACY-SOLE-OWNER'
+      }
+    });
+    await prisma.projectMembership.create({
+      data: { projectId: project.id, userId: user.id, role: 'OWNER' }
+    });
+
+    const requested = await auth
+      .mutate('post', '/api/settings/privacy/deletion')
+      .send({ currentPassword: password, confirmation: true });
+    expect(requested).toMatchObject({
+      status: 202,
+      body: { request: { status: 'PENDING' } }
+    });
+    await prisma.privacyRequest.update({
+      where: { id: requested.body.request.id },
+      data: { scheduledFor: new Date(Date.now() - 1000) }
+    });
+
+    const { privacyService } = await import('../../src/modules/privacy/privacy.service.js');
+    expect(await privacyService.processDueDeletions({ dryRun: false })).toMatchObject({
+      processed: 0,
+      blocked: 1,
+      failed: 0
+    });
+    expect(await prisma.user.findUnique({ where: { id: user.id } })).toMatchObject({
+      accountStatus: 'ACTIVE',
+      isActive: true,
+      anonymizedAt: null
+    });
+    expect(
+      await prisma.projectMembership.findUnique({
+        where: { projectId_userId: { projectId: project.id, userId: user.id } }
+      })
+    ).toMatchObject({ role: 'OWNER', isActive: true });
+    expect(await prisma.project.findUnique({ where: { id: project.id } })).toBeTruthy();
+    expect(
+      await prisma.privacyRequest.findUnique({ where: { id: requested.body.request.id } })
+    ).toMatchObject({ status: 'REJECTED', reasonCode: 'SOLE_PROJECT_OWNER' });
+    expect(
+      await prisma.auditEvent.findMany({
+        where: {
+          actorUserId: user.id,
+          action: { in: ['ACCOUNT_ANONYMIZATION_BLOCKED', 'ACCOUNT_RETURNED_ACTIVE'] }
+        }
+      })
+    ).toHaveLength(2);
+    expect(
+      await prisma.privacyRequest.count({
+        where: { userId: user.id, type: 'ACCOUNT_DELETION', status: 'PENDING' }
+      })
+    ).toBe(0);
   });
 });

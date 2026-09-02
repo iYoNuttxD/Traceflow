@@ -6,6 +6,10 @@ Em 26/07/2026, `scripts/check-npm-audit.mjs` passou a bloquear toda vulnerabilid
 
 Não há exceção vigente. A exceção temporária de `GHSA-qwww-vcr4-c8h2` foi removida após a migração para `react-router@8.3.0`, primeira versão corrigida segundo o advisory oficial. Backend e frontend possuem zero vulnerabilidades no audit posterior. Nenhum `npm audit fix` foi executado.
 
+## Revalidação L2.1
+
+Em 15/08/2026, o gate detectou novos advisories altos em dependências transitivas: `ip-address@10.2.0` no backend e `nanoid@3.3.16` em ambos os lockfiles, além de `brace-expansion@5.0.8` no grafo de desenvolvimento. As faixas já declaradas permitiram atualização exclusivamente dos lockfiles para `ip-address@10.5.0`, `nanoid@3.3.18` e `brace-expansion@5.0.9`. Nenhuma dependência direta, override, exceção ou política de CI foi alterada; `npm audit` e o gate versionado voltaram a zero vulnerabilidades.
+
 ## Revalidação E15
 
 Em 26/07/2026, `npm audit --json` e o verificador de política passaram para backend e frontend com zero vulnerabilidades e zero exceções. A inspeção dos lockfiles encontrou metadata de licença para todos os 347 pacotes do backend e 308 do frontend, sem marcador `UNKNOWN` ou `UNLICENSED`; isso é inventário, não um parecer jurídico nem um gate automatizado de compatibilidade. SBOM e política executável de licenças continuam no backlog.

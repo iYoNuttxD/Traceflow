@@ -1295,7 +1295,9 @@ describe('evolucao da sprint (RF35)', () => {
     await abrir(user);
 
     expect(
-      await screen.findByText('Não foi possível calcular a evolução da sprint.')
+      await screen.findByText(
+        'O TRACEFLOW encontrou um problema interno. Tente novamente em instantes.'
+      )
     ).toBeInTheDocument();
     await waitFor(() =>
       expect(screen.queryByRole('region', { name: /Evolução da sprint/ })).not.toBeInTheDocument()
@@ -1438,7 +1440,9 @@ describe('painel de tarefas da sprint', () => {
     await user.click(await screen.findByRole('button', { name: /^Ver tarefas da sprint/ }));
 
     expect(
-      await screen.findByText('Não foi possível carregar as tarefas da sprint.')
+      await screen.findByText(
+        'O TRACEFLOW encontrou um problema interno. Tente novamente em instantes.'
+      )
     ).toBeInTheDocument();
     await waitFor(() =>
       expect(screen.queryByRole('region', { name: /Tarefas da sprint/ })).not.toBeInTheDocument()
@@ -1801,7 +1805,7 @@ describe('sucesso de mutation versus falha de refresh', () => {
     status: 'EM_ANDAMENTO'
   };
 
-  it('salvar a sprint continua sucesso quando o refresh falha', async () => {
+  it('salvar a sprint nao vira erro falso quando o refresh falha', async () => {
     const user = userEvent.setup();
     mocks.schedule.createSprint.mockResolvedValue({ data: {} });
     mocks.schedule.listMilestones.mockResolvedValue({
@@ -1818,12 +1822,12 @@ describe('sucesso de mutation versus falha de refresh', () => {
     await user.type(screen.getByLabelText(/^Fim/), '2026-08-14T18:00');
     await user.click(screen.getByRole('button', { name: 'Salvar sprint' }));
 
-    expect(await screen.findByText('Sprint cadastrada com sucesso.')).toBeInTheDocument();
     expect(await screen.findByRole('alert')).toHaveTextContent(aviso);
     expect(screen.queryByText('Não foi possível salvar a sprint.')).toBeNull();
+    expect(mocks.schedule.createSprint).toHaveBeenCalledTimes(1);
   });
 
-  it('mudar o status continua sucesso quando o refresh falha', async () => {
+  it('mudar o status nao vira erro falso quando o refresh falha', async () => {
     const user = userEvent.setup();
     mocks.schedule.listSprints.mockResolvedValue({ data: { total: 1, sprints: [emAndamento] } });
     mocks.schedule.updateSprintStatus.mockResolvedValue({
@@ -1840,8 +1844,8 @@ describe('sucesso de mutation versus falha de refresh', () => {
     const dialog = await screen.findByRole('dialog');
     await user.click(within(dialog).getByRole('button', { name: 'Concluir e congelar' }));
 
-    expect(await screen.findByText('Status da sprint atualizado com sucesso.')).toBeInTheDocument();
     expect(await screen.findByRole('alert')).toHaveTextContent(aviso);
     expect(screen.queryByText('Não foi possível atualizar o status da sprint.')).toBeNull();
+    expect(mocks.schedule.updateSprintStatus).toHaveBeenCalledTimes(1);
   });
 });

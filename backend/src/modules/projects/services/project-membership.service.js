@@ -36,6 +36,7 @@ function publicMember(member, requesterRole) {
 
 export const projectMembershipService = {
   async list(projectId, requesterMembership) {
+    if (!requesterMembership) throw notFound();
     const members = await projectMembershipRepository.list(projectId);
     return {
       currentMembership: {

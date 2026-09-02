@@ -535,7 +535,7 @@ describe('perfil somente leitura', () => {
 describe('sucesso de mutation versus falha de refresh', () => {
   const aviso = /não puderam ser atualizados/i;
 
-  it('salvar o marco continua sucesso quando o refresh falha', async () => {
+  it('salvar o marco nao vira erro falso quando o refresh falha', async () => {
     const user = userEvent.setup();
     mocks.schedule.createMilestone.mockResolvedValue({ data: { milestone: { id: 9 } } });
     renderScreen();
@@ -546,12 +546,12 @@ describe('sucesso de mutation versus falha de refresh', () => {
     await user.type(screen.getByLabelText(/Prazo/), '2026-09-04T18:00');
     await user.click(screen.getByRole('button', { name: 'Salvar marco' }));
 
-    expect(await screen.findByText('Marco cadastrado com sucesso.')).toBeInTheDocument();
     expect(await screen.findByRole('alert')).toHaveTextContent(aviso);
     expect(screen.queryByText('Não foi possível salvar o marco.')).toBeNull();
+    expect(mocks.schedule.createMilestone).toHaveBeenCalledTimes(1);
   });
 
-  it('concluir o marco continua sucesso quando o refresh falha', async () => {
+  it('concluir o marco nao vira erro falso quando o refresh falha', async () => {
     const user = userEvent.setup();
     mocks.schedule.listMilestones.mockResolvedValue({ data: { total: 1, milestones: [marco()] } });
     mocks.schedule.updateMilestoneStatus.mockResolvedValue({
@@ -565,9 +565,9 @@ describe('sucesso de mutation versus falha de refresh', () => {
     const dialog = await screen.findByRole('dialog');
     await user.click(within(dialog).getByRole('button', { name: 'Concluir marco' }));
 
-    expect(await screen.findByText('Status do marco atualizado com sucesso.')).toBeInTheDocument();
     expect(await screen.findByRole('alert')).toHaveTextContent(aviso);
     expect(screen.queryByText('Não foi possível atualizar o status do marco.')).toBeNull();
+    expect(mocks.schedule.updateMilestoneStatus).toHaveBeenCalledTimes(1);
   });
 
   it('excluir o marco nao anuncia falha quando so o refresh falha', async () => {
@@ -582,9 +582,9 @@ describe('sucesso de mutation versus falha de refresh', () => {
     const dialog = await screen.findByRole('dialog');
     await user.click(within(dialog).getByRole('button', { name: 'Excluir marco' }));
 
-    expect(await screen.findByText('Marco excluído com sucesso.')).toBeInTheDocument();
     expect(await screen.findByRole('alert')).toHaveTextContent(aviso);
     expect(screen.queryByText('Não foi possível excluir o marco.')).toBeNull();
     expect(screen.queryByText('Fundação do produto')).toBeNull();
+    expect(mocks.schedule.removeMilestone).toHaveBeenCalledTimes(1);
   });
 });

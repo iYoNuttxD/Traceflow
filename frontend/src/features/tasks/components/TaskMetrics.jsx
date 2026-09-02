@@ -1,4 +1,5 @@
 import { Card } from '../../../shared/index.js';
+import './TaskMetrics.css';
 
 function CoverageMetric({ title, coverage, emptyDescription, linkedDescription }) {
   return (

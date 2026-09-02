@@ -4,23 +4,27 @@ import { validateRequest } from '../../shared/validation/index.js';
 import { projectController } from './project.controller.js';
 import artifactRoutes from '../artifacts/artifact.routes.js';
 import {
-  addProjectMemberBodySchema,
+  accessCodeRoleBodySchema,
   createProjectBodySchema,
   createProjectFromGithubBodySchema,
   githubSyncSettingsBodySchema,
   joinProjectBodySchema,
+  joinProjectDetailsQuerySchema,
   projectIdParamsSchema,
   projectProjectIdParamsSchema,
   updateProjectBodySchema
 } from './project.validation.js';
+import { projectAccessCodeController } from './project-access-code.controller.js';
 import { projectInvitationController } from './project-invitation.controller.js';
 import {
   acceptInvitationBody,
   createInvitationBody,
   invitationParams,
-  invitationProjectParams
+  invitationProjectParams,
+  personalInvitationParams
 } from './project-invitation.validation.js';
 import { projectMembershipController } from './project-membership.controller.js';
+import { requireVerifiedEmail } from '../../middlewares/auth/email-verification.middleware.js';
 import {
   membershipParams,
   membershipProjectParams,
@@ -30,10 +34,39 @@ import {
 
 const router = Router();
 
+router.get('/invitations/mine', requireVerifiedEmail, projectInvitationController.mine);
+router.post(
+  '/invitations/:invitationId/accept',
+  requireVerifiedEmail,
+  validateRequest({ params: personalInvitationParams }),
+  projectInvitationController.acceptMine
+);
+router.post(
+  '/invitations/:invitationId/decline',
+  requireVerifiedEmail,
+  validateRequest({ params: personalInvitationParams }),
+  projectInvitationController.declineMine
+);
+
+router.post(
+  '/invitations/details',
+  validateRequest({ body: acceptInvitationBody }),
+  projectInvitationController.details
+);
+router.get(
+  '/join/details',
+  validateRequest({ query: joinProjectDetailsQuerySchema }),
+  projectAccessCodeController.details
+);
 router.post(
   '/invitations/accept',
   validateRequest({ body: acceptInvitationBody }),
   projectInvitationController.accept
+);
+router.post(
+  '/invitations/decline',
+  validateRequest({ body: acceptInvitationBody }),
+  projectInvitationController.decline
 );
 router.get(
   '/:projectId/invitations',
@@ -42,6 +75,7 @@ router.get(
 );
 router.post(
   '/:projectId/invitations',
+  requireVerifiedEmail,
   validateRequest({ params: invitationProjectParams, body: createInvitationBody }),
   projectInvitationController.create
 );
@@ -53,12 +87,31 @@ router.delete(
 
 router.post(
   '/from-github',
+  requireVerifiedEmail,
   validateRequest({ body: createProjectFromGithubBodySchema }),
   projectController.createFromGithub
 );
 router.post('/join', validateRequest({ body: joinProjectBodySchema }), projectController.join);
+router.get(
+  '/:projectId/access-code',
+  validateRequest({ params: projectProjectIdParamsSchema }),
+  projectAccessCodeController.configuration
+);
+router.post(
+  '/:projectId/access-code/regenerate',
+  requireVerifiedEmail,
+  validateRequest({ params: projectProjectIdParamsSchema }),
+  projectAccessCodeController.regenerate
+);
+router.patch(
+  '/:projectId/access-code',
+  requireVerifiedEmail,
+  validateRequest({ params: projectProjectIdParamsSchema, body: accessCodeRoleBodySchema }),
+  projectAccessCodeController.updateRole
+);
 router.patch(
   '/:projectId/github/sync-settings',
+  requireVerifiedEmail,
   validateRequest({ params: projectProjectIdParamsSchema, body: githubSyncSettingsBodySchema }),
   projectController.updateGithubSyncSettings
 );
@@ -94,11 +147,11 @@ router.post(
   projectMembershipController.transferOwnership
 );
 router.post(
-  '/:projectId/members',
-  validateRequest({ params: projectProjectIdParamsSchema, body: addProjectMemberBodySchema }),
-  projectController.addMember
+  '/',
+  requireVerifiedEmail,
+  validateRequest({ body: createProjectBodySchema }),
+  projectController.create
 );
-router.post('/', validateRequest({ body: createProjectBodySchema }), projectController.create);
 router.get('/', projectController.findAll);
 router.get('/:id', validateRequest({ params: projectIdParamsSchema }), projectController.findById);
 router.put(

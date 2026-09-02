@@ -2,29 +2,10 @@ import { asyncHandler } from '../../shared/http/index.js';
 import { commitService } from '../commits/commit.service.js';
 import { issueService } from '../issues/issue.service.js';
 import { pullRequestService } from '../pullRequests/pullRequest.service.js';
-import { githubService } from './github.service.js';
 import { githubSyncService } from './githubSync.service.js';
 import { auditService } from '../audit/audit.service.js';
 
 export const githubController = {
-  checkAuthentication: asyncHandler(
-    async (req, res) => {
-      const githubUser = await githubService.checkAuthentication();
-      return res.json({
-        message: 'Autenticação com GitHub realizada com sucesso.',
-        githubUser
-      });
-    },
-    { fallbackMessage: 'Não foi possível verificar a autenticação com o GitHub.' }
-  ),
-
-  listRepositories: asyncHandler(
-    async (req, res) => {
-      return res.json({ repositories: await githubService.listRepositories() });
-    },
-    { fallbackMessage: 'Não foi possível listar os repositórios do GitHub.' }
-  ),
-
   syncProjectGithubData: asyncHandler(
     async (req, res) => {
       await auditService.recordOperational({
@@ -36,18 +17,16 @@ export const githubController = {
         resourceId: req.params.projectId
       });
       try {
-        const { summary, project } = await githubSyncService.syncProjectGithubData(
-          req.params.projectId
+        const run = await githubSyncService.requestProjectGithubSync(
+          req.params.projectId,
+          req.auth.user.id
         );
-        await auditService.recordOperational({
-          actorUserId: req.auth.user.id,
-          projectId: req.params.projectId,
-          requestId: req.requestId,
-          action: 'GITHUB_SYNC_SUCCEEDED',
-          resourceType: 'Project',
-          resourceId: req.params.projectId
+        return res.status(202).json({
+          message: run.alreadyRunning
+            ? 'Já existe uma sincronização GitHub em andamento.'
+            : 'Sincronização GitHub iniciada.',
+          run
         });
-        return res.json({ message: 'Sincronização com GitHub concluída.', summary, project });
       } catch (error) {
         await auditService.recordOperational({
           actorUserId: req.auth.user.id,
@@ -63,6 +42,14 @@ export const githubController = {
       }
     },
     { fallbackMessage: 'Erro ao sincronizar artefatos do GitHub.' }
+  ),
+
+  getProjectGithubSyncStatus: asyncHandler(
+    async (req, res) => {
+      const run = await githubSyncService.getProjectGithubSyncStatus(req.params.projectId);
+      return res.json({ run });
+    },
+    { fallbackMessage: 'Não foi possível consultar a sincronização do GitHub.' }
   ),
 
   listProjectCommits: asyncHandler(

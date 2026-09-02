@@ -58,7 +58,12 @@ describe('migration add_sprint_milestone_schedule', () => {
     const project = await createProject(prisma);
     const task = await createTask(prisma, project.id);
     const user = await prisma.user.create({
-      data: { name: 'Ator', email: `ator-${task.id}@example.invalid`, passwordHash: 'x' }
+      data: {
+        name: 'Ator',
+        username: `ator-${task.id}`,
+        email: `ator-${task.id}@example.invalid`,
+        passwordHash: 'x'
+      }
     });
 
     for (const field of ['STATUS', 'DEADLINE', 'RESPONSIBLE', 'PRIORITY', 'SPRINT']) {
@@ -188,7 +193,12 @@ describe('transacoes dos repositories', () => {
     const sprint = await createSprint(prisma, project.id);
     const task = await createTask(prisma, project.id);
     const user = await prisma.user.create({
-      data: { name: 'Ator', email: `ator-tx-${task.id}@example.invalid`, passwordHash: 'x' }
+      data: {
+        name: 'Ator',
+        username: `ator-tx-${task.id}`,
+        email: `ator-tx-${task.id}@example.invalid`,
+        passwordHash: 'x'
+      }
     });
 
     await sprintRepository.mutateScopeWithinSprintLock(
@@ -247,6 +257,7 @@ describe('concorrencia sob lock (ADR-010 D17)', () => {
     const user = await prisma.user.create({
       data: {
         name: 'Ator',
+        username: `ator-concorrencia-${sequencia}`,
         email: `ator-concorrencia-${sequencia}@example.invalid`,
         passwordHash: 'x'
       }
@@ -448,6 +459,7 @@ describe('encerramento de sprint versus movimento de tarefa', () => {
     const user = await prisma.user.create({
       data: {
         name: 'Ator',
+        username: `ator-movimento-${sequencia}`,
         email: `ator-movimento-${sequencia}@example.invalid`,
         passwordHash: 'x'
       }

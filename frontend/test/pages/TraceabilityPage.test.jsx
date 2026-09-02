@@ -70,7 +70,6 @@ describe('TraceabilityPage', () => {
         requirementsWithTasks: 1,
         requirementsWithTechnicalEvidence: 1,
         implementedRequirements: 0,
-        averageProgressPercentage: 0,
         averageProgress: { numerator: 0, denominator: 1, percentage: 0, hasData: true }
       },
       requirements: [
@@ -79,7 +78,7 @@ describe('TraceabilityPage', () => {
           title: 'Requisito artificial',
           description: 'Descrição artificial',
           status: 'CADASTRADO',
-          progressPercentage: 0,
+          progress: { numerator: 0, denominator: 1, percentage: 0, hasData: true },
           completedTasksCount: 0,
           tasksCount: 1,
           issuesCount: 0,
@@ -128,5 +127,20 @@ describe('TraceabilityPage', () => {
       { page: 1, limit: 20 },
       { signal: expect.any(AbortSignal) }
     );
+  });
+
+  it('apresenta backend indisponível sem cair em estado vazio', async () => {
+    apiMocks.getRequirementsTraceabilityMatrix.mockRejectedValueOnce({
+      response: { status: 503, data: { message: 'stack: conexão interna recusada' } }
+    });
+    renderPage();
+
+    expect(
+      await screen.findByRole('heading', { name: 'Não foi possível conectar ao TRACEFLOW.' })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('Nenhum requisito cadastrado para este projeto.')
+    ).not.toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/stack|conexão interna/i);
   });
 });

@@ -1,4 +1,5 @@
 import { useCommitSuggestions } from '../hooks/useCommitSuggestions.js';
+import '../../../shared/styles/traceability-controls.css';
 
 const statusLabels = {
   PENDING: 'Pendente',

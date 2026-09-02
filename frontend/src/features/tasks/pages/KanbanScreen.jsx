@@ -8,8 +8,8 @@ import {
   unlinkTaskFromPullRequest,
   unlinkTaskRequirement
 } from '../api/tasks.api.js';
-import { projectMembersApi } from '../../members/index.js';
 import { scheduleApi, sprintStatusKey, sprintStatusKeyLabels } from '../../schedule/index.js';
+import { membersApi } from '../../members/index.js';
 import { projectsApi } from '../../projects/index.js';
 import { ProjectSectionNav } from '../../projects/index.js';
 import { KanbanBoard } from '../components/KanbanBoard.jsx';
@@ -19,16 +19,21 @@ import { MovementHistory } from '../components/MovementHistory.jsx';
 import { TaskDetailsPanel } from '../components/TaskDetailsPanel.jsx';
 import {
   FeedbackRegion,
+  ContextualErrorPage,
   LoadingState,
+  classifyPageError,
+  getErrorRequestId,
+  normalizeApiError,
   useAbortableRequest,
   useConfirm
 } from '../../../shared/index.js';
+import './KanbanScreen.css';
 
 const MOVEMENTS_PER_PAGE = 10;
 const TERMINAL_SPRINT_STATUSES = ['CONCLUIDA', 'CANCELADA'];
 
 function getErrorMessage(error, fallback) {
-  return error.response?.data?.message || fallback;
+  return normalizeApiError(error, fallback).message;
 }
 
 function buildPeriodParams(period) {
@@ -142,6 +147,7 @@ export function KanbanScreen() {
   const [draggingTaskId, setDraggingTaskId] = useState(null);
   const [dragOverStatus, setDragOverStatus] = useState('');
   const [error, setError] = useState('');
+  const [pageError, setPageError] = useState(null);
   const [success, setSuccess] = useState('');
   const suppressTaskClickRef = useRef(false);
   const loadedProjectIdRef = useRef(null);
@@ -224,6 +230,7 @@ export function KanbanScreen() {
 
       setLoading(true);
       setError('');
+      setPageError(null);
 
       try {
         const resultado = await loadRequest((signal) =>
@@ -236,7 +243,7 @@ export function KanbanScreen() {
               { ...params, page: 1, limit: MOVEMENTS_PER_PAGE },
               { signal }
             ),
-            projectMembersApi.listProjectMembers(projectId, { signal }),
+            membersApi.list(projectId, { signal }),
             // Sprints alimentam os rótulos do histórico e o filtro. Falha aqui não
             // pode derrubar o Kanban: cai para lista vazia e o quadro continua
             // funcionando.
@@ -255,7 +262,7 @@ export function KanbanScreen() {
           sprintsResponse
         ] = resultado;
 
-        const members = membersResponse.data.members || [];
+        const members = membersResponse.members || [];
         setProject(projectResponse.data.project);
         setBoard(boardResponse.data);
         setMetrics(metricsResponse.data);
@@ -281,7 +288,7 @@ export function KanbanScreen() {
         setSprintFilter(pedidas);
       } catch (requestError) {
         if (!atual()) return;
-        setError(getErrorMessage(requestError, 'Não foi possível carregar o Kanban.'));
+        setPageError(normalizeApiError(requestError, 'Não foi possível carregar o Kanban.'));
       } finally {
         if (atual()) setLoading(false);
       }
@@ -311,6 +318,18 @@ export function KanbanScreen() {
     },
     [searchParams, setSearchParams]
   );
+
+  if (!loading && !project && pageError) {
+    return (
+      <ContextualErrorPage
+        type={classifyPageError(pageError)}
+        description={pageError.message}
+        requestId={getErrorRequestId(pageError)}
+        retryAfterSeconds={pageError.retryAfterSeconds}
+        onRetry={loadKanban}
+      />
+    );
+  }
 
   async function refreshKanban(
     params = {

@@ -1,3 +1,6 @@
+const canonicalLocalHost = 'local';
+const localHostAliases = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
+
 export function parseDatabaseUrl(value, label = 'DATABASE_URL') {
   if (!value) throw new Error(`${label} é obrigatória.`);
   let parsed;
@@ -8,6 +11,28 @@ export function parseDatabaseUrl(value, label = 'DATABASE_URL') {
   }
   if (parsed.protocol !== 'mysql:') throw new Error(`${label} deve usar MySQL.`);
   return parsed;
+}
+
+export function canonicalizeLocalDatabaseHost(hostname) {
+  const normalized = String(hostname || '').toLowerCase();
+  return localHostAliases.has(normalized) ? canonicalLocalHost : normalized;
+}
+
+function canonicalDatabaseTarget(value, label) {
+  const parsed = parseDatabaseUrl(value, label);
+  return {
+    host: canonicalizeLocalDatabaseHost(parsed.hostname),
+    port: parsed.port || '3306',
+    database: parsed.pathname.replace(/^\//, '').toLowerCase()
+  };
+}
+
+export function isSameDatabaseTarget(firstValue, secondValue) {
+  const first = canonicalDatabaseTarget(firstValue, 'DATABASE_URL');
+  const second = canonicalDatabaseTarget(secondValue, 'TEST_DATABASE_URL');
+  return (
+    first.host === second.host && first.port === second.port && first.database === second.database
+  );
 }
 
 export function validateTestDatabaseUrl(testDatabaseUrl, developmentDatabaseUrl) {
@@ -21,8 +46,10 @@ export function validateTestDatabaseUrl(testDatabaseUrl, developmentDatabaseUrl)
   if (/(^|[_-])(prod|production)([_-]|$)/.test(databaseName)) {
     throw new Error('TEST_DATABASE_URL não pode apontar para um banco de produção.');
   }
-  if (developmentDatabaseUrl && testDatabaseUrl === developmentDatabaseUrl) {
-    throw new Error('TEST_DATABASE_URL deve ser diferente de DATABASE_URL.');
+  if (developmentDatabaseUrl && isSameDatabaseTarget(developmentDatabaseUrl, testDatabaseUrl)) {
+    throw new Error(
+      'TEST_DATABASE_URL deve ser diferente de DATABASE_URL em host, porta ou schema.'
+    );
   }
   return testDatabaseUrl;
 }
@@ -57,7 +84,7 @@ export function assertMaintenanceDatabase({
   if (
     developmentDatabaseUrl &&
     isTestDatabase(databaseUrl) &&
-    databaseUrl === developmentDatabaseUrl
+    isSameDatabaseTarget(developmentDatabaseUrl, databaseUrl)
   ) {
     throw new Error('O banco de teste da manutenção deve ser diferente de DATABASE_URL.');
   }

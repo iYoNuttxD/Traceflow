@@ -25,7 +25,14 @@ afterAll(async () => {
 
 async function register(email, name = 'Pessoa artificial') {
   const agent = request.agent(app);
-  const response = await agent.post('/api/auth/register').send({ name, email, password });
+  const username = `u${email
+    .split('@')[0]
+    .replace(/[^a-z0-9]/g, '')
+    .slice(0, 29)}`;
+  const response = await agent.post('/api/auth/register').send({ name, username, email, password });
+  await request(app)
+    .post('/api/auth/email-verification/verify')
+    .send({ token: response.body.emailVerification.testToken });
   const csrf = response.body.csrfToken;
   return {
     agent,
@@ -36,13 +43,9 @@ async function register(email, name = 'Pessoa artificial') {
 }
 
 function projectBody(name) {
-  const slug = name.toLowerCase().replace(/\s+/g, '-');
   return {
     name,
-    responsibleTeam: 'Equipe',
-    githubOwner: 'fake-owner',
-    githubRepo: slug,
-    githubUrl: `https://github.com/fake-owner/${slug}`
+    responsibleTeam: 'Equipe'
   };
 }
 
@@ -939,7 +942,7 @@ describe('evolucao da sprint (RF35)', () => {
     const semRequestId = (body) =>
       Object.fromEntries(Object.entries(body).filter(([chave]) => chave !== 'requestId'));
     expect(semRequestId(existente.body)).toEqual(semRequestId(inexistente.body));
-    expect(existente.body.code).toBe('SPRINT_NOT_FOUND');
+    expect(existente.body.code).toBe('RESOURCE_NOT_FOUND');
   });
 
   it('VIEWER, MEMBER, MANAGER e OWNER leem a evolucao', async () => {
@@ -1232,7 +1235,7 @@ describe('404 indistinguivel entre recurso alheio e inexistente', () => {
     const inexistente = await owner.agent.get('/api/sprints/999999');
 
     expect(semRequestId(existente.body)).toEqual(semRequestId(inexistente.body));
-    expect(existente.body.code).toBe('SPRINT_NOT_FOUND');
+    expect(existente.body.code).toBe('RESOURCE_NOT_FOUND');
   });
 
   it('marco alheio e marco inexistente sao indistinguiveis', async () => {
@@ -1243,7 +1246,7 @@ describe('404 indistinguivel entre recurso alheio e inexistente', () => {
     const inexistente = await owner.agent.get('/api/milestones/999999');
 
     expect(semRequestId(existente.body)).toEqual(semRequestId(inexistente.body));
-    expect(existente.body.code).toBe('MILESTONE_NOT_FOUND');
+    expect(existente.body.code).toBe('RESOURCE_NOT_FOUND');
   });
 
   it('tarefa alheia e tarefa inexistente sao indistinguiveis', async () => {
@@ -1254,7 +1257,7 @@ describe('404 indistinguivel entre recurso alheio e inexistente', () => {
     const inexistente = await owner.agent.get('/api/tasks/999999');
 
     expect(semRequestId(existente.body)).toEqual(semRequestId(inexistente.body));
-    expect(existente.body).not.toHaveProperty('code');
+    expect(existente.body.code).toBe('RESOURCE_NOT_FOUND');
   });
 
   it('requisito alheio e requisito inexistente sao indistinguiveis', async () => {

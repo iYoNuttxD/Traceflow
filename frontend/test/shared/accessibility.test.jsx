@@ -12,6 +12,7 @@ import {
   LoadingState,
   useConfirm
 } from '../../src/shared/index.js';
+import { PasswordField } from '../../src/features/auth/index.js';
 
 function ConfirmFixture() {
   const confirm = useConfirm();
@@ -50,6 +51,13 @@ describe('infraestrutura acessível compartilhada', () => {
     expect(screen.getByRole('heading', { name: 'Acesso restrito' })).toBeInTheDocument();
   });
 
+  it('desabilita retry durante o prazo informado pelo backend', () => {
+    render(<ErrorState message="Muitas requisições." onRetry={vi.fn()} retryAfterSeconds={18} />);
+    const button = screen.getByRole('button', { name: 'Tentar novamente em 18s' });
+    expect(button).toBeDisabled();
+    expect(button).toHaveClass('button-secondary', 'button-compact');
+  });
+
   it('associa erro ao campo e anuncia feedback sem depender de cor', () => {
     render(
       <>
@@ -61,6 +69,150 @@ describe('infraestrutura acessível compartilhada', () => {
     expect(input).toHaveAttribute('aria-invalid', 'true');
     expect(input).toHaveAccessibleDescription('Campo obrigatório.');
     expect(screen.getByRole('status')).toHaveTextContent('Salvo com sucesso.');
+  });
+
+  it('distingue success, warning e rate limit por semântica, ícone e texto', () => {
+    const { rerender } = render(<FeedbackRegion success="E-mail enviado com sucesso." />);
+    expect(screen.getByRole('status')).toHaveClass('message-success');
+    expect(screen.getByRole('status')).toHaveTextContent('✓');
+    rerender(<FeedbackRegion warning="Verifique seu e-mail." />);
+    expect(screen.getByRole('alert')).toHaveClass('message-warning');
+    expect(screen.getByRole('alert')).toHaveTextContent('⚠');
+    rerender(<FeedbackRegion rateLimit="Muitas tentativas realizadas." retryAfterSeconds={58} />);
+    expect(screen.getByRole('alert')).toHaveClass('message-rate-limit');
+    expect(screen.getByRole('alert')).toHaveTextContent('Tente novamente em 58s.');
+  });
+
+  it('permite mostrar senha e informa força somente quando solicitado', async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <PasswordField
+        id="new-password"
+        value="Senha artificial 123!"
+        onChange={vi.fn()}
+        showRequirements
+      />
+    );
+    expect(screen.getByLabelText(/Força da senha/)).toBeInTheDocument();
+    const input = screen.getByLabelText(/^Senha/);
+    expect(input).toHaveAttribute('type', 'password');
+    await user.click(screen.getByRole('button', { name: 'Mostrar senha' }));
+    expect(input).toHaveAttribute('type', 'text');
+    rerender(
+      <PasswordField
+        id="current-password"
+        label="Senha atual"
+        value="artificial"
+        onChange={vi.fn()}
+        autoComplete="current-password"
+      />
+    );
+    expect(screen.queryByLabelText(/Força da senha/)).not.toBeInTheDocument();
+  });
+
+  it('atualiza requisitos e confirmação de nova senha com ícone, texto e semântica', () => {
+    const { rerender } = render(
+      <PasswordField
+        id="reactive-password"
+        value=""
+        onChange={vi.fn()}
+        showRequirements
+        policyContext={{ username: 'pessoa', email: 'pessoa@example.invalid' }}
+      />
+    );
+
+    expect(screen.getByLabelText('Força da senha: Não avaliada')).toHaveValue(0);
+    for (const item of screen.getAllByRole('listitem').slice(0, 2)) {
+      expect(item).toHaveAttribute('data-status', 'neutral');
+    }
+
+    rerender(
+      <PasswordField
+        id="reactive-password"
+        value="curta"
+        onChange={vi.fn()}
+        showRequirements
+        policyContext={{ username: 'pessoa', email: 'pessoa@example.invalid' }}
+      />
+    );
+    expect(screen.getAllByRole('listitem')[0]).toHaveAttribute('data-status', 'unmet');
+    expect(screen.getAllByRole('listitem')[1]).toHaveAttribute('data-status', 'met');
+
+    rerender(
+      <PasswordField
+        id="reactive-password"
+        value="Frase longa segura 123!"
+        onChange={vi.fn()}
+        showRequirements
+        policyContext={{ username: 'pessoa', email: 'pessoa@example.invalid' }}
+      />
+    );
+    for (const item of screen.getAllByRole('listitem').slice(0, 2)) {
+      expect(item).toHaveAttribute('data-status', 'met');
+    }
+
+    rerender(
+      <PasswordField
+        id="confirm-password"
+        label="Confirmar senha"
+        value=""
+        onChange={vi.fn()}
+        showConfirmationStatus
+        confirmationValue="Frase longa segura 123!"
+      />
+    );
+    expect(screen.getByRole('status')).toHaveTextContent('Confirmação ainda não preenchida');
+
+    rerender(
+      <PasswordField
+        id="confirm-password"
+        label="Confirmar senha"
+        value="diferente"
+        onChange={vi.fn()}
+        showConfirmationStatus
+        confirmationValue="Frase longa segura 123!"
+      />
+    );
+    expect(screen.getByRole('status')).toHaveTextContent('As senhas não coincidem');
+
+    rerender(
+      <PasswordField
+        id="confirm-password"
+        label="Confirmar senha"
+        value="Frase longa segura 123!"
+        onChange={vi.fn()}
+        showConfirmationStatus
+        confirmationValue="Frase longa segura 123!"
+      />
+    );
+    expect(screen.getByRole('status')).toHaveTextContent('As senhas coincidem');
+  });
+
+  it('mantém indicador obrigatório condicional e controle de visibilidade no mesmo campo', () => {
+    const { rerender } = render(
+      <PasswordField id="required-password" label="Senha atual" value="" onChange={vi.fn()} />
+    );
+    const requiredInput = screen.getByLabelText('Senha atual *');
+    const requiredLabel = document.querySelector('label[for="required-password"]');
+    expect(requiredInput).toBeRequired();
+    expect(requiredLabel).toHaveTextContent('Senha atual *');
+    expect(requiredLabel.querySelector('[aria-hidden="true"]')).toHaveTextContent('*');
+    expect(screen.getByRole('button', { name: 'Mostrar senha' }).parentElement).toHaveClass(
+      'password-control'
+    );
+
+    rerender(
+      <PasswordField
+        id="optional-password"
+        label="Senha atual"
+        value=""
+        onChange={vi.fn()}
+        required={false}
+      />
+    );
+    const optionalInput = screen.getByLabelText('Senha atual');
+    expect(optionalInput).not.toBeRequired();
+    expect(document.querySelector('label[for="optional-password"]')).not.toHaveTextContent('*');
   });
 
   it('cancela por Escape e restaura o foco no acionador', async () => {
@@ -75,6 +227,29 @@ describe('infraestrutura acessível compartilhada', () => {
     await user.click(trigger);
     expect(screen.getByRole('dialog', { name: 'Excluir registro' })).toBeInTheDocument();
     await user.keyboard('{Escape}');
+    expect(await screen.findByText('cancelado')).toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
+  it('inicia na ação segura, mantém o foco contido e o restaura ao cancelar', async () => {
+    const user = userEvent.setup();
+    render(
+      <ConfirmProvider>
+        <ConfirmFixture />
+      </ConfirmProvider>
+    );
+    const trigger = screen.getByRole('button', { name: 'Abrir confirmação' });
+    await user.click(trigger);
+    const cancel = screen.getByRole('button', { name: 'Cancelar' });
+    const confirm = screen.getByRole('button', { name: 'Excluir' });
+
+    expect(cancel).toHaveFocus();
+    await user.keyboard('{Shift>}{Tab}{/Shift}');
+    expect(confirm).toHaveFocus();
+    await user.tab();
+    expect(cancel).toHaveFocus();
+
+    await user.click(cancel);
     expect(await screen.findByText('cancelado')).toBeInTheDocument();
     expect(trigger).toHaveFocus();
   });

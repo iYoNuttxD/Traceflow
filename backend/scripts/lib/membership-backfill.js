@@ -75,6 +75,8 @@ export async function runMembershipBackfill({ client, apply = false, projectId }
         create: {
           name: member.name,
           email,
+          username: `legacy-${member.id}`,
+          mustSetUsername: true,
           passwordHash: null,
           mustSetPassword: true,
           isActive: member.isActive

@@ -1,0 +1,81 @@
+.public-page-shell {
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
+  padding: var(--space-8);
+  color: var(--color-text-primary);
+  background: var(--color-bg-page);
+}
+
+.public-page-brand {
+  display: inline-flex;
+  min-height: var(--size-touch-target);
+  align-items: center;
+  align-self: flex-start;
+  gap: var(--space-3);
+  color: var(--color-text-strong);
+  font-size: var(--font-size-2);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--letter-spacing-wide);
+}
+
+.public-page-brand__mark {
+  position: relative;
+  display: grid;
+  width: var(--size-control-sm);
+  height: var(--size-control-sm);
+  place-items: center;
+  border: var(--border-width-default) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  color: var(--color-accent-text);
+  background: var(--color-surface-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.public-page-brand__mark::before,
+.public-page-brand__mark::after {
+  position: absolute;
+  width: 0.375rem;
+  height: 0.375rem;
+  border: var(--border-width-strong) solid currentColor;
+  border-radius: 50%;
+  content: '';
+}
+
+.public-page-brand__mark::before {
+  top: var(--space-2);
+  left: 0.5625rem;
+}
+
+.public-page-brand__mark::after {
+  right: 0.5625rem;
+  bottom: var(--space-2);
+}
+
+.public-page-brand__mark span {
+  width: 0.9375rem;
+  height: var(--border-width-strong);
+  transform: rotate(-42deg);
+  border-radius: var(--radius-pill);
+  background: currentColor;
+}
+
+.public-page-shell__content {
+  display: grid;
+  width: min(100%, 33rem);
+  flex: 1;
+  place-items: center;
+  align-self: center;
+  padding-block: var(--space-8);
+}
+
+@media (max-width: 720px) {
+  .public-page-shell {
+    padding: var(--space-5) var(--space-4);
+  }
+
+  .public-page-shell__content {
+    align-items: start;
+    padding-block: var(--space-6);
+  }
+}

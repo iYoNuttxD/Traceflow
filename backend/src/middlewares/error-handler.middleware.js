@@ -1,4 +1,3 @@
-import { env } from '../config/env.js';
 import { AppError, ERROR_CODES } from '../shared/errors/index.js';
 import { logger as defaultLogger, sanitizeText } from '../shared/logger/index.js';
 
@@ -35,7 +34,7 @@ function normalizeKnownError(error) {
   return null;
 }
 
-export function createErrorHandler({ logger = defaultLogger, environment = env.nodeEnv } = {}) {
+export function createErrorHandler({ logger = defaultLogger, includeErrorStack = false } = {}) {
   return function errorHandler(error, req, res, next) {
     if (res.headersSent) return next(error);
 
@@ -49,6 +48,7 @@ export function createErrorHandler({ logger = defaultLogger, environment = env.n
         : sanitizeText(knownError.message)
       : fallbackMessage;
     const errorCode = knownError?.code || ERROR_CODES.INTERNAL_ERROR;
+    const logMessage = statusCode >= 500 ? fallbackMessage : message;
 
     logger.error('HTTP request failed.', {
       requestId,
@@ -58,8 +58,8 @@ export function createErrorHandler({ logger = defaultLogger, environment = env.n
       errorCode,
       error: {
         name: error?.name || 'Error',
-        message: sanitizeText(error?.message || message),
-        ...(environment !== 'production' && error?.stack
+        message: logMessage,
+        ...(includeErrorStack === true && !knownError && error?.stack
           ? { stack: sanitizeText(error.stack) }
           : {})
       }

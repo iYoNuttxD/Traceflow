@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import './KanbanSprintFilter.css';
 
 // Filtro do quadro por sprint.
 //

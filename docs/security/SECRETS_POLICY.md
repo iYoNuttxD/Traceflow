@@ -2,9 +2,9 @@
 
 ## Escopo
 
-Os segredos atuais são `GITHUB_TOKEN`, as credenciais contidas em `DATABASE_URL`/`TEST_DATABASE_URL` e `SMTP_PASSWORD`. Qualquer futura chave de sessão, JWT, e-mail, cloud ou criptografia entra automaticamente nesta política.
+Os segredos atuais são a chave privada/client secret/webhook secret da GitHub App, `PRIVACY_PSEUDONYMIZATION_KEY`, as credenciais contidas em `DATABASE_URL`/`TEST_DATABASE_URL` e `SMTP_PASSWORD`. Qualquer futura chave de sessão, JWT, e-mail, cloud ou criptografia entra automaticamente nesta política.
 
-Na E6, tokens opacos de sessão, recuperação e convite são segredos efêmeros: valores brutos existem somente no cookie HttpOnly, memória do cliente ou entrega de uso único; o banco guarda SHA-256. Senhas guardam somente Argon2id. Nenhum desses valores pode ser logado. O PAT GitHub permanece credencial técnica do sistema, não identidade do usuário (ADR-004 e ADR-007).
+Tokens opacos de sessão, recuperação, verificação, convite e state são segredos efêmeros: valores brutos existem somente no cookie HttpOnly, memória ou entrega/redirect de uso único; o banco guarda SHA-256. Senhas guardam somente Argon2id. User e installation access tokens GitHub existem apenas em memória durante o caso de uso e nunca são persistidos ou logados. PAT sistêmico/por usuário/por projeto não integra o runtime L1 (ADR-009).
 
 ## Regras
 
@@ -13,18 +13,21 @@ Na E6, tokens opacos de sessão, recuperação e convite são segredos efêmeros
 - nenhuma variável `VITE_*` pode conter segredo, pois é incorporada ao bundle público;
 - segredos não podem aparecer em código, fixture comum, documentação, URL, resposta, log, commit ou artefato de build;
 - o acesso deve seguir menor privilégio e ser limitado aos operadores/serviços que precisam do valor;
-- produção deve falhar rapidamente quando o token GitHub obrigatório ou a configuração crítica estiver ausente;
+- produção deve falhar rapidamente quando o conjunto GitHub App/SMTP ou outra configuração crítica estiver ausente;
 - o logger registra apenas serviço, status externo, código normalizado e request ID; headers e objetos Octokit completos são proibidos.
-- na integração GitHub, somente o provider de credencial lê a configuração e a entrega ao factory do client; domínio, repositories, frontend e banco não recebem o PAT.
+- na integração GitHub, somente o credential provider lê private key/client secret; domínio, repositories, frontend e banco não recebem tokens temporários.
 
 ## Ciclo de vida
 
 | Segredo | Titular operacional | Escopo mínimo | Rotação inicial | Revogação |
 |---|---|---|---|---|
-| `GITHUB_TOKEN` | responsável pela integração/plataforma | somente repositórios e leituras necessárias | a cada 90 dias ou política mais restritiva do provedor | imediata após vazamento, desligamento do titular ou mudança de escopo |
+| `GITHUB_APP_PRIVATE_KEY_BASE64` | plataforma | autenticar somente a App TRACEFLOW | política do provedor; rotação ao menos anual | revogar chave no GitHub, cadastrar nova e reiniciar workloads |
+| `GITHUB_APP_CLIENT_SECRET` | plataforma | troca controlada do callback de instalação | política do provedor ou a cada 90 dias | gerar novo secret, atualizar secret store e revogar anterior |
+| `GITHUB_APP_WEBHOOK_SECRET` | plataforma | validar exclusivamente webhooks da App | a cada 90 dias ou incidente | rotacionar coordenando GitHub e backend |
+| `PRIVACY_PSEUDONYMIZATION_KEY` | plataforma/privacidade | HMAC deny-only de identidades GitHub anonimizadas | somente por incidente ou migração planejada | reprocessar fingerprints de forma coordenada antes da troca; perda sem migração rompe comparações anteriores |
 | `DATABASE_URL` | administração de dados/plataforma | usuário próprio da aplicação, sem privilégios administrativos | a cada 90 dias ou política corporativa | trocar credencial, revogar usuário antigo e verificar logs/conexões |
 | `TEST_DATABASE_URL` | desenvolvimento/CI | banco descartável cujo nome identifica teste | junto do ambiente/runner | destruir ou rotacionar ao comprometer o runner |
-| `SMTP_PASSWORD` | plataforma/comunicação | conta limitada ao envio transacional do TRACEFLOW | a cada 90 dias ou política do provedor | revogar credencial e tokens de reset/convite potencialmente expostos |
+| `SMTP_PASSWORD` | plataforma/comunicação | conta limitada ao envio transacional do TRACEFLOW | a cada 90 dias ou política do provedor | revogar credencial e tokens de reset/verificação/convite potencialmente expostos |
 
 Os prazos são baseline técnica e precisam ser alinhados à operação real. A rotação deve suportar período curto de transição, teste de conectividade e revogação do valor anterior.
 

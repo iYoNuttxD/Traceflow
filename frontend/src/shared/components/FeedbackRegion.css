@@ -1,0 +1,17 @@
+.message-icon {
+  display: inline-grid;
+  flex: 0 0 1.4rem;
+  width: 1.4rem;
+  height: 1.4rem;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.message-countdown {
+  display: block;
+  margin-top: 0.25rem;
+  font-weight: 750;
+}
