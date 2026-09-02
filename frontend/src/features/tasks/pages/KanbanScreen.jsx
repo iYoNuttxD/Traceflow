@@ -17,7 +17,12 @@ import { KanbanSprintFilter } from '../components/KanbanSprintFilter.jsx';
 import { KANBAN_COLUMNS } from '../components/kanban-display.js';
 import { MovementHistory } from '../components/MovementHistory.jsx';
 import { TaskDetailsPanel } from '../components/TaskDetailsPanel.jsx';
-import { FeedbackRegion, LoadingState, useConfirm } from '../../../shared/index.js';
+import {
+  FeedbackRegion,
+  LoadingState,
+  useAbortableRequest,
+  useConfirm
+} from '../../../shared/index.js';
 
 const MOVEMENTS_PER_PAGE = 10;
 const TERMINAL_SPRINT_STATUSES = ['CONCLUIDA', 'CANCELADA'];
@@ -140,6 +145,8 @@ export function KanbanScreen() {
   const [success, setSuccess] = useState('');
   const suppressTaskClickRef = useRef(false);
   const loadedProjectIdRef = useRef(null);
+  const generationRef = useRef(0);
+  const { run: loadRequest } = useAbortableRequest();
 
   const allTasks = useMemo(() => {
     if (!board?.columns) {
@@ -199,10 +206,46 @@ export function KanbanScreen() {
 
   const loadKanban = useCallback(
     async (params = {}) => {
+      generationRef.current += 1;
+      const generation = generationRef.current;
+      const atual = () => generation === generationRef.current;
+
+      if (loadedProjectIdRef.current !== projectId) {
+        setProject(null);
+        setBoard(null);
+        setMetrics(null);
+        setMovements([]);
+        setProjectMembers([]);
+        setProjectSprints([]);
+        setSprintFilter([]);
+        setSelectedTask(null);
+        setSuccess('');
+      }
+
       setLoading(true);
       setError('');
 
       try {
+        const resultado = await loadRequest((signal) =>
+          Promise.all([
+            projectsApi.get(projectId, { signal }),
+            kanbanApi.getBoard(projectId, { signal }),
+            kanbanApi.getMetrics(projectId, params, { signal }),
+            kanbanApi.listTaskHistory(
+              projectId,
+              { ...params, page: 1, limit: MOVEMENTS_PER_PAGE },
+              { signal }
+            ),
+            projectMembersApi.listProjectMembers(projectId, { signal }),
+            // Sprints alimentam os rótulos do histórico e o filtro. Falha aqui não
+            // pode derrubar o Kanban: cai para lista vazia e o quadro continua
+            // funcionando.
+            scheduleApi
+              .listSprints(projectId, {}, { signal })
+              .catch(() => ({ data: { sprints: [] } }))
+          ])
+        );
+        if (!resultado || !atual()) return;
         const [
           projectResponse,
           boardResponse,
@@ -210,17 +253,7 @@ export function KanbanScreen() {
           movementsResponse,
           membersResponse,
           sprintsResponse
-        ] = await Promise.all([
-          projectsApi.get(projectId),
-          kanbanApi.getBoard(projectId),
-          kanbanApi.getMetrics(projectId, params),
-          kanbanApi.listTaskHistory(projectId, { ...params, page: 1, limit: MOVEMENTS_PER_PAGE }),
-          projectMembersApi.listProjectMembers(projectId),
-          // Sprints alimentam os rótulos do histórico e o filtro. Falha aqui não
-          // pode derrubar o Kanban: cai para lista vazia e o quadro continua
-          // funcionando.
-          scheduleApi.listSprints(projectId).catch(() => ({ data: { sprints: [] } }))
-        ]);
+        ] = resultado;
 
         const members = membersResponse.data.members || [];
         setProject(projectResponse.data.project);
@@ -247,15 +280,16 @@ export function KanbanScreen() {
           .filter((id) => sprints.some((sprint) => sprint.id === id));
         setSprintFilter(pedidas);
       } catch (requestError) {
+        if (!atual()) return;
         setError(getErrorMessage(requestError, 'Não foi possível carregar o Kanban.'));
       } finally {
-        setLoading(false);
+        if (atual()) setLoading(false);
       }
     },
     // `searchParams` só é lido na carga inicial, que o ref abaixo garante rodar
     // uma vez por projeto. Está na lista para o verificador de hooks, não porque
     // uma mudança de URL deva recarregar o quadro.
-    [projectId, searchParams]
+    [projectId, searchParams, loadRequest]
   );
 
   useEffect(() => {
