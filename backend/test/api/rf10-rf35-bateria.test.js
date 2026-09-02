@@ -25,7 +25,14 @@ afterAll(async () => {
 
 async function register(email, name = 'Pessoa artificial') {
   const agent = request.agent(app);
-  const response = await agent.post('/api/auth/register').send({ name, email, password });
+  const username = `u${email
+    .split('@')[0]
+    .replace(/[^a-z0-9]/g, '')
+    .slice(0, 29)}`;
+  const response = await agent.post('/api/auth/register').send({ name, username, email, password });
+  await request(app)
+    .post('/api/auth/email-verification/verify')
+    .send({ token: response.body.emailVerification.testToken });
   const csrf = response.body.csrfToken;
   return {
     agent,
@@ -36,13 +43,9 @@ async function register(email, name = 'Pessoa artificial') {
 }
 
 function projectBody(name) {
-  const slug = name.toLowerCase().replace(/\s+/g, '-');
   return {
     name,
-    responsibleTeam: 'Equipe',
-    githubOwner: 'fake-owner',
-    githubRepo: slug,
-    githubUrl: `https://github.com/fake-owner/${slug}`
+    responsibleTeam: 'Equipe'
   };
 }
 
@@ -112,13 +115,13 @@ describe('sprint cancelada libera as datas (I03, refinamento de 24/08)', () => {
 });
 
 describe('exclusao recusada antes de qualquer leitura (I06)', () => {
-  it('responde 405 ate para id inexistente — nunca 404', async () => {
+  it('mantem o 404 opaco para id inexistente antes de recusar exclusao', async () => {
     const owner = await register('bateria-i06@example.invalid');
     await createProject(owner);
 
     const response = await owner.mutate('delete', '/api/sprints/999999').send();
-    expect(response.status).toBe(405);
-    expect(response.body.code).toBe('SPRINT_DELETE_NOT_SUPPORTED');
+    expect(response.status).toBe(404);
+    expect(response.body.code).toBe('RESOURCE_NOT_FOUND');
   });
 });
 

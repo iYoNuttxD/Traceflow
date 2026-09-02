@@ -18,7 +18,7 @@ function publicCommit(commit) {
     authorName: commit.authorName,
     authorUsername: commit.authorUsername,
     date: commit.date,
-    branch: commit.branch,
+    branches: (commit.branchLinks || []).map(({ branch }) => branch.name),
     githubUrl: commit.githubUrl
   };
 }

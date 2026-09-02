@@ -4,6 +4,7 @@ import { ProjectSectionNav } from '../../projects/index.js';
 import { FeedbackRegion, LoadingState, ErrorState, ForbiddenState } from '../../../shared/index.js';
 import { ScheduleCalendar } from '../components/ScheduleCalendar.jsx';
 import { useScheduleData } from '../hooks/useScheduleData.js';
+import '../styles/schedule.css';
 
 export function ScheduleScreen() {
   const { projectId } = useParams();

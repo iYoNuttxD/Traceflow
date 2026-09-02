@@ -32,9 +32,16 @@ afterAll(async () => {
 
 async function registrar(nome = 'Pessoa da campanha') {
   const agent = request.agent(app);
-  const email = `cp-${unico()}@example.invalid`;
-  const response = await agent.post('/api/auth/register').send({ name: nome, email, password });
+  const identificador = unico();
+  const email = `cp-${identificador}@example.invalid`;
+  const response = await agent
+    .post('/api/auth/register')
+    .send({ name: nome, username: `cp-${identificador}`, email, password });
   expect(response.status).toBe(201);
+  const verification = await request(app)
+    .post('/api/auth/email-verification/verify')
+    .send({ token: response.body.emailVerification.testToken });
+  expect(verification.status).toBe(200);
   const csrf = response.body.csrfToken;
   return {
     agent,
@@ -45,13 +52,9 @@ async function registrar(nome = 'Pessoa da campanha') {
 }
 
 async function criarProjeto(ator, nome = `Projeto CP ${unico()}`) {
-  const slug = nome.toLowerCase().replace(/[^a-z0-9]+/g, '-');
   const response = await ator.mutate('post', '/api/projects').send({
     name: nome,
-    responsibleTeam: 'Equipe CP',
-    githubOwner: 'cp-owner',
-    githubRepo: slug,
-    githubUrl: `https://github.com/cp-owner/${slug}`
+    responsibleTeam: 'Equipe CP'
   });
   expect(response.status).toBe(201);
   return response.body.project;
@@ -525,7 +528,7 @@ describe('CP — PE/VL: cadastro e janelas do cronograma (RF10)', () => {
     expect(remocao.status).toBe(200);
     const consulta = await ator.agent.get(`/api/milestones/${marco.id}`);
     expect(consulta.status).toBe(404);
-    expect(consulta.body.code).toBe('MILESTONE_NOT_FOUND');
+    expect(consulta.body.code).toBe('RESOURCE_NOT_FOUND');
   });
 
   it('CP-VL-13/14 o teto de 100 aceita a centesima e recusa a centesima primeira', async () => {

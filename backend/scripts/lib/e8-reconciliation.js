@@ -1,5 +1,4 @@
 import { createHash } from 'node:crypto';
-import { runMembershipBackfill } from './membership-backfill.js';
 import {
   auditTaskPullRequests,
   legacyTableExists,
@@ -117,7 +116,6 @@ async function technicalModelCounts(client, legacy) {
     'project',
     'projectMembership',
     'projectInvitation',
-    'projectMember',
     'requirement',
     'task',
     'taskMovement',
@@ -186,76 +184,10 @@ export async function auditE8Schema({ client }) {
 }
 
 async function buildReconciliationPlan(client) {
-  const [projects, responsibleTasks, movements, memberships, members, legacy, canonical] =
-    await Promise.all([
-      client.project.findMany({
-        select: {
-          id: true,
-          githubOwner: true,
-          githubRepo: true,
-          githubUrl: true,
-          githubRepositoryName: true,
-          githubRepositoryFullName: true,
-          githubRepositoryUrl: true
-        }
-      }),
-      client.task.findMany({
-        where: { responsibleUserId: null, responsible: { not: null } },
-        select: { id: true, projectId: true, responsible: true }
-      }),
-      client.taskMovement.findMany({
-        where: { movedByUserId: null },
-        select: { id: true, projectId: true, movedBy: true, projectMemberId: true }
-      }),
-      client.projectMembership.findMany({
-        select: {
-          projectId: true,
-          userId: true,
-          isActive: true,
-          user: { select: { name: true, email: true } }
-        }
-      }),
-      client.projectMember.findMany({ select: { id: true, projectId: true, email: true } }),
-      loadLegacySnapshot(client),
-      canonicalSnapshot(client)
-    ]);
-  const membershipByProject = new Map();
-  for (const membership of memberships) {
-    const values = membershipByProject.get(membership.projectId) || [];
-    values.push(membership);
-    membershipByProject.set(membership.projectId, values);
-  }
-  const memberById = new Map(members.map((member) => [member.id, member]));
-  const projectUpdates = projects
-    .map((project) => ({ id: project.id, data: canonicalProjectPatch(project) }))
-    .filter((item) => Object.keys(item.data).length > 0);
-  const responsibleUpdates = [];
-  const responsible = { examined: responsibleTasks.length, matched: 0, unmatched: 0, ambiguous: 0 };
-  for (const task of responsibleTasks) {
-    const resolution = resolveUniqueUserByName(
-      task.responsible,
-      membershipByProject.get(task.projectId) || []
-    );
-    if (resolution.status === 'MATCHED') {
-      responsible.matched += 1;
-      responsibleUpdates.push({ id: task.id, userId: resolution.userId });
-    } else if (resolution.status === 'AMBIGUOUS') responsible.ambiguous += 1;
-    else responsible.unmatched += 1;
-  }
-  const movementUpdates = [];
-  const movedBy = { examined: movements.length, matched: 0, unmatched: 0, ambiguous: 0 };
-  for (const movement of movements) {
-    const projectMemberships = membershipByProject.get(movement.projectId) || [];
-    const member = movement.projectMemberId ? memberById.get(movement.projectMemberId) : null;
-    const resolution = member
-      ? mapProjectMemberToMembership(member, projectMemberships)
-      : resolveUniqueUserByName(movement.movedBy, projectMemberships);
-    if (resolution.status === 'MATCHED') {
-      movedBy.matched += 1;
-      movementUpdates.push({ id: movement.id, userId: resolution.userId });
-    } else if (resolution.status === 'AMBIGUOUS') movedBy.ambiguous += 1;
-    else movedBy.unmatched += 1;
-  }
+  const [legacy, canonical] = await Promise.all([
+    loadLegacySnapshot(client),
+    canonicalSnapshot(client)
+  ]);
   const taskPullRequests = taskPullRequestReconciliationPlan({
     links: legacy.taskPullRequests,
     tasks: canonical.tasks,
@@ -264,11 +196,6 @@ async function buildReconciliationPlan(client) {
   const artifacts = reconcileArtifactRecords({ artifacts: legacy.githubArtifacts, ...canonical });
   const traceLinks = reconcileTraceLinkRecords({ traceLinks: legacy.traceLinks, ...canonical });
   return {
-    projectUpdates,
-    responsibleUpdates,
-    movementUpdates,
-    responsible,
-    movedBy,
     taskPullRequests,
     artifacts,
     traceLinks
@@ -277,32 +204,43 @@ async function buildReconciliationPlan(client) {
 
 export async function runE8Reconciliation({ client, apply = false }) {
   const before = await auditE8Schema({ client });
-  const memberships = await runMembershipBackfill({ client, apply });
   const plan = await buildReconciliationPlan(client);
   if (apply) {
     await client.$transaction(async (tx) => {
-      for (const update of plan.projectUpdates)
-        await tx.project.update({ where: { id: update.id }, data: update.data });
-      for (const update of plan.responsibleUpdates)
-        await tx.task.update({
-          where: { id: update.id },
-          data: { responsibleUserId: update.userId }
-        });
-      for (const update of plan.movementUpdates)
-        await tx.taskMovement.update({
-          where: { id: update.id },
-          data: { movedByUserId: update.userId }
-        });
       for (const update of plan.taskPullRequests.updates)
         await tx.task.update({
           where: { id: update.taskId },
           data: { pullRequestId: update.pullRequestId }
         });
-      if (plan.artifacts.convertibleCommits.length > 0)
+      if (plan.artifacts.convertibleCommits.length > 0) {
         await tx.commit.createMany({
-          data: plan.artifacts.convertibleCommits,
+          data: plan.artifacts.convertibleCommits.map(
+            ({ branch: _legacyBranch, ...commit }) => commit
+          ),
           skipDuplicates: true
         });
+        for (const item of plan.artifacts.convertibleCommits.filter(({ branch }) => branch)) {
+          const branch = await tx.gitBranch.upsert({
+            where: { projectId_name: { projectId: item.projectId, name: item.branch } },
+            create: {
+              projectId: item.projectId,
+              name: item.branch,
+              lastSeenAt: new Date()
+            },
+            update: { isActive: true, lastSeenAt: new Date() }
+          });
+          const commit = await tx.commit.findUnique({
+            where: { projectId_hash: { projectId: item.projectId, hash: item.hash } },
+            select: { id: true }
+          });
+          if (commit)
+            await tx.commitBranch.upsert({
+              where: { commitId_branchId: { commitId: commit.id, branchId: branch.id } },
+              create: { commitId: commit.id, branchId: branch.id },
+              update: {}
+            });
+        }
+      }
       if (plan.traceLinks.plan.taskCommits.length > 0)
         await tx.taskCommit.createMany({
           data: plan.traceLinks.plan.taskCommits,
@@ -329,26 +267,11 @@ export async function runE8Reconciliation({ client, apply = false }) {
   return {
     mode: apply ? 'apply' : 'dry-run',
     pending: {
-      legacyMemberships: Math.max(
-        0,
-        memberships.eligible - memberships.alreadyMigrated - memberships.migrated
-      ),
-      projectCanonicalFields: plan.projectUpdates.length,
-      responsibleUsers: plan.responsibleUpdates.length,
-      movedByUsers: plan.movementUpdates.length,
       taskPullRequests: plan.taskPullRequests.updates.length,
       githubArtifacts: plan.artifacts.convertibleCommits.length,
       traceLinks: plan.traceLinks.report.pending
     },
     unresolved: {
-      memberships: {
-        invalid: memberships.skippedMissingOrInvalidEmail,
-        ambiguous: memberships.skippedAmbiguousIdentity,
-        unknownRole: memberships.skippedUnknownRole,
-        projectsWithoutOwner: memberships.projectsWithoutEligibleOwner.length
-      },
-      responsible: { unmatched: plan.responsible.unmatched, ambiguous: plan.responsible.ambiguous },
-      movedBy: { unmatched: plan.movedBy.unmatched, ambiguous: plan.movedBy.ambiguous },
       taskPullRequests: { conflicts: plan.taskPullRequests.conflicts },
       githubArtifacts: {
         exclusive: plan.artifacts.report.exclusiveRecords,

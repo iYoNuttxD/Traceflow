@@ -1,10 +1,13 @@
 import { Link } from 'react-router';
+import '../../../shared/styles/internal-tabs.css';
+import '../styles/project-tabs.css';
 
 // Sprints e Marcos saíram de dentro do Cronograma para o primeiro nível: são
 // três assuntos distintos — o ciclo de execução, a entrega agrupada e a agenda —
 // e empilhá-los numa tela só obrigava a rolar a página inteira para trocar de um
 // para o outro. Cada um agora tem URL própria, compartilhável e recarregável.
 const projectSections = [
+  { key: 'overview', label: 'Visão geral', path: '' },
   { key: 'tasks', label: 'Tarefas', path: 'tasks' },
   { key: 'requirements', label: 'Requisitos', path: 'requirements' },
   { key: 'kanban', label: 'Kanban', path: 'kanban' },
@@ -15,36 +18,19 @@ const projectSections = [
   { key: 'traceability', label: 'Rastreabilidade', path: 'traceability' }
 ];
 
-export function ProjectSectionNav({
-  projectId,
-  activeSection,
-  showSyncButton = false,
-  onSync,
-  isSyncing = false
-}) {
+export function ProjectSectionNav({ projectId, activeSection }) {
   return (
-    <nav className="project-section-nav" aria-label="Navegação do projeto">
+    <nav className="internal-tabs project-section-tabs" aria-label="Navegação do projeto">
       {projectSections.map((section) => (
         <Link
-          className={`project-section-nav-link ${
-            activeSection === section.key ? 'project-section-nav-link-active' : ''
-          }`}
+          className={`internal-tab ${activeSection === section.key ? 'internal-tab--active' : ''}`}
           key={section.key}
-          to={`/projects/${projectId}/${section.path}`}
+          to={`/projects/${projectId}${section.path ? `/${section.path}` : ''}`}
+          aria-current={activeSection === section.key ? 'page' : undefined}
         >
           {section.label}
         </Link>
       ))}
-      {showSyncButton && (
-        <button
-          className="project-section-nav-link project-section-nav-sync"
-          type="button"
-          onClick={onSync}
-          disabled={isSyncing}
-        >
-          {isSyncing ? 'Sincronizando...' : 'Sincronizar'}
-        </button>
-      )}
     </nav>
   );
 }

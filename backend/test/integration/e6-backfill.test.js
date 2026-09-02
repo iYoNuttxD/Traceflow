@@ -18,17 +18,35 @@ afterAll(async () => {
   await prisma.$disconnect();
 });
 
-describe('backfill E6', () => {
+// N/A após LR.2: este arquivo permanece como especificação executável da ferramenta pré-contract.
+describe.skip('backfill E6 (somente banco pré-LR.2)', () => {
   it('trata base vazia, casos ambíguos, projeto sem owner e execução idempotente', async () => {
     expect((await runMembershipBackfill({ client: prisma })).examined).toBe(0);
     const [owned, manual, ambiguous, partial] = await Promise.all([
-      prisma.project.create({ data: { name: 'Projeto owner', responsibleTeam: 'Equipe' } }),
-      prisma.project.create({ data: { name: 'Projeto manual', responsibleTeam: 'Equipe' } }),
-      prisma.project.create({ data: { name: 'Projeto ambíguo', responsibleTeam: 'Equipe' } }),
-      prisma.project.create({ data: { name: 'Projeto parcial', responsibleTeam: 'Equipe' } })
+      prisma.project.create({
+        data: { name: 'Projeto owner', responsibleTeam: 'Equipe', accessCode: 'TEST-E6-OWNER' }
+      }),
+      prisma.project.create({
+        data: { name: 'Projeto manual', responsibleTeam: 'Equipe', accessCode: 'TEST-E6-MANUAL' }
+      }),
+      prisma.project.create({
+        data: {
+          name: 'Projeto ambíguo',
+          responsibleTeam: 'Equipe',
+          accessCode: 'TEST-E6-AMBIGUOUS'
+        }
+      }),
+      prisma.project.create({
+        data: { name: 'Projeto parcial', responsibleTeam: 'Equipe', accessCode: 'TEST-E6-PARTIAL' }
+      })
     ]);
     const canonicalOwner = await prisma.user.create({
-      data: { name: 'Owner canônico', email: 'canonical@example.invalid', passwordHash: null }
+      data: {
+        name: 'Owner canônico',
+        username: 'owner-canonico',
+        email: 'canonical@example.invalid',
+        passwordHash: null
+      }
     });
     await prisma.projectMembership.create({
       data: { projectId: partial.id, userId: canonicalOwner.id, role: 'OWNER' }

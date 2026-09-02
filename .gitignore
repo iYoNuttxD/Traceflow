@@ -28,3 +28,6 @@ ds-bundle/
 .design-sync/.cache/
 .design-sync/learnings/
 .design-sync/node_modules
+docs/design/experiments/
+docs/design/screenshots/
+docs/design/DESIGN_EXPLORATION.md

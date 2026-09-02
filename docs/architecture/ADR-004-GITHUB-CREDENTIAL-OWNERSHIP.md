@@ -1,16 +1,16 @@
 # ADR-004 — Titularidade da credencial GitHub
 
-- **Estado:** transição aceita na E6
+- **Estado:** histórica; substituída operacionalmente pelo ADR-009 na L1
 - **Data:** 24/07/2026
 
-> A fronteira técnica e o provider adotados na E9 são detalhados no [ADR-007](ADR-007-GITHUB-CREDENTIAL-STRATEGY.md). Esta decisão histórica permanece válida quanto à titularidade sistêmica da credencial.
+> Esta decisão registra a transição E6. O runtime vigente não usa PAT: a separação entre GitHub OAuth de identidade e GitHub App técnica está no [ADR-012](ADR-012-GITHUB-OAUTH-APP-DECOUPLING.md).
 
-## Decisão
+## Decisão histórica
 
-O `GITHUB_TOKEN` global permanece temporariamente como credencial técnica do sistema. Ele não representa o usuário autenticado, não concede papel de projeto e não é exposto ao frontend, banco, respostas ou logs. Autorização TRACEFLOW é verificada antes de listagem, importação ou sincronização.
+Na E6, o `GITHUB_TOKEN` global permaneceu temporariamente como credencial técnica do sistema. Ele não representava o usuário autenticado, não concedia papel de projeto e não era exposto ao frontend, banco, respostas ou logs.
 
-OAuth/GitHub App por usuário/instalação não é introduzido nesta etapa porque exigiria novo fluxo de consentimento, armazenamento/rotação de credenciais e decisões de produto. A migração futura deve preferir GitHub App por instalação, com secret manager, escopos mínimos e trilha de auditoria.
+OAuth/GitHub App por usuário/instalação não foi introduzido naquela etapa. A evolução prevista foi concluída na L1/LR.3: GitHub App por instalação, tokens efêmeros e trilha de auditoria.
 
-## Risco residual
+## Estado vigente
 
-A API ainda compartilha quota e alcance do PAT entre usuários autorizados. Comprometimento do token tem blast radius sistêmico. Rotação, revogação e monitoramento seguem `SECRETS_POLICY.md`; a substituição é bloqueio operacional futuro, não razão para tratar o PAT como identidade.
+Não existe fallback `GITHUB_TOKEN`. A GitHub App e seu Installation Token definem os repositórios concedidos e executam a sincronização. GitHub OAuth identifica apenas a conta para autenticação e não participa da descoberta. User e Installation Tokens não são persistidos. Secret manager, rotação e homologação externa permanecem responsabilidades operacionais.

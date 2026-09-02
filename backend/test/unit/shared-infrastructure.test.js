@@ -2,6 +2,10 @@ import express from 'express';
 import request from 'supertest';
 import { describe, expect, it, vi } from 'vitest';
 import { createErrorHandler } from '../../src/middlewares/error-handler.middleware.js';
+import {
+  createAuthenticationMiddleware,
+  parseCookies
+} from '../../src/middlewares/auth/authentication.middleware.js';
 import { notFoundMiddleware } from '../../src/middlewares/not-found.middleware.js';
 import {
   createRequestContextMiddleware,
@@ -15,12 +19,12 @@ function silentLogger() {
   return { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() };
 }
 
-function createTestApp(route, { logger = silentLogger() } = {}) {
+function createTestApp(route, { logger = silentLogger(), includeErrorStack = false } = {}) {
   const app = express();
   app.use(createRequestContextMiddleware({ logger }));
   if (route) app.get('/failure', asyncHandler(route, { fallbackMessage: 'Falha segura.' }));
   app.use(notFoundMiddleware);
-  app.use(createErrorHandler({ logger, environment: 'production' }));
+  app.use(createErrorHandler({ logger, includeErrorStack }));
   return { app, logger };
 }
 
@@ -54,6 +58,22 @@ describe('AppError', () => {
 });
 
 describe('request ID e middlewares HTTP', () => {
+  it('ignora cookies malformados sem transformar ausência de sessão em erro interno', () => {
+    expect(parseCookies('traceflow_session=abc%20123; inválido; ruim=%; tema=escuro')).toEqual({
+      traceflow_session: 'abc 123',
+      tema: 'escuro'
+    });
+  });
+
+  it('reutiliza autenticação já resolvida por middleware anterior na mesma requisição', async () => {
+    const service = { authenticate: vi.fn() };
+    const next = vi.fn();
+    const req = { auth: { user: { id: 7 }, session: { id: 9 } }, headers: {} };
+    await createAuthenticationMiddleware({ service, cookieName: 'session' })(req, {}, next);
+    expect(service.authenticate).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledWith();
+  });
+
   it('gera UUID e aceita somente identificador seguro', () => {
     expect(resolveRequestId()).toMatch(/^[0-9a-f-]{36}$/);
     expect(resolveRequestId('cliente-123')).toBe('cliente-123');
@@ -100,6 +120,85 @@ describe('request ID e middlewares HTTP', () => {
       'HTTP request failed.',
       expect.objectContaining({ requestId: 'req-500', statusCode: 500 })
     );
+  });
+
+  it.each([
+    [401, ERROR_CODES.AUTHENTICATION_REQUIRED],
+    [403, ERROR_CODES.FORBIDDEN],
+    [404, ERROR_CODES.RESOURCE_NOT_FOUND],
+    [409, ERROR_CODES.CONFLICT],
+    [429, ERROR_CODES.RATE_LIMITED]
+  ])('não registra stack nem caminho interno para erro esperado %s', async (statusCode, code) => {
+    const { app, logger } = createTestApp(async () => {
+      throw new AppError({
+        message: 'Falha esperada.',
+        statusCode,
+        code,
+        exposeTechnicalDetails: true
+      });
+    });
+
+    const response = await request(app).get('/failure').set('X-Request-Id', `req-${statusCode}`);
+    const context = logger.error.mock.calls[0][1];
+    const serialized = JSON.stringify(context);
+
+    expect(response.status).toBe(statusCode);
+    expect(context).toMatchObject({
+      requestId: `req-${statusCode}`,
+      method: 'GET',
+      path: '/failure',
+      statusCode,
+      errorCode: code,
+      error: { name: 'AppError', message: 'Falha esperada.' }
+    });
+    expect(serialized).not.toMatch(/stack|file:\/\/|node_modules|\/Users\//i);
+  });
+
+  it('mantém o log operacional padrão do 500 sem mensagem, stack ou caminho interno', async () => {
+    const { app, logger } = createTestApp(async () => {
+      throw new Error(
+        'ENOENT em file:///Users/pessoa/projeto/node_modules/pacote/index.js token=segredo'
+      );
+    });
+
+    const response = await request(app).get('/failure').set('X-Request-Id', 'req-500-seguro');
+    const context = logger.error.mock.calls[0][1];
+    const serialized = JSON.stringify(context);
+
+    expect(response).toMatchObject({
+      status: 500,
+      body: {
+        message: 'Falha segura.',
+        code: ERROR_CODES.INTERNAL_ERROR,
+        requestId: 'req-500-seguro'
+      }
+    });
+    expect(context).toMatchObject({
+      requestId: 'req-500-seguro',
+      method: 'GET',
+      path: '/failure',
+      statusCode: 500,
+      errorCode: ERROR_CODES.INTERNAL_ERROR,
+      error: { name: 'Error', message: 'Falha segura.' }
+    });
+    expect(serialized).not.toMatch(/stack|file:\/\/|node_modules|\/Users\/|segredo/i);
+  });
+
+  it('só permite stack de erro inesperado com opt-in explícito e preserva o response público', async () => {
+    const { app, logger } = createTestApp(
+      async () => {
+        throw new Error('Falha interna para diagnóstico controlado.');
+      },
+      { includeErrorStack: true }
+    );
+
+    const response = await request(app).get('/failure');
+    const context = logger.error.mock.calls[0][1];
+
+    expect(context.error.stack).toContain('Falha interna para diagnóstico controlado.');
+    expect(response.status).toBe(500);
+    expect(response.body).not.toHaveProperty('stack');
+    expect(JSON.stringify(response.body)).not.toContain('diagnóstico controlado');
   });
 
   it('usa fallback seguro para erro de serviço externo', async () => {

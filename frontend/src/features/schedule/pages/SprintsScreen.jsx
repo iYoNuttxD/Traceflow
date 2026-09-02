@@ -21,6 +21,7 @@ import {
   toDateTimeLocalInput
 } from '../components/schedule-display.js';
 import { useScheduleData } from '../hooks/useScheduleData.js';
+import '../styles/schedule.css';
 
 export function SprintsScreen() {
   const { projectId } = useParams();
@@ -51,6 +52,7 @@ export function SprintsScreen() {
     refreshSprints,
     refreshMilestones,
     handleFailure,
+    fail,
     settle
   } = useScheduleData(projectId);
 
@@ -150,10 +152,7 @@ export function SprintsScreen() {
       setFormTaskIds([]);
       const atualizar = () => Promise.all([refreshSprints(), refreshSchedule()]);
       if (avisoTarefas) {
-        handleFailure(
-          avisoTarefas,
-          'Sprint salva, mas não foi possível atualizar as tarefas da sprint.'
-        );
+        fail('Sprint salva, mas não foi possível atualizar as tarefas da sprint.');
         await atualizar().catch(() => {});
       } else {
         await settle(
@@ -342,7 +341,7 @@ export function SprintsScreen() {
         </div>
         <ProjectSectionNav projectId={projectId} activeSection="sprints" />
       </header>
-      <FeedbackRegion error={error} success={success} notice={staleWarning} />
+      <FeedbackRegion error={error} success={success} warning={staleWarning} />
 
       <div className="schedule-columns schedule-columns--unica">
         {!somenteLeitura && (

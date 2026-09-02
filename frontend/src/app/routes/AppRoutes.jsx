@@ -1,7 +1,8 @@
 import { Suspense } from 'react';
-import { Routes, Route, Navigate, Outlet } from 'react-router';
-import { ProtectedRoute } from '../../features/auth/index.js';
-import { LoadingState } from '../../shared/index.js';
+import { Routes, Route, Navigate } from 'react-router';
+import { GuestOnlyRoute, ProtectedRoute } from '../../features/auth/index.js';
+import { ContextualErrorPage, LoadingState, PAGE_ERROR_TYPES } from '../../shared/index.js';
+import { AuthenticatedLayout } from '../layout/AuthenticatedLayout.jsx';
 import { lazyNamed } from './lazy-route.js';
 
 const LoginPage = lazyNamed(() => import('../../pages/LoginPage.jsx'), 'LoginPage');
@@ -13,6 +14,10 @@ const ForgotPasswordPage = lazyNamed(
 const ResetPasswordPage = lazyNamed(
   () => import('../../pages/ResetPasswordPage.jsx'),
   'ResetPasswordPage'
+);
+const VerifyEmailPage = lazyNamed(
+  () => import('../../pages/VerifyEmailPage.jsx'),
+  'VerifyEmailPage'
 );
 const AcceptInvitationPage = lazyNamed(
   () => import('../../pages/AcceptInvitationPage.jsx'),
@@ -26,6 +31,14 @@ const ProjectsPage = lazyNamed(() => import('../../pages/ProjectsPage.jsx'), 'Pr
 const ProjectDetailsPage = lazyNamed(
   () => import('../../pages/ProjectDetailsPage.jsx'),
   'ProjectDetailsPage'
+);
+const ProjectEditPage = lazyNamed(
+  () => import('../../pages/ProjectEditPage.jsx'),
+  'ProjectEditPage'
+);
+const ProjectMembersPage = lazyNamed(
+  () => import('../../pages/ProjectMembersPage.jsx'),
+  'ProjectMembersPage'
 );
 const RequirementsPage = lazyNamed(
   () => import('../../pages/RequirementsPage.jsx'),
@@ -44,10 +57,37 @@ const TraceabilityPage = lazyNamed(
   () => import('../../pages/TraceabilityPage.jsx'),
   'TraceabilityPage'
 );
-const PrivacyPage = lazyNamed(() => import('../../pages/PrivacyPage.jsx'), 'PrivacyPage');
 const ProjectAuditPage = lazyNamed(
   () => import('../../pages/ProjectAuditPage.jsx'),
   'ProjectAuditPage'
+);
+const SettingsLayout = lazyNamed(
+  () => import('../../features/settings/SettingsLayout.jsx'),
+  'SettingsLayout'
+);
+const AccountSettingsPage = lazyNamed(
+  () => import('../../features/settings/AccountSettingsPage.jsx'),
+  'AccountSettingsPage'
+);
+const SecuritySettingsPage = lazyNamed(
+  () => import('../../features/settings/SecuritySettingsPage.jsx'),
+  'SecuritySettingsPage'
+);
+const PrivacySettingsPage = lazyNamed(
+  () => import('../../features/settings/PrivacySettingsPage.jsx'),
+  'PrivacySettingsPage'
+);
+const IntegrationsSettingsPage = lazyNamed(
+  () => import('../../features/settings/IntegrationsSettingsPage.jsx'),
+  'IntegrationsSettingsPage'
+);
+const ConfirmationPage = lazyNamed(
+  () => import('../../features/settings/ConfirmationPage.jsx'),
+  'ConfirmationPage'
+);
+const RestrictedAccountPage = lazyNamed(
+  () => import('../../features/settings/RestrictedAccountPage.jsx'),
+  'RestrictedAccountPage'
 );
 
 export function RouteLoadingFallback() {
@@ -62,23 +102,56 @@ export function AppRoutes() {
   return (
     <Suspense fallback={<RouteLoadingFallback />}>
       <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route
+          path="/login"
+          element={
+            <GuestOnlyRoute>
+              <LoginPage />
+            </GuestOnlyRoute>
+          }
+        />
+        <Route
+          path="/register"
+          element={
+            <GuestOnlyRoute>
+              <RegisterPage />
+            </GuestOnlyRoute>
+          }
+        />
+        <Route
+          path="/forgot-password"
+          element={
+            <GuestOnlyRoute>
+              <ForgotPasswordPage />
+            </GuestOnlyRoute>
+          }
+        />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/verify-email" element={<VerifyEmailPage />} />
+        <Route
+          path="/settings/account/email-change/confirm"
+          element={<ConfirmationPage type="email" />}
+        />
+        <Route
+          path="/account/reactivation/confirm"
+          element={<ConfirmationPage type="reactivation" />}
+        />
         <Route
           element={
             <ProtectedRoute>
-              <Outlet />
+              <AuthenticatedLayout />
             </ProtectedRoute>
           }
         >
           <Route path="/" element={<Navigate to="/projects" replace />} />
+          <Route path="/restricted" element={<RestrictedAccountPage />} />
           <Route path="/invitations/accept" element={<AcceptInvitationPage />} />
           <Route path="/join" element={<JoinProjectPage />} />
           <Route path="/join/:accessCode" element={<JoinProjectPage />} />
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/projects/:id" element={<ProjectDetailsPage />} />
+          <Route path="/projects/:projectId/edit" element={<ProjectEditPage />} />
+          <Route path="/projects/:projectId/members" element={<ProjectMembersPage />} />
           <Route path="/projects/:projectId/requirements" element={<RequirementsPage />} />
           <Route path="/projects/:projectId/tasks" element={<TasksPage />} />
           <Route path="/projects/:projectId/kanban" element={<KanbanPage />} />
@@ -87,9 +160,19 @@ export function AppRoutes() {
           <Route path="/projects/:projectId/schedule" element={<SchedulePage />} />
           <Route path="/projects/:projectId/repository" element={<RepositoryInfoPage />} />
           <Route path="/projects/:projectId/traceability" element={<TraceabilityPage />} />
-          <Route path="/account/privacy" element={<PrivacyPage />} />
+          <Route path="/settings" element={<SettingsLayout />}>
+            <Route index element={<Navigate to="account" replace />} />
+            <Route path="account" element={<AccountSettingsPage />} />
+            <Route path="security" element={<SecuritySettingsPage />} />
+            <Route path="privacy" element={<PrivacySettingsPage />} />
+            <Route path="integrations" element={<IntegrationsSettingsPage />} />
+          </Route>
           <Route path="/projects/:projectId/audit" element={<ProjectAuditPage />} />
         </Route>
+        <Route
+          path="*"
+          element={<ContextualErrorPage type={PAGE_ERROR_TYPES.NOT_FOUND} showRetry={false} />}
+        />
       </Routes>
     </Suspense>
   );

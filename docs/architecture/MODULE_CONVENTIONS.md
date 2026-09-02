@@ -24,7 +24,7 @@ route → controller → service → repository → Prisma/MySQL
 - Extrai `params`, `query` e `body`, chama service e preserva a resposta HTTP atual.
 - Não acessa Prisma, repository ou Octokit.
 - Não contém regra de negócio nem constrói query de banco.
-- Encaminha falhas ao middleware global por `asyncHandler`, preservando a mensagem pública histórica como fallback compatível.
+- Encaminha falhas ao middleware global por `asyncHandler`, preservando somente mensagem pública segura quando o contrato exigir.
 
 ### Service
 
@@ -77,18 +77,13 @@ export { projectService } from './project.service.js';
 export { default as projectRoutes } from './project.routes.js';
 ```
 
-## Compatibilidade incremental
+## APIs públicas internas e compatibilidade
 
-Uma movimentação mantém o caminho antigo somente quando há consumidores ainda não migrados. O arquivo antigo deve conter exclusivamente um reexport, um `TODO(E2.9)` e nenhuma implementação duplicada.
-
-Exemplo no frontend:
-
-```js
-// TODO(E2.9): remover após migração dos consumidores.
-export * from '../features/projects/components/ProjectForm.jsx';
-```
-
-No backend, `project.service.js` funciona temporariamente como fachada e delega aos casos de uso em `services/`. A regra existe em um único arquivo.
+Alias ou reexport não é mantido apenas por origem histórica. Barrels usados e agregadores públicos
+de domínio são fronteiras canônicas quando possuem consumidores atuais e não duplicam regra.
+`project.service.js`, por exemplo, é a API pública interna que agrega casos de uso coesos em
+`services/`; não é uma fachada temporária de compatibilidade. Um caminho antigo somente pode existir
+com consumidor comprovado, prazo, teste e decisão explícita.
 
 ## Dependências proibidas
 
@@ -118,10 +113,32 @@ No backend, `project.service.js` funciona temporariamente como fachada e delega 
 ## Exemplos do TRACEFLOW
 
 - `github.service.js → github.client.js`: service coordena e o client encapsula Octokit.
+- `github-app.service.js → github.repository.js + github.client.js`: state/metadados ficam no repository; tokens temporários existem somente no credential provider/client.
 - `githubSync.service.js → commit/pullRequest/issue repositories`: orquestração externa permanece no service e persistência nos repositories.
 - `traceability.service.js → traceability.mapper.js → traceability.calculator.js`: coordenação, DTO e cálculo são responsabilidades distintas.
-- `project.service.js → services/project-*.service.js`: fachada compatível sem segunda implementação.
+- `project.service.js → services/project-*.service.js`: agregador público do domínio, sem segunda implementação nem alias de contrato.
 - `privacy.service.js → privacy.repository.js → audit.repository.js`: direitos do titular coordenam adapters; somente o adapter central persiste auditoria.
+
+## Assíncronos e concorrência
+
+- Job persistido possui ID correlacionável e o DTO público preserva esse ID.
+- Polling acompanha o ID iniciado/reutilizado quando `latest` puder confundir execuções.
+- Coalescing e exclusão mútua definem se chamadas concorrentes criam, rejeitam ou reutilizam o job.
+- Retry, stale recovery e estados terminais são parte do contrato, não detalhe acidental do worker.
+- `FAILED` permanece estado de domínio; consultar esse estado com sucesso não vira erro HTTP da
+  leitura.
+- Testes coordenam transições por gates/sinais controlados, sem sleep arbitrário ou retry que esconda
+  race.
+
+## Comentários e formatação
+
+Comentários explicam o porquê de decisão não óbvia, invariante, controle de segurança, race,
+comportamento estranho de API externa ou workaround inevitável. Não narram cada `if`, loop ou linha
+de JavaScript. Prefira uma ou duas linhas; use bloco maior somente quando a complexidade exigir.
+
+Prettier é a autoridade de formatação automática; ESLint cobre qualidade e erros estáticos;
+`architecture:check` cobre fronteiras. Não reformate por preferência pessoal nem transforme em
+finding algo que o Prettier resolve, salvo arquivo fora do formatter ou gate falhando.
 
 ## Verificação
 

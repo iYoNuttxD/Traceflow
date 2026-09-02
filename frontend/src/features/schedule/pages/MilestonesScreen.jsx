@@ -22,6 +22,7 @@ import {
   toDateTimeLocalInput
 } from '../components/schedule-display.js';
 import { useScheduleData } from '../hooks/useScheduleData.js';
+import '../styles/schedule.css';
 
 export function MilestonesScreen() {
   const { projectId } = useParams();
@@ -162,6 +163,7 @@ export function MilestonesScreen() {
         description:
           `O marco "${milestone.title}" será marcado como concluído manualmente.` +
           (pendentes > 0 ? ` ${pendentes} sprint(s) deste marco ainda não foram concluídas.` : ''),
+        cancelLabel: 'Voltar',
         confirmLabel: 'Concluir marco',
         destructive: false
       });
@@ -243,7 +245,7 @@ export function MilestonesScreen() {
         </div>
         <ProjectSectionNav projectId={projectId} activeSection="milestones" />
       </header>
-      <FeedbackRegion error={error} success={success} notice={staleWarning} />
+      <FeedbackRegion error={error} success={success} warning={staleWarning} />
 
       <div className="schedule-columns schedule-columns--unica">
         {!somenteLeitura && (

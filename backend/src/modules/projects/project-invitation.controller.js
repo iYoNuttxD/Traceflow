@@ -1,6 +1,9 @@
 import { asyncHandler } from '../../shared/http/index.js';
 import { projectInvitationService } from './services/project-invitation.service.js';
 export const projectInvitationController = {
+  mine: asyncHandler(async (req, res) =>
+    res.json({ invitations: await projectInvitationService.listMine(req.auth.user) })
+  ),
   create: asyncHandler(async (req, res) =>
     res
       .status(201)
@@ -25,6 +28,11 @@ export const projectInvitationController = {
     );
     return res.status(204).end();
   }),
+  details: asyncHandler(async (req, res) =>
+    res.json({
+      invitation: await projectInvitationService.details(req.body.token, req.auth.user)
+    })
+  ),
   accept: asyncHandler(async (req, res) =>
     res.json({
       message: 'Convite aceito com sucesso.',
@@ -34,5 +42,25 @@ export const projectInvitationController = {
         req.requestId
       )
     })
-  )
+  ),
+  decline: asyncHandler(async (req, res) => {
+    await projectInvitationService.decline(req.body.token, req.auth.user, req.requestId);
+    return res.json({ message: 'Convite recusado.' });
+  }),
+  acceptMine: asyncHandler(async (req, res) => {
+    const membership = await projectInvitationService.acceptMine(
+      req.params.invitationId,
+      req.auth.user,
+      req.requestId
+    );
+    return res.json({ message: 'Convite aceito com sucesso.', membership });
+  }),
+  declineMine: asyncHandler(async (req, res) => {
+    await projectInvitationService.declineMine(
+      req.params.invitationId,
+      req.auth.user,
+      req.requestId
+    );
+    return res.json({ message: 'Convite recusado.' });
+  })
 };

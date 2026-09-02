@@ -18,15 +18,17 @@ import {
 
 let app;
 let prisma;
+let authService;
 let api;
 const sessionToken = 'e6-characterization-session-token';
-const csrfToken = 'e6-characterization-csrf-token';
+let csrfToken;
 const sha256 = (value) => createHash('sha256').update(value).digest('hex');
 
 beforeAll(async () => {
   const testDatabaseUrl = configureTestDatabaseEnvironment();
   deployTestMigrations(testDatabaseUrl);
   ({ prisma } = await import('../../src/database/prismaClient.js'));
+  ({ authService } = await import('../../src/modules/auth/auth.service.js'));
   ({ default: app } = await import('../../src/app.js'));
   await cleanTestDatabase(prisma);
 });
@@ -40,19 +42,22 @@ beforeEach(async () => {
   const user = await prisma.user.create({
     data: {
       name: 'Usuário E6 artificial',
+      username: 'usuario-e6-artificial',
       email: 'e6@example.invalid',
-      passwordHash: 'fixture-only'
+      passwordHash: 'fixture-only',
+      emailVerifiedAt: new Date()
     }
   });
-  await prisma.session.create({
+  const session = await prisma.session.create({
     data: {
       userId: user.id,
       tokenHash: sha256(sessionToken),
-      csrfTokenHash: sha256(csrfToken),
+      csrfTokenHash: sha256('legacy-csrf-placeholder'),
       sessionVersion: user.sessionVersion,
       expiresAt: new Date(Date.now() + 60000)
     }
   });
+  csrfToken = authService.csrfToken(session);
   setAuthenticatedFixtureUser(user.id);
   const secured = (method) => (path) => {
     const client = request(app);
@@ -81,9 +86,6 @@ function projectBody(suffix = 'a') {
     name: `Projeto HTTP ${suffix}`,
     description: 'Projeto fictício para caracterização',
     responsibleTeam: 'Equipe HTTP artificial',
-    githubOwner: 'fake-owner',
-    githubRepo: `fake-repo-${suffix}`,
-    githubUrl: `https://github.com/fake-owner/fake-repo-${suffix}`,
     status: 'ATIVO'
   };
 }
@@ -155,12 +157,10 @@ describe('contratos HTTP de projetos', () => {
       project: {
         name: 'Projeto HTTP create',
         responsibleTeam: 'Equipe HTTP artificial',
-        status: 'ATIVO',
-        githubOwner: 'fake-owner',
-        githubRepo: 'fake-repo-create'
+        status: 'ATIVO'
       }
     });
-    expect(response.body.project.accessCode).toMatch(/^TRC-/);
+    expect(response.body.project).not.toHaveProperty('accessCode');
   });
 
   it('preserva o erro 400 para body inválido', async () => {
@@ -200,8 +200,14 @@ describe('contratos HTTP de projetos', () => {
   it('preserva 404 e o formato de erro para projeto inexistente', async () => {
     const response = await api.get('/api/projects/999999');
 
-    expect(response.status).toBe(404);
-    expect(response.body).toEqual({ message: 'Projeto não encontrado.' });
+    expect(response).toMatchObject({
+      status: 404,
+      body: {
+        message: 'Recurso não encontrado.',
+        code: 'RESOURCE_NOT_FOUND',
+        requestId: expect.any(String)
+      }
+    });
   });
 });
 
@@ -659,8 +665,7 @@ describe('Kanban e histórico', () => {
         taskId: task.id,
         fromStatus: 'A_FAZER',
         toStatus: 'EM_ANDAMENTO',
-        movedBy: 'Usuário E6 artificial',
-        projectMemberId: null
+        movedBy: 'Usuário E6 artificial'
       }
     });
 
@@ -716,7 +721,8 @@ describe('Kanban e histórico', () => {
 
     await api.patch(`/api/tasks/${task.id}/move`).send({ toStatus: 'EM_ANDAMENTO' });
     const movement = await prisma.taskMovement.findFirst({ where: { taskId: task.id } });
-    expect(movement).toMatchObject({ movedBy: 'Usuário E6 artificial', projectMemberId: null });
+    expect(movement).toMatchObject({ movedBy: 'Usuário E6 artificial' });
+    expect(movement).not.toHaveProperty('projectMemberId');
     expect(movement.movedByUserId).not.toBeNull();
   });
 
@@ -725,6 +731,7 @@ describe('Kanban e histórico', () => {
     const responsible = await prisma.user.create({
       data: {
         name: 'Responsável E11',
+        username: 'responsavel-e11',
         email: 'responsavel-e11@example.invalid',
         passwordHash: 'fixture-only'
       }
@@ -778,6 +785,7 @@ describe('Kanban e histórico', () => {
     const outsideUser = await prisma.user.create({
       data: {
         name: 'Responsável externo',
+        username: 'responsavel-externo-e11',
         email: 'responsavel-externo-e11@example.invalid',
         passwordHash: 'fixture-only'
       }
@@ -1077,6 +1085,7 @@ describe('matriz e detalhe de rastreabilidade', () => {
 
 describe('validação HTTP negativa da E4', () => {
   it('valida IDs, URL, boolean, e-mail, accessCode e campos de Projects', async () => {
+    const project = await createProject(prisma);
     expectValidationError(await api.get('/api/projects/invalido'), 'id');
 
     expectValidationError(
@@ -1087,16 +1096,17 @@ describe('validação HTTP negativa da E4', () => {
     );
     expectValidationError(
       await api
-        .patch('/api/projects/1/github/sync-settings')
+        .patch(`/api/projects/${project.id}/github/sync-settings`)
         .send({ githubAutoSyncEnabled: 'true' }),
       'githubAutoSyncEnabled'
     );
-    expectValidationError(
-      await api
-        .post('/api/projects/1/members')
-        .send({ name: 'Pessoa', email: 'invalido', role: 'MEMBRO' }),
-      'email'
-    );
+    const removedMemberRoute = await api
+      .post(`/api/projects/${project.id}/members`)
+      .send({ name: 'Pessoa', email: 'invalido', role: 'MEMBRO' });
+    expect(removedMemberRoute).toMatchObject({
+      status: 404,
+      body: { code: 'ROUTE_NOT_FOUND' }
+    });
     expectValidationError(
       await api.post('/api/projects/join').send({ accessCode: '', name: 'Pessoa' }),
       'accessCode'
@@ -1108,73 +1118,104 @@ describe('validação HTTP negativa da E4', () => {
   });
 
   it('valida entradas de Requirements sem alterar erros de domínio', async () => {
+    const project = await createProject(prisma);
+    const requirement = await createRequirement(prisma, project.id);
     expectValidationError(await api.get('/api/requirements/invalido'), 'id');
     expectValidationError(
-      await api.post('/api/projects/1/requirements').send({ title: '' }),
+      await api.post(`/api/projects/${project.id}/requirements`).send({ title: '' }),
       'title'
     );
     expectValidationError(
-      await api.post('/api/projects/1/requirements').send({ title: 'RF', type: 'OUTRO' }),
+      await api
+        .post(`/api/projects/${project.id}/requirements`)
+        .send({ title: 'RF', type: 'OUTRO' }),
       'type'
     );
     expectValidationError(
-      await api.patch('/api/requirements/1/status').send({ status: 'OUTRO' }),
+      await api.patch(`/api/requirements/${requirement.id}/status`).send({ status: 'OUTRO' }),
       'status'
     );
     expectValidationError(
-      await api.get(`/api/projects/1/requirements?search=${'a'.repeat(256)}`),
+      await api.get(`/api/projects/${project.id}/requirements?search=${'a'.repeat(256)}`),
       'search'
     );
     expectValidationError(
-      await api.post('/api/projects/1/requirements').send({ title: 'RF', segredo: 'nao-retornar' }),
+      await api
+        .post(`/api/projects/${project.id}/requirements`)
+        .send({ title: 'RF', segredo: 'nao-retornar' }),
       'segredo'
     );
   });
 
   it('valida entradas de Tasks, vínculos e filtros', async () => {
+    const project = await createProject(prisma);
+    const task = await createTask(prisma, project.id);
     expectValidationError(await api.get('/api/tasks/1.5'), 'id');
-    expectValidationError(await api.post('/api/projects/1/tasks').send({ title: '' }), 'title');
     expectValidationError(
-      await api.post('/api/projects/1/tasks').send({ title: 'Tarefa', estimatedEffort: -1 }),
+      await api.post(`/api/projects/${project.id}/tasks`).send({ title: '' }),
+      'title'
+    );
+    expectValidationError(
+      await api
+        .post(`/api/projects/${project.id}/tasks`)
+        .send({ title: 'Tarefa', estimatedEffort: -1 }),
       'estimatedEffort'
     );
     expectValidationError(
-      await api.post('/api/projects/1/tasks').send({ title: 'Tarefa', deadline: '2026-02-30' }),
+      await api
+        .post(`/api/projects/${project.id}/tasks`)
+        .send({ title: 'Tarefa', deadline: '2026-02-30' }),
       'deadline'
     );
     expectValidationError(
-      await api.post('/api/projects/1/tasks').send({ title: 'Tarefa', priority: 'URGENTE' }),
+      await api
+        .post(`/api/projects/${project.id}/tasks`)
+        .send({ title: 'Tarefa', priority: 'URGENTE' }),
       'priority'
     );
     expectValidationError(
-      await api.patch('/api/tasks/1/status').send({ status: 'OUTRO' }),
+      await api.patch(`/api/tasks/${task.id}/status`).send({ status: 'OUTRO' }),
       'status'
     );
     expectValidationError(
-      await api.patch('/api/tasks/1/requirement').send({ requirementId: 'abc' }),
+      await api.patch(`/api/tasks/${task.id}/requirement`).send({ requirementId: 'abc' }),
       'requirementId'
     );
-    expectValidationError(await api.post('/api/tasks/1/commits').send({ commitId: 0 }), 'commitId');
-    expectValidationError(await api.post('/api/tasks/1/issues').send({ issueId: -2 }), 'issueId');
     expectValidationError(
-      await api.get('/api/projects/1/tasks/metrics?startDate=2026-12-31&endDate=2026-01-01'),
+      await api.post(`/api/tasks/${task.id}/commits`).send({ commitId: 0 }),
+      'commitId'
+    );
+    expectValidationError(
+      await api.post(`/api/tasks/${task.id}/issues`).send({ issueId: -2 }),
+      'issueId'
+    );
+    expectValidationError(
+      await api.get(
+        `/api/projects/${project.id}/tasks/metrics?startDate=2026-12-31&endDate=2026-01-01`
+      ),
       'endDate'
     );
     expectValidationError(
-      await api.post('/api/projects/1/tasks').send({ title: 'Tarefa', campoInventado: true }),
+      await api
+        .post(`/api/projects/${project.id}/tasks`)
+        .send({ title: 'Tarefa', campoInventado: true }),
       'campoInventado'
     );
   });
 
   it('valida GitHub, Artifacts e Traceability sem acessar dependências', async () => {
+    const project = await createProject(prisma);
     expectValidationError(await api.get('/api/projects/x/commits'), 'projectId');
     expectValidationError(
-      await api.get(`/api/projects/1/issues?search=${'a'.repeat(256)}`),
+      await api.get(`/api/projects/${project.id}/issues?search=${'a'.repeat(256)}`),
       'search'
     );
-    expectValidationError(await api.get('/api/projects/1/artifacts?type=branch'), 'type');
     expectValidationError(
-      await api.get('/api/projects/1/artifacts?startDate=2026-02-30'),
+      await api.get(`/api/projects/${project.id}/artifacts?type=branch`),
+      'type'
+    );
+    expectValidationError(
+      await api.get(`/api/projects/${project.id}/artifacts?startDate=2026-02-30`),
       'startDate'
     );
     expectValidationError(
@@ -1182,7 +1223,7 @@ describe('validação HTTP negativa da E4', () => {
       'projectId'
     );
     expectValidationError(
-      await api.get('/api/projects/1/traceability/requirements/x'),
+      await api.get(`/api/projects/${project.id}/traceability/requirements/x`),
       'requirementId'
     );
   });
@@ -1219,7 +1260,8 @@ describe('baseline dos endpoints 501', () => {
   });
 
   it('remove o placeholder GitHub redundante sem afetar o endpoint canônico de artifacts', async () => {
-    const response = await api.get('/api/projects/1/github/artifacts');
+    const project = await createProject(prisma);
+    const response = await api.get(`/api/projects/${project.id}/github/artifacts`);
     expect(response.status).toBe(404);
     expect(response.body.code).toBe('ROUTE_NOT_FOUND');
   });

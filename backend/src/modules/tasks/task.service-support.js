@@ -37,7 +37,13 @@ export async function ensureIssueExists(id) {
 }
 
 export function formatCommit(commit) {
-  return commit ? { ...commit, shortHash: commit.hash ? commit.hash.slice(0, 7) : null } : null;
+  if (!commit) return null;
+  const { branchLinks = [], ...data } = commit;
+  return {
+    ...data,
+    shortHash: commit.hash ? commit.hash.slice(0, 7) : null,
+    branches: branchLinks.map(({ branch }) => branch.name)
+  };
 }
 export function formatIssue(issue) {
   return issue || null;
@@ -87,7 +93,6 @@ export function formatMovement(movement) {
     taskTitle: movement.task?.title || null,
     fromStatus: movement.fromStatus,
     toStatus: movement.toStatus,
-    projectMemberId: null,
     movedBy: movement.movedByUser?.name || movement.movedBy,
     movedByUser: movement.movedByUser || null,
     movedAt: movement.movedAt,

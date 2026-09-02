@@ -1,9 +1,6 @@
 import { prisma } from '../../database/prismaClient.js';
 
 export const authorizationRepository = {
-  projectExists(projectId) {
-    return prisma.project.findUnique({ where: { id: projectId }, select: { id: true } });
-  },
   membership(projectId, userId) {
     return prisma.projectMembership.findFirst({ where: { projectId, userId, isActive: true } });
   },

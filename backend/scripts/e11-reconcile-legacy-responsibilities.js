@@ -24,16 +24,33 @@ const mappingPath = resolve(process.cwd(), '.local/e11-task-responsibility-mappi
 const { prisma } = await import('../src/database/prismaClient.js');
 
 try {
-  let mappings = [];
-  try {
-    mappings = JSON.parse(await readFile(mappingPath, 'utf8')).mappings || [];
-  } catch (error) {
-    if (error.code !== 'ENOENT') throw error;
-  }
-  const report = await runE11LegacyReconciliation({ client: prisma, mappings, apply });
-  process.stdout.write(
-    `${JSON.stringify({ target: sanitizedDatabaseTarget(target), ...report }, null, 2)}\n`
+  const legacyColumns = await prisma.$queryRawUnsafe(
+    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = 'TaskMovement'
+       AND COLUMN_NAME = 'projectMemberId'`
   );
+  if (legacyColumns.length === 0) {
+    process.stdout.write(
+      `${JSON.stringify({
+        mode: 'not-applicable',
+        target: sanitizedDatabaseTarget(target),
+        reason: 'LR2_CONTRACT_APPLIED',
+        message: 'projectMemberId não existe no schema atual; a reconciliação E11 precede a LR.2.'
+      })}\n`
+    );
+  } else {
+    let mappings = [];
+    try {
+      mappings = JSON.parse(await readFile(mappingPath, 'utf8')).mappings || [];
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+    const report = await runE11LegacyReconciliation({ client: prisma, mappings, apply });
+    process.stdout.write(
+      `${JSON.stringify({ target: sanitizedDatabaseTarget(target), ...report }, null, 2)}\n`
+    );
+  }
 } finally {
   await prisma.$disconnect();
 }

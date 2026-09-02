@@ -26,17 +26,28 @@ export const membersApi = {
     return (await httpClient.get(`/projects/${projectId}/invitations`, options)).data.invitations;
   },
   async invite(projectId, data) {
-    return (await httpClient.post(`/projects/${projectId}/invitations`, data)).data.invitation;
+    return (await httpClient.post(`/projects/${projectId}/invitations`, data)).data;
   },
   revokeInvitation(projectId, invitationId) {
     return httpClient.delete(`/projects/${projectId}/invitations/${invitationId}`);
   },
-  listProjectMembers(projectId, options = {}) {
-    return httpClient.get(`/projects/${projectId}/members`, options);
+  async invitationDetails(token) {
+    return (await httpClient.post('/projects/invitations/details', { token })).data.invitation;
   },
-  joinProject(data) {
-    return httpClient.post('/projects/join', data);
+  async acceptInvitation(token) {
+    return (await httpClient.post('/projects/invitations/accept', { token })).data;
+  },
+  declineInvitation(token) {
+    return httpClient.post('/projects/invitations/decline', { token });
+  },
+  async joinProject(data) {
+    return (await httpClient.post('/projects/join', data)).data;
+  },
+  async joinDetails(accessCode) {
+    return (
+      await httpClient.get('/projects/join/details', {
+        params: { accessCode }
+      })
+    ).data.details;
   }
 };
-
-export const projectMembersApi = membersApi;

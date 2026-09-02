@@ -1,8 +1,6 @@
 import { z } from 'zod';
 import {
   INPUT_LIMITS,
-  email,
-  githubUrl,
   optionalText,
   positiveInteger,
   requiredText,
@@ -13,8 +11,6 @@ const projectStatus = z.enum(['ATIVO', 'INATIVO', 'ARQUIVADO'], {
   error: 'Status inválido. Use ATIVO, INATIVO ou ARQUIVADO.'
 });
 const optionalProjectText = (field) => optionalText({ field });
-const githubOwner = requiredText({ field: 'githubOwner' });
-const githubRepositoryName = requiredText({ field: 'githubRepositoryName' });
 const repositoryId = z
   .union([z.string(), z.number().int()])
   .transform(String)
@@ -28,61 +24,42 @@ export const projectProjectIdParamsSchema = strictObject({
   projectId: positiveInteger('ID do projeto inválido.')
 });
 
-const repositoryShape = {
-  githubOwner: requiredText({ field: 'githubOwner' }),
-  githubRepo: requiredText({ field: 'githubRepo' }),
-  githubUrl
-};
-
 export const createProjectBodySchema = strictObject({
   name: requiredText({ message: 'O nome do projeto é obrigatório.' }),
   description: optionalProjectText('Descrição'),
   responsibleTeam: requiredText({ message: 'A equipe responsável é obrigatória.' }),
-  status: projectStatus.optional(),
-  ...repositoryShape
+  status: projectStatus.optional()
 });
 
 export const updateProjectBodySchema = strictObject({
   name: requiredText({ message: 'O nome do projeto é obrigatório.' }).optional(),
   description: optionalProjectText('Descrição'),
   responsibleTeam: requiredText({ message: 'A equipe responsável é obrigatória.' }).optional(),
-  status: projectStatus.optional(),
-  githubOwner: repositoryShape.githubOwner.optional(),
-  githubRepo: repositoryShape.githubRepo.optional(),
-  githubUrl: githubUrl.optional()
+  status: projectStatus.optional()
 });
 
 export const createProjectFromGithubBodySchema = strictObject({
+  githubInstallationId: z.string().regex(/^\d+$/, 'ID da instalação inválido.'),
   githubRepositoryId: repositoryId,
-  githubOwner,
-  githubRepositoryName,
-  githubRepositoryFullName: requiredText({ field: 'githubRepositoryFullName' }),
-  githubRepositoryUrl: githubUrl,
-  githubDefaultBranch: requiredText({ field: 'githubDefaultBranch' }),
   name: optionalProjectText('Nome'),
-  nome: optionalProjectText('Nome'),
   description: optionalProjectText('Descrição'),
-  responsibleTeam: optionalProjectText('Equipe responsável'),
-  githubAutoSyncEnabled: z
-    .boolean({ error: 'githubAutoSyncEnabled deve ser um valor booleano.' })
-    .optional()
+  responsibleTeam: optionalProjectText('Equipe responsável')
 });
-
-const memberFields = {
-  name: requiredText({ message: 'O nome do membro é obrigatório.' }),
-  email: z.union([email, z.literal('').transform(() => null), z.null()]).optional(),
-  role: optionalText({ field: 'Papel' })
-};
-
-export const addProjectMemberBodySchema = strictObject(memberFields);
 
 export const joinProjectBodySchema = strictObject({
   accessCode: requiredText({
     field: 'Código de acesso',
     max: INPUT_LIMITS.accessCode,
     message: 'Informe o código de acesso do projeto.'
-  }).transform((value) => value.toUpperCase()),
-  ...memberFields
+  }).transform((value) => value.toUpperCase())
+});
+
+export const joinProjectDetailsQuerySchema = joinProjectBodySchema;
+
+export const accessCodeRoleBodySchema = strictObject({
+  role: z.enum(['MEMBER', 'VIEWER'], {
+    error: 'O perfil do código deve ser Membro ou Visualizador.'
+  })
 });
 
 export const githubSyncSettingsBodySchema = strictObject({
