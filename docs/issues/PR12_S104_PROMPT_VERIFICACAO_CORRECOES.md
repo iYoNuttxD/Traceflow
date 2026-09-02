@@ -123,7 +123,11 @@ movimentação, com revalidação do estado terminal e da associação atual, ma
 - `lockProject(tx, task.projectId)` é a **primeira** instrução da transação;
 - a Sprint é travada com `FOR UPDATE` **antes** da Task, e a Task também com `FOR UPDATE`;
 - existe a guarda `if (sprintAtual !== sprintId) return { conflict: true }`;
-- `TaskMovement.sprintId` e o `fromStatus` vêm da releitura, não do parâmetro `task`;
+- `TaskMovement.sprintId` vem da releitura (`sprintAtual`), não do parâmetro `task`;
+- `fromStatus` e `fromValue`, ao contrário, usam `task.status` — e **isso está certo**. O predicado
+  do `updateMany` fixa `status: task.status`, então quando a escrita passa os dois valores são o
+  mesmo; trocar por um status relido quebraria a proteção descrita no ponto de atenção abaixo. Não
+  reporte como achado;
 - `validate` é chamado **depois** dos locks e **antes** do `updateMany`.
 
 Em `backend/src/modules/tasks/services/task-kanban.service.js`, confirme que a regra terminal
@@ -335,10 +339,38 @@ Confirme que **dois comportamentos corretos foram preservados**:
 cd frontend && npx vitest run test/pages/KanbanPage.test.jsx
 ```
 
-**(d) Quebre:** remova o guard `if (!resultado || !atual()) return;`.
-**Esperado:** `resposta do projeto anterior nao sobrescreve quadro, catalogo nem filtro` fica vermelho.
+**(d) Quebre — atenção, aqui o corte óbvio não funciona.** Remover o guard
+`if (!resultado || !atual()) return;` **deixa a suíte verde**, e isso não é falha do teste: nesta
+tela `loadRequest` é instância única de `useAbortableRequest`, e `run` já aborta a chamada anterior
+a cada reentrada. A carga do projeto antigo resolve como `undefined`, e o `if (!resultado)` sozinho
+barra a escrita. O mesmo vale para o guard do `finally`. **Não reporte isso como `TESTE INÓCUO`** —
+a auditoria de 01/09/2026 já mediu: cortar `!atual()` no sucesso e no `finally` mantém os 17 testes
+verdes.
 
-**(e) Restaure.**
+O corte que prova a correção é voltar a tela ao estado do HEAD revisado, sem abort algum:
+
+```bash
+cp frontend/src/features/tasks/pages/KanbanScreen.jsx /tmp/audit-i3.jsx
+git show 9548a2c8395d5fa948c83ca4e05d75b58937e961:frontend/src/features/tasks/pages/KanbanScreen.jsx \
+  > frontend/src/features/tasks/pages/KanbanScreen.jsx
+cd frontend && npx vitest run test/pages/KanbanPage.test.jsx
+```
+
+**Esperado:** `resposta do projeto anterior nao sobrescreve quadro, catalogo nem filtro` fica
+vermelho — 1 falha em 17.
+
+**(e) Restaure** com `cp /tmp/audit-i3.jsx frontend/src/features/tasks/pages/KanbanScreen.jsx`.
+
+**(f) O que fica sem prova.** O corte de (d) demonstra que a tela deixou de aceitar resposta fora de
+contexto, mas **não separa** qual mecanismo entregou isso: o abort ou o token de geração. Como o
+abort sozinho já resolve o cenário testado, o token de `KanbanScreen` é defesa em profundidade sem
+caminho conhecido que o exercite. Registre isso no veredito como lacuna de cobertura, não como
+defeito — o comportamento está correto.
+
+> **Isto não vale para `useScheduleData`.** Lá o token é carga viva e coberto: os três refreshes têm
+> instância própria de `useAbortableRequest`, então o `run` do `loadAll` não os cancela, e o
+> `setLoading(false)` do `finally` da carga antiga derruba o loading da nova se não for guardado —
+> é exatamente o corte da §3.3, que fica vermelho. Não generalize a conclusão desta seção para lá.
 
 ---
 
@@ -439,7 +471,8 @@ Se algum teste assumir 7, a mudança quebrou semântica em vez de destravar ambi
 Responda cada uma com evidência, não com impressão:
 
 1. Cada um dos três blockers do parecer está resolvido no código, e há teste que fica **vermelho**
-   quando o fix é removido?
+   quando o fix é removido? (I3 é a exceção conhecida: ver §3.6(f) — o corte precisa remover o
+   abort, não o token de geração.)
 2. A proteção otimista de `409` no movimento concorrente sobreviveu à mudança de lock?
 3. O aviso de refresh consegue, sozinho, comunicar que a ação foi concluída — dado que o
    `FeedbackRegion` mostra uma mensagem por vez?
