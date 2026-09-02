@@ -66,8 +66,8 @@ revalidação.
 
 <!-- INVENTORY_COUNTS_START -->
 
-- Total surfaces: 92
-- `C2 COMPLETE`: 70
+- Total surfaces: 107
+- `C2 COMPLETE`: 85
 - `LEGACY`: 10
 - `HYBRID`: 12
 - `NOT REVIEWED`: 0
@@ -78,7 +78,8 @@ revalidação.
 | Global / Shell                |    12 |  12 |      0 |      0 |            0 |
 | Auth and Account Lifecycle    |    15 |  15 |      0 |      0 |            0 |
 | Projects                      |    21 |  21 |      0 |      0 |            0 |
-| Tasks and Kanban              |    10 |   1 |      4 |      5 |            0 |
+| Tasks and Kanban              |    11 |   2 |      4 |      5 |            0 |
+| Planning                      |    14 |  14 |      0 |      0 |            0 |
 | Requirements and Traceability |     9 |   1 |      3 |      5 |            0 |
 | Repository / GitHub           |     4 |   0 |      2 |      2 |            0 |
 | Settings and Remaining        |    21 |  20 |      1 |      0 |            0 |
@@ -86,8 +87,8 @@ revalidação.
 Validation evidence:
 
 - `VISUALLY APPROVED`: 39
-- `TECHNICALLY VERIFIED`: 48
-- `STRUCTURALLY IDENTIFIED`: 5
+- `TECHNICALLY VERIFIED`: 62
+- `STRUCTURALLY IDENTIFIED`: 6
 - `ENVIRONMENT BLOCKED`: 0
 - `NOT VALIDATED`: 0
 
@@ -184,6 +185,34 @@ identificados estruturalmente.
 | `KANBAN-TASK-DETAIL-DIALOG`     | Kanban | Task detail      | Kanban main                   | Detalhe da tarefa                        | Dialog                 | `frontend/src/features/tasks/components/TaskDetailsPanel.jsx` | Seleção de card                  | VIEWER+; mutations MEMBER+             | Open, linked artifacts empty/list, unlink actions, delete loading e close      | Legacy preservado                   | Compatibilidade Dark implementada; redesign adiado | UNKNOWN                              | PARTIAL: dialog nomeado; trap/Escape/return focus não evidenciados | LEGACY        | TECHNICALLY VERIFIED    | P1       | UX-TASKS-KANBAN | Overlay usa `--z-modal`; convergência futura de foco/dialog permanece no redesign.    |
 | `KANBAN-MOVEMENT-HISTORY`       | Kanban | History          | Kanban main                   | Histórico e filtros                      | Section / State        | `frontend/src/features/tasks/components/MovementHistory.jsx`  | Scroll após board                | VIEWER+                                | Filters, empty, list, pagination e load errors inline                          | Light legado preservado             | Compatibilidade Dark implementada; redesign adiado | LEGACY                               | PARTIAL                                                            | HYBRID        | TECHNICALLY VERIFIED    | P1       | UX-TASKS-KANBAN | RF38.                                                                                 |
 | `KANBAN-INVALID-STATUS-WARNING` | Kanban | Data consistency | Kanban main                   | Aviso de status fora do quadro           | Warning state          | `KanbanScreen.jsx`                                            | Totais divergentes               | VIEWER+                                | Warning                                                                        | Primitive global em conteúdo legado | Primitive global em conteúdo legado                | IMPLEMENTED / NOT VISUALLY VALIDATED | PARTIAL: mensagem semântica visual, sem `role` explícito           | HYBRID        | STRUCTURALLY IDENTIFIED | P2       | UX-TASKS-KANBAN | Não altera o status; apenas informa inconsistência retornada.                         |
+
+## Planning (Sprints, Milestones, Schedule)
+
+Dominio entregue no card S1-04 (RF10 e RF35). As surfaces usam o AppShell, os tokens e as
+primitives canonicas — `ConfirmDialog`, `FeedbackRegion`, `AsyncState` — e o CSS e owner-scoped,
+sem reintroducao de CSS global legado. A cobertura declarada vem dos testes direcionados de
+`frontend/test/features`; **nenhuma destas surfaces foi renderizada em homologacao**, entao Light,
+Dark, responsividade e alvos de toque permanecem `TECHNICALLY VERIFIED` e nenhuma recebe
+`VISUALLY APPROVED` ate constar do
+[Visual Validation Log](validation/VISUAL_VALIDATION_LOG.md).
+
+| ID | Domain | Flow | Route / Context | Surface | Type | Component / Owner | Trigger | Roles | States | Light | Dark | Responsive | Accessibility | Visual Status | Validation Status | Priority | Target UX Scope | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `SPRINTS-MAIN` | Planning | Sprint management | `/projects/:projectId/sprints` | Página de sprints | Page | `frontend/src/features/schedule/pages/SprintsScreen.jsx` | Tab Sprints | VIEWER, MEMBER, MANAGER, OWNER | Loading, forbidden, fatal error, content, feedback e stale warning | Tokens C2 herdados do shell | Tokens C2 herdados do shell | IMPLEMENTED / NOT VISUALLY VALIDATED | PARTIAL: labels, `focus-visible` e navegação por teclado cobertos por teste | C2 COMPLETE | TECHNICALLY VERIFIED | P2 | UX-TASKS-KANBAN | RF10/RF35. Homologação renderizada pendente. |
+| `SPRINTS-CREATE-EDIT-FORM` | Planning | Sprint CRUD | Sprints main | Cadastrar/editar sprint | Form state | `SprintForm.jsx` | Página ou ação Editar | MEMBER, MANAGER, OWNER; VIEWER sem formulário | Create, edit, validation, submitting e cancel | Tokens C2 herdados do shell | Tokens C2 herdados do shell | IMPLEMENTED / NOT VISUALLY VALIDATED | PARTIAL: labels e erros associados ao campo | C2 COMPLETE | TECHNICALLY VERIFIED | P2 | UX-TASKS-KANBAN | Marco é obrigatório na criação (ADR-011); ausência devolve `SPRINT_MILESTONE_REQUIRED`. |
+| `SPRINTS-LIST-AND-EMPTY` | Planning | Sprint browsing | Sprints main | Lista de sprints | List / Empty state | `SprintList.jsx`, `SprintActionsMenu.jsx` | Carga concluída | VIEWER+ | Empty, list, ações por sprint, sprint congelada somente leitura e busy | Tokens C2 herdados do shell | Tokens C2 herdados do shell | IMPLEMENTED / NOT VISUALLY VALIDATED | PARTIAL: menu de ações por teclado; chave de lista duplicada em S104-F18 | C2 COMPLETE | TECHNICALLY VERIFIED | P2 | UX-TASKS-KANBAN | Exclusão de sprint não existe por decisão de domínio (ADR-010 D06). |
+| `SPRINTS-SCOPE-PANEL` | Planning | Sprint scope | Sprints main | Tarefas da sprint | Section / State | `SprintTasksPanel.jsx` | Seleção de sprint | VIEWER leitura; MEMBER+ altera | Loading, empty, seleção, limite de 100, submitting e erro inline | Tokens C2 herdados do shell | Tokens C2 herdados do shell | IMPLEMENTED / NOT VISUALLY VALIDATED | PARTIAL | C2 COMPLETE | TECHNICALLY VERIFIED | P2 | UX-TASKS-KANBAN | RF35. Escopo de sprint encerrada é registro imutável. |
+| `SPRINTS-PROGRESS-PANEL` | Planning | Sprint progress | Sprints main | Evolução da sprint | Section / Chart | `SprintProgressPanel.jsx`, `SprintBurndownChart.jsx` | Ação Ver evolução | VIEWER+ | Loading, sem dados, percentuais, burndown e erro inline | Tokens C2 herdados do shell | Tokens C2 herdados do shell | IMPLEMENTED / NOT VISUALLY VALIDATED | PARTIAL: gráfico depende de rótulo textual associado | C2 COMPLETE | STRUCTURALLY IDENTIFIED | P2 | UX-TASKS-KANBAN | RF35. `hasData: false` é estado próprio e não erro. |
+| `SPRINTS-TERMINAL-CONFIRM` | Planning | Sprint transition | Sprints main | Confirmação de encerramento | Confirmation dialog | `SprintsScreen.jsx`, `ConfirmDialog.jsx` | Concluir ou cancelar sprint | MEMBER, MANAGER, OWNER | Cancel/confirm, contagem de tarefas que voltam ao backlog, processing | Tokenizado | Tokenizado | IMPLEMENTED / NOT VISUALLY VALIDATED | VERIFIED pela primitive | C2 COMPLETE | TECHNICALLY VERIFIED | P2 | UX-TASKS-KANBAN | Transição terminal congela a composição; a confirmação declara o efeito. |
+| `MILESTONES-MAIN` | Planning | Milestone management | `/projects/:projectId/milestones` | Página de marcos | Page | `frontend/src/features/schedule/pages/MilestonesScreen.jsx` | Tab Marcos | VIEWER, MEMBER, MANAGER, OWNER | Loading, forbidden, fatal error, content, feedback e stale warning | Tokens C2 herdados do shell | Tokens C2 herdados do shell | IMPLEMENTED / NOT VISUALLY VALIDATED | PARTIAL | C2 COMPLETE | TECHNICALLY VERIFIED | P2 | UX-TASKS-KANBAN | RF10. Homologação renderizada pendente. |
+| `MILESTONES-CREATE-EDIT-FORM` | Planning | Milestone CRUD | Milestones main | Cadastrar/editar marco | Form state | `MilestoneForm.jsx` | Página ou ação Editar | MEMBER, MANAGER, OWNER | Create, edit, seleção de sprints, validation, submitting, cancel e sucesso parcial | Tokens C2 herdados do shell | Tokens C2 herdados do shell | IMPLEMENTED / NOT VISUALLY VALIDATED | PARTIAL | C2 COMPLETE | TECHNICALLY VERIFIED | P2 | UX-TASKS-KANBAN | A reassociação de sprints é sequencial; o sucesso parcial é declarado (S104-F13). |
+| `MILESTONES-LIST-AND-EMPTY` | Planning | Milestone browsing | Milestones main | Lista de marcos | List / Empty state | `MilestoneList.jsx` | Carga concluída | VIEWER+ | Empty, list, progresso por sprints, exclusão desabilitada com motivo e busy | Tokens C2 herdados do shell | Tokens C2 herdados do shell | IMPLEMENTED / NOT VISUALLY VALIDATED | PARTIAL: `title` explica a exclusão bloqueada | C2 COMPLETE | TECHNICALLY VERIFIED | P2 | UX-TASKS-KANBAN | Exclusão bloqueada quando o marco ainda agrupa sprints (`MILESTONE_HAS_SPRINTS`). |
+| `MILESTONES-COMPLETE-CONFIRM` | Planning | Milestone status | Milestones main | Confirmação de conclusão | Confirmation dialog | `MilestonesScreen.jsx`, `ConfirmDialog.jsx` | Concluir marco | MEMBER, MANAGER, OWNER | Cancel/confirm, contagem de sprints pendentes, processing | Tokenizado | Tokenizado | IMPLEMENTED / NOT VISUALLY VALIDATED | VERIFIED pela primitive | C2 COMPLETE | TECHNICALLY VERIFIED | P2 | UX-TASKS-KANBAN | Reabrir não confirma: é reversível e não afirma entrega. |
+| `MILESTONES-DELETE-CONFIRM` | Planning | Delete milestone | Milestones main | Confirmação de exclusão | Confirmation dialog | `MilestonesScreen.jsx`, `ConfirmDialog.jsx` | Excluir marco | MEMBER, MANAGER, OWNER | Cancel/confirm, processing, success/error | Tokenizado | Tokenizado | IMPLEMENTED / NOT VISUALLY VALIDATED | VERIFIED pela primitive | C2 COMPLETE | TECHNICALLY VERIFIED | P2 | UX-TASKS-KANBAN | Hard delete: a confirmação declara que a ação não pode ser desfeita. |
+| `SCHEDULE-MAIN` | Planning | Schedule overview | `/projects/:projectId/schedule` | Cronograma do projeto | Page | `frontend/src/features/schedule/pages/ScheduleScreen.jsx` | Tab Cronograma | VIEWER, MEMBER, MANAGER, OWNER | Loading, forbidden, fatal error, mês vazio e conteúdo | Tokens C2 herdados do shell | Tokens C2 herdados do shell | IMPLEMENTED / NOT VISUALLY VALIDATED | PARTIAL | C2 COMPLETE | TECHNICALLY VERIFIED | P2 | UX-TASKS-KANBAN | RF10. O recorte é o mês exibido; `from`/`to` seguem sem consumidor (S104-F12). |
+| `SCHEDULE-CALENDAR-MARKERS` | Planning | Schedule browsing | Schedule main | Calendário e marcadores | Interactive state | `ScheduleCalendar.jsx` | Navegação de mês ou clique no marcador | VIEWER+ | Mês vazio, marcadores de início/fim de sprint e prazo de marco, marcador aberto/fechado | Tokens C2 herdados do shell | Tokens C2 herdados do shell | IMPLEMENTED / NOT VISUALLY VALIDATED | PARTIAL: navegação por teclado nos marcadores; chave duplicada em S104-F18 | C2 COMPLETE | TECHNICALLY VERIFIED | P2 | UX-TASKS-KANBAN | Abrir um marcador fecha o anterior; não catalogar cada dia como surface. |
+| `PLANNING-STALE-REFRESH-WARNING` | Planning | Post-mutation refresh | Sprints e Milestones main | Aviso de dados desatualizados | Warning state | `useScheduleData.js`, `FeedbackRegion.jsx` | Mutation confirmada com refresh recusado | MEMBER, MANAGER, OWNER | Warning com instrução de recarregar | Tokenizado pela primitive | Tokenizado pela primitive | IMPLEMENTED / NOT VISUALLY VALIDATED | VERIFIED: a variante `warning` da primitive usa `role` de alerta | C2 COMPLETE | TECHNICALLY VERIFIED | P2 | UX-TASKS-KANBAN | Estado criado para separar sucesso de mutation de falha de refresh; não afirma que a ação falhou. |
+| `KANBAN-SPRINT-FILTER` | Kanban | Board filtering | Kanban main | Filtro por sprint | Inline state | `KanbanSprintFilter.jsx` | Ação Selecionar sprints | VIEWER+ | Fechado, aberto, sem sprints, seleção múltipla, sprint congelada rotulada e limpar | Tokens C2 herdados do shell | Tokens C2 herdados do shell | IMPLEMENTED / NOT VISUALLY VALIDATED | PARTIAL: checkboxes rotulados; resumo da seleção anunciado | C2 COMPLETE | TECHNICALLY VERIFIED | P2 | UX-TASKS-KANBAN | Adicionado nesta PR. O filtro viaja na URL; ids inexistentes são descartados. |
 
 ## Requirements and Traceability
 
