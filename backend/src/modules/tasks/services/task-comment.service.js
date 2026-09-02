@@ -1,16 +1,17 @@
 import { taskCommentRepository } from '../repositories/task-comment.repository.js';
-import { TaskServiceError, buildPagination, parseTaskId } from '../task.schema.js';
+import { TaskServiceError, parseTaskId } from '../task.schema.js';
 import { ensureTaskExists } from '../task.service-support.js';
 import { buildAuditEvent } from '../../audit/audit.service.js';
+import { logger } from '../../../shared/logger/index.js';
+import { PROJECT_EVENT_TYPES, projectEventPublisher } from '../../../shared/events/index.js';
+import { canModerateTaskComments, formatTaskComment } from './task-comment.presenter.js';
+import {
+  decodeTaskCommentCursor,
+  encodeTaskCommentCursor,
+  parseTaskCommentLimit
+} from './task-comment.cursor.js';
 
 export const COMMENT_MAX_LENGTH = 2000;
-const MODERATOR_ROLES = new Set(['MANAGER', 'OWNER']);
-
-// Política S1-05: VIEWER somente lê; MEMBER edita e exclui apenas o próprio comentário;
-// MANAGER e OWNER excluem qualquer comentário do projeto, mas não editam texto de terceiros.
-function canModerate(role) {
-  return MODERATOR_ROLES.has(role);
-}
 
 function normalizeCommentContent(value) {
   const content = typeof value === 'string' ? value.trim() : '';
@@ -36,46 +37,26 @@ function commentNotFound() {
   return new TaskServiceError('Comentário não encontrado.', 404);
 }
 
-// Comentário excluído permanece no histórico como marcador: mantém autoria e posição
-// cronológica, mas nunca devolve o conteúdo nem habilita novas ações sobre ele.
-function formatDeletedComment(comment) {
-  const deletionActorType =
-    comment.deletedById == null
-      ? 'UNKNOWN'
-      : comment.deletedById === comment.authorUserId
-        ? 'AUTHOR'
-        : 'MODERATION';
-
-  return {
-    id: comment.id,
-    taskId: comment.taskId,
-    content: null,
-    editedAt: null,
-    createdAt: comment.createdAt,
-    author: comment.authorUser,
-    deletedAt: comment.deletedAt,
-    deletionActorType,
-    canEdit: false,
-    canDelete: false
-  };
-}
-
-function formatComment(comment, context = {}) {
-  if (comment.deletedAt) return formatDeletedComment(comment);
-  const isAuthor = comment.authorUserId === context.actorUserId;
-  const role = context.membershipRole;
-  return {
-    id: comment.id,
-    taskId: comment.taskId,
-    content: comment.content,
-    editedAt: comment.editedAt,
-    createdAt: comment.createdAt,
-    author: comment.authorUser,
-    deletedAt: null,
-    deletionActorType: null,
-    canEdit: isAuthor && role !== 'VIEWER',
-    canDelete: (isAuthor && role !== 'VIEWER') || canModerate(role)
-  };
+async function publishCommentEvent(type, projectId, taskId, comment) {
+  const mutationAt = comment.deletedAt || comment.editedAt || comment.createdAt || new Date();
+  try {
+    await projectEventPublisher.publish({
+      type,
+      projectId,
+      taskId,
+      occurredAt: new Date(mutationAt).toISOString(),
+      data: { comment }
+    });
+  } catch (error) {
+    logger.warn('Comentário persistido sem propagação pelo stream do projeto.', {
+      event: 'project_event_publish_failed',
+      type,
+      projectId,
+      taskId,
+      commentId: comment.id,
+      error: { name: error?.name || 'Error' }
+    });
+  }
 }
 
 function commentAuditEvent(action, { taskId, commentId, context }) {
@@ -94,21 +75,22 @@ export const taskCommentService = {
   async listTaskComments(taskId, query = {}, context = {}) {
     const id = parseTaskId(taskId);
     await ensureTaskExists(id);
-    const pagination = buildPagination(query, 5);
-    const [total, comments] = await taskCommentRepository.listPage(id, pagination);
+    const limit = parseTaskCommentLimit(query.limit);
+    const before = decodeTaskCommentCursor(query.before);
+    const rows = await taskCommentRepository.listCursor(id, { before, limit });
+    const hasMore = rows.length > limit;
+    const comments = hasMore ? rows.slice(0, limit) : rows;
     return {
       taskId: id,
-      total,
-      comments: comments.map((comment) => formatComment(comment, context)),
+      comments: comments.map((comment) => formatTaskComment(comment, context)),
       permissions: {
         canComment: context.membershipRole !== 'VIEWER',
-        canModerate: canModerate(context.membershipRole)
+        canModerate: canModerateTaskComments(context.membershipRole)
       },
       pagination: {
-        page: pagination.page,
-        limit: pagination.limit,
-        total,
-        totalPages: total ? Math.ceil(total / pagination.limit) : 0
+        limit,
+        hasMore,
+        nextCursor: hasMore ? encodeTaskCommentCursor(comments.at(-1)) : null
       }
     };
   },
@@ -129,7 +111,14 @@ export const taskCommentService = {
         context: { ...context, projectId: task.projectId }
       })
     );
-    return formatComment(comment, context);
+    const formatted = formatTaskComment(comment, context);
+    await publishCommentEvent(
+      PROJECT_EVENT_TYPES.TASK_COMMENT_CREATED,
+      task.projectId,
+      id,
+      comment
+    );
+    return formatted;
   },
 
   async updateTaskComment(taskId, commentId, data, context = {}) {
@@ -153,7 +142,14 @@ export const taskCommentService = {
       })
     );
     if (result.outcome !== 'UPDATED') throw commentNotFound();
-    return formatComment(result.comment, context);
+    const formatted = formatTaskComment(result.comment, context);
+    await publishCommentEvent(
+      PROJECT_EVENT_TYPES.TASK_COMMENT_UPDATED,
+      task.projectId,
+      id,
+      result.comment
+    );
+    return formatted;
   },
 
   async deleteTaskComment(taskId, commentId, context = {}) {
@@ -163,7 +159,7 @@ export const taskCommentService = {
     const existing = await taskCommentRepository.findActiveById(id, parsedCommentId);
     if (!existing) throw commentNotFound();
     const isAuthor = existing.authorUserId === context.actorUserId;
-    if (!isAuthor && !canModerate(context.membershipRole)) {
+    if (!isAuthor && !canModerateTaskComments(context.membershipRole)) {
       throw new TaskServiceError('Você não possui permissão para excluir este comentário.', 403);
     }
     const result = await taskCommentRepository.softDeleteAtomic(
@@ -177,6 +173,13 @@ export const taskCommentService = {
       })
     );
     if (result.outcome !== 'DELETED') throw commentNotFound();
-    return formatComment(result.comment, context);
+    const formatted = formatTaskComment(result.comment, context);
+    await publishCommentEvent(
+      PROJECT_EVENT_TYPES.TASK_COMMENT_DELETED,
+      task.projectId,
+      id,
+      result.comment
+    );
+    return formatted;
   }
 };

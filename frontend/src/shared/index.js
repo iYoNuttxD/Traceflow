@@ -17,7 +17,6 @@ export { TraceFlowIcon } from './components/TraceFlowIcon.jsx';
 export { ContextualErrorPage, GenericErrorPage } from './components/GenericErrorPage.jsx';
 export { useAbortableRequest } from './hooks/useAbortableRequest.js';
 export { useCountdown } from './hooks/useCountdown.js';
-export { useVisibilityAwarePolling } from './hooks/useVisibilityAwarePolling.js';
 export { normalizeApiError } from './services/http-error.js';
 export {
   PAGE_ERROR_TYPES,

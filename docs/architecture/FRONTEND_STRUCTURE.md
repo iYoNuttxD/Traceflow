@@ -165,14 +165,21 @@ local como desatualizado e oferece recuperação que repete apenas a leitura.
 
 Respostas assíncronas ligadas a rota ou entidade somente podem atualizar estado enquanto ainda
 pertencem ao contexto que iniciou a request. A troca de `projectId` cancela ou invalida loaders,
-polling e feedback anteriores; uma resposta stale não altera dados, autorização, loading ou erro do
+streams, loaders e feedback anteriores; uma resposta stale não altera dados, autorização, loading ou erro do
 projeto corrente.
 
-Revalidação em background compartilhada usa `useVisibilityAwarePolling`; cada consumer mantém o
-escopo de entidade e a autoridade sobre o estado. Background revalidation deve ser scoped,
-visibility-aware, abortable e incapaz de sobrescrever mutations locais em voo. O retorno da aba ou
-foco dispara uma leitura imediata, timers são limpos no unmount e uma surface não abre dois polls
-concorrentes.
+`ProjectEventsRoute` é o owner da conexão SSE do projeto ativo e monta um único
+`ProjectEventsProvider` para a rota do Kanban, onde o detalhe da tarefa é exibido. O provider abre o
+stream apenas com sessão ativa, `projectId` válido e aba visível; troca de projeto, aba oculta e
+unmount fecham o `EventSource`. A reconexão é nativa, sem timer próprio. O primeiro `open` não repete
+a carga inicial; cada `open` posterior incrementa uma sequência para uma única reconciliação REST.
+
+`TaskComments` assina somente `task.comment.created`, `task.comment.updated` e
+`task.comment.deleted`. Eventos são filtrados por `taskId`, mesclados por ID/versão e não disparam
+GET. Carga inicial, cursor histórico, mutations e recovery continuam em `tasks.api` pelo
+`httpClient`; draft e edit mode pertencem ao componente e sobrevivem a updates remotos, salvo delete
+do alvo. A infraestrutura pode receber novos tipos no futuro, mas Kanban não assina eventos nem
+executa polling periódico nesta fase.
 
 ## Estado e acessibilidade
 

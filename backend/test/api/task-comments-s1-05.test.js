@@ -50,8 +50,10 @@ async function register(email, role, projectId) {
   };
 }
 
-const createComment = (taskId, projectId, authorUserId, content) =>
-  prisma.taskComment.create({ data: { projectId, taskId, authorUserId, content } });
+const createComment = (taskId, projectId, authorUserId, content, overrides = {}) =>
+  prisma.taskComment.create({
+    data: { projectId, taskId, authorUserId, content, ...overrides }
+  });
 
 describe('S1-05 — comentários das tarefas (RF29/RF31)', () => {
   it('registra comentário com autor da sessão, valida conteúdo e audita', async () => {
@@ -108,37 +110,80 @@ describe('S1-05 — comentários das tarefas (RF29/RF31)', () => {
     });
   });
 
-  it('pagina de forma estável sem perder nem duplicar registros', async () => {
+  it('percorre 65 comentários por cursor estável, inclusive timestamp igual e tombstone', async () => {
     const project = await createProject(prisma);
     const member = await register('s105-pager@example.invalid', 'MEMBER', project.id);
     const task = await createTask(prisma, project.id);
-    for (let index = 1; index <= 7; index += 1) {
-      await createComment(task.id, project.id, member.user.id, `Comentário ${index}`);
-    }
+    const createdAt = new Date('2026-09-02T12:00:00.000Z');
+    await prisma.taskComment.createMany({
+      data: Array.from({ length: 65 }, (_, index) => ({
+        projectId: project.id,
+        taskId: task.id,
+        authorUserId: member.user.id,
+        content: `Comentário ${index + 1}`,
+        createdAt
+      }))
+    });
+    const persisted = await prisma.taskComment.findMany({
+      where: { taskId: task.id },
+      orderBy: { id: 'asc' },
+      select: { id: true }
+    });
+    const deletedId = persisted[9].id;
+    await prisma.taskComment.update({
+      where: { id: deletedId },
+      data: { deletedAt: new Date('2026-09-02T13:00:00.000Z'), deletedById: member.user.id }
+    });
 
-    const firstPage = await member.agent.get(`/api/tasks/${task.id}/comments?page=1&limit=5`);
-    const secondPage = await member.agent.get(`/api/tasks/${task.id}/comments?page=2&limit=5`);
+    const firstPage = await member.agent.get(`/api/tasks/${task.id}/comments`);
     expect(firstPage).toMatchObject({
       status: 200,
       body: {
         taskId: task.id,
-        total: 7,
         permissions: { canComment: true, canModerate: false },
-        pagination: { page: 1, limit: 5, total: 7, totalPages: 2 }
+        pagination: { limit: 30, hasMore: true }
       }
     });
-    expect(firstPage.body.comments).toHaveLength(5);
-    expect(secondPage.body.comments).toHaveLength(2);
+    expect(firstPage.body.comments).toHaveLength(30);
+    expect(firstPage.body.pagination.nextCursor).toEqual(expect.any(String));
 
-    const ids = [...firstPage.body.comments, ...secondPage.body.comments].map(({ id }) => id);
-    expect(new Set(ids).size).toBe(7);
+    const secondPage = await member.agent.get(
+      `/api/tasks/${task.id}/comments?limit=30&before=${encodeURIComponent(
+        firstPage.body.pagination.nextCursor
+      )}`
+    );
+    expect(secondPage.body.comments).toHaveLength(30);
+    expect(secondPage.body.pagination).toMatchObject({ limit: 30, hasMore: true });
+
+    const thirdPage = await member.agent.get(
+      `/api/tasks/${task.id}/comments?limit=30&before=${encodeURIComponent(
+        secondPage.body.pagination.nextCursor
+      )}`
+    );
+    expect(thirdPage.body.comments).toHaveLength(5);
+    expect(thirdPage.body.pagination).toEqual({ limit: 30, hasMore: false, nextCursor: null });
+
+    const comments = [
+      ...firstPage.body.comments,
+      ...secondPage.body.comments,
+      ...thirdPage.body.comments
+    ];
+    const ids = comments.map(({ id }) => id);
+    expect(new Set(ids).size).toBe(65);
     expect(ids).toEqual([...ids].sort((a, b) => b - a));
-    expect(firstPage.body.comments[0].content).toBe('Comentário 7');
+    expect(firstPage.body.comments[0].content).toBe('Comentário 65');
+    expect(comments.find(({ id }) => id === deletedId)).toMatchObject({
+      content: null,
+      deletionActorType: 'AUTHOR',
+      canEdit: false,
+      canDelete: false
+    });
 
-    // Sem query, o padrão do contrato é 5 por página.
-    const defaultPage = await member.agent.get(`/api/tasks/${task.id}/comments`);
-    expect(defaultPage.body.pagination).toMatchObject({ page: 1, limit: 5, totalPages: 2 });
-    expect(defaultPage.body.comments).toHaveLength(5);
+    expect(
+      (await member.agent.get(`/api/tasks/${task.id}/comments?before=cursor-invalido`)).status
+    ).toBe(400);
+    expect((await member.agent.get(`/api/tasks/${task.id}/comments?page=2`)).status).toBe(400);
+    expect((await member.agent.get(`/api/tasks/${task.id}/comments?limit=101`)).status).toBe(400);
   });
 
   it('permite leitura a VIEWER e bloqueia criação, edição e exclusão', async () => {
@@ -247,7 +292,7 @@ describe('S1-05 — comentários das tarefas (RF29/RF31)', () => {
 
     // O histórico preserva a posição do comentário excluído, mas nunca devolve o conteúdo.
     const list = await author.agent.get(`/api/tasks/${task.id}/comments`);
-    expect(list.body).toMatchObject({ total: 2 });
+    expect(list.body.pagination).toEqual({ limit: 30, hasMore: false, nextCursor: null });
     expect(list.body.comments).toHaveLength(2);
     const listedOwn = list.body.comments.find(({ id }) => id === own.id);
     const listedModerated = list.body.comments.find(({ id }) => id === moderated.id);

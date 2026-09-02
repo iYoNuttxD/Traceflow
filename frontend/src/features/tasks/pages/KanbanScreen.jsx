@@ -22,13 +22,11 @@ import {
   classifyPageError,
   getErrorRequestId,
   normalizeApiError,
-  useConfirm,
-  useVisibilityAwarePolling
+  useConfirm
 } from '../../../shared/index.js';
 import './KanbanScreen.css';
 
 const MOVEMENTS_PER_PAGE = 10;
-export const KANBAN_POLL_INTERVAL_MS = 7000;
 
 function getErrorMessage(error, fallback) {
   return normalizeApiError(error, fallback).message;
@@ -139,7 +137,6 @@ export function KanbanScreen() {
   const contextRef = useRef({ projectId, generation: 0 });
   const requestSequenceRef = useRef(0);
   const requestControllerRef = useRef(null);
-  const requestInFlightRef = useRef(false);
   const mutationSequenceRef = useRef(0);
   const mutationPendingRef = useRef(false);
 
@@ -164,17 +161,13 @@ export function KanbanScreen() {
     requestSequenceRef.current += 1;
     requestControllerRef.current?.abort();
     requestControllerRef.current = null;
-    requestInFlightRef.current = false;
   }, []);
 
-  const beginRequest = useCallback(({ preempt = true } = {}) => {
-    if (!preempt && requestInFlightRef.current) return null;
-
+  const beginRequest = useCallback(() => {
     requestSequenceRef.current += 1;
     requestControllerRef.current?.abort();
     const controller = new AbortController();
     requestControllerRef.current = controller;
-    requestInFlightRef.current = true;
     return {
       controller,
       generation: contextRef.current.generation,
@@ -197,7 +190,6 @@ export function KanbanScreen() {
     (request) => {
       if (!requestIsCurrent(request)) return false;
       requestControllerRef.current = null;
-      requestInFlightRef.current = false;
       return true;
     },
     [requestIsCurrent]
@@ -317,25 +309,6 @@ export function KanbanScreen() {
     ]
   );
 
-  const pollKanban = useCallback(async () => {
-    if (mutationPendingRef.current) return false;
-    const request = beginRequest({ preempt: false });
-    if (!request) return false;
-
-    try {
-      const response = await kanbanApi.getBoard(projectId, {
-        signal: request.controller.signal
-      });
-      if (!requestIsCurrent(request)) return false;
-      applyBoard(response.data);
-      return true;
-    } catch {
-      return false;
-    } finally {
-      finishRequest(request);
-    }
-  }, [applyBoard, beginRequest, finishRequest, projectId, requestIsCurrent]);
-
   const beginMutation = useCallback(() => {
     if (mutationPendingRef.current) return null;
     invalidateRequest();
@@ -396,12 +369,6 @@ export function KanbanScreen() {
       }
     };
   }, [invalidateRequest, loadKanban, projectId]);
-
-  useVisibilityAwarePolling({
-    enabled: Boolean(projectId) && !loading && Boolean(board),
-    intervalMs: KANBAN_POLL_INTERVAL_MS,
-    callback: pollKanban
-  });
 
   if (!loading && !project && pageError) {
     return (

@@ -99,7 +99,10 @@ export const taskCommentBodySchema = strictObject({
     message: 'O comentário não pode ser vazio.'
   })
 });
-export const taskCommentListQuerySchema = strictObject({ ...paginationSchema });
+export const taskCommentListQuerySchema = strictObject({
+  before: z.string().trim().min(1).max(256).optional(),
+  limit: paginationSchema.limit
+});
 
 export const taskSearchQuerySchema = strictObject({ search: searchText });
 export const taskDateRangeQuerySchema = dateRangeSchema;

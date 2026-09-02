@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTaskComments } from '../hooks/useTaskComments.js';
 import { formatDateTime } from './kanban-display.js';
 import { useAuth } from '../../auth/index.js';
@@ -32,6 +32,7 @@ export function TaskComments({ taskId }) {
     actionId,
     error,
     syncError,
+    connectionState,
     lastUpdate,
     loadOlder,
     retryRefresh,
@@ -51,6 +52,7 @@ export function TaskComments({ taskId }) {
   const stickToBottomRef = useRef(true);
   const loadingOlderRef = useRef(false);
   const taskIdRef = useRef(taskId);
+  const editingVersionRef = useRef(null);
 
   const busy = submitting || actionId !== null;
   const editing = editingId !== null;
@@ -64,6 +66,7 @@ export function TaskComments({ taskId }) {
     setLocalFeedback('');
     stickToBottomRef.current = true;
     loadingOlderRef.current = false;
+    editingVersionRef.current = null;
   }, [taskId]);
 
   useEffect(() => {
@@ -113,13 +116,27 @@ export function TaskComments({ taskId }) {
   useEffect(() => {
     if (editingId === null) return;
     const editedComment = comments.find((comment) => comment.id === editingId);
-    if (editedComment && !editedComment.deletedAt) return;
+    if (editedComment && !editedComment.deletedAt) {
+      const currentVersion = editedComment.editedAt || editedComment.createdAt;
+      if (
+        editingVersionRef.current &&
+        currentVersion !== editingVersionRef.current &&
+        actionId !== editingId
+      ) {
+        editingVersionRef.current = currentVersion;
+        setLocalFeedback(
+          'O comentário foi atualizado em outra sessão. Seu rascunho foi preservado.'
+        );
+      }
+      return;
+    }
 
     setEditingId(null);
     setDraft('');
+    editingVersionRef.current = null;
     setLocalFeedback('O comentário não está mais disponível para edição.');
     window.requestAnimationFrame(() => composerRef.current?.focus());
-  }, [comments, editingId]);
+  }, [actionId, comments, editingId]);
 
   useEffect(() => {
     const node = scrollRef.current;
@@ -146,7 +163,7 @@ export function TaskComments({ taskId }) {
     }
   }, [lastUpdate]);
 
-  async function handleLoadOlder() {
+  const handleLoadOlder = useCallback(async () => {
     if (loadingOlderRef.current || loadingOlder || !hasOlder) return;
 
     const node = scrollRef.current;
@@ -162,7 +179,15 @@ export function TaskComments({ taskId }) {
     window.requestAnimationFrame(() => {
       if (node) node.scrollTop = previousTop + node.scrollHeight - previousHeight;
     });
-  }
+  }, [hasOlder, loadOlder, loadingOlder, taskId]);
+
+  useEffect(() => {
+    const node = scrollRef.current;
+    if (!node || loading || loadingOlder || !hasOlder || node.scrollHeight > node.clientHeight) {
+      return;
+    }
+    void handleLoadOlder();
+  }, [comments.length, handleLoadOlder, hasOlder, loading, loadingOlder]);
 
   function handleScroll() {
     const node = scrollRef.current;
@@ -193,6 +218,7 @@ export function TaskComments({ taskId }) {
       if (await editComment(editingId, content)) {
         setEditingId(null);
         setDraft('');
+        editingVersionRef.current = null;
       }
       return;
     }
@@ -205,6 +231,7 @@ export function TaskComments({ taskId }) {
     setMenuId(null);
     setEditingId(comment.id);
     setDraft(comment.content);
+    editingVersionRef.current = comment.editedAt || comment.createdAt;
     setLocalFeedback('');
     window.requestAnimationFrame(() => {
       composerRef.current?.focus();
@@ -216,6 +243,7 @@ export function TaskComments({ taskId }) {
     const trigger = triggerRefs.current.get(editingId);
     setEditingId(null);
     setDraft('');
+    editingVersionRef.current = null;
     setLocalFeedback('');
     window.requestAnimationFrame(() => trigger?.focus());
   }
@@ -271,6 +299,12 @@ export function TaskComments({ taskId }) {
           <button className="text-button" type="button" onClick={() => void retryRefresh()}>
             Tentar atualizar
           </button>
+        </div>
+      )}
+
+      {!syncError && connectionState === 'reconnecting' && (
+        <div className="task-comments-sync" role="status" aria-live="polite">
+          Reconectando atualizações dos comentários...
         </div>
       )}
 

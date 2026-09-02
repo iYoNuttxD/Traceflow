@@ -3,6 +3,7 @@ import argon2 from 'argon2';
 import { env } from '../../config/env.js';
 import { AppError, ERROR_CODES } from '../../shared/errors/index.js';
 import { emailService } from '../../shared/email/index.js';
+import { projectEventPublisher } from '../../shared/events/index.js';
 import { authRepository } from './auth.repository.js';
 import { normalizeUsername, passwordPolicyErrors, validateUsername } from './identity-policy.js';
 
@@ -159,7 +160,10 @@ export const authService = {
     return { session, user: publicUser(session.user) };
   },
   async logout(sessionId) {
-    if (sessionId) await authRepository.revokeSession(sessionId);
+    if (sessionId) {
+      await authRepository.revokeSession(sessionId);
+      projectEventPublisher.disconnectSession(sessionId);
+    }
   },
   verifyCsrf(session, supplied) {
     if (!supplied || typeof supplied !== 'string') return false;
@@ -203,6 +207,7 @@ export const authService = {
     });
     await authRepository.useResetToken(record.id);
     await authRepository.revokeUserSessions(record.userId);
+    projectEventPublisher.disconnectUser(record.userId);
   },
   async changePassword(userId, currentPassword, password) {
     const user = await authRepository.findUserById(userId);
@@ -215,6 +220,7 @@ export const authService = {
       });
     ensurePasswordPolicy(password, user);
     await authRepository.changePassword(userId, await this.hashPassword(password));
+    projectEventPublisher.disconnectUser(userId);
   },
   async verifyPassword(userId, password) {
     const user = await authRepository.findUserById(userId);

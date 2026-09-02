@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   repository: {
-    listPage: vi.fn(),
+    listCursor: vi.fn(),
     findActiveById: vi.fn(),
     createAtomic: vi.fn(),
     updateContentAtomic: vi.fn(),
@@ -10,7 +10,8 @@ const mocks = vi.hoisted(() => ({
   },
   taskRepository: {
     findTaskById: vi.fn()
-  }
+  },
+  publisher: { publish: vi.fn() }
 }));
 
 vi.mock('../../src/modules/tasks/repositories/task-comment.repository.js', () => ({
@@ -19,6 +20,14 @@ vi.mock('../../src/modules/tasks/repositories/task-comment.repository.js', () =>
 vi.mock('../../src/modules/tasks/task.repository.js', () => ({
   taskRepository: mocks.taskRepository,
   taskInclude: {}
+}));
+vi.mock('../../src/shared/events/index.js', () => ({
+  PROJECT_EVENT_TYPES: {
+    TASK_COMMENT_CREATED: 'task.comment.created',
+    TASK_COMMENT_UPDATED: 'task.comment.updated',
+    TASK_COMMENT_DELETED: 'task.comment.deleted'
+  },
+  projectEventPublisher: mocks.publisher
 }));
 
 import {
@@ -41,6 +50,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.taskRepository.findTaskById.mockResolvedValue(task);
   mocks.repository.findActiveById.mockResolvedValue(storedComment);
+  mocks.repository.listCursor.mockResolvedValue([storedComment]);
   mocks.repository.createAtomic.mockResolvedValue(storedComment);
   mocks.repository.updateContentAtomic.mockResolvedValue({
     outcome: 'UPDATED',
@@ -74,6 +84,14 @@ describe('taskCommentService — conteúdo', () => {
       })
     );
     expect(comment).toMatchObject({ id: 5, canEdit: true, canDelete: true });
+    expect(mocks.publisher.publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'task.comment.created',
+        projectId: 7,
+        taskId: 42,
+        data: { comment: storedComment }
+      })
+    );
   });
 
   it.each(['', '   ', undefined, null])('rejeita conteúdo vazio (%j)', async (content) => {
@@ -105,6 +123,18 @@ describe('taskCommentService — conteúdo', () => {
     await expect(
       taskCommentService.createTaskComment(42, { content: 'x' }, { actorUserId: 10 })
     ).rejects.toMatchObject({ statusCode: 404 });
+    expect(mocks.publisher.publish).not.toHaveBeenCalled();
+  });
+
+  it('mantém a mutation concluída quando o publisher falha', async () => {
+    mocks.publisher.publish.mockRejectedValueOnce(new Error('publisher indisponível'));
+    await expect(
+      taskCommentService.createTaskComment(
+        42,
+        { content: 'Persistido.' },
+        { actorUserId: 10, membershipRole: 'MEMBER' }
+      )
+    ).resolves.toMatchObject({ id: 5, content: 'Comentário persistido.' });
   });
 });
 
@@ -126,6 +156,9 @@ describe('taskCommentService — política de edição e exclusão', () => {
         { actorUserId: 10, membershipRole: 'MEMBER' }
       )
     ).resolves.toMatchObject({ content: 'Novo texto.' });
+    expect(mocks.publisher.publish).toHaveBeenLastCalledWith(
+      expect.objectContaining({ type: 'task.comment.updated' })
+    );
   });
 
   it('MEMBER exclui somente o próprio; MANAGER e OWNER excluem qualquer', async () => {
@@ -149,6 +182,9 @@ describe('taskCommentService — política de edição e exclusão', () => {
     await expect(
       taskCommentService.deleteTaskComment(42, 5, { actorUserId: 99, membershipRole: 'OWNER' })
     ).resolves.toMatchObject({ deletionActorType: 'MODERATION' });
+    expect(mocks.publisher.publish).toHaveBeenLastCalledWith(
+      expect.objectContaining({ type: 'task.comment.deleted' })
+    );
   });
 
   it('responde 404 para comentário inexistente ou perdido por concorrência', async () => {
@@ -172,7 +208,6 @@ describe('taskCommentService — política de edição e exclusão', () => {
 
 describe('taskCommentService — listagem e permissões do DTO', () => {
   it('calcula flags por papel e não expõe e-mail do autor', async () => {
-    mocks.repository.listPage.mockResolvedValue([1, [storedComment]]);
     const asViewer = await taskCommentService.listTaskComments(
       42,
       {},
@@ -189,20 +224,17 @@ describe('taskCommentService — listagem e permissões do DTO', () => {
     );
     expect(asManager.permissions).toEqual({ canComment: true, canModerate: true });
     expect(asManager.comments[0]).toMatchObject({ canEdit: false, canDelete: true });
-    expect(asManager.pagination).toEqual({ page: 1, limit: 5, total: 1, totalPages: 1 });
+    expect(asManager.pagination).toEqual({ limit: 30, hasMore: false, nextCursor: null });
   });
 
-  it('usa 5 por página como padrão do contrato', async () => {
-    mocks.repository.listPage.mockResolvedValue([0, []]);
+  it('usa 30 por lote como padrão do contrato cursor', async () => {
+    mocks.repository.listCursor.mockResolvedValue([]);
     await taskCommentService.listTaskComments(
       42,
       {},
       { actorUserId: 10, membershipRole: 'MEMBER' }
     );
-    expect(mocks.repository.listPage).toHaveBeenCalledWith(
-      42,
-      expect.objectContaining({ page: 1, limit: 5, skip: 0, take: 5 })
-    );
+    expect(mocks.repository.listCursor).toHaveBeenCalledWith(42, { before: null, limit: 30 });
   });
 
   it('devolve comentário excluído como marcador sem conteúdo nem ações', async () => {
@@ -218,7 +250,7 @@ describe('taskCommentService — listagem e permissões do DTO', () => {
       deletedAt: new Date('2026-08-30T11:00:00.000Z'),
       deletedById: 99
     };
-    mocks.repository.listPage.mockResolvedValue([2, [deletedByModerator, deletedByAuthor]]);
+    mocks.repository.listCursor.mockResolvedValue([deletedByModerator, deletedByAuthor]);
 
     // Mesmo o moderador que excluiu não recupera o conteúdo pela listagem.
     const listed = await taskCommentService.listTaskComments(
@@ -237,9 +269,8 @@ describe('taskCommentService — listagem e permissões do DTO', () => {
   });
 
   it('não afirma moderação quando a autoria da exclusão é desconhecida', async () => {
-    mocks.repository.listPage.mockResolvedValue([
-      1,
-      [{ ...storedComment, deletedAt: new Date('2026-08-30T10:00:00.000Z'), deletedById: null }]
+    mocks.repository.listCursor.mockResolvedValue([
+      { ...storedComment, deletedAt: new Date('2026-08-30T10:00:00.000Z'), deletedById: null }
     ]);
     const listed = await taskCommentService.listTaskComments(
       42,

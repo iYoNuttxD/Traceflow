@@ -16,18 +16,23 @@ const commentSelect = {
 export const taskCommentRepository = {
   // A listagem inclui comentários excluídos para preservar a linha do tempo do RF31;
   // o service converte cada exclusão em marcador sem conteúdo antes de responder.
-  listPage(taskId, pagination) {
-    const where = { taskId };
-    return prisma.$transaction([
-      prisma.taskComment.count({ where }),
-      prisma.taskComment.findMany({
-        where,
-        select: commentSelect,
-        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-        skip: pagination.skip,
-        take: pagination.take
-      })
-    ]);
+  listCursor(taskId, { before, limit }) {
+    return prisma.taskComment.findMany({
+      where: {
+        taskId,
+        ...(before
+          ? {
+              OR: [
+                { createdAt: { lt: before.createdAt } },
+                { createdAt: before.createdAt, id: { lt: before.id } }
+              ]
+            }
+          : {})
+      },
+      select: commentSelect,
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: limit + 1
+    });
   },
 
   findActiveById(taskId, commentId) {

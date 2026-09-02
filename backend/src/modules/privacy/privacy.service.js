@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { buildAuditEvent } from '../audit/audit.service.js';
 import { fingerprintGithubUserId } from '../../shared/security/pseudonymization.js';
+import { projectEventPublisher } from '../../shared/events/index.js';
 import { privacyRepository } from './privacy.repository.js';
 
 function safeFailureCode(error) {
@@ -59,6 +60,7 @@ export const privacyService = {
           },
           now
         );
+        if (result) projectEventPublisher.disconnectUser(result.userId);
         if (result?.blocked) blocked += 1;
         else if (result) processed += 1;
       } catch (error) {

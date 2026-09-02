@@ -698,6 +698,7 @@ model TaskComment {
   deletedBy  User?   @relation("TaskCommentDeleter", fields: [deletedById], references: [id], onDelete: SetNull)
 
   @@index([taskId, deletedAt, createdAt])
+  @@index([taskId, createdAt, id])
   @@index([projectId, createdAt])
   @@index([authorUserId])
   @@index([deletedById])

@@ -215,56 +215,19 @@ describe('KanbanPage E11', () => {
     expect(await screen.findByText(/Prioridade: Média para Alta/)).toBeInTheDocument();
   });
 
-  it('aplica atualização remota do board em background sem recarregar a página', async () => {
+  it('não faz GET periódico nem reage a focus/visibility depois da carga inicial', async () => {
     renderPage();
     await screen.findByText('Tarefa E11');
+    expect(mocks.kanbanApi.getBoard).toHaveBeenCalledOnce();
 
-    const remotelyMovedTask = { ...task, status: 'EM_ANDAMENTO' };
-    mocks.kanbanApi.getBoard.mockResolvedValueOnce({
-      data: {
-        columns: { A_FAZER: [], EM_ANDAMENTO: [remotelyMovedTask], CONCLUIDO: [] },
-        totals: { A_FAZER: 0, EM_ANDAMENTO: 1, CONCLUIDO: 0, total: 1 }
-      }
-    });
-    await act(async () => window.dispatchEvent(new Event('focus')));
-
-    expect(await screen.findByRole('heading', { name: 'Em Andamento (1)' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'A Fazer (0)' })).toBeInTheDocument();
-  });
-
-  it('ignora poll antigo depois de uma movimentação local confirmada', async () => {
-    const oldPoll = deferred();
-    const movedTask = { ...task, status: 'EM_ANDAMENTO' };
-    const movedBoard = {
-      columns: { A_FAZER: [], EM_ANDAMENTO: [movedTask], CONCLUIDO: [] },
-      totals: { A_FAZER: 0, EM_ANDAMENTO: 1, CONCLUIDO: 0, total: 1 }
-    };
-    mocks.kanbanApi.getBoard
-      .mockReset()
-      .mockResolvedValueOnce({ data: board })
-      .mockReturnValueOnce(oldPoll.promise)
-      .mockResolvedValueOnce({ data: movedBoard });
-    mocks.kanbanApi.moveTask.mockResolvedValue({
-      data: {
-        message: 'Tarefa movida com sucesso.',
-        task: movedTask,
-        movement: { id: 1 }
-      }
-    });
-    renderPage();
-    await screen.findByText('Tarefa E11');
-
-    await act(async () => window.dispatchEvent(new Event('focus')));
-    await waitFor(() => expect(mocks.kanbanApi.getBoard).toHaveBeenCalledTimes(2));
-    dragTaskTo('Em Andamento (0)');
-    expect(await screen.findByRole('heading', { name: 'Em Andamento (1)' })).toBeInTheDocument();
-
+    vi.useFakeTimers();
     await act(async () => {
-      oldPoll.resolve({ data: board });
-      await Promise.resolve();
+      vi.advanceTimersByTime(60_000);
+      window.dispatchEvent(new Event('focus'));
+      document.dispatchEvent(new Event('visibilitychange'));
     });
-    expect(screen.getByRole('heading', { name: 'Em Andamento (1)' })).toBeInTheDocument();
-    expect(mocks.kanbanApi.moveTask).toHaveBeenCalledOnce();
+    vi.useRealTimers();
+    expect(mocks.kanbanApi.getBoard).toHaveBeenCalledOnce();
   });
 
   it('invalida resposta do Project A depois de navegar para o Project B', async () => {

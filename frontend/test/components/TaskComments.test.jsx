@@ -9,8 +9,24 @@ const apiMocks = vi.hoisted(() => ({
   updateTaskComment: vi.fn(),
   deleteTaskComment: vi.fn()
 }));
+const eventMocks = vi.hoisted(() => ({
+  listener: null,
+  subscribe: vi.fn((_types, listener) => {
+    eventMocks.listener = listener;
+    return () => {
+      if (eventMocks.listener === listener) eventMocks.listener = null;
+    };
+  })
+}));
 
 vi.mock('../../src/features/tasks/api/tasks.api.js', () => apiMocks);
+vi.mock('../../src/features/projects/index.js', () => ({
+  useProjectEvents: () => ({
+    connectionState: 'connected',
+    reconnectSequence: 0,
+    subscribe: eventMocks.subscribe
+  })
+}));
 vi.mock('../../src/features/auth/index.js', () => ({
   useAuth: () => ({ user: { id: 10, name: 'Autora Teste' } })
 }));
@@ -61,14 +77,19 @@ const deletedComment = (overrides = {}) => ({
 const response = (
   comments = [ownComment(), otherComment()],
   permissions = { canComment: true, canModerate: false },
-  total = comments.length
+  { hasMore = false, nextCursor = null, taskId = 42 } = {}
 ) => ({
-  taskId: 42,
-  total,
+  taskId,
   comments,
   permissions,
-  pagination: { page: 1, limit: 5, total, totalPages: Math.ceil(total / 5) }
+  pagination: { limit: 30, hasMore, nextCursor }
 });
+
+function emit(type, comment, taskId = comment.taskId) {
+  act(() => {
+    eventMocks.listener?.({ type, projectId: 7, taskId, data: { comment } });
+  });
+}
 
 function renderComments() {
   return render(
@@ -87,6 +108,7 @@ async function openOwnMenu(user) {
 describe('TaskComments', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    eventMocks.listener = null;
     apiMocks.getTaskComments.mockResolvedValue(response());
     apiMocks.createTaskComment.mockResolvedValue({ comment: ownComment({ id: 4 }) });
     apiMocks.updateTaskComment.mockResolvedValue({
@@ -111,11 +133,11 @@ describe('TaskComments', () => {
     );
     renderComments();
     expect(screen.getByText('Carregando comentários...')).toBeInTheDocument();
-    resolveRequest(response([], { canComment: true, canModerate: false }, 0));
+    resolveRequest(response([], { canComment: true, canModerate: false }));
     expect(await screen.findByText('Nenhum comentário registrado.')).toBeInTheDocument();
     expect(apiMocks.getTaskComments).toHaveBeenCalledWith(
       42,
-      { page: 1, limit: 5 },
+      { limit: 30 },
       { signal: expect.any(AbortSignal) }
     );
   });
@@ -206,12 +228,6 @@ describe('TaskComments', () => {
     await user.click(within(menu).getByRole('menuitem', { name: 'Editar' }));
     await user.clear(screen.getByLabelText('Editar comentário'));
     await user.type(screen.getByLabelText('Editar comentário'), 'Texto revisado.');
-    apiMocks.getTaskComments.mockResolvedValueOnce(
-      response([
-        ownComment({ content: 'Texto revisado.', editedAt: '2026-08-29T13:00:00.000Z' }),
-        otherComment()
-      ])
-    );
     await user.click(screen.getByRole('button', { name: 'Salvar' }));
 
     expect(await screen.findByText('Texto revisado.')).toBeInTheDocument();
@@ -232,12 +248,6 @@ describe('TaskComments', () => {
 
     ({ menu } = await openOwnMenu(user));
     await user.click(within(menu).getByRole('menuitem', { name: 'Excluir' }));
-    apiMocks.getTaskComments.mockResolvedValueOnce(
-      response([
-        deletedComment({ id: 1, author: { id: 10, name: 'Autora Teste' } }),
-        otherComment()
-      ])
-    );
     await user.click(await screen.findByRole('button', { name: 'Excluir' }));
 
     expect(await screen.findByText('Comentário excluído pelo autor.')).toBeInTheDocument();
@@ -246,31 +256,47 @@ describe('TaskComments', () => {
   });
 
   it('carrega histórico automaticamente no topo, deduplica e preserva a posição visual', async () => {
+    let resolveInitial;
+    let resolveOlder;
     let scrollHeight = 500;
     apiMocks.getTaskComments
-      .mockResolvedValueOnce(response([ownComment(), otherComment()], undefined, 3))
-      .mockImplementationOnce(async () => {
-        scrollHeight = 700;
-        return response([otherComment({ id: 3, content: 'Comentário antigo.' })], undefined, 3);
-      });
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveInitial = resolve;
+        })
+      )
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveOlder = resolve;
+        })
+      );
     const { container } = renderComments();
-    await screen.findByText('Comentário próprio.');
-    expect(screen.queryByText('Ver comentários anteriores')).not.toBeInTheDocument();
-
     const scroller = container.querySelector('.task-comments-scroll');
     Object.defineProperty(scroller, 'scrollHeight', {
       configurable: true,
       get: () => scrollHeight
     });
     Object.defineProperty(scroller, 'clientHeight', { configurable: true, value: 200 });
+    resolveInitial(
+      response([ownComment(), otherComment()], undefined, {
+        hasMore: true,
+        nextCursor: 'cursor-older'
+      })
+    );
+    await screen.findByText('Comentário próprio.');
+    expect(screen.queryByText('Ver comentários anteriores')).not.toBeInTheDocument();
+
     scroller.scrollTop = 10;
     fireEvent.scroll(scroller);
+    await waitFor(() => expect(apiMocks.getTaskComments).toHaveBeenCalledTimes(2));
+    scrollHeight = 700;
+    resolveOlder(response([otherComment({ id: 3, content: 'Comentário antigo.' })]));
 
     expect(await screen.findByText('Comentário antigo.')).toBeInTheDocument();
     await waitFor(() => expect(scroller.scrollTop).toBe(210));
     expect(apiMocks.getTaskComments).toHaveBeenLastCalledWith(
       42,
-      { page: 2, limit: 5 },
+      { limit: 30, before: 'cursor-older' },
       { signal: expect.any(AbortSignal) }
     );
   });
@@ -284,10 +310,17 @@ describe('TaskComments', () => {
     scroller.scrollTop = 100;
     fireEvent.scroll(scroller);
 
-    apiMocks.getTaskComments.mockResolvedValueOnce(
-      response([ownComment({ id: 4, content: 'Comentário remoto.' }), ownComment(), otherComment()])
+    emit(
+      'task.comment.created',
+      ownComment({
+        id: 4,
+        content: 'Comentário remoto.',
+        author: { id: 20, name: 'Outra Pessoa' },
+        canEdit: false,
+        canDelete: false,
+        createdAt: '2026-08-29T13:00:00.000Z'
+      })
     );
-    await act(async () => window.dispatchEvent(new Event('focus')));
 
     expect(await screen.findByText('Comentário remoto.')).toBeInTheDocument();
     const indicator = screen.getByRole('button', { name: 'Novos comentários' });
@@ -296,20 +329,42 @@ describe('TaskComments', () => {
     expect(scroller.scrollTop).toBe(1000);
   });
 
-  it('cancela edit mode quando refresh remoto transforma o alvo em tombstone', async () => {
+  it('preserva o draft quando um edit remoto chega para o comentário em edição', async () => {
+    const user = userEvent.setup();
+    renderComments();
+    const { menu } = await openOwnMenu(user);
+    await user.click(within(menu).getByRole('menuitem', { name: 'Editar' }));
+    fireEvent.change(screen.getByLabelText('Editar comentário'), {
+      target: { value: 'Meu rascunho local.' }
+    });
+
+    emit(
+      'task.comment.updated',
+      ownComment({
+        content: 'Texto remoto.',
+        editedAt: '2026-08-29T13:00:00.000Z'
+      })
+    );
+
+    expect(screen.getByLabelText('Editar comentário')).toHaveValue('Meu rascunho local.');
+    expect(
+      await screen.findByText(
+        'O comentário foi atualizado em outra sessão. Seu rascunho foi preservado.'
+      )
+    ).toBeInTheDocument();
+  });
+
+  it('cancela edit mode quando SSE remoto transforma o alvo em tombstone', async () => {
     const user = userEvent.setup();
     renderComments();
     const { menu } = await openOwnMenu(user);
     await user.click(within(menu).getByRole('menuitem', { name: 'Editar' }));
     await user.type(screen.getByLabelText('Editar comentário'), ' rascunho');
 
-    apiMocks.getTaskComments.mockResolvedValueOnce(
-      response([
-        deletedComment({ id: 1, author: { id: 10, name: 'Autora Teste' } }),
-        otherComment()
-      ])
+    emit(
+      'task.comment.deleted',
+      deletedComment({ id: 1, author: { id: 10, name: 'Autora Teste' } })
     );
-    await act(async () => window.dispatchEvent(new Event('focus')));
 
     expect(
       await screen.findByText('O comentário não está mais disponível para edição.')
@@ -320,7 +375,7 @@ describe('TaskComments', () => {
 
   it('oculta composer e menu para VIEWER', async () => {
     apiMocks.getTaskComments.mockResolvedValue(
-      response([otherComment()], { canComment: false, canModerate: false }, 1)
+      response([otherComment()], { canComment: false, canModerate: false })
     );
     renderComments();
     expect(await screen.findByText('Comentário de colega.')).toBeInTheDocument();
