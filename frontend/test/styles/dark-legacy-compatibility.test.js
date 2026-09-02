@@ -368,11 +368,14 @@ describe('compatibilidade de conteúdo legado com os temas', () => {
     expect(rule(taskCommentsCss, '.task-chat-bubble-own')).toContain(
       'background: var(--color-accent-surface)'
     );
-    expect(rule(taskCommentsCss, '.task-chat-icon-button')).toContain(
+    expect(rule(taskCommentsCss, '.task-chat-menu-trigger')).toContain(
       'width: var(--size-touch-target)'
     );
-    expect(rule(taskCommentsCss, '.task-chat-icon-button')).toContain(
+    expect(rule(taskCommentsCss, '.task-chat-menu-trigger')).toContain(
       'height: var(--size-touch-target)'
+    );
+    expect(rule(taskCommentsCss, '.task-chat-menu button')).toContain(
+      'min-height: var(--size-touch-target)'
     );
   });
 

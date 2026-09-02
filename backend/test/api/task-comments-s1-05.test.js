@@ -215,12 +215,35 @@ describe('S1-05 — comentários das tarefas (RF29/RF31)', () => {
       (await otherMember.mutate('delete', `/api/tasks/${task.id}/comments/${own.id}`)).status
     ).toBe(403);
 
-    expect((await author.mutate('delete', `/api/tasks/${task.id}/comments/${own.id}`)).status).toBe(
-      200
+    const ownDelete = await author.mutate('delete', `/api/tasks/${task.id}/comments/${own.id}`);
+    expect(ownDelete).toMatchObject({
+      status: 200,
+      body: {
+        comment: {
+          id: own.id,
+          content: null,
+          deletionActorType: 'AUTHOR',
+          canEdit: false,
+          canDelete: false
+        }
+      }
+    });
+    const moderationDelete = await manager.mutate(
+      'delete',
+      `/api/tasks/${task.id}/comments/${moderated.id}`
     );
-    expect(
-      (await manager.mutate('delete', `/api/tasks/${task.id}/comments/${moderated.id}`)).status
-    ).toBe(200);
+    expect(moderationDelete).toMatchObject({
+      status: 200,
+      body: {
+        comment: {
+          id: moderated.id,
+          content: null,
+          deletionActorType: 'MODERATION',
+          canEdit: false,
+          canDelete: false
+        }
+      }
+    });
 
     // O histórico preserva a posição do comentário excluído, mas nunca devolve o conteúdo.
     const list = await author.agent.get(`/api/tasks/${task.id}/comments`);
@@ -230,14 +253,14 @@ describe('S1-05 — comentários das tarefas (RF29/RF31)', () => {
     const listedModerated = list.body.comments.find(({ id }) => id === moderated.id);
     expect(listedOwn).toMatchObject({
       content: null,
-      deletedByModeration: false,
+      deletionActorType: 'AUTHOR',
       canEdit: false,
       canDelete: false
     });
     expect(listedOwn.deletedAt).not.toBeNull();
     expect(listedModerated).toMatchObject({
       content: null,
-      deletedByModeration: true,
+      deletionActorType: 'MODERATION',
       canEdit: false,
       canDelete: false
     });
@@ -275,13 +298,21 @@ describe('S1-05 — comentários das tarefas (RF29/RF31)', () => {
     ).toBe(2);
   });
 
-  it('bloqueia acesso sem membership e comentário fora da tarefa informada', async () => {
+  it('bloqueia acesso sem membership e comentários fora da tarefa ou projeto informados', async () => {
     const project = await createProject(prisma);
+    const otherProject = await createProject(prisma, { name: 'Projeto B' });
     const member = await register('s105-scope@example.invalid', 'MEMBER', project.id);
     const outsider = await register('s105-outsider@example.invalid');
     const taskA = await createTask(prisma, project.id);
     const taskB = await createTask(prisma, project.id);
     const comment = await createComment(taskA.id, project.id, member.user.id, 'Da tarefa A.');
+    const otherProjectTask = await createTask(prisma, otherProject.id);
+    const otherProjectComment = await createComment(
+      otherProjectTask.id,
+      otherProject.id,
+      member.user.id,
+      'Do projeto B.'
+    );
 
     expect((await outsider.agent.get(`/api/tasks/${taskA.id}/comments`)).status).toBe(404);
     expect(
@@ -302,6 +333,20 @@ describe('S1-05 — comentários das tarefas (RF29/RF31)', () => {
     expect(
       (await member.mutate('delete', `/api/tasks/${taskB.id}/comments/${comment.id}`)).status
     ).toBe(404);
+    expect(
+      (
+        await member
+          .mutate('patch', `/api/tasks/${taskA.id}/comments/${otherProjectComment.id}`)
+          .send({ content: 'trocado entre projetos' })
+      ).status
+    ).toBe(404);
+    expect(
+      (await member.mutate('delete', `/api/tasks/${taskA.id}/comments/${otherProjectComment.id}`))
+        .status
+    ).toBe(404);
+    expect(
+      await prisma.taskComment.findUnique({ where: { id: otherProjectComment.id } })
+    ).toMatchObject({ content: 'Do projeto B.', deletedAt: null });
     expect((await member.agent.get(`/api/tasks/${taskA.id + 10000}/comments`)).status).toBe(404);
   });
 });

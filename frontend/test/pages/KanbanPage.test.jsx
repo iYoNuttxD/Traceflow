@@ -1,5 +1,5 @@
-import { MemoryRouter, Route, Routes } from 'react-router';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter, Route, Routes, useNavigate } from 'react-router';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfirmProvider } from '../../src/shared/index.js';
@@ -48,6 +48,21 @@ const board = {
   totals: { A_FAZER: 1, EM_ANDAMENTO: 0, CONCLUIDO: 0, total: 1 }
 };
 
+let navigateKanban;
+
+function deferred() {
+  let resolve;
+  const promise = new Promise((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
+function KanbanHarness() {
+  navigateKanban = useNavigate();
+  return <KanbanPage />;
+}
+
 function historyResponse(overrides = {}) {
   return {
     data: {
@@ -59,15 +74,15 @@ function historyResponse(overrides = {}) {
   };
 }
 
-function renderPage() {
+function renderPage(initialEntry = '/projects/1/kanban') {
   return render(
-    <MemoryRouter initialEntries={['/projects/1/kanban']}>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
         <Route
           path="/projects/:projectId/kanban"
           element={
             <ConfirmProvider>
-              <KanbanPage />
+              <KanbanHarness />
             </ConfirmProvider>
           }
         />
@@ -92,6 +107,7 @@ function dragTaskTo(columnName) {
 describe('KanbanPage E11', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    navigateKanban = undefined;
     mocks.api.get.mockResolvedValue({ data: { project: { id: 1, name: 'Projeto E11' } } });
     mocks.kanbanApi.getBoard.mockResolvedValue({ data: board });
     mocks.kanbanApi.getMetrics.mockResolvedValue({
@@ -187,12 +203,94 @@ describe('KanbanPage E11', () => {
     expect(await screen.findByText(/Status: A Fazer para Em Andamento/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Próxima' }));
     await waitFor(() =>
-      expect(mocks.kanbanApi.listTaskHistory).toHaveBeenLastCalledWith('1', {
-        page: 2,
-        limit: 10
-      })
+      expect(mocks.kanbanApi.listTaskHistory).toHaveBeenLastCalledWith(
+        '1',
+        {
+          page: 2,
+          limit: 10
+        },
+        { signal: expect.any(AbortSignal) }
+      )
     );
     expect(await screen.findByText(/Prioridade: Média para Alta/)).toBeInTheDocument();
+  });
+
+  it('aplica atualização remota do board em background sem recarregar a página', async () => {
+    renderPage();
+    await screen.findByText('Tarefa E11');
+
+    const remotelyMovedTask = { ...task, status: 'EM_ANDAMENTO' };
+    mocks.kanbanApi.getBoard.mockResolvedValueOnce({
+      data: {
+        columns: { A_FAZER: [], EM_ANDAMENTO: [remotelyMovedTask], CONCLUIDO: [] },
+        totals: { A_FAZER: 0, EM_ANDAMENTO: 1, CONCLUIDO: 0, total: 1 }
+      }
+    });
+    await act(async () => window.dispatchEvent(new Event('focus')));
+
+    expect(await screen.findByRole('heading', { name: 'Em Andamento (1)' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'A Fazer (0)' })).toBeInTheDocument();
+  });
+
+  it('ignora poll antigo depois de uma movimentação local confirmada', async () => {
+    const oldPoll = deferred();
+    const movedTask = { ...task, status: 'EM_ANDAMENTO' };
+    const movedBoard = {
+      columns: { A_FAZER: [], EM_ANDAMENTO: [movedTask], CONCLUIDO: [] },
+      totals: { A_FAZER: 0, EM_ANDAMENTO: 1, CONCLUIDO: 0, total: 1 }
+    };
+    mocks.kanbanApi.getBoard
+      .mockReset()
+      .mockResolvedValueOnce({ data: board })
+      .mockReturnValueOnce(oldPoll.promise)
+      .mockResolvedValueOnce({ data: movedBoard });
+    mocks.kanbanApi.moveTask.mockResolvedValue({
+      data: {
+        message: 'Tarefa movida com sucesso.',
+        task: movedTask,
+        movement: { id: 1 }
+      }
+    });
+    renderPage();
+    await screen.findByText('Tarefa E11');
+
+    await act(async () => window.dispatchEvent(new Event('focus')));
+    await waitFor(() => expect(mocks.kanbanApi.getBoard).toHaveBeenCalledTimes(2));
+    dragTaskTo('Em Andamento (0)');
+    expect(await screen.findByRole('heading', { name: 'Em Andamento (1)' })).toBeInTheDocument();
+
+    await act(async () => {
+      oldPoll.resolve({ data: board });
+      await Promise.resolve();
+    });
+    expect(screen.getByRole('heading', { name: 'Em Andamento (1)' })).toBeInTheDocument();
+    expect(mocks.kanbanApi.moveTask).toHaveBeenCalledOnce();
+  });
+
+  it('invalida resposta do Project A depois de navegar para o Project B', async () => {
+    const projectA = deferred();
+    const taskB = { ...task, id: 8, projectId: 2, title: 'Tarefa do projeto B' };
+    const boardB = {
+      columns: { A_FAZER: [taskB], EM_ANDAMENTO: [], CONCLUIDO: [] },
+      totals: { A_FAZER: 1, EM_ANDAMENTO: 0, CONCLUIDO: 0, total: 1 }
+    };
+    mocks.kanbanApi.getBoard
+      .mockReset()
+      .mockReturnValueOnce(projectA.promise)
+      .mockResolvedValueOnce({ data: boardB });
+    renderPage();
+    await waitFor(() => expect(mocks.kanbanApi.getBoard).toHaveBeenCalledTimes(1));
+
+    await act(async () => navigateKanban('/projects/2/kanban'));
+    expect(await screen.findByText('Tarefa do projeto B')).toBeInTheDocument();
+
+    await act(async () => {
+      projectA.resolve({ data: board });
+      await Promise.resolve();
+    });
+    expect(screen.getByText('Tarefa do projeto B')).toBeInTheDocument();
+    expect(screen.queryByText('Tarefa E11')).not.toBeInTheDocument();
+    expect(mocks.kanbanApi.getBoard.mock.calls.map(([id]) => id)).toEqual(['1', '2']);
   });
 
   it('apresenta projeto inexistente em fallback recuperável', async () => {

@@ -46,7 +46,14 @@ beforeEach(() => {
     outcome: 'UPDATED',
     comment: { ...storedComment, content: 'Novo texto.', editedAt: new Date() }
   });
-  mocks.repository.softDeleteAtomic.mockResolvedValue({ outcome: 'DELETED' });
+  mocks.repository.softDeleteAtomic.mockResolvedValue({
+    outcome: 'DELETED',
+    comment: {
+      ...storedComment,
+      deletedAt: new Date('2026-08-30T10:00:00.000Z'),
+      deletedById: 10
+    }
+  });
 });
 
 describe('taskCommentService — conteúdo', () => {
@@ -127,13 +134,21 @@ describe('taskCommentService — política de edição e exclusão', () => {
     ).rejects.toMatchObject({ statusCode: 403 });
     await expect(
       taskCommentService.deleteTaskComment(42, 5, { actorUserId: 10, membershipRole: 'MEMBER' })
-    ).resolves.toBeUndefined();
+    ).resolves.toMatchObject({ deletionActorType: 'AUTHOR' });
+    mocks.repository.softDeleteAtomic.mockResolvedValue({
+      outcome: 'DELETED',
+      comment: {
+        ...storedComment,
+        deletedAt: new Date('2026-08-30T10:00:00.000Z'),
+        deletedById: 99
+      }
+    });
     await expect(
       taskCommentService.deleteTaskComment(42, 5, { actorUserId: 99, membershipRole: 'MANAGER' })
-    ).resolves.toBeUndefined();
+    ).resolves.toMatchObject({ deletionActorType: 'MODERATION' });
     await expect(
       taskCommentService.deleteTaskComment(42, 5, { actorUserId: 99, membershipRole: 'OWNER' })
-    ).resolves.toBeUndefined();
+    ).resolves.toMatchObject({ deletionActorType: 'MODERATION' });
   });
 
   it('responde 404 para comentário inexistente ou perdido por concorrência', async () => {
@@ -212,8 +227,8 @@ describe('taskCommentService — listagem e permissões do DTO', () => {
       { actorUserId: 99, membershipRole: 'MANAGER' }
     );
     expect(listed.comments).toMatchObject([
-      { id: 7, content: null, deletedByModeration: true, canEdit: false, canDelete: false },
-      { id: 6, content: null, deletedByModeration: false, canEdit: false, canDelete: false }
+      { id: 7, content: null, deletionActorType: 'MODERATION', canEdit: false, canDelete: false },
+      { id: 6, content: null, deletionActorType: 'AUTHOR', canEdit: false, canDelete: false }
     ]);
     expect(JSON.stringify(listed)).not.toContain('Comentário persistido.');
     // Autoria e cronologia permanecem para o histórico do RF31.
@@ -231,6 +246,6 @@ describe('taskCommentService — listagem e permissões do DTO', () => {
       {},
       { actorUserId: 10, membershipRole: 'MEMBER' }
     );
-    expect(listed.comments[0]).toMatchObject({ content: null, deletedByModeration: false });
+    expect(listed.comments[0]).toMatchObject({ content: null, deletionActorType: 'UNKNOWN' });
   });
 });

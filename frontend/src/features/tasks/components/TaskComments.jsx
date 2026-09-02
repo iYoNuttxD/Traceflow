@@ -6,22 +6,17 @@ import { useConfirm } from '../../../shared/index.js';
 import './TaskComments.css';
 
 const COMMENT_MAX_LENGTH = 2000;
+const SCROLL_TOP_THRESHOLD_PX = 48;
+const SCROLL_BOTTOM_THRESHOLD_PX = 64;
 
-function PencilIcon() {
-  return (
-    <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true">
-      <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z" />
-    </svg>
-  );
-}
+const tombstoneMessages = Object.freeze({
+  AUTHOR: 'Comentário excluído pelo autor.',
+  MODERATION: 'Comentário excluído por moderação.',
+  UNKNOWN: 'Comentário excluído.'
+});
 
-function TrashIcon() {
-  return (
-    <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true">
-      <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z" />
-      <path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3h11V2h-11v1z" />
-    </svg>
-  );
+function isNearBottom(node) {
+  return node.scrollHeight - node.scrollTop - node.clientHeight <= SCROLL_BOTTOM_THRESHOLD_PX;
 }
 
 export function TaskComments({ taskId }) {
@@ -36,65 +31,225 @@ export function TaskComments({ taskId }) {
     submitting,
     actionId,
     error,
+    syncError,
+    lastUpdate,
     loadOlder,
+    retryRefresh,
     addComment,
     editComment,
     removeComment
   } = useTaskComments({ taskId });
   const [draft, setDraft] = useState('');
   const [editingId, setEditingId] = useState(null);
-  const [editingDraft, setEditingDraft] = useState('');
+  const [menuId, setMenuId] = useState(null);
+  const [newCommentsAvailable, setNewCommentsAvailable] = useState(false);
+  const [localFeedback, setLocalFeedback] = useState('');
   const scrollRef = useRef(null);
+  const composerRef = useRef(null);
+  const menuContainerRef = useRef(null);
+  const triggerRefs = useRef(new Map());
   const stickToBottomRef = useRef(true);
+  const loadingOlderRef = useRef(false);
+  const taskIdRef = useRef(taskId);
 
   const busy = submitting || actionId !== null;
+  const editing = editingId !== null;
 
   useEffect(() => {
-    if (!loading && stickToBottomRef.current && scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    taskIdRef.current = taskId;
+    setDraft('');
+    setEditingId(null);
+    setMenuId(null);
+    setNewCommentsAvailable(false);
+    setLocalFeedback('');
+    stickToBottomRef.current = true;
+    loadingOlderRef.current = false;
+  }, [taskId]);
+
+  useEffect(() => {
+    if (menuId === null) return undefined;
+
+    menuContainerRef.current?.querySelector('[role="menuitem"]')?.focus();
+
+    const closeMenu = (restoreFocus) => {
+      const trigger = triggerRefs.current.get(menuId);
+      setMenuId(null);
+      if (restoreFocus) window.requestAnimationFrame(() => trigger?.focus());
+    };
+    const handlePointerDown = (event) => {
+      if (!menuContainerRef.current?.contains(event.target)) closeMenu(false);
+    };
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeMenu(true);
+        return;
+      }
+
+      const items = [...(menuContainerRef.current?.querySelectorAll('[role="menuitem"]') || [])];
+      if (!items.length) return;
+      const currentIndex = items.indexOf(document.activeElement);
+      let nextIndex = null;
+
+      if (event.key === 'ArrowDown') nextIndex = (currentIndex + 1) % items.length;
+      if (event.key === 'ArrowUp') nextIndex = (currentIndex - 1 + items.length) % items.length;
+      if (event.key === 'Home') nextIndex = 0;
+      if (event.key === 'End') nextIndex = items.length - 1;
+
+      if (nextIndex !== null) {
+        event.preventDefault();
+        items[nextIndex].focus();
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [menuId]);
+
+  useEffect(() => {
+    if (editingId === null) return;
+    const editedComment = comments.find((comment) => comment.id === editingId);
+    if (editedComment && !editedComment.deletedAt) return;
+
+    setEditingId(null);
+    setDraft('');
+    setLocalFeedback('O comentário não está mais disponível para edição.');
+    window.requestAnimationFrame(() => composerRef.current?.focus());
+  }, [comments, editingId]);
+
+  useEffect(() => {
+    const node = scrollRef.current;
+    if (!node || lastUpdate.source === 'reset' || lastUpdate.source === 'older') return;
+
+    if (lastUpdate.source === 'initial' || lastUpdate.source === 'create') {
+      window.requestAnimationFrame(() => {
+        node.scrollTop = node.scrollHeight;
+        stickToBottomRef.current = true;
+        setNewCommentsAvailable(false);
+      });
+      return;
     }
-  }, [loading, comments]);
+
+    if (lastUpdate.addedIds.length > 0) {
+      if (stickToBottomRef.current || isNearBottom(node)) {
+        window.requestAnimationFrame(() => {
+          node.scrollTop = node.scrollHeight;
+          stickToBottomRef.current = true;
+        });
+      } else {
+        setNewCommentsAvailable(true);
+      }
+    }
+  }, [lastUpdate]);
 
   async function handleLoadOlder() {
+    if (loadingOlderRef.current || loadingOlder || !hasOlder) return;
+
     const node = scrollRef.current;
+    const requestedTaskId = taskId;
     const previousHeight = node?.scrollHeight ?? 0;
+    const previousTop = node?.scrollTop ?? 0;
+    loadingOlderRef.current = true;
     stickToBottomRef.current = false;
-    await loadOlder();
+    const applied = await loadOlder();
+    loadingOlderRef.current = false;
+
+    if (!applied || String(taskIdRef.current) !== String(requestedTaskId)) return;
     window.requestAnimationFrame(() => {
-      if (node) node.scrollTop = node.scrollHeight - previousHeight;
+      if (node) node.scrollTop = previousTop + node.scrollHeight - previousHeight;
     });
+  }
+
+  function handleScroll() {
+    const node = scrollRef.current;
+    if (!node) return;
+
+    const nearBottom = isNearBottom(node);
+    stickToBottomRef.current = nearBottom;
+    if (nearBottom) setNewCommentsAvailable(false);
+    if (node.scrollTop <= SCROLL_TOP_THRESHOLD_PX && hasOlder && !loadingOlder) {
+      void handleLoadOlder();
+    }
   }
 
   async function handleSubmit(event) {
     event.preventDefault();
-    if (!draft.trim()) return;
+    const content = draft.trim();
+    if (!content) return;
+
+    setLocalFeedback('');
+    if (editing) {
+      const target = comments.find((comment) => comment.id === editingId);
+      if (!target || target.deletedAt) {
+        setEditingId(null);
+        setDraft('');
+        setLocalFeedback('O comentário não está mais disponível para edição.');
+        return;
+      }
+      if (await editComment(editingId, content)) {
+        setEditingId(null);
+        setDraft('');
+      }
+      return;
+    }
+
     stickToBottomRef.current = true;
-    if (await addComment(draft.trim())) setDraft('');
+    if (await addComment(content)) setDraft('');
   }
 
   function startEditing(comment) {
+    setMenuId(null);
     setEditingId(comment.id);
-    setEditingDraft(comment.content);
+    setDraft(comment.content);
+    setLocalFeedback('');
+    window.requestAnimationFrame(() => {
+      composerRef.current?.focus();
+      composerRef.current?.setSelectionRange(comment.content.length, comment.content.length);
+    });
   }
 
-  async function handleEditSubmit(event) {
-    event.preventDefault();
-    if (!editingDraft.trim()) return;
-    if (await editComment(editingId, editingDraft.trim())) {
-      setEditingId(null);
-      setEditingDraft('');
-    }
+  function cancelEditing() {
+    const trigger = triggerRefs.current.get(editingId);
+    setEditingId(null);
+    setDraft('');
+    setLocalFeedback('');
+    window.requestAnimationFrame(() => trigger?.focus());
   }
 
   async function handleDelete(comment) {
+    setMenuId(null);
     const confirmed = await confirm({
       title: 'Excluir comentário',
       description:
         'O conteúdo deixará de ser exibido e o histórico manterá apenas a marcação de exclusão. Esta ação não poderá ser desfeita.',
       confirmLabel: 'Excluir'
     });
-    if (!confirmed) return;
-    await removeComment(comment.id);
+    if (!confirmed) {
+      window.requestAnimationFrame(() => triggerRefs.current.get(comment.id)?.focus());
+      return;
+    }
+
+    const removed = await removeComment(comment.id);
+    window.requestAnimationFrame(() => {
+      if (removed) {
+        (composerRef.current || scrollRef.current)?.focus();
+      } else {
+        triggerRefs.current.get(comment.id)?.focus();
+      }
+    });
+  }
+
+  function scrollToLatest() {
+    const node = scrollRef.current;
+    if (!node) return;
+    node.scrollTop = node.scrollHeight;
+    stickToBottomRef.current = true;
+    setNewCommentsAvailable(false);
+    composerRef.current?.focus();
   }
 
   return (
@@ -110,27 +265,41 @@ export function TaskComments({ taskId }) {
         </div>
       )}
 
-      <div className="task-comments-scroll" ref={scrollRef}>
+      {syncError && (
+        <div className="task-comments-sync" role="status" aria-live="polite">
+          <span>{syncError}</span>
+          <button className="text-button" type="button" onClick={() => void retryRefresh()}>
+            Tentar atualizar
+          </button>
+        </div>
+      )}
+
+      {localFeedback && (
+        <div className="task-comments-sync" role="status" aria-live="polite">
+          {localFeedback}
+        </div>
+      )}
+
+      <div className="task-comments-scroll" ref={scrollRef} onScroll={handleScroll} tabIndex={-1}>
         {loading ? (
-          <p className="empty-state">Carregando comentários...</p>
+          <p className="empty-state" role="status">
+            Carregando comentários...
+          </p>
         ) : comments.length === 0 ? (
           <p className="empty-state">Nenhum comentário registrado.</p>
         ) : (
           <>
-            {hasOlder && (
-              <button
-                className="text-button task-chat-older"
-                type="button"
-                disabled={loadingOlder}
-                onClick={() => void handleLoadOlder()}
-              >
-                {loadingOlder ? 'Carregando...' : 'Ver comentários anteriores'}
-              </button>
+            {loadingOlder && (
+              <p className="task-chat-history-status" role="status">
+                Carregando comentários anteriores...
+              </p>
             )}
             {comments.map((comment) => {
               const own = Boolean(user && comment.author?.id === user.id);
               const processing = actionId === comment.id;
               const deleted = Boolean(comment.deletedAt);
+              const hasActions = !deleted && (comment.canEdit || comment.canDelete);
+              const menuOpen = menuId === comment.id;
               return (
                 <div
                   className={`task-chat-message${own ? ' task-chat-message-own' : ''}`}
@@ -139,7 +308,7 @@ export function TaskComments({ taskId }) {
                   <article
                     className={`task-chat-bubble${own ? ' task-chat-bubble-own' : ''}${
                       deleted ? ' task-chat-bubble-deleted' : ''
-                    }`}
+                    }${hasActions ? ' task-chat-bubble-has-actions' : ''}`}
                   >
                     {!own && (
                       <span className="task-chat-author">
@@ -147,80 +316,69 @@ export function TaskComments({ taskId }) {
                       </span>
                     )}
                     {deleted ? (
-                      <>
-                        <p className="task-chat-content task-chat-content-deleted">
-                          {comment.deletedByModeration
-                            ? 'Comentário excluído por moderação.'
-                            : 'Comentário excluído pelo autor.'}
-                        </p>
-                        <div className="task-chat-meta">
-                          <time dateTime={comment.createdAt}>
-                            {formatDateTime(comment.createdAt)}
-                          </time>
-                        </div>
-                      </>
-                    ) : editingId === comment.id ? (
-                      <form className="task-chat-edit-form" onSubmit={handleEditSubmit}>
-                        <textarea
-                          aria-label="Editar comentário"
-                          value={editingDraft}
-                          onChange={(event) => setEditingDraft(event.target.value)}
-                          rows="3"
-                          maxLength={COMMENT_MAX_LENGTH}
-                          disabled={processing}
-                        />
-                        <div className="task-chat-edit-actions">
-                          <button
-                            className="text-button"
-                            type="button"
-                            disabled={processing}
-                            onClick={() => setEditingId(null)}
-                          >
-                            Cancelar
-                          </button>
-                          <button
-                            className="text-button"
-                            type="submit"
-                            disabled={processing || !editingDraft.trim()}
-                          >
-                            {processing ? 'Salvando...' : 'Salvar'}
-                          </button>
-                        </div>
-                      </form>
+                      <p className="task-chat-content task-chat-content-deleted">
+                        {tombstoneMessages[comment.deletionActorType] || tombstoneMessages.UNKNOWN}
+                      </p>
                     ) : (
-                      <>
-                        <p className="task-chat-content">{comment.content}</p>
-                        <div className="task-chat-meta">
-                          {comment.editedAt && <span>(editado)</span>}
-                          <time dateTime={comment.createdAt}>
-                            {formatDateTime(comment.createdAt)}
-                          </time>
-                          {comment.canEdit && (
-                            <button
-                              className="task-chat-icon-button"
-                              type="button"
-                              disabled={busy}
-                              onClick={() => startEditing(comment)}
-                              aria-label="Editar comentário"
-                              title="Editar comentário"
-                            >
-                              <PencilIcon />
-                            </button>
-                          )}
-                          {comment.canDelete && (
-                            <button
-                              className="task-chat-icon-button task-chat-icon-button-danger"
-                              type="button"
-                              disabled={busy}
-                              onClick={() => void handleDelete(comment)}
-                              aria-label="Excluir comentário"
-                              title="Excluir comentário"
-                            >
-                              <TrashIcon />
-                            </button>
-                          )}
-                        </div>
-                      </>
+                      <p className="task-chat-content">{comment.content}</p>
+                    )}
+                    <div className="task-chat-meta">
+                      <time dateTime={comment.createdAt}>{formatDateTime(comment.createdAt)}</time>
+                      {!deleted && comment.editedAt && (
+                        <>
+                          <span aria-hidden="true">•</span>
+                          <span>Editado</span>
+                        </>
+                      )}
+                    </div>
+
+                    {hasActions && (
+                      <div
+                        className="task-chat-action"
+                        ref={menuOpen ? menuContainerRef : undefined}
+                      >
+                        <button
+                          className="task-chat-menu-trigger"
+                          ref={(node) => {
+                            if (node) triggerRefs.current.set(comment.id, node);
+                            else triggerRefs.current.delete(comment.id);
+                          }}
+                          type="button"
+                          disabled={busy}
+                          aria-label="Ações do comentário"
+                          aria-haspopup="menu"
+                          aria-expanded={menuOpen}
+                          onClick={() =>
+                            setMenuId((current) => (current === comment.id ? null : comment.id))
+                          }
+                        >
+                          <span aria-hidden="true">⋯</span>
+                        </button>
+                        {menuOpen && (
+                          <div className="task-chat-menu" role="menu">
+                            {comment.canEdit && (
+                              <button
+                                type="button"
+                                role="menuitem"
+                                onClick={() => startEditing(comment)}
+                              >
+                                Editar
+                              </button>
+                            )}
+                            {comment.canDelete && (
+                              <button
+                                className="task-chat-menu-danger"
+                                type="button"
+                                role="menuitem"
+                                disabled={processing}
+                                onClick={() => void handleDelete(comment)}
+                              >
+                                Excluir
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     )}
                   </article>
                 </div>
@@ -228,22 +386,49 @@ export function TaskComments({ taskId }) {
             })}
           </>
         )}
+
+        {newCommentsAvailable && (
+          <button className="task-chat-new-indicator" type="button" onClick={scrollToLatest}>
+            Novos comentários
+          </button>
+        )}
       </div>
 
       {permissions.canComment && (
         <form className="task-chat-form" onSubmit={handleSubmit}>
-          <textarea
-            aria-label="Novo comentário"
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            rows="2"
-            maxLength={COMMENT_MAX_LENGTH}
-            placeholder="Escreva um comentário..."
-            disabled={busy}
-          />
-          <button className="button button-primary" type="submit" disabled={busy || !draft.trim()}>
-            {submitting ? 'Enviando...' : 'Comentar'}
-          </button>
+          {editing && (
+            <div className="task-chat-edit-context">
+              <span>Editando comentário</span>
+              <button className="text-button" type="button" disabled={busy} onClick={cancelEditing}>
+                Cancelar edição
+              </button>
+            </div>
+          )}
+          <div className="task-chat-composer-row">
+            <textarea
+              ref={composerRef}
+              aria-label={editing ? 'Editar comentário' : 'Novo comentário'}
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              rows="2"
+              maxLength={COMMENT_MAX_LENGTH}
+              placeholder="Escreva um comentário..."
+              disabled={busy}
+            />
+            <button
+              className="button button-primary"
+              type="submit"
+              disabled={busy || !draft.trim()}
+            >
+              {editing
+                ? actionId === editingId
+                  ? 'Salvando...'
+                  : 'Salvar'
+                : submitting
+                  ? 'Enviando...'
+                  : 'Comentar'}
+            </button>
+          </div>
         </form>
       )}
     </aside>

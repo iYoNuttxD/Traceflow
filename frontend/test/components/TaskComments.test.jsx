@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfirmProvider } from '../../src/shared/index.js';
@@ -23,6 +23,8 @@ const ownComment = (overrides = {}) => ({
   editedAt: null,
   createdAt: '2026-08-29T12:00:00.000Z',
   author: { id: 10, name: 'Autora Teste' },
+  deletedAt: null,
+  deletionActorType: null,
   canEdit: true,
   canDelete: true,
   ...overrides
@@ -35,12 +37,13 @@ const otherComment = (overrides = {}) => ({
   editedAt: null,
   createdAt: '2026-08-29T11:00:00.000Z',
   author: { id: 20, name: 'Outra Pessoa' },
+  deletedAt: null,
+  deletionActorType: null,
   canEdit: false,
   canDelete: false,
   ...overrides
 });
 
-// Marcador devolvido pela API: mantém autoria e data, sem conteúdo nem ações.
 const deletedComment = (overrides = {}) => ({
   id: 3,
   taskId: 42,
@@ -49,13 +52,12 @@ const deletedComment = (overrides = {}) => ({
   createdAt: '2026-08-29T10:00:00.000Z',
   author: { id: 20, name: 'Outra Pessoa' },
   deletedAt: '2026-08-29T14:00:00.000Z',
-  deletedByModeration: false,
+  deletionActorType: 'AUTHOR',
   canEdit: false,
   canDelete: false,
   ...overrides
 });
 
-// A API retorna do mais recente para o mais antigo (ordem de página).
 const response = (
   comments = [ownComment(), otherComment()],
   permissions = { canComment: true, canModerate: false },
@@ -65,7 +67,7 @@ const response = (
   total,
   comments,
   permissions,
-  pagination: { page: 1, limit: 5, total, totalPages: Math.max(1, Math.ceil(total / 5)) }
+  pagination: { page: 1, limit: 5, total, totalPages: Math.ceil(total / 5) }
 });
 
 function renderComments() {
@@ -76,15 +78,28 @@ function renderComments() {
   );
 }
 
+async function openOwnMenu(user) {
+  const trigger = await screen.findByRole('button', { name: 'Ações do comentário' });
+  await user.click(trigger);
+  return { trigger, menu: screen.getByRole('menu') };
+}
+
 describe('TaskComments', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     apiMocks.getTaskComments.mockResolvedValue(response());
-    apiMocks.createTaskComment.mockResolvedValue({ comment: ownComment() });
+    apiMocks.createTaskComment.mockResolvedValue({ comment: ownComment({ id: 4 }) });
     apiMocks.updateTaskComment.mockResolvedValue({
       comment: ownComment({ content: 'Texto revisado.', editedAt: '2026-08-29T13:00:00.000Z' })
     });
-    apiMocks.deleteTaskComment.mockResolvedValue({ message: 'ok' });
+    apiMocks.deleteTaskComment.mockResolvedValue({
+      message: 'ok',
+      comment: deletedComment({
+        id: 1,
+        author: { id: 10, name: 'Autora Teste' },
+        createdAt: '2026-08-29T12:00:00.000Z'
+      })
+    });
   });
 
   it('apresenta carregamento e estado vazio', async () => {
@@ -105,125 +120,211 @@ describe('TaskComments', () => {
     );
   });
 
-  it('alinha mensagens próprias à direita, mostra autor dos demais e ordem cronológica', async () => {
+  it('anuncia falha real da leitura como erro', async () => {
+    apiMocks.getTaskComments.mockRejectedValueOnce({
+      response: { data: { message: 'Falha ao carregar comentários.' } }
+    });
+    renderComments();
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Falha ao carregar comentários.');
+  });
+
+  it('mantém layout cronológico compacto e reúne ações no menu único', async () => {
+    const user = userEvent.setup();
     const { container } = renderComments();
     expect(await screen.findByText('Comentário próprio.')).toBeInTheDocument();
-
-    const ownBubble = container.querySelector('.task-chat-message-own');
-    expect(ownBubble).toHaveTextContent('Comentário próprio.');
-    expect(within(ownBubble).queryByText('Autora Teste')).not.toBeInTheDocument();
-    expect(screen.getByText('Outra Pessoa')).toBeInTheDocument();
 
     const messages = [...container.querySelectorAll('.task-chat-content')].map(
       (node) => node.textContent
     );
     expect(messages).toEqual(['Comentário de colega.', 'Comentário próprio.']);
+    expect(screen.queryByRole('button', { name: 'Editar comentário' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Excluir comentário' })).not.toBeInTheDocument();
+
+    const { trigger, menu } = await openOwnMenu(user);
+    expect(trigger).toHaveAttribute('aria-haspopup', 'menu');
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    const editItem = within(menu).getByRole('menuitem', { name: 'Editar' });
+    const deleteItem = within(menu).getByRole('menuitem', { name: 'Excluir' });
+    expect(editItem).toHaveFocus();
+    await user.keyboard('{ArrowDown}');
+    expect(deleteItem).toHaveFocus();
+    await user.keyboard('{ArrowUp}');
+    expect(editItem).toHaveFocus();
   });
 
-  it('mantém comentário excluído no histórico como marcador sem ações', async () => {
+  it('fecha o menu por Escape e click externo, restaurando foco no Escape', async () => {
+    const user = userEvent.setup();
+    renderComments();
+    const { trigger } = await openOwnMenu(user);
+
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    await waitFor(() => expect(trigger).toHaveFocus());
+
+    await user.click(trigger);
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+
+  it('representa AUTHOR, MODERATION e UNKNOWN sem ações', async () => {
     apiMocks.getTaskComments.mockResolvedValue(
       response([
-        ownComment(),
-        deletedComment(),
-        deletedComment({ id: 4, deletedByModeration: true })
+        deletedComment({ id: 3, deletionActorType: 'AUTHOR' }),
+        deletedComment({ id: 4, deletionActorType: 'MODERATION' }),
+        deletedComment({ id: 5, deletionActorType: 'UNKNOWN' })
       ])
     );
     const { container } = renderComments();
 
-    expect(await screen.findByText('Comentário excluído por moderação.')).toBeInTheDocument();
-    expect(screen.getByText('Comentário excluído pelo autor.')).toBeInTheDocument();
-    expect(container.querySelectorAll('.task-chat-bubble-deleted')).toHaveLength(2);
-
-    // Somente o comentário ativo mantém as ações de editar e excluir.
-    expect(screen.getAllByRole('button', { name: 'Editar comentário' })).toHaveLength(1);
-    expect(screen.getAllByRole('button', { name: 'Excluir comentário' })).toHaveLength(1);
+    expect(await screen.findByText('Comentário excluído pelo autor.')).toBeInTheDocument();
+    expect(screen.getByText('Comentário excluído por moderação.')).toBeInTheDocument();
+    expect(screen.getByText('Comentário excluído.')).toBeInTheDocument();
+    expect(container.querySelectorAll('.task-chat-bubble-deleted')).toHaveLength(3);
+    expect(screen.queryByRole('button', { name: 'Ações do comentário' })).not.toBeInTheDocument();
   });
 
-  it('envia novo comentário e recarrega a conversa', async () => {
+  it('edita somente pelo composer e permite cancelar sem request', async () => {
+    const user = userEvent.setup();
+    const { container } = renderComments();
+    let { trigger, menu } = await openOwnMenu(user);
+    await user.click(within(menu).getByRole('menuitem', { name: 'Editar' }));
+
+    const editField = screen.getByLabelText('Editar comentário');
+    expect(editField).toHaveValue('Comentário próprio.');
+    await waitFor(() => expect(editField).toHaveFocus());
+    expect(screen.getByRole('button', { name: 'Salvar' })).toBeInTheDocument();
+    expect(container.querySelector('.task-chat-bubble textarea')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Cancelar edição' }));
+    expect(apiMocks.updateTaskComment).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('Novo comentário')).toHaveValue('');
+    await waitFor(() => expect(trigger).toHaveFocus());
+
+    ({ menu } = await openOwnMenu(user));
+    await user.click(within(menu).getByRole('menuitem', { name: 'Editar' }));
+    await user.clear(screen.getByLabelText('Editar comentário'));
+    await user.type(screen.getByLabelText('Editar comentário'), 'Texto revisado.');
+    apiMocks.getTaskComments.mockResolvedValueOnce(
+      response([
+        ownComment({ content: 'Texto revisado.', editedAt: '2026-08-29T13:00:00.000Z' }),
+        otherComment()
+      ])
+    );
+    await user.click(screen.getByRole('button', { name: 'Salvar' }));
+
+    expect(await screen.findByText('Texto revisado.')).toBeInTheDocument();
+    expect(screen.getByText('Editado')).toBeInTheDocument();
+    expect(screen.getByLabelText('Novo comentário')).toHaveValue('');
+    expect(apiMocks.updateTaskComment).toHaveBeenCalledOnce();
+  });
+
+  it('preserva confirmação e converte delete confirmado em tombstone local', async () => {
     const user = userEvent.setup();
     renderComments();
-    await screen.findByText('Comentário próprio.');
+    let { menu } = await openOwnMenu(user);
+    await user.click(within(menu).getByRole('menuitem', { name: 'Excluir' }));
+    expect(await screen.findByRole('heading', { name: 'Excluir comentário' })).toBeInTheDocument();
 
-    await user.type(screen.getByLabelText('Novo comentário'), 'Comentário novo');
-    await user.click(screen.getByRole('button', { name: 'Comentar' }));
-    await waitFor(() =>
-      expect(apiMocks.createTaskComment).toHaveBeenCalledWith(42, 'Comentário novo')
+    await user.click(screen.getByRole('button', { name: 'Cancelar' }));
+    expect(apiMocks.deleteTaskComment).not.toHaveBeenCalled();
+
+    ({ menu } = await openOwnMenu(user));
+    await user.click(within(menu).getByRole('menuitem', { name: 'Excluir' }));
+    apiMocks.getTaskComments.mockResolvedValueOnce(
+      response([
+        deletedComment({ id: 1, author: { id: 10, name: 'Autora Teste' } }),
+        otherComment()
+      ])
     );
-    await waitFor(() => expect(apiMocks.getTaskComments).toHaveBeenCalledTimes(2));
-    expect(screen.getByLabelText('Novo comentário')).toHaveValue('');
+    await user.click(await screen.findByRole('button', { name: 'Excluir' }));
+
+    expect(await screen.findByText('Comentário excluído pelo autor.')).toBeInTheDocument();
+    expect(apiMocks.deleteTaskComment).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('button', { name: 'Ações do comentário' })).not.toBeInTheDocument();
   });
 
-  it('carrega comentários anteriores sem duplicar registros', async () => {
-    const user = userEvent.setup();
+  it('carrega histórico automaticamente no topo, deduplica e preserva a posição visual', async () => {
+    let scrollHeight = 500;
     apiMocks.getTaskComments
       .mockResolvedValueOnce(response([ownComment(), otherComment()], undefined, 3))
-      .mockResolvedValueOnce(
-        response([otherComment({ id: 3, content: 'Comentário antigo.' })], undefined, 3)
-      );
+      .mockImplementationOnce(async () => {
+        scrollHeight = 700;
+        return response([otherComment({ id: 3, content: 'Comentário antigo.' })], undefined, 3);
+      });
     const { container } = renderComments();
+    await screen.findByText('Comentário próprio.');
+    expect(screen.queryByText('Ver comentários anteriores')).not.toBeInTheDocument();
 
-    await user.click(await screen.findByRole('button', { name: 'Ver comentários anteriores' }));
-    await waitFor(() =>
-      expect(apiMocks.getTaskComments).toHaveBeenLastCalledWith(42, { page: 2, limit: 5 })
+    const scroller = container.querySelector('.task-comments-scroll');
+    Object.defineProperty(scroller, 'scrollHeight', {
+      configurable: true,
+      get: () => scrollHeight
+    });
+    Object.defineProperty(scroller, 'clientHeight', { configurable: true, value: 200 });
+    scroller.scrollTop = 10;
+    fireEvent.scroll(scroller);
+
+    expect(await screen.findByText('Comentário antigo.')).toBeInTheDocument();
+    await waitFor(() => expect(scroller.scrollTop).toBe(210));
+    expect(apiMocks.getTaskComments).toHaveBeenLastCalledWith(
+      42,
+      { page: 2, limit: 5 },
+      { signal: expect.any(AbortSignal) }
     );
-    await screen.findByText('Comentário antigo.');
-    const messages = [...container.querySelectorAll('.task-chat-content')].map(
-      (node) => node.textContent
-    );
-    expect(messages).toEqual([
-      'Comentário antigo.',
-      'Comentário de colega.',
-      'Comentário próprio.'
-    ]);
   });
 
-  it('oculta formulário e ícones para quem não pode interagir', async () => {
+  it('mantém leitura do histórico e oferece indicador para comentário remoto', async () => {
+    const { container } = renderComments();
+    await screen.findByText('Comentário próprio.');
+    const scroller = container.querySelector('.task-comments-scroll');
+    Object.defineProperty(scroller, 'scrollHeight', { configurable: true, value: 1000 });
+    Object.defineProperty(scroller, 'clientHeight', { configurable: true, value: 200 });
+    scroller.scrollTop = 100;
+    fireEvent.scroll(scroller);
+
+    apiMocks.getTaskComments.mockResolvedValueOnce(
+      response([ownComment({ id: 4, content: 'Comentário remoto.' }), ownComment(), otherComment()])
+    );
+    await act(async () => window.dispatchEvent(new Event('focus')));
+
+    expect(await screen.findByText('Comentário remoto.')).toBeInTheDocument();
+    const indicator = screen.getByRole('button', { name: 'Novos comentários' });
+    expect(scroller.scrollTop).toBe(100);
+    await userEvent.setup().click(indicator);
+    expect(scroller.scrollTop).toBe(1000);
+  });
+
+  it('cancela edit mode quando refresh remoto transforma o alvo em tombstone', async () => {
+    const user = userEvent.setup();
+    renderComments();
+    const { menu } = await openOwnMenu(user);
+    await user.click(within(menu).getByRole('menuitem', { name: 'Editar' }));
+    await user.type(screen.getByLabelText('Editar comentário'), ' rascunho');
+
+    apiMocks.getTaskComments.mockResolvedValueOnce(
+      response([
+        deletedComment({ id: 1, author: { id: 10, name: 'Autora Teste' } }),
+        otherComment()
+      ])
+    );
+    await act(async () => window.dispatchEvent(new Event('focus')));
+
+    expect(
+      await screen.findByText('O comentário não está mais disponível para edição.')
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText('Novo comentário')).toHaveValue('');
+    expect(apiMocks.updateTaskComment).not.toHaveBeenCalled();
+  });
+
+  it('oculta composer e menu para VIEWER', async () => {
     apiMocks.getTaskComments.mockResolvedValue(
       response([otherComment()], { canComment: false, canModerate: false }, 1)
     );
     renderComments();
     expect(await screen.findByText('Comentário de colega.')).toBeInTheDocument();
     expect(screen.queryByLabelText('Novo comentário')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Editar comentário' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Excluir comentário' })).not.toBeInTheDocument();
-  });
-
-  it('edita pelo ícone de lápis e indica a edição', async () => {
-    const user = userEvent.setup();
-    renderComments();
-    await user.click(await screen.findByRole('button', { name: 'Editar comentário' }));
-
-    const editField = screen.getByLabelText('Editar comentário');
-    await user.clear(editField);
-    await user.type(editField, 'Texto revisado.');
-    await user.click(screen.getByRole('button', { name: 'Salvar' }));
-
-    await waitFor(() =>
-      expect(apiMocks.updateTaskComment).toHaveBeenCalledWith(42, 1, 'Texto revisado.')
-    );
-    expect(await screen.findByText('Texto revisado.')).toBeInTheDocument();
-    expect(screen.getByText('(editado)')).toBeInTheDocument();
-  });
-
-  it('exclui pelo ícone de lixeira somente após confirmação', async () => {
-    const user = userEvent.setup();
-    renderComments();
-    await user.click(await screen.findByRole('button', { name: 'Excluir comentário' }));
-    expect(await screen.findByRole('heading', { name: 'Excluir comentário' })).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: 'Cancelar' }));
-    expect(apiMocks.deleteTaskComment).not.toHaveBeenCalled();
-
-    await user.click(screen.getByRole('button', { name: 'Excluir comentário' }));
-    await user.click(await screen.findByRole('button', { name: 'Excluir' }));
-    await waitFor(() => expect(apiMocks.deleteTaskComment).toHaveBeenCalledWith(42, 1));
-  });
-
-  it('apresenta erro normalizado da API', async () => {
-    apiMocks.getTaskComments.mockRejectedValue({
-      response: { status: 409, data: { message: 'Falha ao carregar comentários.' } }
-    });
-    renderComments();
-    expect(await screen.findByRole('alert')).toHaveTextContent('Falha ao carregar comentários.');
+    expect(screen.queryByRole('button', { name: 'Ações do comentário' })).not.toBeInTheDocument();
   });
 });

@@ -71,8 +71,12 @@ export const taskCommentRepository = {
         data: { deletedAt: new Date(), deletedById }
       });
       if (result.count === 0) return { outcome: 'NOT_FOUND' };
+      const comment = await tx.taskComment.findUnique({
+        where: { id: commentId },
+        select: commentSelect
+      });
       if (auditEvent) await auditRepository.create(auditEvent, tx);
-      return { outcome: 'DELETED' };
+      return { outcome: 'DELETED', comment };
     });
   }
 };

@@ -174,8 +174,12 @@ export const taskController = {
 
   deleteComment: asyncHandler(
     async (req, res) => {
-      await taskService.deleteTaskComment(req.params.id, req.params.commentId, context(req));
-      return res.json({ message: 'Comentário excluído com sucesso.' });
+      const comment = await taskService.deleteTaskComment(
+        req.params.id,
+        req.params.commentId,
+        context(req)
+      );
+      return res.json({ message: 'Comentário excluído com sucesso.', comment });
     },
     { fallbackMessage: 'Erro interno ao excluir comentário da tarefa.' }
   ),

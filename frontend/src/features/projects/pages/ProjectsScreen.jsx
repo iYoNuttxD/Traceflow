@@ -447,9 +447,6 @@ export function ProjectsScreen() {
             </div>
           ) : (
             <>
-              {projects.length === 0 && invitationState.count === 0 && !invitationState.loading && (
-                <p className="projects-grid__empty">Nenhum projeto cadastrado ainda.</p>
-              )}
               {projects.map((project) => {
                 const repository = project.githubIntegration?.repositoryFullName;
                 const needsReconnect = project.githubIntegration?.status === 'RECONNECT_REQUIRED';

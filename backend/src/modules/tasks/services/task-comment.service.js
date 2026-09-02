@@ -39,6 +39,13 @@ function commentNotFound() {
 // Comentário excluído permanece no histórico como marcador: mantém autoria e posição
 // cronológica, mas nunca devolve o conteúdo nem habilita novas ações sobre ele.
 function formatDeletedComment(comment) {
+  const deletionActorType =
+    comment.deletedById == null
+      ? 'UNKNOWN'
+      : comment.deletedById === comment.authorUserId
+        ? 'AUTHOR'
+        : 'MODERATION';
+
   return {
     id: comment.id,
     taskId: comment.taskId,
@@ -47,9 +54,7 @@ function formatDeletedComment(comment) {
     createdAt: comment.createdAt,
     author: comment.authorUser,
     deletedAt: comment.deletedAt,
-    // Sem `deletedById` a autoria da exclusão é desconhecida e não se afirma moderação.
-    deletedByModeration:
-      comment.deletedById != null && comment.deletedById !== comment.authorUserId,
+    deletionActorType,
     canEdit: false,
     canDelete: false
   };
@@ -67,7 +72,7 @@ function formatComment(comment, context = {}) {
     createdAt: comment.createdAt,
     author: comment.authorUser,
     deletedAt: null,
-    deletedByModeration: false,
+    deletionActorType: null,
     canEdit: isAuthor && role !== 'VIEWER',
     canDelete: (isAuthor && role !== 'VIEWER') || canModerate(role)
   };
@@ -172,5 +177,6 @@ export const taskCommentService = {
       })
     );
     if (result.outcome !== 'DELETED') throw commentNotFound();
+    return formatComment(result.comment, context);
   }
 };

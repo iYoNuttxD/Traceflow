@@ -10,6 +10,7 @@
 
 .task-comments-header {
   display: grid;
+  flex: 0 0 auto;
   gap: 0.2rem;
   padding: 0.75rem 0.75rem 0.5rem;
   border-bottom: 1px solid var(--color-border-default);
@@ -29,25 +30,47 @@
 }
 
 .task-comments > .message {
+  flex: 0 0 auto;
   margin: 0.5rem 0.75rem 0;
 }
 
+.task-comments-sync {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0.5rem 0.75rem 0;
+  border: 1px solid var(--color-info-border);
+  border-radius: 8px;
+  padding: 0.45rem 0.6rem;
+  color: var(--color-info-text);
+  background: var(--color-info-surface);
+  font-size: 0.76rem;
+}
+
+.task-comments-sync .text-button {
+  min-height: var(--size-touch-target);
+}
+
 .task-comments-scroll {
+  position: relative;
   display: flex;
   flex: 1;
   flex-direction: column;
   gap: 0.5rem;
   min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 0.75rem;
 }
 
-.task-chat-older {
-  display: inline-flex;
-  min-height: var(--size-touch-target);
-  align-items: center;
-  align-self: center;
-  font-size: 0.8rem;
+.task-chat-history-status {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 0.76rem;
+  text-align: center;
 }
 
 .task-chat-message {
@@ -60,6 +83,7 @@
 }
 
 .task-chat-bubble {
+  position: relative;
   max-width: 88%;
   padding: 0.5rem 0.65rem;
   border: 1px solid var(--color-border-default);
@@ -73,6 +97,10 @@
   border-radius: 12px;
   border-bottom-right-radius: 4px;
   background: var(--color-accent-surface);
+}
+
+.task-chat-bubble-has-actions {
+  padding-right: 3rem;
 }
 
 .task-chat-bubble-deleted {
@@ -105,51 +133,136 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 0.35rem;
-  margin-top: 0.25rem;
+  gap: 0.3rem;
+  margin-top: 0.2rem;
   color: var(--color-text-secondary);
   font-size: 0.7rem;
 }
 
-.task-chat-icon-button {
-  display: inline-flex;
+.task-chat-action {
+  position: absolute;
+  top: 0.1rem;
+  right: 0.1rem;
+  z-index: var(--z-popover);
+}
+
+.task-chat-menu-trigger {
+  display: inline-grid;
   width: var(--size-touch-target);
   min-width: var(--size-touch-target);
   height: var(--size-touch-target);
-  align-items: center;
-  justify-content: center;
-  padding: 0;
+  place-items: center;
   border: 0;
-  border-radius: 4px;
+  border-radius: 8px;
+  padding: 0;
   color: var(--color-text-secondary);
   background: transparent;
   cursor: pointer;
+  font: inherit;
+  font-size: 1.25rem;
+  font-weight: 800;
+  line-height: 1;
 }
 
-.task-chat-icon-button:hover:not(:disabled) {
+.task-chat-menu-trigger:hover:not(:disabled),
+.task-chat-menu-trigger[aria-expanded='true'] {
   color: var(--color-accent-primary);
   background: var(--color-surface-interactive);
 }
 
-.task-chat-icon-button-danger:hover:not(:disabled) {
-  color: var(--color-danger-text);
-  background: var(--color-danger-surface);
-}
-
-.task-chat-icon-button:disabled {
+.task-chat-menu-trigger:disabled {
   cursor: not-allowed;
   opacity: var(--opacity-disabled);
 }
 
-.task-chat-edit-form {
+.task-chat-menu {
+  position: absolute;
+  top: calc(100% + 0.2rem);
+  right: 0;
   display: grid;
-  gap: 0.35rem;
+  min-width: 8rem;
+  overflow: hidden;
+  border: 1px solid var(--color-border-default);
+  border-radius: 10px;
+  background: var(--color-surface-elevated);
+  box-shadow: var(--shadow-md);
 }
 
-.task-chat-edit-form textarea,
+.task-chat-menu button {
+  min-height: var(--size-touch-target);
+  border: 0;
+  padding: 0.55rem 0.75rem;
+  color: var(--color-text-primary);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: left;
+}
+
+.task-chat-menu button:hover:not(:disabled),
+.task-chat-menu button:focus-visible {
+  background: var(--color-surface-interactive);
+}
+
+.task-chat-menu .task-chat-menu-danger {
+  color: var(--color-danger-text);
+}
+
+.task-chat-new-indicator {
+  position: sticky;
+  bottom: 0;
+  align-self: center;
+  min-height: var(--size-touch-target);
+  border: 1px solid var(--color-border-interactive);
+  border-radius: var(--radius-pill);
+  padding: 0.45rem 0.8rem;
+  color: var(--color-text-on-accent);
+  background: var(--color-accent-primary);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.task-chat-form {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 0.4rem;
+  padding: 0.6rem 0.75rem;
+  border-top: 1px solid var(--color-border-default);
+  background: var(--color-surface-secondary);
+}
+
+.task-chat-edit-context,
+.task-chat-composer-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.task-chat-edit-context {
+  align-items: center;
+  justify-content: space-between;
+  color: var(--color-text-secondary);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.task-chat-edit-context .text-button {
+  min-height: var(--size-touch-target);
+}
+
+.task-chat-composer-row {
+  align-items: flex-end;
+}
+
 .task-chat-form textarea {
   width: 100%;
   min-width: 0;
+  flex: 1;
+  resize: none;
   border: 1px solid var(--color-border-strong);
   border-radius: 9px;
   padding: 0.65rem 0.75rem;
@@ -160,36 +273,9 @@
   outline: none;
 }
 
-.task-chat-edit-form textarea:focus,
 .task-chat-form textarea:focus {
   border-color: var(--color-border-interactive);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-focus-ring) 18%, transparent);
-}
-
-.task-chat-edit-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.75rem;
-  font-size: 0.8rem;
-}
-
-.task-chat-edit-actions .text-button {
-  display: inline-flex;
-  min-height: var(--size-touch-target);
-  align-items: center;
-}
-
-.task-chat-form {
-  display: flex;
-  align-items: flex-end;
-  gap: 0.5rem;
-  padding: 0.6rem 0.75rem;
-  border-top: 1px solid var(--color-border-default);
-}
-
-.task-chat-form textarea {
-  flex: 1;
-  resize: none;
 }
 
 @media (max-width: 560px) {
@@ -197,12 +283,12 @@
     max-width: 100%;
   }
 
-  .task-chat-form {
+  .task-chat-composer-row {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .task-chat-form .button {
+  .task-chat-composer-row .button {
     width: 100%;
   }
 }

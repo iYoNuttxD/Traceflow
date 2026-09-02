@@ -168,6 +168,12 @@ pertencem ao contexto que iniciou a request. A troca de `projectId` cancela ou i
 polling e feedback anteriores; uma resposta stale não altera dados, autorização, loading ou erro do
 projeto corrente.
 
+Revalidação em background compartilhada usa `useVisibilityAwarePolling`; cada consumer mantém o
+escopo de entidade e a autoridade sobre o estado. Background revalidation deve ser scoped,
+visibility-aware, abortable e incapaz de sobrescrever mutations locais em voo. O retorno da aba ou
+foco dispara uma leitura imediata, timers são limpos no unmount e uma surface não abre dois polls
+concorrentes.
+
 ## Estado e acessibilidade
 
 - `LoadingState`, `EmptyState`, `ErrorState` e `ForbiddenState` são mutuamente exclusivos.
