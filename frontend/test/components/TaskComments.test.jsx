@@ -10,6 +10,8 @@ const apiMocks = vi.hoisted(() => ({
   deleteTaskComment: vi.fn()
 }));
 const eventMocks = vi.hoisted(() => ({
+  connectionState: 'connected',
+  reconnectSequence: 0,
   listener: null,
   subscribe: vi.fn((_types, listener) => {
     eventMocks.listener = listener;
@@ -22,8 +24,8 @@ const eventMocks = vi.hoisted(() => ({
 vi.mock('../../src/features/tasks/api/tasks.api.js', () => apiMocks);
 vi.mock('../../src/features/projects/index.js', () => ({
   useProjectEvents: () => ({
-    connectionState: 'connected',
-    reconnectSequence: 0,
+    connectionState: eventMocks.connectionState,
+    reconnectSequence: eventMocks.reconnectSequence,
     subscribe: eventMocks.subscribe
   })
 }));
@@ -91,12 +93,16 @@ function emit(type, comment, taskId = comment.taskId) {
   });
 }
 
-function renderComments() {
-  return render(
+function CommentsTree() {
+  return (
     <ConfirmProvider>
       <TaskComments taskId={42} />
     </ConfirmProvider>
   );
+}
+
+function renderComments() {
+  return render(<CommentsTree />);
 }
 
 async function openOwnMenu(user) {
@@ -108,6 +114,8 @@ async function openOwnMenu(user) {
 describe('TaskComments', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    eventMocks.connectionState = 'connected';
+    eventMocks.reconnectSequence = 0;
     eventMocks.listener = null;
     apiMocks.getTaskComments.mockResolvedValue(response());
     apiMocks.createTaskComment.mockResolvedValue({ comment: ownComment({ id: 4 }) });
@@ -205,6 +213,38 @@ describe('TaskComments', () => {
     expect(screen.getByText('Comentário excluído.')).toBeInTheDocument();
     expect(container.querySelectorAll('.task-chat-bubble-deleted')).toHaveLength(3);
     expect(screen.queryByRole('button', { name: 'Ações do comentário' })).not.toBeInTheDocument();
+  });
+
+  it('remove o menu após downgrade reconciliado sem mudança na versão do comentário', async () => {
+    apiMocks.getTaskComments.mockResolvedValueOnce(response([ownComment()])).mockResolvedValueOnce(
+      response([ownComment({ canEdit: false, canDelete: false })], {
+        canComment: false,
+        canModerate: false
+      })
+    );
+    const rendered = renderComments();
+    expect(await screen.findByRole('button', { name: 'Ações do comentário' })).toBeInTheDocument();
+
+    eventMocks.reconnectSequence = 1;
+    rendered.rerender(<CommentsTree />);
+
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'Ações do comentário' })).not.toBeInTheDocument()
+    );
+  });
+
+  it('adiciona o menu após upgrade reconciliado sem mudança na versão do comentário', async () => {
+    apiMocks.getTaskComments
+      .mockResolvedValueOnce(response([ownComment({ canEdit: false, canDelete: false })]))
+      .mockResolvedValueOnce(response([ownComment()]));
+    const rendered = renderComments();
+    expect(await screen.findByText('Comentário próprio.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Ações do comentário' })).not.toBeInTheDocument();
+
+    eventMocks.reconnectSequence = 1;
+    rendered.rerender(<CommentsTree />);
+
+    expect(await screen.findByRole('button', { name: 'Ações do comentário' })).toBeInTheDocument();
   });
 
   it('edita somente pelo composer e permite cancelar sem request', async () => {

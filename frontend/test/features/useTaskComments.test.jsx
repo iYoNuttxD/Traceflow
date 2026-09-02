@@ -242,6 +242,78 @@ describe('useTaskComments', () => {
     expect(apiMocks.getTaskComments).toHaveBeenCalledOnce();
   });
 
+  it.each([
+    {
+      change: 'downgrade',
+      initial: { canEdit: true, canDelete: true },
+      reconciled: { canEdit: false, canDelete: false }
+    },
+    {
+      change: 'upgrade',
+      initial: { canEdit: false, canDelete: false },
+      reconciled: { canEdit: true, canDelete: true }
+    }
+  ])(
+    'aplica capabilities do REST após $change sem exigir nova versão do comentário',
+    async ({ initial, reconciled }) => {
+      const unchanged = comment(1, initial);
+      apiMocks.getTaskComments
+        .mockResolvedValueOnce(response([unchanged]))
+        .mockResolvedValueOnce(response([comment(1, reconciled)]));
+      const rendered = await renderLoadedHook();
+
+      expect(rendered.result.current.comments[0]).toMatchObject(initial);
+      eventMocks.reconnectSequence = 1;
+      rendered.rerender({ taskId: 42 });
+
+      await waitFor(() =>
+        expect(rendered.result.current.comments[0]).toMatchObject({
+          content: unchanged.content,
+          createdAt: unchanged.createdAt,
+          editedAt: unchanged.editedAt,
+          ...reconciled
+        })
+      );
+    }
+  );
+
+  it('preserva capabilities REST ao aplicar edit SSE e rejeita conteúdo SSE antigo', async () => {
+    apiMocks.getTaskComments.mockResolvedValueOnce(
+      response([comment(1, { canEdit: false, canDelete: false })])
+    );
+    const { result } = await renderLoadedHook();
+
+    emit(
+      'task.comment.updated',
+      comment(1, {
+        content: 'Edição remota nova',
+        editedAt: '2026-08-29T13:00:00.000Z',
+        canEdit: true,
+        canDelete: true
+      })
+    );
+    expect(result.current.comments[0]).toMatchObject({
+      content: 'Edição remota nova',
+      canEdit: false,
+      canDelete: false
+    });
+
+    emit(
+      'task.comment.updated',
+      comment(1, {
+        content: 'Edição remota antiga',
+        editedAt: '2026-08-29T12:30:00.000Z',
+        canEdit: true,
+        canDelete: true
+      })
+    );
+    expect(result.current.comments[0]).toMatchObject({
+      content: 'Edição remota nova',
+      canEdit: false,
+      canDelete: false
+    });
+  });
+
   it('reconcilia uma vez após reabrir o stream e recovery repete somente GET', async () => {
     const rendered = await renderLoadedHook();
     apiMocks.getTaskComments.mockRejectedValueOnce(new Error('reconnect indisponível'));

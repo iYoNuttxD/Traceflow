@@ -679,7 +679,7 @@ model TaskHistoryEntry {
 
 // Comentário persistido da tarefa (RF29/RF31). Autoria vem da sessão autenticada.
 // Exclusão é lógica: deletedAt/deletedById preservam o registro para auditoria e a
-// listagem exibe somente comentários ativos.
+// listagem preserva comentários excluídos como tombstones para manter o histórico.
 model TaskComment {
   id           Int       @id @default(autoincrement())
   projectId    Int

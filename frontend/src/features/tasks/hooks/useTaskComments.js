@@ -42,11 +42,25 @@ function isNewer(existing, incoming) {
   return versionRank(incoming) > versionRank(existing);
 }
 
-export function mergeTaskComments(current, incoming) {
+function mergeCapabilities(comment, capabilitySource) {
+  const canEdit = comment.deletedAt ? false : Boolean(capabilitySource.canEdit);
+  const canDelete = comment.deletedAt ? false : Boolean(capabilitySource.canDelete);
+  if (comment.canEdit === canEdit && comment.canDelete === canDelete) return comment;
+  return { ...comment, canEdit, canDelete };
+}
+
+export function mergeTaskComments(current, incoming, { capabilityAuthority = 'incoming' } = {}) {
   const commentsById = new Map(current.map((comment) => [comment.id, comment]));
   for (const comment of incoming) {
     const existing = commentsById.get(comment.id);
-    if (!existing || isNewer(existing, comment)) commentsById.set(comment.id, comment);
+    if (!existing) {
+      commentsById.set(comment.id, mergeCapabilities(comment, comment));
+      continue;
+    }
+
+    const versionWinner = isNewer(existing, comment) ? comment : existing;
+    const capabilitySource = capabilityAuthority === 'existing' ? existing : comment;
+    commentsById.set(comment.id, mergeCapabilities(versionWinner, capabilitySource));
   }
   return sortChronologically([...commentsById.values()]);
 }
@@ -212,7 +226,9 @@ export function useTaskComments({ taskId }) {
 
         const current = commentsRef.current;
         const existing = current.find((comment) => comment.id === incoming.id);
-        const next = mergeTaskComments(current, [incoming]);
+        const next = mergeTaskComments(current, [incoming], {
+          capabilityAuthority: 'existing'
+        });
         const merged = next.find((comment) => comment.id === incoming.id);
         if (existing && merged === existing) return;
 
