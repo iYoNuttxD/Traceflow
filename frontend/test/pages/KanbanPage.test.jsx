@@ -1,4 +1,4 @@
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { MemoryRouter, Route, Routes, useNavigate } from 'react-router';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -422,5 +422,106 @@ describe('KanbanPage ADR-011', () => {
     await screen.findByText('Da sprint');
     expect(screen.getByRole('heading', { name: 'Histórico de tarefas' })).toBeInTheDocument();
     expect(screen.getByText('Movimentações: 4')).toBeInTheDocument();
+  });
+});
+
+describe('current-context-wins na troca de projeto', () => {
+  const tarefaDeA = { ...task, id: 21, title: 'Tarefa do A' };
+  const tarefaDeB = { ...task, id: 22, title: 'Tarefa do B' };
+  const sprintDeA = {
+    id: 41,
+    name: 'Sprint do A',
+    status: 'EM_ANDAMENTO',
+    startDate: '2026-08-01',
+    endDate: '2026-08-14'
+  };
+  const sprintDeB = {
+    id: 42,
+    name: 'Sprint do B',
+    status: 'EM_ANDAMENTO',
+    startDate: '2026-08-01',
+    endDate: '2026-08-14'
+  };
+
+  const quadroCom = (tarefa) => ({
+    columns: { A_FAZER: [tarefa], EM_ANDAMENTO: [], CONCLUIDO: [] },
+    totals: { A_FAZER: 1, EM_ANDAMENTO: 0, CONCLUIDO: 0, total: 1 }
+  });
+
+  function deferred() {
+    let resolve;
+    const promise = new Promise((resolver) => {
+      resolve = resolver;
+    });
+    return { promise, resolve };
+  }
+
+  function responderCom(nome, tarefa, sprint) {
+    mocks.api.get.mockResolvedValue({ data: { project: { id: 2, name: nome } } });
+    mocks.kanbanApi.getBoard.mockResolvedValue({ data: quadroCom(tarefa) });
+    mocks.kanbanApi.getMetrics.mockResolvedValue({
+      data: { indicator: 'MOVIMENTACOES', metric: 'Movimentações', totalMovements: 0 }
+    });
+    mocks.kanbanApi.listTaskHistory.mockResolvedValue(historyResponse());
+    mocks.projectMembersApi.listProjectMembers.mockResolvedValue({ data: { members: [] } });
+    mocks.scheduleApi.listSprints.mockResolvedValue({ data: { total: 1, sprints: [sprint] } });
+  }
+
+  function TrocarProjeto() {
+    const navigate = useNavigate();
+    return (
+      <button type="button" onClick={() => navigate('/projects/2/kanban')}>
+        Ir para o projeto 2
+      </button>
+    );
+  }
+
+  function renderComTroca() {
+    return render(
+      <MemoryRouter initialEntries={['/projects/1/kanban']}>
+        <TrocarProjeto />
+        <Routes>
+          <Route
+            path="/projects/:projectId/kanban"
+            element={
+              <ConfirmProvider>
+                <KanbanPage />
+              </ConfirmProvider>
+            }
+          />
+        </Routes>
+      </MemoryRouter>
+    );
+  }
+
+  it('resposta do projeto anterior nao sobrescreve quadro, catalogo nem filtro', async () => {
+    const user = userEvent.setup();
+    const atrasada = deferred();
+    const doA = (valor) => atrasada.promise.then(() => valor);
+
+    mocks.api.get.mockReturnValue(doA({ data: { project: { id: 1, name: 'Projeto A' } } }));
+    mocks.kanbanApi.getBoard.mockReturnValue(doA({ data: quadroCom(tarefaDeA) }));
+    mocks.kanbanApi.getMetrics.mockReturnValue(
+      doA({ data: { indicator: 'MOVIMENTACOES', metric: 'Movimentações', totalMovements: 9 } })
+    );
+    mocks.kanbanApi.listTaskHistory.mockReturnValue(doA(historyResponse()));
+    mocks.projectMembersApi.listProjectMembers.mockReturnValue(doA({ data: { members: [] } }));
+    mocks.scheduleApi.listSprints.mockReturnValue(
+      doA({ data: { total: 1, sprints: [sprintDeA] } })
+    );
+
+    renderComTroca();
+    responderCom('Projeto B', tarefaDeB, sprintDeB);
+    await user.click(screen.getByRole('button', { name: 'Ir para o projeto 2' }));
+    await screen.findByText('Tarefa do B');
+
+    atrasada.resolve();
+    await waitFor(() => expect(screen.getByText('Tarefa do B')).toBeInTheDocument());
+
+    expect(screen.queryByText('Tarefa do A')).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Selecionar sprints' }));
+    expect(screen.getByRole('checkbox', { name: /Sprint do B/ })).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: /Sprint do A/ })).toBeNull();
   });
 });
