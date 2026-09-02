@@ -20,14 +20,18 @@ frontend/.env
 .vscode/
 rest.http
 
-# /design-sync — staged converter, build output and machine-local state.
-# Everything else under .design-sync/ (config.json, NOTES.md, conventions.md,
-# entry.js, previews/, overrides/) is durable and committed.
+# Ferramenta de design (Claude Design): estado de trabalho, nao artefato do
+# produto. Regenera sob demanda e envelhece calado — o pacote versionado ate
+# 01/09/2026 ainda descrevia um Traceflow sem design tokens e apontava para
+# Layout.jsx/Navbar.jsx, ja removidos.
+.design-sync/
 .ds-sync/
 ds-bundle/
-.design-sync/.cache/
-.design-sync/learnings/
-.design-sync/node_modules
+
+# Residuo de rodar npm na raiz: o package.json daqui so tem scripts, sem
+# dependencias. Os locks de backend/ e frontend/ continuam versionados.
+/package-lock.json
+
 docs/design/experiments/
 docs/design/screenshots/
 docs/design/DESIGN_EXPLORATION.md
