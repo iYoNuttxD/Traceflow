@@ -12,3 +12,8 @@ export { ProjectDetailsScreen } from './pages/ProjectDetailsScreen.jsx';
 export { ProjectEditScreen } from './pages/ProjectEditScreen.jsx';
 export { ProjectMembersScreen } from './pages/ProjectMembersScreen.jsx';
 export { ProjectsCatalogProvider, useProjectsCatalog } from './hooks/ProjectsCatalogContext.jsx';
+export {
+  ProjectEventsProvider,
+  buildProjectEventsUrl,
+  useProjectEvents
+} from './events/ProjectEventsContext.jsx';

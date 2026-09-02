@@ -7,6 +7,7 @@ const kanbanFallback = 'Erro interno ao processar Kanban.';
 const context = (req) => ({
   actor: req.auth.user,
   actorUserId: req.auth.user.id,
+  membershipRole: req.projectMembership?.role,
   requestId: req.requestId
 });
 
@@ -141,6 +142,46 @@ export const taskController = {
       return res.json({ message: 'Issue removida da tarefa.', issues });
     },
     { fallbackMessage: 'Erro interno ao remover issue da tarefa.' }
+  ),
+
+  listComments: asyncHandler(
+    async (req, res) => {
+      return res.json(await taskService.listTaskComments(req.params.id, req.query, context(req)));
+    },
+    { fallbackMessage: 'Erro interno ao listar comentários da tarefa.' }
+  ),
+
+  createComment: asyncHandler(
+    async (req, res) => {
+      const comment = await taskService.createTaskComment(req.params.id, req.body, context(req));
+      return res.status(201).json({ message: 'Comentário registrado com sucesso.', comment });
+    },
+    { fallbackMessage: 'Erro interno ao registrar comentário na tarefa.' }
+  ),
+
+  updateComment: asyncHandler(
+    async (req, res) => {
+      const comment = await taskService.updateTaskComment(
+        req.params.id,
+        req.params.commentId,
+        req.body,
+        context(req)
+      );
+      return res.json({ message: 'Comentário atualizado com sucesso.', comment });
+    },
+    { fallbackMessage: 'Erro interno ao atualizar comentário da tarefa.' }
+  ),
+
+  deleteComment: asyncHandler(
+    async (req, res) => {
+      const comment = await taskService.deleteTaskComment(
+        req.params.id,
+        req.params.commentId,
+        context(req)
+      );
+      return res.json({ message: 'Comentário excluído com sucesso.', comment });
+    },
+    { fallbackMessage: 'Erro interno ao excluir comentário da tarefa.' }
   ),
 
   getKanbanBoard: asyncHandler(

@@ -6,6 +6,9 @@ import {
   createTaskBodySchema,
   moveTaskBodySchema,
   movementQuerySchema,
+  taskCommentBodySchema,
+  taskCommentListQuerySchema,
+  taskCommentParamsSchema,
   taskCommitBodySchema,
   taskCommitParamsSchema,
   taskDateRangeQuerySchema,
@@ -128,6 +131,26 @@ router.patch(
   '/tasks/:id/move',
   validateRequest({ params: taskIdParamsSchema, body: moveTaskBodySchema }),
   taskController.moveTask
+);
+router.get(
+  '/tasks/:id/comments',
+  validateRequest({ params: taskIdParamsSchema, query: taskCommentListQuerySchema }),
+  taskController.listComments
+);
+router.post(
+  '/tasks/:id/comments',
+  validateRequest({ params: taskIdParamsSchema, body: taskCommentBodySchema }),
+  taskController.createComment
+);
+router.patch(
+  '/tasks/:id/comments/:commentId',
+  validateRequest({ params: taskCommentParamsSchema, body: taskCommentBodySchema }),
+  taskController.updateComment
+);
+router.delete(
+  '/tasks/:id/comments/:commentId',
+  validateRequest({ params: taskCommentParamsSchema, body: emptyBodySchema }),
+  taskController.deleteComment
 );
 
 export default router;

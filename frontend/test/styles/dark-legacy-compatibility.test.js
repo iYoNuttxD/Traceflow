@@ -17,6 +17,10 @@ const taskDetailsCss = readFileSync(
   resolve('src/features/tasks/components/TaskDetailsPanel.css'),
   'utf8'
 );
+const taskCommentsCss = readFileSync(
+  resolve('src/features/tasks/components/TaskComments.css'),
+  'utf8'
+);
 const taskListCss = readFileSync(resolve('src/features/tasks/components/TaskList.css'), 'utf8');
 const taskCardsCss = readFileSync(resolve('src/features/tasks/styles/task-cards.css'), 'utf8');
 const requirementsCss = readFileSync(
@@ -347,13 +351,32 @@ describe('compatibilidade de conteúdo legado com os temas', () => {
     expect(rule(taskDetailsCss, '.task-detail-overlay')).toContain(
       'background: var(--color-overlay)'
     );
-    expect(rule(taskDetailsCss, '.task-detail-modal')).toContain(
+    expect(rule(taskDetailsCss.split('@media')[0], '.task-detail-modal')).toContain(
       'background: var(--color-surface-elevated)'
     );
     const foundations = rule(tokensCss, ':root');
     const navigationLayer = Number(foundations.match(/--z-navigation:\s*(\d+)/)?.[1]);
     const modalLayer = Number(foundations.match(/--z-modal:\s*(\d+)/)?.[1]);
     expect(modalLayer).toBeGreaterThan(navigationLayer);
+  });
+
+  it('mantém comentários no owner da feature, temáticos e com touch targets completos', () => {
+    expect(globalCss).not.toContain('.task-comments');
+    expect(rule(taskCommentsCss, '.task-comments')).toContain(
+      'background: var(--color-surface-secondary)'
+    );
+    expect(rule(taskCommentsCss, '.task-chat-bubble-own')).toContain(
+      'background: var(--color-accent-surface)'
+    );
+    expect(rule(taskCommentsCss, '.task-chat-menu-trigger')).toContain(
+      'width: var(--size-touch-target)'
+    );
+    expect(rule(taskCommentsCss, '.task-chat-menu-trigger')).toContain(
+      'height: var(--size-touch-target)'
+    );
+    expect(rule(taskCommentsCss, '.task-chat-menu button')).toContain(
+      'min-height: var(--size-touch-target)'
+    );
   });
 
   it('não reintroduz literais de tema nos owners neutros auditados', () => {
@@ -364,6 +387,7 @@ describe('compatibilidade de conteúdo legado com os temas', () => {
       kanbanBoardCss,
       movementHistoryCss,
       taskDetailsCss,
+      taskCommentsCss,
       kanbanCss,
       requirementsCss,
       traceabilityCss,

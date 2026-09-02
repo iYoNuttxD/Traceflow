@@ -34,6 +34,8 @@ são declaradas como `PASS`.
 | RF26 | consultar equipe | `GET .../members` | project-membership | ProjectMembership, User | ProjectMembersPanel, TaskForm | `backend/test/api/auth-authorization.test.js`, `frontend/test/features/ProjectMembersPanel.test.jsx`, `frontend/test/components/TaskForm.test.jsx` | IMPLEMENTADO |
 | RF27 | autenticar | login por username/e-mail, `me`, `csrf`, logout; login GitHub como capacidade adicional | auth/github-auth | User, Session, GitHubIdentity, GitHubOAuthState | AuthContext, LoginScreen, ProtectedRoute, GuestOnlyRoute | `backend/test/api/auth-authorization.test.js`, `backend/test/api/github-auth-l1-1.test.js`, `frontend/test/auth/AuthContext.test.jsx`, `frontend/test/auth/ProtectedRoute.test.jsx`, `frontend/test/auth/GuestOnlyRoute.test.jsx`, `frontend/test/pages/AuthForms.test.jsx` | IMPLEMENTADO; HOMOLOGAÇÃO GITHUB EXTERNA PENDENTE |
 | RF28 | recuperar senha sem enumerar contas | `POST /api/auth/forgot-password`, `POST /api/auth/reset-password` | auth/email | PasswordResetToken | ForgotPasswordScreen, ResetPasswordScreen | `backend/test/api/auth-authorization.test.js`, `backend/test/unit/identity-policy.test.js`, `frontend/test/pages/AuthForms.test.jsx` | IMPLEMENTADO; RESPOSTA GENÉRICA; SMTP EXTERNO PENDENTE |
+| RF29 | registrar comentário em tarefa | `POST /api/tasks/:id/comments` | task-comment | TaskComment | TaskDetailsPanel/TaskComments | `backend/test/api/task-comments-s1-05.test.js`, `backend/test/unit/task-comment.service.test.js`, `frontend/test/components/TaskComments.test.jsx` | IMPLEMENTADO |
+| RF31 | consultar histórico de comentários da tarefa | `GET /api/tasks/:id/comments` | task-comment | TaskComment | TaskDetailsPanel/TaskComments | `backend/test/api/task-comments-s1-05.test.js`, `frontend/test/components/TaskComments.test.jsx` | IMPLEMENTADO |
 | RF38 | histórico de alterações | `GET .../tasks/history`, movements | task-movement/history | TaskHistoryEntry, TaskMovement | Kanban history | mvp-contracts, KanbanPage | IMPLEMENTADO |
 | RF41 | sugerir Commit–Task | commit-suggestions scan/list/review | commit-suggestion | TaskCommitSuggestion, TaskCommit | Task edit/suggestions | rf41 API/unit, CommitSuggestionsCard | IMPLEMENTADO |
 | RF48 | Requirement–Task | `PUT /requirements/:id/tasks` | requirement-task | Task.requirementId | RequirementsScreen | mvp-contracts, RequirementsPage | IMPLEMENTADO |
@@ -46,7 +48,7 @@ são declaradas como `PASS`.
 ## Parcial ou fora do estado atual
 
 - Esforço estimado/real e métricas técnicas existentes não constituem, sozinhos, RF10 ou RF33–RF36 completos; esses RFs permanecem `PARCIAL` ou `NÃO IMPLEMENTADO` conforme o roadmap.
-- RF13, RF15–RF18, RF29–RF37, RF39–RF40, RF42–RF46 e RF54–RF64 não foram implementados como capacidades completas.
+- RF13, RF15–RF18, RF30, RF32–RF37, RF39–RF40, RF42–RF46 e RF54–RF64 não foram implementados como capacidades completas.
 - A numeração oficial não define RF14, RF19, RF20 e RF47; eles não foram inventados.
 
 Matriz histórica da E0: [E0_TRACEABILITY_MATRIX.md](../refactoring/E0_TRACEABILITY_MATRIX.md).

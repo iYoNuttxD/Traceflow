@@ -208,11 +208,11 @@ Entregar identidade e acesso homologados, planejamento colaborativo e a cadeia a
 
 **Checklist técnico:**
 
-- [ ] criar migration e índices;
-- [ ] implementar camadas de backend e validação;
-- [ ] implementar interface e estados;
-- [ ] testar autoria, ordenação, paginação e autorização;
-- [ ] atualizar API, privacidade e matriz RF.
+- [x] criar migration e índices;
+- [x] implementar camadas de backend e validação;
+- [x] implementar interface e estados;
+- [x] testar autoria, ordenação, paginação e autorização;
+- [x] atualizar API, privacidade e matriz RF.
 
 ### S1-06 - Homologar prioridade, estimativa e esforço realizado
 

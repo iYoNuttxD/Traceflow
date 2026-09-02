@@ -23,25 +23,25 @@ Tokens, hashes e códigos de acesso nunca integram logs ou auditoria.
 
 Todos os contratos abaixo exigem sessão e CSRF nas mutations, exceto as duas confirmações públicas. `requireAccountState` limita `DEACTIVATED` à conta/reativação e `DELETION_PENDING` ao status, cancelamento, exportação e reautenticação GitHub necessária para cancelar uma exclusão em conta GitHub-only; `ANONYMIZED` não autentica.
 
-| Método          | Caminho                                                         | Regra principal                                   |
-| --------------- | --------------------------------------------------------------- | ------------------------------------------------- |
-| GET             | `/settings/account`                                             | conta própria e estado                            |
-| PATCH           | `/settings/account/profile`                                     | altera somente nome; conta ativa                  |
-| PATCH           | `/settings/account/username`                                    | política L1 e cooldown de 30 dias                 |
-| POST/DELETE     | `/settings/account/email-change`                                | senha ou reautenticação GitHub; token hashado      |
-| GET             | `/settings/account/email-change/status`                         | solicitação própria pendente                      |
-| GET             | `/settings/account/email-change/confirm`                        | público; token único; revoga todas as sessões     |
-| POST            | `/settings/security/password`                                   | preserva sessão atual e revoga demais             |
-| GET/DELETE      | `/settings/security/sessions[/:sessionId]`                      | UUID público e sessão própria                     |
-| POST            | `/settings/security/sessions/revoke-others`                     | preserva sessão atual                             |
-| POST            | `/settings/account/deactivate`                                  | autenticação recente, confirmação e último OWNER  |
-| POST            | `/account/reactivation/start`                                  | sessão restrita desativada                        |
-| GET             | `/account/reactivation/confirm`                                | público; token único                              |
-| GET/POST/DELETE | `/settings/privacy/deletion`                                    | 30 dias e autenticação recente para pedir/cancelar |
-| POST            | `/settings/privacy/export`                                      | ZIP/JSON; `ACTIVE` ou `DELETION_PENDING`          |
-| GET             | `/settings/integrations/github`                                 | vínculos da conta com Installations/repos/projetos |
-| DELETE          | `/settings/integrations/github/authorizations/:authorizationId` | autenticação recente; desconecta o vínculo da conta  |
-| POST            | `/auth/github/reauth/start`                                     | GitHub-only; state, sessão e retorno interno       |
+| Método          | Caminho                                                         | Regra principal                                     |
+| --------------- | --------------------------------------------------------------- | --------------------------------------------------- |
+| GET             | `/settings/account`                                             | conta própria e estado                              |
+| PATCH           | `/settings/account/profile`                                     | altera somente nome; conta ativa                    |
+| PATCH           | `/settings/account/username`                                    | política L1 e cooldown de 30 dias                   |
+| POST/DELETE     | `/settings/account/email-change`                                | senha ou reautenticação GitHub; token hashado       |
+| GET             | `/settings/account/email-change/status`                         | solicitação própria pendente                        |
+| GET             | `/settings/account/email-change/confirm`                        | público; token único; revoga todas as sessões       |
+| POST            | `/settings/security/password`                                   | preserva sessão atual e revoga demais               |
+| GET/DELETE      | `/settings/security/sessions[/:sessionId]`                      | UUID público e sessão própria                       |
+| POST            | `/settings/security/sessions/revoke-others`                     | preserva sessão atual                               |
+| POST            | `/settings/account/deactivate`                                  | autenticação recente, confirmação e último OWNER    |
+| POST            | `/account/reactivation/start`                                   | sessão restrita desativada                          |
+| GET             | `/account/reactivation/confirm`                                 | público; token único                                |
+| GET/POST/DELETE | `/settings/privacy/deletion`                                    | 30 dias e autenticação recente para pedir/cancelar  |
+| POST            | `/settings/privacy/export`                                      | ZIP/JSON; `ACTIVE` ou `DELETION_PENDING`            |
+| GET             | `/settings/integrations/github`                                 | vínculos da conta com Installations/repos/projetos  |
+| DELETE          | `/settings/integrations/github/authorizations/:authorizationId` | autenticação recente; desconecta o vínculo da conta |
+| POST            | `/auth/github/reauth/start`                                     | GitHub-only; state, sessão e retorno interno        |
 
 A autenticação recente de uma conta com senha é a confirmação da senha local. Para conta GitHub-only (`passwordHash=null`), o backend exige identidade vinculada e OAuth GitHub recente na mesma sessão; o token de usuário permanece somente em memória. O callback aceita `ACTIVE` e `DELETION_PENDING` apenas nesse purpose, valida state/sessão/GitHub ID e atualiza os timestamps da sessão e da identidade.
 
@@ -151,34 +151,34 @@ identifica apenas a categoria pública da quota, sem expor sua chave, usuário o
 
 ## Projects e memberships
 
-| Método   | Caminho                                                 | Params/query         | Body aceito                                                                                                                | Sucesso                                                                               |
-| -------- | ------------------------------------------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| POST     | `/projects`                                             | —                    | `name`, `responsibleTeam`; opcionais `description`, `status`                                                               | `201`, `{message,project}`                                                            |
-| POST     | `/projects/from-github`                                 | —                    | `githubInstallationId`, `githubRepositoryId`; opcionais `name`, `description`, `responsibleTeam`                           | `201`, `{message,project}`                                                            |
-| GET      | `/projects`                                             | —                    | —                                                                                                                          | `200`, `{projects}`                                                                   |
-| GET      | `/projects/:id`                                         | `id` positivo        | —                                                                                                                          | `200`, `{project}`                                                                    |
-| PUT      | `/projects/:id`                                         | `id` positivo        | subconjunto de `name`, `description`, `responsibleTeam` e `status`                                                         | `200`, `{message,project}`                                                            |
-| DELETE   | `/projects/:id`                                         | baseline placeholder | —                                                                                                                          | `501` inalterado                                                                      |
-| GET      | `/projects/join/details`                                | query `accessCode`   | —                                                                                                                          | `200`, `{details:{project,role}}`                                                     |
-| POST     | `/projects/join`                                        | —                    | somente `accessCode`                                                                                                       | `201`, `{message,project,membership}`                                                 |
-| GET      | `/projects/:projectId/access-code`                      | `projectId` positivo | —                                                                                                                          | OWNER: `{accessCode:{accessCode,role,inviteLink}}`                                    |
-| PATCH    | `/projects/:projectId/access-code`                      | `projectId` positivo | `role`: MEMBER ou VIEWER                                                                                                   | `200`, configuração atualizada                                                        |
-| POST     | `/projects/:projectId/access-code/regenerate`           | `projectId` positivo | body vazio                                                                                                                 | `200`, novo código; anterior inválido                                                 |
-| GET      | `/projects/:projectId/members`                          | `projectId` positivo | —                                                                                                                          | `200`, `{projectId,currentMembership,members}`                                        |
-| PATCH    | `/projects/:projectId/members/:membershipId`            | IDs positivos        | `role`: OWNER/MANAGER/MEMBER/VIEWER                                                                                        | `200`, `{message,membership}`                                                         |
-| DELETE   | `/projects/:projectId/members/:membershipId`            | IDs positivos        | —                                                                                                                          | `204`, desativação lógica                                                             |
-| POST     | `/projects/:projectId/members/:membershipId/reactivate` | IDs positivos        | body vazio                                                                                                                 | `200`, `{message,membership}`                                                         |
-| DELETE   | `/projects/:projectId/members/me`                       | `projectId` positivo | —                                                                                                                          | `204`, saída própria lógica                                                           |
-| POST     | `/projects/:projectId/ownership/transfer`               | `projectId` positivo | `membershipId` positivo                                                                                                    | `200`, `{message,membership}`                                                         |
-| GET/POST | `/projects/:projectId/invitations`                      | `projectId` positivo | POST: `email`, `role`                                                                                                      | `200` lista / `201` criação                                                           |
-| DELETE   | `/projects/:projectId/invitations/:invitationId`        | IDs positivos        | —                                                                                                                          | `204`                                                                                 |
-| POST     | `/projects/invitations/details`                         | —                    | token opaco                                                                                                                | `200`, `{invitation:{project,role,expiresAt,status}}` para o destinatário autenticado |
-| POST     | `/projects/invitations/accept`                          | —                    | token opaco                                                                                                                | `200`, `{message,membership}`                                                         |
-| POST     | `/projects/invitations/decline`                         | —                    | token opaco                                                                                                                | `200`, `{message}`; nenhuma membership é criada                                       |
-| GET      | `/projects/invitations/mine`                            | —                    | —                                                                                                                          | `200`, convites pendentes do e-mail da sessão                                         |
-| POST     | `/projects/invitations/:invitationId/accept`            | ID positivo          | body vazio                                                                                                                 | `200`, `{message,membership}`                                                         |
-| POST     | `/projects/invitations/:invitationId/decline`           | ID positivo          | body vazio                                                                                                                 | `200`, `{message}`                                                                    |
-| PATCH    | `/projects/:projectId/github/sync-settings`             | `projectId` positivo | boolean `githubAutoSyncEnabled`                                                                                            | `200`, `{message,project}`                                                            |
+| Método   | Caminho                                                 | Params/query         | Body aceito                                                                                      | Sucesso                                                                               |
+| -------- | ------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| POST     | `/projects`                                             | —                    | `name`, `responsibleTeam`; opcionais `description`, `status`                                     | `201`, `{message,project}`                                                            |
+| POST     | `/projects/from-github`                                 | —                    | `githubInstallationId`, `githubRepositoryId`; opcionais `name`, `description`, `responsibleTeam` | `201`, `{message,project}`                                                            |
+| GET      | `/projects`                                             | —                    | —                                                                                                | `200`, `{projects}`                                                                   |
+| GET      | `/projects/:id`                                         | `id` positivo        | —                                                                                                | `200`, `{project}`                                                                    |
+| PUT      | `/projects/:id`                                         | `id` positivo        | subconjunto de `name`, `description`, `responsibleTeam` e `status`                               | `200`, `{message,project}`                                                            |
+| DELETE   | `/projects/:id`                                         | baseline placeholder | —                                                                                                | `501` inalterado                                                                      |
+| GET      | `/projects/join/details`                                | query `accessCode`   | —                                                                                                | `200`, `{details:{project,role}}`                                                     |
+| POST     | `/projects/join`                                        | —                    | somente `accessCode`                                                                             | `201`, `{message,project,membership}`                                                 |
+| GET      | `/projects/:projectId/access-code`                      | `projectId` positivo | —                                                                                                | OWNER: `{accessCode:{accessCode,role,inviteLink}}`                                    |
+| PATCH    | `/projects/:projectId/access-code`                      | `projectId` positivo | `role`: MEMBER ou VIEWER                                                                         | `200`, configuração atualizada                                                        |
+| POST     | `/projects/:projectId/access-code/regenerate`           | `projectId` positivo | body vazio                                                                                       | `200`, novo código; anterior inválido                                                 |
+| GET      | `/projects/:projectId/members`                          | `projectId` positivo | —                                                                                                | `200`, `{projectId,currentMembership,members}`                                        |
+| PATCH    | `/projects/:projectId/members/:membershipId`            | IDs positivos        | `role`: OWNER/MANAGER/MEMBER/VIEWER                                                              | `200`, `{message,membership}`                                                         |
+| DELETE   | `/projects/:projectId/members/:membershipId`            | IDs positivos        | —                                                                                                | `204`, desativação lógica                                                             |
+| POST     | `/projects/:projectId/members/:membershipId/reactivate` | IDs positivos        | body vazio                                                                                       | `200`, `{message,membership}`                                                         |
+| DELETE   | `/projects/:projectId/members/me`                       | `projectId` positivo | —                                                                                                | `204`, saída própria lógica                                                           |
+| POST     | `/projects/:projectId/ownership/transfer`               | `projectId` positivo | `membershipId` positivo                                                                          | `200`, `{message,membership}`                                                         |
+| GET/POST | `/projects/:projectId/invitations`                      | `projectId` positivo | POST: `email`, `role`                                                                            | `200` lista / `201` criação                                                           |
+| DELETE   | `/projects/:projectId/invitations/:invitationId`        | IDs positivos        | —                                                                                                | `204`                                                                                 |
+| POST     | `/projects/invitations/details`                         | —                    | token opaco                                                                                      | `200`, `{invitation:{project,role,expiresAt,status}}` para o destinatário autenticado |
+| POST     | `/projects/invitations/accept`                          | —                    | token opaco                                                                                      | `200`, `{message,membership}`                                                         |
+| POST     | `/projects/invitations/decline`                         | —                    | token opaco                                                                                      | `200`, `{message}`; nenhuma membership é criada                                       |
+| GET      | `/projects/invitations/mine`                            | —                    | —                                                                                                | `200`, convites pendentes do e-mail da sessão                                         |
+| POST     | `/projects/invitations/:invitationId/accept`            | ID positivo          | body vazio                                                                                       | `200`, `{message,membership}`                                                         |
+| POST     | `/projects/invitations/:invitationId/decline`           | ID positivo          | body vazio                                                                                       | `200`, `{message}`                                                                    |
+| PATCH    | `/projects/:projectId/github/sync-settings`             | `projectId` positivo | boolean `githubAutoSyncEnabled`                                                                  | `200`, `{message,project}`                                                            |
 
 Status de projeto: `ATIVO`, `INATIVO`, `ARQUIVADO`. URLs GitHub precisam usar HTTP(S) e host `github.com`. E-mails são validados, mas continuam opcionais. `accessCode` é uma capability secreta de ingresso, não uma credencial de autenticação.
 
@@ -230,24 +230,69 @@ Tipos preservados: `FUNCIONAL`, `NAO_FUNCIONAL`, `REGRA_NEGOCIO`. Status preserv
 | GET          | `/projects/:projectId/kanban/metrics`                                    | mesmos filtros atuais                                                                                                | `200`, métricas atuais                                                          |
 | GET          | `/projects/:projectId/tasks/metrics`                                     | `startDate?`, `endDate?`                                                                                             | `200`, métricas atuais                                                          |
 | GET          | `/projects/:projectId/traceability/{pull-request,commit,issue}-coverage` | `projectId`                                                                                                          | `200`, cobertura atual                                                          |
+| GET (SSE)    | `/projects/:projectId/events`                                            | `projectId`; query vazia                                                                                             | stream project-scoped; atualmente somente eventos de Comments                   |
+| GET          | `/tasks/:id/comments`                                                    | `id`; `before?` opaco, `limit?` entre 1 e 100                                                                        | `200`, `{taskId,comments,permissions,pagination}`                               |
+| POST         | `/tasks/:id/comments`                                                    | `id`; `content`                                                                                                      | `201`, `{message,comment}`                                                      |
+| PATCH        | `/tasks/:id/comments/:commentId`                                         | ambos positivos; `content`                                                                                           | `200`, `{message,comment}`                                                      |
+| DELETE       | `/tasks/:id/comments/:commentId`                                         | ambos positivos                                                                                                      | `200`, `{message,comment}`                                                      |
 
 Priority: `BAIXA`, `MEDIA`, `ALTA`, `CRITICA`. Status: `A_FAZER`, `EM_ANDAMENTO`, `CONCLUIDO`. Efforts são inteiros não negativos. `responsibleUserId` deve identificar usuário com membership ativa no projeto; respostas expõem apenas `{id,name}` em `responsibleUser`. `Task.responsible` e `TaskMovement.movedBy` permanecem somente como snapshots históricos de leitura; `projectMemberId` foi removido. O histórico funcional usa `STATUS`, `DEADLINE`, `RESPONSIBLE` e `PRIORITY`; mudanças sem efeito não geram entrada.
 
+## Atualização S1-05 — comentários das tarefas (RF29/RF31)
+
+`TaskComment` é o modelo canônico. Autor vem exclusivamente de `req.auth.user`; nunca do body. `content` é obrigatório, sem espaços nas pontas e limitado a 2000 caracteres; conteúdo vazio recebe `400`. A listagem usa cursor opaco e ordenação estável `createdAt DESC, id DESC`, com 30 comentários por padrão e máximo 100. `before` solicita o lote imediatamente anterior e cursor inválido recebe `400`; `page` não pertence mais ao contrato. A query lê `limit + 1` e não executa COUNT por página.
+
+```json
+{
+  "taskId": 7,
+  "comments": [],
+  "permissions": { "canComment": true, "canModerate": false },
+  "pagination": { "limit": 30, "hasMore": true, "nextCursor": "opaque" }
+}
+```
+
+`nextCursor` é `null` quando `hasMore=false`. Tombstones participam da mesma ordenação e todos os comentários permanecem alcançáveis por chamadas sucessivas. Cada comentário traz `canEdit`/`canDelete` resolvidos pelo backend para a sessão atual.
+O índice incremental `TaskComment(taskId, createdAt, id)` sustenta a busca por cursor sem alterar dados ou migrations anteriores.
+
+Política de edição/exclusão: VIEWER só lê. MEMBER cria e edita/exclui somente o próprio comentário. MANAGER e OWNER excluem qualquer comentário do projeto (moderação), mas não editam texto de terceiros — editar continua exclusivo do autor, mesmo para OWNER. Exclusão é lógica (`deletedAt`/`deletedById`) e o comentário não é reaproveitável: edição ou nova exclusão em comentário já excluído recebe `404`. Toda criação, edição e exclusão gera `AuditEvent` (`TASK_COMMENT_CREATED`, `TASK_COMMENT_UPDATED`, `TASK_COMMENT_DELETED`).
+
+Comentário excluído permanece na listagem como marcador, preservando a linha do tempo exigida pelo RF31: o DTO mantém `id`, `createdAt` e `author`, devolve `content: null` e `editedAt: null`, expõe `deletedAt` e `deletionActorType`, e fixa `canEdit`/`canDelete` em `false`. `deletionActorType` é `AUTHOR` somente quando `deletedById` corresponde ao autor, `MODERATION` quando a exclusão confirmada pelo backend foi feita por outro ator autorizado, e `UNKNOWN` quando o registro histórico não identifica o ator. O conteúdo excluído não retorna para nenhum papel, inclusive quem moderou; permanece apenas no banco para auditoria. Novas exclusões, inclusive pelo próprio autor, registram o usuário autenticado em `deletedById`. O DELETE devolve o tombstone já classificado para reconciliação local imediata.
+
+### Stream de eventos de projeto
+
+`GET /projects/:projectId/events` exige sessão HttpOnly válida, conta ativa e membership ativa no projeto. Anônimo recebe `401`; não membro recebe `404`; VIEWER pode abrir o stream, mas isso não concede direito de mutation. A query deve ser vazia: credenciais em URL não são aceitas. CORS preserva a allowlist atual com credentials.
+
+O response usa `Content-Type: text/event-stream`, `Cache-Control: no-cache, no-transform`, `X-Accel-Buffering: no` e sugere `retry: 3000` ao `EventSource`. Cada mensagem chega no canal SSE padrão (`message`) e contém um envelope JSON:
+
+```json
+{
+  "type": "task.comment.created",
+  "projectId": 2,
+  "taskId": 7,
+  "occurredAt": "2026-09-02T12:00:00.000Z",
+  "data": { "comment": {} }
+}
+```
+
+Os únicos tipos atuais são `task.comment.created`, `task.comment.updated` e `task.comment.deleted`; todos transportam o DTO seguro completo para merge local sem GET. O delete transporta o tombstone com `AUTHOR`, `MODERATION` ou `UNKNOWN`. Eventos são publicados somente depois da transaction da mutation concluir. Falha da mutation não publica; falha do publisher depois do commit não altera o sucesso REST e é recuperada por reconciliação posterior.
+
+O servidor envia heartbeat em comentário SSE a cada 25 segundos, sem consulta ao banco, e encerra o stream após no máximo 15 minutos para nova autorização. Backpressure, erro de transporte, logout, revogação de sessão, saída/desativação de membership ou mudança de papel encerram a conexão. O publisher atual é in-memory e single-node; multi-node exigirá adapter de broker. Não há replay/event log persistente. O Kanban não publica nem consome SSE neste contrato.
+
 ## GitHub e Artifacts
 
-| Método | Caminho                                                  | Entrada                                        | Sucesso                                                               |
-| ------ | -------------------------------------------------------- | ---------------------------------------------- | --------------------------------------------------------------------- |
-| POST   | `/github/app/installations/start`                        | `intendedAction`; `projectId?`                 | `200`, `{url,expiresInMs}` para autorização da GitHub App             |
-| GET    | `/github/app/installations`                              | sessão                                         | `200`, `{installations}` autorizadas ao usuário                       |
-| GET    | `/github/app/repositories`                               | `projectId?`                                   | `200`, `{repositories}` da Installation                               |
-| GET    | `/github/app/installations/:installationId/repositories` | instalação autorizada; `projectId?`            | `200`, `{repositories}` da Installation                               |
-| PUT    | `/projects/:projectId/github/integration`                | instalação e repositório comprovados           | `200`; troca de repositório recebe `409`                            |
-| POST   | `/projects/:projectId/github/sync`                       | `projectId` positivo; body vazio               | `202`, `{message,run}`; execução persistida iniciada ou já ativa      |
-| GET    | `/projects/:projectId/github/sync/status`                | `projectId` positivo                           | `200`, `{run}` com status, progresso, summary e erro sanitizado       |
-| GET    | `/projects/:projectId/commits`                           | `projectId`, `search?`                         | `200`, `{commits}`                                                    |
-| GET    | `/projects/:projectId/pull-requests`                     | `projectId`, `search?`                         | `200`, `{pullRequests}`                                               |
-| GET    | `/projects/:projectId/issues`                            | `projectId`, `search?`                         | `200`, `{issues}`                                                     |
-| GET    | `/projects/:projectId/artifacts`                         | `projectId`; `type?`, `startDate?`, `endDate?` | `200`, projeto, filtros, resumo e artefatos                           |
+| Método | Caminho                                                  | Entrada                                        | Sucesso                                                          |
+| ------ | -------------------------------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------- |
+| POST   | `/github/app/installations/start`                        | `intendedAction`; `projectId?`                 | `200`, `{url,expiresInMs}` para autorização da GitHub App        |
+| GET    | `/github/app/installations`                              | sessão                                         | `200`, `{installations}` autorizadas ao usuário                  |
+| GET    | `/github/app/repositories`                               | `projectId?`                                   | `200`, `{repositories}` da Installation                          |
+| GET    | `/github/app/installations/:installationId/repositories` | instalação autorizada; `projectId?`            | `200`, `{repositories}` da Installation                          |
+| PUT    | `/projects/:projectId/github/integration`                | instalação e repositório comprovados           | `200`; troca de repositório recebe `409`                         |
+| POST   | `/projects/:projectId/github/sync`                       | `projectId` positivo; body vazio               | `202`, `{message,run}`; execução persistida iniciada ou já ativa |
+| GET    | `/projects/:projectId/github/sync/status`                | `projectId` positivo                           | `200`, `{run}` com status, progresso, summary e erro sanitizado  |
+| GET    | `/projects/:projectId/commits`                           | `projectId`, `search?`                         | `200`, `{commits}`                                               |
+| GET    | `/projects/:projectId/pull-requests`                     | `projectId`, `search?`                         | `200`, `{pullRequests}`                                          |
+| GET    | `/projects/:projectId/issues`                            | `projectId`, `search?`                         | `200`, `{issues}`                                                |
+| GET    | `/projects/:projectId/artifacts`                         | `projectId`; `type?`, `startDate?`, `endDate?` | `200`, projeto, filtros, resumo e artefatos                      |
 
 Tipos de artifacts: `commit`, `pull_request`, `issue`. A paginação ocorre somente na leitura externa
 do GitHub; os contratos públicos de listagem permanecem inalterados.

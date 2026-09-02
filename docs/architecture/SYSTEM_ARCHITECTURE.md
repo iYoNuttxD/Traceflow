@@ -12,12 +12,13 @@ executável, prevalecem código, migrations, testes, este documento e os ADRs vi
 Navegador
   ↓ HTTPS/reverse proxy
 React/Vite SPA
-  ↓ cookie HttpOnly + CSRF + JSON
+  ├→ REST: cookie HttpOnly + CSRF nas mutations + JSON
+  └→ SSE: cookie HttpOnly + stream por projeto visível
 Express API
-  ↓
-Route → Controller → Service → Repository → Prisma → MySQL
-                         └→ GitHub App factory por instalação/Octokit → api.github.com
-                         └→ email provider → SMTP/capture controlado
+  ├→ REST: Route → Controller → Service → Repository → Prisma → MySQL
+  │                             ├→ GitHub App factory/Octokit → api.github.com
+  │                             └→ email provider → SMTP/capture controlado
+  └→ SSE: Route → Controller → Service → Project Event Publisher in-memory
 ```
 
 O backend é a autoridade para identidade, autorização, validação, domínio e persistência. O frontend coordena interação e estado de interface, sem reproduzir fórmulas de domínio.
@@ -43,6 +44,9 @@ A direção permitida é `app/routes → pages → features → shared + http-cl
   grid responsivo. A visão geral de `/projects/:projectId` integra os resumos de Projeto, GitHub e
   Equipe; edição e administração de membros/acesso usam, respectivamente,
   `/projects/:projectId/edit` e `/projects/:projectId/members`, sempre sob autorização do backend.
+- `ProjectEventsProvider` mantém uma conexão SSE compartilhada por projeto ativo enquanto a aba está
+  visível. O consumer atual é exclusivamente Comments; Kanban não consome eventos e não executa
+  polling periódico.
 - CSS convencional acompanha o owner em `pages`, `features` e `shared`. Componentes e screens
   importam a folha colocada ao lado do JSX; grupos em `shared/styles` ou `features/*/styles` existem
   somente quando há múltiplos consumidores reais. Media queries permanecem com o mesmo owner do
@@ -59,6 +63,10 @@ A direção permitida é `app/routes → pages → features → shared + http-cl
 | Service         | caso de uso, invariantes, transação e auditoria | `req`/`res`, DOM                |
 | Repository      | consulta/mutação orientada ao domínio           | autorização ou mensagem HTTP    |
 | External client | timeout, retry, paginação e DTO externo         | persistência ou regra TRACEFLOW |
+
+O stream de eventos preserva a mesma direção `Route → Controller → Service`. Services de domínio
+publicam pelo `ProjectEventPublisher` depois do commit e não conhecem HTTP, `Response` ou conexões.
+MySQL/REST são autoridade; SSE apenas propaga DTOs de mudanças confirmadas.
 
 `scripts/check-architecture.js` verifica essas fronteiras e impede a reintrodução, no runtime/schema atual, de `TaskPullRequest`, `GithubArtifact`, `TraceLink`, `ProjectMember`, `Commit.branch`, aliases GitHub de `Project` e rotas de conta removidas.
 
@@ -112,6 +120,14 @@ polling existente, a consulta deve acompanhar aquele ID quando execuções puder
 vez de selecionar `latest` por conveniência. Coalescing, exclusão mútua, retry e recuperação de stale
 possuem contrato explícito e testes determinísticos. `FAILED` é um estado de domínio representado no
 DTO do job; a consulta de status continua usando o contrato HTTP adequado a uma leitura bem-sucedida.
+
+Comentários usam REST para carga inicial, histórico cursor e reconciliação, e SSE para
+`task.comment.created`, `task.comment.updated` e `task.comment.deleted`. Existe uma conexão por
+projeto e aba visível, com reconexão nativa do `EventSource`; ao reabrir, Comments reconcilia uma vez
+a janela recente. Eventos são mesclados localmente por ID e versão sem GET adicional. O publisher
+in-memory é válido para uma instância Node, usa heartbeat compartilhado de 25 segundos, encerra em
+backpressure, limpa subscribers desconectados e limita cada stream a 15 minutos para reautorizar na
+reconexão. Escala multi-node exige futuro adapter de broker; não há event log ou replay persistente.
 
 ## Segurança e privacidade
 

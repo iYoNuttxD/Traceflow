@@ -99,6 +99,13 @@ function updateBoardWithMovedTask(board, movedTask) {
   };
 }
 
+function findTaskInBoard(board, taskId) {
+  if (!board?.columns || taskId == null) return null;
+  return Object.values(board.columns)
+    .flat()
+    .find((task) => String(task.id) === String(taskId));
+}
+
 export function KanbanScreen() {
   const confirm = useConfirm();
   const { projectId } = useParams();
@@ -127,7 +134,11 @@ export function KanbanScreen() {
   const [pageError, setPageError] = useState(null);
   const [success, setSuccess] = useState('');
   const suppressTaskClickRef = useRef(false);
-  const loadedProjectIdRef = useRef(null);
+  const contextRef = useRef({ projectId, generation: 0 });
+  const requestSequenceRef = useRef(0);
+  const requestControllerRef = useRef(null);
+  const mutationSequenceRef = useRef(0);
+  const mutationPendingRef = useRef(false);
 
   const allTasks = useMemo(() => {
     if (!board?.columns) {
@@ -146,13 +157,60 @@ export function KanbanScreen() {
     movementPagination.total
   );
 
+  const invalidateRequest = useCallback(() => {
+    requestSequenceRef.current += 1;
+    requestControllerRef.current?.abort();
+    requestControllerRef.current = null;
+  }, []);
+
+  const beginRequest = useCallback(() => {
+    requestSequenceRef.current += 1;
+    requestControllerRef.current?.abort();
+    const controller = new AbortController();
+    requestControllerRef.current = controller;
+    return {
+      controller,
+      generation: contextRef.current.generation,
+      projectId: contextRef.current.projectId,
+      requestId: requestSequenceRef.current
+    };
+  }, []);
+
+  const requestIsCurrent = useCallback(
+    (request) =>
+      request &&
+      !request.controller.signal.aborted &&
+      request.requestId === requestSequenceRef.current &&
+      request.generation === contextRef.current.generation &&
+      String(request.projectId) === String(contextRef.current.projectId),
+    []
+  );
+
+  const finishRequest = useCallback(
+    (request) => {
+      if (!requestIsCurrent(request)) return false;
+      requestControllerRef.current = null;
+      return true;
+    },
+    [requestIsCurrent]
+  );
+
+  const applyBoard = useCallback((nextBoard) => {
+    setBoard(nextBoard);
+    setSelectedTask((current) =>
+      current ? findTaskInBoard(nextBoard, current.id) || null : current
+    );
+  }, []);
+
   const loadKanban = useCallback(
     async (params = {}) => {
+      const request = beginRequest();
       setLoading(true);
       setError('');
       setPageError(null);
 
       try {
+        const options = { signal: request.controller.signal };
         const [
           projectResponse,
           boardResponse,
@@ -160,16 +218,21 @@ export function KanbanScreen() {
           movementsResponse,
           membersResponse
         ] = await Promise.all([
-          projectsApi.get(projectId),
-          kanbanApi.getBoard(projectId),
-          kanbanApi.getMetrics(projectId, params),
-          kanbanApi.listTaskHistory(projectId, { ...params, page: 1, limit: MOVEMENTS_PER_PAGE }),
-          membersApi.list(projectId)
+          projectsApi.get(projectId, options),
+          kanbanApi.getBoard(projectId, options),
+          kanbanApi.getMetrics(projectId, params, options),
+          kanbanApi.listTaskHistory(
+            projectId,
+            { ...params, page: 1, limit: MOVEMENTS_PER_PAGE },
+            options
+          ),
+          membersApi.list(projectId, options)
         ]);
+        if (!requestIsCurrent(request)) return false;
 
         const members = membersResponse.members || [];
         setProject(projectResponse.data.project);
-        setBoard(boardResponse.data);
+        applyBoard(boardResponse.data);
         setMetrics(metricsResponse.data);
         setMovements(movementsResponse.data.items || []);
         setMovementPagination(
@@ -181,20 +244,131 @@ export function KanbanScreen() {
           }
         );
         setProjectMembers(members);
+        return true;
       } catch (requestError) {
-        setPageError(normalizeApiError(requestError, 'Não foi possível carregar o Kanban.'));
+        if (requestIsCurrent(request)) {
+          setPageError(normalizeApiError(requestError, 'Não foi possível carregar o Kanban.'));
+        }
+        return false;
       } finally {
-        setLoading(false);
+        if (finishRequest(request)) setLoading(false);
       }
     },
-    [projectId]
+    [applyBoard, beginRequest, finishRequest, projectId, requestIsCurrent]
+  );
+
+  const refreshKanban = useCallback(
+    async (
+      params = {
+        ...buildPeriodParams(period),
+        page: movementPage,
+        limit: MOVEMENTS_PER_PAGE,
+        ...(movementMemberFilter ? { actorUserId: movementMemberFilter } : {}),
+        ...(historyFieldFilter ? { field: historyFieldFilter } : {})
+      }
+    ) => {
+      const request = beginRequest();
+      try {
+        const options = { signal: request.controller.signal };
+        const [boardResponse, metricsResponse, movementsResponse] = await Promise.all([
+          kanbanApi.getBoard(projectId, options),
+          kanbanApi.getMetrics(projectId, params, options),
+          kanbanApi.listTaskHistory(projectId, params, options)
+        ]);
+        if (!requestIsCurrent(request)) return false;
+
+        applyBoard(boardResponse.data);
+        setMetrics(metricsResponse.data);
+        setMovements(movementsResponse.data.items || []);
+        setMovementPagination(
+          movementsResponse.data.pagination || {
+            page: 1,
+            limit: MOVEMENTS_PER_PAGE,
+            total: movementsResponse.data.total || 0,
+            totalPages: 1
+          }
+        );
+        return true;
+      } catch (requestError) {
+        if (requestIsCurrent(request)) throw requestError;
+        return false;
+      } finally {
+        finishRequest(request);
+      }
+    },
+    [
+      applyBoard,
+      beginRequest,
+      finishRequest,
+      historyFieldFilter,
+      movementMemberFilter,
+      movementPage,
+      period,
+      projectId,
+      requestIsCurrent
+    ]
+  );
+
+  const beginMutation = useCallback(() => {
+    if (mutationPendingRef.current) return null;
+    invalidateRequest();
+    mutationPendingRef.current = true;
+    mutationSequenceRef.current += 1;
+    return {
+      generation: contextRef.current.generation,
+      mutationId: mutationSequenceRef.current,
+      projectId: contextRef.current.projectId
+    };
+  }, [invalidateRequest]);
+
+  const mutationIsCurrent = useCallback(
+    (request) =>
+      request &&
+      request.mutationId === mutationSequenceRef.current &&
+      request.generation === contextRef.current.generation &&
+      String(request.projectId) === String(contextRef.current.projectId),
+    []
+  );
+
+  const finishMutation = useCallback(
+    (request) => {
+      if (!mutationIsCurrent(request)) return false;
+      mutationPendingRef.current = false;
+      return true;
+    },
+    [mutationIsCurrent]
   );
 
   useEffect(() => {
-    if (loadedProjectIdRef.current === projectId) return;
-    loadedProjectIdRef.current = projectId;
+    contextRef.current = {
+      projectId,
+      generation: contextRef.current.generation + 1
+    };
+    invalidateRequest();
+    mutationSequenceRef.current += 1;
+    mutationPendingRef.current = false;
+    setProject(null);
+    setBoard(null);
+    setMetrics(null);
+    setMovements([]);
+    setProjectMembers([]);
+    setSelectedTask(null);
+    setMovementPage(1);
+    setLoading(true);
+    setError('');
+    setPageError(null);
+    setSuccess('');
     void loadKanban();
-  }, [loadKanban, projectId]);
+
+    const generation = contextRef.current.generation;
+    return () => {
+      if (contextRef.current.generation === generation) {
+        invalidateRequest();
+        mutationSequenceRef.current += 1;
+        mutationPendingRef.current = false;
+      }
+    };
+  }, [invalidateRequest, loadKanban, projectId]);
 
   if (!loading && !project && pageError) {
     return (
@@ -208,38 +382,13 @@ export function KanbanScreen() {
     );
   }
 
-  async function refreshKanban(
-    params = {
-      ...buildPeriodParams(period),
-      page: movementPage,
-      limit: MOVEMENTS_PER_PAGE,
-      ...(movementMemberFilter ? { actorUserId: movementMemberFilter } : {}),
-      ...(historyFieldFilter ? { field: historyFieldFilter } : {})
-    }
-  ) {
-    const [boardResponse, metricsResponse, movementsResponse] = await Promise.all([
-      kanbanApi.getBoard(projectId),
-      kanbanApi.getMetrics(projectId, params),
-      kanbanApi.listTaskHistory(projectId, params)
-    ]);
-
-    setBoard(boardResponse.data);
-    setMetrics(metricsResponse.data);
-    setMovements(movementsResponse.data.items || []);
-    setMovementPagination(
-      movementsResponse.data.pagination || {
-        page: 1,
-        limit: MOVEMENTS_PER_PAGE,
-        total: movementsResponse.data.total || 0,
-        totalPages: 1
-      }
-    );
-  }
-
   async function moveTaskToStatus(task, toStatus) {
     if (toStatus === task.status) {
       return;
     }
+
+    const mutation = beginMutation();
+    if (!mutation) return;
 
     setMovingTaskId(task.id);
     setError('');
@@ -247,6 +396,7 @@ export function KanbanScreen() {
 
     try {
       const response = await kanbanApi.moveTask(task.id, { toStatus });
+      if (!mutationIsCurrent(mutation)) return;
       const movedTask = response.data.task;
 
       setSuccess(response.data.message);
@@ -263,9 +413,8 @@ export function KanbanScreen() {
         );
       }
 
-      setMovingTaskId(null);
-
-      refreshKanban().catch((requestError) => {
+      finishMutation(mutation);
+      void refreshKanban().catch((requestError) => {
         setError(
           getErrorMessage(
             requestError,
@@ -274,12 +423,17 @@ export function KanbanScreen() {
         );
       });
     } catch (requestError) {
+      if (!mutationIsCurrent(mutation)) return;
       setError(getErrorMessage(requestError, 'Não foi possível mover a tarefa.'));
+      finishMutation(mutation);
       if (requestError.response?.status === 409) {
-        refreshKanban().catch(() => {});
+        void refreshKanban().catch(() => {});
       }
     } finally {
-      setMovingTaskId(null);
+      if (mutationIsCurrent(mutation)) {
+        finishMutation(mutation);
+        setMovingTaskId(null);
+      }
     }
   }
 
