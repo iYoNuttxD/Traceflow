@@ -531,3 +531,60 @@ describe('perfil somente leitura', () => {
     expect(within(lista).queryByRole('button')).toBeNull();
   });
 });
+
+describe('sucesso de mutation versus falha de refresh', () => {
+  const aviso = /não puderam ser atualizados/i;
+
+  it('salvar o marco continua sucesso quando o refresh falha', async () => {
+    const user = userEvent.setup();
+    mocks.schedule.createMilestone.mockResolvedValue({ data: { milestone: { id: 9 } } });
+    renderScreen();
+    await screen.findByText('Nenhum marco cadastrado.');
+    mocks.schedule.listMilestones.mockRejectedValue(new Error('rede'));
+
+    await user.type(screen.getByLabelText(/Título/), 'Gestão de sprints');
+    await user.type(screen.getByLabelText(/Prazo/), '2026-09-04T18:00');
+    await user.click(screen.getByRole('button', { name: 'Salvar marco' }));
+
+    expect(await screen.findByText('Marco cadastrado com sucesso.')).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent(aviso);
+    expect(screen.queryByText('Não foi possível salvar o marco.')).toBeNull();
+  });
+
+  it('concluir o marco continua sucesso quando o refresh falha', async () => {
+    const user = userEvent.setup();
+    mocks.schedule.listMilestones.mockResolvedValue({ data: { total: 1, milestones: [marco()] } });
+    mocks.schedule.updateMilestoneStatus.mockResolvedValue({
+      data: { milestone: marco({ status: 'CONCLUIDO' }) }
+    });
+    renderScreen();
+    await screen.findByText('Fundação do produto');
+    mocks.schedule.getSchedule.mockRejectedValue(new Error('rede'));
+
+    await user.click(screen.getByRole('button', { name: /^Concluir o marco/ }));
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Concluir marco' }));
+
+    expect(await screen.findByText('Status do marco atualizado com sucesso.')).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent(aviso);
+    expect(screen.queryByText('Não foi possível atualizar o status do marco.')).toBeNull();
+  });
+
+  it('excluir o marco nao anuncia falha quando so o refresh falha', async () => {
+    const user = userEvent.setup();
+    mocks.schedule.listMilestones.mockResolvedValue({ data: { total: 1, milestones: [marco()] } });
+    mocks.schedule.removeMilestone.mockResolvedValue({ data: {} });
+    renderScreen();
+    await screen.findByText('Fundação do produto');
+    mocks.schedule.getSchedule.mockRejectedValue(new Error('rede'));
+
+    await user.click(screen.getByRole('button', { name: /^Excluir o marco/ }));
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Excluir marco' }));
+
+    expect(await screen.findByText('Marco excluído com sucesso.')).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent(aviso);
+    expect(screen.queryByText('Não foi possível excluir o marco.')).toBeNull();
+    expect(screen.queryByText('Fundação do produto')).toBeNull();
+  });
+});
