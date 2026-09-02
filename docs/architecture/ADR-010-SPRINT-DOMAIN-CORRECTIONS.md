@@ -265,7 +265,8 @@ antes de qualquer lock de projeto existir no caminho de escopo — e a correçã
 tarefas. Registrado como `S104-F10`, junto do mapeamento ausente de `P2034`/`P2024` para `409`/`503`.
 
 **Adoção.** Completa: os caminhos de janela, de status, de escopo e de marco tomam os locks antes
-das leituras que decidem a escrita, todos começando pela linha do projeto.
+das leituras que decidem a escrita, todos começando pela linha do projeto. O movimento de tarefa do
+Kanban, que vive no módulo `tasks`, entrou na mesma ordem depois — ver D19.
 
 ### D18 — Mover a janela não empurra para fora um marco que estava dentro
 
@@ -308,6 +309,38 @@ ficam apenas as invariantes de domínio.
 Se o marco mudar de sprint entre a leitura que escolhe qual linha travar e o lock, a operação é
 recusada com `409 MILESTONE_SPRINT_CHANGED`: travamos a sprint errada, e decidir sobre uma sprint
 que já não é a dele seria pior do que pedir nova tentativa.
+
+### D19 — O movimento de tarefa entra na ordem de locks do cronograma (estende D17)
+
+A adoção registrada em D17 cobria os quatro caminhos de escrita do módulo `sprints`. O caminho que
+move a tarefa no Kanban vive no módulo `tasks` e ficou de fora — e é ele que disputa a mesma sprint
+com o encerramento.
+
+`taskKanbanService.moveTask` lia a tarefa e a sprint **fora** de qualquer transação e chamava um
+repositório cuja transação atualizava a tarefa com o predicado `{id, projectId, status}`, sem travar
+nem reler a sprint. Isso viola a Regra 1 de D17 pelo mesmo motivo que a atualização de janela a
+violava: a regra terminal era decidida sobre um retrato anterior. A intercalação possível não
+equivalia a nenhuma ordem serial — o encerramento congelava o status corrente em `SprintTask.exitStatus`
+e a tarefa terminava em outro, ou o `TaskMovement` registrava a sprint da qual a tarefa já tinha
+saído para o backlog.
+
+**Decisão.** A transação do movimento abre com o exclusivo do projeto (Regra 3) e adquire
+`Project → Sprint → Task` (Regra 2), a mesma ordem de `transitionWithinSprintLock`. Dentro dela a
+tarefa e a sprint são relidas sob `FOR UPDATE`, e só então a regra terminal é avaliada. O
+`TaskMovement` e o `TaskHistoryEntry` gravam o `sprintId` relido, nunca o do retrato anterior.
+
+**Por que a regra continua no service.** A avaliação roda dentro da transação, mas quem decide é o
+service: o repositório recebe um callback `validate`, como `updateWithinProjectLock` e
+`transitionWithinSprintLock` já faziam. A regra de domínio não desce para a camada de persistência.
+
+**O que não mudou, de propósito.** O predicado do `UPDATE` continua ancorado no status que a
+requisição observou, e não no status relido. Ele não é uma trava de concorrência: é a proteção
+otimista contra quadro desatualizado, que devolve `409` a quem decidiu mover a partir de uma leitura
+velha. Trocá-lo pelo status relido transformaria duas movimentações simultâneas em last-writer-wins,
+com as duas respondendo `200`.
+
+**Adoção.** `lockProject` e `lockMilestone` saíram para `backend/src/database/locks.js`, agora com
+três consumidores: `sprint.repository.js`, `milestone.repository.js` e `task-movement.repository.js`.
 
 ## Consequências
 
