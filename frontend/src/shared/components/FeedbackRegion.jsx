@@ -1,4 +1,4 @@
-export function FeedbackRegion({ error, success }) {
+function principalMessage(error, success) {
   if (error)
     return (
       <div className="message message-error" role="alert">
@@ -11,5 +11,22 @@ export function FeedbackRegion({ error, success }) {
         {success}
       </div>
     );
-  return <div className="feedback-region" aria-live="polite" aria-atomic="true" />;
+  return null;
+}
+
+export function FeedbackRegion({ error, success, notice }) {
+  const principal = principalMessage(error, success);
+  if (!principal && !notice) {
+    return <div className="feedback-region" aria-live="polite" aria-atomic="true" />;
+  }
+  return (
+    <>
+      {principal}
+      {notice ? (
+        <div className="message message-error" role="alert">
+          {notice}
+        </div>
+      ) : null}
+    </>
+  );
 }

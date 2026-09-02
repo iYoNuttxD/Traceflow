@@ -45,12 +45,13 @@ export function SprintsScreen() {
     forbidden,
     error,
     success,
+    staleWarning,
     loadAll,
     refreshSchedule,
     refreshSprints,
     refreshMilestones,
-    feedback,
-    handleFailure
+    handleFailure,
+    settle
   } = useScheduleData(projectId);
 
   const [sprintForm, setSprintForm] = useState(emptySprintForm);
@@ -147,17 +148,19 @@ export function SprintsScreen() {
       setSprintForm(emptySprintForm);
       setEditingSprintId(null);
       setFormTaskIds([]);
+      const atualizar = () => Promise.all([refreshSprints(), refreshSchedule()]);
       if (avisoTarefas) {
         handleFailure(
           avisoTarefas,
           'Sprint salva, mas não foi possível atualizar as tarefas da sprint.'
         );
+        await atualizar().catch(() => {});
       } else {
-        feedback(
-          editingSprintId ? 'Sprint atualizada com sucesso.' : 'Sprint cadastrada com sucesso.'
+        await settle(
+          editingSprintId ? 'Sprint atualizada com sucesso.' : 'Sprint cadastrada com sucesso.',
+          atualizar
         );
       }
-      await Promise.all([refreshSprints(), refreshSchedule()]);
     } catch (requestError) {
       handleFailure(requestError, 'Não foi possível salvar a sprint.');
     } finally {
@@ -197,11 +200,12 @@ export function SprintsScreen() {
       const { data } = await scheduleApi.updateSprintStatus(sprint.id, status);
       setSprints((current) => current.map((item) => (item.id === sprint.id ? data.sprint : item)));
       if (selectedSprint?.id === sprint.id) setSelectedSprint(data.sprint);
-      feedback(data.message);
-      await Promise.all([
-        refreshSchedule(),
-        data.milestoneCompleted ? refreshMilestones() : Promise.resolve()
-      ]);
+      await settle(data.message, () =>
+        Promise.all([
+          refreshSchedule(),
+          data.milestoneCompleted ? refreshMilestones() : Promise.resolve()
+        ])
+      );
     } catch (requestError) {
       handleFailure(requestError, 'Não foi possível atualizar o status da sprint.');
     } finally {
@@ -278,17 +282,18 @@ export function SprintsScreen() {
     setSubmitting(true);
     try {
       await scheduleApi.replaceSprintTasks(sprintId, taskIds);
-      feedback(`Tarefas da sprint "${sprintName}" atualizadas com sucesso.`);
-      await refreshSchedule();
-      if (selectedSprintRef.current !== sprintId) return;
+      await settle(`Tarefas da sprint "${sprintName}" atualizadas com sucesso.`, async () => {
+        await refreshSchedule();
+        if (selectedSprintRef.current !== sprintId) return;
 
-      const resultado = await sprintTasksRequest.run((signal) =>
-        scheduleApi.listSprintTasks(sprintId, { signal })
-      );
-      if (!resultado || selectedSprintRef.current !== sprintId) return;
-      const tarefas = resultado.data.tasks || [];
-      setSprintTasks(tarefas);
-      setSelectedTaskIds(tarefas.map((task) => task.id));
+        const resultado = await sprintTasksRequest.run((signal) =>
+          scheduleApi.listSprintTasks(sprintId, { signal })
+        );
+        if (!resultado || selectedSprintRef.current !== sprintId) return;
+        const tarefas = resultado.data.tasks || [];
+        setSprintTasks(tarefas);
+        setSelectedTaskIds(tarefas.map((task) => task.id));
+      });
     } catch (requestError) {
       if (selectedSprintRef.current !== sprintId) return;
       handleFailure(requestError, 'Não foi possível atualizar as tarefas da sprint.');
@@ -337,7 +342,7 @@ export function SprintsScreen() {
         </div>
         <ProjectSectionNav projectId={projectId} activeSection="sprints" />
       </header>
-      <FeedbackRegion error={error} success={success} />
+      <FeedbackRegion error={error} success={success} notice={staleWarning} />
 
       <div className="schedule-columns schedule-columns--unica">
         {!somenteLeitura && (

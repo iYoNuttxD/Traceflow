@@ -16,6 +16,7 @@ export function useScheduleData(projectId) {
   const [forbidden, setForbidden] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [staleWarning, setStaleWarning] = useState('');
 
   const reportFailure = useCallback((requestError, fallback) => {
     const normalized = normalizeApiError(requestError, fallback);
@@ -27,6 +28,7 @@ export function useScheduleData(projectId) {
     async (range = {}) => {
       setLoading(true);
       setError('');
+      setStaleWarning('');
       setForbidden(false);
       try {
         const result = await run(async (signal) => {
@@ -91,17 +93,34 @@ export function useScheduleData(projectId) {
   const feedback = useCallback((message) => {
     setSuccess(message);
     setError('');
+    setStaleWarning('');
   }, []);
 
   const handleFailure = useCallback((requestError, fallback) => {
     setSuccess('');
+    setStaleWarning('');
     setError(normalizeApiError(requestError, fallback).message);
   }, []);
 
   const fail = useCallback((message) => {
     setSuccess('');
+    setStaleWarning('');
     setError(message);
   }, []);
+
+  const settle = useCallback(
+    async (message, refresh) => {
+      feedback(message);
+      try {
+        await refresh();
+      } catch {
+        setStaleWarning(
+          'A ação foi concluída, mas os dados exibidos não puderam ser atualizados. Recarregue a página.'
+        );
+      }
+    },
+    [feedback]
+  );
 
   return {
     project,
@@ -115,12 +134,14 @@ export function useScheduleData(projectId) {
     forbidden,
     error,
     success,
+    staleWarning,
     loadAll,
     refreshSchedule,
     refreshSprints,
     refreshMilestones,
     feedback,
     handleFailure,
-    fail
+    fail,
+    settle
   };
 }

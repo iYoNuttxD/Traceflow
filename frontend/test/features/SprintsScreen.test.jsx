@@ -1789,3 +1789,59 @@ describe('sinalizacao de inclusao posterior ao inicio', () => {
     expect(avisos[0].closest('label')).toHaveTextContent('Entrou depois');
   });
 });
+
+describe('sucesso de mutation versus falha de refresh', () => {
+  const aviso = /não puderam ser atualizados/i;
+  const emAndamento = {
+    id: 3,
+    name: 'Sprint 1',
+    objective: null,
+    startDate: '2026-08-01',
+    endDate: '2026-08-14',
+    status: 'EM_ANDAMENTO'
+  };
+
+  it('salvar a sprint continua sucesso quando o refresh falha', async () => {
+    const user = userEvent.setup();
+    mocks.schedule.createSprint.mockResolvedValue({ data: {} });
+    mocks.schedule.listMilestones.mockResolvedValue({
+      data: { total: 1, milestones: [{ id: 7, title: 'Fundação' }] }
+    });
+    renderScreen();
+    await screen.findByText('Nenhuma sprint cadastrada.');
+    await waitFor(() => expect(mocks.schedule.listProjectTasks).toHaveBeenCalledTimes(1));
+    mocks.schedule.listSprints.mockRejectedValue(new Error('rede'));
+
+    await user.type(screen.getByLabelText(/Nome/), 'Sprint 1');
+    await user.selectOptions(screen.getByLabelText('Marco'), '7');
+    await user.type(screen.getByLabelText(/^Início/), '2026-08-01T09:00');
+    await user.type(screen.getByLabelText(/^Fim/), '2026-08-14T18:00');
+    await user.click(screen.getByRole('button', { name: 'Salvar sprint' }));
+
+    expect(await screen.findByText('Sprint cadastrada com sucesso.')).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent(aviso);
+    expect(screen.queryByText('Não foi possível salvar a sprint.')).toBeNull();
+  });
+
+  it('mudar o status continua sucesso quando o refresh falha', async () => {
+    const user = userEvent.setup();
+    mocks.schedule.listSprints.mockResolvedValue({ data: { total: 1, sprints: [emAndamento] } });
+    mocks.schedule.updateSprintStatus.mockResolvedValue({
+      data: {
+        sprint: { ...emAndamento, status: 'CONCLUIDA' },
+        message: 'Status da sprint atualizado com sucesso.'
+      }
+    });
+    renderScreen();
+    await screen.findByRole('button', { name: /^Concluir a sprint/ });
+    mocks.schedule.getSchedule.mockRejectedValue(new Error('rede'));
+
+    await user.click(screen.getByRole('button', { name: /^Concluir a sprint/ }));
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Concluir e congelar' }));
+
+    expect(await screen.findByText('Status da sprint atualizado com sucesso.')).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent(aviso);
+    expect(screen.queryByText('Não foi possível atualizar o status da sprint.')).toBeNull();
+  });
+});

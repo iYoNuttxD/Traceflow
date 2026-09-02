@@ -37,12 +37,13 @@ export function MilestonesScreen() {
     forbidden,
     error,
     success,
+    staleWarning,
     loadAll,
     refreshSchedule,
     refreshSprints,
     refreshMilestones,
-    feedback,
-    handleFailure
+    handleFailure,
+    settle
   } = useScheduleData(projectId);
 
   const [milestoneForm, setMilestoneForm] = useState(emptyMilestoneForm);
@@ -111,21 +112,24 @@ export function MilestonesScreen() {
       setMilestoneForm(emptyMilestoneForm);
       setEditingMilestoneId(null);
       setFormSprintIds([]);
+      const atualizar = () =>
+        Promise.all([
+          refreshMilestones(),
+          refreshSchedule(),
+          mover.length || soltar.length ? refreshSprints() : Promise.resolve()
+        ]);
       if (avisoSprints) {
         handleFailure(
           avisoSprints,
           'Marco salvo, mas não foi possível mover as sprints selecionadas.'
         );
+        await atualizar().catch(() => {});
       } else {
-        feedback(
-          editingMilestoneId ? 'Marco atualizado com sucesso.' : 'Marco cadastrado com sucesso.'
+        await settle(
+          editingMilestoneId ? 'Marco atualizado com sucesso.' : 'Marco cadastrado com sucesso.',
+          atualizar
         );
       }
-      await Promise.all([
-        refreshMilestones(),
-        refreshSchedule(),
-        mover.length || soltar.length ? refreshSprints() : Promise.resolve()
-      ]);
     } catch (requestError) {
       handleFailure(requestError, 'Não foi possível salvar o marco.');
     } finally {
@@ -170,8 +174,7 @@ export function MilestonesScreen() {
       setMilestones((current) =>
         current.map((item) => (item.id === milestone.id ? data.milestone : item))
       );
-      feedback('Status do marco atualizado com sucesso.');
-      await refreshSchedule();
+      await settle('Status do marco atualizado com sucesso.', refreshSchedule);
     } catch (requestError) {
       handleFailure(requestError, 'Não foi possível atualizar o status do marco.');
     } finally {
@@ -192,9 +195,8 @@ export function MilestonesScreen() {
     setBusyMilestoneId(milestone.id);
     try {
       await scheduleApi.removeMilestone(milestone.id);
-      feedback('Marco excluído com sucesso.');
       setMilestones((current) => current.filter((item) => item.id !== milestone.id));
-      await refreshSchedule();
+      await settle('Marco excluído com sucesso.', refreshSchedule);
     } catch (requestError) {
       handleFailure(requestError, 'Não foi possível excluir o marco.');
     } finally {
@@ -241,7 +243,7 @@ export function MilestonesScreen() {
         </div>
         <ProjectSectionNav projectId={projectId} activeSection="milestones" />
       </header>
-      <FeedbackRegion error={error} success={success} />
+      <FeedbackRegion error={error} success={success} notice={staleWarning} />
 
       <div className="schedule-columns schedule-columns--unica">
         {!somenteLeitura && (
