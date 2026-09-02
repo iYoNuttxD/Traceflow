@@ -174,6 +174,63 @@ describe('taskCommentService — listagem e permissões do DTO', () => {
     );
     expect(asManager.permissions).toEqual({ canComment: true, canModerate: true });
     expect(asManager.comments[0]).toMatchObject({ canEdit: false, canDelete: true });
-    expect(asManager.pagination).toEqual({ page: 1, limit: 10, total: 1, totalPages: 1 });
+    expect(asManager.pagination).toEqual({ page: 1, limit: 5, total: 1, totalPages: 1 });
+  });
+
+  it('usa 5 por página como padrão do contrato', async () => {
+    mocks.repository.listPage.mockResolvedValue([0, []]);
+    await taskCommentService.listTaskComments(
+      42,
+      {},
+      { actorUserId: 10, membershipRole: 'MEMBER' }
+    );
+    expect(mocks.repository.listPage).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({ page: 1, limit: 5, skip: 0, take: 5 })
+    );
+  });
+
+  it('devolve comentário excluído como marcador sem conteúdo nem ações', async () => {
+    const deletedByAuthor = {
+      ...storedComment,
+      id: 6,
+      deletedAt: new Date('2026-08-30T10:00:00.000Z'),
+      deletedById: 10
+    };
+    const deletedByModerator = {
+      ...storedComment,
+      id: 7,
+      deletedAt: new Date('2026-08-30T11:00:00.000Z'),
+      deletedById: 99
+    };
+    mocks.repository.listPage.mockResolvedValue([2, [deletedByModerator, deletedByAuthor]]);
+
+    // Mesmo o moderador que excluiu não recupera o conteúdo pela listagem.
+    const listed = await taskCommentService.listTaskComments(
+      42,
+      {},
+      { actorUserId: 99, membershipRole: 'MANAGER' }
+    );
+    expect(listed.comments).toMatchObject([
+      { id: 7, content: null, deletedByModeration: true, canEdit: false, canDelete: false },
+      { id: 6, content: null, deletedByModeration: false, canEdit: false, canDelete: false }
+    ]);
+    expect(JSON.stringify(listed)).not.toContain('Comentário persistido.');
+    // Autoria e cronologia permanecem para o histórico do RF31.
+    expect(listed.comments[0].author).toEqual({ id: 10, name: 'Autora' });
+    expect(listed.comments[0].createdAt).toEqual(storedComment.createdAt);
+  });
+
+  it('não afirma moderação quando a autoria da exclusão é desconhecida', async () => {
+    mocks.repository.listPage.mockResolvedValue([
+      1,
+      [{ ...storedComment, deletedAt: new Date('2026-08-30T10:00:00.000Z'), deletedById: null }]
+    ]);
+    const listed = await taskCommentService.listTaskComments(
+      42,
+      {},
+      { actorUserId: 10, membershipRole: 'MEMBER' }
+    );
+    expect(listed.comments[0]).toMatchObject({ content: null, deletedByModeration: false });
   });
 });

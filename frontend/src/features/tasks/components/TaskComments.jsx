@@ -90,7 +90,7 @@ export function TaskComments({ taskId }) {
     const confirmed = await confirm({
       title: 'Excluir comentário',
       description:
-        'O comentário deixará de ser exibido no histórico da tarefa. Esta ação não poderá ser desfeita.',
+        'O conteúdo deixará de ser exibido e o histórico manterá apenas a marcação de exclusão. Esta ação não poderá ser desfeita.',
       confirmLabel: 'Excluir'
     });
     if (!confirmed) return;
@@ -130,18 +130,36 @@ export function TaskComments({ taskId }) {
             {comments.map((comment) => {
               const own = Boolean(user && comment.author?.id === user.id);
               const processing = actionId === comment.id;
+              const deleted = Boolean(comment.deletedAt);
               return (
                 <div
                   className={`task-chat-message${own ? ' task-chat-message-own' : ''}`}
                   key={comment.id}
                 >
-                  <article className={`task-chat-bubble${own ? ' task-chat-bubble-own' : ''}`}>
+                  <article
+                    className={`task-chat-bubble${own ? ' task-chat-bubble-own' : ''}${
+                      deleted ? ' task-chat-bubble-deleted' : ''
+                    }`}
+                  >
                     {!own && (
                       <span className="task-chat-author">
                         {comment.author?.name || `Usuário #${comment.author?.id}`}
                       </span>
                     )}
-                    {editingId === comment.id ? (
+                    {deleted ? (
+                      <>
+                        <p className="task-chat-content task-chat-content-deleted">
+                          {comment.deletedByModeration
+                            ? 'Comentário excluído por moderação.'
+                            : 'Comentário excluído pelo autor.'}
+                        </p>
+                        <div className="task-chat-meta">
+                          <time dateTime={comment.createdAt}>
+                            {formatDateTime(comment.createdAt)}
+                          </time>
+                        </div>
+                      </>
+                    ) : editingId === comment.id ? (
                       <form className="task-chat-edit-form" onSubmit={handleEditSubmit}>
                         <textarea
                           aria-label="Editar comentário"

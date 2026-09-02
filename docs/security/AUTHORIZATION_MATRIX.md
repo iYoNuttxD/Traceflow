@@ -86,4 +86,5 @@ reduzir enumeração; papel insuficiente retorna `403`. Mutations autenticadas e
 - Comentários de tarefa (`TaskComment`) usam autoria exclusiva da sessão. VIEWER só lê; MEMBER cria
   e edita/exclui apenas o próprio comentário; MANAGER e OWNER excluem qualquer comentário do projeto
   por moderação, mas não editam texto de terceiros. Exclusão é lógica (`deletedAt`/`deletedById`) e
-  toda operação é auditada.
+  toda operação é auditada. O comentário excluído continua na listagem apenas como marcador sem
+  conteúdo; nenhum papel, inclusive quem moderou, recupera o texto pela API.

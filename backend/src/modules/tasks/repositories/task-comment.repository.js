@@ -7,13 +7,17 @@ const commentSelect = {
   authorUserId: true,
   content: true,
   editedAt: true,
+  deletedAt: true,
+  deletedById: true,
   createdAt: true,
   authorUser: { select: { id: true, name: true } }
 };
 
 export const taskCommentRepository = {
+  // A listagem inclui comentários excluídos para preservar a linha do tempo do RF31;
+  // o service converte cada exclusão em marcador sem conteúdo antes de responder.
   listPage(taskId, pagination) {
-    const where = { taskId, deletedAt: null };
+    const where = { taskId };
     return prisma.$transaction([
       prisma.taskComment.count({ where }),
       prisma.taskComment.findMany({

@@ -134,6 +134,11 @@ describe('S1-05 — comentários das tarefas (RF29/RF31)', () => {
     expect(new Set(ids).size).toBe(7);
     expect(ids).toEqual([...ids].sort((a, b) => b - a));
     expect(firstPage.body.comments[0].content).toBe('Comentário 7');
+
+    // Sem query, o padrão do contrato é 5 por página.
+    const defaultPage = await member.agent.get(`/api/tasks/${task.id}/comments`);
+    expect(defaultPage.body.pagination).toMatchObject({ page: 1, limit: 5, totalPages: 2 });
+    expect(defaultPage.body.comments).toHaveLength(5);
   });
 
   it('permite leitura a VIEWER e bloqueia criação, edição e exclusão', async () => {
@@ -217,8 +222,32 @@ describe('S1-05 — comentários das tarefas (RF29/RF31)', () => {
       (await manager.mutate('delete', `/api/tasks/${task.id}/comments/${moderated.id}`)).status
     ).toBe(200);
 
+    // O histórico preserva a posição do comentário excluído, mas nunca devolve o conteúdo.
     const list = await author.agent.get(`/api/tasks/${task.id}/comments`);
-    expect(list.body).toMatchObject({ total: 0, comments: [] });
+    expect(list.body).toMatchObject({ total: 2 });
+    expect(list.body.comments).toHaveLength(2);
+    const listedOwn = list.body.comments.find(({ id }) => id === own.id);
+    const listedModerated = list.body.comments.find(({ id }) => id === moderated.id);
+    expect(listedOwn).toMatchObject({
+      content: null,
+      deletedByModeration: false,
+      canEdit: false,
+      canDelete: false
+    });
+    expect(listedOwn.deletedAt).not.toBeNull();
+    expect(listedModerated).toMatchObject({
+      content: null,
+      deletedByModeration: true,
+      canEdit: false,
+      canDelete: false
+    });
+    expect(JSON.stringify(list.body)).not.toContain('Para moderação.');
+    expect(JSON.stringify(list.body)).not.toContain('Do autor.');
+
+    // Moderador também não recupera o conteúdo pela listagem.
+    const managerList = await manager.agent.get(`/api/tasks/${task.id}/comments`);
+    expect(JSON.stringify(managerList.body)).not.toContain('Para moderação.');
+    expect(managerList.body.comments.every(({ canDelete }) => canDelete === false)).toBe(true);
 
     const preservedOwn = await prisma.taskComment.findUnique({ where: { id: own.id } });
     expect(preservedOwn.deletedAt).not.toBeNull();

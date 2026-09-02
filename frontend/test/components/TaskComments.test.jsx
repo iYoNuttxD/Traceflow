@@ -40,6 +40,21 @@ const otherComment = (overrides = {}) => ({
   ...overrides
 });
 
+// Marcador devolvido pela API: mantém autoria e data, sem conteúdo nem ações.
+const deletedComment = (overrides = {}) => ({
+  id: 3,
+  taskId: 42,
+  content: null,
+  editedAt: null,
+  createdAt: '2026-08-29T10:00:00.000Z',
+  author: { id: 20, name: 'Outra Pessoa' },
+  deletedAt: '2026-08-29T14:00:00.000Z',
+  deletedByModeration: false,
+  canEdit: false,
+  canDelete: false,
+  ...overrides
+});
+
 // A API retorna do mais recente para o mais antigo (ordem de página).
 const response = (
   comments = [ownComment(), otherComment()],
@@ -103,6 +118,25 @@ describe('TaskComments', () => {
       (node) => node.textContent
     );
     expect(messages).toEqual(['Comentário de colega.', 'Comentário próprio.']);
+  });
+
+  it('mantém comentário excluído no histórico como marcador sem ações', async () => {
+    apiMocks.getTaskComments.mockResolvedValue(
+      response([
+        ownComment(),
+        deletedComment(),
+        deletedComment({ id: 4, deletedByModeration: true })
+      ])
+    );
+    const { container } = renderComments();
+
+    expect(await screen.findByText('Comentário excluído por moderação.')).toBeInTheDocument();
+    expect(screen.getByText('Comentário excluído pelo autor.')).toBeInTheDocument();
+    expect(container.querySelectorAll('.task-chat-bubble-deleted')).toHaveLength(2);
+
+    // Somente o comentário ativo mantém as ações de editar e excluir.
+    expect(screen.getAllByRole('button', { name: 'Editar comentário' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Excluir comentário' })).toHaveLength(1);
   });
 
   it('envia novo comentário e recarrega a conversa', async () => {

@@ -75,6 +75,11 @@
   background: var(--color-accent-surface);
 }
 
+.task-chat-bubble-deleted {
+  border-style: dashed;
+  background: var(--color-surface-secondary);
+}
+
 .task-chat-author {
   display: block;
   margin-bottom: 0.15rem;
@@ -89,6 +94,11 @@
   font-size: 0.92rem;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.task-chat-content-deleted {
+  color: var(--color-text-secondary);
+  font-style: italic;
 }
 
 .task-chat-meta {

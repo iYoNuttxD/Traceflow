@@ -36,7 +36,27 @@ function commentNotFound() {
   return new TaskServiceError('Comentário não encontrado.', 404);
 }
 
+// Comentário excluído permanece no histórico como marcador: mantém autoria e posição
+// cronológica, mas nunca devolve o conteúdo nem habilita novas ações sobre ele.
+function formatDeletedComment(comment) {
+  return {
+    id: comment.id,
+    taskId: comment.taskId,
+    content: null,
+    editedAt: null,
+    createdAt: comment.createdAt,
+    author: comment.authorUser,
+    deletedAt: comment.deletedAt,
+    // Sem `deletedById` a autoria da exclusão é desconhecida e não se afirma moderação.
+    deletedByModeration:
+      comment.deletedById != null && comment.deletedById !== comment.authorUserId,
+    canEdit: false,
+    canDelete: false
+  };
+}
+
 function formatComment(comment, context = {}) {
+  if (comment.deletedAt) return formatDeletedComment(comment);
   const isAuthor = comment.authorUserId === context.actorUserId;
   const role = context.membershipRole;
   return {
@@ -46,6 +66,8 @@ function formatComment(comment, context = {}) {
     editedAt: comment.editedAt,
     createdAt: comment.createdAt,
     author: comment.authorUser,
+    deletedAt: null,
+    deletedByModeration: false,
     canEdit: isAuthor && role !== 'VIEWER',
     canDelete: (isAuthor && role !== 'VIEWER') || canModerate(role)
   };
@@ -67,7 +89,7 @@ export const taskCommentService = {
   async listTaskComments(taskId, query = {}, context = {}) {
     const id = parseTaskId(taskId);
     await ensureTaskExists(id);
-    const pagination = buildPagination(query, 10);
+    const pagination = buildPagination(query, 5);
     const [total, comments] = await taskCommentRepository.listPage(id, pagination);
     return {
       taskId: id,
