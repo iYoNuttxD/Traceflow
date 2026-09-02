@@ -556,6 +556,11 @@ registrados no backlog; nenhuma correção feita na campanha, por regra.
 - **Consequência:** cliente que programa contra o código documentado não o recebe nesses dois
   pontos; a recusa em si está correta.
 - **Proposta:** `TECHNICAL_BACKLOG.md` **S104-F15** — alinhar contrato ou emissor, por ponto.
+- **Status (01/09/2026):** parcialmente fechado. A criação de sprint sem marco passou a emitir
+  `400 SPRINT_MILESTONE_REQUIRED` nas duas formas: o Zod de `createSprintBodySchema` exigia
+  `milestoneId`, o que recusava o payload antes de a regra de domínio rodar. `milestoneId`
+  malformado continua — corretamente — em `VALIDATION_ERROR`. O ponto do lote acima de 100 ids
+  segue aberto em S104-F15.
 
 ### [LOW — observação] CP-A2 — Flake no teste de corrida pré-existente
 

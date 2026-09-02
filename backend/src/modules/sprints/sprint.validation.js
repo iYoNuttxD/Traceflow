@@ -50,7 +50,7 @@ export const createSprintBodySchema = strictObject({
   objective: optionalText({ field: 'Objetivo', max: 2000 }),
   startDate: scheduleDate('Data de início'),
   endDate: scheduleDate('Data de fim'),
-  milestoneId: positiveInteger('ID do marco inválido.')
+  milestoneId: positiveInteger('ID do marco inválido.').nullable().optional()
 });
 
 export const updateSprintBodySchema = strictObject({
