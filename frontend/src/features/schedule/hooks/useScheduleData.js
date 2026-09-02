@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { scheduleApi } from '../api/schedule.api.js';
 import { projectsApi } from '../../projects/index.js';
 import { normalizeApiError, useAbortableRequest } from '../../../shared/index.js';
 
 export function useScheduleData(projectId) {
   const { run } = useAbortableRequest();
+  const { run: runSchedule, cancel: cancelSchedule } = useAbortableRequest();
+  const { run: runSprints, cancel: cancelSprints } = useAbortableRequest();
+  const { run: runMilestones, cancel: cancelMilestones } = useAbortableRequest();
 
   const [project, setProject] = useState(null);
   const [schedule, setSchedule] = useState(null);
@@ -18,6 +21,11 @@ export function useScheduleData(projectId) {
   const [success, setSuccess] = useState('');
   const [staleWarning, setStaleWarning] = useState('');
 
+  const generationRef = useRef(0);
+  const projectRef = useRef(projectId);
+
+  const isCurrent = useCallback((generation) => generation === generationRef.current, []);
+
   const reportFailure = useCallback((requestError, fallback) => {
     const normalized = normalizeApiError(requestError, fallback);
     if ([403, 404].includes(requestError.response?.status)) setForbidden(true);
@@ -26,6 +34,22 @@ export function useScheduleData(projectId) {
 
   const loadAll = useCallback(
     async (range = {}) => {
+      generationRef.current += 1;
+      const generation = generationRef.current;
+
+      if (projectRef.current !== projectId) {
+        projectRef.current = projectId;
+        cancelSchedule();
+        cancelSprints();
+        cancelMilestones();
+        setProject(null);
+        setSchedule(null);
+        setSprints([]);
+        setMilestones([]);
+        setCurrentMembership(null);
+        setSuccess('');
+      }
+
       setLoading(true);
       setError('');
       setStaleWarning('');
@@ -53,38 +77,51 @@ export function useScheduleData(projectId) {
             membership: membershipResponse.data.currentMembership || null
           };
         });
-        if (!result) return;
+        if (!result || !isCurrent(generation)) return;
         setProject(result.project);
         setSchedule(result.schedule);
         setSprints(result.sprints);
         setMilestones(result.milestones);
         setCurrentMembership(result.membership);
       } catch (requestError) {
+        if (!isCurrent(generation)) return;
         reportFailure(requestError, 'Não foi possível carregar o cronograma.');
       } finally {
-        setLoading(false);
+        if (isCurrent(generation)) setLoading(false);
       }
     },
-    [projectId, reportFailure, run]
+    [projectId, reportFailure, run, isCurrent, cancelSchedule, cancelSprints, cancelMilestones]
   );
 
   const refreshSchedule = useCallback(
     async (range = {}) => {
-      const response = await scheduleApi.getSchedule(projectId, range);
+      const generation = generationRef.current;
+      const response = await runSchedule((signal) =>
+        scheduleApi.getSchedule(projectId, range, { signal })
+      );
+      if (!response || !isCurrent(generation)) return;
       setSchedule(response.data);
     },
-    [projectId]
+    [projectId, runSchedule, isCurrent]
   );
 
   const refreshSprints = useCallback(async () => {
-    const response = await scheduleApi.listSprints(projectId);
+    const generation = generationRef.current;
+    const response = await runSprints((signal) =>
+      scheduleApi.listSprints(projectId, {}, { signal })
+    );
+    if (!response || !isCurrent(generation)) return;
     setSprints(response.data.sprints || []);
-  }, [projectId]);
+  }, [projectId, runSprints, isCurrent]);
 
   const refreshMilestones = useCallback(async () => {
-    const response = await scheduleApi.listMilestones(projectId);
+    const generation = generationRef.current;
+    const response = await runMilestones((signal) =>
+      scheduleApi.listMilestones(projectId, {}, { signal })
+    );
+    if (!response || !isCurrent(generation)) return;
     setMilestones(response.data.milestones || []);
-  }, [projectId]);
+  }, [projectId, runMilestones, isCurrent]);
 
   useEffect(() => {
     void loadAll();
