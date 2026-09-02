@@ -381,9 +381,18 @@ describe('CP — PE/VL: cadastro e janelas do cronograma (RF10)', () => {
       endDate: '2026-09-15',
       milestoneId: null
     });
+    const malformado = await postSprint(ator, projeto.id, {
+      name: 'Marco invalido',
+      startDate: '2026-09-01',
+      endDate: '2026-09-15',
+      milestoneId: 'abc'
+    });
     expect(semCampo.status).toBe(400);
-    expect(semCampo.status).toBe(400);
+    expect(semCampo.body.code).toBe('SPRINT_MILESTONE_REQUIRED');
     expect(comNull.status).toBe(400);
+    expect(comNull.body.code).toBe('SPRINT_MILESTONE_REQUIRED');
+    expect(malformado.status).toBe(400);
+    expect(malformado.body.code).toBe('VALIDATION_ERROR');
   });
 
   it('CP-PE-02 marco de outro projeto visivel ao ator', async () => {

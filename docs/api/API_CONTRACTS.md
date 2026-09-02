@@ -445,7 +445,7 @@ O DTO de tarefa é minimizado: nunca e-mail nem descrição.
 | `SPRINT_TASK_LIMIT_REACHED` | 409 | conjunto resultante acima de 100 tarefas |
 | `SPRINT_DELETE_NOT_SUPPORTED` | 405 | tentativa de excluir sprint |
 | `SPRINT_DATE_RANGE_INVALID` | 400 | `startDate >= endDate`, ou `from > to` no filtro |
-| `SPRINT_MILESTONE_REQUIRED` | 400 | criação de sprint sem marco |
+| `SPRINT_MILESTONE_REQUIRED` | 400 | criação de sprint sem marco: campo ausente ou `milestoneId: null`. `milestoneId` malformado é `VALIDATION_ERROR` |
 | `SPRINT_MILESTONE_PROJECT_MISMATCH` | 400 | marco de outro projeto, visível ao ator |
 | `MILESTONE_HAS_SPRINTS` | 409 | exclusão de marco com sprints apontando para ele |
 | `TASK_SPRINT_PROJECT_MISMATCH` | 400 | tarefa de outro projeto, visível ao ator |
