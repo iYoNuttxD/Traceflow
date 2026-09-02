@@ -66,24 +66,24 @@ abaixo é o que vale; onde o parecer errou, está dito.
 | B2 | Falha de refresh vira erro falso de mutation | **CONFIRMADO — e pior que o descrito** | Fase 4 |
 | B3 | Contexto antigo sobrescreve projeto atual no cronograma | **CONFIRMADO** | Fase 5 |
 | I1 | `SPRINT_MILESTONE_REQUIRED` prometido × `VALIDATION_ERROR` no runtime | **CONFIRMADO — causa raiz identificada** | Fase 6 |
-| I2 | Novas surfaces ausentes do `UI_SURFACE_INVENTORY.md` | **IMPROCEDENTE — o arquivo e a regra não existem** | §11 |
+| I2 | Novas surfaces ausentes do `UI_SURFACE_INVENTORY.md` | **CONFIRMADO** | Fase 8 |
 | I3 | Carga inicial do Kanban não é current-context-wins | **CONFIRMADO — preexistente da `main`** | Fase 7 |
 
-### 1.1 Por que I2 foi rejeitado
+### 1.1 Correção de rota — I2 foi validado depois
 
-O parecer afirma que a PR contraria `CONTRIBUTING.md:71-85`, que exigiria inventário de páginas,
-dialogs e estados em `docs/design/UI_SURFACE_INVENTORY.md`. Conferido:
+Numa primeira análise este achado foi classificado como improcedente: uma busca por
+`UI_SURFACE_INVENTORY` no repositório não retornava nada, `docs/design/` não existia e
+`CONTRIBUTING.md` tinha 72 linhas, sem qualquer regra de inventário.
 
-- `docs/design/` **não existe** no repositório;
-- `UI_SURFACE_INVENTORY.md` **não existe**, e uma busca por `UI_SURFACE_INVENTORY`,
-  `SURFACE_INVENTORY` e "inventário de superfície" em todo o repositório retorna **zero ocorrências**;
-- `CONTRIBUTING.md` tem **72 linhas no total**. O intervalo citado (71-85) em boa parte não existe, e
-  as linhas 71-72 tratam de resolver conversas de revisão e do identificador `[TASK-<ID>]` — nada
-  sobre inventário de UI.
+**A busca foi feita na árvore errada.** A verificação rodou sobre a base local (`4465bc7`), que
+tinha divergido do HEAD revisado (`9548a2c`) e não continha a integração da `main`. No HEAD que o
+parecer avaliou, `docs/design/UI_SURFACE_INVENTORY.md` existe, veio com o merge, e a regra está
+exatamente onde o parecer apontou — `CONTRIBUTING.md:71-85`, seção "Rastreabilidade de superfícies
+de UI", incluindo a exigência de que `VISUALLY APPROVED` dependa do
+[Visual Validation Log](../design/validation/VISUAL_VALIDATION_LOG.md).
 
-Não há norma a cumprir. **Não crie o arquivo para satisfazer este achado.** Se você quiser adotar
-esse inventário como convenção nova do projeto, é decisão de processo, não correção de PR: registre
-em `docs/issues/TECHNICAL_BACKLOG.md` e trate depois do merge.
+O achado é válido e virou trabalho na Fase 8. Lição de método: conferir a afirmação de um parecer
+contra **o commit que o parecer declara ter revisado**, não contra a árvore que estiver aberta.
 
 ---
 
@@ -101,6 +101,7 @@ Fase 6  I1   backend/src/modules/sprints/sprint.validation.js
              backend/test/api/rf08-rf10-rf35-caixa-preta.test.js
 Fase 7  I3   frontend/src/features/tasks/pages/KanbanScreen.jsx
 Fase 8  doc  docs/api/API_CONTRACTS.md, ADR, TECHNICAL_BACKLOG.md
+        I2   docs/design/UI_SURFACE_INVENTORY.md
 ```
 
 ---
@@ -599,6 +600,12 @@ projeto corrente.
    - se você duplicou `lockProject` em vez de extrair, a dívida da terceira cópia;
    - decisão de processo sobre adotar (ou não) um inventário de surfaces de UI — ver §11.
 4. `docs/issues/RF08_RF10_RF35_CASOS_CAIXA_PRETA.md` — fechar o ACHADO CP-A1.
+5. `docs/design/UI_SURFACE_INVENTORY.md` — **I2, obrigatório por `CONTRIBUTING.md:71-85`.**
+   Catalogar as surfaces novas de Sprints, Milestones e Schedule, mais o filtro de sprint do Kanban
+   e o estado de aviso criado na Fase 4. Cada linha traz rota, owner, trigger, papéis e os estados
+   auxiliares (loading, empty, error, success, permission). Atualizar os totais entre os marcadores
+   `INVENTORY_COUNTS`. Nenhuma surface pode receber `VISUALLY APPROVED` enquanto não constar do
+   Visual Validation Log — enquanto a §9 não for feita, todas ficam `TECHNICALLY VERIFIED`.
 
 ---
 
@@ -642,6 +649,8 @@ Anexe as evidências na PR.
 - [ ] `milestoneId` malformado continua `400 VALIDATION_ERROR`.
 - [ ] CP-PE-01 sem asserção duplicada e validando `body.code`.
 - [ ] Carga do Kanban é current-context-wins, incluindo catálogo de sprints e filtro.
+- [ ] Surfaces novas catalogadas no `UI_SURFACE_INVENTORY.md`, com totais atualizados e
+      nenhuma marcada como `VISUALLY APPROVED` sem entrada no Visual Validation Log.
 
 **Transversais**
 
@@ -669,9 +678,6 @@ docs(pr12): registra decisao de lock e fecha o achado CP-A1
 
 ## 11. Itens deliberadamente fora de escopo
 
-- **Inventário de surfaces de UI (I2 do parecer).** Improcedente como escrito: nem o arquivo nem a
-  regra existem no repositório (ver §1.1). Não crie o documento para "corrigir" o achado. Se quiser
-  adotar a prática, é decisão de processo, posterior ao merge, e entra pelo backlog.
 - **Domínio de comentários (Edit/Delete).** Corretamente classificado como `NOT IMPLEMENTED`.
   Pertence ao card S1-05. Não comece a UI antes do contrato backend: qualquer rótulo "Editado",
   tombstone ou distinção por ator seria `CONTRACT GAP`. Em particular, não invente papel
