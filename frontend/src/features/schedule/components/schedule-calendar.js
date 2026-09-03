@@ -1,4 +1,9 @@
-import { taskPriorityLabels, taskStatusLabels } from './schedule-display.js';
+import {
+  milestoneStatusLabels,
+  sprintStatusLabels,
+  taskPriorityLabels,
+  taskStatusLabels
+} from './schedule-display.js';
 
 const MESES = [
   'janeiro',
@@ -27,25 +32,9 @@ const DIAS_SEMANA = [
 
 export const INICIAIS_SEMANA = DIAS_SEMANA.map((dia) => dia.charAt(0).toUpperCase());
 
-export const CORES_SPRINT = [
-  { bg: '#e7edff', fg: '#315bce' },
-  { bg: '#dcf4e7', fg: '#17643b' },
-  { bg: '#fff0cd', fg: '#875a13' },
-  { bg: '#f4f0ff', fg: '#5b21b6' },
-  { bg: '#eff9ff', fg: '#075985' },
-  { bg: '#ffe1e1', fg: '#9f2d2d' }
-];
-
-export const CORES_MARCO = [
-  { cor: '#0f766e', tinta: 'rgba(15, 118, 110, 0.09)' },
-  { cor: '#b45309', tinta: 'rgba(180, 83, 9, 0.09)' },
-  { cor: '#be185d', tinta: 'rgba(190, 24, 93, 0.09)' },
-  { cor: '#4338ca', tinta: 'rgba(67, 56, 202, 0.09)' },
-  { cor: '#0e7490', tinta: 'rgba(14, 116, 144, 0.09)' },
-  { cor: '#a21caf', tinta: 'rgba(162, 28, 175, 0.09)' }
-];
-
 const pad = (valor) => String(valor).padStart(2, '0');
+const compareByDay = (a, b) =>
+  a.day < b.day ? -1 : a.day > b.day ? 1 : String(a.key).localeCompare(String(b.key));
 
 export function toIsoDay(value) {
   if (!value) return null;
@@ -86,466 +75,14 @@ export function fullDate(isoDay) {
 }
 
 export function sprintDayRange(sprint) {
-  const inicio = toIsoDay(sprint.startDate);
-  const fim = new Date(sprint.endDate);
-  if (Number.isNaN(fim.getTime())) return { inicio, fim: inicio };
-  const meiaNoite = fim.getHours() === 0 && fim.getMinutes() === 0 && fim.getSeconds() === 0;
-  const ultimo = meiaNoite ? new Date(fim.getTime() - 86400000) : fim;
-  const fimIso = toIsoDay(ultimo);
-  return { inicio, fim: fimIso && fimIso >= inicio ? fimIso : inicio };
-}
-
-export function sprintColors(sprints) {
-  const cores = {};
-  sprints.forEach((sprint, indice) => {
-    cores[sprint.id] = CORES_SPRINT[indice % CORES_SPRINT.length];
-  });
-  return cores;
-}
-
-export function milestoneColors(milestones) {
-  const cores = {};
-  milestones.forEach((milestone, indice) => {
-    cores[milestone.id] = CORES_MARCO[indice % CORES_MARCO.length];
-  });
-  return cores;
-}
-
-export function milestonePeriods({ milestones = [], sprints = [] }) {
-  return milestones
-    .map((milestone) => {
-      const prazo = toIsoDay(milestone.dueDate);
-      if (!prazo) return null;
-      const doMarco = sprints.filter((sprint) => sprint.milestoneId === milestone.id);
-      const inicios = doMarco
-        .map((sprint) => sprintDayRange(sprint).inicio)
-        .filter((dia) => Boolean(dia));
-      const fins = doMarco
-        .map((sprint) => sprintDayRange(sprint).fim)
-        .filter((dia) => Boolean(dia));
-      const primeiro = inicios.length
-        ? inicios.reduce((menor, dia) => (dia < menor ? dia : menor))
-        : prazo;
-      const menorFim = fins.length
-        ? fins.reduce((menor, dia) => (dia < menor ? dia : menor))
-        : null;
-      const alcance = menorFim && menorFim > prazo ? menorFim : prazo;
-      return {
-        id: milestone.id,
-        title: milestone.title,
-        status: milestone.status,
-        overdue: milestone.overdue ?? false,
-        inicio: primeiro < prazo ? primeiro : prazo,
-        fim: primeiro < alcance ? alcance : primeiro,
-        prazo,
-        nSprints: doMarco.length,
-        nConcluidas: doMarco.filter((sprint) => sprint.status === 'CONCLUIDA').length,
-        comTrilha: doMarco.length > 0
-      };
-    })
-    .filter((periodo) => periodo !== null)
-    .sort((a, b) => (a.inicio < b.inicio ? -1 : a.inicio > b.inicio ? 1 : a.id - b.id));
-}
-
-const pluralSprints = (total) => `${total} ${total === 1 ? 'sprint' : 'sprints'}`;
-
-export function milestoneWeekLayout({ celulas, periodos = [] }) {
-  const trilhas = periodos.filter((periodo) => periodo.comTrilha);
-  const semanas = [];
-  const marcados = new Set();
-  for (let semana = 0; semana < 6; semana += 1) {
-    const dias = celulas.slice(semana * 7, semana * 7 + 7);
-    const segmentos = [];
-    const marcadores = [];
-    for (const periodo of trilhas) {
-      const inicio = periodo.inicio > dias[0].iso ? periodo.inicio : dias[0].iso;
-      const fim = periodo.fim < dias[6].iso ? periodo.fim : dias[6].iso;
-      if (inicio > fim) continue;
-      const c0 = dias.findIndex((dia) => dia.iso === inicio);
-      const c1 = dias.findIndex((dia) => dia.iso === fim);
-      const prazoNoTitulo =
-        periodo.fim !== periodo.prazo ? ` · prazo ${shortDate(periodo.prazo)}` : '';
-      const titulo = `Marco ${periodo.title} · ${shortDate(periodo.inicio)} – ${shortDate(periodo.fim)}${prazoNoTitulo} · agrupa ${pluralSprints(periodo.nSprints)}`;
-      segmentos.push({
-        marcoId: periodo.id,
-        c0,
-        c1,
-        esquerda: (c0 / 7) * 100,
-        largura: ((c1 - c0 + 1) / 7) * 100,
-        arredondaEsquerda: inicio === periodo.inicio,
-        arredondaDireita: fim === periodo.fim,
-        titulo
-      });
-      if (!marcados.has(periodo.id)) {
-        marcados.add(periodo.id);
-        marcadores.push({
-          marcoId: periodo.id,
-          esquerda: (c0 / 7) * 100,
-          largura: ((7 - c0) / 7) * 100,
-          texto: `${periodo.title} · marco · ${shortDate(periodo.inicio)} – ${shortDate(periodo.fim)}`,
-          titulo
-        });
-      }
-    }
-    const ocupadas = [];
-    for (const segmento of segmentos) {
-      let linha = 0;
-      while (
-        ocupadas.some(
-          (outro) => outro.linha === linha && segmento.c0 <= outro.c1 && segmento.c1 >= outro.c0
-        )
-      ) {
-        linha += 1;
-      }
-      ocupadas.push({ linha, c0: segmento.c0, c1: segmento.c1 });
-      segmento.linha = linha;
-    }
-    const espaco = marcadores.length ? 12 : 6;
-    for (const segmento of segmentos) segmento.topo = 6 + segmento.linha * espaco;
-    for (const marcador of marcadores) {
-      const dono = segmentos.find((segmento) => segmento.marcoId === marcador.marcoId);
-      marcador.topo = dono.topo - 5;
-    }
-    const extra = segmentos.length ? Math.max(...segmentos.map((item) => item.linha)) * espaco : 0;
-    semanas.push({
-      dias,
-      segmentos,
-      marcadores,
-      alturaTopo: segmentos.length ? 16 + extra : 4
-    });
-  }
-  return semanas;
-}
-
-export function buildMonthGrid({ ano, mes, sprints = [], periodos = [], hojeIso, selecionadoIso }) {
-  const janelas = sprints.map((sprint) => ({ sprint, ...sprintDayRange(sprint) }));
-  const trilhas = periodos.filter((periodo) => periodo.comTrilha);
-  const prazos = new Map(periodos.map((periodo) => [periodo.prazo, periodo]));
-  const primeiro = new Date(ano, mes, 1);
-  const deslocamento = primeiro.getDay();
-
-  const celulas = [];
-  for (let i = 0; i < 42; i += 1) {
-    const data = new Date(ano, mes, 1 - deslocamento + i);
-    const iso = toIsoDay(data);
-    const janela = janelas.find((item) => iso >= item.inicio && iso <= item.fim) || null;
-    const cobertos = trilhas.filter((item) => iso >= item.inicio && iso <= item.fim);
-    const periodo = cobertos[cobertos.length - 1] || null;
-    const prazoDoDia = prazos.get(iso) || null;
-    const coluna = i % 7;
-
-    const partes = [longDayLabel(iso)];
-    if (janela && iso === janela.inicio) partes.push(`início de ${janela.sprint.name}`);
-    else if (janela && iso === janela.fim) partes.push(`fim de ${janela.sprint.name}`);
-    else if (janela) partes.push(janela.sprint.name);
-    if (periodo && iso === periodo.prazo) {
-      partes.push(`prazo do marco ${periodo.title}`);
-    } else if (periodo && iso === periodo.inicio && periodo.inicio !== periodo.fim) {
-      partes.push(`início do marco ${periodo.title} (agrupa ${pluralSprints(periodo.nSprints)})`);
-    } else if (periodo) {
-      partes.push(`marco ${periodo.title}`);
-    }
-    if (prazoDoDia && (!periodo || periodo.id !== prazoDoDia.id)) {
-      partes.push(`prazo do marco ${prazoDoDia.title}`);
-    }
-
-    celulas.push({
-      iso,
-      numero: data.getDate(),
-      noMes: data.getMonth() === mes,
-      hoje: iso === hojeIso && data.getMonth() === mes,
-      selecionado: iso === selecionadoIso,
-      sprintId: janela?.sprint.id ?? null,
-      inicioDaFaixa: janela ? iso === janela.inicio || coluna === 0 : false,
-      fimDaFaixa: janela ? iso === janela.fim || coluna === 6 : false,
-      inicioDaSprint: janela ? iso === janela.inicio : false,
-      fimDaSprint: janela ? iso === janela.fim : false,
-      marcoId: periodo?.id ?? null,
-      inicioDoMarco: periodo ? iso === periodo.inicio : false,
-      fimDoMarco: periodo ? iso === periodo.fim : false,
-      temPrazoDeMarco: Boolean(prazoDoDia),
-      prazoDoMarcoId: prazoDoDia?.id ?? null,
-      prazoAgrupado: prazoDoDia?.comTrilha ?? false,
-      descricao: partes.join(' — ')
-    });
-  }
-  return celulas;
-}
-
-export function deadlineTasks({ sprints = [], unassignedTasks = [] }) {
-  const tarefas = [];
-  for (const sprint of sprints) {
-    for (const task of sprint.tasks || []) {
-      const dia = toIsoDay(task.deadline);
-      if (dia) tarefas.push({ ...task, dia, sprintNome: sprint.name });
-    }
-  }
-  for (const task of unassignedTasks) {
-    const dia = toIsoDay(task.deadline);
-    if (dia) tarefas.push({ ...task, dia, sprintNome: null });
-  }
-  return tarefas.sort((a, b) => (a.dia < b.dia ? -1 : a.dia > b.dia ? 1 : a.id - b.id));
-}
-
-export function buildEvents({
-  sprints = [],
-  periodos = [],
-  milestoneNames = {},
-  tarefas = [],
-  hojeIso
-}) {
-  const eventos = [];
-
-  for (const sprint of sprints) {
-    const marco = milestoneNames[sprint.milestoneId] || 'Sem marco';
-    const { inicio, fim } = sprintDayRange(sprint);
-    const atrasada = sprint.status === 'EM_ANDAMENTO' && fim < hojeIso;
-    const rotulo = atrasada ? 'Atrasada' : null;
-    eventos.push({
-      dia: inicio,
-      tipo: 'SPRINT',
-      kind: 'Sprint',
-      titulo: `Início — ${sprint.name}`,
-      meta: `${marco} · ${rotulo || statusTexto(sprint.status)}`,
-      aviso: ''
-    });
-    eventos.push({
-      dia: fim,
-      tipo: 'SPRINT',
-      kind: 'Sprint',
-      titulo: `Fim — ${sprint.name}`,
-      meta: `${marco} · ${rotulo || statusTexto(sprint.status)}`,
-      aviso: atrasada ? 'Sprint atrasada — conclua para liberar a próxima.' : ''
-    });
-  }
-
-  for (const periodo of periodos) {
-    if (periodo.nSprints > 0 && periodo.inicio !== periodo.fim) {
-      eventos.push({
-        dia: periodo.inicio,
-        tipo: 'MARCO',
-        kind: 'Marco',
-        titulo: `Início — ${periodo.title}`,
-        meta: `Agrupa ${pluralSprints(periodo.nSprints)} · começa com a primeira delas`,
-        aviso: ''
-      });
-    }
-    const concluido = periodo.status === 'CONCLUIDO';
-    const atrasado = periodo.overdue ?? (!concluido && periodo.prazo < hojeIso);
-    eventos.push({
-      dia: periodo.prazo,
-      tipo: 'MARCO',
-      kind: 'Marco',
-      titulo: periodo.title,
-      meta: `Prazo do marco · ${concluido ? 'Concluído' : atrasado ? 'Atrasado' : 'Pendente'}`,
-      aviso: atrasado ? 'Marco vencido com sprints pendentes.' : ''
-    });
-  }
-
-  for (const tarefa of tarefas) {
-    eventos.push({
-      dia: tarefa.dia,
-      tipo: 'TAREFA',
-      kind: 'Tarefa',
-      titulo: `#${tarefa.id} ${tarefa.title}`,
-      meta: `Deadline · ${taskStatusLabels[tarefa.status] || tarefa.status} · ${taskPriorityLabels[tarefa.priority] || tarefa.priority} · ${tarefa.sprintNome || 'Sem sprint'}`,
-      aviso: ''
-    });
-  }
-
-  return eventos
-    .filter((evento) => evento.dia)
-    .sort((a, b) => (a.dia < b.dia ? -1 : a.dia > b.dia ? 1 : 0));
-}
-
-function statusTexto(status) {
-  return (
-    {
-      PLANEJADA: 'Planejada',
-      EM_ANDAMENTO: 'Em andamento',
-      CONCLUIDA: 'Concluída',
-      CANCELADA: 'Cancelada'
-    }[status] || status
-  );
-}
-
-export const eventsForDay = (eventos, dia) => eventos.filter((evento) => evento.dia === dia);
-
-export const upcomingEvents = (eventos, hojeIso, limite = 6) =>
-  eventos.filter((evento) => evento.dia >= hojeIso).slice(0, limite);
-
-export function nowTiles({ sprints = [], periodos = [], tarefas = [], hojeIso }) {
-  const ativa = sprints.find((sprint) => sprint.status === 'EM_ANDAMENTO') || null;
-  const atrasadas = sprints.filter(
-    (sprint) => sprint.status === 'EM_ANDAMENTO' && sprintDayRange(sprint).fim < hojeIso
-  );
-
-  const tiles = [];
-
-  if (ativa) {
-    const janela = sprintDayRange(ativa);
-    const doSprint = ativa.tasks || [];
-    const concluidas = doSprint.filter((task) => task.status === 'CONCLUIDO').length;
-    const progresso = doSprint.length
-      ? ` · ${concluidas} de ${doSprint.length} ${doSprint.length === 1 ? 'tarefa concluída' : 'tarefas concluídas'}`
-      : '';
-    tiles.push({
-      label: 'Sprint atual',
-      value: ativa.name,
-      note: `${shortDate(janela.inicio)} – ${shortDate(janela.fim)}${progresso}`
-    });
-  } else {
-    tiles.push({ label: 'Sprint atual', value: 'Nenhuma', note: 'Inicie uma sprint planejada' });
-  }
-
-  const pendentes = [...periodos]
-    .filter((periodo) => periodo.status !== 'CONCLUIDO')
-    .sort((a, b) => (a.prazo < b.prazo ? -1 : a.prazo > b.prazo ? 1 : a.id - b.id));
-  const marcoAtual =
-    pendentes.find((periodo) => periodo.inicio <= hojeIso && hojeIso <= periodo.fim) ||
-    pendentes.find((periodo) => periodo.prazo >= hojeIso) ||
-    pendentes[pendentes.length - 1] ||
-    null;
-  tiles.push({
-    label: 'Marco atual',
-    value: marcoAtual ? marcoAtual.title : '—',
-    note: marcoAtual
-      ? `Prazo ${shortDate(marcoAtual.prazo)} · agrupa ${pluralSprints(marcoAtual.nSprints)} · ${marcoAtual.nConcluidas} ${marcoAtual.nConcluidas === 1 ? 'concluída' : 'concluídas'}`
-      : periodos.length
-        ? 'Todos os marcos concluídos'
-        : 'Nenhum marco cadastrado'
-  });
-
-  if (ativa) {
-    const doSprint = ativa.tasks || [];
-    const abertas = doSprint.filter((task) => task.status !== 'CONCLUIDO');
-    tiles.push({
-      label: 'Tarefas em aberto na sprint atual',
-      value: `${abertas.length} de ${doSprint.length} em aberto`,
-      note:
-        abertas
-          .slice(0, 3)
-          .map((task) => `#${task.id} ${task.title}`)
-          .join(' · ') ||
-        (doSprint.length
-          ? 'Todas as tarefas da sprint foram concluídas'
-          : 'Nenhuma tarefa associada à sprint')
-    });
-  }
-
-  const proximaTarefa = tarefas.find(
-    (tarefa) => tarefa.dia >= hojeIso && tarefa.status !== 'CONCLUIDO'
-  );
-  tiles.push({
-    label: 'Atenção',
-    value: atrasadas.length
-      ? `${atrasadas.length} ${atrasadas.length === 1 ? 'sprint atrasada' : 'sprints atrasadas'}`
-      : 'Nada atrasado',
-    note: atrasadas.length
-      ? 'Conclua para liberar a próxima'
-      : proximaTarefa
-        ? `Próximo deadline: ${shortDate(proximaTarefa.dia)} · #${proximaTarefa.id} ${proximaTarefa.title}`
-        : 'Tudo dentro do prazo'
-  });
-
-  return tiles;
-}
-
-const monthRange = (ano, mes) => ({
-  inicio: `${ano}-${pad(mes + 1)}-01`,
-  fim: toIsoDay(new Date(ano, mes + 1, 0))
-});
-
-export function monthBlocks({
-  ano,
-  mes,
-  sprints = [],
-  periodos = [],
-  milestoneNames = {},
-  tarefas = []
-}) {
-  const { inicio: mesInicio, fim: mesFim } = monthRange(ano, mes);
-  const intersecta = (inicio, fim) => inicio <= mesFim && fim >= mesInicio;
-
-  const marcosDoMes = periodos.filter((periodo) => intersecta(periodo.inicio, periodo.fim));
-  const sprintsDoMes = sprints
-    .map((sprint) => ({ sprint, ...sprintDayRange(sprint) }))
-    .filter((janela) => janela.inicio && intersecta(janela.inicio, janela.fim));
-  const tarefasDoMes = tarefas.filter((tarefa) => tarefa.dia >= mesInicio && tarefa.dia <= mesFim);
-
-  const blocos = [
-    {
-      chave: 'marcos',
-      rotulo: 'Marcos',
-      vazio: 'Nenhum marco neste mês.',
-      itens: marcosDoMes.map((periodo) => ({
-        chave: `marco-${periodo.id}`,
-        marcoId: periodo.id,
-        nome: periodo.title,
-        meta: `${
-          periodo.comTrilha
-            ? `${shortDate(periodo.inicio)} – ${shortDate(periodo.fim)}${
-                periodo.fim !== periodo.prazo ? ` · prazo ${shortDate(periodo.prazo)}` : ''
-              }`
-            : `Prazo ${shortDate(periodo.prazo)}`
-        } · ${
-          periodo.status === 'CONCLUIDO' ? 'Concluído' : periodo.overdue ? 'Atrasado' : 'Pendente'
-        } · agrupa ${pluralSprints(periodo.nSprints)}`
-      }))
-    },
-    {
-      chave: 'sprints',
-      rotulo: 'Sprints',
-      vazio: 'Nenhuma sprint neste mês.',
-      itens: sprintsDoMes.map(({ sprint, inicio, fim }) => ({
-        chave: `sprint-${sprint.id}`,
-        sprintId: sprint.id,
-        nome: sprint.name,
-        meta: `${shortDate(inicio)} – ${shortDate(fim)} · ${statusTexto(sprint.status)} · ${
-          milestoneNames[sprint.milestoneId]
-            ? `marco ${milestoneNames[sprint.milestoneId]}`
-            : 'sem marco'
-        }`
-      }))
-    },
-    {
-      chave: 'tarefas',
-      rotulo: 'Tarefas',
-      descricao: 'Somente tarefas com deadline dentro do mês exibido.',
-      vazio: 'Nenhuma tarefa com deadline neste mês.',
-      itens: tarefasDoMes.map((tarefa) => ({
-        chave: `tarefa-${tarefa.id}`,
-        nome: `#${tarefa.id} ${tarefa.title}`,
-        meta: `${shortDate(tarefa.dia)} · ${taskStatusLabels[tarefa.status] || tarefa.status} · ${
-          taskPriorityLabels[tarefa.priority] || tarefa.priority
-        } · ${tarefa.sprintNome || 'Sem sprint'}`
-      }))
-    }
-  ];
-
-  const total = marcosDoMes.length + sprintsDoMes.length + tarefasDoMes.length;
-  const resumo =
-    total === 0
-      ? 'nada no calendário'
-      : `${marcosDoMes.length} ${marcosDoMes.length === 1 ? 'marco' : 'marcos'} · ${pluralSprints(
-          sprintsDoMes.length
-        )} · ${tarefasDoMes.length} ${tarefasDoMes.length === 1 ? 'tarefa' : 'tarefas'}`;
-
-  return { blocos, resumo };
-}
-
-export function monthLegend({ ano, mes, sprints = [], periodos = [] }) {
-  const { inicio: mesInicio, fim: mesFim } = monthRange(ano, mes);
-  const intersecta = (inicio, fim) => inicio <= mesFim && fim >= mesInicio;
-  return {
-    sprints: sprints
-      .map((sprint) => ({ sprint, ...sprintDayRange(sprint) }))
-      .filter((janela) => janela.inicio && intersecta(janela.inicio, janela.fim)),
-    marcos: periodos.filter(
-      (periodo) => periodo.comTrilha && intersecta(periodo.inicio, periodo.fim)
-    ),
-    temPrazoNoMes: periodos.some((periodo) => periodo.prazo >= mesInicio && periodo.prazo <= mesFim)
-  };
+  const inicio = toIsoDay(sprint?.startDate);
+  const endDate = new Date(sprint?.endDate || '');
+  if (!inicio || Number.isNaN(endDate.getTime())) return { inicio, fim: inicio };
+  const isMidnight =
+    endDate.getHours() === 0 && endDate.getMinutes() === 0 && endDate.getSeconds() === 0;
+  const visibleEnd = isMidnight ? new Date(endDate.getTime() - 86400000) : endDate;
+  const fim = toIsoDay(visibleEnd);
+  return { inicio, fim: fim && fim >= inicio ? fim : inicio };
 }
 
 export function diffDaysIso(deIso, ateIso) {
@@ -563,35 +100,376 @@ export function nextMonth(ano, mes) {
   return mes === 11 ? { ano: ano + 1, mes: 0 } : { ano, mes: mes + 1 };
 }
 
-const monthOfDay = (iso) => {
-  const [ano, mes] = iso.split('-').map(Number);
-  return { ano, mes: mes - 1 };
-};
-
-export function calendarBounds({ sprints = [], milestones = [] }) {
-  const dias = [];
+export function getScheduleTasks({ sprints = [], unassignedTasks = [] }) {
+  const byId = new Map();
   for (const sprint of sprints) {
-    const { inicio, fim } = sprintDayRange(sprint);
-    if (inicio) dias.push(inicio, fim);
+    for (const task of sprint.tasks || []) {
+      if (byId.has(String(task.id))) continue;
+      byId.set(String(task.id), {
+        ...task,
+        day: toIsoDay(task.deadline),
+        sprintId: sprint.id,
+        sprintName: sprint.name
+      });
+    }
   }
-  for (const milestone of milestones) {
-    const dia = toIsoDay(milestone.dueDate);
-    if (dia) dias.push(dia);
+  for (const task of unassignedTasks) {
+    if (byId.has(String(task.id))) continue;
+    byId.set(String(task.id), {
+      ...task,
+      day: toIsoDay(task.deadline),
+      sprintId: null,
+      sprintName: null
+    });
   }
-  if (!dias.length) return null;
-  let menor = dias[0];
-  let maior = dias[0];
-  for (const dia of dias) {
-    if (dia < menor) menor = dia;
-    if (dia > maior) maior = dia;
-  }
-  return { min: monthOfDay(menor), max: monthOfDay(maior) };
+  return [...byId.values()].sort((a, b) => {
+    if (!a.day) return b.day ? 1 : String(a.id).localeCompare(String(b.id));
+    if (!b.day) return -1;
+    return a.day < b.day ? -1 : a.day > b.day ? 1 : String(a.id).localeCompare(String(b.id));
+  });
 }
 
-export function clampMonth(limites, { ano, mes }) {
-  if (!limites) return { ano, mes };
-  const indice = ano * 12 + mes;
-  if (indice < limites.min.ano * 12 + limites.min.mes) return { ...limites.min };
-  if (indice > limites.max.ano * 12 + limites.max.mes) return { ...limites.max };
-  return { ano, mes };
+function milestoneName(milestoneById, milestoneId) {
+  return milestoneById.get(String(milestoneId))?.title || null;
+}
+
+function sprintMeta(sprint, milestoneById) {
+  const status = sprintStatusLabels[sprint.status] || sprint.status;
+  const milestone = milestoneName(milestoneById, sprint.milestoneId);
+  return milestone ? `${status} · Marco ${milestone}` : `${status} · Sem marco`;
+}
+
+export function getDayEvents({ day, sprints = [], milestones = [], tasks = [], todayDay }) {
+  if (!day) return [];
+  const milestoneById = new Map(milestones.map((item) => [String(item.id), item]));
+  const events = [];
+
+  for (const sprint of sprints) {
+    const { inicio, fim } = sprintDayRange(sprint);
+    if (inicio === day) {
+      events.push({
+        key: `sprint-start-${sprint.id}-${day}`,
+        day,
+        type: 'SPRINT_START',
+        kind: 'Sprint',
+        title: `${sprint.name} começa`,
+        meta: sprintMeta(sprint, milestoneById),
+        sprint
+      });
+    }
+    if (fim === day) {
+      const overdue = sprint.status === 'EM_ANDAMENTO' && Boolean(todayDay) && fim < todayDay;
+      events.push({
+        key: `sprint-end-${sprint.id}-${day}`,
+        day,
+        type: 'SPRINT_END',
+        kind: 'Sprint',
+        title: `${sprint.name} termina`,
+        meta: sprintMeta(sprint, milestoneById),
+        overdue,
+        sprint
+      });
+    }
+  }
+
+  for (const milestone of milestones) {
+    const dueDay = toIsoDay(milestone.dueDate);
+    if (dueDay !== day) continue;
+    const overdue =
+      milestone.status !== 'CONCLUIDO' &&
+      (milestone.overdue === true || (Boolean(todayDay) && dueDay < todayDay));
+    events.push({
+      key: `milestone-due-${milestone.id}-${day}`,
+      day,
+      type: 'MILESTONE_DUE',
+      kind: 'Marco',
+      title: `Prazo de ${milestone.title}`,
+      meta: overdue ? 'Atrasado' : milestoneStatusLabels[milestone.status] || milestone.status,
+      overdue,
+      milestone
+    });
+  }
+
+  for (const task of tasks) {
+    if (task.day !== day) continue;
+    const overdue = task.status !== 'CONCLUIDO' && Boolean(todayDay) && task.day < todayDay;
+    events.push({
+      key: `task-deadline-${task.id}-${day}`,
+      day,
+      type: 'TASK_DEADLINE',
+      kind: 'Tarefa',
+      title: `#${task.id} ${task.title}`,
+      meta: `${taskStatusLabels[task.status] || task.status} · ${
+        taskPriorityLabels[task.priority] || task.priority
+      } · ${task.sprintName || 'Sem sprint'}`,
+      overdue,
+      task
+    });
+  }
+
+  return events.sort((a, b) => String(a.key).localeCompare(String(b.key)));
+}
+
+export function getDayContext({ day, sprints = [], milestones = [] }) {
+  const milestoneById = new Map(milestones.map((item) => [String(item.id), item]));
+  const activeSprints = sprints
+    .map((sprint) => ({ sprint, ...sprintDayRange(sprint) }))
+    .filter(({ inicio, fim }) => inicio && day >= inicio && day <= fim)
+    .map(({ sprint, inicio, fim }) => ({
+      sprint,
+      startDay: inicio,
+      endDay: fim,
+      milestone: milestoneById.get(String(sprint.milestoneId)) || null
+    }))
+    .sort((a, b) =>
+      a.startDay < b.startDay
+        ? -1
+        : a.startDay > b.startDay
+          ? 1
+          : String(a.sprint.id).localeCompare(String(b.sprint.id))
+    );
+  return { activeSprints };
+}
+
+function monthRange(ano, mes) {
+  return {
+    startDay: `${ano}-${pad(mes + 1)}-01`,
+    endDay: toIsoDay(new Date(ano, mes + 1, 0))
+  };
+}
+
+export function getMonthEntities({ ano, mes, sprints = [], milestones = [], tasks = [] }) {
+  const { startDay, endDay } = monthRange(ano, mes);
+  const milestoneById = new Map(milestones.map((item) => [String(item.id), item]));
+  const intersects = (start, end) => Boolean(start && end && start <= endDay && end >= startDay);
+  const monthSprints = sprints
+    .map((sprint) => ({
+      sprint,
+      milestone: milestoneById.get(String(sprint.milestoneId)) || null,
+      ...sprintDayRange(sprint)
+    }))
+    .filter(({ inicio, fim }) => intersects(inicio, fim))
+    .sort((a, b) =>
+      a.inicio < b.inicio
+        ? -1
+        : a.inicio > b.inicio
+          ? 1
+          : String(a.sprint.id).localeCompare(String(b.sprint.id))
+    );
+  const monthMilestones = milestones
+    .map((milestone) => ({ milestone, day: toIsoDay(milestone.dueDate), key: milestone.id }))
+    .filter(({ day }) => day && day >= startDay && day <= endDay)
+    .sort(compareByDay);
+  const monthTasks = tasks
+    .filter((task) => task.day && task.day >= startDay && task.day <= endDay)
+    .map((task) => ({ ...task, key: task.id }))
+    .sort(compareByDay);
+
+  return {
+    sprints: monthSprints,
+    milestones: monthMilestones,
+    tasks: monthTasks,
+    counts: {
+      sprints: monthSprints.length,
+      milestones: monthMilestones.length,
+      tasks: monthTasks.length
+    }
+  };
+}
+
+function buildDeadlineEntries({ sprints, milestones, tasks }) {
+  const entries = [];
+  for (const sprint of sprints) {
+    if (sprint.status === 'CANCELADA' || sprint.status === 'CONCLUIDA') continue;
+    const { fim } = sprintDayRange(sprint);
+    if (!fim) continue;
+    entries.push({
+      key: `sprint-deadline-${sprint.id}-${fim}`,
+      day: fim,
+      type: 'SPRINT_END',
+      kind: 'Sprint',
+      title: sprint.name,
+      meta: 'Encerramento',
+      sprint
+    });
+  }
+  for (const milestone of milestones) {
+    if (milestone.status === 'CONCLUIDO') continue;
+    const day = toIsoDay(milestone.dueDate);
+    if (!day) continue;
+    entries.push({
+      key: `milestone-deadline-${milestone.id}-${day}`,
+      day,
+      type: 'MILESTONE_DUE',
+      kind: 'Marco',
+      title: milestone.title,
+      meta: 'Prazo',
+      milestone
+    });
+  }
+  for (const task of tasks) {
+    if (!task.day || task.status === 'CONCLUIDO') continue;
+    entries.push({
+      key: `task-deadline-${task.id}-${task.day}`,
+      day: task.day,
+      type: 'TASK_DEADLINE',
+      kind: 'Tarefa',
+      title: `#${task.id} ${task.title}`,
+      meta: taskPriorityLabels[task.priority] || task.priority,
+      task
+    });
+  }
+  return entries.sort(compareByDay);
+}
+
+export function getUpcomingDeadlines({
+  sprints = [],
+  milestones = [],
+  tasks = [],
+  todayDay,
+  limit = 5
+}) {
+  return buildDeadlineEntries({ sprints, milestones, tasks })
+    .filter((item) => item.day >= todayDay)
+    .slice(0, limit);
+}
+
+function nextRelevantMilestone(milestones, todayDay) {
+  const open = milestones
+    .map((milestone) => ({ milestone, day: toIsoDay(milestone.dueDate) }))
+    .filter(({ milestone, day }) => milestone.status !== 'CONCLUIDO' && day);
+  const overdue = open
+    .filter(({ day }) => day < todayDay)
+    .sort((a, b) => (a.day > b.day ? -1 : a.day < b.day ? 1 : 0));
+  if (overdue.length) return { ...overdue[0], overdue: true };
+  const upcoming = open
+    .filter(({ day }) => day >= todayDay)
+    .sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0));
+  return upcoming.length ? { ...upcoming[0], overdue: false } : null;
+}
+
+export function getCurrentScheduleSummary({ sprints = [], milestones = [], tasks = [], todayDay }) {
+  const currentSprint = sprints.find((sprint) => sprint.status === 'EM_ANDAMENTO') || null;
+  const nextMilestone = nextRelevantMilestone(milestones, todayDay);
+  const overdueSprints = sprints.filter(
+    (sprint) => sprint.status === 'EM_ANDAMENTO' && sprintDayRange(sprint).fim < todayDay
+  );
+  const overdueMilestones = milestones.filter((milestone) => {
+    const day = toIsoDay(milestone.dueDate);
+    return (
+      milestone.status !== 'CONCLUIDO' && day && (milestone.overdue === true || day < todayDay)
+    );
+  });
+  const overdueTasks = tasks.filter(
+    (task) => task.day && task.day < todayDay && task.status !== 'CONCLUIDO'
+  );
+  const overdueItems = [
+    ...overdueSprints.map((sprint) => ({ type: 'Sprint', title: sprint.name })),
+    ...overdueMilestones.map((milestone) => ({ type: 'Marco', title: milestone.title })),
+    ...overdueTasks.map((task) => ({ type: 'Tarefa', title: `#${task.id} ${task.title}` }))
+  ];
+  const nextDeadline =
+    getUpcomingDeadlines({ sprints, milestones, tasks, todayDay, limit: 1 })[0] || null;
+  const milestoneSprints = nextMilestone
+    ? sprints.filter(
+        (sprint) =>
+          String(sprint.milestoneId) === String(nextMilestone.milestone.id) &&
+          sprint.status !== 'CANCELADA'
+      )
+    : [];
+  return {
+    currentSprint,
+    nextMilestone: nextMilestone
+      ? {
+          ...nextMilestone,
+          progress: {
+            total: milestoneSprints.length,
+            done: milestoneSprints.filter((sprint) => sprint.status === 'CONCLUIDA').length
+          }
+        }
+      : null,
+    nextDeadline,
+    attention: {
+      total: overdueItems.length,
+      sprintCount: overdueSprints.length,
+      milestoneCount: overdueMilestones.length,
+      taskCount: overdueTasks.length,
+      items: overdueItems
+    }
+  };
+}
+
+function dayDescription(day, events, context) {
+  const counts = {
+    starts: events.filter((event) => event.type === 'SPRINT_START').length,
+    ends: events.filter((event) => event.type === 'SPRINT_END').length,
+    milestones: events.filter((event) => event.type === 'MILESTONE_DUE').length,
+    tasks: events.filter((event) => event.type === 'TASK_DEADLINE').length
+  };
+  const details = [];
+  if (counts.starts) details.push(`${counts.starts} início de sprint`);
+  if (counts.ends) details.push(`${counts.ends} fim de sprint`);
+  if (counts.milestones) details.push(`${counts.milestones} prazo de marco`);
+  if (counts.tasks) {
+    details.push(`${counts.tasks} ${counts.tasks === 1 ? 'prazo de tarefa' : 'prazos de tarefas'}`);
+  }
+  if (context.activeSprints.length) {
+    details.push(
+      `${context.activeSprints.length} ${
+        context.activeSprints.length === 1 ? 'sprint ativa no dia' : 'sprints ativas no dia'
+      }`
+    );
+  }
+  return details.length
+    ? `${longDayLabel(day)} — ${details.join(', ')}`
+    : `${longDayLabel(day)} — sem eventos datados`;
+}
+
+export function buildMonthGrid({
+  ano,
+  mes,
+  sprints = [],
+  milestones = [],
+  tasks = [],
+  todayDay,
+  selectedDay
+}) {
+  const first = new Date(ano, mes, 1);
+  const offset = first.getDay();
+  const cells = [];
+  for (let index = 0; index < 42; index += 1) {
+    const date = new Date(ano, mes, 1 - offset + index);
+    const day = toIsoDay(date);
+    const column = index % 7;
+    const events = getDayEvents({ day, sprints, milestones, tasks, todayDay });
+    const context = getDayContext({ day, sprints, milestones });
+    const sprintSegments = context.activeSprints.map((item) => ({
+      ...item,
+      beginsSegment: day === item.startDay || column === 0,
+      endsSegment: day === item.endDay || column === 6,
+      beginsSprint: day === item.startDay,
+      endsSprint: day === item.endDay
+    }));
+    cells.push({
+      day,
+      number: date.getDate(),
+      inMonth: date.getMonth() === mes,
+      today: day === todayDay,
+      selected: day === selectedDay,
+      events,
+      context,
+      sprintSegments,
+      milestoneCount: events.filter((event) => event.type === 'MILESTONE_DUE').length,
+      taskCount: events.filter((event) => event.type === 'TASK_DEADLINE').length,
+      description: dayDescription(day, events, context)
+    });
+  }
+  return cells;
+}
+
+export function relativeDayLabel(day, todayDay) {
+  const difference = diffDaysIso(todayDay, day);
+  if (difference === 0) return 'hoje';
+  if (difference === 1) return 'amanhã';
+  return `em ${difference} dias`;
 }
