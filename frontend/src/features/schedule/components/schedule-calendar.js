@@ -506,10 +506,11 @@ function dayDescription(day, events, context) {
     details.push(`${counts.tasks} ${counts.tasks === 1 ? 'prazo de tarefa' : 'prazos de tarefas'}`);
   }
   if (context.activeSprints.length) {
+    const sprintNames = context.activeSprints.map(({ sprint }) => sprint.name).join(', ');
     details.push(
       `${context.activeSprints.length} ${
         context.activeSprints.length === 1 ? 'sprint ativa no dia' : 'sprints ativas no dia'
-      }`
+      }: ${sprintNames}`
     );
   }
   return details.length

@@ -114,5 +114,6 @@ The following materially changed areas require a new rendered record before they
 - UX-PLANNING-SPRINTS em Light/Dark, sidebar expandida/recolhida, tablet e mobile, incluindo filtros recolhíveis;
 - UX-PLANNING-MILESTONES em Light/Dark, sidebar expandida/recolhida, tablet e mobile, incluindo filtros recolhíveis;
 - UX-PLANNING-SCHEDULE em Light/Dark, sidebar expandida/recolhida, tablet e mobile, incluindo faixas,
-  lanes/overflow, paletas, marcadores, scroll dos painéis laterais e estados vazios;
+  lanes/overflow, cores automáticas, marcadores, painel Contexto Mês/Dia, grid de próximos prazos e
+  estados vazios;
 - legacy Dark-compatible operational surfaces and Task Details modal layering.

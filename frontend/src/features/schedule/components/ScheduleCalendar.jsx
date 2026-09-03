@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { TraceFlowIcon } from '../../../shared/index.js';
 import {
   milestoneStatusLabels,
@@ -29,11 +29,9 @@ import {
   toIsoDay
 } from './schedule-calendar.js';
 import {
-  SCHEDULE_PALETTES,
-  SCHEDULE_PALETTE_SLOT_COUNT,
+  SCHEDULE_COLOR_SLOT_COUNT,
   assignScheduleEntitySlots,
-  persistSchedulePalette,
-  readSchedulePalette,
+  scheduleEntityKey,
   scheduleEntityStyle
 } from './schedule-palette.js';
 
@@ -188,12 +186,12 @@ function CalendarCell({ cell, colorSlots, onSelect }) {
       aria-pressed={cell.selected}
       onClick={() => onSelect(cell.day)}
     >
-      <span className="schedule-day__number-lane">
-        <span className="schedule-day__number">{cell.number}</span>
-      </span>
-      <span className="schedule-day__sprint-lanes" aria-hidden="true">
+      <span className="schedule-day__sprint-lanes">
         {cell.sprintSegments.map((segment) => (
           <span
+            aria-label={`Sprint: ${segment.sprint.name}. Status: ${sprintStatusLabels[segment.sprint.status] || segment.sprint.status}`}
+            data-schedule-entity={scheduleEntityKey('sprint', segment.sprint.id)}
+            role="img"
             style={scheduleEntityStyle(colorSlots, 'sprint', segment.sprint.id)}
             className={[
               'schedule-day__sprint-range',
@@ -214,6 +212,9 @@ function CalendarCell({ cell, colorSlots, onSelect }) {
         {cell.sprintOverflowCount > 0 && (
           <span className="schedule-day__sprint-overflow">+{cell.sprintOverflowCount} Sprints</span>
         )}
+      </span>
+      <span className="schedule-day__number-lane">
+        <span className="schedule-day__number">{cell.number}</span>
       </span>
       <span className="schedule-day__markers" aria-hidden="true">
         {cell.milestoneCount > 0 && (
@@ -303,7 +304,15 @@ function MonthItem({ item, colorSlots, onSelect }) {
   );
 }
 
-function MonthPanel({ visibleMonth, entities, filter, colorSlots, onFilter, onSelect }) {
+function MonthContextView({
+  visibleMonth,
+  entities,
+  filter,
+  colorSlots,
+  hidden,
+  onFilter,
+  onSelect
+}) {
   const allItems = useMemo(
     () =>
       [
@@ -335,13 +344,15 @@ function MonthPanel({ visibleMonth, entities, filter, colorSlots, onFilter, onSe
 
   return (
     <section
-      className="schedule-side-panel schedule-month-panel"
+      id="schedule-context-month"
+      className="schedule-context-view schedule-month-panel"
       aria-labelledby="month-panel-title"
+      hidden={hidden}
     >
-      <div className="schedule-side-panel__heading">
+      <div className="schedule-context-view__heading">
         <div>
           <span className="eyebrow">No mês exibido</span>
-          <h2 id="month-panel-title">{monthLabel(visibleMonth.ano, visibleMonth.mes)}</h2>
+          <h3 id="month-panel-title">{monthLabel(visibleMonth.ano, visibleMonth.mes)}</h3>
         </div>
         <p>
           {plural(entities.counts.milestones, 'Marco', 'Marcos')} ·{' '}
@@ -397,17 +408,19 @@ function EventMarker({ item, colorSlots }) {
   );
 }
 
-function SelectedDayPanel({ day, events, context, colorSlots }) {
+function DayContextView({ day, events, context, colorSlots, hidden }) {
   return (
     <section
-      className="schedule-side-panel schedule-selected-day"
+      id="schedule-context-day"
+      className="schedule-context-view schedule-selected-day"
       aria-labelledby="selected-day-title"
       aria-live="polite"
+      hidden={hidden}
     >
-      <div className="schedule-side-panel__heading">
+      <div className="schedule-context-view__heading">
         <div>
           <span className="eyebrow">Dia selecionado</span>
-          <h2 id="selected-day-title">{longDayLabel(day)}</h2>
+          <h3 id="selected-day-title">{longDayLabel(day)}</h3>
         </div>
       </div>
 
@@ -467,6 +480,70 @@ function SelectedDayPanel({ day, events, context, colorSlots }) {
   );
 }
 
+function ContextPanel({
+  mode,
+  visibleMonth,
+  monthEntities,
+  monthFilter,
+  selectedDay,
+  selectedEvents,
+  selectedContext,
+  colorSlots,
+  onModeChange,
+  onMonthFilter,
+  onSelectDay
+}) {
+  return (
+    <aside className="schedule-context" aria-labelledby="schedule-context-title">
+      <div className="schedule-context__heading">
+        <div>
+          <span className="eyebrow">Contexto</span>
+          <h2 id="schedule-context-title">Explore o cronograma</h2>
+        </div>
+        <div
+          className="schedule-context__switch"
+          role="group"
+          aria-label="Visualização do contexto"
+        >
+          <button
+            type="button"
+            aria-controls="schedule-context-month"
+            aria-pressed={mode === 'month'}
+            onClick={() => onModeChange('month')}
+          >
+            Mês
+          </button>
+          <button
+            type="button"
+            aria-controls="schedule-context-day"
+            aria-pressed={mode === 'day'}
+            onClick={() => onModeChange('day')}
+          >
+            Dia
+          </button>
+        </div>
+      </div>
+
+      <MonthContextView
+        colorSlots={colorSlots}
+        entities={monthEntities}
+        filter={monthFilter}
+        hidden={mode !== 'month'}
+        onFilter={onMonthFilter}
+        onSelect={onSelectDay}
+        visibleMonth={visibleMonth}
+      />
+      <DayContextView
+        colorSlots={colorSlots}
+        context={selectedContext}
+        day={selectedDay}
+        events={selectedEvents}
+        hidden={mode !== 'day'}
+      />
+    </aside>
+  );
+}
+
 function UpcomingDeadlines({ items, todayDay, colorSlots }) {
   return (
     <section className="schedule-upcoming" aria-labelledby="schedule-upcoming-title">
@@ -509,7 +586,8 @@ export function ScheduleCalendar({ schedule, hoje = new Date() }) {
     mes: hoje.getMonth()
   }));
   const [monthFilter, setMonthFilter] = useState('all');
-  const [palette, setPalette] = useState(readSchedulePalette);
+  const [contextMode, setContextMode] = useState('month');
+  const colorHistoryRef = useRef({ slots: new Map(), visibleKeys: new Set() });
   const sprints = useMemo(() => schedule?.sprints || [], [schedule]);
   const milestones = useMemo(() => schedule?.milestones || [], [schedule]);
   const tasks = useMemo(
@@ -535,26 +613,47 @@ export function ScheduleCalendar({ schedule, hoje = new Date() }) {
       }),
     [milestones, sprints, tasks, visibleMonth]
   );
-  const colorSlots = useMemo(() => {
+  const selectedEvents = useMemo(
+    () => getDayEvents({ day: selectedDay, sprints, milestones, tasks, todayDay, now: hoje }),
+    [hoje, milestones, selectedDay, sprints, tasks, todayDay]
+  );
+  const selectedContext = useMemo(
+    () => getDayContext({ day: selectedDay, sprints, milestones }),
+    [milestones, selectedDay, sprints]
+  );
+  const upcoming = useMemo(
+    () => getUpcomingDeadlines({ sprints, milestones, tasks, todayDay, now: hoje }),
+    [hoje, milestones, sprints, tasks, todayDay]
+  );
+  const colorPlan = useMemo(() => {
     const visible = [
       ...monthEntities.sprints.map(({ sprint }) => ({ type: 'sprint', id: sprint.id })),
       ...monthEntities.milestones.map(({ milestone }) => ({
         type: 'milestone',
         id: milestone.id
       })),
-      ...monthEntities.tasks.map((task) => ({ type: 'task', id: task.id }))
+      ...monthEntities.tasks.map((task) => ({ type: 'task', id: task.id })),
+      ...selectedEvents.map(itemEntity),
+      ...selectedContext.activeSprints.map(({ sprint }) => ({ type: 'sprint', id: sprint.id })),
+      ...upcoming.map(itemEntity)
     ];
     const remaining = [
       ...sprints.map((sprint) => ({ type: 'sprint', id: sprint.id })),
       ...milestones.map((milestone) => ({ type: 'milestone', id: milestone.id })),
       ...tasks.map((task) => ({ type: 'task', id: task.id }))
     ];
-    return assignScheduleEntitySlots({
-      visible,
-      remaining,
-      slotCount: SCHEDULE_PALETTE_SLOT_COUNT
-    });
-  }, [milestones, monthEntities, sprints, tasks]);
+    return {
+      slots: assignScheduleEntitySlots({
+        visible,
+        remaining,
+        previousSlots: colorHistoryRef.current.slots,
+        previousVisibleKeys: colorHistoryRef.current.visibleKeys,
+        slotCount: SCHEDULE_COLOR_SLOT_COUNT
+      }),
+      visibleKeys: new Set(visible.map((entity) => scheduleEntityKey(entity.type, entity.id)))
+    };
+  }, [milestones, monthEntities, selectedContext, selectedEvents, sprints, tasks, upcoming]);
+  const colorSlots = colorPlan.slots;
   const cells = useMemo(
     () =>
       buildMonthGrid({
@@ -569,36 +668,31 @@ export function ScheduleCalendar({ schedule, hoje = new Date() }) {
       }),
     [hoje, milestones, selectedDay, sprints, tasks, todayDay, visibleMonth]
   );
-  const selectedEvents = useMemo(
-    () => getDayEvents({ day: selectedDay, sprints, milestones, tasks, todayDay, now: hoje }),
-    [hoje, milestones, selectedDay, sprints, tasks, todayDay]
-  );
-  const selectedContext = useMemo(
-    () => getDayContext({ day: selectedDay, sprints, milestones }),
-    [milestones, selectedDay, sprints]
-  );
-  const upcoming = useMemo(
-    () => getUpcomingDeadlines({ sprints, milestones, tasks, todayDay, now: hoje }),
-    [hoje, milestones, sprints, tasks, todayDay]
-  );
-
   useEffect(() => {
-    persistSchedulePalette(palette);
-  }, [palette]);
+    colorHistoryRef.current = colorPlan;
+  }, [colorPlan]);
 
   const selectDay = (day) => {
     const [ano, mes] = day.split('-').map(Number);
     setSelectedDay(day);
     setVisibleMonth({ ano, mes: mes - 1 });
+    setContextMode('day');
+  };
+
+  const navigateMonth = (target) => {
+    setVisibleMonth(target);
+    setSelectedDay(toIsoDay(new Date(target.ano, target.mes, 1)));
+    setContextMode('month');
   };
 
   const goToToday = () => {
     setSelectedDay(todayDay);
     setVisibleMonth({ ano: hoje.getFullYear(), mes: hoje.getMonth() });
+    setContextMode('day');
   };
 
   return (
-    <div className="schedule-workspace" data-schedule-palette={palette}>
+    <div className="schedule-workspace">
       <NowSummary summary={summary} todayDay={todayDay} />
 
       <div className="schedule-layout">
@@ -608,36 +702,24 @@ export function ScheduleCalendar({ schedule, hoje = new Date() }) {
               <span className="eyebrow">Calendário</span>
               <h2 id="schedule-calendar-title">{monthLabel(visibleMonth.ano, visibleMonth.mes)}</h2>
             </div>
-            <div className="schedule-calendar__controls">
-              <label className="schedule-palette-select">
-                <span>Paleta</span>
-                <select value={palette} onChange={(event) => setPalette(event.target.value)}>
-                  {SCHEDULE_PALETTES.map((option) => (
-                    <option value={option.value} key={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <div className="schedule-calendar__navigation" aria-label="Navegação do calendário">
-                <button
-                  type="button"
-                  aria-label="Mês anterior"
-                  onClick={() => setVisibleMonth(previousMonth(visibleMonth.ano, visibleMonth.mes))}
-                >
-                  <TraceFlowIcon name="arrowLeft" />
-                </button>
-                <button type="button" className="schedule-calendar__today" onClick={goToToday}>
-                  Hoje
-                </button>
-                <button
-                  type="button"
-                  aria-label="Próximo mês"
-                  onClick={() => setVisibleMonth(nextMonth(visibleMonth.ano, visibleMonth.mes))}
-                >
-                  <TraceFlowIcon name="arrowRight" />
-                </button>
-              </div>
+            <div className="schedule-calendar__navigation" aria-label="Navegação do calendário">
+              <button
+                type="button"
+                aria-label="Mês anterior"
+                onClick={() => navigateMonth(previousMonth(visibleMonth.ano, visibleMonth.mes))}
+              >
+                <TraceFlowIcon name="arrowLeft" />
+              </button>
+              <button type="button" className="schedule-calendar__today" onClick={goToToday}>
+                Hoje
+              </button>
+              <button
+                type="button"
+                aria-label="Próximo mês"
+                onClick={() => navigateMonth(nextMonth(visibleMonth.ano, visibleMonth.mes))}
+              >
+                <TraceFlowIcon name="arrowRight" />
+              </button>
             </div>
           </div>
 
@@ -659,22 +741,19 @@ export function ScheduleCalendar({ schedule, hoje = new Date() }) {
           <CalendarLegend />
         </section>
 
-        <aside className="schedule-side" aria-label="Contexto do cronograma">
-          <MonthPanel
-            colorSlots={colorSlots}
-            entities={monthEntities}
-            filter={monthFilter}
-            onFilter={setMonthFilter}
-            onSelect={selectDay}
-            visibleMonth={visibleMonth}
-          />
-          <SelectedDayPanel
-            context={selectedContext}
-            day={selectedDay}
-            events={selectedEvents}
-            colorSlots={colorSlots}
-          />
-        </aside>
+        <ContextPanel
+          colorSlots={colorSlots}
+          mode={contextMode}
+          monthEntities={monthEntities}
+          monthFilter={monthFilter}
+          onModeChange={setContextMode}
+          onMonthFilter={setMonthFilter}
+          onSelectDay={selectDay}
+          selectedContext={selectedContext}
+          selectedDay={selectedDay}
+          selectedEvents={selectedEvents}
+          visibleMonth={visibleMonth}
+        />
       </div>
 
       <UpcomingDeadlines items={upcoming} todayDay={todayDay} colorSlots={colorSlots} />

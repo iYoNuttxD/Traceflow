@@ -83,7 +83,6 @@ const populatedSchedule = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  window.localStorage.clear();
   mocks.projects.get.mockResolvedValue({ data: { project: { id: 1, name: 'TraceFlow' } } });
   mocks.schedule.getSchedule.mockResolvedValue({ data: populatedSchedule });
   mocks.schedule.listSprints.mockResolvedValue({
@@ -112,24 +111,27 @@ function renderScreen() {
 }
 
 function selectedDayPanel() {
-  return screen.getByText('Dia selecionado').closest('section');
+  return document.querySelector('#schedule-context-day');
 }
 
 function monthPanel() {
-  return screen.getByText('No mês exibido').closest('section');
+  return document.querySelector('#schedule-context-month');
 }
 
 describe('ScheduleCalendar — composição Hybrid C2', () => {
-  it('renderiza Situação atual, calendário, painéis laterais e próximos prazos', () => {
+  it('renderiza Situação atual, calendário, contexto único e próximos prazos', () => {
     renderCalendar();
     expect(screen.getByRole('heading', { name: 'Situação atual' })).toBeInTheDocument();
     expect(screen.getByText('Panorama do planejamento na data de hoje.')).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Agora' })).toBeNull();
     expect(screen.getAllByRole('heading', { name: 'setembro de 2026' })).toHaveLength(2);
-    expect(screen.getByText('Dia selecionado')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Explore o cronograma' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Mês' })).toHaveAttribute('aria-pressed', 'true');
+    expect(monthPanel()).not.toHaveAttribute('hidden');
+    expect(selectedDayPanel()).toHaveAttribute('hidden');
     expect(screen.getByRole('heading', { name: 'Próximos prazos' })).toBeInTheDocument();
     expect(document.querySelector('.schedule-layout')).toBeInTheDocument();
-    expect(document.querySelector('.schedule-side')).toBeInTheDocument();
+    expect(document.querySelectorAll('.schedule-context')).toHaveLength(1);
   });
 
   it('resume Sprint atual com período, tarefas e pontos reais', () => {
@@ -248,6 +250,13 @@ describe('ScheduleCalendar — calendário e seleção', () => {
     );
     expect(day.querySelectorAll('.schedule-day__sprint-range')).toHaveLength(3);
     expect(day.querySelector('.schedule-day__sprint-overflow')).toHaveTextContent('+2 Sprints');
+    const sprintLanes = day.querySelector('.schedule-day__sprint-lanes');
+    const numberLane = day.querySelector('.schedule-day__number-lane');
+    expect(sprintLanes).not.toContainElement(numberLane);
+    expect(sprintLanes.nextElementSibling).toBe(numberLane);
+    expect(day.querySelector('.schedule-day__sprint-range')).toHaveAccessibleName(
+      'Sprint: Sprint 1. Status: Em andamento'
+    );
   });
 
   it('nomeia o dia com data, evento de tarefa e contexto ativo', () => {
@@ -347,7 +356,8 @@ describe('ScheduleCalendar — calendário e seleção', () => {
     renderCalendar();
     await user.click(screen.getByRole('button', { name: 'Próximo mês' }));
     await user.click(screen.getByRole('button', { name: 'Hoje' }));
-    expect(screen.getAllByRole('heading', { name: 'setembro de 2026' })).toHaveLength(2);
+    expect(screen.getByRole('heading', { name: 'setembro de 2026' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Dia' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: /quinta-feira, 10 de setembro/ })).toHaveAttribute(
       'aria-pressed',
       'true'
@@ -355,12 +365,11 @@ describe('ScheduleCalendar — calendário e seleção', () => {
   });
 });
 
-describe('ScheduleCalendar — painel do mês', () => {
-  it('mantém headers separados de bodies roláveis nos dois painéis de contexto', () => {
+describe('ScheduleCalendar — painel contextual', () => {
+  it('usa um único painel com Mês e Dia, headers estáveis e body rolável', () => {
     renderCalendar();
-    const sidePanels = [...document.querySelector('.schedule-side').children];
-    expect(sidePanels[0]).toHaveClass('schedule-month-panel');
-    expect(sidePanels[1]).toHaveClass('schedule-selected-day');
+    const context = document.querySelector('.schedule-context');
+    expect(context.querySelectorAll('.schedule-context-view')).toHaveLength(2);
     expect(monthPanel().querySelector('.schedule-month-panel__body')).toHaveAttribute(
       'tabindex',
       '0'
@@ -369,7 +378,38 @@ describe('ScheduleCalendar — painel do mês', () => {
       'tabindex',
       '0'
     );
-    expect(document.querySelector('.schedule-side')).toBeInTheDocument();
+    expect(context.querySelector('.schedule-context__heading')).toBeInTheDocument();
+  });
+
+  it('troca automaticamente para Dia ao selecionar e preserva o filtro ao voltar ao Mês', async () => {
+    const user = userEvent.setup();
+    renderCalendar();
+    await user.click(within(monthPanel()).getByRole('button', { name: 'Tarefas 3' }));
+    await user.click(screen.getByRole('button', { name: /sábado, 12 de setembro/ }));
+    expect(screen.getByRole('button', { name: 'Dia' })).toHaveAttribute('aria-pressed', 'true');
+    expect(selectedDayPanel()).not.toHaveAttribute('hidden');
+    expect(monthPanel()).toHaveAttribute('hidden');
+
+    await user.click(screen.getByRole('button', { name: 'Mês' }));
+    expect(monthPanel()).not.toHaveAttribute('hidden');
+    expect(within(monthPanel()).getByRole('button', { name: 'Tarefas 3' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+    await user.click(screen.getByRole('button', { name: 'Dia' }));
+    expect(
+      within(selectedDayPanel()).getByRole('heading', { name: 'sábado, 12 de setembro' })
+    ).toBeInTheDocument();
+  });
+
+  it('permite acionar o seletor contextual por teclado e expõe o estado ativo', async () => {
+    const user = userEvent.setup();
+    renderCalendar();
+    const dayButton = screen.getByRole('button', { name: 'Dia' });
+    dayButton.focus();
+    await user.keyboard('{Enter}');
+    expect(dayButton).toHaveAttribute('aria-pressed', 'true');
+    expect(selectedDayPanel()).not.toHaveAttribute('hidden');
   });
 
   it('resume Marcos, Sprints e tarefas como entidades', () => {
@@ -478,7 +518,9 @@ describe('ScheduleCalendar — próximos prazos', () => {
     });
     const section = screen.getByRole('heading', { name: 'Próximos prazos' }).closest('section');
     expect(within(section).getAllByRole('listitem')).toHaveLength(8);
-    expect(section.querySelector('.schedule-upcoming__list')).toHaveAttribute('tabindex', '0');
+    const list = section.querySelector('.schedule-upcoming__list');
+    expect(list).toHaveAttribute('tabindex', '0');
+    expect(list).toHaveClass('schedule-upcoming__list');
   });
 
   it('não produz warning de chave duplicada com eventos no mesmo dia', () => {
@@ -497,28 +539,13 @@ describe('ScheduleCalendar — próximos prazos', () => {
   });
 });
 
-describe('ScheduleCalendar — paleta', () => {
-  it('troca a paleta e persiste a preferência após remount', async () => {
-    const user = userEvent.setup();
-    const view = renderCalendar();
-    const selector = screen.getByRole('combobox', { name: 'Paleta' });
-    expect(selector).toHaveValue('default');
-    await user.selectOptions(selector, 'contrast');
-    expect(document.querySelector('.schedule-workspace')).toHaveAttribute(
-      'data-schedule-palette',
-      'contrast'
+describe('ScheduleCalendar — cores automáticas', () => {
+  it('não expõe seletor manual nem atributo de preferência de paleta', () => {
+    renderCalendar();
+    expect(screen.queryByRole('combobox', { name: 'Paleta' })).toBeNull();
+    expect(document.querySelector('.schedule-workspace')).not.toHaveAttribute(
+      'data-schedule-palette'
     );
-    expect(window.localStorage.getItem('traceflow.schedule.palette')).toBe('contrast');
-
-    view.unmount();
-    renderCalendar();
-    expect(screen.getByRole('combobox', { name: 'Paleta' })).toHaveValue('contrast');
-  });
-
-  it('usa Padrão quando a preferência armazenada é inválida', () => {
-    window.localStorage.setItem('traceflow.schedule.palette', 'inexistente');
-    renderCalendar();
-    expect(screen.getByRole('combobox', { name: 'Paleta' })).toHaveValue('default');
   });
 
   it('mantém a mesma cor da entidade no calendário, mês, dia e próximos prazos', () => {
@@ -533,7 +560,7 @@ describe('ScheduleCalendar — paleta', () => {
       element.style.getPropertyValue('--schedule-entity-color')
     );
     expect(new Set(colors).size).toBe(1);
-    expect(colors[0]).toMatch(/^var\(--schedule-palette-\d\)$/);
+    expect(colors[0]).toMatch(/^var\(--schedule-color-\d\)$/);
   });
 });
 
