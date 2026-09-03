@@ -2,6 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
 const defaultLabel = (option) => option?.title || option?.name || String(option?.id || '');
 const EMPTY_OPTIONS = Object.freeze([]);
+const neverDisabled = () => false;
 
 export function SearchCombobox({
   id,
@@ -15,6 +16,7 @@ export function SearchCombobox({
   help = '',
   minQueryLength = 2,
   getOptionLabel = defaultLabel,
+  isOptionDisabled = neverDisabled,
   renderOption,
   onSearch,
   onSelect,
@@ -94,6 +96,7 @@ export function SearchCombobox({
   ]);
 
   function choose(option) {
+    if (isOptionDisabled(option)) return;
     onSelect(option);
     setQuery('');
     setResults([]);
@@ -109,19 +112,31 @@ export function SearchCombobox({
       return;
     }
     if (!expanded || loading || results.length === 0) return;
+    const enabledIndexes = results.reduce((indexes, option, index) => {
+      if (!isOptionDisabled(option)) indexes.push(index);
+      return indexes;
+    }, []);
+    if (!enabledIndexes.length) return;
+    const enabledPosition = enabledIndexes.indexOf(activeIndex);
     if (event.key === 'ArrowDown') {
       event.preventDefault();
-      setActiveIndex((current) => (current + 1) % results.length);
+      setActiveIndex(enabledIndexes[(enabledPosition + 1) % enabledIndexes.length]);
     } else if (event.key === 'ArrowUp') {
       event.preventDefault();
-      setActiveIndex((current) => (current <= 0 ? results.length - 1 : current - 1));
+      setActiveIndex(
+        enabledIndexes[enabledPosition <= 0 ? enabledIndexes.length - 1 : enabledPosition - 1]
+      );
     } else if (event.key === 'Home') {
       event.preventDefault();
-      setActiveIndex(0);
+      setActiveIndex(enabledIndexes[0]);
     } else if (event.key === 'End') {
       event.preventDefault();
-      setActiveIndex(results.length - 1);
-    } else if (event.key === 'Enter' && activeIndex >= 0) {
+      setActiveIndex(enabledIndexes.at(-1));
+    } else if (
+      event.key === 'Enter' &&
+      activeIndex >= 0 &&
+      !isOptionDisabled(results[activeIndex])
+    ) {
       event.preventDefault();
       choose(results[activeIndex]);
     }
@@ -196,19 +211,30 @@ export function SearchCombobox({
                   {emptyMessage}
                 </li>
               ) : (
-                results.map((option, index) => (
-                  <li
-                    id={`${listboxId}-option-${index}`}
-                    className={index === activeIndex ? 'sprint-combobox-option--active' : ''}
-                    key={option.id}
-                    role="option"
-                    aria-selected={index === activeIndex}
-                    onClick={() => choose(option)}
-                    onMouseEnter={() => setActiveIndex(index)}
-                  >
-                    {renderOption ? renderOption(option) : getOptionLabel(option)}
-                  </li>
-                ))
+                results.map((option, index) => {
+                  const optionDisabled = isOptionDisabled(option);
+                  return (
+                    <li
+                      id={`${listboxId}-option-${index}`}
+                      className={[
+                        index === activeIndex ? 'sprint-combobox-option--active' : '',
+                        optionDisabled ? 'sprint-combobox-option--disabled' : ''
+                      ]
+                        .filter(Boolean)
+                        .join(' ')}
+                      key={option.id}
+                      role="option"
+                      aria-selected={!optionDisabled && index === activeIndex}
+                      aria-disabled={optionDisabled || undefined}
+                      onClick={() => choose(option)}
+                      onMouseEnter={() => {
+                        if (!optionDisabled) setActiveIndex(index);
+                      }}
+                    >
+                      {renderOption ? renderOption(option) : getOptionLabel(option)}
+                    </li>
+                  );
+                })
               )}
             </ul>
           )}

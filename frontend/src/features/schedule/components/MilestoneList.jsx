@@ -1,149 +1,250 @@
-import { EmptyState } from '../../../shared/index.js';
+import { TraceFlowIcon } from '../../../shared/index.js';
+import { SprintActionsMenu } from './SprintActionsMenu.jsx';
+import { formatInstant, formatSprintCardPeriod, statusBadgeClass } from './schedule-display.js';
 import {
-  formatInstant,
-  isMilestoneOverdue,
-  milestoneProgress,
-  milestoneStatusLabels,
-  sprintStatusKey,
-  sprintStatusKeyLabels,
-  statusBadgeClass
-} from './schedule-display.js';
+  milestoneCoveredPeriod,
+  milestoneDeadlineHealth,
+  milestoneDeadlineHealthLabels,
+  summarizeMilestoneSprints
+} from './milestone-view.js';
+
+function MilestoneCard({
+  milestone,
+  sprints,
+  scheduleById,
+  busy,
+  readOnly,
+  onSprints,
+  onEdit,
+  onDelete,
+  onReopen
+}) {
+  const summary = summarizeMilestoneSprints(milestone.id, sprints, scheduleById);
+  const coveredPeriod = milestoneCoveredPeriod(milestone.id, sprints);
+  const deadlineHealth = milestoneDeadlineHealth(milestone);
+  const menuItems = [];
+
+  if (!readOnly) {
+    menuItems.push({
+      key: 'editar',
+      label: 'Editar',
+      ariaLabel: `Editar o marco ${milestone.title}`,
+      disabled: busy,
+      onSelect: (trigger) => onEdit(milestone, trigger)
+    });
+    if (milestone.status === 'CONCLUIDO') {
+      menuItems.push({
+        key: 'reabrir',
+        label: 'Reabrir',
+        ariaLabel: `Reabrir o marco ${milestone.title}`,
+        disabled: busy,
+        title: 'Volta o marco para pendente. A conclusão automática poderá ocorrer novamente.',
+        onSelect: () => onReopen(milestone)
+      });
+    }
+    menuItems.push({
+      key: 'excluir',
+      label: 'Excluir marco',
+      ariaLabel: `Excluir o marco ${milestone.title}`,
+      danger: true,
+      disabled: busy || summary.linked > 0,
+      title:
+        summary.linked > 0
+          ? 'Marco com Sprints não pode ser excluído. Mova-as para outro marco antes.'
+          : 'Remove o marco definitivamente.',
+      onSelect: (trigger) => onDelete(milestone, trigger)
+    });
+  }
+
+  return (
+    <article
+      className={`milestone-card milestone-card--${deadlineHealth.toLocaleLowerCase('pt-BR')}`}
+    >
+      <div className="milestone-card__header">
+        <h3>{milestone.title}</h3>
+        <span className={statusBadgeClass(deadlineHealth)}>
+          <span className="status-badge__dot" aria-hidden="true" />
+          {milestoneDeadlineHealthLabels[deadlineHealth]}
+        </span>
+      </div>
+
+      <div className="milestone-card__body">
+        {milestone.description ? (
+          <p className="milestone-card__description">{milestone.description}</p>
+        ) : (
+          <p className="milestone-card__description milestone-card__description--empty">
+            Sem descrição informada.
+          </p>
+        )}
+
+        <dl className="milestone-card__details">
+          <div>
+            <dt>Prazo</dt>
+            <dd>{formatInstant(milestone.dueDate)}</dd>
+          </div>
+          <div>
+            <dt>Período coberto</dt>
+            <dd>
+              {coveredPeriod
+                ? formatSprintCardPeriod({
+                    startDate: coveredPeriod.startDate,
+                    endDate: coveredPeriod.endDate
+                  })
+                : '—'}
+            </dd>
+          </div>
+        </dl>
+
+        <div className="milestone-card__sprint-summary">
+          {summary.linked ? (
+            <>
+              <span>
+                <strong>{summary.done}</strong> de <strong>{summary.total}</strong>{' '}
+                {summary.total === 1 ? 'Sprint concluída' : 'Sprints concluídas'}
+              </span>
+              <span>
+                <strong>{summary.linked}</strong> vinculada{summary.linked === 1 ? '' : 's'}
+              </span>
+            </>
+          ) : (
+            <span>Sem Sprints vinculadas</span>
+          )}
+        </div>
+
+        <div className="milestone-card__progress">
+          <div>
+            <span>Progresso pelas Sprints</span>
+            <strong>
+              {summary.total ? `${summary.percent}%` : summary.linked ? 'Sem base ativa' : 'Neutro'}
+            </strong>
+          </div>
+          <div
+            className="milestone-progress-track"
+            role="progressbar"
+            aria-label={`Progresso do marco ${milestone.title}`}
+            aria-valuemin="0"
+            aria-valuemax="100"
+            aria-valuenow={summary.percent}
+            aria-valuetext={
+              summary.total
+                ? `${summary.done} de ${summary.total} Sprints concluídas`
+                : summary.linked
+                  ? 'Somente Sprints canceladas, fora do cálculo de progresso'
+                  : 'Sem Sprints vinculadas para calcular o progresso'
+            }
+          >
+            <span style={{ width: `${summary.percent}%` }} />
+          </div>
+        </div>
+
+        {milestone.status === 'CONCLUIDO' && summary.allConcluded && (
+          <p className="milestone-card__automatic">
+            <TraceFlowIcon name="check" />
+            Conclusão automática baseada nas Sprints.
+          </p>
+        )}
+      </div>
+
+      <div
+        className="milestone-card__actions"
+        role="group"
+        aria-label={`Ações do marco ${milestone.title}`}
+      >
+        <button
+          type="button"
+          className="button button-secondary"
+          onClick={(event) => onSprints(milestone, event.currentTarget)}
+        >
+          Sprints
+        </button>
+        {menuItems.length > 0 && (
+          <SprintActionsMenu
+            entityName={milestone.title}
+            entityDescriptor="do marco"
+            disabled={busy}
+            items={menuItems}
+          />
+        )}
+      </div>
+    </article>
+  );
+}
 
 export function MilestoneList({
   milestones,
   sprints = [],
+  scheduleById = {},
   busyMilestoneId,
   readOnly = false,
+  filtered = false,
+  onCreate,
+  onSprints,
   onEdit,
   onDelete,
-  onToggleStatus
+  onReopen,
+  listRef
 }) {
-  if (!milestones.length) {
-    return (
-      <EmptyState
-        title="Nenhum marco cadastrado."
-        description="Cadastre marcos para acompanhar as entregas previstas do projeto."
-      />
-    );
-  }
-
   return (
-    <ul className="milestone-list" aria-label="Marcos do projeto" tabIndex={0}>
-      {milestones.map((milestone) => {
-        const overdue = milestone.overdue ?? isMilestoneOverdue(milestone);
-        const done = milestone.status === 'CONCLUIDO';
-        const busy = busyMilestoneId === milestone.id;
-        const progresso = milestoneProgress(milestone.id, sprints);
-        const temSprints = progresso.sprints.length > 0;
-        const statusKey = done ? 'CONCLUIDO' : overdue ? 'ATRASADO' : 'PENDENTE';
+    <section
+      className="milestone-grid-section"
+      aria-labelledby="milestone-grid-title"
+      ref={listRef}
+      tabIndex={-1}
+    >
+      <div className="milestone-grid-section__heading">
+        <div>
+          <h2 id="milestone-grid-title">Marcos do projeto</h2>
+          <p>Acompanhe entregas e consulte as Sprints agrupadas em cada objetivo.</p>
+        </div>
+      </div>
 
-        return (
-          <li className="milestone-item" key={milestone.id}>
-            <div className="milestone-item-header">
-              <h3>{milestone.title}</h3>
-              <span className={statusBadgeClass(statusKey)}>
-                {statusKey === 'ATRASADO'
-                  ? 'Atrasado'
-                  : milestoneStatusLabels[milestone.status] || milestone.status}
+      <div className="milestone-grid" role="list" aria-label="Marcos do projeto">
+        {!readOnly && (
+          <div role="listitem">
+            <button
+              type="button"
+              className="new-milestone-card"
+              aria-label="Novo marco"
+              onClick={(event) => onCreate(event.currentTarget)}
+            >
+              <span className="new-milestone-card__icon">
+                <TraceFlowIcon name="plus" />
               </span>
-            </div>
+              <strong>Novo marco</strong>
+              <small>Defina um novo objetivo de entrega.</small>
+            </button>
+          </div>
+        )}
 
-            <p className="milestone-meta">
-              <span>Prazo: {formatInstant(milestone.dueDate)}</span>
-              <span>
-                {progresso.done} de {progresso.total}{' '}
-                {progresso.total === 1 ? 'sprint concluída' : 'sprints concluídas'}
-              </span>
-            </p>
+        {milestones.map((milestone) => (
+          <div role="listitem" key={milestone.id}>
+            <MilestoneCard
+              milestone={milestone}
+              sprints={sprints}
+              scheduleById={scheduleById}
+              busy={busyMilestoneId === milestone.id}
+              readOnly={readOnly}
+              onSprints={onSprints}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              onReopen={onReopen}
+            />
+          </div>
+        ))}
+      </div>
 
-            <div className="traceability-progress">
-              <div className="traceability-progress-bar">
-                <span style={{ width: `${done ? 100 : progresso.percent}%` }} />
-              </div>
-            </div>
-
-            {milestone.description && (
-              <p className="milestone-description">{milestone.description}</p>
-            )}
-
-            {temSprints ? (
-              <p className="milestone-meta" aria-label={`Sprints do marco ${milestone.title}`}>
-                {progresso.sprints.map((sprint) => {
-                  const key = sprintStatusKey(sprint);
-                  return (
-                    <span className={statusBadgeClass(key)} key={sprint.id}>
-                      {sprint.name} · {sprintStatusKeyLabels[key] || sprint.status}
-                    </span>
-                  );
-                })}
-              </p>
-            ) : (
-              <p className="field-help milestone-no-sprints">
-                Nenhuma sprint associada — cadastre sprints vinculadas a este marco na tela de
-                Sprints.
-              </p>
-            )}
-
-            {done && (
-              <p className="milestone-frozen">
-                {progresso.allConcluded
-                  ? 'Concluído automaticamente — todas as sprints deste marco foram concluídas.'
-                  : 'Concluído manualmente.'}
-              </p>
-            )}
-
-            {readOnly ? null : (
-              <div
-                className="milestone-item-footer"
-                role="group"
-                aria-label={`Ações do marco ${milestone.title}`}
-              >
-                <div className="milestone-item-footer-main">
-                  <button
-                    type="button"
-                    className="button button-secondary"
-                    disabled={busy}
-                    aria-label={`${done ? 'Reabrir' : 'Concluir'} o marco ${milestone.title}`}
-                    title={
-                      done
-                        ? 'Volta o marco para pendente. Pode ser desfeito a qualquer momento.'
-                        : 'Marca o marco como entregue antes de todas as sprints terminarem. Pode ser reaberto depois.'
-                    }
-                    onClick={() => onToggleStatus(milestone)}
-                  >
-                    {done ? 'Reabrir marco' : 'Concluir marco'}
-                  </button>
-                </div>
-                <div className="milestone-item-footer-links">
-                  <button
-                    type="button"
-                    className="link-action"
-                    aria-label={`Editar o marco ${milestone.title}`}
-                    title="Carrega título, descrição e prazo no formulário de edição."
-                    onClick={() => onEdit(milestone)}
-                  >
-                    Editar
-                  </button>
-                  <button
-                    type="button"
-                    className="link-action link-action-danger"
-                    disabled={busy || temSprints}
-                    aria-label={`Excluir o marco ${milestone.title}`}
-                    title={
-                      temSprints
-                        ? 'Marco com sprints não pode ser excluído. Mova-as para outro marco antes.'
-                        : 'Remove o marco do projeto. Esta ação não pode ser desfeita.'
-                    }
-                    onClick={() => onDelete(milestone)}
-                  >
-                    Excluir
-                  </button>
-                </div>
-              </div>
-            )}
-          </li>
-        );
-      })}
-    </ul>
+      {milestones.length === 0 && filtered && (
+        <div className="milestone-filter-empty" role="status">
+          <strong>Nenhum marco corresponde aos filtros.</strong>
+          <p>Limpe ou ajuste os filtros para voltar a exibir as entregas.</p>
+        </div>
+      )}
+      {milestones.length === 0 && !filtered && readOnly && (
+        <div className="milestone-filter-empty" role="status">
+          <strong>Nenhum marco disponível.</strong>
+          <p>Seu perfil possui acesso somente para consulta.</p>
+        </div>
+      )}
+    </section>
   );
 }

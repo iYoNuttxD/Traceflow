@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -30,7 +30,7 @@ const { ConfirmProvider } = await import('../../src/shared/index.js');
 const emptySchedule = {
   projectId: 1,
   range: { from: null, to: null },
-  generatedAt: '2026-08-05T12:00:00.000Z',
+  generatedAt: '2026-09-03T12:00:00.000Z',
   sprints: [],
   milestones: [],
   unassignedTasks: []
@@ -40,20 +40,31 @@ const marco = (overrides = {}) => ({
   id: 5,
   title: 'Fundação do produto',
   description: 'Cadastro e quadro operacionais.',
-  dueDate: '2026-09-04T00:00:00.000Z',
+  dueDate: '2099-09-30T18:00:00.000Z',
   status: 'PENDENTE',
   ...overrides
 });
 
-const sprint = (id, name, status, milestoneId = 5) => ({
+const sprint = (id, name, status = 'PLANEJADA', milestoneId = 5, overrides = {}) => ({
   id,
   name,
   objective: null,
-  startDate: '2026-08-01T00:00:00.000Z',
-  endDate: '2026-08-14T00:00:00.000Z',
+  startDate: `2099-09-${String(id).padStart(2, '0')}T12:00:00.000Z`,
+  endDate: `2099-09-${String(id + 4).padStart(2, '0')}T12:00:00.000Z`,
   status,
-  milestoneId
+  milestoneId,
+  ...overrides
 });
+
+function setData({ milestones = [], sprints = [], scheduleSprints = sprints } = {}) {
+  mocks.schedule.listMilestones.mockResolvedValue({
+    data: { total: milestones.length, milestones }
+  });
+  mocks.schedule.listSprints.mockResolvedValue({ data: { total: sprints.length, sprints } });
+  mocks.schedule.getSchedule.mockResolvedValue({
+    data: { ...emptySchedule, milestones, sprints: scheduleSprints }
+  });
+}
 
 function renderScreen() {
   return render(
@@ -67,524 +78,474 @@ function renderScreen() {
   );
 }
 
+async function openMenu(name = 'Fundação do produto') {
+  const user = userEvent.setup();
+  const trigger = await screen.findByRole('button', { name: `Mais ações do marco ${name}` });
+  await user.click(trigger);
+  return {
+    user,
+    trigger,
+    menu: await screen.findByRole('menu', { name: `Ações do marco ${name}` })
+  };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.projects.get.mockResolvedValue({ data: { project: { id: 1, name: 'TraceFlow' } } });
-  mocks.schedule.getSchedule.mockResolvedValue({ data: emptySchedule });
-  mocks.schedule.listSprints.mockResolvedValue({ data: { total: 0, sprints: [] } });
-  mocks.schedule.listMilestones.mockResolvedValue({ data: { total: 0, milestones: [] } });
   mocks.schedule.getMembership.mockResolvedValue({
     data: { currentMembership: { role: 'OWNER' } }
   });
+  mocks.schedule.createMilestone.mockResolvedValue({ data: { milestone: marco() } });
+  mocks.schedule.updateMilestone.mockResolvedValue({ data: { milestone: marco() } });
+  mocks.schedule.updateMilestoneStatus.mockResolvedValue({
+    data: { milestone: marco({ status: 'PENDENTE' }) }
+  });
+  mocks.schedule.removeMilestone.mockResolvedValue({ data: {} });
+  mocks.schedule.updateSprint.mockImplementation(async (id, data) => ({
+    data: { sprint: sprint(id, `Sprint ${id}`, 'PLANEJADA', data.milestoneId) }
+  }));
+  setData();
 });
 
-describe('estados da tela', () => {
-  it('exibe carregamento antes dos dados', () => {
-    mocks.projects.get.mockReturnValue(new Promise(() => {}));
-    renderScreen();
+describe('estrutura e estados da página', () => {
+  it('exibe loading, forbidden e erro recuperavel pelos estados canonicos', async () => {
+    mocks.projects.get.mockReturnValueOnce(new Promise(() => {}));
+    const first = renderScreen();
     expect(screen.getByText('Carregando marcos...')).toBeInTheDocument();
-  });
+    first.unmount();
 
-  it('exibe estado vazio quando nao ha marcos', async () => {
-    renderScreen();
-    expect(await screen.findByText('Nenhum marco cadastrado.')).toBeInTheDocument();
-  });
-
-  it('exibe acesso negado em 403', async () => {
-    mocks.projects.get.mockRejectedValue({ response: { status: 403, data: {} } });
-    renderScreen();
+    mocks.projects.get.mockRejectedValueOnce({ response: { status: 403, data: {} } });
+    const second = renderScreen();
     expect(await screen.findByRole('heading', { name: 'Acesso restrito' })).toBeInTheDocument();
-  });
+    second.unmount();
 
-  it('exibe erro recuperavel em falha generica', async () => {
-    mocks.projects.get.mockRejectedValue({ response: { status: 500, data: {} } });
+    mocks.projects.get.mockRejectedValueOnce({ response: { status: 500, data: {} } });
     renderScreen();
     expect(await screen.findByRole('button', { name: 'Tentar novamente' })).toBeInTheDocument();
   });
-});
 
-describe('progresso por sprints', () => {
-  beforeEach(() => {
-    mocks.schedule.listMilestones.mockResolvedValue({ data: { total: 1, milestones: [marco()] } });
+  it('remove o formulario permanente e mantém Novo marco como primeiro item do empty state', async () => {
+    renderScreen();
+    const grid = await screen.findByRole('list', { name: 'Marcos do projeto' });
+    expect(screen.queryByLabelText('Título')).not.toBeInTheDocument();
+    expect(within(grid).getAllByRole('listitem')[0]).toContainElement(
+      screen.getByRole('button', { name: 'Novo marco' })
+    );
+    expect(screen.getByRole('heading', { name: 'Visão geral dos marcos' })).toBeInTheDocument();
+    expect(screen.getByText('0 marcos')).toBeInTheDocument();
   });
 
-  it('conta as sprints concluidas do marco', async () => {
-    mocks.schedule.listSprints.mockResolvedValue({
-      data: {
-        total: 3,
-        sprints: [
-          sprint(1, 'Sprint 1', 'CONCLUIDA'),
-          sprint(2, 'Sprint 2', 'EM_ANDAMENTO'),
-          sprint(3, 'Sprint 3', 'PLANEJADA')
-        ]
-      }
-    });
+  it('mostra cards com prazo, periodo derivado, progresso e situação textual', async () => {
+    const sprints = [
+      sprint(1, 'Sprint 01', 'CONCLUIDA'),
+      sprint(2, 'Sprint 02', 'PLANEJADA', 5, {
+        startDate: '2099-09-10T12:00:00.000Z',
+        endDate: '2099-10-02T12:00:00.000Z'
+      })
+    ];
+    setData({ milestones: [marco()], sprints });
     renderScreen();
-    expect(await screen.findByText('1 de 3 sprints concluídas')).toBeInTheDocument();
+
+    const card = (
+      await screen.findByRole('heading', { name: 'Fundação do produto', level: 3 })
+    ).closest('article');
+    expect(within(card).getByText('Em dia')).toBeInTheDocument();
+    expect(within(card).getByText(/01\/09 – 02\/10/)).toBeInTheDocument();
+    expect(within(card).getByText('50%')).toBeInTheDocument();
+    expect(within(card).getByRole('progressbar')).toHaveAttribute('aria-valuenow', '50');
   });
 
-  it('ignora sprint cancelada na contagem', async () => {
-    mocks.schedule.listSprints.mockResolvedValue({
-      data: {
-        total: 2,
-        sprints: [sprint(1, 'Sprint 1', 'CONCLUIDA'), sprint(2, 'Sprint 2', 'CANCELADA')]
-      }
-    });
+  it('mantém progresso neutro e sem NaN quando não existem Sprints', async () => {
+    setData({ milestones: [marco()] });
     renderScreen();
-    expect(await screen.findByText('1 de 1 sprint concluída')).toBeInTheDocument();
-  });
-
-  it('lista cada sprint do marco com o proprio status', async () => {
-    mocks.schedule.listSprints.mockResolvedValue({
-      data: {
-        total: 2,
-        sprints: [sprint(1, 'Sprint 1', 'CONCLUIDA'), sprint(2, 'Sprint 2', 'PLANEJADA')]
-      }
+    const progress = await screen.findByRole('progressbar', {
+      name: 'Progresso do marco Fundação do produto'
     });
-    renderScreen();
-    expect(await screen.findByText('Sprint 1 · Concluída')).toBeInTheDocument();
-    expect(screen.getByText('Sprint 2 · Planejada')).toBeInTheDocument();
-  });
-
-  it('nao atribui ao marco sprints de outro marco', async () => {
-    mocks.schedule.listSprints.mockResolvedValue({
-      data: { total: 1, sprints: [sprint(1, 'De outro marco', 'CONCLUIDA', 99)] }
-    });
-    renderScreen();
-    expect(await screen.findByText('0 de 0 sprints concluídas')).toBeInTheDocument();
-    const lista = screen.getByRole('list', { name: 'Marcos do projeto' });
-    expect(within(lista).queryByText(/De outro marco/)).toBeNull();
+    expect(progress).toHaveAttribute('aria-valuenow', '0');
+    expect(progress).toHaveAttribute(
+      'aria-valuetext',
+      'Sem Sprints vinculadas para calcular o progresso'
+    );
+    expect(screen.queryByText(/NaN/)).not.toBeInTheDocument();
   });
 });
 
-describe('conclusao automatica', () => {
-  it('explica a conclusao quando todas as sprints terminaram', async () => {
-    mocks.schedule.listMilestones.mockResolvedValue({
-      data: { total: 1, milestones: [marco({ status: 'CONCLUIDO' })] }
-    });
-    mocks.schedule.listSprints.mockResolvedValue({
-      data: { total: 1, sprints: [sprint(1, 'Sprint 1', 'CONCLUIDA')] }
-    });
+describe('busca e filtros', () => {
+  const other = marco({
+    id: 6,
+    title: 'Release final',
+    description: 'Publicação',
+    status: 'CONCLUIDO',
+    dueDate: '2099-10-20T18:00:00.000Z'
+  });
+  const relatedSprints = [
+    sprint(1, 'Sprint Login', 'PLANEJADA', 5),
+    sprint(2, 'Sprint Release', 'CONCLUIDA', 6)
+  ];
+
+  it('filtra por texto e limpa sem esconder o card de criação', async () => {
+    const user = userEvent.setup();
+    setData({ milestones: [marco(), other], sprints: relatedSprints });
     renderScreen();
+    await screen.findByText('Release final');
+
+    await user.type(screen.getByPlaceholderText('Pesquisar marco...'), 'publicacao');
     expect(
-      await screen.findByText(/Concluído automaticamente — todas as sprints/)
+      screen.queryByRole('heading', { name: 'Fundação do produto', level: 3 })
+    ).not.toBeInTheDocument();
+    expect(screen.getByText('Release final')).toBeInTheDocument();
+    expect(screen.getByText('1 de 2 marcos')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Novo marco' })).toBeInTheDocument();
+
+    await user.clear(screen.getByPlaceholderText('Pesquisar marco...'));
+    await user.type(screen.getByPlaceholderText('Pesquisar marco...'), 'inexistente');
+    expect(screen.getByText('Nenhum marco corresponde aos filtros.')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Limpar filtros' }));
+    expect(
+      screen.getByRole('heading', { name: 'Fundação do produto', level: 3 })
     ).toBeInTheDocument();
   });
 
-  it('nao chama de automatica a conclusao manual', async () => {
-    mocks.schedule.listMilestones.mockResolvedValue({
-      data: { total: 1, milestones: [marco({ status: 'CONCLUIDO' })] }
-    });
-    mocks.schedule.listSprints.mockResolvedValue({
-      data: { total: 1, sprints: [sprint(1, 'Sprint 1', 'EM_ANDAMENTO')] }
-    });
-    renderScreen();
-    await screen.findByText('Fundação do produto');
-    expect(screen.queryByText(/Concluído automaticamente/)).toBeNull();
-    expect(screen.getByText('Concluído manualmente.')).toBeInTheDocument();
-  });
-
-  it('avisa antes de concluir a mao um marco com sprints abertas', async () => {
+  it('combina status, prazo e Sprint relacionada via autocomplete', async () => {
     const user = userEvent.setup();
-    mocks.schedule.listMilestones.mockResolvedValue({ data: { total: 1, milestones: [marco()] } });
-    mocks.schedule.listSprints.mockResolvedValue({
-      data: { total: 2, sprints: [sprint(1, 'S1', 'CONCLUIDA'), sprint(2, 'S2', 'EM_ANDAMENTO')] }
-    });
+    setData({ milestones: [marco(), other], sprints: relatedSprints });
     renderScreen();
+    await screen.findByText('Release final');
 
-    await user.click(await screen.findByRole('button', { name: /^Concluir o marco/ }));
-    const dialog = await screen.findByRole('dialog');
+    await user.selectOptions(screen.getByLabelText('Status'), 'CONCLUIDO');
+    await user.selectOptions(screen.getByLabelText('Situação do prazo'), 'CONCLUIDO');
+    fireEvent.change(screen.getByLabelText('Prazo inicial'), { target: { value: '2099-10-01' } });
+    fireEvent.change(screen.getByLabelText('Prazo final'), { target: { value: '2099-10-31' } });
+    const combobox = screen.getByRole('combobox', { name: 'Sprint relacionada' });
+    await user.type(combobox, 'Release');
+    await user.click(await screen.findByRole('option', { name: /Sprint Release/ }));
+
+    expect(screen.getByText('Release final')).toBeInTheDocument();
     expect(
-      within(dialog).getByText(/1 sprint\(s\) deste marco ainda não foram concluídas/)
-    ).toBeInTheDocument();
-    expect(mocks.schedule.updateMilestoneStatus).not.toHaveBeenCalled();
+      screen.queryByRole('heading', { name: 'Fundação do produto', level: 3 })
+    ).not.toBeInTheDocument();
+    expect(screen.getByText('1 de 2 marcos')).toBeInTheDocument();
+  });
+});
+
+describe('criação e edição em modal', () => {
+  it('abre com foco inicial, fecha no Escape e devolve foco ao card Novo marco', async () => {
+    const user = userEvent.setup();
+    renderScreen();
+    const trigger = await screen.findByRole('button', { name: 'Novo marco' });
+    await user.click(trigger);
+    const dialog = await screen.findByRole('dialog', { name: 'Criar marco' });
+    await waitFor(() => expect(within(dialog).getByLabelText(/Título/)).toHaveFocus());
+
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog', { name: 'Criar marco' })).not.toBeInTheDocument();
+    await waitFor(() => expect(trigger).toHaveFocus());
   });
 
-  it('confirma a conclusao manual mesmo com todas as sprints terminadas', async () => {
+  it('valida campos obrigatórios, associa várias Sprints e exibe as selecionadas', async () => {
     const user = userEvent.setup();
-    mocks.schedule.listMilestones.mockResolvedValue({ data: { total: 1, milestones: [marco()] } });
-    mocks.schedule.listSprints.mockResolvedValue({
-      data: { total: 1, sprints: [sprint(1, 'S1', 'CONCLUIDA')] }
-    });
-    mocks.schedule.updateMilestoneStatus.mockResolvedValue({
-      data: { milestone: marco({ status: 'CONCLUIDO' }) }
-    });
+    const sprints = [
+      sprint(1, 'Sprint Login', 'PLANEJADA', null),
+      sprint(2, 'Sprint API', 'EM_ANDAMENTO', null)
+    ];
+    setData({ sprints });
     renderScreen();
+    await user.click(await screen.findByRole('button', { name: 'Novo marco' }));
+    const dialog = screen.getByRole('dialog', { name: 'Criar marco' });
 
-    await user.click(await screen.findByRole('button', { name: /^Concluir o marco/ }));
-    const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).queryByText(/ainda não foram concluídas/)).toBeNull();
-    await user.click(within(dialog).getByRole('button', { name: 'Concluir marco' }));
-    await waitFor(() =>
-      expect(mocks.schedule.updateMilestoneStatus).toHaveBeenCalledWith(5, 'CONCLUIDO')
+    await user.click(within(dialog).getByRole('button', { name: 'Criar marco' }));
+    expect(within(dialog).getByText('Informe o título do marco.')).toBeInTheDocument();
+    expect(within(dialog).getByText('Informe a data prevista.')).toBeInTheDocument();
+    expect(within(dialog).getByLabelText(/Título/)).toHaveFocus();
+
+    const search = within(dialog).getByRole('combobox', { name: 'Pesquisar Sprints' });
+    await user.type(search, 'Sprint');
+    await user.click(await within(dialog).findByRole('option', { name: /Sprint Login/ }));
+    await user.type(within(dialog).getByRole('combobox', { name: 'Pesquisar Sprints' }), 'Sprint');
+    await user.click(await within(dialog).findByRole('option', { name: /Sprint API/ }));
+    expect(within(dialog).getByText('Sprints selecionadas (2)')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Remover Sprint Login' })).toBeEnabled();
+  });
+
+  it('desabilita Sprint congelada e avisa sobre movimento entre marcos', async () => {
+    const user = userEvent.setup();
+    const existing = marco({ id: 6, title: 'Marco anterior' });
+    const sprints = [
+      sprint(1, 'Sprint móvel', 'PLANEJADA', 6),
+      sprint(2, 'Sprint congelada', 'CONCLUIDA', 6)
+    ];
+    setData({ milestones: [existing], sprints });
+    renderScreen();
+    await user.click(await screen.findByRole('button', { name: 'Novo marco' }));
+    const dialog = screen.getByRole('dialog', { name: 'Criar marco' });
+    const search = within(dialog).getByRole('combobox', { name: 'Pesquisar Sprints' });
+    await user.type(search, 'Sprint');
+
+    expect(
+      within(dialog).getByText(/Pertence ao Marco Marco anterior — será movida/)
+    ).toBeVisible();
+    expect(within(dialog).getByRole('option', { name: /Sprint congelada/ })).toHaveAttribute(
+      'aria-disabled',
+      'true'
     );
   });
-});
 
-describe('exclusao', () => {
-  it('desabilita a exclusao e explica quando o marco tem sprints', async () => {
-    mocks.schedule.listMilestones.mockResolvedValue({ data: { total: 1, milestones: [marco()] } });
-    mocks.schedule.listSprints.mockResolvedValue({
-      data: { total: 1, sprints: [sprint(1, 'S1', 'PLANEJADA')] }
-    });
-    renderScreen();
-
-    const botao = await screen.findByRole('button', { name: /^Excluir o marco/ });
-    expect(botao).toBeDisabled();
-    expect(botao).toHaveAttribute('title', expect.stringContaining('Mova-as para outro marco'));
-  });
-
-  it('permite excluir marco sem sprints', async () => {
-    mocks.schedule.listMilestones.mockResolvedValue({ data: { total: 1, milestones: [marco()] } });
-    renderScreen();
-    expect(await screen.findByRole('button', { name: /^Excluir o marco/ })).toBeEnabled();
-  });
-});
-
-describe('rodape e sinalizacoes do marco (design de 24/08)', () => {
-  it('marco sem sprints diz onde o vinculo e declarado', async () => {
-    mocks.schedule.listMilestones.mockResolvedValue({ data: { total: 1, milestones: [marco()] } });
-    renderScreen();
-    expect(
-      await screen.findByText(/Nenhuma sprint associada — cadastre sprints vinculadas/)
-    ).toBeInTheDocument();
-  });
-
-  it('marco concluido manualmente enche a barra mesmo com sprint aberta', async () => {
-    mocks.schedule.listMilestones.mockResolvedValue({
-      data: { total: 1, milestones: [marco({ status: 'CONCLUIDO' })] }
-    });
-    mocks.schedule.listSprints.mockResolvedValue({
-      data: { total: 2, sprints: [sprint(1, 'S1', 'CONCLUIDA'), sprint(2, 'S2', 'EM_ANDAMENTO')] }
-    });
-    const { container } = renderScreen();
-    await screen.findByText('Concluído manualmente.');
-    const preenchimento = container.querySelector('.traceability-progress-bar span');
-    expect(preenchimento).toHaveStyle({ width: '100%' });
-  });
-
-  it('reabrir dispensa confirmacao — e reversivel e nao afirma entrega', async () => {
+  it('cria, move a Sprint, fecha o modal e atualiza o grid sem reload manual', async () => {
     const user = userEvent.setup();
-    mocks.schedule.listMilestones.mockResolvedValue({
-      data: { total: 1, milestones: [marco({ status: 'CONCLUIDO' })] }
+    const available = sprint(3, 'Sprint disponível', 'PLANEJADA', null);
+    const created = marco({ id: 9, title: 'Gestão de Sprints' });
+    setData({ sprints: [available] });
+    mocks.schedule.createMilestone.mockResolvedValue({ data: { milestone: created } });
+    mocks.schedule.listMilestones
+      .mockResolvedValueOnce({ data: { total: 0, milestones: [] } })
+      .mockResolvedValue({ data: { total: 1, milestones: [created] } });
+    mocks.schedule.listSprints
+      .mockResolvedValueOnce({ data: { total: 1, sprints: [available] } })
+      .mockResolvedValue({
+        data: { total: 1, sprints: [{ ...available, milestoneId: 9 }] }
+      });
+    renderScreen();
+    const trigger = await screen.findByRole('button', { name: 'Novo marco' });
+    await user.click(trigger);
+    const dialog = screen.getByRole('dialog', { name: 'Criar marco' });
+    await user.type(within(dialog).getByLabelText(/Título/), 'Gestão de Sprints');
+    fireEvent.change(within(dialog).getByLabelText(/Prazo/), {
+      target: { value: '2099-09-30T18:00' }
     });
+    await user.type(
+      within(dialog).getByRole('combobox', { name: 'Pesquisar Sprints' }),
+      'disponível'
+    );
+    await user.click(await within(dialog).findByRole('option', { name: /Sprint disponível/ }));
+    await user.click(within(dialog).getByRole('button', { name: 'Criar marco' }));
+
+    await waitFor(() =>
+      expect(mocks.schedule.updateSprint).toHaveBeenCalledWith(3, { milestoneId: 9 })
+    );
+    expect(await screen.findByText('Marco criado com sucesso.')).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Gestão de Sprints', level: 3 })
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Criar marco' })).not.toBeInTheDocument();
+    await waitFor(() => expect(trigger).toHaveFocus());
+  });
+
+  it('mantém erro da API dentro do modal', async () => {
+    const user = userEvent.setup();
+    mocks.schedule.createMilestone.mockRejectedValue({
+      response: { data: { message: 'Prazo inválido.' } }
+    });
+    renderScreen();
+    await user.click(await screen.findByRole('button', { name: 'Novo marco' }));
+    const dialog = screen.getByRole('dialog', { name: 'Criar marco' });
+    await user.type(within(dialog).getByLabelText(/Título/), 'Entrega');
+    fireEvent.change(within(dialog).getByLabelText(/Prazo/), {
+      target: { value: '2099-09-30T18:00' }
+    });
+    await user.click(within(dialog).getByRole('button', { name: 'Criar marco' }));
+
+    expect(await within(dialog).findByText('Prazo inválido.')).toBeInTheDocument();
+    expect(dialog).toBeInTheDocument();
+  });
+
+  it('permite editar marco concluído e preserva Sprint congelada vinculada', async () => {
+    const user = userEvent.setup();
+    const done = marco({ status: 'CONCLUIDO' });
+    const updated = marco({ title: 'Fundação revisada', status: 'CONCLUIDO' });
+    const frozen = sprint(1, 'Sprint final', 'CONCLUIDA');
+    setData({ milestones: [done], sprints: [frozen] });
+    mocks.schedule.updateMilestone.mockResolvedValue({ data: { milestone: updated } });
+    renderScreen();
+    const { menu } = await openMenu();
+    await user.click(
+      within(menu).getByRole('menuitem', { name: 'Editar o marco Fundação do produto' })
+    );
+
+    const dialog = await screen.findByRole('dialog', { name: 'Editar marco' });
+    expect(within(dialog).getByLabelText(/Título/)).toHaveValue('Fundação do produto');
+    expect(within(dialog).getByText('Sprints selecionadas (1)')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Remover Sprint final' })).toBeDisabled();
+
+    await user.clear(within(dialog).getByLabelText(/Título/));
+    await user.type(within(dialog).getByLabelText(/Título/), 'Fundação revisada');
+    await user.click(within(dialog).getByRole('button', { name: 'Salvar alterações' }));
+
+    await waitFor(() =>
+      expect(mocks.schedule.updateMilestone).toHaveBeenCalledWith(
+        5,
+        expect.objectContaining({ title: 'Fundação revisada' })
+      )
+    );
+    expect(await screen.findByText('Marco atualizado com sucesso.')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Editar marco' })).not.toBeInTheDocument();
+  });
+});
+
+describe('modal de Sprints vinculadas', () => {
+  it('ordena cronologicamente, mostra status, pontos, progresso e prazo ultrapassado', async () => {
+    const user = userEvent.setup();
+    const later = sprint(2, 'Sprint posterior', 'PLANEJADA', 5, {
+      startDate: '2099-09-20T12:00:00.000Z',
+      endDate: '2099-10-05T12:00:00.000Z'
+    });
+    const first = sprint(1, 'Sprint inicial', 'CONCLUIDA', 5, {
+      startDate: '2099-09-01T12:00:00.000Z',
+      endDate: '2099-09-10T12:00:00.000Z'
+    });
+    setData({
+      milestones: [marco()],
+      sprints: [later, first],
+      scheduleSprints: [
+        { ...later, tasks: [{ estimatedEffort: 5 }] },
+        { ...first, tasks: [{ estimatedEffort: 3 }] }
+      ]
+    });
+    renderScreen();
+    await user.click(await screen.findByRole('button', { name: 'Sprints' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Sprints de Fundação do produto' });
+    const list = within(dialog).getByRole('list', { name: 'Sprints de Fundação do produto' });
+    const items = within(list).getAllByRole('listitem');
+    expect(items[0]).toHaveTextContent('Sprint inicial');
+    expect(items[1]).toHaveTextContent('Sprint posterior');
+    expect(within(dialog).getByText('50%')).toBeInTheDocument();
+    expect(within(dialog).getByLabelText('Resumo das Sprints do marco')).toHaveTextContent('8 pts');
+    expect(within(dialog).getByText('Termina após o prazo do marco.')).toBeInTheDocument();
+  });
+
+  it('apresenta empty state consultivo sem transformar o modal em editor', async () => {
+    const user = userEvent.setup();
+    setData({ milestones: [marco()] });
+    renderScreen();
+    await user.click(await screen.findByRole('button', { name: 'Sprints' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Sprints de Fundação do produto' });
+    expect(within(dialog).getByText('Nenhuma Sprint vinculada.')).toBeInTheDocument();
+    expect(within(dialog).queryByRole('combobox')).not.toBeInTheDocument();
+  });
+});
+
+describe('menu, autorização e lifecycle', () => {
+  it('não oferece conclusão manual e limita ações do marco aberto ao contrato da UX', async () => {
+    setData({ milestones: [marco()] });
+    renderScreen();
+    const { menu } = await openMenu();
+    expect(within(menu).getByRole('menuitem', { name: /Editar/ })).toBeInTheDocument();
+    expect(within(menu).getByRole('menuitem', { name: /Excluir/ })).toBeEnabled();
+    expect(within(menu).queryByRole('menuitem', { name: /Concluir/ })).not.toBeInTheDocument();
+    expect(within(menu).queryByRole('menuitem', { name: /Reabrir/ })).not.toBeInTheDocument();
+  });
+
+  it('oferece Reabrir apenas quando concluído e executa sem confirmação', async () => {
+    const done = marco({ status: 'CONCLUIDO' });
+    setData({ milestones: [done] });
     mocks.schedule.updateMilestoneStatus.mockResolvedValue({
       data: { milestone: marco({ status: 'PENDENTE' }) }
     });
     renderScreen();
-
-    await user.click(await screen.findByRole('button', { name: /^Reabrir o marco/ }));
+    const { user, menu } = await openMenu();
+    await user.click(within(menu).getByRole('menuitem', { name: /Reabrir o marco/ }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     await waitFor(() =>
       expect(mocks.schedule.updateMilestoneStatus).toHaveBeenCalledWith(5, 'PENDENTE')
     );
   });
 
-  it('o dialogo de concluir usa o botao primario — confirmar nao e destrutivo', async () => {
-    const user = userEvent.setup();
-    mocks.schedule.listMilestones.mockResolvedValue({ data: { total: 1, milestones: [marco()] } });
-    mocks.schedule.listSprints.mockResolvedValue({
-      data: { total: 1, sprints: [sprint(1, 'S1', 'EM_ANDAMENTO')] }
-    });
+  it('desabilita exclusão no menu quando existem Sprints e explica o motivo', async () => {
+    setData({ milestones: [marco()], sprints: [sprint(1, 'Sprint 1')] });
     renderScreen();
-
-    await user.click(await screen.findByRole('button', { name: /^Concluir o marco/ }));
-    const dialog = await screen.findByRole('dialog');
-    const confirmar = within(dialog).getByRole('button', { name: 'Concluir marco' });
-    expect(confirmar).toHaveClass('button-primary');
-    expect(confirmar).not.toHaveClass('button-danger');
-    expect(within(dialog).getByRole('button', { name: 'Voltar' })).toBeInTheDocument();
-  });
-});
-
-describe('formulario de marco', () => {
-  const grupoDeSprints = async () => screen.findByRole('group', { name: 'Sprints do marco' });
-
-  it('oferece as sprints do projeto como caixas de selecao', async () => {
-    mocks.schedule.listSprints.mockResolvedValue({
-      data: { total: 1, sprints: [sprint(1, 'S1', 'PLANEJADA', null)] }
-    });
-    renderScreen();
-    await screen.findByText('Nenhum marco cadastrado.');
-
-    const grupo = await grupoDeSprints();
-    expect(within(grupo).getByRole('checkbox', { name: 'S1 — Planejada' })).toBeInTheDocument();
-    expect(within(grupo).getByText('0 sprints selecionadas')).toBeInTheDocument();
-    expect(
-      screen.getByText(/Um marco pode ter várias sprints e é concluído automaticamente/)
-    ).toBeInTheDocument();
+    const { menu } = await openMenu();
+    const remove = within(menu).getByRole('menuitem', { name: /Excluir o marco/ });
+    expect(remove).toBeDisabled();
+    expect(remove).toHaveAttribute('title', expect.stringContaining('Mova-as'));
   });
 
-  it('sem sprints o bloco explica o vazio', async () => {
+  it('fecha o menu no Escape e devolve foco ao trigger', async () => {
+    setData({ milestones: [marco()] });
     renderScreen();
-    await screen.findByText('Nenhum marco cadastrado.');
-    const grupo = await grupoDeSprints();
-    expect(within(grupo).getByText('Nenhuma sprint cadastrada neste projeto.')).toBeInTheDocument();
+    const { user, trigger } = await openMenu();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
   });
 
-  it('sprint congelada aparece marcada no proprio marco, sem poder sair', async () => {
-    const user = userEvent.setup();
-    mocks.schedule.listMilestones.mockResolvedValue({ data: { total: 1, milestones: [marco()] } });
-    mocks.schedule.listSprints.mockResolvedValue({
-      data: {
-        total: 2,
-        sprints: [sprint(1, 'Velha', 'CONCLUIDA', 5), sprint(2, 'Ativa', 'EM_ANDAMENTO', 5)]
-      }
-    });
-    renderScreen();
-
-    await user.click(
-      await screen.findByRole('button', { name: 'Editar o marco Fundação do produto' })
-    );
-
-    const grupo = await grupoDeSprints();
-    const congelada = within(grupo).getByRole('checkbox', { name: /Velha — Concluída/ });
-    expect(congelada).toBeChecked();
-    expect(congelada).toBeDisabled();
-    expect(within(grupo).getByText('Congelada — não pode mudar de marco')).toBeInTheDocument();
-    expect(within(grupo).getByRole('checkbox', { name: /Ativa — Em andamento/ })).toBeChecked();
-    expect(within(grupo).getByText('1 sprint selecionada')).toBeInTheDocument();
-  });
-
-  it('avisa que marcar sprint de outro marco move a sprint', async () => {
-    mocks.schedule.listMilestones.mockResolvedValue({ data: { total: 1, milestones: [marco()] } });
-    mocks.schedule.listSprints.mockResolvedValue({
-      data: { total: 1, sprints: [sprint(2, 'Alheia', 'PLANEJADA', 5)] }
-    });
-    renderScreen();
-
-    const grupo = await grupoDeSprints();
-    expect(
-      within(grupo).getByText(
-        'Atualmente no marco Fundação do produto — marcar move a sprint para cá'
-      )
-    ).toBeInTheDocument();
-  });
-
-  it('criar marco ja leva as sprints marcadas para ele', async () => {
-    const user = userEvent.setup();
-    mocks.schedule.createMilestone.mockResolvedValue({ data: { milestone: { id: 9 } } });
-    mocks.schedule.updateSprint.mockResolvedValue({ data: {} });
-    mocks.schedule.listSprints.mockResolvedValue({
-      data: { total: 1, sprints: [sprint(3, 'Livre', 'PLANEJADA', null)] }
-    });
-    renderScreen();
-    await screen.findByText('Nenhum marco cadastrado.');
-
-    const grupo = await grupoDeSprints();
-    await user.click(within(grupo).getByRole('checkbox', { name: /Livre/ }));
-    await user.type(screen.getByLabelText(/Título/), 'Gestão de sprints');
-    await user.type(screen.getByLabelText(/Prazo/), '2026-09-04T18:00');
-    await user.click(screen.getByRole('button', { name: 'Salvar marco' }));
-
-    await waitFor(() =>
-      expect(mocks.schedule.updateSprint).toHaveBeenCalledWith(3, { milestoneId: 9 })
-    );
-    expect(await screen.findByText('Marco cadastrado com sucesso.')).toBeInTheDocument();
-  });
-
-  it('salvar a edicao move as marcadas e solta as desmarcadas', async () => {
-    const user = userEvent.setup();
-    mocks.schedule.updateMilestone.mockResolvedValue({ data: {} });
-    mocks.schedule.updateSprint.mockResolvedValue({ data: {} });
-    mocks.schedule.listMilestones.mockResolvedValue({ data: { total: 1, milestones: [marco()] } });
-    mocks.schedule.listSprints.mockResolvedValue({
-      data: {
-        total: 2,
-        sprints: [sprint(2, 'Ativa', 'EM_ANDAMENTO', 5), sprint(3, 'Livre', 'PLANEJADA', null)]
-      }
-    });
-    renderScreen();
-
-    await user.click(
-      await screen.findByRole('button', { name: 'Editar o marco Fundação do produto' })
-    );
-    const grupo = await grupoDeSprints();
-    await user.click(within(grupo).getByRole('checkbox', { name: /Ativa/ }));
-    await user.click(within(grupo).getByRole('checkbox', { name: /Livre/ }));
-    await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
-
-    await waitFor(() =>
-      expect(mocks.schedule.updateSprint).toHaveBeenCalledWith(3, { milestoneId: 5 })
-    );
-    expect(mocks.schedule.updateSprint).toHaveBeenCalledWith(2, { milestoneId: null });
-    expect(mocks.schedule.updateSprint).toHaveBeenCalledTimes(2);
-    expect(mocks.schedule.updateMilestone).toHaveBeenCalledTimes(1);
-  });
-
-  it('sprint que nao mudou de marco e sprint congelada nao geram requisicao', async () => {
-    const user = userEvent.setup();
-    mocks.schedule.updateMilestone.mockResolvedValue({ data: {} });
-    mocks.schedule.updateSprint.mockResolvedValue({ data: {} });
-    mocks.schedule.listMilestones.mockResolvedValue({ data: { total: 1, milestones: [marco()] } });
-    mocks.schedule.listSprints.mockResolvedValue({
-      data: {
-        total: 2,
-        sprints: [sprint(2, 'Permanece', 'PLANEJADA', 5), sprint(3, 'Velha', 'CONCLUIDA', 5)]
-      }
-    });
-    renderScreen();
-
-    await user.click(
-      await screen.findByRole('button', { name: 'Editar o marco Fundação do produto' })
-    );
-    await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
-
-    await waitFor(() => expect(mocks.schedule.updateMilestone).toHaveBeenCalledTimes(1));
-    expect(mocks.schedule.updateSprint).not.toHaveBeenCalled();
-  });
-
-  it('valida titulo e prazo sem chamar a API', async () => {
-    const user = userEvent.setup();
-    renderScreen();
-    await screen.findByText('Nenhum marco cadastrado.');
-
-    await user.click(screen.getByRole('button', { name: 'Salvar marco' }));
-    expect(await screen.findByText('Informe o título do marco.')).toBeInTheDocument();
-    expect(screen.getByText('Informe a data prevista.')).toBeInTheDocument();
-    expect(mocks.schedule.createMilestone).not.toHaveBeenCalled();
-  });
-
-  it('envia titulo, descricao e prazo', async () => {
-    const user = userEvent.setup();
-    mocks.schedule.createMilestone.mockResolvedValue({ data: {} });
-    renderScreen();
-    await screen.findByText('Nenhum marco cadastrado.');
-
-    await user.type(screen.getByLabelText(/Título/), 'Gestão de sprints');
-    await user.type(screen.getByLabelText(/Descrição/), 'Ciclo completo.');
-    await user.type(screen.getByLabelText(/Prazo/), '2026-09-04T18:00');
-    await user.click(screen.getByRole('button', { name: 'Salvar marco' }));
-
-    await waitFor(() =>
-      expect(mocks.schedule.createMilestone).toHaveBeenCalledWith('1', {
-        title: 'Gestão de sprints',
-        description: 'Ciclo completo.',
-        dueDate: new Date('2026-09-04T18:00').toISOString()
-      })
-    );
-  });
-
-  it('aceita prazo fora do periodo de qualquer sprint', async () => {
-    const user = userEvent.setup();
-    mocks.schedule.createMilestone.mockResolvedValue({ data: {} });
-    mocks.schedule.listSprints.mockResolvedValue({
-      data: { total: 1, sprints: [sprint(1, 'S1', 'PLANEJADA')] }
-    });
-    renderScreen();
-    await screen.findByText('Nenhum marco cadastrado.');
-
-    await user.type(screen.getByLabelText(/Título/), 'Muito depois');
-    await user.type(screen.getByLabelText(/Prazo/), '2027-06-30T12:00');
-    await user.click(screen.getByRole('button', { name: 'Salvar marco' }));
-
-    await waitFor(() => expect(mocks.schedule.createMilestone).toHaveBeenCalledTimes(1));
-  });
-
-  it('editar leva o foco ao formulario preenchido', async () => {
-    const user = userEvent.setup();
-    mocks.schedule.listMilestones.mockResolvedValue({
-      data: { total: 1, milestones: [marco()] }
-    });
-    renderScreen();
-
-    await user.click(
-      await screen.findByRole('button', { name: 'Editar o marco Fundação do produto' })
-    );
-
-    const titulo = screen.getByLabelText(/Título/);
-    expect(titulo).toHaveValue('Fundação do produto');
-    await waitFor(() => expect(titulo).toHaveFocus());
-  });
-
-  it('cancelar edicao devolve o foco ao formulario', async () => {
-    const user = userEvent.setup();
-    mocks.schedule.listMilestones.mockResolvedValue({
-      data: { total: 1, milestones: [marco()] }
-    });
-    renderScreen();
-
-    await user.click(
-      await screen.findByRole('button', { name: 'Editar o marco Fundação do produto' })
-    );
-    await user.click(screen.getByRole('button', { name: 'Cancelar edição' }));
-
-    const titulo = screen.getByLabelText(/Título/);
-    expect(titulo).toHaveValue('');
-    await waitFor(() => expect(titulo).toHaveFocus());
-  });
-});
-
-describe('perfil somente leitura', () => {
-  beforeEach(() => {
+  it('VIEWER consulta Sprints, mas não recebe criação nem mutations', async () => {
     mocks.schedule.getMembership.mockResolvedValue({
       data: { currentMembership: { role: 'VIEWER' } }
     });
-    mocks.schedule.listMilestones.mockResolvedValue({ data: { total: 1, milestones: [marco()] } });
-  });
-
-  it('nao oferece formulario nem acoes', async () => {
+    setData({ milestones: [marco()] });
     renderScreen();
-    await screen.findByText('Fundação do produto');
-    expect(screen.queryByRole('button', { name: 'Salvar marco' })).toBeNull();
-    const lista = screen.getByRole('list', { name: 'Marcos do projeto' });
-    expect(within(lista).queryByRole('button')).toBeNull();
+    await screen.findByRole('heading', { name: 'Fundação do produto', level: 3 });
+    expect(screen.queryByRole('button', { name: 'Novo marco' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Mais ações do marco/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sprints' })).toBeInTheDocument();
   });
 });
 
-describe('sucesso de mutation versus falha de refresh', () => {
-  const aviso = /não puderam ser atualizados/i;
-
-  it('salvar o marco nao vira erro falso quando o refresh falha', async () => {
+describe('confirmação e reconciliação', () => {
+  it('confirma exclusão, remove o card e move foco para a lista estável', async () => {
     const user = userEvent.setup();
-    mocks.schedule.createMilestone.mockResolvedValue({ data: { milestone: { id: 9 } } });
+    setData({ milestones: [marco()] });
     renderScreen();
-    await screen.findByText('Nenhum marco cadastrado.');
-    mocks.schedule.listMilestones.mockRejectedValue(new Error('rede'));
-
-    await user.type(screen.getByLabelText(/Título/), 'Gestão de sprints');
-    await user.type(screen.getByLabelText(/Prazo/), '2026-09-04T18:00');
-    await user.click(screen.getByRole('button', { name: 'Salvar marco' }));
-
-    expect(await screen.findByRole('alert')).toHaveTextContent(aviso);
-    expect(screen.queryByText('Não foi possível salvar o marco.')).toBeNull();
-    expect(mocks.schedule.createMilestone).toHaveBeenCalledTimes(1);
-  });
-
-  it('concluir o marco nao vira erro falso quando o refresh falha', async () => {
-    const user = userEvent.setup();
-    mocks.schedule.listMilestones.mockResolvedValue({ data: { total: 1, milestones: [marco()] } });
-    mocks.schedule.updateMilestoneStatus.mockResolvedValue({
-      data: { milestone: marco({ status: 'CONCLUIDO' }) }
-    });
-    renderScreen();
-    await screen.findByText('Fundação do produto');
-    mocks.schedule.getSchedule.mockRejectedValue(new Error('rede'));
-
-    await user.click(screen.getByRole('button', { name: /^Concluir o marco/ }));
-    const dialog = await screen.findByRole('dialog');
-    await user.click(within(dialog).getByRole('button', { name: 'Concluir marco' }));
-
-    expect(await screen.findByRole('alert')).toHaveTextContent(aviso);
-    expect(screen.queryByText('Não foi possível atualizar o status do marco.')).toBeNull();
-    expect(mocks.schedule.updateMilestoneStatus).toHaveBeenCalledTimes(1);
-  });
-
-  it('excluir o marco nao anuncia falha quando so o refresh falha', async () => {
-    const user = userEvent.setup();
-    mocks.schedule.listMilestones.mockResolvedValue({ data: { total: 1, milestones: [marco()] } });
-    mocks.schedule.removeMilestone.mockResolvedValue({ data: {} });
-    renderScreen();
-    await screen.findByText('Fundação do produto');
-    mocks.schedule.getSchedule.mockRejectedValue(new Error('rede'));
-
-    await user.click(screen.getByRole('button', { name: /^Excluir o marco/ }));
-    const dialog = await screen.findByRole('dialog');
+    const { menu } = await openMenu();
+    await user.click(within(menu).getByRole('menuitem', { name: /Excluir o marco/ }));
+    const dialog = await screen.findByRole('dialog', { name: 'Excluir marco?' });
+    expect(within(dialog).getByText(/não pode ser desfeita/)).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Excluir marco' }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(aviso);
-    expect(screen.queryByText('Não foi possível excluir o marco.')).toBeNull();
-    expect(screen.queryByText('Fundação do produto')).toBeNull();
-    expect(mocks.schedule.removeMilestone).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(mocks.schedule.removeMilestone).toHaveBeenCalledWith(5));
+    expect(screen.queryByText('Fundação do produto')).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        screen.getByRole('heading', { name: 'Marcos do projeto' }).closest('section')
+      ).toHaveFocus()
+    );
+  });
+
+  it('mantém sucesso da criação quando apenas o refresh falha', async () => {
+    const user = userEvent.setup();
+    const created = marco({ id: 9, title: 'Entrega confirmada' });
+    mocks.schedule.createMilestone.mockResolvedValue({ data: { milestone: created } });
+    renderScreen();
+    const trigger = await screen.findByRole('button', { name: 'Novo marco' });
+    mocks.schedule.listMilestones.mockRejectedValue(new Error('rede'));
+    await user.click(trigger);
+    const dialog = screen.getByRole('dialog', { name: 'Criar marco' });
+    await user.type(within(dialog).getByLabelText(/Título/), 'Entrega confirmada');
+    fireEvent.change(within(dialog).getByLabelText(/Prazo/), {
+      target: { value: '2099-09-30T18:00' }
+    });
+    await user.click(within(dialog).getByRole('button', { name: 'Criar marco' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/ação foi concluída/i);
+    expect(screen.queryByText('Não foi possível salvar o marco.')).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Entrega confirmada', level: 3 })
+    ).toBeInTheDocument();
+  });
+
+  it('declara sucesso parcial quando uma reassociação de Sprint falha', async () => {
+    const user = userEvent.setup();
+    const available = sprint(3, 'Sprint disponível', 'PLANEJADA', null);
+    const created = marco({ id: 9, title: 'Entrega parcial' });
+    setData({ sprints: [available] });
+    mocks.schedule.createMilestone.mockResolvedValue({ data: { milestone: created } });
+    mocks.schedule.updateSprint.mockRejectedValue(new Error('conflito'));
+    renderScreen();
+    await user.click(await screen.findByRole('button', { name: 'Novo marco' }));
+    const dialog = screen.getByRole('dialog', { name: 'Criar marco' });
+    await user.type(within(dialog).getByLabelText(/Título/), 'Entrega parcial');
+    fireEvent.change(within(dialog).getByLabelText(/Prazo/), {
+      target: { value: '2099-09-30T18:00' }
+    });
+    await user.type(
+      within(dialog).getByRole('combobox', { name: 'Pesquisar Sprints' }),
+      'disponível'
+    );
+    await user.click(await within(dialog).findByRole('option', { name: /Sprint disponível/ }));
+    await user.click(within(dialog).getByRole('button', { name: 'Criar marco' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      /Marco salvo, mas não foi possível atualizar todas as Sprints/
+    );
+    expect(screen.queryByText('Não foi possível salvar o marco.')).not.toBeInTheDocument();
   });
 });
