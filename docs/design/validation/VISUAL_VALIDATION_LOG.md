@@ -113,4 +113,6 @@ The following materially changed areas require a new rendered record before they
 - SensitiveActionDialog busy, error, cancel, Escape, and post-success focus;
 - UX-PLANNING-SPRINTS em Light/Dark, sidebar expandida/recolhida, tablet e mobile;
 - UX-PLANNING-MILESTONES em Light/Dark, sidebar expandida/recolhida, tablet e mobile;
+- UX-PLANNING-SCHEDULE em Light/Dark, sidebar expandida/recolhida, tablet e mobile, incluindo faixas,
+  marcadores, painéis laterais e estados vazios;
 - legacy Dark-compatible operational surfaces and Task Details modal layering.

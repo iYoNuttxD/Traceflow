@@ -1,569 +1,580 @@
-import { Fragment, useMemo, useRef, useState } from 'react';
-import { taskPriorityLabels, taskStatusLabels } from './schedule-display.js';
+import { useMemo, useState } from 'react';
+import { TraceFlowIcon } from '../../../shared/index.js';
+import {
+  milestoneStatusLabels,
+  sprintStatusLabels,
+  summarizeSprintTasks,
+  taskPriorityLabels,
+  taskStatusLabels
+} from './schedule-display.js';
 import {
   INICIAIS_SEMANA,
-  buildEvents,
   buildMonthGrid,
-  calendarBounds,
-  clampMonth,
-  deadlineTasks,
-  eventsForDay,
+  diffDaysIso,
+  fullDate,
+  getCurrentScheduleSummary,
+  getDayContext,
+  getDayEvents,
+  getMonthEntities,
+  getScheduleTasks,
+  getUpcomingDeadlines,
   longDayLabel,
-  milestoneColors,
-  milestonePeriods,
-  milestoneWeekLayout,
-  monthBlocks,
   monthLabel,
-  monthLegend,
   nextMonth,
-  nowTiles,
   previousMonth,
+  relativeDayLabel,
   shortDate,
-  shortDayLabel,
-  sprintColors,
   sprintDayRange,
   todayIsoDay,
-  upcomingEvents
+  toIsoDay
 } from './schedule-calendar.js';
 
-const DIAS_SEMANA_LONGOS = [
-  'domingo',
-  'segunda-feira',
-  'terça-feira',
-  'quarta-feira',
-  'quinta-feira',
-  'sexta-feira',
-  'sábado'
+const MONTH_FILTERS = [
+  { key: 'all', label: 'Todos' },
+  { key: 'milestones', label: 'Marcos' },
+  { key: 'sprints', label: 'Sprints' },
+  { key: 'tasks', label: 'Tarefas' }
 ];
 
-const LIMITE_TAREFAS_DO_DIA = 6;
+function plural(total, singular, pluralLabel) {
+  return `${total} ${total === 1 ? singular : pluralLabel}`;
+}
 
-export function ScheduleCalendar({ schedule, milestoneNames = {}, hoje = new Date() }) {
-  const hojeIso = todayIsoDay(hoje);
-  const [selecionado, setSelecionado] = useState(hojeIso);
-  const [marcoAberto, setMarcoAberto] = useState(null);
-  const [abaAtiva, setAbaAtiva] = useState('todos');
-  const abasRef = useRef({});
-  const [{ ano, mes }, setMesVisivel] = useState(() => ({
+function scheduleStatusClass(status) {
+  return `schedule-status--${String(status || '').toLowerCase()}`;
+}
+
+function NowSummary({ summary, todayDay }) {
+  const current = summary.currentSprint;
+  const currentRange = current ? sprintDayRange(current) : null;
+  const currentTasks = current ? summarizeSprintTasks(current) : null;
+  const nextMilestone = summary.nextMilestone;
+  const attention = summary.attention;
+
+  return (
+    <section className="schedule-now" aria-labelledby="schedule-now-title">
+      <div className="schedule-surface-heading">
+        <div>
+          <span className="eyebrow">Visão operacional</span>
+          <h2 id="schedule-now-title">Agora</h2>
+        </div>
+        <p>O que pede atenção no planejamento de hoje.</p>
+      </div>
+      <div className="schedule-now__metrics">
+        <article className="schedule-now__metric">
+          <span>Sprint atual</span>
+          <strong>{current?.name || 'Nenhuma em andamento'}</strong>
+          {current ? (
+            <>
+              <small>
+                {shortDate(currentRange.inicio)} – {shortDate(currentRange.fim)}
+              </small>
+              <small>
+                {plural(currentTasks.done, 'tarefa concluída', 'tarefas concluídas')} de{' '}
+                {currentTasks.total}
+                {currentTasks.points > 0
+                  ? ` · ${currentTasks.donePoints}/${currentTasks.points} pts`
+                  : ''}
+              </small>
+            </>
+          ) : null}
+        </article>
+
+        <article
+          className={`schedule-now__metric${nextMilestone?.overdue ? ' schedule-now__metric--danger' : ''}`}
+        >
+          <span>Próximo marco</span>
+          <strong>{nextMilestone?.milestone.title || 'Nenhum'}</strong>
+          {nextMilestone ? (
+            <>
+              <small>Prazo {fullDate(nextMilestone.day)}</small>
+              <small>
+                {nextMilestone.overdue
+                  ? `Atrasado há ${diffDaysIso(nextMilestone.day, todayDay)} dia(s)`
+                  : relativeDayLabel(nextMilestone.day, todayDay)}
+              </small>
+              {nextMilestone.progress.total > 0 && (
+                <small>
+                  {nextMilestone.progress.done} de {nextMilestone.progress.total}{' '}
+                  {nextMilestone.progress.total === 1 ? 'Sprint concluída' : 'Sprints concluídas'}
+                </small>
+              )}
+            </>
+          ) : (
+            <small>Nenhum Marco pendente.</small>
+          )}
+        </article>
+
+        <article
+          className={`schedule-now__metric${attention.total ? ' schedule-now__metric--warning' : ''}`}
+        >
+          <span>Atenção</span>
+          <strong>
+            {attention.total
+              ? plural(attention.total, 'item atrasado', 'itens atrasados')
+              : 'Em dia'}
+          </strong>
+          <small>
+            {attention.total
+              ? [
+                  attention.milestoneCount
+                    ? plural(attention.milestoneCount, 'Marco', 'Marcos')
+                    : null,
+                  attention.taskCount ? plural(attention.taskCount, 'tarefa', 'tarefas') : null,
+                  attention.sprintCount ? plural(attention.sprintCount, 'Sprint', 'Sprints') : null
+                ]
+                  .filter(Boolean)
+                  .join(' · ')
+              : summary.nextDeadline
+                ? `Próximo prazo: ${shortDate(summary.nextDeadline.day)} · ${summary.nextDeadline.title}`
+                : 'Nenhum prazo vencido.'}
+          </small>
+          {attention.items[0] && (
+            <small className="schedule-now__attention-item">
+              {attention.items[0].type}: {attention.items[0].title}
+            </small>
+          )}
+        </article>
+      </div>
+    </section>
+  );
+}
+
+function CalendarLegend() {
+  return (
+    <ul className="schedule-legend" aria-label="Legenda do cronograma">
+      <li>
+        <span className="schedule-legend__range" aria-hidden="true" />
+        Sprint
+      </li>
+      <li>
+        <span className="schedule-legend__diamond" aria-hidden="true" />
+        Prazo de Marco
+      </li>
+      <li>
+        <span className="schedule-legend__dot" aria-hidden="true" />
+        Prazo de tarefa
+      </li>
+      <li>
+        <span className="schedule-legend__today" aria-hidden="true" />
+        Hoje
+      </li>
+    </ul>
+  );
+}
+
+function CalendarCell({ cell, onSelect }) {
+  return (
+    <button
+      type="button"
+      className={[
+        'schedule-day',
+        !cell.inMonth && 'schedule-day--outside',
+        cell.today && 'schedule-day--today',
+        cell.selected && 'schedule-day--selected'
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      aria-label={cell.description}
+      aria-pressed={cell.selected}
+      onClick={() => onSelect(cell.day)}
+    >
+      {cell.sprintSegments.map((segment) => (
+        <span
+          aria-hidden="true"
+          className={[
+            'schedule-day__sprint-range',
+            scheduleStatusClass(segment.sprint.status),
+            segment.beginsSegment && 'schedule-day__sprint-range--start',
+            segment.endsSegment && 'schedule-day__sprint-range--end'
+          ]
+            .filter(Boolean)
+            .join(' ')}
+          key={`range-${segment.sprint.id}-${cell.day}`}
+        >
+          {segment.beginsSegment && (
+            <span className="schedule-day__sprint-label">{segment.sprint.name}</span>
+          )}
+        </span>
+      ))}
+      <span className="schedule-day__number">{cell.number}</span>
+      <span className="schedule-day__markers" aria-hidden="true">
+        {cell.milestoneCount > 0 && (
+          <span className="schedule-day__milestone-marker">
+            {cell.milestoneCount > 1 && <b>{cell.milestoneCount}</b>}
+          </span>
+        )}
+        {cell.taskCount > 0 && (
+          <span className="schedule-day__task-marker">
+            <i />
+            {cell.taskCount > 1 && <b>{cell.taskCount}</b>}
+          </span>
+        )}
+      </span>
+    </button>
+  );
+}
+
+function MonthItem({ item, onSelect }) {
+  if (item.type === 'milestones') {
+    const { milestone, day } = item.value;
+    return (
+      <li>
+        <button type="button" onClick={() => onSelect(day)}>
+          <span className="schedule-month-item__marker schedule-month-item__marker--milestone" />
+          <span>
+            <strong>{milestone.title}</strong>
+            <small>Prazo {fullDate(day)}</small>
+            <small>{milestoneStatusLabels[milestone.status] || milestone.status}</small>
+          </span>
+        </button>
+      </li>
+    );
+  }
+
+  if (item.type === 'sprints') {
+    const { sprint, milestone, inicio, fim } = item.value;
+    return (
+      <li>
+        <button type="button" onClick={() => onSelect(inicio)}>
+          <span className="schedule-month-item__marker schedule-month-item__marker--sprint" />
+          <span>
+            <strong>{sprint.name}</strong>
+            <small>
+              {shortDate(inicio)} – {shortDate(fim)}
+            </small>
+            <small>{sprintStatusLabels[sprint.status] || sprint.status}</small>
+            <small>{milestone ? `Marco ${milestone.title}` : 'Sem marco'}</small>
+          </span>
+        </button>
+      </li>
+    );
+  }
+
+  const task = item.value;
+  return (
+    <li>
+      <button type="button" onClick={() => onSelect(task.day)}>
+        <span className="schedule-month-item__marker schedule-month-item__marker--task" />
+        <span>
+          <strong>
+            #{task.id} {task.title}
+          </strong>
+          <small>{fullDate(task.day)}</small>
+          <small>
+            {taskStatusLabels[task.status] || task.status} ·{' '}
+            {taskPriorityLabels[task.priority] || task.priority} · {task.sprintName || 'Sem sprint'}
+          </small>
+        </span>
+      </button>
+    </li>
+  );
+}
+
+function MonthPanel({ visibleMonth, entities, filter, onFilter, onSelect }) {
+  const allItems = useMemo(
+    () =>
+      [
+        ...entities.milestones.map((value) => ({
+          key: `month-milestone-${value.milestone.id}`,
+          type: 'milestones',
+          day: value.day,
+          value
+        })),
+        ...entities.sprints.map((value) => ({
+          key: `month-sprint-${value.sprint.id}`,
+          type: 'sprints',
+          day: value.inicio,
+          value
+        })),
+        ...entities.tasks.map((value) => ({
+          key: `month-task-${value.id}`,
+          type: 'tasks',
+          day: value.day,
+          value
+        }))
+      ].sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : a.key.localeCompare(b.key))),
+    [entities]
+  );
+  const visible = filter === 'all' ? allItems : allItems.filter((item) => item.type === filter);
+  const total = allItems.length;
+  const counts = { all: total, ...entities.counts };
+  const selectedLabel = MONTH_FILTERS.find((item) => item.key === filter)?.label || 'Itens';
+
+  return (
+    <section
+      className="schedule-side-panel schedule-month-panel"
+      aria-labelledby="month-panel-title"
+    >
+      <div className="schedule-side-panel__heading">
+        <div>
+          <span className="eyebrow">No mês exibido</span>
+          <h2 id="month-panel-title">{monthLabel(visibleMonth.ano, visibleMonth.mes)}</h2>
+        </div>
+        <p>
+          {plural(entities.counts.milestones, 'Marco', 'Marcos')} ·{' '}
+          {plural(entities.counts.sprints, 'Sprint', 'Sprints')} ·{' '}
+          {plural(entities.counts.tasks, 'tarefa', 'tarefas')}
+        </p>
+      </div>
+      <div className="schedule-type-filters" aria-label="Filtrar resumo do mês por tipo">
+        {MONTH_FILTERS.map((item) => (
+          <button
+            type="button"
+            aria-pressed={filter === item.key}
+            key={item.key}
+            onClick={() => onFilter(item.key)}
+          >
+            {item.label} <span>{counts[item.key]}</span>
+          </button>
+        ))}
+      </div>
+      {visible.length ? (
+        <ul className="schedule-month-items" aria-label={`${selectedLabel} no mês exibido`}>
+          {visible.map((item) => (
+            <MonthItem item={item} key={item.key} onSelect={onSelect} />
+          ))}
+        </ul>
+      ) : (
+        <p className="schedule-compact-empty" role="status">
+          {filter === 'all' && 'Nenhum item com data neste mês.'}
+          {filter === 'milestones' && 'Nenhum Marco com prazo neste mês.'}
+          {filter === 'sprints' && 'Nenhuma Sprint neste mês.'}
+          {filter === 'tasks' && 'Nenhuma Tarefa com prazo neste mês.'}
+        </p>
+      )}
+    </section>
+  );
+}
+
+function EventMarker({ type }) {
+  return <span className={`schedule-event-marker schedule-event-marker--${type.toLowerCase()}`} />;
+}
+
+function SelectedDayPanel({ day, events, context }) {
+  return (
+    <section
+      className="schedule-side-panel schedule-selected-day"
+      aria-labelledby="selected-day-title"
+      aria-live="polite"
+    >
+      <div className="schedule-side-panel__heading">
+        <div>
+          <span className="eyebrow">Dia selecionado</span>
+          <h2 id="selected-day-title">{longDayLabel(day)}</h2>
+        </div>
+      </div>
+
+      <div className="schedule-day-section">
+        <h3>Eventos do dia</h3>
+        {events.length ? (
+          <ul className="schedule-event-list">
+            {events.map((event) => (
+              <li className={event.overdue ? 'schedule-event--overdue' : undefined} key={event.key}>
+                <EventMarker type={event.type} />
+                <span>
+                  <small>{event.kind}</small>
+                  <strong>{event.title}</strong>
+                  <span>{event.meta}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="schedule-compact-empty">Nenhum evento com data neste dia.</p>
+        )}
+      </div>
+
+      <div className="schedule-day-section">
+        <h3>Contexto do dia</h3>
+        {context.activeSprints.length ? (
+          <ul className="schedule-context-list">
+            {context.activeSprints.map(({ sprint, startDay, endDay, milestone }) => (
+              <li key={`context-${sprint.id}-${day}`}>
+                <span>Sprint ativa neste dia</span>
+                <strong>{sprint.name}</strong>
+                <small>
+                  {shortDate(startDay)} – {shortDate(endDay)} ·{' '}
+                  {sprintStatusLabels[sprint.status] || sprint.status}
+                </small>
+                {milestone && (
+                  <small>
+                    Marco {milestone.title} · prazo {shortDate(toIsoDay(milestone.dueDate))}
+                  </small>
+                )}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="schedule-compact-empty">Nenhuma Sprint ativa neste dia.</p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function UpcomingDeadlines({ items, todayDay }) {
+  return (
+    <section className="schedule-upcoming" aria-labelledby="schedule-upcoming-title">
+      <div className="schedule-surface-heading">
+        <div>
+          <span className="eyebrow">Planejamento futuro</span>
+          <h2 id="schedule-upcoming-title">Próximos prazos</h2>
+        </div>
+        <p>Deadlines de tarefas, prazos de Marcos e encerramentos de Sprints.</p>
+      </div>
+      {items.length ? (
+        <ol className="schedule-upcoming__list">
+          {items.map((item) => (
+            <li key={item.key}>
+              <time dateTime={item.day}>
+                <strong>{shortDate(item.day)}</strong>
+                <span>{relativeDayLabel(item.day, todayDay)}</span>
+              </time>
+              <EventMarker type={item.type} />
+              <span>
+                <small>{item.kind}</small>
+                <strong>{item.title}</strong>
+                <span>{item.meta}</span>
+              </span>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className="schedule-compact-empty">Nenhum prazo futuro.</p>
+      )}
+    </section>
+  );
+}
+
+export function ScheduleCalendar({ schedule, hoje = new Date() }) {
+  const todayDay = todayIsoDay(hoje);
+  const [selectedDay, setSelectedDay] = useState(todayDay);
+  const [visibleMonth, setVisibleMonth] = useState(() => ({
     ano: hoje.getFullYear(),
     mes: hoje.getMonth()
   }));
-
-  const sprints = useMemo(
-    () => (schedule?.sprints || []).filter((sprint) => sprint.status !== 'CANCELADA'),
-    [schedule]
-  );
+  const [monthFilter, setMonthFilter] = useState('all');
+  const sprints = useMemo(() => schedule?.sprints || [], [schedule]);
   const milestones = useMemo(() => schedule?.milestones || [], [schedule]);
-  const periodos = useMemo(() => milestonePeriods({ milestones, sprints }), [milestones, sprints]);
-  const tarefas = useMemo(
-    () => deadlineTasks({ sprints, unassignedTasks: schedule?.unassignedTasks || [] }),
-    [sprints, schedule]
+  const tasks = useMemo(
+    () =>
+      getScheduleTasks({
+        sprints,
+        unassignedTasks: schedule?.unassignedTasks || []
+      }),
+    [schedule, sprints]
   );
-
-  const limites = useMemo(() => {
-    const pintado = calendarBounds({ sprints, milestones });
-    if (pintado) return pintado;
-    const [anoDeHoje, mesDeHoje] = hojeIso.split('-').map(Number);
-    const mesCorrente = { ano: anoDeHoje, mes: mesDeHoje - 1 };
-    return { min: mesCorrente, max: mesCorrente };
-  }, [sprints, milestones, hojeIso]);
-
-  const mesExibido = clampMonth(limites, { ano, mes });
-  const noInicio = mesExibido.ano === limites.min.ano && mesExibido.mes === limites.min.mes;
-  const noFim = mesExibido.ano === limites.max.ano && mesExibido.mes === limites.max.mes;
-
-  const cores = useMemo(() => sprintColors(sprints), [sprints]);
-  const coresMarco = useMemo(() => milestoneColors(milestones), [milestones]);
-  const celulas = useMemo(
+  const summary = useMemo(
+    () => getCurrentScheduleSummary({ sprints, milestones, tasks, todayDay }),
+    [milestones, sprints, tasks, todayDay]
+  );
+  const monthEntities = useMemo(
+    () =>
+      getMonthEntities({
+        ano: visibleMonth.ano,
+        mes: visibleMonth.mes,
+        sprints,
+        milestones,
+        tasks
+      }),
+    [milestones, sprints, tasks, visibleMonth]
+  );
+  const cells = useMemo(
     () =>
       buildMonthGrid({
-        ano: mesExibido.ano,
-        mes: mesExibido.mes,
+        ano: visibleMonth.ano,
+        mes: visibleMonth.mes,
         sprints,
-        periodos,
-        hojeIso,
-        selecionadoIso: selecionado
+        milestones,
+        tasks,
+        todayDay,
+        selectedDay
       }),
-    [mesExibido.ano, mesExibido.mes, sprints, periodos, hojeIso, selecionado]
+    [milestones, selectedDay, sprints, tasks, todayDay, visibleMonth]
   );
-  const semanas = useMemo(() => milestoneWeekLayout({ celulas, periodos }), [celulas, periodos]);
-  const eventos = useMemo(
-    () => buildEvents({ sprints, periodos, milestoneNames, tarefas, hojeIso }),
-    [sprints, periodos, milestoneNames, tarefas, hojeIso]
+  const selectedEvents = useMemo(
+    () => getDayEvents({ day: selectedDay, sprints, milestones, tasks, todayDay }),
+    [milestones, selectedDay, sprints, tasks, todayDay]
   );
-  const doDia = useMemo(() => eventsForDay(eventos, selecionado), [eventos, selecionado]);
-  const proximos = useMemo(() => upcomingEvents(eventos, hojeIso), [eventos, hojeIso]);
-  const tiles = useMemo(
-    () => nowTiles({ sprints, periodos, tarefas, hojeIso }),
-    [sprints, periodos, tarefas, hojeIso]
+  const selectedContext = useMemo(
+    () => getDayContext({ day: selectedDay, sprints, milestones }),
+    [milestones, selectedDay, sprints]
   );
-  const legenda = useMemo(
-    () => monthLegend({ ano: mesExibido.ano, mes: mesExibido.mes, sprints, periodos }),
-    [mesExibido.ano, mesExibido.mes, sprints, periodos]
-  );
-  const noMes = useMemo(
-    () =>
-      monthBlocks({
-        ano: mesExibido.ano,
-        mes: mesExibido.mes,
-        sprints,
-        periodos,
-        milestoneNames,
-        tarefas
-      }),
-    [mesExibido.ano, mesExibido.mes, sprints, periodos, milestoneNames, tarefas]
+  const upcoming = useMemo(
+    () => getUpcomingDeadlines({ sprints, milestones, tasks, todayDay, limit: 5 }),
+    [milestones, sprints, tasks, todayDay]
   );
 
-  const sprintDoDia = useMemo(
-    () =>
-      sprints.find((sprint) => {
-        const { inicio, fim } = sprintDayRange(sprint);
-        return inicio && selecionado >= inicio && selecionado <= fim;
-      }) || null,
-    [sprints, selecionado]
-  );
-
-  const legendaVisivel =
-    legenda.sprints.length > 0 || legenda.marcos.length > 0 || legenda.temPrazoNoMes;
-
-  const escolherDia = (iso) => {
-    const [novoAno, novoMes] = iso.split('-').map(Number);
-    setSelecionado(iso);
-    setMesVisivel(clampMonth(limites, { ano: novoAno, mes: novoMes - 1 }));
+  const selectDay = (day) => {
+    const [ano, mes] = day.split('-').map(Number);
+    setSelectedDay(day);
+    setVisibleMonth({ ano, mes: mes - 1 });
   };
 
-  const totalDoMes = noMes.blocos.reduce((total, bloco) => total + bloco.itens.length, 0);
-  const abas = [
-    { chave: 'todos', rotulo: 'Todos', total: totalDoMes },
-    ...noMes.blocos.map((bloco) => ({
-      chave: bloco.chave,
-      rotulo: bloco.rotulo,
-      descricao: bloco.descricao,
-      total: bloco.itens.length
-    }))
-  ];
-  const chaveAtiva = abas.some((aba) => aba.chave === abaAtiva) ? abaAtiva : 'todos';
-  const blocoAtivo = noMes.blocos.find((bloco) => bloco.chave === chaveAtiva) ?? null;
-
-  const ativarAba = (chave) => {
-    setAbaAtiva(chave);
-    abasRef.current[chave]?.focus();
+  const goToToday = () => {
+    setSelectedDay(todayDay);
+    setVisibleMonth({ ano: hoje.getFullYear(), mes: hoje.getMonth() });
   };
-
-  const teclasDeAba = (event) => {
-    const ordem = abas.map((aba) => aba.chave);
-    const atual = ordem.indexOf(chaveAtiva);
-    if (event.key === 'ArrowRight') ativarAba(ordem[(atual + 1) % ordem.length]);
-    else if (event.key === 'ArrowLeft') ativarAba(ordem[(atual + ordem.length - 1) % ordem.length]);
-    else if (event.key === 'Home') ativarAba(ordem[0]);
-    else if (event.key === 'End') ativarAba(ordem[ordem.length - 1]);
-    else return;
-    event.preventDefault();
-  };
-
-  const corDoItem = (item) => {
-    if (item.marcoId) return coresMarco[item.marcoId]?.cor || '#315bce';
-    if (item.sprintId) return cores[item.sprintId]?.fg || '#315bce';
-    return '#315bce';
-  };
-
-  const listaDoBloco = (bloco) =>
-    bloco.itens.length === 0 ? (
-      <p className="calendar-month-empty">{bloco.vazio}</p>
-    ) : (
-      <ul className="calendar-month-items">
-        {bloco.itens.map((item) => (
-          <li
-            className="calendar-month-item"
-            key={item.chave}
-            style={{ borderLeftColor: corDoItem(item) }}
-          >
-            <span className="calendar-month-item-name">{item.nome}</span>
-            <span className="calendar-month-item-meta">{item.meta}</span>
-          </li>
-        ))}
-      </ul>
-    );
 
   return (
-    <>
-      <section className="card">
-        <h2>Agora</h2>
-        <ul className="agenda-now-tiles">
-          {tiles.map((tile) => (
-            <li className="agenda-now-tile" key={tile.label}>
-              <span className="agenda-now-label">{tile.label}</span>
-              <span className="agenda-now-value">{tile.value}</span>
-              <span className="agenda-now-note">{tile.note}</span>
-            </li>
-          ))}
-        </ul>
-      </section>
+    <div className="schedule-workspace">
+      <NowSummary summary={summary} todayDay={todayDay} />
 
-      <div className="schedule-columns schedule-columns--cronograma">
-        <section className="card">
-          <div className="calendar-toolbar">
-            <strong className="calendar-selected-day">{longDayLabel(selecionado)}</strong>
-          </div>
-
-          <div className="calendar-month">
-            <strong>{monthLabel(mesExibido.ano, mesExibido.mes)}</strong>
-            <div className="calendar-nav">
+      <div className="schedule-layout">
+        <section className="schedule-calendar" aria-labelledby="schedule-calendar-title">
+          <div className="schedule-calendar__toolbar">
+            <div>
+              <span className="eyebrow">Calendário</span>
+              <h2 id="schedule-calendar-title">{monthLabel(visibleMonth.ano, visibleMonth.mes)}</h2>
+            </div>
+            <div className="schedule-calendar__navigation" aria-label="Navegação do calendário">
               <button
                 type="button"
-                className="calendar-nav-button"
                 aria-label="Mês anterior"
-                aria-disabled={noInicio}
-                title={noInicio ? 'O cronograma exibido começa neste mês.' : undefined}
-                onClick={() => {
-                  if (noInicio) return;
-                  setMesVisivel(previousMonth(mesExibido.ano, mesExibido.mes));
-                }}
+                onClick={() => setVisibleMonth(previousMonth(visibleMonth.ano, visibleMonth.mes))}
               >
-                ▲
+                <TraceFlowIcon name="arrowLeft" />
+              </button>
+              <button type="button" className="schedule-calendar__today" onClick={goToToday}>
+                Hoje
               </button>
               <button
                 type="button"
-                className="calendar-nav-button"
                 aria-label="Próximo mês"
-                aria-disabled={noFim}
-                title={noFim ? 'O cronograma exibido termina neste mês.' : undefined}
-                onClick={() => {
-                  if (noFim) return;
-                  setMesVisivel(nextMonth(mesExibido.ano, mesExibido.mes));
-                }}
+                onClick={() => setVisibleMonth(nextMonth(visibleMonth.ano, visibleMonth.mes))}
               >
-                ▼
+                <TraceFlowIcon name="arrowRight" />
               </button>
             </div>
           </div>
 
-          <div className="calendar-weekdays" aria-hidden="true">
-            {INICIAIS_SEMANA.map((inicial, indice) => (
-              <span key={DIAS_SEMANA_LONGOS[indice]} title={DIAS_SEMANA_LONGOS[indice]}>
-                {inicial}
-              </span>
+          <div className="schedule-calendar__weekdays" aria-hidden="true">
+            {INICIAIS_SEMANA.map((day, index) => (
+              <span key={`${day}-${index}`}>{day}</span>
             ))}
           </div>
-
-          <div
-            className="calendar-grid"
-            role="group"
-            aria-label={`Dias de ${monthLabel(mesExibido.ano, mesExibido.mes)}`}
-          >
-            {semanas.map((semana) => (
-              <div
-                className="calendar-week"
-                key={semana.dias[0].iso}
-                style={{ paddingTop: `${semana.alturaTopo}px` }}
-              >
-                {semana.segmentos.map((segmento) => (
-                  <span
-                    className="calendar-week-seg"
-                    key={`seg-${segmento.marcoId}`}
-                    title={segmento.titulo}
-                    style={{
-                      left: `${segmento.esquerda}%`,
-                      width: `${segmento.largura}%`,
-                      top: `${segmento.topo}px`,
-                      borderRadius: `${segmento.arredondaEsquerda ? '3px' : '0'} ${segmento.arredondaDireita ? '3px' : '0'} ${segmento.arredondaDireita ? '3px' : '0'} ${segmento.arredondaEsquerda ? '3px' : '0'}`,
-                      background: coresMarco[segmento.marcoId]?.cor
-                    }}
-                  />
-                ))}
-                {semana.marcadores.map((marcador) => (
-                  <Fragment key={`marcador-${marcador.marcoId}`}>
-                    <button
-                      type="button"
-                      className="calendar-week-marker"
-                      aria-expanded={marcoAberto === marcador.marcoId}
-                      aria-label={marcador.titulo}
-                      title={marcador.titulo}
-                      style={{
-                        top: `${marcador.topo}px`,
-                        left: `${marcador.esquerda}%`,
-                        background: coresMarco[marcador.marcoId]?.cor
-                      }}
-                      onClick={() =>
-                        setMarcoAberto(marcoAberto === marcador.marcoId ? null : marcador.marcoId)
-                      }
-                      onKeyDown={(event) => {
-                        if (event.key === 'Escape') setMarcoAberto(null);
-                      }}
-                    />
-                    {marcoAberto === marcador.marcoId && (
-                      <span
-                        className="calendar-week-marker-chip"
-                        style={{
-                          top: `${marcador.topo - 6}px`,
-                          left: `calc(${marcador.esquerda}% + 18px)`,
-                          maxWidth: `calc(${marcador.largura}% - 22px)`,
-                          color: coresMarco[marcador.marcoId]?.cor
-                        }}
-                      >
-                        {marcador.texto}
-                      </span>
-                    )}
-                  </Fragment>
-                ))}
-                <div className="calendar-week-days">
-                  {semana.dias.map((celula) => {
-                    const cor = celula.sprintId ? cores[celula.sprintId] : null;
-                    const tinta = celula.marcoId ? coresMarco[celula.marcoId]?.tinta : null;
-                    const canto = celula.sprintId
-                      ? `${celula.inicioDaFaixa ? '999px' : '0'} ${celula.fimDaFaixa ? '999px' : '0'} ${celula.fimDaFaixa ? '999px' : '0'} ${celula.inicioDaFaixa ? '999px' : '0'}`
-                      : '999px';
-                    const cantoMarco = celula.marcoId
-                      ? `${celula.inicioDoMarco ? '10px' : '0'} ${celula.fimDoMarco ? '10px' : '0'} ${celula.fimDoMarco ? '10px' : '0'} ${celula.inicioDoMarco ? '10px' : '0'}`
-                      : '0';
-                    const classes = [
-                      'calendar-day',
-                      celula.noMes ? '' : 'calendar-day--fora',
-                      celula.selecionado ? 'calendar-day--selecionado' : '',
-                      celula.hoje ? 'calendar-day--hoje' : ''
-                    ]
-                      .filter(Boolean)
-                      .join(' ');
-                    return (
-                      <button
-                        type="button"
-                        key={celula.iso}
-                        className={classes}
-                        aria-pressed={celula.selecionado}
-                        aria-label={celula.descricao}
-                        title={celula.descricao}
-                        style={{
-                          '--calendar-day-bg': cor ? cor.bg : 'transparent',
-                          '--calendar-day-fg': cor ? cor.fg : undefined,
-                          '--calendar-day-radius': canto,
-                          '--calendar-day-marco-bg': tinta || 'transparent',
-                          '--calendar-day-marco-radius': cantoMarco
-                        }}
-                        onClick={() => escolherDia(celula.iso)}
-                      >
-                        <span className="calendar-day-marco" aria-hidden="true" />
-                        <span className="calendar-day-faixa" aria-hidden="true" />
-                        {celula.inicioDaSprint && (
-                          <span
-                            className="calendar-day-tick calendar-day-tick--inicio"
-                            aria-hidden="true"
-                          />
-                        )}
-                        {celula.fimDaSprint && (
-                          <span
-                            className="calendar-day-tick calendar-day-tick--fim"
-                            aria-hidden="true"
-                          />
-                        )}
-                        <span className="calendar-day-inner">{celula.numero}</span>
-                        {celula.temPrazoDeMarco && (
-                          <span
-                            className="calendar-day-dot"
-                            style={{
-                              background: celula.prazoAgrupado
-                                ? coresMarco[celula.prazoDoMarcoId]?.cor
-                                : undefined
-                            }}
-                          />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+          <div className="schedule-calendar__days">
+            {cells.map((cell) => (
+              <CalendarCell cell={cell} key={cell.day} onSelect={selectDay} />
             ))}
           </div>
-
-          {legendaVisivel && (
-            <ul className="calendar-legend" aria-label="Legenda do mês exibido">
-              {legenda.sprints.map(({ sprint, inicio, fim }) => (
-                <li className="calendar-legend-item" key={`sprint-${sprint.id}`}>
-                  <span
-                    className="calendar-legend-swatch"
-                    style={{
-                      background: cores[sprint.id].bg,
-                      boxShadow: `inset 0 0 0 1.5px ${cores[sprint.id].fg}`
-                    }}
-                  />
-                  <span className="calendar-legend-text">
-                    <span className="calendar-legend-name">{sprint.name}</span>
-                    <span className="calendar-legend-period">
-                      Sprint · {shortDate(inicio)} – {shortDate(fim)}
-                    </span>
-                  </span>
-                </li>
-              ))}
-              {legenda.marcos.map((periodo) => (
-                <li className="calendar-legend-item" key={`marco-${periodo.id}`}>
-                  <span
-                    className="calendar-legend-swatch calendar-legend-swatch--marco"
-                    style={{ background: coresMarco[periodo.id]?.cor }}
-                  />
-                  <span className="calendar-legend-text">
-                    <span className="calendar-legend-name">{periodo.title}</span>
-                    <span className="calendar-legend-period">
-                      Marco · agrupa {periodo.nSprints}{' '}
-                      {periodo.nSprints === 1 ? 'sprint' : 'sprints'} · {shortDate(periodo.inicio)}{' '}
-                      – {shortDate(periodo.fim)}
-                      {periodo.fim !== periodo.prazo ? ` · prazo ${shortDate(periodo.prazo)}` : ''}
-                    </span>
-                  </span>
-                </li>
-              ))}
-              {legenda.temPrazoNoMes && (
-                <li className="calendar-legend-item">
-                  <span
-                    className="calendar-legend-swatch"
-                    style={{ background: '#fff', boxShadow: 'inset 0 0 0 1.5px #cfd6e4' }}
-                  />
-                  <span className="calendar-legend-text">
-                    <span className="calendar-legend-name">Prazo de marco</span>
-                    <span className="calendar-legend-period">Ponto sob o dia</span>
-                  </span>
-                </li>
-              )}
-            </ul>
-          )}
-
-          <div style={{ marginTop: '1.15rem' }}>
-            <h3 className="agenda-now-title">Agenda de {longDayLabel(selecionado)}</h3>
-            {sprintDoDia && (
-              <p className="agenda-day-context">
-                Dentro de {sprintDoDia.name} ({shortDate(sprintDayRange(sprintDoDia).inicio)} –{' '}
-                {shortDate(sprintDayRange(sprintDoDia).fim)})
-                {milestoneNames[sprintDoDia.milestoneId]
-                  ? ` · marco ${milestoneNames[sprintDoDia.milestoneId]}`
-                  : ''}
-              </p>
-            )}
-            {doDia.length === 0 ? (
-              <div className="agenda-empty">
-                <p>Nenhum evento neste dia.</p>
-                <p className="agenda-outside">
-                  Inícios e fins de sprint e de marco, prazos e deadlines de tarefa aparecem aqui.
-                </p>
-              </div>
-            ) : (
-              <ul className="agenda-entries">
-                {doDia.map((evento) => (
-                  <li
-                    className={`agenda-entry ${
-                      evento.aviso
-                        ? 'agenda-entry--atrasada'
-                        : selecionado < hojeIso
-                          ? 'agenda-entry--atenuada'
-                          : ''
-                    }`}
-                    key={`${evento.dia}-${evento.titulo}`}
-                  >
-                    <p className="agenda-entry-head">
-                      <span className="agenda-kind">{evento.kind.toUpperCase()}</span>
-                      <span className="agenda-entry-title">{evento.titulo}</span>
-                    </p>
-                    <p className="agenda-entry-meta">{evento.meta}</p>
-                    {evento.aviso && <p className="agenda-entry-warning">{evento.aviso}</p>}
-                  </li>
-                ))}
-              </ul>
-            )}
-            {sprintDoDia && (sprintDoDia.tasks || []).length > 0 && (
-              <details className="agenda-tasks">
-                <summary>
-                  Tarefas de {sprintDoDia.name} neste dia ({sprintDoDia.tasks.length})
-                </summary>
-                <ul>
-                  {sprintDoDia.tasks.slice(0, LIMITE_TAREFAS_DO_DIA).map((task) => (
-                    <li key={task.id}>
-                      #{task.id} {task.title} — {taskStatusLabels[task.status] || task.status} ·{' '}
-                      {taskPriorityLabels[task.priority] || task.priority}
-                    </li>
-                  ))}
-                  {sprintDoDia.tasks.length > LIMITE_TAREFAS_DO_DIA && (
-                    <li>
-                      … e mais {sprintDoDia.tasks.length - LIMITE_TAREFAS_DO_DIA} tarefas no Kanban
-                      da sprint
-                    </li>
-                  )}
-                </ul>
-              </details>
-            )}
-          </div>
+          <CalendarLegend />
         </section>
 
-        <section className="card calendar-month-card">
-          <h2>No mês exibido</h2>
-          <p className="calendar-month-summary">
-            {monthLabel(mesExibido.ano, mesExibido.mes)} · {noMes.resumo}
-          </p>
-          <div
-            className="calendar-month-tabs"
-            role="tablist"
-            aria-label="Conteúdo do mês exibido"
-            onKeyDown={teclasDeAba}
-          >
-            {abas.map((aba) => (
-              <button
-                key={aba.chave}
-                ref={(no) => {
-                  abasRef.current[aba.chave] = no;
-                }}
-                type="button"
-                role="tab"
-                id={`calendar-month-tab-${aba.chave}`}
-                aria-selected={aba.chave === chaveAtiva}
-                aria-controls="calendar-month-tabpanel"
-                tabIndex={aba.chave === chaveAtiva ? 0 : -1}
-                title={aba.descricao}
-                className={`calendar-month-tab ${
-                  aba.chave === chaveAtiva ? 'calendar-month-tab--ativa' : ''
-                }`.trim()}
-                onClick={() => setAbaAtiva(aba.chave)}
-              >
-                {aba.rotulo} <span className="calendar-month-tab-count">{aba.total}</span>
-              </button>
-            ))}
-          </div>
-          <div
-            className="calendar-month-panel"
-            role="tabpanel"
-            id="calendar-month-tabpanel"
-            aria-labelledby={`calendar-month-tab-${chaveAtiva}`}
-            tabIndex={0}
-          >
-            {blocoAtivo
-              ? listaDoBloco(blocoAtivo)
-              : noMes.blocos.map((bloco) => (
-                  <div className="calendar-month-group" key={bloco.chave}>
-                    <h3>
-                      {bloco.rotulo} ({bloco.itens.length})
-                    </h3>
-                    {listaDoBloco(bloco)}
-                  </div>
-                ))}
-          </div>
-        </section>
+        <aside className="schedule-side" aria-label="Contexto do cronograma">
+          <SelectedDayPanel context={selectedContext} day={selectedDay} events={selectedEvents} />
+          <MonthPanel
+            entities={monthEntities}
+            filter={monthFilter}
+            onFilter={setMonthFilter}
+            onSelect={selectDay}
+            visibleMonth={visibleMonth}
+          />
+        </aside>
       </div>
 
-      <section className="card">
-        <h2>Próximos eventos</h2>
-        {proximos.length === 0 ? (
-          <p className="empty-state">Nenhum evento futuro no cronograma.</p>
-        ) : (
-          <ul className="agenda-upcoming">
-            {proximos.map((evento) => (
-              <li className="agenda-entry" key={`${evento.dia}-${evento.titulo}`}>
-                <p className="agenda-entry-head">
-                  <span className="agenda-kind">{evento.kind.toUpperCase()}</span>
-                  <span className="agenda-entry-title">{evento.titulo}</span>
-                </p>
-                <p className="agenda-entry-meta">
-                  {shortDayLabel(evento.dia)} · {evento.meta}
-                </p>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-    </>
+      <UpcomingDeadlines items={upcoming} todayDay={todayDay} />
+    </div>
   );
 }
