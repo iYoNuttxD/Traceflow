@@ -1,38 +1,16 @@
-export const SCHEDULE_PALETTE_STORAGE_KEY = 'traceflow.schedule.palette';
-export const SCHEDULE_PALETTE_SLOT_COUNT = 10;
-
-export const SCHEDULE_PALETTES = Object.freeze([
-  { value: 'default', label: 'Padrão' },
-  { value: 'contrast', label: 'Contraste' },
-  { value: 'soft', label: 'Suave' }
-]);
-
-const paletteValues = new Set(SCHEDULE_PALETTES.map((palette) => palette.value));
-
-export function isSchedulePalette(value) {
-  return paletteValues.has(value);
-}
-
-export function readSchedulePalette(storage) {
-  try {
-    const value = (storage || window.localStorage).getItem(SCHEDULE_PALETTE_STORAGE_KEY);
-    return isSchedulePalette(value) ? value : 'default';
-  } catch {
-    return 'default';
-  }
-}
-
-export function persistSchedulePalette(value, storage) {
-  if (!isSchedulePalette(value)) return;
-  try {
-    (storage || window.localStorage).setItem(SCHEDULE_PALETTE_STORAGE_KEY, value);
-  } catch {
-    // Preferência visual local é best-effort e não impede a leitura do cronograma.
-  }
-}
+export const SCHEDULE_COLOR_SLOT_COUNT = 10;
 
 export function scheduleEntityKey(type, id) {
   return `${type}:${String(id)}`;
+}
+
+function stableHash(value) {
+  let hash = 2166136261;
+  for (const character of String(value)) {
+    hash ^= character.codePointAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
 }
 
 function uniqueEntities(entities) {
@@ -44,18 +22,53 @@ function uniqueEntities(entities) {
   return [...byKey.values()].sort((a, b) => a.key.localeCompare(b.key));
 }
 
-export function assignScheduleEntitySlots({ visible = [], remaining = [], slotCount = 10 } = {}) {
+function validSlot(slot, slotCount) {
+  return Number.isInteger(slot) && slot >= 0 && slot < slotCount;
+}
+
+function availableSlot(key, usedSlots, slotCount, previousSlot) {
+  const preferred = validSlot(previousSlot, slotCount) ? previousSlot : stableHash(key) % slotCount;
+  for (let offset = 0; offset < slotCount; offset += 1) {
+    const candidate = (preferred + offset) % slotCount;
+    if (!usedSlots.has(candidate)) return candidate;
+  }
+  return preferred;
+}
+
+export function assignScheduleEntitySlots({
+  visible = [],
+  remaining = [],
+  previousSlots = new Map(),
+  previousVisibleKeys = new Set(),
+  slotCount = SCHEDULE_COLOR_SLOT_COUNT
+} = {}) {
   const count = Math.max(1, Number(slotCount) || 1);
   const visibleEntities = uniqueEntities(visible);
   const visibleKeys = new Set(visibleEntities.map((entity) => entity.key));
-  const ordered = [
-    ...visibleEntities,
-    ...uniqueEntities(remaining).filter((entity) => !visibleKeys.has(entity.key))
-  ];
-  return new Map(ordered.map((entity, index) => [entity.key, index % count]));
+  const shared = visibleEntities.filter((entity) => previousVisibleKeys.has(entity.key));
+  const entering = visibleEntities.filter((entity) => !previousVisibleKeys.has(entity.key));
+  const slots = new Map();
+  const usedVisibleSlots = new Set();
+
+  for (const entity of [...shared, ...entering]) {
+    const slot = availableSlot(entity.key, usedVisibleSlots, count, previousSlots.get(entity.key));
+    slots.set(entity.key, slot);
+    usedVisibleSlots.add(slot);
+  }
+
+  for (const entity of uniqueEntities(remaining)) {
+    if (visibleKeys.has(entity.key)) continue;
+    const previousSlot = previousSlots.get(entity.key);
+    slots.set(
+      entity.key,
+      validSlot(previousSlot, count) ? previousSlot : stableHash(entity.key) % count
+    );
+  }
+
+  return slots;
 }
 
 export function scheduleEntityStyle(slots, type, id) {
   const slot = slots.get(scheduleEntityKey(type, id)) ?? 0;
-  return { '--schedule-entity-color': `var(--schedule-palette-${slot})` };
+  return { '--schedule-entity-color': `var(--schedule-color-${slot})` };
 }

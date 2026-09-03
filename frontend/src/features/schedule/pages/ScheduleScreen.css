@@ -23,123 +23,37 @@
 .schedule-workspace {
   display: grid;
   gap: var(--space-6);
-  --schedule-palette-0: var(--color-accent-primary);
-  --schedule-palette-1: var(--color-highlight-text);
-  --schedule-palette-2: var(--color-success-text);
-  --schedule-palette-3: var(--color-warning-text);
-  --schedule-palette-4: var(--color-danger-text);
-  --schedule-palette-5: color-mix(
+  --schedule-color-0: var(--color-accent-primary);
+  --schedule-color-1: var(--color-highlight-text);
+  --schedule-color-2: var(--color-success-text);
+  --schedule-color-3: var(--color-warning-text);
+  --schedule-color-4: var(--color-danger-text);
+  --schedule-color-5: color-mix(
     in srgb,
     var(--color-accent-primary) 60%,
     var(--color-highlight-text)
   );
-  --schedule-palette-6: color-mix(
+  --schedule-color-6: color-mix(
     in srgb,
     var(--color-success-text) 62%,
     var(--color-accent-primary)
   );
-  --schedule-palette-7: color-mix(
+  --schedule-color-7: color-mix(
     in srgb,
     var(--color-warning-text) 62%,
     var(--color-highlight-text)
   );
-  --schedule-palette-8: color-mix(
-    in srgb,
-    var(--color-danger-text) 60%,
-    var(--color-accent-primary)
-  );
-  --schedule-palette-9: color-mix(
+  --schedule-color-8: color-mix(in srgb, var(--color-danger-text) 60%, var(--color-accent-primary));
+  --schedule-color-9: color-mix(
     in srgb,
     var(--color-highlight-text) 58%,
     var(--color-success-text)
   );
 }
 
-.schedule-workspace[data-schedule-palette='contrast'] {
-  --schedule-palette-0: var(--color-accent-strong);
-  --schedule-palette-1: var(--color-warning-text);
-  --schedule-palette-2: var(--color-highlight-text);
-  --schedule-palette-3: var(--color-success-text);
-  --schedule-palette-4: var(--color-danger-text);
-  --schedule-palette-5: color-mix(
-    in srgb,
-    var(--color-accent-strong) 72%,
-    var(--color-warning-text)
-  );
-  --schedule-palette-6: color-mix(
-    in srgb,
-    var(--color-highlight-text) 72%,
-    var(--color-danger-text)
-  );
-  --schedule-palette-7: color-mix(
-    in srgb,
-    var(--color-success-text) 72%,
-    var(--color-warning-text)
-  );
-  --schedule-palette-8: color-mix(in srgb, var(--color-danger-text) 72%, var(--color-text-strong));
-  --schedule-palette-9: color-mix(
-    in srgb,
-    var(--color-accent-strong) 55%,
-    var(--color-success-text)
-  );
-}
-
-.schedule-workspace[data-schedule-palette='soft'] {
-  --schedule-palette-0: color-mix(
-    in srgb,
-    var(--color-accent-primary) 68%,
-    var(--color-text-secondary)
-  );
-  --schedule-palette-1: color-mix(
-    in srgb,
-    var(--color-highlight-text) 68%,
-    var(--color-text-secondary)
-  );
-  --schedule-palette-2: color-mix(
-    in srgb,
-    var(--color-success-text) 68%,
-    var(--color-text-secondary)
-  );
-  --schedule-palette-3: color-mix(
-    in srgb,
-    var(--color-warning-text) 68%,
-    var(--color-text-secondary)
-  );
-  --schedule-palette-4: color-mix(
-    in srgb,
-    var(--color-danger-text) 68%,
-    var(--color-text-secondary)
-  );
-  --schedule-palette-5: color-mix(
-    in srgb,
-    var(--color-accent-primary) 48%,
-    var(--color-highlight-text)
-  );
-  --schedule-palette-6: color-mix(
-    in srgb,
-    var(--color-success-text) 48%,
-    var(--color-accent-primary)
-  );
-  --schedule-palette-7: color-mix(
-    in srgb,
-    var(--color-warning-text) 48%,
-    var(--color-highlight-text)
-  );
-  --schedule-palette-8: color-mix(
-    in srgb,
-    var(--color-danger-text) 48%,
-    var(--color-accent-primary)
-  );
-  --schedule-palette-9: color-mix(
-    in srgb,
-    var(--color-highlight-text) 48%,
-    var(--color-success-text)
-  );
-}
-
 .schedule-now,
 .schedule-calendar,
-.schedule-side-panel,
+.schedule-context,
 .schedule-upcoming {
   border: var(--border-width-default) solid var(--color-border-default);
   border-radius: var(--radius-lg);
@@ -148,7 +62,7 @@
 }
 
 .schedule-surface-heading,
-.schedule-side-panel__heading {
+.schedule-context__heading {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -162,13 +76,15 @@
 
 .schedule-surface-heading h2,
 .schedule-surface-heading p,
-.schedule-side-panel__heading h2,
-.schedule-side-panel__heading p {
+.schedule-context__heading h2,
+.schedule-context-view__heading h3,
+.schedule-context-view__heading p {
   margin: 0;
 }
 
 .schedule-surface-heading h2,
-.schedule-side-panel__heading h2,
+.schedule-context__heading h2,
+.schedule-context-view__heading h3,
 .schedule-calendar__toolbar h2 {
   color: var(--color-text-strong);
   font-size: var(--font-size-4);
@@ -176,7 +92,7 @@
 }
 
 .schedule-surface-heading p,
-.schedule-side-panel__heading p {
+.schedule-context-view__heading p {
   max-width: 31rem;
   color: var(--color-text-secondary);
   font-size: var(--font-size-2);
@@ -282,35 +198,6 @@
   gap: var(--space-2);
 }
 
-.schedule-calendar__controls,
-.schedule-palette-select {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.schedule-calendar__controls {
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.schedule-palette-select > span {
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-1);
-  font-weight: var(--font-weight-semibold);
-}
-
-.schedule-palette-select select {
-  min-height: var(--size-touch-target);
-  border: var(--border-width-default) solid var(--color-border-default);
-  border-radius: var(--radius-sm);
-  padding: 0 var(--space-8) 0 var(--space-3);
-  color: var(--color-text-primary);
-  background: var(--color-bg-input);
-  font: inherit;
-  font-size: var(--font-size-2);
-}
-
 .schedule-calendar__navigation button {
   display: grid;
   min-width: var(--size-touch-target);
@@ -367,10 +254,12 @@
 }
 
 .schedule-day {
-  position: relative;
-  display: block;
+  display: grid;
   min-width: 0;
-  min-height: 6.9rem;
+  min-height: 8.25rem;
+  grid-template-rows: 3.75rem 1.75rem 1.25rem;
+  align-content: start;
+  gap: var(--space-1);
   overflow: hidden;
   border: 0;
   border-right: var(--border-width-default) solid var(--color-border-default);
@@ -384,10 +273,9 @@
 }
 
 .schedule-day__number-lane {
-  position: relative;
-  z-index: 4;
-  display: block;
-  min-height: 1.9rem;
+  display: flex;
+  min-height: 1.75rem;
+  align-items: center;
 }
 
 .schedule-day:hover {
@@ -405,8 +293,6 @@
 }
 
 .schedule-day__number {
-  position: relative;
-  z-index: 3;
   display: grid;
   width: 1.75rem;
   height: 1.75rem;
@@ -430,13 +316,18 @@
   background: var(--color-accent-primary);
 }
 
+.schedule-day__sprint-lanes {
+  position: relative;
+  display: block;
+  min-height: 3.75rem;
+}
+
 .schedule-day__sprint-range {
   position: absolute;
-  z-index: 1;
-  top: 2.45rem;
+  top: 0;
   right: 0;
   left: 0;
-  height: 0.82rem;
+  height: 0.9rem;
   border-top: var(--border-width-default) solid var(--schedule-entity-color);
   border-bottom: var(--border-width-default) solid var(--schedule-entity-color);
   color: var(--color-text-primary);
@@ -444,11 +335,11 @@
 }
 
 .schedule-day__sprint-range--lane-1 {
-  top: 3.38rem;
+  top: 1rem;
 }
 
 .schedule-day__sprint-range--lane-2 {
-  top: 4.31rem;
+  top: 2rem;
 }
 
 .schedule-day__sprint-range--start {
@@ -489,7 +380,7 @@
   overflow: hidden;
   font-size: var(--font-size-1);
   font-weight: var(--font-weight-bold);
-  line-height: 0.82rem;
+  line-height: 0.9rem;
   text-overflow: ellipsis;
   white-space: nowrap;
   transform: translateY(-50%);
@@ -497,10 +388,9 @@
 
 .schedule-day__sprint-overflow {
   position: absolute;
-  z-index: 3;
-  bottom: var(--space-2);
-  left: var(--space-2);
-  max-width: calc(100% - 3.5rem);
+  top: 3.08rem;
+  left: var(--space-1);
+  max-width: calc(100% - var(--space-2));
   overflow: hidden;
   color: var(--color-text-secondary);
   font-size: 0.625rem;
@@ -511,11 +401,6 @@
 }
 
 .schedule-day__markers {
-  position: absolute;
-  z-index: 3;
-  right: var(--space-2);
-  bottom: var(--space-2);
-  left: var(--space-2);
   display: flex;
   min-height: 1.25rem;
   align-items: center;
@@ -628,28 +513,70 @@
   background: var(--color-accent-surface);
 }
 
-.schedule-side {
+.schedule-context {
   display: grid;
   min-width: 0;
   min-height: 0;
-  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
-  gap: var(--space-5);
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
 }
 
-.schedule-side-panel {
+.schedule-context__heading {
+  padding: var(--space-5);
+  border-bottom: var(--border-width-default) solid var(--color-border-default);
+}
+
+.schedule-context__heading h2 {
+  margin-top: var(--space-1);
+}
+
+.schedule-context__switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-secondary);
+}
+
+.schedule-context__switch button {
+  min-width: var(--size-touch-target);
+  min-height: var(--size-touch-target);
+  border: var(--border-width-default) solid transparent;
+  border-radius: var(--radius-xs);
+  padding: 0 var(--space-3);
+  color: var(--color-text-secondary);
+  background: transparent;
+  font: inherit;
+  font-size: var(--font-size-2);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.schedule-context__switch button[aria-pressed='true'] {
+  border-color: var(--color-border-interactive);
+  color: var(--color-accent-text);
+  background: var(--color-accent-surface);
+}
+
+.schedule-context-view {
   display: grid;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
 }
 
-.schedule-side-panel__heading {
+.schedule-context-view[hidden] {
+  display: none;
+}
+
+.schedule-context-view__heading {
   display: grid;
   padding: var(--space-5);
   border-bottom: var(--border-width-default) solid var(--color-border-default);
 }
 
-.schedule-side-panel__heading h2 {
+.schedule-context-view__heading h3 {
   margin-top: var(--space-1);
   overflow-wrap: anywhere;
 }
@@ -722,8 +649,7 @@
 
 .schedule-month-panel__body:focus-visible,
 .schedule-selected-day__body:focus-visible,
-.schedule-upcoming__list:focus-visible,
-.schedule-palette-select select:focus-visible {
+.schedule-upcoming__list:focus-visible {
   outline: var(--focus-ring-width) solid var(--color-focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-offset));
 }
@@ -861,7 +787,11 @@
 
 .schedule-upcoming__list {
   display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+  align-content: start;
+  gap: var(--space-3);
   overflow-y: auto;
+  padding: var(--space-4);
   overscroll-behavior: contain;
 }
 
@@ -871,12 +801,10 @@
   grid-template-columns: auto auto minmax(0, 1fr);
   gap: var(--space-3);
   align-items: start;
-  padding: var(--space-4);
-  border-bottom: var(--border-width-default) solid var(--color-border-default);
-}
-
-.schedule-upcoming__list li:last-child {
-  border-bottom: 0;
+  padding: var(--space-3);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-secondary);
 }
 
 .schedule-upcoming__list time {
@@ -906,19 +834,13 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .schedule-side {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-rows: minmax(0, 1fr);
-  }
-
-  .schedule-side-panel {
-    max-height: min(30rem, 70vh);
+  .schedule-context {
+    max-height: min(34rem, 72vh);
   }
 }
 
 @container schedule-page (max-width: 48rem) {
-  .schedule-now__metrics,
-  .schedule-side {
+  .schedule-now__metrics {
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -935,13 +857,40 @@
     display: grid;
   }
 
+  .schedule-context__heading {
+    display: grid;
+  }
+
+  .schedule-context__switch {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .schedule-day {
-    min-height: 6.5rem;
+    min-height: 7.7rem;
+    grid-template-rows: 3.5rem 1.5rem 1.1rem;
     padding: var(--space-1);
   }
 
-  .schedule-day__sprint-label {
-    display: none;
+  .schedule-day__sprint-lanes {
+    min-height: 3.5rem;
+  }
+
+  .schedule-day__sprint-range {
+    height: 0.82rem;
+  }
+
+  .schedule-day__sprint-range--lane-1 {
+    top: 0.92rem;
+  }
+
+  .schedule-day__sprint-range--lane-2 {
+    top: 1.84rem;
+  }
+
+  .schedule-day__sprint-overflow {
+    top: 2.82rem;
   }
 }
 
@@ -952,10 +901,6 @@
 
   .schedule-calendar__toolbar {
     display: grid;
-  }
-
-  .schedule-calendar__controls {
-    justify-content: space-between;
   }
 
   .schedule-calendar__navigation {
@@ -971,7 +916,7 @@
   }
 
   .schedule-day {
-    min-height: 6.4rem;
+    min-height: 7.7rem;
   }
 
   .schedule-day__number {
@@ -980,23 +925,17 @@
     font-size: var(--font-size-1);
   }
 
-  .schedule-day__sprint-range {
-    top: 2.2rem;
-  }
-
-  .schedule-day__sprint-range--lane-1 {
-    top: 3.08rem;
-  }
-
-  .schedule-day__sprint-range--lane-2 {
-    top: 3.96rem;
-  }
-
   .schedule-day__markers {
-    right: var(--space-1);
-    bottom: var(--space-1);
-    left: var(--space-1);
     gap: var(--space-1);
+  }
+
+  .schedule-day__sprint-label {
+    display: none;
+  }
+
+  .schedule-upcoming__list {
+    grid-template-columns: minmax(0, 1fr);
+    padding: var(--space-3);
   }
 
   .schedule-legend {
