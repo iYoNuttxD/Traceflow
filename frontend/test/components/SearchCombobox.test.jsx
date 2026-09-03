@@ -51,6 +51,30 @@ describe('SearchCombobox', () => {
     expect(onSelect).toHaveBeenCalledWith(options[0]);
   });
 
+  it('mantém opções indisponíveis visíveis e as ignora na navegação por teclado', async () => {
+    const onSelect = vi.fn();
+    render(
+      <SearchCombobox
+        label="Sprint"
+        options={options}
+        onSelect={onSelect}
+        getOptionLabel={label}
+        isOptionDisabled={(option) => option.id === 1}
+      />
+    );
+
+    const input = screen.getByRole('combobox', { name: 'Sprint' });
+    fireEvent.change(input, { target: { value: 'al' } });
+    await act(() => vi.advanceTimersByTimeAsync(300));
+    expect(screen.getByRole('option', { name: 'Marco inicial' })).toHaveAttribute(
+      'aria-disabled',
+      'true'
+    );
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(onSelect).toHaveBeenCalledWith(options[1]);
+  });
+
   it('informa resultado vazio', async () => {
     render(
       <SearchCombobox label="Marco" options={options} onSelect={vi.fn()} getOptionLabel={label} />

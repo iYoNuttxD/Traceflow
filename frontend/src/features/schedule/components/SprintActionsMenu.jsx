@@ -2,7 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 
 const ALTURA_ESTIMADA = 240;
 
-export function SprintActionsMenu({ sprintName, disabled = false, items }) {
+export function SprintActionsMenu({
+  sprintName,
+  entityName = sprintName,
+  entityDescriptor = 'da sprint',
+  disabled = false,
+  items
+}) {
   const [posicao, setPosicao] = useState(null);
   const containerRef = useRef(null);
   const triggerRef = useRef(null);
@@ -79,7 +85,7 @@ export function SprintActionsMenu({ sprintName, disabled = false, items }) {
         disabled={disabled}
         aria-haspopup="menu"
         aria-expanded={aberto}
-        aria-label={`Mais ações da sprint ${sprintName}`}
+        aria-label={`Mais ações ${entityDescriptor} ${entityName}`}
         onClick={alternar}
       >
         <span aria-hidden="true">•••</span>
@@ -89,7 +95,7 @@ export function SprintActionsMenu({ sprintName, disabled = false, items }) {
         <div
           className="sprint-menu"
           role="menu"
-          aria-label={`Ações da sprint ${sprintName}`}
+          aria-label={`Ações ${entityDescriptor} ${entityName}`}
           style={posicao}
           onKeyDown={moveFocus}
         >
@@ -108,6 +114,9 @@ export function SprintActionsMenu({ sprintName, disabled = false, items }) {
               onClick={() => {
                 setPosicao(null);
                 item.onSelect(triggerRef.current);
+                queueMicrotask(() => {
+                  if (triggerRef.current?.isConnected) triggerRef.current.focus();
+                });
               }}
             >
               {item.label}
