@@ -145,6 +145,12 @@ export function useScheduleData(projectId) {
     setError(message);
   }, []);
 
+  const warn = useCallback((message) => {
+    setSuccess('');
+    setError('');
+    setStaleWarning(message);
+  }, []);
+
   const settle = useCallback(
     async (message, refresh) => {
       feedback(message);
@@ -178,6 +184,7 @@ export function useScheduleData(projectId) {
     refreshMilestones,
     handleFailure,
     fail,
+    warn,
     settle
   };
 }

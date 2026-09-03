@@ -50,8 +50,11 @@ export const scheduleApi = {
     return httpClient.get(`/projects/${projectId}/members`, options);
   },
 
-  listProjectTasks(projectId, options = {}) {
-    return httpClient.get(`/projects/${projectId}/tasks`, options);
+  listProjectTasks(projectId, params = {}, options = {}) {
+    return httpClient.get(`/projects/${projectId}/tasks`, {
+      ...options,
+      params: compactParams(params)
+    });
   },
 
   getSchedule(projectId, params = {}, options = {}) {

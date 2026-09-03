@@ -60,12 +60,38 @@ export function SprintBurndownChart({ burndown }) {
         </span>
       </p>
       <svg viewBox={CAIXA} className="burndown-chart" role="img" aria-label={nota}>
-        <line x1={ESQUERDA} y1={TOPO} x2={ESQUERDA} y2={BASE} stroke="#e2e7f0" strokeWidth="1.5" />
-        <line x1={ESQUERDA} y1={BASE} x2={DIREITA} y2={BASE} stroke="#e2e7f0" strokeWidth="1.5" />
-        <text x={ESQUERDA - 6} y={TOPO + 5} fill="#667085" fontSize={FONTE} textAnchor="end">
+        <line
+          x1={ESQUERDA}
+          y1={TOPO}
+          x2={ESQUERDA}
+          y2={BASE}
+          stroke="var(--color-border-default)"
+          strokeWidth="1.5"
+        />
+        <line
+          x1={ESQUERDA}
+          y1={BASE}
+          x2={DIREITA}
+          y2={BASE}
+          stroke="var(--color-border-default)"
+          strokeWidth="1.5"
+        />
+        <text
+          x={ESQUERDA - 6}
+          y={TOPO + 5}
+          fill="var(--color-text-secondary)"
+          fontSize={FONTE}
+          textAnchor="end"
+        >
           {totalPoints}
         </text>
-        <text x={ESQUERDA - 6} y={BASE + 4} fill="#667085" fontSize={FONTE} textAnchor="end">
+        <text
+          x={ESQUERDA - 6}
+          y={BASE + 4}
+          fill="var(--color-text-secondary)"
+          fontSize={FONTE}
+          textAnchor="end"
+        >
           0
         </text>
         {indiceCorte >= 0 && (
@@ -75,14 +101,14 @@ export function SprintBurndownChart({ burndown }) {
               y1={TOPO}
               x2={x(indiceCorte)}
               y2={BASE}
-              stroke="#98a2b3"
+              stroke="var(--color-text-muted)"
               strokeWidth="1"
               strokeDasharray="3 4"
             />
             <text
               x={x(indiceCorte)}
               y={CORTE_Y}
-              fill="#667085"
+              fill="var(--color-text-secondary)"
               fontSize={FONTE_CORTE}
               textAnchor="middle"
             >
@@ -93,18 +119,32 @@ export function SprintBurndownChart({ burndown }) {
         <polyline
           points={ideal}
           fill="none"
-          stroke="#98a2b3"
+          stroke="var(--color-text-muted)"
           strokeWidth="2"
           strokeDasharray="6 6"
         />
-        {real && <polyline points={real} fill="none" stroke="#315bce" strokeWidth="2.5" />}
-        {ponta && <circle cx={x(ponta.indice)} cy={y(ponta.remaining)} r={RAIO} fill="#315bce" />}
+        {real && (
+          <polyline
+            points={real}
+            fill="none"
+            stroke="var(--color-accent-primary)"
+            strokeWidth="2.5"
+          />
+        )}
+        {ponta && (
+          <circle
+            cx={x(ponta.indice)}
+            cy={y(ponta.remaining)}
+            r={RAIO}
+            fill="var(--color-accent-primary)"
+          />
+        )}
         {marcas.map((indice) => (
           <text
             key={indice}
             x={x(indice)}
             y={MARCAS_Y}
-            fill="#667085"
+            fill="var(--color-text-secondary)"
             fontSize={FONTE}
             textAnchor={indice === 0 ? 'start' : indice === ultimo ? 'end' : 'middle'}
           >

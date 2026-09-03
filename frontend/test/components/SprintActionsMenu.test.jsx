@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { SprintActionsMenu } from '../../src/features/schedule/components/SprintActionsMenu.jsx';
@@ -31,12 +31,12 @@ describe('SprintActionsMenu', () => {
     renderMenu();
 
     const trigger = gatilho();
-    expect(trigger).toHaveAttribute('aria-haspopup', 'true');
+    expect(trigger).toHaveAttribute('aria-haspopup', 'menu');
     expect(trigger).toHaveAttribute('aria-expanded', 'false');
 
     await user.click(trigger);
     expect(trigger).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByRole('group', { name: 'Ações da sprint Sprint 1' })).toBeInTheDocument();
+    expect(screen.getByRole('menu', { name: 'Ações da sprint Sprint 1' })).toBeInTheDocument();
   });
 
   it('fecha ao clicar fora, sem acionar item nenhum', async () => {
@@ -50,10 +50,10 @@ describe('SprintActionsMenu', () => {
     );
 
     await user.click(gatilho());
-    expect(screen.getByRole('button', { name: 'Ver tarefas' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Ver tarefas' })).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Fora do menu' }));
-    expect(screen.queryByRole('button', { name: 'Ver tarefas' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Ver tarefas' })).not.toBeInTheDocument();
     expect(acao.onSelect).not.toHaveBeenCalled();
   });
 
@@ -62,10 +62,10 @@ describe('SprintActionsMenu', () => {
     renderMenu();
 
     await user.click(gatilho());
-    expect(screen.getByRole('button', { name: 'Ver tarefas' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Ver tarefas' })).toBeInTheDocument();
 
     await user.keyboard('{Escape}');
-    expect(screen.queryByRole('button', { name: 'Ver tarefas' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Ver tarefas' })).not.toBeInTheDocument();
     expect(gatilho()).toHaveFocus();
   });
 
@@ -74,10 +74,10 @@ describe('SprintActionsMenu', () => {
     renderMenu();
 
     await user.click(gatilho());
-    expect(screen.getByRole('button', { name: 'Ver tarefas' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Ver tarefas' })).toBeInTheDocument();
 
     fireEvent.scroll(document.body);
-    expect(screen.queryByRole('button', { name: 'Ver tarefas' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Ver tarefas' })).not.toBeInTheDocument();
   });
 
   it('escolher um item fecha o menu e executa a ação', async () => {
@@ -86,10 +86,10 @@ describe('SprintActionsMenu', () => {
     render(<SprintActionsMenu sprintName="Sprint 1" items={[acao]} />);
 
     await user.click(gatilho());
-    await user.click(screen.getByRole('button', { name: 'Ver tarefas' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Ver tarefas' }));
 
     expect(acao.onSelect).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole('button', { name: 'Ver tarefas' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Ver tarefas' })).not.toBeInTheDocument();
     expect(gatilho()).toHaveAttribute('aria-expanded', 'false');
   });
 
@@ -100,6 +100,23 @@ describe('SprintActionsMenu', () => {
     const trigger = gatilho();
     expect(trigger).toBeDisabled();
     await user.click(trigger);
-    expect(screen.queryByRole('button', { name: 'Ver tarefas' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Ver tarefas' })).not.toBeInTheDocument();
+  });
+
+  it('navega pelos itens com setas e Home/End', async () => {
+    const user = userEvent.setup();
+    renderMenu({ extraItems: [item({ key: 'editar', label: 'Editar' })] });
+
+    await user.click(gatilho());
+    const first = screen.getByRole('menuitem', { name: 'Ver tarefas' });
+    const last = screen.getByRole('menuitem', { name: 'Editar' });
+    await waitFor(() => expect(first).toHaveFocus());
+
+    await user.keyboard('{ArrowDown}');
+    expect(last).toHaveFocus();
+    await user.keyboard('{Home}');
+    expect(first).toHaveFocus();
+    await user.keyboard('{End}');
+    expect(last).toHaveFocus();
   });
 });

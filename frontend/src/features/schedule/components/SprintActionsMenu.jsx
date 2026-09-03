@@ -6,6 +6,7 @@ export function SprintActionsMenu({ sprintName, disabled = false, items }) {
   const [posicao, setPosicao] = useState(null);
   const containerRef = useRef(null);
   const triggerRef = useRef(null);
+  const itemRefs = useRef([]);
   const aberto = posicao !== null;
 
   useEffect(() => {
@@ -43,6 +44,30 @@ export function SprintActionsMenu({ sprintName, disabled = false, items }) {
       top: paraCima ? 'auto' : rect.bottom + 6,
       bottom: paraCima ? window.innerHeight - rect.top + 6 : 'auto'
     });
+    window.requestAnimationFrame(() => itemRefs.current.find((item) => !item?.disabled)?.focus());
+  };
+
+  const moveFocus = (event) => {
+    const enabled = itemRefs.current.filter((item) => item && !item.disabled);
+    if (!enabled.length) return;
+    const current = enabled.indexOf(document.activeElement);
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      setPosicao(null);
+      triggerRef.current?.focus();
+    } else if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      enabled[(current + 1) % enabled.length].focus();
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      enabled[(current <= 0 ? enabled.length : current) - 1].focus();
+    } else if (event.key === 'Home') {
+      event.preventDefault();
+      enabled[0].focus();
+    } else if (event.key === 'End') {
+      event.preventDefault();
+      enabled.at(-1).focus();
+    }
   };
 
   return (
@@ -52,36 +77,37 @@ export function SprintActionsMenu({ sprintName, disabled = false, items }) {
         type="button"
         className="button button-secondary sprint-menu-trigger"
         disabled={disabled}
-        aria-haspopup="true"
+        aria-haspopup="menu"
         aria-expanded={aberto}
         aria-label={`Mais ações da sprint ${sprintName}`}
         onClick={alternar}
       >
-        Mais ações{' '}
-        <span className="sprint-menu-caret" aria-hidden="true">
-          ▼
-        </span>
+        <span aria-hidden="true">•••</span>
       </button>
 
       {aberto && (
         <div
           className="sprint-menu"
-          role="group"
+          role="menu"
           aria-label={`Ações da sprint ${sprintName}`}
           style={posicao}
+          onKeyDown={moveFocus}
         >
-          {items.map((item) => (
+          {items.map((item, index) => (
             <button
+              ref={(element) => {
+                itemRefs.current[index] = element;
+              }}
               key={item.key}
               type="button"
               className={`sprint-menu-item${item.danger ? ' sprint-menu-item-danger' : ''}`}
+              role="menuitem"
               disabled={item.disabled}
               aria-label={item.ariaLabel}
-              aria-expanded={item.expanded}
               title={item.title}
               onClick={() => {
                 setPosicao(null);
-                item.onSelect();
+                item.onSelect(triggerRef.current);
               }}
             >
               {item.label}

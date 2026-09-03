@@ -1,39 +1,49 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
-import { scheduleApi } from '../api/schedule.api.js';
 import { ProjectSectionNav } from '../../projects/index.js';
 import {
-  FeedbackRegion,
-  LoadingState,
   ErrorState,
+  FeedbackRegion,
   ForbiddenState,
+  LoadingState,
+  normalizeApiError,
   useAbortableRequest,
   useConfirm
 } from '../../../shared/index.js';
+import { scheduleApi } from '../api/schedule.api.js';
+import { SprintDialog } from '../components/SprintDialog.jsx';
+import { SprintFilters } from '../components/SprintFilters.jsx';
 import { SprintForm, emptySprintForm, validateSprintForm } from '../components/SprintForm.jsx';
 import { SprintList } from '../components/SprintList.jsx';
-import { SprintTasksPanel } from '../components/SprintTasksPanel.jsx';
 import { SprintProgressPanel } from '../components/SprintProgressPanel.jsx';
+import { SprintTasksPanel } from '../components/SprintTasksPanel.jsx';
+import { SprintsSummary } from '../components/SprintsSummary.jsx';
 import {
   fromDateTimeLocalInput,
   isTerminalTransition,
   sprintTerminalConfirm,
   toDateTimeLocalInput
 } from '../components/schedule-display.js';
+import {
+  filterSprints,
+  hasSprintFilters,
+  SPRINT_FILTER_DEFAULTS
+} from '../components/sprint-view.js';
 import { useScheduleData } from '../hooks/useScheduleData.js';
 import '../styles/schedule.css';
+import './SprintsScreen.css';
+
+const FORM_DIALOGS = new Set(['create', 'edit']);
 
 export function SprintsScreen() {
   const { projectId } = useParams();
   const navigate = useNavigate();
   const confirm = useConfirm();
-  const sprintTasksRequest = useAbortableRequest();
-  const progressRequest = useAbortableRequest();
-  const formTasksRequest = useAbortableRequest();
+  const { run: runTasksRequest, cancel: cancelTasksRequest } = useAbortableRequest();
+  const { run: runProgressRequest, cancel: cancelProgressRequest } = useAbortableRequest();
+  const dialogReturnFocusRef = useRef(null);
+  const gridRef = useRef(null);
   const selectedSprintRef = useRef(null);
-  const progressSprintRef = useRef(null);
-  const formCardRef = useRef(null);
-  const formTasksCarregadasRef = useRef(false);
 
   const {
     project,
@@ -52,26 +62,29 @@ export function SprintsScreen() {
     refreshSprints,
     refreshMilestones,
     handleFailure,
-    fail,
+    warn,
     settle
   } = useScheduleData(projectId);
 
+  const [dialog, setDialog] = useState(null);
   const [sprintForm, setSprintForm] = useState(emptySprintForm);
   const [sprintErrors, setSprintErrors] = useState({});
-  const [editingSprintId, setEditingSprintId] = useState(null);
-  const [formTaskIds, setFormTaskIds] = useState([]);
-  const [formTasksLoading, setFormTasksLoading] = useState(false);
-
-  const [selectedSprint, setSelectedSprint] = useState(null);
-  const [selectedTaskIds, setSelectedTaskIds] = useState([]);
-  const [projectTasks, setProjectTasks] = useState([]);
-  const [sprintTasks, setSprintTasks] = useState([]);
-  const [tasksLoading, setTasksLoading] = useState(false);
-  const [progressSprint, setProgressSprint] = useState(null);
-  const [progress, setProgress] = useState(null);
-  const [progressLoading, setProgressLoading] = useState(false);
+  const [formTasks, setFormTasks] = useState([]);
+  const [formError, setFormError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [busySprintId, setBusySprintId] = useState(null);
+
+  const [sprintTasks, setSprintTasks] = useState([]);
+  const [tasksProgress, setTasksProgress] = useState(null);
+  const [tasksLoading, setTasksLoading] = useState(false);
+  const [tasksError, setTasksError] = useState('');
+
+  const [progress, setProgress] = useState(null);
+  const [progressLoading, setProgressLoading] = useState(false);
+  const [progressError, setProgressError] = useState('');
+
+  const [filters, setFilters] = useState({ ...SPRINT_FILTER_DEFAULTS });
+  const [selectedFilterTask, setSelectedFilterTask] = useState(null);
 
   const sprintNames = useMemo(
     () => Object.fromEntries(sprints.map((item) => [item.id, item.name])),
@@ -89,31 +102,149 @@ export function SprintsScreen() {
     () => sprints.find((item) => item.status === 'EM_ANDAMENTO') || null,
     [sprints]
   );
+  const selectedFilterMilestone = useMemo(
+    () => milestones.find((item) => Number(item.id) === Number(filters.milestoneId)) || null,
+    [filters.milestoneId, milestones]
+  );
+  const visibleSprints = useMemo(
+    () => filterSprints(sprints, filters, scheduleById),
+    [filters, scheduleById, sprints]
+  );
+  const filtersActive = hasSprintFilters(filters);
+  const dialogSprint = dialog?.sprint || null;
 
-  useEffect(() => {
-    if (loading) {
-      formTasksCarregadasRef.current = false;
+  const searchProjectTasks = useCallback(
+    async (query, signal) => {
+      const response = await scheduleApi.listProjectTasks(projectId, { search: query }, { signal });
+      return response.data.tasks || [];
+    },
+    [projectId]
+  );
+
+  const closeDialog = useCallback(() => {
+    selectedSprintRef.current = null;
+    cancelTasksRequest();
+    cancelProgressRequest();
+    setDialog(null);
+    setFormError('');
+    setTasksError('');
+    setProgressError('');
+  }, [cancelProgressRequest, cancelTasksRequest]);
+
+  function rememberTrigger(trigger) {
+    dialogReturnFocusRef.current = trigger || document.activeElement;
+  }
+
+  function openCreate(trigger) {
+    rememberTrigger(trigger);
+    setSprintForm(emptySprintForm);
+    setSprintErrors({});
+    setFormTasks([]);
+    setFormError('');
+    setDialog({ type: 'create' });
+  }
+
+  function openEdit(sprint, trigger) {
+    rememberTrigger(trigger);
+    setSprintForm({
+      name: sprint.name || '',
+      objective: sprint.objective || '',
+      startDate: toDateTimeLocalInput(sprint.startDate),
+      endDate: toDateTimeLocalInput(sprint.endDate),
+      milestoneId: sprint.milestoneId ? String(sprint.milestoneId) : ''
+    });
+    setSprintErrors({});
+    setFormTasks(scheduleById[sprint.id]?.tasks || []);
+    setFormError('');
+    setDialog({ type: 'edit', sprint });
+  }
+
+  const loadTasksDialog = useCallback(
+    async (sprint) => {
+      selectedSprintRef.current = sprint.id;
+      setTasksLoading(true);
+      setTasksError('');
+      setSprintTasks([]);
+      setTasksProgress(null);
+      try {
+        const result = await runTasksRequest(async (signal) => {
+          const [tasksResponse, progressResponse] = await Promise.all([
+            scheduleApi.listSprintTasks(sprint.id, { signal }),
+            scheduleApi.getSprintProgress(sprint.id, { signal })
+          ]);
+          return { tasks: tasksResponse.data.tasks || [], progress: progressResponse.data };
+        });
+        if (!result || selectedSprintRef.current !== sprint.id) return;
+        setSprintTasks(result.tasks);
+        setTasksProgress(result.progress);
+      } catch (requestError) {
+        if (selectedSprintRef.current !== sprint.id) return;
+        setTasksError(
+          normalizeApiError(requestError, 'Não foi possível carregar as tarefas da sprint.').message
+        );
+      } finally {
+        if (selectedSprintRef.current === sprint.id) setTasksLoading(false);
+      }
+    },
+    [runTasksRequest]
+  );
+
+  function openTasks(sprint, trigger) {
+    rememberTrigger(trigger);
+    setDialog({ type: 'tasks', sprint });
+    void loadTasksDialog(sprint);
+  }
+
+  const loadProgressDialog = useCallback(
+    async (sprint) => {
+      selectedSprintRef.current = sprint.id;
+      setProgress(null);
+      setProgressError('');
+      setProgressLoading(true);
+      try {
+        const response = await runProgressRequest((signal) =>
+          scheduleApi.getSprintProgress(sprint.id, { signal })
+        );
+        if (!response || selectedSprintRef.current !== sprint.id) return;
+        setProgress(response.data);
+      } catch (requestError) {
+        if (selectedSprintRef.current !== sprint.id) return;
+        setProgressError(
+          normalizeApiError(requestError, 'Não foi possível calcular a evolução da sprint.').message
+        );
+      } finally {
+        if (selectedSprintRef.current === sprint.id) setProgressLoading(false);
+      }
+    },
+    [runProgressRequest]
+  );
+
+  function openProgress(sprint, trigger) {
+    rememberTrigger(trigger);
+    setDialog({ type: 'progress', sprint });
+    void loadProgressDialog(sprint);
+  }
+
+  async function submitSprint(event) {
+    event.preventDefault();
+    const editing = dialog?.type === 'edit';
+    const editingId = editing ? dialog.sprint.id : null;
+    const errors = validateSprintForm(sprintForm, { editing });
+    setSprintErrors(errors);
+    setFormError('');
+    if (Object.keys(errors).length) {
+      const firstField = ['name', 'milestoneId', 'startDate', 'endDate'].find(
+        (field) => errors[field]
+      );
+      const elementId =
+        firstField === 'name'
+          ? 'sprint-name'
+          : firstField === 'milestoneId'
+            ? 'sprint-milestoneId'
+            : `sprint-${firstField}`;
+      queueMicrotask(() => document.getElementById(elementId)?.focus());
       return;
     }
-    if (somenteLeitura || formTasksCarregadasRef.current) return;
-    formTasksCarregadasRef.current = true;
-    setFormTasksLoading(true);
-    formTasksRequest
-      .run((signal) => scheduleApi.listProjectTasks(projectId, { signal }))
-      .then((resposta) => {
-        if (resposta) setProjectTasks(resposta.data.tasks || []);
-      })
-      .catch((requestError) => {
-        handleFailure(requestError, 'Não foi possível carregar as tarefas do projeto.');
-      })
-      .finally(() => setFormTasksLoading(false));
-  }, [loading, somenteLeitura, projectId, formTasksRequest, handleFailure]);
-
-  const submitSprint = async (event) => {
-    event.preventDefault();
-    const errors = validateSprintForm(sprintForm, { editing: Boolean(editingSprintId) });
-    setSprintErrors(errors);
-    if (Object.keys(errors).length) return;
 
     setSubmitting(true);
     try {
@@ -124,82 +255,107 @@ export function SprintsScreen() {
         endDate: fromDateTimeLocalInput(sprintForm.endDate),
         milestoneId: sprintForm.milestoneId ? Number(sprintForm.milestoneId) : null
       };
-      let alvoId = editingSprintId;
-      if (editingSprintId) {
-        await scheduleApi.updateSprint(editingSprintId, payload);
-      } else {
-        const { data } = await scheduleApi.createSprint(projectId, payload);
-        alvoId = data.sprint?.id ?? null;
+      const response = editing
+        ? await scheduleApi.updateSprint(editingId, payload)
+        : await scheduleApi.createSprint(projectId, payload);
+      const savedSprint = response.data.sprint || null;
+      const targetId = editingId || savedSprint?.id || null;
+
+      if (savedSprint) {
+        setSprints((current) => {
+          const exists = current.some((item) => item.id === savedSprint.id);
+          return exists
+            ? current.map((item) => (item.id === savedSprint.id ? savedSprint : item))
+            : [...current, savedSprint];
+        });
       }
 
-      const originais = editingSprintId
-        ? (scheduleById[editingSprintId]?.tasks || []).map((task) => task.id)
+      const originalTaskIds = editing
+        ? (scheduleById[editingId]?.tasks || []).map((task) => Number(task.id))
         : [];
-      const mudouTarefas =
-        formTaskIds.length !== originais.length ||
-        formTaskIds.some((id) => !originais.includes(id));
-      let avisoTarefas = null;
-      if (alvoId && mudouTarefas) {
+      const nextTaskIds = formTasks.map((task) => Number(task.id));
+      const tasksChanged =
+        nextTaskIds.length !== originalTaskIds.length ||
+        nextTaskIds.some((taskId) => !originalTaskIds.includes(taskId));
+      let taskAssociationFailed = false;
+
+      if (tasksChanged && targetId) {
         try {
-          await scheduleApi.replaceSprintTasks(alvoId, formTaskIds);
-        } catch (requestError) {
-          avisoTarefas = requestError;
+          await scheduleApi.replaceSprintTasks(targetId, nextTaskIds);
+        } catch {
+          taskAssociationFailed = true;
         }
+      } else if (tasksChanged && !targetId) {
+        taskAssociationFailed = true;
       }
 
+      setDialog(null);
       setSprintForm(emptySprintForm);
-      setEditingSprintId(null);
-      setFormTaskIds([]);
-      const atualizar = () => Promise.all([refreshSprints(), refreshSchedule()]);
-      if (avisoTarefas) {
-        fail('Sprint salva, mas não foi possível atualizar as tarefas da sprint.');
-        await atualizar().catch(() => {});
+      setFormTasks([]);
+      setSprintErrors({});
+      const refresh = () => Promise.all([refreshSprints(), refreshSchedule()]);
+      if (taskAssociationFailed) {
+        warn('Sprint salva, mas não foi possível atualizar suas tarefas. Revise a composição.');
+        try {
+          await refresh();
+        } catch {
+          warn(
+            'Sprint salva, mas as tarefas e os dados exibidos não puderam ser atualizados. Recarregue a página.'
+          );
+        }
       } else {
         await settle(
-          editingSprintId ? 'Sprint atualizada com sucesso.' : 'Sprint cadastrada com sucesso.',
-          atualizar
+          editing ? 'Sprint atualizada com sucesso.' : 'Sprint criada com sucesso.',
+          refresh
         );
       }
     } catch (requestError) {
-      handleFailure(requestError, 'Não foi possível salvar a sprint.');
+      setFormError(normalizeApiError(requestError, 'Não foi possível salvar a sprint.').message);
     } finally {
       setSubmitting(false);
     }
-  };
+  }
 
-  const editSprint = (sprint) => {
-    setEditingSprintId(sprint.id);
-    setSprintErrors({});
-    setSprintForm({
-      name: sprint.name || '',
-      objective: sprint.objective || '',
-      startDate: toDateTimeLocalInput(sprint.startDate),
-      endDate: toDateTimeLocalInput(sprint.endDate),
-      milestoneId: sprint.milestoneId ? String(sprint.milestoneId) : ''
-    });
-    setFormTaskIds((scheduleById[sprint.id]?.tasks || []).map((task) => task.id));
-  };
+  async function submitSprintTasks(taskIds) {
+    const sprint = dialogSprint;
+    if (!sprint) return;
+    const sprintId = sprint.id;
+    setSubmitting(true);
+    setTasksError('');
+    try {
+      await scheduleApi.replaceSprintTasks(sprintId, taskIds);
+      setDialog(null);
+      await settle(`Tarefas da sprint "${sprint.name}" atualizadas com sucesso.`, () =>
+        refreshSchedule()
+      );
+    } catch (requestError) {
+      if (selectedSprintRef.current !== sprintId) return;
+      setTasksError(
+        normalizeApiError(requestError, 'Não foi possível atualizar as tarefas da sprint.').message
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
-  useEffect(() => {
-    if (!editingSprintId) return;
-    formCardRef.current?.querySelector('input, select, textarea')?.focus();
-  }, [editingSprintId]);
-
-  const changeSprintStatus = async (sprint, status) => {
+  async function changeSprintStatus(sprint, status) {
     if (isTerminalTransition(status)) {
-      const pendentes = (scheduleById[sprint.id]?.tasks || []).filter(
+      const pending = (scheduleById[sprint.id]?.tasks || []).filter(
         (task) => task.status !== 'CONCLUIDO'
       ).length;
-      const confirmed = await confirm(sprintTerminalConfirm(sprint, status, pendentes));
+      const confirmed = await confirm(sprintTerminalConfirm(sprint, status, pending));
       if (!confirmed) return;
     }
 
     setBusySprintId(sprint.id);
     try {
       const { data } = await scheduleApi.updateSprintStatus(sprint.id, status);
-      setSprints((current) => current.map((item) => (item.id === sprint.id ? data.sprint : item)));
-      if (selectedSprint?.id === sprint.id) setSelectedSprint(data.sprint);
-      await settle(data.message, () =>
+      if (data.sprint) {
+        setSprints((current) =>
+          current.map((item) => (item.id === sprint.id ? data.sprint : item))
+        );
+      }
+      await settle(data.message || 'Status da sprint atualizado com sucesso.', () =>
         Promise.all([
           refreshSchedule(),
           data.milestoneCompleted ? refreshMilestones() : Promise.resolve()
@@ -210,102 +366,21 @@ export function SprintsScreen() {
     } finally {
       setBusySprintId(null);
     }
-  };
+  }
 
-  const selectSprint = async (sprint) => {
-    if (selectedSprint?.id === sprint.id) {
-      selectedSprintRef.current = null;
-      sprintTasksRequest.cancel();
-      setSelectedSprint(null);
-      return;
-    }
-    selectedSprintRef.current = sprint.id;
-    setSelectedSprint(sprint);
-    setSelectedTaskIds([]);
-    setSprintTasks([]);
-    setTasksLoading(true);
-    try {
-      const resultado = await sprintTasksRequest.run(async (signal) => {
-        const [projeto, daSprint] = await Promise.all([
-          projectTasks.length ? null : scheduleApi.listProjectTasks(projectId, { signal }),
-          scheduleApi.listSprintTasks(sprint.id, { signal })
-        ]);
-        return { projeto, daSprint };
-      });
-      if (!resultado || selectedSprintRef.current !== sprint.id) return;
-      if (resultado.projeto) setProjectTasks(resultado.projeto.data.tasks || []);
-      const tarefas = resultado.daSprint.data.tasks || [];
-      setSprintTasks(tarefas);
-      setSelectedTaskIds(tarefas.map((task) => task.id));
-    } catch (requestError) {
-      if (selectedSprintRef.current !== sprint.id) return;
-      selectedSprintRef.current = null;
-      setSelectedSprint(null);
-      handleFailure(requestError, 'Não foi possível carregar as tarefas da sprint.');
-    } finally {
-      if (selectedSprintRef.current === sprint.id) setTasksLoading(false);
-    }
-  };
+  function changeFilter(field, value, selectedOption) {
+    setFilters((current) => ({ ...current, [field]: value }));
+    if (field === 'taskId') setSelectedFilterTask(selectedOption || null);
+  }
 
-  const showProgress = async (sprint) => {
-    if (progressSprint?.id === sprint.id) {
-      progressSprintRef.current = null;
-      progressRequest.cancel();
-      setProgressSprint(null);
-      setProgress(null);
-      return;
-    }
-    progressSprintRef.current = sprint.id;
-    setProgressSprint(sprint);
-    setProgress(null);
-    setProgressLoading(true);
-    try {
-      const resposta = await progressRequest.run((signal) =>
-        scheduleApi.getSprintProgress(sprint.id, { signal })
-      );
-      if (!resposta || progressSprintRef.current !== sprint.id) return;
-      setProgress(resposta.data);
-    } catch (requestError) {
-      if (progressSprintRef.current !== sprint.id) return;
-      progressSprintRef.current = null;
-      setProgressSprint(null);
-      handleFailure(requestError, 'Não foi possível calcular a evolução da sprint.');
-    } finally {
-      if (progressSprintRef.current === sprint.id) setProgressLoading(false);
-    }
-  };
-
-  const submitSprintTasks = async (taskIds) => {
-    const sprintId = selectedSprint.id;
-    const sprintName = selectedSprint.name;
-    setSubmitting(true);
-    try {
-      await scheduleApi.replaceSprintTasks(sprintId, taskIds);
-      await settle(`Tarefas da sprint "${sprintName}" atualizadas com sucesso.`, async () => {
-        await refreshSchedule();
-        if (selectedSprintRef.current !== sprintId) return;
-
-        const resultado = await sprintTasksRequest.run((signal) =>
-          scheduleApi.listSprintTasks(sprintId, { signal })
-        );
-        if (!resultado || selectedSprintRef.current !== sprintId) return;
-        const tarefas = resultado.data.tasks || [];
-        setSprintTasks(tarefas);
-        setSelectedTaskIds(tarefas.map((task) => task.id));
-      });
-    } catch (requestError) {
-      if (selectedSprintRef.current !== sprintId) return;
-      handleFailure(requestError, 'Não foi possível atualizar as tarefas da sprint.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const viewInKanban = (sprint) => navigate(`/projects/${projectId}/kanban?sprint=${sprint.id}`);
+  function clearFilters() {
+    setFilters({ ...SPRINT_FILTER_DEFAULTS });
+    setSelectedFilterTask(null);
+  }
 
   if (loading) {
     return (
-      <main className="page-container">
+      <main className="page-container sprints-screen">
         <LoadingState message="Carregando sprints..." />
       </main>
     );
@@ -313,7 +388,7 @@ export function SprintsScreen() {
 
   if (forbidden) {
     return (
-      <main className="page-container">
+      <main className="page-container sprints-screen">
         <ForbiddenState message="Você não possui acesso ao cronograma deste projeto." />
       </main>
     );
@@ -321,122 +396,137 @@ export function SprintsScreen() {
 
   if (error && !sprints.length) {
     return (
-      <main className="page-container">
+      <main className="page-container sprints-screen">
         <ErrorState message={error} onRetry={() => loadAll()} />
       </main>
     );
   }
 
-  const concluidas = sprints.filter((item) => item.status === 'CONCLUIDA').length;
-
   return (
-    <main className="page-container">
-      <header className="page-header">
+    <main className="page-container sprints-screen">
+      <header className="page-header sprints-screen__header">
         <div>
           <span className="eyebrow">Planejamento</span>
           <h1>Sprints{project ? ` — ${project.name}` : ''}</h1>
           <p>
-            Planeje, inicie e conclua sprints. Apenas uma sprint pode estar em andamento por vez.
+            Organize períodos de trabalho, acompanhe o progresso e consulte a evolução das entregas.
           </p>
         </div>
         <ProjectSectionNav projectId={projectId} activeSection="sprints" />
       </header>
+
       <FeedbackRegion error={error} success={success} warning={staleWarning} />
+      <SprintsSummary sprints={sprints} scheduleById={scheduleById} />
+      <SprintFilters
+        filters={filters}
+        milestones={milestones}
+        selectedMilestone={selectedFilterMilestone}
+        selectedTask={selectedFilterTask}
+        total={sprints.length}
+        filteredTotal={visibleSprints.length}
+        onChange={changeFilter}
+        onTaskSearch={searchProjectTasks}
+        onClear={clearFilters}
+      />
+      <SprintList
+        sprints={visibleSprints}
+        scheduleById={scheduleById}
+        milestoneNames={milestoneNames}
+        busySprintId={busySprintId}
+        activeSprintName={activeSprint?.name || ''}
+        readOnly={somenteLeitura}
+        filtered={filtersActive}
+        onCreate={openCreate}
+        onTasks={openTasks}
+        onProgress={openProgress}
+        onEdit={openEdit}
+        onChangeStatus={changeSprintStatus}
+        onViewInKanban={(sprint) => navigate(`/projects/${projectId}/kanban?sprint=${sprint.id}`)}
+        listRef={gridRef}
+      />
 
-      <div className="schedule-columns schedule-columns--unica">
-        {!somenteLeitura && (
-          <section className="card" ref={formCardRef}>
-            <h2>{editingSprintId ? 'Editar sprint' : 'Cadastrar sprint'}</h2>
-            <SprintForm
-              formData={sprintForm}
-              milestones={milestones}
-              tasks={projectTasks}
+      <SprintDialog
+        open={FORM_DIALOGS.has(dialog?.type)}
+        title={dialog?.type === 'edit' ? 'Editar sprint' : 'Criar sprint'}
+        description={
+          dialog?.type === 'edit'
+            ? 'Atualize os dados e a composição da sprint enquanto ela estiver aberta.'
+            : 'Defina o período, o marco e as tarefas que entram no planejamento inicial.'
+        }
+        initialFocusSelector="#sprint-name"
+        returnFocusRef={dialogReturnFocusRef}
+        busy={submitting}
+        onClose={closeDialog}
+      >
+        {formError && <ErrorState message={formError} />}
+        <SprintForm
+          formData={sprintForm}
+          milestones={milestones}
+          selectedTasks={formTasks}
+          sprintNames={sprintNames}
+          editingSprintId={dialog?.type === 'edit' ? dialog.sprint.id : null}
+          errors={sprintErrors}
+          editing={dialog?.type === 'edit'}
+          submitting={submitting}
+          onChange={(field, value) => setSprintForm((current) => ({ ...current, [field]: value }))}
+          onTasksChange={setFormTasks}
+          onTaskSearch={searchProjectTasks}
+          onSubmit={submitSprint}
+          onCancel={closeDialog}
+        />
+      </SprintDialog>
+
+      <SprintDialog
+        open={dialog?.type === 'tasks'}
+        title={`Tarefas da ${dialogSprint?.name || 'sprint'}`}
+        description="Consulte o planejamento, as mudanças de escopo e a composição atual."
+        size="large"
+        returnFocusRef={dialogReturnFocusRef}
+        busy={submitting}
+        onClose={closeDialog}
+      >
+        {tasksError ? (
+          <ErrorState message={tasksError} onRetry={() => loadTasksDialog(dialogSprint)} />
+        ) : (
+          dialogSprint && (
+            <SprintTasksPanel
+              sprint={dialogSprint}
+              sprintTasks={sprintTasks}
               sprintNames={sprintNames}
-              taskIds={formTaskIds}
-              tasksLoading={formTasksLoading}
-              editingSprintId={editingSprintId}
-              errors={sprintErrors}
-              editing={Boolean(editingSprintId)}
+              progress={tasksProgress}
+              loading={tasksLoading}
               submitting={submitting}
-              onChange={(field, value) => setSprintForm({ ...sprintForm, [field]: value })}
-              onToggleTask={(taskId) =>
-                setFormTaskIds((current) =>
-                  current.includes(taskId)
-                    ? current.filter((id) => id !== taskId)
-                    : [...current, taskId]
-                )
-              }
-              onSubmit={submitSprint}
-              onCancel={() => {
-                setEditingSprintId(null);
-                setSprintForm(emptySprintForm);
-                setSprintErrors({});
-                setFormTaskIds([]);
-                formCardRef.current?.querySelector('input, select, textarea')?.focus();
-              }}
+              readOnly={somenteLeitura}
+              onTaskSearch={searchProjectTasks}
+              onSubmit={submitSprintTasks}
+              onCancel={closeDialog}
             />
-          </section>
+          )
         )}
+      </SprintDialog>
 
-        <section className="card">
-          <div className="schedule-card-header">
-            <h2>Sprints do projeto</h2>
-            <span className="agenda-window">
-              {sprints.length} {sprints.length === 1 ? 'sprint' : 'sprints'} · {concluidas}{' '}
-              {concluidas === 1 ? 'concluída' : 'concluídas'}
-            </span>
-          </div>
-
-          <SprintList
-            sprints={sprints}
-            scheduleById={scheduleById}
-            milestoneNames={milestoneNames}
-            selectedSprintId={selectedSprint?.id}
-            busySprintId={busySprintId}
-            progressSprintId={progressSprint?.id ?? null}
-            activeSprintName={activeSprint?.name || ''}
-            readOnly={somenteLeitura}
-            onSelect={selectSprint}
-            onShowProgress={showProgress}
-            onEdit={editSprint}
-            onChangeStatus={changeSprintStatus}
-            onViewInKanban={viewInKanban}
-          />
-        </section>
-
-        {progressSprint && (
-          <SprintProgressPanel
-            sprint={progressSprint}
-            scheduleSprint={scheduleById[progressSprint.id]}
-            progress={progress}
-            loading={progressLoading}
-            onClose={() => {
-              progressSprintRef.current = null;
-              progressRequest.cancel();
-              setProgressSprint(null);
-              setProgress(null);
-            }}
-          />
+      <SprintDialog
+        open={dialog?.type === 'progress'}
+        title={`Evolução da ${dialogSprint?.name || 'sprint'}`}
+        description="Indicadores de progresso, mudanças de escopo e burndown do período."
+        size="wide"
+        returnFocusRef={dialogReturnFocusRef}
+        onClose={closeDialog}
+      >
+        {progressError ? (
+          <ErrorState message={progressError} onRetry={() => loadProgressDialog(dialogSprint)} />
+        ) : (
+          dialogSprint && (
+            <SprintProgressPanel
+              sprint={dialogSprint}
+              scheduleSprint={scheduleById[dialogSprint.id]}
+              progress={progress}
+              loading={progressLoading}
+              onClose={closeDialog}
+            />
+          )
         )}
-        {selectedSprint && (
-          <SprintTasksPanel
-            sprint={selectedSprint}
-            tasks={projectTasks}
-            sprintTasks={sprintTasks}
-            selectedTaskIds={selectedTaskIds}
-            sprintNames={sprintNames}
-            loading={tasksLoading}
-            submitting={submitting}
-            readOnly={somenteLeitura}
-            onSubmit={submitSprintTasks}
-            onCancel={() => {
-              selectedSprintRef.current = null;
-              sprintTasksRequest.cancel();
-              setSelectedSprint(null);
-            }}
-          />
-        )}
-      </div>
+      </SprintDialog>
     </main>
   );
 }
