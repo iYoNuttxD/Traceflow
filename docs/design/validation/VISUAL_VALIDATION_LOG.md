@@ -111,4 +111,5 @@ The following materially changed areas require a new rendered record before they
 - Members tabs, including roving focus and panel associations;
 - Account partial-save and Integrations cooldown feedback;
 - SensitiveActionDialog busy, error, cancel, Escape, and post-success focus;
+- UX-PLANNING-SPRINTS em Light/Dark, sidebar expandida/recolhida, tablet e mobile;
 - legacy Dark-compatible operational surfaces and Task Details modal layering.

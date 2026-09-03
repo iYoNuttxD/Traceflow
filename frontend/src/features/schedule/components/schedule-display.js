@@ -103,6 +103,14 @@ export function formatSprintPeriod(sprint) {
   return `${formatInstant(sprint.startDate)} a ${formatInstant(sprint.endDate)}`;
 }
 
+export function formatSprintCardPeriod(sprint) {
+  const compact = (value) => {
+    const formatted = formatCalendarDate(value);
+    return formatted === 'Não informado' ? formatted : formatted.slice(0, 5);
+  };
+  return `${compact(sprint.startDate)} – ${compact(sprint.endDate)}`;
+}
+
 export function sprintTerminalConfirm(sprint, status, pendentes) {
   if (status === 'CONCLUIDA') {
     return {
