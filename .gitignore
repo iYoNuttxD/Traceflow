@@ -1,4 +1,3 @@
-# Dependências, artefatos gerados e configurações locais.
 node_modules/
 .env
 .env.local
@@ -20,16 +19,10 @@ frontend/.env
 .vscode/
 rest.http
 
-# Ferramenta de design (Claude Design): estado de trabalho, nao artefato do
-# produto. Regenera sob demanda e envelhece calado — o pacote versionado ate
-# 01/09/2026 ainda descrevia um Traceflow sem design tokens e apontava para
-# Layout.jsx/Navbar.jsx, ja removidos.
 .design-sync/
 .ds-sync/
 ds-bundle/
 
-# Residuo de rodar npm na raiz: o package.json daqui so tem scripts, sem
-# dependencias. Os locks de backend/ e frontend/ continuam versionados.
 /package-lock.json
 
 docs/design/experiments/

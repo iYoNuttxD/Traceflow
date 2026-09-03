@@ -46,6 +46,10 @@ export const taskIssueParamsSchema = strictObject({
   id: positiveInteger('ID da tarefa inválido.'),
   issueId: positiveInteger('ID da issue inválido.')
 });
+export const taskCommentParamsSchema = strictObject({
+  id: positiveInteger('ID da tarefa inválido.'),
+  commentId: positiveInteger('ID do comentário inválido.')
+});
 
 const taskFields = {
   title: requiredText({ message: 'O título da tarefa é obrigatório.' }),
@@ -89,6 +93,18 @@ export const taskIssueBodySchema = strictObject({
 });
 export const moveTaskBodySchema = strictObject({
   toStatus: taskStatus
+});
+
+export const taskCommentBodySchema = strictObject({
+  content: requiredText({
+    field: 'Comentário',
+    max: 2000,
+    message: 'O comentário não pode ser vazio.'
+  })
+});
+export const taskCommentListQuerySchema = strictObject({
+  before: z.string().trim().min(1).max(256).optional(),
+  limit: paginationSchema.limit
 });
 
 export const taskSearchQuerySchema = strictObject({ search: searchText });

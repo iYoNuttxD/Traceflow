@@ -1,5 +1,5 @@
 import { MemoryRouter, Route, Routes, useNavigate } from 'react-router';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfirmProvider } from '../../src/shared/index.js';
@@ -54,6 +54,21 @@ const board = {
   totals: { A_FAZER: 1, EM_ANDAMENTO: 0, CONCLUIDO: 0, total: 1 }
 };
 
+let navigateKanban;
+
+function deferred() {
+  let resolve;
+  const promise = new Promise((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
+function KanbanHarness() {
+  navigateKanban = useNavigate();
+  return <KanbanPage />;
+}
+
 function historyResponse(overrides = {}) {
   return {
     data: {
@@ -65,15 +80,15 @@ function historyResponse(overrides = {}) {
   };
 }
 
-function renderPage() {
+function renderPage(initialEntry = '/projects/1/kanban') {
   return render(
-    <MemoryRouter initialEntries={['/projects/1/kanban']}>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
         <Route
           path="/projects/:projectId/kanban"
           element={
             <ConfirmProvider>
-              <KanbanPage />
+              <KanbanHarness />
             </ConfirmProvider>
           }
         />
@@ -98,6 +113,7 @@ function dragTaskTo(columnName) {
 describe('KanbanPage E11', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    navigateKanban = undefined;
     mocks.api.get.mockResolvedValue({ data: { project: { id: 1, name: 'Projeto E11' } } });
     mocks.kanbanApi.getBoard.mockResolvedValue({ data: board });
     mocks.kanbanApi.getMetrics.mockResolvedValue({
@@ -194,12 +210,57 @@ describe('KanbanPage E11', () => {
     expect(await screen.findByText(/Status: A Fazer para Em Andamento/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Próxima' }));
     await waitFor(() =>
-      expect(mocks.kanbanApi.listTaskHistory).toHaveBeenLastCalledWith('1', {
-        page: 2,
-        limit: 10
-      })
+      expect(mocks.kanbanApi.listTaskHistory).toHaveBeenLastCalledWith(
+        '1',
+        {
+          page: 2,
+          limit: 10
+        },
+        { signal: expect.any(AbortSignal) }
+      )
     );
     expect(await screen.findByText(/Prioridade: Média para Alta/)).toBeInTheDocument();
+  });
+
+  it('não faz GET periódico nem reage a focus/visibility depois da carga inicial', async () => {
+    renderPage();
+    await screen.findByText('Tarefa E11');
+    expect(mocks.kanbanApi.getBoard).toHaveBeenCalledOnce();
+
+    vi.useFakeTimers();
+    await act(async () => {
+      vi.advanceTimersByTime(60_000);
+      window.dispatchEvent(new Event('focus'));
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    vi.useRealTimers();
+    expect(mocks.kanbanApi.getBoard).toHaveBeenCalledOnce();
+  });
+
+  it('invalida resposta do Project A depois de navegar para o Project B', async () => {
+    const projectA = deferred();
+    const taskB = { ...task, id: 8, projectId: 2, title: 'Tarefa do projeto B' };
+    const boardB = {
+      columns: { A_FAZER: [taskB], EM_ANDAMENTO: [], CONCLUIDO: [] },
+      totals: { A_FAZER: 1, EM_ANDAMENTO: 0, CONCLUIDO: 0, total: 1 }
+    };
+    mocks.kanbanApi.getBoard
+      .mockReset()
+      .mockReturnValueOnce(projectA.promise)
+      .mockResolvedValueOnce({ data: boardB });
+    renderPage();
+    await waitFor(() => expect(mocks.kanbanApi.getBoard).toHaveBeenCalledTimes(1));
+
+    await act(async () => navigateKanban('/projects/2/kanban'));
+    expect(await screen.findByText('Tarefa do projeto B')).toBeInTheDocument();
+
+    await act(async () => {
+      projectA.resolve({ data: board });
+      await Promise.resolve();
+    });
+    expect(screen.getByText('Tarefa do projeto B')).toBeInTheDocument();
+    expect(screen.queryByText('Tarefa E11')).not.toBeInTheDocument();
+    expect(mocks.kanbanApi.getBoard.mock.calls.map(([id]) => id)).toEqual(['1', '2']);
   });
 
   it('apresenta projeto inexistente em fallback recuperável', async () => {

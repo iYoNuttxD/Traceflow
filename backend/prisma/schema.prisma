@@ -168,6 +168,8 @@ model User {
   emailChangeRequests              EmailChangeRequest[]
   accountReactivationTokens        AccountReactivationToken[]
   requestedGitHubSyncRuns          GitHubSyncRun[]
+  taskComments                     TaskComment[]                     @relation("TaskCommentAuthor")
+  deletedTaskComments              TaskComment[]                     @relation("TaskCommentDeleter")
 
   @@index([accountStatus])
 }
@@ -316,6 +318,7 @@ model Project {
   tasks                  Task[]
   taskMovements          TaskMovement[]
   taskHistoryEntries     TaskHistoryEntry[]
+  taskComments           TaskComment[]
   commits                Commit[]
   pullRequests           PullRequest[]
   issues                 Issue[]
@@ -587,6 +590,7 @@ model Task {
   sprintParticipations SprintTask[]
   movements         TaskMovement[]
   historyEntries    TaskHistoryEntry[]
+  comments          TaskComment[]
   commitLinks       TaskCommit[]
   commitSuggestions TaskCommitSuggestion[]
   issueLinks        TaskIssue[]
@@ -767,6 +771,33 @@ model TaskHistoryEntry {
   @@index([taskId, occurredAt])
   @@index([actorUserId, occurredAt])
   @@index([field, occurredAt])
+}
+
+// Comentário persistido da tarefa (RF29/RF31). Autoria vem da sessão autenticada.
+// Exclusão é lógica: deletedAt/deletedById preservam o registro para auditoria e a
+// listagem preserva comentários excluídos como tombstones para manter o histórico.
+model TaskComment {
+  id           Int       @id @default(autoincrement())
+  projectId    Int
+  taskId       Int
+  authorUserId Int
+  content      String    @db.Text
+  editedAt     DateTime?
+  deletedAt    DateTime?
+  deletedById  Int?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task       Task    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  authorUser User    @relation("TaskCommentAuthor", fields: [authorUserId], references: [id])
+  deletedBy  User?   @relation("TaskCommentDeleter", fields: [deletedById], references: [id], onDelete: SetNull)
+
+  @@index([taskId, deletedAt, createdAt])
+  @@index([taskId, createdAt, id])
+  @@index([projectId, createdAt])
+  @@index([authorUserId])
+  @@index([deletedById])
 }
 
 // Commit importado do repositorio GitHub vinculado ao projeto.
