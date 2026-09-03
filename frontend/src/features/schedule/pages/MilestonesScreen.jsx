@@ -44,7 +44,6 @@ export function MilestonesScreen() {
   const gridRef = useRef(null);
 
   const {
-    project,
     schedule,
     sprints,
     milestones,
@@ -324,7 +323,7 @@ export function MilestonesScreen() {
       <header className="page-header milestones-screen__header">
         <div>
           <span className="eyebrow">Planejamento</span>
-          <h1>Marcos{project ? ` — ${project.name}` : ''}</h1>
+          <h1>Marcos</h1>
           <p>
             Agrupe Sprints em objetivos de entrega e acompanhe o progresso até seus principais
             prazos.

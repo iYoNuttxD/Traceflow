@@ -1,4 +1,5 @@
 import { TraceFlowIcon } from '../../../shared/index.js';
+import { CollapsibleFilterPanel } from './CollapsibleFilterPanel.jsx';
 import { SearchCombobox } from './SearchCombobox.jsx';
 import { formatSprintCardPeriod, sprintStatusLabels } from './schedule-display.js';
 import { hasMilestoneFilters } from './milestone-view.js';
@@ -15,21 +16,25 @@ export function MilestoneFilters({
   onClear
 }) {
   const active = hasMilestoneFilters(filters);
+  const activeCount = Object.entries(filters).filter(([field, value]) =>
+    field === 'search' ? Boolean(value.trim()) : Boolean(value)
+  ).length;
   const resultLabel = active ? `${filteredTotal} de ${total} marcos` : `${total} marcos`;
 
   return (
-    <section className="milestone-filters" aria-labelledby="milestone-filters-title">
-      <div className="milestone-filters__heading">
-        <div>
-          <h2 id="milestone-filters-title">Buscar e filtrar</h2>
-          <span aria-live="polite">{resultLabel}</span>
-        </div>
-        {active && (
+    <CollapsibleFilterPanel
+      id="milestone-filters-controls"
+      className="milestone-filters"
+      resultLabel={resultLabel}
+      activeCount={activeCount}
+    >
+      {active && (
+        <div className="planning-filter-panel__actions">
           <button type="button" className="milestone-filters__clear" onClick={onClear}>
             Limpar filtros
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       <div className="milestone-filters__controls">
         <label className="milestone-filter milestone-filter--search">
@@ -108,6 +113,6 @@ export function MilestoneFilters({
           />
         </label>
       </div>
-    </section>
+    </CollapsibleFilterPanel>
   );
 }

@@ -8,8 +8,7 @@ import './ScheduleScreen.css';
 
 export function ScheduleScreen() {
   const { projectId } = useParams();
-  const { project, schedule, loading, forbidden, error, success, loadAll } =
-    useScheduleData(projectId);
+  const { schedule, loading, forbidden, error, success, loadAll } = useScheduleData(projectId);
 
   if (loading) {
     return (
@@ -40,7 +39,7 @@ export function ScheduleScreen() {
       <header className="page-header schedule-screen__header">
         <div>
           <span className="eyebrow">Planejamento</span>
-          <h1>Cronograma{project ? ` — ${project.name}` : ''}</h1>
+          <h1>Cronograma</h1>
           <p>
             Visualize períodos de Sprints, prazos de Marcos e deadlines de tarefas em uma única
             linha temporal operacional.

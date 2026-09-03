@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  allocateSprintLanes,
   buildMonthGrid,
   getCurrentScheduleSummary,
   getDayContext,
@@ -272,7 +273,7 @@ describe('getCurrentScheduleSummary', () => {
     expect(result.nextMilestone).toMatchObject({ day: '2026-09-30', overdue: false });
     expect(result.nextMilestone.progress).toEqual({ total: 1, done: 0 });
     expect(result.nextDeadline.title).toBe('#10 Login do usuário');
-    expect(result.attention.total).toBe(0);
+    expect(result.deadlines.total).toBe(0);
   });
 
   it('expõe explicitamente a ausência de Sprint e Marco', () => {
@@ -299,7 +300,7 @@ describe('getCurrentScheduleSummary', () => {
     expect(result.nextMilestone.overdue).toBe(true);
   });
 
-  it('conta Sprint, Marco e tarefa já atrasados sem threshold de atenção', () => {
+  it('conta somente Marco e tarefa já atrasados sem inventar atraso de Sprint', () => {
     const lateSprint = sprint({ endDate: '2026-09-09T18:00:00' });
     const result = getCurrentScheduleSummary({
       sprints: [lateSprint],
@@ -307,12 +308,12 @@ describe('getCurrentScheduleSummary', () => {
       tasks: tasksFrom([], [task({ deadline: '2026-09-09T18:00:00' })]),
       todayDay: TODAY
     });
-    expect(result.attention).toMatchObject({
-      total: 3,
-      sprintCount: 1,
+    expect(result.deadlines).toMatchObject({
+      total: 2,
       milestoneCount: 1,
       taskCount: 1
     });
+    expect(result.deadlines.items.some((item) => item.type === 'Sprint')).toBe(false);
   });
 
   it('não rotula como atenção um prazo futuro próximo', () => {
@@ -321,7 +322,7 @@ describe('getCurrentScheduleSummary', () => {
       tasks: tasksFrom([], [task({ deadline: '2026-09-11T08:00:00' })]),
       todayDay: TODAY
     });
-    expect(result.attention.total).toBe(0);
+    expect(result.deadlines.total).toBe(0);
   });
 
   it('ignora itens concluídos no total atrasado', () => {
@@ -332,7 +333,69 @@ describe('getCurrentScheduleSummary', () => {
       tasks: tasksFrom([], [task({ deadline: '2026-09-09T08:00:00', status: 'CONCLUIDO' })]),
       todayDay: TODAY
     });
-    expect(result.attention.total).toBe(0);
+    expect(result.deadlines.total).toBe(0);
+  });
+
+  it('não infere atraso de tarefa a partir de um dia derivado sem deadline próprio', () => {
+    const result = getCurrentScheduleSummary({
+      tasks: [
+        {
+          ...task({ deadline: null }),
+          day: '2026-09-09',
+          sprintEndDay: '2026-09-09',
+          milestoneDueDay: '2026-09-09'
+        }
+      ],
+      todayDay: TODAY
+    });
+    expect(result.deadlines.total).toBe(0);
+    expect(result.deadlines.taskCount).toBe(0);
+  });
+
+  it('distingue tarefa futura, vencida e concluída com prazo vencido', () => {
+    const result = getCurrentScheduleSummary({
+      tasks: tasksFrom(
+        [],
+        [
+          task({ id: 1, deadline: '2026-09-11T08:00:00' }),
+          task({ id: 2, deadline: '2026-09-09T08:00:00' }),
+          task({ id: 3, deadline: '2026-09-08T08:00:00', status: 'CONCLUIDO' })
+        ]
+      ),
+      todayDay: TODAY
+    });
+    expect(result.deadlines).toMatchObject({ total: 1, milestoneCount: 0, taskCount: 1 });
+    expect(result.deadlines.items[0].title).toContain('#2');
+  });
+
+  it('compara deadline de tarefa pelo instante no próprio dia', () => {
+    const result = getCurrentScheduleSummary({
+      tasks: tasksFrom(
+        [],
+        [
+          task({ id: 1, deadline: '2026-09-10T08:00:00' }),
+          task({ id: 2, deadline: '2026-09-10T18:00:00' })
+        ]
+      ),
+      todayDay: TODAY,
+      now: new Date(2026, 8, 10, 12, 0, 0)
+    });
+    expect(result.deadlines).toMatchObject({ total: 1, taskCount: 1 });
+    expect(result.deadlines.items[0].title).toContain('#1');
+    expect(result.nextDeadline.title).toContain('#2');
+  });
+
+  it('distingue Marco futuro, vencido e concluído', () => {
+    const result = getCurrentScheduleSummary({
+      milestones: [
+        milestone({ id: 1, dueDate: '2026-09-11T08:00:00' }),
+        milestone({ id: 2, dueDate: '2026-09-09T08:00:00', overdue: true }),
+        milestone({ id: 3, dueDate: '2026-09-08T08:00:00', status: 'CONCLUIDO' })
+      ],
+      todayDay: TODAY
+    });
+    expect(result.deadlines).toMatchObject({ total: 1, milestoneCount: 1, taskCount: 0 });
+    expect(result.deadlines.items[0].title).toBe('Entrega final');
   });
 });
 
@@ -381,14 +444,47 @@ describe('getUpcomingDeadlines', () => {
     expect(result).toEqual([]);
   });
 
-  it('respeita o limite configurado', () => {
+  it('preserva todos os prazos futuros sem truncamento funcional', () => {
     const tasks = tasksFrom(
       [],
       Array.from({ length: 8 }, (_, index) =>
         task({ id: index + 1, deadline: `2026-09-${String(index + 11).padStart(2, '0')}T08:00:00` })
       )
     );
-    expect(getUpcomingDeadlines({ tasks, todayDay: TODAY, limit: 5 })).toHaveLength(5);
+    expect(getUpcomingDeadlines({ tasks, todayDay: TODAY })).toHaveLength(8);
+  });
+});
+
+describe('allocateSprintLanes', () => {
+  const interval = (id, visibleStart, visibleEnd) => ({
+    sprint: sprint({ id, name: `Sprint ${id}` }),
+    visibleStart,
+    visibleEnd
+  });
+
+  it('mantém uma única Sprint na primeira lane', () => {
+    expect(allocateSprintLanes([interval(1, '2026-09-01', '2026-09-05')])[0].lane).toBe(0);
+  });
+
+  it('distribui intervalos sobrepostos em lanes determinísticas', () => {
+    const ranges = [
+      interval(3, '2026-09-03', '2026-09-06'),
+      interval(1, '2026-09-01', '2026-09-05'),
+      interval(2, '2026-09-02', '2026-09-04')
+    ];
+    expect(allocateSprintLanes(ranges).map(({ sprint, lane }) => [sprint.id, lane])).toEqual([
+      [1, 0],
+      [2, 1],
+      [3, 2]
+    ]);
+  });
+
+  it('reutiliza lane somente quando os intervalos não se sobrepõem', () => {
+    const result = allocateSprintLanes([
+      interval(1, '2026-09-01', '2026-09-02'),
+      interval(2, '2026-09-03', '2026-09-04')
+    ]);
+    expect(result.map((item) => item.lane)).toEqual([0, 0]);
   });
 });
 
@@ -422,6 +518,8 @@ describe('buildMonthGrid', () => {
     const saturday = cells.find((cell) => cell.day === '2026-09-12').sprintSegments[0];
     expect(sunday.beginsSegment).toBe(true);
     expect(saturday.endsSegment).toBe(true);
+    expect(sunday.lane).toBe(0);
+    expect(saturday.lane).toBe(0);
   });
 
   it('recorta uma Sprint que cruza o mês sem perder a continuidade', () => {
@@ -451,6 +549,17 @@ describe('buildMonthGrid', () => {
     const cells = grid();
     expect(cells.find((cell) => cell.day === '2026-09-30').milestoneCount).toBe(1);
     expect(cells.find((cell) => cell.day === '2026-09-10').milestoneCount).toBe(0);
+  });
+
+  it('limita as faixas visíveis e informa overflow sem perder o contexto', () => {
+    const overlapping = Array.from({ length: 5 }, (_, index) =>
+      sprint({ id: index + 1, name: `Sprint ${index + 1}` })
+    );
+    const cell = grid({ sprints: overlapping }).find((item) => item.day === TODAY);
+    expect(cell.sprintSegments).toHaveLength(3);
+    expect(cell.sprintSegments.map((segment) => segment.lane)).toEqual([0, 1, 2]);
+    expect(cell.sprintOverflowCount).toBe(2);
+    expect(cell.context.activeSprints).toHaveLength(5);
   });
 
   it('nomeia cada botão com data e tipos de eventos', () => {

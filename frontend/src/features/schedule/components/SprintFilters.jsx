@@ -1,4 +1,5 @@
 import { TraceFlowIcon } from '../../../shared/index.js';
+import { CollapsibleFilterPanel } from './CollapsibleFilterPanel.jsx';
 import { SearchCombobox } from './SearchCombobox.jsx';
 import { hasSprintFilters } from './sprint-view.js';
 
@@ -17,21 +18,25 @@ export function SprintFilters({
   onClear
 }) {
   const active = hasSprintFilters(filters);
+  const activeCount = Object.entries(filters).filter(([field, value]) =>
+    field === 'search' ? Boolean(value.trim()) : Boolean(value)
+  ).length;
   const resultLabel = active ? `${filteredTotal} de ${total} sprints` : `${total} sprints`;
 
   return (
-    <section className="sprint-filters" aria-labelledby="sprint-filters-title">
-      <div className="sprint-filters__heading">
-        <div>
-          <h2 id="sprint-filters-title">Buscar e filtrar</h2>
-          <span aria-live="polite">{resultLabel}</span>
-        </div>
-        {active && (
+    <CollapsibleFilterPanel
+      id="sprint-filters-controls"
+      className="sprint-filters"
+      resultLabel={resultLabel}
+      activeCount={activeCount}
+    >
+      {active && (
+        <div className="planning-filter-panel__actions">
           <button type="button" className="sprint-filters__clear" onClick={onClear}>
             Limpar filtros
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       <div className="sprint-filters__controls">
         <label className="sprint-filter sprint-filter--search">
@@ -110,6 +115,6 @@ export function SprintFilters({
           />
         </label>
       </div>
-    </section>
+    </CollapsibleFilterPanel>
   );
 }

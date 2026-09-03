@@ -31,10 +31,29 @@ const DIAS_SEMANA = [
 ];
 
 export const INICIAIS_SEMANA = DIAS_SEMANA.map((dia) => dia.charAt(0).toUpperCase());
+export const MAX_VISIBLE_SPRINT_LANES = 3;
 
 const pad = (valor) => String(valor).padStart(2, '0');
 const compareByDay = (a, b) =>
   a.day < b.day ? -1 : a.day > b.day ? 1 : String(a.key).localeCompare(String(b.key));
+
+function toInstant(value) {
+  if (!value) return null;
+  const instant = value instanceof Date ? value.getTime() : new Date(String(value)).getTime();
+  return Number.isNaN(instant) ? null : instant;
+}
+
+function referenceInstant(now, todayDay) {
+  const current = toInstant(now);
+  if (current !== null) return current;
+  return todayDay ? toInstant(`${todayDay}T00:00:00`) : null;
+}
+
+function hasPassed(value, now, todayDay) {
+  const instant = toInstant(value);
+  const reference = referenceInstant(now, todayDay);
+  return instant !== null && reference !== null && instant < reference;
+}
 
 export function toIsoDay(value) {
   if (!value) return null;
@@ -139,7 +158,7 @@ function sprintMeta(sprint, milestoneById) {
   return milestone ? `${status} · Marco ${milestone}` : `${status} · Sem marco`;
 }
 
-export function getDayEvents({ day, sprints = [], milestones = [], tasks = [], todayDay }) {
+export function getDayEvents({ day, sprints = [], milestones = [], tasks = [], todayDay, now }) {
   if (!day) return [];
   const milestoneById = new Map(milestones.map((item) => [String(item.id), item]));
   const events = [];
@@ -158,7 +177,7 @@ export function getDayEvents({ day, sprints = [], milestones = [], tasks = [], t
       });
     }
     if (fim === day) {
-      const overdue = sprint.status === 'EM_ANDAMENTO' && Boolean(todayDay) && fim < todayDay;
+      const overdue = sprint.status === 'EM_ANDAMENTO' && hasPassed(sprint.endDate, now, todayDay);
       events.push({
         key: `sprint-end-${sprint.id}-${day}`,
         day,
@@ -177,7 +196,7 @@ export function getDayEvents({ day, sprints = [], milestones = [], tasks = [], t
     if (dueDay !== day) continue;
     const overdue =
       milestone.status !== 'CONCLUIDO' &&
-      (milestone.overdue === true || (Boolean(todayDay) && dueDay < todayDay));
+      (milestone.overdue === true || hasPassed(milestone.dueDate, now, todayDay));
     events.push({
       key: `milestone-due-${milestone.id}-${day}`,
       day,
@@ -191,8 +210,9 @@ export function getDayEvents({ day, sprints = [], milestones = [], tasks = [], t
   }
 
   for (const task of tasks) {
-    if (task.day !== day) continue;
-    const overdue = task.status !== 'CONCLUIDO' && Boolean(todayDay) && task.day < todayDay;
+    const taskDay = toIsoDay(task.deadline);
+    if (taskDay !== day) continue;
+    const overdue = task.status !== 'CONCLUIDO' && hasPassed(task.deadline, now, todayDay);
     events.push({
       key: `task-deadline-${task.id}-${day}`,
       day,
@@ -261,8 +281,8 @@ export function getMonthEntities({ ano, mes, sprints = [], milestones = [], task
     .filter(({ day }) => day && day >= startDay && day <= endDay)
     .sort(compareByDay);
   const monthTasks = tasks
+    .map((task) => ({ ...task, day: toIsoDay(task.deadline), key: task.id }))
     .filter((task) => task.day && task.day >= startDay && task.day <= endDay)
-    .map((task) => ({ ...task, key: task.id }))
     .sort(compareByDay);
 
   return {
@@ -286,6 +306,7 @@ function buildDeadlineEntries({ sprints, milestones, tasks }) {
     entries.push({
       key: `sprint-deadline-${sprint.id}-${fim}`,
       day: fim,
+      at: sprint.endDate,
       type: 'SPRINT_END',
       kind: 'Sprint',
       title: sprint.name,
@@ -300,6 +321,7 @@ function buildDeadlineEntries({ sprints, milestones, tasks }) {
     entries.push({
       key: `milestone-deadline-${milestone.id}-${day}`,
       day,
+      at: milestone.dueDate,
       type: 'MILESTONE_DUE',
       kind: 'Marco',
       title: milestone.title,
@@ -308,10 +330,12 @@ function buildDeadlineEntries({ sprints, milestones, tasks }) {
     });
   }
   for (const task of tasks) {
-    if (!task.day || task.status === 'CONCLUIDO') continue;
+    const day = toIsoDay(task.deadline);
+    if (!day || task.status === 'CONCLUIDO') continue;
     entries.push({
-      key: `task-deadline-${task.id}-${task.day}`,
-      day: task.day,
+      key: `task-deadline-${task.id}-${day}`,
+      day,
+      at: task.deadline,
       type: 'TASK_DEADLINE',
       kind: 'Tarefa',
       title: `#${task.id} ${task.title}`,
@@ -322,54 +346,63 @@ function buildDeadlineEntries({ sprints, milestones, tasks }) {
   return entries.sort(compareByDay);
 }
 
-export function getUpcomingDeadlines({
+export function getUpcomingDeadlines({ sprints = [], milestones = [], tasks = [], todayDay, now }) {
+  const reference = referenceInstant(now, todayDay);
+  return buildDeadlineEntries({ sprints, milestones, tasks })
+    .filter((item) =>
+      reference === null ? item.day >= todayDay : (toInstant(item.at) ?? reference - 1) >= reference
+    )
+    .sort((a, b) => {
+      const aInstant = toInstant(a.at);
+      const bInstant = toInstant(b.at);
+      if (aInstant !== null && bInstant !== null && aInstant !== bInstant)
+        return aInstant - bInstant;
+      return compareByDay(a, b);
+    });
+}
+
+function nextRelevantMilestone(milestones, todayDay, now) {
+  const open = milestones
+    .map((milestone) => ({
+      milestone,
+      day: toIsoDay(milestone.dueDate),
+      overdue: milestone.overdue === true || hasPassed(milestone.dueDate, now, todayDay)
+    }))
+    .filter(({ milestone, day }) => milestone.status !== 'CONCLUIDO' && day);
+  const overdue = open
+    .filter((item) => item.overdue)
+    .sort((a, b) => toInstant(b.milestone.dueDate) - toInstant(a.milestone.dueDate));
+  if (overdue.length) return overdue[0];
+  const upcoming = open
+    .filter((item) => !item.overdue)
+    .sort((a, b) => toInstant(a.milestone.dueDate) - toInstant(b.milestone.dueDate));
+  return upcoming[0] || null;
+}
+
+export function getCurrentScheduleSummary({
   sprints = [],
   milestones = [],
   tasks = [],
   todayDay,
-  limit = 5
+  now
 }) {
-  return buildDeadlineEntries({ sprints, milestones, tasks })
-    .filter((item) => item.day >= todayDay)
-    .slice(0, limit);
-}
-
-function nextRelevantMilestone(milestones, todayDay) {
-  const open = milestones
-    .map((milestone) => ({ milestone, day: toIsoDay(milestone.dueDate) }))
-    .filter(({ milestone, day }) => milestone.status !== 'CONCLUIDO' && day);
-  const overdue = open
-    .filter(({ day }) => day < todayDay)
-    .sort((a, b) => (a.day > b.day ? -1 : a.day < b.day ? 1 : 0));
-  if (overdue.length) return { ...overdue[0], overdue: true };
-  const upcoming = open
-    .filter(({ day }) => day >= todayDay)
-    .sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0));
-  return upcoming.length ? { ...upcoming[0], overdue: false } : null;
-}
-
-export function getCurrentScheduleSummary({ sprints = [], milestones = [], tasks = [], todayDay }) {
   const currentSprint = sprints.find((sprint) => sprint.status === 'EM_ANDAMENTO') || null;
-  const nextMilestone = nextRelevantMilestone(milestones, todayDay);
-  const overdueSprints = sprints.filter(
-    (sprint) => sprint.status === 'EM_ANDAMENTO' && sprintDayRange(sprint).fim < todayDay
-  );
+  const nextMilestone = nextRelevantMilestone(milestones, todayDay, now);
   const overdueMilestones = milestones.filter((milestone) => {
-    const day = toIsoDay(milestone.dueDate);
     return (
-      milestone.status !== 'CONCLUIDO' && day && (milestone.overdue === true || day < todayDay)
+      milestone.status !== 'CONCLUIDO' &&
+      (milestone.overdue === true || hasPassed(milestone.dueDate, now, todayDay))
     );
   });
   const overdueTasks = tasks.filter(
-    (task) => task.day && task.day < todayDay && task.status !== 'CONCLUIDO'
+    (task) => task.status !== 'CONCLUIDO' && hasPassed(task.deadline, now, todayDay)
   );
   const overdueItems = [
-    ...overdueSprints.map((sprint) => ({ type: 'Sprint', title: sprint.name })),
     ...overdueMilestones.map((milestone) => ({ type: 'Marco', title: milestone.title })),
     ...overdueTasks.map((task) => ({ type: 'Tarefa', title: `#${task.id} ${task.title}` }))
   ];
   const nextDeadline =
-    getUpcomingDeadlines({ sprints, milestones, tasks, todayDay, limit: 1 })[0] || null;
+    getUpcomingDeadlines({ sprints, milestones, tasks, todayDay, now })[0] || null;
   const milestoneSprints = nextMilestone
     ? sprints.filter(
         (sprint) =>
@@ -389,14 +422,73 @@ export function getCurrentScheduleSummary({ sprints = [], milestones = [], tasks
         }
       : null,
     nextDeadline,
-    attention: {
+    deadlines: {
       total: overdueItems.length,
-      sprintCount: overdueSprints.length,
       milestoneCount: overdueMilestones.length,
       taskCount: overdueTasks.length,
       items: overdueItems
     }
   };
+}
+
+export function allocateSprintLanes(intervals = []) {
+  const laneEnds = [];
+  return [...intervals]
+    .sort((a, b) =>
+      a.visibleStart < b.visibleStart
+        ? -1
+        : a.visibleStart > b.visibleStart
+          ? 1
+          : a.visibleEnd < b.visibleEnd
+            ? -1
+            : a.visibleEnd > b.visibleEnd
+              ? 1
+              : String(a.sprint.id).localeCompare(String(b.sprint.id))
+    )
+    .map((interval) => {
+      let lane = laneEnds.findIndex((endDay) => endDay < interval.visibleStart);
+      if (lane < 0) lane = laneEnds.length;
+      laneEnds[lane] = interval.visibleEnd;
+      return { ...interval, lane };
+    });
+}
+
+function populateSprintLanes(cells) {
+  for (let weekIndex = 0; weekIndex < cells.length; weekIndex += 7) {
+    const week = cells.slice(weekIndex, weekIndex + 7);
+    const weekStart = week[0].day;
+    const weekEnd = week.at(-1).day;
+    const bySprint = new Map();
+    for (const cell of week) {
+      for (const item of cell.context.activeSprints) {
+        if (bySprint.has(String(item.sprint.id))) continue;
+        bySprint.set(String(item.sprint.id), {
+          ...item,
+          visibleStart: item.startDay < weekStart ? weekStart : item.startDay,
+          visibleEnd: item.endDay > weekEnd ? weekEnd : item.endDay
+        });
+      }
+    }
+    const allocated = allocateSprintLanes([...bySprint.values()]);
+    for (const cell of week) {
+      const active = allocated.filter(
+        (item) => item.visibleStart <= cell.day && item.visibleEnd >= cell.day
+      );
+      cell.sprintSegments = active
+        .filter((item) => item.lane < MAX_VISIBLE_SPRINT_LANES)
+        .map((item) => ({
+          ...item,
+          beginsSegment: cell.day === item.visibleStart,
+          endsSegment: cell.day === item.visibleEnd,
+          beginsSprint: cell.day === item.startDay,
+          endsSprint: cell.day === item.endDay
+        }));
+      cell.sprintOverflowCount = active.filter(
+        (item) => item.lane >= MAX_VISIBLE_SPRINT_LANES
+      ).length;
+    }
+  }
+  return cells;
 }
 
 function dayDescription(day, events, context) {
@@ -432,7 +524,8 @@ export function buildMonthGrid({
   milestones = [],
   tasks = [],
   todayDay,
-  selectedDay
+  selectedDay,
+  now
 }) {
   const first = new Date(ano, mes, 1);
   const offset = first.getDay();
@@ -440,16 +533,8 @@ export function buildMonthGrid({
   for (let index = 0; index < 42; index += 1) {
     const date = new Date(ano, mes, 1 - offset + index);
     const day = toIsoDay(date);
-    const column = index % 7;
-    const events = getDayEvents({ day, sprints, milestones, tasks, todayDay });
+    const events = getDayEvents({ day, sprints, milestones, tasks, todayDay, now });
     const context = getDayContext({ day, sprints, milestones });
-    const sprintSegments = context.activeSprints.map((item) => ({
-      ...item,
-      beginsSegment: day === item.startDay || column === 0,
-      endsSegment: day === item.endDay || column === 6,
-      beginsSprint: day === item.startDay,
-      endsSprint: day === item.endDay
-    }));
     cells.push({
       day,
       number: date.getDate(),
@@ -458,13 +543,14 @@ export function buildMonthGrid({
       selected: day === selectedDay,
       events,
       context,
-      sprintSegments,
+      sprintSegments: [],
+      sprintOverflowCount: 0,
       milestoneCount: events.filter((event) => event.type === 'MILESTONE_DUE').length,
       taskCount: events.filter((event) => event.type === 'TASK_DEADLINE').length,
       description: dayDescription(day, events, context)
     });
   }
-  return cells;
+  return populateSprintLanes(cells);
 }
 
 export function relativeDayLabel(day, todayDay) {

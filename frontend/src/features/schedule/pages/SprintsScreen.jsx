@@ -46,7 +46,6 @@ export function SprintsScreen() {
   const selectedSprintRef = useRef(null);
 
   const {
-    project,
     schedule,
     sprints,
     milestones,
@@ -407,7 +406,7 @@ export function SprintsScreen() {
       <header className="page-header sprints-screen__header">
         <div>
           <span className="eyebrow">Planejamento</span>
-          <h1>Sprints{project ? ` — ${project.name}` : ''}</h1>
+          <h1>Sprints</h1>
           <p>
             Organize períodos de trabalho, acompanhe o progresso e consulte a evolução das entregas.
           </p>
