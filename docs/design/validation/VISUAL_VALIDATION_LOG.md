@@ -111,8 +111,8 @@ The following materially changed areas require a new rendered record before they
 - Members tabs, including roving focus and panel associations;
 - Account partial-save and Integrations cooldown feedback;
 - SensitiveActionDialog busy, error, cancel, Escape, and post-success focus;
-- UX-PLANNING-SPRINTS em Light/Dark, sidebar expandida/recolhida, tablet e mobile;
-- UX-PLANNING-MILESTONES em Light/Dark, sidebar expandida/recolhida, tablet e mobile;
+- UX-PLANNING-SPRINTS em Light/Dark, sidebar expandida/recolhida, tablet e mobile, incluindo filtros recolhíveis;
+- UX-PLANNING-MILESTONES em Light/Dark, sidebar expandida/recolhida, tablet e mobile, incluindo filtros recolhíveis;
 - UX-PLANNING-SCHEDULE em Light/Dark, sidebar expandida/recolhida, tablet e mobile, incluindo faixas,
-  marcadores, painéis laterais e estados vazios;
+  lanes/overflow, paletas, marcadores, scroll dos painéis laterais e estados vazios;
 - legacy Dark-compatible operational surfaces and Task Details modal layering.

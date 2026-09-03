@@ -155,6 +155,12 @@ async function openMenu(user, name) {
   return screen.getByRole('menu', { name: `Ações da sprint ${name}` });
 }
 
+async function expandFilters(user) {
+  const toggle = await screen.findByRole('button', { name: /Buscar e filtrar/ });
+  if (toggle.getAttribute('aria-expanded') === 'false') await user.click(toggle);
+  return toggle;
+}
+
 async function chooseMilestone(user, name = 'Entrega inicial') {
   const dialog = screen.getByRole('dialog');
   const input = within(dialog).getByRole('combobox', { name: 'Marco' });
@@ -195,9 +201,8 @@ describe('estrutura C2 e estados principais', () => {
 
   it('preserva header e navegação e remove o formulário permanente', async () => {
     renderScreen();
-    expect(
-      await screen.findByRole('heading', { name: 'Sprints — TRACEFLOW QA' })
-    ).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Sprints' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /TRACEFLOW QA/ })).toBeNull();
     expect(screen.getByRole('navigation', { name: 'Navegação do projeto' })).toHaveTextContent(
       'sprints'
     );
@@ -276,10 +281,45 @@ describe('busca e filtros', () => {
     );
   });
 
+  it('inicia recolhido, preserva filtros e informa a contagem ativa ao alternar', async () => {
+    const user = userEvent.setup();
+    renderScreen();
+    await screen.findByRole('heading', { name: 'Sprint Ativa' });
+    const toggle = screen.getByRole('button', { name: /Buscar e filtrar/ });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByPlaceholderText('Pesquisar sprint...')).toBeNull();
+
+    await user.click(toggle);
+    await user.type(screen.getByPlaceholderText('Pesquisar sprint...'), 'ativa');
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(toggle).toHaveAccessibleName(/1 filtro ativo/);
+
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(toggle).toHaveFocus();
+    expect(screen.queryByPlaceholderText('Pesquisar sprint...')).toBeNull();
+    expect(screen.getByRole('heading', { name: 'Sprint Ativa' })).toBeInTheDocument();
+
+    await user.click(toggle);
+    expect(screen.getByPlaceholderText('Pesquisar sprint...')).toHaveValue('ativa');
+  });
+
+  it('fecha o autocomplete ao recolher e devolve o foco ao toggle', async () => {
+    const user = userEvent.setup();
+    renderScreen();
+    const toggle = await expandFilters(user);
+    await user.type(screen.getByRole('combobox', { name: 'Marco' }), 'ent');
+    expect(await screen.findByRole('listbox')).toBeInTheDocument();
+    await user.click(toggle);
+    expect(screen.queryByRole('listbox')).toBeNull();
+    expect(toggle).toHaveFocus();
+  });
+
   it('filtra por nome/objetivo e status, mostra result count e limpa tudo', async () => {
     const user = userEvent.setup();
     renderScreen();
     await screen.findByRole('heading', { name: 'Sprint Ativa' });
+    await expandFilters(user);
 
     await user.type(screen.getByPlaceholderText('Pesquisar sprint...'), 'autenticação');
     expect(screen.getByRole('heading', { name: 'Sprint Planejada' })).toBeInTheDocument();
@@ -299,6 +339,7 @@ describe('busca e filtros', () => {
   it('filtra por marco com combobox sem renderizar catálogo gigante vazio', async () => {
     const user = userEvent.setup();
     renderScreen();
+    await expandFilters(user);
     const input = await screen.findByRole('combobox', { name: 'Marco' });
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
     await user.type(input, 'fin');
@@ -310,6 +351,7 @@ describe('busca e filtros', () => {
   it('filtra por período usando a interseção simples das datas', async () => {
     const user = userEvent.setup();
     renderScreen();
+    await expandFilters(user);
     await user.type(await screen.findByLabelText('Data inicial'), '2026-09-15');
     await user.type(screen.getByLabelText('Data final'), '2026-09-30');
     expect(screen.getByRole('heading', { name: 'Sprint Ativa' })).toBeInTheDocument();
@@ -320,6 +362,7 @@ describe('busca e filtros', () => {
   it('pesquisa tarefa no endpoint existente e filtra pela associação já carregada', async () => {
     const user = userEvent.setup();
     renderScreen();
+    await expandFilters(user);
     await user.type(await screen.findByRole('combobox', { name: 'Tarefa relacionada' }), 'login');
     await user.click(await screen.findByRole('option', { name: /#11 Login do usuário/ }));
     expect(mocks.schedule.listProjectTasks).toHaveBeenCalledWith(

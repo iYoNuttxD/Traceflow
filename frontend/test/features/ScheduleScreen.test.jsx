@@ -32,7 +32,7 @@ const task = (overrides = {}) => ({
   title: 'Login do usuário',
   status: 'A_FAZER',
   priority: 'ALTA',
-  deadline: '2026-09-10T07:45:00',
+  deadline: '2026-09-10T18:00:00',
   estimatedEffort: 3,
   ...overrides
 });
@@ -83,6 +83,7 @@ const populatedSchedule = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  window.localStorage.clear();
   mocks.projects.get.mockResolvedValue({ data: { project: { id: 1, name: 'TraceFlow' } } });
   mocks.schedule.getSchedule.mockResolvedValue({ data: populatedSchedule });
   mocks.schedule.listSprints.mockResolvedValue({
@@ -119,9 +120,11 @@ function monthPanel() {
 }
 
 describe('ScheduleCalendar — composição Hybrid C2', () => {
-  it('renderiza resumo Agora, calendário, painéis laterais e próximos prazos', () => {
+  it('renderiza Situação atual, calendário, painéis laterais e próximos prazos', () => {
     renderCalendar();
-    expect(screen.getByRole('heading', { name: 'Agora' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Situação atual' })).toBeInTheDocument();
+    expect(screen.getByText('Panorama do planejamento na data de hoje.')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Agora' })).toBeNull();
     expect(screen.getAllByRole('heading', { name: 'setembro de 2026' })).toHaveLength(2);
     expect(screen.getByText('Dia selecionado')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Próximos prazos' })).toBeInTheDocument();
@@ -146,20 +149,18 @@ describe('ScheduleCalendar — composição Hybrid C2', () => {
     expect(within(metric).queryByText(/início/i)).toBeNull();
   });
 
-  it('usa Atenção apenas para itens já atrasados', () => {
+  it('usa Prazos apenas para itens realmente atrasados', () => {
     renderCalendar();
-    const metric = screen.getByText('Atenção').closest('article');
-    expect(within(metric).getByText('Em dia')).toBeInTheDocument();
-    expect(
-      within(metric).getByText('Próximo prazo: 10/09 · #10 Login do usuário')
-    ).toBeInTheDocument();
+    const metric = screen.getByText('Prazos').closest('article');
+    expect(within(metric).getByText('Nenhum atraso')).toBeInTheDocument();
+    expect(within(metric).getByText('Próximo: 10/09 · #10 Login do usuário')).toBeInTheDocument();
   });
 
   it('mostra a ausência de Sprint atual e de próximos itens explicitamente', () => {
     renderCalendar(emptySchedule);
     const current = screen.getByText('Sprint atual').closest('article');
     expect(within(current).getByText('Nenhuma em andamento')).toBeInTheDocument();
-    expect(screen.getByText('Nenhum prazo futuro.')).toBeInTheDocument();
+    expect(screen.getAllByText('Nenhum prazo futuro.')).toHaveLength(2);
   });
 
   it('mostra contagens e exemplo quando há itens atrasados', () => {
@@ -170,10 +171,25 @@ describe('ScheduleCalendar — composição Hybrid C2', () => {
       ],
       unassignedTasks: [task({ deadline: '2026-09-08T08:00:00' })]
     });
-    const metric = screen.getByText('Atenção').closest('article');
+    const metric = screen.getByText('Prazos').closest('article');
     expect(within(metric).getByText('2 itens atrasados')).toBeInTheDocument();
     expect(within(metric).getByText('1 Marco · 1 tarefa')).toBeInTheDocument();
     expect(within(metric).getByText('Marco: Release atrasada')).toBeInTheDocument();
+  });
+
+  it('não lista tarefa sem deadline próprio como atrasada pelo fim da Sprint', () => {
+    renderCalendar({
+      ...emptySchedule,
+      sprints: [
+        sprint({
+          endDate: '2026-09-09T18:00:00',
+          tasks: [task({ id: 2, title: 'Teste', deadline: null })]
+        })
+      ]
+    });
+    const metric = screen.getByText('Prazos').closest('article');
+    expect(within(metric).getByText('Nenhum atraso')).toBeInTheDocument();
+    expect(within(metric).queryByText(/#2 Teste/)).toBeNull();
   });
 
   it('fornece legenda por forma e texto sem depender somente de cor', () => {
@@ -217,6 +233,21 @@ describe('ScheduleCalendar — calendário e seleção', () => {
     renderCalendar();
     expect(document.querySelectorAll('.schedule-day')).toHaveLength(42);
     expect(screen.queryByRole('grid')).toBeNull();
+  });
+
+  it('mantém o número em lane própria e limita faixas simultâneas com overflow', () => {
+    renderCalendar({
+      ...emptySchedule,
+      sprints: Array.from({ length: 5 }, (_, index) =>
+        sprint({ id: index + 1, name: `Sprint ${index + 1}`, milestoneId: null, tasks: [] })
+      )
+    });
+    const day = screen.getByRole('button', { name: /quinta-feira, 10 de setembro/ });
+    expect(day.querySelector('.schedule-day__number-lane .schedule-day__number')).toHaveTextContent(
+      '10'
+    );
+    expect(day.querySelectorAll('.schedule-day__sprint-range')).toHaveLength(3);
+    expect(day.querySelector('.schedule-day__sprint-overflow')).toHaveTextContent('+2 Sprints');
   });
 
   it('nomeia o dia com data, evento de tarefa e contexto ativo', () => {
@@ -325,6 +356,22 @@ describe('ScheduleCalendar — calendário e seleção', () => {
 });
 
 describe('ScheduleCalendar — painel do mês', () => {
+  it('mantém headers separados de bodies roláveis nos dois painéis de contexto', () => {
+    renderCalendar();
+    const sidePanels = [...document.querySelector('.schedule-side').children];
+    expect(sidePanels[0]).toHaveClass('schedule-month-panel');
+    expect(sidePanels[1]).toHaveClass('schedule-selected-day');
+    expect(monthPanel().querySelector('.schedule-month-panel__body')).toHaveAttribute(
+      'tabindex',
+      '0'
+    );
+    expect(selectedDayPanel().querySelector('.schedule-selected-day__body')).toHaveAttribute(
+      'tabindex',
+      '0'
+    );
+    expect(document.querySelector('.schedule-side')).toBeInTheDocument();
+  });
+
   it('resume Marcos, Sprints e tarefas como entidades', () => {
     renderCalendar();
     const panel = monthPanel();
@@ -418,19 +465,20 @@ describe('ScheduleCalendar — próximos prazos', () => {
     expect(within(section).queryByText(/começa|início/i)).toBeNull();
   });
 
-  it('limita a lista a cinco prazos', () => {
+  it('mantém todos os prazos no DOM dentro da lista limitada por scroll', () => {
     renderCalendar({
       ...emptySchedule,
       unassignedTasks: Array.from({ length: 8 }, (_, index) =>
         task({
           id: index + 1,
           title: `Tarefa ${index + 1}`,
-          deadline: `2026-09-${String(index + 10).padStart(2, '0')}T08:00:00`
+          deadline: `2026-09-${String(index + 11).padStart(2, '0')}T08:00:00`
         })
       )
     });
     const section = screen.getByRole('heading', { name: 'Próximos prazos' }).closest('section');
-    expect(within(section).getAllByRole('listitem')).toHaveLength(5);
+    expect(within(section).getAllByRole('listitem')).toHaveLength(8);
+    expect(section.querySelector('.schedule-upcoming__list')).toHaveAttribute('tabindex', '0');
   });
 
   it('não produz warning de chave duplicada com eventos no mesmo dia', () => {
@@ -446,6 +494,46 @@ describe('ScheduleCalendar — próximos prazos', () => {
     expect(consoleWarn.mock.calls.flat().join(' ')).not.toMatch(/same key|unique "key"/i);
     consoleError.mockRestore();
     consoleWarn.mockRestore();
+  });
+});
+
+describe('ScheduleCalendar — paleta', () => {
+  it('troca a paleta e persiste a preferência após remount', async () => {
+    const user = userEvent.setup();
+    const view = renderCalendar();
+    const selector = screen.getByRole('combobox', { name: 'Paleta' });
+    expect(selector).toHaveValue('default');
+    await user.selectOptions(selector, 'contrast');
+    expect(document.querySelector('.schedule-workspace')).toHaveAttribute(
+      'data-schedule-palette',
+      'contrast'
+    );
+    expect(window.localStorage.getItem('traceflow.schedule.palette')).toBe('contrast');
+
+    view.unmount();
+    renderCalendar();
+    expect(screen.getByRole('combobox', { name: 'Paleta' })).toHaveValue('contrast');
+  });
+
+  it('usa Padrão quando a preferência armazenada é inválida', () => {
+    window.localStorage.setItem('traceflow.schedule.palette', 'inexistente');
+    renderCalendar();
+    expect(screen.getByRole('combobox', { name: 'Paleta' })).toHaveValue('default');
+  });
+
+  it('mantém a mesma cor da entidade no calendário, mês, dia e próximos prazos', () => {
+    renderCalendar();
+    const calendarMarker = document.querySelector('.schedule-day__task-marker');
+    const monthMarker = document.querySelector('.schedule-month-item__marker--task');
+    const dayMarker = selectedDayPanel().querySelector('.schedule-event-marker--task_deadline');
+    const upcomingMarker = document.querySelector(
+      '.schedule-upcoming .schedule-event-marker--task_deadline'
+    );
+    const colors = [calendarMarker, monthMarker, dayMarker, upcomingMarker].map((element) =>
+      element.style.getPropertyValue('--schedule-entity-color')
+    );
+    expect(new Set(colors).size).toBe(1);
+    expect(colors[0]).toMatch(/^var\(--schedule-palette-\d\)$/);
   });
 });
 
@@ -470,9 +558,8 @@ describe('ScheduleScreen — estados e integração', () => {
 
   it('usa header de Planejamento e mantém Cronograma ativo', async () => {
     renderScreen();
-    expect(
-      await screen.findByRole('heading', { name: 'Cronograma — TraceFlow' })
-    ).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Cronograma' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /TraceFlow/ })).toBeNull();
     expect(
       screen.getByText(
         'Visualize períodos de Sprints, prazos de Marcos e deadlines de tarefas em uma única linha temporal operacional.'
@@ -487,7 +574,7 @@ describe('ScheduleScreen — estados e integração', () => {
   it('carrega o dataset canônico uma única vez e filtra meses no cliente', async () => {
     const user = userEvent.setup();
     renderScreen();
-    await screen.findByRole('heading', { name: 'Agora' });
+    await screen.findByRole('heading', { name: 'Situação atual' });
     expect(mocks.schedule.getSchedule).toHaveBeenCalledTimes(1);
     await user.click(screen.getByRole('button', { name: 'Próximo mês' }));
     await user.click(screen.getByRole('button', { name: 'Próximo mês' }));
@@ -496,7 +583,7 @@ describe('ScheduleScreen — estados e integração', () => {
 
   it('não envia recorte de mês nem cria request por célula ou hover', async () => {
     renderScreen();
-    await screen.findByRole('heading', { name: 'Agora' });
+    await screen.findByRole('heading', { name: 'Situação atual' });
     expect(mocks.schedule.getSchedule).toHaveBeenCalledWith(
       '1',
       {},

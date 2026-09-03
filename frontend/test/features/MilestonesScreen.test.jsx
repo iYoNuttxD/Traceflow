@@ -89,6 +89,12 @@ async function openMenu(name = 'Fundação do produto') {
   };
 }
 
+async function expandFilters(user) {
+  const toggle = await screen.findByRole('button', { name: /Buscar e filtrar/ });
+  if (toggle.getAttribute('aria-expanded') === 'false') await user.click(toggle);
+  return toggle;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.projects.get.mockResolvedValue({ data: { project: { id: 1, name: 'TraceFlow' } } });
@@ -127,6 +133,8 @@ describe('estrutura e estados da página', () => {
   it('remove o formulario permanente e mantém Novo marco como primeiro item do empty state', async () => {
     renderScreen();
     const grid = await screen.findByRole('list', { name: 'Marcos do projeto' });
+    expect(screen.getByRole('heading', { name: 'Marcos' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /TraceFlow/ })).toBeNull();
     expect(screen.queryByLabelText('Título')).not.toBeInTheDocument();
     expect(within(grid).getAllByRole('listitem')[0]).toContainElement(
       screen.getByRole('button', { name: 'Novo marco' })
@@ -183,11 +191,45 @@ describe('busca e filtros', () => {
     sprint(2, 'Sprint Release', 'CONCLUIDA', 6)
   ];
 
+  it('inicia recolhido, preserva filtros e informa a contagem ativa', async () => {
+    const user = userEvent.setup();
+    setData({ milestones: [marco(), other], sprints: relatedSprints });
+    renderScreen();
+    await screen.findByText('Release final');
+    const toggle = screen.getByRole('button', { name: /Buscar e filtrar/ });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByPlaceholderText('Pesquisar marco...')).toBeNull();
+
+    await user.click(toggle);
+    await user.type(screen.getByPlaceholderText('Pesquisar marco...'), 'release');
+    expect(toggle).toHaveAccessibleName(/1 filtro ativo/);
+    await user.click(toggle);
+    expect(toggle).toHaveFocus();
+    expect(screen.queryByPlaceholderText('Pesquisar marco...')).toBeNull();
+    expect(screen.getByText('Release final')).toBeInTheDocument();
+
+    await user.click(toggle);
+    expect(screen.getByPlaceholderText('Pesquisar marco...')).toHaveValue('release');
+  });
+
+  it('fecha a pesquisa de Sprint ao recolher o painel', async () => {
+    const user = userEvent.setup();
+    setData({ milestones: [marco(), other], sprints: relatedSprints });
+    renderScreen();
+    const toggle = await expandFilters(user);
+    await user.type(screen.getByRole('combobox', { name: 'Sprint relacionada' }), 'rel');
+    expect(await screen.findByRole('listbox')).toBeInTheDocument();
+    await user.click(toggle);
+    expect(screen.queryByRole('listbox')).toBeNull();
+    expect(toggle).toHaveFocus();
+  });
+
   it('filtra por texto e limpa sem esconder o card de criação', async () => {
     const user = userEvent.setup();
     setData({ milestones: [marco(), other], sprints: relatedSprints });
     renderScreen();
     await screen.findByText('Release final');
+    await expandFilters(user);
 
     await user.type(screen.getByPlaceholderText('Pesquisar marco...'), 'publicacao');
     expect(
@@ -211,6 +253,7 @@ describe('busca e filtros', () => {
     setData({ milestones: [marco(), other], sprints: relatedSprints });
     renderScreen();
     await screen.findByText('Release final');
+    await expandFilters(user);
 
     await user.selectOptions(screen.getByLabelText('Status'), 'CONCLUIDO');
     await user.selectOptions(screen.getByLabelText('Situação do prazo'), 'CONCLUIDO');
