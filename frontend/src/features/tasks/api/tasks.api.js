@@ -42,6 +42,20 @@ export const tasksApi = {
   unlinkCommit(taskId, commitId) {
     return responseData(httpClient.delete(`/tasks/${taskId}/commits/${commitId}`));
   },
+  comments(taskId, params = {}, options = {}) {
+    return responseData(
+      httpClient.get(`/tasks/${taskId}/comments`, { ...options, params: compactParams(params) })
+    );
+  },
+  createComment(taskId, content) {
+    return responseData(httpClient.post(`/tasks/${taskId}/comments`, { content }));
+  },
+  updateComment(taskId, commentId, content) {
+    return responseData(httpClient.patch(`/tasks/${taskId}/comments/${commentId}`, { content }));
+  },
+  deleteComment(taskId, commentId) {
+    return responseData(httpClient.delete(`/tasks/${taskId}/comments/${commentId}`));
+  },
   issues(taskId, options = {}) {
     return responseData(httpClient.get(`/tasks/${taskId}/issues`, options));
   },
@@ -63,6 +77,12 @@ export const unlinkTaskFromPullRequest = (taskId) => tasksApi.unlinkPullRequest(
 export const getTaskCommits = (taskId, options) => tasksApi.commits(taskId, options);
 export const linkTaskCommit = (taskId, commitId) => tasksApi.linkCommit(taskId, commitId);
 export const unlinkTaskCommit = (taskId, commitId) => tasksApi.unlinkCommit(taskId, commitId);
+export const getTaskComments = (taskId, params, options) =>
+  tasksApi.comments(taskId, params, options);
+export const createTaskComment = (taskId, content) => tasksApi.createComment(taskId, content);
+export const updateTaskComment = (taskId, commentId, content) =>
+  tasksApi.updateComment(taskId, commentId, content);
+export const deleteTaskComment = (taskId, commentId) => tasksApi.deleteComment(taskId, commentId);
 export const getTaskIssues = (taskId, options) => tasksApi.issues(taskId, options);
 export const linkTaskIssue = (taskId, issueId) => tasksApi.linkIssue(taskId, issueId);
 export const unlinkTaskIssue = (taskId, issueId) => tasksApi.unlinkIssue(taskId, issueId);

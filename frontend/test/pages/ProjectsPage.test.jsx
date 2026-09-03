@@ -130,7 +130,9 @@ describe('ProjectsPage', () => {
     renderPage();
 
     expect(screen.getByText('Carregando projetos...')).toBeInTheDocument();
-    expect(await screen.findByText('Nenhum projeto cadastrado ainda.')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /^Novo projeto/ })).toBeInTheDocument();
+    expect(screen.queryByText('Nenhum projeto cadastrado ainda.')).not.toBeInTheDocument();
+    expect(await screen.findByText('0 projetos · 0 convites')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Projetos' })).toBeInTheDocument();
     expect(screen.getByText('Gerencie e acompanhe seus projetos.')).toBeInTheDocument();
     expect(screen.queryByLabelText('Código ou link de acesso')).not.toBeInTheDocument();
@@ -162,7 +164,7 @@ describe('ProjectsPage', () => {
     const user = userEvent.setup();
     mockInitialRequests({ projects: [] });
     renderPage();
-    await screen.findByText('Nenhum projeto cadastrado ainda.');
+    await screen.findByRole('button', { name: /^Novo projeto/ });
     const trigger = screen.getByRole('button', { name: /^Novo projeto/ });
     await openCreateFlow(user);
 
@@ -178,7 +180,7 @@ describe('ProjectsPage', () => {
     const user = userEvent.setup();
     mockInitialRequests({ projects: [] });
     renderPage();
-    await screen.findByText('Nenhum projeto cadastrado ainda.');
+    await screen.findByRole('button', { name: /^Novo projeto/ });
     const trigger = screen.getByRole('button', { name: /^Novo projeto/ });
 
     await user.click(trigger);
@@ -210,7 +212,7 @@ describe('ProjectsPage', () => {
     const user = userEvent.setup();
     mockInitialRequests({ projects: [] });
     renderPage();
-    await screen.findByText('Nenhum projeto cadastrado ainda.');
+    await screen.findByRole('button', { name: /^Novo projeto/ });
     const trigger = screen.getByRole('button', { name: /^Novo projeto/ });
 
     await user.click(trigger);
@@ -329,7 +331,7 @@ describe('ProjectsPage', () => {
     mockInitialRequests({ projects: [] });
     apiMock.post.mockResolvedValue({ data: { message: 'Projeto cadastrado com sucesso.' } });
     renderPage();
-    await screen.findByText('Nenhum projeto cadastrado ainda.');
+    await screen.findByRole('button', { name: /^Novo projeto/ });
     await openCreateFlow(user);
 
     await user.type(screen.getByLabelText('Nome do projeto *'), 'Projeto submetido');
@@ -365,7 +367,7 @@ describe('ProjectsPage', () => {
     );
     const user = userEvent.setup();
     renderPage();
-    await screen.findByText('Nenhum projeto cadastrado ainda.');
+    await screen.findByRole('button', { name: /^Novo projeto/ });
     await openCreateFlow(user);
     await user.type(screen.getByLabelText('Nome do projeto *'), 'Projeto único');
     await user.type(screen.getByLabelText('Área ou equipe responsável *'), 'Equipe única');

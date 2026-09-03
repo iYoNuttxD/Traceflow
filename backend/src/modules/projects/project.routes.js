@@ -1,6 +1,6 @@
 // Rotas do modulo de projetos. Regras de negocio ficam no service.
 import { Router } from 'express';
-import { validateRequest } from '../../shared/validation/index.js';
+import { emptyObject, validateRequest } from '../../shared/validation/index.js';
 import { projectController } from './project.controller.js';
 import artifactRoutes from '../artifacts/artifact.routes.js';
 import {
@@ -24,6 +24,7 @@ import {
   personalInvitationParams
 } from './project-invitation.validation.js';
 import { projectMembershipController } from './project-membership.controller.js';
+import { projectEventController } from './project-event.controller.js';
 import { requireVerifiedEmail } from '../../middlewares/auth/email-verification.middleware.js';
 import {
   membershipParams,
@@ -33,6 +34,12 @@ import {
 } from './project-membership.validation.js';
 
 const router = Router();
+
+router.get(
+  '/:projectId/events',
+  validateRequest({ params: projectProjectIdParamsSchema, query: emptyObject }),
+  projectEventController.stream
+);
 
 router.get('/invitations/mine', requireVerifiedEmail, projectInvitationController.mine);
 router.post(

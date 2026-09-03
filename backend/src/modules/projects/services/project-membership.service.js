@@ -2,6 +2,7 @@ import { AppError, ERROR_CODES } from '../../../shared/errors/index.js';
 import { logger } from '../../../shared/logger/index.js';
 import { projectMembershipRepository } from '../project-membership.repository.js';
 import { buildAuditEvent } from '../../audit/audit.service.js';
+import { projectEventPublisher } from '../../../shared/events/index.js';
 
 const notFound = () =>
   new AppError({
@@ -63,6 +64,7 @@ export const projectMembershipService = {
     );
     if (!result) throw notFound();
     if (result.lastOwner) throw lastOwner();
+    projectEventPublisher.disconnectUser(result.userId, { projectId });
     logger.info('Papel de membro do projeto alterado.', {
       event: 'project_membership_role_changed',
       projectId,
@@ -88,6 +90,7 @@ export const projectMembershipService = {
     );
     if (!result) throw notFound();
     if (result.lastOwner) throw lastOwner();
+    projectEventPublisher.disconnectUser(result.userId, { projectId });
     logger.info('Membro do projeto desativado.', {
       event: 'project_membership_deactivated',
       projectId,
@@ -135,6 +138,7 @@ export const projectMembershipService = {
       })
     );
     if (result?.lastOwner) throw lastOwner();
+    projectEventPublisher.disconnectUser(userId, { projectId });
     logger.info('Membro saiu do projeto.', {
       event: 'project_membership_left',
       projectId,
@@ -157,6 +161,7 @@ export const projectMembershipService = {
       })
     );
     if (!target) throw notFound();
+    projectEventPublisher.disconnectUser(target.userId, { projectId });
     logger.info('Propriedade do projeto transferida.', {
       event: 'project_ownership_transferred',
       projectId,

@@ -245,17 +245,41 @@ describe('contratos de conta e privacidade L2', () => {
         { projectId: formerProject.id, title: 'Requisito privado posterior' }
       ]
     });
-    await prisma.task.createMany({
+    const currentTask = await prisma.task.create({
+      data: {
+        projectId: currentProject.id,
+        title: 'Tarefa autorizada atual',
+        responsibleUserId: user.id
+      }
+    });
+    const formerTask = await prisma.task.create({
+      data: {
+        projectId: formerProject.id,
+        title: 'Tarefa privada posterior',
+        responsibleUserId: user.id
+      }
+    });
+    await prisma.taskComment.createMany({
       data: [
         {
           projectId: currentProject.id,
-          title: 'Tarefa autorizada atual',
-          responsibleUserId: user.id
+          taskId: currentTask.id,
+          authorUserId: user.id,
+          content: 'Comentário autorizado atual'
         },
         {
           projectId: formerProject.id,
-          title: 'Tarefa privada posterior',
-          responsibleUserId: user.id
+          taskId: formerTask.id,
+          authorUserId: user.id,
+          content: 'Comentário privado posterior'
+        },
+        {
+          projectId: currentProject.id,
+          taskId: currentTask.id,
+          authorUserId: user.id,
+          content: 'Comentário excluído posterior',
+          deletedAt: new Date(),
+          deletedById: user.id
         }
       ]
     });
@@ -275,6 +299,12 @@ describe('contratos de conta e privacidade L2', () => {
       'Requisito autorizado atual'
     ]);
     expect(files['tasks.json'].map(({ title }) => title)).toEqual(['Tarefa autorizada atual']);
+    // Comentário próprio entra na exportação; projeto sem membership atual e
+    // comentário excluído logicamente ficam de fora.
+    expect(files['task-comments.json'].map(({ content }) => content)).toEqual([
+      'Comentário autorizado atual'
+    ]);
+    expect(files['manifest.json'].files).toContain('task-comments.json');
     expect(JSON.stringify(files)).not.toMatch(/Projeto histórico privado|posterior/);
   });
 

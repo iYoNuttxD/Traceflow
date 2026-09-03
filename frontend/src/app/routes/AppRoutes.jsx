@@ -4,6 +4,7 @@ import { GuestOnlyRoute, ProtectedRoute } from '../../features/auth/index.js';
 import { ContextualErrorPage, LoadingState, PAGE_ERROR_TYPES } from '../../shared/index.js';
 import { AuthenticatedLayout } from '../layout/AuthenticatedLayout.jsx';
 import { lazyNamed } from './lazy-route.js';
+import { ProjectEventsRoute } from './ProjectEventsRoute.jsx';
 
 const LoginPage = lazyNamed(() => import('../../pages/LoginPage.jsx'), 'LoginPage');
 const RegisterPage = lazyNamed(() => import('../../pages/RegisterPage.jsx'), 'RegisterPage');
@@ -154,7 +155,14 @@ export function AppRoutes() {
           <Route path="/projects/:projectId/members" element={<ProjectMembersPage />} />
           <Route path="/projects/:projectId/requirements" element={<RequirementsPage />} />
           <Route path="/projects/:projectId/tasks" element={<TasksPage />} />
-          <Route path="/projects/:projectId/kanban" element={<KanbanPage />} />
+          <Route
+            path="/projects/:projectId/kanban"
+            element={
+              <ProjectEventsRoute>
+                <KanbanPage />
+              </ProjectEventsRoute>
+            }
+          />
           <Route path="/projects/:projectId/sprints" element={<SprintsPage />} />
           <Route path="/projects/:projectId/milestones" element={<MilestonesPage />} />
           <Route path="/projects/:projectId/schedule" element={<SchedulePage />} />

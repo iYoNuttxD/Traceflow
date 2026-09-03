@@ -481,6 +481,23 @@ export const settingsRepository = {
             updatedAt: true
           }
         },
+        // Comentário excluído fica fora da exportação: o conteúdo permanece apenas na
+        // trilha de auditoria e não é devolvido ao titular como dado corrente.
+        taskComments: {
+          where: {
+            deletedAt: null,
+            project: { memberships: { some: { userId, isActive: true } } }
+          },
+          select: {
+            id: true,
+            projectId: true,
+            taskId: true,
+            content: true,
+            editedAt: true,
+            createdAt: true,
+            updatedAt: true
+          }
+        },
         sessions: {
           select: {
             publicId: true,

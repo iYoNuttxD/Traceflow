@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { env } from '../../config/env.js';
 import { AppError, ERROR_CODES } from '../../shared/errors/index.js';
 import { emailService } from '../../shared/email/index.js';
+import { projectEventPublisher } from '../../shared/events/index.js';
 import { authService } from '../auth/auth.service.js';
 import {
   normalizeUsername,
@@ -128,6 +129,7 @@ async function buildExportArchive(userId, now) {
     'projects.json': projects,
     'requirements.json': requirements,
     'tasks.json': data.responsibleTasks,
+    'task-comments.json': data.taskComments || [],
     'sessions.json': data.sessions,
     'privacy-requests.json': data.privacyRequests,
     'data-exports.json': data.personalDataExports || [],
@@ -214,6 +216,7 @@ export const settingsService = {
     );
     if (result.status === 'not_linked')
       throw error('Nenhuma conta GitHub vinculada.', 404, ERROR_CODES.GITHUB_IDENTITY_NOT_LINKED);
+    projectEventPublisher.disconnectUser(userId, { exceptSessionId: currentSessionId });
     return result;
   },
   async initializePassword(userId, currentSessionId, input, requestId, now = new Date()) {
@@ -243,6 +246,7 @@ export const settingsService = {
         403,
         ERROR_CODES.GITHUB_REAUTHENTICATION_REQUIRED
       );
+    projectEventPublisher.disconnectUser(userId, { exceptSessionId: currentSessionId });
     return result;
   },
   async updateUsername(userId, username, requestId, now = new Date()) {
@@ -346,6 +350,7 @@ export const settingsService = {
         ERROR_CODES.EMAIL_CHANGE_TOKEN_INVALID
       );
     }
+    projectEventPublisher.disconnectUser(result.user.id);
     await emailService.sendEmailChangedNotice({
       to: result.previousEmail,
       userId: result.user.id,
@@ -368,6 +373,7 @@ export const settingsService = {
       now,
       audit(userId, requestId, 'PASSWORD_CHANGED')
     );
+    projectEventPublisher.disconnectUser(userId, { exceptSessionId: sessionId });
     await emailService.sendPasswordChangedNotice({ to: user.email, userId, name: user.name });
   },
   async sessions(userId, currentPublicId) {
@@ -389,15 +395,18 @@ export const settingsService = {
       audit(userId, requestId, 'SESSION_REVOKED', 'Session', publicId)
     );
     if (!session) throw error('Sessão não encontrada.', 404, ERROR_CODES.SESSION_NOT_FOUND);
+    projectEventPublisher.disconnectSession(session.id);
     return session;
   },
-  revokeOtherSessions(userId, currentSessionId, requestId, now = new Date()) {
-    return settingsRepository.revokeOtherSessions(
+  async revokeOtherSessions(userId, currentSessionId, requestId, now = new Date()) {
+    const count = await settingsRepository.revokeOtherSessions(
       userId,
       currentSessionId,
       now,
       audit(userId, requestId, 'OTHER_SESSIONS_REVOKED', 'Session', null)
     );
+    projectEventPublisher.disconnectUser(userId, { exceptSessionId: currentSessionId });
+    return count;
   },
   async deactivate(userId, currentSession, input, requestId, now = new Date()) {
     await requireActive(userId);
@@ -409,6 +418,7 @@ export const settingsService = {
       audit(userId, requestId, 'ACCOUNT_DEACTIVATED')
     );
     if (result.blocked) throwOwnership(result.blocked);
+    projectEventPublisher.disconnectUser(userId);
     await emailService.sendAccountDeactivatedNotice({
       to: result.user.email,
       userId,
@@ -466,6 +476,7 @@ export const settingsService = {
       scheduledFor,
       audit(userId, requestId, 'ACCOUNT_DELETION_REQUESTED', 'PrivacyRequest', null)
     );
+    projectEventPublisher.disconnectUser(userId);
     const user = await settingsRepository.account(userId);
     await emailService.sendAccountDeletionRequested({
       to: user.email,
@@ -490,6 +501,7 @@ export const settingsService = {
       );
     }
     if (result.changed) {
+      projectEventPublisher.disconnectUser(userId);
       const user = await settingsRepository.account(userId);
       await emailService.sendAccountDeletionCancelled({ to: user.email, userId, name: user.name });
     }

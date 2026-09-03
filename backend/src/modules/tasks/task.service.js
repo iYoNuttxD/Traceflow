@@ -1,3 +1,4 @@
+import { taskCommentService } from './services/task-comment.service.js';
 import { taskCommitService } from './services/task-commit.service.js';
 import { taskCrudService } from './services/task-crud.service.js';
 import { taskIssueService } from './services/task-issue.service.js';
@@ -12,6 +13,7 @@ import { taskSprintService } from './services/task-sprint.service.js';
 // API pública interna do módulo: agrega os casos de uso consumidos pelo controller.
 export const taskService = {
   ...taskCrudService,
+  ...taskCommentService,
   ...taskRequirementService,
   ...taskSprintService,
   ...pullRequestLinkService,
