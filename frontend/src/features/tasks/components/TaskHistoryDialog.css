@@ -2,7 +2,7 @@
 
 .task-history-filters {
   display: grid;
-  grid-template-columns: repeat(3, minmax(9rem, 1fr)) auto;
+  grid-template-columns: repeat(3, minmax(8rem, 1fr)) auto;
   gap: var(--space-3);
   align-items: end;
   margin-bottom: var(--space-5);
@@ -27,7 +27,13 @@
   font: inherit;
 }
 
-.task-history-filters .text-button {
+.task-history-filter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.task-history-filter-actions .button {
   min-height: var(--size-touch-target);
 }
 
@@ -78,5 +84,10 @@
   .task-history-filters,
   .task-history-item {
     grid-template-columns: 1fr;
+  }
+
+  .task-history-filter-actions {
+    align-items: stretch;
+    flex-direction: column;
   }
 }

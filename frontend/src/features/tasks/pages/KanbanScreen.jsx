@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router';
-import { deleteTask, kanbanApi } from '../api/tasks.api.js';
+import { useParams, useSearchParams } from 'react-router';
+import { deleteTask, kanbanApi, tasksApi } from '../api/tasks.api.js';
 import { scheduleApi, sprintStatusKey, sprintStatusKeyLabels } from '../../schedule/index.js';
 import { membersApi } from '../../members/index.js';
 import { ProjectSectionNav, projectsApi } from '../../projects/index.js';
@@ -89,6 +89,7 @@ export function KanbanScreen() {
   const [project, setProject] = useState(null);
   const [board, setBoard] = useState(null);
   const [projectMembers, setProjectMembers] = useState([]);
+  const [currentMembership, setCurrentMembership] = useState(null);
   const [projectSprints, setProjectSprints] = useState([]);
   const [sprintFilter, setSprintFilter] = useState([]);
   const [filters, setFilters] = useState({ ...EMPTY_KANBAN_FILTERS });
@@ -102,6 +103,7 @@ export function KanbanScreen() {
   const [error, setError] = useState('');
   const [pageError, setPageError] = useState(null);
   const [success, setSuccess] = useState('');
+  const [warning, setWarning] = useState('');
   const suppressTaskClickRef = useRef(false);
   const searchParamsRef = useRef(searchParams);
   const boardFocusRef = useRef(null);
@@ -215,6 +217,7 @@ export function KanbanScreen() {
       setProject(projectResponse.data.project);
       applyBoard(boardResponse.data);
       setProjectMembers(membersResponse.members || []);
+      setCurrentMembership(membersResponse.currentMembership || null);
       const sprints = sprintsResponse.data.sprints || [];
       setProjectSprints(sprints);
       const requestedIds = (searchParamsRef.current.get('sprint') || '')
@@ -293,6 +296,7 @@ export function KanbanScreen() {
     setProject(null);
     setBoard(null);
     setProjectMembers([]);
+    setCurrentMembership(null);
     setProjectSprints([]);
     setSprintFilter([]);
     setFilters({ ...EMPTY_KANBAN_FILTERS });
@@ -302,6 +306,7 @@ export function KanbanScreen() {
     setError('');
     setPageError(null);
     setSuccess('');
+    setWarning('');
     void loadKanban();
 
     const generation = contextRef.current.generation;
@@ -339,6 +344,7 @@ export function KanbanScreen() {
     setMovingTaskId(task.id);
     setError('');
     setSuccess('');
+    setWarning('');
     try {
       const response = await kanbanApi.moveTask(task.id, { toStatus });
       if (!mutationIsCurrent(mutation)) return;
@@ -347,7 +353,7 @@ export function KanbanScreen() {
       setBoard((current) => updateBoardWithMovedTask(current, movedTask));
       finishMutation(mutation);
       void refreshBoard(movedTask).catch((requestError) => {
-        setError(
+        setWarning(
           getErrorMessage(
             requestError,
             'A tarefa foi movida, mas não foi possível atualizar o Kanban.'
@@ -381,9 +387,10 @@ export function KanbanScreen() {
   function handleTaskDragEnd() {
     setDraggingTaskId(null);
     setDragOverStatus('');
-    window.setTimeout(() => {
-      suppressTaskClickRef.current = false;
-    }, 0);
+  }
+
+  function handleTaskPointerDown() {
+    suppressTaskClickRef.current = false;
   }
 
   async function handleColumnDrop(event, targetStatus) {
@@ -395,7 +402,10 @@ export function KanbanScreen() {
   }
 
   function openTaskDetails(task, trigger) {
-    if (suppressTaskClickRef.current) return;
+    if (suppressTaskClickRef.current) {
+      suppressTaskClickRef.current = false;
+      return;
+    }
     detailsReturnFocusRef.current = trigger;
     setSelectedTask(task);
   }
@@ -417,6 +427,7 @@ export function KanbanScreen() {
     setDeletingTaskId(task.id);
     setError('');
     setSuccess('');
+    setWarning('');
     try {
       const response = await deleteTask(task.id);
       setBoard((current) => removeTaskFromBoard(current, task.id));
@@ -426,7 +437,7 @@ export function KanbanScreen() {
       try {
         await refreshBoard();
       } catch (requestError) {
-        setError(
+        setWarning(
           getErrorMessage(
             requestError,
             'A tarefa foi excluída, mas não foi possível reconciliar o Kanban.'
@@ -438,6 +449,38 @@ export function KanbanScreen() {
       setError(getErrorMessage(requestError, 'Não foi possível excluir a tarefa.'));
     } finally {
       setDeletingTaskId(null);
+    }
+  }
+
+  async function handleSaveTask(task, payload) {
+    const mutation = beginMutation();
+    if (!mutation) return null;
+    setError('');
+    setSuccess('');
+    setWarning('');
+    try {
+      const response = await tasksApi.update(task.id, payload);
+      if (!mutationIsCurrent(mutation)) return null;
+      const savedTask = response.data.task;
+      setBoard((current) => updateBoardWithMovedTask(current, savedTask));
+      setSelectedTask(savedTask);
+      setSuccess(response.data.message || 'Tarefa atualizada com sucesso.');
+      finishMutation(mutation);
+      void refreshBoard(savedTask).catch((requestError) => {
+        setWarning(
+          getErrorMessage(
+            requestError,
+            'A tarefa foi atualizada, mas não foi possível reconciliar o Kanban.'
+          )
+        );
+      });
+      return savedTask;
+    } catch (requestError) {
+      if (!mutationIsCurrent(mutation)) return null;
+      finishMutation(mutation);
+      throw requestError;
+    } finally {
+      if (mutationIsCurrent(mutation)) finishMutation(mutation);
     }
   }
 
@@ -455,9 +498,6 @@ export function KanbanScreen() {
 
   return (
     <main className="page-container kanban-screen">
-      <Link className="back-link" to={`/projects/${projectId}`}>
-        ← Voltar para o projeto
-      </Link>
       <header className="page-header kanban-screen__header">
         <div>
           <span className="eyebrow">Kanban</span>
@@ -468,6 +508,7 @@ export function KanbanScreen() {
       </header>
 
       <FeedbackRegion error={error} success={success} />
+      <FeedbackRegion warning={warning} />
 
       {loading ? (
         <LoadingState message="Carregando Kanban..." />
@@ -510,7 +551,7 @@ export function KanbanScreen() {
             boardRef={boardFocusRef}
             onSelectTask={openTaskDetails}
             onOpenHistory={openTaskHistory}
-            onDeleteTask={handleDeleteTask}
+            onTaskPointerDown={handleTaskPointerDown}
             onTaskDragStart={handleTaskDragStart}
             onTaskDragEnd={handleTaskDragEnd}
             onColumnDragOver={(event, status) => {
@@ -534,10 +575,14 @@ export function KanbanScreen() {
 
           <TaskDetailsPanel
             task={selectedTask}
+            members={projectMembers}
+            canEdit={Boolean(currentMembership && currentMembership.role !== 'VIEWER')}
+            canDelete={Boolean(currentMembership && currentMembership.role !== 'VIEWER')}
             deleting={deletingTaskId === selectedTask?.id}
             returnFocusRef={detailsReturnFocusRef}
             onClose={() => setSelectedTask(null)}
             onDelete={handleDeleteTask}
+            onSave={handleSaveTask}
           />
 
           {historyTask && (

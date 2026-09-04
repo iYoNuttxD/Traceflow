@@ -376,6 +376,20 @@ describe('compatibilidade de conteúdo legado com os temas', () => {
     expect(rule(taskCommentsCss, '.task-chat-menu button')).toContain(
       'min-height: var(--size-touch-target)'
     );
+    expect(rule(taskCommentsCss, '.task-comments')).toContain('flex-direction: column');
+    expect(rule(taskCommentsCss, '.task-comments')).toContain('overflow: hidden');
+    expect(rule(taskCommentsCss, '.task-comments-scroll')).toContain('flex: 1');
+    expect(rule(taskCommentsCss, '.task-comments-scroll')).toContain('min-height: 0');
+    expect(rule(taskCommentsCss, '.task-comments-scroll')).toContain('overflow-y: auto');
+    expect(rule(taskCommentsCss, '.task-chat-form textarea')).toContain('max-height: 9rem');
+    expect(rule(taskCommentsCss, '.task-chat-form textarea')).toContain('overflow-y: auto');
+  });
+
+  it('limita cada categoria de rastreabilidade sem ocultar seus artefatos', () => {
+    const desktopDetailsCss = taskDetailsCss.split('@media')[0];
+    expect(rule(desktopDetailsCss, '.task-detail-main')).toContain('overflow-y: auto');
+    expect(rule(desktopDetailsCss, '.task-detail-artifact-body')).toContain('max-height: 16rem');
+    expect(rule(desktopDetailsCss, '.task-detail-artifact-body')).toContain('overflow-y: auto');
   });
 
   it('não reintroduz literais de tema nos owners neutros auditados', () => {

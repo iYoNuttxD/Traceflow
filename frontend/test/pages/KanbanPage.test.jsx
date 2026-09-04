@@ -7,6 +7,7 @@ import { ConfirmProvider } from '../../src/shared/index.js';
 const mocks = vi.hoisted(() => ({
   api: { get: vi.fn() },
   deleteTask: vi.fn(),
+  tasksApi: { update: vi.fn() },
   kanbanApi: {
     getBoard: vi.fn(),
     getMetrics: vi.fn(),
@@ -19,6 +20,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../../src/features/tasks/api/tasks.api.js', () => ({
   kanbanApi: mocks.kanbanApi,
+  tasksApi: mocks.tasksApi,
   deleteTask: mocks.deleteTask,
   unlinkTaskCommit: vi.fn(),
   unlinkTaskIssue: vi.fn(),
@@ -124,10 +126,14 @@ describe('KanbanPage E11', () => {
     });
     mocks.kanbanApi.listTaskHistory.mockResolvedValue(historyResponse());
     mocks.membersApi.list.mockResolvedValue({
+      currentMembership: { id: 3, role: 'MEMBER', isActive: true },
       members: [{ id: 3, userId: 5, isActive: true, user: { id: 5, name: 'Responsável real' } }]
     });
     mocks.scheduleApi.listSprints.mockResolvedValue({ data: { total: 0, sprints: [] } });
     mocks.deleteTask.mockResolvedValue({ message: 'Tarefa excluída com sucesso.' });
+    mocks.tasksApi.update.mockResolvedValue({
+      data: { message: 'Tarefa atualizada com sucesso.', task }
+    });
   });
 
   it('move a tarefa enviando somente o status e usa o responsável canônico', async () => {
@@ -283,6 +289,36 @@ describe('KanbanPage E11', () => {
     expect(within(historyDialog).getByText('Alta')).toBeInTheDocument();
   });
 
+  it('mostra o clear compacto do histórico somente após aplicar filtros', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(
+      await screen.findByRole('button', { name: 'Ver histórico da tarefa Tarefa E11' })
+    );
+    const historyDialog = await screen.findByRole('dialog', { name: /Histórico — #7/ });
+    expect(within(historyDialog).queryByRole('button', { name: 'Limpar filtros' })).toBeNull();
+
+    fireEvent.change(within(historyDialog).getByLabelText('Data inicial'), {
+      target: { value: '2026-07-01' }
+    });
+    expect(within(historyDialog).queryByRole('button', { name: 'Limpar filtros' })).toBeNull();
+    await user.click(within(historyDialog).getByRole('button', { name: 'Filtrar' }));
+
+    await waitFor(() =>
+      expect(mocks.kanbanApi.listTaskHistory).toHaveBeenLastCalledWith(
+        '1',
+        { taskId: 7, startDate: '2026-07-01', page: 1, limit: 10 },
+        { signal: expect.any(AbortSignal) }
+      )
+    );
+    const clear = within(historyDialog).getByRole('button', { name: 'Limpar filtros' });
+    expect(clear).toHaveClass('button-outline');
+    await user.click(clear);
+    await waitFor(() =>
+      expect(within(historyDialog).queryByRole('button', { name: 'Limpar filtros' })).toBeNull()
+    );
+  });
+
   it('não faz GET periódico nem reage a focus/visibility depois da carga inicial', async () => {
     renderPage();
     await screen.findByText('Tarefa E11');
@@ -415,6 +451,7 @@ describe('KanbanPage ADR-011', () => {
     });
     mocks.kanbanApi.listTaskHistory.mockResolvedValue(historyResponse());
     mocks.membersApi.list.mockResolvedValue({
+      currentMembership: { id: 1, role: 'MEMBER', isActive: true },
       members: [
         { id: 1, userId: 5, isActive: true, user: { id: 5, name: 'Responsável real' } },
         { id: 2, userId: 6, isActive: true, user: { id: 6, name: 'Outra pessoa' } }
@@ -423,6 +460,18 @@ describe('KanbanPage ADR-011', () => {
     mocks.scheduleApi.listSprints.mockResolvedValue({
       data: { total: 2, sprints: [sprintCongelada, sprintAtiva] }
     });
+    mocks.tasksApi.update.mockImplementation(async (id, payload) => ({
+      data: {
+        message: 'Tarefa atualizada com sucesso.',
+        task: { ...(id === daSprint.id ? daSprint : congelada), ...payload, id }
+      }
+    }));
+    mocks.kanbanApi.moveTask.mockImplementation(async (id, { toStatus }) => ({
+      data: {
+        message: 'Tarefa movida com sucesso.',
+        task: { ...daSprint, id, status: toStatus }
+      }
+    }));
   });
 
   it('conta as tarefas visiveis, e nao as do projeto inteiro', async () => {
@@ -430,8 +479,16 @@ describe('KanbanPage ADR-011', () => {
     renderPage();
     await screen.findByText('Da sprint');
 
-    expect(screen.getByRole('heading', { name: 'Resumo' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Visão geral do Kanban' })).toBeInTheDocument();
     expect(screen.getByText('Projeto inteiro')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Voltar para o projeto/ })).toBeNull();
+    const summaryRegion = screen.getByRole('region', { name: 'Visão geral do Kanban' });
+    expect(within(summaryRegion).getByText('Prioridade crítica')).toBeInTheDocument();
+    expect(within(summaryRegion).getByText('Atrasadas')).toBeInTheDocument();
+    expect(within(summaryRegion).getByText('Sem rastreabilidade')).toBeInTheDocument();
+    expect(within(summaryRegion).queryByText('A fazer', { exact: false })).toBeNull();
+    expect(within(summaryRegion).queryByText('Em andamento', { exact: false })).toBeNull();
+    expect(within(summaryRegion).queryByText('Concluídas')).toBeNull();
 
     await user.click(screen.getByRole('button', { name: /Projeto inteiro/ }));
     await user.click(screen.getByRole('checkbox', { name: /Sprint 4/ }));
@@ -453,7 +510,7 @@ describe('KanbanPage ADR-011', () => {
     await user.click(screen.getByRole('checkbox', { name: /Sprint 4/ }));
 
     expect(await screen.findByRole('button', { name: /Sprint 4/ })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Projeto inteiro' }));
+    await user.click(screen.getByRole('checkbox', { name: /Projeto inteiro/ }));
     expect(await screen.findByRole('button', { name: /Projeto inteiro/ })).toBeInTheDocument();
   });
 
@@ -521,6 +578,144 @@ describe('KanbanPage ADR-011', () => {
     expect(
       screen.getByRole('button', { name: 'Ver histórico da tarefa Da sprint' })
     ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Mais ações/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Excluir tarefa' })).toBeNull();
+  });
+
+  it('não abre detalhes ao concluir um arrasto e abre no clique seguinte', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText('Da sprint');
+    const card = screen.getByRole('button', { name: 'Abrir detalhes de Da sprint' });
+    const dataTransfer = {
+      effectAllowed: '',
+      dropEffect: '',
+      setData: vi.fn(),
+      getData: vi.fn(() => String(daSprint.id))
+    };
+
+    fireEvent.dragStart(card, { dataTransfer });
+    fireEvent.drop(screen.getByRole('heading', { name: 'Em Andamento' }).closest('section'), {
+      dataTransfer
+    });
+    fireEvent.dragEnd(card, { dataTransfer });
+    fireEvent.click(card);
+    expect(screen.queryByRole('dialog', { name: /#8 Da sprint/ })).toBeNull();
+
+    await waitFor(() => expect(mocks.kanbanApi.moveTask).toHaveBeenCalled());
+    await user.click(screen.getByRole('button', { name: 'Abrir detalhes de Da sprint' }));
+    expect(screen.getByRole('dialog', { name: /#8 Da sprint/ })).toBeInTheDocument();
+  });
+
+  it('edita campos suportados no próprio details e mantém status somente leitura', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Abrir detalhes de Da sprint' }));
+    await user.click(screen.getByRole('button', { name: 'Editar tarefa' }));
+
+    const title = screen.getByRole('textbox', { name: 'Título da tarefa' });
+    expect(title).toHaveFocus();
+    expect(screen.queryByRole('combobox', { name: 'Status' })).toBeNull();
+    expect(screen.getByText('Altere o status diretamente no quadro.')).toBeInTheDocument();
+    await user.clear(title);
+    await user.type(title, 'Da sprint revisada');
+    await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
+
+    await waitFor(() =>
+      expect(mocks.tasksApi.update).toHaveBeenCalledWith(8, { title: 'Da sprint revisada' })
+    );
+    expect(mocks.tasksApi.update.mock.calls[0][1]).not.toHaveProperty('status');
+    expect(mocks.tasksApi.update.mock.calls[0][1]).not.toHaveProperty('sprintId');
+    expect(await screen.findByText('Tarefa atualizada com sucesso.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Editar tarefa' })).toBeInTheDocument();
+  });
+
+  it('cancela edição suja somente após confirmação e não envia mutation', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Abrir detalhes de Da sprint' }));
+    await user.click(screen.getByRole('button', { name: 'Editar tarefa' }));
+    await user.type(screen.getByRole('textbox', { name: 'Título da tarefa' }), ' alterada');
+    await user.click(screen.getByRole('button', { name: 'Cancelar edição' }));
+
+    const confirmation = screen.getByRole('dialog', { name: 'Descartar alterações?' });
+    await user.click(within(confirmation).getByRole('button', { name: 'Descartar alterações' }));
+    expect(mocks.tasksApi.update).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Editar tarefa' })).toHaveFocus()
+    );
+  });
+
+  it('protege fechamento por Escape quando há alterações não salvas', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Abrir detalhes de Da sprint' }));
+    await user.click(screen.getByRole('button', { name: 'Editar tarefa' }));
+    await user.type(screen.getByRole('textbox', { name: 'Título da tarefa' }), ' alterada');
+    await user.keyboard('{Escape}');
+
+    const confirmation = screen.getByRole('dialog', { name: 'Descartar alterações?' });
+    await user.click(within(confirmation).getByRole('button', { name: 'Cancelar' }));
+    expect(screen.getByRole('button', { name: 'Salvar alterações' })).toBeInTheDocument();
+    expect(mocks.tasksApi.update).not.toHaveBeenCalled();
+  });
+
+  it('mantém edição aberta e apresenta validação quando o save falha', async () => {
+    const user = userEvent.setup();
+    mocks.tasksApi.update.mockRejectedValueOnce({
+      response: {
+        status: 400,
+        data: {
+          message: 'Dados inválidos.',
+          details: [{ field: 'body.title', message: 'Título inválido.' }]
+        }
+      }
+    });
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Abrir detalhes de Da sprint' }));
+    await user.click(screen.getByRole('button', { name: 'Editar tarefa' }));
+    await user.type(screen.getByRole('textbox', { name: 'Título da tarefa' }), ' alterada');
+    await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
+
+    expect(await screen.findByText('Dados inválidos.')).toBeInTheDocument();
+    expect(screen.getByText('Título inválido.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Salvar alterações' })).toBeInTheDocument();
+  });
+
+  it('separa sucesso da mutation de falha posterior de reconciliação', async () => {
+    const user = userEvent.setup();
+    mocks.kanbanApi.getBoard
+      .mockResolvedValueOnce({
+        data: {
+          columns: { A_FAZER: [daSprint, congelada, doBacklog], EM_ANDAMENTO: [], CONCLUIDO: [] },
+          totals: { A_FAZER: 3, EM_ANDAMENTO: 0, CONCLUIDO: 0, total: 3 }
+        }
+      })
+      .mockRejectedValueOnce({ response: { status: 503 } });
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Abrir detalhes de Da sprint' }));
+    await user.click(screen.getByRole('button', { name: 'Editar tarefa' }));
+    await user.type(screen.getByRole('textbox', { name: 'Título da tarefa' }), ' alterada');
+    await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
+
+    expect(await screen.findByText('Tarefa atualizada com sucesso.')).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        'O serviço está temporariamente indisponível. Tente novamente em instantes.'
+      )
+    ).toBeInTheDocument();
+  });
+
+  it('não expõe editar nem excluir para VIEWER', async () => {
+    const user = userEvent.setup();
+    mocks.membersApi.list.mockResolvedValueOnce({
+      currentMembership: { id: 1, role: 'VIEWER', isActive: true },
+      members: []
+    });
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Abrir detalhes de Da sprint' }));
+    expect(screen.queryByRole('button', { name: 'Editar tarefa' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Excluir tarefa' })).toBeNull();
   });
 
   it('mantém filtros recolhidos, filtra localmente e preserva o resumo da Sprint', async () => {
@@ -536,7 +731,7 @@ describe('KanbanPage ADR-011', () => {
     expect(await screen.findByText('1 de 3 tarefas exibidas')).toBeInTheDocument();
     expect(screen.getByText('Da sprint')).toBeInTheDocument();
     expect(screen.queryByText('Congelada')).toBeNull();
-    const summaryRegion = screen.getByRole('region', { name: 'Resumo' });
+    const summaryRegion = screen.getByRole('region', { name: 'Visão geral do Kanban' });
     expect(within(summaryRegion).getByText('Total').parentElement).toHaveTextContent('3');
     expect(toggle).toHaveTextContent('1 filtro ativo');
 
@@ -602,7 +797,10 @@ describe('current-context-wins na troca de projeto', () => {
       data: { indicator: 'MOVIMENTACOES', metric: 'Movimentações', totalMovements: 0 }
     });
     mocks.kanbanApi.listTaskHistory.mockResolvedValue(historyResponse());
-    mocks.membersApi.list.mockResolvedValue({ members: [] });
+    mocks.membersApi.list.mockResolvedValue({
+      currentMembership: { id: 1, role: 'MEMBER', isActive: true },
+      members: []
+    });
     mocks.scheduleApi.listSprints.mockResolvedValue({ data: { total: 1, sprints: [sprint] } });
   }
 
@@ -644,7 +842,9 @@ describe('current-context-wins na troca de projeto', () => {
       doA({ data: { indicator: 'MOVIMENTACOES', metric: 'Movimentações', totalMovements: 9 } })
     );
     mocks.kanbanApi.listTaskHistory.mockReturnValue(doA(historyResponse()));
-    mocks.membersApi.list.mockReturnValue(doA({ members: [] }));
+    mocks.membersApi.list.mockReturnValue(
+      doA({ currentMembership: { id: 1, role: 'MEMBER', isActive: true }, members: [] })
+    );
     mocks.scheduleApi.listSprints.mockReturnValue(
       doA({ data: { total: 1, sprints: [sprintDeA] } })
     );

@@ -17,6 +17,7 @@ export function KanbanDialog({
   size = 'default',
   returnFocusRef,
   onClose,
+  headerActions,
   children
 }) {
   const titleId = useId();
@@ -35,6 +36,7 @@ export function KanbanDialog({
 
     function handleKeyDown(event) {
       if (event.defaultPrevented) return;
+      if (!panelRef.current?.contains(event.target)) return;
       if (event.key === 'Escape') {
         event.preventDefault();
         onCloseRef.current();
@@ -93,16 +95,19 @@ export function KanbanDialog({
             <h2 id={titleId}>{title}</h2>
             {description && <p id={descriptionId}>{description}</p>}
           </div>
-          <button
-            type="button"
-            className="kanban-dialog__close"
-            data-dialog-close
-            onClick={onClose}
-            aria-label={`Fechar ${title.toLocaleLowerCase('pt-BR')}`}
-            title="Fechar"
-          >
-            <TraceFlowIcon name="close" />
-          </button>
+          <div className="kanban-dialog__controls">
+            {headerActions}
+            <button
+              type="button"
+              className="kanban-dialog__close"
+              data-dialog-close
+              onClick={onClose}
+              aria-label={`Fechar ${title.toLocaleLowerCase('pt-BR')}`}
+              title="Fechar"
+            >
+              <TraceFlowIcon name="close" />
+            </button>
+          </div>
         </header>
         <div className="kanban-dialog__body">{children}</div>
       </section>

@@ -80,11 +80,6 @@ export function KanbanSprintFilter({ sprints, selectedIds, statusLabels = {}, on
         >
           <div className="kanban-sprint-filter__header">
             <strong>Sprints no quadro</strong>
-            {selected.length > 0 && (
-              <button type="button" className="text-button" onClick={onClear}>
-                Projeto inteiro
-              </button>
-            )}
           </div>
           {sprints.length > VISIBLE_LIMIT && (
             <label className="kanban-sprint-filter__search">
@@ -98,27 +93,35 @@ export function KanbanSprintFilter({ sprints, selectedIds, statusLabels = {}, on
               />
             </label>
           )}
-          {visibleSprints.length === 0 ? (
+          <ul className="kanban-sprint-filter__options">
+            <li>
+              <label>
+                <input type="checkbox" checked={selected.length === 0} onChange={onClear} />
+                <span>
+                  <strong>Projeto inteiro</strong>
+                  <small>Todas as tarefas do projeto</small>
+                </span>
+              </label>
+            </li>
+            {visibleSprints.map((sprint) => (
+              <li key={sprint.id}>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(sprint.id)}
+                    onChange={() => onToggle(sprint.id)}
+                  />
+                  <span>
+                    <strong>{sprint.name}</strong>
+                    <small>{statusLabels[sprint.id]}</small>
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
+          {visibleSprints.length === 0 && normalizedQuery ? (
             <p className="kanban-sprint-filter__empty">Nenhuma Sprint encontrada.</p>
-          ) : (
-            <ul className="kanban-sprint-filter__options">
-              {visibleSprints.map((sprint) => (
-                <li key={sprint.id}>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.includes(sprint.id)}
-                      onChange={() => onToggle(sprint.id)}
-                    />
-                    <span>
-                      <strong>{sprint.name}</strong>
-                      <small>{statusLabels[sprint.id]}</small>
-                    </span>
-                  </label>
-                </li>
-              ))}
-            </ul>
-          )}
+          ) : null}
           {!normalizedQuery && sprints.length > VISIBLE_LIMIT && (
             <p className="kanban-sprint-filter__hint">
               Pesquise para encontrar outras {sprints.length - VISIBLE_LIMIT} Sprints.
