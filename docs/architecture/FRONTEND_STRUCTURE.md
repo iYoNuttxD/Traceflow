@@ -173,8 +173,14 @@ As screens de Tasks e Kanban coordenam estado e casos de uso, enquanto component
   de status ainda não possui alternativa de teclado (`KANBAN KEYBOARD MOVE GAP`);
 - `TaskHistoryDialog` consulta e pagina o histórico somente da tarefa selecionada por meio do
   endpoint existente, sem carregar histórico global no Kanban;
-- `TaskDetailsPanel` apresenta informações e rastreabilidade em modo read-only e preserva
-  `TaskComments` como owner da conversa e de seu SSE;
+- `TaskDetailsPanel` apresenta informações e rastreabilidade em modo read-only e concentra, sob
+  uma única ação `Editar tarefa`, o draft dos campos suportados e dos vínculos; status continua
+  read-only, mutations independentes preservam seus resultados reais e a troca de tarefa desmonta
+  o estado efêmero do editor;
+- `TaskTraceabilityEditor` permanece owner dos seletores pesquisáveis de requisito, pull request,
+  commit e issue, enquanto `CommitSuggestionsCard` oferece o mesmo controle compacto de sugestões
+  no formulário de Tasks e no Task Details, sem duplicar a regra de negócio;
+- `TaskComments` permanece owner da conversa, paginação e SSE, sem acoplamento ao modo de edição;
 - `KanbanDialog` concentra foco inicial, trap, Escape, scroll e return focus dos dialogs locais;
 - `kanban-view` centraliza resumo, filtros e apresentação derivada, enquanto `kanban-display`
   mantém labels e formatação do histórico.

@@ -22,6 +22,9 @@
 .task-detail-main > .message {
   margin-bottom: var(--space-4);
 }
+.task-detail-unified-edit {
+  display: grid;
+}
 .task-detail-section {
   display: grid;
   gap: var(--space-3);

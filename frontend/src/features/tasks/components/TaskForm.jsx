@@ -579,6 +579,7 @@ export function TaskForm({
         <CommitSuggestionsCard
           projectId={projectId}
           taskId={taskId}
+          disabled={submitting}
           onConfirmed={onSuggestionConfirmed}
         />
 

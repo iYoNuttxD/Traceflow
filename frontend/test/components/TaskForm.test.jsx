@@ -1,7 +1,16 @@
 import { useState } from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const suggestionApiMocks = vi.hoisted(() => ({
+  getCommitSuggestions: vi.fn(),
+  confirmCommitSuggestion: vi.fn(),
+  rejectCommitSuggestion: vi.fn(),
+  scanCommitSuggestions: vi.fn()
+}));
+
+vi.mock('../../src/features/traceability/api/traceability.api.js', () => suggestionApiMocks);
 import { TaskForm, emptyTaskForm, taskFormToPayload } from '../../src/features/tasks/index.js';
 
 function TaskFormHarness({
@@ -28,6 +37,15 @@ function TaskFormHarness({
 }
 
 describe('TaskForm', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    suggestionApiMocks.getCommitSuggestions.mockResolvedValue({
+      suggestions: [],
+      permissions: { canReview: true },
+      pagination: { page: 1, limit: 20, total: 0, totalPages: 0 }
+    });
+  });
+
   it('renderiza, preenche o título e submete o formulário atual', async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn((event) => event.preventDefault());
@@ -94,9 +112,12 @@ describe('TaskForm', () => {
     );
 
     expect(screen.getByText('Buscar commits do projeto')).toBeInTheDocument();
-    expect(screen.getByText('Sugestões automáticas')).toBeInTheDocument();
+    expect(screen.getByText('Sugestões de commits')).toBeInTheDocument();
     expect(screen.getByText('Commits vinculados')).toBeInTheDocument();
-    expect(screen.getByText(/Após salvar a tarefa/)).toBeInTheDocument();
+    expect(
+      screen.getByText('Sugestões de commits ficam disponíveis após salvar a tarefa.')
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Sugerir commits' })).not.toBeInTheDocument();
 
     const searchInput = screen.getByRole('searchbox', { name: 'Buscar commits do projeto' });
     await user.type(searchInput, 'abc');
@@ -124,5 +145,24 @@ describe('TaskForm', () => {
     );
     await user.type(screen.getByRole('searchbox', { name: 'Buscar commits do projeto' }), 'xyz');
     expect(screen.getByText('Nenhum commit encontrado.')).toBeInTheDocument();
+  });
+
+  it('reutiliza o controle compacto de sugestões na edição persistida', async () => {
+    render(
+      <TaskFormHarness
+        onSubmit={vi.fn((event) => event.preventDefault())}
+        editing
+        projectId="3"
+        taskId="42"
+      />
+    );
+
+    expect(await screen.findByRole('button', { name: 'Sugerir commits' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Como funcionam as sugestões de commits' })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('Sugestões de commits ficam disponíveis após salvar a tarefa.')
+    ).not.toBeInTheDocument();
   });
 });

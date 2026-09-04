@@ -444,7 +444,7 @@ describe('ProjectDetailsPage E9', () => {
     renderPage();
     await screen.findByRole('heading', { name: 'Projeto E9' });
     expect(screen.queryByText('Analisar commits para sugestões')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Atualizar sugestões' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Sugerir commits' })).not.toBeInTheDocument();
   });
 
   it('apresenta projeto não encontrado com retorno contextual', async () => {

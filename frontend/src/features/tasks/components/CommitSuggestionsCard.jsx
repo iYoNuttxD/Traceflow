@@ -1,5 +1,8 @@
+import { useEffect, useId, useRef, useState } from 'react';
+import { TraceFlowIcon } from '../../../shared/index.js';
 import { useCommitSuggestions } from '../hooks/useCommitSuggestions.js';
 import '../../../shared/styles/traceability-controls.css';
+import './CommitSuggestionsCard.css';
 
 const statusLabels = {
   PENDING: 'Pendente',
@@ -12,7 +15,64 @@ function summarizedMessage(message) {
   return message.length > 160 ? `${message.slice(0, 157)}...` : message;
 }
 
-export function CommitSuggestionsCard({ projectId, taskId, onConfirmed }) {
+function resultMessage(result) {
+  if (result.createdSuggestions > 0) {
+    return `${result.createdSuggestions} ${result.createdSuggestions === 1 ? 'commit sugerido' : 'commits sugeridos'}.`;
+  }
+  if (result.skippedSuggestions > 0) {
+    return `Nenhuma nova sugestão. ${result.skippedSuggestions} ${result.skippedSuggestions === 1 ? 'referência não gerou' : 'referências não geraram'} nova sugestão.`;
+  }
+  return 'Nenhuma sugestão encontrada.';
+}
+
+function CommitSuggestionInfo() {
+  const [open, setOpen] = useState(false);
+  const tooltipId = useId();
+  const containerRef = useRef(null);
+  const triggerRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    function closeOnPointerDown(event) {
+      if (!containerRef.current?.contains(event.target)) setOpen(false);
+    }
+    document.addEventListener('pointerdown', closeOnPointerDown);
+    return () => document.removeEventListener('pointerdown', closeOnPointerDown);
+  }, [open]);
+
+  function closeOnEscape(event) {
+    if (!open || event.key !== 'Escape') return;
+    event.preventDefault();
+    event.stopPropagation();
+    setOpen(false);
+    window.requestAnimationFrame(() => triggerRef.current?.focus());
+  }
+
+  return (
+    <span className="commit-suggestions-info" ref={containerRef} onKeyDown={closeOnEscape}>
+      <button
+        type="button"
+        ref={triggerRef}
+        className="commit-suggestions-info__trigger"
+        aria-label="Como funcionam as sugestões de commits"
+        aria-expanded={open}
+        aria-describedby={open ? tooltipId : undefined}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <TraceFlowIcon name="info" />
+      </button>
+      {open && (
+        <span className="commit-suggestions-info__tooltip" id={tooltipId} role="tooltip">
+          O TraceFlow procura, nas mensagens dos commits já importados do projeto, referências como
+          {' [TASK-42] '}ao identificador da tarefa. As sugestões não criam vínculos
+          automaticamente; você decide o que confirmar.
+        </span>
+      )}
+    </span>
+  );
+}
+
+export function CommitSuggestionsCard({ projectId, taskId, onConfirmed, disabled = false }) {
   const {
     suggestions,
     permissions,
@@ -26,35 +86,36 @@ export function CommitSuggestionsCard({ projectId, taskId, onConfirmed }) {
     rejectSuggestion
   } = useCommitSuggestions({ projectId, taskId, onConfirmed });
 
+  if (!taskId) {
+    return (
+      <div className="commit-suggestions-control commit-suggestions-control--unavailable">
+        <span className="commit-suggestions-control__title">Sugestões de commits</span>
+        <p className="field-help">Sugestões de commits ficam disponíveis após salvar a tarefa.</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="traceability-picker">
-      <span>Sugestões automáticas</span>
-      <p className="field-help">Commits cuja mensagem contém [TASK-ID] para esta tarefa.</p>
-      {!taskId && (
-        <p className="field-help">
-          Após salvar a tarefa, commits com [TASK-ID] poderão ser sugeridos automaticamente.
-        </p>
-      )}
-      {taskId && permissions.canReview && (
-        <div>
-          <p className="field-help">
-            Analisa os commits já importados e atualiza as sugestões desta tarefa.
-          </p>
+    <div className="commit-suggestions-control">
+      <div className="commit-suggestions-control__header">
+        <span className="commit-suggestions-control__title">
+          Sugestões de commits
+          <CommitSuggestionInfo />
+        </span>
+        {permissions.canReview && (
           <button
-            className="button button-secondary"
+            className="button button-outline button-compact"
             type="button"
-            disabled={scanning || actionId !== null}
+            disabled={disabled || scanning || actionId !== null}
             onClick={() => void scan()}
           >
-            {scanning ? 'Atualizando sugestões...' : 'Atualizar sugestões'}
+            {scanning ? 'Buscando...' : 'Sugerir commits'}
           </button>
-        </div>
-      )}
+        )}
+      </div>
       {scanResult && (
-        <p className="field-help" role="status">
-          Commits analisados: {scanResult.scannedCommits}; referências detectadas:{' '}
-          {scanResult.detectedReferences}; sugestões criadas: {scanResult.createdSuggestions};
-          sugestões ignoradas: {scanResult.skippedSuggestions}.
+        <p className="commit-suggestions-control__result" role="status">
+          {resultMessage(scanResult)}
         </p>
       )}
       {error && (
@@ -62,12 +123,17 @@ export function CommitSuggestionsCard({ projectId, taskId, onConfirmed }) {
           {error}
         </div>
       )}
-      {taskId && loading ? (
-        <p className="empty-state">Carregando sugestões de commits...</p>
-      ) : taskId && !error && suggestions.length === 0 ? (
-        <p className="empty-state">Nenhuma sugestão de commit pendente.</p>
-      ) : taskId && !error ? (
-        <div className="traceability-suggestions-list">
+      {loading ? (
+        <p className="commit-suggestions-control__empty" role="status">
+          Carregando sugestões de commits...
+        </p>
+      ) : !error && suggestions.length === 0 ? (
+        <p className="commit-suggestions-control__empty">Nenhuma sugestão encontrada.</p>
+      ) : !error ? (
+        <div
+          className="traceability-suggestions-list"
+          aria-label={`Sugestões (${suggestions.length})`}
+        >
           {suggestions.map((suggestion) => {
             const processing = actionId === suggestion.id;
             return (
@@ -87,7 +153,7 @@ export function CommitSuggestionsCard({ projectId, taskId, onConfirmed }) {
                     <button
                       className="button"
                       type="button"
-                      disabled={processing || actionId !== null}
+                      disabled={disabled || processing || actionId !== null}
                       onClick={() => void confirmSuggestion(suggestion)}
                     >
                       {processing ? 'Processando...' : 'Confirmar'}
@@ -95,7 +161,7 @@ export function CommitSuggestionsCard({ projectId, taskId, onConfirmed }) {
                     <button
                       className="button button-secondary"
                       type="button"
-                      disabled={processing || actionId !== null}
+                      disabled={disabled || processing || actionId !== null}
                       onClick={() => void rejectSuggestion(suggestion)}
                     >
                       Rejeitar
