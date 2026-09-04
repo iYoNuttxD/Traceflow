@@ -1,3 +1,4 @@
+import { startTestServer } from '../helpers/http-server.js';
 import request from 'supertest';
 import { describe, expect, it, vi } from 'vitest';
 import { createApp } from '../../src/app.js';
@@ -13,11 +14,11 @@ const silentLogger = {
 describe('health probes', () => {
   it('preserva health e responde liveness', async () => {
     const app = createApp({ logger: silentLogger, readinessCheck: async () => true });
-    expect((await request(app).get('/health')).body).toEqual({
+    expect((await request(await startTestServer(app)).get('/health')).body).toEqual({
       status: 'ok',
       message: 'TRACEFLOW backend structure is ready.'
     });
-    expect(await request(app).get('/health/live')).toMatchObject({
+    expect(await request(await startTestServer(app)).get('/health/live')).toMatchObject({
       status: 200,
       body: { status: 'ok' }
     });
@@ -25,7 +26,7 @@ describe('health probes', () => {
 
   it('responde readiness 200 ou 503 sem expor detalhes', async () => {
     const readyApp = createApp({ logger: silentLogger, readinessCheck: async () => true });
-    expect(await request(readyApp).get('/health/ready')).toMatchObject({
+    expect(await request(await startTestServer(readyApp)).get('/health/ready')).toMatchObject({
       status: 200,
       body: { status: 'ready' }
     });
@@ -36,7 +37,7 @@ describe('health probes', () => {
         throw new Error('mysql://user:secret@localhost/private');
       }
     });
-    const response = await request(unavailableApp).get('/health/ready');
+    const response = await request(await startTestServer(unavailableApp)).get('/health/ready');
     expect(response.status).toBe(503);
     expect(response.body).toEqual({
       status: 'not_ready',

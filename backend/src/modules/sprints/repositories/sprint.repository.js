@@ -13,6 +13,8 @@ export const sprintSelect = {
   status: true,
   startedAt: true,
   completedAt: true,
+  planningSnapshotAt: true,
+  closedAt: true,
   milestoneId: true,
   createdAt: true,
   updatedAt: true
@@ -37,6 +39,10 @@ export const sprintTaskSelect = {
   taskTitleSnapshot: true,
   addedAt: true,
   addedAfterStart: true,
+  plannedAtStart: true,
+  pointsAtPlanning: true,
+  pointsAtClose: true,
+  completedAtClose: true,
   carriedFromSprintId: true,
   removedAt: true,
   removalReason: true,
@@ -54,31 +60,79 @@ function toParticipatingTask(participation) {
   };
 }
 
-async function freezeParticipations(tx, sprintId, closedAt) {
-  const ativas = await tx.sprintTask.findMany({
-    where: { sprintId, removedAt: null },
-    select: { id: true, taskId: true }
+async function capturePlanning(tx, sprintId, tasks) {
+  // Every existing participation is classified once, including pre-start removals.
+  await tx.sprintTask.updateMany({ where: { sprintId }, data: { plannedAtStart: false } });
+  for (const task of tasks) {
+    await tx.sprintTask.updateMany({
+      where: { sprintId, taskId: task.id, removedAt: null },
+      data: { plannedAtStart: true, pointsAtPlanning: task.estimatedEffort ?? 0 }
+    });
+  }
+}
+
+async function freezeParticipations(tx, sprint, closedAt) {
+  const participations = await findBurndownData(tx, sprint);
+  for (const participation of participations.filter((item) => item.removedAt === null)) {
+    await tx.sprintTask.update({
+      where: { id: participation.id },
+      data: {
+        closedAt,
+        exitStatus: participation.currentStatus,
+        pointsAtClose: participation.points,
+        completedAtClose: participation.completedAt
+      }
+    });
+  }
+}
+
+async function findBurndownData(client, sprint) {
+  const frozen = ['CONCLUIDA', 'CANCELADA'].includes(sprint.status);
+  const participations = await client.sprintTask.findMany({
+    where: { sprintId: sprint.id },
+    select: {
+      ...sprintTaskSelect,
+      ...(frozen ? {} : { task: { select: { status: true, estimatedEffort: true } } })
+    },
+    orderBy: [{ id: 'asc' }]
   });
-  const taskIds = ativas.map((participacao) => participacao.taskId).filter(Boolean);
-  const statusById = new Map(
-    taskIds.length
-      ? (
-          await tx.task.findMany({
-            where: { id: { in: taskIds } },
-            select: { id: true, status: true }
-          })
-        ).map((task) => [task.id, task.status])
-      : []
-  );
-  const idsPorStatus = new Map();
-  for (const participacao of ativas) {
-    const exitStatus = statusById.get(participacao.taskId) ?? null;
-    if (!idsPorStatus.has(exitStatus)) idsPorStatus.set(exitStatus, []);
-    idsPorStatus.get(exitStatus).push(participacao.id);
-  }
-  for (const [exitStatus, ids] of idsPorStatus) {
-    await tx.sprintTask.updateMany({ where: { id: { in: ids } }, data: { closedAt, exitStatus } });
-  }
+  const taskIds = participations
+    .filter((p) => !frozen && p.closedAt === null)
+    .map((p) => p.taskId)
+    .filter(Boolean);
+  const completions = taskIds.length
+    ? await client.taskHistoryEntry.findMany({
+        where: {
+          projectId: sprint.projectId,
+          taskId: { in: taskIds },
+          field: 'STATUS',
+          toValue: 'CONCLUIDO'
+        },
+        select: { taskId: true, occurredAt: true },
+        orderBy: [{ occurredAt: 'asc' }]
+      })
+    : [];
+  return participations.map((p) => {
+    const end = p.removedAt ?? p.closedAt;
+    const completedAt =
+      completions.find(
+        (entry) =>
+          entry.taskId === p.taskId &&
+          entry.occurredAt >= p.addedAt &&
+          (!end || entry.occurredAt <= end)
+      )?.occurredAt ?? null;
+    return {
+      id: p.id,
+      taskId: p.taskId,
+      points: frozen || p.closedAt !== null ? p.pointsAtClose : (p.task?.estimatedEffort ?? 0),
+      addedAt: p.addedAt,
+      removedAt: p.removedAt,
+      closedAt: p.closedAt,
+      exitStatus: p.exitStatus,
+      currentStatus: frozen || p.closedAt !== null ? null : (p.task?.status ?? null),
+      completedAt: frozen || p.closedAt !== null ? p.completedAtClose : completedAt
+    };
+  });
 }
 
 export const sprintRepository = {
@@ -175,7 +229,7 @@ export const sprintRepository = {
       const tasks = taskIds.length
         ? await tx.task.findMany({
             where: { id: { in: taskIds } },
-            select: { id: true, title: true, status: true, sprintId: true }
+            select: { id: true, title: true, status: true, sprintId: true, estimatedEffort: true }
           })
         : [];
       const milestoneSprints = milestoneId
@@ -189,8 +243,15 @@ export const sprintRepository = {
         milestoneSprints
       });
 
+      if (data.startedAt) {
+        await capturePlanning(tx, id, tasks);
+        data.planningSnapshotAt = data.startedAt;
+      }
+      if (freezeAt) {
+        await freezeParticipations(tx, atual, freezeAt);
+        data.closedAt = freezeAt;
+      }
       const sprint = await tx.sprint.update({ where: { id }, data, select: sprintSelect });
-      if (freezeAt) await freezeParticipations(tx, id, freezeAt);
 
       let returnedToBacklog = 0;
       if (backlog?.taskIds?.length) {
@@ -274,6 +335,8 @@ export const sprintRepository = {
           await tx.sprintTask.update({
             where: { id: entrada.id },
             data: {
+              addedAt: entrada.addedAt,
+              addedAfterStart: entrada.addedAfterStart,
               removedAt: null,
               removalReason: null,
               exitStatus: null,
@@ -291,6 +354,7 @@ export const sprintRepository = {
               taskTitleSnapshot: entrada.taskTitleSnapshot,
               addedAt: entrada.addedAt,
               addedAfterStart: entrada.addedAfterStart,
+              plannedAtStart: sprint.planningSnapshotAt ? false : null,
               carriedFromSprintId: entrada.carriedFromSprintId
             }
           });
@@ -321,11 +385,11 @@ export const sprintRepository = {
     });
   },
 
-  async findParticipationsBySprint(sprintId) {
+  async findParticipationsBySprint(sprintId, frozen = false) {
     const [participations, continuations] = await prisma.$transaction([
       prisma.sprintTask.findMany({
         where: { sprintId },
-        select: { ...sprintTaskSelect, task: { select: { status: true } } },
+        select: { ...sprintTaskSelect, ...(frozen ? {} : { task: { select: { status: true } } }) },
         orderBy: [{ taskId: 'asc' }]
       }),
       prisma.sprintTask.findMany({
@@ -342,65 +406,18 @@ export const sprintRepository = {
       taskTitleSnapshot: participation.taskTitleSnapshot,
       addedAt: participation.addedAt,
       addedAfterStart: participation.addedAfterStart,
+      plannedAtStart: participation.plannedAtStart,
       carriedFromSprintId: participation.carriedFromSprintId,
       removedAt: participation.removedAt,
       removalReason: participation.removalReason,
       exitStatus: participation.exitStatus,
-      currentStatus: participation.task?.status ?? null,
+      currentStatus: frozen || participation.closedAt ? null : (participation.task?.status ?? null),
       movedToSprintId: movedTo.get(participation.taskId) ?? null
     }));
   },
 
   async findBurndownDataBySprint(sprint) {
-    const participations = await prisma.sprintTask.findMany({
-      where: { sprintId: sprint.id },
-      select: {
-        taskId: true,
-        addedAt: true,
-        removedAt: true,
-        exitStatus: true,
-        closedAt: true,
-        task: { select: { status: true, estimatedEffort: true } }
-      },
-      orderBy: [{ taskId: 'asc' }]
-    });
-
-    const taskIds = participations.map((participation) => participation.taskId).filter(Boolean);
-    const conclusoes = taskIds.length
-      ? await prisma.taskHistoryEntry.findMany({
-          where: {
-            projectId: sprint.projectId,
-            taskId: { in: taskIds },
-            field: 'STATUS',
-            toValue: 'CONCLUIDO'
-          },
-          select: { taskId: true, occurredAt: true },
-          orderBy: [{ occurredAt: 'asc' }]
-        })
-      : [];
-
-    const porTarefa = new Map();
-    for (const entrada of conclusoes) {
-      if (!porTarefa.has(entrada.taskId)) porTarefa.set(entrada.taskId, []);
-      porTarefa.get(entrada.taskId).push(entrada.occurredAt);
-    }
-
-    return participations.map((participation) => {
-      const fim = participation.removedAt ?? participation.closedAt ?? null;
-      const primeira = (porTarefa.get(participation.taskId) || []).find(
-        (instante) => instante >= participation.addedAt && (!fim || instante <= fim)
-      );
-      return {
-        taskId: participation.taskId,
-        points: participation.task?.estimatedEffort ?? 0,
-        addedAt: participation.addedAt,
-        removedAt: participation.removedAt,
-        closedAt: participation.closedAt,
-        exitStatus: participation.exitStatus,
-        currentStatus: participation.task?.status ?? null,
-        completedAt: primeira ?? null
-      };
-    });
+    return findBurndownData(prisma, sprint);
   },
 
   async findTasksBySprint(sprintId) {

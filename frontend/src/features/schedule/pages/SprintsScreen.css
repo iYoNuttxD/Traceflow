@@ -69,13 +69,14 @@
 }
 
 .sprints-summary__metrics {
-  display: grid;
-  grid-template-columns: 0.72fr 0.72fr 1.8fr 0.72fr 0.72fr;
+  display: flex;
+  flex-wrap: wrap;
   background: var(--color-surface-primary);
 }
 
 .sprints-summary__metric {
   display: grid;
+  flex: 1 1 0;
   min-width: 0;
   align-content: center;
   gap: var(--space-1);
@@ -109,6 +110,7 @@
 }
 
 .sprints-summary__metric--active {
+  flex-grow: 2.5;
   background: var(--color-accent-surface);
 }
 
@@ -978,13 +980,9 @@
 }
 
 @container sprints-page (max-width: 66rem) {
-  .sprints-summary__metrics {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
+  .sprints-summary__metric,
   .sprints-summary__metric--active {
-    grid-column: auto;
-    grid-row: auto;
+    flex: 1 1 calc(100% / 3);
   }
 
   .sprint-filters__controls {
@@ -1004,14 +1002,9 @@
     flex-direction: column;
   }
 
-  .sprints-summary__metrics {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
   .sprints-summary__metric,
   .sprints-summary__metric--active {
-    grid-column: auto;
-    grid-row: auto;
+    flex: 1 1 50%;
   }
 
   .sprint-filters__controls,
@@ -1084,5 +1077,12 @@
   .sprint-dialog * {
     scroll-behavior: auto;
     transition-duration: 0.01ms !important;
+  }
+}
+
+@container sprints-page (max-width: 24rem) {
+  .sprints-summary__metric,
+  .sprints-summary__metric--active {
+    flex-basis: 100%;
   }
 }

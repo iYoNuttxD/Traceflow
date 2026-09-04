@@ -1,3 +1,4 @@
+import { startTestServer } from '../helpers/http-server.js';
 import request from 'supertest';
 import { createHash } from 'node:crypto';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -27,6 +28,7 @@ beforeAll(async () => {
   ({ prisma } = await import('../../src/database/prismaClient.js'));
   ({ authService } = await import('../../src/modules/auth/auth.service.js'));
   ({ default: app } = await import('../../src/app.js'));
+  app = await startTestServer(app);
   await cleanTestDatabase(prisma);
 });
 

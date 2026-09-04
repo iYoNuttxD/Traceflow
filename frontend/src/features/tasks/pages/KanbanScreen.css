@@ -188,3 +188,12 @@
     padding-top: var(--space-6);
   }
 }
+
+/* The project navigation must fit this page's own mobile gutter. */
+@media (max-width: 720px) {
+  .kanban-screen .project-section-tabs {
+    margin-inline: 0;
+    padding-inline: 0;
+    max-width: 100%;
+  }
+}

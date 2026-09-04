@@ -605,18 +605,20 @@ model Task {
 }
 
 model Sprint {
-  id          Int          @id @default(autoincrement())
-  projectId   Int
-  name        String
-  objective   String?      @db.Text
-  startDate   DateTime
-  endDate     DateTime
-  status      SprintStatus @default(PLANEJADA)
-  startedAt   DateTime?
-  completedAt DateTime?
-  milestoneId Int?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id                 Int          @id @default(autoincrement())
+  projectId          Int
+  name               String
+  objective          String?      @db.Text
+  startDate          DateTime
+  endDate            DateTime
+  status             SprintStatus @default(PLANEJADA)
+  startedAt          DateTime?
+  completedAt        DateTime?
+  planningSnapshotAt DateTime?
+  closedAt           DateTime?
+  milestoneId        Int?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
 
   project          Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
   tasks            Task[]
@@ -656,6 +658,10 @@ model SprintTask {
   taskTitleSnapshot   String
   addedAt             DateTime                 @default(now())
   addedAfterStart     Boolean                  @default(false)
+  plannedAtStart      Boolean?
+  pointsAtPlanning    Int?
+  pointsAtClose       Int?
+  completedAtClose    DateTime?
   carriedFromSprintId Int?
   removedAt           DateTime?
   removalReason       SprintTaskRemovalReason?

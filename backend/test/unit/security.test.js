@@ -1,3 +1,4 @@
+import { startTestServer } from '../helpers/http-server.js';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import express from 'express';
@@ -38,7 +39,7 @@ function securityConfig(overrides = {}) {
 describe('headers, body e CORS', () => {
   it('remove fingerprint e aplica headers de API sem HSTS fora de produção', async () => {
     const app = createApp({ logger: silentLogger, securityConfig: securityConfig() });
-    const response = await request(app).get('/health');
+    const response = await request(await startTestServer(app)).get('/health');
     expect(response.status).toBe(200);
     expect(response.headers['x-powered-by']).toBeUndefined();
     expect(response.headers['x-content-type-options']).toBe('nosniff');
@@ -52,16 +53,18 @@ describe('headers, body e CORS', () => {
       logger: silentLogger,
       securityConfig: securityConfig({ isProduction: true })
     });
-    const response = await request(app).get('/health');
+    const response = await request(await startTestServer(app)).get('/health');
     expect(response.headers['strict-transport-security']).toContain('max-age=31536000');
   });
 
   it('aceita origem configurada, ausência de Origin e preflight permitido', async () => {
     const app = createApp({ logger: silentLogger, securityConfig: securityConfig() });
-    const allowed = await request(app).get('/health').set('Origin', 'http://frontend.test');
+    const allowed = await request(await startTestServer(app))
+      .get('/health')
+      .set('Origin', 'http://frontend.test');
     expect(allowed.headers['access-control-allow-origin']).toBe('http://frontend.test');
-    expect((await request(app).get('/health')).status).toBe(200);
-    const preflight = await request(app)
+    expect((await request(await startTestServer(app)).get('/health')).status).toBe(200);
+    const preflight = await request(await startTestServer(app))
       .options('/api/projects')
       .set('Origin', 'http://frontend.test')
       .set('Access-Control-Request-Method', 'POST')
@@ -71,17 +74,19 @@ describe('headers, body e CORS', () => {
 
   it('rejeita origem, método e header não permitidos', async () => {
     const app = createApp({ logger: silentLogger, securityConfig: securityConfig() });
-    const forbiddenOrigin = await request(app).get('/health').set('Origin', 'https://evil.invalid');
+    const forbiddenOrigin = await request(await startTestServer(app))
+      .get('/health')
+      .set('Origin', 'https://evil.invalid');
     expect(forbiddenOrigin).toMatchObject({
       status: 403,
       body: expect.objectContaining({ code: ERROR_CODES.CORS_ORIGIN_DENIED })
     });
-    const forbiddenMethod = await request(app)
+    const forbiddenMethod = await request(await startTestServer(app))
       .options('/api/projects')
       .set('Origin', 'http://frontend.test')
       .set('Access-Control-Request-Method', 'TRACE');
     expect(forbiddenMethod.status).toBe(403);
-    const forbiddenHeader = await request(app)
+    const forbiddenHeader = await request(await startTestServer(app))
       .options('/api/projects')
       .set('Origin', 'http://frontend.test')
       .set('Access-Control-Request-Method', 'POST')
@@ -91,7 +96,7 @@ describe('headers, body e CORS', () => {
 
   it('rejeita JSON excessivo, malformado e content type inesperado com resposta segura', async () => {
     const app = createApp({ logger: silentLogger, securityConfig: securityConfig() });
-    const oversized = await request(app)
+    const oversized = await request(await startTestServer(app))
       .post('/api/projects/join')
       .set('Content-Type', 'application/json')
       .send({ accessCode: 'TRC-TEST', name: 'x'.repeat(2048) });
@@ -102,7 +107,7 @@ describe('headers, body e CORS', () => {
     expect(oversized.body.requestId).toBe(oversized.headers['x-request-id']);
     expect(JSON.stringify(oversized.body)).not.toContain('x'.repeat(100));
 
-    const malformed = await request(app)
+    const malformed = await request(await startTestServer(app))
       .post('/api/projects/join')
       .set('Content-Type', 'application/json')
       .send('{"accessCode":');
@@ -111,7 +116,7 @@ describe('headers, body e CORS', () => {
       body: expect.objectContaining({ code: ERROR_CODES.MALFORMED_JSON })
     });
 
-    const unsupported = await request(app)
+    const unsupported = await request(await startTestServer(app))
       .post('/api/projects/join')
       .set('Content-Type', 'text/plain')
       .send('accessCode=TRC-TEST');
@@ -128,9 +133,15 @@ describe('rate limiting', () => {
       logger: silentLogger,
       securityConfig: securityConfig({ trustProxy: 1, rateLimitGlobalMax: 1 })
     });
-    const first = await request(app).get('/api/unknown').set('X-Forwarded-For', '198.51.100.10');
-    const limited = await request(app).get('/api/unknown').set('X-Forwarded-For', '198.51.100.10');
-    const isolated = await request(app).get('/api/unknown').set('X-Forwarded-For', '198.51.100.11');
+    const first = await request(await startTestServer(app))
+      .get('/api/unknown')
+      .set('X-Forwarded-For', '198.51.100.10');
+    const limited = await request(await startTestServer(app))
+      .get('/api/unknown')
+      .set('X-Forwarded-For', '198.51.100.10');
+    const isolated = await request(await startTestServer(app))
+      .get('/api/unknown')
+      .set('X-Forwarded-For', '198.51.100.11');
     expect(first.status).toBe(401);
     expect(limited).toMatchObject({
       status: 429,
@@ -153,9 +164,13 @@ describe('rate limiting', () => {
       securityConfig: securityConfig({ rateLimitSensitiveMax: 2 })
     });
     for (let index = 0; index < 2; index += 1) {
-      await request(app).post('/api/projects/join').send({});
+      await request(await startTestServer(app))
+        .post('/api/projects/join')
+        .send({});
     }
-    const response = await request(app).post('/api/projects/join').send({});
+    const response = await request(await startTestServer(app))
+      .post('/api/projects/join')
+      .send({});
     expect(response.status).toBe(429);
     expect(response.body.code).toBe(ERROR_CODES.RATE_LIMITED);
     expect(response.body.scope).toBe('project-join');
@@ -184,16 +199,26 @@ describe('rate limiting', () => {
 
     const sameIp = { 'X-Forwarded-For': '198.51.100.20' };
     expect(
-      (await request(app).get('/read').set(sameIp).set('X-Test-Authenticated-User', '7')).status
+      (
+        await request(await startTestServer(app))
+          .get('/read')
+          .set(sameIp)
+          .set('X-Test-Authenticated-User', '7')
+      ).status
     ).toBe(200);
     expect(
-      (await request(app).get('/read').set(sameIp).set('X-Test-Authenticated-User', '7')).status
+      (
+        await request(await startTestServer(app))
+          .get('/read')
+          .set(sameIp)
+          .set('X-Test-Authenticated-User', '7')
+      ).status
     ).toBe(200);
-    const limited = await request(app)
+    const limited = await request(await startTestServer(app))
       .get('/read')
       .set(sameIp)
       .set('X-Test-Authenticated-User', '7');
-    const otherAccount = await request(app)
+    const otherAccount = await request(await startTestServer(app))
       .get('/read')
       .set(sameIp)
       .set('X-Test-Authenticated-User', '8');
@@ -217,9 +242,11 @@ describe('rate limiting', () => {
     app.options('/login', limiters.authentication, (req, res) => res.sendStatus(204));
     app.post('/login', limiters.authentication, (req, res) => res.sendStatus(204));
 
-    expect((await request(app).options('/login')).status).toBe(204);
-    await request(app).post('/login').send({ identifier: 'pessoa@example.invalid' });
-    const limited = await request(app)
+    expect((await request(await startTestServer(app)).options('/login')).status).toBe(204);
+    await request(await startTestServer(app))
+      .post('/login')
+      .send({ identifier: 'pessoa@example.invalid' });
+    const limited = await request(await startTestServer(app))
       .post('/login')
       .send({ identifier: 'pessoa@example.invalid', token: 'segredo' });
 

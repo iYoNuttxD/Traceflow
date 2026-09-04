@@ -58,7 +58,12 @@ export function buildSprintBurndown({ sprint, participations = [], cutoff }) {
   if (totalPoints <= 0) return vazio;
 
   const frozen = TERMINAL.includes(sprint.status);
-  const corte = frozen ? (toInstant(sprint.completedAt) ?? toInstant(cutoff)) : toInstant(cutoff);
+  const corte = frozen
+    ? (toInstant(sprint.closedAt) ??
+      toInstant(sprint.completedAt) ??
+      toInstant(sprint.updatedAt) ??
+      toInstant(cutoff))
+    : toInstant(cutoff);
   const diaDoCorte = toUtcDay(new Date(corte));
 
   const queimas = dentro
