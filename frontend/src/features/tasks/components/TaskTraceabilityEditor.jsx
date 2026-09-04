@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { getProjectCommits, getProjectIssues, getProjectPullRequests } from '../../github/index.js';
 import { requirementsApi } from '../../requirements/index.js';
 import { normalizeApiError, useAbortableRequest } from '../../../shared/index.js';
@@ -31,7 +31,7 @@ function uniqueById(items) {
   });
 }
 
-function traceabilityDraft(task) {
+export function createTaskTraceabilityDraft(task) {
   return {
     requirement: task.requirement || null,
     pullRequest: task.pullRequest || null,
@@ -40,7 +40,7 @@ function traceabilityDraft(task) {
   };
 }
 
-function traceabilitySnapshot(value) {
+export function taskTraceabilitySnapshot(value) {
   return JSON.stringify({
     requirementId: artifactId(value.requirement),
     pullRequestId: artifactId(value.pullRequest),
@@ -91,7 +91,14 @@ function useArtifactSearch({ query, enabled, search, failureMessage }) {
   return state;
 }
 
-function SearchResults({ state, emptyMessage, formatLabel, onSelect, excludedIds = new Set() }) {
+function SearchResults({
+  state,
+  emptyMessage,
+  formatLabel,
+  onSelect,
+  excludedIds = new Set(),
+  disabled = false
+}) {
   const results = state.results.filter((item) => !excludedIds.has(artifactId(item)));
 
   if (state.loading) return <p role="status">Pesquisando...</p>;
@@ -105,7 +112,7 @@ function SearchResults({ state, emptyMessage, formatLabel, onSelect, excludedIds
   if (results.length === 0) return <p>{emptyMessage}</p>;
 
   return results.map((item) => (
-    <button key={item.id} type="button" onClick={() => onSelect(item)}>
+    <button key={item.id} type="button" disabled={disabled} onClick={() => onSelect(item)}>
       {formatLabel(item)}
     </button>
   ));
@@ -121,7 +128,8 @@ function ArtifactSearch({
   formatLabel,
   onSelect,
   excludedIds,
-  inputRef
+  inputRef,
+  disabled = false
 }) {
   const showResults = state.loading || state.searched || Boolean(state.error);
   return (
@@ -133,6 +141,7 @@ function ArtifactSearch({
           type="search"
           value={query}
           placeholder={placeholder}
+          disabled={disabled}
           onChange={(event) => onQueryChange(event.target.value)}
         />
       </label>
@@ -144,6 +153,7 @@ function ArtifactSearch({
             formatLabel={formatLabel}
             onSelect={onSelect}
             excludedIds={excludedIds}
+            disabled={disabled}
           />
         </div>
       )}
@@ -151,7 +161,7 @@ function ArtifactSearch({
   );
 }
 
-function SelectedItem({ children, removeLabel, onRemove }) {
+function SelectedItem({ children, removeLabel, onRemove, disabled = false }) {
   return (
     <div className="traceability-selected-item">
       <strong>{children}</strong>
@@ -160,6 +170,7 @@ function SelectedItem({ children, removeLabel, onRemove }) {
         type="button"
         aria-label={removeLabel}
         title={removeLabel}
+        disabled={disabled}
         onClick={onRemove}
       >
         ×
@@ -168,7 +179,7 @@ function SelectedItem({ children, removeLabel, onRemove }) {
   );
 }
 
-async function persistTaskTraceability(task, draft) {
+export async function persistTaskTraceability(task, draft) {
   let nextTask = task;
   let successCount = 0;
   const failures = [];
@@ -267,23 +278,15 @@ async function persistTaskTraceability(task, draft) {
 export function TaskTraceabilityEditor({
   projectId,
   task,
-  onCancel,
-  onDirtyChange,
-  onSavingChange,
-  onSaved,
-  onImmediateChange
+  draft,
+  onDraftChange,
+  disabled = false,
+  onSuggestionConfirmed
 }) {
-  const initialDraft = useMemo(() => traceabilityDraft(task), [task]);
-  const [draft, setDraft] = useState(initialDraft);
-  const [baseline, setBaseline] = useState(initialDraft);
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState('');
   const [requirementQuery, setRequirementQuery] = useState('');
   const [pullRequestQuery, setPullRequestQuery] = useState('');
   const [commitQuery, setCommitQuery] = useState('');
   const [issueQuery, setIssueQuery] = useState('');
-  const firstInputRef = useRef(null);
-  const dirty = traceabilitySnapshot(draft) !== traceabilitySnapshot(baseline);
 
   const searchRequirements = useCallback(
     async (query, signal) => {
@@ -320,76 +323,36 @@ export function TaskTraceabilityEditor({
 
   const requirementSearch = useArtifactSearch({
     query: requirementQuery,
-    enabled: requirementQuery.trim().length >= 2,
+    enabled: !disabled && requirementQuery.trim().length >= 2,
     search: searchRequirements,
     failureMessage: 'Não foi possível pesquisar requisitos.'
   });
   const pullRequestSearch = useArtifactSearch({
     query: pullRequestQuery,
-    enabled: pullRequestQuery.trim().length >= 2 || /\d/.test(pullRequestQuery),
+    enabled: !disabled && (pullRequestQuery.trim().length >= 2 || /\d/.test(pullRequestQuery)),
     search: searchPullRequests,
     failureMessage: 'Não foi possível pesquisar pull requests.'
   });
   const commitSearch = useArtifactSearch({
     query: commitQuery,
-    enabled: commitQuery.trim().length >= 2,
+    enabled: !disabled && commitQuery.trim().length >= 2,
     search: searchCommits,
     failureMessage: 'Não foi possível pesquisar commits.'
   });
   const issueSearch = useArtifactSearch({
     query: issueQuery,
-    enabled: issueQuery.trim().length >= 2 || /\d/.test(issueQuery),
+    enabled: !disabled && (issueQuery.trim().length >= 2 || /\d/.test(issueQuery)),
     search: searchIssues,
     failureMessage: 'Não foi possível pesquisar issues.'
   });
-
-  useEffect(() => {
-    firstInputRef.current?.focus();
-  }, []);
-
-  useEffect(() => {
-    onDirtyChange?.(dirty);
-  }, [dirty, onDirtyChange]);
-
-  useEffect(() => {
-    onSavingChange?.(saving);
-  }, [onSavingChange, saving]);
-
-  async function submit(event) {
-    event.preventDefault();
-    if (!dirty || saving) return;
-    setSaving(true);
-    setSaveError('');
-    const result = await persistTaskTraceability(task, draft);
-    if (result.successCount === 0 && result.failures.length > 0) {
-      setSaveError(result.failures.join(' '));
-      setSaving(false);
-      return;
-    }
-
-    const warning = result.failures.length
-      ? `Alguns vínculos não puderam ser atualizados. ${result.failures.join(' ')}`
-      : '';
-    await onSaved?.(result.task, {
-      successMessage: warning
-        ? 'Os vínculos confirmados foram atualizados.'
-        : 'Rastreabilidade atualizada com sucesso.',
-      warning
-    });
-    setSaving(false);
-  }
 
   function confirmSuggestedCommit(commit) {
     const addCommit = (value) => ({
       ...value,
       commits: uniqueById([...value.commits, commit])
     });
-    setDraft(addCommit);
-    setBaseline(addCommit);
-    onImmediateChange?.(
-      { ...task, commits: uniqueById([...(task.commits || []), commit]) },
-      { successMessage: 'Sugestão confirmada e commit vinculado à tarefa.' }
-    );
+    onDraftChange(addCommit);
+    onSuggestionConfirmed?.(commit);
   }
 
   const requirementIds = new Set(draft.requirement ? [artifactId(draft.requirement)] : []);
@@ -398,19 +361,15 @@ export function TaskTraceabilityEditor({
   const issueIds = new Set(draft.issues.map(artifactId));
 
   return (
-    <form className="task-detail-traceability-editor" onSubmit={submit}>
-      {saveError && (
-        <div className="message message-error" role="alert">
-          {saveError}
-        </div>
-      )}
+    <div className="task-detail-traceability-editor">
       <div className="task-detail-traceability-editor__grid">
         <fieldset>
           <legend>Requisito vinculado</legend>
           {draft.requirement ? (
             <SelectedItem
               removeLabel="Remover requisito vinculado"
-              onRemove={() => setDraft((current) => ({ ...current, requirement: null }))}
+              disabled={disabled}
+              onRemove={() => onDraftChange((current) => ({ ...current, requirement: null }))}
             >
               {formatRequirementLabel(draft.requirement)}
             </SelectedItem>
@@ -418,7 +377,6 @@ export function TaskTraceabilityEditor({
             <p className="field-help">Nenhum requisito vinculado.</p>
           )}
           <ArtifactSearch
-            inputRef={firstInputRef}
             label="Pesquisar requisito"
             placeholder="Pesquisar requisito por título..."
             query={requirementQuery}
@@ -427,8 +385,9 @@ export function TaskTraceabilityEditor({
             emptyMessage="Nenhum requisito encontrado."
             formatLabel={formatRequirementLabel}
             excludedIds={requirementIds}
+            disabled={disabled}
             onSelect={(requirement) => {
-              setDraft((current) => ({ ...current, requirement }));
+              onDraftChange((current) => ({ ...current, requirement }));
               setRequirementQuery('');
             }}
           />
@@ -439,7 +398,8 @@ export function TaskTraceabilityEditor({
           {draft.pullRequest ? (
             <SelectedItem
               removeLabel="Remover pull request vinculado"
-              onRemove={() => setDraft((current) => ({ ...current, pullRequest: null }))}
+              disabled={disabled}
+              onRemove={() => onDraftChange((current) => ({ ...current, pullRequest: null }))}
             >
               {formatPullRequestLabel(draft.pullRequest)}
             </SelectedItem>
@@ -455,8 +415,9 @@ export function TaskTraceabilityEditor({
             emptyMessage="Nenhum pull request encontrado."
             formatLabel={formatPullRequestLabel}
             excludedIds={pullRequestIds}
+            disabled={disabled}
             onSelect={(pullRequest) => {
-              setDraft((current) => ({ ...current, pullRequest }));
+              onDraftChange((current) => ({ ...current, pullRequest }));
               setPullRequestQuery('');
             }}
           />
@@ -470,8 +431,9 @@ export function TaskTraceabilityEditor({
                 <SelectedItem
                   key={commit.id}
                   removeLabel={`Remover commit vinculado ${formatCommitLabel(commit)}`}
+                  disabled={disabled}
                   onRemove={() =>
-                    setDraft((current) => ({
+                    onDraftChange((current) => ({
                       ...current,
                       commits: current.commits.filter(
                         (item) => artifactId(item) !== artifactId(commit)
@@ -495,8 +457,9 @@ export function TaskTraceabilityEditor({
             emptyMessage="Nenhum commit encontrado."
             formatLabel={formatCommitLabel}
             excludedIds={commitIds}
+            disabled={disabled}
             onSelect={(commit) => {
-              setDraft((current) => ({
+              onDraftChange((current) => ({
                 ...current,
                 commits: uniqueById([...current.commits, commit])
               }));
@@ -506,6 +469,7 @@ export function TaskTraceabilityEditor({
           <CommitSuggestionsCard
             projectId={projectId}
             taskId={task.id}
+            disabled={disabled}
             onConfirmed={confirmSuggestedCommit}
           />
         </fieldset>
@@ -518,8 +482,9 @@ export function TaskTraceabilityEditor({
                 <SelectedItem
                   key={issue.id}
                   removeLabel={`Remover issue vinculada ${formatIssueLabel(issue)}`}
+                  disabled={disabled}
                   onRemove={() =>
-                    setDraft((current) => ({
+                    onDraftChange((current) => ({
                       ...current,
                       issues: current.issues.filter(
                         (item) => artifactId(item) !== artifactId(issue)
@@ -543,8 +508,9 @@ export function TaskTraceabilityEditor({
             emptyMessage="Nenhuma issue encontrada."
             formatLabel={formatIssueLabel}
             excludedIds={issueIds}
+            disabled={disabled}
             onSelect={(issue) => {
-              setDraft((current) => ({
+              onDraftChange((current) => ({
                 ...current,
                 issues: uniqueById([...current.issues, issue])
               }));
@@ -553,19 +519,6 @@ export function TaskTraceabilityEditor({
           />
         </fieldset>
       </div>
-      <div className="task-detail-traceability-editor__actions">
-        <button
-          type="button"
-          className="button button-outline"
-          disabled={saving}
-          onClick={() => onCancel?.(dirty)}
-        >
-          Cancelar
-        </button>
-        <button type="submit" className="button button-primary" disabled={saving || !dirty}>
-          {saving ? 'Salvando...' : 'Salvar rastreabilidade'}
-        </button>
-      </div>
-    </form>
+    </div>
   );
 }

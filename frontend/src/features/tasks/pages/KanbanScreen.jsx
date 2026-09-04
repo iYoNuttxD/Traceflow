@@ -454,27 +454,12 @@ export function KanbanScreen() {
 
   async function handleSaveTask(task, payload) {
     const mutation = beginMutation();
-    if (!mutation) return null;
-    setError('');
-    setSuccess('');
-    setWarning('');
+    if (!mutation) throw new Error('Outra alteração da tarefa ainda está em andamento.');
     try {
       const response = await tasksApi.update(task.id, payload);
       if (!mutationIsCurrent(mutation)) return null;
-      const savedTask = response.data.task;
-      setBoard((current) => updateBoardWithMovedTask(current, savedTask));
-      setSelectedTask(savedTask);
-      setSuccess(response.data.message || 'Tarefa atualizada com sucesso.');
       finishMutation(mutation);
-      void refreshBoard(savedTask).catch((requestError) => {
-        setWarning(
-          getErrorMessage(
-            requestError,
-            'A tarefa foi atualizada, mas não foi possível reconciliar o Kanban.'
-          )
-        );
-      });
-      return savedTask;
+      return response.data.task;
     } catch (requestError) {
       if (!mutationIsCurrent(mutation)) return null;
       finishMutation(mutation);
@@ -484,16 +469,16 @@ export function KanbanScreen() {
     }
   }
 
-  function handleTraceabilityChange(updatedTask, outcome = {}) {
+  function handleTaskDetailsSaved(updatedTask, outcome = {}) {
     setError('');
-    setSuccess(outcome.successMessage || 'Rastreabilidade atualizada com sucesso.');
+    setSuccess(outcome.successMessage || 'Tarefa atualizada com sucesso.');
     setWarning(outcome.warning || '');
     setBoard((current) => updateBoardWithMovedTask(current, updatedTask));
     setSelectedTask(updatedTask);
     void refreshBoard(updatedTask).catch((requestError) => {
       const refreshWarning = getErrorMessage(
         requestError,
-        'Os vínculos foram atualizados, mas não foi possível reconciliar o Kanban.'
+        'As alterações foram atualizadas, mas não foi possível reconciliar o Kanban.'
       );
       setWarning((current) => [current, refreshWarning].filter(Boolean).join(' '));
     });
@@ -589,19 +574,22 @@ export function KanbanScreen() {
             </div>
           )}
 
-          <TaskDetailsPanel
-            projectId={projectId}
-            task={selectedTask}
-            members={projectMembers}
-            canEdit={Boolean(currentMembership && currentMembership.role !== 'VIEWER')}
-            canDelete={Boolean(currentMembership && currentMembership.role !== 'VIEWER')}
-            deleting={deletingTaskId === selectedTask?.id}
-            returnFocusRef={detailsReturnFocusRef}
-            onClose={() => setSelectedTask(null)}
-            onDelete={handleDeleteTask}
-            onSave={handleSaveTask}
-            onTraceabilityChange={handleTraceabilityChange}
-          />
+          {selectedTask && (
+            <TaskDetailsPanel
+              key={selectedTask.id}
+              projectId={projectId}
+              task={selectedTask}
+              members={projectMembers}
+              canEdit={Boolean(currentMembership && currentMembership.role !== 'VIEWER')}
+              canDelete={Boolean(currentMembership && currentMembership.role !== 'VIEWER')}
+              deleting={deletingTaskId === selectedTask.id}
+              returnFocusRef={detailsReturnFocusRef}
+              onClose={() => setSelectedTask(null)}
+              onDelete={handleDeleteTask}
+              onSave={handleSaveTask}
+              onSaved={handleTaskDetailsSaved}
+            />
+          )}
 
           {historyTask && (
             <TaskHistoryDialog

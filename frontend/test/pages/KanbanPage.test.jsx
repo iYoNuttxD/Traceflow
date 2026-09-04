@@ -65,7 +65,7 @@ vi.mock('../../src/features/github/api/github.api.js', () => ({
   getProjectPullRequests: mocks.githubApi.getProjectPullRequests
 }));
 vi.mock('../../src/features/tasks/components/CommitSuggestionsCard.jsx', () => ({
-  CommitSuggestionsCard: () => <div>Sugestões automáticas</div>
+  CommitSuggestionsCard: () => <div>Sugestões de commits</div>
 }));
 
 import { KanbanPage } from '../../src/pages/KanbanPage.jsx';
@@ -660,6 +660,7 @@ describe('KanbanPage ADR-011', () => {
     const title = screen.getByRole('textbox', { name: 'Título da tarefa' });
     expect(title).toHaveFocus();
     expect(screen.queryByRole('button', { name: 'Editar rastreabilidade' })).toBeNull();
+    expect(screen.getByRole('searchbox', { name: 'Pesquisar requisito' })).toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: 'Status' })).toBeNull();
     expect(screen.getByText('Altere o status diretamente no quadro.')).toBeInTheDocument();
     await user.clear(title);
@@ -673,6 +674,40 @@ describe('KanbanPage ADR-011', () => {
     expect(mocks.tasksApi.update.mock.calls[0][1]).not.toHaveProperty('sprintId');
     expect(await screen.findByText('Tarefa atualizada com sucesso.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Editar tarefa' })).toBeInTheDocument();
+  });
+
+  it('salva dados e rastreabilidade pelo mesmo modo de edição', async () => {
+    const user = userEvent.setup();
+    const requirement = { id: 71, title: 'RF integrado', status: 'APROVADO' };
+    mocks.requirementsApi.listByProject.mockResolvedValue({
+      data: { requirements: [requirement] }
+    });
+    mocks.tasksApi.update.mockResolvedValue({
+      data: { task: { ...daSprint, title: 'Da sprint integrada' } }
+    });
+    mocks.linkTaskRequirement.mockResolvedValue({
+      task: { ...daSprint, title: 'Da sprint integrada', requirement }
+    });
+
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Abrir detalhes de Da sprint' }));
+    await user.click(screen.getByRole('button', { name: 'Editar tarefa' }));
+    await user.clear(screen.getByRole('textbox', { name: 'Título da tarefa' }));
+    await user.type(
+      screen.getByRole('textbox', { name: 'Título da tarefa' }),
+      'Da sprint integrada'
+    );
+    await user.type(screen.getByRole('searchbox', { name: 'Pesquisar requisito' }), 'RF');
+    await user.click(await screen.findByRole('button', { name: 'RF integrado' }));
+    await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
+
+    await waitFor(() =>
+      expect(mocks.tasksApi.update).toHaveBeenCalledWith(8, { title: 'Da sprint integrada' })
+    );
+    expect(mocks.linkTaskRequirement).toHaveBeenCalledWith(8, 71);
+    expect(await screen.findByText('Tarefa atualizada com sucesso.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Editar tarefa' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Editar rastreabilidade' })).toBeNull();
   });
 
   it('cancela edição suja somente após confirmação e não envia mutation', async () => {
@@ -798,11 +833,11 @@ describe('KanbanPage ADR-011', () => {
 
     renderPage();
     await user.click(await screen.findByRole('button', { name: 'Abrir detalhes de Da sprint' }));
-    await user.click(screen.getByRole('button', { name: 'Editar rastreabilidade' }));
+    await user.click(screen.getByRole('button', { name: 'Editar tarefa' }));
 
     expect(screen.queryByRole('button', { name: 'Editar tarefa' })).toBeNull();
     const requirementSearch = screen.getByRole('searchbox', { name: 'Pesquisar requisito' });
-    expect(requirementSearch).toHaveFocus();
+    expect(screen.getByRole('textbox', { name: 'Título da tarefa' })).toHaveFocus();
     await user.type(requirementSearch, 'login');
     await user.click(await screen.findByRole('button', { name: 'Login seguro' }));
     await user.type(screen.getByRole('searchbox', { name: 'Pesquisar pull request' }), '17');
@@ -812,13 +847,13 @@ describe('KanbanPage ADR-011', () => {
     await user.type(screen.getByRole('searchbox', { name: 'Pesquisar issues' }), '31');
     await user.click(await screen.findByRole('button', { name: '#31 — Login pendente' }));
 
-    await user.click(screen.getByRole('button', { name: 'Salvar rastreabilidade' }));
+    await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
     await waitFor(() => expect(mocks.linkTaskRequirement).toHaveBeenCalledWith(8, 81));
     expect(mocks.linkTaskToPullRequest).toHaveBeenCalledWith(8, 82);
     expect(mocks.linkTaskCommit).toHaveBeenCalledWith(8, 83);
     expect(mocks.linkTaskIssue).toHaveBeenCalledWith(8, 84);
-    expect(await screen.findByText('Rastreabilidade atualizada com sucesso.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Editar rastreabilidade' })).toBeInTheDocument();
+    expect(await screen.findByText('Tarefa atualizada com sucesso.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Editar tarefa' })).toBeInTheDocument();
   });
 
   it('preserva vínculos atuais, protege cancelamento sujo e não envia mutations', async () => {
@@ -834,17 +869,20 @@ describe('KanbanPage ADR-011', () => {
 
     renderPage();
     await user.click(await screen.findByRole('button', { name: 'Abrir detalhes de Da sprint' }));
-    await user.click(screen.getByRole('button', { name: 'Editar rastreabilidade' }));
+    await user.click(screen.getByRole('button', { name: 'Editar tarefa' }));
+    await user.type(screen.getByRole('textbox', { name: 'Título da tarefa' }), ' alterada');
     expect(screen.getByText('RF atual')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Remover requisito vinculado' }));
-    await user.click(screen.getByRole('button', { name: 'Cancelar' }));
+    await user.click(screen.getByRole('button', { name: 'Cancelar edição' }));
 
     const confirmation = screen.getByRole('dialog', { name: 'Descartar alterações?' });
     await user.click(within(confirmation).getByRole('button', { name: 'Descartar alterações' }));
     expect(mocks.unlinkTaskRequirement).not.toHaveBeenCalled();
+    expect(mocks.tasksApi.update).not.toHaveBeenCalled();
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Editar rastreabilidade' })).toHaveFocus()
+      expect(screen.getByRole('button', { name: 'Editar tarefa' })).toHaveFocus()
     );
+    expect(screen.getByText('Implementar login seguro')).toBeInTheDocument();
   });
 
   it('remove requisito, pull request, commit e issue pelos contratos existentes', async () => {
@@ -877,18 +915,18 @@ describe('KanbanPage ADR-011', () => {
 
     renderPage();
     await user.click(await screen.findByRole('button', { name: 'Abrir detalhes de Da sprint' }));
-    await user.click(screen.getByRole('button', { name: 'Editar rastreabilidade' }));
+    await user.click(screen.getByRole('button', { name: 'Editar tarefa' }));
     await user.click(screen.getByRole('button', { name: 'Remover requisito vinculado' }));
     await user.click(screen.getByRole('button', { name: 'Remover pull request vinculado' }));
     await user.click(screen.getByRole('button', { name: /Remover commit vinculado c0ffee1/ }));
     await user.click(screen.getByRole('button', { name: /Remover issue vinculada #53/ }));
-    await user.click(screen.getByRole('button', { name: 'Salvar rastreabilidade' }));
+    await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
 
     await waitFor(() => expect(mocks.unlinkTaskRequirement).toHaveBeenCalledWith(8));
     expect(mocks.unlinkTaskFromPullRequest).toHaveBeenCalledWith(8);
     expect(mocks.unlinkTaskCommit).toHaveBeenCalledWith(8, 123);
     expect(mocks.unlinkTaskIssue).toHaveBeenCalledWith(8, 124);
-    expect(await screen.findByText('Rastreabilidade atualizada com sucesso.')).toBeInTheDocument();
+    expect(await screen.findByText('Tarefa atualizada com sucesso.')).toBeInTheDocument();
   });
 
   it('mantém somente o resultado da busca de requisito mais recente', async () => {
@@ -900,7 +938,7 @@ describe('KanbanPage ADR-011', () => {
 
     renderPage();
     await user.click(await screen.findByRole('button', { name: 'Abrir detalhes de Da sprint' }));
-    await user.click(screen.getByRole('button', { name: 'Editar rastreabilidade' }));
+    await user.click(screen.getByRole('button', { name: 'Editar tarefa' }));
     const search = screen.getByRole('searchbox', { name: 'Pesquisar requisito' });
     await user.type(search, 'lo');
     await waitFor(() => expect(mocks.requirementsApi.listByProject).toHaveBeenCalledTimes(1));
@@ -930,21 +968,107 @@ describe('KanbanPage ADR-011', () => {
 
     renderPage();
     await user.click(await screen.findByRole('button', { name: 'Abrir detalhes de Da sprint' }));
-    await user.click(screen.getByRole('button', { name: 'Editar rastreabilidade' }));
+    await user.click(screen.getByRole('button', { name: 'Editar tarefa' }));
     await user.type(screen.getByRole('searchbox', { name: 'Pesquisar requisito' }), 'RF');
     await user.click(await screen.findByRole('button', { name: 'RF confirmado' }));
     await user.type(screen.getByRole('searchbox', { name: 'Pesquisar pull request' }), '44');
     await user.click(await screen.findByRole('button', { name: '#44 — PR indisponível' }));
-    await user.click(screen.getByRole('button', { name: 'Salvar rastreabilidade' }));
+    await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
 
     expect(
-      await screen.findByText('Os vínculos confirmados foram atualizados.')
+      await screen.findByText('As alterações confirmadas foram atualizadas.')
     ).toBeInTheDocument();
     expect(
-      await screen.findByText(/Alguns vínculos não puderam ser atualizados/)
+      await screen.findByText(/Algumas alterações não puderam ser atualizadas/)
     ).toBeInTheDocument();
     expect(screen.getByText('RF confirmado')).toBeInTheDocument();
     expect(screen.queryByText('PR indisponível')).toBeNull();
+  });
+
+  it('reflete vínculo confirmado quando os dados da tarefa falham', async () => {
+    const user = userEvent.setup();
+    const requirement = { id: 119, title: 'RF persistido parcialmente', status: 'APROVADO' };
+    mocks.requirementsApi.listByProject.mockResolvedValue({
+      data: { requirements: [requirement] }
+    });
+    mocks.tasksApi.update.mockRejectedValue({ response: { status: 503 } });
+    mocks.linkTaskRequirement.mockResolvedValue({ task: { ...daSprint, requirement } });
+
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Abrir detalhes de Da sprint' }));
+    await user.click(screen.getByRole('button', { name: 'Editar tarefa' }));
+    await user.type(screen.getByRole('textbox', { name: 'Título da tarefa' }), ' alterada');
+    await user.type(screen.getByRole('searchbox', { name: 'Pesquisar requisito' }), 'RF');
+    await user.click(await screen.findByRole('button', { name: 'RF persistido parcialmente' }));
+    await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
+
+    expect(
+      await screen.findByText('As alterações confirmadas foram atualizadas.')
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Algumas alterações não puderam ser atualizadas/)
+    ).toBeInTheDocument();
+    expect(screen.getByText('RF persistido parcialmente')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Editar tarefa' })).toBeInTheDocument();
+  });
+
+  it('sempre reabre a mesma tarefa em modo de leitura após descartar o draft', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const card = await screen.findByRole('button', { name: 'Abrir detalhes de Da sprint' });
+    await user.click(card);
+    await user.click(screen.getByRole('button', { name: 'Editar tarefa' }));
+    await user.type(screen.getByRole('textbox', { name: 'Título da tarefa' }), ' alterada');
+    await user.click(screen.getByRole('button', { name: 'Fechar #8 da sprint' }));
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Descartar alterações?' })).getByRole('button', {
+        name: 'Descartar alterações'
+      })
+    );
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: /#8/ })).toBeNull());
+    await user.click(card);
+    expect(screen.getByRole('button', { name: 'Editar tarefa' })).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Título da tarefa' })).toBeNull();
+    expect(screen.getByText('Implementar login seguro')).toBeInTheDocument();
+  });
+
+  it('não reutiliza modo ou draft ao fechar uma tarefa e abrir outra', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Abrir detalhes de Da sprint' }));
+    await user.click(screen.getByRole('button', { name: 'Editar tarefa' }));
+    await user.click(screen.getByRole('button', { name: 'Fechar #8 da sprint' }));
+
+    await user.click(screen.getByRole('button', { name: 'Abrir detalhes de Do backlog' }));
+    expect(screen.getByRole('dialog', { name: /#10 Do backlog/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Editar tarefa' })).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Título da tarefa' })).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Fechar #10 do backlog' }));
+    await user.click(screen.getByRole('button', { name: 'Abrir detalhes de Da sprint' }));
+    expect(screen.getByRole('button', { name: 'Editar tarefa' })).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Título da tarefa' })).toBeNull();
+  });
+
+  it('ignora busca pendente da tarefa fechada ao abrir outra', async () => {
+    const user = userEvent.setup();
+    const oldRequest = deferred();
+    mocks.requirementsApi.listByProject.mockReturnValueOnce(oldRequest.promise);
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Abrir detalhes de Da sprint' }));
+    await user.click(screen.getByRole('button', { name: 'Editar tarefa' }));
+    await user.type(screen.getByRole('searchbox', { name: 'Pesquisar requisito' }), 'lo');
+    await waitFor(() => expect(mocks.requirementsApi.listByProject).toHaveBeenCalledOnce());
+    await user.click(screen.getByRole('button', { name: 'Fechar #8 da sprint' }));
+    await user.click(screen.getByRole('button', { name: 'Abrir detalhes de Do backlog' }));
+
+    await act(async () => {
+      oldRequest.resolve({ data: { requirements: [{ id: 777, title: 'Resultado da Task A' }] } });
+      await Promise.resolve();
+    });
+    expect(screen.queryByText('Resultado da Task A')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Editar tarefa' })).toBeInTheDocument();
   });
 
   it('não reclassifica mutation confirmada quando a reconciliação falha', async () => {
@@ -967,12 +1091,12 @@ describe('KanbanPage ADR-011', () => {
 
     renderPage();
     await user.click(await screen.findByRole('button', { name: 'Abrir detalhes de Da sprint' }));
-    await user.click(screen.getByRole('button', { name: 'Editar rastreabilidade' }));
+    await user.click(screen.getByRole('button', { name: 'Editar tarefa' }));
     await user.type(screen.getByRole('searchbox', { name: 'Pesquisar requisito' }), 'RF');
     await user.click(await screen.findByRole('button', { name: 'RF persistido' }));
-    await user.click(screen.getByRole('button', { name: 'Salvar rastreabilidade' }));
+    await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
 
-    expect(await screen.findByText('Rastreabilidade atualizada com sucesso.')).toBeInTheDocument();
+    expect(await screen.findByText('Tarefa atualizada com sucesso.')).toBeInTheDocument();
     expect(
       await screen.findByText(
         'O serviço está temporariamente indisponível. Tente novamente em instantes.'

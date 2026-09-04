@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   confirmCommitSuggestion,
   getCommitSuggestions,
@@ -18,6 +18,19 @@ export function useCommitSuggestions({ projectId, taskId, onConfirmed }) {
   const [scanResult, setScanResult] = useState(null);
   const [error, setError] = useState('');
   const { run } = useAbortableRequest();
+  const scanRequestRef = useRef(null);
+  const contextRef = useRef(null);
+
+  useEffect(() => {
+    const context = { projectId, taskId };
+    contextRef.current = context;
+    scanRequestRef.current = null;
+    setScanning(false);
+    setScanResult(null);
+    return () => {
+      if (contextRef.current === context) contextRef.current = null;
+    };
+  }, [projectId, taskId]);
 
   const load = useCallback(async () => {
     if (!taskId) {
@@ -60,35 +73,45 @@ export function useCommitSuggestions({ projectId, taskId, onConfirmed }) {
 
   const review = useCallback(
     async (suggestion, operation, confirmed) => {
+      const context = contextRef.current;
       setActionId(suggestion.id);
       setError('');
       try {
         await operation(projectId, suggestion.id);
+        if (contextRef.current !== context) return;
         if (confirmed) onConfirmed?.(suggestion.commit);
         setSuggestions((current) => current.filter((item) => item.id !== suggestion.id));
       } catch (cause) {
+        if (contextRef.current !== context) return;
         setError(normalizeApiError(cause, fallbackMessage).message);
       } finally {
-        setActionId(null);
+        if (contextRef.current === context) setActionId(null);
       }
     },
     [onConfirmed, projectId]
   );
 
   const scan = useCallback(async () => {
-    if (!taskId || !permissions.canReview) return;
+    if (!taskId || !permissions.canReview || scanRequestRef.current) return;
 
+    const request = { projectId, taskId };
+    scanRequestRef.current = request;
     setScanning(true);
     setScanResult(null);
     setError('');
     try {
       const result = await scanCommitSuggestions(projectId);
+      if (scanRequestRef.current !== request) return;
       setScanResult(result);
       await load();
     } catch (cause) {
+      if (scanRequestRef.current !== request) return;
       setError(normalizeApiError(cause, fallbackMessage).message);
     } finally {
-      setScanning(false);
+      if (scanRequestRef.current === request) {
+        scanRequestRef.current = null;
+        setScanning(false);
+      }
     }
   }, [load, permissions.canReview, projectId, taskId]);
 
