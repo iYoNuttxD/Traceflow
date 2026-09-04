@@ -43,7 +43,6 @@
 
 .sprints-summary__heading {
   padding: var(--space-5) var(--space-6);
-  border-bottom: var(--border-width-default) solid var(--color-border-default);
 }
 
 .sprints-summary__heading h2,
@@ -72,8 +71,7 @@
 .sprints-summary__metrics {
   display: grid;
   grid-template-columns: 0.72fr 0.72fr 1.8fr 0.72fr 0.72fr;
-  gap: var(--border-width-default);
-  background: var(--color-border-default);
+  background: var(--color-surface-primary);
 }
 
 .sprints-summary__metric {
@@ -83,6 +81,8 @@
   gap: var(--space-1);
   min-height: 7.5rem;
   padding: var(--space-4) var(--space-5);
+  border-top: var(--border-width-default) solid var(--color-border-default);
+  border-right: var(--border-width-default) solid var(--color-border-default);
   background: var(--color-surface-primary);
 }
 
@@ -979,12 +979,12 @@
 
 @container sprints-page (max-width: 66rem) {
   .sprints-summary__metrics {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .sprints-summary__metric--active {
-    grid-column: span 2;
-    grid-row: 1;
+    grid-column: auto;
+    grid-row: auto;
   }
 
   .sprint-filters__controls {
@@ -1005,17 +1005,13 @@
   }
 
   .sprints-summary__metrics {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .sprints-summary__metric,
   .sprints-summary__metric--active {
     grid-column: auto;
     grid-row: auto;
-  }
-
-  .sprints-summary__metric--active {
-    grid-column: 1 / -1;
   }
 
   .sprint-filters__controls,

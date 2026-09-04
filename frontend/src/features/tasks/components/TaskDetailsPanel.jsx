@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { normalizeApiError, useConfirm } from '../../../shared/index.js';
+import { normalizeApiError, TraceFlowIcon, useConfirm } from '../../../shared/index.js';
 import {
   formatCommitLabel,
   formatDate,
@@ -14,6 +14,7 @@ import {
 import { isTaskOverdue } from './kanban-view.js';
 import { KanbanDialog } from './KanbanDialog.jsx';
 import { TaskComments } from './TaskComments.jsx';
+import { TaskTraceabilityEditor } from './TaskTraceabilityEditor.jsx';
 import './TaskDetailsPanel.css';
 
 function responsibleInitial(task) {
@@ -78,6 +79,20 @@ function ArtifactCategory({ label, count, children }) {
       </header>
       <div className="task-detail-artifact-body">{children}</div>
     </article>
+  );
+}
+
+function GithubExternalAction({ href }) {
+  return (
+    <a
+      className="button button-compact task-detail-external-link"
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      Abrir no GitHub
+      <TraceFlowIcon name="externalLink" />
+    </a>
   );
 }
 
@@ -271,13 +286,25 @@ function TaskEditForm({
   );
 }
 
-function TaskTraceability({ task }) {
+function TaskTraceability({ task, canEdit, editButtonRef, onEdit }) {
   return (
     <section
       className="task-detail-section task-detail-traceability"
       aria-labelledby="task-detail-traceability-title"
     >
-      <h3 id="task-detail-traceability-title">Rastreabilidade</h3>
+      <div className="task-detail-section-heading">
+        <h3 id="task-detail-traceability-title">Rastreabilidade</h3>
+        {canEdit && (
+          <button
+            ref={editButtonRef}
+            type="button"
+            className="button button-outline button-compact"
+            onClick={onEdit}
+          >
+            Editar rastreabilidade
+          </button>
+        )}
+      </div>
       <div className="task-detail-traceability-grid">
         <ArtifactCategory label="Requisito" count={task.requirement ? 1 : 0}>
           {task.requirement ? (
@@ -302,9 +329,7 @@ function TaskTraceability({ task }) {
               </strong>
               <p>{task.pullRequest.state || 'Status não informado'}</p>
               {task.pullRequest.githubUrl && (
-                <a href={task.pullRequest.githubUrl} target="_blank" rel="noopener noreferrer">
-                  Abrir no GitHub
-                </a>
+                <GithubExternalAction href={task.pullRequest.githubUrl} />
               )}
             </div>
           ) : (
@@ -322,11 +347,7 @@ function TaskTraceability({ task }) {
                     {commit.authorName || commit.authorUsername || 'Autor não informado'} ·{' '}
                     {formatDateTime(commit.date)}
                   </p>
-                  {commit.githubUrl && (
-                    <a href={commit.githubUrl} target="_blank" rel="noopener noreferrer">
-                      Abrir no GitHub
-                    </a>
-                  )}
+                  {commit.githubUrl && <GithubExternalAction href={commit.githubUrl} />}
                 </div>
               ))}
             </div>
@@ -344,11 +365,7 @@ function TaskTraceability({ task }) {
                   <p>
                     {issue.state || 'Status não informado'} · {formatIssueLabels(issue.labels)}
                   </p>
-                  {issue.githubUrl && (
-                    <a href={issue.githubUrl} target="_blank" rel="noopener noreferrer">
-                      Abrir no GitHub
-                    </a>
-                  )}
+                  {issue.githubUrl && <GithubExternalAction href={issue.githubUrl} />}
                 </div>
               ))}
             </div>
@@ -370,13 +387,19 @@ export function TaskDetailsPanel({
   returnFocusRef,
   onClose,
   onDelete,
-  onSave
+  onSave,
+  onTraceabilityChange,
+  projectId
 }) {
   const confirm = useConfirm();
   const formId = useId();
   const titleRef = useRef(null);
   const editButtonRef = useRef(null);
+  const traceabilityEditButtonRef = useRef(null);
   const [editing, setEditing] = useState(false);
+  const [traceabilityEditing, setTraceabilityEditing] = useState(false);
+  const [traceabilityDirty, setTraceabilityDirty] = useState(false);
+  const [traceabilitySaving, setTraceabilitySaving] = useState(false);
   const [draft, setDraft] = useState(() => taskDraft(task || {}));
   const [baseline, setBaseline] = useState(() => taskDraft(task || {}));
   const [saving, setSaving] = useState(false);
@@ -405,6 +428,7 @@ export function TaskDetailsPanel({
   }
 
   function enterEditing() {
+    if (traceabilityEditing) return;
     const nextDraft = taskDraft(task);
     setDraft(nextDraft);
     setBaseline(nextDraft);
@@ -413,22 +437,40 @@ export function TaskDetailsPanel({
     setEditing(true);
   }
 
-  async function confirmDiscard() {
-    if (!dirty) return true;
+  async function confirmDiscard(description) {
     return confirm({
       title: 'Descartar alterações?',
-      description: 'As alterações não salvas desta tarefa serão perdidas.',
+      description,
       confirmLabel: 'Descartar alterações'
     });
   }
 
   async function requestClose() {
-    if (saving || !(await confirmDiscard())) return;
+    if (saving || traceabilitySaving) return;
+    if (
+      editing &&
+      dirty &&
+      !(await confirmDiscard('As alterações não salvas desta tarefa serão perdidas.'))
+    ) {
+      return;
+    }
+    if (
+      traceabilityEditing &&
+      traceabilityDirty &&
+      !(await confirmDiscard('As alterações não salvas de rastreabilidade serão perdidas.'))
+    ) {
+      return;
+    }
     onClose();
   }
 
   async function cancelEditing() {
-    if (saving || !(await confirmDiscard())) return;
+    if (
+      saving ||
+      (dirty && !(await confirmDiscard('As alterações não salvas desta tarefa serão perdidas.')))
+    ) {
+      return;
+    }
     const nextDraft = taskDraft(task);
     setDraft(nextDraft);
     setBaseline(nextDraft);
@@ -436,6 +478,32 @@ export function TaskDetailsPanel({
     setSaveError('');
     setEditing(false);
     focusEditButton();
+  }
+
+  function enterTraceabilityEditing() {
+    if (editing) return;
+    setTraceabilityDirty(false);
+    setTraceabilityEditing(true);
+  }
+
+  async function cancelTraceabilityEditing(isDirty = traceabilityDirty) {
+    if (
+      traceabilitySaving ||
+      (isDirty &&
+        !(await confirmDiscard('As alterações não salvas de rastreabilidade serão perdidas.')))
+    ) {
+      return;
+    }
+    setTraceabilityDirty(false);
+    setTraceabilityEditing(false);
+    window.requestAnimationFrame(() => traceabilityEditButtonRef.current?.focus());
+  }
+
+  async function completeTraceabilitySave(updatedTask, outcome) {
+    await onTraceabilityChange?.(updatedTask, outcome);
+    setTraceabilityDirty(false);
+    setTraceabilityEditing(false);
+    window.requestAnimationFrame(() => traceabilityEditButtonRef.current?.focus());
   }
 
   function changeDraft(event) {
@@ -505,7 +573,7 @@ export function TaskDetailsPanel({
         {saving ? 'Salvando...' : 'Salvar alterações'}
       </button>
     </>
-  ) : (
+  ) : traceabilityEditing ? null : (
     <>
       {canEdit && (
         <button
@@ -561,7 +629,33 @@ export function TaskDetailsPanel({
           ) : (
             <TaskInformation task={task} />
           )}
-          <TaskTraceability task={task} />
+          {traceabilityEditing ? (
+            <section
+              className="task-detail-section task-detail-traceability"
+              aria-labelledby="task-detail-traceability-title"
+            >
+              <div className="task-detail-section-heading">
+                <h3 id="task-detail-traceability-title">Editar rastreabilidade</h3>
+                <p>Vínculos atuais permanecem visíveis até você salvar.</p>
+              </div>
+              <TaskTraceabilityEditor
+                projectId={projectId}
+                task={task}
+                onDirtyChange={setTraceabilityDirty}
+                onSavingChange={setTraceabilitySaving}
+                onCancel={(isDirty) => void cancelTraceabilityEditing(isDirty)}
+                onSaved={completeTraceabilitySave}
+                onImmediateChange={onTraceabilityChange}
+              />
+            </section>
+          ) : (
+            <TaskTraceability
+              task={task}
+              canEdit={canEdit && !editing}
+              editButtonRef={traceabilityEditButtonRef}
+              onEdit={enterTraceabilityEditing}
+            />
+          )}
         </section>
         <TaskComments taskId={task.id} />
       </div>
