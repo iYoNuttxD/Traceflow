@@ -19,15 +19,16 @@ export function TaskHistoryDialog({ projectId, task, members, sprints, returnFoc
   const [items, setItems] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 0 });
   const [filters, setFilters] = useState({ startDate: '', endDate: '', field: '' });
+  const [appliedFilters, setAppliedFilters] = useState({ startDate: '', endDate: '', field: '' });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const requestRef = useRef(0);
   const controllerRef = useRef(null);
-  const filtersRef = useRef(filters);
-  filtersRef.current = filters;
+  const appliedFiltersRef = useRef(appliedFilters);
+  appliedFiltersRef.current = appliedFilters;
 
   const loadHistory = useCallback(
-    async (page = 1, nextFilters = filtersRef.current) => {
+    async (page = 1, nextFilters = appliedFiltersRef.current) => {
       requestRef.current += 1;
       const request = requestRef.current;
       controllerRef.current?.abort();
@@ -80,18 +81,20 @@ export function TaskHistoryDialog({ projectId, task, members, sprints, returnFoc
 
   function applyFilters(event) {
     event.preventDefault();
+    setAppliedFilters(filters);
     void loadHistory(1, filters);
   }
 
   function clearFilters() {
     const cleared = { startDate: '', endDate: '', field: '' };
     setFilters(cleared);
+    setAppliedFilters(cleared);
     void loadHistory(1, cleared);
   }
 
   const totalPages = Math.max(1, pagination.totalPages || 1);
   const currentPage = Math.min(pagination.page || 1, totalPages);
-  const hasFilters = Object.values(filters).some(Boolean);
+  const hasFilters = Object.values(appliedFilters).some(Boolean);
 
   return (
     <KanbanDialog
@@ -137,14 +140,20 @@ export function TaskHistoryDialog({ projectId, task, members, sprints, returnFoc
             ))}
           </select>
         </label>
-        <button type="submit" className="button button-secondary">
-          Filtrar
-        </button>
-        {hasFilters && (
-          <button type="button" className="text-button" onClick={clearFilters}>
-            Limpar filtros
+        <div className="task-history-filter-actions">
+          <button type="submit" className="button button-secondary button-compact">
+            Filtrar
           </button>
-        )}
+          {hasFilters && (
+            <button
+              type="button"
+              className="button button-outline button-compact"
+              onClick={clearFilters}
+            >
+              Limpar filtros
+            </button>
+          )}
+        </div>
       </form>
 
       {error ? (

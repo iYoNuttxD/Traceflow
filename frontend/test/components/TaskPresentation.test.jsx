@@ -111,6 +111,8 @@ describe('apresentação de Tasks e Kanban', () => {
     expect(screen.getByRole('heading', { name: 'Concluído' })).toBeInTheDocument();
     expect(screen.getByText('#7')).toBeInTheDocument();
     expect(screen.getByText('1 req · 1 PR · 1 commit · 1 issue')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Ver histórico da tarefa/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Mais ações/ })).toBeNull();
   });
 
   it('mantém o painel de detalhes como consulta C2 com rastreabilidade e comentários', async () => {
@@ -121,7 +123,7 @@ describe('apresentação de Tasks e Kanban', () => {
     };
     render(
       <ConfirmProvider>
-        <TaskDetailsPanel task={task} deleting={false} {...handlers} />
+        <TaskDetailsPanel task={task} deleting={false} canDelete {...handlers} />
       </ConfirmProvider>
     );
 
@@ -135,5 +137,35 @@ describe('apresentação de Tasks e Kanban', () => {
     expect(screen.queryByRole('button', { name: /Remover .* vinculado/ })).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Excluir tarefa' }));
     expect(handlers.onDelete).toHaveBeenCalledWith(task);
+  });
+
+  it('mantém todos os artefatos acessíveis dentro de corpos roláveis por categoria', () => {
+    const commits = Array.from({ length: 14 }, (_, index) => ({
+      id: 100 + index,
+      hash: `abcdef${index}`,
+      shortHash: `cmt${String(index + 1).padStart(4, '0')}`,
+      message: `Commit rastreável ${index + 1}`
+    }));
+    const issues = Array.from({ length: 12 }, (_, index) => ({
+      id: 200 + index,
+      number: 300 + index,
+      title: `Issue rastreável ${index + 1}`
+    }));
+    const { container } = render(
+      <ConfirmProvider>
+        <TaskDetailsPanel
+          task={{ ...task, commits, issues }}
+          deleting={false}
+          onClose={vi.fn()}
+          onDelete={vi.fn()}
+        />
+      </ConfirmProvider>
+    );
+
+    expect(screen.getByLabelText('14 commits')).toBeInTheDocument();
+    expect(screen.getByLabelText('12 issues')).toBeInTheDocument();
+    expect(screen.getByText('cmt0014 — Commit rastreável 14')).toBeInTheDocument();
+    expect(screen.getByText('#311 — Issue rastreável 12')).toBeInTheDocument();
+    expect(container.querySelectorAll('.task-detail-artifact-body')).toHaveLength(4);
   });
 });

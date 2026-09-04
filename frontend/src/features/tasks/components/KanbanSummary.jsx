@@ -10,18 +10,19 @@ export function KanbanSummary({
 }) {
   const metrics = [
     { label: 'Total', value: summary.total },
-    { label: 'A fazer', value: summary.A_FAZER },
-    { label: 'Em andamento', value: summary.EM_ANDAMENTO },
-    { label: 'Concluídas', value: summary.CONCLUIDO }
+    { label: 'Prioridade crítica', value: summary.criticalPriority },
+    { label: 'Atrasadas', value: summary.overdue },
+    { label: 'Sem rastreabilidade', value: summary.untraced }
   ];
 
   return (
     <section className="kanban-summary" aria-labelledby="kanban-summary-title">
       <header className="kanban-summary__heading">
         <div>
-          <h2 id="kanban-summary-title">Resumo</h2>
-          <p>Visão geral do recorte atual do quadro.</p>
+          <span className="eyebrow">Resumo</span>
+          <h2 id="kanban-summary-title">Visão geral do Kanban</h2>
         </div>
+        <p>Estado atual do quadro e do recorte visualizado.</p>
       </header>
       <div className="kanban-summary__metrics">
         {metrics.map((metric) => (

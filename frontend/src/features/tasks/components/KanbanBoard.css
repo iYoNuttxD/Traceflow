@@ -238,43 +238,9 @@
   font: inherit;
   font-size: var(--font-size-4);
 }
-.kanban-task__action:hover,
-.kanban-task__action[aria-expanded='true'] {
+.kanban-task__action:hover {
   color: var(--color-accent-text);
   background: var(--color-surface-interactive);
-}
-.kanban-task__menu {
-  position: relative;
-}
-.kanban-task__menu-popover {
-  position: absolute;
-  right: 0;
-  bottom: calc(100% + var(--space-1));
-  z-index: var(--z-popover);
-  display: grid;
-  min-width: 10rem;
-  overflow: hidden;
-  border: var(--border-width-default) solid var(--color-border-default);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface-elevated);
-  box-shadow: var(--shadow-md);
-}
-.kanban-task__menu-popover button {
-  min-height: var(--size-touch-target);
-  border: 0;
-  padding: var(--space-2) var(--space-3);
-  color: var(--color-text-primary);
-  background: transparent;
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
-}
-.kanban-task__menu-popover button:hover,
-.kanban-task__menu-popover button:focus-visible {
-  background: var(--color-surface-interactive);
-}
-.kanban-task__menu-popover .kanban-task__menu-danger {
-  color: var(--color-danger-text);
 }
 .kanban-task .priority-badge {
   color: inherit;

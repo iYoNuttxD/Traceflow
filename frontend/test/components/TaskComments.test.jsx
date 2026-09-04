@@ -183,6 +183,24 @@ describe('TaskComments', () => {
     expect(editItem).toHaveFocus();
   });
 
+  it('mantém grande volume e conteúdo longo dentro da lista rolável', async () => {
+    const longContent = 'rastreabilidade'.repeat(80);
+    const manyComments = Array.from({ length: 100 }, (_, index) =>
+      otherComment({
+        id: index + 100,
+        content: index === 99 ? longContent : `Comentário ${index + 1}`,
+        createdAt: new Date(Date.UTC(2026, 7, 29, 10, index)).toISOString()
+      })
+    );
+    apiMocks.getTaskComments.mockResolvedValue(response(manyComments));
+    const { container } = renderComments();
+
+    expect(await screen.findByText(longContent)).toBeInTheDocument();
+    expect(container.querySelectorAll('.task-chat-message')).toHaveLength(100);
+    expect(container.querySelector('.task-comments-scroll')).toBeInTheDocument();
+    expect(container.querySelector('.task-chat-form')).toBeInTheDocument();
+  });
+
   it('fecha o menu por Escape e click externo, restaurando foco no Escape', async () => {
     const user = userEvent.setup();
     renderComments();

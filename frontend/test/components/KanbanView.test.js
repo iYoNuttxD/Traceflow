@@ -58,9 +58,12 @@ const board = {
 };
 
 describe('kanban-view', () => {
-  it('calcula o resumo pelos três status reais', () => {
-    expect(getKanbanSummary(board)).toEqual({
+  it('calcula métricas transversais sem substituir as contagens das colunas', () => {
+    expect(getKanbanSummary(board, new Date(2026, 8, 15))).toEqual({
       total: 3,
+      criticalPriority: 0,
+      overdue: 1,
+      untraced: 1,
       A_FAZER: 1,
       EM_ANDAMENTO: 1,
       CONCLUIDO: 1
@@ -76,6 +79,29 @@ describe('kanban-view', () => {
 
     expect(getKanbanSummary(scoped).total).toBe(2);
     expect(getBoardTasks(filtered).map((task) => task.id)).toEqual([1]);
+  });
+
+  it('conta prioridade máxima, atraso e ausência total de rastreabilidade', () => {
+    const critical = {
+      id: 4,
+      title: 'Incidente crítico',
+      status: 'EM_ANDAMENTO',
+      priority: 'CRITICA',
+      deadline: '2026-09-01',
+      commits: [],
+      issues: []
+    };
+    const summary = getKanbanSummary(
+      { columns: { A_FAZER: [], EM_ANDAMENTO: [critical], CONCLUIDO: [] } },
+      new Date(2026, 8, 15)
+    );
+
+    expect(summary).toMatchObject({
+      total: 1,
+      criticalPriority: 1,
+      overdue: 1,
+      untraced: 1
+    });
   });
 
   it('combina busca, responsável, prioridade e prazo', () => {

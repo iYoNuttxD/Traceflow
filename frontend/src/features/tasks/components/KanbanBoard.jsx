@@ -1,4 +1,3 @@
-import { useEffect, useRef, useState } from 'react';
 import { KanbanColumn } from './KanbanColumn.jsx';
 import { formatDate, KANBAN_COLUMNS, priorityLabels } from './kanban-display.js';
 import { formatTraceabilityCounts, isTaskOverdue } from './kanban-view.js';
@@ -19,7 +18,7 @@ function KanbanTaskCard({
   frozen,
   onSelect,
   onHistory,
-  onDelete,
+  onPointerDown,
   onDragStart,
   onDragEnd
 }) {
@@ -27,31 +26,6 @@ function KanbanTaskCard({
   const blocked = frozen || moving;
   const overdue = isTaskOverdue(task);
   const traceability = formatTraceabilityCounts(task);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef(null);
-  const triggerRef = useRef(null);
-
-  useEffect(() => {
-    if (!menuOpen) return undefined;
-    menuRef.current?.querySelector('[role="menuitem"]')?.focus();
-    const handlePointerDown = (event) => {
-      if (!menuRef.current?.contains(event.target)) setMenuOpen(false);
-    };
-    const handleKeyDown = (event) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        setMenuOpen(false);
-        window.requestAnimationFrame(() => triggerRef.current?.focus());
-      }
-    };
-    document.addEventListener('pointerdown', handlePointerDown);
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('pointerdown', handlePointerDown);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [menuOpen]);
-
   function stopDrag(event) {
     event.stopPropagation();
     event.preventDefault();
@@ -67,6 +41,10 @@ function KanbanTaskCard({
         draggable={!blocked}
         aria-label={`Abrir detalhes de ${task.title}`}
         aria-describedby={`kanban-task-meta-${task.id}`}
+        onPointerDown={() => onPointerDown?.()}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') onPointerDown?.();
+        }}
         onClick={(event) => onSelect(task, event.currentTarget)}
         onDragStart={(event) => onDragStart(event, task)}
         onDragEnd={onDragEnd}
@@ -116,44 +94,6 @@ function KanbanTaskCard({
         >
           <span aria-hidden="true">◷</span>
         </button>
-        <div className="kanban-task__menu" ref={menuRef}>
-          <button
-            ref={triggerRef}
-            type="button"
-            className="kanban-task__action"
-            aria-label={`Mais ações para ${task.title}`}
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-            onClick={() => setMenuOpen((current) => !current)}
-          >
-            <span aria-hidden="true">⋯</span>
-          </button>
-          {menuOpen && (
-            <div className="kanban-task__menu-popover" role="menu">
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setMenuOpen(false);
-                  onSelect(task, triggerRef.current);
-                }}
-              >
-                Abrir detalhes
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                className="kanban-task__menu-danger"
-                onClick={() => {
-                  setMenuOpen(false);
-                  onDelete(task);
-                }}
-              >
-                Excluir tarefa
-              </button>
-            </div>
-          )}
-        </div>
       </div>
     </article>
   );
@@ -171,7 +111,7 @@ export function KanbanBoard({
   boardRef,
   onSelectTask,
   onOpenHistory,
-  onDeleteTask,
+  onTaskPointerDown = () => {},
   onTaskDragStart,
   onTaskDragEnd,
   onColumnDragOver,
@@ -226,7 +166,7 @@ export function KanbanBoard({
                         frozen={Boolean(task.sprintId) && frozenSprintIds.has(task.sprintId)}
                         onSelect={onSelectTask}
                         onHistory={onOpenHistory}
-                        onDelete={onDeleteTask}
+                        onPointerDown={onTaskPointerDown}
                         onDragStart={onTaskDragStart}
                         onDragEnd={onTaskDragEnd}
                       />

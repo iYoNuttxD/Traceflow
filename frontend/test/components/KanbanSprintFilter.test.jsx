@@ -24,9 +24,13 @@ describe('KanbanSprintFilter', () => {
 
     const trigger = screen.getByRole('button', { name: /Projeto inteiro/ });
     await user.click(trigger);
-    expect(screen.getAllByRole('checkbox')).toHaveLength(8);
+    expect(screen.getAllByRole('checkbox')).toHaveLength(9);
+    const projectOption = screen.getByRole('checkbox', { name: /Projeto inteiro/ });
+    expect(projectOption).toBeChecked();
+    expect(projectOption.closest('li')).toBe(screen.getAllByRole('listitem')[0]);
+    expect(screen.getByText('Todas as tarefas do projeto')).toBeInTheDocument();
     await user.type(screen.getByLabelText('Pesquisar Sprint'), '10');
-    expect(screen.getAllByRole('checkbox')).toHaveLength(1);
+    expect(screen.getAllByRole('checkbox')).toHaveLength(2);
     await user.click(screen.getByRole('checkbox', { name: /Sprint 10/ }));
     expect(onToggle).toHaveBeenCalledWith(10);
 

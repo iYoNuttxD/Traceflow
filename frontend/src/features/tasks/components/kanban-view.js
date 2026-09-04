@@ -47,12 +47,16 @@ export function filterKanbanBoard(board, filters) {
   });
 }
 
-export function getKanbanSummary(board) {
+export function getKanbanSummary(board, now = new Date()) {
+  const tasks = getBoardTasks(board);
   const counts = Object.fromEntries(
     KANBAN_COLUMNS.map((column) => [column.status, board?.columns?.[column.status]?.length || 0])
   );
   return {
-    total: Object.values(counts).reduce((total, count) => total + count, 0),
+    total: tasks.length,
+    criticalPriority: tasks.filter((task) => task.priority === 'CRITICA').length,
+    overdue: tasks.filter((task) => isTaskOverdue(task, now)).length,
+    untraced: tasks.filter((task) => !hasTaskTraceability(task)).length,
     ...counts
   };
 }
@@ -79,6 +83,11 @@ export function getTraceabilityCounts(task) {
     commits: task.commits?.length || 0,
     issues: task.issues?.length || 0
   };
+}
+
+export function hasTaskTraceability(task) {
+  const counts = getTraceabilityCounts(task);
+  return Object.values(counts).some((count) => count > 0);
 }
 
 export function formatTraceabilityCounts(task) {
