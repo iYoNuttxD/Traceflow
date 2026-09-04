@@ -6,6 +6,7 @@ import { ConfirmProvider } from '../../src/shared/index.js';
 
 const mocks = vi.hoisted(() => ({
   api: { get: vi.fn() },
+  deleteTask: vi.fn(),
   kanbanApi: {
     getBoard: vi.fn(),
     getMetrics: vi.fn(),
@@ -18,7 +19,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../../src/features/tasks/api/tasks.api.js', () => ({
   kanbanApi: mocks.kanbanApi,
-  deleteTask: vi.fn(),
+  deleteTask: mocks.deleteTask,
   unlinkTaskCommit: vi.fn(),
   unlinkTaskIssue: vi.fn(),
   unlinkTaskFromPullRequest: vi.fn(),
@@ -104,7 +105,9 @@ function dragTaskTo(columnName) {
     setData: vi.fn(),
     getData: vi.fn(() => String(task.id))
   };
-  fireEvent.dragStart(screen.getByRole('button', { name: /Tarefa E11/ }), { dataTransfer });
+  fireEvent.dragStart(screen.getByRole('button', { name: 'Abrir detalhes de Tarefa E11' }), {
+    dataTransfer
+  });
   fireEvent.drop(screen.getByRole('heading', { name: columnName }).closest('section'), {
     dataTransfer
   });
@@ -124,6 +127,7 @@ describe('KanbanPage E11', () => {
       members: [{ id: 3, userId: 5, isActive: true, user: { id: 5, name: 'Responsável real' } }]
     });
     mocks.scheduleApi.listSprints.mockResolvedValue({ data: { total: 0, sprints: [] } });
+    mocks.deleteTask.mockResolvedValue({ message: 'Tarefa excluída com sucesso.' });
   });
 
   it('move a tarefa enviando somente o status e usa o responsável canônico', async () => {
@@ -137,7 +141,7 @@ describe('KanbanPage E11', () => {
     renderPage();
 
     expect((await screen.findAllByText('Responsável real')).length).toBeGreaterThan(0);
-    dragTaskTo('Em Andamento (0)');
+    dragTaskTo('Em Andamento');
 
     await waitFor(() =>
       expect(mocks.kanbanApi.moveTask).toHaveBeenCalledWith(7, {
@@ -148,6 +152,48 @@ describe('KanbanPage E11', () => {
     expect(mocks.kanbanApi.moveTask.mock.calls[0][1]).not.toHaveProperty('projectMemberId');
   });
 
+  it.each([
+    ['EM_ANDAMENTO', 'Concluído', 'CONCLUIDO'],
+    ['CONCLUIDO', 'A Fazer', 'A_FAZER']
+  ])('move de %s para %s quando o domínio permite', async (fromStatus, columnName, toStatus) => {
+    const moved = { ...task, status: fromStatus };
+    mocks.kanbanApi.getBoard.mockResolvedValue({
+      data: {
+        columns: {
+          A_FAZER: fromStatus === 'A_FAZER' ? [moved] : [],
+          EM_ANDAMENTO: fromStatus === 'EM_ANDAMENTO' ? [moved] : [],
+          CONCLUIDO: fromStatus === 'CONCLUIDO' ? [moved] : []
+        },
+        totals: { A_FAZER: 0, EM_ANDAMENTO: 0, CONCLUIDO: 0, total: 1 }
+      }
+    });
+    mocks.kanbanApi.moveTask.mockResolvedValue({
+      data: {
+        message: 'Tarefa movida com sucesso.',
+        task: { ...moved, status: toStatus },
+        movement: { id: 2 }
+      }
+    });
+    renderPage();
+    await screen.findByText('Tarefa E11');
+    dragTaskTo(columnName);
+
+    await waitFor(() => expect(mocks.kanbanApi.moveTask).toHaveBeenCalledWith(7, { toStatus }));
+  });
+
+  it('mantém a tarefa na coluna de origem quando a mutation falha', async () => {
+    mocks.kanbanApi.moveTask.mockRejectedValue({
+      response: { status: 500, data: { message: 'Falha ao mover.' } }
+    });
+    renderPage();
+    await screen.findByText('Tarefa E11');
+    dragTaskTo('Em Andamento');
+
+    expect(await screen.findByText(/problema interno/)).toBeInTheDocument();
+    expect(screen.getByLabelText('1 tarefa')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'A Fazer' })).toBeInTheDocument();
+  });
+
   it('mantém o quadro coerente e recarrega os dados diante de conflito 409', async () => {
     mocks.kanbanApi.moveTask.mockRejectedValue({
       response: { status: 409, data: { message: 'A tarefa foi alterada por outra operação.' } }
@@ -155,16 +201,16 @@ describe('KanbanPage E11', () => {
     renderPage();
     await screen.findByText('Tarefa E11');
 
-    dragTaskTo('Em Andamento (0)');
+    dragTaskTo('Em Andamento');
 
     expect(
       await screen.findByText('A tarefa foi alterada por outra operação.')
     ).toBeInTheDocument();
     await waitFor(() => expect(mocks.kanbanApi.getBoard).toHaveBeenCalledTimes(2));
-    expect(screen.getByRole('heading', { name: 'A Fazer (1)' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'A Fazer' })).toBeInTheDocument();
   });
 
-  it('pagina o histórico no backend e distingue sucesso vazio de erro', async () => {
+  it('abre e pagina somente o histórico da tarefa selecionada', async () => {
     const user = userEvent.setup();
     mocks.kanbanApi.listTaskHistory
       .mockResolvedValueOnce(
@@ -206,20 +252,35 @@ describe('KanbanPage E11', () => {
         })
       );
     renderPage();
+    await screen.findByText('Tarefa E11');
+    expect(screen.queryByRole('heading', { name: 'Histórico de tarefas' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Ver histórico da tarefa Tarefa E11' }));
 
-    expect(await screen.findByText(/Status: A Fazer para Em Andamento/)).toBeInTheDocument();
+    const historyDialog = await screen.findByRole('dialog', { name: /Histórico — #7/ });
+    expect(within(historyDialog).getByText('Status alterado')).toBeInTheDocument();
+    expect(within(historyDialog).getByText('A Fazer')).toBeInTheDocument();
+    expect(within(historyDialog).getByText('Em Andamento')).toBeInTheDocument();
+    expect(mocks.kanbanApi.listTaskHistory).toHaveBeenNthCalledWith(
+      1,
+      '1',
+      { taskId: 7, page: 1, limit: 10 },
+      { signal: expect.any(AbortSignal) }
+    );
     await user.click(screen.getByRole('button', { name: 'Próxima' }));
     await waitFor(() =>
       expect(mocks.kanbanApi.listTaskHistory).toHaveBeenLastCalledWith(
         '1',
         {
+          taskId: 7,
           page: 2,
           limit: 10
         },
         { signal: expect.any(AbortSignal) }
       )
     );
-    expect(await screen.findByText(/Prioridade: Média para Alta/)).toBeInTheDocument();
+    expect(await screen.findByText('Prioridade alterada')).toBeInTheDocument();
+    expect(within(historyDialog).getByText('Média')).toBeInTheDocument();
+    expect(within(historyDialog).getByText('Alta')).toBeInTheDocument();
   });
 
   it('não faz GET periódico nem reage a focus/visibility depois da carga inicial', async () => {
@@ -235,6 +296,24 @@ describe('KanbanPage E11', () => {
     });
     vi.useRealTimers();
     expect(mocks.kanbanApi.getBoard).toHaveBeenCalledOnce();
+  });
+
+  it('confirma a exclusão e move o foco para o quadro estável', async () => {
+    const user = userEvent.setup();
+    mocks.kanbanApi.getBoard.mockResolvedValueOnce({ data: board }).mockResolvedValueOnce({
+      data: {
+        columns: { A_FAZER: [], EM_ANDAMENTO: [], CONCLUIDO: [] },
+        totals: { A_FAZER: 0, EM_ANDAMENTO: 0, CONCLUIDO: 0, total: 0 }
+      }
+    });
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Abrir detalhes de Tarefa E11' }));
+    await user.click(screen.getByRole('button', { name: 'Excluir tarefa' }));
+    const confirmation = screen.getByRole('dialog', { name: 'Excluir tarefa' });
+    await user.click(within(confirmation).getByRole('button', { name: 'Excluir tarefa' }));
+
+    await waitFor(() => expect(mocks.deleteTask).toHaveBeenCalledWith(7));
+    await waitFor(() => expect(screen.getByRole('region', { name: 'Kanban' })).toHaveFocus());
   });
 
   it('invalida resposta do Project A depois de navegar para o Project B', async () => {
@@ -280,10 +359,8 @@ describe('KanbanPage E11', () => {
   });
 });
 
-// ADR-011: o quadro passou a ser filtravel por sprint; a troca de status sem
-// arrasto vive no painel de detalhes desde a quinta iteracao do design
-// (docs/issues/RF10_RF08_PROMPT_QUINTA_ITERACAO.md). O painel de andamento
-// saiu do Kanban no design de 30/08: a evolucao vive na tela de Sprints.
+// ADR-011: o recorte de Sprint permanece na URL. UX-PLANNING-06 concentra a
+// alteração de status no arrasto e deixa detalhes e histórico como consulta.
 describe('KanbanPage ADR-011', () => {
   const sprintAtiva = {
     id: 4,
@@ -303,8 +380,25 @@ describe('KanbanPage ADR-011', () => {
     status: 'CONCLUIDA',
     milestoneId: 2
   };
-  const daSprint = { ...task, id: 8, title: 'Da sprint', sprintId: 4, estimatedEffort: 5 };
-  const congelada = { ...task, id: 9, title: 'Congelada', sprintId: 3 };
+  const daSprint = {
+    ...task,
+    id: 8,
+    title: 'Da sprint',
+    description: 'Implementar login seguro',
+    priority: 'ALTA',
+    sprintId: 4,
+    estimatedEffort: 5,
+    deadline: '2026-12-10'
+  };
+  const congelada = {
+    ...task,
+    id: 9,
+    title: 'Congelada',
+    priority: 'BAIXA',
+    sprintId: 3,
+    responsibleUser: { id: 6, name: 'Outra pessoa' },
+    deadline: '2026-01-10'
+  };
   const doBacklog = { ...task, id: 10, title: 'Do backlog', sprintId: null };
 
   beforeEach(() => {
@@ -320,7 +414,12 @@ describe('KanbanPage ADR-011', () => {
       data: { indicator: 'MOVIMENTACOES', metric: 'Movimentações', totalMovements: 4 }
     });
     mocks.kanbanApi.listTaskHistory.mockResolvedValue(historyResponse());
-    mocks.membersApi.list.mockResolvedValue({ members: [] });
+    mocks.membersApi.list.mockResolvedValue({
+      members: [
+        { id: 1, userId: 5, isActive: true, user: { id: 5, name: 'Responsável real' } },
+        { id: 2, userId: 6, isActive: true, user: { id: 6, name: 'Outra pessoa' } }
+      ]
+    });
     mocks.scheduleApi.listSprints.mockResolvedValue({
       data: { total: 2, sprints: [sprintCongelada, sprintAtiva] }
     });
@@ -331,17 +430,18 @@ describe('KanbanPage ADR-011', () => {
     renderPage();
     await screen.findByText('Da sprint');
 
-    expect(screen.getByText('Tarefas no quadro')).toBeInTheDocument();
-    expect(screen.getByText('de 3 tarefas no projeto')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Resumo' })).toBeInTheDocument();
+    expect(screen.getByText('Projeto inteiro')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Selecionar sprints' }));
+    await user.click(screen.getByRole('button', { name: /Projeto inteiro/ }));
     await user.click(screen.getByRole('checkbox', { name: /Sprint 4/ }));
 
     // Com filtro, o backlog sai do quadro: quem filtra por sprint esta
     // perguntando sobre o que esta em execucao.
     await waitFor(() => expect(screen.queryByText('Do backlog')).toBeNull());
     expect(screen.getByText('Da sprint')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'A Fazer (1)' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'A Fazer' })).toBeInTheDocument();
+    expect(screen.getByLabelText('1 tarefa')).toBeInTheDocument();
   });
 
   it('resume o filtro por extenso e permite limpa-lo', async () => {
@@ -349,13 +449,12 @@ describe('KanbanPage ADR-011', () => {
     renderPage();
     await screen.findByText('Da sprint');
 
-    expect(screen.getByText(/Sem filtro — exibindo todas as tarefas/)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Selecionar sprints' }));
+    await user.click(screen.getByRole('button', { name: /Projeto inteiro/ }));
     await user.click(screen.getByRole('checkbox', { name: /Sprint 4/ }));
 
-    expect(await screen.findByText(/Exibindo 1 sprint: Sprint 4\./)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Limpar filtro' }));
-    expect(await screen.findByText(/Sem filtro/)).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /Sprint 4/ })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Projeto inteiro' }));
+    expect(await screen.findByRole('button', { name: /Projeto inteiro/ })).toBeInTheDocument();
   });
 
   it('a sprint marcada no filtro identifica o estado congelado', async () => {
@@ -363,140 +462,105 @@ describe('KanbanPage ADR-011', () => {
     renderPage();
     await screen.findByText('Da sprint');
 
-    await user.click(screen.getByRole('button', { name: 'Selecionar sprints' }));
+    await user.click(screen.getByRole('button', { name: /Projeto inteiro/ }));
     expect(
-      screen.getByRole('checkbox', { name: /Sprint 3 · Concluída \(congelada\)/ })
+      screen.getByRole('checkbox', { name: /Sprint 3.*Concluída.*congelada/ })
     ).toBeInTheDocument();
   });
 
-  // O cartao nao carrega mais seletor: a alternativa ao arrasto para teclado e
-  // toque e o seletor do painel de detalhes, que abre por Enter no cartao.
-  it('o cartao nao tem mais seletor de status', async () => {
-    renderPage();
-    await screen.findByText('Da sprint');
-
-    const cartao = screen.getByRole('button', { name: /Da sprint/ });
-    expect(within(cartao).queryByRole('combobox')).toBeNull();
-  });
-
-  it('move a tarefa pelo seletor do painel de detalhes, sem mouse', async () => {
+  it('abre detalhes pelo teclado, mostra status somente leitura e retorna o foco', async () => {
     const user = userEvent.setup();
-    mocks.kanbanApi.moveTask.mockResolvedValue({
-      data: {
-        message: 'Tarefa movida com sucesso.',
-        task: { ...daSprint, status: 'EM_ANDAMENTO' },
-        movement: { id: 1 }
-      }
-    });
     renderPage();
     await screen.findByText('Da sprint');
 
-    const cartao = screen.getByRole('button', { name: /Da sprint/ });
+    const cartao = screen.getByRole('button', { name: 'Abrir detalhes de Da sprint' });
     cartao.focus();
     await user.keyboard('{Enter}');
-
-    const dialogo = screen.getByRole('dialog', { name: 'Da sprint' });
-    const seletor = within(dialogo).getByRole('combobox', { name: 'Mover a tarefa Da sprint' });
-    await user.selectOptions(seletor, 'EM_ANDAMENTO');
-
-    await waitFor(() =>
-      expect(mocks.kanbanApi.moveTask).toHaveBeenCalledWith(8, { toStatus: 'EM_ANDAMENTO' })
-    );
-    await waitFor(() => expect(seletor).toHaveValue('EM_ANDAMENTO'));
-  });
-
-  it('desabilita o seletor do painel enquanto a movimentacao esta em voo', async () => {
-    const user = userEvent.setup();
-    mocks.kanbanApi.moveTask.mockReturnValue(new Promise(() => {}));
-    renderPage();
-    await screen.findByText('Da sprint');
-
-    await user.click(screen.getByRole('button', { name: /Da sprint/ }));
-    const dialogo = screen.getByRole('dialog', { name: 'Da sprint' });
-    const seletor = within(dialogo).getByRole('combobox', { name: 'Mover a tarefa Da sprint' });
-    await user.selectOptions(seletor, 'EM_ANDAMENTO');
-
-    await waitFor(() => expect(seletor).toBeDisabled());
-  });
-
-  it('espaco no cartao tambem abre o painel de detalhes', async () => {
-    const user = userEvent.setup();
-    renderPage();
-    await screen.findByText('Da sprint');
-
-    const cartao = screen.getByRole('button', { name: /Da sprint/ });
-    cartao.focus();
-    await user.keyboard(' ');
-    expect(screen.getByRole('dialog', { name: 'Da sprint' })).toBeInTheDocument();
-  });
-
-  it('conflito 409 no painel reabilita o seletor e mostra a mensagem do quadro', async () => {
-    const user = userEvent.setup();
-    mocks.kanbanApi.moveTask.mockRejectedValue({
-      response: { status: 409, data: { message: 'A tarefa foi alterada por outra operação.' } }
-    });
-    renderPage();
-    await screen.findByText('Da sprint');
-
-    await user.click(screen.getByRole('button', { name: /Da sprint/ }));
-    const dialogo = screen.getByRole('dialog', { name: 'Da sprint' });
-    const seletor = within(dialogo).getByRole('combobox', { name: 'Mover a tarefa Da sprint' });
-    await user.selectOptions(seletor, 'EM_ANDAMENTO');
-
-    expect(
-      await screen.findByText('A tarefa foi alterada por outra operação.')
-    ).toBeInTheDocument();
-    expect(seletor).not.toBeDisabled();
-    expect(seletor).toHaveValue('A_FAZER');
-  });
-
-  it('escolher o status atual no painel nao dispara requisicao', async () => {
-    const user = userEvent.setup();
-    renderPage();
-    await screen.findByText('Da sprint');
-
-    await user.click(screen.getByRole('button', { name: /Da sprint/ }));
-    const dialogo = screen.getByRole('dialog', { name: 'Da sprint' });
-    await user.selectOptions(
-      within(dialogo).getByRole('combobox', { name: 'Mover a tarefa Da sprint' }),
-      'A_FAZER'
-    );
-
+    const dialogo = screen.getByRole('dialog', { name: /#8 Da sprint/ });
+    expect(within(dialogo).queryByRole('combobox')).toBeNull();
+    expect(within(dialogo).getByText('A Fazer')).toBeInTheDocument();
     expect(mocks.kanbanApi.moveTask).not.toHaveBeenCalled();
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(cartao).toHaveFocus());
   });
 
-  // Sprint encerrada e registro (ADR-010 D04): o cartao nao arrasta e o seletor
-  // do painel desabilita, para a regra nao aparecer como um 409 generico.
-  it('bloqueia a tarefa de sprint congelada no cartao e no painel', async () => {
+  it('bloqueia o arrasto de tarefa em Sprint congelada', async () => {
     const user = userEvent.setup();
     renderPage();
     await screen.findByText('Congelada');
 
     expect(screen.getByText('Sprint congelada')).toBeInTheDocument();
-    const cartao = screen.getByRole('button', { name: /Congelada/ });
+    const cartao = screen.getByRole('button', { name: 'Abrir detalhes de Congelada' });
     expect(cartao).toHaveAttribute('draggable', 'false');
 
     await user.click(cartao);
-    const dialogo = screen.getByRole('dialog', { name: 'Congelada' });
-    const seletor = within(dialogo).getByRole('combobox', { name: 'Mover a tarefa Congelada' });
-    expect(seletor).toBeDisabled();
-    expect(seletor).toHaveAttribute('title');
+    const dialogo = screen.getByRole('dialog', { name: /#9 Congelada/ });
+    expect(within(dialogo).queryByRole('combobox')).toBeNull();
   });
 
-  it('nomeia a sprint de cada cartao, e o backlog quando nao ha', async () => {
+  it('mostra Sprint no cartão apenas no recorte do projeto inteiro', async () => {
+    const user = userEvent.setup();
     renderPage();
     await screen.findByText('Da sprint');
-    expect(screen.getAllByText('Sprint 4').length).toBeGreaterThan(0);
-    expect(screen.getByText('Backlog')).toBeInTheDocument();
+    const cartao = screen.getByRole('button', { name: 'Abrir detalhes de Da sprint' });
+    expect(within(cartao).getByText('Sprint 4')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /Projeto inteiro/ }));
+    await user.click(screen.getByRole('checkbox', { name: /Sprint 4/ }));
+    expect(
+      within(screen.getByRole('button', { name: 'Abrir detalhes de Da sprint' })).queryByText(
+        'Sprint 4'
+      )
+    ).toBeNull();
   });
 
-  // O historico continua no Kanban (RF38): mover a troca de status para o
-  // painel de detalhes nao tira a auditoria do quadro.
-  it('mantem o historico de tarefas com o indicador de movimentacoes', async () => {
+  it('mantém o histórico global fora da página e expõe a ação individual', async () => {
     renderPage();
     await screen.findByText('Da sprint');
-    expect(screen.getByRole('heading', { name: 'Histórico de tarefas' })).toBeInTheDocument();
-    expect(screen.getByText('Movimentações: 4')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Histórico de tarefas' })).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'Ver histórico da tarefa Da sprint' })
+    ).toBeInTheDocument();
+  });
+
+  it('mantém filtros recolhidos, filtra localmente e preserva o resumo da Sprint', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText('Da sprint');
+
+    const toggle = screen.getByRole('button', { name: /Buscar e filtrar/ });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await user.click(toggle);
+    await user.type(screen.getByLabelText('Pesquisar'), 'login');
+
+    expect(await screen.findByText('1 de 3 tarefas exibidas')).toBeInTheDocument();
+    expect(screen.getByText('Da sprint')).toBeInTheDocument();
+    expect(screen.queryByText('Congelada')).toBeNull();
+    const summaryRegion = screen.getByRole('region', { name: 'Resumo' });
+    expect(within(summaryRegion).getByText('Total').parentElement).toHaveTextContent('3');
+    expect(toggle).toHaveTextContent('1 filtro ativo');
+
+    await user.selectOptions(screen.getByLabelText('Responsável'), '6');
+    expect(await screen.findByText('Nenhuma tarefa corresponde aos filtros.')).toBeInTheDocument();
+    expect(toggle).toHaveTextContent('2 filtros ativos');
+
+    await user.click(screen.getByRole('button', { name: 'Limpar filtros' }));
+    expect(await screen.findByText('Do backlog')).toBeInTheDocument();
+    expect(toggle).toHaveTextContent('0 ativos');
+  });
+
+  it('combina prioridade e intervalo de prazo sem alterar o universo do resumo', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText('Da sprint');
+    await user.click(screen.getByRole('button', { name: /Buscar e filtrar/ }));
+    await user.selectOptions(screen.getByLabelText('Prioridade'), 'ALTA');
+    await user.type(screen.getByLabelText('Prazo inicial'), '2026-12-01');
+    await user.type(screen.getByLabelText('Prazo final'), '2026-12-31');
+
+    expect(await screen.findByText('1 de 3 tarefas exibidas')).toBeInTheDocument();
+    expect(screen.getByText('Da sprint')).toBeInTheDocument();
+    expect(screen.queryByText('Congelada')).toBeNull();
   });
 });
 
@@ -595,7 +659,7 @@ describe('current-context-wins na troca de projeto', () => {
 
     expect(screen.queryByText('Tarefa do A')).toBeNull();
 
-    await user.click(screen.getByRole('button', { name: 'Selecionar sprints' }));
+    await user.click(screen.getByRole('button', { name: /Projeto inteiro/ }));
     expect(screen.getByRole('checkbox', { name: /Sprint do B/ })).toBeInTheDocument();
     expect(screen.queryByRole('checkbox', { name: /Sprint do A/ })).toBeNull();
   });

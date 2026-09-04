@@ -164,12 +164,20 @@ repositório.
 As screens de Tasks e Kanban coordenam estado e casos de uso, enquanto componentes do próprio domínio apresentam responsabilidades delimitadas:
 
 - `TaskMetrics` e `TaskList` apresentam resumo, tarefas e vínculos;
-- `KanbanBoard` apresenta colunas e cartões com interação por teclado e drag-and-drop;
-- `KanbanSprintFilter` recorta o quadro por sprint, com o resumo em texto;
-- `MovementHistory` apresenta filtros e paginação do backend, e carrega o indicador de
-  movimentações que antes vivia na barra do quadro;
-- `TaskDetailsPanel` apresenta o detalhe e delega mutações;
-- `kanban-display` centraliza somente labels e formatação de apresentação.
+- `KanbanSummary` apresenta as métricas do recorte por Sprint, enquanto `KanbanSprintFilter`
+  preserva seleção múltipla e URL compartilhável sem renderizar um catálogo permanente;
+- `KanbanFilters` usa a primitive de filtros recolhíveis de Planning para aplicar busca,
+  responsável, prioridade e prazo somente sobre os dados carregados;
+- `KanbanBoard` e `KanbanColumn` apresentam as três colunas reais, cards compactos, menus e o
+  drag-and-drop HTML nativo; detalhes e histórico continuam acessíveis por teclado, mas o movimento
+  de status ainda não possui alternativa de teclado (`KANBAN KEYBOARD MOVE GAP`);
+- `TaskHistoryDialog` consulta e pagina o histórico somente da tarefa selecionada por meio do
+  endpoint existente, sem carregar histórico global no Kanban;
+- `TaskDetailsPanel` apresenta informações e rastreabilidade em modo read-only e preserva
+  `TaskComments` como owner da conversa e de seu SSE;
+- `KanbanDialog` concentra foco inicial, trap, Escape, scroll e return focus dos dialogs locais;
+- `kanban-view` centraliza resumo, filtros e apresentação derivada, enquanto `kanban-display`
+  mantém labels e formatação do histórico.
 
 A restauração de sessão coalesce chamadas concorrentes e as cargas iniciais de Tasks/Kanban são protegidas contra a segunda execução de efeitos em desenvolvimento, sem introduzir cache global.
 

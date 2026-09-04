@@ -1,92 +1,128 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { TraceFlowIcon } from '../../../shared/index.js';
 import './KanbanSprintFilter.css';
 
-// Filtro do quadro por sprint.
-//
-// Seleção múltipla e não um `<select>` simples: acompanhar duas sprints ao mesmo
-// tempo é o caso normal na virada de uma para a outra, quando tarefas ainda
-// estão migrando. Sem filtro, o quadro mostra o projeto inteiro — inclusive o
-// backlog —, que é o comportamento de sempre.
+const VISIBLE_LIMIT = 8;
+
 export function KanbanSprintFilter({ sprints, selectedIds, statusLabels = {}, onToggle, onClear }) {
-  const [aberto, setAberto] = useState(false);
-  const container = useRef(null);
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const containerRef = useRef(null);
+  const triggerRef = useRef(null);
+  const searchRef = useRef(null);
 
-  // Fechar ao clicar fora e no Escape. Um popover que só fecha pelo próprio
-  // botão vira obstáculo assim que o usuário decide fazer outra coisa.
   useEffect(() => {
-    if (!aberto) return undefined;
-    const foraDoPopover = (event) => {
-      if (!container.current?.contains(event.target)) setAberto(false);
+    if (!open) return undefined;
+    window.requestAnimationFrame(() => {
+      (sprints.length > VISIBLE_LIMIT
+        ? searchRef.current
+        : containerRef.current?.querySelector('input')
+      )?.focus();
+    });
+    const close = (restoreFocus) => {
+      setOpen(false);
+      setQuery('');
+      if (restoreFocus) window.requestAnimationFrame(() => triggerRef.current?.focus());
     };
-    const noEscape = (event) => {
-      if (event.key === 'Escape') setAberto(false);
+    const handlePointerDown = (event) => {
+      if (!containerRef.current?.contains(event.target)) close(false);
     };
-    document.addEventListener('pointerdown', foraDoPopover);
-    document.addEventListener('keydown', noEscape);
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        close(true);
+      }
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
     return () => {
-      document.removeEventListener('pointerdown', foraDoPopover);
-      document.removeEventListener('keydown', noEscape);
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [aberto]);
+  }, [open, sprints.length]);
 
-  const selecionadas = sprints.filter((sprint) => selectedIds.includes(sprint.id));
-  const resumo = selecionadas.length
-    ? `Exibindo ${selecionadas.length === 1 ? '1 sprint' : `${selecionadas.length} sprints`}: ${selecionadas
-        .map((sprint) => sprint.name)
-        .join(', ')}.`
-    : 'Sem filtro — exibindo todas as tarefas do projeto.';
+  const selected = sprints.filter((sprint) => selectedIds.includes(sprint.id));
+  const normalizedQuery = query.trim().toLocaleLowerCase('pt-BR');
+  const matches = useMemo(
+    () =>
+      sprints.filter((sprint) => sprint.name.toLocaleLowerCase('pt-BR').includes(normalizedQuery)),
+    [normalizedQuery, sprints]
+  );
+  const visibleSprints = normalizedQuery ? matches : matches.slice(0, VISIBLE_LIMIT);
+  const selectionLabel =
+    selected.length === 0
+      ? 'Projeto inteiro'
+      : selected.length === 1
+        ? selected[0].name
+        : `${selected.length} Sprints`;
 
   return (
-    <div className="kanban-owner-field kanban-sprint-filter" ref={container}>
-      <strong>Sprints no quadro</strong>
-      <p className="field-help">{resumo}</p>
-      <div className="kanban-sprint-filter-actions">
-        <button
-          type="button"
-          className="button button-secondary"
-          aria-expanded={aberto}
-          onClick={() => setAberto((atual) => !atual)}
-        >
-          {aberto ? 'Fechar seleção' : 'Selecionar sprints'}
-        </button>
-        {selecionadas.length > 0 && (
-          <button type="button" className="text-button" onClick={onClear}>
-            Limpar filtro
-          </button>
-        )}
-      </div>
+    <div className="kanban-sprint-filter" ref={containerRef}>
+      <button
+        ref={triggerRef}
+        type="button"
+        className="kanban-sprint-filter__trigger"
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        disabled={sprints.length === 0}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <strong>{selectionLabel}</strong>
+        <span>{sprints.length === 0 ? 'Sem Sprints cadastradas' : 'Alterar recorte'}</span>
+        <TraceFlowIcon name="arrowRight" />
+      </button>
 
-      {aberto && (
-        <div className="kanban-sprint-filter-popover">
-          <p className="kanban-sprint-filter-title">
-            Exibir tarefas somente das sprints selecionadas
-          </p>
-          {sprints.length === 0 ? (
-            <p className="empty-state">Nenhuma sprint cadastrada.</p>
+      {open && (
+        <div
+          className="kanban-sprint-filter__popover"
+          role="dialog"
+          aria-label="Selecionar Sprints"
+        >
+          <div className="kanban-sprint-filter__header">
+            <strong>Sprints no quadro</strong>
+            {selected.length > 0 && (
+              <button type="button" className="text-button" onClick={onClear}>
+                Projeto inteiro
+              </button>
+            )}
+          </div>
+          {sprints.length > VISIBLE_LIMIT && (
+            <label className="kanban-sprint-filter__search">
+              <span className="sr-only">Pesquisar Sprint</span>
+              <input
+                ref={searchRef}
+                type="search"
+                value={query}
+                placeholder="Pesquisar sprint..."
+                onChange={(event) => setQuery(event.target.value)}
+              />
+            </label>
+          )}
+          {visibleSprints.length === 0 ? (
+            <p className="kanban-sprint-filter__empty">Nenhuma Sprint encontrada.</p>
           ) : (
-            <ul className="sprint-tasks-options">
-              {sprints.map((sprint) => (
+            <ul className="kanban-sprint-filter__options">
+              {visibleSprints.map((sprint) => (
                 <li key={sprint.id}>
-                  <label className="checkbox-field">
+                  <label>
                     <input
                       type="checkbox"
                       checked={selectedIds.includes(sprint.id)}
                       onChange={() => onToggle(sprint.id)}
                     />
-                    {/* O espaco explicito nao e cosmetico: sem ele o JSX cola os
-                        dois nos, e o nome acessivel da caixa vira
-                        "Sprint 3· Concluída" — a margem do CSS so conserta o
-                        visual. */}
                     <span>
-                      {sprint.name}{' '}
-                      <span className="checkbox-field-hint kanban-sprint-filter-hint">
-                        · {statusLabels[sprint.id]}
-                      </span>
+                      <strong>{sprint.name}</strong>
+                      <small>{statusLabels[sprint.id]}</small>
                     </span>
                   </label>
                 </li>
               ))}
             </ul>
+          )}
+          {!normalizedQuery && sprints.length > VISIBLE_LIMIT && (
+            <p className="kanban-sprint-filter__hint">
+              Pesquise para encontrar outras {sprints.length - VISIBLE_LIMIT} Sprints.
+            </p>
           )}
         </div>
       )}

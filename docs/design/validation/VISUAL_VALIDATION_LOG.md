@@ -116,4 +116,6 @@ The following materially changed areas require a new rendered record before they
 - UX-PLANNING-SCHEDULE em Light/Dark, sidebar expandida/recolhida, tablet e mobile, incluindo faixas,
   lanes/overflow, cores automáticas, marcadores, painel Contexto Mês/Dia, grid de próximos prazos e
   estados vazios;
-- legacy Dark-compatible operational surfaces and Task Details modal layering.
+- UX-PLANNING-KANBAN em Light/Dark, sidebar expandida/recolhida, tablet e mobile, incluindo resumo,
+  filtros recolhíveis, quadro horizontal em containers estreitos, Task Details e histórico individual;
+- legacy Dark-compatible operational surfaces.
