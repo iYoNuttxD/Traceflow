@@ -1,25 +1,26 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
-import {
-  deleteTask,
-  kanbanApi,
-  unlinkTaskCommit,
-  unlinkTaskIssue,
-  unlinkTaskFromPullRequest,
-  unlinkTaskRequirement
-} from '../api/tasks.api.js';
+import { deleteTask, kanbanApi } from '../api/tasks.api.js';
 import { scheduleApi, sprintStatusKey, sprintStatusKeyLabels } from '../../schedule/index.js';
 import { membersApi } from '../../members/index.js';
-import { projectsApi } from '../../projects/index.js';
-import { ProjectSectionNav } from '../../projects/index.js';
+import { ProjectSectionNav, projectsApi } from '../../projects/index.js';
 import { KanbanBoard } from '../components/KanbanBoard.jsx';
-import { KanbanSprintFilter } from '../components/KanbanSprintFilter.jsx';
+import { KanbanFilters } from '../components/KanbanFilters.jsx';
+import { KanbanSummary } from '../components/KanbanSummary.jsx';
 import { KANBAN_COLUMNS } from '../components/kanban-display.js';
-import { MovementHistory } from '../components/MovementHistory.jsx';
-import { TaskDetailsPanel } from '../components/TaskDetailsPanel.jsx';
 import {
-  FeedbackRegion,
+  countActiveKanbanFilters,
+  EMPTY_KANBAN_FILTERS,
+  filterBoardBySprints,
+  filterKanbanBoard,
+  getBoardTasks,
+  getKanbanSummary
+} from '../components/kanban-view.js';
+import { TaskDetailsPanel } from '../components/TaskDetailsPanel.jsx';
+import { TaskHistoryDialog } from '../components/TaskHistoryDialog.jsx';
+import {
   ContextualErrorPage,
+  FeedbackRegion,
   LoadingState,
   classifyPageError,
   getErrorRequestId,
@@ -28,99 +29,57 @@ import {
 } from '../../../shared/index.js';
 import './KanbanScreen.css';
 
-const MOVEMENTS_PER_PAGE = 10;
 const TERMINAL_SPRINT_STATUSES = ['CONCLUIDA', 'CANCELADA'];
 
 function getErrorMessage(error, fallback) {
   return normalizeApiError(error, fallback).message;
 }
 
-function buildPeriodParams(period) {
-  const params = {};
-
-  if (period.startDate) {
-    params.startDate = period.startDate;
-  }
-
-  if (period.endDate) {
-    params.endDate = period.endDate;
-  }
-
-  return params;
-}
-
-function updateTaskInBoard(board, taskId, updater) {
-  if (!board?.columns) {
-    return board;
-  }
-
-  const columns = Object.fromEntries(
-    Object.entries(board.columns).map(([status, tasks]) => [
-      status,
-      tasks.map((task) => (String(task.id) === String(taskId) ? updater(task) : task))
-    ])
-  );
-
-  return {
-    ...board,
-    columns
-  };
+function findTaskInBoard(board, taskId) {
+  return getBoardTasks(board).find((task) => String(task.id) === String(taskId)) || null;
 }
 
 function updateBoardWithMovedTask(board, movedTask) {
-  if (!board?.columns || !movedTask?.status) {
-    return board;
-  }
-
-  const columns = KANBAN_COLUMNS.reduce((updatedColumns, column) => {
-    updatedColumns[column.status] = (board.columns[column.status] || []).filter(
-      (task) => task.id !== movedTask.id
-    );
-    return updatedColumns;
-  }, {});
-
-  if (!columns[movedTask.status]) {
-    columns[movedTask.status] = [];
-  }
-
-  columns[movedTask.status] = [movedTask, ...columns[movedTask.status]];
-  const calculatedTotal = KANBAN_COLUMNS.reduce(
-    (total, column) => total + (columns[column.status]?.length || 0),
-    0
+  if (!board?.columns || !movedTask?.status) return board;
+  const columns = Object.fromEntries(
+    KANBAN_COLUMNS.map((column) => [
+      column.status,
+      (board.columns[column.status] || []).filter((task) => task.id !== movedTask.id)
+    ])
   );
-  const total = typeof board.totals?.total === 'number' ? board.totals.total : calculatedTotal;
-
+  columns[movedTask.status] = [movedTask, ...(columns[movedTask.status] || [])];
+  const summary = getKanbanSummary({ columns });
   return {
     ...board,
     columns,
     totals: {
-      A_FAZER: columns.A_FAZER?.length || 0,
-      EM_ANDAMENTO: columns.EM_ANDAMENTO?.length || 0,
-      CONCLUIDO: columns.CONCLUIDO?.length || 0,
-      total
+      ...summary,
+      total: typeof board.totals?.total === 'number' ? board.totals.total : summary.total
     }
   };
 }
 
-// O quadro mostra o projeto inteiro por padrão. Com filtro, só as tarefas das
-// sprints escolhidas — o backlog fica de fora, porque quem filtra por sprint está
-// perguntando sobre o que está em execução.
-function filterBoardBySprints(board, sprintIds) {
-  if (!board?.columns || !sprintIds.length) return board;
+function removeTaskFromBoard(board, taskId) {
+  if (!board?.columns) return board;
+  const taskWasVisible = getBoardTasks(board).some((task) => String(task.id) === String(taskId));
   const columns = Object.fromEntries(
     Object.entries(board.columns).map(([status, tasks]) => [
       status,
-      tasks.filter((task) => task.sprintId && sprintIds.includes(task.sprintId))
+      tasks.filter((task) => String(task.id) !== String(taskId))
     ])
   );
-  return { ...board, columns };
-}
-
-function findTaskInBoard(board, taskId) {
-  if (!board?.columns || taskId == null) return null;
-  return Object.values(board.columns)
-    .flat()
-    .find((task) => String(task.id) === String(taskId));
+  const summary = getKanbanSummary({ columns });
+  return {
+    ...board,
+    columns,
+    totals: {
+      ...summary,
+      total:
+        typeof board.totals?.total === 'number'
+          ? Math.max(0, board.totals.total - (taskWasVisible ? 1 : 0))
+          : summary.total
+    }
+  };
 }
 
 export function KanbanScreen() {
@@ -129,24 +88,12 @@ export function KanbanScreen() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [project, setProject] = useState(null);
   const [board, setBoard] = useState(null);
-  const [metrics, setMetrics] = useState(null);
-  const [movements, setMovements] = useState([]);
   const [projectMembers, setProjectMembers] = useState([]);
   const [projectSprints, setProjectSprints] = useState([]);
-  // O filtro de sprints vive na URL: o link "Ver no Kanban" da tela de Sprints
-  // chega por aqui, e assim ele é compartilhável e sobrevive ao F5.
   const [sprintFilter, setSprintFilter] = useState([]);
-  const [period, setPeriod] = useState({ startDate: '', endDate: '' });
-  const [movementMemberFilter, setMovementMemberFilter] = useState('');
-  const [historyFieldFilter, setHistoryFieldFilter] = useState('');
-  const [movementPage, setMovementPage] = useState(1);
-  const [movementPagination, setMovementPagination] = useState({
-    page: 1,
-    limit: MOVEMENTS_PER_PAGE,
-    total: 0,
-    totalPages: 0
-  });
+  const [filters, setFilters] = useState({ ...EMPTY_KANBAN_FILTERS });
   const [selectedTask, setSelectedTask] = useState(null);
+  const [historyTask, setHistoryTask] = useState(null);
   const [loading, setLoading] = useState(true);
   const [movingTaskId, setMovingTaskId] = useState(null);
   const [deletingTaskId, setDeletingTaskId] = useState(null);
@@ -157,33 +104,28 @@ export function KanbanScreen() {
   const [success, setSuccess] = useState('');
   const suppressTaskClickRef = useRef(false);
   const searchParamsRef = useRef(searchParams);
-  searchParamsRef.current = searchParams;
+  const boardFocusRef = useRef(null);
+  const detailsReturnFocusRef = useRef(null);
+  const historyReturnFocusRef = useRef(null);
   const contextRef = useRef({ projectId, generation: 0 });
   const requestSequenceRef = useRef(0);
   const requestControllerRef = useRef(null);
   const mutationSequenceRef = useRef(0);
   const mutationPendingRef = useRef(false);
+  searchParamsRef.current = searchParams;
 
-  const allTasks = useMemo(() => {
-    if (!board?.columns) {
-      return [];
-    }
-
-    return KANBAN_COLUMNS.flatMap((column) => board.columns[column.status] || []);
-  }, [board]);
-
-  const visibleBoard = useMemo(
+  const allTasks = useMemo(() => getBoardTasks(board), [board]);
+  const sprintScopedBoard = useMemo(
     () => filterBoardBySprints(board, sprintFilter),
     [board, sprintFilter]
   );
-  const visibleCount = useMemo(() => {
-    if (!visibleBoard?.columns) return 0;
-    return KANBAN_COLUMNS.reduce(
-      (total, column) => total + (visibleBoard.columns[column.status]?.length || 0),
-      0
-    );
-  }, [visibleBoard]);
-
+  const summary = useMemo(() => getKanbanSummary(sprintScopedBoard), [sprintScopedBoard]);
+  const visibleBoard = useMemo(
+    () => filterKanbanBoard(sprintScopedBoard, filters),
+    [filters, sprintScopedBoard]
+  );
+  const visibleCount = useMemo(() => getBoardTasks(visibleBoard).length, [visibleBoard]);
+  const activeFilterCount = useMemo(() => countActiveKanbanFilters(filters), [filters]);
   const sprintNames = useMemo(
     () => Object.fromEntries(projectSprints.map((sprint) => [sprint.id, sprint.name])),
     [projectSprints]
@@ -192,11 +134,11 @@ export function KanbanScreen() {
     () =>
       Object.fromEntries(
         projectSprints.map((sprint) => {
-          const chave = sprintStatusKey(sprint);
-          const congelada = TERMINAL_SPRINT_STATUSES.includes(sprint.status);
+          const key = sprintStatusKey(sprint);
+          const frozen = TERMINAL_SPRINT_STATUSES.includes(sprint.status);
           return [
             sprint.id,
-            `${sprintStatusKeyLabels[chave] || sprint.status}${congelada ? ' (congelada)' : ''}`
+            `${sprintStatusKeyLabels[key] || sprint.status}${frozen ? ' · congelada' : ''}`
           ];
         })
       ),
@@ -210,14 +152,6 @@ export function KanbanScreen() {
           .map((sprint) => sprint.id)
       ),
     [projectSprints]
-  );
-  const totalMovementPages = Math.max(1, movementPagination.totalPages || 1);
-  const currentMovementPage = Math.min(movementPage, totalMovementPages);
-  const movementStartIndex = (currentMovementPage - 1) * MOVEMENTS_PER_PAGE;
-  const movementRangeStart = movementPagination.total === 0 ? 0 : movementStartIndex + 1;
-  const movementRangeEnd = Math.min(
-    movementStartIndex + movements.length,
-    movementPagination.total
   );
 
   const invalidateRequest = useCallback(() => {
@@ -260,117 +194,55 @@ export function KanbanScreen() {
 
   const applyBoard = useCallback((nextBoard) => {
     setBoard(nextBoard);
-    setSelectedTask((current) =>
-      current ? findTaskInBoard(nextBoard, current.id) || null : current
-    );
+    setSelectedTask((current) => (current ? findTaskInBoard(nextBoard, current.id) : current));
+    setHistoryTask((current) => (current ? findTaskInBoard(nextBoard, current.id) : current));
   }, []);
 
-  const loadKanban = useCallback(
-    async (params = {}) => {
-      const request = beginRequest();
-      setLoading(true);
-      setError('');
-      setPageError(null);
-
-      try {
-        const options = { signal: request.controller.signal };
-        const [
-          projectResponse,
-          boardResponse,
-          metricsResponse,
-          movementsResponse,
-          membersResponse,
-          sprintsResponse
-        ] = await Promise.all([
-          projectsApi.get(projectId, options),
-          kanbanApi.getBoard(projectId, options),
-          kanbanApi.getMetrics(projectId, params, options),
-          kanbanApi.listTaskHistory(
-            projectId,
-            { ...params, page: 1, limit: MOVEMENTS_PER_PAGE },
-            options
-          ),
-          membersApi.list(projectId, options),
-          // O catálogo de sprints enriquece filtro e histórico, mas não deve
-          // indisponibilizar o quadro quando falhar isoladamente.
-          scheduleApi.listSprints(projectId, {}, options).catch(() => ({ data: { sprints: [] } }))
-        ]);
-        if (!requestIsCurrent(request)) return false;
-
-        const members = membersResponse.members || [];
-        setProject(projectResponse.data.project);
-        applyBoard(boardResponse.data);
-        setMetrics(metricsResponse.data);
-        setMovements(movementsResponse.data.items || []);
-        setMovementPagination(
-          movementsResponse.data.pagination || {
-            page: 1,
-            limit: MOVEMENTS_PER_PAGE,
-            total: movementsResponse.data.total || 0,
-            totalPages: 1
-          }
-        );
-        setProjectMembers(members);
-        const sprints = sprintsResponse.data.sprints || [];
-        setProjectSprints(sprints);
-
-        // As sprints pedidas na URL vencem. Ids inexistentes são descartados em
-        // silêncio: uma URL antiga não deve travar a tela.
-        const pedidas = (searchParamsRef.current.get('sprint') || '')
-          .split(',')
-          .map((valor) => Number(valor))
-          .filter((id) => sprints.some((sprint) => sprint.id === id));
-        setSprintFilter(pedidas);
-        return true;
-      } catch (requestError) {
-        if (requestIsCurrent(request)) {
-          setPageError(normalizeApiError(requestError, 'Não foi possível carregar o Kanban.'));
-        }
-        return false;
-      } finally {
-        if (finishRequest(request)) setLoading(false);
+  const loadKanban = useCallback(async () => {
+    const request = beginRequest();
+    setLoading(true);
+    setError('');
+    setPageError(null);
+    try {
+      const options = { signal: request.controller.signal };
+      const [projectResponse, boardResponse, membersResponse, sprintsResponse] = await Promise.all([
+        projectsApi.get(projectId, options),
+        kanbanApi.getBoard(projectId, options),
+        membersApi.list(projectId, options),
+        scheduleApi.listSprints(projectId, {}, options).catch(() => ({ data: { sprints: [] } }))
+      ]);
+      if (!requestIsCurrent(request)) return false;
+      setProject(projectResponse.data.project);
+      applyBoard(boardResponse.data);
+      setProjectMembers(membersResponse.members || []);
+      const sprints = sprintsResponse.data.sprints || [];
+      setProjectSprints(sprints);
+      const requestedIds = (searchParamsRef.current.get('sprint') || '')
+        .split(',')
+        .map((value) => Number(value))
+        .filter((id) => sprints.some((sprint) => sprint.id === id));
+      setSprintFilter(requestedIds);
+      return true;
+    } catch (requestError) {
+      if (requestIsCurrent(request)) {
+        setPageError(normalizeApiError(requestError, 'Não foi possível carregar o Kanban.'));
       }
-    },
-    [applyBoard, beginRequest, finishRequest, projectId, requestIsCurrent]
-  );
+      return false;
+    } finally {
+      if (finishRequest(request)) setLoading(false);
+    }
+  }, [applyBoard, beginRequest, finishRequest, projectId, requestIsCurrent]);
 
-  const refreshKanban = useCallback(
-    async (
-      params = {
-        ...buildPeriodParams(period),
-        page: movementPage,
-        limit: MOVEMENTS_PER_PAGE,
-        ...(movementMemberFilter ? { actorUserId: movementMemberFilter } : {}),
-        ...(historyFieldFilter ? { field: historyFieldFilter } : {})
-      },
-      confirmedTask = null
-    ) => {
+  const refreshBoard = useCallback(
+    async (confirmedTask = null) => {
       const request = beginRequest();
       try {
-        const options = { signal: request.controller.signal };
-        const [boardResponse, metricsResponse, movementsResponse] = await Promise.all([
-          kanbanApi.getBoard(projectId, options),
-          kanbanApi.getMetrics(projectId, params, options),
-          kanbanApi.listTaskHistory(projectId, params, options)
-        ]);
+        const response = await kanbanApi.getBoard(projectId, {
+          signal: request.controller.signal
+        });
         if (!requestIsCurrent(request)) return false;
-
-        // A resposta confirmada da mutation não pode regredir se o refresh
-        // imediato observar um snapshot anterior do quadro.
         applyBoard(
-          confirmedTask
-            ? updateBoardWithMovedTask(boardResponse.data, confirmedTask)
-            : boardResponse.data
-        );
-        setMetrics(metricsResponse.data);
-        setMovements(movementsResponse.data.items || []);
-        setMovementPagination(
-          movementsResponse.data.pagination || {
-            page: 1,
-            limit: MOVEMENTS_PER_PAGE,
-            total: movementsResponse.data.total || 0,
-            totalPages: 1
-          }
+          confirmedTask ? updateBoardWithMovedTask(response.data, confirmedTask) : response.data
         );
         return true;
       } catch (requestError) {
@@ -380,17 +252,7 @@ export function KanbanScreen() {
         finishRequest(request);
       }
     },
-    [
-      applyBoard,
-      beginRequest,
-      finishRequest,
-      historyFieldFilter,
-      movementMemberFilter,
-      movementPage,
-      period,
-      projectId,
-      requestIsCurrent
-    ]
+    [applyBoard, beginRequest, finishRequest, projectId, requestIsCurrent]
   );
 
   const beginMutation = useCallback(() => {
@@ -424,22 +286,18 @@ export function KanbanScreen() {
   );
 
   useEffect(() => {
-    contextRef.current = {
-      projectId,
-      generation: contextRef.current.generation + 1
-    };
+    contextRef.current = { projectId, generation: contextRef.current.generation + 1 };
     invalidateRequest();
     mutationSequenceRef.current += 1;
     mutationPendingRef.current = false;
     setProject(null);
     setBoard(null);
-    setMetrics(null);
-    setMovements([]);
     setProjectMembers([]);
     setProjectSprints([]);
     setSprintFilter([]);
+    setFilters({ ...EMPTY_KANBAN_FILTERS });
     setSelectedTask(null);
-    setMovementPage(1);
+    setHistoryTask(null);
     setLoading(true);
     setError('');
     setPageError(null);
@@ -456,9 +314,6 @@ export function KanbanScreen() {
     };
   }, [invalidateRequest, loadKanban, projectId]);
 
-  // O filtro viaja na URL para o link continuar compartilhável depois de o
-  // usuário mexer nele. `replace` evita encher o histórico do navegador com uma
-  // entrada por clique de checkbox.
   const applySprintFilter = useCallback(
     (ids) => {
       setSprintFilter(ids);
@@ -470,25 +325,8 @@ export function KanbanScreen() {
     [searchParams, setSearchParams]
   );
 
-  if (!loading && !project && pageError) {
-    return (
-      <ContextualErrorPage
-        type={classifyPageError(pageError)}
-        description={pageError.message}
-        requestId={getErrorRequestId(pageError)}
-        retryAfterSeconds={pageError.retryAfterSeconds}
-        onRetry={loadKanban}
-      />
-    );
-  }
-
   async function moveTaskToStatus(task, toStatus) {
-    if (toStatus === task.status) {
-      return;
-    }
-
-    // Sprint encerrada é registro histórico: o backend recusa a movimentação, e
-    // dizer isso aqui evita que a regra apareça como um erro genérico do quadro.
+    if (toStatus === task.status) return;
     if (task.sprintId && frozenSprintIds.has(task.sprintId)) {
       setSuccess('');
       setError(
@@ -496,40 +334,19 @@ export function KanbanScreen() {
       );
       return;
     }
-
     const mutation = beginMutation();
     if (!mutation) return;
-
     setMovingTaskId(task.id);
     setError('');
     setSuccess('');
-
     try {
       const response = await kanbanApi.moveTask(task.id, { toStatus });
       if (!mutationIsCurrent(mutation)) return;
       const movedTask = response.data.task;
-
       setSuccess(response.data.message);
-      setBoard((currentBoard) => updateBoardWithMovedTask(currentBoard, movedTask));
-      setSelectedTask((current) =>
-        current && String(current.id) === String(movedTask.id)
-          ? { ...current, ...movedTask }
-          : current
-      );
-
-      if (response.data.movement) {
-        setMetrics((current) =>
-          current
-            ? {
-                ...current,
-                totalMovements: (current.totalMovements || 0) + 1
-              }
-            : current
-        );
-      }
-
+      setBoard((current) => updateBoardWithMovedTask(current, movedTask));
       finishMutation(mutation);
-      void refreshKanban(undefined, movedTask).catch((requestError) => {
+      void refreshBoard(movedTask).catch((requestError) => {
         setError(
           getErrorMessage(
             requestError,
@@ -541,9 +358,7 @@ export function KanbanScreen() {
       if (!mutationIsCurrent(mutation)) return;
       setError(getErrorMessage(requestError, 'Não foi possível mover a tarefa.'));
       finishMutation(mutation);
-      if (requestError.response?.status === 409) {
-        void refreshKanban().catch(() => {});
-      }
+      if (requestError.response?.status === 409) void refreshBoard().catch(() => {});
     } finally {
       if (mutationIsCurrent(mutation)) {
         finishMutation(mutation);
@@ -557,7 +372,6 @@ export function KanbanScreen() {
       event.preventDefault();
       return;
     }
-
     suppressTaskClickRef.current = true;
     setDraggingTaskId(task.id);
     event.dataTransfer.effectAllowed = 'move';
@@ -567,183 +381,59 @@ export function KanbanScreen() {
   function handleTaskDragEnd() {
     setDraggingTaskId(null);
     setDragOverStatus('');
-
     window.setTimeout(() => {
       suppressTaskClickRef.current = false;
     }, 0);
   }
 
-  function handleColumnDragOver(event, status) {
-    event.preventDefault();
-    event.dataTransfer.dropEffect = 'move';
-    setDragOverStatus(status);
-  }
-
-  function handleColumnDragLeave(event, status) {
-    if (event.currentTarget.contains(event.relatedTarget)) {
-      return;
-    }
-
-    setDragOverStatus((current) => (current === status ? '' : current));
-  }
-
   async function handleColumnDrop(event, targetStatus) {
     event.preventDefault();
     setDragOverStatus('');
-
     const draggedTaskId = event.dataTransfer.getData('text/plain') || draggingTaskId;
     const task = allTasks.find((candidate) => String(candidate.id) === String(draggedTaskId));
-
-    if (!task || task.status === targetStatus) {
-      return;
-    }
-
-    await moveTaskToStatus(task, targetStatus);
+    if (task && task.status !== targetStatus) await moveTaskToStatus(task, targetStatus);
   }
 
-  function handleTaskClick(task) {
-    if (suppressTaskClickRef.current) {
-      return;
-    }
-
+  function openTaskDetails(task, trigger) {
+    if (suppressTaskClickRef.current) return;
+    detailsReturnFocusRef.current = trigger;
     setSelectedTask(task);
   }
 
-  async function handleUnlinkSelectedPullRequest(taskId) {
-    setError('');
-    setSuccess('');
-
-    try {
-      const response = await unlinkTaskFromPullRequest(taskId);
-      const updatedTask = response.task;
-      setSuccess(response.message || 'Pull request removido da tarefa.');
-      setBoard((currentBoard) =>
-        updateTaskInBoard(currentBoard, taskId, (task) => ({
-          ...task,
-          pullRequestId: null,
-          pullRequest: null
-        }))
-      );
-      setSelectedTask((current) =>
-        current && String(current.id) === String(taskId)
-          ? {
-              ...current,
-              pullRequestId: updatedTask?.pullRequestId || null,
-              pullRequest: updatedTask?.pullRequest || null
-            }
-          : current
-      );
-    } catch (requestError) {
-      setError(
-        getErrorMessage(requestError, 'Não foi possível remover o vínculo com o pull request.')
-      );
-    }
+  function openTaskHistory(task, trigger) {
+    historyReturnFocusRef.current = trigger;
+    setHistoryTask(task);
   }
 
-  async function handleUnlinkSelectedTaskRequirement(taskId) {
-    setError('');
-    setSuccess('');
-
-    try {
-      const response = await unlinkTaskRequirement(taskId);
-      const updatedTask = response.task;
-      setSuccess(response.message || 'Vínculo com requisito removido.');
-      setBoard((currentBoard) =>
-        updateTaskInBoard(currentBoard, taskId, (task) => ({
-          ...task,
-          requirementId: null,
-          requirement: null
-        }))
-      );
-      setSelectedTask((current) =>
-        current && String(current.id) === String(taskId)
-          ? {
-              ...current,
-              requirementId: updatedTask?.requirementId || null,
-              requirement: updatedTask?.requirement || null
-            }
-          : current
-      );
-    } catch (requestError) {
-      setError(getErrorMessage(requestError, 'Não foi possível remover o requisito da tarefa.'));
-    }
-  }
-
-  async function handleUnlinkSelectedTaskCommit(taskId, commitId) {
-    setError('');
-    setSuccess('');
-
-    try {
-      const response = await unlinkTaskCommit(taskId, commitId);
-      const commits = response.commits || [];
-      setSuccess(response.message || 'Commit removido da tarefa.');
-      setBoard((currentBoard) =>
-        updateTaskInBoard(currentBoard, taskId, (task) => ({
-          ...task,
-          commits
-        }))
-      );
-      setSelectedTask((current) =>
-        current && String(current.id) === String(taskId)
-          ? {
-              ...current,
-              commits
-            }
-          : current
-      );
-    } catch (requestError) {
-      setError(getErrorMessage(requestError, 'Não foi possível remover o commit da tarefa.'));
-    }
-  }
-
-  async function handleUnlinkSelectedTaskIssue(taskId, issueId) {
-    setError('');
-    setSuccess('');
-
-    try {
-      const response = await unlinkTaskIssue(taskId, issueId);
-      const issues = response.issues || [];
-      setSuccess(response.message || 'Issue removida da tarefa.');
-      setBoard((currentBoard) =>
-        updateTaskInBoard(currentBoard, taskId, (task) => ({
-          ...task,
-          issues
-        }))
-      );
-      setSelectedTask((current) =>
-        current && String(current.id) === String(taskId)
-          ? {
-              ...current,
-              issues
-            }
-          : current
-      );
-    } catch (requestError) {
-      setError(getErrorMessage(requestError, 'Não foi possível remover a issue da tarefa.'));
-    }
-  }
-
-  async function handleDeleteSelectedTask(task) {
+  async function handleDeleteTask(task) {
     const confirmed = await confirm({
       title: 'Excluir tarefa',
       description:
-        'Esta ação não poderá ser desfeita. Os vínculos com requisito, pull request, commits, issues e movimentações do Kanban serão removidos, mas os artefatos importados do GitHub serão mantidos.',
+        'Esta ação não poderá ser desfeita. Os vínculos e as movimentações do Kanban serão removidos, mas os artefatos importados do GitHub serão mantidos.',
       confirmLabel: 'Excluir tarefa'
     });
-
-    if (!confirmed) {
-      return;
-    }
+    if (!confirmed) return;
 
     setDeletingTaskId(task.id);
     setError('');
     setSuccess('');
-
     try {
       const response = await deleteTask(task.id);
+      setBoard((current) => removeTaskFromBoard(current, task.id));
       setSelectedTask(null);
+      setHistoryTask(null);
       setSuccess(response.message || 'Tarefa excluída com sucesso.');
-      await loadKanban(buildPeriodParams(period));
+      try {
+        await refreshBoard();
+      } catch (requestError) {
+        setError(
+          getErrorMessage(
+            requestError,
+            'A tarefa foi excluída, mas não foi possível reconciliar o Kanban.'
+          )
+        );
+      }
+      window.requestAnimationFrame(() => boardFocusRef.current?.focus());
     } catch (requestError) {
       setError(getErrorMessage(requestError, 'Não foi possível excluir a tarefa.'));
     } finally {
@@ -751,71 +441,28 @@ export function KanbanScreen() {
     }
   }
 
-  async function handlePeriodSubmit(event) {
-    event.preventDefault();
-    setError('');
-    setSuccess('');
-    setMovementPage(1);
-
-    try {
-      await refreshKanban({
-        ...buildPeriodParams(period),
-        ...(movementMemberFilter ? { actorUserId: movementMemberFilter } : {}),
-        ...(historyFieldFilter ? { field: historyFieldFilter } : {}),
-        page: 1,
-        limit: MOVEMENTS_PER_PAGE
-      });
-    } catch (requestError) {
-      setError(getErrorMessage(requestError, 'Não foi possível consultar o período.'));
-    }
-  }
-
-  async function clearPeriod() {
-    setPeriod({ startDate: '', endDate: '' });
-    setMovementMemberFilter('');
-    setHistoryFieldFilter('');
-    setMovementPage(1);
-    setError('');
-    setSuccess('');
-
-    try {
-      await refreshKanban({ page: 1, limit: MOVEMENTS_PER_PAGE });
-    } catch (requestError) {
-      setError(getErrorMessage(requestError, 'Não foi possível limpar o período.'));
-    }
-  }
-
-  async function changeMovementPage(nextPage) {
-    setMovementPage(nextPage);
-    setError('');
-    try {
-      await refreshKanban({
-        ...buildPeriodParams(period),
-        ...(movementMemberFilter ? { actorUserId: movementMemberFilter } : {}),
-        ...(historyFieldFilter ? { field: historyFieldFilter } : {}),
-        page: nextPage,
-        limit: MOVEMENTS_PER_PAGE
-      });
-    } catch (requestError) {
-      setError(getErrorMessage(requestError, 'Não foi possível carregar a página do histórico.'));
-    }
+  if (!loading && !project && pageError) {
+    return (
+      <ContextualErrorPage
+        type={classifyPageError(pageError)}
+        description={pageError.message}
+        requestId={getErrorRequestId(pageError)}
+        retryAfterSeconds={pageError.retryAfterSeconds}
+        onRetry={loadKanban}
+      />
+    );
   }
 
   return (
-    <main className="page-container">
+    <main className="page-container kanban-screen">
       <Link className="back-link" to={`/projects/${projectId}`}>
         ← Voltar para o projeto
       </Link>
-
-      <header className="page-header kanban-header">
+      <header className="page-header kanban-screen__header">
         <div>
-          <span className="eyebrow">Projeto #{projectId}</span>
+          <span className="eyebrow">Kanban</span>
           <h1>Kanban de tarefas</h1>
-          <p>
-            {project
-              ? `Fluxo de trabalho das tarefas de ${project.name}.`
-              : 'Organização das tarefas por coluna.'}
-          </p>
+          <p>Acompanhe o fluxo das tarefas e mova o trabalho entre as etapas do projeto.</p>
         </div>
         <ProjectSectionNav projectId={projectId} activeSection="kanban" />
       </header>
@@ -824,31 +471,32 @@ export function KanbanScreen() {
 
       {loading ? (
         <LoadingState message="Carregando Kanban..." />
-      ) : error && !board ? null : (
+      ) : (
         <>
-          <section className="kanban-toolbar">
-            <KanbanSprintFilter
-              sprints={projectSprints}
-              selectedIds={sprintFilter}
-              statusLabels={sprintStatusText}
-              onToggle={(id) =>
-                applySprintFilter(
-                  sprintFilter.includes(id)
-                    ? sprintFilter.filter((atual) => atual !== id)
-                    : [...sprintFilter, id]
-                )
-              }
-              onClear={() => applySprintFilter([])}
-            />
+          <KanbanSummary
+            summary={summary}
+            sprints={projectSprints}
+            selectedSprintIds={sprintFilter}
+            statusLabels={sprintStatusText}
+            onToggleSprint={(id) =>
+              applySprintFilter(
+                sprintFilter.includes(id)
+                  ? sprintFilter.filter((current) => current !== id)
+                  : [...sprintFilter, id]
+              )
+            }
+            onClearSprints={() => applySprintFilter([])}
+          />
 
-            <div className="kanban-metric-panel">
-              <h2>Tarefas no quadro</h2>
-              <strong className="metric-value">{visibleCount}</strong>
-              <p className="metric-description">
-                de {allTasks.length} {allTasks.length === 1 ? 'tarefa' : 'tarefas'} no projeto
-              </p>
-            </div>
-          </section>
+          <KanbanFilters
+            filters={filters}
+            members={projectMembers}
+            activeCount={activeFilterCount}
+            visibleCount={visibleCount}
+            scopedCount={summary.total}
+            onChange={(field, value) => setFilters((current) => ({ ...current, [field]: value }))}
+            onClear={() => setFilters({ ...EMPTY_KANBAN_FILTERS })}
+          />
 
           <KanbanBoard
             board={visibleBoard}
@@ -856,42 +504,30 @@ export function KanbanScreen() {
             draggingTaskId={draggingTaskId}
             dragOverStatus={dragOverStatus}
             sprintNames={sprintNames}
+            selectedSprintIds={sprintFilter}
             frozenSprintIds={frozenSprintIds}
-            onSelectTask={handleTaskClick}
-            onKeyboardSelectTask={setSelectedTask}
+            filteredEmpty={activeFilterCount > 0 && visibleCount === 0 && summary.total > 0}
+            boardRef={boardFocusRef}
+            onSelectTask={openTaskDetails}
+            onOpenHistory={openTaskHistory}
+            onDeleteTask={handleDeleteTask}
             onTaskDragStart={handleTaskDragStart}
             onTaskDragEnd={handleTaskDragEnd}
-            onColumnDragOver={handleColumnDragOver}
-            onColumnDragLeave={handleColumnDragLeave}
+            onColumnDragOver={(event, status) => {
+              event.preventDefault();
+              event.dataTransfer.dropEffect = 'move';
+              setDragOverStatus(status);
+            }}
+            onColumnDragLeave={(event, status) => {
+              if (!event.currentTarget.contains(event.relatedTarget)) {
+                setDragOverStatus((current) => (current === status ? '' : current));
+              }
+            }}
             onColumnDrop={handleColumnDrop}
           />
 
-          <MovementHistory
-            movements={movements}
-            pagination={movementPagination}
-            rangeStart={movementRangeStart}
-            rangeEnd={movementRangeEnd}
-            currentPage={currentMovementPage}
-            totalPages={totalMovementPages}
-            pageSize={MOVEMENTS_PER_PAGE}
-            period={period}
-            memberFilter={movementMemberFilter}
-            fieldFilter={historyFieldFilter}
-            members={projectMembers}
-            sprints={projectSprints}
-            metrics={metrics}
-            onPeriodChange={(field, value) =>
-              setPeriod((current) => ({ ...current, [field]: value }))
-            }
-            onMemberFilterChange={setMovementMemberFilter}
-            onFieldFilterChange={setHistoryFieldFilter}
-            onSubmit={handlePeriodSubmit}
-            onClear={clearPeriod}
-            onPageChange={changeMovementPage}
-          />
-
           {allTasks.length !== board?.totals?.total && (
-            <div className="message message-error">
+            <div className="message message-error" role="alert">
               Existem tarefas com status fora do padrão do Kanban.
             </div>
           )}
@@ -899,16 +535,21 @@ export function KanbanScreen() {
           <TaskDetailsPanel
             task={selectedTask}
             deleting={deletingTaskId === selectedTask?.id}
-            moving={movingTaskId === selectedTask?.id}
-            frozen={Boolean(selectedTask?.sprintId) && frozenSprintIds.has(selectedTask.sprintId)}
+            returnFocusRef={detailsReturnFocusRef}
             onClose={() => setSelectedTask(null)}
-            onDelete={handleDeleteSelectedTask}
-            onChangeStatus={moveTaskToStatus}
-            onUnlinkRequirement={handleUnlinkSelectedTaskRequirement}
-            onUnlinkPullRequest={handleUnlinkSelectedPullRequest}
-            onUnlinkCommit={handleUnlinkSelectedTaskCommit}
-            onUnlinkIssue={handleUnlinkSelectedTaskIssue}
+            onDelete={handleDeleteTask}
           />
+
+          {historyTask && (
+            <TaskHistoryDialog
+              projectId={projectId}
+              task={historyTask}
+              members={projectMembers}
+              sprints={projectSprints}
+              returnFocusRef={historyReturnFocusRef}
+              onClose={() => setHistoryTask(null)}
+            />
+          )}
         </>
       )}
     </main>

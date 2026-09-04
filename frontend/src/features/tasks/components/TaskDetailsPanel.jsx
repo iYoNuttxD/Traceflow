@@ -5,98 +5,75 @@ import {
   formatIssueLabel,
   formatIssueLabels,
   formatRequirementLabel,
-  KANBAN_COLUMNS,
   priorityLabels,
   requirementStatusLabels,
   statusLabels
 } from './kanban-display.js';
-import '../../../shared/styles/traceability-controls.css';
+import { isTaskOverdue } from './kanban-view.js';
+import { KanbanDialog } from './KanbanDialog.jsx';
 import { TaskComments } from './TaskComments.jsx';
 import './TaskDetailsPanel.css';
 
-export function TaskDetailsPanel({
-  task,
-  deleting,
-  moving,
-  frozen,
-  onClose,
-  onDelete,
-  onChangeStatus,
-  onUnlinkRequirement,
-  onUnlinkPullRequest,
-  onUnlinkCommit,
-  onUnlinkIssue
-}) {
+function responsibleInitial(task) {
+  const name = task.responsibleUser?.name || task.responsible || '';
+  return name.trim().charAt(0).toLocaleUpperCase('pt-BR') || '?';
+}
+
+export function TaskDetailsPanel({ task, deleting, returnFocusRef, onClose, onDelete }) {
   if (!task) return null;
+  const overdue = isTaskOverdue(task);
 
   return (
-    <div className="task-detail-overlay" role="presentation" onClick={onClose}>
-      <section
-        className="task-detail-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="task-detail-title"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="task-detail-header">
-          <div>
-            <span className="eyebrow">Detalhes da tarefa</span>
-            <h2 id="task-detail-title">{task.title}</h2>
-          </div>
-          <div className="task-detail-header-actions">
-            <button
-              className="button button-danger"
-              type="button"
-              onClick={() => onDelete(task)}
-              disabled={deleting}
-            >
-              {deleting ? 'Excluindo...' : 'Excluir'}
-            </button>
-            <button className="text-button" type="button" onClick={onClose}>
-              Fechar
-            </button>
-          </div>
-        </div>
-        <div className="task-detail-body">
-          <div className="task-detail-main">
-            <p className="task-detail-description">
-              {task.description || 'Sem descrição cadastrada.'}
-            </p>
+    <KanbanDialog
+      title={`#${task.id} ${task.title}`}
+      description="Detalhes da tarefa"
+      size="wide"
+      returnFocusRef={returnFocusRef}
+      onClose={onClose}
+    >
+      <div className="task-detail-layout">
+        <section className="task-detail-main" aria-labelledby="task-detail-information-title">
+          <p className="task-detail-description">
+            {task.description || 'Sem descrição cadastrada.'}
+          </p>
+
+          <section className="task-detail-section">
+            <h3 id="task-detail-information-title">Informações</h3>
             <dl className="task-detail-grid">
               <div>
                 <dt>Prioridade</dt>
-                <dd>{priorityLabels[task.priority] || task.priority}</dd>
+                <dd>
+                  <span
+                    className={`priority-badge priority-${(task.priority || 'MEDIA').toLowerCase()}`}
+                  >
+                    {priorityLabels[task.priority] || task.priority || 'Média'}
+                  </span>
+                </dd>
               </div>
               <div>
                 <dt>Responsável</dt>
-                <dd>{task.responsibleUser?.name || task.responsible || 'Não informado'}</dd>
+                <dd className="task-detail-responsible">
+                  <span aria-hidden="true">{responsibleInitial(task)}</span>
+                  {task.responsibleUser?.name || task.responsible || 'Não informado'}
+                </dd>
               </div>
               <div>
                 <dt>Prazo</dt>
-                <dd>{formatDate(task.deadline)}</dd>
-              </div>
-              <div>
-                <dt>Status atual</dt>
-                <dd>
-                  <select
-                    aria-label={`Mover a tarefa ${task.title}`}
-                    value={task.status}
-                    disabled={frozen || moving}
-                    title={
-                      frozen
-                        ? 'A sprint desta tarefa está congelada — o status é registro do período.'
-                        : undefined
-                    }
-                    onChange={(event) => onChangeStatus(task, event.target.value)}
-                  >
-                    {KANBAN_COLUMNS.map((column) => (
-                      <option key={column.status} value={column.status}>
-                        {statusLabels[column.status]}
-                      </option>
-                    ))}
-                  </select>
+                <dd className={overdue ? 'task-detail-deadline--overdue' : ''}>
+                  {formatDate(task.deadline)}
+                  {overdue && <small>Atrasada</small>}
                 </dd>
               </div>
+              <div>
+                <dt>Status</dt>
+                <dd>
+                  <span className={`status-badge status-${task.status.toLowerCase()}`}>
+                    {statusLabels[task.status] || task.status}
+                  </span>
+                </dd>
+              </div>
+            </dl>
+            <dl className="task-detail-secondary-grid">
               <div>
                 <dt>Esforço estimado</dt>
                 <dd>{task.estimatedEffort ?? 'Não informado'}</dd>
@@ -106,152 +83,118 @@ export function TaskDetailsPanel({
                 <dd>{task.actualEffort ?? 'Não informado'}</dd>
               </div>
               <div>
-                <dt>Data de criação</dt>
+                <dt>Criado em</dt>
                 <dd>{formatDateTime(task.createdAt)}</dd>
               </div>
             </dl>
-            <div className="task-detail-traceability">
-              <span>Rastreabilidade</span>
-              <div className="task-detail-traceability-section">
-                <strong>Requisito</strong>
+          </section>
+
+          <section
+            className="task-detail-section task-detail-traceability"
+            aria-labelledby="task-detail-traceability-title"
+          >
+            <h3 id="task-detail-traceability-title">Rastreabilidade</h3>
+            <div className="task-detail-traceability-grid">
+              <article>
+                <span>Requisito</span>
                 {task.requirement ? (
-                  <div className="task-detail-traceability-item">
-                    <div>
-                      <strong>{formatRequirementLabel(task.requirement)}</strong>
-                      <p>
-                        Status:{' '}
-                        {task.requirement.status
-                          ? requirementStatusLabels[task.requirement.status] ||
-                            task.requirement.status
-                          : 'não informado'}
-                      </p>
-                    </div>
-                    <button
-                      className="traceability-remove-button"
-                      type="button"
-                      onClick={() => onUnlinkRequirement(task.id)}
-                      aria-label="Remover requisito vinculado"
-                      title="Remover requisito"
-                    >
-                      ×
-                    </button>
+                  <div>
+                    <strong>{formatRequirementLabel(task.requirement)}</strong>
+                    <p>
+                      {task.requirement.status
+                        ? requirementStatusLabels[task.requirement.status] ||
+                          task.requirement.status
+                        : 'Status não informado'}
+                    </p>
                   </div>
                 ) : (
-                  <p>Sem requisito vinculado.</p>
+                  <p>Nenhum vínculo</p>
                 )}
-              </div>
-              <div className="task-detail-traceability-section">
-                <strong>Pull request</strong>
+              </article>
+              <article>
+                <span>Pull request</span>
                 {task.pullRequest ? (
-                  <div className="task-detail-traceability-item">
-                    <div>
-                      <strong>
-                        #{task.pullRequest.number} — {task.pullRequest.title}
-                      </strong>
-                      <p>Status: {task.pullRequest.state || 'não informado'}</p>
-                      <p>Autor: {task.pullRequest.authorUsername || 'não informado'}</p>
-                      {task.pullRequest.githubUrl && (
-                        <a
-                          href={task.pullRequest.githubUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          Abrir no GitHub
-                        </a>
-                      )}
-                    </div>
-                    <button
-                      className="traceability-remove-button"
-                      type="button"
-                      onClick={() => onUnlinkPullRequest(task.id)}
-                      aria-label="Remover pull request vinculado"
-                      title="Remover pull request"
-                    >
-                      ×
-                    </button>
+                  <div>
+                    <strong>
+                      #{task.pullRequest.number} — {task.pullRequest.title}
+                    </strong>
+                    <p>{task.pullRequest.state || 'Status não informado'}</p>
+                    {task.pullRequest.githubUrl && (
+                      <a
+                        href={task.pullRequest.githubUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Abrir no GitHub
+                      </a>
+                    )}
                   </div>
                 ) : (
-                  <p>Sem PR vinculado.</p>
+                  <p>Nenhum vínculo</p>
                 )}
-              </div>
-              <div className="task-detail-traceability-section">
-                <strong>Commits</strong>
+              </article>
+              <article>
+                <span>Commits</span>
                 {task.commits?.length ? (
-                  <div className="task-detail-commit-list">
+                  <div className="task-detail-artifact-list">
                     {task.commits.map((commit) => (
-                      <div className="task-detail-traceability-item" key={commit.id}>
-                        <div>
-                          <strong>{formatCommitLabel(commit)}</strong>
-                          <p>
-                            Autor: {commit.authorName || commit.authorUsername || 'não informado'}
-                          </p>
-                          <p>Data: {formatDateTime(commit.date)}</p>
-                          <p>
-                            Branches:{' '}
-                            {commit.branches?.length
-                              ? commit.branches.join(', ')
-                              : 'não informadas'}
-                          </p>
-                          {commit.githubUrl && (
-                            <a href={commit.githubUrl} target="_blank" rel="noopener noreferrer">
-                              Abrir no GitHub
-                            </a>
-                          )}
-                        </div>
-                        <button
-                          className="traceability-remove-button"
-                          type="button"
-                          onClick={() => onUnlinkCommit(task.id, commit.id)}
-                          aria-label="Remover commit vinculado"
-                          title="Remover commit"
-                        >
-                          ×
-                        </button>
+                      <div key={commit.id}>
+                        <strong>{formatCommitLabel(commit)}</strong>
+                        <p>
+                          {commit.authorName || commit.authorUsername || 'Autor não informado'} ·{' '}
+                          {formatDateTime(commit.date)}
+                        </p>
+                        {commit.githubUrl && (
+                          <a href={commit.githubUrl} target="_blank" rel="noopener noreferrer">
+                            Abrir no GitHub
+                          </a>
+                        )}
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p>Sem commits vinculados.</p>
+                  <p>Nenhum vínculo</p>
                 )}
-              </div>
-              <div className="task-detail-traceability-section">
-                <strong>Issues</strong>
+              </article>
+              <article>
+                <span>Issues</span>
                 {task.issues?.length ? (
-                  <div className="task-detail-commit-list">
+                  <div className="task-detail-artifact-list">
                     {task.issues.map((issue) => (
-                      <div className="task-detail-traceability-item" key={issue.id}>
-                        <div>
-                          <strong>{formatIssueLabel(issue)}</strong>
-                          <p>Status: {issue.state || 'não informado'}</p>
-                          <p>Autor: {issue.authorUsername || 'não informado'}</p>
-                          <p>Labels: {formatIssueLabels(issue.labels)}</p>
-                          {issue.githubUrl && (
-                            <a href={issue.githubUrl} target="_blank" rel="noopener noreferrer">
-                              Abrir no GitHub
-                            </a>
-                          )}
-                        </div>
-                        <button
-                          className="traceability-remove-button"
-                          type="button"
-                          onClick={() => onUnlinkIssue(task.id, issue.id)}
-                          aria-label="Remover issue vinculada"
-                          title="Remover issue"
-                        >
-                          ×
-                        </button>
+                      <div key={issue.id}>
+                        <strong>{formatIssueLabel(issue)}</strong>
+                        <p>
+                          {issue.state || 'Status não informado'} ·{' '}
+                          {formatIssueLabels(issue.labels)}
+                        </p>
+                        {issue.githubUrl && (
+                          <a href={issue.githubUrl} target="_blank" rel="noopener noreferrer">
+                            Abrir no GitHub
+                          </a>
+                        )}
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p>Sem issues vinculadas.</p>
+                  <p>Nenhum vínculo</p>
                 )}
-              </div>
+              </article>
             </div>
+          </section>
+
+          <div className="task-detail-danger-zone">
+            <button
+              className="button button-danger"
+              type="button"
+              onClick={() => onDelete(task)}
+              disabled={deleting}
+            >
+              {deleting ? 'Excluindo...' : 'Excluir tarefa'}
+            </button>
           </div>
-          <TaskComments taskId={task.id} />
-        </div>
-      </section>
-    </div>
+        </section>
+        <TaskComments taskId={task.id} />
+      </div>
+    </KanbanDialog>
   );
 }

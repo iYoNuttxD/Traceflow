@@ -46,6 +46,9 @@ export function formatDateTime(value) {
 // O quarto parametro e opcional com default: chamadas de tres argumentos
 // permanecem identicas. Sem a lista de sprints, o fallback exibe o ID.
 export function formatHistoryValue(field, value, members, sprints = []) {
+  if (field === 'SPRINT' && (value === null || value === undefined || value === '')) {
+    return 'Sem Sprint';
+  }
   if (value === null || value === undefined || value === '') return 'Não informado';
   if (field === 'STATUS') return statusLabels[value] || value;
   if (field === 'PRIORITY') return priorityLabels[value] || value;
