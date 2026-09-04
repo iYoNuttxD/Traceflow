@@ -131,8 +131,20 @@ describe('apresentação de Tasks e Kanban', () => {
     expect(within(dialog).queryByRole('combobox')).toBeNull();
     expect(within(dialog).getByText('A Fazer')).toBeInTheDocument();
     expect(within(dialog).getByText('Comentários')).toBeInTheDocument();
-    for (const link of screen.getAllByRole('link', { name: 'Abrir no GitHub' })) {
+    const githubLinks = screen.getAllByRole('link', { name: 'Abrir no GitHub' });
+    expect(githubLinks.map((link) => link.getAttribute('href'))).toEqual([
+      'https://github.com/example/pull/15',
+      'https://github.com/example/commit/abcdef123',
+      'https://github.com/example/issues/9'
+    ]);
+    for (const link of githubLinks) {
+      expect(link.tagName).toBe('A');
       expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+      expect(link).toHaveClass('task-detail-external-link');
+      expect(link.querySelector('[data-icon="externalLink"]')).toHaveAttribute(
+        'aria-hidden',
+        'true'
+      );
     }
     expect(screen.queryByRole('button', { name: /Remover .* vinculado/ })).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Excluir tarefa' }));

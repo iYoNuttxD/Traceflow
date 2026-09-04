@@ -207,8 +207,24 @@
   font-weight: var(--font-weight-semibold);
 }
 .kanban-task__sprint {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: var(--space-2);
   color: var(--color-info-text);
   background: var(--color-info-surface);
+}
+.kanban-task__sprint > span {
+  flex: 0 0 auto;
+  font-size: 0.65rem;
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+}
+.kanban-task__sprint > strong {
+  overflow: hidden;
+  font-size: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .kanban-task__frozen {
   color: var(--color-neutral-text);

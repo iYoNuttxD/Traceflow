@@ -31,13 +31,25 @@ function rule(css, selector) {
 }
 
 describe('divisores responsivos dos resumos de Planning', () => {
-  it.each(summaries)(
-    '$name usa gap estrutural sem lógica posicional',
-    ({ css, metrics, metric }) => {
-      expect(rule(css, metrics)).toContain('gap: var(--border-width-default)');
-      expect(rule(css, metrics)).toContain('background: var(--color-border-default)');
-      expect(rule(css, metric)).toContain('background: var(--color-surface-primary)');
-      expect(css).not.toMatch(new RegExp(`${metric.replace('.', '\\.')}[^,{]*:nth-child`));
-    }
-  );
+  it.each(summaries)('$name não usa lógica posicional nos divisores', ({ css, metric }) => {
+    expect(css).not.toMatch(new RegExp(`${metric.replace('.', '\\.')}[^,{]*:nth-child`));
+  });
+
+  it('Sprints desenha divisores somente nas células reais, sem fundo de preenchimento', () => {
+    const [{ css, metrics, metric }] = summaries;
+    expect(rule(css, metrics)).not.toContain('gap: var(--border-width-default)');
+    expect(rule(css, metrics)).toContain('background: var(--color-surface-primary)');
+    expect(rule(css, metric)).toContain(
+      'border-top: var(--border-width-default) solid var(--color-border-default)'
+    );
+    expect(rule(css, metric)).toContain(
+      'border-right: var(--border-width-default) solid var(--color-border-default)'
+    );
+    expect(css).toMatch(
+      /@container sprints-page \(max-width: 66rem\)[\s\S]*?\.sprints-summary__metrics \{\s*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/
+    );
+    expect(css).toMatch(
+      /@container sprints-page \(max-width: 40rem\)[\s\S]*?\.sprints-summary__metrics \{\s*grid-template-columns: minmax\(0, 1fr\)/
+    );
+  });
 });

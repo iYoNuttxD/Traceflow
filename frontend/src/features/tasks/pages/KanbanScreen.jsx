@@ -484,6 +484,22 @@ export function KanbanScreen() {
     }
   }
 
+  function handleTraceabilityChange(updatedTask, outcome = {}) {
+    setError('');
+    setSuccess(outcome.successMessage || 'Rastreabilidade atualizada com sucesso.');
+    setWarning(outcome.warning || '');
+    setBoard((current) => updateBoardWithMovedTask(current, updatedTask));
+    setSelectedTask(updatedTask);
+    void refreshBoard(updatedTask).catch((requestError) => {
+      const refreshWarning = getErrorMessage(
+        requestError,
+        'Os vínculos foram atualizados, mas não foi possível reconciliar o Kanban.'
+      );
+      setWarning((current) => [current, refreshWarning].filter(Boolean).join(' '));
+    });
+    return updatedTask;
+  }
+
   if (!loading && !project && pageError) {
     return (
       <ContextualErrorPage
@@ -574,6 +590,7 @@ export function KanbanScreen() {
           )}
 
           <TaskDetailsPanel
+            projectId={projectId}
             task={selectedTask}
             members={projectMembers}
             canEdit={Boolean(currentMembership && currentMembership.role !== 'VIEWER')}
@@ -583,6 +600,7 @@ export function KanbanScreen() {
             onClose={() => setSelectedTask(null)}
             onDelete={handleDeleteTask}
             onSave={handleSaveTask}
+            onTraceabilityChange={handleTraceabilityChange}
           />
 
           {historyTask && (

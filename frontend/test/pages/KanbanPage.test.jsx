@@ -7,6 +7,14 @@ import { ConfirmProvider } from '../../src/shared/index.js';
 const mocks = vi.hoisted(() => ({
   api: { get: vi.fn() },
   deleteTask: vi.fn(),
+  linkTaskCommit: vi.fn(),
+  linkTaskIssue: vi.fn(),
+  linkTaskRequirement: vi.fn(),
+  linkTaskToPullRequest: vi.fn(),
+  unlinkTaskCommit: vi.fn(),
+  unlinkTaskIssue: vi.fn(),
+  unlinkTaskFromPullRequest: vi.fn(),
+  unlinkTaskRequirement: vi.fn(),
   tasksApi: { update: vi.fn() },
   kanbanApi: {
     getBoard: vi.fn(),
@@ -15,17 +23,27 @@ const mocks = vi.hoisted(() => ({
     moveTask: vi.fn()
   },
   membersApi: { list: vi.fn() },
-  scheduleApi: { listSprints: vi.fn() }
+  scheduleApi: { listSprints: vi.fn() },
+  requirementsApi: { listByProject: vi.fn() },
+  githubApi: {
+    getProjectCommits: vi.fn(),
+    getProjectIssues: vi.fn(),
+    getProjectPullRequests: vi.fn()
+  }
 }));
 
 vi.mock('../../src/features/tasks/api/tasks.api.js', () => ({
   kanbanApi: mocks.kanbanApi,
   tasksApi: mocks.tasksApi,
   deleteTask: mocks.deleteTask,
-  unlinkTaskCommit: vi.fn(),
-  unlinkTaskIssue: vi.fn(),
-  unlinkTaskFromPullRequest: vi.fn(),
-  unlinkTaskRequirement: vi.fn()
+  linkTaskCommit: mocks.linkTaskCommit,
+  linkTaskIssue: mocks.linkTaskIssue,
+  linkTaskRequirement: mocks.linkTaskRequirement,
+  linkTaskToPullRequest: mocks.linkTaskToPullRequest,
+  unlinkTaskCommit: mocks.unlinkTaskCommit,
+  unlinkTaskIssue: mocks.unlinkTaskIssue,
+  unlinkTaskFromPullRequest: mocks.unlinkTaskFromPullRequest,
+  unlinkTaskRequirement: mocks.unlinkTaskRequirement
 }));
 vi.mock('../../src/features/members/members.api.js', () => ({
   membersApi: mocks.membersApi
@@ -37,6 +55,17 @@ vi.mock('../../src/features/projects/api/projects.api.js', () => ({
 // status continuam sendo os de verdade.
 vi.mock('../../src/features/schedule/api/schedule.api.js', () => ({
   scheduleApi: mocks.scheduleApi
+}));
+vi.mock('../../src/features/requirements/api/requirements.api.js', () => ({
+  requirementsApi: mocks.requirementsApi
+}));
+vi.mock('../../src/features/github/api/github.api.js', () => ({
+  getProjectCommits: mocks.githubApi.getProjectCommits,
+  getProjectIssues: mocks.githubApi.getProjectIssues,
+  getProjectPullRequests: mocks.githubApi.getProjectPullRequests
+}));
+vi.mock('../../src/features/tasks/components/CommitSuggestionsCard.jsx', () => ({
+  CommitSuggestionsCard: () => <div>Sugestões automáticas</div>
 }));
 
 import { KanbanPage } from '../../src/pages/KanbanPage.jsx';
@@ -130,6 +159,10 @@ describe('KanbanPage E11', () => {
       members: [{ id: 3, userId: 5, isActive: true, user: { id: 5, name: 'Responsável real' } }]
     });
     mocks.scheduleApi.listSprints.mockResolvedValue({ data: { total: 0, sprints: [] } });
+    mocks.requirementsApi.listByProject.mockResolvedValue({ data: { requirements: [] } });
+    mocks.githubApi.getProjectPullRequests.mockResolvedValue({ pullRequests: [] });
+    mocks.githubApi.getProjectCommits.mockResolvedValue({ commits: [] });
+    mocks.githubApi.getProjectIssues.mockResolvedValue({ issues: [] });
     mocks.deleteTask.mockResolvedValue({ message: 'Tarefa excluída com sucesso.' });
     mocks.tasksApi.update.mockResolvedValue({
       data: { message: 'Tarefa atualizada com sucesso.', task }
@@ -460,6 +493,10 @@ describe('KanbanPage ADR-011', () => {
     mocks.scheduleApi.listSprints.mockResolvedValue({
       data: { total: 2, sprints: [sprintCongelada, sprintAtiva] }
     });
+    mocks.requirementsApi.listByProject.mockResolvedValue({ data: { requirements: [] } });
+    mocks.githubApi.getProjectPullRequests.mockResolvedValue({ pullRequests: [] });
+    mocks.githubApi.getProjectCommits.mockResolvedValue({ commits: [] });
+    mocks.githubApi.getProjectIssues.mockResolvedValue({ issues: [] });
     mocks.tasksApi.update.mockImplementation(async (id, payload) => ({
       data: {
         message: 'Tarefa atualizada com sucesso.',
@@ -560,13 +597,20 @@ describe('KanbanPage ADR-011', () => {
     renderPage();
     await screen.findByText('Da sprint');
     const cartao = screen.getByRole('button', { name: 'Abrir detalhes de Da sprint' });
-    expect(within(cartao).getByText('Sprint 4')).toBeInTheDocument();
+    expect(within(cartao).getByRole('note', { name: 'Sprint: Sprint 4' })).toBeInTheDocument();
+    expect(
+      within(screen.getByRole('button', { name: 'Abrir detalhes de Do backlog' })).getByRole(
+        'note',
+        { name: 'Sem Sprint' }
+      )
+    ).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /Projeto inteiro/ }));
     await user.click(screen.getByRole('checkbox', { name: /Sprint 4/ }));
     expect(
-      within(screen.getByRole('button', { name: 'Abrir detalhes de Da sprint' })).queryByText(
-        'Sprint 4'
+      within(screen.getByRole('button', { name: 'Abrir detalhes de Da sprint' })).queryByRole(
+        'note',
+        { name: 'Sprint: Sprint 4' }
       )
     ).toBeNull();
   });
@@ -615,6 +659,7 @@ describe('KanbanPage ADR-011', () => {
 
     const title = screen.getByRole('textbox', { name: 'Título da tarefa' });
     expect(title).toHaveFocus();
+    expect(screen.queryByRole('button', { name: 'Editar rastreabilidade' })).toBeNull();
     expect(screen.queryByRole('combobox', { name: 'Status' })).toBeNull();
     expect(screen.getByText('Altere o status diretamente no quadro.')).toBeInTheDocument();
     await user.clear(title);
@@ -715,7 +760,224 @@ describe('KanbanPage ADR-011', () => {
     renderPage();
     await user.click(await screen.findByRole('button', { name: 'Abrir detalhes de Da sprint' }));
     expect(screen.queryByRole('button', { name: 'Editar tarefa' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Editar rastreabilidade' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Excluir tarefa' })).toBeNull();
+  });
+
+  it('edita todos os vínculos suportados com buscas dinâmicas dentro do details', async () => {
+    const user = userEvent.setup();
+    const requirement = { id: 81, title: 'Login seguro', status: 'APROVADO' };
+    const pullRequest = {
+      id: 82,
+      number: 17,
+      title: 'Implementar login',
+      state: 'open',
+      githubUrl: 'https://github.com/example/pull/17'
+    };
+    const commit = {
+      id: 83,
+      hash: 'abc123456789',
+      shortHash: 'abc1234',
+      message: 'Implementa login'
+    };
+    const issue = { id: 84, number: 31, title: 'Login pendente', state: 'open' };
+    mocks.requirementsApi.listByProject.mockResolvedValue({
+      data: { requirements: [requirement] }
+    });
+    mocks.githubApi.getProjectPullRequests.mockResolvedValue({ pullRequests: [pullRequest] });
+    mocks.githubApi.getProjectCommits.mockResolvedValue({ commits: [commit] });
+    mocks.githubApi.getProjectIssues.mockResolvedValue({ issues: [issue] });
+    mocks.linkTaskRequirement.mockResolvedValue({
+      task: { ...daSprint, requirement, pullRequest: null, commits: [], issues: [] }
+    });
+    mocks.linkTaskToPullRequest.mockResolvedValue({
+      task: { ...daSprint, requirement, pullRequest, commits: [], issues: [] }
+    });
+    mocks.linkTaskCommit.mockResolvedValue({ commits: [commit] });
+    mocks.linkTaskIssue.mockResolvedValue({ issues: [issue] });
+
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Abrir detalhes de Da sprint' }));
+    await user.click(screen.getByRole('button', { name: 'Editar rastreabilidade' }));
+
+    expect(screen.queryByRole('button', { name: 'Editar tarefa' })).toBeNull();
+    const requirementSearch = screen.getByRole('searchbox', { name: 'Pesquisar requisito' });
+    expect(requirementSearch).toHaveFocus();
+    await user.type(requirementSearch, 'login');
+    await user.click(await screen.findByRole('button', { name: 'Login seguro' }));
+    await user.type(screen.getByRole('searchbox', { name: 'Pesquisar pull request' }), '17');
+    await user.click(await screen.findByRole('button', { name: '#17 — Implementar login' }));
+    await user.type(screen.getByRole('searchbox', { name: 'Pesquisar commits' }), 'abc');
+    await user.click(await screen.findByRole('button', { name: 'abc1234 — Implementa login' }));
+    await user.type(screen.getByRole('searchbox', { name: 'Pesquisar issues' }), '31');
+    await user.click(await screen.findByRole('button', { name: '#31 — Login pendente' }));
+
+    await user.click(screen.getByRole('button', { name: 'Salvar rastreabilidade' }));
+    await waitFor(() => expect(mocks.linkTaskRequirement).toHaveBeenCalledWith(8, 81));
+    expect(mocks.linkTaskToPullRequest).toHaveBeenCalledWith(8, 82);
+    expect(mocks.linkTaskCommit).toHaveBeenCalledWith(8, 83);
+    expect(mocks.linkTaskIssue).toHaveBeenCalledWith(8, 84);
+    expect(await screen.findByText('Rastreabilidade atualizada com sucesso.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Editar rastreabilidade' })).toBeInTheDocument();
+  });
+
+  it('preserva vínculos atuais, protege cancelamento sujo e não envia mutations', async () => {
+    const user = userEvent.setup();
+    const linkedRequirement = { id: 91, title: 'RF atual', status: 'APROVADO' };
+    const linkedTask = { ...daSprint, requirement: linkedRequirement, commits: [], issues: [] };
+    mocks.kanbanApi.getBoard.mockResolvedValue({
+      data: {
+        columns: { A_FAZER: [linkedTask], EM_ANDAMENTO: [], CONCLUIDO: [] },
+        totals: { A_FAZER: 1, EM_ANDAMENTO: 0, CONCLUIDO: 0, total: 1 }
+      }
+    });
+
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Abrir detalhes de Da sprint' }));
+    await user.click(screen.getByRole('button', { name: 'Editar rastreabilidade' }));
+    expect(screen.getByText('RF atual')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Remover requisito vinculado' }));
+    await user.click(screen.getByRole('button', { name: 'Cancelar' }));
+
+    const confirmation = screen.getByRole('dialog', { name: 'Descartar alterações?' });
+    await user.click(within(confirmation).getByRole('button', { name: 'Descartar alterações' }));
+    expect(mocks.unlinkTaskRequirement).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Editar rastreabilidade' })).toHaveFocus()
+    );
+  });
+
+  it('remove requisito, pull request, commit e issue pelos contratos existentes', async () => {
+    const user = userEvent.setup();
+    const requirement = { id: 121, title: 'RF removível', status: 'APROVADO' };
+    const pullRequest = { id: 122, number: 52, title: 'PR removível' };
+    const commit = { id: 123, shortHash: 'c0ffee1', message: 'Commit removível' };
+    const issue = { id: 124, number: 53, title: 'Issue removível' };
+    const linkedTask = {
+      ...daSprint,
+      requirement,
+      pullRequest,
+      commits: [commit],
+      issues: [issue]
+    };
+    mocks.kanbanApi.getBoard.mockResolvedValue({
+      data: {
+        columns: { A_FAZER: [linkedTask], EM_ANDAMENTO: [], CONCLUIDO: [] },
+        totals: { A_FAZER: 1, EM_ANDAMENTO: 0, CONCLUIDO: 0, total: 1 }
+      }
+    });
+    mocks.unlinkTaskRequirement.mockResolvedValue({
+      task: { ...linkedTask, requirement: null }
+    });
+    mocks.unlinkTaskFromPullRequest.mockResolvedValue({
+      task: { ...linkedTask, requirement: null, pullRequest: null }
+    });
+    mocks.unlinkTaskCommit.mockResolvedValue({ commits: [] });
+    mocks.unlinkTaskIssue.mockResolvedValue({ issues: [] });
+
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Abrir detalhes de Da sprint' }));
+    await user.click(screen.getByRole('button', { name: 'Editar rastreabilidade' }));
+    await user.click(screen.getByRole('button', { name: 'Remover requisito vinculado' }));
+    await user.click(screen.getByRole('button', { name: 'Remover pull request vinculado' }));
+    await user.click(screen.getByRole('button', { name: /Remover commit vinculado c0ffee1/ }));
+    await user.click(screen.getByRole('button', { name: /Remover issue vinculada #53/ }));
+    await user.click(screen.getByRole('button', { name: 'Salvar rastreabilidade' }));
+
+    await waitFor(() => expect(mocks.unlinkTaskRequirement).toHaveBeenCalledWith(8));
+    expect(mocks.unlinkTaskFromPullRequest).toHaveBeenCalledWith(8);
+    expect(mocks.unlinkTaskCommit).toHaveBeenCalledWith(8, 123);
+    expect(mocks.unlinkTaskIssue).toHaveBeenCalledWith(8, 124);
+    expect(await screen.findByText('Rastreabilidade atualizada com sucesso.')).toBeInTheDocument();
+  });
+
+  it('mantém somente o resultado da busca de requisito mais recente', async () => {
+    const user = userEvent.setup();
+    const oldRequest = deferred();
+    mocks.requirementsApi.listByProject
+      .mockReturnValueOnce(oldRequest.promise)
+      .mockResolvedValueOnce({ data: { requirements: [{ id: 102, title: 'Login atual' }] } });
+
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Abrir detalhes de Da sprint' }));
+    await user.click(screen.getByRole('button', { name: 'Editar rastreabilidade' }));
+    const search = screen.getByRole('searchbox', { name: 'Pesquisar requisito' });
+    await user.type(search, 'lo');
+    await waitFor(() => expect(mocks.requirementsApi.listByProject).toHaveBeenCalledTimes(1));
+    await user.clear(search);
+    await user.type(search, 'login');
+    expect(await screen.findByRole('button', { name: 'Login atual' })).toBeInTheDocument();
+
+    await act(async () => {
+      oldRequest.resolve({ data: { requirements: [{ id: 101, title: 'Resultado antigo' }] } });
+      await Promise.resolve();
+    });
+    expect(screen.queryByRole('button', { name: 'Resultado antigo' })).toBeNull();
+  });
+
+  it('preserva sucesso parcial sem alegar atomicidade', async () => {
+    const user = userEvent.setup();
+    const requirement = { id: 111, title: 'RF confirmado', status: 'APROVADO' };
+    const pullRequest = { id: 112, number: 44, title: 'PR indisponível' };
+    mocks.requirementsApi.listByProject.mockResolvedValue({
+      data: { requirements: [requirement] }
+    });
+    mocks.githubApi.getProjectPullRequests.mockResolvedValue({ pullRequests: [pullRequest] });
+    mocks.linkTaskRequirement.mockResolvedValue({
+      task: { ...daSprint, requirement, pullRequest: null, commits: [], issues: [] }
+    });
+    mocks.linkTaskToPullRequest.mockRejectedValue({ response: { status: 503 } });
+
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Abrir detalhes de Da sprint' }));
+    await user.click(screen.getByRole('button', { name: 'Editar rastreabilidade' }));
+    await user.type(screen.getByRole('searchbox', { name: 'Pesquisar requisito' }), 'RF');
+    await user.click(await screen.findByRole('button', { name: 'RF confirmado' }));
+    await user.type(screen.getByRole('searchbox', { name: 'Pesquisar pull request' }), '44');
+    await user.click(await screen.findByRole('button', { name: '#44 — PR indisponível' }));
+    await user.click(screen.getByRole('button', { name: 'Salvar rastreabilidade' }));
+
+    expect(
+      await screen.findByText('Os vínculos confirmados foram atualizados.')
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Alguns vínculos não puderam ser atualizados/)
+    ).toBeInTheDocument();
+    expect(screen.getByText('RF confirmado')).toBeInTheDocument();
+    expect(screen.queryByText('PR indisponível')).toBeNull();
+  });
+
+  it('não reclassifica mutation confirmada quando a reconciliação falha', async () => {
+    const user = userEvent.setup();
+    const requirement = { id: 131, title: 'RF persistido', status: 'APROVADO' };
+    mocks.kanbanApi.getBoard
+      .mockResolvedValueOnce({
+        data: {
+          columns: { A_FAZER: [daSprint], EM_ANDAMENTO: [], CONCLUIDO: [] },
+          totals: { A_FAZER: 1, EM_ANDAMENTO: 0, CONCLUIDO: 0, total: 1 }
+        }
+      })
+      .mockRejectedValueOnce({ response: { status: 503 } });
+    mocks.requirementsApi.listByProject.mockResolvedValue({
+      data: { requirements: [requirement] }
+    });
+    mocks.linkTaskRequirement.mockResolvedValue({
+      task: { ...daSprint, requirement, commits: [], issues: [] }
+    });
+
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Abrir detalhes de Da sprint' }));
+    await user.click(screen.getByRole('button', { name: 'Editar rastreabilidade' }));
+    await user.type(screen.getByRole('searchbox', { name: 'Pesquisar requisito' }), 'RF');
+    await user.click(await screen.findByRole('button', { name: 'RF persistido' }));
+    await user.click(screen.getByRole('button', { name: 'Salvar rastreabilidade' }));
+
+    expect(await screen.findByText('Rastreabilidade atualizada com sucesso.')).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        'O serviço está temporariamente indisponível. Tente novamente em instantes.'
+      )
+    ).toBeInTheDocument();
   });
 
   it('mantém filtros recolhidos, filtra localmente e preserva o resumo da Sprint', async () => {

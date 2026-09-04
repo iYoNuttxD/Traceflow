@@ -78,7 +78,22 @@ function KanbanTaskCard({
             <span aria-hidden="true">⛓</span>
             {traceability}
           </span>
-          {showSprint && sprintName && <span className="kanban-task__sprint">{sprintName}</span>}
+          {showSprint && (
+            <span
+              className="kanban-task__sprint"
+              role="note"
+              aria-label={sprintName ? `Sprint: ${sprintName}` : 'Sem Sprint'}
+            >
+              {sprintName ? (
+                <>
+                  <span aria-hidden="true">Sprint</span>
+                  <strong aria-hidden="true">{sprintName}</strong>
+                </>
+              ) : (
+                <strong aria-hidden="true">Sem Sprint</strong>
+              )}
+            </span>
+          )}
           {frozen && <span className="kanban-task__frozen">Sprint congelada</span>}
           {moving && <span className="kanban-task__moving">Movendo...</span>}
         </span>

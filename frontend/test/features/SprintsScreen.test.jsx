@@ -239,6 +239,8 @@ describe('estrutura C2 e estados principais', () => {
     expect(summary).toHaveTextContent('2 tarefas · 6 pts');
     expect(summary).toHaveTextContent('Concluídas1');
     expect(summary).toHaveTextContent('Canceladas1');
+    expect(summary.querySelectorAll('.sprints-summary__metric')).toHaveLength(5);
+    expect(summary.querySelector('[data-summary-filler]')).toBeNull();
   });
 
   it('mostra no card estado, objetivo, período, marco, tarefas e progresso por pontos', async () => {
