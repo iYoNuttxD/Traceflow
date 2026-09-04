@@ -84,13 +84,14 @@ terminais não voltam atrás. O impasse existia porque havia exclusão física. 
 desaparece.
 
 **Como o congelamento funciona.** Ao entrar em estado terminal, cada participação ativa grava
-o status que a tarefa tinha ali (`exitStatus`) e o instante do encerramento (`closedAt`), na
-mesma transação da transição. Mover a tarefa depois para outra sprint **não toca** a
+o status (`exitStatus`), pontos (`pointsAtClose`), conclusão (`completedAtClose`) e instante
+(`closedAt`). A Sprint também persiste seu `closedAt`, inclusive sem participações. Tudo pertence
+à mesma transação da transição. Mover a tarefa depois para outra sprint **não toca** a
 participação congelada: o vínculo de origem é preservado, mas o registro não é reescrito.
 
-**Limitação conhecida.** Sprints encerradas antes desta migration têm `exitStatus` nulo e
-caem no status atual da tarefa. Preencher o snapshot retroativamente carimbaria o passado com
-o presente, que é justamente o defeito corrigido.
+**Limitação conhecida.** Snapshots ausentes em dados legados não são preenchidos com dados
+atuais. A correção PLANNING-QA-FIX-01 remove esse fallback para evolução terminal e sinaliza as
+limitações conforme o [modelo histórico](../data/PLANNING_HISTORY.md).
 
 ### D05 — Datas de cronograma preservam o instante exato (supersede ADR-009 §2)
 
@@ -115,8 +116,10 @@ contar tarefas e apagar a sprint.
 
 ### D07 — Iniciar não fecha o escopo (supersede ADR-009 §9 em parte)
 
-`startedAt` é **linha de base**, não trava. Tarefas podem entrar depois do início; o que muda
-é que passam a ser sinalizadas (`SprintTask.addedAfterStart`). O ADR-009 chamava isso de
+`startedAt` é **linha de base**, não trava. Na mesma transação, `planningSnapshotAt` registra a
+captura de membership ativo em `SprintTask.plannedAtStart` e seus `pointsAtPlanning`. Tarefas
+podem entrar depois do início; são comparadas com esse snapshot imutável.
+`addedAfterStart` permanece uma projeção de compatibilidade, não a fonte do baseline. O ADR-009 chamava isso de
 "fechamento do planejamento", termo que se confundia com o encerramento — quem congela é o
 estado terminal.
 

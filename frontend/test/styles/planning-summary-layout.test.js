@@ -45,11 +45,25 @@ describe('divisores responsivos dos resumos de Planning', () => {
     expect(rule(css, metric)).toContain(
       'border-right: var(--border-width-default) solid var(--color-border-default)'
     );
+    expect(rule(css, metrics)).toContain('display: flex');
+    expect(rule(css, metrics)).toContain('flex-wrap: wrap');
+    expect(rule(css, metric)).toContain('flex: 1 1 0');
     expect(css).toMatch(
-      /@container sprints-page \(max-width: 66rem\)[\s\S]*?\.sprints-summary__metrics \{\s*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/
+      /@container sprints-page \(max-width: 66rem\)[\s\S]*?flex: 1 1 calc\(100% \/ 3\)/
     );
-    expect(css).toMatch(
-      /@container sprints-page \(max-width: 40rem\)[\s\S]*?\.sprints-summary__metrics \{\s*grid-template-columns: minmax\(0, 1fr\)/
-    );
+    expect(css).toMatch(/@container sprints-page \(max-width: 40rem\)[\s\S]*?flex: 1 1 50%/);
+    expect(css).toMatch(/@container sprints-page \(max-width: 24rem\)[\s\S]*?flex-basis: 100%/);
+    expect(css).not.toContain('grid-template-columns: repeat(3, minmax(0, 1fr))');
   });
+});
+
+it('Kanban mantém a navegação dentro do gutter próprio, com scroll interno', () => {
+  const [{ css }] = summaries.filter((summary) => summary.name === 'Kanban');
+  const navigation = rule(css, '.kanban-screen .project-section-tabs');
+  expect(navigation).toContain('margin-inline: 0');
+  expect(navigation).toContain('max-width: 100%');
+  const tabs = readFileSync(resolve('src/shared/styles/internal-tabs.css'), 'utf8');
+  expect(rule(tabs, '.internal-tabs')).toContain('overflow-x: auto');
+  const board = readFileSync(resolve('src/features/tasks/components/KanbanBoard.css'), 'utf8');
+  expect(board).toContain('overflow-x: auto');
 });

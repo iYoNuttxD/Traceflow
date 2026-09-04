@@ -159,8 +159,10 @@ async function buildScopePlan({
       id: existing?.id ?? null,
       taskId,
       taskTitleSnapshot: taskById.get(taskId)?.title ?? '',
-      addedAt: existing?.addedAt ?? occurredAt,
-      addedAfterStart: existing ? existing.addedAfterStart : sprint.startedAt !== null,
+      addedAt: occurredAt,
+      addedAfterStart: sprint.planningSnapshotAt
+        ? existing?.plannedAtStart !== true
+        : (existing?.addedAfterStart ?? sprint.startedAt !== null),
       carriedFromSprintId: origem ? origem.sprintId : (existing?.carriedFromSprintId ?? null)
     });
     historyEntries.push(
@@ -193,13 +195,20 @@ async function buildScopePlan({
 
 async function mutateScope(sprint, requestedIds, mode, context, audit) {
   const sprintId = sprint.id;
-  const occurredAt = new Date();
   const tasks = await sprintRepository.mutateScopeWithinSprintLock(
     sprintId,
     sprint.projectId,
     requestedIds,
     (snapshot) =>
-      buildScopePlan({ mode, audit, sprintId, requestedIds, occurredAt, context, ...snapshot })
+      buildScopePlan({
+        mode,
+        audit,
+        sprintId,
+        requestedIds,
+        occurredAt: new Date(),
+        context,
+        ...snapshot
+      })
   );
   if (tasks === null) throw sprintNotFoundError();
   return tasks;

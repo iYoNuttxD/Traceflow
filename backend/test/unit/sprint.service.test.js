@@ -925,7 +925,7 @@ describe('substituicao do conjunto de tarefas', () => {
     expect(capturedPlan.open[0]).toMatchObject({ taskId: 5, addedAfterStart: false });
   });
 
-  it('reabre a participacao anterior preservando entrada e sinalizacao', async () => {
+  it('reabre a participacao com o instante da nova entrada e preserva a classificacao', async () => {
     const anterior = participacao(5, {
       removedAt: new Date('2026-08-05'),
       removalReason: 'REMOVIDA',
@@ -943,9 +943,10 @@ describe('substituicao do conjunto de tarefas', () => {
     expect(capturedPlan.open[0]).toMatchObject({
       id: anterior.id,
       taskId: 5,
-      addedAt: anterior.addedAt,
+      addedAt: expect.any(Date),
       addedAfterStart: true
     });
+    expect(capturedPlan.open[0].addedAt.getTime()).toBeGreaterThan(anterior.addedAt.getTime());
   });
 });
 

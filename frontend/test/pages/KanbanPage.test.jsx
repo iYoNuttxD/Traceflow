@@ -574,6 +574,9 @@ describe('KanbanPage ADR-011', () => {
     expect(within(dialogo).queryByRole('combobox')).toBeNull();
     expect(within(dialogo).getByText('A Fazer')).toBeInTheDocument();
     expect(mocks.kanbanApi.moveTask).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(within(dialogo).getByRole('button', { name: 'Fechar #8 da sprint' })).toHaveFocus()
+    );
     await user.keyboard('{Escape}');
     await waitFor(() => expect(cartao).toHaveFocus());
   });

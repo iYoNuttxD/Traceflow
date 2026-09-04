@@ -31,11 +31,16 @@ export function buildSprintProgress({ sprint, participations = [], cutoff }) {
   const frozen = TERMINAL.includes(sprint.status);
   const baseline = resolveBaseline(sprint);
 
+  const isPlanned = (participation) => {
+    if (participation.plannedAtStart != null) return participation.plannedAtStart;
+    // Legacy approximation only; API reports the missing immutable baseline.
+    return (
+      !participation.addedAfterStart &&
+      (!participation.removedAt || new Date(participation.removedAt) > new Date(sprint.startedAt))
+    );
+  };
   const current = participations.filter((participation) => participation.removedAt === null);
-  const planned =
-    baseline.kind === 'OPEN'
-      ? current
-      : participations.filter((participation) => !participation.addedAfterStart);
+  const planned = baseline.kind === 'OPEN' ? current : participations.filter(isPlanned);
 
   const scopeChange =
     baseline.kind === 'OPEN'
@@ -43,7 +48,7 @@ export function buildSprintProgress({ sprint, participations = [], cutoff }) {
       : {
           added: participations
             .filter(
-              (participation) => participation.addedAfterStart && participation.removedAt === null
+              (participation) => !isPlanned(participation) && participation.removedAt === null
             )
             .map((participation) => ({
               taskId: participation.taskId,
@@ -52,9 +57,7 @@ export function buildSprintProgress({ sprint, participations = [], cutoff }) {
             }))
             .sort(porTarefa),
           removed: participations
-            .filter(
-              (participation) => !participation.addedAfterStart && participation.removedAt !== null
-            )
+            .filter((participation) => isPlanned(participation) && participation.removedAt !== null)
             .map((participation) => ({
               taskId: participation.taskId,
               at: toIso(participation.removedAt),
@@ -80,7 +83,12 @@ export function buildSprintProgress({ sprint, participations = [], cutoff }) {
     projectId: sprint.projectId,
     status: sprint.status,
     frozen,
-    cutoff: frozen ? (toIso(sprint.completedAt) ?? toIso(cutoff)) : toIso(cutoff),
+    cutoff: frozen
+      ? (toIso(sprint.closedAt) ??
+        toIso(sprint.completedAt) ??
+        toIso(sprint.updatedAt) ??
+        toIso(cutoff))
+      : toIso(cutoff),
     baseline,
     planned: metric(planned),
     current: metric(current),

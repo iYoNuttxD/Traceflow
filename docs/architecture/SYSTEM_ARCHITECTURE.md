@@ -94,6 +94,13 @@ TaskCommitSuggestion → revisão humana → TaskCommit
 
 `TaskMovement` registra movimentações; `TaskHistoryEntry` registra STATUS, DEADLINE, RESPONSIBLE e PRIORITY; `AuditEvent` é a trilha transversal. O grafo canônico possui perspectivas de requisito, tarefa e artefato tipado.
 
+O [modelo histórico de Planning](../data/PLANNING_HISTORY.md) separa o ponteiro operacional
+`Task.sprintId` dos snapshots persistidos de `Sprint`/`SprintTask`. Start captura membership e
+pontos planejados; conclusão/cancelamento captura pontos, status, conclusão e corte histórico.
+Cada captura integra a transação de lifecycle no repository, sob locks existentes. Calculators
+continuam puros; controllers não implementam a regra. Dados legados incompletos são sinalizados,
+sem backfill a partir de Tasks atuais.
+
 ## GitHub
 
 `github-credential.provider.js` lê somente segredos da GitHub App, assina JWT e cria tokens temporários. `github.client.js` é uma factory por instalação; não existe singleton nem fallback para credencial sistêmica. O state do callback da App é hashado, ligado ao usuário/sessão/intenção e separado do state OAuth de autenticação. Quando a autorização de usuário durante a instalação está habilitada, o user access token permanece somente em memória: pagina `GET /user/installations` para provar o `installation_id` devolvido pelo GitHub. O callback também consulta a Installation com JWT da App e faz uma única chamada mínima com Installation Token para validar acesso técnico, aceitando escopo vazio; somente os endpoints de descoberta percorrem todas as páginas de repositórios. Nenhum token é persistido, registrado ou retornado.

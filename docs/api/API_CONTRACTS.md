@@ -488,7 +488,7 @@ muda é que as inclusões passam a ser sinalizadas. Quem congela é o estado ter
 ```json
 {
   "sprintId": 4, "projectId": 2, "status": "CONCLUIDA",
-  "frozen": true,
+  "frozen": true, "historicalLimitations": [],
   "cutoff": "2026-08-14T18:00:00.000Z",
   "baseline": { "kind": "STARTED_AT", "at": "2026-08-01T12:00:00.000Z" },
   "planned": { "numerator": 5, "denominator": 8, "percentage": 62.5, "hasData": true },
@@ -516,16 +516,19 @@ ao que aconteceu. `remaining` são os pontos que ainda faltavam ao **fim** daque
 `null` nos dias posteriores ao corte: zero diria "nada restante" onde o certo é "esse dia ainda
 não chegou".
 
-O denominador soma `estimatedEffort` das participações não removidas; tarefa sem estimativa não
-pesa. Sem pontos ou com janela de menos de dois dias, `hasData` é `false` e `days` vem vazio.
+Enquanto aberta, o denominador soma `estimatedEffort` das participações não removidas. Depois
+do encerramento usa exclusivamente `SprintTask.pointsAtClose`; tarefa sem estimativa não pesa. Sem pontos ou com janela de menos de dois dias, `hasData` é `false` e `days` vem vazio.
 A série tem teto de **180 dias**: uma janela maior é truncada em silêncio no 180º ponto — teto de
 segurança para payload e tela, não uma regra de domínio (limite documentado pela bateria RF10/RF35
 de 25/08/2026, que congelou o comportamento em teste; ASVS 2.1.3).
 
-O instante em que cada tarefa deixou de pesar vem da primeira `TaskHistoryEntry` de
+Enquanto aberta, o instante em que cada tarefa deixou de pesar vem da primeira `TaskHistoryEntry` de
 `field: STATUS` para `CONCLUIDO`, **interseccionada com o intervalo da participação** — uma
 conclusão ocorrida enquanto a tarefa estava em outra sprint não queima escopo desta. Tarefa que
-entra já concluída queima na entrada, e não no início da sprint.
+entra já concluída queima na entrada, e não no início da sprint. No encerramento, esse instante
+é persistido em `completedAtClose`, junto com pontos/status; a série terminal independe de
+editar ou excluir a Task e seu histórico. Os pontos do planejamento ficam separados em
+`pointsAtPlanning`, capturados apenas para membership presente no start.
 
 Vem embutido no `progress`, e não em endpoint próprio: o painel do Kanban exibe os dois juntos.
 
@@ -535,15 +538,15 @@ Vem embutido no `progress`, e não em endpoint próprio: o painel do Kanban exib
 |---|---|
 | Objetivo | acompanhar o avanço da sprint e tornar visível a mudança de escopo após o planejamento |
 | Fórmula | `buildMetric(concluídas, total)` — a **mesma** de `traceability.calculator.js`. Concluída é `status === 'CONCLUIDO'`; percentual com duas casas |
-| Dados de origem | `SprintTask` (participação, `addedAfterStart`, `exitStatus`, `carriedFromSprintId`), `Sprint.startedAt` e o status atual da tarefa |
-| Status que vale | `exitStatus ?? status atual`. Sprint encerrada nunca lê o status atual: ele já foi congelado |
+| Dados de origem | `SprintTask` (participação, `plannedAtStart`, snapshots de pontos/status/conclusão), `Sprint.planningSnapshotAt` e `closedAt`; estado da Task somente enquanto operacional |
+| Status que vale | `exitStatus ?? status atual` enquanto aberta; terminal utiliza somente o status persistido e sinaliza ausência legada |
 | Linha de base | `Sprint.startedAt`. Sem ele (`PLANEJADA`), a base é `OPEN`: o planejamento não fechou, `planned == current` e `scopeChange` é vazio |
-| Escopo planejado | participações com `addedAfterStart: false`, inclusive as que já saíram |
+| Escopo planejado | `plannedAtStart: true`, capturado das participações ativas na transação de start; inclui remoções posteriores, exclui remoções anteriores e reentradas não planejadas |
 | Mudança de escopo | saldo líquido. Quem entrou depois do início e já saiu não aparece em nenhuma das duas listas |
 | `carryOver` | participações cuja tarefa continuou em outra sprint, com o status observado **aqui** |
 | Instante de corte | `cutoff`. Em sprint aberta é o momento da consulta; em sprint encerrada é o encerramento, porque o resultado não depende de quando se perguntou |
 | Interpretação | mede progresso do trabalho, **não** de pessoas. Não há recorte por responsável |
-| Limitações | (a) corte no passado não é suportado — `at` responde `400`; (b) tarefa removida permanece no denominador de `planned`, por ter sido planejada; (c) sprints encerradas antes da migration do ADR-010 não têm `exitStatus` e caem no status atual |
+| Limitações | corte no passado não é suportado (`at` → `400`); `historicalLimitations` identifica snapshots legados ausentes; não se reconstrói esforço/status terminal a partir da Task atual |
 | Atualização | calculado sob demanda; sem cache |
 
 `percentage` é `null` — nunca `0` — quando `denominator` é zero: "nada concluído" e "não há o
@@ -551,6 +554,14 @@ que medir" são estados diferentes, e `hasData` distingue os dois.
 
 **Imutabilidade.** Concluir a tarefa depois do encerramento, movê-la para a sprint seguinte ou
 excluí-la **não altera** nenhum número de uma sprint encerrada.
+
+**Snapshots e legado.** `Sprint.planningSnapshotAt` e `Sprint.closedAt` são campos aditivos
+nos DTOs de Sprint. O corte terminal usa `closedAt`, inclusive em cancelamento sem Tasks.
+`historicalLimitations` é uma lista aditiva no progress: vazia quando os snapshots são completos;
+pode conter `LEGACY_PLANNING_SNAPSHOT_UNAVAILABLE`, `LEGACY_CLOSING_POINTS_UNAVAILABLE` e
+`LEGACY_CLOSING_STATUS_UNAVAILABLE` e `LEGACY_CLOSING_CUTOFF_UNAVAILABLE`. Sem pontos históricos, burndown retorna `hasData=false` e
+série vazia, sem estimativa retroativa. A estratégia nullable, a aproximação limitada do baseline
+legado e os índices estão no [modelo histórico de Planning](../data/PLANNING_HISTORY.md).
 
 Consulta não gera `AuditEvent`: leitura de indicador não é exportação (seção 13.9).
 

@@ -1,3 +1,4 @@
+import { startTestServer } from '../helpers/http-server.js';
 import express from 'express';
 import request from 'supertest';
 import { describe, expect, it, vi } from 'vitest';
@@ -83,7 +84,9 @@ describe('request ID e middlewares HTTP', () => {
 
   it('devolve request ID no header e no novo erro 404', async () => {
     const { app } = createTestApp();
-    const response = await request(app).get('/inexistente').set('X-Request-Id', 'req-valido');
+    const response = await request(await startTestServer(app))
+      .get('/inexistente')
+      .set('X-Request-Id', 'req-valido');
     expect(response.status).toBe(404);
     expect(response.headers['x-request-id']).toBe('req-valido');
     expect(response.body).toEqual({
@@ -97,7 +100,7 @@ describe('request ID e middlewares HTTP', () => {
     const { app } = createTestApp(async () => {
       throw new DomainError('Entrada inválida.', 400);
     });
-    const response = await request(app).get('/failure');
+    const response = await request(await startTestServer(app)).get('/failure');
     expect(response.status).toBe(400);
     expect(response.body).toEqual({ message: 'Entrada inválida.' });
     expect(response.body.stack).toBeUndefined();
@@ -107,7 +110,9 @@ describe('request ID e middlewares HTTP', () => {
     const { app, logger } = createTestApp(async () => {
       throw new Error('token=segredo user@example.com');
     });
-    const response = await request(app).get('/failure').set('X-Request-Id', 'req-500');
+    const response = await request(await startTestServer(app))
+      .get('/failure')
+      .set('X-Request-Id', 'req-500');
     expect(response.status).toBe(500);
     expect(response.body).toEqual({
       message: 'Falha segura.',
@@ -138,7 +143,9 @@ describe('request ID e middlewares HTTP', () => {
       });
     });
 
-    const response = await request(app).get('/failure').set('X-Request-Id', `req-${statusCode}`);
+    const response = await request(await startTestServer(app))
+      .get('/failure')
+      .set('X-Request-Id', `req-${statusCode}`);
     const context = logger.error.mock.calls[0][1];
     const serialized = JSON.stringify(context);
 
@@ -161,7 +168,9 @@ describe('request ID e middlewares HTTP', () => {
       );
     });
 
-    const response = await request(app).get('/failure').set('X-Request-Id', 'req-500-seguro');
+    const response = await request(await startTestServer(app))
+      .get('/failure')
+      .set('X-Request-Id', 'req-500-seguro');
     const context = logger.error.mock.calls[0][1];
     const serialized = JSON.stringify(context);
 
@@ -192,7 +201,7 @@ describe('request ID e middlewares HTTP', () => {
       { includeErrorStack: true }
     );
 
-    const response = await request(app).get('/failure');
+    const response = await request(await startTestServer(app)).get('/failure');
     const context = logger.error.mock.calls[0][1];
 
     expect(context.error.stack).toContain('Falha interna para diagnóstico controlado.');
@@ -206,7 +215,7 @@ describe('request ID e middlewares HTTP', () => {
     const { app } = createTestApp(async () => {
       throw new ExternalServiceError('GITHUB_TOKEN ausente.', 500);
     });
-    const response = await request(app).get('/failure');
+    const response = await request(await startTestServer(app)).get('/failure');
     expect(response.status).toBe(500);
     expect(response.body).toEqual({ message: 'Falha segura.' });
   });
