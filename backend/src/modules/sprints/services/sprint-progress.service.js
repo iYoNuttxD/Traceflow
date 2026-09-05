@@ -1,6 +1,7 @@
 import { sprintRepository } from '../repositories/sprint.repository.js';
 import { buildSprintProgress } from '../sprint.progress.calculator.js';
 import { buildSprintBurndown } from '../sprint.burndown.calculator.js';
+import { buildSprintHistoricalSummary } from '../sprint.summary.calculator.js';
 import { parseSprintId } from '../sprint.schema.js';
 import { ensureSprintExists } from './sprint-crud.service.js';
 
@@ -30,6 +31,7 @@ export const sprintProgressService = {
       historicalLimitations.push('LEGACY_CLOSING_STATUS_UNAVAILABLE');
     }
     return {
+      historicalSummary: buildSprintHistoricalSummary(sprint, participations),
       historicalLimitations,
       ...buildSprintProgress({ sprint, participations, cutoff }),
       burndown: buildSprintBurndown({

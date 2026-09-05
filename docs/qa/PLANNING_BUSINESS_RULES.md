@@ -361,6 +361,36 @@ Se o domínio atual não suporta reabrir/excluir Sprint:
 
 ---
 
+## BR-SPRINT-016 — Carry-over automático
+
+Ao concluir uma Sprint, Tasks não concluídas atualmente associadas a ela seguem automaticamente
+para a próxima Sprint PLANEJADA válida do mesmo projeto. Próxima significa menor início válido
+posterior ou contíguo ao fim da origem, respeitando a fronteira semiaberta vigente; empate usa
+menor ID. Fechamento, snapshot, transferência e histórico formam uma operação consistente.
+
+---
+
+## BR-SPRINT-017 — Fallback sem próxima Sprint
+
+Se nenhuma próxima Sprint PLANEJADA válida existir, Tasks pendentes retornam ao backlog.
+O sistema não cria Sprint automaticamente.
+
+---
+
+## BR-SPRINT-018 — Tasks concluídas não entram no carry-over
+
+Task concluída no encerramento permanece na Sprint encerrada e não é transferida como
+pendência para a próxima Sprint.
+
+---
+
+## BR-SPRINT-019 — Carry-over preserva histórico
+
+Transferir a associação atual não altera nem apaga escopo planejado, escopo no encerramento,
+participação histórica, pontos, burndown, cutoff ou scopeChange da Sprint encerrada.
+
+---
+
 # BR-MILESTONE — MARCOS
 
 ## BR-MILESTONE-001 — Marco é ponto temporal
@@ -617,6 +647,14 @@ Setembro
 e Setembro responder depois:
 
 → Outubro continua sendo autoridade.
+
+---
+
+## BR-SCHEDULE-013 — Sprint atual da Task
+
+Quando a UI apresenta a Sprint atual de uma Task, a associação canônica é `Task.sprintId`.
+Membership histórico não pode ser apresentado como associação atual. `null` representa
+Task sem Sprint; o nome da Sprint atual é resolvido pelo ID, independentemente da ordem histórica.
 
 ---
 

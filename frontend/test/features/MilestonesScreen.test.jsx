@@ -432,6 +432,13 @@ describe('modal de Sprints vinculadas', () => {
       endDate: '2099-10-05T12:00:00.000Z'
     });
     const first = sprint(1, 'Sprint inicial', 'CONCLUIDA', 5, {
+      historicalSummary: {
+        totalTasks: 1,
+        completedTasks: 1,
+        totalPoints: 3,
+        completedPoints: 3,
+        percentage: 100
+      },
       startDate: '2099-09-01T12:00:00.000Z',
       endDate: '2099-09-10T12:00:00.000Z'
     });

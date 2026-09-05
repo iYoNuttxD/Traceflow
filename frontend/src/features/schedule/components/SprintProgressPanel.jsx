@@ -1,5 +1,5 @@
 import { diffDaysIso, shortDate, sprintDayRange, todayIsoDay } from './schedule-calendar.js';
-import { formatDateTime, sprintStatusKey, summarizeSprintTasks } from './schedule-display.js';
+import { formatDateTime, sprintStatusKey, getSprintDisplayMetrics } from './schedule-display.js';
 import { SprintBurndownChart } from './SprintBurndownChart.jsx';
 
 function prazoLabel(sprint, statusKey, hojeIso) {
@@ -71,7 +71,14 @@ export function SprintProgressPanel({
   const { added, removed } = progress.scopeChange;
   const carryOver = progress.carryOver || [];
   const statusKey = sprintStatusKey(sprint, hoje);
-  const resumo = summarizeSprintTasks(scheduleSprint);
+  const resumo = getSprintDisplayMetrics(
+    {
+      ...sprint,
+      status: progress.frozen ? (progress.status ?? sprint.status) : sprint.status,
+      historicalSummary: progress.historicalSummary ?? sprint.historicalSummary
+    },
+    scheduleSprint
+  );
 
   return (
     <section className="sprint-progress-panel" aria-label={`Evolução da sprint ${sprint.name}`}>
@@ -83,12 +90,15 @@ export function SprintProgressPanel({
           : `Planejamento fechado em ${formatDateTime(progress.baseline.at)}, quando a sprint foi iniciada.`}
       </p>
 
+      {resumo.unavailable && <p className="field-help">Dados históricos indisponíveis.</p>}
       <div className="sprint-progress-metrics">
-        <Metrica titulo="Tarefas" valor={`${resumo.done} de ${resumo.total}`} />
-        <Metrica titulo="Pontos" valor={`${resumo.donePoints} de ${resumo.points}`} />
+        <Metrica titulo="Tarefas" valor={`${resumo.done ?? '—'} de ${resumo.total ?? '—'}`} />
+        <Metrica titulo="Pontos" valor={`${resumo.donePoints ?? '—'} de ${resumo.points ?? '—'}`} />
         <Metrica
           titulo="Progresso"
-          valor={resumo.percent === null ? 'Sem pontos' : `${resumo.percent}%`}
+          valor={
+            resumo.unavailable ? '—' : resumo.percent === null ? 'Sem pontos' : `${resumo.percent}%`
+          }
         >
           {resumo.percent !== null && (
             <div className="traceability-progress-bar">

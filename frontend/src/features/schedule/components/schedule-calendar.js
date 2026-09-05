@@ -121,24 +121,24 @@ export function nextMonth(ano, mes) {
 
 export function getScheduleTasks({ sprints = [], unassignedTasks = [] }) {
   const byId = new Map();
+  const sprintById = new Map(sprints.map((sprint) => [String(sprint.id), sprint]));
   for (const sprint of sprints) {
     for (const task of sprint.tasks || []) {
       if (byId.has(String(task.id))) continue;
       byId.set(String(task.id), {
         ...task,
         day: toIsoDay(task.deadline),
-        sprintId: sprint.id,
-        sprintName: sprint.name
+        sprintId: task.sprintId ?? null,
+        sprintName: sprintById.get(String(task.sprintId))?.name ?? null
       });
     }
   }
   for (const task of unassignedTasks) {
-    if (byId.has(String(task.id))) continue;
     byId.set(String(task.id), {
       ...task,
       day: toIsoDay(task.deadline),
-      sprintId: null,
-      sprintName: null
+      sprintId: task.sprintId ?? null,
+      sprintName: sprintById.get(String(task.sprintId))?.name ?? null
     });
   }
   return [...byId.values()].sort((a, b) => {

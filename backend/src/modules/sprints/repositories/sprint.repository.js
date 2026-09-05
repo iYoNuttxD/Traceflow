@@ -135,6 +135,62 @@ async function findBurndownData(client, sprint) {
   });
 }
 
+async function applyScopePlan(tx, sprint, plan) {
+  const sprintId = sprint.id;
+  for (const saida of plan.close) {
+    await tx.sprintTask.update({
+      where: { id: saida.id },
+      data: { removedAt: saida.at, removalReason: saida.reason, exitStatus: saida.exitStatus }
+    });
+  }
+  for (const entrada of plan.open) {
+    if (entrada.id) {
+      await tx.sprintTask.update({
+        where: { id: entrada.id },
+        data: {
+          addedAt: entrada.addedAt,
+          addedAfterStart: entrada.addedAfterStart,
+          removedAt: null,
+          removalReason: null,
+          exitStatus: null,
+          closedAt: null,
+          taskTitleSnapshot: entrada.taskTitleSnapshot,
+          carriedFromSprintId: entrada.carriedFromSprintId
+        }
+      });
+    } else {
+      await tx.sprintTask.create({
+        data: {
+          projectId: sprint.projectId,
+          sprintId,
+          taskId: entrada.taskId,
+          taskTitleSnapshot: entrada.taskTitleSnapshot,
+          addedAt: entrada.addedAt,
+          addedAfterStart: entrada.addedAfterStart,
+          plannedAtStart: sprint.planningSnapshotAt ? false : null,
+          carriedFromSprintId: entrada.carriedFromSprintId
+        }
+      });
+    }
+  }
+  if (plan.detachTaskIds.length) {
+    await tx.task.updateMany({
+      where: { id: { in: plan.detachTaskIds } },
+      data: { sprintId: null }
+    });
+  }
+  if (plan.attachTaskIds.length) {
+    await tx.task.updateMany({
+      where: { id: { in: plan.attachTaskIds } },
+      data: { sprintId }
+    });
+  }
+  if (plan.historyEntries.length) {
+    await tx.taskHistoryEntry.createMany({ data: plan.historyEntries });
+  }
+  if (plan.auditEvent) await auditRepository.create(plan.auditEvent, tx);
+}
+
 export const sprintRepository = {
   findProjectById(projectId) {
     return prisma.project.findUnique({ where: { id: projectId }, select: { id: true } });
@@ -157,6 +213,13 @@ export const sprintRepository = {
       },
       select: sprintSelect,
       orderBy: [{ startDate: 'asc' }, { id: 'asc' }]
+    });
+  },
+
+  findHistoryBySprints(sprintIds) {
+    return prisma.sprintTask.findMany({
+      where: { sprintId: { in: sprintIds } },
+      select: sprintTaskSelect
     });
   },
 
@@ -204,21 +267,14 @@ export const sprintRepository = {
   async transitionWithinSprintLock(id, projectId, buildChange) {
     return prisma.$transaction(async (tx) => {
       await lockProject(tx, projectId);
-      const travada = await tx.$queryRaw`
-        SELECT id, milestoneId FROM Sprint WHERE id = ${id} FOR UPDATE`;
-      if (!travada.length) return null;
-      const milestoneId = travada[0].milestoneId == null ? null : Number(travada[0].milestoneId);
-
-      const dentro = await tx.$queryRaw`
-        SELECT taskId FROM SprintTask
-        WHERE sprintId = ${id} AND removedAt IS NULL AND taskId IS NOT NULL
-        FOR UPDATE`;
-      const taskIds = [...new Set(dentro.map((linha) => Number(linha.taskId)))].sort(
-        (a, b) => a - b
-      );
-      if (taskIds.length) {
-        await tx.$queryRaw`SELECT id FROM Task WHERE id IN (${Prisma.join(taskIds)}) FOR UPDATE`;
-      }
+      const lockedSprints = await tx.$queryRaw`
+        SELECT id, milestoneId FROM Sprint WHERE projectId = ${projectId} ORDER BY id FOR UPDATE`;
+      const locked = lockedSprints.find((item) => Number(item.id) === id);
+      if (!locked) return null;
+      const milestoneId = locked.milestoneId == null ? null : Number(locked.milestoneId);
+      const lockedTasks = await tx.$queryRaw`
+        SELECT id FROM Task WHERE sprintId = ${id} ORDER BY id FOR UPDATE`;
+      const taskIds = lockedTasks.map((task) => Number(task.id));
 
       if (milestoneId) {
         await lockMilestone(tx, milestoneId);
@@ -229,14 +285,28 @@ export const sprintRepository = {
       const tasks = taskIds.length
         ? await tx.task.findMany({
             where: { id: { in: taskIds } },
-            select: { id: true, title: true, status: true, sprintId: true, estimatedEffort: true }
+            select: {
+              id: true,
+              projectId: true,
+              title: true,
+              status: true,
+              sprintId: true,
+              estimatedEffort: true
+            }
           })
         : [];
       const milestoneSprints = milestoneId
         ? sprints.filter((sprint) => sprint.milestoneId === milestoneId)
         : [];
 
-      const { data, auditEvent, freezeAt, backlog, milestone } = await buildChange({
+      const {
+        data,
+        auditEvent,
+        freezeAt,
+        backlog,
+        milestone,
+        carryOver: continuation
+      } = await buildChange({
         sprint: atual,
         sprints,
         tasks,
@@ -265,6 +335,31 @@ export const sprintRepository = {
         }
       }
 
+      let carryOver = null;
+      if (continuation) {
+        const destination = continuation.destination;
+        const participations = await tx.sprintTask.findMany({
+          where: { sprintId: destination.id },
+          select: sprintTaskSelect
+        });
+        const activeElsewhere = await tx.sprintTask.findMany({
+          where: { sprintId: id, taskId: { in: taskIds }, removedAt: null },
+          select: sprintTaskSelect
+        });
+        const plan = await continuation.buildPlan({
+          sprint: destination,
+          participations,
+          tasks,
+          activeElsewhere
+        });
+        await applyScopePlan(tx, destination, plan);
+        carryOver = {
+          destinationSprintId: destination.id,
+          destinationSprintName: destination.name,
+          movedTasks: plan.attachTaskIds.length
+        };
+      }
+
       let milestoneCompleted = null;
       if (milestone) {
         milestoneCompleted = await tx.milestone.update({
@@ -275,7 +370,7 @@ export const sprintRepository = {
       }
 
       if (auditEvent) await auditRepository.create(auditEvent, tx);
-      return { sprint, returnedToBacklog, milestoneCompleted };
+      return { sprint, returnedToBacklog, milestoneCompleted, carryOver };
     });
   },
 
@@ -324,58 +419,7 @@ export const sprintRepository = {
 
       const plan = await buildPlan({ sprint, participations, tasks, activeElsewhere });
 
-      for (const saida of plan.close) {
-        await tx.sprintTask.update({
-          where: { id: saida.id },
-          data: { removedAt: saida.at, removalReason: saida.reason, exitStatus: saida.exitStatus }
-        });
-      }
-      for (const entrada of plan.open) {
-        if (entrada.id) {
-          await tx.sprintTask.update({
-            where: { id: entrada.id },
-            data: {
-              addedAt: entrada.addedAt,
-              addedAfterStart: entrada.addedAfterStart,
-              removedAt: null,
-              removalReason: null,
-              exitStatus: null,
-              closedAt: null,
-              taskTitleSnapshot: entrada.taskTitleSnapshot,
-              carriedFromSprintId: entrada.carriedFromSprintId
-            }
-          });
-        } else {
-          await tx.sprintTask.create({
-            data: {
-              projectId: sprint.projectId,
-              sprintId,
-              taskId: entrada.taskId,
-              taskTitleSnapshot: entrada.taskTitleSnapshot,
-              addedAt: entrada.addedAt,
-              addedAfterStart: entrada.addedAfterStart,
-              plannedAtStart: sprint.planningSnapshotAt ? false : null,
-              carriedFromSprintId: entrada.carriedFromSprintId
-            }
-          });
-        }
-      }
-      if (plan.detachTaskIds.length) {
-        await tx.task.updateMany({
-          where: { id: { in: plan.detachTaskIds } },
-          data: { sprintId: null }
-        });
-      }
-      if (plan.attachTaskIds.length) {
-        await tx.task.updateMany({
-          where: { id: { in: plan.attachTaskIds } },
-          data: { sprintId }
-        });
-      }
-      if (plan.historyEntries.length) {
-        await tx.taskHistoryEntry.createMany({ data: plan.historyEntries });
-      }
-      if (plan.auditEvent) await auditRepository.create(plan.auditEvent, tx);
+      await applyScopePlan(tx, sprint, plan);
 
       return tx.task.findMany({
         where: { sprintId },
@@ -402,6 +446,8 @@ export const sprintRepository = {
       continuations.map((continuation) => [continuation.taskId, continuation.sprintId])
     );
     return participations.map((participation) => ({
+      pointsAtPlanning: participation.pointsAtPlanning,
+      pointsAtClose: participation.pointsAtClose,
       taskId: participation.taskId,
       taskTitleSnapshot: participation.taskTitleSnapshot,
       addedAt: participation.addedAt,
@@ -449,12 +495,8 @@ export const sprintRepository = {
         select: {
           ...sprintSelect,
           sprintTasks: {
-            where: { removedAt: null },
             select: {
-              addedAt: true,
-              addedAfterStart: true,
-              carriedFromSprintId: true,
-              exitStatus: true,
+              ...sprintTaskSelect,
               task: { select: scheduleTaskSelect }
             },
             orderBy: [{ taskId: 'asc' }]

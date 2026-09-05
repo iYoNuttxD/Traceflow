@@ -5,12 +5,29 @@ import {
   ensureSingleActiveSprint,
   ensureTransitionAllowed,
   isTerminalSprintStatus,
+  sprintsOverlap,
   parseSprintId,
   sprintNotFoundError
 } from '../sprint.schema.js';
-import { ensureSprintExists } from './sprint-crud.service.js';
+import { buildScopePlan, ensureSprintExists } from './sprint-crud.service.js';
 
 const CONCLUIDO = 'CONCLUIDO';
+
+export function nextPlannedSprint(sprint, sprints) {
+  return (
+    sprints
+      .filter(
+        (candidate) =>
+          candidate.id !== sprint.id &&
+          candidate.projectId === sprint.projectId &&
+          candidate.status === 'PLANEJADA' &&
+          candidate.startDate >= sprint.endDate &&
+          candidate.startDate < candidate.endDate &&
+          !sprintsOverlap(sprint, candidate)
+      )
+      .sort((a, b) => a.startDate - b.startDate || a.id - b.id)[0] ?? null
+  );
+}
 
 function planBacklogReturn({ sprint, tasks, actorUserId }) {
   const pendentes = tasks.filter(
@@ -48,8 +65,28 @@ export const sprintStatusService = {
         if (nextStatus === 'CONCLUIDA') data.completedAt = occurredAt;
 
         const terminal = isTerminalSprintStatus(nextStatus);
-        const backlog = terminal
-          ? planBacklogReturn({ sprint: atual, tasks, actorUserId: context.actorUserId })
+        const destination = nextStatus === 'CONCLUIDA' ? nextPlannedSprint(atual, sprints) : null;
+        const backlog =
+          terminal && !destination
+            ? planBacklogReturn({ sprint: atual, tasks, actorUserId: context.actorUserId })
+            : null;
+        const pendingIds = tasks
+          .filter((task) => task.sprintId === id && task.status !== CONCLUIDO)
+          .map((task) => task.id);
+        const carryOver = destination
+          ? {
+              destination,
+              buildPlan: (snapshot) =>
+                buildScopePlan({
+                  mode: 'attach',
+                  audit: null,
+                  sprintId: destination.id,
+                  requestedIds: pendingIds,
+                  occurredAt,
+                  context,
+                  ...snapshot
+                })
+            }
           : null;
 
         const irmas = milestoneSprints.map((sprint) =>
@@ -64,6 +101,7 @@ export const sprintStatusService = {
           data,
           freezeAt: terminal ? occurredAt : null,
           backlog,
+          carryOver,
           milestone,
           auditEvent: buildAuditEvent({
             actorUserId: context.actorUserId,

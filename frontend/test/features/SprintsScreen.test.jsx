@@ -707,7 +707,9 @@ describe('evolução, lifecycle e navegação', () => {
       within(menu).getByRole('menuitem', { name: 'Concluir a sprint Sprint Ativa' })
     );
     const confirm = screen.getByRole('dialog', { name: 'Concluir sprint?' });
-    expect(confirm).toHaveTextContent('1 tarefa(s) não concluída(s) voltarão ao backlog');
+    expect(confirm).toHaveTextContent(
+      '1 tarefa(s) não concluída(s) seguirão para a próxima sprint planejada válida'
+    );
     await user.click(within(confirm).getByRole('button', { name: 'Concluir e congelar' }));
     expect(mocks.schedule.updateSprintStatus).toHaveBeenCalledWith(2, 'CONCLUIDA');
   });

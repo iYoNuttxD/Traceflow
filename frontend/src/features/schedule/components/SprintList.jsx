@@ -7,7 +7,7 @@ import {
   sprintStatusKey,
   sprintStatusKeyLabels,
   statusBadgeClass,
-  summarizeSprintTasks,
+  getSprintDisplayMetrics,
   transitionHints
 } from './schedule-display.js';
 
@@ -26,7 +26,7 @@ function SprintCard({
 }) {
   const terminal = isTerminalSprint(sprint.status);
   const statusKey = sprintStatusKey(sprint);
-  const summary = summarizeSprintTasks(scheduleSprint);
+  const summary = getSprintDisplayMetrics(sprint, scheduleSprint);
   const blockedByActive = Boolean(activeSprintName) && sprint.status === 'PLANEJADA';
   const menuItems = [
     {
@@ -114,20 +114,26 @@ function SprintCard({
 
         <div className="sprint-card__task-summary">
           <span>
-            <strong>{summary.total}</strong> {summary.total === 1 ? 'tarefa' : 'tarefas'}
+            <strong>{summary.total ?? '—'}</strong> {summary.total === 1 ? 'tarefa' : 'tarefas'}
           </span>
           <span>
-            <strong>{summary.done}</strong> {summary.done === 1 ? 'concluída' : 'concluídas'}
+            <strong>{summary.done ?? '—'}</strong> {summary.done === 1 ? 'concluída' : 'concluídas'}
           </span>
           <span>
-            <strong>{summary.points}</strong> pts
+            <strong>{summary.points ?? '—'}</strong> pts
           </span>
         </div>
 
         <div className="sprint-card__progress">
           <div>
             <span>Progresso por pontos</span>
-            <strong>{summary.percent === null ? 'Sem estimativa' : `${summary.percent}%`}</strong>
+            <strong>
+              {summary.unavailable
+                ? '—'
+                : summary.percent === null
+                  ? 'Sem estimativa'
+                  : `${summary.percent}%`}
+            </strong>
           </div>
           <div
             className="sprint-card__progress-track"
@@ -137,15 +143,18 @@ function SprintCard({
             aria-valuemax={summary.percent === null ? undefined : 100}
             aria-valuenow={summary.percent ?? undefined}
             aria-valuetext={
-              summary.percent === null
-                ? 'Sem pontos estimados'
-                : `${summary.donePoints} de ${summary.points} pontos concluídos`
+              summary.unavailable
+                ? 'Dados históricos indisponíveis'
+                : summary.percent === null
+                  ? 'Sem pontos estimados'
+                  : `${summary.donePoints} de ${summary.points ?? '—'} pontos concluídos`
             }
           >
             <span style={{ width: `${summary.percent || 0}%` }} />
           </div>
         </div>
 
+        {summary.unavailable && <p className="field-help">Dados históricos indisponíveis.</p>}
         {terminal && (
           <p className="sprint-card__frozen">
             <TraceFlowIcon name="lock" />
