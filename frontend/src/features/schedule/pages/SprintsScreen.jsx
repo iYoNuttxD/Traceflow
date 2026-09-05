@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { ProjectSectionNav } from '../../projects/index.js';
 import {
@@ -22,6 +22,7 @@ import {
   fromDateTimeLocalInput,
   isTerminalTransition,
   sprintTerminalConfirm,
+  sprintDeleteConfirm,
   toDateTimeLocalInput
 } from '../components/schedule-display.js';
 import {
@@ -44,6 +45,7 @@ export function SprintsScreen() {
   const dialogReturnFocusRef = useRef(null);
   const gridRef = useRef(null);
   const selectedSprintRef = useRef(null);
+  const mutationGenerationRef = useRef(0);
 
   const {
     schedule,
@@ -84,6 +86,14 @@ export function SprintsScreen() {
 
   const [filters, setFilters] = useState({ ...SPRINT_FILTER_DEFAULTS });
   const [selectedFilterTask, setSelectedFilterTask] = useState(null);
+
+  useEffect(() => {
+    mutationGenerationRef.current += 1;
+    setBusySprintId(null);
+    return () => {
+      mutationGenerationRef.current += 1;
+    };
+  }, [projectId]);
 
   const sprintNames = useMemo(
     () => Object.fromEntries(sprints.map((item) => [item.id, item.name])),
@@ -338,17 +348,21 @@ export function SprintsScreen() {
   }
 
   async function changeSprintStatus(sprint, status) {
-    if (isTerminalTransition(status)) {
-      const pending = (scheduleById[sprint.id]?.tasks || []).filter(
-        (task) => task.status !== 'CONCLUIDO'
-      ).length;
-      const confirmed = await confirm(sprintTerminalConfirm(sprint, status, pending));
-      if (!confirmed) return;
-    }
-
+    if (busySprintId) return;
+    const generation = mutationGenerationRef.current;
+    const isCurrent = () => generation === mutationGenerationRef.current;
     setBusySprintId(sprint.id);
     try {
+      if (isTerminalTransition(status)) {
+        const { data: impact } = await scheduleApi.getSprintImpact(sprint.id);
+        if (!isCurrent()) return;
+        const confirmed = await confirm(
+          sprintTerminalConfirm(sprint, status, impact.completion.pendingTasks, impact.completion)
+        );
+        if (!confirmed || !isCurrent()) return;
+      }
       const { data } = await scheduleApi.updateSprintStatus(sprint.id, status);
+      if (!isCurrent()) return;
       if (data.sprint) {
         setSprints((current) =>
           current.map((item) => (item.id === sprint.id ? data.sprint : item))
@@ -361,9 +375,35 @@ export function SprintsScreen() {
         ])
       );
     } catch (requestError) {
+      if (!isCurrent()) return;
       handleFailure(requestError, 'Não foi possível atualizar o status da sprint.');
     } finally {
-      setBusySprintId(null);
+      if (isCurrent()) setBusySprintId(null);
+    }
+  }
+
+  async function deleteSprint(sprint) {
+    if (busySprintId || somenteLeitura) return;
+    const generation = mutationGenerationRef.current;
+    const isCurrent = () => generation === mutationGenerationRef.current;
+    setBusySprintId(sprint.id);
+    try {
+      const { data: impact } = await scheduleApi.getSprintImpact(sprint.id);
+      if (!isCurrent()) return;
+      if (!(await confirm(sprintDeleteConfirm(sprint, impact.currentTasks))) || !isCurrent())
+        return;
+      await scheduleApi.removeSprint(sprint.id);
+      if (!isCurrent()) return;
+      setSprints((current) => current.filter((item) => item.id !== sprint.id));
+      queueMicrotask(() => gridRef.current?.focus());
+      await settle('Sprint excluída. O histórico foi preservado.', () =>
+        Promise.all([refreshSchedule(), refreshMilestones()])
+      );
+    } catch (error) {
+      if (!isCurrent()) return;
+      handleFailure(error, 'Não foi possível excluir a sprint.');
+    } finally {
+      if (isCurrent()) setBusySprintId(null);
     }
   }
 
@@ -439,6 +479,7 @@ export function SprintsScreen() {
         onTasks={openTasks}
         onProgress={openProgress}
         onEdit={openEdit}
+        onDelete={deleteSprint}
         onChangeStatus={changeSprintStatus}
         onViewInKanban={(sprint) => navigate(`/projects/${projectId}/kanban?sprint=${sprint.id}`)}
         listRef={gridRef}
@@ -450,7 +491,7 @@ export function SprintsScreen() {
         description={
           dialog?.type === 'edit'
             ? 'Atualize os dados e a composição da sprint enquanto ela estiver aberta.'
-            : 'Defina o período, o marco e as tarefas que entram no planejamento inicial.'
+            : 'Defina o período e as tarefas do planejamento inicial. O marco é opcional.'
         }
         initialFocusSelector="#sprint-name"
         returnFocusRef={dialogReturnFocusRef}
@@ -461,6 +502,7 @@ export function SprintsScreen() {
         <SprintForm
           formData={sprintForm}
           milestones={milestones}
+          currentMilestone={dialogSprint?.milestone}
           selectedTasks={formTasks}
           sprintNames={sprintNames}
           editingSprintId={dialog?.type === 'edit' ? dialog.sprint.id : null}

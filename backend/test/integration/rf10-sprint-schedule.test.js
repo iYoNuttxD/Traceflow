@@ -420,7 +420,7 @@ describe('concorrencia sob lock (ADR-010 D17)', () => {
     );
   });
 
-  it('exclusao de marco e criacao de sprint nao confirmam uma fora da outra', async () => {
+  it('serializa exclusão lógica do Marco e criação da Sprint, preservando a referência se criada primeiro', async () => {
     for (let rodada = 0; rodada < 5; rodada += 1) {
       const project = await createProject(prisma);
       const marco = await createMilestone(prisma, project.id);
@@ -442,7 +442,7 @@ describe('concorrencia sob lock (ADR-010 D17)', () => {
       }
       const recusadas = resultados.filter((resultado) => resultado.status === 'rejected');
       for (const recusada of recusadas) {
-        expect(['MILESTONE_HAS_SPRINTS', 'MILESTONE_NOT_FOUND']).toContain(recusada.reason.code);
+        expect(recusada.reason.code).toBe('MILESTONE_NOT_FOUND');
       }
       await cleanTestDatabase(prisma);
     }

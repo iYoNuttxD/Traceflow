@@ -1,10 +1,11 @@
+import { ERROR_CODES } from '../../../shared/errors/index.js';
 import { milestoneRepository } from '../repositories/milestone.repository.js';
 import { buildAuditEvent } from '../../audit/audit.service.js';
 import {
   buildMilestoneData,
   ensureAtLeastOneField,
   ensureMilestoneStatus,
-  milestoneHasSprintsError,
+  SprintServiceError,
   milestoneNotFoundError,
   parseMilestoneId,
   parseProjectId
@@ -102,7 +103,8 @@ export const milestoneService = {
 
   async deleteMilestone(milestoneId, context = {}) {
     const id = parseMilestoneId(milestoneId);
-    const current = await ensureMilestoneExists(id);
+    const current = await milestoneRepository.findById(id, { includeDeleted: true });
+    if (!current) throw milestoneNotFoundError();
 
     const removido = await milestoneRepository.deleteWithinProjectLock(
       id,
@@ -116,8 +118,13 @@ export const milestoneService = {
         resourceId: id,
         metadata: { milestoneId: id }
       }),
-      ({ sprintCount }) => {
-        if (sprintCount > 0) throw milestoneHasSprintsError(sprintCount);
+      ({ milestone }) => {
+        if (milestone.deletedAt)
+          throw new SprintServiceError(
+            'Este marco já foi excluído.',
+            409,
+            ERROR_CODES.MILESTONE_ALREADY_DELETED
+          );
       }
     );
 

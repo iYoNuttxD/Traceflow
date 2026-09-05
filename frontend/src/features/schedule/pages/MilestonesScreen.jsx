@@ -263,8 +263,8 @@ export function MilestonesScreen() {
     const confirmed = await confirm({
       title: 'Excluir marco?',
       description:
-        `O marco "${milestone.title}" será excluído definitivamente. ` +
-        'Esta ação não pode ser desfeita.',
+        `O marco "${milestone.title}" será removido das visões atuais e dos seletores. ` +
+        'As Sprints vinculadas, Tasks e seu histórico serão preservados. As referências existentes indicarão Marco excluído.',
       confirmLabel: 'Excluir marco'
     });
     if (!confirmed) return;

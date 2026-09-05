@@ -111,16 +111,23 @@ export function formatSprintCardPeriod(sprint) {
   return `${compact(sprint.startDate)} – ${compact(sprint.endDate)}`;
 }
 
-export function sprintTerminalConfirm(sprint, status, pendentes) {
+export function sprintTerminalConfirm(sprint, status, pendentes, impact = null) {
   if (status === 'CONCLUIDA') {
     return {
       title: 'Concluir sprint?',
       description:
         `A sprint "${sprint.name}" será marcada como concluída e congelada: ela não poderá ` +
         'ser editada, reaberta nem receber novas tarefas. ' +
-        (pendentes
-          ? `${pendentes} tarefa(s) não concluída(s) seguirão para a próxima sprint planejada válida. Se não houver uma próxima sprint, voltarão ao backlog.`
-          : 'Todas as tarefas da sprint foram concluídas.'),
+        (impact
+          ? `${impact.completedTasks} tarefa(s) concluída(s) permanecerão no registro. ` +
+            (impact.pendingTasks
+              ? impact.destination
+                ? `${impact.pendingTasks} tarefa(s) pendente(s) seguirão para a sprint "${impact.destination.name}".`
+                : `${impact.pendingTasks} tarefa(s) pendente(s) voltarão ao backlog; não há próxima Sprint planejada válida.`
+              : 'Não há tarefas pendentes para transferir.')
+          : pendentes
+            ? `${pendentes} tarefa(s) não concluída(s) seguirão para a próxima sprint planejada válida. Se não houver uma próxima sprint, voltarão ao backlog.`
+            : 'Todas as tarefas da sprint foram concluídas.'),
       cancelLabel: 'Voltar',
       confirmLabel: 'Concluir e congelar',
       destructive: false
@@ -204,4 +211,19 @@ export function milestoneProgress(milestoneId, sprints) {
 export function formatDuration(durationInDays) {
   if (!durationInDays && durationInDays !== 0) return 'Não informado';
   return durationInDays === 1 ? '1 dia' : `${durationInDays} dias`;
+}
+
+export function sprintDeleteConfirm(sprint, currentTasks) {
+  return {
+    title: 'Excluir sprint?',
+    description:
+      `A sprint "${sprint.name}" será removida das visões atuais do projeto. Seu histórico e snapshots serão preservados. ` +
+      (currentTasks
+        ? `${currentTasks} tarefa(s) atualmente associada(s) voltarão ao backlog. `
+        : 'Nenhuma tarefa atual será movimentada. ') +
+      'Esta ação não conclui a Sprint nem transfere tarefas para outra Sprint.',
+    confirmLabel: 'Excluir sprint',
+    cancelLabel: 'Voltar',
+    destructive: true
+  };
 }

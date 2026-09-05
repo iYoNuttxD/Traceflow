@@ -4,6 +4,8 @@ import { deleteTask, kanbanApi, tasksApi } from '../api/tasks.api.js';
 import { scheduleApi, sprintStatusKey, sprintStatusKeyLabels } from '../../schedule/index.js';
 import { membersApi } from '../../members/index.js';
 import { ProjectSectionNav, projectsApi } from '../../projects/index.js';
+import { useFrozenSprintBoard } from '../hooks/useFrozenSprintBoard.js';
+import { FrozenTaskDetails } from '../components/FrozenTaskDetails.jsx';
 import { KanbanBoard } from '../components/KanbanBoard.jsx';
 import { KanbanFilters } from '../components/KanbanFilters.jsx';
 import { KanbanSummary } from '../components/KanbanSummary.jsx';
@@ -94,6 +96,9 @@ export function KanbanScreen() {
   const [sprintFilter, setSprintFilter] = useState([]);
   const [filters, setFilters] = useState({ ...EMPTY_KANBAN_FILTERS });
   const [selectedTask, setSelectedTask] = useState(null);
+  const [openingCurrent, setOpeningCurrent] = useState(false);
+  const [currentTaskError, setCurrentTaskError] = useState('');
+  const currentTaskRequestRef = useRef(0);
   const [historyTask, setHistoryTask] = useState(null);
   const [loading, setLoading] = useState(true);
   const [movingTaskId, setMovingTaskId] = useState(null);
@@ -117,9 +122,13 @@ export function KanbanScreen() {
   searchParamsRef.current = searchParams;
 
   const allTasks = useMemo(() => getBoardTasks(board), [board]);
+  const frozenSprint = projectSprints.find(
+    (sprint) => sprintFilter.includes(sprint.id) && TERMINAL_SPRINT_STATUSES.includes(sprint.status)
+  );
+  const frozenView = useFrozenSprintBoard(projectId, frozenSprint?.id);
   const sprintScopedBoard = useMemo(
-    () => filterBoardBySprints(board, sprintFilter),
-    [board, sprintFilter]
+    () => (frozenSprint ? frozenView.board : filterBoardBySprints(board, sprintFilter)),
+    [board, sprintFilter, frozenSprint, frozenView.board]
   );
   const summary = useMemo(() => getKanbanSummary(sprintScopedBoard), [sprintScopedBoard]);
   const visibleBoard = useMemo(
@@ -224,7 +233,12 @@ export function KanbanScreen() {
         .split(',')
         .map((value) => Number(value))
         .filter((id) => sprints.some((sprint) => sprint.id === id));
-      setSprintFilter(requestedIds);
+      const terminalId = requestedIds.find((id) =>
+        sprints.some(
+          (sprint) => sprint.id === id && TERMINAL_SPRINT_STATUSES.includes(sprint.status)
+        )
+      );
+      setSprintFilter(terminalId ? [terminalId] : requestedIds);
       return true;
     } catch (requestError) {
       if (requestIsCurrent(request)) {
@@ -300,6 +314,7 @@ export function KanbanScreen() {
     setProjectSprints([]);
     setSprintFilter([]);
     setFilters({ ...EMPTY_KANBAN_FILTERS });
+    currentTaskRequestRef.current += 1;
     setSelectedTask(null);
     setHistoryTask(null);
     setLoading(true);
@@ -321,17 +336,27 @@ export function KanbanScreen() {
 
   const applySprintFilter = useCallback(
     (ids) => {
+      const added = ids.find((id) => !sprintFilter.includes(id));
+      const terminal = ids.find((id) => frozenSprintIds.has(id));
+      // Historical cuts are viewed individually; open Sprints retain multi-selection.
+      if (added && frozenSprintIds.has(added)) ids = [added];
+      else if (added) ids = ids.filter((id) => !frozenSprintIds.has(id));
+      else if (terminal) ids = [terminal];
+      currentTaskRequestRef.current += 1;
+      setSelectedTask(null);
+      setHistoryTask(null);
+      setFilters({ ...EMPTY_KANBAN_FILTERS });
       setSprintFilter(ids);
       const params = new URLSearchParams(searchParams);
       if (ids.length) params.set('sprint', ids.join(','));
       else params.delete('sprint');
       setSearchParams(params, { replace: true });
     },
-    [searchParams, setSearchParams]
+    [searchParams, setSearchParams, sprintFilter, frozenSprintIds]
   );
 
   async function moveTaskToStatus(task, toStatus) {
-    if (toStatus === task.status) return;
+    if (frozenSprint || task.isFrozen || toStatus === task.status) return;
     if (task.sprintId && frozenSprintIds.has(task.sprintId)) {
       setSuccess('');
       setError(
@@ -374,7 +399,7 @@ export function KanbanScreen() {
   }
 
   function handleTaskDragStart(event, task) {
-    if (movingTaskId === task.id) {
+    if (frozenSprint || task.isFrozen || movingTaskId === task.id) {
       event.preventDefault();
       return;
     }
@@ -395,6 +420,7 @@ export function KanbanScreen() {
 
   async function handleColumnDrop(event, targetStatus) {
     event.preventDefault();
+    if (frozenSprint) return;
     setDragOverStatus('');
     const draggedTaskId = event.dataTransfer.getData('text/plain') || draggingTaskId;
     const task = allTasks.find((candidate) => String(candidate.id) === String(draggedTaskId));
@@ -407,7 +433,25 @@ export function KanbanScreen() {
       return;
     }
     detailsReturnFocusRef.current = trigger;
+    setCurrentTaskError('');
+    setOpeningCurrent(false);
     setSelectedTask(task);
+  }
+
+  async function openCurrentTask(snapshot) {
+    const request = ++currentTaskRequestRef.current;
+    setOpeningCurrent(true);
+    setCurrentTaskError('');
+    try {
+      const response = await tasksApi.get(snapshot.currentTaskId);
+      if (request !== currentTaskRequestRef.current) return;
+      setSelectedTask(response.data.task);
+    } catch (error) {
+      if (request === currentTaskRequestRef.current)
+        setCurrentTaskError(getErrorMessage(error, 'Não foi possível abrir a tarefa atual.'));
+    } finally {
+      if (request === currentTaskRequestRef.current) setOpeningCurrent(false);
+    }
   }
 
   function openTaskHistory(task, trigger) {
@@ -517,6 +561,8 @@ export function KanbanScreen() {
         <>
           <KanbanSummary
             summary={summary}
+            frozen={Boolean(frozenSprint)}
+            historicalSummary={frozenView.projection?.historicalSummary}
             sprints={projectSprints}
             selectedSprintIds={sprintFilter}
             statusLabels={sprintStatusText}
@@ -530,9 +576,36 @@ export function KanbanScreen() {
             onClearSprints={() => applySprintFilter([])}
           />
 
+          {frozenSprint && (
+            <p className="field-help">Sprints congeladas são visualizadas individualmente.</p>
+          )}
+          {frozenView.projection?.historicalLimitations?.length > 0 && (
+            <p role="status">
+              Snapshot detalhado indisponível para esta Sprint histórica. Campos desconhecidos não
+              são reconstruídos.
+            </p>
+          )}
+          {frozenView.projection?.tasks?.some(
+            (task) => !KANBAN_COLUMNS.some((column) => column.status === task.status)
+          ) && (
+            <p role="status">
+              Há participações sem status histórico conhecido; elas não podem ser posicionadas no
+              quadro.
+            </p>
+          )}
           <KanbanFilters
             filters={filters}
-            members={projectMembers}
+            members={
+              frozenSprint
+                ? [
+                    ...new Set(
+                      (frozenView.projection?.tasks || [])
+                        .map((task) => task.responsibleUserId)
+                        .filter(Boolean)
+                    )
+                  ].map((id) => ({ id, user: { id, name: `Responsável #${id}` } }))
+                : projectMembers
+            }
             activeCount={activeFilterCount}
             visibleCount={visibleCount}
             scopedCount={summary.total}
@@ -540,33 +613,45 @@ export function KanbanScreen() {
             onClear={() => setFilters({ ...EMPTY_KANBAN_FILTERS })}
           />
 
-          <KanbanBoard
-            board={visibleBoard}
-            movingTaskId={movingTaskId}
-            draggingTaskId={draggingTaskId}
-            dragOverStatus={dragOverStatus}
-            sprintNames={sprintNames}
-            selectedSprintIds={sprintFilter}
-            frozenSprintIds={frozenSprintIds}
-            filteredEmpty={activeFilterCount > 0 && visibleCount === 0 && summary.total > 0}
-            boardRef={boardFocusRef}
-            onSelectTask={openTaskDetails}
-            onOpenHistory={openTaskHistory}
-            onTaskPointerDown={handleTaskPointerDown}
-            onTaskDragStart={handleTaskDragStart}
-            onTaskDragEnd={handleTaskDragEnd}
-            onColumnDragOver={(event, status) => {
-              event.preventDefault();
-              event.dataTransfer.dropEffect = 'move';
-              setDragOverStatus(status);
-            }}
-            onColumnDragLeave={(event, status) => {
-              if (!event.currentTarget.contains(event.relatedTarget)) {
-                setDragOverStatus((current) => (current === status ? '' : current));
-              }
-            }}
-            onColumnDrop={handleColumnDrop}
-          />
+          {frozenView.loading ? (
+            <LoadingState message="Carregando quadro congelado..." />
+          ) : frozenView.error && frozenSprint ? (
+            <div role="alert">
+              <p>{frozenView.error}</p>
+              <button type="button" className="button button-secondary" onClick={frozenView.retry}>
+                Tentar novamente
+              </button>
+            </div>
+          ) : (
+            <KanbanBoard
+              board={visibleBoard}
+              isFrozen={Boolean(frozenSprint)}
+              movingTaskId={movingTaskId}
+              draggingTaskId={draggingTaskId}
+              dragOverStatus={dragOverStatus}
+              sprintNames={sprintNames}
+              selectedSprintIds={sprintFilter}
+              frozenSprintIds={frozenSprintIds}
+              filteredEmpty={activeFilterCount > 0 && visibleCount === 0 && summary.total > 0}
+              boardRef={boardFocusRef}
+              onSelectTask={openTaskDetails}
+              onOpenHistory={openTaskHistory}
+              onTaskPointerDown={handleTaskPointerDown}
+              onTaskDragStart={handleTaskDragStart}
+              onTaskDragEnd={handleTaskDragEnd}
+              onColumnDragOver={(event, status) => {
+                event.preventDefault();
+                event.dataTransfer.dropEffect = 'move';
+                setDragOverStatus(status);
+              }}
+              onColumnDragLeave={(event, status) => {
+                if (!event.currentTarget.contains(event.relatedTarget)) {
+                  setDragOverStatus((current) => (current === status ? '' : current));
+                }
+              }}
+              onColumnDrop={handleColumnDrop}
+            />
+          )}
 
           {allTasks.length !== board?.totals?.total && (
             <div className="message message-error" role="alert">
@@ -574,7 +659,20 @@ export function KanbanScreen() {
             </div>
           )}
 
-          {selectedTask && (
+          {selectedTask?.isFrozen && (
+            <FrozenTaskDetails
+              task={selectedTask}
+              returnFocusRef={detailsReturnFocusRef}
+              opening={openingCurrent}
+              error={currentTaskError}
+              onOpenCurrent={openCurrentTask}
+              onClose={() => {
+                currentTaskRequestRef.current += 1;
+                setSelectedTask(null);
+              }}
+            />
+          )}
+          {selectedTask && !selectedTask.isFrozen && (
             <TaskDetailsPanel
               key={selectedTask.id}
               projectId={projectId}

@@ -47,11 +47,8 @@ function MilestoneCard({
       label: 'Excluir marco',
       ariaLabel: `Excluir o marco ${milestone.title}`,
       danger: true,
-      disabled: busy || summary.linked > 0,
-      title:
-        summary.linked > 0
-          ? 'Marco com Sprints não pode ser excluído. Mova-as para outro marco antes.'
-          : 'Remove o marco definitivamente.',
+      disabled: busy,
+      title: 'Remove das visões atuais, preservando Sprints e histórico.',
       onSelect: (trigger) => onDelete(milestone, trigger)
     });
   }

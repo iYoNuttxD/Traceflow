@@ -51,6 +51,11 @@ router.delete(
   sprintController.delete
 );
 router.get(
+  '/sprints/:id/impact',
+  validateRequest({ params: sprintIdParamsSchema }),
+  sprintController.impact
+);
+router.get(
   '/sprints/:id/tasks',
   validateRequest({ params: sprintIdParamsSchema }),
   sprintController.findTasksBySprint

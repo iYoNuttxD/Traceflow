@@ -9,7 +9,7 @@
 
 > **Aviso de leitura.** As decisões **D02** (marco pertence a uma sprint), **D11** (prazo do marco
 > dentro da janela) e a parte de **D12** que congela o marco junto com a sprint foram revertidas
-> pelo ADR-011: o marco passou a **agrupar** sprints. O restante deste ADR continua em vigor.
+> pelo ADR-011: o marco passou a **agrupar** sprints. D06/D13 também foram superadas pela exclusão lógica de PLANNING-QA-FIX-03 (D20); as demais decisões permanecem em vigor.
 > Ler D02/D11/D12 isoladamente leva à conclusão oposta à do modelo atual.
 
 ## Contexto
@@ -64,7 +64,8 @@ consegue dizer em qual sprint o marco foi planejado nem validar consistência te
 > **Refinada em 24/08/2026.** Sprint `CANCELADA` não conta para a sobreposição: cancelar é
 > decidir que aquele trabalho não vai acontecer, e o período dele volta a ficar livre. Sem a
 > exclusão, cada cancelamento congelaria um pedaço do calendário para sempre — a sprint
-> cancelada não pode ser editada nem excluída (D04/D06). O calendário do cronograma acompanha
+> cancelada não podia ser editada nem excluída na decisão original (D04/D06).
+> D20 passou a permitir exclusão lógica; o filtro atual também exclui tombstones. O calendário do cronograma acompanha
 > a regra: faixas, legenda e eventos omitem a cancelada.
 
 Sprints são sequenciais. A janela é **semiaberta `[startDate, endDate)`**: a sprint seguinte
@@ -105,6 +106,8 @@ escrita e significa o início daquele dia em UTC — atalho documentado para que
 não normalização de quem informou hora.
 
 ### D06 — Sprint não é excluída
+
+> Superada em PLANNING-QA-FIX-03 pela exclusão lógica descrita em D20.
 
 Em nenhum estado, e sem soft-delete nesta entrega. O cronograma é registro histórico do
 projeto.
@@ -181,6 +184,8 @@ Mesma convenção semiaberta: vencer no instante final já pertence à sprint se
 Não pode ser editado, concluído, reaberto nem excluído. O período virou registro.
 
 ### D13 — `DELETE /sprints/:id` responde 405, e não 404
+
+> Superada em PLANNING-QA-FIX-03 por D20.
 
 Ver D06.
 
@@ -344,6 +349,17 @@ com as duas respondendo `200`.
 
 **Adoção.** `lockProject` e `lockMilestone` saíram para `backend/src/database/locks.js`, agora com
 três consumidores: `sprint.repository.js`, `milestone.repository.js` e `task-movement.repository.js`.
+
+### D20 — Quadro histórico e exclusão lógica (PLANNING-QA-FIX-03)
+
+Decisão explícita de produto em 04/09/2026: todas as Tasks ativas no encerramento têm
+projeção imutável de card. Um snapshot mínimo versionado complementa status e pontos existentes,
+antes do carry-over e na mesma transação. Não há backfill com campos atuais.
+
+Sprint pode ser excluída em qualquer estado, exclusivamente por tombstone. A transação segue
+Project → Sprint → Tasks, preserva SprintTask/snapshots e devolve ponteiros atuais ao backlog
+com histórico SPRINT e ator. Não conclui, cancela, reabre ou transfere automaticamente.
+Consultas atuais excluem tombstones; leituras históricas são explícitas.
 
 ## Consequências
 

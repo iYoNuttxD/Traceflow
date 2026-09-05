@@ -1,3 +1,5 @@
+import { buildClosingTaskSnapshot } from '../sprint-task.projection.js';
+import { isTerminalSprintStatus } from '../sprint.schema.js';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../../database/prismaClient.js';
 import { lockMilestone, lockProject } from '../../../database/locks.js';
@@ -16,6 +18,8 @@ export const sprintSelect = {
   planningSnapshotAt: true,
   closedAt: true,
   milestoneId: true,
+  deletedAt: true,
+  milestone: { select: { id: true, title: true, deletedAt: true } },
   createdAt: true,
   updatedAt: true
 };
@@ -42,6 +46,7 @@ export const sprintTaskSelect = {
   plannedAtStart: true,
   pointsAtPlanning: true,
   pointsAtClose: true,
+  closingTaskSnapshot: true,
   completedAtClose: true,
   carriedFromSprintId: true,
   removedAt: true,
@@ -49,16 +54,6 @@ export const sprintTaskSelect = {
   exitStatus: true,
   closedAt: true
 };
-
-function toParticipatingTask(participation) {
-  return {
-    ...participation.task,
-    addedAt: participation.addedAt,
-    addedAfterStart: participation.addedAfterStart,
-    carriedFromSprintId: participation.carriedFromSprintId,
-    exitStatus: participation.exitStatus
-  };
-}
 
 async function capturePlanning(tx, sprintId, tasks) {
   // Every existing participation is classified once, including pre-start removals.
@@ -72,6 +67,16 @@ async function capturePlanning(tx, sprintId, tasks) {
 }
 
 async function freezeParticipations(tx, sprint, closedAt) {
+  const tasks = await tx.task.findMany({
+    where: { sprintId: sprint.id },
+    select: {
+      ...scheduleTaskSelect,
+      requirementId: true,
+      pullRequestId: true,
+      _count: { select: { commitLinks: true, issueLinks: true } }
+    }
+  });
+  const byId = new Map(tasks.map((task) => [task.id, task]));
   const participations = await findBurndownData(tx, sprint);
   for (const participation of participations.filter((item) => item.removedAt === null)) {
     await tx.sprintTask.update({
@@ -80,7 +85,12 @@ async function freezeParticipations(tx, sprint, closedAt) {
         closedAt,
         exitStatus: participation.currentStatus,
         pointsAtClose: participation.points,
-        completedAtClose: participation.completedAt
+        completedAtClose: participation.completedAt,
+        ...(byId.has(participation.taskId)
+          ? {
+              closingTaskSnapshot: buildClosingTaskSnapshot(byId.get(participation.taskId))
+            }
+          : {})
       }
     });
   }
@@ -196,18 +206,25 @@ export const sprintRepository = {
     return prisma.project.findUnique({ where: { id: projectId }, select: { id: true } });
   },
 
-  findById(id) {
-    return prisma.sprint.findUnique({ where: { id }, select: sprintSelect });
+  findById(id, { includeDeleted = false } = {}) {
+    return prisma.sprint.findUnique({
+      where: { id, ...(includeDeleted ? {} : { deletedAt: null }) },
+      select: sprintSelect
+    });
   },
 
   findByIdInProject(id, projectId) {
-    return prisma.sprint.findFirst({ where: { id, projectId }, select: sprintSelect });
+    return prisma.sprint.findFirst({
+      where: { id, projectId, deletedAt: null },
+      select: sprintSelect
+    });
   },
 
   findByProject(projectId, filters = {}) {
     return prisma.sprint.findMany({
       where: {
         projectId,
+        deletedAt: null,
         ...(filters.status ? { status: filters.status } : {}),
         ...(filters.search ? { name: { contains: filters.search } } : {})
       },
@@ -226,9 +243,12 @@ export const sprintRepository = {
   async createWithinProjectLock(projectId, data, auditEvent, validate) {
     return prisma.$transaction(async (tx) => {
       await lockProject(tx, projectId);
-      const sprints = await tx.sprint.findMany({ where: { projectId }, select: sprintSelect });
+      const sprints = await tx.sprint.findMany({
+        where: { projectId, deletedAt: null },
+        select: sprintSelect
+      });
       const milestones = await tx.milestone.findMany({
-        where: { projectId },
+        where: { projectId, deletedAt: null },
         select: { id: true }
       });
       await validate({ sprints, sprint: null, milestones });
@@ -246,13 +266,17 @@ export const sprintRepository = {
   async updateWithinProjectLock(id, projectId, data, auditEvent, validate) {
     return prisma.$transaction(async (tx) => {
       await lockProject(tx, projectId);
-      const travada = await tx.$queryRaw`SELECT id FROM Sprint WHERE id = ${id} FOR UPDATE`;
+      const travada =
+        await tx.$queryRaw`SELECT id FROM Sprint WHERE id = ${id} AND deletedAt IS NULL FOR UPDATE`;
       if (!travada.length) return null;
 
-      const sprints = await tx.sprint.findMany({ where: { projectId }, select: sprintSelect });
+      const sprints = await tx.sprint.findMany({
+        where: { projectId, deletedAt: null },
+        select: sprintSelect
+      });
       const sprint = sprints.find((item) => item.id === id) ?? null;
       const milestones = await tx.milestone.findMany({
-        where: { projectId },
+        where: { projectId, deletedAt: null },
         select: { id: true }
       });
 
@@ -268,7 +292,7 @@ export const sprintRepository = {
     return prisma.$transaction(async (tx) => {
       await lockProject(tx, projectId);
       const lockedSprints = await tx.$queryRaw`
-        SELECT id, milestoneId FROM Sprint WHERE projectId = ${projectId} ORDER BY id FOR UPDATE`;
+        SELECT id, milestoneId FROM Sprint WHERE projectId = ${projectId} AND deletedAt IS NULL ORDER BY id FOR UPDATE`;
       const locked = lockedSprints.find((item) => Number(item.id) === id);
       if (!locked) return null;
       const milestoneId = locked.milestoneId == null ? null : Number(locked.milestoneId);
@@ -281,7 +305,10 @@ export const sprintRepository = {
       }
 
       const atual = await tx.sprint.findUnique({ where: { id }, select: sprintSelect });
-      const sprints = await tx.sprint.findMany({ where: { projectId }, select: sprintSelect });
+      const sprints = await tx.sprint.findMany({
+        where: { projectId, deletedAt: null },
+        select: sprintSelect
+      });
       const tasks = taskIds.length
         ? await tx.task.findMany({
             where: { id: { in: taskIds } },
@@ -296,7 +323,9 @@ export const sprintRepository = {
           })
         : [];
       const milestoneSprints = milestoneId
-        ? sprints.filter((sprint) => sprint.milestoneId === milestoneId)
+        ? sprints.filter(
+            (sprint) => sprint.milestoneId === milestoneId && !sprint.milestone?.deletedAt
+          )
         : [];
 
       const {
@@ -374,10 +403,70 @@ export const sprintRepository = {
     });
   },
 
+  async readImpactSnapshot(id) {
+    return prisma.$transaction(async (tx) => {
+      const sprint = await tx.sprint.findUnique({
+        where: { id, deletedAt: null },
+        select: sprintSelect
+      });
+      if (!sprint) return null;
+      const sprints = await tx.sprint.findMany({
+        where: { projectId: sprint.projectId, deletedAt: null },
+        select: sprintSelect
+      });
+      const tasks = await tx.task.findMany({
+        where: { sprintId: id },
+        select: { id: true, status: true }
+      });
+      return { sprint, sprints, tasks };
+    });
+  },
+
+  async softDeleteWithinSprintLock(id, projectId, buildPlan) {
+    return prisma.$transaction(async (tx) => {
+      await lockProject(tx, projectId);
+      const locked =
+        await tx.$queryRaw`SELECT id FROM Sprint WHERE id = ${id} AND projectId = ${projectId} FOR UPDATE`;
+      if (!locked.length) return null;
+      await tx.$queryRaw`SELECT id FROM Task WHERE sprintId = ${id} ORDER BY id FOR UPDATE`;
+      const sprint = await tx.sprint.findUnique({ where: { id }, select: sprintSelect });
+      const tasks = await tx.task.findMany({
+        where: { sprintId: id },
+        select: { id: true, status: true }
+      });
+      const plan = await buildPlan({ sprint, tasks });
+      if (plan.closeOpenMemberships) {
+        for (const task of tasks)
+          await tx.sprintTask.updateMany({
+            where: { sprintId: id, taskId: task.id, removedAt: null, closedAt: null },
+            data: {
+              removedAt: plan.data.deletedAt,
+              removalReason: 'REMOVIDA',
+              exitStatus: task.status
+            }
+          });
+      }
+      const returned = await tx.task.updateMany({
+        where: { sprintId: id },
+        data: { sprintId: null }
+      });
+      if (plan.historyEntries.length)
+        await tx.taskHistoryEntry.createMany({ data: plan.historyEntries });
+      const deleted = await tx.sprint.update({
+        where: { id },
+        data: plan.data,
+        select: sprintSelect
+      });
+      await auditRepository.create(plan.auditEvent, tx);
+      return { sprint: deleted, returnedToBacklog: returned.count };
+    });
+  },
+
   async mutateScopeWithinSprintLock(sprintId, projectId, requestedTaskIds, buildPlan) {
     return prisma.$transaction(async (tx) => {
       await lockProject(tx, projectId);
-      const locked = await tx.$queryRaw`SELECT id FROM Sprint WHERE id = ${sprintId} FOR UPDATE`;
+      const locked =
+        await tx.$queryRaw`SELECT id FROM Sprint WHERE id = ${sprintId} AND deletedAt IS NULL FOR UPDATE`;
       if (!locked.length) return null;
 
       const dentro = await tx.$queryRaw`
@@ -392,7 +481,10 @@ export const sprintRepository = {
         await tx.$queryRaw`SELECT id FROM Task WHERE id IN (${Prisma.join(taskIdsParaTravar)}) FOR UPDATE`;
       }
 
-      const sprint = await tx.sprint.findUnique({ where: { id: sprintId }, select: sprintSelect });
+      const sprint = await tx.sprint.findUnique({
+        where: { id: sprintId, deletedAt: null },
+        select: sprintSelect
+      });
       const participations = await tx.sprintTask.findMany({
         where: { sprintId },
         select: sprintTaskSelect
@@ -410,7 +502,8 @@ export const sprintRepository = {
             where: {
               taskId: { in: requestedTaskIds },
               removedAt: null,
-              sprintId: { not: sprintId }
+              sprintId: { not: sprintId },
+              sprint: { deletedAt: null }
             },
             select: sprintTaskSelect,
             orderBy: [{ taskId: 'asc' }, { closedAt: 'asc' }, { sprintId: 'asc' }]
@@ -466,19 +559,24 @@ export const sprintRepository = {
     return findBurndownData(prisma, sprint);
   },
 
-  async findTasksBySprint(sprintId) {
-    const participations = await prisma.sprintTask.findMany({
-      where: { sprintId, removedAt: null },
-      select: {
-        addedAt: true,
-        addedAfterStart: true,
-        carriedFromSprintId: true,
-        exitStatus: true,
-        task: { select: scheduleTaskSelect }
-      },
-      orderBy: [{ taskId: 'asc' }]
+  async readTaskProjection(sprintId) {
+    return prisma.$transaction(async (tx) => {
+      const sprint = await tx.sprint.findUnique({
+        where: { id: sprintId, deletedAt: null },
+        select: sprintSelect
+      });
+      if (!sprint) return null;
+      const frozen = isTerminalSprintStatus(sprint.status);
+      const participations = await tx.sprintTask.findMany({
+        where: { sprintId },
+        select: {
+          ...sprintTaskSelect,
+          ...(frozen ? {} : { task: { select: scheduleTaskSelect } })
+        },
+        orderBy: [{ id: 'asc' }]
+      });
+      return { sprint, participations };
     });
-    return participations.filter((participation) => participation.task).map(toParticipatingTask);
   },
 
   findTasksByIds(taskIds) {
@@ -491,7 +589,7 @@ export const sprintRepository = {
   scheduleData(projectId) {
     return prisma.$transaction([
       prisma.sprint.findMany({
-        where: { projectId },
+        where: { projectId, deletedAt: null },
         select: {
           ...sprintSelect,
           sprintTasks: {

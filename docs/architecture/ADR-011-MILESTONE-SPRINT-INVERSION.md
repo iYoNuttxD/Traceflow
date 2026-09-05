@@ -28,27 +28,18 @@ O agrupamento existia na cabeça de quem lia o cronograma e em lugar nenhum no s
 `Milestone.sprintId` sai. Entra `Sprint.milestoneId`, com FK `onDelete: SetNull`. Um marco tem
 N sprints; uma sprint pertence a no máximo um marco.
 
-**Quem protege o agrupamento é a aplicação, não a FK.** `DELETE /milestones/:id` recusa com
-`409 MILESTONE_HAS_SPRINTS` enquanto houver sprint apontando para o marco, e a contagem que
-decide isso é lida **sob o lock do projeto**, na mesma transação da exclusão — não há janela
-entre verificar e apagar.
+**Revisão explícita PLANNING-QA-FIX-03 (04/09/2026).** DELETE agora preserva o agrupamento
+por exclusão lógica do Marco, em qualquer estado. Sprints abertas ou terminais mantêm a FK;
+a referência é apresentada como “Marco X · Excluído”. O Marco sai dos seletores e cálculos
+atuais. A transação continua tomando o lock do projeto; não há exclusão física nem cascata.
+A FK `SetNull` permanece para operações de retenção do projeto, fora deste lifecycle.
 
-`Restrict` seria a defesa em profundidade óbvia, e foi descartado por um motivo concreto:
-`Sprint` e `Milestone` são os **dois** filhos de `Project` em cascata, e o InnoDB não garante em
-que ordem processa FKs irmãs. Com `Restrict`, apagar um projeto falharia toda vez que o banco
-processasse `Milestone` antes de `Sprint` — quebrando uma operação legítima e sem relação com o
-agrupamento. Trocar um risco improvável (alguém apagar marco por fora do serviço) por uma falha
-provável em exclusão de projeto seria o negócio errado. A FK responde pelo que só ela pode
-responder: não deixar `milestoneId` apontando para uma linha que sumiu.
+### D02 — Marco opcional na criação e edição
 
-### D02 — `milestoneId` é nulo no banco e obrigatório na criação
-
-O banco aceita nulo porque **sprints anteriores a esta migration podem não ter marco**, e porque
-a migration não deve inventar um vínculo que ninguém declarou. `POST /projects/:id/sprints`
-exige `milestoneId`; `PUT /sprints/:id` aceita alterá-lo, inclusive para `null`.
-
-A assimetria é deliberada e é a mesma escolha que D05 do ADR-010 fez com datas: o banco guarda
-o que existe, a regra vive onde a regra é aplicada.
+**Revisão explícita PLANNING-QA-FIX-03 (04/09/2026).** `POST /projects/:id/sprints` aceita
+`milestoneId` omitido ou nulo; `PUT /sprints/:id` aceita associar/desvincular enquanto aberta.
+O banco já aceita nulo e não requer alteração para essa regra. Início, encerramento e
+carry-over continuam válidos sem Marco. Terminais preservam a imutabilidade do vínculo.
 
 ### D03 — O prazo do marco é independente da janela de qualquer sprint (supersede D11)
 

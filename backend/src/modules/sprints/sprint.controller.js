@@ -82,16 +82,22 @@ export const sprintController = {
   ),
 
   delete: asyncHandler(
-    async () => {
-      await sprintService.deleteSprint();
+    async (req, res) => {
+      const result = await sprintService.deleteSprint(req.params.id, actorContext(req));
+      return res.json({ message: 'Sprint excluída. O histórico foi preservado.', ...result });
     },
     { fallbackMessage: 'Erro interno ao excluir sprint.' }
   ),
 
+  impact: asyncHandler(
+    async (req, res) => res.json(await sprintService.getSprintImpact(req.params.id)),
+    { fallbackMessage: sprintFallback }
+  ),
+
   findTasksBySprint: asyncHandler(
     async (req, res) => {
-      const tasks = await sprintService.findTasksBySprint(req.params.id);
-      return res.json({ sprintId: req.params.id, total: tasks.length, tasks });
+      const projection = await sprintService.getSprintTaskProjection(req.params.id);
+      return res.json(projection);
     },
     { fallbackMessage: sprintFallback }
   ),

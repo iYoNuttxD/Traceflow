@@ -18,6 +18,7 @@ export function nextPlannedSprint(sprint, sprints) {
     sprints
       .filter(
         (candidate) =>
+          !candidate.deletedAt &&
           candidate.id !== sprint.id &&
           candidate.projectId === sprint.projectId &&
           candidate.status === 'PLANEJADA' &&
@@ -47,6 +48,25 @@ function planBacklogReturn({ sprint, tasks, actorUserId }) {
 }
 
 export const sprintStatusService = {
+  async getSprintImpact(sprintId) {
+    const snapshot = await sprintRepository.readImpactSnapshot(parseSprintId(sprintId));
+    if (!snapshot) throw sprintNotFoundError();
+    const { sprint, sprints, tasks } = snapshot;
+    const destination = nextPlannedSprint(sprint, sprints);
+    const pendingTasks = tasks.filter((task) => task.status !== CONCLUIDO).length;
+    return {
+      sprintId: sprint.id,
+      status: sprint.status,
+      currentTasks: tasks.length,
+      completion: {
+        pendingTasks,
+        completedTasks: tasks.length - pendingTasks,
+        destination: destination ? { id: destination.id, name: destination.name } : null,
+        returnedToBacklog: destination ? 0 : pendingTasks
+      }
+    };
+  },
+
   async updateSprintStatus(sprintId, status, context = {}) {
     const id = parseSprintId(sprintId);
     const current = await ensureSprintExists(id);

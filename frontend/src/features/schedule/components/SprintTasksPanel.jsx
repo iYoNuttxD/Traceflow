@@ -60,11 +60,14 @@ export function SprintTasksPanel({
     [sprintTasks]
   );
   const removed = progress?.scopeChange?.removed || [];
-  const totalPoints = sprintTasks.reduce(
-    (total, task) => total + (Number(task.estimatedEffort) || 0),
-    0
-  );
-  const completed = sprintTasks.filter((task) => task.status === 'CONCLUIDO').length;
+  const totalPoints =
+    frozen && sprintTasks.some((task) => task.estimatedEffort == null)
+      ? null
+      : sprintTasks.reduce((total, task) => total + (Number(task.estimatedEffort) || 0), 0);
+  const completed =
+    frozen && sprintTasks.some((task) => !task.status)
+      ? null
+      : sprintTasks.filter((task) => task.status === 'CONCLUIDO').length;
 
   return (
     <section className="sprint-tasks-modal" aria-label={`Tarefas da sprint ${sprint.name}`}>
@@ -79,10 +82,10 @@ export function SprintTasksPanel({
               <strong>{sprintTasks.length}</strong> tarefas
             </span>
             <span>
-              <strong>{totalPoints}</strong> pts
+              <strong>{totalPoints ?? '—'}</strong> pts
             </span>
             <span>
-              <strong>{completed}</strong> {completed === 1 ? 'concluída' : 'concluídas'}
+              <strong>{completed ?? '—'}</strong> {completed === 1 ? 'concluída' : 'concluídas'}
             </span>
           </div>
 
@@ -90,6 +93,11 @@ export function SprintTasksPanel({
             <p className="sprint-tasks-modal__notice">
               Esta sprint está congelada. A composição abaixo é o registro do período e não pode ser
               alterada.
+            </p>
+          )}
+          {frozen && sprintTasks.some((task) => task.isFrozen && !task.snapshotAvailable) && (
+            <p className="field-help">
+              Snapshot detalhado indisponível para esta Sprint histórica.
             </p>
           )}
           {!frozen && readOnly && (

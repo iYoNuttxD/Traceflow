@@ -1,6 +1,6 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { Link, MemoryRouter, Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
     createSprint: vi.fn(),
     updateSprint: vi.fn(),
     updateSprintStatus: vi.fn(),
+    getSprintImpact: vi.fn(),
+    removeSprint: vi.fn(),
     listSprintTasks: vi.fn(),
     replaceSprintTasks: vi.fn(),
     listProjectTasks: vi.fn(),
@@ -179,6 +181,13 @@ beforeEach(() => {
   mocks.schedule.listSprintTasks.mockResolvedValue({ data: { total: tasks.length, tasks } });
   mocks.schedule.getSprintProgress.mockResolvedValue({ data: baseProgress });
   mocks.schedule.replaceSprintTasks.mockResolvedValue({ data: { tasks } });
+  mocks.schedule.getSprintImpact.mockResolvedValue({
+    data: {
+      currentTasks: 2,
+      completion: { pendingTasks: 1, completedTasks: 1, destination: null, returnedToBacklog: 1 }
+    }
+  });
+  mocks.schedule.removeSprint.mockResolvedValue({ data: { returnedToBacklog: 2 } });
   setPlanning([]);
 });
 
@@ -405,7 +414,7 @@ describe('criação e edição em dialog', () => {
     await user.click(await screen.findByRole('button', { name: 'Nova sprint' }));
     await user.click(screen.getByRole('button', { name: 'Criar sprint' }));
     expect(screen.getByText('Informe o nome da sprint.')).toBeInTheDocument();
-    expect(screen.getByText('Selecione o marco da sprint.')).toBeInTheDocument();
+    expect(screen.queryByText('Selecione o marco da sprint.')).toBeNull();
     expect(screen.getByLabelText(/^Nome/)).toHaveFocus();
     expect(mocks.schedule.createSprint).not.toHaveBeenCalled();
   });
@@ -555,7 +564,8 @@ describe('modal de tarefas e escopo histórico', () => {
     const user = userEvent.setup();
     renderScreen();
     await screen.findByRole('heading', { name: 'Sprint Ativa' });
-    await user.click(within(card('Sprint Ativa')).getByRole('button', { name: 'Tarefas' }));
+    await openMenu(user, 'Sprint Ativa');
+    await user.click(screen.getByRole('menuitem', { name: 'Tarefas da sprint Sprint Ativa' }));
     const dialog = await screen.findByRole('dialog', { name: 'Tarefas da Sprint Ativa' });
     expect(within(dialog).getByText('Escopo planejado')).toBeInTheDocument();
     expect(within(dialog).getAllByText('#11 Login do usuário').length).toBeGreaterThan(0);
@@ -582,7 +592,8 @@ describe('modal de tarefas e escopo histórico', () => {
     setPlanning([planned, active], [scheduleSprint(planned), scheduleSprint(active, tasks)]);
     renderScreen();
     await screen.findByRole('heading', { name: 'Sprint Ativa' });
-    await user.click(within(card('Sprint Ativa')).getByRole('button', { name: 'Tarefas' }));
+    await openMenu(user, 'Sprint Ativa');
+    await user.click(screen.getByRole('menuitem', { name: 'Tarefas da sprint Sprint Ativa' }));
     const dialog = await screen.findByRole('dialog', { name: 'Tarefas da Sprint Ativa' });
     await user.type(within(dialog).getByRole('combobox', { name: 'Pesquisar tarefas' }), 'outra');
     await user.click(
@@ -608,7 +619,8 @@ describe('modal de tarefas e escopo histórico', () => {
     });
     renderScreen();
     await screen.findByRole('heading', { name: 'Sprint Ativa' });
-    await user.click(within(card('Sprint Ativa')).getByRole('button', { name: 'Tarefas' }));
+    await openMenu(user, 'Sprint Ativa');
+    await user.click(screen.getByRole('menuitem', { name: 'Tarefas da sprint Sprint Ativa' }));
     const dialog = await screen.findByRole('dialog', { name: 'Tarefas da Sprint Ativa' });
     expect(within(dialog).getByText('Escopo atual')).toBeInTheDocument();
     expect(within(dialog).getByText('Nenhuma tarefa associada.')).toBeInTheDocument();
@@ -621,7 +633,10 @@ describe('modal de tarefas e escopo histórico', () => {
     mocks.schedule.getSprintProgress.mockResolvedValue({ data: { ...baseProgress, frozen: true } });
     renderScreen();
     await screen.findByRole('heading', { name: 'Sprint Concluída' });
-    await user.click(within(card('Sprint Concluída')).getByRole('button', { name: 'Tarefas' }));
+    await openMenu(user, 'Sprint Concluída');
+    await user.click(
+      screen.getByRole('menuitem', { name: 'Tarefas congeladas da sprint Sprint Concluída' })
+    );
     const dialog = await screen.findByRole('dialog', { name: 'Tarefas da Sprint Concluída' });
     expect(within(dialog).getByText(/está congelada/)).toBeInTheDocument();
     expect(within(dialog).queryByRole('combobox', { name: 'Pesquisar tarefas' })).toBeNull();
@@ -633,7 +648,8 @@ describe('modal de tarefas e escopo histórico', () => {
     mocks.schedule.listSprintTasks.mockRejectedValueOnce({ response: { status: 500, data: {} } });
     renderScreen();
     await screen.findByRole('heading', { name: 'Sprint Ativa' });
-    await user.click(within(card('Sprint Ativa')).getByRole('button', { name: 'Tarefas' }));
+    await openMenu(user, 'Sprint Ativa');
+    await user.click(screen.getByRole('menuitem', { name: 'Tarefas da sprint Sprint Ativa' }));
     const dialog = await screen.findByRole('dialog', { name: 'Tarefas da Sprint Ativa' });
     expect(
       await within(dialog).findByRole('button', { name: 'Tentar novamente' })
@@ -687,10 +703,7 @@ describe('evolução, lifecycle e navegação', () => {
     });
     renderScreen();
     await screen.findByRole('heading', { name: 'Sprint Planejada' });
-    const menu = await openMenu(user, 'Sprint Planejada');
-    await user.click(
-      within(menu).getByRole('menuitem', { name: 'Iniciar a sprint Sprint Planejada' })
-    );
+    await user.click(screen.getByRole('button', { name: 'Iniciar a sprint Sprint Planejada' }));
     expect(screen.queryByRole('dialog', { name: /Iniciar/ })).toBeNull();
     expect(mocks.schedule.updateSprintStatus).toHaveBeenCalledWith(1, 'EM_ANDAMENTO');
   });
@@ -702,28 +715,25 @@ describe('evolução, lifecycle e navegação', () => {
     });
     renderScreen();
     await screen.findByRole('heading', { name: 'Sprint Ativa' });
-    const menu = await openMenu(user, 'Sprint Ativa');
-    await user.click(
-      within(menu).getByRole('menuitem', { name: 'Concluir a sprint Sprint Ativa' })
-    );
-    const confirm = screen.getByRole('dialog', { name: 'Concluir sprint?' });
+    await user.click(screen.getByRole('button', { name: 'Concluir a sprint Sprint Ativa' }));
+    const confirm = await screen.findByRole('dialog', { name: 'Concluir sprint?' });
     expect(confirm).toHaveTextContent(
-      '1 tarefa(s) não concluída(s) seguirão para a próxima sprint planejada válida'
+      '1 tarefa(s) pendente(s) voltarão ao backlog; não há próxima Sprint planejada válida.'
     );
     await user.click(within(confirm).getByRole('button', { name: 'Concluir e congelar' }));
     expect(mocks.schedule.updateSprintStatus).toHaveBeenCalledWith(2, 'CONCLUIDA');
   });
 
-  it('confirma cancelamento como destrutivo e não oferece excluir ou reabrir', async () => {
+  it('confirma cancelamento como destrutivo e preserva exclusão lógica sem reabertura', async () => {
     const user = userEvent.setup();
     renderScreen();
     await screen.findByRole('heading', { name: 'Sprint Ativa' });
     const menu = await openMenu(user, 'Sprint Ativa');
-    expect(within(menu).queryByRole('menuitem', { name: /Excluir|Reabrir/ })).toBeNull();
+    expect(within(menu).queryByRole('menuitem', { name: /Reabrir/ })).toBeNull();
     await user.click(
       within(menu).getByRole('menuitem', { name: 'Cancelar a sprint Sprint Ativa' })
     );
-    const confirm = screen.getByRole('dialog', { name: 'Cancelar sprint?' });
+    const confirm = await screen.findByRole('dialog', { name: 'Cancelar sprint?' });
     expect(within(confirm).getByRole('button', { name: 'Cancelar sprint' })).toHaveClass(
       'button-danger'
     );
@@ -746,11 +756,8 @@ describe('evolução, lifecycle e navegação', () => {
     });
     renderScreen();
     await screen.findByRole('heading', { name: 'Sprint Planejada' });
-    const menu = await openMenu(user, 'Sprint Planejada');
     mocks.schedule.getSchedule.mockRejectedValueOnce(new Error('rede'));
-    await user.click(
-      within(menu).getByRole('menuitem', { name: 'Iniciar a sprint Sprint Planejada' })
-    );
+    await user.click(screen.getByRole('button', { name: 'Iniciar a sprint Sprint Planejada' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(
       /ação foi concluída.*dados exibidos/i
     );
@@ -759,9 +766,9 @@ describe('evolução, lifecycle e navegação', () => {
 });
 
 describe('contratos e escopo técnico', () => {
-  it('não expõe exclusão de sprint na API nem importa internals de Tasks', async () => {
+  it('expõe exclusão de sprint pela API sem importar internals de Tasks', async () => {
     const actual = await vi.importActual('../../src/features/schedule/api/schedule.api.js');
-    expect(actual.scheduleApi.removeSprint).toBeUndefined();
+    expect(actual.scheduleApi.removeSprint).toBeTypeOf('function');
 
     const { readdirSync, readFileSync } = await vi.importActual('node:fs');
     const { join } = await vi.importActual('node:path');
@@ -794,4 +801,148 @@ describe('contratos e escopo técnico', () => {
       expect(typeof actual.scheduleApi[method], method).toBe('function');
     }
   });
+});
+
+describe('FIX-03 actions and safe lifecycle', () => {
+  it('creates without Milestone and presents the optional field', async () => {
+    mocks.schedule.listMilestones.mockResolvedValue({ data: { milestones: [] } });
+    mocks.schedule.createSprint.mockResolvedValue({
+      data: { sprint: { ...planned, milestoneId: null } }
+    });
+    const user = userEvent.setup();
+    renderScreen();
+    await user.click(await screen.findByRole('button', { name: 'Nova sprint' }));
+    expect(screen.getByText('Opcional. A sprint pode ser criada sem marco.')).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Marco' })).not.toBeRequired();
+    await user.type(screen.getByLabelText(/^Nome/), 'Independent');
+    await user.type(screen.getByLabelText(/^Início/), '2027-01-01T09:00');
+    await user.type(screen.getByLabelText(/^Fim/), '2027-01-12T18:00');
+    await user.click(screen.getByRole('button', { name: 'Criar sprint' }));
+    await waitFor(() =>
+      expect(mocks.schedule.createSprint).toHaveBeenCalledWith(
+        '1',
+        expect.objectContaining({ milestoneId: null })
+      )
+    );
+  });
+  it.each([planned, active, completed, cancelled])(
+    'uses the proper primary action and safe-delete menu for $status',
+    async (sprint) => {
+      setPlanning([sprint]);
+      const user = userEvent.setup();
+      renderScreen();
+      await screen.findByRole('heading', { name: sprint.name });
+      const surface = card(sprint.name);
+      const primary = within(surface)
+        .getByRole('group', { name: `Ações da sprint ${sprint.name}` })
+        .querySelector('.button-primary');
+      expect(primary).toHaveTextContent(
+        sprint.status === 'PLANEJADA'
+          ? 'Iniciar sprint'
+          : sprint.status === 'EM_ANDAMENTO'
+            ? 'Concluir sprint'
+            : 'Evolução'
+      );
+      expect(within(surface).queryByRole('button', { name: 'Tarefas' })).toBeNull();
+      const menu = await openMenu(user, sprint.name);
+      expect(within(menu).getByRole('menuitem', { name: /Tarefas/ })).toBeInTheDocument();
+      await user.click(
+        within(menu).getByRole('menuitem', { name: `Excluir a sprint ${sprint.name}` })
+      );
+      const confirmation = await screen.findByRole('dialog', { name: 'Excluir sprint?' });
+      expect(confirmation).toHaveTextContent(
+        '2 tarefa(s) atualmente associada(s) voltarão ao backlog'
+      );
+      expect(confirmation).toHaveTextContent('histórico e snapshots serão preservados');
+      await user.click(within(confirmation).getByRole('button', { name: 'Excluir sprint' }));
+      await waitFor(() => expect(mocks.schedule.removeSprint).toHaveBeenCalledWith(sprint.id));
+      expect(screen.queryByRole('heading', { name: sprint.name })).toBeNull();
+    }
+  );
+  it('uses the destination supplied by the backend in the closing confirmation', async () => {
+    setPlanning([active]);
+    mocks.schedule.getSprintImpact.mockResolvedValue({
+      data: {
+        currentTasks: 3,
+        completion: {
+          completedTasks: 1,
+          pendingTasks: 2,
+          destination: { id: 99, name: 'Backend next' },
+          returnedToBacklog: 0
+        }
+      }
+    });
+    const user = userEvent.setup();
+    renderScreen();
+    await user.click(await screen.findByRole('button', { name: 'Concluir a sprint Sprint Ativa' }));
+    const confirmation = await screen.findByRole('dialog', { name: 'Concluir sprint?' });
+    expect(confirmation).toHaveTextContent('1 tarefa(s) concluída(s) permanecerão no registro');
+    expect(confirmation).toHaveTextContent(
+      '2 tarefa(s) pendente(s) seguirão para a sprint "Backend next"'
+    );
+    expect(mocks.schedule.getSprintImpact).toHaveBeenCalledWith(active.id);
+  });
+  it('retains deleted Milestone identity on a terminal card', async () => {
+    setPlanning([
+      { ...completed, milestone: { id: 10, title: 'Original Marco', deletedAt: '2026-09-04' } }
+    ]);
+    renderScreen();
+    expect(await screen.findByText('Original Marco · Excluído')).toBeInTheDocument();
+  });
+});
+
+describe('contexto da confirmação de impacto', () => {
+  it.each(['concluir', 'excluir'])(
+    'descarta o impacto de %s ao trocar de projeto antes da resposta',
+    async (action) => {
+      const user = userEvent.setup();
+      setPlanning([active]);
+      let resolveImpact;
+      mocks.schedule.getSprintImpact.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveImpact = resolve;
+          })
+      );
+      render(
+        <ConfirmProvider>
+          <MemoryRouter initialEntries={['/projects/1/sprints']}>
+            <Link to="/projects/2/sprints">Trocar de projeto</Link>
+            <Routes>
+              <Route path="/projects/:projectId/sprints" element={<SprintsScreen />} />
+            </Routes>
+          </MemoryRouter>
+        </ConfirmProvider>
+      );
+      await screen.findByRole('heading', { name: active.name });
+      if (action === 'concluir') {
+        await user.click(screen.getByRole('button', { name: 'Concluir a sprint Sprint Ativa' }));
+      } else {
+        const menu = await openMenu(user, active.name);
+        await user.click(within(menu).getByRole('menuitem', { name: /Excluir/ }));
+      }
+      await waitFor(() => expect(mocks.schedule.getSprintImpact).toHaveBeenCalledWith(active.id));
+      setPlanning([]);
+      await user.click(screen.getByRole('link', { name: 'Trocar de projeto' }));
+      await waitFor(() =>
+        expect(mocks.schedule.listSprints).toHaveBeenCalledWith('2', {}, expect.anything())
+      );
+      await act(async () =>
+        resolveImpact({
+          data: {
+            currentTasks: 2,
+            completion: {
+              pendingTasks: 1,
+              completedTasks: 1,
+              destination: null,
+              returnedToBacklog: 1
+            }
+          }
+        })
+      );
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(mocks.schedule.updateSprintStatus).not.toHaveBeenCalled();
+      expect(mocks.schedule.removeSprint).not.toHaveBeenCalled();
+    }
+  );
 });

@@ -10,7 +10,9 @@ const mocks = vi.hoisted(() => ({
     updateWithinProjectLock: vi.fn(),
     transitionWithinSprintLock: vi.fn(),
     mutateScopeWithinSprintLock: vi.fn(),
-    findTasksBySprint: vi.fn(),
+    readTaskProjection: vi.fn(),
+    softDeleteWithinSprintLock: vi.fn(),
+    readImpactSnapshot: vi.fn(),
     scheduleData: vi.fn()
   },
   milestone: {
@@ -292,12 +294,11 @@ describe('marco da sprint', () => {
     lockedMilestones = [{ id: 7 }];
   });
 
-  it('exige marco na criacao', async () => {
+  it('aceita criação sem marco', async () => {
     const semMarco = criar();
     delete semMarco.milestoneId;
-    await expect(sprintService.createSprint(projectId, semMarco)).rejects.toMatchObject({
-      statusCode: 400,
-      code: 'SPRINT_MILESTONE_REQUIRED'
+    await expect(sprintService.createSprint(projectId, semMarco)).resolves.toMatchObject({
+      milestoneId: null
     });
   });
 
@@ -722,23 +723,36 @@ describe('bloqueios de estado terminal', () => {
   });
 });
 
-describe('exclusao de sprint', () => {
+describe('exclusao lógica de sprint', () => {
   it.each(['PLANEJADA', 'EM_ANDAMENTO', 'CONCLUIDA', 'CANCELADA'])(
-    'recusa exclusao de sprint %s',
+    'preserva histórico ao excluir %s',
     async (status) => {
       mocks.sprint.findById.mockResolvedValue({ ...baseSprint, status });
-      await expect(sprintService.deleteSprint(10)).rejects.toMatchObject({
-        statusCode: 405,
-        code: 'SPRINT_DELETE_NOT_SUPPORTED'
+      let plan;
+      mocks.sprint.softDeleteWithinSprintLock.mockImplementation(async (_id, _project, build) => {
+        plan = build({
+          sprint: { ...baseSprint, status },
+          tasks: [{ id: 7, status: 'CONCLUIDO' }]
+        });
+        return { sprint: { ...baseSprint, ...plan.data }, returnedToBacklog: 1 };
       });
+      await expect(sprintService.deleteSprint(10, { actorUserId: 3 })).resolves.toMatchObject({
+        returnedToBacklog: 1
+      });
+      expect(plan.closeOpenMemberships).toBe(!['CONCLUIDA', 'CANCELADA'].includes(status));
+      expect(plan.data).toEqual({ deletedAt: expect.any(Date), deletedById: 3 });
+      expect(plan.historyEntries).toMatchObject([
+        { taskId: 7, field: 'SPRINT', actorUserId: 3, fromValue: '10', toValue: null }
+      ]);
     }
   );
-
-  it('recusa antes de qualquer leitura, sem consultar a sprint', async () => {
+  it('retorna 404 quando não existe', async () => {
+    mocks.sprint.findById.mockResolvedValue(null);
     await expect(sprintService.deleteSprint(999)).rejects.toMatchObject({
-      statusCode: 405
+      statusCode: 404,
+      code: 'SPRINT_NOT_FOUND'
     });
-    expect(mocks.sprint.findById).not.toHaveBeenCalled();
+    expect(mocks.sprint.softDeleteWithinSprintLock).not.toHaveBeenCalled();
   });
 });
 
@@ -1036,13 +1050,9 @@ describe('marcos', () => {
     await expect(sprintService.deleteMilestone(1)).resolves.toEqual({ id: 1 });
   });
 
-  it('recusa excluir marco com sprints, dizendo quantas', async () => {
+  it('permite exclusão lógica mesmo com Sprints vinculadas', async () => {
     lockedSprintCount = 3;
-    await expect(sprintService.deleteMilestone(1)).rejects.toMatchObject({
-      statusCode: 409,
-      code: 'MILESTONE_HAS_SPRINTS'
-    });
-    await expect(sprintService.deleteMilestone(1)).rejects.toThrow(/3 sprint/);
+    await expect(sprintService.deleteMilestone(1)).resolves.toEqual({ id: 1 });
   });
 
   it('rejeita status fora do enum', async () => {

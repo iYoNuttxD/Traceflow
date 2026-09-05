@@ -28,7 +28,9 @@ export function MilestoneSprintSelector({
 
   const otherMilestone = (sprint) =>
     sprint.milestoneId && Number(sprint.milestoneId) !== Number(editingMilestoneId)
-      ? milestoneNames[sprint.milestoneId] || 'outro marco'
+      ? sprint.milestone?.deletedAt
+        ? `${sprint.milestone.title} · Excluído`
+        : milestoneNames[sprint.milestoneId] || 'outro marco'
       : null;
 
   const remove = (sprint) => {
