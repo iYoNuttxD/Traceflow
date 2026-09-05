@@ -829,13 +829,29 @@ dos status observados naquele instante. Exclui removidas antes do fechamento e i
 posteriores ao planejamento ainda presentes. Cards e detalhes usam somente campos históricos
 conhecidos, sem edição ou DnD. Snapshot legado ausente deve ser sinalizado explicitamente.
 
+Novos encerramentos exigem snapshot v2 completo de todas as informações exibidas em Task Details,
+exceto Comments: nome de exibição do responsável e detalhes dos artefatos incluídos. A captura
+é atômica, anterior ao carry-over; falha aborta o encerramento. Legado v1 permanece parcial,
+sem backfill com dados atuais.
+
+Os detalhes no encerramento compartilham a estrutura informacional e a linguagem visual dos
+detalhes da Task atual: título, descrição, Informações, esforços/data e Rastreabilidade.
+Usam exclusivamente a projeção do snapshot; campos não capturados são identificados como
+indisponíveis, sem fallback atual. Não incluem Comments, composer, SSE nem ações mutáveis.
+Sem Comments, o conteúdo ocupa a largura útil, sem coluna vazia. Status coincide com a coluna
+congelada. A ação secundária “Abrir tarefa atual” é explícita e respeita sua disponibilidade.
+
 ---
 
 ## BR-KANBAN-016 — Continuidade não reescreve o quadro histórico
 
 Carry-over e alterações atuais de status, esforço ou demais campos da Task não alteram o
 Kanban congelado da Sprint anterior. Projeto inteiro e Sprint aberta continuam operacionais,
-sem duplicar participações históricas como Tasks atuais.
+sem duplicar participações históricas como Tasks atuais. Abrir a Task atual a partir do snapshot
+substitui o modal por dados/ações atuais e Comments conforme autorização; fechar os detalhes
+preserva o recorte da Sprint histórica e devolve foco ao card. Vínculos atuais nunca completam
+rastreabilidade histórica: v2 preserva os detalhes capturados mesmo após renomeação/exclusão
+do usuário, Task ou artefato; contagens de snapshots legados continuam sendo contagens.
 
 ---
 

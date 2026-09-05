@@ -9,6 +9,10 @@ reserva nominal anterior: safe delete libera o nome, preservando a identidade hi
 Gates locais, navegador real e banco descartável foram executados nesta revisão. Este resultado
 não representa CI remoto, implantação em produção nem aprovação integral dos 112 BR-IDs.
 
+Os addenda 2/3 foram concluídos sobre `48ca54f`, conforme a seção de revalidação ao final:
+snapshot v2 completo, paridade visual dos detalhes, microcopy removida e gates locais finais PASS.
+A baseline abaixo pertence à primeira execução e é preservada como evidência histórica.
+
 ## Baseline
 
 | Campo | Evidência |
@@ -365,3 +369,149 @@ foi executado. Status e diff finais ficam em `git-final.txt` e `git-final.diff` 
 **READY FOR FINAL PLANNING QA**, com F01, F02 e BR-SPRINT-021 resolvidos e evidências locais
 reconciliadas. A autorização desta execução termina nas alterações locais e na limpeza das
 fixtures exclusivas; não houve publicação ou implantação.
+
+
+## Revalidação — Addenda 2/3
+
+**TECHNICALLY PASS — READY FOR FINAL PLANNING QA**, no escopo registrado abaixo.
+
+Baseline reconfirmada: branch `joao-dev-v2`, HEAD `48ca54f6cb9f39db58b595ba6b08bd52dbdaeb1b`.
+O checkout estava limpo ao início do addendum 2. Na chegada do addendum 3, continha somente as
+alterações em andamento desse refinamento; nenhuma foi descartada. `git diff --check` identificou
+uma linha vazia final no CSS durante essa transição, corrigida antes dos gates finais.
+Não houve commit, push, merge, rebase, reset ou alteração de PR.
+
+Evidências novas: `/private/tmp/planning-qa-fix-04-frozen-details`. Os resultados da execução
+anterior acima não foram relabelados como resultados desta revisão. F01/F02 e a liberação do nome
+após safe delete permanecem integrados; suas regressões foram reexecutadas nos gates atuais.
+As reproduções browser F01/F02 originais permanecem documentadas acima; o novo smoke browser
+concentrou-se nos addenda 2/3. Não há alteração nos owners dos catálogos nesta revisão.
+
+## Complete Frozen Task Snapshot
+
+**PASS.** Old snapshot: v1 parcial, com título/prioridade/ID do responsável/prazo e contagens.
+New snapshot: `closingTaskSnapshot.version=2`, autossuficiente para a informação de Task Details.
+Status, esforço estimado e cutoff continuam nas colunas históricas existentes da participação.
+
+| Informação | Captura histórica / evidência |
+|---|---|
+| ID e título | `id`, `title`; sobrevivem à exclusão da Task atual |
+| Description | `description`, preservada após alteração corrente |
+| Priority | `priority` |
+| Assignee | `responsibleUserId` + `responsibleDisplayName`; nome anterior preservado após renomeação; sem e-mail/perfil |
+| Deadline | `deadline`, ISO UTC ou null |
+| Status | `SprintTask.exitStatus`; mesmo valor no card, coluna e detalhes |
+| Estimated effort | `SprintTask.pointsAtClose`, sem consultar a Task atual |
+| Actual effort | `actualEffort` |
+| Created at | `createdAt`, ISO UTC, copiado para o JSON |
+| Requirement snapshot | id/title/status |
+| Pull Request snapshot | id/number/title/state/githubUrl |
+| Commit snapshot | id/hash/message/authorName/date/githubUrl; sem authorEmail |
+| Issue snapshot | id/number/title/state/labels/githubUrl |
+| Comments | ABSENT; nenhuma cópia de conversa, tombstone, composer ou SSE |
+| Current lookup required | **NO** |
+
+Legacy handling: v1 é preservado e sinalizado por `LEGACY_CLOSING_TASK_DETAILS_PARTIAL`;
+JSON ausente/versão não suportada continua com `LEGACY_CLOSING_TASK_SNAPSHOT_UNAVAILABLE`.
+Não existe backfill a partir de registros atuais. Limitação de outra Task no envelope não transforma
+um snapshot v2 completo em indisponível. Null capturado é distinto de campo legado não capturado.
+
+Transaction/capture timing: locks existentes de Project/Sprints/Tasks precedem a visão consistente
+`RepeatableRead`; dados da Task, responsável e artefatos são lidos pelo mesmo `tx`. A captura ocorre
+antes de persistir o estado terminal e executar carry-over/eventos. Não foram adicionados locks de
+artefatos. Teste determinístico atualiza metadados de PR durante a transação e confirma que a captura
+permanece na mesma visão lógica. Falha injetada no segundo snapshot desfaz o primeiro, o encerramento
+e o carry-over. Inconsistência entre Task ativa e participação aborta a captura.
+
+Migration: **NOT APPLICABLE para DDL adicional**. O JSON nullable já existente suporta o formato v2;
+não há mudança de schema que justifique uma migration vazia. Nenhuma migration histórica editada,
+nenhum reset, nenhum backfill fabricado. As 48 migrations canônicas foram aplicadas em schemas novos;
+Prisma validate e migration status PASS. JSON e RepeatableRead são compatíveis com MySQL 8.4.8;
+o servidor observado localmente é 9.7.1, não uma execução da versão de CI.
+
+Testes versionados: `backend/test/integration/planning-frozen-kanban.test.js` cobre cada campo,
+metadados posteriores, exclusão/unlink de artefatos, renomeação do responsável, Task excluída,
+v1/JSON ausente, rollback e consistência concorrente. O cenário adicional real de API/DB troca
+R1/PR #10/commits A–B/issue #5 por R2/PR #11/commits C–E/issues #6–7 e renomeia o responsável:
+`complete-relink-proof.json` confirma igualdade integral da projeção histórica antes/depois.
+
+## Frozen Task Details
+
+Visual parity: **PASS** na matriz renderizada. Snapshot-only: **PASS**.
+
+Description: hierarquia compartilhada com o atual, texto histórico completo em v2.
+Information: mesma grade Prioridade/Responsável/Prazo/Status e mesmos badges.
+Secondary information: esforços e criação na mesma organização visual.
+Traceability: `TaskTraceability` compartilhado; quatro categorias, cards/contagens e ação C2
+“Abrir no GitHub ↗” para URLs históricas capturadas. V1 mostra somente suas contagens confiáveis.
+Comments: **ABSENT**. Mutable actions: **ABSENT**. Sem coluna vazia de Comments.
+Header: ID/título em destaque, “Estado no encerramento” e timestamp do corte.
+Open current Task: explícito e secundário; substitui o modal por valores atuais, Comments e ações
+autorizadas; fechamento preserva a Sprint histórica e retorna foco ao card.
+Unavailable current: FK nullable após exclusão física omite a ação; corrida HTTP 404 mantém histórico
+com feedback e ação desabilitada (teste de página). Nenhum contrato de soft delete de Task inventado.
+
+Light/Dark: **PASS**. Responsive: **PASS** em 1440, 1024, 768 e 390, altura 1000.
+Enter/Space, Escape, foco e ausência de GET atual/artefatos ao abrir Frozen: **PASS** no Chrome real.
+Nenhum overflow horizontal global nos oito cenários. O modal limita altura pelo viewport.
+Long content: título/descrição longos dentro do limite real da API (191 caracteres para descrição),
+16 commits e 12 issues. Corrigido o override mobile que removia o scroll dos cards com altura limitada;
+listas agora mantêm scroll interno nas duas apresentações. Últimos artefatos acessíveis em ambos os temas.
+Legacy, empty traceability e current Task excluída: renderizados em ambos os temas no mobile.
+
+Capturas em `/private/tmp/planning-qa-fix-04-frozen-details`:
+
+- `frozen-details-{light,dark}-{1440,1024,768,390}.png` e
+  `current-details-{light,dark}-{1440,1024,768,390}.png`;
+- `frozen-traceability-{light,dark}-{1440,1024,768,390}.png`;
+- `frozen-long-{light,dark}-{1440,1024,768,390}.png` e `frozen-long-last-links-*.png`;
+- `frozen-{legacy,empty,deleted}-{light,dark}-390.png` e `current-long-{light,dark}-390.png`.
+
+`browser-smoke.json`, `browser-long.json`, `browser-edges.json` e `fixture-proof.json` registram
+asserts/medidas e comparações. O [Visual Validation Log](../design/validation/VISUAL_VALIDATION_LOG.md)
+e o [inventário](../design/UI_SURFACE_INVENTORY.md) delimitam a aprovação renderizada.
+Não há certificação WCAG, validação de destinos GitHub externos nem promoção dos estados transitórios
+loading/erro à aprovação visual; esses estados continuam cobertos pelos testes automatizados.
+
+## Frozen Sprint Microcopy
+
+Removed: “Sprints congeladas são visualizadas individualmente.”
+Replacement: **NONE**. Busca de variantes singular/plural não encontrou outra ocorrência na UI.
+Badge/contexto “CONGELADA” e “Estado congelado no encerramento” foram preservados.
+
+## Gates finais dos addenda
+
+| Gate | Resultado desta revisão |
+|---|---|
+| Frontend lint / format | PASS |
+| Frontend focused | 8 arquivos, 181 testes PASS |
+| Frontend full / coverage | 69 arquivos, 762 testes PASS |
+| Frontend coverage | statements 81,10%; branches 74,92%; functions 76,80%; lines 83,38%; thresholds PASS |
+| Frontend production build | PASS |
+| F01/F02 stress | 20 execuções consecutivas de 41 testes de races PASS |
+| Backend lint / format | PASS |
+| Backend focused | 154 testes PASS, incluindo frozen/history/carry-over/terminal/name reuse/safe delete/API |
+| Backend unit | 554 testes PASS |
+| Backend integration/API | 394 PASS; 5 skips canônicos pré-LR.2, sem novos skips |
+| Backend coverage runs 1–5 | 948 PASS + 5 skips canônicos em cada execução, cinco exits 0 consecutivos |
+| Backend coverage | statements 90,31–90,33%; branches 79,31–79,33%; functions 94,11%; lines 92,83%; thresholds PASS |
+| Prisma validate / migration status | PASS; 48 migrations, schema atualizado |
+| Architecture / secrets | PASS |
+| Supply-chain policy / workflow tests | PASS |
+| Audit frontend / backend | PASS; 0 high, 0 critical, nenhuma exceção consumida |
+| Git diff check | PASS |
+
+Manifestos: `frontend-gates.json`, `backend-final-gates.json`, `race-stress.json`. Logs finais backend
+possuem prefixo `final-`. A rodada inicial teve falha na preparação do novo teste (dois upserts
+simultâneos do mesmo branch artificial); a fixture foi corrigida para criação sequencial. Seus logs
+iniciais foram preservados e não contam como PASS nem como parte das cinco coberturas finais.
+As pequenas diferenças percentuais entre coberturas são observadas, sem falhas de threshold.
+
+Ambiente: Node 22.23.2, MySQL local 9.7.1, Chrome headless real, aplicação/API reais, dados artificiais.
+Schemas exclusivos `traceflow_test_fix04_a2_gates_20260905` e `traceflow_test_fix04_a2_core_20260905`;
+nenhuma suite destrutiva apontou para schema compartilhado. `cleanup.json` registra remoção desses
+schemas/perfil Chrome e encerramento dos serviços, preservando schemas preexistentes e evidências.
+CI remoto e Dependency Review de PR não foram executados; não houve mudança de dependências.
+
+Remaining issues no escopo implementado: **NONE**. Legado continua explicitamente limitado por contrato;
+não é convertido em passado completo com dados atuais. Recommendation: **READY FOR FINAL PLANNING QA**.

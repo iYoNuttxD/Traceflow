@@ -133,3 +133,8 @@
     margin-left: auto;
   }
 }
+
+.kanban-dialog__header > div:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
