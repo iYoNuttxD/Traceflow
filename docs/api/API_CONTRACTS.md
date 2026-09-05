@@ -359,7 +359,7 @@ de D12. Quatro convenções valem para tudo abaixo:
 
 | Método | Caminho | Entrada | Sucesso | Regras |
 |---|---|---|---|---|
-| POST | `/projects/:projectId/sprints` | `name`, `objective?`, `startDate`, `endDate`, `milestoneId?` (aceita null) | `201` `{message, sprint}` | `startDate < endDate`; nome único no projeto; sem sobreposição com outra sprint do projeto; marco do mesmo projeto |
+| POST | `/projects/:projectId/sprints` | `name`, `objective?`, `startDate`, `endDate`, `milestoneId?` (aceita null) | `201` `{message, sprint}` | `startDate < endDate`; nome único entre Sprints não excluídas no projeto; sem sobreposição com outra sprint do projeto; marco do mesmo projeto |
 | GET | `/projects/:projectId/sprints` | `status?`, `search?` | `200` `{total, sprints}` | ordenado por `startDate` asc |
 | GET | `/sprints/:id` | — | `200` `{sprint}` | membership no projeto da sprint |
 | PUT | `/sprints/:id` | subconjunto de `name`, `objective`, `startDate`, `endDate`, `milestoneId` | `200` `{message, sprint}` | bloqueado em estado terminal; revalida sobreposição; `milestoneId: null` desvincula |
@@ -411,8 +411,10 @@ são alterados. Tudo ocorre na mesma transação, com locks Project → Sprint �
 
 A Sprint excluída sai de listagens, seletores, Schedule, sobreposição, slot ativo e destinos de
 carry-over. GET/update/status/scope recebem `404 SPRINT_NOT_FOUND`. DELETE repetido recebe
-`409 SPRINT_ALREADY_DELETED`, sem novos efeitos. O nome permanece reservado pela unicidade
-histórica `(projectId, name)`; exclusão lógica não renomeia registros. Reabertura continua ausente.
+`409 SPRINT_ALREADY_DELETED`, sem novos efeitos. O nome é liberado para criação/renomeação de outra Sprint no mesmo projeto, preservando
+o nome original e o ID histórico (BR-SPRINT-021, adendo FIX-04). A unicidade considera somente
+`deletedAt = null`; outra Sprint atual com o mesmo nome recebe `409 SPRINT_NAME_IN_USE`.
+Exclusão lógica não renomeia registros. Reabertura continua ausente.
 
 **Prévia de impacto.** `completion` contém `{pendingTasks, completedTasks, destination,
 returnedToBacklog}`; `destination` é `{id,name}` ou null. `currentTasks` conta todos os ponteiros
@@ -673,7 +675,7 @@ O DTO de tarefa é minimizado: nunca e-mail nem descrição.
 |---|---|---|
 | `SPRINT_NOT_FOUND` | 404 | sprint inexistente **ou** de projeto que o ator não enxerga |
 | `MILESTONE_NOT_FOUND` | 404 | idem, para marco |
-| `SPRINT_NAME_IN_USE` | 409 | nome repetido no projeto |
+| `SPRINT_NAME_IN_USE` | 409 | nome repetido em Sprint atual do projeto |
 | `SPRINT_OVERLAP` | 409 | janela cruza outra sprint do projeto |
 | `SPRINT_ALREADY_ACTIVE` | 409 | já existe outra sprint `EM_ANDAMENTO` no projeto |
 | `SPRINT_INVALID_TRANSITION` | 409 | transição de status não permitida |

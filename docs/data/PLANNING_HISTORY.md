@@ -131,7 +131,7 @@ nullable em SprintTask e dois campos nullable em cada entidade Sprint/Milestone.
 `(projectId, deletedAt, status)` e de `deletedById`; FK de ator para User usa `SetNull`. JSON não
 possui FK: IDs são identificadores observados no corte. Permanecem os índices de participação e
 as cascatas anteriores. A exclusão de domínio nunca executa DELETE físico nessas entidades.
-O nome da Sprint continua único no projeto, inclusive quando reservado por tombstone.
+A reserva nominal de tombstones da FIX-03 foi substituída pelo adendo FIX-04, descrito abaixo.
 
 Excluir Sprint em qualquer estado preserva a linha, baseline, histórico e snapshots. Todos os
 ponteiros atuais vão ao backlog com ator, sem status/conclusão/carry-over. Participação aberta
@@ -143,3 +143,49 @@ usam inclusão explícita. Tombstones não ocupam janela/slot ativo nem recebem 
 O Marco é opcional desde a criação por decisão explícita da FIX-03. Essa mudança não exige
 schema adicional: `Sprint.milestoneId` já era nullable. A capacidade, o baseline, o freeze e a
 proteção de associações terminais permanecem; excluir não significa reabrir ou reescrever.
+## Unicidade nominal atual — FIX-04
+
+`Sprint.id` continua sendo identidade. `name` histórico nunca é renomeado no safe delete.
+`activeNameKey` é uma coluna nullable gerada pelo MySQL: `CASE WHEN deletedAt IS NULL THEN name
+ELSE NULL END`. O índice único `(projectId, activeNameKey)` admite múltiplos tombstones com
+chave NULL e proíbe dois nomes equivalentes no catálogo atual. Criação, rename e tombstone
+atualizam a chave automaticamente na própria escrita, inclusive fora do repository.
+
+A migration incremental `20260905030000_sprint_active_name_uniqueness` deriva charset/collation
+exatamente da coluna `name` existente. Não introduz lower-case, normalização Unicode ou outro
+trim; o service mantém o trim vigente. Uma única alteração de tabela materializa a coluna,
+valida o índice novo e retira o índice antigo. Duplicata ativa interrompe a alteração com erro
+de unicidade; nenhuma linha é escolhida ou renomeada. IDs, campos históricos e relações não mudam.
+
+A geração e o índice são SQL versionado, pois o schema Prisma não representa completamente
+`GENERATED ALWAYS ... STORED`. O campo tem `@default(dbgenerated())` para que o Client omita a
+chave nas escritas; nenhum DTO público a expõe. Não substituir a migration por `db push` nem
+aceitar automaticamente um diff que remova a expressão gerada. Funcionalidade suportada por
+[MySQL 8.4](https://dev.mysql.com/doc/refman/8.4/en/create-table-generated-columns.html);
+customizações seguem o fluxo de [features sem representação no schema Prisma](https://docs.prisma.io/docs/orm/v6/prisma-schema/data-model/unsupported-database-features).
+
+## Reconciliação dos catálogos atuais — FIX-04
+
+`useScheduleData` concentra as escritas de Sprints, Marcos e Schedule. O helper local
+`useScopedAsyncCatalog` combina identidade da visita ao projeto, geração do contexto e versões
+independentes por recurso. A operação captura o contexto antes do primeiro `await`; uma resposta
+só aplica dados ou feedback se esse contexto ainda estiver ativo. Voltar A → B → A cria outra
+visita. As telas isolam também formulário, filtros e diálogos por `projectId`.
+
+Uma mutation confirmada invalida leituras anteriores dos recursos afetados antes de aplicar seu
+DTO por ID. O recibo fixa as versões usadas pela reconciliação posterior; callbacks antigos não
+podem iniciar um refresh em nome de uma visita nova. Reads do mesmo recurso seguem latest-wins;
+`AbortController` economiza trabalho, mas tokens continuam sendo autoridade quando o transporte
+ignora o abort. Mutations iniciadas não são abortadas por navegação.
+
+Criação/edição de Sprint reconcilia Sprints e Schedule; exclusão usa remoção local e Schedule.
+Conclusão atualiza Marcos quando o backend confirma conclusão automática de Marco. Mudanças de
+Marco atualizam Sprints quando há referências afetadas; escopo atualiza Sprints e Schedule.
+Projeto e membership não são recarregados a cada mutation. O snapshot derivado invalidado sai do
+state até uma leitura válida, sem usar a lista antiga como fallback. Falha dessa leitura mantém
+o DTO/remoção confirmado e apresenta aviso de atualização. Tombstones observados na visita
+impedem um DTO ativo tardio de restaurar o mesmo ID; outro ID com o mesmo nome é independente.
+
+Formulários têm envio único e locks por entidade para operações incompatíveis. Confirmações de
+entidades independentes usam merge funcional, preservando todas mesmo em ordem inversa.
+Evidências e limites: [PLANNING_QA_FIX_04.md](../qa/PLANNING_QA_FIX_04.md).
