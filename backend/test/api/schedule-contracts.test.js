@@ -185,6 +185,49 @@ describe('contratos de sprint', () => {
     expect(conflict.body.code).toBe('SPRINT_NAME_IN_USE');
   });
 
+  it.each(['post', 'put'])(
+    'FIX-04 %s reuses a deleted name, rejects active duplicates and preserves historical identity',
+    async (method) => {
+      const owner = await register(`reuse-${method}@example.invalid`);
+      const project = await createProject(owner);
+      const first = (await createSprint(owner, project.id)).body.sprint;
+      const second = (
+        await createSprint(owner, project.id, {
+          name: 'Outra',
+          startDate: '2026-09-01',
+          endDate: '2026-09-14'
+        })
+      ).body.sprint;
+      const attempt = () =>
+        method === 'post'
+          ? createSprint(owner, project.id, {
+              name: first.name,
+              startDate: '2026-10-01',
+              endDate: '2026-10-14'
+            })
+          : owner.mutate('put', `/api/sprints/${second.id}`).send({ name: first.name });
+      const active = await attempt();
+      expect(active.status).toBe(409);
+      expect(active.body).toMatchObject({
+        code: 'SPRINT_NAME_IN_USE',
+        message: 'Já existe uma sprint com este nome neste projeto.'
+      });
+      expect((await owner.mutate('delete', `/api/sprints/${first.id}`)).status).toBe(200);
+      const before = await prisma.sprint.findUnique({ where: { id: first.id } });
+      const deleted = await attempt();
+      expect(deleted.status).toBe(method === 'post' ? 201 : 200);
+      expect(deleted.body.sprint.id).not.toBe(first.id);
+      expect(deleted.body.sprint.name).toBe(first.name);
+      expect(deleted.body.sprint).not.toHaveProperty('activeNameKey');
+      expect(await prisma.sprint.findUnique({ where: { id: first.id } })).toEqual(before);
+      const ids = (await owner.agent.get(`/api/projects/${project.id}/sprints`)).body.sprints.map(
+        (s) => s.id
+      );
+      expect(ids).not.toContain(first.id);
+      expect(ids).toContain(deleted.body.sprint.id);
+    }
+  );
+
   it('rejeita inicio posterior ao fim', async () => {
     const owner = await register('sprint-range@example.invalid');
     const project = await createProject(owner);

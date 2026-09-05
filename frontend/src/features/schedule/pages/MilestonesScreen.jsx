@@ -39,16 +39,22 @@ const FORM_DIALOGS = new Set(['create', 'edit']);
 
 export function MilestonesScreen() {
   const { projectId } = useParams();
+  return <ProjectMilestonesScreen key={projectId} projectId={projectId} />;
+}
+
+function ProjectMilestonesScreen({ projectId }) {
   const confirm = useConfirm();
   const dialogReturnFocusRef = useRef(null);
   const gridRef = useRef(null);
+  const mutationLocks = useRef(new Set());
 
   const {
     schedule,
     sprints,
     milestones,
-    setSprints,
-    setMilestones,
+    captureContext,
+    isCurrentContext,
+    confirmMutation,
     somenteLeitura,
     loading,
     forbidden,
@@ -131,8 +137,11 @@ export function MilestonesScreen() {
 
   async function submitMilestone(event) {
     event.preventDefault();
+    if (submitting || mutationLocks.current.has('form')) return;
+    const context = captureContext();
     const editing = dialog?.type === 'edit';
     const editingId = editing ? dialog.milestone.id : null;
+    if (editingId && mutationLocks.current.has(editingId)) return;
     const errors = validateMilestoneForm(milestoneForm);
     setMilestoneErrors(errors);
     setFormError('');
@@ -142,6 +151,8 @@ export function MilestonesScreen() {
       return;
     }
 
+    mutationLocks.current.add('form');
+    if (editingId) mutationLocks.current.add(editingId);
     setSubmitting(true);
     try {
       const payload = {
@@ -155,16 +166,11 @@ export function MilestonesScreen() {
       const savedMilestone = response.data.milestone || null;
       const targetId = editingId || savedMilestone?.id || null;
 
-      if (savedMilestone) {
-        setMilestones((current) => {
-          const exists = current.some((item) => Number(item.id) === Number(savedMilestone.id));
-          return exists
-            ? current.map((item) =>
-                Number(item.id) === Number(savedMilestone.id) ? savedMilestone : item
-              )
-            : [...current, savedMilestone];
-        });
-      }
+      const affectsSprints =
+        formSprintIds.length > 0 ||
+        (editing && sprints.some((sprint) => Number(sprint.milestoneId) === Number(editingId)));
+      const affected = ['milestones', 'schedule', ...(affectsSprints ? ['sprints'] : [])];
+      let receipt = confirmMutation(context, 'milestones', savedMilestone, affected);
 
       const mutableSprints = sprints.filter((sprint) => !isTerminalSprint(sprint.status));
       const toMove = targetId
@@ -187,79 +193,84 @@ export function MilestonesScreen() {
       try {
         for (const sprint of toMove) {
           const updated = await scheduleApi.updateSprint(sprint.id, { milestoneId: targetId });
-          if (updated.data.sprint) {
-            setSprints((current) =>
-              current.map((item) =>
-                Number(item.id) === Number(sprint.id) ? updated.data.sprint : item
-              )
-            );
-          }
+          receipt = confirmMutation(context, 'sprints', updated.data.sprint, [
+            'sprints',
+            'milestones',
+            'schedule'
+          ]);
         }
         for (const sprint of toRelease) {
           const updated = await scheduleApi.updateSprint(sprint.id, { milestoneId: null });
-          if (updated.data.sprint) {
-            setSprints((current) =>
-              current.map((item) =>
-                Number(item.id) === Number(sprint.id) ? updated.data.sprint : item
-              )
-            );
-          }
+          receipt = confirmMutation(context, 'sprints', updated.data.sprint, [
+            'sprints',
+            'milestones',
+            'schedule'
+          ]);
         }
       } catch {
         associationFailed = true;
       }
 
+      if (!isCurrentContext(context) || !receipt) return;
       setDialog(null);
       setMilestoneForm(emptyMilestoneForm);
       setFormSprintIds([]);
       setMilestoneErrors({});
       const refresh = () =>
         Promise.all([
-          refreshMilestones(),
-          refreshSchedule(),
-          toMove.length || toRelease.length ? refreshSprints() : Promise.resolve()
+          refreshMilestones(receipt),
+          refreshSchedule({}, receipt),
+          ...(affectsSprints ? [refreshSprints(receipt)] : [])
         ]);
 
       if (associationFailed || !targetId) {
-        warn('Marco salvo, mas não foi possível atualizar todas as Sprints selecionadas.');
+        warn('Marco salvo, mas não foi possível atualizar todas as Sprints selecionadas.', context);
         try {
           await refresh();
         } catch {
           warn(
-            'Marco salvo, mas as Sprints e os dados exibidos não puderam ser atualizados. Recarregue a página.'
+            'Marco salvo, mas as Sprints e os dados exibidos não puderam ser atualizados. Recarregue a página.',
+            context
           );
         }
       } else {
         await settle(
           editing ? 'Marco atualizado com sucesso.' : 'Marco criado com sucesso.',
-          refresh
+          refresh,
+          context
         );
       }
     } catch (requestError) {
-      setFormError(normalizeApiError(requestError, 'Não foi possível salvar o marco.').message);
+      if (isCurrentContext(context))
+        setFormError(normalizeApiError(requestError, 'Não foi possível salvar o marco.').message);
     } finally {
-      setSubmitting(false);
+      mutationLocks.current.delete('form');
+      if (editingId) mutationLocks.current.delete(editingId);
+      if (isCurrentContext(context)) setSubmitting(false);
     }
   }
 
   async function reopenMilestone(milestone) {
+    if (mutationLocks.current.has(milestone.id)) return;
+    mutationLocks.current.add(milestone.id);
+    const context = captureContext();
     setBusyMilestoneId(milestone.id);
     try {
       const { data } = await scheduleApi.updateMilestoneStatus(milestone.id, 'PENDENTE');
-      if (data.milestone) {
-        setMilestones((current) =>
-          current.map((item) => (Number(item.id) === Number(milestone.id) ? data.milestone : item))
-        );
-      }
-      await settle('Marco reaberto com sucesso.', refreshSchedule);
+      const receipt = confirmMutation(context, 'milestones', data.milestone);
+      if (!receipt) return;
+      await settle('Marco reaberto com sucesso.', () => refreshSchedule({}, receipt), context);
     } catch (requestError) {
-      handleFailure(requestError, 'Não foi possível reabrir o marco.');
+      handleFailure(requestError, 'Não foi possível reabrir o marco.', context);
     } finally {
-      setBusyMilestoneId(null);
+      mutationLocks.current.delete(milestone.id);
+      if (isCurrentContext(context)) setBusyMilestoneId(null);
     }
   }
 
   async function removeMilestone(milestone) {
+    if (mutationLocks.current.has(milestone.id)) return;
+    const context = captureContext();
     const confirmed = await confirm({
       title: 'Excluir marco?',
       description:
@@ -267,20 +278,39 @@ export function MilestonesScreen() {
         'As Sprints vinculadas, Tasks e seu histórico serão preservados. As referências existentes indicarão Marco excluído.',
       confirmLabel: 'Excluir marco'
     });
-    if (!confirmed) return;
+    if (!confirmed || !isCurrentContext(context) || mutationLocks.current.has(milestone.id)) return;
+    mutationLocks.current.add(milestone.id);
 
     setBusyMilestoneId(milestone.id);
     try {
       await scheduleApi.removeMilestone(milestone.id);
-      setMilestones((current) =>
-        current.filter((item) => Number(item.id) !== Number(milestone.id))
+      const affectsSprints = sprints.some(
+        (sprint) => Number(sprint.milestoneId) === Number(milestone.id)
       );
-      queueMicrotask(() => gridRef.current?.focus());
-      await settle('Marco excluído com sucesso.', refreshSchedule);
+      const receipt = confirmMutation(
+        context,
+        'milestones',
+        { id: milestone.id, deletedAt: true },
+        ['milestones', 'schedule', ...(affectsSprints ? ['sprints'] : [])]
+      );
+      if (!receipt) return;
+      queueMicrotask(() => {
+        if (isCurrentContext(context)) gridRef.current?.focus();
+      });
+      await settle(
+        'Marco excluído com sucesso.',
+        () =>
+          Promise.all([
+            refreshSchedule({}, receipt),
+            ...(affectsSprints ? [refreshSprints(receipt)] : [])
+          ]),
+        context
+      );
     } catch (requestError) {
-      handleFailure(requestError, 'Não foi possível excluir o marco.');
+      handleFailure(requestError, 'Não foi possível excluir o marco.', context);
     } finally {
-      setBusyMilestoneId(null);
+      mutationLocks.current.delete(milestone.id);
+      if (isCurrentContext(context)) setBusyMilestoneId(null);
     }
   }
 

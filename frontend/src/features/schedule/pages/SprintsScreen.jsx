@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { ProjectSectionNav } from '../../projects/index.js';
 import {
@@ -38,6 +38,10 @@ const FORM_DIALOGS = new Set(['create', 'edit']);
 
 export function SprintsScreen() {
   const { projectId } = useParams();
+  return <ProjectSprintsScreen key={projectId} projectId={projectId} />;
+}
+
+function ProjectSprintsScreen({ projectId }) {
   const navigate = useNavigate();
   const confirm = useConfirm();
   const { run: runTasksRequest, cancel: cancelTasksRequest } = useAbortableRequest();
@@ -45,13 +49,15 @@ export function SprintsScreen() {
   const dialogReturnFocusRef = useRef(null);
   const gridRef = useRef(null);
   const selectedSprintRef = useRef(null);
-  const mutationGenerationRef = useRef(0);
+  const mutationLocks = useRef(new Set());
 
   const {
     schedule,
     sprints,
     milestones,
-    setSprints,
+    captureContext,
+    isCurrentContext,
+    confirmMutation,
     somenteLeitura,
     loading,
     forbidden,
@@ -86,14 +92,6 @@ export function SprintsScreen() {
 
   const [filters, setFilters] = useState({ ...SPRINT_FILTER_DEFAULTS });
   const [selectedFilterTask, setSelectedFilterTask] = useState(null);
-
-  useEffect(() => {
-    mutationGenerationRef.current += 1;
-    setBusySprintId(null);
-    return () => {
-      mutationGenerationRef.current += 1;
-    };
-  }, [projectId]);
 
   const sprintNames = useMemo(
     () => Object.fromEntries(sprints.map((item) => [item.id, item.name])),
@@ -170,6 +168,7 @@ export function SprintsScreen() {
 
   const loadTasksDialog = useCallback(
     async (sprint) => {
+      const context = captureContext();
       selectedSprintRef.current = sprint.id;
       setTasksLoading(true);
       setTasksError('');
@@ -183,19 +182,21 @@ export function SprintsScreen() {
           ]);
           return { tasks: tasksResponse.data.tasks || [], progress: progressResponse.data };
         });
-        if (!result || selectedSprintRef.current !== sprint.id) return;
+        if (!result || !isCurrentContext(context) || selectedSprintRef.current !== sprint.id)
+          return;
         setSprintTasks(result.tasks);
         setTasksProgress(result.progress);
       } catch (requestError) {
-        if (selectedSprintRef.current !== sprint.id) return;
+        if (!isCurrentContext(context) || selectedSprintRef.current !== sprint.id) return;
         setTasksError(
           normalizeApiError(requestError, 'Não foi possível carregar as tarefas da sprint.').message
         );
       } finally {
-        if (selectedSprintRef.current === sprint.id) setTasksLoading(false);
+        if (isCurrentContext(context) && selectedSprintRef.current === sprint.id)
+          setTasksLoading(false);
       }
     },
-    [runTasksRequest]
+    [runTasksRequest, captureContext, isCurrentContext]
   );
 
   function openTasks(sprint, trigger) {
@@ -206,6 +207,7 @@ export function SprintsScreen() {
 
   const loadProgressDialog = useCallback(
     async (sprint) => {
+      const context = captureContext();
       selectedSprintRef.current = sprint.id;
       setProgress(null);
       setProgressError('');
@@ -214,18 +216,20 @@ export function SprintsScreen() {
         const response = await runProgressRequest((signal) =>
           scheduleApi.getSprintProgress(sprint.id, { signal })
         );
-        if (!response || selectedSprintRef.current !== sprint.id) return;
+        if (!response || !isCurrentContext(context) || selectedSprintRef.current !== sprint.id)
+          return;
         setProgress(response.data);
       } catch (requestError) {
-        if (selectedSprintRef.current !== sprint.id) return;
+        if (!isCurrentContext(context) || selectedSprintRef.current !== sprint.id) return;
         setProgressError(
           normalizeApiError(requestError, 'Não foi possível calcular a evolução da sprint.').message
         );
       } finally {
-        if (selectedSprintRef.current === sprint.id) setProgressLoading(false);
+        if (isCurrentContext(context) && selectedSprintRef.current === sprint.id)
+          setProgressLoading(false);
       }
     },
-    [runProgressRequest]
+    [runProgressRequest, captureContext, isCurrentContext]
   );
 
   function openProgress(sprint, trigger) {
@@ -236,8 +240,11 @@ export function SprintsScreen() {
 
   async function submitSprint(event) {
     event.preventDefault();
+    if (submitting || mutationLocks.current.has('form')) return;
+    const context = captureContext();
     const editing = dialog?.type === 'edit';
     const editingId = editing ? dialog.sprint.id : null;
+    if (editingId && mutationLocks.current.has(editingId)) return;
     const errors = validateSprintForm(sprintForm, { editing });
     setSprintErrors(errors);
     setFormError('');
@@ -255,6 +262,8 @@ export function SprintsScreen() {
       return;
     }
 
+    mutationLocks.current.add('form');
+    if (editingId) mutationLocks.current.add(editingId);
     setSubmitting(true);
     try {
       const payload = {
@@ -270,14 +279,7 @@ export function SprintsScreen() {
       const savedSprint = response.data.sprint || null;
       const targetId = editingId || savedSprint?.id || null;
 
-      if (savedSprint) {
-        setSprints((current) => {
-          const exists = current.some((item) => item.id === savedSprint.id);
-          return exists
-            ? current.map((item) => (item.id === savedSprint.id ? savedSprint : item))
-            : [...current, savedSprint];
-        });
-      }
+      let receipt = confirmMutation(context, 'sprints', savedSprint);
 
       const originalTaskIds = editing
         ? (scheduleById[editingId]?.tasks || []).map((task) => Number(task.id))
@@ -291,6 +293,7 @@ export function SprintsScreen() {
       if (tasksChanged && targetId) {
         try {
           await scheduleApi.replaceSprintTasks(targetId, nextTaskIds);
+          receipt = confirmMutation(context, 'sprints', null, ['sprints', 'schedule']);
         } catch {
           taskAssociationFailed = true;
         }
@@ -298,30 +301,39 @@ export function SprintsScreen() {
         taskAssociationFailed = true;
       }
 
+      if (!isCurrentContext(context) || !receipt) return;
       setDialog(null);
       setSprintForm(emptySprintForm);
       setFormTasks([]);
       setSprintErrors({});
-      const refresh = () => Promise.all([refreshSprints(), refreshSchedule()]);
+      const refresh = () => Promise.all([refreshSprints(receipt), refreshSchedule({}, receipt)]);
       if (taskAssociationFailed) {
-        warn('Sprint salva, mas não foi possível atualizar suas tarefas. Revise a composição.');
+        warn(
+          'Sprint salva, mas não foi possível atualizar suas tarefas. Revise a composição.',
+          context
+        );
         try {
           await refresh();
         } catch {
           warn(
-            'Sprint salva, mas as tarefas e os dados exibidos não puderam ser atualizados. Recarregue a página.'
+            'Sprint salva, mas as tarefas e os dados exibidos não puderam ser atualizados. Recarregue a página.',
+            context
           );
         }
       } else {
         await settle(
           editing ? 'Sprint atualizada com sucesso.' : 'Sprint criada com sucesso.',
-          refresh
+          refresh,
+          context
         );
       }
     } catch (requestError) {
-      setFormError(normalizeApiError(requestError, 'Não foi possível salvar a sprint.').message);
+      if (isCurrentContext(context))
+        setFormError(normalizeApiError(requestError, 'Não foi possível salvar a sprint.').message);
     } finally {
-      setSubmitting(false);
+      mutationLocks.current.delete('form');
+      if (editingId) mutationLocks.current.delete(editingId);
+      if (isCurrentContext(context)) setSubmitting(false);
     }
   }
 
@@ -329,28 +341,38 @@ export function SprintsScreen() {
     const sprint = dialogSprint;
     if (!sprint) return;
     const sprintId = sprint.id;
+    if (submitting || mutationLocks.current.has(sprintId)) return;
+    const context = captureContext();
+    mutationLocks.current.add(sprintId);
     setSubmitting(true);
     setTasksError('');
     try {
       await scheduleApi.replaceSprintTasks(sprintId, taskIds);
+      const receipt = confirmMutation(context, 'sprints', null, ['sprints', 'schedule']);
+      if (!receipt) return;
       setDialog(null);
-      await settle(`Tarefas da sprint "${sprint.name}" atualizadas com sucesso.`, () =>
-        refreshSchedule()
+      await settle(
+        `Tarefas da sprint "${sprint.name}" atualizadas com sucesso.`,
+        () => Promise.all([refreshSprints(receipt), refreshSchedule({}, receipt)]),
+        context
       );
     } catch (requestError) {
-      if (selectedSprintRef.current !== sprintId) return;
+      if (!isCurrentContext(context) || selectedSprintRef.current !== sprintId) return;
       setTasksError(
         normalizeApiError(requestError, 'Não foi possível atualizar as tarefas da sprint.').message
       );
     } finally {
-      setSubmitting(false);
+      mutationLocks.current.delete(sprintId);
+      if (isCurrentContext(context)) setSubmitting(false);
     }
   }
 
   async function changeSprintStatus(sprint, status) {
     if (busySprintId) return;
-    const generation = mutationGenerationRef.current;
-    const isCurrent = () => generation === mutationGenerationRef.current;
+    if (mutationLocks.current.has(sprint.id)) return;
+    const context = captureContext();
+    const isCurrent = () => isCurrentContext(context);
+    mutationLocks.current.add(sprint.id);
     setBusySprintId(sprint.id);
     try {
       if (isTerminalTransition(status)) {
@@ -363,29 +385,35 @@ export function SprintsScreen() {
       }
       const { data } = await scheduleApi.updateSprintStatus(sprint.id, status);
       if (!isCurrent()) return;
-      if (data.sprint) {
-        setSprints((current) =>
-          current.map((item) => (item.id === sprint.id ? data.sprint : item))
-        );
-      }
-      await settle(data.message || 'Status da sprint atualizado com sucesso.', () =>
-        Promise.all([
-          refreshSchedule(),
-          data.milestoneCompleted ? refreshMilestones() : Promise.resolve()
-        ])
+      const affected = ['sprints', 'schedule'];
+      if (data.milestoneCompleted) affected.push('milestones');
+      const receipt = confirmMutation(context, 'sprints', data.sprint, affected);
+      if (!receipt) return;
+      await settle(
+        data.message || 'Status da sprint atualizado com sucesso.',
+        () =>
+          Promise.all([
+            refreshSprints(receipt),
+            refreshSchedule({}, receipt),
+            ...(data.milestoneCompleted ? [refreshMilestones(receipt)] : [])
+          ]),
+        context
       );
     } catch (requestError) {
       if (!isCurrent()) return;
-      handleFailure(requestError, 'Não foi possível atualizar o status da sprint.');
+      handleFailure(requestError, 'Não foi possível atualizar o status da sprint.', context);
     } finally {
+      mutationLocks.current.delete(sprint.id);
       if (isCurrent()) setBusySprintId(null);
     }
   }
 
   async function deleteSprint(sprint) {
     if (busySprintId || somenteLeitura) return;
-    const generation = mutationGenerationRef.current;
-    const isCurrent = () => generation === mutationGenerationRef.current;
+    if (mutationLocks.current.has(sprint.id)) return;
+    const context = captureContext();
+    const isCurrent = () => isCurrentContext(context);
+    mutationLocks.current.add(sprint.id);
     setBusySprintId(sprint.id);
     try {
       const { data: impact } = await scheduleApi.getSprintImpact(sprint.id);
@@ -394,15 +422,20 @@ export function SprintsScreen() {
         return;
       await scheduleApi.removeSprint(sprint.id);
       if (!isCurrent()) return;
-      setSprints((current) => current.filter((item) => item.id !== sprint.id));
-      queueMicrotask(() => gridRef.current?.focus());
-      await settle('Sprint excluída. O histórico foi preservado.', () =>
-        Promise.all([refreshSchedule(), refreshMilestones()])
+      const receipt = confirmMutation(context, 'sprints', { id: sprint.id, deletedAt: true });
+      queueMicrotask(() => {
+        if (isCurrent()) gridRef.current?.focus();
+      });
+      await settle(
+        'Sprint excluída. O histórico foi preservado.',
+        () => refreshSchedule({}, receipt),
+        context
       );
     } catch (error) {
       if (!isCurrent()) return;
-      handleFailure(error, 'Não foi possível excluir a sprint.');
+      handleFailure(error, 'Não foi possível excluir a sprint.', context);
     } finally {
+      mutationLocks.current.delete(sprint.id);
       if (isCurrent()) setBusySprintId(null);
     }
   }

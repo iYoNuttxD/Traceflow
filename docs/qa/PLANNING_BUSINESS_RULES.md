@@ -402,6 +402,19 @@ Início, encerramento, carry-over e Cronograma independem da existência de Marc
 
 ---
 
+## BR-SPRINT-021 — Nome reutilizável após exclusão segura
+
+O nome deve ser único entre Sprints não excluídas do mesmo projeto, preservando a semântica
+nominal vigente. Sprint soft-deleted conserva seu ID e nome histórico, mas deixa de participar
+da unicidade do catálogo atual. Criação e renomeação podem reutilizar esse nome; outra Sprint
+não excluída com o mesmo nome continua bloqueando. Catálogos, seletores e histórico identificam
+as entidades por ID, mesmo quando várias gerações compartilham nome e período.
+
+Decisão explícita de produto: adendo PLANNING-QA-FIX-04 (05/09/2026), substituindo a reserva
+nominal de tombstones da FIX-03. Liberação do nome e exclusão são atômicas; histórico não muda.
+
+---
+
 # BR-MILESTONE — MARCOS
 
 ## BR-MILESTONE-001 — Marco é ponto temporal

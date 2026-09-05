@@ -610,6 +610,8 @@ model Sprint {
   id                 Int          @id @default(autoincrement())
   projectId          Int
   name               String
+  // Generated ALWAYS by SQL migration; never supplied by callers.
+  activeNameKey      String? @default(dbgenerated())
   objective          String?      @db.Text
   startDate          DateTime
   endDate            DateTime
@@ -632,7 +634,7 @@ model Sprint {
   carriedOverTasks SprintTask[] @relation("SprintCarryOver")
   milestone        Milestone?   @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
 
-  @@unique([projectId, name])
+  @@unique([projectId, activeNameKey])
   @@index([projectId, deletedAt, status])
   @@index([deletedById])
   @@index([projectId, status])
