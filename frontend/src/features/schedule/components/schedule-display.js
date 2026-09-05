@@ -119,7 +119,7 @@ export function sprintTerminalConfirm(sprint, status, pendentes) {
         `A sprint "${sprint.name}" será marcada como concluída e congelada: ela não poderá ` +
         'ser editada, reaberta nem receber novas tarefas. ' +
         (pendentes
-          ? `${pendentes} tarefa(s) não concluída(s) voltarão ao backlog.`
+          ? `${pendentes} tarefa(s) não concluída(s) seguirão para a próxima sprint planejada válida. Se não houver uma próxima sprint, voltarão ao backlog.`
           : 'Todas as tarefas da sprint foram concluídas.'),
       cancelLabel: 'Voltar',
       confirmLabel: 'Concluir e congelar',
@@ -167,6 +167,24 @@ export function summarizeSprintTasks(scheduleSprint) {
     points: total,
     donePoints: feitos,
     percent: total > 0 ? Math.round((feitos / total) * 100) : null
+  };
+}
+
+export function getSprintDisplayMetrics(sprint, scheduleSprint = sprint) {
+  if (!isTerminalSprint(sprint?.status))
+    return { ...summarizeSprintTasks(scheduleSprint), unavailable: false };
+  const frozen = sprint?.historicalSummary ?? scheduleSprint?.historicalSummary;
+  return {
+    total: frozen?.totalTasks ?? null,
+    done: frozen?.completedTasks ?? null,
+    points: frozen?.totalPoints ?? null,
+    donePoints: frozen?.completedPoints ?? null,
+    percent: frozen?.percentage ?? null,
+    unavailable:
+      !frozen ||
+      frozen.completedTasks == null ||
+      frozen.totalPoints == null ||
+      frozen.completedPoints == null
   };
 }
 

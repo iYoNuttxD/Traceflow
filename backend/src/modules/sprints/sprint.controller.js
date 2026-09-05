@@ -9,8 +9,13 @@ const actorContext = (req) => ({
   requestId: req.requestId
 });
 
-function statusMessage(sprint, returnedToBacklog, milestoneCompleted) {
+function statusMessage(sprint, returnedToBacklog, milestoneCompleted, carryOver) {
   const partes = ['Status da sprint atualizado com sucesso.'];
+  if (carryOver?.movedTasks > 0) {
+    partes.push(
+      `${carryOver.movedTasks} tarefa(s) não concluída(s) seguiram para a sprint "${carryOver.destinationSprintName}".`
+    );
+  }
   if (returnedToBacklog > 0) {
     partes.push(
       returnedToBacklog === 1
@@ -63,12 +68,13 @@ export const sprintController = {
 
   updateStatus: asyncHandler(
     async (req, res) => {
-      const { sprint, returnedToBacklog, milestoneCompleted } =
+      const { sprint, returnedToBacklog, milestoneCompleted, carryOver } =
         await sprintService.updateSprintStatus(req.params.id, req.body.status, actorContext(req));
       return res.json({
-        message: statusMessage(sprint, returnedToBacklog, milestoneCompleted),
+        message: statusMessage(sprint, returnedToBacklog, milestoneCompleted, carryOver),
         sprint,
         returnedToBacklog,
+        carryOver,
         milestoneCompleted
       });
     },

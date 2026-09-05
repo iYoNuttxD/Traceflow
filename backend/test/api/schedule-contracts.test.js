@@ -82,6 +82,45 @@ async function createTask(session, projectId, title = 'Tarefa') {
 }
 
 describe('contratos de sprint', () => {
+  it('communicates automatic carry-over and serializes two authenticated close requests', async () => {
+    const owner = await register('carry-over-contract@example.invalid');
+    const project = await createProject(owner);
+    const first = (await createSprint(owner, project.id)).body.sprint;
+    const next = (
+      await createSprint(owner, project.id, {
+        name: 'Sprint 2',
+        startDate: '2026-08-14',
+        endDate: '2026-08-21'
+      })
+    ).body.sprint;
+    const task = await createTask(owner, project.id);
+    await owner.mutate('patch', `/api/tasks/${task.id}/sprint`).send({ sprintId: first.id });
+    await owner.mutate('patch', `/api/sprints/${first.id}/status`).send({ status: 'EM_ANDAMENTO' });
+    const responses = await Promise.all(
+      [1, 2].map(() =>
+        owner.mutate('patch', `/api/sprints/${first.id}/status`).send({ status: 'CONCLUIDA' })
+      )
+    );
+    expect(responses.map((r) => r.status).sort()).toEqual([200, 409]);
+    const closed = responses.find((r) => r.status === 200).body;
+    expect(closed).toMatchObject({
+      returnedToBacklog: 0,
+      carryOver: { destinationSprintId: next.id, destinationSprintName: 'Sprint 2', movedTasks: 1 }
+    });
+    expect(closed.message).toContain('seguiram para a sprint "Sprint 2"');
+    expect((await owner.agent.get(`/api/tasks/${task.id}`)).body.task.sprintId).toBe(next.id);
+    expect(
+      await prisma.taskHistoryEntry.count({
+        where: {
+          taskId: task.id,
+          field: 'SPRINT',
+          fromValue: String(first.id),
+          toValue: String(next.id),
+          actorUserId: owner.userId
+        }
+      })
+    ).toBe(1);
+  });
   it('cria, lista, consulta e edita sprint; exclusao e recusada', async () => {
     const owner = await register('sprint-crud@example.invalid');
     const project = await createProject(owner);
@@ -772,6 +811,7 @@ describe('cronograma', () => {
       'id',
       'priority',
       'responsibleUserId',
+      'sprintId',
       'status',
       'title'
     ]);

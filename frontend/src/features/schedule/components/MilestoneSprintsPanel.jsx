@@ -3,7 +3,7 @@ import {
   sprintStatusKey,
   sprintStatusKeyLabels,
   statusBadgeClass,
-  summarizeSprintTasks
+  getSprintDisplayMetrics
 } from './schedule-display.js';
 import { sprintEndsAfterMilestone, summarizeMilestoneSprints } from './milestone-view.js';
 
@@ -26,7 +26,7 @@ export function MilestoneSprintsPanel({ milestone, sprints, scheduleById = {}, o
           <strong>{summary.active}</strong> em andamento
         </span>
         <span>
-          <strong>{summary.points}</strong> pts
+          <strong>{summary.points ?? '—'}</strong> pts
         </span>
       </div>
 
@@ -66,7 +66,7 @@ export function MilestoneSprintsPanel({ milestone, sprints, scheduleById = {}, o
       ) : (
         <ul className="milestone-sprints-modal__list" aria-label={`Sprints de ${milestone.title}`}>
           {summary.sprints.map((sprint) => {
-            const taskSummary = summarizeSprintTasks(scheduleById[sprint.id]);
+            const taskSummary = getSprintDisplayMetrics(sprint, scheduleById[sprint.id]);
             const statusKey = sprintStatusKey(sprint);
             return (
               <li key={sprint.id}>
@@ -77,8 +77,9 @@ export function MilestoneSprintsPanel({ milestone, sprints, scheduleById = {}, o
                   </span>
                 </div>
                 <p>
-                  {formatSprintCardPeriod(sprint)} · {taskSummary.points} pts
+                  {formatSprintCardPeriod(sprint)} · {taskSummary.points ?? '—'} pts
                 </p>
+                {taskSummary.unavailable && <small>Dados históricos indisponíveis.</small>}
                 {sprintEndsAfterMilestone(sprint, milestone) && (
                   <small>Termina após o prazo do marco.</small>
                 )}

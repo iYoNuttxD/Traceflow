@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
     findProjectById: vi.fn(),
     findById: vi.fn(),
     findByProject: vi.fn(),
+    findHistoryBySprints: vi.fn(),
     createWithinProjectLock: vi.fn(),
     updateWithinProjectLock: vi.fn(),
     transitionWithinSprintLock: vi.fn(),
@@ -38,6 +39,7 @@ vi.mock('../../src/modules/sprints/repositories/milestone.repository.js', () => 
 }));
 
 import { sprintService } from '../../src/modules/sprints/sprint.service.js';
+import { nextPlannedSprint } from '../../src/modules/sprints/services/sprint-status.service.js';
 
 const projectId = 1;
 const baseSprint = {
@@ -1068,6 +1070,7 @@ describe('montagem do cronograma', () => {
         addedAfterStart: false,
         carriedFromSprintId: null,
         exitStatus: null,
+        removedAt: null,
         task: {
           id: 1,
           title: 'T1',
@@ -1164,6 +1167,7 @@ describe('montagem do cronograma', () => {
       'id',
       'priority',
       'responsibleUserId',
+      'sprintId',
       'status',
       'title'
     ]);
@@ -1186,5 +1190,36 @@ describe('montagem do cronograma', () => {
   it('expoe generatedAt em ISO-8601 UTC', async () => {
     const schedule = await sprintService.getSchedule(projectId, {});
     expect(schedule.generatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+  });
+});
+
+describe('terminal summary batching and carry-over ordering', () => {
+  it('loads terminal participation snapshots once for the whole Sprint list', async () => {
+    const rows = Array.from({ length: 10 }, (_, id) => ({
+      ...baseSprint,
+      id: id + 1,
+      status: 'CONCLUIDA'
+    }));
+    mocks.sprint.findByProject.mockResolvedValue(rows);
+    mocks.sprint.findHistoryBySprints.mockResolvedValue([]);
+    const result = await sprintService.findSprintsByProject(projectId);
+    expect(result).toHaveLength(10);
+    expect(mocks.sprint.findHistoryBySprints).toHaveBeenCalledExactlyOnceWith(
+      rows.map((sprint) => sprint.id)
+    );
+    expect(mocks.sprint.findById).not.toHaveBeenCalled();
+  });
+  it('uses the smallest id for an equal date defensively, even though API overlap excludes this tie', () => {
+    const future = {
+      ...baseSprint,
+      startDate: baseSprint.endDate,
+      endDate: new Date('2026-08-21')
+    };
+    expect(
+      nextPlannedSprint(baseSprint, [
+        { ...future, id: 30 },
+        { ...future, id: 20 }
+      ]).id
+    ).toBe(20);
   });
 });

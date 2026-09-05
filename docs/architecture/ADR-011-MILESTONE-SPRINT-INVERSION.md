@@ -101,20 +101,32 @@ Isso não é redundante com a não sobreposição de datas (D03 do ADR-010). Dat
 planejado; `EM_ANDAMENTO` descreve o que a equipe está fazendo agora, e nada impedia iniciar uma
 sprint cujo período ainda não chegou enquanto a anterior seguia aberta.
 
-### D07 — Concluir a sprint devolve ao backlog o que não foi concluído
+### D07 — Conclusão transfere pendências à próxima Sprint planejada
 
-Ao entrar em `CONCLUIDA`, as tarefas da sprint com status diferente de `CONCLUIDO` têm
-`Task.sprintId` zerado, com `TaskHistoryEntry` de `field: SPRINT`, na mesma transação.
+> **Revisada por decisão explícita de produto em PLANNING-QA-FIX-02, 04/09/2026.**
+> O retorno incondicional ao backlog foi substituído pelo carry-over automático na conclusão.
 
-**A participação não é tocada.** Ela já foi congelada com `exitStatus` e `closedAt` pelo mesmo
-caminho de sempre, e é ela que responde pelo RF35 do período encerrado. O que se limpa é o
-`Task.sprintId`, que o ADR-010 D01 define como **ponteiro da participação ativa** — e depois do
-encerramento não há participação ativa a apontar.
+Ao entrar em `CONCLUIDA`, Tasks atualmente associadas à origem e diferentes de `CONCLUIDO`
+seguem para a Sprint `PLANEJADA` válida do mesmo projeto com menor início posterior ao período
+da origem (inclusive início igual ao fim semiaberto); empate usa menor ID. Sem destino, retornam
+ao backlog. O sistema não cria Sprint. Tasks concluídas permanecem associadas à origem e
+participações já removidas não retornam. `CANCELADA` mantém o retorno ao backlog.
 
-Sem isso, a tarefa ficaria presa numa sprint congelada: o quadro a mostraria como somente
-leitura para sempre e não haveria como levá-la à sprint seguinte.
+A origem congela antes da transferência, na mesma transação. Seu `SprintTask`, baseline,
+pontos, status, conclusão e corte permanecem intactos. O plano canônico de associação cria ou
+reativa o membership do destino e atualiza `Task.sprintId`; a Task será planejada normalmente
+quando o destino iniciar. Histórico `SPRINT` registra origem → destino, com o ator do fechamento.
+O limite existente de 100 Tasks continua válido: destino sem capacidade causa rollback integral,
+sem escolher silenciosamente outra Sprint. Fechamento concorrente/repetido não duplica eventos.
 
-`CANCELADA` recebe o mesmo tratamento, pela mesma razão.
+O caminho de status trava `Project → Sprints do projeto em ordem de ID → Tasks atuais da origem
+em ordem de ID → Marco`, antes das leituras que decidem a escrita. O lock do projeto continua
+serializando criações, alterações de janela, escopo e status. A persistência do plano de escopo
+é compartilhada; seleção de destino e orquestração pertencem ao service.
+
+Cards, evolução e painel de Sprints do Marco consomem a mesma projeção `historicalSummary` do
+backend para terminais; campos Task correntes continuam disponíveis para o contexto operacional.
+A distinção está documentada no [modelo histórico](../data/PLANNING_HISTORY.md).
 
 ## Migration e perda de informação
 

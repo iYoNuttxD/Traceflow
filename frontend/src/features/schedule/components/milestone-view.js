@@ -1,4 +1,4 @@
-import { milestoneProgress, summarizeSprintTasks } from './schedule-display.js';
+import { milestoneProgress, getSprintDisplayMetrics } from './schedule-display.js';
 
 export const MILESTONE_FILTER_DEFAULTS = Object.freeze({
   search: '',
@@ -142,10 +142,10 @@ export function summarizeMilestoneSprints(milestoneId, sprints = [], scheduleByI
     planned: related.filter((sprint) => sprint.status === 'PLANEJADA').length,
     active: related.filter((sprint) => sprint.status === 'EM_ANDAMENTO').length,
     cancelled: related.filter((sprint) => sprint.status === 'CANCELADA').length,
-    points: related.reduce(
-      (total, sprint) => total + summarizeSprintTasks(scheduleById[sprint.id]).points,
-      0
-    )
+    points: related.reduce((total, sprint) => {
+      const points = getSprintDisplayMetrics(sprint, scheduleById[sprint.id]).points;
+      return total === null || points === null ? null : total + points;
+    }, 0)
   };
 }
 

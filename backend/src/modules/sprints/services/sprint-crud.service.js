@@ -2,6 +2,7 @@ import { sprintRepository } from '../repositories/sprint.repository.js';
 import { milestoneRepository } from '../repositories/milestone.repository.js';
 import { buildAuditEvent } from '../../audit/audit.service.js';
 import { authorizationService } from '../../authorization/index.js';
+import { buildSprintHistoricalSummary } from '../sprint.summary.calculator.js';
 import { ERROR_CODES, resourceNotFoundError } from '../../../shared/errors/index.js';
 import {
   REMOVAL_REASONS,
@@ -34,6 +35,22 @@ export async function ensureSprintExists(sprintId) {
   const sprint = await sprintRepository.findById(sprintId);
   if (!sprint) throw sprintNotFoundError();
   return sprint;
+}
+
+async function withHistoricalSummaries(sprints) {
+  const terminal = sprints.filter((sprint) => ['CONCLUIDA', 'CANCELADA'].includes(sprint.status));
+  const history = terminal.length
+    ? await sprintRepository.findHistoryBySprints(terminal.map((sprint) => sprint.id))
+    : [];
+  const bySprint = new Map();
+  for (const participation of history) {
+    if (!bySprint.has(participation.sprintId)) bySprint.set(participation.sprintId, []);
+    bySprint.get(participation.sprintId).push(participation);
+  }
+  return sprints.map((sprint) => ({
+    ...sprint,
+    historicalSummary: buildSprintHistoricalSummary(sprint, bySprint.get(sprint.id))
+  }));
 }
 
 async function rejectForeignTask(task, actorUserId) {
@@ -71,7 +88,7 @@ function ensureMilestoneStillThere(milestoneId, milestones) {
   }
 }
 
-async function buildScopePlan({
+export async function buildScopePlan({
   mode,
   audit,
   sprintId,
@@ -176,20 +193,22 @@ async function buildScopePlan({
     detachTaskIds: toDetach,
     attachTaskIds: toAttach,
     historyEntries,
-    auditEvent: buildAuditEvent({
-      actorUserId: context.actorUserId,
-      projectId: sprint.projectId,
-      requestId: context.requestId,
-      action: audit.action,
-      resourceType: 'Sprint',
-      resourceId: sprintId,
-      metadata: {
-        sprintId,
-        ...audit.metadata,
-        attached: toAttach.length,
-        detached: toDetach.length
-      }
-    })
+    auditEvent: audit
+      ? buildAuditEvent({
+          actorUserId: context.actorUserId,
+          projectId: sprint.projectId,
+          requestId: context.requestId,
+          action: audit.action,
+          resourceType: 'Sprint',
+          resourceId: sprintId,
+          metadata: {
+            sprintId,
+            ...audit.metadata,
+            attached: toAttach.length,
+            detached: toDetach.length
+          }
+        })
+      : null
   };
 }
 
@@ -246,14 +265,16 @@ export const sprintCrudService = {
   async findSprintsByProject(projectId, query = {}) {
     const parsedProjectId = parseProjectId(projectId);
     await ensureProjectExists(parsedProjectId);
-    return sprintRepository.findByProject(parsedProjectId, {
+    const sprints = await sprintRepository.findByProject(parsedProjectId, {
       status: query.status,
       search: query.search
     });
+    return withHistoricalSummaries(sprints);
   },
 
   async getSprintById(sprintId) {
-    return ensureSprintExists(parseSprintId(sprintId));
+    const sprint = await ensureSprintExists(parseSprintId(sprintId));
+    return (await withHistoricalSummaries([sprint]))[0];
   },
 
   async updateSprint(sprintId, data, context = {}) {

@@ -18,6 +18,7 @@ const TODAY = '2026-09-10';
 
 const task = (overrides = {}) => ({
   id: 10,
+  sprintId: 4,
   title: 'Login do usuário',
   status: 'A_FAZER',
   priority: 'ALTA',
@@ -83,7 +84,7 @@ describe('getScheduleTasks', () => {
   it('reúne tarefas de Sprints e sem Sprint sem descartar as sem prazo', () => {
     const result = tasksFrom(
       [sprint({ tasks: [task(), task({ id: 11, title: 'Sem data', deadline: null })] })],
-      [task({ id: 12, title: 'Backlog', deadline: '2026-09-11T08:00:00' })]
+      [task({ id: 12, sprintId: null, title: 'Backlog', deadline: '2026-09-11T08:00:00' })]
     );
     expect(result.map((item) => [item.id, item.day, item.sprintName])).toEqual([
       [12, '2026-09-11', null],

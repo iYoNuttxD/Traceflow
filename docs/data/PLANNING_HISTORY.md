@@ -30,7 +30,8 @@ para `EM_ANDAMENTO` pertencem à mesma transação. Uma inclusão posterior nasc
 `plannedAtStart=false`. Reativar uma participação preserva o membership e os pontos do baseline.
 
 No encerramento, a mesma transação preserva pontos, status, instante da conclusão e corte,
-além de devolver Tasks pendentes ao backlog e eventualmente concluir o Marco. Os locks existentes
+além de transferir Tasks pendentes à próxima Sprint planejada válida (ou ao backlog sem destino)
+e eventualmente concluir o Marco. Cancelamento mantém o retorno ao backlog. Os locks existentes
 serializam start/scope/close por projeto e Sprint; as Tasks são travadas antes da leitura do
 snapshot. Não há lógica de snapshot no controller.
 
@@ -39,6 +40,36 @@ O planejamento permanece separado. Depois do encerramento, a evolução não con
 status da Task nem seu histórico de conclusão; usa os campos persistidos da participação.
 Exclusão posterior da Task não apaga a série nem os pontos. A informação de continuidade para
 outra Sprint pode continuar aparecendo em `carryOver`, sem mudar os números congelados.
+
+## Continuidade operacional e apresentação terminal — FIX-02
+
+Ao concluir, somente Tasks cujo ponteiro atual ainda é a origem e que não estão `CONCLUIDO`
+seguem automaticamente à próxima Sprint planejada válida do mesmo projeto. A seleção usa o
+menor início posterior ou contíguo ao fim da origem, com menor ID no empate. Sem destino,
+retornam ao backlog; nenhuma Sprint nasce automaticamente. Participação removida não é candidata.
+
+O fechamento e a transferência usam a mesma transação. O plano canônico de escopo é reutilizado
+após congelar a origem, de modo que só o membership do destino é criado/reativado. Nenhum campo
+do snapshot da origem é reescrito. O destino ainda planejado captura o membership ativo no seu
+próprio start. Capacidade insuficiente ou falha de escrita causam rollback integral. O histórico
+`SPRINT` registra uma troca origem → destino com o ator da mutation, sem evento intermediário
+artificial de backlog. Os vínculos de rastreabilidade e Comments continuam pertencendo à Task.
+
+`historicalSummary` é calculado no domínio e incluído em detalhe/listagem/Schedule/progress.
+Resume contagens e pontos de planejamento/encerramento e corte; o mesmo calculator atende todos
+os consumidores, com leitura em lote na listagem. A UI tem uma única seleção de métricas:
+terminal usa a projeção histórica; aberta usa Tasks atuais. O progresso visual por pontos mantém
+a fórmula existente, distinta da porcentagem por contagem de Tasks dos blocos de RF35.
+O progresso do Marco continua por Sprints concluídas, e sua soma de pontos combina terminal
+histórica com aberta live. Um total histórico desconhecido torna a soma indisponível.
+
+`sprints[].tasks` mantém dados operacionais atuais. Para mostrar contexto atual no Cronograma,
+`Task.sprintId` é autoridade e o nome vem de um índice por Sprint ID; `null` representa backlog.
+O primeiro membership histórico não determina esse rótulo. Dedupe e deadline próprio permanecem.
+
+A FIX-02 não altera schema ou migration. Usa os snapshots existentes, sem backfill. A limitação
+legada abaixo continua explícita: campos desconhecidos são `null` e a UI usa `—`, nunca esforço
+ou status atual para fabricar histórico.
 
 ## Migration e integridade
 

@@ -17,6 +17,7 @@ import {
 } from '../sprint.schema.js';
 import { ERROR_CODES } from '../../../shared/errors/index.js';
 import { ensureProjectExists } from './sprint-crud.service.js';
+import { buildSprintHistoricalSummary } from '../sprint.summary.calculator.js';
 
 function ensureWindowOrder(from, to) {
   if (from && to && from.getTime() > to.getTime()) {
@@ -37,6 +38,7 @@ function formatScheduleTask(task, sprint) {
     deadline: toIsoString(task.deadline),
     estimatedEffort: task.estimatedEffort ?? null,
     responsibleUserId: task.responsibleUserId ?? null,
+    sprintId: task.sprintId ?? null,
     ...(sprint
       ? {
           deadlineOutsideWindow: isDeadlineOutsideWindow(
@@ -78,19 +80,24 @@ export const scheduleService = {
         status: sprint.status,
         startedAt: sprint.startedAt,
         completedAt: sprint.completedAt,
+        planningSnapshotAt: sprint.planningSnapshotAt,
+        closedAt: sprint.closedAt,
+        historicalSummary: buildSprintHistoricalSummary(sprint, sprint.sprintTasks),
         milestoneId: sprint.milestoneId ?? null,
         durationInDays: durationInDays(sprint.startDate, sprint.endDate),
-        taskCount: sprint.sprintTasks.length,
-        tasks: sprint.sprintTasks.map((participation) =>
-          formatScheduleTask(
-            {
-              ...participation.task,
-              addedAfterStart: participation.addedAfterStart,
-              carriedFromSprintId: participation.carriedFromSprintId
-            },
-            sprint
+        taskCount: sprint.sprintTasks.filter((p) => p.removedAt === null).length,
+        tasks: sprint.sprintTasks
+          .filter((p) => p.removedAt === null && p.task)
+          .map((participation) =>
+            formatScheduleTask(
+              {
+                ...participation.task,
+                addedAfterStart: participation.addedAfterStart,
+                carriedFromSprintId: participation.carriedFromSprintId
+              },
+              sprint
+            )
           )
-        )
       }));
 
     const milestones = milestonesRaw
