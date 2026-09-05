@@ -9,8 +9,8 @@ const kanbanBoardCss = readFileSync(
   resolve('src/features/tasks/components/KanbanBoard.css'),
   'utf8'
 );
-const movementHistoryCss = readFileSync(
-  resolve('src/features/tasks/components/MovementHistory.css'),
+const kanbanDialogCss = readFileSync(
+  resolve('src/features/tasks/components/KanbanDialog.css'),
   'utf8'
 );
 const taskDetailsCss = readFileSync(
@@ -141,7 +141,7 @@ describe('compatibilidade de conteúdo legado com os temas', () => {
     expect(rule(globalCss, '.page-container > .empty-state')).toContain(
       'color: var(--color-text-secondary)'
     );
-    expect(rule(kanbanCss, '.kanban-members-empty')).toContain(
+    expect(rule(kanbanBoardCss, '.kanban-filtered-empty')).toContain(
       'color: var(--color-text-secondary)'
     );
   });
@@ -274,13 +274,10 @@ describe('compatibilidade de conteúdo legado com os temas', () => {
 
   it('cobre os panels que causaram o finding HIGH sem alterar seu layout', () => {
     expect(rule(taskListCss, '.task-item')).toContain('background: var(--color-surface-secondary)');
-    expect(rule(kanbanBoardCss, '.kanban-column')).toContain(
+    expect(rule(kanbanBoardCss.split('@media')[0], '.kanban-column')).toContain(
       'background: var(--color-surface-secondary)'
     );
     expect(rule(kanbanBoardCss, '.kanban-task')).toContain(
-      'background: var(--color-surface-primary)'
-    );
-    expect(rule(movementHistoryCss, '.kanban-history')).toContain(
       'background: var(--color-surface-primary)'
     );
     expect(
@@ -347,11 +344,13 @@ describe('compatibilidade de conteúdo legado com os temas', () => {
   });
 
   it('usa a camada semântica de modal acima da navegação', () => {
-    expect(rule(taskDetailsCss, '.task-detail-overlay')).toContain('z-index: var(--z-modal)');
-    expect(rule(taskDetailsCss, '.task-detail-overlay')).toContain(
+    expect(rule(kanbanDialogCss.split('@media')[0], '.kanban-dialog-backdrop')).toContain(
+      'z-index: var(--z-modal)'
+    );
+    expect(rule(kanbanDialogCss.split('@media')[0], '.kanban-dialog-backdrop')).toContain(
       'background: var(--color-overlay)'
     );
-    expect(rule(taskDetailsCss.split('@media')[0], '.task-detail-modal')).toContain(
+    expect(rule(kanbanDialogCss.split('@media')[0], '.kanban-dialog')).toContain(
       'background: var(--color-surface-elevated)'
     );
     const foundations = rule(tokensCss, ':root');
@@ -377,6 +376,20 @@ describe('compatibilidade de conteúdo legado com os temas', () => {
     expect(rule(taskCommentsCss, '.task-chat-menu button')).toContain(
       'min-height: var(--size-touch-target)'
     );
+    expect(rule(taskCommentsCss, '.task-comments')).toContain('flex-direction: column');
+    expect(rule(taskCommentsCss, '.task-comments')).toContain('overflow: hidden');
+    expect(rule(taskCommentsCss, '.task-comments-scroll')).toContain('flex: 1');
+    expect(rule(taskCommentsCss, '.task-comments-scroll')).toContain('min-height: 0');
+    expect(rule(taskCommentsCss, '.task-comments-scroll')).toContain('overflow-y: auto');
+    expect(rule(taskCommentsCss, '.task-chat-form textarea')).toContain('max-height: 9rem');
+    expect(rule(taskCommentsCss, '.task-chat-form textarea')).toContain('overflow-y: auto');
+  });
+
+  it('limita cada categoria de rastreabilidade sem ocultar seus artefatos', () => {
+    const desktopDetailsCss = taskDetailsCss.split('@media')[0];
+    expect(rule(desktopDetailsCss, '.task-detail-main')).toContain('overflow-y: auto');
+    expect(rule(desktopDetailsCss, '.task-detail-artifact-body')).toContain('max-height: 16rem');
+    expect(rule(desktopDetailsCss, '.task-detail-artifact-body')).toContain('overflow-y: auto');
   });
 
   it('não reintroduz literais de tema nos owners neutros auditados', () => {
@@ -385,7 +398,7 @@ describe('compatibilidade de conteúdo legado com os temas', () => {
       taskListCss,
       taskCardsCss,
       kanbanBoardCss,
-      movementHistoryCss,
+      kanbanDialogCss,
       taskDetailsCss,
       taskCommentsCss,
       kanbanCss,

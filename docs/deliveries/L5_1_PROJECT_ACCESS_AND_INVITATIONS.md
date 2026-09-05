@@ -1,7 +1,7 @@
 # L5.1 — Consolidação de ingresso em projetos e convites pessoais
 
-Data de conclusão: 16/08/2026  
-Branch: `daniel-dev`  
+Data de conclusão: 16/08/2026
+Branch: `daniel-dev`
 Baseline inicial: `c7ec327acc24698a982447ee74fe4037c08614bd`
 
 ## 1. Resumo executivo

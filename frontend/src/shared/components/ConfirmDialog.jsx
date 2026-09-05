@@ -55,7 +55,7 @@ function ConfirmDialog({ dialog, close }) {
             className="button button-secondary"
             onClick={() => close(false)}
           >
-            Cancelar
+            {dialog.cancelLabel || 'Cancelar'}
           </button>
           <button
             type="button"
@@ -91,6 +91,7 @@ export function ConfirmProvider({ children }) {
         setDialog({
           title: options.title || 'Confirmar ação',
           description: options.description,
+          cancelLabel: options.cancelLabel,
           confirmLabel: options.confirmLabel,
           destructive: options.destructive !== false,
           focusAfterConfirmRef: options.focusAfterConfirmRef,

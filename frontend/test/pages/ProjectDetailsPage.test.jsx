@@ -172,7 +172,12 @@ describe('ProjectDetailsPage E9', () => {
     const pageHeader = screen.getByRole('heading', { name: 'Projeto E9' }).closest('header');
     expect(within(pageHeader).queryByText('Descrição')).not.toBeInTheDocument();
     const projectNavigation = screen.getByRole('navigation', { name: 'Navegação do projeto' });
-    expect(within(projectNavigation).getAllByRole('link')).toHaveLength(6);
+    expect(within(projectNavigation).getAllByRole('link')).toHaveLength(9);
+    for (const planningSection of ['Sprints', 'Marcos', 'Cronograma']) {
+      expect(
+        within(projectNavigation).getByRole('link', { name: planningSection })
+      ).toBeInTheDocument();
+    }
     expect(within(projectNavigation).queryByRole('tab')).not.toBeInTheDocument();
     expect(within(projectNavigation).getByRole('link', { name: 'Visão geral' })).toHaveAttribute(
       'aria-current',
@@ -439,7 +444,7 @@ describe('ProjectDetailsPage E9', () => {
     renderPage();
     await screen.findByRole('heading', { name: 'Projeto E9' });
     expect(screen.queryByText('Analisar commits para sugestões')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Atualizar sugestões' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Sugerir commits' })).not.toBeInTheDocument();
   });
 
   it('apresenta projeto não encontrado com retorno contextual', async () => {

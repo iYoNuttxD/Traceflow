@@ -1,9 +1,6 @@
 import { projectRepository } from '../project.repository.js';
-import {
-  buildEditableProjectData,
-  parseProjectId,
-  ProjectServiceError
-} from '../project.schema.js';
+import { resourceNotFoundError } from '../../../shared/errors/index.js';
+import { buildEditableProjectData, parseProjectId } from '../project.schema.js';
 import { buildProjectAccessData } from './project-access-code.service.js';
 
 export const projectCrudService = {
@@ -22,14 +19,14 @@ export const projectCrudService = {
   async getProjectById(projectId) {
     const parsedProjectId = parseProjectId(projectId);
     const project = await projectRepository.findById(parsedProjectId);
-    if (!project) throw new ProjectServiceError('Projeto não encontrado.', 404);
+    if (!project) throw resourceNotFoundError('Project');
     return project;
   },
 
   async updateProject(projectId, data) {
     const parsedProjectId = parseProjectId(projectId);
     const project = await projectRepository.findById(parsedProjectId);
-    if (!project) throw new ProjectServiceError('Projeto não encontrado.', 404);
+    if (!project) throw resourceNotFoundError('Project');
 
     const projectData = buildEditableProjectData(data);
     if (Object.keys(projectData).length === 0) return project;

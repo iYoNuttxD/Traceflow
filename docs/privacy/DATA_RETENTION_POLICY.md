@@ -18,6 +18,7 @@ Prazos abaixo são defaults de engenharia, não prazos jurídicos definitivos. P
 | conta desativada | MySQL | 30 dias antes de revisão operacional | não é apagada automaticamente; anonimização exige solicitação elegível |
 | conta anonimizada | MySQL | histórico técnico necessário | perfil e referências conhecidas neutralizados; credenciais, tokens, states, identidade e autorizações pessoais removidos; auditoria segue prazo próprio |
 | requisitos, tarefas, movements, histórico RF38 e artifacts | MySQL | ciclo do projeto, sem prazo automático | `TaskHistoryEntry` é histórico funcional; hard delete da Task remove movement/history na transação, mas preserva `AuditEvent` |
+| histórico de Planning e tombstones | `Sprint`, `SprintTask`, `Milestone` | ciclo do projeto, sem expurgo automático novo | excluir Sprint/Marco é lógico; preserva baseline, card mínimo, pontos e corte. IDs históricos não copiam nome/e-mail; dados legados ausentes não são fabricados |
 | vínculos `TaskCommit`, `TaskIssue` e `Task.pullRequestId` | MySQL | ciclo da tarefa/projeto | excluir Task remove joins/FK; Commit, PullRequest e Issue importados são preservados |
 | logs | destino operacional | a definir no deploy, recomendação inicial 30–90 dias | stdout local não implementa política do agregador |
 | e-mails técnicos | provedor SMTP | política do provedor | TRACEFLOW não controla mailbox; evitar anexos de exportação |

@@ -43,7 +43,7 @@ afterAll(async () => {
 });
 
 async function register(email, role, projectId) {
-  const agent = request.agent(app);
+  const agent = request.agent(server);
   const response = await agent.post('/api/auth/register').send({
     name: `Pessoa ${email.split('@')[0]}`,
     username: `u${email
@@ -53,7 +53,7 @@ async function register(email, role, projectId) {
     email,
     password
   });
-  await request(app)
+  await request(server)
     .post('/api/auth/email-verification/verify')
     .send({ token: response.body.emailVerification.testToken });
   let membership;
@@ -220,7 +220,7 @@ describe('project-scoped SSE para comentários', () => {
     const viewer = await register('sse-viewer@example.invalid', 'VIEWER', project.id);
     const outsider = await register('sse-outsider@example.invalid');
 
-    expect((await request(app).get(`/api/projects/${project.id}/events`)).status).toBe(401);
+    expect((await request(server).get(`/api/projects/${project.id}/events`)).status).toBe(401);
     expect((await outsider.agent.get(`/api/projects/${project.id}/events`)).status).toBe(404);
     expect((await viewer.agent.get(`/api/projects/${project.id}/events?token=x`)).status).toBe(400);
 

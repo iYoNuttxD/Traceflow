@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -14,7 +14,6 @@ vi.mock('../../src/features/tasks/api/tasks.api.js', async (importOriginal) => (
 }));
 
 import { KanbanBoard } from '../../src/features/tasks/components/KanbanBoard.jsx';
-import { MovementHistory } from '../../src/features/tasks/components/MovementHistory.jsx';
 import { TaskDetailsPanel } from '../../src/features/tasks/components/TaskDetailsPanel.jsx';
 import { TaskList } from '../../src/features/tasks/components/TaskList.jsx';
 import { TaskMetrics } from '../../src/features/tasks/components/TaskMetrics.jsx';
@@ -83,7 +82,8 @@ describe('apresentação de Tasks e Kanban', () => {
     expect(handlers.onUnlinkCommit).toHaveBeenCalledWith(7, 30);
   });
 
-  it('preserva seleção por teclado e colunas oficiais no board', () => {
+  it('preserva seleção por teclado e colunas oficiais no board', async () => {
+    const user = userEvent.setup();
     const onSelectTask = vi.fn();
     render(
       <KanbanBoard
@@ -103,83 +103,81 @@ describe('apresentação de Tasks e Kanban', () => {
       />
     );
 
-    const card = screen.getByRole('button', { name: /Consolidar frontend/ });
-    fireEvent.keyDown(card, { key: 'Enter' });
-    expect(onSelectTask).toHaveBeenCalledWith(task);
-    expect(screen.getByRole('heading', { name: 'Em Andamento (0)' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Concluído (0)' })).toBeInTheDocument();
+    const card = screen.getByRole('button', { name: 'Abrir detalhes de Consolidar frontend' });
+    card.focus();
+    await user.keyboard('{Enter}');
+    expect(onSelectTask).toHaveBeenCalledWith(task, card);
+    expect(screen.getByRole('heading', { name: 'Em Andamento' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Concluído' })).toBeInTheDocument();
+    expect(screen.getByText('#7')).toBeInTheDocument();
+    expect(screen.getByText('1 req · 1 PR · 1 commit · 1 issue')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Ver histórico da tarefa/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Mais ações/ })).toBeNull();
   });
 
-  it('mantém filtros e paginação do histórico como callbacks de fluxo', async () => {
-    const user = userEvent.setup();
-    const onPageChange = vi.fn();
-    const onFieldFilterChange = vi.fn();
-    render(
-      <MovementHistory
-        movements={[
-          {
-            id: 1,
-            taskId: 7,
-            taskTitle: 'Consolidar frontend',
-            actorUserId: 2,
-            actor: { name: 'Pessoa responsável' },
-            field: 'STATUS',
-            fromValue: 'A_FAZER',
-            toValue: 'EM_ANDAMENTO',
-            occurredAt: '2026-07-26T12:00:00.000Z'
-          }
-        ]}
-        pagination={{ total: 11 }}
-        rangeStart={1}
-        rangeEnd={10}
-        currentPage={1}
-        totalPages={2}
-        pageSize={10}
-        period={{ startDate: '', endDate: '' }}
-        memberFilter=""
-        fieldFilter=""
-        members={[]}
-        metrics={{}}
-        onPeriodChange={vi.fn()}
-        onMemberFilterChange={vi.fn()}
-        onFieldFilterChange={onFieldFilterChange}
-        onSubmit={vi.fn((event) => event.preventDefault())}
-        onClear={vi.fn()}
-        onPageChange={onPageChange}
-      />
-    );
-
-    await user.selectOptions(screen.getByLabelText('Campo'), 'STATUS');
-    await user.click(screen.getByRole('button', { name: 'Próxima' }));
-    expect(onFieldFilterChange).toHaveBeenCalledWith('STATUS');
-    expect(onPageChange).toHaveBeenCalledWith(2);
-  });
-
-  it('mantém o painel de detalhes e seus vínculos técnicos acionáveis', async () => {
+  it('mantém o painel de detalhes como consulta C2 com rastreabilidade e comentários', async () => {
     const user = userEvent.setup();
     const handlers = {
       onClose: vi.fn(),
-      onDelete: vi.fn(),
-      onUnlinkRequirement: vi.fn(),
-      onUnlinkPullRequest: vi.fn(),
-      onUnlinkCommit: vi.fn(),
-      onUnlinkIssue: vi.fn()
+      onDelete: vi.fn()
     };
     render(
       <ConfirmProvider>
-        <TaskDetailsPanel task={task} deleting={false} {...handlers} />
+        <TaskDetailsPanel task={task} deleting={false} canDelete {...handlers} />
       </ConfirmProvider>
     );
 
-    expect(screen.getByRole('dialog', { name: 'Consolidar frontend' })).toBeInTheDocument();
-    for (const link of screen.getAllByRole('link', { name: 'Abrir no GitHub' })) {
+    const dialog = screen.getByRole('dialog', { name: /#7 Consolidar frontend/ });
+    expect(within(dialog).queryByRole('combobox')).toBeNull();
+    expect(within(dialog).getByText('A Fazer')).toBeInTheDocument();
+    expect(within(dialog).getByText('Comentários')).toBeInTheDocument();
+    const githubLinks = screen.getAllByRole('link', { name: 'Abrir no GitHub' });
+    expect(githubLinks.map((link) => link.getAttribute('href'))).toEqual([
+      'https://github.com/example/pull/15',
+      'https://github.com/example/commit/abcdef123',
+      'https://github.com/example/issues/9'
+    ]);
+    for (const link of githubLinks) {
+      expect(link.tagName).toBe('A');
       expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+      expect(link).toHaveClass('task-detail-external-link');
+      expect(link.querySelector('[data-icon="externalLink"]')).toHaveAttribute(
+        'aria-hidden',
+        'true'
+      );
     }
-    await user.click(screen.getByRole('button', { name: 'Remover requisito vinculado' }));
-    await user.click(screen.getByRole('button', { name: 'Remover issue vinculada' }));
-    await user.click(screen.getByRole('button', { name: 'Excluir' }));
-    expect(handlers.onUnlinkRequirement).toHaveBeenCalledWith(7);
-    expect(handlers.onUnlinkIssue).toHaveBeenCalledWith(7, 40);
+    expect(screen.queryByRole('button', { name: /Remover .* vinculado/ })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Excluir tarefa' }));
     expect(handlers.onDelete).toHaveBeenCalledWith(task);
+  });
+
+  it('mantém todos os artefatos acessíveis dentro de corpos roláveis por categoria', () => {
+    const commits = Array.from({ length: 14 }, (_, index) => ({
+      id: 100 + index,
+      hash: `abcdef${index}`,
+      shortHash: `cmt${String(index + 1).padStart(4, '0')}`,
+      message: `Commit rastreável ${index + 1}`
+    }));
+    const issues = Array.from({ length: 12 }, (_, index) => ({
+      id: 200 + index,
+      number: 300 + index,
+      title: `Issue rastreável ${index + 1}`
+    }));
+    const { container } = render(
+      <ConfirmProvider>
+        <TaskDetailsPanel
+          task={{ ...task, commits, issues }}
+          deleting={false}
+          onClose={vi.fn()}
+          onDelete={vi.fn()}
+        />
+      </ConfirmProvider>
+    );
+
+    expect(screen.getByLabelText('14 commits')).toBeInTheDocument();
+    expect(screen.getByLabelText('12 issues')).toBeInTheDocument();
+    expect(screen.getByText('cmt0014 — Commit rastreável 14')).toBeInTheDocument();
+    expect(screen.getByText('#311 — Issue rastreável 12')).toBeInTheDocument();
+    expect(container.querySelectorAll('.task-detail-artifact-body')).toHaveLength(4);
   });
 });

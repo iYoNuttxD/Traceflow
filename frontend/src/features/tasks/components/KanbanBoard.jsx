@@ -1,71 +1,147 @@
 import { KanbanColumn } from './KanbanColumn.jsx';
-import {
-  formatDate,
-  getTraceabilitySummary,
-  KANBAN_COLUMNS,
-  priorityLabels
-} from './kanban-display.js';
+import { formatDate, KANBAN_COLUMNS, priorityLabels } from './kanban-display.js';
+import { formatTraceabilityCounts, isTaskOverdue } from './kanban-view.js';
 import '../styles/task-cards.css';
 import './KanbanBoard.css';
+
+function responsibleInitial(task) {
+  const name = task.responsibleUser?.name || task.responsible || '';
+  return name.trim().charAt(0).toLocaleUpperCase('pt-BR') || '?';
+}
 
 function KanbanTaskCard({
   task,
   moving,
   dragging,
+  sprintName,
+  showSprint,
+  frozen,
   onSelect,
-  onKeyboardSelect,
+  onHistory,
+  onPointerDown,
   onDragStart,
   onDragEnd
 }) {
-  const priority = task.priority || 'MEDIA';
+  const priority = task.priority || (task.isFrozen ? '' : 'MEDIA');
+  const blocked = frozen || moving;
+  const overdue = isTaskOverdue(task);
+  const traceability = formatTraceabilityCounts(task);
+  function stopDrag(event) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
+
   return (
     <article
       className={`kanban-task ${dragging ? 'kanban-task--dragging' : ''} ${moving ? 'kanban-task--moving' : ''}`.trim()}
-      role="button"
-      tabIndex={0}
-      draggable={!moving}
-      onClick={() => onSelect(task)}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          onKeyboardSelect(task);
-        }
-      }}
-      onDragStart={(event) => onDragStart(event, task)}
-      onDragEnd={onDragEnd}
     >
-      <div className="kanban-task-header">
-        <strong>{task.title}</strong>
-        <span className={`priority-badge priority-${priority.toLowerCase()}`}>
-          {priorityLabels[priority] || priority}
+      <button
+        type="button"
+        className="kanban-task__body"
+        draggable={!blocked}
+        aria-label={`Abrir detalhes de ${task.title}`}
+        aria-describedby={`kanban-task-meta-${task.id}`}
+        onPointerDown={() => onPointerDown?.()}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') onPointerDown?.();
+        }}
+        onClick={(event) => onSelect(task, event.currentTarget)}
+        onDragStart={(event) => onDragStart(event, task)}
+        onDragEnd={onDragEnd}
+      >
+        <span className="kanban-task__topline">
+          <span className="kanban-task__id">#{task.id}</span>
+          <span className={`priority-badge priority-${priority.toLowerCase()}`}>
+            {priorityLabels[priority] || priority || 'Prioridade indisponível'}
+          </span>
         </span>
-      </div>
-      <dl className="kanban-task-details">
-        <div>
-          <dt>Responsável</dt>
-          <dd>{task.responsibleUser?.name || task.responsible || 'Não informado'}</dd>
+        <strong className="kanban-task__title">{task.title}</strong>
+        <span className="kanban-task__metadata" id={`kanban-task-meta-${task.id}`}>
+          <span className="kanban-task__responsible">
+            <span className="kanban-task__avatar" aria-hidden="true">
+              {responsibleInitial(task)}
+            </span>
+            <span>
+              {task.isFrozen
+                ? task.snapshotAvailable
+                  ? task.responsibleUserId
+                    ? `Responsável #${task.responsibleUserId}`
+                    : 'Não informado'
+                  : 'Responsável indisponível'
+                : task.responsibleUser?.name || task.responsible || 'Não informado'}
+            </span>
+          </span>
+          <span
+            className={
+              overdue
+                ? 'kanban-task__deadline kanban-task__deadline--overdue'
+                : 'kanban-task__deadline'
+            }
+          >
+            <span aria-hidden="true">◷</span>
+            {task.isFrozen && !task.snapshotAvailable
+              ? 'Prazo indisponível'
+              : task.deadline
+                ? formatDate(task.deadline)
+                : 'Sem prazo'}
+            {overdue && <strong>Atrasada</strong>}
+          </span>
+          <span className="kanban-task__traceability" title={traceability}>
+            <span aria-hidden="true">⛓</span>
+            {traceability}
+          </span>
+          {showSprint && (
+            <span
+              className="kanban-task__sprint"
+              role="note"
+              aria-label={sprintName ? `Sprint: ${sprintName}` : 'Sem Sprint'}
+            >
+              {sprintName ? (
+                <>
+                  <span aria-hidden="true">Sprint</span>
+                  <strong aria-hidden="true">{sprintName}</strong>
+                </>
+              ) : (
+                <strong aria-hidden="true">Sem Sprint</strong>
+              )}
+            </span>
+          )}
+          {frozen && <span className="kanban-task__frozen">Sprint congelada</span>}
+          {moving && <span className="kanban-task__moving">Movendo...</span>}
+        </span>
+      </button>
+
+      {(!task.isFrozen || task.currentTaskId) && (
+        <div className="kanban-task__actions" onDragStart={stopDrag}>
+          <button
+            type="button"
+            className="kanban-task__action"
+            aria-label={`Ver histórico da tarefa ${task.title}`}
+            title="Ver histórico da tarefa"
+            onClick={(event) => onHistory(task, event.currentTarget)}
+          >
+            <span aria-hidden="true">◷</span>
+          </button>
         </div>
-        <div>
-          <dt>Prazo</dt>
-          <dd>{formatDate(task.deadline)}</dd>
-        </div>
-        <div>
-          <dt>Rastreabilidade</dt>
-          <dd>{getTraceabilitySummary(task)}</dd>
-        </div>
-      </dl>
-      {moving && <span className="kanban-task-moving-label">Movendo...</span>}
+      )}
     </article>
   );
 }
 
 export function KanbanBoard({
   board,
+  isFrozen = false,
   movingTaskId,
   draggingTaskId,
   dragOverStatus,
+  sprintNames = {},
+  selectedSprintIds = [],
+  frozenSprintIds = new Set(),
+  filteredEmpty = false,
+  boardRef,
   onSelectTask,
-  onKeyboardSelectTask = onSelectTask,
+  onOpenHistory,
+  onTaskPointerDown = () => {},
   onTaskDragStart,
   onTaskDragEnd,
   onColumnDragOver,
@@ -73,39 +149,76 @@ export function KanbanBoard({
   onColumnDrop
 }) {
   return (
-    <div className="kanban-board">
-      {KANBAN_COLUMNS.map((column) => {
-        const tasks = board?.columns?.[column.status] || [];
-        return (
-          <KanbanColumn
-            key={column.status}
-            title={`${column.label} (${board?.totals?.[column.status] ?? 0})`}
-            className={dragOverStatus === column.status ? 'kanban-column--drag-over' : ''}
-            onDragOver={(event) => onColumnDragOver(event, column.status)}
-            onDragLeave={(event) => onColumnDragLeave(event, column.status)}
-            onDrop={(event) => onColumnDrop(event, column.status)}
-          >
-            {tasks.length === 0 ? (
-              <p className="kanban-empty">Nenhuma tarefa nesta etapa.</p>
-            ) : (
-              <div className="kanban-task-list">
-                {tasks.map((task) => (
-                  <KanbanTaskCard
-                    key={task.id}
-                    task={task}
-                    moving={movingTaskId === task.id}
-                    dragging={draggingTaskId === task.id}
-                    onSelect={onSelectTask}
-                    onKeyboardSelect={onKeyboardSelectTask}
-                    onDragStart={onTaskDragStart}
-                    onDragEnd={onTaskDragEnd}
-                  />
-                ))}
-              </div>
-            )}
-          </KanbanColumn>
-        );
-      })}
-    </div>
+    <section
+      className="kanban-board-region"
+      aria-labelledby="kanban-board-title"
+      ref={boardRef}
+      tabIndex={-1}
+    >
+      <header className="kanban-board-region__heading">
+        <div>
+          <span className="eyebrow">Fluxo</span>
+          <h2 id="kanban-board-title">Kanban</h2>
+        </div>
+        <p>
+          {isFrozen
+            ? 'Estado congelado no encerramento da Sprint.'
+            : 'Arraste uma tarefa para alterar sua etapa.'}
+        </p>
+      </header>
+      {filteredEmpty && (
+        <div className="kanban-filtered-empty" role="status">
+          Nenhuma tarefa corresponde aos filtros.
+        </div>
+      )}
+      <div className="kanban-board-scroll">
+        <div className="kanban-board">
+          {KANBAN_COLUMNS.map((column) => {
+            const tasks = board?.columns?.[column.status] || [];
+            return (
+              <KanbanColumn
+                key={column.status}
+                title={column.label}
+                count={tasks.length}
+                className={dragOverStatus === column.status ? 'kanban-column--drag-over' : ''}
+                onDragOver={
+                  isFrozen ? undefined : (event) => onColumnDragOver(event, column.status)
+                }
+                onDragLeave={
+                  isFrozen ? undefined : (event) => onColumnDragLeave(event, column.status)
+                }
+                onDrop={isFrozen ? undefined : (event) => onColumnDrop(event, column.status)}
+              >
+                {tasks.length === 0 ? (
+                  <p className="kanban-empty">Nenhuma tarefa nesta etapa.</p>
+                ) : (
+                  <div className="kanban-task-list">
+                    {tasks.map((task) => (
+                      <KanbanTaskCard
+                        key={task.id}
+                        task={task}
+                        moving={movingTaskId === task.id}
+                        dragging={draggingTaskId === task.id}
+                        sprintName={sprintNames[task.sprintId]}
+                        showSprint={selectedSprintIds.length === 0}
+                        frozen={
+                          task.isFrozen ||
+                          (Boolean(task.sprintId) && frozenSprintIds.has(task.sprintId))
+                        }
+                        onSelect={onSelectTask}
+                        onHistory={onOpenHistory}
+                        onPointerDown={onTaskPointerDown}
+                        onDragStart={onTaskDragStart}
+                        onDragEnd={onTaskDragEnd}
+                      />
+                    ))}
+                  </div>
+                )}
+              </KanbanColumn>
+            );
+          })}
+        </div>
+      </div>
+    </section>
   );
 }

@@ -79,6 +79,9 @@ export const taskStatusBodySchema = strictObject({ status: taskStatus });
 export const taskRequirementBodySchema = strictObject({
   requirementId: positiveInteger('ID do requisito inválido.')
 });
+export const taskSprintBodySchema = strictObject({
+  sprintId: positiveInteger('ID da sprint inválido.')
+});
 export const pullRequestLinkBodySchema = strictObject({
   pullRequestId: nullableId('ID do pull request inválido.')
 });
@@ -116,6 +119,6 @@ export const movementQuerySchema = dateRangeSchema.extend({
 export const taskHistoryQuerySchema = dateRangeSchema.extend({
   taskId: positiveInteger('ID da tarefa inválido.').optional(),
   actorUserId: positiveInteger('ID do ator inválido.').optional(),
-  field: z.enum(['STATUS', 'DEADLINE', 'RESPONSIBLE', 'PRIORITY']).optional(),
+  field: z.enum(['STATUS', 'DEADLINE', 'RESPONSIBLE', 'PRIORITY', 'SPRINT']).optional(),
   ...paginationSchema
 });

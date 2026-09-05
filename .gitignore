@@ -1,4 +1,3 @@
-# Dependências, artefatos gerados e configurações locais.
 node_modules/
 .env
 .env.local
@@ -19,6 +18,13 @@ frontend/.env
 
 .vscode/
 rest.http
+
+.design-sync/
+.ds-sync/
+ds-bundle/
+
+/package-lock.json
+
 docs/design/experiments/
 docs/design/screenshots/
 docs/design/DESIGN_EXPLORATION.md

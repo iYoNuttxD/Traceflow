@@ -13,6 +13,7 @@ export const emptyTaskForm = {
   estimatedEffort: '',
   actualEffort: '',
   requirementId: '',
+  sprintId: '',
   pullRequestId: '',
   commitIds: [],
   issueIds: []
@@ -29,6 +30,7 @@ export function taskToFormData(task) {
     estimatedEffort: task.estimatedEffort ?? '',
     actualEffort: task.actualEffort ?? '',
     requirementId: task.requirementId ? String(task.requirementId) : '',
+    sprintId: task.sprintId ? String(task.sprintId) : '',
     pullRequestId: task.pullRequestId ? String(task.pullRequestId) : '',
     commitIds: (task.commits || []).map((commit) => String(commit.id)),
     issueIds: (task.issues || []).map((issue) => String(issue.id))
@@ -111,6 +113,7 @@ export function taskFormToPayload(formData, editing = false) {
 
   delete payload.pullRequestId;
   delete payload.requirementId;
+  delete payload.sprintId;
   delete payload.status;
   delete payload.commitIds;
   delete payload.issueIds;
@@ -132,6 +135,7 @@ export function TaskForm({
   pullRequests = [],
   projectMembers = [],
   requirements = [],
+  sprints = [],
   selectedRequirement = null,
   selectedPullRequest = null,
   selectedCommits = [],
@@ -390,6 +394,28 @@ export function TaskForm({
         <input type="date" name="deadline" value={formData.deadline} onChange={handleChange} />
       </label>
 
+      {/* Sprint encerrada não recebe tarefa (ADR-010 D04) e o backend recusa com
+          409 — só aparece na lista se já for a sprint atual da tarefa, senão a
+          edição de uma tarefa antiga abriria o campo vazio e a devolveria ao
+          backlog sem ninguém ter pedido. */}
+      <label className="field">
+        <span>Sprint</span>
+        <select name="sprintId" value={formData.sprintId} onChange={handleChange}>
+          <option value="">Sem sprint (backlog)</option>
+          {sprints
+            .filter(
+              (sprint) =>
+                !['CONCLUIDA', 'CANCELADA'].includes(sprint.status) ||
+                String(sprint.id) === String(formData.sprintId)
+            )
+            .map((sprint) => (
+              <option key={sprint.id} value={String(sprint.id)}>
+                {sprint.name}
+              </option>
+            ))}
+        </select>
+      </label>
+
       <label className="field">
         <span>Esforço estimado</span>
         <input
@@ -553,6 +579,7 @@ export function TaskForm({
         <CommitSuggestionsCard
           projectId={projectId}
           taskId={taskId}
+          disabled={submitting}
           onConfirmed={onSuggestionConfirmed}
         />
 

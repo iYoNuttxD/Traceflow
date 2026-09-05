@@ -36,6 +36,7 @@ src/
 │   ├── privacy/
 │   ├── projects/
 │   ├── requirements/
+│   ├── schedule/
 │   ├── settings/
 │   ├── tasks/
 │   └── traceability/
@@ -63,6 +64,21 @@ somente às rotas protegidas de contas ativas; rotas públicas e páginas de con
 a sidebar.
 
 O build separa as telas públicas e protegidas, os módulos de domínio e o grafo. `TraceabilityFlow` e `@xyflow/react` são alcançados apenas pelo chunk de rastreabilidade e não pertencem à entrada inicial.
+
+## Seções de cronograma
+
+`schedule` atende três rotas irmãs, e não uma tela só: `/sprints` (ciclo de execução),
+`/milestones` (entrega agrupada) e `/schedule` (agenda em calendário). Elas nasceram de uma tela
+única, que empilhava os três assuntos e obrigava a rolar a página inteira para trocar de um para
+o outro. Cada uma tem URL própria, compartilhável e recarregável.
+
+A carga comum — projeto, agregado, sprints, marcos e membership — vive em
+`features/schedule/hooks/useScheduleData.js`. O que **não** vive lá é o estado de cada tela
+(painel aberto, sprint selecionada, mês do calendário): centralizá-lo devolveria a tela única por
+outro caminho.
+
+Tasks e Kanban consomem somente o `index.js` público de `schedule` para catálogos e vocabulário de
+sprint, sem importar internals da feature.
 
 ## Shell, tema e catálogo de projetos
 
@@ -148,10 +164,26 @@ repositório.
 As screens de Tasks e Kanban coordenam estado e casos de uso, enquanto componentes do próprio domínio apresentam responsabilidades delimitadas:
 
 - `TaskMetrics` e `TaskList` apresentam resumo, tarefas e vínculos;
-- `KanbanBoard` apresenta colunas e cartões com interação por teclado e drag-and-drop;
-- `MovementHistory` apresenta filtros e paginação do backend;
-- `TaskDetailsPanel` apresenta o detalhe e delega mutações;
-- `kanban-display` centraliza somente labels e formatação de apresentação.
+- `KanbanSummary` apresenta as métricas do recorte por Sprint, enquanto `KanbanSprintFilter`
+  preserva seleção múltipla e URL compartilhável sem renderizar um catálogo permanente;
+- `KanbanFilters` usa a primitive de filtros recolhíveis de Planning para aplicar busca,
+  responsável, prioridade e prazo somente sobre os dados carregados;
+- `KanbanBoard` e `KanbanColumn` apresentam as três colunas reais, cards compactos, menus e o
+  drag-and-drop HTML nativo; detalhes e histórico continuam acessíveis por teclado, mas o movimento
+  de status ainda não possui alternativa de teclado (`KANBAN KEYBOARD MOVE GAP`);
+- `TaskHistoryDialog` consulta e pagina o histórico somente da tarefa selecionada por meio do
+  endpoint existente, sem carregar histórico global no Kanban;
+- `TaskDetailsPanel` apresenta informações e rastreabilidade em modo read-only e concentra, sob
+  uma única ação `Editar tarefa`, o draft dos campos suportados e dos vínculos; status continua
+  read-only, mutations independentes preservam seus resultados reais e a troca de tarefa desmonta
+  o estado efêmero do editor;
+- `TaskTraceabilityEditor` permanece owner dos seletores pesquisáveis de requisito, pull request,
+  commit e issue, enquanto `CommitSuggestionsCard` oferece o mesmo controle compacto de sugestões
+  no formulário de Tasks e no Task Details, sem duplicar a regra de negócio;
+- `TaskComments` permanece owner da conversa, paginação e SSE, sem acoplamento ao modo de edição;
+- `KanbanDialog` concentra foco inicial, trap, Escape, scroll e return focus dos dialogs locais;
+- `kanban-view` centraliza resumo, filtros e apresentação derivada, enquanto `kanban-display`
+  mantém labels e formatação do histórico.
 
 A restauração de sessão coalesce chamadas concorrentes e as cargas iniciais de Tasks/Kanban são protegidas contra a segunda execução de efeitos em desenvolvimento, sem introduzir cache global.
 

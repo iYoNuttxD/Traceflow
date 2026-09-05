@@ -49,6 +49,31 @@ describe('normalização mínima de erros HTTP', () => {
     });
   });
 
+  it('mantém erro interno genérico em vez da mensagem técnica ou do fallback contextual', () => {
+    const semCorpo = normalizeApiError(
+      { message: 'Request failed with status code 500', response: { status: 500, data: {} } },
+      'Não foi possível salvar a sprint.'
+    );
+    expect(semCorpo.message).toBe(
+      'O TRACEFLOW encontrou um problema interno. Tente novamente em instantes.'
+    );
+    expect(semCorpo.status).toBe(500);
+    // A mensagem técnica continua acessível para depuração, fora do payload exibível.
+    expect(semCorpo.original.message).toBe('Request failed with status code 500');
+  });
+
+  it('a mensagem do backend ainda vence o fallback do chamador', () => {
+    expect(
+      normalizeApiError(
+        {
+          message: 'Request failed with status code 409',
+          response: { status: 409, data: { message: 'Já existe uma sprint com este nome.' } }
+        },
+        'Não foi possível salvar a sprint.'
+      ).message
+    ).toBe('Já existe uma sprint com este nome.');
+  });
+
   it('aceita request ID recebido apenas no header', () => {
     expect(
       normalizeApiError({
