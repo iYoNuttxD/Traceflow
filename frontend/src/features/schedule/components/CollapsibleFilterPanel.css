@@ -1,0 +1,97 @@
+.planning-filter-panel {
+  overflow: visible;
+}
+
+.planning-filter-panel__toggle {
+  display: flex;
+  width: 100%;
+  min-height: var(--size-touch-target);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  border: 0;
+  border-radius: var(--radius-lg);
+  padding: var(--space-3) var(--space-5);
+  color: var(--color-text-primary);
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.planning-filter-panel__toggle:hover {
+  background: var(--color-surface-interactive);
+}
+
+.planning-filter-panel__title {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.planning-filter-panel__title strong {
+  color: var(--color-text-strong);
+  font-size: var(--font-size-4);
+  line-height: var(--line-height-title);
+}
+
+.planning-filter-panel__title small,
+.planning-filter-panel__state {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-1);
+}
+
+.planning-filter-panel__state {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-3);
+  font-weight: var(--font-weight-semibold);
+}
+
+.planning-filter-panel__state .traceflow-icon {
+  width: var(--size-icon-sm);
+  height: var(--size-icon-sm);
+  transition: transform var(--duration-fast) var(--ease-standard);
+  transform: rotate(90deg);
+}
+
+.planning-filter-panel__toggle[aria-expanded='true'] .planning-filter-panel__state .traceflow-icon {
+  transform: rotate(-90deg);
+}
+
+.planning-filter-panel__body {
+  padding: var(--space-4) var(--space-6) var(--space-6);
+  border-top: var(--border-width-default) solid var(--color-border-default);
+}
+
+.planning-filter-panel__actions {
+  display: flex;
+  min-height: var(--size-touch-target);
+  align-items: center;
+  justify-content: flex-end;
+  margin-bottom: var(--space-3);
+}
+
+@media (max-width: 480px) {
+  .planning-filter-panel__toggle {
+    align-items: flex-start;
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .planning-filter-panel__title {
+    display: grid;
+    gap: var(--space-1);
+  }
+
+  .planning-filter-panel__state > span {
+    max-width: 5.5rem;
+    text-align: right;
+  }
+
+  .planning-filter-panel__body {
+    padding: var(--space-4);
+  }
+}

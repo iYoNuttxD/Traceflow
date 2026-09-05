@@ -120,12 +120,17 @@ export function evaluateAudit(report, policy, { now = new Date() } = {}) {
 }
 
 function runAudit(projectDirectory) {
+  // `shell: true` e obrigatorio no Windows: desde a correcao da CVE-2024-27980
+  // (Node 18.20/20.12/22) o spawn recusa .cmd e .bat sem shell. Sem isto o
+  // npm nem chega a rodar e o stdout volta undefined.
   const result = spawnSync("npm", ["audit", "--json"], {
     cwd: projectDirectory,
     encoding: "utf8",
     maxBuffer: 20 * 1024 * 1024,
+    shell: true,
   });
-  if (!result.stdout.trim()) {
+  if (result.error) throw result.error;
+  if (!result.stdout?.trim()) {
     throw new Error(`npm audit não produziu JSON para ${projectDirectory}.`);
   }
   try {

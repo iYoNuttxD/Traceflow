@@ -41,6 +41,16 @@ describe('AppRoutes com chunks por rota', () => {
     expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeInTheDocument();
   });
 
+  it('mantém o cronograma (RF10) atrás de ProtectedRoute', async () => {
+    render(
+      <MemoryRouter initialEntries={['/projects/1/schedule']}>
+        <AppRoutes />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeInTheDocument();
+  });
+
   it('reutiliza a página contextual em rota inexistente sem assumir projeto', async () => {
     render(
       <MemoryRouter initialEntries={['/rota-inexistente']}>

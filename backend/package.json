@@ -46,7 +46,10 @@
     "db:test:validate-lr5": "node scripts/validate-lr5-migration.js",
     "db:test:validate-lr9": "node scripts/validate-lr9-migration.js",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev"
+    "prisma:migrate": "prisma migrate dev",
+    "s104:dates:dry-run": "node scripts/s104-legacy-schedule-dates.js",
+    "s104:dates": "node scripts/s104-legacy-schedule-dates.js --apply",
+    "adr011:audit": "node scripts/adr011-milestone-sprint-audit.js"
   },
   "dependencies": {
     "@octokit/rest": "^21.0.0",
@@ -70,5 +73,8 @@
     "prisma": "6.12.0",
     "supertest": "^7.2.2",
     "vitest": "^4.1.10"
+  },
+  "overrides": {
+    "deepmerge-ts": "^8.0.1"
   }
 }

@@ -84,6 +84,22 @@ export const taskController = {
     { fallbackMessage: 'Erro interno ao remover requisito da tarefa.' }
   ),
 
+  linkSprint: asyncHandler(
+    async (req, res) => {
+      const task = await taskService.linkSprint(req.params.id, req.body, context(req));
+      return res.json({ message: 'Sprint vinculada à tarefa.', task });
+    },
+    { fallbackMessage: 'Erro interno ao vincular sprint à tarefa.' }
+  ),
+
+  unlinkSprint: asyncHandler(
+    async (req, res) => {
+      const task = await taskService.unlinkSprint(req.params.id, context(req));
+      return res.json({ message: 'Vínculo com sprint removido.', task });
+    },
+    { fallbackMessage: 'Erro interno ao remover sprint da tarefa.' }
+  ),
+
   delete: asyncHandler(
     async (req, res) => {
       await taskService.deleteTask(req.params.id, context(req));

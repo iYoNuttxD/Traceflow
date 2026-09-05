@@ -221,6 +221,11 @@ function inspectBackendImports(files, backendRoot, violations, graph) {
         specifier === '@prisma/client' ||
         specifier.includes('/database/') ||
         specifier.includes('prismaClient');
+      // Duas formas de alcançar integração externa: pelo `.client.js` do módulo ou
+      // pelo pacote direto. Cobrir só a primeira deixava o pacote bruto passar, já que
+      // um specifier de pacote não resolve para arquivo e não tem targetLayer.
+      const externalClientImport =
+        targetLayer === 'client' || /^@octokit\//.test(specifier) || specifier === 'octokit';
 
       if (specifier.includes('/scripts/') || specifier.startsWith('../scripts')) {
         addViolation(
@@ -256,6 +261,18 @@ function inspectBackendImports(files, backendRoot, violations, graph) {
         );
       }
 
+      // MODULE_CONVENTIONS.md §Route: "Não acessa Prisma, database, repository ou
+      // client externo." A metade `client externo` não era verificada.
+      if (layer === 'route' && externalClientImport) {
+        addViolation(
+          violations,
+          file,
+          'route-no-external-client',
+          specifier,
+          'Route não pode chamar client externo.'
+        );
+      }
+
       if (layer === 'controller' && targetLayer === 'repository') {
         addViolation(
           violations,
@@ -273,6 +290,17 @@ function inspectBackendImports(files, backendRoot, violations, graph) {
           'controller-no-database',
           specifier,
           'Controller não pode acessar Prisma/database.'
+        );
+      }
+
+      // MODULE_CONVENTIONS.md §Controller: "Não acessa Prisma, repository ou Octokit."
+      if (layer === 'controller' && externalClientImport) {
+        addViolation(
+          violations,
+          file,
+          'controller-no-external-client',
+          specifier,
+          'Controller não pode chamar client externo/Octokit.'
         );
       }
 
@@ -306,7 +334,7 @@ function inspectBackendImports(files, backendRoot, violations, graph) {
         );
       }
 
-      if (layer === 'repository' && targetLayer === 'client') {
+      if (layer === 'repository' && externalClientImport) {
         addViolation(
           violations,
           file,

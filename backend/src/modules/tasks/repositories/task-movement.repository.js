@@ -1,4 +1,5 @@
 import { prisma } from '../../../database/prismaClient.js';
+import { lockProject } from '../../../database/locks.js';
 import { auditRepository } from '../../audit/audit.repository.js';
 import { taskInclude } from '../task.repository.js';
 
@@ -27,10 +28,45 @@ function movementWhere(projectId, filters = {}) {
 }
 
 export const taskMovementRepository = {
-  async transitionStatus({ task, toStatus, actor, auditEvent, calculateRequirementStatus }) {
+  async transitionStatus({
+    task,
+    toStatus,
+    actor,
+    auditEvent,
+    calculateRequirementStatus,
+    validate
+  }) {
     return prisma.$transaction(async (tx) => {
+      await lockProject(tx, task.projectId);
+
+      const [antes] = await tx.$queryRaw`
+        SELECT sprintId FROM Task WHERE id = ${task.id} AND projectId = ${task.projectId}`;
+      if (!antes) return { conflict: true };
+      const sprintId = antes.sprintId == null ? null : Number(antes.sprintId);
+
+      let sprint = null;
+      if (sprintId) {
+        const [travada] = await tx.$queryRaw`
+          SELECT id, status FROM Sprint WHERE id = ${sprintId} FOR UPDATE`;
+        sprint = travada ?? null;
+      }
+
+      const [atual] = await tx.$queryRaw`
+        SELECT sprintId, requirementId FROM Task WHERE id = ${task.id} FOR UPDATE`;
+      if (!atual) return { conflict: true };
+      const sprintAtual = atual.sprintId == null ? null : Number(atual.sprintId);
+      if (sprintAtual !== sprintId) return { conflict: true };
+      const requirementId = atual.requirementId == null ? null : Number(atual.requirementId);
+
+      if (validate) await validate({ sprint });
+
       const changed = await tx.task.updateMany({
-        where: { id: task.id, projectId: task.projectId, status: task.status },
+        where: {
+          id: task.id,
+          projectId: task.projectId,
+          status: task.status,
+          sprintId: sprintAtual
+        },
         data: { status: toStatus }
       });
       if (changed.count !== 1) return { conflict: true };
@@ -42,7 +78,8 @@ export const taskMovementRepository = {
           fromStatus: task.status,
           toStatus,
           movedBy: actor.name,
-          movedByUserId: actor.id
+          movedByUserId: actor.id,
+          sprintId: sprintAtual
         },
         include: { movedByUser: { select: { id: true, name: true } } }
       });
@@ -57,7 +94,7 @@ export const taskMovementRepository = {
           occurredAt: movement.movedAt
         }
       });
-      await recalculateRequirement(tx, task.requirementId, calculateRequirementStatus);
+      await recalculateRequirement(tx, requirementId, calculateRequirementStatus);
       if (auditEvent) await auditRepository.create(auditEvent, tx);
       const updatedTask = await tx.task.findUnique({
         where: { id: task.id },

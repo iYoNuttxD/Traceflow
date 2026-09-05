@@ -1,0 +1,140 @@
+/* Owner: KanbanDialog. */
+
+.kanban-dialog-backdrop {
+  position: fixed;
+  z-index: var(--z-modal);
+  inset: 0;
+  display: grid;
+  overflow-y: auto;
+  place-items: center;
+  padding: var(--space-4);
+  background: var(--color-overlay);
+}
+
+.kanban-dialog {
+  display: flex;
+  width: min(100%, 46rem);
+  max-height: calc(100vh - (2 * var(--space-4)));
+  flex-direction: column;
+  overflow: hidden;
+  border: var(--border-width-default) solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  color: var(--color-text-primary);
+  background: var(--color-surface-elevated);
+  box-shadow: var(--shadow-md);
+}
+
+.kanban-dialog--wide {
+  width: min(100%, 68rem);
+}
+
+.kanban-dialog__header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-6);
+  border-bottom: var(--border-width-default) solid var(--color-border-default);
+}
+
+.kanban-dialog__header h2,
+.kanban-dialog__header p {
+  margin: 0;
+}
+
+.kanban-dialog__controls {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.kanban-dialog__controls .button {
+  min-height: var(--size-touch-target);
+}
+
+.kanban-dialog__header h2 {
+  color: var(--color-text-strong);
+  font-size: var(--font-size-4);
+  line-height: var(--line-height-title);
+}
+
+.kanban-dialog__header p {
+  margin-top: var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-2);
+}
+
+.kanban-dialog__close {
+  display: grid;
+  width: var(--size-touch-target);
+  height: var(--size-touch-target);
+  flex: 0 0 var(--size-touch-target);
+  place-items: center;
+  border: var(--border-width-default) solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 0;
+  color: var(--color-text-secondary);
+  background: transparent;
+  cursor: pointer;
+}
+
+.kanban-dialog__close:hover {
+  border-color: var(--color-border-default);
+  color: var(--color-text-strong);
+  background: var(--color-surface-interactive);
+}
+
+.kanban-dialog__body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-6);
+}
+
+.kanban-dialog--wide .kanban-dialog__body {
+  overflow: hidden;
+}
+
+@media (max-width: 860px) {
+  .kanban-dialog--wide .kanban-dialog__body {
+    overflow-y: auto;
+  }
+}
+
+@media (max-width: 560px) {
+  .kanban-dialog-backdrop {
+    align-items: stretch;
+    padding: var(--space-2);
+  }
+
+  .kanban-dialog {
+    max-height: calc(100vh - (2 * var(--space-2)));
+  }
+
+  .kanban-dialog__header,
+  .kanban-dialog__body {
+    padding: var(--space-4);
+  }
+
+  .kanban-dialog__header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .kanban-dialog__controls {
+    justify-content: flex-start;
+  }
+
+  .kanban-dialog__close {
+    margin-left: auto;
+  }
+}
+
+.kanban-dialog__header > div:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

@@ -56,6 +56,25 @@ enum TaskHistoryField {
   DEADLINE
   RESPONSIBLE
   PRIORITY
+  SPRINT
+}
+
+enum SprintStatus {
+  PLANEJADA
+  EM_ANDAMENTO
+  CONCLUIDA
+  CANCELADA
+}
+
+enum MilestoneStatus {
+  PENDENTE
+  CONCLUIDO
+}
+
+enum SprintTaskRemovalReason {
+  MOVIDA
+  REMOVIDA
+  TAREFA_EXCLUIDA
 }
 
 enum GitHubInstallationStatus {
@@ -151,6 +170,8 @@ model User {
   requestedGitHubSyncRuns          GitHubSyncRun[]
   taskComments                     TaskComment[]                     @relation("TaskCommentAuthor")
   deletedTaskComments              TaskComment[]                     @relation("TaskCommentDeleter")
+  deletedSprints                   Sprint[]                          @relation("SprintDeleter")
+  deletedMilestones                Milestone[]                       @relation("MilestoneDeleter")
 
   @@index([accountStatus])
 }
@@ -311,6 +332,9 @@ model Project {
   githubConnectionStates GitHubAppConnectionState[]
   githubBranches         GitBranch[]
   githubSyncRuns         GitHubSyncRun[]
+  sprints                Sprint[]
+  milestones             Milestone[]
+  sprintTasks            SprintTask[]
 
   @@index([status])
   @@index([createdAt])
@@ -557,12 +581,15 @@ model Task {
   actualEffort      Int?
   pullRequestId     Int?
   responsibleUserId Int?
+  sprintId          Int?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
   project           Project                @relation(fields: [projectId], references: [id])
   requirement       Requirement?           @relation(fields: [requirementId], references: [id])
   pullRequest       PullRequest?           @relation(fields: [pullRequestId], references: [id], onDelete: SetNull)
+  sprint            Sprint?                @relation(fields: [sprintId], references: [id], onDelete: SetNull)
+  sprintParticipations SprintTask[]
   movements         TaskMovement[]
   historyEntries    TaskHistoryEntry[]
   comments          TaskComment[]
@@ -576,6 +603,98 @@ model Task {
   @@index([requirementId])
   @@index([projectId, status])
   @@index([projectId, createdAt])
+  @@index([projectId, sprintId])
+}
+
+model Sprint {
+  id                 Int          @id @default(autoincrement())
+  projectId          Int
+  name               String
+  // Generated ALWAYS by SQL migration; never supplied by callers.
+  activeNameKey      String? @default(dbgenerated())
+  objective          String?      @db.Text
+  startDate          DateTime
+  endDate            DateTime
+  status             SprintStatus @default(PLANEJADA)
+  startedAt          DateTime?
+  completedAt        DateTime?
+  planningSnapshotAt DateTime?
+  closedAt           DateTime?
+  milestoneId        Int?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  deletedAt DateTime?
+  deletedById Int?
+  deletedBy User? @relation("SprintDeleter", fields: [deletedById], references: [id], onDelete: SetNull)
+
+  project          Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks            Task[]
+  sprintTasks      SprintTask[] @relation("SprintMembership")
+  carriedOverTasks SprintTask[] @relation("SprintCarryOver")
+  milestone        Milestone?   @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, activeNameKey])
+  @@index([projectId, deletedAt, status])
+  @@index([deletedById])
+  @@index([projectId, status])
+  @@index([projectId, startDate])
+  @@index([projectId, endDate])
+  @@index([projectId, milestoneId])
+}
+
+model Milestone {
+  id          Int             @id @default(autoincrement())
+  projectId   Int
+  title       String
+  description String?         @db.Text
+  dueDate     DateTime
+  status      MilestoneStatus @default(PENDENTE)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  deletedAt DateTime?
+  deletedById Int?
+  deletedBy User? @relation("MilestoneDeleter", fields: [deletedById], references: [id], onDelete: SetNull)
+
+  project Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sprints Sprint[]
+
+  @@index([projectId, dueDate])
+  @@index([projectId, deletedAt, status])
+  @@index([deletedById])
+  @@index([projectId, status])
+}
+
+model SprintTask {
+  id                  Int                      @id @default(autoincrement())
+  projectId           Int
+  sprintId            Int
+  taskId              Int?
+  taskTitleSnapshot   String
+  addedAt             DateTime                 @default(now())
+  addedAfterStart     Boolean                  @default(false)
+  plannedAtStart      Boolean?
+  pointsAtPlanning    Int?
+  pointsAtClose       Int?
+  closingTaskSnapshot Json?
+  completedAtClose    DateTime?
+  carriedFromSprintId Int?
+  removedAt           DateTime?
+  removalReason       SprintTaskRemovalReason?
+  exitStatus          String?
+  closedAt            DateTime?
+
+  project           Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sprint            Sprint  @relation("SprintMembership", fields: [sprintId], references: [id], onDelete: Cascade)
+  task              Task?   @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  carriedFromSprint Sprint? @relation("SprintCarryOver", fields: [carriedFromSprintId], references: [id], onDelete: SetNull)
+
+  @@unique([sprintId, taskId])
+  @@index([sprintId, removedAt])
+  @@index([taskId, removedAt])
+  @@index([carriedFromSprintId])
+  @@index([projectId, addedAt])
 }
 
 // Vinculo de rastreabilidade entre tarefas e commits importados do GitHub.

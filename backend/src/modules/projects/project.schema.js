@@ -1,4 +1,5 @@
 import { DomainError as ProjectServiceError } from '../../shared/errors/index.js';
+import { resourceNotFoundError } from '../../shared/errors/index.js';
 export { ProjectServiceError };
 
 const allowedStatuses = new Set(['ATIVO', 'INATIVO', 'ARQUIVADO']);
@@ -114,7 +115,7 @@ export function validateOptionalGithubAutoSyncEnabled(value) {
 }
 
 export function ensureGithubLinkedProject(project) {
-  if (!project) throw new ProjectServiceError('Projeto não encontrado.', 404);
+  if (!project) throw resourceNotFoundError('Project');
 
   if (!project.githubIntegration?.repositoryFullName) {
     throw new ProjectServiceError('Projeto não possui repositório GitHub vinculado.', 400);

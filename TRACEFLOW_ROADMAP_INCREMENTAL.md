@@ -183,11 +183,31 @@ Entregar identidade e acesso homologados, planejamento colaborativo e a cadeia a
 
 **Checklist técnico:**
 
-- [ ] definir contrato e migration versionada;
-- [ ] implementar repository, service, controller, rotas e validação;
-- [ ] implementar telas, filtros e associação de tarefas;
-- [ ] testar fórmulas, autorização e integridade;
-- [ ] documentar API, cálculo e RFs.
+- [x] definir contrato e migration versionada;
+- [x] implementar repository, service, controller, rotas e validação;
+- [x] implementar telas, filtros e associação de tarefas;
+- [x] testar fórmulas, autorização e integridade;
+- [x] documentar API, cálculo e RFs.
+
+**Estado:** implementação e documentação concluídas; correções do code review da PR #12
+aplicadas e registradas no [ADR-010](docs/architecture/ADR-010-SPRINT-DOMAIN-CORRECTIONS.md).
+
+**Revisão do modelo (23/08/2026).** O desenho de produto exigiu um modelo que o cartão não
+sustentava, e o [ADR-011](docs/architecture/ADR-011-MILESTONE-SPRINT-INVERSION.md) registra a
+mudança: o marco passou a **agrupar** sprints (invertendo D02), ganhou prazo próprio (revertendo
+D11) e deixou de congelar junto com a sprint (restringindo D12). Entraram com ele: sprint única
+`EM_ANDAMENTO` por projeto, devolução ao backlog no encerramento, conclusão automática do marco,
+burndown no `progress`, filtro do quadro por sprint e o cronograma em calendário. A tela única de
+cronograma virou três rotas — `/sprints`, `/milestones` e `/schedule`.
+
+A migration `20260823120000_adr011_invert_milestone_sprint` é **irreversível sem perda**: uma
+sprint podia ter vários marcos e passa a apontar para um. `npm run adr011:audit` lista, antes de
+aplicar, quais vínculos serão descartados.
+
+**Pendência para homologação plena:** o DoD (§4) pede fluxos ponta a ponta proporcionais ao
+risco. As jornadas críticas estão cobertas por teste de API e de interface, mas não por E2E de
+navegador — `S104-F02` no backlog técnico. Até que essa decisão seja tomada, o cartão fica
+**concluído em implementação, aberto em homologação**.
 
 ### S1-05 - Implementar comentários e histórico nas tarefas
 

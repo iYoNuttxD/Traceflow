@@ -39,6 +39,14 @@ reduzir enumeração; papel insuficiente retorna `403`. Mutations autenticadas e
 | `POST /api/tasks/:id/comments`                                                                                 |     401 |    403 |           E |       E |     E | autor sempre da sessão                                                                                         |
 | `PATCH /api/tasks/:id/comments/:commentId`                                                                     |     401 |    403 | E (próprio) |     403 |   403 | somente o autor edita; MANAGER/OWNER não editam texto de terceiros                                             |
 | `DELETE /api/tasks/:id/comments/:commentId`                                                                    |     401 |    403 | E (próprio) |       E |     E | MANAGER/OWNER moderam qualquer comentário do projeto                                                           |
+| Sprints: `GET /api/projects/:projectId/sprints`, `/api/sprints/:id`, `/api/sprints/:id/tasks`                  |     401 |      L |           L |       L |     L | RF10; recurso e membership do mesmo projeto                                                                    |
+| Sprints: `POST`, `PUT`, `PATCH /api/sprints/:id/status`, `PUT /api/sprints/:id/tasks`                          |     401 |    403 |           E |       E |     E | invariantes, sobreposição e estados terminais no service sob lock                                              |
+| `DELETE /api/sprints/:id`                                                                                      |     401 |    403 |         405 |     405 |   405 | sprint não é excluída; autorização precede a recusa do método                                                  |
+| Milestones: `GET /api/projects/:projectId/milestones`, `/api/milestones/:id`                                   |     401 |      L |           L |       L |     L | RF10; recurso e membership do mesmo projeto                                                                    |
+| Milestones: `POST`, `PUT`, `PATCH /api/milestones/:id/status`, `DELETE`                                        |     401 |    403 |           E |       E |     E | invariantes e lifecycle no service                                                                             |
+| `GET /api/projects/:projectId/schedule`                                                                        |     401 |      L |           L |       L |     L | RF10; agregado somente-leitura e DTO minimizado                                                                |
+| `GET /api/sprints/:id/progress`                                                                                |     401 |      L |           L |       L |     L | RF35; somente-leitura, sem recorte por responsável                                                             |
+| `PATCH/DELETE /api/tasks/:id/sprint`                                                                           |     401 |    403 |           E |       E |     E | tarefa e sprint no mesmo projeto; recurso alheio recebe 404 opaco                                              |
 | `POST /api/github/app/installations/start`; `GET /github/app/installations...`                                 |     401 |      E |           E |       E |     E | start exige e-mail verificado; lista usa App ACTIVE e Installation Token                                       |
 | `GET /api/github-app/callback`                                                                                 |     302 |    302 |         302 |     302 |   302 | state/sessão/conta/instalação; não exige GitHubIdentity; tokens efêmeros                                       |
 | `PUT /api/projects/:projectId/github/integration`                                                              |     401 |    403 |         403 |     403 |     A | OWNER; mesma repo reconecta, repo diferente retorna 409                                                        |
@@ -72,6 +80,10 @@ reduzir enumeração; papel insuficiente retorna `403`. Mutations autenticadas e
 - No fechamento do RF41, VIEWER apenas consulta; MEMBER+ analisa e revisa. Confirmação e rejeição são transacionais e auditadas.
 - `responsibleUserId` exige membership ativa; a autoria de movimento vem exclusivamente da sessão e
   não pode ser controlada pelo body.
+- A resolução project-scoped também cobre `/sprints/:id` e `/milestones/:id`; ausência de recurso e
+  recurso de projeto alheio continuam indistinguíveis por resposta `404` genérica.
+- A interface esconde mutações de cronograma para VIEWER apenas como UX; o backend permanece
+  autoritativo e aplica a matriz independentemente do que a tela renderiza.
 - `/api/settings/*` é canônico para conta/privacidade. `/api/account/reactivation/*` e
   `/api/account/audit-events` permanecem por responsabilidade própria; paths duplicados removidos
   retornam `404 ROUTE_NOT_FOUND`.

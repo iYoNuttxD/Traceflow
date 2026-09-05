@@ -101,6 +101,33 @@ not contain credentials, tokens, cookies, personal data, fixture access URLs, or
   surfaces remain `TECHNICALLY VERIFIED` until rendered revalidation. Initial fatal-error and loading
   states were not promoted without direct rendered evidence.
 
+### Frozen Task Details — FIX-04 addenda 2/3
+
+- **Date / revision:** 2026-09-05; working tree over `48ca54f6cb9f39db58b595ba6b08bd52dbdaeb1b`.
+- **Scope:** shared read-only Task Details information and traceability, full-width frozen dialog,
+  explicit transition to current details, frozen/legacy/empty/unavailable-current states.
+- **Surface IDs:** `KANBAN-FROZEN-TASK-DETAIL-DIALOG`, `KANBAN-TASK-DETAIL-INFO`,
+  `KANBAN-TASK-DETAIL-TRACEABILITY`; current dialog read-only content as comparison.
+- **Themes / viewports:** Light and Dark; 1440, 1024, 768 and 390 pixels wide, height 1000.
+- **Method:** real Chrome headless with native input through CDP; real application routes/API,
+  exclusive local disposable MySQL fixtures. Screenshots inspected for hierarchy, grids, spacing,
+  full-width frozen content, theme tokens, wrapping and bounded scrolling. No production data.
+- **Result:** visual parity PASS in the recorded content matrix. Shared information and traceability
+  sections are `VISUALLY APPROVED` for this matrix. Frozen contains no Comments/composer/mutable
+  actions; current contains Comments and authorized edit/delete. Enter/Space open; Escape closes
+  and restores card focus while preserving the historical Sprint filter. Frozen opening performs
+  no current Task/artifact reads. V2 fields remain original after current changes.
+- **Long content:** 16 commits, 12 issues, long title and description within the real API limit;
+  all eight theme/viewport combinations. Removed the shared mobile `overflow-y: visible` override:
+  lists retain bounded scroll and their last links are accessible. Current mobile rechecked too.
+- **Legacy / empty / unavailable:** rendered in both themes at 390; legacy limitations are explicit,
+  captured empty relations remain empty and a deleted current Task has no open-current action.
+- **Evidence:** [FIX-04 report](../../qa/PLANNING_QA_FIX_04.md), including capture filenames and local
+  evidence manifest. `browser-smoke.json`, `browser-long.json`, `browser-edges.json` record results.
+- **Limits:** transient loading and HTTP 404 race are covered by automated tests, not promoted to
+  rendered approval. No broad approval of editing, all authorization roles, sidebar permutations,
+  external GitHub destinations or the whole Kanban page. Their previous inventory status remains.
+
 ## Current revalidation queue
 
 The following materially changed areas require a new rendered record before they can regain or gain
@@ -111,4 +138,11 @@ The following materially changed areas require a new rendered record before they
 - Members tabs, including roving focus and panel associations;
 - Account partial-save and Integrations cooldown feedback;
 - SensitiveActionDialog busy, error, cancel, Escape, and post-success focus;
-- legacy Dark-compatible operational surfaces and Task Details modal layering.
+- UX-PLANNING-SPRINTS em Light/Dark, sidebar expandida/recolhida, tablet e mobile, incluindo filtros recolhíveis;
+- UX-PLANNING-MILESTONES em Light/Dark, sidebar expandida/recolhida, tablet e mobile, incluindo filtros recolhíveis;
+- UX-PLANNING-SCHEDULE em Light/Dark, sidebar expandida/recolhida, tablet e mobile, incluindo faixas,
+  lanes/overflow, cores automáticas, marcadores, painel Contexto Mês/Dia, grid de próximos prazos e
+  estados vazios;
+- UX-PLANNING-KANBAN em Light/Dark, sidebar expandida/recolhida, tablet e mobile, incluindo resumo,
+  filtros recolhíveis, quadro horizontal em containers estreitos, Task Details e histórico individual;
+- legacy Dark-compatible operational surfaces.

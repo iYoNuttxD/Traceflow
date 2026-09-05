@@ -13,7 +13,9 @@ const allowedMetadata = new Set([
   'sessionId',
   'taskId',
   'commitId',
-  'suggestionId'
+  'suggestionId',
+  'sprintId',
+  'milestoneId'
 ]);
 
 export function minimizeAuditMetadata(metadata) {

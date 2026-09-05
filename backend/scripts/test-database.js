@@ -18,4 +18,5 @@ const result = spawnSync(process.execPath, [prismaEntry, ...prismaArgs], {
   env: { ...process.env, NODE_ENV: 'test', DATABASE_URL: testUrl },
   stdio: 'inherit'
 });
+if (result.error) throw result.error;
 process.exitCode = result.status ?? 1;

@@ -1,3 +1,4 @@
+import { startTestServer } from '../helpers/http-server.js';
 import request from 'supertest';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -140,6 +141,7 @@ beforeAll(async () => {
   deployTestMigrations(url);
   ({ prisma } = await import('../../src/database/prismaClient.js'));
   ({ default: app } = await import('../../src/app.js'));
+  app = await startTestServer(app);
 });
 
 beforeEach(async () => {

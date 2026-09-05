@@ -44,6 +44,10 @@ describe('verificador de fronteiras arquiteturais', () => {
     expect(rules).toContain('client-no-controller');
     expect(rules).toContain('client-no-database');
     expect(rules).toContain('repository-no-external-client');
+    // A convenção proíbe client externo em route e controller desde sempre; o gate
+    // só passou a verificar depois da auditoria do S1-04.
+    expect(rules).toContain('route-no-external-client');
+    expect(rules).toContain('controller-no-external-client');
     expect(rules).toContain('mapper-no-database');
     expect(rules).toContain('removed-model-no-runtime');
     expect(rules).toContain('reconciliation-no-controller');
