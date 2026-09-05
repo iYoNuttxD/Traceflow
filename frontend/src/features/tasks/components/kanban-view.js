@@ -67,6 +67,7 @@ export function countActiveKanbanFilters(filters) {
 
 export function isTaskOverdue(task, now = new Date()) {
   if (!task?.deadline || task.status === 'CONCLUIDO') return false;
+  if (task.isFrozen) now = new Date(task.snapshotAt);
   const deadline = String(task.deadline).slice(0, 10);
   const today = [
     now.getFullYear(),
@@ -77,6 +78,7 @@ export function isTaskOverdue(task, now = new Date()) {
 }
 
 export function getTraceabilityCounts(task) {
+  if (task.isFrozen && task.traceabilityCounts) return task.traceabilityCounts;
   return {
     requirements: task.requirement ? 1 : 0,
     pullRequests: task.pullRequest ? 1 : 0,
@@ -91,6 +93,7 @@ export function hasTaskTraceability(task) {
 }
 
 export function formatTraceabilityCounts(task) {
+  if (task.isFrozen && !task.traceabilityCounts) return 'Rastreabilidade indisponível';
   const counts = getTraceabilityCounts(task);
   const parts = [
     counts.requirements ? `${counts.requirements} req` : '',

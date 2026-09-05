@@ -1,3 +1,4 @@
+import { projectSprintTasks } from '../sprint-task.projection.js';
 import { sprintRepository } from '../repositories/sprint.repository.js';
 import { milestoneRepository } from '../repositories/milestone.repository.js';
 import { buildAuditEvent } from '../../audit/audit.service.js';
@@ -19,7 +20,6 @@ import {
   parseSprintId,
   parseTaskId,
   milestoneNotFoundError,
-  sprintDeleteNotSupportedError,
   sprintNameConflictError,
   sprintNotFoundError,
   taskNotFoundError
@@ -287,7 +287,7 @@ export const sprintCrudService = {
     if (sprintData.startDate && sprintData.endDate) {
       ensureDateRange(sprintData.startDate, sprintData.endDate);
     }
-    if (sprintData.milestoneId !== undefined) {
+    if (sprintData.milestoneId !== undefined && sprintData.milestoneId !== current.milestoneId) {
       await ensureSprintMilestone(sprintData.milestoneId, current.projectId, context);
     }
 
@@ -312,7 +312,8 @@ export const sprintCrudService = {
           const endDate = sprintData.endDate ?? locked.endDate;
           ensureDateRange(startDate, endDate);
           ensureNoOverlap({ startDate, endDate }, sprints, id);
-          ensureMilestoneStillThere(sprintData.milestoneId, milestones);
+          if (sprintData.milestoneId !== locked.milestoneId)
+            ensureMilestoneStillThere(sprintData.milestoneId, milestones);
         }
       );
       if (sprint === null) throw sprintNotFoundError();
@@ -323,14 +324,15 @@ export const sprintCrudService = {
     }
   },
 
-  async deleteSprint() {
-    throw sprintDeleteNotSupportedError();
+  async getSprintTaskProjection(sprintId) {
+    const id = parseSprintId(sprintId);
+    const data = await sprintRepository.readTaskProjection(id);
+    if (!data) throw sprintNotFoundError();
+    return projectSprintTasks(data.sprint, data.participations);
   },
 
   async findTasksBySprint(sprintId) {
-    const id = parseSprintId(sprintId);
-    await ensureSprintExists(id);
-    return sprintRepository.findTasksBySprint(id);
+    return (await sprintCrudService.getSprintTaskProjection(sprintId)).tasks;
   },
 
   async replaceTasks(sprintId, taskIds = [], context = {}) {

@@ -245,14 +245,15 @@ describe('CP — TE: maquina de estados da sprint (RF10)', () => {
     expect(resposta.body.code).toBe('SPRINT_INVALID_TRANSITION');
   });
 
-  it('CP-TE-10 sprint nunca e excluida', async () => {
+  it('CP-TE-10 sprint é excluída logicamente, preservando o registro', async () => {
     const ator = await registrar();
     const projeto = await criarProjeto(ator);
     const marco = await criarMarco(ator, projeto.id);
     const sprint = await criarSprint(ator, projeto.id, marco.id);
     const resposta = await ator.mutate('delete', `/api/sprints/${sprint.id}`);
-    expect(resposta.status).toBe(405);
-    expect(resposta.body.code).toBe('SPRINT_DELETE_NOT_SUPPORTED');
+    expect(resposta.status).toBe(200);
+    expect(resposta.body.sprint.deletedAt).toBeTruthy();
+    expect(await prisma.sprint.count({ where: { id: sprint.id } })).toBe(1);
   });
 
   it('CP-TE-11 concluir a ultima sprint conclui o marco', async () => {
@@ -382,8 +383,8 @@ describe('CP — PE/VL: cadastro e janelas do cronograma (RF10)', () => {
     });
     const comNull = await postSprint(ator, projeto.id, {
       name: 'Marco nulo',
-      startDate: '2026-09-01',
-      endDate: '2026-09-15',
+      startDate: '2026-09-15',
+      endDate: '2026-09-30',
       milestoneId: null
     });
     const malformado = await postSprint(ator, projeto.id, {
@@ -392,10 +393,10 @@ describe('CP — PE/VL: cadastro e janelas do cronograma (RF10)', () => {
       endDate: '2026-09-15',
       milestoneId: 'abc'
     });
-    expect(semCampo.status).toBe(400);
-    expect(semCampo.body.code).toBe('SPRINT_MILESTONE_REQUIRED');
-    expect(comNull.status).toBe(400);
-    expect(comNull.body.code).toBe('SPRINT_MILESTONE_REQUIRED');
+    expect(semCampo.status).toBe(201);
+    expect(semCampo.body.sprint.milestoneId).toBeNull();
+    expect(comNull.status).toBe(201);
+    expect(comNull.body.sprint.milestoneId).toBeNull();
     expect(malformado.status).toBe(400);
     expect(malformado.body.code).toBe('VALIDATION_ERROR');
   });
@@ -512,17 +513,17 @@ describe('CP — PE/VL: cadastro e janelas do cronograma (RF10)', () => {
     expect(edicao.status).toBe(200);
   });
 
-  it('CP-PE-11 marco com sprint nao e excluido', async () => {
+  it('CP-PE-11 exclusão lógica de marco preserva a Sprint', async () => {
     const ator = await registrar();
     const projeto = await criarProjeto(ator);
     const marco = await criarMarco(ator, projeto.id);
     await criarSprint(ator, projeto.id, marco.id);
     const resposta = await ator.mutate('delete', `/api/milestones/${marco.id}`);
-    expect(resposta.status).toBe(409);
-    expect(resposta.body.code).toBe('MILESTONE_HAS_SPRINTS');
+    expect(resposta.status).toBe(200);
+    expect(await prisma.sprint.count({ where: { milestoneId: marco.id } })).toBe(1);
   });
 
-  it('CP-PE-12 marco sem sprints e excluido de verdade', async () => {
+  it('CP-PE-12 marco sem Sprints sai das consultas atuais', async () => {
     const ator = await registrar();
     const projeto = await criarProjeto(ator);
     const marco = await criarMarco(ator, projeto.id);
@@ -530,7 +531,8 @@ describe('CP — PE/VL: cadastro e janelas do cronograma (RF10)', () => {
     expect(remocao.status).toBe(200);
     const consulta = await ator.agent.get(`/api/milestones/${marco.id}`);
     expect(consulta.status).toBe(404);
-    expect(consulta.body.code).toBe('RESOURCE_NOT_FOUND');
+    expect(consulta.body.code).toBe('MILESTONE_NOT_FOUND');
+    expect(await prisma.milestone.count({ where: { id: marco.id } })).toBe(1);
   });
 
   it('CP-VL-13/14 o teto de 100 aceita a centesima e recusa a centesima primeira', async () => {

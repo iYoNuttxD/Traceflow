@@ -170,6 +170,8 @@ model User {
   requestedGitHubSyncRuns          GitHubSyncRun[]
   taskComments                     TaskComment[]                     @relation("TaskCommentAuthor")
   deletedTaskComments              TaskComment[]                     @relation("TaskCommentDeleter")
+  deletedSprints                   Sprint[]                          @relation("SprintDeleter")
+  deletedMilestones                Milestone[]                       @relation("MilestoneDeleter")
 
   @@index([accountStatus])
 }
@@ -620,6 +622,10 @@ model Sprint {
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
 
+  deletedAt DateTime?
+  deletedById Int?
+  deletedBy User? @relation("SprintDeleter", fields: [deletedById], references: [id], onDelete: SetNull)
+
   project          Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
   tasks            Task[]
   sprintTasks      SprintTask[] @relation("SprintMembership")
@@ -627,6 +633,8 @@ model Sprint {
   milestone        Milestone?   @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
 
   @@unique([projectId, name])
+  @@index([projectId, deletedAt, status])
+  @@index([deletedById])
   @@index([projectId, status])
   @@index([projectId, startDate])
   @@index([projectId, endDate])
@@ -643,10 +651,16 @@ model Milestone {
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
+  deletedAt DateTime?
+  deletedById Int?
+  deletedBy User? @relation("MilestoneDeleter", fields: [deletedById], references: [id], onDelete: SetNull)
+
   project Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   sprints Sprint[]
 
   @@index([projectId, dueDate])
+  @@index([projectId, deletedAt, status])
+  @@index([deletedById])
   @@index([projectId, status])
 }
 
@@ -661,6 +675,7 @@ model SprintTask {
   plannedAtStart      Boolean?
   pointsAtPlanning    Int?
   pointsAtClose       Int?
+  closingTaskSnapshot Json?
   completedAtClose    DateTime?
   carriedFromSprintId Int?
   removedAt           DateTime?

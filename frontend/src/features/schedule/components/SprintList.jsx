@@ -21,6 +21,7 @@ function SprintCard({
   onTasks,
   onProgress,
   onEdit,
+  onDelete,
   onChangeStatus,
   onViewInKanban
 }) {
@@ -29,6 +30,12 @@ function SprintCard({
   const summary = getSprintDisplayMetrics(sprint, scheduleSprint);
   const blockedByActive = Boolean(activeSprintName) && sprint.status === 'PLANEJADA';
   const menuItems = [
+    {
+      key: 'tarefas',
+      label: terminal ? 'Tarefas congeladas' : 'Tarefas',
+      ariaLabel: `Tarefas${terminal ? ' congeladas' : ''} da sprint ${sprint.name}`,
+      onSelect: (trigger) => onTasks(sprint, trigger)
+    },
     {
       key: 'kanban',
       label: 'Ver no Kanban',
@@ -44,28 +51,6 @@ function SprintCard({
       ariaLabel: `Editar a sprint ${sprint.name}`,
       onSelect: (trigger) => onEdit(sprint, trigger)
     });
-    if (sprint.status === 'PLANEJADA') {
-      menuItems.push({
-        key: 'iniciar',
-        label: 'Iniciar',
-        ariaLabel: `Iniciar a sprint ${sprint.name}`,
-        disabled: busy || blockedByActive,
-        title: blockedByActive
-          ? `Conclua a sprint "${activeSprintName}" para iniciar outra.`
-          : transitionHints.EM_ANDAMENTO,
-        onSelect: () => onChangeStatus(sprint, 'EM_ANDAMENTO')
-      });
-    }
-    if (sprint.status === 'EM_ANDAMENTO') {
-      menuItems.push({
-        key: 'concluir',
-        label: 'Concluir',
-        ariaLabel: `Concluir a sprint ${sprint.name}`,
-        disabled: busy,
-        title: transitionHints.CONCLUIDA,
-        onSelect: () => onChangeStatus(sprint, 'CONCLUIDA')
-      });
-    }
     menuItems.push({
       key: 'cancelar',
       label: 'Cancelar sprint',
@@ -76,6 +61,16 @@ function SprintCard({
       onSelect: () => onChangeStatus(sprint, 'CANCELADA')
     });
   }
+
+  if (!readOnly)
+    menuItems.push({
+      key: 'excluir',
+      label: 'Excluir sprint',
+      ariaLabel: `Excluir a sprint ${sprint.name}`,
+      danger: true,
+      disabled: busy,
+      onSelect: (trigger) => onDelete(sprint, trigger)
+    });
 
   return (
     <article className={`sprint-card sprint-card--${sprint.status.toLocaleLowerCase('pt-BR')}`}>
@@ -108,7 +103,11 @@ function SprintCard({
           </div>
           <div>
             <dt>Marco</dt>
-            <dd>{milestoneName || 'Sem marco'}</dd>
+            <dd>
+              {sprint.milestone?.deletedAt
+                ? `${sprint.milestone.title} · Excluído`
+                : milestoneName || sprint.milestone?.title || 'Sem marco'}
+            </dd>
           </div>
         </dl>
 
@@ -170,16 +169,27 @@ function SprintCard({
         role="group"
         aria-label={`Ações da sprint ${sprint.name}`}
       >
+        {!terminal && !readOnly && (
+          <button
+            type="button"
+            className="button button-primary"
+            disabled={busy || blockedByActive}
+            aria-label={`${sprint.status === 'PLANEJADA' ? 'Iniciar' : 'Concluir'} a sprint ${sprint.name}`}
+            title={
+              blockedByActive
+                ? `Conclua a sprint "${activeSprintName}" para iniciar outra.`
+                : transitionHints[sprint.status === 'PLANEJADA' ? 'EM_ANDAMENTO' : 'CONCLUIDA']
+            }
+            onClick={() =>
+              onChangeStatus(sprint, sprint.status === 'PLANEJADA' ? 'EM_ANDAMENTO' : 'CONCLUIDA')
+            }
+          >
+            {sprint.status === 'PLANEJADA' ? 'Iniciar sprint' : 'Concluir sprint'}
+          </button>
+        )}
         <button
           type="button"
-          className="button button-secondary"
-          onClick={(event) => onTasks(sprint, event.currentTarget)}
-        >
-          Tarefas
-        </button>
-        <button
-          type="button"
-          className="button button-secondary"
+          className={`button ${terminal || readOnly ? 'button-primary' : 'button-secondary'}`}
           onClick={(event) => onProgress(sprint, event.currentTarget)}
         >
           Evolução
@@ -202,6 +212,7 @@ export function SprintList({
   onTasks,
   onProgress,
   onEdit,
+  onDelete,
   onChangeStatus,
   onViewInKanban,
   listRef
@@ -250,6 +261,7 @@ export function SprintList({
               onTasks={onTasks}
               onProgress={onProgress}
               onEdit={onEdit}
+              onDelete={onDelete}
               onChangeStatus={onChangeStatus}
               onViewInKanban={onViewInKanban}
             />

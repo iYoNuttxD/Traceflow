@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
   unlinkTaskIssue: vi.fn(),
   unlinkTaskFromPullRequest: vi.fn(),
   unlinkTaskRequirement: vi.fn(),
-  tasksApi: { update: vi.fn() },
+  tasksApi: { update: vi.fn(), get: vi.fn() },
   kanbanApi: {
     getBoard: vi.fn(),
     getMetrics: vi.fn(),
@@ -23,7 +23,7 @@ const mocks = vi.hoisted(() => ({
     moveTask: vi.fn()
   },
   membersApi: { list: vi.fn() },
-  scheduleApi: { listSprints: vi.fn() },
+  scheduleApi: { listSprints: vi.fn(), listSprintTasks: vi.fn() },
   requirementsApi: { listByProject: vi.fn() },
   githubApi: {
     getProjectCommits: vi.fn(),
@@ -1251,5 +1251,129 @@ describe('current-context-wins na troca de projeto', () => {
     await user.click(screen.getByRole('button', { name: /Projeto inteiro/ }));
     expect(screen.getByRole('checkbox', { name: /Sprint do B/ })).toBeInTheDocument();
     expect(screen.queryByRole('checkbox', { name: /Sprint do A/ })).toBeNull();
+  });
+});
+
+describe('FIX-03 frozen Sprint Kanban', () => {
+  const frozenTasks = ['A_FAZER', 'EM_ANDAMENTO', 'CONCLUIDO'].map((status, index) => ({
+    id: index + 1,
+    currentTaskId: index + 1,
+    participationId: index + 10,
+    title: `Snapshot T${index + 1}`,
+    status,
+    sprintId: 1,
+    isFrozen: true,
+    snapshotAvailable: true,
+    snapshotAt: '2026-09-04T12:00:00Z',
+    estimatedEffort: [3, 5, 8][index],
+    priority: 'MEDIA',
+    responsibleUserId: 5,
+    deadline: null,
+    traceabilityCounts: { requirements: 0, pullRequests: 0, commits: 0, issues: 0 }
+  }));
+  const projection = {
+    sprintId: 1,
+    isFrozen: true,
+    tasks: frozenTasks,
+    historicalLimitations: [],
+    historicalSummary: { totalTasks: 3, completedTasks: 1, totalPoints: 16, percentage: 50 }
+  };
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.api.get.mockResolvedValue({ data: { project: { id: 1, name: 'Core' } } });
+    mocks.membersApi.list.mockResolvedValue({ members: [], currentMembership: { role: 'OWNER' } });
+    mocks.scheduleApi.listSprints.mockResolvedValue({
+      data: {
+        sprints: [
+          { id: 1, name: 'S1', status: 'CONCLUIDA' },
+          { id: 2, name: 'S2', status: 'EM_ANDAMENTO' }
+        ]
+      }
+    });
+    mocks.scheduleApi.listSprintTasks.mockResolvedValue({ data: projection });
+    mocks.kanbanApi.getBoard.mockResolvedValue({
+      data: {
+        columns: {
+          A_FAZER: [],
+          EM_ANDAMENTO: [],
+          CONCLUIDO: [{ ...task, title: 'Current T1', id: 1, sprintId: 2, estimatedEffort: 13 }]
+        },
+        totals: { total: 1 }
+      }
+    });
+    mocks.tasksApi.get.mockResolvedValue({
+      data: { task: { ...task, id: 1, title: 'Current T1', sprintId: 2, estimatedEffort: 13 } }
+    });
+  });
+  it('renders all closing columns, frozen metrics, read-only details and explicit current details', async () => {
+    const user = userEvent.setup();
+    renderPage('/projects/1/kanban?sprint=1');
+    await screen.findByText('Snapshot T1');
+    for (const [i, label] of ['A Fazer', 'Em Andamento', 'Concluído'].entries()) {
+      const column = screen.getByRole('heading', { name: label }).closest('section');
+      expect(within(column).getByText(`Snapshot T${i + 1}`)).toBeInTheDocument();
+      expect(within(column).getByLabelText('1 tarefa')).toBeInTheDocument();
+    }
+    expect(screen.getByText('Estado congelado no encerramento da Sprint.')).toBeInTheDocument();
+    expect(screen.queryByText('Arraste uma tarefa para alterar sua etapa.')).toBeNull();
+    const summary = screen.getByRole('region', { name: 'Visão geral do Kanban' });
+    expect(within(summary).getByText('16')).toBeInTheDocument();
+    expect(within(summary).queryByText('Atrasadas')).toBeNull();
+    const card = screen.getByRole('button', { name: 'Abrir detalhes de Snapshot T1' });
+    expect(card).toHaveAttribute('draggable', 'false');
+    const transfer = { setData: vi.fn(), getData: () => '1' };
+    fireEvent.dragStart(card, { dataTransfer: transfer });
+    fireEvent.drop(screen.getByRole('heading', { name: 'Concluído' }).closest('section'), {
+      dataTransfer: transfer
+    });
+    expect(mocks.kanbanApi.moveTask).not.toHaveBeenCalled();
+    await user.click(card);
+    const dialog = screen.getByRole('dialog', { name: 'Detalhes no encerramento' });
+    expect(within(dialog).queryByRole('button', { name: 'Editar tarefa' })).toBeNull();
+    expect(within(dialog).queryByRole('combobox')).toBeNull();
+    expect(within(dialog).getByText('Responsável #5')).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Abrir tarefa atual' }));
+    expect(await screen.findByRole('dialog', { name: /#1 Current T1/ })).toBeInTheDocument();
+    expect(mocks.tasksApi.get).toHaveBeenCalledWith(1);
+    expect(screen.getByText('Snapshot T1')).toBeInTheDocument();
+  });
+  it('does not fall back to current cards when historical loading fails', async () => {
+    mocks.scheduleApi.listSprintTasks.mockRejectedValueOnce({
+      response: { status: 500, data: { message: 'Snapshot failure' } }
+    });
+    const user = userEvent.setup();
+    renderPage('/projects/1/kanban?sprint=1');
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'O TRACEFLOW encontrou um problema interno.'
+    );
+    expect(screen.queryByText('Current T1')).toBeNull();
+    mocks.scheduleApi.listSprintTasks.mockResolvedValueOnce({ data: projection });
+    await user.click(screen.getByRole('button', { name: 'Tentar novamente' }));
+    expect(await screen.findByText('Snapshot T1')).toBeInTheDocument();
+  });
+  it('makes unknown legacy fields explicit and omits the current link for a deleted Task', async () => {
+    mocks.scheduleApi.listSprintTasks.mockResolvedValue({
+      data: {
+        ...projection,
+        historicalLimitations: ['LEGACY_CLOSING_TASK_SNAPSHOT_UNAVAILABLE'],
+        tasks: [
+          {
+            ...frozenTasks[0],
+            currentTaskId: null,
+            snapshotAvailable: false,
+            priority: null,
+            traceabilityCounts: null
+          }
+        ]
+      }
+    });
+    const user = userEvent.setup();
+    renderPage('/projects/1/kanban?sprint=1');
+    await user.click(await screen.findByRole('button', { name: 'Abrir detalhes de Snapshot T1' }));
+    const dialog = screen.getByRole('dialog', { name: 'Detalhes no encerramento' });
+    expect(
+      within(dialog).getByText('Snapshot detalhado indisponível para esta Sprint histórica.')
+    ).toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: 'Abrir tarefa atual' })).toBeNull();
   });
 });

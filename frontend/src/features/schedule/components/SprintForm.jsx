@@ -3,14 +3,14 @@ import { SearchCombobox } from './SearchCombobox.jsx';
 import { SprintTaskSelector } from './SprintTaskSelector.jsx';
 
 const emptyForm = { name: '', objective: '', startDate: '', endDate: '', milestoneId: '' };
-const milestoneLabel = (milestone) => milestone.title;
+const milestoneLabel = (milestone) =>
+  `${milestone.title}${milestone.deletedAt ? ' · Excluído' : ''}`;
 
 export { emptyForm as emptySprintForm };
 
-export function validateSprintForm(formData, { editing = false } = {}) {
+export function validateSprintForm(formData) {
   const errors = {};
   if (!formData.name.trim()) errors.name = 'Informe o nome da sprint.';
-  if (!editing && !formData.milestoneId) errors.milestoneId = 'Selecione o marco da sprint.';
   if (!formData.startDate) errors.startDate = 'Informe o início da sprint.';
   if (!formData.endDate) errors.endDate = 'Informe o fim da sprint.';
   if (formData.startDate && formData.endDate && formData.startDate >= formData.endDate) {
@@ -22,6 +22,7 @@ export function validateSprintForm(formData, { editing = false } = {}) {
 export function SprintForm({
   formData,
   milestones = [],
+  currentMilestone = null,
   selectedTasks = [],
   sprintNames = {},
   editingSprintId = null,
@@ -35,7 +36,8 @@ export function SprintForm({
   onCancel
 }) {
   const selectedMilestone =
-    milestones.find((milestone) => Number(milestone.id) === Number(formData.milestoneId)) || null;
+    milestones.find((milestone) => Number(milestone.id) === Number(formData.milestoneId)) ||
+    (currentMilestone?.id === Number(formData.milestoneId) ? currentMilestone : null);
 
   return (
     <form className="schedule-form sprint-form" onSubmit={onSubmit} noValidate>
@@ -64,12 +66,11 @@ export function SprintForm({
           placeholder="Pesquisar marco..."
           options={milestones}
           selectedOption={selectedMilestone}
-          required={!editing}
           error={errors.milestoneId}
           help={
             milestones.length
-              ? 'Digite ao menos 2 caracteres para pesquisar.'
-              : 'Nenhum marco cadastrado. Cadastre um marco antes de criar a sprint.'
+              ? 'Opcional. Digite ao menos 2 caracteres para pesquisar.'
+              : 'Opcional. A sprint pode ser criada sem marco.'
           }
           getOptionLabel={milestoneLabel}
           onSelect={(milestone) => onChange('milestoneId', String(milestone.id))}

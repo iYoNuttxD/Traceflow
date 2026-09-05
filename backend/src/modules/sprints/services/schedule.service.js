@@ -84,6 +84,7 @@ export const scheduleService = {
         closedAt: sprint.closedAt,
         historicalSummary: buildSprintHistoricalSummary(sprint, sprint.sprintTasks),
         milestoneId: sprint.milestoneId ?? null,
+        milestone: sprint.milestone ?? null,
         durationInDays: durationInDays(sprint.startDate, sprint.endDate),
         taskCount: sprint.sprintTasks.filter((p) => p.removedAt === null).length,
         tasks: sprint.sprintTasks

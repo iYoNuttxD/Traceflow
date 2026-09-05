@@ -131,7 +131,10 @@ export function sprintsOverlap(a, b) {
 export function ensureNoOverlap(candidate, sprints, ignoreId = null) {
   const conflito = sprints.find(
     (sprint) =>
-      sprint.id !== ignoreId && sprint.status !== 'CANCELADA' && sprintsOverlap(candidate, sprint)
+      !sprint.deletedAt &&
+      sprint.id !== ignoreId &&
+      sprint.status !== 'CANCELADA' &&
+      sprintsOverlap(candidate, sprint)
   );
   if (conflito) {
     throw new SprintServiceError(
@@ -149,7 +152,7 @@ export function isWithinWindow(instant, window) {
 
 export function ensureSingleActiveSprint(sprints, targetId) {
   const ativa = sprints.find(
-    (sprint) => sprint.id !== targetId && sprint.status === 'EM_ANDAMENTO'
+    (sprint) => !sprint.deletedAt && sprint.id !== targetId && sprint.status === 'EM_ANDAMENTO'
   );
   if (ativa) {
     throw new SprintServiceError(
@@ -162,7 +165,9 @@ export function ensureSingleActiveSprint(sprints, targetId) {
 }
 
 export function allMilestoneSprintsConcluded(sprints) {
-  const consideradas = sprints.filter((sprint) => sprint.status !== 'CANCELADA');
+  const consideradas = sprints.filter(
+    (sprint) => !sprint.deletedAt && sprint.status !== 'CANCELADA'
+  );
   return consideradas.length > 0 && consideradas.every((sprint) => sprint.status === 'CONCLUIDA');
 }
 
@@ -234,22 +239,6 @@ export function ensureWithinTaskLimit(total) {
   return total;
 }
 
-export function sprintDeleteNotSupportedError() {
-  return new SprintServiceError(
-    'Sprint não pode ser excluída: o cronograma é registro histórico do projeto.',
-    405,
-    ERROR_CODES.SPRINT_DELETE_NOT_SUPPORTED
-  );
-}
-
-export function milestoneHasSprintsError(total) {
-  return new SprintServiceError(
-    `O marco não pode ser excluído: ${total} sprint(s) ainda pertencem a ele. Mova-as para outro marco antes.`,
-    409,
-    ERROR_CODES.MILESTONE_HAS_SPRINTS
-  );
-}
-
 export function taskNotFoundError() {
   return new SprintServiceError('Tarefa não encontrada.', 404, ERROR_CODES.TASK_NOT_FOUND);
 }
@@ -295,13 +284,6 @@ export function buildSprintData(data, isCreate = false) {
   }
   if (isCreate || payload.milestoneId !== undefined) {
     if (payload.milestoneId === undefined || payload.milestoneId === null) {
-      if (isCreate) {
-        throw new SprintServiceError(
-          'O marco da sprint é obrigatório.',
-          400,
-          ERROR_CODES.SPRINT_MILESTONE_REQUIRED
-        );
-      }
       sprintData.milestoneId = null;
     } else {
       sprintData.milestoneId = parseMilestoneId(payload.milestoneId);

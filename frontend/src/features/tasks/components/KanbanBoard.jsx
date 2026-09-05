@@ -22,7 +22,7 @@ function KanbanTaskCard({
   onDragStart,
   onDragEnd
 }) {
-  const priority = task.priority || 'MEDIA';
+  const priority = task.priority || (task.isFrozen ? '' : 'MEDIA');
   const blocked = frozen || moving;
   const overdue = isTaskOverdue(task);
   const traceability = formatTraceabilityCounts(task);
@@ -52,7 +52,7 @@ function KanbanTaskCard({
         <span className="kanban-task__topline">
           <span className="kanban-task__id">#{task.id}</span>
           <span className={`priority-badge priority-${priority.toLowerCase()}`}>
-            {priorityLabels[priority] || priority}
+            {priorityLabels[priority] || priority || 'Prioridade indisponível'}
           </span>
         </span>
         <strong className="kanban-task__title">{task.title}</strong>
@@ -61,7 +61,15 @@ function KanbanTaskCard({
             <span className="kanban-task__avatar" aria-hidden="true">
               {responsibleInitial(task)}
             </span>
-            <span>{task.responsibleUser?.name || task.responsible || 'Não informado'}</span>
+            <span>
+              {task.isFrozen
+                ? task.snapshotAvailable
+                  ? task.responsibleUserId
+                    ? `Responsável #${task.responsibleUserId}`
+                    : 'Não informado'
+                  : 'Responsável indisponível'
+                : task.responsibleUser?.name || task.responsible || 'Não informado'}
+            </span>
           </span>
           <span
             className={
@@ -71,7 +79,11 @@ function KanbanTaskCard({
             }
           >
             <span aria-hidden="true">◷</span>
-            {task.deadline ? formatDate(task.deadline) : 'Sem prazo'}
+            {task.isFrozen && !task.snapshotAvailable
+              ? 'Prazo indisponível'
+              : task.deadline
+                ? formatDate(task.deadline)
+                : 'Sem prazo'}
             {overdue && <strong>Atrasada</strong>}
           </span>
           <span className="kanban-task__traceability" title={traceability}>
@@ -99,23 +111,26 @@ function KanbanTaskCard({
         </span>
       </button>
 
-      <div className="kanban-task__actions" onDragStart={stopDrag}>
-        <button
-          type="button"
-          className="kanban-task__action"
-          aria-label={`Ver histórico da tarefa ${task.title}`}
-          title="Ver histórico da tarefa"
-          onClick={(event) => onHistory(task, event.currentTarget)}
-        >
-          <span aria-hidden="true">◷</span>
-        </button>
-      </div>
+      {(!task.isFrozen || task.currentTaskId) && (
+        <div className="kanban-task__actions" onDragStart={stopDrag}>
+          <button
+            type="button"
+            className="kanban-task__action"
+            aria-label={`Ver histórico da tarefa ${task.title}`}
+            title="Ver histórico da tarefa"
+            onClick={(event) => onHistory(task, event.currentTarget)}
+          >
+            <span aria-hidden="true">◷</span>
+          </button>
+        </div>
+      )}
     </article>
   );
 }
 
 export function KanbanBoard({
   board,
+  isFrozen = false,
   movingTaskId,
   draggingTaskId,
   dragOverStatus,
@@ -145,7 +160,11 @@ export function KanbanBoard({
           <span className="eyebrow">Fluxo</span>
           <h2 id="kanban-board-title">Kanban</h2>
         </div>
-        <p>Arraste uma tarefa para alterar sua etapa.</p>
+        <p>
+          {isFrozen
+            ? 'Estado congelado no encerramento da Sprint.'
+            : 'Arraste uma tarefa para alterar sua etapa.'}
+        </p>
       </header>
       {filteredEmpty && (
         <div className="kanban-filtered-empty" role="status">
@@ -162,9 +181,13 @@ export function KanbanBoard({
                 title={column.label}
                 count={tasks.length}
                 className={dragOverStatus === column.status ? 'kanban-column--drag-over' : ''}
-                onDragOver={(event) => onColumnDragOver(event, column.status)}
-                onDragLeave={(event) => onColumnDragLeave(event, column.status)}
-                onDrop={(event) => onColumnDrop(event, column.status)}
+                onDragOver={
+                  isFrozen ? undefined : (event) => onColumnDragOver(event, column.status)
+                }
+                onDragLeave={
+                  isFrozen ? undefined : (event) => onColumnDragLeave(event, column.status)
+                }
+                onDrop={isFrozen ? undefined : (event) => onColumnDrop(event, column.status)}
               >
                 {tasks.length === 0 ? (
                   <p className="kanban-empty">Nenhuma tarefa nesta etapa.</p>
@@ -178,7 +201,10 @@ export function KanbanBoard({
                         dragging={draggingTaskId === task.id}
                         sprintName={sprintNames[task.sprintId]}
                         showSprint={selectedSprintIds.length === 0}
-                        frozen={Boolean(task.sprintId) && frozenSprintIds.has(task.sprintId)}
+                        frozen={
+                          task.isFrozen ||
+                          (Boolean(task.sprintId) && frozenSprintIds.has(task.sprintId))
+                        }
                         onSelect={onSelectTask}
                         onHistory={onOpenHistory}
                         onPointerDown={onTaskPointerDown}

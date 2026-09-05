@@ -14,6 +14,12 @@ export const scheduleApi = {
   getSprint(sprintId, options = {}) {
     return httpClient.get(`/sprints/${sprintId}`, options);
   },
+  getSprintImpact(sprintId, options = {}) {
+    return httpClient.get(`/sprints/${sprintId}/impact`, options);
+  },
+  removeSprint(sprintId) {
+    return httpClient.delete(`/sprints/${sprintId}`);
+  },
   updateSprint(sprintId, data) {
     return httpClient.put(`/sprints/${sprintId}`, data);
   },

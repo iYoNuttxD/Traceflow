@@ -9,6 +9,7 @@ export const milestoneSelect = {
   description: true,
   dueDate: true,
   status: true,
+  deletedAt: true,
   createdAt: true,
   updatedAt: true
 };
@@ -46,7 +47,7 @@ const milestoneMutations = {
 
   async updateWithinProjectLock(id, projectId, data, auditEvent, validate) {
     return withMilestoneLocks(projectId, id, async (tx, retrato) => {
-      if (!retrato.milestone) return null;
+      if (!retrato.milestone || retrato.milestone.deletedAt) return null;
       await validate(retrato);
       const milestone = await tx.milestone.update({ where: { id }, data, select: milestoneSelect });
       if (auditEvent) await auditRepository.create(auditEvent, tx);
@@ -58,7 +59,10 @@ const milestoneMutations = {
     return withMilestoneLocks(projectId, id, async (tx, retrato) => {
       if (!retrato.milestone) return null;
       await validate(retrato);
-      await tx.milestone.delete({ where: { id } });
+      await tx.milestone.update({
+        where: { id },
+        data: { deletedAt: new Date(), deletedById: auditEvent.actorUserId }
+      });
       if (auditEvent) await auditRepository.create(auditEvent, tx);
       return { id };
     });
@@ -66,17 +70,23 @@ const milestoneMutations = {
 };
 
 export const milestoneRepository = {
-  findById(id) {
-    return prisma.milestone.findUnique({ where: { id }, select: milestoneSelect });
+  findById(id, { includeDeleted = false } = {}) {
+    return prisma.milestone.findUnique({
+      where: { id, ...(includeDeleted ? {} : { deletedAt: null }) },
+      select: milestoneSelect
+    });
   },
 
   findByIdInProject(id, projectId) {
-    return prisma.milestone.findFirst({ where: { id, projectId }, select: milestoneSelect });
+    return prisma.milestone.findFirst({
+      where: { id, projectId, deletedAt: null },
+      select: milestoneSelect
+    });
   },
 
   findByProject(projectId, filters = {}) {
     return prisma.milestone.findMany({
-      where: { projectId, ...(filters.status ? { status: filters.status } : {}) },
+      where: { projectId, deletedAt: null, ...(filters.status ? { status: filters.status } : {}) },
       select: milestoneSelect,
       orderBy: [{ dueDate: 'asc' }, { id: 'asc' }]
     });

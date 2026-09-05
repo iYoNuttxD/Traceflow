@@ -21,6 +21,8 @@ inclusive quando a Task é excluída. O histórico de entradas/saídas continua 
 | `SprintTask.pointsAtClose` | esforço da participação ativa no encerramento; zero quando sem estimativa; `null` indica ausência de snapshot |
 | `SprintTask.completedAtClose` | primeira conclusão dentro do intervalo da participação, capturada no encerramento; `null` quando não houve evento |
 | `SprintTask.exitStatus`, `closedAt` | status observado e instante de congelamento da participação, já existentes |
+| `SprintTask.closingTaskSnapshot` | JSON nullable v1 do card no encerramento: ID, título, prioridade, responsável ID, deadline e contagens de rastreabilidade; sem descrição, nome, e-mail ou conteúdo de artefato |
+| `Sprint.deletedAt/deletedById`, `Milestone.deletedAt/deletedById` | tombstone e ator da exclusão lógica; não são evento de conclusão |
 | `SprintTask.addedAt` | entrada do intervalo atual; reentrada atualiza este instante |
 | `SprintTask.addedAfterStart` | projeção compatível da classificação; não é autoridade do baseline |
 
@@ -106,5 +108,38 @@ antigas reutilizavam o primeiro `addedAt` e apagavam `removedAt`.
   por `LEGACY_CLOSING_CUTOFF_UNAVAILABLE`.
 
 `historicalLimitations` na resposta de evolução comunica essas ausências. Para Sprints
-capturadas integralmente pelo novo fluxo, a lista é vazia. As regras de negócio permanecem
-inalteradas; as limitações identificam dados que nunca foram registrados.
+capturadas integralmente pelo novo fluxo, a lista é vazia. As regras de congelamento histórico
+permanecem inalteradas; as limitações identificam dados que nunca foram registrados.
+
+## Quadro congelado e exclusão lógica — FIX-03
+
+`projectSprintTasks` é a projeção única do endpoint `/sprints/:id/tasks`. A transação de leitura
+observa Sprint e participações de forma consistente. Aberta usa campos operacionais; terminal
+não faz join com Task. O ID atual nullable da participação serve somente à ação explícita de
+abrir a Task atual. Status e pontos reutilizam campos existentes. `closingTaskSnapshot.version=1`
+complementa o card com campos mínimos no mesmo corte; é capturado antes do carry-over.
+Task excluída depois mantém seu ID histórico no JSON e a participação perde apenas a FK atual.
+
+`traceabilityCounts` captura presença de Requirement/PR e quantidades de commits/issues.
+O responsável é somente `responsibleUserId`: apresentação histórica usa “Responsável #ID” sem
+resolver nome atual ou copiar PII dispensável. Deadline é ISO UTC ou null; atraso histórico é
+avaliado no corte. Resumo terminal usa contagens, pontos e progresso históricos. Legado sem JSON
+recebe `LEGACY_CLOSING_TASK_SNAPSHOT_UNAVAILABLE`, sem backfill ou fallback atual.
+
+A migration incremental `20260905010000_planning_frozen_cards_soft_delete` acrescenta um JSON
+nullable em SprintTask e dois campos nullable em cada entidade Sprint/Milestone. Há índices
+`(projectId, deletedAt, status)` e de `deletedById`; FK de ator para User usa `SetNull`. JSON não
+possui FK: IDs são identificadores observados no corte. Permanecem os índices de participação e
+as cascatas anteriores. A exclusão de domínio nunca executa DELETE físico nessas entidades.
+O nome da Sprint continua único no projeto, inclusive quando reservado por tombstone.
+
+Excluir Sprint em qualquer estado preserva a linha, baseline, histórico e snapshots. Todos os
+ponteiros atuais vão ao backlog com ator, sem status/conclusão/carry-over. Participação aberta
+recebe saída REMOVIDA; terminal permanece intacta. Excluir Marco preserva todas as FKs de Sprints,
+inclusive terminais. Referências existentes exibem “Marco X · Excluído”; novas associações são
+bloqueadas. Queries atuais filtram tombstones; leituras históricas e conflito de DELETE repetido
+usam inclusão explícita. Tombstones não ocupam janela/slot ativo nem recebem carry-over.
+
+O Marco é opcional desde a criação por decisão explícita da FIX-03. Essa mudança não exige
+schema adicional: `Sprint.milestoneId` já era nullable. A capacidade, o baseline, o freeze e a
+proteção de associações terminais permanecem; excluir não significa reabrir ou reescrever.

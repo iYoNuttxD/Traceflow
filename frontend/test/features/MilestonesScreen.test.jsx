@@ -499,13 +499,13 @@ describe('menu, autorização e lifecycle', () => {
     );
   });
 
-  it('desabilita exclusão no menu quando existem Sprints e explica o motivo', async () => {
+  it('permite exclusão lógica no menu com Sprints e explica a preservação', async () => {
     setData({ milestones: [marco()], sprints: [sprint(1, 'Sprint 1')] });
     renderScreen();
     const { menu } = await openMenu();
     const remove = within(menu).getByRole('menuitem', { name: /Excluir o marco/ });
-    expect(remove).toBeDisabled();
-    expect(remove).toHaveAttribute('title', expect.stringContaining('Mova-as'));
+    expect(remove).toBeEnabled();
+    expect(remove).toHaveAttribute('title', expect.stringContaining('preservando Sprints'));
   });
 
   it('fecha o menu no Escape e devolve foco ao trigger', async () => {
@@ -538,7 +538,9 @@ describe('confirmação e reconciliação', () => {
     const { menu } = await openMenu();
     await user.click(within(menu).getByRole('menuitem', { name: /Excluir o marco/ }));
     const dialog = await screen.findByRole('dialog', { name: 'Excluir marco?' });
-    expect(within(dialog).getByText(/não pode ser desfeita/)).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(/As Sprints vinculadas, Tasks e seu histórico serão preservados/)
+    ).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Excluir marco' }));
 
     await waitFor(() => expect(mocks.schedule.removeMilestone).toHaveBeenCalledWith(5));

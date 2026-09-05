@@ -355,9 +355,12 @@ Não recalcular retroativamente o resultado histórico como se a Sprint ainda es
 
 ## BR-SPRINT-015 — Reabertura e exclusão
 
-Se o domínio atual não suporta reabrir/excluir Sprint:
+Sprints podem ser excluídas logicamente em qualquer estado. A exclusão remove a Sprint das
+visões atuais, preserva participação, snapshots e histórico, e devolve ao backlog as Tasks cujo
+ponteiro atual ainda aponta para ela. Excluir não conclui a Sprint nem executa carry-over.
+Reabertura continua não suportada; nenhuma ação de reabrir deve ser inventada pela UI.
 
-→ nenhuma ação correspondente deve ser inventada pela UI.
+Decisão explícita de produto: PLANNING-QA-FIX-03 (04/09/2026), substituindo a restrição de exclusão anterior.
 
 ---
 
@@ -388,6 +391,14 @@ pendência para a próxima Sprint.
 
 Transferir a associação atual não altera nem apaga escopo planejado, escopo no encerramento,
 participação histórica, pontos, burndown, cutoff ou scopeChange da Sprint encerrada.
+
+---
+
+## BR-SPRINT-020 — Marco opcional
+
+Sprint pode ser criada sem Marco, com `milestoneId` omitido ou nulo. Associar ou desvincular
+Marco é permitido enquanto a Sprint está aberta; composição terminal continua protegida.
+Início, encerramento, carry-over e Cronograma independem da existência de Marco.
 
 ---
 
@@ -517,6 +528,14 @@ Se algumas associações forem salvas e outra falhar:
 → UI deve refletir partial success real.
 
 Nunca afirmar que nada foi salvo.
+
+---
+
+## BR-MILESTONE-013 — Exclusão segura de Marco
+
+Excluir Marco é exclusão lógica, inclusive quando concluído. Não exclui nem desvincula Sprints,
+Tasks ou histórico. O Marco sai das visões e seletores atuais; referências existentes mantêm
+sua identidade e indicam “Excluído”.
 
 ---
 
@@ -787,6 +806,23 @@ Um drop não pode abrir Task Details acidentalmente.
 Histórico global foi removido do Kanban.
 
 Cada Task possui seu próprio histórico.
+
+---
+
+## BR-KANBAN-015 — Quadro congelado no encerramento
+
+O recorte de Sprint terminal contém todas as Tasks associadas no encerramento, nas colunas
+dos status observados naquele instante. Exclui removidas antes do fechamento e inclui adições
+posteriores ao planejamento ainda presentes. Cards e detalhes usam somente campos históricos
+conhecidos, sem edição ou DnD. Snapshot legado ausente deve ser sinalizado explicitamente.
+
+---
+
+## BR-KANBAN-016 — Continuidade não reescreve o quadro histórico
+
+Carry-over e alterações atuais de status, esforço ou demais campos da Task não alteram o
+Kanban congelado da Sprint anterior. Projeto inteiro e Sprint aberta continuam operacionais,
+sem duplicar participações históricas como Tasks atuais.
 
 ---
 

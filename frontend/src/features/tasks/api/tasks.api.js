@@ -6,6 +6,9 @@ async function responseData(request) {
 }
 
 export const tasksApi = {
+  get(taskId, options = {}) {
+    return httpClient.get(`/tasks/${taskId}`, options);
+  },
   list(projectId, params = {}, options = {}) {
     return httpClient.get(`/projects/${projectId}/tasks`, {
       ...options,
