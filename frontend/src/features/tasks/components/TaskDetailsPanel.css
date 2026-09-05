@@ -1,4 +1,4 @@
-/* Owner: TaskDetailsPanel. */
+/* Owner: Task Details current/frozen presentation. */
 
 .task-detail-layout {
   display: grid;
@@ -263,7 +263,25 @@
   .task-detail-edit-form__full {
     grid-column: auto;
   }
-  .task-detail-artifact-body {
-    overflow-y: visible;
-  }
+}
+
+/* No Comments slot: use the full content width and natural content height. */
+.task-detail-layout--single {
+  display: block;
+  height: auto;
+  min-height: 0;
+}
+.task-detail-layout--single .task-detail-main {
+  overflow: visible;
+  padding-right: 0;
+}
+.kanban-dialog--wide .kanban-dialog__body:has(.task-detail-layout--single) {
+  overflow-y: auto;
+}
+.task-detail-grid dd,
+.task-detail-secondary-grid dd {
+  overflow-wrap: anywhere;
+}
+.task-detail-responsible > span {
+  flex-shrink: 0;
 }

@@ -117,10 +117,10 @@ permanecem inalteradas; as limitações identificam dados que nunca foram regist
 observa Sprint e participações de forma consistente. Aberta usa campos operacionais; terminal
 não faz join com Task. O ID atual nullable da participação serve somente à ação explícita de
 abrir a Task atual. Status e pontos reutilizam campos existentes. `closingTaskSnapshot.version=1`
-complementa o card com campos mínimos no mesmo corte; é capturado antes do carry-over.
+é o formato parcial legado; novos encerramentos usam a versão 2 descrita abaixo, antes do carry-over.
 Task excluída depois mantém seu ID histórico no JSON e a participação perde apenas a FK atual.
 
-`traceabilityCounts` captura presença de Requirement/PR e quantidades de commits/issues.
+No formato legado v1, `traceabilityCounts` captura presença de Requirement/PR e quantidades de commits/issues.
 O responsável é somente `responsibleUserId`: apresentação histórica usa “Responsável #ID” sem
 resolver nome atual ou copiar PII dispensável. Deadline é ISO UTC ou null; atraso histórico é
 avaliado no corte. Resumo terminal usa contagens, pontos e progresso históricos. Legado sem JSON
@@ -189,3 +189,47 @@ impedem um DTO ativo tardio de restaurar o mesmo ID; outro ID com o mesmo nome �
 Formulários têm envio único e locks por entidade para operações incompatíveis. Confirmações de
 entidades independentes usam merge funcional, preservando todas mesmo em ordem inversa.
 Evidências e limites: [PLANNING_QA_FIX_04.md](../qa/PLANNING_QA_FIX_04.md).
+
+
+## Snapshot completo e detalhes congelados — FIX-04 addenda 2/3
+
+A apresentação C2 é compartilhada por `TaskDetailsLayout`, `TaskInformation`,
+`TaskTraceabilityGrid` e `ArtifactCategory`. O comportamento atual permanece em
+`TaskDetailsPanel`; `FrozenTaskDetails` recebe somente a projeção de encerramento e usa
+`frozenTaskDetailsView` como whitelist explícita. Não há flags de edição histórica nem
+montagem de `TaskComments`/SSE no fluxo congelado. Sem slot de Comments, o conteúdo ocupa
+uma coluna integral de altura natural, com scroll limitado pelo viewport do modal.
+
+Novos encerramentos gravam `closingTaskSnapshot.version=2`: `id`, `title`, `description`,
+`priority`, `responsibleUserId`, `responsibleDisplayName`, `deadline`, `actualEffort`, `createdAt`,
+`requirement`, `pullRequest`, `commits`, `issues` e `traceabilityCounts`. Status e esforço estimado
+continuam em `SprintTask.exitStatus` e `pointsAtClose`, expostos igualmente no card e nos detalhes.
+O nome usa somente a apresentação exibida na Task atual, sem e-mail ou perfil. Datas são ISO UTC.
+Requirement preserva id/title/status; PR id/number/title/state/githubUrl; commits
+id/hash/message/authorName/date/githubUrl; issues id/number/title/state/labels/githubUrl.
+Comments, tombstones e estado SSE não são copiados. Ausência de vínculo é null/array vazio.
+
+A captura ocorre na transação de encerramento, após os locks existentes de Project, Sprint e
+Tasks, antes de persistir o estado terminal, carry-over e eventos. `RepeatableRead` explícito
+mantém todas as leituras relacionais na mesma visão lógica, inclusive quando sync de artefatos
+ou renomeação de usuário ocorre em paralelo. Não adiciona locks de artefatos. Membership é
+serializado pelo lock de Project; Task recebe lock antes da primeira leitura consistente.
+Falha na captura/persistência ou participação ativa inconsistente aborta a transação inteira.
+
+O JSON existente suporta v2 sem DDL: nenhuma migration adicional é necessária, nenhuma migration
+anterior foi editada, nenhum reset/backfill foi executado. A estratégia usa JSON e isolamento
+suportados pelo MySQL 8.4.8. O deploy da aplicação passa a exigir v2 em novos encerramentos.
+
+V1 continua parcial e recebe `LEGACY_CLOSING_TASK_DETAILS_PARTIAL`; JSON ausente/versão
+não suportada recebe `LEGACY_CLOSING_TASK_SNAPSHOT_UNAVAILABLE`. Campos não capturados usam
+“Indisponível no snapshot”. Nome legado usa ID com indicação de indisponibilidade; contagens
+legadas usam os quatro cards sem inventar artefatos/URLs. Nunca se consulta o estado atual para
+preencher histórico. V2 usa `TaskTraceability`, também compartilhado pela Task atual, com ações
+“Abrir no GitHub” apenas para URLs capturadas (apresentação: “Abrir no GitHub ↗”).
+
+O botão “Abrir tarefa atual” é a única transição ao DTO atual; não altera o filtro da Sprint
+congelada. Task usa exclusão física no contrato vigente, com `SprintTask.taskId` nullable/SetNull:
+se não existe vínculo atual, a ação é omitida e a indisponibilidade é exibida. Se a Task deixa
+de estar acessível entre leitura e clique, HTTP 404 desabilita a ação e mantém o snapshot.
+O cabeçalho prioriza ID/título e informa o estado no encerramento e seu timestamp. A frase
+sobre visualização individual de Sprints congeladas foi removida, sem texto substituto.

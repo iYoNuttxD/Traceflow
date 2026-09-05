@@ -98,6 +98,7 @@ export function KanbanScreen() {
   const [selectedTask, setSelectedTask] = useState(null);
   const [openingCurrent, setOpeningCurrent] = useState(false);
   const [currentTaskError, setCurrentTaskError] = useState('');
+  const [currentTaskUnavailable, setCurrentTaskUnavailable] = useState(false);
   const currentTaskRequestRef = useRef(0);
   const [historyTask, setHistoryTask] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -434,6 +435,7 @@ export function KanbanScreen() {
     }
     detailsReturnFocusRef.current = trigger;
     setCurrentTaskError('');
+    setCurrentTaskUnavailable(false);
     setOpeningCurrent(false);
     setSelectedTask(task);
   }
@@ -447,8 +449,15 @@ export function KanbanScreen() {
       if (request !== currentTaskRequestRef.current) return;
       setSelectedTask(response.data.task);
     } catch (error) {
-      if (request === currentTaskRequestRef.current)
-        setCurrentTaskError(getErrorMessage(error, 'Não foi possível abrir a tarefa atual.'));
+      if (request === currentTaskRequestRef.current) {
+        const unavailable = error.response?.status === 404;
+        setCurrentTaskUnavailable(unavailable);
+        setCurrentTaskError(
+          unavailable
+            ? 'Tarefa atual indisponível. O snapshot histórico foi preservado.'
+            : getErrorMessage(error, 'Não foi possível abrir a tarefa atual.')
+        );
+      }
     } finally {
       if (request === currentTaskRequestRef.current) setOpeningCurrent(false);
     }
@@ -576,9 +585,6 @@ export function KanbanScreen() {
             onClearSprints={() => applySprintFilter([])}
           />
 
-          {frozenSprint && (
-            <p className="field-help">Sprints congeladas são visualizadas individualmente.</p>
-          )}
           {frozenView.projection?.historicalLimitations?.length > 0 && (
             <p role="status">
               Snapshot detalhado indisponível para esta Sprint histórica. Campos desconhecidos não
@@ -662,6 +668,9 @@ export function KanbanScreen() {
           {selectedTask?.isFrozen && (
             <FrozenTaskDetails
               task={selectedTask}
+              sprintName={sprintNames[selectedTask.sprintId]}
+              historicalLimitations={frozenView.projection?.historicalLimitations}
+              unavailable={currentTaskUnavailable}
               returnFocusRef={detailsReturnFocusRef}
               opening={openingCurrent}
               error={currentTaskError}

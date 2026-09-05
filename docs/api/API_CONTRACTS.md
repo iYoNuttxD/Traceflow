@@ -492,9 +492,19 @@ modal de tarefas. Uma única projeção de domínio escolhe os dados conforme o 
   para a ação explícita “Abrir tarefa atual”. Essa disponibilidade operacional não é métrica histórica.
 - Contexto preservado: `addedAt`, `addedAfterStart`, `carriedFromSprintId`, `exitStatus`.
 - Envelope terminal: `isFrozen=true`, `snapshotAt`, `historicalSummary` e limitações. Cada card
-  inclui `snapshotAt`, `snapshotAvailable`, `responsibleUserId` (sem nome/e-mail) e
-  `traceabilityCounts: {requirements,pullRequests,commits,issues}`. Não expõe descrição ou
-  conteúdo completo dos artefatos. A identificação histórica do responsável usa apenas o ID.
+  inclui `snapshotAt`, `snapshotAvailable`, `snapshotVersion` e `traceabilityCounts`.
+- Snapshot completo v2 (novos encerramentos): `description`, `responsibleDisplayName`,
+  `actualEffort`, `createdAt`, `requirement`, `pullRequest`, `commits` e `issues`, além dos campos
+  anteriores `id,title,priority,responsibleUserId,deadline,status,estimatedEffort`.
+  Requirement: `{id,title,status}` ou null. PR: `{id,number,title,state,githubUrl}` ou null.
+  Commit: `{id,hash,message,authorName,date,githubUrl}`. Issue:
+  `{id,number,title,state,labels,githubUrl}`. Arrays vazios indicam ausência de vínculos.
+  Datas históricas são ISO UTC. O nome de exibição não inclui e-mail ou dados de perfil.
+  URLs capturadas permitem ações externas; nenhum artefato atual é consultado para renderizar.
+- V1 permanece parcial: `snapshotVersion=1`, sem os novos campos, e limitação
+  `LEGACY_CLOSING_TASK_DETAILS_PARTIAL`. JSON ausente usa `snapshotVersion=null`.
+  Comments não integram nenhuma versão. Snapshot v2 é capturado atomicamente antes do carry-over;
+  falha de captura desfaz o encerramento. Não há backfill legado nem mudança de schema/DDL.
 
 Snapshot detalhado legado ausente recebe `LEGACY_CLOSING_TASK_SNAPSHOT_UNAVAILABLE`;
 campos desconhecidos são null e o título de apresentação declara a indisponibilidade. Status e

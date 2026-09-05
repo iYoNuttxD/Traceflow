@@ -1328,14 +1328,34 @@ describe('FIX-03 frozen Sprint Kanban', () => {
     });
     expect(mocks.kanbanApi.moveTask).not.toHaveBeenCalled();
     await user.click(card);
-    const dialog = screen.getByRole('dialog', { name: 'Detalhes no encerramento' });
+    const dialog = screen.getByRole('dialog', { name: '#1 Snapshot T1' });
     expect(within(dialog).queryByRole('button', { name: 'Editar tarefa' })).toBeNull();
     expect(within(dialog).queryByRole('combobox')).toBeNull();
-    expect(within(dialog).getByText('Responsável #5')).toBeInTheDocument();
+    expect(within(dialog).getByText(/Responsável #5/)).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Abrir tarefa atual' }));
     expect(await screen.findByRole('dialog', { name: /#1 Current T1/ })).toBeInTheDocument();
     expect(mocks.tasksApi.get).toHaveBeenCalledWith(1);
     expect(screen.getByText('Snapshot T1')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Editar tarefa' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Excluir tarefa' })).toBeInTheDocument();
+    expect(screen.getByText('Comentários')).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(card).toHaveFocus();
+    expect(screen.getByText('Estado congelado no encerramento da Sprint.')).toBeInTheDocument();
+  });
+  it('keeps the frozen cut when the current Task has become unavailable', async () => {
+    mocks.tasksApi.get.mockRejectedValueOnce({ response: { status: 404 } });
+    const user = userEvent.setup();
+    renderPage('/projects/1/kanban?sprint=1');
+    await user.click(await screen.findByRole('button', { name: 'Abrir detalhes de Snapshot T1' }));
+    expect(mocks.tasksApi.get).not.toHaveBeenCalled();
+    const dialog = screen.getByRole('dialog', { name: '#1 Snapshot T1' });
+    await user.click(within(dialog).getByRole('button', { name: 'Abrir tarefa atual' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Tarefa atual indisponível');
+    expect(within(dialog).getByRole('button', { name: 'Abrir tarefa atual' })).toBeDisabled();
+    expect(within(dialog).getByText('A Fazer')).toBeInTheDocument();
+    expect(within(dialog).queryByText('Comentários')).toBeNull();
   });
   it('does not fall back to current cards when historical loading fails', async () => {
     mocks.scheduleApi.listSprintTasks.mockRejectedValueOnce({
@@ -1370,9 +1390,9 @@ describe('FIX-03 frozen Sprint Kanban', () => {
     const user = userEvent.setup();
     renderPage('/projects/1/kanban?sprint=1');
     await user.click(await screen.findByRole('button', { name: 'Abrir detalhes de Snapshot T1' }));
-    const dialog = screen.getByRole('dialog', { name: 'Detalhes no encerramento' });
+    const dialog = screen.getByRole('dialog', { name: '#1 Snapshot T1' });
     expect(
-      within(dialog).getByText('Snapshot detalhado indisponível para esta Sprint histórica.')
+      within(dialog).getByText(/Snapshot detalhado indisponível para esta Sprint histórica/)
     ).toBeInTheDocument();
     expect(within(dialog).queryByRole('button', { name: 'Abrir tarefa atual' })).toBeNull();
   });

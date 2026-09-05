@@ -71,14 +71,55 @@ async function freezeParticipations(tx, sprint, closedAt) {
     where: { sprintId: sprint.id },
     select: {
       ...scheduleTaskSelect,
-      requirementId: true,
-      pullRequestId: true,
-      _count: { select: { commitLinks: true, issueLinks: true } }
+      description: true,
+      responsible: true,
+      responsibleUser: { select: { name: true } },
+      actualEffort: true,
+      createdAt: true,
+      requirement: { select: { id: true, title: true, status: true } },
+      pullRequest: {
+        select: { id: true, number: true, title: true, state: true, githubUrl: true }
+      },
+      commitLinks: {
+        select: {
+          commit: {
+            select: {
+              id: true,
+              hash: true,
+              message: true,
+              authorName: true,
+              authorUsername: true,
+              date: true,
+              githubUrl: true
+            }
+          }
+        },
+        orderBy: [{ createdAt: 'desc' }, { commitId: 'asc' }]
+      },
+      issueLinks: {
+        select: {
+          issue: {
+            select: {
+              id: true,
+              number: true,
+              title: true,
+              state: true,
+              labels: true,
+              githubUrl: true
+            }
+          }
+        },
+        orderBy: [{ createdAt: 'desc' }, { issueId: 'asc' }]
+      }
     }
   });
   const byId = new Map(tasks.map((task) => [task.id, task]));
   const participations = await findBurndownData(tx, sprint);
-  for (const participation of participations.filter((item) => item.removedAt === null)) {
+  const active = participations.filter((item) => item.removedAt === null);
+  if (tasks.some((task) => !active.some((item) => item.taskId === task.id))) {
+    throw new Error('Closing Task snapshot requires an active participation');
+  }
+  for (const participation of active) {
     await tx.sprintTask.update({
       where: { id: participation.id },
       data: {
@@ -86,11 +127,7 @@ async function freezeParticipations(tx, sprint, closedAt) {
         exitStatus: participation.currentStatus,
         pointsAtClose: participation.points,
         completedAtClose: participation.completedAt,
-        ...(byId.has(participation.taskId)
-          ? {
-              closingTaskSnapshot: buildClosingTaskSnapshot(byId.get(participation.taskId))
-            }
-          : {})
+        closingTaskSnapshot: buildClosingTaskSnapshot(byId.get(participation.taskId))
       }
     });
   }
@@ -289,118 +326,121 @@ export const sprintRepository = {
   },
 
   async transitionWithinSprintLock(id, projectId, buildChange) {
-    return prisma.$transaction(async (tx) => {
-      await lockProject(tx, projectId);
-      const lockedSprints = await tx.$queryRaw`
+    return prisma.$transaction(
+      async (tx) => {
+        await lockProject(tx, projectId);
+        const lockedSprints = await tx.$queryRaw`
         SELECT id, milestoneId FROM Sprint WHERE projectId = ${projectId} AND deletedAt IS NULL ORDER BY id FOR UPDATE`;
-      const locked = lockedSprints.find((item) => Number(item.id) === id);
-      if (!locked) return null;
-      const milestoneId = locked.milestoneId == null ? null : Number(locked.milestoneId);
-      const lockedTasks = await tx.$queryRaw`
+        const locked = lockedSprints.find((item) => Number(item.id) === id);
+        if (!locked) return null;
+        const milestoneId = locked.milestoneId == null ? null : Number(locked.milestoneId);
+        const lockedTasks = await tx.$queryRaw`
         SELECT id FROM Task WHERE sprintId = ${id} ORDER BY id FOR UPDATE`;
-      const taskIds = lockedTasks.map((task) => Number(task.id));
+        const taskIds = lockedTasks.map((task) => Number(task.id));
 
-      if (milestoneId) {
-        await lockMilestone(tx, milestoneId);
-      }
-
-      const atual = await tx.sprint.findUnique({ where: { id }, select: sprintSelect });
-      const sprints = await tx.sprint.findMany({
-        where: { projectId, deletedAt: null },
-        select: sprintSelect
-      });
-      const tasks = taskIds.length
-        ? await tx.task.findMany({
-            where: { id: { in: taskIds } },
-            select: {
-              id: true,
-              projectId: true,
-              title: true,
-              status: true,
-              sprintId: true,
-              estimatedEffort: true
-            }
-          })
-        : [];
-      const milestoneSprints = milestoneId
-        ? sprints.filter(
-            (sprint) => sprint.milestoneId === milestoneId && !sprint.milestone?.deletedAt
-          )
-        : [];
-
-      const {
-        data,
-        auditEvent,
-        freezeAt,
-        backlog,
-        milestone,
-        carryOver: continuation
-      } = await buildChange({
-        sprint: atual,
-        sprints,
-        tasks,
-        milestoneSprints
-      });
-
-      if (data.startedAt) {
-        await capturePlanning(tx, id, tasks);
-        data.planningSnapshotAt = data.startedAt;
-      }
-      if (freezeAt) {
-        await freezeParticipations(tx, atual, freezeAt);
-        data.closedAt = freezeAt;
-      }
-      const sprint = await tx.sprint.update({ where: { id }, data, select: sprintSelect });
-
-      let returnedToBacklog = 0;
-      if (backlog?.taskIds?.length) {
-        const alterados = await tx.task.updateMany({
-          where: { id: { in: backlog.taskIds }, sprintId: id },
-          data: { sprintId: null }
-        });
-        returnedToBacklog = alterados.count;
-        if (backlog.historyEntries?.length) {
-          await tx.taskHistoryEntry.createMany({ data: backlog.historyEntries });
+        if (milestoneId) {
+          await lockMilestone(tx, milestoneId);
         }
-      }
 
-      let carryOver = null;
-      if (continuation) {
-        const destination = continuation.destination;
-        const participations = await tx.sprintTask.findMany({
-          where: { sprintId: destination.id },
-          select: sprintTaskSelect
+        const atual = await tx.sprint.findUnique({ where: { id }, select: sprintSelect });
+        const sprints = await tx.sprint.findMany({
+          where: { projectId, deletedAt: null },
+          select: sprintSelect
         });
-        const activeElsewhere = await tx.sprintTask.findMany({
-          where: { sprintId: id, taskId: { in: taskIds }, removedAt: null },
-          select: sprintTaskSelect
-        });
-        const plan = await continuation.buildPlan({
-          sprint: destination,
-          participations,
+        const tasks = taskIds.length
+          ? await tx.task.findMany({
+              where: { id: { in: taskIds } },
+              select: {
+                id: true,
+                projectId: true,
+                title: true,
+                status: true,
+                sprintId: true,
+                estimatedEffort: true
+              }
+            })
+          : [];
+        const milestoneSprints = milestoneId
+          ? sprints.filter(
+              (sprint) => sprint.milestoneId === milestoneId && !sprint.milestone?.deletedAt
+            )
+          : [];
+
+        const {
+          data,
+          auditEvent,
+          freezeAt,
+          backlog,
+          milestone,
+          carryOver: continuation
+        } = await buildChange({
+          sprint: atual,
+          sprints,
           tasks,
-          activeElsewhere
+          milestoneSprints
         });
-        await applyScopePlan(tx, destination, plan);
-        carryOver = {
-          destinationSprintId: destination.id,
-          destinationSprintName: destination.name,
-          movedTasks: plan.attachTaskIds.length
-        };
-      }
 
-      let milestoneCompleted = null;
-      if (milestone) {
-        milestoneCompleted = await tx.milestone.update({
-          where: { id: milestone.id },
-          data: { status: milestone.status },
-          select: { id: true, title: true, status: true }
-        });
-      }
+        if (data.startedAt) {
+          await capturePlanning(tx, id, tasks);
+          data.planningSnapshotAt = data.startedAt;
+        }
+        if (freezeAt) {
+          await freezeParticipations(tx, atual, freezeAt);
+          data.closedAt = freezeAt;
+        }
+        const sprint = await tx.sprint.update({ where: { id }, data, select: sprintSelect });
 
-      if (auditEvent) await auditRepository.create(auditEvent, tx);
-      return { sprint, returnedToBacklog, milestoneCompleted, carryOver };
-    });
+        let returnedToBacklog = 0;
+        if (backlog?.taskIds?.length) {
+          const alterados = await tx.task.updateMany({
+            where: { id: { in: backlog.taskIds }, sprintId: id },
+            data: { sprintId: null }
+          });
+          returnedToBacklog = alterados.count;
+          if (backlog.historyEntries?.length) {
+            await tx.taskHistoryEntry.createMany({ data: backlog.historyEntries });
+          }
+        }
+
+        let carryOver = null;
+        if (continuation) {
+          const destination = continuation.destination;
+          const participations = await tx.sprintTask.findMany({
+            where: { sprintId: destination.id },
+            select: sprintTaskSelect
+          });
+          const activeElsewhere = await tx.sprintTask.findMany({
+            where: { sprintId: id, taskId: { in: taskIds }, removedAt: null },
+            select: sprintTaskSelect
+          });
+          const plan = await continuation.buildPlan({
+            sprint: destination,
+            participations,
+            tasks,
+            activeElsewhere
+          });
+          await applyScopePlan(tx, destination, plan);
+          carryOver = {
+            destinationSprintId: destination.id,
+            destinationSprintName: destination.name,
+            movedTasks: plan.attachTaskIds.length
+          };
+        }
+
+        let milestoneCompleted = null;
+        if (milestone) {
+          milestoneCompleted = await tx.milestone.update({
+            where: { id: milestone.id },
+            data: { status: milestone.status },
+            select: { id: true, title: true, status: true }
+          });
+        }
+
+        if (auditEvent) await auditRepository.create(auditEvent, tx);
+        return { sprint, returnedToBacklog, milestoneCompleted, carryOver };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead }
+    );
   },
 
   async readImpactSnapshot(id) {

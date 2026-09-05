@@ -1,17 +1,7 @@
+import { TaskTraceability } from './TaskTraceability.jsx';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { normalizeApiError, TraceFlowIcon, useConfirm } from '../../../shared/index.js';
-import {
-  formatCommitLabel,
-  formatDate,
-  formatDateTime,
-  formatIssueLabel,
-  formatIssueLabels,
-  formatRequirementLabel,
-  priorityLabels,
-  requirementStatusLabels,
-  statusLabels
-} from './kanban-display.js';
-import { isTaskOverdue } from './kanban-view.js';
+import { normalizeApiError, useConfirm } from '../../../shared/index.js';
+import { priorityLabels, statusLabels } from './kanban-display.js';
 import { KanbanDialog } from './KanbanDialog.jsx';
 import { TaskComments } from './TaskComments.jsx';
 import {
@@ -20,12 +10,8 @@ import {
   taskTraceabilitySnapshot,
   TaskTraceabilityEditor
 } from './TaskTraceabilityEditor.jsx';
-import './TaskDetailsPanel.css';
-
-function responsibleInitial(task) {
-  const name = task.responsibleUser?.name || task.responsible || '';
-  return name.trim().charAt(0).toLocaleUpperCase('pt-BR') || '?';
-}
+import { TaskDetailsLayout, TaskInformation } from './TaskDetailsLayout.jsx';
+import { currentTaskDetailsView } from './task-details-view.js';
 
 function memberUserId(member) {
   return member.user?.id || member.userId || member.id;
@@ -72,94 +58,6 @@ function draftPayload(draft, baseline) {
   const previous = normalizedDraft(baseline);
   return Object.fromEntries(
     Object.entries(next).filter(([field, value]) => value !== previous[field])
-  );
-}
-
-function ArtifactCategory({ label, count, children }) {
-  return (
-    <article>
-      <header className="task-detail-artifact-heading">
-        <span>{label}</span>
-        <strong aria-label={`${count} ${label.toLocaleLowerCase('pt-BR')}`}>{count}</strong>
-      </header>
-      <div className="task-detail-artifact-body">{children}</div>
-    </article>
-  );
-}
-
-function GithubExternalAction({ href }) {
-  return (
-    <a
-      className="button button-compact task-detail-external-link"
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-    >
-      Abrir no GitHub
-      <TraceFlowIcon name="externalLink" />
-    </a>
-  );
-}
-
-function TaskInformation({ task }) {
-  const overdue = isTaskOverdue(task);
-
-  return (
-    <>
-      <p className="task-detail-description">{task.description || 'Sem descrição cadastrada.'}</p>
-
-      <section className="task-detail-section" aria-labelledby="task-detail-information-title">
-        <h3 id="task-detail-information-title">Informações</h3>
-        <dl className="task-detail-grid">
-          <div>
-            <dt>Prioridade</dt>
-            <dd>
-              <span
-                className={`priority-badge priority-${(task.priority || 'MEDIA').toLowerCase()}`}
-              >
-                {priorityLabels[task.priority] || task.priority || 'Média'}
-              </span>
-            </dd>
-          </div>
-          <div>
-            <dt>Responsável</dt>
-            <dd className="task-detail-responsible">
-              <span aria-hidden="true">{responsibleInitial(task)}</span>
-              {task.responsibleUser?.name || task.responsible || 'Não informado'}
-            </dd>
-          </div>
-          <div>
-            <dt>Prazo</dt>
-            <dd className={overdue ? 'task-detail-deadline--overdue' : ''}>
-              {formatDate(task.deadline)}
-              {overdue && <small>Atrasada</small>}
-            </dd>
-          </div>
-          <div>
-            <dt>Status</dt>
-            <dd>
-              <span className={`status-badge status-${task.status.toLowerCase()}`}>
-                {statusLabels[task.status] || task.status}
-              </span>
-            </dd>
-          </div>
-        </dl>
-        <dl className="task-detail-secondary-grid">
-          <div>
-            <dt>Esforço estimado</dt>
-            <dd>{task.estimatedEffort ?? 'Não informado'}</dd>
-          </div>
-          <div>
-            <dt>Esforço realizado</dt>
-            <dd>{task.actualEffort ?? 'Não informado'}</dd>
-          </div>
-          <div>
-            <dt>Criado em</dt>
-            <dd>{formatDateTime(task.createdAt)}</dd>
-          </div>
-        </dl>
-      </section>
-    </>
   );
 }
 
@@ -278,88 +176,6 @@ function TaskEditForm({ task, draft, errors, members, titleRef, saving, onChange
         {errors.actualEffort && <small className="field-error">{errors.actualEffort}</small>}
       </label>
     </div>
-  );
-}
-
-function TaskTraceability({ task }) {
-  return (
-    <section
-      className="task-detail-section task-detail-traceability"
-      aria-labelledby="task-detail-traceability-title"
-    >
-      <div className="task-detail-section-heading">
-        <h3 id="task-detail-traceability-title">Rastreabilidade</h3>
-      </div>
-      <div className="task-detail-traceability-grid">
-        <ArtifactCategory label="Requisito" count={task.requirement ? 1 : 0}>
-          {task.requirement ? (
-            <div>
-              <strong>{formatRequirementLabel(task.requirement)}</strong>
-              <p>
-                {task.requirement.status
-                  ? requirementStatusLabels[task.requirement.status] || task.requirement.status
-                  : 'Status não informado'}
-              </p>
-            </div>
-          ) : (
-            <p>Nenhum vínculo</p>
-          )}
-        </ArtifactCategory>
-
-        <ArtifactCategory label="Pull request" count={task.pullRequest ? 1 : 0}>
-          {task.pullRequest ? (
-            <div>
-              <strong>
-                #{task.pullRequest.number} — {task.pullRequest.title}
-              </strong>
-              <p>{task.pullRequest.state || 'Status não informado'}</p>
-              {task.pullRequest.githubUrl && (
-                <GithubExternalAction href={task.pullRequest.githubUrl} />
-              )}
-            </div>
-          ) : (
-            <p>Nenhum vínculo</p>
-          )}
-        </ArtifactCategory>
-
-        <ArtifactCategory label="Commits" count={task.commits?.length || 0}>
-          {task.commits?.length ? (
-            <div className="task-detail-artifact-list">
-              {task.commits.map((commit) => (
-                <div key={commit.id}>
-                  <strong>{formatCommitLabel(commit)}</strong>
-                  <p>
-                    {commit.authorName || commit.authorUsername || 'Autor não informado'} ·{' '}
-                    {formatDateTime(commit.date)}
-                  </p>
-                  {commit.githubUrl && <GithubExternalAction href={commit.githubUrl} />}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p>Nenhum vínculo</p>
-          )}
-        </ArtifactCategory>
-
-        <ArtifactCategory label="Issues" count={task.issues?.length || 0}>
-          {task.issues?.length ? (
-            <div className="task-detail-artifact-list">
-              {task.issues.map((issue) => (
-                <div key={issue.id}>
-                  <strong>{formatIssueLabel(issue)}</strong>
-                  <p>
-                    {issue.state || 'Status não informado'} · {formatIssueLabels(issue.labels)}
-                  </p>
-                  {issue.githubUrl && <GithubExternalAction href={issue.githubUrl} />}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p>Nenhum vínculo</p>
-          )}
-        </ArtifactCategory>
-      </div>
-    </section>
   );
 }
 
@@ -657,56 +473,53 @@ export function TaskDetailsPanel({
       onClose={() => void requestClose()}
       headerActions={headerActions}
     >
-      <div className="task-detail-layout">
-        <section className="task-detail-main">
-          {saveError && (
-            <div className="message message-error" role="alert">
-              {saveError}
-            </div>
-          )}
-          {editing ? (
-            <form className="task-detail-unified-edit" id={formId} onSubmit={submitEdit} noValidate>
-              <section
-                className="task-detail-section"
-                aria-labelledby="task-detail-edit-information-title"
-              >
-                <h3 id="task-detail-edit-information-title">Informações</h3>
-                <TaskEditForm
-                  task={task}
-                  draft={draft}
-                  errors={fieldErrors}
-                  members={members}
-                  titleRef={titleRef}
-                  saving={saving}
-                  onChange={changeDraft}
-                />
-              </section>
-              <section
-                className="task-detail-section task-detail-traceability"
-                aria-labelledby="task-detail-edit-traceability-title"
-              >
-                <div className="task-detail-section-heading">
-                  <h3 id="task-detail-edit-traceability-title">Rastreabilidade</h3>
-                  <p>Vínculos atuais permanecem visíveis até você salvar.</p>
-                </div>
-                <TaskTraceabilityEditor
-                  key={task.id}
-                  projectId={projectId}
-                  task={task}
-                  draft={traceabilityDraft}
-                  onDraftChange={setTraceabilityDraft}
-                  disabled={saving}
-                  onSuggestionConfirmed={handleSuggestionConfirmed}
-                />
-              </section>
-            </form>
-          ) : (
-            <TaskInformation task={task} />
-          )}
-          {!editing && <TaskTraceability task={task} />}
-        </section>
-        <TaskComments taskId={task.id} />
-      </div>
+      <TaskDetailsLayout aside={<TaskComments taskId={task.id} />}>
+        {saveError && (
+          <div className="message message-error" role="alert">
+            {saveError}
+          </div>
+        )}
+        {editing ? (
+          <form className="task-detail-unified-edit" id={formId} onSubmit={submitEdit} noValidate>
+            <section
+              className="task-detail-section"
+              aria-labelledby="task-detail-edit-information-title"
+            >
+              <h3 id="task-detail-edit-information-title">Informações</h3>
+              <TaskEditForm
+                task={task}
+                draft={draft}
+                errors={fieldErrors}
+                members={members}
+                titleRef={titleRef}
+                saving={saving}
+                onChange={changeDraft}
+              />
+            </section>
+            <section
+              className="task-detail-section task-detail-traceability"
+              aria-labelledby="task-detail-edit-traceability-title"
+            >
+              <div className="task-detail-section-heading">
+                <h3 id="task-detail-edit-traceability-title">Rastreabilidade</h3>
+                <p>Vínculos atuais permanecem visíveis até você salvar.</p>
+              </div>
+              <TaskTraceabilityEditor
+                key={task.id}
+                projectId={projectId}
+                task={task}
+                draft={traceabilityDraft}
+                onDraftChange={setTraceabilityDraft}
+                disabled={saving}
+                onSuggestionConfirmed={handleSuggestionConfirmed}
+              />
+            </section>
+          </form>
+        ) : (
+          <TaskInformation details={currentTaskDetailsView(task)} />
+        )}
+        {!editing && <TaskTraceability task={task} />}
+      </TaskDetailsLayout>
     </KanbanDialog>
   );
 }

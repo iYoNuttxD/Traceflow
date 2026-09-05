@@ -1,76 +1,78 @@
+import { TaskTraceability } from './TaskTraceability.jsx';
 import { KanbanDialog } from './KanbanDialog.jsx';
-import { formatDate, formatDateTime, priorityLabels, statusLabels } from './kanban-display.js';
-import { formatTraceabilityCounts } from './kanban-view.js';
+import {
+  ArtifactCategory,
+  TaskDetailsLayout,
+  TaskInformation,
+  TaskTraceabilityGrid
+} from './TaskDetailsLayout.jsx';
+import { frozenTaskDetailsView } from './frozen-task-details-view.js';
 
 export function FrozenTaskDetails({
   task,
+  sprintName,
+  historicalLimitations = [],
   returnFocusRef,
   onClose,
   onOpenCurrent,
   opening,
+  unavailable,
   error
 }) {
-  const fields = [
-    ['Tarefa', `#${task.id} ${task.title}`],
-    ['Status', statusLabels[task.status] || 'Indisponível'],
-    ['Pontos', task.estimatedEffort ?? 'Indisponível'],
-    [
-      'Prioridade',
-      task.snapshotAvailable ? priorityLabels[task.priority] || task.priority : 'Indisponível'
-    ],
-    [
-      'Responsável',
-      task.snapshotAvailable
-        ? task.responsibleUserId
-          ? `Responsável #${task.responsibleUserId}`
-          : 'Não informado'
-        : 'Indisponível'
-    ],
-    [
-      'Prazo',
-      task.snapshotAvailable
-        ? task.deadline
-          ? formatDate(task.deadline)
-          : 'Sem prazo'
-        : 'Indisponível'
-    ],
-    ['Rastreabilidade', formatTraceabilityCounts(task)]
-  ];
+  const details = frozenTaskDetailsView(task);
   return (
     <KanbanDialog
-      title="Detalhes no encerramento"
-      description={`Estado congelado em ${formatDateTime(task.snapshotAt)}.`}
+      title={details.title}
+      description={
+        <>
+          <span>Estado no encerramento da {sprintName || `Sprint #${task.sprintId}`}</span>
+          <br />
+          <span>{details.cutoff}</span>
+        </>
+      }
+      size="wide"
       returnFocusRef={returnFocusRef}
       onClose={onClose}
     >
-      {!task.snapshotAvailable && (
-        <p role="status">Snapshot detalhado indisponível para esta Sprint histórica.</p>
-      )}
-      <dl className="frozen-task-details">
-        {fields.map(([label, value]) => (
-          <div key={label}>
-            <dt>{label}</dt>
-            <dd>{value}</dd>
+      <TaskDetailsLayout>
+        {(!task.snapshotAvailable ||
+          (task.snapshotVersion !== 2 && historicalLimitations.length > 0)) && (
+          <p className="message message-warning" role="status">
+            Snapshot detalhado indisponível para esta Sprint histórica. Os campos não capturados
+            estão identificados abaixo.
+          </p>
+        )}
+        <TaskInformation details={details} />
+        {details.artifacts ? (
+          <TaskTraceability task={details.artifacts} />
+        ) : (
+          <TaskTraceabilityGrid>
+            {details.traceability.map((category) => (
+              <ArtifactCategory key={category.key} label={category.label} count={category.count}>
+                <p>{category.text}</p>
+              </ArtifactCategory>
+            ))}
+          </TaskTraceabilityGrid>
+        )}
+        {error && (
+          <p className="message message-error" role="alert">
+            {error}
+          </p>
+        )}
+        {!task.currentTaskId && <p className="field-help">Tarefa atual indisponível.</p>}
+        {task.currentTaskId && (
+          <div className="form-actions">
+            <button
+              type="button"
+              className="button button-secondary"
+              disabled={opening || unavailable}
+              onClick={() => onOpenCurrent(task)}
+            >
+              {opening ? 'Abrindo...' : 'Abrir tarefa atual'}
+            </button>
           </div>
-        ))}
-      </dl>
-      {error && (
-        <p className="message message-error" role="alert">
-          {error}
-        </p>
-      )}
-      {task.currentTaskId && (
-        <div className="form-actions">
-          <button
-            type="button"
-            className="button button-secondary"
-            disabled={opening}
-            onClick={() => onOpenCurrent(task)}
-          >
-            {opening ? 'Abrindo...' : 'Abrir tarefa atual'}
-          </button>
-        </div>
-      )}
+        )}
+      </TaskDetailsLayout>
     </KanbanDialog>
   );
 }

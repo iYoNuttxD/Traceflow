@@ -197,19 +197,3 @@
     max-width: 100%;
   }
 }
-
-.frozen-task-details {
-  display: grid;
-  gap: 1rem;
-  margin: 0;
-}
-.frozen-task-details > div {
-  min-width: 0;
-}
-.frozen-task-details dt {
-  color: var(--text-secondary);
-}
-.frozen-task-details dd {
-  margin: 0.25rem 0 0;
-  overflow-wrap: anywhere;
-}
