@@ -1,4 +1,10 @@
-import { formatDate, formatDateTime, priorityLabels, statusLabels } from './kanban-display.js';
+import {
+  formatDate,
+  formatDateTime,
+  formatEffortHours,
+  priorityLabels,
+  statusLabels
+} from './kanban-display.js';
 
 const unavailable = 'Indisponível no snapshot';
 const categories = [
@@ -54,8 +60,8 @@ export function frozenTaskDetailsView(task) {
       overdue: false
     },
     status: { key: task.status, label: statusLabels[task.status] || unavailable },
-    estimatedEffort: task.estimatedEffort ?? unavailable,
-    actualEffort: complete ? (task.actualEffort ?? 'Não informado') : unavailable,
+    estimatedEffort: task.estimatedEffort == null ? unavailable : formatEffortHours(task.estimatedEffort),
+    actualEffort: complete ? formatEffortHours(task.actualEffort) : unavailable,
     createdAt: complete ? formatDateTime(task.createdAt) : unavailable,
     traceability: categories.map(([key, label]) => {
       const count =

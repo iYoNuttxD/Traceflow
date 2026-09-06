@@ -10,6 +10,23 @@ vi.mock('../../src/features/tasks/api/tasks.api.js', async (importOriginal) => (
     comments: [],
     permissions: { canComment: false, canModerate: false },
     pagination: { page: 1, limit: 5, total: 0, totalPages: 0 }
+  }),
+  getTaskTimeEntries: vi.fn().mockResolvedValue({
+    taskId: 7,
+    running: null,
+    entries: [],
+    effort: {
+      unit: 'HOURS',
+      estimatedHours: 8,
+      completedSeconds: 3 * 3600,
+      completedCount: 1,
+      actualHours: 3,
+      usagePercent: 37.5,
+      status: 'DENTRO_DO_PREVISTO',
+      running: null
+    },
+    permissions: { canOperate: false, canModerate: false },
+    pagination: { limit: 20, hasMore: false }
   })
 }));
 

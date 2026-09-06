@@ -498,6 +498,25 @@ export const settingsRepository = {
             updatedAt: true
           }
         },
+        // Sessões de tempo iniciadas pelo titular (S1-06): dado de quando e quanto
+        // trabalhou, exportado com o mesmo escopo de membership ativa.
+        startedTimeEntries: {
+          where: {
+            endedAt: { not: null },
+            project: { memberships: { some: { userId, isActive: true } } }
+          },
+          select: {
+            id: true,
+            projectId: true,
+            taskId: true,
+            source: true,
+            startedAt: true,
+            endedAt: true,
+            durationSeconds: true,
+            note: true,
+            createdAt: true
+          }
+        },
         sessions: {
           select: {
             publicId: true,

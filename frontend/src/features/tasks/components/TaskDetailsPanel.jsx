@@ -11,6 +11,7 @@ import {
   TaskTraceabilityEditor
 } from './TaskTraceabilityEditor.jsx';
 import { TaskDetailsLayout, TaskInformation } from './TaskDetailsLayout.jsx';
+import { TaskEffortTracker } from './TaskEffortTracker.jsx';
 import { currentTaskDetailsView } from './task-details-view.js';
 
 function memberUserId(member) {
@@ -32,8 +33,7 @@ function taskDraft(task) {
         ? String(task.responsibleUserId)
         : '',
     deadline: task.deadline ? String(task.deadline).slice(0, 10) : '',
-    estimatedEffort: task.estimatedEffort ?? '',
-    actualEffort: task.actualEffort ?? ''
+    estimatedEffort: task.estimatedEffort ?? ''
   };
 }
 
@@ -48,8 +48,7 @@ function normalizedDraft(draft) {
     priority: draft.priority,
     responsibleUserId: draft.responsibleUserId ? Number(draft.responsibleUserId) : null,
     deadline: draft.deadline || null,
-    estimatedEffort: normalizeEffort(draft.estimatedEffort),
-    actualEffort: normalizeEffort(draft.actualEffort)
+    estimatedEffort: normalizeEffort(draft.estimatedEffort)
   };
 }
 
@@ -147,11 +146,11 @@ function TaskEditForm({ task, draft, errors, members, titleRef, saving, onChange
       </div>
 
       <label className="field">
-        <span>Esforço estimado</span>
+        <span>Esforço estimado (horas)</span>
         <input
           type="number"
           min="0"
-          step="1"
+          step="0.5"
           name="estimatedEffort"
           value={draft.estimatedEffort}
           disabled={saving}
@@ -161,20 +160,12 @@ function TaskEditForm({ task, draft, errors, members, titleRef, saving, onChange
         {errors.estimatedEffort && <small className="field-error">{errors.estimatedEffort}</small>}
       </label>
 
-      <label className="field">
+      <div className="field task-detail-readonly-field">
         <span>Esforço realizado</span>
-        <input
-          type="number"
-          min="0"
-          step="1"
-          name="actualEffort"
-          value={draft.actualEffort}
-          disabled={saving}
-          aria-invalid={Boolean(errors.actualEffort)}
-          onChange={onChange}
-        />
-        {errors.actualEffort && <small className="field-error">{errors.actualEffort}</small>}
-      </label>
+        <div>
+          <small>Calculado pelas sessões do cronômetro e lançamentos manuais da tarefa.</small>
+        </div>
+      </div>
     </div>
   );
 }
@@ -324,11 +315,15 @@ export function TaskDetailsPanel({
     event.preventDefault();
     const errors = {};
     if (!draft.title.trim()) errors.title = 'O título da tarefa é obrigatório.';
-    for (const field of ['estimatedEffort', 'actualEffort']) {
-      const value = draft[field];
-      if (value !== '' && (!Number.isInteger(Number(value)) || Number(value) < 0)) {
-        errors[field] = 'Informe um número inteiro maior ou igual a zero.';
-      }
+    const estimated = draft.estimatedEffort;
+    const estimatedHours = Number(String(estimated).replace(',', '.'));
+    if (
+      estimated !== '' &&
+      (!Number.isFinite(estimatedHours) ||
+        estimatedHours < 0 ||
+        Math.abs(estimatedHours * 2 - Math.round(estimatedHours * 2)) > 1e-9)
+    ) {
+      errors.estimatedEffort = 'Informe as horas em passos de meia hora (ex.: 1, 1.5, 2).';
     }
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
@@ -404,6 +399,10 @@ export function TaskDetailsPanel({
     setEditing(false);
     setSaving(false);
     focusEditButton();
+  }
+
+  function handleEffortChange(effort, successMessage) {
+    onSaved?.({ ...task, actualEffort: effort.actualHours }, { successMessage });
   }
 
   function handleSuggestionConfirmed(commit) {
@@ -516,7 +515,17 @@ export function TaskDetailsPanel({
             </section>
           </form>
         ) : (
-          <TaskInformation details={currentTaskDetailsView(task)} />
+          <TaskInformation
+            details={currentTaskDetailsView(task)}
+            effortSlot={
+              <TaskEffortTracker
+                taskId={task.id}
+                estimatedEffort={task.estimatedEffort}
+                actualEffort={task.actualEffort}
+                onEffortChange={handleEffortChange}
+              />
+            }
+          />
         )}
         {!editing && <TaskTraceability task={task} />}
       </TaskDetailsLayout>

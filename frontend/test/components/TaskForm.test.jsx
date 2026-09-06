@@ -64,10 +64,12 @@ describe('TaskForm', () => {
     expect(screen.getByLabelText('Prioridade')).toHaveValue('ALTA');
   });
 
-  it('exibe esforço realizado em edição e mantém o submit desabilitado', () => {
+  it('não expõe campo editável de esforço realizado em edição e mantém o submit desabilitado', () => {
     render(<TaskFormHarness onSubmit={vi.fn()} editing submitting />);
 
-    expect(screen.getByLabelText('Esforço realizado')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Esforço realizado')).toBeNull();
+    expect(screen.getByText(/Calculado pelo cronômetro/)).toBeInTheDocument();
+    expect(screen.getByLabelText('Esforço estimado (horas)')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Salvando...' })).toBeDisabled();
   });
 

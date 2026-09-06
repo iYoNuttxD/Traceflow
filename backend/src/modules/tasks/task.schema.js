@@ -10,8 +10,7 @@ const editableFields = [
   'priority',
   'responsibleUserId',
   'deadline',
-  'estimatedEffort',
-  'actualEffort'
+  'estimatedEffort'
 ];
 
 function parsePositiveInteger(value, entityName) {
@@ -74,15 +73,15 @@ function parseDeadline(deadline) {
   return date;
 }
 
-function parseEffort(value, fieldName) {
+// Passo de meia hora (1, 1.5, 2...): a mesma regra da validação de entrada.
+function parseEstimatedEffort(value) {
   if (value === undefined) return undefined;
   if (value === null || value === '') return null;
-  const effort = Number(value);
-  if (!Number.isInteger(effort) || effort < 0) {
+  const effort = Number(typeof value === 'string' ? value.replace(',', '.') : value);
+  const halfHourStep = Math.abs(effort * 2 - Math.round(effort * 2)) < 1e-9;
+  if (!Number.isFinite(effort) || effort < 0 || !halfHourStep) {
     throw new TaskServiceError(
-      fieldName === 'estimatedEffort'
-        ? 'O esforço estimado deve ser um número inteiro maior ou igual a zero.'
-        : 'O esforço realizado deve ser um número inteiro maior ou igual a zero.',
+      'O esforço estimado deve ser um número de horas maior ou igual a zero, em passos de meia hora (ex.: 1, 1.5, 2).',
       400
     );
   }
@@ -100,26 +99,23 @@ export function buildTaskData(data, isCreate = false) {
   if (payload.priority !== undefined && !allowedPriorities.has(payload.priority)) {
     throw new TaskServiceError('Prioridade inválida. Use BAIXA, MEDIA, ALTA ou CRITICA.', 400);
   }
-  if (
-    isCreate &&
-    payload.actualEffort !== undefined &&
-    payload.actualEffort !== null &&
-    payload.actualEffort !== ''
-  ) {
+  // S1-06: o esforço realizado é derivado das sessões de tempo (TaskTimeEntry) e
+  // nunca escrito diretamente, senão a soma das sessões e o valor divergiriam.
+  if (payload.actualEffort !== undefined) {
     throw new TaskServiceError(
-      'O esforço realizado só pode ser informado na edição da tarefa.',
+      'O esforço realizado é calculado pelas sessões de tempo da tarefa e não pode ser informado diretamente.',
       400
     );
   }
   const taskData = {};
   for (const field of editableFields) {
-    if (payload[field] === undefined || (isCreate && field === 'actualEffort')) continue;
+    if (payload[field] === undefined) continue;
     if (field === 'title') taskData.title = payload.title.trim();
     else if (field === 'description') {
       taskData[field] = normalizeOptionalText(payload[field]);
     } else if (field === 'deadline') taskData.deadline = parseDeadline(payload.deadline);
-    else if (field === 'estimatedEffort' || field === 'actualEffort') {
-      taskData[field] = parseEffort(payload[field], field);
+    else if (field === 'estimatedEffort') {
+      taskData.estimatedEffort = parseEstimatedEffort(payload.estimatedEffort);
     } else taskData[field] = payload[field];
   }
   if (isCreate) {
