@@ -266,11 +266,13 @@ describe('FIX-04 complete closing snapshot v2', () => {
         priority: 'CRITICA',
         responsibleUserId: null,
         deadline: '2026-09-20',
-        estimatedEffort: 13,
-        actualEffort: 11
+        estimatedEffort: 13
       },
       context()
     );
+    // S1-06: actualEffort é derivado das sessões de tempo e recusado no update;
+    // a mudança do realizado atual é simulada direto no banco.
+    await prisma.task.update({ where: { id }, data: { actualEffort: 11 } });
     await prisma.user.update({ where: { id: actorUserId }, data: { name: 'Nome alterado' } });
     await prisma.requirement.update({ where: { id: requirement.id }, data: { title: 'R2' } });
     await prisma.pullRequest.update({

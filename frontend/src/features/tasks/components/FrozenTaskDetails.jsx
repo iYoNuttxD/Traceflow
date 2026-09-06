@@ -6,6 +6,7 @@ import {
   TaskInformation,
   TaskTraceabilityGrid
 } from './TaskDetailsLayout.jsx';
+import { FrozenEffortSummary } from './FrozenEffortSummary.jsx';
 import { frozenTaskDetailsView } from './frozen-task-details-view.js';
 
 export function FrozenTaskDetails({
@@ -42,7 +43,7 @@ export function FrozenTaskDetails({
             estão identificados abaixo.
           </p>
         )}
-        <TaskInformation details={details} />
+        <TaskInformation details={details} effortSlot={<FrozenEffortSummary task={task} />} />
         {details.artifacts ? (
           <TaskTraceability task={details.artifacts} />
         ) : (

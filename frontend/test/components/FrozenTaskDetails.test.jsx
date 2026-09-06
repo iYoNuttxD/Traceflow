@@ -16,6 +16,25 @@ vi.mock('../../src/features/tasks/components/TaskComments.jsx', () => ({
     </aside>
   ))
 }));
+vi.mock('../../src/features/tasks/api/tasks.api.js', async (importOriginal) => ({
+  ...(await importOriginal()),
+  getTaskTimeEntries: vi.fn().mockResolvedValue({
+    taskId: 5,
+    running: null,
+    entries: [],
+    effort: {
+      unit: 'HOURS',
+      estimatedHours: 13,
+      completedSeconds: 8 * 3600,
+      completedCount: 1,
+      actualHours: 8,
+      status: 'DENTRO_DO_PREVISTO',
+      running: null
+    },
+    permissions: { canOperate: false, canModerate: false },
+    pagination: { limit: 20, hasMore: false }
+  })
+}));
 const frozen = {
   id: 5,
   currentTaskId: 5,
@@ -119,9 +138,11 @@ describe('FIX-04 Frozen Task Details parity', () => {
     expect(field(dialog, 'Responsável')).toHaveTextContent('nome indisponível no snapshot');
     expect(field(dialog, 'Prazo')).toHaveTextContent('10/09/2026');
     expect(field(dialog, 'Status')).toHaveTextContent('Em Andamento');
-    expect(field(dialog, 'Esforço estimado')).toHaveTextContent('5');
-    expect(field(dialog, 'Esforço realizado')).toHaveTextContent('Indisponível no snapshot');
-    expect(field(dialog, 'Criado em')).toHaveTextContent('Indisponível no snapshot');
+    // S1-06: esforço vira bloco estático espelhando o rastreador da visão atual.
+    expect(dialog.querySelector('.task-effort')).toHaveTextContent('Indisponível no snapshot');
+    expect(dialog.querySelector('.task-effort')).toHaveTextContent('estimativa 5 h');
+    expect(dialog.querySelector('.task-effort')).toHaveAttribute('data-zone', 'neutral');
+    expect(dialog.querySelector('.task-effort [role="progressbar"]')).toBeNull();
     expect(within(dialog).getByText('Estado no encerramento da Sprint 1')).toBeInTheDocument();
     expect(within(dialog).getByText(/Congelado em/)).toBeInTheDocument();
     for (const text of [
@@ -156,7 +177,7 @@ describe('FIX-04 Frozen Task Details parity', () => {
     for (const label of ['Prioridade', 'Responsável', 'Prazo'])
       expect(field(dialog, label)).toHaveTextContent('Indisponível no snapshot');
     expect(field(dialog, 'Status')).toHaveTextContent('Em Andamento');
-    expect(field(dialog, 'Esforço estimado')).toHaveTextContent('5');
+    expect(dialog.querySelector('.task-effort')).toHaveTextContent('estimativa 5 h');
     expect(within(dialog).queryByRole('button', { name: 'Abrir tarefa atual' })).toBeNull();
     expect(within(dialog).getByText('Tarefa atual indisponível.')).toBeInTheDocument();
     expect(dialog.querySelectorAll('.task-detail-artifact-heading strong')[0]).toHaveTextContent(
@@ -302,12 +323,17 @@ it('renders complete v2 historical information and artifact cards without curren
     ['Prioridade', 'Média'],
     ['Responsável', 'Daniel'],
     ['Prazo', '10/09/2026'],
-    ['Status', 'Em Andamento'],
-    ['Esforço estimado', '5'],
-    ['Esforço realizado', '3'],
-    ['Criado em', '01/08/2026']
+    ['Status', 'Em Andamento']
   ])
     expect(field(dialog, label)).toHaveTextContent(value);
+  const effortBlock = dialog.querySelector('.task-effort');
+  expect(within(effortBlock).getByLabelText('Tempo total registrado no encerramento')).toHaveTextContent(
+    '03:00:00'
+  );
+  expect(effortBlock).toHaveTextContent('3h de 5h estimadas');
+  expect(effortBlock).toHaveTextContent('60%');
+  expect(effortBlock).toHaveTextContent('Dentro do previsto');
+  expect(within(effortBlock).queryByRole('button')).toBeNull();
   for (const text of [
     /R1/,
     /PR histórico/,
