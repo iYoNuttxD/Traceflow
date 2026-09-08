@@ -9,7 +9,8 @@ import {
   ErrorState,
   LoadingState,
   PAGE_ERROR_TYPES,
-  normalizeApiError
+  normalizeApiError,
+  TraceFlowIcon
 } from '../../shared/index.js';
 import { useTestCases } from './hooks/useTestCases.js';
 import { testCasesApi } from './api/test-cases.api.js';
@@ -19,6 +20,7 @@ import {
   TestCaseFilters,
   TestCaseSummary
 } from './components/TestCaseList.jsx';
+import { TestCaseHeaderActions } from './components/TestCaseHeaderActions.jsx';
 import { TestCaseDialogContent } from './components/TestCaseDialogContent.jsx';
 import './styles/test-cases.css';
 
@@ -40,6 +42,10 @@ function ProjectTestCases({ project }) {
   const mutationLock = useRef(false);
   const confirmationLock = useRef(false);
   const [dialog, setDialog] = useState(null);
+  const [loaded, setLoaded] = useState(null);
+  const onLoaded = useCallback((key, data) => setLoaded({ key, data }), []);
+  const headerKey = dialog ? `${dialog.type}:${dialog.caseId}:${dialog.executionId || ''}` : '';
+  const current = loaded?.key === headerKey ? loaded.data : null;
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState('');
   const [mutationError, setMutationError] = useState(null);
@@ -48,6 +54,7 @@ function ProjectTestCases({ project }) {
   const close = useCallback(() => {
     if (!mutationLock.current) {
       setDialog(null);
+      setLoaded(null);
       setMutationError(null);
     }
   }, []);
@@ -91,7 +98,10 @@ function ProjectTestCases({ project }) {
     if (confirmationLock.current || mutationLock.current || !canWrite) return;
     confirmationLock.current = true;
     const context = state.scope.capture();
-    flushSync(() => setDialog(null));
+    flushSync(() => {
+      setDialog(null);
+      setLoaded(null);
+    });
     if (trigger?.isConnected) trigger.focus();
     const accepted = await confirm({
       title: 'Excluir caso de teste?',
@@ -107,7 +117,10 @@ function ProjectTestCases({ project }) {
     else if (previousDialog) {
       setDialog(previousDialog);
       requestAnimationFrame(() =>
-        modalContentRef.current?.querySelector('[data-delete-case]')?.focus()
+        modalContentRef.current
+          ?.closest('[role="dialog"]')
+          ?.querySelector('[data-delete-case]')
+          ?.focus()
       );
     }
   }
@@ -119,11 +132,13 @@ function ProjectTestCases({ project }) {
     }
     returnFocusRef.current = trigger || document.activeElement;
     setMutationError(null);
+    setLoaded(null);
     setDialog({ type, caseId: item?.id, label: item?.displayId, title: item?.title });
   }
   function switchView(type, executionId) {
     if (mutationLock.current) return;
     setMutationError(null);
+    setLoaded(null);
     setDialog((old) => ({ ...old, type, executionId }));
   }
   useEffect(() => {
@@ -143,10 +158,24 @@ function ProjectTestCases({ project }) {
           : dialog?.type === 'history'
             ? 'Histórico do caso'
             : dialog?.type === 'execution'
-              ? 'Detalhes da execução'
+              ? current?.displayId || 'Carregando execução…'
               : dialog
-                ? `${dialog.label} · ${dialog.title}`
+                ? `${current?.displayId || dialog.label} · ${current?.title || dialog.title}`
                 : '';
+  const description =
+    dialog?.type === 'details'
+      ? 'Detalhes do caso de teste'
+      : dialog?.type === 'execute'
+        ? current?.title || dialog.title
+        : dialog?.type === 'execution'
+          ? current
+            ? `Detalhes da execução · TC-${current.testCaseId} · ${current.caseVersionSnapshot.title}`
+            : 'Carregando registro histórico'
+          : dialog?.type === 'create'
+            ? 'Defina o cenário de validação'
+            : dialog
+              ? `${current?.displayId || dialog.label} · ${current?.title || dialog.title}`
+              : undefined;
   if ([403, 404].includes(state.error?.status) || [403, 404].includes(state.memberError?.status))
     return <ContextualErrorPage error={state.error || state.memberError} showRetry={false} />;
   return (
@@ -209,23 +238,28 @@ function ProjectTestCases({ project }) {
             onRetry={() => state.load(state.catalog.page ? state.catalog.page + 1 : 1)}
           />
         )}
-        <section
-          ref={listRef}
-          tabIndex={-1}
-          aria-label="Casos de teste"
-          className="sprint-grid tc-grid"
-          role="list"
-        >
-          {canWrite && (
-            <div role="listitem">
-              <NewCaseCard onOpen={open} />
-            </div>
-          )}
-          {state.catalog.items.map((item) => (
-            <div key={item.id} role="listitem">
-              <TestCaseCard testCase={item} canWrite={canWrite} onOpen={open} />
-            </div>
-          ))}
+        <section className="sprint-grid-section tc-catalog">
+          <header className="sprint-grid-section__heading">
+            <h2>Casos de teste do projeto</h2>
+          </header>
+          <section
+            ref={listRef}
+            tabIndex={-1}
+            aria-label="Casos de teste"
+            className="sprint-grid tc-grid"
+            role="list"
+          >
+            {canWrite && (
+              <div role="listitem">
+                <NewCaseCard onOpen={open} />
+              </div>
+            )}
+            {state.catalog.items.map((item) => (
+              <div key={item.id} role="listitem">
+                <TestCaseCard testCase={item} canWrite={canWrite} onOpen={open} />
+              </div>
+            ))}
+          </section>
         </section>
         {!state.loading && !state.error && !state.catalog.items.length && (
           <div className="tc-surface">
@@ -260,6 +294,30 @@ function ProjectTestCases({ project }) {
       <SprintDialog
         open={Boolean(dialog)}
         title={title}
+        description={description}
+        className="tc-dialog"
+        leadingAction={
+          dialog?.type === 'execution' && (
+            <button
+              className="sprint-dialog__close"
+              aria-label="Voltar para execuções"
+              onClick={() => switchView('history')}
+            >
+              <TraceFlowIcon name="arrowLeft" />
+            </button>
+          )
+        }
+        headerActions={
+          dialog?.type === 'details' &&
+          current && (
+            <TestCaseHeaderActions
+              testCase={current}
+              canWrite={canWrite}
+              onView={switchView}
+              onDelete={(event) => deleteCase(current, event.currentTarget, dialog)}
+            />
+          )
+        }
         size="large"
         onClose={close}
         busy={busy}
@@ -276,6 +334,9 @@ function ProjectTestCases({ project }) {
             <TestCaseDialogContent
               key={`${dialog.type}:${dialog.caseId}:${dialog.executionId || ''}`}
               dialog={dialog}
+              headerKey={headerKey}
+              onLoaded={onLoaded}
+              projectId={project.id}
               mutationError={mutationError}
               busy={busy}
               blocked={mutationError?.blocked}

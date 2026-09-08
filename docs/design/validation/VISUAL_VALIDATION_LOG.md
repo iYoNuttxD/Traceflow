@@ -186,3 +186,34 @@ mensuráveis. Não há declaração de zero erros no console real nem `VISUALLY 
 Testes automatizados, API/DB, CSS estrutural e cobertura estão detalhados no
 [relatório de integração](../../deliveries/S1_07_FRONTEND_INTEGRATION_REPORT.md).
 Esses resultados não substituem a matriz visual solicitada nem aprovação humana.
+
+## 2026-09-08 — S1-07 Frontend Final UX Fix
+
+**Estado: TECHNICALLY VERIFIED; matriz visual exata ENVIRONMENT BLOCKED.**
+Checkout `/Users/daniel/Coding/Traceflow`, branch `daniel-dev`, baseline
+`b5e6b83c1c632aa566ec8cfc8d4e23acdab2edc2`. Implementação real, sem runtime fake.
+
+Smoke desktop nativo no Safari, sessão já autenticada, projeto 2: Main, filtros
+abertos/fechados, New TestCase e TC-1 PASS, create/edit sem salvar, Details, execução
+com dropdown inicialmente fechado e aberto por clique, Step, resumo com referência
+longa, ambas as tabs do histórico, EXEC-0001 histórica e confirmação cancelada.
+Superfícies observadas em Light/Dark. Links REQ-1 e TASK-2 navegaram às seções
+canônicas fechando o contexto anterior. Nenhum registro foi criado, editado ou excluído;
+nenhuma execução foi enviada. Tema Sistema restaurado ao encerrar.
+
+Comparação sequencial renderizada em Light com Task Card/Task Details/Sprint Filters.
+O comparativo identificou a necessidade de reutilizar GithubExternalAction, aplicada
+pelo barrel público de tasks. A seleção longa do SearchCombobox revelou overflow
+intrínseco, corrigido com min-width: 0 e revalidado em ambos os temas. PageDown
+confirmou que o dropdown fecha ao rolar o modal; não interfere no footer. Recarregamento
+precedeu a captura Dark final da execução histórica com a ação externa canônica.
+
+Limites: nenhum browser provider; sem viewport CSS medido em 1440/1280/768/390, sem
+coletor de console/computed styles e sem matriz de variantes de cards simultâneas.
+O comando nativo de scroll retornou noWindowsAvailable em tentativas, contornado
+para o smoke de scroll por teclado. Não há visual PASS para as combinações exatas,
+medição de targets/overflow ou console. Não promover a VISUALLY APPROVED/C2 COMPLETE.
+
+Evidências e gates: [S1-07 FRONTEND FINAL UX FIX REPORT](../../deliveries/S1_07_FRONTEND_FINAL_UX_FIX_REPORT.md),
+com 230 testes focados, 864 testes completos e cobertura aprovada. Capturas foram
+observadas durante a sessão; este registro não as apresenta como artefatos PNG versionados.

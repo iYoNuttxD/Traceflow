@@ -34,6 +34,7 @@ describe('SearchCombobox', () => {
     await act(() => vi.advanceTimersByTimeAsync(300));
     expect(search).toHaveBeenCalledWith('ma', expect.any(AbortSignal));
     expect(screen.getAllByRole('option')).toHaveLength(2);
+    expect(fireEvent.mouseDown(screen.getAllByRole('option')[0])).toBe(true);
   });
 
   it('seleciona o resultado ativo com teclado', async () => {
@@ -139,5 +140,63 @@ describe('SearchCombobox', () => {
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Remover Marco inicial' }));
     expect(onClear).toHaveBeenCalledTimes(1);
+  });
+  it('keeps opt-in zero-query choices closed on focus and opens with ArrowDown', async () => {
+    render(
+      <SearchCombobox
+        label="Referência"
+        minQueryLength={0}
+        openOnFocus={false}
+        options={options}
+        onSelect={vi.fn()}
+      />
+    );
+    const input = screen.getByRole('combobox');
+    fireEvent.focus(input);
+    expect(input).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    await act(() => vi.advanceTimersByTimeAsync(300));
+    expect(screen.getAllByRole('option')).toHaveLength(2);
+    fireEvent.keyDown(input, { key: 'Escape' });
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    fireEvent.change(input, { target: { value: 'Marco' } });
+    await act(() => vi.advanceTimersByTimeAsync(300));
+    expect(screen.getByRole('option', { name: 'Marco inicial' })).toBeInTheDocument();
+  });
+  it('portals the canonical list within the dialog and dismisses on body scroll or resize', async () => {
+    render(
+      <section role="dialog">
+        <div data-testid="body">
+          <SearchCombobox
+            label="Referência"
+            minQueryLength={0}
+            openOnFocus={false}
+            popoverPlacement="fixed"
+            options={options}
+            onSelect={vi.fn()}
+          />
+        </div>
+      </section>
+    );
+    const input = screen.getByRole('combobox');
+    fireEvent.click(input);
+    await act(() => vi.advanceTimersByTimeAsync(300));
+    let list = screen.getByRole('listbox');
+    expect(list.parentElement).toBe(screen.getByRole('dialog'));
+    expect(list.style.position).toBe('fixed');
+    expect(fireEvent.mouseDown(list)).toBe(true);
+    expect(fireEvent.mouseDown(screen.getAllByRole('option')[0])).toBe(false);
+    fireEvent.scroll(list);
+    expect(screen.getByRole('listbox')).toBeInTheDocument();
+    fireEvent.scroll(screen.getByTestId('body'));
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    fireEvent.click(input);
+    await act(() => vi.advanceTimersByTimeAsync(300));
+    fireEvent.resize(window);
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    fireEvent.click(input);
+    await act(() => vi.advanceTimersByTimeAsync(300));
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
   });
 });

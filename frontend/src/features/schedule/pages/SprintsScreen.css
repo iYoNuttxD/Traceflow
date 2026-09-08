@@ -1005,3 +1005,16 @@
     flex-basis: 100%;
   }
 }
+
+/* Optional header slots share the Task Details identity/actions hierarchy. */
+.sprint-dialog__identity {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.sprint-dialog__controls {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}

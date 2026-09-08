@@ -1,5 +1,6 @@
 import './SearchCombobox.css';
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 const defaultLabel = (option) => option?.title || option?.name || String(option?.id || '');
 const EMPTY_OPTIONS = Object.freeze([]);
@@ -16,6 +17,8 @@ export function SearchCombobox({
   error = '',
   help = '',
   minQueryLength = 2,
+  openOnFocus = true,
+  popoverPlacement = 'inline',
   getOptionLabel = defaultLabel,
   isOptionDisabled = neverDisabled,
   renderOption,
@@ -31,17 +34,67 @@ export function SearchCombobox({
   const errorId = `${inputId}-error`;
   const helpId = `${inputId}-help`;
   const requestRef = useRef(0);
+  const inputRef = useRef(null);
+  const listRef = useRef(null);
+  const [popover, setPopover] = useState(null);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchError, setSearchError] = useState('');
   const [activeIndex, setActiveIndex] = useState(-1);
-  const [dismissed, setDismissed] = useState(false);
+  const [dismissed, setDismissed] = useState(!openOnFocus);
 
   const normalizedOptions = useMemo(() => options || [], [options]);
   const trimmedQuery = query.trim();
   const hasQuery = trimmedQuery.length >= minQueryLength;
   const expanded = hasQuery && !dismissed && !disabled && !selectedOption;
+  const searchEnabled = hasQuery && !selectedOption && !disabled && (openOnFocus || expanded);
+
+  useLayoutEffect(() => {
+    if (!expanded || popoverPlacement !== 'fixed') return undefined;
+    const input = inputRef.current;
+    const host = input.closest('[role="dialog"]') || document.body;
+    const rect = input.getBoundingClientRect();
+    // Reuse the canonical list; portal within the dialog keeps its ARIA/focus ownership.
+    const tokens = getComputedStyle(input);
+    const rootSize = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    const space = tokens.getPropertyValue('--space-2').trim();
+    const gap = space.endsWith('rem')
+      ? parseFloat(space) * rootSize
+      : parseFloat(space) || rootSize / 2;
+    const below = window.innerHeight - rect.bottom - gap * 2;
+    const above = rect.top - gap * 2;
+    const upward = below < Math.min(18 * rootSize, above);
+    const width = Math.min(rect.width, window.innerWidth - gap * 2);
+    setPopover({
+      host,
+      style: {
+        position: 'fixed',
+        width,
+        left: Math.max(gap, Math.min(rect.left, window.innerWidth - width - gap)),
+        top: upward ? 'auto' : rect.bottom + gap,
+        bottom: upward ? window.innerHeight - rect.top + gap : 'auto',
+        right: 'auto',
+        maxHeight: Math.max(0, Math.min(18 * rootSize, upward ? above : below))
+      }
+    });
+    const dismiss = (event) => {
+      if (event.target instanceof Node && listRef.current?.contains(event.target)) return;
+      setDismissed(true);
+      setActiveIndex(-1);
+    };
+    const outside = (event) => {
+      if (event.target !== input) dismiss(event);
+    };
+    document.addEventListener('scroll', dismiss, true);
+    document.addEventListener('pointerdown', outside, true);
+    window.addEventListener('resize', dismiss);
+    return () => {
+      document.removeEventListener('scroll', dismiss, true);
+      document.removeEventListener('pointerdown', outside, true);
+      window.removeEventListener('resize', dismiss);
+    };
+  }, [expanded, popoverPlacement]);
 
   useEffect(() => {
     requestRef.current += 1;
@@ -49,7 +102,7 @@ export function SearchCombobox({
     setActiveIndex(-1);
     setSearchError('');
 
-    if (!hasQuery || selectedOption || disabled) {
+    if (!searchEnabled) {
       setLoading(false);
       setResults([]);
       return undefined;
@@ -88,6 +141,7 @@ export function SearchCombobox({
     };
   }, [
     disabled,
+    searchEnabled,
     getOptionLabel,
     hasQuery,
     normalizedOptions,
@@ -102,10 +156,15 @@ export function SearchCombobox({
     setQuery('');
     setResults([]);
     setActiveIndex(-1);
-    setDismissed(false);
+    setDismissed(!openOnFocus);
   }
 
   function handleKeyDown(event) {
+    if (event.key === 'ArrowDown' && !expanded && hasQuery) {
+      event.preventDefault();
+      setDismissed(false);
+      return;
+    }
     if (event.key === 'Escape' && expanded) {
       event.preventDefault();
       setDismissed(true);
@@ -143,6 +202,62 @@ export function SearchCombobox({
     }
   }
 
+  const resultsList = (
+    <ul
+      ref={listRef}
+      id={listboxId}
+      className="sprint-combobox-results"
+      role="listbox"
+      style={popoverPlacement === 'fixed' ? popover?.style : undefined}
+      onMouseDown={
+        popoverPlacement === 'fixed'
+          ? (event) => {
+              if (event.target.closest('[role="option"]')) event.preventDefault();
+            }
+          : undefined
+      }
+    >
+      {loading ? (
+        <li className="sprint-combobox-state" role="status">
+          {loadingMessage}
+        </li>
+      ) : searchError ? (
+        <li className="sprint-combobox-state sprint-combobox-state--error" role="alert">
+          {searchError}
+        </li>
+      ) : results.length === 0 ? (
+        <li className="sprint-combobox-state" role="status">
+          {emptyMessage}
+        </li>
+      ) : (
+        results.map((option, index) => {
+          const optionDisabled = isOptionDisabled(option);
+          return (
+            <li
+              id={`${listboxId}-option-${index}`}
+              className={[
+                index === activeIndex ? 'sprint-combobox-option--active' : '',
+                optionDisabled ? 'sprint-combobox-option--disabled' : ''
+              ]
+                .filter(Boolean)
+                .join(' ')}
+              key={option.id}
+              role="option"
+              aria-selected={!optionDisabled && index === activeIndex}
+              aria-disabled={optionDisabled || undefined}
+              onClick={() => choose(option)}
+              onMouseEnter={() => {
+                if (!optionDisabled) setActiveIndex(index);
+              }}
+            >
+              {renderOption ? renderOption(option) : getOptionLabel(option)}
+            </li>
+          );
+        })
+      )}
+    </ul>
+  );
+
   const describedBy = [error && errorId, help && helpId].filter(Boolean).join(' ') || undefined;
 
   return (
@@ -174,6 +289,7 @@ export function SearchCombobox({
       {!selectedOption && (
         <div className="sprint-combobox">
           <input
+            ref={inputRef}
             id={inputId}
             type="search"
             role="combobox"
@@ -194,51 +310,17 @@ export function SearchCombobox({
               setQuery(event.target.value);
               setDismissed(false);
             }}
+            onClick={() => setDismissed(false)}
+            onBlur={() => {
+              if (popoverPlacement === 'fixed') setDismissed(true);
+            }}
             onKeyDown={handleKeyDown}
           />
 
-          {expanded && (
-            <ul id={listboxId} className="sprint-combobox-results" role="listbox">
-              {loading ? (
-                <li className="sprint-combobox-state" role="status">
-                  {loadingMessage}
-                </li>
-              ) : searchError ? (
-                <li className="sprint-combobox-state sprint-combobox-state--error" role="alert">
-                  {searchError}
-                </li>
-              ) : results.length === 0 ? (
-                <li className="sprint-combobox-state" role="status">
-                  {emptyMessage}
-                </li>
-              ) : (
-                results.map((option, index) => {
-                  const optionDisabled = isOptionDisabled(option);
-                  return (
-                    <li
-                      id={`${listboxId}-option-${index}`}
-                      className={[
-                        index === activeIndex ? 'sprint-combobox-option--active' : '',
-                        optionDisabled ? 'sprint-combobox-option--disabled' : ''
-                      ]
-                        .filter(Boolean)
-                        .join(' ')}
-                      key={option.id}
-                      role="option"
-                      aria-selected={!optionDisabled && index === activeIndex}
-                      aria-disabled={optionDisabled || undefined}
-                      onClick={() => choose(option)}
-                      onMouseEnter={() => {
-                        if (!optionDisabled) setActiveIndex(index);
-                      }}
-                    >
-                      {renderOption ? renderOption(option) : getOptionLabel(option)}
-                    </li>
-                  );
-                })
-              )}
-            </ul>
-          )}
+          {expanded &&
+            (popoverPlacement === 'fixed'
+              ? popover && createPortal(resultsList, popover.host)
+              : resultsList)}
         </div>
       )}
 

@@ -161,6 +161,7 @@ async function start(user) {
   await dialog().findByRole('heading', { name: 'Passo 1 de 5' });
 }
 async function context(user) {
+  await user.click(dialog().getByRole('combobox', { name: /Versão testada/ }));
   await user.click(await dialog().findByRole('option', { name: /PR #42/ }));
   await user.selectOptions(dialog().getByLabelText('Ambiente *'), 'HOMOLOGACAO');
 }
@@ -318,6 +319,7 @@ describe('S1-07 integrated case flows', () => {
   it('uses unique PR/commit choices with colliding numeric IDs', async () => {
     const user = await setup();
     await start(user);
+    await user.click(dialog().getByRole('combobox', { name: /Versão testada/ }));
     expect(await dialog().findByRole('option', { name: /PR #42/ })).toBeInTheDocument();
     await user.click(dialog().getByRole('option', { name: /abcdef1/ }));
     await user.selectOptions(dialog().getByLabelText('Ambiente *'), 'LOCAL');
@@ -424,8 +426,8 @@ describe('S1-07 integrated case flows', () => {
     );
     expect(dialog().getByText('resultado.json').closest('.tc-step-result')).toBeNull();
     expect(screen.getAllByRole('dialog')).toHaveLength(1);
-    await user.click(dialog().getByRole('button', { name: 'Voltar ao histórico' }));
-    await user.click(dialog().getByRole('tab', { name: 'Alterações' }));
+    await user.click(dialog().getByRole('button', { name: 'Voltar para execuções' }));
+    await user.click(dialog().getByRole('tab', { name: 'Alterações do caso' }));
     expect(await dialog().findByText(/Usuário #7/)).toBeInTheDocument();
     expect(mocks.api.detail).not.toHaveBeenCalled();
   });
@@ -486,6 +488,88 @@ describe('S1-07 integrated case flows', () => {
       expect(
         screen.getByText(kind === 'execute' ? /Execução registrada/ : /Caso salvo/)
       ).toBeInTheDocument();
+    }
+  );
+  it('opens and reopens execution with the reference list closed until explicit intent', async () => {
+    const user = await setup();
+    await user.click(card().getByRole('button', { name: 'Executar' }));
+    const input = await dialog().findByRole('combobox', { name: /Versão testada/ });
+    expect(input).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.focus(input);
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    await user.click(input);
+    expect(await dialog().findByRole('option', { name: /PR #42/ })).toBeInTheDocument();
+    await user.click(dialog().getByRole('button', { name: 'Cancelar' }));
+    await user.click(card().getByRole('button', { name: 'Executar' }));
+    expect(await dialog().findByRole('combobox', { name: /Versão testada/ })).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    );
+  });
+  it('places definition actions beside close in a descriptive header', async () => {
+    const user = await setup();
+    await user.click(screen.getByRole('article', { name: /^TC-15/ }));
+    await dialog().findByText('Conta disponível');
+    const header = within(screen.getByRole('dialog').querySelector('.sprint-dialog__header'));
+    expect(header.getByText('Detalhes do caso de teste')).toBeInTheDocument();
+    for (const name of ['Executar', 'Editar', 'Excluir caso'])
+      expect(header.getByRole('button', { name })).toBeInTheDocument();
+  });
+  it('presents historical identity, one tested-reference block and a compact return', async () => {
+    const user = await setup();
+    await user.click(card().getByRole('button', { name: 'Histórico' }));
+    expect(dialog().getByRole('tab', { name: 'Alterações do caso' })).toBeInTheDocument();
+    expect(
+      dialog().queryByRole('tab', { name: 'Alterações', exact: true })
+    ).not.toBeInTheDocument();
+    await user.click(await dialog().findByRole('button', { name: 'Ver execução EXEC-0038' }));
+    await dialog().findByText('Pessoa QA histórica');
+    const header = within(screen.getByRole('dialog').querySelector('.sprint-dialog__header'));
+    expect(header.getByRole('heading', { name: 'EXEC-0038' })).toBeInTheDocument();
+    expect(header.getByText('Detalhes da execução · TC-15 · Recuperar acesso')).toBeInTheDocument();
+    expect(header.getByRole('button', { name: 'Voltar para execuções' })).toBeInTheDocument();
+    expect(dialog().queryByText(/‹ Execuções/)).not.toBeInTheDocument();
+    expect(dialog().getAllByText('Versão testada')).toHaveLength(1);
+    expect(dialog().getByRole('link', { name: /Abrir no GitHub/ })).toHaveAttribute(
+      'href',
+      references[0].githubUrl
+    );
+  });
+  it.each([
+    ['CREATED', 'Caso criado', {}],
+    ['VERSION_CREATED', 'Nova versão', { changedFields: ['steps'] }],
+    [
+      'RESPONSIBLE_CHANGED',
+      'Responsável alterado',
+      { from: { id: 7, name: 'Pessoa QA' }, to: { id: 8, name: 'Outra pessoa' } }
+    ],
+    ['STATUS_CHANGED', 'Status alterado', { from: 'ATIVO', to: 'INATIVO' }],
+    ['DELETED', 'Caso excluído', {}]
+  ])(
+    'shows functional %s events separately from executions',
+    async (action, label, metadataJson) => {
+      mocks.api.history.mockResolvedValue({
+        items: [
+          {
+            id: 90,
+            action,
+            actorUserId: 7,
+            occurredAt: '2026-09-08T10:00:00Z',
+            fromVersion: 2,
+            toVersion: 3,
+            metadataJson
+          }
+        ],
+        nextCursor: null
+      });
+      const user = await setup();
+      await user.click(card().getByRole('button', { name: 'Histórico' }));
+      await user.click(dialog().getByRole('tab', { name: 'Alterações do caso' }));
+      expect(await dialog().findByText(label, { exact: true })).toBeInTheDocument();
+      expect(
+        dialog().getByText('Mudanças feitas na definição, responsável e status do caso.')
+      ).toBeInTheDocument();
+      expect(dialog().queryByRole('button', { name: /Ver execução EXEC/ })).not.toBeInTheDocument();
     }
   );
 });

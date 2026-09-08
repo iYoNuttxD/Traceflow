@@ -61,6 +61,9 @@ function HistoryStream({ id, kind, onSelect }) {
           <TestExecutionHistory executions={data.items} onSelect={onSelect} />
         ) : (
           <>
+            <p className="field-help">
+              Mudanças feitas na definição, responsável e status do caso.
+            </p>
             {!data.items.length && <p>Nenhuma alteração registrada.</p>}
             {data.items.map((item) => (
               <Change key={item.id} item={item} />
@@ -83,7 +86,7 @@ export function TestCaseHistory({ id, onSelect }) {
   const [tab, setTab] = useState('executions');
   const tabs = [
     ['executions', 'Execuções'],
-    ['history', 'Alterações']
+    ['history', 'Alterações do caso']
   ];
   return (
     <div className="tc-stack">

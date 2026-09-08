@@ -1,3 +1,6 @@
+import { Link } from 'react-router';
+import { GithubExternalAction } from '../../tasks/index.js';
+import { TraceFlowIcon } from '../../../shared/index.js';
 import { PersistedEvidence } from './PersistedEvidence.jsx';
 import { requirementLabel, taskLabel, environments, referenceLabel } from '../model/test-cases.js';
 import { Badge, Latest } from './Parts.jsx';
@@ -68,28 +71,11 @@ function Steps({ version, execution }) {
     </ol>
   );
 }
-export function TestCaseDetails({ testCase, canWrite, onView, onDelete }) {
+export function TestCaseDetails({ testCase, projectId, onView, onCancel }) {
   const latest = testCase.latestExecution;
   const version = testCase;
   return (
     <div className="tc-stack">
-      {canWrite && (
-        <div className="tc-actions">
-          <button
-            className="button button-primary"
-            disabled={testCase.status === 'INATIVO'}
-            onClick={() => onView('execute')}
-          >
-            Executar
-          </button>
-          <button className="button button-secondary" onClick={() => onView('edit')}>
-            Editar
-          </button>
-          <button className="button button-danger" data-delete-case onClick={onDelete}>
-            Excluir caso
-          </button>
-        </div>
-      )}
       <Surface title="Descrição">
         <p>{testCase.description || 'Sem descrição.'}</p>
       </Surface>
@@ -110,15 +96,35 @@ export function TestCaseDetails({ testCase, canWrite, onView, onDelete }) {
         <div className="tc-columns">
           <Surface title="Requisito" count={testCase.requirementId ? 1 : 0}>
             <p>
-              {testCase.requirement
-                ? requirementLabel(testCase.requirement)
-                : 'Sem requisito vinculado'}
+              {testCase.requirement ? (
+                <Link
+                  className="tc-entity-link"
+                  to={`/projects/${projectId}/requirements`}
+                  onClick={onCancel}
+                  aria-label={`Abrir ${requirementLabel(testCase.requirement)} em Requisitos`}
+                >
+                  <TraceFlowIcon name="branch" />
+                  {requirementLabel(testCase.requirement)}
+                </Link>
+              ) : (
+                'Sem requisito vinculado'
+              )}
             </p>
           </Surface>
           <Surface title="Tarefas" count={testCase.tasks.length}>
             <ul className="tc-selected">
               {testCase.tasks.map((task) => (
-                <li key={task.id}>{taskLabel(task)}</li>
+                <li key={task.id}>
+                  <Link
+                    className="tc-entity-link"
+                    to={`/projects/${projectId}/tasks`}
+                    onClick={onCancel}
+                    aria-label={`Abrir ${taskLabel(task)} em Tarefas`}
+                  >
+                    <TraceFlowIcon name="code" />
+                    {taskLabel(task)}
+                  </Link>
+                </li>
               ))}
             </ul>
             {!testCase.tasks.length && <p>Sem tarefas vinculadas</p>}
@@ -153,9 +159,7 @@ export function TestCaseDetails({ testCase, canWrite, onView, onDelete }) {
 export function TestExecutionHistory({ executions, onSelect }) {
   return (
     <>
-      <p className="field-help">
-        Histórico de execuções. Alterações do cadastro e auditoria são conceitos distintos.
-      </p>
+      <p className="field-help">Registros das execuções realizadas para este caso.</p>
       {!executions.length && <p role="status">Este caso nunca foi executado.</p>}
       {executions.map((execution) => (
         <article className="tc-history-row" key={execution.displayId}>
@@ -187,21 +191,32 @@ export function ExecutionDetails({ execution }) {
   return (
     <div className="tc-stack">
       <section className="tc-section">
-        <h3>{execution.displayId} · Informações da execução</h3>
-        <p>{version.title}</p>
+        <h3>Informações da execução</h3>
         <Information
           items={[
             ['Resultado', <Badge key="result" value={execution.result} raw />],
             ['Executor', execution.executedByDisplayNameSnapshot],
             ['Ambiente', environments[execution.environment]],
             ['Executado em', new Date(execution.executedAt).toLocaleString('pt-BR')],
-            ['Versão do caso', `Caso v${execution.testCaseVersion}`],
-            ['Versão testada', referenceLabel(execution.testedReferenceSnapshot)]
+            ['Versão do caso', `Caso v${execution.testCaseVersion}`]
           ]}
         />
       </section>
       <Surface title="Versão testada">
-        <p>{referenceLabel(execution.testedReferenceSnapshot)}</p>
+        <div className="tc-tested-reference">
+          <strong>
+            {execution.testedReferenceSnapshot.type === 'PULL_REQUEST'
+              ? `Pull Request #${execution.testedReferenceSnapshot.number}`
+              : execution.testedReferenceSnapshot.shortHash ||
+                execution.testedReferenceSnapshot.hash?.slice(0, 7)}
+          </strong>
+          <p>
+            {execution.testedReferenceSnapshot.title || execution.testedReferenceSnapshot.message}
+          </p>
+          {execution.testedReferenceSnapshot.githubUrl && (
+            <GithubExternalAction href={execution.testedReferenceSnapshot.githubUrl} />
+          )}
+        </div>
       </Surface>
       <Surface title="Pré-condições da versão executada">
         <p className="tc-preformatted">{version.preconditions}</p>
