@@ -1,5 +1,5 @@
 import { extname } from 'node:path';
-import { fileTypeFromBuffer } from 'file-type';
+import { fileTypeFromBuffer, fileTypeFromTokenizer } from 'file-type';
 import { fail } from '../test-case.schema.js';
 const MiB = 1024 * 1024;
 export const EVIDENCE_DEFAULTS = Object.freeze({
@@ -71,6 +71,79 @@ export function declaredFormat(name, scope) {
   if (!format || (scope === 'STEP' && !['IMAGE', 'VIDEO'].includes(format[2])))
     throw fail('Formato de evidência não permitido.');
   return format;
+}
+export const EVIDENCE_READ_BYTES = 64 * 1024;
+
+// Random-access probe over the already-open O_NOFOLLOW descriptor. Unlike a
+// truncated prefix, this preserves PNG/APNG and EBML detection after metadata:
+// payloads are skipped by position, never buffered. No parser read may exceed 64 KiB.
+export async function validateBinaryEvidence(handle, size, name, scope, limits) {
+  const [ext, mimeType, kind] = declaredFormat(name, scope);
+  if (!size || size > (kind === 'VIDEO' ? limits.videoBytes : limits.fileBytes))
+    throw fail('Tamanho de evidência inválido.', 413, 'TEST_EVIDENCE_LIMIT_EXCEEDED');
+  const bounded = (length) => {
+    if (!Number.isSafeInteger(length) || length < 0 || length > EVIDENCE_READ_BYTES)
+      throw fail('Conteúdo de evidência inválido.');
+    return length;
+  };
+  const tokenizer = {
+    position: 0,
+    fileInfo: { size },
+    async peekBuffer(buffer, options = {}) {
+      const position = options.position ?? this.position;
+      const length = bounded(options.length ?? buffer.length);
+      if (!Number.isSafeInteger(position) || position < 0) throw fail('Conteúdo inválido.');
+      let total = 0;
+      while (total < length) {
+        const { bytesRead } = await handle.read(buffer, total, length - total, position + total);
+        if (!bytesRead) break;
+        total += bytesRead;
+      }
+      if (total < length && !options.mayBeLess) throw fail('Conteúdo de evidência inválido.');
+      return total;
+    },
+    async readBuffer(buffer, options = {}) {
+      this.position = options.position ?? this.position;
+      const count = await this.peekBuffer(buffer, options);
+      this.position += count;
+      return count;
+    },
+    async readToken(token, position = this.position) {
+      const buffer = Buffer.alloc(bounded(token.len));
+      await this.readBuffer(buffer, { position });
+      return token.get(buffer, 0);
+    },
+    async peekToken(token, position = this.position) {
+      const buffer = Buffer.alloc(bounded(token.len));
+      await this.peekBuffer(buffer, { position });
+      return token.get(buffer, 0);
+    },
+    readNumber(token) {
+      return this.readToken(token);
+    },
+    peekNumber(token) {
+      return this.peekToken(token);
+    },
+    async ignore(length) {
+      if (!Number.isSafeInteger(length) || length < 0) throw fail('Conteúdo inválido.');
+      const count = Math.min(length, size - this.position);
+      this.position += count;
+      return count;
+    },
+    supportsRandomAccess: () => true,
+    setPosition(position) {
+      this.position = position;
+    },
+    async close() {}
+  };
+  let detected;
+  try {
+    detected = await fileTypeFromTokenizer(tokenizer);
+  } catch {
+    throw fail('Conteúdo de evidência inválido.');
+  }
+  if (detected?.ext !== ext) throw fail('O conteúdo não corresponde ao formato do arquivo.');
+  return { mimeType, kind };
 }
 export async function validateEvidenceBytes(bytes, name, scope, limits = EVIDENCE_DEFAULTS) {
   const [ext, mimeType, kind] = declaredFormat(name, scope);

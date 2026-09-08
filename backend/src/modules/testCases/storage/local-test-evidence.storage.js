@@ -9,7 +9,9 @@ import {
   evidenceField,
   evidenceLimits,
   safeFilename,
-  validateEvidenceBytes
+  validateEvidenceBytes,
+  validateBinaryEvidence,
+  EVIDENCE_READ_BYTES
 } from './test-evidence.validation.js';
 const backendRoot = fileURLToPath(new URL('../../../../', import.meta.url));
 const unavailable = () =>
@@ -160,24 +162,46 @@ export class LocalTestEvidenceStorage extends TestEvidenceStorage {
           join(attempt.staging, item.storageKey),
           constants.O_RDONLY | constants.O_NOFOLLOW
         );
-        let bytes;
         try {
-          bytes = await handle.readFile();
+          const stat = await handle.stat();
+          if (!stat.isFile() || stat.size !== item.sizeBytes) throw unavailable();
+          const [ext] = declaredFormat(item.originalName, item.scope);
+          let format;
+          const hash = createHash('sha256');
+          if (ext) {
+            format = await validateBinaryEvidence(
+              handle,
+              stat.size,
+              item.originalName,
+              item.scope,
+              this.limits
+            );
+            // One reusable chunk; no stream prefetch or whole-video allocation.
+            const buffer = Buffer.alloc(EVIDENCE_READ_BYTES);
+            let position = 0;
+            while (position < stat.size) {
+              const { bytesRead } = await handle.read(
+                buffer,
+                0,
+                Math.min(buffer.length, stat.size - position),
+                position
+              );
+              if (!bytesRead) throw unavailable();
+              hash.update(buffer.subarray(0, bytesRead));
+              position += bytesRead;
+            }
+          } else {
+            // Text/JSON retain full UTF-8/JSON validation, bounded by fileBytes (10 MiB).
+            if (!stat.size || stat.size > this.limits.fileBytes)
+              throw fail('Tamanho de evidência inválido.', 413, 'TEST_EVIDENCE_LIMIT_EXCEEDED');
+            const bytes = await handle.readFile();
+            format = await validateEvidenceBytes(bytes, item.originalName, item.scope, this.limits);
+            hash.update(bytes);
+          }
+          prepared.push({ ...item, ...format, sizeBytes: stat.size, sha256: hash.digest('hex') });
         } finally {
           await handle.close();
         }
-        const format = await validateEvidenceBytes(
-          bytes,
-          item.originalName,
-          item.scope,
-          this.limits
-        );
-        prepared.push({
-          ...item,
-          ...format,
-          sizeBytes: bytes.length,
-          sha256: createHash('sha256').update(bytes).digest('hex')
-        });
       }
       await noSymlinks(attempt.root);
       for (const item of prepared) {

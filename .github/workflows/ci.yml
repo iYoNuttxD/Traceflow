@@ -157,6 +157,10 @@ jobs:
         working-directory: backend
         run: npm run security:secrets
 
+      - name: Configure test temporary directory
+        # All subsequent test commands use unique, owned children of the runner temp directory.
+        run: printf 'TMPDIR=%s\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+
       - name: Run unit tests
         working-directory: backend
         run: npm run test:unit
