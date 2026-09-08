@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { useParams } from 'react-router';
 import { ProjectSectionNav, useProjectsCatalog } from '../projects/index.js';
@@ -22,6 +22,10 @@ import {
 } from './components/TestCaseList.jsx';
 import { TestCaseHeaderActions } from './components/TestCaseHeaderActions.jsx';
 import { TestCaseDialogContent } from './components/TestCaseDialogContent.jsx';
+import { EvidenceViewer } from './components/EvidenceViewer.jsx';
+import { EvidenceDownloadButton } from './components/PersistedEvidence.jsx';
+import { useEvidenceContent } from './hooks/useEvidenceContent.js';
+import { evidenceDescription } from './model/evidence-viewer.js';
 import './styles/test-cases.css';
 
 export function TestCasesScreen() {
@@ -42,6 +46,27 @@ function ProjectTestCases({ project }) {
   const mutationLock = useRef(false);
   const confirmationLock = useRef(false);
   const [dialog, setDialog] = useState(null);
+  const [evidence, setEvidence] = useState(null);
+  const evidenceContent = useEvidenceContent(evidence?.file, project.id);
+  const previewReturnRef = useRef(null);
+  const previewScrollRef = useRef(0);
+  function openEvidence(file, source, trigger) {
+    previewReturnRef.current = trigger;
+    previewScrollRef.current = modalContentRef.current?.parentElement?.scrollTop || 0;
+    setEvidence({ file, source });
+  }
+  const backToExecution = () => setEvidence(null);
+  useLayoutEffect(() => {
+    const body = modalContentRef.current?.parentElement;
+    if (evidence) {
+      if (body) body.scrollTop = 0;
+      modalContentRef.current?.focus({ preventScroll: true });
+    } else if (previewReturnRef.current?.isConnected) {
+      previewReturnRef.current.focus({ preventScroll: true });
+      if (body) body.scrollTop = previewScrollRef.current;
+      previewReturnRef.current = null;
+    }
+  }, [evidence]);
   const [loaded, setLoaded] = useState(null);
   const onLoaded = useCallback((key, data) => setLoaded({ key, data }), []);
   const headerKey = dialog ? `${dialog.type}:${dialog.caseId}:${dialog.executionId || ''}` : '';
@@ -54,6 +79,7 @@ function ProjectTestCases({ project }) {
   const close = useCallback(() => {
     if (!mutationLock.current) {
       setDialog(null);
+      setEvidence(null);
       setLoaded(null);
       setMutationError(null);
     }
@@ -100,6 +126,7 @@ function ProjectTestCases({ project }) {
     const context = state.scope.capture();
     flushSync(() => {
       setDialog(null);
+      setEvidence(null);
       setLoaded(null);
     });
     if (trigger?.isConnected) trigger.focus();
@@ -293,29 +320,48 @@ function ProjectTestCases({ project }) {
       </div>
       <SprintDialog
         open={Boolean(dialog)}
-        title={title}
-        description={description}
+        title={evidence ? evidence.file.originalName : title}
+        description={evidence ? evidenceDescription(evidence.file) : description}
         className="tc-dialog"
         leadingAction={
-          dialog?.type === 'execution' && (
+          evidence ? (
             <button
               className="sprint-dialog__close"
-              aria-label="Voltar para execuções"
-              onClick={() => switchView('history')}
+              aria-label="Voltar para detalhes da execução"
+              onClick={backToExecution}
             >
               <TraceFlowIcon name="arrowLeft" />
             </button>
+          ) : (
+            dialog?.type === 'execution' && (
+              <button
+                className="sprint-dialog__close"
+                aria-label="Voltar para execuções"
+                onClick={() => switchView('history')}
+              >
+                <TraceFlowIcon name="arrowLeft" />
+              </button>
+            )
           )
         }
         headerActions={
-          dialog?.type === 'details' &&
-          current && (
-            <TestCaseHeaderActions
-              testCase={current}
-              canWrite={canWrite}
-              onView={switchView}
-              onDelete={(event) => deleteCase(current, event.currentTarget, dialog)}
+          evidence ? (
+            <EvidenceDownloadButton
+              key={evidence.file.id}
+              file={evidence.file}
+              blob={evidenceContent.blob}
+              disabled={evidenceContent.loading}
             />
+          ) : (
+            dialog?.type === 'details' &&
+            current && (
+              <TestCaseHeaderActions
+                testCase={current}
+                canWrite={canWrite}
+                onView={switchView}
+                onDelete={(event) => deleteCase(current, event.currentTarget, dialog)}
+              />
+            )
           )
         }
         size="large"
@@ -331,42 +377,54 @@ function ProjectTestCases({ project }) {
             data-tc-modal
             className="tc-modal tc-modal-content"
           >
-            <TestCaseDialogContent
-              key={`${dialog.type}:${dialog.caseId}:${dialog.executionId || ''}`}
-              dialog={dialog}
-              headerKey={headerKey}
-              onLoaded={onLoaded}
-              projectId={project.id}
-              mutationError={mutationError}
-              busy={busy}
-              blocked={mutationError?.blocked}
-              canWrite={canWrite}
-              members={state.members}
-              searchRequirements={state.searchRequirements}
-              searchTasks={state.searchTasks}
-              onCancel={close}
-              onSave={(payload) =>
-                mutate(
-                  dialog.type === 'create' ? 'create' : 'edit',
-                  () =>
-                    dialog.type === 'create'
-                      ? testCasesApi.create(project.id, payload)
-                      : testCasesApi.update(dialog.caseId, payload),
-                  dialog.caseId
-                )
-              }
-              onRegister={(body) =>
-                mutate('execute', () => testCasesApi.record(dialog.caseId, body), dialog.caseId)
-              }
-              onView={switchView}
-              onDelete={(event) =>
-                deleteCase(
-                  { id: dialog.caseId, displayId: dialog.label, title: dialog.title },
-                  event.currentTarget,
-                  dialog
-                )
-              }
-            />
+            {evidence && (
+              <EvidenceViewer
+                key={`${evidence.file.id}`}
+                file={evidence.file}
+                source={evidence.source}
+                content={evidenceContent}
+                onBack={backToExecution}
+              />
+            )}
+            <div hidden={Boolean(evidence)}>
+              <TestCaseDialogContent
+                key={`${dialog.type}:${dialog.caseId}:${dialog.executionId || ''}`}
+                dialog={dialog}
+                headerKey={headerKey}
+                onLoaded={onLoaded}
+                onPreview={openEvidence}
+                projectId={project.id}
+                mutationError={mutationError}
+                busy={busy}
+                blocked={mutationError?.blocked}
+                canWrite={canWrite}
+                members={state.members}
+                searchRequirements={state.searchRequirements}
+                searchTasks={state.searchTasks}
+                onCancel={close}
+                onSave={(payload) =>
+                  mutate(
+                    dialog.type === 'create' ? 'create' : 'edit',
+                    () =>
+                      dialog.type === 'create'
+                        ? testCasesApi.create(project.id, payload)
+                        : testCasesApi.update(dialog.caseId, payload),
+                    dialog.caseId
+                  )
+                }
+                onRegister={(body) =>
+                  mutate('execute', () => testCasesApi.record(dialog.caseId, body), dialog.caseId)
+                }
+                onView={switchView}
+                onDelete={(event) =>
+                  deleteCase(
+                    { id: dialog.caseId, displayId: dialog.label, title: dialog.title },
+                    event.currentTarget,
+                    dialog
+                  )
+                }
+              />
+            </div>
           </div>
         )}
       </SprintDialog>

@@ -3,16 +3,35 @@ import { normalizeApiError } from '../../../shared/index.js';
 import { testCasesApi } from '../api/test-cases.api.js';
 import { useTestCaseScope } from '../hooks/useTestCaseScope.js';
 
-export function PersistedEvidence({ evidence }) {
+import { evidenceDescription } from '../model/evidence-viewer.js';
+
+export function PersistedEvidence({ evidence, onPreview, source }) {
   return (
     <ul className="tc-evidences">
       {evidence.map((file) => (
-        <EvidenceDownload key={file.id} file={file} />
+        <li key={file.id}>
+          <div className="tc-file">
+            <strong>{file.originalName}</strong>
+            <small>{evidenceDescription(file)}</small>
+          </div>
+          <div className="tc-evidence-actions">
+            {onPreview && (
+              <button
+                className="button button-compact"
+                aria-label={`Visualizar ${file.originalName}`}
+                onClick={(event) => onPreview(file, source, event.currentTarget)}
+              >
+                Visualizar
+              </button>
+            )}
+            <EvidenceDownloadButton file={file} />
+          </div>
+        </li>
       ))}
     </ul>
   );
 }
-function EvidenceDownload({ file }) {
+export function EvidenceDownloadButton({ file, blob, disabled = false, label = 'Baixar' }) {
   const scope = useTestCaseScope(file.id);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -31,10 +50,11 @@ function EvidenceDownload({ file }) {
     setError('');
     const token = scope.begin('download');
     try {
-      const response = await testCasesApi.content(file.id, { signal: token.controller.signal });
+      const data =
+        blob || (await testCasesApi.content(file.id, { signal: token.controller.signal })).data;
       if (!scope.accepts('download', token)) return;
       if (urlRef.current) URL.revokeObjectURL(urlRef.current);
-      const url = URL.createObjectURL(response.data);
+      const url = URL.createObjectURL(data);
       urlRef.current = url;
       const anchor = document.createElement('a');
       anchor.href = url;
@@ -56,26 +76,20 @@ function EvidenceDownload({ file }) {
     }
   }
   return (
-    <li>
-      <div className="tc-file">
-        <strong>{file.originalName}</strong>
-        <small>
-          {file.mimeType} · {file.sizeBytes.toLocaleString('pt-BR')} bytes
-        </small>
-        {error && (
-          <p role="alert" className="field-error">
-            {error}
-          </p>
-        )}
-      </div>
+    <span className="tc-download-action">
       <button
-        className="button button-secondary"
-        disabled={busy}
+        className="button button-secondary button-compact"
+        disabled={busy || disabled}
         onClick={download}
         aria-label={`Baixar ${file.originalName}`}
       >
-        {busy ? 'Baixando…' : 'Baixar'}
+        {busy ? 'Baixando…' : label}
       </button>
-    </li>
+      {error && (
+        <span role="alert" className="field-error">
+          {error}
+        </span>
+      )}
+    </span>
   );
 }

@@ -217,3 +217,27 @@ medição de targets/overflow ou console. Não promover a VISUALLY APPROVED/C2 C
 Evidências e gates: [S1-07 FRONTEND FINAL UX FIX REPORT](../../deliveries/S1_07_FRONTEND_FINAL_UX_FIX_REPORT.md),
 com 230 testes focados, 864 testes completos e cobertura aprovada. Capturas foram
 observadas durante a sessão; este registro não as apresenta como artefatos PNG versionados.
+
+
+### S1-07 Addendum 3 — Traceability + Evidence Viewer
+
+- **Date:** 2026-09-08.
+- **Baseline:** `daniel-dev`, `c25348b523230b3607a6879d5c60aad1e9da0a19`; working tree inicialmente limpo.
+- **Surface IDs:** `TC-TRACEABILITY`, `TC-EVIDENCE-LIST`, `TC-EVIDENCE-VIEWER`, `TC-EXECUTION-DETAILS`.
+- **Resultado:** `TECHNICALLY VERIFIED`; homologação visual parcial, sem promoção a `VISUALLY APPROVED`.
+- **Render real:** Safari autenticado em localhost, cenário já existente, leitura de requisito/tarefa
+  vinculados e imagem JPG persistida. Rastreabilidade em Light/Dark e mesma família visual da Task
+  Details; comparação sequencial. Viewer JPG em Light/Dark, contextos de passo/geral, header,
+  voltar e fechar. Retorno com foco visível em Visualizar e posição preservada observado em Dark.
+- **Backend/dados:** nenhuma alteração de backend, banco, upload ou registro de execução. Somente
+  navegação e leitura autenticada. A preferência de tema original foi restaurada ao final.
+- **Viewports:** dimensões CSS exatas 1440/1280/768/390 `ENVIRONMENT BLOCKED`; somente provider nativo,
+  sem controle de viewport/DevTools. Captura de janela não foi usada como medição de viewport CSS.
+- **Outros formatos/estados:** video, PDF, TXT/LOG, JSON, unsupported, loading e erro controlados:
+  `ENVIRONMENT BLOCKED` para render real por ausência de cenário persistido disponível nesta sessão
+  de leitura. Cobertos por testes, sem inferência de codecs/plugin PDF ou aprovação visual.
+- **Console:** navegador `ENVIRONMENT BLOCKED`; testes focados assertam zero errors/warnings e o
+  runner não reportou unhandled rejections. Não há equivalência entre essas duas fontes de evidência.
+- **Gates:** 130 focados, 118 regressão canônica, 898 completos e coverage PASS; lint, format,
+  build, arquitetura, secrets e diff-check PASS.
+- **Relatório:** [S1-07 Traceability + Evidence Viewer](../../deliveries/S1_07_TRACEABILITY_EVIDENCE_VIEWER_REPORT.md).

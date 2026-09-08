@@ -515,6 +515,45 @@ describe('S1-07 integrated case flows', () => {
     for (const name of ['Executar', 'Editar', 'Excluir caso'])
       expect(header.getByRole('button', { name })).toBeInTheDocument();
   });
+  it('views step and general evidence in the same dialog, restores focus/scroll and keeps the loaded execution', async () => {
+    const create = vi.fn(() => 'blob:preview');
+    const revoke = vi.fn();
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: create, revokeObjectURL: revoke }));
+    mocks.api.content.mockResolvedValue({ data: new Blob(['image'], { type: 'image/png' }) });
+    const user = await setup();
+    await user.click(card().getByRole('button', { name: 'Histórico' }));
+    await user.click(await dialog().findByRole('button', { name: 'Ver execução EXEC-0038' }));
+    await dialog().findByText('Pessoa QA histórica');
+    const originalDialog = screen.getByRole('dialog');
+    const body = originalDialog.querySelector('.sprint-dialog__body');
+    body.scrollTop = 240;
+    const trigger = dialog().getByRole('button', { name: 'Visualizar passo3.png' });
+    await user.click(trigger);
+    await dialog().findByRole('img', { name: 'Evidência passo3.png' });
+    expect(screen.getAllByRole('dialog')).toEqual([originalDialog]);
+    expect(dialog().getByRole('heading', { name: 'passo3.png' })).toBeInTheDocument();
+    expect(dialog().getByText('Passo 3 · Ação 3 da versão 3')).toBeInTheDocument();
+    expect(
+      dialog().queryByRole('heading', { name: 'Informações da execução' })
+    ).not.toBeInTheDocument();
+    expect(body.scrollTop).toBe(0);
+    const back = dialog().getByRole('button', { name: 'Voltar para detalhes da execução' });
+    const close = dialog().getByRole('button', { name: 'Fechar passo3.png' });
+    close.focus();
+    fireEvent.keyDown(document, { key: 'Tab' });
+    expect(back).toHaveFocus();
+    await user.click(back);
+    expect(trigger).toHaveFocus();
+    expect(body.scrollTop).toBe(240);
+    expect(revoke).toHaveBeenCalledWith('blob:preview');
+    expect(mocks.api.execution).toHaveBeenCalledOnce();
+    const general = execution.evidence.find((file) => file.executionStepId === null);
+    await user.click(dialog().getByRole('button', { name: `Visualizar ${general.originalName}` }));
+    expect(dialog().getByText('Evidência geral da execução')).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(mocks.api.execution).toHaveBeenCalledOnce();
+  });
   it('presents historical identity, one tested-reference block and a compact return', async () => {
     const user = await setup();
     await user.click(card().getByRole('button', { name: 'Histórico' }));
