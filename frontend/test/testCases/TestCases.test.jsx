@@ -120,17 +120,25 @@ afterEach(() => {
   warnings.mockRestore();
   vi.unstubAllGlobals();
 });
+async function renderRoute() {
+  // Await Vite's cold transform/instrumentation before starting DOM assertions.
+  // AppRoutes still owns the real lazy route and ProjectsCatalogProvider.
+  await import('../../src/pages/TestCasesPage.jsx');
+  await act(async () => {
+    render(
+      <MemoryRouter initialEntries={['/projects/1/test-cases']}>
+        <ThemeProvider>
+          <ConfirmProvider>
+            <AppRoutes />
+          </ConfirmProvider>
+        </ThemeProvider>
+      </MemoryRouter>
+    );
+  });
+}
 async function setup() {
   const user = userEvent.setup({ applyAccept: false });
-  render(
-    <MemoryRouter initialEntries={['/projects/1/test-cases']}>
-      <ThemeProvider>
-        <ConfirmProvider>
-          <AppRoutes />
-        </ConfirmProvider>
-      </ThemeProvider>
-    </MemoryRouter>
-  );
+  await renderRoute();
   await screen.findByRole('article', { name: /^TC-15/ });
   await waitFor(() => expect(mocks.members).toHaveBeenCalled());
   return user;
@@ -180,6 +188,18 @@ async function review(user) {
 }
 
 describe('S1-07 integrated case flows', () => {
+  it('waits for the real project owner before loading the case catalog', async () => {
+    const pending = deferred();
+    mocks.projects.mockReturnValueOnce(pending.promise);
+    await renderRoute();
+    expect(screen.getByText('Carregando contexto do projeto...')).toBeInTheDocument();
+    expect(mocks.api.list).not.toHaveBeenCalled();
+    await act(async () => {
+      pending.resolve({ data: { projects: [{ id: 1, name: 'Projeto QA' }] } });
+      await pending.promise;
+    });
+    expect(screen.getByRole('article', { name: /^TC-15/ })).toBeInTheDocument();
+  });
   it('uses the project route, real API, server summary and no prototype controls', async () => {
     await setup();
     expect(screen.getByLabelText('Navegação global')).toBeInTheDocument();

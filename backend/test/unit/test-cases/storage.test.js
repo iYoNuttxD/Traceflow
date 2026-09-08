@@ -1,4 +1,4 @@
-import { afterEach, describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import {
   readFile,
   mkdtemp,
@@ -7,7 +7,8 @@ import {
   writeFile,
   symlink,
   realpath,
-  mkdir
+  mkdir,
+  open
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -48,6 +49,58 @@ afterEach(async () => {
   for (const path of directories.splice(0)) await rm(path, { recursive: true, force: true });
 });
 describe('S1-07 private evidence storage', () => {
+  it.each([
+    ['png', png],
+    ['jpg', Buffer.from([0xff, 0xd8, 0xff, 0xe0])],
+    ['webp', Buffer.from('52494646240000005745425056503820', 'hex')],
+    ['mp4', Buffer.from('000000186674797069736f6d0000000069736f6d6d703432', 'hex')],
+    ['mov', Buffer.from('000000186674797071742020000000007174202000000000', 'hex')],
+    ['webm', Buffer.from('1a45dfa3874282847765626d', 'hex')],
+    ['pdf', Buffer.from('%PDF-1.7\n')]
+  ])(
+    'validates and hashes generated large %s without full-file reads',
+    async (extension, header) => {
+      const { storage, directory } = await fixture();
+      const bytes = Buffer.concat([header, Buffer.alloc(2 * 1024 * 1024, 0x61)]);
+      const attempt = await storage.begin();
+      await receive(storage, attempt, bytes, `large.${extension}`);
+      const probe = await open(join(attempt.staging, attempt.files[0].storageKey), 'r');
+      const prototype = Object.getPrototypeOf(probe);
+      await probe.close();
+      const wholeFile = vi.spyOn(prototype, 'readFile').mockImplementation(() => {
+        throw new Error('Whole binary read forbidden');
+      });
+      const reads = vi.spyOn(prototype, 'read');
+      try {
+        const [item] = await storage.prepare(attempt, []);
+        expect(item.sha256).toBe(createHash('sha256').update(bytes).digest('hex'));
+        expect(item.sizeBytes).toBe(bytes.length);
+        expect(wholeFile).not.toHaveBeenCalled();
+        expect(reads.mock.calls.length).toBeGreaterThan(2);
+        expect(Math.max(...reads.mock.calls.map((call) => call[2]))).toBeLessThanOrEqual(64 * 1024);
+      } finally {
+        wholeFile.mockRestore();
+        reads.mockRestore();
+        await storage.cleanup(attempt);
+      }
+      expect(await readdir(directory)).toEqual([]);
+    }
+  );
+  it('does not mistake APNG after large metadata for a permitted static PNG', async () => {
+    const { storage } = await fixture();
+    const metadata = Buffer.alloc(128 * 1024 + 12);
+    metadata.writeUInt32BE(128 * 1024, 0);
+    metadata.write('tEXt', 4);
+    const animation = Buffer.from('000000086163544c000000010000000000000000', 'hex');
+    const bytes = Buffer.concat([png.subarray(0, 33), metadata, animation, png.subarray(33)]);
+    await expect(validateEvidenceBytes(bytes, 'animation.png', 'EXECUTION')).rejects.toMatchObject({
+      statusCode: 400
+    });
+    const attempt = await storage.begin();
+    await receive(storage, attempt, bytes, 'animation.png');
+    await expect(storage.prepare(attempt, [])).rejects.toMatchObject({ statusCode: 400 });
+    await storage.cleanup(attempt);
+  });
   it('stages, validates, hashes persisted bytes and uses a random private key', async () => {
     const { storage, directory } = await fixture();
     const attempt = await storage.begin();

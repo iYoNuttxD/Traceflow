@@ -8,6 +8,7 @@ import {
   cleanTestDatabase
 } from '../helpers/test-database.js';
 import { startTestServer } from '../helpers/http-server.js';
+import { assertTestEvidenceRoot } from '../helpers/test-evidence-environment.js';
 import { createProject } from '../fixtures/factories.js';
 let app, prisma;
 const png = Buffer.from(
@@ -140,7 +141,7 @@ describe('S1-07 authenticated HTTP contract', () => {
       // Files are owned by this test; cleanup uses only persisted private keys after streaming is complete.
       const { unlink } = await import('node:fs/promises');
       for (const item of await prisma.testEvidence.findMany())
-        await unlink(`${await realpath(process.env.TEST_EVIDENCE_STORAGE_DIR)}/${item.storageKey}`);
+        await unlink(`${await realpath(assertTestEvidenceRoot())}/${item.storageKey}`);
     }
   );
   it('VIEWER reads every history surface/download but cannot mutate or upload', async () => {
@@ -174,7 +175,7 @@ describe('S1-07 authenticated HTTP contract', () => {
     expect((await upload(f, row.id)).status).toBe(403);
     const { unlink } = await import('node:fs/promises');
     for (const item of await prisma.testEvidence.findMany())
-      await unlink(`${await realpath(process.env.TEST_EVIDENCE_STORAGE_DIR)}/${item.storageKey}`);
+      await unlink(`${await realpath(assertTestEvidenceRoot())}/${item.storageKey}`);
   });
   it('anonymous 401, CSRF enforcement, inactive membership and opaque foreign resources', async () => {
     const f = await fixture();
@@ -228,7 +229,7 @@ describe('S1-07 authenticated HTTP contract', () => {
   it('rejects unknown/duplicate fields, bad signatures and destinations; cleans all attempt files', async () => {
     const f = await fixture();
     const row = await f.create();
-    const before = await readdir(process.env.TEST_EVIDENCE_STORAGE_DIR);
+    const before = await readdir(assertTestEvidenceRoot());
     for (const builder of [
       () => upload(f, row.id).field('payload', '{}'),
       () => upload(f, row.id).field('extra', 'x'),
@@ -241,7 +242,7 @@ describe('S1-07 authenticated HTTP contract', () => {
     ]) {
       const res = await builder();
       expect([400, 413], res.text).toContain(res.status);
-      expect(await readdir(process.env.TEST_EVIDENCE_STORAGE_DIR)).toEqual(before);
+      expect(await readdir(assertTestEvidenceRoot())).toEqual(before);
     }
     expect(await prisma.testExecution.count()).toBe(0);
     expect(await prisma.testEvidence.count()).toBe(0);
@@ -286,7 +287,7 @@ describe('S1-07 authenticated HTTP contract', () => {
     expect(await prisma.testEvidence.count()).toBe(20);
     const { unlink } = await import('node:fs/promises');
     for (const item of await prisma.testEvidence.findMany())
-      await unlink(`${await realpath(process.env.TEST_EVIDENCE_STORAGE_DIR)}/${item.storageKey}`);
+      await unlink(`${await realpath(assertTestEvidenceRoot())}/${item.storageKey}`);
   });
   it('validates filters and cursors without accepting unknown query fields', async () => {
     const f = await fixture();

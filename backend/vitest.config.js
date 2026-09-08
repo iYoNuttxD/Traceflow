@@ -3,6 +3,8 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     environment: 'node',
+    setupFiles: ['./test/setup.js'],
+    globalSetup: ['./test/global-setup.js'],
     env: {
       NODE_ENV: 'test',
       RATE_LIMIT_MAX: '1000',
@@ -14,6 +16,7 @@ export default defineConfig({
     fileParallelism: false,
     testTimeout: 30000,
     sequence: {
+      hooks: 'stack',
       concurrent: false
     },
     coverage: {
