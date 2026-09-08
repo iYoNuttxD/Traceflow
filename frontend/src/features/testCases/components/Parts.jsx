@@ -174,11 +174,18 @@ export function Latest({ execution }) {
       <Badge value={execution?.result || 'NEVER'} />
       {execution && (
         <>
-          <span>
-            {new Date(execution.executedAt).toLocaleDateString('pt-BR')} ·{' '}
-            {environments[execution.environment]}
+          <span className="tc-card-metadata">
+            <TraceFlowIcon name="calendar" />
+            <span>{new Date(execution.executedAt).toLocaleDateString('pt-BR')}</span>
           </span>
-          <span>{referenceLabel(execution.testedReference)}</span>
+          <span className="tc-card-metadata">
+            <TraceFlowIcon name="code" />
+            <span>{environments[execution.environment]}</span>
+          </span>
+          <span className="tc-card-metadata" title={referenceLabel(execution.testedReference)}>
+            <TraceFlowIcon name="branch" />
+            <span>{referenceLabel(execution.testedReference)}</span>
+          </span>
         </>
       )}
     </div>

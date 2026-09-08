@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ErrorState, LoadingState } from '../../../shared/index.js';
 import { useCaseRead } from '../hooks/useCaseRead.js';
 import { TestCaseForm } from './TestCaseForm.jsx';
@@ -6,8 +6,11 @@ import { TestExecutionWizard } from './TestExecutionWizard.jsx';
 import { ExecutionDetails, TestCaseDetails } from './TestCaseDetails.jsx';
 import { TestCaseHistory } from './TestCaseHistory.jsx';
 
-function LoadedCase({ id, type, canWrite, ...props }) {
+function LoadedCase({ id, type, canWrite, headerKey, onLoaded, ...props }) {
   const { data, loading, error, load } = useCaseRead('detail', id);
+  useEffect(() => {
+    if (data) onLoaded?.(headerKey, data);
+  }, [data, headerKey, onLoaded]);
   if (loading) return <LoadingState message="Carregando caso de teste…" />;
   if (error) return <ErrorState message={error.message} onRetry={() => load()} />;
   if (!data) return null;
@@ -25,24 +28,16 @@ function LoadedCase({ id, type, canWrite, ...props }) {
     <TestCaseDetails testCase={data} canWrite={canWrite && data.capabilities.canEdit} {...props} />
   );
 }
-function LoadedExecution({ id, onBack }) {
+function LoadedExecution({ id, headerKey, onLoaded }) {
   const { data, loading, error, load } = useCaseRead('execution', id);
+  useEffect(() => {
+    if (data) onLoaded?.(headerKey, data);
+  }, [data, headerKey, onLoaded]);
   if (loading) return <LoadingState message="Carregando execução…" />;
   if (error) return <ErrorState message={error.message} onRetry={() => load()} />;
-  return (
-    data && (
-      <>
-        {onBack && (
-          <button className="tc-history-back" aria-label="Voltar ao histórico" onClick={onBack}>
-            ‹ Execuções / {data.displayId}
-          </button>
-        )}
-        <ExecutionDetails execution={data} />
-      </>
-    )
-  );
+  return data && <ExecutionDetails execution={data} />;
 }
-export function TestCaseDialogContent({ dialog, mutationError, ...props }) {
+export function TestCaseDialogContent({ dialog, mutationError, headerKey, onLoaded, ...props }) {
   const [consulting, setConsulting] = useState(false);
   const [consultExecution, setConsultExecution] = useState(null);
   const onSelect = (executionId) => props.onView('execution', executionId);
@@ -85,13 +80,15 @@ export function TestCaseDialogContent({ dialog, mutationError, ...props }) {
           <LoadedCase
             id={dialog.caseId}
             type={dialog.type}
+            headerKey={headerKey}
+            onLoaded={onLoaded}
             {...props}
             serverErrors={mutationError?.fieldErrors}
           />
         )}
         {dialog.type === 'history' && <TestCaseHistory id={dialog.caseId} onSelect={onSelect} />}
         {dialog.type === 'execution' && (
-          <LoadedExecution id={dialog.executionId} onBack={() => props.onView('history')} />
+          <LoadedExecution id={dialog.executionId} headerKey={headerKey} onLoaded={onLoaded} />
         )}
       </div>
     </>

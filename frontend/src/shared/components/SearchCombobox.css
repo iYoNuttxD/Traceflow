@@ -84,6 +84,7 @@
 
 .sprint-combobox-selection {
   display: flex;
+  min-width: 0;
   min-height: var(--size-touch-target);
   align-items: center;
   justify-content: space-between;

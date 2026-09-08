@@ -44,7 +44,7 @@ export function TestCaseFilters({
 }) {
   const activeCount = Object.values(filters).filter((value) => Boolean(value)).length;
   const select = (key, label, options) => (
-    <label className={`sprint-filter${key === 'latestResult' ? ' tc-filter-wide' : ''}`} key={key}>
+    <label className="sprint-filter" key={key}>
       <span>{label}</span>
       <SelectControl value={filters[key]} onChange={(event) => onChange(key, event.target.value)}>
         <option value="">Todos</option>
@@ -70,7 +70,7 @@ export function TestCaseFilters({
         </div>
       )}
       <div className="tc-filter-grid">
-        <label className="sprint-filter sprint-filter--search">
+        <label className="sprint-filter sprint-filter--search tc-filter-search">
           <span>Pesquisar</span>
           <span className="sprint-search-input">
             <TraceFlowIcon name="search" />
@@ -147,17 +147,35 @@ export function TestCaseCard({ testCase, onOpen, canWrite }) {
         <Badge value={testCase.status} />
       </header>
       <div className="tc-card-body">
-        <h3>{testCase.title}</h3>
-        <small>Requisito</small>
-        <p>
-          {testCase.requirement
-            ? requirementLabel(testCase.requirement)
-            : 'Sem requisito vinculado'}
+        <h3 title={testCase.title}>{testCase.title}</h3>
+        <div className="tc-card-responsible" title={`Responsável: ${testCase.responsible.name}`}>
+          <span className="tc-avatar" aria-hidden="true">
+            {testCase.responsible.name.trim().charAt(0).toLocaleUpperCase('pt-BR')}
+          </span>
+          <span>{testCase.responsible.name}</span>
+        </div>
+        <p
+          className="tc-card-metadata"
+          title={
+            testCase.requirement
+              ? requirementLabel(testCase.requirement)
+              : 'Sem requisito vinculado'
+          }
+        >
+          <TraceFlowIcon name="branch" />
+          <span>
+            {testCase.requirement
+              ? requirementLabel(testCase.requirement)
+              : 'Sem requisito vinculado'}
+          </span>
         </p>
-        <p>{testCase.taskCount} tarefas relacionadas</p>
-        {!testCase.requirement && !testCase.taskCount && (
-          <span className="field-help">Sem rastreabilidade</span>
-        )}
+        <p className="tc-card-metadata">
+          <TraceFlowIcon name="code" />
+          <span>
+            {testCase.taskCount}{' '}
+            {testCase.taskCount === 1 ? 'tarefa relacionada' : 'tarefas relacionadas'}
+          </span>
+        </p>
         <Latest execution={testCase.latestExecution} />
       </div>
       <footer className="sprint-card__actions">

@@ -102,6 +102,8 @@ export function TestExecutionWizard({ testCase, onRegister, onCancel, busy, bloc
             placeholder="Pesquisar PR ou commit..."
             onSearch={searchReferences}
             minQueryLength={0}
+            openOnFocus={false}
+            popoverPlacement="fixed"
             getOptionLabel={referenceOptionLabel}
             disabled={busy}
             selectedOption={draft.testedReference}
