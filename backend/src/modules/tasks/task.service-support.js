@@ -50,9 +50,16 @@ export function formatIssue(issue) {
 }
 export function formatTask(task) {
   if (!task) return task;
-  const { commitLinks = [], issueLinks = [], ...taskData } = task;
+  const { commitLinks = [], issueLinks = [], defectLinks = [], ...taskData } = task;
+  const correctionDefects = [
+    ...new Map(
+      defectLinks.map(({ defect }) => [defect.id, { ...defect, displayId: `DEF-${defect.id}` }])
+    ).values()
+  ];
   return {
     ...taskData,
+    correctionDefectCount: correctionDefects.length,
+    correctionDefects,
     responsible: taskData.responsibleUser?.name || taskData.responsible || null,
     pullRequest: taskData.pullRequest || null,
     commits: commitLinks.map((link) => formatCommit(link.commit)).filter(Boolean),
@@ -60,11 +67,12 @@ export function formatTask(task) {
   };
 }
 
-export async function resolveRequirementForTask(projectId, requirementId) {
+export async function resolveRequirementForTask(projectId, requirementId, lookup = taskRepository) {
   if (requirementId === undefined) return undefined;
   if (requirementId === null || requirementId === '') return null;
   const parsedRequirementId = parseRequirementId(requirementId);
-  const requirement = await ensureRequirementExists(parsedRequirementId);
+  const requirement = await lookup.findRequirementById(parsedRequirementId);
+  if (!requirement) throw new TaskServiceError('Requisito não encontrado.', 404);
   if (requirement.projectId !== projectId) {
     throw new TaskServiceError(
       'O requisito informado não pertence ao mesmo projeto da tarefa.',
@@ -74,13 +82,13 @@ export async function resolveRequirementForTask(projectId, requirementId) {
   return parsedRequirementId;
 }
 
-export async function resolveResponsibleUser(projectId, userId) {
+export async function resolveResponsibleUser(projectId, userId, lookup = taskRepository) {
   if (userId === undefined) return undefined;
   if (userId === null || userId === '') return null;
   const parsed = Number(userId);
   const membership =
     Number.isInteger(parsed) && parsed > 0
-      ? await taskRepository.findActiveMembership(projectId, parsed)
+      ? await lookup.findActiveMembership(projectId, parsed)
       : null;
   if (!membership) throw new TaskServiceError('Usuário responsável não pertence ao projeto.', 400);
   return parsed;

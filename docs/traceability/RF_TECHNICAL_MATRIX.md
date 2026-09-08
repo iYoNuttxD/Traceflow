@@ -46,11 +46,18 @@ são declaradas como `PASS`.
 | RF51 | responsável ativo | Task create/update | task-crud | Task.responsibleUserId | TaskForm | mvp-contracts, TaskForm | IMPLEMENTADO; legado preservado |
 | RF52 | rastreabilidade da Task | `GET .../traceability/tasks/:taskId` | traceability | Task e vínculos tipados | TraceabilityScreen/Flow | mvp-contracts, TraceabilityPage | IMPLEMENTADO |
 | RF53 | rastreabilidade reversa do artefato | `GET .../traceability/artifacts/:type/:id` | traceability | artefato, Task links, Requirement | TraceabilityScreen/Flow | mvp-contracts, TraceabilityPage | IMPLEMENTADO |
-
 | RF42 | casos de teste persistidos, versões, execução e evidências | `/projects/:id/test-cases`, `/test-cases/:id`, `/test-executions/:id`, `/test-evidence/:id/content` | test-case, test-execution | TestCase, TestCaseStep, TestCaseVersion, TestCaseHistoryEntry, TestExecution, TestExecutionStep, TestEvidence | `TestCasesPage` / `features/testCases`, CRUD, execução, histórico e download reais | `test/unit/test-cases`, `test/integration/test-cases-s1-07.test.js`, `test/api/test-cases-s1-07.test.js`, `frontend/test/testCases` | IMPLEMENTADO LOCALMENTE — testes e smoke; CI e homologação visual completa pendentes |
 | RF43 | base técnica de relações tipadas de casos de teste | CRUD de TestCase | test-case | TestCaseTask e TestCase.requirementId | seletores e vínculos persistidos em Casos de teste | integração S1-07, isolamento e versões | PARCIAL — relações backend/frontend S1-07; sem declarar RF completo |
 | RF62 | base técnica TestCase–Task/Requirement | CRUD de TestCase | test-case | TestCaseTask e TestCase.requirementId | seletores e vínculos persistidos em Casos de teste | integração S1-07 | PARCIAL — relações backend/frontend S1-07; sem declarar RF completo |
 | RF44 | rastreabilidade consolidada de testes | não há endpoint consolidado novo | — | referência testada histórica não equivale ao RF completo | pendente | seleção de referências S1-07 não valida rastreabilidade consolidada | NÃO IMPLEMENTADO; S1-09 pendente |
+| RF45 | fundação backend de defeitos com detecção FAIL, correções e reteste | `/projects/:id/defects`, `/defects/:id` e execução contextual | defects / testCases / tasks | Defect, DefectTask, DefectRetest, DefectHistoryEntry | pendente nesta fase | unit/defects, integração/API S1-08 | PARCIAL — backend S1-08; frontend pendente |
+| RF46 | base de histórico e acompanhamento de defeitos | `/defects/:id/history`, `/defects/:id/retests` | defects | ciclos, execução e projeção persistida | pendente nesta fase | integração/API S1-08 | PARCIAL — backend; não declara RF completo |
+| RF63 | base de rastreabilidade de defeitos | criação/edição/candidatos Defect | defects | requisito singular, ORIGIN Tasks e versão executada | pendente nesta fase | herança histórica e isolamento S1-08 | PARCIAL — relações backend; S1-09 não entregue |
+| RF64 | base de relação entre correção e teste | correções e execução contextual | defects / testCases / tasks | CORRECTION Tasks, ciclos e DefectRetest | pendente nesta fase | projeção e concorrência S1-08 | PARCIAL — backend; não declara rastreabilidade consolidada |
+
+S1-08 acrescenta ao RF42 a obrigação backend de requisito ou Task na criação e
+atualização resultante. A UX de criação a partir de Task/Requirement permanece
+pendente. As linhas S1-08 indicam base técnica, sem declarar entrega completa do RF.
 
 ## Parcial ou fora do estado atual
 

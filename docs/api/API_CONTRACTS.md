@@ -857,3 +857,113 @@ membership ativa; não suporta Range. Falha de storage: 503
 Amostras de testes canônicas: `test/unit/test-cases`,
 `test/integration/test-cases-s1-07.test.js`, `test/api/test-cases-s1-07.test.js`.
 S1-08/S1-09 não fazem parte deste contrato. A integração local da interface está registrada no relatório S1-07 frontend.
+
+## S1-08 — Defeitos, correções e reteste contextual (backend)
+
+TestCase create/PUT agora exige, no estado resultante, `requirementId` ou pelo
+menos uma `taskId`; remover todos retorna `400 TEST_CASE_TRACEABILITY_REQUIRED`
+sem alterar versão, vínculos ou histórico. Task mantém 0..1 Requirement.
+
+| Método e rota (prefixo `/api`)                          | Resposta                           |
+| ------------------------------------------------------- | ---------------------------------- |
+| GET `/projects/:projectId/defects`                      | `{items,total,page,limit,summary}` |
+| POST `/projects/:projectId/defects`                     | 201 `{defect}`                     |
+| GET `/projects/:projectId/defects/detection-candidates` | `{items,total,page,limit}`         |
+| GET `/defects/:id`                                      | `{defect}`                         |
+| PUT `/defects/:id`                                      | `{defect}`                         |
+| DELETE `/defects/:id`                                   | 204, exclusão lógica               |
+| GET `/defects/:id/history`                              | `{items,total,page,limit}`         |
+| GET `/defects/:id/retests`                              | `{items,total,page,limit}`         |
+| POST `/defects/:id/correction-tasks`                    | 201 `{defect}` atualizado          |
+
+Criação strict JSON:
+
+```json
+{
+  "title": "Elemento não aparece",
+  "description": "Resultado observado na detecção",
+  "severity": "ALTA",
+  "responsibleUserId": 7,
+  "detectedExecutionStepId": 41,
+  "requirementId": 4,
+  "originTaskIds": [20, 21]
+}
+```
+
+Título 1–200, descrição 1–10000 caracteres após trim. Severidade
+`BAIXA | MEDIA | ALTA | CRITICA`. Responsável ativo obrigatório; requisito
+singular opcional; ORIGIN Tasks 0–100 IDs únicos, todos no mesmo projeto.
+É obrigatório ter requisito OU origem. Detecção deve ser passo FAIL persistido
+do projeto; PASS/BLOCKED retornam `DEFECT_DETECTION_REQUIRES_FAIL`. O cliente não
+pode enviar status, datas, revisão inicial ou ciclo inicial.
+
+PUT permite título, descrição, severidade, responsável, requisito e ORIGIN Tasks;
+exige `expectedRevision` positivo. Campos omitidos são preservados. Fonte de
+detecção e projeto são imutáveis. Todo conflito de revisão/ciclo retorna
+`409 DEFECT_CONFLICT`; o cliente deve reler o detalhe.
+
+Correção exige `expectedRevision`, `correctionCycle` e exatamente uma alternativa:
+
+```json
+{ "expectedRevision": 2, "correctionCycle": 1, "taskId": 30 }
+```
+
+```json
+{
+  "expectedRevision": 2,
+  "correctionCycle": 1,
+  "task": { "title": "Corrigir elemento", "responsibleUserId": 7 }
+}
+```
+
+`task` usa o schema canônico de criação de Task. Criar e vincular é atômico.
+Requirement omitido recebe o requisito do Defect; null explícito é respeitado.
+ORIGIN/CORRECTION simultâneos para o mesmo Defect retornam
+`409 DEFECT_TASK_ROLE_CONFLICT`; duplicação no mesmo ciclo retorna
+`409 DEFECT_CORRECTION_ALREADY_LINKED`. Defeito VALIDADO rejeita novas correções
+com `409 DEFECT_ALREADY_VALIDATED`. Excluir Task referenciada por Defect retorna
+`409 TASK_REFERENCED_BY_DEFECT`, inclusive se o Defect estiver excluído.
+
+Paginação: `page` padrão 1, máximo 1000000; `limit` padrão 20, máximo 100.
+Listagem aceita `search` (título ou DEF-id), `status`, `severity`,
+`responsibleUserId`, `requirementId`, `originTaskId`, `correctionTaskId`, `testCaseId`.
+Filtro de correção inclui vínculos de ciclos anteriores. `summary` ignora os
+filtros e conta os defeitos não excluídos do projeto por estado (`total`, `ABERTO`,
+`EM_CORRECAO`, `AGUARDANDO_RETESTE`, `VALIDADO`).
+
+Candidatos são paginados por passo FAIL, mais recentes primeiro; search aceita
+EXEC-id, TC-id, título histórico ou resultado observado. Cada item contém
+`detectedExecutionStepId`, `execution`, `testCase`, `failedStep`,
+`executionEvidence`, `suggestedRequirement`, `suggestedOriginTasks`, `existingDefects`.
+Sugestões vêm da versão executada. Evidência contém metadados e `contentUrl`
+autenticada, sem chave física. Não há criação automática a partir das sugestões.
+
+Detalhe contém campos de Defect, `displayId`, `revision`, `currentCorrectionCycle`,
+`responsibleUser`, `requirement`, `originTasks`, `detection`, `correctionCycles`,
+`retests`, `historyCount` e `statusReason` com total/todo/inProgress/done e
+validatedByExecutionId. Histórico usa `action`, `metadataJson` estruturado,
+actorUserId e occurredAt do servidor. Task list/detail/Kanban inclui
+`correctionDefectCount` e `correctionDefects` distintos por defeito, preservando
+status/deletedAt de defeitos históricos.
+
+Reteste reutiliza POST `/test-cases/:id/executions`, o multipart `payload` e os
+campos de evidência S1-07. Acrescentar ao JSON existente:
+
+```json
+{ "retest": { "defectId": 12, "correctionCycle": 1, "expectedRevision": 3 } }
+```
+
+Exige mesmo TestCase da detecção, ativo, versão atual e AGUARDANDO_RETESTE com
+correções concluídas. Rejeição funcional: `409 DEFECT_NOT_READY_FOR_RETEST`;
+versão obsoleta: `409 TEST_CASE_VERSION_CONFLICT`. PASS valida, FAIL abre ciclo
+seguinte vazio, BLOCKED mantém ciclo; todos invalidam a revisão anterior.
+Sem `retest`, execução normal não altera Defect. A resposta segue `{execution}`;
+reler Defect fornece a nova revisão/ciclo. Histórico e execução são atômicos,
+inclusive evidência e compensação de storage em rollback.
+
+GET `/test-cases/:id/tested-references?retestDefectId=12` prioriza PRs/commits das
+correções do ciclo atual e fornece fallback persistido do projeto mesmo com
+search vazio. Mantém limite S1-07 de 50. Não chama GitHub.
+
+Permissões e política de ciclos: [Authorization](../security/AUTHORIZATION_MATRIX.md)
+e [Defect history](../data/DEFECT_HISTORY.md). Frontend S1-08 pendente.

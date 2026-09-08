@@ -82,7 +82,7 @@ async function fixture({ links = true } = {}) {
     preconditions: 'Ready',
     expectedResult: 'Works',
     responsibleUserId: second.id,
-    requirementId: links ? requirement.id : null,
+    requirementId: requirement.id,
     taskIds: links ? [task.id] : [],
     steps: [
       { action: 'First', expectedResult: 'First result' },
@@ -159,7 +159,7 @@ describe('S1-07 persisted definitions', () => {
         version: 1,
         stepCount: 2,
         taskCount: links ? 1 : 0,
-        hasRequirement: links
+        hasRequirement: true
       });
       expect(JSON.stringify(audit)).not.toContain('Description');
     }
@@ -246,13 +246,8 @@ describe('S1-07 persisted definitions', () => {
     expect(old.snapshotJson.requirement.title).toBe('Original requirement');
     expect(old.snapshotJson.tasks[0].title).toBe('Original task');
     expect(
-      (
-        await cases.update(
-          row.id,
-          { expectedVersion: 1, requirementId: null, taskIds: [] },
-          f.context
-        )
-      ).currentVersion
+      (await cases.update(row.id, { expectedVersion: 1, requirementId: null }, f.context))
+        .currentVersion
     ).toBe(2);
   });
   it('soft deletes without destroying any historical child, and hides all operational reads', async () => {
@@ -425,10 +420,11 @@ describe('S1-07 list aggregation, history and privacy', () => {
     const b = await f.create({
       title: 'Beta',
       status: 'INATIVO',
-      requirementId: null,
       taskIds: [],
       responsibleUserId: f.user.id
     });
+    // Represent a pre-S1-08 orphan without bypassing the public creation invariant.
+    await prisma.testCase.update({ where: { id: b.id }, data: { requirementId: null } });
     const failure = {
       ...f.payload,
       steps: [

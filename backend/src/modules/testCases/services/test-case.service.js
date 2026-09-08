@@ -34,6 +34,12 @@ export function audit(context, projectId, id, action, metadata) {
   });
 }
 async function resolveLinks(repo, projectId, data) {
+  if (!data.requirementId && !data.taskIds.length)
+    throw fail(
+      'Informe um requisito ou uma tarefa vinculada.',
+      400,
+      'TEST_CASE_TRACEABILITY_REQUIRED'
+    );
   const [responsible, requirement, tasks] = await Promise.all([
     repo.membership(projectId, data.responsibleUserId),
     data.requirementId ? repo.requirement(projectId, data.requirementId) : null,
@@ -48,6 +54,7 @@ export function createTestCaseService(repo = testCaseRepository) {
     async create(projectId, input, context) {
       const data = parse(createSchema, input);
       return repo.transaction(async (tx) => {
+        await tx.lockProject(projectId);
         const membership = await authorize(tx, projectId, context, true);
         if (!(await tx.project(projectId))) throw missing();
         const links = await resolveLinks(tx, projectId, data);
@@ -80,7 +87,11 @@ export function createTestCaseService(repo = testCaseRepository) {
     },
     async update(id, input, context) {
       const parsed = parse(updateSchema, input);
+      const owner = await repo.find(id);
+      if (!owner) throw missing();
+      await authorize(repo, owner.projectId, context, true);
       return repo.transaction(async (tx) => {
+        await tx.lockProject(owner.projectId);
         const current = await tx.lock(id);
         if (!current) throw missing();
         const membership = await authorize(tx, current.projectId, context, true);
@@ -167,7 +178,11 @@ export function createTestCaseService(repo = testCaseRepository) {
       });
     },
     async delete(id, context) {
+      const owner = await repo.find(id);
+      if (!owner) throw missing();
+      await authorize(repo, owner.projectId, context, true);
       return repo.transaction(async (tx) => {
+        await tx.lockProject(owner.projectId);
         const current = await tx.lock(id);
         if (!current) throw missing();
         await authorize(tx, current.projectId, context, true);

@@ -9,7 +9,7 @@ import {
 } from '../helpers/test-database.js';
 import { startTestServer } from '../helpers/http-server.js';
 import { assertTestEvidenceRoot } from '../helpers/test-evidence-environment.js';
-import { createProject } from '../fixtures/factories.js';
+import { createProject, createRequirement } from '../fixtures/factories.js';
 let app, prisma;
 const png = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j4ZkAAAAASUVORK5CYII=',
@@ -46,7 +46,9 @@ async function fixture(role = 'MEMBER') {
   const pr = await prisma.pullRequest.create({
     data: { projectId: project.id, githubId: '1', number: 1, title: 'Test PR' }
   });
+  const requirement = await createRequirement(prisma, project.id);
   const input = {
+    requirementId: requirement.id,
     title: 'API case',
     description: 'Desc',
     preconditions: 'Ready',

@@ -13,6 +13,10 @@ para registrar execução ou selecionar referências já importadas.
 `TestCase` pertence obrigatoriamente a um Project. Tem status `ATIVO | INATIVO`,
 responsável obrigatório com ProjectMembership ativa, requisito opcional singular,
 0–100 Tasks do mesmo projeto por `TestCaseTask`, e 1–100 passos ordenados.
+Desde S1-08, criação e atualização resultante exigem requisito OU ao menos uma
+Task (`TEST_CASE_TRACEABILITY_REQUIRED`); a cardinalidade individual não muda.
+A auditoria de 2026-09-08 encontrou 0 órfãos em 1 registro não excluído; nenhum
+vínculo foi inventado em dados legados.
 Responsável segue a política de membership ativa usada em Task, inclusive VIEWER.
 O executor é um membro com escrita, independentemente do responsável.
 
@@ -74,7 +78,9 @@ ou resultado geral. Cada posição da versão deve aparecer exatamente uma vez.
 Texto do passo e resultado esperado são copiados da versão, nunca do cliente.
 FAIL/BLOCKED exigem observação; PASS permite observação opcional.
 Resultado puro: qualquer FAIL → FAIL; senão qualquer BLOCKED → BLOCKED; senão PASS.
-FAIL não cria defeito. Não há reteste ou entidade S1-08.
+FAIL não cria defeito automaticamente. S1-08 permite criar Defect explicitamente
+a partir do passo FAIL e registrar reteste contextual no mesmo endpoint de execução.
+Veja [Defect history](DEFECT_HISTORY.md). Execuções comuns não alteram Defect.
 
 Detalhe de execução usa exclusivamente sua versão, resultados, snapshot técnico
 e identidade de exibição capturada. Edições futuras, sync de PR/Commit e mudança
