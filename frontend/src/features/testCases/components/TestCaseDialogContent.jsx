@@ -28,14 +28,29 @@ function LoadedCase({ id, type, canWrite, headerKey, onLoaded, ...props }) {
     <TestCaseDetails testCase={data} canWrite={canWrite && data.capabilities.canEdit} {...props} />
   );
 }
-function LoadedExecution({ id, headerKey, onLoaded, onPreview }) {
+function LoadedExecution({ id, headerKey, onLoaded, onPreview, ...props }) {
   const { data, loading, error, load } = useCaseRead('execution', id);
   useEffect(() => {
     if (data) onLoaded?.(headerKey, data);
   }, [data, headerKey, onLoaded]);
   if (loading) return <LoadingState message="Carregando execução…" />;
   if (error) return <ErrorState message={error.message} onRetry={() => load()} />;
-  return data && <ExecutionDetails execution={data} onPreview={onPreview} />;
+  const receipt = props.defectReceipt;
+  const presented =
+    data && receipt?.length
+      ? {
+          ...data,
+          steps: data.steps.map((step) => ({
+            ...step,
+            detectedDefects: receipt.reduce((items, entry) => {
+              if (entry.kind === 'delete') return items.filter((d) => d.id !== entry.id);
+              if (entry.saved?.detectedExecutionStepId !== step.id) return items;
+              return [...items.filter((d) => d.id !== entry.saved.id), entry.saved];
+            }, step.detectedDefects || [])
+          }))
+        }
+      : data;
+  return presented && <ExecutionDetails execution={presented} onPreview={onPreview} {...props} />;
 }
 export function TestCaseDialogContent({ dialog, mutationError, headerKey, onLoaded, ...props }) {
   const [consulting, setConsulting] = useState(false);
@@ -97,6 +112,10 @@ export function TestCaseDialogContent({ dialog, mutationError, headerKey, onLoad
             headerKey={headerKey}
             onLoaded={onLoaded}
             onPreview={props.onPreview}
+            defectReceipt={props.defectReceipt}
+            canWrite={props.canWrite}
+            onCreateDefect={props.onCreateDefect}
+            onOpenDefect={props.onOpenDefect}
           />
         )}
       </div>

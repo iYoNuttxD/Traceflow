@@ -1,6 +1,7 @@
+import { DefectFlow } from '../defects/index.js';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { useParams } from 'react-router';
+import { useParams, useSearchParams } from 'react-router';
 import { ProjectSectionNav, useProjectsCatalog } from '../projects/index.js';
 import { SprintDialog } from '../schedule/index.js';
 import {
@@ -46,6 +47,30 @@ function ProjectTestCases({ project }) {
   const mutationLock = useRef(false);
   const confirmationLock = useRef(false);
   const [dialog, setDialog] = useState(null);
+  const [searchParams] = useSearchParams();
+  const requestedCase = searchParams.get('case');
+  useEffect(() => {
+    if (/^[1-9]\d*$/.test(requestedCase || '') && Number.isSafeInteger(Number(requestedCase))) {
+      setDialog({ type: 'details', caseId: Number(requestedCase) });
+    }
+  }, [requestedCase]);
+  const [defectContext, setDefectContext] = useState(null);
+  const [defectReceipt, setDefectReceipt] = useState(null);
+  const [defectHeader, setDefectHeader] = useState(null);
+  const defectReturn = useRef(null);
+  const defectScroll = useRef(0);
+  const defectBusy = useRef(false);
+  useLayoutEffect(() => {
+    const body = modalContentRef.current?.parentElement;
+    if (defectContext) {
+      if (body) body.scrollTop = 0;
+    } else if (defectReturn.current?.isConnected) {
+      defectReturn.current.focus({ preventScroll: true });
+      if (body) body.scrollTop = defectScroll.current;
+      defectReturn.current = null;
+    }
+  }, [defectContext]);
+  defectBusy.current = Boolean(defectHeader?.busy);
   const [evidence, setEvidence] = useState(null);
   const evidenceContent = useEvidenceContent(evidence?.file, project.id);
   const previewReturnRef = useRef(null);
@@ -77,7 +102,9 @@ function ProjectTestCases({ project }) {
   const [selected, setSelected] = useState({ requirement: null, task: null });
   const canWrite = ['MEMBER', 'MANAGER', 'OWNER'].includes(state.membership?.role);
   const close = useCallback(() => {
-    if (!mutationLock.current) {
+    if (!mutationLock.current && !defectBusy.current) {
+      setDefectContext(null);
+      setDefectHeader(null);
       setDialog(null);
       setEvidence(null);
       setLoaded(null);
@@ -113,7 +140,19 @@ function ProjectTestCases({ project }) {
         : uncertain
           ? 'Não foi possível confirmar a resposta. A operação pode ter sido registrada. Consulte o histórico antes de tentar novamente; seu rascunho foi preservado.'
           : error.message;
-      setMutationError({ ...error, message, uncertain, blocked: conflict || uncertain });
+      setMutationError({
+        ...error,
+        message:
+          error.code === 'TEST_CASE_TRACEABILITY_REQUIRED'
+            ? 'Vincule este caso a pelo menos um requisito ou uma tarefa.'
+            : message,
+        fieldErrors:
+          error.code === 'TEST_CASE_TRACEABILITY_REQUIRED'
+            ? { traceability: 'Vincule este caso a pelo menos um requisito ou uma tarefa.' }
+            : error.fieldErrors,
+        uncertain,
+        blocked: conflict || uncertain
+      });
     } finally {
       mutationLock.current = false;
       // The mutation itself invalidates reads on success; project identity still owns feedback.
@@ -320,11 +359,25 @@ function ProjectTestCases({ project }) {
       </div>
       <SprintDialog
         open={Boolean(dialog)}
-        title={evidence ? evidence.file.originalName : title}
-        description={evidence ? evidenceDescription(evidence.file) : description}
+        title={
+          defectContext
+            ? defectHeader?.title || 'Defeito'
+            : evidence
+              ? evidence.file.originalName
+              : title
+        }
+        description={
+          defectContext
+            ? defectHeader?.description
+            : evidence
+              ? evidenceDescription(evidence.file)
+              : description
+        }
         className="tc-dialog"
         leadingAction={
-          evidence ? (
+          defectContext ? (
+            defectHeader?.leadingAction
+          ) : evidence ? (
             <button
               className="sprint-dialog__close"
               aria-label="Voltar para detalhes da execução"
@@ -345,7 +398,9 @@ function ProjectTestCases({ project }) {
           )
         }
         headerActions={
-          evidence ? (
+          defectContext ? (
+            defectHeader?.headerActions
+          ) : evidence ? (
             <EvidenceDownloadButton
               key={evidence.file.id}
               file={evidence.file}
@@ -366,7 +421,7 @@ function ProjectTestCases({ project }) {
         }
         size="large"
         onClose={close}
-        busy={busy}
+        busy={busy || Boolean(defectHeader?.busy)}
         returnFocusRef={returnFocusRef}
         initialFocusSelector="[data-tc-modal]"
       >
@@ -386,7 +441,27 @@ function ProjectTestCases({ project }) {
                 onBack={backToExecution}
               />
             )}
-            <div hidden={Boolean(evidence)}>
+            {defectContext && (
+              <DefectFlow
+                key={defectContext.initialId || defectContext.initialStepId}
+                embedded
+                projectId={project.id}
+                {...defectContext}
+                options={state}
+                canWrite={canWrite}
+                onHeader={setDefectHeader}
+                onClose={() => {
+                  setDefectContext(null);
+                  setDefectHeader(null);
+                }}
+                onConfirmed={(kind, saved, id) => {
+                  setDefectReceipt((old) => [...(old || []), { kind, saved, id }]);
+                  state.scope.invalidate();
+                  void state.load(1, true);
+                }}
+              />
+            )}
+            <div hidden={Boolean(evidence) || Boolean(defectContext)}>
               <TestCaseDialogContent
                 key={`${dialog.type}:${dialog.caseId}:${dialog.executionId || ''}`}
                 dialog={dialog}
@@ -398,6 +473,19 @@ function ProjectTestCases({ project }) {
                 busy={busy}
                 blocked={mutationError?.blocked}
                 canWrite={canWrite}
+                defectReceipt={defectReceipt}
+                onCreateDefect={(execution, step) => {
+                  defectReturn.current = document.activeElement;
+                  defectScroll.current = modalContentRef.current?.parentElement?.scrollTop || 0;
+                  setDefectHeader(null);
+                  setDefectContext({ initialExecutionId: execution.id, initialStepId: step.id });
+                }}
+                onOpenDefect={(id) => {
+                  defectReturn.current = document.activeElement;
+                  defectScroll.current = modalContentRef.current?.parentElement?.scrollTop || 0;
+                  setDefectHeader(null);
+                  setDefectContext({ initialId: id });
+                }}
                 members={state.members}
                 searchRequirements={state.searchRequirements}
                 searchTasks={state.searchTasks}

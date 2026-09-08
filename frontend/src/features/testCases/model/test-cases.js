@@ -89,6 +89,8 @@ export function stepError(step) {
 }
 export function validateForm(form) {
   const errors = {};
+  if (!form.requirementId && !form.taskIds?.length)
+    errors.traceability = 'Vincule este caso a pelo menos um requisito ou uma tarefa.';
   for (const key of ['title', 'preconditions', 'expectedResult']) {
     if (!form[key].trim()) errors[key] = 'Campo obrigatório.';
     else if (form[key].length > LIMITS[key]) errors[key] = `Use até ${LIMITS[key]} caracteres.`;
@@ -129,6 +131,7 @@ export function executionFormData(draft) {
   body.append(
     'payload',
     JSON.stringify({
+      ...(draft.retest ? { retest: draft.retest } : {}),
       testCaseVersion: draft.testCaseVersion,
       environment: draft.environment,
       testedReference: { type: draft.testedReference.type, id: draft.testedReference.resourceId },

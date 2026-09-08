@@ -1,3 +1,4 @@
+import { defectStatuses, defectSeverities } from '../../defects/index.js';
 import { Link } from 'react-router';
 import { GithubExternalAction, TaskTraceabilityGrid, ArtifactCategory } from '../../tasks/index.js';
 import { PersistedEvidence } from './PersistedEvidence.jsx';
@@ -27,7 +28,7 @@ function Surface({ title, count, children }) {
     </section>
   );
 }
-function Steps({ version, execution, onPreview }) {
+function Steps({ version, execution, onPreview, canWrite, onCreateDefect, onOpenDefect }) {
   return (
     <ol className="tc-definition">
       {version.steps.map((step, index) => {
@@ -49,6 +50,36 @@ function Steps({ version, execution, onPreview }) {
                   <p>{result ? result.expectedResultSnapshot : step.expectedResult}</p>
                 </div>
               </div>
+              {result?.result === 'FAIL' && (canWrite || result.detectedDefects?.length > 0) && (
+                <section className="tc-step-defects">
+                  {!!result.detectedDefects?.length && (
+                    <>
+                      <h4>Defeitos registrados</h4>
+                      {result.detectedDefects.map((d) => (
+                        <p key={d.id}>
+                          <button
+                            className="button button-outline button-compact"
+                            onClick={() => onOpenDefect?.(d.id)}
+                          >
+                            DEF-{d.id} · {d.title}
+                          </button>{' '}
+                          · {defectSeverities[d.severity]} · {defectStatuses[d.status]}
+                        </p>
+                      ))}
+                    </>
+                  )}
+                  {canWrite && onCreateDefect && (
+                    <button
+                      className="button button-secondary"
+                      onClick={() => onCreateDefect(execution, result)}
+                    >
+                      {result.detectedDefects?.length
+                        ? 'Registrar outro defeito'
+                        : 'Registrar defeito'}
+                    </button>
+                  )}
+                </section>
+              )}
               {result && (
                 <div className="tc-step-observed">
                   <small>Resultado observado</small>
@@ -181,7 +212,7 @@ export function TestExecutionHistory({ executions, onSelect }) {
     </>
   );
 }
-export function ExecutionDetails({ execution, onPreview }) {
+export function ExecutionDetails({ execution, onPreview, canWrite, onCreateDefect, onOpenDefect }) {
   const version = execution.caseVersionSnapshot;
   return (
     <div className="tc-stack">
@@ -218,7 +249,14 @@ export function ExecutionDetails({ execution, onPreview }) {
       </Surface>
       <section className="tc-section">
         <h3>Resultados dos passos</h3>
-        <Steps version={version} execution={execution} onPreview={onPreview} />
+        <Steps
+          version={version}
+          execution={execution}
+          onPreview={onPreview}
+          canWrite={canWrite}
+          onCreateDefect={onCreateDefect}
+          onOpenDefect={onOpenDefect}
+        />
       </section>
       <Surface title="Resultado esperado do caso">
         <p>{version.expectedResult}</p>

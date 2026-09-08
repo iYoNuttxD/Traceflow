@@ -1,5 +1,27 @@
 import { correctionProjection } from './defect.schema.js';
-export const defectCard = (row) => ({ ...row, displayId: `DEF-${row.id}` });
+export const defectCard = (row) => {
+  const { taskLinks, detectedStep, ...fields } = row;
+  return {
+    ...fields,
+    displayId: `DEF-${row.id}`,
+    ...(taskLinks
+      ? {
+          correctionTaskCount: taskLinks.filter(
+            (l) => l.correctionCycle === row.currentCorrectionCycle
+          ).length
+        }
+      : {}),
+    ...(detectedStep
+      ? {
+          detectionSummary: {
+            testCaseId: detectedStep.execution.testCaseId,
+            executionId: detectedStep.execution.id,
+            stepPosition: detectedStep.position
+          }
+        }
+      : {})
+  };
+};
 export function detectionCandidate(step) {
   const e = step.execution;
   const snapshot = e.version.snapshotJson;
@@ -49,6 +71,12 @@ export function defectDetail(row) {
   );
   return {
     ...defectCard(fields),
+    correctionTaskCount: current.length,
+    detectionSummary: {
+      testCaseId: detectedStep.execution.testCaseId,
+      executionId: detectedStep.execution.id,
+      stepPosition: detectedStep.position
+    },
     ...correctionProjection(
       current.map((l) => l.task),
       pass?.testExecutionId

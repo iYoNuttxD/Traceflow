@@ -224,7 +224,14 @@ export function createDefectRepository(client = prisma) {
       const [items, total, groups] = await Promise.all([
         client.defect.findMany({
           where,
-          include: { responsibleUser: { select: identity }, requirement: { select: title } },
+          include: {
+            responsibleUser: { select: identity },
+            requirement: { select: title },
+            detectedStep: {
+              select: { position: true, execution: { select: { id: true, testCaseId: true } } }
+            },
+            taskLinks: { where: { relationType: 'CORRECTION' }, select: { correctionCycle: true } }
+          },
           orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
           skip: (q.page - 1) * q.limit,
           take: q.limit

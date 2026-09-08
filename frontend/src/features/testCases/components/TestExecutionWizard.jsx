@@ -12,9 +12,16 @@ import {
 } from '../model/test-cases.js';
 import { Badge, EvidenceList, EvidencePicker, Field, SelectControl } from './Parts.jsx';
 
-export function TestExecutionWizard({ testCase, onRegister, onCancel, busy, blocked }) {
+export function TestExecutionWizard({ testCase, onRegister, onCancel, busy, blocked, retest }) {
   const version = testCase;
   const [draft, setDraft] = useState({
+    retest: retest
+      ? {
+          defectId: retest.id,
+          correctionCycle: retest.currentCorrectionCycle,
+          expectedRevision: retest.revision
+        }
+      : undefined,
     testCaseId: testCase.id,
     testCaseVersion: testCase.currentVersion,
     testedReference: null,
@@ -37,8 +44,10 @@ export function TestExecutionWizard({ testCase, onRegister, onCancel, busy, bloc
   }, [position, review]);
   const searchReferences = useCallback(
     async (search, signal) =>
-      (await testCasesApi.references(testCase.id, search, { signal })).items.map(referenceOption),
-    [testCase.id]
+      (await testCasesApi.references(testCase.id, search, { signal }, retest?.id)).items.map(
+        referenceOption
+      ),
+    [testCase.id, retest?.id]
   );
   const canRegister = Boolean(
     draft.testedReference &&
@@ -87,6 +96,13 @@ export function TestExecutionWizard({ testCase, onRegister, onCancel, busy, bloc
   }
   return (
     <fieldset ref={panelRef} className="tc-form-controls tc-stack" disabled={busy}>
+      {retest && (
+        <p className="tc-notice">
+          Reteste do {retest.displayId} · {testCase.displayId} · {testCase.title}. Detecção
+          original: caso v{retest.detection.testCase.version}. Reteste atual: caso v
+          {testCase.currentVersion}.
+        </p>
+      )}
       <section className="tc-surface">
         <div className="tc-context-heading">
           <h3>Contexto da execução</h3>

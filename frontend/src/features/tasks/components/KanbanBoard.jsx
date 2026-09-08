@@ -1,3 +1,4 @@
+import { TaskCorrectionBadge } from './TaskCorrectionContext.jsx';
 import { KanbanColumn } from './KanbanColumn.jsx';
 import { formatDate, KANBAN_COLUMNS, priorityLabels } from './kanban-display.js';
 import { formatTraceabilityCounts, isTaskOverdue } from './kanban-view.js';
@@ -35,6 +36,7 @@ function KanbanTaskCard({
     <article
       className={`kanban-task ${dragging ? 'kanban-task--dragging' : ''} ${moving ? 'kanban-task--moving' : ''}`.trim()}
     >
+      <TaskCorrectionBadge task={task} />
       <button
         type="button"
         className="kanban-task__body"

@@ -96,6 +96,26 @@ export function KanbanScreen() {
   const [sprintFilter, setSprintFilter] = useState([]);
   const [filters, setFilters] = useState({ ...EMPTY_KANBAN_FILTERS });
   const [selectedTask, setSelectedTask] = useState(null);
+  const requestedTask = searchParams.get('task');
+  useEffect(() => {
+    if (!requestedTask || !/^\d+$/.test(requestedTask)) return;
+    let active = true;
+    const controller = new AbortController();
+    void tasksApi
+      .get(Number(requestedTask), { signal: controller.signal, fresh: true })
+      .then((response) => {
+        const task = response.data.task;
+        if (active && String(task.projectId) === String(projectId)) setSelectedTask(task);
+      })
+      .catch((error) => {
+        if (active && !controller.signal.aborted)
+          setCurrentTaskError(normalizeApiError(error).message);
+      });
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [requestedTask, projectId]);
   const [openingCurrent, setOpeningCurrent] = useState(false);
   const [currentTaskError, setCurrentTaskError] = useState('');
   const [currentTaskUnavailable, setCurrentTaskUnavailable] = useState(false);

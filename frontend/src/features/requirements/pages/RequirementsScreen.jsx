@@ -1,5 +1,8 @@
+import { ContextualTestCaseCreate } from '../../testCases/index.js';
+import { SprintDialog } from '../../schedule/index.js';
+import { membersApi } from '../../members/index.js';
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { Link, useParams, useSearchParams } from 'react-router';
 import {
   confirmRequirementCompletion,
   deleteRequirement,
@@ -89,6 +92,26 @@ function formatTaskLabel(task) {
 export function RequirementsScreen() {
   const confirm = useConfirm();
   const { projectId } = useParams();
+  const [searchParams] = useSearchParams();
+  const [caseRequirement, setCaseRequirement] = useState(null),
+    [caseBusy, setCaseBusy] = useState(false),
+    [caseMembership, setCaseMembership] = useState(null);
+  useEffect(() => {
+    let active = true;
+    const controller = new AbortController();
+    setCaseMembership(null);
+    setCaseRequirement(null);
+    void membersApi
+      .list(projectId, { signal: controller.signal, fresh: true })
+      .then((d) => {
+        if (active) setCaseMembership(d.currentMembership);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [projectId]);
   const [project, setProject] = useState(null);
   const [requirements, setRequirements] = useState([]);
   const [taskResults, setTaskResults] = useState([]);
@@ -133,6 +156,14 @@ export function RequirementsScreen() {
     loadRequirementsData();
   }, [loadRequirementsData]);
 
+  useEffect(() => {
+    const id = searchParams.get('requirement');
+    if (id && /^\d+$/.test(id)) {
+      const element = document.getElementById(`requirement-${id}`);
+      element?.scrollIntoView?.({ block: 'center' });
+      element?.focus({ preventScroll: true });
+    }
+  }, [searchParams, requirements]);
   function handleFormChange(name, value) {
     setFormData((current) => ({ ...current, [name]: value }));
   }
@@ -530,7 +561,12 @@ export function RequirementsScreen() {
           ) : (
             <div className="requirement-list requirements-grid">
               {requirements.map((requirement) => (
-                <article className="requirement-item" key={requirement.id}>
+                <article
+                  className="requirement-item"
+                  id={`requirement-${requirement.id}`}
+                  tabIndex={-1}
+                  key={requirement.id}
+                >
                   <div className="requirement-item-header">
                     <div>
                       <span className="eyebrow">{typeLabels[requirement.type]}</span>
@@ -577,6 +613,14 @@ export function RequirementsScreen() {
                   </div>
 
                   <div className="requirement-actions">
+                    {caseMembership && caseMembership.role !== 'VIEWER' && (
+                      <button
+                        className="button button-secondary"
+                        onClick={() => setCaseRequirement(requirement)}
+                      >
+                        Criar caso de teste
+                      </button>
+                    )}
                     <button
                       className="button button-secondary"
                       type="button"
@@ -611,6 +655,42 @@ export function RequirementsScreen() {
           )}
         </Card>
       </div>
+      <SprintDialog
+        open={Boolean(caseRequirement)}
+        title="Criar caso de teste"
+        description={caseRequirement ? `A partir de REQ-${caseRequirement.id}` : undefined}
+        busy={caseBusy}
+        size="large"
+        className="tc-dialog"
+        onClose={() => {
+          if (!caseBusy) setCaseRequirement(null);
+        }}
+        headerActions={
+          <button
+            className="button button-secondary"
+            disabled={caseBusy}
+            onClick={() => setCaseRequirement(null)}
+          >
+            Voltar para requisito
+          </button>
+        }
+      >
+        {caseRequirement && (
+          <ContextualTestCaseCreate
+            key={`${projectId}:${caseRequirement.id}`}
+            projectId={projectId}
+            requirement={caseRequirement}
+            onBusyChange={setCaseBusy}
+            onBack={() => {
+              if (!caseBusy) setCaseRequirement(null);
+            }}
+            onCreated={(saved) => {
+              setSuccess(`${saved.displayId} · Caso de teste criado.`);
+              setCaseRequirement(null);
+            }}
+          />
+        )}
+      </SprintDialog>
     </main>
   );
 }

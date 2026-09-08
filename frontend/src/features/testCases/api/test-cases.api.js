@@ -15,8 +15,8 @@ export const testCasesApi = {
   versions: (id, params, options) => read(`/test-cases/${id}/versions`, params, options),
   history: (id, params, options) => read(`/test-cases/${id}/history`, params, options),
   executions: (id, params, options) => read(`/test-cases/${id}/executions`, params, options),
-  references: (id, search, options) =>
-    read(`/test-cases/${id}/tested-references`, { search, limit: 20 }, options),
+  references: (id, search, options, retestDefectId) =>
+    read(`/test-cases/${id}/tested-references`, { search, limit: 20, retestDefectId }, options),
   execution: async (id, options) => (await read(`/test-executions/${id}`, {}, options)).execution,
   record: async (id, formData) =>
     (await httpClient.post(`/test-cases/${id}/executions`, formData, { timeout: 120000 })).data
