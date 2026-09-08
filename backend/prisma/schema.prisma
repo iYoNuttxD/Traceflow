@@ -129,6 +129,8 @@ enum GitHubOAuthPurpose {
 }
 
 model User {
+  responsibleDefects   Defect[]
+  defectHistory        DefectHistoryEntry[]
   responsibleTestCases TestCase[]             @relation("TestCaseResponsible")
   deletedTestCases     TestCase[]             @relation("TestCaseDeleter")
   testCaseVersions     TestCaseVersion[]
@@ -312,6 +314,8 @@ model ProjectInvitation {
 
 // Entidade central do TRACEFLOW. A identidade GitHub pertence exclusivamente à integração.
 model Project {
+  defects         Defect[]
+  defectHistory   DefectHistoryEntry[]
   testCases       TestCase[]
   testExecutions  TestExecution[]
   testEvidence    TestEvidence[]
@@ -560,6 +564,7 @@ model PersonalDataExport {
 
 // Requisito funcional ou necessidade cadastrada no projeto.
 model Requirement {
+  defects     Defect[]
   testCases   TestCase[]
   id          Int        @id @default(autoincrement())
   projectId   Int
@@ -579,6 +584,7 @@ model Requirement {
 
 // Unidade de trabalho e elo entre planejamento e implementacao.
 model Task {
+  defectLinks       DefectTask[]
   testCaseLinks     TestCaseTask[]
   id                Int            @id @default(autoincrement())
   projectId         Int
@@ -1130,6 +1136,7 @@ model TestCaseHistoryEntry {
 }
 
 model TestExecution {
+  defectRetest                  DefectRetest?
   id                            Int                 @id @default(autoincrement())
   projectId                     Int
   testCaseId                    Int
@@ -1162,6 +1169,7 @@ model TestExecution {
 }
 
 model TestExecutionStep {
+  detectedDefects        Defect[]
   id                     Int            @id @default(autoincrement())
   executionId            Int
   position               Int
@@ -1198,4 +1206,97 @@ model TestEvidence {
   @@index([executionId])
   @@index([executionStepId])
   @@index([projectId])
+}
+
+enum DefectSeverity {
+  BAIXA
+  MEDIA
+  ALTA
+  CRITICA
+}
+
+enum DefectStatus {
+  ABERTO
+  EM_CORRECAO
+  AGUARDANDO_RETESTE
+  VALIDADO
+}
+
+enum DefectTaskRelationType {
+  ORIGIN
+  CORRECTION
+}
+
+model Defect {
+  id                      Int                  @id @default(autoincrement())
+  projectId               Int
+  title                   String               @db.VarChar(200)
+  description             String               @db.MediumText
+  severity                DefectSeverity
+  status                  DefectStatus         @default(ABERTO)
+  responsibleUserId       Int
+  detectedExecutionStepId Int
+  requirementId           Int?
+  currentCorrectionCycle  Int                  @default(1)
+  revision                Int                  @default(1)
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+  deletedAt               DateTime?
+  project                 Project              @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  responsibleUser         User                 @relation(fields: [responsibleUserId], references: [id], onDelete: Restrict)
+  detectedStep            TestExecutionStep    @relation(fields: [detectedExecutionStepId], references: [id], onDelete: Restrict)
+  requirement             Requirement?         @relation(fields: [requirementId], references: [id], onDelete: Restrict)
+  taskLinks               DefectTask[]
+  retests                 DefectRetest[]
+  history                 DefectHistoryEntry[]
+
+  @@index([projectId, deletedAt, status])
+  @@index([projectId, severity])
+  @@index([projectId, responsibleUserId])
+  @@index([projectId, requirementId])
+  @@index([detectedExecutionStepId])
+}
+
+model DefectTask {
+  id              Int                    @id @default(autoincrement())
+  defectId        Int
+  taskId          Int
+  relationType    DefectTaskRelationType
+  // ORIGIN uses zero for uniqueness; it does not participate in correction cycles.
+  correctionCycle Int                    @default(0)
+  createdAt       DateTime               @default(now())
+  defect          Defect                 @relation(fields: [defectId], references: [id], onDelete: Restrict)
+  task            Task                   @relation(fields: [taskId], references: [id], onDelete: Restrict)
+
+  @@unique([defectId, taskId, relationType, correctionCycle])
+  @@index([taskId, relationType])
+  @@index([defectId, relationType, correctionCycle])
+}
+
+model DefectRetest {
+  id              Int           @id @default(autoincrement())
+  defectId        Int
+  testExecutionId Int           @unique
+  correctionCycle Int
+  createdAt       DateTime      @default(now())
+  defect          Defect        @relation(fields: [defectId], references: [id], onDelete: Restrict)
+  execution       TestExecution @relation(fields: [testExecutionId], references: [id], onDelete: Restrict)
+
+  @@index([defectId, correctionCycle, id])
+}
+
+model DefectHistoryEntry {
+  id           Int      @id @default(autoincrement())
+  projectId    Int
+  defectId     Int
+  actorUserId  Int?
+  action       String   @db.VarChar(64)
+  metadataJson Json?
+  occurredAt   DateTime @default(now())
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  defect       Defect   @relation(fields: [defectId], references: [id], onDelete: Restrict)
+  actor        User?    @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([defectId, occurredAt, id])
+  @@index([projectId, occurredAt])
 }

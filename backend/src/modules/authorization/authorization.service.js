@@ -16,6 +16,7 @@ export const authorizationService = {
     if (direct) return { projectId: direct, resourceType: 'Project' };
 
     for (const [segment, finder] of [
+      ['defects', 'projectForDefect'],
       ['test-cases', 'projectForTestCase'],
       ['test-executions', 'projectForTestExecution'],
       ['test-evidence', 'projectForTestEvidence']
@@ -54,7 +55,7 @@ export const authorizationService = {
   },
   isProjectScoped(path) {
     return (
-      /^\/(?:test-cases|test-executions|test-evidence)\/\d+(?:\/|$)/.test(path) ||
+      /^\/(?:defects|test-cases|test-executions|test-evidence)\/\d+(?:\/|$)/.test(path) ||
       /^\/projects\/\d+(?:\/|$)/.test(path) ||
       /^\/requirements\/\d+(?:\/|$)/.test(path) ||
       /^\/tasks\/\d+(?:\/|$)/.test(path) ||

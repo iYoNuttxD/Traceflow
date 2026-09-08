@@ -1,3 +1,4 @@
+import { prepareDefectRetest, completeDefectRetest } from '../../defects/defect-retest.service.js';
 import { testCaseRepository } from '../repositories/test-case.repository.js';
 import { testExecutionRepository } from '../repositories/test-execution.repository.js';
 import { testEvidenceStorage } from '../storage/local-test-evidence.storage.js';
@@ -46,6 +47,17 @@ export function createTestExecutionService({
           data.steps.map((s) => s.position)
         );
         const recorded = await cases.transaction(async (tx) => {
+          await tx.lockProject(current.projectId);
+          let defect;
+          if (data.retest) {
+            defect = await prepareDefectRetest(
+              tx.defects,
+              data.retest,
+              id,
+              current.projectId,
+              context
+            );
+          }
           const row = await tx.lock(id);
           if (!row) throw missing();
           const membership = await authorize(tx, row.projectId, context, true);
@@ -98,6 +110,7 @@ export function createTestExecutionService({
               evidenceCount: evidence.length
             })
           );
+          if (defect) await completeDefectRetest(tx.defects, defect, execution, context);
           return executionDetail(await tx.executions.find(execution.id));
         });
         committed = true;
@@ -129,10 +142,29 @@ export function createTestExecutionService({
       const row = await cases.find(id);
       if (!row) throw missing();
       await authorize(cases, row.projectId, context);
+      let priorityTaskIds;
+      if (q.retestDefectId) {
+        const defect = await cases.defects.find(q.retestDefectId);
+        if (
+          !defect ||
+          defect.projectId !== row.projectId ||
+          defect.detectedStep.execution.testCaseId !== id
+        )
+          throw missing();
+        priorityTaskIds = defect.taskLinks
+          .filter(
+            (l) =>
+              l.relationType === 'CORRECTION' && l.correctionCycle === defect.currentCorrectionCycle
+          )
+          .map((l) => l.taskId);
+      }
       return {
-        items: (await executions.candidates(id, row.projectId, q.search, q.limit)).map(
-          ({ type, ref, relatedTaskIds }) => ({ ...referenceSnapshot(type, ref), relatedTaskIds })
-        ),
+        items: (
+          await executions.candidates(id, row.projectId, q.search, q.limit, priorityTaskIds)
+        ).map(({ type, ref, relatedTaskIds }) => ({
+          ...referenceSnapshot(type, ref),
+          relatedTaskIds
+        })),
         limit: q.limit
       };
     },

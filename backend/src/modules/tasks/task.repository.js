@@ -1,3 +1,5 @@
+import { lockProject } from '../../database/locks.js';
+import { AppError } from '../../shared/errors/index.js';
 // Repository do modulo de tarefas. Todo acesso ao banco passa pelo Prisma.
 import { prisma } from '../../database/prismaClient.js';
 import { auditRepository } from '../audit/audit.repository.js';
@@ -46,6 +48,10 @@ const taskRequirementSelect = {
 };
 
 export const taskInclude = {
+  defectLinks: {
+    where: { relationType: 'CORRECTION' },
+    select: { defect: { select: { id: true, title: true, status: true, deletedAt: true } } }
+  },
   responsibleUser: { select: { id: true, name: true } },
   requirement: {
     select: taskRequirementSelect
@@ -91,6 +97,19 @@ async function recalculateRequirements(tx, requirementIds, calculateStatus) {
   }
 }
 
+export async function createTaskInTransaction(
+  tx,
+  projectId,
+  data,
+  auditEvent,
+  calculateRequirementStatus
+) {
+  const task = await tx.task.create({ data: { ...data, projectId }, include: taskInclude });
+  await recalculateRequirements(tx, [task.requirementId], calculateRequirementStatus);
+  if (auditEvent) await auditRepository.create({ ...auditEvent, resourceId: String(task.id) }, tx);
+  return task;
+}
+
 export const taskRepository = {
   async findActiveMembership(projectId, userId) {
     return prisma.projectMembership.findFirst({ where: { projectId, userId, isActive: true } });
@@ -102,13 +121,9 @@ export const taskRepository = {
   },
 
   async createTaskAtomic(projectId, data, auditEvent, calculateRequirementStatus) {
-    return prisma.$transaction(async (tx) => {
-      const task = await tx.task.create({ data: { ...data, projectId }, include: taskInclude });
-      await recalculateRequirements(tx, [task.requirementId], calculateRequirementStatus);
-      if (auditEvent)
-        await auditRepository.create({ ...auditEvent, resourceId: String(task.id) }, tx);
-      return task;
-    });
+    return prisma.$transaction((tx) =>
+      createTaskInTransaction(tx, projectId, data, auditEvent, calculateRequirementStatus)
+    );
   },
 
   async findTasksByProject(projectId, filters = {}) {
@@ -257,6 +272,14 @@ export const taskRepository = {
 
   async deleteTask(id, { auditEvent, calculateRequirementStatus, requirementId } = {}) {
     return prisma.$transaction(async (tx) => {
+      const owner = await tx.task.findUnique({ where: { id }, select: { projectId: true } });
+      if (owner) await lockProject(tx, owner.projectId);
+      if (await tx.defectTask.count({ where: { taskId: id } }))
+        throw new AppError({
+          message: 'Tarefa vinculada ao histórico de defeitos não pode ser excluída.',
+          code: 'TASK_REFERENCED_BY_DEFECT',
+          statusCode: 409
+        });
       // A participacao em sprints sobrevive a exclusao da tarefa: fecha com o
       // status que ela tinha, e a FK deixa `taskId` nulo. O denominador de uma
       // sprint encerrada nao pode mudar porque alguem apagou a tarefa depois —

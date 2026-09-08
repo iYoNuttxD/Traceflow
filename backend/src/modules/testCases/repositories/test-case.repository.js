@@ -1,3 +1,5 @@
+import { createDefectRepository } from '../../defects/repositories/defect.repository.js';
+import { lockProject } from '../../../database/locks.js';
 import { auditRepository } from '../../audit/audit.repository.js';
 import { Prisma } from '@prisma/client';
 import { createTestExecutionRepository } from './test-execution.repository.js';
@@ -15,6 +17,10 @@ const detail = {
 const latestJoin = Prisma.sql`LEFT JOIN TestExecution e ON e.id = (SELECT e2.id FROM TestExecution e2 WHERE e2.testCaseId = c.id ORDER BY e2.executedAt DESC, e2.id DESC LIMIT 1)`;
 export function createTestCaseRepository(client = prisma) {
   return {
+    defects: createDefectRepository(client),
+    lockProject(id) {
+      return lockProject(client, id);
+    },
     executions: createTestExecutionRepository(client),
     transaction(work) {
       return client.$transaction((tx) => work(createTestCaseRepository(tx)), {

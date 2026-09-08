@@ -44,8 +44,10 @@ export function createTestExecutionRepository(client = prisma) {
         take: limit + 1
       });
     },
-    async candidates(testCaseId, projectId, search, limit) {
-      const linkedTask = { projectId, testCaseLinks: { some: { testCaseId } } };
+    async candidates(testCaseId, projectId, search, limit, priorityTaskIds) {
+      const linkedTask = priorityTaskIds
+        ? { projectId, id: { in: priorityTaskIds } }
+        : { projectId, testCaseLinks: { some: { testCaseId } } };
       const relatedPr = { tasks: { some: linkedTask } };
       const relatedCommit = { taskLinks: { some: { task: linkedTask } } };
       const prSearch = search
@@ -86,7 +88,7 @@ export function createTestExecutionRepository(client = prisma) {
           take: limit
         })
       ];
-      if (search)
+      if (search || priorityTaskIds)
         queries.push(
           client.pullRequest.findMany({
             where: { projectId, NOT: relatedPr, ...prSearch },

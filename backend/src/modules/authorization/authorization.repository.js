@@ -1,6 +1,9 @@
 import { prisma } from '../../database/prismaClient.js';
 
 export const authorizationRepository = {
+  projectForDefect(id) {
+    return prisma.defect.findFirst({ where: { id, deletedAt: null }, select: { projectId: true } });
+  },
   projectForTestCase(id) {
     return prisma.testCase.findFirst({
       where: { id, deletedAt: null },

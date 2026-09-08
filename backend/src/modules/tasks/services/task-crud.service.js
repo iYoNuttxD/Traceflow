@@ -11,18 +11,24 @@ import {
 import { buildAuditEvent } from '../../audit/audit.service.js';
 import { calculateRequirementStatus } from '../../requirements/requirement.schema.js';
 
+export async function prepareTaskCreation(projectId, data, lookup = taskRepository) {
+  const taskData = buildTaskData(data, true);
+  const requirementId = await resolveRequirementForTask(projectId, data?.requirementId, lookup);
+  if (requirementId !== undefined) taskData.requirementId = requirementId;
+  const responsibleUserId = await resolveResponsibleUser(
+    projectId,
+    data?.responsibleUserId,
+    lookup
+  );
+  if (responsibleUserId !== undefined) taskData.responsibleUserId = responsibleUserId;
+  return taskData;
+}
+
 export const taskCrudService = {
   async createTask(projectId, data, context = {}) {
     const parsedProjectId = parseProjectId(projectId);
     await ensureProjectExists(parsedProjectId);
-    const taskData = buildTaskData(data, true);
-    const requirementId = await resolveRequirementForTask(parsedProjectId, data?.requirementId);
-    if (requirementId !== undefined) taskData.requirementId = requirementId;
-    const responsibleUserId = await resolveResponsibleUser(
-      parsedProjectId,
-      data?.responsibleUserId
-    );
-    if (responsibleUserId !== undefined) taskData.responsibleUserId = responsibleUserId;
+    const taskData = await prepareTaskCreation(parsedProjectId, data);
     const task = await taskRepository.createTaskAtomic(
       parsedProjectId,
       taskData,

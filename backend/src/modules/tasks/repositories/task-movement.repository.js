@@ -1,3 +1,4 @@
+import { reconcileTaskDefects } from '../../defects/repositories/defect-projection.repository.js';
 import { prisma } from '../../../database/prismaClient.js';
 import { lockProject } from '../../../database/locks.js';
 import { auditRepository } from '../../audit/audit.repository.js';
@@ -95,6 +96,7 @@ export const taskMovementRepository = {
         }
       });
       await recalculateRequirement(tx, requirementId, calculateRequirementStatus);
+      await reconcileTaskDefects(tx, task.id, actor.id);
       if (auditEvent) await auditRepository.create(auditEvent, tx);
       const updatedTask = await tx.task.findUnique({
         where: { id: task.id },

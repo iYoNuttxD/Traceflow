@@ -1,3 +1,4 @@
+import { retestSchema } from '../defects/defect.schema.js';
 import { z } from 'zod';
 import { AppError } from '../../shared/errors/index.js';
 
@@ -58,6 +59,7 @@ export const updateSchema = z.strictObject({
 });
 export const changeStatusSchema = z.strictObject({ status: statusSchema, expectedVersion: id });
 export const executionSchema = z.strictObject({
+  retest: retestSchema.optional(),
   testCaseVersion: id,
   environment: z.enum(['LOCAL', 'DESENVOLVIMENTO', 'HOMOLOGACAO']),
   testedReference: z.strictObject({ type: z.enum(['PULL_REQUEST', 'COMMIT']), id }),
@@ -100,6 +102,7 @@ export const cursorQuerySchema = z.strictObject({
   cursor: z.string().max(400).optional()
 });
 export const referencesQuerySchema = z.strictObject({
+  retestDefectId: queryId,
   search: z.string().trim().max(200).default(''),
   limit: z.coerce.number().int().min(1).max(50).default(20)
 });

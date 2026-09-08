@@ -124,3 +124,24 @@ Caso excluído fica indisponível em rotas operacionais, inclusive criação de 
 Execução histórica e seu download continuam autorizados por projeto, sem recuperar
 permissão a partir de um ID ou de um caminho de storage. Arquivos não são públicos.
 Evidências: `backend/test/api/test-cases-s1-07.test.js` e bateria de integração S1-07.
+
+## S1-08 — Defeitos e retestes
+
+| Operação                                             | VIEWER ativo | MEMBER ativo | MANAGER ativo | OWNER ativo |
+| ---------------------------------------------------- | ------------ | ------------ | ------------- | ----------- |
+| Lista, detalhe, candidatos FAIL, histórico, retestes | Sim          | Sim          | Sim           | Sim         |
+| Criar, editar, excluir Defect                        | Não (403)    | Sim          | Sim           | Sim         |
+| Vincular/criar CORRECTION Task                       | Não (403)    | Sim          | Sim           | Sim         |
+| Registrar execução contextual de reteste/evidência   | Não (403)    | Sim          | Sim           | Sim         |
+| Ler evidência autenticada                            | Sim          | Sim          | Sim           | Sim         |
+
+Rotas de Defect são project-scoped no resolvedor compartilhado. Ausência de
+membership ativa e recursos de outro projeto resultam em 404 opaco; ausência de
+sessão resulta em 401. Não há exclusividade do criador ou responsável. Responsável
+selecionado precisa ser membro ativo do projeto, inclusive se for VIEWER.
+
+A validação de detecção, origem, requisito e correção confere o mesmo Project.
+Reteste confere também TestCase, versão atual, ciclo e revisão dentro da transação.
+CSRF precede o parser multipart existente. Nenhuma rota permite escolher status
+manualmente. Defect excluído não fica acessível pelas rotas operacionais, mas sua
+identidade permanece nos metadados das Tasks e nos registros históricos persistidos.
