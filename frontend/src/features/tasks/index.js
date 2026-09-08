@@ -24,4 +24,8 @@ export {
 export { useCommitSuggestions } from './hooks/useCommitSuggestions.js';
 export { TasksScreen } from './pages/TasksScreen.jsx';
 export { KanbanScreen } from './pages/KanbanScreen.jsx';
-export { GithubExternalAction } from './components/TaskDetailsLayout.jsx';
+export {
+  GithubExternalAction,
+  TaskTraceabilityGrid,
+  ArtifactCategory
+} from './components/TaskDetailsLayout.jsx';

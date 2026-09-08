@@ -1,6 +1,5 @@
 import { Link } from 'react-router';
-import { GithubExternalAction } from '../../tasks/index.js';
-import { TraceFlowIcon } from '../../../shared/index.js';
+import { GithubExternalAction, TaskTraceabilityGrid, ArtifactCategory } from '../../tasks/index.js';
 import { PersistedEvidence } from './PersistedEvidence.jsx';
 import { requirementLabel, taskLabel, environments, referenceLabel } from '../model/test-cases.js';
 import { Badge, Latest } from './Parts.jsx';
@@ -28,7 +27,7 @@ function Surface({ title, count, children }) {
     </section>
   );
 }
-function Steps({ version, execution }) {
+function Steps({ version, execution, onPreview }) {
   return (
     <ol className="tc-definition">
       {version.steps.map((step, index) => {
@@ -62,6 +61,8 @@ function Steps({ version, execution }) {
                 <h4>Evidências do passo</h4>
                 <PersistedEvidence
                   evidence={execution.evidence.filter((file) => file.executionStepId === result.id)}
+                  onPreview={onPreview}
+                  source={`Passo ${index + 1} · ${result.actionSnapshot}`}
                 />
               </div>
             )}
@@ -90,47 +91,41 @@ export function TestCaseDetails({ testCase, projectId, onView, onCancel }) {
           ]}
         />
       </section>
-      <section className="tc-section">
-        <h3>Rastreabilidade</h3>
-        {!testCase.requirementId && !testCase.tasks.length && <p>Sem rastreabilidade</p>}
-        <div className="tc-columns">
-          <Surface title="Requisito" count={testCase.requirementId ? 1 : 0}>
-            <p>
-              {testCase.requirement ? (
-                <Link
-                  className="tc-entity-link"
-                  to={`/projects/${projectId}/requirements`}
-                  onClick={onCancel}
-                  aria-label={`Abrir ${requirementLabel(testCase.requirement)} em Requisitos`}
-                >
-                  <TraceFlowIcon name="branch" />
-                  {requirementLabel(testCase.requirement)}
-                </Link>
-              ) : (
-                'Sem requisito vinculado'
-              )}
-            </p>
-          </Surface>
-          <Surface title="Tarefas" count={testCase.tasks.length}>
-            <ul className="tc-selected">
+      <div className="tc-traceability">
+        <TaskTraceabilityGrid>
+          <ArtifactCategory label="Requisito" count={testCase.requirement ? 1 : 0}>
+            {testCase.requirement ? (
+              <Link
+                className="tc-entity-link"
+                to={`/projects/${projectId}/requirements`}
+                onClick={onCancel}
+                aria-label={`Abrir ${requirementLabel(testCase.requirement)} em Requisitos`}
+              >
+                <strong>{requirementLabel(testCase.requirement)}</strong>
+              </Link>
+            ) : (
+              <p>Nenhum vínculo</p>
+            )}
+          </ArtifactCategory>
+          <ArtifactCategory label="Tarefas" count={testCase.tasks.length}>
+            <div className="task-detail-artifact-list">
               {testCase.tasks.map((task) => (
-                <li key={task.id}>
+                <div key={task.id}>
                   <Link
                     className="tc-entity-link"
                     to={`/projects/${projectId}/tasks`}
                     onClick={onCancel}
                     aria-label={`Abrir ${taskLabel(task)} em Tarefas`}
                   >
-                    <TraceFlowIcon name="code" />
-                    {taskLabel(task)}
+                    <strong>{taskLabel(task)}</strong>
                   </Link>
-                </li>
+                </div>
               ))}
-            </ul>
-            {!testCase.tasks.length && <p>Sem tarefas vinculadas</p>}
-          </Surface>
-        </div>
-      </section>
+            </div>
+            {!testCase.tasks.length && <p>Nenhum vínculo</p>}
+          </ArtifactCategory>
+        </TaskTraceabilityGrid>
+      </div>
       <Surface title="Pré-condições">
         <p className="tc-preformatted">{version.preconditions}</p>
       </Surface>
@@ -186,7 +181,7 @@ export function TestExecutionHistory({ executions, onSelect }) {
     </>
   );
 }
-export function ExecutionDetails({ execution }) {
+export function ExecutionDetails({ execution, onPreview }) {
   const version = execution.caseVersionSnapshot;
   return (
     <div className="tc-stack">
@@ -223,7 +218,7 @@ export function ExecutionDetails({ execution }) {
       </Surface>
       <section className="tc-section">
         <h3>Resultados dos passos</h3>
-        <Steps version={version} execution={execution} />
+        <Steps version={version} execution={execution} onPreview={onPreview} />
       </section>
       <Surface title="Resultado esperado do caso">
         <p>{version.expectedResult}</p>
@@ -234,6 +229,8 @@ export function ExecutionDetails({ execution }) {
         )}
         <PersistedEvidence
           evidence={execution.evidence.filter((file) => file.executionStepId === null)}
+          onPreview={onPreview}
+          source="Evidência geral da execução"
         />
       </Surface>
     </div>

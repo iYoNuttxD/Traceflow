@@ -28,14 +28,14 @@ function LoadedCase({ id, type, canWrite, headerKey, onLoaded, ...props }) {
     <TestCaseDetails testCase={data} canWrite={canWrite && data.capabilities.canEdit} {...props} />
   );
 }
-function LoadedExecution({ id, headerKey, onLoaded }) {
+function LoadedExecution({ id, headerKey, onLoaded, onPreview }) {
   const { data, loading, error, load } = useCaseRead('execution', id);
   useEffect(() => {
     if (data) onLoaded?.(headerKey, data);
   }, [data, headerKey, onLoaded]);
   if (loading) return <LoadingState message="Carregando execução…" />;
   if (error) return <ErrorState message={error.message} onRetry={() => load()} />;
-  return data && <ExecutionDetails execution={data} />;
+  return data && <ExecutionDetails execution={data} onPreview={onPreview} />;
 }
 export function TestCaseDialogContent({ dialog, mutationError, headerKey, onLoaded, ...props }) {
   const [consulting, setConsulting] = useState(false);
@@ -66,7 +66,11 @@ export function TestCaseDialogContent({ dialog, mutationError, headerKey, onLoad
             ‹ Voltar ao rascunho preservado
           </button>
           {consultExecution ? (
-            <LoadedExecution key={consultExecution} id={consultExecution} />
+            <LoadedExecution
+              key={consultExecution}
+              id={consultExecution}
+              onPreview={props.onPreview}
+            />
           ) : (
             <TestCaseHistory id={dialog.caseId} onSelect={setConsultExecution} />
           )}
@@ -88,7 +92,12 @@ export function TestCaseDialogContent({ dialog, mutationError, headerKey, onLoad
         )}
         {dialog.type === 'history' && <TestCaseHistory id={dialog.caseId} onSelect={onSelect} />}
         {dialog.type === 'execution' && (
-          <LoadedExecution id={dialog.executionId} headerKey={headerKey} onLoaded={onLoaded} />
+          <LoadedExecution
+            id={dialog.executionId}
+            headerKey={headerKey}
+            onLoaded={onLoaded}
+            onPreview={props.onPreview}
+          />
         )}
       </div>
     </>
