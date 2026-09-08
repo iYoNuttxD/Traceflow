@@ -3,6 +3,12 @@ import { AppError, ERROR_CODES } from '../errors/index.js';
 const methodsWithBody = new Set(['POST', 'PUT', 'PATCH']);
 
 export function requireJsonContentType(req, res, next) {
+  if (
+    req.method === 'POST' &&
+    /^\/api\/test-cases\/[1-9]\d*\/executions\/?$/.test(req.path) &&
+    req.is('multipart/form-data')
+  )
+    return next();
   if (!methodsWithBody.has(req.method)) return next();
   const contentLength = Number(req.get('Content-Length') || 0);
   const hasBody = contentLength > 0 || Boolean(req.get('Transfer-Encoding'));

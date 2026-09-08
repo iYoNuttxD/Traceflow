@@ -277,11 +277,19 @@ navegador — `S104-F02` no backlog técnico. Até que essa decisão seja tomada
 
 **Checklist técnico:**
 
-- [ ] modelar entidade, enums, índices e migration;
-- [ ] implementar backend completo;
-- [ ] implementar interface acessível;
-- [ ] adicionar testes de domínio, API e frontend;
-- [ ] atualizar contratos e matriz RF.
+- [x] modelar entidade, enums, índices e migration;
+- [x] implementar backend completo;
+- [x] implementar interface acessível integrada localmente; matriz visual completa pendente;
+- [x] adicionar testes de domínio e API do backend;
+- [x] adicionar testes do frontend integrado;
+- [x] atualizar contratos, inventário visual e matriz RF para a integração local.
+
+Estado: **BACKEND + FRONTEND INTEGRATED LOCALLY**. Gates locais concluídos;
+CI remoto **NOT RUN**. Homologação responsiva completa e revisão integrada permanecem
+pendentes; o card não está encerrado por esta entrega. Histórico e evidências:
+[modelo técnico](docs/data/TEST_CASE_HISTORY.md) e
+[relatório de integração](docs/deliveries/S1_07_FRONTEND_INTEGRATION_REPORT.md).
+S1-08 e S1-09 não foram iniciados nesta entrega.
 
 ### S1-08 - Cadastrar e gerenciar defeitos
 

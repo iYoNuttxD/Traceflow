@@ -55,7 +55,7 @@ export function SprintDialog({
       }
       if (event.key !== 'Tab' || !panelRef.current) return;
       const focusable = [...panelRef.current.querySelectorAll(focusableSelector)].filter(
-        (element) => !element.hasAttribute('hidden')
+        (element) => !element.closest('[hidden], [inert]') && !element.matches(':disabled')
       );
       if (!focusable.length) {
         event.preventDefault();

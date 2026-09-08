@@ -166,3 +166,42 @@ equivalentes. A CI de pull request pode testar um merge ref sintético; diagnós
 resultado do commit isolado da branch.
 
 TLS termina no proxy. Os contadores de rate limit HTTP ainda usam memória local; a exclusão mútua do sync usa claim persistido em `GitHubSyncRun`, unique por projeto e stale detection, portanto não depende de lock em memória. Logs, backup, restore, secret manager, monitoramento e proteção de branch precisam ser configurados no ambiente conforme os runbooks.
+
+## S1-07 — backend de casos de teste
+
+`modules/testCases` acrescenta definição atual, versões imutáveis, histórico funcional,
+execuções e evidências. Reutiliza ProjectMembership, Requirement, Task/TaskCommit,
+PullRequest/Commit importados e o adapter AuditEvent. Relações novas são tipadas
+TestCase–Requirement e TestCaseTask; não altera grafo global, integrações GitHub ou
+modelo de esforço de Task. O frontend permanece independente, aguardando integração.
+
+Services coordenam validação, lock/transação e storage; repositories são os únicos
+consumidores Prisma. O contrato `TestEvidenceStorage` tem implementação local privada,
+com staging/validação/hash anteriores ao lock, compensação na falha e download por
+stream autenticado. MySQL e filesystem não formam transação distribuída: queda abrupta
+pode deixar órfãos. Produção exige `TEST_EVIDENCE_STORAGE_DIR` absoluto, privado e
+persistente; backup/restore deve preservar bytes e metadata em conjunto.
+
+A exceção ao JSON global é exclusivamente POST `/api/test-cases/:id/executions`
+com multipart/form-data; sessão/CSRF/RBAC precedem o parser. Limites e modelos:
+[TEST_CASE_HISTORY.md](../data/TEST_CASE_HISTORY.md). Retenção/anonimização/exportação
+seguem a política de privacidade ampliada, sem expurgo automático de histórico.
+
+
+### Interface integrada de casos de teste — S1-07
+
+`AppRoutes → TestCasesPage → features/testCases → api/http-client` é o único runtime
+de casos de teste. Componentes de formulário, catálogo, execução, histórico e evidências
+consomem DTOs reais; não há catálogo simulado ou fallback. A feature reutiliza
+SearchCombobox, CollapsibleFilterPanel, SprintDialog e ConfirmProvider. Apenas um diálogo
+operacional permanece aberto. O histórico de execução usa exclusivamente o DTO histórico.
+
+Tokens de identidade por visita ao projeto/recurso e geração de requisição descartam
+respostas antigas mesmo se o transporte ignorar cancelamento. Mutations confirmadas
+invalidam leituras anteriores e aplicam o DTO; erro na reconciliação aparece como warning.
+GETs com `fresh` no cliente HTTP não compartilham promises anteriores à gravação,
+mas continuam sujeitos ao cancelamento global de sessão. Download privado usa blob,
+autenticação canônica, tratamento de erros JSON e revogação de object URLs.
+
+A implementação não modifica o backend nesta etapa nem inicia Defect ou rastreabilidade
+consolidada. Evidência e limitações: [relatório](../deliveries/S1_07_FRONTEND_INTEGRATION_REPORT.md).

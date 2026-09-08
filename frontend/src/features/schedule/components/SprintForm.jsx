@@ -1,5 +1,5 @@
 import { FormInput } from '../../../shared/index.js';
-import { SearchCombobox } from './SearchCombobox.jsx';
+import { SearchCombobox } from '../../../shared/index.js';
 import { SprintTaskSelector } from './SprintTaskSelector.jsx';
 
 const emptyForm = { name: '', objective: '', startDate: '', endDate: '', milestoneId: '' };

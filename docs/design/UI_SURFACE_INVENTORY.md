@@ -66,11 +66,11 @@ revalidação.
 
 <!-- INVENTORY_COUNTS_START -->
 
-- Total surfaces: 196
+- Total surfaces: 207
 - `C2 COMPLETE`: 161
 - `LEGACY`: 8
 - `HYBRID`: 26
-- `NOT REVIEWED`: 0
+- `NOT REVIEWED`: 11
 - `NOT APPLICABLE`: 1
 
 | Domain                        | Total |  C2 | Legacy | Hybrid | Not Reviewed |
@@ -83,11 +83,12 @@ revalidação.
 | Requirements and Traceability |     9 |   1 |      3 |      5 |            0 |
 | Repository / GitHub           |     4 |   0 |      2 |      2 |            0 |
 | Settings and Remaining        |    21 |  20 |      1 |      0 |            0 |
+| Test Cases                    |    11 |   0 |      0 |      0 |           11 |
 
 Validation evidence:
 
 - `VISUALLY APPROVED`: 38
-- `TECHNICALLY VERIFIED`: 154
+- `TECHNICALLY VERIFIED`: 165
 - `STRUCTURALLY IDENTIFIED`: 4
 - `ENVIRONMENT BLOCKED`: 0
 - `NOT VALIDATED`: 0
@@ -541,3 +542,25 @@ escopo UX-SETTINGS; as callbacks públicas de mudança de e-mail e reativação 
   endpoint documentado e o frontend atual.
 - O log preserva a homologação histórica, enquanto este inventário registra o estado após mudanças
   materiais. Protótipos locais não promovem uma surface nem substituem evidência versionada.
+
+
+## Test Cases — S1-07 integrado localmente
+
+As onze superfícies abaixo usam C2 e dados persistidos. `NOT REVIEWED` refere-se à
+**matriz visual completa ainda pendente**, não à ausência de implementação. Houve
+renderização desktop parcial no Safari em Light/Dark, descrita no log, sem controle
+verificável das dimensões CSS solicitadas. Não promover a `C2 COMPLETE` por tokens ou jsdom.
+
+| ID | Domain | Flow | Route / Context | Surface | Type | Component / Owner | Trigger | Roles | States | Light | Dark | Responsive | Accessibility | Visual Status | Validation Status | Priority | Target UX Scope | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| TC-MAIN | Test Cases | S1-07 | `/projects/:projectId/test-cases` | Catálogo e resumo | Page | `features/testCases/TestCasesScreen` | Navegação | VIEWER leitura; MEMBER+ escrita | lista, loading, empty, erro, warning | Desktop parcial no log | Desktop parcial no log | ENVIRONMENT BLOCKED: matriz exata | TECHNICALLY VERIFIED: teclado, erros, foco, busy | NOT REVIEWED | TECHNICALLY VERIFIED | P1 | S1-07 FINAL INTEGRATED QA | Backend permanece autoridade; ver relatório S1-07. |
+| TC-FILTERS | Test Cases | S1-07 | `/projects/:projectId/test-cases` | Filtros reais | Filter panel | `features/testCases/components/TestCaseList` | Buscar e filtrar | VIEWER leitura; MEMBER+ escrita | collapsed, search, selected, empty | Desktop parcial no log | ENVIRONMENT BLOCKED: não homologado | ENVIRONMENT BLOCKED: matriz exata | TECHNICALLY VERIFIED: teclado, erros, foco, busy | NOT REVIEWED | TECHNICALLY VERIFIED | P1 | S1-07 FINAL INTEGRATED QA | Backend permanece autoridade; ver relatório S1-07. |
+| TC-CREATE | Test Cases | S1-07 | `/projects/:projectId/test-cases` | Criar caso | Dialog | `features/testCases/components/TestCaseForm` | Novo caso | VIEWER leitura; MEMBER+ escrita | draft, validação, pending, sucesso | ENVIRONMENT BLOCKED: não homologado | Desktop parcial no log | ENVIRONMENT BLOCKED: matriz exata | TECHNICALLY VERIFIED: teclado, erros, foco, busy | NOT REVIEWED | TECHNICALLY VERIFIED | P1 | S1-07 FINAL INTEGRATED QA | Backend permanece autoridade; ver relatório S1-07. |
+| TC-EDIT | Test Cases | S1-07 | `/projects/:projectId/test-cases` | Editar caso | Dialog | `features/testCases/components/TestCaseForm` | Mais ações / Editar | VIEWER leitura; MEMBER+ escrita | loaded, pending, conflito 409 | ENVIRONMENT BLOCKED: não homologado | Desktop parcial no log | ENVIRONMENT BLOCKED: matriz exata | TECHNICALLY VERIFIED: teclado, erros, foco, busy | NOT REVIEWED | TECHNICALLY VERIFIED | P1 | S1-07 FINAL INTEGRATED QA | Backend permanece autoridade; ver relatório S1-07. |
+| TC-DETAILS | Test Cases | S1-07 | `/projects/:projectId/test-cases` | Detalhes atuais | Dialog | `features/testCases/components/TestCaseDetails` | Card | VIEWER leitura; MEMBER+ escrita | loaded, sem rastreabilidade, latest | Desktop parcial no log | ENVIRONMENT BLOCKED: não homologado | ENVIRONMENT BLOCKED: matriz exata | TECHNICALLY VERIFIED: teclado, erros, foco, busy | NOT REVIEWED | TECHNICALLY VERIFIED | P1 | S1-07 FINAL INTEGRATED QA | Backend permanece autoridade; ver relatório S1-07. |
+| TC-DELETE | Test Cases | S1-07 | `/projects/:projectId/test-cases` | Excluir caso | Dialog | `shared/components/ConfirmDialog` (ConfirmProvider) | Mais ações / Excluir | VIEWER leitura; MEMBER+ escrita | confirmar, cancelar, pending, removido | Desktop parcial no log | ENVIRONMENT BLOCKED: não homologado | ENVIRONMENT BLOCKED: matriz exata | TECHNICALLY VERIFIED: teclado, erros, foco, busy | NOT REVIEWED | TECHNICALLY VERIFIED | P1 | S1-07 FINAL INTEGRATED QA | Backend permanece autoridade; ver relatório S1-07. |
+| TC-EXECUTE | Test Cases | S1-07 | `/projects/:projectId/test-cases` | Executar passos | Dialog | `features/testCases/components/TestExecutionWizard` | Executar | VIEWER leitura; MEMBER+ escrita | PASS, FAIL, BLOCKED, pendente, evidências | ENVIRONMENT BLOCKED: não homologado | Desktop parcial no log | ENVIRONMENT BLOCKED: matriz exata | TECHNICALLY VERIFIED: teclado, erros, foco, busy | NOT REVIEWED | TECHNICALLY VERIFIED | P1 | S1-07 FINAL INTEGRATED QA | Backend permanece autoridade; ver relatório S1-07. |
+| TC-SUMMARY | Test Cases | S1-07 | `/projects/:projectId/test-cases` | Resumo da execução | Dialog | `features/testCases/components/TestExecutionWizard` | Revisar execução | VIEWER leitura; MEMBER+ escrita | válido, incompleto, pending, conflito | ENVIRONMENT BLOCKED: não homologado | Desktop parcial no log | ENVIRONMENT BLOCKED: matriz exata | TECHNICALLY VERIFIED: teclado, erros, foco, busy | NOT REVIEWED | TECHNICALLY VERIFIED | P1 | S1-07 FINAL INTEGRATED QA | Backend permanece autoridade; ver relatório S1-07. |
+| TC-EXECUTIONS | Test Cases | S1-07 | `/projects/:projectId/test-cases` | Histórico de execuções | Dialog | `features/testCases/components/TestCaseHistory` | Histórico | VIEWER leitura; MEMBER+ escrita | cursor, empty, erro, load-more | Desktop parcial no log | ENVIRONMENT BLOCKED: não homologado | ENVIRONMENT BLOCKED: matriz exata | TECHNICALLY VERIFIED: teclado, erros, foco, busy | NOT REVIEWED | TECHNICALLY VERIFIED | P1 | S1-07 FINAL INTEGRATED QA | Backend permanece autoridade; ver relatório S1-07. |
+| TC-CHANGES | Test Cases | S1-07 | `/projects/:projectId/test-cases` | Histórico de alterações | Dialog | `features/testCases/components/TestCaseHistory` | Aba Alterações | VIEWER leitura; MEMBER+ escrita | cursor, eventos, ator, versões | Desktop parcial no log | ENVIRONMENT BLOCKED: não homologado | ENVIRONMENT BLOCKED: matriz exata | TECHNICALLY VERIFIED: teclado, erros, foco, busy | NOT REVIEWED | TECHNICALLY VERIFIED | P1 | S1-07 FINAL INTEGRATED QA | Backend permanece autoridade; ver relatório S1-07. |
+| TC-EXECUTION-DETAILS | Test Cases | S1-07 | `/projects/:projectId/test-cases` | Execução e download | Dialog | `features/testCases/components/TestCaseDetails` / `PersistedEvidence` | Ver execução | VIEWER leitura; MEMBER+ escrita | snapshot, anexos, download, erro | Desktop parcial no log | Desktop parcial no log | ENVIRONMENT BLOCKED: matriz exata | TECHNICALLY VERIFIED: teclado, erros, foco, busy | NOT REVIEWED | TECHNICALLY VERIFIED | P1 | S1-07 FINAL INTEGRATED QA | Backend permanece autoridade; ver relatório S1-07. |

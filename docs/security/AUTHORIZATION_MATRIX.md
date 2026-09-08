@@ -101,3 +101,26 @@ reduzir enumeração; papel insuficiente retorna `403`. Mutations autenticadas e
   por moderação, mas não editam texto de terceiros. Exclusão é lógica (`deletedAt`/`deletedById`) e
   toda operação é auditada. O comentário excluído continua na listagem apenas como marcador sem
   conteúdo; nenhum papel, inclusive quem moderou, recupera o texto pela API.
+
+## S1-07 — Casos de teste
+
+| Operação | VIEWER | MEMBER | MANAGER | OWNER |
+|---|---|---|---|---|
+| Listar/detalhar casos | L | L | L | L |
+| Criar/editar definição | 403 | E | E | E |
+| Alterar status | 403 | E | E | E |
+| Excluir logicamente | 403 | E | E | E |
+| Executar/upload multipart | 403 | E | E | E |
+| Versões/histórico/execuções/referências importadas | L | L | L | L |
+| Detalhe de execução/download privado | L | L | L | L |
+
+Anônimo: 401. Sem membership ativa no projeto dono: 404 opaco. Toda escrita exige
+CSRF antes do parser multipart. A resolução central inclui TestCase (não excluído),
+TestExecution e TestEvidence; o service revalida membership e papel, inclusive na
+transação. Ator vem da sessão, não do payload. Ser responsável não concede nem
+restringe o direito de executar de MEMBER+. Responsável precisa de membership ativa.
+
+Caso excluído fica indisponível em rotas operacionais, inclusive criação de execução.
+Execução histórica e seu download continuam autorizados por projeto, sem recuperar
+permissão a partir de um ID ou de um caminho de storage. Arquivos não são públicos.
+Evidências: `backend/test/api/test-cases-s1-07.test.js` e bateria de integração S1-07.

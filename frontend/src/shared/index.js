@@ -27,3 +27,5 @@ export {
   resolveErrorPageContext
 } from './services/page-error.js';
 export { compactParams } from './utils/compact-params.js';
+
+export { SearchCombobox } from './components/SearchCombobox.jsx';

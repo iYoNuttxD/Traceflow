@@ -14,6 +14,7 @@ const projectSections = [
   { key: 'sprints', label: 'Sprints', path: 'sprints' },
   { key: 'milestones', label: 'Marcos', path: 'milestones' },
   { key: 'schedule', label: 'Cronograma', path: 'schedule' },
+  { key: 'test-cases', label: 'Casos de teste', path: 'test-cases' },
   { key: 'repository', label: 'Repositório', path: 'repository' },
   { key: 'traceability', label: 'Rastreabilidade', path: 'traceability' }
 ];

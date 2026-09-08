@@ -468,6 +468,48 @@ export const settingsRepository = {
             }
           }
         },
+        responsibleTestCases: {
+          where: {
+            deletedAt: null,
+            project: { memberships: { some: { userId, isActive: true } } }
+          },
+          select: {
+            id: true,
+            projectId: true,
+            title: true,
+            status: true,
+            currentVersion: true,
+            createdAt: true,
+            updatedAt: true
+          }
+        },
+        testExecutions: {
+          where: { project: { memberships: { some: { userId, isActive: true } } } },
+          select: {
+            id: true,
+            projectId: true,
+            testCaseId: true,
+            testCaseVersion: true,
+            environment: true,
+            result: true,
+            executedAt: true
+          }
+        },
+        testEvidence: {
+          where: { project: { memberships: { some: { userId, isActive: true } } } },
+          select: {
+            id: true,
+            projectId: true,
+            executionId: true,
+            scope: true,
+            kind: true,
+            originalName: true,
+            mimeType: true,
+            sizeBytes: true,
+            sha256: true,
+            createdAt: true
+          }
+        },
         responsibleTasks: {
           where: {
             project: { memberships: { some: { userId, isActive: true } } }

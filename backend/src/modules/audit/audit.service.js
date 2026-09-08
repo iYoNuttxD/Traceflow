@@ -5,6 +5,12 @@ import { logger } from '../../shared/logger/index.js';
 
 const day = 86400000;
 const allowedMetadata = new Set([
+  'version',
+  'stepCount',
+  'taskCount',
+  'hasRequirement',
+  'result',
+  'evidenceCount',
   'previousRole',
   'newRole',
   'scope',
