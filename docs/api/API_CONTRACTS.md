@@ -858,7 +858,7 @@ Amostras de testes canônicas: `test/unit/test-cases`,
 `test/integration/test-cases-s1-07.test.js`, `test/api/test-cases-s1-07.test.js`.
 S1-08/S1-09 não fazem parte deste contrato. A integração local da interface está registrada no relatório S1-07 frontend.
 
-## S1-08 — Defeitos, correções e reteste contextual (backend)
+## S1-08 — Defeitos, correções e reteste contextual
 
 TestCase create/PUT agora exige, no estado resultante, `requirementId` ou pelo
 menos uma `taskId`; remover todos retorna `400 TEST_CASE_TRACEABILITY_REQUIRED`
@@ -966,4 +966,20 @@ correções do ciclo atual e fornece fallback persistido do projeto mesmo com
 search vazio. Mantém limite S1-07 de 50. Não chama GitHub.
 
 Permissões e política de ciclos: [Authorization](../security/AUTHORIZATION_MATRIX.md)
-e [Defect history](../data/DEFECT_HISTORY.md). Frontend S1-08 pendente.
+e [Defect history](../data/DEFECT_HISTORY.md). Frontend integrado; homologação visual completa pendente. Ver `docs/deliveries/S1_08_FRONTEND_INTEGRATION_REPORT.md`.
+
+
+### S1-08 — Extensões de leitura para a interface
+
+GET `/projects/:projectId/defects` acrescenta `correctionTaskCount` (somente o
+ciclo atual) e `detectionSummary: {testCaseId, executionId, stepPosition}` a cada
+card. GET `/defects/:id` e os recibos de criação/edição/correção retornam os mesmos
+campos, além do detalhe existente. As relações internas `taskLinks` e
+`detectedStep` não são expostas como campos do card.
+
+GET `/test-executions/:id` acrescenta em cada passo `detectedDefects`, lista de
+`{id,title,severity,status}` dos defeitos ativos daquele passo. O snapshot da
+execução permanece histórico; esta lista representa os registros de defeito
+atualmente disponíveis para navegação. Defeitos excluídos logicamente são omitidos.
+
+Não houve alteração de schema, migration, escrita, lifecycle ou autorização.

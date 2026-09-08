@@ -572,3 +572,28 @@ A rodada [S1-07 FRONTEND FINAL UX FIX](../deliveries/S1_07_FRONTEND_FINAL_UX_FIX
 removeu o documento temporário de Casos de Teste e refinou a implementação real.
 O relatório está em `docs/deliveries/S1_07_FRONTEND_FINAL_UX_FIX_REPORT.md` e o log
 registra o smoke desktop Light/Dark, separado da matriz de viewports ainda pendente.
+
+
+## S1-08 — Defeitos: integração frontend (2026-09-08)
+
+Rota `/projects/:projectId/defects`; arquitetura, tokens e primitives canônicos.
+MEMBER/MANAGER/OWNER escrevem; VIEWER consulta. Classificação visual detalhada no
+[relatório de integração](../deliveries/S1_08_FRONTEND_INTEGRATION_REPORT.md).
+
+| Superfície | Implementação | Estados / entrada | Validação |
+|---|---|---|---|
+| DEF-MAIN | DefectsScreen | resumo servidor, loading, vazio, erro, recibo, load more | automatizada + smoke vazio Light/Dark |
+| DEF-FILTERS | CollapsibleFilterPanel / SearchCombobox | oito filtros remotos, fechado inicialmente, seleção explícita | automatizada + smoke parcial |
+| DEF-CARD | DefectCard | status servidor, detecção, ciclo, ações de teclado | automatizada; dados visuais indisponíveis |
+| DEF-CREATE | DefectForm / DefectFlow | aba ou passo FAIL, sugestões históricas, validação | automatizada; seletor vazio observado |
+| DEF-DETAILS | DefectDetails | informações, detecção, vínculos, correção, validação | automatizada; visual bloqueado por dados |
+| DEF-CORRECTION | CorrectionManager / TaskForm | criação atômica ou vínculo, requisito singular | automatizada; visual bloqueado por dados |
+| DEF-RETEST | TestExecutionWizard | versão atual, referência priorizada, PASS/FAIL/BLOCKED | automatizada; visual bloqueado por dados |
+| DEF-HISTORY | DefectHistory | eventos e paginação acumulada | automatizada; visual bloqueado por dados |
+| TASK-CORRECTION-CARD | TaskCorrectionBadge | único link ou lista de defeitos, sem mudar colunas | automatizada; visual bloqueado por dados |
+| TASK-CORRECTION-DETAILS | TaskCorrectionContext | entre informações e rastreabilidade | automatizada; visual bloqueado por dados |
+| TC-CONTEXTUAL-CREATE | ContextualTestCaseCreate / TestCaseForm | Task → caso no mesmo dialog; Requirement → caso | automatizada; matriz visual pendente |
+
+**FROZEN CORRECTION CONTEXT CONTRACT GAP:** snapshots congelados não contêm
+metadados de correção. O frontend omite o contexto/badge nesses snapshots e não
+consulta o Defect atual para reconstruir o passado.

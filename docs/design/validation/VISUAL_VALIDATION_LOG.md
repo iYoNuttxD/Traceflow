@@ -1,5 +1,14 @@
 # TRACEFLOW Visual Validation Log
 
+## 2026-09-08 — S1-08 dados autorizados e smoke adicional
+
+Bloqueio por ausência de dados removido. Quatro defeitos persistidos, um por
+estado, com ciclo completo de reabertura e validação no DEF-1. Chrome autenticado,
+desktop Dark: cards, indicadores, detalhes de DEF-1/DEF-4 e wizard de reteste
+de DEF-4 observados. Wizard não submetido; cenário aguardando reteste preservado.
+Matriz visual completa continua pendente. Inventário, vínculos e limites no
+[ciclo de dados](../../deliveries/S1_08_QA_DATA_CYCLE.md).
+
 ## Purpose
 
 This log is the versioned authority for rendered visual-validation evidence. The
@@ -241,3 +250,29 @@ observadas durante a sessão; este registro não as apresenta como artefatos PNG
 - **Gates:** 130 focados, 118 regressão canônica, 898 completos e coverage PASS; lint, format,
   build, arquitetura, secrets e diff-check PASS.
 - **Relatório:** [S1-07 Traceability + Evidence Viewer](../../deliveries/S1_07_TRACEABILITY_EVIDENCE_VIEWER_REPORT.md).
+
+## 2026-09-08 — S1-08 frontend integration
+
+**ENVIRONMENT BLOCKED para homologação completa.** Sessão real no Chrome local,
+projeto 2, sem defeitos e sem candidatos FAIL. Smoke renderizado do catálogo vazio
+em Light/Dark 1440, 768 e 390; filtros abertos em desktop e Dark 390; seletor vazio
+de criação observado em desktop Dark. Comparação com TestCases Main e Task Details
+em Light 1280. Isso não prova cards de defeitos, correções, reteste ou histórico.
+
+Detalhamento por superfície/viewport, console, testes e gaps no
+[S1_08_FRONTEND_INTEGRATION_REPORT](../../deliveries/S1_08_FRONTEND_INTEGRATION_REPORT.md).
+
+Um reinício local provocou `ERR_CONNECTION_REFUSED` em auth/me; a sessão foi
+recuperada e a leitura de defeitos retornou 200. Os controles nativos de filtro
+receberam id/name durante a investigação de Issues do navegador. A ausência de
+warnings nas superfícies não percorridas não está homologada.
+
+**FROZEN CORRECTION CONTEXT CONTRACT GAP** registrado: sem metadados no snapshot,
+nenhum Defect atual é consultado para representar o contexto congelado.
+
+Smoke adicional Light 1280: Task Details → criação contextual no mesmo dialog,
+TASK-2 + REQ-1 selecionados sem persistência. Corrigido e reobservado o foco no
+título ao entrar; retorno ao botão de criação implementado. A Task normal não
+recebeu contexto de correção. Um Issue de melhoria do Chrome também apareceu na
+superfície canônica de tarefa; o painel Issues classificou a família como campos sem id/name (dois apontamentos),
+sem page errors/breaking changes. A atribuição individual permanece pendente.

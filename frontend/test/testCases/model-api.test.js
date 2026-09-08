@@ -119,8 +119,10 @@ describe('server-aligned client validation', () => {
       expect(validateForm({ ...form, [key]: 'x'.repeat(LIMITS[key] + 1) })).toHaveProperty(key);
     }
   );
-  it('requires responsible and step text, preserves optional traceability', () => {
-    expect(validateForm(form)).toEqual({});
+  it('requires responsible and step text, requires requirement or task traceability', () => {
+    expect(validateForm(form)).toHaveProperty('traceability');
+    expect(validateForm({ ...form, requirementId: '4' })).toEqual({});
+    expect(validateForm({ ...form, taskIds: [9] })).toEqual({});
     expect(
       validateForm({
         ...form,
@@ -129,6 +131,7 @@ describe('server-aligned client validation', () => {
       })
     ).toEqual({
       responsibleUserId: 'Selecione um membro ativo.',
+      traceability: 'Vincule este caso a pelo menos um requisito ou uma tarefa.',
       'a-action': 'Campo obrigatório.',
       'a-expectedResult': 'Campo obrigatório.'
     });

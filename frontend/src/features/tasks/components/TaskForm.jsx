@@ -126,6 +126,9 @@ export function taskFormToPayload(formData, editing = false) {
 }
 
 export function TaskForm({
+  composition = 'full',
+  requirementControl,
+  submitLabel,
   formData,
   onChange,
   onSubmit,
@@ -398,23 +401,25 @@ export function TaskForm({
           409 — só aparece na lista se já for a sprint atual da tarefa, senão a
           edição de uma tarefa antiga abriria o campo vazio e a devolveria ao
           backlog sem ninguém ter pedido. */}
-      <label className="field">
-        <span>Sprint</span>
-        <select name="sprintId" value={formData.sprintId} onChange={handleChange}>
-          <option value="">Sem sprint (backlog)</option>
-          {sprints
-            .filter(
-              (sprint) =>
-                !['CONCLUIDA', 'CANCELADA'].includes(sprint.status) ||
-                String(sprint.id) === String(formData.sprintId)
-            )
-            .map((sprint) => (
-              <option key={sprint.id} value={String(sprint.id)}>
-                {sprint.name}
-              </option>
-            ))}
-        </select>
-      </label>
+      {composition !== 'correction' && (
+        <label className="field">
+          <span>Sprint</span>
+          <select name="sprintId" value={formData.sprintId} onChange={handleChange}>
+            <option value="">Sem sprint (backlog)</option>
+            {sprints
+              .filter(
+                (sprint) =>
+                  !['CONCLUIDA', 'CANCELADA'].includes(sprint.status) ||
+                  String(sprint.id) === String(formData.sprintId)
+              )
+              .map((sprint) => (
+                <option key={sprint.id} value={String(sprint.id)}>
+                  {sprint.name}
+                </option>
+              ))}
+          </select>
+        </label>
+      )}
 
       <label className="field">
         <span>Esforço estimado</span>
@@ -444,210 +449,218 @@ export function TaskForm({
         </label>
       )}
 
-      <section className="task-traceability-form field-full">
-        <div>
-          <span className="form-section-title">Rastreabilidade</span>
-          <p className="field-help">Vincule a tarefa aos artefatos importados do GitHub.</p>
-        </div>
+      {composition === 'correction' ? (
+        <section className="field-full">{requirementControl}</section>
+      ) : (
+        <section className="task-traceability-form field-full">
+          <div>
+            <span className="form-section-title">Rastreabilidade</span>
+            <p className="field-help">Vincule a tarefa aos artefatos importados do GitHub.</p>
+          </div>
 
-        <div className="traceability-picker">
-          <span>Requisito vinculado</span>
-          {formData.requirementId ? (
-            <div className="traceability-selected-item">
-              <strong>{formatRequirementLabel(selectedRequirement)}</strong>
-              <button
-                className="traceability-remove-button"
-                type="button"
-                onClick={() => {
-                  onClearRequirement?.();
-                  setRequirementSearch('');
-                }}
-                aria-label="Remover requisito vinculado"
-                title="Remover requisito"
-              >
-                ×
-              </button>
-            </div>
-          ) : null}
-          <input
-            type="search"
-            value={requirementSearch}
-            onChange={(event) => setRequirementSearch(event.target.value)}
-            placeholder="Pesquisar requisito por título..."
-          />
-          {requirementSearch.trim().length >= 2 ? (
-            <div className="traceability-results">
-              {availableRequirements.length === 0 ? (
-                <p>Nenhum requisito encontrado.</p>
-              ) : (
-                availableRequirements.map((requirement) => (
-                  <button
-                    key={requirement.id}
-                    type="button"
-                    onClick={() => handleSelectRequirement(requirement)}
-                  >
-                    {formatRequirementLabel(requirement)}
-                  </button>
-                ))
-              )}
-            </div>
-          ) : null}
-        </div>
-
-        <div className="traceability-picker">
-          <span>Pull request vinculado</span>
-          {formData.pullRequestId ? (
-            <div className="traceability-selected-item">
-              <strong>{formatPullRequestLabel(selectedPullRequest)}</strong>
-              <button
-                className="traceability-remove-button"
-                type="button"
-                onClick={() => {
-                  onClearPullRequest?.();
-                  setPullRequestSearch('');
-                }}
-                aria-label="Remover pull request vinculado"
-                title="Remover pull request"
-              >
-                ×
-              </button>
-            </div>
-          ) : null}
-          <input
-            type="search"
-            value={pullRequestSearch}
-            onChange={(event) => setPullRequestSearch(event.target.value)}
-            placeholder="Pesquisar por número ou título do PR..."
-          />
-          {pullRequestSearch.trim().length >= 2 || /\d/.test(pullRequestSearch) ? (
-            <div className="traceability-results">
-              {availablePullRequests.length === 0 ? (
-                <p>Nenhum pull request encontrado.</p>
-              ) : (
-                availablePullRequests.map((pullRequest) => (
-                  <button
-                    key={pullRequest.id}
-                    type="button"
-                    onClick={() => handleSelectPullRequest(pullRequest)}
-                  >
-                    {formatPullRequestLabel(pullRequest)}
-                  </button>
-                ))
-              )}
-            </div>
-          ) : null}
-        </div>
-
-        <div className="traceability-picker">
-          <span>Buscar commits do projeto</span>
-          <div className="traceability-search-field">
+          <div className="traceability-picker">
+            <span>Requisito vinculado</span>
+            {formData.requirementId ? (
+              <div className="traceability-selected-item">
+                <strong>{formatRequirementLabel(selectedRequirement)}</strong>
+                <button
+                  className="traceability-remove-button"
+                  type="button"
+                  onClick={() => {
+                    onClearRequirement?.();
+                    setRequirementSearch('');
+                  }}
+                  aria-label="Remover requisito vinculado"
+                  title="Remover requisito"
+                >
+                  ×
+                </button>
+              </div>
+            ) : null}
             <input
-              ref={commitSearchInputRef}
               type="search"
-              value={commitSearch}
-              onChange={(event) => setCommitSearch(event.target.value)}
-              placeholder="Pesquisar por SHA ou mensagem..."
-              aria-label="Buscar commits do projeto"
+              value={requirementSearch}
+              onChange={(event) => setRequirementSearch(event.target.value)}
+              placeholder="Pesquisar requisito por título..."
             />
-            {commitSearch && (
-              <button
-                className="traceability-search-clear"
-                type="button"
-                onClick={handleCommitSearchClear}
-                aria-label="Limpar busca de commits"
-                title="Limpar busca"
-              >
-                ×
-              </button>
+            {requirementSearch.trim().length >= 2 ? (
+              <div className="traceability-results">
+                {availableRequirements.length === 0 ? (
+                  <p>Nenhum requisito encontrado.</p>
+                ) : (
+                  availableRequirements.map((requirement) => (
+                    <button
+                      key={requirement.id}
+                      type="button"
+                      onClick={() => handleSelectRequirement(requirement)}
+                    >
+                      {formatRequirementLabel(requirement)}
+                    </button>
+                  ))
+                )}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="traceability-picker">
+            <span>Pull request vinculado</span>
+            {formData.pullRequestId ? (
+              <div className="traceability-selected-item">
+                <strong>{formatPullRequestLabel(selectedPullRequest)}</strong>
+                <button
+                  className="traceability-remove-button"
+                  type="button"
+                  onClick={() => {
+                    onClearPullRequest?.();
+                    setPullRequestSearch('');
+                  }}
+                  aria-label="Remover pull request vinculado"
+                  title="Remover pull request"
+                >
+                  ×
+                </button>
+              </div>
+            ) : null}
+            <input
+              type="search"
+              value={pullRequestSearch}
+              onChange={(event) => setPullRequestSearch(event.target.value)}
+              placeholder="Pesquisar por número ou título do PR..."
+            />
+            {pullRequestSearch.trim().length >= 2 || /\d/.test(pullRequestSearch) ? (
+              <div className="traceability-results">
+                {availablePullRequests.length === 0 ? (
+                  <p>Nenhum pull request encontrado.</p>
+                ) : (
+                  availablePullRequests.map((pullRequest) => (
+                    <button
+                      key={pullRequest.id}
+                      type="button"
+                      onClick={() => handleSelectPullRequest(pullRequest)}
+                    >
+                      {formatPullRequestLabel(pullRequest)}
+                    </button>
+                  ))
+                )}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="traceability-picker">
+            <span>Buscar commits do projeto</span>
+            <div className="traceability-search-field">
+              <input
+                ref={commitSearchInputRef}
+                type="search"
+                value={commitSearch}
+                onChange={(event) => setCommitSearch(event.target.value)}
+                placeholder="Pesquisar por SHA ou mensagem..."
+                aria-label="Buscar commits do projeto"
+              />
+              {commitSearch && (
+                <button
+                  className="traceability-search-clear"
+                  type="button"
+                  onClick={handleCommitSearchClear}
+                  aria-label="Limpar busca de commits"
+                  title="Limpar busca"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+            {commitSearch.trim().length >= 2 && (
+              <div className="traceability-results">
+                {availableCommitResults.length === 0 ? (
+                  <p>Nenhum commit encontrado.</p>
+                ) : (
+                  availableCommitResults.map((commit) => (
+                    <button
+                      key={commit.id}
+                      type="button"
+                      onClick={() => handleSelectCommit(commit)}
+                    >
+                      {formatCommitLabel(commit)}
+                    </button>
+                  ))
+                )}
+              </div>
             )}
           </div>
-          {commitSearch.trim().length >= 2 && (
-            <div className="traceability-results">
-              {availableCommitResults.length === 0 ? (
-                <p>Nenhum commit encontrado.</p>
-              ) : (
-                availableCommitResults.map((commit) => (
-                  <button key={commit.id} type="button" onClick={() => handleSelectCommit(commit)}>
-                    {formatCommitLabel(commit)}
-                  </button>
-                ))
-              )}
-            </div>
-          )}
-        </div>
 
-        <CommitSuggestionsCard
-          projectId={projectId}
-          taskId={taskId}
-          disabled={submitting}
-          onConfirmed={onSuggestionConfirmed}
-        />
-
-        <div className="traceability-picker">
-          <span>Commits vinculados</span>
-          {selectedCommits.length === 0 ? (
-            <p className="field-help">Nenhum commit vinculado.</p>
-          ) : (
-            <div className="traceability-selected-list">
-              {selectedCommits.map((commit) => (
-                <div className="traceability-selected-item" key={commit.id}>
-                  <strong>{formatCommitLabel(commit)}</strong>
-                  <button
-                    className="traceability-remove-button"
-                    type="button"
-                    onClick={() => onRemoveCommit?.(commit.id)}
-                    aria-label="Remover commit vinculado"
-                    title="Remover commit"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="traceability-picker">
-          <span>Issues vinculadas</span>
-          {selectedIssues.length > 0 && (
-            <div className="traceability-selected-list">
-              {selectedIssues.map((issue) => (
-                <div className="traceability-selected-item" key={issue.id}>
-                  <strong>{formatIssueLabel(issue)}</strong>
-                  <button
-                    className="traceability-remove-button"
-                    type="button"
-                    onClick={() => onRemoveIssue?.(issue.id)}
-                    aria-label="Remover issue vinculada"
-                    title="Remover issue"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-          <input
-            type="search"
-            value={issueSearch}
-            onChange={(event) => setIssueSearch(event.target.value)}
-            placeholder="Pesquisar issue por número ou título..."
+          <CommitSuggestionsCard
+            projectId={projectId}
+            taskId={taskId}
+            disabled={submitting}
+            onConfirmed={onSuggestionConfirmed}
           />
-          {issueSearch.trim().length >= 2 || /\d/.test(issueSearch) ? (
-            <div className="traceability-results">
-              {availableIssueResults.length === 0 ? (
-                <p>Nenhuma issue encontrada.</p>
-              ) : (
-                availableIssueResults.map((issue) => (
-                  <button key={issue.id} type="button" onClick={() => handleSelectIssue(issue)}>
-                    {formatIssueLabel(issue)}
-                  </button>
-                ))
-              )}
-            </div>
-          ) : null}
-        </div>
-      </section>
+
+          <div className="traceability-picker">
+            <span>Commits vinculados</span>
+            {selectedCommits.length === 0 ? (
+              <p className="field-help">Nenhum commit vinculado.</p>
+            ) : (
+              <div className="traceability-selected-list">
+                {selectedCommits.map((commit) => (
+                  <div className="traceability-selected-item" key={commit.id}>
+                    <strong>{formatCommitLabel(commit)}</strong>
+                    <button
+                      className="traceability-remove-button"
+                      type="button"
+                      onClick={() => onRemoveCommit?.(commit.id)}
+                      aria-label="Remover commit vinculado"
+                      title="Remover commit"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="traceability-picker">
+            <span>Issues vinculadas</span>
+            {selectedIssues.length > 0 && (
+              <div className="traceability-selected-list">
+                {selectedIssues.map((issue) => (
+                  <div className="traceability-selected-item" key={issue.id}>
+                    <strong>{formatIssueLabel(issue)}</strong>
+                    <button
+                      className="traceability-remove-button"
+                      type="button"
+                      onClick={() => onRemoveIssue?.(issue.id)}
+                      aria-label="Remover issue vinculada"
+                      title="Remover issue"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <input
+              type="search"
+              value={issueSearch}
+              onChange={(event) => setIssueSearch(event.target.value)}
+              placeholder="Pesquisar issue por número ou título..."
+            />
+            {issueSearch.trim().length >= 2 || /\d/.test(issueSearch) ? (
+              <div className="traceability-results">
+                {availableIssueResults.length === 0 ? (
+                  <p>Nenhuma issue encontrada.</p>
+                ) : (
+                  availableIssueResults.map((issue) => (
+                    <button key={issue.id} type="button" onClick={() => handleSelectIssue(issue)}>
+                      {formatIssueLabel(issue)}
+                    </button>
+                  ))
+                )}
+              </div>
+            ) : null}
+          </div>
+        </section>
+      )}
 
       <div className="form-actions field-full">
         {editing && (
@@ -656,7 +669,9 @@ export function TaskForm({
           </button>
         )}
         <button className="button button-primary" type="submit" disabled={submitting}>
-          {submitting ? 'Salvando...' : editing ? 'Salvar alterações' : 'Cadastrar tarefa'}
+          {submitting
+            ? 'Salvando...'
+            : submitLabel || (editing ? 'Salvar alterações' : 'Cadastrar tarefa')}
         </button>
       </div>
     </form>

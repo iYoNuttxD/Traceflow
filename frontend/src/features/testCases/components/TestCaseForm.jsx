@@ -11,6 +11,7 @@ import { Field, SelectControl } from './Parts.jsx';
 
 export function TestCaseForm({
   testCase,
+  initialContext,
   members,
   searchRequirements,
   searchTasks,
@@ -25,16 +26,18 @@ export function TestCaseForm({
     description: testCase?.description || '',
     status: testCase?.status || 'ATIVO',
     responsibleUserId: testCase?.responsibleUserId || '',
-    requirementId: testCase?.requirementId || '',
-    taskIds: testCase?.tasks.map((task) => task.id) || [],
+    requirementId: testCase?.requirementId || initialContext?.requirement?.id || '',
+    taskIds: (testCase?.tasks || initialContext?.tasks || []).map((task) => task.id),
     preconditions: testCase?.preconditions || '',
     expectedResult: testCase?.expectedResult || '',
     steps: testCase?.steps.map((step) => ({ ...step, id: crypto.randomUUID() })) || [
       { id: 'new-step-0', action: '', expectedResult: '' }
     ]
   }));
-  const [requirement, setRequirement] = useState(testCase?.requirement || null);
-  const [tasks, setTasks] = useState(testCase?.tasks || []);
+  const [requirement, setRequirement] = useState(
+    testCase?.requirement || initialContext?.requirement || null
+  );
+  const [tasks, setTasks] = useState(testCase?.tasks || initialContext?.tasks || []);
   const [errors, setErrors] = useState({});
   const formRef = useRef(null);
   const stepsRef = useRef(form.steps);
@@ -99,7 +102,7 @@ export function TestCaseForm({
     >
       <fieldset className="tc-form-controls tc-stack" disabled={busy}>
         <Field id="tc-title" label="Título *" error={errors.title}>
-          <input required {...props('title')} />
+          <input autoFocus={Boolean(initialContext)} required {...props('title')} />
         </Field>
         <Field id="tc-description" label="Descrição" error={errors.description}>
           <textarea {...props('description')} />
@@ -135,9 +138,17 @@ export function TestCaseForm({
         <fieldset className="sprint-task-selector tc-traceability-selector">
           <legend>Rastreabilidade</legend>
           <p className="field-help">
-            Vínculos opcionais. O caso pode existir sem requisito ou tarefa.
+            Vincule o caso de teste a pelo menos um requisito ou uma tarefa.
           </p>
+          {testCase && !testCase.requirementId && !testCase.tasks.length && (
+            <p className="tc-notice" role="status">
+              Este caso não atende à regra atual de rastreabilidade. Vincule um requisito ou uma
+              tarefa para salvar alterações.
+            </p>
+          )}
           <SearchCombobox
+            error={errors.traceability}
+            openOnFocus={false}
             id="tc-requirement"
             label="Requisito verificado"
             placeholder="Pesquisar requisito..."

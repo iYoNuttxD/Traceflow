@@ -636,3 +636,35 @@ describe('S1-08 persisted domain foundation', () => {
     expect(await prisma.defectRetest.count()).toBe(1);
   });
 });
+
+describe('S1-08 frontend read projections', () => {
+  it('returns current-cycle counts and historical detection identity without raw links', async () => {
+    const f = await fixture();
+    let d = await f.create();
+    d = await f.correction(d, { task: { title: 'Read projection correction' } });
+    const listed = await defects.list(f.project.id, page, f.context);
+    expect(listed.items[0]).toMatchObject({
+      id: d.id,
+      correctionTaskCount: 1,
+      detectionSummary: {
+        testCaseId: d.detection.testCase.id,
+        executionId: d.detection.execution.id,
+        stepPosition: 1
+      }
+    });
+    expect(listed.items[0]).not.toHaveProperty('taskLinks');
+    expect(listed.items[0]).not.toHaveProperty('detectedStep');
+  });
+  it('exposes persisted active defects on execution steps and omits soft-deleted ones', async () => {
+    const f = await fixture();
+    const d = await f.create();
+    const execution = await executions.detail(d.detection.execution.id, f.context);
+    expect(execution.steps[0].detectedDefects).toEqual([
+      { id: d.id, title: d.title, severity: d.severity, status: d.status }
+    ]);
+    await defects.delete(d.id, f.context);
+    expect(
+      (await executions.detail(d.detection.execution.id, f.context)).steps[0].detectedDefects
+    ).toEqual([]);
+  });
+});

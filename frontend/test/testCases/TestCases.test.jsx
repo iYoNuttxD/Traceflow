@@ -214,7 +214,7 @@ describe('S1-07 integrated case flows', () => {
       expect.anything()
     );
   });
-  it('validates mandatory fields, first-invalid focus, optional links and active members', async () => {
+  it('validates mandatory fields, first-invalid focus, required traceability and active members', async () => {
     const user = await setup();
     await openForm(user);
     await user.click(dialog().getByRole('button', { name: 'Criar caso' }));
@@ -223,12 +223,16 @@ describe('S1-07 integrated case flows', () => {
     expect(dialog().queryByRole('option', { name: 'Membro inativo' })).not.toBeInTheDocument();
     await fillForm();
     await user.click(dialog().getByRole('button', { name: 'Criar caso' }));
+    expect(mocks.api.create).not.toHaveBeenCalled();
+    await user.type(dialog().getByRole('combobox', { name: 'Requisito verificado' }), 'rec');
+    await user.click(await dialog().findByRole('option', { name: /REQ-4/ }));
+    await user.click(dialog().getByRole('button', { name: 'Criar caso' }));
     await waitFor(() =>
       expect(mocks.api.create).toHaveBeenCalledWith(
         1,
         expect.objectContaining({
           responsibleUserId: 7,
-          requirementId: null,
+          requirementId: 4,
           taskIds: [],
           steps: [{ action: 'Solicitar acesso', expectedResult: 'Acesso concedido' }]
         })
@@ -488,6 +492,8 @@ describe('S1-07 integrated case flows', () => {
       if (kind === 'create') {
         await openForm(user);
         await fillForm();
+        await user.type(dialog().getByRole('combobox', { name: 'Requisito verificado' }), 'rec');
+        await user.click(await dialog().findByRole('option', { name: /REQ-4/ }));
       } else if (kind === 'edit') await edit(user);
       else await review(user);
       mocks.api.list.mockRejectedValue(failure(503));

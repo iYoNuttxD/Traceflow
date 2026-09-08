@@ -1,0 +1,6 @@
+.task-correction-context { display: grid; gap: var(--space-3); }
+.task-correction-context > div { display: grid; gap: var(--space-1); }
+.task-correction-context small { color: var(--color-text-secondary); }
+.task-correction-badge { padding: var(--space-2) var(--space-3); font-size: var(--font-size-1); color: var(--color-text-secondary); font-weight: var(--font-weight-semibold); }
+.task-correction-badge summary { cursor: pointer; min-height: var(--size-touch-target); }
+.task-correction-badge a, .task-correction-context a { color: var(--color-text-primary); overflow-wrap: anywhere; }

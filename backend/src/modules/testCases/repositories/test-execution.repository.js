@@ -29,7 +29,15 @@ export function createTestExecutionRepository(client = prisma) {
         where: { id },
         include: {
           version: true,
-          steps: { orderBy: { position: 'asc' } },
+          steps: {
+            orderBy: { position: 'asc' },
+            include: {
+              detectedDefects: {
+                where: { deletedAt: null },
+                select: { id: true, title: true, severity: true, status: true }
+              }
+            }
+          },
           evidence: { orderBy: { id: 'asc' } }
         }
       });
