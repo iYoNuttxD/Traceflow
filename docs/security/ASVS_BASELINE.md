@@ -124,3 +124,22 @@ Fora o T-A1, nenhum capítulo novo do ASVS passa a incidir: sem upload, sem toke
 nova, sem canal novo. Mutações de segurança da terceira bateria (seletor de volta ao cartão,
 diálogo ignorando congelada/em-voo, dessincronização do diálogo): tabela M57–M72 em
 `docs/issues/RF10_RF35_RELATORIO_TESTES.md`, seção da terceira bateria.
+
+## Delta S1-07 — upload privado e execução auditável
+
+A entrega acrescenta multipart e filesystem privado, portanto amplia a superfície
+além das iterações anteriores sem upload. O mapeamento abaixo descreve controles
+exercitados; não é certificação ASVS nem validação de infraestrutura de produção.
+
+| Área | Controle aplicado | Evidência |
+|---|---|---|
+| Autorização | sessão/CSRF/RBAC antes do upload; ProjectMembership ativa em reads/writes/downloads; 404 opaco entre projetos | `test/api/test-cases-s1-07.test.js` |
+| Validação de arquivos | parser mantido, limites de partes/bytes/contagem, allowlist por destino, assinatura real, UTF-8/JSON; MIME do cliente ignorado | `test/unit/test-cases/storage.test.js`, API S1-07 |
+| Armazenamento/download | UUID privado, sem static, O_NOFOLLOW, nomes sanitizados, attachment/nosniff, sem chaves/caminhos em DTO | storage unit e downloads API |
+| Integridade de negócio | versões imutáveis, conflito otimista sob row lock, XOR físico de referência, resultado derivado e autor/timestamp do servidor | `test/integration/test-cases-s1-07.test.js` |
+| Atomicidade prática | upload fora de lock; rollback DB e compensação de arquivos em falhas conhecidas | injeção de falha de storage/auditoria em integração |
+| Privacidade/logging | AuditEvent minimizado, exportação própria e membership ativa, neutralização de nomes capturados na anonimização | integração S1-07, inventário e política de retenção |
+
+Limites: detecção de formato não é antivírus/decodificação integral; nenhum teste
+local comprova ACLs, backup ou deploy de produção. Queda entre promoção e commit pode
+exigir reconciliação manual de órfãos. Range de vídeo e storage externo não implementados.

@@ -47,10 +47,15 @@ são declaradas como `PASS`.
 | RF52 | rastreabilidade da Task | `GET .../traceability/tasks/:taskId` | traceability | Task e vínculos tipados | TraceabilityScreen/Flow | mvp-contracts, TraceabilityPage | IMPLEMENTADO |
 | RF53 | rastreabilidade reversa do artefato | `GET .../traceability/artifacts/:type/:id` | traceability | artefato, Task links, Requirement | TraceabilityScreen/Flow | mvp-contracts, TraceabilityPage | IMPLEMENTADO |
 
+| RF42 | casos de teste persistidos, versões, execução e evidências | `/projects/:id/test-cases`, `/test-cases/:id`, `/test-executions/:id`, `/test-evidence/:id/content` | test-case, test-execution | TestCase, TestCaseStep, TestCaseVersion, TestCaseHistoryEntry, TestExecution, TestExecutionStep, TestEvidence | `TestCasesPage` / `features/testCases`, CRUD, execução, histórico e download reais | `test/unit/test-cases`, `test/integration/test-cases-s1-07.test.js`, `test/api/test-cases-s1-07.test.js`, `frontend/test/testCases` | IMPLEMENTADO LOCALMENTE — testes e smoke; CI e homologação visual completa pendentes |
+| RF43 | base técnica de relações tipadas de casos de teste | CRUD de TestCase | test-case | TestCaseTask e TestCase.requirementId | seletores e vínculos persistidos em Casos de teste | integração S1-07, isolamento e versões | PARCIAL — relações backend/frontend S1-07; sem declarar RF completo |
+| RF62 | base técnica TestCase–Task/Requirement | CRUD de TestCase | test-case | TestCaseTask e TestCase.requirementId | seletores e vínculos persistidos em Casos de teste | integração S1-07 | PARCIAL — relações backend/frontend S1-07; sem declarar RF completo |
+| RF44 | rastreabilidade consolidada de testes | não há endpoint consolidado novo | — | referência testada histórica não equivale ao RF completo | pendente | seleção de referências S1-07 não valida rastreabilidade consolidada | NÃO IMPLEMENTADO; S1-09 pendente |
+
 ## Parcial ou fora do estado atual
 
 - Esforço estimado/real e métricas técnicas existentes não constituem, sozinhos, RF33, RF34 e RF36 completos; esses RFs permanecem `PARCIAL` ou `NÃO IMPLEMENTADO` conforme o roadmap. O RF35 saiu deste conjunto: ele é entregue por `GET /sprints/:id/progress` sobre `SprintTask`.
-- RF13, RF15–RF18, RF30, RF32–RF34, RF36, RF37, RF39–RF40, RF42–RF46 e RF54–RF64 não foram implementados como capacidades completas. A enumeração exclui de propósito RF29, RF31 e RF35, já marcados como `IMPLEMENTADO` nesta matriz.
+- RF13, RF15–RF18, RF30, RF32–RF34, RF36, RF37, RF39–RF40, RF43–RF46 e RF54–RF64 não foram implementados como capacidades completas. S1-07 integra RF42 localmente, com testes em `frontend/test/testCases`, regressão backend e smoke persistido; CI remoto e homologação visual completa permanecem pendentes. As relações tipadas para RF43/RF62 não completam esses RFs; RF44 não é promovido por tested-references. A enumeração exclui de propósito RF29, RF31, RF35 e RF42, já marcados como `IMPLEMENTADO` nesta matriz.
 - A numeração oficial não define RF14, RF19, RF20 e RF47; eles não foram inventados.
 
 Matriz histórica da E0: [E0_TRACEABILITY_MATRIX.md](../refactoring/E0_TRACEABILITY_MATRIX.md).

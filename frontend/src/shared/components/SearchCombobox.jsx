@@ -1,3 +1,4 @@
+import './SearchCombobox.css';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
 const defaultLabel = (option) => option?.title || option?.name || String(option?.id || '');

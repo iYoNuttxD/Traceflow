@@ -172,7 +172,11 @@ describe('ProjectDetailsPage E9', () => {
     const pageHeader = screen.getByRole('heading', { name: 'Projeto E9' }).closest('header');
     expect(within(pageHeader).queryByText('Descrição')).not.toBeInTheDocument();
     const projectNavigation = screen.getByRole('navigation', { name: 'Navegação do projeto' });
-    expect(within(projectNavigation).getAllByRole('link')).toHaveLength(9);
+    expect(within(projectNavigation).getAllByRole('link')).toHaveLength(10);
+    expect(within(projectNavigation).getByRole('link', { name: 'Casos de teste' })).toHaveAttribute(
+      'href',
+      '/projects/1/test-cases'
+    );
     for (const planningSection of ['Sprints', 'Marcos', 'Cronograma']) {
       expect(
         within(projectNavigation).getByRole('link', { name: planningSection })

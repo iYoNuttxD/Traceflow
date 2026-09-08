@@ -52,6 +52,14 @@ export function deployTestMigrations(testDatabaseUrl) {
 
 export async function cleanTestDatabase(prisma) {
   await prisma.$transaction([
+    prisma.testEvidence.deleteMany(),
+    prisma.testExecutionStep.deleteMany(),
+    prisma.testExecution.deleteMany(),
+    prisma.testCaseHistoryEntry.deleteMany(),
+    prisma.testCaseVersion.deleteMany(),
+    prisma.testCaseTask.deleteMany(),
+    prisma.testCaseStep.deleteMany(),
+    prisma.testCase.deleteMany(),
     prisma.gitHubWebhookDelivery.deleteMany(),
     prisma.gitHubOAuthState.deleteMany(),
     prisma.gitHubAppConnectionState.deleteMany(),

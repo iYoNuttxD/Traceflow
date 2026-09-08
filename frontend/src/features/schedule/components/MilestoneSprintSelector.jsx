@@ -1,5 +1,5 @@
 import { TraceFlowIcon } from '../../../shared/index.js';
-import { SearchCombobox } from './SearchCombobox.jsx';
+import { SearchCombobox } from '../../../shared/index.js';
 import {
   formatSprintCardPeriod,
   isTerminalSprint,

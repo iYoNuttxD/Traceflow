@@ -193,3 +193,69 @@ describe('cliente HTTP compartilhado', () => {
     expect(client.defaults.adapter).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('fresh domain reads and authenticated downloads', () => {
+  it('does not join a pre-mutation GET when fresh is requested', async () => {
+    const client = createHttpClient();
+    const pending = [];
+    client.defaults.adapter = (config) =>
+      new Promise((resolve) => pending.push({ config, resolve }));
+    const old = client.get('/test-cases/1');
+    const fresh = client.get('/test-cases/1', { fresh: true });
+    await vi.waitFor(() => expect(pending).toHaveLength(2));
+    pending[1].resolve({
+      data: { version: 4 },
+      status: 200,
+      headers: {},
+      config: pending[1].config
+    });
+    expect((await fresh).data.version).toBe(4);
+    pending[0].resolve({
+      data: { version: 3 },
+      status: 200,
+      headers: {},
+      config: pending[0].config
+    });
+    expect((await old).data.version).toBe(3);
+    expect(pending[1].config).not.toHaveProperty('fresh');
+  });
+  it('does not deduplicate blob and JSON responses together', async () => {
+    const client = createHttpClient();
+    const adapter = vi.fn(successAdapter);
+    client.defaults.adapter = adapter;
+    await Promise.all([client.get('/content'), client.get('/content', { responseType: 'blob' })]);
+    expect(adapter).toHaveBeenCalledTimes(2);
+  });
+  it('still cancels fresh reads on session changes', async () => {
+    const client = createHttpClient();
+    let config;
+    let finish;
+    client.defaults.adapter = (value) => {
+      config = value;
+      return new Promise((resolve) => {
+        finish = resolve;
+      });
+    };
+    const request = client.get('/test-cases/1', { fresh: true });
+    const rejected = expect(request).rejects.toMatchObject({ code: 'ERR_CANCELED' });
+    await vi.waitFor(() => expect(config).toBeDefined());
+    resetHttpSessionScope();
+    expect(config.signal.aborted).toBe(true);
+    finish({ data: {}, status: 200, headers: {}, config });
+    await rejected;
+  });
+  it('decodes a JSON blob error before the canonical session handler', async () => {
+    const client = createHttpClient();
+    const listener = vi.fn();
+    window.addEventListener('traceflow:unauthorized', listener);
+    const blob = new Blob(['{"code":"SESSION_EXPIRED"}'], { type: 'application/json' });
+    blob.text = async () => '{"code":"SESSION_EXPIRED"}';
+    client.defaults.adapter = (config) =>
+      Promise.reject({ config, response: { status: 401, data: blob } });
+    await expect(
+      client.get('/test-evidence/1/content', { responseType: 'blob' })
+    ).rejects.toMatchObject({ response: { data: { code: 'SESSION_EXPIRED' } } });
+    expect(listener).toHaveBeenCalledOnce();
+    window.removeEventListener('traceflow:unauthorized', listener);
+  });
+});

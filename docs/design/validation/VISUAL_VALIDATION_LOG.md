@@ -146,3 +146,43 @@ The following materially changed areas require a new rendered record before they
 - UX-PLANNING-KANBAN em Light/Dark, sidebar expandida/recolhida, tablet e mobile, incluindo resumo,
   filtros recolhíveis, quadro horizontal em containers estreitos, Task Details e histórico individual;
 - legacy Dark-compatible operational surfaces.
+
+
+### S1-07 — frontend integrado (2026-09-07)
+
+**Status: TECHNICALLY VERIFIED; homologação visual completa pendente.** Checkout
+operacional, branch `daniel-dev`, HEAD `b5732ca41cf66b1520e46edbb07c9d4c2d59ed16`.
+A sessão usou exclusivamente uma conta artificial e o schema descartável
+`traceflow_s107_20260907_test`. Nenhuma alteração no banco de desenvolvimento.
+
+Renderização observada por captura nativa do Safari, sem equivalência comprovada a
+um viewport CSS de 1440/1280/768/390. Em Dark: catálogo, formulário de criação,
+cinco passos em duas colunas, assistente, resumo e detalhe histórico. Em Light:
+catálogo, filtros expandidos, detalhes atuais v4, Execuções, Alterações, detalhe
+histórico v3 e confirmação de exclusão. O histórico foi recarregado após ajustar
+as classes das abas ao controle canônico `internal-tab`. Os demais estados e as
+combinações de tema/dimensão não observados continuam pendentes.
+
+Fluxo real observado: criar com Requirement/Task encontrados no servidor, editar
+até v3, registrar cinco passos PASS com PNG no passo 3, consultar histórico,
+abrir execução v3 após alteração do caso para v4, baixar JSON e excluir logicamente.
+O download do navegador foi comparado com a fixture: bytes idênticos.
+
+A tentativa nativa de upload conjunto PNG/MP4/JSON teve seleção de arquivos
+inconsistente (botão Enviar desabilitado apesar do arquivo selecionado e erro
+`noWindowsAvailable`). Não houve comprovação completa desse upload conjunto pelo
+navegador. Um smoke HTTP autenticado complementar registrou os três anexos e
+validou três downloads por SHA-256; o frontend renderizou essa execução real,
+incluindo PNG no passo 3, MP4 no passo 5 e JSON geral. Isso não transforma o smoke
+HTTP em PASS do upload completo pela UI. Extensões e MIME types estão explicitados
+no `accept`; esse ajuste não foi considerado prova de resolução do seletor nativo.
+
+**ENVIRONMENT BLOCKED:** controle exato de viewport, matriz responsiva completa,
+medidas DOM/overflow/44px, coleta de console do navegador e comparação renderizada
+completa com Sprints/Tasks. Nenhum browser provider estava disponível; houve apenas
+controle nativo do Safari. O atalho de modo responsivo não disponibilizou controles
+mensuráveis. Não há declaração de zero erros no console real nem `VISUALLY APPROVED`.
+
+Testes automatizados, API/DB, CSS estrutural e cobertura estão detalhados no
+[relatório de integração](../../deliveries/S1_07_FRONTEND_INTEGRATION_REPORT.md).
+Esses resultados não substituem a matriz visual solicitada nem aprovação humana.

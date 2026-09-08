@@ -33,3 +33,23 @@ Execução: `npm run privacy:retention:dry-run` mostra apenas contagens; `npm ru
 `PRIVACY_PSEUDONYMIZATION_KEY` é um segredo operacional de longa duração. Produção deve guardá-lo em secret manager, incluí-lo no plano de continuidade e tratar rotação como migração coordenada dos fingerprints; trocar ou perder a chave sem esse processo rompe a comparação deny-only para identidades anonimizadas anteriores.
 
 Na E15, um backup e restore foi exercitado somente sobre bancos artificiais: 21 tabelas foram restauradas e os bancos/arquivo temporários foram removidos. Isso valida o procedimento técnico, não comprova agendamento, criptografia, retenção ou restauração periódica de produção. Essas responsabilidades permanecem operacionais e jurídicas.
+
+## S1-07 — Retenção histórica de testes
+
+Definições, versões, histórico funcional, execuções, resultados e evidências têm
+retenção técnica pelo ciclo do projeto, sem novo prazo ou expurgo automático.
+DELETE do caso é lógico e preserva seus filhos e arquivos. Histórico funcional não
+é apagado pelo prazo de AuditEvent. O cleanup de upload remove somente arquivos da
+tentativa rejeitada; queda abrupta pode exigir reconciliação de órfãos.
+
+Anonimização de conta neutraliza o nome do executor capturado e os nomes de mudança
+de responsável que têm ID conhecido. Mantém IDs ligados à conta pseudonimizada,
+resultados, versão, referência técnica e arquivos históricos. É exceção explícita à
+imutabilidade dos nomes de exibição. Conteúdo livre/arquivos e dados de autoria
+externa podem ainda conter PII: o fluxo não promete anonimização universal desses
+conteúdos. Solicitações de remoção devem considerar finalidade, acesso e backups,
+com revisão humana; este comportamento não constitui conclusão jurídica de conformidade.
+
+O backup operacional deve abranger conjuntamente MySQL e a raiz privada configurada,
+com controle de acesso e restauração de consistência entre metadata e bytes.
+Não há upload OCI, retenção automática de vídeo nem coleta periódica nova em S1-07.

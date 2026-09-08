@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { SearchCombobox } from '../../src/features/schedule/components/SearchCombobox.jsx';
+import { SearchCombobox } from '../../src/shared/components/SearchCombobox.jsx';
 
 const options = [
   { id: 1, title: 'Marco inicial' },

@@ -738,3 +738,122 @@ ativa; o histórico completo vive em `SprintTask` e é exposto por `/sprints/:id
 - Campos desconhecidos em bodies/query validados: `400 VALIDATION_ERROR`.
 - Erros de recurso e conflito permanecem `404` e `409` com mensagens atuais.
 - Erros inesperados permanecem seguros e carregam `INTERNAL_ERROR` e request ID.
+
+## S1-07 — Casos de teste, versões, execução e evidências
+
+Backend persistido e frontend integrado localmente em `features/testCases`. Fluxos e limites detalhados em
+[`TEST_CASE_HISTORY.md`](../data/TEST_CASE_HISTORY.md). Prefixo `/api` obrigatório.
+Todas as rotas exigem sessão ativa; mutations exigem CSRF. Leitura por membership
+ativa VIEWER+, escrita MEMBER+. Recurso ausente/alheio/excluído recebe 404 opaco;
+VIEWER em escrita recebe 403. Não existe execução via JSON simples.
+
+| Método | Endpoint | Resposta / finalidade |
+|---|---|---|
+| GET | `/projects/:projectId/test-cases` | `{items,total,page,limit,summary}` |
+| POST | `/projects/:projectId/test-cases` | 201 `{testCase}`; cria definição e v1 |
+| GET | `/test-cases/:id` | `{testCase}`; definição atual e capabilities |
+| PUT | `/test-cases/:id` | `{testCase}`; atualização parcial com expectedVersion |
+| DELETE | `/test-cases/:id` | 204; exclusão lógica, body vazio |
+| PATCH | `/test-cases/:id/status` | `{testCase}`; `{status,expectedVersion}` |
+| GET | `/test-cases/:id/versions` | `{items,total,page,limit}`; snapshot autocontido |
+| GET | `/test-cases/:id/history` | `{items,nextCursor}`; histórico funcional |
+| GET | `/test-cases/:id/executions` | `{items,nextCursor}`; resumos de execução |
+| POST | `/test-cases/:id/executions` | 201 `{execution}`; multipart atômico |
+| GET | `/test-cases/:id/tested-references` | `{items,limit}`; PRs/Commits importados |
+| GET | `/test-executions/:id` | `{execution}`; versão, resultados e evidências históricas |
+| GET | `/test-evidence/:id/content` | stream privado; attachment, MIME validado, nosniff |
+
+### Definição e validação
+
+POST recebe `title`, `description?`, `preconditions`, `expectedResult`,
+`status?` (default ATIVO), `responsibleUserId`, `requirementId?` (default null),
+`taskIds?` (default []), `steps: [{action,expectedResult}]`.
+PUT recebe os campos que mudarão e `expectedVersion` obrigatório; omissões não
+apagam valores. Ordem do array determina `position = index + 1`; cliente não envia
+position na definição. `status = ATIVO | INATIVO`. Campos desconhecidos são rejeitados.
+
+Strings são aparadas. Limites de caracteres: título 1–200; descrição opcional até
+10.000; pré-condições e resultado geral obrigatórios até 20.000; ação e resultado
+esperado de cada passo obrigatórios até 10.000. Steps 1–100; Task IDs 0–100 únicos.
+Responsável deve ter membership ativa do projeto, requisito/Tasks devem pertencer
+a ele. Vínculo parcial inválido reverte toda a operação. IDs numéricos inteiros positivos.
+
+No-op normalizado, troca de responsável e status preservam currentVersion.
+Mudança de definição cria versão imutável. Conflito retorna
+`409 TEST_CASE_VERSION_CONFLICT`. Caso inativo permite editar/reativar, mas execução
+retorna `409 TEST_CASE_INACTIVE`.
+
+### Listas e filtros
+
+Lista e versões: page default 1, limit default 20, máximo 100. Lista ordena por
+createdAt DESC, id DESC; versões por version DESC. Busca literal no título ou ID
+`TC-<id>` (sem busca por descrição). Filtros combináveis: status,
+responsibleUserId, requirementId, taskId, latestResult
+`PASS | FAIL | BLOCKED | NEVER_EXECUTED`.
+
+Summary ignora filtros da lista e exclui tombstones: total, active,
+withoutTraceability (requisito null E nenhum vínculo de Task), neverExecuted e
+withFailure (última execução FAIL). Última execução usa executedAt DESC, id DESC;
+não conta falhas antigas superadas por resultado posterior.
+
+Card: id/displayId (`TC-<id>`), projectId, title, status, responsible `{id,name}`,
+currentVersion, requirement `{id,title}` ou null, taskCount, latestExecution ou null.
+Detalhe acrescenta descrição/pré-condições/resultado geral, responsibleUserId,
+requirementId, steps, tasks, timestamps e capabilities canEdit/canDelete/canExecute.
+
+Histórico/execuções: limit default 30, máximo 100; cursor opaco vinculado ao tipo
+histórico e ao ID do caso. Ordem `(occurredAt,id)` ou `(executedAt,id)` descendente.
+`nextCursor = null` encerra. Não reutilizar cursores entre casos ou streams.
+
+Tested references: search opcional, limit default 20, máximo 50. Sem busca, retorna
+somente referências relacionadas às Tasks atuais. Com busca, prioriza relacionadas
+e completa com resultados do mesmo projeto: PR número/título; Commit hash/mensagem.
+Ordenação determinística por grupos: PR relacionado, Commit relacionado, PR restante,
+Commit restante, cada grupo por id DESC. Deduplica e inclui relatedTaskIds. Sem
+chamada GitHub, sem Issue, sem varrer todos os commits de uma Task.
+
+### Execução multipart
+
+Exatamente um campo textual `payload`, contendo JSON:
+
+```json
+{
+  "testCaseVersion": 3,
+  "environment": "HOMOLOGACAO",
+  "testedReference": { "type": "PULL_REQUEST", "id": 91 },
+  "steps": [
+    { "position": 1, "result": "PASS", "observedResult": null },
+    { "position": 2, "result": "BLOCKED", "observedResult": "Ambiente indisponível" }
+  ]
+}
+```
+
+Ambientes: LOCAL/DESENVOLVIMENTO/HOMOLOGACAO. Referência obrigatória COMMIT ou
+PULL_REQUEST, exatamente um ID importado do projeto. Todas as posições da versão
+aparecem exatamente uma vez. Observação até 20.000 caracteres, obrigatória para
+FAIL/BLOCKED. Autor/timestamp/resultado geral/textos dos passos são autoridade do
+backend; payload que tente fornecê-los é recusado.
+
+Arquivos: `evidence` para gerais; `stepEvidence.<posição>` para passo. Zero arquivos
+é válido. Campos desconhecidos, duplicata de payload, arquivos extras, assinatura
+inválida e destino inexistente rejeitam toda a execução. Limites inclusivos:
+10 MiB não vídeo, 50 MiB vídeo, 3 por passo, 5 gerais, 20 totais, 100 MiB agregados.
+O parser limita também payload a 6 MiB. Ver formatos/configuração no documento de
+histórico. Não há upload separado que deixe metadados sem execução.
+
+Execução retorna id/displayId (`EXEC-` com pelo menos quatro dígitos), projectId,
+testCaseId, testCaseVersionId/testCaseVersion, environment, result,
+testedReferenceType/FKs/snapshot, executor id/nome capturado, timestamps,
+caseVersionSnapshot, steps históricos e evidence. Metadados de evidência incluem
+id/projectId/executionId/executionStepId, scope/kind, nome sanitizado, MIME, bytes,
+sha256, uploadedByUserId, createdAt e contentUrl. Nunca storageKey/path.
+
+Download continua disponível pelo ID após exclusão lógica do caso, mediante
+membership ativa; não suporta Range. Falha de storage: 503
+`TEST_EVIDENCE_STORAGE_UNAVAILABLE`; quota/tamanho: 413
+`TEST_EVIDENCE_LIMIT_EXCEEDED` (campo de arquivo inesperado: 400); formato/payload:
+400; Content-Type incorreto: 415. Falhas não ecoam conteúdo, caminho ou nome de segredo.
+
+Amostras de testes canônicas: `test/unit/test-cases`,
+`test/integration/test-cases-s1-07.test.js`, `test/api/test-cases-s1-07.test.js`.
+S1-08/S1-09 não fazem parte deste contrato. A integração local da interface está registrada no relatório S1-07 frontend.
