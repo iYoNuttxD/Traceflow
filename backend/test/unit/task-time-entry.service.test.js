@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   repository: {
     findRunning: vi.fn(),
-    listCompleted: vi.fn(),
+    listCompletedPage: vi.fn(),
     summarizeCompleted: vi.fn(),
     findById: vi.fn(),
     startAtomic: vi.fn(),
@@ -53,7 +53,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.taskRepository.findTaskById.mockResolvedValue(task);
   mocks.repository.findRunning.mockResolvedValue(null);
-  mocks.repository.listCompleted.mockResolvedValue([]);
+  mocks.repository.listCompletedPage.mockResolvedValue([0, []]);
   mocks.repository.summarizeCompleted.mockResolvedValue({ completedSeconds: 0, completedCount: 0 });
 });
 
@@ -248,11 +248,11 @@ describe('taskTimeEntryService — exclusão e listagem', () => {
     });
   });
 
-  it('lista com limite padrão 20, sinaliza hasMore e resolve permissões por papel', async () => {
-    const rows = Array.from({ length: 21 }, (_, index) =>
+  it('lista com limite padrão 20, pagina e resolve permissões por papel', async () => {
+    const rows = Array.from({ length: 20 }, (_, index) =>
       storedEntry({ id: 100 + index, endedAt: new Date(), durationSeconds: 60 })
     );
-    mocks.repository.listCompleted.mockResolvedValue(rows);
+    mocks.repository.listCompletedPage.mockResolvedValue([21, rows]);
     mocks.repository.summarizeCompleted.mockResolvedValue({
       completedSeconds: 1260,
       completedCount: 21
@@ -260,9 +260,15 @@ describe('taskTimeEntryService — exclusão e listagem', () => {
     mocks.repository.findRunning.mockResolvedValue(storedEntry({ id: 1 }));
 
     const asMember = await taskTimeEntryService.listTaskTimeEntries(42, {}, member);
-    expect(mocks.repository.listCompleted).toHaveBeenCalledWith(42, 20);
+    expect(mocks.repository.listCompletedPage).toHaveBeenCalledWith(42, {
+      skip: 0,
+      take: 20,
+      from: undefined,
+      to: undefined,
+      source: undefined
+    });
     expect(asMember.entries).toHaveLength(20);
-    expect(asMember.pagination).toEqual({ limit: 20, hasMore: true });
+    expect(asMember.pagination).toEqual({ page: 1, limit: 20, total: 21, totalPages: 2 });
     expect(asMember.running).toMatchObject({ id: 1, canDelete: true });
     expect(asMember.effort).toMatchObject({
       completedSeconds: 1260,
@@ -275,10 +281,35 @@ describe('taskTimeEntryService — exclusão e listagem', () => {
     expect(asViewer.permissions).toEqual({ canOperate: false, canModerate: false });
     expect(asViewer.entries.every((entry) => entry.canDelete === false)).toBe(true);
 
-    await expect(
-      taskTimeEntryService.listTaskTimeEntries(42, { limit: 101 }, member)
-    ).rejects.toMatchObject({
-      statusCode: 400
+    for (const query of [{ limit: 101 }, { limit: 0 }, { page: 0 }, { page: 1.5 }]) {
+      await expect(
+        taskTimeEntryService.listTaskTimeEntries(42, query, member)
+      ).rejects.toMatchObject({ statusCode: 400 });
+    }
+  });
+
+  it('traduz período e origem em limites de dia civil UTC, sem afetar o resumo', async () => {
+    mocks.repository.listCompletedPage.mockResolvedValue([1, [storedEntry({ id: 7 })]]);
+    mocks.repository.summarizeCompleted.mockResolvedValue({
+      completedSeconds: 7200,
+      completedCount: 3
     });
+
+    const result = await taskTimeEntryService.listTaskTimeEntries(
+      42,
+      { page: 2, limit: 10, startDate: '2026-09-01', endDate: '2026-09-02', source: 'MANUAL' },
+      member
+    );
+
+    expect(mocks.repository.listCompletedPage).toHaveBeenCalledWith(42, {
+      skip: 10,
+      take: 10,
+      from: new Date('2026-09-01T00:00:00.000Z'),
+      to: new Date('2026-09-02T23:59:59.999Z'),
+      source: 'MANUAL'
+    });
+    // O resumo é sempre o total da tarefa, independente do recorte da página.
+    expect(result.effort).toMatchObject({ completedSeconds: 7200, completedCount: 3 });
+    expect(result.pagination).toEqual({ page: 2, limit: 10, total: 1, totalPages: 1 });
   });
 });

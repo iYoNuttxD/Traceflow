@@ -22,8 +22,7 @@ const emptyState = Object.freeze({
   running: null,
   entries: [],
   effort: null,
-  permissions: { canOperate: false, canModerate: false },
-  hasMore: false
+  permissions: { canOperate: false, canModerate: false }
 });
 
 function byMostRecent(left, right) {
@@ -73,8 +72,7 @@ export function useTaskEffort({ taskId }) {
         running: data.running || null,
         entries: data.entries || [],
         effort: data.effort || null,
-        permissions: data.permissions || emptyState.permissions,
-        hasMore: Boolean(data.pagination?.hasMore)
+        permissions: data.permissions || emptyState.permissions
       });
     } catch (cause) {
       if (requestId === requestRef.current) {

@@ -286,12 +286,16 @@ describe('S1-06 — esforço realizado por sessões de tempo (RF32/RF33/RF34)', 
     const member = await register('s106-half@example.invalid', 'MEMBER', project.id);
     const task = await createTask(prisma, project.id);
 
-    const updated = await member.mutate('put', `/api/tasks/${task.id}`).send({ estimatedEffort: '1,5' });
+    const updated = await member
+      .mutate('put', `/api/tasks/${task.id}`)
+      .send({ estimatedEffort: '1,5' });
     expect(updated.status).toBe(200);
     expect(updated.body.task.estimatedEffort).toBe(1.5);
 
     for (const estimatedEffort of [1.25, -0.5, 'abc', '2.7']) {
-      const rejected = await member.mutate('put', `/api/tasks/${task.id}`).send({ estimatedEffort });
+      const rejected = await member
+        .mutate('put', `/api/tasks/${task.id}`)
+        .send({ estimatedEffort });
       expect(rejected.status).toBe(400);
     }
     expect((await prisma.task.findUnique({ where: { id: task.id } })).estimatedEffort).toBe(1.5);
@@ -302,5 +306,60 @@ describe('S1-06 — esforço realizado por sessões de tempo (RF32/RF33/RF34)', 
       usagePercent: 50,
       status: 'DENTRO_DO_PREVISTO'
     });
+  });
+
+  it('pagina e filtra o histórico por período e origem, e expõe a sessão aberta no DTO da tarefa', async () => {
+    const project = await createProject(prisma);
+    const member = await register('s106-page@example.invalid', 'MEMBER', project.id);
+    const task = await createTask(prisma, project.id, { estimatedEffort: 10 });
+
+    for (const occurredAt of ['2026-09-01', '2026-09-02', '2026-09-03']) {
+      expect(
+        (await member.mutate('post', entriesPath(task.id)).send({ hours: 1, occurredAt })).status
+      ).toBe(201);
+    }
+    await member.mutate('post', `${entriesPath(task.id)}/start`).send({});
+    await member.mutate('post', `${entriesPath(task.id)}/stop`).send({});
+
+    const firstPage = await member.agent.get(`${entriesPath(task.id)}?page=1&limit=2`);
+    expect(firstPage.body.pagination).toEqual({ page: 1, limit: 2, total: 4, totalPages: 2 });
+    expect(firstPage.body.entries).toHaveLength(2);
+    expect(firstPage.body.effort.completedCount).toBe(4);
+    const secondPage = await member.agent.get(`${entriesPath(task.id)}?page=2&limit=2`);
+    expect(secondPage.body.entries).toHaveLength(2);
+    const ids = [...firstPage.body.entries, ...secondPage.body.entries].map(({ id }) => id);
+    expect(new Set(ids).size).toBe(4);
+
+    const manualOnly = await member.agent.get(`${entriesPath(task.id)}?source=MANUAL&limit=10`);
+    expect(manualOnly.body.pagination.total).toBe(3);
+    expect(manualOnly.body.entries.every(({ source }) => source === 'MANUAL')).toBe(true);
+    // O resumo não segue o filtro: continua sendo o total da tarefa.
+    expect(manualOnly.body.effort.completedCount).toBe(4);
+
+    const byPeriod = await member.agent.get(
+      `${entriesPath(task.id)}?startDate=2026-09-02&endDate=2026-09-02&limit=10`
+    );
+    expect(byPeriod.body.pagination.total).toBe(1);
+    expect(byPeriod.body.entries[0].endedAt.slice(0, 10)).toBe('2026-09-02');
+
+    expect(
+      (await member.agent.get(`${entriesPath(task.id)}?startDate=2026-09-05&endDate=2026-09-01`))
+        .status
+    ).toBe(400);
+    expect((await member.agent.get(`${entriesPath(task.id)}?source=OUTRA`)).status).toBe(400);
+
+    const started = await member.mutate('post', `${entriesPath(task.id)}/start`).send({});
+    const detail = await member.agent.get(`/api/tasks/${task.id}`);
+    expect(detail.body.task.runningTimer).toMatchObject({
+      id: started.body.entry.id,
+      startedBy: { id: member.user.id }
+    });
+    const board = await member.agent.get(`/api/projects/${project.id}/kanban`);
+    const card = Object.values(board.body.columns)
+      .flat()
+      .find(({ id }) => id === task.id);
+    expect(card.runningTimer).toMatchObject({ id: started.body.entry.id });
+    await member.mutate('post', `${entriesPath(task.id)}/stop`).send({});
+    expect((await member.agent.get(`/api/tasks/${task.id}`)).body.task.runningTimer).toBeNull();
   });
 });

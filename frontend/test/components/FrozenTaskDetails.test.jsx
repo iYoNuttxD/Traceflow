@@ -327,9 +327,9 @@ it('renders complete v2 historical information and artifact cards without curren
   ])
     expect(field(dialog, label)).toHaveTextContent(value);
   const effortBlock = dialog.querySelector('.task-effort');
-  expect(within(effortBlock).getByLabelText('Tempo total registrado no encerramento')).toHaveTextContent(
-    '03:00:00'
-  );
+  expect(
+    within(effortBlock).getByLabelText('Tempo total registrado no encerramento')
+  ).toHaveTextContent('03:00:00');
   expect(effortBlock).toHaveTextContent('3h de 5h estimadas');
   expect(effortBlock).toHaveTextContent('60%');
   expect(effortBlock).toHaveTextContent('Dentro do previsto');

@@ -47,6 +47,13 @@ const taskRequirementSelect = {
 
 export const taskInclude = {
   responsibleUser: { select: { id: true, name: true } },
+  // Sessão de tempo em andamento (S1-06): o cartão do Kanban mostra o cronômetro
+  // sem uma consulta por tarefa.
+  timeEntries: {
+    where: { endedAt: null },
+    select: { id: true, startedAt: true, startedBy: { select: { id: true, name: true } } },
+    take: 1
+  },
   requirement: {
     select: taskRequirementSelect
   },

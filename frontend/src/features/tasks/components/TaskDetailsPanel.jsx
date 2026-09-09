@@ -401,8 +401,17 @@ export function TaskDetailsPanel({
     focusEditButton();
   }
 
+  // Propaga o realizado e a sessão aberta para o board: o cartão do Kanban usa os
+  // dois para o cronômetro; sem sessão encerrada o realizado volta a nulo (como no banco).
   function handleEffortChange(effort, successMessage) {
-    onSaved?.({ ...task, actualEffort: effort.actualHours }, { successMessage });
+    onSaved?.(
+      {
+        ...task,
+        actualEffort: effort.completedCount > 0 ? effort.actualHours : null,
+        runningTimer: effort.running ?? null
+      },
+      { successMessage }
+    );
   }
 
   function handleSuggestionConfirmed(commit) {
@@ -520,6 +529,7 @@ export function TaskDetailsPanel({
             effortSlot={
               <TaskEffortTracker
                 taskId={task.id}
+                taskTitle={task.title}
                 estimatedEffort={task.estimatedEffort}
                 actualEffort={task.actualEffort}
                 onEffortChange={handleEffortChange}

@@ -3,8 +3,9 @@ import { useParams, useSearchParams } from 'react-router';
 import { deleteTask, kanbanApi, tasksApi } from '../api/tasks.api.js';
 import { scheduleApi, sprintStatusKey, sprintStatusKeyLabels } from '../../schedule/index.js';
 import { membersApi } from '../../members/index.js';
-import { ProjectSectionNav, projectsApi } from '../../projects/index.js';
+import { ProjectSectionNav, projectsApi, useProjectEvents } from '../../projects/index.js';
 import { useFrozenSprintBoard } from '../hooks/useFrozenSprintBoard.js';
+import { EFFORT_EVENT_TYPES } from '../hooks/useTaskEffort.js';
 import { FrozenTaskDetails } from '../components/FrozenTaskDetails.jsx';
 import { KanbanBoard } from '../components/KanbanBoard.jsx';
 import { KanbanFilters } from '../components/KanbanFilters.jsx';
@@ -16,7 +17,8 @@ import {
   filterBoardBySprints,
   filterKanbanBoard,
   getBoardTasks,
-  getKanbanSummary
+  getKanbanSummary,
+  updateBoardTask
 } from '../components/kanban-view.js';
 import { TaskDetailsPanel } from '../components/TaskDetailsPanel.jsx';
 import { TaskHistoryDialog } from '../components/TaskHistoryDialog.jsx';
@@ -90,6 +92,22 @@ export function KanbanScreen() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [project, setProject] = useState(null);
   const [board, setBoard] = useState(null);
+  const projectEvents = useProjectEvents();
+  const subscribeToProjectEvents = projectEvents?.subscribe;
+  // Cronômetro de outras pessoas aparece no cartão sem recarregar o quadro.
+  useEffect(() => {
+    if (!subscribeToProjectEvents) return undefined;
+    return subscribeToProjectEvents(EFFORT_EVENT_TYPES, (event) => {
+      const effort = event.data?.effort;
+      if (!effort || event.taskId == null) return;
+      setBoard((current) =>
+        updateBoardTask(current, event.taskId, {
+          actualEffort: effort.completedCount > 0 ? effort.actualHours : null,
+          runningTimer: effort.running ?? null
+        })
+      );
+    });
+  }, [subscribeToProjectEvents]);
   const [projectMembers, setProjectMembers] = useState([]);
   const [currentMembership, setCurrentMembership] = useState(null);
   const [projectSprints, setProjectSprints] = useState([]);

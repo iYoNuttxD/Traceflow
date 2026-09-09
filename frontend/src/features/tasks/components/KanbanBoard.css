@@ -197,6 +197,64 @@
   margin-left: auto;
   font-size: var(--font-size-1);
 }
+/* Cronômetro/esforço (S1-06): leitura rápida do tempo contra a estimativa. */
+.kanban-task__effort {
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  align-items: center;
+  gap: var(--space-2);
+  border-radius: var(--radius-pill);
+  padding: var(--space-1) var(--space-2);
+  color: var(--color-neutral-text);
+  background: var(--color-neutral-surface);
+  font-size: var(--font-size-1);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.kanban-task__effort-value {
+  font-family: var(--font-family-mono);
+}
+.kanban-task__effort-detail {
+  opacity: 0.85;
+}
+.kanban-task__effort--accent {
+  color: var(--color-accent-text);
+  background: var(--color-accent-surface);
+}
+.kanban-task__effort--warning {
+  color: var(--color-warning-text);
+  background: var(--color-warning-surface);
+}
+.kanban-task__effort--danger {
+  color: var(--color-danger-text);
+  background: var(--color-danger-surface);
+}
+.kanban-task__effort-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  flex: 0 0 auto;
+  border-radius: var(--radius-pill);
+  background: currentColor;
+  animation: kanban-task-effort-pulse 1.6s ease-in-out infinite;
+}
+@keyframes kanban-task-effort-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kanban-task__effort-dot {
+    animation: none;
+  }
+}
 .kanban-task__sprint,
 .kanban-task__frozen,
 .kanban-task__moving {
