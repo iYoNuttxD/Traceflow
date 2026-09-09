@@ -47,6 +47,11 @@ describe('Kanban — cronômetro de esforço no cartão (S1-06)', () => {
     ]);
     expect(chip(1)).toHaveTextContent('2h/ 8h · 25%');
     expect(chip(1)).toHaveClass('kanban-task__effort--accent');
+    // Fica no rodapé, ao lado do botão de histórico — não no meio dos metadados.
+    const footer = chip(1).closest('.kanban-task__actions');
+    expect(footer).not.toBeNull();
+    expect(footer.firstElementChild).toBe(chip(1));
+    expect(chip(1).closest('.kanban-task__metadata')).toBeNull();
     expect(chip(1)).toHaveAttribute('title', 'Esforço registrado 2h de 8h estimadas (25%)');
     expect(chip(2)).toHaveTextContent('200%');
     expect(chip(2)).toHaveClass('kanban-task__effort--danger');

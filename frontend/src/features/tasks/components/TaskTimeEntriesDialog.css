@@ -1,15 +1,19 @@
 /* Owner: TaskTimeEntriesDialog (S1-06). Mesmo molde do diálogo de histórico. */
 
+/* Flex com quebra: ao aplicar um filtro surge o "Limpar filtros", e num grid de
+   colunas fixas os dois botões espremiam os campos. Aqui eles descem de linha. */
 .task-time-entries__filters {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(8rem, 1fr)) auto;
+  display: flex;
+  flex-wrap: wrap;
   gap: var(--space-3);
-  align-items: end;
+  align-items: flex-end;
   margin-bottom: var(--space-5);
 }
 
 .task-time-entries__filters label {
   display: grid;
+  flex: 1 1 9rem;
+  min-width: 0;
   gap: var(--space-2);
   color: var(--color-text-primary);
   font-size: var(--font-size-2);
@@ -29,8 +33,10 @@
 
 .task-time-entries__filter-actions {
   display: flex;
+  flex: 0 0 auto;
   flex-wrap: wrap;
   gap: var(--space-2);
+  margin-left: auto;
 }
 
 .task-time-entries__filter-actions .button {
@@ -138,14 +144,21 @@
 }
 
 @media (max-width: 720px) {
-  .task-time-entries__filters,
   .task-time-entries__item {
     grid-template-columns: 1fr;
   }
 
+  .task-time-entries__filters label {
+    flex-basis: 100%;
+  }
+
   .task-time-entries__filter-actions {
-    align-items: stretch;
-    flex-direction: column;
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .task-time-entries__filter-actions .button {
+    flex: 1 1 auto;
   }
 
   .task-time-entries__duration {
