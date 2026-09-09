@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { DefectFlow } from '../../src/features/defects/components/DefectFlow.jsx';
 import { DefectBadge } from '../../src/features/defects/components/DefectDetails.jsx';
-import { CorrectionManager } from '../../src/features/defects/components/CorrectionManager.jsx';
+import { DefectDetails } from '../../src/features/defects/components/DefectDetails.jsx';
 import { DefectCard } from '../../src/features/defects/DefectsScreen.jsx';
 import { SearchCombobox } from '../../src/shared/components/SearchCombobox.jsx';
 import { TaskQuality } from '../../src/features/tasks/components/TaskQuality.jsx';
@@ -51,70 +51,69 @@ it('shows existing corrections before create/link actions, with an honest empty 
     ...defect,
     correctionCycles: [{ cycle: 1, tasks: [{ ...task, id: 44, status: 'EM_ANDAMENTO' }] }]
   };
-  const view = wrap(<CorrectionManager defect={data} options={options} onSave={vi.fn()} />);
+  const view = wrap(<DefectDetails defect={data} options={options} onSave={vi.fn()} />);
   expect(screen.getByRole('link', { name: /TASK-44/ })).toHaveAttribute(
     'href',
     '/projects/1/kanban?task=44'
   );
-  expect(screen.queryByText('Nenhuma tarefa de correção neste ciclo.')).not.toBeInTheDocument();
+  expect(screen.queryByText('Nenhuma tarefa de correção vinculada.')).not.toBeInTheDocument();
   view.rerender(
     <MemoryRouter>
-      <CorrectionManager defect={defect} options={options} onSave={vi.fn()} />
+      <DefectDetails defect={defect} options={options} onSave={vi.fn()} />
     </MemoryRouter>
   );
-  expect(screen.getByText('Nenhuma tarefa de correção neste ciclo.')).toBeInTheDocument();
+  expect(screen.getByText('Nenhuma tarefa de correção vinculada.')).toBeInTheDocument();
 });
 
-it('routes View correction to the details section rather than the manager', async () => {
+it('opens details from the card without intermediate correction actions', async () => {
   const open = vi.fn(),
     user = userEvent.setup();
   wrap(<DefectCard defect={{ ...defect, status: 'EM_CORRECAO' }} canWrite onOpen={open} />);
-  await user.click(screen.getByRole('button', { name: 'Ver correção' }));
-  expect(open.mock.calls[0][0]).toBe('correction-details');
+  expect(
+    screen.queryByRole('button', { name: /Ver correção|Gerenciar correção/ })
+  ).not.toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: /Abrir DEF-1/ }));
+  expect(open.mock.calls[0][0]).toBe('details');
 });
 
-it.each(['inline', 'fixed'])(
-  'closes %s selectors by outside, Escape, selection and unmount',
-  async (placement) => {
-    const user = userEvent.setup(),
-      select = vi.fn();
-    const view = wrap(
-      <>
-        <SearchCombobox
-          label="Responsável"
-          required
-          options={[{ id: 1, name: 'Pessoa' }]}
-          minQueryLength={0}
-          openOnFocus={false}
-          popoverPlacement={placement}
-          onSelect={select}
-        />
-        <button>Fora</button>
-      </>
-    );
-    const input = screen.getByRole('combobox', { name: 'Responsável' });
-    expect(input).toHaveAttribute('aria-expanded', 'false');
-    expect(input.closest('.sprint-combobox-field').querySelector('label').textContent).toBe(
-      'Responsável *'
-    );
-    await user.click(input);
-    await screen.findByRole('option');
-    await user.click(screen.getByRole('button', { name: 'Fora' }));
-    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
-    await user.click(input);
-    await user.keyboard('{Escape}');
-    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
-    await user.keyboard('{ArrowDown}');
-    await screen.findByRole('option');
-    await user.click(screen.getByRole('option'));
-    expect(select).toHaveBeenCalledWith({ id: 1, name: 'Pessoa' });
-    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
-    await user.click(input);
-    await screen.findByRole('option');
-    view.unmount();
-    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
-  }
-);
+it('closes anchored selectors by outside, Escape, selection and unmount', async () => {
+  const user = userEvent.setup(),
+    select = vi.fn();
+  const view = wrap(
+    <>
+      <SearchCombobox
+        label="Responsável"
+        required
+        options={[{ id: 1, name: 'Pessoa' }]}
+        minQueryLength={0}
+        openOnFocus={false}
+        onSelect={select}
+      />
+      <button>Fora</button>
+    </>
+  );
+  const input = screen.getByRole('combobox', { name: 'Responsável' });
+  expect(input).toHaveAttribute('aria-expanded', 'false');
+  expect(input.closest('.sprint-combobox-field').querySelector('label').textContent).toBe(
+    'Responsável *'
+  );
+  await user.click(input);
+  await screen.findByRole('option');
+  await user.click(screen.getByRole('button', { name: 'Fora' }));
+  expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+  await user.click(input);
+  await user.keyboard('{Escape}');
+  expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+  await user.keyboard('{ArrowDown}');
+  await screen.findByRole('option');
+  await user.click(screen.getByRole('option'));
+  expect(select).toHaveBeenCalledWith({ id: 1, name: 'Pessoa' });
+  expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+  await user.click(input);
+  await screen.findByRole('option');
+  view.unmount();
+  expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+});
 
 it.each([
   ['BAIXA', 'Baixa'],

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { SearchCombobox, TraceFlowIcon } from '../../../shared/index.js';
+import { SearchCombobox, TraceFlowIcon, ResponsibleCombobox } from '../../../shared/index.js';
 import {
   validateForm,
   definitionPayload,
@@ -93,7 +93,7 @@ export function TestCaseForm({
             (member) => member.isActive && member.user.id === Number(form.responsibleUserId)
           )
         )
-          found.responsibleUserId = 'Selecione um membro ativo.';
+          found.responsibleUserId = 'Selecione um responsável.';
         setErrors(found);
         if (Object.keys(found).length)
           queueMicrotask(() => formRef.current?.querySelector('[aria-invalid="true"]')?.focus());
@@ -114,26 +114,16 @@ export function TestCaseForm({
               <option value="INATIVO">Inativo</option>
             </SelectControl>
           </Field>
-          <Field id="tc-responsibleUserId" label="Responsável *" error={errors.responsibleUserId}>
-            <SelectControl required {...props('responsibleUserId')}>
-              <option value="">Selecione um membro ativo</option>
-              {testCase &&
-                !members.some(
-                  (member) => member.isActive && member.user.id === testCase.responsibleUserId
-                ) && (
-                  <option disabled value={testCase.responsibleUserId}>
-                    {testCase.responsible.name} (inativo)
-                  </option>
-                )}
-              {members
-                .filter((member) => member.isActive)
-                .map((member) => (
-                  <option key={member.id} value={member.user.id}>
-                    {member.user.name}
-                  </option>
-                ))}
-            </SelectControl>
-          </Field>
+          <ResponsibleCombobox
+            id="tc-responsibleUserId"
+            members={members.filter((member) => member.isActive)}
+            value={form.responsibleUserId}
+            currentName={testCase?.responsible.name}
+            onChange={(value) => update('responsibleUserId', value)}
+            required
+            disabled={busy}
+            error={errors.responsibleUserId}
+          />
         </div>
         <fieldset className="sprint-task-selector tc-traceability-selector">
           <legend>Rastreabilidade</legend>

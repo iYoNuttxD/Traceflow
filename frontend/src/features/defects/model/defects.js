@@ -26,14 +26,7 @@ export const taskLabel = (t) => `TASK-${t.id} · ${t.title}`;
 export const requirementLabel = (r) => `REQ-${r.id} · ${r.title}`;
 export const executionLabel = (id) => `EXEC-${String(id).padStart(4, '0')}`;
 export const dateLabel = (value) => (value ? new Date(value).toLocaleString('pt-BR') : '—');
-export const contextualAction = (status) =>
-  status === 'AGUARDANDO_RETESTE'
-    ? 'Retestar'
-    : status === 'ABERTO'
-      ? 'Gerenciar correção'
-      : status === 'EM_CORRECAO'
-        ? 'Ver correção'
-        : null;
+export const contextualAction = (status) => (status === 'AGUARDANDO_RETESTE' ? 'Retestar' : null);
 export function statusReason(d) {
   const r = d.statusReason;
   if (!r) return '';
@@ -54,7 +47,7 @@ export function validateDefect(form) {
   if (!form.description.trim()) e.description = 'Informe a descrição.';
   if (form.description.length > 10000) e.description = 'Use até 10000 caracteres.';
   if (!severities[form.severity]) e.severity = 'Selecione a severidade.';
-  if (!form.responsibleUserId) e.responsibleUserId = 'Selecione um membro ativo.';
+  if (!form.responsibleUserId) e.responsibleUserId = 'Selecione um responsável.';
   if (!form.requirementId && !form.originTaskIds.length)
     e.traceability = 'Vincule o defeito a pelo menos um requisito ou uma tarefa de origem.';
   return e;

@@ -97,7 +97,7 @@ export function validateForm(form) {
   }
   if (form.description.length > LIMITS.description)
     errors.description = `Use até ${LIMITS.description} caracteres.`;
-  if (!form.responsibleUserId) errors.responsibleUserId = 'Selecione um membro ativo.';
+  if (!form.responsibleUserId) errors.responsibleUserId = 'Selecione um responsável.';
   if (!form.steps.length || form.steps.length > LIMITS.steps)
     errors.steps = `Informe de 1 a ${LIMITS.steps} passos.`;
   for (const step of form.steps)

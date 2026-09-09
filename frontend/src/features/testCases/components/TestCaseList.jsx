@@ -1,5 +1,5 @@
 import { CollapsibleFilterPanel, SprintActionsMenu } from '../../schedule/index.js';
-import { SearchCombobox, TraceFlowIcon } from '../../../shared/index.js';
+import { SearchCombobox, TraceFlowIcon, ResponsibleCombobox } from '../../../shared/index.js';
 import { requirementLabel, taskLabel } from '../model/test-cases.js';
 import { Badge, Latest, SelectControl } from './Parts.jsx';
 
@@ -86,14 +86,12 @@ export function TestCaseFilters({
           ['ATIVO', 'Ativo'],
           ['INATIVO', 'Inativo']
         ])}
-        {select(
-          'responsibleUserId',
-          'Responsável',
-          members.map((member) => [
-            member.user.id,
-            `${member.user.name}${member.isActive ? '' : ' (inativo)'}`
-          ])
-        )}
+        <ResponsibleCombobox
+          members={members}
+          includeInactive
+          value={filters.responsibleUserId}
+          onChange={(value) => onChange('responsibleUserId', value)}
+        />
         <SearchCombobox
           label="Requisito"
           placeholder="Pesquisar requisito..."

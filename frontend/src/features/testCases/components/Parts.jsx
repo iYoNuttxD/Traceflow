@@ -7,6 +7,7 @@ import {
   referenceLabel
 } from '../model/test-cases.js';
 const states = {
+  WAITING: ['info', 'refresh', 'Aguardando reteste'],
   PASS: ['success', 'check', 'Aprovado'],
   FAIL: ['danger', 'close', 'Falhou'],
   BLOCKED: ['warning', 'lock', 'Bloqueado'],
@@ -37,14 +38,7 @@ export function Field({ id, label, error, children }) {
     </div>
   );
 }
-export function SelectControl({ children, ...props }) {
-  return (
-    <span className="tc-select">
-      <select {...props}>{children}</select>
-      <TraceFlowIcon name="arrowRight" />
-    </span>
-  );
-}
+export { SelectControl } from '../../../shared/index.js';
 export function EvidenceList({ evidences, onRemove }) {
   return (
     <ul className="tc-evidences">

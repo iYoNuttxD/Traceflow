@@ -4,6 +4,10 @@
   gap: 1rem;
 }
 
+.task-form .field {
+  align-content: start;
+}
+
 @media (max-width: 560px) {
   .task-form {
     grid-template-columns: 1fr;

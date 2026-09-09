@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { kanbanApi } from '../api/tasks.api.js';
-import { normalizeApiError, HistoryEventRow } from '../../../shared/index.js';
+import { normalizeApiError, HistoryEventRow, SelectControl } from '../../../shared/index.js';
 import { formatHistoryValue, historyFieldLabels } from './kanban-display.js';
 import { KanbanDialog } from './KanbanDialog.jsx';
 import './TaskHistoryDialog.css';
@@ -126,7 +126,7 @@ export function TaskHistoryDialog({ projectId, task, members, sprints, returnFoc
         </label>
         <label>
           <span>Campo</span>
-          <select
+          <SelectControl
             value={filters.field}
             onChange={(event) =>
               setFilters((current) => ({ ...current, field: event.target.value }))
@@ -138,7 +138,7 @@ export function TaskHistoryDialog({ projectId, task, members, sprints, returnFoc
                 {label}
               </option>
             ))}
-          </select>
+          </SelectControl>
         </label>
         <div className="task-history-filter-actions">
           <button type="submit" className="button button-secondary button-compact">

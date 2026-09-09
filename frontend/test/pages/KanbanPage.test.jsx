@@ -984,7 +984,7 @@ describe('KanbanPage ADR-011', () => {
     expect(
       await screen.findByText(/Algumas alterações não puderam ser atualizadas/)
     ).toBeInTheDocument();
-    expect(screen.getByText('RF confirmado')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'REQ-111 · RF confirmado' })).toBeInTheDocument();
     expect(screen.queryByText('PR indisponível')).toBeNull();
   });
 
@@ -1011,7 +1011,9 @@ describe('KanbanPage ADR-011', () => {
     expect(
       await screen.findByText(/Algumas alterações não puderam ser atualizadas/)
     ).toBeInTheDocument();
-    expect(screen.getByText('RF persistido parcialmente')).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'REQ-119 · RF persistido parcialmente' })
+    ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Editar tarefa' })).toBeInTheDocument();
   });
 
@@ -1124,7 +1126,8 @@ describe('KanbanPage ADR-011', () => {
     expect(within(summaryRegion).getByText('Total').parentElement).toHaveTextContent('3');
     expect(toggle).toHaveTextContent('1 filtro ativo');
 
-    await user.selectOptions(screen.getByLabelText('Responsável'), '6');
+    await user.click(screen.getByRole('combobox', { name: 'Responsável' }));
+    await user.click(await screen.findByRole('option', { name: 'Outra pessoa' }));
     expect(await screen.findByText('Nenhuma tarefa corresponde aos filtros.')).toBeInTheDocument();
     expect(toggle).toHaveTextContent('2 filtros ativos');
 

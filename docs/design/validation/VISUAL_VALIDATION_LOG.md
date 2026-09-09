@@ -1,5 +1,29 @@
 # TRACEFLOW Visual Validation Log
 
+## 2026-09-09 — S1-08 UI Standardization FIX 02
+
+Chrome real autenticado em `localhost:5173`, projeto local 2, Light/Dark,
+1440×1000, 1280×1000, 768×1000 e 390×1000. Foram inspecionados os 112 recortes da
+matriz de 14 superfícies em [relatório A–S](../../deliveries/S1_08_TRACEFLOW_UI_STANDARDIZATION_REPORT.md).
+Comparação entre Sprint/Marco, Task, TestCase e Defect guiou a implementação.
+
+PASS renderizado: filtros Kanban, marcador de correção, Task Details/Qualidade,
+TC catálogo/Details/form, DEF catálogo/filtros/Details/form/correção/validação e
+histórico DEF. Complementos: histórico Task/TC desktop/mobile nos dois temas;
+registro a partir de EXEC-0008 FAIL; detalhes validados DEF-1 ciclo 2/EXEC-0005;
+criar/vincular correção e cancelamento; buscas de responsável, requisito, tarefas,
+Marco e referência testada. Não houve submissão de dados de negócio nesta rodada.
+
+A inspeção de interação encontrou lista encobrindo rodapé e foco retornando ao corpo
+do dialog. Ambos foram corrigidos e reinspecionados: resultados no fluxo normal e
+callback de fechamento estável. A inspeção final também corrigiu seta/posição do
+select ao abrir uma busca vizinha e o gap duplicado de seções TC. Não foi observado
+overflow horizontal da página; o scroll horizontal contido do Kanban foi preservado.
+
+Loading/erro/permissões/concorrência e mutações foram verificados nos testes, não
+reclassificados como observação visual. Esta evidência é local e restrita à rodada;
+não equivale a CI remoto, certificação de acessibilidade ou QA integrado final.
+
 ## 2026-09-08 — S1-08 frontend UX alignment
 
 **Resultado: VISUALLY APPROVED para os estados carregados e cancelamento abaixo.**

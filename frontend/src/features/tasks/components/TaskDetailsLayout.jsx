@@ -1,5 +1,5 @@
 import { useId } from 'react';
-import { TraceFlowIcon } from '../../../shared/index.js';
+import { TraceFlowIcon, DescriptionSurface } from '../../../shared/index.js';
 import './TaskDetailsPanel.css';
 
 export function TaskDetailsLayout({ children, aside }) {
@@ -15,7 +15,7 @@ export function TaskInformation({ details }) {
   const titleId = useId();
   return (
     <>
-      <p className="task-detail-description">{details.description}</p>
+      <DescriptionSurface>{details.description}</DescriptionSurface>
       <section className="task-detail-section" aria-labelledby={titleId}>
         <h3 id={titleId}>Informações</h3>
         <dl className="task-detail-grid">
@@ -89,7 +89,7 @@ export function TaskTraceabilityGrid({ children, title = 'Rastreabilidade' }) {
   );
 }
 
-export function ArtifactCategory({ label, count, children }) {
+export function ArtifactCategory({ label, count, children, footer }) {
   return (
     <article>
       <header className="task-detail-artifact-heading">
@@ -105,6 +105,7 @@ export function ArtifactCategory({ label, count, children }) {
         </strong>
       </header>
       <div className="task-detail-artifact-body">{children}</div>
+      {footer && <footer className="task-detail-artifact-footer">{footer}</footer>}
     </article>
   );
 }

@@ -647,3 +647,63 @@ expandida/recolhida quando presente e viewports de referência. `VISUALLY APPROV
 correspondente no log e não equivale a certificação WCAG ou cobertura histórica de todos os
 browsers. Testes automatizados sustentam `TECHNICALLY VERIFIED`, mas não substituem inspeção
 renderizada. `ENVIRONMENT BLOCKED` registra uma limitação objetiva; não é aprovação nem falha visual.
+
+
+## Padronização transversal de controles e Details — S1-08 FIX 02
+
+Enums finitos usam `SelectControl` (select nativo com seta compartilhada): status,
+prioridade, severidade, ambiente e campo do histórico. O campo tem 44px, tipografia
+regular de 16px e tokens de borda, fundo, foco e espaçamento. A seta pertence ao
+controle, nunca à altura variável da linha do formulário.
+
+Entidades usam `SearchCombobox`; responsáveis usam o adaptador `ResponsibleCombobox`.
+A lista começa fechada e abre por clique, digitação ou teclado. Selecionar, Escape,
+saída de foco ou clique externo fecha a lista. A seleção é explícita; respostas
+obsoletas não substituem o contexto atual. A lista fica abaixo do campo **no fluxo
+normal do container**, com altura limitada e rolagem própria. Não usar portal fixo
+nem lista absoluta sobre ações: o corpo do dialog deve acomodar os resultados sem
+encobrir o rodapé. Rótulos continuam visíveis e placeholders descrevem a pesquisa.
+
+Responsáveis elegíveis são filtrados pelo contrato; não exibir o sufixo “ativo” nas
+opções. Um valor histórico já selecionado permanece legível. Obrigatoriedade vem do
+domínio: TC/Defect requerem responsável; Task admite ausência. Exibir apenas um
+marcador obrigatório, sem torná-lo parte do nome acessível do combobox. Mensagens de
+validação pedem um responsável, sem expor o detalhe de elegibilidade.
+
+`DescriptionSurface` é o padrão de descrição de Task, TestCase e Defect: fundo
+secundário, borda padrão, raio médio, padding 16px, gap 12px e texto com quebras
+preservadas. Vazio: “Nenhuma descrição informada.” Informações usam o grid unido de
+Task Details, com divisórias internas e colapso responsivo. O container da seção é
+responsável pelo gap de 24px; não somar margem de seção e gap do stack.
+
+Rastreabilidade e Qualidade usam `ArtifactCategory` e `EntityRow`: cabeçalho com
+rótulo/contador, corpo de linhas, rodapé de ações independente. Pares de categorias
+alinham cabeçalhos, início das linhas e rodapés. O CTA contextual fica no rodapé;
+ações de entidade ficam na linha e não duplicam o contexto. Textos longos quebram
+sem deslocar o botão de remoção de 44px. Referências externas preservam ações e
+semântica existentes.
+
+Resumos de execução usam `ExecutionSummary` sobre `DetailSurface`, com resultado,
+EXEC-id, data, ambiente, identidade histórica do executor, referência testada e
+versão do caso. A Validação do defeito usa a execução validante do ciclo atual;
+nenhum resultado deve ser deduzido apenas do estado das tarefas.
+
+Catálogos TestCase/Defect pertencem à família de tiles de Sprint/Marco: grid
+`sprint-grid`, gap 20px, até três colunas, raio grande, título em até duas linhas,
+metadados compactos e ações no rodapé. Tile de criação e tile de entidade têm a mesma
+altura de 28rem no desktop. Na faixa móvel até 34rem, altura automática evita corte
+de conteúdo. A largura segue as mesmas colunas e breakpoints de Planning.
+
+Filtros usam `CollapsibleFilterPanel`: rótulos visíveis, placeholders de busca e
+wrapper de “Limpar filtros” renderizado somente com filtro ativo. O estado sem
+filtros não reserva uma linha vazia. Severidade usa tokens semânticos de status
+(baixa/success, média/info, alta/warning, crítica/danger), sem segundo badge junto ao
+select em formulário ou filtro.
+
+Correção abre em Defect Details → Tarefas de correção. Criar e vincular são subviews
+diretas do mesmo dialog, com contexto DEF/ciclo, Cancelar e ação primária. Voltar
+restaura scroll e foco no CTA de origem, inclusive após atualização do catálogo.
+Não introduzir um gerenciador intermediário. No Kanban, o marcador usa o ícone bug,
+tipografia de metadado e tokens info, com alvo clicável mínimo de 44px; o card inteiro
+não recebe tratamento de erro. Históricos mantêm a família `HistoryEventRow` e
+shell compacto existente, preservando os filtros específicos de cada domínio.

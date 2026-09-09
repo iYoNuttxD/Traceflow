@@ -1,6 +1,5 @@
 import './SearchCombobox.css';
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
 const defaultLabel = (option) => option?.title || option?.name || String(option?.id || '');
 const EMPTY_OPTIONS = Object.freeze([]);
@@ -18,7 +17,6 @@ export function SearchCombobox({
   help = '',
   minQueryLength = 2,
   openOnFocus = true,
-  popoverPlacement = 'inline',
   getOptionLabel = defaultLabel,
   isOptionDisabled = neverDisabled,
   renderOption,
@@ -37,7 +35,6 @@ export function SearchCombobox({
   const inputRef = useRef(null);
   const fieldRef = useRef(null);
   const listRef = useRef(null);
-  const [popover, setPopover] = useState(null);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -62,52 +59,6 @@ export function SearchCombobox({
     document.addEventListener('pointerdown', outside, true);
     return () => document.removeEventListener('pointerdown', outside, true);
   }, [expanded]);
-
-  useLayoutEffect(() => {
-    if (!expanded || popoverPlacement !== 'fixed') return undefined;
-    const input = inputRef.current;
-    const host = input.closest('[role="dialog"]') || document.body;
-    const rect = input.getBoundingClientRect();
-    // Reuse the canonical list; portal within the dialog keeps its ARIA/focus ownership.
-    const tokens = getComputedStyle(input);
-    const rootSize = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-    const space = tokens.getPropertyValue('--space-2').trim();
-    const gap = space.endsWith('rem')
-      ? parseFloat(space) * rootSize
-      : parseFloat(space) || rootSize / 2;
-    const below = window.innerHeight - rect.bottom - gap * 2;
-    const above = rect.top - gap * 2;
-    const upward = below < Math.min(18 * rootSize, above);
-    const width = Math.min(rect.width, window.innerWidth - gap * 2);
-    setPopover({
-      host,
-      style: {
-        position: 'fixed',
-        width,
-        left: Math.max(gap, Math.min(rect.left, window.innerWidth - width - gap)),
-        top: upward ? 'auto' : rect.bottom + gap,
-        bottom: upward ? window.innerHeight - rect.top + gap : 'auto',
-        right: 'auto',
-        maxHeight: Math.max(0, Math.min(18 * rootSize, upward ? above : below))
-      }
-    });
-    const dismiss = (event) => {
-      if (event.target instanceof Node && listRef.current?.contains(event.target)) return;
-      setDismissed(true);
-      setActiveIndex(-1);
-    };
-    const outside = (event) => {
-      if (event.target !== input) dismiss(event);
-    };
-    document.addEventListener('scroll', dismiss, true);
-    document.addEventListener('pointerdown', outside, true);
-    window.addEventListener('resize', dismiss);
-    return () => {
-      document.removeEventListener('scroll', dismiss, true);
-      document.removeEventListener('pointerdown', outside, true);
-      window.removeEventListener('resize', dismiss);
-    };
-  }, [expanded, popoverPlacement]);
 
   useEffect(() => {
     requestRef.current += 1;
@@ -222,7 +173,6 @@ export function SearchCombobox({
       id={listboxId}
       className="sprint-combobox-results"
       role="listbox"
-      style={popoverPlacement === 'fixed' ? popover?.style : undefined}
       onMouseDown={(event) => {
         if (event.target.closest('[role="option"]')) event.preventDefault();
       }}
@@ -278,7 +228,7 @@ export function SearchCombobox({
       </label>
 
       {selectedOption && (
-        <div className="sprint-combobox-selection">
+        <div className="sprint-combobox-selection" id={inputId} role="group" aria-label={label}>
           <span>{getOptionLabel(selectedOption)}</span>
           {!disabled && (
             <button
@@ -328,10 +278,7 @@ export function SearchCombobox({
             onKeyDown={handleKeyDown}
           />
 
-          {expanded &&
-            (popoverPlacement === 'fixed'
-              ? popover && createPortal(resultsList, popover.host)
-              : resultsList)}
+          {expanded && resultsList}
         </div>
       )}
 

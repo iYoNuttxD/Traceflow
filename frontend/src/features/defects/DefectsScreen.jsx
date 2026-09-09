@@ -8,6 +8,8 @@ import {
   ErrorState,
   PAGE_ERROR_TYPES,
   SearchCombobox,
+  ResponsibleCombobox,
+  SelectControl,
   TraceFlowIcon
 } from '../../shared/index.js';
 import { useDefects, useDefectOptions } from './hooks/useDefects.js';
@@ -16,7 +18,6 @@ import { DefectBadge } from './components/DefectDetails.jsx';
 import {
   statuses,
   severities,
-  contextualAction,
   requirementLabel,
   taskLabel,
   executionLabel
@@ -74,21 +75,9 @@ export function DefectCard({ defect: d, canWrite, onOpen }) {
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.stopPropagation()}
       >
-        {canWrite && contextualAction(d.status) && (
-          <button
-            className="button button-primary"
-            onClick={(e) =>
-              open(
-                d.status === 'AGUARDANDO_RETESTE'
-                  ? 'retest'
-                  : d.status === 'EM_CORRECAO'
-                    ? 'correction-details'
-                    : 'correction',
-                e
-              )
-            }
-          >
-            {contextualAction(d.status)}
+        {canWrite && d.status === 'AGUARDANDO_RETESTE' && (
+          <button className="button button-primary" onClick={(e) => open('retest', e)}>
+            Retestar
           </button>
         )}
         <button className="button button-secondary" onClick={(e) => open('history', e)}>
@@ -222,7 +211,7 @@ function ProjectDefects({ project }) {
             ].map(([key, label, values]) => (
               <label className="sprint-filter" key={key}>
                 <span>{label}</span>
-                <select
+                <SelectControl
                   id={`defects-filter-${key}`}
                   aria-label={label}
                   name={key}
@@ -235,22 +224,15 @@ function ProjectDefects({ project }) {
                       {name}
                     </option>
                   ))}
-                </select>
-                {key === 'severity' && state.filters[key] && (
-                  <DefectBadge value={state.filters[key]} />
-                )}
+                </SelectControl>
               </label>
             ))}
+            <ResponsibleCombobox
+              members={options.members.filter((m) => m.isActive)}
+              value={state.filters.responsibleUserId}
+              onChange={(value) => state.changeFilter('responsibleUserId', value)}
+            />
             {[
-              [
-                'responsibleUserId',
-                'Responsável',
-                null,
-                (m) => m.name,
-                options.members
-                  .filter((m) => m.isActive)
-                  .map((m) => ({ id: m.user.id, name: m.user.name }))
-              ],
               ['requirementId', 'Requisito', options.searchRequirements, requirementLabel],
               ['originTaskId', 'Tarefa de origem', options.searchTasks, taskLabel],
               ['correctionTaskId', 'Tarefa de correção', options.searchTasks, taskLabel],
@@ -264,6 +246,7 @@ function ProjectDefects({ project }) {
               <SearchCombobox
                 key={key}
                 label={label}
+                placeholder={`Pesquisar ${label.toLocaleLowerCase('pt-BR')}...`}
                 onSearch={search}
                 options={items}
                 minQueryLength={search ? 2 : 0}
@@ -281,9 +264,13 @@ function ProjectDefects({ project }) {
               />
             ))}
           </div>
-          <button className="sprint-filters__clear" onClick={clear}>
-            Limpar filtros
-          </button>
+          {Object.values(state.filters).some(Boolean) && (
+            <div className="planning-filter-panel__actions">
+              <button className="sprint-filters__clear" onClick={clear}>
+                Limpar filtros
+              </button>
+            </div>
+          )}
         </CollapsibleFilterPanel>
         {state.loading && <LoadingState message="Carregando defeitos…" />}
         {state.error && (
