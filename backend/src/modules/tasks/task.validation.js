@@ -119,7 +119,12 @@ export const taskTimeEntryParamsSchema = strictObject({
   id: positiveInteger('ID da tarefa inválido.'),
   entryId: positiveInteger('ID da sessão de tempo inválido.')
 });
-export const taskTimeEntryListQuerySchema = strictObject({ limit: paginationSchema.limit });
+export const taskTimeEntryListQuerySchema = dateRangeSchema.extend({
+  source: z
+    .enum(['TIMER', 'MANUAL'], { error: 'Origem inválida. Use TIMER ou MANUAL.' })
+    .optional(),
+  ...paginationSchema
+});
 const manualHours = z.preprocess(
   (value) =>
     typeof value === 'string' && value.trim() !== '' ? Number(value.replace(',', '.')) : value,
@@ -131,7 +136,9 @@ const manualHours = z.preprocess(
 export const taskTimeEntryManualBodySchema = strictObject({
   hours: manualHours,
   note: optionalText({ field: 'Observação' }),
-  occurredAt: z.union([dateOnly('Data do lançamento'), isoDateTime('Data do lançamento')]).optional()
+  occurredAt: z
+    .union([dateOnly('Data do lançamento'), isoDateTime('Data do lançamento')])
+    .optional()
 });
 
 export const taskSearchQuerySchema = strictObject({ search: searchText });

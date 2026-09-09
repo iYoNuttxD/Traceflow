@@ -202,7 +202,9 @@ export const taskController = {
 
   listTimeEntries: asyncHandler(
     async (req, res) => {
-      return res.json(await taskService.listTaskTimeEntries(req.params.id, req.query, context(req)));
+      return res.json(
+        await taskService.listTaskTimeEntries(req.params.id, req.query, context(req))
+      );
     },
     { fallbackMessage: 'Erro interno ao listar sessões de tempo da tarefa.' }
   ),

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildEffortChip,
   computeEffortView,
   dayLabel,
   describeTimeEntry,
@@ -7,6 +8,7 @@ import {
   formatHoursMinutes,
   resolveEffort
 } from '../../src/features/tasks/components/effort-summary.js';
+import { updateBoardTask } from '../../src/features/tasks/components/kanban-view.js';
 import { applyEffortEvent } from '../../src/features/tasks/hooks/useTaskEffort.js';
 
 const HOUR = 3600;
@@ -186,5 +188,73 @@ describe('applyEffortEvent — reconciliação local dos eventos de sessão', ()
         null
       ).running
     ).toEqual({ id: 7 });
+  });
+});
+
+describe('buildEffortChip — resumo do cartão do Kanban', () => {
+  const now = new Date('2026-09-08T12:00:00.000Z').getTime();
+
+  it('sem dado ou congelada não há indicador', () => {
+    expect(buildEffortChip({ id: 1 }, now)).toBeNull();
+    expect(buildEffortChip({ id: 1, isFrozen: true, estimatedEffort: 3 }, now)).toBeNull();
+    expect(buildEffortChip(null, now)).toBeNull();
+  });
+
+  it('parado: total contra a estimativa; sem estimativa só o total', () => {
+    expect(buildEffortChip({ estimatedEffort: 8, actualEffort: 2 }, now)).toMatchObject({
+      running: false,
+      tone: 'accent',
+      value: '2h',
+      detail: '/ 8h · 25%'
+    });
+    expect(buildEffortChip({ estimatedEffort: 8 }, now)).toMatchObject({
+      value: '0min',
+      detail: '/ 8h · 0%'
+    });
+    expect(buildEffortChip({ actualEffort: 1.5 }, now)).toMatchObject({
+      tone: 'neutral',
+      value: '1h30min',
+      detail: ''
+    });
+    expect(buildEffortChip({ estimatedEffort: 1, actualEffort: 2 }, now)).toMatchObject({
+      tone: 'danger',
+      detail: '/ 1h · 200%'
+    });
+  });
+
+  it('em andamento: relógio da sessão e percentual incluindo o tempo vivo', () => {
+    const runningTimer = {
+      id: 9,
+      startedAt: '2026-09-08T11:30:00.000Z',
+      startedBy: { id: 2, name: 'Bruno' }
+    };
+    expect(
+      buildEffortChip({ estimatedEffort: 2, actualEffort: 1, runningTimer }, now)
+    ).toMatchObject({
+      running: true,
+      tone: 'warning',
+      value: '00:30:00',
+      detail: '75%',
+      title: 'Cronômetro em andamento por Bruno · total 1h30min de 2h estimadas (75%)'
+    });
+    expect(buildEffortChip({ runningTimer }, now)).toMatchObject({
+      value: '00:30:00',
+      detail: '30min'
+    });
+  });
+});
+
+describe('updateBoardTask — patch pontual de uma tarefa no board', () => {
+  const board = {
+    columns: { A_FAZER: [{ id: 1, title: 'a' }], EM_ANDAMENTO: [{ id: 2, title: 'b' }] },
+    totals: { total: 2 }
+  };
+
+  it('aplica o patch só na tarefa alvo e preserva o restante', () => {
+    const next = updateBoardTask(board, '2', { runningTimer: { id: 9 } });
+    expect(next.columns.EM_ANDAMENTO[0]).toEqual({ id: 2, title: 'b', runningTimer: { id: 9 } });
+    expect(next.columns.A_FAZER[0]).toBe(board.columns.A_FAZER[0]);
+    expect(next.totals).toBe(board.totals);
+    expect(updateBoardTask(null, 1, {})).toBeNull();
   });
 });

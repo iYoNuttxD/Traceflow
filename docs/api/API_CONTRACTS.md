@@ -235,7 +235,7 @@ Tipos preservados: `FUNCIONAL`, `NAO_FUNCIONAL`, `REGRA_NEGOCIO`. Status preserv
 | POST         | `/tasks/:id/comments`                                                    | `id`; `content`                                                                                                      | `201`, `{message,comment}`                                                      |
 | PATCH        | `/tasks/:id/comments/:commentId`                                         | ambos positivos; `content`                                                                                           | `200`, `{message,comment}`                                                      |
 | DELETE       | `/tasks/:id/comments/:commentId`                                         | ambos positivos                                                                                                      | `200`, `{message,comment}`                                                      |
-| GET          | `/tasks/:id/time-entries`                                                | `id`; `limit?` entre 1 e 100                                                                                         | `200`, `{taskId,running,entries,effort,permissions,pagination}`                 |
+| GET          | `/tasks/:id/time-entries`                                                | `id`; `page?`, `limit?` entre 1 e 100, `startDate?`, `endDate?`, `source?` (`TIMER`/`MANUAL`)                        | `200`, `{taskId,running,entries,effort,permissions,pagination}`                 |
 | POST         | `/tasks/:id/time-entries/start`                                          | `id`; body vazio                                                                                                     | `201`, `{message,entry,effort}`; `409` se já há sessão em andamento             |
 | POST         | `/tasks/:id/time-entries/stop`                                           | `id`; body vazio                                                                                                     | `200`, `{message,entry,effort}`; `409` sem sessão em andamento                  |
 | POST         | `/tasks/:id/time-entries`                                                | `id`; `hours` decimal (0 < h ≤ 24), `note?`, `occurredAt?`                                                           | `201`, `{message,entry,effort}` — lançamento manual                             |
@@ -320,9 +320,13 @@ Fórmulas (`effort`): `estimatedSeconds = estimatedHours × 3600`; `actualHours 
     "running": { "id": 9, "startedAt": "2026-09-06T14:02:00.000Z", "startedBy": { "id": 10, "name": "Ana" } }
   },
   "permissions": { "canOperate": true, "canModerate": false },
-  "pagination": { "limit": 20, "hasMore": false }
+  "pagination": { "page": 1, "limit": 20, "total": 2, "totalPages": 1 }
 }
 ```
+
+`entries` é o histórico das sessões encerradas, da mais recente para a mais antiga, paginado por `page`/`limit` e filtrável por `startDate`/`endDate` (dia civil UTC sobre o encerramento) e `source` (`TIMER` ou `MANUAL`); `startDate` maior que `endDate` e origem fora do enum recebem `400`. Os filtros recortam apenas a página: `running` e `effort` continuam refletindo o total da tarefa. A sessão em andamento nunca aparece em `entries`, só em `running`.
+
+O DTO da tarefa (`GET /tasks/:id` e as colunas do Kanban) traz `runningTimer` — `{id,startedAt,startedBy}` da sessão aberta ou `null` — para o cartão exibir o cronômetro sem uma chamada por tarefa.
 
 Consolidação por sprint: `GET /sprints/:id/progress` passa a incluir `effort` (`tasks`, `tasksWithEstimate`, `tasksWithActual`, `estimatedHours`, `actualHours`, `differenceHours`, `differencePercent`, `usagePercent`, `status`, `perTask[]`) somando as tarefas da sprint; sprint encerrada lê `pointsAtClose` e o snapshot de fechamento em vez da tarefa viva. Tarefa sem estimativa não entra no limite, mas o realizado dela entra no total. O responsável (`responsibleUserId`, RF51) não se confunde com quem iniciou/parou a sessão: são campos distintos e ambos ficam registrados.
 

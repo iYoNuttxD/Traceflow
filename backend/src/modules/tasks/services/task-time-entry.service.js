@@ -37,6 +37,20 @@ function parseLimit(value) {
   return limit;
 }
 
+function parsePage(value) {
+  const page = value == null ? 1 : Number(value);
+  if (!Number.isSafeInteger(page) || page <= 0) {
+    throw new TaskServiceError('page deve ser um inteiro maior ou igual a 1.', 400);
+  }
+  return page;
+}
+
+// Limites por dia civil em UTC, o mesmo recorte usado pelo histórico de auditoria.
+function parseDateBound(value, endOfDay) {
+  if (!value) return undefined;
+  return new Date(`${value}T${endOfDay ? '23:59:59.999' : '00:00:00.000'}Z`);
+}
+
 function parseOccurredAt(value, now) {
   if (value === undefined || value === null || value === '') return now;
   const dateOnly = typeof value === 'string' && /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
@@ -127,24 +141,29 @@ export const taskTimeEntryService = {
     const id = parseTaskId(taskId);
     const task = await ensureTaskExists(id);
     const limit = parseLimit(query.limit);
-    const [running, rows, totals] = await Promise.all([
+    const page = parsePage(query.page);
+    const [running, [total, rows], totals] = await Promise.all([
       taskTimeEntryRepository.findRunning(id),
-      taskTimeEntryRepository.listCompleted(id, limit),
+      taskTimeEntryRepository.listCompletedPage(id, {
+        skip: (page - 1) * limit,
+        take: limit,
+        from: parseDateBound(query.startDate, false),
+        to: parseDateBound(query.endDate, true),
+        source: query.source || undefined
+      }),
       taskTimeEntryRepository.summarizeCompleted(id)
     ]);
-    const hasMore = rows.length > limit;
     return {
       taskId: id,
       running: running ? formatTaskTimeEntry(running, context) : null,
-      entries: (hasMore ? rows.slice(0, limit) : rows).map((entry) =>
-        formatTaskTimeEntry(entry, context)
-      ),
+      entries: rows.map((entry) => formatTaskTimeEntry(entry, context)),
+      // O resumo de esforço ignora os filtros: é sempre o total da tarefa.
       effort: summaryFor(task, totals, running),
       permissions: {
         canOperate: canOperateTaskTimer(context.membershipRole),
         canModerate: canModerateTaskTimeEntries(context.membershipRole)
       },
-      pagination: { limit, hasMore }
+      pagination: { page, limit, total, totalPages: total ? Math.ceil(total / limit) : 0 }
     };
   },
 

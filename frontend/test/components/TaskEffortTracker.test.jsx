@@ -50,24 +50,34 @@ const response = (overrides = {}) => ({
   entries: [],
   effort: effort(),
   permissions: { canOperate: true, canModerate: false },
-  pagination: { limit: 20, hasMore: false },
+  pagination: { page: 1, limit: 20, total: 0, totalPages: 0 },
   ...overrides
 });
+
+// O mesmo endpoint alimenta o rastreador (sem `page`) e o diálogo (com `page`).
+function mockEntries(trackerResponse, dialogResponse = trackerResponse) {
+  apiMocks.getTaskTimeEntries.mockImplementation((_taskId, params = {}) =>
+    Promise.resolve(params.page ? dialogResponse : trackerResponse)
+  );
+}
 
 function renderTracker(props = {}) {
   return render(
     <ConfirmProvider>
-      <TaskEffortTracker taskId={42} estimatedEffort={8} {...props} />
+      <TaskEffortTracker taskId={42} taskTitle="Corrigir frete" estimatedEffort={8} {...props} />
     </ConfirmProvider>
   );
 }
 
-const openHistory = (user) => user.click(screen.getByText('Ver sessões registradas'));
+async function openSessions(user) {
+  await user.click(screen.getByRole('button', { name: 'Ver sessões registradas' }));
+  return screen.findByRole('dialog', { name: /Sessões — #42 Corrigir frete/ });
+}
 
 describe('TaskEffortTracker', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    apiMocks.getTaskTimeEntries.mockResolvedValue(response());
+    mockEntries(response());
   });
 
   it('mostra estado inicial, inicia o cronômetro e passa a exibir quem iniciou', async () => {
@@ -94,7 +104,7 @@ describe('TaskEffortTracker', () => {
       'aria-valuenow',
       '0'
     );
-    expect(screen.getByText('Ver sessões registradas')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ver sessões registradas' })).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Iniciar' }));
     await waitFor(() => expect(apiMocks.startTaskTimer).toHaveBeenCalledWith(42));
@@ -110,7 +120,7 @@ describe('TaskEffortTracker', () => {
   it('retoma uma sessão em andamento persistida no servidor e pausa registrando o total', async () => {
     const user = userEvent.setup();
     const startedAt = new Date(Date.now() - 90_000).toISOString();
-    apiMocks.getTaskTimeEntries.mockResolvedValue(
+    mockEntries(
       response({
         running: {
           id: 9,
@@ -147,7 +157,7 @@ describe('TaskEffortTracker', () => {
   });
 
   it('sinaliza estouro com texto além da cor e trata ausência de estimativa', async () => {
-    apiMocks.getTaskTimeEntries.mockResolvedValue(
+    mockEntries(
       response({
         effort: effort({
           estimatedHours: 5,
@@ -165,7 +175,7 @@ describe('TaskEffortTracker', () => {
     expect(screen.getByText('134%')).toBeInTheDocument();
     unmount();
 
-    apiMocks.getTaskTimeEntries.mockResolvedValue(
+    mockEntries(
       response({
         effort: effort({
           estimatedHours: null,
@@ -182,7 +192,7 @@ describe('TaskEffortTracker', () => {
   });
 
   it('a estimativa editada na tarefa prevalece sobre a última leitura das sessões', async () => {
-    apiMocks.getTaskTimeEntries.mockResolvedValue(
+    mockEntries(
       response({
         effort: effort({ estimatedHours: 8, completedSeconds: 2 * HOUR, completedCount: 1 })
       })
@@ -219,12 +229,8 @@ describe('TaskEffortTracker', () => {
         note: 'Esqueci de iniciar'
       })
     );
-    const history = await screen.findByRole('list', { name: 'Sessões registradas' });
-    expect(within(history).getByText('1h30min')).toBeInTheDocument();
-    expect(within(history).getByText('manual')).toBeInTheDocument();
-    expect(within(history).getByText('Esqueci de iniciar')).toBeInTheDocument();
-    expect(within(history).getByText(/, \d{2}:\d{2} · Ana Ribeiro$/)).toBeInTheDocument();
-    expect(screen.getByText('Ocultar sessões registradas')).toBeInTheDocument();
+    expect(await screen.findByText('1 sessão registrada')).toBeInTheDocument();
+    expect(screen.getByLabelText('Tempo total registrado')).toHaveTextContent('01:30:00');
     expect(screen.queryByLabelText('Horas')).toBeNull();
     expect(onEffortChange).toHaveBeenCalledWith(
       expect.objectContaining({ actualHours: 1.5 }),
@@ -232,57 +238,127 @@ describe('TaskEffortTracker', () => {
     );
   });
 
-  it('exclui sessão do histórico somente após confirmação e mostra quem iniciou e quem parou', async () => {
+  it('abre o diálogo de sessões com quem iniciou e quem parou, e exclui após confirmação', async () => {
     const user = userEvent.setup();
-    apiMocks.getTaskTimeEntries.mockResolvedValue(
+    const onEffortChange = vi.fn();
+    const manual = closedEntry({
+      id: 3,
+      source: 'MANUAL',
+      durationSeconds: 5400,
+      note: 'Esqueci de iniciar',
+      endedBy: ana
+    });
+    mockEntries(
       response({
-        entries: [closedEntry()],
-        effort: effort({ completedSeconds: HOUR + 45 * 60, completedCount: 1 })
+        entries: [manual, closedEntry()],
+        effort: effort({ completedSeconds: 3 * HOUR + 15 * 60, completedCount: 2 })
+      }),
+      response({
+        entries: [manual, closedEntry()],
+        effort: effort({ completedSeconds: 3 * HOUR + 15 * 60, completedCount: 2 }),
+        pagination: { page: 1, limit: 10, total: 2, totalPages: 1 }
       })
     );
     apiMocks.deleteTaskTimeEntry.mockResolvedValue({
       entry: closedEntry(),
-      effort: effort({ completedSeconds: 0, completedCount: 0 })
+      effort: effort({ completedSeconds: 5400, completedCount: 1, actualHours: 1.5 })
     });
-    renderTracker();
-    await screen.findByText('1 sessão registrada');
-    await openHistory(user);
-    expect(
-      screen.getByText(/\d{2}:\d{2} → \d{2}:\d{2} · Ana Ribeiro · parado por Bruno Lima$/)
-    ).toBeInTheDocument();
-    expect(screen.getByText('1h45min')).toBeInTheDocument();
+    renderTracker({ onEffortChange });
+    await screen.findByText('2 sessões registradas');
 
-    await user.click(screen.getByRole('button', { name: 'Excluir sessão' }));
+    const dialog = await openSessions(user);
+    await waitFor(() =>
+      expect(apiMocks.getTaskTimeEntries).toHaveBeenCalledWith(
+        42,
+        { page: 1, limit: 10 },
+        expect.objectContaining({ signal: expect.any(AbortSignal) })
+      )
+    );
+    const list = await within(dialog).findByRole('list', { name: 'Sessões registradas' });
+    expect(
+      within(list).getByText(/\d{2}:\d{2} → \d{2}:\d{2} · Ana Ribeiro · parado por Bruno Lima$/)
+    ).toBeInTheDocument();
+    expect(within(list).getByText(/, \d{2}:\d{2} · Ana Ribeiro$/)).toBeInTheDocument();
+    expect(within(list).getByText('manual')).toBeInTheDocument();
+    expect(within(list).getByText('cronômetro')).toBeInTheDocument();
+    expect(within(list).getByText('Esqueci de iniciar')).toBeInTheDocument();
+    expect(within(list).getByText('1h45min')).toBeInTheDocument();
+    expect(within(list).getByText('1h30min')).toBeInTheDocument();
+    // Duas sessões não passam do tamanho da página: sem paginação.
+    expect(within(dialog).queryByRole('navigation')).toBeNull();
+
+    const deleteButtons = within(list).getAllByRole('button', { name: 'Excluir sessão' });
+    await user.click(deleteButtons[1]);
     expect(
       await screen.findByRole('heading', { name: 'Excluir sessão de tempo' })
     ).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Cancelar' }));
     expect(apiMocks.deleteTaskTimeEntry).not.toHaveBeenCalled();
 
-    await user.click(screen.getByRole('button', { name: 'Excluir sessão' }));
+    await user.click(within(list).getAllByRole('button', { name: 'Excluir sessão' })[1]);
     await user.click(await screen.findByRole('button', { name: 'Excluir' }));
     await waitFor(() => expect(apiMocks.deleteTaskTimeEntry).toHaveBeenCalledWith(42, 1));
-    expect(await screen.findByText('Nenhuma sessão registrada.')).toBeInTheDocument();
+    expect(onEffortChange).toHaveBeenCalledWith(
+      expect.objectContaining({ actualHours: 1.5 }),
+      'Sessão de tempo excluída.'
+    );
+    // O diálogo recarrega a página aberta depois da exclusão.
+    await waitFor(() =>
+      expect(
+        apiMocks.getTaskTimeEntries.mock.calls.filter(([, params]) => params?.page).length
+      ).toBeGreaterThanOrEqual(2)
+    );
+    expect(screen.getByText('1 sessão registrada')).toBeInTheDocument();
   });
 
-  it('VIEWER não vê controles de operação, mas consulta o histórico', async () => {
+  it('filtra o diálogo por período e origem no servidor', async () => {
     const user = userEvent.setup();
-    apiMocks.getTaskTimeEntries.mockResolvedValue(
+    mockEntries(
+      response({ entries: [closedEntry()], effort: effort({ completedCount: 1 }) }),
       response({
-        entries: [closedEntry({ canDelete: false, endedBy: ana })],
-        effort: effort({ completedSeconds: HOUR, completedCount: 1 }),
-        permissions: { canOperate: false, canModerate: false }
+        entries: [closedEntry()],
+        pagination: { page: 1, limit: 10, total: 1, totalPages: 1 }
       })
     );
     renderTracker();
     await screen.findByText('1 sessão registrada');
+    const dialog = await openSessions(user);
+    await within(dialog).findByRole('list', { name: 'Sessões registradas' });
+
+    await user.type(within(dialog).getByLabelText('Data inicial'), '2026-09-01');
+    await user.type(within(dialog).getByLabelText('Data final'), '2026-09-05');
+    await user.selectOptions(within(dialog).getByLabelText('Origem'), 'MANUAL');
+    await user.click(within(dialog).getByRole('button', { name: 'Filtrar' }));
+    await waitFor(() =>
+      expect(apiMocks.getTaskTimeEntries).toHaveBeenLastCalledWith(
+        42,
+        { page: 1, limit: 10, startDate: '2026-09-01', endDate: '2026-09-05', source: 'MANUAL' },
+        expect.anything()
+      )
+    );
+    expect(within(dialog).getByRole('button', { name: 'Limpar filtros' })).toBeInTheDocument();
+  });
+
+  it('VIEWER não vê controles de operação, mas consulta o histórico sem excluir', async () => {
+    const user = userEvent.setup();
+    const viewerResponse = response({
+      entries: [closedEntry({ canDelete: false, endedBy: ana })],
+      effort: effort({ completedSeconds: HOUR, completedCount: 1 }),
+      permissions: { canOperate: false, canModerate: false },
+      pagination: { page: 1, limit: 10, total: 1, totalPages: 1 }
+    });
+    mockEntries(viewerResponse, viewerResponse);
+    renderTracker();
+    await screen.findByText('1 sessão registrada');
     expect(screen.queryByRole('button', { name: /Iniciar|Retomar|Pausar/ })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Lançar manualmente' })).toBeNull();
-    await openHistory(user);
-    expect(screen.getByText('1h45min')).toBeInTheDocument();
+
+    const dialog = await openSessions(user);
+    const list = await within(dialog).findByRole('list', { name: 'Sessões registradas' });
+    expect(within(list).getByText('1h45min')).toBeInTheDocument();
     // Mesma pessoa iniciou e parou: sem o sufixo "parado por".
-    expect(screen.getByText(/→ \d{2}:\d{2} · Ana Ribeiro$/)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Excluir sessão' })).toBeNull();
+    expect(within(list).getByText(/→ \d{2}:\d{2} · Ana Ribeiro$/)).toBeInTheDocument();
+    expect(within(list).queryByRole('button', { name: 'Excluir sessão' })).toBeNull();
   });
 
   it('em erro mantém a estimativa da tarefa visível e permite tentar novamente', async () => {

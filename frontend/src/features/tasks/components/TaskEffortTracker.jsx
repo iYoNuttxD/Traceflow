@@ -1,16 +1,15 @@
-import { useId, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { useTaskEffort } from '../hooks/useTaskEffort.js';
-import { useConfirm } from '../../../shared/index.js';
 import {
   EFFORT_STATUS_LABELS as STATUS_LABELS,
   EFFORT_STATUS_TONES as STATUS_TONES,
   computeEffortView,
-  describeTimeEntry,
   formatClock,
   formatHoursMinutes,
   formatTimeOfDay,
   resolveEffort
 } from './effort-summary.js';
+import { TaskTimeEntriesDialog } from './TaskTimeEntriesDialog.jsx';
 import './TaskEffortTracker.css';
 
 function PlayIcon() {
@@ -29,18 +28,15 @@ function PauseIcon() {
   );
 }
 
-function TrashIcon() {
-  return (
-    <svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor" aria-hidden="true">
-      <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z" />
-      <path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3h11V2h-11v1z" />
-    </svg>
-  );
-}
-
-export function TaskEffortTracker({ taskId, estimatedEffort, actualEffort, onEffortChange }) {
-  const confirm = useConfirm();
+export function TaskEffortTracker({
+  taskId,
+  taskTitle,
+  estimatedEffort,
+  actualEffort,
+  onEffortChange
+}) {
   const titleId = useId();
+  const sessionsButtonRef = useRef(null);
   const {
     running,
     entries,
@@ -57,7 +53,7 @@ export function TaskEffortTracker({ taskId, estimatedEffort, actualEffort, onEff
     reload
   } = useTaskEffort({ taskId });
   const [manualOpen, setManualOpen] = useState(false);
-  const [historyOpen, setHistoryOpen] = useState(false);
+  const [sessionsOpen, setSessionsOpen] = useState(false);
   const [hours, setHours] = useState('');
   const [note, setNote] = useState('');
 
@@ -103,19 +99,13 @@ export function TaskEffortTracker({ taskId, estimatedEffort, actualEffort, onEff
     setHours('');
     setNote('');
     setManualOpen(false);
-    setHistoryOpen(true);
     notify(data, 'Lançamento manual registrado.');
   }
 
-  async function handleDelete(entry) {
-    const confirmed = await confirm({
-      title: 'Excluir sessão de tempo',
-      description:
-        'A sessão sairá do histórico e o esforço realizado da tarefa será recalculado. Esta ação não poderá ser desfeita.',
-      confirmLabel: 'Excluir'
-    });
-    if (!confirmed) return;
-    notify(await remove(entry.id), 'Sessão de tempo excluída.');
+  async function handleDelete(entryId) {
+    const data = await remove(entryId);
+    notify(data, 'Sessão de tempo excluída.');
+    return data;
   }
 
   return (
@@ -273,48 +263,26 @@ export function TaskEffortTracker({ taskId, estimatedEffort, actualEffort, onEff
       )}
 
       {!loading && (
-        <details className="task-effort-sessions" open={historyOpen}>
-          <summary
-            onClick={(event) => {
-              event.preventDefault();
-              setHistoryOpen((current) => !current);
-            }}
-          >
-            {historyOpen ? 'Ocultar sessões registradas' : 'Ver sessões registradas'}
-          </summary>
-          {historyOpen && (
-            <ul className="task-effort-entries" aria-label="Sessões registradas">
-              {entries.length === 0 ? (
-                <li className="task-effort-empty">Nenhuma sessão registrada.</li>
-              ) : (
-                entries.map((entry) => (
-                  <li key={entry.id}>
-                    <div className="task-effort-entry">
-                      <span className="task-effort-entry-when">{describeTimeEntry(entry)}</span>
-                      {entry.source === 'MANUAL' && <span className="task-effort-tag">manual</span>}
-                      {entry.note && <span className="task-effort-entry-note">{entry.note}</span>}
-                    </div>
-                    <div className="task-effort-entry-side">
-                      <strong>{formatHoursMinutes(entry.durationSeconds || 0)}</strong>
-                      {entry.canDelete && (
-                        <button
-                          className="task-effort-icon-button"
-                          type="button"
-                          disabled={busy}
-                          onClick={() => void handleDelete(entry)}
-                          aria-label="Excluir sessão"
-                          title="Excluir sessão"
-                        >
-                          <TrashIcon />
-                        </button>
-                      )}
-                    </div>
-                  </li>
-                ))
-              )}
-            </ul>
-          )}
-        </details>
+        <button
+          className="task-effort-link"
+          type="button"
+          ref={sessionsButtonRef}
+          onClick={() => setSessionsOpen(true)}
+        >
+          Ver sessões registradas
+        </button>
+      )}
+
+      {sessionsOpen && (
+        <TaskTimeEntriesDialog
+          taskId={taskId}
+          taskTitle={taskTitle}
+          refreshKey={`${completedCount}:${entries[0]?.id ?? ''}:${running?.id ?? ''}`}
+          busy={busy}
+          onDelete={handleDelete}
+          returnFocusRef={sessionsButtonRef}
+          onClose={() => setSessionsOpen(false)}
+        />
       )}
     </section>
   );

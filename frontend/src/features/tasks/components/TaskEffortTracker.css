@@ -220,127 +220,30 @@
   margin-left: auto;
 }
 
-/* Histórico como no preview: um link discreto que expande as sessões no lugar. */
-.task-effort-sessions summary {
+/* Histórico abre em diálogo próprio; aqui fica só um link discreto, como no preview. */
+.task-effort-link {
   display: inline-flex;
+  width: fit-content;
   min-height: 2rem;
   align-items: center;
-  list-style: none;
+  padding: 0;
+  border: 0;
   color: var(--color-accent-primary);
+  background: transparent;
+  font: inherit;
   font-size: var(--font-size-1);
   font-weight: var(--font-weight-bold);
   cursor: pointer;
 }
 
-.task-effort-sessions summary::-webkit-details-marker {
-  display: none;
-}
-
-.task-effort-sessions summary:hover {
+.task-effort-link:hover {
   text-decoration: underline;
 }
 
-.task-effort-sessions summary:focus-visible {
+.task-effort-link:focus-visible {
   outline: var(--focus-ring-width) solid var(--color-focus-ring);
   outline-offset: var(--focus-ring-offset);
   border-radius: var(--radius-xs);
-}
-
-.task-effort-entries {
-  display: grid;
-  gap: 0;
-  max-height: 9rem;
-  margin: 0;
-  padding: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  list-style: none;
-  border-top: var(--border-width-default) solid var(--color-border-default);
-}
-
-.task-effort-entries li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-2) 0;
-}
-
-.task-effort-entries li + li {
-  border-top: var(--border-width-default) solid var(--color-border-default);
-}
-
-.task-effort-entry {
-  display: flex;
-  min-width: 0;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-2);
-  font-size: var(--font-size-1);
-}
-
-.task-effort-entry-when {
-  color: var(--color-text-primary);
-  font-variant-numeric: tabular-nums;
-}
-
-.task-effort-entry-note {
-  min-width: 0;
-  color: var(--color-text-secondary);
-  overflow-wrap: anywhere;
-}
-
-.task-effort-entry-side {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  gap: var(--space-1);
-}
-
-.task-effort-entry-side strong {
-  color: var(--color-text-strong);
-  font-size: var(--font-size-1);
-  font-variant-numeric: tabular-nums;
-}
-
-.task-effort-tag {
-  border-radius: var(--radius-pill);
-  padding: 0 var(--space-2);
-  color: var(--color-highlight-text);
-  background: var(--color-highlight-surface);
-  font-size: 0.68rem;
-  font-weight: var(--font-weight-bold);
-  text-transform: uppercase;
-}
-
-.task-effort-empty {
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-1);
-}
-
-.task-effort-icon-button {
-  display: inline-flex;
-  width: var(--size-touch-target);
-  min-width: var(--size-touch-target);
-  height: var(--size-touch-target);
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-xs);
-  color: var(--color-text-secondary);
-  background: transparent;
-  cursor: pointer;
-}
-
-.task-effort-icon-button:hover:not(:disabled) {
-  color: var(--color-danger-text);
-  background: var(--color-danger-surface);
-}
-
-.task-effort-icon-button:disabled {
-  cursor: not-allowed;
-  opacity: var(--opacity-disabled);
 }
 
 @media (max-width: 560px) {

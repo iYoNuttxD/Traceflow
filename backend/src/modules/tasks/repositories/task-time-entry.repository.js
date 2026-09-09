@@ -54,13 +54,26 @@ export const taskTimeEntryRepository = {
     });
   },
 
-  listCompleted(taskId, limit) {
-    return prisma.taskTimeEntry.findMany({
-      where: completedWhere(taskId),
-      select: timeEntrySelect,
-      orderBy: [{ endedAt: 'desc' }, { id: 'desc' }],
-      take: limit + 1
-    });
+  // Página do histórico filtrada por período de encerramento e origem; a contagem
+  // acompanha o mesmo filtro para a paginação do diálogo ser exata.
+  listCompletedPage(taskId, { skip, take, from, to, source }) {
+    const where = {
+      ...completedWhere(taskId),
+      ...(source ? { source } : {}),
+      ...(from || to
+        ? { endedAt: { not: null, ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } }
+        : {})
+    };
+    return prisma.$transaction([
+      prisma.taskTimeEntry.count({ where }),
+      prisma.taskTimeEntry.findMany({
+        where,
+        select: timeEntrySelect,
+        orderBy: [{ endedAt: 'desc' }, { id: 'desc' }],
+        skip,
+        take
+      })
+    ]);
   },
 
   summarizeCompleted(taskId) {

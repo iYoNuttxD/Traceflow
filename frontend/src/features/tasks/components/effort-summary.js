@@ -79,6 +79,41 @@ export function resolveEffort(effort, { estimatedEffort, actualEffort } = {}) {
   };
 }
 
+// Resumo compacto para o cartão do Kanban: relógio vivo quando há sessão em
+// andamento, senão o total registrado contra a estimativa. Sem dado algum, nada.
+export function buildEffortChip(task, now = Date.now()) {
+  if (!task || task.isFrozen) return null;
+  const running = task.runningTimer || null;
+  const estimated = task.estimatedEffort ?? null;
+  const actual = task.actualEffort ?? null;
+  if (!running && estimated === null && actual === null) return null;
+  const liveSeconds = running
+    ? Math.max(0, Math.floor((now - new Date(running.startedAt).getTime()) / 1000))
+    : 0;
+  const view = computeEffortView({
+    effort: resolveEffort(null, { estimatedEffort: estimated, actualEffort: actual }),
+    liveSeconds
+  });
+  const total = formatHoursMinutes(view.totalSeconds);
+  const percent = view.usagePercent === null ? null : `${Math.round(view.usagePercent)}%`;
+  const estimateLabel = view.hasEstimate
+    ? ` de ${formatHoursMinutes(view.estimatedSeconds)} estimadas${percent ? ` (${percent})` : ''}`
+    : '';
+  return {
+    running: Boolean(running),
+    tone: EFFORT_STATUS_TONES[view.status] || 'neutral',
+    value: running ? formatClock(liveSeconds) : total,
+    detail: running
+      ? (percent ?? total)
+      : view.hasEstimate
+        ? `/ ${formatHoursMinutes(view.estimatedSeconds)}${percent ? ` · ${percent}` : ''}`
+        : '',
+    title: running
+      ? `Cronômetro em andamento por ${running.startedBy?.name || 'membro'} · total ${total}${estimateLabel}`
+      : `Esforço registrado ${total}${estimateLabel}`
+  };
+}
+
 export function computeEffortView({ effort, liveSeconds = 0 }) {
   const completedSeconds = Number(effort?.completedSeconds) || 0;
   const totalSeconds = completedSeconds + Math.max(0, liveSeconds);
