@@ -69,33 +69,36 @@ describe('S1-07 final UX contracts', () => {
     expect(onOpen).toHaveBeenCalledWith('create', null, expect.any(HTMLButtonElement));
   });
   it.each([
-    ['Requisitos', /Abrir REQ-4/, 'requirements'],
-    ['Tarefas', /Abrir TASK-9/, 'tasks']
-  ])('navigates to canonical %s without retaining the case dialog', async (title, name, route) => {
-    const onCancel = vi.fn();
-    render(
-      <MemoryRouter initialEntries={['/projects/1/test-cases']}>
-        <Routes>
-          <Route
-            path="/projects/1/test-cases"
-            element={
-              <section role="dialog">
-                <TestCaseDetails testCase={testCase} projectId={1} onCancel={onCancel} />
-              </section>
-            }
-          />
-          <Route path={`/projects/1/${route}`} element={<h1>{title}</h1>} />
-        </Routes>
-      </MemoryRouter>
-    );
-    const link = screen.getByRole('link', { name });
-    expect(link).toHaveAttribute('href', `/projects/1/${route}`);
-    link.focus();
-    await userEvent.setup().keyboard('{Enter}');
-    expect(screen.getByRole('heading', { name: title })).toBeInTheDocument();
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(onCancel).toHaveBeenCalledOnce();
-  });
+    ['Requisitos', /REQ-4/, 'requirements', '?requirement=4'],
+    ['Tarefas', /TASK-9/, 'kanban', '?task=9']
+  ])(
+    'navigates to canonical %s without retaining the case dialog',
+    async (title, name, route, query) => {
+      const onCancel = vi.fn();
+      render(
+        <MemoryRouter initialEntries={['/projects/1/test-cases']}>
+          <Routes>
+            <Route
+              path="/projects/1/test-cases"
+              element={
+                <section role="dialog">
+                  <TestCaseDetails testCase={testCase} projectId={1} onCancel={onCancel} />
+                </section>
+              }
+            />
+            <Route path={`/projects/1/${route}`} element={<h1>{title}</h1>} />
+          </Routes>
+        </MemoryRouter>
+      );
+      const link = screen.getByRole('link', { name });
+      expect(link).toHaveAttribute('href', `/projects/1/${route}${query}`);
+      link.focus();
+      await userEvent.setup().keyboard('{Enter}');
+      expect(screen.getByRole('heading', { name: title })).toBeInTheDocument();
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(onCancel).toHaveBeenCalledOnce();
+    }
+  );
   it('omits mutable header actions for VIEWER and honors current capabilities', () => {
     const { rerender } = render(<TestCaseHeaderActions testCase={testCase} canWrite={false} />);
     expect(screen.queryByRole('button')).not.toBeInTheDocument();

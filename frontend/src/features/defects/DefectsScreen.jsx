@@ -77,7 +77,16 @@ export function DefectCard({ defect: d, canWrite, onOpen }) {
         {canWrite && contextualAction(d.status) && (
           <button
             className="button button-primary"
-            onClick={(e) => open(d.status === 'AGUARDANDO_RETESTE' ? 'retest' : 'correction', e)}
+            onClick={(e) =>
+              open(
+                d.status === 'AGUARDANDO_RETESTE'
+                  ? 'retest'
+                  : d.status === 'EM_CORRECAO'
+                    ? 'correction-details'
+                    : 'correction',
+                e
+              )
+            }
           >
             {contextualAction(d.status)}
           </button>
@@ -215,6 +224,7 @@ function ProjectDefects({ project }) {
                 <span>{label}</span>
                 <select
                   id={`defects-filter-${key}`}
+                  aria-label={label}
                   name={key}
                   value={state.filters[key]}
                   onChange={(e) => state.changeFilter(key, e.target.value)}
@@ -226,6 +236,9 @@ function ProjectDefects({ project }) {
                     </option>
                   ))}
                 </select>
+                {key === 'severity' && state.filters[key] && (
+                  <DefectBadge value={state.filters[key]} />
+                )}
               </label>
             ))}
             {[

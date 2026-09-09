@@ -285,3 +285,14 @@
 .task-detail-responsible > span {
   flex-shrink: 0;
 }
+
+.task-quality-list {
+  display: grid;
+  gap: var(--space-2);
+}
+.task-quality-list + .task-quality-list {
+  margin-top: var(--space-2);
+}
+.task-quality-list + .button {
+  margin-top: var(--space-3);
+}

@@ -1,8 +1,9 @@
+import { CorrectionTaskRows } from './DefectDetails.jsx';
 import { useState } from 'react';
 import { SearchCombobox } from '../../../shared/index.js';
 import { TaskForm, emptyTaskForm, taskFormToPayload } from '../../tasks/index.js';
 import { taskLabel, requirementLabel, taskStatuses } from '../model/defects.js';
-export function CorrectionManager({ defect, options, busy, blocked, onSave }) {
+export function CorrectionManager({ defect, options, busy, blocked, onSave, onNavigate }) {
   const [mode, setMode] = useState(null),
     [selected, setSelected] = useState(null),
     [requirement, setRequirement] = useState(defect.requirement),
@@ -11,6 +12,8 @@ export function CorrectionManager({ defect, options, busy, blocked, onSave }) {
       title: `Corrigir ${defect.displayId} — ${defect.title}`,
       requirementId: defect.requirementId ? String(defect.requirementId) : ''
     });
+  const currentTasks =
+    defect.correctionCycles.find((c) => c.cycle === defect.currentCorrectionCycle)?.tasks || [];
   const excluded = new Set(
     [
       ...defect.originTasks,
@@ -19,7 +22,16 @@ export function CorrectionManager({ defect, options, busy, blocked, onSave }) {
     ].map((t) => t.id)
   );
   return (
-    <section className="tc-stack">
+    <section className="tc-stack defect-correction-manager">
+      <section className="task-detail-section">
+        <h3>Tarefas do ciclo atual</h3>
+        <CorrectionTaskRows
+          tasks={currentTasks}
+          projectId={defect.projectId}
+          onNavigate={onNavigate}
+        />
+        {!currentTasks.length && <p>Nenhuma tarefa de correção neste ciclo.</p>}
+      </section>
       <p className="field-help">
         O status do defeito acompanha automaticamente o andamento das tarefas de correção.
       </p>

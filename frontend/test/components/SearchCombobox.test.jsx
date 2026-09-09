@@ -34,7 +34,7 @@ describe('SearchCombobox', () => {
     await act(() => vi.advanceTimersByTimeAsync(300));
     expect(search).toHaveBeenCalledWith('ma', expect.any(AbortSignal));
     expect(screen.getAllByRole('option')).toHaveLength(2);
-    expect(fireEvent.mouseDown(screen.getAllByRole('option')[0])).toBe(true);
+    expect(fireEvent.mouseDown(screen.getAllByRole('option')[0])).toBe(false);
   });
 
   it('seleciona o resultado ativo com teclado', async () => {

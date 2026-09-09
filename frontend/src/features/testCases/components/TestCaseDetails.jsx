@@ -1,8 +1,8 @@
-import { defectStatuses, defectSeverities } from '../../defects/index.js';
-import { Link } from 'react-router';
+import { EntityRow } from '../../../shared/index.js';
+import { DefectBadge } from '../../defects/index.js';
 import { GithubExternalAction, TaskTraceabilityGrid, ArtifactCategory } from '../../tasks/index.js';
 import { PersistedEvidence } from './PersistedEvidence.jsx';
-import { requirementLabel, taskLabel, environments, referenceLabel } from '../model/test-cases.js';
+import { environments, referenceLabel } from '../model/test-cases.js';
 import { Badge, Latest } from './Parts.jsx';
 
 function Information({ items }) {
@@ -50,36 +50,6 @@ function Steps({ version, execution, onPreview, canWrite, onCreateDefect, onOpen
                   <p>{result ? result.expectedResultSnapshot : step.expectedResult}</p>
                 </div>
               </div>
-              {result?.result === 'FAIL' && (canWrite || result.detectedDefects?.length > 0) && (
-                <section className="tc-step-defects">
-                  {!!result.detectedDefects?.length && (
-                    <>
-                      <h4>Defeitos registrados</h4>
-                      {result.detectedDefects.map((d) => (
-                        <p key={d.id}>
-                          <button
-                            className="button button-outline button-compact"
-                            onClick={() => onOpenDefect?.(d.id)}
-                          >
-                            DEF-{d.id} · {d.title}
-                          </button>{' '}
-                          · {defectSeverities[d.severity]} · {defectStatuses[d.status]}
-                        </p>
-                      ))}
-                    </>
-                  )}
-                  {canWrite && onCreateDefect && (
-                    <button
-                      className="button button-secondary"
-                      onClick={() => onCreateDefect(execution, result)}
-                    >
-                      {result.detectedDefects?.length
-                        ? 'Registrar outro defeito'
-                        : 'Registrar defeito'}
-                    </button>
-                  )}
-                </section>
-              )}
               {result && (
                 <div className="tc-step-observed">
                   <small>Resultado observado</small>
@@ -87,6 +57,37 @@ function Steps({ version, execution, onPreview, canWrite, onCreateDefect, onOpen
                 </div>
               )}
             </div>
+            {result?.result === 'FAIL' && true && (
+              <section className="tc-step-defects">
+                {!!result.detectedDefects?.length && (
+                  <>
+                    <h4>Defeitos registrados</h4>
+                    {result.detectedDefects.map((d) => (
+                      <EntityRow
+                        key={d.id}
+                        identity={`DEF-${d.id}`}
+                        title={d.title}
+                        onClick={() => onOpenDefect?.(d.id)}
+                      >
+                        <DefectBadge value={d.severity} />
+                        <DefectBadge value={d.status} />
+                      </EntityRow>
+                    ))}
+                  </>
+                )}
+                {!result.detectedDefects?.length && <p>Nenhum defeito registrado nesta falha.</p>}
+                {canWrite && onCreateDefect && (
+                  <button
+                    className="button button-secondary"
+                    onClick={() => onCreateDefect(execution, result)}
+                  >
+                    {result.detectedDefects?.length
+                      ? 'Registrar outro defeito'
+                      : 'Registrar defeito'}
+                  </button>
+                )}
+              </section>
+            )}
             {result && execution.evidence.some((file) => file.executionStepId === result.id) && (
               <div className="tc-step-evidence">
                 <h4>Evidências do passo</h4>
@@ -126,14 +127,12 @@ export function TestCaseDetails({ testCase, projectId, onView, onCancel }) {
         <TaskTraceabilityGrid>
           <ArtifactCategory label="Requisito" count={testCase.requirement ? 1 : 0}>
             {testCase.requirement ? (
-              <Link
-                className="tc-entity-link"
-                to={`/projects/${projectId}/requirements`}
+              <EntityRow
+                identity={`REQ-${testCase.requirement.id}`}
+                title={testCase.requirement.title}
+                to={`/projects/${projectId}/requirements?requirement=${testCase.requirement.id}`}
                 onClick={onCancel}
-                aria-label={`Abrir ${requirementLabel(testCase.requirement)} em Requisitos`}
-              >
-                <strong>{requirementLabel(testCase.requirement)}</strong>
-              </Link>
+              />
             ) : (
               <p>Nenhum vínculo</p>
             )}
@@ -142,14 +141,12 @@ export function TestCaseDetails({ testCase, projectId, onView, onCancel }) {
             <div className="task-detail-artifact-list">
               {testCase.tasks.map((task) => (
                 <div key={task.id}>
-                  <Link
-                    className="tc-entity-link"
-                    to={`/projects/${projectId}/tasks`}
+                  <EntityRow
+                    identity={`TASK-${task.id}`}
+                    title={task.title}
+                    to={`/projects/${projectId}/kanban?task=${task.id}`}
                     onClick={onCancel}
-                    aria-label={`Abrir ${taskLabel(task)} em Tarefas`}
-                  >
-                    <strong>{taskLabel(task)}</strong>
-                  </Link>
+                  />
                 </div>
               ))}
             </div>

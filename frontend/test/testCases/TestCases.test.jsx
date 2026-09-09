@@ -120,13 +120,13 @@ afterEach(() => {
   warnings.mockRestore();
   vi.unstubAllGlobals();
 });
-async function renderRoute() {
+async function renderRoute(path = '/projects/1/test-cases') {
   // Await Vite's cold transform/instrumentation before starting DOM assertions.
   // AppRoutes still owns the real lazy route and ProjectsCatalogProvider.
   await import('../../src/pages/TestCasesPage.jsx');
   await act(async () => {
     render(
-      <MemoryRouter initialEntries={['/projects/1/test-cases']}>
+      <MemoryRouter initialEntries={[path]}>
         <ThemeProvider>
           <ConfirmProvider>
             <AppRoutes />
@@ -429,6 +429,25 @@ describe('S1-07 integrated case flows', () => {
     expect(dialog().getByText('rascunho.json')).toBeInTheDocument();
     expect(dialog().getByRole('button', { name: 'Registrar execução' })).toBeDisabled();
     expect(mocks.api.record).toHaveBeenCalledTimes(1);
+  });
+  it('preserves identity from deep-linked details through both history tabs', async () => {
+    await renderRoute('/projects/1/test-cases?case=15');
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Ver histórico' }));
+    expect(screen.getByRole('dialog')).toHaveAccessibleName(
+      `Histórico — ${testCase.displayId} · ${testCase.title}`
+    );
+    await user.click(dialog().getByRole('tab', { name: 'Alterações do caso' }));
+    expect(await dialog().findByText('Nova versão')).toBeInTheDocument();
+    expect(dialog().getByRole('tabpanel', { name: 'Alterações do caso' })).toBeInTheDocument();
+    expect(dialog().queryByRole('tabpanel', { name: 'Execuções' })).not.toBeInTheDocument();
+    await user.click(dialog().getByRole('tab', { name: 'Execuções' }));
+    expect(
+      await dialog().findByRole('button', { name: 'Ver execução EXEC-0038' })
+    ).toBeInTheDocument();
+    expect(screen.getByRole('dialog')).toHaveAccessibleName(
+      `Histórico — ${testCase.displayId} · ${testCase.title}`
+    );
   });
   it('loads history tabs and historical execution exclusively from its v3 DTO', async () => {
     mocks.api.detail.mockResolvedValue({

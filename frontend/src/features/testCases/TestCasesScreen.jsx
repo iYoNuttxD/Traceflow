@@ -205,7 +205,13 @@ function ProjectTestCases({ project }) {
     if (mutationLock.current) return;
     setMutationError(null);
     setLoaded(null);
-    setDialog((old) => ({ ...old, type, executionId }));
+    setDialog((old) => ({
+      ...old,
+      type,
+      executionId,
+      label: current?.testCaseId ? old.label : current?.displayId || old.label,
+      title: current?.testCaseId ? old.title : current?.title || old.title
+    }));
   }
   useEffect(() => {
     if (dialog) {
@@ -222,26 +228,28 @@ function ProjectTestCases({ project }) {
         : dialog?.type === 'execute'
           ? `Executar ${dialog.label}`
           : dialog?.type === 'history'
-            ? 'Histórico do caso'
+            ? `Histórico — ${dialog.label || `TC-${dialog.caseId}`}${dialog.title ? ` · ${dialog.title}` : ''}`
             : dialog?.type === 'execution'
               ? current?.displayId || 'Carregando execução…'
               : dialog
                 ? `${current?.displayId || dialog.label} · ${current?.title || dialog.title}`
                 : '';
   const description =
-    dialog?.type === 'details'
-      ? 'Detalhes do caso de teste'
-      : dialog?.type === 'execute'
-        ? current?.title || dialog.title
-        : dialog?.type === 'execution'
-          ? current
-            ? `Detalhes da execução · TC-${current.testCaseId} · ${current.caseVersionSnapshot.title}`
-            : 'Carregando registro histórico'
-          : dialog?.type === 'create'
-            ? 'Defina o cenário de validação'
-            : dialog
-              ? `${current?.displayId || dialog.label} · ${current?.title || dialog.title}`
-              : undefined;
+    dialog?.type === 'history'
+      ? 'Execuções e alterações registradas para este caso.'
+      : dialog?.type === 'details'
+        ? 'Detalhes do caso de teste'
+        : dialog?.type === 'execute'
+          ? current?.title || dialog.title
+          : dialog?.type === 'execution'
+            ? current
+              ? `Detalhes da execução · TC-${current.testCaseId} · ${current.caseVersionSnapshot.title}`
+              : 'Carregando registro histórico'
+            : dialog?.type === 'create'
+              ? 'Defina o cenário de validação'
+              : dialog
+                ? `${current?.displayId || dialog.label} · ${current?.title || dialog.title}`
+                : undefined;
   if ([403, 404].includes(state.error?.status) || [403, 404].includes(state.memberError?.status))
     return <ContextualErrorPage error={state.error || state.memberError} showRetry={false} />;
   return (
@@ -358,6 +366,7 @@ function ProjectTestCases({ project }) {
         )}
       </div>
       <SprintDialog
+        confirmation={Boolean(defectContext && defectHeader?.confirmation)}
         open={Boolean(dialog)}
         title={
           defectContext
@@ -419,7 +428,7 @@ function ProjectTestCases({ project }) {
             )
           )
         }
-        size="large"
+        size={dialog?.type === 'history' && !defectContext && !evidence ? 'default' : 'large'}
         onClose={close}
         busy={busy || Boolean(defectHeader?.busy)}
         returnFocusRef={returnFocusRef}

@@ -1,10 +1,12 @@
+import { DefectHeaderActions } from './DefectHeaderActions.jsx';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { SprintDialog } from '../../schedule/index.js';
 import {
   ErrorState,
   LoadingState,
   normalizeApiError,
-  TraceFlowIcon
+  TraceFlowIcon,
+  ConfirmDialogContent
 } from '../../../shared/index.js';
 import {
   testCasesApi,
@@ -17,7 +19,7 @@ import {
   useEvidenceContent
 } from '../../testCases/index.js';
 import { defectsApi } from '../api/defects.api.js';
-import { contextualAction, defectLabel } from '../model/defects.js';
+import { defectLabel } from '../model/defects.js';
 import { DefectForm } from './DefectForm.jsx';
 import { DefectDetails } from './DefectDetails.jsx';
 import { CorrectionManager } from './CorrectionManager.jsx';
@@ -30,8 +32,11 @@ function Retest({ defect, ...props }) {
     return <p role="status">O caso está inativo ou o reteste não está autorizado.</p>;
   return <TestExecutionWizard testCase={data} retest={defect} {...props} />;
 }
-function Execution({ id, onPreview, onOpenDefect }) {
+function Execution({ id, onPreview, onOpenDefect, onLoaded }) {
   const { data, loading, error, load } = useCaseRead('execution', id);
+  useEffect(() => {
+    if (data) onLoaded(data);
+  }, [data, onLoaded]);
   if (loading) return <LoadingState message="Carregando execução…" />;
   if (error) return <ErrorState message={error.message} onRetry={() => load()} />;
   return (
@@ -53,7 +58,10 @@ export function DefectFlow({
   returnFocusRef
 }) {
   const [id, setId] = useState(initialId),
-    [view, setView] = useState(initialId ? initialView : 'create'),
+    [view, setView] = useState(
+      initialId ? (initialView === 'correction-details' ? 'details' : initialView) : 'create'
+    ),
+    [loadedExecution, setLoadedExecution] = useState(null),
     [row, setRow] = useState(null),
     [loading, setLoading] = useState(Boolean(initialId)),
     [error, setError] = useState(null),
@@ -68,6 +76,7 @@ export function DefectFlow({
     lock = useRef(false),
     contentRef = useRef(null),
     returnSubview = useRef(null),
+    returnLabel = useRef(null),
     scroll = useRef(0),
     handlers = useRef({}),
     receipt = useRef(null),
@@ -122,7 +131,12 @@ export function DefectFlow({
   };
   const navigate = (next) => {
     if (lock.current) return;
-    returnSubview.current = document.activeElement;
+    if (view === 'details') {
+      returnSubview.current = document.activeElement;
+      returnLabel.current =
+        document.activeElement?.getAttribute('aria-label') || document.activeElement?.textContent;
+      scroll.current = contentRef.current?.parentElement?.scrollTop || 0;
+    }
     setMutationError(null);
     setView(next);
   };
@@ -137,7 +151,8 @@ export function DefectFlow({
       setPreview(null);
       return;
     }
-    navigate('details');
+    setMutationError(null);
+    setView('details');
   };
   const openPreview = (file, source, trigger) => {
     returnSubview.current = trigger;
@@ -145,6 +160,7 @@ export function DefectFlow({
     setPreview({ file, source });
   };
   const openExecution = (next) => {
+    setLoadedExecution(null);
     setExecutionId(next);
     navigate('execution');
   };
@@ -218,13 +234,13 @@ export function DefectFlow({
       : view === 'edit'
         ? `Editar ${row?.displayId || 'defeito'}`
         : view === 'history'
-          ? `Histórico · ${row?.displayId || 'Defeito'}`
+          ? `Histórico — ${row ? defectLabel(row) : 'Defeito'}`
           : view === 'correction'
             ? `Correção · ${row?.displayId || 'Defeito'}`
             : view === 'retest'
               ? `Reteste do ${row?.displayId || 'defeito'}`
               : view === 'execution'
-                ? 'Detalhes da execução'
+                ? loadedExecution?.displayId || 'Carregando execução…'
                 : row
                   ? defectLabel(row)
                   : 'Carregando defeito…';
@@ -232,56 +248,36 @@ export function DefectFlow({
     view === 'details'
       ? 'Detalhes do defeito'
       : view === 'history'
-        ? 'Evolução do defeito'
+        ? 'Alterações registradas para este defeito.'
         : view === 'correction'
           ? `Gerencie as tarefas do ciclo ${row?.currentCorrectionCycle || ''}`
-          : view === 'create'
-            ? 'Registre uma falha comprovada em execução de teste'
-            : undefined;
+          : view === 'edit'
+            ? 'Atualize as informações e os vínculos do defeito.'
+            : view === 'execution'
+              ? loadedExecution
+                ? `Detalhes da execução · ${row?.retests.some((r) => r.testExecutionId === loadedExecution.id) ? `Reteste de ${row.displayId} · ` : ''}TC-${loadedExecution.testCaseId} · ${loadedExecution.caseVersionSnapshot.title}`
+                : 'Carregando registro histórico'
+              : view === 'create'
+                ? 'Registre uma falha comprovada em execução de teste'
+                : undefined;
   const headerActions = useMemo(
     () =>
       preview ? (
         <EvidenceDownloadButton file={preview.file} />
       ) : view === 'details' && row ? (
-        <>
-          {canWrite && !needsRefresh && contextualAction(row.status) && (
-            <button
-              className="button button-primary"
-              disabled={busy}
-              onClick={() =>
-                handlers.current.navigate(
-                  row.status === 'AGUARDANDO_RETESTE' ? 'retest' : 'correction'
-                )
-              }
-            >
-              {contextualAction(row.status)}
-            </button>
-          )}
-          {canWrite && !needsRefresh && (
-            <>
-              <button
-                className="button button-secondary"
-                disabled={busy}
-                onClick={() => handlers.current.navigate('edit')}
-              >
-                Editar
-              </button>
-              <button
-                className="button button-secondary"
-                disabled={busy}
-                onClick={() => handlers.current.navigate('delete')}
-              >
-                Excluir
-              </button>
-            </>
-          )}
-        </>
+        canWrite && !needsRefresh ? (
+          <DefectHeaderActions
+            defect={row}
+            busy={busy}
+            onView={(next) => handlers.current.navigate(next)}
+          />
+        ) : null
       ) : null,
     [preview, view, row, canWrite, needsRefresh, busy]
   );
   const leadingAction = useMemo(
     () =>
-      preview || (view !== 'details' && view !== 'create') ? (
+      preview || (view !== 'details' && view !== 'create' && view !== 'delete') ? (
         <button
           className="sprint-dialog__close"
           disabled={busy}
@@ -303,11 +299,23 @@ export function DefectFlow({
     [preview, view, busy, embedded]
   );
   useLayoutEffect(() => {
-    onHeader?.({ title, description, headerActions, leadingAction, busy });
-  }, [title, description, headerActions, leadingAction, busy, onHeader]);
+    onHeader?.({
+      title,
+      description,
+      headerActions,
+      leadingAction,
+      busy,
+      confirmation: view === 'delete'
+    });
+  }, [title, description, headerActions, leadingAction, busy, onHeader, view]);
   useLayoutEffect(() => {
-    if (!preview && view === 'details' && returnSubview.current?.isConnected) {
-      returnSubview.current.focus({ preventScroll: true });
+    if (view === 'delete') return;
+    if (!preview && view === 'details') {
+      const fallback = [
+        ...(contentRef.current?.closest('[role="dialog"]')?.querySelectorAll('button, a') || [])
+      ].find((e) => (e.getAttribute('aria-label') || e.textContent) === returnLabel.current);
+      const target = returnSubview.current?.isConnected ? returnSubview.current : fallback;
+      (target || contentRef.current)?.focus({ preventScroll: true });
       if (contentRef.current?.parentElement)
         contentRef.current.parentElement.scrollTop = scroll.current;
     } else contentRef.current?.focus({ preventScroll: true });
@@ -371,6 +379,7 @@ export function DefectFlow({
                 onPreview={openPreview}
                 onNavigate={close}
                 onExecution={openExecution}
+                focusCorrection={initialView === 'correction-details'}
               />
             )}
             {view === 'edit' && canWrite && (
@@ -378,6 +387,7 @@ export function DefectFlow({
                 key={row.id}
                 projectId={projectId}
                 defect={row}
+                onNavigate={close}
                 options={options}
                 busy={busy}
                 blocked={mutationError?.blocked}
@@ -389,6 +399,7 @@ export function DefectFlow({
             {view === 'correction' && canWrite && row.status !== 'VALIDADO' && (
               <CorrectionManager
                 defect={row}
+                onNavigate={close}
                 options={options}
                 busy={busy}
                 blocked={mutationError?.blocked}
@@ -408,6 +419,7 @@ export function DefectFlow({
               <Execution
                 key={executionId}
                 id={executionId}
+                onLoaded={setLoadedExecution}
                 onPreview={openPreview}
                 onOpenDefect={openDefect}
               />
@@ -423,49 +435,52 @@ export function DefectFlow({
                 }
               />
             )}
-            {view === 'delete' && canWrite && (
-              <section className="tc-stack">
-                <h3>Excluir {row.displayId}?</h3>
-                <p>
-                  O defeito deixará de aparecer nas visões atuais. O histórico, as execuções de
-                  teste e as tarefas relacionadas serão preservados.
-                </p>
-                <footer className="tc-footer">
-                  <button className="button button-secondary" disabled={busy} onClick={back}>
-                    Cancelar
-                  </button>
-                  <button
-                    className="button button-danger"
-                    disabled={busy}
-                    onClick={() => mutate('delete', () => defectsApi.remove(id))}
-                  >
-                    Excluir defeito
-                  </button>
-                </footer>
-              </section>
-            )}
           </>
         )}
       </div>
     </div>
   );
+  const content =
+    view === 'delete' && row && canWrite ? (
+      <>
+        <ConfirmDialogContent
+          dialog={{
+            title: 'Excluir defeito?',
+            description: `${defectLabel(row)}. O defeito deixará de aparecer nas visões atuais. O histórico, as execuções de teste e as tarefas relacionadas serão preservados.`,
+            confirmLabel: busy ? 'Excluindo…' : 'Excluir defeito',
+            destructive: true,
+            busy
+          }}
+          close={(accepted) => {
+            if (!busy) {
+              if (accepted) void mutate('delete', () => defectsApi.remove(id));
+              else back();
+            }
+          }}
+        />
+        {mutationError && <p role="alert">{mutationError.message}</p>}
+      </>
+    ) : (
+      body
+    );
   return embedded ? (
-    body
+    content
   ) : (
     <SprintDialog
       open
+      confirmation={view === 'delete' && Boolean(row)}
       title={title}
       description={description}
       headerActions={headerActions}
       leadingAction={leadingAction}
-      size="large"
+      size={view === 'history' ? 'default' : 'large'}
       className="tc-dialog defect-dialog"
       busy={busy}
-      onClose={close}
+      onClose={view === 'delete' ? back : close}
       returnFocusRef={returnFocusRef}
       initialFocusSelector="[data-defect-modal]"
     >
-      {body}
+      {content}
     </SprintDialog>
   );
 }

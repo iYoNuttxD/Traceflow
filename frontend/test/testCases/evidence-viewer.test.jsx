@@ -259,7 +259,7 @@ describe('current evidence ownership', () => {
   });
 });
 describe('canonical traceability with actual minimal DTO', () => {
-  it('uses two canonical categories, three separated tasks and no decorative icons or invented metadata', () => {
+  it('uses two canonical categories, three separated tasks and semantic navigation without invented metadata', () => {
     const data = {
       ...testCase,
       tasks: Array.from({ length: 3 }, (_, i) => ({ id: i + 1, title: `Tarefa ${i + 1}` }))
@@ -274,7 +274,9 @@ describe('canonical traceability with actual minimal DTO', () => {
     expect(within(trace).getByLabelText('3 tarefas')).toHaveTextContent('3');
     expect(within(trace).getAllByRole('link')).toHaveLength(4);
     expect(trace.querySelectorAll('.task-detail-artifact-list > div')).toHaveLength(3);
-    expect(trace.querySelector('svg')).toBeNull();
+    expect(trace.querySelectorAll('svg[data-icon="arrowRight"][aria-hidden="true"]')).toHaveLength(
+      4
+    );
     expect(trace.textContent).not.toMatch(/undefined|—|Prioridade|Responsável/);
     expect(container.querySelectorAll('.task-detail-traceability-grid article')).toHaveLength(2);
   });

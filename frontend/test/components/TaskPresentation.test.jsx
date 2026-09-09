@@ -163,7 +163,7 @@ describe('apresentação de Tasks e Kanban', () => {
       number: 300 + index,
       title: `Issue rastreável ${index + 1}`
     }));
-    const { container } = render(
+    render(
       <ConfirmProvider>
         <TaskDetailsPanel
           task={{ ...task, commits, issues }}
@@ -178,6 +178,11 @@ describe('apresentação de Tasks e Kanban', () => {
     expect(screen.getByLabelText('12 issues')).toBeInTheDocument();
     expect(screen.getByText('cmt0014 — Commit rastreável 14')).toBeInTheDocument();
     expect(screen.getByText('#311 — Issue rastreável 12')).toBeInTheDocument();
-    expect(container.querySelectorAll('.task-detail-artifact-body')).toHaveLength(4);
+    expect(
+      screen
+        .getByRole('region', { name: 'Rastreabilidade' })
+        .querySelectorAll('.task-detail-artifact-body')
+    ).toHaveLength(4);
+    expect(screen.getByRole('region', { name: 'Qualidade' })).toBeInTheDocument();
   });
 });

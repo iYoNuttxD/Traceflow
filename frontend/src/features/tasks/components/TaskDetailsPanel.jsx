@@ -1,5 +1,5 @@
 import { ContextualTestCaseCreate } from '../../testCases/index.js';
-import { TaskCorrectionContext } from './TaskCorrectionContext.jsx';
+import { TaskQuality } from './TaskQuality.jsx';
 import { TaskTraceability } from './TaskTraceability.jsx';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { normalizeApiError, useConfirm } from '../../../shared/index.js';
@@ -462,15 +462,6 @@ export function TaskDetailsPanel({
     <>
       {canEdit && (
         <button
-          className="button button-outline button-compact"
-          ref={createCaseButtonRef}
-          onClick={() => setCreatingCase(true)}
-        >
-          Criar caso de teste
-        </button>
-      )}
-      {canEdit && (
-        <button
           ref={editButtonRef}
           type="button"
           className="button button-outline button-compact"
@@ -574,10 +565,18 @@ export function TaskDetailsPanel({
           ) : (
             <TaskInformation details={currentTaskDetailsView(task)} />
           )}
-          {!editing && (
-            <TaskCorrectionContext task={task} projectId={projectId} onNavigate={onClose} />
-          )}
           {!editing && <TaskTraceability task={task} />}
+          {!editing && !task.isFrozen && (
+            <TaskQuality
+              key={`${projectId}:${task.id}`}
+              task={task}
+              projectId={projectId}
+              canCreate={canEdit}
+              onCreate={() => setCreatingCase(true)}
+              createRef={createCaseButtonRef}
+              onNavigate={onClose}
+            />
+          )}
         </TaskDetailsLayout>
       )}
     </KanbanDialog>

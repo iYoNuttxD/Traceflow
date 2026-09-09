@@ -70,10 +70,12 @@ const field = (dialog, label) =>
   within(dialog).getByText(label, { selector: 'dt' }).nextElementSibling;
 const sections = (root) => ({
   labels: [...root.querySelectorAll('dt')].map((e) => e.textContent),
-  headings: [...root.querySelectorAll('h3')].map((e) => e.textContent),
-  trace: [...root.querySelectorAll('.task-detail-artifact-heading > span')].map(
-    (e) => e.textContent
-  )
+  headings: [...root.querySelectorAll('h3')]
+    .map((e) => e.textContent)
+    .filter((t) => t !== 'Qualidade'),
+  trace: [...root.querySelectorAll('.task-detail-artifact-heading > span')]
+    .map((e) => e.textContent)
+    .filter((t) => !['Casos de teste', 'Defeitos'].includes(t))
 });
 
 describe('FIX-04 Frozen Task Details parity', () => {
@@ -97,6 +99,7 @@ describe('FIX-04 Frozen Task Details parity', () => {
     showFrozen();
     const dialog = screen.getByRole('dialog', { name: '#5 Tarefa Original' });
     expect(sections(dialog)).toEqual(shape);
+    expect(within(dialog).queryByRole('region', { name: 'Qualidade' })).not.toBeInTheDocument();
     expect(dialog.querySelector('.task-detail-description')).toHaveTextContent(
       'Descrição indisponível no snapshot.'
     );

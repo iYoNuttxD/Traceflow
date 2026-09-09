@@ -42,7 +42,9 @@ export function statusReason(d) {
   if (!r.correctionTasksTotal) return 'Nenhuma tarefa de correção vinculada neste ciclo.';
   if (d.status === 'ABERTO') return 'Todas as tarefas de correção estão em A Fazer.';
   if (d.status === 'AGUARDANDO_RETESTE')
-    return `Todas as ${r.correctionTasksTotal} tarefas de correção foram concluídas.`;
+    return r.correctionTasksTotal === 1
+      ? 'A tarefa de correção foi concluída.'
+      : `Todas as ${r.correctionTasksTotal} tarefas de correção foram concluídas.`;
   return `${r.done} de ${r.correctionTasksTotal} tarefas de correção concluídas. ${r.inProgress} em andamento.`;
 }
 export function validateDefect(form) {

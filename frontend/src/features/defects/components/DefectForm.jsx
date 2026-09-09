@@ -1,6 +1,8 @@
+import { DefectBadge } from './DefectDetails.jsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   SearchCombobox,
+  EntityRow,
   ErrorState,
   LoadingState,
   normalizeApiError
@@ -11,7 +13,6 @@ import {
   defectPayload,
   validateDefect,
   severities,
-  statuses,
   taskLabel,
   requirementLabel,
   dateLabel
@@ -114,7 +115,7 @@ export function DefectForm({
   return (
     <form
       ref={ref}
-      className="tc-stack tc-form"
+      className="tc-stack tc-form defect-form"
       noValidate
       onSubmit={(e) => {
         e.preventDefault();
@@ -129,7 +130,7 @@ export function DefectForm({
       }}
     >
       <fieldset disabled={busy} className="tc-stack tc-form-controls">
-        <section className="tc-surface">
+        <section className="tc-surface defect-origin">
           <h3>Origem da falha</h3>
           {!candidate && !initialExecutionId && (
             <SearchCombobox
@@ -201,21 +202,25 @@ export function DefectForm({
               <p>
                 {candidate.testCase.title} · Caso v{candidate.testCase.version}
               </p>
-              <p className="tc-preformatted">{candidate.failedStep.observedResult}</p>
-              {!!candidate.existingDefects?.length && (
+              {!defect && (
+                <details>
+                  <summary>Resultado observado</summary>
+                  <p className="tc-preformatted">{candidate.failedStep.observedResult}</p>
+                </details>
+              )}
+              {!defect && !!candidate.existingDefects?.length && (
                 <section>
                   <h4>Defeitos já registrados nesta falha</h4>
                   {candidate.existingDefects.map((d) => (
-                    <p key={d.id}>
-                      <button
-                        type="button"
-                        className="button button-outline button-compact"
-                        onClick={() => onOpenDefect?.(d.id)}
-                      >
-                        DEF-{d.id} · {d.title}
-                      </button>{' '}
-                      · {severities[d.severity]} · {statuses[d.status]}
-                    </p>
+                    <EntityRow
+                      key={d.id}
+                      identity={`DEF-${d.id}`}
+                      title={d.title}
+                      onClick={() => onOpenDefect?.(d.id)}
+                    >
+                      <DefectBadge value={d.severity} />
+                      <DefectBadge value={d.status} />
+                    </EntityRow>
                   ))}
                   <p className="field-help">Você pode registrar outro defeito nesta falha.</p>
                 </section>
@@ -230,7 +235,7 @@ export function DefectForm({
                 </button>
               )}
               {changing && (
-                <div className="tc-notice">
+                <div className="tc-surface tc-stack">
                   <p>
                     Alterar a falha substituirá os vínculos herdados. Os demais campos serão
                     preservados.
@@ -291,6 +296,7 @@ export function DefectForm({
                     </option>
                   ))}
                 </select>
+                {form.severity && <DefectBadge value={form.severity} />}
                 {errors.severity && (
                   <small className="field-error" id="defect-severity-error">
                     {errors.severity}
@@ -298,7 +304,8 @@ export function DefectForm({
                 )}
               </label>
               <SearchCombobox
-                label="Responsável *"
+                label="Responsável"
+                popoverPlacement="fixed"
                 options={memberOptions}
                 minQueryLength={0}
                 openOnFocus={false}

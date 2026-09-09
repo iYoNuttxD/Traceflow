@@ -1,3 +1,4 @@
+import { TraceFlowIcon } from '../../../shared/index.js';
 import { Link } from 'react-router';
 import './TaskCorrectionContext.css';
 const labels = {
@@ -38,6 +39,7 @@ export function TaskCorrectionBadge({ task }) {
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >
+      <TraceFlowIcon name="code" />
       {ds.length === 1 ? (
         <>
           <span>CORREÇÃO · </span>

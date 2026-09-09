@@ -1,11 +1,11 @@
-import { Link } from 'react-router';
+import { useEffect, useRef } from 'react';
+import { EntityRow } from '../../../shared/index.js';
+import { ArtifactCategory, TaskTraceabilityGrid, GithubExternalAction } from '../../tasks/index.js';
 import { PersistedEvidence, environments, referenceLabel } from '../../testCases/index.js';
 import {
   statuses,
   severities,
   statusReason,
-  taskLabel,
-  requirementLabel,
   taskStatuses,
   dateLabel,
   executionLabel
@@ -17,26 +17,48 @@ export function DefectBadge({ value }) {
     </span>
   );
 }
-function TaskLinks({ tasks, projectId, onNavigate }) {
+export function CorrectionTaskRows({ tasks, projectId, onNavigate }) {
   return (
-    <ul className="defect-related-list">
+    <div className="defect-entity-list">
       {tasks.map((t) => (
-        <li key={t.id}>
-          <Link onClick={onNavigate} to={`/projects/${projectId}/kanban?task=${t.id}`}>
-            {taskLabel(t)}
-          </Link>
-          {t.status && <small>{taskStatuses[t.status]}</small>}
-          {t.pullRequestId && (
-            <small>
-              PR vinculada{t.commitLinks?.length ? ` · ${t.commitLinks.length} commits` : ''}
-            </small>
+        <EntityRow
+          key={t.id}
+          identity={`TASK-${t.id}`}
+          title={t.title}
+          to={`/projects/${projectId}/kanban?task=${t.id}`}
+          onClick={onNavigate}
+        >
+          {t.status && <span>{taskStatuses[t.status]}</span>}
+          {(t.responsibleUser?.name || t.responsible) && (
+            <span>{t.responsibleUser?.name || t.responsible}</span>
           )}
-        </li>
+          {(t.pullRequestId || t.pullRequest) && (
+            <span>
+              {t.pullRequest?.number ? `PR #${t.pullRequest.number}` : 'PR vinculada'}
+              {t.commitLinks?.length ? ` · ${t.commitLinks.length} commits` : ''}
+            </span>
+          )}
+        </EntityRow>
       ))}
-    </ul>
+    </div>
   );
 }
-export function DefectDetails({ defect: d, canWrite, onView, onPreview, onNavigate, onExecution }) {
+export function DefectDetails({
+  defect: d,
+  canWrite,
+  onView,
+  onPreview,
+  onNavigate,
+  onExecution,
+  focusCorrection = false
+}) {
+  const correctionRef = useRef(null);
+  useEffect(() => {
+    if (focusCorrection) {
+      correctionRef.current?.scrollIntoView?.({ block: 'start' });
+      correctionRef.current?.focus({ preventScroll: true });
+    }
+  }, [focusCorrection]);
   const detection = d.detection,
     current = d.correctionCycles.find((c) => c.cycle === d.currentCorrectionCycle),
     ref = detection.execution.testedReference;
@@ -51,7 +73,7 @@ export function DefectDetails({ defect: d, canWrite, onView, onPreview, onNaviga
   );
   const cycleContent = (c) => (
     <>
-      <TaskLinks tasks={c.tasks} projectId={d.projectId} onNavigate={onNavigate} />
+      <CorrectionTaskRows tasks={c.tasks} projectId={d.projectId} onNavigate={onNavigate} />
       {retests(c.cycle).map((r) => (
         <p key={r.id}>
           Reteste: {executionLink(r)} · {dateLabel(r.execution.executedAt)}
@@ -62,11 +84,11 @@ export function DefectDetails({ defect: d, canWrite, onView, onPreview, onNaviga
     </>
   );
   return (
-    <div className="tc-stack defect-details">
+    <div className="defect-details">
       {d.description && <p className="task-detail-description tc-preformatted">{d.description}</p>}
-      <section className="tc-surface">
+      <section className="task-detail-section">
         <h3>Informações</h3>
-        <dl className="tc-info">
+        <dl className="task-detail-grid">
           <div>
             <dt>Severidade</dt>
             <dd>
@@ -95,39 +117,31 @@ export function DefectDetails({ defect: d, canWrite, onView, onPreview, onNaviga
         </dl>
         <p className="field-help">{statusReason(d)}</p>
       </section>
-      <section className="tc-surface">
+      <section className="task-detail-section">
         <h3>Detecção</h3>
-        <Link
-          className="tc-link"
+        <EntityRow
+          identity={detection.testCase.displayId}
+          title={detection.testCase.title}
           onClick={onNavigate}
           to={`/projects/${d.projectId}/test-cases?case=${detection.testCase.id}`}
         >
-          {detection.testCase.displayId} · {detection.testCase.title}
-        </Link>
-        <p>
-          <button
-            className="button button-outline button-compact"
-            onClick={() => onExecution(detection.execution.id)}
-          >
-            {detection.execution.displayId} · Falhou
-          </button>{' '}
-          · Caso v{detection.testCase.version}
-        </p>
-        <p>
-          {environments[detection.execution.environment]} ·{' '}
-          {dateLabel(detection.execution.executedAt)}
-        </p>
+          Caso v{detection.testCase.version}
+        </EntityRow>
+        <EntityRow
+          identity={detection.execution.displayId}
+          onClick={() => onExecution(detection.execution.id)}
+        >
+          <span>Falhou · Caso v{detection.testCase.version}</span>
+          <span>
+            {environments[detection.execution.environment]} ·{' '}
+            {dateLabel(detection.execution.executedAt)}
+          </span>
+        </EntityRow>
         {ref && (
-          <p>
-            Versão testada:{' '}
-            {ref.githubUrl ? (
-              <a className="tc-link" href={ref.githubUrl} target="_blank" rel="noreferrer">
-                {referenceLabel(ref)}
-              </a>
-            ) : (
-              referenceLabel(ref)
-            )}
-          </p>
+          <div className="defect-reference">
+            <span>Versão testada: {referenceLabel(ref)}</span>
+            {ref.githubUrl && <GithubExternalAction href={ref.githubUrl} />}
+          </div>
         )}
         <section className="tc-step-result tc-step-result--fail">
           <h4>Passo {detection.failedStep.position} · Falhou</h4>
@@ -162,40 +176,51 @@ export function DefectDetails({ defect: d, canWrite, onView, onPreview, onNaviga
           </section>
         )}
       </section>
-      <section>
-        <h3>Rastreabilidade</h3>
-        <div className="tc-columns">
-          <section className="tc-surface">
-            <h4>Requisito ({d.requirement ? 1 : 0})</h4>
-            {d.requirement ? (
-              <Link
-                className="tc-link"
-                onClick={onNavigate}
-                to={`/projects/${d.projectId}/requirements?requirement=${d.requirement.id}`}
-              >
-                {requirementLabel(d.requirement)}
-              </Link>
-            ) : (
-              <p>Nenhum requisito vinculado.</p>
-            )}
-          </section>
-          <section className="tc-surface">
-            <h4>Tarefas de origem ({d.originTasks.length})</h4>
-            <TaskLinks tasks={d.originTasks} projectId={d.projectId} onNavigate={onNavigate} />
-            {!d.originTasks.length && <p>Nenhuma tarefa de origem.</p>}
-          </section>
+      <TaskTraceabilityGrid>
+        <ArtifactCategory label="Requisito" count={d.requirement ? 1 : 0}>
+          {d.requirement ? (
+            <EntityRow
+              identity={`REQ-${d.requirement.id}`}
+              title={d.requirement.title}
+              onClick={onNavigate}
+              to={`/projects/${d.projectId}/requirements?requirement=${d.requirement.id}`}
+            >
+              {d.requirement.status}
+            </EntityRow>
+          ) : (
+            <p>Nenhum requisito vinculado.</p>
+          )}
+        </ArtifactCategory>
+        <ArtifactCategory label="Tarefas de origem" count={d.originTasks.length}>
+          <CorrectionTaskRows
+            tasks={d.originTasks}
+            projectId={d.projectId}
+            onNavigate={onNavigate}
+          />
+          {!d.originTasks.length && <p>Nenhuma tarefa de origem.</p>}
+        </ArtifactCategory>
+      </TaskTraceabilityGrid>
+      <section
+        className="task-detail-section"
+        ref={correctionRef}
+        tabIndex={-1}
+        aria-label="Correção"
+      >
+        <div className="task-detail-section-heading">
+          <h3>Correção</h3>
+          {canWrite && d.status !== 'VALIDADO' && (
+            <button
+              className="button button-secondary button-compact"
+              onClick={() => onView('correction')}
+            >
+              Gerenciar correção
+            </button>
+          )}
         </div>
-      </section>
-      <section className="tc-surface">
-        <h3>Correção</h3>
+
         <h4>Ciclo atual · {d.currentCorrectionCycle}</h4>
         {!current?.tasks.length && <p>Nenhuma tarefa de correção vinculada.</p>}
         {current && cycleContent(current)}
-        {canWrite && d.status !== 'VALIDADO' && (
-          <button className="button button-secondary" onClick={() => onView('correction')}>
-            Gerenciar correção
-          </button>
-        )}
         {d.correctionCycles.some((c) => c.cycle !== d.currentCorrectionCycle) && (
           <section>
             <h4>Tentativas anteriores</h4>
@@ -210,7 +235,7 @@ export function DefectDetails({ defect: d, canWrite, onView, onPreview, onNaviga
           </section>
         )}
       </section>
-      <section className="tc-surface">
+      <section className="task-detail-section">
         <h3>Validação</h3>
         <DefectBadge value={d.status} />
         <p>
@@ -228,13 +253,8 @@ export function DefectDetails({ defect: d, canWrite, onView, onPreview, onNaviga
             Ver {executionLabel(d.statusReason.validatedByExecutionId)}
           </button>
         )}
-        {canWrite && d.status === 'AGUARDANDO_RETESTE' && (
-          <button className="button button-primary" onClick={() => onView('retest')}>
-            Retestar
-          </button>
-        )}
       </section>
-      <button className="button button-secondary" onClick={() => onView('history')}>
+      <button className="button button-secondary button-compact" onClick={() => onView('history')}>
         Histórico
       </button>
     </div>
