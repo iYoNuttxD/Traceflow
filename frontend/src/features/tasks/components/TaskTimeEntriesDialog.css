@@ -15,7 +15,6 @@
    para a linha de baixo quando o "Limpar filtros" aparece. */
 .task-time-entries__filters label {
   display: grid;
-  flex: 1 1 8rem;
   min-width: 0;
   gap: var(--space-2);
   color: var(--color-text-primary);
@@ -23,8 +22,21 @@
   font-weight: var(--font-weight-semibold);
 }
 
+/* Datas têm largura previsível; a origem fica com a sobra da linha. */
+.task-time-entries__filters label:nth-of-type(-n + 2) {
+  flex: 0 1 8.5rem;
+}
+
+.task-time-entries__filters label:nth-of-type(3) {
+  flex: 1 1 9rem;
+}
+
+/* Sem width/min-width o select assume a largura da opção mais longa, estoura o
+   label e passa por baixo do botão de filtrar. */
 .task-time-entries__filters input,
 .task-time-entries__filters select {
+  width: 100%;
+  min-width: 0;
   min-height: var(--size-touch-target);
   border: var(--border-width-default) solid var(--color-border-default);
   border-radius: var(--radius-sm);
@@ -32,6 +44,7 @@
   color: var(--color-text-primary);
   background: var(--color-bg-input);
   font: inherit;
+  text-overflow: ellipsis;
 }
 
 .task-time-entries__filter-actions {
