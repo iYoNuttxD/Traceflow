@@ -582,6 +582,25 @@ em uma row detalhada. As duas usam a mesma linguagem de surface, mas a densidade
 reais e não força alturas iguais. Desvincular OAuth não implica desconectar App, e desconectar App
 não implica remover OAuth.
 
+## Linhas de entidades, histórico e confirmação
+
+`EntityRow` é a primitive compartilhada para entidades internas em categorias de
+rastreabilidade e qualidade. Reúne identidade, título e metadados disponíveis no
+contrato, com a linha inteira acionável: Link nativo para navegação e button para
+mudança de subview. Deve conservar foco visível, alvo mínimo de 44px e quebra de
+texto responsiva. Links externos GitHub continuam usando `GithubExternalAction`.
+
+`HistoryEventRow` organiza data, evento, mudança e autor com os mesmos tokens de
+superfície, borda, espaçamento e tipografia. As quatro colunas viram uma no mobile.
+Cada histórico preserva as abas, filtros e paginação realmente oferecidos pelo
+seu contrato; paridade visual não autoriza inventar filtros ou dados ausentes.
+
+Confirmações destrutivas reutilizam `ConfirmDialogContent`: título, descrição,
+Cancelar e ação danger em superfície compacta, com foco inicial em Cancelar.
+Quando a confirmação substitui o conteúdo de um dialog existente, utiliza a
+variante de confirmação desse owner, sem segundo popup nem header duplicado.
+Trap, Escape, estado busy e retorno de foco continuam sob responsabilidade do dialog.
+
 ## Acessibilidade foundations
 
 - referência: WCAG 2.2 AA, sem declaração de conformidade nesta fase;

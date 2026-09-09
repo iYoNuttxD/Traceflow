@@ -29,3 +29,6 @@ export {
 export { compactParams } from './utils/compact-params.js';
 
 export { SearchCombobox } from './components/SearchCombobox.jsx';
+export { EntityRow } from './components/EntityRow.jsx';
+export { HistoryEventRow } from './components/HistoryEventRow.jsx';
+export { ConfirmDialogContent } from './components/ConfirmDialog.jsx';

@@ -1,6 +1,50 @@
-.task-correction-context { display: grid; gap: var(--space-3); }
-.task-correction-context > div { display: grid; gap: var(--space-1); }
-.task-correction-context small { color: var(--color-text-secondary); }
-.task-correction-badge { padding: var(--space-2) var(--space-3); font-size: var(--font-size-1); color: var(--color-text-secondary); font-weight: var(--font-weight-semibold); }
-.task-correction-badge summary { cursor: pointer; min-height: var(--size-touch-target); }
-.task-correction-badge a, .task-correction-context a { color: var(--color-text-primary); overflow-wrap: anywhere; }
+.task-correction-context {
+  display: grid;
+  gap: var(--space-3);
+}
+.task-correction-context > div {
+  display: grid;
+  gap: var(--space-1);
+}
+.task-correction-context small {
+  color: var(--color-text-secondary);
+}
+.task-correction-badge {
+  display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  margin: var(--space-2) var(--space-3) 0;
+  border: var(--border-width-default) solid var(--color-info-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-1);
+  color: var(--color-info-text);
+  background: var(--color-info-surface);
+  font-weight: var(--font-weight-bold);
+}
+.task-correction-badge summary {
+  cursor: pointer;
+  min-height: var(--size-touch-target);
+}
+.task-correction-badge a {
+  display: inline-flex;
+  min-height: var(--size-touch-target);
+  align-items: center;
+  color: inherit;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.task-correction-badge a:hover {
+  text-decoration: underline;
+}
+.task-correction-context a {
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.task-correction-badge > details {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

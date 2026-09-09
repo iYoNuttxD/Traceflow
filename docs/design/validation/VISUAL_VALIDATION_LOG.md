@@ -1,5 +1,37 @@
 # TRACEFLOW Visual Validation Log
 
+## 2026-09-08 — S1-08 frontend UX alignment
+
+**Resultado: VISUALLY APPROVED para os estados carregados e cancelamento abaixo.**
+Chrome autenticado, APIs locais e dados sintéticos persistidos já existentes.
+Light e Dark em 1440×1000, 1280×1000, 768×1000 e 390×844, com viewport emulado,
+screenshots observados e interação real. Esta rodada substitui a pendência de
+matriz do smoke anterior apenas para este escopo.
+
+Matriz completa: detalhes, edição e confirmação/cancelamento de Defect; detalhes
+da execução e defeitos registrados no passo FAIL; seção Correção e manager com
+tarefa existente; histórico de Defect; alterações do TestCase; detalhes e
+Qualidade da tarefa de origem; card de correção no Kanban. IDs: `DEF-DETAILS`,
+`DEF-EDIT`, `DEF-DELETE`, `DEF-CORRECTION`, `DEF-HISTORY`, `TC-CHANGES`,
+`TC-EXECUTION-DETAILS` (detalhes carregados), `TC-FAILED-STEP-DEFECTS`,
+`TASK-QUALITY`, `TASK-CORRECTION-DETAILS` e `TASK-CORRECTION-CARD`.
+
+Referências comparadas: Task Details/History, confirmações Task/TestCase,
+ArtifactCategory, SprintDialog e SearchCombobox. Confirmação compacta, foco inicial
+em Cancelar, retorno ao acionador, menu mobile e navegação Ver correção observados.
+Nenhuma página/dialog da matriz apresentou overflow horizontal; o scroll interno
+do Kanban é intencional. A inspeção identificou e revalidou correções de identidade
+no histórico aberto por deep link, especificidade da badge de severidade e
+contenção de nomes longos de sprint no card. Inspeções adicionais cobriram manager
+vazio, Qualidade de tarefa de correção e fechamento do popup de responsável.
+
+Nenhum formulário, exclusão, execução ou movimento de tarefa foi confirmado.
+VIEWER, erros de rede, conflitos, múltiplos defeitos por tarefa e estados raros
+permanecem tecnicamente verificados por automação, sem aprovação visual inferida.
+Não houve nova homologação de todos os formatos de evidência, lifecycle completo,
+cross-browser ou WCAG integral. Evidência por cenário, matriz e gates no
+[relatório de alinhamento](../../deliveries/S1_08_FRONTEND_UX_ALIGNMENT_REPORT.md).
+
 ## 2026-09-08 — S1-08 dados autorizados e smoke adicional
 
 Bloqueio por ausência de dados removido. Quatro defeitos persistidos, um por

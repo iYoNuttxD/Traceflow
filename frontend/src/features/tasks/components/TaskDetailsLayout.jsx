@@ -77,12 +77,12 @@ export function TaskInformation({ details }) {
   );
 }
 
-export function TaskTraceabilityGrid({ children }) {
+export function TaskTraceabilityGrid({ children, title = 'Rastreabilidade' }) {
   const titleId = useId();
   return (
     <section className="task-detail-section task-detail-traceability" aria-labelledby={titleId}>
       <div className="task-detail-section-heading">
-        <h3 id={titleId}>Rastreabilidade</h3>
+        <h3 id={titleId}>{title}</h3>
       </div>
       <div className="task-detail-traceability-grid">{children}</div>
     </section>

@@ -23,6 +23,12 @@ const api = vi.hoisted(() =>
 vi.mock('../../src/features/defects/api/defects.api.js', () => ({ defectsApi: api }));
 beforeEach(() => {
   vi.resetAllMocks();
+  window.matchMedia.mockImplementation((media) => ({
+    matches: false,
+    media,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn()
+  }));
   api.candidates.mockResolvedValue({ items: [structuredClone(candidate)] });
   api.detail.mockResolvedValue(structuredClone(defect));
   api.list.mockResolvedValue({
@@ -49,7 +55,7 @@ async function fill(user) {
   await user.type(await screen.findByLabelText('Título *'), 'Falha nova');
   await user.type(screen.getByLabelText('Descrição *'), 'Descrição da falha');
   await user.selectOptions(screen.getByLabelText('Severidade *'), 'ALTA');
-  await user.click(screen.getByRole('combobox', { name: 'Responsável *' }));
+  await user.click(screen.getByRole('combobox', { name: 'Responsável' }));
   await user.click(await screen.findByRole('option', { name: 'Pessoa QA' }));
 }
 describe('S1-08 creation', () => {

@@ -546,10 +546,11 @@ escopo UX-SETTINGS; as callbacks públicas de mudança de e-mail e reativação 
 
 ## Test Cases — S1-07 integrado localmente
 
-As onze superfícies abaixo usam C2 e dados persistidos. `NOT REVIEWED` refere-se à
+As superfícies abaixo usam C2 e dados persistidos. `NOT REVIEWED` refere-se à
 **matriz visual completa ainda pendente**, não à ausência de implementação. Houve
 renderização desktop parcial no Safari em Light/Dark, descrita no log, sem controle
-verificável das dimensões CSS solicitadas. Não promover a `C2 COMPLETE` por tokens ou jsdom.
+verificável das dimensões CSS solicitadas. A rodada S1-08 abaixo atualiza somente
+os estados que revalidou. Não promover a `C2 COMPLETE` por tokens ou jsdom.
 
 | ID | Domain | Flow | Route / Context | Surface | Type | Component / Owner | Trigger | Roles | States | Light | Dark | Responsive | Accessibility | Visual Status | Validation Status | Priority | Target UX Scope | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -562,8 +563,8 @@ verificável das dimensões CSS solicitadas. Não promover a `C2 COMPLETE` por t
 | TC-EXECUTE | Test Cases | S1-07 | `/projects/:projectId/test-cases` | Executar passos | Dialog | `features/testCases/components/TestExecutionWizard` | Executar | VIEWER leitura; MEMBER+ escrita | PASS, FAIL, BLOCKED, pendente, evidências | Desktop parcial: UX final 2026-09-08 | Desktop parcial: UX final 2026-09-08 | ENVIRONMENT BLOCKED: matriz exata | TECHNICALLY VERIFIED: teclado, erros, foco, busy | NOT REVIEWED | TECHNICALLY VERIFIED | P1 | S1-07 FINAL INTEGRATED QA | Implementação real; UX final 2026-09-08, matriz exata pendente; ver relatório UX S1-07. |
 | TC-SUMMARY | Test Cases | S1-07 | `/projects/:projectId/test-cases` | Resumo da execução | Dialog | `features/testCases/components/TestExecutionWizard` | Revisar execução | VIEWER leitura; MEMBER+ escrita | válido, incompleto, pending, conflito | Desktop parcial: UX final 2026-09-08 | Desktop parcial: UX final 2026-09-08 | ENVIRONMENT BLOCKED: matriz exata | TECHNICALLY VERIFIED: teclado, erros, foco, busy | NOT REVIEWED | TECHNICALLY VERIFIED | P1 | S1-07 FINAL INTEGRATED QA | Implementação real; UX final 2026-09-08, matriz exata pendente; ver relatório UX S1-07. |
 | TC-EXECUTIONS | Test Cases | S1-07 | `/projects/:projectId/test-cases` | Histórico de execuções | Dialog | `features/testCases/components/TestCaseHistory` | Histórico | VIEWER leitura; MEMBER+ escrita | cursor, empty, erro, load-more | Desktop parcial: UX final 2026-09-08 | Desktop parcial: UX final 2026-09-08 | ENVIRONMENT BLOCKED: matriz exata | TECHNICALLY VERIFIED: teclado, erros, foco, busy | NOT REVIEWED | TECHNICALLY VERIFIED | P1 | S1-07 FINAL INTEGRATED QA | Implementação real; UX final 2026-09-08, matriz exata pendente; ver relatório UX S1-07. |
-| TC-CHANGES | Test Cases | S1-07 | `/projects/:projectId/test-cases` | Alterações do caso | Dialog | `features/testCases/components/TestCaseHistory` | Aba Alterações do caso | VIEWER leitura; MEMBER+ escrita | cursor, eventos, ator, versões | Desktop parcial: UX final 2026-09-08 | Desktop parcial: UX final 2026-09-08 | ENVIRONMENT BLOCKED: matriz exata | TECHNICALLY VERIFIED: teclado, erros, foco, busy | NOT REVIEWED | TECHNICALLY VERIFIED | P1 | S1-07 FINAL INTEGRATED QA | Implementação real; UX final 2026-09-08, matriz exata pendente; ver relatório UX S1-07. |
-| TC-EXECUTION-DETAILS | Test Cases | S1-07 | `/projects/:projectId/test-cases` | Execução, preview e download | Dialog | `features/testCases/components/TestCaseDetails` / `PersistedEvidence` | Ver execução | VIEWER leitura; MEMBER+ escrita | snapshot, anexos, preview, download, erro | Desktop parcial: UX final 2026-09-08 | Desktop parcial: UX final 2026-09-08 | ENVIRONMENT BLOCKED: matriz exata | TECHNICALLY VERIFIED: teclado, erros, foco, busy | NOT REVIEWED | TECHNICALLY VERIFIED | P1 | S1-07 FINAL INTEGRATED QA | Implementação real; UX final 2026-09-08, matriz exata pendente; ver relatório UX S1-07. |
+| TC-CHANGES | Test Cases | S1-07 | `/projects/:projectId/test-cases` | Alterações do caso | Dialog | `features/testCases/components/TestCaseHistory` | Aba Alterações do caso | VIEWER leitura; MEMBER+ escrita | cursor, eventos, ator, versões | PASS: carregado, S1-08 | PASS: carregado, S1-08 | PASS: 1440/1280/768/390 | TECHNICALLY VERIFIED: teclado, erros, foco, busy | VISUALLY APPROVED: carregado | VISUALLY APPROVED: matriz S1-08 | P1 | S1-07 FINAL INTEGRATED QA | HistoryEventRow compartilhado; identidade por deep link e abas preservadas; erros/paginação somente automatizados. |
+| TC-EXECUTION-DETAILS | Test Cases | S1-07 | `/projects/:projectId/test-cases` | Execução, preview e download | Dialog | `features/testCases/components/TestCaseDetails` / `PersistedEvidence` | Ver execução | VIEWER leitura; MEMBER+ escrita | snapshot, anexos, preview, download, erro | Desktop parcial: UX final 2026-09-08 | Desktop parcial: UX final 2026-09-08 | PASS S1-08: detalhes carregados em 1440/1280/768/390; viewer pendente | TECHNICALLY VERIFIED: teclado, erros, foco, busy | NOT REVIEWED | TECHNICALLY VERIFIED | P1 | S1-07 FINAL INTEGRATED QA | S1-08 aprovou header, snapshot carregado e seção de defeitos em Light/Dark; preview/download e erros não revalidados visualmente nesta rodada. |
 | TC-TRACEABILITY | Test Cases | S1-07 Addendum 3 | `/projects/:projectId/test-cases` | Rastreabilidade do caso | Details section | `TestCaseDetails / TaskTraceabilityGrid / ArtifactCategory` | Card | Membership ativa; leitura | vínculos, empty, múltiplas tarefas | Desktop parcial: Addendum 3 | Desktop parcial: Addendum 3 | ENVIRONMENT BLOCKED: matriz exata | TECHNICALLY VERIFIED: teclado, foco, retorno e cleanup | NOT REVIEWED | TECHNICALLY VERIFIED | P1 | S1-07 FINAL INTEGRATED QA | Contrato e campos reais; ver [relatório](../deliveries/S1_07_TRACEABILITY_EVIDENCE_VIEWER_REPORT.md). |
 | TC-EVIDENCE-LIST | Test Cases | S1-07 Addendum 3 | `/projects/:projectId/test-cases` | Evidências de passo e execução | Evidence list | `PersistedEvidence` | Ver execução | Membership ativa; leitura | nome, tipo, tamanho, Visualizar, Baixar, erro | Desktop parcial: JPG | Desktop parcial: JPG | ENVIRONMENT BLOCKED: matriz exata | TECHNICALLY VERIFIED: teclado, foco, retorno e cleanup | NOT REVIEWED | TECHNICALLY VERIFIED | P1 | S1-07 FINAL INTEGRATED QA | Contrato e campos reais; ver [relatório](../deliveries/S1_07_TRACEABILITY_EVIDENCE_VIEWER_REPORT.md). |
 | TC-EVIDENCE-VIEWER | Test Cases | S1-07 Addendum 3 | `/projects/:projectId/test-cases` | Visualização interna da evidência | Dialog mode | `EvidenceViewer / useEvidenceContent` | Visualizar evidência | Membership ativa; leitura | image, video, PDF, text, JSON, unsupported, loading, erro | Desktop parcial: JPG | Desktop parcial: JPG | ENVIRONMENT BLOCKED: matriz exata | TECHNICALLY VERIFIED: teclado, foco, retorno e cleanup | NOT REVIEWED | TECHNICALLY VERIFIED | P1 | S1-07 FINAL INTEGRATED QA | Contrato e campos reais; ver [relatório](../deliveries/S1_07_TRACEABILITY_EVIDENCE_VIEWER_REPORT.md). |
@@ -579,19 +580,27 @@ registra o smoke desktop Light/Dark, separado da matriz de viewports ainda pende
 Rota `/projects/:projectId/defects`; arquitetura, tokens e primitives canônicos.
 MEMBER/MANAGER/OWNER escrevem; VIEWER consulta. Classificação visual detalhada no
 [relatório de integração](../deliveries/S1_08_FRONTEND_INTEGRATION_REPORT.md).
+Atualização de alinhamento: matriz S1-08 em Chrome, Light/Dark, 1440×1000,
+1280×1000, 768×1000 e 390×844. Aprovação restrita aos estados indicados; ver
+[relatório de alinhamento](../deliveries/S1_08_FRONTEND_UX_ALIGNMENT_REPORT.md)
+e [registro visual](./validation/VISUAL_VALIDATION_LOG.md).
 
 | Superfície | Implementação | Estados / entrada | Validação |
 |---|---|---|---|
-| DEF-MAIN | DefectsScreen | resumo servidor, loading, vazio, erro, recibo, load more | automatizada + smoke vazio Light/Dark |
-| DEF-FILTERS | CollapsibleFilterPanel / SearchCombobox | oito filtros remotos, fechado inicialmente, seleção explícita | automatizada + smoke parcial |
-| DEF-CARD | DefectCard | status servidor, detecção, ciclo, ações de teclado | automatizada; dados visuais indisponíveis |
+| DEF-MAIN | DefectsScreen | resumo servidor, loading, vazio, erro, recibo, load more | automatizada + catálogo carregado Light/Dark; erros só automatizados |
+| DEF-FILTERS | CollapsibleFilterPanel / SearchCombobox | oito filtros remotos, fechado inicialmente, seleção explícita | automatizada + seleção de severidade com badge observada; matriz completa de filtros pendente |
+| DEF-CARD | DefectCard | status servidor, detecção, ciclo, ações de teclado | automatizada + catálogo carregado Light/Dark; quatro severidades observadas |
 | DEF-CREATE | DefectForm / DefectFlow | aba ou passo FAIL, sugestões históricas, validação | automatizada; seletor vazio observado |
-| DEF-DETAILS | DefectDetails | informações, detecção, vínculos, correção, validação | automatizada; visual bloqueado por dados |
-| DEF-CORRECTION | CorrectionManager / TaskForm | criação atômica ou vínculo, requisito singular | automatizada; visual bloqueado por dados |
+| DEF-DETAILS | DefectDetails / EntityRow / ArtifactCategory | informações, detecção, vínculos, correção, validação | VISUALLY APPROVED: carregado, matriz S1-08 |
+| DEF-EDIT | DefectForm / SearchCombobox | edição, contexto resumido, responsável e severidade | VISUALLY APPROVED: carregado/cancelar, matriz S1-08; submit e erros automatizados |
+| DEF-DELETE | ConfirmDialogContent / SprintDialog | confirmação compacta, cancelar, retorno de foco | VISUALLY APPROVED: confirmar/cancelar, matriz S1-08; exclusão não submetida |
+| DEF-CORRECTION | CorrectionManager / CorrectionTaskRows / TaskForm | seção Correção, tarefas atuais, criação/vínculo | VISUALLY APPROVED: seção e manager com tarefa, matriz S1-08; vazio observado adicionalmente; criação/vínculo automatizados |
 | DEF-RETEST | TestExecutionWizard | versão atual, referência priorizada, PASS/FAIL/BLOCKED | automatizada; visual bloqueado por dados |
-| DEF-HISTORY | DefectHistory | eventos e paginação acumulada | automatizada; visual bloqueado por dados |
-| TASK-CORRECTION-CARD | TaskCorrectionBadge | único link ou lista de defeitos, sem mudar colunas | automatizada; visual bloqueado por dados |
-| TASK-CORRECTION-DETAILS | TaskCorrectionContext | entre informações e rastreabilidade | automatizada; visual bloqueado por dados |
+| DEF-HISTORY | DefectHistory / HistoryEventRow | eventos e paginação acumulada | VISUALLY APPROVED: carregado, matriz S1-08; erros/paginação automatizados |
+| TASK-CORRECTION-CARD | TaskCorrectionBadge | marcador info, único link ou lista de defeitos | VISUALLY APPROVED: um defeito, matriz S1-08; múltiplos automatizados |
+| TASK-CORRECTION-DETAILS | TaskQuality | contexto integrado em Qualidade/Defeitos após Rastreabilidade | VISUALLY APPROVED: Task Details na matriz S1-08; relação CORREÇÃO observada adicionalmente |
+| TASK-QUALITY | TaskQuality / ArtifactCategory / EntityRow | casos, defeitos ORIGEM/CORREÇÃO, criação contextual, paginação | VISUALLY APPROVED: origem carregada, matriz S1-08; loading/erro/retry/VIEWER automatizados |
+| TC-FAILED-STEP-DEFECTS | TestCaseDetails / EntityRow | defeitos registrados após conteúdo do passo, largura total | VISUALLY APPROVED: FAIL com defeito, matriz S1-08; zero/PASS/BLOCKED automatizados |
 | TC-CONTEXTUAL-CREATE | ContextualTestCaseCreate / TestCaseForm | Task → caso no mesmo dialog; Requirement → caso | automatizada; matriz visual pendente |
 
 **FROZEN CORRECTION CONTEXT CONTRACT GAP:** snapshots congelados não contêm

@@ -11,21 +11,22 @@
 .defect-card .tc-card-body {
   gap: var(--space-3);
 }
-.defect-badge {
+.defect-badge,
+.field .defect-badge {
   width: fit-content;
   max-width: 100%;
   white-space: normal;
 }
-.defect-badge--validado {
+.defect-badge.defect-badge--validado {
   color: var(--color-success-text);
   background: var(--color-success-surface);
 }
-.defect-badge--aguardando_reteste {
+.defect-badge.defect-badge--aguardando_reteste {
   color: var(--color-info-text);
   background: var(--color-info-surface);
 }
-.defect-badge--alta,
-.defect-badge--critica {
+
+.defect-badge.defect-badge--critica {
   color: var(--color-danger-text);
   background: var(--color-danger-surface);
 }
@@ -42,26 +43,15 @@
   cursor: pointer;
   overflow-wrap: anywhere;
 }
-.defect-related-list {
-  list-style: none;
-  padding: 0;
+/* Detail composition reuses TaskDetails section and artifact primitives. */
+.defect-details {
+  min-width: 0;
+}
+.defect-details > .button {
+  margin-top: var(--space-6);
+}
+.defect-details h4 {
   margin: 0;
-  display: grid;
-}
-.defect-related-list li {
-  display: grid;
-  gap: var(--space-1);
-  padding: var(--space-3) 0;
-  border-bottom: var(--border-width-default) solid var(--color-border-default);
-  overflow-wrap: anywhere;
-}
-.defect-related-list a,
-.defect-details a {
-  color: var(--color-accent-primary);
-  font-weight: var(--font-weight-semibold);
-}
-.defect-related-list small {
-  color: var(--color-text-secondary);
 }
 .defect-details details {
   padding: var(--space-3) 0;
@@ -70,42 +60,56 @@
   cursor: pointer;
   min-height: var(--size-touch-target);
 }
-.defect-timeline {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: grid;
-  gap: var(--space-4);
-}
-.defect-timeline li {
-  border-inline-start: 2px solid var(--color-border-default);
-  padding-inline-start: var(--space-4);
-  overflow-wrap: anywhere;
-}
-.defect-timeline h3 {
-  margin-bottom: var(--space-1);
-}
-.defect-timeline small {
-  color: var(--color-text-secondary);
-}
-.task-correction-context {
+.defect-entity-list {
   display: grid;
   gap: var(--space-2);
+  min-width: 0;
 }
-.task-correction-badge {
-  font-size: var(--font-size-1);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-secondary);
-  letter-spacing: var(--letter-spacing-wide);
+.defect-reference {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  font-size: var(--font-size-2);
 }
-.task-correction-badge a {
-  color: inherit;
+.defect-badge.defect-badge--baixa {
+  color: var(--color-success-text);
+  background: var(--color-success-surface);
+}
+.defect-badge.defect-badge--media {
+  color: var(--color-info-text);
+  background: var(--color-info-surface);
+}
+.defect-badge.defect-badge--alta {
+  color: var(--color-warning-text);
+  background: var(--color-warning-surface);
+}
+.defect-correction-manager .tc-footer {
+  justify-content: flex-start;
+}
+.defect-history-list {
+  display: grid;
+  gap: var(--space-3);
 }
 @media (max-width: 600px) {
-  .defect-details .tc-columns {
-    grid-template-columns: minmax(0, 1fr);
-  }
   .defect-card .sprint-card__actions {
     flex-wrap: wrap;
   }
+}
+
+.defect-details > .task-detail-description {
+  margin-bottom: var(--space-5);
+}
+
+.defect-form .tc-columns {
+  align-items: start;
+}
+.defect-origin {
+  gap: var(--space-3);
+}
+.defect-origin summary {
+  cursor: pointer;
+  min-height: var(--size-touch-target);
+  display: flex;
+  align-items: center;
 }

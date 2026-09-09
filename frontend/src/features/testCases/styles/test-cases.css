@@ -881,3 +881,21 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.tc-step-defects {
+  display: grid;
+  gap: var(--space-3);
+  border-top: var(--border-width-default) solid var(--color-border-default);
+  padding-top: var(--space-4);
+}
+.tc-step-defects > h4 {
+  margin: 0;
+}
+.tc-step-defects > .button {
+  justify-self: start;
+}
+
+.tc-history-panel:not([hidden]) {
+  display: grid;
+  gap: var(--space-3);
+}

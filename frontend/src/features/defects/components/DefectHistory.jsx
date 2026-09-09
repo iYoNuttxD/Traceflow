@@ -1,5 +1,11 @@
+import { DefectBadge } from './DefectDetails.jsx';
 import { useCallback, useEffect, useState } from 'react';
-import { ErrorState, LoadingState, normalizeApiError } from '../../../shared/index.js';
+import {
+  ErrorState,
+  LoadingState,
+  normalizeApiError,
+  HistoryEventRow
+} from '../../../shared/index.js';
 import { useTestCaseScope } from '../../testCases/index.js';
 import { defectsApi } from '../api/defects.api.js';
 import {
@@ -7,7 +13,6 @@ import {
   statuses,
   severities,
   mergeItems,
-  dateLabel,
   executionLabel
 } from '../model/defects.js';
 const value = (v) =>
@@ -48,16 +53,20 @@ export function DefectHistory({ id, onExecution }) {
       {error && (
         <ErrorState message={error.message} onRetry={() => load(data.page ? data.page + 1 : 1)} />
       )}
-      <ol className="defect-timeline">
+      <div className="defect-history-list">
         {data.items.map((e) => {
           const m = e.metadataJson || {};
           return (
-            <li key={e.id}>
-              <h3>{historyLabels[e.action] || 'Alteração registrada'}</h3>
-              <small>{dateLabel(e.occurredAt)}</small>
+            <HistoryEventRow
+              key={e.id}
+              date={e.occurredAt}
+              title={historyLabels[e.action] || 'Alteração registrada'}
+              author={e.actorUserId ? `Usuário #${e.actorUserId}` : 'Sistema'}
+            >
               {m.from !== undefined && (
                 <p>
-                  {value(m.from)} → {value(m.to)}
+                  {e.action === 'SEVERITY_CHANGED' ? <DefectBadge value={m.from} /> : value(m.from)}{' '}
+                  → {e.action === 'SEVERITY_CHANGED' ? <DefectBadge value={m.to} /> : value(m.to)}
                 </p>
               )}
               {m.taskId && (
@@ -78,10 +87,10 @@ export function DefectHistory({ id, onExecution }) {
                 </p>
               )}
               {e.action === 'CYCLE_REOPENED' && <p>Um novo ciclo de correção foi iniciado.</p>}
-            </li>
+            </HistoryEventRow>
           );
         })}
-      </ol>
+      </div>
       {!loading && !error && !data.total && <p>Nenhuma alteração registrada.</p>}
       {data.items.length < data.total && (
         <button

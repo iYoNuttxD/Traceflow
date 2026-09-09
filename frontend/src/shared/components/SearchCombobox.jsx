@@ -35,6 +35,7 @@ export function SearchCombobox({
   const helpId = `${inputId}-help`;
   const requestRef = useRef(0);
   const inputRef = useRef(null);
+  const fieldRef = useRef(null);
   const listRef = useRef(null);
   const [popover, setPopover] = useState(null);
   const [query, setQuery] = useState('');
@@ -42,13 +43,25 @@ export function SearchCombobox({
   const [loading, setLoading] = useState(false);
   const [searchError, setSearchError] = useState('');
   const [activeIndex, setActiveIndex] = useState(-1);
-  const [dismissed, setDismissed] = useState(!openOnFocus);
+  const [dismissed, setDismissed] = useState(true);
 
   const normalizedOptions = useMemo(() => options || [], [options]);
   const trimmedQuery = query.trim();
   const hasQuery = trimmedQuery.length >= minQueryLength;
   const expanded = hasQuery && !dismissed && !disabled && !selectedOption;
   const searchEnabled = hasQuery && !selectedOption && !disabled && (openOnFocus || expanded);
+
+  useEffect(() => {
+    if (!expanded) return undefined;
+    const outside = (event) => {
+      if (fieldRef.current?.contains(event.target) || listRef.current?.contains(event.target))
+        return;
+      setDismissed(true);
+      setActiveIndex(-1);
+    };
+    document.addEventListener('pointerdown', outside, true);
+    return () => document.removeEventListener('pointerdown', outside, true);
+  }, [expanded]);
 
   useLayoutEffect(() => {
     if (!expanded || popoverPlacement !== 'fixed') return undefined;
@@ -156,7 +169,7 @@ export function SearchCombobox({
     setQuery('');
     setResults([]);
     setActiveIndex(-1);
-    setDismissed(!openOnFocus);
+    setDismissed(true);
   }
 
   function handleKeyDown(event) {
@@ -167,6 +180,7 @@ export function SearchCombobox({
     }
     if (event.key === 'Escape' && expanded) {
       event.preventDefault();
+      event.stopPropagation();
       setDismissed(true);
       setActiveIndex(-1);
       return;
@@ -209,13 +223,9 @@ export function SearchCombobox({
       className="sprint-combobox-results"
       role="listbox"
       style={popoverPlacement === 'fixed' ? popover?.style : undefined}
-      onMouseDown={
-        popoverPlacement === 'fixed'
-          ? (event) => {
-              if (event.target.closest('[role="option"]')) event.preventDefault();
-            }
-          : undefined
-      }
+      onMouseDown={(event) => {
+        if (event.target.closest('[role="option"]')) event.preventDefault();
+      }}
     >
       {loading ? (
         <li className="sprint-combobox-state" role="status">
@@ -261,7 +271,7 @@ export function SearchCombobox({
   const describedBy = [error && errorId, help && helpId].filter(Boolean).join(' ') || undefined;
 
   return (
-    <div className="sprint-combobox-field">
+    <div className="sprint-combobox-field" ref={fieldRef}>
       <label htmlFor={inputId}>
         {label}
         {required && <span aria-hidden="true"> *</span>}
@@ -276,6 +286,7 @@ export function SearchCombobox({
               onClick={() => {
                 onClear?.();
                 setQuery('');
+                setDismissed(true);
               }}
               aria-label={`Remover ${getOptionLabel(selectedOption)}`}
               title="Remover seleção"
@@ -312,7 +323,7 @@ export function SearchCombobox({
             }}
             onClick={() => setDismissed(false)}
             onBlur={() => {
-              if (popoverPlacement === 'fixed') setDismissed(true);
+              setDismissed(true);
             }}
             onKeyDown={handleKeyDown}
           />

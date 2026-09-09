@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ErrorState, LoadingState } from '../../../shared/index.js';
+import { ErrorState, LoadingState, HistoryEventRow } from '../../../shared/index.js';
 import { useCaseRead } from '../hooks/useCaseRead.js';
 import { TestExecutionHistory } from './TestCaseDetails.jsx';
 
@@ -22,32 +22,29 @@ const fields = {
 function Change({ item }) {
   const meta = item.metadataJson;
   return (
-    <article className="tc-history-row">
-      <div>
-        <strong>{labels[item.action] || item.action}</strong>
+    <HistoryEventRow
+      date={item.occurredAt}
+      title={labels[item.action] || item.action}
+      author={item.actorUserId ? `Usuário #${item.actorUserId}` : 'Autor indisponível'}
+    >
+      <p>
+        {item.fromVersion ? `v${item.fromVersion} → ` : ''}
+        {item.toVersion ? `v${item.toVersion}` : ''}
+      </p>
+      {meta?.changedFields && (
+        <p>{meta.changedFields.map((name) => fields[name] || name).join(', ')}</p>
+      )}
+      {item.action === 'STATUS_CHANGED' && (
         <p>
-          {new Date(item.occurredAt).toLocaleString('pt-BR')} ·{' '}
-          {item.actorUserId ? `Usuário #${item.actorUserId}` : 'Autor indisponível'}
+          {meta.from} → {meta.to}
         </p>
+      )}
+      {item.action === 'RESPONSIBLE_CHANGED' && (
         <p>
-          {item.fromVersion ? `v${item.fromVersion} → ` : ''}
-          {item.toVersion ? `v${item.toVersion}` : ''}
+          {meta.from.name} (#{meta.from.id}) → {meta.to.name} (#{meta.to.id})
         </p>
-        {meta?.changedFields && (
-          <p>{meta.changedFields.map((name) => fields[name] || name).join(', ')}</p>
-        )}
-        {item.action === 'STATUS_CHANGED' && (
-          <p>
-            {meta.from} → {meta.to}
-          </p>
-        )}
-        {item.action === 'RESPONSIBLE_CHANGED' && (
-          <p>
-            {meta.from.name} (#{meta.from.id}) → {meta.to.name} (#{meta.to.id})
-          </p>
-        )}
-      </div>
-    </article>
+      )}
+    </HistoryEventRow>
   );
 }
 function HistoryStream({ id, kind, onSelect }) {
@@ -65,9 +62,11 @@ function HistoryStream({ id, kind, onSelect }) {
               Mudanças feitas na definição, responsável e status do caso.
             </p>
             {!data.items.length && <p>Nenhuma alteração registrada.</p>}
-            {data.items.map((item) => (
-              <Change key={item.id} item={item} />
-            ))}
+            <div className="defect-history-list">
+              {data.items.map((item) => (
+                <Change key={item.id} item={item} />
+              ))}
+            </div>
           </>
         ))}
       {data?.nextCursor && (
@@ -117,6 +116,7 @@ export function TestCaseHistory({ id, onSelect }) {
       {tabs.map(([key]) => (
         <section
           key={key}
+          className="tc-history-panel"
           hidden={tab !== key}
           role="tabpanel"
           id={`tc-history-panel-${key}`}

@@ -22,6 +22,12 @@ vi.mock('../../src/features/defects/api/defects.api.js', () => ({
 vi.mock('../../src/features/members/members.api.js', () => ({ membersApi: { list: api.members } }));
 beforeEach(() => {
   vi.resetAllMocks();
+  window.matchMedia.mockImplementation((media) => ({
+    matches: false,
+    media,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn()
+  }));
   api.detail.mockResolvedValue({
     ...testCase,
     currentVersion: 4,
