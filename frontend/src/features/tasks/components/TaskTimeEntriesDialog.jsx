@@ -155,9 +155,9 @@ export function TaskTimeEntriesDialog({
               setFilters((current) => ({ ...current, source: event.target.value }))
             }
           >
-            <option value="">Todas as origens</option>
+            <option value="">Todas</option>
             <option value="TIMER">Cronômetro</option>
-            <option value="MANUAL">Lançamento manual</option>
+            <option value="MANUAL">Manual</option>
           </select>
         </label>
         <div className="task-time-entries__filter-actions">
