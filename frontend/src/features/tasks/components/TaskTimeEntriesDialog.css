@@ -10,11 +10,12 @@
   margin-bottom: var(--space-5);
 }
 
-/* Sem crescer: se os campos esticassem, engoliriam a folga e o "Filtrar"
-   encostaria no campo de origem. A sobra vira o respiro antes das ações. */
+/* Os campos dividem o que sobra depois das ações, que reservam a própria
+   largura: assim nada fica colado, sem vão morto e sem empurrar os botões
+   para a linha de baixo quando o "Limpar filtros" aparece. */
 .task-time-entries__filters label {
   display: grid;
-  flex: 0 1 9rem;
+  flex: 1 1 8rem;
   min-width: 0;
   gap: var(--space-2);
   color: var(--color-text-primary);
@@ -36,14 +37,13 @@
 .task-time-entries__filter-actions {
   display: flex;
   flex: 0 0 auto;
-  flex-wrap: wrap;
   gap: var(--space-2);
-  margin-left: auto;
-  padding-left: var(--space-5);
+  padding-left: var(--space-3);
 }
 
 .task-time-entries__filter-actions .button {
   min-height: var(--size-touch-target);
+  white-space: nowrap;
 }
 
 .task-time-entries__list {
@@ -157,7 +157,6 @@
 
   .task-time-entries__filter-actions {
     width: 100%;
-    margin-left: 0;
     padding-left: 0;
   }
 
