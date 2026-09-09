@@ -39,7 +39,7 @@ export function TaskCorrectionBadge({ task }) {
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >
-      <TraceFlowIcon name="code" />
+      <TraceFlowIcon name="bug" />
       {ds.length === 1 ? (
         <>
           <span>CORREÇÃO · </span>

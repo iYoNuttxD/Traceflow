@@ -17,6 +17,11 @@ const paths = {
       <path d="M6 7v10M8 19h2a8 8 0 0 0 8-8V10" />
     </>
   ),
+  bug: (
+    <>
+      <path d="M9 7V5a3 3 0 0 1 6 0v2M8 7h8v8a4 4 0 0 1-8 0V7ZM12 8v11M4 5l4 3M20 5l-4 3M3 12h5M16 12h5M4 19l4-3M20 19l-4-3" />
+    </>
+  ),
   calendar: (
     <>
       <rect x="3" y="5" width="18" height="16" rx="2" />

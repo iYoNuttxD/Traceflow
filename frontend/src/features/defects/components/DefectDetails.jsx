@@ -1,7 +1,12 @@
 import { useEffect, useRef } from 'react';
-import { EntityRow } from '../../../shared/index.js';
+import { EntityRow, DescriptionSurface } from '../../../shared/index.js';
 import { ArtifactCategory, TaskTraceabilityGrid, GithubExternalAction } from '../../tasks/index.js';
-import { PersistedEvidence, environments, referenceLabel } from '../../testCases/index.js';
+import {
+  PersistedEvidence,
+  environments,
+  referenceLabel,
+  ExecutionSummary
+} from '../../testCases/index.js';
 import {
   statuses,
   severities,
@@ -28,7 +33,14 @@ export function CorrectionTaskRows({ tasks, projectId, onNavigate }) {
           to={`/projects/${projectId}/kanban?task=${t.id}`}
           onClick={onNavigate}
         >
-          {t.status && <span>{taskStatuses[t.status]}</span>}
+          {t.status && (
+            <span>
+              {taskStatuses[t.status]}
+              {t.priority
+                ? ` · ${{ BAIXA: 'Baixa', MEDIA: 'Média', ALTA: 'Alta', CRITICA: 'Crítica' }[t.priority]}`
+                : ''}
+            </span>
+          )}
           {(t.responsibleUser?.name || t.responsible) && (
             <span>{t.responsibleUser?.name || t.responsible}</span>
           )}
@@ -85,7 +97,7 @@ export function DefectDetails({
   );
   return (
     <div className="defect-details">
-      {d.description && <p className="task-detail-description tc-preformatted">{d.description}</p>}
+      <DescriptionSurface>{d.description}</DescriptionSurface>
       <section className="task-detail-section">
         <h3>Informações</h3>
         <dl className="task-detail-grid">
@@ -206,21 +218,26 @@ export function DefectDetails({
         tabIndex={-1}
         aria-label="Correção"
       >
-        <div className="task-detail-section-heading">
-          <h3>Correção</h3>
-          {canWrite && d.status !== 'VALIDADO' && (
-            <button
-              className="button button-secondary button-compact"
-              onClick={() => onView('correction')}
-            >
-              Gerenciar correção
-            </button>
-          )}
-        </div>
-
+        <h3>Correção</h3>
         <h4>Ciclo atual · {d.currentCorrectionCycle}</h4>
         {!current?.tasks.length && <p>Nenhuma tarefa de correção vinculada.</p>}
-        {current && cycleContent(current)}
+        {current && (
+          <CorrectionTaskRows
+            tasks={current.tasks}
+            projectId={d.projectId}
+            onNavigate={onNavigate}
+          />
+        )}
+        {canWrite && d.status !== 'VALIDADO' && (
+          <footer className="defect-correction-actions">
+            <button className="button button-secondary" onClick={() => onView('correction-create')}>
+              Criar tarefa de correção
+            </button>
+            <button className="button button-secondary" onClick={() => onView('correction-link')}>
+              Vincular tarefa existente
+            </button>
+          </footer>
+        )}
         {d.correctionCycles.some((c) => c.cycle !== d.currentCorrectionCycle) && (
           <section>
             <h4>Tentativas anteriores</h4>
@@ -235,25 +252,33 @@ export function DefectDetails({
           </section>
         )}
       </section>
-      <section className="task-detail-section">
-        <h3>Validação</h3>
-        <DefectBadge value={d.status} />
-        <p>
-          {d.status === 'VALIDADO'
-            ? statusReason(d)
+      <ExecutionSummary
+        title="Validação"
+        execution={
+          d.status === 'VALIDADO'
+            ? d.retests.find(
+                (r) =>
+                  r.correctionCycle === d.currentCorrectionCycle &&
+                  r.testExecutionId === d.statusReason.validatedByExecutionId
+              )?.execution
+            : null
+        }
+        state={
+          d.status === 'AGUARDANDO_RETESTE'
+            ? 'WAITING'
+            : d.status === 'VALIDADO'
+              ? 'PASS'
+              : 'PENDING'
+        }
+        onExecution={onExecution}
+        message={
+          d.status === 'VALIDADO'
+            ? 'Correção confirmada.'
             : d.status === 'AGUARDANDO_RETESTE'
-              ? 'Todas as tarefas de correção do ciclo atual foram concluídas.'
-              : 'Reteste disponível após a conclusão das tarefas de correção do ciclo atual.'}
-        </p>
-        {d.statusReason.validatedByExecutionId && (
-          <button
-            className="button button-outline button-compact"
-            onClick={() => onExecution(d.statusReason.validatedByExecutionId)}
-          >
-            Ver {executionLabel(d.statusReason.validatedByExecutionId)}
-          </button>
-        )}
-      </section>
+              ? `Todas as tarefas de correção do ciclo atual foram concluídas.${retests(d.currentCorrectionCycle).length ? '' : ' Nenhum reteste realizado neste ciclo.'}`
+              : 'Reteste disponível após a conclusão das tarefas de correção do ciclo atual.'
+        }
+      />
       <button className="button button-secondary button-compact" onClick={() => onView('history')}>
         Histórico
       </button>

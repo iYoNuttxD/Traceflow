@@ -29,7 +29,8 @@
   display: grid;
   gap: var(--space-3);
 }
-.task-detail-section + .task-detail-section {
+.task-detail-section + .task-detail-section,
+.detail-surface + .task-detail-section {
   margin-top: var(--space-6);
 }
 .task-detail-section h3 {
@@ -160,6 +161,10 @@
   font-size: var(--font-size-1);
 }
 .task-detail-artifact-body {
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  flex: 1 1 auto;
   min-height: 0;
   max-height: 16rem;
   overflow-y: auto;
@@ -217,6 +222,9 @@
 }
 .task-detail-edit-form__full {
   grid-column: 1 / -1;
+}
+.task-detail-edit-form .field {
+  align-content: start;
 }
 .task-detail-edit-form textarea {
   resize: vertical;
@@ -295,4 +303,16 @@
 }
 .task-quality-list + .button {
   margin-top: var(--space-3);
+}
+
+.task-detail-artifact-footer {
+  padding: var(--space-3) var(--space-4);
+  border-top: var(--border-width-default) solid var(--color-border-default);
+  margin-top: auto;
+}
+.task-detail-artifact-heading {
+  min-height: calc(var(--size-touch-target) + var(--space-2));
+}
+.task-detail-artifact-body .entity-row {
+  min-height: 7.5rem;
 }

@@ -946,6 +946,11 @@ actorUserId e occurredAt do servidor. Task list/detail/Kanban inclui
 `correctionDefectCount` e `correctionDefects` distintos por defeito, preservando
 status/deletedAt de defeitos históricos.
 
+Tarefas em `originTasks` e `correctionCycles[].tasks` incluem `priority` e
+`responsibleUser: { id, name }` quando disponível. `retests[].execution` inclui
+`environment` e `executedByDisplayNameSnapshot`, preservando a identidade histórica
+do executor. São campos de leitura; permissões e transições permanecem inalteradas.
+
 Reteste reutiliza POST `/test-cases/:id/executions`, o multipart `payload` e os
 campos de evidência S1-07. Acrescentar ao JSON existente:
 

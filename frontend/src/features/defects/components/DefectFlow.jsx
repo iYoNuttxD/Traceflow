@@ -22,7 +22,7 @@ import { defectsApi } from '../api/defects.api.js';
 import { defectLabel } from '../model/defects.js';
 import { DefectForm } from './DefectForm.jsx';
 import { DefectDetails } from './DefectDetails.jsx';
-import { CorrectionManager } from './CorrectionManager.jsx';
+import { CorrectionTaskForm } from './CorrectionTaskForm.jsx';
 import { DefectHistory } from './DefectHistory.jsx';
 function Retest({ defect, ...props }) {
   const { data, loading, error, load } = useCaseRead('detail', defect.detection.testCase.id);
@@ -58,9 +58,7 @@ export function DefectFlow({
   returnFocusRef
 }) {
   const [id, setId] = useState(initialId),
-    [view, setView] = useState(
-      initialId ? (initialView === 'correction-details' ? 'details' : initialView) : 'create'
-    ),
+    [view, setView] = useState(initialId ? initialView : 'create'),
     [loadedExecution, setLoadedExecution] = useState(null),
     [row, setRow] = useState(null),
     [loading, setLoading] = useState(Boolean(initialId)),
@@ -226,7 +224,17 @@ export function DefectFlow({
       setBusy(false);
     }
   }
-  handlers.current = { navigate, close, back, openDefect, mutate };
+  handlers.current = {
+    navigate,
+    close,
+    back,
+    openDefect,
+    mutate,
+    dialogClose: view === 'delete' ? back : close
+  };
+  // Keep the dialog lifetime stable while its subview changes. Otherwise its
+  // cleanup restores an older focus target after the subview restores its CTA.
+  const dialogClose = useCallback(() => handlers.current.dialogClose(), []);
   const title = preview
     ? preview.file.originalName
     : view === 'create'
@@ -235,8 +243,10 @@ export function DefectFlow({
         ? `Editar ${row?.displayId || 'defeito'}`
         : view === 'history'
           ? `Histórico — ${row ? defectLabel(row) : 'Defeito'}`
-          : view === 'correction'
-            ? `Correção · ${row?.displayId || 'Defeito'}`
+          : view === 'correction-create' || view === 'correction-link'
+            ? view === 'correction-create'
+              ? 'Criar tarefa de correção'
+              : 'Vincular tarefa existente'
             : view === 'retest'
               ? `Reteste do ${row?.displayId || 'defeito'}`
               : view === 'execution'
@@ -249,8 +259,8 @@ export function DefectFlow({
       ? 'Detalhes do defeito'
       : view === 'history'
         ? 'Alterações registradas para este defeito.'
-        : view === 'correction'
-          ? `Gerencie as tarefas do ciclo ${row?.currentCorrectionCycle || ''}`
+        : view === 'correction-create' || view === 'correction-link'
+          ? `${row?.displayId || 'Defeito'} · Ciclo ${row?.currentCorrectionCycle || ''}`
           : view === 'edit'
             ? 'Atualize as informações e os vínculos do defeito.'
             : view === 'execution'
@@ -281,7 +291,11 @@ export function DefectFlow({
         <button
           className="sprint-dialog__close"
           disabled={busy}
-          aria-label="Voltar para detalhes do defeito"
+          aria-label={
+            view.startsWith('correction-')
+              ? `Voltar para ${row?.displayId || 'defeito'}`
+              : 'Voltar para detalhes do defeito'
+          }
           onClick={() => handlers.current.back()}
         >
           <TraceFlowIcon name="arrowLeft" />
@@ -296,7 +310,7 @@ export function DefectFlow({
           <TraceFlowIcon name="arrowLeft" />
         </button>
       ) : null,
-    [preview, view, busy, embedded]
+    [preview, view, busy, embedded, row?.displayId]
   );
   useLayoutEffect(() => {
     onHeader?.({
@@ -318,7 +332,10 @@ export function DefectFlow({
       (target || contentRef.current)?.focus({ preventScroll: true });
       if (contentRef.current?.parentElement)
         contentRef.current.parentElement.scrollTop = scroll.current;
-    } else contentRef.current?.focus({ preventScroll: true });
+    } else {
+      if (contentRef.current?.parentElement) contentRef.current.parentElement.scrollTop = 0;
+      contentRef.current?.focus({ preventScroll: true });
+    }
   }, [view, preview]);
   const body = (
     <div
@@ -379,7 +396,7 @@ export function DefectFlow({
                 onPreview={openPreview}
                 onNavigate={close}
                 onExecution={openExecution}
-                focusCorrection={initialView === 'correction-details'}
+                focusCorrection={false}
               />
             )}
             {view === 'edit' && canWrite && (
@@ -387,7 +404,6 @@ export function DefectFlow({
                 key={row.id}
                 projectId={projectId}
                 defect={row}
-                onNavigate={close}
                 options={options}
                 busy={busy}
                 blocked={mutationError?.blocked}
@@ -396,24 +412,27 @@ export function DefectFlow({
                 onOpenDefect={openDefect}
               />
             )}
-            {view === 'correction' && canWrite && row.status !== 'VALIDADO' && (
-              <CorrectionManager
-                defect={row}
-                onNavigate={close}
-                options={options}
-                busy={busy}
-                blocked={mutationError?.blocked}
-                onSave={(p) =>
-                  mutate('correction', () =>
-                    defectsApi.correction(id, {
-                      ...p,
-                      expectedRevision: row.revision,
-                      correctionCycle: row.currentCorrectionCycle
-                    })
-                  )
-                }
-              />
-            )}
+            {['correction-create', 'correction-link'].includes(view) &&
+              canWrite &&
+              row.status !== 'VALIDADO' && (
+                <CorrectionTaskForm
+                  defect={row}
+                  mode={view === 'correction-create' ? 'create' : 'link'}
+                  onCancel={back}
+                  options={options}
+                  busy={busy}
+                  blocked={mutationError?.blocked}
+                  onSave={(p) =>
+                    mutate('correction', () =>
+                      defectsApi.correction(id, {
+                        ...p,
+                        expectedRevision: row.revision,
+                        correctionCycle: row.currentCorrectionCycle
+                      })
+                    )
+                  }
+                />
+              )}
             {view === 'history' && <DefectHistory id={id} onExecution={openExecution} />}
             {view === 'execution' && (
               <Execution
@@ -476,7 +495,7 @@ export function DefectFlow({
       size={view === 'history' ? 'default' : 'large'}
       className="tc-dialog defect-dialog"
       busy={busy}
-      onClose={view === 'delete' ? back : close}
+      onClose={dialogClose}
       returnFocusRef={returnFocusRef}
       initialFocusSelector="[data-defect-modal]"
     >

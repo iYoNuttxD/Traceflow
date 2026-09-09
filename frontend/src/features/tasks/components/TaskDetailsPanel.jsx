@@ -2,7 +2,12 @@ import { ContextualTestCaseCreate } from '../../testCases/index.js';
 import { TaskQuality } from './TaskQuality.jsx';
 import { TaskTraceability } from './TaskTraceability.jsx';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { normalizeApiError, useConfirm } from '../../../shared/index.js';
+import {
+  normalizeApiError,
+  useConfirm,
+  ResponsibleCombobox,
+  SelectControl
+} from '../../../shared/index.js';
 import { priorityLabels, statusLabels } from './kanban-display.js';
 import { KanbanDialog } from './KanbanDialog.jsx';
 import { TaskComments } from './TaskComments.jsx';
@@ -14,14 +19,6 @@ import {
 } from './TaskTraceabilityEditor.jsx';
 import { TaskDetailsLayout, TaskInformation } from './TaskDetailsLayout.jsx';
 import { currentTaskDetailsView } from './task-details-view.js';
-
-function memberUserId(member) {
-  return member.user?.id || member.userId || member.id;
-}
-
-function memberName(member) {
-  return member.user?.name || member.user?.email || 'Membro sem nome';
-}
 
 function taskDraft(task) {
   return {
@@ -99,31 +96,23 @@ function TaskEditForm({ task, draft, errors, members, titleRef, saving, onChange
 
       <label className="field">
         <span>Prioridade</span>
-        <select name="priority" value={draft.priority} disabled={saving} onChange={onChange}>
+        <SelectControl name="priority" value={draft.priority} disabled={saving} onChange={onChange}>
           {Object.entries(priorityLabels).map(([value, label]) => (
             <option key={value} value={value}>
               {label}
             </option>
           ))}
-        </select>
+        </SelectControl>
       </label>
 
-      <label className="field">
-        <span>Responsável</span>
-        <select
-          name="responsibleUserId"
-          value={draft.responsibleUserId}
-          disabled={saving}
-          onChange={onChange}
-        >
-          <option value="">Não informado</option>
-          {activeMembers.map((member) => (
-            <option key={member.id} value={memberUserId(member)}>
-              {memberName(member)}
-            </option>
-          ))}
-        </select>
-      </label>
+      <ResponsibleCombobox
+        members={activeMembers}
+        value={draft.responsibleUserId}
+        currentName={task.responsibleUser?.name || task.responsible}
+        disabled={saving}
+        error={errors.responsibleUserId}
+        onChange={(value) => onChange({ target: { name: 'responsibleUserId', value } })}
+      />
 
       <label className="field">
         <span>Prazo</span>
@@ -565,7 +554,7 @@ export function TaskDetailsPanel({
           ) : (
             <TaskInformation details={currentTaskDetailsView(task)} />
           )}
-          {!editing && <TaskTraceability task={task} />}
+          {!editing && <TaskTraceability task={task} projectId={projectId} onNavigate={onClose} />}
           {!editing && !task.isFrozen && (
             <TaskQuality
               key={`${projectId}:${task.id}`}

@@ -163,7 +163,7 @@ describe('SearchCombobox', () => {
     await act(() => vi.advanceTimersByTimeAsync(300));
     expect(screen.getByRole('option', { name: 'Marco inicial' })).toBeInTheDocument();
   });
-  it('portals the canonical list within the dialog and dismisses on body scroll or resize', async () => {
+  it('keeps the list anchored inside its field during scroll and resize', async () => {
     render(
       <section role="dialog">
         <div data-testid="body">
@@ -171,7 +171,6 @@ describe('SearchCombobox', () => {
             label="Referência"
             minQueryLength={0}
             openOnFocus={false}
-            popoverPlacement="fixed"
             options={options}
             onSelect={vi.fn()}
           />
@@ -182,18 +181,18 @@ describe('SearchCombobox', () => {
     fireEvent.click(input);
     await act(() => vi.advanceTimersByTimeAsync(300));
     let list = screen.getByRole('listbox');
-    expect(list.parentElement).toBe(screen.getByRole('dialog'));
-    expect(list.style.position).toBe('fixed');
+    expect(list.parentElement).toBe(input.parentElement);
+    expect(list.style.position).not.toBe('fixed');
     expect(fireEvent.mouseDown(list)).toBe(true);
     expect(fireEvent.mouseDown(screen.getAllByRole('option')[0])).toBe(false);
     fireEvent.scroll(list);
     expect(screen.getByRole('listbox')).toBeInTheDocument();
     fireEvent.scroll(screen.getByTestId('body'));
-    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    expect(screen.getByRole('listbox')).toBeInTheDocument();
     fireEvent.click(input);
     await act(() => vi.advanceTimersByTimeAsync(300));
     fireEvent.resize(window);
-    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    expect(screen.getByRole('listbox')).toBeInTheDocument();
     fireEvent.click(input);
     await act(() => vi.advanceTimersByTimeAsync(300));
     fireEvent.pointerDown(document.body);

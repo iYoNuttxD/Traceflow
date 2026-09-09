@@ -130,7 +130,7 @@ describe('server-aligned client validation', () => {
         steps: [{ id: 'a', action: '', expectedResult: '' }]
       })
     ).toEqual({
-      responsibleUserId: 'Selecione um membro ativo.',
+      responsibleUserId: 'Selecione um responsável.',
       traceability: 'Vincule este caso a pelo menos um requisito ou uma tarefa.',
       'a-action': 'Campo obrigatório.',
       'a-expectedResult': 'Campo obrigatório.'

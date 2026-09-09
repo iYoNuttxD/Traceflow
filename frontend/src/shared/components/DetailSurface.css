@@ -1,0 +1,23 @@
+.detail-surface {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-secondary);
+  color: var(--color-text-primary);
+}
+.detail-surface > h3,
+.detail-surface > p {
+  margin: 0;
+}
+.detail-surface > h3 {
+  font-size: var(--font-size-3);
+  color: var(--color-text-strong);
+}
+.detail-surface__text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: var(--line-height-body);
+}

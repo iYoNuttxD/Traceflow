@@ -157,7 +157,8 @@ async function fillForm() {
     ['Resultado esperado do caso *', 'Validado']
   ])
     fireEvent.change(dialog().getByLabelText(label), { target: { value } });
-  fireEvent.change(dialog().getByLabelText('Responsável *'), { target: { value: '7' } });
+  fireEvent.click(dialog().getByRole('combobox', { name: 'Responsável' }));
+  fireEvent.click(await dialog().findByRole('option', { name: 'Pessoa QA' }));
 }
 async function edit(user) {
   await user.click(card().getByRole('button', { name: /Mais ações/ }));

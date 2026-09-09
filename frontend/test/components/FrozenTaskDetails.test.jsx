@@ -100,7 +100,7 @@ describe('FIX-04 Frozen Task Details parity', () => {
     const dialog = screen.getByRole('dialog', { name: '#5 Tarefa Original' });
     expect(sections(dialog)).toEqual(shape);
     expect(within(dialog).queryByRole('region', { name: 'Qualidade' })).not.toBeInTheDocument();
-    expect(dialog.querySelector('.task-detail-description')).toHaveTextContent(
+    expect(dialog.querySelector('.detail-surface__text')).toHaveTextContent(
       'Descrição indisponível no snapshot.'
     );
     expect(dialog.querySelector('.task-detail-layout--single')).toBeInTheDocument();

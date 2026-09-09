@@ -44,8 +44,8 @@ it('sends every filter to server', async () => {
   expect(http.get).toHaveBeenCalledWith('/projects/1/defects', { fresh: true, params: filters });
 });
 it.each([
-  ['ABERTO', 'Gerenciar correção'],
-  ['EM_CORRECAO', 'Ver correção'],
+  ['ABERTO', null],
+  ['EM_CORRECAO', null],
   ['AGUARDANDO_RETESTE', 'Retestar'],
   ['VALIDADO', null]
 ])('uses backend status %s for contextual actions', (status, label) =>

@@ -84,9 +84,6 @@
   color: var(--color-warning-text);
   background: var(--color-warning-surface);
 }
-.defect-correction-manager .tc-footer {
-  justify-content: flex-start;
-}
 .defect-history-list {
   display: grid;
   gap: var(--space-3);
@@ -112,4 +109,25 @@
   min-height: var(--size-touch-target);
   display: flex;
   align-items: center;
+}
+
+.defect-details > .detail-surface {
+  margin-top: var(--space-6);
+}
+.defect-details > .detail-surface:first-child {
+  margin-top: 0;
+}
+.defect-correction-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: var(--border-width-default) solid var(--color-border-default);
+}
+.defect-form .sprint-task-selector__list strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.defect-form .tc-icon-button {
+  flex: 0 0 var(--size-touch-target);
 }

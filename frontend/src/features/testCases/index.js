@@ -11,3 +11,5 @@ export { EvidenceViewer } from './components/EvidenceViewer.jsx';
 export { useEvidenceContent } from './hooks/useEvidenceContent.js';
 export { environments, referenceLabel } from './model/test-cases.js';
 export { ContextualTestCaseCreate } from './components/ContextualTestCaseCreate.jsx';
+
+export { ExecutionSummary } from './components/ExecutionSummary.jsx';

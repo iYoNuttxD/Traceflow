@@ -42,6 +42,8 @@ const include = {
           id: true,
           title: true,
           status: true,
+          priority: true,
+          responsibleUser: { select: identity },
           requirementId: true,
           pullRequestId: true,
           commitLinks: { select: { commitId: true } }
@@ -58,6 +60,8 @@ const include = {
           result: true,
           testCaseVersion: true,
           executedAt: true,
+          environment: true,
+          executedByDisplayNameSnapshot: true,
           testedReferenceSnapshot: true
         }
       }

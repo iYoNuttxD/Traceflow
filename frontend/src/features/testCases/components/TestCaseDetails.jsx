@@ -1,13 +1,14 @@
-import { EntityRow } from '../../../shared/index.js';
+import { EntityRow, DescriptionSurface } from '../../../shared/index.js';
 import { DefectBadge } from '../../defects/index.js';
 import { GithubExternalAction, TaskTraceabilityGrid, ArtifactCategory } from '../../tasks/index.js';
 import { PersistedEvidence } from './PersistedEvidence.jsx';
 import { environments, referenceLabel } from '../model/test-cases.js';
-import { Badge, Latest } from './Parts.jsx';
+import { Badge } from './Parts.jsx';
+import { ExecutionSummary } from './ExecutionSummary.jsx';
 
 function Information({ items }) {
   return (
-    <dl className="tc-info">
+    <dl className="task-detail-grid">
       {items.map(([label, value]) => (
         <div key={label}>
           <dt>{label}</dt>
@@ -109,10 +110,8 @@ export function TestCaseDetails({ testCase, projectId, onView, onCancel }) {
   const version = testCase;
   return (
     <div className="tc-stack">
-      <Surface title="Descrição">
-        <p>{testCase.description || 'Sem descrição.'}</p>
-      </Surface>
-      <section className="tc-section">
+      <DescriptionSurface>{testCase.description}</DescriptionSurface>
+      <section className="task-detail-section">
         <h3>Informações</h3>
         <Information
           items={[
@@ -164,18 +163,11 @@ export function TestCaseDetails({ testCase, projectId, onView, onCancel }) {
       <Surface title="Resultado esperado">
         <p>{version.expectedResult}</p>
       </Surface>
-      <Surface title="Última execução">
-        <Latest execution={latest} />
-        {latest && (
-          <p>
-            {latest.displayId} · {new Date(latest.executedAt).toLocaleString('pt-BR')} ·{' '}
-            {latest.executedByDisplayNameSnapshot} · Caso v{latest.testCaseVersion}
-          </p>
-        )}
+      <ExecutionSummary execution={latest}>
         <button className="button button-secondary" onClick={() => onView('history')}>
           Ver histórico
         </button>
-      </Surface>
+      </ExecutionSummary>
     </div>
   );
 }

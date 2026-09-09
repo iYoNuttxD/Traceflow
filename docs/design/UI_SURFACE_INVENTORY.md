@@ -588,13 +588,13 @@ e [registro visual](./validation/VISUAL_VALIDATION_LOG.md).
 | Superfície | Implementação | Estados / entrada | Validação |
 |---|---|---|---|
 | DEF-MAIN | DefectsScreen | resumo servidor, loading, vazio, erro, recibo, load more | automatizada + catálogo carregado Light/Dark; erros só automatizados |
-| DEF-FILTERS | CollapsibleFilterPanel / SearchCombobox | oito filtros remotos, fechado inicialmente, seleção explícita | automatizada + seleção de severidade com badge observada; matriz completa de filtros pendente |
+| DEF-FILTERS | CollapsibleFilterPanel / SearchCombobox | oito filtros remotos, fechado inicialmente, seleção explícita | FIX 02: PASS renderizado Light/Dark × 1440/1280/768/390; oito rótulos, busca e limpar condicional; sem badge duplicado |
 | DEF-CARD | DefectCard | status servidor, detecção, ciclo, ações de teclado | automatizada + catálogo carregado Light/Dark; quatro severidades observadas |
 | DEF-CREATE | DefectForm / DefectFlow | aba ou passo FAIL, sugestões históricas, validação | automatizada; seletor vazio observado |
 | DEF-DETAILS | DefectDetails / EntityRow / ArtifactCategory | informações, detecção, vínculos, correção, validação | VISUALLY APPROVED: carregado, matriz S1-08 |
 | DEF-EDIT | DefectForm / SearchCombobox | edição, contexto resumido, responsável e severidade | VISUALLY APPROVED: carregado/cancelar, matriz S1-08; submit e erros automatizados |
 | DEF-DELETE | ConfirmDialogContent / SprintDialog | confirmação compacta, cancelar, retorno de foco | VISUALLY APPROVED: confirmar/cancelar, matriz S1-08; exclusão não submetida |
-| DEF-CORRECTION | CorrectionManager / CorrectionTaskRows / TaskForm | seção Correção, tarefas atuais, criação/vínculo | VISUALLY APPROVED: seção e manager com tarefa, matriz S1-08; vazio observado adicionalmente; criação/vínculo automatizados |
+| DEF-CORRECTION | CorrectionTaskForm / CorrectionTaskRows / TaskForm | Details → tarefas atuais; criar/vincular no mesmo dialog | FIX 02: PASS seção nos oito recortes; criação/vínculo abertos e cancelados em desktop/mobile; sucesso, erros e concorrência automatizados |
 | DEF-RETEST | TestExecutionWizard | versão atual, referência priorizada, PASS/FAIL/BLOCKED | automatizada; visual bloqueado por dados |
 | DEF-HISTORY | DefectHistory / HistoryEventRow | eventos e paginação acumulada | VISUALLY APPROVED: carregado, matriz S1-08; erros/paginação automatizados |
 | TASK-CORRECTION-CARD | TaskCorrectionBadge | marcador info, único link ou lista de defeitos | VISUALLY APPROVED: um defeito, matriz S1-08; múltiplos automatizados |
@@ -606,3 +606,26 @@ e [registro visual](./validation/VISUAL_VALIDATION_LOG.md).
 **FROZEN CORRECTION CONTEXT CONTRACT GAP:** snapshots congelados não contêm
 metadados de correção. O frontend omite o contexto/badge nesses snapshots e não
 consulta o Defect atual para reconstruir o passado.
+
+
+## S1-08 — UI Standardization FIX 02 (2026-09-09)
+
+Esta rodada substitui a apresentação de controles, cards e correção descrita nas
+entradas anteriores, sem reclassificar retrospectivamente seus gates. Matriz de
+**14 superfícies × 8 combinações** e limites por estado no
+[relatório de padronização](../deliveries/S1_08_TRACEFLOW_UI_STANDARDIZATION_REPORT.md#m--visual-matrix).
+
+| Superfície | Padrão atual | Evidência desta rodada |
+|---|---|---|
+| Kanban filtros / card de correção | CollapsibleFilterPanel / ResponsibleCombobox / SelectControl / bug info | PASS nos oito recortes; limpar sem wrapper vazio |
+| Task Details / Qualidade | DescriptionSurface / grid unido / ArtifactCategory / EntityRow | PASS nos oito recortes; casos e defeitos alinhados |
+| TC catálogo / Details / form | tiles Planning / superfícies comuns / ResponsibleCombobox | PASS nos oito recortes; título longo, responsável e descrição |
+| DEF catálogo / filtros / Details / form | tiles Planning / controles comuns / superfícies comuns | PASS nos oito recortes; contexto histórico e resultado esperado |
+| DEF correção / validação / histórico | subviews diretas / ExecutionSummary / HistoryEventRow | PASS nos oito recortes; tarefa atual e espera por reteste |
+| Histórico Task e TC | família existente; SelectControl no filtro Task | comparação adicional desktop/mobile Light/Dark |
+| Busca de entidades em Planning e execução | SearchCombobox no fluxo do dialog | busca de Marco, tarefas e referência testada observada; resultados sem seleção implícita |
+
+Aprovação visual refere-se aos estados carregados/draft/cancelar descritos no
+relatório. Erro remoto, concorrência, VIEWER e submit são cobertos por automação,
+sem simular falhas de rede na sessão real. Preview/download de evidências e os fluxos
+externos permanecem fora deste gate de padronização.

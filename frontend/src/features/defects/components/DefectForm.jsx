@@ -2,6 +2,9 @@ import { DefectBadge } from './DefectDetails.jsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   SearchCombobox,
+  ResponsibleCombobox,
+  SelectControl,
+  TraceFlowIcon,
   EntityRow,
   ErrorState,
   LoadingState,
@@ -101,9 +104,6 @@ export function DefectForm({
     },
     [projectId]
   );
-  const memberOptions = options.members
-    .filter((m) => m.isActive)
-    .map((m) => ({ id: m.user.id, name: m.user.name }));
   const controls = (key) => ({
     id: `defect-${key}`,
     'aria-label': { title: 'Título *', description: 'Descrição *', severity: 'Severidade *' }[key],
@@ -138,7 +138,6 @@ export function DefectForm({
               placeholder="Pesquisar EXEC-id, TC-id ou título..."
               minQueryLength={0}
               openOnFocus={false}
-              popoverPlacement="fixed"
               onSearch={search}
               getOptionLabel={(c) =>
                 `${c.execution.displayId} · ${c.testCase.displayId} · ${c.testCase.title}`
@@ -202,12 +201,20 @@ export function DefectForm({
               <p>
                 {candidate.testCase.title} · Caso v{candidate.testCase.version}
               </p>
-              {!defect && (
-                <details>
-                  <summary>Resultado observado</summary>
-                  <p className="tc-preformatted">{candidate.failedStep.observedResult}</p>
-                </details>
-              )}
+              <div className="tc-step-definition">
+                <div>
+                  <small>Ação</small>
+                  <p className="tc-preformatted">{candidate.failedStep.action}</p>
+                </div>
+                <div>
+                  <small>Resultado esperado</small>
+                  <p className="tc-preformatted">{candidate.failedStep.expectedResult}</p>
+                </div>
+              </div>
+              <div>
+                <small>Resultado observado</small>
+                <p className="tc-preformatted">{candidate.failedStep.observedResult}</p>
+              </div>
               {!defect && !!candidate.existingDefects?.length && (
                 <section>
                   <h4>Defeitos já registrados nesta falha</h4>
@@ -288,34 +295,27 @@ export function DefectForm({
             <div className="tc-columns">
               <label className="field">
                 <span>Severidade *</span>
-                <select {...controls('severity')} required>
+                <SelectControl {...controls('severity')} required>
                   <option value="">Selecione</option>
                   {Object.entries(severities).map(([v, label]) => (
                     <option key={v} value={v}>
                       {label}
                     </option>
                   ))}
-                </select>
-                {form.severity && <DefectBadge value={form.severity} />}
+                </SelectControl>
                 {errors.severity && (
                   <small className="field-error" id="defect-severity-error">
                     {errors.severity}
                   </small>
                 )}
               </label>
-              <SearchCombobox
-                label="Responsável"
-                popoverPlacement="fixed"
-                options={memberOptions}
-                minQueryLength={0}
-                openOnFocus={false}
-                getOptionLabel={(m) => m.name}
-                selectedOption={
-                  memberOptions.find((m) => m.id === Number(form.responsibleUserId)) || null
-                }
-                onSelect={(m) => update('responsibleUserId', m.id)}
-                onClear={() => update('responsibleUserId', '')}
+              <ResponsibleCombobox
+                members={options.members.filter((m) => m.isActive)}
+                value={form.responsibleUserId}
+                currentName={defect?.responsibleUser.name}
+                onChange={(value) => update('responsibleUserId', value)}
                 required
+                disabled={busy}
                 error={errors.responsibleUserId}
               />
             </div>
@@ -327,6 +327,7 @@ export function DefectForm({
               </p>
               <SearchCombobox
                 label="Requisito afetado"
+                placeholder="Pesquisar requisito..."
                 onSearch={options.searchRequirements}
                 openOnFocus={false}
                 selectedOption={requirement}
@@ -343,6 +344,7 @@ export function DefectForm({
               />
               <SearchCombobox
                 label="Tarefas de origem"
+                placeholder="Pesquisar tarefa de origem..."
                 onSearch={options.searchTasks}
                 openOnFocus={false}
                 getOptionLabel={taskLabel}
@@ -362,7 +364,8 @@ export function DefectForm({
                     <strong>{taskLabel(t)}</strong>
                     <button
                       type="button"
-                      className="button button-secondary"
+                      className="button button-secondary tc-icon-button"
+                      title={`Remover TASK-${t.id}`}
                       aria-label={`Remover TASK-${t.id}`}
                       onClick={() => {
                         setOrigins((old) => old.filter((x) => x.id !== t.id));
@@ -372,7 +375,7 @@ export function DefectForm({
                         );
                       }}
                     >
-                      Remover
+                      <TraceFlowIcon name="close" />
                     </button>
                   </li>
                 ))}

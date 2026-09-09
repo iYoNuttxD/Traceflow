@@ -1,3 +1,4 @@
+import { ResponsibleCombobox, SearchCombobox, SelectControl } from '../../../shared/index.js';
 import { useEffect, useRef, useState } from 'react';
 import { CommitSuggestionsCard } from './CommitSuggestionsCard.jsx';
 import '../../../shared/styles/traceability-controls.css';
@@ -49,15 +50,6 @@ function normalizeNumberField(value) {
   }
 
   return parsedValue;
-}
-
-function formatMemberName(member) {
-  const user = member.user || member;
-  return user.name || user.email || 'Membro sem nome';
-}
-
-function memberUserId(member) {
-  return member.user?.id || member.userId || member.id;
 }
 
 function formatPullRequestLabel(pullRequest) {
@@ -355,42 +347,27 @@ export function TaskForm({
 
       <label className="field">
         <span>Prioridade</span>
-        <select name="priority" value={formData.priority} onChange={handleChange}>
+        <SelectControl name="priority" value={formData.priority} onChange={handleChange}>
           <option value="BAIXA">Baixa</option>
           <option value="MEDIA">Média</option>
           <option value="ALTA">Alta</option>
           <option value="CRITICA">Crítica</option>
-        </select>
+        </SelectControl>
       </label>
 
-      <label className="field">
-        <span>Responsável</span>
-        <select
-          name="responsibleUserId"
-          value={formData.responsibleUserId}
-          onChange={handleChange}
-          disabled={!hasMembers}
-        >
-          <option value="">
-            {hasMembers ? 'Selecione um responsável' : 'Nenhum membro cadastrado'}
-          </option>
-          {activeMembers.map((member) => (
-            <option key={member.id} value={memberUserId(member)}>
-              {formatMemberName(member)}
-            </option>
-          ))}
-        </select>
-        {hasLegacyResponsible && (
-          <small className="field-help">
-            Responsável legado: {formData.responsible}. Selecione um usuário ativo para reconciliar.
-          </small>
-        )}
-        {!hasMembers && (
-          <small className="field-help">
-            Cadastre membros no projeto para atribuir responsáveis às tarefas.
-          </small>
-        )}
-      </label>
+      <ResponsibleCombobox
+        members={activeMembers}
+        value={formData.responsibleUserId}
+        onChange={(value) => onChange('responsibleUserId', value)}
+        disabled={!hasMembers || submitting}
+        help={
+          hasLegacyResponsible
+            ? `Responsável legado: ${formData.responsible}. Selecione um responsável para reconciliar.`
+            : !hasMembers
+              ? 'Cadastre membros no projeto para atribuir responsáveis às tarefas.'
+              : undefined
+        }
+      />
 
       <label className="field">
         <span>Prazo</span>
@@ -402,23 +379,20 @@ export function TaskForm({
           edição de uma tarefa antiga abriria o campo vazio e a devolveria ao
           backlog sem ninguém ter pedido. */}
       {composition !== 'correction' && (
-        <label className="field">
-          <span>Sprint</span>
-          <select name="sprintId" value={formData.sprintId} onChange={handleChange}>
-            <option value="">Sem sprint (backlog)</option>
-            {sprints
-              .filter(
-                (sprint) =>
-                  !['CONCLUIDA', 'CANCELADA'].includes(sprint.status) ||
-                  String(sprint.id) === String(formData.sprintId)
-              )
-              .map((sprint) => (
-                <option key={sprint.id} value={String(sprint.id)}>
-                  {sprint.name}
-                </option>
-              ))}
-          </select>
-        </label>
+        <SearchCombobox
+          label="Sprint"
+          placeholder="Pesquisar sprint..."
+          minQueryLength={0}
+          openOnFocus={false}
+          options={sprints.filter((sprint) => !['CONCLUIDA', 'CANCELADA'].includes(sprint.status))}
+          selectedOption={
+            sprints.find((sprint) => String(sprint.id) === String(formData.sprintId)) || null
+          }
+          onSelect={(sprint) => onChange('sprintId', String(sprint.id))}
+          onClear={() => onChange('sprintId', '')}
+          help="Sem sprint, a tarefa permanece no backlog."
+          disabled={submitting}
+        />
       )}
 
       <label className="field">
@@ -663,9 +637,9 @@ export function TaskForm({
       )}
 
       <div className="form-actions field-full">
-        {editing && (
+        {(editing || composition === 'correction') && (
           <button className="button button-secondary" type="button" onClick={onCancel}>
-            Cancelar edição
+            {composition === 'correction' ? 'Cancelar' : 'Cancelar edição'}
           </button>
         )}
         <button className="button button-primary" type="submit" disabled={submitting}>

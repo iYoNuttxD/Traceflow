@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DefectForm } from '../../src/features/defects/components/DefectForm.jsx';
 import { DefectFlow } from '../../src/features/defects/components/DefectFlow.jsx';
-import { CorrectionManager } from '../../src/features/defects/components/CorrectionManager.jsx';
+import { CorrectionTaskForm } from '../../src/features/defects/components/CorrectionTaskForm.jsx';
 import { DefectHistory } from '../../src/features/defects/components/DefectHistory.jsx';
 import {
   TaskCorrectionBadge,
@@ -133,9 +133,9 @@ describe('S1-08 detail lifecycle', () => {
     const user = userEvent.setup();
     flow();
     await screen.findByText('Falha confirmada');
-    await user.click(screen.getAllByRole('button', { name: 'Gerenciar correção' })[0]);
+    await user.click(screen.getByRole('button', { name: 'Vincular tarefa existente' }));
     expect(screen.getAllByRole('dialog')).toHaveLength(1);
-    expect(screen.getByRole('button', { name: 'Vincular tarefa existente' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Tarefa de correção' })).toBeInTheDocument();
   });
   it.each([409, 503])('preserves edit draft and prevents blind retries on %s', async (status) => {
     api.update.mockRejectedValue(failure(status));
@@ -177,21 +177,27 @@ describe('S1-08 detail lifecycle', () => {
     api.detail.mockResolvedValue({
       ...defect,
       status: 'VALIDADO',
-      statusReason: { ...defect.statusReason, validatedByExecutionId: 39 }
+      statusReason: { ...defect.statusReason, validatedByExecutionId: 39 },
+      retests: [
+        {
+          correctionCycle: 1,
+          testExecutionId: 39,
+          execution: { id: 39, result: 'PASS', executedAt: defect.createdAt }
+        }
+      ]
     });
     flow();
     await screen.findByText('Falha confirmada');
     expect(screen.queryByRole('button', { name: 'Gerenciar correção' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Retestar' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Ver EXEC-0039' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'EXEC-0039' })).toBeInTheDocument();
   });
 });
 describe('S1-08 correction and historical contexts', () => {
   it('excludes origin tasks but accepts a completed correction task', async () => {
     const user = userEvent.setup(),
       save = vi.fn();
-    wrap(<CorrectionManager defect={defect} options={options} onSave={save} />);
-    await user.click(screen.getByRole('button', { name: 'Vincular tarefa existente' }));
+    wrap(<CorrectionTaskForm mode="link" defect={defect} options={options} onSave={save} />);
     await user.type(screen.getByRole('combobox'), 'Cor');
     expect(await screen.findByRole('option', { name: /TASK-9/ })).toHaveAttribute(
       'aria-disabled',

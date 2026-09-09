@@ -118,21 +118,26 @@ export function TaskQuality({ task, projectId, canCreate, onCreate, createRef, o
   const ds = [streams.origin, streams.correction];
   return (
     <TaskTraceabilityGrid title="Qualidade">
-      <ArtifactCategory label="Casos de teste" count={streams.cases.total}>
+      <ArtifactCategory
+        label="Casos de teste"
+        count={streams.cases.total}
+        footer={
+          canCreate && (
+            <button
+              ref={createRef}
+              type="button"
+              className="button button-outline button-compact"
+              onClick={onCreate}
+            >
+              <TraceFlowIcon name="plus" />
+              Criar caso de teste
+            </button>
+          )
+        }
+      >
         {stream('cases')}
         {!streams.cases.loading && !streams.cases.error && streams.cases.total === 0 && (
           <p>Nenhum caso de teste relacionado.</p>
-        )}
-        {canCreate && (
-          <button
-            ref={createRef}
-            type="button"
-            className="button button-outline button-compact"
-            onClick={onCreate}
-          >
-            <TraceFlowIcon name="plus" />
-            Criar caso de teste
-          </button>
         )}
       </ArtifactCategory>
       <ArtifactCategory

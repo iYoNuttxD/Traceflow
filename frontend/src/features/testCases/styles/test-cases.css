@@ -45,15 +45,14 @@
   min-width: 0;
 }
 .tc-grid {
-  --tc-card-height: 30rem;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
+  --tc-card-height: 28rem;
   align-items: stretch;
 }
 .tc-grid :is(.tc-card, .tc-new-card) {
   width: 100%;
   height: var(--tc-card-height);
   min-height: var(--tc-card-height);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
 }
 .tc-card {
   display: flex;
@@ -633,25 +632,6 @@
 }
 
 /* Native macOS selects otherwise ignore the control height in Safari. */
-.tc-select {
-  display: block;
-  min-width: 0;
-  position: relative;
-}
-.tc-select select {
-  appearance: none;
-  height: var(--size-touch-target);
-  padding-right: var(--space-10);
-}
-.tc-select > .traceflow-icon {
-  position: absolute;
-  right: var(--space-3);
-  top: 50%;
-  transform: translateY(-50%) rotate(90deg);
-  pointer-events: none;
-  color: var(--color-text-secondary);
-}
-
 .tc-form-controls {
   border: 0;
   padding: 0;
@@ -898,4 +878,34 @@
 .tc-history-panel:not([hidden]) {
   display: grid;
   gap: var(--space-3);
+}
+
+/* Catalog summary uses the same three/two/one-column Planning grid. */
+.tc-card .tc-latest {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: center;
+}
+.tc-card .tc-latest > small,
+.tc-card .tc-latest > .tc-card-metadata:last-child {
+  grid-column: 1 / -1;
+}
+.tc-card .tc-latest > .tc-card-metadata {
+  min-width: 0;
+}
+.tc-card .tc-card-body {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.tc-badge--info {
+  background: var(--color-info-surface);
+  color: var(--color-info-text);
+}
+.execution-summary__status {
+  display: flex;
+  align-items: center;
+}
+
+/* O stack já aplica o espaçamento entre seções; não somar a margem do fluxo de tarefa. */
+.tc-stack > .task-detail-section {
+  margin-top: 0;
 }
