@@ -10,9 +10,11 @@
   margin-bottom: var(--space-5);
 }
 
+/* Sem crescer: se os campos esticassem, engoliriam a folga e o "Filtrar"
+   encostaria no campo de origem. A sobra vira o respiro antes das ações. */
 .task-time-entries__filters label {
   display: grid;
-  flex: 1 1 9rem;
+  flex: 0 1 9rem;
   min-width: 0;
   gap: var(--space-2);
   color: var(--color-text-primary);
@@ -37,6 +39,7 @@
   flex-wrap: wrap;
   gap: var(--space-2);
   margin-left: auto;
+  padding-left: var(--space-5);
 }
 
 .task-time-entries__filter-actions .button {
@@ -155,6 +158,7 @@
   .task-time-entries__filter-actions {
     width: 100%;
     margin-left: 0;
+    padding-left: 0;
   }
 
   .task-time-entries__filter-actions .button {
