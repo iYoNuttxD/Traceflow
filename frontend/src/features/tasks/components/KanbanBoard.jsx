@@ -102,23 +102,6 @@ function KanbanTaskCard({
                 : 'Sem prazo'}
             {overdue && <strong>Atrasada</strong>}
           </span>
-          {effort && (
-            <span
-              className={`kanban-task__effort kanban-task__effort--${effort.tone}${
-                effort.running ? ' kanban-task__effort--running' : ''
-              }`}
-              title={effort.title}
-              data-testid={`kanban-task-effort-${task.id}`}
-            >
-              {effort.running ? (
-                <span className="kanban-task__effort-dot" aria-hidden="true" />
-              ) : (
-                <span aria-hidden="true">⏱</span>
-              )}
-              <span className="kanban-task__effort-value">{effort.value}</span>
-              {effort.detail && <span className="kanban-task__effort-detail">{effort.detail}</span>}
-            </span>
-          )}
           <span className="kanban-task__traceability" title={traceability}>
             <span aria-hidden="true">⛓</span>
             {traceability}
@@ -146,6 +129,23 @@ function KanbanTaskCard({
 
       {(!task.isFrozen || task.currentTaskId) && (
         <div className="kanban-task__actions" onDragStart={stopDrag}>
+          {effort && (
+            <span
+              className={`kanban-task__effort kanban-task__effort--${effort.tone}${
+                effort.running ? ' kanban-task__effort--running' : ''
+              }`}
+              title={effort.title}
+              data-testid={`kanban-task-effort-${task.id}`}
+            >
+              {effort.running ? (
+                <span className="kanban-task__effort-dot" aria-hidden="true" />
+              ) : (
+                <span aria-hidden="true">⏱</span>
+              )}
+              <span className="kanban-task__effort-value">{effort.value}</span>
+              {effort.detail && <span className="kanban-task__effort-detail">{effort.detail}</span>}
+            </span>
+          )}
           <button
             type="button"
             className="kanban-task__action"
