@@ -22,6 +22,22 @@ export const traceabilityApi = {
   issueCoverage(projectId, options = {}) {
     return data(httpClient.get(`/projects/${projectId}/traceability/issue-coverage`, options));
   },
+  requirements(projectId, params = {}, options = {}) {
+    return data(
+      httpClient.get(`/projects/${projectId}/traceability/requirements`, {
+        ...options,
+        params: compactParams(params)
+      })
+    );
+  },
+  history(projectId, requirementId, params = {}, options = {}) {
+    return data(
+      httpClient.get(`/projects/${projectId}/traceability/requirements/${requirementId}/history`, {
+        ...options,
+        params: compactParams(params)
+      })
+    );
+  },
   matrix(projectId, params = {}, options = {}) {
     return data(
       httpClient.get(`/projects/${projectId}/traceability/requirements-matrix`, {
@@ -106,3 +122,8 @@ export const confirmCommitSuggestion = (projectId, suggestionId) =>
   traceabilityApi.confirmSuggestion(projectId, suggestionId);
 export const rejectCommitSuggestion = (projectId, suggestionId) =>
   traceabilityApi.rejectSuggestion(projectId, suggestionId);
+
+export const getRequirementsTraceability = (projectId, params, options) =>
+  traceabilityApi.requirements(projectId, params, options);
+export const getRequirementSituationHistory = (projectId, requirementId, params, options) =>
+  traceabilityApi.history(projectId, requirementId, params, options);
