@@ -85,7 +85,7 @@ export function DefectDetails({
   );
   const cycleContent = (c) => (
     <>
-      <CorrectionTaskRows tasks={c.tasks} projectId={d.projectId} onNavigate={onNavigate} />
+      <CorrectionTaskRows tasks={c.tasks} projectId={d.projectId} />
       {retests(c.cycle).map((r) => (
         <p key={r.id}>
           Reteste: {executionLink(r)} · {dateLabel(r.execution.executedAt)}
@@ -221,13 +221,7 @@ export function DefectDetails({
         <h3>Correção</h3>
         <h4>Ciclo atual · {d.currentCorrectionCycle}</h4>
         {!current?.tasks.length && <p>Nenhuma tarefa de correção vinculada.</p>}
-        {current && (
-          <CorrectionTaskRows
-            tasks={current.tasks}
-            projectId={d.projectId}
-            onNavigate={onNavigate}
-          />
-        )}
+        {current && <CorrectionTaskRows tasks={current.tasks} projectId={d.projectId} />}
         {canWrite && d.status !== 'VALIDADO' && (
           <footer className="defect-correction-actions">
             <button className="button button-secondary" onClick={() => onView('correction-create')}>

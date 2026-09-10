@@ -91,7 +91,7 @@ export function TaskTraceabilityGrid({ children, title = 'Rastreabilidade' }) {
 
 export function ArtifactCategory({ label, count, children, footer }) {
   return (
-    <article>
+    <article className="task-detail-relation-card">
       <header className="task-detail-artifact-heading">
         <span>{label}</span>
         <strong

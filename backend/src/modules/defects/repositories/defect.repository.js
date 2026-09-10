@@ -234,7 +234,13 @@ export function createDefectRepository(client = prisma) {
             detectedStep: {
               select: { position: true, execution: { select: { id: true, testCaseId: true } } }
             },
-            taskLinks: { where: { relationType: 'CORRECTION' }, select: { correctionCycle: true } }
+            taskLinks: {
+              where: { relationType: 'CORRECTION' },
+              select: {
+                correctionCycle: true,
+                task: { select: { id: true, status: true } }
+              }
+            }
           },
           orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
           skip: (q.page - 1) * q.limit,

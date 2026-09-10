@@ -589,17 +589,17 @@ e [registro visual](./validation/VISUAL_VALIDATION_LOG.md).
 |---|---|---|---|
 | DEF-MAIN | DefectsScreen | resumo servidor, loading, vazio, erro, recibo, load more | automatizada + catálogo carregado Light/Dark; erros só automatizados |
 | DEF-FILTERS | CollapsibleFilterPanel / SearchCombobox | oito filtros remotos, fechado inicialmente, seleção explícita | FIX 02: PASS renderizado Light/Dark × 1440/1280/768/390; oito rótulos, busca e limpar condicional; sem badge duplicado |
-| DEF-CARD | DefectCard | status servidor, detecção, ciclo, ações de teclado | automatizada + catálogo carregado Light/Dark; quatro severidades observadas |
+| DEF-CARD | DefectCard | detecção, requisito, resumo da correção; Adicionar/Acessar correções; Retestar contextual | FIX 03: quatro estados renderizados Light/Dark × 1440/1280/768/390; múltiplas tarefas e VIEWER automatizados |
 | DEF-CREATE | DefectForm / DefectFlow | aba ou passo FAIL, sugestões históricas, validação | automatizada; seletor vazio observado |
 | DEF-DETAILS | DefectDetails / EntityRow / ArtifactCategory | informações, detecção, vínculos, correção, validação | VISUALLY APPROVED: carregado, matriz S1-08 |
 | DEF-EDIT | DefectForm / SearchCombobox | edição, contexto resumido, responsável e severidade | VISUALLY APPROVED: carregado/cancelar, matriz S1-08; submit e erros automatizados |
 | DEF-DELETE | ConfirmDialogContent / SprintDialog | confirmação compacta, cancelar, retorno de foco | VISUALLY APPROVED: confirmar/cancelar, matriz S1-08; exclusão não submetida |
-| DEF-CORRECTION | CorrectionTaskForm / CorrectionTaskRows / TaskForm | Details → tarefas atuais; criar/vincular no mesmo dialog | FIX 02: PASS seção nos oito recortes; criação/vínculo abertos e cancelados em desktop/mobile; sucesso, erros e concorrência automatizados |
+| DEF-CORRECTION | CorrectionTaskForm / CorrectionTaskRows / TaskForm | card → seção Correção; tarefas atuais clicáveis; criar/vincular no mesmo dialog | FIX 03: seção nos oito recortes; foco, Task Details e retorno pelo navegador observados; criar/vincular/cancelar no mobile; sucesso e concorrência automatizados |
 | DEF-RETEST | TestExecutionWizard | versão atual, referência priorizada, PASS/FAIL/BLOCKED | automatizada; visual bloqueado por dados |
 | DEF-HISTORY | DefectHistory / HistoryEventRow | eventos e paginação acumulada | VISUALLY APPROVED: carregado, matriz S1-08; erros/paginação automatizados |
 | TASK-CORRECTION-CARD | TaskCorrectionBadge | marcador info, único link ou lista de defeitos | VISUALLY APPROVED: um defeito, matriz S1-08; múltiplos automatizados |
 | TASK-CORRECTION-DETAILS | TaskQuality | contexto integrado em Qualidade/Defeitos após Rastreabilidade | VISUALLY APPROVED: Task Details na matriz S1-08; relação CORREÇÃO observada adicionalmente |
-| TASK-QUALITY | TaskQuality / ArtifactCategory / EntityRow | casos, defeitos ORIGEM/CORREÇÃO, criação contextual, paginação | VISUALLY APPROVED: origem carregada, matriz S1-08; loading/erro/retry/VIEWER automatizados |
+| TASK-QUALITY | TaskQuality / ArtifactCategory / EntityRow | mesmo shell de Rastreabilidade; TC vazio/preenchido, DEF ORIGEM/CORREÇÃO, footer contextual | FIX 03: comparação na mesma Task e estados vazio/preenchido nos oito recortes; loading/erro/retry/VIEWER automatizados |
 | TC-FAILED-STEP-DEFECTS | TestCaseDetails / EntityRow | defeitos registrados após conteúdo do passo, largura total | VISUALLY APPROVED: FAIL com defeito, matriz S1-08; zero/PASS/BLOCKED automatizados |
 | TC-CONTEXTUAL-CREATE | ContextualTestCaseCreate / TestCaseForm | Task → caso no mesmo dialog; Requirement → caso | automatizada; matriz visual pendente |
 
@@ -629,3 +629,14 @@ Aprovação visual refere-se aos estados carregados/draft/cancelar descritos no
 relatório. Erro remoto, concorrência, VIEWER e submit são cobertos por automação,
 sem simular falhas de rede na sessão real. Preview/download de evidências e os fluxos
 externos permanecem fora deste gate de padronização.
+
+## S1-08 — UI Standardization FIX 03 (2026-09-09)
+
+Alteradas apenas a densidade/ações de DEF-CARD, a entrada contextual de
+DEF-CORRECTION e a composição de TASK-QUALITY e do shell compartilhado de relações.
+Requisito/PR/Commits/Issues e TC/DEF usam o mesmo `ArtifactCategory` com classe
+explícita `task-detail-relation-card`; `EntityRow` preserva o chevron e a navegação.
+Validação real de 12 superfícies × 8 combinações no
+[relatório FIX 03](../deliveries/S1_08_UX_STANDARDIZATION_FIX_03_REPORT.md#g--visual-matrix).
+Sprint, Marco e TestCase Catalog foram comparados como referências, sem alteração
+de seus contratos ou reclassificação dos gates anteriores.

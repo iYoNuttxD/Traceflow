@@ -691,8 +691,10 @@ nenhum resultado deve ser deduzido apenas do estado das tarefas.
 Catálogos TestCase/Defect pertencem à família de tiles de Sprint/Marco: grid
 `sprint-grid`, gap 20px, até três colunas, raio grande, título em até duas linhas,
 metadados compactos e ações no rodapé. Tile de criação e tile de entidade têm a mesma
-altura de 28rem no desktop. Na faixa móvel até 34rem, altura automática evita corte
-de conteúdo. A largura segue as mesmas colunas e breakpoints de Planning.
+altura por linha no desktop. TestCase mantém 28rem; Defect usa mínimo de 26rem e
+cresce com o conteúdo, incluindo o rodapé de reteste em duas linhas. Na faixa móvel
+até 34rem, altura automática evita corte de conteúdo. A largura segue as mesmas
+colunas e breakpoints de Planning.
 
 Filtros usam `CollapsibleFilterPanel`: rótulos visíveis, placeholders de busca e
 wrapper de “Limpar filtros” renderizado somente com filtro ativo. O estado sem
@@ -707,3 +709,29 @@ Não introduzir um gerenciador intermediário. No Kanban, o marcador usa o ícon
 tipografia de metadado e tokens info, com alvo clicável mínimo de 44px; o card inteiro
 não recebe tratamento de erro. Históricos mantêm a família `HistoryEventRow` e
 shell compacto existente, preservando os filtros específicos de cada domínio.
+
+### Relation cards e densidade de Defect — S1-08 FIX 03
+
+Requisito, Pull Request, Commits, Issues, TestCases e Defects compartilham o shell
+`ArtifactCategory` / `task-detail-relation-card`: cabeçalho e contador, corpo com
+padding 16px e gap 12px, borda/raio/fundo comuns, rodapé opcional independente.
+Rastreabilidade é a referência estrutural de Qualidade. O grid tem duas colunas e
+colapsa no mobile; a altura se alinha por linha, conforme conteúdo e ações.
+Uma stream vazia não gera wrapper nem espaçamento adicional.
+
+`EntityRow` mantém identidade/título, metadados e chevron sem encolhimento. Nas
+categorias de relação, título e metadados têm até duas linhas, com line-height
+20px/16px e gap 4px. O nome acessível preserva a identidade e o título completo.
+TestCase apresenta status/última execução; Defect apresenta ORIGEM ou CORREÇÃO,
+severidade e status como texto compacto. “Criar caso de teste” pertence ao rodapé,
+com largura do conteúdo, sem reservar um rodapé vazio no card irmão.
+
+Defect Card informa detecção, ciclo, quantidade de correções e requisito quando
+presente. Uma correção exibe TASK-id/status; várias exibem contadores por status.
+O estado vazio oferece “Adicionar correção” a quem pode escrever; tarefas
+existentes oferecem “Acessar correções”, inclusive em Validado. Aguardando reteste
+mantém “Retestar” primário e acesso às correções secundário. VIEWER consulta sem
+ações de escrita. O acesso contextual abre o mesmo Defect Details na seção
+Correção com scroll/foco semântico. A tarefa abre o Task Details existente; o
+histórico do navegador preserva o retorno ao defeito e à seção, sem dialogs
+empilhados. Criar/vincular continuam subviews diretas do mesmo dialog.

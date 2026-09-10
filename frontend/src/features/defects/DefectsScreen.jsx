@@ -20,10 +20,17 @@ import {
   severities,
   requirementLabel,
   taskLabel,
-  executionLabel
+  executionLabel,
+  taskStatuses
 } from './model/defects.js';
 import './defects.css';
 export function DefectCard({ defect: d, canWrite, onOpen }) {
+  const correctionCount = d.correctionSummary?.total ?? d.correctionTaskCount;
+  const correctionLabel =
+    correctionCount === 0 && canWrite && d.status !== 'VALIDADO'
+      ? 'Adicionar correção'
+      : 'Acessar correções';
+  const canRetest = canWrite && d.status === 'AGUARDANDO_RETESTE';
   const open = (view, e) => {
     e.stopPropagation();
     onOpen(view, d, e.currentTarget);
@@ -65,17 +72,42 @@ export function DefectCard({ defect: d, canWrite, onOpen }) {
           )}
           <small>Correção</small>
           <span>
-            {d.correctionTaskCount ?? '—'} {d.correctionTaskCount === 1 ? 'tarefa' : 'tarefas'} de
-            correção · Ciclo {d.currentCorrectionCycle}
+            {correctionCount ?? '—'} {correctionCount === 1 ? 'tarefa' : 'tarefas'} · Ciclo{' '}
+            {d.currentCorrectionCycle}
           </span>
+          {d.correctionSummary?.singleTask && (
+            <span>
+              TASK-{d.correctionSummary.singleTask.id} ·{' '}
+              {taskStatuses[d.correctionSummary.singleTask.status]}
+            </span>
+          )}
+          {d.correctionSummary?.total > 1 && (
+            <span>
+              {d.correctionSummary.done}{' '}
+              {d.correctionSummary.done === 1 ? 'concluída' : 'concluídas'} ·{' '}
+              {d.correctionSummary.inProgress} em andamento · {d.correctionSummary.todo} a fazer
+            </span>
+          )}
+          {d.requirement && (
+            <div className="defect-card-requirement">
+              <small>Requisito</small>
+              <span title={requirementLabel(d.requirement)}>{requirementLabel(d.requirement)}</span>
+            </div>
+          )}
         </div>
       </div>
       <footer
-        className="sprint-card__actions"
+        className={`sprint-card__actions defect-card-actions${canRetest ? ' defect-card-actions--retest' : ''}`}
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.stopPropagation()}
       >
-        {canWrite && d.status === 'AGUARDANDO_RETESTE' && (
+        <button
+          className={`button ${correctionCount === 0 && canWrite ? 'button-primary' : 'button-secondary'} defect-card-correction-action`}
+          onClick={(e) => open('correction', e)}
+        >
+          {correctionLabel}
+        </button>
+        {canRetest && (
           <button className="button button-primary" onClick={(e) => open('retest', e)}>
             Retestar
           </button>
@@ -113,21 +145,40 @@ function ProjectDefects({ project }) {
     opened = useRef(null);
   const canWrite = Boolean(options.membership && options.membership.role !== 'VIEWER');
   const requested = params.get('defect');
+  const requestedSection = params.get('section') === 'correction' ? 'correction' : null;
   useEffect(() => {
-    if (requested && /^\d+$/.test(requested) && opened.current !== requested) {
-      opened.current = requested;
-      setDialog({ id: Number(requested), view: 'details' });
+    const key = `${requested}:${requestedSection || ''}`;
+    if (requested && /^\d+$/.test(requested) && opened.current !== key) {
+      opened.current = key;
+      setDialog({
+        id: Number(requested),
+        view: 'details',
+        section: requestedSection
+      });
     }
-  }, [requested]);
+  }, [requested, requestedSection]);
   const open = (view, d, trigger) => {
     returnFocusRef.current = trigger || document.activeElement;
-    setDialog({ id: d?.id, view });
+    if (view === 'correction') {
+      const next = new URLSearchParams(params);
+      next.set('defect', String(d.id));
+      next.set('section', 'correction');
+      opened.current = `${d.id}:correction`;
+      setParams(next);
+    }
+    setDialog({
+      id: d?.id,
+      view: view === 'correction' ? 'details' : view,
+      section: view === 'correction' ? 'correction' : null
+    });
   };
   const close = () => {
     setDialog(null);
     if (requested) {
       const next = new URLSearchParams(params);
       next.delete('defect');
+      next.delete('section');
+      opened.current = null;
       setParams(next, { replace: true });
     }
   };
@@ -333,6 +384,7 @@ function ProjectDefects({ project }) {
           projectId={project.id}
           initialId={dialog.id}
           initialView={dialog.view}
+          initialSection={dialog.section}
           options={options}
           canWrite={canWrite}
           returnFocusRef={returnFocusRef}

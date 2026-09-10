@@ -47,6 +47,7 @@ export function DefectFlow({
   projectId,
   initialId,
   initialView = 'details',
+  initialSection,
   initialExecutionId,
   initialStepId,
   options,
@@ -79,6 +80,7 @@ export function DefectFlow({
     handlers = useRef({}),
     receipt = useRef(null),
     minimumRevision = useRef(null),
+    correctionEntry = useRef(initialSection === 'correction'),
     previewContent = useEvidenceContent(preview?.file, projectId);
   const read = useCallback(
     async (refresh = false) => {
@@ -129,6 +131,7 @@ export function DefectFlow({
   };
   const navigate = (next) => {
     if (lock.current) return;
+    correctionEntry.current = false;
     if (view === 'details') {
       returnSubview.current = document.activeElement;
       returnLabel.current =
@@ -396,7 +399,7 @@ export function DefectFlow({
                 onPreview={openPreview}
                 onNavigate={close}
                 onExecution={openExecution}
-                focusCorrection={false}
+                focusCorrection={correctionEntry.current}
               />
             )}
             {view === 'edit' && canWrite && (

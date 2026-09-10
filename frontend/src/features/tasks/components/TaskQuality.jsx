@@ -7,7 +7,7 @@ import {
   TraceFlowIcon
 } from '../../../shared/index.js';
 import { testCasesApi, useTestCaseScope } from '../../testCases/index.js';
-import { defectsApi, DefectBadge } from '../../defects/index.js';
+import { defectsApi, defectStatuses, defectSeverities } from '../../defects/index.js';
 import { ArtifactCategory, TaskTraceabilityGrid } from './TaskDetailsLayout.jsx';
 
 const empty = () => ({ items: [], total: null, page: 0, loading: true, error: null });
@@ -65,8 +65,9 @@ export function TaskQuality({ task, projectId, canCreate, onCreate, createRef, o
   }, [load]);
   const stream = (kind) => {
     const data = streams[kind];
+    if (!data.loading && !data.error && !data.items.length) return null;
     return (
-      <div className="task-quality-list">
+      <div className="task-detail-relation-list">
         {data.loading && <LoadingState message="Carregando relações de qualidade…" />}
         {data.error && (
           <ErrorState
@@ -83,18 +84,15 @@ export function TaskQuality({ task, projectId, canCreate, onCreate, createRef, o
             onClick={onNavigate}
           >
             {kind === 'cases' ? (
-              <>
-                <span>{item.status === 'ATIVO' ? 'Ativo' : 'Inativo'}</span>
-                <span>
-                  Última execução: {resultLabels[item.latestExecution?.result] || 'Nunca executado'}
-                </span>
-              </>
+              <span>
+                {item.status === 'ATIVO' ? 'Ativo' : 'Inativo'} · Última execução:{' '}
+                {resultLabels[item.latestExecution?.result] || 'Nunca executado'}
+              </span>
             ) : (
-              <>
-                <strong>{kind === 'origin' ? 'ORIGEM' : 'CORREÇÃO'}</strong>
-                <DefectBadge value={item.severity} />
-                <DefectBadge value={item.status} />
-              </>
+              <span>
+                <strong>{kind === 'origin' ? 'ORIGEM' : 'CORREÇÃO'}</strong> ·{' '}
+                {defectSeverities[item.severity]} · {defectStatuses[item.status]}
+              </span>
             )}
           </EntityRow>
         ))}

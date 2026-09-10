@@ -1,14 +1,25 @@
 import { correctionProjection } from './defect.schema.js';
+function correctionSummary(tasks) {
+  return {
+    total: tasks.length,
+    todo: tasks.filter((t) => t.status === 'A_FAZER').length,
+    inProgress: tasks.filter((t) => t.status === 'EM_ANDAMENTO').length,
+    done: tasks.filter((t) => t.status === 'CONCLUIDO').length,
+    singleTask: tasks.length === 1 ? { id: tasks[0].id, status: tasks[0].status } : null
+  };
+}
 export const defectCard = (row) => {
   const { taskLinks, detectedStep, ...fields } = row;
+  const current = taskLinks?.filter((l) => l.correctionCycle === row.currentCorrectionCycle);
   return {
     ...fields,
     displayId: `DEF-${row.id}`,
     ...(taskLinks
       ? {
-          correctionTaskCount: taskLinks.filter(
-            (l) => l.correctionCycle === row.currentCorrectionCycle
-          ).length
+          correctionTaskCount: current.length,
+          ...(current.every((l) => l.task)
+            ? { correctionSummary: correctionSummary(current.map((l) => l.task)) }
+            : {})
         }
       : {}),
     ...(detectedStep
@@ -72,6 +83,7 @@ export function defectDetail(row) {
   return {
     ...defectCard(fields),
     correctionTaskCount: current.length,
+    correctionSummary: correctionSummary(current.map((l) => l.task)),
     detectionSummary: {
       testCaseId: detectedStep.execution.testCaseId,
       executionId: detectedStep.execution.id,
