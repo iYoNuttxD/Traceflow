@@ -1,5 +1,22 @@
 # Registro de risco de dependências
 
+## Revalidação Nodemailer — 09/09/2026
+
+A E6 adotou `nodemailer@9.0.3` conforme os advisories conhecidos naquela etapa. Os quatro advisories abaixo foram publicados posteriormente; esta atualização preserva aquele registro histórico e corrige a dependência para `9.1.1`.
+
+| Advisory | Versões afetadas | Primeira versão corrigida |
+|---|---|---|
+| [GHSA-8m3c-c648-2xjj](https://github.com/advisories/GHSA-8m3c-c648-2xjj) | `<=9.1.0` | `9.1.1` |
+| [GHSA-wmmp-3585-3rmp](https://github.com/advisories/GHSA-wmmp-3585-3rmp) | `<9.1.0` | `9.1.0` |
+| [GHSA-2x7j-588g-ccc2](https://github.com/advisories/GHSA-2x7j-588g-ccc2) | `<9.1.0` | `9.1.0` |
+| [GHSA-cc9r-2j5m-2m83](https://github.com/advisories/GHSA-cc9r-2j5m-2m83) | `>=6.9.16 <9.1.0` | `9.1.0` |
+
+`9.1.1` é a menor versão estável que corrige os quatro simultaneamente. Seu requisito de runtime (`node >=6.0.0`) admite Node 22, usado na validação local. `npm install nodemailer@9.1.1 --save` atualizou somente o Nodemailer nos arquivos de dependências do backend; `npm ci` reproduziu a instalação. Não foi adicionado override ou exceção, nem alterada a política de audit.
+
+O adapter permanece inalterado: `createTransport`/`sendMail`, provider `capture`, templates HTML/text de convite, recuperação de senha e verificação de e-mail foram validados sem envio externo. O smoke do SMTP utilizou o Nodemailer instalado com transporte de saída simulado em JSON. As opções existentes `disableFileAccess: true` e `disableUrlAccess: true` continuam compatíveis e rejeitaram conteúdo por arquivo/URL antes de qualquer I/O; não houve validação de entrega por um servidor SMTP externo.
+
+O audit posterior removeu os quatro advisories da árvore instalada e confirmou **0 high, 0 critical e nenhuma vulnerabilidade de Nodemailer**. Permanecem **6 entradas moderate preexistentes e idênticas ao baseline**, nas cadeias de `qs`/Express e Vitest; nenhuma vulnerabilidade nova foi introduzida. As políticas reais de audit do backend e frontend passaram sem exceções. Os resultados antigos de audit zero nas seções abaixo representam suas respectivas datas.
+
 ## Gate executável E14
 
 Em 26/07/2026, `scripts/check-npm-audit.mjs` passou a bloquear toda vulnerabilidade `high` ou `critical` não registrada de forma específica. A política versionada em `npm-audit-exceptions.json` exige advisory ID, pacote, cadeia, severidade, justificativa, data da decisão, condição/data de revisão e responsável; exceções expiradas falham. O Dependency Review complementa a política sobre o delta de pull requests.
