@@ -1,5 +1,36 @@
 # TRACEFLOW Visual Validation Log
 
+## 2026-09-10 — S1-09 Etapa 3: Requirement Cards e histórico
+
+Chrome real autenticado em `localhost:5173`, projeto local 2. Light/Dark ×
+1440×1000, 1280×1000, 768×1000 e 390×1000; 72 células de nove superfícies
+consolidadas no [relatório da Etapa 3](../../deliveries/S1_09_FRONTEND_REQUIREMENT_CARDS_HISTORY_REPORT.md#k--visual-matrix).
+Capturas full page e recortes do navegador foram inspecionados durante a sessão;
+medições DOM complementaram a inspeção. Capturas transitórias/reduzidas foram refeitas.
+
+REQ-4 cobriu título longo, 25%, testes/defeitos, seleção e histórico; REQ-2 cobriu
+zero tarefas/testes/defeitos e progresso sem dados. Cards desktop mediram 576px,
+sem conteúdo cortado; uma coluna adapta a altura. Sidebar expandida/recolhida foi
+inspecionada no tablet. Nenhum overflow horizontal da página foi observado.
+
+Busca real `REQ-2`: 1 de 4 requisitos; limpar restaurou os quatro. Seleção por Enter
+focou o heading do fluxo. Histórico abriu o baseline, fechou por Escape e devolveu o
+foco. O estado vazio foi observado antes da adoção. Comparação renderizada: cards
+Sprint/Marco/TC-5/DEF-4; resumos TestCases/Defects; filtros TestCases/Defects/Kanban;
+históricos TASK-17 e DEF-4. Foram corrigidos corte inicial de rodapé, densidade em uma
+coluna, margens duplicadas e tipografia do resumo antes da verificação final.
+
+O banco local já tinha as 51 migrations aplicadas. O script canônico registrou apenas
+quatro baselines atuais; dry-run posterior sem mudanças. Não houve edição de entidades
+de negócio nem reconstrução histórica. Transições adicionais, cursor, erros e concorrência
+foram testados por automação, sem classificação como observação renderizada.
+
+React Flow e CSS preservados byte a byte. Expansão e centralização operadas. Canvas
+claro em Dark, recorte de grafos largos no mobile e sobreposição de nó expandido são
+limitações anteriores preservadas; PASS do canvas significa preservação, não redesign.
+Etapa 4 não iniciada. Gates locais PASS; sem afirmação de CI remoto ou certificação de
+acessibilidade integral.
+
 ## 2026-09-09 — S1-08 UX Standardization FIX 03
 
 Chrome real autenticado em `localhost:5173`, projeto local 2, dados persistidos

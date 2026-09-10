@@ -1,122 +1,206 @@
-.traceability-summary-grid {
+.traceability-content {
+  display: grid;
+  gap: var(--layout-section-gap);
+  min-width: 0;
+}
+.requirement-metrics {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 0.9rem;
-  margin-bottom: 1.5rem;
+  margin: 0;
 }
-
-.traceability-summary-grid .card {
-  padding: 1rem;
-}
-
-.traceability-summary-grid .card h2 {
-  margin-bottom: 0.75rem;
-  font-size: 0.95rem;
-}
-
-.traceability-table-wrapper {
-  overflow-x: auto;
-  border: 1px solid var(--color-border-default);
-  border-radius: 14px;
-  color: var(--color-text-primary);
-  background: var(--color-surface-primary);
-}
-
-.traceability-table {
-  width: 100%;
-  min-width: 980px;
-  border-collapse: collapse;
-}
-
-.traceability-table th,
-.traceability-table td {
-  padding: 0.9rem 1rem;
-  border-bottom: 1px solid var(--color-border-default);
-  color: var(--color-text-primary);
-  text-align: left;
-  vertical-align: top;
-}
-
-.traceability-table th {
+.requirement-metrics dt {
   color: var(--color-text-secondary);
-  font-size: 0.78rem;
-  font-weight: 800;
+  font-size: var(--font-size-1);
+  font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
-  background: var(--color-surface-secondary);
 }
-
-.traceability-table tr {
-  cursor: pointer;
-}
-
-.traceability-table tbody tr:hover,
-.traceability-row-selected {
-  background: var(--color-accent-surface);
-}
-
-.traceability-row-button {
-  display: grid;
-  gap: 0.25rem;
-  width: 100%;
-  padding: 0;
-  border: 0;
-  color: inherit;
-  text-align: left;
-  background: transparent;
-  cursor: pointer;
-}
-
-.traceability-row-button strong {
+.requirement-metrics dd {
+  margin: 0;
+  font-size: var(--font-size-5);
+  font-weight: var(--font-weight-bold);
   color: var(--color-text-strong);
 }
-
-.traceability-row-button span {
-  display: -webkit-box;
-  overflow: hidden;
+.requirement-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+.requirement-card {
+  height: 36rem;
+}
+.requirement-card--selected {
+  border-color: var(--color-border-interactive);
+  outline: var(--border-width-default) solid var(--color-border-interactive);
+  outline-offset: -2px;
+}
+.requirement-card__header {
+  align-items: center;
+  flex-wrap: wrap;
+}
+.requirement-card__header small {
   color: var(--color-text-secondary);
-  font-size: 0.85rem;
-  line-clamp: 2;
+}
+.requirement-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  flex: 1;
+  min-width: 0;
+}
+.requirement-card__body h3 {
+  margin: 0;
+  color: var(--color-text-strong);
+  font-size: var(--font-size-4);
+  line-height: var(--line-height-title);
+  display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  min-height: 2.5em;
 }
-
+.requirement-card__body small,
+.requirement-card__group > span {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-2);
+}
+.requirement-card__line {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.requirement-card__group,
 .traceability-progress {
   display: grid;
-  gap: 0.4rem;
-  min-width: 120px;
+  gap: var(--space-1);
 }
-
-.traceability-progress span {
-  font-weight: 800;
+.requirement-card__group strong,
+.traceability-progress strong {
+  font-size: var(--font-size-2);
+  font-weight: var(--font-weight-medium);
 }
-
 .traceability-progress-bar {
+  height: var(--space-2);
   overflow: hidden;
-  height: 8px;
   border-radius: var(--radius-pill);
-  background: var(--color-accent-surface);
+  background: var(--color-surface-secondary);
 }
-
-.traceability-progress-bar span {
+.traceability-progress-bar > span {
   display: block;
   height: 100%;
-  border-radius: inherit;
   background: var(--color-accent-primary);
+  border-radius: inherit;
 }
-
-.traceability-flow-placeholder {
+.requirement-evidence {
   display: grid;
-  gap: 1rem;
+  gap: var(--space-1);
+  padding-top: var(--space-3);
+  border-top: var(--border-width-default) solid var(--color-border-default);
+  font-size: var(--font-size-1);
+  color: var(--color-text-secondary);
 }
-
-@media (max-width: 860px) {
-  .traceability-summary-grid {
-    grid-template-columns: 1fr;
+.requirement-evidence > span {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+.requirement-evidence .traceflow-icon {
+  flex: 0 0 var(--size-icon-sm);
+  width: var(--size-icon-sm);
+  height: var(--size-icon-sm);
+}
+.requirement-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: auto;
+  gap: var(--space-2);
+}
+.requirement-card__actions > .button {
+  flex: 1 1 auto;
+}
+.requirement-situation {
+  display: inline-flex;
+  max-width: 100%;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-1);
+  font-weight: var(--font-weight-medium);
+}
+.requirement-situation--neutral {
+  color: var(--color-neutral-text);
+  background: var(--color-neutral-surface);
+}
+.requirement-situation--info {
+  color: var(--color-info-text);
+  background: var(--color-info-surface);
+}
+.requirement-situation--warning {
+  color: var(--color-warning-text);
+  background: var(--color-warning-surface);
+}
+.requirement-situation--danger {
+  color: var(--color-danger-text);
+  background: var(--color-danger-surface);
+}
+.requirement-situation--success {
+  color: var(--color-success-text);
+  background: var(--color-success-surface);
+}
+.requirement-load-more {
+  justify-self: center;
+}
+.traceability-flow-section {
+  min-width: 0;
+  padding: var(--space-5);
+}
+.traceability-flow-section > h2 {
+  font-size: var(--font-size-4);
+  scroll-margin-top: var(--space-6);
+}
+.requirement-history {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.requirement-history > .button {
+  justify-self: start;
+}
+@container sprints-page (max-width: 66rem) {
+  .requirement-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .requirement-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@container sprints-page (max-width: 40rem) {
+  .requirement-card {
+    min-height: 0;
+    height: auto;
+  }
+}
+@container sprints-page (max-width: 34rem) {
+  .requirement-filter-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .requirement-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-@media (max-width: 560px) {
-  .traceability-summary-grid {
-    grid-template-columns: 1fr;
-  }
+.requirement-card__header,
+.requirement-card__actions {
+  flex-shrink: 0;
+}
+.requirement-card__actions > .button {
+  font-size: var(--font-size-2);
+}
+
+/* The composition owns section spacing; canonical primitives also work without a stack. */
+.traceability-content > .back-link,
+.traceability-content > .page-header,
+.traceability-content > .sprint-filters,
+.traceability-content > .sprint-grid-section {
+  margin-block: 0;
 }

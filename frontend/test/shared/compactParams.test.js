@@ -68,3 +68,21 @@ describe('compactParams', () => {
     );
   });
 });
+
+it('consumes requirement projections and cursor history with cancellation and boolean filters', async () => {
+  const signal = new AbortController().signal;
+  await traceabilityApi.requirements(
+    3,
+    { search: '', hasTests: false, hasOpenDefects: 'false', page: 1 },
+    { signal }
+  );
+  expect(httpClient.get).toHaveBeenLastCalledWith('/projects/3/traceability/requirements', {
+    signal,
+    params: { hasTests: false, hasOpenDefects: 'false', page: 1 }
+  });
+  await traceabilityApi.history(3, 4, { cursor: 'opaque', limit: 30 }, { signal });
+  expect(httpClient.get).toHaveBeenLastCalledWith(
+    '/projects/3/traceability/requirements/4/history',
+    { signal, params: { cursor: 'opaque', limit: 30 } }
+  );
+});

@@ -283,8 +283,11 @@ describe('compatibilidade de conteúdo legado com os temas', () => {
     expect(
       rule(requirementsCss, '.requirement-item,\n.requirement-detail-panel,\n.linked-task-item')
     ).toContain('background: var(--color-surface-secondary)');
-    expect(rule(traceabilityCss, '.traceability-table-wrapper')).toContain(
-      'background: var(--color-surface-primary)'
+    expect(rule(traceabilityCss, '.requirement-situation--neutral')).toContain(
+      'background: var(--color-neutral-surface)'
+    );
+    expect(rule(traceabilityCss, '.requirement-situation--neutral')).toContain(
+      'color: var(--color-neutral-text)'
     );
     expect(rule(repositoryCss, '.repository-table-wrapper')).toContain(
       'background: var(--color-surface-primary)'
