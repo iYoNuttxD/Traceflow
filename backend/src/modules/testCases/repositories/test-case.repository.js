@@ -1,3 +1,4 @@
+import { traceabilityMutation } from '../../traceability/requirement-reconciliation.repository.js';
 import { createDefectRepository } from '../../defects/repositories/defect.repository.js';
 import { lockProject } from '../../../database/locks.js';
 import { auditRepository } from '../../audit/audit.repository.js';
@@ -22,11 +23,17 @@ export function createTestCaseRepository(client = prisma) {
       return lockProject(client, id);
     },
     executions: createTestExecutionRepository(client),
-    transaction(work) {
-      return client.$transaction((tx) => work(createTestCaseRepository(tx)), {
-        isolationLevel: 'ReadCommitted',
-        timeout: 15000
-      });
+    transaction(work, traceability) {
+      return client.$transaction(
+        (tx) =>
+          traceability
+            ? traceabilityMutation(tx, traceability, () => work(createTestCaseRepository(tx)))
+            : work(createTestCaseRepository(tx)),
+        {
+          isolationLevel: 'ReadCommitted',
+          timeout: 15000
+        }
+      );
     },
     async lock(id) {
       await client.$queryRaw`SELECT id FROM TestCase WHERE id = ${id} FOR UPDATE`;

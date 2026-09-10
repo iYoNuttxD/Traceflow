@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { validateRequest } from '../../shared/validation/index.js';
 import { traceabilityController } from './traceability.controller.js';
 import {
+  requirementProjectionQuerySchema,
+  requirementHistoryQuerySchema,
   commitSuggestionParamsSchema,
   commitSuggestionQuerySchema,
   emptyCommitSuggestionBodySchema,
@@ -13,6 +15,27 @@ import {
 } from './traceability.validation.js';
 
 const router = Router();
+router.get(
+  '/projects/:projectId/traceability/requirements',
+  validateRequest({
+    params: traceabilityProjectParamsSchema,
+    query: requirementProjectionQuerySchema
+  }),
+  traceabilityController.listRequirementProjections
+);
+router.get(
+  '/projects/:projectId/traceability/requirements/:requirementId/current',
+  validateRequest({ params: traceabilityRequirementParamsSchema }),
+  traceabilityController.getRequirementProjection
+);
+router.get(
+  '/projects/:projectId/traceability/requirements/:requirementId/history',
+  validateRequest({
+    params: traceabilityRequirementParamsSchema,
+    query: requirementHistoryQuerySchema
+  }),
+  traceabilityController.getRequirementHistory
+);
 
 router.post(
   '/projects/:projectId/traceability/commit-suggestions/scan',

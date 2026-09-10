@@ -1,3 +1,4 @@
+import { traceabilityMutation } from '../../traceability/requirement-reconciliation.repository.js';
 import { prisma } from '../../../database/prismaClient.js';
 import { lockProject } from '../../../database/locks.js';
 import { auditRepository } from '../../audit/audit.repository.js';
@@ -72,11 +73,17 @@ const include = {
 };
 export function createDefectRepository(client = prisma) {
   return {
-    transaction(work) {
-      return client.$transaction((tx) => work(createDefectRepository(tx)), {
-        isolationLevel: 'ReadCommitted',
-        timeout: 15000
-      });
+    transaction(work, traceability) {
+      return client.$transaction(
+        (tx) =>
+          traceability
+            ? traceabilityMutation(tx, traceability, () => work(createDefectRepository(tx)))
+            : work(createDefectRepository(tx)),
+        {
+          isolationLevel: 'ReadCommitted',
+          timeout: 15000
+        }
+      );
     },
     lockProject(id) {
       return lockProject(client, id);

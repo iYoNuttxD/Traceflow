@@ -46,73 +46,87 @@ export function createTestExecutionService({
           attempt,
           data.steps.map((s) => s.position)
         );
-        const recorded = await cases.transaction(async (tx) => {
-          await tx.lockProject(current.projectId);
-          let defect;
-          if (data.retest) {
-            defect = await prepareDefectRetest(
-              tx.defects,
-              data.retest,
-              id,
-              current.projectId,
-              context
+        const recorded = await cases.transaction(
+          async (tx) => {
+            await tx.lockProject(current.projectId);
+            let defect;
+            if (data.retest) {
+              defect = await prepareDefectRetest(
+                tx.defects,
+                data.retest,
+                id,
+                current.projectId,
+                context
+              );
+            }
+            const row = await tx.lock(id);
+            if (!row) throw missing();
+            const membership = await authorize(tx, row.projectId, context, true);
+            assertVersion(row, data.testCaseVersion);
+            if (row.status !== 'ATIVO')
+              throw fail(
+                'Caso de teste inativo não pode ser executado.',
+                409,
+                'TEST_CASE_INACTIVE'
+              );
+            const version = await tx.currentVersion(id, row.currentVersion);
+            const steps = executionSteps(version.snapshotJson, data.steps);
+            const ref = await tx.executions.reference(
+              row.projectId,
+              data.testedReference.type,
+              data.testedReference.id
             );
-          }
-          const row = await tx.lock(id);
-          if (!row) throw missing();
-          const membership = await authorize(tx, row.projectId, context, true);
-          assertVersion(row, data.testCaseVersion);
-          if (row.status !== 'ATIVO')
-            throw fail('Caso de teste inativo não pode ser executado.', 409, 'TEST_CASE_INACTIVE');
-          const version = await tx.currentVersion(id, row.currentVersion);
-          const steps = executionSteps(version.snapshotJson, data.steps);
-          const ref = await tx.executions.reference(
-            row.projectId,
-            data.testedReference.type,
-            data.testedReference.id
-          );
-          if (!ref) throw missing();
-          const result = calculateResult(steps);
-          const execution = await tx.executions.create(
-            {
-              projectId: row.projectId,
-              testCaseId: id,
-              testCaseVersionId: version.id,
-              testCaseVersion: row.currentVersion,
-              environment: data.environment,
-              result,
-              testedReferenceType: data.testedReference.type,
-              testedPullRequestId: data.testedReference.type === 'PULL_REQUEST' ? ref.id : null,
-              testedCommitId: data.testedReference.type === 'COMMIT' ? ref.id : null,
-              testedReferenceSnapshot: referenceSnapshot(data.testedReference.type, ref),
-              executedByUserId: context.actorUserId,
-              executedByDisplayNameSnapshot: membership.user.name
-            },
-            steps
-          );
-          if (evidence.length)
-            await tx.executions.addEvidence(
-              evidence.map(({ position, ...item }) => ({
-                ...item,
+            if (!ref) throw missing();
+            const result = calculateResult(steps);
+            const execution = await tx.executions.create(
+              {
                 projectId: row.projectId,
-                executionId: execution.id,
-                executionStepId: position
-                  ? execution.steps.find((s) => s.position === position).id
-                  : null,
-                uploadedByUserId: context.actorUserId
-              }))
+                testCaseId: id,
+                testCaseVersionId: version.id,
+                testCaseVersion: row.currentVersion,
+                environment: data.environment,
+                result,
+                testedReferenceType: data.testedReference.type,
+                testedPullRequestId: data.testedReference.type === 'PULL_REQUEST' ? ref.id : null,
+                testedCommitId: data.testedReference.type === 'COMMIT' ? ref.id : null,
+                testedReferenceSnapshot: referenceSnapshot(data.testedReference.type, ref),
+                executedByUserId: context.actorUserId,
+                executedByDisplayNameSnapshot: membership.user.name
+              },
+              steps
             );
-          await tx.audit(
-            audit(context, row.projectId, execution.id, 'TEST_EXECUTION_RECORDED', {
-              version: row.currentVersion,
-              result,
-              stepCount: steps.length,
-              evidenceCount: evidence.length
-            })
-          );
-          if (defect) await completeDefectRetest(tx.defects, defect, execution, context);
-          return executionDetail(await tx.executions.find(execution.id));
-        });
+            if (evidence.length)
+              await tx.executions.addEvidence(
+                evidence.map(({ position, ...item }) => ({
+                  ...item,
+                  projectId: row.projectId,
+                  executionId: execution.id,
+                  executionStepId: position
+                    ? execution.steps.find((s) => s.position === position).id
+                    : null,
+                  uploadedByUserId: context.actorUserId
+                }))
+              );
+            await tx.audit(
+              audit(context, row.projectId, execution.id, 'TEST_EXECUTION_RECORDED', {
+                version: row.currentVersion,
+                result,
+                stepCount: steps.length,
+                evidenceCount: evidence.length
+              })
+            );
+            if (defect) await completeDefectRetest(tx.defects, defect, execution, context);
+            return executionDetail(await tx.executions.find(execution.id));
+          },
+          {
+            projectId: current.projectId,
+            testCaseIds: [id],
+            defectIds: data.retest ? [data.retest.defectId] : [],
+            reason: data.retest ? 'DEFECT_RETEST_RECORDED' : 'TEST_EXECUTION_RECORDED',
+            sourceEntityType: 'TestExecution',
+            createdEntity: 'executionIds'
+          }
+        );
         committed = true;
         return recorded;
       } finally {

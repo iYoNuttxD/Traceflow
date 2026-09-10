@@ -49,10 +49,10 @@ são declaradas como `PASS`.
 | RF42 | casos de teste persistidos, versões, execução e evidências | `/projects/:id/test-cases`, `/test-cases/:id`, `/test-executions/:id`, `/test-evidence/:id/content` | test-case, test-execution | TestCase, TestCaseStep, TestCaseVersion, TestCaseHistoryEntry, TestExecution, TestExecutionStep, TestEvidence | `TestCasesPage` / `features/testCases`, CRUD, execução, histórico e download reais | `test/unit/test-cases`, `test/integration/test-cases-s1-07.test.js`, `test/api/test-cases-s1-07.test.js`, `frontend/test/testCases` | IMPLEMENTADO LOCALMENTE — testes e smoke; CI e homologação visual completa pendentes |
 | RF43 | base técnica de relações tipadas de casos de teste | CRUD de TestCase | test-case | TestCaseTask e TestCase.requirementId | seletores e vínculos persistidos em Casos de teste | integração S1-07, isolamento e versões | PARCIAL — relações backend/frontend S1-07; sem declarar RF completo |
 | RF62 | base técnica TestCase–Task/Requirement | CRUD de TestCase | test-case | TestCaseTask e TestCase.requirementId | seletores e vínculos persistidos em Casos de teste | integração S1-07 | PARCIAL — relações backend/frontend S1-07; sem declarar RF completo |
-| RF44 | rastreabilidade consolidada de testes | não há endpoint consolidado novo | — | referência testada histórica não equivale ao RF completo | pendente | seleção de referências S1-07 não valida rastreabilidade consolidada | NÃO IMPLEMENTADO; S1-09 pendente |
+| RF44 | rastreabilidade consolidada de testes por Requirement | `GET .../traceability/requirements`, `.../:id/current`, `.../:id/history` | traceability projection/policy/reconciliation | relações tipadas + RequirementTraceabilityState/HistoryEntry | cards/histórico novos pendentes | unit requirement-traceability; integração/API s109-traceability | PARCIAL — BACKEND IMPLEMENTADO; FRONTEND PENDENTE; S1-09 aberta |
 | RF45 | defeitos com detecção FAIL, correções e reteste | `/projects/:id/defects`, `/defects/:id` e execução contextual | defects / testCases / tasks | Defect, DefectTask, DefectRetest, DefectHistoryEntry | DefectsScreen / DefectFlow | unit/defects, integração/API S1-08 e frontend/test/defects | PARCIAL — backend e frontend integrados; matriz visual completa pendente |
 | RF46 | histórico e acompanhamento de defeitos | `/defects/:id/history`, `/defects/:id/retests` | defects | ciclos, execução e projeção persistida | DefectDetails / DefectHistory | integração/API S1-08 e frontend/test/defects | PARCIAL — histórico integrado; não declara RF completo |
-| RF63 | rastreabilidade de defeitos | criação/edição/candidatos Defect | defects | requisito singular, ORIGIN Tasks e versão executada | DefectForm / DefectDetails / criação contextual TestCase | herança histórica e isolamento S1-08 | PARCIAL — relações navegáveis; S1-09 não entregue |
+| RF63 | rastreabilidade de defeitos | criação/edição/candidatos Defect | defects | requisito singular, ORIGIN Tasks e versão executada | DefectForm / DefectDetails / criação contextual TestCase | herança histórica e isolamento S1-08 | PARCIAL — relações navegáveis; consolidação backend S1-09 implementada, frontend ampliado pendente |
 | RF64 | relação entre correção e teste | correções e execução contextual | defects / testCases / tasks | CORRECTION Tasks, ciclos e DefectRetest | CorrectionManager / TestExecutionWizard / TaskCorrectionContext | projeção, concorrência e reteste S1-08 | PARCIAL — fluxo integrado; frozen correction metadata ausente e homologação pendente |
 
 S1-08 acrescenta ao RF42 a obrigação backend de requisito ou Task na criação e
@@ -66,3 +66,15 @@ pendente. As linhas S1-08 indicam base técnica, sem declarar entrega completa d
 - A numeração oficial não define RF14, RF19, RF20 e RF47; eles não foram inventados.
 
 Matriz histórica da E0: [E0_TRACEABILITY_MATRIX.md](../refactoring/E0_TRACEABILITY_MATRIX.md).
+
+
+### S1-09 — Etapa 2 (2026-09-10)
+
+BACKEND IMPLEMENTADO / FRONTEND PENDENTE para a projeção de Requirement com 11
+situações, validação da currentVersion e histórico de transições. RF43/RF62 mantêm
+as relações tipadas e acrescentam união deduplicada direta/via Task; RF44 recebe
+consulta consolidada atual; RF46/RF63/RF64 acrescentam projeção dos Defects,
+precedência e efeito de correções/retestes no histórico do Requirement.
+Esses incrementos são parciais quanto aos RFs completos: cards, summary visual,
+filtros, histórico visual e grafo ampliado não foram implementados. RF49 e APIs
+legadas preservados. [Contrato e limites](../data/REQUIREMENT_TRACEABILITY_HISTORY.md).

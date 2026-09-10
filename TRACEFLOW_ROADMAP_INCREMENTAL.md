@@ -317,6 +317,13 @@ S1-08 e S1-09 não foram iniciados nesta entrega.
 
 ### S1-09 - Ampliar rastreabilidade entre requisitos, testes e defeitos
 
+**Incremento local — Etapa 2, 2026-09-10:** backend de projeção, motor de 11
+situações e histórico transacional implementado, com migration incremental e
+adoção idempotente. [Relatório](docs/deliveries/S1_09_BACKEND_PROJECTION_SITUATION_HISTORY_REPORT.md).
+S1-09 permanece aberta: cards, summary/filtros novos, histórico visual e expansão
+do React Flow aguardam os próximos incrementos; este registro não fecha os RFs
+nem substitui a homologação integrada futura.
+
 **Requisitos:** RF43, RF44, RF46, RF62, RF63 e RF64.  
 **Descrição:** completar a cadeia direta e reversa entre requisitos, tarefas, artefatos técnicos, casos de teste e defeitos.
 

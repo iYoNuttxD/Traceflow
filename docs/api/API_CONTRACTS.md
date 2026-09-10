@@ -997,3 +997,48 @@ execução permanece histórico; esta lista representa os registros de defeito
 atualmente disponíveis para navegação. Defeitos excluídos logicamente são omitidos.
 
 Não houve alteração de schema, migration, escrita, lifecycle ou autorização.
+
+
+## S1-09 — Requirement current projection e histórico (Etapa 2)
+
+Novas leituras sob `/api/projects/:projectId/traceability`; contratos de matriz,
+summary antigo e grafos permanecem inalterados. Não há endpoint para escrever
+situação. Membership ativa VIEWER+; sessão ausente 401; projeto inacessível ou
+requisito alheio 404 opaco.
+
+| Método | Sufixo | Entrada | Resposta |
+|---|---|---|---|
+| GET | `/requirements` | page=1, limit=20 (máx.100), search, situation, requirementStatus, hasTests, hasOpenDefects, hasTechnicalEvidence | `{projectId,items,summary,filteredSummary,pagination}` |
+| GET | `/requirements/:requirementId/current` | IDs positivos | DTO atual do Requirement |
+| GET | `/requirements/:requirementId/history` | limit=30 (máx.100), cursor opcional | `{items,nextCursor}`; occurredAt DESC/id DESC |
+
+Booleanos aceitam `true`/`false`; situation aceita os 11 estados canônicos;
+requirementStatus aceita o enum vigente. search consulta título sem diferenciar
+maiúsculas ou REQ-id exato. hasOpenDefects indica qualquer Defect pendente, não
+somente ABERTO. Lista ordena id DESC; filtros são avaliados no servidor sobre o
+conjunto completo antes da paginação. `pagination` contém page, limit, total e
+totalPages. Summary global não muda com filtros/página; filteredSummary usa o
+conjunto filtrado. Ambos retornam total, bySituation (11 chaves) e withDefect
+(COM_FALHA + EM_CORRECAO + AGUARDANDO_RETESTE).
+
+DTO: `requirement{id,displayId,title,status}`,
+`progress{numerator,denominator,percentage,hasData,tasksTotal,tasksDone}`,
+`implementation{legacyStage,legacyImplementationStatus,implemented,technicalEvidence}`,
+`artifacts{pullRequests,commits,issues}` (vínculos legados),
+`validation{testCasesTotal,neverExecuted,pass,fail,blocked}`,
+`defects{total,open,inCorrection,waitingRetest,validated}`,
+`evidence{implementation,validation,correction}`, hasUntreatedFailure e situation.
+Correction usa NOT_APPLICABLE/PRESENT/MISSING; as demais dimensões são booleanas.
+
+History item: id, projectId, requirementId, fromSituation (nullable somente no
+baseline), toSituation, reason, sourceEntityType/id opcionais, metadataJson
+(rulesVersion=1), occurredAt. Cursor opaco é vinculado ao projeto/requisito;
+cursor inválido/alheio retorna 400. GET é somente leitura e não inicializa State.
+Requisito removido retorna 404; suas transições persistidas não são apagadas.
+
+`neverExecuted` significa sem execução da **currentVersion**. A execução mais
+recente de outra versão não valida a atual; S1-07 mantém seu latestExecution
+histórico. `Requirement.status` e situation são diferentes. CONCLUIDO novo exige
+a cadeia técnica/qualidade completa e status persistido terminal CONCLUIDO.
+Política, exemplo JSON, hooks, migração, inicialização e limite de escala do
+agregado em memória: [Requirement Traceability History](../data/REQUIREMENT_TRACEABILITY_HISTORY.md).

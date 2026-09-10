@@ -314,6 +314,7 @@ model ProjectInvitation {
 
 // Entidade central do TRACEFLOW. A identidade GitHub pertence exclusivamente à integração.
 model Project {
+  requirementTraceabilityHistory RequirementTraceabilityHistoryEntry[]
   defects         Defect[]
   defectHistory   DefectHistoryEntry[]
   testCases       TestCase[]
@@ -564,6 +565,7 @@ model PersonalDataExport {
 
 // Requisito funcional ou necessidade cadastrada no projeto.
 model Requirement {
+  traceabilityState RequirementTraceabilityState?
   defects     Defect[]
   testCases   TestCase[]
   id          Int        @id @default(autoincrement())
@@ -1162,6 +1164,7 @@ model TestExecution {
   evidence                      TestEvidence[]
 
   @@index([testCaseId, executedAt, id])
+  @@index([testCaseId, testCaseVersion, executedAt, id], map: "TestExecution_current_version_latest_idx")
   @@index([projectId, executedAt])
   @@index([testCaseId, result])
   @@index([testedPullRequestId])
@@ -1299,4 +1302,29 @@ model DefectHistoryEntry {
 
   @@index([defectId, occurredAt, id])
   @@index([projectId, occurredAt])
+}
+
+// Estado mínimo para comparar observações. Contadores continuam derivados.
+model RequirementTraceabilityState {
+  id Int @id @default(autoincrement())
+  requirementId Int @unique
+  currentSituation String @db.VarChar(32)
+  updatedAt DateTime @updatedAt
+  requirement Requirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+}
+
+// requirementId e sourceEntityId são identidades históricas, sem FK ao recurso removível.
+model RequirementTraceabilityHistoryEntry {
+  id Int @id @default(autoincrement())
+  projectId Int
+  requirementId Int
+  fromSituation String? @db.VarChar(32)
+  toSituation String @db.VarChar(32)
+  reason String @db.VarChar(64)
+  sourceEntityType String? @db.VarChar(32)
+  sourceEntityId Int?
+  metadataJson Json?
+  occurredAt DateTime @default(now())
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  @@index([projectId, requirementId, occurredAt, id], map: "RequirementTraceabilityHistory_cursor_idx")
 }
