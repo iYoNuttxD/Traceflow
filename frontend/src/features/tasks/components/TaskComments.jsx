@@ -53,6 +53,30 @@ export function TaskComments({ taskId }) {
   const loadingOlderRef = useRef(false);
   const taskIdRef = useRef(taskId);
   const editingVersionRef = useRef(null);
+  const autoScrollFrameRef = useRef(null);
+
+  // O auto-scroll é agendado para depois da pintura, então pode chegar quando o
+  // leitor já rolou para trás. Cancelar o quadro pendente evita puxar a conversa
+  // de volta ao fim e desfazer a intenção de quem estava lendo o histórico.
+  const cancelAutoScroll = useCallback(() => {
+    if (autoScrollFrameRef.current === null) return;
+    window.cancelAnimationFrame(autoScrollFrameRef.current);
+    autoScrollFrameRef.current = null;
+  }, []);
+
+  const scheduleAutoScroll = useCallback(
+    (node) => {
+      cancelAutoScroll();
+      autoScrollFrameRef.current = window.requestAnimationFrame(() => {
+        autoScrollFrameRef.current = null;
+        node.scrollTop = node.scrollHeight;
+        stickToBottomRef.current = true;
+      });
+    },
+    [cancelAutoScroll]
+  );
+
+  useEffect(() => cancelAutoScroll, [cancelAutoScroll]);
 
   const busy = submitting || actionId !== null;
   const editing = editingId !== null;
@@ -143,25 +167,19 @@ export function TaskComments({ taskId }) {
     if (!node || lastUpdate.source === 'reset' || lastUpdate.source === 'older') return;
 
     if (lastUpdate.source === 'initial' || lastUpdate.source === 'create') {
-      window.requestAnimationFrame(() => {
-        node.scrollTop = node.scrollHeight;
-        stickToBottomRef.current = true;
-        setNewCommentsAvailable(false);
-      });
+      setNewCommentsAvailable(false);
+      scheduleAutoScroll(node);
       return;
     }
 
     if (lastUpdate.addedIds.length > 0) {
       if (stickToBottomRef.current || isNearBottom(node)) {
-        window.requestAnimationFrame(() => {
-          node.scrollTop = node.scrollHeight;
-          stickToBottomRef.current = true;
-        });
+        scheduleAutoScroll(node);
       } else {
         setNewCommentsAvailable(true);
       }
     }
-  }, [lastUpdate]);
+  }, [lastUpdate, scheduleAutoScroll]);
 
   const handleLoadOlder = useCallback(async () => {
     if (loadingOlderRef.current || loadingOlder || !hasOlder) return;
@@ -193,6 +211,8 @@ export function TaskComments({ taskId }) {
     const node = scrollRef.current;
     if (!node) return;
 
+    // Quem rolou assumiu o controle: um auto-scroll ainda pendente é descartado.
+    cancelAutoScroll();
     const nearBottom = isNearBottom(node);
     stickToBottomRef.current = nearBottom;
     if (nearBottom) setNewCommentsAvailable(false);
@@ -274,6 +294,7 @@ export function TaskComments({ taskId }) {
   function scrollToLatest() {
     const node = scrollRef.current;
     if (!node) return;
+    cancelAutoScroll();
     node.scrollTop = node.scrollHeight;
     stickToBottomRef.current = true;
     setNewCommentsAvailable(false);
