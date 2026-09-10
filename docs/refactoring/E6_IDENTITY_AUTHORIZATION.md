@@ -12,6 +12,8 @@
 
 Foi criada a fronteira `shared/email`, com templates HTML escapados, texto alternativo e interface pequena. `EMAIL_PROVIDER=capture` é explícito em desenvolvimento/teste e nunca acessa rede; produção exige `smtp`, `EMAIL_FROM`, host e credenciais no startup. `nodemailer@9.0.3` é a única dependência adicionada. A versão 7 inicialmente avaliada apresentou advisories altos no audit e foi substituída pela major corrigida; a API utilizada foi validada por teste do adapter.
 
+Atualização de segurança em 09/09/2026: após a publicação de quatro novos advisories que afetam a versão adotada na E6, o Nodemailer foi atualizado de `9.0.3` para `9.1.1`, sem alteração no adapter ou no comportamento de e-mail. A versão mínima corrigida, os advisories e a validação atual estão registrados na [revalidação do risco de dependências](../security/DEPENDENCY_RISK_REGISTER.md#revalidação-nodemailer--09092026). A descrição e os resultados de audit da E6 abaixo preservam o contexto histórico daquela entrega.
+
 Forgot-password mantém resposta uniforme. O token bruto fica apenas na mensagem e, em testes, no contrato controlado preexistente. Convites ativos repetidos para o mesmo projeto/e-mail usam política de substituição: o anterior é revogado e somente o novo pode ser aceito. Em produção, convites não retornam token. Falhas de entrega geram evento técnico sanitizado sem token ou e-mail completo.
 
 ## Administração canônica de memberships
