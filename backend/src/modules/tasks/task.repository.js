@@ -1,3 +1,4 @@
+import { traceabilityTransaction } from '../traceability/requirement-reconciliation.repository.js';
 import { lockProject } from '../../database/locks.js';
 import { AppError } from '../../shared/errors/index.js';
 // Repository do modulo de tarefas. Todo acesso ao banco passa pelo Prisma.
@@ -121,8 +122,15 @@ export const taskRepository = {
   },
 
   async createTaskAtomic(projectId, data, auditEvent, calculateRequirementStatus) {
-    return prisma.$transaction((tx) =>
-      createTaskInTransaction(tx, projectId, data, auditEvent, calculateRequirementStatus)
+    return traceabilityTransaction(
+      {
+        projectId,
+        requirementIds: [data.requirementId],
+        reason: 'TASK_CREATED',
+        sourceEntityType: 'Task',
+        createdEntity: 'taskIds'
+      },
+      (tx) => createTaskInTransaction(tx, projectId, data, auditEvent, calculateRequirementStatus)
     );
   },
 
@@ -253,71 +261,93 @@ export const taskRepository = {
     data,
     { historyEntries, auditEvent, calculateRequirementStatus, previousRequirementId }
   ) {
-    return prisma.$transaction(async (tx) => {
-      const task = await tx.task.update({ where: { id }, data, include: taskInclude });
-      if (historyEntries.length) {
-        await tx.taskHistoryEntry.createMany({
-          data: historyEntries.map((entry) => ({ ...entry, projectId: task.projectId, taskId: id }))
-        });
+    return traceabilityTransaction(
+      {
+        taskIds: [id],
+        requirementIds: [previousRequirementId, data.requirementId],
+        reason: 'TASK_UPDATED',
+        sourceEntityType: 'Task',
+        sourceEntityId: id
+      },
+      async (tx) => {
+        const task = await tx.task.update({ where: { id }, data, include: taskInclude });
+        if (historyEntries.length) {
+          await tx.taskHistoryEntry.createMany({
+            data: historyEntries.map((entry) => ({
+              ...entry,
+              projectId: task.projectId,
+              taskId: id
+            }))
+          });
+        }
+        await recalculateRequirements(
+          tx,
+          [previousRequirementId, task.requirementId],
+          calculateRequirementStatus
+        );
+        if (auditEvent) await auditRepository.create(auditEvent, tx);
+        return task;
       }
-      await recalculateRequirements(
-        tx,
-        [previousRequirementId, task.requirementId],
-        calculateRequirementStatus
-      );
-      if (auditEvent) await auditRepository.create(auditEvent, tx);
-      return task;
-    });
+    );
   },
 
   async deleteTask(id, { auditEvent, calculateRequirementStatus, requirementId } = {}) {
-    return prisma.$transaction(async (tx) => {
-      const owner = await tx.task.findUnique({ where: { id }, select: { projectId: true } });
-      if (owner) await lockProject(tx, owner.projectId);
-      if (await tx.defectTask.count({ where: { taskId: id } }))
-        throw new AppError({
-          message: 'Tarefa vinculada ao histórico de defeitos não pode ser excluída.',
-          code: 'TASK_REFERENCED_BY_DEFECT',
-          statusCode: 409
+    return traceabilityTransaction(
+      {
+        taskIds: [id],
+        requirementIds: [requirementId],
+        reason: 'TASK_DELETED',
+        sourceEntityType: 'Task',
+        sourceEntityId: id
+      },
+      async (tx) => {
+        const owner = await tx.task.findUnique({ where: { id }, select: { projectId: true } });
+        if (owner) await lockProject(tx, owner.projectId);
+        if (await tx.defectTask.count({ where: { taskId: id } }))
+          throw new AppError({
+            message: 'Tarefa vinculada ao histórico de defeitos não pode ser excluída.',
+            code: 'TASK_REFERENCED_BY_DEFECT',
+            statusCode: 409
+          });
+        // A participacao em sprints sobrevive a exclusao da tarefa: fecha com o
+        // status que ela tinha, e a FK deixa `taskId` nulo. O denominador de uma
+        // sprint encerrada nao pode mudar porque alguem apagou a tarefa depois —
+        // o snapshot de titulo e o que resta para identifica-la (ADR-010 D09).
+        const atual = await tx.task.findUnique({ where: { id }, select: { status: true } });
+        await tx.sprintTask.updateMany({
+          // `closedAt: null` exclui as participacoes ja congeladas: numa sprint
+          // encerrada a composicao e registro, e marcar a saida agora tiraria a
+          // tarefa do periodo que ela de fato integrou. Nessas, a FK apenas anula
+          // `taskId` e o snapshot de titulo passa a ser o que resta dela.
+          where: { taskId: id, removedAt: null, closedAt: null },
+          data: {
+            removedAt: new Date(),
+            removalReason: 'TAREFA_EXCLUIDA',
+            exitStatus: atual?.status ?? null
+          }
         });
-      // A participacao em sprints sobrevive a exclusao da tarefa: fecha com o
-      // status que ela tinha, e a FK deixa `taskId` nulo. O denominador de uma
-      // sprint encerrada nao pode mudar porque alguem apagou a tarefa depois —
-      // o snapshot de titulo e o que resta para identifica-la (ADR-010 D09).
-      const atual = await tx.task.findUnique({ where: { id }, select: { status: true } });
-      await tx.sprintTask.updateMany({
-        // `closedAt: null` exclui as participacoes ja congeladas: numa sprint
-        // encerrada a composicao e registro, e marcar a saida agora tiraria a
-        // tarefa do periodo que ela de fato integrou. Nessas, a FK apenas anula
-        // `taskId` e o snapshot de titulo passa a ser o que resta dela.
-        where: { taskId: id, removedAt: null, closedAt: null },
-        data: {
-          removedAt: new Date(),
-          removalReason: 'TAREFA_EXCLUIDA',
-          exitStatus: atual?.status ?? null
-        }
-      });
 
-      await tx.taskCommit.deleteMany({
-        where: { taskId: id }
-      });
+        await tx.taskCommit.deleteMany({
+          where: { taskId: id }
+        });
 
-      await tx.taskIssue.deleteMany({
-        where: { taskId: id }
-      });
+        await tx.taskIssue.deleteMany({
+          where: { taskId: id }
+        });
 
-      await tx.taskMovement.deleteMany({
-        where: { taskId: id }
-      });
-      await tx.taskHistoryEntry.deleteMany({ where: { taskId: id } });
-      await tx.taskComment.deleteMany({ where: { taskId: id } });
-      const deleted = await tx.task.delete({
-        where: { id }
-      });
-      await recalculateRequirements(tx, [requirementId], calculateRequirementStatus);
-      if (auditEvent) await auditRepository.create(auditEvent, tx);
-      return deleted;
-    });
+        await tx.taskMovement.deleteMany({
+          where: { taskId: id }
+        });
+        await tx.taskHistoryEntry.deleteMany({ where: { taskId: id } });
+        await tx.taskComment.deleteMany({ where: { taskId: id } });
+        const deleted = await tx.task.delete({
+          where: { id }
+        });
+        await recalculateRequirements(tx, [requirementId], calculateRequirementStatus);
+        if (auditEvent) await auditRepository.create(auditEvent, tx);
+        return deleted;
+      }
+    );
   },
 
   async countTasksByProject(projectId, createdAt) {

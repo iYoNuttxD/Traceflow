@@ -58,47 +58,64 @@ export function createDefectService(repo = defectRepository) {
     await authorize(repo, row.projectId, context, write);
     return row;
   }
-  async function mutate(id, context, work) {
+  async function mutate(id, context, work, reason = 'DEFECT_UPDATED') {
     const current = await read(id, context, true);
-    return repo.transaction(async (tx) => {
-      await tx.lockProject(current.projectId);
-      const row = await tx.lock(id);
-      if (!row) throw missing();
-      await authorize(tx, row.projectId, context, true);
-      return work(tx, row);
-    });
+    return repo.transaction(
+      async (tx) => {
+        await tx.lockProject(current.projectId);
+        const row = await tx.lock(id);
+        if (!row) throw missing();
+        await authorize(tx, row.projectId, context, true);
+        return work(tx, row);
+      },
+      {
+        projectId: current.projectId,
+        defectIds: [id],
+        reason,
+        sourceEntityType: 'Defect',
+        sourceEntityId: id
+      }
+    );
   }
   return {
     async create(projectId, input, context) {
       const data = parse(createSchema, input);
-      return repo.transaction(async (tx) => {
-        await tx.lockProject(projectId);
-        await authorize(tx, projectId, context, true);
-        if (!(await tx.project(projectId))) throw missing();
-        const detection = await tx.detection(data.detectedExecutionStepId);
-        if (
-          !detection ||
-          detection.execution.projectId !== projectId ||
-          detection.execution.testCase.projectId !== projectId
-        )
-          throw missing();
-        if (detection.result !== 'FAIL')
-          throw fail(
-            'O passo de detecção deve ter resultado FAIL.',
-            'DEFECT_DETECTION_REQUIRES_FAIL'
-          );
-        await links(tx, projectId, data);
-        const { originTaskIds, ...fields } = data;
-        const row = await tx.create({ ...fields, projectId }, originTaskIds);
-        await recordDefectEvent(tx, row, context, 'CREATED', {
-          detectedExecutionStepId: data.detectedExecutionStepId,
-          requirementId: data.requirementId,
-          originTaskIds,
-          severity: data.severity,
-          responsibleUserId: data.responsibleUserId
-        });
-        return defectDetail(await tx.find(row.id));
-      });
+      return repo.transaction(
+        async (tx) => {
+          await tx.lockProject(projectId);
+          await authorize(tx, projectId, context, true);
+          if (!(await tx.project(projectId))) throw missing();
+          const detection = await tx.detection(data.detectedExecutionStepId);
+          if (
+            !detection ||
+            detection.execution.projectId !== projectId ||
+            detection.execution.testCase.projectId !== projectId
+          )
+            throw missing();
+          if (detection.result !== 'FAIL')
+            throw fail(
+              'O passo de detecção deve ter resultado FAIL.',
+              'DEFECT_DETECTION_REQUIRES_FAIL'
+            );
+          await links(tx, projectId, data);
+          const { originTaskIds, ...fields } = data;
+          const row = await tx.create({ ...fields, projectId }, originTaskIds);
+          await recordDefectEvent(tx, row, context, 'CREATED', {
+            detectedExecutionStepId: data.detectedExecutionStepId,
+            requirementId: data.requirementId,
+            originTaskIds,
+            severity: data.severity,
+            responsibleUserId: data.responsibleUserId
+          });
+          return defectDetail(await tx.find(row.id));
+        },
+        {
+          projectId,
+          reason: 'DEFECT_CREATED',
+          sourceEntityType: 'Defect',
+          createdEntity: 'defectIds'
+        }
+      );
     },
     async read(id, context) {
       return defectDetail(await read(id, context));
@@ -167,81 +184,95 @@ export function createDefectService(repo = defectRepository) {
       });
     },
     async delete(id, context) {
-      return mutate(id, context, async (tx, row) => {
-        await tx.update(id, { deletedAt: new Date() });
-        await recordDefectEvent(tx, row, context, 'DELETED');
-      });
+      return mutate(
+        id,
+        context,
+        async (tx, row) => {
+          await tx.update(id, { deletedAt: new Date() });
+          await recordDefectEvent(tx, row, context, 'DELETED');
+        },
+        'DEFECT_DELETED'
+      );
     },
     async correction(id, input, context) {
       const data = parse(correctionSchema, input);
-      return mutate(id, context, async (tx, row) => {
-        assertDefectRevision(row, data);
-        if (row.status === 'VALIDADO')
-          throw fail(
-            'Defeito validado não aceita novas correções.',
-            'DEFECT_ALREADY_VALIDATED',
-            409
-          );
-        let taskId = data.taskId;
-        if (taskId) {
-          if (!(await tx.tasks(row.projectId, [taskId])).length) throw missing();
-          if (row.taskLinks.some((l) => l.taskId === taskId && l.relationType === 'ORIGIN'))
+      return mutate(
+        id,
+        context,
+        async (tx, row) => {
+          assertDefectRevision(row, data);
+          if (row.status === 'VALIDADO')
             throw fail(
-              'Uma tarefa não pode ser origem e correção do mesmo defeito.',
-              'DEFECT_TASK_ROLE_CONFLICT',
+              'Defeito validado não aceita novas correções.',
+              'DEFECT_ALREADY_VALIDATED',
               409
             );
-          if (
-            row.taskLinks.some(
-              (l) =>
-                l.taskId === taskId &&
-                l.relationType === 'CORRECTION' &&
-                l.correctionCycle === row.currentCorrectionCycle
+          let taskId = data.taskId;
+          if (taskId) {
+            if (!(await tx.tasks(row.projectId, [taskId])).length) throw missing();
+            if (row.taskLinks.some((l) => l.taskId === taskId && l.relationType === 'ORIGIN'))
+              throw fail(
+                'Uma tarefa não pode ser origem e correção do mesmo defeito.',
+                'DEFECT_TASK_ROLE_CONFLICT',
+                409
+              );
+            if (
+              row.taskLinks.some(
+                (l) =>
+                  l.taskId === taskId &&
+                  l.relationType === 'CORRECTION' &&
+                  l.correctionCycle === row.currentCorrectionCycle
+              )
             )
-          )
-            throw fail('Tarefa já vinculada neste ciclo.', 'DEFECT_CORRECTION_ALREADY_LINKED', 409);
-        } else {
-          const inputTask = {
-            ...data.task,
-            requirementId:
-              data.task.requirementId === undefined ? row.requirementId : data.task.requirementId
-          };
-          if (
-            inputTask.requirementId &&
-            !(await tx.requirement(row.projectId, Number(inputTask.requirementId)))
-          )
-            throw missing();
-          if (
-            inputTask.responsibleUserId &&
-            !(await tx.membership(row.projectId, Number(inputTask.responsibleUserId)))
-          )
-            throw missing();
-          const taskData = await prepareTaskCreation(row.projectId, inputTask, tx.taskLookup);
-          const task = await tx.createTask(
-            row.projectId,
-            taskData,
-            buildAuditEvent({
-              ...context,
-              projectId: row.projectId,
-              resourceType: 'Task',
-              action: 'TASK_CREATED'
-            }),
-            calculateRequirementStatus
+              throw fail(
+                'Tarefa já vinculada neste ciclo.',
+                'DEFECT_CORRECTION_ALREADY_LINKED',
+                409
+              );
+          } else {
+            const inputTask = {
+              ...data.task,
+              requirementId:
+                data.task.requirementId === undefined ? row.requirementId : data.task.requirementId
+            };
+            if (
+              inputTask.requirementId &&
+              !(await tx.requirement(row.projectId, Number(inputTask.requirementId)))
+            )
+              throw missing();
+            if (
+              inputTask.responsibleUserId &&
+              !(await tx.membership(row.projectId, Number(inputTask.responsibleUserId)))
+            )
+              throw missing();
+            const taskData = await prepareTaskCreation(row.projectId, inputTask, tx.taskLookup);
+            const task = await tx.createTask(
+              row.projectId,
+              taskData,
+              buildAuditEvent({
+                ...context,
+                projectId: row.projectId,
+                resourceType: 'Task',
+                action: 'TASK_CREATED'
+              }),
+              calculateRequirementStatus
+            );
+            taskId = task.id;
+          }
+          await tx.link(id, taskId, row.currentCorrectionCycle);
+          await tx.update(id, {});
+          await recordDefectEvent(
+            tx,
+            row,
+            context,
+            data.task ? 'CORRECTION_TASK_CREATED' : 'CORRECTION_TASK_LINKED',
+            { taskId, correctionCycle: row.currentCorrectionCycle }
           );
-          taskId = task.id;
-        }
-        await tx.link(id, taskId, row.currentCorrectionCycle);
-        await tx.update(id, {});
-        await recordDefectEvent(
-          tx,
-          row,
-          context,
-          data.task ? 'CORRECTION_TASK_CREATED' : 'CORRECTION_TASK_LINKED',
-          { taskId, correctionCycle: row.currentCorrectionCycle }
-        );
-        await tx.reconcile(id, context.actorUserId, 'CORRECTION_TASK_LINKED');
-        return defectDetail(await tx.find(id));
-      });
+          await tx.reconcile(id, context.actorUserId, 'CORRECTION_TASK_LINKED');
+          return defectDetail(await tx.find(id));
+        },
+        'DEFECT_CORRECTION_CHANGED'
+      );
     }
   };
 }

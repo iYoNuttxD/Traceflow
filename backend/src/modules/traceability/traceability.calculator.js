@@ -49,6 +49,11 @@ function extractPullRequests(tasks) {
 
 export function getImplementationStatus(requirement, tasks, hasTechnicalEvidence) {
   if (requirement.status === 'CONCLUIDO') return 'CONCLUIDO';
+  return getImplementationStage(tasks, hasTechnicalEvidence);
+}
+
+// Estágio técnico compartilhado; o override histórico permanece no DTO legado.
+export function getImplementationStage(tasks, hasTechnicalEvidence) {
   if (tasks.length === 0) return 'SEM_RASTREABILIDADE';
 
   const completedTasksCount = tasks.filter((task) => task.status === 'CONCLUIDO').length;

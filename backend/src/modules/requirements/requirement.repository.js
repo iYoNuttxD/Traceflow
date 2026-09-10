@@ -1,3 +1,4 @@
+import { traceabilityTransaction } from '../traceability/requirement-reconciliation.repository.js';
 // Repository do modulo de requisitos. Todo acesso ao banco passa pelo Prisma.
 import { prisma } from '../../database/prismaClient.js';
 import { auditRepository } from '../audit/audit.repository.js';
@@ -32,13 +33,22 @@ export const requirementRepository = {
   },
 
   async createRequirement(projectId, data) {
-    return prisma.requirement.create({
-      data: {
-        ...data,
-        projectId
+    return traceabilityTransaction(
+      {
+        projectId,
+        reason: 'REQUIREMENT_CREATED',
+        sourceEntityType: 'Requirement',
+        createdEntity: 'requirementIds'
       },
-      include: requirementInclude
-    });
+      (tx) =>
+        tx.requirement.create({
+          data: {
+            ...data,
+            projectId
+          },
+          include: requirementInclude
+        })
+    );
   },
 
   async findRequirementsByProject(projectId, filters = {}) {
@@ -70,32 +80,58 @@ export const requirementRepository = {
   },
 
   async updateRequirement(id, data) {
-    return prisma.requirement.update({
-      where: { id },
-      data,
-      include: requirementInclude
-    });
+    return traceabilityTransaction(
+      {
+        requirementIds: [id],
+        reason: 'REQUIREMENT_UPDATED',
+        sourceEntityType: 'Requirement',
+        sourceEntityId: id
+      },
+      (tx) =>
+        tx.requirement.update({
+          where: { id },
+          data,
+          include: requirementInclude
+        })
+    );
   },
 
   async updateRequirementStatus(id, status) {
-    return prisma.requirement.update({
-      where: { id },
-      data: { status },
-      include: requirementInclude
-    });
+    return traceabilityTransaction(
+      {
+        requirementIds: [id],
+        reason: 'REQUIREMENT_STATUS_CHANGED',
+        sourceEntityType: 'Requirement',
+        sourceEntityId: id
+      },
+      (tx) =>
+        tx.requirement.update({
+          where: { id },
+          data: { status },
+          include: requirementInclude
+        })
+    );
   },
 
   async deleteRequirement(id) {
-    return prisma.$transaction(async (tx) => {
-      await tx.task.updateMany({
-        where: { requirementId: id },
-        data: { requirementId: null }
-      });
+    return traceabilityTransaction(
+      {
+        requirementIds: [id],
+        reason: 'REQUIREMENT_DELETED',
+        sourceEntityType: 'Requirement',
+        sourceEntityId: id
+      },
+      async (tx) => {
+        await tx.task.updateMany({
+          where: { requirementId: id },
+          data: { requirementId: null }
+        });
 
-      return tx.requirement.delete({
-        where: { id }
-      });
-    });
+        return tx.requirement.delete({
+          where: { id }
+        });
+      }
+    );
   },
 
   async findTasksByRequirement(requirementId) {
@@ -131,29 +167,41 @@ export const requirementRepository = {
     relatedStatusUpdates,
     auditEvents
   }) {
-    return prisma.$transaction(async (tx) => {
-      await tx.task.updateMany({
-        where: { requirementId, ...(taskIds.length ? { id: { notIn: taskIds } } : {}) },
-        data: { requirementId: null }
-      });
-      if (taskIds.length) {
+    return traceabilityTransaction(
+      {
+        requirementIds: [requirementId, ...relatedStatusUpdates.map((row) => row.id)],
+        taskIds,
+        reason: 'TASK_REQUIREMENT_CHANGED',
+        sourceEntityType: 'Requirement',
+        sourceEntityId: requirementId
+      },
+      async (tx) => {
         await tx.task.updateMany({
-          where: { id: { in: taskIds } },
-          data: { requirementId }
+          where: { requirementId, ...(taskIds.length ? { id: { notIn: taskIds } } : {}) },
+          data: { requirementId: null }
+        });
+        if (taskIds.length) {
+          await tx.task.updateMany({
+            where: { id: { in: taskIds } },
+            data: { requirementId }
+          });
+        }
+        if (status) {
+          await tx.requirement.update({ where: { id: requirementId }, data: { status } });
+        }
+        for (const update of relatedStatusUpdates) {
+          await tx.requirement.update({
+            where: { id: update.id },
+            data: { status: update.status }
+          });
+        }
+        if (auditEvents.length) await auditRepository.createMany(auditEvents, tx);
+        return tx.requirement.findUnique({
+          where: { id: requirementId },
+          include: requirementInclude
         });
       }
-      if (status) {
-        await tx.requirement.update({ where: { id: requirementId }, data: { status } });
-      }
-      for (const update of relatedStatusUpdates) {
-        await tx.requirement.update({ where: { id: update.id }, data: { status: update.status } });
-      }
-      if (auditEvents.length) await auditRepository.createMany(auditEvents, tx);
-      return tx.requirement.findUnique({
-        where: { id: requirementId },
-        include: requirementInclude
-      });
-    });
+    );
   },
 
   async countRequirementsByProject(projectId) {

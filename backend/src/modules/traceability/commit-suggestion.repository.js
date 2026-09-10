@@ -1,3 +1,8 @@
+import { lockProject } from '../../database/locks.js';
+import {
+  affectedRequirementIds,
+  reconcileRequirements
+} from './requirement-reconciliation.repository.js';
 import { prisma } from '../../database/prismaClient.js';
 import { auditRepository } from '../audit/audit.repository.js';
 
@@ -85,50 +90,65 @@ export const commitSuggestionRepository = {
   },
 
   async confirm({ projectId, suggestionId, userId, reviewedAt, auditEvent }) {
-    return prisma.$transaction(async (tx) => {
-      const suggestion = await tx.taskCommitSuggestion.findFirst({
-        where: { id: suggestionId, projectId },
-        select: {
-          ...suggestionSelect,
-          task: { select: { id: true, projectId: true, title: true, status: true } },
-          commit: { select: { id: true, projectId: true, hash: true, message: true, date: true } }
+    return prisma.$transaction(
+      async (tx) => {
+        await lockProject(tx, projectId);
+        const suggestion = await tx.taskCommitSuggestion.findFirst({
+          where: { id: suggestionId, projectId },
+          select: {
+            ...suggestionSelect,
+            task: { select: { id: true, projectId: true, title: true, status: true } },
+            commit: { select: { id: true, projectId: true, hash: true, message: true, date: true } }
+          }
+        });
+        if (!suggestion) return { outcome: 'NOT_FOUND' };
+        if (suggestion.task.projectId !== projectId || suggestion.commit.projectId !== projectId) {
+          return { outcome: 'PROJECT_MISMATCH' };
         }
-      });
-      if (!suggestion) return { outcome: 'NOT_FOUND' };
-      if (suggestion.task.projectId !== projectId || suggestion.commit.projectId !== projectId) {
-        return { outcome: 'PROJECT_MISMATCH' };
-      }
-      if (suggestion.status === 'CONFIRMED') return { outcome: 'UNCHANGED', suggestion };
-      if (suggestion.status !== 'PENDING') return { outcome: 'INVALID_STATUS', suggestion };
+        if (suggestion.status === 'CONFIRMED') return { outcome: 'UNCHANGED', suggestion };
+        if (suggestion.status !== 'PENDING') return { outcome: 'INVALID_STATUS', suggestion };
 
-      await tx.taskCommit.upsert({
-        where: { taskId_commitId: { taskId: suggestion.taskId, commitId: suggestion.commitId } },
-        create: { taskId: suggestion.taskId, commitId: suggestion.commitId },
-        update: {}
-      });
-      const update = await tx.taskCommitSuggestion.updateMany({
-        where: { id: suggestionId, projectId, status: 'PENDING' },
-        data: { status: 'CONFIRMED', reviewedAt, reviewedByUserId: userId }
-      });
-      if (update.count === 0) {
-        const current = await tx.taskCommitSuggestion.findUnique({
-          where: { id: suggestionId },
-          select: suggestionSelect
+        await tx.taskCommit.upsert({
+          where: { taskId_commitId: { taskId: suggestion.taskId, commitId: suggestion.commitId } },
+          create: { taskId: suggestion.taskId, commitId: suggestion.commitId },
+          update: {}
+        });
+        const update = await tx.taskCommitSuggestion.updateMany({
+          where: { id: suggestionId, projectId, status: 'PENDING' },
+          data: { status: 'CONFIRMED', reviewedAt, reviewedByUserId: userId }
+        });
+        if (update.count === 0) {
+          const current = await tx.taskCommitSuggestion.findUnique({
+            where: { id: suggestionId },
+            select: suggestionSelect
+          });
+          return {
+            outcome: current?.status === 'CONFIRMED' ? 'UNCHANGED' : 'INVALID_STATUS',
+            suggestion: current
+          };
+        }
+        await auditRepository.create(auditEvent, tx);
+        const requirementIds = await affectedRequirementIds(tx, {
+          projectId,
+          taskIds: [suggestion.taskId]
+        });
+        await reconcileRequirements(tx, {
+          projectId,
+          requirementIds,
+          reason: 'TECHNICAL_EVIDENCE_CHANGED',
+          sourceEntityType: 'Task',
+          sourceEntityId: suggestion.taskId
         });
         return {
-          outcome: current?.status === 'CONFIRMED' ? 'UNCHANGED' : 'INVALID_STATUS',
-          suggestion: current
+          outcome: 'UPDATED',
+          suggestion: await tx.taskCommitSuggestion.findUnique({
+            where: { id: suggestionId },
+            select: suggestionSelect
+          })
         };
-      }
-      await auditRepository.create(auditEvent, tx);
-      return {
-        outcome: 'UPDATED',
-        suggestion: await tx.taskCommitSuggestion.findUnique({
-          where: { id: suggestionId },
-          select: suggestionSelect
-        })
-      };
-    });
+      },
+      { isolationLevel: 'ReadCommitted' }
+    );
   },
 
   async reject({ projectId, suggestionId, userId, reviewedAt, auditEvent }) {

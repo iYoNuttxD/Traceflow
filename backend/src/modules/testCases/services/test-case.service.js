@@ -53,154 +53,180 @@ export function createTestCaseService(repo = testCaseRepository) {
   return {
     async create(projectId, input, context) {
       const data = parse(createSchema, input);
-      return repo.transaction(async (tx) => {
-        await tx.lockProject(projectId);
-        const membership = await authorize(tx, projectId, context, true);
-        if (!(await tx.project(projectId))) throw missing();
-        const links = await resolveLinks(tx, projectId, data);
-        const { steps, taskIds, ...fields } = data;
-        const row = await tx.create({ projectId, ...fields }, steps, taskIds);
-        await tx.version({
-          testCaseId: row.id,
-          version: 1,
-          snapshotVersion: 1,
-          snapshotJson: definitionSnapshot(data, links.requirement, links.tasks),
-          createdByUserId: context.actorUserId
-        });
-        await tx.history({
-          projectId,
-          testCaseId: row.id,
-          actorUserId: context.actorUserId,
-          action: 'CREATED',
-          toVersion: 1
-        });
-        await tx.audit(
-          audit(context, projectId, row.id, 'TEST_CASE_CREATED', {
+      return repo.transaction(
+        async (tx) => {
+          await tx.lockProject(projectId);
+          const membership = await authorize(tx, projectId, context, true);
+          if (!(await tx.project(projectId))) throw missing();
+          const links = await resolveLinks(tx, projectId, data);
+          const { steps, taskIds, ...fields } = data;
+          const row = await tx.create({ projectId, ...fields }, steps, taskIds);
+          await tx.version({
+            testCaseId: row.id,
             version: 1,
-            stepCount: steps.length,
-            taskCount: taskIds.length,
-            hasRequirement: Boolean(data.requirementId)
-          })
-        );
-        return caseDetail(row, membership.role);
-      });
+            snapshotVersion: 1,
+            snapshotJson: definitionSnapshot(data, links.requirement, links.tasks),
+            createdByUserId: context.actorUserId
+          });
+          await tx.history({
+            projectId,
+            testCaseId: row.id,
+            actorUserId: context.actorUserId,
+            action: 'CREATED',
+            toVersion: 1
+          });
+          await tx.audit(
+            audit(context, projectId, row.id, 'TEST_CASE_CREATED', {
+              version: 1,
+              stepCount: steps.length,
+              taskCount: taskIds.length,
+              hasRequirement: Boolean(data.requirementId)
+            })
+          );
+          return caseDetail(row, membership.role);
+        },
+        {
+          projectId,
+          reason: 'TESTCASE_CREATED',
+          sourceEntityType: 'TestCase',
+          createdEntity: 'testCaseIds'
+        }
+      );
     },
     async update(id, input, context) {
       const parsed = parse(updateSchema, input);
       const owner = await repo.find(id);
       if (!owner) throw missing();
       await authorize(repo, owner.projectId, context, true);
-      return repo.transaction(async (tx) => {
-        await tx.lockProject(owner.projectId);
-        const current = await tx.lock(id);
-        if (!current) throw missing();
-        const membership = await authorize(tx, current.projectId, context, true);
-        assertVersion(current, parsed.expectedVersion);
-        const original = { ...current, taskIds: current.taskLinks.map((l) => l.taskId) };
-        const patch = { ...parsed };
-        delete patch.expectedVersion;
-        const next = { ...original, ...patch };
-        const links = await resolveLinks(tx, current.projectId, next);
-        const fields = changedDefinitionFields(original, next);
-        const statusChanged = next.status !== current.status;
-        const responsibleChanged = next.responsibleUserId !== current.responsibleUserId;
-        if (!fields.length && !statusChanged && !responsibleChanged)
-          return caseDetail(current, membership.role);
-        const version = current.currentVersion + (fields.length ? 1 : 0);
-        const row = await tx.update(
-          id,
-          {
-            title: next.title,
-            description: next.description,
-            preconditions: next.preconditions,
-            expectedResult: next.expectedResult,
-            requirementId: next.requirementId,
-            status: next.status,
-            responsibleUserId: next.responsibleUserId,
-            currentVersion: version
-          },
-          fields.includes('steps') ? next.steps : undefined,
-          fields.includes('taskIds') ? next.taskIds : undefined
-        );
-        const base = {
-          projectId: current.projectId,
-          testCaseId: id,
-          actorUserId: context.actorUserId,
-          fromVersion: current.currentVersion,
-          toVersion: version
-        };
-        if (fields.length) {
-          await tx.version({
-            testCaseId: id,
-            version,
-            snapshotVersion: 1,
-            snapshotJson: definitionSnapshot(next, links.requirement, links.tasks),
-            createdByUserId: context.actorUserId
-          });
-          await tx.history({
-            ...base,
-            action: 'VERSION_CREATED',
-            metadataJson: { changedFields: fields }
-          });
-        }
-        if (statusChanged)
-          await tx.history({
-            ...base,
-            action: 'STATUS_CHANGED',
-            metadataJson: { from: current.status, to: next.status }
-          });
-        if (responsibleChanged)
-          await tx.history({
-            ...base,
-            action: 'RESPONSIBLE_CHANGED',
-            metadataJson: {
-              from: { id: current.responsibleUserId, name: current.responsibleUser.name },
-              to: { id: next.responsibleUserId, name: links.responsible.user.name }
-            }
-          });
-        await tx.audit(
-          audit(
-            context,
-            current.projectId,
+      return repo.transaction(
+        async (tx) => {
+          await tx.lockProject(owner.projectId);
+          const current = await tx.lock(id);
+          if (!current) throw missing();
+          const membership = await authorize(tx, current.projectId, context, true);
+          assertVersion(current, parsed.expectedVersion);
+          const original = { ...current, taskIds: current.taskLinks.map((l) => l.taskId) };
+          const patch = { ...parsed };
+          delete patch.expectedVersion;
+          const next = { ...original, ...patch };
+          const links = await resolveLinks(tx, current.projectId, next);
+          const fields = changedDefinitionFields(original, next);
+          const statusChanged = next.status !== current.status;
+          const responsibleChanged = next.responsibleUserId !== current.responsibleUserId;
+          if (!fields.length && !statusChanged && !responsibleChanged)
+            return caseDetail(current, membership.role);
+          const version = current.currentVersion + (fields.length ? 1 : 0);
+          const row = await tx.update(
             id,
-            statusChanged && !fields.length && !responsibleChanged
-              ? 'TEST_CASE_STATUS_CHANGED'
-              : 'TEST_CASE_UPDATED',
             {
+              title: next.title,
+              description: next.description,
+              preconditions: next.preconditions,
+              expectedResult: next.expectedResult,
+              requirementId: next.requirementId,
+              status: next.status,
+              responsibleUserId: next.responsibleUserId,
+              currentVersion: version
+            },
+            fields.includes('steps') ? next.steps : undefined,
+            fields.includes('taskIds') ? next.taskIds : undefined
+          );
+          const base = {
+            projectId: current.projectId,
+            testCaseId: id,
+            actorUserId: context.actorUserId,
+            fromVersion: current.currentVersion,
+            toVersion: version
+          };
+          if (fields.length) {
+            await tx.version({
+              testCaseId: id,
               version,
-              stepCount: next.steps.length,
-              taskCount: next.taskIds.length,
-              hasRequirement: Boolean(next.requirementId)
-            }
-          )
-        );
-        return caseDetail(row, membership.role);
-      });
+              snapshotVersion: 1,
+              snapshotJson: definitionSnapshot(next, links.requirement, links.tasks),
+              createdByUserId: context.actorUserId
+            });
+            await tx.history({
+              ...base,
+              action: 'VERSION_CREATED',
+              metadataJson: { changedFields: fields }
+            });
+          }
+          if (statusChanged)
+            await tx.history({
+              ...base,
+              action: 'STATUS_CHANGED',
+              metadataJson: { from: current.status, to: next.status }
+            });
+          if (responsibleChanged)
+            await tx.history({
+              ...base,
+              action: 'RESPONSIBLE_CHANGED',
+              metadataJson: {
+                from: { id: current.responsibleUserId, name: current.responsibleUser.name },
+                to: { id: next.responsibleUserId, name: links.responsible.user.name }
+              }
+            });
+          await tx.audit(
+            audit(
+              context,
+              current.projectId,
+              id,
+              statusChanged && !fields.length && !responsibleChanged
+                ? 'TEST_CASE_STATUS_CHANGED'
+                : 'TEST_CASE_UPDATED',
+              {
+                version,
+                stepCount: next.steps.length,
+                taskCount: next.taskIds.length,
+                hasRequirement: Boolean(next.requirementId)
+              }
+            )
+          );
+          return caseDetail(row, membership.role);
+        },
+        {
+          projectId: owner.projectId,
+          testCaseIds: [id],
+          reason: parsed.status ? 'TESTCASE_STATUS_CHANGED' : 'TESTCASE_UPDATED',
+          sourceEntityType: 'TestCase',
+          sourceEntityId: id
+        }
+      );
     },
     async delete(id, context) {
       const owner = await repo.find(id);
       if (!owner) throw missing();
       await authorize(repo, owner.projectId, context, true);
-      return repo.transaction(async (tx) => {
-        await tx.lockProject(owner.projectId);
-        const current = await tx.lock(id);
-        if (!current) throw missing();
-        await authorize(tx, current.projectId, context, true);
-        await tx.update(id, { deletedAt: new Date(), deletedById: context.actorUserId });
-        await tx.history({
-          projectId: current.projectId,
-          testCaseId: id,
-          actorUserId: context.actorUserId,
-          action: 'DELETED',
-          fromVersion: current.currentVersion,
-          toVersion: current.currentVersion
-        });
-        await tx.audit(
-          audit(context, current.projectId, id, 'TEST_CASE_DELETED', {
-            version: current.currentVersion
-          })
-        );
-      });
+      return repo.transaction(
+        async (tx) => {
+          await tx.lockProject(owner.projectId);
+          const current = await tx.lock(id);
+          if (!current) throw missing();
+          await authorize(tx, current.projectId, context, true);
+          await tx.update(id, { deletedAt: new Date(), deletedById: context.actorUserId });
+          await tx.history({
+            projectId: current.projectId,
+            testCaseId: id,
+            actorUserId: context.actorUserId,
+            action: 'DELETED',
+            fromVersion: current.currentVersion,
+            toVersion: current.currentVersion
+          });
+          await tx.audit(
+            audit(context, current.projectId, id, 'TEST_CASE_DELETED', {
+              version: current.currentVersion
+            })
+          );
+        },
+        {
+          projectId: owner.projectId,
+          testCaseIds: [id],
+          reason: 'TESTCASE_DELETED',
+          sourceEntityType: 'TestCase',
+          sourceEntityId: id
+        }
+      );
     },
     async read(id, context) {
       const row = await repo.find(id);
