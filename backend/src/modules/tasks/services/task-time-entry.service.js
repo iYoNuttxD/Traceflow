@@ -132,6 +132,7 @@ function summaryFor(task, totals, running) {
     estimatedHours: task.estimatedEffort,
     completedSeconds: totals.completedSeconds,
     completedCount: totals.completedCount,
+    legacySeconds: totals.legacySeconds,
     running
   });
 }
@@ -184,8 +185,7 @@ export const taskTimeEntryService = {
     if (result.outcome === 'ALREADY_RUNNING') {
       throw new TaskServiceError('Já existe uma sessão de tempo em andamento nesta tarefa.', 409);
     }
-    const totals = await taskTimeEntryRepository.summarizeCompleted(id);
-    const effort = summaryFor(task, totals, result.entry);
+    const effort = summaryFor(task, result, result.running);
     await publishEffortEvent(PROJECT_EVENT_TYPES.TASK_TIME_ENTRY_STARTED, task, {
       entry: result.entry,
       effort
@@ -240,8 +240,7 @@ export const taskTimeEntryService = {
       })
     );
     if (result.outcome === 'TASK_NOT_FOUND') throw resourceNotFoundError('Task');
-    const running = await taskTimeEntryRepository.findRunning(id);
-    const effort = summaryFor(task, result, running);
+    const effort = summaryFor(task, result, result.running);
     await publishEffortEvent(PROJECT_EVENT_TYPES.TASK_TIME_ENTRY_CREATED, task, {
       entry: result.entry,
       effort
@@ -279,8 +278,7 @@ export const taskTimeEntryService = {
     if (result.outcome === 'NOT_FOUND') {
       throw new TaskServiceError('Sessão de tempo não encontrada.', 404);
     }
-    const running = existing.endedAt ? await taskTimeEntryRepository.findRunning(id) : null;
-    const effort = summaryFor(task, result, running);
+    const effort = summaryFor(task, result, result.running);
     await publishEffortEvent(PROJECT_EVENT_TYPES.TASK_TIME_ENTRY_DELETED, task, {
       entry: existing,
       effort

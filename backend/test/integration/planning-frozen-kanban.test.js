@@ -216,7 +216,7 @@ describe('FIX-04 complete closing snapshot v2', () => {
     const snapshot = before.tasks.find((t) => t.id === id);
     expect(before.historicalLimitations).toEqual([]);
     expect(snapshot).toMatchObject({
-      snapshotVersion: 2,
+      snapshotVersion: 3,
       title: 'Implementar checkout',
       description: 'Descrição original da tarefa',
       priority: 'ALTA',
@@ -372,5 +372,58 @@ describe('FIX-04 complete closing snapshot v2', () => {
       'issues'
     ])
       expect(result.tasks[0]).not.toHaveProperty(field);
+  });
+});
+
+describe('S1-06 — esforço da sprint no encerramento', () => {
+  it('tarefa sem estimativa não vira estouro só porque a sprint fechou', async () => {
+    const actor = await prisma.user.create({
+      data: {
+        name: 'Effort QA',
+        username: 'effortqa',
+        email: 'effort@example.invalid',
+        passwordHash: 'x'
+      }
+    });
+    actorUserId = actor.id;
+    const project = await createProject(prisma);
+    await prisma.projectMembership.create({
+      data: { projectId: project.id, userId: actorUserId, role: 'OWNER' }
+    });
+    const sprint = await createSprint(prisma, project.id, {
+      name: 'S-effort',
+      startDate: new Date('2026-09-01'),
+      endDate: new Date('2026-09-05')
+    });
+    // Sem estimativa, mas com uma hora registrada.
+    const task = await createTask(prisma, project.id, {
+      title: 'Sem estimativa',
+      responsibleUserId: actorUserId
+    });
+    await prisma.task.update({ where: { id: task.id }, data: { actualEffort: 1 } });
+    await scope(sprint, [task]);
+    await status(sprint, 'EM_ANDAMENTO');
+
+    const open = await sprints.getSprintProgress(sprint.id);
+    expect(open.effort.perTask[0]).toMatchObject({
+      estimatedHours: null,
+      actualHours: 1,
+      status: 'SEM_ESTIMATIVA'
+    });
+
+    await status(sprint, 'CONCLUIDA');
+    const closed = await sprints.getSprintProgress(sprint.id);
+    // O fechamento não pode inventar um limite de zero hora.
+    expect(closed.effort.perTask[0]).toMatchObject({
+      estimatedHours: null,
+      actualHours: 1,
+      status: 'SEM_ESTIMATIVA'
+    });
+    expect(closed.effort).toMatchObject({
+      estimatedHours: null,
+      actualHours: 1,
+      incomplete: false,
+      status: 'SEM_ESTIMATIVA'
+    });
   });
 });

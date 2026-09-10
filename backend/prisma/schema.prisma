@@ -582,6 +582,8 @@ model Task {
   deadline          DateTime?
   estimatedEffort   Float?
   actualEffort      Float?
+  // Esforço lançado antes do S1-06, preservado para continuar somando no derivado.
+  legacyActualEffort Float?
   pullRequestId     Int?
   responsibleUserId Int?
   sprintId          Int?

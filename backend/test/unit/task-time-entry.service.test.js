@@ -59,7 +59,14 @@ beforeEach(() => {
 
 describe('taskTimeEntryService — cronômetro', () => {
   it('inicia a sessão com o ator da sessão HTTP, audita e devolve o resumo com a sessão em andamento', async () => {
-    mocks.repository.startAtomic.mockResolvedValue({ outcome: 'STARTED', entry: storedEntry() });
+    mocks.repository.startAtomic.mockResolvedValue({
+      outcome: 'STARTED',
+      entry: storedEntry(),
+      running: storedEntry(),
+      completedSeconds: 0,
+      completedCount: 0,
+      legacySeconds: 0
+    });
     const result = await taskTimeEntryService.startTaskTimer(42, member);
     expect(mocks.repository.startAtomic).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -85,6 +92,69 @@ describe('taskTimeEntryService — cronômetro', () => {
       estimatedHours: 2,
       status: 'DENTRO_DO_PREVISTO',
       running: { id: 5, startedBy: { id: 10, name: 'Ana' } }
+    });
+    // Nenhuma leitura depois do commit: a escrita confirmada não pode virar erro.
+    expect(mocks.repository.summarizeCompleted).not.toHaveBeenCalled();
+    expect(mocks.repository.findRunning).not.toHaveBeenCalled();
+  });
+
+  it('não relê o banco após confirmar lançamento manual ou exclusão', async () => {
+    const manualEntry = storedEntry({
+      id: 8,
+      source: 'MANUAL',
+      endedAt: new Date('2026-09-06T15:00:00.000Z'),
+      durationSeconds: 3600,
+      endedById: 10,
+      endedBy: { id: 10, name: 'Ana' }
+    });
+    mocks.repository.createManualAtomic.mockResolvedValue({
+      outcome: 'CREATED',
+      entry: manualEntry,
+      running: null,
+      completedSeconds: 3600,
+      completedCount: 1,
+      legacySeconds: 0
+    });
+    const created = await taskTimeEntryService.createManualTaskTimeEntry(42, { hours: 1 }, member);
+    expect(created.effort).toMatchObject({ completedCount: 1, actualHours: 1, running: null });
+
+    mocks.repository.findById.mockResolvedValue(manualEntry);
+    mocks.repository.deleteAtomic.mockResolvedValue({
+      outcome: 'DELETED',
+      running: null,
+      completedSeconds: 0,
+      completedCount: 0,
+      legacySeconds: 0
+    });
+    const removed = await taskTimeEntryService.deleteTaskTimeEntry(42, 8, member);
+    expect(removed.effort).toMatchObject({ completedCount: 0, actualHours: 0 });
+
+    expect(mocks.repository.findRunning).not.toHaveBeenCalled();
+    expect(mocks.repository.summarizeCompleted).not.toHaveBeenCalled();
+  });
+
+  it('esforço herdado antes das sessões continua somando no realizado', async () => {
+    // Tarefa que trazia 8h do contrato anterior registra a primeira sessão de 1h.
+    mocks.repository.stopAtomic.mockResolvedValue({
+      outcome: 'STOPPED',
+      entry: storedEntry({
+        endedAt: new Date('2026-09-06T15:00:00.000Z'),
+        durationSeconds: 3600,
+        endedById: 10,
+        endedBy: { id: 10, name: 'Ana' }
+      }),
+      running: null,
+      completedSeconds: 3600,
+      completedCount: 1,
+      legacySeconds: 8 * 3600
+    });
+    const result = await taskTimeEntryService.stopTaskTimer(42, member);
+    expect(result.effort).toMatchObject({
+      actualHours: 9,
+      completedSeconds: 9 * 3600,
+      trackedSeconds: 3600,
+      legacyHours: 8,
+      completedCount: 1
     });
   });
 

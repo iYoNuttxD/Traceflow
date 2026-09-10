@@ -37,21 +37,29 @@ const round2 = (value) => Math.round(value * 100) / 100;
 // Fórmulas do S1-06 (unidade única: horas). Sem estimativa não há limite e as
 // diferenças ficam nulas. Estimativa zero: qualquer segundo registrado é estouro
 // e o percentual não é calculado, porque a divisão por zero não tem leitura útil.
+// `legacySeconds` é o esforço lançado antes das sessões existirem: conta no total,
+// mas não é uma sessão. Com `incomplete`, o realizado conhecido é apenas parcial e
+// nenhuma conclusão sobre o limite é publicada.
 export function buildEffortSummary({
   estimatedHours,
   completedSeconds = 0,
   completedCount = 0,
-  running = null
+  legacySeconds = 0,
+  running = null,
+  incomplete = false
 }) {
   const hasEstimate = estimatedHours !== null && estimatedHours !== undefined;
   const estimatedSeconds = hasEstimate ? Math.round(estimatedHours * 3600) : null;
-  const actualHours = round2(completedSeconds / 3600);
+  const totalSeconds = completedSeconds + legacySeconds;
+  const actualHours = round2(totalSeconds / 3600);
+  const known = completedCount > 0 || legacySeconds > 0;
   const usageRatio =
-    hasEstimate && estimatedSeconds > 0 ? completedSeconds / estimatedSeconds : null;
+    !incomplete && hasEstimate && estimatedSeconds > 0 ? totalSeconds / estimatedSeconds : null;
 
   let status = 'SEM_ESTIMATIVA';
-  if (hasEstimate) {
-    if (completedSeconds > estimatedSeconds) status = 'ESTOURADO';
+  if (incomplete) status = 'INDISPONIVEL';
+  else if (hasEstimate) {
+    if (totalSeconds > estimatedSeconds) status = 'ESTOURADO';
     else if (usageRatio !== null && usageRatio >= EFFORT_WARNING_RATIO)
       status = 'PROXIMO_DO_LIMITE';
     else status = 'DENTRO_DO_PREVISTO';
@@ -61,16 +69,22 @@ export function buildEffortSummary({
     unit: 'HOURS',
     estimatedHours: hasEstimate ? estimatedHours : null,
     estimatedSeconds,
-    completedSeconds,
+    completedSeconds: totalSeconds,
+    trackedSeconds: completedSeconds,
+    legacySeconds,
+    legacyHours: round2(legacySeconds / 3600),
     completedCount,
-    actualHours: completedCount > 0 ? actualHours : 0,
-    remainingSeconds: hasEstimate ? Math.max(estimatedSeconds - completedSeconds, 0) : null,
-    overrunSeconds: hasEstimate ? Math.max(completedSeconds - estimatedSeconds, 0) : null,
-    differenceHours: hasEstimate ? round2(actualHours - estimatedHours) : null,
+    actualHours: known ? actualHours : 0,
+    incomplete,
+    remainingSeconds:
+      hasEstimate && !incomplete ? Math.max(estimatedSeconds - totalSeconds, 0) : null,
+    overrunSeconds:
+      hasEstimate && !incomplete ? Math.max(totalSeconds - estimatedSeconds, 0) : null,
+    differenceHours: hasEstimate && !incomplete ? round2(actualHours - estimatedHours) : null,
     differencePercent:
       usageRatio === null
         ? null
-        : round2(((completedSeconds - estimatedSeconds) / estimatedSeconds) * 100),
+        : round2(((totalSeconds - estimatedSeconds) / estimatedSeconds) * 100),
     usagePercent: usageRatio === null ? null : round2(usageRatio * 100),
     status,
     running: running

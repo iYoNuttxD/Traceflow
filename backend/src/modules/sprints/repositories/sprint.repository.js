@@ -619,14 +619,22 @@ export const sprintRepository = {
       select: { taskId: true, pointsAtClose: true, closingTaskSnapshot: true },
       orderBy: { id: 'asc' }
     });
-    return participations.map((participation) => ({
-      taskId: participation.taskId,
-      estimatedHours: participation.pointsAtClose ?? null,
-      actualHours:
-        participation.closingTaskSnapshot?.version === 2
-          ? (participation.closingTaskSnapshot.actualEffort ?? null)
-          : null
-    }));
+    return participations.map((participation) => {
+      const snapshot = participation.closingTaskSnapshot;
+      const version = snapshot?.version ?? 0;
+      // Só a v3 distingue "sem estimativa" de "estimativa zero". Antes disso um
+      // `pointsAtClose` zerado é ambíguo, e afirmar limite zero transformaria a
+      // tarefa em estouro no fechamento sem nada ter mudado.
+      const estimateFromSnapshot = version >= 3;
+      const points = participation.pointsAtClose;
+      return {
+        taskId: participation.taskId,
+        estimatedHours: estimateFromSnapshot ? (snapshot.estimatedEffort ?? null) : points || null,
+        estimateUnknown: !estimateFromSnapshot && !points,
+        actualHours: version >= 2 ? (snapshot.actualEffort ?? null) : null,
+        actualUnknown: version < 2
+      };
+    });
   },
 
   async readTaskProjection(sprintId) {

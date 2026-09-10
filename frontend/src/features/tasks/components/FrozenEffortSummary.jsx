@@ -15,7 +15,7 @@ const unavailable = 'Indisponível no snapshot';
 // sem controles, sem cronômetro vivo e sem leitura da tarefa atual (FIX-04).
 export function FrozenEffortSummary({ task }) {
   const titleId = useId();
-  const complete = task.snapshotAvailable === true && task.snapshotVersion === 2;
+  const complete = task.snapshotAvailable === true && task.snapshotVersion >= 2;
   const actualKnown = complete && task.actualEffort !== undefined;
   const actualHours = actualKnown ? task.actualEffort : null;
   const estimatedHours = task.estimatedEffort ?? null;

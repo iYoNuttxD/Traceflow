@@ -37,7 +37,7 @@ export function FrozenTaskDetails({
     >
       <TaskDetailsLayout>
         {(!task.snapshotAvailable ||
-          (task.snapshotVersion !== 2 && historicalLimitations.length > 0)) && (
+          (!(task.snapshotVersion >= 2) && historicalLimitations.length > 0)) && (
           <p className="message message-warning" role="status">
             Snapshot detalhado indisponível para esta Sprint histórica. Os campos não capturados
             estão identificados abaixo.
