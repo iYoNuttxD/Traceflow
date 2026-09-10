@@ -17,7 +17,8 @@ const categories = [
 // Versioned historical projection only; legacy fields never hydrate from current data.
 export function frozenTaskDetailsView(task) {
   const captured = task.snapshotAvailable === true;
-  const complete = captured && task.snapshotVersion === 2;
+  // A v3 acrescenta a estimativa ao snapshot; da v2 em diante os campos exibidos aqui existem.
+  const complete = captured && task.snapshotVersion >= 2;
   const name = complete ? task.responsibleDisplayName : null;
   const responsibleId = captured ? task.responsibleUserId : null;
   return {

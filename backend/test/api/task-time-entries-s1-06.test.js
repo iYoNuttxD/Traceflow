@@ -362,4 +362,44 @@ describe('S1-06 — esforço realizado por sessões de tempo (RF32/RF33/RF34)', 
     await member.mutate('post', `${entriesPath(task.id)}/stop`).send({});
     expect((await member.agent.get(`/api/tasks/${task.id}`)).body.task.runningTimer).toBeNull();
   });
+
+  it('preserva o esforço lançado antes das sessões existirem', async () => {
+    const project = await createProject(prisma);
+    const member = await register('s106-legacy@example.invalid', 'MEMBER', project.id);
+    // Tarefa como ela chega do contrato anterior: esforço preenchido à mão e
+    // nenhuma sessão de tempo, exatamente o estado que a migration captura.
+    const task = await createTask(prisma, project.id, { estimatedEffort: 20 });
+    await prisma.task.update({
+      where: { id: task.id },
+      data: { actualEffort: 8, legacyActualEffort: 8 }
+    });
+
+    const before = await member.agent.get(entriesPath(task.id));
+    expect(before.body.effort).toMatchObject({
+      completedCount: 0,
+      legacyHours: 8,
+      actualHours: 8,
+      trackedSeconds: 0
+    });
+
+    const created = await member.mutate('post', entriesPath(task.id)).send({ hours: 1 });
+    expect(created.status).toBe(201);
+    // O primeiro registro soma às 8h herdadas em vez de substituí-las.
+    expect(created.body.effort).toMatchObject({
+      actualHours: 9,
+      legacyHours: 8,
+      trackedSeconds: 3600,
+      completedCount: 1
+    });
+    expect((await prisma.task.findUnique({ where: { id: task.id } })).actualEffort).toBe(9);
+
+    // Excluir a única sessão volta ao total herdado, não a zero.
+    const removed = await member.mutate(
+      'delete',
+      `${entriesPath(task.id)}/${created.body.entry.id}`
+    );
+    expect(removed.status).toBe(200);
+    expect(removed.body.effort).toMatchObject({ actualHours: 8, completedCount: 0 });
+    expect((await prisma.task.findUnique({ where: { id: task.id } })).actualEffort).toBe(8);
+  });
 });

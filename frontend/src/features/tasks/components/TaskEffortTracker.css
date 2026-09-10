@@ -197,7 +197,7 @@
 .task-effort-field input {
   width: 100%;
   min-width: 0;
-  min-height: var(--size-control-sm);
+  min-height: var(--size-touch-target);
   border: var(--border-width-default) solid var(--color-border-strong);
   border-radius: var(--radius-xs);
   padding: 0 var(--space-3);
@@ -220,11 +220,12 @@
   margin-left: auto;
 }
 
-/* Histórico abre em diálogo próprio; aqui fica só um link discreto, como no preview. */
+/* Histórico abre em diálogo próprio; aqui fica só um link discreto, como no preview.
+   Texto pequeno, mas área de toque no mínimo do Design System. */
 .task-effort-link {
   display: inline-flex;
   width: fit-content;
-  min-height: 2rem;
+  min-height: var(--size-touch-target);
   align-items: center;
   padding: 0;
   border: 0;

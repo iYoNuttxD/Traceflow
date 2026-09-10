@@ -59,29 +59,59 @@ export function useTaskEffort({ taskId }) {
   const [now, setNow] = useState(() => Date.now());
   const taskRef = useRef(taskId);
   const requestRef = useRef(0);
+  const mountedRef = useRef(true);
+  // Relógio lógico das mudanças já observadas. Uma resposta HTTP que saiu antes
+  // de um evento não pode reescrever o que o evento já aplicou: o servidor mandou
+  // os dois, mas a rede não garante a ordem de chegada.
+  const appliedRef = useRef(0);
+  // Eventos que chegam enquanto uma leitura está pendente são reaplicados sobre o
+  // snapshot que ela devolver; senão a leitura antiga apagaria a mudança nova.
+  const bufferRef = useRef(null);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const isCurrent = useCallback(
+    (id) => mountedRef.current && String(taskRef.current) === String(id),
+    []
+  );
 
   const load = useCallback(async () => {
     if (!taskId) return;
     const requestId = ++requestRef.current;
+    bufferRef.current = [];
     setLoading(true);
     setError('');
     try {
       const data = await getTaskTimeEntries(taskId, { limit: TIME_ENTRIES_PAGE_SIZE });
-      if (requestId !== requestRef.current) return;
-      setState({
+      if (requestId !== requestRef.current || !isCurrent(taskId)) return;
+      const snapshot = {
         running: data.running || null,
         entries: data.entries || [],
         effort: data.effort || null,
         permissions: data.permissions || emptyState.permissions
-      });
+      };
+      const buffered = bufferRef.current || [];
+      bufferRef.current = null;
+      setState(
+        buffered.reduce(
+          (current, event) => applyEffortEvent(current, event.type, event.entry, event.effort),
+          snapshot
+        )
+      );
     } catch (cause) {
-      if (requestId === requestRef.current) {
+      if (requestId === requestRef.current && isCurrent(taskId)) {
         setError(normalizeApiError(cause, fallbackMessage).message);
       }
     } finally {
-      if (requestId === requestRef.current) setLoading(false);
+      bufferRef.current = null;
+      if (requestId === requestRef.current && isCurrent(taskId)) setLoading(false);
     }
-  }, [taskId]);
+  }, [isCurrent, taskId]);
 
   useEffect(() => {
     taskRef.current = taskId;
@@ -112,6 +142,10 @@ export function useTaskEffort({ taskId }) {
         if (String(event.taskId) !== String(taskRef.current)) return;
         const entry = event.data?.entry;
         if (!entry?.id) return;
+        appliedRef.current += 1;
+        if (bufferRef.current) {
+          bufferRef.current.push({ type: event.type, entry, effort: event.data.effort });
+        }
         setState((current) => applyEffortEvent(current, event.type, entry, event.data.effort));
       }),
     [subscribe]
@@ -122,21 +156,28 @@ export function useTaskEffort({ taskId }) {
       if (!taskId || busy) return null;
       setBusy(true);
       setError('');
+      const observedAt = appliedRef.current;
       try {
         const data = await action();
-        if (String(taskRef.current) !== String(taskId)) return null;
-        setState((current) => applyEffortEvent(current, type, data.entry, data.effort));
+        // A escrita está confirmada no servidor mesmo quando a tela já saiu de cena;
+        // o que não pode é aplicar o resultado a um contexto que não é mais este.
+        if (!isCurrent(taskId)) return null;
+        if (appliedRef.current !== observedAt) {
+          // Algum evento chegou enquanto a resposta vinha: ela pode já estar velha
+          // (ressuscitando uma sessão encerrada, por exemplo). Reler é a verdade.
+          void load();
+        } else {
+          setState((current) => applyEffortEvent(current, type, data.entry, data.effort));
+        }
         return data;
       } catch (cause) {
-        if (String(taskRef.current) === String(taskId)) {
-          setError(normalizeApiError(cause, fallbackMessage).message);
-        }
+        if (isCurrent(taskId)) setError(normalizeApiError(cause, fallbackMessage).message);
         return null;
       } finally {
-        if (String(taskRef.current) === String(taskId)) setBusy(false);
+        if (isCurrent(taskId)) setBusy(false);
       }
     },
-    [busy, taskId]
+    [busy, isCurrent, load, taskId]
   );
 
   const liveSeconds = state.running

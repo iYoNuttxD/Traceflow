@@ -59,6 +59,10 @@ export function TaskInformation({ details, effortSlot = null }) {
               )}
             </dd>
           </div>
+          <div>
+            <dt>Criado em</dt>
+            <dd>{details.createdAt}</dd>
+          </div>
         </dl>
         {effortSlot}
       </section>

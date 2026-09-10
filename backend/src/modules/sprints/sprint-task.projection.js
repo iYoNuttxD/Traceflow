@@ -6,8 +6,12 @@ import { buildSprintHistoricalSummary } from './sprint.summary.calculator.js';
 export function buildClosingTaskSnapshot(task) {
   if (!task) throw new Error('Closing Task snapshot requires an active Task');
   return {
-    version: 2,
+    // v3 acrescenta `estimatedEffort`: `pointsAtClose` representa ausência de
+    // estimativa e estimativa zero com o mesmo 0, o que impedia distinguir as duas
+    // ao consolidar o esforço da sprint encerrada.
+    version: 3,
     id: task.id,
+    estimatedEffort: task.estimatedEffort ?? null,
     title: task.title,
     description: task.description,
     priority: task.priority,
@@ -50,7 +54,7 @@ export function projectSprintTasks(sprint, participations) {
         exitStatus: p.exitStatus
       };
       if (!isFrozen) return p.task ? [{ ...p.task, ...context, isFrozen: false }] : [];
-      const snapshot = [1, 2].includes(p.closingTaskSnapshot?.version)
+      const snapshot = [1, 2, 3].includes(p.closingTaskSnapshot?.version)
         ? p.closingTaskSnapshot
         : null;
       if (!snapshot) historicalLimitations.add('LEGACY_CLOSING_TASK_SNAPSHOT_UNAVAILABLE');
@@ -67,7 +71,7 @@ export function projectSprintTasks(sprint, participations) {
           snapshotAt: p.closedAt ?? historicalSummary.cutoff,
           snapshotAvailable: Boolean(snapshot),
           snapshotVersion: snapshot?.version ?? null,
-          ...(snapshot?.version === 2
+          ...(snapshot?.version >= 2
             ? {
                 description: snapshot.description,
                 responsibleDisplayName: snapshot.responsibleDisplayName,

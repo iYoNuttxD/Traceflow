@@ -29,19 +29,30 @@ async function lockTask(tx, taskId) {
 
 const hoursFromSeconds = (seconds) => Math.round(seconds / 36) / 100;
 
+// `legacyActualEffort` guarda o esforço lançado antes das sessões existirem; ele
+// entra no total para que o primeiro registro não apague o histórico da tarefa.
 async function summarize(client, taskId) {
-  const { _sum, _count } = await client.taskTimeEntry.aggregate({
-    where: completedWhere(taskId),
-    _sum: { durationSeconds: true },
-    _count: { id: true }
-  });
-  return { completedSeconds: _sum.durationSeconds || 0, completedCount: _count.id };
+  const [aggregate, task] = await Promise.all([
+    client.taskTimeEntry.aggregate({
+      where: completedWhere(taskId),
+      _sum: { durationSeconds: true },
+      _count: { id: true }
+    }),
+    client.task.findUnique({ where: { id: taskId }, select: { legacyActualEffort: true } })
+  ]);
+  return {
+    completedSeconds: aggregate._sum.durationSeconds || 0,
+    completedCount: aggregate._count.id,
+    legacySeconds: Math.round((task?.legacyActualEffort ?? 0) * 3600)
+  };
 }
 
-// Task.actualEffort é derivado: soma das sessões encerradas em horas decimais.
+// Task.actualEffort é derivado: esforço herdado somado às sessões encerradas.
 async function recalculateActualEffort(tx, taskId) {
   const totals = await summarize(tx, taskId);
-  const actualEffort = totals.completedCount > 0 ? hoursFromSeconds(totals.completedSeconds) : null;
+  const totalSeconds = totals.completedSeconds + totals.legacySeconds;
+  const known = totals.completedCount > 0 || totals.legacySeconds > 0;
+  const actualEffort = known ? hoursFromSeconds(totalSeconds) : null;
   await tx.task.update({ where: { id: taskId }, data: { actualEffort } });
   return { ...totals, actualEffort };
 }
@@ -101,7 +112,10 @@ export const taskTimeEntryRepository = {
       });
       if (auditEvent)
         await auditRepository.create({ ...auditEvent, resourceId: String(entry.id) }, tx);
-      return { outcome: 'STARTED', entry };
+      // Totais saem da própria transação: uma leitura posterior que falhasse
+      // transformaria uma escrita já confirmada em erro para quem chamou.
+      const totals = await summarize(tx, taskId);
+      return { outcome: 'STARTED', entry, running: entry, ...totals };
     });
   },
 
@@ -125,7 +139,7 @@ export const taskTimeEntryRepository = {
       const totals = await recalculateActualEffort(tx, taskId);
       const auditEvent = buildAuditEvent?.(entry);
       if (auditEvent) await auditRepository.create(auditEvent, tx);
-      return { outcome: 'STOPPED', entry, ...totals };
+      return { outcome: 'STOPPED', entry, running: null, ...totals };
     });
   },
 
@@ -139,7 +153,11 @@ export const taskTimeEntryRepository = {
       const totals = await recalculateActualEffort(tx, data.taskId);
       if (auditEvent)
         await auditRepository.create({ ...auditEvent, resourceId: String(entry.id) }, tx);
-      return { outcome: 'CREATED', entry, ...totals };
+      const running = await tx.taskTimeEntry.findFirst({
+        where: { taskId: data.taskId, endedAt: null },
+        select: timeEntrySelect
+      });
+      return { outcome: 'CREATED', entry, running, ...totals };
     });
   },
 
@@ -150,7 +168,11 @@ export const taskTimeEntryRepository = {
       if (result.count === 0) return { outcome: 'NOT_FOUND' };
       const totals = await recalculateActualEffort(tx, taskId);
       if (auditEvent) await auditRepository.create(auditEvent, tx);
-      return { outcome: 'DELETED', ...totals };
+      const running = await tx.taskTimeEntry.findFirst({
+        where: { taskId, endedAt: null },
+        select: timeEntrySelect
+      });
+      return { outcome: 'DELETED', running, ...totals };
     });
   }
 };

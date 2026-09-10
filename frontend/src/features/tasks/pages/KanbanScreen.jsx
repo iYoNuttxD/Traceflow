@@ -94,6 +94,7 @@ export function KanbanScreen() {
   const [board, setBoard] = useState(null);
   const projectEvents = useProjectEvents();
   const subscribeToProjectEvents = projectEvents?.subscribe;
+  const effortReconnectSequence = projectEvents?.reconnectSequence ?? 0;
   // Cronômetro de outras pessoas aparece no cartão sem recarregar o quadro.
   useEffect(() => {
     if (!subscribeToProjectEvents) return undefined;
@@ -108,6 +109,35 @@ export function KanbanScreen() {
       );
     });
   }, [subscribeToProjectEvents]);
+  // O stream fecha com a aba oculta e não tem replay: sem reconciliar na volta, o
+  // cartão seguiria contando uma sessão que outra pessoa já encerrou.
+  useEffect(() => {
+    if (!effortReconnectSequence || !projectId) return undefined;
+    let active = true;
+    kanbanApi
+      .getBoard(projectId)
+      .then((response) => {
+        if (!active) return;
+        const efforts = new Map(
+          getBoardTasks(response.data).map((task) => [
+            String(task.id),
+            { actualEffort: task.actualEffort ?? null, runningTimer: task.runningTimer ?? null }
+          ])
+        );
+        setBoard((current) =>
+          getBoardTasks(current).reduce(
+            (board, task) => updateBoardTask(board, task.id, efforts.get(String(task.id)) ?? {}),
+            current
+          )
+        );
+      })
+      .catch(() => {
+        // Reconciliação é oportunista: falhar aqui não deve perturbar o quadro.
+      });
+    return () => {
+      active = false;
+    };
+  }, [effortReconnectSequence, projectId]);
   const [projectMembers, setProjectMembers] = useState([]);
   const [currentMembership, setCurrentMembership] = useState(null);
   const [projectSprints, setProjectSprints] = useState([]);

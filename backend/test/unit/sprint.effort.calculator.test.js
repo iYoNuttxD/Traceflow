@@ -61,7 +61,49 @@ describe('buildSprintEffort — consolidação por sprint (S1-06)', () => {
       estimatedHours: null,
       actualHours: 0,
       status: 'SEM_ESTIMATIVA',
+      incomplete: false,
       perTask: []
     });
+  });
+
+  it('esforço histórico indisponível não vira zero nem conclusão sobre o limite', () => {
+    const effort = buildSprintEffort([
+      { taskId: 1, estimatedHours: 4, actualHours: 3 },
+      { taskId: 2, estimatedHours: 4, actualHours: null, actualUnknown: true }
+    ]);
+    expect(effort).toMatchObject({
+      tasksWithActual: 1,
+      tasksWithUnknownActual: 1,
+      incomplete: true,
+      estimatedHours: 8,
+      actualHours: 3,
+      // Sem o realizado da segunda tarefa, 37% seria uma conclusão falsa.
+      usagePercent: null,
+      differenceHours: null,
+      differencePercent: null,
+      status: 'INDISPONIVEL'
+    });
+    expect(effort.perTask[1]).toMatchObject({
+      actualHours: null,
+      actualUnknown: true,
+      status: 'INDISPONIVEL'
+    });
+  });
+
+  it('estimativa indistinguível no snapshot antigo não é lida como limite zero', () => {
+    const effort = buildSprintEffort([
+      { taskId: 1, estimatedHours: null, estimateUnknown: true, actualHours: 2 }
+    ]);
+    // Tratar como zero classificaria a tarefa como estourada sem nada ter mudado.
+    expect(effort).toMatchObject({
+      estimatedHours: null,
+      tasksWithEstimate: 0,
+      tasksWithUnknownEstimate: 1,
+      incomplete: true,
+      actualHours: 2,
+      usagePercent: null,
+      status: 'INDISPONIVEL'
+    });
+    expect(effort.perTask[0].status).toBe('INDISPONIVEL');
   });
 });
