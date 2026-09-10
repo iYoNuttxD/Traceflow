@@ -982,6 +982,15 @@ card. GET `/defects/:id` e os recibos de criação/edição/correção retornam 
 campos, além do detalhe existente. As relações internas `taskLinks` e
 `detectedStep` não são expostas como campos do card.
 
+FIX 03: os mesmos recibos e leituras também fornecem
+`correctionSummary: {total,todo,inProgress,done,singleTask}` do ciclo atual.
+`singleTask` é `{id,status}` quando há exatamente uma tarefa, e `null` nos demais
+casos. Os contadores correspondem a `A_FAZER`, `EM_ANDAMENTO` e `CONCLUIDO`;
+zero tarefas produz contadores zero. Não inclui tarefas de ciclos anteriores.
+`correctionTaskCount` continua disponível. A listagem seleciona apenas `id/status`
+da tarefa na relação de correção já consultada; não faz chamadas de detalhe nem
+consultas de tarefa por card. `requirement` já pertencia ao DTO e foi reutilizado.
+
 GET `/test-executions/:id` acrescenta em cada passo `detectedDefects`, lista de
 `{id,title,severity,status}` dos defeitos ativos daquele passo. O snapshot da
 execução permanece histórico; esta lista representa os registros de defeito

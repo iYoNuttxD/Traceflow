@@ -150,7 +150,7 @@ it('loads task quality through three filtered catalogs and distinguishes origin/
   expect(await screen.findByRole('link', { name: 'TC-5 · Teste relacionado' })).toBeInTheDocument();
   expect(await screen.findByText('ORIGEM')).toBeInTheDocument();
   expect(await screen.findByText('CORREÇÃO')).toBeInTheDocument();
-  expect(screen.getByText('Última execução: Falhou')).toBeInTheDocument();
+  expect(screen.getByText('Ativo · Última execução: Falhou')).toBeInTheDocument();
   expect(api.cases).toHaveBeenCalledWith(
     1,
     expect.objectContaining({ taskId: task.id }),

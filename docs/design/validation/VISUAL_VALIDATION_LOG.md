@@ -1,5 +1,32 @@
 # TRACEFLOW Visual Validation Log
 
+## 2026-09-09 — S1-08 UX Standardization FIX 03
+
+Chrome real autenticado em `localhost:5173`, projeto local 2, dados persistidos
+existentes. Light/Dark × 1440×1000, 1280×1000, 768×1000 e 390×1000.
+Inspeção renderizada das 96 células de 12 superfícies, consolidada no
+[relatório FIX 03](../../deliveries/S1_08_UX_STANDARDIZATION_FIX_03_REPORT.md#g--visual-matrix).
+Capturas observadas durante a sessão; medições DOM complementaram a inspeção.
+
+DEF-2 aberto/zero correções, DEF-3 em correção, DEF-4 aguardando reteste e DEF-1
+validado mantiveram ações legíveis e nenhum overflow horizontal da página.
+TASK-16 permitiu comparar Rastreabilidade e Qualidade na mesma tarefa; TASK-15
+cobriu TC vazio e vínculo CORREÇÃO. Nas seis categorias, cabeçalho de 53px e corpo
+com padding 16px; linhas REQ/TC/DEF de 102px no desktop. TestCases/Defects
+preenchidos mediram 253,39px, contra 271,39px no baseline.
+
+Acessar correções → DEF-4/Correção recebeu foco; TASK-17 abriu o Task Details com
+um único dialog; Voltar do navegador retornou ao mesmo defeito/seção. No mobile
+claro, Adicionar correção → DEF-2/Correção exibiu Criar/Vincular; ambas as subviews
+foram abertas e canceladas, restaurando foco no CTA correspondente. Sprint/Marco/
+TestCase Catalog foram comparados a 1440px no tema claro.
+
+Nenhuma submissão de dados de negócio. Múltiplas correções, ausência de requisito,
+VIEWER, erros, concorrência e mutações permaneceram cobertos por automação, sem
+serem classificados como inspeção renderizada. Interrupções pontuais da conexão
+com o navegador foram recuperadas; capturas incompletas foram refeitas.
+Este gate é local e restrito ao FIX 03, sem CI remoto ou QA integrado final.
+
 ## 2026-09-09 — S1-08 UI Standardization FIX 02
 
 Chrome real autenticado em `localhost:5173`, projeto local 2, Light/Dark,

@@ -131,3 +131,52 @@
 .defect-form .tc-icon-button {
   flex: 0 0 var(--size-touch-target);
 }
+
+/* Compact catalog, with content-driven rows shared by entity and creation tiles. */
+.defects-screen .tc-grid {
+  --tc-card-height: 26rem;
+}
+.defects-screen .tc-grid :is(.tc-card, .tc-new-card) {
+  height: 100%;
+}
+.defect-card .tc-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-bottom: var(--space-3);
+}
+.defect-card-context small {
+  text-transform: uppercase;
+  font-size: var(--font-size-1);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-wide);
+}
+.defect-card-requirement {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.defect-card-requirement > span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.defect-card .defect-card-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: var(--space-2);
+}
+.defect-card-actions > .button {
+  font-size: var(--font-size-2);
+  white-space: nowrap;
+  padding-inline: var(--space-2);
+}
+.defect-card-actions--retest .defect-card-correction-action {
+  grid-column: 1 / -1;
+}
+@media (max-width: 34rem) {
+  .defects-screen .tc-grid :is(.tc-card, .tc-new-card) {
+    height: auto;
+    min-height: 0;
+  }
+}
