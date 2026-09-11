@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  actualEffortFromSummary,
   buildEffortChip,
   computeEffortView,
   dayLabel,
   describeTimeEntry,
+  effortProgressAria,
   formatClock,
   formatHoursMinutes,
   resolveEffort
@@ -22,6 +24,45 @@ describe('formatadores de esforço', () => {
     expect(formatHoursMinutes(45 * 60)).toBe('45min');
     expect(formatHoursMinutes(2 * HOUR)).toBe('2h');
     expect(formatHoursMinutes(2 * HOUR + 5 * 60)).toBe('2h05min');
+    // Segundos que arredondam para 60 minutos viram uma hora, não "1h60min".
+    expect(formatHoursMinutes(2 * HOUR - 1)).toBe('2h');
+    expect(formatHoursMinutes(HOUR + 59 * 60 + 45)).toBe('2h');
+  });
+
+  it('realizado da tarefa inclui o esforço herdado, mesmo sem sessão encerrada', () => {
+    // Sem sessão encerrada — cronômetro recém-iniciado, ou a última sessão excluída
+    // — o legado continua sendo o realizado; zerá-lo fazia o cartão discordar do
+    // rastreador sobre a mesma tarefa.
+    expect(
+      actualEffortFromSummary({ completedCount: 0, legacySeconds: 5 * HOUR, actualHours: 5 })
+    ).toBe(5);
+    expect(actualEffortFromSummary({ completedCount: 2, legacySeconds: 0, actualHours: 1.5 })).toBe(
+      1.5
+    );
+    // Sem sessão e sem legado não há realizado conhecido.
+    expect(actualEffortFromSummary({ completedCount: 0, legacySeconds: 0, actualHours: 0 })).toBe(
+      null
+    );
+    expect(actualEffortFromSummary(null)).toBe(null);
+  });
+
+  it('progressbar mantém aria-valuenow no intervalo e leva o estouro para o valuetext', () => {
+    const estourado = computeEffortView({
+      effort: { estimatedHours: 8, completedSeconds: 9 * HOUR, completedCount: 1 }
+    });
+    expect(effortProgressAria(estourado)).toMatchObject({
+      'aria-valuemin': 0,
+      'aria-valuemax': 100,
+      'aria-valuenow': 100,
+      'aria-valuetext': '113% da estimativa'
+    });
+    const dentro = computeEffortView({
+      effort: { estimatedHours: 8, completedSeconds: 2 * HOUR, completedCount: 1 }
+    });
+    expect(effortProgressAria(dentro)).toMatchObject({
+      'aria-valuenow': 25,
+      'aria-valuetext': '25% da estimativa'
+    });
   });
 
   it('rotula o dia como Hoje/Ontem ou data completa', () => {

@@ -60,6 +60,17 @@ export function projectSprintTasks(sprint, participations) {
       if (!snapshot) historicalLimitations.add('LEGACY_CLOSING_TASK_SNAPSHOT_UNAVAILABLE');
       else if (snapshot.version === 1)
         historicalLimitations.add('LEGACY_CLOSING_TASK_DETAILS_PARTIAL');
+      // Só o v3 guarda a estimativa da tarefa. Antes dele existia apenas
+      // `pointsAtClose`, onde "sem estimativa" e "estimativa zero" são o mesmo 0:
+      // publicar esse 0 como limite fazia o congelado acusar estouro de um teto que
+      // o planejamento nunca definiu. Sem o dado, o limite fica ausente e a sprint
+      // declara a limitação.
+      const estimateFromSnapshot = snapshot?.version >= 3;
+      const estimatedEffort = estimateFromSnapshot
+        ? (snapshot.estimatedEffort ?? null)
+        : p.pointsAtClose || null;
+      if (!estimateFromSnapshot && estimatedEffort === null)
+        historicalLimitations.add('LEGACY_CLOSING_TASK_ESTIMATE_UNAVAILABLE');
       return [
         {
           ...context,
@@ -87,7 +98,7 @@ export function projectSprintTasks(sprint, participations) {
             snapshot?.title ??
             `Tarefa ${p.taskId ? `#${p.taskId}` : 'excluída'} — título no encerramento indisponível`,
           status: p.exitStatus,
-          estimatedEffort: p.pointsAtClose,
+          estimatedEffort,
           priority: snapshot?.priority ?? null,
           responsibleUserId: snapshot?.responsibleUserId ?? null,
           deadline: snapshot?.deadline ?? null,

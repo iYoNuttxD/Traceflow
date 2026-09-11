@@ -1,4 +1,5 @@
 import { prisma } from '../../../database/prismaClient.js';
+import { lockProject } from '../../../database/locks.js';
 import { auditRepository } from '../../audit/audit.repository.js';
 
 const actorSelect = { select: { id: true, name: true } };
@@ -22,7 +23,13 @@ const completedWhere = (taskId) => ({ taskId, endedAt: { not: null } });
 
 // Serializa as mutações da mesma tarefa: dois "iniciar" concorrentes leriam
 // "nenhuma sessão em andamento" e abririam duas sessões sem a trava de linha.
-async function lockTask(tx, taskId) {
+//
+// O Project vem antes da Task porque é a ordem que Planning usa (Project → Sprint →
+// Task) e porque gravar uma sessão trava o Project pela FK de qualquer forma: subir
+// a Task primeiro fechava o ciclo e derrubava o cronômetro com deadlock sempre que
+// uma transição de sprint corria junto.
+async function lockProjectThenTask(tx, projectId, taskId) {
+  if (projectId != null) await lockProject(tx, projectId);
   const rows = await tx.$queryRaw`SELECT id FROM Task WHERE id = ${taskId} FOR UPDATE`;
   return rows.length > 0;
 }
@@ -100,7 +107,7 @@ export const taskTimeEntryRepository = {
 
   async startAtomic({ projectId, taskId, startedById, startedAt }, auditEvent) {
     return prisma.$transaction(async (tx) => {
-      if (!(await lockTask(tx, taskId))) return { outcome: 'TASK_NOT_FOUND' };
+      if (!(await lockProjectThenTask(tx, projectId, taskId))) return { outcome: 'TASK_NOT_FOUND' };
       const running = await tx.taskTimeEntry.findFirst({
         where: { taskId, endedAt: null },
         select: timeEntrySelect
@@ -119,9 +126,9 @@ export const taskTimeEntryRepository = {
     });
   },
 
-  async stopAtomic(taskId, { endedById, endedAt }, buildAuditEvent) {
+  async stopAtomic(taskId, { projectId, endedById, endedAt }, buildAuditEvent) {
     return prisma.$transaction(async (tx) => {
-      if (!(await lockTask(tx, taskId))) return { outcome: 'TASK_NOT_FOUND' };
+      if (!(await lockProjectThenTask(tx, projectId, taskId))) return { outcome: 'TASK_NOT_FOUND' };
       const running = await tx.taskTimeEntry.findFirst({
         where: { taskId, endedAt: null },
         select: { id: true, startedAt: true }
@@ -145,7 +152,8 @@ export const taskTimeEntryRepository = {
 
   async createManualAtomic(data, auditEvent) {
     return prisma.$transaction(async (tx) => {
-      if (!(await lockTask(tx, data.taskId))) return { outcome: 'TASK_NOT_FOUND' };
+      if (!(await lockProjectThenTask(tx, data.projectId, data.taskId)))
+        return { outcome: 'TASK_NOT_FOUND' };
       const entry = await tx.taskTimeEntry.create({
         data: { ...data, source: 'MANUAL' },
         select: timeEntrySelect
@@ -161,9 +169,9 @@ export const taskTimeEntryRepository = {
     });
   },
 
-  async deleteAtomic(taskId, entryId, auditEvent) {
+  async deleteAtomic(taskId, entryId, auditEvent, projectId) {
     return prisma.$transaction(async (tx) => {
-      if (!(await lockTask(tx, taskId))) return { outcome: 'TASK_NOT_FOUND' };
+      if (!(await lockProjectThenTask(tx, projectId, taskId))) return { outcome: 'TASK_NOT_FOUND' };
       const result = await tx.taskTimeEntry.deleteMany({ where: { id: entryId, taskId } });
       if (result.count === 0) return { outcome: 'NOT_FOUND' };
       const totals = await recalculateActualEffort(tx, taskId);

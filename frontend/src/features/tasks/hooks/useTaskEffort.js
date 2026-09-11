@@ -64,9 +64,11 @@ export function useTaskEffort({ taskId }) {
   // de um evento não pode reescrever o que o evento já aplicou: o servidor mandou
   // os dois, mas a rede não garante a ordem de chegada.
   const appliedRef = useRef(0);
-  // Eventos que chegam enquanto uma leitura está pendente são reaplicados sobre o
-  // snapshot que ela devolver; senão a leitura antiga apagaria a mudança nova.
-  const bufferRef = useRef(null);
+  // Um buffer por leitura em voo, na chave da própria geração. Mudanças observadas
+  // enquanto uma leitura viaja são reaplicadas sobre o snapshot que ela devolver;
+  // com um buffer único, a leitura que terminasse primeiro apagava o buffer da
+  // outra e o snapshot atrasado desfazia a mudança que já estava na tela.
+  const buffersRef = useRef(new Map());
 
   useEffect(() => {
     mountedRef.current = true;
@@ -80,10 +82,23 @@ export function useTaskEffort({ taskId }) {
     []
   );
 
+  // Toda mudança confirmada — evento do stream ou resposta da própria mutation —
+  // passa por aqui: avança o relógio lógico, entra no buffer de cada leitura em voo
+  // e vai para a tela. Sem registrar as mutations, uma leitura que saiu antes dela
+  // voltava sem a sessão recém-criada e a removia da tela depois de confirmada.
+  const recordChange = useCallback((type, entry, effort) => {
+    appliedRef.current += 1;
+    for (const buffered of buffersRef.current.values()) {
+      buffered.push({ type, entry, effort });
+    }
+    setState((current) => applyEffortEvent(current, type, entry, effort));
+  }, []);
+
   const load = useCallback(async () => {
     if (!taskId) return;
     const requestId = ++requestRef.current;
-    bufferRef.current = [];
+    const buffered = [];
+    buffersRef.current.set(requestId, buffered);
     setLoading(true);
     setError('');
     try {
@@ -95,8 +110,6 @@ export function useTaskEffort({ taskId }) {
         effort: data.effort || null,
         permissions: data.permissions || emptyState.permissions
       };
-      const buffered = bufferRef.current || [];
-      bufferRef.current = null;
       setState(
         buffered.reduce(
           (current, event) => applyEffortEvent(current, event.type, event.entry, event.effort),
@@ -108,7 +121,7 @@ export function useTaskEffort({ taskId }) {
         setError(normalizeApiError(cause, fallbackMessage).message);
       }
     } finally {
-      bufferRef.current = null;
+      buffersRef.current.delete(requestId);
       if (requestId === requestRef.current && isCurrent(taskId)) setLoading(false);
     }
   }, [isCurrent, taskId]);
@@ -142,13 +155,9 @@ export function useTaskEffort({ taskId }) {
         if (String(event.taskId) !== String(taskRef.current)) return;
         const entry = event.data?.entry;
         if (!entry?.id) return;
-        appliedRef.current += 1;
-        if (bufferRef.current) {
-          bufferRef.current.push({ type: event.type, entry, effort: event.data.effort });
-        }
-        setState((current) => applyEffortEvent(current, event.type, entry, event.data.effort));
+        recordChange(event.type, entry, event.data.effort);
       }),
-    [subscribe]
+    [recordChange, subscribe]
   );
 
   const runAction = useCallback(
@@ -167,7 +176,7 @@ export function useTaskEffort({ taskId }) {
           // (ressuscitando uma sessão encerrada, por exemplo). Reler é a verdade.
           void load();
         } else {
-          setState((current) => applyEffortEvent(current, type, data.entry, data.effort));
+          recordChange(type, data.entry, data.effort);
         }
         return data;
       } catch (cause) {
@@ -177,7 +186,7 @@ export function useTaskEffort({ taskId }) {
         if (isCurrent(taskId)) setBusy(false);
       }
     },
-    [busy, isCurrent, load, taskId]
+    [busy, isCurrent, load, recordChange, taskId]
   );
 
   const liveSeconds = state.running

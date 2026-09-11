@@ -12,6 +12,7 @@ import {
 } from './TaskTraceabilityEditor.jsx';
 import { TaskDetailsLayout, TaskInformation } from './TaskDetailsLayout.jsx';
 import { TaskEffortTracker } from './TaskEffortTracker.jsx';
+import { actualEffortFromSummary } from './effort-summary.js';
 import { currentTaskDetailsView } from './task-details-view.js';
 
 function memberUserId(member) {
@@ -402,12 +403,13 @@ export function TaskDetailsPanel({
   }
 
   // Propaga o realizado e a sessão aberta para o board: o cartão do Kanban usa os
-  // dois para o cronômetro; sem sessão encerrada o realizado volta a nulo (como no banco).
+  // dois para o cronômetro, e o realizado acompanha o derivado do banco — sessões
+  // encerradas mais o esforço herdado.
   function handleEffortChange(effort, successMessage) {
     onSaved?.(
       {
         ...task,
-        actualEffort: effort.completedCount > 0 ? effort.actualHours : null,
+        actualEffort: actualEffortFromSummary(effort),
         runningTimer: effort.running ?? null
       },
       { successMessage }

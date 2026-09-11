@@ -287,9 +287,15 @@ O servidor envia heartbeat em comentário SSE a cada 25 segundos, sem consulta a
 
 Unidade única: **horas**. `estimatedEffort` é declarado em horas, em passos de meia hora (1, 1.5, 2…), no cadastro/edição da tarefa; outras frações recebem `400`. As cópias congeladas na sprint (`SprintTask.pointsAtPlanning`/`pointsAtClose`) acompanham a mesma precisão. `actualEffort` deixa de ser digitado: é a soma, em horas decimais (2 casas), das sessões de tempo encerradas (`TaskTimeEntry`) e é recalculado na mesma transaction de cada início/parada, lançamento manual ou exclusão. Enviar `actualEffort` em `POST/PUT /tasks` recebe `400`.
 
-Sessões: `POST .../start` abre uma sessão com `startedBy` da sessão HTTP; só existe uma sessão em andamento por tarefa (trava de linha em `Task`; inícios concorrentes recebem `409`). `POST .../stop` encerra a sessão em andamento registrando `endedBy` (qualquer MEMBER+, não apenas quem iniciou) e `durationSeconds`. `POST /tasks/:id/time-entries` registra lançamento manual (`source: MANUAL`) com `hours` decimal (aceita vírgula; `0 < hours ≤ 24`), `note?` (≤ 191) e `occurredAt?` (`YYYY-MM-DD` ou ISO; futuro recebe `400`), com `startedBy = endedBy = ator`. Cada sessão expõe `canDelete` (quem iniciou, ou MANAGER/OWNER por moderação). Toda operação gera `AuditEvent` (`TASK_TIMER_STARTED`, `TASK_TIMER_STOPPED`, `TASK_TIME_ENTRY_CREATED`, `TASK_TIME_ENTRY_DELETED`) com `source` e `durationSeconds` na metadata. A exclusão da tarefa remove as sessões junto.
+Sessões: `POST .../start` abre uma sessão com `startedBy` da sessão HTTP; só existe uma sessão em andamento por tarefa (trava de linha em `Project` e `Task`, nessa ordem; inícios concorrentes recebem `409`). `POST .../stop` encerra a sessão em andamento registrando `endedBy` (qualquer MEMBER+, não apenas quem iniciou) e `durationSeconds`. `POST /tasks/:id/time-entries` registra lançamento manual (`source: MANUAL`) com `hours` decimal (aceita vírgula; `0 < hours ≤ 24`), `note?` (≤ 191) e `occurredAt?` (`YYYY-MM-DD` ou ISO; futuro recebe `400`), com `startedBy = endedBy = ator`. Cada sessão expõe `canDelete` (quem iniciou, ou MANAGER/OWNER por moderação). Toda operação gera `AuditEvent` (`TASK_TIMER_STARTED`, `TASK_TIMER_STOPPED`, `TASK_TIME_ENTRY_CREATED`, `TASK_TIME_ENTRY_DELETED`) com `source` e `durationSeconds` na metadata. A exclusão da tarefa remove as sessões junto.
 
 Fórmulas (`effort`): `estimatedSeconds = estimatedHours × 3600`; `actualHours = completedSeconds / 3600` (2 casas); `differenceHours = actualHours − estimatedHours`; `differencePercent = (completedSeconds − estimatedSeconds) / estimatedSeconds × 100`; `usagePercent = completedSeconds / estimatedSeconds × 100`; `remainingSeconds = max(estimado − realizado, 0)`; `overrunSeconds = max(realizado − estimado, 0)`. `status`: `SEM_ESTIMATIVA` (sem limite; diferenças e percentuais nulos), `DENTRO_DO_PREVISTO`, `PROXIMO_DO_LIMITE` (≥ 70% da estimativa) e `ESTOURADO` (realizado > estimado). Estimativa zero: qualquer segundo registrado é `ESTOURADO`; `usagePercent`/`differencePercent` ficam `null` porque a divisão por zero não tem leitura útil. A sessão em andamento não entra em `completedSeconds`; o cliente soma `now − running.startedAt` ao vivo e reclassifica com as mesmas regras (`effort-summary.js` espelha o presenter).
+
+Realizado conhecido e esforço herdado: `completedSeconds` é o **total** da tarefa e se decompõe em `trackedSeconds` (soma das sessões encerradas) mais `legacySeconds`/`legacyHours` (o `actualEffort` que existia antes das sessões, preservado em `Task.legacyActualEffort` pela migration e somado ao derivado sem inventar autoria nem data de sessão). O realizado só é considerado conhecido quando há sessão encerrada **ou** legado — `completedCount > 0 || legacySeconds > 0`; fora disso `actualHours` é `0` e a tarefa publica `actualEffort: null`. Consumidor que decide por `completedCount` sozinho zera o legado assim que o cronômetro começa e passa a discordar do rastreador sobre a mesma tarefa.
+
+`incomplete: true` marca agregado cujo realizado o histórico não capturou por inteiro (snapshots anteriores ao v2). Nesse caso `status` é `INDISPONIVEL` e `usagePercent`, `differencePercent`, `differenceHours`, `remainingSeconds` e `overrunSeconds` ficam `null`: um total parcial não sustenta conclusão sobre o limite, e somar o desconhecido como zero anunciaria folga inexistente.
+
+Ordem de travas: as operações de esforço travam `Project` antes de `Task`, a mesma ordem de Planning (`Project → Sprint → Task`). Gravar uma sessão já trava o `Project` pela FK, então começar pela `Task` fechava um ciclo e derrubava o cronômetro com deadlock quando uma transição de sprint corria junto.
 
 ```json
 {
@@ -309,8 +315,12 @@ Fórmulas (`effort`): `estimatedSeconds = estimatedHours × 3600`; `actualHours 
     "estimatedHours": 8,
     "estimatedSeconds": 28800,
     "completedSeconds": 12840,
+    "trackedSeconds": 12840,
+    "legacySeconds": 0,
+    "legacyHours": 0,
     "completedCount": 2,
     "actualHours": 3.57,
+    "incomplete": false,
     "remainingSeconds": 15960,
     "overrunSeconds": 0,
     "differenceHours": -4.43,
@@ -538,14 +548,14 @@ modal de tarefas. Uma única projeção de domínio escolhe os dados conforme o 
 - Aberta: participações ativas com campos Task atuais (`id,title,status,priority,deadline,
   estimatedEffort,responsibleUserId,sprintId`) e `isFrozen=false`.
 - Terminal: todas as participações ativas no encerramento, independentemente de `Task.sprintId`
-  ou existência posterior da Task. `status=exitStatus`, `estimatedEffort=pointsAtClose` e os demais
+  ou existência posterior da Task. `status=exitStatus` e os demais
   campos vêm do snapshot versionado. `sprintId` identifica o recorte histórico neste DTO.
   `id` é o ID capturado; `participationId` identifica o registro; `currentTaskId` é ID ou null
   para a ação explícita “Abrir tarefa atual”. Essa disponibilidade operacional não é métrica histórica.
 - Contexto preservado: `addedAt`, `addedAfterStart`, `carriedFromSprintId`, `exitStatus`.
 - Envelope terminal: `isFrozen=true`, `snapshotAt`, `historicalSummary` e limitações. Cada card
   inclui `snapshotAt`, `snapshotAvailable`, `snapshotVersion` e `traceabilityCounts`.
-- Snapshot completo v2 (novos encerramentos): `description`, `responsibleDisplayName`,
+- Snapshot completo v2: `description`, `responsibleDisplayName`,
   `actualEffort`, `createdAt`, `requirement`, `pullRequest`, `commits` e `issues`, além dos campos
   anteriores `id,title,priority,responsibleUserId,deadline,status,estimatedEffort`.
   Requirement: `{id,title,status}` ou null. PR: `{id,number,title,state,githubUrl}` ou null.
@@ -553,9 +563,15 @@ modal de tarefas. Uma única projeção de domínio escolhe os dados conforme o 
   `{id,number,title,state,labels,githubUrl}`. Arrays vazios indicam ausência de vínculos.
   Datas históricas são ISO UTC. O nome de exibição não inclui e-mail ou dados de perfil.
   URLs capturadas permitem ações externas; nenhum artefato atual é consultado para renderizar.
+- Snapshot v3 (novos encerramentos): acrescenta `estimatedEffort` ao próprio snapshot. `pointsAtClose`
+  representa ausência de estimativa e estimativa zero com o mesmo `0`, então o card congelado passa a
+  ler a estimativa do snapshot, preservando `null`. Sem isso, tarefa encerrada sem planejamento
+  aparecia como limite de zero hora e o detalhe acusava estouro de um teto nunca definido.
+  Em v1/v2 a estimativa continua vindo de `pointsAtClose`, com `0` publicado como `null` e a
+  limitação `LEGACY_CLOSING_TASK_ESTIMATE_UNAVAILABLE` declarada na sprint.
 - V1 permanece parcial: `snapshotVersion=1`, sem os novos campos, e limitação
   `LEGACY_CLOSING_TASK_DETAILS_PARTIAL`. JSON ausente usa `snapshotVersion=null`.
-  Comments não integram nenhuma versão. Snapshot v2 é capturado atomicamente antes do carry-over;
+  Comments não integram nenhuma versão. O snapshot é capturado atomicamente antes do carry-over;
   falha de captura desfaz o encerramento. Não há backfill legado nem mudança de schema/DDL.
 
 Snapshot detalhado legado ausente recebe `LEGACY_CLOSING_TASK_SNAPSHOT_UNAVAILABLE`;
