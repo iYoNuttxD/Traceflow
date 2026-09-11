@@ -1,277 +1,206 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   Background,
   Controls,
-  Handle,
   MarkerType,
-  MiniMap,
-  Position,
   ReactFlow,
   ReactFlowProvider,
   useReactFlow
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import './TraceabilityFlow.css';
-
-const labels = {
-  REQUIREMENT: 'Requisito',
-  TASK: 'Tarefa',
-  COMMIT: 'Commit',
-  PULL_REQUEST: 'Pull request',
-  ISSUE: 'Issue'
-};
-
-const statusLabels = {
-  CADASTRADO: 'Cadastrado',
-  APROVADO: 'Aprovado',
-  EM_IMPLEMENTACAO: 'Em implementação',
-  VALIDADO: 'Validado',
-  CONCLUIDO: 'Concluído',
-  PENDENTE: 'Pendente',
-  EM_ANDAMENTO: 'Em andamento',
-  CANCELADO: 'Cancelado',
-  A_FAZER: 'A Fazer'
-};
-
-const kindByType = {
-  REQUIREMENT: 'requirement',
-  TASK: 'task',
-  COMMIT: 'commit',
-  PULL_REQUEST: 'pull-request',
-  ISSUE: 'issue'
-};
-
-function formatDate(value) {
-  if (!value) return 'Não informado';
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? 'Não informado'
-    : new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(date);
-}
-
-function formatPercentage(metric) {
-  if (metric?.hasData === false) return 'Sem dados';
-  const value = metric?.percentage;
-  return value == null
-    ? 'Sem dados'
-    : `${Number(value).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`;
-}
-
-function DetailRow({ label, value, href }) {
-  const display = value === undefined || value === null || value === '' ? 'Não informado' : value;
-  return (
-    <div className="trace-node-detail-row">
-      <dt>{label}</dt>
-      <dd>
-        {href ? (
-          <a
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(event) => event.stopPropagation()}
-          >
-            {display}
-          </a>
-        ) : (
-          display
-        )}
-      </dd>
-    </div>
+import { useTestCaseScope } from '../../testCases/index.js';
+import { ErrorState, normalizeApiError } from '../../../shared/index.js';
+import { getRequirementTraceability } from '../api/traceability.api.js';
+import { presentGraph, layoutGraph, relationLabels, identity, mergeGraph } from '../model/graph.js';
+import { GraphEdge } from './GraphEdge.jsx';
+import { GraphNode } from './GraphNode.jsx';
+import { GraphEntityDetails } from './GraphEntityDetails.jsx';
+export function buildFlow(
+  contract,
+  expanded = [],
+  toggle = () => {},
+  expandedGroups = [],
+  toggleGroup = () => {},
+  onOpen = () => {},
+  onFocus = () => {}
+) {
+  const view = presentGraph(contract, expandedGroups),
+    positions = layoutGraph(view.nodes, expanded);
+  const incoming = new Set(view.edges.map((e) => e.target)),
+    outgoing = new Set(view.edges.map((e) => e.source));
+  const names = new Map(
+    view.nodes.filter((n) => n.type !== 'GROUP').map((n) => [n.id, identity(n)])
   );
+  return {
+    nodes: view.nodes.map((node) => ({
+      id: node.id,
+      type: 'traceabilityNode',
+      position: positions.get(node.id),
+      ariaLabel:
+        node.type === 'GROUP'
+          ? `${node.data.label}: ${node.data.count} relacionados`
+          : `${identity(node)} · ${node.data.title || node.data.message || ''}`,
+      data: {
+        node,
+        expanded: expanded.includes(node.id),
+        onToggle: () => toggle(node.id),
+        onGroup: () => toggleGroup(node.id),
+        onOpen,
+        onFocus: () => onFocus(node.id),
+        hasTarget: incoming.has(node.id),
+        hasSource: outgoing.has(node.id)
+      }
+    })),
+    edges: view.edges.map((edge, index) => {
+      const label = `${relationLabels[edge.relationType || edge.type] || 'coleção de relações'}${edge.failedStep ? ` · Passo ${edge.failedStep}` : ''}${edge.correctionCycle ? ` · Ciclo ${edge.correctionCycle}` : ''}`;
+      const emphasized = expanded.includes(edge.source) || expanded.includes(edge.target);
+      return {
+        ...edge,
+        type: 'traceabilityEdge',
+        data: {
+          relationType: edge.relationType || edge.type,
+          laneX: Math.max(...[...positions.values()].map((p) => p.x)) + 380 + (index % 7) * 28
+        },
+        label: emphasized ? label : undefined,
+        ariaLabel: `${names.get(edge.source) || edge.source} ${label} ${names.get(edge.target) || edge.target}`,
+        focusable: true,
+        className: emphasized ? 'trace-edge-emphasized' : undefined,
+        markerEnd: { type: MarkerType.ArrowClosed },
+        labelBgPadding: [5, 3],
+        labelBgBorderRadius: 4
+      };
+    })
+  };
 }
-
-function NodeDetails({ type, detail }) {
-  if (type === 'REQUIREMENT')
-    return (
-      <dl className="trace-node-detail">
-        <DetailRow label="Descrição" value={detail.description} />
-        <DetailRow label="Tipo" value={detail.type} />
-        <DetailRow label="Status" value={statusLabels[detail.status] || detail.status} />
-        <DetailRow label="Progresso" value={formatPercentage(detail.progress)} />
-        <DetailRow label="Situação" value={detail.implementationStatus} />
-        <DetailRow label="Evidência técnica" value={detail.hasTechnicalEvidence ? 'Sim' : 'Não'} />
-        <DetailRow label="Criado em" value={formatDate(detail.createdAt)} />
-      </dl>
-    );
-  if (type === 'TASK')
-    return (
-      <dl className="trace-node-detail">
-        <DetailRow label="Descrição" value={detail.description} />
-        <DetailRow label="Status" value={statusLabels[detail.status] || detail.status} />
-        <DetailRow label="Prioridade" value={detail.priority} />
-        <DetailRow label="Responsável" value={detail.responsible} />
-        <DetailRow label="Prazo" value={formatDate(detail.deadline)} />
-        <DetailRow label="Esforço estimado" value={detail.estimatedEffort} />
-        <DetailRow label="Esforço realizado" value={detail.actualEffort} />
-      </dl>
-    );
-  if (type === 'COMMIT')
-    return (
-      <dl className="trace-node-detail">
-        <DetailRow label="Hash curto" value={detail.shortHash} />
-        <DetailRow label="Hash completo" value={detail.hash} />
-        <DetailRow label="Mensagem" value={detail.message} />
-        <DetailRow label="Autor" value={detail.authorName || detail.authorUsername} />
-        <DetailRow label="Data" value={formatDate(detail.date)} />
-        <DetailRow label="Branches" value={detail.branches?.join(', ')} />
-        {detail.githubUrl && (
-          <DetailRow label="GitHub" value="Abrir no GitHub" href={detail.githubUrl} />
-        )}
-      </dl>
-    );
-  return (
-    <dl className="trace-node-detail">
-      <DetailRow label="Número" value={detail.number ? `#${detail.number}` : undefined} />
-      <DetailRow label="Estado" value={detail.state} />
-      <DetailRow label="Autor" value={detail.authorUsername} />
-      <DetailRow label="Criado em" value={formatDate(detail.createdAtGithub)} />
-      <DetailRow label="Fechado em" value={formatDate(detail.closedAtGithub)} />
-      {detail.githubUrl && (
-        <DetailRow label="GitHub" value="Abrir no GitHub" href={detail.githubUrl} />
-      )}
-    </dl>
-  );
-}
-
-function GraphNode({ data }) {
-  return (
-    <div
-      className={`trace-node trace-node-${data.kind} ${data.expanded ? 'trace-node-expanded' : ''}`}
-    >
-      {data.hasTarget && <Handle type="target" position={Position.Top} />}
-      <button className="trace-node-content" type="button" onClick={data.onToggle}>
-        <span>{labels[data.type]}</span>
-        <strong>{data.title}</strong>
-        {data.meta && <p>{data.meta}</p>}
-        <small>{data.expanded ? 'Clique para recolher' : 'Clique para ver detalhes'}</small>
-      </button>
-      {data.expanded && <NodeDetails type={data.type} detail={data.detail} />}
-      {data.hasSource && <Handle type="source" position={Position.Bottom} />}
-    </div>
-  );
-}
-
-function nodeTitle(node) {
-  const data = node.data || {};
-  if (node.type === 'COMMIT') return data.message || data.shortHash || data.hash;
-  if (node.type === 'PULL_REQUEST') return `#${data.number} — ${data.title}`;
-  if (node.type === 'ISSUE') return `#${data.number} — ${data.title}`;
-  return data.title;
-}
-
-function nodeMeta(node) {
-  const data = node.data || {};
-  if (node.type === 'REQUIREMENT')
-    return `${statusLabels[data.status] || data.status} · ${formatPercentage(data.progress)}`;
-  if (node.type === 'TASK') return statusLabels[data.status] || data.status;
-  if (node.type === 'COMMIT')
-    return data.authorName || data.authorUsername || 'Autor não informado';
-  return data.state;
-}
-
-export function buildFlow(contract, expanded, toggle) {
-  const contractNodes = contract?.nodes || [];
-  const incoming = new Set((contract?.edges || []).map((edge) => edge.target));
-  const outgoing = new Set((contract?.edges || []).map((edge) => edge.source));
-  const groups = { REQUIREMENT: [], TASK: [], ARTIFACT: [] };
-  for (const node of contractNodes) {
-    if (node.type === 'REQUIREMENT') groups.REQUIREMENT.push(node);
-    else if (node.type === 'TASK') groups.TASK.push(node);
-    else groups.ARTIFACT.push(node);
-  }
-  const positions = new Map();
-  for (const [groupIndex, group] of [groups.REQUIREMENT, groups.TASK, groups.ARTIFACT].entries()) {
-    const width = Math.max(group.length - 1, 0) * 460;
-    group.forEach((node, index) =>
-      positions.set(node.id, { x: index * 460 - width / 2, y: groupIndex * 410 })
-    );
-  }
-  const nodes = contractNodes.map((node) => ({
-    id: node.id,
-    type: 'traceabilityNode',
-    position: positions.get(node.id) || { x: 0, y: 0 },
-    data: {
-      type: node.type,
-      kind: kindByType[node.type],
-      title: nodeTitle(node),
-      meta: nodeMeta(node),
-      detail: node.data,
-      expanded: expanded.includes(node.id),
-      onToggle: () => toggle(node.id),
-      hasTarget: incoming.has(node.id),
-      hasSource: outgoing.has(node.id)
-    }
-  }));
-  const edges = (contract?.edges || []).map((edge) => ({
-    ...edge,
-    type: 'smoothstep',
-    markerEnd: { type: MarkerType.ArrowClosed }
-  }));
-  return { nodes, edges };
-}
-
 const nodeTypes = { traceabilityNode: GraphNode };
-
+const edgeTypes = { traceabilityEdge: GraphEdge };
+const toggled = (items, id) =>
+  items.includes(id) ? items.filter((v) => v !== id) : [...items, id];
 function Canvas({ traceability }) {
-  const { fitView } = useReactFlow();
-  const [expanded, setExpanded] = useState([]);
+  const { fitView, setCenter } = useReactFlow();
+  const [contract, setContract] = useState(traceability),
+    [expanded, setExpanded] = useState([]),
+    [groups, setGroups] = useState([]),
+    [detail, setDetail] = useState(null),
+    [loading, setLoading] = useState(false),
+    [error, setError] = useState(null);
+  const scope = useTestCaseScope(`${contract.projectId}:${contract.perspective?.id}`),
+    returnFocusRef = useRef(null);
+  const close = useCallback(() => setDetail(null), []);
   const { nodes, edges } = useMemo(
     () =>
-      buildFlow(traceability, expanded, (id) => {
-        setExpanded((current) =>
-          current.includes(id) ? current.filter((value) => value !== id) : [...current, id]
-        );
-      }),
-    [expanded, traceability]
+      buildFlow(
+        contract,
+        expanded,
+        (id) => setExpanded((v) => toggled(v, id)),
+        groups,
+        (id) => setGroups((v) => toggled(v, id)),
+        (node, trigger) => {
+          returnFocusRef.current = trigger;
+          setDetail(node);
+        },
+        (id) => {
+          const position = layoutGraph(presentGraph(contract, groups).nodes, expanded).get(id);
+          if (position)
+            setCenter(position.x + 144, position.y + 300, { zoom: 0.85, duration: 200 });
+        }
+      ),
+    [contract, expanded, groups, setCenter]
   );
-
-  useEffect(
-    () => setExpanded([]),
-    [traceability?.perspective?.type, traceability?.perspective?.id]
-  );
+  async function more() {
+    const token = scope.begin('page');
+    setLoading(true);
+    setError(null);
+    try {
+      const next = await getRequirementTraceability(
+        contract.projectId,
+        contract.perspective.id,
+        { expanded: true, limit: 100, page: contract.pagination.page + 1 },
+        { signal: token.controller.signal }
+      );
+      if (scope.accepts('page', token)) setContract((old) => mergeGraph(old, next));
+    } catch (e) {
+      if (scope.accepts('page', token)) setError(normalizeApiError(e));
+    } finally {
+      if (scope.accepts('page', token)) setLoading(false);
+    }
+  }
+  function collapse() {
+    scope.cancelRead('page');
+    setLoading(false);
+    setError(null);
+    setExpanded([]);
+    setGroups([]);
+    setContract(traceability);
+    setCenter(144, 300, { zoom: 0.85 });
+  }
   if (!nodes.length)
     return <p className="empty-state">Nenhum vínculo encontrado para esta perspectiva.</p>;
-
   return (
     <div className="traceability-flow">
-      <div className="traceability-flow-toolbar">
-        <div>
-          <span className="eyebrow">Fluxo visual</span>
-          <p>Os vínculos e indicadores são fornecidos pelo contrato canônico da API.</p>
+      <div inert={detail ? true : undefined}>
+        <div className="traceability-flow-toolbar">
+          <p>Explore as relações. Clique em um card para ver suas informações.</p>
+          <div className="traceability-flow-actions">
+            <button
+              className="button button-secondary"
+              onClick={() => fitView({ padding: 0.18, duration: 250, minZoom: 0.02, maxZoom: 1 })}
+            >
+              Centralizar fluxo
+            </button>
+            <button className="button button-secondary" onClick={collapse}>
+              Recolher tudo
+            </button>
+          </div>
         </div>
-        <button
-          className="button button-secondary"
-          type="button"
-          onClick={() =>
-            window.requestAnimationFrame(() => fitView({ padding: 0.18, duration: 350 }))
-          }
-        >
-          Centralizar fluxo
-        </button>
+        <div className="traceability-flow-canvas" aria-label="Grafo de rastreabilidade">
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
+            defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+            minZoom={0.02}
+            maxZoom={1.5}
+            onInit={() => setCenter(144, 300, { zoom: 0.85 })}
+            nodesDraggable={false}
+            nodesConnectable={false}
+            elementsSelectable
+          >
+            <Background />
+            <Controls showInteractive={false} orientation="horizontal" />
+          </ReactFlow>
+        </div>
+        <p className="traceability-flow-caption">
+          {nodes.filter((n) => n.data.node.type !== 'GROUP').length} entidades visíveis ·{' '}
+          {edges.filter((e) => !e.presentation).length} relações. Arraste o canvas para explorar.
+        </p>
+        {contract.pagination?.scope === 'graphNodes' &&
+          contract.pagination.page < contract.pagination.totalPages && (
+            <button className="button button-secondary" onClick={more} disabled={loading}>
+              {loading ? 'Carregando relações…' : 'Carregar mais relações'}
+            </button>
+          )}
+        {error && <ErrorState message={error.message} onRetry={more} />}
       </div>
-      <div className="traceability-flow-canvas">
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          nodeTypes={nodeTypes}
-          fitView
-          fitViewOptions={{ padding: 0.18 }}
-          nodesDraggable={false}
-          nodesConnectable={false}
-          elementsSelectable
-        >
-          <Background />
-          <Controls />
-          <MiniMap pannable zoomable />
-        </ReactFlow>
-      </div>
+      {detail && (
+        <GraphEntityDetails
+          key={detail.id}
+          node={detail}
+          projectId={contract.projectId}
+          onClose={close}
+          returnFocusRef={returnFocusRef}
+        />
+      )}
     </div>
   );
 }
-
 export function TraceabilityFlow({ traceability }) {
   return (
-    <ReactFlowProvider>
+    <ReactFlowProvider
+      key={`${traceability?.projectId}:${traceability?.perspective?.type}:${traceability?.perspective?.id}`}
+    >
       <Canvas traceability={traceability} />
     </ReactFlowProvider>
   );

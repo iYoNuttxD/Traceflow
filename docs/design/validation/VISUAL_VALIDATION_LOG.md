@@ -390,3 +390,42 @@ título ao entrar; retorno ao botão de criação implementado. A Task normal n�
 recebeu contexto de correção. Um Issue de melhoria do Chrome também apareceu na
 superfície canônica de tarefa; o painel Issues classificou a família como campos sem id/name (dois apontamentos),
 sem page errors/breaking changes. A atribuição individual permanece pendente.
+
+
+## 2026-09-10 — S1-09 Etapa 4 · Expanded Traceability Graph
+
+**PASS LOCAL — inspeção renderizada.** Chrome 152.0.7977.84/macOS, sessão local autenticada.
+Escopo: canvas de rastreabilidade, oito tipos reais, metadata, grupos, fit/pan e abertura dos
+Details existentes. Overview, filtros, Requirement Cards e histórico da Etapa 3 preservados.
+Larguras verificadas no DOM, em Light e Dark: 1440, 1280, 768 e 390px.
+
+| Cenário | Light 1440 | Dark 1440 | Light 1280 | Dark 1280 | Light 768 | Dark 768 | Light 390 | Dark 390 |
+|---|---|---|---|---|---|---|---|---|
+| Requirement sem relações | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
+| Legacy Task / PR | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
+| TestCase PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
+| TestCase FAIL / detecção / Defect | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
+| Correction Task | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
+| Retest PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
+| Large grouped (fixture isolado) | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
+| Metadata expandida | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
+| Grupo expandido | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
+
+REQ-2: vazio. REQ-1: Task/PR/Commit. REQ-3: TestCases PASS/FAIL, detecção e Passo 1,
+Defects aberto/validado, Task de correção e retestes PASS/BLOCKED/FAIL. Os quatro Details reais
+foram abertos/fechados preservando seleção/expansão; nenhuma mutação foi executada nessa sessão.
+O cenário grande usou preview temporário do componente real com DTO artificial persistido em
+schema exclusivo de teste: 85 entidades/123 relações; default 22 entidades + 10 grupos;
+expansão total 85 IDs únicos + 10 grupos, zero sobreposição entre cards. Issue e Commit também
+foram inspecionados com metadata. Preview e schema descartável removidos ao encerrar.
+
+Capturas de canvas/cards foram observadas na execução interativa, sem pacote PNG versionado.
+Geometria confirmou card focado inteiramente no canvas e ausência de overflow horizontal da página.
+Em mobile, pan é necessário para relações fora do recorte; foco recentraliza em zoom legível.
+Controles horizontais de 44px não cobrem o footer do card expandido. Fit enquadra a expansão total;
+nessa escala, serve como visão geral, com zoom/foco para leitura. Labels semânticos ficam visíveis
+nas relações de metadata expandida e preservam nome acessível em todas as edges.
+
+Teclado, foco visível, aria-expanded, resultados textuais e retorno dos Details verificados;
+não é certificação WCAG completa. Este registro não substitui QA integrado/CI remoto.
+Ver [relatório A–V](../../deliveries/S1_09_EXPANDED_TRACEABILITY_GRAPH_REPORT.md).

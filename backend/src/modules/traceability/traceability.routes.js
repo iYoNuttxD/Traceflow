@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { validateRequest } from '../../shared/validation/index.js';
 import { traceabilityController } from './traceability.controller.js';
 import {
+  expandedGraphQuerySchema,
   requirementProjectionQuerySchema,
   requirementHistoryQuerySchema,
   commitSuggestionParamsSchema,
@@ -93,7 +94,7 @@ router.get(
   '/projects/:projectId/traceability/requirements/:requirementId',
   validateRequest({
     params: traceabilityRequirementParamsSchema,
-    query: traceabilityPaginationQuerySchema
+    query: expandedGraphQuerySchema
   }),
   traceabilityController.getRequirementTraceability
 );

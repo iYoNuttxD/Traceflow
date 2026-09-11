@@ -102,12 +102,6 @@ function resolvedToken(theme, name) {
   return value;
 }
 
-function property(cssRule, name) {
-  const match = cssRule.match(new RegExp(`${name}:\\s*([^;]+);`));
-  expect(match, `Propriedade CSS ausente: ${name}`).not.toBeNull();
-  return match[1].trim();
-}
-
 function relativeLuminance(hexColor) {
   const channels = hexColor
     .slice(1)
@@ -317,30 +311,26 @@ describe('compatibilidade de conteúdo legado com os temas', () => {
     }
   });
 
-  it('preserva o canvas categórico como light island com pares explícitos legíveis', () => {
+  it('usa surfaces C2 no grafo expandido com foreground temático legível', () => {
+    expect(traceabilityFlowCss).not.toMatch(/#[0-9a-f]{3,8}\b|on-light/i);
+    expect(rule(traceabilityFlowCss, '.trace-node')).toContain(
+      'background: var(--color-surface-primary)'
+    );
+    expect(rule(traceabilityFlowCss, '.trace-node')).toContain('color: var(--color-text-primary)');
     expect(rule(traceabilityFlowCss.split('@media')[0], '.traceability-flow-canvas')).toContain(
-      'color: var(--color-text-on-light-primary)'
+      'background: var(--color-surface-secondary)'
     );
-    expect(rule(traceabilityFlowCss, '.trace-node strong')).toContain(
-      'color: var(--color-text-on-light-primary)'
-    );
-    expect(rule(traceabilityFlowCss, '.trace-node span,\n.trace-node-detail dt')).toContain(
-      'color: var(--color-text-on-light-secondary)'
-    );
-
-    const categoricalPairs = [
-      ['.trace-node-requirement', '.trace-node-requirement span,\n.trace-node-requirement p'],
-      ['.trace-node-task', '.trace-node-task span,\n.trace-node-task p'],
-      ['.trace-node-issue', '.trace-node-issue span,\n.trace-node-issue p'],
-      ['.trace-node-pull-request', '.trace-node-pull-request span,\n.trace-node-pull-request p'],
-      ['.trace-node-commit', '.trace-node-commit span,\n.trace-node-commit p']
-    ];
-
-    for (const [surfaceSelector, textSelector] of categoricalPairs) {
+    for (const theme of ['light', 'dark']) {
       expect(
         contrastRatio(
-          property(rule(traceabilityFlowCss, textSelector), 'color'),
-          property(rule(traceabilityFlowCss, surfaceSelector), 'background')
+          resolvedToken(theme, '--color-text-primary'),
+          resolvedToken(theme, '--color-surface-primary')
+        )
+      ).toBeGreaterThanOrEqual(4.5);
+      expect(
+        contrastRatio(
+          resolvedToken(theme, '--color-text-secondary'),
+          resolvedToken(theme, '--color-surface-primary')
         )
       ).toBeGreaterThanOrEqual(4.5);
     }

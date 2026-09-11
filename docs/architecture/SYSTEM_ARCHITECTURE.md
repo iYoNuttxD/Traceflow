@@ -32,7 +32,10 @@ A direção permitida é `app/routes → pages → features → shared + http-cl
 - APIs de feature usam exclusivamente `api/http-client.js`.
 - Hooks e screens controlam requests canceláveis, mutações e rollback visual.
 - Shared não importa pages/features; features não importam internals umas das outras.
-- `TraceabilityFlow` renderiza o DTO de nodes/edges sem recalcular cobertura.
+- `TraceabilityFlow` renderiza o DTO de nodes/edges sem recalcular cobertura. No grafo ampliado de
+  Requirement, o backend fornece oito tipos reais e relações semânticas; o frontend mantém grupos
+  apenas visuais, paginação acumulada por identidade e expansão independente de metadata. Os
+  Details de Task, TestCase, Execution e Defect são reutilizados pelos barrels públicos das features.
 - `app/theme` separa a preferência persistida `system | light | dark` do tema resolvido
   `light | dark`. Sistema é o default, acompanha `prefers-color-scheme` enquanto selecionado e usa
   Light quando `matchMedia` não está disponível; overrides manuais ignoram mudanças do sistema.
@@ -69,6 +72,17 @@ publicam pelo `ProjectEventPublisher` depois do commit e não conhecem HTTP, `Re
 MySQL/REST são autoridade; SSE apenas propaga DTOs de mudanças confirmadas.
 
 `scripts/check-architecture.js` verifica essas fronteiras e impede a reintrodução, no runtime/schema atual, de `TaskPullRequest`, `GithubArtifact`, `TraceLink`, `ProjectMember`, `Commit.branch`, aliases GitHub de `Project` e rotas de conta removidas.
+
+### Projeção ampliada de rastreabilidade
+
+O Service de traceability seleciona o read model `expanded-graph.repository` somente com
+`expanded=true`; o mapper converte as relações tipadas existentes em nodes/edges deduplicados.
+A transação de leitura RepeatableRead consulta coleções em lote e reutiliza
+`loadRequirementProjections` como autoridade dos indicadores. Não existe GraphRelation persistida
+nem escrita no GET. O DTO é paginado independentemente em nodes e edges; a montagem interna ainda
+carrega a cadeia compacta completa, com volume proporcional às entidades do Requirement. Não há
+consulta por node nem fan-out HTTP para construir a cadeia. Os limites e a consistência entre
+páginas estão documentados em `docs/api/API_CONTRACTS.md`.
 
 ## Identidade, sessão e autorização
 

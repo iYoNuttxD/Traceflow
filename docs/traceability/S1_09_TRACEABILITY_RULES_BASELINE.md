@@ -599,3 +599,18 @@ Somente as seguintes decisões exigem intervenção humana antes do motor. As de
 Até essas decisões serem fechadas, o resultado permanece **OPEN DECISIONS**. A proposta já permite revisar todos os cenários, mas não deve ser implementada como se tivesse aprovação. O [relatório da entrega](../deliveries/S1_09_TRACEABILITY_BASELINE_REPORT.md) contém o próximo incremento condicionado e a tabela final de decisões.
 
 </details>
+
+
+## Registro de implementação — S1-09 Etapa 4
+
+O grafo ampliado está implementado como read model opcional do endpoint de Requirement
+(`expanded=true`). O backend projeta as relações tipadas existentes de implementação, teste,
+detecção, origem, correção e reteste; o frontend somente adapta nodes/edges, agrupa coleções e
+abre os Details canônicos. Um TestCase direto e via Task permanece uma entidade com ambos os
+vínculos reais; uma Task de correção e uma execução de reteste também mantêm sua identidade.
+
+A situação, o progresso, as evidências e os agregados continuam vindo integralmente da projeção
+da Etapa 2. Não houve mudança nas onze situações, na reconciliação ou no histórico persistido.
+Não há nova relação genérica, schema ou migration. As seções históricas da auditoria acima não
+são reescritas por este registro. Contrato e limites: [API](../api/API_CONTRACTS.md).
+Evidências locais: [relatório da Etapa 4](../deliveries/S1_09_EXPANDED_TRACEABILITY_GRAPH_REPORT.md).
