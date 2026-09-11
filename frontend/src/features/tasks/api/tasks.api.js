@@ -59,6 +59,26 @@ export const tasksApi = {
   deleteComment(taskId, commentId) {
     return responseData(httpClient.delete(`/tasks/${taskId}/comments/${commentId}`));
   },
+  timeEntries(taskId, params = {}, options = {}) {
+    return responseData(
+      httpClient.get(`/tasks/${taskId}/time-entries`, {
+        ...options,
+        params: compactParams(params)
+      })
+    );
+  },
+  startTimer(taskId) {
+    return responseData(httpClient.post(`/tasks/${taskId}/time-entries/start`, {}));
+  },
+  stopTimer(taskId) {
+    return responseData(httpClient.post(`/tasks/${taskId}/time-entries/stop`, {}));
+  },
+  createTimeEntry(taskId, payload) {
+    return responseData(httpClient.post(`/tasks/${taskId}/time-entries`, payload));
+  },
+  deleteTimeEntry(taskId, entryId) {
+    return responseData(httpClient.delete(`/tasks/${taskId}/time-entries/${entryId}`));
+  },
   issues(taskId, options = {}) {
     return responseData(httpClient.get(`/tasks/${taskId}/issues`, options));
   },
@@ -86,6 +106,12 @@ export const createTaskComment = (taskId, content) => tasksApi.createComment(tas
 export const updateTaskComment = (taskId, commentId, content) =>
   tasksApi.updateComment(taskId, commentId, content);
 export const deleteTaskComment = (taskId, commentId) => tasksApi.deleteComment(taskId, commentId);
+export const getTaskTimeEntries = (taskId, params, options) =>
+  tasksApi.timeEntries(taskId, params, options);
+export const startTaskTimer = (taskId) => tasksApi.startTimer(taskId);
+export const stopTaskTimer = (taskId) => tasksApi.stopTimer(taskId);
+export const createTaskTimeEntry = (taskId, payload) => tasksApi.createTimeEntry(taskId, payload);
+export const deleteTaskTimeEntry = (taskId, entryId) => tasksApi.deleteTimeEntry(taskId, entryId);
 export const getTaskIssues = (taskId, options) => tasksApi.issues(taskId, options);
 export const linkTaskIssue = (taskId, issueId) => tasksApi.linkIssue(taskId, issueId);
 export const unlinkTaskIssue = (taskId, issueId) => tasksApi.unlinkIssue(taskId, issueId);

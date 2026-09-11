@@ -15,7 +15,10 @@ const allowedMetadata = new Set([
   'commitId',
   'suggestionId',
   'sprintId',
-  'milestoneId'
+  'milestoneId',
+  // S1-06: origem (TIMER/MANUAL) e duração da sessão de tempo; técnicos, sem PII.
+  'source',
+  'durationSeconds'
 ]);
 
 export function minimizeAuditMetadata(metadata) {

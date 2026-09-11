@@ -130,6 +130,7 @@ async function buildExportArchive(userId, now) {
     'requirements.json': requirements,
     'tasks.json': data.responsibleTasks,
     'task-comments.json': data.taskComments || [],
+    'task-time-entries.json': data.startedTimeEntries || [],
     'sessions.json': data.sessions,
     'privacy-requests.json': data.privacyRequests,
     'data-exports.json': data.personalDataExports || [],
