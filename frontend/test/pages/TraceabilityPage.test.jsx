@@ -155,7 +155,7 @@ describe('Traceability catalog', () => {
     expect(api.getRequirementTraceability).toHaveBeenCalledWith(
       '9',
       10,
-      {},
+      { expanded: true, limit: 100 },
       { signal: expect.any(AbortSignal) }
     );
     expect(

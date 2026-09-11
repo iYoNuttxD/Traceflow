@@ -13,3 +13,6 @@ export { environments, referenceLabel } from './model/test-cases.js';
 export { ContextualTestCaseCreate } from './components/ContextualTestCaseCreate.jsx';
 
 export { ExecutionSummary } from './components/ExecutionSummary.jsx';
+
+export { TestCaseDialogContent } from './components/TestCaseDialogContent.jsx';
+export { Badge as TestResultBadge } from './components/Parts.jsx';

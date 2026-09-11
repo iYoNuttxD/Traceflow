@@ -1,3 +1,5 @@
+import { readExpandedGraph } from './expanded-graph.repository.js';
+import { formatExpandedGraph } from './expanded-graph.mapper.js';
 import { DomainError as TraceabilityServiceError } from '../../shared/errors/index.js';
 import { buildCoverageMetric, buildMatrixSummary } from './traceability.calculator.js';
 import {
@@ -75,6 +77,12 @@ export const traceabilityService = {
     const requirement = parsePositiveInteger(requirementId, 'do requisito');
     await ensureProjectExists(id);
     const { page, limit, skip } = pageFrom(query);
+    if (query.expanded === 'true') {
+      const model = await readExpandedGraph(id, requirement);
+      if (!model)
+        throw new TraceabilityServiceError('Requisito não encontrado neste projeto.', 404);
+      return formatExpandedGraph(model, { page, limit });
+    }
     const result = await traceabilityRepository.findRequirementGraphPage(id, requirement, {
       skip,
       take: limit

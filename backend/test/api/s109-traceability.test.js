@@ -149,3 +149,31 @@ describe('S109 authenticated projection API', () => {
     expect((await f.get(`${f.root}/requirements`)).status).toBe(404);
   });
 });
+
+describe('S109 expanded graph authorization and compatibility', () => {
+  it.each(['VIEWER', 'MEMBER', 'MANAGER', 'OWNER'])(
+    '%s reads expanded graph and opaque scope',
+    async (role) => {
+      const f = await fixture(role);
+      const path = `${f.root}/requirements/${f.b.id}?expanded=true&limit=100`;
+      const result = await f.get(path);
+      expect(result.status, result.text).toBe(200);
+      expect(result.body.pagination.scope).toBe('graphNodes');
+      expect(result.body.edges[0].relationType).toBe('IMPLEMENTA');
+      expect((await f.get(`${f.root}/requirements/${f.foreign.id}?expanded=true`)).status).toBe(
+        404
+      );
+      expect(
+        (
+          await f.get(
+            `/api/projects/${f.other.id}/traceability/requirements/${f.foreign.id}?expanded=true`
+          )
+        ).status
+      ).toBe(404);
+      expect((await request(app).get(path)).status).toBe(401);
+      expect((await f.get(`${f.root}/requirements/${f.b.id}?expanded=invalid`)).status).toBe(400);
+      expect((await f.get(`${f.root}/requirements/${f.b.id}`)).body.pagination.scope).toBe('tasks');
+      expect(await prisma.requirementTraceabilityHistoryEntry.count()).toBe(0);
+    }
+  );
+});

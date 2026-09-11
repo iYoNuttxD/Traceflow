@@ -318,6 +318,44 @@ Coberturas preservam os campos históricos e acrescentam `coverage: {numerator,d
 
 O summary da matriz é calculado sobre todo o projeto, não apenas sobre a página. A matriz seleciona somente dados resumidos e contagens. O grafo nunca expõe `Commit.authorEmail`. Recursos de outro projeto recebem `404`; consultas exigem VIEWER+ e a atualização atômica Requirement–Task exige MEMBER+.
 
+### Grafo ampliado de Requirement — S1-09 Etapa 4
+
+`GET /projects/:projectId/traceability/requirements/:requirementId?expanded=true&page=1&limit=100`
+ativa o read model consolidado. Sem `expanded` ou com `expanded=false`, preserva-se o grafo legado
+com paginação de tarefas. O parâmetro aceita somente `true`/`false`; outros valores recebem `400`.
+A autorização permanece VIEWER+, com `404` opaco para recursos externos ao projeto.
+
+O envelope de sucesso contém `projectId`, `perspective`, `summary`, `nodes`, `edges` e `pagination`.
+Cada node tem `{id,type,entityId,data}`. Tipos: `REQUIREMENT`, `TASK`, `PULL_REQUEST`, `COMMIT`,
+`ISSUE`, `TEST_CASE`, `TEST_EXECUTION`, `DEFECT`. Correção é contexto de TASK; reteste é contexto
+de TEST_EXECUTION. IDs legados permanecem `requirement:N`, `task:N`, `pull-request:N`, `commit:N`
+e `issue:N`; os novos são `testCase:N`, `execution:N` e `defect:N`.
+
+Cada edge possui `{id,type,relationType,source,target}` e, quando aplicável, `failedStep` ou
+`correctionCycle`. Relações: `IMPLEMENTA`, `VERIFICADO_POR`, `IMPLEMENTADO_EM`, `RELACIONADO_A`,
+`EXECUTADO_EM`, `DETECTOU`, `ORIGINADO_EM`, `CORRIGIDO_POR`, `RETESTADO_POR`, `AFETADO_POR`.
+`type`/ID das quatro relações legadas são preservados; `relationType` explicita sua semântica.
+Um TestCase ligado somente via Task não recebe vínculo direto fictício ao Requirement.
+
+Neste modo, `pagination.scope` é `graphNodes`: cada página retorna até `limit` nodes e até
+`edgeLimit = 4 * limit` edges. `total` conta todas as entidades; `edgesTotal` conta relações;
+`totalPages = max(ceil(total/limit), ceil(edgesTotal/edgeLimit))`. Nodes e edges são paginados
+independentemente; uma edge pode referenciar node de outra página. O consumidor acumula por ID
+e só desenha uma edge quando ambos os endpoints estiverem disponíveis. `summary` é o agregado
+completo da Etapa 2, nunca calculado sobre a página. O cliente atual solicita 100 nodes por página.
+
+Dados de card são compactos; relações completas ficam nas edges paginadas. Contagens acompanham
+listas resumidas de tarefas/artefatos/correções. Histórico completo, conteúdo de evidência e Steps
+não são embutidos: abrem-se pelos Details existentes. TestCases excluídos não reaparecem como
+entidades atuais; uma execução histórica necessária à detecção/reteste conserva sua identidade.
+Grupos são apresentação do frontend, não entidades ou novas relações persistidas.
+
+A leitura usa uma transação RepeatableRead por request e um conjunto fixo de consultas por coleção,
+sem consulta por node. A quantidade de linhas intermediárias e a montagem em memória ainda crescem
+com o grafo completo do Requirement; a paginação limita o DTO, não o volume interno da consulta.
+Páginas sucessivas são leituras atuais independentes, sem snapshot/cursor de revisão entre requests.
+GET não reconcilia nem grava histórico, status, progresso ou situação.
+
 O parser RF41 usa somente `/\[TASK-(\d+)\]/gi`: aceita caixa variada, múltiplos IDs e deduplica repetições na mesma mensagem. Não aceita `TASK-42`, `#42`, `ID 42`, `[ISSUE-42]` ou IDs não numéricos. Detecção e scan não criam vínculo; sugestões rejeitadas ou confirmadas nunca são reabertas.
 
 Sem `taskId`, a consulta preserva a visão paginada do projeto. Com `taskId`, retorna somente sugestões da Task validada no mesmo projeto; ID inválido recebe `400` e Task inexistente ou de outro projeto recebe `404`. O DTO continua sem `Commit.authorEmail`.

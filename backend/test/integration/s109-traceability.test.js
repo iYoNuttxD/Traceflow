@@ -1,3 +1,4 @@
+import { writeFileSync } from 'node:fs';
 import { beforeAll, afterEach, afterAll, describe, it, expect, vi } from 'vitest';
 import { PrismaClient } from '@prisma/client';
 import {
@@ -532,6 +533,192 @@ describe('S1-09 persisted projection and transitions', () => {
       process.stdout.write(`S109 query count: 1 requirement=${single}; 20 requirements=${batch}\n`);
     } finally {
       await measured.$disconnect();
+    }
+  });
+});
+
+describe('S1-09 expanded graph read model', () => {
+  async function graph(f, page = 1, limit = 100) {
+    const { readExpandedGraph } =
+      await import('../../src/modules/traceability/expanded-graph.repository.js');
+    const { formatExpandedGraph } =
+      await import('../../src/modules/traceability/expanded-graph.mapper.js');
+    return formatExpandedGraph(await readExpandedGraph(f.project.id, f.requirement.id), {
+      page,
+      limit
+    });
+  }
+  it('deduplicates direct/via-task cases, shared correction, detection and FAIL/PASS retests across cycles', async () => {
+    const f = await fixture(),
+      origin = await f.ready();
+    const tc = await f.createCase({ taskIds: [origin.id] });
+    const failure = await f.execute(tc, 'FAIL');
+    let d = await f.createDefect(failure, { originTaskIds: [origin.id] });
+    const other = await f.createDefect(failure, {
+      title: 'Second defect',
+      originTaskIds: [origin.id]
+    });
+    const correction = await createTask(prisma, f.project.id, {
+      requirementId: f.requirement.id,
+      status: 'CONCLUIDO',
+      pullRequestId: f.pr.id
+    });
+    d = await defects.correction(
+      d.id,
+      { expectedRevision: d.revision, correctionCycle: 1, taskId: correction.id },
+      f.context
+    );
+    await defects.correction(
+      other.id,
+      { expectedRevision: other.revision, correctionCycle: 1, taskId: correction.id },
+      f.context
+    );
+    const failedRetest = await f.execute(tc, 'FAIL', d);
+    d = await defects.read(d.id, f.context);
+    d = await defects.correction(
+      d.id,
+      { expectedRevision: d.revision, correctionCycle: 2, taskId: correction.id },
+      f.context
+    );
+    const passedRetest = await f.execute(tc, 'PASS', d);
+    const before = await prisma.requirementTraceabilityHistoryEntry.count();
+    const g = await graph(f);
+    const find = (type) => g.nodes.filter((n) => n.type === type);
+    expect(new Set(g.nodes.map((n) => n.id)).size).toBe(g.nodes.length);
+    expect(find('TEST_CASE')).toHaveLength(1);
+    expect(find('TASK')).toHaveLength(2);
+    expect(find('DEFECT')).toHaveLength(2);
+    expect(find('TASK').find((n) => n.entityId === origin.id).data.correctionDefects).toEqual([]);
+    expect(
+      find('TASK').find((n) => n.entityId === correction.id).data.correctionDefects
+    ).toHaveLength(3);
+    expect(find('TEST_EXECUTION').find((n) => n.entityId === failedRetest.id).data).toMatchObject({
+      result: 'FAIL',
+      retests: [{ defectId: d.id, correctionCycle: 1 }]
+    });
+    expect(find('TEST_EXECUTION').find((n) => n.entityId === passedRetest.id).data.result).toBe(
+      'PASS'
+    );
+    expect(g.edges.filter((e) => e.relationType === 'DETECTOU')).toHaveLength(2);
+    expect(
+      g.edges.filter((e) => e.relationType === 'DETECTOU').every((e) => e.failedStep === 1)
+    ).toBe(true);
+    expect(g.edges.filter((e) => e.relationType === 'RETESTADO_POR')).toHaveLength(2);
+    expect(g.edges.filter((e) => e.target === `testCase:${tc.id}`)).toHaveLength(2);
+    expect(await prisma.requirementTraceabilityHistoryEntry.count()).toBe(before);
+    const page1 = await graph(f, 1, 3),
+      page2 = await graph(f, 2, 3);
+    expect(page1.nodes).toHaveLength(3);
+    expect(page2.nodes.some((n) => page1.nodes.some((p) => p.id === n.id))).toBe(false);
+  });
+  it('keeps task-only case edges truthful, current-version latest and deleted case history separate', async () => {
+    const f = await fixture(),
+      task = await f.ready();
+    const tc = await f.createCase({ requirementId: null, taskIds: [task.id] });
+    const failed = await f.execute(tc, 'FAIL');
+    await f.createDefect(failed);
+    await prisma.testCase.update({ where: { id: tc.id }, data: { currentVersion: 2 } });
+    let g = await graph(f);
+    expect(g.nodes.find((n) => n.type === 'TEST_CASE').data.latestExecution).toBeNull();
+    expect(
+      g.edges.some(
+        (e) => e.source === `requirement:${f.requirement.id}` && e.target === `testCase:${tc.id}`
+      )
+    ).toBe(false);
+    await prisma.testCase.update({ where: { id: tc.id }, data: { deletedAt: new Date() } });
+    g = await graph(f);
+    expect(g.nodes.some((n) => n.type === 'TEST_CASE')).toBe(false);
+    expect(g.nodes.some((n) => n.id === `execution:${failed.id}`)).toBe(true);
+    expect(
+      g.edges.every(
+        (e) => g.nodes.some((n) => n.id === e.source) && g.nodes.some((n) => n.id === e.target)
+      )
+    ).toBe(true);
+  });
+  it('projects a representative large persisted fixture with bounded query count and paged payload', async () => {
+    const f = await fixture();
+    const taskRows = [];
+    for (let i = 0; i < 12; i++)
+      taskRows.push(
+        await createTask(prisma, f.project.id, {
+          requirementId: f.requirement.id,
+          pullRequestId: f.pr.id
+        })
+      );
+    for (let i = 1; i < 5; i++) {
+      const pr = await prisma.pullRequest.create({
+        data: {
+          projectId: f.project.id,
+          githubId: `graph-${i}`,
+          number: 200 + i,
+          title: `QA graph PR ${i}`
+        }
+      });
+      await prisma.task.update({ where: { id: taskRows[i].id }, data: { pullRequestId: pr.id } });
+    }
+    for (let i = 0; i < 20; i++) {
+      const commit = await createCommit(prisma, f.project.id);
+      await prisma.taskCommit.create({
+        data: { taskId: taskRows[i % 12].id, commitId: commit.id }
+      });
+    }
+    for (let i = 0; i < 4; i++) {
+      const issue = await createIssue(prisma, f.project.id);
+      await prisma.taskIssue.create({ data: { taskId: taskRows[i].id, issueId: issue.id } });
+    }
+    for (let i = 0; i < 6; i++) {
+      const tc = await f.createCase({ title: `Case ${i}`, taskIds: [taskRows[i].id] });
+      for (let j = 0; j < 4; j++) {
+        const ex = await f.execute(tc, j === 3 ? 'FAIL' : 'PASS');
+        if (j === 3 && i < 5) {
+          let defect = await f.createDefect(ex, { originTaskIds: [taskRows[i].id] });
+          if (i < 4) {
+            const task = taskRows[i + 8];
+            await f.move(task.id, 'CONCLUIDO');
+            defect = await defects.correction(
+              defect.id,
+              { expectedRevision: defect.revision, correctionCycle: 1, taskId: task.id },
+              f.context
+            );
+            await f.execute(tc, 'FAIL', defect);
+            defect = await defects.read(defect.id, f.context);
+            defect = await defects.correction(
+              defect.id,
+              { expectedRevision: defect.revision, correctionCycle: 2, taskId: task.id },
+              f.context
+            );
+            await f.execute(tc, 'PASS', defect);
+          }
+        }
+      }
+    }
+    const { loadExpandedGraph } =
+      await import('../../src/modules/traceability/expanded-graph.repository.js');
+    const { formatExpandedGraph } =
+      await import('../../src/modules/traceability/expanded-graph.mapper.js');
+    const queryClient = new PrismaClient({ log: [{ emit: 'event', level: 'query' }] });
+    const queries = [];
+    queryClient.$on('query', (e) => queries.push(e.query));
+    try {
+      const model = await loadExpandedGraph(queryClient, f.project.id, f.requirement.id);
+      const g = formatExpandedGraph(model, { limit: 100 });
+      expect(g.nodes.length).toBeGreaterThan(65);
+      expect(queries.length).toBeLessThan(60);
+      expect(queries.every((q) => !/INSERT|UPDATE|DELETE/.test(q))).toBe(true);
+      expect(JSON.stringify(g)).not.toMatch(
+        /actionSnapshot|storageKey|snapshotJson|observedResult/
+      );
+      const first = formatExpandedGraph(model, { limit: 20 }),
+        second = formatExpandedGraph(model, { page: 2, limit: 20 });
+      expect(first.nodes.length).toBe(20);
+      expect(second.nodes.length).toBe(20);
+      if (process.env.GRAPH_QA_OUTPUT)
+        writeFileSync(process.env.GRAPH_QA_OUTPUT, JSON.stringify(g));
+      process.stdout.write(
+        `S109 graph: ${g.nodes.length} nodes, ${g.edges.length} edges, ${queries.length} SQL statements, ${Buffer.byteLength(JSON.stringify(g))} bytes; 20-node page supported.\n`
+      );
+    } finally {
+      await queryClient.$disconnect();
     }
   });
 });

@@ -77,3 +77,8 @@ export const requirementHistoryQuerySchema = strictObject({
   limit: positiveInteger('Limite inválido.').pipe(z.number().max(100)).default(30),
   cursor: z.string().max(400).optional()
 });
+
+export const expandedGraphQuerySchema = strictObject({
+  ...paginationSchema,
+  expanded: z.enum(['true', 'false']).optional()
+});

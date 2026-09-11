@@ -29,3 +29,9 @@ export {
   TaskTraceabilityGrid,
   ArtifactCategory
 } from './components/TaskDetailsLayout.jsx';
+
+export { TaskDetailsPanel } from './components/TaskDetailsPanel.jsx';
+export {
+  statusLabels as taskStatusLabels,
+  priorityLabels as taskPriorityLabels
+} from './components/kanban-display.js';

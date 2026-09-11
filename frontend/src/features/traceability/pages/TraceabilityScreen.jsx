@@ -21,7 +21,6 @@ import {
 } from '../components/RequirementCatalog.jsx';
 import { RequirementHistory } from '../components/RequirementHistory.jsx';
 import { useRequirementCatalog } from '../hooks/useRequirementCatalog.js';
-import '../../schedule/pages/SprintsScreen.css';
 import './TraceabilityScreen.css';
 
 export function TraceabilityScreen() {
@@ -45,7 +44,7 @@ function ProjectTraceability({ projectId }) {
         const data = await getRequirementTraceability(
           projectId,
           requirement.id,
-          {},
+          { expanded: true, limit: 100 },
           { signal: token.controller.signal }
         );
         if (scope.accepts('graph', token)) setGraph({ data, error: null, loading: false });
