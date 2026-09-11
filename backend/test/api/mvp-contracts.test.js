@@ -476,9 +476,9 @@ describe('contratos HTTP de tarefas', () => {
 
     const updateResponse = await api
       .put(`/api/tasks/${task.id}`)
-      .send({ title: 'Tarefa editada', actualEffort: 3 });
+      .send({ title: 'Tarefa editada', estimatedEffort: 3 });
     expect(updateResponse.status).toBe(200);
-    expect(updateResponse.body.task).toMatchObject({ title: 'Tarefa editada', actualEffort: 3 });
+    expect(updateResponse.body.task).toMatchObject({ title: 'Tarefa editada', estimatedEffort: 3 });
 
     const deleteResponse = await api.delete(`/api/tasks/${task.id}`);
     expect(deleteResponse.status).toBe(200);

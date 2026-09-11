@@ -165,6 +165,8 @@ model User {
   responsibleTasks                 Task[]
   taskMovements                    TaskMovement[]
   taskHistoryEntries               TaskHistoryEntry[]
+  startedTimeEntries               TaskTimeEntry[]                   @relation("TaskTimeEntryStarter")
+  endedTimeEntries                 TaskTimeEntry[]                   @relation("TaskTimeEntryEnder")
   auditEvents                      AuditEvent[]
   privacyRequests                  PrivacyRequest[]
   personalDataExports              PersonalDataExport[]
@@ -336,6 +338,7 @@ model Project {
   taskMovements          TaskMovement[]
   taskHistoryEntries     TaskHistoryEntry[]
   taskComments           TaskComment[]
+  taskTimeEntries        TaskTimeEntry[]
   commits                Commit[]
   pullRequests           PullRequest[]
   issues                 Issue[]
@@ -597,8 +600,10 @@ model Task {
   responsible       String?
   status            String         @default("A_FAZER")
   deadline          DateTime?
-  estimatedEffort   Int?
-  actualEffort      Int?
+  estimatedEffort   Float?
+  actualEffort      Float?
+  // Esforço lançado antes do S1-06, preservado para continuar somando no derivado.
+  legacyActualEffort Float?
   pullRequestId     Int?
   responsibleUserId Int?
   sprintId          Int?
@@ -613,6 +618,7 @@ model Task {
   movements            TaskMovement[]
   historyEntries       TaskHistoryEntry[]
   comments             TaskComment[]
+  timeEntries          TaskTimeEntry[]
   commitLinks          TaskCommit[]
   commitSuggestions    TaskCommitSuggestion[]
   issueLinks           TaskIssue[]
@@ -695,8 +701,8 @@ model SprintTask {
   addedAt             DateTime                 @default(now())
   addedAfterStart     Boolean                  @default(false)
   plannedAtStart      Boolean?
-  pointsAtPlanning    Int?
-  pointsAtClose       Int?
+  pointsAtPlanning    Float?
+  pointsAtClose       Float?
   closingTaskSnapshot Json?
   completedAtClose    DateTime?
   carriedFromSprintId Int?
@@ -841,6 +847,40 @@ model TaskComment {
   @@index([projectId, createdAt])
   @@index([authorUserId])
   @@index([deletedById])
+}
+
+enum TaskTimeEntrySource {
+  TIMER
+  MANUAL
+}
+
+// S1-06 (RF32-RF34): sessão de trabalho na tarefa. Task.actualEffort é derivado da
+// soma das sessões encerradas; a origem (cronômetro ou lançamento manual) e os
+// atores de início/fim ficam registrados para responsabilização.
+model TaskTimeEntry {
+  id              Int                 @id @default(autoincrement())
+  projectId       Int
+  taskId          Int
+  source          TaskTimeEntrySource @default(TIMER)
+  startedAt       DateTime
+  endedAt         DateTime?
+  durationSeconds Int?
+  note            String?
+  startedById     Int
+  endedById       Int?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task      Task    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  startedBy User    @relation("TaskTimeEntryStarter", fields: [startedById], references: [id])
+  endedBy   User?   @relation("TaskTimeEntryEnder", fields: [endedById], references: [id], onDelete: SetNull)
+
+  @@index([taskId, endedAt])
+  @@index([taskId, startedAt, id])
+  @@index([projectId, startedAt])
+  @@index([startedById])
+  @@index([endedById])
 }
 
 // Commit importado do repositorio GitHub vinculado ao projeto.

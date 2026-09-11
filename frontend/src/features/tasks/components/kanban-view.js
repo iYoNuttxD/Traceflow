@@ -104,6 +104,17 @@ export function formatTraceabilityCounts(task) {
   return parts.join(' · ') || 'Sem rastreabilidade';
 }
 
+export function updateBoardTask(board, taskId, patch) {
+  if (!board?.columns) return board;
+  const columns = Object.fromEntries(
+    Object.entries(board.columns).map(([status, tasks]) => [
+      status,
+      tasks.map((task) => (String(task.id) === String(taskId) ? { ...task, ...patch } : task))
+    ])
+  );
+  return { ...board, columns };
+}
+
 function mapBoardTasks(board, predicate) {
   const columns = Object.fromEntries(
     Object.entries(board.columns).map(([status, tasks]) => [status, tasks.filter(predicate)])

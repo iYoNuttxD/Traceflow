@@ -1,6 +1,7 @@
 import { sprintRepository } from '../repositories/sprint.repository.js';
 import { buildSprintProgress } from '../sprint.progress.calculator.js';
 import { buildSprintBurndown } from '../sprint.burndown.calculator.js';
+import { buildSprintEffort } from '../sprint.effort.calculator.js';
 import { buildSprintHistoricalSummary } from '../sprint.summary.calculator.js';
 import { parseSprintId } from '../sprint.schema.js';
 import { ensureSprintExists } from './sprint-crud.service.js';
@@ -12,9 +13,10 @@ export const sprintProgressService = {
 
     const cutoff = new Date();
     const frozen = ['CONCLUIDA', 'CANCELADA'].includes(sprint.status);
-    const [participations, burndownData] = await Promise.all([
+    const [participations, burndownData, effortRows] = await Promise.all([
       sprintRepository.findParticipationsBySprint(id, frozen),
-      sprintRepository.findBurndownDataBySprint(sprint)
+      sprintRepository.findBurndownDataBySprint(sprint),
+      sprintRepository.findEffortRowsBySprint(id, frozen)
     ]);
 
     const historicalLimitations = [];
@@ -34,6 +36,7 @@ export const sprintProgressService = {
       historicalSummary: buildSprintHistoricalSummary(sprint, participations),
       historicalLimitations,
       ...buildSprintProgress({ sprint, participations, cutoff }),
+      effort: buildSprintEffort(effortRows),
       burndown: buildSprintBurndown({
         sprint,
         participations: missingClosingPoints ? [] : burndownData,

@@ -216,7 +216,7 @@ describe('FIX-04 complete closing snapshot v2', () => {
     const snapshot = before.tasks.find((t) => t.id === id);
     expect(before.historicalLimitations).toEqual([]);
     expect(snapshot).toMatchObject({
-      snapshotVersion: 2,
+      snapshotVersion: 3,
       title: 'Implementar checkout',
       description: 'Descrição original da tarefa',
       priority: 'ALTA',
@@ -266,11 +266,13 @@ describe('FIX-04 complete closing snapshot v2', () => {
         priority: 'CRITICA',
         responsibleUserId: null,
         deadline: '2026-09-20',
-        estimatedEffort: 13,
-        actualEffort: 11
+        estimatedEffort: 13
       },
       context()
     );
+    // S1-06: actualEffort é derivado das sessões de tempo e recusado no update;
+    // a mudança do realizado atual é simulada direto no banco.
+    await prisma.task.update({ where: { id }, data: { actualEffort: 11 } });
     await prisma.user.update({ where: { id: actorUserId }, data: { name: 'Nome alterado' } });
     await prisma.requirement.update({ where: { id: requirement.id }, data: { title: 'R2' } });
     await prisma.pullRequest.update({
@@ -370,5 +372,102 @@ describe('FIX-04 complete closing snapshot v2', () => {
       'issues'
     ])
       expect(result.tasks[0]).not.toHaveProperty(field);
+  });
+});
+
+describe('S1-06 — esforço da sprint no encerramento', () => {
+  it('tarefa sem estimativa não vira estouro só porque a sprint fechou', async () => {
+    const actor = await prisma.user.create({
+      data: {
+        name: 'Effort QA',
+        username: 'effortqa',
+        email: 'effort@example.invalid',
+        passwordHash: 'x'
+      }
+    });
+    actorUserId = actor.id;
+    const project = await createProject(prisma);
+    await prisma.projectMembership.create({
+      data: { projectId: project.id, userId: actorUserId, role: 'OWNER' }
+    });
+    const sprint = await createSprint(prisma, project.id, {
+      name: 'S-effort',
+      startDate: new Date('2026-09-01'),
+      endDate: new Date('2026-09-05')
+    });
+    // Sem estimativa, mas com uma hora registrada.
+    const task = await createTask(prisma, project.id, {
+      title: 'Sem estimativa',
+      responsibleUserId: actorUserId
+    });
+    await prisma.task.update({ where: { id: task.id }, data: { actualEffort: 1 } });
+    await scope(sprint, [task]);
+    await status(sprint, 'EM_ANDAMENTO');
+
+    const open = await sprints.getSprintProgress(sprint.id);
+    expect(open.effort.perTask[0]).toMatchObject({
+      estimatedHours: null,
+      actualHours: 1,
+      status: 'SEM_ESTIMATIVA'
+    });
+
+    await status(sprint, 'CONCLUIDA');
+    const closed = await sprints.getSprintProgress(sprint.id);
+    // O fechamento não pode inventar um limite de zero hora.
+    expect(closed.effort.perTask[0]).toMatchObject({
+      estimatedHours: null,
+      actualHours: 1,
+      status: 'SEM_ESTIMATIVA'
+    });
+    expect(closed.effort).toMatchObject({
+      estimatedHours: null,
+      actualHours: 1,
+      incomplete: false,
+      status: 'SEM_ESTIMATIVA'
+    });
+  });
+
+  it('cartão congelado sem estimativa não publica limite zero', async () => {
+    const actor = await prisma.user.create({
+      data: {
+        name: 'Frozen effort QA',
+        username: 'frozeneffortqa',
+        email: 'frozen-effort@example.invalid',
+        passwordHash: 'x'
+      }
+    });
+    actorUserId = actor.id;
+    const project = await createProject(prisma);
+    await prisma.projectMembership.create({
+      data: { projectId: project.id, userId: actorUserId, role: 'OWNER' }
+    });
+    const sprint = await createSprint(prisma, project.id, {
+      name: 'S-frozen-effort',
+      startDate: new Date('2026-09-01'),
+      endDate: new Date('2026-09-05')
+    });
+    const semEstimativa = await createTask(prisma, project.id, {
+      title: 'Sem estimativa',
+      responsibleUserId: actorUserId
+    });
+    const comEstimativa = await createTask(prisma, project.id, {
+      title: 'Com estimativa',
+      estimatedEffort: 4,
+      responsibleUserId: actorUserId
+    });
+    await prisma.task.update({ where: { id: semEstimativa.id }, data: { actualEffort: 2 } });
+    await scope(sprint, [semEstimativa, comEstimativa]);
+    await status(sprint, 'EM_ANDAMENTO');
+    await status(sprint, 'CONCLUIDA');
+
+    const frozen = await sprints.findTasksBySprint(sprint.id);
+    const [sem, com] = [
+      frozen.find((t) => t.currentTaskId === semEstimativa.id),
+      frozen.find((t) => t.currentTaskId === comEstimativa.id)
+    ];
+    // `pointsAtClose` representa ausência e zero com o mesmo 0; o detalhe congelado
+    // lia esse 0 como limite e acusava estouro de um teto nunca planejado.
+    expect(sem).toMatchObject({ snapshotVersion: 3, estimatedEffort: null, actualEffort: 2 });
+    expect(com).toMatchObject({ snapshotVersion: 3, estimatedEffort: 4 });
   });
 });

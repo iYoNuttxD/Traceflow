@@ -382,7 +382,7 @@ export function TasksScreen() {
       const hadRequirementLinked = Boolean(editingTask?.requirementId || editingTask?.requirement);
       const previousCommitIds = (editingTask?.commits || []).map((commit) => commit.id);
       const previousIssueIds = (editingTask?.issues || []).map((issue) => issue.id);
-      const payload = taskFormToPayload(formData, Boolean(editingTaskId));
+      const payload = taskFormToPayload(formData);
       const response = editingTaskId
         ? await tasksApi.update(editingTaskId, payload)
         : await tasksApi.create(projectId, payload);

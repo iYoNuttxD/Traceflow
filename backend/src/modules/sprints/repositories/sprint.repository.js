@@ -599,6 +599,44 @@ export const sprintRepository = {
     return findBurndownData(prisma, sprint);
   },
 
+  // Linhas de esforço por tarefa (S1-06). Sprint aberta lê a tarefa viva; sprint
+  // encerrada lê o snapshot de fechamento para não reescrever o histórico.
+  async findEffortRowsBySprint(sprintId, frozen = false) {
+    if (!frozen) {
+      const tasks = await prisma.task.findMany({
+        where: { sprintId },
+        select: { id: true, estimatedEffort: true, actualEffort: true },
+        orderBy: { id: 'asc' }
+      });
+      return tasks.map((task) => ({
+        taskId: task.id,
+        estimatedHours: task.estimatedEffort,
+        actualHours: task.actualEffort
+      }));
+    }
+    const participations = await prisma.sprintTask.findMany({
+      where: { sprintId, removedAt: null },
+      select: { taskId: true, pointsAtClose: true, closingTaskSnapshot: true },
+      orderBy: { id: 'asc' }
+    });
+    return participations.map((participation) => {
+      const snapshot = participation.closingTaskSnapshot;
+      const version = snapshot?.version ?? 0;
+      // Só a v3 distingue "sem estimativa" de "estimativa zero". Antes disso um
+      // `pointsAtClose` zerado é ambíguo, e afirmar limite zero transformaria a
+      // tarefa em estouro no fechamento sem nada ter mudado.
+      const estimateFromSnapshot = version >= 3;
+      const points = participation.pointsAtClose;
+      return {
+        taskId: participation.taskId,
+        estimatedHours: estimateFromSnapshot ? (snapshot.estimatedEffort ?? null) : points || null,
+        estimateUnknown: !estimateFromSnapshot && !points,
+        actualHours: version >= 2 ? (snapshot.actualEffort ?? null) : null,
+        actualUnknown: version < 2
+      };
+    });
+  },
+
   async readTaskProjection(sprintId) {
     return prisma.$transaction(async (tx) => {
       const sprint = await tx.sprint.findUnique({

@@ -12,7 +12,6 @@ export const emptyTaskForm = {
   responsibleUserId: '',
   deadline: '',
   estimatedEffort: '',
-  actualEffort: '',
   requirementId: '',
   sprintId: '',
   pullRequestId: '',
@@ -29,7 +28,6 @@ export function taskToFormData(task) {
     responsibleUserId: task.responsibleUserId ? String(task.responsibleUserId) : '',
     deadline: task.deadline ? task.deadline.slice(0, 10) : '',
     estimatedEffort: task.estimatedEffort ?? '',
-    actualEffort: task.actualEffort ?? '',
     requirementId: task.requirementId ? String(task.requirementId) : '',
     sprintId: task.sprintId ? String(task.sprintId) : '',
     pullRequestId: task.pullRequestId ? String(task.pullRequestId) : '',
@@ -90,19 +88,15 @@ function normalizeText(value) {
   return String(value || '').trim();
 }
 
-export function taskFormToPayload(formData, editing = false) {
+// O esforço realizado é derivado das sessões de tempo (S1-06) e nunca viaja no payload.
+export function taskFormToPayload(formData) {
   const payload = {
     ...formData,
     deadline: formData.deadline || null,
     estimatedEffort: normalizeNumberField(formData.estimatedEffort)
   };
 
-  if (editing) {
-    payload.actualEffort = normalizeNumberField(formData.actualEffort);
-  } else {
-    delete payload.actualEffort;
-  }
-
+  delete payload.actualEffort;
   delete payload.pullRequestId;
   delete payload.requirementId;
   delete payload.sprintId;
@@ -396,11 +390,11 @@ export function TaskForm({
       )}
 
       <label className="field">
-        <span>Esforço estimado</span>
+        <span>Esforço estimado (horas)</span>
         <input
           type="number"
           min="0"
-          step="1"
+          step="0.5"
           name="estimatedEffort"
           value={formData.estimatedEffort}
           onChange={handleChange}
@@ -409,18 +403,12 @@ export function TaskForm({
       </label>
 
       {editing && (
-        <label className="field">
+        <div className="field">
           <span>Esforço realizado</span>
-          <input
-            type="number"
-            min="0"
-            step="1"
-            name="actualEffort"
-            value={formData.actualEffort}
-            onChange={handleChange}
-            placeholder="Horas"
-          />
-        </label>
+          <p className="field-help">
+            Calculado pelo cronômetro e pelos lançamentos manuais na tela de detalhes da tarefa.
+          </p>
+        </div>
       )}
 
       {composition === 'correction' ? (

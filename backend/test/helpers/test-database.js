@@ -28,12 +28,11 @@ export function deployTestMigrations(testDatabaseUrl) {
   // Invoca o entrypoint JS da CLI com o Node atual: o shim .cmd do Windows não pode
   // ser executado por spawnSync sem shell (EINVAL desde a mitigação CVE-2024-27980).
   const prismaEntry = resolve(process.cwd(), 'node_modules', 'prisma', 'build', 'index.js');
+  // Sem shell de propósito: node.exe é executável real (a mitigação da CVE-2024-27980
+  // só bloqueia .cmd/.bat), e com shell o caminho "C:\Program Files\nodejs\node.exe"
+  // seria concatenado sem aspas e quebraria em qualquer instalação padrão do Windows.
   const result = spawnSync(process.execPath, [prismaEntry, 'migrate', 'deploy'], {
     cwd: process.cwd(),
-    // A partir do Node 18.20.2/20.12.2/22 (mitigacao da CVE-2024-27980), spawn de
-    // .cmd/.bat sem shell retorna EINVAL. Sem isto, nenhum teste de integracao ou
-    // API roda no Windows.
-    shell: process.platform === 'win32',
     env: {
       ...process.env,
       DATABASE_URL: testDatabaseUrl
@@ -77,6 +76,7 @@ export async function cleanTestDatabase(prisma) {
     prisma.personalDataExport.deleteMany(),
     prisma.privacyRequest.deleteMany(),
     prisma.taskCommitSuggestion.deleteMany(),
+    prisma.taskTimeEntry.deleteMany(),
     prisma.taskComment.deleteMany(),
     prisma.taskCommit.deleteMany(),
     prisma.taskIssue.deleteMany(),

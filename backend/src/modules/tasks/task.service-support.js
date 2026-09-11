@@ -50,7 +50,13 @@ export function formatIssue(issue) {
 }
 export function formatTask(task) {
   if (!task) return task;
-  const { commitLinks = [], issueLinks = [], defectLinks = [], ...taskData } = task;
+  const {
+    commitLinks = [],
+    issueLinks = [],
+    defectLinks = [],
+    timeEntries = [],
+    ...taskData
+  } = task;
   const correctionDefects = [
     ...new Map(
       defectLinks.map(({ defect }) => [defect.id, { ...defect, displayId: `DEF-${defect.id}` }])
@@ -61,6 +67,7 @@ export function formatTask(task) {
     correctionDefectCount: correctionDefects.length,
     correctionDefects,
     responsible: taskData.responsibleUser?.name || taskData.responsible || null,
+    runningTimer: timeEntries[0] ?? null,
     pullRequest: taskData.pullRequest || null,
     commits: commitLinks.map((link) => formatCommit(link.commit)).filter(Boolean),
     issues: issueLinks.map((link) => formatIssue(link.issue)).filter(Boolean)
