@@ -18,23 +18,23 @@ O calculator compartilhado mantém `getImplementationStatus`, inclusive seu over
 
 ## As onze situações e a precedência
 
-A primeira condição satisfeita vence. Todas as linhas a partir de COM_FALHA pressupõem estágio técnico IMPLEMENTADO.
+A primeira condição satisfeita vence. Desde a revisão humana da Etapa 5 (2026-09-11), qualidade prioritária precede implementação incompleta. As linhas 7–11 exigem estágio técnico IMPLEMENTADO.
 
 | Ordem | Situação | Condição |
 |---|---|---|
-| 1 | SEM_RASTREABILIDADE | Zero Tasks atuais, mesmo com qualidade existente |
-| 2 | PLANEJADO | Tasks presentes, nenhuma DONE/EM_ANDAMENTO e nenhuma evidência técnica |
-| 3 | EM_DESENVOLVIMENTO | Trabalho iniciado/evidência presente, mas falta implementação completa |
-| 4 | COM_FALHA | Defect relevante ABERTO ou passo FAIL atual sem Defect ativo que o represente |
-| 5 | EM_CORRECAO | Nenhuma condição anterior; Defect relevante EM_CORRECAO |
-| 6 | AGUARDANDO_RETESTE | Nenhuma condição anterior; Defect relevante AGUARDANDO_RETESTE |
+| 1 | COM_FALHA | Defect relevante ABERTO ou passo FAIL atual sem Defect ativo que o represente, independentemente do progresso |
+| 2 | EM_CORRECAO | Nenhuma condição anterior; Defect relevante EM_CORRECAO |
+| 3 | AGUARDANDO_RETESTE | Nenhuma condição anterior; Defect relevante AGUARDANDO_RETESTE |
+| 4 | SEM_RASTREABILIDADE | Nenhuma condição anterior e zero Tasks atuais |
+| 5 | PLANEJADO | Nenhuma condição anterior; Tasks presentes, nenhuma DONE/EM_ANDAMENTO e nenhuma evidência técnica |
+| 6 | EM_DESENVOLVIMENTO | Nenhuma condição anterior; trabalho iniciado/evidência presente, mas falta implementação completa |
 | 7 | IMPLEMENTADO | Zero TestCases ativos relevantes |
 | 8 | AGUARDANDO_VALIDACAO | Há casos relevantes e nenhum tem execução da currentVersion |
 | 9 | EM_VALIDACAO | Validação iniciada, mas não são todos PASS; inclui BLOCKED e nunca executado parcial |
 | 10 | CONCLUIDO | Todos os casos relevantes PASS, nenhum Defect pendente e Requirement.status=CONCLUIDO |
 | 11 | VALIDADO | Mesma aprovação de qualidade, porém Requirement.status não terminal |
 
-Um conjunto vazio não aprova validação. Defect ABERTO vence outro EM_CORRECAO; EM_CORRECAO vence AGUARDANDO_RETESTE. A ordem não depende do último evento recebido. Trabalho técnico incompleto precede qualquer situação de qualidade; os contadores continuam expondo as pendências.
+Um conjunto vazio não aprova validação. Defect ABERTO vence outro EM_CORRECAO; EM_CORRECAO vence AGUARDANDO_RETESTE. A ordem não depende do último evento recebido. Qualidade prioritária não espera 100% de implementação: 25% + Defect EM_CORRECAO resulta em EM_CORRECAO, mantendo 25% de progresso. Sem falhas/Defects pendentes, Task EM_ANDAMENTO continua EM_DESENVOLVIMENTO.
 
 ## TestCases, execuções e Defects relevantes
 
@@ -76,7 +76,7 @@ Migration incremental `20260910120000_s109_requirement_traceability` cria:
 - `RequirementTraceabilityHistoryEntry`: id, projectId, requirementId, fromSituation nullable, toSituation, reason, sourceEntityType/id opcionais, metadataJson, occurredAt. Índice por projectId/requirementId/occurredAt/id. requirementId e sourceEntityId são identidades históricas sem FK ao recurso removível; excluir Requirement/Task não apaga entradas. FK Project CASCADE define retenção pelo ciclo do projeto.
 - Índice de TestExecution por testCaseId/testCaseVersion/executedAt/id para a seleção corrente. Migrations anteriores não foram alteradas.
 
-Contadores não são persistidos. metadataJson contém somente rulesVersion=1; sem cópias de PII, conteúdo de testes, arquivos, tokens ou snapshots artificiais. O histórico é de transições de situação, não de cada mudança de progresso. AuditEvent técnico mantém sua finalidade e retenção próprias.
+Contadores não são persistidos. metadataJson contém somente rulesVersion (2 nas entradas criadas após a revisão da Etapa 5; 1 nas entradas anteriores, preservadas); sem cópias de PII, conteúdo de testes, arquivos, tokens ou snapshots artificiais. O histórico é de transições de situação, não de cada mudança de progresso. AuditEvent técnico mantém sua finalidade e retenção próprias.
 
 Primeira observação: uma entrada BASELINE_INITIALIZED, fromSituation=null, toSituation calculada no momento da adoção. Pode acontecer no script ou na primeira mutação abrangida. Não se inventa o caminho anterior. Mesmo em Requirement recém-criado usa-se essa razão inicial, com sourceEntityType=Requirement e seu ID. Depois, somente from!=to grava estado e histórico na mesma transação. No-op não altera updatedAt nem insere entrada. GET não inicializa nem reconcilia.
 
@@ -102,6 +102,16 @@ A fronteira captura IDs afetados antes/depois, executa a mutação canônica e r
 | DefectRetest PASS/FAIL/BLOCKED | Requirements do TestCase e do Defect, após lifecycle canônico |
 
 GitHub sync auditado importa/atualiza metadados de PR/commit/issue e sugestões; não cria/remove TaskCommit, TaskIssue ou Task.pullRequestId. Estado/merge/metadados do GitHub não participam da evidência antiga. Logo sync não tem transição S1-09 a reconciliar. A confirmação humana RF41, que efetivamente cria o vínculo, possui o hook. Operações de Sprint/marco alteram escopo de planejamento, não status/requirementId técnico; snapshots congelados permanecem intactos. Neutralização de nomes por privacidade também não altera os predicados.
+
+## Reconciliação após revisão da policy
+
+```bash
+cd backend
+node scripts/reconcile-requirement-traceability.js --project-id=4 --dry-run --policy
+node scripts/reconcile-requirement-traceability.js --project-id=4 --apply --policy
+```
+
+O ID acima é ilustrativo; conferir o ambiente e o projeto antes de aplicar. `--policy` usa a razão `TRACEABILITY_POLICY_RECONCILIATION`, apresentada como “Situação reconciliada após atualização das regras de rastreabilidade”. Sem a flag, a razão continua `RECONCILIATION`. Primeira observação permanece `BASELINE_INITIALIZED`. Nenhuma entrada anterior é reescrita; somente uma diferença de situação produz transição e estado no mesmo commit transacional. A segunda reconciliação sem mudança insere zero entradas, sem alterar `updatedAt`.
 
 ## Inicialização e recuperação operacional
 

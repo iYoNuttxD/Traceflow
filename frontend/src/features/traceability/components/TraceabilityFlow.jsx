@@ -323,10 +323,14 @@ function Canvas({ traceability }) {
               edgesFocusable
               autoPanOnNodeFocus
               onKeyDown={(e) => {
-                const id = e.target.closest?.('.react-flow__node')?.getAttribute('data-id');
-                if (id && ['Enter', ' '].includes(e.key)) {
+                const wrapper = e.target.closest?.('.react-flow__node');
+                const id = wrapper?.getAttribute('data-id');
+                // Native buttons own their activation; intercept only the node wrapper.
+                if (id && e.target === wrapper && ['Enter', ' '].includes(e.key)) {
                   e.preventDefault();
-                  select(id);
+                  if (flow.getNode(id)?.data.node.type === 'GROUP')
+                    setGroups((old) => toggled(old, id));
+                  else select(id);
                 }
                 if (e.key === 'Escape' && selected) {
                   e.preventDefault();

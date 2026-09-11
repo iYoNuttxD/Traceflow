@@ -95,7 +95,7 @@ export async function reconcileRequirements(
       reason: state ? reason : 'BASELINE_INITIALIZED',
       sourceEntityType,
       sourceEntityId,
-      metadataJson: { rulesVersion: 1 }
+      metadataJson: { rulesVersion: 2 }
     };
     changes.push(entry);
     if (dryRun) continue;
@@ -144,7 +144,11 @@ export function traceabilityTransaction(context, work, client = prisma) {
   });
 }
 
-export function reconcileProject(projectId, { dryRun = true } = {}, client = prisma) {
+export function reconcileProject(
+  projectId,
+  { dryRun = true, reason = 'RECONCILIATION' } = {},
+  client = prisma
+) {
   return client.$transaction(
     async (tx) => {
       if (!dryRun) await lockProject(tx, projectId);
@@ -152,7 +156,8 @@ export function reconcileProject(projectId, { dryRun = true } = {}, client = pri
       return reconcileRequirements(tx, {
         projectId,
         requirementIds: rows.map((row) => row.id),
-        dryRun
+        dryRun,
+        reason
       });
     },
     { isolationLevel: dryRun ? 'RepeatableRead' : 'ReadCommitted', timeout: 15000 }

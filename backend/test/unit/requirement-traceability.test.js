@@ -74,25 +74,52 @@ describe('S1-09 canonical policy', () => {
     expect(state(r, tests, defects)).toBe(expected)
   );
 
-  it.each(['COM_FALHA', 'EM_CORRECAO', 'AGUARDANDO_RETESTE'])(
-    'implementation boundary precedes quality %s',
-    (quality) => {
-      const defects = [
-        defect(
-          {
-            COM_FALHA: 'ABERTO',
-            EM_CORRECAO: 'EM_CORRECAO',
-            AGUARDANDO_RETESTE: 'AGUARDANDO_RETESTE'
-          }[quality]
-        )
-      ];
-      expect(state(requirement([]), [tc('FAIL')], defects)).toBe('SEM_RASTREABILIDADE');
-      expect(state(requirement([task('A_FAZER', false)]), [tc('FAIL')], defects)).toBe('PLANEJADO');
-      expect(state(requirement([task('CONCLUIDO', false)]), [tc('PASS')], defects)).toBe(
-        'EM_DESENVOLVIMENTO'
-      );
+  it.each([
+    [25, 'EM_CORRECAO', 'EM_CORRECAO'],
+    [75, 'ABERTO', 'COM_FALHA'],
+    [50, 'AGUARDANDO_RETESTE', 'AGUARDANDO_RETESTE']
+  ])(
+    'prioritizes quality at %s percent without changing progress',
+    (percentage, status, expected) => {
+      const tasks = Array.from({ length: 4 }, (_, i) => ({
+        ...task(i < percentage / 25 ? 'CONCLUIDO' : 'EM_ANDAMENTO'),
+        id: i + 1
+      }));
+      const projection = projectRequirement(requirement(tasks), [], [defect(status)]);
+      expect(projection.situation).toBe(expected);
+      expect(projection.progress.percentage).toBe(percentage);
     }
   );
+  it('does not hide untreated current failure behind ongoing or absent implementation', () => {
+    expect(state(requirement([task('EM_ANDAMENTO')]), [tc('FAIL')])).toBe('COM_FALHA');
+    expect(state(requirement([]), [tc('FAIL')])).toBe('COM_FALHA');
+    expect(state(requirement([task('EM_ANDAMENTO')]), [tc('PASS')])).toBe('EM_DESENVOLVIMENTO');
+  });
+  it('summarizes the same quality situations as the requirement list', () => {
+    const partial = requirement([task('EM_ANDAMENTO')]);
+    const rows = [
+      projectRequirement(partial, [], [defect('EM_CORRECAO')]),
+      projectRequirement(partial, [], [defect('ABERTO')]),
+      projectRequirement(partial),
+      projectRequirement(requirement([]))
+    ];
+    expect(rows.map((r) => r.situation)).toEqual([
+      'EM_CORRECAO',
+      'COM_FALHA',
+      'EM_DESENVOLVIMENTO',
+      'SEM_RASTREABILIDADE'
+    ]);
+    const summary = projectionSummary(rows);
+    expect(summary).toMatchObject({
+      total: 4,
+      withDefect: 2,
+      bySituation: { EM_DESENVOLVIMENTO: 1 }
+    });
+    expect(summary.withDefect).toBe(
+      rows.filter((r) => ['COM_FALHA', 'EM_CORRECAO', 'AGUARDANDO_RETESTE'].includes(r.situation))
+        .length
+    );
+  });
 
   it.each([
     [['VALIDADO', 'EM_CORRECAO'], 'EM_CORRECAO'],
@@ -277,6 +304,11 @@ describe('S1-09 canonical policy', () => {
       dryRun: true
     });
     expect(parseReconciliationArguments(['--project-id=1', '--apply']).dryRun).toBe(false);
+    expect(parseReconciliationArguments(['--project-id=1', '--policy'])).toEqual({
+      projectId: 1,
+      dryRun: true,
+      reason: 'TRACEABILITY_POLICY_RECONCILIATION'
+    });
     for (const args of [
       [],
       ['--project-id=0'],

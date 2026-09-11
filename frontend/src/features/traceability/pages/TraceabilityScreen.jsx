@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { useParams } from 'react-router';
 import { getRequirementTraceability } from '../api/traceability.api.js';
 import {
   ContextualErrorPage,
@@ -85,9 +85,6 @@ function ProjectTraceability({ projectId }) {
   return (
     <main className="page-container sprints-screen traceability-page">
       <div className="traceability-content" inert={history || selected ? true : undefined}>
-        <Link className="back-link" to={`/projects/${projectId}`}>
-          Voltar para o projeto
-        </Link>
         <header className="page-header sprints-screen__header">
           <div>
             <span className="eyebrow">Rastreabilidade</span>

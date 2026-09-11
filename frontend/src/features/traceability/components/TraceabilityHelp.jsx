@@ -54,26 +54,44 @@ export function TraceabilityHelp({ topic, context }) {
 export function TraceabilityGuide() {
   return (
     <details className="trace-guide">
-      <summary>Como interpretar este fluxo?</summary>
+      <summary>
+        <TraceFlowIcon name="branch" />
+        <strong>Como interpretar este fluxo?</strong>
+      </summary>
       <div>
         <p>
-          <strong>Requisito</strong> define o que entregar. <strong>Tarefas</strong> representam o
-          trabalho de implementação ou correção; PRs e commits comprovam sua implementação. Issues
-          dão contexto técnico.
+          Leia a cadeia principalmente da esquerda para a direita. Selecione um artefato para
+          destacar suas conexões e entender seu papel no Inspector.
+        </p>
+        <dl className="trace-guide-chains">
+          <div>
+            <dt>Implementação</dt>
+            <dd>Tarefa → PR / Commit / Issue</dd>
+            <p>PRs e commits comprovam implementação; issues dão contexto.</p>
+          </div>
+          <div>
+            <dt>Validação</dt>
+            <dd>Caso de teste → Execução</dd>
+            <p>A execução registra o resultado e a versão que foi testada.</p>
+          </div>
+          <div>
+            <dt>Qualidade</dt>
+            <dd>Execução com falha → Defeito</dd>
+            <p>O defeito identifica a falha e o passo que a detectou.</p>
+          </div>
+          <div>
+            <dt>Correção</dt>
+            <dd>Defeito → Tarefa de correção → Reteste</dd>
+            <p>O reteste verifica a correção no ciclo correspondente.</p>
+          </div>
+        </dl>
+        <p className="trace-guide-legend">
+          <span className="trace-guide-line" aria-hidden="true" /> Cadeia principal{' '}
+          <span className="trace-guide-line is-secondary" aria-hidden="true" /> Relação de contexto
         </p>
         <p>
-          <strong>Caso de teste</strong> define a verificação. <strong>Execução</strong> registra
-          PASS, FAIL ou BLOCKED. Um <strong>defeito</strong> aponta a falha e o passo que a
-          detectou.
-        </p>
-        <p>
-          <strong>Correção</strong> identifica a tarefa vinculada ao defeito.{' '}
-          <strong>Reteste</strong> é a execução usada para verificar essa correção.
-        </p>
-        <p>
-          Arraste os cards para organizar. Selecione um artefato para destacar suas conexões e ler o
-          Inspector. Linhas discretas indicam contexto; todas as relações podem ser consultadas no
-          Inspector. O zoom preserva a leitura: arraste o fundo para explorar o restante.
+          Arraste os cards para organizar e o fundo para explorar. Aproxime uma conexão com o
+          ponteiro ou teclado para ler seu rótulo. Todas as relações também aparecem no Inspector.
         </p>
       </div>
     </details>

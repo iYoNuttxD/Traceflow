@@ -10,18 +10,22 @@ export function parseReconciliationArguments(args) {
     !Number.isSafeInteger(projectId) ||
     projectId < 1 ||
     projectId > 2147483647 ||
-    args.some((arg) => arg !== project && !['--dry-run', '--apply'].includes(arg)) ||
+    args.some((arg) => arg !== project && !['--dry-run', '--apply', '--policy'].includes(arg)) ||
     (args.includes('--apply') && args.includes('--dry-run'))
   ) {
-    throw new Error('Uso: --project-id=<id> [--dry-run | --apply]. Padrão: dry-run.');
+    throw new Error('Uso: --project-id=<id> [--dry-run | --apply] [--policy]. Padrão: dry-run.');
   }
-  return { projectId, dryRun: !args.includes('--apply') };
+  return {
+    projectId,
+    dryRun: !args.includes('--apply'),
+    ...(args.includes('--policy') ? { reason: 'TRACEABILITY_POLICY_RECONCILIATION' } : {})
+  };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
-    const { projectId, dryRun } = parseReconciliationArguments(process.argv.slice(2));
-    const result = await reconcileProject(projectId, { dryRun });
+    const { projectId, dryRun, reason } = parseReconciliationArguments(process.argv.slice(2));
+    const result = await reconcileProject(projectId, { dryRun, reason });
     process.stdout.write(`${JSON.stringify({ projectId, dryRun, ...result }, null, 2)}\n`);
   } catch (error) {
     process.stderr.write(

@@ -1,4 +1,4 @@
-import { phaseLabel } from '../model/phase.js';
+import { TraceabilityPhaseTrail } from './TraceabilityPhaseTrail.jsx';
 import { TraceabilityHelp } from './TraceabilityHelp.jsx';
 import { CollapsibleFilterPanel } from '../../schedule/index.js';
 import { SelectControl, TraceFlowIcon } from '../../../shared/index.js';
@@ -26,6 +26,10 @@ export function RequirementSummary({ summary }) {
         <div>
           <span className="eyebrow">Resumo</span>
           <h2>Visão geral da rastreabilidade</h2>
+          <p>
+            Acompanhe a distribuição dos requisitos entre desenvolvimento, validação, correção e
+            conclusão.
+          </p>
         </div>
       </div>
       <dl className="requirement-metrics">
@@ -114,11 +118,24 @@ function Evidence({ label, value }) {
         ? 'Presente'
         : 'Ausente';
   return (
-    <span>
-      <TraceFlowIcon name={text === 'Presente' ? 'check' : 'info'} />
+    <span aria-label={`${label}: ${text}`} title={`${label}: ${text}`}>
+      {text === 'Presente' ? <TraceFlowIcon name="check" /> : <span aria-hidden="true">—</span>}
       <span>
-        {label}: {text}
+        {label}
+        {text === 'Não aplicável' ? ' · Não aplicável' : ''}
       </span>
+    </span>
+  );
+}
+function Count({ label, value, icon, tone }) {
+  return (
+    <span
+      className={`requirement-count${value && tone ? ` requirement-count--${tone}` : ''}`}
+      aria-label={`${label}: ${value}`}
+    >
+      {icon && <TraceFlowIcon name={icon} />}
+      <span>{label}</span>
+      <b>{value}</b>
     </span>
   );
 }
@@ -139,16 +156,10 @@ export function RequirementCard({ item, selected, onSelect, onHistory }) {
       </header>
       <div className="requirement-card__body">
         <h3 title={requirement.title}>{requirement.title}</h3>
-        <small>
-          Status do requisito: {requirementStatuses[requirement.status] || 'Não informado'}
-        </small>
-        <div className="requirement-phase">
-          Fase atual <strong>{phaseLabel(item.situation)}</strong>
-          <TraceabilityHelp topic="phase" />
-        </div>
+        <TraceabilityPhaseTrail projection={item} />
         <div className="traceability-progress">
           <div className="requirement-card__line">
-            <strong>
+            <strong className="trace-help-label">
               Progresso
               <TraceabilityHelp
                 topic="progress"
@@ -174,28 +185,34 @@ export function RequirementCard({ item, selected, onSelect, onHistory }) {
               : 'Nenhuma tarefa relacionada'}
           </small>
         </div>
-        <div className="requirement-card__group">
+        <section className="requirement-card__group" aria-label="Artefatos">
           <strong>Artefatos</strong>
-          <span>
-            {artifacts.pullRequests} PRs · {artifacts.commits} commits · {artifacts.issues} issues
-          </span>
-        </div>
-        <div className="requirement-card__group">
-          <strong>Testes · {validation.testCasesTotal} ativos</strong>
-          <span>
-            {validation.pass} aprovados · {validation.fail} com falha · {validation.blocked}{' '}
-            bloqueados · {validation.neverExecuted} nunca executados
-          </span>
-        </div>
-        <div className="requirement-card__group">
+          <div className="requirement-counts">
+            <Count icon="branch" label="PRs" value={artifacts.pullRequests} />
+            <Count icon="code" label="Commits" value={artifacts.commits} />
+            <Count icon="info" label="Issues" value={artifacts.issues} />
+          </div>
+        </section>
+        <section className="requirement-card__group" aria-label="Testes">
+          <strong>Testes · {validation.testCasesTotal} casos ativos</strong>
+          <div className="requirement-counts">
+            <Count label="PASS" value={validation.pass} />
+            <Count label="FAIL" value={validation.fail} tone="danger" />
+            <Count label="BLOCKED" value={validation.blocked} tone="warning" />
+            <Count label="Pendentes" value={validation.neverExecuted} />
+          </div>
+        </section>
+        <section className="requirement-card__group" aria-label="Defeitos">
           <strong>Defeitos · {defects.total}</strong>
-          <span>
-            {defects.open} abertos · {defects.inCorrection} em correção · {defects.waitingRetest}{' '}
-            aguardando reteste · {defects.validated} validados
-          </span>
-        </div>
+          <div className="requirement-counts">
+            <Count label="Abertos" value={defects.open} tone="danger" />
+            <Count label="Em correção" value={defects.inCorrection} tone="warning" />
+            <Count label="Aguardando reteste" value={defects.waitingRetest} />
+            <Count label="Validados" value={defects.validated} />
+          </div>
+        </section>
         <div className="requirement-evidence" aria-label="Evidências">
-          <span>
+          <span className="trace-help-label">
             Evidências
             <TraceabilityHelp topic="evidence" />
           </span>

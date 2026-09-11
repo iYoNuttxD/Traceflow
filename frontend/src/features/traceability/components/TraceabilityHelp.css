@@ -5,8 +5,8 @@
 }
 .trace-help-trigger {
   display: inline-grid;
-  place-items: center;
-  min-width: var(--size-touch-target);
+  place-items: center start;
+  min-width: 28px;
   min-height: var(--size-touch-target);
   padding: var(--space-1);
   border: 0;
@@ -42,12 +42,11 @@
 }
 .trace-guide summary {
   cursor: pointer;
-  padding: var(--space-2);
   color: var(--color-accent-text);
 }
 .trace-guide > div {
   padding: var(--space-3);
-  max-height: 15rem;
+  max-height: min(26rem, 55dvh);
   overflow: auto;
   border-top: 1px solid var(--color-border-default);
   background: var(--color-surface-secondary);
@@ -61,4 +60,68 @@
 }
 .requirement-phase strong {
   color: var(--color-text-primary);
+}
+
+.trace-guide summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--size-touch-target);
+  padding: var(--space-2) var(--space-4);
+}
+.trace-guide summary .traceflow-icon {
+  width: var(--size-icon-sm);
+  height: var(--size-icon-sm);
+}
+.trace-guide summary:hover {
+  background: var(--color-surface-interactive);
+}
+.trace-guide summary::-webkit-details-marker {
+  display: none;
+}
+.trace-guide summary::after {
+  content: '+';
+  margin-left: auto;
+}
+.trace-guide[open] summary::after {
+  content: '−';
+}
+.trace-guide p {
+  margin: 0 0 var(--space-3);
+  color: var(--color-text-secondary);
+}
+.trace-guide-chains {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+  margin: var(--space-3) 0;
+}
+.trace-guide-chains > div {
+  border-left: 2px solid var(--color-border-strong);
+  padding-left: var(--space-3);
+}
+.trace-guide-chains dt {
+  color: var(--color-accent-text);
+  font-weight: var(--font-weight-semibold);
+}
+.trace-guide-chains dd {
+  margin: var(--space-1) 0;
+}
+.trace-guide .trace-guide-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.trace-guide-line {
+  width: 32px;
+  border-top: 2px solid var(--color-text-secondary);
+}
+.trace-guide-line.is-secondary {
+  border-top: 1px dashed var(--color-border-strong);
+}
+@media (max-width: 600px) {
+  .trace-guide-chains {
+    grid-template-columns: 1fr;
+  }
 }

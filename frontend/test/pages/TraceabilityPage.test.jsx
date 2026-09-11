@@ -7,6 +7,7 @@ import {
   RequirementSummary
 } from '../../src/features/traceability/components/RequirementCatalog.jsx';
 import { RequirementHistory } from '../../src/features/traceability/components/RequirementHistory.jsx';
+import { TraceabilityPhaseTrail } from '../../src/features/traceability/components/TraceabilityPhaseTrail.jsx';
 import {
   situations,
   overviewMetrics
@@ -94,6 +95,65 @@ beforeEach(() => {
   api.getRequirementSituationHistory.mockResolvedValue({ items: [], nextCursor: null });
 });
 describe('Requirement projections and cards', () => {
+  it('represents reached phases independently from progress and follows a current regression', () => {
+    const projection = item(4, 'EM_CORRECAO');
+    const { rerender } = render(<TraceabilityPhaseTrail projection={projection} />);
+    expect(
+      screen.getByRole('listitem', { name: 'Implementação: Já alcançada' })
+    ).toBeInTheDocument();
+    expect(screen.getByRole('listitem', { name: 'Correção: Atual' })).toHaveAttribute(
+      'aria-current',
+      'step'
+    );
+    rerender(<TraceabilityPhaseTrail projection={{ ...projection, situation: 'CONCLUIDO' }} />);
+    expect(screen.getByRole('listitem', { name: 'Conclusão: Atual' })).toHaveAttribute(
+      'aria-current',
+      'step'
+    );
+    rerender(
+      <TraceabilityPhaseTrail projection={{ ...projection, situation: 'AGUARDANDO_VALIDACAO' }} />
+    );
+    expect(screen.getByRole('listitem', { name: 'Validação: Atual' })).toHaveAttribute(
+      'aria-current',
+      'step'
+    );
+    expect(
+      screen.getByRole('listitem', { name: 'Conclusão: Ainda não alcançada' })
+    ).toBeInTheDocument();
+    expect(projection.progress.percentage).toBe(25);
+    expect(projection.situation).toBe('EM_CORRECAO');
+  });
+  it('does not invent a correction cycle for a concluded chain without defects', () => {
+    render(
+      <TraceabilityPhaseTrail projection={{ situation: 'CONCLUIDO', defects: { total: 0 } }} />
+    );
+    expect(
+      screen.getByRole('listitem', { name: 'Correção: Ainda não alcançada' })
+    ).toBeInTheDocument();
+  });
+  it('describes the overview and uses the same authoritative situations as the four cards', () => {
+    const items = ['EM_CORRECAO', 'COM_FALHA', 'EM_DESENVOLVIMENTO', 'SEM_RASTREABILIDADE'].map(
+      (s, i) => item(i + 1, s)
+    );
+    const summary = {
+      total: 4,
+      withDefect: 2,
+      bySituation: { CONCLUIDO: 0, ...Object.fromEntries(items.map((i) => [i.situation, 1])) }
+    };
+    render(
+      <>
+        <RequirementSummary summary={summary} />
+        {items.map((i) => (
+          <RequirementCard key={i.requirement.id} item={i} />
+        ))}
+      </>
+    );
+    expect(screen.getByText(/Acompanhe a distribuição dos requisitos/)).toBeInTheDocument();
+    expect(overviewMetrics(summary).map((m) => m[1])).toEqual([4, 1, 0, 2, 0]);
+    expect(
+      screen.getAllByText(/^(Em correção|Com falha)$/, { selector: '.requirement-situation' })
+    ).toHaveLength(2);
+  });
   it.each(Object.keys(situations))(
     'presents authoritative situation %s independently from status/progress',
     (situation) => {
@@ -101,7 +161,10 @@ describe('Requirement projections and cards', () => {
       expect(
         screen.getByText(situations[situation][0], { selector: '.requirement-situation' })
       ).toBeInTheDocument();
-      expect(screen.getByText('Status do requisito: Aprovado')).toBeInTheDocument();
+      expect(screen.queryByText(/Status do requisito:/)).not.toBeInTheDocument();
+      expect(
+        screen.getByRole('list', { name: 'Evolução das fases da rastreabilidade' })
+      ).toBeInTheDocument();
       expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '25');
     }
   );
@@ -117,20 +180,27 @@ describe('Requirement projections and cards', () => {
     render(<RequirementCard item={data} />);
     expect(screen.getByRole('progressbar')).not.toHaveAttribute('aria-valuenow');
     expect(screen.getByText('Nenhuma tarefa relacionada')).toBeInTheDocument();
-    expect(screen.getByText('Correção: Não aplicável')).toBeInTheDocument();
+    expect(screen.getByLabelText('Correção: Não aplicável')).toBeInTheDocument();
   });
   it('renders authoritative counts/evidence without recomputation', () => {
     const data = item();
     data.evidence.correction = 'PRESENT';
     render(<RequirementCard item={data} />);
-    expect(screen.getByText('2 PRs · 3 commits · 4 issues')).toBeInTheDocument();
-    expect(
-      screen.getByText('2 aprovados · 1 com falha · 3 bloqueados · 2 nunca executados')
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText('1 abertos · 2 em correção · 1 aguardando reteste · 1 validados')
-    ).toBeInTheDocument();
-    expect(screen.getByText('Correção: Presente')).toBeInTheDocument();
+    for (const label of [
+      'PRs: 2',
+      'Commits: 3',
+      'Issues: 4',
+      'PASS: 2',
+      'FAIL: 1',
+      'BLOCKED: 3',
+      'Pendentes: 2',
+      'Abertos: 1',
+      'Em correção: 2',
+      'Aguardando reteste: 1',
+      'Validados: 1',
+      'Correção: Presente'
+    ])
+      expect(screen.getByLabelText(label)).toBeInTheDocument();
   });
   it('supports distinct keyboard actions without duplicate activation', async () => {
     const user = userEvent.setup(),

@@ -298,6 +298,10 @@ describe('S1-08 persisted domain foundation', () => {
       f.context
     );
     await effort.startTaskTimer(task.id, { ...f.context, membershipRole: 'MEMBER' });
+    const before = await prisma.requirementTraceabilityHistoryEntry.findMany({
+      where: { requirementId: f.requirement.id },
+      orderBy: { id: 'asc' }
+    });
     await tasks.deleteTask(task.id, f.context);
     expect(await prisma.taskTimeEntry.count({ where: { taskId: task.id } })).toBe(0);
     expect(await prisma.task.findUnique({ where: { id: task.id } })).toBeNull();
@@ -305,13 +309,14 @@ describe('S1-08 persisted domain foundation', () => {
       await prisma.requirementTraceabilityState.findUnique({
         where: { requirementId: f.requirement.id }
       })
-    ).toMatchObject({ currentSituation: 'SEM_RASTREABILIDADE' });
+    ).toMatchObject({ currentSituation: 'COM_FALHA' });
+    // The current failed execution remains after task deletion: no fictitious transition.
     expect(
-      await prisma.requirementTraceabilityHistoryEntry.findFirst({
+      await prisma.requirementTraceabilityHistoryEntry.findMany({
         where: { requirementId: f.requirement.id },
-        orderBy: { id: 'desc' }
+        orderBy: { id: 'asc' }
       })
-    ).toMatchObject({ fromSituation: 'PLANEJADO', toSituation: 'SEM_RASTREABILIDADE' });
+    ).toEqual(before);
   });
   it('rolls back a newly created task, requirement projection and audit when linking fails', async () => {
     const f = await fixture(),
