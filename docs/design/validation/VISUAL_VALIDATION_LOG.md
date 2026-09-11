@@ -429,3 +429,23 @@ nas relações de metadata expandida e preservam nome acessível em todas as edg
 Teclado, foco visível, aria-expanded, resultados textuais e retorno dos Details verificados;
 não é certificação WCAG completa. Este registro não substitui QA integrado/CI remoto.
 Ver [relatório A–V](../../deliveries/S1_09_EXPANDED_TRACEABILITY_GRAPH_REPORT.md).
+
+
+## 2026-09-11 — S1-09 Etapa 5 · Workspace final e targeted corrections
+
+**PASS LOCAL — inspeção renderizada no Chrome/macOS.** Sessão autenticada local no projeto 2; grafo grande obtido de fixture persistida em schema exclusivo de teste e exibido em preview temporário removido ao final.
+
+| Workspace / grafo grande / contexto / Inspector | Light | Dark |
+|---|---|---|
+| 1440×1000 | PASS | PASS |
+| 1280×900 | PASS | PASS |
+| 768×1024 | PASS | PASS |
+| 390×844 | PASS | PASS |
+
+Requirement Cards, TestCase/Defect overviews e Defect Cards foram comparados com a família Task/TestCase; a cobertura exata por superfície está na seção Q do [relatório final](../../deliveries/S1_09_TRACEABILITY_GRAPH_WORKSPACE_UX_REPORT.md), sem extrapolar a matriz do grafo para toda combinação de catálogo. Cards reais: REQ-4 25%/Em correção; REQ-3 75%/Com falha; REQ-2 Sem dados/Sem rastreabilidade. Summary: 4 total, 2 com defeito, 1 em desenvolvimento. Card aguardando reteste: fixture sintética calculada pela policy, Light/Dark em 390.
+
+Grafo grande: 85 artefatos/123 relações; 22 entidades + 10 grupos por padrão; 85 + 10 totalmente expandido. Leitura real TC → execução FAIL → Defect → reteste PASS, ciclos separados, edges destacadas e Inspector textual. Zoom manual .20 e centralização .90 conferidos no DOM; arraste de DEF-222 permaneceu ao trocar seleção. Margem 768 corrigida para 16px em ambos os lados. Mobile manteve canvas e Inspector rolável, sem overflow horizontal da página.
+
+Revalidação de foco posterior ao último fix: Enter abre workspace, ajuda consome Escape, relações focam o heading do Inspector, Details mantém um diálogo, fechamento devolve ao trigger. A homologação encontrou Enter/Espaço interceptados pelo canvas nos botões de grupos; regressão red/green e correção do owner de teclado, seguida de 299 testes × 10 rodadas e 1.110 testes full/coverage. Backend: 89 focados e 1.246 full, 5 skips preexistentes.
+
+Histórico real confirmou nova razão de policy sem reescrever baseline. Screenshots foram observadas na sessão, sem PNGs temporários versionados. Preview removido. Nenhuma conclusão sobre CI remoto, produção, dispositivos físicos ou conformidade WCAG integral é derivada deste registro.

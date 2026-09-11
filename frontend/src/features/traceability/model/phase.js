@@ -28,7 +28,7 @@ export const traceabilityHelp = {
   ],
   phase: [
     'Fase do requisito',
-    'Agrupa a situação atual em uma etapa maior da rastreabilidade: planejamento, implementação, validação, correção ou conclusão.'
+    'Mostra a fase atual e as etapas já alcançadas no percurso indicado pela situação atual. Uma etapa anterior não significa trabalho 100% concluído. A situação pode regredir; o histórico continua preservado.'
   ],
   situation: [
     'Situação da rastreabilidade',

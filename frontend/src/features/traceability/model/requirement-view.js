@@ -25,6 +25,8 @@ export const situationLabel = (value) => situations[value]?.[0] || 'Situação i
 export const historyReasons = {
   BASELINE_INITIALIZED: 'Baseline da rastreabilidade registrado',
   RECONCILIATION: 'Rastreabilidade reconciliada',
+  TRACEABILITY_POLICY_RECONCILIATION:
+    'Situação reconciliada após atualização das regras de rastreabilidade',
   REQUIREMENT_CREATED: 'Requisito criado',
   REQUIREMENT_UPDATED: 'Requisito atualizado',
   REQUIREMENT_STATUS_CHANGED: 'Status do requisito alterado',

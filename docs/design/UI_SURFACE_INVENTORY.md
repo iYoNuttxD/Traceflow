@@ -648,3 +648,21 @@ Validação real de 12 superfícies × 8 combinações no
 [relatório FIX 03](../deliveries/S1_08_UX_STANDARDIZATION_FIX_03_REPORT.md#g--visual-matrix).
 Sprint, Marco e TestCase Catalog foram comparados como referências, sem alteração
 de seus contratos ou reclassificação dos gates anteriores.
+
+
+## S1-09 Etapa 5 — Workspace e targeted corrections (2026-09-11)
+
+Registro posterior às linhas históricas das Etapas 3/4. Homologação renderizada encerrada; cobertura e limites detalhados no [relatório final](../deliveries/S1_09_TRACEABILITY_GRAPH_WORKSPACE_UX_REPORT.md).
+
+| Superfície | Owner | Estado atual | Evidência |
+|---|---|---|---|
+| TRACEABILITY-REQUIREMENT-CARD | RequirementCatalog / TraceabilityPhaseTrail | Fase completa, situação/progresso separados, status cadastral removido, contagens/evidências estruturadas e footer íntegro | PASS visual Light/Dark; vazio, correção, falha e fixture aguardando reteste |
+| TRACEABILITY-SUMMARY | RequirementSummary | Descrição canônica; buckets autoritativos | PASS; projeto 2 = 4 requisitos / 2 com defeito / 1 desenvolvimento |
+| TRACEABILITY-WORKSPACE | TraceabilityWorkspace / SprintDialog | Owner modal único, context strip, trail, ajuda e Details no mesmo owner | PASS Light/Dark em 1440/1280/768/390 |
+| TRACEABILITY-FLOW-CANVAS | TraceabilityFlow / ELK | Arraste, grupos, portas semânticas, zoom manual .20 e centralização .90 | PASS; 85 artefatos + 10 grupos; teclado revalidado |
+| TRACEABILITY-INSPECTOR | TraceabilityInspector | Explicação das relações, heading focado ao navegar | PASS; lateral no desktop/tablet, inferior no mobile |
+| TRACEABILITY-SITUATION-HISTORY | RequirementHistory | Nova copy de reconciliação da policy | PASS real; baseline antigo + nova transição |
+| DEFECT-CARD | DefectCard / tc-card | Detection, correction/cycle e Requirement em rows; lifecycle/actions preservados | PASS Light/Dark; regressões de leitura/permissão/ações verdes |
+| TESTCASE/DEFECT-OVERVIEW | TestCaseSummary / ProjectDefects | Descrição na estrutura existente de summary | PASS renderizado Light/Dark |
+
+Phase trail é apresentação do percurso corrente, não histórico persistido nem confirmação de 100% de conclusão. Overview reutiliza C2 existente; não foi criada regra global adicional. O inventário não amplia o PASS para cenários externos ou certificação WCAG integral.

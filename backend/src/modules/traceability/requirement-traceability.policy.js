@@ -42,14 +42,15 @@ export function currentExecution(testCase) {
 export function deriveSituation({
   legacyStage,
   validation,
-  defects,
+  defects = {},
   hasUntreatedFailure,
   requirementStatus
 }) {
-  if (legacyStage !== 'IMPLEMENTADO') return legacyStage;
   if (defects.open || hasUntreatedFailure) return 'COM_FALHA';
   if (defects.inCorrection) return 'EM_CORRECAO';
   if (defects.waitingRetest) return 'AGUARDANDO_RETESTE';
+  // Current quality takes precedence even when implementation is incomplete.
+  if (legacyStage !== 'IMPLEMENTADO') return legacyStage;
   if (!validation.testCasesTotal) return 'IMPLEMENTADO';
   if (validation.neverExecuted === validation.testCasesTotal) return 'AGUARDANDO_VALIDACAO';
   if (validation.pass !== validation.testCasesTotal) return 'EM_VALIDACAO';

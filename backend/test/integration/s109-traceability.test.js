@@ -429,6 +429,35 @@ describe('S1-09 persisted projection and transitions', () => {
     await taskRequirement.unlinkRequirement(t.id, f.context);
     await f.state('SEM_RASTREABILIDADE');
   });
+  it('appends a policy reconciliation transition once and preserves all previous history', async () => {
+    const f = await fixture();
+    await f.ready();
+    const tc = await f.createCase();
+    const failed = await f.execute(tc, 'FAIL');
+    await f.createDefect(failed);
+    await prisma.task.updateMany({
+      where: { projectId: f.project.id },
+      data: { status: 'EM_ANDAMENTO' }
+    });
+    // State captured by the former policy; old entries remain immutable.
+    await prisma.requirementTraceabilityState.update({
+      where: { requirementId: f.requirement.id },
+      data: { currentSituation: 'EM_DESENVOLVIMENTO' }
+    });
+    const before = await f.history();
+    const options = { dryRun: false, reason: 'TRACEABILITY_POLICY_RECONCILIATION' };
+    const result = await reconcileProject(f.project.id, options);
+    expect(result.changes).toHaveLength(1);
+    expect(result.changes[0]).toMatchObject({
+      fromSituation: 'EM_DESENVOLVIMENTO',
+      toSituation: 'COM_FALHA',
+      reason: options.reason,
+      metadataJson: { rulesVersion: 2 }
+    });
+    expect((await f.history()).slice(0, -1)).toEqual(before);
+    expect((await reconcileProject(f.project.id, options)).changes).toHaveLength(0);
+    expect(await f.history()).toHaveLength(before.length + 1);
+  });
   it('rolls canonical mutation, state and history back together on history failure', async () => {
     const f = await fixture();
     await reconcileProject(f.project.id, { dryRun: false });

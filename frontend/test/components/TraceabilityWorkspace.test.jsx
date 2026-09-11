@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { fixture, node } from '../helpers/expanded-graph.js';
 import { TraceabilityFlow } from '../../src/features/traceability/components/TraceabilityFlow.jsx';
@@ -49,11 +50,18 @@ vi.mock('@xyflow/react', () => ({
   ReactFlow: (props) => {
     mocks.props = props;
     return (
-      <div>
+      <div onKeyDown={props.onKeyDown}>
         {props.nodes.map((n) => {
           const Component = props.nodeTypes[n.type];
           return (
-            <div key={n.id} data-testid={n.id} data-position={JSON.stringify(n.position)}>
+            <div
+              key={n.id}
+              className="react-flow__node"
+              data-id={n.id}
+              tabIndex={0}
+              data-testid={n.id}
+              data-position={JSON.stringify(n.position)}
+            >
               <Component id={n.id} data={n.data} />
             </div>
           );
@@ -91,6 +99,18 @@ beforeEach(() => {
   }));
 });
 describe('Workspace interactions', () => {
+  it('allows native group-button keyboard activation without the canvas swallowing Enter', async () => {
+    mount(fixture());
+    await ready();
+    const user = userEvent.setup();
+    const button = screen.getByRole('button', { name: 'Expandir 7 Commit de REQ-1' });
+    button.focus();
+    await user.keyboard('{Enter}');
+    expect(await screen.findByRole('button', { name: 'Recolher Commit de REQ-1' })).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    );
+  });
   it('selects without changing card geometry, switches Inspector, then clears', async () => {
     mount(fixture());
     await ready();
@@ -207,7 +227,8 @@ describe('Workspace interactions', () => {
   it('never forces microscopic fit and offers native draggable keyboard nodes', async () => {
     mount(fixture());
     await ready();
-    expect(mocks.props.minZoom).toBeGreaterThanOrEqual(0.75);
+    expect(mocks.props.minZoom).toBeGreaterThanOrEqual(0.2);
+    expect(mocks.props.minZoom).toBeLessThanOrEqual(0.25);
     expect(mocks.props.nodesDraggable).toBe(true);
     fireEvent.click(screen.getByText('Centralizar fluxo'));
     expect(mocks.center).toHaveBeenCalledWith(
@@ -313,7 +334,10 @@ describe('Explainability', () => {
         }}
       />
     );
-    expect(screen.getByText('Correção')).toBeVisible();
+    expect(screen.getByRole('listitem', { name: 'Correção: Atual' })).toHaveAttribute(
+      'aria-current',
+      'step'
+    );
     expect(screen.getByText('Em correção')).toBeVisible();
     expect(screen.getByText('75%')).toBeVisible();
   });

@@ -27,7 +27,7 @@
 }
 .requirement-card {
   height: 100%;
-  min-height: 36rem;
+  min-height: 0;
 }
 .requirement-card--selected {
   border-color: var(--color-border-interactive);
@@ -69,6 +69,7 @@
 .requirement-card__line {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: var(--space-2);
 }
 .requirement-card__group,
@@ -204,4 +205,43 @@
 .traceability-content > .sprint-filters,
 .traceability-content > .sprint-grid-section {
   margin-block: 0;
+}
+
+.requirement-card__group {
+  border-top: 1px solid var(--color-border-default);
+  padding-top: var(--space-2);
+}
+.requirement-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+}
+.requirement-count {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-1);
+}
+.requirement-count b {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+.requirement-count .traceflow-icon {
+  width: var(--size-icon-sm);
+  height: var(--size-icon-sm);
+}
+.requirement-count--danger b {
+  color: var(--color-danger-text);
+}
+.requirement-count--warning b {
+  color: var(--color-warning-text);
+}
+.requirement-evidence {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+}
+.requirement-evidence > .trace-help-label {
+  flex-basis: 100%;
 }

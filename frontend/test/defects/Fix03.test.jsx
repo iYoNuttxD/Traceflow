@@ -78,6 +78,12 @@ it('uses list metadata for one task, aggregates and requirement without per-card
     />
   );
   expect(screen.getByText('TASK-17 · Concluída')).toBeInTheDocument();
+  expect(screen.getByText('Detectado em')).toBeInTheDocument();
+  expect(screen.getByText('TC-15 · EXEC-0038 · Passo 1')).toBeInTheDocument();
+  expect(screen.getByText('Correção · Ciclo 1')).toBeInTheDocument();
+  expect(screen.getByText('Alta')).toBeInTheDocument();
+  expect(screen.getByText('Aberto')).toBeInTheDocument();
+  expect(screen.getByText('Pessoa QA')).toBeInTheDocument();
   expect(screen.getByText('Requisito')).toBeInTheDocument();
   view.rerender(
     <MemoryRouter>

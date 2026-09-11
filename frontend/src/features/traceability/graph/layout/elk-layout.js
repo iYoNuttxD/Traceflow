@@ -1,7 +1,7 @@
 export const graphLayout = Object.freeze({
   width: 280,
   height: 208,
-  minZoom: 0.75,
+  minZoom: 0.2,
   maxZoom: 1.5,
   initialZoom: 0.9
 });

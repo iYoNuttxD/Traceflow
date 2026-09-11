@@ -1,15 +1,15 @@
 # S1-09 — Regras de rastreabilidade: baseline e decisões resolvidas
 
-**Resultado vigente: RESOLVED HUMAN DECISIONS — Etapa 2, 2026-09-10.** As quatro decisões foram resolvidas pelo pedido humano de implementação. As recomendações anteriores de conclusão automática e qualidade antes da implementação foram substituídas explicitamente.
+**Resultado vigente: decisões humanas da Etapa 2, com precedência revisada na Etapa 5 em 2026-09-11.** Falhas atuais e Defects relevantes em aberto/correção/reteste precedem implementação incompleta. A conclusão continua exigindo o terminal persistido do Requirement. Esta revisão explícita substitui somente a precedência anterior de OD-04; preserva as demais fronteiras.
 
 ## Decisões canônicas da Etapa 2
 
 | Decisão | Resolução humana e aplicação no domínio real |
 |---|---|
-| OD-01 — PLANEJADO | Preservado como 11º estado. Zero Tasks → SEM_RASTREABILIDADE; Tasks não iniciadas, sem evidência → PLANEJADO. |
+| OD-01 — PLANEJADO | Preservado como 11º estado. Sem qualidade prioritária: zero Tasks → SEM_RASTREABILIDADE; Tasks não iniciadas, sem evidência → PLANEJADO. |
 | OD-02 — Validação corrente | TestCases ATIVO, não excluídos, do mesmo projeto, diretos OU via Task atual; dedup por ID; última execução da currentVersion por executedAt DESC/id DESC. PASS de versão antiga não valida a nova. |
 | OD-03 — Fronteiras | IMPLEMENTADO exige a implementação técnica herdada; zero casos não valida. Casos sem execução atual → AGUARDANDO_VALIDACAO; validação iniciada incompleta → EM_VALIDACAO; todos PASS e zero Defects pendentes → VALIDADO. CONCLUIDO exige adicionalmente o terminal persistido do Requirement. No domínio real esse terminal é **CONCLUIDO**, não APROVADO, que também é gerado automaticamente para Tasks A_FAZER. |
-| OD-04 — Precedência | Primeiro SEM_RASTREABILIDADE/PLANEJADO/EM_DESENVOLVIMENTO do estágio técnico; só com implementação pronta: COM_FALHA > EM_CORRECAO > AGUARDANDO_RETESTE > demais estados de validação. Falha não tratada é avaliada por cada detectedExecutionStepId. |
+| OD-04 — Precedência | Etapa 5: COM_FALHA > EM_CORRECAO > AGUARDANDO_RETESTE antes do estágio técnico incompleto. Sem qualidade prioritária, preserva-se a ordem legada e as fronteiras de validação/conclusão. Falha não tratada continua avaliada por cada detectedExecutionStepId. |
 
 Requirement.status continua separado e inalterado pela projeção. Seu terminal é uma condição adicional de conclusão, nunca um atalho para ignorar Tasks/evidência/qualidade. O campo antigo implementationStatus conserva o override histórico CONCLUIDO. A nova situation não o reutiliza como estágio técnico.
 
@@ -19,10 +19,10 @@ A proposta anterior de exigir artefato de correção como condição extra para 
 
 A função única segue esta ordem:
 
-1. Estágio técnico SEM_RASTREABILIDADE, PLANEJADO ou EM_DESENVOLVIMENTO → preservá-lo.
-2. Implementação pronta + Defect ABERTO ou passo FAIL corrente sem Defect ativo que o represente → COM_FALHA.
-3. Algum Defect EM_CORRECAO → EM_CORRECAO.
-4. Algum Defect AGUARDANDO_RETESTE → AGUARDANDO_RETESTE.
+1. Defect relevante ABERTO ou passo FAIL corrente sem Defect ativo que o represente → COM_FALHA.
+2. Algum Defect relevante EM_CORRECAO → EM_CORRECAO.
+3. Algum Defect relevante AGUARDANDO_RETESTE → AGUARDANDO_RETESTE.
+4. Sem condição prioritária: preservar SEM_RASTREABILIDADE, PLANEJADO ou EM_DESENVOLVIMENTO do estágio técnico. As condições seguintes exigem implementação pronta.
 5. Zero casos ativos relevantes → IMPLEMENTADO.
 6. Nenhum caso com execução da versão atual → AGUARDANDO_VALIDACAO.
 7. Algum caso não PASS → EM_VALIDACAO, inclusive BLOCKED/pendência parcial; FAIL não tratado já foi capturado antes.
@@ -31,7 +31,8 @@ A função única segue esta ordem:
 
 | Cenário | Resultado vigente |
 |---|---|
-| Zero Tasks, mesmo com teste/Defect | SEM_RASTREABILIDADE |
+| Zero Tasks e sem qualidade prioritária | SEM_RASTREABILIDADE |
+| Zero Tasks + FAIL atual não tratado ou Defect aberto | COM_FALHA |
 | Tasks somente A_FAZER, sem evidência | PLANEJADO |
 | DONE + EM_ANDAMENTO | EM_DESENVOLVIMENTO, 50% |
 | Todas DONE sem evidência técnica, mesmo todos PASS | EM_DESENVOLVIMENTO |
@@ -43,10 +44,18 @@ A função única segue esta ordem:
 | Implementação pronta + Defect AGUARDANDO_RETESTE, sem falha/correção prioritária | AGUARDANDO_RETESTE |
 | Implementação pronta + todos casos PASS + zero pendências + status não terminal | VALIDADO |
 | Mesma cadeia + Requirement.status=CONCLUIDO | CONCLUIDO |
-| Defect EM_CORRECAO + Task original EM_ANDAMENTO | EM_DESENVOLVIMENTO; trabalho técnico precede qualidade |
-| Defect ABERTO + outro EM_CORRECAO ou AGUARDANDO_RETESTE | COM_FALHA, com implementação pronta |
-| Dois passos FAIL e apenas um coberto | COM_FALHA, com implementação pronta |
+| Defect EM_CORRECAO + progresso 25% | EM_CORRECAO; progresso permanece 25% |
+| Defect ABERTO + progresso 75% | COM_FALHA; progresso permanece 75% |
+| Defect AGUARDANDO_RETESTE + progresso 50%, sem falha/correção prioritária | AGUARDANDO_RETESTE; progresso permanece 50% |
+| Defect ABERTO + outro EM_CORRECAO ou AGUARDANDO_RETESTE | COM_FALHA, inclusive com implementação incompleta |
+| Dois passos FAIL e apenas um coberto | COM_FALHA, inclusive com implementação incompleta |
 | CONCLUIDO + nova versão sem execução | AGUARDANDO_VALIDACAO ou EM_VALIDACAO, conforme outros casos; conclusão antiga permanece no histórico |
+
+## Reconciliação da policy — Etapa 5
+
+`--policy` identifica a adoção da regra com `TRACEABILITY_POLICY_RECONCILIATION`. O script permanece dry-run por padrão; `--project-id=<id> --apply --policy` acrescenta uma transição somente quando a situação persistida difere da projeção corrente. Novas entradas usam `rulesVersion: 2`; entradas anteriores não são editadas. Segunda execução sem mudança: zero entradas. GET permanece sem escrita. No projeto local 2 foram acrescentadas somente REQ-3 → COM_FALHA e REQ-4 → EM_CORRECAO; a repetição retornou zero alterações.
+
+Summary usa `projectionSummary` sobre as mesmas projeções do catálogo: `withDefect` agrupa COM_FALHA, EM_CORRECAO e AGUARDANDO_RETESTE. A fase visual não é persistida nem constitui outra policy. Ver [relatório final da Etapa 5](../deliveries/S1_09_TRACEABILITY_GRAPH_WORKSPACE_UX_REPORT.md).
 
 ## Implementação e limites da Etapa 2
 

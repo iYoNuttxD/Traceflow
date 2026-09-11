@@ -1,12 +1,34 @@
 .defect-card-context {
   display: grid;
-  gap: var(--space-1);
+  gap: var(--space-3);
+  margin: 0;
   font-size: var(--font-size-2);
   overflow-wrap: anywhere;
 }
-.defect-card-context small {
+.defect-card-context > div {
+  border-top: 1px solid var(--color-border-default);
+  padding-top: var(--space-3);
+}
+.defect-card-context dt {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   color: var(--color-text-secondary);
-  margin-top: var(--space-2);
+  font-size: var(--font-size-1);
+  margin-bottom: var(--space-1);
+}
+.defect-card-context dt .traceflow-icon {
+  width: var(--size-icon-sm);
+  height: var(--size-icon-sm);
+}
+.defect-card-context dd {
+  margin: 0;
+  color: var(--color-text-primary);
+}
+.defect-card-context .defect-card-support {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-1);
+  margin-top: var(--space-1);
 }
 .defect-card .tc-card-body {
   gap: var(--space-3);
