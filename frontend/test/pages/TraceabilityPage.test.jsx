@@ -137,7 +137,7 @@ describe('Requirement projections and cards', () => {
       onSelect = vi.fn(),
       onHistory = vi.fn();
     render(<RequirementCard item={item()} selected onSelect={onSelect} onHistory={onHistory} />);
-    await user.tab();
+    screen.getByRole('button', { name: 'Ver rastreabilidade' }).focus();
     await user.keyboard('{Enter}');
     await user.tab();
     await user.keyboard(' ');
@@ -147,6 +147,19 @@ describe('Requirement projections and cards', () => {
   });
 });
 describe('Traceability catalog', () => {
+  it('closes during load, returns focus and never reopens from a late response', async () => {
+    const user = userEvent.setup(),
+      pending = deferred();
+    api.getRequirementTraceability.mockReturnValue(pending.promise);
+    renderPage();
+    const trigger = await screen.findByRole('button', { name: 'Ver rastreabilidade' });
+    await user.click(trigger);
+    await user.click(screen.getByRole('button', { name: 'Fechar rastreabilidade — req-10' }));
+    await settle(pending, graph('antigo'));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
   it('uses projections and preserves graph contract and heading focus', async () => {
     const user = userEvent.setup();
     renderPage();
@@ -158,9 +171,7 @@ describe('Traceability catalog', () => {
       { expanded: true, limit: 100 },
       { signal: expect.any(AbortSignal) }
     );
-    expect(
-      screen.getByRole('heading', { name: 'Fluxo de rastreabilidade — REQ-10' })
-    ).toHaveFocus();
+    expect(screen.getByRole('dialog', { name: 'Rastreabilidade — REQ-10' })).toBeInTheDocument();
   });
   it('presents connection errors without empty state or internal details', async () => {
     api.getRequirementsTraceability.mockRejectedValueOnce({
@@ -298,6 +309,7 @@ describe('Traceability catalog', () => {
     api.getRequirementTraceability.mockReturnValueOnce(a.promise).mockReturnValueOnce(b.promise);
     renderPage();
     await user.click((await screen.findAllByText('Ver rastreabilidade'))[0]);
+    await user.click(screen.getByRole('button', { name: 'Fechar rastreabilidade — req-10' }));
     await user.click(screen.getAllByText('Ver rastreabilidade')[1]);
     await settle(b, graph('Grafo B'));
     await act(async () => a.reject(new Error('antigo')));
@@ -310,7 +322,7 @@ describe('Traceability catalog', () => {
     renderPage();
     await user.click(await screen.findByText('Ver rastreabilidade'));
     await screen.findByRole('alert');
-    expect(screen.getByText('Requisito 10')).toBeInTheDocument();
+    expect(screen.getByRole('dialog')).toHaveTextContent('Requisito 10');
     await user.click(screen.getByText('Tentar novamente'));
     await screen.findByTestId('flow');
     expect(api.getRequirementsTraceability).toHaveBeenCalledTimes(1);

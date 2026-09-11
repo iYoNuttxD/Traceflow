@@ -97,6 +97,22 @@ const sections = (root) => ({
     .filter((t) => !['Casos de teste', 'Defeitos'].includes(t))
 });
 
+describe('Embedded task content for the traceability workspace', () => {
+  it('reuses canonical sections without creating another modal or mutable sidebar', () => {
+    render(
+      <ConfirmProvider>
+        <TaskDetailsPanel embedded task={current} onClose={vi.fn()} />
+      </ConfirmProvider>
+    );
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Tarefa Atualizada/ })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Rastreabilidade' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Editar tarefa' })).not.toBeInTheDocument();
+    expect(TaskComments).not.toHaveBeenCalled();
+    expect(screen.queryByText('Iniciar cronômetro')).not.toBeInTheDocument();
+  });
+});
+
 describe('FIX-04 Frozen Task Details parity', () => {
   it('shares current information/secondary/traceability structure without mounting Comments or mutable actions', () => {
     const first = render(

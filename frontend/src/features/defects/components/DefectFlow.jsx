@@ -53,6 +53,7 @@ export function DefectFlow({
   options,
   canWrite,
   embedded = false,
+  embeddedReturnLabel = 'Voltar para detalhes da execução',
   onHeader,
   onClose,
   onConfirmed,
@@ -303,17 +304,17 @@ export function DefectFlow({
         >
           <TraceFlowIcon name="arrowLeft" />
         </button>
-      ) : embedded ? (
+      ) : embedded && embeddedReturnLabel ? (
         <button
           className="sprint-dialog__close"
           disabled={busy}
-          aria-label="Voltar para detalhes da execução"
+          aria-label={embeddedReturnLabel}
           onClick={() => handlers.current.close()}
         >
           <TraceFlowIcon name="arrowLeft" />
         </button>
       ) : null,
-    [preview, view, busy, embedded, row?.displayId]
+    [preview, view, busy, embedded, embeddedReturnLabel, row?.displayId]
   );
   useLayoutEffect(() => {
     onHeader?.({

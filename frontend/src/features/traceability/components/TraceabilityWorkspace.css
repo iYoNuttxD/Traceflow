@@ -1,0 +1,90 @@
+.sprint-dialog.trace-workspace {
+  width: calc(100vw - 2 * var(--space-8));
+  height: calc(100dvh - 2 * var(--space-8));
+  max-height: calc(100dvh - 2 * var(--space-8));
+}
+.trace-workspace > .sprint-dialog__header {
+  padding: var(--space-3) var(--space-4);
+}
+.trace-workspace > .sprint-dialog__body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  padding: 0;
+}
+.trace-workspace-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-5);
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--color-border-default);
+}
+.trace-workspace-summary > div {
+  min-width: 0;
+}
+.trace-workspace-summary dt {
+  display: flex;
+  align-items: center;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-2);
+}
+.trace-workspace-summary dd {
+  margin: 0;
+  color: var(--color-text-strong);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-3);
+}
+.trace-workspace .trace-guide {
+  flex: 0 0 auto;
+}
+.trace-workspace .trace-guide > div {
+  position: absolute;
+  top: 100%;
+  left: var(--space-3);
+  right: var(--space-3);
+  z-index: var(--z-popover);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
+@media (max-width: 900px) {
+  .sprint-dialog.trace-workspace {
+    width: calc(100vw - var(--space-4));
+    height: calc(100dvh - var(--space-4));
+    max-height: calc(100dvh - var(--space-4));
+  }
+}
+@media (max-width: 600px) {
+  .sprint-dialog.trace-workspace {
+    width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
+  }
+  .sprint-dialog-backdrop:has(> .trace-workspace) {
+    padding: 0;
+  }
+  .trace-workspace > .sprint-dialog__header {
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+  }
+  .trace-workspace .sprint-dialog__header p {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .trace-workspace-summary {
+    gap: var(--space-2) var(--space-4);
+    padding: var(--space-2) var(--space-3);
+  }
+  .trace-workspace-summary dt {
+    font-size: var(--font-size-1);
+  }
+  .trace-workspace-summary dd {
+    font-size: var(--font-size-2);
+  }
+}

@@ -1,4 +1,5 @@
-import { Handle, Position } from '@xyflow/react';
+import { Handle, Position, useUpdateNodeInternals } from '@xyflow/react';
+import { useEffect } from 'react';
 import { TraceFlowIcon } from '../../../shared/index.js';
 import { TestResultBadge, environments, referenceLabel } from '../../testCases/index.js';
 import { DefectBadge } from '../../defects/index.js';
@@ -13,7 +14,7 @@ const compactIds = (items, prefix, key = 'id', total = items?.length || 0) =>
         .map((t) => `${prefix}-${t[key]}`)
         .join(', ') + (total > 4 ? ` +${total - 4}` : '')
     : 'Nenhum';
-function fields(type, d) {
+export function graphFields(type, d) {
   if (type === 'REQUIREMENT') {
     const p = d.projection;
     return [
@@ -102,7 +103,7 @@ function fields(type, d) {
     ['Branches', d.sourceBranch ? `${d.sourceBranch} → ${d.targetBranch}` : null]
   ];
 }
-function Status({ type, detail: d }) {
+export function GraphStatus({ type, detail: d }) {
   if (type === 'REQUIREMENT')
     return (
       <span
@@ -141,104 +142,74 @@ function Status({ type, detail: d }) {
     );
   return d.state ? <span className="tc-badge tc-badge--neutral">{d.state}</span> : null;
 }
-export function GraphNode({ data }) {
-  const focus = () => data.onFocus?.();
-  if (data.node.type === 'GROUP') {
-    const g = data.node.data;
-    return (
-      <div className="trace-node trace-node-group">
-        <Handle type="target" position={Position.Top} />
-        <span className="eyebrow">{g.label}</span>
-        <strong>{g.count} relacionados</strong>
-        <span className="trace-node-hint">{g.ownerLabel}</span>
-        <button
-          className="button button-secondary nodrag"
-          aria-expanded={g.open}
-          onClick={data.onGroup}
-          onFocus={focus}
-          aria-label={`${g.open ? 'Recolher' : `Expandir ${g.count}`} ${g.label} de ${g.ownerLabel}`}
-        >
-          {g.open ? 'Recolher relações' : 'Expandir relações'}
-        </button>
-      </div>
-    );
-  }
+const noPorts = [];
+export function GraphNode({ id, data }) {
+  const update = useUpdateNodeInternals();
+  const ports = data.ports || noPorts;
+  useEffect(() => {
+    update(id);
+  }, [id, ports, update]);
   const n = data.node,
-    d = n.data,
-    id = identity(n);
-  const openLabel = {
-    TASK: 'Abrir tarefa',
-    TEST_CASE: 'Abrir caso de teste',
-    TEST_EXECUTION: 'Abrir execução',
-    DEFECT: 'Abrir defeito'
-  }[n.type];
+    d = n.data;
   return (
-    <div className={`trace-node ${data.expanded ? 'trace-node-expanded' : ''}`}>
-      {data.hasTarget && <Handle type="target" position={Position.Top} />}
-      <button
-        className="trace-node-content nodrag"
-        onClick={data.onToggle}
-        onFocus={focus}
-        aria-expanded={data.expanded}
-        aria-label={`${data.expanded ? 'Recolher' : 'Expandir'} informações de ${id}`}
-      >
-        <span className="trace-node-heading">
-          <span className="eyebrow">{nodeLabels[n.type]}</span>
-          <span>{id}</span>
-        </span>
-        <strong>
-          {n.type === 'TEST_EXECUTION'
-            ? `TC-${d.testCaseId} · v${d.testCaseVersion}`
-            : d.title || d.message || id}
-        </strong>
-        {n.type === 'TASK' && Boolean(d.correctionDefects?.length) && (
-          <span className="task-correction-badge">
-            <TraceFlowIcon name="bug" /> CORREÇÃO
-          </span>
-        )}
-        {d.retests?.length > 0 && n.type === 'TEST_EXECUTION' && (
-          <span className="trace-node-context">
-            RETESTE · {d.retests.map((r) => `DEF-${r.defectId}`).join(', ')}
-          </span>
-        )}
-        <span className="trace-node-badges">
-          <Status type={n.type} detail={d} />
-        </span>
-        <span className="trace-node-hint">
-          {data.expanded ? 'Recolher informações' : 'Ver informações'}
-        </span>
-      </button>
-      {data.expanded && (
-        <div className="trace-node-extra nodrag nowheel">
-          <dl className="trace-node-detail">
-            {fields(n.type, d).map(([label, value]) => (
-              <div key={label}>
-                <dt>{label}</dt>
-                <dd>{value ?? '—'}</dd>
-              </div>
-            ))}
-          </dl>
-          {openLabel && (
-            <button
-              className="button button-secondary"
-              onClick={(e) => data.onOpen(n, e.currentTarget)}
-            >
-              {openLabel}
-            </button>
+    <div className={`trace-node ${data.selected ? 'trace-node-selected' : ''}`}>
+      {ports.map((p) => (
+        <Handle
+          key={p.id}
+          id={p.id}
+          type={p.type}
+          position={p.side === 'WEST' ? Position.Left : Position.Right}
+          isConnectable={false}
+          style={{ top: p.y ?? 104 }}
+        />
+      ))}
+      {n.type === 'GROUP' ? (
+        <>
+          <span className="eyebrow">{d.label}</span>
+          <strong>{d.count} relacionados</strong>
+          <span>{d.ownerLabel}</span>
+          <button
+            className="button button-secondary nodrag"
+            aria-expanded={d.open}
+            onClick={data.onGroup}
+            aria-label={`${d.open ? 'Recolher' : `Expandir ${d.count}`} ${d.label} de ${d.ownerLabel}`}
+          >
+            {d.open ? 'Recolher relações' : 'Expandir relações'}
+          </button>
+        </>
+      ) : (
+        <>
+          <div className="trace-node-heading">
+            <span className="eyebrow">{nodeLabels[n.type]}</span>
+            <span>{identity(n)}</span>
+          </div>
+          <strong title={d.title || d.message}>
+            {n.type === 'TEST_EXECUTION'
+              ? `TC-${d.testCaseId} · v${d.testCaseVersion}`
+              : d.title || d.message || identity(n)}
+          </strong>
+          {n.type === 'TASK' && Boolean(d.correctionDefects?.length) && (
+            <span className="task-correction-badge">
+              <TraceFlowIcon name="bug" /> CORREÇÃO
+            </span>
           )}
-          {d.githubUrl && (
-            <a
-              className="button button-secondary"
-              href={d.githubUrl}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Abrir no GitHub
-            </a>
+          {n.type === 'TEST_EXECUTION' && d.retests?.length > 0 && (
+            <span className="trace-node-context">
+              RETESTE · {d.retests.map((r) => `DEF-${r.defectId}`).join(', ')}
+            </span>
           )}
-        </div>
+          <span className="trace-node-badges">
+            <GraphStatus type={n.type} detail={d} />
+          </span>
+          <button
+            className="trace-node-inspect nodrag"
+            onClick={data.onSelect}
+            aria-label={`Inspecionar ${nodeLabels[n.type]} ${identity(n)}`}
+          >
+            Inspecionar artefato
+          </button>
+        </>
       )}
-      {data.hasSource && <Handle type="source" position={Position.Bottom} />}
     </div>
   );
 }

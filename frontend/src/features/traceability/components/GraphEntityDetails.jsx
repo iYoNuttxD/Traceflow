@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { TaskDetailsPanel, tasksApi } from '../../tasks/index.js';
 import { DefectFlow } from '../../defects/index.js';
 import {
@@ -8,7 +7,6 @@ import {
   EvidenceViewer,
   useEvidenceContent
 } from '../../testCases/index.js';
-import { SprintDialog } from '../../schedule/index.js';
 import { ErrorState, LoadingState, normalizeApiError } from '../../../shared/index.js';
 import { identity } from '../model/graph.js';
 function TaskInspection({ node, projectId, onClose, returnFocusRef }) {
@@ -30,6 +28,7 @@ function TaskInspection({ node, projectId, onClose, returnFocusRef }) {
   if (state.data)
     return (
       <TaskDetailsPanel
+        embedded
         task={state.data}
         projectId={projectId}
         onClose={onClose}
@@ -37,13 +36,13 @@ function TaskInspection({ node, projectId, onClose, returnFocusRef }) {
       />
     );
   return (
-    <SprintDialog open title={identity(node)} onClose={onClose} returnFocusRef={returnFocusRef}>
+    <ContentShell open title={identity(node)} onClose={onClose} returnFocusRef={returnFocusRef}>
       {state.loading ? (
         <LoadingState message="Carregando tarefa…" />
       ) : (
         <ErrorState message={state.error.message} onRetry={read} />
       )}
-    </SprintDialog>
+    </ContentShell>
   );
 }
 function QualityInspection({ node, projectId, onClose, returnFocusRef }) {
@@ -62,17 +61,18 @@ function QualityInspection({ node, projectId, onClose, returnFocusRef }) {
   }, []);
   if (defect)
     return (
-      <DefectFlow
+      <EmbeddedDefect
         key={defect}
         projectId={projectId}
         initialId={defect}
+        embeddedReturnLabel="Voltar à execução"
         canWrite={false}
         onClose={() => setDefect(null)}
         returnFocusRef={returnFocusRef}
       />
     );
   return (
-    <SprintDialog
+    <ContentShell
       open
       title={
         preview
@@ -118,25 +118,42 @@ function QualityInspection({ node, projectId, onClose, returnFocusRef }) {
           />
         </div>
       </div>
-    </SprintDialog>
+    </ContentShell>
+  );
+}
+function ContentShell({ title, children }) {
+  return (
+    <section className="trace-detail-content">
+      <h3>{title}</h3>
+      {children}
+    </section>
+  );
+}
+function EmbeddedDefect(props) {
+  const [header, setHeader] = useState(null);
+  return (
+    <section className="trace-detail-content">
+      <header>
+        <h3>{header?.title}</h3>
+        {header?.leadingAction}
+        {header?.headerActions}
+      </header>
+      <DefectFlow embeddedReturnLabel={null} {...props} embedded onHeader={setHeader} />
+    </section>
   );
 }
 export function GraphEntityDetails(props) {
   const { node } = props;
-  return createPortal(
-    node.type === 'TASK' ? (
-      <TaskInspection {...props} />
-    ) : node.type === 'DEFECT' ? (
-      <DefectFlow
-        projectId={props.projectId}
-        initialId={node.data.id}
-        canWrite={false}
-        onClose={props.onClose}
-        returnFocusRef={props.returnFocusRef}
-      />
-    ) : (
-      <QualityInspection {...props} />
-    ),
-    document.body
+  return node.type === 'TASK' ? (
+    <TaskInspection {...props} />
+  ) : node.type === 'DEFECT' ? (
+    <EmbeddedDefect
+      projectId={props.projectId}
+      initialId={node.data.id}
+      canWrite={false}
+      onClose={props.onClose}
+    />
+  ) : (
+    <QualityInspection {...props} />
   );
 }

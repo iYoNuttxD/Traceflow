@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { getRequirementTraceability } from '../api/traceability.api.js';
 import {
@@ -13,7 +13,7 @@ import {
 import { ProjectSectionNav } from '../../projects/index.js';
 import { SprintDialog } from '../../schedule/index.js';
 import { useTestCaseScope } from '../../testCases/index.js';
-import { TraceabilityFlow } from '../components/TraceabilityFlow.jsx';
+import { TraceabilityWorkspace } from '../components/TraceabilityWorkspace.jsx';
 import {
   RequirementCard,
   RequirementFilters,
@@ -34,7 +34,12 @@ function ProjectTraceability({ projectId }) {
   const [graph, setGraph] = useState({ data: null, error: null, loading: false });
   const [history, setHistory] = useState(null);
   const returnFocusRef = useRef(null);
-  const flowHeading = useRef(null);
+  const workspaceFocusRef = useRef(null);
+  const closeWorkspace = useCallback(() => {
+    scope.cancelRead('graph');
+    setSelected(null);
+    setGraph({ data: null, error: null, loading: false });
+  }, [scope]);
   const closeHistory = useCallback(() => setHistory(null), []);
   const loadGraph = useCallback(
     async (requirement) => {
@@ -62,17 +67,10 @@ function ProjectTraceability({ projectId }) {
     },
     [projectId, scope]
   );
-  useEffect(() => {
-    const heading = flowHeading.current;
-    if (!graph.loading && heading && document.activeElement === heading) {
-      heading.scrollIntoView?.({ block: 'start' });
-    }
-  }, [graph.loading]);
-  function select(requirement) {
+  function select(requirement, trigger) {
+    workspaceFocusRef.current = trigger;
     setSelected(requirement);
     void loadGraph(requirement);
-    flowHeading.current?.focus({ preventScroll: true });
-    flowHeading.current?.scrollIntoView?.({ block: 'start' });
   }
   if (!catalog.loading && !catalog.data && catalog.error)
     return (
@@ -86,7 +84,7 @@ function ProjectTraceability({ projectId }) {
     );
   return (
     <main className="page-container sprints-screen traceability-page">
-      <div className="traceability-content" inert={history ? true : undefined}>
+      <div className="traceability-content" inert={history || selected ? true : undefined}>
         <Link className="back-link" to={`/projects/${projectId}`}>
           Voltar para o projeto
         </Link>
@@ -157,27 +155,17 @@ function ProjectTraceability({ projectId }) {
               </button>
             )}
         </section>
-        <section
-          className="card traceability-flow-section"
-          aria-labelledby="requirement-flow-heading"
-        >
-          <h2 id="requirement-flow-heading" tabIndex={-1} ref={flowHeading}>
-            Fluxo de rastreabilidade{selected ? ` — ${selected.displayId}` : ''}
-          </h2>
-          {!selected && (
-            <EmptyState title="Selecione um requisito para visualizar sua cadeia rastreável." />
-          )}
-          {graph.loading && <LoadingState message="Carregando requisito selecionado..." />}
-          {graph.error && (
-            <ErrorState
-              message={graph.error.message}
-              retryAfterSeconds={graph.error.retryAfterSeconds}
-              onRetry={() => loadGraph(selected)}
-            />
-          )}
-          {graph.data && <TraceabilityFlow traceability={graph.data} />}
-        </section>
       </div>
+      {selected && (
+        <TraceabilityWorkspace
+          key={selected.id}
+          requirement={selected}
+          graph={graph}
+          onClose={closeWorkspace}
+          onRetry={() => loadGraph(selected)}
+          returnFocusRef={workspaceFocusRef}
+        />
+      )}
       <SprintDialog
         open={Boolean(history)}
         title={history ? `Histórico — ${history.displayId} · ${history.title}` : 'Histórico'}
