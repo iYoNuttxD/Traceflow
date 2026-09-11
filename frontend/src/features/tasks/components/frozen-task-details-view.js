@@ -1,4 +1,10 @@
-import { formatDate, formatDateTime, priorityLabels, statusLabels } from './kanban-display.js';
+import {
+  formatDate,
+  formatDateTime,
+  formatEffortHours,
+  priorityLabels,
+  statusLabels
+} from './kanban-display.js';
 
 const unavailable = 'Indisponível no snapshot';
 const categories = [
@@ -11,7 +17,8 @@ const categories = [
 // Versioned historical projection only; legacy fields never hydrate from current data.
 export function frozenTaskDetailsView(task) {
   const captured = task.snapshotAvailable === true;
-  const complete = captured && task.snapshotVersion === 2;
+  // A v3 acrescenta a estimativa ao snapshot; da v2 em diante os campos exibidos aqui existem.
+  const complete = captured && task.snapshotVersion >= 2;
   const name = complete ? task.responsibleDisplayName : null;
   const responsibleId = captured ? task.responsibleUserId : null;
   return {
@@ -54,8 +61,9 @@ export function frozenTaskDetailsView(task) {
       overdue: false
     },
     status: { key: task.status, label: statusLabels[task.status] || unavailable },
-    estimatedEffort: task.estimatedEffort ?? unavailable,
-    actualEffort: complete ? (task.actualEffort ?? 'Não informado') : unavailable,
+    estimatedEffort:
+      task.estimatedEffort == null ? unavailable : formatEffortHours(task.estimatedEffort),
+    actualEffort: complete ? formatEffortHours(task.actualEffort) : unavailable,
     createdAt: complete ? formatDateTime(task.createdAt) : unavailable,
     traceability: categories.map(([key, label]) => {
       const count =

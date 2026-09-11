@@ -11,7 +11,9 @@ export function TaskDetailsLayout({ children, aside }) {
   );
 }
 
-export function TaskInformation({ details }) {
+// `effortSlot` é o bloco de esforço (S1-06): o rastreador vivo na visão atual e o
+// espelho estático na visão congelada, mantendo a mesma estrutura nas duas.
+export function TaskInformation({ details, effortSlot = null }) {
   const titleId = useId();
   return (
     <>
@@ -57,21 +59,12 @@ export function TaskInformation({ details }) {
               )}
             </dd>
           </div>
-        </dl>
-        <dl className="task-detail-secondary-grid">
-          <div>
-            <dt>Esforço estimado</dt>
-            <dd>{details.estimatedEffort}</dd>
-          </div>
-          <div>
-            <dt>Esforço realizado</dt>
-            <dd>{details.actualEffort}</dd>
-          </div>
           <div>
             <dt>Criado em</dt>
             <dd>{details.createdAt}</dd>
           </div>
         </dl>
+        {effortSlot}
       </section>
     </>
   );

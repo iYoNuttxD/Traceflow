@@ -39,6 +39,9 @@ reduzir enumeração; papel insuficiente retorna `403`. Mutations autenticadas e
 | `POST /api/tasks/:id/comments`                                                                                 |     401 |    403 |           E |       E |     E | autor sempre da sessão                                                                                         |
 | `PATCH /api/tasks/:id/comments/:commentId`                                                                     |     401 |    403 | E (próprio) |     403 |   403 | somente o autor edita; MANAGER/OWNER não editam texto de terceiros                                             |
 | `DELETE /api/tasks/:id/comments/:commentId`                                                                    |     401 |    403 | E (próprio) |       E |     E | MANAGER/OWNER moderam qualquer comentário do projeto                                                           |
+| `GET /api/tasks/:id/time-entries`                                                                              |     401 |      L |           L |       L |     L | sessões de tempo e resumo de esforço; mesmo projeto                                                            |
+| `POST /api/tasks/:id/time-entries/start`, `.../stop`; `POST /api/tasks/:id/time-entries`                       |     401 |    403 |           E |       E |     E | qualquer membro que escreve inicia, para ou lança; atores de início e fim registrados                          |
+| `DELETE /api/tasks/:id/time-entries/:entryId`                                                                  |     401 |    403 | E (próprio) |       E |     E | quem iniciou exclui a própria sessão; MANAGER/OWNER moderam qualquer uma                                       |
 | Sprints: `GET /api/projects/:projectId/sprints`, `/api/sprints/:id`, `/api/sprints/:id/tasks`                  |     401 |      L |           L |       L |     L | RF10; recurso e membership do mesmo projeto                                                                    |
 | Sprints: `POST`, `PUT`, `PATCH /api/sprints/:id/status`, `PUT /api/sprints/:id/tasks`                          |     401 |    403 |           E |       E |     E | invariantes, sobreposição e estados terminais no service sob lock                                              |
 | `DELETE /api/sprints/:id`                                                                                      |     401 |    403 |         405 |     405 |   405 | sprint não é excluída; autorização precede a recusa do método                                                  |
@@ -102,6 +105,11 @@ reduzir enumeração; papel insuficiente retorna `403`. Mutations autenticadas e
   por moderação, mas não editam texto de terceiros. Exclusão é lógica (`deletedAt`/`deletedById`) e
   toda operação é auditada. O comentário excluído continua na listagem apenas como marcador sem
   conteúdo; nenhum papel, inclusive quem moderou, recupera o texto pela API.
+- Sessões de tempo (`TaskTimeEntry`, S1-06) não restringem o cronômetro ao responsável: qualquer
+  MEMBER+ inicia, para ou lança manualmente, e a API registra quem iniciou e quem parou. Só existe
+  uma sessão em andamento por tarefa (trava de linha; `409` em concorrência). Exclusão segue a
+  política dos comentários: quem iniciou a sessão ou MANAGER/OWNER. `Task.actualEffort` é derivado
+  das sessões e recusa escrita direta (`400`); toda operação é auditada com origem e duração.
 
 ## S1-07 — Casos de teste
 

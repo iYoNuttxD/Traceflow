@@ -285,6 +285,42 @@ describe('contratos de conta e privacidade L2', () => {
         }
       ]
     });
+    const sessionStart = new Date('2026-09-05T13:00:00.000Z');
+    const sessionEnd = new Date('2026-09-05T14:30:00.000Z');
+    await prisma.taskTimeEntry.createMany({
+      data: [
+        {
+          projectId: currentProject.id,
+          taskId: currentTask.id,
+          startedById: user.id,
+          endedById: user.id,
+          source: 'MANUAL',
+          startedAt: sessionStart,
+          endedAt: sessionEnd,
+          durationSeconds: 5400,
+          note: 'Sessão autorizada atual'
+        },
+        {
+          projectId: formerProject.id,
+          taskId: formerTask.id,
+          startedById: user.id,
+          endedById: user.id,
+          source: 'MANUAL',
+          startedAt: sessionStart,
+          endedAt: sessionEnd,
+          durationSeconds: 3600,
+          note: 'Sessão privada posterior'
+        },
+        {
+          projectId: currentProject.id,
+          taskId: currentTask.id,
+          startedById: user.id,
+          source: 'TIMER',
+          startedAt: sessionEnd,
+          note: 'Sessão aberta posterior'
+        }
+      ]
+    });
 
     const exported = await auth
       .mutate('post', '/api/settings/privacy/export')
@@ -307,6 +343,17 @@ describe('contratos de conta e privacidade L2', () => {
       'Comentário autorizado atual'
     ]);
     expect(files['manifest.json'].files).toContain('task-comments.json');
+    // Sessão de tempo encerrada em projeto atual entra; sessão ainda aberta e
+    // sessão de projeto sem membership atual ficam de fora.
+    expect(files['task-time-entries.json']).toEqual([
+      expect.objectContaining({
+        taskId: currentTask.id,
+        source: 'MANUAL',
+        durationSeconds: 5400,
+        note: 'Sessão autorizada atual'
+      })
+    ]);
+    expect(files['manifest.json'].files).toContain('task-time-entries.json');
     expect(JSON.stringify(files)).not.toMatch(/Projeto histórico privado|posterior/);
   });
 

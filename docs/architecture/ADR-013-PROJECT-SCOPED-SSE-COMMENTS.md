@@ -1,7 +1,14 @@
 # ADR-013 — Server-Sent Events por projeto para comentários colaborativos
 
-- **Estado:** proposto na PR #17
+- **Estado:** proposto na PR #17; escopo estendido na PR #19
 - **Data:** 02/09/2026
+
+> **Extensão (S1-06, PR #19):** o transporte permanece como decidido aqui, mas os tipos
+> `task.time_entry.*` passam a trafegar no mesmo stream, consumidos pelo rastreador de esforço e pelo
+> cartão do Kanban. A restrição registrada abaixo — "o Kanban não publica nem consome eventos" — vale
+> para o estado da PR #17 e não descreve mais o comportamento atual: o Kanban continua sem publicar e
+> sem polling, mas consome sessões de tempo e refaz uma leitura do quadro a cada reconexão, já que
+> este ADR mantém a decisão de não ter replay.
 
 ## Contexto
 

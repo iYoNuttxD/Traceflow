@@ -48,8 +48,9 @@ A direção permitida é `app/routes → pages → features → shared + http-cl
   Equipe; edição e administração de membros/acesso usam, respectivamente,
   `/projects/:projectId/edit` e `/projects/:projectId/members`, sempre sob autorização do backend.
 - `ProjectEventsProvider` mantém uma conexão SSE compartilhada por projeto ativo enquanto a aba está
-  visível. O consumer atual é exclusivamente Comments; Kanban não consome eventos e não executa
-  polling periódico.
+  visível. Consomem eventos os Comments e, desde o S1-06, o rastreador de esforço e o cartão do
+  Kanban, restrito às sessões de tempo. Nenhum deles executa polling periódico: como o stream não tem
+  replay, cada consumer reconcilia por leitura própria a cada reconexão.
 - CSS convencional acompanha o owner em `pages`, `features` e `shared`. Componentes e screens
   importam a folha colocada ao lado do JSX; grupos em `shared/styles` ou `features/*/styles` existem
   somente quando há múltiplos consumidores reais. Media queries permanecem com o mesmo owner do

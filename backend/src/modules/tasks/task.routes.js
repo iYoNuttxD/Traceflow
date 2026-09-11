@@ -22,6 +22,9 @@ import {
   taskSearchQuerySchema,
   taskSprintBodySchema,
   taskStatusBodySchema,
+  taskTimeEntryListQuerySchema,
+  taskTimeEntryManualBodySchema,
+  taskTimeEntryParamsSchema,
   updateTaskBodySchema
 } from './task.validation.js';
 
@@ -162,6 +165,31 @@ router.delete(
   '/tasks/:id/comments/:commentId',
   validateRequest({ params: taskCommentParamsSchema, body: emptyBodySchema }),
   taskController.deleteComment
+);
+router.get(
+  '/tasks/:id/time-entries',
+  validateRequest({ params: taskIdParamsSchema, query: taskTimeEntryListQuerySchema }),
+  taskController.listTimeEntries
+);
+router.post(
+  '/tasks/:id/time-entries',
+  validateRequest({ params: taskIdParamsSchema, body: taskTimeEntryManualBodySchema }),
+  taskController.createTimeEntry
+);
+router.post(
+  '/tasks/:id/time-entries/start',
+  validateRequest({ params: taskIdParamsSchema, body: emptyBodySchema }),
+  taskController.startTimer
+);
+router.post(
+  '/tasks/:id/time-entries/stop',
+  validateRequest({ params: taskIdParamsSchema, body: emptyBodySchema }),
+  taskController.stopTimer
+);
+router.delete(
+  '/tasks/:id/time-entries/:entryId',
+  validateRequest({ params: taskTimeEntryParamsSchema, body: emptyBodySchema }),
+  taskController.deleteTimeEntry
 );
 
 export default router;

@@ -1,4 +1,10 @@
-import { formatDate, formatDateTime, priorityLabels, statusLabels } from './kanban-display.js';
+import {
+  formatDate,
+  formatDateTime,
+  formatEffortHours,
+  priorityLabels,
+  statusLabels
+} from './kanban-display.js';
 import { isTaskOverdue } from './kanban-view.js';
 
 export function currentTaskDetailsView(task) {
@@ -15,8 +21,8 @@ export function currentTaskDetailsView(task) {
     },
     deadline: { label: formatDate(task.deadline), overdue: isTaskOverdue(task) },
     status: { key: task.status, label: statusLabels[task.status] || task.status },
-    estimatedEffort: task.estimatedEffort ?? 'Não informado',
-    actualEffort: task.actualEffort ?? 'Não informado',
+    estimatedEffort: formatEffortHours(task.estimatedEffort),
+    actualEffort: formatEffortHours(task.actualEffort),
     createdAt: formatDateTime(task.createdAt)
   };
 }

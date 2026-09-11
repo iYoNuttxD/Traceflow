@@ -210,8 +210,16 @@ a carga inicial; cada `open` posterior incrementa uma sequência para uma única
 `task.comment.deleted`. Eventos são filtrados por `taskId`, mesclados por ID/versão e não disparam
 GET. Carga inicial, cursor histórico, mutations e recovery continuam em `tasks.api` pelo
 `httpClient`; draft e edit mode pertencem ao componente e sobrevivem a updates remotos, salvo delete
-do alvo. A infraestrutura pode receber novos tipos no futuro, mas Kanban não assina eventos nem
-executa polling periódico nesta fase.
+do alvo.
+
+`useTaskEffort` e `KanbanScreen` assinam os quatro tipos `task.time_entry.*` (S1-06), também
+filtrados por `taskId`. Como a rede não garante que a resposta HTTP chegue antes do evento que a
+sucedeu, o hook reconcilia por ordem de aplicação: eventos recebidos durante uma leitura pendente são
+reaplicados sobre o snapshot que ela devolver, e a resposta de uma mutation é descartada em favor de
+uma nova leitura quando algum evento chegou enquanto ela estava em trânsito. Resultado que chega
+depois de trocar de tarefa ou desmontar não é aplicado, sem desfazer a escrita já confirmada. Nenhum
+consumer faz polling periódico; a reconexão dispara uma reconciliação única — no Kanban, uma releitura
+do quadro, já que o stream não reenvia o que passou com a aba oculta.
 
 ## Estado e acessibilidade
 

@@ -200,6 +200,55 @@ export const taskController = {
     { fallbackMessage: 'Erro interno ao excluir comentário da tarefa.' }
   ),
 
+  listTimeEntries: asyncHandler(
+    async (req, res) => {
+      return res.json(
+        await taskService.listTaskTimeEntries(req.params.id, req.query, context(req))
+      );
+    },
+    { fallbackMessage: 'Erro interno ao listar sessões de tempo da tarefa.' }
+  ),
+
+  startTimer: asyncHandler(
+    async (req, res) => {
+      const result = await taskService.startTaskTimer(req.params.id, context(req));
+      return res.status(201).json({ message: 'Cronômetro iniciado.', ...result });
+    },
+    { fallbackMessage: 'Erro interno ao iniciar o cronômetro da tarefa.' }
+  ),
+
+  stopTimer: asyncHandler(
+    async (req, res) => {
+      const result = await taskService.stopTaskTimer(req.params.id, context(req));
+      return res.json({ message: 'Cronômetro parado.', ...result });
+    },
+    { fallbackMessage: 'Erro interno ao parar o cronômetro da tarefa.' }
+  ),
+
+  createTimeEntry: asyncHandler(
+    async (req, res) => {
+      const result = await taskService.createManualTaskTimeEntry(
+        req.params.id,
+        req.body,
+        context(req)
+      );
+      return res.status(201).json({ message: 'Lançamento manual registrado.', ...result });
+    },
+    { fallbackMessage: 'Erro interno ao registrar lançamento manual de tempo.' }
+  ),
+
+  deleteTimeEntry: asyncHandler(
+    async (req, res) => {
+      const result = await taskService.deleteTaskTimeEntry(
+        req.params.id,
+        req.params.entryId,
+        context(req)
+      );
+      return res.json({ message: 'Sessão de tempo excluída.', ...result });
+    },
+    { fallbackMessage: 'Erro interno ao excluir sessão de tempo da tarefa.' }
+  ),
+
   getKanbanBoard: asyncHandler(
     async (req, res) => {
       return res.json(await taskService.getKanbanBoard(req.params.projectId));

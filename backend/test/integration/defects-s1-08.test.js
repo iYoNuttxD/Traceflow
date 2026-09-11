@@ -255,6 +255,64 @@ describe('S1-08 persisted domain foundation', () => {
     ).rejects.toMatchObject({ code: 'DEFECT_TASK_ROLE_CONFLICT' });
     await expect(tasks.deleteTask(task.id, f.context)).rejects.toMatchObject({ statusCode: 409 });
   });
+  it('preserves correction traceability while tracking effort and refusing deletion', async () => {
+    const f = await fixture();
+    const { taskTimeEntryService: effort } =
+      await import('../../src/modules/tasks/services/task-time-entry.service.js');
+    const context = { ...f.context, membershipRole: 'MEMBER' };
+    const defect = await f.correction(await f.create(), {
+      task: { title: 'Correction with effort', estimatedEffort: 1.5 }
+    });
+    const taskId = defect.correctionCycles[0].tasks[0].id;
+    const before = await prisma.requirementTraceabilityHistoryEntry.findMany();
+    const started = await effort.startTaskTimer(taskId, context);
+    const dto = await tasks.getTaskById(taskId);
+    expect(dto).toMatchObject({
+      estimatedEffort: 1.5,
+      requirementId: f.requirement.id,
+      correctionDefectCount: 1,
+      correctionDefects: [{ id: defect.id, displayId: `DEF-${defect.id}` }],
+      runningTimer: { id: started.entry.id, startedBy: { id: f.user.id } }
+    });
+    expect(dto).not.toHaveProperty('timeEntries');
+    expect(dto).not.toHaveProperty('defectLinks');
+    await effort.createManualTaskTimeEntry(taskId, { hours: 0.5 }, context);
+    expect(await tasks.getTaskById(taskId)).toMatchObject({ actualEffort: 0.5 });
+    expect(await prisma.requirementTraceabilityHistoryEntry.findMany()).toEqual(before);
+    await expect(tasks.deleteTask(taskId, f.context)).rejects.toMatchObject({
+      code: 'TASK_REFERENCED_BY_DEFECT'
+    });
+    expect(await prisma.taskTimeEntry.count({ where: { taskId } })).toBe(2);
+    expect(await prisma.defectTask.count({ where: { taskId } })).toBe(1);
+  });
+  it('deletes effort sessions and reconciles the requirement in the same task deletion', async () => {
+    const f = await fixture();
+    const { taskTimeEntryService: effort } =
+      await import('../../src/modules/tasks/services/task-time-entry.service.js');
+    const task = await tasks.createTask(
+      f.project.id,
+      {
+        title: 'Disposable implementation',
+        requirementId: f.requirement.id
+      },
+      f.context
+    );
+    await effort.startTaskTimer(task.id, { ...f.context, membershipRole: 'MEMBER' });
+    await tasks.deleteTask(task.id, f.context);
+    expect(await prisma.taskTimeEntry.count({ where: { taskId: task.id } })).toBe(0);
+    expect(await prisma.task.findUnique({ where: { id: task.id } })).toBeNull();
+    expect(
+      await prisma.requirementTraceabilityState.findUnique({
+        where: { requirementId: f.requirement.id }
+      })
+    ).toMatchObject({ currentSituation: 'SEM_RASTREABILIDADE' });
+    expect(
+      await prisma.requirementTraceabilityHistoryEntry.findFirst({
+        where: { requirementId: f.requirement.id },
+        orderBy: { id: 'desc' }
+      })
+    ).toMatchObject({ fromSituation: 'PLANEJADO', toSituation: 'SEM_RASTREABILIDADE' });
+  });
   it('rolls back a newly created task, requirement projection and audit when linking fails', async () => {
     const f = await fixture(),
       d = await f.create();
