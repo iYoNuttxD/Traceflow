@@ -178,6 +178,69 @@ describe('useTaskEffort — reconciliação entre respostas HTTP e eventos', () 
     await waitFor(() => expect(apiMocks.getTaskTimeEntries).toHaveBeenCalledTimes(2));
   });
 
+  it('leitura em voo não remove o lançamento confirmado depois que ela saiu', async () => {
+    const { result } = renderHook(() => useTaskEffort({ taskId: 42 }));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    // A leitura parte antes do lançamento e volta sem conhecê-lo.
+    const staleRead = deferred();
+    apiMocks.getTaskTimeEntries.mockReturnValueOnce(staleRead.promise);
+    act(() => {
+      void result.current.reload();
+    });
+
+    const created = closedEntry({ id: 31 });
+    apiMocks.createTaskTimeEntry.mockResolvedValueOnce({
+      entry: created,
+      effort: effort({ completedCount: 1, completedSeconds: HOUR, actualHours: 1 })
+    });
+    await act(async () => {
+      await result.current.addManual({ hours: '1' });
+    });
+    expect(result.current.entries).toHaveLength(1);
+
+    await act(async () => {
+      staleRead.resolve(listResponse());
+      await staleRead.promise;
+    });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.entries).toEqual([expect.objectContaining({ id: 31 })]);
+  });
+
+  it('leitura que termina primeiro não descarta o que a leitura seguinte precisa reaplicar', async () => {
+    const { result } = renderHook(() => useTaskEffort({ taskId: 42 }));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    const first = deferred();
+    const second = deferred();
+    apiMocks.getTaskTimeEntries.mockReturnValueOnce(first.promise);
+    apiMocks.getTaskTimeEntries.mockReturnValueOnce(second.promise);
+    act(() => {
+      void result.current.reload();
+    });
+    act(() => {
+      void result.current.reload();
+    });
+
+    // O início chega pelo stream com as duas leituras ainda em voo.
+    emit('task.time_entry.started', runningEntry(), effort({ running: runningEntry() }));
+    expect(result.current.running).toMatchObject({ id: 9 });
+
+    // A primeira responde e é descartada; ela não pode levar junto o buffer da segunda.
+    await act(async () => {
+      first.resolve(listResponse());
+      await first.promise;
+    });
+    await act(async () => {
+      second.resolve(listResponse());
+      await second.promise;
+    });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.running).toMatchObject({ id: 9 });
+  });
+
   it('evento de outra tarefa não altera o estado desta', async () => {
     const { result } = renderHook(() => useTaskEffort({ taskId: 42 }));
     await waitFor(() => expect(result.current.loading).toBe(false));

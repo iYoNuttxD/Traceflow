@@ -199,7 +199,7 @@ export const taskTimeEntryService = {
     ensureCanOperate(context);
     const result = await taskTimeEntryRepository.stopAtomic(
       id,
-      { endedById: context.actorUserId, endedAt: new Date() },
+      { projectId: task.projectId, endedById: context.actorUserId, endedAt: new Date() },
       (entry) =>
         entryAuditEvent('TASK_TIMER_STOPPED', {
           task,
@@ -272,7 +272,8 @@ export const taskTimeEntryService = {
         entryId: parsedEntryId,
         context,
         metadata: { source: existing.source, durationSeconds: existing.durationSeconds }
-      })
+      }),
+      task.projectId
     );
     if (result.outcome === 'TASK_NOT_FOUND') throw resourceNotFoundError('Task');
     if (result.outcome === 'NOT_FOUND') {

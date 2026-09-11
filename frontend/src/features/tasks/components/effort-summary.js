@@ -24,10 +24,13 @@ export function formatClock(totalSeconds) {
   return `${pad(Math.floor(seconds / 3600))}:${pad(Math.floor((seconds % 3600) / 60))}:${pad(seconds % 60)}`;
 }
 
+// Arredonda em minutos antes de separar as horas: arredondar só o resto fazia
+// 1h59min58s virar "1h60min", porque os 60 minutos não viravam uma hora.
 export function formatHoursMinutes(totalSeconds) {
   const seconds = Math.max(0, Math.round(Number(totalSeconds) || 0));
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.round((seconds % 3600) / 60);
+  const totalMinutes = Math.round(seconds / 60);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
   if (hours === 0) return `${minutes}min`;
   if (minutes === 0) return `${hours}h`;
   return `${hours}h${pad(minutes)}min`;
@@ -60,6 +63,16 @@ export function describeTimeEntry(entry, now = new Date()) {
   const stopper = entry.endedBy?.name;
   const stoppedByOther = Boolean(stopper) && entry.endedBy?.id !== entry.startedBy?.id;
   return stoppedByOther ? `${range} · ${starter} · parado por ${stopper}` : `${range} · ${starter}`;
+}
+
+// Realizado que vai para a tarefa (cartão do quadro e painel de detalhes). O total
+// conhecido inclui o esforço lançado antes das sessões existirem: olhar só para as
+// sessões encerradas zerava esse legado assim que o cronômetro começava, e o cartão
+// passava a discordar do rastreador sobre a mesma tarefa.
+export function actualEffortFromSummary(effort) {
+  if (!effort) return null;
+  const known = effort.completedCount > 0 || (effort.legacySeconds ?? 0) > 0;
+  return known ? (effort.actualHours ?? null) : null;
 }
 
 // Enquanto a API não respondeu (ou falhou), a tarefa em mãos é a melhor fonte:
@@ -111,6 +124,24 @@ export function buildEffortChip(task, now = Date.now()) {
     title: running
       ? `Cronômetro em andamento por ${running.startedBy?.name || 'membro'} · total ${total}${estimateLabel}`
       : `Esforço registrado ${total}${estimateLabel}`
+  };
+}
+
+// `aria-valuenow` precisa ficar dentro do intervalo declarado, então acompanha a
+// barra (que satura em 100%). O consumo real, que pode passar disso, vai no texto
+// acessível para o estouro não sumir de quem usa leitor de tela.
+export function effortProgressAria(view) {
+  const percent = view.usagePercent === null ? null : Math.round(view.usagePercent);
+  return {
+    'aria-valuemin': 0,
+    'aria-valuemax': 100,
+    'aria-valuenow': Math.round(view.barPercent),
+    'aria-valuetext':
+      percent === null
+        ? view.totalSeconds > 0
+          ? 'Acima da estimativa'
+          : 'Sem consumo registrado'
+        : `${percent}% da estimativa`
   };
 }
 

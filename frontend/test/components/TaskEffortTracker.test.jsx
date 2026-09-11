@@ -171,7 +171,9 @@ describe('TaskEffortTracker', () => {
     const { container, unmount } = renderTracker({ estimatedEffort: 5 });
     expect(await screen.findByText('+1h42min acima da estimativa')).toBeInTheDocument();
     expect(container.querySelector('.task-effort')).toHaveAttribute('data-zone', 'danger');
-    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '134');
+    // aria-valuenow satura no máximo declarado; o estouro real fica no valuetext.
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '100');
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuetext', '134% da estimativa');
     expect(screen.getByText('134%')).toBeInTheDocument();
     unmount();
 

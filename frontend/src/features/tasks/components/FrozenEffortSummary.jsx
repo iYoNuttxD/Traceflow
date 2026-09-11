@@ -3,6 +3,7 @@ import {
   EFFORT_STATUS_LABELS,
   EFFORT_STATUS_TONES,
   computeEffortView,
+  effortProgressAria,
   formatClock,
   formatHoursMinutes
 } from './effort-summary.js';
@@ -63,9 +64,7 @@ export function FrozenEffortSummary({ task }) {
             className="task-effort-bar"
             role="progressbar"
             aria-label="Consumo da estimativa no encerramento"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={Math.round(view.usagePercent ?? (view.totalSeconds > 0 ? 100 : 0))}
+            {...effortProgressAria(view)}
           >
             <div className="task-effort-bar-fill" style={{ width: `${view.barPercent}%` }} />
           </div>

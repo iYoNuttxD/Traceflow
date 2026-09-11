@@ -6,6 +6,7 @@ import { membersApi } from '../../members/index.js';
 import { ProjectSectionNav, projectsApi, useProjectEvents } from '../../projects/index.js';
 import { useFrozenSprintBoard } from '../hooks/useFrozenSprintBoard.js';
 import { EFFORT_EVENT_TYPES } from '../hooks/useTaskEffort.js';
+import { actualEffortFromSummary } from '../components/effort-summary.js';
 import { FrozenTaskDetails } from '../components/FrozenTaskDetails.jsx';
 import { KanbanBoard } from '../components/KanbanBoard.jsx';
 import { KanbanFilters } from '../components/KanbanFilters.jsx';
@@ -95,18 +96,24 @@ export function KanbanScreen() {
   const projectEvents = useProjectEvents();
   const subscribeToProjectEvents = projectEvents?.subscribe;
   const effortReconnectSequence = projectEvents?.reconnectSequence ?? 0;
+  // Um buffer por reconciliação em voo: o que o stream entregar enquanto o GET
+  // viaja é reaplicado sobre o quadro que ele devolver, senão o snapshot antigo
+  // desfaz a sessão que já apareceu no cartão.
+  const effortBuffersRef = useRef(new Map());
   // Cronômetro de outras pessoas aparece no cartão sem recarregar o quadro.
   useEffect(() => {
     if (!subscribeToProjectEvents) return undefined;
     return subscribeToProjectEvents(EFFORT_EVENT_TYPES, (event) => {
       const effort = event.data?.effort;
       if (!effort || event.taskId == null) return;
-      setBoard((current) =>
-        updateBoardTask(current, event.taskId, {
-          actualEffort: effort.completedCount > 0 ? effort.actualHours : null,
-          runningTimer: effort.running ?? null
-        })
-      );
+      const patch = {
+        actualEffort: actualEffortFromSummary(effort),
+        runningTimer: effort.running ?? null
+      };
+      for (const buffered of effortBuffersRef.current.values()) {
+        buffered.push({ taskId: event.taskId, patch });
+      }
+      setBoard((current) => updateBoardTask(current, event.taskId, patch));
     });
   }, [subscribeToProjectEvents]);
   // O stream fecha com a aba oculta e não tem replay: sem reconciliar na volta, o
@@ -114,6 +121,8 @@ export function KanbanScreen() {
   useEffect(() => {
     if (!effortReconnectSequence || !projectId) return undefined;
     let active = true;
+    const buffered = [];
+    effortBuffersRef.current.set(effortReconnectSequence, buffered);
     kanbanApi
       .getBoard(projectId)
       .then((response) => {
@@ -124,15 +133,22 @@ export function KanbanScreen() {
             { actualEffort: task.actualEffort ?? null, runningTimer: task.runningTimer ?? null }
           ])
         );
-        setBoard((current) =>
-          getBoardTasks(current).reduce(
+        setBoard((current) => {
+          const reconciled = getBoardTasks(current).reduce(
             (board, task) => updateBoardTask(board, task.id, efforts.get(String(task.id)) ?? {}),
             current
-          )
-        );
+          );
+          return buffered.reduce(
+            (board, event) => updateBoardTask(board, event.taskId, event.patch),
+            reconciled
+          );
+        });
       })
       .catch(() => {
         // Reconciliação é oportunista: falhar aqui não deve perturbar o quadro.
+      })
+      .finally(() => {
+        effortBuffersRef.current.delete(effortReconnectSequence);
       });
     return () => {
       active = false;

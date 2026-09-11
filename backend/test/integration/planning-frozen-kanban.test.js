@@ -426,4 +426,48 @@ describe('S1-06 — esforço da sprint no encerramento', () => {
       status: 'SEM_ESTIMATIVA'
     });
   });
+
+  it('cartão congelado sem estimativa não publica limite zero', async () => {
+    const actor = await prisma.user.create({
+      data: {
+        name: 'Frozen effort QA',
+        username: 'frozeneffortqa',
+        email: 'frozen-effort@example.invalid',
+        passwordHash: 'x'
+      }
+    });
+    actorUserId = actor.id;
+    const project = await createProject(prisma);
+    await prisma.projectMembership.create({
+      data: { projectId: project.id, userId: actorUserId, role: 'OWNER' }
+    });
+    const sprint = await createSprint(prisma, project.id, {
+      name: 'S-frozen-effort',
+      startDate: new Date('2026-09-01'),
+      endDate: new Date('2026-09-05')
+    });
+    const semEstimativa = await createTask(prisma, project.id, {
+      title: 'Sem estimativa',
+      responsibleUserId: actorUserId
+    });
+    const comEstimativa = await createTask(prisma, project.id, {
+      title: 'Com estimativa',
+      estimatedEffort: 4,
+      responsibleUserId: actorUserId
+    });
+    await prisma.task.update({ where: { id: semEstimativa.id }, data: { actualEffort: 2 } });
+    await scope(sprint, [semEstimativa, comEstimativa]);
+    await status(sprint, 'EM_ANDAMENTO');
+    await status(sprint, 'CONCLUIDA');
+
+    const frozen = await sprints.findTasksBySprint(sprint.id);
+    const [sem, com] = [
+      frozen.find((t) => t.currentTaskId === semEstimativa.id),
+      frozen.find((t) => t.currentTaskId === comEstimativa.id)
+    ];
+    // `pointsAtClose` representa ausência e zero com o mesmo 0; o detalhe congelado
+    // lia esse 0 como limite e acusava estouro de um teto nunca planejado.
+    expect(sem).toMatchObject({ snapshotVersion: 3, estimatedEffort: null, actualEffort: 2 });
+    expect(com).toMatchObject({ snapshotVersion: 3, estimatedEffort: 4 });
+  });
 });

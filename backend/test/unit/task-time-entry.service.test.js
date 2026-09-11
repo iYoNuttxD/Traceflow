@@ -304,7 +304,9 @@ describe('taskTimeEntryService — exclusão e listagem', () => {
         actorUserId: 99,
         resourceId: '5',
         metadataJson: { taskId: 42, source: 'TIMER', durationSeconds: 3600 }
-      })
+      }),
+      // O projeto acompanha a exclusão para a transação travar Project antes de Task.
+      7
     );
   });
 

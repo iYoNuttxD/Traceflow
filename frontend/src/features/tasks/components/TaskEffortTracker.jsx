@@ -4,6 +4,7 @@ import {
   EFFORT_STATUS_LABELS as STATUS_LABELS,
   EFFORT_STATUS_TONES as STATUS_TONES,
   computeEffortView,
+  effortProgressAria,
   formatClock,
   formatHoursMinutes,
   formatTimeOfDay,
@@ -141,9 +142,7 @@ export function TaskEffortTracker({
             className="task-effort-bar"
             role="progressbar"
             aria-label="Consumo da estimativa"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={Math.round(view.usagePercent ?? (view.totalSeconds > 0 ? 100 : 0))}
+            {...effortProgressAria(view)}
           >
             <div className="task-effort-bar-fill" style={{ width: `${view.barPercent}%` }} />
           </div>
