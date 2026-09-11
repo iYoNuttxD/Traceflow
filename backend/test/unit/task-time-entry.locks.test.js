@@ -50,9 +50,8 @@ vi.mock('../../src/modules/audit/audit.repository.js', () => ({
   auditRepository: { create: vi.fn(async () => ({})) }
 }));
 
-const { taskTimeEntryRepository } = await import(
-  '../../src/modules/tasks/repositories/task-time-entry.repository.js'
-);
+const { taskTimeEntryRepository } =
+  await import('../../src/modules/tasks/repositories/task-time-entry.repository.js');
 
 describe('ordem de locks das sessões de tempo', () => {
   beforeEach(() => {
