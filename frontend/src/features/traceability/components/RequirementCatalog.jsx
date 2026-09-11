@@ -1,3 +1,5 @@
+import { phaseLabel } from '../model/phase.js';
+import { TraceabilityHelp } from './TraceabilityHelp.jsx';
 import { CollapsibleFilterPanel } from '../../schedule/index.js';
 import { SelectControl, TraceFlowIcon } from '../../../shared/index.js';
 import {
@@ -130,16 +132,29 @@ export function RequirementCard({ item, selected, onSelect, onHistory }) {
     >
       <header className="sprint-card__header requirement-card__header">
         <small>{requirement.displayId}</small>
-        <SituationBadge value={item.situation} />
+        <span>
+          <SituationBadge value={item.situation} />
+          <TraceabilityHelp topic="situation" />
+        </span>
       </header>
       <div className="requirement-card__body">
         <h3 title={requirement.title}>{requirement.title}</h3>
         <small>
           Status do requisito: {requirementStatuses[requirement.status] || 'Não informado'}
         </small>
+        <div className="requirement-phase">
+          Fase atual <strong>{phaseLabel(item.situation)}</strong>
+          <TraceabilityHelp topic="phase" />
+        </div>
         <div className="traceability-progress">
           <div className="requirement-card__line">
-            <strong>Progresso</strong>
+            <strong>
+              Progresso
+              <TraceabilityHelp
+                topic="progress"
+                context={`${progress.tasksDone} de ${progress.tasksTotal} tarefas concluídas.`}
+              />
+            </strong>
             <span>{percentageLabel(progress)}</span>
           </div>
           <div
@@ -180,6 +195,10 @@ export function RequirementCard({ item, selected, onSelect, onHistory }) {
           </span>
         </div>
         <div className="requirement-evidence" aria-label="Evidências">
+          <span>
+            Evidências
+            <TraceabilityHelp topic="evidence" />
+          </span>
           <Evidence label="Implementação" value={evidence.implementation} />
           <Evidence label="Validação" value={evidence.validation} />
           <Evidence label="Correção" value={evidence.correction} />
@@ -189,7 +208,7 @@ export function RequirementCard({ item, selected, onSelect, onHistory }) {
         <button
           type="button"
           className="button button-primary button-compact"
-          onClick={() => onSelect(requirement)}
+          onClick={(event) => onSelect(requirement, event.currentTarget)}
         >
           Ver rastreabilidade
         </button>

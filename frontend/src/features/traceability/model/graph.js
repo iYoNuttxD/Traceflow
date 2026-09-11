@@ -116,23 +116,3 @@ export function presentGraph(contract, expandedGroups = []) {
       });
   return { nodes, edges };
 }
-export function layoutGraph(nodes, expanded = []) {
-  const bands = new Map();
-  for (const n of nodes) {
-    const level = layer(n);
-    if (!bands.has(level)) bands.set(level, []);
-    bands.get(level).push(n);
-  }
-  const positions = new Map();
-  let y = 0;
-  for (const [, siblings] of [...bands].sort(([a], [b]) => a - b)) {
-    siblings.sort((a, b) => (a.data.id || 0) - (b.data.id || 0) || a.id.localeCompare(b.id));
-    for (let start = 0; start < siblings.length; start += 3) {
-      const row = siblings.slice(start, start + 3);
-      row.forEach((n, i) => positions.set(n.id, { x: i * 388 - (row.length - 1) * 194, y }));
-      y += row.some((n) => expanded.includes(n.id)) ? 620 : 290;
-    }
-    y += 70;
-  }
-  return positions;
-}

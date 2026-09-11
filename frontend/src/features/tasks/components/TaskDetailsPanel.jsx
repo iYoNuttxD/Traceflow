@@ -162,7 +162,17 @@ function TaskEditForm({ task, draft, errors, members, titleRef, saving, onChange
   );
 }
 
+function EmbeddedTaskPanel({ title, children }) {
+  return (
+    <section className="task-detail-embedded">
+      <h3>{title}</h3>
+      {children}
+    </section>
+  );
+}
+
 export function TaskDetailsPanel({
+  embedded = false,
   task,
   members = [],
   canEdit = false,
@@ -482,8 +492,9 @@ export function TaskDetailsPanel({
     </>
   );
 
+  const Panel = embedded ? EmbeddedTaskPanel : KanbanDialog;
   return (
-    <KanbanDialog
+    <Panel
       title={creatingCase ? 'Criar caso de teste' : `#${task.id} ${task.title}`}
       description={
         creatingCase
@@ -514,7 +525,7 @@ export function TaskDetailsPanel({
           }}
         />
       ) : (
-        <TaskDetailsLayout aside={<TaskComments taskId={task.id} />}>
+        <TaskDetailsLayout aside={embedded ? undefined : <TaskComments taskId={task.id} />}>
           {caseFeedback && (
             <p role="status" className="tc-feedback">
               {caseFeedback}
@@ -565,13 +576,15 @@ export function TaskDetailsPanel({
             <TaskInformation
               details={currentTaskDetailsView(task)}
               effortSlot={
-                <TaskEffortTracker
-                  taskId={task.id}
-                  taskTitle={task.title}
-                  estimatedEffort={task.estimatedEffort}
-                  actualEffort={task.actualEffort}
-                  onEffortChange={handleEffortChange}
-                />
+                !embedded && (
+                  <TaskEffortTracker
+                    taskId={task.id}
+                    taskTitle={task.title}
+                    estimatedEffort={task.estimatedEffort}
+                    actualEffort={task.actualEffort}
+                    onEffortChange={handleEffortChange}
+                  />
+                )
               }
             />
           )}
@@ -589,6 +602,6 @@ export function TaskDetailsPanel({
           )}
         </TaskDetailsLayout>
       )}
-    </KanbanDialog>
+    </Panel>
   );
 }

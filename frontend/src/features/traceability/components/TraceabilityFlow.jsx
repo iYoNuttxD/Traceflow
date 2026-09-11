@@ -1,8 +1,10 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  applyNodeChanges,
   Background,
   Controls,
   MarkerType,
+  MiniMap,
   ReactFlow,
   ReactFlowProvider,
   useReactFlow
@@ -12,102 +14,185 @@ import './TraceabilityFlow.css';
 import { useTestCaseScope } from '../../testCases/index.js';
 import { ErrorState, normalizeApiError } from '../../../shared/index.js';
 import { getRequirementTraceability } from '../api/traceability.api.js';
-import { presentGraph, layoutGraph, relationLabels, identity, mergeGraph } from '../model/graph.js';
+import { presentGraph, relationLabels, identity, mergeGraph, nodeLabels } from '../model/graph.js';
+import {
+  graphLayout,
+  graphPorts,
+  highlightedPath,
+  layoutWithElk,
+  placeNewNodes
+} from '../graph/layout/elk-layout.js';
 import { GraphEdge } from './GraphEdge.jsx';
 import { GraphNode } from './GraphNode.jsx';
 import { GraphEntityDetails } from './GraphEntityDetails.jsx';
-export function buildFlow(
-  contract,
-  expanded = [],
-  toggle = () => {},
-  expandedGroups = [],
-  toggleGroup = () => {},
-  onOpen = () => {},
-  onFocus = () => {}
-) {
-  const view = presentGraph(contract, expandedGroups),
-    positions = layoutGraph(view.nodes, expanded);
-  const incoming = new Set(view.edges.map((e) => e.target)),
-    outgoing = new Set(view.edges.map((e) => e.source));
-  const names = new Map(
-    view.nodes.filter((n) => n.type !== 'GROUP').map((n) => [n.id, identity(n)])
-  );
+import { TraceabilityInspector } from './TraceabilityInspector.jsx';
+const nodeTypes = { traceabilityNode: GraphNode },
+  edgeTypes = { traceabilityEdge: GraphEdge };
+const toggled = (values, id) =>
+  values.includes(id) ? values.filter((v) => v !== id) : [...values, id];
+export function buildFlow(contract, groups = []) {
+  const view = presentGraph(contract, groups),
+    { ports, edges } = graphPorts(view);
   return {
     nodes: view.nodes.map((node) => ({
       id: node.id,
       type: 'traceabilityNode',
-      position: positions.get(node.id),
+      position: { x: 0, y: 0 },
+      width: graphLayout.width,
+      height: graphLayout.height,
       ariaLabel:
         node.type === 'GROUP'
           ? `${node.data.label}: ${node.data.count} relacionados`
-          : `${identity(node)} · ${node.data.title || node.data.message || ''}`,
-      data: {
-        node,
-        expanded: expanded.includes(node.id),
-        onToggle: () => toggle(node.id),
-        onGroup: () => toggleGroup(node.id),
-        onOpen,
-        onFocus: () => onFocus(node.id),
-        hasTarget: incoming.has(node.id),
-        hasSource: outgoing.has(node.id)
-      }
+          : `${nodeLabels[node.type]} ${identity(node)} — ${node.data.title || node.data.message || ''}`,
+      data: { node, ports: ports.get(node.id) }
     })),
-    edges: view.edges.map((edge, index) => {
-      const label = `${relationLabels[edge.relationType || edge.type] || 'coleção de relações'}${edge.failedStep ? ` · Passo ${edge.failedStep}` : ''}${edge.correctionCycle ? ` · Ciclo ${edge.correctionCycle}` : ''}`;
-      const emphasized = expanded.includes(edge.source) || expanded.includes(edge.target);
-      return {
-        ...edge,
-        type: 'traceabilityEdge',
-        data: {
-          relationType: edge.relationType || edge.type,
-          laneX: Math.max(...[...positions.values()].map((p) => p.x)) + 380 + (index % 7) * 28
-        },
-        label: emphasized ? label : undefined,
-        ariaLabel: `${names.get(edge.source) || edge.source} ${label} ${names.get(edge.target) || edge.target}`,
-        focusable: true,
-        className: emphasized ? 'trace-edge-emphasized' : undefined,
-        markerEnd: { type: MarkerType.ArrowClosed },
-        labelBgPadding: [5, 3],
-        labelBgBorderRadius: 4
-      };
-    })
+    edges: edges.map((e) => ({
+      ...e,
+      data: { relationType: e.relationType || e.type },
+      ariaLabel: `${e.source} ${relationLabels[e.relationType || e.type] || 'coleção de relações'}${e.failedStep ? ` · Passo ${e.failedStep}` : ''}${e.correctionCycle ? ` · Ciclo ${e.correctionCycle}` : ''} ${e.target}`
+    }))
   };
 }
-const nodeTypes = { traceabilityNode: GraphNode };
-const edgeTypes = { traceabilityEdge: GraphEdge };
-const toggled = (items, id) =>
-  items.includes(id) ? items.filter((v) => v !== id) : [...items, id];
 function Canvas({ traceability }) {
-  const { fitView, setCenter } = useReactFlow();
+  const flow = useReactFlow();
   const [contract, setContract] = useState(traceability),
-    [expanded, setExpanded] = useState([]),
     [groups, setGroups] = useState([]),
-    [detail, setDetail] = useState(null),
-    [loading, setLoading] = useState(false),
+    [selected, setSelected] = useState(null),
+    [hover, setHover] = useState(null),
+    [edgeFocus, setEdgeFocus] = useState(null),
+    [detail, setDetail] = useState(null);
+  const [nodes, setNodes] = useState([]),
+    [routes, setRoutes] = useState(new Map()),
+    [organizing, setOrganizing] = useState(true),
+    [layoutError, setLayoutError] = useState(null),
+    [duration, setDuration] = useState(null);
+  const [loading, setLoading] = useState(false),
     [error, setError] = useState(null);
-  const scope = useTestCaseScope(`${contract.projectId}:${contract.perspective?.id}`),
-    returnFocusRef = useRef(null);
-  const close = useCallback(() => setDetail(null), []);
-  const { nodes, edges } = useMemo(
-    () =>
-      buildFlow(
-        contract,
-        expanded,
-        (id) => setExpanded((v) => toggled(v, id)),
-        groups,
-        (id) => setGroups((v) => toggled(v, id)),
-        (node, trigger) => {
-          returnFocusRef.current = trigger;
-          setDetail(node);
-        },
-        (id) => {
-          const position = layoutGraph(presentGraph(contract, groups).nodes, expanded).get(id);
-          if (position)
-            setCenter(position.x + 144, position.y + 300, { zoom: 0.85, duration: 200 });
-        }
-      ),
-    [contract, expanded, groups, setCenter]
+  const canvasRef = useRef(null);
+  const manual = useRef(false),
+    positions = useRef(new Map()),
+    sequence = useRef(0),
+    pendingCenter = useRef(null),
+    detailReturn = useRef(null);
+  const scope = useTestCaseScope(`${contract.projectId}:${contract.perspective?.id}`);
+  const view = useMemo(() => presentGraph(contract, groups), [contract, groups]);
+  const base = useMemo(() => buildFlow(contract, groups), [contract, groups]);
+  const path = highlightedPath(view, hover || selected);
+  const center = useCallback(
+    (id) => {
+      const n =
+        flow.getNode(id) ||
+        flow.getNodes().find((n) => n.data.node.type === 'REQUIREMENT') ||
+        flow.getNodes()[0];
+      if (n?.data.node.type === 'REQUIREMENT' && canvasRef.current?.clientHeight) {
+        void flow.setViewport(
+          {
+            x: 40 - n.position.x * graphLayout.initialZoom,
+            y:
+              canvasRef.current.clientHeight / 2 -
+              (n.position.y + graphLayout.height / 2) * graphLayout.initialZoom,
+            zoom: graphLayout.initialZoom
+          },
+          { duration: 200 }
+        );
+      } else if (n)
+        void flow.setCenter(
+          n.position.x + graphLayout.width / 2,
+          n.position.y + graphLayout.height / 2,
+          { zoom: graphLayout.initialZoom, duration: 200 }
+        );
+    },
+    [flow]
   );
+  const organize = useCallback(
+    async (reset = false) => {
+      const token = ++sequence.current;
+      setLayoutError(null);
+      if (manual.current && !reset) {
+        positions.current = placeNewNodes(view, positions.current);
+        setNodes(() =>
+          base.nodes.map((n) => ({
+            ...n,
+            position: positions.current.get(n.id),
+            data: { ...n.data, ports: n.data.ports }
+          }))
+        );
+        setRoutes(new Map());
+        setOrganizing(false);
+        return;
+      }
+      setOrganizing(true);
+      try {
+        const result = await layoutWithElk(view);
+        if (sequence.current !== token) return;
+        const layout = new Map(result.nodes.map((n) => [n.id, n]));
+        positions.current = new Map(result.nodes.map((n) => [n.id, n.position]));
+        manual.current = false;
+        setNodes(
+          base.nodes.map((n) => ({
+            ...n,
+            position: layout.get(n.id).position,
+            data: { ...n.data, ports: layout.get(n.id).ports }
+          }))
+        );
+        setRoutes(new Map(result.edges.map((e) => [e.id, e.sections])));
+        setDuration(result.duration);
+        pendingCenter.current = selected || view.nodes.find((n) => n.type === 'REQUIREMENT')?.id;
+      } catch (e) {
+        if (sequence.current === token)
+          setLayoutError(normalizeApiError(e, 'Não foi possível organizar o fluxo.'));
+      } finally {
+        if (sequence.current === token) setOrganizing(false);
+      }
+    },
+    [base, view, selected]
+  );
+  // Selection changes must never recalculate layout. Only the visible collection changes it.
+  const organizeRef = useRef(organize);
+  organizeRef.current = organize;
+  const invalidateLayout = useCallback(() => {
+    sequence.current++;
+  }, []);
+  useEffect(() => {
+    void organizeRef.current();
+    return invalidateLayout;
+  }, [base, invalidateLayout]);
+  useEffect(() => {
+    if (nodes.length && pendingCenter.current) {
+      center(pendingCenter.current);
+      pendingCenter.current = null;
+    }
+  }, [nodes, center]);
+  useEffect(() => {
+    if (selected) center(selected);
+  }, [selected, center]);
+  function select(id) {
+    const node = contract.nodes.find((n) => n.id === id);
+    if (!node) return;
+    const closed = presentGraph(contract, groups).nodes.filter(
+      (n) => n.type === 'GROUP' && n.data.memberIds.includes(id) && !n.data.open
+    );
+    if (closed.length) setGroups((old) => [...new Set([...old, ...closed.map((n) => n.id)])]);
+    setSelected(id);
+    setHover(null);
+    center(id);
+  }
+  function changes(changes) {
+    const moved = changes.filter((c) => c.type === 'position' && c.position);
+    if (moved.length) {
+      manual.current = true;
+      sequence.current++;
+      setOrganizing(false);
+      for (const c of moved) positions.current.set(c.id, c.position);
+      setRoutes(new Map());
+    }
+    setNodes((old) =>
+      applyNodeChanges(
+        changes.filter((c) => !['remove', 'select'].includes(c.type)),
+        old
+      )
+    );
+  }
   async function more() {
     const token = scope.begin('page');
     setLoading(true);
@@ -130,68 +215,185 @@ function Canvas({ traceability }) {
     scope.cancelRead('page');
     setLoading(false);
     setError(null);
-    setExpanded([]);
+    setSelected(null);
+    setHover(null);
     setGroups([]);
     setContract(traceability);
-    setCenter(144, 300, { zoom: 0.85 });
   }
-  if (!nodes.length)
-    return <p className="empty-state">Nenhum vínculo encontrado para esta perspectiva.</p>;
+  const closeInspector = () => {
+    const id = selected;
+    setSelected(null);
+    setHover(null);
+    queueMicrotask(() => document.querySelector(`[data-id="${id}"]`)?.focus());
+  };
+  const active = contract.nodes.find((n) => n.id === selected);
+  const edges = base.edges.map((e) => {
+    const label = `${relationLabels[e.relationType || e.type] || 'coleção de relações'}${e.failedStep ? ` · Passo ${e.failedStep}` : ''}${e.correctionCycle ? ` · Ciclo ${e.correctionCycle}` : ''}`;
+    return {
+      ...e,
+      type: 'traceabilityEdge',
+      data: { sections: routes.get(e.id), manual: manual.current },
+      markerEnd: { type: MarkerType.ArrowClosed },
+      focusable: true,
+      ariaLabel: `${identity(contract.nodes.find((n) => n.id === e.source) || { type: 'GROUP', data: { number: e.source } })} ${label} ${identity(contract.nodes.find((n) => n.id === e.target) || { type: 'GROUP', data: { number: e.target } })}`,
+      label:
+        edgeFocus === e.id || (path.edges.has(e.id) && path.edges.size <= 4 && !e.presentation)
+          ? label
+          : undefined,
+      className: `trace-edge-${e.hierarchy} ${edgeFocus === e.id || path.edges.has(e.id) ? 'trace-edge-highlight' : hover || selected ? 'trace-edge-dim' : ''}`
+    };
+  });
   return (
     <div className="traceability-flow">
-      <div inert={detail ? true : undefined}>
+      <div hidden={Boolean(detail)} className="trace-flow-session">
         <div className="traceability-flow-toolbar">
-          <p>Explore as relações. Clique em um card para ver suas informações.</p>
           <div className="traceability-flow-actions">
             <button
-              className="button button-secondary"
-              onClick={() => fitView({ padding: 0.18, duration: 250, minZoom: 0.02, maxZoom: 1 })}
+              className="button button-secondary button-compact"
+              disabled={organizing}
+              onClick={() => void organize(true)}
+            >
+              Organizar automaticamente
+            </button>
+            <button
+              className="button button-secondary button-compact"
+              onClick={() => center(selected)}
             >
               Centralizar fluxo
             </button>
-            <button className="button button-secondary" onClick={collapse}>
+            <button className="button button-secondary button-compact" onClick={collapse}>
               Recolher tudo
             </button>
           </div>
+          <span role="status">
+            {organizing
+              ? 'Organizando fluxo…'
+              : `${nodes.filter((n) => n.data.node.type !== 'GROUP').length} entidades visíveis`}
+          </span>
         </div>
-        <div className="traceability-flow-canvas" aria-label="Grafo de rastreabilidade">
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            nodeTypes={nodeTypes}
-            edgeTypes={edgeTypes}
-            defaultViewport={{ x: 0, y: 0, zoom: 1 }}
-            minZoom={0.02}
-            maxZoom={1.5}
-            onInit={() => setCenter(144, 300, { zoom: 0.85 })}
-            nodesDraggable={false}
-            nodesConnectable={false}
-            elementsSelectable
+        {layoutError && (
+          <ErrorState message={layoutError.message} onRetry={() => void organize(true)} />
+        )}
+        <div className={`trace-canvas-inspector ${active ? 'has-inspector' : ''}`}>
+          <div
+            className="traceability-flow-canvas"
+            ref={canvasRef}
+            aria-label="Grafo de rastreabilidade"
+            data-layout-ms={duration?.toFixed(1)}
           >
-            <Background />
-            <Controls showInteractive={false} orientation="horizontal" />
-          </ReactFlow>
+            <ReactFlow
+              nodes={nodes.map((n) => ({
+                ...n,
+                selected: n.id === selected,
+                className: (hover || selected) && !path.nodes.has(n.id) ? 'trace-node-dim' : '',
+                data: {
+                  ...n.data,
+                  selected: n.id === selected,
+                  onSelect: () => select(n.id),
+                  onGroup: () => setGroups((old) => toggled(old, n.id))
+                }
+              }))}
+              edges={edges}
+              nodeTypes={nodeTypes}
+              edgeTypes={edgeTypes}
+              onNodesChange={changes}
+              onNodeClick={(_, n) => {
+                if (n.data.node.type !== 'GROUP') select(n.id);
+              }}
+              onNodeMouseEnter={(_, n) => setHover(n.id)}
+              onNodeMouseLeave={() => setHover(null)}
+              onEdgeMouseEnter={(_, edge) => setEdgeFocus(edge.id)}
+              onEdgeMouseLeave={() => setEdgeFocus(null)}
+              onPaneClick={() => {
+                setSelected(null);
+                setHover(null);
+              }}
+              onNodeDragStart={() => {
+                manual.current = true;
+                sequence.current++;
+              }}
+              minZoom={graphLayout.minZoom}
+              maxZoom={graphLayout.maxZoom}
+              defaultViewport={{ x: 40, y: 40, zoom: graphLayout.initialZoom }}
+              nodesDraggable
+              nodesConnectable={false}
+              edgesReconnectable={false}
+              deleteKeyCode={null}
+              nodesFocusable
+              edgesFocusable
+              autoPanOnNodeFocus
+              onKeyDown={(e) => {
+                const id = e.target.closest?.('.react-flow__node')?.getAttribute('data-id');
+                if (id && ['Enter', ' '].includes(e.key)) {
+                  e.preventDefault();
+                  select(id);
+                }
+                if (e.key === 'Escape' && selected) {
+                  e.preventDefault();
+                  closeInspector();
+                }
+              }}
+              onFocus={(e) => {
+                const id = e.target.closest?.('.react-flow__node')?.getAttribute('data-id');
+                if (id) setHover(id);
+                const edgeId = e.target.closest?.('.react-flow__edge')?.getAttribute('data-id');
+                if (edgeId) setEdgeFocus(edgeId);
+              }}
+              onBlur={() => {
+                setHover(null);
+                setEdgeFocus(null);
+              }}
+            >
+              <Background />
+              <Controls showInteractive={false} showFitView={false} orientation="horizontal" />
+              <MiniMap className="trace-minimap" pannable zoomable ariaLabel="Mapa do fluxo" />
+            </ReactFlow>
+          </div>
+          {active && (
+            <TraceabilityInspector
+              key={active.id}
+              node={active}
+              contract={contract}
+              onClose={closeInspector}
+              onSelect={select}
+              onDetails={(n) => {
+                detailReturn.current = document.activeElement;
+                setDetail(n);
+              }}
+            />
+          )}
         </div>
         <p className="traceability-flow-caption">
-          {nodes.filter((n) => n.data.node.type !== 'GROUP').length} entidades visíveis ·{' '}
-          {edges.filter((e) => !e.presentation).length} relações. Arraste o canvas para explorar.
+          Da esquerda para a direita · Arraste o fundo para explorar; selecione um artefato para
+          entender suas relações.
         </p>
         {contract.pagination?.scope === 'graphNodes' &&
           contract.pagination.page < contract.pagination.totalPages && (
-            <button className="button button-secondary" onClick={more} disabled={loading}>
+            <button className="button button-secondary" disabled={loading} onClick={more}>
               {loading ? 'Carregando relações…' : 'Carregar mais relações'}
             </button>
           )}
         {error && <ErrorState message={error.message} onRetry={more} />}
       </div>
       {detail && (
-        <GraphEntityDetails
-          key={detail.id}
-          node={detail}
-          projectId={contract.projectId}
-          onClose={close}
-          returnFocusRef={returnFocusRef}
-        />
+        <div className="trace-details-subview">
+          <button
+            autoFocus
+            className="button button-secondary"
+            onClick={() => {
+              setDetail(null);
+              queueMicrotask(() => detailReturn.current?.focus());
+            }}
+          >
+            ← Voltar para o fluxo
+          </button>
+          <GraphEntityDetails
+            key={detail.id}
+            node={detail}
+            projectId={contract.projectId}
+            onClose={() => setDetail(null)}
+          />
+        </div>
       )}
     </div>
   );

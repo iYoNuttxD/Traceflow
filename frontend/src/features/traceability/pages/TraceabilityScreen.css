@@ -26,7 +26,8 @@
   gap: var(--space-4);
 }
 .requirement-card {
-  height: 36rem;
+  height: 100%;
+  min-height: 36rem;
 }
 .requirement-card--selected {
   border-color: var(--color-border-interactive);
