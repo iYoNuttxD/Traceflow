@@ -1,0 +1,183 @@
+/* Owner: TaskTimeEntriesDialog (S1-06). Mesmo molde do diálogo de histórico. */
+
+/* Flex com quebra: ao aplicar um filtro surge o "Limpar filtros", e num grid de
+   colunas fixas os dois botões espremiam os campos. Aqui eles descem de linha. */
+.task-time-entries__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: flex-end;
+  margin-bottom: var(--space-5);
+}
+
+/* Os campos dividem o que sobra depois das ações, que reservam a própria
+   largura: assim nada fica colado, sem vão morto e sem empurrar os botões
+   para a linha de baixo quando o "Limpar filtros" aparece. */
+.task-time-entries__filters label {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-2);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-2);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* Datas têm largura previsível; a origem fica com a sobra da linha. */
+.task-time-entries__filters label:nth-of-type(-n + 2) {
+  flex: 0 1 8.5rem;
+}
+
+.task-time-entries__filters label:nth-of-type(3) {
+  flex: 1 1 9rem;
+}
+
+/* Sem width/min-width o select assume a largura da opção mais longa, estoura o
+   label e passa por baixo do botão de filtrar. */
+.task-time-entries__filters input,
+.task-time-entries__filters select {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--size-touch-target);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-3);
+  color: var(--color-text-primary);
+  background: var(--color-bg-input);
+  font: inherit;
+  text-overflow: ellipsis;
+}
+
+.task-time-entries__filter-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--space-2);
+  padding-left: var(--space-3);
+}
+
+.task-time-entries__filter-actions .button {
+  min-height: var(--size-touch-target);
+  white-space: nowrap;
+}
+
+.task-time-entries__list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.task-time-entries__item {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1.4fr) minmax(9rem, 1fr) minmax(5rem, auto) auto;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-secondary);
+}
+
+.task-time-entries__when {
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.task-time-entries__origin {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.task-time-entries__origin small {
+  min-width: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-1);
+  overflow-wrap: anywhere;
+}
+
+.task-time-entries__tag {
+  border-radius: var(--radius-pill);
+  padding: 0 var(--space-2);
+  color: var(--color-highlight-text);
+  background: var(--color-highlight-surface);
+  font-size: 0.68rem;
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+}
+
+.task-time-entries__tag--timer {
+  color: var(--color-accent-text);
+  background: var(--color-accent-surface);
+}
+
+.task-time-entries__duration {
+  color: var(--color-text-strong);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.task-time-entries__actions {
+  display: inline-flex;
+  justify-content: flex-end;
+  min-width: var(--size-touch-target);
+}
+
+.task-time-entries__delete {
+  display: inline-flex;
+  width: var(--size-touch-target);
+  height: var(--size-touch-target);
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xs);
+  color: var(--color-text-secondary);
+  background: transparent;
+  cursor: pointer;
+}
+
+.task-time-entries__delete:hover:not(:disabled) {
+  color: var(--color-danger-text);
+  background: var(--color-danger-surface);
+}
+
+.task-time-entries__delete:disabled {
+  cursor: not-allowed;
+  opacity: var(--opacity-disabled);
+}
+
+.task-time-entries__pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-semibold);
+}
+
+@media (max-width: 720px) {
+  .task-time-entries__item {
+    grid-template-columns: 1fr;
+  }
+
+  .task-time-entries__filters label {
+    flex-basis: 100%;
+  }
+
+  .task-time-entries__filter-actions {
+    width: 100%;
+    padding-left: 0;
+  }
+
+  .task-time-entries__filter-actions .button {
+    flex: 1 1 auto;
+  }
+
+  .task-time-entries__duration {
+    text-align: left;
+  }
+}

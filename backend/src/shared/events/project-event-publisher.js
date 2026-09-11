@@ -1,7 +1,11 @@
 export const PROJECT_EVENT_TYPES = Object.freeze({
   TASK_COMMENT_CREATED: 'task.comment.created',
   TASK_COMMENT_UPDATED: 'task.comment.updated',
-  TASK_COMMENT_DELETED: 'task.comment.deleted'
+  TASK_COMMENT_DELETED: 'task.comment.deleted',
+  TASK_TIME_ENTRY_STARTED: 'task.time_entry.started',
+  TASK_TIME_ENTRY_STOPPED: 'task.time_entry.stopped',
+  TASK_TIME_ENTRY_CREATED: 'task.time_entry.created',
+  TASK_TIME_ENTRY_DELETED: 'task.time_entry.deleted'
 });
 
 export const PROJECT_EVENT_HEARTBEAT_INTERVAL_MS = 25_000;

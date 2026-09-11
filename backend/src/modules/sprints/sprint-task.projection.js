@@ -6,8 +6,12 @@ import { buildSprintHistoricalSummary } from './sprint.summary.calculator.js';
 export function buildClosingTaskSnapshot(task) {
   if (!task) throw new Error('Closing Task snapshot requires an active Task');
   return {
-    version: 2,
+    // v3 acrescenta `estimatedEffort`: `pointsAtClose` representa ausência de
+    // estimativa e estimativa zero com o mesmo 0, o que impedia distinguir as duas
+    // ao consolidar o esforço da sprint encerrada.
+    version: 3,
     id: task.id,
+    estimatedEffort: task.estimatedEffort ?? null,
     title: task.title,
     description: task.description,
     priority: task.priority,
@@ -50,12 +54,23 @@ export function projectSprintTasks(sprint, participations) {
         exitStatus: p.exitStatus
       };
       if (!isFrozen) return p.task ? [{ ...p.task, ...context, isFrozen: false }] : [];
-      const snapshot = [1, 2].includes(p.closingTaskSnapshot?.version)
+      const snapshot = [1, 2, 3].includes(p.closingTaskSnapshot?.version)
         ? p.closingTaskSnapshot
         : null;
       if (!snapshot) historicalLimitations.add('LEGACY_CLOSING_TASK_SNAPSHOT_UNAVAILABLE');
       else if (snapshot.version === 1)
         historicalLimitations.add('LEGACY_CLOSING_TASK_DETAILS_PARTIAL');
+      // Só o v3 guarda a estimativa da tarefa. Antes dele existia apenas
+      // `pointsAtClose`, onde "sem estimativa" e "estimativa zero" são o mesmo 0:
+      // publicar esse 0 como limite fazia o congelado acusar estouro de um teto que
+      // o planejamento nunca definiu. Sem o dado, o limite fica ausente e a sprint
+      // declara a limitação.
+      const estimateFromSnapshot = snapshot?.version >= 3;
+      const estimatedEffort = estimateFromSnapshot
+        ? (snapshot.estimatedEffort ?? null)
+        : p.pointsAtClose || null;
+      if (!estimateFromSnapshot && estimatedEffort === null)
+        historicalLimitations.add('LEGACY_CLOSING_TASK_ESTIMATE_UNAVAILABLE');
       return [
         {
           ...context,
@@ -67,7 +82,7 @@ export function projectSprintTasks(sprint, participations) {
           snapshotAt: p.closedAt ?? historicalSummary.cutoff,
           snapshotAvailable: Boolean(snapshot),
           snapshotVersion: snapshot?.version ?? null,
-          ...(snapshot?.version === 2
+          ...(snapshot?.version >= 2
             ? {
                 description: snapshot.description,
                 responsibleDisplayName: snapshot.responsibleDisplayName,
@@ -83,7 +98,7 @@ export function projectSprintTasks(sprint, participations) {
             snapshot?.title ??
             `Tarefa ${p.taskId ? `#${p.taskId}` : 'excluída'} — título no encerramento indisponível`,
           status: p.exitStatus,
-          estimatedEffort: p.pointsAtClose,
+          estimatedEffort,
           priority: snapshot?.priority ?? null,
           responsibleUserId: snapshot?.responsibleUserId ?? null,
           deadline: snapshot?.deadline ?? null,

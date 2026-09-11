@@ -43,6 +43,14 @@ export function formatDateTime(value) {
   return value ? new Date(value).toLocaleString('pt-BR') : 'Não informado';
 }
 
+// Unidade única de esforço (S1-06): horas, com decimais quando vierem do cronômetro.
+export function formatEffortHours(value) {
+  if (value === null || value === undefined || value === '') return 'Não informado';
+  const hours = Number(value);
+  if (!Number.isFinite(hours)) return String(value);
+  return `${hours.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} h`;
+}
+
 // O quarto parametro e opcional com default: chamadas de tres argumentos
 // permanecem identicas. Sem a lista de sprints, o fallback exibe o ID.
 export function formatHistoryValue(field, value, members, sprints = []) {

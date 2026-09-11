@@ -253,11 +253,11 @@ navegador — `S104-F02` no backlog técnico. Até que essa decisão seja tomada
 
 **Checklist técnico:**
 
-- [ ] definir unidade e fórmula em decisão documentada;
-- [ ] revisar schema e migration se necessário;
-- [ ] completar API, formulários e visualização;
-- [ ] integrar Sprint, Task e RF51;
-- [ ] testar casos extremos, acessibilidade e regressão.
+- [x] definir unidade e fórmula em decisão documentada;
+- [x] revisar schema e migration se necessário;
+- [x] completar API, formulários e visualização;
+- [x] integrar Sprint, Task e RF51;
+- [x] testar casos extremos, acessibilidade e regressão.
 
 ### S1-07 - Cadastrar e gerenciar casos de teste
 

@@ -6,6 +6,7 @@ import {
   TaskInformation,
   TaskTraceabilityGrid
 } from './TaskDetailsLayout.jsx';
+import { FrozenEffortSummary } from './FrozenEffortSummary.jsx';
 import { frozenTaskDetailsView } from './frozen-task-details-view.js';
 
 export function FrozenTaskDetails({
@@ -36,13 +37,13 @@ export function FrozenTaskDetails({
     >
       <TaskDetailsLayout>
         {(!task.snapshotAvailable ||
-          (task.snapshotVersion !== 2 && historicalLimitations.length > 0)) && (
+          (!(task.snapshotVersion >= 2) && historicalLimitations.length > 0)) && (
           <p className="message message-warning" role="status">
             Snapshot detalhado indisponível para esta Sprint histórica. Os campos não capturados
             estão identificados abaixo.
           </p>
         )}
-        <TaskInformation details={details} />
+        <TaskInformation details={details} effortSlot={<FrozenEffortSummary task={task} />} />
         {details.artifacts ? (
           <TaskTraceability task={details.artifacts} />
         ) : (

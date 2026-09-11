@@ -230,13 +230,18 @@ Tipos preservados: `FUNCIONAL`, `NAO_FUNCIONAL`, `REGRA_NEGOCIO`. Status preserv
 | GET          | `/projects/:projectId/kanban/metrics`                                    | mesmos filtros atuais                                                                                                | `200`, métricas atuais                                                          |
 | GET          | `/projects/:projectId/tasks/metrics`                                     | `startDate?`, `endDate?`                                                                                             | `200`, métricas atuais                                                          |
 | GET          | `/projects/:projectId/traceability/{pull-request,commit,issue}-coverage` | `projectId`                                                                                                          | `200`, cobertura atual                                                          |
-| GET (SSE)    | `/projects/:projectId/events`                                            | `projectId`; query vazia                                                                                             | stream project-scoped; atualmente somente eventos de Comments                   |
+| GET (SSE)    | `/projects/:projectId/events`                                            | `projectId`; query vazia                                                                                             | stream project-scoped; eventos de Comments e de sessões de tempo (S1-06)         |
 | GET          | `/tasks/:id/comments`                                                    | `id`; `before?` opaco, `limit?` entre 1 e 100                                                                        | `200`, `{taskId,comments,permissions,pagination}`                               |
 | POST         | `/tasks/:id/comments`                                                    | `id`; `content`                                                                                                      | `201`, `{message,comment}`                                                      |
 | PATCH        | `/tasks/:id/comments/:commentId`                                         | ambos positivos; `content`                                                                                           | `200`, `{message,comment}`                                                      |
 | DELETE       | `/tasks/:id/comments/:commentId`                                         | ambos positivos                                                                                                      | `200`, `{message,comment}`                                                      |
+| GET          | `/tasks/:id/time-entries`                                                | `id`; `page?`, `limit?` entre 1 e 100, `startDate?`, `endDate?`, `source?` (`TIMER`/`MANUAL`)                        | `200`, `{taskId,running,entries,effort,permissions,pagination}`                 |
+| POST         | `/tasks/:id/time-entries/start`                                          | `id`; body vazio                                                                                                     | `201`, `{message,entry,effort}`; `409` se já há sessão em andamento             |
+| POST         | `/tasks/:id/time-entries/stop`                                           | `id`; body vazio                                                                                                     | `200`, `{message,entry,effort}`; `409` sem sessão em andamento                  |
+| POST         | `/tasks/:id/time-entries`                                                | `id`; `hours` decimal (0 < h ≤ 24), `note?`, `occurredAt?`                                                           | `201`, `{message,entry,effort}` — lançamento manual                             |
+| DELETE       | `/tasks/:id/time-entries/:entryId`                                       | ambos positivos                                                                                                      | `200`, `{message,entry,effort}`                                                 |
 
-Priority: `BAIXA`, `MEDIA`, `ALTA`, `CRITICA`. Status: `A_FAZER`, `EM_ANDAMENTO`, `CONCLUIDO`. Efforts são inteiros não negativos. `responsibleUserId` deve identificar usuário com membership ativa no projeto; respostas expõem apenas `{id,name}` em `responsibleUser`. `Task.responsible` e `TaskMovement.movedBy` permanecem somente como snapshots históricos de leitura; `projectMemberId` foi removido. O histórico funcional usa `STATUS`, `DEADLINE`, `RESPONSIBLE`, `PRIORITY` e `SPRINT` (este último desde o RF10); mudanças sem efeito não geram entrada. O enum aceito em `field` espelha `TaskHistoryField` do Prisma — todo valor novo no schema precisa entrar também em `taskHistoryQuerySchema`, sob pena de o campo ficar gravável e não filtrável.
+Priority: `BAIXA`, `MEDIA`, `ALTA`, `CRITICA`. Status: `A_FAZER`, `EM_ANDAMENTO`, `CONCLUIDO`. `estimatedEffort` é um número de horas maior ou igual a zero em passos de meia hora (1, 1.5, 2…); `actualEffort` é derivado das sessões de tempo (S1-06) em horas decimais e qualquer tentativa de informá-lo no body recebe `400`. `responsibleUserId` deve identificar usuário com membership ativa no projeto; respostas expõem apenas `{id,name}` em `responsibleUser`. `Task.responsible` e `TaskMovement.movedBy` permanecem somente como snapshots históricos de leitura; `projectMemberId` foi removido. O histórico funcional usa `STATUS`, `DEADLINE`, `RESPONSIBLE`, `PRIORITY` e `SPRINT` (este último desde o RF10); mudanças sem efeito não geram entrada. O enum aceito em `field` espelha `TaskHistoryField` do Prisma — todo valor novo no schema precisa entrar também em `taskHistoryQuerySchema`, sob pena de o campo ficar gravável e não filtrável.
 
 ## Atualização S1-05 — comentários das tarefas (RF29/RF31)
 
@@ -274,9 +279,66 @@ O response usa `Content-Type: text/event-stream`, `Cache-Control: no-cache, no-t
 }
 ```
 
-Os únicos tipos atuais são `task.comment.created`, `task.comment.updated` e `task.comment.deleted`; todos transportam o DTO seguro completo para merge local sem GET. O delete transporta o tombstone com `AUTHOR`, `MODERATION` ou `UNKNOWN`. Eventos são publicados somente depois da transaction da mutation concluir. Falha da mutation não publica; falha do publisher depois do commit não altera o sucesso REST e é recuperada por reconciliação posterior.
+Os tipos atuais são `task.comment.created`, `task.comment.updated`, `task.comment.deleted` e, desde o S1-06, `task.time_entry.started`, `task.time_entry.stopped`, `task.time_entry.created` e `task.time_entry.deleted`; todos transportam o DTO seguro completo para merge local sem GET. Os eventos de sessão de tempo carregam `data.entry` (com `canDelete` resolvido por assinante) e `data.effort` (resumo já recalculado). O delete transporta o tombstone com `AUTHOR`, `MODERATION` ou `UNKNOWN`. Eventos são publicados somente depois da transaction da mutation concluir. Falha da mutation não publica; falha do publisher depois do commit não altera o sucesso REST e é recuperada por reconciliação posterior.
 
-O servidor envia heartbeat em comentário SSE a cada 25 segundos, sem consulta ao banco, e encerra o stream após no máximo 15 minutos para nova autorização. Backpressure, erro de transporte, logout, revogação de sessão, saída/desativação de membership ou mudança de papel encerram a conexão. O publisher atual é in-memory e single-node; multi-node exigirá adapter de broker. Não há replay/event log persistente. O Kanban não publica nem consome SSE neste contrato.
+O servidor envia heartbeat em comentário SSE a cada 25 segundos, sem consulta ao banco, e encerra o stream após no máximo 15 minutos para nova autorização. Backpressure, erro de transporte, logout, revogação de sessão, saída/desativação de membership ou mudança de papel encerram a conexão. O publisher atual é in-memory e single-node; multi-node exigirá adapter de broker. Não há replay/event log persistente: quem consome o stream reconcilia por leitura própria ao reconectar, porque os eventos ocorridos com a conexão fechada não são reenviados. O Kanban não publica SSE, mas consome os eventos de sessão de tempo para atualizar o cronômetro do cartão, e refaz a leitura do quadro a cada reconexão.
+
+## Atualização S1-06 — esforço, estimativa e sessões de tempo (RF32/RF33/RF34)
+
+Unidade única: **horas**. `estimatedEffort` é declarado em horas, em passos de meia hora (1, 1.5, 2…), no cadastro/edição da tarefa; outras frações recebem `400`. As cópias congeladas na sprint (`SprintTask.pointsAtPlanning`/`pointsAtClose`) acompanham a mesma precisão. `actualEffort` deixa de ser digitado: é a soma, em horas decimais (2 casas), das sessões de tempo encerradas (`TaskTimeEntry`) e é recalculado na mesma transaction de cada início/parada, lançamento manual ou exclusão. Enviar `actualEffort` em `POST/PUT /tasks` recebe `400`.
+
+Sessões: `POST .../start` abre uma sessão com `startedBy` da sessão HTTP; só existe uma sessão em andamento por tarefa (trava de linha em `Project` e `Task`, nessa ordem; inícios concorrentes recebem `409`). `POST .../stop` encerra a sessão em andamento registrando `endedBy` (qualquer MEMBER+, não apenas quem iniciou) e `durationSeconds`. `POST /tasks/:id/time-entries` registra lançamento manual (`source: MANUAL`) com `hours` decimal (aceita vírgula; `0 < hours ≤ 24`), `note?` (≤ 191) e `occurredAt?` (`YYYY-MM-DD` ou ISO; futuro recebe `400`), com `startedBy = endedBy = ator`. Cada sessão expõe `canDelete` (quem iniciou, ou MANAGER/OWNER por moderação). Toda operação gera `AuditEvent` (`TASK_TIMER_STARTED`, `TASK_TIMER_STOPPED`, `TASK_TIME_ENTRY_CREATED`, `TASK_TIME_ENTRY_DELETED`) com `source` e `durationSeconds` na metadata. A exclusão da tarefa remove as sessões junto.
+
+Fórmulas (`effort`): `estimatedSeconds = estimatedHours × 3600`; `actualHours = completedSeconds / 3600` (2 casas); `differenceHours = actualHours − estimatedHours`; `differencePercent = (completedSeconds − estimatedSeconds) / estimatedSeconds × 100`; `usagePercent = completedSeconds / estimatedSeconds × 100`; `remainingSeconds = max(estimado − realizado, 0)`; `overrunSeconds = max(realizado − estimado, 0)`. `status`: `SEM_ESTIMATIVA` (sem limite; diferenças e percentuais nulos), `DENTRO_DO_PREVISTO`, `PROXIMO_DO_LIMITE` (≥ 70% da estimativa) e `ESTOURADO` (realizado > estimado). Estimativa zero: qualquer segundo registrado é `ESTOURADO`; `usagePercent`/`differencePercent` ficam `null` porque a divisão por zero não tem leitura útil. A sessão em andamento não entra em `completedSeconds`; o cliente soma `now − running.startedAt` ao vivo e reclassifica com as mesmas regras (`effort-summary.js` espelha o presenter).
+
+Realizado conhecido e esforço herdado: `completedSeconds` é o **total** da tarefa e se decompõe em `trackedSeconds` (soma das sessões encerradas) mais `legacySeconds`/`legacyHours` (o `actualEffort` que existia antes das sessões, preservado em `Task.legacyActualEffort` pela migration e somado ao derivado sem inventar autoria nem data de sessão). O realizado só é considerado conhecido quando há sessão encerrada **ou** legado — `completedCount > 0 || legacySeconds > 0`; fora disso `actualHours` é `0` e a tarefa publica `actualEffort: null`. Consumidor que decide por `completedCount` sozinho zera o legado assim que o cronômetro começa e passa a discordar do rastreador sobre a mesma tarefa.
+
+`incomplete: true` marca agregado cujo realizado o histórico não capturou por inteiro (snapshots anteriores ao v2). Nesse caso `status` é `INDISPONIVEL` e `usagePercent`, `differencePercent`, `differenceHours`, `remainingSeconds` e `overrunSeconds` ficam `null`: um total parcial não sustenta conclusão sobre o limite, e somar o desconhecido como zero anunciaria folga inexistente.
+
+Ordem de travas: as operações de esforço travam `Project` antes de `Task`, a mesma ordem de Planning (`Project → Sprint → Task`). Gravar uma sessão já trava o `Project` pela FK, então começar pela `Task` fechava um ciclo e derrubava o cronômetro com deadlock quando uma transição de sprint corria junto.
+
+```json
+{
+  "taskId": 7,
+  "running": {
+    "id": 9,
+    "source": "TIMER",
+    "startedAt": "2026-09-06T14:02:00.000Z",
+    "endedAt": null,
+    "startedBy": { "id": 10, "name": "Ana" },
+    "endedBy": null,
+    "canDelete": true
+  },
+  "entries": [],
+  "effort": {
+    "unit": "HOURS",
+    "estimatedHours": 8,
+    "estimatedSeconds": 28800,
+    "completedSeconds": 12840,
+    "trackedSeconds": 12840,
+    "legacySeconds": 0,
+    "legacyHours": 0,
+    "completedCount": 2,
+    "actualHours": 3.57,
+    "incomplete": false,
+    "remainingSeconds": 15960,
+    "overrunSeconds": 0,
+    "differenceHours": -4.43,
+    "differencePercent": -55.42,
+    "usagePercent": 44.58,
+    "status": "DENTRO_DO_PREVISTO",
+    "running": { "id": 9, "startedAt": "2026-09-06T14:02:00.000Z", "startedBy": { "id": 10, "name": "Ana" } }
+  },
+  "permissions": { "canOperate": true, "canModerate": false },
+  "pagination": { "page": 1, "limit": 20, "total": 2, "totalPages": 1 }
+}
+```
+
+`entries` é o histórico das sessões encerradas, da mais recente para a mais antiga, paginado por `page`/`limit` e filtrável por `startDate`/`endDate` (dia civil UTC sobre o encerramento) e `source` (`TIMER` ou `MANUAL`); `startDate` maior que `endDate` e origem fora do enum recebem `400`. Os filtros recortam apenas a página: `running` e `effort` continuam refletindo o total da tarefa. A sessão em andamento nunca aparece em `entries`, só em `running`.
+
+O DTO da tarefa (`GET /tasks/:id` e as colunas do Kanban) traz `runningTimer` — `{id,startedAt,startedBy}` da sessão aberta ou `null` — para o cartão exibir o cronômetro sem uma chamada por tarefa.
+
+Consolidação por sprint: `GET /sprints/:id/progress` passa a incluir `effort` (`tasks`, `tasksWithEstimate`, `tasksWithActual`, `estimatedHours`, `actualHours`, `differenceHours`, `differencePercent`, `usagePercent`, `status`, `perTask[]`) somando as tarefas da sprint; sprint encerrada lê `pointsAtClose` e o snapshot de fechamento em vez da tarefa viva. Tarefa sem estimativa não entra no limite, mas o realizado dela entra no total. O responsável (`responsibleUserId`, RF51) não se confunde com quem iniciou/parou a sessão: são campos distintos e ambos ficam registrados.
 
 ## GitHub e Artifacts
 
@@ -486,14 +548,14 @@ modal de tarefas. Uma única projeção de domínio escolhe os dados conforme o 
 - Aberta: participações ativas com campos Task atuais (`id,title,status,priority,deadline,
   estimatedEffort,responsibleUserId,sprintId`) e `isFrozen=false`.
 - Terminal: todas as participações ativas no encerramento, independentemente de `Task.sprintId`
-  ou existência posterior da Task. `status=exitStatus`, `estimatedEffort=pointsAtClose` e os demais
+  ou existência posterior da Task. `status=exitStatus` e os demais
   campos vêm do snapshot versionado. `sprintId` identifica o recorte histórico neste DTO.
   `id` é o ID capturado; `participationId` identifica o registro; `currentTaskId` é ID ou null
   para a ação explícita “Abrir tarefa atual”. Essa disponibilidade operacional não é métrica histórica.
 - Contexto preservado: `addedAt`, `addedAfterStart`, `carriedFromSprintId`, `exitStatus`.
 - Envelope terminal: `isFrozen=true`, `snapshotAt`, `historicalSummary` e limitações. Cada card
   inclui `snapshotAt`, `snapshotAvailable`, `snapshotVersion` e `traceabilityCounts`.
-- Snapshot completo v2 (novos encerramentos): `description`, `responsibleDisplayName`,
+- Snapshot completo v2: `description`, `responsibleDisplayName`,
   `actualEffort`, `createdAt`, `requirement`, `pullRequest`, `commits` e `issues`, além dos campos
   anteriores `id,title,priority,responsibleUserId,deadline,status,estimatedEffort`.
   Requirement: `{id,title,status}` ou null. PR: `{id,number,title,state,githubUrl}` ou null.
@@ -501,9 +563,15 @@ modal de tarefas. Uma única projeção de domínio escolhe os dados conforme o 
   `{id,number,title,state,labels,githubUrl}`. Arrays vazios indicam ausência de vínculos.
   Datas históricas são ISO UTC. O nome de exibição não inclui e-mail ou dados de perfil.
   URLs capturadas permitem ações externas; nenhum artefato atual é consultado para renderizar.
+- Snapshot v3 (novos encerramentos): acrescenta `estimatedEffort` ao próprio snapshot. `pointsAtClose`
+  representa ausência de estimativa e estimativa zero com o mesmo `0`, então o card congelado passa a
+  ler a estimativa do snapshot, preservando `null`. Sem isso, tarefa encerrada sem planejamento
+  aparecia como limite de zero hora e o detalhe acusava estouro de um teto nunca definido.
+  Em v1/v2 a estimativa continua vindo de `pointsAtClose`, com `0` publicado como `null` e a
+  limitação `LEGACY_CLOSING_TASK_ESTIMATE_UNAVAILABLE` declarada na sprint.
 - V1 permanece parcial: `snapshotVersion=1`, sem os novos campos, e limitação
   `LEGACY_CLOSING_TASK_DETAILS_PARTIAL`. JSON ausente usa `snapshotVersion=null`.
-  Comments não integram nenhuma versão. Snapshot v2 é capturado atomicamente antes do carry-over;
+  Comments não integram nenhuma versão. O snapshot é capturado atomicamente antes do carry-over;
   falha de captura desfaz o encerramento. Não há backfill legado nem mudança de schema/DDL.
 
 Snapshot detalhado legado ausente recebe `LEGACY_CLOSING_TASK_SNAPSHOT_UNAVAILABLE`;

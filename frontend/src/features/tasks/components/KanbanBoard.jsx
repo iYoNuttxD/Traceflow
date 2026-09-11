@@ -1,6 +1,8 @@
+import { useEffect, useState } from 'react';
 import { KanbanColumn } from './KanbanColumn.jsx';
 import { formatDate, KANBAN_COLUMNS, priorityLabels } from './kanban-display.js';
-import { formatTraceabilityCounts, isTaskOverdue } from './kanban-view.js';
+import { formatTraceabilityCounts, getBoardTasks, isTaskOverdue } from './kanban-view.js';
+import { buildEffortChip } from './effort-summary.js';
 import '../styles/task-cards.css';
 import './KanbanBoard.css';
 
@@ -9,8 +11,21 @@ function responsibleInitial(task) {
   return name.trim().charAt(0).toLocaleUpperCase('pt-BR') || '?';
 }
 
+// Um único relógio para o quadro: só existe enquanto alguma tarefa tem sessão aberta.
+function useLiveClock(active) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!active) return undefined;
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [active]);
+  return now;
+}
+
 function KanbanTaskCard({
   task,
+  now,
   moving,
   dragging,
   sprintName,
@@ -26,6 +41,7 @@ function KanbanTaskCard({
   const blocked = frozen || moving;
   const overdue = isTaskOverdue(task);
   const traceability = formatTraceabilityCounts(task);
+  const effort = buildEffortChip(task, now);
   function stopDrag(event) {
     event.stopPropagation();
     event.preventDefault();
@@ -113,6 +129,23 @@ function KanbanTaskCard({
 
       {(!task.isFrozen || task.currentTaskId) && (
         <div className="kanban-task__actions" onDragStart={stopDrag}>
+          {effort && (
+            <span
+              className={`kanban-task__effort kanban-task__effort--${effort.tone}${
+                effort.running ? ' kanban-task__effort--running' : ''
+              }`}
+              title={effort.title}
+              data-testid={`kanban-task-effort-${task.id}`}
+            >
+              {effort.running ? (
+                <span className="kanban-task__effort-dot" aria-hidden="true" />
+              ) : (
+                <span aria-hidden="true">⏱</span>
+              )}
+              <span className="kanban-task__effort-value">{effort.value}</span>
+              {effort.detail && <span className="kanban-task__effort-detail">{effort.detail}</span>}
+            </span>
+          )}
           <button
             type="button"
             className="kanban-task__action"
@@ -148,6 +181,9 @@ export function KanbanBoard({
   onColumnDragLeave,
   onColumnDrop
 }) {
+  const now = useLiveClock(
+    getBoardTasks(board).some((task) => task.runningTimer && !task.isFrozen)
+  );
   return (
     <section
       className="kanban-board-region"
@@ -197,6 +233,7 @@ export function KanbanBoard({
                       <KanbanTaskCard
                         key={task.id}
                         task={task}
+                        now={now}
                         moving={movingTaskId === task.id}
                         dragging={draggingTaskId === task.id}
                         sprintName={sprintNames[task.sprintId]}

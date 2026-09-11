@@ -11,6 +11,11 @@ const focusableSelector = [
   '[tabindex]:not([tabindex="-1"])'
 ].join(',');
 
+// Um diálogo aberto de dentro de outro fica no DOM do ancestral, então os dois
+// reconheceriam o mesmo Escape/Tab — e o ancestral, registrado antes, fecharia
+// primeiro. Só o topo da pilha responde ao teclado.
+const openDialogs = [];
+
 export function KanbanDialog({
   title,
   description,
@@ -30,12 +35,15 @@ export function KanbanDialog({
     const returnTarget = returnFocusRef?.current || document.activeElement;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
+    const token = {};
+    openDialogs.push(token);
     const frame = window.requestAnimationFrame(() => {
       panelRef.current?.querySelector('[data-dialog-close]')?.focus();
     });
 
     function handleKeyDown(event) {
       if (event.defaultPrevented) return;
+      if (openDialogs.at(-1) !== token) return;
       if (!panelRef.current?.contains(event.target)) return;
       if (event.key === 'Escape') {
         event.preventDefault();
@@ -66,6 +74,8 @@ export function KanbanDialog({
     return () => {
       window.cancelAnimationFrame(frame);
       document.removeEventListener('keydown', handleKeyDown);
+      const index = openDialogs.indexOf(token);
+      if (index !== -1) openDialogs.splice(index, 1);
       document.body.style.overflow = previousOverflow;
       queueMicrotask(() => {
         if (returnTarget?.isConnected) returnTarget.focus();
