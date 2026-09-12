@@ -470,6 +470,7 @@ export const settingsRepository = {
         },
         responsibleTestCases: {
           where: {
+            responsibleUserId: userId,
             deletedAt: null,
             project: { memberships: { some: { userId, isActive: true } } }
           },
@@ -484,7 +485,10 @@ export const settingsRepository = {
           }
         },
         testExecutions: {
-          where: { project: { memberships: { some: { userId, isActive: true } } } },
+          where: {
+            executedByUserId: userId,
+            project: { memberships: { some: { userId, isActive: true } } }
+          },
           select: {
             id: true,
             projectId: true,
@@ -496,7 +500,10 @@ export const settingsRepository = {
           }
         },
         testEvidence: {
-          where: { project: { memberships: { some: { userId, isActive: true } } } },
+          where: {
+            uploadedByUserId: userId,
+            project: { memberships: { some: { userId, isActive: true } } }
+          },
           select: {
             id: true,
             projectId: true,

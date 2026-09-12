@@ -54,11 +54,24 @@ export function getImplementationStatus(requirement, tasks, hasTechnicalEvidence
 
 // Estágio técnico compartilhado; o override histórico permanece no DTO legado.
 export function getImplementationStage(tasks, hasTechnicalEvidence) {
-  if (tasks.length === 0) return 'SEM_RASTREABILIDADE';
+  return getImplementationStageFromCounts({
+    tasksTotal: tasks.length,
+    tasksDone: tasks.filter((task) => task.status === 'CONCLUIDO').length,
+    tasksInProgress: tasks.filter((task) => task.status === 'EM_ANDAMENTO').length,
+    hasTechnicalEvidence
+  });
+}
 
-  const completedTasksCount = tasks.filter((task) => task.status === 'CONCLUIDO').length;
-  const allTasksCompleted = completedTasksCount === tasks.length;
-  const hasInProgressTask = tasks.some((task) => task.status === 'EM_ANDAMENTO');
+export function getImplementationStageFromCounts({
+  tasksTotal,
+  tasksDone,
+  tasksInProgress,
+  hasTechnicalEvidence
+}) {
+  if (tasksTotal === 0) return 'SEM_RASTREABILIDADE';
+  const allTasksCompleted = tasksDone === tasksTotal;
+  const completedTasksCount = tasksDone;
+  const hasInProgressTask = tasksInProgress > 0;
 
   if (allTasksCompleted && hasTechnicalEvidence) return 'IMPLEMENTADO';
   if (completedTasksCount > 0 || hasInProgressTask || hasTechnicalEvidence) {

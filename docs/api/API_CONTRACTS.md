@@ -1146,6 +1146,13 @@ totalPages. Summary global não muda com filtros/página; filteredSummary usa o
 conjunto filtrado. Ambos retornam total, bySituation (11 chaves) e withDefect
 (COM_FALHA + EM_CORRECAO + AGUARDANDO_RETESTE).
 
+A listagem percorre IDs/títulos e agregados escalares em lotes de até 200 requisitos,
+sob snapshot RepeatableRead. A policy canônica classifica e filtra esses agregados;
+somente os IDs da página chegam à carga da projeção detalhada no repository.
+Summary global e filteredSummary continuam abrangendo seus conjuntos completos.
+O custo dos agregados cresce com o projeto; o payload detalhado fica restrito aos
+requisitos da página e às suas relações, sem consulta individual por entidade.
+
 DTO: `requirement{id,displayId,title,status}`,
 `progress{numerator,denominator,percentage,hasData,tasksTotal,tasksDone}`,
 `implementation{legacyStage,legacyImplementationStatus,implemented,technicalEvidence}`,

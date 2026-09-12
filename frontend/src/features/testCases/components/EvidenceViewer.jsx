@@ -1,10 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { LoadingState } from '../../../shared/index.js';
 import { evidenceKind } from '../model/evidence-viewer.js';
 import { EvidenceDownloadButton } from './PersistedEvidence.jsx';
 
 export function EvidenceViewer({ file, source, content, onBack }) {
   const [mediaError, setMediaError] = useState(false);
+  useEffect(() => {
+    setMediaError(false);
+  }, [file.id]);
   const kind = evidenceKind(file.mimeType);
   const fallback = (message) => (
     <div className="tc-preview-fallback" role="status">

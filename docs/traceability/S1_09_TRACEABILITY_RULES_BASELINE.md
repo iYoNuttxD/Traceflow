@@ -52,7 +52,7 @@ Relevância por projeto, deduplicação, currentVersion, ordenação executedAt/
 
 ## Filtros, adoção e evidência
 
-O catálogo apresenta **Status** como filtro principal de cinco macros e **Situação detalhada** em “Detalhamento opcional”. O backend aplica ambos sobre a projeção completa antes da paginação. Summary e cards usam a mesma fonte; nenhuma policy de domínio no frontend.
+O catálogo apresenta **Status** como filtro principal de cinco macros e **Situação detalhada** em “Detalhamento opcional”. O backend aplica ambos sobre agregados escalares do conjunto completo, em lotes limitados, antes de carregar a projeção detalhada dos IDs da página. Summary e cards usam a mesma policy; nenhuma policy de domínio no frontend. Esta delimitação de trabalho foi implementada na rodada de correções do review da PR #20; não altera as regras de situação.
 
 Migration incremental `20260912010000_s109_lifecycle_effort_history`: default PLANEJADO e novo histórico de esforço. Não transforma registros antigos por heurística SQL. A adoção dos macros usa o reconciliador existente com `--policy`, dry-run antes de apply, em ambiente explicitamente conferido. No desenvolvimento local, quatro macros foram sincronizados, sem novas transições detalhadas; repetição idempotente. Nenhuma adoção de produção nesta rodada.
 

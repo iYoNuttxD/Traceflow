@@ -130,6 +130,15 @@ async function fixture() {
   const state = async (expected, id = requirement.id) => {
     const projection = await current(id);
     expect(projection.situation).toBe(expected);
+    const { requirementProjectionService } =
+      await import('../../src/modules/traceability/requirement-projection.service.js');
+    const page = await requirementProjectionService.list(project.id, {
+      search: `REQ-${id}`,
+      situation: expected,
+      limit: 1
+    });
+    expect(page.items).toEqual([projection]);
+    expect(page.filteredSummary.bySituation[expected]).toBe(1);
     expect((await prisma.requirement.findUnique({ where: { id } })).status).toBe(
       projection.requirement.status
     );
@@ -812,4 +821,176 @@ describe('S1-09 expanded graph read model', () => {
       await queryClient.$disconnect();
     }
   });
+});
+
+describe('S109 bounded list projection', () => {
+  it('loads details only for the selected page and preserves global/filtered summaries', async () => {
+    const f = await fixture();
+    const requirements = [f.requirement];
+    for (let i = 1; i < 60; i++)
+      requirements.push(await createRequirement(prisma, f.project.id, { title: `Bounded ${i}` }));
+    for (const [index, requirement] of requirements.entries()) {
+      await createTask(prisma, f.project.id, { requirementId: requirement.id });
+      if (index < 17) {
+        const tc = await f.createCase({ requirementId: requirement.id, taskIds: [] });
+        const failure = await f.execute(tc, 'FAIL');
+        const defect = await f.createDefect(failure, {
+          requirementId: requirement.id,
+          originTaskIds: []
+        });
+        await prisma.defect.update({ where: { id: defect.id }, data: { status: 'EM_CORRECAO' } });
+      }
+    }
+    const { requirementProjectionService: service } =
+      await import('../../src/modules/traceability/requirement-projection.service.js');
+    const { matchesProjection, projectionSummary } =
+      await import('../../src/modules/traceability/requirement-traceability.policy.js');
+    const expected = await load(prisma, f.project.id);
+    const detailLoads = [];
+    const measured = new PrismaClient({ datasourceUrl: process.env.DATABASE_URL });
+    const instrumented = measured.$extends({
+      query: {
+        requirement: {
+          async findMany({ args, query }) {
+            const rows = await query(args);
+            if (args.select?.tasks)
+              detailLoads.push({ ids: rows.map((row) => row.id), where: args.where });
+            return rows;
+          }
+        }
+      }
+    });
+    async function read(q) {
+      detailLoads.length = 0;
+      const transaction = vi
+        .spyOn(prisma, '$transaction')
+        .mockImplementation((work, options) => instrumented.$transaction(work, options));
+      try {
+        const result = await service.list(f.project.id, q);
+        const matching = expected.filter((row) => matchesProjection(row, q));
+        expect(result.summary).toEqual(projectionSummary(expected));
+        expect(result.filteredSummary).toEqual(projectionSummary(matching));
+        expect(result.pagination.total).toBe(matching.length);
+        expect(result.items).toEqual(matching.slice((q.page - 1) * q.limit, q.page * q.limit));
+        expect(detailLoads.flatMap((row) => row.ids)).toEqual(
+          result.items.map((row) => row.requirement.id)
+        );
+        for (const row of detailLoads) expect(row.where.id.in).toHaveLength(result.items.length);
+        return result;
+      } finally {
+        transaction.mockRestore();
+      }
+    }
+    try {
+      const first = await read({ page: 1, limit: 20 });
+      const second = await read({ page: 2, limit: 20 });
+      expect(first.items).toHaveLength(20);
+      expect(first.pagination).toMatchObject({ total: 60, totalPages: 3 });
+      expect(new Set([...first.items, ...second.items].map((row) => row.requirement.id)).size).toBe(
+        40
+      );
+      const filtered = await read({ page: 1, limit: 5, situation: 'EM_CORRECAO' });
+      expect(filtered.items).toHaveLength(5);
+      expect(filtered.filteredSummary.total).toBe(17);
+      expect(filtered.pagination).toMatchObject({ total: 17, totalPages: 4 });
+      await read({ page: 2, limit: 5, situation: 'EM_CORRECAO' });
+      await read({ page: 1, limit: 5, search: `REQ-${requirements[0].id}` });
+      await read({ page: 1, limit: 5, search: 'bounded' });
+      await read({ page: 2, limit: 5, search: 'bounded' });
+      await read({
+        page: 1,
+        limit: 5,
+        requirementStatus: 'EM_CORRECAO',
+        hasTests: true,
+        hasOpenDefects: true,
+        hasTechnicalEvidence: false
+      });
+      await read({ page: 20, limit: 20 });
+    } finally {
+      await measured.$disconnect();
+    }
+  });
+  it.each([1, 20, 100, 201])(
+    'bounds detailed work for %i requirements with shared test/defect relations',
+    async (count) => {
+      const f = await fixture();
+      const requirements = [f.requirement];
+      for (let i = 1; i < count; i++)
+        requirements.push(await createRequirement(prisma, f.project.id));
+      const tasks = [];
+      for (const requirement of requirements)
+        tasks.push(await createTask(prisma, f.project.id, { requirementId: requirement.id }));
+      const tc = await f.createCase({
+        requirementId: f.requirement.id,
+        taskIds: tasks.slice(0, 100).map((row) => row.id)
+      });
+      const defect = await f.createDefect(await f.execute(tc, 'FAIL'), {
+        originTaskIds: tasks.slice(0, 100).map((row) => row.id)
+      });
+      // Larger-than-one-batch fixture also checks relation deduplication beyond the API link limit.
+      if (count > 100) {
+        await prisma.testCaseTask.createMany({
+          data: tasks.slice(100).map((row) => ({ testCaseId: tc.id, taskId: row.id }))
+        });
+        await prisma.defectTask.createMany({
+          data: tasks.slice(100).map((row) => ({
+            defectId: defect.id,
+            taskId: row.id,
+            relationType: 'ORIGIN',
+            correctionCycle: 0
+          }))
+        });
+      }
+      const queries = [],
+        detailIds = [],
+        batches = [];
+      const measured = new PrismaClient({
+        datasourceUrl: process.env.DATABASE_URL,
+        log: [{ emit: 'event', level: 'query' }]
+      });
+      measured.$on('query', (event) => queries.push(event.query));
+      const instrumented = measured.$extends({
+        query: {
+          requirement: {
+            async findMany({ args, query }) {
+              const result = await query(args);
+              if (args.select?.tasks) detailIds.push(...result.map((row) => row.id));
+              else {
+                expect(args.take).toBe(200);
+                batches.push(result.length);
+              }
+              return result;
+            }
+          }
+        }
+      });
+      const transaction = vi
+        .spyOn(prisma, '$transaction')
+        .mockImplementation((work, options) => instrumented.$transaction(work, options));
+      try {
+        const { requirementProjectionService } =
+          await import('../../src/modules/traceability/requirement-projection.service.js');
+        const result = await requirementProjectionService.list(f.project.id, { limit: 20 });
+        expect(result.summary.total).toBe(count);
+        expect(result.filteredSummary.bySituation.COM_FALHA).toBe(count);
+        expect(result.items).toHaveLength(Math.min(20, count));
+        expect(detailIds).toEqual(result.items.map((row) => row.requirement.id));
+        expect(
+          result.items.every(
+            (row) => row.validation.testCasesTotal === 1 && row.defects.total === 1
+          )
+        ).toBe(true);
+        // Count data reads separately from SET/BEGIN/COMMIT.
+        const dataQueries = queries.filter((query) => /^\s*(SELECT|WITH)\b/.test(query));
+        expect(dataQueries).toHaveLength(count > 200 ? 17 : 15);
+        expect(batches).toEqual(count > 200 ? [200, 1] : [count]);
+        console.log(
+          `Bounded projection: requirements=${count}, summary batches=${batches.join('+')}, detailed=${detailIds.length}, SQL=${queries.length}`
+        );
+      } finally {
+        transaction.mockRestore();
+        await measured.$disconnect();
+      }
+    }
+  );
 });

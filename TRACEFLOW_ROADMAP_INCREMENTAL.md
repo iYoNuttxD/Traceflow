@@ -324,13 +324,20 @@ Evidências: [backend](docs/deliveries/S1_08_BACKEND_FOUNDATION_REPORT.md),
 
 ### S1-09 - Ampliar rastreabilidade entre requisitos, testes e defeitos
 
-**Estado atual — 2026-09-12: implementação concluída; correções do Final QA
-aplicadas; aguardando confirmação final de QA/Code Review.** O Final QA original
+**Estado atual — 2026-09-12: implementação concluída; correções adicionais de
+Code Review em andamento; revalidação independente final pendente.** O Final QA original
 registrou CHANGES REQUIRED (0 BLOCKING, 3 IMPORTANT e 1 SUGGESTION). A
 [rodada de correções](docs/deliveries/S1_09_FINAL_QA_TARGETED_CORRECTIONS_REPORT.md)
 terminou **PASS LOCAL**, com regressões, gates e homologação visual concluídos.
 Foram corrigidos o esforço stale no Inspector, o status aninhado após movimentação
 e os touch targets da toolbar, além da documentação de esforço.
+
+A [rodada do review da PR #20](docs/deliveries/S1_09_COPILOT_REVIEW_TARGETED_CORRECTIONS_REPORT.md)
+delimita a carga detalhada da paginação e corrige o estado residual do viewer.
+Os três apontamentos de exportação pessoal não reproduziram vazamento na baseline:
+as relações de User já aplicavam ownership; filtros explícitos e regressões
+cross-user foram acrescentados. O resultado desta rodada é local e não substitui
+a revalidação independente final nem o CI de uma futura revisão publicada.
 
 O escopo implementado inclui lifecycle macro de Requirement sincronizado, 11
 TraceabilitySituations, projeção e histórico de situação, Cards/Summary/filtros,
