@@ -20,9 +20,13 @@ Repository trava Project → Task e relê a sessão dentro da transação. PATCH
 
 ## Leitura e interface
 
-[API_CONTRACTS](../api/API_CONTRACTS.md) documenta GET de history e PATCH. Paginação no banco e filtros por período UTC do evento, origem e tipo de evento. Histórico mostra ator/data, Registrado, Editado (3h → 4h), Excluído (Entrada de 4h). Timer também mostra intervalo físico. Permissões atuais controlam edição/exclusão da sessão associada; snapshots antigos nunca são editados.
+[API_CONTRACTS](../api/API_CONTRACTS.md) documenta GET de history e PATCH. Paginação no banco e filtros por período UTC do evento, origem e tipo de evento. Histórico mostra ator/data, Registrado, Editado (3h → 4h), Excluído (Entrada de 4h). Timer também mostra intervalo físico. Permissões atuais controlam edição/exclusão da sessão associada; snapshots dos eventos auditáveis são imutáveis.
 
-“Histórico de eventos” e “Sessões atuais” são visualizações separadas. A segunda usa o endpoint antigo e permite ajustar/remover sessões anteriores à adoção; seu filtro de datas considera encerramento e Evento fica desabilitado. Ela não fabrica eventos de criação para esses registros. Cancelamento, loading, erro/retry, paginação e descarte de respostas obsoletas preservam o owner existente.
+A interface usa uma lista única de sessões/histórico, alimentada por `GET /tasks/:id/time-entries/history`. Não há alternância entre “Histórico de eventos” e “Sessões atuais”. A lista reúne eventos auditáveis (`kind: EVENT`) e sessões encerradas anteriores ao histórico, sem evento associado (`kind: LEGACY_SNAPSHOT`), identificadas como “Registro anterior ao histórico” e “Snapshot”. Esses registros não representam um CREATED retroativo nem uma trilha imutável: refletem a sessão atual disponível. Ao editar/excluir essa sessão, o novo evento real passa a integrar a lista; nenhum evento de criação é inventado.
+
+O DTO usa `source` (`MANUAL`/`TIMER`), `previousSeconds` e `newSeconds`, em segundos, e `snapshotStartedAt`/`snapshotEndedAt`; não expõe `origin`, `previousMinutes`, `newMinutes` ou um objeto `snapshot`. `id` é numérico para EVENT e `session:<id>` para LEGACY_SNAPSHOT; `sessionId` mantém a identidade da sessão. No snapshot legado, `eventType` e `previousSeconds` são null; `newSeconds` contém a duração atual e `occurredAt` corresponde ao encerramento conhecido. A autoria disponível vem de quem encerrou ou iniciou a sessão, sem reconstrução retroativa.
+
+Paginação e total abrangem a união no banco, ordenada por `occurredAt DESC, id DESC, kind ASC`. Período e origem valem para ambos os tipos; um filtro de `eventType` exclui snapshots legados. `currentEntry`, `canEdit` e `canDelete` refletem a sessão e a autorização atuais, sem permitir editar eventos imutáveis. Cancelamento, loading, erro/retry, paginação e descarte de respostas obsoletas preservam o owner existente.
 
 ## Adoção e verificação
 

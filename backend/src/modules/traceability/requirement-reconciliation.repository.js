@@ -158,12 +158,13 @@ export async function traceabilityMutation(tx, context, work) {
   }
   const after = await affectedRequirementIds(tx, scope);
   await reconcileRequirements(tx, { ...scope, requirementIds: unique([...before, ...after]) });
-  if (result?.requirement?.id && result.requirement.status !== undefined) {
+  const linkedRequirement = (result?.task ?? result)?.requirement;
+  if (linkedRequirement?.id && linkedRequirement.status !== undefined) {
     const current = await tx.requirement.findUnique({
-      where: { id: result.requirement.id },
+      where: { id: linkedRequirement.id },
       select: { status: true }
     });
-    if (current) result.requirement.status = current.status;
+    if (current) linkedRequirement.status = current.status;
   }
   if (
     scope.sourceEntityType === 'Requirement' &&

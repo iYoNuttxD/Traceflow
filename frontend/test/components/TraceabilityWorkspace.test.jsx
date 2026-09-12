@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
+import { ConfirmProvider } from '../../src/shared/index.js';
 import { fixture, node } from '../helpers/expanded-graph.js';
 import { TraceabilityFlow } from '../../src/features/traceability/components/TraceabilityFlow.jsx';
 import { TraceabilityInspector } from '../../src/features/traceability/components/TraceabilityInspector.jsx';
@@ -9,6 +10,10 @@ import { WorkspaceSummary } from '../../src/features/traceability/components/Tra
 import { TraceabilityHelp } from '../../src/features/traceability/components/TraceabilityHelp.jsx';
 const mocks = vi.hoisted(() => ({
   api: vi.fn(),
+  realDetails: false,
+  task: vi.fn(),
+  entries: vi.fn(),
+  createEntry: vi.fn(),
   layout: vi.fn(),
   props: null,
   center: vi.fn(),
@@ -21,59 +26,83 @@ vi.mock('../../src/features/traceability/graph/layout/elk-layout.js', async (imp
   ...(await importOriginal()),
   layoutWithElk: mocks.layout
 }));
-vi.mock('../../src/features/traceability/components/GraphEntityDetails.jsx', () => ({
-  GraphEntityDetails: ({ node }) => <section>Conteúdo canônico {node.type}</section>
+vi.mock('../../src/features/traceability/components/GraphEntityDetails.jsx', async (original) => {
+  const { GraphEntityDetails } = await original();
+  return {
+    GraphEntityDetails: (props) =>
+      mocks.realDetails ? (
+        <GraphEntityDetails {...props} />
+      ) : (
+        <section>Conteúdo canônico {props.node.type}</section>
+      )
+  };
+});
+vi.mock('../../src/features/tasks/api/tasks.api.js', async (original) => ({
+  ...(await original()),
+  tasksApi: { get: mocks.task },
+  getTaskTimeEntries: mocks.entries,
+  createTaskTimeEntry: mocks.createEntry
 }));
-vi.mock('@xyflow/react', () => ({
-  applyNodeChanges: (changes, nodes) =>
-    nodes.map((n) => ({
-      ...n,
-      position: changes.find((c) => c.id === n.id && c.position)?.position || n.position
-    })),
-  BaseEdge: () => null,
-  EdgeLabelRenderer: ({ children }) => children,
-  getSmoothStepPath: () => ['M0 0', 0, 0],
-  MarkerType: { ArrowClosed: 'arrow' },
-  Position: { Left: 'left', Right: 'right' },
-  Handle: () => null,
-  Background: () => null,
-  Controls: () => null,
-  MiniMap: () => null,
-  useUpdateNodeInternals: () => () => {},
-  ReactFlowProvider: ({ children }) => children,
-  useReactFlow: () => ({
+vi.mock('../../src/features/tasks/components/TaskComments.jsx', () => ({
+  TaskComments: () => null
+}));
+vi.mock('../../src/features/tasks/components/TaskQuality.jsx', () => ({ TaskQuality: () => null }));
+vi.mock('@xyflow/react', () => {
+  // React Flow exposes a stable instance; state updates must not simulate a new viewport owner.
+  const flow = {
     getNode: (id) => mocks.props?.nodes.find((n) => n.id === id),
     getNodes: () => mocks.props?.nodes || [],
     setCenter: mocks.center,
     setViewport: mocks.viewport
-  }),
-  ReactFlow: (props) => {
-    mocks.props = props;
-    return (
-      <div onKeyDown={props.onKeyDown}>
-        {props.nodes.map((n) => {
-          const Component = props.nodeTypes[n.type];
-          return (
-            <div
-              key={n.id}
-              className="react-flow__node"
-              data-id={n.id}
-              tabIndex={0}
-              data-testid={n.id}
-              data-position={JSON.stringify(n.position)}
-            >
-              <Component id={n.id} data={n.data} />
-            </div>
-          );
-        })}
-      </div>
-    );
-  }
-}));
+  };
+  return {
+    applyNodeChanges: (changes, nodes) =>
+      nodes.map((n) => ({
+        ...n,
+        position: changes.find((c) => c.id === n.id && c.position)?.position || n.position
+      })),
+    BaseEdge: () => null,
+    EdgeLabelRenderer: ({ children }) => children,
+    getSmoothStepPath: () => ['M0 0', 0, 0],
+    MarkerType: { ArrowClosed: 'arrow' },
+    Position: { Left: 'left', Right: 'right' },
+    Handle: () => null,
+    Background: () => null,
+    Controls: () => null,
+    MiniMap: () => null,
+    useUpdateNodeInternals: () => () => {},
+    ReactFlowProvider: ({ children }) => children,
+    useReactFlow: () => flow,
+    ReactFlow: (props) => {
+      mocks.props = props;
+      return (
+        <div onKeyDown={props.onKeyDown}>
+          {props.nodes.map((n) => {
+            const Component = props.nodeTypes[n.type];
+            return (
+              <div
+                key={n.id}
+                className="react-flow__node"
+                data-id={n.id}
+                tabIndex={0}
+                data-testid={n.id}
+                data-position={JSON.stringify(n.position)}
+              >
+                <Component id={n.id} data={n.data} />
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+  };
+});
 const mount = (g) =>
   render(
     <MemoryRouter>
-      <TraceabilityFlow traceability={g} />
+      <ConfirmProvider>
+        <TraceabilityFlow traceability={g} />
+      </ConfirmProvider>
     </MemoryRouter>
   );
 async function ready() {
@@ -92,6 +121,7 @@ function deferred() {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.props = null;
+  mocks.realDetails = false;
   mocks.layout.mockImplementation(async (view) => ({
     nodes: view.nodes.map((n, i) => ({ id: n.id, position: { x: i * 400, y: 0 }, ports: [] })),
     edges: view.edges,
@@ -382,4 +412,105 @@ describe('Explainability', () => {
       within(screen.getByRole('complementary')).getByText('Tarefas de correção').nextElementSibling
     ).toHaveTextContent('6');
   });
+});
+
+describe('Confirmed effort in graph-owned Task Details', () => {
+  it.each(['late response', 'read failure'])(
+    'keeps confirmed effort and workspace after %s',
+    async (outcome) => {
+      mocks.realDetails = true;
+      const g = fixture();
+      const task = {
+        ...g.nodes.find((n) => n.id === 'task:2').data,
+        projectId: g.projectId,
+        estimatedEffort: 5,
+        actualEffort: 4,
+        status: 'EM_ANDAMENTO',
+        priority: 'MEDIA',
+        commits: [],
+        issues: []
+      };
+      g.nodes.find((n) => n.id === 'task:2').data = task;
+      g.nodes.push(node('TASK', 30, { estimatedEffort: 10, actualEffort: 1 }));
+      g.pagination.totalPages = 2;
+      const effort = (hours) => ({
+        unit: 'HOURS',
+        estimatedHours: 5,
+        completedSeconds: hours * 3600,
+        actualHours: hours,
+        completedCount: 1,
+        running: null
+      });
+      mocks.task.mockResolvedValue({ data: { task } });
+      mocks.entries.mockResolvedValue({
+        entries: [],
+        running: null,
+        effort: effort(4),
+        permissions: { canOperate: true },
+        pagination: { page: 1, total: 0, totalPages: 0 }
+      });
+      mocks.createEntry.mockResolvedValue({
+        entry: { id: 50, taskId: 2, source: 'MANUAL', durationSeconds: 10800 },
+        effort: effort(7)
+      });
+      let finishPage;
+      mocks.api.mockImplementation(
+        () =>
+          new Promise((resolve, reject) => {
+            finishPage = () =>
+              outcome === 'read failure'
+                ? reject({ response: { status: 503, data: { message: 'Leitura indisponível' } } })
+                : resolve({ ...g, pagination: { ...g.pagination, page: 2 } });
+          })
+      );
+      mount(g);
+      await ready();
+      fireEvent.click(screen.getByRole('button', { name: 'Expandir 7 Commit de REQ-1' }));
+      await screen.findByRole('button', { name: 'Inspecionar Commit abc0123' });
+      act(() =>
+        mocks.props.onNodesChange([
+          { type: 'position', id: 'task:2', position: { x: 999, y: 555 } }
+        ])
+      );
+      await select('Tarefa TASK-2');
+      expect(within(screen.getByRole('complementary')).getByText('4h')).toBeVisible();
+      fireEvent.click(screen.getByText('Carregar mais relações'));
+      fireEvent.click(screen.getByText('Abrir detalhes'));
+      const user = userEvent.setup();
+      await user.click(await screen.findByRole('button', { name: 'Lançar manualmente' }));
+      const layoutCount = mocks.layout.mock.calls.length;
+      const centerCount = mocks.center.mock.calls.length;
+      const viewportCount = mocks.viewport.mock.calls.length;
+      await user.type(screen.getByLabelText('Horas'), '3');
+      await user.click(screen.getByRole('button', { name: 'Salvar lançamento' }));
+      expect(await screen.findByText('7h de 5h estimadas')).toBeVisible();
+      expect(mocks.createEntry).toHaveBeenCalledExactlyOnceWith(2, { hours: '3' });
+      fireEvent.click(screen.getByText('← Voltar para o fluxo'));
+      const inspector = screen.getByRole('complementary');
+      expect(within(inspector).getByText('7h')).toBeVisible();
+      expect(within(inspector).getByText('140%')).toBeVisible();
+      expect(mocks.props.nodes.find((n) => n.id === 'task:2').data.node.data.actualEffort).toBe(7);
+      expect(mocks.layout).toHaveBeenCalledTimes(layoutCount);
+      expect(mocks.center).toHaveBeenCalledTimes(centerCount);
+      expect(mocks.viewport).toHaveBeenCalledTimes(viewportCount);
+      expect(screen.getByTestId('task:2')).toHaveAttribute(
+        'data-position',
+        JSON.stringify({ x: 999, y: 555 })
+      );
+      expect(screen.getByRole('button', { name: 'Recolher Commit de REQ-1' })).toBeVisible();
+      await select('Tarefa TASK-30');
+      await act(async () => finishPage());
+      expect(screen.getByRole('complementary')).toHaveAccessibleName('Inspector de TASK-30');
+      expect(within(screen.getByRole('complementary')).getByText('1h')).toBeVisible();
+      if (outcome === 'read failure')
+        expect(screen.getByRole('alert')).toHaveTextContent(
+          'O serviço está temporariamente indisponível. Tente novamente em instantes.'
+        );
+      await select('Tarefa TASK-2');
+      expect(within(screen.getByRole('complementary')).getByText('7h')).toBeVisible();
+      fireEvent.click(screen.getByText('Recolher tudo'));
+      await select('Tarefa TASK-2');
+      expect(within(screen.getByRole('complementary')).getByText('140%')).toBeVisible();
+    }
+  );
 });

@@ -55,6 +55,8 @@ export function buildFlow(contract, groups = []) {
 }
 function Canvas({ traceability }) {
   const flow = useReactFlow();
+  // Confirmed effort belongs to the workspace, independent of its layout and paged reads.
+  const [taskEffort, setTaskEffort] = useState({});
   const [contract, setContract] = useState(traceability),
     [groups, setGroups] = useState([]),
     [selected, setSelected] = useState(null),
@@ -226,7 +228,12 @@ function Canvas({ traceability }) {
     setHover(null);
     queueMicrotask(() => document.querySelector(`[data-id="${id}"]`)?.focus());
   };
-  const active = contract.nodes.find((n) => n.id === selected);
+  const withConfirmedEffort = (node) =>
+    node.type === 'TASK' && taskEffort[node.data.id]
+      ? { ...node, data: { ...node.data, ...taskEffort[node.data.id] } }
+      : node;
+  const displayContract = { ...contract, nodes: contract.nodes.map(withConfirmedEffort) };
+  const active = displayContract.nodes.find((n) => n.id === selected);
   const edges = base.edges.map((e) => {
     const label = `${relationLabels[e.relationType || e.type] || 'coleção de relações'}${e.failedStep ? ` · Passo ${e.failedStep}` : ''}${e.correctionCycle ? ` · Ciclo ${e.correctionCycle}` : ''}`;
     return {
@@ -288,6 +295,7 @@ function Canvas({ traceability }) {
                 className: (hover || selected) && !path.nodes.has(n.id) ? 'trace-node-dim' : '',
                 data: {
                   ...n.data,
+                  node: withConfirmedEffort(n.data.node),
                   selected: n.id === selected,
                   onSelect: () => select(n.id),
                   onGroup: () => setGroups((old) => toggled(old, n.id))
@@ -357,7 +365,7 @@ function Canvas({ traceability }) {
             <TraceabilityInspector
               key={active.id}
               node={active}
-              contract={contract}
+              contract={displayContract}
               onClose={closeInspector}
               onSelect={select}
               onDetails={(n) => {
@@ -394,6 +402,12 @@ function Canvas({ traceability }) {
           <GraphEntityDetails
             key={detail.id}
             node={detail}
+            onTaskSaved={(task) =>
+              setTaskEffort((old) => ({
+                ...old,
+                [task.id]: { actualEffort: task.actualEffort, runningTimer: task.runningTimer }
+              }))
+            }
             projectId={contract.projectId}
             onClose={() => setDetail(null)}
           />
