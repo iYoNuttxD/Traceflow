@@ -38,7 +38,9 @@ async function fixture(role = 'VIEWER') {
       userId: user.id,
       sessionVersion: user.sessionVersion,
       tokenHash: createHash('sha256').update(token).digest('hex'),
-      csrfTokenHash: createHash('sha256').update('csrf').digest('hex'),
+      csrfTokenHash: createHash('sha256')
+        .update('artificial-csrf-token-for-s109-tests')
+        .digest('hex'),
       expiresAt: new Date(Date.now() + 60000)
     }
   });
@@ -52,6 +54,15 @@ async function fixture(role = 'VIEWER') {
     other,
     user,
     get,
+    move: async (id, toStatus) => {
+      const csrf = await get('/api/auth/csrf');
+      expect(csrf.status, csrf.text).toBe(200);
+      return request(app)
+        .patch(`/api/tasks/${id}/move`)
+        .set('Cookie', `traceflow_session=${token}`)
+        .set('X-CSRF-Token', csrf.body.csrfToken)
+        .send({ toStatus });
+    },
     a,
     b,
     foreign,
@@ -83,6 +94,33 @@ describe('S109 authenticated projection API', () => {
       const graph = await f.get(`${f.root}/requirements/${f.b.id}`);
       expect(graph.status).toBe(200);
       expect(graph.body.nodes.length).toBeGreaterThan(0);
+    }
+  );
+  it.each([
+    ['A_FAZER', 'EM_ANDAMENTO', 'EM_IMPLEMENTACAO', 'EM_DESENVOLVIMENTO'],
+    ['EM_ANDAMENTO', 'A_FAZER', 'PLANEJADO', 'PLANEJADO']
+  ])(
+    'returns reconciled nested Requirement for %s -> %s',
+    async (fromStatus, toStatus, requirementStatus, situation) => {
+      const f = await fixture('MEMBER');
+      const task = await prisma.task.findFirst({ where: { requirementId: f.b.id } });
+      await prisma.task.update({ where: { id: task.id }, data: { status: fromStatus } });
+      await reconcileProject(f.project.id, { dryRun: false });
+      const response = await f.move(task.id, toStatus);
+      expect(response.status, response.text).toBe(200);
+      expect(response.body.task.status).toBe(toStatus);
+      expect(response.body.task.requirement.status).toBe(requirementStatus);
+      expect((await prisma.requirement.findUnique({ where: { id: f.b.id } })).status).toBe(
+        requirementStatus
+      );
+      const current = await f.get(`${f.root}/requirements/${f.b.id}/current`);
+      expect(current.body.requirement.status).toBe(requirementStatus);
+      expect(current.body.situation).toBe(situation);
+      const history = await f.get(`${f.root}/requirements/${f.b.id}/history`);
+      expect(history.body.items[0]).toMatchObject({
+        toSituation: situation,
+        reason: 'TASK_STATUS_CHANGED'
+      });
     }
   );
   it('filters the full server set before pagination and preserves global summary', async () => {

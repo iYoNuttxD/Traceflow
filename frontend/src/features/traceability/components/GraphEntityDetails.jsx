@@ -9,7 +9,7 @@ import {
 } from '../../testCases/index.js';
 import { ErrorState, LoadingState, normalizeApiError } from '../../../shared/index.js';
 import { identity } from '../model/graph.js';
-function TaskInspection({ node, projectId, onClose, returnFocusRef }) {
+function TaskInspection({ node, projectId, onClose, returnFocusRef, onTaskSaved }) {
   const scope = useTestCaseScope(`${projectId}:${node.data.id}`);
   const [state, setState] = useState({ loading: true });
   const read = useCallback(async () => {
@@ -30,7 +30,10 @@ function TaskInspection({ node, projectId, onClose, returnFocusRef }) {
       <TaskDetailsPanel
         embedded
         task={state.data}
-        onSaved={(task) => setState({ data: task, loading: false })}
+        onSaved={(task) => {
+          setState({ data: task, loading: false });
+          onTaskSaved?.(task);
+        }}
         projectId={projectId}
         onClose={onClose}
         returnFocusRef={returnFocusRef}

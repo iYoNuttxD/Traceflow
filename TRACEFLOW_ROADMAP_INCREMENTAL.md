@@ -279,17 +279,18 @@ navegador — `S104-F02` no backlog técnico. Até que essa decisão seja tomada
 
 - [x] modelar entidade, enums, índices e migration;
 - [x] implementar backend completo;
-- [x] implementar interface acessível integrada localmente; matriz visual completa pendente;
+- [x] implementar interface acessível e validar integração e responsividade;
 - [x] adicionar testes de domínio e API do backend;
 - [x] adicionar testes do frontend integrado;
 - [x] atualizar contratos, inventário visual e matriz RF para a integração local.
 
-Estado: **BACKEND + FRONTEND INTEGRATED LOCALLY**. Gates locais concluídos;
-CI remoto **NOT RUN**. Homologação responsiva completa e revisão integrada permanecem
-pendentes; o card não está encerrado por esta entrega. Histórico e evidências:
-[modelo técnico](docs/data/TEST_CASE_HISTORY.md) e
-[relatório de integração](docs/deliveries/S1_07_FRONTEND_INTEGRATION_REPORT.md).
-S1-08 e S1-09 não foram iniciados nesta entrega.
+Estado atual (2026-09-12): **CONCLUÍDO**. Casos de teste persistidos, versões,
+execuções, evidências e integração visual implementados e homologados nas rodadas
+S1-07/S1-08. Evidências: [modelo técnico](docs/data/TEST_CASE_HISTORY.md),
+[integração](docs/deliveries/S1_07_FRONTEND_INTEGRATION_REPORT.md) e
+[homologação transversal](docs/deliveries/S1_08_UX_STANDARDIZATION_FIX_03_REPORT.md).
+O registro inicial de integração local tinha CI/homologação pendentes; esse limite
+histórico continua nos relatórios originais, sem descrever o estado atual do card.
 
 ### S1-08 - Cadastrar e gerenciar defeitos
 
@@ -309,20 +310,37 @@ S1-08 e S1-09 não foram iniciados nesta entrega.
 
 **Checklist técnico:**
 
-- [ ] modelar entidade, relações, índices e migration;
-- [ ] implementar backend e autorização;
-- [ ] implementar interface e estados;
-- [ ] adicionar testes e auditoria;
-- [ ] atualizar documentação e matriz RF.
+- [x] modelar entidade, relações, índices e migration;
+- [x] implementar backend e autorização;
+- [x] implementar interface e estados;
+- [x] adicionar testes e auditoria;
+- [x] atualizar documentação e matriz RF.
+
+Estado atual (2026-09-12): **CONCLUÍDO**. Defeitos persistidos, lifecycle de
+correção/reteste, autorização, histórico e interface integrada homologados.
+Evidências: [backend](docs/deliveries/S1_08_BACKEND_FOUNDATION_REPORT.md),
+[integração](docs/deliveries/S1_08_FRONTEND_INTEGRATION_REPORT.md) e
+[homologação visual](docs/deliveries/S1_08_UX_STANDARDIZATION_FIX_03_REPORT.md).
 
 ### S1-09 - Ampliar rastreabilidade entre requisitos, testes e defeitos
 
-**Incremento local — Etapa 2, 2026-09-10:** backend de projeção, motor de 11
-situações e histórico transacional implementado, com migration incremental e
-adoção idempotente. [Relatório](docs/deliveries/S1_09_BACKEND_PROJECTION_SITUATION_HISTORY_REPORT.md).
-S1-09 permanece aberta: cards, summary/filtros novos, histórico visual e expansão
-do React Flow aguardam os próximos incrementos; este registro não fecha os RFs
-nem substitui a homologação integrada futura.
+**Estado atual — 2026-09-12: implementação concluída; correções do Final QA
+aplicadas; aguardando confirmação final de QA/Code Review.** O Final QA original
+registrou CHANGES REQUIRED (0 BLOCKING, 3 IMPORTANT e 1 SUGGESTION). A
+[rodada de correções](docs/deliveries/S1_09_FINAL_QA_TARGETED_CORRECTIONS_REPORT.md)
+terminou **PASS LOCAL**, com regressões, gates e homologação visual concluídos.
+Foram corrigidos o esforço stale no Inspector, o status aninhado após movimentação
+e os touch targets da toolbar, além da documentação de esforço.
+
+O escopo implementado inclui lifecycle macro de Requirement sincronizado, 11
+TraceabilitySituations, projeção e histórico de situação, Cards/Summary/filtros,
+Workspace e grafo expandido, TestCases/Executions, Defects/Correction/Retest,
+artefatos GitHub, relações diretas e reversas, Inspector/Details e Effort History
+unificado com snapshots legados identificados. Histórico de implementação:
+[Etapa 2](docs/deliveries/S1_09_BACKEND_PROJECTION_SITUATION_HISTORY_REPORT.md) e
+[Etapa 5](docs/deliveries/S1_09_TRACEABILITY_GRAPH_WORKSPACE_UX_REPORT.md).
+A revalidação final independente permanece necessária; esta atualização não
+encerra S1-09 nem a Sprint 1.
 
 **Requisitos:** RF43, RF44, RF46, RF62, RF63 e RF64.  
 **Descrição:** completar a cadeia direta e reversa entre requisitos, tarefas, artefatos técnicos, casos de teste e defeitos.
@@ -341,11 +359,12 @@ nem substitui a homologação integrada futura.
 
 **Checklist técnico:**
 
-- [ ] definir relações canônicas e cardinalidades;
-- [ ] criar migrations seguras sem duplicar modelos legados;
-- [ ] implementar vínculo, remoção e consultas reversas;
-- [ ] atualizar matriz e fluxo visual;
-- [ ] testar integridade, autorização e regressão ponta a ponta.
+- [x] definir relações canônicas e cardinalidades;
+- [x] criar migrations seguras sem duplicar modelos legados;
+- [x] implementar vínculo, remoção e consultas reversas;
+- [x] atualizar matriz e fluxo visual;
+- [x] testar integridade, autorização e regressão ponta a ponta.
+- [ ] obter revalidação final independente dos findings corrigidos.
 
 ## 7. Marco de conclusão da Sprint 1
 
