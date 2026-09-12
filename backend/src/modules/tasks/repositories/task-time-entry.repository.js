@@ -7,6 +7,7 @@ const actorSelect = { select: { id: true, name: true } };
 export const timeEntrySelect = {
   id: true,
   taskId: true,
+  projectId: true,
   source: true,
   startedAt: true,
   endedAt: true,
@@ -15,6 +16,7 @@ export const timeEntrySelect = {
   startedById: true,
   endedById: true,
   createdAt: true,
+  updatedAt: true,
   startedBy: actorSelect,
   endedBy: actorSelect
 };
@@ -64,123 +66,229 @@ async function recalculateActualEffort(tx, taskId) {
   return { ...totals, actualEffort };
 }
 
-export const taskTimeEntryRepository = {
-  findRunning(taskId) {
-    return prisma.taskTimeEntry.findFirst({
-      where: { taskId, endedAt: null },
-      select: timeEntrySelect
-    });
-  },
+async function appendEffortHistory(tx, entry, eventType, actorUserId, previousSeconds = null) {
+  await tx.taskEffortHistoryEntry.create({
+    data: {
+      projectId: entry.projectId,
+      taskId: entry.taskId,
+      sessionId: entry.id,
+      eventType,
+      source: entry.source,
+      actorUserId,
+      previousSeconds,
+      newSeconds: eventType === 'DELETED' ? null : entry.durationSeconds,
+      snapshotStartedAt: entry.startedAt,
+      snapshotEndedAt: entry.endedAt
+    }
+  });
+}
 
-  // Página do histórico filtrada por período de encerramento e origem; a contagem
-  // acompanha o mesmo filtro para a paginação do diálogo ser exata.
-  listCompletedPage(taskId, { skip, take, from, to, source }) {
-    const where = {
-      ...completedWhere(taskId),
-      ...(source ? { source } : {}),
-      ...(from || to
-        ? { endedAt: { not: null, ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } }
-        : {})
-    };
-    return prisma.$transaction([
-      prisma.taskTimeEntry.count({ where }),
-      prisma.taskTimeEntry.findMany({
-        where,
-        select: timeEntrySelect,
-        orderBy: [{ endedAt: 'desc' }, { id: 'desc' }],
-        skip,
-        take
-      })
-    ]);
-  },
-
-  summarizeCompleted(taskId) {
-    return summarize(prisma, taskId);
-  },
-
-  findById(taskId, entryId) {
-    return prisma.taskTimeEntry.findFirst({
-      where: { id: entryId, taskId },
-      select: timeEntrySelect
-    });
-  },
-
-  async startAtomic({ projectId, taskId, startedById, startedAt }, auditEvent) {
-    return prisma.$transaction(async (tx) => {
-      if (!(await lockProjectThenTask(tx, projectId, taskId))) return { outcome: 'TASK_NOT_FOUND' };
-      const running = await tx.taskTimeEntry.findFirst({
-        where: { taskId, endedAt: null },
-        select: timeEntrySelect
-      });
-      if (running) return { outcome: 'ALREADY_RUNNING', entry: running };
-      const entry = await tx.taskTimeEntry.create({
-        data: { projectId, taskId, source: 'TIMER', startedAt, startedById },
-        select: timeEntrySelect
-      });
-      if (auditEvent)
-        await auditRepository.create({ ...auditEvent, resourceId: String(entry.id) }, tx);
-      // Totais saem da própria transação: uma leitura posterior que falhasse
-      // transformaria uma escrita já confirmada em erro para quem chamou.
-      const totals = await summarize(tx, taskId);
-      return { outcome: 'STARTED', entry, running: entry, ...totals };
-    });
-  },
-
-  async stopAtomic(taskId, { projectId, endedById, endedAt }, buildAuditEvent) {
-    return prisma.$transaction(async (tx) => {
-      if (!(await lockProjectThenTask(tx, projectId, taskId))) return { outcome: 'TASK_NOT_FOUND' };
-      const running = await tx.taskTimeEntry.findFirst({
-        where: { taskId, endedAt: null },
-        select: { id: true, startedAt: true }
-      });
-      if (!running) return { outcome: 'NOT_RUNNING' };
-      const durationSeconds = Math.max(
-        0,
-        Math.round((endedAt.getTime() - running.startedAt.getTime()) / 1000)
+export function createTaskTimeEntryRepository(client = prisma) {
+  return {
+    listHistoryPage(taskId, { skip, take, from, to, source, eventType }) {
+      const where = {
+        taskId,
+        ...(source ? { source } : {}),
+        ...(eventType ? { eventType } : {}),
+        ...(from || to
+          ? { occurredAt: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } }
+          : {})
+      };
+      return client.$transaction(
+        async (tx) => {
+          const total = await tx.taskEffortHistoryEntry.count({ where });
+          const items = await tx.taskEffortHistoryEntry.findMany({
+            where,
+            include: { actor: actorSelect },
+            orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
+            skip,
+            take
+          });
+          const sessions = await tx.taskTimeEntry.findMany({
+            where: { taskId, id: { in: items.map((row) => row.sessionId) } },
+            select: timeEntrySelect
+          });
+          return { total, items, sessions };
+        },
+        { isolationLevel: 'RepeatableRead' }
       );
-      const entry = await tx.taskTimeEntry.update({
-        where: { id: running.id },
-        data: { endedAt, endedById, durationSeconds },
-        select: timeEntrySelect
-      });
-      const totals = await recalculateActualEffort(tx, taskId);
-      const auditEvent = buildAuditEvent?.(entry);
-      if (auditEvent) await auditRepository.create(auditEvent, tx);
-      return { outcome: 'STOPPED', entry, running: null, ...totals };
-    });
-  },
+    },
 
-  async createManualAtomic(data, auditEvent) {
-    return prisma.$transaction(async (tx) => {
-      if (!(await lockProjectThenTask(tx, data.projectId, data.taskId)))
-        return { outcome: 'TASK_NOT_FOUND' };
-      const entry = await tx.taskTimeEntry.create({
-        data: { ...data, source: 'MANUAL' },
-        select: timeEntrySelect
+    async updateAtomic(
+      taskId,
+      entryId,
+      { projectId, durationSeconds, expectedUpdatedAt, actorUserId }
+    ) {
+      return client.$transaction(async (tx) => {
+        if (!(await lockProjectThenTask(tx, projectId, taskId)))
+          return { outcome: 'TASK_NOT_FOUND' };
+        const existing = await tx.taskTimeEntry.findFirst({
+          where: { id: entryId, taskId },
+          select: timeEntrySelect
+        });
+        if (!existing) return { outcome: 'NOT_FOUND' };
+        if (
+          !existing.endedAt ||
+          existing.updatedAt.getTime() !== new Date(expectedUpdatedAt).getTime()
+        )
+          return { outcome: 'CONFLICT' };
+        const entry =
+          existing.durationSeconds === durationSeconds
+            ? existing
+            : await tx.taskTimeEntry.update({
+                where: { id: entryId },
+                data: {
+                  durationSeconds,
+                  updatedAt: new Date(Math.max(Date.now(), existing.updatedAt.getTime() + 1))
+                },
+                select: timeEntrySelect
+              });
+        if (entry !== existing)
+          await appendEffortHistory(tx, entry, 'UPDATED', actorUserId, existing.durationSeconds);
+        const totals = await recalculateActualEffort(tx, taskId);
+        const running = await tx.taskTimeEntry.findFirst({
+          where: { taskId, endedAt: null },
+          select: timeEntrySelect
+        });
+        return { outcome: 'UPDATED', entry, running, ...totals };
       });
-      const totals = await recalculateActualEffort(tx, data.taskId);
-      if (auditEvent)
-        await auditRepository.create({ ...auditEvent, resourceId: String(entry.id) }, tx);
-      const running = await tx.taskTimeEntry.findFirst({
-        where: { taskId: data.taskId, endedAt: null },
-        select: timeEntrySelect
-      });
-      return { outcome: 'CREATED', entry, running, ...totals };
-    });
-  },
+    },
 
-  async deleteAtomic(taskId, entryId, auditEvent, projectId) {
-    return prisma.$transaction(async (tx) => {
-      if (!(await lockProjectThenTask(tx, projectId, taskId))) return { outcome: 'TASK_NOT_FOUND' };
-      const result = await tx.taskTimeEntry.deleteMany({ where: { id: entryId, taskId } });
-      if (result.count === 0) return { outcome: 'NOT_FOUND' };
-      const totals = await recalculateActualEffort(tx, taskId);
-      if (auditEvent) await auditRepository.create(auditEvent, tx);
-      const running = await tx.taskTimeEntry.findFirst({
+    findRunning(taskId) {
+      return client.taskTimeEntry.findFirst({
         where: { taskId, endedAt: null },
         select: timeEntrySelect
       });
-      return { outcome: 'DELETED', running, ...totals };
-    });
-  }
-};
+    },
+
+    // Página do histórico filtrada por período de encerramento e origem; a contagem
+    // acompanha o mesmo filtro para a paginação do diálogo ser exata.
+    listCompletedPage(taskId, { skip, take, from, to, source }) {
+      const where = {
+        ...completedWhere(taskId),
+        ...(source ? { source } : {}),
+        ...(from || to
+          ? { endedAt: { not: null, ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } }
+          : {})
+      };
+      return client.$transaction([
+        client.taskTimeEntry.count({ where }),
+        client.taskTimeEntry.findMany({
+          where,
+          select: timeEntrySelect,
+          orderBy: [{ endedAt: 'desc' }, { id: 'desc' }],
+          skip,
+          take
+        })
+      ]);
+    },
+
+    summarizeCompleted(taskId) {
+      return summarize(client, taskId);
+    },
+
+    findById(taskId, entryId) {
+      return client.taskTimeEntry.findFirst({
+        where: { id: entryId, taskId },
+        select: timeEntrySelect
+      });
+    },
+
+    async startAtomic({ projectId, taskId, startedById, startedAt }, auditEvent) {
+      return client.$transaction(async (tx) => {
+        if (!(await lockProjectThenTask(tx, projectId, taskId)))
+          return { outcome: 'TASK_NOT_FOUND' };
+        const running = await tx.taskTimeEntry.findFirst({
+          where: { taskId, endedAt: null },
+          select: timeEntrySelect
+        });
+        if (running) return { outcome: 'ALREADY_RUNNING', entry: running };
+        const entry = await tx.taskTimeEntry.create({
+          data: { projectId, taskId, source: 'TIMER', startedAt, startedById },
+          select: timeEntrySelect
+        });
+        if (auditEvent)
+          await auditRepository.create({ ...auditEvent, resourceId: String(entry.id) }, tx);
+        // Totais saem da própria transação: uma leitura posterior que falhasse
+        // transformaria uma escrita já confirmada em erro para quem chamou.
+        const totals = await summarize(tx, taskId);
+        return { outcome: 'STARTED', entry, running: entry, ...totals };
+      });
+    },
+
+    async stopAtomic(taskId, { projectId, endedById, endedAt }, buildAuditEvent) {
+      return client.$transaction(async (tx) => {
+        if (!(await lockProjectThenTask(tx, projectId, taskId)))
+          return { outcome: 'TASK_NOT_FOUND' };
+        const running = await tx.taskTimeEntry.findFirst({
+          where: { taskId, endedAt: null },
+          select: { id: true, startedAt: true }
+        });
+        if (!running) return { outcome: 'NOT_RUNNING' };
+        const durationSeconds = Math.max(
+          0,
+          Math.round((endedAt.getTime() - running.startedAt.getTime()) / 1000)
+        );
+        const entry = await tx.taskTimeEntry.update({
+          where: { id: running.id },
+          data: { endedAt, endedById, durationSeconds },
+          select: timeEntrySelect
+        });
+        await appendEffortHistory(tx, entry, 'CREATED', endedById);
+        const totals = await recalculateActualEffort(tx, taskId);
+        const auditEvent = buildAuditEvent?.(entry);
+        if (auditEvent) await auditRepository.create(auditEvent, tx);
+        return { outcome: 'STOPPED', entry, running: null, ...totals };
+      });
+    },
+
+    async createManualAtomic(data, auditEvent) {
+      return client.$transaction(async (tx) => {
+        if (!(await lockProjectThenTask(tx, data.projectId, data.taskId)))
+          return { outcome: 'TASK_NOT_FOUND' };
+        const entry = await tx.taskTimeEntry.create({
+          data: { ...data, source: 'MANUAL' },
+          select: timeEntrySelect
+        });
+        await appendEffortHistory(tx, entry, 'CREATED', data.endedById);
+        const totals = await recalculateActualEffort(tx, data.taskId);
+        if (auditEvent)
+          await auditRepository.create({ ...auditEvent, resourceId: String(entry.id) }, tx);
+        const running = await tx.taskTimeEntry.findFirst({
+          where: { taskId: data.taskId, endedAt: null },
+          select: timeEntrySelect
+        });
+        return { outcome: 'CREATED', entry, running, ...totals };
+      });
+    },
+
+    async deleteAtomic(taskId, entryId, auditEvent, projectId) {
+      return client.$transaction(async (tx) => {
+        if (!(await lockProjectThenTask(tx, projectId, taskId)))
+          return { outcome: 'TASK_NOT_FOUND' };
+        const existing = await tx.taskTimeEntry.findFirst({
+          where: { id: entryId, taskId },
+          select: timeEntrySelect
+        });
+        if (!existing) return { outcome: 'NOT_FOUND' };
+        const result = await tx.taskTimeEntry.deleteMany({ where: { id: entryId, taskId } });
+        if (result.count === 0) return { outcome: 'NOT_FOUND' };
+        await appendEffortHistory(
+          tx,
+          existing,
+          'DELETED',
+          auditEvent?.actorUserId,
+          existing.durationSeconds
+        );
+        const totals = await recalculateActualEffort(tx, taskId);
+        if (auditEvent) await auditRepository.create(auditEvent, tx);
+        const running = await tx.taskTimeEntry.findFirst({
+          where: { taskId, endedAt: null },
+          select: timeEntrySelect
+        });
+        return { outcome: 'DELETED', running, ...totals };
+      });
+    }
+  };
+}
+export const taskTimeEntryRepository = createTaskTimeEntryRepository();

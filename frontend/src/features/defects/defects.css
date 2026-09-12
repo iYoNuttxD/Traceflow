@@ -202,3 +202,23 @@
     min-height: 0;
   }
 }
+
+.defect-card-section-title {
+  margin: var(--space-3) 0 var(--space-2);
+  padding-top: var(--space-3);
+  border-top: var(--border-width-default) solid var(--color-border-default);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-1);
+  text-transform: uppercase;
+}
+.defect-card-cycle {
+  margin-top: auto;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-2);
+}
+.defect-card-cycle p {
+  margin: var(--space-2) 0;
+}
+.defect-card-context dd {
+  color: var(--color-text-secondary);
+}

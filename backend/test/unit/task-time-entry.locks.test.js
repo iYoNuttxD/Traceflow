@@ -28,6 +28,7 @@ function fakeTx() {
       if (table) locks.push(table);
       return table === 'Task' ? [{ id: 42 }] : [{ id: 7 }];
     }),
+    taskEffortHistoryEntry: { create: vi.fn(async () => ({})) },
     taskTimeEntry: {
       findFirst: vi.fn(async () => null),
       create: vi.fn(async () => entry),

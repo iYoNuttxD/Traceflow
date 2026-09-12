@@ -141,6 +141,14 @@ export const taskTimeEntryManualBodySchema = strictObject({
     .optional()
 });
 
+export const taskEffortHistoryQuerySchema = taskTimeEntryListQuerySchema.extend({
+  eventType: z.enum(['CREATED', 'UPDATED', 'DELETED']).optional()
+});
+export const taskTimeEntryUpdateBodySchema = strictObject({
+  hours: manualHours,
+  expectedUpdatedAt: isoDateTime('Versão da sessão')
+});
+
 export const taskSearchQuerySchema = strictObject({ search: searchText });
 export const taskDateRangeQuerySchema = dateRangeSchema;
 export const movementQuerySchema = dateRangeSchema.extend({

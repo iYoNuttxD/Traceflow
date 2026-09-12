@@ -1,3 +1,12 @@
+import {
+  GithubExternalAction,
+  computeEffortView,
+  resolveEffort,
+  formatHoursMinutes,
+  EFFORT_STATUS_TONES,
+  EFFORT_STATUS_LABELS,
+  taskPriorityLabels
+} from '../../tasks/index.js';
 import { graphFields, GraphStatus } from './GraphNode.jsx';
 import { identity, nodeLabels, relationLabels } from '../model/graph.js';
 import { phaseLabel } from '../model/phase.js';
@@ -7,6 +16,78 @@ export function TraceabilityInspector({ node, contract, onClose, onSelect, onDet
   const related = contract.edges.filter((e) => e.source === node.id || e.target === node.id);
   const entities = new Map(contract.nodes.map((n) => [n.id, n]));
   const p = d.projection;
+  const fields = graphFields(node.type, d);
+  if (node.type === 'TASK') {
+    const index = fields.findIndex(([label]) => label === 'PR / commits');
+    const pr = entities.get(`pull-request:${d.pullRequestId}`);
+    fields.splice(
+      index,
+      1,
+      [
+        'Pull request',
+        pr ? `PR #${pr.data.number}` : d.pullRequestId ? 'Em outra página' : 'Nenhum'
+      ],
+      ['Commits', d.commitCount ?? d.commitLinks?.length ?? 0]
+    );
+  }
+  if (['PULL_REQUEST', 'COMMIT', 'ISSUE'].includes(node.type)) {
+    const tasks = [
+      ...new Set(related.map((edge) => (edge.source === node.id ? edge.target : edge.source)))
+    ]
+      .map((id) => entities.get(id))
+      .filter((entity) => entity?.type === 'TASK');
+    fields.push([
+      'Tarefas relacionadas',
+      tasks.length
+        ? tasks.slice(0, 4).map(identity).join(' · ') +
+          (tasks.length > 4 ? ` +${tasks.length - 4}` : '')
+        : 'Nenhuma carregada'
+    ]);
+    for (const [label, key] of [
+      ['Criado em', 'createdAtGithub'],
+      ['Encerrado em', 'closedAtGithub'],
+      ['Merge em', 'mergedAtGithub']
+    ])
+      if (d[key]) fields.push([label, new Date(d[key]).toLocaleString('pt-BR')]);
+  }
+  const traceLabels = new Set([
+    'Requisito',
+    'Pull request',
+    'Commits',
+    'Tarefas relacionadas',
+    'Correção de',
+    'Tarefas',
+    'Testes / defeitos',
+    'Evidências',
+    'Caso / versão',
+    'Referência testada',
+    'Detectado em'
+  ]);
+  const renderFields = (items) => (
+    <dl className="trace-inspector-fields">
+      {items.map(([label, value]) => (
+        <div key={label}>
+          <dt>{label}</dt>
+          <dd>
+            {label === 'Responsável' && value ? (
+              <span className="tc-card-responsible">
+                <span className="tc-avatar" aria-hidden="true">
+                  {value.slice(0, 1)}
+                </span>
+                {value}
+              </span>
+            ) : (
+              (value ?? '—')
+            )}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+  const effort =
+    node.type === 'TASK'
+      ? computeEffortView({ effort: resolveEffort(null, d), liveSeconds: 0 })
+      : null;
   return (
     <aside className="trace-inspector" aria-label={`Inspector de ${identity(node)}`}>
       <header>
@@ -21,6 +102,11 @@ export function TraceabilityInspector({ node, contract, onClose, onSelect, onDet
       <h4>{d.title || d.message || `${identity(node)} · TC-${d.testCaseId}`}</h4>
       <div className="trace-node-badges">
         <GraphStatus type={node.type} detail={d} />
+        {node.type === 'TASK' && d.priority && (
+          <span className={`priority-badge priority-${d.priority.toLowerCase()}`}>
+            {taskPriorityLabels[d.priority] || d.priority}
+          </span>
+        )}
       </div>
       {node.type === 'REQUIREMENT' && (
         <p>
@@ -40,14 +126,48 @@ export function TraceabilityInspector({ node, contract, onClose, onSelect, onDet
           {d.retests.map((v) => `DEF-${v.defectId} · ciclo ${v.correctionCycle}`).join(', ')}
         </p>
       )}
-      <dl className="trace-inspector-fields">
-        {graphFields(node.type, d).map(([label, value]) => (
-          <div key={label}>
-            <dt>{label}</dt>
-            <dd>{value ?? '—'}</dd>
-          </div>
-        ))}
-      </dl>
+      <section className="trace-inspector-section">
+        <h4>Informações</h4>
+        {renderFields(
+          fields.filter(([label]) => !traceLabels.has(label) && label !== 'Status / prioridade')
+        )}
+        {effort && (
+          <section className="trace-inspector-effort" aria-label="Esforço">
+            <h4>Esforço</h4>
+            <dl className="trace-inspector-fields">
+              <div>
+                <dt>Estimado</dt>
+                <dd>
+                  {d.estimatedEffort == null
+                    ? 'Não informado'
+                    : `${Number(d.estimatedEffort).toLocaleString('pt-BR')}h`}
+                </dd>
+              </div>
+              <div>
+                <dt>Realizado</dt>
+                <dd>{effort.totalSeconds ? formatHoursMinutes(effort.totalSeconds) : '0h'}</dd>
+              </div>
+              {effort.usagePercent != null && (
+                <div>
+                  <dt>Progresso do esforço</dt>
+                  <dd>
+                    <span className={`tc-badge tc-badge--${EFFORT_STATUS_TONES[effort.status]}`}>
+                      {Number(effort.usagePercent).toLocaleString('pt-BR')}%
+                    </span>
+                  </dd>
+                </div>
+              )}
+            </dl>
+            {d.estimatedEffort != null && <small>{EFFORT_STATUS_LABELS[effort.status]}</small>}
+          </section>
+        )}
+      </section>
+      {fields.some(([label]) => traceLabels.has(label)) && (
+        <section className="trace-inspector-section">
+          <h4>Rastreabilidade</h4>
+          {renderFields(fields.filter(([label]) => traceLabels.has(label)))}
+        </section>
+      )}
       {p && (
         <dl className="trace-inspector-fields">
           <div>
@@ -77,7 +197,7 @@ export function TraceabilityInspector({ node, contract, onClose, onSelect, onDet
           </div>
         </dl>
       )}
-      <section>
+      <section className="trace-inspector-section">
         <h4>Relações na cadeia</h4>
         {related.length ? (
           <ul>
@@ -126,9 +246,7 @@ export function TraceabilityInspector({ node, contract, onClose, onSelect, onDet
         </button>
       )}
       {d.githubUrl && (
-        <a className="button button-secondary" href={d.githubUrl} target="_blank" rel="noreferrer">
-          Abrir no GitHub
-        </a>
+        <GithubExternalAction href={d.githubUrl}>Abrir no GitHub</GithubExternalAction>
       )}
     </aside>
   );

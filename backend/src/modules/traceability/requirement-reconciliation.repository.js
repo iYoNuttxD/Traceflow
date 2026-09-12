@@ -82,10 +82,29 @@ export async function reconcileRequirements(
     where: { requirementId: { in: rows.map((row) => row.requirement.id) } }
   });
   const byId = new Map(states.map((state) => [state.requirementId, state]));
+  const persisted = await tx.requirement.findMany({
+    where: { id: { in: rows.map((row) => row.requirement.id) } },
+    select: { id: true, status: true }
+  });
+  const oldStatuses = new Map(persisted.map((row) => [row.id, row.status]));
+  const statusChanges = rows
+    .filter((row) => oldStatuses.get(row.requirement.id) !== row.requirement.status)
+    .map((row) => ({
+      requirementId: row.requirement.id,
+      fromStatus: oldStatuses.get(row.requirement.id),
+      toStatus: row.requirement.status
+    }));
   const changes = [];
   for (const row of rows.toSorted((a, b) => a.requirement.id - b.requirement.id)) {
     const requirementId = row.requirement.id;
     const state = byId.get(requirementId);
+    // Repair legacy macro values even when the detailed situation has not changed.
+    // A status-only synchronization must not invent a detailed history transition.
+    if (!dryRun)
+      await tx.requirement.updateMany({
+        where: { id: requirementId, status: { not: row.requirement.status } },
+        data: { status: row.requirement.status }
+      });
     if (state?.currentSituation === row.situation) continue;
     const entry = {
       projectId,
@@ -95,7 +114,7 @@ export async function reconcileRequirements(
       reason: state ? reason : 'BASELINE_INITIALIZED',
       sourceEntityType,
       sourceEntityId,
-      metadataJson: { rulesVersion: 2 }
+      metadataJson: { rulesVersion: 3 }
     };
     changes.push(entry);
     if (dryRun) continue;
@@ -110,7 +129,12 @@ export async function reconcileRequirements(
       });
     await tx.requirementTraceabilityHistoryEntry.create({ data: entry });
   }
-  return { requirements: rows.length, withoutState: rows.length - states.length, changes };
+  return {
+    requirements: rows.length,
+    withoutState: rows.length - states.length,
+    changes,
+    statusChanges
+  };
 }
 
 async function resolveContext(tx, context) {
@@ -134,6 +158,24 @@ export async function traceabilityMutation(tx, context, work) {
   }
   const after = await affectedRequirementIds(tx, scope);
   await reconcileRequirements(tx, { ...scope, requirementIds: unique([...before, ...after]) });
+  if (result?.requirement?.id && result.requirement.status !== undefined) {
+    const current = await tx.requirement.findUnique({
+      where: { id: result.requirement.id },
+      select: { status: true }
+    });
+    if (current) result.requirement.status = current.status;
+  }
+  if (
+    scope.sourceEntityType === 'Requirement' &&
+    result?.id &&
+    scope.reason !== 'REQUIREMENT_DELETED'
+  ) {
+    const current = await tx.requirement.findUnique({
+      where: { id: result.id },
+      select: { status: true }
+    });
+    if (current) return { ...result, status: current.status };
+  }
   return result;
 }
 

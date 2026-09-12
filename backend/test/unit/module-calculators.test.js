@@ -1,17 +1,24 @@
 import { describe, expect, it } from 'vitest';
-import { calculateRequirementStatus } from '../../src/modules/requirements/requirement.schema.js';
+import { deriveRequirementLifecycleStatus } from '../../src/modules/traceability/requirement-traceability.policy.js';
 import { buildCreatedAtFilter } from '../../src/modules/tasks/task.schema.js';
 import { buildCoverageMetric } from '../../src/modules/traceability/traceability.calculator.js';
 
 describe('cálculos extraídos de Requirements', () => {
-  it('preserva a derivação atual de status a partir das tarefas', () => {
-    expect(calculateRequirementStatus([])).toBe('CADASTRADO');
-    expect(calculateRequirementStatus([{ status: 'A_FAZER' }])).toBe('APROVADO');
-    expect(calculateRequirementStatus([{ status: 'CONCLUIDO' }])).toBe('VALIDADO');
-    expect(calculateRequirementStatus([{ status: 'A_FAZER' }, { status: 'CONCLUIDO' }])).toBe(
-      'EM_IMPLEMENTACAO'
-    );
-  });
+  it.each([
+    ['SEM_RASTREABILIDADE', 'PLANEJADO'],
+    ['PLANEJADO', 'PLANEJADO'],
+    ['EM_DESENVOLVIMENTO', 'EM_IMPLEMENTACAO'],
+    ['IMPLEMENTADO', 'EM_IMPLEMENTACAO'],
+    ['AGUARDANDO_VALIDACAO', 'EM_VALIDACAO'],
+    ['EM_VALIDACAO', 'EM_VALIDACAO'],
+    ['VALIDADO', 'EM_VALIDACAO'],
+    ['COM_FALHA', 'EM_CORRECAO'],
+    ['EM_CORRECAO', 'EM_CORRECAO'],
+    ['AGUARDANDO_RETESTE', 'EM_CORRECAO'],
+    ['CONCLUIDO', 'CONCLUIDO']
+  ])('derives macro lifecycle from %s', (situation, status) =>
+    expect(deriveRequirementLifecycleStatus(situation)).toBe(status)
+  );
 
   it('usa a fórmula canônica de cobertura e distingue zero de ausência', () => {
     expect(buildCoverageMetric(0, 0)).toEqual({

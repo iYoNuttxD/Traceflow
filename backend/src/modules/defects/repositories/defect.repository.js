@@ -165,8 +165,8 @@ export function createDefectRepository(client = prisma) {
         data: { defectId, taskId, relationType: 'CORRECTION', correctionCycle }
       });
     },
-    createTask(projectId, data, audit, calculateStatus) {
-      return createTaskInTransaction(client, projectId, data, audit, calculateStatus);
+    createTask(projectId, data, audit) {
+      return createTaskInTransaction(client, projectId, data, audit);
     },
     taskLookup: {
       findProjectById: (id) => client.project.findUnique({ where: { id } }),
@@ -240,6 +240,14 @@ export function createDefectRepository(client = prisma) {
             requirement: { select: title },
             detectedStep: {
               select: { position: true, execution: { select: { id: true, testCaseId: true } } }
+            },
+            retests: {
+              take: 1,
+              orderBy: { id: 'desc' },
+              select: {
+                correctionCycle: true,
+                execution: { select: { id: true, result: true, executedAt: true } }
+              }
             },
             taskLinks: {
               where: { relationType: 'CORRECTION' },

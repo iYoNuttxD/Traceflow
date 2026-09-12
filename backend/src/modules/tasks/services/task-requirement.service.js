@@ -2,7 +2,6 @@ import { TaskServiceError, parseRequirementId, parseTaskId } from '../task.schem
 import { ensureRequirementExists, ensureTaskExists, formatTask } from '../task.service-support.js';
 import { taskLinkRepository } from '../repositories/task-link.repository.js';
 import { buildAuditEvent } from '../../audit/audit.service.js';
-import { calculateRequirementStatus } from '../../requirements/requirement.schema.js';
 
 export const taskRequirementService = {
   async linkRequirement(taskId, data, context = {}) {
@@ -30,8 +29,7 @@ export const taskRequirementService = {
         resourceType: 'Requirement',
         resourceId: requirementId,
         metadata: { taskId: id }
-      }),
-      calculateRequirementStatus
+      })
     );
     return formatTask(updated);
   },
@@ -51,8 +49,7 @@ export const taskRequirementService = {
         resourceType: 'Requirement',
         resourceId: task.requirementId,
         metadata: { taskId: id }
-      }),
-      calculateRequirementStatus
+      })
     );
     return formatTask(updated);
   }

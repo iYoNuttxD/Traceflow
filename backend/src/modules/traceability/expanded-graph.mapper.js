@@ -22,7 +22,7 @@ export function formatExpandedGraph(model, { page = 1, limit = 100 } = {}) {
     const id = `${legacyType}:${source}:${target}${metadata.correctionCycle ? `:${metadata.correctionCycle}` : ''}`;
     edges.set(id, { id, type: legacyType, relationType, source, target, ...metadata });
   };
-  const root = add('REQUIREMENT', { ...r, projection });
+  const root = add('REQUIREMENT', { ...r, status: projection.requirement.status, projection });
   for (const t of tasks) {
     const correctionDefects = defects.flatMap((d) =>
       d.taskLinks

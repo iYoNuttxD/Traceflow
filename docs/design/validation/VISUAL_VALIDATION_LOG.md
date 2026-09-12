@@ -449,3 +449,38 @@ Grafo grande: 85 artefatos/123 relações; 22 entidades + 10 grupos por padrão;
 Revalidação de foco posterior ao último fix: Enter abre workspace, ajuda consome Escape, relações focam o heading do Inspector, Details mantém um diálogo, fechamento devolve ao trigger. A homologação encontrou Enter/Espaço interceptados pelo canvas nos botões de grupos; regressão red/green e correção do owner de teclado, seguida de 299 testes × 10 rodadas e 1.110 testes full/coverage. Backend: 89 focados e 1.246 full, 5 skips preexistentes.
 
 Histórico real confirmou nova razão de policy sem reescrever baseline. Screenshots foram observadas na sessão, sem PNGs temporários versionados. Preview removido. Nenhuma conclusão sobre CI remoto, produção, dispositivos físicos ou conformidade WCAG integral é derivada deste registro.
+
+## 2026-09-12 — S1-09 Etapa 5 · FINAL TARGETED CORRECTIONS
+
+**PASS LOCAL — inspeção renderizada no Chrome/macOS, sessão local autenticada.**
+Larguras confirmadas no DOM; Light e Dark em 1440, 1280, 768 e 390px. A matriz
+completa por superfície está na seção
+[FINAL TARGETED CORRECTIONS](../../deliveries/S1_09_TRACEABILITY_GRAPH_WORKSPACE_UX_REPORT.md#final-targeted-corrections).
+
+Nos oito recortes por superfície: Project Tabs; overviews TestCase/Defect/
+Traceability; filtros e Requirement Cards; Defect Cards ABERTO, EM_CORRECAO,
+AGUARDANDO_RETESTE e VALIDADO; workspace; Task Inspector; PR Inspector; histórico
+de esforço. Comparação dos cards com o Kanban real em ambos os temas no desktop.
+Defect validado mostra reteste PASS real, EXEC-5/ciclo 2. GitHub usa a ação
+canônica, sem underline computado; não foi necessária navegação externa.
+
+Task 16: snapshot inicial de 5h estimadas/7h realizadas/140%; após atualização
+dos dados durante a sessão, histórico real mostrou exclusão de 3h e estado atual
+de 4h/5h/80% coerente entre Task Details, Kanban e Inspector. A exclusão já estava
+persistida quando consultada; não foi executada como ação de homologação.
+O componente também foi observado com DTOs retornados pelos testes reais de
+persistência para CREATED/UPDATED/DELETED (3h → 4h → exclusão), em preview
+temporário explicitamente separado da consulta integrada. Filtros Manual +
+Excluído foram aplicados no histórico real; datas combinadas estão cobertas por
+automação, sem alegação de submit manual confirmado.
+
+Inspeção encontrou colapso/overflow da barra em layout legado e quebra necessária
+nos seletores do dialog mobile; corrigidos nos owners locais e revalidados.
+Aba ativa ficou visível sem scroll vertical da página. Navegação por teclado,
+foco nas relações e footer mobile foram observados. Sem estimativa/zero e
+permissões/concorrência foram verificados por testes.
+
+Previews e duas abas auxiliares removidos, viewport restaurado, tema Escuro e
+aba principal preservados. Capturas observadas durante a execução, sem arquivos
+PNG versionados. Não substitui CI remoto, QA integrado final, teste em dispositivo
+físico ou certificação WCAG integral.

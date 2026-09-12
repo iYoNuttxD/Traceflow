@@ -26,11 +26,8 @@ export function RequirementSummary({ summary }) {
         <div>
           <span className="eyebrow">Resumo</span>
           <h2>Visão geral da rastreabilidade</h2>
-          <p>
-            Acompanhe a distribuição dos requisitos entre desenvolvimento, validação, correção e
-            conclusão.
-          </p>
         </div>
+        <p>Estado atual dos requisitos e de sua evolução rastreável.</p>
       </div>
       <dl className="requirement-metrics">
         {overviewMetrics(summary).map(([label, value, description]) => (
@@ -88,24 +85,27 @@ export function RequirementFilters({ filters, onChange, onClear, count, total })
             />
           </span>
         </label>
-        {select(
-          'situation',
-          'Situação',
-          Object.entries(situations).map(([key, [label]]) => [key, label])
-        )}
-        {select('requirementStatus', 'Status do requisito', Object.entries(requirementStatuses))}
-        {select('hasTests', 'Com casos de teste', [
-          ['true', 'Sim'],
-          ['false', 'Não']
-        ])}
-        {select('hasOpenDefects', 'Com defeitos pendentes', [
-          ['true', 'Sim'],
-          ['false', 'Não']
-        ])}
-        {select('hasTechnicalEvidence', 'Com evidência técnica', [
-          ['true', 'Sim'],
-          ['false', 'Não']
-        ])}
+        {select('requirementStatus', 'Status', Object.entries(requirementStatuses))}
+        <fieldset className="requirement-filter-details">
+          <legend>Detalhamento opcional</legend>
+          {select(
+            'situation',
+            'Situação detalhada',
+            Object.entries(situations).map(([key, [label]]) => [key, label])
+          )}
+          {select('hasTests', 'Com casos de teste', [
+            ['true', 'Sim'],
+            ['false', 'Não']
+          ])}
+          {select('hasOpenDefects', 'Com defeitos pendentes', [
+            ['true', 'Sim'],
+            ['false', 'Não']
+          ])}
+          {select('hasTechnicalEvidence', 'Com evidência técnica', [
+            ['true', 'Sim'],
+            ['false', 'Não']
+          ])}
+        </fieldset>
       </div>
     </CollapsibleFilterPanel>
   );

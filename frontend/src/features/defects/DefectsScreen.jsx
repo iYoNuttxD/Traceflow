@@ -10,6 +10,7 @@ import {
   SearchCombobox,
   ResponsibleCombobox,
   SelectControl,
+  LifecycleTrail,
   TraceFlowIcon
 } from '../../shared/index.js';
 import { useDefects, useDefectOptions } from './hooks/useDefects.js';
@@ -62,6 +63,16 @@ export function DefectCard({ defect: d, canWrite, onOpen }) {
           <span>{d.responsibleUser.name}</span>
         </div>
         <DefectBadge value={d.status} />
+        <div title="Indica a evolução do defeito desde a detecção até a validação da correção.">
+          <LifecycleTrail
+            steps={['Detecção', 'Correção', 'Reteste', 'Validado']}
+            currentIndex={['ABERTO', 'EM_CORRECAO', 'AGUARDANDO_RETESTE', 'VALIDADO'].indexOf(
+              d.status
+            )}
+            label="Evolução do defeito"
+          />
+        </div>
+        <h4 className="defect-card-section-title">Rastreabilidade</h4>
         <dl className="defect-card-context">
           <div>
             <dt>
@@ -79,30 +90,6 @@ export function DefectCard({ defect: d, canWrite, onOpen }) {
               )}
             </dd>
           </div>
-          <div>
-            <dt>
-              <TraceFlowIcon name="code" /> Correção · Ciclo {d.currentCorrectionCycle}
-            </dt>
-            <dd>
-              {d.correctionSummary?.singleTask ? (
-                <>
-                  TASK-{d.correctionSummary.singleTask.id} ·{' '}
-                  {taskStatuses[d.correctionSummary.singleTask.status]}
-                </>
-              ) : (
-                <>
-                  {correctionCount ?? '—'} {correctionCount === 1 ? 'tarefa' : 'tarefas'}
-                </>
-              )}
-            </dd>
-            {d.correctionSummary?.total > 1 && (
-              <dd className="defect-card-support">
-                {d.correctionSummary.done}{' '}
-                {d.correctionSummary.done === 1 ? 'concluída' : 'concluídas'} ·{' '}
-                {d.correctionSummary.inProgress} em andamento · {d.correctionSummary.todo} a fazer
-              </dd>
-            )}
-          </div>
           {d.requirement && (
             <div className="defect-card-requirement">
               <dt>
@@ -112,6 +99,56 @@ export function DefectCard({ defect: d, canWrite, onOpen }) {
             </div>
           )}
         </dl>
+        <section
+          className="defect-card-cycle"
+          aria-label={d.status === 'VALIDADO' ? 'Último reteste' : 'Correção atual'}
+        >
+          <h4 className="defect-card-section-title">
+            {d.status === 'VALIDADO'
+              ? 'Último reteste'
+              : d.status === 'EM_CORRECAO'
+                ? 'Correção atual'
+                : 'Correção'}
+          </h4>
+          {d.status === 'VALIDADO' ? (
+            <>
+              {d.latestRetest ? (
+                <>
+                  <span
+                    className={`tc-badge tc-badge--${d.latestRetest.result === 'PASS' ? 'success' : 'danger'}`}
+                  >
+                    {d.latestRetest.result}
+                  </span>{' '}
+                  · {new Date(d.latestRetest.executedAt).toLocaleDateString('pt-BR')}
+                  <p>
+                    {executionLabel(d.latestRetest.id)} · Ciclo {d.latestRetest.correctionCycle}
+                  </p>
+                </>
+              ) : (
+                <p>Reteste não disponível no resumo.</p>
+              )}
+            </>
+          ) : (
+            <>
+              <p>
+                {d.status === 'ABERTO' && !correctionCount
+                  ? 'Ainda não iniciada'
+                  : d.correctionSummary?.singleTask
+                    ? `TASK-${d.correctionSummary.singleTask.id} · ${taskStatuses[d.correctionSummary.singleTask.status]}`
+                    : `${correctionCount ?? '—'} tarefas`}
+              </p>
+              <small>Ciclo {d.currentCorrectionCycle}</small>
+              {d.correctionSummary?.total > 1 && (
+                <p>
+                  {d.correctionSummary.done}{' '}
+                  {d.correctionSummary.done === 1 ? 'concluída' : 'concluídas'} ·{' '}
+                  {d.correctionSummary.inProgress} em andamento · {d.correctionSummary.todo} a fazer
+                </p>
+              )}
+              {d.status === 'AGUARDANDO_RETESTE' && <p>Aguardando reteste</p>}
+            </>
+          )}
+        </section>
       </div>
       <footer
         className={`sprint-card__actions defect-card-actions${canRetest ? ' defect-card-actions--retest' : ''}`}
@@ -245,11 +282,8 @@ function ProjectDefects({ project }) {
             <div>
               <span className="eyebrow">Resumo</span>
               <h2>Visão geral dos defeitos</h2>
-              <p>
-                Acompanhe os defeitos encontrados, as correções em andamento e os itens aguardando
-                reteste.
-              </p>
             </div>
+            <p>Estado atual dos defeitos e dos ciclos de correção.</p>
           </div>
           <dl className="tc-metrics">
             {metrics.map(([label, key]) => (

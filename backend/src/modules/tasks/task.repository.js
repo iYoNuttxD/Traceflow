@@ -89,31 +89,8 @@ export const taskInclude = {
   }
 };
 
-async function recalculateRequirements(tx, requirementIds, calculateStatus) {
-  const ids = [...new Set(requirementIds.filter(Boolean).map(Number))];
-  if (!ids.length || !calculateStatus) return;
-  const requirements = await tx.requirement.findMany({
-    where: { id: { in: ids } },
-    select: { id: true, status: true, tasks: { select: { status: true } } }
-  });
-  for (const requirement of requirements) {
-    if (['CONCLUIDO', 'CANCELADO'].includes(requirement.status)) continue;
-    const status = calculateStatus(requirement.tasks);
-    if (status !== requirement.status) {
-      await tx.requirement.update({ where: { id: requirement.id }, data: { status } });
-    }
-  }
-}
-
-export async function createTaskInTransaction(
-  tx,
-  projectId,
-  data,
-  auditEvent,
-  calculateRequirementStatus
-) {
+export async function createTaskInTransaction(tx, projectId, data, auditEvent) {
   const task = await tx.task.create({ data: { ...data, projectId }, include: taskInclude });
-  await recalculateRequirements(tx, [task.requirementId], calculateRequirementStatus);
   if (auditEvent) await auditRepository.create({ ...auditEvent, resourceId: String(task.id) }, tx);
   return task;
 }
@@ -128,7 +105,7 @@ export const taskRepository = {
     });
   },
 
-  async createTaskAtomic(projectId, data, auditEvent, calculateRequirementStatus) {
+  async createTaskAtomic(projectId, data, auditEvent) {
     return traceabilityTransaction(
       {
         projectId,
@@ -137,7 +114,7 @@ export const taskRepository = {
         sourceEntityType: 'Task',
         createdEntity: 'taskIds'
       },
-      (tx) => createTaskInTransaction(tx, projectId, data, auditEvent, calculateRequirementStatus)
+      (tx) => createTaskInTransaction(tx, projectId, data, auditEvent)
     );
   },
 
@@ -263,11 +240,7 @@ export const taskRepository = {
     return links.map((link) => link.issue);
   },
 
-  async updateTaskAtomic(
-    id,
-    data,
-    { historyEntries, auditEvent, calculateRequirementStatus, previousRequirementId }
-  ) {
+  async updateTaskAtomic(id, data, { historyEntries, auditEvent, previousRequirementId }) {
     return traceabilityTransaction(
       {
         taskIds: [id],
@@ -287,18 +260,13 @@ export const taskRepository = {
             }))
           });
         }
-        await recalculateRequirements(
-          tx,
-          [previousRequirementId, task.requirementId],
-          calculateRequirementStatus
-        );
         if (auditEvent) await auditRepository.create(auditEvent, tx);
         return task;
       }
     );
   },
 
-  async deleteTask(id, { auditEvent, calculateRequirementStatus, requirementId } = {}) {
+  async deleteTask(id, { auditEvent, requirementId } = {}) {
     return traceabilityTransaction(
       {
         taskIds: [id],
@@ -351,7 +319,6 @@ export const taskRepository = {
         const deleted = await tx.task.delete({
           where: { id }
         });
-        await recalculateRequirements(tx, [requirementId], calculateRequirementStatus);
         if (auditEvent) await auditRepository.create(auditEvent, tx);
         return deleted;
       }

@@ -9,11 +9,14 @@ function correctionSummary(tasks) {
   };
 }
 export const defectCard = (row) => {
-  const { taskLinks, detectedStep, ...fields } = row;
+  const { taskLinks, detectedStep, retests, ...fields } = row;
   const current = taskLinks?.filter((l) => l.correctionCycle === row.currentCorrectionCycle);
   return {
     ...fields,
     displayId: `DEF-${row.id}`,
+    latestRetest: retests?.[0]
+      ? { ...retests[0].execution, correctionCycle: retests[0].correctionCycle }
+      : null,
     ...(taskLinks
       ? {
           correctionTaskCount: current.length,

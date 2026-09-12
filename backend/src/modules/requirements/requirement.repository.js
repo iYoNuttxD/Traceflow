@@ -96,23 +96,6 @@ export const requirementRepository = {
     );
   },
 
-  async updateRequirementStatus(id, status) {
-    return traceabilityTransaction(
-      {
-        requirementIds: [id],
-        reason: 'REQUIREMENT_STATUS_CHANGED',
-        sourceEntityType: 'Requirement',
-        sourceEntityId: id
-      },
-      (tx) =>
-        tx.requirement.update({
-          where: { id },
-          data: { status },
-          include: requirementInclude
-        })
-    );
-  },
-
   async deleteRequirement(id) {
     return traceabilityTransaction(
       {
@@ -163,13 +146,12 @@ export const requirementRepository = {
   async replaceRequirementTasks({
     requirementId,
     taskIds,
-    status,
-    relatedStatusUpdates,
+    previousRequirementIds = [],
     auditEvents
   }) {
     return traceabilityTransaction(
       {
-        requirementIds: [requirementId, ...relatedStatusUpdates.map((row) => row.id)],
+        requirementIds: [requirementId, ...previousRequirementIds],
         taskIds,
         reason: 'TASK_REQUIREMENT_CHANGED',
         sourceEntityType: 'Requirement',
@@ -184,15 +166,6 @@ export const requirementRepository = {
           await tx.task.updateMany({
             where: { id: { in: taskIds } },
             data: { requirementId }
-          });
-        }
-        if (status) {
-          await tx.requirement.update({ where: { id: requirementId }, data: { status } });
-        }
-        for (const update of relatedStatusUpdates) {
-          await tx.requirement.update({
-            where: { id: update.id },
-            data: { status: update.status }
           });
         }
         if (auditEvents.length) await auditRepository.createMany(auditEvents, tx);

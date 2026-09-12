@@ -666,3 +666,23 @@ Registro posterior às linhas históricas das Etapas 3/4. Homologação renderiz
 | TESTCASE/DEFECT-OVERVIEW | TestCaseSummary / ProjectDefects | Descrição na estrutura existente de summary | PASS renderizado Light/Dark |
 
 Phase trail é apresentação do percurso corrente, não histórico persistido nem confirmação de 100% de conclusão. Overview reutiliza C2 existente; não foi criada regra global adicional. O inventário não amplia o PASS para cenários externos ou certificação WCAG integral.
+
+## S1-09 Etapa 5 — FINAL TARGETED CORRECTIONS (2026-09-12)
+
+Esta entrada substitui a apresentação vigente das linhas anteriores, mantendo os
+registros históricos e seus limites de evidência.
+
+| Superfície | Owner / apresentação final | Validação desta rodada |
+|---|---|---|
+| PROJECT-TABS | ProjectSectionNav; onze destinos na ordem canônica; overflow somente horizontal e aba ativa visível | Light/Dark × 1440/1280/768/390; ordem, indicador, teclado, ausência de overflow vertical |
+| TC/DEF/TRACEABILITY-OVERVIEW | Texto auxiliar curto, irmão do bloco de título; família Kanban | Oito combinações por overview |
+| TRACEABILITY-FILTERS/CARD | Status de cinco macros principal; Situação detalhada em Detalhamento opcional; card preserva progresso/situação/evidência | Oito combinações; REQ-1 a REQ-4 reais |
+| DEFECT-CARD | LifecycleTrail de quatro fases; Rastreabilidade; Correção/Reteste dinâmico; ações canônicas | Quatro estados reais × oito combinações; comparação Task/TestCase |
+| TRACEABILITY-WORKSPACE/INSPECTOR | Hierarquia por seções, relações legíveis e footer canônico; Task com esforço, PR com branches/datas reais | Task e PR em oito combinações; desktop/tablet lateral, mobile inferior rolável |
+| TASK-EFFORT-HISTORY | TaskTimeEntriesDialog; ator/data, origem, CREATED/UPDATED/DELETED, antes/depois, filtros | Oito combinações no componente com DTO persistido de teste e no histórico integrado da Task 16 |
+| TASK-EFFORT-CURRENT | Mesmo dialog, endpoint de sessões atuais; ajuste/exclusão da sessão autorizada; Evento desabilitado | Sessão real anterior à adoção consultada; edição, exclusão, permissões e concorrência automatizadas |
+
+Sem estimativa/realizado zero, datas combinadas e erros de concorrência têm
+evidência automatizada. Capturas foram observadas na execução, sem pacote PNG
+versionado. Matriz e limites no
+[relatório final](../deliveries/S1_09_TRACEABILITY_GRAPH_WORKSPACE_UX_REPORT.md#final-targeted-corrections).

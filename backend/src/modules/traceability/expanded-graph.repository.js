@@ -103,6 +103,8 @@ export async function loadExpandedGraph(tx, projectId, requirementId) {
       title: true,
       status: true,
       priority: true,
+      estimatedEffort: true,
+      actualEffort: true,
       requirementId: true,
       responsible: true,
       responsibleUser: person,
@@ -123,6 +125,9 @@ export async function loadExpandedGraph(tx, projectId, requirementId) {
         title: true,
         state: true,
         authorUsername: true,
+        createdAtGithub: true,
+        closedAtGithub: true,
+        mergedAtGithub: true,
         sourceBranch: true,
         targetBranch: true,
         githubUrl: true
@@ -150,6 +155,8 @@ export async function loadExpandedGraph(tx, projectId, requirementId) {
         title: true,
         state: true,
         authorUsername: true,
+        createdAtGithub: true,
+        closedAtGithub: true,
         githubUrl: true
       },
       orderBy: { id: 'asc' }
