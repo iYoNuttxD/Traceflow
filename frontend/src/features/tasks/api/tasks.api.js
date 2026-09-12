@@ -142,3 +142,13 @@ export const kanbanApi = {
     });
   }
 };
+
+export const getTaskEffortHistory = (taskId, params = {}, options = {}) =>
+  responseData(
+    httpClient.get(`/tasks/${taskId}/time-entries/history`, {
+      ...options,
+      params: compactParams(params)
+    })
+  );
+export const updateTaskTimeEntry = (taskId, entryId, payload) =>
+  responseData(httpClient.patch(`/tasks/${taskId}/time-entries/${entryId}`, payload));

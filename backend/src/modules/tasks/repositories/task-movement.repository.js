@@ -5,19 +5,6 @@ import { lockProject } from '../../../database/locks.js';
 import { auditRepository } from '../../audit/audit.repository.js';
 import { taskInclude } from '../task.repository.js';
 
-async function recalculateRequirement(tx, requirementId, calculateStatus) {
-  if (!requirementId || !calculateStatus) return;
-  const requirement = await tx.requirement.findUnique({
-    where: { id: requirementId },
-    select: { status: true, tasks: { select: { status: true } } }
-  });
-  if (!requirement || ['CONCLUIDO', 'CANCELADO'].includes(requirement.status)) return;
-  const status = calculateStatus(requirement.tasks);
-  if (status !== requirement.status) {
-    await tx.requirement.update({ where: { id: requirementId }, data: { status } });
-  }
-}
-
 function movementWhere(projectId, filters = {}) {
   return {
     projectId,
@@ -35,7 +22,7 @@ export const taskMovementRepository = {
     toStatus,
     actor,
     auditEvent,
-    calculateRequirementStatus,
+
     validate
   }) {
     return traceabilityTransaction(
@@ -66,7 +53,6 @@ export const taskMovementRepository = {
         if (!atual) return { conflict: true };
         const sprintAtual = atual.sprintId == null ? null : Number(atual.sprintId);
         if (sprintAtual !== sprintId) return { conflict: true };
-        const requirementId = atual.requirementId == null ? null : Number(atual.requirementId);
 
         if (validate) await validate({ sprint });
 
@@ -104,7 +90,6 @@ export const taskMovementRepository = {
             occurredAt: movement.movedAt
           }
         });
-        await recalculateRequirement(tx, requirementId, calculateRequirementStatus);
         await reconcileTaskDefects(tx, task.id, actor.id);
         if (auditEvent) await auditRepository.create(auditEvent, tx);
         const updatedTask = await tx.task.findUnique({

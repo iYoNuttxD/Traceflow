@@ -4,7 +4,6 @@ import { membersApi } from '../../members/index.js';
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 import {
-  confirmRequirementCompletion,
   deleteRequirement,
   replaceRequirementTasks,
   requirementsApi
@@ -38,6 +37,9 @@ const typeLabels = {
 };
 
 const statusLabels = {
+  PLANEJADO: 'Planejado',
+  EM_VALIDACAO: 'Em validação',
+  EM_CORRECAO: 'Em correção',
   CADASTRADO: 'Cadastrado',
   APROVADO: 'Aprovado',
   EM_IMPLEMENTACAO: 'Em implementação',
@@ -122,7 +124,6 @@ export function RequirementsScreen() {
   const [editingRequirementId, setEditingRequirementId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [confirmingRequirementId, setConfirmingRequirementId] = useState(null);
   const [deletingRequirementId, setDeletingRequirementId] = useState(null);
   const [error, setError] = useState('');
   const [pageError, setPageError] = useState(null);
@@ -293,27 +294,6 @@ export function RequirementsScreen() {
     }));
   }
 
-  async function handleConfirmCompletion(requirementId) {
-    setConfirmingRequirementId(requirementId);
-    setError('');
-    setSuccess('');
-
-    try {
-      const response = await confirmRequirementCompletion(requirementId);
-      setSuccess(response.message || 'Requisito concluído com sucesso.');
-      setRequirements((current) =>
-        current.map((requirement) =>
-          String(requirement.id) === String(requirementId) ? response.requirement : requirement
-        )
-      );
-      await loadRequirementsData();
-    } catch (requestError) {
-      setError(getErrorMessage(requestError, 'Não foi possível concluir o requisito.'));
-    } finally {
-      setConfirmingRequirementId(null);
-    }
-  }
-
   async function handleDeleteRequirement(requirement) {
     const confirmed = await confirm({
       title: 'Excluir requisito',
@@ -376,21 +356,18 @@ export function RequirementsScreen() {
     (summary, requirement) => {
       summary.total += 1;
 
-      if (requirement.status === 'CADASTRADO' || requirement.status === 'PENDENTE') {
-        summary.registered += 1;
-      } else if (requirement.status === 'APROVADO') {
-        summary.approved += 1;
-      } else if (requirement.status === 'EM_IMPLEMENTACAO') {
-        summary.inProgress += 1;
-      } else if (requirement.status === 'VALIDADO' || requirement.status === 'CONCLUIDO') {
-        summary.validatedOrDone += 1;
-      }
+      if (requirement.status === 'PLANEJADO') summary.registered += 1;
+      else if (requirement.status === 'EM_VALIDACAO') summary.approved += 1;
+      else if (requirement.status === 'EM_IMPLEMENTACAO') summary.inProgress += 1;
+      else if (requirement.status === 'EM_CORRECAO') summary.inCorrection += 1;
+      else if (requirement.status === 'CONCLUIDO') summary.validatedOrDone += 1;
 
       return summary;
     },
     {
       total: 0,
       registered: 0,
+      inCorrection: 0,
       approved: 0,
       inProgress: 0,
       validatedOrDone: 0
@@ -424,11 +401,11 @@ export function RequirementsScreen() {
           <strong className="metric-value">{requirementSummary.total}</strong>
         </Card>
 
-        <Card title="Cadastrados">
+        <Card title="Planejados">
           <strong className="metric-value">{requirementSummary.registered}</strong>
         </Card>
 
-        <Card title="Aprovados">
+        <Card title="Em validação">
           <strong className="metric-value">{requirementSummary.approved}</strong>
         </Card>
 
@@ -436,7 +413,10 @@ export function RequirementsScreen() {
           <strong className="metric-value">{requirementSummary.inProgress}</strong>
         </Card>
 
-        <Card title="Validados/concluídos">
+        <Card title="Em correção">
+          <strong className="metric-value">{requirementSummary.inCorrection}</strong>
+        </Card>
+        <Card title="Concluídos">
           <strong className="metric-value">{requirementSummary.validatedOrDone}</strong>
         </Card>
 
@@ -628,18 +608,6 @@ export function RequirementsScreen() {
                     >
                       Editar
                     </button>
-                    {requirement.status === 'VALIDADO' && (
-                      <button
-                        className="button button-primary"
-                        type="button"
-                        onClick={() => handleConfirmCompletion(requirement.id)}
-                        disabled={confirmingRequirementId === requirement.id}
-                      >
-                        {confirmingRequirementId === requirement.id
-                          ? 'Concluindo...'
-                          : 'Confirmar conclusão'}
-                      </button>
-                    )}
                     <button
                       className="button button-danger"
                       type="button"

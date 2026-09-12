@@ -28,6 +28,10 @@ export function formatTaskTimeEntry(entry, context = {}) {
     startedBy: entry.startedBy,
     endedBy: entry.endedBy ?? null,
     createdAt: entry.createdAt,
+    updatedAt: entry.updatedAt,
+    canEdit:
+      Boolean(entry.endedAt) &&
+      ((own && canOperateTaskTimer(role)) || canModerateTaskTimeEntries(role)),
     canDelete: (own && canOperateTaskTimer(role)) || canModerateTaskTimeEntries(role)
   };
 }

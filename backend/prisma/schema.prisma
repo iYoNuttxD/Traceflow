@@ -129,6 +129,7 @@ enum GitHubOAuthPurpose {
 }
 
 model User {
+  effortHistory TaskEffortHistoryEntry[]
   responsibleDefects   Defect[]
   defectHistory        DefectHistoryEntry[]
   responsibleTestCases TestCase[]             @relation("TestCaseResponsible")
@@ -316,6 +317,7 @@ model ProjectInvitation {
 
 // Entidade central do TRACEFLOW. A identidade GitHub pertence exclusivamente à integração.
 model Project {
+  effortHistory TaskEffortHistoryEntry[]
   requirementTraceabilityHistory RequirementTraceabilityHistoryEntry[]
   defects         Defect[]
   defectHistory   DefectHistoryEntry[]
@@ -576,7 +578,7 @@ model Requirement {
   title       String
   description String?
   type        String     @default("FUNCIONAL")
-  status      String     @default("PENDENTE")
+  status      String     @default("PLANEJADO")
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
@@ -1367,4 +1369,25 @@ model RequirementTraceabilityHistoryEntry {
   occurredAt DateTime @default(now())
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   @@index([projectId, requirementId, occurredAt, id], map: "RequirementTraceabilityHistory_cursor_idx")
+}
+
+// Append-only functional effort audit. Task/session identities survive their deletion.
+model TaskEffortHistoryEntry {
+  id Int @id @default(autoincrement())
+  projectId Int
+  taskId Int
+  sessionId Int
+  eventType String
+  source TaskTimeEntrySource
+  actorUserId Int?
+  previousSeconds Int?
+  newSeconds Int?
+  snapshotStartedAt DateTime
+  snapshotEndedAt DateTime?
+  occurredAt DateTime @default(now())
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  actor User? @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  @@index([taskId, occurredAt, id])
+  @@index([projectId])
+  @@index([actorUserId])
 }

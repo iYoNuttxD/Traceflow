@@ -128,7 +128,11 @@ async function fixture() {
   const move = (id, toStatus) => kanban.moveTask(id, { toStatus }, { actor: user });
   const current = async (id = requirement.id) => (await load(prisma, project.id, [id]))[0];
   const state = async (expected, id = requirement.id) => {
-    expect((await current(id)).situation).toBe(expected);
+    const projection = await current(id);
+    expect(projection.situation).toBe(expected);
+    expect((await prisma.requirement.findUnique({ where: { id } })).status).toBe(
+      projection.requirement.status
+    );
     expect(
       (await prisma.requirementTraceabilityState.findUnique({ where: { requirementId: id } }))
         .currentSituation
@@ -207,7 +211,7 @@ describe('S1-09 persisted projection and transitions', () => {
     const second = await f.createCase({ title: 'Second case' });
     await f.state('AGUARDANDO_VALIDACAO');
     await f.execute(second);
-    await f.state('EM_VALIDACAO');
+    await f.state('AGUARDANDO_VALIDACAO');
     const failure = await f.execute(tc, 'FAIL');
     await f.state('COM_FALHA');
     let d = await f.createDefect(failure);
@@ -230,12 +234,13 @@ describe('S1-09 persisted projection and transitions', () => {
     await f.state('AGUARDANDO_RETESTE');
     d = await defects.read(d.id, f.context);
     await f.execute(tc, 'PASS', d);
-    await f.state('VALIDADO');
-    await requirementStatus.confirmCompletion(f.requirement.id);
+    await expect(requirementStatus.confirmCompletion(f.requirement.id)).rejects.toMatchObject({
+      statusCode: 409
+    });
     await f.state('CONCLUIDO');
     const completed = (await f.history()).at(-1);
     await cases.update(tc.id, { expectedVersion: 1, title: 'Version 2' }, f.context);
-    await f.state('EM_VALIDACAO');
+    await f.state('AGUARDANDO_VALIDACAO');
     expect(
       await prisma.requirementTraceabilityHistoryEntry.findUnique({ where: { id: completed.id } })
     ).toEqual(completed);
@@ -246,13 +251,11 @@ describe('S1-09 persisted projection and transitions', () => {
       'EM_DESENVOLVIMENTO',
       'IMPLEMENTADO',
       'AGUARDANDO_VALIDACAO',
-      'EM_VALIDACAO',
       'COM_FALHA',
       'EM_CORRECAO',
       'AGUARDANDO_RETESTE',
-      'VALIDADO',
       'CONCLUIDO',
-      'EM_VALIDACAO'
+      'AGUARDANDO_VALIDACAO'
     ]);
     expect(history.at(-1).reason).toBe('TESTCASE_UPDATED');
     expect(history.slice(1).every((row, i) => row.fromSituation === history[i].toSituation)).toBe(
@@ -270,10 +273,10 @@ describe('S1-09 persisted projection and transitions', () => {
     });
     const tc = await f.createCase({ requirementId: null, taskIds: [task.id] });
     await f.execute(tc);
-    await f.state('VALIDADO');
+    await f.state('CONCLUIDO');
     await taskRequirement.linkRequirement(task.id, { requirementId: b.id }, f.context);
     await f.state('SEM_RASTREABILIDADE');
-    await f.state('VALIDADO', b.id);
+    await f.state('CONCLUIDO', b.id);
     expect((await load(prisma, f.project.id, [b.id]))[0].validation.testCasesTotal).toBe(1);
     await tasks.deleteTask(task.id, f.context);
     await f.state('IMPLEMENTADO', b.id);
@@ -290,7 +293,7 @@ describe('S1-09 persisted projection and transitions', () => {
     });
     let tc = await f.createCase();
     await f.execute(tc);
-    await f.state('VALIDADO');
+    await f.state('CONCLUIDO');
     tc = await cases.update(tc.id, { expectedVersion: 1, requirementId: b.id }, f.context);
     await f.state('IMPLEMENTADO');
     await f.state('AGUARDANDO_VALIDACAO', b.id);
@@ -452,7 +455,7 @@ describe('S1-09 persisted projection and transitions', () => {
       fromSituation: 'EM_DESENVOLVIMENTO',
       toSituation: 'COM_FALHA',
       reason: options.reason,
-      metadataJson: { rulesVersion: 2 }
+      metadataJson: { rulesVersion: 3 }
     });
     expect((await f.history()).slice(0, -1)).toEqual(before);
     expect((await reconcileProject(f.project.id, options)).changes).toHaveLength(0);
@@ -488,6 +491,65 @@ describe('S1-09 persisted projection and transitions', () => {
     expect(await prisma.task.count()).toBe(0);
     await f.state('SEM_RASTREABILIDADE');
     expect(await f.history()).toEqual(history);
+  });
+  it('reopens automatic conclusion for new tasks, cases, versions and failures, then concludes again', async () => {
+    const f = await fixture();
+    await f.ready();
+    const tc = await f.createCase();
+    await f.execute(tc);
+    await f.state('CONCLUIDO');
+    const original = await f.history();
+    const added = await tasks.createTask(
+      f.project.id,
+      { title: 'New work', requirementId: f.requirement.id },
+      f.context
+    );
+    await f.state('EM_DESENVOLVIMENTO');
+    await f.move(added.id, 'EM_ANDAMENTO');
+    await f.state('EM_DESENVOLVIMENTO');
+    await f.move(added.id, 'CONCLUIDO');
+    await f.state('CONCLUIDO');
+    const second = await f.createCase({ title: 'New test' });
+    await f.state('AGUARDANDO_VALIDACAO');
+    await f.execute(second);
+    await f.state('CONCLUIDO');
+    const edited = await cases.update(
+      second.id,
+      { expectedVersion: 1, title: 'New version' },
+      f.context
+    );
+    await f.state('AGUARDANDO_VALIDACAO');
+    await f.execute(edited);
+    await f.state('CONCLUIDO');
+    const failure = await f.execute(tc, 'FAIL');
+    await f.state('COM_FALHA');
+    await f.execute(tc, 'PASS');
+    await f.state('CONCLUIDO');
+    await f.createDefect(failure);
+    await f.state('COM_FALHA');
+    expect((await f.history()).slice(0, original.length)).toEqual(original);
+  });
+  it('repairs only legacy macro status without fabricating another situation transition', async () => {
+    const f = await fixture();
+    await f.ready();
+    const tc = await f.createCase();
+    await f.execute(tc);
+    const before = await f.history();
+    await prisma.requirement.update({
+      where: { id: f.requirement.id },
+      data: { status: 'APROVADO' }
+    });
+    const preview = await reconcileProject(f.project.id);
+    expect(preview.statusChanges).toEqual([
+      { requirementId: f.requirement.id, fromStatus: 'APROVADO', toStatus: 'CONCLUIDO' }
+    ]);
+    expect((await prisma.requirement.findUnique({ where: { id: f.requirement.id } })).status).toBe(
+      'APROVADO'
+    );
+    await reconcileProject(f.project.id, { dryRun: false });
+    await f.state('CONCLUIDO');
+    expect(await f.history()).toEqual(before);
+    expect((await reconcileProject(f.project.id, { dryRun: false })).statusChanges).toEqual([]);
   });
   it('serializes concurrent reconciliations using a real project lock, including first initialization', async () => {
     const f = await fixture();

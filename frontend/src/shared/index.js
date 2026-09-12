@@ -36,3 +36,5 @@ export { ConfirmDialogContent } from './components/ConfirmDialog.jsx';
 export { ResponsibleCombobox } from './components/ResponsibleCombobox.jsx';
 export { DetailSurface, DescriptionSurface } from './components/DetailSurface.jsx';
 export { SelectControl } from './components/SelectControl.jsx';
+
+export { LifecycleTrail } from './components/LifecycleTrail.jsx';

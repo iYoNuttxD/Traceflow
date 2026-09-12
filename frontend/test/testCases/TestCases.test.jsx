@@ -203,7 +203,7 @@ describe('S1-07 integrated case flows', () => {
   });
   it('uses the project route, real API, server summary and no prototype controls', async () => {
     await setup();
-    expect(screen.getByText(/Acompanhe os casos cadastrados, suas execuções/)).toBeInTheDocument();
+    expect(screen.getByText(/Estado atual dos casos e das execuções/)).toBeInTheDocument();
     expect(screen.getByLabelText('Navegação global')).toBeInTheDocument();
     expect(screen.queryByText('PROTÓTIPO')).not.toBeInTheDocument();
     expect(screen.queryByText('Controles do protótipo')).not.toBeInTheDocument();

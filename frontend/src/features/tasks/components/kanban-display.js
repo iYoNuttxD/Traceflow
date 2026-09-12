@@ -13,6 +13,9 @@ export const statusLabels = {
 export const requirementStatusLabels = {
   CADASTRADO: 'Cadastrado',
   APROVADO: 'Aprovado',
+  PLANEJADO: 'Planejado',
+  EM_VALIDACAO: 'Em validação',
+  EM_CORRECAO: 'Em correção',
   EM_IMPLEMENTACAO: 'Em implementação',
   VALIDADO: 'Validado',
   CONCLUIDO: 'Concluído',

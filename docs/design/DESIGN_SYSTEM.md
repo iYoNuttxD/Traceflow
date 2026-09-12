@@ -735,3 +735,32 @@ ações de escrita. O acesso contextual abre o mesmo Defect Details na seção
 Correção com scroll/foco semântico. A tarefa abre o Task Details existente; o
 histórico do navegador preserva o retorno ao defeito e à seção, sem dialogs
 empilhados. Criar/vincular continuam subviews diretas do mesmo dialog.
+
+### S1-09 Etapa 5 — composição final (2026-09-12)
+
+Overview de TestCases, Defects e Traceability usa texto curto como irmão do bloco
+de título, na estrutura `sprints-summary__heading` da família Kanban. A quebra
+responsiva pertence ao layout existente.
+
+Defect Card conserva o shell `sprint-card tc-card`, separa Rastreabilidade de
+Correção/Reteste e usa `LifecycleTrail`: Detecção → Correção → Reteste → Validado.
+O passo corrente usa `aria-current="step"`; passos anteriores indicam percurso
+alcançado, não eventos históricos nem uma segunda regra de domínio. Reteste
+mostra resultado real e ciclo; ausência não recebe resultado presumido.
+
+Inspector organiza identidade/badges, Informações, Rastreabilidade, Relações na
+cadeia e ação final. Task acrescenta esforço estimado/realizado com os helpers
+canônicos; sem estimativa não há percentual. Ação GitHub reutiliza
+`GithubExternalAction`, inclusive estados de link sem underline. Estilos novos
+ficam nos owners das superfícies, sem alterar tokens ou CSS global.
+
+Project tabs: Visão geral, Requisitos, Sprints, Marcos, Cronograma, Tarefas,
+Kanban, Casos de teste, Defeitos, Repositório, Rastreabilidade. Overflow somente
+horizontal; indicador dentro da barra; reposicionamento da aba ativa altera
+apenas `scrollLeft`. Links conservam teclado, foco e `aria-current="page"`.
+
+Esforço distingue Histórico de eventos de Sessões atuais. Controles de seleção
+quebram linha quando necessário; Evento pertence só ao histórico. Editar/excluir
+atua na sessão atual autorizada, nunca no snapshot exibido. Evidência e limites
+na seção FINAL TARGETED CORRECTIONS do
+[relatório da Etapa 5](../deliveries/S1_09_TRACEABILITY_GRAPH_WORKSPACE_UX_REPORT.md).

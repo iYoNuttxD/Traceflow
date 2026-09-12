@@ -13,7 +13,6 @@ import { defectCard, defectDetail, detectionCandidate } from './defect.presenter
 import { authorize } from '../testCases/services/test-case.service.js';
 import { buildAuditEvent } from '../audit/audit.service.js';
 import { prepareTaskCreation } from '../tasks/services/task-crud.service.js';
-import { calculateRequirementStatus } from '../requirements/requirement.schema.js';
 
 export async function recordDefectEvent(tx, row, context, action, metadataJson = {}) {
   await tx.history({
@@ -254,8 +253,7 @@ export function createDefectService(repo = defectRepository) {
                 projectId: row.projectId,
                 resourceType: 'Task',
                 action: 'TASK_CREATED'
-              }),
-              calculateRequirementStatus
+              })
             );
             taskId = task.id;
           }

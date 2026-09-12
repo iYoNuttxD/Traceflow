@@ -1,67 +1,62 @@
 # S1-09 — Regras de rastreabilidade: baseline e decisões resolvidas
 
-**Resultado vigente: decisões humanas da Etapa 2, com precedência revisada na Etapa 5 em 2026-09-11.** Falhas atuais e Defects relevantes em aberto/correção/reteste precedem implementação incompleta. A conclusão continua exigindo o terminal persistido do Requirement. Esta revisão explícita substitui somente a precedência anterior de OD-04; preserva as demais fronteiras.
+**Regra vigente — FINAL TARGETED CORRECTIONS da Etapa 5, 2026-09-12.** Esta decisão substitui a exigência anterior de confirmação terminal manual. `Requirement.status` permanece persistido, mas agora é o macro derivado da mesma policy pura que produz a situação detalhada. O estado anterior não entra no cálculo da conclusão.
 
-## Decisões canônicas da Etapa 2
+## Autoridade única e mapa canônico
 
-| Decisão | Resolução humana e aplicação no domínio real |
+`projectRequirement` calcula a situação a partir da cadeia corrente; `deriveRequirementLifecycleStatus` aplica o mapa abaixo. `traceabilityMutation`/`reconcileRequirements` persistem macro, situação e transição na mesma transação da mutação original. GET permanece somente leitura.
+
+| TraceabilitySituation | Requirement.status |
 |---|---|
-| OD-01 — PLANEJADO | Preservado como 11º estado. Sem qualidade prioritária: zero Tasks → SEM_RASTREABILIDADE; Tasks não iniciadas, sem evidência → PLANEJADO. |
-| OD-02 — Validação corrente | TestCases ATIVO, não excluídos, do mesmo projeto, diretos OU via Task atual; dedup por ID; última execução da currentVersion por executedAt DESC/id DESC. PASS de versão antiga não valida a nova. |
-| OD-03 — Fronteiras | IMPLEMENTADO exige a implementação técnica herdada; zero casos não valida. Casos sem execução atual → AGUARDANDO_VALIDACAO; validação iniciada incompleta → EM_VALIDACAO; todos PASS e zero Defects pendentes → VALIDADO. CONCLUIDO exige adicionalmente o terminal persistido do Requirement. No domínio real esse terminal é **CONCLUIDO**, não APROVADO, que também é gerado automaticamente para Tasks A_FAZER. |
-| OD-04 — Precedência | Etapa 5: COM_FALHA > EM_CORRECAO > AGUARDANDO_RETESTE antes do estágio técnico incompleto. Sem qualidade prioritária, preserva-se a ordem legada e as fronteiras de validação/conclusão. Falha não tratada continua avaliada por cada detectedExecutionStepId. |
+| SEM_RASTREABILIDADE | PLANEJADO |
+| PLANEJADO | PLANEJADO |
+| EM_DESENVOLVIMENTO | EM_IMPLEMENTACAO |
+| IMPLEMENTADO | EM_IMPLEMENTACAO |
+| AGUARDANDO_VALIDACAO | EM_VALIDACAO |
+| EM_VALIDACAO | EM_VALIDACAO |
+| VALIDADO (compatibilidade histórica) | EM_VALIDACAO |
+| COM_FALHA | EM_CORRECAO |
+| EM_CORRECAO | EM_CORRECAO |
+| AGUARDANDO_RETESTE | EM_CORRECAO |
+| CONCLUIDO | CONCLUIDO |
 
-Requirement.status continua separado e inalterado pela projeção. Seu terminal é uma condição adicional de conclusão, nunca um atalho para ignorar Tasks/evidência/qualidade. O campo antigo implementationStatus conserva o override histórico CONCLUIDO. A nova situation não o reutiliza como estágio técnico.
+Status não é editável nem depende de aceite manual. As rotas antigas de status/confirmação rejeitam a operação com `409 REQUIREMENT_STATUS_DERIVED`, preservando autorização e validação. Nenhuma nova mutação produz APROVADO, CADASTRADO ou VALIDADO como macro. Os valores antigos permanecem reconhecíveis em registros/consumidores de compatibilidade; não são removidos destrutivamente do banco.
 
-A proposta anterior de exigir artefato de correção como condição extra para CONCLUIDO não foi adotada. Correction Task + artefato + reteste compõem uma dimensão informativa de evidência, sem criar segunda autoridade de situação. Reteste contextual continua sendo o único mecanismo de validação de Defect; PASS comum não o encerra.
-
-## Ordem vigente e cenários reconciliados
-
-A função única segue esta ordem:
+## Ordem vigente
 
 1. Defect relevante ABERTO ou passo FAIL corrente sem Defect ativo que o represente → COM_FALHA.
-2. Algum Defect relevante EM_CORRECAO → EM_CORRECAO.
-3. Algum Defect relevante AGUARDANDO_RETESTE → AGUARDANDO_RETESTE.
-4. Sem condição prioritária: preservar SEM_RASTREABILIDADE, PLANEJADO ou EM_DESENVOLVIMENTO do estágio técnico. As condições seguintes exigem implementação pronta.
-5. Zero casos ativos relevantes → IMPLEMENTADO.
-6. Nenhum caso com execução da versão atual → AGUARDANDO_VALIDACAO.
-7. Algum caso não PASS → EM_VALIDACAO, inclusive BLOCKED/pendência parcial; FAIL não tratado já foi capturado antes.
-8. Todos PASS, nenhum Defect pendente e Requirement.status=CONCLUIDO → CONCLUIDO.
-9. Mesma aprovação de qualidade, status persistido não terminal → VALIDADO.
+2. Defect relevante EM_CORRECAO → EM_CORRECAO.
+3. Defect relevante AGUARDANDO_RETESTE → AGUARDANDO_RETESTE.
+4. Sem qualidade prioritária: zero Tasks → SEM_RASTREABILIDADE; Tasks não iniciadas e sem evidência → PLANEJADO; implementação incompleta → EM_DESENVOLVIMENTO.
+5. Implementação pronta e zero casos ativos relevantes → IMPLEMENTADO.
+6. Implementação pronta e algum caso sem execução da currentVersion → AGUARDANDO_VALIDACAO, inclusive PASS de outro caso ou da versão anterior.
+7. Validação corrente incompleta, inclusive BLOCKED, sem condição anterior → EM_VALIDACAO.
+8. Implementação pronta, casos ativos relevantes não vazios, todos PASS na versão atual e nenhum Defect pendente → CONCLUIDO automaticamente.
 
-| Cenário | Resultado vigente |
+VALIDADO continua no vocabulário histórico e no mapa, mas a aprovação completa atual converge diretamente para CONCLUIDO. A implementação técnica continua exigindo pelo menos uma Task, todas concluídas e PR/commit ligado. Issue isolada não é evidência técnica. Artefato de correção permanece uma dimensão informativa, sem condição extra inventada para concluir.
+
+## Conclusão reversível e histórico
+
+| Mudança após CONCLUIDO | Situação / macro, na ausência de condição de maior prioridade |
 |---|---|
-| Zero Tasks e sem qualidade prioritária | SEM_RASTREABILIDADE |
-| Zero Tasks + FAIL atual não tratado ou Defect aberto | COM_FALHA |
-| Tasks somente A_FAZER, sem evidência | PLANEJADO |
-| DONE + EM_ANDAMENTO | EM_DESENVOLVIMENTO, 50% |
-| Todas DONE sem evidência técnica, mesmo todos PASS | EM_DESENVOLVIMENTO |
-| Todas DONE + PR/commit, zero casos | IMPLEMENTADO |
-| Implementação pronta + casos sem execução atual | AGUARDANDO_VALIDACAO |
-| Implementação pronta + PASS parcial/nunca executado ou BLOCKED | EM_VALIDACAO |
-| Implementação pronta + FAIL não tratado ou Defect ABERTO | COM_FALHA |
-| Implementação pronta + Defect EM_CORRECAO, sem falha prioritária | EM_CORRECAO |
-| Implementação pronta + Defect AGUARDANDO_RETESTE, sem falha/correção prioritária | AGUARDANDO_RETESTE |
-| Implementação pronta + todos casos PASS + zero pendências + status não terminal | VALIDADO |
-| Mesma cadeia + Requirement.status=CONCLUIDO | CONCLUIDO |
-| Defect EM_CORRECAO + progresso 25% | EM_CORRECAO; progresso permanece 25% |
-| Defect ABERTO + progresso 75% | COM_FALHA; progresso permanece 75% |
-| Defect AGUARDANDO_RETESTE + progresso 50%, sem falha/correção prioritária | AGUARDANDO_RETESTE; progresso permanece 50% |
-| Defect ABERTO + outro EM_CORRECAO ou AGUARDANDO_RETESTE | COM_FALHA, inclusive com implementação incompleta |
-| Dois passos FAIL e apenas um coberto | COM_FALHA, inclusive com implementação incompleta |
-| CONCLUIDO + nova versão sem execução | AGUARDANDO_VALIDACAO ou EM_VALIDACAO, conforme outros casos; conclusão antiga permanece no histórico |
+| Nova Task A_FAZER ou EM_ANDAMENTO | EM_DESENVOLVIMENTO / EM_IMPLEMENTACAO |
+| Novo TestCase ativo sem execução | AGUARDANDO_VALIDACAO / EM_VALIDACAO |
+| Nova versão de TestCase, PASS somente antigo | AGUARDANDO_VALIDACAO / EM_VALIDACAO |
+| Novo FAIL não tratado ou Defect ABERTO | COM_FALHA / EM_CORRECAO |
+| Defect em correção ou aguardando reteste | EM_CORRECAO ou AGUARDANDO_RETESTE / EM_CORRECAO |
+| Cadeia novamente completa | CONCLUIDO / CONCLUIDO |
 
-## Reconciliação da policy — Etapa 5
+A conclusão anterior permanece no histórico append-only. Novas entradas usam `rulesVersion: 3`; versões 1/2 permanecem intactas. Reparar apenas um macro legado, com situação já correta, não fabrica uma transição detalhada. Dry-run expõe `statusChanges` separadamente de `changes`; segundo apply sem mudanças não grava novos eventos. Falha na escrita do histórico desfaz a mutação, o macro e o State juntos.
 
-`--policy` identifica a adoção da regra com `TRACEABILITY_POLICY_RECONCILIATION`. O script permanece dry-run por padrão; `--project-id=<id> --apply --policy` acrescenta uma transição somente quando a situação persistida difere da projeção corrente. Novas entradas usam `rulesVersion: 2`; entradas anteriores não são editadas. Segunda execução sem mudança: zero entradas. GET permanece sem escrita. No projeto local 2 foram acrescentadas somente REQ-3 → COM_FALHA e REQ-4 → EM_CORRECAO; a repetição retornou zero alterações.
+Relevância por projeto, deduplicação, currentVersion, ordenação executedAt/id, cobertura por passo FAIL, lifecycle de Defect e reteste contextual permanecem canônicos. PASS comum não encerra um Defect. Progresso continua independente: 25% com Defect em correção é EM_CORRECAO com progresso de 25%.
 
-Summary usa `projectionSummary` sobre as mesmas projeções do catálogo: `withDefect` agrupa COM_FALHA, EM_CORRECAO e AGUARDANDO_RETESTE. A fase visual não é persistida nem constitui outra policy. Ver [relatório final da Etapa 5](../deliveries/S1_09_TRACEABILITY_GRAPH_WORKSPACE_UX_REPORT.md).
+## Filtros, adoção e evidência
 
-## Implementação e limites da Etapa 2
+O catálogo apresenta **Status** como filtro principal de cinco macros e **Situação detalhada** em “Detalhamento opcional”. O backend aplica ambos sobre a projeção completa antes da paginação. Summary e cards usam a mesma fonte; nenhuma policy de domínio no frontend.
 
-A [especificação implementada](../data/REQUIREMENT_TRACEABILITY_HISTORY.md) define o DTO, relevância, evidências, persistência, hooks, filtros, paginação, retenção e recuperação. O [relatório de backend](../deliveries/S1_09_BACKEND_PROJECTION_SITUATION_HISTORY_REPORT.md) registra testes e gates. Fórmulas de progresso, média, evidência e contagens legadas auditadas nas seções 6–9 abaixo foram preservadas mediante reutilização do calculator.
+Migration incremental `20260912010000_s109_lifecycle_effort_history`: default PLANEJADO e novo histórico de esforço. Não transforma registros antigos por heurística SQL. A adoção dos macros usa o reconciliador existente com `--policy`, dry-run antes de apply, em ambiente explicitamente conferido. No desenvolvimento local, quatro macros foram sincronizados, sem novas transições detalhadas; repetição idempotente. Nenhuma adoção de produção nesta rodada.
 
-A nova projeção usa a cadeia completa, nunca a página do grafo. O grafo existente e seu gap de paginação G03 permanecem fora desta Etapa 2. Cards, filtros visuais, summary novo, histórico visual e expansão do React Flow estão pendentes; S1-09 não está encerrada.
+Especificação: [projeção e histórico](../data/REQUIREMENT_TRACEABILITY_HISTORY.md). Evidência atual e auditoria APROVADO: seção **FINAL TARGETED CORRECTIONS** do [relatório da Etapa 5](../deliveries/S1_09_TRACEABILITY_GRAPH_WORKSPACE_UX_REPORT.md). As conclusões de etapas anteriores registram suas respectivas revisões, não a regra vigente acima.
 
 ## Registro histórico da auditoria da Etapa 1
 

@@ -68,7 +68,7 @@ describe('S1-09 canonical policy', () => {
     ['COM_FALHA', requirement(), [tc('FAIL')], []],
     ['EM_CORRECAO', requirement(), [], [defect('EM_CORRECAO')]],
     ['AGUARDANDO_RETESTE', requirement(), [], [defect('AGUARDANDO_RETESTE')]],
-    ['VALIDADO', requirement(), [tc('PASS')], []],
+    ['CONCLUIDO', requirement(), [tc('PASS')], []],
     ['CONCLUIDO', requirement([task()], 'CONCLUIDO'), [tc('PASS')], []]
   ])('derives %s', (expected, r, tests, defects) =>
     expect(state(r, tests, defects)).toBe(expected)
@@ -152,7 +152,9 @@ describe('S1-09 canonical policy', () => {
   });
   it('does not approve majority or confuse BLOCKED and FAIL', () => {
     for (const result of [null, 'BLOCKED'])
-      expect(state(requirement(), [tc('PASS'), tc(result, { id: 2 })])).toBe('EM_VALIDACAO');
+      expect(state(requirement(), [tc('PASS'), tc(result, { id: 2 })])).toBe(
+        result ? 'EM_VALIDACAO' : 'AGUARDANDO_VALIDACAO'
+      );
     expect(state(requirement(), [tc('PASS'), tc('FAIL', { id: 2 })])).toBe('COM_FALHA');
   });
   it('matches each failed step; unrelated or deleted defects cannot mask a failure', () => {
@@ -203,7 +205,7 @@ describe('S1-09 canonical policy', () => {
     });
     expect(
       state(requirement(), [tc('PASS', { requirementId: null, taskLinks: [{ task: task() }] })])
-    ).toBe('VALIDADO');
+    ).toBe('CONCLUIDO');
   });
   it('defect relevance uses ORIGIN, never correction-only or detection case', () => {
     const d = defect('ABERTO', {
@@ -222,10 +224,10 @@ describe('S1-09 canonical policy', () => {
     ).toBe(0);
   });
   it.each(['APROVADO', 'VALIDADO', 'CANCELADO', 'EM_IMPLEMENTACAO'])(
-    'persisted %s is not terminal',
+    'legacy %s does not govern automatic conclusion',
     (status) => {
       expect(state(requirement([task()], status), [tc('PASS')], [defect('VALIDADO')])).toBe(
-        'VALIDADO'
+        'CONCLUIDO'
       );
     }
   );
@@ -283,14 +285,14 @@ describe('S1-09 canonical policy', () => {
         hasTests: true,
         hasOpenDefects: false,
         hasTechnicalEvidence: true,
-        situation: 'VALIDADO',
-        requirementStatus: 'VALIDADO'
+        situation: 'CONCLUIDO',
+        requirementStatus: 'CONCLUIDO'
       })
     ).toBe(true);
     for (const q of [
       { search: 'missing' },
-      { situation: 'CONCLUIDO' },
-      { requirementStatus: 'CONCLUIDO' },
+      { situation: 'VALIDADO' },
+      { requirementStatus: 'EM_VALIDACAO' },
       { hasTests: false },
       { hasOpenDefects: true },
       { hasTechnicalEvidence: false }
@@ -316,5 +318,28 @@ describe('S1-09 canonical policy', () => {
       ['--project-id=1', '--unknown']
     ])
       expect(() => parseReconciliationArguments(args)).toThrow();
+  });
+});
+
+describe('synchronized lifecycle regression', () => {
+  it('concludes automatically without a manual terminal and reopens for new current cases', () => {
+    const done = projectRequirement(requirement([task()], 'APROVADO'), [tc('PASS')]);
+    expect(done.situation).toBe('CONCLUIDO');
+    expect(done.requirement.status).toBe('CONCLUIDO');
+    const reopened = projectRequirement(requirement([task()], 'CONCLUIDO'), [
+      tc('PASS'),
+      tc(null, { id: 2 })
+    ]);
+    expect(reopened.situation).toBe('AGUARDANDO_VALIDACAO');
+    expect(reopened.requirement.status).toBe('EM_VALIDACAO');
+  });
+  it.each([
+    ['ABERTO', 'COM_FALHA'],
+    ['EM_CORRECAO', 'EM_CORRECAO'],
+    ['AGUARDANDO_RETESTE', 'AGUARDANDO_RETESTE']
+  ])('synchronizes %s', (status, situation) => {
+    const row = projectRequirement(requirement(), [], [defect(status)]);
+    expect(row.situation).toBe(situation);
+    expect(row.requirement.status).toBe('EM_CORRECAO');
   });
 });

@@ -12,14 +12,11 @@ export const situations = {
   CONCLUIDO: ['Concluído', 'success']
 };
 export const requirementStatuses = {
-  CADASTRADO: 'Cadastrado',
-  APROVADO: 'Aprovado',
+  PLANEJADO: 'Planejado',
   EM_IMPLEMENTACAO: 'Em implementação',
-  VALIDADO: 'Validado',
-  CONCLUIDO: 'Concluído',
-  PENDENTE: 'Pendente',
-  EM_ANDAMENTO: 'Em andamento',
-  CANCELADO: 'Cancelado'
+  EM_VALIDACAO: 'Em validação',
+  EM_CORRECAO: 'Em correção',
+  CONCLUIDO: 'Concluído'
 };
 export const situationLabel = (value) => situations[value]?.[0] || 'Situação indisponível';
 export const historyReasons = {

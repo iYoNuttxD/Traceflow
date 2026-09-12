@@ -1,3 +1,4 @@
+import { writeFileSync } from 'node:fs';
 import { startTestServer } from '../helpers/http-server.js';
 import request from 'supertest';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
@@ -402,4 +403,139 @@ describe('S1-06 — esforço realizado por sessões de tempo (RF32/RF33/RF34)', 
     expect(removed.body.effort).toMatchObject({ actualHours: 8, completedCount: 0 });
     expect((await prisma.task.findUnique({ where: { id: task.id } })).actualEffort).toBe(8);
   });
+});
+
+it('keeps immutable create/update/delete effort events and filters independently', async () => {
+  const project = await createProject(prisma);
+  const member = await register('effort-history@example.invalid', 'MEMBER', project.id);
+  const task = await createTask(prisma, project.id);
+  const created = await member.mutate('post', entriesPath(task.id)).send({ hours: 3 });
+  const entry = created.body.entry;
+  const edited = await member
+    .mutate('patch', `${entriesPath(task.id)}/${entry.id}`)
+    .send({ hours: 4, expectedUpdatedAt: entry.updatedAt });
+  expect(edited.status).toBe(200);
+  expect(edited.body.effort.actualHours).toBe(4);
+  const stale = await member
+    .mutate('patch', `${entriesPath(task.id)}/${entry.id}`)
+    .send({ hours: 5, expectedUpdatedAt: entry.updatedAt });
+  expect(stale.status).toBe(409);
+  expect(
+    (await member.mutate('delete', `${entriesPath(task.id)}/${entry.id}`).send({})).status
+  ).toBe(200);
+  const history = await member.agent.get(`${entriesPath(task.id)}/history`);
+  expect(history.status).toBe(200);
+  if (process.env.S109_EFFORT_QA_OUTPUT)
+    writeFileSync(process.env.S109_EFFORT_QA_OUTPUT, JSON.stringify(history.body));
+  expect(history.body.items.map((row) => row.eventType)).toEqual(['DELETED', 'UPDATED', 'CREATED']);
+  expect(history.body.items[1]).toMatchObject({
+    previousSeconds: 10800,
+    newSeconds: 14400,
+    source: 'MANUAL',
+    actor: { id: member.user.id },
+    canEdit: false,
+    canDelete: false
+  });
+  expect((await member.agent.get(entriesPath(task.id))).body.effort.actualHours).toBe(0);
+  const filtered = await member.agent.get(`${entriesPath(task.id)}/history`).query({
+    source: 'MANUAL',
+    eventType: 'UPDATED',
+    startDate: new Date().toISOString().slice(0, 10),
+    endDate: new Date().toISOString().slice(0, 10)
+  });
+  expect(filtered.body.items).toHaveLength(1);
+  expect(
+    (await member.agent.get(`${entriesPath(task.id)}/history`).query({ source: 'TIMER' })).body
+      .items
+  ).toEqual([]);
+});
+
+it('audits timer adjustments, preserves clock timestamps, rejects other members and serializes edits', async () => {
+  const project = await createProject(prisma),
+    owner = await register('effort-owner@example.invalid', 'MEMBER', project.id),
+    other = await register('effort-other@example.invalid', 'MEMBER', project.id);
+  const task = await createTask(prisma, project.id);
+  await owner.mutate('post', `${entriesPath(task.id)}/start`).send({});
+  const stopped = await owner.mutate('post', `${entriesPath(task.id)}/stop`).send({});
+  const entry = stopped.body.entry;
+  expect(
+    (
+      await other
+        .mutate('patch', `${entriesPath(task.id)}/${entry.id}`)
+        .send({ hours: 3, expectedUpdatedAt: entry.updatedAt })
+    ).status
+  ).toBe(403);
+  const edits = await Promise.all(
+    [3, 4].map((hours) =>
+      owner
+        .mutate('patch', `${entriesPath(task.id)}/${entry.id}`)
+        .send({ hours, expectedUpdatedAt: entry.updatedAt })
+    )
+  );
+  expect(edits.map((r) => r.status).sort()).toEqual([200, 409]);
+  const history = (
+    await owner.agent.get(`${entriesPath(task.id)}/history`).query({ source: 'TIMER' })
+  ).body.items;
+  expect(history).toHaveLength(2);
+  expect(history[0]).toMatchObject({
+    eventType: 'UPDATED',
+    source: 'TIMER',
+    snapshotStartedAt: entry.startedAt,
+    snapshotEndedAt: entry.endedAt,
+    actor: { id: owner.user.id }
+  });
+  await owner.mutate('delete', `${entriesPath(task.id)}/${entry.id}`).send({});
+  expect(
+    (await owner.agent.get(`${entriesPath(task.id)}/history`).query({ eventType: 'DELETED' })).body
+      .items
+  ).toHaveLength(1);
+  expect(
+    (await owner.agent.get(`${entriesPath(task.id)}/history`).query({ endDate: '2000-01-01' })).body
+      .items
+  ).toEqual([]);
+  expect(
+    (await owner.agent.get(`${entriesPath(task.id)}/history`).query({ eventType: 'UNKNOWN' }))
+      .status
+  ).toBe(400);
+  expect(
+    (
+      await owner.agent
+        .get(`${entriesPath(task.id)}/history`)
+        .query({ startDate: '2026-09-12', endDate: '2026-09-01' })
+    ).status
+  ).toBe(400);
+  const foreignProject = await createProject(prisma),
+    foreign = await createTask(prisma, foreignProject.id);
+  expect((await owner.agent.get(`${entriesPath(foreign.id)}/history`)).status).toBe(404);
+});
+it('rolls back duration and actual effort when functional history cannot be written', async () => {
+  const project = await createProject(prisma),
+    owner = await register('effort-rollback@example.invalid', 'MEMBER', project.id),
+    task = await createTask(prisma, project.id);
+  const entry = (await owner.mutate('post', entriesPath(task.id)).send({ hours: 3 })).body.entry;
+  const { createTaskTimeEntryRepository } =
+    await import('../../src/modules/tasks/repositories/task-time-entry.repository.js');
+  const guarded = prisma.$extends({
+    query: {
+      taskEffortHistoryEntry: {
+        create() {
+          throw new Error('controlled effort history failure');
+        }
+      }
+    }
+  });
+  const repo = createTaskTimeEntryRepository(guarded);
+  await expect(
+    repo.updateAtomic(task.id, entry.id, {
+      projectId: project.id,
+      actorUserId: owner.user.id,
+      durationSeconds: 14400,
+      expectedUpdatedAt: entry.updatedAt
+    })
+  ).rejects.toThrow('controlled effort history failure');
+  expect((await prisma.taskTimeEntry.findUnique({ where: { id: entry.id } })).durationSeconds).toBe(
+    10800
+  );
+  expect((await prisma.task.findUnique({ where: { id: task.id } })).actualEffort).toBe(3);
+  expect(await prisma.taskEffortHistoryEntry.count({ where: { taskId: task.id } })).toBe(1);
 });

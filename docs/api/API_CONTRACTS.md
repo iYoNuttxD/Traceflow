@@ -197,13 +197,13 @@ ROUTE_NOT_FOUND` global.
 | GET    | `/requirements/:id`                                           | `id` positivo          | —                                             | `200`, `{requirement}`                                 |
 | PUT    | `/requirements/:id`                                           | `id` positivo          | subconjunto de `title`, `description`, `type` | `200`, `{message,requirement}`                         |
 | DELETE | `/requirements/:id`                                           | `id` positivo          | —                                             | `200`, `{message}`                                     |
-| PATCH  | `/requirements/:id/status`                                    | `id` positivo          | `status`                                      | `200`, `{message,requirement}`                         |
-| PATCH  | `/requirements/:id/confirm-completion`                        | `id` positivo          | nenhum                                        | `200`, `{message,requirement}`                         |
+| PATCH  | `/requirements/:id/status`                                    | `id` positivo          | `status`                                      | `409 REQUIREMENT_STATUS_DERIVED`                         |
+| PATCH  | `/requirements/:id/confirm-completion`                        | `id` positivo          | nenhum                                        | `409 REQUIREMENT_STATUS_DERIVED`                         |
 | GET    | `/requirements/:id/tasks`                                     | `id` positivo          | —                                             | `200`, `{requirementId,total,tasks}`                   |
 | PUT    | `/requirements/:id/tasks`                                     | `id` positivo          | `taskIds`: array único de até 100 IDs         | `200`, `{message,requirement,reassignedTasks,changes}` |
 | GET    | `/projects/:projectId/traceability/requirement-task-coverage` | `projectId` positivo   | —                                             | `200`, métricas atuais                                 |
 
-Tipos preservados: `FUNCIONAL`, `NAO_FUNCIONAL`, `REGRA_NEGOCIO`. Status preservados: `CADASTRADO`, `APROVADO`, `EM_IMPLEMENTACAO`, `VALIDADO`, `CONCLUIDO`, `PENDENTE`, `EM_ANDAMENTO`, `CANCELADO`. As transições continuam sendo regra de domínio do service.
+Tipos preservados: `FUNCIONAL`, `NAO_FUNCIONAL`, `REGRA_NEGOCIO`. Macros atuais: `PLANEJADO`, `EM_IMPLEMENTACAO`, `EM_VALIDACAO`, `EM_CORRECAO`, `CONCLUIDO`. `status` é derivado da policy de rastreabilidade e persistido na mesma transação; conclusão automática e reversível. Valores legados continuam reconhecidos por compatibilidade, sem novas escritas. POST/PUT não aceitam status manual (validação HTTP estrita); status/confirm-completion antigos retornam `409 REQUIREMENT_STATUS_DERIVED` após autorização e validação, sem mutação.
 
 ## Tasks, vínculos e Kanban
 
@@ -279,7 +279,7 @@ O response usa `Content-Type: text/event-stream`, `Cache-Control: no-cache, no-t
 }
 ```
 
-Os tipos atuais são `task.comment.created`, `task.comment.updated`, `task.comment.deleted` e, desde o S1-06, `task.time_entry.started`, `task.time_entry.stopped`, `task.time_entry.created` e `task.time_entry.deleted`; todos transportam o DTO seguro completo para merge local sem GET. Os eventos de sessão de tempo carregam `data.entry` (com `canDelete` resolvido por assinante) e `data.effort` (resumo já recalculado). O delete transporta o tombstone com `AUTHOR`, `MODERATION` ou `UNKNOWN`. Eventos são publicados somente depois da transaction da mutation concluir. Falha da mutation não publica; falha do publisher depois do commit não altera o sucesso REST e é recuperada por reconciliação posterior.
+Os tipos atuais são `task.comment.created`, `task.comment.updated`, `task.comment.deleted` e, desde o S1-06, `task.time_entry.started`, `task.time_entry.stopped`, `task.time_entry.created`, `task.time_entry.updated` e `task.time_entry.deleted`; todos transportam o DTO seguro completo para merge local sem GET. Os eventos de sessão de tempo carregam `data.entry` (com `canDelete` resolvido por assinante) e `data.effort` (resumo já recalculado). O delete transporta o tombstone com `AUTHOR`, `MODERATION` ou `UNKNOWN`. Eventos são publicados somente depois da transaction da mutation concluir. Falha da mutation não publica; falha do publisher depois do commit não altera o sucesso REST e é recuperada por reconciliação posterior.
 
 O servidor envia heartbeat em comentário SSE a cada 25 segundos, sem consulta ao banco, e encerra o stream após no máximo 15 minutos para nova autorização. Backpressure, erro de transporte, logout, revogação de sessão, saída/desativação de membership ou mudança de papel encerram a conexão. O publisher atual é in-memory e single-node; multi-node exigirá adapter de broker. Não há replay/event log persistente: quem consome o stream reconcilia por leitura própria ao reconectar, porque os eventos ocorridos com a conexão fechada não são reenviados. O Kanban não publica SSE, mas consome os eventos de sessão de tempo para atualizar o cronômetro do cartão, e refaz a leitura do quadro a cada reconexão.
 
@@ -334,11 +334,26 @@ Ordem de travas: as operações de esforço travam `Project` antes de `Task`, a 
 }
 ```
 
-`entries` é o histórico das sessões encerradas, da mais recente para a mais antiga, paginado por `page`/`limit` e filtrável por `startDate`/`endDate` (dia civil UTC sobre o encerramento) e `source` (`TIMER` ou `MANUAL`); `startDate` maior que `endDate` e origem fora do enum recebem `400`. Os filtros recortam apenas a página: `running` e `effort` continuam refletindo o total da tarefa. A sessão em andamento nunca aparece em `entries`, só em `running`.
+`entries` é o estado atual das sessões encerradas, da mais recente para a mais antiga, paginado por `page`/`limit` e filtrável por `startDate`/`endDate` (dia civil UTC sobre o encerramento) e `source` (`TIMER` ou `MANUAL`); `startDate` maior que `endDate` e origem fora do enum recebem `400`. Os filtros recortam apenas a página: `running` e `effort` continuam refletindo o total da tarefa. A sessão em andamento nunca aparece em `entries`, só em `running`.
 
 O DTO da tarefa (`GET /tasks/:id` e as colunas do Kanban) traz `runningTimer` — `{id,startedAt,startedBy}` da sessão aberta ou `null` — para o cartão exibir o cronômetro sem uma chamada por tarefa.
 
 Consolidação por sprint: `GET /sprints/:id/progress` passa a incluir `effort` (`tasks`, `tasksWithEstimate`, `tasksWithActual`, `estimatedHours`, `actualHours`, `differenceHours`, `differencePercent`, `usagePercent`, `status`, `perTask[]`) somando as tarefas da sprint; sprint encerrada lê `pointsAtClose` e o snapshot de fechamento em vez da tarefa viva. Tarefa sem estimativa não entra no limite, mas o realizado dela entra no total. O responsável (`responsibleUserId`, RF51) não se confunde com quem iniciou/parou a sessão: são campos distintos e ambos ficam registrados.
+
+## S1-09 — histórico funcional de esforço
+
+| Método | Caminho | Entrada | Resultado |
+|---|---|---|---|
+| GET | `/tasks/:id/time-entries/history` | `page`, `limit`, `startDate`, `endDate`, `source`, `eventType` opcionais | `200 {taskId,items,pagination}` |
+| PATCH | `/tasks/:id/time-entries/:entryId` | `{hours,expectedUpdatedAt}` | `200 {entry,effort}`; versão obsoleta `409` |
+
+`source`: TIMER/MANUAL. `eventType`: CREATED/UPDATED/DELETED, independente da origem. Datas são dias civis UTC inclusivos sobre `occurredAt`; filtros combináveis e paginação no banco por occurredAt DESC/id DESC. Intervalo invertido, origem/evento inválidos recebem 400. Leitura exige membership ativa; escrita conserva as permissões de sessão (autor MEMBER+ ou MANAGER/OWNER). Recurso fora do projeto autorizado recebe 404 opaco.
+
+Item: `id,projectId,taskId,sessionId,eventType,source,actorUserId,actor{id,name},previousSeconds,newSeconds,snapshotStartedAt,snapshotEndedAt,occurredAt,currentEntry,canEdit,canDelete`. Actor removido pode ser null. currentEntry é DTO da sessão ainda existente ou null, sem reconstruir estado antigo; ações usam a autorização atual. DTO de sessão acrescenta `updatedAt` e `canEdit`; `expectedUpdatedAt` é o valor retornado pelo servidor. Apenas sessões encerradas podem ser ajustadas; horas seguem `0 < hours ≤ 24`. No-op não cria evento.
+
+Lançamento manual ou encerramento de cronômetro cria CREATED; ajuste cria UPDATED com duração anterior/nova; exclusão cria DELETED com snapshot e duração excluída. Iniciar timer não representa esforço realizado. Sessão/total/histórico compartilham a transação e o lock Project → Task; falha de histórico desfaz tudo. A edição publica `task.time_entry.updated` somente após commit. GET antigo preserva `entries`, `running`, `effort`, `permissions`, `pagination`; não é uma trilha de eventos. Nenhum backfill inventa CREATED para sessões antigas.
+
+Ver [histórico de esforço](../data/TASK_EFFORT_HISTORY.md) para retenção, adoção e limites.
 
 ## GitHub e Artifacts
 
@@ -1138,13 +1153,13 @@ Correction usa NOT_APPLICABLE/PRESENT/MISSING; as demais dimensões são boolean
 
 History item: id, projectId, requirementId, fromSituation (nullable somente no
 baseline), toSituation, reason, sourceEntityType/id opcionais, metadataJson
-(rulesVersion=1), occurredAt. Cursor opaco é vinculado ao projeto/requisito;
+(rulesVersion=3 nas novas entradas; 1/2 históricas preservadas), occurredAt. Cursor opaco é vinculado ao projeto/requisito;
 cursor inválido/alheio retorna 400. GET é somente leitura e não inicializa State.
 Requisito removido retorna 404; suas transições persistidas não são apagadas.
 
 `neverExecuted` significa sem execução da **currentVersion**. A execução mais
 recente de outra versão não valida a atual; S1-07 mantém seu latestExecution
-histórico. `Requirement.status` e situation são diferentes. CONCLUIDO novo exige
-a cadeia técnica/qualidade completa e status persistido terminal CONCLUIDO.
+histórico. `Requirement.status` é o macro derivado de situation pela mesma policy. CONCLUIDO exige
+a cadeia técnica/qualidade completa e independe do status anterior; novas pendências reabrem a cadeia automaticamente.
 Política, exemplo JSON, hooks, migração, inicialização e limite de escala do
 agregado em memória: [Requirement Traceability History](../data/REQUIREMENT_TRACEABILITY_HISTORY.md).

@@ -32,7 +32,7 @@ export const traceabilityHelp = {
   ],
   situation: [
     'Situação da rastreabilidade',
-    'Estado atual calculado pelo backend a partir do planejamento, tarefas, artefatos técnicos, testes, defeitos, correções e retestes relacionados ao requisito.'
+    'Situação detalhada da cadeia. O status macro deriva desta mesma situação. A conclusão é automática e pode regredir quando houver novo trabalho, teste ou falha.'
   ],
   evidence: [
     'Evidências',

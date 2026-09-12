@@ -17,8 +17,8 @@ export function TestCaseSummary({ summary }) {
         <div>
           <span className="eyebrow">Resumo</span>
           <h2>Visão geral dos casos de teste</h2>
-          <p>Acompanhe os casos cadastrados, suas execuções e o estado atual da validação.</p>
         </div>
+        <p>Estado atual dos casos e das execuções visualizadas.</p>
       </div>
       <dl className="tc-metrics">
         {metrics.map(([label, value]) => (

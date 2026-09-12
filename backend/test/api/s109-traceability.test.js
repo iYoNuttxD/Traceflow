@@ -88,7 +88,7 @@ describe('S109 authenticated projection API', () => {
   it('filters the full server set before pagination and preserves global summary', async () => {
     const f = await fixture();
     const response = await f.get(
-      `${f.root}/requirements?search=Alpha&situation=SEM_RASTREABILIDADE&requirementStatus=CADASTRADO&hasTests=false&hasOpenDefects=false&hasTechnicalEvidence=false&limit=1`
+      `${f.root}/requirements?search=Alpha&situation=SEM_RASTREABILIDADE&requirementStatus=PLANEJADO&hasTests=false&hasOpenDefects=false&hasTechnicalEvidence=false&limit=1`
     );
     expect(response.status, response.text).toBe(200);
     expect(response.body.items[0].requirement.id).toBe(f.a.id);

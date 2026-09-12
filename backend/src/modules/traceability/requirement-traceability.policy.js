@@ -39,22 +39,41 @@ export function currentExecution(testCase) {
   );
 }
 
-export function deriveSituation({
-  legacyStage,
-  validation,
-  defects = {},
-  hasUntreatedFailure,
-  requirementStatus
-}) {
+export function deriveSituation({ legacyStage, validation, defects = {}, hasUntreatedFailure }) {
   if (defects.open || hasUntreatedFailure) return 'COM_FALHA';
   if (defects.inCorrection) return 'EM_CORRECAO';
   if (defects.waitingRetest) return 'AGUARDANDO_RETESTE';
   // Current quality takes precedence even when implementation is incomplete.
   if (legacyStage !== 'IMPLEMENTADO') return legacyStage;
   if (!validation.testCasesTotal) return 'IMPLEMENTADO';
-  if (validation.neverExecuted === validation.testCasesTotal) return 'AGUARDANDO_VALIDACAO';
+  if (validation.neverExecuted > 0) return 'AGUARDANDO_VALIDACAO';
   if (validation.pass !== validation.testCasesTotal) return 'EM_VALIDACAO';
-  return requirementStatus === 'CONCLUIDO' ? 'CONCLUIDO' : 'VALIDADO';
+  return 'CONCLUIDO';
+}
+
+export const REQUIREMENT_LIFECYCLE_STATUSES = Object.freeze([
+  'PLANEJADO',
+  'EM_IMPLEMENTACAO',
+  'EM_VALIDACAO',
+  'EM_CORRECAO',
+  'CONCLUIDO'
+]);
+export function deriveRequirementLifecycleStatus(situation) {
+  const statuses = {
+    SEM_RASTREABILIDADE: 'PLANEJADO',
+    PLANEJADO: 'PLANEJADO',
+    EM_DESENVOLVIMENTO: 'EM_IMPLEMENTACAO',
+    IMPLEMENTADO: 'EM_IMPLEMENTACAO',
+    AGUARDANDO_VALIDACAO: 'EM_VALIDACAO',
+    EM_VALIDACAO: 'EM_VALIDACAO',
+    VALIDADO: 'EM_VALIDACAO',
+    COM_FALHA: 'EM_CORRECAO',
+    EM_CORRECAO: 'EM_CORRECAO',
+    AGUARDANDO_RETESTE: 'EM_CORRECAO',
+    CONCLUIDO: 'CONCLUIDO'
+  };
+  if (!statuses[situation]) throw new Error('Unknown traceability situation');
+  return statuses[situation];
 }
 
 export function projectRequirement(requirement, testCases = [], defectRows = []) {
@@ -130,12 +149,13 @@ export function projectRequirement(requirement, testCases = [], defectRows = [])
           )
         ? 'PRESENT'
         : 'MISSING';
+  const situation = deriveSituation({ legacyStage, validation, defects, hasUntreatedFailure });
   return {
     requirement: {
       id: requirement.id,
       displayId: `REQ-${requirement.id}`,
       title: requirement.title,
-      status: requirement.status
+      status: deriveRequirementLifecycleStatus(situation)
     },
     progress: {
       ...metrics.progress,
@@ -161,13 +181,7 @@ export function projectRequirement(requirement, testCases = [], defectRows = [])
       correction
     },
     hasUntreatedFailure,
-    situation: deriveSituation({
-      legacyStage,
-      validation,
-      defects,
-      hasUntreatedFailure,
-      requirementStatus: requirement.status
-    })
+    situation
   };
 }
 

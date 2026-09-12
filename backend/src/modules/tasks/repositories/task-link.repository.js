@@ -3,24 +3,8 @@ import { prisma } from '../../../database/prismaClient.js';
 import { auditRepository } from '../../audit/audit.repository.js';
 import { taskInclude } from '../task.repository.js';
 
-async function recalculateRequirements(tx, requirementIds, calculateStatus) {
-  const ids = [...new Set(requirementIds.filter(Boolean))];
-  if (!ids.length) return;
-  const requirements = await tx.requirement.findMany({
-    where: { id: { in: ids } },
-    select: { id: true, status: true, tasks: { select: { status: true } } }
-  });
-  for (const requirement of requirements) {
-    if (['CONCLUIDO', 'CANCELADO'].includes(requirement.status)) continue;
-    const status = calculateStatus(requirement.tasks);
-    if (status !== requirement.status) {
-      await tx.requirement.update({ where: { id: requirement.id }, data: { status } });
-    }
-  }
-}
-
 export const taskLinkRepository = {
-  async setRequirement(task, requirementId, auditEvent, calculateStatus) {
+  async setRequirement(task, requirementId, auditEvent) {
     return traceabilityTransaction(
       {
         projectId: task.projectId,
@@ -36,7 +20,6 @@ export const taskLinkRepository = {
           data: { requirementId },
           include: taskInclude
         });
-        await recalculateRequirements(tx, [task.requirementId, requirementId], calculateStatus);
         if (auditEvent) await auditRepository.create(auditEvent, tx);
         return updated;
       }

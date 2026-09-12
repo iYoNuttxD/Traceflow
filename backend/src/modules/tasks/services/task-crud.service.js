@@ -9,7 +9,6 @@ import {
   resolveResponsibleUser
 } from '../task.service-support.js';
 import { buildAuditEvent } from '../../audit/audit.service.js';
-import { calculateRequirementStatus } from '../../requirements/requirement.schema.js';
 
 export async function prepareTaskCreation(projectId, data, lookup = taskRepository) {
   const taskData = buildTaskData(data, true);
@@ -38,8 +37,7 @@ export const taskCrudService = {
         requestId: context.requestId,
         action: 'TASK_CREATED',
         resourceType: 'Task'
-      }),
-      calculateRequirementStatus
+      })
     );
     return formatTask(task);
   },
@@ -77,7 +75,6 @@ export const taskCrudService = {
     const task = await taskRepository.updateTaskAtomic(id, taskData, {
       historyEntries,
       previousRequirementId: current.requirementId,
-      calculateRequirementStatus,
       auditEvent: buildAuditEvent({
         actorUserId: context.actorUserId,
         projectId: current.projectId,
@@ -95,7 +92,6 @@ export const taskCrudService = {
     const task = await ensureTaskExists(id);
     await taskRepository.deleteTask(id, {
       requirementId: task.requirementId,
-      calculateRequirementStatus,
       auditEvent: buildAuditEvent({
         actorUserId: context.actorUserId,
         projectId: task.projectId,

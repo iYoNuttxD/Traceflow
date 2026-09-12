@@ -148,7 +148,7 @@ describe('Requirement projections and cards', () => {
         ))}
       </>
     );
-    expect(screen.getByText(/Acompanhe a distribuição dos requisitos/)).toBeInTheDocument();
+    expect(screen.getByText(/Estado atual dos requisitos/)).toBeInTheDocument();
     expect(overviewMetrics(summary).map((m) => m[1])).toEqual([4, 1, 0, 2, 0]);
     expect(
       screen.getAllByText(/^(Em correção|Com falha)$/, { selector: '.requirement-situation' })
@@ -272,7 +272,7 @@ describe('Traceability catalog', () => {
       view = renderPage();
     await filters(user);
     expect(view.container.querySelector('.planning-filter-panel__actions')).toBeNull();
-    await user.selectOptions(screen.getByLabelText('Situação'), 'COM_FALHA');
+    await user.selectOptions(screen.getByLabelText('Situação detalhada'), 'COM_FALHA');
     await waitFor(() =>
       expect(api.getRequirementsTraceability).toHaveBeenLastCalledWith(
         '9',
@@ -286,7 +286,7 @@ describe('Traceability catalog', () => {
     );
   });
   it.each([
-    ['Status do requisito', 'requirementStatus', 'CONCLUIDO'],
+    ['Status', 'requirementStatus', 'CONCLUIDO'],
     ['Com casos de teste', 'hasTests', 'false'],
     ['Com defeitos pendentes', 'hasOpenDefects', 'true'],
     ['Com evidência técnica', 'hasTechnicalEvidence', 'false']
@@ -335,7 +335,7 @@ describe('Traceability catalog', () => {
     expect(screen.getAllByText('Requisito 10')).toHaveLength(1);
     await user.click(screen.getByText('Carregar mais requisitos'));
     await filters(user);
-    await user.selectOptions(screen.getByLabelText('Situação'), 'CONCLUIDO');
+    await user.selectOptions(screen.getByLabelText('Situação detalhada'), 'CONCLUIDO');
     await screen.findByText('Requisito 20');
     await settle(more, result([item(99)], 3, 3));
     expect(screen.queryByText('Requisito 99')).not.toBeInTheDocument();
@@ -350,9 +350,9 @@ describe('Traceability catalog', () => {
       .mockReturnValueOnce(b.promise);
     renderPage();
     await filters(user);
-    await user.selectOptions(screen.getByLabelText('Situação'), 'COM_FALHA');
+    await user.selectOptions(screen.getByLabelText('Situação detalhada'), 'COM_FALHA');
     await waitFor(() => expect(api.getRequirementsTraceability).toHaveBeenCalledTimes(2));
-    await user.selectOptions(screen.getByLabelText('Situação'), 'CONCLUIDO');
+    await user.selectOptions(screen.getByLabelText('Situação detalhada'), 'CONCLUIDO');
     await waitFor(() => expect(api.getRequirementsTraceability).toHaveBeenCalledTimes(3));
     await settle(b, result([item(20)]));
     await settle(a, result([item(99)]));
@@ -524,7 +524,7 @@ describe('Additional traceability regressions', () => {
     await user.click(await screen.findByText('Ver rastreabilidade'));
     await screen.findByTestId('flow');
     await filters(user);
-    await user.selectOptions(screen.getByLabelText('Situação'), 'COM_FALHA');
+    await user.selectOptions(screen.getByLabelText('Situação detalhada'), 'COM_FALHA');
     await user.click(screen.getByText('Projeto B'));
     await screen.findByText('Requisito 10');
     expect(screen.queryByTestId('flow')).not.toBeInTheDocument();

@@ -207,3 +207,253 @@ HEAD e branch preservados; sem alteração em package manifests/lockfiles, schem
 Sem commit, push, merge, rebase, reset, force-push, clean ou stash. A homologação visual foi de leitura; a única escrita funcional fora dos testes foi a reconciliação local explicitamente autorizada. Preview e abas auxiliares de QA encerrados, viewport restaurado e tema Escuro preservado ao final.
 
 **S1-09 TRACEABILITY GRAPH WORKSPACE UX — PASS LOCAL.** A Etapa 5 está encerrada localmente. A próxima atividade depende de novo pedido para o Final Integrated QA; não foi iniciada nesta execução.
+
+## FINAL TARGETED CORRECTIONS
+
+**2026-09-12 — S1-09 TRACEABILITY GRAPH WORKSPACE UX — PASS LOCAL.**
+Esta seção registra a rodada posterior de lifecycle, esforço e refinamentos
+finais. Substitui as afirmações anteriores de conclusão manual, schema inalterado
+e cobertura visual parcial; as seções anteriores permanecem como registro da
+revisão de 11/09. Não inicia Etapa 6 nem o Final Integrated QA.
+
+### Baseline e alcance
+
+Checkout operacional `/Users/daniel/Coding/Traceflow`, branch `daniel-dev`, HEAD
+`566fc1a33e2282a302e1176b96e3d12911b74ce3`. Working tree inicial limpa e
+`git diff --check` inicial sem erro. Branch/HEAD preservados ao fechamento.
+Alterações limitadas aos owners de lifecycle/reconciliação, esforço, DTOs
+necessários ao Inspector/cards, superfícies solicitadas, testes e documentação.
+
+### Lifecycle único, automático e reversível
+
+Antes, calculadores por Tasks escreviam APROVADO/VALIDADO independentemente da
+qualidade, e a policy exigia status terminal prévio para concluir. Isso permitia
+macro APROVADO junto de situação EM_CORRECAO e conclusão circular/manual.
+
+Agora `projectRequirement` deriva a situação da cadeia atual e
+`deriveRequirementLifecycleStatus` produz o macro. Calculadores paralelos foram
+removidos; `Requirement.status` continua persistido, como String (não enum Prisma),
+com default PLANEJADO. As onze situações mapeiam para cinco macros conforme a
+[tabela canônica](../traceability/S1_09_TRACEABILITY_RULES_BASELINE.md#autoridade-única-e-mapa-canônico).
+Status macro principal: Planejado, Em implementação, Em validação, Em correção,
+Concluído. Situação detalhada continua explicando a cadeia.
+
+Implementação técnica satisfeita, casos relevantes ativos não vazios, todos PASS
+na currentVersion e nenhum Defect pendente produzem CONCLUIDO sem aceite manual.
+Preservadas a precedência de falhas/correção/reteste, relevância, cobertura por
+passo, evidência técnica e a exigência de reteste contextual para validar Defect.
+VALIDADO permanece reconhecido no histórico/mapa; aprovação completa atual vai
+diretamente a CONCLUIDO. PASS de versão antiga não valida a nova.
+
+| Nova informação após conclusão | Situação / macro sem condição de maior prioridade |
+|---|---|
+| Task A_FAZER ou EM_ANDAMENTO | EM_DESENVOLVIMENTO / EM_IMPLEMENTACAO |
+| Novo TestCase ativo sem execução corrente | AGUARDANDO_VALIDACAO / EM_VALIDACAO |
+| Nova versão sem execução | AGUARDANDO_VALIDACAO / EM_VALIDACAO |
+| FAIL atual não tratado ou Defect ABERTO | COM_FALHA / EM_CORRECAO |
+| Correção / espera de reteste | EM_CORRECAO ou AGUARDANDO_RETESTE / EM_CORRECAO |
+| Todas as pendências satisfeitas novamente | CONCLUIDO / CONCLUIDO |
+
+Mutação original, macro, State e histórico compartilham a transação. Os retornos
+de Requirement e Task com requisito relacionado refletem o macro reconciliado.
+Novas transições usam rulesVersion 3; eventos antigos não são reescritos.
+Reparação apenas do macro aparece em `statusChanges`, sem inventar transição em
+`changes`. GET não grava. Endpoints legados de status/confirm-completion mantêm
+autorização/validação e rejeitam com `409 REQUIREMENT_STATUS_DERIVED`; a ação de
+conclusão foi retirada da UI e status não é aceito no CRUD manual.
+
+### Auditoria APROVADO e dependências de status
+
+| Uso | Categoria | Ação |
+|---|---|---|
+| calculateRequirementStatus e recálculos em Task/Requirement/Defect | A — lifecycle operacional antigo | Removidos; reconciliação pela policy única |
+| Exigência de status terminal na situation | A — lifecycle operacional antigo | Removida; conclusão pelos fatos atuais |
+| Botão Confirmar conclusão / handler RequirementsScreen | A — lifecycle operacional antigo | Removidos |
+| Aprovação independente da especificação | B — aprovação real | Nenhum fluxo independente identificado; não se presume que APROVADO antigo provava aceite |
+| TestCaseList, TestExecutionWizard, Parts, TaskQuality: label Aprovado para PASS | Semântica de resultado de teste, fora do lifecycle de Requirement | Preservada |
+| requirement.validation / traceability.validation: tokens legados | C — compatibilidade API | Reconhecidos; endpoint manual bloqueado e filtro antigo sem remapeamento implícito |
+| RequirementsScreen e kanban-display: labels legados | C — compatibilidade de leitura | Fallback preservado; rastreabilidade principal apresenta somente os cinco macros |
+| Migrations aplicadas, registros anteriores, relatórios históricos e fixtures legadas | C — compatibilidade histórica | Preservados; nenhum rewrite destrutivo |
+| requirements.api.confirmRequirementCompletion e reexport sem caller na UI | D — helper legado sem fluxo operacional | Mantido como ponte compatível; servidor rejeita escrita manual |
+| recalculateRequirementStatus do service | Ponte legada | Delega ao repository canônico; não calcula outro lifecycle |
+
+Status participa de DTOs/CRUD/relatórios e filtros. O filtro de rastreabilidade
+opera sobre a projeção completa antes da paginação; agora Status é principal e
+Situação detalhada fica em Detalhamento opcional. Autorização continua baseada
+em membership/papel e contexto, sem converter macro em permissão. Clientes
+externos não foram executados; a mudança de escrita manual para 409 está no
+[contrato de API](../api/API_CONTRACTS.md).
+
+### Esforço persistido e auditável
+
+`TaskEffortHistoryEntry` registra CREATED, UPDATED e DELETED independentemente de
+TIMER/MANUAL. Identifica projeto, Task, sessão, ator autenticado, horário servidor,
+duração anterior/nova e início/fim físicos. Manual e encerramento de timer geram
+CREATED; iniciar timer ainda não é esforço realizado. Ajuste mantém os timestamps
+físicos e registra a duração nova explicitamente. No-op não gera evento.
+
+`PATCH /tasks/:id/time-entries/:entryId` exige horas e expectedUpdatedAt. Lock
+Project → Task, releitura, versão otimista monotônica, escrita da sessão, total
+e histórico na mesma transação. Concorrência retorna um sucesso e um conflito;
+falha injetada no append desfaz toda a mudança. Permissões continuam autor
+MEMBER+ ou moderação MANAGER/OWNER. SSE de edição é publicado após commit.
+
+Excluir retira a duração do total atual, preservando DELETED e todos os eventos
+anteriores. Sem FK à sessão/Task removível; retenção acompanha Project, e remoção
+do ator neutraliza a FK. Não há endpoint para editar eventos. GET de Task
+inexistente permanece 404, mesmo com histórico armazenado.
+
+`GET /tasks/:id/time-entries/history` pagina no banco e combina data UTC do evento,
+origem e evento. DTO expõe snapshot e currentEntry separado, com autorização
+atual. Dialog inicia em Histórico de eventos e oferece Sessões atuais pelo GET
+antigo, inclusive sessões anteriores à adoção. Datas desta segunda visão filtram
+encerramento; Evento fica desabilitado. Sem backfill de eventos inventados.
+Detalhes: [histórico de esforço](../data/TASK_EFFORT_HISTORY.md).
+
+### Migration e adoção local
+
+Migration nova `20260912010000_s109_lifecycle_effort_history`: tabela/índices/FKs de
+histórico e default PLANEJADO. Nenhuma migration aplicada foi editada.
+`validate-s109-lifecycle-migration.js` validou cadeia completa vazia e upgrade
+populado com APROVADO legado, Task e sessão manual. Comparação antes/depois
+preservou os registros integralmente; histórico iniciou vazio e status ficou
+atualizado. Somente os dois schemas descartáveis criados pelo validador foram
+removidos no cleanup. Nenhum reset/truncate de banco existente.
+
+Ambiente conferido: NODE_ENV development, MySQL local `traceflow`; teste local
+separado `traceflow_test`. Após conferir o fluxo normal de desenvolvimento,
+`prisma migrate deploy` aplicou a migration local. `migrate status`: 55 migrations,
+up to date no desenvolvimento e no teste. Nenhuma alteração em produção.
+
+Reconciliação dos 12 projetos locais: projeto 2 tinha quatro reparações de macro,
+zero transições detalhadas; demais projetos sem requisitos a reconciliar.
+REQ-4/REQ-3 passaram de EM_IMPLEMENTACAO a EM_CORRECAO; REQ-2 de CADASTRADO a
+PLANEJADO; REQ-1 de APROVADO a EM_IMPLEMENTACAO. Histórico anterior comparado e
+preservado. Segundo apply: zero statusChanges e zero changes em todos os projetos.
+
+### Navegação, cards e Inspector
+
+Ordem final: Visão geral → Requisitos → Sprints → Marcos → Cronograma → Tarefas →
+Kanban → Casos de teste → Defeitos → Repositório → Rastreabilidade. URLs mantidas.
+Barra com overflow-x auto/overflow-y hidden, altura mínima e indicador interno;
+ResizeObserver revela a aba ativa alterando somente scrollLeft. Foco/teclado e
+aria-current preservados. Correção local evita colapso da barra no layout legado.
+
+Overviews usam descrição curta como irmão do bloco de título, família Kanban.
+Defect conserva shell TestCase, badges/permissões/footer e acrescenta trail
+Detecção → Correção → Reteste → Validado, seção Rastreabilidade e Correção/Reteste
+dinâmico. Latest retest vem do backend em batch, sem consulta por card ou PASS
+presumido. A comparação com Task/TestCase verificou header, metadata, divisores,
+geometria, seções e ações.
+
+Inspector organiza identidade, badges, Informações, Rastreabilidade, Relações e
+ação final. Task exibe estimado/realizado/% pelos mesmos helpers canônicos:
+5h/7h = 140%/Tempo estourado; sem estimativa não há percentual e zero é 0h.
+PR mostra branches/datas reais; Commit/Issue preservam informação disponível e
+relações. GitHub reutiliza GithubExternalAction sem underline, inclusive suas
+regras canônicas de estados de link. Nenhuma dependência ou CSS global novo.
+
+### Matriz visual real
+
+Chrome/macOS, sessão autenticada no projeto local 2; larguras verificadas no DOM.
+Cada célula refere-se à inspeção renderizada, não inferida de testes DOM.
+
+| Superfície | L1440 | D1440 | L1280 | D1280 | L768 | D768 | L390 | D390 |
+|---|---|---|---|---|---|---|---|---|
+| Project Tabs | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
+| TestCases Overview | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
+| Defects Overview | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
+| Traceability Overview | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
+| Traceability filters / Requirement Cards | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
+| Defect ABERTO | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
+| Defect EM_CORRECAO | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
+| Defect AGUARDANDO_RETESTE | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
+| Defect VALIDADO | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
+| Traceability Workspace / Task Inspector | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
+| PR Inspector | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
+| Effort History dialog integrado | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
+| Effort History com CREATED/UPDATED/DELETED persistidos em teste | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
+
+Dados reais: REQ-4 Em correção/25%, REQ-3 Com falha/75%, REQ-2 Sem rastreabilidade,
+REQ-1 Em desenvolvimento/0%. DEF-4 aguardando reteste, DEF-3 em correção, DEF-2
+aberto, DEF-1 validado com PASS real EXEC-5/ciclo 2. Task Card de referência foi
+comparado no Kanban Light/Dark desktop; não se atribui ao Kanban uma nova matriz
+completa independente.
+
+Task 16 inicialmente mostrou 5h/7h/140%; depois, os dados atualizados da sessão
+mostraram exclusão de 3h, sessão atual de 4h e total 4h/5h/80% coerente entre
+Task Details, Kanban e Inspector. A exclusão já estava persistida ao ser lida;
+não foi ação executada nesta homologação. Histórico integrado exibiu ator/data e
+DELETED, com Manual + Excluído aplicado. Preview separado usou DTOs retornados
+pelos testes de persistência 3h → 4h → exclusão, sem simular consulta integrada.
+
+Mobile manteve seções e footer acessíveis por scroll interno/teclado. DOM final
+confirmou aba ativa visível, sem overflow horizontal da página nem vertical das
+tabs nas quatro larguras. Foco em relações e link GitHub sem underline computado
+foram observados; pseudo-estados usam CSS canônico, sem alegar navegação externa
+ou teste manual individual de todos eles. Datas combinadas, sem estimativa/zero,
+IDOR, permissões e concorrência têm evidência automatizada. Capturas foram
+observadas na execução, sem pacote PNG versionado. Não certifica dispositivos
+físicos/WCAG integral nem substitui QA integrado final/CI remoto.
+
+### Regressões e gates finais
+
+Red inicial reproduziu quatro falhas da policy e PATCH de esforço inexistente
+(404). Regressões passaram após corrigir os owners canônicos. Testes cobrem mapa
+11→5, conclusão/reabertura/retorno, versão antiga, FAIL/Defect, reparação de macro,
+imutabilidade e rollback; esforço manual/timer, filtros combinados, ator, edição,
+exclusão, autorização, conflito e total atual. Query-count e limites de grafo
+permaneceram verdes. A espera de foco no teste frontend acompanha o foco real do
+dialog, sem sleep, retry ou aumento de timeout. Nenhum skip novo.
+
+| Gate final | Resultado |
+|---|---|
+| Backend focused policy/calculators/API/integration | 134 PASS, 6 arquivos; effort API final 11 PASS |
+| Backend unit | 757 PASS, 65 arquivos |
+| Backend integration/API | 508 PASS, 34 arquivos; 5 skips legados em 2 arquivos |
+| Backend full coverage ×3 consecutivas | 1.265 PASS por rodada, 99 arquivos; mesmos 5 skips legados |
+| Backend coverage S/B/F/L, nas três rodadas | 91.40% / 82.66% / 94.79% / 93.67% |
+| Frontend focused ×10 consecutivas | 328 PASS, 20 arquivos por rodada; todas exit 0 |
+| Frontend full | 1.121 PASS, 91 arquivos |
+| Frontend coverage | 1.121 PASS; S/B/F/L 81.43% / 76.60% / 77.12% / 83.55% |
+| Backend/frontend lint e format:check | PASS |
+| Frontend build | PASS; aviso existente de chunk ELK maior que 500kB, 1.433,73kB |
+| Backend architecture:check / security:secrets | PASS |
+| Prisma validate / generate | PASS |
+| Migration vazia / upgrade populado / status | PASS |
+| Testes do wrapper npm-audit | 5 PASS |
+| Audit real backend/frontend | PASS, zero high/critical e zero exceções utilizadas |
+| Manifests/lockfiles/supply chain | Sem alterações ou dependências novas |
+| git diff --check | PASS |
+
+Node 22; frontend com `NODE_OPTIONS=--no-experimental-webstorage`. Backend:
+`npm run test:unit`, `npm run test:integration`, `npm run test:coverage` (três vezes).
+Frontend `npm test`, `npm run test:coverage`, lint/format/build. Focused repetido:
+
+```bash
+npm test -- test/components/S109FinalCorrections.test.jsx test/components/TraceabilityWorkspace.test.jsx test/components/TraceabilityLayout.test.js test/pages/TraceabilityPage.test.jsx test/components/TaskEffortTracker.test.jsx test/features/useTaskEffort.test.jsx test/defects test/testCases test/pages/RequirementsPage.test.jsx
+```
+
+Audit: `node --test scripts/check-npm-audit.test.mjs` e wrapper real
+`node scripts/check-npm-audit.mjs <backend|frontend> docs/security/npm-audit-exceptions.json`.
+Logs locais fora do repositório em `/private/tmp/traceflow-s109-lifecycle/`:
+`final-backend-*` e `closure-frontend-*` identificam as rodadas finais; logs red e
+intermediários não substituem os resultados da tabela.
+
+### Documentação, limpeza e encerramento
+
+Depois dos gates funcionais: baseline/regras, contratos, especificações de
+histórico, Design System, inventário de superfícies e log visual atualizados.
+Diff completo revisado, incluindo arquivos novos e testes. Sem código fora do
+escopo, migration antiga editada, dependência acidental, debug ou lifecycle
+duplicado. Arquivos `frontend/s109-effort-qa.html`, `.jsx` e `.json` criados para
+esta QA removidos explicitamente; abas auxiliares fechadas, viewport restaurado,
+tema Escuro e aba principal preservados. Logs de evidência temporários ficaram
+fora do produto. Fixtures permanentes de regressão permanecem nos testes.
+
+Sem commit, push, merge, rebase, reset, force-push, clean ou stash. Migração e
+reconciliação ocorreram somente no desenvolvimento local conferido; navegação
+visual foi de leitura. Nenhuma conclusão sobre CI remoto ou produção.
+
+**S1-09 TRACEABILITY GRAPH WORKSPACE UX — PASS LOCAL.** Trabalho encerrado nesta
+rodada. Final Integrated QA não iniciado.

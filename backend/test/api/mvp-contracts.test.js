@@ -227,7 +227,7 @@ describe('contratos de requisitos e vínculo com tarefas', () => {
         projectId: project.id,
         title: 'Requisito HTTP',
         type: 'FUNCIONAL',
-        status: 'CADASTRADO',
+        status: 'PLANEJADO',
         tasks: []
       }
     });
@@ -318,28 +318,17 @@ describe('contratos de requisitos e vínculo com tarefas', () => {
     const earlyCompletionResponse = await api.patch(
       `/api/requirements/${requirement.id}/confirm-completion`
     );
-    expect(earlyCompletionResponse.status).toBe(400);
-    expect(earlyCompletionResponse.body).toEqual({
-      message: 'Apenas requisitos validados podem ser concluídos.'
-    });
-
-    const statusResponse = await api
-      .patch(`/api/requirements/${requirement.id}/status`)
-      .send({ status: 'VALIDADO' });
-    expect(statusResponse.status).toBe(200);
-    expect(statusResponse.body).toMatchObject({
-      message: 'Status do requisito atualizado com sucesso.',
-      requirement: { id: requirement.id, status: 'VALIDADO' }
-    });
-
-    const completionResponse = await api.patch(
-      `/api/requirements/${requirement.id}/confirm-completion`
+    expect(earlyCompletionResponse.status).toBe(409);
+    for (const status of ['APROVADO', 'VALIDADO', 'CONCLUIDO', 'EM_IMPLEMENTACAO']) {
+      const response = await api
+        .patch(`/api/requirements/${requirement.id}/status`)
+        .send({ status });
+      expect(response.status).toBe(409);
+      expect(response.body.message).toContain('derivado automaticamente');
+    }
+    expect((await api.get(`/api/requirements/${requirement.id}`)).body.requirement.status).toBe(
+      requirement.status
     );
-    expect(completionResponse.status).toBe(200);
-    expect(completionResponse.body).toMatchObject({
-      message: 'Requisito concluído com sucesso.',
-      requirement: { id: requirement.id, status: 'CONCLUIDO' }
-    });
 
     expect((await api.get('/api/requirements/999999')).status).toBe(404);
     expect(

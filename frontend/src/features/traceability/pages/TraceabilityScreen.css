@@ -22,7 +22,7 @@
 }
 .requirement-filter-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-4);
 }
 .requirement-card {
@@ -244,4 +244,26 @@
 }
 .requirement-evidence > .trace-help-label {
   flex-basis: 100%;
+}
+
+.requirement-filter-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-column: 1 / -1;
+  gap: var(--space-3) var(--space-4);
+  min-width: 0;
+  padding: var(--space-3) 0 0;
+  margin: 0;
+  border: 0;
+  border-top: var(--border-width-default) solid var(--color-border-default);
+}
+.requirement-filter-details legend {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-1);
+  padding-right: var(--space-3);
+}
+@container sprints-page (max-width: 40rem) {
+  .requirement-filter-details {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

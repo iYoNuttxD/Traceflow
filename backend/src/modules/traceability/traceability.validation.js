@@ -61,6 +61,9 @@ export const requirementProjectionQuerySchema = strictObject({
     .enum([
       'CADASTRADO',
       'APROVADO',
+      'PLANEJADO',
+      'EM_VALIDACAO',
+      'EM_CORRECAO',
       'EM_IMPLEMENTACAO',
       'VALIDADO',
       'CONCLUIDO',
