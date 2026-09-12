@@ -54,9 +54,7 @@
   transform: rotate(-90deg);
 }
 .kanban-sprint-filter__popover {
-  position: absolute;
-  top: calc(100% + var(--space-2));
-  right: 0;
+  position: fixed;
   z-index: var(--z-popover);
   width: min(24rem, calc(100vw - (2 * var(--layout-page-gutter))));
   padding: var(--space-3);

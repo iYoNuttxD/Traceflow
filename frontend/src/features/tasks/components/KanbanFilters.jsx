@@ -1,3 +1,4 @@
+import { ResponsibleCombobox, SelectControl } from '../../../shared/index.js';
 import { CollapsibleFilterPanel } from '../../schedule/index.js';
 import { priorityLabels } from './kanban-display.js';
 
@@ -22,13 +23,13 @@ export function KanbanFilters({
       activeCount={activeCount}
       className="kanban-filters"
     >
-      <div className="kanban-filters__actions">
-        {activeCount > 0 && (
+      {activeCount > 0 && (
+        <div className="kanban-filters__actions">
           <button type="button" className="kanban-filters__clear" onClick={onClear}>
             Limpar filtros
           </button>
-        )}
-      </div>
+        </div>
+      )}
       <div className="kanban-filters__controls">
         <label className="kanban-filter kanban-filter--search">
           <span>Pesquisar</span>
@@ -39,25 +40,15 @@ export function KanbanFilters({
             onChange={(event) => onChange('search', event.target.value)}
           />
         </label>
-        <label className="kanban-filter">
-          <span>Responsável</span>
-          <select
-            value={filters.responsibleUserId}
-            onChange={(event) => onChange('responsibleUserId', event.target.value)}
-          >
-            <option value="">Todos</option>
-            {members
-              .filter((member) => member.isActive !== false)
-              .map((member) => (
-                <option key={member.id} value={member.user?.id || member.userId}>
-                  {member.user?.name || 'Membro sem nome'}
-                </option>
-              ))}
-          </select>
-        </label>
+        <ResponsibleCombobox
+          members={members}
+          value={filters.responsibleUserId}
+          onChange={(value) => onChange('responsibleUserId', value)}
+        />
+
         <label className="kanban-filter">
           <span>Prioridade</span>
-          <select
+          <SelectControl
             value={filters.priority}
             onChange={(event) => onChange('priority', event.target.value)}
           >
@@ -67,7 +58,7 @@ export function KanbanFilters({
                 {label}
               </option>
             ))}
-          </select>
+          </SelectControl>
         </label>
         <label className="kanban-filter">
           <span>Prazo inicial</span>

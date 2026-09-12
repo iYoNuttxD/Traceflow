@@ -200,6 +200,23 @@ export const taskController = {
     { fallbackMessage: 'Erro interno ao excluir comentário da tarefa.' }
   ),
 
+  listEffortHistory: asyncHandler(
+    async (req, res) =>
+      res.json(await taskService.listTaskEffortHistory(req.params.id, req.query, context(req))),
+    { fallbackMessage: 'Erro ao carregar histórico de esforço.' }
+  ),
+  updateTimeEntry: asyncHandler(
+    async (req, res) =>
+      res.json(
+        await taskService.updateTaskTimeEntry(
+          req.params.id,
+          req.params.entryId,
+          req.body,
+          context(req)
+        )
+      ),
+    { fallbackMessage: 'Erro ao editar sessão.' }
+  ),
   listTimeEntries: asyncHandler(
     async (req, res) => {
       return res.json(

@@ -163,6 +163,22 @@ export const privacyRepository = {
           where: { userId: request.userId },
           data: { isActive: false }
         });
+        // Privacy neutralization is the explicit exception to immutable display snapshots.
+        // Definitions, outcomes and evidence bytes remain historical project records.
+        await tx.testExecution.updateMany({
+          where: { executedByUserId: request.userId },
+          data: { executedByDisplayNameSnapshot: anonymous.name }
+        });
+        await tx.$executeRaw`
+          UPDATE TestCaseHistoryEntry
+          SET metadataJson = JSON_SET(metadataJson, '$.from.name', ${anonymous.name})
+          WHERE action = 'RESPONSIBLE_CHANGED' AND JSON_EXTRACT(metadataJson, '$.from.id') = ${request.userId}
+        `;
+        await tx.$executeRaw`
+          UPDATE TestCaseHistoryEntry
+          SET metadataJson = JSON_SET(metadataJson, '$.to.name', ${anonymous.name})
+          WHERE action = 'RESPONSIBLE_CHANGED' AND JSON_EXTRACT(metadataJson, '$.to.id') = ${request.userId}
+        `;
         await tx.task.updateMany({
           where: { responsibleUserId: request.userId },
           data: { responsible: anonymous.name }

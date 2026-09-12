@@ -24,6 +24,9 @@ const requirementStatus = z
   .pipe(
     z.enum(
       [
+        'PLANEJADO',
+        'EM_VALIDACAO',
+        'EM_CORRECAO',
         'CADASTRADO',
         'APROVADO',
         'EM_IMPLEMENTACAO',

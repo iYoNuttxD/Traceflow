@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { SearchCombobox } from '../../src/features/schedule/components/SearchCombobox.jsx';
+import { SearchCombobox } from '../../src/shared/components/SearchCombobox.jsx';
 
 const options = [
   { id: 1, title: 'Marco inicial' },
@@ -34,6 +34,7 @@ describe('SearchCombobox', () => {
     await act(() => vi.advanceTimersByTimeAsync(300));
     expect(search).toHaveBeenCalledWith('ma', expect.any(AbortSignal));
     expect(screen.getAllByRole('option')).toHaveLength(2);
+    expect(fireEvent.mouseDown(screen.getAllByRole('option')[0])).toBe(false);
   });
 
   it('seleciona o resultado ativo com teclado', async () => {
@@ -139,5 +140,62 @@ describe('SearchCombobox', () => {
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Remover Marco inicial' }));
     expect(onClear).toHaveBeenCalledTimes(1);
+  });
+  it('keeps opt-in zero-query choices closed on focus and opens with ArrowDown', async () => {
+    render(
+      <SearchCombobox
+        label="Referência"
+        minQueryLength={0}
+        openOnFocus={false}
+        options={options}
+        onSelect={vi.fn()}
+      />
+    );
+    const input = screen.getByRole('combobox');
+    fireEvent.focus(input);
+    expect(input).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    await act(() => vi.advanceTimersByTimeAsync(300));
+    expect(screen.getAllByRole('option')).toHaveLength(2);
+    fireEvent.keyDown(input, { key: 'Escape' });
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    fireEvent.change(input, { target: { value: 'Marco' } });
+    await act(() => vi.advanceTimersByTimeAsync(300));
+    expect(screen.getByRole('option', { name: 'Marco inicial' })).toBeInTheDocument();
+  });
+  it('keeps the list anchored inside its field during scroll and resize', async () => {
+    render(
+      <section role="dialog">
+        <div data-testid="body">
+          <SearchCombobox
+            label="Referência"
+            minQueryLength={0}
+            openOnFocus={false}
+            options={options}
+            onSelect={vi.fn()}
+          />
+        </div>
+      </section>
+    );
+    const input = screen.getByRole('combobox');
+    fireEvent.click(input);
+    await act(() => vi.advanceTimersByTimeAsync(300));
+    let list = screen.getByRole('listbox');
+    expect(list.parentElement).toBe(input.parentElement);
+    expect(list.style.position).not.toBe('fixed');
+    expect(fireEvent.mouseDown(list)).toBe(true);
+    expect(fireEvent.mouseDown(screen.getAllByRole('option')[0])).toBe(false);
+    fireEvent.scroll(list);
+    expect(screen.getByRole('listbox')).toBeInTheDocument();
+    fireEvent.scroll(screen.getByTestId('body'));
+    expect(screen.getByRole('listbox')).toBeInTheDocument();
+    fireEvent.click(input);
+    await act(() => vi.advanceTimersByTimeAsync(300));
+    fireEvent.resize(window);
+    expect(screen.getByRole('listbox')).toBeInTheDocument();
+    fireEvent.click(input);
+    await act(() => vi.advanceTimersByTimeAsync(300));
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
   });
 });

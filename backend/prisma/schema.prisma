@@ -129,23 +129,32 @@ enum GitHubOAuthPurpose {
 }
 
 model User {
-  id                Int           @id @default(autoincrement())
-  name              String
-  email             String        @unique
-  username          String        @unique
-  mustSetUsername   Boolean       @default(false)
-  passwordHash      String?
-  isActive          Boolean       @default(true)
-  emailVerifiedAt   DateTime?
-  mustSetPassword   Boolean       @default(false)
-  sessionVersion    Int           @default(1)
-  accountStatus     AccountStatus @default(ACTIVE)
-  deactivatedAt     DateTime?
-  usernameChangedAt DateTime?
-  anonymizedAt      DateTime?
-  lastLoginAt       DateTime?
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  effortHistory TaskEffortHistoryEntry[]
+  responsibleDefects   Defect[]
+  defectHistory        DefectHistoryEntry[]
+  responsibleTestCases TestCase[]             @relation("TestCaseResponsible")
+  deletedTestCases     TestCase[]             @relation("TestCaseDeleter")
+  testCaseVersions     TestCaseVersion[]
+  testCaseHistory      TestCaseHistoryEntry[]
+  testExecutions       TestExecution[]
+  testEvidence         TestEvidence[]
+  id                   Int                    @id @default(autoincrement())
+  name                 String
+  email                String                 @unique
+  username             String                 @unique
+  mustSetUsername      Boolean                @default(false)
+  passwordHash         String?
+  isActive             Boolean                @default(true)
+  emailVerifiedAt      DateTime?
+  mustSetPassword      Boolean                @default(false)
+  sessionVersion       Int                    @default(1)
+  accountStatus        AccountStatus          @default(ACTIVE)
+  deactivatedAt        DateTime?
+  usernameChangedAt    DateTime?
+  anonymizedAt         DateTime?
+  lastLoginAt          DateTime?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
 
   sessions                         Session[]
   passwordResetTokens              PasswordResetToken[]
@@ -308,15 +317,23 @@ model ProjectInvitation {
 
 // Entidade central do TRACEFLOW. A identidade GitHub pertence exclusivamente à integração.
 model Project {
-  id              Int         @id @default(autoincrement())
+  effortHistory TaskEffortHistoryEntry[]
+  requirementTraceabilityHistory RequirementTraceabilityHistoryEntry[]
+  defects         Defect[]
+  defectHistory   DefectHistoryEntry[]
+  testCases       TestCase[]
+  testExecutions  TestExecution[]
+  testEvidence    TestEvidence[]
+  testCaseHistory TestCaseHistoryEntry[]
+  id              Int                    @id @default(autoincrement())
   name            String
   description     String?
   responsibleTeam String
-  status          String      @default("ATIVO")
-  accessCode      String      @unique
-  accessCodeRole  ProjectRole @default(MEMBER)
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  status          String                 @default("ATIVO")
+  accessCode      String                 @unique
+  accessCodeRole  ProjectRole            @default(MEMBER)
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
 
   requirements           Requirement[]
   tasks                  Task[]
@@ -553,14 +570,17 @@ model PersonalDataExport {
 
 // Requisito funcional ou necessidade cadastrada no projeto.
 model Requirement {
-  id          Int      @id @default(autoincrement())
+  traceabilityState RequirementTraceabilityState?
+  defects     Defect[]
+  testCases   TestCase[]
+  id          Int        @id @default(autoincrement())
   projectId   Int
   title       String
   description String?
-  type        String   @default("FUNCIONAL")
-  status      String   @default("PENDENTE")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  type        String     @default("FUNCIONAL")
+  status      String     @default("PLANEJADO")
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   tasks   Task[]
@@ -571,14 +591,16 @@ model Requirement {
 
 // Unidade de trabalho e elo entre planejamento e implementacao.
 model Task {
-  id                Int       @id @default(autoincrement())
+  defectLinks       DefectTask[]
+  testCaseLinks     TestCaseTask[]
+  id                Int            @id @default(autoincrement())
   projectId         Int
   requirementId     Int?
   title             String
   description       String?
-  priority          String    @default("MEDIA")
+  priority          String         @default("MEDIA")
   responsible       String?
-  status            String    @default("A_FAZER")
+  status            String         @default("A_FAZER")
   deadline          DateTime?
   estimatedEffort   Float?
   actualEffort      Float?
@@ -587,22 +609,22 @@ model Task {
   pullRequestId     Int?
   responsibleUserId Int?
   sprintId          Int?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
 
-  project           Project                @relation(fields: [projectId], references: [id])
-  requirement       Requirement?           @relation(fields: [requirementId], references: [id])
-  pullRequest       PullRequest?           @relation(fields: [pullRequestId], references: [id], onDelete: SetNull)
-  sprint            Sprint?                @relation(fields: [sprintId], references: [id], onDelete: SetNull)
+  project              Project                @relation(fields: [projectId], references: [id])
+  requirement          Requirement?           @relation(fields: [requirementId], references: [id])
+  pullRequest          PullRequest?           @relation(fields: [pullRequestId], references: [id], onDelete: SetNull)
+  sprint               Sprint?                @relation(fields: [sprintId], references: [id], onDelete: SetNull)
   sprintParticipations SprintTask[]
-  movements         TaskMovement[]
-  historyEntries    TaskHistoryEntry[]
-  comments          TaskComment[]
-  timeEntries       TaskTimeEntry[]
-  commitLinks       TaskCommit[]
-  commitSuggestions TaskCommitSuggestion[]
-  issueLinks        TaskIssue[]
-  responsibleUser   User?                  @relation(fields: [responsibleUserId], references: [id], onDelete: SetNull)
+  movements            TaskMovement[]
+  historyEntries       TaskHistoryEntry[]
+  comments             TaskComment[]
+  timeEntries          TaskTimeEntry[]
+  commitLinks          TaskCommit[]
+  commitSuggestions    TaskCommitSuggestion[]
+  issueLinks           TaskIssue[]
+  responsibleUser      User?                  @relation(fields: [responsibleUserId], references: [id], onDelete: SetNull)
 
   @@index([pullRequestId])
   @@index([responsibleUserId])
@@ -617,7 +639,7 @@ model Sprint {
   projectId          Int
   name               String
   // Generated ALWAYS by SQL migration; never supplied by callers.
-  activeNameKey      String? @default(dbgenerated())
+  activeNameKey      String?      @default(dbgenerated())
   objective          String?      @db.Text
   startDate          DateTime
   endDate            DateTime
@@ -630,9 +652,9 @@ model Sprint {
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
 
-  deletedAt DateTime?
+  deletedAt   DateTime?
   deletedById Int?
-  deletedBy User? @relation("SprintDeleter", fields: [deletedById], references: [id], onDelete: SetNull)
+  deletedBy   User?     @relation("SprintDeleter", fields: [deletedById], references: [id], onDelete: SetNull)
 
   project          Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
   tasks            Task[]
@@ -659,9 +681,9 @@ model Milestone {
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
-  deletedAt DateTime?
+  deletedAt   DateTime?
   deletedById Int?
-  deletedBy User? @relation("MilestoneDeleter", fields: [deletedById], references: [id], onDelete: SetNull)
+  deletedBy   User?     @relation("MilestoneDeleter", fields: [deletedById], references: [id], onDelete: SetNull)
 
   project Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   sprints Sprint[]
@@ -865,17 +887,18 @@ model TaskTimeEntry {
 
 // Commit importado do repositorio GitHub vinculado ao projeto.
 model Commit {
-  id             Int       @id @default(autoincrement())
+  testExecutions TestExecution[]
+  id             Int             @id @default(autoincrement())
   hash           String
-  message        String?   @db.Text
+  message        String?         @db.Text
   authorName     String?
   authorEmail    String?
   authorUsername String?
   date           DateTime?
   githubUrl      String?
   projectId      Int
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 
   project         Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
   taskLinks       TaskCommit[]
@@ -967,11 +990,12 @@ model CommitBranch {
 
 // Pull Request importada do repositorio GitHub e vinculada às Tasks pela FK singular canônica.
 model PullRequest {
-  id              Int       @id @default(autoincrement())
+  testExecutions  TestExecution[]
+  id              Int             @id @default(autoincrement())
   githubId        String
   number          Int
   title           String
-  description     String?   @db.Text
+  description     String?         @db.Text
   state           String?
   authorUsername  String?
   sourceBranch    String?
@@ -982,8 +1006,8 @@ model PullRequest {
   closedAtGithub  DateTime?
   mergedAtGithub  DateTime?
   projectId       Int
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   tasks   Task[]
@@ -1021,4 +1045,349 @@ model Issue {
   @@unique([projectId, number])
   @@index([projectId, createdAtGithub])
   @@index([projectId, updatedAtGithub])
+}
+
+enum TestCaseStatus {
+  ATIVO
+  INATIVO
+}
+
+enum TestResult {
+  PASS
+  FAIL
+  BLOCKED
+}
+
+enum TestEnvironment {
+  LOCAL
+  DESENVOLVIMENTO
+  HOMOLOGACAO
+}
+
+enum TestedReferenceType {
+  PULL_REQUEST
+  COMMIT
+}
+
+enum TestEvidenceScope {
+  EXECUTION
+  STEP
+}
+
+enum TestEvidenceKind {
+  IMAGE
+  VIDEO
+  DOCUMENT
+  TEXT
+  DATA
+}
+
+enum TestCaseHistoryAction {
+  CREATED
+  VERSION_CREATED
+  STATUS_CHANGED
+  RESPONSIBLE_CHANGED
+  DELETED
+}
+
+model TestCase {
+  id                Int                    @id @default(autoincrement())
+  projectId         Int
+  title             String                 @db.VarChar(200)
+  description       String?                @db.MediumText
+  preconditions     String                 @db.MediumText
+  expectedResult    String                 @db.MediumText
+  status            TestCaseStatus         @default(ATIVO)
+  responsibleUserId Int
+  requirementId     Int?
+  currentVersion    Int                    @default(1)
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  deletedAt         DateTime?
+  deletedById       Int?
+  project           Project                @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  responsibleUser   User                   @relation("TestCaseResponsible", fields: [responsibleUserId], references: [id], onDelete: Restrict)
+  deletedBy         User?                  @relation("TestCaseDeleter", fields: [deletedById], references: [id], onDelete: SetNull)
+  requirement       Requirement?           @relation(fields: [requirementId], references: [id], onDelete: SetNull)
+  steps             TestCaseStep[]
+  taskLinks         TestCaseTask[]
+  versions          TestCaseVersion[]
+  executions        TestExecution[]
+  history           TestCaseHistoryEntry[]
+
+  @@index([projectId, deletedAt, status])
+  @@index([projectId, responsibleUserId])
+  @@index([projectId, requirementId])
+  @@index([projectId, createdAt])
+}
+
+model TestCaseStep {
+  id             Int      @id @default(autoincrement())
+  testCaseId     Int
+  position       Int
+  action         String   @db.MediumText
+  expectedResult String   @db.MediumText
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  testCase       TestCase @relation(fields: [testCaseId], references: [id], onDelete: Restrict)
+
+  @@unique([testCaseId, position])
+}
+
+model TestCaseTask {
+  id         Int      @id @default(autoincrement())
+  testCaseId Int
+  taskId     Int
+  testCase   TestCase @relation(fields: [testCaseId], references: [id], onDelete: Restrict)
+  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([testCaseId, taskId])
+  @@index([taskId])
+}
+
+model TestCaseVersion {
+  id              Int             @id @default(autoincrement())
+  testCaseId      Int
+  version         Int
+  snapshotVersion Int             @default(1)
+  snapshotJson    Json
+  createdByUserId Int?
+  createdAt       DateTime        @default(now())
+  testCase        TestCase        @relation(fields: [testCaseId], references: [id], onDelete: Restrict)
+  createdBy       User?           @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  executions      TestExecution[]
+
+  @@unique([testCaseId, version])
+  @@index([testCaseId, createdAt])
+}
+
+model TestCaseHistoryEntry {
+  id           Int                   @id @default(autoincrement())
+  projectId    Int
+  testCaseId   Int
+  actorUserId  Int?
+  action       TestCaseHistoryAction
+  fromVersion  Int?
+  toVersion    Int?
+  metadataJson Json?
+  occurredAt   DateTime              @default(now())
+  project      Project               @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  testCase     TestCase              @relation(fields: [testCaseId], references: [id], onDelete: Restrict)
+  actor        User?                 @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([testCaseId, occurredAt, id])
+  @@index([projectId, occurredAt])
+}
+
+model TestExecution {
+  defectRetest                  DefectRetest?
+  id                            Int                 @id @default(autoincrement())
+  projectId                     Int
+  testCaseId                    Int
+  testCaseVersionId             Int
+  testCaseVersion               Int
+  environment                   TestEnvironment
+  result                        TestResult
+  testedReferenceType           TestedReferenceType
+  testedPullRequestId           Int?
+  testedCommitId                Int?
+  testedReferenceSnapshot       Json
+  executedByUserId              Int?
+  executedByDisplayNameSnapshot String
+  executedAt                    DateTime            @default(now())
+  createdAt                     DateTime            @default(now())
+  project                       Project             @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  testCase                      TestCase            @relation(fields: [testCaseId], references: [id], onDelete: Restrict)
+  version                       TestCaseVersion     @relation(fields: [testCaseVersionId], references: [id], onDelete: Restrict)
+  testedPullRequest             PullRequest?        @relation(fields: [testedPullRequestId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  testedCommit                  Commit?             @relation(fields: [testedCommitId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  executedBy                    User?               @relation(fields: [executedByUserId], references: [id], onDelete: SetNull)
+  steps                         TestExecutionStep[]
+  evidence                      TestEvidence[]
+
+  @@index([testCaseId, executedAt, id])
+  @@index([testCaseId, testCaseVersion, executedAt, id], map: "TestExecution_current_version_latest_idx")
+  @@index([projectId, executedAt])
+  @@index([testCaseId, result])
+  @@index([testedPullRequestId])
+  @@index([testedCommitId])
+}
+
+model TestExecutionStep {
+  detectedDefects        Defect[]
+  id                     Int            @id @default(autoincrement())
+  executionId            Int
+  position               Int
+  actionSnapshot         String         @db.MediumText
+  expectedResultSnapshot String         @db.MediumText
+  result                 TestResult
+  observedResult         String?        @db.MediumText
+  createdAt              DateTime       @default(now())
+  execution              TestExecution  @relation(fields: [executionId], references: [id], onDelete: Restrict)
+  evidence               TestEvidence[]
+
+  @@unique([executionId, position])
+}
+
+model TestEvidence {
+  id               Int                @id @default(autoincrement())
+  projectId        Int
+  executionId      Int
+  executionStepId  Int?
+  scope            TestEvidenceScope
+  kind             TestEvidenceKind
+  originalName     String             @db.VarChar(200)
+  mimeType         String             @db.VarChar(100)
+  sizeBytes        Int
+  sha256           String             @db.Char(64)
+  storageKey       String             @unique @db.VarChar(100)
+  uploadedByUserId Int?
+  createdAt        DateTime           @default(now())
+  project          Project            @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  execution        TestExecution      @relation(fields: [executionId], references: [id], onDelete: Restrict)
+  executionStep    TestExecutionStep? @relation(fields: [executionStepId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  uploadedBy       User?              @relation(fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([executionId])
+  @@index([executionStepId])
+  @@index([projectId])
+}
+
+enum DefectSeverity {
+  BAIXA
+  MEDIA
+  ALTA
+  CRITICA
+}
+
+enum DefectStatus {
+  ABERTO
+  EM_CORRECAO
+  AGUARDANDO_RETESTE
+  VALIDADO
+}
+
+enum DefectTaskRelationType {
+  ORIGIN
+  CORRECTION
+}
+
+model Defect {
+  id                      Int                  @id @default(autoincrement())
+  projectId               Int
+  title                   String               @db.VarChar(200)
+  description             String               @db.MediumText
+  severity                DefectSeverity
+  status                  DefectStatus         @default(ABERTO)
+  responsibleUserId       Int
+  detectedExecutionStepId Int
+  requirementId           Int?
+  currentCorrectionCycle  Int                  @default(1)
+  revision                Int                  @default(1)
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+  deletedAt               DateTime?
+  project                 Project              @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  responsibleUser         User                 @relation(fields: [responsibleUserId], references: [id], onDelete: Restrict)
+  detectedStep            TestExecutionStep    @relation(fields: [detectedExecutionStepId], references: [id], onDelete: Restrict)
+  requirement             Requirement?         @relation(fields: [requirementId], references: [id], onDelete: Restrict)
+  taskLinks               DefectTask[]
+  retests                 DefectRetest[]
+  history                 DefectHistoryEntry[]
+
+  @@index([projectId, deletedAt, status])
+  @@index([projectId, severity])
+  @@index([projectId, responsibleUserId])
+  @@index([projectId, requirementId])
+  @@index([detectedExecutionStepId])
+}
+
+model DefectTask {
+  id              Int                    @id @default(autoincrement())
+  defectId        Int
+  taskId          Int
+  relationType    DefectTaskRelationType
+  // ORIGIN uses zero for uniqueness; it does not participate in correction cycles.
+  correctionCycle Int                    @default(0)
+  createdAt       DateTime               @default(now())
+  defect          Defect                 @relation(fields: [defectId], references: [id], onDelete: Restrict)
+  task            Task                   @relation(fields: [taskId], references: [id], onDelete: Restrict)
+
+  @@unique([defectId, taskId, relationType, correctionCycle])
+  @@index([taskId, relationType])
+  @@index([defectId, relationType, correctionCycle])
+}
+
+model DefectRetest {
+  id              Int           @id @default(autoincrement())
+  defectId        Int
+  testExecutionId Int           @unique
+  correctionCycle Int
+  createdAt       DateTime      @default(now())
+  defect          Defect        @relation(fields: [defectId], references: [id], onDelete: Restrict)
+  execution       TestExecution @relation(fields: [testExecutionId], references: [id], onDelete: Restrict)
+
+  @@index([defectId, correctionCycle, id])
+}
+
+model DefectHistoryEntry {
+  id           Int      @id @default(autoincrement())
+  projectId    Int
+  defectId     Int
+  actorUserId  Int?
+  action       String   @db.VarChar(64)
+  metadataJson Json?
+  occurredAt   DateTime @default(now())
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  defect       Defect   @relation(fields: [defectId], references: [id], onDelete: Restrict)
+  actor        User?    @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([defectId, occurredAt, id])
+  @@index([projectId, occurredAt])
+}
+
+// Estado mínimo para comparar observações. Contadores continuam derivados.
+model RequirementTraceabilityState {
+  id Int @id @default(autoincrement())
+  requirementId Int @unique
+  currentSituation String @db.VarChar(32)
+  updatedAt DateTime @updatedAt
+  requirement Requirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+}
+
+// requirementId e sourceEntityId são identidades históricas, sem FK ao recurso removível.
+model RequirementTraceabilityHistoryEntry {
+  id Int @id @default(autoincrement())
+  projectId Int
+  requirementId Int
+  fromSituation String? @db.VarChar(32)
+  toSituation String @db.VarChar(32)
+  reason String @db.VarChar(64)
+  sourceEntityType String? @db.VarChar(32)
+  sourceEntityId Int?
+  metadataJson Json?
+  occurredAt DateTime @default(now())
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  @@index([projectId, requirementId, occurredAt, id], map: "RequirementTraceabilityHistory_cursor_idx")
+}
+
+// Append-only functional effort audit. Task/session identities survive their deletion.
+model TaskEffortHistoryEntry {
+  id Int @id @default(autoincrement())
+  projectId Int
+  taskId Int
+  sessionId Int
+  eventType String
+  source TaskTimeEntrySource
+  actorUserId Int?
+  previousSeconds Int?
+  newSeconds Int?
+  snapshotStartedAt DateTime
+  snapshotEndedAt DateTime?
+  occurredAt DateTime @default(now())
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  actor User? @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  @@index([taskId, occurredAt, id])
+  @@index([projectId])
+  @@index([actorUserId])
 }

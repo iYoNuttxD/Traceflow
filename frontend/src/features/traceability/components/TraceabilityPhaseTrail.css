@@ -1,0 +1,36 @@
+.trace-phase-trail {
+  min-width: 0;
+}
+.trace-help-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-2);
+}
+.trace-phase-trail ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-1);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.trace-phase-trail li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-1);
+}
+.trace-phase-trail li.is-current {
+  color: var(--color-accent-text);
+  font-weight: var(--font-weight-semibold);
+}
+.trace-phase-trail li.is-reached {
+  color: var(--color-text-primary);
+}
+.trace-phase-arrow {
+  color: var(--color-text-secondary);
+  margin-right: var(--space-1);
+}

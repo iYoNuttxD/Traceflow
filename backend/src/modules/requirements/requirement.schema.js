@@ -2,16 +2,6 @@ import { DomainError as RequirementServiceError } from '../../shared/errors/inde
 export { RequirementServiceError };
 
 const allowedTypes = new Set(['FUNCIONAL', 'NAO_FUNCIONAL', 'REGRA_NEGOCIO']);
-const allowedStatuses = new Set([
-  'CADASTRADO',
-  'APROVADO',
-  'EM_IMPLEMENTACAO',
-  'VALIDADO',
-  'CONCLUIDO',
-  'PENDENTE',
-  'EM_ANDAMENTO',
-  'CANCELADO'
-]);
 const editableFields = ['title', 'description', 'type'];
 
 function parsePositiveInteger(value, entityName) {
@@ -44,17 +34,14 @@ export function normalizeEnumValue(value) {
   return String(value).trim().toUpperCase();
 }
 
-export function validateRequirementStatus(status) {
-  if (status !== undefined && !allowedStatuses.has(status)) {
-    throw new RequirementServiceError(
-      'Status inválido. Use CADASTRADO, APROVADO, EM_IMPLEMENTACAO, VALIDADO ou CONCLUIDO.',
-      400
-    );
-  }
-}
-
 export function buildRequirementData(data, isCreate = false) {
   const payload = data && typeof data === 'object' ? data : {};
+  if (payload.status !== undefined)
+    throw new RequirementServiceError(
+      'O status do requisito é derivado da rastreabilidade.',
+      409,
+      'REQUIREMENT_STATUS_DERIVED'
+    );
 
   if (
     (isCreate && (typeof payload.title !== 'string' || !payload.title.trim())) ||
@@ -91,15 +78,8 @@ export function buildRequirementData(data, isCreate = false) {
 
   if (isCreate) {
     requirementData.type = normalizedType || 'FUNCIONAL';
-    requirementData.status = 'CADASTRADO';
+    requirementData.status = 'PLANEJADO';
   }
 
   return requirementData;
-}
-
-export function calculateRequirementStatus(tasks) {
-  if (tasks.length === 0) return 'CADASTRADO';
-  if (tasks.every((task) => task.status === 'A_FAZER')) return 'APROVADO';
-  if (tasks.every((task) => task.status === 'CONCLUIDO')) return 'VALIDADO';
-  return 'EM_IMPLEMENTACAO';
 }

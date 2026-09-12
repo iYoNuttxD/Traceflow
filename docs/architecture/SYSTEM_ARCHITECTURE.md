@@ -32,7 +32,10 @@ A direção permitida é `app/routes → pages → features → shared + http-cl
 - APIs de feature usam exclusivamente `api/http-client.js`.
 - Hooks e screens controlam requests canceláveis, mutações e rollback visual.
 - Shared não importa pages/features; features não importam internals umas das outras.
-- `TraceabilityFlow` renderiza o DTO de nodes/edges sem recalcular cobertura.
+- `TraceabilityFlow` renderiza o DTO de nodes/edges sem recalcular cobertura. No grafo ampliado de
+  Requirement, o backend fornece oito tipos reais e relações semânticas; o frontend mantém grupos
+  apenas visuais, paginação acumulada por identidade e expansão independente de metadata. Os
+  Details de Task, TestCase, Execution e Defect são reutilizados pelos barrels públicos das features.
 - `app/theme` separa a preferência persistida `system | light | dark` do tema resolvido
   `light | dark`. Sistema é o default, acompanha `prefers-color-scheme` enquanto selecionado e usa
   Light quando `matchMedia` não está disponível; overrides manuais ignoram mudanças do sistema.
@@ -70,6 +73,17 @@ publicam pelo `ProjectEventPublisher` depois do commit e não conhecem HTTP, `Re
 MySQL/REST são autoridade; SSE apenas propaga DTOs de mudanças confirmadas.
 
 `scripts/check-architecture.js` verifica essas fronteiras e impede a reintrodução, no runtime/schema atual, de `TaskPullRequest`, `GithubArtifact`, `TraceLink`, `ProjectMember`, `Commit.branch`, aliases GitHub de `Project` e rotas de conta removidas.
+
+### Projeção ampliada de rastreabilidade
+
+O Service de traceability seleciona o read model `expanded-graph.repository` somente com
+`expanded=true`; o mapper converte as relações tipadas existentes em nodes/edges deduplicados.
+A transação de leitura RepeatableRead consulta coleções em lote e reutiliza
+`loadRequirementProjections` como autoridade dos indicadores. Não existe GraphRelation persistida
+nem escrita no GET. O DTO é paginado independentemente em nodes e edges; a montagem interna ainda
+carrega a cadeia compacta completa, com volume proporcional às entidades do Requirement. Não há
+consulta por node nem fan-out HTTP para construir a cadeia. Os limites e a consistência entre
+páginas estão documentados em `docs/api/API_CONTRACTS.md`.
 
 ## Identidade, sessão e autorização
 
@@ -167,3 +181,42 @@ equivalentes. A CI de pull request pode testar um merge ref sintético; diagnós
 resultado do commit isolado da branch.
 
 TLS termina no proxy. Os contadores de rate limit HTTP ainda usam memória local; a exclusão mútua do sync usa claim persistido em `GitHubSyncRun`, unique por projeto e stale detection, portanto não depende de lock em memória. Logs, backup, restore, secret manager, monitoramento e proteção de branch precisam ser configurados no ambiente conforme os runbooks.
+
+## S1-07 — backend de casos de teste
+
+`modules/testCases` acrescenta definição atual, versões imutáveis, histórico funcional,
+execuções e evidências. Reutiliza ProjectMembership, Requirement, Task/TaskCommit,
+PullRequest/Commit importados e o adapter AuditEvent. Relações novas são tipadas
+TestCase–Requirement e TestCaseTask; não altera grafo global, integrações GitHub ou
+modelo de esforço de Task. O frontend permanece independente, aguardando integração.
+
+Services coordenam validação, lock/transação e storage; repositories são os únicos
+consumidores Prisma. O contrato `TestEvidenceStorage` tem implementação local privada,
+com staging/validação/hash anteriores ao lock, compensação na falha e download por
+stream autenticado. MySQL e filesystem não formam transação distribuída: queda abrupta
+pode deixar órfãos. Produção exige `TEST_EVIDENCE_STORAGE_DIR` absoluto, privado e
+persistente; backup/restore deve preservar bytes e metadata em conjunto.
+
+A exceção ao JSON global é exclusivamente POST `/api/test-cases/:id/executions`
+com multipart/form-data; sessão/CSRF/RBAC precedem o parser. Limites e modelos:
+[TEST_CASE_HISTORY.md](../data/TEST_CASE_HISTORY.md). Retenção/anonimização/exportação
+seguem a política de privacidade ampliada, sem expurgo automático de histórico.
+
+
+### Interface integrada de casos de teste — S1-07
+
+`AppRoutes → TestCasesPage → features/testCases → api/http-client` é o único runtime
+de casos de teste. Componentes de formulário, catálogo, execução, histórico e evidências
+consomem DTOs reais; não há catálogo simulado ou fallback. A feature reutiliza
+SearchCombobox, CollapsibleFilterPanel, SprintDialog e ConfirmProvider. Apenas um diálogo
+operacional permanece aberto. O histórico de execução usa exclusivamente o DTO histórico.
+
+Tokens de identidade por visita ao projeto/recurso e geração de requisição descartam
+respostas antigas mesmo se o transporte ignorar cancelamento. Mutations confirmadas
+invalidam leituras anteriores e aplicam o DTO; erro na reconciliação aparece como warning.
+GETs com `fresh` no cliente HTTP não compartilham promises anteriores à gravação,
+mas continuam sujeitos ao cancelamento global de sessão. Download privado usa blob,
+autenticação canônica, tratamento de erros JSON e revogação de object URLs.
+
+A implementação não modifica o backend nesta etapa nem inicia Defect ou rastreabilidade
+consolidada. Evidência e limitações: [relatório](../deliveries/S1_07_FRONTEND_INTEGRATION_REPORT.md).

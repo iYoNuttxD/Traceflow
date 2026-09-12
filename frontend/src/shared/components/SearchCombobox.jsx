@@ -1,3 +1,4 @@
+import './SearchCombobox.css';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
 const defaultLabel = (option) => option?.title || option?.name || String(option?.id || '');
@@ -15,6 +16,7 @@ export function SearchCombobox({
   error = '',
   help = '',
   minQueryLength = 2,
+  openOnFocus = true,
   getOptionLabel = defaultLabel,
   isOptionDisabled = neverDisabled,
   renderOption,
@@ -30,17 +32,33 @@ export function SearchCombobox({
   const errorId = `${inputId}-error`;
   const helpId = `${inputId}-help`;
   const requestRef = useRef(0);
+  const inputRef = useRef(null);
+  const fieldRef = useRef(null);
+  const listRef = useRef(null);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchError, setSearchError] = useState('');
   const [activeIndex, setActiveIndex] = useState(-1);
-  const [dismissed, setDismissed] = useState(false);
+  const [dismissed, setDismissed] = useState(true);
 
   const normalizedOptions = useMemo(() => options || [], [options]);
   const trimmedQuery = query.trim();
   const hasQuery = trimmedQuery.length >= minQueryLength;
   const expanded = hasQuery && !dismissed && !disabled && !selectedOption;
+  const searchEnabled = hasQuery && !selectedOption && !disabled && (openOnFocus || expanded);
+
+  useEffect(() => {
+    if (!expanded) return undefined;
+    const outside = (event) => {
+      if (fieldRef.current?.contains(event.target) || listRef.current?.contains(event.target))
+        return;
+      setDismissed(true);
+      setActiveIndex(-1);
+    };
+    document.addEventListener('pointerdown', outside, true);
+    return () => document.removeEventListener('pointerdown', outside, true);
+  }, [expanded]);
 
   useEffect(() => {
     requestRef.current += 1;
@@ -48,7 +66,7 @@ export function SearchCombobox({
     setActiveIndex(-1);
     setSearchError('');
 
-    if (!hasQuery || selectedOption || disabled) {
+    if (!searchEnabled) {
       setLoading(false);
       setResults([]);
       return undefined;
@@ -87,6 +105,7 @@ export function SearchCombobox({
     };
   }, [
     disabled,
+    searchEnabled,
     getOptionLabel,
     hasQuery,
     normalizedOptions,
@@ -101,12 +120,18 @@ export function SearchCombobox({
     setQuery('');
     setResults([]);
     setActiveIndex(-1);
-    setDismissed(false);
+    setDismissed(true);
   }
 
   function handleKeyDown(event) {
+    if (event.key === 'ArrowDown' && !expanded && hasQuery) {
+      event.preventDefault();
+      setDismissed(false);
+      return;
+    }
     if (event.key === 'Escape' && expanded) {
       event.preventDefault();
+      event.stopPropagation();
       setDismissed(true);
       setActiveIndex(-1);
       return;
@@ -142,17 +167,68 @@ export function SearchCombobox({
     }
   }
 
+  const resultsList = (
+    <ul
+      ref={listRef}
+      id={listboxId}
+      className="sprint-combobox-results"
+      role="listbox"
+      onMouseDown={(event) => {
+        if (event.target.closest('[role="option"]')) event.preventDefault();
+      }}
+    >
+      {loading ? (
+        <li className="sprint-combobox-state" role="status">
+          {loadingMessage}
+        </li>
+      ) : searchError ? (
+        <li className="sprint-combobox-state sprint-combobox-state--error" role="alert">
+          {searchError}
+        </li>
+      ) : results.length === 0 ? (
+        <li className="sprint-combobox-state" role="status">
+          {emptyMessage}
+        </li>
+      ) : (
+        results.map((option, index) => {
+          const optionDisabled = isOptionDisabled(option);
+          return (
+            <li
+              id={`${listboxId}-option-${index}`}
+              className={[
+                index === activeIndex ? 'sprint-combobox-option--active' : '',
+                optionDisabled ? 'sprint-combobox-option--disabled' : ''
+              ]
+                .filter(Boolean)
+                .join(' ')}
+              key={option.id}
+              role="option"
+              aria-selected={!optionDisabled && index === activeIndex}
+              aria-disabled={optionDisabled || undefined}
+              onClick={() => choose(option)}
+              onMouseEnter={() => {
+                if (!optionDisabled) setActiveIndex(index);
+              }}
+            >
+              {renderOption ? renderOption(option) : getOptionLabel(option)}
+            </li>
+          );
+        })
+      )}
+    </ul>
+  );
+
   const describedBy = [error && errorId, help && helpId].filter(Boolean).join(' ') || undefined;
 
   return (
-    <div className="sprint-combobox-field">
+    <div className="sprint-combobox-field" ref={fieldRef}>
       <label htmlFor={inputId}>
         {label}
         {required && <span aria-hidden="true"> *</span>}
       </label>
 
       {selectedOption && (
-        <div className="sprint-combobox-selection">
+        <div className="sprint-combobox-selection" id={inputId} role="group" aria-label={label}>
           <span>{getOptionLabel(selectedOption)}</span>
           {!disabled && (
             <button
@@ -160,6 +236,7 @@ export function SearchCombobox({
               onClick={() => {
                 onClear?.();
                 setQuery('');
+                setDismissed(true);
               }}
               aria-label={`Remover ${getOptionLabel(selectedOption)}`}
               title="Remover seleção"
@@ -173,6 +250,7 @@ export function SearchCombobox({
       {!selectedOption && (
         <div className="sprint-combobox">
           <input
+            ref={inputRef}
             id={inputId}
             type="search"
             role="combobox"
@@ -193,51 +271,14 @@ export function SearchCombobox({
               setQuery(event.target.value);
               setDismissed(false);
             }}
+            onClick={() => setDismissed(false)}
+            onBlur={() => {
+              setDismissed(true);
+            }}
             onKeyDown={handleKeyDown}
           />
 
-          {expanded && (
-            <ul id={listboxId} className="sprint-combobox-results" role="listbox">
-              {loading ? (
-                <li className="sprint-combobox-state" role="status">
-                  {loadingMessage}
-                </li>
-              ) : searchError ? (
-                <li className="sprint-combobox-state sprint-combobox-state--error" role="alert">
-                  {searchError}
-                </li>
-              ) : results.length === 0 ? (
-                <li className="sprint-combobox-state" role="status">
-                  {emptyMessage}
-                </li>
-              ) : (
-                results.map((option, index) => {
-                  const optionDisabled = isOptionDisabled(option);
-                  return (
-                    <li
-                      id={`${listboxId}-option-${index}`}
-                      className={[
-                        index === activeIndex ? 'sprint-combobox-option--active' : '',
-                        optionDisabled ? 'sprint-combobox-option--disabled' : ''
-                      ]
-                        .filter(Boolean)
-                        .join(' ')}
-                      key={option.id}
-                      role="option"
-                      aria-selected={!optionDisabled && index === activeIndex}
-                      aria-disabled={optionDisabled || undefined}
-                      onClick={() => choose(option)}
-                      onMouseEnter={() => {
-                        if (!optionDisabled) setActiveIndex(index);
-                      }}
-                    >
-                      {renderOption ? renderOption(option) : getOptionLabel(option)}
-                    </li>
-                  );
-                })
-              )}
-            </ul>
-          )}
+          {expanded && resultsList}
         </div>
       )}
 

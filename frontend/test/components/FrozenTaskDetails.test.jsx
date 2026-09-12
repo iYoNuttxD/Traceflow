@@ -89,10 +89,28 @@ const field = (dialog, label) =>
   within(dialog).getByText(label, { selector: 'dt' }).nextElementSibling;
 const sections = (root) => ({
   labels: [...root.querySelectorAll('dt')].map((e) => e.textContent),
-  headings: [...root.querySelectorAll('h3')].map((e) => e.textContent),
-  trace: [...root.querySelectorAll('.task-detail-artifact-heading > span')].map(
-    (e) => e.textContent
-  )
+  headings: [...root.querySelectorAll('h3')]
+    .map((e) => e.textContent)
+    .filter((t) => t !== 'Qualidade'),
+  trace: [...root.querySelectorAll('.task-detail-artifact-heading > span')]
+    .map((e) => e.textContent)
+    .filter((t) => !['Casos de teste', 'Defeitos'].includes(t))
+});
+
+describe('Embedded task content for the traceability workspace', () => {
+  it('reuses canonical sections and Comments without creating another modal', () => {
+    render(
+      <ConfirmProvider>
+        <TaskDetailsPanel embedded task={current} onClose={vi.fn()} />
+      </ConfirmProvider>
+    );
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Tarefa Atualizada/ })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Rastreabilidade' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Editar tarefa' })).not.toBeInTheDocument();
+    expect(TaskComments).toHaveBeenCalled();
+    expect(screen.queryByText('Iniciar cronômetro')).not.toBeInTheDocument();
+  });
 });
 
 describe('FIX-04 Frozen Task Details parity', () => {
@@ -116,7 +134,8 @@ describe('FIX-04 Frozen Task Details parity', () => {
     showFrozen();
     const dialog = screen.getByRole('dialog', { name: '#5 Tarefa Original' });
     expect(sections(dialog)).toEqual(shape);
-    expect(dialog.querySelector('.task-detail-description')).toHaveTextContent(
+    expect(within(dialog).queryByRole('region', { name: 'Qualidade' })).not.toBeInTheDocument();
+    expect(dialog.querySelector('.detail-surface__text')).toHaveTextContent(
       'Descrição indisponível no snapshot.'
     );
     expect(dialog.querySelector('.task-detail-layout--single')).toBeInTheDocument();

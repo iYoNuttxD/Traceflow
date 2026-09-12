@@ -90,3 +90,5 @@
     flex: 1 1 8rem;
   }
 }
+
+.confirm-dialog-content { display: grid; gap: var(--space-3); }

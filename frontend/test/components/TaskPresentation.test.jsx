@@ -1,5 +1,6 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../src/features/tasks/api/tasks.api.js', async (importOriginal) => ({
@@ -11,6 +12,7 @@ vi.mock('../../src/features/tasks/api/tasks.api.js', async (importOriginal) => (
     permissions: { canComment: false, canModerate: false },
     pagination: { page: 1, limit: 5, total: 0, totalPages: 0 }
   }),
+  startTaskTimer: vi.fn(),
   getTaskTimeEntries: vi.fn().mockResolvedValue({
     taskId: 7,
     running: null,
@@ -30,6 +32,14 @@ vi.mock('../../src/features/tasks/api/tasks.api.js', async (importOriginal) => (
   })
 }));
 
+vi.mock('../../src/features/testCases/api/test-cases.api.js', () => ({
+  testCasesApi: { list: vi.fn().mockResolvedValue({ items: [], total: 0 }) }
+}));
+vi.mock('../../src/features/defects/api/defects.api.js', () => ({
+  defectsApi: { list: vi.fn().mockResolvedValue({ items: [], total: 0 }) }
+}));
+
+import { getTaskTimeEntries, startTaskTimer } from '../../src/features/tasks/api/tasks.api.js';
 import { KanbanBoard } from '../../src/features/tasks/components/KanbanBoard.jsx';
 import { TaskDetailsPanel } from '../../src/features/tasks/components/TaskDetailsPanel.jsx';
 import { TaskList } from '../../src/features/tasks/components/TaskList.jsx';
@@ -168,6 +178,57 @@ describe('apresentação de Tasks e Kanban', () => {
     expect(handlers.onDelete).toHaveBeenCalledWith(task);
   });
 
+  it('combina esforço, qualidade e criação contextual sem perder o recibo da tarefa', async () => {
+    const user = userEvent.setup();
+    const onSaved = vi.fn();
+    const correction = {
+      ...task,
+      projectId: 1,
+      correctionDefectCount: 1,
+      correctionDefects: [{ id: 2, title: 'Falha corrigida', status: 'ABERTO' }]
+    };
+    const response = await getTaskTimeEntries();
+    getTaskTimeEntries.mockResolvedValue({
+      ...response,
+      permissions: { canOperate: true, canModerate: false }
+    });
+    const running = {
+      id: 8,
+      startedAt: new Date().toISOString(),
+      startedBy: { id: 2, name: 'Ana' }
+    };
+    startTaskTimer.mockResolvedValue({
+      entry: running,
+      effort: { ...response.effort, running }
+    });
+    render(
+      <MemoryRouter>
+        <ConfirmProvider>
+          <TaskDetailsPanel
+            task={correction}
+            projectId={1}
+            canEdit
+            onSaved={onSaved}
+            onClose={vi.fn()}
+          />
+        </ConfirmProvider>
+      </MemoryRouter>
+    );
+    await user.click(await screen.findByRole('button', { name: 'Retomar' }));
+    expect(onSaved).toHaveBeenCalledWith(
+      expect.objectContaining({ ...correction, runningTimer: running, actualEffort: 3 }),
+      { successMessage: 'Cronômetro iniciado.' }
+    );
+    expect(screen.getByText('Comentários')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Qualidade' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Criar caso de teste' }));
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+    expect(screen.getByRole('dialog', { name: 'Criar caso de teste' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Remover 7' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Cancelar' }));
+    expect(screen.getByRole('region', { name: 'Qualidade' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Criar caso de teste' })).toHaveFocus();
+  });
   it('mantém todos os artefatos acessíveis dentro de corpos roláveis por categoria', () => {
     const commits = Array.from({ length: 14 }, (_, index) => ({
       id: 100 + index,
@@ -180,7 +241,7 @@ describe('apresentação de Tasks e Kanban', () => {
       number: 300 + index,
       title: `Issue rastreável ${index + 1}`
     }));
-    const { container } = render(
+    render(
       <ConfirmProvider>
         <TaskDetailsPanel
           task={{ ...task, commits, issues }}
@@ -195,6 +256,11 @@ describe('apresentação de Tasks e Kanban', () => {
     expect(screen.getByLabelText('12 issues')).toBeInTheDocument();
     expect(screen.getByText('cmt0014 — Commit rastreável 14')).toBeInTheDocument();
     expect(screen.getByText('#311 — Issue rastreável 12')).toBeInTheDocument();
-    expect(container.querySelectorAll('.task-detail-artifact-body')).toHaveLength(4);
+    expect(
+      screen
+        .getByRole('region', { name: 'Rastreabilidade' })
+        .querySelectorAll('.task-detail-artifact-body')
+    ).toHaveLength(4);
+    expect(screen.getByRole('region', { name: 'Qualidade' })).toBeInTheDocument();
   });
 });

@@ -28,3 +28,6 @@ ds-bundle/
 docs/design/experiments/
 docs/design/screenshots/
 docs/design/DESIGN_EXPLORATION.md
+
+# Private local test evidence; never public/static or versioned.
+backend/.data/test-evidence/

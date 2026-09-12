@@ -197,13 +197,13 @@ ROUTE_NOT_FOUND` global.
 | GET    | `/requirements/:id`                                           | `id` positivo          | —                                             | `200`, `{requirement}`                                 |
 | PUT    | `/requirements/:id`                                           | `id` positivo          | subconjunto de `title`, `description`, `type` | `200`, `{message,requirement}`                         |
 | DELETE | `/requirements/:id`                                           | `id` positivo          | —                                             | `200`, `{message}`                                     |
-| PATCH  | `/requirements/:id/status`                                    | `id` positivo          | `status`                                      | `200`, `{message,requirement}`                         |
-| PATCH  | `/requirements/:id/confirm-completion`                        | `id` positivo          | nenhum                                        | `200`, `{message,requirement}`                         |
+| PATCH  | `/requirements/:id/status`                                    | `id` positivo          | `status`                                      | `409 REQUIREMENT_STATUS_DERIVED`                         |
+| PATCH  | `/requirements/:id/confirm-completion`                        | `id` positivo          | nenhum                                        | `409 REQUIREMENT_STATUS_DERIVED`                         |
 | GET    | `/requirements/:id/tasks`                                     | `id` positivo          | —                                             | `200`, `{requirementId,total,tasks}`                   |
 | PUT    | `/requirements/:id/tasks`                                     | `id` positivo          | `taskIds`: array único de até 100 IDs         | `200`, `{message,requirement,reassignedTasks,changes}` |
 | GET    | `/projects/:projectId/traceability/requirement-task-coverage` | `projectId` positivo   | —                                             | `200`, métricas atuais                                 |
 
-Tipos preservados: `FUNCIONAL`, `NAO_FUNCIONAL`, `REGRA_NEGOCIO`. Status preservados: `CADASTRADO`, `APROVADO`, `EM_IMPLEMENTACAO`, `VALIDADO`, `CONCLUIDO`, `PENDENTE`, `EM_ANDAMENTO`, `CANCELADO`. As transições continuam sendo regra de domínio do service.
+Tipos preservados: `FUNCIONAL`, `NAO_FUNCIONAL`, `REGRA_NEGOCIO`. Macros atuais: `PLANEJADO`, `EM_IMPLEMENTACAO`, `EM_VALIDACAO`, `EM_CORRECAO`, `CONCLUIDO`. `status` é derivado da policy de rastreabilidade e persistido na mesma transação; conclusão automática e reversível. Valores legados continuam reconhecidos por compatibilidade, sem novas escritas. POST/PUT não aceitam status manual (validação HTTP estrita); status/confirm-completion antigos retornam `409 REQUIREMENT_STATUS_DERIVED` após autorização e validação, sem mutação.
 
 ## Tasks, vínculos e Kanban
 
@@ -279,7 +279,7 @@ O response usa `Content-Type: text/event-stream`, `Cache-Control: no-cache, no-t
 }
 ```
 
-Os tipos atuais são `task.comment.created`, `task.comment.updated`, `task.comment.deleted` e, desde o S1-06, `task.time_entry.started`, `task.time_entry.stopped`, `task.time_entry.created` e `task.time_entry.deleted`; todos transportam o DTO seguro completo para merge local sem GET. Os eventos de sessão de tempo carregam `data.entry` (com `canDelete` resolvido por assinante) e `data.effort` (resumo já recalculado). O delete transporta o tombstone com `AUTHOR`, `MODERATION` ou `UNKNOWN`. Eventos são publicados somente depois da transaction da mutation concluir. Falha da mutation não publica; falha do publisher depois do commit não altera o sucesso REST e é recuperada por reconciliação posterior.
+Os tipos atuais são `task.comment.created`, `task.comment.updated`, `task.comment.deleted` e, desde o S1-06, `task.time_entry.started`, `task.time_entry.stopped`, `task.time_entry.created`, `task.time_entry.updated` e `task.time_entry.deleted`; todos transportam o DTO seguro completo para merge local sem GET. Os eventos de sessão de tempo carregam `data.entry` (com `canDelete` resolvido por assinante) e `data.effort` (resumo já recalculado). O delete transporta o tombstone com `AUTHOR`, `MODERATION` ou `UNKNOWN`. Eventos são publicados somente depois da transaction da mutation concluir. Falha da mutation não publica; falha do publisher depois do commit não altera o sucesso REST e é recuperada por reconciliação posterior.
 
 O servidor envia heartbeat em comentário SSE a cada 25 segundos, sem consulta ao banco, e encerra o stream após no máximo 15 minutos para nova autorização. Backpressure, erro de transporte, logout, revogação de sessão, saída/desativação de membership ou mudança de papel encerram a conexão. O publisher atual é in-memory e single-node; multi-node exigirá adapter de broker. Não há replay/event log persistente: quem consome o stream reconcilia por leitura própria ao reconectar, porque os eventos ocorridos com a conexão fechada não são reenviados. O Kanban não publica SSE, mas consome os eventos de sessão de tempo para atualizar o cronômetro do cartão, e refaz a leitura do quadro a cada reconexão.
 
@@ -334,11 +334,30 @@ Ordem de travas: as operações de esforço travam `Project` antes de `Task`, a 
 }
 ```
 
-`entries` é o histórico das sessões encerradas, da mais recente para a mais antiga, paginado por `page`/`limit` e filtrável por `startDate`/`endDate` (dia civil UTC sobre o encerramento) e `source` (`TIMER` ou `MANUAL`); `startDate` maior que `endDate` e origem fora do enum recebem `400`. Os filtros recortam apenas a página: `running` e `effort` continuam refletindo o total da tarefa. A sessão em andamento nunca aparece em `entries`, só em `running`.
+`entries` é o estado atual das sessões encerradas, da mais recente para a mais antiga, paginado por `page`/`limit` e filtrável por `startDate`/`endDate` (dia civil UTC sobre o encerramento) e `source` (`TIMER` ou `MANUAL`); `startDate` maior que `endDate` e origem fora do enum recebem `400`. Os filtros recortam apenas a página: `running` e `effort` continuam refletindo o total da tarefa. A sessão em andamento nunca aparece em `entries`, só em `running`.
 
 O DTO da tarefa (`GET /tasks/:id` e as colunas do Kanban) traz `runningTimer` — `{id,startedAt,startedBy}` da sessão aberta ou `null` — para o cartão exibir o cronômetro sem uma chamada por tarefa.
 
 Consolidação por sprint: `GET /sprints/:id/progress` passa a incluir `effort` (`tasks`, `tasksWithEstimate`, `tasksWithActual`, `estimatedHours`, `actualHours`, `differenceHours`, `differencePercent`, `usagePercent`, `status`, `perTask[]`) somando as tarefas da sprint; sprint encerrada lê `pointsAtClose` e o snapshot de fechamento em vez da tarefa viva. Tarefa sem estimativa não entra no limite, mas o realizado dela entra no total. O responsável (`responsibleUserId`, RF51) não se confunde com quem iniciou/parou a sessão: são campos distintos e ambos ficam registrados.
+
+## S1-09 — histórico funcional de esforço
+
+| Método | Caminho | Entrada | Resultado |
+|---|---|---|---|
+| GET | `/tasks/:id/time-entries/history` | `page`, `limit`, `startDate`, `endDate`, `source`, `eventType` opcionais | `200 {taskId,items,pagination}` |
+| PATCH | `/tasks/:id/time-entries/:entryId` | `{hours,expectedUpdatedAt}` | `200 {entry,effort}`; versão obsoleta `409` |
+
+`source`: TIMER/MANUAL. `eventType`: CREATED/UPDATED/DELETED, independente da origem. Datas são dias civis UTC inclusivos sobre `occurredAt`; filtros combináveis e paginação no banco por occurredAt DESC/id DESC. Intervalo invertido, origem/evento inválidos recebem 400. Leitura exige membership ativa; escrita conserva as permissões de sessão (autor MEMBER+ ou MANAGER/OWNER). Recurso fora do projeto autorizado recebe 404 opaco.
+
+Item: `id,projectId,taskId,sessionId,kind,eventType,source,actorUserId,actor{id,name},previousSeconds,newSeconds,snapshotStartedAt,snapshotEndedAt,occurredAt,currentEntry,canEdit,canDelete`. Actor removido pode ser null. currentEntry é DTO da sessão ainda existente ou null, sem reconstruir estado antigo; ações usam a autorização atual. DTO de sessão acrescenta `updatedAt` e `canEdit`; `expectedUpdatedAt` é o valor retornado pelo servidor. Apenas sessões encerradas podem ser ajustadas; horas seguem `0 < hours ≤ 24`. No-op não cria evento.
+
+Lançamento manual ou encerramento de cronômetro cria CREATED; ajuste cria UPDATED com duração anterior/nova; exclusão cria DELETED com snapshot e duração excluída. Iniciar timer não representa esforço realizado. Sessão/total/histórico compartilham a transação e o lock Project → Task; falha de histórico desfaz tudo. A edição publica `task.time_entry.updated` somente após commit. GET antigo preserva `entries`, `running`, `effort`, `permissions`, `pagination`; não é uma trilha de eventos. Nenhum backfill inventa CREATED para sessões antigas.
+
+A lista única da interface usa este GET de history para eventos (`kind: EVENT`, `id` numérico) e sessões encerradas sem qualquer evento associado (`kind: LEGACY_SNAPSHOT`, `id: "session:<id>"`). O snapshot aparece como “Registro anterior ao histórico” / “Snapshot”, com `eventType: null`, `previousSeconds: null`, duração atual em `newSeconds` e `occurredAt` igual ao encerramento conhecido. Não é um CREATED inventado. `snapshotStartedAt` e `snapshotEndedAt` são campos planos; o DTO usa `source` e segundos, não `origin`, minutos ou um objeto `snapshot`.
+
+A união é paginada no banco, com total conjunto e ordem `occurredAt DESC, id DESC, kind ASC`; período e origem filtram ambos os tipos. Informar `eventType` exclui snapshots legados. Ações operam sobre `currentEntry`, respeitando `canEdit`/`canDelete`, nunca sobre a imutabilidade do evento. A UI não oferece mais duas visualizações separadas de eventos e sessões atuais; o endpoint antigo continua atendendo o rastreador de esforço.
+
+Ver [histórico de esforço](../data/TASK_EFFORT_HISTORY.md) para retenção, adoção e limites.
 
 ## GitHub e Artifacts
 
@@ -379,6 +398,44 @@ Coberturas preservam os campos históricos e acrescentam `coverage: {numerator,d
 | POST   | `/projects/:projectId/traceability/commit-suggestions/:suggestionId/reject`  | IDs; body vazio                                                                                        | `200`, `{message,suggestion,changed}`; não cria vínculo                            |
 
 O summary da matriz é calculado sobre todo o projeto, não apenas sobre a página. A matriz seleciona somente dados resumidos e contagens. O grafo nunca expõe `Commit.authorEmail`. Recursos de outro projeto recebem `404`; consultas exigem VIEWER+ e a atualização atômica Requirement–Task exige MEMBER+.
+
+### Grafo ampliado de Requirement — S1-09 Etapa 4
+
+`GET /projects/:projectId/traceability/requirements/:requirementId?expanded=true&page=1&limit=100`
+ativa o read model consolidado. Sem `expanded` ou com `expanded=false`, preserva-se o grafo legado
+com paginação de tarefas. O parâmetro aceita somente `true`/`false`; outros valores recebem `400`.
+A autorização permanece VIEWER+, com `404` opaco para recursos externos ao projeto.
+
+O envelope de sucesso contém `projectId`, `perspective`, `summary`, `nodes`, `edges` e `pagination`.
+Cada node tem `{id,type,entityId,data}`. Tipos: `REQUIREMENT`, `TASK`, `PULL_REQUEST`, `COMMIT`,
+`ISSUE`, `TEST_CASE`, `TEST_EXECUTION`, `DEFECT`. Correção é contexto de TASK; reteste é contexto
+de TEST_EXECUTION. IDs legados permanecem `requirement:N`, `task:N`, `pull-request:N`, `commit:N`
+e `issue:N`; os novos são `testCase:N`, `execution:N` e `defect:N`.
+
+Cada edge possui `{id,type,relationType,source,target}` e, quando aplicável, `failedStep` ou
+`correctionCycle`. Relações: `IMPLEMENTA`, `VERIFICADO_POR`, `IMPLEMENTADO_EM`, `RELACIONADO_A`,
+`EXECUTADO_EM`, `DETECTOU`, `ORIGINADO_EM`, `CORRIGIDO_POR`, `RETESTADO_POR`, `AFETADO_POR`.
+`type`/ID das quatro relações legadas são preservados; `relationType` explicita sua semântica.
+Um TestCase ligado somente via Task não recebe vínculo direto fictício ao Requirement.
+
+Neste modo, `pagination.scope` é `graphNodes`: cada página retorna até `limit` nodes e até
+`edgeLimit = 4 * limit` edges. `total` conta todas as entidades; `edgesTotal` conta relações;
+`totalPages = max(ceil(total/limit), ceil(edgesTotal/edgeLimit))`. Nodes e edges são paginados
+independentemente; uma edge pode referenciar node de outra página. O consumidor acumula por ID
+e só desenha uma edge quando ambos os endpoints estiverem disponíveis. `summary` é o agregado
+completo da Etapa 2, nunca calculado sobre a página. O cliente atual solicita 100 nodes por página.
+
+Dados de card são compactos; relações completas ficam nas edges paginadas. Contagens acompanham
+listas resumidas de tarefas/artefatos/correções. Histórico completo, conteúdo de evidência e Steps
+não são embutidos: abrem-se pelos Details existentes. TestCases excluídos não reaparecem como
+entidades atuais; uma execução histórica necessária à detecção/reteste conserva sua identidade.
+Grupos são apresentação do frontend, não entidades ou novas relações persistidas.
+
+A leitura usa uma transação RepeatableRead por request e um conjunto fixo de consultas por coleção,
+sem consulta por node. A quantidade de linhas intermediárias e a montagem em memória ainda crescem
+com o grafo completo do Requirement; a paginação limita o DTO, não o volume interno da consulta.
+Páginas sucessivas são leituras atuais independentes, sem snapshot/cursor de revisão entre requests.
+GET não reconcilia nem grava histórico, status, progresso ou situação.
 
 O parser RF41 usa somente `/\[TASK-(\d+)\]/gi`: aceita caixa variada, múltiplos IDs e deduplica repetições na mesma mensagem. Não aceita `TASK-42`, `#42`, `ID 42`, `[ISSUE-42]` ou IDs não numéricos. Detecção e scan não criam vínculo; sugestões rejeitadas ou confirmadas nunca são reabertas.
 
@@ -806,3 +863,314 @@ ativa; o histórico completo vive em `SprintTask` e é exposto por `/sprints/:id
 - Campos desconhecidos em bodies/query validados: `400 VALIDATION_ERROR`.
 - Erros de recurso e conflito permanecem `404` e `409` com mensagens atuais.
 - Erros inesperados permanecem seguros e carregam `INTERNAL_ERROR` e request ID.
+
+## S1-07 — Casos de teste, versões, execução e evidências
+
+Backend persistido e frontend integrado localmente em `features/testCases`. Fluxos e limites detalhados em
+[`TEST_CASE_HISTORY.md`](../data/TEST_CASE_HISTORY.md). Prefixo `/api` obrigatório.
+Todas as rotas exigem sessão ativa; mutations exigem CSRF. Leitura por membership
+ativa VIEWER+, escrita MEMBER+. Recurso ausente/alheio/excluído recebe 404 opaco;
+VIEWER em escrita recebe 403. Não existe execução via JSON simples.
+
+| Método | Endpoint | Resposta / finalidade |
+|---|---|---|
+| GET | `/projects/:projectId/test-cases` | `{items,total,page,limit,summary}` |
+| POST | `/projects/:projectId/test-cases` | 201 `{testCase}`; cria definição e v1 |
+| GET | `/test-cases/:id` | `{testCase}`; definição atual e capabilities |
+| PUT | `/test-cases/:id` | `{testCase}`; atualização parcial com expectedVersion |
+| DELETE | `/test-cases/:id` | 204; exclusão lógica, body vazio |
+| PATCH | `/test-cases/:id/status` | `{testCase}`; `{status,expectedVersion}` |
+| GET | `/test-cases/:id/versions` | `{items,total,page,limit}`; snapshot autocontido |
+| GET | `/test-cases/:id/history` | `{items,nextCursor}`; histórico funcional |
+| GET | `/test-cases/:id/executions` | `{items,nextCursor}`; resumos de execução |
+| POST | `/test-cases/:id/executions` | 201 `{execution}`; multipart atômico |
+| GET | `/test-cases/:id/tested-references` | `{items,limit}`; PRs/Commits importados |
+| GET | `/test-executions/:id` | `{execution}`; versão, resultados e evidências históricas |
+| GET | `/test-evidence/:id/content` | stream privado; attachment, MIME validado, nosniff |
+
+### Definição e validação
+
+POST recebe `title`, `description?`, `preconditions`, `expectedResult`,
+`status?` (default ATIVO), `responsibleUserId`, `requirementId?` (default null),
+`taskIds?` (default []), `steps: [{action,expectedResult}]`.
+PUT recebe os campos que mudarão e `expectedVersion` obrigatório; omissões não
+apagam valores. Ordem do array determina `position = index + 1`; cliente não envia
+position na definição. `status = ATIVO | INATIVO`. Campos desconhecidos são rejeitados.
+
+Strings são aparadas. Limites de caracteres: título 1–200; descrição opcional até
+10.000; pré-condições e resultado geral obrigatórios até 20.000; ação e resultado
+esperado de cada passo obrigatórios até 10.000. Steps 1–100; Task IDs 0–100 únicos.
+Responsável deve ter membership ativa do projeto, requisito/Tasks devem pertencer
+a ele. Vínculo parcial inválido reverte toda a operação. IDs numéricos inteiros positivos.
+
+No-op normalizado, troca de responsável e status preservam currentVersion.
+Mudança de definição cria versão imutável. Conflito retorna
+`409 TEST_CASE_VERSION_CONFLICT`. Caso inativo permite editar/reativar, mas execução
+retorna `409 TEST_CASE_INACTIVE`.
+
+### Listas e filtros
+
+Lista e versões: page default 1, limit default 20, máximo 100. Lista ordena por
+createdAt DESC, id DESC; versões por version DESC. Busca literal no título ou ID
+`TC-<id>` (sem busca por descrição). Filtros combináveis: status,
+responsibleUserId, requirementId, taskId, latestResult
+`PASS | FAIL | BLOCKED | NEVER_EXECUTED`.
+
+Summary ignora filtros da lista e exclui tombstones: total, active,
+withoutTraceability (requisito null E nenhum vínculo de Task), neverExecuted e
+withFailure (última execução FAIL). Última execução usa executedAt DESC, id DESC;
+não conta falhas antigas superadas por resultado posterior.
+
+Card: id/displayId (`TC-<id>`), projectId, title, status, responsible `{id,name}`,
+currentVersion, requirement `{id,title}` ou null, taskCount, latestExecution ou null.
+Detalhe acrescenta descrição/pré-condições/resultado geral, responsibleUserId,
+requirementId, steps, tasks, timestamps e capabilities canEdit/canDelete/canExecute.
+
+Histórico/execuções: limit default 30, máximo 100; cursor opaco vinculado ao tipo
+histórico e ao ID do caso. Ordem `(occurredAt,id)` ou `(executedAt,id)` descendente.
+`nextCursor = null` encerra. Não reutilizar cursores entre casos ou streams.
+
+Tested references: search opcional, limit default 20, máximo 50. Sem busca, retorna
+somente referências relacionadas às Tasks atuais. Com busca, prioriza relacionadas
+e completa com resultados do mesmo projeto: PR número/título; Commit hash/mensagem.
+Ordenação determinística por grupos: PR relacionado, Commit relacionado, PR restante,
+Commit restante, cada grupo por id DESC. Deduplica e inclui relatedTaskIds. Sem
+chamada GitHub, sem Issue, sem varrer todos os commits de uma Task.
+
+### Execução multipart
+
+Exatamente um campo textual `payload`, contendo JSON:
+
+```json
+{
+  "testCaseVersion": 3,
+  "environment": "HOMOLOGACAO",
+  "testedReference": { "type": "PULL_REQUEST", "id": 91 },
+  "steps": [
+    { "position": 1, "result": "PASS", "observedResult": null },
+    { "position": 2, "result": "BLOCKED", "observedResult": "Ambiente indisponível" }
+  ]
+}
+```
+
+Ambientes: LOCAL/DESENVOLVIMENTO/HOMOLOGACAO. Referência obrigatória COMMIT ou
+PULL_REQUEST, exatamente um ID importado do projeto. Todas as posições da versão
+aparecem exatamente uma vez. Observação até 20.000 caracteres, obrigatória para
+FAIL/BLOCKED. Autor/timestamp/resultado geral/textos dos passos são autoridade do
+backend; payload que tente fornecê-los é recusado.
+
+Arquivos: `evidence` para gerais; `stepEvidence.<posição>` para passo. Zero arquivos
+é válido. Campos desconhecidos, duplicata de payload, arquivos extras, assinatura
+inválida e destino inexistente rejeitam toda a execução. Limites inclusivos:
+10 MiB não vídeo, 50 MiB vídeo, 3 por passo, 5 gerais, 20 totais, 100 MiB agregados.
+O parser limita também payload a 6 MiB. Ver formatos/configuração no documento de
+histórico. Não há upload separado que deixe metadados sem execução.
+
+Execução retorna id/displayId (`EXEC-` com pelo menos quatro dígitos), projectId,
+testCaseId, testCaseVersionId/testCaseVersion, environment, result,
+testedReferenceType/FKs/snapshot, executor id/nome capturado, timestamps,
+caseVersionSnapshot, steps históricos e evidence. Metadados de evidência incluem
+id/projectId/executionId/executionStepId, scope/kind, nome sanitizado, MIME, bytes,
+sha256, uploadedByUserId, createdAt e contentUrl. Nunca storageKey/path.
+
+Download continua disponível pelo ID após exclusão lógica do caso, mediante
+membership ativa; não suporta Range. Falha de storage: 503
+`TEST_EVIDENCE_STORAGE_UNAVAILABLE`; quota/tamanho: 413
+`TEST_EVIDENCE_LIMIT_EXCEEDED` (campo de arquivo inesperado: 400); formato/payload:
+400; Content-Type incorreto: 415. Falhas não ecoam conteúdo, caminho ou nome de segredo.
+
+Amostras de testes canônicas: `test/unit/test-cases`,
+`test/integration/test-cases-s1-07.test.js`, `test/api/test-cases-s1-07.test.js`.
+S1-08/S1-09 não fazem parte deste contrato. A integração local da interface está registrada no relatório S1-07 frontend.
+
+## S1-08 — Defeitos, correções e reteste contextual
+
+TestCase create/PUT agora exige, no estado resultante, `requirementId` ou pelo
+menos uma `taskId`; remover todos retorna `400 TEST_CASE_TRACEABILITY_REQUIRED`
+sem alterar versão, vínculos ou histórico. Task mantém 0..1 Requirement.
+
+| Método e rota (prefixo `/api`)                          | Resposta                           |
+| ------------------------------------------------------- | ---------------------------------- |
+| GET `/projects/:projectId/defects`                      | `{items,total,page,limit,summary}` |
+| POST `/projects/:projectId/defects`                     | 201 `{defect}`                     |
+| GET `/projects/:projectId/defects/detection-candidates` | `{items,total,page,limit}`         |
+| GET `/defects/:id`                                      | `{defect}`                         |
+| PUT `/defects/:id`                                      | `{defect}`                         |
+| DELETE `/defects/:id`                                   | 204, exclusão lógica               |
+| GET `/defects/:id/history`                              | `{items,total,page,limit}`         |
+| GET `/defects/:id/retests`                              | `{items,total,page,limit}`         |
+| POST `/defects/:id/correction-tasks`                    | 201 `{defect}` atualizado          |
+
+Criação strict JSON:
+
+```json
+{
+  "title": "Elemento não aparece",
+  "description": "Resultado observado na detecção",
+  "severity": "ALTA",
+  "responsibleUserId": 7,
+  "detectedExecutionStepId": 41,
+  "requirementId": 4,
+  "originTaskIds": [20, 21]
+}
+```
+
+Título 1–200, descrição 1–10000 caracteres após trim. Severidade
+`BAIXA | MEDIA | ALTA | CRITICA`. Responsável ativo obrigatório; requisito
+singular opcional; ORIGIN Tasks 0–100 IDs únicos, todos no mesmo projeto.
+É obrigatório ter requisito OU origem. Detecção deve ser passo FAIL persistido
+do projeto; PASS/BLOCKED retornam `DEFECT_DETECTION_REQUIRES_FAIL`. O cliente não
+pode enviar status, datas, revisão inicial ou ciclo inicial.
+
+PUT permite título, descrição, severidade, responsável, requisito e ORIGIN Tasks;
+exige `expectedRevision` positivo. Campos omitidos são preservados. Fonte de
+detecção e projeto são imutáveis. Todo conflito de revisão/ciclo retorna
+`409 DEFECT_CONFLICT`; o cliente deve reler o detalhe.
+
+Correção exige `expectedRevision`, `correctionCycle` e exatamente uma alternativa:
+
+```json
+{ "expectedRevision": 2, "correctionCycle": 1, "taskId": 30 }
+```
+
+```json
+{
+  "expectedRevision": 2,
+  "correctionCycle": 1,
+  "task": { "title": "Corrigir elemento", "responsibleUserId": 7 }
+}
+```
+
+`task` usa o schema canônico de criação de Task. Criar e vincular é atômico.
+Requirement omitido recebe o requisito do Defect; null explícito é respeitado.
+ORIGIN/CORRECTION simultâneos para o mesmo Defect retornam
+`409 DEFECT_TASK_ROLE_CONFLICT`; duplicação no mesmo ciclo retorna
+`409 DEFECT_CORRECTION_ALREADY_LINKED`. Defeito VALIDADO rejeita novas correções
+com `409 DEFECT_ALREADY_VALIDATED`. Excluir Task referenciada por Defect retorna
+`409 TASK_REFERENCED_BY_DEFECT`, inclusive se o Defect estiver excluído.
+
+Paginação: `page` padrão 1, máximo 1000000; `limit` padrão 20, máximo 100.
+Listagem aceita `search` (título ou DEF-id), `status`, `severity`,
+`responsibleUserId`, `requirementId`, `originTaskId`, `correctionTaskId`, `testCaseId`.
+Filtro de correção inclui vínculos de ciclos anteriores. `summary` ignora os
+filtros e conta os defeitos não excluídos do projeto por estado (`total`, `ABERTO`,
+`EM_CORRECAO`, `AGUARDANDO_RETESTE`, `VALIDADO`).
+
+Candidatos são paginados por passo FAIL, mais recentes primeiro; search aceita
+EXEC-id, TC-id, título histórico ou resultado observado. Cada item contém
+`detectedExecutionStepId`, `execution`, `testCase`, `failedStep`,
+`executionEvidence`, `suggestedRequirement`, `suggestedOriginTasks`, `existingDefects`.
+Sugestões vêm da versão executada. Evidência contém metadados e `contentUrl`
+autenticada, sem chave física. Não há criação automática a partir das sugestões.
+
+Detalhe contém campos de Defect, `displayId`, `revision`, `currentCorrectionCycle`,
+`responsibleUser`, `requirement`, `originTasks`, `detection`, `correctionCycles`,
+`retests`, `historyCount` e `statusReason` com total/todo/inProgress/done e
+validatedByExecutionId. Histórico usa `action`, `metadataJson` estruturado,
+actorUserId e occurredAt do servidor. Task list/detail/Kanban inclui
+`correctionDefectCount` e `correctionDefects` distintos por defeito, preservando
+status/deletedAt de defeitos históricos.
+
+Tarefas em `originTasks` e `correctionCycles[].tasks` incluem `priority` e
+`responsibleUser: { id, name }` quando disponível. `retests[].execution` inclui
+`environment` e `executedByDisplayNameSnapshot`, preservando a identidade histórica
+do executor. São campos de leitura; permissões e transições permanecem inalteradas.
+
+Reteste reutiliza POST `/test-cases/:id/executions`, o multipart `payload` e os
+campos de evidência S1-07. Acrescentar ao JSON existente:
+
+```json
+{ "retest": { "defectId": 12, "correctionCycle": 1, "expectedRevision": 3 } }
+```
+
+Exige mesmo TestCase da detecção, ativo, versão atual e AGUARDANDO_RETESTE com
+correções concluídas. Rejeição funcional: `409 DEFECT_NOT_READY_FOR_RETEST`;
+versão obsoleta: `409 TEST_CASE_VERSION_CONFLICT`. PASS valida, FAIL abre ciclo
+seguinte vazio, BLOCKED mantém ciclo; todos invalidam a revisão anterior.
+Sem `retest`, execução normal não altera Defect. A resposta segue `{execution}`;
+reler Defect fornece a nova revisão/ciclo. Histórico e execução são atômicos,
+inclusive evidência e compensação de storage em rollback.
+
+GET `/test-cases/:id/tested-references?retestDefectId=12` prioriza PRs/commits das
+correções do ciclo atual e fornece fallback persistido do projeto mesmo com
+search vazio. Mantém limite S1-07 de 50. Não chama GitHub.
+
+Permissões e política de ciclos: [Authorization](../security/AUTHORIZATION_MATRIX.md)
+e [Defect history](../data/DEFECT_HISTORY.md). Frontend integrado; homologação visual completa pendente. Ver `docs/deliveries/S1_08_FRONTEND_INTEGRATION_REPORT.md`.
+
+
+### S1-08 — Extensões de leitura para a interface
+
+GET `/projects/:projectId/defects` acrescenta `correctionTaskCount` (somente o
+ciclo atual) e `detectionSummary: {testCaseId, executionId, stepPosition}` a cada
+card. GET `/defects/:id` e os recibos de criação/edição/correção retornam os mesmos
+campos, além do detalhe existente. As relações internas `taskLinks` e
+`detectedStep` não são expostas como campos do card.
+
+FIX 03: os mesmos recibos e leituras também fornecem
+`correctionSummary: {total,todo,inProgress,done,singleTask}` do ciclo atual.
+`singleTask` é `{id,status}` quando há exatamente uma tarefa, e `null` nos demais
+casos. Os contadores correspondem a `A_FAZER`, `EM_ANDAMENTO` e `CONCLUIDO`;
+zero tarefas produz contadores zero. Não inclui tarefas de ciclos anteriores.
+`correctionTaskCount` continua disponível. A listagem seleciona apenas `id/status`
+da tarefa na relação de correção já consultada; não faz chamadas de detalhe nem
+consultas de tarefa por card. `requirement` já pertencia ao DTO e foi reutilizado.
+
+GET `/test-executions/:id` acrescenta em cada passo `detectedDefects`, lista de
+`{id,title,severity,status}` dos defeitos ativos daquele passo. O snapshot da
+execução permanece histórico; esta lista representa os registros de defeito
+atualmente disponíveis para navegação. Defeitos excluídos logicamente são omitidos.
+
+Não houve alteração de schema, migration, escrita, lifecycle ou autorização.
+
+
+## S1-09 — Requirement current projection e histórico (Etapa 2)
+
+Novas leituras sob `/api/projects/:projectId/traceability`; contratos de matriz,
+summary antigo e grafos permanecem inalterados. Não há endpoint para escrever
+situação. Membership ativa VIEWER+; sessão ausente 401; projeto inacessível ou
+requisito alheio 404 opaco.
+
+| Método | Sufixo | Entrada | Resposta |
+|---|---|---|---|
+| GET | `/requirements` | page=1, limit=20 (máx.100), search, situation, requirementStatus, hasTests, hasOpenDefects, hasTechnicalEvidence | `{projectId,items,summary,filteredSummary,pagination}` |
+| GET | `/requirements/:requirementId/current` | IDs positivos | DTO atual do Requirement |
+| GET | `/requirements/:requirementId/history` | limit=30 (máx.100), cursor opcional | `{items,nextCursor}`; occurredAt DESC/id DESC |
+
+Booleanos aceitam `true`/`false`; situation aceita os 11 estados canônicos;
+requirementStatus aceita o enum vigente. search consulta título sem diferenciar
+maiúsculas ou REQ-id exato. hasOpenDefects indica qualquer Defect pendente, não
+somente ABERTO. Lista ordena id DESC; filtros são avaliados no servidor sobre o
+conjunto completo antes da paginação. `pagination` contém page, limit, total e
+totalPages. Summary global não muda com filtros/página; filteredSummary usa o
+conjunto filtrado. Ambos retornam total, bySituation (11 chaves) e withDefect
+(COM_FALHA + EM_CORRECAO + AGUARDANDO_RETESTE).
+
+A listagem percorre IDs/títulos e agregados escalares em lotes de até 200 requisitos,
+sob snapshot RepeatableRead. A policy canônica classifica e filtra esses agregados;
+somente os IDs da página chegam à carga da projeção detalhada no repository.
+Summary global e filteredSummary continuam abrangendo seus conjuntos completos.
+O custo dos agregados cresce com o projeto; o payload detalhado fica restrito aos
+requisitos da página e às suas relações, sem consulta individual por entidade.
+
+DTO: `requirement{id,displayId,title,status}`,
+`progress{numerator,denominator,percentage,hasData,tasksTotal,tasksDone}`,
+`implementation{legacyStage,legacyImplementationStatus,implemented,technicalEvidence}`,
+`artifacts{pullRequests,commits,issues}` (vínculos legados),
+`validation{testCasesTotal,neverExecuted,pass,fail,blocked}`,
+`defects{total,open,inCorrection,waitingRetest,validated}`,
+`evidence{implementation,validation,correction}`, hasUntreatedFailure e situation.
+Correction usa NOT_APPLICABLE/PRESENT/MISSING; as demais dimensões são booleanas.
+
+History item: id, projectId, requirementId, fromSituation (nullable somente no
+baseline), toSituation, reason, sourceEntityType/id opcionais, metadataJson
+(rulesVersion=3 nas novas entradas; 1/2 históricas preservadas), occurredAt. Cursor opaco é vinculado ao projeto/requisito;
+cursor inválido/alheio retorna 400. GET é somente leitura e não inicializa State.
+Requisito removido retorna 404; suas transições persistidas não são apagadas.
+
+`neverExecuted` significa sem execução da **currentVersion**. A execução mais
+recente de outra versão não valida a atual; S1-07 mantém seu latestExecution
+histórico. `Requirement.status` é o macro derivado de situation pela mesma policy. CONCLUIDO exige
+a cadeia técnica/qualidade completa e independe do status anterior; novas pendências reabrem a cadeia automaticamente.
+Política, exemplo JSON, hooks, migração, inicialização e limite de escala do
+agregado em memória: [Requirement Traceability History](../data/REQUIREMENT_TRACEABILITY_HISTORY.md).

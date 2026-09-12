@@ -1,0 +1,22 @@
+.lifecycle-trail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-1);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.lifecycle-trail li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-1);
+}
+.lifecycle-trail li.is-current {
+  color: var(--color-accent-text);
+  font-weight: var(--font-weight-semibold);
+}
+.lifecycle-trail li.is-reached {
+  color: var(--color-text-primary);
+}

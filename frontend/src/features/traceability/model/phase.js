@@ -1,0 +1,41 @@
+// Presentation only: the backend situation remains the sole domain authority.
+export const phases = {
+  PLANNING: 'Planejamento',
+  IMPLEMENTATION: 'Implementação',
+  VALIDATION: 'Validação',
+  CORRECTION: 'Correção',
+  CONCLUSION: 'Conclusão'
+};
+export const situationPhases = Object.freeze({
+  SEM_RASTREABILIDADE: 'PLANNING',
+  PLANEJADO: 'PLANNING',
+  EM_DESENVOLVIMENTO: 'IMPLEMENTATION',
+  IMPLEMENTADO: 'IMPLEMENTATION',
+  AGUARDANDO_VALIDACAO: 'VALIDATION',
+  EM_VALIDACAO: 'VALIDATION',
+  VALIDADO: 'VALIDATION',
+  COM_FALHA: 'CORRECTION',
+  EM_CORRECAO: 'CORRECTION',
+  AGUARDANDO_RETESTE: 'CORRECTION',
+  CONCLUIDO: 'CONCLUSION'
+});
+export const macroPhase = (situation) => situationPhases[situation] || null;
+export const phaseLabel = (situation) => phases[macroPhase(situation)] || 'Fase indisponível';
+export const traceabilityHelp = {
+  progress: [
+    'Progresso de implementação',
+    'Calculado a partir das tarefas vinculadas ao requisito. Testes e defeitos não alteram este percentual; eles influenciam a situação de validação, correção e conclusão.'
+  ],
+  phase: [
+    'Fase do requisito',
+    'Mostra a fase atual e as etapas já alcançadas no percurso indicado pela situação atual. Uma etapa anterior não significa trabalho 100% concluído. A situação pode regredir; o histórico continua preservado.'
+  ],
+  situation: [
+    'Situação da rastreabilidade',
+    'Situação detalhada da cadeia. O status macro deriva desta mesma situação. A conclusão é automática e pode regredir quando houver novo trabalho, teste ou falha.'
+  ],
+  evidence: [
+    'Evidências',
+    'Implementação considera PRs ou commits vinculados ao trabalho. Validação considera execuções da versão atual dos casos ativos. Correção considera artefatos e reteste aprovado no ciclo atual quando houve defeito. Evidência presente não significa, sozinha, requisito concluído.'
+  ]
+};

@@ -1,3 +1,4 @@
+import { EntityRow } from '../../../shared/index.js';
 import {
   formatCommitLabel,
   formatDateTime,
@@ -12,19 +13,28 @@ import {
   TaskTraceabilityGrid
 } from './TaskDetailsLayout.jsx';
 
-export function TaskTraceability({ task }) {
+export function TaskTraceability({ task, projectId, onNavigate }) {
   return (
     <TaskTraceabilityGrid>
       <ArtifactCategory label="Requisito" count={task.requirement ? 1 : 0}>
         {task.requirement ? (
-          <div>
-            <strong>{formatRequirementLabel(task.requirement)}</strong>
-            <p>
+          <EntityRow
+            identity={task.requirement.id ? `REQ-${task.requirement.id}` : 'Requisito'}
+            title={formatRequirementLabel(task.requirement)}
+            disabled={!projectId}
+            to={
+              projectId
+                ? `/projects/${projectId}/requirements?requirement=${task.requirement.id}`
+                : undefined
+            }
+            onClick={onNavigate}
+          >
+            <span>
               {task.requirement.status
                 ? requirementStatusLabels[task.requirement.status] || task.requirement.status
                 : 'Status não informado'}
-            </p>
-          </div>
+            </span>
+          </EntityRow>
         ) : (
           <p>Nenhum vínculo</p>
         )}

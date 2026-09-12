@@ -1,0 +1,127 @@
+.trace-help {
+  display: inline-flex;
+  position: relative;
+  vertical-align: middle;
+}
+.trace-help-trigger {
+  display: inline-grid;
+  place-items: center start;
+  min-width: 28px;
+  min-height: var(--size-touch-target);
+  padding: var(--space-1);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+.trace-help-trigger svg {
+  width: var(--size-icon-sm);
+  height: var(--size-icon-sm);
+}
+.trace-help-popover {
+  position: fixed;
+  max-height: 50vh;
+  overflow: auto;
+  z-index: var(--z-tooltip);
+  width: min(19rem, 75vw);
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-elevated);
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-md);
+  font-size: var(--font-size-2);
+  font-weight: var(--font-weight-regular);
+}
+.trace-guide {
+  position: relative;
+  font-size: var(--font-size-2);
+}
+.trace-guide summary {
+  cursor: pointer;
+  color: var(--color-accent-text);
+}
+.trace-guide > div {
+  padding: var(--space-3);
+  max-height: min(26rem, 55dvh);
+  overflow: auto;
+  border-top: 1px solid var(--color-border-default);
+  background: var(--color-surface-secondary);
+}
+.requirement-phase {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-2);
+}
+.requirement-phase strong {
+  color: var(--color-text-primary);
+}
+
+.trace-guide summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--size-touch-target);
+  padding: var(--space-2) var(--space-4);
+}
+.trace-guide summary .traceflow-icon {
+  width: var(--size-icon-sm);
+  height: var(--size-icon-sm);
+}
+.trace-guide summary:hover {
+  background: var(--color-surface-interactive);
+}
+.trace-guide summary::-webkit-details-marker {
+  display: none;
+}
+.trace-guide summary::after {
+  content: '+';
+  margin-left: auto;
+}
+.trace-guide[open] summary::after {
+  content: '−';
+}
+.trace-guide p {
+  margin: 0 0 var(--space-3);
+  color: var(--color-text-secondary);
+}
+.trace-guide-chains {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+  margin: var(--space-3) 0;
+}
+.trace-guide-chains > div {
+  border-left: 2px solid var(--color-border-strong);
+  padding-left: var(--space-3);
+}
+.trace-guide-chains dt {
+  color: var(--color-accent-text);
+  font-weight: var(--font-weight-semibold);
+}
+.trace-guide-chains dd {
+  margin: var(--space-1) 0;
+}
+.trace-guide .trace-guide-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.trace-guide-line {
+  width: 32px;
+  border-top: 2px solid var(--color-text-secondary);
+}
+.trace-guide-line.is-secondary {
+  border-top: 1px dashed var(--color-border-strong);
+}
+@media (max-width: 600px) {
+  .trace-guide-chains {
+    grid-template-columns: 1fr;
+  }
+}

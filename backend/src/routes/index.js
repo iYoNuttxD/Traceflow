@@ -1,4 +1,6 @@
 // Agregador central das rotas da API TRACEFLOW; cada endpoint pertence ao módulo responsável.
+import { defectRoutes } from '../modules/defects/index.js';
+import { testCaseRoutes } from '../modules/testCases/index.js';
 import { Router } from 'express';
 import { projectRoutes } from '../modules/projects/index.js';
 import { requirementRoutes } from '../modules/requirements/index.js';
@@ -11,6 +13,8 @@ import { settingsRoutes } from '../modules/settings/index.js';
 
 const routes = Router();
 
+routes.use('/', testCaseRoutes);
+routes.use('/', defectRoutes);
 routes.use('/projects', projectRoutes);
 routes.use('/', requirementRoutes);
 routes.use('/', taskRoutes);

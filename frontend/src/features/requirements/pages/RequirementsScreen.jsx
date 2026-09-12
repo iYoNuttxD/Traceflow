@@ -1,7 +1,9 @@
+import { ContextualTestCaseCreate } from '../../testCases/index.js';
+import { SprintDialog } from '../../schedule/index.js';
+import { membersApi } from '../../members/index.js';
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { Link, useParams, useSearchParams } from 'react-router';
 import {
-  confirmRequirementCompletion,
   deleteRequirement,
   replaceRequirementTasks,
   requirementsApi
@@ -35,6 +37,9 @@ const typeLabels = {
 };
 
 const statusLabels = {
+  PLANEJADO: 'Planejado',
+  EM_VALIDACAO: 'Em validação',
+  EM_CORRECAO: 'Em correção',
   CADASTRADO: 'Cadastrado',
   APROVADO: 'Aprovado',
   EM_IMPLEMENTACAO: 'Em implementação',
@@ -89,6 +94,26 @@ function formatTaskLabel(task) {
 export function RequirementsScreen() {
   const confirm = useConfirm();
   const { projectId } = useParams();
+  const [searchParams] = useSearchParams();
+  const [caseRequirement, setCaseRequirement] = useState(null),
+    [caseBusy, setCaseBusy] = useState(false),
+    [caseMembership, setCaseMembership] = useState(null);
+  useEffect(() => {
+    let active = true;
+    const controller = new AbortController();
+    setCaseMembership(null);
+    setCaseRequirement(null);
+    void membersApi
+      .list(projectId, { signal: controller.signal, fresh: true })
+      .then((d) => {
+        if (active) setCaseMembership(d.currentMembership);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [projectId]);
   const [project, setProject] = useState(null);
   const [requirements, setRequirements] = useState([]);
   const [taskResults, setTaskResults] = useState([]);
@@ -99,7 +124,6 @@ export function RequirementsScreen() {
   const [editingRequirementId, setEditingRequirementId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [confirmingRequirementId, setConfirmingRequirementId] = useState(null);
   const [deletingRequirementId, setDeletingRequirementId] = useState(null);
   const [error, setError] = useState('');
   const [pageError, setPageError] = useState(null);
@@ -133,6 +157,14 @@ export function RequirementsScreen() {
     loadRequirementsData();
   }, [loadRequirementsData]);
 
+  useEffect(() => {
+    const id = searchParams.get('requirement');
+    if (id && /^\d+$/.test(id)) {
+      const element = document.getElementById(`requirement-${id}`);
+      element?.scrollIntoView?.({ block: 'center' });
+      element?.focus({ preventScroll: true });
+    }
+  }, [searchParams, requirements]);
   function handleFormChange(name, value) {
     setFormData((current) => ({ ...current, [name]: value }));
   }
@@ -262,27 +294,6 @@ export function RequirementsScreen() {
     }));
   }
 
-  async function handleConfirmCompletion(requirementId) {
-    setConfirmingRequirementId(requirementId);
-    setError('');
-    setSuccess('');
-
-    try {
-      const response = await confirmRequirementCompletion(requirementId);
-      setSuccess(response.message || 'Requisito concluído com sucesso.');
-      setRequirements((current) =>
-        current.map((requirement) =>
-          String(requirement.id) === String(requirementId) ? response.requirement : requirement
-        )
-      );
-      await loadRequirementsData();
-    } catch (requestError) {
-      setError(getErrorMessage(requestError, 'Não foi possível concluir o requisito.'));
-    } finally {
-      setConfirmingRequirementId(null);
-    }
-  }
-
   async function handleDeleteRequirement(requirement) {
     const confirmed = await confirm({
       title: 'Excluir requisito',
@@ -345,21 +356,18 @@ export function RequirementsScreen() {
     (summary, requirement) => {
       summary.total += 1;
 
-      if (requirement.status === 'CADASTRADO' || requirement.status === 'PENDENTE') {
-        summary.registered += 1;
-      } else if (requirement.status === 'APROVADO') {
-        summary.approved += 1;
-      } else if (requirement.status === 'EM_IMPLEMENTACAO') {
-        summary.inProgress += 1;
-      } else if (requirement.status === 'VALIDADO' || requirement.status === 'CONCLUIDO') {
-        summary.validatedOrDone += 1;
-      }
+      if (requirement.status === 'PLANEJADO') summary.registered += 1;
+      else if (requirement.status === 'EM_VALIDACAO') summary.approved += 1;
+      else if (requirement.status === 'EM_IMPLEMENTACAO') summary.inProgress += 1;
+      else if (requirement.status === 'EM_CORRECAO') summary.inCorrection += 1;
+      else if (requirement.status === 'CONCLUIDO') summary.validatedOrDone += 1;
 
       return summary;
     },
     {
       total: 0,
       registered: 0,
+      inCorrection: 0,
       approved: 0,
       inProgress: 0,
       validatedOrDone: 0
@@ -393,11 +401,11 @@ export function RequirementsScreen() {
           <strong className="metric-value">{requirementSummary.total}</strong>
         </Card>
 
-        <Card title="Cadastrados">
+        <Card title="Planejados">
           <strong className="metric-value">{requirementSummary.registered}</strong>
         </Card>
 
-        <Card title="Aprovados">
+        <Card title="Em validação">
           <strong className="metric-value">{requirementSummary.approved}</strong>
         </Card>
 
@@ -405,7 +413,10 @@ export function RequirementsScreen() {
           <strong className="metric-value">{requirementSummary.inProgress}</strong>
         </Card>
 
-        <Card title="Validados/concluídos">
+        <Card title="Em correção">
+          <strong className="metric-value">{requirementSummary.inCorrection}</strong>
+        </Card>
+        <Card title="Concluídos">
           <strong className="metric-value">{requirementSummary.validatedOrDone}</strong>
         </Card>
 
@@ -530,7 +541,12 @@ export function RequirementsScreen() {
           ) : (
             <div className="requirement-list requirements-grid">
               {requirements.map((requirement) => (
-                <article className="requirement-item" key={requirement.id}>
+                <article
+                  className="requirement-item"
+                  id={`requirement-${requirement.id}`}
+                  tabIndex={-1}
+                  key={requirement.id}
+                >
                   <div className="requirement-item-header">
                     <div>
                       <span className="eyebrow">{typeLabels[requirement.type]}</span>
@@ -577,6 +593,14 @@ export function RequirementsScreen() {
                   </div>
 
                   <div className="requirement-actions">
+                    {caseMembership && caseMembership.role !== 'VIEWER' && (
+                      <button
+                        className="button button-secondary"
+                        onClick={() => setCaseRequirement(requirement)}
+                      >
+                        Criar caso de teste
+                      </button>
+                    )}
                     <button
                       className="button button-secondary"
                       type="button"
@@ -584,18 +608,6 @@ export function RequirementsScreen() {
                     >
                       Editar
                     </button>
-                    {requirement.status === 'VALIDADO' && (
-                      <button
-                        className="button button-primary"
-                        type="button"
-                        onClick={() => handleConfirmCompletion(requirement.id)}
-                        disabled={confirmingRequirementId === requirement.id}
-                      >
-                        {confirmingRequirementId === requirement.id
-                          ? 'Concluindo...'
-                          : 'Confirmar conclusão'}
-                      </button>
-                    )}
                     <button
                       className="button button-danger"
                       type="button"
@@ -611,6 +623,42 @@ export function RequirementsScreen() {
           )}
         </Card>
       </div>
+      <SprintDialog
+        open={Boolean(caseRequirement)}
+        title="Criar caso de teste"
+        description={caseRequirement ? `A partir de REQ-${caseRequirement.id}` : undefined}
+        busy={caseBusy}
+        size="large"
+        className="tc-dialog"
+        onClose={() => {
+          if (!caseBusy) setCaseRequirement(null);
+        }}
+        headerActions={
+          <button
+            className="button button-secondary"
+            disabled={caseBusy}
+            onClick={() => setCaseRequirement(null)}
+          >
+            Voltar para requisito
+          </button>
+        }
+      >
+        {caseRequirement && (
+          <ContextualTestCaseCreate
+            key={`${projectId}:${caseRequirement.id}`}
+            projectId={projectId}
+            requirement={caseRequirement}
+            onBusyChange={setCaseBusy}
+            onBack={() => {
+              if (!caseBusy) setCaseRequirement(null);
+            }}
+            onCreated={(saved) => {
+              setSuccess(`${saved.displayId} · Caso de teste criado.`);
+              setCaseRequirement(null);
+            }}
+          />
+        )}
+      </SprintDialog>
     </main>
   );
 }

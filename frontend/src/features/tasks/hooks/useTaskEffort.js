@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   createTaskTimeEntry,
+  updateTaskTimeEntry,
   deleteTaskTimeEntry,
   getTaskTimeEntries,
   startTaskTimer,
@@ -15,6 +16,7 @@ export const EFFORT_EVENT_TYPES = Object.freeze([
   'task.time_entry.started',
   'task.time_entry.stopped',
   'task.time_entry.created',
+  'task.time_entry.updated',
   'task.time_entry.deleted'
 ]);
 
@@ -41,7 +43,7 @@ export function applyEffortEvent(current, type, entry, effort) {
   } else if (type === 'task.time_entry.stopped') {
     if (running?.id === entry.id) running = null;
     entries = upsertEntry(entries, entry);
-  } else if (type === 'task.time_entry.created') {
+  } else if (type === 'task.time_entry.created' || type === 'task.time_entry.updated') {
     entries = upsertEntry(entries, entry);
   } else if (type === 'task.time_entry.deleted') {
     entries = entries.filter((item) => item.id !== entry.id);
@@ -203,6 +205,8 @@ export function useTaskEffort({ taskId }) {
     stop: () => runAction(() => stopTaskTimer(taskId), 'task.time_entry.stopped'),
     addManual: (payload) =>
       runAction(() => createTaskTimeEntry(taskId, payload), 'task.time_entry.created'),
+    update: (entryId, payload) =>
+      runAction(() => updateTaskTimeEntry(taskId, entryId, payload), 'task.time_entry.updated'),
     remove: (entryId) =>
       runAction(() => deleteTaskTimeEntry(taskId, entryId), 'task.time_entry.deleted'),
     reload: load

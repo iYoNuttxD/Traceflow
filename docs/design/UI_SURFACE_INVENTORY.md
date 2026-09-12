@@ -66,11 +66,11 @@ revalidação.
 
 <!-- INVENTORY_COUNTS_START -->
 
-- Total surfaces: 196
+- Total surfaces: 207
 - `C2 COMPLETE`: 161
 - `LEGACY`: 8
 - `HYBRID`: 26
-- `NOT REVIEWED`: 0
+- `NOT REVIEWED`: 11
 - `NOT APPLICABLE`: 1
 
 | Domain                        | Total |  C2 | Legacy | Hybrid | Not Reviewed |
@@ -83,11 +83,12 @@ revalidação.
 | Requirements and Traceability |     9 |   1 |      3 |      5 |            0 |
 | Repository / GitHub           |     4 |   0 |      2 |      2 |            0 |
 | Settings and Remaining        |    21 |  20 |      1 |      0 |            0 |
+| Test Cases                    |    11 |   0 |      0 |      0 |           11 |
 
 Validation evidence:
 
 - `VISUALLY APPROVED`: 38
-- `TECHNICALLY VERIFIED`: 154
+- `TECHNICALLY VERIFIED`: 165
 - `STRUCTURALLY IDENTIFIED`: 4
 - `ENVIRONMENT BLOCKED`: 0
 - `NOT VALIDATED`: 0
@@ -308,9 +309,10 @@ renderizada em homologação**, então Light, Dark, responsividade e alvos de to
 
 ## Requirements and Traceability
 
-Forms, listas, matriz e canvas com pares de contraste exercitados por testes recebem verificação
-técnica de tema. Isso não promove a linguagem visual para C2 nem valida interação/renderização dos
-estados ainda identificados como `PARTIAL`.
+Forms, listas e canvas legados com pares de contraste exercitados por testes recebem verificação
+técnica de tema. Isso não promove os estados ainda identificados como `PARTIAL` para C2.
+As novas superfícies de Rastreabilidade da S1-09 Etapa 3 possuem homologação renderizada própria,
+registrada no relatório de Requirement Cards e histórico; o canvas permanece legado.
 
 | ID                              | Domain       | Flow                    | Route / Context                     | Surface                    | Type                   | Component / Owner                                                    | Trigger                           | Roles                                  | States                                                               | Light                   | Dark                                               | Responsive                           | Accessibility                                             | Visual Status | Validation Status       | Priority | Target UX Scope              | Notes                                                                        |
 | ------------------------------- | ------------ | ----------------------- | ----------------------------------- | -------------------------- | ---------------------- | -------------------------------------------------------------------- | --------------------------------- | -------------------------------------- | -------------------------------------------------------------------- | ----------------------- | -------------------------------------------------- | ------------------------------------ | --------------------------------------------------------- | ------------- | ----------------------- | -------- | ---------------------------- | ---------------------------------------------------------------------------- |
@@ -319,10 +321,14 @@ estados ainda identificados como `PARTIAL`.
 | `REQUIREMENTS-TASK-PICKER`      | Requirements | Requirement–Task        | Requirement form                    | Busca e seleção de tarefas | Inline state / Results | `RequirementsScreen.jsx`                                             | Busca com dois ou mais caracteres | MEMBER, MANAGER, OWNER                 | Selected, search, results, no results e unlink                       | Legacy preservado       | Compatibilidade Dark implementada; redesign adiado | UNKNOWN                              | PARTIAL                                                   | LEGACY        | STRUCTURALLY IDENTIFIED | P1       | UX-REQUIREMENTS-TRACEABILITY | RF48; atualização é atômica.                                                 |
 | `REQUIREMENTS-LIST-AND-EMPTY`   | Requirements | Requirement browsing    | Requirements main                   | Lista de requisitos        | List / Empty state     | `RequirementsScreen.jsx`                                             | Carga concluída                   | VIEWER+                                | Empty, list, status, linked tasks e actions                          | Light legado preservado | Compatibilidade Dark implementada; redesign adiado | LEGACY                               | PARTIAL                                                   | HYBRID        | TECHNICALLY VERIFIED    | P1       | UX-REQUIREMENTS-TRACEABILITY | Metadados e relações vêm do contrato atual.                                  |
 | `REQUIREMENTS-DELETE-CONFIRM`   | Requirements | Delete requirement      | Requirements main                   | Confirmação de exclusão    | Confirmation dialog    | `RequirementsScreen.jsx`, `ConfirmDialog.jsx`                        | Ação Excluir                      | MEMBER, MANAGER, OWNER                 | Cancel/confirm, deleting, success/error                              | Tokenizado              | Tokenizado                                         | IMPLEMENTED / NOT VISUALLY VALIDATED | VERIFIED pela primitive                                   | C2 COMPLETE   | TECHNICALLY VERIFIED    | P2       | UX-REQUIREMENTS-TRACEABILITY | Tarefas são preservadas e ficam sem requisito.                               |
-| `TRACEABILITY-MAIN`             | Traceability | Matrix                  | `/projects/:projectId/traceability` | Página de rastreabilidade  | Page                   | `frontend/src/features/traceability/pages/TraceabilityScreen.jsx`    | Tab Rastreabilidade               | VIEWER, MEMBER, MANAGER, OWNER         | Loading, fatal/inline error, empty, summary, matrix e pagination     | Light legado preservado | Compatibilidade Dark implementada; redesign adiado | LEGACY                               | PARTIAL                                                   | HYBRID        | TECHNICALLY VERIFIED    | P1       | UX-REQUIREMENTS-TRACEABILITY | RF49/RF52/RF53. Compatibilidade de tema não promove a surface para C2.       |
-| `TRACEABILITY-MATRIX-STATES`    | Traceability | Matrix                  | Traceability main                   | Matriz e seleção           | Table / State          | `TraceabilityScreen.jsx`                                             | Carga e seleção de requisito      | VIEWER+                                | Empty project, row selected, progress, pagination e load error/retry | Legacy preservado       | Compatibilidade Dark implementada; redesign adiado | LEGACY                               | PARTIAL: row contém button, tabela não homologada         | HYBRID        | TECHNICALLY VERIFIED    | P1       | UX-REQUIREMENTS-TRACEABILITY | Progresso usa valor runtime inline.                                          |
-| `TRACEABILITY-DETAIL-STATES`    | Traceability | Requirement perspective | Traceability main                   | Detalhe da cadeia          | State                  | `TraceabilityScreen.jsx`                                             | Seleção na matriz                 | VIEWER+                                | No selection, loading, error, no data e loaded                       | Legacy preservado       | Compatibilidade Dark implementada; redesign adiado | LEGACY                               | PARTIAL                                                   | HYBRID        | STRUCTURALLY IDENTIFIED | P1       | UX-REQUIREMENTS-TRACEABILITY | Não é dialog; ocupa a surface da página.                                     |
-| `TRACEABILITY-FLOW-CANVAS`      | Traceability | Visual graph            | Detail loaded                       | Fluxograma interativo      | Canvas / State         | `frontend/src/features/traceability/components/TraceabilityFlow.jsx` | Detalhe com nós/arestas           | VIEWER+                                | Empty links, collapsed/expanded nodes, fit view, controls e minimap  | Legacy preservado       | Light island legível; redesign adiado              | UNKNOWN                              | PARTIAL: botões existem; navegação do canvas não revisada | LEGACY        | TECHNICALLY VERIFIED    | P1       | UX-REQUIREMENTS-TRACEABILITY | Cores categóricas invariantes e foreground `on-light`; sem promoção para C2. |
+| `TRACEABILITY-MAIN` | Traceability | Requirement projection | `/projects/:projectId/traceability` | Rastreabilidade | Page | `TraceabilityScreen.jsx` | Tab Rastreabilidade | VIEWER+ | Loading, fatal error, summary, filters, cards, graph | PASS renderizado | PASS renderizado | VERIFIED: 1440/1280/768/390 | VERIFIED: teclado, foco e primitives; não certificação completa | C2 COMPLETE | VISUALLY VALIDATED | P1 | UX-REQUIREMENTS-TRACEABILITY | Resumo global e catálogo server-side; relatório S1-09 Etapa 3. |
+| `TRACEABILITY-CATALOG` | Traceability | Requirement catalog | `Traceability main` | Catálogo e paginação | List / State | `TraceabilityScreen.jsx; useRequirementCatalog.js` | Carga e Carregar mais | VIEWER+ | Loading, empty, filtered empty, append, retry | PASS renderizado | PASS renderizado | VERIFIED: 1440/1280/768/390 | VERIFIED: teclado, foco e primitives; não certificação completa | C2 COMPLETE | VISUALLY VALIDATED | P1 | UX-REQUIREMENTS-TRACEABILITY | Substitui TRACEABILITY-MATRIX-STATES; endpoint legado preservado, tabela removida. |
+| `TRACEABILITY-SUMMARY` | Traceability | Project overview | `Traceability main` | Visão geral da rastreabilidade | Summary | `RequirementCatalog.jsx` | Resposta da projeção | VIEWER+ | Pending, global totals, five macros | PASS renderizado | PASS renderizado | VERIFIED: 1440/1280/768/390 | VERIFIED: teclado, foco e primitives; não certificação completa | C2 COMPLETE | VISUALLY VALIDATED | P1 | UX-REQUIREMENTS-TRACEABILITY | Soma apenas buckets do backend; não deriva situações nem usa itens da página. |
+| `TRACEABILITY-REQUIREMENT-CARD` | Traceability | Requirement projection | `Traceability catalog` | Requirement Card | Card | `RequirementCatalog.jsx` | Requisito carregado | VIEWER+ | 11 situations, status, progress, counts, evidence, selected | PASS renderizado | PASS renderizado | VERIFIED: 1440/1280/768/390 | VERIFIED: teclado, foco e primitives; não certificação completa | C2 COMPLETE | VISUALLY VALIDATED | P1 | UX-REQUIREMENTS-TRACEABILITY | 576px desktop; uma coluna adapta altura; REQ-4 longo e REQ-2 zero inspecionados. |
+| `TRACEABILITY-FILTERS` | Traceability | Server filtering | `Traceability main` | Buscar e filtrar | Collapsible filters | `RequirementCatalog.jsx; CollapsibleFilterPanel` | Expandir filtros | VIEWER+ | Collapsed, search debounce, finite selects, active, clear | PASS renderizado | PASS renderizado | VERIFIED: 1440/1280/768/390 | VERIFIED: teclado, foco e primitives; não certificação completa | C2 COMPLETE | VISUALLY VALIDATED | P1 | UX-REQUIREMENTS-TRACEABILITY | Clear wrapper só com filtro ativo; novo filtro invalida append antigo e reinicia página 1. |
+| `TRACEABILITY-SITUATION-HISTORY` | Traceability | Situation history | `Requirement Card` | Histórico de situação | Dialog / History | `RequirementHistory.jsx; SprintDialog; HistoryEventRow` | Histórico | VIEWER+ | Loading, empty, baseline, transition, error, cursor append | PASS renderizado | PASS renderizado | VERIFIED: 1440/1280/768/390 | VERIFIED: teclado, foco e primitives; não certificação completa | C2 COMPLETE | VISUALLY VALIDATED | P1 | UX-REQUIREMENTS-TRACEABILITY | Baseline real renderizado; cursor, regressões e concorrência automatizados. Sem filtros fictícios. |
+| `TRACEABILITY-DETAIL-STATES` | Traceability | Requirement perspective | `Traceability main` | Detalhe da cadeia | State | `TraceabilityScreen.jsx` | Ver rastreabilidade | VIEWER+ | No selection, loading, error/retry, loaded | PASS renderizado | PASS renderizado | VERIFIED: 1440/1280/768/390 | VERIFIED: teclado, foco e primitives; não certificação completa | HYBRID | VISUALLY VALIDATED | P1 | UX-REQUIREMENTS-TRACEABILITY | Foco/scroll ao heading; erro do fluxo preserva catálogo; contrato do canvas anterior. |
+| `TRACEABILITY-FLOW-CANVAS` | Traceability | Expanded graph | Detail loaded | Fluxograma interativo | Canvas / State | `TraceabilityFlow; GraphNode; GraphEdge; GraphEntityDetails` | Ver rastreabilidade | VIEWER+ | Eight real types, metadata, groups, paging/retry, collapse, fit, Details | PASS renderizado | PASS renderizado | VERIFIED: 1440/1280/768/390 | VERIFIED: teclado, foco, labels textuais; não certificação completa | C2 COMPLETE | VISUALLY VALIDATED | P1 | UX-REQUIREMENTS-TRACEABILITY | S1-09 Etapa 4; grafo real + fixture isolada de 85 entidades, identidade única, controles horizontais, pan contido. Ver relatório de entrega. |
 
 ## Repository / GitHub
 
@@ -544,3 +550,159 @@ escopo UX-SETTINGS; as callbacks públicas de mudança de e-mail e reativação 
   endpoint documentado e o frontend atual.
 - O log preserva a homologação histórica, enquanto este inventário registra o estado após mudanças
   materiais. Protótipos locais não promovem uma surface nem substituem evidência versionada.
+
+
+## Test Cases — S1-07 integrado localmente
+
+As superfícies abaixo usam C2 e dados persistidos. `NOT REVIEWED` refere-se à
+**matriz visual completa ainda pendente**, não à ausência de implementação. Houve
+renderização desktop parcial no Safari em Light/Dark, descrita no log, sem controle
+verificável das dimensões CSS solicitadas. A rodada S1-08 abaixo atualiza somente
+os estados que revalidou. Não promover a `C2 COMPLETE` por tokens ou jsdom.
+
+| ID | Domain | Flow | Route / Context | Surface | Type | Component / Owner | Trigger | Roles | States | Light | Dark | Responsive | Accessibility | Visual Status | Validation Status | Priority | Target UX Scope | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| TC-MAIN | Test Cases | S1-07 | `/projects/:projectId/test-cases` | Catálogo e resumo | Page | `features/testCases/TestCasesScreen` | Navegação | VIEWER leitura; MEMBER+ escrita | lista, loading, empty, erro, warning | Desktop parcial: UX final 2026-09-08 | Desktop parcial: UX final 2026-09-08 | ENVIRONMENT BLOCKED: matriz exata | TECHNICALLY VERIFIED: teclado, erros, foco, busy | NOT REVIEWED | TECHNICALLY VERIFIED | P1 | S1-07 FINAL INTEGRATED QA | Implementação real; UX final 2026-09-08, matriz exata pendente; ver relatório UX S1-07. |
+| TC-FILTERS | Test Cases | S1-07 | `/projects/:projectId/test-cases` | Filtros reais | Filter panel | `features/testCases/components/TestCaseList` | Buscar e filtrar | VIEWER leitura; MEMBER+ escrita | collapsed, search, selected, empty | Desktop parcial: UX final 2026-09-08 | Desktop parcial: UX final 2026-09-08 | ENVIRONMENT BLOCKED: matriz exata | TECHNICALLY VERIFIED: teclado, erros, foco, busy | NOT REVIEWED | TECHNICALLY VERIFIED | P1 | S1-07 FINAL INTEGRATED QA | Implementação real; UX final 2026-09-08, matriz exata pendente; ver relatório UX S1-07. |
+| TC-CREATE | Test Cases | S1-07 | `/projects/:projectId/test-cases` | Criar caso | Dialog | `features/testCases/components/TestCaseForm` | Novo caso | VIEWER leitura; MEMBER+ escrita | draft, validação, pending, sucesso | Desktop parcial: UX final 2026-09-08 | Desktop parcial: UX final 2026-09-08 | ENVIRONMENT BLOCKED: matriz exata | TECHNICALLY VERIFIED: teclado, erros, foco, busy | NOT REVIEWED | TECHNICALLY VERIFIED | P1 | S1-07 FINAL INTEGRATED QA | Implementação real; UX final 2026-09-08, matriz exata pendente; ver relatório UX S1-07. |
+| TC-EDIT | Test Cases | S1-07 | `/projects/:projectId/test-cases` | Editar caso | Dialog | `features/testCases/components/TestCaseForm` | Mais ações / Editar | VIEWER leitura; MEMBER+ escrita | loaded, pending, conflito 409 | Desktop parcial: UX final 2026-09-08 | Desktop parcial: UX final 2026-09-08 | ENVIRONMENT BLOCKED: matriz exata | TECHNICALLY VERIFIED: teclado, erros, foco, busy | NOT REVIEWED | TECHNICALLY VERIFIED | P1 | S1-07 FINAL INTEGRATED QA | Implementação real; UX final 2026-09-08, matriz exata pendente; ver relatório UX S1-07. |
+| TC-DETAILS | Test Cases | S1-07 | `/projects/:projectId/test-cases` | Detalhes atuais | Dialog | `features/testCases/components/TestCaseDetails` / `TestCaseHeaderActions` | Card | VIEWER leitura; MEMBER+ escrita | loaded, sem rastreabilidade, latest | Desktop parcial: UX final 2026-09-08 | Desktop parcial: UX final 2026-09-08 | ENVIRONMENT BLOCKED: matriz exata | TECHNICALLY VERIFIED: teclado, erros, foco, busy | NOT REVIEWED | TECHNICALLY VERIFIED | P1 | S1-07 FINAL INTEGRATED QA | Implementação real; UX final 2026-09-08, matriz exata pendente; ver relatório UX S1-07. |
+| TC-DELETE | Test Cases | S1-07 | `/projects/:projectId/test-cases` | Excluir caso | Dialog | `shared/components/ConfirmDialog` (ConfirmProvider) | Mais ações / Excluir | VIEWER leitura; MEMBER+ escrita | confirmar, cancelar, pending, removido | Desktop parcial: UX final 2026-09-08 | Desktop parcial: UX final 2026-09-08 | ENVIRONMENT BLOCKED: matriz exata | TECHNICALLY VERIFIED: teclado, erros, foco, busy | NOT REVIEWED | TECHNICALLY VERIFIED | P1 | S1-07 FINAL INTEGRATED QA | Implementação real; UX final 2026-09-08, matriz exata pendente; ver relatório UX S1-07. |
+| TC-EXECUTE | Test Cases | S1-07 | `/projects/:projectId/test-cases` | Executar passos | Dialog | `features/testCases/components/TestExecutionWizard` | Executar | VIEWER leitura; MEMBER+ escrita | PASS, FAIL, BLOCKED, pendente, evidências | Desktop parcial: UX final 2026-09-08 | Desktop parcial: UX final 2026-09-08 | ENVIRONMENT BLOCKED: matriz exata | TECHNICALLY VERIFIED: teclado, erros, foco, busy | NOT REVIEWED | TECHNICALLY VERIFIED | P1 | S1-07 FINAL INTEGRATED QA | Implementação real; UX final 2026-09-08, matriz exata pendente; ver relatório UX S1-07. |
+| TC-SUMMARY | Test Cases | S1-07 | `/projects/:projectId/test-cases` | Resumo da execução | Dialog | `features/testCases/components/TestExecutionWizard` | Revisar execução | VIEWER leitura; MEMBER+ escrita | válido, incompleto, pending, conflito | Desktop parcial: UX final 2026-09-08 | Desktop parcial: UX final 2026-09-08 | ENVIRONMENT BLOCKED: matriz exata | TECHNICALLY VERIFIED: teclado, erros, foco, busy | NOT REVIEWED | TECHNICALLY VERIFIED | P1 | S1-07 FINAL INTEGRATED QA | Implementação real; UX final 2026-09-08, matriz exata pendente; ver relatório UX S1-07. |
+| TC-EXECUTIONS | Test Cases | S1-07 | `/projects/:projectId/test-cases` | Histórico de execuções | Dialog | `features/testCases/components/TestCaseHistory` | Histórico | VIEWER leitura; MEMBER+ escrita | cursor, empty, erro, load-more | Desktop parcial: UX final 2026-09-08 | Desktop parcial: UX final 2026-09-08 | ENVIRONMENT BLOCKED: matriz exata | TECHNICALLY VERIFIED: teclado, erros, foco, busy | NOT REVIEWED | TECHNICALLY VERIFIED | P1 | S1-07 FINAL INTEGRATED QA | Implementação real; UX final 2026-09-08, matriz exata pendente; ver relatório UX S1-07. |
+| TC-CHANGES | Test Cases | S1-07 | `/projects/:projectId/test-cases` | Alterações do caso | Dialog | `features/testCases/components/TestCaseHistory` | Aba Alterações do caso | VIEWER leitura; MEMBER+ escrita | cursor, eventos, ator, versões | PASS: carregado, S1-08 | PASS: carregado, S1-08 | PASS: 1440/1280/768/390 | TECHNICALLY VERIFIED: teclado, erros, foco, busy | VISUALLY APPROVED: carregado | VISUALLY APPROVED: matriz S1-08 | P1 | S1-07 FINAL INTEGRATED QA | HistoryEventRow compartilhado; identidade por deep link e abas preservadas; erros/paginação somente automatizados. |
+| TC-EXECUTION-DETAILS | Test Cases | S1-07 | `/projects/:projectId/test-cases` | Execução, preview e download | Dialog | `features/testCases/components/TestCaseDetails` / `PersistedEvidence` | Ver execução | VIEWER leitura; MEMBER+ escrita | snapshot, anexos, preview, download, erro | Desktop parcial: UX final 2026-09-08 | Desktop parcial: UX final 2026-09-08 | PASS S1-08: detalhes carregados em 1440/1280/768/390; viewer pendente | TECHNICALLY VERIFIED: teclado, erros, foco, busy | NOT REVIEWED | TECHNICALLY VERIFIED | P1 | S1-07 FINAL INTEGRATED QA | S1-08 aprovou header, snapshot carregado e seção de defeitos em Light/Dark; preview/download e erros não revalidados visualmente nesta rodada. |
+| TC-TRACEABILITY | Test Cases | S1-07 Addendum 3 | `/projects/:projectId/test-cases` | Rastreabilidade do caso | Details section | `TestCaseDetails / TaskTraceabilityGrid / ArtifactCategory` | Card | Membership ativa; leitura | vínculos, empty, múltiplas tarefas | Desktop parcial: Addendum 3 | Desktop parcial: Addendum 3 | ENVIRONMENT BLOCKED: matriz exata | TECHNICALLY VERIFIED: teclado, foco, retorno e cleanup | NOT REVIEWED | TECHNICALLY VERIFIED | P1 | S1-07 FINAL INTEGRATED QA | Contrato e campos reais; ver [relatório](../deliveries/S1_07_TRACEABILITY_EVIDENCE_VIEWER_REPORT.md). |
+| TC-EVIDENCE-LIST | Test Cases | S1-07 Addendum 3 | `/projects/:projectId/test-cases` | Evidências de passo e execução | Evidence list | `PersistedEvidence` | Ver execução | Membership ativa; leitura | nome, tipo, tamanho, Visualizar, Baixar, erro | Desktop parcial: JPG | Desktop parcial: JPG | ENVIRONMENT BLOCKED: matriz exata | TECHNICALLY VERIFIED: teclado, foco, retorno e cleanup | NOT REVIEWED | TECHNICALLY VERIFIED | P1 | S1-07 FINAL INTEGRATED QA | Contrato e campos reais; ver [relatório](../deliveries/S1_07_TRACEABILITY_EVIDENCE_VIEWER_REPORT.md). |
+| TC-EVIDENCE-VIEWER | Test Cases | S1-07 Addendum 3 | `/projects/:projectId/test-cases` | Visualização interna da evidência | Dialog mode | `EvidenceViewer / useEvidenceContent` | Visualizar evidência | Membership ativa; leitura | image, video, PDF, text, JSON, unsupported, loading, erro | Desktop parcial: JPG | Desktop parcial: JPG | ENVIRONMENT BLOCKED: matriz exata | TECHNICALLY VERIFIED: teclado, foco, retorno e cleanup | NOT REVIEWED | TECHNICALLY VERIFIED | P1 | S1-07 FINAL INTEGRATED QA | Contrato e campos reais; ver [relatório](../deliveries/S1_07_TRACEABILITY_EVIDENCE_VIEWER_REPORT.md). |
+
+A rodada [S1-07 FRONTEND FINAL UX FIX](../deliveries/S1_07_FRONTEND_FINAL_UX_FIX_REPORT.md)
+removeu o documento temporário de Casos de Teste e refinou a implementação real.
+O relatório está em `docs/deliveries/S1_07_FRONTEND_FINAL_UX_FIX_REPORT.md` e o log
+registra o smoke desktop Light/Dark, separado da matriz de viewports ainda pendente.
+
+
+## S1-08 — Defeitos: integração frontend (2026-09-08)
+
+Rota `/projects/:projectId/defects`; arquitetura, tokens e primitives canônicos.
+MEMBER/MANAGER/OWNER escrevem; VIEWER consulta. Classificação visual detalhada no
+[relatório de integração](../deliveries/S1_08_FRONTEND_INTEGRATION_REPORT.md).
+Atualização de alinhamento: matriz S1-08 em Chrome, Light/Dark, 1440×1000,
+1280×1000, 768×1000 e 390×844. Aprovação restrita aos estados indicados; ver
+[relatório de alinhamento](../deliveries/S1_08_FRONTEND_UX_ALIGNMENT_REPORT.md)
+e [registro visual](./validation/VISUAL_VALIDATION_LOG.md).
+
+| Superfície | Implementação | Estados / entrada | Validação |
+|---|---|---|---|
+| DEF-MAIN | DefectsScreen | resumo servidor, loading, vazio, erro, recibo, load more | automatizada + catálogo carregado Light/Dark; erros só automatizados |
+| DEF-FILTERS | CollapsibleFilterPanel / SearchCombobox | oito filtros remotos, fechado inicialmente, seleção explícita | FIX 02: PASS renderizado Light/Dark × 1440/1280/768/390; oito rótulos, busca e limpar condicional; sem badge duplicado |
+| DEF-CARD | DefectCard | detecção, requisito, resumo da correção; Adicionar/Acessar correções; Retestar contextual | FIX 03: quatro estados renderizados Light/Dark × 1440/1280/768/390; múltiplas tarefas e VIEWER automatizados |
+| DEF-CREATE | DefectForm / DefectFlow | aba ou passo FAIL, sugestões históricas, validação | automatizada; seletor vazio observado |
+| DEF-DETAILS | DefectDetails / EntityRow / ArtifactCategory | informações, detecção, vínculos, correção, validação | VISUALLY APPROVED: carregado, matriz S1-08 |
+| DEF-EDIT | DefectForm / SearchCombobox | edição, contexto resumido, responsável e severidade | VISUALLY APPROVED: carregado/cancelar, matriz S1-08; submit e erros automatizados |
+| DEF-DELETE | ConfirmDialogContent / SprintDialog | confirmação compacta, cancelar, retorno de foco | VISUALLY APPROVED: confirmar/cancelar, matriz S1-08; exclusão não submetida |
+| DEF-CORRECTION | CorrectionTaskForm / CorrectionTaskRows / TaskForm | card → seção Correção; tarefas atuais clicáveis; criar/vincular no mesmo dialog | FIX 03: seção nos oito recortes; foco, Task Details e retorno pelo navegador observados; criar/vincular/cancelar no mobile; sucesso e concorrência automatizados |
+| DEF-RETEST | TestExecutionWizard | versão atual, referência priorizada, PASS/FAIL/BLOCKED | automatizada; visual bloqueado por dados |
+| DEF-HISTORY | DefectHistory / HistoryEventRow | eventos e paginação acumulada | VISUALLY APPROVED: carregado, matriz S1-08; erros/paginação automatizados |
+| TASK-CORRECTION-CARD | TaskCorrectionBadge | marcador info, único link ou lista de defeitos | VISUALLY APPROVED: um defeito, matriz S1-08; múltiplos automatizados |
+| TASK-CORRECTION-DETAILS | TaskQuality | contexto integrado em Qualidade/Defeitos após Rastreabilidade | VISUALLY APPROVED: Task Details na matriz S1-08; relação CORREÇÃO observada adicionalmente |
+| TASK-QUALITY | TaskQuality / ArtifactCategory / EntityRow | mesmo shell de Rastreabilidade; TC vazio/preenchido, DEF ORIGEM/CORREÇÃO, footer contextual | FIX 03: comparação na mesma Task e estados vazio/preenchido nos oito recortes; loading/erro/retry/VIEWER automatizados |
+| TC-FAILED-STEP-DEFECTS | TestCaseDetails / EntityRow | defeitos registrados após conteúdo do passo, largura total | VISUALLY APPROVED: FAIL com defeito, matriz S1-08; zero/PASS/BLOCKED automatizados |
+| TC-CONTEXTUAL-CREATE | ContextualTestCaseCreate / TestCaseForm | Task → caso no mesmo dialog; Requirement → caso | automatizada; matriz visual pendente |
+
+**FROZEN CORRECTION CONTEXT CONTRACT GAP:** snapshots congelados não contêm
+metadados de correção. O frontend omite o contexto/badge nesses snapshots e não
+consulta o Defect atual para reconstruir o passado.
+
+
+## S1-08 — UI Standardization FIX 02 (2026-09-09)
+
+Esta rodada substitui a apresentação de controles, cards e correção descrita nas
+entradas anteriores, sem reclassificar retrospectivamente seus gates. Matriz de
+**14 superfícies × 8 combinações** e limites por estado no
+[relatório de padronização](../deliveries/S1_08_TRACEFLOW_UI_STANDARDIZATION_REPORT.md#m--visual-matrix).
+
+| Superfície | Padrão atual | Evidência desta rodada |
+|---|---|---|
+| Kanban filtros / card de correção | CollapsibleFilterPanel / ResponsibleCombobox / SelectControl / bug info | PASS nos oito recortes; limpar sem wrapper vazio |
+| Task Details / Qualidade | DescriptionSurface / grid unido / ArtifactCategory / EntityRow | PASS nos oito recortes; casos e defeitos alinhados |
+| TC catálogo / Details / form | tiles Planning / superfícies comuns / ResponsibleCombobox | PASS nos oito recortes; título longo, responsável e descrição |
+| DEF catálogo / filtros / Details / form | tiles Planning / controles comuns / superfícies comuns | PASS nos oito recortes; contexto histórico e resultado esperado |
+| DEF correção / validação / histórico | subviews diretas / ExecutionSummary / HistoryEventRow | PASS nos oito recortes; tarefa atual e espera por reteste |
+| Histórico Task e TC | família existente; SelectControl no filtro Task | comparação adicional desktop/mobile Light/Dark |
+| Busca de entidades em Planning e execução | SearchCombobox no fluxo do dialog | busca de Marco, tarefas e referência testada observada; resultados sem seleção implícita |
+
+Aprovação visual refere-se aos estados carregados/draft/cancelar descritos no
+relatório. Erro remoto, concorrência, VIEWER e submit são cobertos por automação,
+sem simular falhas de rede na sessão real. Preview/download de evidências e os fluxos
+externos permanecem fora deste gate de padronização.
+
+## S1-08 — UI Standardization FIX 03 (2026-09-09)
+
+Alteradas apenas a densidade/ações de DEF-CARD, a entrada contextual de
+DEF-CORRECTION e a composição de TASK-QUALITY e do shell compartilhado de relações.
+Requisito/PR/Commits/Issues e TC/DEF usam o mesmo `ArtifactCategory` com classe
+explícita `task-detail-relation-card`; `EntityRow` preserva o chevron e a navegação.
+Validação real de 12 superfícies × 8 combinações no
+[relatório FIX 03](../deliveries/S1_08_UX_STANDARDIZATION_FIX_03_REPORT.md#g--visual-matrix).
+Sprint, Marco e TestCase Catalog foram comparados como referências, sem alteração
+de seus contratos ou reclassificação dos gates anteriores.
+
+
+## S1-09 Etapa 5 — Workspace e targeted corrections (2026-09-11)
+
+Registro posterior às linhas históricas das Etapas 3/4. Homologação renderizada encerrada; cobertura e limites detalhados no [relatório final](../deliveries/S1_09_TRACEABILITY_GRAPH_WORKSPACE_UX_REPORT.md).
+
+| Superfície | Owner | Estado atual | Evidência |
+|---|---|---|---|
+| TRACEABILITY-REQUIREMENT-CARD | RequirementCatalog / TraceabilityPhaseTrail | Fase completa, situação/progresso separados, status cadastral removido, contagens/evidências estruturadas e footer íntegro | PASS visual Light/Dark; vazio, correção, falha e fixture aguardando reteste |
+| TRACEABILITY-SUMMARY | RequirementSummary | Descrição canônica; buckets autoritativos | PASS; projeto 2 = 4 requisitos / 2 com defeito / 1 desenvolvimento |
+| TRACEABILITY-WORKSPACE | TraceabilityWorkspace / SprintDialog | Owner modal único, context strip, trail, ajuda e Details no mesmo owner | PASS Light/Dark em 1440/1280/768/390 |
+| TRACEABILITY-FLOW-CANVAS | TraceabilityFlow / ELK | Arraste, grupos, portas semânticas, zoom manual .20 e centralização .90 | PASS; 85 artefatos + 10 grupos; teclado revalidado |
+| TRACEABILITY-INSPECTOR | TraceabilityInspector | Explicação das relações, heading focado ao navegar | PASS; lateral no desktop/tablet, inferior no mobile |
+| TRACEABILITY-SITUATION-HISTORY | RequirementHistory | Nova copy de reconciliação da policy | PASS real; baseline antigo + nova transição |
+| DEFECT-CARD | DefectCard / tc-card | Detection, correction/cycle e Requirement em rows; lifecycle/actions preservados | PASS Light/Dark; regressões de leitura/permissão/ações verdes |
+| TESTCASE/DEFECT-OVERVIEW | TestCaseSummary / ProjectDefects | Descrição na estrutura existente de summary | PASS renderizado Light/Dark |
+
+Phase trail é apresentação do percurso corrente, não histórico persistido nem confirmação de 100% de conclusão. Overview reutiliza C2 existente; não foi criada regra global adicional. O inventário não amplia o PASS para cenários externos ou certificação WCAG integral.
+
+## S1-09 Etapa 5 — FINAL TARGETED CORRECTIONS (2026-09-12)
+
+Esta entrada substitui a apresentação vigente das linhas anteriores, mantendo os
+registros históricos e seus limites de evidência.
+
+| Superfície | Owner / apresentação final | Validação desta rodada |
+|---|---|---|
+| PROJECT-TABS | ProjectSectionNav; onze destinos na ordem canônica; overflow somente horizontal e aba ativa visível | Light/Dark × 1440/1280/768/390; ordem, indicador, teclado, ausência de overflow vertical |
+| TC/DEF/TRACEABILITY-OVERVIEW | Texto auxiliar curto, irmão do bloco de título; família Kanban | Oito combinações por overview |
+| TRACEABILITY-FILTERS/CARD | Status de cinco macros principal; Situação detalhada em Detalhamento opcional; card preserva progresso/situação/evidência | Oito combinações; REQ-1 a REQ-4 reais |
+| DEFECT-CARD | LifecycleTrail de quatro fases; Rastreabilidade; Correção/Reteste dinâmico; ações canônicas | Quatro estados reais × oito combinações; comparação Task/TestCase |
+| TRACEABILITY-WORKSPACE/INSPECTOR | Hierarquia por seções, relações legíveis e footer canônico; Task com esforço, PR com branches/datas reais | Task e PR em oito combinações; desktop/tablet lateral, mobile inferior rolável |
+| TASK-EFFORT-HISTORY | TaskTimeEntriesDialog; ator/data, origem, CREATED/UPDATED/DELETED, antes/depois, filtros | Oito combinações no componente com DTO persistido de teste e no histórico integrado da Task 16 |
+| TASK-EFFORT-CURRENT | Mesmo dialog, endpoint de sessões atuais; ajuste/exclusão da sessão autorizada; Evento desabilitado | Sessão real anterior à adoção consultada; edição, exclusão, permissões e concorrência automatizadas |
+
+Sem estimativa/realizado zero, datas combinadas e erros de concorrência têm
+evidência automatizada. Capturas foram observadas na execução, sem pacote PNG
+versionado. Matriz e limites no
+[relatório final](../deliveries/S1_09_TRACEABILITY_GRAPH_WORKSPACE_UX_REPORT.md#final-targeted-corrections).
+
+## S1-09 Etapa 5 — FINAL UI/PARITY CORRECTIONS (2026-09-12)
+
+Esta entrada substitui a apresentação de esforço em duas visões da rodada
+anterior; os registros acima permanecem como evidência histórica.
+
+| Superfície | Owner / apresentação vigente | Validação desta rodada |
+|---|---|---|
+| TASK-EFFORT-HISTORY | TaskTimeEntriesDialog; lista única, eventos e snapshots legados identificados; filtros independentes; field/SelectControl de 44px; container queries | Light/Dark × 1440/1280/768/390; Task 16 real, exclusão de 3h e snapshot de 4h; CREATED/UPDATED/DELETED juntos também cobertos por testes |
+| TASK-EFFORT-CURRENT | Visão separada retirada; sessões anteriores à auditoria entram no recorte unificado do servidor | Snapshot não é CREATED; sem backfill, evento falso ou alteração dos totais |
+| TASK-EFFORT-ACTIONS | Lápis TraceFlowIcon e lixeira existente; mesmo tamanho, target de 44px, tooltip hover/focus e aria-label com duração | Edição por Enter, cancelamento, confirmação de exclusão cancelada; testes de mutação/permissão |
+| KANBAN-OVERVIEW | KanbanScreen; parent detém radius/clipping; KanbanSprintFilter em portal para preservar popover | Quatro cantos nas oito combinações; seleção, Escape e retorno de foco revalidados |
+| DEFECT-CARD | Phase trail comunica lifecycle; removidos badge duplicado e heading Rastreabilidade; detection/requisito e Correção/Reteste preservados | Quatro estados reais nas oito combinações; comparação com TestCase Card nas mesmas larguras |
+| TRACEABILITY-INSPECTOR | DetailSurface compartilhada por seção; grade e padding uniformes; relações com tipo subdued e entidade legível | Task, PR, TestCase, Execution e Defect nas oito combinações; oito tipos em smoke automatizado |
+| TASK-DETAILS-GRAPH | TaskDetailsPanel canônico, com esforço e TaskComments; histórico embedded sem novo modal | Oito combinações; 4h/5h/80%, retorno ao fluxo e foco; comparação canônica no Kanban Light/Dark desktop |
+
+Evidência renderizada observada no Chrome local autenticado, sem pacote PNG
+versionado. Mutação de esforço foi validada nos testes; a navegação visual desta
+rodada não alterou dados. Limites e gates no
+[relatório](../deliveries/S1_09_TRACEABILITY_GRAPH_WORKSPACE_UX_REPORT.md#final-uiparity-corrections).
