@@ -494,6 +494,67 @@ describe('S1-07 list aggregation, history and privacy', () => {
     } while (cursor);
     expect(new Set(h).size).toBe(3);
   });
+  it('isolates all own-only quality exports from an active peer and null historical owners', async () => {
+    const f = await fixture();
+    await prisma.projectMembership.updateMany({
+      where: { userId: f.second.id },
+      data: { role: 'MEMBER' }
+    });
+    const a = await f.create({ title: 'A own case', responsibleUserId: f.user.id });
+    const b = await f.create({ title: 'B private case', responsibleUserId: f.second.id });
+    const ownFiles = await storedEvidence(Buffer.from('{"owner":"A"}'), 'A.json');
+    const peerFiles = await storedEvidence(Buffer.from('{"private":"B"}'), 'B-private.json');
+    const own = await executionFactory({ storage: ownFiles.storage }).record(
+      a.id,
+      f.payload,
+      ownFiles.attempt,
+      f.context
+    );
+    const peer = await executionFactory({ storage: peerFiles.storage }).record(
+      b.id,
+      f.payload,
+      peerFiles.attempt,
+      { actorUserId: f.second.id }
+    );
+    const peerEvidence = await prisma.testEvidence.findFirst({ where: { executionId: peer.id } });
+    const ownEvidence = await prisma.testEvidence.findFirst({ where: { executionId: own.id } });
+    const metadata = { ...peerEvidence };
+    delete metadata.id;
+    await prisma.testEvidence.create({
+      data: { ...metadata, storageKey: 'null-owner-export-fixture', uploadedByUserId: null }
+    });
+    const data = await settings.exportData(f.user.id);
+    expect(data.responsibleTestCases.map((row) => row.id)).toEqual([a.id]);
+    expect(data.testExecutions.map((row) => row.id)).toEqual([own.id]);
+    expect(data.testEvidence.map((row) => row.id)).toEqual([ownEvidence.id]);
+    const privatePayload = JSON.stringify([
+      data.responsibleTestCases,
+      data.testExecutions,
+      data.testEvidence
+    ]);
+    expect(privatePayload).not.toContain('B private case');
+    expect(privatePayload).not.toContain(peerEvidence.originalName);
+    expect(privatePayload).not.toContain(peerEvidence.sha256);
+    expect(data.testEvidence.some((row) => row.executionId === peer.id)).toBe(false);
+    expect(privatePayload).not.toMatch(
+      /storageKey|uploadedByUserId|executedByUserId|responsibleUserId/
+    );
+    await prisma.testExecution.update({
+      where: { id: peer.id },
+      data: { executedByUserId: null, executedByDisplayNameSnapshot: f.user.name }
+    });
+    const historical = await settings.exportData(f.user.id);
+    expect(historical.testExecutions.map((row) => row.id)).toEqual([own.id]);
+    expect(historical.responsibleTestCases.map((row) => row.id)).toEqual([a.id]);
+    await prisma.projectMembership.updateMany({
+      where: { userId: f.user.id },
+      data: { isActive: false }
+    });
+    const inactive = await settings.exportData(f.user.id);
+    expect(inactive.responsibleTestCases).toEqual([]);
+    expect(inactive.testExecutions).toEqual([]);
+    expect(inactive.testEvidence).toEqual([]);
+  });
   it('exports own active-project collaboration metadata without storage keys or other users', async () => {
     const f = await fixture();
     const row = await f.create({ responsibleUserId: f.user.id });

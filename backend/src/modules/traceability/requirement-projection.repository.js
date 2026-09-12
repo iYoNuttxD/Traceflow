@@ -1,6 +1,14 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../database/prismaClient.js';
-import { projectRequirement, relatedRequirementIds } from './requirement-traceability.policy.js';
+import {
+  projectRequirement,
+  relatedRequirementIds,
+  projectRequirementSummary,
+  matchesProjection,
+  projectionSummary
+} from './requirement-traceability.policy.js';
+
+import { readProjectionMetrics } from './requirement-projection-summary.repository.js';
 
 const taskMetrics = {
   id: true,
@@ -118,7 +126,66 @@ export async function loadRequirementProjections(client, projectId, requirementI
   );
 }
 
+export const PROJECTION_SUMMARY_BATCH_SIZE = 200;
+
+function accumulateSummary(target, rows) {
+  const batch = projectionSummary(rows);
+  target.total += batch.total;
+  target.withDefect += batch.withDefect;
+  for (const key of Object.keys(target.bySituation))
+    target.bySituation[key] += batch.bySituation[key];
+}
+
+async function readProjectionPage(client, projectId, q) {
+  const summary = projectionSummary([]),
+    filteredSummary = projectionSummary([]),
+    pageIds = [];
+  const offset = (q.page - 1) * q.limit;
+  let cursor;
+  for (;;) {
+    const requirements = await client.requirement.findMany({
+      where: { projectId, ...(cursor ? { id: { lt: cursor } } : {}) },
+      select: { id: true, title: true },
+      orderBy: { id: 'desc' },
+      take: PROJECTION_SUMMARY_BATCH_SIZE
+    });
+    if (!requirements.length) break;
+    const metrics = await readProjectionMetrics(
+      client,
+      projectId,
+      requirements.map((row) => row.id)
+    );
+    const byId = new Map(metrics.map((row) => [row.id, row]));
+    const rows = requirements.map((row) => projectRequirementSummary(row, byId.get(row.id)));
+    const filtered = rows.filter((row) => matchesProjection(row, q));
+    for (const [index, row] of filtered.entries()) {
+      const position = filteredSummary.total + index;
+      if (position >= offset && pageIds.length < q.limit) pageIds.push(row.requirement.id);
+    }
+    accumulateSummary(summary, rows);
+    accumulateSummary(filteredSummary, filtered);
+    if (requirements.length < PROJECTION_SUMMARY_BATCH_SIZE) break;
+    cursor = requirements.at(-1).id;
+  }
+  return {
+    items: pageIds.length ? await loadRequirementProjections(client, projectId, pageIds) : [],
+    summary,
+    filteredSummary,
+    pagination: {
+      page: q.page,
+      limit: q.limit,
+      total: filteredSummary.total,
+      totalPages: Math.ceil(filteredSummary.total / q.limit)
+    }
+  };
+}
+
 export const requirementProjectionRepository = {
+  readPage(projectId, query) {
+    return prisma.$transaction((tx) => readProjectionPage(tx, projectId, query), {
+      isolationLevel: 'RepeatableRead'
+    });
+  },
   read(projectId, ids) {
     return prisma.$transaction((tx) => loadRequirementProjections(tx, projectId, ids), {
       isolationLevel: 'RepeatableRead'

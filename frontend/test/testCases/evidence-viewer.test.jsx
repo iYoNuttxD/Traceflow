@@ -6,12 +6,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EvidenceViewer } from '../../src/features/testCases/components/EvidenceViewer.jsx';
 import { EvidenceDownloadButton } from '../../src/features/testCases/components/PersistedEvidence.jsx';
 import { TestCaseDetails } from '../../src/features/testCases/components/TestCaseDetails.jsx';
+import { GraphEntityDetails } from '../../src/features/traceability/components/GraphEntityDetails.jsx';
+import { DefectFlow } from '../../src/features/defects/components/DefectFlow.jsx';
+import { defect } from '../defects/fixtures.js';
 import { useEvidenceContent } from '../../src/features/testCases/hooks/useEvidenceContent.js';
 import { TEXT_PREVIEW_LIMIT } from '../../src/features/testCases/model/evidence-viewer.js';
-import { deferred, testCase } from './fixtures.js';
+import { deferred, testCase, execution } from './fixtures.js';
 const content = vi.hoisted(() => vi.fn());
+const executionRead = vi.hoisted(() => vi.fn());
+const defectRead = vi.hoisted(() => vi.fn());
 vi.mock('../../src/features/testCases/api/test-cases.api.js', () => ({
-  testCasesApi: { content }
+  testCasesApi: { content, execution: executionRead }
+}));
+vi.mock('../../src/features/defects/api/defects.api.js', () => ({
+  defectsApi: { detail: defectRead }
 }));
 const imageFile = { id: 1, originalName: 'passo.png', mimeType: 'image/png', sizeBytes: 100 };
 function Viewer({ file = imageFile, projectId = 1 }) {
@@ -47,6 +55,54 @@ function respond(mimeType, text = 'evidence') {
   return blob;
 }
 describe('persisted viewer formats and safety', () => {
+  it.each(['graph', 'defect'])(
+    'preserves real %s caller previews after a failed file',
+    async (caller) => {
+      const files = [imageFile, { ...imageFile, id: 2, originalName: 'B.png' }].map((file) => ({
+        ...file,
+        executionStepId: null
+      }));
+      respond('image/png');
+      executionRead.mockResolvedValue({ ...execution, evidence: files });
+      defectRead.mockResolvedValue({
+        ...defect,
+        detection: { ...defect.detection, executionEvidence: files }
+      });
+      const view = render(
+        <MemoryRouter>
+          {caller === 'graph' ? (
+            <GraphEntityDetails
+              node={{ type: 'TEST_EXECUTION', data: { id: 38, testCaseId: 15 } }}
+              projectId={1}
+              onClose={vi.fn()}
+            />
+          ) : (
+            <DefectFlow projectId={1} initialId={1} canWrite={false} onClose={vi.fn()} />
+          )}
+        </MemoryRouter>
+      );
+      const first = await screen.findByRole('button', { name: 'Visualizar passo.png' });
+      const second = screen.getByRole('button', { name: 'Visualizar B.png' });
+      fireEvent.click(first);
+      fireEvent.error(await screen.findByRole('img', { name: 'Evidência passo.png' }));
+      expect(screen.getByRole('status')).toHaveTextContent(
+        'Não foi possível visualizar esta imagem.'
+      );
+      // The detail body stays mounted while hidden. Exercise a new preview callback
+      // without unmounting the viewer, in addition to the standalone rerender test.
+      fireEvent.click(second);
+      await waitFor(() =>
+        expect(screen.getByRole('img', { name: 'Evidência B.png' })).toHaveAttribute(
+          'src',
+          'blob:evidence-2'
+        )
+      );
+      expect(screen.queryByText('Não foi possível visualizar esta imagem.')).toBeNull();
+      view.unmount();
+      expect(revoke).toHaveBeenCalledWith('blob:evidence-1');
+      expect(revoke).toHaveBeenCalledWith('blob:evidence-2');
+    }
+  );
   it.each(['image/png', 'image/jpeg', 'image/webp'])(
     'previews %s and reuses its blob for download',
     async (mimeType) => {
@@ -164,6 +220,42 @@ describe('persisted viewer formats and safety', () => {
     expect(container.querySelector('object')).toBeNull();
     expect(create).not.toHaveBeenCalled();
   });
+  it.each(['image/png', 'video/mp4'])(
+    'resets failed %s on file identity changes without remounting',
+    (mimeType) => {
+      const resource = { url: 'blob:A', blob: new Blob(['A'], { type: mimeType }) };
+      const { container, rerender } = render(
+        <EvidenceViewer file={{ ...imageFile, mimeType }} content={resource} />
+      );
+      fireEvent.error(container.querySelector('img,video'));
+      expect(screen.getByRole('status')).toHaveTextContent(
+        mimeType.startsWith('image')
+          ? 'Não foi possível visualizar esta imagem.'
+          : 'Este navegador não consegue reproduzir este vídeo.'
+      );
+      for (const [id, name] of [
+        [2, 'B'],
+        [3, 'C']
+      ]) {
+        rerender(
+          <EvidenceViewer
+            file={{ id, mimeType, originalName: name }}
+            content={{ ...resource, url: `blob:${name}` }}
+          />
+        );
+        expect(container.querySelector('img,video')).toHaveAttribute('src', `blob:${name}`);
+        expect(screen.queryByRole('status')).toBeNull();
+      }
+      fireEvent.error(container.querySelector('img,video'));
+      rerender(
+        <EvidenceViewer
+          file={{ id: 4, mimeType: 'application/pdf', originalName: 'D.pdf' }}
+          content={{ ...resource, url: 'blob:D' }}
+        />
+      );
+      expect(screen.getByLabelText('PDF D.pdf')).toHaveAttribute('data', 'blob:D');
+    }
+  );
   it('shows an image error fallback', async () => {
     respond('image/png');
     render(<Viewer />);

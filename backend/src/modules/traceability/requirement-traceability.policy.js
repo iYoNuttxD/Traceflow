@@ -1,6 +1,7 @@
 import {
   buildRequirementMetrics,
   getImplementationStage,
+  getImplementationStageFromCounts,
   uniqueById
 } from './traceability.calculator.js';
 
@@ -181,6 +182,50 @@ export function projectRequirement(requirement, testCases = [], defectRows = [])
       correction
     },
     hasUntreatedFailure,
+    situation
+  };
+}
+
+// Uses the same classification authorities as the detailed projection, from bounded SQL counts.
+export function projectRequirementSummary(requirement, counts) {
+  const n = (key) => Number(counts[key] ?? 0);
+  const technicalEvidence = n('technicalEvidence') > 0;
+  const legacyStage = getImplementationStageFromCounts({
+    tasksTotal: n('tasksTotal'),
+    tasksDone: n('tasksDone'),
+    tasksInProgress: n('tasksInProgress'),
+    hasTechnicalEvidence: technicalEvidence
+  });
+  const validation = {
+    testCasesTotal: n('testCasesTotal'),
+    neverExecuted: n('neverExecuted'),
+    pass: n('passed'),
+    fail: n('failed'),
+    blocked: n('blocked')
+  };
+  const defects = {
+    total: n('defectsTotal'),
+    open: n('openDefects'),
+    inCorrection: n('inCorrection'),
+    waitingRetest: n('waitingRetest'),
+    validated: n('validated')
+  };
+  const situation = deriveSituation({
+    legacyStage,
+    validation,
+    defects,
+    hasUntreatedFailure: n('untreatedFailure') > 0
+  });
+  return {
+    requirement: {
+      id: requirement.id,
+      title: requirement.title,
+      displayId: `REQ-${requirement.id}`,
+      status: deriveRequirementLifecycleStatus(situation)
+    },
+    validation,
+    defects,
+    evidence: { implementation: technicalEvidence },
     situation
   };
 }
