@@ -62,7 +62,6 @@ export function DefectCard({ defect: d, canWrite, onOpen }) {
           </span>
           <span>{d.responsibleUser.name}</span>
         </div>
-        <DefectBadge value={d.status} />
         <div title="Indica a evolução do defeito desde a detecção até a validação da correção.">
           <LifecycleTrail
             steps={['Detecção', 'Correção', 'Reteste', 'Validado']}
@@ -72,7 +71,6 @@ export function DefectCard({ defect: d, canWrite, onOpen }) {
             label="Evolução do defeito"
           />
         </div>
-        <h4 className="defect-card-section-title">Rastreabilidade</h4>
         <dl className="defect-card-context">
           <div>
             <dt>

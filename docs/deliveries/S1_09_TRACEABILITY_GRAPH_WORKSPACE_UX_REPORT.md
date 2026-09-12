@@ -457,3 +457,141 @@ visual foi de leitura. Nenhuma conclusão sobre CI remoto ou produção.
 
 **S1-09 TRACEABILITY GRAPH WORKSPACE UX — PASS LOCAL.** Trabalho encerrado nesta
 rodada. Final Integrated QA não iniciado.
+
+## FINAL UI/PARITY CORRECTIONS
+
+Micro-rodada de 2026-09-12. Baseline conferida antes da edição: branch
+`daniel-dev`, HEAD `f0050758ce59777df0babd28f84fd8a12b2e7497`, working tree limpa,
+`git diff --check` PASS. Esta seção substitui a apresentação em duas visões de
+esforço descrita na rodada anterior. Etapa 5 foi reaberta para estas correções;
+os números abaixo pertencem exclusivamente ao diff atual.
+
+### Findings, causas e correções
+
+| Finding | Root cause | Fix | Validation |
+|---|---|---|---|
+| Effort history tabs | Estado local alternava entre dois endpoints e ocultava sessões anteriores à auditoria | Lista única paginada no servidor; eventos e snapshots legados explicitamente identificados | Ausência das duas abas; CREATED/UPDATED/DELETED juntos; snapshot real de 4h; filtros e paginação |
+| Effort filters sizing | Select nativo tinha geometria diferente de field; reflow dependia da viewport | SelectControl/field, token de 44px, container queries pelo espaço real do painel | Datas/selects medidos em 44px; Light/Dark nas quatro larguras e diálogo convencional |
+| Edit session action | Edição textual e ícones de tamanhos distintos | Lápis canônico e lixeira com mesmo token; target de 44px, tooltip e aria-label com duração | Click/teclado nos testes; Enter e cancelamento reais; tooltip/foco observados |
+| Kanban bottom radius | Overflow visível deixava células escaparem do radius | Clipping no parent; seletor em portal preserva o popover | Quatro cantos em oito combinações; filtro, Escape e foco |
+| Defect duplicate lifecycle | Badge repetia o estado já comunicado pelo phase trail | Retirada apenas da badge de lifecycle do card | Quatro estados, trail/severidade/footer preservados |
+| Defect “Rastreabilidade” heading | Heading isolado acima de rows já identificadas | Remoção do heading; detection/requisito mantêm ícones, dividers e texto subdued | Quatro estados reais, comparação TestCase e testes focados |
+| Inspector surface hierarchy | Seções próprias sem inner surface canônica | DetailSurface por Informações, Esforço, Rastreabilidade e Relações | Oito tipos em smoke; cinco Inspectors na matriz visual |
+| Inspector alignment | Margens e grades divergiam entre seções | Padding/gap/radius da surface compartilhada; uma grade label/value, uma coluna mobile | Quatro larguras, nomes/títulos extensos e relações por teclado |
+| Task Inspector effort | Dados já corretos, mas bloco com geometria própria dentro de Informações | Esforço em seção compartilhada; cálculos e semantic variants preservados | 5h estimadas, 4h realizadas, 80%; sem estimativa/zero/estouro nos testes |
+| Task Details graph parity | Prop embedded suprimia esforço e Comments no próprio renderer canônico | Removidas as supressões; TaskDetailsPanel/TaskEffortTracker/TaskComments reutilizados; sessões embedded | Teste semântico entre entradas; esforço e comentários reais; um diálogo, Escape/foco e retorno ao fluxo |
+
+### Snapshot anterior à auditoria
+
+Decisão explícita do usuário: incluir a sessão antiga da Task 16 na mesma lista
+como **Registro anterior ao histórico**, identificado como **Snapshot**.
+
+A alteração backend é uma projeção de leitura em `listHistoryPage`. O DTO de
+histórico passa a distinguir `kind: EVENT` de `kind: LEGACY_SNAPSHOT`. O snapshot
+usa `eventType: null`, `id: session:<id>`, a duração existente e o encerramento
+real como referência temporal; ator vem de quem encerrou/iniciou a sessão. Não
+há inserção de CREATED, backfill, migration ou mudança do cálculo de esforço.
+
+Somente sessões encerradas sem qualquer evento auditável da própria sessão
+entram como snapshots. A primeira edição/exclusão real produz o evento canônico
+com antes/depois e deixa de exigir essa linha de snapshot. As ações continuam
+endereçando a sessão atual autorizada (`currentEntry`), nunca alterando eventos.
+Sessões já excluídas permanecem nos eventos com a duração histórica preservada.
+
+Origem filtra ambos os tipos; Evento específico seleciona apenas eventos desse
+tipo, sem transformar snapshot em Registrado. Datas continuam com limites UTC:
+`occurredAt` dos eventos e `endedAt` dos snapshots. Ordenação determinística
+`occurredAt DESC, id DESC, kind ASC`; count/página/leitura em RepeatableRead, sem
+merge de páginas no frontend ou consultas por item. Regras de autorização e IDOR
+continuam no serviço existente. O teste integrado cobre paginação, filtro
+combinado, serialização, VIEWER e a passagem de snapshot para UPDATED.
+
+Situation Engine, lifecycles, cálculos de esforço, ELK, schema, migrations,
+Planning e implementação de Comments não foram alterados. Não houve alteração
+de manifest/lockfile, dependência nova ou CSS global. O wrapper embedded é apenas
+o shell de sessões dentro do mesmo diálogo; não é outro renderer de Task Details.
+
+### Homologação visual atual
+
+Chrome autenticado local, projeto 2, altura de viewport 1000px. Dados reais de
+homologação já existentes; navegação sem gravação de dados nesta rodada.
+
+| Superfície | L1440 | D1440 | L1280 | D1280 | L768 | D768 | L390 | D390 |
+|---|---|---|---|---|---|---|---|---|
+| Effort History unificado, filtros e ações | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
+| Kanban Overview, quatro cantos | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
+| Defect Card ABERTO/EM_CORRECAO/AGUARDANDO_RETESTE/VALIDADO | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
+| Task Inspector | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
+| PR Inspector | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
+| TestCase Inspector | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
+| Execution Inspector | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
+| Defect Inspector | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
+| Task Details from graph | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
+
+Task 16: 4h de 5h/80% coerente em Kanban, Inspector e Details. Histórico real:
+exclusão de 3h e snapshot anterior de 4h; Manual + Excluído aplicado com sucesso.
+CREATE/UPDATE/DELETE juntos e antes/depois têm evidência automatizada nesta
+rodada, sem fabricação de eventos no projeto visual. Details canônico comparado
+no Kanban Light/Dark desktop; TestCase Cards comparados nas mesmas oito
+combinações dos Defect Cards. DEF-1 preserva PASS real EXEC-0005/ciclo 2.
+
+Edição aberta por teclado e cancelada; confirmação de exclusão também cancelada.
+Escape do histórico embedded manteve um diálogo e retornou ao link de sessões.
+Voltar ao fluxo preservou TASK-16 selecionada; regressões automatizadas existentes
+cobrem posições manuais, grupos e viewport. GitHub sem underline computado no
+foco; regra local existente cobre normal/visited/hover/focus/active. Não houve
+navegação externa nem teste manual individual de todos os pseudo-estados.
+Requirement/Commit/Issue têm smoke estrutural automatizado, sem ampliar a matriz
+visual acima. Capturas foram observadas na execução, sem pacote PNG versionado.
+
+### Gates finais e limites
+
+Red inicial reproduziu cinco falhas de UI (quatro badges e divisão em visões).
+Uma expectativa antiga da suíte completa proibia Comments no Details embedded;
+foi alinhada à paridade solicitada, preservando os testes dos snapshots congelados.
+
+| Gate desta micro-rodada | Resultado final |
+|---|---|
+| Frontend focused ×10 consecutivas | 197 PASS por rodada, 16 arquivos, todas exit 0; sem retry/sleep/timeout artificial |
+| Frontend full | 1.131 PASS, 92 arquivos |
+| Frontend coverage | 1.131 PASS; S/B/F/L: 81.69% / 76.76% / 77.35% / 83.82% |
+| Backend effort/traceability API focados | 23 PASS, 2 arquivos; sem skips |
+| Frontend/backend lint e format:check | PASS |
+| Frontend build | PASS; aviso existente de chunk ELK maior que 500kB |
+| Backend architecture:check / security:secrets | PASS |
+| git diff --check | PASS |
+
+Node 22 e `NODE_OPTIONS=--no-experimental-webstorage` no frontend. Suite crítica:
+
+```bash
+npm test -- test/components/TaskGraphParity.test.jsx test/components/FrozenTaskDetails.test.jsx test/components/S109FinalCorrections.test.jsx test/components/TaskEffortTracker.test.jsx test/components/KanbanSprintFilter.test.jsx test/components/TraceabilityWorkspace.test.jsx test/defects test/pages/KanbanPage.test.jsx test/features/useTaskEffort.test.jsx test/components/KanbanDialogStack.test.jsx
+```
+
+Depois: `npm test`, `npm run test:coverage`, `npm run lint`,
+`npm run format:check`, `npm run build`. Backend focado incluiu
+`test/api/task-time-entries-s1-06.test.js` e `test/api/s109-traceability.test.js`, com MySQL de
+teste e gates de lint/format/arquitetura/segredos. Não foi repetida a bateria
+backend completa, pois as regras de negócio permaneceram intactas.
+
+Logs fora do produto: `/private/tmp/traceflow-s109-ui-parity/`; as dez rodadas
+finais são `final-repeat-1.log` a `final-repeat-10.log`. `full.log`, `coverage.log`,
+`lint.log`, `format.log`, `build.log` e `backend-final.log` registram gates finais;
+logs red/intermediários não substituem esses resultados.
+
+### Documentação, limpeza e encerramento
+
+Documentação atualizada após os gates: inventário, log visual e esta seção;
+parágrafo vigente do Design System ajustado para eliminar a orientação antiga
+de duas visões. Nenhuma documentação de lifecycle foi alterada.
+
+Diff revisado integralmente, incluindo o teste novo. Não restaram QA HTML/JSON,
+screenshots, fixtures temporárias ou debug dentro do produto. Aba auxiliar
+fechada; viewport restaurado; tema Escuro e aba original preservados. Permanecem
+apenas os testes de regressão e logs locais fora do repositório.
+
+HEAD preservado; sem commit, push, merge, rebase, reset, force-push, clean ou
+stash. Resultado local, sem conclusão sobre CI remoto, produção, dispositivos
+físicos ou certificação WCAG integral.
+
+**S1-09 TRACEABILITY GRAPH WORKSPACE UX — PASS LOCAL.** Rodada encerrada.
+Final Integrated QA não iniciado.

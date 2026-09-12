@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../../database/prismaClient.js';
 import { lockProject } from '../../../database/locks.js';
 import { auditRepository } from '../../audit/audit.repository.js';
@@ -86,29 +87,74 @@ async function appendEffortHistory(tx, entry, eventType, actorUserId, previousSe
 export function createTaskTimeEntryRepository(client = prisma) {
   return {
     listHistoryPage(taskId, { skip, take, from, to, source, eventType }) {
-      const where = {
-        taskId,
-        ...(source ? { source } : {}),
-        ...(eventType ? { eventType } : {}),
-        ...(from || to
-          ? { occurredAt: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } }
-          : {})
-      };
+      // Snapshot de sessão anterior à auditoria: leitura identificada, nunca um CREATED fabricado.
+      // O recorte unificado é paginado no banco; nenhum merge de páginas no frontend.
+      const timeline = Prisma.sql`
+        SELECT id, occurredAt, 'EVENT' AS kind FROM TaskEffortHistoryEntry
+        WHERE taskId = ${taskId}
+          ${source ? Prisma.sql`AND source = ${source}` : Prisma.empty}
+          ${eventType ? Prisma.sql`AND eventType = ${eventType}` : Prisma.empty}
+          ${from ? Prisma.sql`AND occurredAt >= ${from}` : Prisma.empty}
+          ${to ? Prisma.sql`AND occurredAt <= ${to}` : Prisma.empty}
+        UNION ALL
+        SELECT e.id, e.endedAt AS occurredAt, 'LEGACY_SNAPSHOT' AS kind FROM TaskTimeEntry e
+        WHERE e.taskId = ${taskId} AND e.endedAt IS NOT NULL
+          ${eventType ? Prisma.sql`AND 1 = 0` : Prisma.empty}
+          ${source ? Prisma.sql`AND e.source = ${source}` : Prisma.empty}
+          ${from ? Prisma.sql`AND e.endedAt >= ${from}` : Prisma.empty}
+          ${to ? Prisma.sql`AND e.endedAt <= ${to}` : Prisma.empty}
+          AND NOT EXISTS (SELECT 1 FROM TaskEffortHistoryEntry h WHERE h.taskId = e.taskId AND h.sessionId = e.id)
+      `;
       return client.$transaction(
         async (tx) => {
-          const total = await tx.taskEffortHistoryEntry.count({ where });
-          const items = await tx.taskEffortHistoryEntry.findMany({
-            where,
-            include: { actor: actorSelect },
-            orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
-            skip,
-            take
+          const counts = await tx.$queryRaw(
+            Prisma.sql`SELECT COUNT(*) AS total FROM (${timeline}) timeline`
+          );
+          const page = await tx.$queryRaw(
+            Prisma.sql`SELECT * FROM (${timeline}) timeline ORDER BY occurredAt DESC, id DESC, kind ASC LIMIT ${take} OFFSET ${skip}`
+          );
+          const history = await tx.taskEffortHistoryEntry.findMany({
+            where: {
+              taskId,
+              id: { in: page.filter((row) => row.kind === 'EVENT').map((row) => row.id) }
+            },
+            include: { actor: actorSelect }
           });
           const sessions = await tx.taskTimeEntry.findMany({
-            where: { taskId, id: { in: items.map((row) => row.sessionId) } },
+            where: {
+              taskId,
+              id: {
+                in: [
+                  ...history.map((row) => row.sessionId),
+                  ...page.filter((row) => row.kind === 'LEGACY_SNAPSHOT').map((row) => row.id)
+                ]
+              }
+            },
             select: timeEntrySelect
           });
-          return { total, items, sessions };
+          const events = new Map(history.map((row) => [row.id, row]));
+          const current = new Map(sessions.map((row) => [row.id, row]));
+          const items = page.map((row) => {
+            if (row.kind === 'EVENT') return { ...events.get(row.id), kind: 'EVENT' };
+            const entry = current.get(row.id);
+            return {
+              id: `session:${entry.id}`,
+              projectId: entry.projectId,
+              taskId,
+              sessionId: entry.id,
+              kind: 'LEGACY_SNAPSHOT',
+              eventType: null,
+              source: entry.source,
+              actorUserId: entry.endedById ?? entry.startedById,
+              actor: entry.endedBy ?? entry.startedBy,
+              previousSeconds: null,
+              newSeconds: entry.durationSeconds,
+              snapshotStartedAt: entry.startedAt,
+              snapshotEndedAt: entry.endedAt,
+              occurredAt: entry.endedAt
+            };
+          });
+          return { total: Number(counts[0].total), items, sessions };
         },
         { isolationLevel: 'RepeatableRead' }
       );

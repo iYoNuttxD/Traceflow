@@ -307,7 +307,7 @@ describe('TaskEffortTracker', () => {
     // Duas sessões não passam do tamanho da página: sem paginação.
     expect(within(dialog).queryByRole('navigation')).toBeNull();
 
-    const deleteButtons = within(list).getAllByRole('button', { name: 'Excluir sessão' });
+    const deleteButtons = within(list).getAllByRole('button', { name: /^Excluir sessão/ });
     await user.click(deleteButtons[1]);
     expect(
       await screen.findByRole('heading', { name: 'Excluir sessão de tempo' })
@@ -315,7 +315,7 @@ describe('TaskEffortTracker', () => {
     await user.click(screen.getByRole('button', { name: 'Cancelar' }));
     expect(apiMocks.deleteTaskTimeEntry).not.toHaveBeenCalled();
 
-    await user.click(within(list).getAllByRole('button', { name: 'Excluir sessão' })[1]);
+    await user.click(within(list).getAllByRole('button', { name: /^Excluir sessão/ })[1]);
     await user.click(await screen.findByRole('button', { name: 'Excluir' }));
     await waitFor(() => expect(apiMocks.deleteTaskTimeEntry).toHaveBeenCalledWith(42, 1));
     expect(onEffortChange).toHaveBeenCalledWith(
@@ -378,7 +378,7 @@ describe('TaskEffortTracker', () => {
     expect(within(list).getByText('1h45min')).toBeInTheDocument();
     // Mesma pessoa iniciou e parou: sem o sufixo "parado por".
     expect(within(list).getByText(/Ana Ribeiro$/)).toBeInTheDocument();
-    expect(within(list).queryByRole('button', { name: 'Excluir sessão' })).toBeNull();
+    expect(within(list).queryByRole('button', { name: /^Excluir sessão/ })).toBeNull();
   });
 
   it('renders immutable edited/deleted events, filters by event and edits the current session', async () => {
@@ -440,8 +440,10 @@ describe('TaskEffortTracker', () => {
     renderTracker();
     const dialog = await openSessions(user);
     expect(await within(dialog).findByText('3h → 4h')).toBeVisible();
+    expect(within(dialog).queryByRole('button', { name: 'Histórico de eventos' })).toBeNull();
+    expect(within(dialog).queryByRole('button', { name: 'Sessões atuais' })).toBeNull();
     expect(within(dialog).getByText('Entrada de 4h')).toBeVisible();
-    expect(within(dialog).getAllByRole('button', { name: 'Excluir sessão' })).toHaveLength(1);
+    expect(within(dialog).getAllByRole('button', { name: /^Excluir sessão/ })).toHaveLength(1);
     await user.selectOptions(within(dialog).getByLabelText('Evento'), 'DELETED');
     await user.click(within(dialog).getByRole('button', { name: 'Filtrar' }));
     await waitFor(() =>
@@ -451,7 +453,10 @@ describe('TaskEffortTracker', () => {
         expect.anything()
       )
     );
-    await user.click(within(dialog).getByRole('button', { name: 'Editar sessão' }));
+    const pencil = within(dialog).getByRole('button', { name: 'Editar sessão de 3h' });
+    expect(pencil).toHaveTextContent('');
+    pencil.focus();
+    await user.keyboard('{Enter}');
     await user.clear(within(dialog).getByLabelText('Duração atual (horas)'));
     await user.type(within(dialog).getByLabelText('Duração atual (horas)'), '4');
     await user.click(within(dialog).getByRole('button', { name: 'Salvar edição' }));
@@ -462,12 +467,41 @@ describe('TaskEffortTracker', () => {
       })
     );
     expect(screen.getByLabelText('Tempo total registrado')).toHaveTextContent('04:00:00');
-    await user.click(within(dialog).getByRole('button', { name: 'Sessões atuais' }));
-    expect(within(dialog).getByLabelText('Evento')).toBeDisabled();
+  });
+
+  it('shows an identified pre-history snapshot in the same list without treating it as CREATED', async () => {
+    const user = userEvent.setup();
+    mockEntries(response());
+    apiMocks.getTaskEffortHistory.mockResolvedValue({
+      items: [
+        {
+          id: 'session:12',
+          sessionId: 12,
+          kind: 'LEGACY_SNAPSHOT',
+          eventType: null,
+          source: 'MANUAL',
+          occurredAt: '2026-09-01T13:00:00Z',
+          actor: ana,
+          newSeconds: 14400,
+          canEdit: false,
+          canDelete: false
+        }
+      ],
+      pagination: { page: 1, total: 1, totalPages: 1 }
+    });
+    renderTracker();
+    const dialog = await openSessions(user);
+    expect(await within(dialog).findByText(/Registro anterior ao histórico/)).toBeVisible();
+    expect(within(dialog).getByText('Snapshot')).toBeVisible();
+    expect(within(dialog).getByText('4h')).toBeVisible();
+    expect(within(dialog).queryByText('Registrado', { selector: 'span' })).toBeNull();
+    await user.selectOptions(within(dialog).getByLabelText('Origem'), 'MANUAL');
+    await user.selectOptions(within(dialog).getByLabelText('Evento'), 'UPDATED');
+    await user.click(within(dialog).getByRole('button', { name: 'Filtrar' }));
     await waitFor(() =>
-      expect(apiMocks.getTaskTimeEntries).toHaveBeenLastCalledWith(
+      expect(apiMocks.getTaskEffortHistory).toHaveBeenLastCalledWith(
         42,
-        { page: 1, limit: 10 },
+        { page: 1, limit: 10, source: 'MANUAL', eventType: 'UPDATED' },
         expect.anything()
       )
     );

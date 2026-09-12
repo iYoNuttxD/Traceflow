@@ -7,6 +7,7 @@ import {
   EFFORT_STATUS_LABELS,
   taskPriorityLabels
 } from '../../tasks/index.js';
+import { DetailSurface } from '../../../shared/index.js';
 import { graphFields, GraphStatus } from './GraphNode.jsx';
 import { identity, nodeLabels, relationLabels } from '../model/graph.js';
 import { phaseLabel } from '../model/phase.js';
@@ -126,79 +127,77 @@ export function TraceabilityInspector({ node, contract, onClose, onSelect, onDet
           {d.retests.map((v) => `DEF-${v.defectId} · ciclo ${v.correctionCycle}`).join(', ')}
         </p>
       )}
-      <section className="trace-inspector-section">
-        <h4>Informações</h4>
+      <DetailSurface title="Informações">
         {renderFields(
           fields.filter(([label]) => !traceLabels.has(label) && label !== 'Status / prioridade')
         )}
-        {effort && (
-          <section className="trace-inspector-effort" aria-label="Esforço">
-            <h4>Esforço</h4>
-            <dl className="trace-inspector-fields">
+      </DetailSurface>
+      {effort && (
+        <DetailSurface title="Esforço">
+          <dl className="trace-inspector-fields">
+            <div>
+              <dt>Estimado</dt>
+              <dd>
+                {d.estimatedEffort == null
+                  ? 'Não informado'
+                  : `${Number(d.estimatedEffort).toLocaleString('pt-BR')}h`}
+              </dd>
+            </div>
+            <div>
+              <dt>Realizado</dt>
+              <dd>{effort.totalSeconds ? formatHoursMinutes(effort.totalSeconds) : '0h'}</dd>
+            </div>
+            {effort.usagePercent != null && (
               <div>
-                <dt>Estimado</dt>
+                <dt>Progresso do esforço</dt>
                 <dd>
-                  {d.estimatedEffort == null
-                    ? 'Não informado'
-                    : `${Number(d.estimatedEffort).toLocaleString('pt-BR')}h`}
+                  <span className={`tc-badge tc-badge--${EFFORT_STATUS_TONES[effort.status]}`}>
+                    {Number(effort.usagePercent).toLocaleString('pt-BR')}%
+                  </span>
                 </dd>
               </div>
-              <div>
-                <dt>Realizado</dt>
-                <dd>{effort.totalSeconds ? formatHoursMinutes(effort.totalSeconds) : '0h'}</dd>
-              </div>
-              {effort.usagePercent != null && (
-                <div>
-                  <dt>Progresso do esforço</dt>
-                  <dd>
-                    <span className={`tc-badge tc-badge--${EFFORT_STATUS_TONES[effort.status]}`}>
-                      {Number(effort.usagePercent).toLocaleString('pt-BR')}%
-                    </span>
-                  </dd>
-                </div>
-              )}
-            </dl>
-            {d.estimatedEffort != null && <small>{EFFORT_STATUS_LABELS[effort.status]}</small>}
-          </section>
-        )}
-      </section>
+            )}
+          </dl>
+          {d.estimatedEffort != null && <small>{EFFORT_STATUS_LABELS[effort.status]}</small>}
+        </DetailSurface>
+      )}
       {fields.some(([label]) => traceLabels.has(label)) && (
-        <section className="trace-inspector-section">
-          <h4>Rastreabilidade</h4>
+        <DetailSurface title="Rastreabilidade">
           {renderFields(fields.filter(([label]) => traceLabels.has(label)))}
-        </section>
+        </DetailSurface>
       )}
       {p && (
-        <dl className="trace-inspector-fields">
-          <div>
-            <dt>Artefatos</dt>
-            <dd>
-              {p.artifacts.pullRequests} PRs · {p.artifacts.commits} commits · {p.artifacts.issues}{' '}
-              issues
-              <p>
-                Contagem da projeção: um PR compartilhado pode contar em mais de uma tarefa. No
-                fluxo, cada artefato aparece uma vez.
-              </p>
-            </dd>
-          </div>
-          <div>
-            <dt>Resultados atuais</dt>
-            <dd>
-              {p.validation.pass} PASS · {p.validation.fail} FAIL · {p.validation.blocked} BLOCKED ·{' '}
-              {p.validation.neverExecuted} nunca executados
-            </dd>
-          </div>
-          <div>
-            <dt>Defeitos por situação</dt>
-            <dd>
-              {p.defects.open} abertos · {p.defects.inCorrection} em correção ·{' '}
-              {p.defects.waitingRetest} aguardando reteste · {p.defects.validated} validados
-            </dd>
-          </div>
-        </dl>
+        <DetailSurface title="Evidências da cadeia">
+          <dl className="trace-inspector-fields">
+            <div>
+              <dt>Artefatos</dt>
+              <dd>
+                {p.artifacts.pullRequests} PRs · {p.artifacts.commits} commits ·{' '}
+                {p.artifacts.issues} issues
+                <p>
+                  Contagem da projeção: um PR compartilhado pode contar em mais de uma tarefa. No
+                  fluxo, cada artefato aparece uma vez.
+                </p>
+              </dd>
+            </div>
+            <div>
+              <dt>Resultados atuais</dt>
+              <dd>
+                {p.validation.pass} PASS · {p.validation.fail} FAIL · {p.validation.blocked} BLOCKED
+                · {p.validation.neverExecuted} nunca executados
+              </dd>
+            </div>
+            <div>
+              <dt>Defeitos por situação</dt>
+              <dd>
+                {p.defects.open} abertos · {p.defects.inCorrection} em correção ·{' '}
+                {p.defects.waitingRetest} aguardando reteste · {p.defects.validated} validados
+              </dd>
+            </div>
+          </dl>
+        </DetailSurface>
       )}
-      <section className="trace-inspector-section">
-        <h4>Relações na cadeia</h4>
+      <DetailSurface title="Relações na cadeia">
         {related.length ? (
           <ul>
             {related.map((e) => {
@@ -236,7 +235,7 @@ export function TraceabilityInspector({ node, contract, onClose, onSelect, onDet
         ) : (
           <p>Nenhuma relação carregada.</p>
         )}
-      </section>
+      </DetailSurface>
       {contract.pagination?.page < contract.pagination?.totalPages && (
         <p>Há outras relações disponíveis em Carregar mais relações.</p>
       )}

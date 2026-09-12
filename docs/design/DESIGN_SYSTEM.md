@@ -759,8 +759,13 @@ Kanban, Casos de teste, Defeitos, Repositório, Rastreabilidade. Overflow soment
 horizontal; indicador dentro da barra; reposicionamento da aba ativa altera
 apenas `scrollLeft`. Links conservam teclado, foco e `aria-current="page"`.
 
-Esforço distingue Histórico de eventos de Sessões atuais. Controles de seleção
-quebram linha quando necessário; Evento pertence só ao histórico. Editar/excluir
-atua na sessão atual autorizada, nunca no snapshot exibido. Evidência e limites
-na seção FINAL TARGETED CORRECTIONS do
+Esforço usa uma única lista de registros, edições e exclusões. Sessões anteriores
+à auditoria aparecem nessa lista como “Registro anterior ao histórico”, com tag
+Snapshot, sem evento de criação inventado. Origem e Evento são filtros distintos.
+Datas e selects usam controles canônicos de 44px e reflow pela largura do painel.
+Lápis/lixeira têm o mesmo token de ícone, target de 44px, tooltip e nome acessível.
+Editar/excluir atua na sessão atual autorizada, nunca no registro histórico exibido.
+Inspectors reutilizam DetailSurface por seção. Task Details no grafo reutiliza o
+conteúdo canônico, incluindo esforço e comentários; sessões permanecem dentro do
+mesmo workspace. Evidência e limites na seção FINAL UI/PARITY CORRECTIONS do
 [relatório da Etapa 5](../deliveries/S1_09_TRACEABILITY_GRAPH_WORKSPACE_UX_REPORT.md).

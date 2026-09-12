@@ -153,6 +153,8 @@ describe('S1-09 final corrections', () => {
         onOpen={() => {}}
       />
     );
+    expect(document.querySelector(`.defect-badge--${status.toLowerCase()}`)).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Rastreabilidade' })).toBeNull();
     const trail = screen.getByRole('list', { name: 'Evolução do defeito' });
     expect(within(trail).getByLabelText(`${phase}: Atual`)).toHaveAttribute('aria-current', 'step');
     expect(screen.getByRole('button', { name: 'Histórico' })).toBeVisible();

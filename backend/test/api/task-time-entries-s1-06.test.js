@@ -539,3 +539,59 @@ it('rolls back duration and actual effort when functional history cannot be writ
   expect((await prisma.task.findUnique({ where: { id: task.id } })).actualEffort).toBe(3);
   expect(await prisma.taskEffortHistoryEntry.count({ where: { taskId: task.id } })).toBe(1);
 });
+it('unifies legacy snapshots and events without fabricating history, with deterministic pagination and permissions', async () => {
+  const project = await createProject(prisma);
+  const author = await register('s109-snapshot@example.invalid', 'MEMBER', project.id);
+  const viewer = await register('s109-snapshot-viewer@example.invalid', 'VIEWER', project.id);
+  const task = await createTask(prisma, project.id, { estimatedEffort: 5, actualEffort: 4 });
+  const legacy = await prisma.taskTimeEntry.create({
+    data: {
+      projectId: project.id,
+      taskId: task.id,
+      source: 'MANUAL',
+      startedAt: new Date('2026-09-01T09:00:00Z'),
+      endedAt: new Date('2026-09-01T13:00:00Z'),
+      durationSeconds: 14400,
+      startedById: author.user.id,
+      endedById: author.user.id
+    }
+  });
+  await author.mutate('post', entriesPath(task.id)).send({ hours: 1 });
+  const url = `${entriesPath(task.id)}/history`;
+  const recent = await author.agent.get(`${url}?limit=1`);
+  expect(recent.status).toBe(200);
+  expect(recent.body.pagination.total).toBe(2);
+  expect(recent.body.items[0].eventType).toBe('CREATED');
+  const old = await author.agent.get(`${url}?page=2&limit=1`);
+  expect(old.body.items[0]).toMatchObject({
+    kind: 'LEGACY_SNAPSHOT',
+    eventType: null,
+    sessionId: legacy.id,
+    newSeconds: 14400,
+    canEdit: true,
+    actor: { id: author.user.id }
+  });
+  expect(old.body.items[0].id).toBe(`session:${legacy.id}`);
+  expect(
+    (await author.agent.get(`${url}?source=MANUAL&startDate=2026-09-01&endDate=2026-09-01`)).body
+      .items
+  ).toHaveLength(1);
+  expect((await author.agent.get(`${url}?eventType=CREATED`)).body.pagination.total).toBe(1);
+  const readOnly = await viewer.agent.get(url);
+  expect(readOnly.body.items.every((row) => !row.canEdit && !row.canDelete)).toBe(true);
+  expect(await prisma.taskEffortHistoryEntry.count({ where: { taskId: task.id } })).toBe(1);
+  const updated = await author
+    .mutate('patch', `${entriesPath(task.id)}/${legacy.id}`)
+    .send({ hours: 3, expectedUpdatedAt: legacy.updatedAt.toISOString() });
+  expect(updated.status).toBe(200);
+  const after = await author.agent.get(url);
+  expect(after.body.items).toHaveLength(2);
+  expect(after.body.items.some((row) => row.kind === 'LEGACY_SNAPSHOT')).toBe(false);
+  expect(after.body.items.find((row) => row.eventType === 'UPDATED')).toMatchObject({
+    previousSeconds: 14400,
+    newSeconds: 10800
+  });
+  expect(
+    (await author.agent.get(`${url}?source=MANUAL&eventType=UPDATED`)).body.items
+  ).toHaveLength(1);
+});
