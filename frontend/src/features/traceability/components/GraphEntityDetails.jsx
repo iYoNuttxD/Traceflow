@@ -30,6 +30,7 @@ function TaskInspection({ node, projectId, onClose, returnFocusRef }) {
       <TaskDetailsPanel
         embedded
         task={state.data}
+        onSaved={(task) => setState({ data: task, loading: false })}
         projectId={projectId}
         onClose={onClose}
         returnFocusRef={returnFocusRef}

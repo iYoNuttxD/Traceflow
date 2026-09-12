@@ -98,7 +98,7 @@ const sections = (root) => ({
 });
 
 describe('Embedded task content for the traceability workspace', () => {
-  it('reuses canonical sections without creating another modal or mutable sidebar', () => {
+  it('reuses canonical sections and Comments without creating another modal', () => {
     render(
       <ConfirmProvider>
         <TaskDetailsPanel embedded task={current} onClose={vi.fn()} />
@@ -108,7 +108,7 @@ describe('Embedded task content for the traceability workspace', () => {
     expect(screen.getByRole('heading', { name: /Tarefa Atualizada/ })).toBeVisible();
     expect(screen.getByRole('heading', { name: 'Rastreabilidade' })).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Editar tarefa' })).not.toBeInTheDocument();
-    expect(TaskComments).not.toHaveBeenCalled();
+    expect(TaskComments).toHaveBeenCalled();
     expect(screen.queryByText('Iniciar cronômetro')).not.toBeInTheDocument();
   });
 });

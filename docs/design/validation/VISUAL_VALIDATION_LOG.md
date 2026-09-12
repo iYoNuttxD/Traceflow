@@ -484,3 +484,53 @@ Previews e duas abas auxiliares removidos, viewport restaurado, tema Escuro e
 aba principal preservados. Capturas observadas durante a execução, sem arquivos
 PNG versionados. Não substitui CI remoto, QA integrado final, teste em dispositivo
 físico ou certificação WCAG integral.
+
+## 2026-09-12 — S1-09 Etapa 5 / FINAL UI/PARITY CORRECTIONS
+
+Baseline desta micro-rodada: `daniel-dev`, HEAD
+`f0050758ce59777df0babd28f84fd8a12b2e7497`, working tree inicialmente limpa.
+Navegação autenticada no Chrome local, projeto 2, sem mutações de dados durante
+a inspeção visual. Esta entrada substitui a aprovação anterior de duas visões
+de esforço; não revalida funcionalidades fora do recorte atual.
+
+| Superfície | Light 1440/1280/768/390 | Dark 1440/1280/768/390 |
+|---|---|---|
+| Histórico único de esforço, filtros e ações | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
+| Kanban Overview, quatro cantos | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
+| Defect Card, quatro estados reais | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
+| Task Inspector | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
+| PR Inspector | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
+| TestCase Inspector | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
+| Execution Inspector | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
+| Defect Inspector | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
+| Task Details aberto pelo grafo | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
+
+Task 16 mostra 4h/5h/80% no Inspector, no Details do grafo e no Details canônico.
+A lista real contém DELETED de 3h e a sessão antiga de 4h como Snapshot / Registro
+anterior ao histórico, conforme decisão do usuário. Eventos de criação, edição e
+exclusão juntos, antes/depois, origem, datas UTC e permissões foram verificados
+nos testes; não foram fabricados eventos no projeto visual.
+
+Controles medidos em 44px; reflow final usa a largura do painel, evitando campos
+apertados no Details convencional. Lápis/lixeira compartilham tamanho; foco e
+tooltip observados. Edição foi aberta por Enter e cancelada; exclusão foi aberta
+por teclado e cancelada na confirmação. Escape do histórico embedded devolveu
+foco a Ver sessões registradas com um único diálogo no workspace. Voltar ao fluxo
+preservou TASK-16 selecionada; testes existentes cobrem posições/grupos/viewport.
+
+Kanban: clipping pertence à surface; seletor em portal permaneceu visível no
+mobile, seleção/limpeza funcionaram e Escape retornou ao trigger. Defect Cards
+DEF-1 a DEF-4 preservaram severidade, detection, requisito, fase, seção dinâmica e
+footer, sem badge de lifecycle duplicado ou heading isolado. TestCase Cards foram
+comparados nas mesmas larguras e temas. Inspectors reutilizam DetailSurface com
+grade consistente; relações mobile e foco foram observados por scroll/teclado.
+Link GitHub sem underline computado em foco; demais estados cobertos pela regra
+CSS local existente, sem navegação externa ou alegação de visita manual a cada
+pseudo-estado.
+
+197 testes focados ×10, 1.131 full frontend e coverage, 23 backend focados;
+lint/format/build e verificações finais passaram. Matriz detalhada, comandos e
+limites no [relatório](../../deliveries/S1_09_TRACEABILITY_GRAPH_WORKSPACE_UX_REPORT.md#final-uiparity-corrections).
+Capturas observadas nesta execução, sem pacote PNG versionado. Aba auxiliar
+fechada, viewport restaurado e tema Escuro preservado. Sem QA temporário dentro
+do produto. Não substitui CI remoto, dispositivo físico ou Final Integrated QA.

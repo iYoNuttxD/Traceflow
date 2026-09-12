@@ -686,3 +686,23 @@ Sem estimativa/realizado zero, datas combinadas e erros de concorrência têm
 evidência automatizada. Capturas foram observadas na execução, sem pacote PNG
 versionado. Matriz e limites no
 [relatório final](../deliveries/S1_09_TRACEABILITY_GRAPH_WORKSPACE_UX_REPORT.md#final-targeted-corrections).
+
+## S1-09 Etapa 5 — FINAL UI/PARITY CORRECTIONS (2026-09-12)
+
+Esta entrada substitui a apresentação de esforço em duas visões da rodada
+anterior; os registros acima permanecem como evidência histórica.
+
+| Superfície | Owner / apresentação vigente | Validação desta rodada |
+|---|---|---|
+| TASK-EFFORT-HISTORY | TaskTimeEntriesDialog; lista única, eventos e snapshots legados identificados; filtros independentes; field/SelectControl de 44px; container queries | Light/Dark × 1440/1280/768/390; Task 16 real, exclusão de 3h e snapshot de 4h; CREATED/UPDATED/DELETED juntos também cobertos por testes |
+| TASK-EFFORT-CURRENT | Visão separada retirada; sessões anteriores à auditoria entram no recorte unificado do servidor | Snapshot não é CREATED; sem backfill, evento falso ou alteração dos totais |
+| TASK-EFFORT-ACTIONS | Lápis TraceFlowIcon e lixeira existente; mesmo tamanho, target de 44px, tooltip hover/focus e aria-label com duração | Edição por Enter, cancelamento, confirmação de exclusão cancelada; testes de mutação/permissão |
+| KANBAN-OVERVIEW | KanbanScreen; parent detém radius/clipping; KanbanSprintFilter em portal para preservar popover | Quatro cantos nas oito combinações; seleção, Escape e retorno de foco revalidados |
+| DEFECT-CARD | Phase trail comunica lifecycle; removidos badge duplicado e heading Rastreabilidade; detection/requisito e Correção/Reteste preservados | Quatro estados reais nas oito combinações; comparação com TestCase Card nas mesmas larguras |
+| TRACEABILITY-INSPECTOR | DetailSurface compartilhada por seção; grade e padding uniformes; relações com tipo subdued e entidade legível | Task, PR, TestCase, Execution e Defect nas oito combinações; oito tipos em smoke automatizado |
+| TASK-DETAILS-GRAPH | TaskDetailsPanel canônico, com esforço e TaskComments; histórico embedded sem novo modal | Oito combinações; 4h/5h/80%, retorno ao fluxo e foco; comparação canônica no Kanban Light/Dark desktop |
+
+Evidência renderizada observada no Chrome local autenticado, sem pacote PNG
+versionado. Mutação de esforço foi validada nos testes; a navegação visual desta
+rodada não alterou dados. Limites e gates no
+[relatório](../deliveries/S1_09_TRACEABILITY_GRAPH_WORKSPACE_UX_REPORT.md#final-uiparity-corrections).

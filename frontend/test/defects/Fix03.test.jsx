@@ -82,7 +82,7 @@ it('uses list metadata for one task, aggregates and requirement without per-card
   expect(screen.getByText('TC-15 · EXEC-0038 · Passo 1')).toBeInTheDocument();
   expect(screen.getByText('Ciclo 1')).toBeInTheDocument();
   expect(screen.getByText('Alta')).toBeInTheDocument();
-  expect(screen.getByText('Aberto')).toBeInTheDocument();
+  expect(screen.getByLabelText('Detecção: Atual')).toBeInTheDocument();
   expect(screen.getByText('Pessoa QA')).toBeInTheDocument();
   expect(screen.getByText('Requisito')).toBeInTheDocument();
   view.rerender(

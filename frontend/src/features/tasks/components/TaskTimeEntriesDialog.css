@@ -1,69 +1,40 @@
-/* Owner: TaskTimeEntriesDialog (S1-06). Mesmo molde do diálogo de histórico. */
-
-.task-time-entries__views {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-bottom: var(--space-4);
+/* Owner: TaskTimeEntriesDialog. Controles canônicos de 44px, reflow por largura. */
+.task-time-entries {
+  container: task-effort-history / inline-size;
+  min-width: 0;
 }
-
-/* Flex com quebra: ao aplicar um filtro surge o "Limpar filtros", e num grid de
-   colunas fixas os dois botões espremiam os campos. Aqui eles descem de linha. */
 .task-time-entries__filters {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
   gap: var(--space-3);
-  align-items: flex-end;
+  align-items: end;
   margin-bottom: var(--space-5);
 }
-
-/* Os campos dividem o que sobra depois das ações, que reservam a própria
-   largura: assim nada fica colado, sem vão morto e sem empurrar os botões
-   para a linha de baixo quando o "Limpar filtros" aparece. */
-.task-time-entries__filters label {
-  display: grid;
+.task-time-entries__filters .field {
   min-width: 0;
-  gap: var(--space-2);
-  color: var(--color-text-primary);
-  font-size: var(--font-size-2);
-  font-weight: var(--font-weight-semibold);
+  margin: 0;
 }
-
-/* Datas têm largura previsível; a origem fica com a sobra da linha. */
-.task-time-entries__filters label:nth-of-type(-n + 2) {
-  flex: 0 1 8.5rem;
-}
-
-.task-time-entries__filters label:nth-of-type(n + 3) {
-  flex: 1 1 9rem;
-}
-
-/* Sem width/min-width o select assume a largura da opção mais longa, estoura o
-   label e passa por baixo do botão de filtrar. */
-.task-time-entries__filters input,
-.task-time-entries__filters select {
-  width: 100%;
-  min-width: 0;
-  min-height: var(--size-touch-target);
-  border: var(--border-width-default) solid var(--color-border-default);
-  border-radius: var(--radius-sm);
+.task-time-entries__filters .field input {
+  height: var(--size-touch-target);
   padding: 0 var(--space-3);
-  color: var(--color-text-primary);
-  background: var(--color-bg-input);
-  font: inherit;
-  text-overflow: ellipsis;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-3);
 }
-
 .task-time-entries__filter-actions {
   display: flex;
-  flex: 0 0 auto;
+  flex-wrap: wrap;
   gap: var(--space-2);
-  padding-left: var(--space-3);
 }
-
 .task-time-entries__filter-actions .button {
   min-height: var(--size-touch-target);
-  white-space: nowrap;
+}
+.task-time-entries-embedded {
+  min-width: 0;
+  margin-top: var(--space-4);
+}
+.task-time-entries-embedded > h3,
+.task-time-entries-embedded > p {
+  overflow-wrap: anywhere;
 }
 
 .task-time-entries__list {
@@ -135,7 +106,7 @@
   min-width: var(--size-touch-target);
 }
 
-.task-time-entries__delete {
+.task-time-entries__action {
   display: inline-flex;
   width: var(--size-touch-target);
   height: var(--size-touch-target);
@@ -147,14 +118,20 @@
   color: var(--color-text-secondary);
   background: transparent;
   cursor: pointer;
+  position: relative;
 }
 
-.task-time-entries__delete:hover:not(:disabled) {
+.task-time-entries__action--delete:hover:not(:disabled) {
   color: var(--color-danger-text);
   background: var(--color-danger-surface);
 }
 
-.task-time-entries__delete:disabled {
+.task-time-entries__action > svg {
+  width: var(--size-icon-md);
+  height: var(--size-icon-md);
+}
+
+.task-time-entries__action:disabled {
   cursor: not-allowed;
   opacity: var(--opacity-disabled);
 }
@@ -169,13 +146,16 @@
   font-weight: var(--font-weight-semibold);
 }
 
-@media (max-width: 720px) {
+@container task-effort-history (max-width: 46rem) {
   .task-time-entries__item {
     grid-template-columns: 1fr;
   }
 
-  .task-time-entries__filters label {
-    flex-basis: 100%;
+  .task-time-entries__filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .task-time-entries__filter-actions {
+    grid-column: 1 / -1;
   }
 
   .task-time-entries__filter-actions {
@@ -189,5 +169,39 @@
 
   .task-time-entries__duration {
     text-align: left;
+  }
+}
+
+.task-time-entries__action:hover:not(:disabled) {
+  background: var(--color-surface-interactive);
+}
+.task-time-entries__action[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  width: max-content;
+  pointer-events: none;
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-elevated);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-1);
+  box-shadow: var(--shadow-sm);
+  z-index: var(--z-tooltip);
+  visibility: hidden;
+}
+.task-time-entries__action:hover::after,
+.task-time-entries__action:focus-visible::after {
+  visibility: visible;
+}
+.task-time-entries__when {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+@container task-effort-history (max-width: 28rem) {
+  .task-time-entries__filters {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

@@ -525,7 +525,7 @@ export function TaskDetailsPanel({
           }}
         />
       ) : (
-        <TaskDetailsLayout aside={embedded ? undefined : <TaskComments taskId={task.id} />}>
+        <TaskDetailsLayout aside={<TaskComments taskId={task.id} />}>
           {caseFeedback && (
             <p role="status" className="tc-feedback">
               {caseFeedback}
@@ -576,15 +576,14 @@ export function TaskDetailsPanel({
             <TaskInformation
               details={currentTaskDetailsView(task)}
               effortSlot={
-                !embedded && (
-                  <TaskEffortTracker
-                    taskId={task.id}
-                    taskTitle={task.title}
-                    estimatedEffort={task.estimatedEffort}
-                    actualEffort={task.actualEffort}
-                    onEffortChange={handleEffortChange}
-                  />
-                )
+                <TaskEffortTracker
+                  embedded={embedded}
+                  taskId={task.id}
+                  taskTitle={task.title}
+                  estimatedEffort={task.estimatedEffort}
+                  actualEffort={task.actualEffort}
+                  onEffortChange={handleEffortChange}
+                />
               }
             />
           )}

@@ -30,6 +30,7 @@ function PauseIcon() {
 }
 
 export function TaskEffortTracker({
+  embedded = false,
   taskId,
   taskTitle,
   estimatedEffort,
@@ -275,6 +276,7 @@ export function TaskEffortTracker({
 
       {sessionsOpen && (
         <TaskTimeEntriesDialog
+          embedded={embedded}
           taskId={taskId}
           taskTitle={taskTitle}
           refreshKey={`${completedCount}:${entries[0]?.id ?? ''}:${entries[0]?.updatedAt ?? ''}:${effort?.completedSeconds ?? ''}:${running?.id ?? ''}`}
@@ -286,7 +288,10 @@ export function TaskEffortTracker({
             return data;
           }}
           returnFocusRef={sessionsButtonRef}
-          onClose={() => setSessionsOpen(false)}
+          onClose={() => {
+            setSessionsOpen(false);
+            queueMicrotask(() => sessionsButtonRef.current?.focus());
+          }}
         />
       )}
     </section>
