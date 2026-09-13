@@ -1,4 +1,7 @@
-import { TRACEABILITY_SITUATIONS } from './requirement-traceability.policy.js';
+import {
+  REQUIREMENT_LIFECYCLE_STATUSES,
+  TRACEABILITY_SITUATIONS
+} from './requirement-traceability.policy.js';
 import { z } from 'zod';
 import {
   emptyBodySchema,
@@ -57,21 +60,7 @@ export const requirementProjectionQuerySchema = strictObject({
   ...paginationSchema,
   search: z.string().trim().max(200).optional(),
   situation: z.enum(TRACEABILITY_SITUATIONS).optional(),
-  requirementStatus: z
-    .enum([
-      'CADASTRADO',
-      'APROVADO',
-      'PLANEJADO',
-      'EM_VALIDACAO',
-      'EM_CORRECAO',
-      'EM_IMPLEMENTACAO',
-      'VALIDADO',
-      'CONCLUIDO',
-      'PENDENTE',
-      'EM_ANDAMENTO',
-      'CANCELADO'
-    ])
-    .optional(),
+  requirementStatus: z.enum(REQUIREMENT_LIFECYCLE_STATUSES).optional(),
   hasTests: booleanFilter,
   hasOpenDefects: booleanFilter,
   hasTechnicalEvidence: booleanFilter

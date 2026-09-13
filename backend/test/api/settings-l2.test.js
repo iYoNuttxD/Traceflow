@@ -354,6 +354,16 @@ describe('contratos de conta e privacidade L2', () => {
       })
     ]);
     expect(files['manifest.json'].files).toContain('task-time-entries.json');
+    expect(files['manifest.json'].files).toEqual(
+      expect.arrayContaining([
+        'responsible-defects.json',
+        'defect-history.json',
+        'task-effort-history.json'
+      ])
+    );
+    expect(files['responsible-defects.json']).toEqual([]);
+    expect(files['defect-history.json']).toEqual([]);
+    expect(files['task-effort-history.json']).toEqual([]);
     expect(JSON.stringify(files)).not.toMatch(/Projeto histórico privado|posterior/);
   });
 

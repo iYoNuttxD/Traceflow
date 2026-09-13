@@ -312,7 +312,7 @@ describe('contratos de requisitos e vínculo com tarefas', () => {
       .send({ status: 'INEXISTENTE' });
     expectValidationError(invalidStatusResponse, 'status');
     expect(invalidStatusResponse.body.message).toBe(
-      'Status inválido. Use CADASTRADO, APROVADO, EM_IMPLEMENTACAO, VALIDADO ou CONCLUIDO.'
+      'Status inválido. Use PLANEJADO, EM_VALIDACAO, EM_CORRECAO, CADASTRADO, APROVADO, EM_IMPLEMENTACAO, VALIDADO, CONCLUIDO, PENDENTE, EM_ANDAMENTO, CANCELADO.'
     );
 
     const earlyCompletionResponse = await api.patch(

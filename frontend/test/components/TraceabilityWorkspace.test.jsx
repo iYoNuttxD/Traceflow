@@ -477,7 +477,11 @@ describe('Confirmed effort in graph-owned Task Details', () => {
       fireEvent.click(screen.getByText('Carregar mais relações'));
       fireEvent.click(screen.getByText('Abrir detalhes'));
       const user = userEvent.setup();
-      await user.click(await screen.findByRole('button', { name: 'Lançar manualmente' }));
+      const effortPanel = await screen.findByRole('region', { name: 'Esforço (horas)' });
+      await waitFor(() =>
+        expect(within(effortPanel).getByRole('button', { name: 'Retomar' })).toBeEnabled()
+      );
+      await user.click(within(effortPanel).getByRole('button', { name: 'Lançar manualmente' }));
       const layoutCount = mocks.layout.mock.calls.length;
       const centerCount = mocks.center.mock.calls.length;
       const viewportCount = mocks.viewport.mock.calls.length;
