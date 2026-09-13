@@ -1,5 +1,6 @@
 import { act, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { MemoryRouter } from 'react-router';
 import { KanbanBoard } from '../../src/features/tasks/components/KanbanBoard.jsx';
 
 const task = (overrides = {}) => ({
@@ -18,16 +19,18 @@ const noop = () => {};
 
 function renderBoard(tasks) {
   return render(
-    <KanbanBoard
-      board={board(tasks)}
-      onSelectTask={noop}
-      onOpenHistory={noop}
-      onTaskDragStart={noop}
-      onTaskDragEnd={noop}
-      onColumnDragOver={noop}
-      onColumnDragLeave={noop}
-      onColumnDrop={noop}
-    />
+    <MemoryRouter>
+      <KanbanBoard
+        board={board(tasks)}
+        onSelectTask={noop}
+        onOpenHistory={noop}
+        onTaskDragStart={noop}
+        onTaskDragEnd={noop}
+        onColumnDragOver={noop}
+        onColumnDragLeave={noop}
+        onColumnDrop={noop}
+      />
+    </MemoryRouter>
   );
 }
 
@@ -60,6 +63,22 @@ describe('Kanban — cronômetro de esforço no cartão (S1-06)', () => {
     expect(chip(4)).toHaveClass('kanban-task__effort--neutral');
   });
 
+  it('mantém o vínculo de correção junto ao indicador de esforço da mesma tarefa', () => {
+    renderBoard([
+      task({
+        projectId: 1,
+        estimatedEffort: 2,
+        actualEffort: 1,
+        correctionDefectCount: 1,
+        correctionDefects: [{ id: 7, title: 'Frete incorreto', status: 'EM_CORRECAO' }]
+      })
+    ]);
+    expect(chip()).toHaveTextContent('1h/ 2h · 50%');
+    expect(screen.getByRole('link', { name: 'Abrir DEF-7' })).toHaveAttribute(
+      'href',
+      '/projects/1/defects?defect=7'
+    );
+  });
   it('omite o indicador sem dado de esforço e em tarefas congeladas', () => {
     renderBoard([
       task({ id: 1 }),

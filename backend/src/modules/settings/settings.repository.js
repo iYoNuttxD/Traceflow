@@ -468,6 +468,104 @@ export const settingsRepository = {
             }
           }
         },
+        responsibleTestCases: {
+          where: {
+            responsibleUserId: userId,
+            deletedAt: null,
+            project: { memberships: { some: { userId, isActive: true } } }
+          },
+          select: {
+            id: true,
+            projectId: true,
+            title: true,
+            status: true,
+            currentVersion: true,
+            createdAt: true,
+            updatedAt: true
+          }
+        },
+        testExecutions: {
+          where: {
+            executedByUserId: userId,
+            project: { memberships: { some: { userId, isActive: true } } }
+          },
+          select: {
+            id: true,
+            projectId: true,
+            testCaseId: true,
+            testCaseVersion: true,
+            environment: true,
+            result: true,
+            executedAt: true
+          }
+        },
+        testEvidence: {
+          where: {
+            uploadedByUserId: userId,
+            project: { memberships: { some: { userId, isActive: true } } }
+          },
+          select: {
+            id: true,
+            projectId: true,
+            executionId: true,
+            scope: true,
+            kind: true,
+            originalName: true,
+            mimeType: true,
+            sizeBytes: true,
+            sha256: true,
+            createdAt: true
+          }
+        },
+        responsibleDefects: {
+          where: {
+            responsibleUserId: userId,
+            deletedAt: null,
+            project: { memberships: { some: { userId, isActive: true } } }
+          },
+          select: {
+            id: true,
+            projectId: true,
+            requirementId: true,
+            title: true,
+            severity: true,
+            status: true,
+            createdAt: true,
+            updatedAt: true
+          }
+        },
+        defectHistory: {
+          where: {
+            actorUserId: userId,
+            project: { memberships: { some: { userId, isActive: true } } }
+          },
+          select: {
+            id: true,
+            projectId: true,
+            defectId: true,
+            action: true,
+            occurredAt: true
+          }
+        },
+        effortHistory: {
+          where: {
+            actorUserId: userId,
+            project: { memberships: { some: { userId, isActive: true } } }
+          },
+          select: {
+            id: true,
+            projectId: true,
+            taskId: true,
+            sessionId: true,
+            eventType: true,
+            source: true,
+            previousSeconds: true,
+            newSeconds: true,
+            snapshotStartedAt: true,
+            snapshotEndedAt: true,
+            occurredAt: true
+          }
+        },
         responsibleTasks: {
           where: {
             project: { memberships: { some: { userId, isActive: true } } }

@@ -23,6 +23,8 @@ import {
   taskSprintBodySchema,
   taskStatusBodySchema,
   taskTimeEntryListQuerySchema,
+  taskEffortHistoryQuerySchema,
+  taskTimeEntryUpdateBodySchema,
   taskTimeEntryManualBodySchema,
   taskTimeEntryParamsSchema,
   updateTaskBodySchema
@@ -170,6 +172,16 @@ router.get(
   '/tasks/:id/time-entries',
   validateRequest({ params: taskIdParamsSchema, query: taskTimeEntryListQuerySchema }),
   taskController.listTimeEntries
+);
+router.get(
+  '/tasks/:id/time-entries/history',
+  validateRequest({ params: taskIdParamsSchema, query: taskEffortHistoryQuerySchema }),
+  taskController.listEffortHistory
+);
+router.patch(
+  '/tasks/:id/time-entries/:entryId',
+  validateRequest({ params: taskTimeEntryParamsSchema, body: taskTimeEntryUpdateBodySchema }),
+  taskController.updateTimeEntry
 );
 router.post(
   '/tasks/:id/time-entries',

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { TraceFlowIcon } from '../../../shared/index.js';
 import './KanbanSprintFilter.css';
 
@@ -10,13 +11,44 @@ export function KanbanSprintFilter({ sprints, selectedIds, statusLabels = {}, on
   const containerRef = useRef(null);
   const triggerRef = useRef(null);
   const searchRef = useRef(null);
+  const popoverRef = useRef(null);
+  const [position, setPosition] = useState(null);
+  useLayoutEffect(() => {
+    if (!open) return;
+    const place = () => {
+      const trigger = triggerRef.current?.getBoundingClientRect();
+      const popover = popoverRef.current;
+      if (!trigger || !popover) return;
+      const gutter = parseFloat(getComputedStyle(popover).paddingLeft) || 0;
+      setPosition({
+        left: Math.max(
+          gutter,
+          Math.min(
+            trigger.right - popover.offsetWidth,
+            window.innerWidth - popover.offsetWidth - gutter
+          )
+        ),
+        top: Math.max(
+          gutter,
+          Math.min(trigger.bottom + gutter, window.innerHeight - popover.offsetHeight - gutter)
+        )
+      });
+    };
+    place();
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    return () => {
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+    };
+  }, [open, query, sprints.length]);
 
   useEffect(() => {
     if (!open) return undefined;
     window.requestAnimationFrame(() => {
       (sprints.length > VISIBLE_LIMIT
         ? searchRef.current
-        : containerRef.current?.querySelector('input')
+        : popoverRef.current?.querySelector('input')
       )?.focus();
     });
     const close = (restoreFocus) => {
@@ -25,7 +57,11 @@ export function KanbanSprintFilter({ sprints, selectedIds, statusLabels = {}, on
       if (restoreFocus) window.requestAnimationFrame(() => triggerRef.current?.focus());
     };
     const handlePointerDown = (event) => {
-      if (!containerRef.current?.contains(event.target)) close(false);
+      if (
+        !containerRef.current?.contains(event.target) &&
+        !popoverRef.current?.contains(event.target)
+      )
+        close(false);
     };
     const handleKeyDown = (event) => {
       if (event.key === 'Escape') {
@@ -72,63 +108,67 @@ export function KanbanSprintFilter({ sprints, selectedIds, statusLabels = {}, on
         <TraceFlowIcon name="arrowRight" />
       </button>
 
-      {open && (
-        <div
-          className="kanban-sprint-filter__popover"
-          role="dialog"
-          aria-label="Selecionar Sprints"
-        >
-          <div className="kanban-sprint-filter__header">
-            <strong>Sprints no quadro</strong>
-          </div>
-          {sprints.length > VISIBLE_LIMIT && (
-            <label className="kanban-sprint-filter__search">
-              <span className="sr-only">Pesquisar Sprint</span>
-              <input
-                ref={searchRef}
-                type="search"
-                value={query}
-                placeholder="Pesquisar sprint..."
-                onChange={(event) => setQuery(event.target.value)}
-              />
-            </label>
-          )}
-          <ul className="kanban-sprint-filter__options">
-            <li>
-              <label>
-                <input type="checkbox" checked={selected.length === 0} onChange={onClear} />
-                <span>
-                  <strong>Projeto inteiro</strong>
-                  <small>Todas as tarefas do projeto</small>
-                </span>
+      {open &&
+        createPortal(
+          <div
+            ref={popoverRef}
+            style={position || { visibility: 'hidden' }}
+            className="kanban-sprint-filter__popover"
+            role="dialog"
+            aria-label="Selecionar Sprints"
+          >
+            <div className="kanban-sprint-filter__header">
+              <strong>Sprints no quadro</strong>
+            </div>
+            {sprints.length > VISIBLE_LIMIT && (
+              <label className="kanban-sprint-filter__search">
+                <span className="sr-only">Pesquisar Sprint</span>
+                <input
+                  ref={searchRef}
+                  type="search"
+                  value={query}
+                  placeholder="Pesquisar sprint..."
+                  onChange={(event) => setQuery(event.target.value)}
+                />
               </label>
-            </li>
-            {visibleSprints.map((sprint) => (
-              <li key={sprint.id}>
+            )}
+            <ul className="kanban-sprint-filter__options">
+              <li>
                 <label>
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.includes(sprint.id)}
-                    onChange={() => onToggle(sprint.id)}
-                  />
+                  <input type="checkbox" checked={selected.length === 0} onChange={onClear} />
                   <span>
-                    <strong>{sprint.name}</strong>
-                    <small>{statusLabels[sprint.id]}</small>
+                    <strong>Projeto inteiro</strong>
+                    <small>Todas as tarefas do projeto</small>
                   </span>
                 </label>
               </li>
-            ))}
-          </ul>
-          {visibleSprints.length === 0 && normalizedQuery ? (
-            <p className="kanban-sprint-filter__empty">Nenhuma Sprint encontrada.</p>
-          ) : null}
-          {!normalizedQuery && sprints.length > VISIBLE_LIMIT && (
-            <p className="kanban-sprint-filter__hint">
-              Pesquise para encontrar outras {sprints.length - VISIBLE_LIMIT} Sprints.
-            </p>
-          )}
-        </div>
-      )}
+              {visibleSprints.map((sprint) => (
+                <li key={sprint.id}>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(sprint.id)}
+                      onChange={() => onToggle(sprint.id)}
+                    />
+                    <span>
+                      <strong>{sprint.name}</strong>
+                      <small>{statusLabels[sprint.id]}</small>
+                    </span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+            {visibleSprints.length === 0 && normalizedQuery ? (
+              <p className="kanban-sprint-filter__empty">Nenhuma Sprint encontrada.</p>
+            ) : null}
+            {!normalizedQuery && sprints.length > VISIBLE_LIMIT && (
+              <p className="kanban-sprint-filter__hint">
+                Pesquise para encontrar outras {sprints.length - VISIBLE_LIMIT} Sprints.
+              </p>
+            )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

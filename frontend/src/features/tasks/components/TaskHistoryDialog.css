@@ -16,8 +16,7 @@
   font-weight: var(--font-weight-semibold);
 }
 
-.task-history-filters input,
-.task-history-filters select {
+.task-history-filters input {
   min-height: var(--size-touch-target);
   border: var(--border-width-default) solid var(--color-border-default);
   border-radius: var(--radius-sm);

@@ -26,7 +26,7 @@
   box-shadow: var(--shadow-sm);
 }
 .kanban-summary {
-  overflow: visible;
+  overflow: hidden;
 }
 .kanban-summary__heading {
   display: flex;
@@ -128,8 +128,7 @@
   font-size: var(--font-size-2);
   font-weight: var(--font-weight-semibold);
 }
-.kanban-filter input,
-.kanban-filter select {
+.kanban-filter input {
   width: 100%;
   min-width: 0;
   min-height: var(--size-touch-target);

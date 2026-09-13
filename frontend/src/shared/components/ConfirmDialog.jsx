@@ -46,26 +46,40 @@ function ConfirmDialog({ dialog, close }) {
         aria-labelledby="confirm-dialog-title"
         aria-describedby="confirm-dialog-description"
       >
-        <h2 id="confirm-dialog-title">{dialog.title}</h2>
-        <p id="confirm-dialog-description">{dialog.description}</p>
-        <div className="dialog-actions">
-          <button
-            ref={cancelRef}
-            type="button"
-            className="button button-secondary"
-            onClick={() => close(false)}
-          >
-            {dialog.cancelLabel || 'Cancelar'}
-          </button>
-          <button
-            type="button"
-            className={dialog.destructive ? 'button button-danger' : 'button button-primary'}
-            onClick={() => close(true)}
-          >
-            {dialog.confirmLabel || 'Confirmar'}
-          </button>
-        </div>
+        <ConfirmDialogContent dialog={dialog} close={close} cancelRef={cancelRef} />
       </section>
+    </div>
+  );
+}
+
+export function ConfirmDialogContent({ dialog, close, cancelRef }) {
+  const fallbackRef = useRef(null);
+  useEffect(() => {
+    (cancelRef || fallbackRef).current?.focus();
+  }, [cancelRef]);
+  return (
+    <div className="confirm-dialog-content">
+      <h2 id="confirm-dialog-title">{dialog.title}</h2>
+      <p id="confirm-dialog-description">{dialog.description}</p>
+      <div className="dialog-actions">
+        <button
+          ref={cancelRef || fallbackRef}
+          disabled={dialog.busy}
+          type="button"
+          className="button button-secondary"
+          onClick={() => close(false)}
+        >
+          {dialog.cancelLabel || 'Cancelar'}
+        </button>
+        <button
+          type="button"
+          disabled={dialog.busy}
+          className={dialog.destructive ? 'button button-danger' : 'button button-primary'}
+          onClick={() => close(true)}
+        >
+          {dialog.confirmLabel || 'Confirmar'}
+        </button>
+      </div>
     </div>
   );
 }

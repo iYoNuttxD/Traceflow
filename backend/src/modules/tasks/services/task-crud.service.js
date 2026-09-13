@@ -9,20 +9,25 @@ import {
   resolveResponsibleUser
 } from '../task.service-support.js';
 import { buildAuditEvent } from '../../audit/audit.service.js';
-import { calculateRequirementStatus } from '../../requirements/requirement.schema.js';
+
+export async function prepareTaskCreation(projectId, data, lookup = taskRepository) {
+  const taskData = buildTaskData(data, true);
+  const requirementId = await resolveRequirementForTask(projectId, data?.requirementId, lookup);
+  if (requirementId !== undefined) taskData.requirementId = requirementId;
+  const responsibleUserId = await resolveResponsibleUser(
+    projectId,
+    data?.responsibleUserId,
+    lookup
+  );
+  if (responsibleUserId !== undefined) taskData.responsibleUserId = responsibleUserId;
+  return taskData;
+}
 
 export const taskCrudService = {
   async createTask(projectId, data, context = {}) {
     const parsedProjectId = parseProjectId(projectId);
     await ensureProjectExists(parsedProjectId);
-    const taskData = buildTaskData(data, true);
-    const requirementId = await resolveRequirementForTask(parsedProjectId, data?.requirementId);
-    if (requirementId !== undefined) taskData.requirementId = requirementId;
-    const responsibleUserId = await resolveResponsibleUser(
-      parsedProjectId,
-      data?.responsibleUserId
-    );
-    if (responsibleUserId !== undefined) taskData.responsibleUserId = responsibleUserId;
+    const taskData = await prepareTaskCreation(parsedProjectId, data);
     const task = await taskRepository.createTaskAtomic(
       parsedProjectId,
       taskData,
@@ -32,8 +37,7 @@ export const taskCrudService = {
         requestId: context.requestId,
         action: 'TASK_CREATED',
         resourceType: 'Task'
-      }),
-      calculateRequirementStatus
+      })
     );
     return formatTask(task);
   },
@@ -71,7 +75,6 @@ export const taskCrudService = {
     const task = await taskRepository.updateTaskAtomic(id, taskData, {
       historyEntries,
       previousRequirementId: current.requirementId,
-      calculateRequirementStatus,
       auditEvent: buildAuditEvent({
         actorUserId: context.actorUserId,
         projectId: current.projectId,
@@ -89,7 +92,6 @@ export const taskCrudService = {
     const task = await ensureTaskExists(id);
     await taskRepository.deleteTask(id, {
       requirementId: task.requirementId,
-      calculateRequirementStatus,
       auditEvent: buildAuditEvent({
         actorUserId: context.actorUserId,
         projectId: task.projectId,

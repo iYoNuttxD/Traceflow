@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { kanbanApi } from '../api/tasks.api.js';
-import { normalizeApiError } from '../../../shared/index.js';
-import { formatDateTime, formatHistoryValue, historyFieldLabels } from './kanban-display.js';
+import { normalizeApiError, HistoryEventRow, SelectControl } from '../../../shared/index.js';
+import { formatHistoryValue, historyFieldLabels } from './kanban-display.js';
 import { KanbanDialog } from './KanbanDialog.jsx';
 import './TaskHistoryDialog.css';
 
@@ -126,7 +126,7 @@ export function TaskHistoryDialog({ projectId, task, members, sprints, returnFoc
         </label>
         <label>
           <span>Campo</span>
-          <select
+          <SelectControl
             value={filters.field}
             onChange={(event) =>
               setFilters((current) => ({ ...current, field: event.target.value }))
@@ -138,7 +138,7 @@ export function TaskHistoryDialog({ projectId, task, members, sprints, returnFoc
                 {label}
               </option>
             ))}
-          </select>
+          </SelectControl>
         </label>
         <div className="task-history-filter-actions">
           <button type="submit" className="button button-secondary button-compact">
@@ -176,9 +176,12 @@ export function TaskHistoryDialog({ projectId, task, members, sprints, returnFoc
       ) : (
         <div className="task-history-list">
           {items.map((movement) => (
-            <article className="task-history-item" key={movement.id}>
-              <time dateTime={movement.occurredAt}>{formatDateTime(movement.occurredAt)}</time>
-              <strong>{historyChangeLabels[movement.field] || 'Alteração registrada'}</strong>
+            <HistoryEventRow
+              key={movement.id}
+              date={movement.occurredAt}
+              title={historyChangeLabels[movement.field] || 'Alteração registrada'}
+              author={movement.actor?.name || `Usuário #${movement.actorUserId}`}
+            >
               <p>
                 <span>
                   {formatHistoryValue(movement.field, movement.fromValue, members, sprints)}
@@ -188,8 +191,7 @@ export function TaskHistoryDialog({ projectId, task, members, sprints, returnFoc
                   {formatHistoryValue(movement.field, movement.toValue, members, sprints)}
                 </span>
               </p>
-              <small>{movement.actor?.name || `Usuário #${movement.actorUserId}`}</small>
-            </article>
+            </HistoryEventRow>
           ))}
         </div>
       )}

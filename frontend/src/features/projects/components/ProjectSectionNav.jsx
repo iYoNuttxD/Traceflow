@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { Link } from 'react-router';
 import '../../../shared/styles/internal-tabs.css';
 import '../styles/project-tabs.css';
@@ -8,19 +9,42 @@ import '../styles/project-tabs.css';
 // para o outro. Cada um agora tem URL própria, compartilhável e recarregável.
 const projectSections = [
   { key: 'overview', label: 'Visão geral', path: '' },
-  { key: 'tasks', label: 'Tarefas', path: 'tasks' },
   { key: 'requirements', label: 'Requisitos', path: 'requirements' },
-  { key: 'kanban', label: 'Kanban', path: 'kanban' },
   { key: 'sprints', label: 'Sprints', path: 'sprints' },
   { key: 'milestones', label: 'Marcos', path: 'milestones' },
   { key: 'schedule', label: 'Cronograma', path: 'schedule' },
+  { key: 'tasks', label: 'Tarefas', path: 'tasks' },
+  { key: 'kanban', label: 'Kanban', path: 'kanban' },
+  { key: 'test-cases', label: 'Casos de teste', path: 'test-cases' },
+  { key: 'defects', label: 'Defeitos', path: 'defects' },
   { key: 'repository', label: 'Repositório', path: 'repository' },
   { key: 'traceability', label: 'Rastreabilidade', path: 'traceability' }
 ];
 
 export function ProjectSectionNav({ projectId, activeSection }) {
+  const navigationRef = useRef(null);
+  useEffect(() => {
+    const navigation = navigationRef.current;
+    const revealActiveSection = () => {
+      const active = navigation?.querySelector('[aria-current="page"]');
+      if (!active) return;
+      const viewport = navigation.getBoundingClientRect();
+      const tab = active.getBoundingClientRect();
+      if (tab.left < viewport.left) navigation.scrollLeft += tab.left - viewport.left;
+      else if (tab.right > viewport.right) navigation.scrollLeft += tab.right - viewport.right;
+    };
+    revealActiveSection();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(revealActiveSection);
+    observer.observe(navigation);
+    return () => observer.disconnect();
+  }, [projectId, activeSection]);
   return (
-    <nav className="internal-tabs project-section-tabs" aria-label="Navegação do projeto">
+    <nav
+      ref={navigationRef}
+      className="internal-tabs project-section-tabs"
+      aria-label="Navegação do projeto"
+    >
       {projectSections.map((section) => (
         <Link
           className={`internal-tab ${activeSection === section.key ? 'internal-tab--active' : ''}`}

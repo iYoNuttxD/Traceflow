@@ -45,6 +45,8 @@ const RequirementsPage = lazyNamed(
   () => import('../../pages/RequirementsPage.jsx'),
   'RequirementsPage'
 );
+const DefectsPage = lazyNamed(() => import('../../pages/DefectsPage.jsx'), 'DefectsPage');
+const TestCasesPage = lazyNamed(() => import('../../pages/TestCasesPage.jsx'), 'TestCasesPage');
 const TasksPage = lazyNamed(() => import('../../pages/TasksPage.jsx'), 'TasksPage');
 const KanbanPage = lazyNamed(() => import('../../pages/KanbanPage.jsx'), 'KanbanPage');
 const SchedulePage = lazyNamed(() => import('../../pages/SchedulePage.jsx'), 'SchedulePage');
@@ -154,6 +156,8 @@ export function AppRoutes() {
           <Route path="/projects/:projectId/edit" element={<ProjectEditPage />} />
           <Route path="/projects/:projectId/members" element={<ProjectMembersPage />} />
           <Route path="/projects/:projectId/requirements" element={<RequirementsPage />} />
+          <Route path="/projects/:projectId/test-cases" element={<TestCasesPage />} />
+          <Route path="/projects/:projectId/defects" element={<DefectsPage />} />
           <Route path="/projects/:projectId/tasks" element={<TasksPage />} />
           <Route
             path="/projects/:projectId/kanban"

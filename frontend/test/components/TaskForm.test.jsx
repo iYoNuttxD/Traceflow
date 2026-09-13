@@ -86,9 +86,10 @@ describe('TaskForm', () => {
     );
 
     const responsible = screen.getByRole('combobox', { name: /Responsável/ });
-    await user.selectOptions(responsible, '42');
+    await user.click(responsible);
+    await user.click(await screen.findByRole('option', { name: 'Pessoa ativa' }));
 
-    expect(responsible).toHaveValue('42');
+    expect(screen.getByRole('group', { name: 'Responsável' })).toHaveTextContent('Pessoa ativa');
     expect(screen.queryByRole('option', { name: 'Pessoa inativa' })).not.toBeInTheDocument();
     expect(taskFormToPayload({ ...emptyTaskForm, responsibleUserId: '42' })).toMatchObject({
       responsibleUserId: 42
@@ -96,6 +97,30 @@ describe('TaskForm', () => {
     expect(taskFormToPayload({ ...emptyTaskForm, responsible: 'Nome legado' })).not.toHaveProperty(
       'responsible'
     );
+  });
+
+  it('pesquisa sprints elegíveis e preserva a sprint encerrada já vinculada', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const sprints = [
+      { id: 1, name: 'Sprint encerrada', status: 'CONCLUIDA' },
+      { id: 2, name: 'Sprint disponível', status: 'PLANEJADA' }
+    ];
+    const props = {
+      formData: { ...emptyTaskForm, sprintId: '1' },
+      sprints,
+      onChange,
+      onSubmit: vi.fn()
+    };
+    const { rerender } = render(<TaskForm {...props} />);
+    expect(screen.getByRole('group', { name: 'Sprint' })).toHaveTextContent('Sprint encerrada');
+    await user.click(screen.getByRole('button', { name: 'Remover Sprint encerrada' }));
+    expect(onChange).toHaveBeenCalledWith('sprintId', '');
+    rerender(<TaskForm {...props} formData={emptyTaskForm} />);
+    await user.click(screen.getByRole('combobox', { name: 'Sprint' }));
+    await user.click(await screen.findByRole('option', { name: 'Sprint disponível' }));
+    expect(screen.queryByRole('option', { name: 'Sprint encerrada' })).not.toBeInTheDocument();
+    expect(onChange).toHaveBeenCalledWith('sprintId', '2');
   });
 
   it('separa busca manual e commits vinculados, filtrando por SHA ou mensagem', async () => {

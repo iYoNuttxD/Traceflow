@@ -582,6 +582,25 @@ em uma row detalhada. As duas usam a mesma linguagem de surface, mas a densidade
 reais e não força alturas iguais. Desvincular OAuth não implica desconectar App, e desconectar App
 não implica remover OAuth.
 
+## Linhas de entidades, histórico e confirmação
+
+`EntityRow` é a primitive compartilhada para entidades internas em categorias de
+rastreabilidade e qualidade. Reúne identidade, título e metadados disponíveis no
+contrato, com a linha inteira acionável: Link nativo para navegação e button para
+mudança de subview. Deve conservar foco visível, alvo mínimo de 44px e quebra de
+texto responsiva. Links externos GitHub continuam usando `GithubExternalAction`.
+
+`HistoryEventRow` organiza data, evento, mudança e autor com os mesmos tokens de
+superfície, borda, espaçamento e tipografia. As quatro colunas viram uma no mobile.
+Cada histórico preserva as abas, filtros e paginação realmente oferecidos pelo
+seu contrato; paridade visual não autoriza inventar filtros ou dados ausentes.
+
+Confirmações destrutivas reutilizam `ConfirmDialogContent`: título, descrição,
+Cancelar e ação danger em superfície compacta, com foco inicial em Cancelar.
+Quando a confirmação substitui o conteúdo de um dialog existente, utiliza a
+variante de confirmação desse owner, sem segundo popup nem header duplicado.
+Trap, Escape, estado busy e retorno de foco continuam sob responsabilidade do dialog.
+
 ## Acessibilidade foundations
 
 - referência: WCAG 2.2 AA, sem declaração de conformidade nesta fase;
@@ -628,3 +647,125 @@ expandida/recolhida quando presente e viewports de referência. `VISUALLY APPROV
 correspondente no log e não equivale a certificação WCAG ou cobertura histórica de todos os
 browsers. Testes automatizados sustentam `TECHNICALLY VERIFIED`, mas não substituem inspeção
 renderizada. `ENVIRONMENT BLOCKED` registra uma limitação objetiva; não é aprovação nem falha visual.
+
+
+## Padronização transversal de controles e Details — S1-08 FIX 02
+
+Enums finitos usam `SelectControl` (select nativo com seta compartilhada): status,
+prioridade, severidade, ambiente e campo do histórico. O campo tem 44px, tipografia
+regular de 16px e tokens de borda, fundo, foco e espaçamento. A seta pertence ao
+controle, nunca à altura variável da linha do formulário.
+
+Entidades usam `SearchCombobox`; responsáveis usam o adaptador `ResponsibleCombobox`.
+A lista começa fechada e abre por clique, digitação ou teclado. Selecionar, Escape,
+saída de foco ou clique externo fecha a lista. A seleção é explícita; respostas
+obsoletas não substituem o contexto atual. A lista fica abaixo do campo **no fluxo
+normal do container**, com altura limitada e rolagem própria. Não usar portal fixo
+nem lista absoluta sobre ações: o corpo do dialog deve acomodar os resultados sem
+encobrir o rodapé. Rótulos continuam visíveis e placeholders descrevem a pesquisa.
+
+Responsáveis elegíveis são filtrados pelo contrato; não exibir o sufixo “ativo” nas
+opções. Um valor histórico já selecionado permanece legível. Obrigatoriedade vem do
+domínio: TC/Defect requerem responsável; Task admite ausência. Exibir apenas um
+marcador obrigatório, sem torná-lo parte do nome acessível do combobox. Mensagens de
+validação pedem um responsável, sem expor o detalhe de elegibilidade.
+
+`DescriptionSurface` é o padrão de descrição de Task, TestCase e Defect: fundo
+secundário, borda padrão, raio médio, padding 16px, gap 12px e texto com quebras
+preservadas. Vazio: “Nenhuma descrição informada.” Informações usam o grid unido de
+Task Details, com divisórias internas e colapso responsivo. O container da seção é
+responsável pelo gap de 24px; não somar margem de seção e gap do stack.
+
+Rastreabilidade e Qualidade usam `ArtifactCategory` e `EntityRow`: cabeçalho com
+rótulo/contador, corpo de linhas, rodapé de ações independente. Pares de categorias
+alinham cabeçalhos, início das linhas e rodapés. O CTA contextual fica no rodapé;
+ações de entidade ficam na linha e não duplicam o contexto. Textos longos quebram
+sem deslocar o botão de remoção de 44px. Referências externas preservam ações e
+semântica existentes.
+
+Resumos de execução usam `ExecutionSummary` sobre `DetailSurface`, com resultado,
+EXEC-id, data, ambiente, identidade histórica do executor, referência testada e
+versão do caso. A Validação do defeito usa a execução validante do ciclo atual;
+nenhum resultado deve ser deduzido apenas do estado das tarefas.
+
+Catálogos TestCase/Defect pertencem à família de tiles de Sprint/Marco: grid
+`sprint-grid`, gap 20px, até três colunas, raio grande, título em até duas linhas,
+metadados compactos e ações no rodapé. Tile de criação e tile de entidade têm a mesma
+altura por linha no desktop. TestCase mantém 28rem; Defect usa mínimo de 26rem e
+cresce com o conteúdo, incluindo o rodapé de reteste em duas linhas. Na faixa móvel
+até 34rem, altura automática evita corte de conteúdo. A largura segue as mesmas
+colunas e breakpoints de Planning.
+
+Filtros usam `CollapsibleFilterPanel`: rótulos visíveis, placeholders de busca e
+wrapper de “Limpar filtros” renderizado somente com filtro ativo. O estado sem
+filtros não reserva uma linha vazia. Severidade usa tokens semânticos de status
+(baixa/success, média/info, alta/warning, crítica/danger), sem segundo badge junto ao
+select em formulário ou filtro.
+
+Correção abre em Defect Details → Tarefas de correção. Criar e vincular são subviews
+diretas do mesmo dialog, com contexto DEF/ciclo, Cancelar e ação primária. Voltar
+restaura scroll e foco no CTA de origem, inclusive após atualização do catálogo.
+Não introduzir um gerenciador intermediário. No Kanban, o marcador usa o ícone bug,
+tipografia de metadado e tokens info, com alvo clicável mínimo de 44px; o card inteiro
+não recebe tratamento de erro. Históricos mantêm a família `HistoryEventRow` e
+shell compacto existente, preservando os filtros específicos de cada domínio.
+
+### Relation cards e densidade de Defect — S1-08 FIX 03
+
+Requisito, Pull Request, Commits, Issues, TestCases e Defects compartilham o shell
+`ArtifactCategory` / `task-detail-relation-card`: cabeçalho e contador, corpo com
+padding 16px e gap 12px, borda/raio/fundo comuns, rodapé opcional independente.
+Rastreabilidade é a referência estrutural de Qualidade. O grid tem duas colunas e
+colapsa no mobile; a altura se alinha por linha, conforme conteúdo e ações.
+Uma stream vazia não gera wrapper nem espaçamento adicional.
+
+`EntityRow` mantém identidade/título, metadados e chevron sem encolhimento. Nas
+categorias de relação, título e metadados têm até duas linhas, com line-height
+20px/16px e gap 4px. O nome acessível preserva a identidade e o título completo.
+TestCase apresenta status/última execução; Defect apresenta ORIGEM ou CORREÇÃO,
+severidade e status como texto compacto. “Criar caso de teste” pertence ao rodapé,
+com largura do conteúdo, sem reservar um rodapé vazio no card irmão.
+
+Defect Card informa detecção, ciclo, quantidade de correções e requisito quando
+presente. Uma correção exibe TASK-id/status; várias exibem contadores por status.
+O estado vazio oferece “Adicionar correção” a quem pode escrever; tarefas
+existentes oferecem “Acessar correções”, inclusive em Validado. Aguardando reteste
+mantém “Retestar” primário e acesso às correções secundário. VIEWER consulta sem
+ações de escrita. O acesso contextual abre o mesmo Defect Details na seção
+Correção com scroll/foco semântico. A tarefa abre o Task Details existente; o
+histórico do navegador preserva o retorno ao defeito e à seção, sem dialogs
+empilhados. Criar/vincular continuam subviews diretas do mesmo dialog.
+
+### S1-09 Etapa 5 — composição final (2026-09-12)
+
+Overview de TestCases, Defects e Traceability usa texto curto como irmão do bloco
+de título, na estrutura `sprints-summary__heading` da família Kanban. A quebra
+responsiva pertence ao layout existente.
+
+Defect Card conserva o shell `sprint-card tc-card`, separa Rastreabilidade de
+Correção/Reteste e usa `LifecycleTrail`: Detecção → Correção → Reteste → Validado.
+O passo corrente usa `aria-current="step"`; passos anteriores indicam percurso
+alcançado, não eventos históricos nem uma segunda regra de domínio. Reteste
+mostra resultado real e ciclo; ausência não recebe resultado presumido.
+
+Inspector organiza identidade/badges, Informações, Rastreabilidade, Relações na
+cadeia e ação final. Task acrescenta esforço estimado/realizado com os helpers
+canônicos; sem estimativa não há percentual. Ação GitHub reutiliza
+`GithubExternalAction`, inclusive estados de link sem underline. Estilos novos
+ficam nos owners das superfícies, sem alterar tokens ou CSS global.
+
+Project tabs: Visão geral, Requisitos, Sprints, Marcos, Cronograma, Tarefas,
+Kanban, Casos de teste, Defeitos, Repositório, Rastreabilidade. Overflow somente
+horizontal; indicador dentro da barra; reposicionamento da aba ativa altera
+apenas `scrollLeft`. Links conservam teclado, foco e `aria-current="page"`.
+
+Esforço usa uma única lista de registros, edições e exclusões. Sessões anteriores
+à auditoria aparecem nessa lista como “Registro anterior ao histórico”, com tag
+Snapshot, sem evento de criação inventado. Origem e Evento são filtros distintos.
+Datas e selects usam controles canônicos de 44px e reflow pela largura do painel.
+Lápis/lixeira têm o mesmo token de ícone, target de 44px, tooltip e nome acessível.
+Editar/excluir atua na sessão atual autorizada, nunca no registro histórico exibido.
+Inspectors reutilizam DetailSurface por seção. Task Details no grafo reutiliza o
+conteúdo canônico, incluindo esforço e comentários; sessões permanecem dentro do
+mesmo workspace. Evidência e limites na seção FINAL UI/PARITY CORRECTIONS do
+[relatório da Etapa 5](../deliveries/S1_09_TRACEABILITY_GRAPH_WORKSPACE_UX_REPORT.md).

@@ -24,3 +24,22 @@ export {
 export { useCommitSuggestions } from './hooks/useCommitSuggestions.js';
 export { TasksScreen } from './pages/TasksScreen.jsx';
 export { KanbanScreen } from './pages/KanbanScreen.jsx';
+export {
+  GithubExternalAction,
+  TaskTraceabilityGrid,
+  ArtifactCategory
+} from './components/TaskDetailsLayout.jsx';
+
+export { TaskDetailsPanel } from './components/TaskDetailsPanel.jsx';
+export {
+  statusLabels as taskStatusLabels,
+  priorityLabels as taskPriorityLabels
+} from './components/kanban-display.js';
+
+export {
+  computeEffortView,
+  resolveEffort,
+  formatHoursMinutes,
+  EFFORT_STATUS_TONES,
+  EFFORT_STATUS_LABELS
+} from './components/effort-summary.js';

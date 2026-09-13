@@ -30,6 +30,7 @@ function PauseIcon() {
 }
 
 export function TaskEffortTracker({
+  embedded = false,
   taskId,
   taskTitle,
   estimatedEffort,
@@ -51,6 +52,7 @@ export function TaskEffortTracker({
     stop,
     addManual,
     remove,
+    update,
     reload
   } = useTaskEffort({ taskId });
   const [manualOpen, setManualOpen] = useState(false);
@@ -274,13 +276,22 @@ export function TaskEffortTracker({
 
       {sessionsOpen && (
         <TaskTimeEntriesDialog
+          embedded={embedded}
           taskId={taskId}
           taskTitle={taskTitle}
-          refreshKey={`${completedCount}:${entries[0]?.id ?? ''}:${running?.id ?? ''}`}
+          refreshKey={`${completedCount}:${entries[0]?.id ?? ''}:${entries[0]?.updatedAt ?? ''}:${effort?.completedSeconds ?? ''}:${running?.id ?? ''}`}
           busy={busy}
           onDelete={handleDelete}
+          onUpdate={async (entryId, payload) => {
+            const data = await update(entryId, payload);
+            notify(data, 'Sessão de tempo editada.');
+            return data;
+          }}
           returnFocusRef={sessionsButtonRef}
-          onClose={() => setSessionsOpen(false)}
+          onClose={() => {
+            setSessionsOpen(false);
+            queueMicrotask(() => sessionsButtonRef.current?.focus());
+          }}
         />
       )}
     </section>

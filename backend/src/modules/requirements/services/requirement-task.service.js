@@ -1,10 +1,6 @@
 import { buildAuditEvent } from '../../audit/audit.service.js';
 import { requirementRepository } from '../requirement.repository.js';
-import {
-  RequirementServiceError,
-  calculateRequirementStatus,
-  parseRequirementId
-} from '../requirement.schema.js';
+import { RequirementServiceError, parseRequirementId } from '../requirement.schema.js';
 import { ensureRequirementExists } from './requirement-crud.service.js';
 
 export const requirementTaskService = {
@@ -35,16 +31,6 @@ export const requirementTaskService = {
     const previousRequirementIds = [
       ...new Set(reassignedTasks.map((task) => task.previousRequirementId))
     ];
-    const previousRequirements = previousRequirementIds.length
-      ? await requirementRepository.findRequirementsByIds(previousRequirementIds)
-      : [];
-    const movedTaskIds = new Set(reassignedTasks.map((task) => task.taskId));
-    const relatedStatusUpdates = previousRequirements
-      .filter((item) => !['CONCLUIDO', 'CANCELADO'].includes(item.status))
-      .map((item) => ({
-        id: item.id,
-        status: calculateRequirementStatus(item.tasks.filter((task) => !movedTaskIds.has(task.id)))
-      }));
     const auditEvents = [
       ...linkedIds.map((taskId) =>
         buildAuditEvent({
@@ -67,14 +53,10 @@ export const requirementTaskService = {
         })
       )
     ];
-    const nextStatus = ['CONCLUIDO', 'CANCELADO'].includes(requirement.status)
-      ? null
-      : calculateRequirementStatus(tasks);
     const updatedRequirement = await requirementRepository.replaceRequirementTasks({
       requirementId: id,
       taskIds: uniqueTaskIds,
-      status: nextStatus,
-      relatedStatusUpdates,
+      previousRequirementIds,
       auditEvents
     });
 

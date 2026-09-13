@@ -58,6 +58,7 @@ reduzir enumeração; papel insuficiente retorna `403`. Mutations autenticadas e
 | `PATCH /api/projects/:projectId/github/sync-settings`                                                          |     401 |    403 |         403 |     403 |     A | OWNER                                                                                                          |
 | Commits, PRs, issues e artifacts: `GET`                                                                        |     401 |      L |           L |       L |     L | mesmo projeto                                                                                                  |
 | Traceability project-scoped: matriz, requisito, tarefa e artefato                                              |     401 |      L |           L |       L |     L | membership ativa e recurso no mesmo projeto                                                                    |
+| S1-09: `GET .../traceability/requirements`, `.../:requirementId/current`, `.../:requirementId/history` | 401 | L | L | L | L | membership ativa; mesmo projeto; IDOR 404 opaco; cursor scoped; sem API de escrita de situation |
 | `GET .../traceability/commit-suggestions`                                                                      |     401 |      L |           L |       L |     L | DTO minimizado; mesmo projeto                                                                                  |
 | `POST .../commit-suggestions/scan`, `:id/confirm`, `:id/reject`                                                |     401 |    403 |           E |       E |     E | CSRF, membership ativa e relações no mesmo projeto                                                             |
 | `/api/settings/account`, `/security`, `/privacy`, `/integrations`                                              |     401 |      E |           E |       E |     E | titular; middleware de estado restringe operações e mutations exigem CSRF                                      |
@@ -109,3 +110,47 @@ reduzir enumeração; papel insuficiente retorna `403`. Mutations autenticadas e
   uma sessão em andamento por tarefa (trava de linha; `409` em concorrência). Exclusão segue a
   política dos comentários: quem iniciou a sessão ou MANAGER/OWNER. `Task.actualEffort` é derivado
   das sessões e recusa escrita direta (`400`); toda operação é auditada com origem e duração.
+
+## S1-07 — Casos de teste
+
+| Operação | VIEWER | MEMBER | MANAGER | OWNER |
+|---|---|---|---|---|
+| Listar/detalhar casos | L | L | L | L |
+| Criar/editar definição | 403 | E | E | E |
+| Alterar status | 403 | E | E | E |
+| Excluir logicamente | 403 | E | E | E |
+| Executar/upload multipart | 403 | E | E | E |
+| Versões/histórico/execuções/referências importadas | L | L | L | L |
+| Detalhe de execução/download privado | L | L | L | L |
+
+Anônimo: 401. Sem membership ativa no projeto dono: 404 opaco. Toda escrita exige
+CSRF antes do parser multipart. A resolução central inclui TestCase (não excluído),
+TestExecution e TestEvidence; o service revalida membership e papel, inclusive na
+transação. Ator vem da sessão, não do payload. Ser responsável não concede nem
+restringe o direito de executar de MEMBER+. Responsável precisa de membership ativa.
+
+Caso excluído fica indisponível em rotas operacionais, inclusive criação de execução.
+Execução histórica e seu download continuam autorizados por projeto, sem recuperar
+permissão a partir de um ID ou de um caminho de storage. Arquivos não são públicos.
+Evidências: `backend/test/api/test-cases-s1-07.test.js` e bateria de integração S1-07.
+
+## S1-08 — Defeitos e retestes
+
+| Operação                                             | VIEWER ativo | MEMBER ativo | MANAGER ativo | OWNER ativo |
+| ---------------------------------------------------- | ------------ | ------------ | ------------- | ----------- |
+| Lista, detalhe, candidatos FAIL, histórico, retestes | Sim          | Sim          | Sim           | Sim         |
+| Criar, editar, excluir Defect                        | Não (403)    | Sim          | Sim           | Sim         |
+| Vincular/criar CORRECTION Task                       | Não (403)    | Sim          | Sim           | Sim         |
+| Registrar execução contextual de reteste/evidência   | Não (403)    | Sim          | Sim           | Sim         |
+| Ler evidência autenticada                            | Sim          | Sim          | Sim           | Sim         |
+
+Rotas de Defect são project-scoped no resolvedor compartilhado. Ausência de
+membership ativa e recursos de outro projeto resultam em 404 opaco; ausência de
+sessão resulta em 401. Não há exclusividade do criador ou responsável. Responsável
+selecionado precisa ser membro ativo do projeto, inclusive se for VIEWER.
+
+A validação de detecção, origem, requisito e correção confere o mesmo Project.
+Reteste confere também TestCase, versão atual, ciclo e revisão dentro da transação.
+CSRF precede o parser multipart existente. Nenhuma rota permite escolher status
+manualmente. Defect excluído não fica acessível pelas rotas operacionais, mas sua
+identidade permanece nos metadados das Tasks e nos registros históricos persistidos.

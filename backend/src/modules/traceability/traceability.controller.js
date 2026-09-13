@@ -1,9 +1,27 @@
+import { requirementProjectionService } from './requirement-projection.service.js';
 import { asyncHandler } from '../../shared/http/index.js';
 import { auditService } from '../audit/audit.service.js';
 import { commitSuggestionService } from './commit-suggestion.service.js';
 import { traceabilityService } from './traceability.service.js';
 
 export const traceabilityController = {
+  listRequirementProjections: asyncHandler(async (req, res) =>
+    res.json(await requirementProjectionService.list(req.params.projectId, req.query))
+  ),
+  getRequirementProjection: asyncHandler(async (req, res) =>
+    res.json(
+      await requirementProjectionService.current(req.params.projectId, req.params.requirementId)
+    )
+  ),
+  getRequirementHistory: asyncHandler(async (req, res) =>
+    res.json(
+      await requirementProjectionService.history(
+        req.params.projectId,
+        req.params.requirementId,
+        req.query
+      )
+    )
+  ),
   scanCommitSuggestions: asyncHandler(
     async (req, res) => {
       const result = await commitSuggestionService.scanHistorical(req.params.projectId, {

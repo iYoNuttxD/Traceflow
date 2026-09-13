@@ -88,7 +88,7 @@ export function SprintActionsMenu({
         aria-label={`Mais ações ${entityDescriptor} ${entityName}`}
         onClick={alternar}
       >
-        <span aria-hidden="true">•••</span>
+        <span aria-hidden="true">…</span>
       </button>
 
       {aberto && (

@@ -1,6 +1,13 @@
+import { ContextualTestCaseCreate } from '../../testCases/index.js';
+import { TaskQuality } from './TaskQuality.jsx';
 import { TaskTraceability } from './TaskTraceability.jsx';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { normalizeApiError, useConfirm } from '../../../shared/index.js';
+import {
+  normalizeApiError,
+  useConfirm,
+  ResponsibleCombobox,
+  SelectControl
+} from '../../../shared/index.js';
 import { priorityLabels, statusLabels } from './kanban-display.js';
 import { KanbanDialog } from './KanbanDialog.jsx';
 import { TaskComments } from './TaskComments.jsx';
@@ -14,14 +21,6 @@ import { TaskDetailsLayout, TaskInformation } from './TaskDetailsLayout.jsx';
 import { TaskEffortTracker } from './TaskEffortTracker.jsx';
 import { actualEffortFromSummary } from './effort-summary.js';
 import { currentTaskDetailsView } from './task-details-view.js';
-
-function memberUserId(member) {
-  return member.user?.id || member.userId || member.id;
-}
-
-function memberName(member) {
-  return member.user?.name || member.user?.email || 'Membro sem nome';
-}
 
 function taskDraft(task) {
   return {
@@ -97,31 +96,23 @@ function TaskEditForm({ task, draft, errors, members, titleRef, saving, onChange
 
       <label className="field">
         <span>Prioridade</span>
-        <select name="priority" value={draft.priority} disabled={saving} onChange={onChange}>
+        <SelectControl name="priority" value={draft.priority} disabled={saving} onChange={onChange}>
           {Object.entries(priorityLabels).map(([value, label]) => (
             <option key={value} value={value}>
               {label}
             </option>
           ))}
-        </select>
+        </SelectControl>
       </label>
 
-      <label className="field">
-        <span>Responsável</span>
-        <select
-          name="responsibleUserId"
-          value={draft.responsibleUserId}
-          disabled={saving}
-          onChange={onChange}
-        >
-          <option value="">Não informado</option>
-          {activeMembers.map((member) => (
-            <option key={member.id} value={memberUserId(member)}>
-              {memberName(member)}
-            </option>
-          ))}
-        </select>
-      </label>
+      <ResponsibleCombobox
+        members={activeMembers}
+        value={draft.responsibleUserId}
+        currentName={task.responsibleUser?.name || task.responsible}
+        disabled={saving}
+        error={errors.responsibleUserId}
+        onChange={(value) => onChange({ target: { name: 'responsibleUserId', value } })}
+      />
 
       <label className="field">
         <span>Prazo</span>
@@ -171,7 +162,17 @@ function TaskEditForm({ task, draft, errors, members, titleRef, saving, onChange
   );
 }
 
+function EmbeddedTaskPanel({ title, children }) {
+  return (
+    <section className="task-detail-embedded">
+      <h3>{title}</h3>
+      {children}
+    </section>
+  );
+}
+
 export function TaskDetailsPanel({
+  embedded = false,
   task,
   members = [],
   canEdit = false,
@@ -184,6 +185,15 @@ export function TaskDetailsPanel({
   onSaved,
   projectId
 }) {
+  const [creatingCase, setCreatingCase] = useState(false);
+  const [caseBusy, setCaseBusy] = useState(false);
+  const createCaseButtonRef = useRef(null);
+  const previousCreatingCase = useRef(false);
+  useEffect(() => {
+    if (!creatingCase && previousCreatingCase.current) createCaseButtonRef.current?.focus();
+    previousCreatingCase.current = creatingCase;
+  }, [creatingCase]);
+  const [caseFeedback, setCaseFeedback] = useState('');
   const confirm = useConfirm();
   const formId = useId();
   const titleRef = useRef(null);
@@ -430,7 +440,15 @@ export function TaskDetailsPanel({
     );
   }
 
-  const headerActions = editing ? (
+  const headerActions = creatingCase ? (
+    <button
+      className="button button-secondary"
+      disabled={caseBusy}
+      onClick={() => setCreatingCase(false)}
+    >
+      Voltar para detalhes da tarefa
+    </button>
+  ) : editing ? (
     <>
       <button
         type="button"
@@ -474,73 +492,115 @@ export function TaskDetailsPanel({
     </>
   );
 
+  const Panel = embedded ? EmbeddedTaskPanel : KanbanDialog;
   return (
-    <KanbanDialog
-      title={`#${task.id} ${task.title}`}
-      description={editing ? 'Editando informações e rastreabilidade' : 'Detalhes da tarefa'}
+    <Panel
+      title={creatingCase ? 'Criar caso de teste' : `#${task.id} ${task.title}`}
+      description={
+        creatingCase
+          ? `A partir de TASK-${task.id}`
+          : editing
+            ? 'Editando informações e rastreabilidade'
+            : 'Detalhes da tarefa'
+      }
       size="wide"
       returnFocusRef={returnFocusRef}
-      onClose={() => void requestClose()}
+      onClose={() => {
+        if (!caseBusy) void requestClose();
+      }}
       headerActions={headerActions}
     >
-      <TaskDetailsLayout aside={<TaskComments taskId={task.id} />}>
-        {saveError && (
-          <div className="message message-error" role="alert">
-            {saveError}
-          </div>
-        )}
-        {editing ? (
-          <form className="task-detail-unified-edit" id={formId} onSubmit={submitEdit} noValidate>
-            <section
-              className="task-detail-section"
-              aria-labelledby="task-detail-edit-information-title"
-            >
-              <h3 id="task-detail-edit-information-title">Informações</h3>
-              <TaskEditForm
-                task={task}
-                draft={draft}
-                errors={fieldErrors}
-                members={members}
-                titleRef={titleRef}
-                saving={saving}
-                onChange={changeDraft}
-              />
-            </section>
-            <section
-              className="task-detail-section task-detail-traceability"
-              aria-labelledby="task-detail-edit-traceability-title"
-            >
-              <div className="task-detail-section-heading">
-                <h3 id="task-detail-edit-traceability-title">Rastreabilidade</h3>
-                <p>Vínculos atuais permanecem visíveis até você salvar.</p>
-              </div>
-              <TaskTraceabilityEditor
-                key={task.id}
-                projectId={projectId}
-                task={task}
-                draft={traceabilityDraft}
-                onDraftChange={setTraceabilityDraft}
-                disabled={saving}
-                onSuggestionConfirmed={handleSuggestionConfirmed}
-              />
-            </section>
-          </form>
-        ) : (
-          <TaskInformation
-            details={currentTaskDetailsView(task)}
-            effortSlot={
-              <TaskEffortTracker
-                taskId={task.id}
-                taskTitle={task.title}
-                estimatedEffort={task.estimatedEffort}
-                actualEffort={task.actualEffort}
-                onEffortChange={handleEffortChange}
-              />
-            }
-          />
-        )}
-        {!editing && <TaskTraceability task={task} />}
-      </TaskDetailsLayout>
-    </KanbanDialog>
+      {creatingCase ? (
+        <ContextualTestCaseCreate
+          projectId={projectId}
+          task={task}
+          members={members}
+          onBusyChange={setCaseBusy}
+          onBack={() => {
+            if (!caseBusy) setCreatingCase(false);
+          }}
+          onCreated={(saved) => {
+            setCaseFeedback(`${saved.displayId} · Caso de teste criado.`);
+            setCreatingCase(false);
+          }}
+        />
+      ) : (
+        <TaskDetailsLayout aside={<TaskComments taskId={task.id} />}>
+          {caseFeedback && (
+            <p role="status" className="tc-feedback">
+              {caseFeedback}
+            </p>
+          )}
+          {saveError && (
+            <div className="message message-error" role="alert">
+              {saveError}
+            </div>
+          )}
+          {editing ? (
+            <form className="task-detail-unified-edit" id={formId} onSubmit={submitEdit} noValidate>
+              <section
+                className="task-detail-section"
+                aria-labelledby="task-detail-edit-information-title"
+              >
+                <h3 id="task-detail-edit-information-title">Informações</h3>
+                <TaskEditForm
+                  task={task}
+                  draft={draft}
+                  errors={fieldErrors}
+                  members={members}
+                  titleRef={titleRef}
+                  saving={saving}
+                  onChange={changeDraft}
+                />
+              </section>
+              <section
+                className="task-detail-section task-detail-traceability"
+                aria-labelledby="task-detail-edit-traceability-title"
+              >
+                <div className="task-detail-section-heading">
+                  <h3 id="task-detail-edit-traceability-title">Rastreabilidade</h3>
+                  <p>Vínculos atuais permanecem visíveis até você salvar.</p>
+                </div>
+                <TaskTraceabilityEditor
+                  key={task.id}
+                  projectId={projectId}
+                  task={task}
+                  draft={traceabilityDraft}
+                  onDraftChange={setTraceabilityDraft}
+                  disabled={saving}
+                  onSuggestionConfirmed={handleSuggestionConfirmed}
+                />
+              </section>
+            </form>
+          ) : (
+            <TaskInformation
+              details={currentTaskDetailsView(task)}
+              effortSlot={
+                <TaskEffortTracker
+                  embedded={embedded}
+                  taskId={task.id}
+                  taskTitle={task.title}
+                  estimatedEffort={task.estimatedEffort}
+                  actualEffort={task.actualEffort}
+                  onEffortChange={handleEffortChange}
+                />
+              }
+            />
+          )}
+          {!editing && <TaskTraceability task={task} projectId={projectId} onNavigate={onClose} />}
+          {!editing && !task.isFrozen && (
+            <TaskQuality
+              key={`${projectId}:${task.id}`}
+              task={task}
+              projectId={projectId}
+              canCreate={canEdit}
+              onCreate={() => setCreatingCase(true)}
+              createRef={createCaseButtonRef}
+              onNavigate={onClose}
+            />
+          )}
+        </TaskDetailsLayout>
+      )}
+    </Panel>
   );
 }

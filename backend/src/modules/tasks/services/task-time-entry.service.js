@@ -138,6 +138,58 @@ function summaryFor(task, totals, running) {
 }
 
 export const taskTimeEntryService = {
+  async listTaskEffortHistory(taskId, query = {}, context = {}) {
+    const id = parseTaskId(taskId);
+    await ensureTaskExists(id);
+    const limit = parseLimit(query.limit),
+      page = parsePage(query.page);
+    const { total, items, sessions } = await taskTimeEntryRepository.listHistoryPage(id, {
+      skip: (page - 1) * limit,
+      take: limit,
+      source: query.source,
+      eventType: query.eventType,
+      from: parseDateBound(query.startDate, false),
+      to: parseDateBound(query.endDate, true)
+    });
+    const current = new Map(sessions.map((row) => [row.id, formatTaskTimeEntry(row, context)]));
+    return {
+      taskId: id,
+      items: items.map((row) => ({
+        ...row,
+        currentEntry: current.get(row.sessionId) || null,
+        canEdit: current.get(row.sessionId)?.canEdit || false,
+        canDelete: current.get(row.sessionId)?.canDelete || false
+      })),
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
+    };
+  },
+  async updateTaskTimeEntry(taskId, entryId, data, context = {}) {
+    const id = parseTaskId(taskId),
+      parsedEntryId = parseEntryId(entryId);
+    const task = await ensureTaskExists(id);
+    const existing = await taskTimeEntryRepository.findById(id, parsedEntryId);
+    if (!existing) throw new TaskServiceError('Sessão de tempo não encontrada.', 404);
+    if (!formatTaskTimeEntry(existing, context).canEdit)
+      throw new TaskServiceError('Você não pode editar esta sessão.', 403);
+    const { durationSeconds } = parseManualEntry({ hours: data.hours });
+    const result = await taskTimeEntryRepository.updateAtomic(id, parsedEntryId, {
+      projectId: task.projectId,
+      durationSeconds,
+      expectedUpdatedAt: data.expectedUpdatedAt,
+      actorUserId: context.actorUserId
+    });
+    if (result.outcome === 'TASK_NOT_FOUND') throw resourceNotFoundError('Task');
+    if (result.outcome === 'NOT_FOUND')
+      throw new TaskServiceError('Sessão de tempo não encontrada.', 404);
+    if (result.outcome === 'CONFLICT')
+      throw new TaskServiceError('A sessão mudou. Atualize o histórico antes de editar.', 409);
+    const effort = summaryFor(task, result, result.running);
+    await publishEffortEvent(PROJECT_EVENT_TYPES.TASK_TIME_ENTRY_UPDATED, task, {
+      entry: result.entry,
+      effort
+    });
+    return { entry: formatTaskTimeEntry(result.entry, context), effort };
+  },
   async listTaskTimeEntries(taskId, query = {}, context = {}) {
     const id = parseTaskId(taskId);
     const task = await ensureTaskExists(id);

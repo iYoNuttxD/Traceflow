@@ -1,6 +1,6 @@
 import { TraceFlowIcon } from '../../../shared/index.js';
 import { CollapsibleFilterPanel } from './CollapsibleFilterPanel.jsx';
-import { SearchCombobox } from './SearchCombobox.jsx';
+import { SearchCombobox } from '../../../shared/index.js';
 import { hasSprintFilters } from './sprint-view.js';
 
 const milestoneLabel = (milestone) => milestone.title;

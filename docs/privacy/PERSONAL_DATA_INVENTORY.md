@@ -57,3 +57,37 @@ lógica usa FK para User com SetNull, com a mesma finalidade de histórico funci
 A retenção acompanha o registro de Planning; excluir Sprint/Marco das visões atuais não expurga
 participações nem elimina a trilha. A exportação atual de conta continua com seu escopo vigente;
 essa correção não introduz exportação geral de Planning nem declara cobertura integral desse histórico.
+
+## S1-07 — Casos de teste e evidências
+
+| Dados | Finalidade/local | Acesso e minimização |
+|---|---|---|
+| responsibleUserId, criador de versão, ator de histórico, deletedById | atribuição e trilha funcional em MySQL | membership ativa do projeto; responsável atual expõe somente id/nome |
+| executedByUserId e executedByDisplayNameSnapshot | autoria auditável da execução em MySQL | nome capturado sem e-mail/login GitHub; mudança comum de perfil não reescreve histórico |
+| uploadedByUserId, nome original sanitizado, MIME, tamanho, SHA-256 e timestamps | autoria/integridade da evidência em MySQL | API não retorna storageKey/caminho; download requer membership ativa |
+| bytes de PNG/JPEG/WEBP/vídeo/PDF/texto/JSON | comprovação de teste em storage privado | podem conter PII ou segredos por iniciativa do autor; sem logging, acesso público ou execução de conteúdo |
+| títulos, pré-condições, passos, observações e snapshots técnicos | reprodução histórica | conteúdo livre pode conter PII; auditoria transversal recebe somente contagens/flags/versão/resultado |
+
+A exportação pessoal acrescenta `test-cases.json`, `test-executions.json` e
+`test-evidence.json`: apenas própria responsabilidade, próprias execuções e próprios
+uploads, em projetos com membership ativa. Sem bytes, caminhos, observações ou dados
+extras de terceiros. A anonimização neutraliza os nomes capturados identificáveis do
+executor e das mudanças de responsável; IDs permanecem ligados à conta pseudonimizada.
+Conteúdo livre, nomes de arquivo e identidade externa em snapshot de Commit exigem
+avaliação específica: não se infere titularidade a partir de coincidência de nome.
+Ver [retenção](DATA_RETENTION_POLICY.md) e [histórico](../data/TEST_CASE_HISTORY.md).
+
+## S1-08/S1-09 — Defeitos e histórico funcional de esforço
+
+| Dados | Finalidade e origem | Persistência, acesso e retenção | Exclusão, risco e controles |
+|---|---|---|---|
+| `Defect.responsibleUserId` | atribuição de responsabilidade de trabalho, selecionada por membro autorizado | MySQL; membros ativos do projeto conforme RBAC; ciclo do projeto e política aplicável | defeito excluído logicamente não integra a exportação de responsabilidade corrente; risco de atribuição indevida mitigado por membership ativa e seleção explícita, nunca por nome |
+| `DefectHistoryEntry.actorUserId` | autoria funcional de mudanças no lifecycle do defeito, originada na sessão autenticada | MySQL; histórico do projeto; exportação pessoal limitada às próprias ações em projetos com membership ativa | `SetNull` na remoção aplicável da conta preserva o evento sem identidade direta; ator nulo não é atribuído por heurística; DTO de export omite metadata e conteúdo técnico desnecessário |
+| `TaskEffortHistoryEntry.actorUserId` | autoria de criação, alteração e exclusão de registros de esforço, originada na sessão autenticada | MySQL; histórico funcional/auditável retido pelo ciclo do projeto e política aplicável; exportação pessoal limitada às próprias ações em projetos com membership ativa | `SetNull` preserva o evento quando a identidade deixa de resolver; exclusão física da Task não apaga este histórico; `taskId`/`sessionId` são identidades históricas sem FK deliberadamente, e snapshots sem ator não são atribuídos ao titular |
+
+A exportação pessoal acrescenta `responsible-defects.json`, `defect-history.json` e
+`task-effort-history.json`. Cada arquivo aplica simultaneamente membership ativa e
+titularidade pelo ID canônico: responsabilidade própria ou ação própria. A participação
+no mesmo projeto não autoriza exportar atribuições ou eventos de outro usuário. Eventos
+legados com ator nulo permanecem fora da exportação; nomes, descrições completas,
+metadata livre e dados de outros membros não são usados para inferir titularidade.

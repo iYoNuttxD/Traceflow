@@ -4,3 +4,5 @@ export { CollapsibleFilterPanel } from './components/CollapsibleFilterPanel.jsx'
 export { ScheduleScreen } from './pages/ScheduleScreen.jsx';
 export { SprintsScreen } from './pages/SprintsScreen.jsx';
 export { MilestonesScreen } from './pages/MilestonesScreen.jsx';
+export { SprintDialog } from './components/SprintDialog.jsx';
+export { SprintActionsMenu } from './components/SprintActionsMenu.jsx';

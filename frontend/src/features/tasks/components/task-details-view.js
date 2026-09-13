@@ -10,7 +10,7 @@ import { isTaskOverdue } from './kanban-view.js';
 export function currentTaskDetailsView(task) {
   const responsible = task.responsibleUser?.name || task.responsible || '';
   return {
-    description: task.description || 'Sem descrição cadastrada.',
+    description: task.description || 'Nenhuma descrição informada.',
     priority: {
       key: task.priority || 'MEDIA',
       label: priorityLabels[task.priority] || task.priority || 'Média'

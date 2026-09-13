@@ -70,7 +70,15 @@ export function createHttpClient(options = {}) {
     return config;
   });
 
-  client.interceptors.response.use(undefined, (error) => {
+  client.interceptors.response.use(undefined, async (error) => {
+    // Authenticated downloads receive JSON errors through the blob transport too.
+    if (error?.response?.data instanceof Blob && error.response.data.type.includes('json')) {
+      try {
+        error.response.data = JSON.parse(await error.response.data.text());
+      } catch {
+        // Keep the original transport error when the body cannot be decoded.
+      }
+    }
     const skipGlobalAuthHandling = error?.config?.skipGlobalAuthHandling === true;
     if (
       !skipGlobalAuthHandling &&
@@ -100,12 +108,17 @@ export function createHttpClient(options = {}) {
 
   const get = client.get.bind(client);
   client.get = (url, config = {}) => {
-    const key = `${sessionGeneration}:get:${url}:${stableValue(config.params || {})}`;
+    // A confirmed mutation needs a new read, even if an older identical GET is pending.
+    // Keep independent reads in the session scope so logout still cancels them.
+    const key = config.fresh
+      ? Symbol(url)
+      : `${sessionGeneration}:get:${url}:${config.responseType || 'json'}:${stableValue(config.params || {})}`;
     const pending = pendingGets.get(key);
     if (pending) return subscribeToGet(pending.promise, config.signal);
 
     const controller = new AbortController();
     const { signal: consumerSignal, ...requestConfig } = config;
+    delete requestConfig.fresh;
     const promise = get(url, { ...requestConfig, signal: controller.signal }).finally(() => {
       if (pendingGets.get(key)?.promise === promise) pendingGets.delete(key);
     });

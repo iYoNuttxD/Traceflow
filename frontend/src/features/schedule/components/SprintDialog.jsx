@@ -12,8 +12,12 @@ const focusableSelector = [
 
 export function SprintDialog({
   open,
+  confirmation = false,
   title,
   description,
+  headerActions,
+  leadingAction,
+  className = '',
   size = 'default',
   initialFocusSelector,
   returnFocusRef,
@@ -55,7 +59,7 @@ export function SprintDialog({
       }
       if (event.key !== 'Tab' || !panelRef.current) return;
       const focusable = [...panelRef.current.querySelectorAll(focusableSelector)].filter(
-        (element) => !element.hasAttribute('hidden')
+        (element) => !element.closest('[hidden], [inert]') && !element.matches(':disabled')
       );
       if (!focusable.length) {
         event.preventDefault();
@@ -96,30 +100,42 @@ export function SprintDialog({
     >
       <section
         ref={panelRef}
-        className={`sprint-dialog sprint-dialog--${size}`}
+        className={
+          confirmation
+            ? 'confirm-dialog'
+            : `sprint-dialog sprint-dialog--${size} ${className}`.trim()
+        }
         role="dialog"
         aria-modal="true"
-        aria-labelledby={titleId}
-        aria-describedby={description ? descriptionId : undefined}
+        aria-labelledby={confirmation ? 'confirm-dialog-title' : titleId}
+        aria-describedby={
+          confirmation ? 'confirm-dialog-description' : description ? descriptionId : undefined
+        }
         tabIndex={-1}
       >
-        <header className="sprint-dialog__header">
-          <div>
-            <h2 id={titleId}>{title}</h2>
-            {description && <p id={descriptionId}>{description}</p>}
-          </div>
-          <button
-            type="button"
-            className="sprint-dialog__close"
-            disabled={busy}
-            onClick={onClose}
-            aria-label={`Fechar ${title.toLocaleLowerCase('pt-BR')}`}
-            title="Fechar"
-          >
-            <TraceFlowIcon name="close" />
-          </button>
-        </header>
-        <div className="sprint-dialog__body">{children}</div>
+        {!confirmation && (
+          <header className="sprint-dialog__header">
+            {leadingAction}
+            <div className="sprint-dialog__identity">
+              <h2 id={titleId}>{title}</h2>
+              {description && <p id={descriptionId}>{description}</p>}
+            </div>
+            <div className="sprint-dialog__controls">
+              {headerActions}
+              <button
+                type="button"
+                className="sprint-dialog__close"
+                disabled={busy}
+                onClick={onClose}
+                aria-label={`Fechar ${title.toLocaleLowerCase('pt-BR')}`}
+                title="Fechar"
+              >
+                <TraceFlowIcon name="close" />
+              </button>
+            </div>
+          </header>
+        )}
+        {confirmation ? children : <div className="sprint-dialog__body">{children}</div>}
       </section>
     </div>
   );

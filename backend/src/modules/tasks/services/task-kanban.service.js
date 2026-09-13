@@ -14,7 +14,6 @@ import {
 } from '../task.service-support.js';
 import { taskMovementRepository } from '../repositories/task-movement.repository.js';
 import { buildAuditEvent } from '../../audit/audit.service.js';
-import { calculateRequirementStatus } from '../../requirements/requirement.schema.js';
 import { isTerminalSprintStatus } from '../../sprints/sprint.schema.js';
 import { ERROR_CODES } from '../../../shared/errors/index.js';
 
@@ -50,7 +49,6 @@ export const taskKanbanService = {
       task,
       toStatus: payload.toStatus,
       actor,
-      calculateRequirementStatus,
       validate: ({ sprint }) => {
         if (sprint && isTerminalSprintStatus(sprint.status)) {
           throw new TaskServiceError(

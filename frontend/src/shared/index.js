@@ -27,3 +27,14 @@ export {
   resolveErrorPageContext
 } from './services/page-error.js';
 export { compactParams } from './utils/compact-params.js';
+
+export { SearchCombobox } from './components/SearchCombobox.jsx';
+export { EntityRow } from './components/EntityRow.jsx';
+export { HistoryEventRow } from './components/HistoryEventRow.jsx';
+export { ConfirmDialogContent } from './components/ConfirmDialog.jsx';
+
+export { ResponsibleCombobox } from './components/ResponsibleCombobox.jsx';
+export { DetailSurface, DescriptionSurface } from './components/DetailSurface.jsx';
+export { SelectControl } from './components/SelectControl.jsx';
+
+export { LifecycleTrail } from './components/LifecycleTrail.jsx';

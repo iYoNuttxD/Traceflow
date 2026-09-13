@@ -33,3 +33,40 @@ Execução: `npm run privacy:retention:dry-run` mostra apenas contagens; `npm ru
 `PRIVACY_PSEUDONYMIZATION_KEY` é um segredo operacional de longa duração. Produção deve guardá-lo em secret manager, incluí-lo no plano de continuidade e tratar rotação como migração coordenada dos fingerprints; trocar ou perder a chave sem esse processo rompe a comparação deny-only para identidades anonimizadas anteriores.
 
 Na E15, um backup e restore foi exercitado somente sobre bancos artificiais: 21 tabelas foram restauradas e os bancos/arquivo temporários foram removidos. Isso valida o procedimento técnico, não comprova agendamento, criptografia, retenção ou restauração periódica de produção. Essas responsabilidades permanecem operacionais e jurídicas.
+
+## S1-07 — Retenção histórica de testes
+
+Definições, versões, histórico funcional, execuções, resultados e evidências têm
+retenção técnica pelo ciclo do projeto, sem novo prazo ou expurgo automático.
+DELETE do caso é lógico e preserva seus filhos e arquivos. Histórico funcional não
+é apagado pelo prazo de AuditEvent. O cleanup de upload remove somente arquivos da
+tentativa rejeitada; queda abrupta pode exigir reconciliação de órfãos.
+
+Anonimização de conta neutraliza o nome do executor capturado e os nomes de mudança
+de responsável que têm ID conhecido. Mantém IDs ligados à conta pseudonimizada,
+resultados, versão, referência técnica e arquivos históricos. É exceção explícita à
+imutabilidade dos nomes de exibição. Conteúdo livre/arquivos e dados de autoria
+externa podem ainda conter PII: o fluxo não promete anonimização universal desses
+conteúdos. Solicitações de remoção devem considerar finalidade, acesso e backups,
+com revisão humana; este comportamento não constitui conclusão jurídica de conformidade.
+
+O backup operacional deve abranger conjuntamente MySQL e a raiz privada configurada,
+com controle de acesso e restauração de consistência entre metadata e bytes.
+Não há upload OCI, retenção automática de vídeo nem coleta periódica nova em S1-07.
+
+## S1-08/S1-09 — Defeitos e esforço auditável
+
+- A responsabilidade corrente de Defect acompanha o ciclo do defeito/projeto. Defeitos
+  excluídos logicamente deixam de compor a exportação de atribuições correntes.
+- `DefectHistoryEntry` é histórico funcional do projeto e acompanha seu ciclo e a
+  política aplicável. Remoção de conta pode tornar `actorUserId` nulo por `SetNull`,
+  preservando o evento sem atribuí-lo posteriormente por nome ou outra heurística.
+- `TaskEffortHistoryEntry` é histórico funcional/auditável de esforço do projeto.
+  A exclusão física da Task ou da sessão não apaga seus eventos: `taskId` e `sessionId`
+  são identidades históricas deliberadamente mantidas sem FK para esses recursos.
+  A remoção ocorre com a exclusão do projeto (`Project` cascade) ou por política de
+  retenção aplicável, não pela exclusão operacional da Task.
+- A exportação pessoal inclui somente responsabilidade própria e ações cujo
+  `actorUserId` seja o titular, sempre em projetos com membership ativa. Ator nulo e
+  registros de terceiros ficam de fora. O evento funcional é preservado quando a
+  identidade direta deixa de resolver.

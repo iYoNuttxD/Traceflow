@@ -1,4 +1,4 @@
-import { SearchCombobox } from './SearchCombobox.jsx';
+import { SearchCombobox } from '../../../shared/index.js';
 import { statusBadgeClass, taskPriorityLabels, taskStatusLabels } from './schedule-display.js';
 
 const taskLabel = (task) => `#${task.id} ${task.title}`;

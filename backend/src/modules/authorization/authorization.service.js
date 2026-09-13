@@ -15,6 +15,18 @@ export const authorizationService = {
     const direct = matchId(path, /^\/projects\/(\d+)(?:\/|$)/);
     if (direct) return { projectId: direct, resourceType: 'Project' };
 
+    for (const [segment, finder] of [
+      ['defects', 'projectForDefect'],
+      ['test-cases', 'projectForTestCase'],
+      ['test-executions', 'projectForTestExecution'],
+      ['test-evidence', 'projectForTestEvidence']
+    ]) {
+      const id = matchId(path, new RegExp(`^/${segment}/(\\d+)(?:/|$)`));
+      if (id) {
+        const owner = await authorizationRepository[finder](id);
+        return { projectId: owner?.projectId ?? null, resourceType: 'TestCase' };
+      }
+    }
     const requirementId = matchId(path, /^\/requirements\/(\d+)(?:\/|$)/);
     if (requirementId) {
       const owner = await authorizationRepository.projectForRequirement(requirementId);
@@ -43,6 +55,7 @@ export const authorizationService = {
   },
   isProjectScoped(path) {
     return (
+      /^\/(?:defects|test-cases|test-executions|test-evidence)\/\d+(?:\/|$)/.test(path) ||
       /^\/projects\/\d+(?:\/|$)/.test(path) ||
       /^\/requirements\/\d+(?:\/|$)/.test(path) ||
       /^\/tasks\/\d+(?:\/|$)/.test(path) ||
