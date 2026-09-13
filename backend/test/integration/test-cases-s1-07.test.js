@@ -494,7 +494,7 @@ describe('S1-07 list aggregation, history and privacy', () => {
     } while (cursor);
     expect(new Set(h).size).toBe(3);
   });
-  it('isolates all own-only quality exports from an active peer and null historical owners', async () => {
+  it('isolates all own-only quality, defect and effort exports from peers and null actors', async () => {
     const f = await fixture();
     await prisma.projectMembership.updateMany({
       where: { userId: f.second.id },
@@ -518,6 +518,84 @@ describe('S1-07 list aggregation, history and privacy', () => {
     );
     const peerEvidence = await prisma.testEvidence.findFirst({ where: { executionId: peer.id } });
     const ownEvidence = await prisma.testEvidence.findFirst({ where: { executionId: own.id } });
+    const ownStep = await prisma.testExecutionStep.findFirst({ where: { executionId: own.id } });
+    const peerStep = await prisma.testExecutionStep.findFirst({ where: { executionId: peer.id } });
+    const ownDefect = await prisma.defect.create({
+      data: {
+        projectId: f.project.id,
+        title: 'A own defect',
+        description: 'Owned by A',
+        severity: 'MEDIA',
+        responsibleUserId: f.user.id,
+        detectedExecutionStepId: ownStep.id
+      }
+    });
+    const peerDefect = await prisma.defect.create({
+      data: {
+        projectId: f.project.id,
+        title: 'B private defect',
+        description: 'Owned by B',
+        severity: 'ALTA',
+        responsibleUserId: f.second.id,
+        detectedExecutionStepId: peerStep.id
+      }
+    });
+    await prisma.defectHistoryEntry.createMany({
+      data: [
+        {
+          projectId: f.project.id,
+          defectId: peerDefect.id,
+          actorUserId: f.user.id,
+          action: 'A_ACTION'
+        },
+        {
+          projectId: f.project.id,
+          defectId: ownDefect.id,
+          actorUserId: f.second.id,
+          action: 'B_PRIVATE_ACTION'
+        },
+        {
+          projectId: f.project.id,
+          defectId: ownDefect.id,
+          actorUserId: null,
+          action: 'LEGACY_SNAPSHOT'
+        }
+      ]
+    });
+    await prisma.taskEffortHistoryEntry.createMany({
+      data: [
+        {
+          projectId: f.project.id,
+          taskId: f.task.id,
+          sessionId: 7001,
+          eventType: 'CREATED',
+          source: 'MANUAL',
+          actorUserId: f.user.id,
+          newSeconds: 3600,
+          snapshotStartedAt: new Date('2026-09-01T10:00:00Z')
+        },
+        {
+          projectId: f.project.id,
+          taskId: f.task.id,
+          sessionId: 7002,
+          eventType: 'CREATED',
+          source: 'MANUAL',
+          actorUserId: f.second.id,
+          newSeconds: 7200,
+          snapshotStartedAt: new Date('2026-09-01T11:00:00Z')
+        },
+        {
+          projectId: f.project.id,
+          taskId: f.task.id,
+          sessionId: 7003,
+          eventType: 'SNAPSHOT',
+          source: 'MANUAL',
+          actorUserId: null,
+          newSeconds: 1800,
+          snapshotStartedAt: new Date('2026-09-01T12:00:00Z')
+        }
+      ]
+    });
     const metadata = { ...peerEvidence };
     delete metadata.id;
     await prisma.testEvidence.create({
@@ -527,14 +605,22 @@ describe('S1-07 list aggregation, history and privacy', () => {
     expect(data.responsibleTestCases.map((row) => row.id)).toEqual([a.id]);
     expect(data.testExecutions.map((row) => row.id)).toEqual([own.id]);
     expect(data.testEvidence.map((row) => row.id)).toEqual([ownEvidence.id]);
+    expect(data.responsibleDefects.map((row) => row.id)).toEqual([ownDefect.id]);
+    expect(data.defectHistory.map((row) => row.action)).toEqual(['A_ACTION']);
+    expect(data.effortHistory.map((row) => row.sessionId)).toEqual([7001]);
     const privatePayload = JSON.stringify([
       data.responsibleTestCases,
       data.testExecutions,
-      data.testEvidence
+      data.testEvidence,
+      data.responsibleDefects,
+      data.defectHistory,
+      data.effortHistory
     ]);
     expect(privatePayload).not.toContain('B private case');
     expect(privatePayload).not.toContain(peerEvidence.originalName);
     expect(privatePayload).not.toContain(peerEvidence.sha256);
+    expect(privatePayload).not.toMatch(/B private defect|B_PRIVATE_ACTION|7002|7003/);
+    expect(privatePayload).not.toMatch(/LEGACY_SNAPSHOT/);
     expect(data.testEvidence.some((row) => row.executionId === peer.id)).toBe(false);
     expect(privatePayload).not.toMatch(
       /storageKey|uploadedByUserId|executedByUserId|responsibleUserId/
@@ -546,6 +632,8 @@ describe('S1-07 list aggregation, history and privacy', () => {
     const historical = await settings.exportData(f.user.id);
     expect(historical.testExecutions.map((row) => row.id)).toEqual([own.id]);
     expect(historical.responsibleTestCases.map((row) => row.id)).toEqual([a.id]);
+    expect(historical.defectHistory.map((row) => row.action)).toEqual(['A_ACTION']);
+    expect(historical.effortHistory.map((row) => row.sessionId)).toEqual([7001]);
     await prisma.projectMembership.updateMany({
       where: { userId: f.user.id },
       data: { isActive: false }
@@ -554,6 +642,9 @@ describe('S1-07 list aggregation, history and privacy', () => {
     expect(inactive.responsibleTestCases).toEqual([]);
     expect(inactive.testExecutions).toEqual([]);
     expect(inactive.testEvidence).toEqual([]);
+    expect(inactive.responsibleDefects).toEqual([]);
+    expect(inactive.defectHistory).toEqual([]);
+    expect(inactive.effortHistory).toEqual([]);
   });
   it('exports own active-project collaboration metadata without storage keys or other users', async () => {
     const f = await fixture();

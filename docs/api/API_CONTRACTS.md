@@ -1137,8 +1137,10 @@ requisito alheio 404 opaco.
 | GET | `/requirements/:requirementId/current` | IDs positivos | DTO atual do Requirement |
 | GET | `/requirements/:requirementId/history` | limit=30 (máx.100), cursor opcional | `{items,nextCursor}`; occurredAt DESC/id DESC |
 
-Booleanos aceitam `true`/`false`; situation aceita os 11 estados canônicos;
-requirementStatus aceita o enum vigente. search consulta título sem diferenciar
+Booleanos aceitam `true`/`false`; `situation` aceita os 11 estados detalhados;
+`requirementStatus` representa exclusivamente o lifecycle macro derivado e aceita
+`PLANEJADO`, `EM_IMPLEMENTACAO`, `EM_VALIDACAO`, `EM_CORRECAO` ou `CONCLUIDO`.
+`search` consulta título sem diferenciar
 maiúsculas ou REQ-id exato. hasOpenDefects indica qualquer Defect pendente, não
 somente ABERTO. Lista ordena id DESC; filtros são avaliados no servidor sobre o
 conjunto completo antes da paginação. `pagination` contém page, limit, total e

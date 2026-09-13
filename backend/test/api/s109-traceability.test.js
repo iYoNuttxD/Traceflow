@@ -138,6 +138,8 @@ describe('S109 authenticated projection API', () => {
     const empty = await f.get(`${f.root}/requirements?situation=CONCLUIDO`);
     expect(empty.body.items).toEqual([]);
     expect(empty.body.pagination.totalPages).toBe(0);
+    expect((await f.get(`${f.root}/requirements?requirementStatus=EM_CORRECAO`)).status).toBe(200);
+    expect((await f.get(`${f.root}/requirements?requirementStatus=APROVADO`)).status).toBe(400);
     for (const query of [
       'situation=BOGUS',
       'requirementStatus=BOGUS',

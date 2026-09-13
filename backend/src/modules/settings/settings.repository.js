@@ -517,6 +517,55 @@ export const settingsRepository = {
             createdAt: true
           }
         },
+        responsibleDefects: {
+          where: {
+            responsibleUserId: userId,
+            deletedAt: null,
+            project: { memberships: { some: { userId, isActive: true } } }
+          },
+          select: {
+            id: true,
+            projectId: true,
+            requirementId: true,
+            title: true,
+            severity: true,
+            status: true,
+            createdAt: true,
+            updatedAt: true
+          }
+        },
+        defectHistory: {
+          where: {
+            actorUserId: userId,
+            project: { memberships: { some: { userId, isActive: true } } }
+          },
+          select: {
+            id: true,
+            projectId: true,
+            defectId: true,
+            action: true,
+            occurredAt: true
+          }
+        },
+        effortHistory: {
+          where: {
+            actorUserId: userId,
+            project: { memberships: { some: { userId, isActive: true } } }
+          },
+          select: {
+            id: true,
+            projectId: true,
+            taskId: true,
+            sessionId: true,
+            eventType: true,
+            source: true,
+            previousSeconds: true,
+            newSeconds: true,
+            snapshotStartedAt: true,
+            snapshotEndedAt: true,
+            occurredAt: true
+          }
+        },
         responsibleTasks: {
           where: {
             project: { memberships: { some: { userId, isActive: true } } }

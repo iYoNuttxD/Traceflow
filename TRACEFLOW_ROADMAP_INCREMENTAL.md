@@ -324,8 +324,8 @@ Evidências: [backend](docs/deliveries/S1_08_BACKEND_FOUNDATION_REPORT.md),
 
 ### S1-09 - Ampliar rastreabilidade entre requisitos, testes e defeitos
 
-**Estado atual — 2026-09-12: implementação concluída; correções adicionais de
-Code Review em andamento; revalidação independente final pendente.** O Final QA original
+**Estado atual — 2026-09-13: implementação concluída; correções da revisão
+independente aplicadas; aguardando revalidação final.** O Final QA original
 registrou CHANGES REQUIRED (0 BLOCKING, 3 IMPORTANT e 1 SUGGESTION). A
 [rodada de correções](docs/deliveries/S1_09_FINAL_QA_TARGETED_CORRECTIONS_REPORT.md)
 terminou **PASS LOCAL**, com regressões, gates e homologação visual concluídos.
@@ -338,6 +338,11 @@ Os três apontamentos de exportação pessoal não reproduziram vazamento na bas
 as relações de User já aplicavam ownership; filtros explícitos e regressões
 cross-user foram acrescentados. O resultado desta rodada é local e não substitui
 a revalidação independente final nem o CI de uma futura revisão publicada.
+
+A [rodada direcionada da revisão independente](docs/deliveries/S1_09_INDEPENDENT_REVIEW_TARGETED_CORRECTIONS_REPORT.md)
+fechou localmente o determinismo do teste de Task Details, os contratos de status
+de Requirement e a governança/exportação própria de Defects e histórico de esforço.
+O resultado permanece aguardando revalidação independente final.
 
 O escopo implementado inclui lifecycle macro de Requirement sincronizado, 11
 TraceabilitySituations, projeção e histórico de situação, Cards/Summary/filtros,

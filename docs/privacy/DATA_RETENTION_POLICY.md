@@ -53,3 +53,20 @@ com revisão humana; este comportamento não constitui conclusão jurídica de c
 O backup operacional deve abranger conjuntamente MySQL e a raiz privada configurada,
 com controle de acesso e restauração de consistência entre metadata e bytes.
 Não há upload OCI, retenção automática de vídeo nem coleta periódica nova em S1-07.
+
+## S1-08/S1-09 — Defeitos e esforço auditável
+
+- A responsabilidade corrente de Defect acompanha o ciclo do defeito/projeto. Defeitos
+  excluídos logicamente deixam de compor a exportação de atribuições correntes.
+- `DefectHistoryEntry` é histórico funcional do projeto e acompanha seu ciclo e a
+  política aplicável. Remoção de conta pode tornar `actorUserId` nulo por `SetNull`,
+  preservando o evento sem atribuí-lo posteriormente por nome ou outra heurística.
+- `TaskEffortHistoryEntry` é histórico funcional/auditável de esforço do projeto.
+  A exclusão física da Task ou da sessão não apaga seus eventos: `taskId` e `sessionId`
+  são identidades históricas deliberadamente mantidas sem FK para esses recursos.
+  A remoção ocorre com a exclusão do projeto (`Project` cascade) ou por política de
+  retenção aplicável, não pela exclusão operacional da Task.
+- A exportação pessoal inclui somente responsabilidade própria e ações cujo
+  `actorUserId` seja o titular, sempre em projetos com membership ativa. Ator nulo e
+  registros de terceiros ficam de fora. O evento funcional é preservado quando a
+  identidade direta deixa de resolver.

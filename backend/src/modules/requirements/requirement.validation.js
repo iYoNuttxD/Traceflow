@@ -7,6 +7,20 @@ import {
   strictObject
 } from '../../shared/validation/index.js';
 
+export const ACCEPTED_REQUIREMENT_STATUSES = Object.freeze([
+  'PLANEJADO',
+  'EM_VALIDACAO',
+  'EM_CORRECAO',
+  'CADASTRADO',
+  'APROVADO',
+  'EM_IMPLEMENTACAO',
+  'VALIDADO',
+  'CONCLUIDO',
+  'PENDENTE',
+  'EM_ANDAMENTO',
+  'CANCELADO'
+]);
+
 const requirementType = z
   .string()
   .trim()
@@ -22,24 +36,9 @@ const requirementStatus = z
   .trim()
   .transform((value) => value.toUpperCase())
   .pipe(
-    z.enum(
-      [
-        'PLANEJADO',
-        'EM_VALIDACAO',
-        'EM_CORRECAO',
-        'CADASTRADO',
-        'APROVADO',
-        'EM_IMPLEMENTACAO',
-        'VALIDADO',
-        'CONCLUIDO',
-        'PENDENTE',
-        'EM_ANDAMENTO',
-        'CANCELADO'
-      ],
-      {
-        error: 'Status inválido. Use CADASTRADO, APROVADO, EM_IMPLEMENTACAO, VALIDADO ou CONCLUIDO.'
-      }
-    )
+    z.enum(ACCEPTED_REQUIREMENT_STATUSES, {
+      error: `Status inválido. Use ${ACCEPTED_REQUIREMENT_STATUSES.join(', ')}.`
+    })
   );
 
 export const requirementProjectParamsSchema = strictObject({
