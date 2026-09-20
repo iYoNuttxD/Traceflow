@@ -17,12 +17,6 @@
   margin-block: 0;
 }
 
-.repository-header {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-6);
-}
-
 .repository-header h1 {
   font-size: clamp(var(--font-size-6), 3.2vw, var(--font-size-7));
 }

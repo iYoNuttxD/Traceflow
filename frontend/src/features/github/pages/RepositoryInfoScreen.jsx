@@ -220,8 +220,8 @@ export function RepositoryInfoScreen() {
               {project ? `o projeto ${project.name}` : 'este projeto'}.
             </p>
           </div>
-          <ProjectSectionNav projectId={projectId} activeSection="repository" />
         </header>
+        <ProjectSectionNav projectId={projectId} activeSection="repository" />
 
         {!repositoryData && loading ? (
           <LoadingState message="Carregando artefatos do repositório..." />

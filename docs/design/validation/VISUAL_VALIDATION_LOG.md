@@ -1,5 +1,16 @@
 # TRACEFLOW Visual Validation Log
 
+## 2026-09-20 — Repository C2 navigation alignment
+
+Chrome real autenticado em `localhost:5173`, projeto local 2. O header, a navegação do projeto e o
+conteúdo foram reinspecionados em Light/Dark a 1440×1000, 1280×1000, 768×1000 e 390×844. Em todos
+os recortes, `ProjectSectionNav` apareceu como irmã imediata abaixo do header, alinhada ao mesmo eixo
+do Resumo, com 24px entre header/navegação e navegação/conteúdo. A aba Repositório permaneceu ativa.
+
+Não houve overflow horizontal da página nem overflow vertical da navegação. O overflow horizontal
+ficou restrito à própria navegação em 1280/768/390 e à tabela nessas mesmas larguras. Os 408
+artefatos, Resumo, filtros recolhíveis e ações externas permaneceram renderizados sem regressão.
+
 ## 2026-09-20 — Repository C2 facelift
 
 Chrome real autenticado em `localhost:5173`, projeto local 2. A página de Repositório foi

@@ -14,6 +14,8 @@ describe('Repository C2 facelift', () => {
     expect(source).toContain('<CollapsibleFilterPanel');
     expect(source).toContain('<SelectControl');
     expect(source).toContain('<GithubExternalAction');
+    expect(source).toMatch(/<\/header>\s*<ProjectSectionNav/);
+    expect(css).not.toMatch(/\.repository-header\s*\{[^}]*display:/);
     expect(source).not.toContain('<select');
     expect(source).not.toContain('Aplicar filtros');
     expect(source).not.toContain('Voltar para o projeto');

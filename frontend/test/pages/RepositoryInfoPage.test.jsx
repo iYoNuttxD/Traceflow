@@ -57,6 +57,14 @@ describe('RepositoryInfoPage RF06', () => {
     ).toBeVisible();
     expect(screen.getByRole('heading', { name: 'Repositório', level: 1 })).toBeInTheDocument();
     expect(screen.queryByText('Voltar para o projeto')).toBeNull();
+    const header = screen.getByRole('heading', { name: 'Repositório', level: 1 }).closest('header');
+    const projectNavigation = screen.getByRole('navigation', { name: 'Navegação do projeto' });
+    expect(within(header).queryByRole('navigation')).toBeNull();
+    expect(header.nextElementSibling).toBe(projectNavigation);
+    expect(within(projectNavigation).getByRole('link', { name: 'Repositório' })).toHaveAttribute(
+      'aria-current',
+      'page'
+    );
     expect(screen.getByRole('region', { name: 'Visão geral do repositório' })).toBeInTheDocument();
     expect(screen.getByText('Branch padrão: main')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Filtrar artefatos/ })).toHaveAttribute(
