@@ -289,9 +289,14 @@ describe('compatibilidade de conteúdo legado com os temas', () => {
     expect(rule(traceabilityCss, '.requirement-situation--neutral')).toContain(
       'color: var(--color-neutral-text)'
     );
-    expect(rule(repositoryCss, '.repository-table-wrapper')).toContain(
-      'background: var(--color-surface-primary)'
-    );
+    expect(
+      rule(
+        repositoryCss,
+        `.repository-overview,
+.repository-filters,
+.repository-catalog`
+      )
+    ).toContain('background: var(--color-surface-primary)');
   });
 
   it('mantém foreground e background dos principais pares acima de 4.5:1', () => {

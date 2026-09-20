@@ -67,9 +67,9 @@ revalidação.
 <!-- INVENTORY_COUNTS_START -->
 
 - Total surfaces: 207
-- `C2 COMPLETE`: 161
-- `LEGACY`: 8
-- `HYBRID`: 26
+- `C2 COMPLETE`: 165
+- `LEGACY`: 6
+- `HYBRID`: 24
 - `NOT REVIEWED`: 11
 - `NOT APPLICABLE`: 1
 
@@ -81,14 +81,14 @@ revalidação.
 | Tasks and Kanban              |    46 |  25 |      2 |     19 |            0 |
 | Planning                      |    71 |  70 |      0 |      0 |            0 |
 | Requirements and Traceability |     9 |   1 |      3 |      5 |            0 |
-| Repository / GitHub           |     4 |   0 |      2 |      2 |            0 |
+| Repository / GitHub           |     4 |   4 |      0 |      0 |            0 |
 | Settings and Remaining        |    21 |  20 |      1 |      0 |            0 |
 | Test Cases                    |    11 |   0 |      0 |      0 |           11 |
 
 Validation evidence:
 
-- `VISUALLY APPROVED`: 38
-- `TECHNICALLY VERIFIED`: 165
+- `VISUALLY APPROVED`: 42
+- `TECHNICALLY VERIFIED`: 161
 - `STRUCTURALLY IDENTIFIED`: 4
 - `ENVIRONMENT BLOCKED`: 0
 - `NOT VALIDATED`: 0
@@ -336,16 +336,16 @@ homologação própria registrada nos relatórios canônicos.
 
 ## Repository / GitHub
 
-Os owners de filtros, summary e tabela cobertos pela regressão direcionada de tema são tecnicamente
-verificados para compatibilidade Dark. O redesign e a validação renderizada continuam no escopo
-`UX-REPOSITORY-AUDIT`.
+Summary, filtros, estados de request e tabela foram migrados para a linguagem C2 e homologados em
+Light/Dark nos quatro viewports canônicos. O escopo preservou os contratos existentes de artefatos,
+filtros, ordenação e sincronização GitHub.
 
-| ID                          | Domain              | Flow              | Route / Context                   | Surface                         | Type            | Component / Owner                                             | Trigger                        | Roles                          | States                                                                                     | Light                         | Dark                                               | Responsive                           | Accessibility                               | Visual Status | Validation Status    | Priority | Target UX Scope     | Notes                                                                  |
-| --------------------------- | ------------------- | ----------------- | --------------------------------- | ------------------------------- | --------------- | ------------------------------------------------------------- | ------------------------------ | ------------------------------ | ------------------------------------------------------------------------------------------ | ----------------------------- | -------------------------------------------------- | ------------------------------------ | ------------------------------------------- | ------------- | -------------------- | -------- | ------------------- | ---------------------------------------------------------------------- |
-| `REPOSITORY-MAIN`           | Repository / GitHub | Artifacts         | `/projects/:projectId/repository` | Informações do repositório      | Page            | `frontend/src/features/github/pages/RepositoryInfoScreen.jsx` | Tab Repositório                | VIEWER, MEMBER, MANAGER, OWNER | Summary, filters e artifact table                                                          | Light legado preservado       | Compatibilidade Dark implementada; redesign adiado | LEGACY                               | PARTIAL                                     | HYBRID        | TECHNICALLY VERIFIED | P1       | UX-REPOSITORY-AUDIT | RF03–RF06/RF50. Compatibilidade de tema não promove a surface para C2. |
-| `REPOSITORY-FILTER-STATES`  | Repository / GitHub | Artifact filters  | Repository main                   | Filtros de tipo/branch/data     | Form / Feedback | `RepositoryInfoScreen.jsx`                                    | Alterar/aplicar/limpar filtros | VIEWER+                        | Default, validation, applying, issue/branch info e cleared                                 | Legacy preservado             | Compatibilidade Dark implementada; redesign adiado | LEGACY                               | PARTIAL                                     | LEGACY        | TECHNICALLY VERIFIED | P1       | UX-REPOSITORY-AUDIT | Issues ignoram filtro de branch por contrato.                          |
-| `REPOSITORY-REQUEST-STATES` | Repository / GitHub | Artifact loading  | Repository main                   | Loading, erro e vazio           | State           | `RepositoryInfoScreen.jsx`, `AsyncState.jsx`                  | Request inicial ou filtrado    | VIEWER+                        | Loading, fatal/contextual error, retry/cooldown, no imported artifacts e no filter results | Primitive C2 em página legada | Primitive C2 em página legada                      | IMPLEMENTED / NOT VISUALLY VALIDATED | VERIFIED: retry e abort de request obsoleto | HYBRID        | TECHNICALLY VERIFIED | P1       | UX-REPOSITORY-AUDIT | Vazio não é confundido com backend indisponível.                       |
-| `REPOSITORY-ARTIFACT-TABLE` | Repository / GitHub | Artifact browsing | Repository main                   | Tabela de commits, PRs e issues | Table           | `RepositoryInfoScreen.jsx`                                    | Dados carregados               | VIEWER+                        | Commits, pull requests, issues e link externo                                              | Legacy preservado             | Compatibilidade Dark implementada; redesign adiado | LEGACY                               | PARTIAL                                     | LEGACY        | TECHNICALLY VERIFIED | P1       | UX-REPOSITORY-AUDIT | DTO minimizado; tokens GitHub nunca aparecem.                          |
+| ID                          | Domain              | Flow              | Route / Context                   | Surface                         | Type            | Component / Owner                                             | Trigger                        | Roles                          | States                                                                                     | Light            | Dark             | Responsive                            | Accessibility                                             | Visual Status | Validation Status | Priority | Target UX Scope     | Notes                                                                                                                         |
+| --------------------------- | ------------------- | ----------------- | --------------------------------- | ------------------------------- | --------------- | ------------------------------------------------------------- | ------------------------------ | ------------------------------ | ------------------------------------------------------------------------------------------ | ---------------- | ---------------- | ------------------------------------- | --------------------------------------------------------- | ------------- | ----------------- | -------- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `REPOSITORY-MAIN`           | Repository / GitHub | Artifacts         | `/projects/:projectId/repository` | Informações do repositório      | Page            | `frontend/src/features/github/pages/RepositoryInfoScreen.jsx` | Tab Repositório                | VIEWER, MEMBER, MANAGER, OWNER | Summary, filters e artifact table                                                          | PASS renderizado | PASS renderizado | VERIFIED: 1440/1280/768/390           | VERIFIED: headings, regiões, foco e navegação por teclado | C2 COMPLETE   | VISUALLY APPROVED | P1       | UX-REPOSITORY-AUDIT | RF03–RF06/RF50; `ProjectSectionNav` e contratos preservados.                                                                  |
+| `REPOSITORY-FILTER-STATES`  | Repository / GitHub | Artifact filters  | Repository main                   | Filtros de tipo/branch/data     | Form / Feedback | `RepositoryInfoScreen.jsx`, `CollapsibleFilterPanel.jsx`      | Alterar/limpar filtros         | VIEWER+                        | Recolhido, expandido, validação, aplicação automática, issue/branch info, ativos e limpeza | PASS renderizado | PASS renderizado | VERIFIED: 1440/1280/768/390           | VERIFIED: labels, disclosure, foco e feedback             | C2 COMPLETE   | VISUALLY APPROVED | P1       | UX-REPOSITORY-AUDIT | `SelectControl`; contador usa filtros confirmados. Intervalo inválido não dispara request; Issues ignoram branch por contrato. |
+| `REPOSITORY-REQUEST-STATES` | Repository / GitHub | Artifact loading  | Repository main                   | Loading, erro e vazio           | State           | `RepositoryInfoScreen.jsx`, `AsyncState.jsx`                  | Request inicial ou filtrado    | VIEWER+                        | Loading, fatal/contextual error, retry/cooldown, no imported artifacts e no filter results | PASS renderizado | PASS renderizado | VERIFIED: 1280 e regressão responsiva | VERIFIED: retry, cooldown, AbortController e latest-wins  | C2 COMPLETE   | VISUALLY APPROVED | P1       | UX-REPOSITORY-AUDIT | Loading, 404/retry e vazio filtrado renderizados; vazio do repositório coberto por automação.                                 |
+| `REPOSITORY-ARTIFACT-TABLE` | Repository / GitHub | Artifact browsing | Repository main                   | Tabela de commits, PRs e issues | Table           | `RepositoryInfoScreen.jsx`                                    | Dados carregados               | VIEWER+                        | Commits, pull requests, issues, badges e link externo                                      | PASS renderizado | PASS renderizado | VERIFIED: 1440/1280/768/390           | VERIFIED: região nomeada, foco visível e ação externa     | C2 COMPLETE   | VISUALLY APPROVED | P1       | UX-REPOSITORY-AUDIT | Ação externa compacta e delimitada; scroll contido. Dívida: 408 linhas integrais, sem paginação no contrato atual.            |
 
 ## Settings
 
@@ -407,9 +407,7 @@ grupos P1 remanescentes são:
 2. **Requirements/Traceability:** navegação já vive no shell C2, e formulários, listas, matriz e
    canvas possuem compatibilidade Dark; o canvas preserva sua light island categórica. O redesign
    continua adiado.
-3. **Repository:** filtros, summary e tabela possuem compatibilidade Dark, mas ainda pertencem à
-   linguagem anterior.
-4. **Project Audit:** a rota continua legada e sem entrada na navegação; Settings é C2 e possui
+3. **Project Audit:** a rota continua legada e sem entrada na navegação; Settings é C2 e possui
    validação granular própria, sem promover Project Audit por associação.
 
 A compatibilidade de tema registrada não altera a classificação LEGACY/HYBRID nem antecipa o

@@ -1,0 +1,31 @@
+.button.task-detail-external-link {
+  display: inline-flex;
+  min-height: var(--size-touch-target);
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  width: fit-content;
+  border: var(--border-width-default) solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-3);
+  color: var(--color-text-strong);
+  background: var(--color-surface-primary);
+  font-size: var(--font-size-2);
+  font-weight: var(--font-weight-bold);
+  text-decoration: none;
+}
+
+.button.task-detail-external-link:hover {
+  border-color: var(--color-border-interactive);
+  background: var(--color-surface-interactive);
+  text-decoration: none;
+}
+
+.button.task-detail-external-link:focus-visible {
+  text-decoration: none;
+}
+
+.button.task-detail-external-link .traceflow-icon {
+  width: var(--size-icon-sm);
+  height: var(--size-icon-sm);
+}

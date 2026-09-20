@@ -1,5 +1,34 @@
 # TRACEFLOW Visual Validation Log
 
+## 2026-09-20 — Repository C2 facelift
+
+Chrome real autenticado em `localhost:5173`, projeto local 2. A página de Repositório foi
+reinspecionada em Light/Dark a 1440×1000, 1280×1000, 768×1000 e 390×844, com dados
+persistidos existentes: 4 branches, 388 commits, 20 pull requests, 0 issues, 100% de
+completude e 408 artefatos. Header, navegação do projeto, resumo único, filtros recolhidos e
+expandidos, tabela real, títulos em duas linhas, metadados e ação canônica Abrir no GitHub
+permaneceram legíveis. Não houve overflow horizontal da página; quando necessário, somente a
+navegação e o contêiner da tabela apresentaram rolagem horizontal interna.
+
+No ajuste final, Tipo e Branch passaram a usar `SelectControl`, com 44px, chevron e tokens
+canônicos nos oito recortes. A aplicação automática foi observada com Pull Request e `gt-dev`;
+o contador representou somente a resposta confirmada, “Limpar filtros” apareceu apenas com filtro
+ativo e restaurou os 408 artefatos. A ação externa permaneceu compacta, mas agora apresentou borda,
+surface, raio e foco efetivos; a matriz continuou sem overflow horizontal da página.
+
+Foram operados filtros de tipo, branch e período; a combinação Pull Request + `main` +
+01/06/2026–20/09/2026 preservou 20 resultados. Issue + branch exibiu o aviso contratual e
+produziu o vazio filtrado distinto, seguido de limpeza para os 408 itens. A rota de projeto
+inexistente permitiu observar loading, erro contextual e `Tentar novamente`; o retry reemitiu
+a consulta. O vazio de repositório, validação de datas, cooldown, aborto e latest-wins foram
+verificados por automação direcionada. Nenhuma sincronização, edição ou outra mutação de dados
+foi confirmada.
+
+Dívida de escala preservada e explicitada: o endpoint atual devolve todos os artefatos e a UI
+monta as 408 linhas em uma única resposta. Não existe paginação nesse contrato; este facelift
+não inventou endpoint, limite ou ordenação. A rodada é local e não equivale a CI remoto,
+cross-browser ou certificação integral de acessibilidade.
+
 ## 2026-09-20 — Tasks final card action cleanup
 
 Chrome real autenticado em `localhost:5173`, projeto local 2. Os Task Cards foram
