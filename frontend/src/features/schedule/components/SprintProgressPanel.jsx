@@ -57,7 +57,6 @@ export function SprintProgressPanel({
   if (loading) {
     return (
       <section className="sprint-progress-panel" aria-label={`Evolução da sprint ${sprint.name}`}>
-        <h3>Evolução de {sprint.name}</h3>
         <p className="empty-state" role="status">
           Calculando a evolução...
         </p>
@@ -82,8 +81,6 @@ export function SprintProgressPanel({
 
   return (
     <section className="sprint-progress-panel" aria-label={`Evolução da sprint ${sprint.name}`}>
-      <h3>Evolução de {sprint.name}</h3>
-
       <p className="field-help">
         {aberta
           ? 'A sprint ainda não começou: o planejamento não está fechado, então o escopo planejado é o escopo atual.'

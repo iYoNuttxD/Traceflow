@@ -16,6 +16,13 @@ const unico = () => {
   return `${Date.now()}-${sequencia}`;
 };
 
+const utcDayOffset = (offset) => {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + offset))
+    .toISOString()
+    .slice(0, 10);
+};
+
 beforeAll(async () => {
   const url = configureTestDatabaseEnvironment();
   deployTestMigrations(url);
@@ -709,7 +716,10 @@ describe('CP — PE/VL/TE: evolucao por sprint (RF35)', () => {
     const ator = await registrar();
     const projeto = await criarProjeto(ator);
     const marco = await criarMarco(ator, projeto.id);
-    const comPontos = await criarSprint(ator, projeto.id, marco.id);
+    const comPontos = await criarSprint(ator, projeto.id, marco.id, {
+      startDate: utcDayOffset(-1),
+      endDate: utcDayOffset(3)
+    });
     const t1 = await criarTarefa(ator, projeto.id, { estimatedEffort: 3 });
     const t2 = await criarTarefa(ator, projeto.id, { estimatedEffort: 5 });
     expect((await substituirTarefas(ator, comPontos.id, [t1.id, t2.id])).status).toBe(200);
@@ -718,8 +728,8 @@ describe('CP — PE/VL/TE: evolucao por sprint (RF35)', () => {
     expect(medido.burndown).toMatchObject({ hasData: true, totalPoints: 8 });
 
     const semPontos = await criarSprint(ator, projeto.id, marco.id, {
-      startDate: '2026-10-01',
-      endDate: '2026-10-15'
+      startDate: utcDayOffset(4),
+      endDate: utcDayOffset(8)
     });
     const t3 = await criarTarefa(ator, projeto.id);
     expect((await substituirTarefas(ator, semPontos.id, [t3.id])).status).toBe(200);

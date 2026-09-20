@@ -689,11 +689,14 @@ muda é que as inclusões passam a ser sinalizadas. Quem congela é o estado ter
 }
 ```
 
-**Bloco `burndown`.** Série diária sobre a janela `[startDate, endDate)`, em dias de calendário
-UTC. `ideal` é a reta do planejamento — do total no primeiro dia a zero no último — e não reage
-ao que aconteceu. `remaining` são os pontos que ainda faltavam ao **fim** daquele dia, e é
-`null` nos dias posteriores ao corte: zero diria "nada restante" onde o certo é "esse dia ainda
-não chegou".
+**Bloco `burndown`.** Depois que a Sprint inicia, a série diária usa a janela
+`[dia UTC de startedAt, endDate)`: a data nominal anterior ao início real não cria pontos no eixo.
+Enquanto a Sprint permanece `PLANEJADA`, a janela nominal `[startDate, endDate)` pode sustentar a
+linha ideal, mas `remaining` permanece `null` em todos os dias porque ainda não existe execução a
+medir. `ideal` é a reta do planejamento — do total no primeiro dia a zero no último — e não reage
+ao que aconteceu. `remaining` são os pontos que ainda faltavam ao **fim** daquele dia, e é `null`
+nos dias posteriores ao corte: zero diria "nada restante" onde o certo é "esse dia ainda não
+chegou".
 
 Enquanto aberta, o denominador soma `estimatedEffort` das participações não removidas. Depois
 do encerramento usa exclusivamente `SprintTask.pointsAtClose`; tarefa sem estimativa não pesa. Sem pontos ou com janela de menos de dois dias, `hasData` é `false` e `days` vem vazio.

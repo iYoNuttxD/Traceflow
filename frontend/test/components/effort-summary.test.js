@@ -8,6 +8,7 @@ import {
   effortProgressAria,
   formatClock,
   formatHoursMinutes,
+  formatSessionDuration,
   resolveEffort
 } from '../../src/features/tasks/components/effort-summary.js';
 import { updateBoardTask } from '../../src/features/tasks/components/kanban-view.js';
@@ -27,6 +28,22 @@ describe('formatadores de esforço', () => {
     // Segundos que arredondam para 60 minutos viram uma hora, não "1h60min".
     expect(formatHoursMinutes(2 * HOUR - 1)).toBe('2h');
     expect(formatHoursMinutes(HOUR + 59 * 60 + 45)).toBe('2h');
+  });
+
+  it.each([
+    [0, '0s'],
+    [1, '1s'],
+    [5, '5s'],
+    [59, '59s'],
+    [60, '1min'],
+    [61, '1min 1s'],
+    [75, '1min 15s'],
+    [3599, '59min 59s'],
+    [3600, '1h'],
+    [3661, '1h 1min 1s'],
+    [7200, '2h']
+  ])('preserva os segundos reais de uma sessão de %ss como %s', (seconds, expected) => {
+    expect(formatSessionDuration(seconds)).toBe(expected);
   });
 
   it('realizado da tarefa inclui o esforço herdado, mesmo sem sessão encerrada', () => {

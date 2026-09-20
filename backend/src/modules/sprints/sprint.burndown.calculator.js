@@ -47,7 +47,10 @@ export function buildSprintBurndown({ sprint, participations = [], cutoff }) {
     days: []
   };
 
-  const days = enumerateDays(sprint.startDate, sprint.endDate);
+  const startedAt = toInstant(sprint.startedAt);
+  const seriesStart = startedAt === null ? sprint.startDate : sprint.startedAt;
+  const operational = startedAt !== null || sprint.status !== 'PLANEJADA';
+  const days = enumerateDays(seriesStart, sprint.endDate);
   if (days.length < 2) return vazio;
 
   const dentro = participations.filter((participation) => participation.removedAt === null);
@@ -58,13 +61,15 @@ export function buildSprintBurndown({ sprint, participations = [], cutoff }) {
   if (totalPoints <= 0) return vazio;
 
   const frozen = TERMINAL.includes(sprint.status);
-  const corte = frozen
-    ? (toInstant(sprint.closedAt) ??
-      toInstant(sprint.completedAt) ??
-      toInstant(sprint.updatedAt) ??
-      toInstant(cutoff))
-    : toInstant(cutoff);
-  const diaDoCorte = toUtcDay(new Date(corte));
+  const corte = !operational
+    ? null
+    : frozen
+      ? (toInstant(sprint.closedAt) ??
+        toInstant(sprint.completedAt) ??
+        toInstant(sprint.updatedAt) ??
+        toInstant(cutoff))
+      : toInstant(cutoff);
+  const diaDoCorte = corte === null ? null : toUtcDay(corte);
 
   const queimas = dentro
     .map((participation) => ({

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { getTaskEffortHistory } from '../api/tasks.api.js';
 import {
   normalizeApiError,
@@ -6,11 +6,11 @@ import {
   SelectControl,
   TraceFlowIcon
 } from '../../../shared/index.js';
-import { formatHoursMinutes } from './effort-summary.js';
+import { formatSessionDuration } from './effort-summary.js';
 import { KanbanDialog } from './KanbanDialog.jsx';
 import './TaskTimeEntriesDialog.css';
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 50;
 const EMPTY_FILTERS = Object.freeze({ startDate: '', endDate: '', source: '', eventType: '' });
 
 function TrashIcon() {
@@ -22,9 +22,8 @@ function TrashIcon() {
   );
 }
 
-// Histórico completo das sessões, paginado e filtrado no servidor, no mesmo molde
-// do diálogo de histórico da tarefa. `refreshKey` muda quando o rastreador registra
-// algo novo, para a página aberta refletir o que acabou de acontecer.
+// Histórico paginado e filtrado no servidor. `refreshKey` muda quando o
+// rastreador registra algo novo, para a página aberta refletir a alteração.
 export function TaskTimeEntriesDialog({
   embedded = false,
   taskId,
@@ -43,6 +42,7 @@ export function TaskTimeEntriesDialog({
   const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 0 });
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState(EMPTY_FILTERS);
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const requestRef = useRef(0);
@@ -50,6 +50,7 @@ export function TaskTimeEntriesDialog({
   const appliedFiltersRef = useRef(appliedFilters);
   appliedFiltersRef.current = appliedFilters;
   const pageRef = useRef(1);
+  const filtersId = useId();
 
   const load = useCallback(
     async (page = 1, nextFilters = appliedFiltersRef.current) => {
@@ -61,22 +62,21 @@ export function TaskTimeEntriesDialog({
       setLoading(true);
       setError('');
       try {
+        const filtersParams = {
+          ...(nextFilters.startDate ? { startDate: nextFilters.startDate } : {}),
+          ...(nextFilters.endDate ? { endDate: nextFilters.endDate } : {}),
+          ...(nextFilters.source ? { source: nextFilters.source } : {}),
+          ...(nextFilters.eventType ? { eventType: nextFilters.eventType } : {})
+        };
         const data = await getTaskEffortHistory(
           taskId,
-          {
-            page,
-            limit: PAGE_SIZE,
-            ...(nextFilters.startDate ? { startDate: nextFilters.startDate } : {}),
-            ...(nextFilters.endDate ? { endDate: nextFilters.endDate } : {}),
-            ...(nextFilters.source ? { source: nextFilters.source } : {}),
-            ...(nextFilters.eventType ? { eventType: nextFilters.eventType } : {})
-          },
+          { page, limit: PAGE_SIZE, ...filtersParams },
           { signal: controller.signal }
         );
         if (request !== requestRef.current) return;
         pageRef.current = page;
         setItems(data.items || []);
-        setPagination(data.pagination || { page, total: 0, totalPages: 0 });
+        setPagination(data.pagination || { page, limit: PAGE_SIZE, total: 0, totalPages: 0 });
       } catch (cause) {
         if (request !== requestRef.current) return;
         setError(normalizeApiError(cause, 'Não foi possível carregar as sessões.').message);
@@ -128,6 +128,12 @@ export function TaskTimeEntriesDialog({
   const totalPages = Math.max(1, pagination.totalPages || 1);
   const currentPage = Math.min(pagination.page || 1, totalPages);
   const hasFilters = Object.values(appliedFilters).some(Boolean);
+  const activeFilterCount = Object.values(appliedFilters).filter(Boolean).length;
+  const filterToggleLabel = `${filtersExpanded ? 'Ocultar' : 'Mostrar'} filtros${
+    activeFilterCount
+      ? ` · ${activeFilterCount} ${activeFilterCount === 1 ? 'ativo' : 'ativos'}`
+      : ''
+  }`;
   const Panel = embedded ? EmbeddedSessions : KanbanDialog;
   return (
     <Panel
@@ -137,69 +143,80 @@ export function TaskTimeEntriesDialog({
       onClose={onClose}
     >
       <div className="task-time-entries">
-        <form className="task-time-entries__filters" onSubmit={applyFilters}>
-          <label className="field">
-            <span>Data inicial</span>
-            <input
-              type="date"
-              value={filters.startDate}
-              onChange={(event) =>
-                setFilters((current) => ({ ...current, startDate: event.target.value }))
-              }
-            />
-          </label>
-          <label className="field">
-            <span>Data final</span>
-            <input
-              type="date"
-              value={filters.endDate}
-              onChange={(event) =>
-                setFilters((current) => ({ ...current, endDate: event.target.value }))
-              }
-            />
-          </label>
-          <label className="field">
-            <span>Origem</span>
-            <SelectControl
-              value={filters.source}
-              onChange={(event) =>
-                setFilters((current) => ({ ...current, source: event.target.value }))
-              }
-            >
-              <option value="">Todas</option>
-              <option value="TIMER">Cronômetro</option>
-              <option value="MANUAL">Manual</option>
-            </SelectControl>
-          </label>
-          <label className="field">
-            <span>Evento</span>
-            <SelectControl
-              value={filters.eventType}
-              onChange={(event) =>
-                setFilters((current) => ({ ...current, eventType: event.target.value }))
-              }
-            >
-              <option value="">Todos</option>
-              <option value="CREATED">Registrado</option>
-              <option value="UPDATED">Editado</option>
-              <option value="DELETED">Excluído</option>
-            </SelectControl>
-          </label>
-          <div className="task-time-entries__filter-actions">
-            <button type="submit" className="button button-secondary button-compact">
-              Filtrar
-            </button>
-            {hasFilters && (
-              <button
-                type="button"
-                className="button button-outline button-compact"
-                onClick={clearFilters}
+        <button
+          type="button"
+          className="task-time-entries__filter-toggle"
+          aria-controls={filtersId}
+          aria-expanded={filtersExpanded}
+          onClick={() => setFiltersExpanded((current) => !current)}
+        >
+          {filterToggleLabel}
+        </button>
+        {filtersExpanded && (
+          <form id={filtersId} className="task-time-entries__filters" onSubmit={applyFilters}>
+            <label className="field">
+              <span>Data inicial</span>
+              <input
+                type="date"
+                value={filters.startDate}
+                onChange={(event) =>
+                  setFilters((current) => ({ ...current, startDate: event.target.value }))
+                }
+              />
+            </label>
+            <label className="field">
+              <span>Data final</span>
+              <input
+                type="date"
+                value={filters.endDate}
+                onChange={(event) =>
+                  setFilters((current) => ({ ...current, endDate: event.target.value }))
+                }
+              />
+            </label>
+            <label className="field">
+              <span>Origem</span>
+              <SelectControl
+                value={filters.source}
+                onChange={(event) =>
+                  setFilters((current) => ({ ...current, source: event.target.value }))
+                }
               >
-                Limpar filtros
+                <option value="">Todas</option>
+                <option value="TIMER">Cronômetro</option>
+                <option value="MANUAL">Manual</option>
+              </SelectControl>
+            </label>
+            <label className="field">
+              <span>Evento</span>
+              <SelectControl
+                value={filters.eventType}
+                onChange={(event) =>
+                  setFilters((current) => ({ ...current, eventType: event.target.value }))
+                }
+              >
+                <option value="">Todos</option>
+                <option value="CREATED">Registrado</option>
+                <option value="UPDATED">Editado</option>
+                <option value="DELETED">Excluído</option>
+              </SelectControl>
+            </label>
+            <div className="task-time-entries__filter-actions">
+              <button type="submit" className="button button-secondary button-compact">
+                Filtrar
               </button>
-            )}
-          </div>
-        </form>
+              {hasFilters && (
+                <button
+                  type="button"
+                  className="button button-outline button-compact"
+                  onClick={clearFilters}
+                >
+                  Limpar filtros
+                </button>
+              )}
+            </div>
+          </form>
+        )}
 
         {editing && (
           <form
@@ -261,7 +278,7 @@ export function TaskTimeEntriesDialog({
             {hasFilters ? 'Nenhuma sessão corresponde aos filtros.' : 'Nenhuma sessão registrada.'}
           </p>
         ) : (
-          <ul className="task-time-entries__list" aria-label="Sessões registradas">
+          <ul className="task-time-entries__list" aria-label="Sessões registradas" tabIndex="0">
             {items.map((entry) => (
               <li className="task-time-entries__item" key={entry.id}>
                 <span className="task-time-entries__when">
@@ -286,28 +303,20 @@ export function TaskTimeEntriesDialog({
                   {entry.kind === 'LEGACY_SNAPSHOT' && (
                     <small>Registro anterior ao histórico · estado da sessão existente</small>
                   )}
-                  {entry.source === 'TIMER' && entry.snapshotStartedAt && (
-                    <small>
-                      {new Date(entry.snapshotStartedAt).toLocaleString('pt-BR')} →{' '}
-                      {entry.snapshotEndedAt
-                        ? new Date(entry.snapshotEndedAt).toLocaleString('pt-BR')
-                        : 'Não encerrada'}
-                    </small>
-                  )}
                 </span>
                 <strong className="task-time-entries__duration">
                   {entry.eventType === 'UPDATED'
-                    ? `${formatHoursMinutes(entry.previousSeconds)} → ${formatHoursMinutes(entry.newSeconds)}`
+                    ? `${formatSessionDuration(entry.previousSeconds)} → ${formatSessionDuration(entry.newSeconds)}`
                     : entry.eventType === 'DELETED'
-                      ? `Entrada de ${formatHoursMinutes(entry.previousSeconds)}`
-                      : formatHoursMinutes(entry.newSeconds)}
+                      ? `Entrada de ${formatSessionDuration(entry.previousSeconds)}`
+                      : formatSessionDuration(entry.newSeconds)}
                 </strong>
                 <span className="task-time-entries__actions">
                   {entry.canEdit && onUpdate && (
                     <button
                       type="button"
                       className="task-time-entries__action"
-                      aria-label={`Editar sessão de ${formatHoursMinutes(entry.currentEntry.durationSeconds)}`}
+                      aria-label={`Editar sessão de ${formatSessionDuration(entry.currentEntry.durationSeconds)}`}
                       data-tooltip="Editar sessão"
                       disabled={busy}
                       onClick={() => {
@@ -324,7 +333,7 @@ export function TaskTimeEntriesDialog({
                       className="task-time-entries__action task-time-entries__action--delete"
                       disabled={busy}
                       onClick={() => void handleDelete(entry)}
-                      aria-label={`Excluir sessão de ${formatHoursMinutes(entry.currentEntry?.durationSeconds ?? entry.newSeconds)}`}
+                      aria-label={`Excluir sessão de ${formatSessionDuration(entry.currentEntry?.durationSeconds ?? entry.newSeconds)}`}
                       data-tooltip="Excluir sessão"
                     >
                       <TrashIcon />
@@ -336,7 +345,7 @@ export function TaskTimeEntriesDialog({
           </ul>
         )}
 
-        {!loading && !error && pagination.total > PAGE_SIZE && (
+        {!loading && !error && items.length > 0 && (
           <nav className="task-time-entries__pagination" aria-label="Paginação das sessões">
             <button
               className="button button-secondary"
@@ -344,7 +353,7 @@ export function TaskTimeEntriesDialog({
               disabled={currentPage === 1}
               onClick={() => void load(currentPage - 1)}
             >
-              Anterior
+              <span aria-hidden="true">←</span> Anterior
             </button>
             <span>
               Página {currentPage} de {totalPages}
@@ -355,7 +364,7 @@ export function TaskTimeEntriesDialog({
               disabled={currentPage === totalPages}
               onClick={() => void load(currentPage + 1)}
             >
-              Próxima
+              Próxima <span aria-hidden="true">→</span>
             </button>
           </nav>
         )}

@@ -319,6 +319,11 @@ Uma Sprint concluída/cancelada não pode ser transferida de Marco quando o dom�
 
 O progresso deve utilizar a fórmula canônica já implementada baseada nos pontos/tarefas do domínio.
 
+No burndown, `Sprint.startedAt` é a linha de base temporal da execução. `Sprint.startDate` descreve
+a janela nominal e não pode inventar histórico real anterior ao início. Para Sprint ainda planejada
+(`startedAt = null`), a linha real permanece ausente. A linha ideal de uma Sprint iniciada parte do
+dia UTC de `startedAt` e segue até o fim da janela.
+
 A QA deve confirmar que:
 
 - zero total não gera NaN;

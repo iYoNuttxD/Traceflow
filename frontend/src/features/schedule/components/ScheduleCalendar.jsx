@@ -494,7 +494,10 @@ function ContextPanel({
   onSelectDay
 }) {
   return (
-    <aside className="schedule-context" aria-labelledby="schedule-context-title">
+    <aside
+      className="schedule-context schedule-context--bounded"
+      aria-labelledby="schedule-context-title"
+    >
       <div className="schedule-context__heading">
         <div>
           <span className="eyebrow">Contexto</span>
@@ -695,7 +698,7 @@ export function ScheduleCalendar({ schedule, hoje = new Date() }) {
     <div className="schedule-workspace">
       <NowSummary summary={summary} todayDay={todayDay} />
 
-      <div className="schedule-layout">
+      <div className="schedule-layout schedule-layout--matched-heights">
         <section className="schedule-calendar" aria-labelledby="schedule-calendar-title">
           <div className="schedule-calendar__toolbar">
             <div>

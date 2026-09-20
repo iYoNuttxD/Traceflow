@@ -87,6 +87,7 @@ describe('Task Details graph parity', () => {
     await user.click(screen.getByRole('button', { name: 'Ver sessões registradas' }));
     expect(screen.getAllByRole('dialog')).toHaveLength(1);
     const history = screen.getByRole('region', { name: 'Sessões — #16 Paridade da tarefa' });
+    await user.click(within(history).getByRole('button', { name: 'Mostrar filtros' }));
     expect(within(history).getByLabelText('Evento')).toBeEnabled();
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('region', { name: 'Sessões — #16 Paridade da tarefa' })).toBeNull();

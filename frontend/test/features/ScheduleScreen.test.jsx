@@ -131,6 +131,10 @@ describe('ScheduleCalendar — composição Hybrid C2', () => {
     expect(selectedDayPanel()).toHaveAttribute('hidden');
     expect(screen.getByRole('heading', { name: 'Próximos prazos' })).toBeInTheDocument();
     expect(document.querySelector('.schedule-layout')).toBeInTheDocument();
+    expect(document.querySelector('.schedule-layout')).toHaveClass(
+      'schedule-layout--matched-heights'
+    );
+    expect(document.querySelector('.schedule-context')).toHaveClass('schedule-context--bounded');
     expect(document.querySelectorAll('.schedule-context')).toHaveLength(1);
   });
 

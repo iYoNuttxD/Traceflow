@@ -40,6 +40,7 @@ export {
   computeEffortView,
   resolveEffort,
   formatHoursMinutes,
+  formatSessionDuration,
   EFFORT_STATUS_TONES,
   EFFORT_STATUS_LABELS
 } from './components/effort-summary.js';

@@ -79,6 +79,72 @@ describe('janela e denominador', () => {
     });
     expect(resultado.totalPoints).toBe(5);
   });
+
+  it('usa o dia real de inicio como baseline quando startDate e anterior a startedAt', () => {
+    const resultado = buildSprintBurndown({
+      sprint: sprint({
+        startDate: new Date('2026-09-13T00:00:00.000Z'),
+        startedAt: new Date('2026-09-16T20:51:56.000Z'),
+        planningSnapshotAt: new Date('2026-09-16T20:51:56.000Z'),
+        endDate: new Date('2026-09-20T00:00:00.000Z')
+      }),
+      participations: [
+        participacao({
+          taskId: 1,
+          points: 4,
+          addedAt: new Date('2026-09-13T12:00:00.000Z'),
+          currentStatus: 'CONCLUIDO'
+        }),
+        participacao({
+          taskId: 2,
+          points: 6,
+          addedAt: new Date('2026-09-13T12:00:00.000Z'),
+          completedAt: new Date('2026-09-17T15:00:00.000Z')
+        }),
+        participacao({
+          taskId: 3,
+          points: 12,
+          addedAt: new Date('2026-09-13T12:00:00.000Z')
+        })
+      ],
+      cutoff: corte('2026-09-19T18:00:00.000Z')
+    });
+
+    expect(resultado.days).toEqual([
+      { date: '2026-09-16', ideal: 22, remaining: 18 },
+      { date: '2026-09-17', ideal: 14.7, remaining: 12 },
+      { date: '2026-09-18', ideal: 7.3, remaining: 12 },
+      { date: '2026-09-19', ideal: 0, remaining: 12 }
+    ]);
+  });
+
+  it('preserva a janela existente quando startedAt coincide com startDate', () => {
+    const resultado = buildSprintBurndown({
+      sprint: sprint({ startedAt: new Date('2026-08-01T09:00:00.000Z') }),
+      participations: [participacao()],
+      cutoff: corte('2026-08-03T12:00:00.000Z')
+    });
+
+    expect(resultado.days.map((dia) => dia.date)).toEqual([
+      '2026-08-01',
+      '2026-08-02',
+      '2026-08-03',
+      '2026-08-04',
+      '2026-08-05'
+    ]);
+  });
+
+  it('nao inventa linha real para sprint planejada que ainda nao iniciou', () => {
+    const resultado = buildSprintBurndown({
+      sprint: sprint({ status: 'PLANEJADA', startedAt: null }),
+      participations: [participacao()],
+      cutoff: corte('2026-08-03T12:00:00.000Z')
+    });
+
+    expect(resultado.hasData).toBe(true);
+    expect(resultado.days.every((dia) => dia.remaining === null)).toBe(true);
+    expect(resultado.cutoffDate).toBeNull();
+  });
 });
 
 describe('linha ideal', () => {

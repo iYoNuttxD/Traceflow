@@ -15,6 +15,7 @@
   display: flex;
   width: min(100%, 46rem);
   max-height: calc(100vh - (2 * var(--space-4)));
+  max-height: calc(100dvh - (2 * var(--space-4)));
   flex-direction: column;
   overflow: hidden;
   border: var(--border-width-default) solid var(--color-border-strong);
@@ -113,6 +114,7 @@
 
   .kanban-dialog {
     max-height: calc(100vh - (2 * var(--space-2)));
+    max-height: calc(100dvh - (2 * var(--space-2)));
   }
 
   .kanban-dialog__header,

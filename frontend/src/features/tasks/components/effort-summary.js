@@ -36,6 +36,23 @@ export function formatHoursMinutes(totalSeconds) {
   return `${hours}h${pad(minutes)}min`;
 }
 
+// O histórico representa sessões individuais e, por isso, não pode arredondar
+// segundos como os resumos agregados. Unidades zeradas são omitidas sem perder
+// a duração real da sessão.
+export function formatSessionDuration(totalSeconds) {
+  const seconds = Math.max(0, Math.floor(Number(totalSeconds) || 0));
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainingSeconds = seconds % 60;
+  const parts = [];
+
+  if (hours) parts.push(`${hours}h`);
+  if (minutes) parts.push(`${minutes}min`);
+  if (remainingSeconds || parts.length === 0) parts.push(`${remainingSeconds}s`);
+
+  return parts.join(' ');
+}
+
 export function formatTimeOfDay(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
