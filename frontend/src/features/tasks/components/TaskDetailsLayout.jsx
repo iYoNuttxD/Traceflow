@@ -70,10 +70,13 @@ export function TaskInformation({ details, effortSlot = null }) {
   );
 }
 
-export function TaskTraceabilityGrid({ children, title = 'Rastreabilidade' }) {
+export function TaskTraceabilityGrid({ children, title = 'Rastreabilidade', className = '' }) {
   const titleId = useId();
   return (
-    <section className="task-detail-section task-detail-traceability" aria-labelledby={titleId}>
+    <section
+      className={`task-detail-section task-detail-traceability${className ? ` ${className}` : ''}`}
+      aria-labelledby={titleId}
+    >
       <div className="task-detail-section-heading">
         <h3 id={titleId}>{title}</h3>
       </div>

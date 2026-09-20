@@ -317,99 +317,117 @@ export function TaskForm({
 
   return (
     <form className="task-form" onSubmit={onSubmit}>
-      <label className="field field-full">
-        <span>Título da tarefa</span>
-        <input
-          name="title"
-          value={formData.title}
-          onChange={handleChange}
-          required
-          placeholder="Ex.: Implementar cadastro de tarefas"
-        />
-      </label>
+      <section className="task-form-section field-full" aria-labelledby="task-form-info-title">
+        <header>
+          <h3 id="task-form-info-title">Informações</h3>
+          <p>Defina a atividade e a prioridade para o projeto.</p>
+        </header>
+        <div className="task-form-section__grid">
+          <label className="field field-full">
+            <span>Título da tarefa</span>
+            <input
+              name="title"
+              value={formData.title}
+              onChange={handleChange}
+              required
+              placeholder="Ex.: Implementar cadastro de tarefas"
+            />
+          </label>
 
-      <label className="field field-full">
-        <span>Descrição</span>
-        <textarea
-          name="description"
-          value={formData.description}
-          onChange={handleChange}
-          rows="4"
-          placeholder="Descreva o trabalho que deve ser realizado."
-        />
-      </label>
+          <label className="field field-full">
+            <span>Descrição</span>
+            <textarea
+              name="description"
+              value={formData.description}
+              onChange={handleChange}
+              rows="4"
+              placeholder="Descreva o trabalho que deve ser realizado."
+            />
+          </label>
 
-      <label className="field">
-        <span>Prioridade</span>
-        <SelectControl name="priority" value={formData.priority} onChange={handleChange}>
-          <option value="BAIXA">Baixa</option>
-          <option value="MEDIA">Média</option>
-          <option value="ALTA">Alta</option>
-          <option value="CRITICA">Crítica</option>
-        </SelectControl>
-      </label>
-
-      <ResponsibleCombobox
-        members={activeMembers}
-        value={formData.responsibleUserId}
-        onChange={(value) => onChange('responsibleUserId', value)}
-        disabled={!hasMembers || submitting}
-        help={
-          hasLegacyResponsible
-            ? `Responsável legado: ${formData.responsible}. Selecione um responsável para reconciliar.`
-            : !hasMembers
-              ? 'Cadastre membros no projeto para atribuir responsáveis às tarefas.'
-              : undefined
-        }
-      />
-
-      <label className="field">
-        <span>Prazo</span>
-        <input type="date" name="deadline" value={formData.deadline} onChange={handleChange} />
-      </label>
-
-      {/* Sprint encerrada não recebe tarefa (ADR-010 D04) e o backend recusa com
-          409 — só aparece na lista se já for a sprint atual da tarefa, senão a
-          edição de uma tarefa antiga abriria o campo vazio e a devolveria ao
-          backlog sem ninguém ter pedido. */}
-      {composition !== 'correction' && (
-        <SearchCombobox
-          label="Sprint"
-          placeholder="Pesquisar sprint..."
-          minQueryLength={0}
-          openOnFocus={false}
-          options={sprints.filter((sprint) => !['CONCLUIDA', 'CANCELADA'].includes(sprint.status))}
-          selectedOption={
-            sprints.find((sprint) => String(sprint.id) === String(formData.sprintId)) || null
-          }
-          onSelect={(sprint) => onChange('sprintId', String(sprint.id))}
-          onClear={() => onChange('sprintId', '')}
-          help="Sem sprint, a tarefa permanece no backlog."
-          disabled={submitting}
-        />
-      )}
-
-      <label className="field">
-        <span>Esforço estimado (horas)</span>
-        <input
-          type="number"
-          min="0"
-          step="0.5"
-          name="estimatedEffort"
-          value={formData.estimatedEffort}
-          onChange={handleChange}
-          placeholder="Horas"
-        />
-      </label>
-
-      {editing && (
-        <div className="field">
-          <span>Esforço realizado</span>
-          <p className="field-help">
-            Calculado pelo cronômetro e pelos lançamentos manuais na tela de detalhes da tarefa.
-          </p>
+          <label className="field">
+            <span>Prioridade</span>
+            <SelectControl name="priority" value={formData.priority} onChange={handleChange}>
+              <option value="BAIXA">Baixa</option>
+              <option value="MEDIA">Média</option>
+              <option value="ALTA">Alta</option>
+              <option value="CRITICA">Crítica</option>
+            </SelectControl>
+          </label>
         </div>
-      )}
+      </section>
+
+      <section className="task-form-section field-full" aria-labelledby="task-form-plan-title">
+        <header>
+          <h3 id="task-form-plan-title">Planejamento</h3>
+          <p>Organize responsável, prazo, Sprint e estimativa.</p>
+        </header>
+        <div className="task-form-section__grid">
+          <ResponsibleCombobox
+            members={activeMembers}
+            value={formData.responsibleUserId}
+            onChange={(value) => onChange('responsibleUserId', value)}
+            disabled={!hasMembers || submitting}
+            help={
+              hasLegacyResponsible
+                ? `Responsável legado: ${formData.responsible}. Selecione um responsável para reconciliar.`
+                : !hasMembers
+                  ? 'Cadastre membros no projeto para atribuir responsáveis às tarefas.'
+                  : undefined
+            }
+          />
+
+          <label className="field">
+            <span>Prazo</span>
+            <input type="date" name="deadline" value={formData.deadline} onChange={handleChange} />
+          </label>
+
+          {/* Sprint encerrada não recebe tarefa (ADR-010 D04) e o backend recusa com
+              409 — só aparece na lista se já for a sprint atual da tarefa, senão a
+              edição de uma tarefa antiga abriria o campo vazio e a devolveria ao
+              backlog sem ninguém ter pedido. */}
+          {composition !== 'correction' && (
+            <SearchCombobox
+              label="Sprint"
+              placeholder="Pesquisar sprint..."
+              minQueryLength={0}
+              openOnFocus={false}
+              options={sprints.filter(
+                (sprint) => !['CONCLUIDA', 'CANCELADA'].includes(sprint.status)
+              )}
+              selectedOption={
+                sprints.find((sprint) => String(sprint.id) === String(formData.sprintId)) || null
+              }
+              onSelect={(sprint) => onChange('sprintId', String(sprint.id))}
+              onClear={() => onChange('sprintId', '')}
+              help="Sem sprint, a tarefa permanece no backlog."
+              disabled={submitting}
+            />
+          )}
+
+          <label className="field">
+            <span>Esforço estimado (horas)</span>
+            <input
+              type="number"
+              min="0"
+              step="0.5"
+              name="estimatedEffort"
+              value={formData.estimatedEffort}
+              onChange={handleChange}
+              placeholder="Horas"
+            />
+          </label>
+
+          {editing && (
+            <div className="field">
+              <span>Esforço realizado</span>
+              <p className="field-help">
+                Calculado pelo cronômetro e pelos lançamentos manuais na tela de detalhes da tarefa.
+              </p>
+            </div>
+          )}
+        </div>
+      </section>
 
       {composition === 'correction' ? (
         <section className="field-full">{requirementControl}</section>
@@ -624,7 +642,7 @@ export function TaskForm({
         </section>
       )}
 
-      <div className="form-actions field-full">
+      <footer className="form-actions field-full">
         {(editing || composition === 'correction') && (
           <button className="button button-secondary" type="button" onClick={onCancel}>
             {composition === 'correction' ? 'Cancelar' : 'Cancelar edição'}
@@ -635,7 +653,7 @@ export function TaskForm({
             ? 'Salvando...'
             : submitLabel || (editing ? 'Salvar alterações' : 'Cadastrar tarefa')}
         </button>
-      </div>
+      </footer>
     </form>
   );
 }

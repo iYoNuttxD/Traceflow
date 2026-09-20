@@ -78,35 +78,37 @@ const task = {
 };
 
 describe('apresentação de Tasks e Kanban', () => {
-  it('renderiza métricas e ações de rastreabilidade sem duplicar regras na screen', async () => {
+  it('resume gestão e mantém rastreabilidade e mutações sob progressive disclosure', async () => {
     const user = userEvent.setup();
     const handlers = {
+      onCreate: vi.fn(),
+      onOpen: vi.fn(),
       onEdit: vi.fn(),
-      onDelete: vi.fn(),
-      onUnlinkRequirement: vi.fn(),
-      onUnlinkPullRequest: vi.fn(),
-      onUnlinkCommit: vi.fn(),
-      onUnlinkIssue: vi.fn()
+      onDelete: vi.fn()
     };
     render(
       <>
-        <TaskMetrics
-          total={1}
-          pullRequestCoverage={{ coveragePercentage: 100, linkedTasks: 1, totalTasks: 1 }}
-          commitCoverage={{ coveragePercentage: 100, linkedTasks: 1, totalTasks: 1 }}
-          issueCoverage={{ coveragePercentage: 100, linkedTasks: 1, totalTasks: 1 }}
-        />
+        <TaskMetrics tasks={[task]} />
         <TaskList tasks={[task]} deletingTaskId={null} {...handlers} />
       </>
     );
 
     expect(screen.getByText('Consolidar frontend')).toBeInTheDocument();
-    expect(screen.getAllByText('100%')).toHaveLength(3);
-    expect(screen.getByRole('link', { name: /#15/ })).toHaveAttribute('rel', 'noopener noreferrer');
-    await user.click(screen.getByRole('button', { name: 'Editar' }));
-    await user.click(screen.getByRole('button', { name: 'Remover commit vinculado' }));
-    expect(handlers.onEdit).toHaveBeenCalledWith(task);
-    expect(handlers.onUnlinkCommit).toHaveBeenCalledWith(7, 30);
+    expect(screen.getByText('Visão geral das tarefas')).toBeInTheDocument();
+    expect(screen.queryByText(/Cobertura com/)).toBeNull();
+    expect(screen.queryByText('Rastreabilidade')).toBeNull();
+    expect(screen.queryByRole('link', { name: /#15/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Editar' })).toBeNull();
+    expect(screen.queryByText('Ver detalhes')).toBeNull();
+    const card = screen.getByRole('button', { name: /Abrir detalhes de TASK-7/ });
+    card.focus();
+    await user.keyboard('{Enter}');
+    expect(handlers.onOpen).toHaveBeenCalledWith(task, card);
+
+    const menu = screen.getByRole('button', { name: 'Mais ações da tarefa TASK-7' });
+    await user.click(menu);
+    await user.click(screen.getByRole('menuitem', { name: 'Editar TASK-7' }));
+    expect(handlers.onEdit).toHaveBeenCalledWith(task, menu);
   });
 
   it('preserva seleção por teclado e colunas oficiais no board', async () => {

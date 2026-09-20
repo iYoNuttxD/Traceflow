@@ -1,21 +1,112 @@
-.task-summary {
+.tasks-overview {
+  overflow: hidden;
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.tasks-overview > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-6);
+}
+
+.tasks-overview h2,
+.tasks-overview p {
+  margin: 0;
+}
+
+.tasks-overview h2 {
+  color: var(--color-text-strong);
+  font-size: var(--font-size-4);
+  line-height: var(--line-height-title);
+}
+
+.tasks-overview > header p {
+  max-width: 30rem;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-2);
+  line-height: var(--line-height-body);
+  text-align: right;
+}
+
+.tasks-overview dl {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.9rem;
-  margin-bottom: 1.5rem;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  margin: 0;
+  border-top: var(--border-width-default) solid var(--color-border-default);
 }
 
-.task-summary .card {
-  padding: 1rem;
+.tasks-overview dl > div {
+  display: grid;
+  min-width: 0;
+  min-height: 6.5rem;
+  align-content: center;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  border-right: var(--border-width-default) solid var(--color-border-default);
 }
 
-.task-summary .card h2 {
-  margin-bottom: 0.75rem;
-  font-size: 0.95rem;
+.tasks-overview dl > div:last-child {
+  border-right: 0;
 }
 
-@media (max-width: 860px) {
-  .task-summary {
-    grid-template-columns: 1fr;
+.tasks-overview dt {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-1);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+}
+
+.tasks-overview dd {
+  margin: 0;
+  color: var(--color-text-strong);
+  font-size: var(--font-size-5);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-title);
+}
+
+@container tasks-page (max-width: 68rem) {
+  .tasks-overview dl {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .tasks-overview dl > div:nth-child(3n) {
+    border-right: 0;
+  }
+
+  .tasks-overview dl > div:nth-child(n + 4) {
+    border-top: var(--border-width-default) solid var(--color-border-default);
+  }
+}
+
+@container tasks-page (max-width: 34rem) {
+  .tasks-overview > header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .tasks-overview > header p {
+    text-align: left;
+  }
+
+  .tasks-overview dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tasks-overview dl > div:nth-child(3n) {
+    border-right: var(--border-width-default) solid var(--color-border-default);
+  }
+
+  .tasks-overview dl > div:nth-child(2n) {
+    border-right: 0;
+  }
+
+  .tasks-overview dl > div:nth-child(n + 3) {
+    border-top: var(--border-width-default) solid var(--color-border-default);
   }
 }

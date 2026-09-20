@@ -1,5 +1,35 @@
 # TRACEFLOW Visual Validation Log
 
+## 2026-09-20 — Tasks final card action cleanup
+
+Chrome real autenticado em `localhost:5173`, projeto local 2. Os Task Cards foram
+reinspecionados em Light/Dark a 1440×900, 1280×900, 768×1024 e 390×844 após a
+remoção de `Ver detalhes`. Nas oito células, o rodapé exibiu somente o menu `...`
+alinhado à direita, sem espaço residual nem overflow horizontal da página.
+
+Em mobile Light, `Enter` no corpo do TASK-21 abriu o `TaskDetailsPanel` canônico;
+o fechamento por teclado devolveu foco visível ao mesmo card. O menu preservou as
+ações Editar tarefa e Excluir tarefa. VIEWER sem rodapé/menu foi coberto por teste
+direcionado. Nenhuma edição, exclusão ou outra mutação de dados foi confirmada.
+
+## 2026-09-20 — Tasks C2 facelift
+
+Chrome real autenticado em `localhost:5173`, projeto local 2. A página principal foi
+inspecionada em Light/Dark a 1440×900, 1280×900, 768×1024 e 390×844. O grid respondeu
+em 3/2/1 colunas, sem overflow horizontal da página em nenhuma célula. Resumo, filtros
+recolhidos e expandidos, tile Nova tarefa, cards com diferentes status/Sprints/prazos e
+esforços foram observados com dados persistidos existentes.
+
+O dialog Nova tarefa foi inspecionado em Light desktop e Dark mobile, com scroll interno,
+header estável e agrupamentos Informações, Planejamento e Rastreabilidade. TASK-21 abriu
+o `TaskDetailsPanel` canônico em Light desktop, preservando informações, esforço,
+rastreabilidade, qualidade e comentários. Nenhuma criação, edição, exclusão, mudança de
+status ou outra mutação de dados foi confirmada durante a inspeção.
+
+Busca/filtros, menus, VIEWER, retorno de foco, empty states e fluxos de submit foram
+verificados por automação direcionada. Esta evidência é local, não equivale a CI remoto,
+cross-browser, certificação WCAG integral ou homologação de estados raros de erro.
+
 ## 2026-09-10 — S1-09 Etapa 3: Requirement Cards e histórico
 
 Chrome real autenticado em `localhost:5173`, projeto local 2. Light/Dark ×

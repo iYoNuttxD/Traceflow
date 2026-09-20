@@ -266,17 +266,23 @@ describe('compatibilidade de conteúdo legado com os temas', () => {
     expect(rule(globalCss, '.metric-description')).toContain('color: var(--color-text-secondary)');
   });
 
-  it('cobre os panels que causaram o finding HIGH sem alterar seu layout', () => {
-    expect(rule(taskListCss, '.task-item')).toContain('background: var(--color-surface-secondary)');
+  it('cobre os panels que causaram o finding HIGH com surfaces temáticas', () => {
+    expect(
+      rule(
+        taskListCss,
+        `.task-catalog-card,
+.new-task-card`
+      )
+    ).toContain('background: var(--color-surface-primary)');
     expect(rule(kanbanBoardCss.split('@media')[0], '.kanban-column')).toContain(
       'background: var(--color-surface-secondary)'
     );
     expect(rule(kanbanBoardCss, '.kanban-task')).toContain(
       'background: var(--color-surface-primary)'
     );
-    expect(
-      rule(requirementsCss, '.requirement-item,\n.requirement-detail-panel,\n.linked-task-item')
-    ).toContain('background: var(--color-surface-secondary)');
+    expect(rule(requirementsCss, '.requirement-catalog-card')).toContain(
+      'background: var(--color-surface-primary)'
+    );
     expect(rule(traceabilityCss, '.requirement-situation--neutral')).toContain(
       'background: var(--color-neutral-surface)'
     );
