@@ -1,5 +1,9 @@
 import { useEffect, useId, useRef } from 'react';
 import { TraceFlowIcon } from '../../../shared/index.js';
+import {
+  escapeBelongsToExpandedControl,
+  useDialogLayer
+} from '../../../shared/components/dialog-stack.js';
 import './KanbanDialog.css';
 
 const focusableSelector = [
@@ -10,11 +14,6 @@ const focusableSelector = [
   'textarea:not([disabled])',
   '[tabindex]:not([tabindex="-1"])'
 ].join(',');
-
-// Um diálogo aberto de dentro de outro fica no DOM do ancestral, então os dois
-// reconheceriam o mesmo Escape/Tab — e o ancestral, registrado antes, fecharia
-// primeiro. Só o topo da pilha responde ao teclado.
-const openDialogs = [];
 
 export function KanbanDialog({
   title,
@@ -29,23 +28,23 @@ export function KanbanDialog({
   const descriptionId = useId();
   const panelRef = useRef(null);
   const onCloseRef = useRef(onClose);
+  const isTopDialog = useDialogLayer();
   onCloseRef.current = onClose;
 
   useEffect(() => {
     const returnTarget = returnFocusRef?.current || document.activeElement;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    const token = {};
-    openDialogs.push(token);
     const frame = window.requestAnimationFrame(() => {
       panelRef.current?.querySelector('[data-dialog-close]')?.focus();
     });
 
     function handleKeyDown(event) {
       if (event.defaultPrevented) return;
-      if (openDialogs.at(-1) !== token) return;
+      if (!isTopDialog()) return;
       if (!panelRef.current?.contains(event.target)) return;
       if (event.key === 'Escape') {
+        if (escapeBelongsToExpandedControl(event)) return;
         event.preventDefault();
         onCloseRef.current();
         return;
@@ -74,14 +73,12 @@ export function KanbanDialog({
     return () => {
       window.cancelAnimationFrame(frame);
       document.removeEventListener('keydown', handleKeyDown);
-      const index = openDialogs.indexOf(token);
-      if (index !== -1) openDialogs.splice(index, 1);
       document.body.style.overflow = previousOverflow;
       queueMicrotask(() => {
         if (returnTarget?.isConnected) returnTarget.focus();
       });
     };
-  }, [returnFocusRef]);
+  }, [isTopDialog, returnFocusRef]);
 
   return (
     <div

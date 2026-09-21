@@ -207,6 +207,7 @@ export function KanbanScreen() {
   searchParamsRef.current = searchParams;
 
   const allTasks = useMemo(() => getBoardTasks(board), [board]);
+  const canMoveTasks = Boolean(currentMembership && currentMembership.role !== 'VIEWER');
   const frozenSprint = projectSprints.find(
     (sprint) => sprintFilter.includes(sprint.id) && TERMINAL_SPRINT_STATUSES.includes(sprint.status)
   );
@@ -440,7 +441,15 @@ export function KanbanScreen() {
     [searchParams, setSearchParams, sprintFilter, frozenSprintIds]
   );
 
-  async function moveTaskToStatus(task, toStatus) {
+  function focusMovedTask(taskId) {
+    window.requestAnimationFrame(() => {
+      boardFocusRef.current
+        ?.querySelector(`[data-kanban-task-id="${taskId}"] [data-task-move]`)
+        ?.focus();
+    });
+  }
+
+  async function moveTaskToStatus(task, toStatus, returnFocusTarget = null) {
     if (frozenSprint || task.isFrozen || toStatus === task.status) return;
     if (task.sprintId && frozenSprintIds.has(task.sprintId)) {
       setSuccess('');
@@ -461,6 +470,7 @@ export function KanbanScreen() {
       const movedTask = response.data.task;
       setSuccess(response.data.message);
       setBoard((current) => updateBoardWithMovedTask(current, movedTask));
+      if (returnFocusTarget) focusMovedTask(movedTask.id);
       finishMutation(mutation);
       void refreshBoard(movedTask).catch((requestError) => {
         setWarning(
@@ -484,7 +494,7 @@ export function KanbanScreen() {
   }
 
   function handleTaskDragStart(event, task) {
-    if (frozenSprint || task.isFrozen || movingTaskId === task.id) {
+    if (!canMoveTasks || frozenSprint || task.isFrozen || movingTaskId === task.id) {
       event.preventDefault();
       return;
     }
@@ -723,9 +733,11 @@ export function KanbanScreen() {
               selectedSprintIds={sprintFilter}
               frozenSprintIds={frozenSprintIds}
               filteredEmpty={activeFilterCount > 0 && visibleCount === 0 && summary.total > 0}
+              canMove={canMoveTasks && !frozenSprint}
               boardRef={boardFocusRef}
               onSelectTask={openTaskDetails}
               onOpenHistory={openTaskHistory}
+              onMoveTask={moveTaskToStatus}
               onTaskPointerDown={handleTaskPointerDown}
               onTaskDragStart={handleTaskDragStart}
               onTaskDragEnd={handleTaskDragEnd}

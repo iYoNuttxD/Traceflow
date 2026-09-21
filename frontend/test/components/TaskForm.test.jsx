@@ -146,16 +146,16 @@ describe('TaskForm', () => {
     ).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Sugerir commits' })).not.toBeInTheDocument();
 
-    const searchInput = screen.getByRole('searchbox', { name: 'Buscar commits do projeto' });
+    const searchInput = screen.getByRole('combobox', { name: 'Buscar commits do projeto' });
     await user.type(searchInput, 'abc');
-    expect(screen.getByRole('button', { name: /abc1234/ })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /def9876/ })).not.toBeInTheDocument();
+    expect(await screen.findByRole('option', { name: /abc1234/ })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /def9876/ })).not.toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Limpar busca de commits' })).toHaveLength(1);
     await user.click(screen.getByRole('button', { name: 'Limpar busca de commits' }));
     expect(searchInput).toHaveValue('');
     expect(searchInput).toHaveFocus();
     expect(onCommitSearchClear).toHaveBeenCalled();
-    expect(screen.queryByRole('button', { name: /abc1234/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /abc1234/ })).not.toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: 'Limpar busca de commits' })
     ).not.toBeInTheDocument();
@@ -170,8 +170,35 @@ describe('TaskForm', () => {
         onCommitSearch={vi.fn()}
       />
     );
-    await user.type(screen.getByRole('searchbox', { name: 'Buscar commits do projeto' }), 'xyz');
-    expect(screen.getByText('Nenhum commit encontrado.')).toBeInTheDocument();
+    await user.type(screen.getByRole('combobox', { name: 'Buscar commits do projeto' }), 'xyz');
+    expect(await screen.findByText('Nenhum resultado encontrado.')).toBeInTheDocument();
+  });
+
+  it('abre todos os pickers de rastreabilidade em overlay sem resultados no fluxo do form', async () => {
+    const user = userEvent.setup();
+    render(
+      <TaskFormHarness
+        onSubmit={vi.fn((event) => event.preventDefault())}
+        requirements={[{ id: 1, title: 'Gestão de acesso', type: 'FUNCIONAL', status: 'APROVADO' }]}
+        pullRequests={[{ id: 2, number: 42, title: 'Gestão de acesso' }]}
+        commitResults={[{ id: 3, hash: 'abc123456', message: 'Gestão de acesso' }]}
+        issueResults={[{ id: 4, number: 9, title: 'Gestão de acesso' }]}
+      />
+    );
+
+    for (const name of [
+      'Pesquisar requisito',
+      'Pesquisar pull request',
+      'Buscar commits do projeto',
+      'Pesquisar issues'
+    ]) {
+      const input = screen.getByRole('combobox', { name });
+      await user.type(input, 'ges');
+      expect((await screen.findByRole('listbox')).parentElement).toBe(document.body);
+      expect(document.querySelector('.traceability-results')).toBeNull();
+      await user.keyboard('{Escape}');
+      await user.clear(input);
+    }
   });
 
   it('reutiliza o controle compacto de sugestões na edição persistida', async () => {

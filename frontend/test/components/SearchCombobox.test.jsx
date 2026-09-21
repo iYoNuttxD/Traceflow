@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { SprintDialog } from '../../src/features/schedule/components/SprintDialog.jsx';
 import { SearchCombobox } from '../../src/shared/components/SearchCombobox.jsx';
 
 const options = [
@@ -74,6 +75,43 @@ describe('SearchCombobox', () => {
     fireEvent.keyDown(input, { key: 'ArrowDown' });
     fireEvent.keyDown(input, { key: 'Enter' });
     expect(onSelect).toHaveBeenCalledWith(options[1]);
+  });
+
+  it('mantém a opção ativa visível no scroll interno com setas, Home e End', async () => {
+    const manyOptions = Array.from({ length: 12 }, (_, index) => ({
+      id: index + 1,
+      title: `Opção ${String(index + 1).padStart(2, '0')}`
+    }));
+    render(
+      <SearchCombobox
+        label="Tarefa"
+        options={manyOptions}
+        onSelect={vi.fn()}
+        getOptionLabel={label}
+        isOptionDisabled={(option) => option.id === 6}
+      />
+    );
+
+    const input = screen.getByRole('combobox', { name: 'Tarefa' });
+    fireEvent.change(input, { target: { value: 'op' } });
+    await act(() => vi.advanceTimersByTimeAsync(300));
+    const renderedOptions = screen.getAllByRole('option');
+    const scrollSpies = renderedOptions.map((option) => {
+      option.scrollIntoView = vi.fn();
+      return option.scrollIntoView;
+    });
+
+    fireEvent.keyDown(input, { key: 'End' });
+    expect(scrollSpies.at(-1)).toHaveBeenLastCalledWith({ block: 'nearest', inline: 'nearest' });
+    expect(input).toHaveAttribute('aria-activedescendant', renderedOptions.at(-1).id);
+
+    fireEvent.keyDown(input, { key: 'ArrowUp' });
+    expect(scrollSpies.at(-2)).toHaveBeenLastCalledWith({ block: 'nearest', inline: 'nearest' });
+    fireEvent.keyDown(input, { key: 'Home' });
+    expect(scrollSpies[0]).toHaveBeenLastCalledWith({ block: 'nearest', inline: 'nearest' });
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    expect(scrollSpies[1]).toHaveBeenLastCalledWith({ block: 'nearest', inline: 'nearest' });
+    expect(scrollSpies[5]).not.toHaveBeenCalled();
   });
 
   it('informa resultado vazio', async () => {
@@ -265,5 +303,25 @@ describe('SearchCombobox', () => {
     expect(screen.getByRole('listbox').parentElement).not.toBe(
       screen.getByRole('combobox').parentElement
     );
+  });
+
+  it('fecha o popover com Escape sem fechar o diálogo owner', async () => {
+    const onClose = vi.fn();
+    render(
+      <SprintDialog open title="Editar tarefa" onClose={onClose}>
+        <SearchCombobox label="Requisito" options={options} onSelect={vi.fn()} />
+      </SprintDialog>
+    );
+
+    const input = screen.getByRole('combobox', { name: 'Requisito' });
+    fireEvent.change(input, { target: { value: 'ma' } });
+    await act(() => vi.advanceTimersByTimeAsync(300));
+    expect(screen.getByRole('listbox')).toBeInTheDocument();
+
+    fireEvent.keyDown(input, { key: 'Escape' });
+
+    expect(screen.queryByRole('listbox')).toBeNull();
+    expect(screen.getByRole('dialog', { name: 'Editar tarefa' })).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
   });
 });

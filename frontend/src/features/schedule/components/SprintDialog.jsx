@@ -1,5 +1,9 @@
 import { useEffect, useId, useRef } from 'react';
 import { TraceFlowIcon } from '../../../shared/index.js';
+import {
+  escapeBelongsToExpandedControl,
+  useDialogLayer
+} from '../../../shared/components/dialog-stack.js';
 
 const focusableSelector = [
   'a[href]',
@@ -29,6 +33,7 @@ export function SprintDialog({
   const descriptionId = useId();
   const panelRef = useRef(null);
   const busyRef = useRef(busy);
+  const isTopDialog = useDialogLayer(open);
   busyRef.current = busy;
 
   useEffect(() => {
@@ -50,8 +55,9 @@ export function SprintDialog({
     });
 
     function handleKeyDown(event) {
-      if (event.defaultPrevented) return;
+      if (event.defaultPrevented || !isTopDialog()) return;
       if (event.key === 'Escape') {
+        if (escapeBelongsToExpandedControl(event)) return;
         if (busyRef.current) return;
         event.preventDefault();
         onClose();
@@ -86,7 +92,7 @@ export function SprintDialog({
         if (returnTarget?.isConnected) returnTarget.focus();
       });
     };
-  }, [initialFocusSelector, onClose, open, returnFocusRef]);
+  }, [initialFocusSelector, isTopDialog, onClose, open, returnFocusRef]);
 
   if (!open) return null;
 

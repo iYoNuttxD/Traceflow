@@ -274,9 +274,13 @@ describe('Requirements facelift', () => {
     );
     expect(within(dialog).queryByRole('button', { name: /Mais ações/ })).not.toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Excluir requisito' }));
-    const confirmation = screen.getByRole('dialog', { name: 'Excluir requisito' });
-    await user.click(within(confirmation).getByRole('button', { name: 'Cancelar' }));
+    expect(screen.getByRole('dialog', { name: 'Excluir requisito' })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Excluir requisito' })).toBeNull()
+    );
     expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Excluir requisito' })).toHaveFocus();
     expect(screen.queryByRole('heading', { name: 'Progresso' })).not.toBeInTheDocument();
     expect(screen.queryByText('Implementa login')).not.toBeInTheDocument();
     const tasks = screen.getByRole('heading', { name: 'Tarefas vinculadas' }).closest('section');

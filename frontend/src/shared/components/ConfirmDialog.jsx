@@ -1,15 +1,18 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import './ConfirmDialog.css';
+import { useDialogLayer } from './dialog-stack.js';
 
 const ConfirmContext = createContext(null);
 
 function ConfirmDialog({ dialog, close }) {
   const panelRef = useRef(null);
   const cancelRef = useRef(null);
+  const isTopDialog = useDialogLayer();
 
   useEffect(() => {
     cancelRef.current?.focus();
     function onKeyDown(event) {
+      if (event.defaultPrevented || !isTopDialog()) return;
       if (event.key === 'Escape') {
         event.preventDefault();
         close(false);
@@ -30,7 +33,7 @@ function ConfirmDialog({ dialog, close }) {
     }
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [close]);
+  }, [close, isTopDialog]);
 
   return (
     <div

@@ -1,5 +1,4 @@
 import { ResponsibleCombobox, SearchCombobox, SelectControl } from '../../../shared/index.js';
-import { useEffect, useRef, useState } from 'react';
 import { CommitSuggestionsCard } from './CommitSuggestionsCard.jsx';
 import '../../../shared/styles/traceability-controls.css';
 import './TaskForm.css';
@@ -148,11 +147,6 @@ export function TaskForm({
   onSelectIssue,
   onRemoveIssue
 }) {
-  const [requirementSearch, setRequirementSearch] = useState('');
-  const [pullRequestSearch, setPullRequestSearch] = useState('');
-  const [commitSearch, setCommitSearch] = useState('');
-  const [issueSearch, setIssueSearch] = useState('');
-  const commitSearchInputRef = useRef(null);
   const activeMembers = projectMembers.filter(
     (member) => member.isActive !== false && member.user?.isActive !== false
   );
@@ -161,158 +155,77 @@ export function TaskForm({
   const hasLegacyResponsible = normalizedResponsible && !formData.responsibleUserId;
   const linkedCommitIds = new Set((formData.commitIds || []).map(String));
   const linkedIssueIds = new Set((formData.issueIds || []).map(String));
-  const normalizedRequirementSearch = normalizeText(requirementSearch).toLowerCase();
-  const normalizedPullRequestSearch = normalizeText(pullRequestSearch).toLowerCase();
-  const pullRequestNumericSearch = normalizedPullRequestSearch.replace(/\D/g, '');
-  const normalizedCommitSearch = normalizeText(commitSearch).toLowerCase();
-  const normalizedIssueSearch = normalizeText(issueSearch).toLowerCase();
-  const issueNumericSearch = normalizedIssueSearch.replace(/\D/g, '');
-  const availableRequirements = requirements.filter((requirement) => {
-    if (String(requirement.id) === String(formData.requirementId)) {
-      return false;
-    }
 
-    const matchesTitle = requirement.title?.toLowerCase().includes(normalizedRequirementSearch);
-    const matchesType = requirement.type?.toLowerCase().includes(normalizedRequirementSearch);
-    const matchesStatus = requirement.status?.toLowerCase().includes(normalizedRequirementSearch);
+  async function searchWithFallback(remoteSearch, query, signal, fallback) {
+    const remote = await remoteSearch?.(query, signal);
+    return Array.isArray(remote) ? remote : fallback(query);
+  }
 
-    return Boolean(matchesTitle || matchesType || matchesStatus);
-  });
-  const seenCommitKeys = new Set();
-  const availableCommitResults = commitResults
-    .filter((commit) => {
-      const idKey = `id:${commit.id}`;
-      const hashKey = commit.hash ? `hash:${commit.hash.toLowerCase()}` : null;
-      if (
-        linkedCommitIds.has(String(commit.id)) ||
-        seenCommitKeys.has(idKey) ||
-        (hashKey && seenCommitKeys.has(hashKey))
-      ) {
-        return false;
-      }
-      const matches =
-        commit.hash?.toLowerCase().includes(normalizedCommitSearch) ||
-        commit.shortHash?.toLowerCase().includes(normalizedCommitSearch) ||
-        commit.message?.toLowerCase().includes(normalizedCommitSearch);
-      if (matches) {
-        seenCommitKeys.add(idKey);
-        if (hashKey) seenCommitKeys.add(hashKey);
-      }
-      return Boolean(matches);
-    })
-    .slice(0, 20);
-  const availablePullRequests = pullRequests.filter((pullRequest) => {
-    if (String(pullRequest.id) === String(formData.pullRequestId)) {
-      return false;
-    }
-
-    const matchesNumber =
-      pullRequestNumericSearch && Number(pullRequest.number) === Number(pullRequestNumericSearch);
-    const matchesTitle = pullRequest.title?.toLowerCase().includes(normalizedPullRequestSearch);
-
-    return Boolean(matchesNumber || matchesTitle);
-  });
-  const availableIssueResults = issueResults.filter((issue) => {
-    if (linkedIssueIds.has(String(issue.id))) {
-      return false;
-    }
-
-    const matchesNumber = issueNumericSearch && Number(issue.number) === Number(issueNumericSearch);
-    const matchesTitle = issue.title?.toLowerCase().includes(normalizedIssueSearch);
-
-    return Boolean(matchesNumber || matchesTitle);
-  });
-
-  useEffect(() => {
-    const query = requirementSearch.trim();
-
-    if (query.length < 2 || !onRequirementSearch) {
-      return undefined;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      onRequirementSearch(query);
-    }, 300);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [onRequirementSearch, requirementSearch]);
-
-  useEffect(() => {
-    const query = pullRequestSearch.trim();
-    const hasNumericSearch = /\d/.test(query);
-
-    if ((!hasNumericSearch && query.length < 2) || !onPullRequestSearch) {
-      return undefined;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      onPullRequestSearch(query);
-    }, 300);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [onPullRequestSearch, pullRequestSearch]);
-
-  useEffect(() => {
-    const query = commitSearch.trim();
-
-    if (query.length < 2 || !onCommitSearch) {
-      if (commitSearch !== '') {
-        onCommitSearchClear?.();
-      }
-      return undefined;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      onCommitSearch(query);
-    }, 300);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [commitSearch, onCommitSearch, onCommitSearchClear]);
-
-  useEffect(() => {
-    const query = issueSearch.trim();
-    const hasNumericSearch = /\d/.test(query);
-
-    if ((!hasNumericSearch && query.length < 2) || !onIssueSearch) {
-      return undefined;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      onIssueSearch(query);
-    }, 300);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [issueSearch, onIssueSearch]);
+  const searchRequirements = async (query, signal) =>
+    (
+      await searchWithFallback(onRequirementSearch, query, signal, (value) => {
+        const normalized = normalizeText(value).toLowerCase();
+        return requirements.filter((requirement) =>
+          [requirement.title, requirement.type, requirement.status].some((field) =>
+            field?.toLowerCase().includes(normalized)
+          )
+        );
+      })
+    ).filter((requirement) => String(requirement.id) !== String(formData.requirementId));
+  const searchPullRequests = async (query, signal) =>
+    (
+      await searchWithFallback(onPullRequestSearch, query, signal, (value) => {
+        const normalized = normalizeText(value).toLowerCase();
+        const numeric = normalized.replace(/\D/g, '');
+        return pullRequests.filter(
+          (pullRequest) =>
+            (numeric && Number(pullRequest.number) === Number(numeric)) ||
+            pullRequest.title?.toLowerCase().includes(normalized)
+        );
+      })
+    ).filter((pullRequest) => String(pullRequest.id) !== String(formData.pullRequestId));
+  const searchCommits = async (query, signal) => {
+    const found = await searchWithFallback(onCommitSearch, query, signal, (value) => {
+      const normalized = normalizeText(value).toLowerCase();
+      return commitResults.filter(
+        (commit) =>
+          commit.hash?.toLowerCase().includes(normalized) ||
+          commit.shortHash?.toLowerCase().includes(normalized) ||
+          commit.message?.toLowerCase().includes(normalized)
+      );
+    });
+    const seen = new Set();
+    return found
+      .filter((commit) => {
+        const idKey = `id:${commit.id}`;
+        const hashKey = commit.hash ? `hash:${commit.hash.toLowerCase()}` : null;
+        if (
+          linkedCommitIds.has(String(commit.id)) ||
+          seen.has(idKey) ||
+          (hashKey && seen.has(hashKey))
+        )
+          return false;
+        seen.add(idKey);
+        if (hashKey) seen.add(hashKey);
+        return true;
+      })
+      .slice(0, 20);
+  };
+  const searchIssues = async (query, signal) =>
+    (
+      await searchWithFallback(onIssueSearch, query, signal, (value) => {
+        const normalized = normalizeText(value).toLowerCase();
+        const numeric = normalized.replace(/\D/g, '');
+        return issueResults.filter(
+          (issue) =>
+            (numeric && Number(issue.number) === Number(numeric)) ||
+            issue.title?.toLowerCase().includes(normalized)
+        );
+      })
+    ).filter((issue) => !linkedIssueIds.has(String(issue.id)));
 
   function handleChange(event) {
     onChange(event.target.name, event.target.value);
-  }
-
-  function handleSelectPullRequest(pullRequest) {
-    onSelectPullRequest?.(pullRequest);
-    setPullRequestSearch('');
-  }
-
-  function handleSelectRequirement(requirement) {
-    onSelectRequirement?.(requirement);
-    setRequirementSearch('');
-  }
-
-  function handleSelectCommit(commit) {
-    onSelectCommit?.(commit);
-    setCommitSearch('');
-    onCommitSearchClear?.();
-  }
-
-  function handleCommitSearchClear() {
-    setCommitSearch('');
-    onCommitSearchClear?.();
-    commitSearchInputRef.current?.focus();
-  }
-
-  function handleSelectIssue(issue) {
-    onSelectIssue?.(issue);
-    setIssueSearch('');
   }
 
   return (
@@ -446,10 +359,7 @@ export function TaskForm({
                 <button
                   className="traceability-remove-button"
                   type="button"
-                  onClick={() => {
-                    onClearRequirement?.();
-                    setRequirementSearch('');
-                  }}
+                  onClick={onClearRequirement}
                   aria-label="Remover requisito vinculado"
                   title="Remover requisito"
                 >
@@ -457,29 +367,15 @@ export function TaskForm({
                 </button>
               </div>
             ) : null}
-            <input
-              type="search"
-              value={requirementSearch}
-              onChange={(event) => setRequirementSearch(event.target.value)}
+            <SearchCombobox
+              label="Pesquisar requisito"
               placeholder="Pesquisar requisito por título..."
+              onSearch={searchRequirements}
+              searchErrorMessage="Não foi possível carregar os requisitos."
+              onSelect={onSelectRequirement}
+              getOptionLabel={formatRequirementLabel}
+              disabled={submitting}
             />
-            {requirementSearch.trim().length >= 2 ? (
-              <div className="traceability-results">
-                {availableRequirements.length === 0 ? (
-                  <p>Nenhum requisito encontrado.</p>
-                ) : (
-                  availableRequirements.map((requirement) => (
-                    <button
-                      key={requirement.id}
-                      type="button"
-                      onClick={() => handleSelectRequirement(requirement)}
-                    >
-                      {formatRequirementLabel(requirement)}
-                    </button>
-                  ))
-                )}
-              </div>
-            ) : null}
           </div>
 
           <div className="traceability-picker">
@@ -490,10 +386,7 @@ export function TaskForm({
                 <button
                   className="traceability-remove-button"
                   type="button"
-                  onClick={() => {
-                    onClearPullRequest?.();
-                    setPullRequestSearch('');
-                  }}
+                  onClick={onClearPullRequest}
                   aria-label="Remover pull request vinculado"
                   title="Remover pull request"
                 >
@@ -501,71 +394,33 @@ export function TaskForm({
                 </button>
               </div>
             ) : null}
-            <input
-              type="search"
-              value={pullRequestSearch}
-              onChange={(event) => setPullRequestSearch(event.target.value)}
+            <SearchCombobox
+              label="Pesquisar pull request"
               placeholder="Pesquisar por número ou título do PR..."
+              onSearch={searchPullRequests}
+              searchErrorMessage="Não foi possível carregar os pull requests do projeto."
+              onSelect={onSelectPullRequest}
+              getOptionLabel={formatPullRequestLabel}
+              isQueryValid={(query) => query.length >= 2 || /\d/.test(query)}
+              disabled={submitting}
             />
-            {pullRequestSearch.trim().length >= 2 || /\d/.test(pullRequestSearch) ? (
-              <div className="traceability-results">
-                {availablePullRequests.length === 0 ? (
-                  <p>Nenhum pull request encontrado.</p>
-                ) : (
-                  availablePullRequests.map((pullRequest) => (
-                    <button
-                      key={pullRequest.id}
-                      type="button"
-                      onClick={() => handleSelectPullRequest(pullRequest)}
-                    >
-                      {formatPullRequestLabel(pullRequest)}
-                    </button>
-                  ))
-                )}
-              </div>
-            ) : null}
           </div>
 
           <div className="traceability-picker">
-            <span>Buscar commits do projeto</span>
-            <div className="traceability-search-field">
-              <input
-                ref={commitSearchInputRef}
-                type="search"
-                value={commitSearch}
-                onChange={(event) => setCommitSearch(event.target.value)}
-                placeholder="Pesquisar por SHA ou mensagem..."
-                aria-label="Buscar commits do projeto"
-              />
-              {commitSearch && (
-                <button
-                  className="traceability-search-clear"
-                  type="button"
-                  onClick={handleCommitSearchClear}
-                  aria-label="Limpar busca de commits"
-                  title="Limpar busca"
-                >
-                  ×
-                </button>
-              )}
-            </div>
-            {commitSearch.trim().length >= 2 && (
-              <div className="traceability-results">
-                {availableCommitResults.length === 0 ? (
-                  <p>Nenhum commit encontrado.</p>
-                ) : (
-                  availableCommitResults.map((commit) => (
-                    <button
-                      key={commit.id}
-                      type="button"
-                      onClick={() => handleSelectCommit(commit)}
-                    >
-                      {formatCommitLabel(commit)}
-                    </button>
-                  ))
-                )}
-              </div>
-            )}
+            <SearchCombobox
+              label="Buscar commits do projeto"
+              placeholder="Pesquisar por SHA ou mensagem..."
+              onSearch={searchCommits}
+              searchErrorMessage="Não foi possível carregar os commits do projeto."
+              onSelect={(commit) => {
+                onSelectCommit?.(commit);
+                onCommitSearchClear?.();
+              }}
+              getOptionLabel={formatCommitLabel}
+              queryClearLabel="Limpar busca de commits"
+              onQueryClear={onCommitSearchClear}
+              disabled={submitting}
+            />
           </div>
 
           <CommitSuggestionsCard
@@ -619,25 +474,16 @@ export function TaskForm({
                 ))}
               </div>
             )}
-            <input
-              type="search"
-              value={issueSearch}
-              onChange={(event) => setIssueSearch(event.target.value)}
+            <SearchCombobox
+              label="Pesquisar issues"
               placeholder="Pesquisar issue por número ou título..."
+              onSearch={searchIssues}
+              searchErrorMessage="Não foi possível carregar as issues do projeto."
+              onSelect={onSelectIssue}
+              getOptionLabel={formatIssueLabel}
+              isQueryValid={(query) => query.length >= 2 || /\d/.test(query)}
+              disabled={submitting}
             />
-            {issueSearch.trim().length >= 2 || /\d/.test(issueSearch) ? (
-              <div className="traceability-results">
-                {availableIssueResults.length === 0 ? (
-                  <p>Nenhuma issue encontrada.</p>
-                ) : (
-                  availableIssueResults.map((issue) => (
-                    <button key={issue.id} type="button" onClick={() => handleSelectIssue(issue)}>
-                      {formatIssueLabel(issue)}
-                    </button>
-                  ))
-                )}
-              </div>
-            ) : null}
           </div>
         </section>
       )}

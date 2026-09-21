@@ -135,6 +135,7 @@
 }
 
 .button {
+  min-height: var(--size-touch-target);
   border: 0;
   border-radius: 9px;
   padding: 0.75rem 1rem;
@@ -170,6 +171,7 @@
 }
 
 .button-compact {
+  min-height: var(--size-touch-target);
   padding: 0.45rem 0.75rem;
   font-size: 0.875rem;
 }

@@ -17,6 +17,7 @@ export function SearchCombobox({
   error = '',
   help = '',
   minQueryLength = 2,
+  isQueryValid,
   openOnFocus = true,
   getOptionLabel = defaultLabel,
   isOptionDisabled = neverDisabled,
@@ -24,8 +25,11 @@ export function SearchCombobox({
   onSearch,
   onSelect,
   onClear,
+  queryClearLabel = '',
+  onQueryClear,
   emptyMessage = 'Nenhum resultado encontrado.',
-  loadingMessage = 'Pesquisando...'
+  loadingMessage = 'Pesquisando...',
+  searchErrorMessage = 'Não foi possível concluir a pesquisa.'
 }) {
   const generatedId = useId();
   const inputId = id || `search-combobox-${generatedId}`;
@@ -46,7 +50,9 @@ export function SearchCombobox({
 
   const normalizedOptions = useMemo(() => options || [], [options]);
   const trimmedQuery = query.trim();
-  const hasQuery = trimmedQuery.length >= minQueryLength;
+  const hasQuery = isQueryValid
+    ? isQueryValid(trimmedQuery)
+    : trimmedQuery.length >= minQueryLength;
   const expanded = hasQuery && !dismissed && !disabled && !selectedOption;
   const searchEnabled = hasQuery && !selectedOption && !disabled && (openOnFocus || expanded);
 
@@ -177,9 +183,7 @@ export function SearchCombobox({
         } catch (requestError) {
           if (controller.signal.aborted || request !== requestRef.current) return;
           setResults([]);
-          setSearchError(
-            requestError?.response?.data?.message || 'Não foi possível concluir a pesquisa.'
-          );
+          setSearchError(requestError?.response?.data?.message || searchErrorMessage);
         } finally {
           if (request === requestRef.current && !controller.signal.aborted) setLoading(false);
         }
@@ -198,9 +202,16 @@ export function SearchCombobox({
     hasQuery,
     normalizedOptions,
     onSearch,
+    searchErrorMessage,
     selectedOption,
     trimmedQuery
   ]);
+
+  useLayoutEffect(() => {
+    if (!expanded || activeIndex < 0) return;
+    const activeOption = listRef.current?.querySelectorAll('[role="option"]')?.[activeIndex];
+    activeOption?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  }, [activeIndex, expanded, listboxId]);
 
   function choose(option) {
     if (isOptionDisabled(option)) return;
@@ -376,6 +387,26 @@ export function SearchCombobox({
             }}
             onKeyDown={handleKeyDown}
           />
+
+          {queryClearLabel && query && (
+            <button
+              type="button"
+              className="sprint-combobox-query-clear"
+              aria-label={queryClearLabel}
+              title={queryClearLabel}
+              onClick={() => {
+                requestRef.current += 1;
+                setQuery('');
+                setResults([]);
+                setActiveIndex(-1);
+                setDismissed(true);
+                onQueryClear?.();
+                inputRef.current?.focus();
+              }}
+            >
+              ×
+            </button>
+          )}
 
           {expanded &&
             createPortal(

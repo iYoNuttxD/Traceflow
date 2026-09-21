@@ -1,7 +1,7 @@
 import { ContextualTestCaseCreate, useTestCaseScope } from '../../testCases/index.js';
 import { CollapsibleFilterPanel, SprintActionsMenu, SprintDialog } from '../../schedule/index.js';
 import { membersApi } from '../../members/index.js';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router';
 import {
   deleteRequirement,
@@ -11,8 +11,7 @@ import {
 import {
   getRequirementTaskCoverage,
   getRequirementTraceability,
-  getRequirementsTraceability,
-  TraceabilityWorkspace
+  getRequirementsTraceability
 } from '../../traceability/index.js';
 import { projectsApi } from '../../projects/index.js';
 import { tasksApi } from '../../tasks/index.js';
@@ -33,6 +32,12 @@ import { ProjectSectionNav } from '../../projects/index.js';
 import { RequirementDetails } from '../components/RequirementDetails.jsx';
 import '../../../shared/styles/traceability-controls.css';
 import './RequirementsScreen.css';
+
+const TraceabilityWorkspace = lazy(() =>
+  import('../../traceability/components/TraceabilityWorkspace.jsx').then((module) => ({
+    default: module.TraceabilityWorkspace
+  }))
+);
 
 const emptyRequirementForm = { title: '', description: '', type: 'FUNCIONAL', taskIds: [] };
 const typeLabels = {
@@ -801,18 +806,33 @@ export function RequirementsScreen() {
         />
       )}
       {workspace && (
-        <TraceabilityWorkspace
-          key={workspace.id}
-          requirement={{
-            id: workspace.id,
-            displayId: `REQ-${workspace.id}`,
-            title: workspace.title
-          }}
-          graph={graph}
-          onClose={closeWorkspace}
-          onRetry={() => loadGraph(workspace)}
-          returnFocusRef={workspaceFocus}
-        />
+        <Suspense
+          fallback={
+            <SprintDialog
+              open
+              title={`Rastreabilidade — REQ-${workspace.id}`}
+              description={workspace.title}
+              className="trace-workspace"
+              onClose={closeWorkspace}
+              returnFocusRef={workspaceFocus}
+            >
+              <LoadingState message="Carregando visualização de rastreabilidade..." />
+            </SprintDialog>
+          }
+        >
+          <TraceabilityWorkspace
+            key={workspace.id}
+            requirement={{
+              id: workspace.id,
+              displayId: `REQ-${workspace.id}`,
+              title: workspace.title
+            }}
+            graph={graph}
+            onClose={closeWorkspace}
+            onRetry={() => loadGraph(workspace)}
+            returnFocusRef={workspaceFocus}
+          />
+        </Suspense>
       )}
       <SprintDialog
         open={Boolean(caseRequirement)}

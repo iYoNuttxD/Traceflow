@@ -34,6 +34,32 @@
   position: relative;
 }
 
+.sprint-combobox:has(.sprint-combobox-query-clear) input {
+  padding-right: var(--size-touch-target);
+}
+
+.sprint-combobox-query-clear {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: inline-grid;
+  width: var(--size-touch-target);
+  height: var(--size-touch-target);
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-4);
+}
+
+.sprint-combobox-query-clear:hover {
+  color: var(--color-text-primary);
+  background: var(--color-surface-interactive);
+}
+
 .sprint-combobox-results {
   position: fixed;
   z-index: var(--z-popover);

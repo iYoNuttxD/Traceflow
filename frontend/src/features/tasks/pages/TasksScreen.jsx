@@ -26,7 +26,6 @@ import {
   classifyPageError,
   getErrorRequestId,
   normalizeApiError,
-  useAbortableRequest,
   useConfirm
 } from '../../../shared/index.js';
 import {
@@ -64,10 +63,6 @@ function normalized(value) {
 export function TasksScreen() {
   const confirm = useConfirm();
   const { projectId } = useParams();
-  const { run: runPullRequestSearch, cancel: cancelPullRequestSearch } = useAbortableRequest();
-  const { run: runRequirementSearch, cancel: cancelRequirementSearch } = useAbortableRequest();
-  const { run: runCommitSearch, cancel: cancelCommitSearch } = useAbortableRequest();
-  const { run: runIssueSearch, cancel: cancelIssueSearch } = useAbortableRequest();
   const [project, setProject] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [requirements, setRequirements] = useState([]);
@@ -183,103 +178,79 @@ export function TasksScreen() {
   }, [loadTaskData, projectId]);
 
   const searchPullRequests = useCallback(
-    async (search) => {
-      try {
-        const response = await runPullRequestSearch((signal) =>
-          getProjectPullRequests(projectId, { search }, { signal })
-        );
-        if (!response) return;
-        setPullRequests(response.pullRequests || []);
-        setPullRequestOptions((current) => {
-          const next = [...current];
-          for (const pullRequest of response.pullRequests || []) {
-            if (!next.some((item) => String(item.id) === String(pullRequest.id))) {
-              next.push(pullRequest);
-            }
+    async (search, signal) => {
+      const response = await getProjectPullRequests(projectId, { search }, { signal });
+      const found = response.pullRequests || [];
+      setPullRequests(found);
+      setPullRequestOptions((current) => {
+        const next = [...current];
+        for (const pullRequest of found) {
+          if (!next.some((item) => String(item.id) === String(pullRequest.id))) {
+            next.push(pullRequest);
           }
-          return next;
-        });
-      } catch (requestError) {
-        setError(
-          getErrorMessage(requestError, 'Não foi possível carregar os pull requests do projeto.')
-        );
-      }
+        }
+        return next;
+      });
+      return found;
     },
-    [projectId, runPullRequestSearch]
+    [projectId]
   );
 
   const searchRequirements = useCallback(
-    async (search) => {
-      try {
-        const response = await runRequirementSearch((signal) =>
-          requirementsApi.listByProject(projectId, { search }, { signal })
-        );
-        if (!response) return;
-        const found = response.data.requirements || [];
-        setRequirements(found);
-        setRequirementOptions((current) => {
-          const next = [...current];
-          for (const requirement of found) {
-            if (!next.some((item) => String(item.id) === String(requirement.id))) {
-              next.push(requirement);
-            }
+    async (search, signal) => {
+      const response = await requirementsApi.listByProject(projectId, { search }, { signal });
+      const found = response.data.requirements || [];
+      setRequirements(found);
+      setRequirementOptions((current) => {
+        const next = [...current];
+        for (const requirement of found) {
+          if (!next.some((item) => String(item.id) === String(requirement.id))) {
+            next.push(requirement);
           }
-          return next;
-        });
-      } catch (requestError) {
-        setError(getErrorMessage(requestError, 'Não foi possível carregar os requisitos.'));
-      }
+        }
+        return next;
+      });
+      return found;
     },
-    [projectId, runRequirementSearch]
+    [projectId]
   );
 
   const searchCommits = useCallback(
-    async (search) => {
-      try {
-        const response = await runCommitSearch((signal) =>
-          getProjectCommits(projectId, { search }, { signal })
-        );
-        if (!response) return;
-        setCommitResults(response.commits || []);
-        setCommitOptions((current) => {
-          const next = [...current];
-          for (const commit of response.commits || []) {
-            if (!next.some((item) => String(item.id) === String(commit.id))) next.push(commit);
-          }
-          return next;
-        });
-      } catch (requestError) {
-        setError(getErrorMessage(requestError, 'Não foi possível carregar os commits do projeto.'));
-      }
+    async (search, signal) => {
+      const response = await getProjectCommits(projectId, { search }, { signal });
+      const found = response.commits || [];
+      setCommitResults(found);
+      setCommitOptions((current) => {
+        const next = [...current];
+        for (const commit of found) {
+          if (!next.some((item) => String(item.id) === String(commit.id))) next.push(commit);
+        }
+        return next;
+      });
+      return found;
     },
-    [projectId, runCommitSearch]
+    [projectId]
   );
 
   const clearCommitSearch = useCallback(() => {
-    cancelCommitSearch();
     setCommitResults([]);
-  }, [cancelCommitSearch]);
+  }, []);
 
   const searchIssues = useCallback(
-    async (search) => {
-      try {
-        const response = await runIssueSearch((signal) =>
-          getProjectIssues(projectId, { search }, { signal })
-        );
-        if (!response) return;
-        setIssueResults(response.issues || []);
-        setIssueOptions((current) => {
-          const next = [...current];
-          for (const issue of response.issues || []) {
-            if (!next.some((item) => String(item.id) === String(issue.id))) next.push(issue);
-          }
-          return next;
-        });
-      } catch (requestError) {
-        setError(getErrorMessage(requestError, 'Não foi possível carregar as issues do projeto.'));
-      }
+    async (search, signal) => {
+      const response = await getProjectIssues(projectId, { search }, { signal });
+      const found = response.issues || [];
+      setIssueResults(found);
+      setIssueOptions((current) => {
+        const next = [...current];
+        for (const issue of found) {
+          if (!next.some((item) => String(item.id) === String(issue.id))) next.push(issue);
+        }
+        return next;
+      });
+      return found;
     },
-    [projectId, runIssueSearch]
+    [projectId]
   );
 
   function handleFormChange(name, value) {
@@ -338,10 +309,6 @@ export function TasksScreen() {
 
   function closeForm() {
     if (submitting) return;
-    cancelPullRequestSearch();
-    cancelRequirementSearch();
-    cancelCommitSearch();
-    cancelIssueSearch();
     setFormOpen(false);
     setEditingTaskId(null);
     setFormData(emptyTaskForm);
