@@ -1,16 +1,22 @@
+.page-header:has(> .project-section-tabs) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  justify-content: stretch;
+  gap: var(--space-6);
+}
+
+.page-header > .project-section-tabs {
+  width: 100%;
+  max-width: 100%;
+}
+
 .project-section-tabs {
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: thin;
   align-items: stretch;
   min-height: calc(3rem + var(--border-width-default));
-}
-@media (max-width: 720px) {
-  .project-section-tabs {
-    margin-right: calc(var(--space-4) * -1);
-    margin-left: calc(var(--space-4) * -1);
-    padding: 0 var(--space-4);
-  }
 }
 
 .project-section-tabs .internal-tab--active::after {
