@@ -770,3 +770,13 @@ Inspectors reutilizam DetailSurface por seção. Task Details no grafo reutiliza
 conteúdo canônico, incluindo esforço e comentários; sessões permanecem dentro do
 mesmo workspace. Evidência e limites na seção FINAL UI/PARITY CORRECTIONS do
 [relatório da Etapa 5](../deliveries/S1_09_TRACEABILITY_GRAPH_WORKSPACE_UX_REPORT.md).
+
+## E-mails transacionais
+
+Os templates transacionais usam `backend/src/shared/email/email.layout.js` como
+layout único, inspirado na paleta C2 sem importar CSS ou assets do frontend. O HTML
+prioriza tabelas de apresentação, estilos inline, largura máxima de 600px, CTA com
+link real, fallback textual da URL e versão `text` completa. Conteúdo dinâmico é
+escapado, URLs aceitam somente HTTP/HTTPS e datas são apresentadas em `pt-BR` com
+timezone UTC explícito. O preview local é gerado em diretório temporário por
+`npm run email:preview --prefix backend`, sem envio SMTP.
