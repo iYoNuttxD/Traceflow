@@ -163,9 +163,9 @@ describe('SearchCombobox', () => {
     await act(() => vi.advanceTimersByTimeAsync(300));
     expect(screen.getByRole('option', { name: 'Marco inicial' })).toBeInTheDocument();
   });
-  it('keeps the list anchored inside its field during scroll and resize', async () => {
+  it('portals the list as a fixed overlay and updates its anchor on scroll and resize', async () => {
     render(
-      <section role="dialog">
+      <section>
         <div data-testid="body">
           <SearchCombobox
             label="Referência"
@@ -178,24 +178,92 @@ describe('SearchCombobox', () => {
       </section>
     );
     const input = screen.getByRole('combobox');
+    let triggerRect = {
+      left: 100,
+      right: 340,
+      top: 100,
+      bottom: 144,
+      width: 240,
+      height: 44,
+      x: 100,
+      y: 100,
+      toJSON: () => ({})
+    };
+    vi.spyOn(input, 'getBoundingClientRect').mockImplementation(() => triggerRect);
     fireEvent.click(input);
     await act(() => vi.advanceTimersByTimeAsync(300));
     let list = screen.getByRole('listbox');
-    expect(list.parentElement).toBe(input.parentElement);
-    expect(list.style.position).not.toBe('fixed');
+    expect(list.parentElement).toBe(document.body);
+    expect(list).toHaveStyle({ left: '100px', top: '148px', width: '240px' });
+    expect(list).toHaveAttribute('data-placement', 'below');
     expect(fireEvent.mouseDown(list)).toBe(true);
     expect(fireEvent.mouseDown(screen.getAllByRole('option')[0])).toBe(false);
     fireEvent.scroll(list);
     expect(screen.getByRole('listbox')).toBeInTheDocument();
+    triggerRect = { ...triggerRect, left: 80, right: 320, x: 80 };
     fireEvent.scroll(screen.getByTestId('body'));
-    expect(screen.getByRole('listbox')).toBeInTheDocument();
+    expect(screen.getByRole('listbox')).toHaveStyle({ left: '80px' });
     fireEvent.click(input);
     await act(() => vi.advanceTimersByTimeAsync(300));
+    triggerRect = { ...triggerRect, left: 60, right: 300, x: 60 };
     fireEvent.resize(window);
-    expect(screen.getByRole('listbox')).toBeInTheDocument();
+    expect(screen.getByRole('listbox')).toHaveStyle({ left: '60px' });
     fireEvent.click(input);
     await act(() => vi.advanceTimersByTimeAsync(300));
     fireEvent.pointerDown(document.body);
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+  });
+
+  it('opens above the trigger when the viewport has more space there', async () => {
+    render(
+      <SearchCombobox
+        label="Tarefa relacionada"
+        minQueryLength={0}
+        openOnFocus={false}
+        options={options}
+        onSelect={vi.fn()}
+      />
+    );
+    const input = screen.getByRole('combobox');
+    vi.spyOn(input, 'getBoundingClientRect').mockReturnValue({
+      left: 100,
+      right: 340,
+      top: 750,
+      bottom: 794,
+      width: 240,
+      height: 44,
+      x: 100,
+      y: 750,
+      toJSON: () => ({})
+    });
+    fireEvent.click(input);
+    await act(() => vi.advanceTimersByTimeAsync(300));
+    const list = screen.getByRole('listbox');
+    Object.defineProperty(list, 'scrollHeight', { configurable: true, value: 180 });
+    fireEvent.resize(window);
+    expect(list).toHaveAttribute('data-placement', 'above');
+    expect(Number.parseFloat(list.style.top)).toBeLessThan(750);
+  });
+
+  it('keeps a dialog popover in the modal tree without joining form flow', async () => {
+    render(
+      <div data-testid="backdrop">
+        <section role="dialog">
+          <SearchCombobox
+            label="Responsável"
+            minQueryLength={0}
+            openOnFocus={false}
+            options={options}
+            onSelect={vi.fn()}
+          />
+        </section>
+      </div>
+    );
+    fireEvent.click(screen.getByRole('combobox'));
+    await act(() => vi.advanceTimersByTimeAsync(300));
+    expect(screen.getByRole('listbox').parentElement).toBe(screen.getByRole('dialog'));
+    expect(screen.getByRole('listbox').parentElement).not.toBe(
+      screen.getByRole('combobox').parentElement
+    );
   });
 });

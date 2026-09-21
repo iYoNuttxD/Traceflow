@@ -659,10 +659,11 @@ controle, nunca à altura variável da linha do formulário.
 Entidades usam `SearchCombobox`; responsáveis usam o adaptador `ResponsibleCombobox`.
 A lista começa fechada e abre por clique, digitação ou teclado. Selecionar, Escape,
 saída de foco ou clique externo fecha a lista. A seleção é explícita; respostas
-obsoletas não substituem o contexto atual. A lista fica abaixo do campo **no fluxo
-normal do container**, com altura limitada e rolagem própria. Não usar portal fixo
-nem lista absoluta sobre ações: o corpo do dialog deve acomodar os resultados sem
-encobrir o rodapé. Rótulos continuam visíveis e placeholders descrevem a pesquisa.
+obsoletas não substituem o contexto atual. A lista abre visualmente abaixo do campo
+como popover fixo, com altura limitada e rolagem própria, sem alterar a altura do
+formulário. O popover usa portal para escapar de recortes, preserva o contexto de
+empilhamento de dialogs, acompanha scroll/resize e abre acima quando não houver espaço
+abaixo. Rótulos continuam visíveis e placeholders descrevem a pesquisa.
 
 Responsáveis elegíveis são filtrados pelo contrato; não exibir o sufixo “ativo” nas
 opções. Um valor histórico já selecionado permanece legível. Obrigatoriedade vem do

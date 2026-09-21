@@ -1,5 +1,6 @@
 import './SearchCombobox.css';
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 const defaultLabel = (option) => option?.title || option?.name || String(option?.id || '');
 const EMPTY_OPTIONS = Object.freeze([]);
@@ -41,6 +42,7 @@ export function SearchCombobox({
   const [searchError, setSearchError] = useState('');
   const [activeIndex, setActiveIndex] = useState(-1);
   const [dismissed, setDismissed] = useState(true);
+  const [popoverPosition, setPopoverPosition] = useState(null);
 
   const normalizedOptions = useMemo(() => options || [], [options]);
   const trimmedQuery = query.trim();
@@ -59,6 +61,92 @@ export function SearchCombobox({
     document.addEventListener('pointerdown', outside, true);
     return () => document.removeEventListener('pointerdown', outside, true);
   }, [expanded]);
+
+  useLayoutEffect(() => {
+    if (!expanded) {
+      setPopoverPosition(null);
+      return undefined;
+    }
+
+    const place = () => {
+      const trigger = inputRef.current;
+      const popover = listRef.current;
+      if (!trigger || !popover) return;
+
+      const triggerRect = trigger.getBoundingClientRect();
+      const rootFontSize =
+        Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      const gap = rootFontSize * 0.25;
+      const viewportGutter = rootFontSize * 0.5;
+      const dialogRect = fieldRef.current?.closest('[role="dialog"]')?.getBoundingClientRect();
+      const hasDialogBoundary = dialogRect && dialogRect.width > 0 && dialogRect.height > 0;
+      const boundaryTop = hasDialogBoundary
+        ? Math.max(viewportGutter, dialogRect.top + viewportGutter)
+        : viewportGutter;
+      const boundaryRight = hasDialogBoundary
+        ? Math.min(window.innerWidth - viewportGutter, dialogRect.right - viewportGutter)
+        : window.innerWidth - viewportGutter;
+      const boundaryBottom = hasDialogBoundary
+        ? Math.min(window.innerHeight - viewportGutter, dialogRect.bottom - viewportGutter)
+        : window.innerHeight - viewportGutter;
+      const boundaryLeft = hasDialogBoundary
+        ? Math.max(viewportGutter, dialogRect.left + viewportGutter)
+        : viewportGutter;
+      const preferredMaxHeight = Math.min(rootFontSize * 18, window.innerHeight * 0.4);
+      const contentHeight = Math.min(
+        popover.scrollHeight || rootFontSize * 2.75,
+        preferredMaxHeight
+      );
+      const spaceBelow = Math.max(0, boundaryBottom - triggerRect.bottom - gap);
+      const spaceAbove = Math.max(0, triggerRect.top - gap - boundaryTop);
+      const placement = spaceBelow < contentHeight && spaceAbove > spaceBelow ? 'above' : 'below';
+      const availableHeight = placement === 'above' ? spaceAbove : spaceBelow;
+      const maxHeight = Math.min(preferredMaxHeight, availableHeight);
+      const popoverHeight = Math.min(contentHeight, maxHeight);
+      const maxLeft = Math.max(boundaryLeft, boundaryRight - triggerRect.width);
+      const left = Math.max(boundaryLeft, Math.min(triggerRect.left, maxLeft));
+      const top =
+        placement === 'above'
+          ? Math.max(boundaryTop, triggerRect.top - gap - popoverHeight)
+          : triggerRect.bottom + gap;
+      const nextPosition = {
+        left,
+        top,
+        width: triggerRect.width,
+        maxHeight,
+        placement
+      };
+
+      setPopoverPosition((current) =>
+        current &&
+        current.left === nextPosition.left &&
+        current.top === nextPosition.top &&
+        current.width === nextPosition.width &&
+        current.maxHeight === nextPosition.maxHeight &&
+        current.placement === nextPosition.placement
+          ? current
+          : nextPosition
+      );
+    };
+
+    place();
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    const observer =
+      typeof ResizeObserver === 'undefined'
+        ? null
+        : new ResizeObserver(() => {
+            place();
+          });
+    observer?.observe(inputRef.current);
+    observer?.observe(listRef.current);
+
+    return () => {
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+      observer?.disconnect();
+    };
+  }, [expanded, loading, results, searchError]);
 
   useEffect(() => {
     requestRef.current += 1;
@@ -173,6 +261,17 @@ export function SearchCombobox({
       id={listboxId}
       className="sprint-combobox-results"
       role="listbox"
+      data-placement={popoverPosition?.placement}
+      style={
+        popoverPosition
+          ? {
+              left: popoverPosition.left,
+              top: popoverPosition.top,
+              width: popoverPosition.width,
+              maxHeight: popoverPosition.maxHeight
+            }
+          : { visibility: 'hidden' }
+      }
       onMouseDown={(event) => {
         if (event.target.closest('[role="option"]')) event.preventDefault();
       }}
@@ -278,7 +377,11 @@ export function SearchCombobox({
             onKeyDown={handleKeyDown}
           />
 
-          {expanded && resultsList}
+          {expanded &&
+            createPortal(
+              resultsList,
+              fieldRef.current?.closest('[role="dialog"]') || document.body
+            )}
         </div>
       )}
 

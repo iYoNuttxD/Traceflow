@@ -635,7 +635,7 @@ entradas anteriores, sem reclassificar retrospectivamente seus gates. Matriz de
 | DEF catálogo / filtros / Details / form | tiles Planning / controles comuns / superfícies comuns | PASS nos oito recortes; contexto histórico e resultado esperado |
 | DEF correção / validação / histórico | subviews diretas / ExecutionSummary / HistoryEventRow | PASS nos oito recortes; tarefa atual e espera por reteste |
 | Histórico Task e TC | família existente; SelectControl no filtro Task | comparação adicional desktop/mobile Light/Dark |
-| Busca de entidades em Planning e execução | SearchCombobox no fluxo do dialog | busca de Marco, tarefas e referência testada observada; resultados sem seleção implícita |
+| Busca de entidades em Planning e execução | SearchCombobox em popover sobreposto | busca de Marco, tarefas e referência testada observada; resultados sem seleção implícita e sem layout shift |
 
 Aprovação visual refere-se aos estados carregados/draft/cancelar descritos no
 relatório. Erro remoto, concorrência, VIEWER e submit são cobertos por automação,
