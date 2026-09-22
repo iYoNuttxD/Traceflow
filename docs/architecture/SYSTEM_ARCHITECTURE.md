@@ -144,15 +144,17 @@ não mantém aliases concorrentes.
 
 Durante a carência de exclusão, a integração permanece no projeto e sua unicidade continua
 reservando o repositório. Descoberta/criação distingue OWNER com um DTO mínimo recuperável de
-usuário não OWNER com resposta neutra. Sync revalida `Project.deletedAt` no início, em cada etapa
-paginada e antes dos estados terminais; handlers de webhook que alteram integrações filtram projetos
+usuário não OWNER com resposta neutra. Sync revalida `Project.deletedAt` no início e, sob lock do
+Project na mesma transação de cada lote de escrita, antes dos upserts de branches, commits, pull
+requests e issues e dos estados terminais. Handlers de webhook que alteram integrações filtram projetos
 ativos. O purge remove a integração e os artefatos do projeto, mas não a Installation nem suas
 autorizações, pois essas entidades podem ser compartilhadas.
 
 ## Assíncronos e concorrência
 
-O lifecycle de exclusão usa claims condicionais persistidos em `Project.purgeStartedAt`. Delete,
-restore, purge manual e workers concorrentes só avançam quando o estado esperado ainda existe;
+O lifecycle de exclusão usa `Project.purgeStartedAt` e um `purgeClaimId` de fencing persistido.
+Delete, restore e purge manual tomam o lock do Project antes do lock da membership relevante e
+revalidam OWNER dentro da transação. Workers concorrentes só avançam quando possuem o token atual;
 claims de job abandonados tornam-se retomáveis após a janela de stale documentada. O processor
 recebe relógio explícito, não usa sleeps e considera devido `deletionScheduledFor <= now`.
 
@@ -188,16 +190,18 @@ reconciliação, backup, guard e roll-forward. Scripts de recovery ligados a sch
 exigem o checkout/schema correspondente e não pertencem ao runtime.
 
 `Project` possui `deletedAt`, `deletionScheduledFor`, `deletedById` (`SetNull`) e o claim interno
-`purgeStartedAt`. Soft delete é uma atualização transacional com revogação de convites; filhos e
+`purgeStartedAt`/`purgeClaimId`. Soft delete é uma atualização transacional com revogação de convites; filhos e
 memberships não recebem flags duplicadas. O purge trata primeiro as relações `Restrict` auditadas e
 então deixa os cascades do schema eliminarem o restante do grafo. `AuditEvent.projectId` usa
 `SetNull`, preservando o evento transversal conforme sua retenção.
 
 MySQL e filesystem não têm atomicidade conjunta. Antes do delete relacional, cada `TestEvidence`
 é movida para uma chave privada de purge e registrada em `ProjectPurgeStorageCleanup`, journal sem
-FK que sobrevive ao Project. Se o banco falhar, a compensação restaura os bytes; se o delete do
-banco concluir e a remoção física falhar, o journal permanece para retry idempotente. O processor
-recorrente também reconcilia itens pendentes. Não há varredura ampla de diretório: somente UUIDs
+FK que sobrevive ao Project. Staging, compensação e mudança de estado do journal exigem o claim
+atual sob lock do Project. Se o banco falhar, a compensação restaura os bytes; se o delete do
+banco concluir e a remoção física falhar, o journal READY permanece para retry idempotente.
+O processor recorrente reconcilia apenas entradas READY reclamáveis, sem tocar em staging ativo.
+Não há varredura ampla de diretório: somente UUIDs
 validados e explicitamente registrados são movidos ou removidos.
 
 ## CI e operação

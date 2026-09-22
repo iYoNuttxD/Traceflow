@@ -339,6 +339,7 @@ model Project {
   deletionScheduledFor           DateTime?
   deletedById                    Int?
   purgeStartedAt                 DateTime?
+  purgeClaimId                   String?                               @db.VarChar(36)
   deletedBy                      User?                                 @relation("ProjectDeleter", fields: [deletedById], references: [id], onDelete: SetNull)
 
   requirements           Requirement[]
@@ -368,6 +369,7 @@ model Project {
   @@index([deletionScheduledFor])
   @@index([deletedById])
   @@index([purgeStartedAt])
+  @@index([purgeClaimId])
 }
 
 // Journal operacional sem FK para reconciliar bytes privados quando o purge do
@@ -378,6 +380,8 @@ model ProjectPurgeStorageCleanup {
   storageKey String   @unique @db.VarChar(100)
   purgeKey   String   @unique @db.VarChar(100)
   status     String   @default("PENDING") @db.VarChar(24)
+  claimToken String?  @db.VarChar(36)
+  claimedAt  DateTime?
   attempts   Int      @default(0)
   lastError  String?  @db.VarChar(191)
   createdAt  DateTime @default(now())
@@ -385,6 +389,7 @@ model ProjectPurgeStorageCleanup {
 
   @@index([projectId, status])
   @@index([status, updatedAt])
+  @@index([status, claimToken, claimedAt])
 }
 
 model GitHubInstallation {

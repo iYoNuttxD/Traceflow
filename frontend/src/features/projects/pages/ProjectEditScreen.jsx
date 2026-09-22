@@ -114,7 +114,7 @@ export function ProjectEditScreen() {
         setFormData(toFormData(response.data.project));
         setSuccess(response.data.message);
       }
-      await refreshProjects();
+      await refreshProjects({ fresh: true });
     } catch (requestError) {
       if (routeProjectIdRef.current === requestedProjectId) {
         const normalized = normalizeApiError(requestError, 'Não foi possível atualizar o projeto.');
@@ -145,7 +145,7 @@ export function ProjectEditScreen() {
     setError('');
     try {
       await projectsApi.requestDeletion(project.id);
-      await refreshProjects();
+      void refreshProjects({ mutation: { type: 'DELETED', projectId: project.id } });
       navigate('/projects?projectDeletion=scheduled', { replace: true });
     } catch (requestError) {
       const normalized = normalizeApiError(requestError, 'Não foi possível excluir o projeto.');

@@ -21,7 +21,9 @@ canonical documents listed in the request.
 
 `Project` now records `deletedAt`, `deletionScheduledFor`, `deletedById` and the
 `deletedBy` relation with `onDelete: SetNull`. `purgeStartedAt` is an internal,
-nullable claim used to serialize competing purge workers. Indexes cover the active/
+nullable claim timestamp; the incremental follow-up migration
+`20260922010000_project_purge_fencing` adds `purgeClaimId` and journal
+`claimToken`/`claimedAt` for worker fencing. Indexes cover the active/
 deleted boundary and due-deletion scan.
 
 Migration `20260921010000_project_deletion_retention` is additive. It also creates
@@ -80,8 +82,8 @@ deadline. `backend/scripts/process-project-deletions.js` is idempotent, dry-run 
 default and is intended for scheduling by cron/CI/infra; `--apply` performs the due
 work. No scheduler infrastructure was invented in the application process.
 
-An atomic claim prevents concurrent purge workers. Restore rejects a Project already
-claimed for purge, stale claims can be retried, and repeated purge calls become a
+An atomic token claim fences concurrent purge workers. Restore rejects a Project already
+claimed for purge, stale claims can be retried with a new token, and repeated purge calls become a
 controlled no-op. Explicit repository deletion order covers restrictive test,
 execution, defect, task and history relations before the Project row; cascade-backed
 relations were audited rather than assumed.
@@ -93,9 +95,10 @@ private evidence object to a deterministic `.purge` staging key. If the database
 transaction fails, staged bytes are restored. After database success, staged bytes
 are removed and the durable cleanup journal is marked complete.
 
-If final filesystem removal fails after the database commit, the journal keeps the
-explicit storage key and error for an idempotent retry. Reconciliation runs before
-new purge batches. Storage methods accept only validated UUID-based keys and never
+If final filesystem removal fails after the database commit, the READY journal keeps the
+explicit storage key and error for an idempotent retry. Reconciliation handles only
+claimable READY entries, never active staging from another worker. Physical deletion and journal
+removal are serialized under the journal-row lock. Storage methods accept only validated UUID-based keys and never
 use a broad directory or unresolved path. This design does not claim transactionality
 between MySQL and the filesystem.
 

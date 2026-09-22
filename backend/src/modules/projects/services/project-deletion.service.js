@@ -39,6 +39,13 @@ function throwOutcome(outcome, operation) {
       ERROR_CODES.PROJECT_ALREADY_DELETED
     );
   }
+  if (outcome === 'INVALID_CONFIRMATION') {
+    throw operationalError(
+      'Digite exatamente o nome do projeto para confirmar.',
+      400,
+      ERROR_CODES.PROJECT_DELETION_CONFIRMATION_INVALID
+    );
+  }
   throw operationalError(
     'O projeto está sendo processado por outra operação.',
     409,
@@ -67,15 +74,11 @@ export function createProjectDeletionService({
   storage = testEvidenceStorage,
   log = logger
 } = {}) {
-  async function reconcileStorageItem(item) {
+  async function reconcileStorageItem(item, token) {
     try {
-      const project = await repository.projectExists(item.projectId);
-      if (project) await storage.restoreFromPurge(item.storageKey, item.purgeKey);
-      else await storage.deletePurged(item.storageKey, item.purgeKey);
-      await repository.completeStorageCleanup(item.id);
-      return true;
+      return await repository.cleanupReadyStorageItem(item.id, token, storage);
     } catch (error) {
-      await repository.failStorageCleanup(item.id, safeFailureCode(error));
+      await repository.failStorageCleanup(item.id, token, safeFailureCode(error));
       log.error('Falha ao reconciliar evidência de projeto.', {
         event: 'project_purge_storage_cleanup_failed',
         projectId: item.projectId,
@@ -85,34 +88,28 @@ export function createProjectDeletionService({
     }
   }
 
-  async function purgeClaimedProject(projectId, { actorUserId = null } = {}) {
-    const staged = [];
+  async function purgeClaimedProject(
+    projectId,
+    token,
+    { actorUserId = null, now = new Date() } = {}
+  ) {
+    let prepared = [];
     try {
-      const existingJournal = (await repository.pendingStorageCleanup()).filter(
-        (item) => item.projectId === projectId
-      );
-      for (const item of existingJournal) {
-        if (!(await reconcileStorageItem(item))) {
-          throw operationalError(
-            'A limpeza de evidências anterior ainda precisa ser reconciliada.',
-            503,
-            ERROR_CODES.CONFIGURATION_ERROR
-          );
-        }
-      }
       const evidence = await repository.evidence(projectId);
       const cleanupItems = evidence.map(({ storageKey }) => ({
         storageKey,
         purgeKey: randomUUID()
       }));
-      await repository.prepareStorageCleanup(projectId, cleanupItems);
-      for (const item of cleanupItems) {
-        const status = await storage.stageForPurge(item.storageKey, item.purgeKey);
-        await repository.markStorageStaged(item.storageKey, status);
-        staged.push(item);
+      prepared = await repository.prepareStorageCleanup(projectId, token, cleanupItems, now);
+      if (!prepared) throwOutcome('CONFLICT', 'delete');
+      for (const item of prepared) {
+        if (!(await repository.stageStorageItem(projectId, token, item, storage))) {
+          throwOutcome('CONFLICT', 'delete');
+        }
       }
       const deleted = await repository.deleteProjectGraph(
         projectId,
+        token,
         buildAuditEvent({
           actorUserId,
           actorType: actorUserId ? 'USER' : 'SYSTEM',
@@ -126,9 +123,9 @@ export function createProjectDeletionService({
       if (!deleted)
         throw operationalError('Projeto não encontrado.', 404, ERROR_CODES.PROJECT_NOT_FOUND);
     } catch (error) {
-      for (const item of staged.toReversed()) {
+      for (const item of prepared.toReversed()) {
         try {
-          await storage.restoreFromPurge(item.storageKey, item.purgeKey);
+          await repository.restoreStorageItem(projectId, token, item, storage);
         } catch (restoreError) {
           log.error('Falha ao restaurar evidência após purge interrompido.', {
             event: 'project_purge_storage_restore_failed',
@@ -137,15 +134,15 @@ export function createProjectDeletionService({
           });
         }
       }
-      await repository.releasePurge(projectId);
+      await repository.releasePurge(projectId, token);
       throw error;
     }
 
-    const journal = (await repository.pendingStorageCleanup()).filter(
-      (item) => item.projectId === projectId
-    );
+    const journal = await repository.pendingStorageCleanup({ projectId, readyOnly: true });
     let storageFailures = 0;
-    for (const item of journal) if (!(await reconcileStorageItem(item))) storageFailures += 1;
+    for (const item of journal) {
+      if (!(await reconcileStorageItem(item, token))) storageFailures += 1;
+    }
     return { purged: true, storageFailures };
   }
 
@@ -192,21 +189,13 @@ export function createProjectDeletionService({
 
     async purge(projectId, actorUserId, confirmationName, { now = new Date() } = {}) {
       const id = parseProjectId(projectId);
-      const context = await repository.context(id, actorUserId);
-      if (!context?.deletedAt) throw resourceNotFoundError('Project');
-      const membership = context.memberships[0];
-      if (!membership) throw resourceNotFoundError('Project');
-      if (membership.role !== 'OWNER') throwOutcome('FORBIDDEN', 'delete');
-      if (confirmationName !== context.name) {
-        throw operationalError(
-          'Digite exatamente o nome do projeto para confirmar.',
-          400,
-          ERROR_CODES.PROJECT_DELETION_CONFIRMATION_INVALID
-        );
-      }
-      const claimed = await repository.claimPurge(id, now);
-      if (claimed.count !== 1) throwOutcome('CONFLICT', 'delete');
-      return purgeClaimedProject(id, { actorUserId, now });
+      const claimed = await repository.claimPurge(id, now, {
+        userId: actorUserId,
+        confirmationName,
+        staleBefore: new Date(now.getTime() - PROJECT_PURGE_STALE_AFTER_MS)
+      });
+      if (claimed.outcome !== 'CLAIMED') throwOutcome(claimed.outcome, 'delete');
+      return purgeClaimedProject(id, claimed.token, { actorUserId, now });
     },
 
     async processDue({ now = new Date(), dryRun = true } = {}) {
@@ -220,8 +209,8 @@ export function createProjectDeletionService({
             dueOnly: true,
             staleBefore: new Date(now.getTime() - PROJECT_PURGE_STALE_AFTER_MS)
           });
-          if (claimed.count !== 1) continue;
-          await purgeClaimedProject(id, { now });
+          if (claimed.outcome !== 'CLAIMED') continue;
+          await purgeClaimedProject(id, claimed.token, { now });
           processed += 1;
         } catch (error) {
           failed += 1;
@@ -232,9 +221,16 @@ export function createProjectDeletionService({
           });
         }
       }
-      const pending = await repository.pendingStorageCleanup();
+      const pending = await repository.pendingStorageCleanup({ readyOnly: true });
       let storageRecovered = 0;
-      for (const item of pending) if (await reconcileStorageItem(item)) storageRecovered += 1;
+      for (const item of pending) {
+        const token = await repository.claimReadyStorageCleanup(
+          item.id,
+          now,
+          new Date(now.getTime() - PROJECT_PURGE_STALE_AFTER_MS)
+        );
+        if (token && (await reconcileStorageItem(item, token))) storageRecovered += 1;
+      }
       return { mode: 'apply', count: due.length, processed, failed, storageRecovered };
     },
 

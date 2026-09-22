@@ -4,6 +4,7 @@ import {
   reconcileRequirements
 } from './requirement-reconciliation.repository.js';
 import { prisma } from '../../database/prismaClient.js';
+import { withActiveProjectWrite } from '../projects/active-project-write.js';
 import { auditRepository } from '../audit/audit.repository.js';
 
 const suggestionSelect = {
@@ -54,7 +55,9 @@ export const commitSuggestionRepository = {
 
   createMany(suggestions) {
     if (suggestions.length === 0) return { count: 0 };
-    return prisma.taskCommitSuggestion.createMany({ data: suggestions, skipDuplicates: true });
+    return withActiveProjectWrite(suggestions[0].projectId, (tx) =>
+      tx.taskCommitSuggestion.createMany({ data: suggestions, skipDuplicates: true })
+    );
   },
 
   findCommitPage(projectId, { cursor, take }) {

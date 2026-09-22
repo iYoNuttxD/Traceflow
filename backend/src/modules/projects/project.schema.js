@@ -28,6 +28,7 @@ export function publicProject(project) {
   delete data.deletedById;
   delete data.deletedBy;
   delete data.purgeStartedAt;
+  delete data.purgeClaimId;
   if (githubIntegration) {
     data.githubIntegration = {
       status: githubIntegration.status,

@@ -22,10 +22,21 @@ export function ProjectsCatalogProvider({ children }) {
   const initialRequestStartedRef = useRef(false);
   const hasLoadedRef = useRef(false);
   const latestRequestIdRef = useRef(0);
+  const confirmedMutationsRef = useRef(new Map());
 
-  const refreshProjects = useCallback(async () => {
+  const refreshProjects = useCallback(async ({ fresh = false, mutation = null } = {}) => {
     const requestId = ++latestRequestIdRef.current;
     const initialLoad = !hasLoadedRef.current;
+
+    if (mutation?.projectId && ['DELETED', 'RESTORED', 'PURGED'].includes(mutation.type)) {
+      confirmedMutationsRef.current.set(mutation.projectId, mutation.type);
+      if (mutation.type !== 'RESTORED') {
+        setProjects((current) => current.filter(({ id }) => id !== mutation.projectId));
+      }
+      if (mutation.type !== 'DELETED') {
+        setDeletedProjects((current) => current.filter(({ id }) => id !== mutation.projectId));
+      }
+    }
 
     if (mountedRef.current) {
       setLoading(initialLoad);
@@ -34,19 +45,35 @@ export function ProjectsCatalogProvider({ children }) {
     }
 
     try {
-      const response = await projectsApi.list();
-      const accessibleProjects = Array.isArray(response.data?.projects)
-        ? response.data.projects
-        : [];
-      const recoverableProjects = Array.isArray(response.data?.deletedProjects)
+      const response = await projectsApi.list({ fresh: fresh || Boolean(mutation) });
+      const receivedProjects = Array.isArray(response.data?.projects) ? response.data.projects : [];
+      const receivedDeletedProjects = Array.isArray(response.data?.deletedProjects)
         ? response.data.deletedProjects
         : [];
       if (mountedRef.current && requestId === latestRequestIdRef.current) {
+        const accessibleProjects = receivedProjects.filter(
+          ({ id }) => !['DELETED', 'PURGED'].includes(confirmedMutationsRef.current.get(id))
+        );
+        const recoverableProjects = receivedDeletedProjects.filter(
+          ({ id }) => !['RESTORED', 'PURGED'].includes(confirmedMutationsRef.current.get(id))
+        );
+        for (const [id, type] of confirmedMutationsRef.current) {
+          const active = receivedProjects.some((project) => project.id === id);
+          const deleted = receivedDeletedProjects.some((project) => project.id === id);
+          if (
+            (type === 'DELETED' && !active) ||
+            (type === 'RESTORED' && !deleted) ||
+            (type === 'PURGED' && !active && !deleted)
+          ) {
+            confirmedMutationsRef.current.delete(id);
+          }
+        }
         hasLoadedRef.current = true;
         setProjects(accessibleProjects);
         setDeletedProjects(recoverableProjects);
+        return accessibleProjects;
       }
-      return accessibleProjects;
+      return [];
     } catch (requestError) {
       if (mountedRef.current && requestId === latestRequestIdRef.current) {
         setError(normalizeApiError(requestError, 'Não foi possível carregar os projetos.'));

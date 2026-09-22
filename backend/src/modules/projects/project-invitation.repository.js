@@ -1,5 +1,6 @@
 import { prisma } from '../../database/prismaClient.js';
 import { serializableTransaction } from '../../database/serializable-transaction.js';
+import { lockProjectLifecycle, lockProjectMembership } from './project-lifecycle-lock.js';
 
 const invitationSelect = {
   id: true,
@@ -102,6 +103,13 @@ export const projectInvitationRepository = {
   },
   accept(invitation, userId) {
     return serializableTransaction(async (tx) => {
+      if (!(await lockProjectLifecycle(tx, invitation.projectId))) return { claimed: false };
+      const project = await tx.project.findUnique({
+        where: { id: invitation.projectId },
+        select: { deletedAt: true }
+      });
+      if (project.deletedAt) return { claimed: false };
+      await lockProjectMembership(tx, invitation.projectId, userId);
       const existingMembership = await tx.projectMembership.findUnique({
         where: {
           projectId_userId: { projectId: invitation.projectId, userId }

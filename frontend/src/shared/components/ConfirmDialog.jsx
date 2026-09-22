@@ -77,7 +77,7 @@ export function ConfirmDialogContent({ dialog, close, cancelRef }) {
         </ul>
       )}
       {dialog.confirmationText && (
-        <label className="confirm-dialog__confirmation">
+        <label className="field confirm-dialog__confirmation">
           <span>
             {dialog.confirmationLabel || (
               <>

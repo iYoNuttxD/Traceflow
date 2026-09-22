@@ -1,5 +1,22 @@
 # TRACEFLOW Visual Validation Log
 
+## 2026-09-22 — Project deletion targeted corrections (local fixture)
+
+Chrome local em `127.0.0.1:5179`, com API artificial em memória; nenhum projeto persistido ou
+repositório real foi excluído. Zona de perigo, diálogo de exclusão recuperável, cartão de recuperação,
+conflito de repositório reservado e confirmação de exclusão definitiva foram inspecionados em Light
+e Dark a 1440, 1280, 1024, 768 e 390px. Em cada recorte, o conteúdo esteve presente e não houve
+overflow horizontal da página. Os dois campos de confirmação mediram 45px no navegador, com
+background, borda, raio, padding e focus ring da primitive `field` C2. O diálogo mobile manteve
+ações legíveis e scroll interno. Escape fechou o diálogo e devolveu o foco ao botão acionador;
+Tab permaneceu dentro do diálogo. Os targets principais mediram ao menos 44px.
+
+Na fixture, purge confirmado seguido de falha 503 na criação mostrou sucesso parcial, retirou
+Recuperar e a marcação de repositório programado para exclusão, e ofereceu retry somente da criação.
+A execução foi visual/funcional local com dados sintéticos; não constitui homologação de produção,
+teste cross-browser ou aprovação integral de acessibilidade. O inventário mantém as surfaces como
+`TECHNICALLY VERIFIED`, não `VISUALLY APPROVED`.
+
 ## 2026-09-20 — Repository C2 navigation alignment
 
 Chrome real autenticado em `localhost:5173`, projeto local 2. O header, a navegação do projeto e o

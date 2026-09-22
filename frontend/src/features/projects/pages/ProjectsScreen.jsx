@@ -79,6 +79,7 @@ export function ProjectsScreen() {
   const [formData, setFormData] = useState(emptyProjectForm);
   const [duplicateRepository, setDuplicateRepository] = useState(null);
   const [pendingRepository, setPendingRepository] = useState(null);
+  const [purgedRepositoryId, setPurgedRepositoryId] = useState(null);
   const [highlightedProjectId, setHighlightedProjectId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [operationError, setOperationError] = useState('');
@@ -92,6 +93,7 @@ export function ProjectsScreen() {
   const { run: runRepositoriesRequest } = useAbortableRequest();
   const { run: runInstallationsRequest } = useAbortableRequest();
   const operationLock = useRef(false);
+  const purgedRepositoriesRef = useRef(new Map());
   const confirm = useConfirm();
   const repositoryStateBelongsToContext =
     String(repositoryRequestState.projectId || '') === String(reconnectProjectId || '');
@@ -123,7 +125,18 @@ export function ProjectsScreen() {
           });
           if (signal.aborted) return;
           const validRepositories = (response.data.repositories || [])
-            .map(normalizeRepository)
+            .map((repository) => {
+              const normalized = normalizeRepository(repository);
+              const purgedProjectId = purgedRepositoriesRef.current.get(normalized.id);
+              return purgedProjectId && normalized.pendingDeletion?.projectId === purgedProjectId
+                ? {
+                    ...normalized,
+                    pendingDeletion: null,
+                    alreadyConnected: false,
+                    selectable: true
+                  }
+                : normalized;
+            })
             .filter(
               (repository) =>
                 repository.id &&
@@ -232,8 +245,22 @@ export function ProjectsScreen() {
       setFormData(clearRepositorySelection);
       setDuplicateRepository(null);
       setPendingRepository(normalized?.pendingDeletion ? normalized : null);
+      setPurgedRepositoryId(null);
       return;
     }
+
+    const purgedProjectId = purgedRepositoriesRef.current.get(normalized.id);
+    if (purgedProjectId && purgedProjectId === normalized.pendingDeletion?.projectId) {
+      normalized.pendingDeletion = null;
+      normalized.alreadyConnected = false;
+    }
+    if (purgedRepositoryId === normalized.id) {
+      setDuplicateRepository(null);
+      setPendingRepository(null);
+      setFormData((current) => applyRepositoryToProjectForm(current, selectedRepository));
+      return;
+    }
+    setPurgedRepositoryId(null);
 
     if (normalized.pendingDeletion) {
       setDuplicateRepository(null);
@@ -256,30 +283,29 @@ export function ProjectsScreen() {
     setFormData((current) => applyRepositoryToProjectForm(current, selectedRepository));
   }
 
-  async function handleSubmit(event) {
-    event.preventDefault();
-    if (operationLock.current || operationCooldown > 0) return;
-    setOperationError('');
-    setOperationRetryAfterSeconds(0);
-    setSuccess('');
-
-    if (pendingRepository) {
-      setOperationError('Recupere o projeto anterior ou escolha começar novamente.');
-      return;
-    }
-
+  function creationValidationError() {
     if (
+      !formData.name.trim() ||
+      !formData.responsibleTeam.trim() ||
+      !formData.selectedInstallationId ||
       !formData.selectedRepositoryId ||
       !formData.selectedRepositoryFullName ||
       !formData.selectedDefaultBranch
     ) {
-      setOperationError('Selecione um repositório GitHub para criar o projeto.');
-      return;
+      return 'Preencha o nome, a equipe e selecione um repositório GitHub válido.';
     }
+    if (
+      !installations.some(
+        (installation) =>
+          String(installation.githubInstallationId) === formData.selectedInstallationId
+      )
+    ) {
+      return 'A instalação GitHub selecionada não está disponível. Atualize os repositórios.';
+    }
+    return '';
+  }
 
-    operationLock.current = true;
-    setSubmitting(true);
-
+  async function createSelectedProject({ afterPurge = false } = {}) {
     try {
       const response = await projectsApi.createFromGithub({
         githubInstallationId: formData.selectedInstallationId,
@@ -290,7 +316,8 @@ export function ProjectsScreen() {
       });
       setSuccess(response.data.message);
       setFormData(emptyProjectForm);
-      await refreshProjects();
+      setPurgedRepositoryId(null);
+      await refreshProjects({ fresh: true });
       setNewProjectDialogOpen(false);
     } catch (requestError) {
       const pendingProject = requestError.response?.data?.details?.pendingProject;
@@ -317,8 +344,54 @@ export function ProjectsScreen() {
         setHighlightedProjectId(connectedProject.id);
       }
       const normalized = normalizeApiError(requestError, 'Não foi possível cadastrar o projeto.');
-      setOperationError(normalized.message);
+      setOperationError(
+        afterPurge
+          ? `O projeto anterior foi excluído definitivamente, mas não foi possível criar o novo projeto. ${normalized.message} Tente criar o projeto novamente.`
+          : normalized.message
+      );
       setOperationRetryAfterSeconds(normalized.retryAfterSeconds || 0);
+    }
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    if (operationLock.current || operationCooldown > 0) return;
+    setOperationError('');
+    setOperationRetryAfterSeconds(0);
+    setSuccess('');
+
+    if (pendingRepository) {
+      setOperationError('Recupere o projeto anterior ou escolha começar novamente.');
+      return;
+    }
+    const validationError = creationValidationError();
+    if (validationError) {
+      setOperationError(validationError);
+      return;
+    }
+
+    operationLock.current = true;
+    setSubmitting(true);
+    try {
+      await createSelectedProject({ afterPurge: Boolean(purgedRepositoryId) });
+    } finally {
+      operationLock.current = false;
+      setSubmitting(false);
+    }
+  }
+
+  async function retryCreateAfterPurge() {
+    if (operationLock.current || operationCooldown > 0 || !purgedRepositoryId) return;
+    const validationError = creationValidationError();
+    if (validationError) {
+      setOperationError(validationError);
+      return;
+    }
+    operationLock.current = true;
+    setSubmitting(true);
+    setOperationError('');
+    try {
+      await createSelectedProject({ afterPurge: true });
     } finally {
       operationLock.current = false;
       setSubmitting(false);
@@ -335,7 +408,7 @@ export function ProjectsScreen() {
       setSuccess(response.data.message);
       setPendingRepository(null);
       setFormData(emptyProjectForm);
-      await refreshProjects();
+      await refreshProjects({ mutation: { type: 'RESTORED', projectId } });
       setNewProjectDialogOpen(false);
     } catch (requestError) {
       const normalized = normalizeApiError(requestError, 'Não foi possível recuperar o projeto.');
@@ -350,6 +423,11 @@ export function ProjectsScreen() {
   async function purgeAndCreateAgain() {
     const pending = pendingRepository?.pendingDeletion;
     if (!pending?.projectId || operationLock.current || operationCooldown > 0) return;
+    const validationError = creationValidationError();
+    if (validationError) {
+      setOperationError(validationError);
+      return;
+    }
     const confirmed = await confirm({
       title: 'Começar novamente com este repositório?',
       description:
@@ -372,26 +450,33 @@ export function ProjectsScreen() {
     setSuccess('');
     try {
       await projectsApi.purge(pending.projectId, pending.projectName);
-      const response = await projectsApi.createFromGithub({
-        githubInstallationId: formData.selectedInstallationId,
-        githubRepositoryId: formData.selectedRepositoryId,
-        name: formData.name,
-        description: formData.description,
-        responsibleTeam: formData.responsibleTeam
-      });
-      setSuccess(response.data.message);
+      purgedRepositoriesRef.current.set(formData.selectedRepositoryId, pending.projectId);
+      setRepositoryRequestState((current) => ({
+        ...current,
+        repositories: current.repositories.map((repository) =>
+          repository.id === formData.selectedRepositoryId &&
+          repository.pendingDeletion?.projectId === pending.projectId
+            ? { ...repository, pendingDeletion: null, alreadyConnected: false, selectable: true }
+            : repository
+        )
+      }));
       setPendingRepository(null);
-      setFormData(emptyProjectForm);
-      await refreshProjects();
-      setNewProjectDialogOpen(false);
+      setPurgedRepositoryId(formData.selectedRepositoryId);
+      void refreshProjects({ mutation: { type: 'PURGED', projectId: pending.projectId } });
     } catch (requestError) {
       const normalized = normalizeApiError(
         requestError,
-        'Não foi possível começar novamente com este repositório.'
+        'Não foi possível excluir definitivamente o projeto anterior.'
       );
       setOperationError(normalized.message);
       setOperationRetryAfterSeconds(normalized.retryAfterSeconds || 0);
-      await refreshProjects();
+      operationLock.current = false;
+      setSubmitting(false);
+      return;
+    }
+
+    try {
+      await createSelectedProject({ afterPurge: true });
     } finally {
       operationLock.current = false;
       setSubmitting(false);
@@ -418,7 +503,7 @@ export function ProjectsScreen() {
       setSuccess(response.data.message);
       setSearchParams({}, { replace: true });
       setFormData(emptyProjectForm);
-      await refreshProjects();
+      await refreshProjects({ fresh: true });
       setNewProjectDialogOpen(false);
     } catch (requestError) {
       const normalized = normalizeApiError(
@@ -548,6 +633,22 @@ export function ProjectsScreen() {
               </div>
             </>
           )}
+        </aside>
+      )}
+      {purgedRepositoryId && !pendingRepository && (
+        <aside className="repository-pending-deletion" role="status">
+          <p>
+            O projeto anterior foi excluído definitivamente. Se a criação não for concluída, você
+            pode tentar criar o novo projeto com este repositório.
+          </p>
+          <button
+            className="button button-primary"
+            type="button"
+            disabled={submitting || operationCooldown > 0}
+            onClick={() => void retryCreateAfterPurge()}
+          >
+            Tentar criar novamente
+          </button>
         </aside>
       )}
       {reconnectProjectId && (

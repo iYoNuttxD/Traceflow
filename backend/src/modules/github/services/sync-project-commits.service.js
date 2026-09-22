@@ -25,6 +25,7 @@ async function persistPage({ commits, branch, knownCommits, projectId }) {
 
   const persistedPage = uniquePageCommits.map(({ hash }) => knownCommits.get(hash)).filter(Boolean);
   const links = await commitRepository.createBranchLinks(
+    projectId,
     persistedPage.map((commit) => ({ commitId: commit.id, branchId: branch.id }))
   );
 
@@ -141,7 +142,7 @@ export async function syncProjectCommits({
       }
 
       await assertActive();
-      await githubBranchRepository.markSuccessfullySynced(branch.id, branch.headSha);
+      await githubBranchRepository.markSuccessfullySynced(project.id, branch.id, branch.headSha);
       processedBranches += 1;
       await onProgress({ processedBranches, currentBranch: null });
       logger.info('Sincronização de commits da branch concluída.', {

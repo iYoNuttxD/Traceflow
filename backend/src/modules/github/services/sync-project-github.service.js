@@ -93,7 +93,9 @@ export async function syncProjectGithubData(projectId, { onProgress = noProgress
         409
       );
     }
-    await projectRepository.markGithubSyncStarted(parsedProjectId, attemptedAt);
+    if (!(await projectRepository.markGithubSyncStarted(parsedProjectId, attemptedAt))) {
+      throw new ProjectServiceError('Projeto não encontrado.', 404);
+    }
     const githubClient = await githubInstallationClientFactory.forInstallation(
       integration.installation.githubInstallationId
     );
@@ -181,6 +183,7 @@ export async function syncProjectGithubData(projectId, { onProgress = noProgress
       parsedProjectId,
       new Date()
     );
+    if (!updatedProject) throw new ProjectServiceError('Projeto não encontrado.', 404);
     logStep('completed', parsedProjectId, 'persist', stepStartedAt);
 
     return {

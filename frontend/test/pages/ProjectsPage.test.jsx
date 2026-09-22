@@ -408,6 +408,65 @@ describe('ProjectsPage', () => {
     );
   });
 
+  it('mantém o purge confirmado quando a criação falha e repete somente o POST', async () => {
+    const user = userEvent.setup();
+    const pendingRepository = {
+      ...fakeRepository,
+      alreadyConnected: true,
+      selectable: true,
+      pendingDeletion: {
+        projectId: 41,
+        projectName: 'Projeto anterior',
+        deletionScheduledFor: '2030-10-21T12:00:00.000Z'
+      }
+    };
+    mockInitialRequests({
+      repositories: [pendingRepository],
+      deletedProjects: [
+        { id: 41, name: 'Projeto anterior', deletionScheduledFor: '2030-10-21T12:00:00.000Z' }
+      ]
+    });
+    apiMock.delete.mockResolvedValue({ data: { message: 'Projeto excluído definitivamente.' } });
+    apiMock.post
+      .mockRejectedValueOnce({
+        response: { status: 503, data: { message: 'Serviço indisponível.' } }
+      })
+      .mockResolvedValueOnce({ data: { message: 'Projeto novo criado.' } });
+    renderPage();
+    await screen.findByRole('button', { name: /^Novo projeto/ });
+    await openCreateFlow(user);
+    await user.type(screen.getByLabelText('Área ou equipe responsável *'), 'Equipe nova');
+    await user.selectOptions(
+      screen.getByLabelText('Repositório GitHub *'),
+      pendingRepository.fullName
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'Excluir definitivamente e começar do zero' })
+    );
+    const confirmation = screen.getByRole('dialog', {
+      name: 'Começar novamente com este repositório?'
+    });
+    await user.type(within(confirmation).getByRole('textbox'), 'Projeto anterior');
+    await user.click(
+      within(confirmation).getByRole('button', {
+        name: 'Excluir definitivamente e começar do zero'
+      })
+    );
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'O projeto anterior foi excluído definitivamente'
+    );
+    expect(screen.queryByRole('button', { name: 'Recuperar projeto' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Recuperar' })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Repositório GitHub *').selectedOptions[0]).not.toHaveTextContent(
+      'programado para exclusão'
+    );
+    await user.click(screen.getByRole('button', { name: 'Tentar criar novamente' }));
+    expect(apiMock.delete).toHaveBeenCalledTimes(1);
+    expect(apiMock.post).toHaveBeenCalledTimes(2);
+    expect(await screen.findByText('Projeto novo criado.')).toBeInTheDocument();
+  });
+
   it('mostra o erro atual quando projetos não carregam', async () => {
     apiMock.get.mockRejectedValue({
       response: { data: { message: 'Falha artificial da API' } }

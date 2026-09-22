@@ -23,15 +23,16 @@ function doubles() {
     context: vi.fn(),
     claimPurge: vi.fn(),
     evidence: vi.fn().mockResolvedValue([]),
-    prepareStorageCleanup: vi.fn().mockResolvedValue(),
+    prepareStorageCleanup: vi.fn().mockResolvedValue([]),
     pendingStorageCleanup: vi.fn().mockResolvedValue([]),
     deleteProjectGraph: vi.fn().mockResolvedValue(true),
     releasePurge: vi.fn().mockResolvedValue(),
     dueProjects: vi.fn().mockResolvedValue([]),
-    projectExists: vi.fn(),
-    completeStorageCleanup: vi.fn(),
+    cleanupReadyStorageItem: vi.fn().mockResolvedValue(true),
+    claimReadyStorageCleanup: vi.fn(),
     failStorageCleanup: vi.fn(),
-    markStorageStaged: vi.fn()
+    stageStorageItem: vi.fn().mockResolvedValue(true),
+    restoreStorageItem: vi.fn().mockResolvedValue(true)
   };
   const storage = {
     stageForPurge: vi.fn(),
@@ -101,41 +102,50 @@ describe('ProjectDeletionService', () => {
   });
 
   it('requires exact project-name confirmation before claiming permanent deletion', async () => {
-    repository.context.mockResolvedValue(project);
+    repository.claimPurge.mockResolvedValue({ outcome: 'INVALID_CONFIRMATION' });
     await expect(service.purge(12, 7, 'traceflow')).rejects.toMatchObject({
       code: 'PROJECT_DELETION_CONFIRMATION_INVALID'
     });
-    expect(repository.claimPurge).not.toHaveBeenCalled();
+    expect(repository.claimPurge).toHaveBeenCalledWith(
+      12,
+      expect.any(Date),
+      expect.objectContaining({ userId: 7, confirmationName: 'traceflow' })
+    );
   });
 
   it('stages evidence, deletes the graph and keeps failed filesystem cleanup for retry', async () => {
-    repository.context.mockResolvedValue(project);
-    repository.claimPurge.mockResolvedValue({ count: 1 });
+    repository.claimPurge.mockResolvedValue({ outcome: 'CLAIMED', token: 'claim-a' });
     repository.evidence.mockResolvedValue([{ storageKey: '12345678-1234-4234-8234-123456789abc' }]);
-    storage.stageForPurge.mockResolvedValue('STAGED');
-    repository.pendingStorageCleanup.mockResolvedValueOnce([]).mockResolvedValueOnce([
+    const item = {
+      id: 3,
+      projectId: 12,
+      storageKey: '12345678-1234-4234-8234-123456789abc',
+      purgeKey: 'abcdefab-1234-4234-8234-123456789abc'
+    };
+    repository.prepareStorageCleanup.mockResolvedValue([item]);
+    repository.pendingStorageCleanup.mockResolvedValueOnce([
       {
-        id: 3,
-        projectId: 12,
-        storageKey: '12345678-1234-4234-8234-123456789abc',
-        purgeKey: 'abcdefab-1234-4234-8234-123456789abc'
+        ...item,
+        status: 'READY'
       }
     ]);
-    storage.deletePurged.mockRejectedValue(Object.assign(new Error('storage'), { code: 'EACCES' }));
-    repository.projectExists.mockResolvedValue(null);
+    repository.cleanupReadyStorageItem.mockRejectedValue(
+      Object.assign(new Error('storage'), { code: 'EACCES' })
+    );
 
     await expect(service.purge(12, 7, 'TraceFlow')).resolves.toEqual({
       purged: true,
       storageFailures: 1
     });
-    expect(repository.deleteProjectGraph).toHaveBeenCalledWith(12, expect.any(Object));
-    expect(repository.failStorageCleanup).toHaveBeenCalledWith(3, 'EACCES');
+    expect(repository.stageStorageItem).toHaveBeenCalledWith(12, 'claim-a', item, storage);
+    expect(repository.deleteProjectGraph).toHaveBeenCalledWith(12, 'claim-a', expect.any(Object));
+    expect(repository.failStorageCleanup).toHaveBeenCalledWith(3, 'claim-a', 'EACCES');
   });
 
   it('uses explicit time for due purge and never sleeps', async () => {
     const now = new Date('2026-10-22T00:00:00.000Z');
     repository.dueProjects.mockResolvedValue([{ id: 12 }]);
-    repository.claimPurge.mockResolvedValue({ count: 1 });
+    repository.claimPurge.mockResolvedValue({ outcome: 'CLAIMED', token: 'claim-due' });
     const result = await service.processDue({ now, dryRun: false });
     expect(result).toMatchObject({ count: 1, processed: 1, failed: 0 });
     expect(repository.claimPurge).toHaveBeenCalledWith(

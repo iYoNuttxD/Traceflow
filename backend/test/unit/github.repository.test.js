@@ -3,11 +3,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const database = vi.hoisted(() => {
   const method = () => vi.fn();
   const tx = {
+    $queryRaw: method(),
     gitHubAppConnectionState: { findFirst: method(), updateMany: method() },
     gitHubInstallation: { findUnique: method(), create: method(), update: method() },
     gitHubInstallationAuthorization: { upsert: method(), updateMany: method() },
     projectGitHubIntegration: { findUnique: method(), create: method(), update: method() },
-    project: { update: method() }
+    project: { findUnique: method(), update: method() }
   };
   return {
     tx,
@@ -36,7 +37,11 @@ vi.mock('../../src/database/prismaClient.js', () => ({ prisma: database.prisma }
 const { githubRepository } = await import('../../src/modules/github/github.repository.js');
 
 describe('persistência de metadados da GitHub App', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    database.tx.$queryRaw.mockResolvedValue([{ id: 9 }]);
+    database.tx.project.findUnique.mockResolvedValue({ deletedAt: null });
+  });
 
   it('persiste state de uso único e consulta autorização sem credenciais', async () => {
     await githubRepository.createConnectionState({ tokenHash: 'hash' });

@@ -1,5 +1,6 @@
 // Repository de projetos: concentra o acesso a Project no MySQL via Prisma.
 import { prisma } from '../../database/prismaClient.js';
+import { withActiveProjectWrite } from './active-project-write.js';
 
 export const projectRepository = {
   async createProject(data, ownerUserId) {
@@ -100,55 +101,65 @@ export const projectRepository = {
   },
 
   async updateGithubSyncSettings(id, githubAutoSyncEnabled) {
-    await prisma.projectGitHubIntegration.update({
-      where: { projectId: id },
-      data: { autoSyncEnabled: githubAutoSyncEnabled }
-    });
+    await withActiveProjectWrite(id, (tx) =>
+      tx.projectGitHubIntegration.update({
+        where: { projectId: id },
+        data: { autoSyncEnabled: githubAutoSyncEnabled }
+      })
+    );
     return this.findById(id);
   },
 
   async updateGithubRepositoryMetadata(id, data) {
-    return prisma.projectGitHubIntegration.update({
-      where: { projectId: id },
-      data
-    });
+    return withActiveProjectWrite(id, (tx) =>
+      tx.projectGitHubIntegration.update({ where: { projectId: id }, data })
+    );
   },
 
   async markGithubSyncStarted(id, attemptedAt) {
-    const active = await this.isActive(id);
-    if (!active) return null;
-    return prisma.projectGitHubIntegration.update({
-      where: { projectId: id },
-      data: {
-        lastSyncStatus: 'SINCRONIZANDO',
-        lastSyncAttemptAt: attemptedAt
-      }
-    });
+    return withActiveProjectWrite(
+      id,
+      (tx) =>
+        tx.projectGitHubIntegration.update({
+          where: { projectId: id },
+          data: { lastSyncStatus: 'SINCRONIZANDO', lastSyncAttemptAt: attemptedAt }
+        }),
+      { inactiveResult: null }
+    );
   },
 
   async markGithubSyncSucceeded(id, syncedAt) {
-    if (!(await this.isActive(id))) return null;
-    await prisma.projectGitHubIntegration.update({
-      where: { projectId: id },
-      data: {
-        lastSyncAt: syncedAt,
-        lastSyncAttemptAt: syncedAt,
-        lastSyncStatus: 'SINCRONIZADO',
-        lastSyncError: null
-      }
-    });
+    const updated = await withActiveProjectWrite(
+      id,
+      (tx) =>
+        tx.projectGitHubIntegration.update({
+          where: { projectId: id },
+          data: {
+            lastSyncAt: syncedAt,
+            lastSyncAttemptAt: syncedAt,
+            lastSyncStatus: 'SINCRONIZADO',
+            lastSyncError: null
+          }
+        }),
+      { inactiveResult: null }
+    );
+    if (!updated) return null;
     return this.findById(id);
   },
 
   async markGithubSyncFailed(id, attemptedAt, errorMessage) {
-    if (!(await this.isActive(id))) return null;
-    return prisma.projectGitHubIntegration.update({
-      where: { projectId: id },
-      data: {
-        lastSyncAttemptAt: attemptedAt,
-        lastSyncStatus: 'FALHA',
-        lastSyncError: errorMessage
-      }
-    });
+    return withActiveProjectWrite(
+      id,
+      (tx) =>
+        tx.projectGitHubIntegration.update({
+          where: { projectId: id },
+          data: {
+            lastSyncAttemptAt: attemptedAt,
+            lastSyncStatus: 'FALHA',
+            lastSyncError: errorMessage
+          }
+        }),
+      { inactiveResult: null }
+    );
   }
 };

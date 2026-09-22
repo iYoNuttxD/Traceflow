@@ -1,4 +1,5 @@
 import { prisma } from '../../database/prismaClient.js';
+import { withActiveProjectWrite } from '../projects/active-project-write.js';
 
 const blockedInstallationStatuses = new Set(['SUSPENDED', 'REMOVED']);
 
@@ -162,7 +163,7 @@ export const githubRepository = {
   },
   connectProject(projectId, installationId, repository) {
     const integratedAt = new Date();
-    return prisma.$transaction(async (tx) => {
+    return withActiveProjectWrite(projectId, async (tx) => {
       const current = await tx.projectGitHubIntegration.findUnique({ where: { projectId } });
       if (
         current?.githubRepositoryId &&

@@ -132,7 +132,7 @@ describe('githubSyncService com client e persistência substituídos', () => {
     mocks.commitRepository.findByProjectIdAndHashes.mockImplementation(async (_projectId, hashes) =>
       hashes.map((hash) => storedCommits.get(hash)).filter(Boolean)
     );
-    mocks.commitRepository.createBranchLinks.mockImplementation(async (items) => ({
+    mocks.commitRepository.createBranchLinks.mockImplementation(async (_projectId, items) => ({
       count: items.length
     }));
     mocks.commitRepository.findByBranchId.mockResolvedValue([]);
@@ -279,7 +279,7 @@ describe('githubSyncService com client e persistência substituídos', () => {
         .map((hash) => ({ id: ids.get(hash), projectId, hash, message: `[${hash}]` }))
     );
     const links = [];
-    mocks.commitRepository.createBranchLinks.mockImplementation(async (items) => {
+    mocks.commitRepository.createBranchLinks.mockImplementation(async (_projectId, items) => {
       links.push(...items);
       return { count: items.length };
     });

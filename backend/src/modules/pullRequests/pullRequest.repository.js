@@ -1,5 +1,6 @@
 // Repository de Pull Requests importados do GitHub.
 import { prisma } from '../../database/prismaClient.js';
+import { withActiveProjectWrite } from '../projects/active-project-write.js';
 
 function buildPullRequestUpdate(data) {
   return {
@@ -47,30 +48,23 @@ export const pullRequestRepository = {
       return { created: 0, updated: 0 };
     }
 
-    const existingGithubIds = new Set(
-      await this.findGithubIdsByProjectId(
-        data[0].projectId,
-        data.map(({ githubId }) => githubId)
-      )
-    );
-    const operations = data.map((pullRequest) =>
-      prisma.pullRequest.upsert({
-        where: {
-          projectId_githubId: {
-            projectId: pullRequest.projectId,
-            githubId: pullRequest.githubId
-          }
-        },
-        update: buildPullRequestUpdate(pullRequest),
-        create: pullRequest
-      })
-    );
-    await prisma.$transaction(operations);
-
-    const updated = data.filter(({ githubId }) => existingGithubIds.has(githubId)).length;
-    const created = data.length - updated;
-
-    return { created, updated };
+    const projectId = data[0].projectId;
+    return withActiveProjectWrite(projectId, async (tx) => {
+      const existing = await tx.pullRequest.findMany({
+        where: { projectId, githubId: { in: data.map(({ githubId }) => githubId) } },
+        select: { githubId: true }
+      });
+      const existingGithubIds = new Set(existing.map(({ githubId }) => githubId));
+      for (const pullRequest of data) {
+        await tx.pullRequest.upsert({
+          where: { projectId_githubId: { projectId, githubId: pullRequest.githubId } },
+          update: buildPullRequestUpdate(pullRequest),
+          create: pullRequest
+        });
+      }
+      const updated = data.filter(({ githubId }) => existingGithubIds.has(githubId)).length;
+      return { created: data.length - updated, updated };
+    });
   },
 
   async listByProjectId(projectId, filters = {}) {
