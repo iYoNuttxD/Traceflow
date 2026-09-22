@@ -47,6 +47,10 @@ A direção permitida é `app/routes → pages → features → shared + http-cl
   grid responsivo. A visão geral de `/projects/:projectId` integra os resumos de Projeto, GitHub e
   Equipe; edição e administração de membros/acesso usam, respectivamente,
   `/projects/:projectId/edit` e `/projects/:projectId/members`, sempre sob autorização do backend.
+- A edição OWNER expõe uma Zona de perigo com confirmação pelo nome. Depois da solicitação, Projects
+  separa os projetos ativos dos recuperáveis e oferece restore. O conflito de repositório em
+  carência é explícito: OWNER pode recuperar ou confirmar a perda total antes de começar novamente;
+  demais usuários recebem somente o estado indisponível minimizado.
 - `ProjectEventsProvider` mantém uma conexão SSE compartilhada por projeto ativo enquanto a aba está
   visível. Consomem eventos os Comments e, desde o S1-06, o rastreador de esforço e o cartão do
   Kanban, restrito às sessões de tempo. Nenhum deles executa polling periódico: como o stream não tem
@@ -91,6 +95,9 @@ páginas estão documentados em `docs/api/API_CONTRACTS.md`.
 - `Session` guarda hash do token opaco e do CSRF; o browser recebe cookie HttpOnly.
 - `ProjectMembership` define OWNER, MANAGER, MEMBER e VIEWER.
 - A API resolve recursos filhos para o projeto antes de autorizar.
+- A resolução central considera apenas `Project.deletedAt = null`. Projetos em carência falham como
+  `404` antes da avaliação do recurso filho. Restore e purge são as únicas exceções de rota e
+  revalidam no service a membership ativa preservada e o papel OWNER.
 - Ausência de membership usa `404`; papel insuficiente usa `403`.
 - Ator de movimento e auditoria vem de `req.auth.user`.
 - Responsável por Task é `responsibleUserId` com membership ativa.
@@ -135,7 +142,19 @@ em uma integração `RECONNECT_REQUIRED`. `ProjectGitHubIntegration` é a única
 conexão e concentra identidade do repositório, configuração e estado de sincronização; `Project`
 não mantém aliases concorrentes.
 
+Durante a carência de exclusão, a integração permanece no projeto e sua unicidade continua
+reservando o repositório. Descoberta/criação distingue OWNER com um DTO mínimo recuperável de
+usuário não OWNER com resposta neutra. Sync revalida `Project.deletedAt` no início, em cada etapa
+paginada e antes dos estados terminais; handlers de webhook que alteram integrações filtram projetos
+ativos. O purge remove a integração e os artefatos do projeto, mas não a Installation nem suas
+autorizações, pois essas entidades podem ser compartilhadas.
+
 ## Assíncronos e concorrência
+
+O lifecycle de exclusão usa claims condicionais persistidos em `Project.purgeStartedAt`. Delete,
+restore, purge manual e workers concorrentes só avançam quando o estado esperado ainda existe;
+claims de job abandonados tornam-se retomáveis após a janela de stale documentada. O processor
+recebe relógio explícito, não usa sleeps e considera devido `deletionScheduledFor <= now`.
 
 Jobs persistidos possuem ID correlacionável. Em novas operações assíncronas ou na evolução de um
 polling existente, a consulta deve acompanhar aquele ID quando execuções puderem se confundir, em
@@ -167,6 +186,19 @@ Prisma é acessado somente por repositories e scripts de manutenção autorizado
 versionadas são imutáveis e devem aplicar do zero. Mudança destrutiva exige inventário,
 reconciliação, backup, guard e roll-forward. Scripts de recovery ligados a schemas históricos
 exigem o checkout/schema correspondente e não pertencem ao runtime.
+
+`Project` possui `deletedAt`, `deletionScheduledFor`, `deletedById` (`SetNull`) e o claim interno
+`purgeStartedAt`. Soft delete é uma atualização transacional com revogação de convites; filhos e
+memberships não recebem flags duplicadas. O purge trata primeiro as relações `Restrict` auditadas e
+então deixa os cascades do schema eliminarem o restante do grafo. `AuditEvent.projectId` usa
+`SetNull`, preservando o evento transversal conforme sua retenção.
+
+MySQL e filesystem não têm atomicidade conjunta. Antes do delete relacional, cada `TestEvidence`
+é movida para uma chave privada de purge e registrada em `ProjectPurgeStorageCleanup`, journal sem
+FK que sobrevive ao Project. Se o banco falhar, a compensação restaura os bytes; se o delete do
+banco concluir e a remoção física falhar, o journal permanece para retry idempotente. O processor
+recorrente também reconcilia itens pendentes. Não há varredura ampla de diretório: somente UUIDs
+validados e explicitamente registrados são movidos ou removidos.
 
 ## CI e operação
 
@@ -201,7 +233,6 @@ A exceção ao JSON global é exclusivamente POST `/api/test-cases/:id/execution
 com multipart/form-data; sessão/CSRF/RBAC precedem o parser. Limites e modelos:
 [TEST_CASE_HISTORY.md](../data/TEST_CASE_HISTORY.md). Retenção/anonimização/exportação
 seguem a política de privacidade ampliada, sem expurgo automático de histórico.
-
 
 ### Interface integrada de casos de teste — S1-07
 

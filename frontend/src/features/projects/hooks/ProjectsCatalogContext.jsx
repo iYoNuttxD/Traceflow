@@ -14,6 +14,7 @@ const ProjectsCatalogContext = createContext(null);
 
 export function ProjectsCatalogProvider({ children }) {
   const [projects, setProjects] = useState([]);
+  const [deletedProjects, setDeletedProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
@@ -37,9 +38,13 @@ export function ProjectsCatalogProvider({ children }) {
       const accessibleProjects = Array.isArray(response.data?.projects)
         ? response.data.projects
         : [];
+      const recoverableProjects = Array.isArray(response.data?.deletedProjects)
+        ? response.data.deletedProjects
+        : [];
       if (mountedRef.current && requestId === latestRequestIdRef.current) {
         hasLoadedRef.current = true;
         setProjects(accessibleProjects);
+        setDeletedProjects(recoverableProjects);
       }
       return accessibleProjects;
     } catch (requestError) {
@@ -67,8 +72,8 @@ export function ProjectsCatalogProvider({ children }) {
   }, [refreshProjects]);
 
   const value = useMemo(
-    () => ({ projects, loading, refreshing, error, refreshProjects }),
-    [error, loading, projects, refreshing, refreshProjects]
+    () => ({ projects, deletedProjects, loading, refreshing, error, refreshProjects }),
+    [deletedProjects, error, loading, projects, refreshing, refreshProjects]
   );
 
   return (

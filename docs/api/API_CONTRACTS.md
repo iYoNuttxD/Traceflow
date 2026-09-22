@@ -73,14 +73,13 @@ Os caminhos abaixo são relativos ao prefixo `/api`, exceto os endpoints de heal
 autorização por papel estão consolidadas em `docs/security/AUTHORIZATION_MATRIX.md`; a relação entre
 requisito funcional, fluxo, endpoint, service, persistência, frontend e testes está em
 `docs/traceability/RF_TECHNICAL_MATRIX.md`. Este catálogo deve permanecer reconciliado com os
-arquivos `*.routes.js`: o único contrato ativo deliberadamente não implementado é
-`DELETE /api/projects/:id`, que permanece `501`.
+arquivos `*.routes.js`.
 
 ## Requisitos e rastreabilidade canônica
 
 `Task.requirementId`, `Task.pullRequestId`, `TaskCommit` e `TaskIssue` são as únicas fontes dos vínculos. A matriz passou a ser paginada sem carregar conteúdo integral de artefatos e mantém um summary global independente da página. As perspectivas de requisito, tarefa e artefato usam o mesmo DTO `{projectId,perspective,summary,nodes,edges,pagination}`; IDs de node são namespaced e as arestas usam `REQUIREMENT_TASK`, `TASK_COMMIT`, `TASK_PULL_REQUEST` ou `TASK_ISSUE`.
 
-Os cinco placeholders baseados em `TraceLink`/`GithubArtifact` foram removidos e seguem o `404` global. O único `501` restante é `DELETE /projects/:id`. O fechamento definitivo do RF41 adotou exclusivamente `[TASK-<ID>]`, persiste sugestões revisáveis e só cria `TaskCommit` após confirmação humana.
+Os cinco placeholders baseados em `TraceLink`/`GithubArtifact` foram removidos e seguem o `404` global. O fechamento definitivo do RF41 adotou exclusivamente `[TASK-<ID>]`, persiste sugestões revisáveis e só cria `TaskCommit` após confirmação humana.
 
 ## Projetos e sincronização GitHub
 
@@ -151,36 +150,62 @@ identifica apenas a categoria pública da quota, sem expor sua chave, usuário o
 
 ## Projects e memberships
 
-| Método   | Caminho                                                 | Params/query         | Body aceito                                                                                      | Sucesso                                                                               |
-| -------- | ------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
-| POST     | `/projects`                                             | —                    | `name`, `responsibleTeam`; opcionais `description`, `status`                                     | `201`, `{message,project}`                                                            |
-| POST     | `/projects/from-github`                                 | —                    | `githubInstallationId`, `githubRepositoryId`; opcionais `name`, `description`, `responsibleTeam` | `201`, `{message,project}`                                                            |
-| GET      | `/projects`                                             | —                    | —                                                                                                | `200`, `{projects}`                                                                   |
-| GET      | `/projects/:id`                                         | `id` positivo        | —                                                                                                | `200`, `{project}`                                                                    |
-| PUT      | `/projects/:id`                                         | `id` positivo        | subconjunto de `name`, `description`, `responsibleTeam` e `status`                               | `200`, `{message,project}`                                                            |
-| DELETE   | `/projects/:id`                                         | baseline placeholder | —                                                                                                | `501` inalterado                                                                      |
-| GET      | `/projects/join/details`                                | query `accessCode`   | —                                                                                                | `200`, `{details:{project,role}}`                                                     |
-| POST     | `/projects/join`                                        | —                    | somente `accessCode`                                                                             | `201`, `{message,project,membership}`                                                 |
-| GET      | `/projects/:projectId/access-code`                      | `projectId` positivo | —                                                                                                | OWNER: `{accessCode:{accessCode,role,inviteLink}}`                                    |
-| PATCH    | `/projects/:projectId/access-code`                      | `projectId` positivo | `role`: MEMBER ou VIEWER                                                                         | `200`, configuração atualizada                                                        |
-| POST     | `/projects/:projectId/access-code/regenerate`           | `projectId` positivo | body vazio                                                                                       | `200`, novo código; anterior inválido                                                 |
-| GET      | `/projects/:projectId/members`                          | `projectId` positivo | —                                                                                                | `200`, `{projectId,currentMembership,members}`                                        |
-| PATCH    | `/projects/:projectId/members/:membershipId`            | IDs positivos        | `role`: OWNER/MANAGER/MEMBER/VIEWER                                                              | `200`, `{message,membership}`                                                         |
-| DELETE   | `/projects/:projectId/members/:membershipId`            | IDs positivos        | —                                                                                                | `204`, desativação lógica                                                             |
-| POST     | `/projects/:projectId/members/:membershipId/reactivate` | IDs positivos        | body vazio                                                                                       | `200`, `{message,membership}`                                                         |
-| DELETE   | `/projects/:projectId/members/me`                       | `projectId` positivo | —                                                                                                | `204`, saída própria lógica                                                           |
-| POST     | `/projects/:projectId/ownership/transfer`               | `projectId` positivo | `membershipId` positivo                                                                          | `200`, `{message,membership}`                                                         |
-| GET/POST | `/projects/:projectId/invitations`                      | `projectId` positivo | POST: `email`, `role`                                                                            | `200` lista / `201` criação                                                           |
-| DELETE   | `/projects/:projectId/invitations/:invitationId`        | IDs positivos        | —                                                                                                | `204`                                                                                 |
-| POST     | `/projects/invitations/details`                         | —                    | token opaco                                                                                      | `200`, `{invitation:{project,role,expiresAt,status}}` para o destinatário autenticado |
-| POST     | `/projects/invitations/accept`                          | —                    | token opaco                                                                                      | `200`, `{message,membership}`                                                         |
-| POST     | `/projects/invitations/decline`                         | —                    | token opaco                                                                                      | `200`, `{message}`; nenhuma membership é criada                                       |
-| GET      | `/projects/invitations/mine`                            | —                    | —                                                                                                | `200`, convites pendentes do e-mail da sessão                                         |
-| POST     | `/projects/invitations/:invitationId/accept`            | ID positivo          | body vazio                                                                                       | `200`, `{message,membership}`                                                         |
-| POST     | `/projects/invitations/:invitationId/decline`           | ID positivo          | body vazio                                                                                       | `200`, `{message}`                                                                    |
-| PATCH    | `/projects/:projectId/github/sync-settings`             | `projectId` positivo | boolean `githubAutoSyncEnabled`                                                                  | `200`, `{message,project}`                                                            |
+| Método   | Caminho                                                 | Params/query         | Body aceito                                                                                      | Sucesso                                                                                                       |
+| -------- | ------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| POST     | `/projects`                                             | —                    | `name`, `responsibleTeam`; opcionais `description`, `status`                                     | `201`, `{message,project}`                                                                                    |
+| POST     | `/projects/from-github`                                 | —                    | `githubInstallationId`, `githubRepositoryId`; opcionais `name`, `description`, `responsibleTeam` | `201`, `{message,project}`                                                                                    |
+| GET      | `/projects`                                             | —                    | —                                                                                                | `200`, `{projects,deletedProjects}`; a segunda coleção contém somente projetos recuperáveis cujo ator é OWNER |
+| GET      | `/projects/:id`                                         | `id` positivo        | —                                                                                                | `200`, `{project}`                                                                                            |
+| PUT      | `/projects/:id`                                         | `id` positivo        | subconjunto de `name`, `description`, `responsibleTeam` e `status`                               | `200`, `{message,project}`                                                                                    |
+| DELETE   | `/projects/:id`                                         | `id` positivo        | body vazio                                                                                       | OWNER: `200`, agenda exclusão para exatamente 30 × 24h                                                        |
+| POST     | `/projects/:id/restore`                                 | `id` positivo        | body vazio                                                                                       | OWNER: `200`, restaura antes do prazo                                                                         |
+| DELETE   | `/projects/:id/permanent`                               | `id` positivo        | `confirmationName` exatamente igual ao nome atual                                                | OWNER: `200`, exclusão definitiva; informa `cleanupPending`                                                   |
+| GET      | `/projects/join/details`                                | query `accessCode`   | —                                                                                                | `200`, `{details:{project,role}}`                                                                             |
+| POST     | `/projects/join`                                        | —                    | somente `accessCode`                                                                             | `201`, `{message,project,membership}`                                                                         |
+| GET      | `/projects/:projectId/access-code`                      | `projectId` positivo | —                                                                                                | OWNER: `{accessCode:{accessCode,role,inviteLink}}`                                                            |
+| PATCH    | `/projects/:projectId/access-code`                      | `projectId` positivo | `role`: MEMBER ou VIEWER                                                                         | `200`, configuração atualizada                                                                                |
+| POST     | `/projects/:projectId/access-code/regenerate`           | `projectId` positivo | body vazio                                                                                       | `200`, novo código; anterior inválido                                                                         |
+| GET      | `/projects/:projectId/members`                          | `projectId` positivo | —                                                                                                | `200`, `{projectId,currentMembership,members}`                                                                |
+| PATCH    | `/projects/:projectId/members/:membershipId`            | IDs positivos        | `role`: OWNER/MANAGER/MEMBER/VIEWER                                                              | `200`, `{message,membership}`                                                                                 |
+| DELETE   | `/projects/:projectId/members/:membershipId`            | IDs positivos        | —                                                                                                | `204`, desativação lógica                                                                                     |
+| POST     | `/projects/:projectId/members/:membershipId/reactivate` | IDs positivos        | body vazio                                                                                       | `200`, `{message,membership}`                                                                                 |
+| DELETE   | `/projects/:projectId/members/me`                       | `projectId` positivo | —                                                                                                | `204`, saída própria lógica                                                                                   |
+| POST     | `/projects/:projectId/ownership/transfer`               | `projectId` positivo | `membershipId` positivo                                                                          | `200`, `{message,membership}`                                                                                 |
+| GET/POST | `/projects/:projectId/invitations`                      | `projectId` positivo | POST: `email`, `role`                                                                            | `200` lista / `201` criação                                                                                   |
+| DELETE   | `/projects/:projectId/invitations/:invitationId`        | IDs positivos        | —                                                                                                | `204`                                                                                                         |
+| POST     | `/projects/invitations/details`                         | —                    | token opaco                                                                                      | `200`, `{invitation:{project,role,expiresAt,status}}` para o destinatário autenticado                         |
+| POST     | `/projects/invitations/accept`                          | —                    | token opaco                                                                                      | `200`, `{message,membership}`                                                                                 |
+| POST     | `/projects/invitations/decline`                         | —                    | token opaco                                                                                      | `200`, `{message}`; nenhuma membership é criada                                                               |
+| GET      | `/projects/invitations/mine`                            | —                    | —                                                                                                | `200`, convites pendentes do e-mail da sessão                                                                 |
+| POST     | `/projects/invitations/:invitationId/accept`            | ID positivo          | body vazio                                                                                       | `200`, `{message,membership}`                                                                                 |
+| POST     | `/projects/invitations/:invitationId/decline`           | ID positivo          | body vazio                                                                                       | `200`, `{message}`                                                                                            |
+| PATCH    | `/projects/:projectId/github/sync-settings`             | `projectId` positivo | boolean `githubAutoSyncEnabled`                                                                  | `200`, `{message,project}`                                                                                    |
 
 Status de projeto: `ATIVO`, `INATIVO`, `ARQUIVADO`. URLs GitHub precisam usar HTTP(S) e host `github.com`. E-mails são validados, mas continuam opcionais. `accessCode` é uma capability secreta de ingresso, não uma credencial de autenticação.
+
+### Lifecycle de exclusão de projeto
+
+Excluir normalmente grava `deletedAt`, `deletionScheduledFor = deletedAt + 30 * 24h` e
+`deletedById` na mesma transação, revoga convites ainda pendentes e preserva memberships, filhos,
+artefatos e evidências. Enquanto `deletedAt` estiver preenchido, o boundary central de autorização
+trata o projeto e qualquer recurso project-scoped como inexistentes (`404` opaco); listagens ativas,
+Quick Projects, sync, novos vínculos e writes de webhook também o ignoram. Restaurar limpa somente
+os três campos de lifecycle. Convites revogados não são reabertos.
+
+O vínculo GitHub permanece reservado durante a carência. Na criação por repositório, OWNER recebe
+`409 PROJECT_PENDING_DELETION` com `details.pendingProject` minimizado (`projectId`, `projectName`,
+`deletionScheduledFor` e identificador do repositório); qualquer outro usuário recebe o conflito
+neutro `PROJECT_REPOSITORY_UNAVAILABLE`, sem identidade do projeto nem ações destrutivas. O purge
+manual exige o nome exato. O processor `npm run projects:purge` reivindica de forma atômica os
+projetos vencidos; `npm run projects:purge:dry-run` apenas contabiliza. O purge remove o grafo do
+banco e encaminha evidências privadas por journal durável e idempotente, permitindo retry quando a
+remoção física não termina na mesma execução. `PROJECT_DELETE_REQUESTED`, `PROJECT_RESTORED` e
+`PROJECT_PURGED` formam a trilha mínima de auditoria.
+
+Erros específicos incluem `PROJECT_ALREADY_DELETED`, `PROJECT_DELETION_FORBIDDEN`,
+`PROJECT_RESTORE_FORBIDDEN` e `PROJECT_DELETION_CONFIRMATION_INVALID`. Ausência de membership,
+projeto ativo consultado pelas rotas de recovery, projeto já purgado ou prazo de recuperação
+vencido continuam indistinguíveis por `404 RESOURCE_NOT_FOUND`.
 
 DTOs gerais de projeto expõem a integração, quando existente, em `githubIntegration`; não
 repetem `githubOwner`, `githubRepo`, `githubUrl` nem o estado de sync no nível de `Project`.
@@ -197,8 +222,8 @@ ROUTE_NOT_FOUND` global.
 | GET    | `/requirements/:id`                                           | `id` positivo          | —                                             | `200`, `{requirement}`                                 |
 | PUT    | `/requirements/:id`                                           | `id` positivo          | subconjunto de `title`, `description`, `type` | `200`, `{message,requirement}`                         |
 | DELETE | `/requirements/:id`                                           | `id` positivo          | —                                             | `200`, `{message}`                                     |
-| PATCH  | `/requirements/:id/status`                                    | `id` positivo          | `status`                                      | `409 REQUIREMENT_STATUS_DERIVED`                         |
-| PATCH  | `/requirements/:id/confirm-completion`                        | `id` positivo          | nenhum                                        | `409 REQUIREMENT_STATUS_DERIVED`                         |
+| PATCH  | `/requirements/:id/status`                                    | `id` positivo          | `status`                                      | `409 REQUIREMENT_STATUS_DERIVED`                       |
+| PATCH  | `/requirements/:id/confirm-completion`                        | `id` positivo          | nenhum                                        | `409 REQUIREMENT_STATUS_DERIVED`                       |
 | GET    | `/requirements/:id/tasks`                                     | `id` positivo          | —                                             | `200`, `{requirementId,total,tasks}`                   |
 | PUT    | `/requirements/:id/tasks`                                     | `id` positivo          | `taskIds`: array único de até 100 IDs         | `200`, `{message,requirement,reassignedTasks,changes}` |
 | GET    | `/projects/:projectId/traceability/requirement-task-coverage` | `projectId` positivo   | —                                             | `200`, métricas atuais                                 |
@@ -230,7 +255,7 @@ Tipos preservados: `FUNCIONAL`, `NAO_FUNCIONAL`, `REGRA_NEGOCIO`. Macros atuais:
 | GET          | `/projects/:projectId/kanban/metrics`                                    | mesmos filtros atuais                                                                                                | `200`, métricas atuais                                                          |
 | GET          | `/projects/:projectId/tasks/metrics`                                     | `startDate?`, `endDate?`                                                                                             | `200`, métricas atuais                                                          |
 | GET          | `/projects/:projectId/traceability/{pull-request,commit,issue}-coverage` | `projectId`                                                                                                          | `200`, cobertura atual                                                          |
-| GET (SSE)    | `/projects/:projectId/events`                                            | `projectId`; query vazia                                                                                             | stream project-scoped; eventos de Comments e de sessões de tempo (S1-06)         |
+| GET (SSE)    | `/projects/:projectId/events`                                            | `projectId`; query vazia                                                                                             | stream project-scoped; eventos de Comments e de sessões de tempo (S1-06)        |
 | GET          | `/tasks/:id/comments`                                                    | `id`; `before?` opaco, `limit?` entre 1 e 100                                                                        | `200`, `{taskId,comments,permissions,pagination}`                               |
 | POST         | `/tasks/:id/comments`                                                    | `id`; `content`                                                                                                      | `201`, `{message,comment}`                                                      |
 | PATCH        | `/tasks/:id/comments/:commentId`                                         | ambos positivos; `content`                                                                                           | `200`, `{message,comment}`                                                      |
@@ -327,7 +352,11 @@ Ordem de travas: as operações de esforço travam `Project` antes de `Task`, a 
     "differencePercent": -55.42,
     "usagePercent": 44.58,
     "status": "DENTRO_DO_PREVISTO",
-    "running": { "id": 9, "startedAt": "2026-09-06T14:02:00.000Z", "startedBy": { "id": 10, "name": "Ana" } }
+    "running": {
+      "id": 9,
+      "startedAt": "2026-09-06T14:02:00.000Z",
+      "startedBy": { "id": 10, "name": "Ana" }
+    }
   },
   "permissions": { "canOperate": true, "canModerate": false },
   "pagination": { "page": 1, "limit": 20, "total": 2, "totalPages": 1 }
@@ -342,10 +371,10 @@ Consolidação por sprint: `GET /sprints/:id/progress` passa a incluir `effort` 
 
 ## S1-09 — histórico funcional de esforço
 
-| Método | Caminho | Entrada | Resultado |
-|---|---|---|---|
-| GET | `/tasks/:id/time-entries/history` | `page`, `limit`, `startDate`, `endDate`, `source`, `eventType` opcionais | `200 {taskId,items,pagination}` |
-| PATCH | `/tasks/:id/time-entries/:entryId` | `{hours,expectedUpdatedAt}` | `200 {entry,effort}`; versão obsoleta `409` |
+| Método | Caminho                            | Entrada                                                                  | Resultado                                   |
+| ------ | ---------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------- |
+| GET    | `/tasks/:id/time-entries/history`  | `page`, `limit`, `startDate`, `endDate`, `source`, `eventType` opcionais | `200 {taskId,items,pagination}`             |
+| PATCH  | `/tasks/:id/time-entries/:entryId` | `{hours,expectedUpdatedAt}`                                              | `200 {entry,effort}`; versão obsoleta `409` |
 
 `source`: TIMER/MANUAL. `eventType`: CREATED/UPDATED/DELETED, independente da origem. Datas são dias civis UTC inclusivos sobre `occurredAt`; filtros combináveis e paginação no banco por occurredAt DESC/id DESC. Intervalo invertido, origem/evento inválidos recebem 400. Leitura exige membership ativa; escrita conserva as permissões de sessão (autor MEMBER+ ou MANAGER/OWNER). Recurso fora do projeto autorizado recebe 404 opaco.
 
@@ -476,17 +505,17 @@ de D12. Quatro convenções valem para tudo abaixo:
 
 ### Sprints
 
-| Método | Caminho | Entrada | Sucesso | Regras |
-|---|---|---|---|---|
-| POST | `/projects/:projectId/sprints` | `name`, `objective?`, `startDate`, `endDate`, `milestoneId?` (aceita null) | `201` `{message, sprint}` | `startDate < endDate`; nome único entre Sprints não excluídas no projeto; sem sobreposição com outra sprint do projeto; marco do mesmo projeto |
-| GET | `/projects/:projectId/sprints` | `status?`, `search?` | `200` `{total, sprints}` | ordenado por `startDate` asc |
-| GET | `/sprints/:id` | — | `200` `{sprint}` | membership no projeto da sprint |
-| PUT | `/sprints/:id` | subconjunto de `name`, `objective`, `startDate`, `endDate`, `milestoneId` | `200` `{message, sprint}` | bloqueado em estado terminal; revalida sobreposição; `milestoneId: null` desvincula |
-| PATCH | `/sprints/:id/status` | `status` | `200` `{message, sprint, carryOver, returnedToBacklog, milestoneCompleted}` | somente transições válidas; uma sprint `EM_ANDAMENTO` por projeto; entrar em estado terminal congela a composição; concluir transfere pendências à próxima sprint planejada válida ou ao backlog e pode concluir o marco; cancelar devolve pendências ao backlog |
-| DELETE | `/sprints/:id` | — | `200` `{message, sprint, returnedToBacklog}` | exclusão lógica em qualquer estado; histórico preservado; ponteiros atuais voltam ao backlog, sem carry-over |
-| GET | `/sprints/:id/impact` | — | `200` `{sprintId, status, currentTasks, completion}` | prévia de conclusão/exclusão, calculada no domínio |
-| GET | `/sprints/:id/tasks` | — | `200` `{sprintId, total, tasks, isFrozen, snapshotAt, historicalSummary, historicalLimitations}` | projeção canônica: aberta live; terminal exclusivamente histórica |
-| PUT | `/sprints/:id/tasks` | `taskIds: number[]` | `200` `{message, sprintId, total, tasks}` | substituição atômica; máx. 100; sem duplicados; bloqueado em estado terminal |
+| Método | Caminho                        | Entrada                                                                    | Sucesso                                                                                          | Regras                                                                                                                                                                                                                                                           |
+| ------ | ------------------------------ | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| POST   | `/projects/:projectId/sprints` | `name`, `objective?`, `startDate`, `endDate`, `milestoneId?` (aceita null) | `201` `{message, sprint}`                                                                        | `startDate < endDate`; nome único entre Sprints não excluídas no projeto; sem sobreposição com outra sprint do projeto; marco do mesmo projeto                                                                                                                   |
+| GET    | `/projects/:projectId/sprints` | `status?`, `search?`                                                       | `200` `{total, sprints}`                                                                         | ordenado por `startDate` asc                                                                                                                                                                                                                                     |
+| GET    | `/sprints/:id`                 | —                                                                          | `200` `{sprint}`                                                                                 | membership no projeto da sprint                                                                                                                                                                                                                                  |
+| PUT    | `/sprints/:id`                 | subconjunto de `name`, `objective`, `startDate`, `endDate`, `milestoneId`  | `200` `{message, sprint}`                                                                        | bloqueado em estado terminal; revalida sobreposição; `milestoneId: null` desvincula                                                                                                                                                                              |
+| PATCH  | `/sprints/:id/status`          | `status`                                                                   | `200` `{message, sprint, carryOver, returnedToBacklog, milestoneCompleted}`                      | somente transições válidas; uma sprint `EM_ANDAMENTO` por projeto; entrar em estado terminal congela a composição; concluir transfere pendências à próxima sprint planejada válida ou ao backlog e pode concluir o marco; cancelar devolve pendências ao backlog |
+| DELETE | `/sprints/:id`                 | —                                                                          | `200` `{message, sprint, returnedToBacklog}`                                                     | exclusão lógica em qualquer estado; histórico preservado; ponteiros atuais voltam ao backlog, sem carry-over                                                                                                                                                     |
+| GET    | `/sprints/:id/impact`          | —                                                                          | `200` `{sprintId, status, currentTasks, completion}`                                             | prévia de conclusão/exclusão, calculada no domínio                                                                                                                                                                                                               |
+| GET    | `/sprints/:id/tasks`           | —                                                                          | `200` `{sprintId, total, tasks, isFrozen, snapshotAt, historicalSummary, historicalLimitations}` | projeção canônica: aberta live; terminal exclusivamente histórica                                                                                                                                                                                                |
+| PUT    | `/sprints/:id/tasks`           | `taskIds: number[]`                                                        | `200` `{message, sprintId, total, tasks}`                                                        | substituição atômica; máx. 100; sem duplicados; bloqueado em estado terminal                                                                                                                                                                                     |
 
 `milestoneId` é opcional na criação e na edição, inclusive como `null`. A regra foi alterada
 por decisão explícita PLANNING-QA-FIX-03; o banco já aceitava nulo (ADR-011 D02 revisado).
@@ -496,11 +525,11 @@ enxerga os dois projetos, e `404` idêntico ao de ID inexistente para quem não 
 
 **Efeitos do encerramento.** `PATCH /sprints/:id/status` devolve, além da sprint:
 
-| Campo | Significado |
-|---|---|
-| `carryOver` | `{destinationSprintId, destinationSprintName, movedTasks}` quando existe destino planejado válido na conclusão; `null` sem destino ou em outras transições |
-| `returnedToBacklog` | quantas tarefas não concluídas tiveram `Task.sprintId` zerado; zero quando há carry-over (ADR-011 D07) |
-| `milestoneCompleted` | `{id, title, status}` quando esta foi a última sprint pendente do marco, ou `null` |
+| Campo                | Significado                                                                                                                                                |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `carryOver`          | `{destinationSprintId, destinationSprintName, movedTasks}` quando existe destino planejado válido na conclusão; `null` sem destino ou em outras transições |
+| `returnedToBacklog`  | quantas tarefas não concluídas tiveram `Task.sprintId` zerado; zero quando há carry-over (ADR-011 D07)                                                     |
+| `milestoneCompleted` | `{id, title, status}` quando esta foi a última sprint pendente do marco, ou `null`                                                                         |
 
 Na conclusão, o destino é a Sprint `PLANEJADA` do mesmo projeto com menor `startDate`
 maior ou igual ao `endDate` da origem, com intervalo válido e sem sobreposição com a origem;
@@ -543,14 +572,14 @@ Erro na prévia não autoriza a interface a inventar o destino. Autorização pe
 
 ### Marcos
 
-| Método | Caminho | Entrada | Sucesso | Regras |
-|---|---|---|---|---|
-| POST | `/projects/:projectId/milestones` | `title`, `description?`, `dueDate` | `201` `{message, milestone}` | prazo livre; sem vínculo com sprint no corpo |
-| GET | `/projects/:projectId/milestones` | `status?` | `200` `{total, milestones}` | |
-| GET | `/milestones/:id` | — | `200` `{milestone}` | |
-| PUT | `/milestones/:id` | subconjunto de `title`, `description`, `dueDate` | `200` `{message, milestone}` | editável enquanto o projeto existir |
-| PATCH | `/milestones/:id/status` | `status` (`PENDENTE` ↔ `CONCLUIDO`) | `200` `{message, milestone}` | conclusão manual convive com a automática |
-| DELETE | `/milestones/:id` | — | `200` `{message}` | exclusão lógica em qualquer estado; preserva Sprints e histórico, inclusive vínculos terminais |
+| Método | Caminho                           | Entrada                                          | Sucesso                      | Regras                                                                                         |
+| ------ | --------------------------------- | ------------------------------------------------ | ---------------------------- | ---------------------------------------------------------------------------------------------- |
+| POST   | `/projects/:projectId/milestones` | `title`, `description?`, `dueDate`               | `201` `{message, milestone}` | prazo livre; sem vínculo com sprint no corpo                                                   |
+| GET    | `/projects/:projectId/milestones` | `status?`                                        | `200` `{total, milestones}`  |                                                                                                |
+| GET    | `/milestones/:id`                 | —                                                | `200` `{milestone}`          |                                                                                                |
+| PUT    | `/milestones/:id`                 | subconjunto de `title`, `description`, `dueDate` | `200` `{message, milestone}` | editável enquanto o projeto existir                                                            |
+| PATCH  | `/milestones/:id/status`          | `status` (`PENDENTE` ↔ `CONCLUIDO`)              | `200` `{message, milestone}` | conclusão manual convive com a automática                                                      |
+| DELETE | `/milestones/:id`                 | —                                                | `200` `{message}`            | exclusão lógica em qualquer estado; preserva Sprints e histórico, inclusive vínculos terminais |
 
 **O corpo não aceita `sprintId`.** O objeto é estrito, então um cliente anterior à inversão
 recebe `400` em vez de ter o vínculo descartado em silêncio.
@@ -574,10 +603,10 @@ conclusão automática. Sprints excluídas não participam dos cálculos atuais 
 
 ### Associação tarefa ↔ sprint
 
-| Método | Caminho | Entrada | Sucesso | Regras |
-|---|---|---|---|---|
-| PATCH | `/tasks/:id/sprint` | `sprintId` | `200` `{message, task}` | mesmo `projectId`; sprint não terminal; idempotente; respeita o limite de 100 |
-| DELETE | `/tasks/:id/sprint` | — | `200` `{message, task}` | idempotente; **bloqueado em sprint terminal** |
+| Método | Caminho             | Entrada    | Sucesso                 | Regras                                                                        |
+| ------ | ------------------- | ---------- | ----------------------- | ----------------------------------------------------------------------------- |
+| PATCH  | `/tasks/:id/sprint` | `sprintId` | `200` `{message, task}` | mesmo `projectId`; sprint não terminal; idempotente; respeita o limite de 100 |
+| DELETE | `/tasks/:id/sprint` | —          | `200` `{message, task}` | idempotente; **bloqueado em sprint terminal**                                 |
 
 Os três caminhos de escrita — `PUT /sprints/:id/tasks`, `PATCH` e `DELETE` do lado da tarefa —
 passam pelo **mesmo plano de escopo**, para que não divirjam no histórico. Toda inclusão,
@@ -603,7 +632,7 @@ das duas.
 modal de tarefas. Uma única projeção de domínio escolhe os dados conforme o lifecycle:
 
 - Aberta: participações ativas com campos Task atuais (`id,title,status,priority,deadline,
-  estimatedEffort,responsibleUserId,sprintId`) e `isFrozen=false`.
+estimatedEffort,responsibleUserId,sprintId`) e `isFrozen=false`.
 - Terminal: todas as participações ativas no encerramento, independentemente de `Task.sprintId`
   ou existência posterior da Task. `status=exitStatus` e os demais
   campos vêm do snapshot versionado. `sprintId` identifica o recorte histórico neste DTO.
@@ -666,22 +695,47 @@ muda é que as inclusões passam a ser sinalizadas. Quem congela é o estado ter
 
 ```json
 {
-  "sprintId": 4, "projectId": 2, "status": "CONCLUIDA",
-  "frozen": true, "historicalLimitations": [],
+  "sprintId": 4,
+  "projectId": 2,
+  "status": "CONCLUIDA",
+  "frozen": true,
+  "historicalLimitations": [],
   "cutoff": "2026-08-14T18:00:00.000Z",
   "baseline": { "kind": "STARTED_AT", "at": "2026-08-01T12:00:00.000Z" },
-  "planned": { "numerator": 5, "denominator": 8, "percentage": 62.5, "hasData": true },
-  "current": { "numerator": 6, "denominator": 9, "percentage": 66.67, "hasData": true },
-  "scopeChange": {
-    "added":   [{ "taskId": 12, "at": "...", "fromSprintId": 3 }],
-    "removed": [{ "taskId": 7, "at": "...", "toSprintId": null,
-                  "reason": "REMOVIDA", "exitStatus": "A_FAZER" }]
+  "planned": {
+    "numerator": 5,
+    "denominator": 8,
+    "percentage": 62.5,
+    "hasData": true
   },
-  "carryOver": [{ "taskId": 9, "toSprintId": 5, "exitStatus": "EM_ANDAMENTO", "at": "..." }],
+  "current": {
+    "numerator": 6,
+    "denominator": 9,
+    "percentage": 66.67,
+    "hasData": true
+  },
+  "scopeChange": {
+    "added": [{ "taskId": 12, "at": "...", "fromSprintId": 3 }],
+    "removed": [
+      {
+        "taskId": 7,
+        "at": "...",
+        "toSprintId": null,
+        "reason": "REMOVIDA",
+        "exitStatus": "A_FAZER"
+      }
+    ]
+  },
+  "carryOver": [
+    { "taskId": 9, "toSprintId": 5, "exitStatus": "EM_ANDAMENTO", "at": "..." }
+  ],
   "burndown": {
-    "hasData": true, "totalPoints": 8, "frozen": true, "cutoffDate": "2026-08-12",
+    "hasData": true,
+    "totalPoints": 8,
+    "frozen": true,
+    "cutoffDate": "2026-08-12",
     "days": [
-      { "date": "2026-08-10", "ideal": 8,   "remaining": 8 },
+      { "date": "2026-08-10", "ideal": 8, "remaining": 8 },
       { "date": "2026-08-11", "ideal": 5.3, "remaining": 5 },
       { "date": "2026-08-12", "ideal": 2.7, "remaining": null }
     ]
@@ -716,20 +770,20 @@ Vem embutido no `progress`, e não em endpoint próprio: o painel do Kanban exib
 
 **Ficha da métrica** (seção 10.5 do documento de arquitetura):
 
-| Item | Definição |
-|---|---|
-| Objetivo | acompanhar o avanço da sprint e tornar visível a mudança de escopo após o planejamento |
-| Fórmula | `buildMetric(concluídas, total)` — a **mesma** de `traceability.calculator.js`. Concluída é `status === 'CONCLUIDO'`; percentual com duas casas |
-| Dados de origem | `SprintTask` (participação, `plannedAtStart`, snapshots de pontos/status/conclusão), `Sprint.planningSnapshotAt` e `closedAt`; estado da Task somente enquanto operacional |
-| Status que vale | `exitStatus ?? status atual` enquanto aberta; terminal utiliza somente o status persistido e sinaliza ausência legada |
-| Linha de base | `Sprint.startedAt`. Sem ele (`PLANEJADA`), a base é `OPEN`: o planejamento não fechou, `planned == current` e `scopeChange` é vazio |
-| Escopo planejado | `plannedAtStart: true`, capturado das participações ativas na transação de start; inclui remoções posteriores, exclui remoções anteriores e reentradas não planejadas |
-| Mudança de escopo | saldo líquido. Quem entrou depois do início e já saiu não aparece em nenhuma das duas listas |
-| `carryOver` | participações cuja tarefa continuou em outra sprint, com o status observado **aqui** |
-| Instante de corte | `cutoff`. Em sprint aberta é o momento da consulta; em sprint encerrada é o encerramento, porque o resultado não depende de quando se perguntou |
-| Interpretação | mede progresso do trabalho, **não** de pessoas. Não há recorte por responsável |
-| Limitações | corte no passado não é suportado (`at` → `400`); `historicalLimitations` identifica snapshots legados ausentes; não se reconstrói esforço/status terminal a partir da Task atual |
-| Atualização | calculado sob demanda; sem cache |
+| Item              | Definição                                                                                                                                                                        |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Objetivo          | acompanhar o avanço da sprint e tornar visível a mudança de escopo após o planejamento                                                                                           |
+| Fórmula           | `buildMetric(concluídas, total)` — a **mesma** de `traceability.calculator.js`. Concluída é `status === 'CONCLUIDO'`; percentual com duas casas                                  |
+| Dados de origem   | `SprintTask` (participação, `plannedAtStart`, snapshots de pontos/status/conclusão), `Sprint.planningSnapshotAt` e `closedAt`; estado da Task somente enquanto operacional       |
+| Status que vale   | `exitStatus ?? status atual` enquanto aberta; terminal utiliza somente o status persistido e sinaliza ausência legada                                                            |
+| Linha de base     | `Sprint.startedAt`. Sem ele (`PLANEJADA`), a base é `OPEN`: o planejamento não fechou, `planned == current` e `scopeChange` é vazio                                              |
+| Escopo planejado  | `plannedAtStart: true`, capturado das participações ativas na transação de start; inclui remoções posteriores, exclui remoções anteriores e reentradas não planejadas            |
+| Mudança de escopo | saldo líquido. Quem entrou depois do início e já saiu não aparece em nenhuma das duas listas                                                                                     |
+| `carryOver`       | participações cuja tarefa continuou em outra sprint, com o status observado **aqui**                                                                                             |
+| Instante de corte | `cutoff`. Em sprint aberta é o momento da consulta; em sprint encerrada é o encerramento, porque o resultado não depende de quando se perguntou                                  |
+| Interpretação     | mede progresso do trabalho, **não** de pessoas. Não há recorte por responsável                                                                                                   |
+| Limitações        | corte no passado não é suportado (`at` → `400`); `historicalLimitations` identifica snapshots legados ausentes; não se reconstrói esforço/status terminal a partir da Task atual |
+| Atualização       | calculado sob demanda; sem cache                                                                                                                                                 |
 
 `percentage` é `null` — nunca `0` — quando `denominator` é zero: "nada concluído" e "não há o
 que medir" são estados diferentes, e `hasData` distingue os dois.
@@ -756,9 +810,13 @@ cortes persistidos, incluindo participações cuja Task foi excluída:
 
 ```json
 {
-  "totalTasks": 3, "completedTasks": 1,
-  "totalPoints": 21, "completedPoints": 3, "percentage": 14,
-  "plannedTasks": 2, "plannedPoints": 8,
+  "totalTasks": 3,
+  "completedTasks": 1,
+  "totalPoints": 21,
+  "completedPoints": 3,
+  "percentage": 14,
+  "plannedTasks": 2,
+  "plannedPoints": 8,
   "cutoff": "2026-09-04T23:54:13.631Z",
   "historicalLimitations": []
 }
@@ -809,22 +867,22 @@ O DTO de tarefa é minimizado: nunca e-mail nem descrição.
 
 ### Códigos de erro
 
-| Código | Status | Quando |
-|---|---|---|
-| `SPRINT_NOT_FOUND` | 404 | sprint inexistente **ou** de projeto que o ator não enxerga |
-| `MILESTONE_NOT_FOUND` | 404 | idem, para marco |
-| `SPRINT_NAME_IN_USE` | 409 | nome repetido em Sprint atual do projeto |
-| `SPRINT_OVERLAP` | 409 | janela cruza outra sprint do projeto |
-| `SPRINT_ALREADY_ACTIVE` | 409 | já existe outra sprint `EM_ANDAMENTO` no projeto |
-| `SPRINT_INVALID_TRANSITION` | 409 | transição de status não permitida |
-| `SPRINT_LOCKED` | 409 | edição de sprint encerrada |
-| `SPRINT_SCOPE_LOCKED` | 409 | alteração de escopo de sprint encerrada, em qualquer direção |
-| `SPRINT_TASK_LIMIT_REACHED` | 409 | conjunto resultante acima de 100 tarefas |
-| `SPRINT_ALREADY_DELETED` | 409 | exclusão lógica repetida de Sprint |
-| `SPRINT_DATE_RANGE_INVALID` | 400 | `startDate >= endDate`, ou `from > to` no filtro |
-| `MILESTONE_ALREADY_DELETED` | 409 | exclusão lógica repetida de Marco |
-| `SPRINT_MILESTONE_PROJECT_MISMATCH` | 400 | marco de outro projeto, visível ao ator |
-| `TASK_SPRINT_PROJECT_MISMATCH` | 400 | tarefa de outro projeto, visível ao ator |
+| Código                              | Status | Quando                                                       |
+| ----------------------------------- | ------ | ------------------------------------------------------------ |
+| `SPRINT_NOT_FOUND`                  | 404    | sprint inexistente **ou** de projeto que o ator não enxerga  |
+| `MILESTONE_NOT_FOUND`               | 404    | idem, para marco                                             |
+| `SPRINT_NAME_IN_USE`                | 409    | nome repetido em Sprint atual do projeto                     |
+| `SPRINT_OVERLAP`                    | 409    | janela cruza outra sprint do projeto                         |
+| `SPRINT_ALREADY_ACTIVE`             | 409    | já existe outra sprint `EM_ANDAMENTO` no projeto             |
+| `SPRINT_INVALID_TRANSITION`         | 409    | transição de status não permitida                            |
+| `SPRINT_LOCKED`                     | 409    | edição de sprint encerrada                                   |
+| `SPRINT_SCOPE_LOCKED`               | 409    | alteração de escopo de sprint encerrada, em qualquer direção |
+| `SPRINT_TASK_LIMIT_REACHED`         | 409    | conjunto resultante acima de 100 tarefas                     |
+| `SPRINT_ALREADY_DELETED`            | 409    | exclusão lógica repetida de Sprint                           |
+| `SPRINT_DATE_RANGE_INVALID`         | 400    | `startDate >= endDate`, ou `from > to` no filtro             |
+| `MILESTONE_ALREADY_DELETED`         | 409    | exclusão lógica repetida de Marco                            |
+| `SPRINT_MILESTONE_PROJECT_MISMATCH` | 400    | marco de outro projeto, visível ao ator                      |
+| `TASK_SPRINT_PROJECT_MISMATCH`      | 400    | tarefa de outro projeto, visível ao ator                     |
 
 **Aposentados nesta revisão (ADR-011):** `MILESTONE_SPRINT_REQUIRED`,
 `MILESTONE_SPRINT_PROJECT_MISMATCH`, `MILESTONE_DUE_DATE_OUTSIDE_SPRINT`,
@@ -854,7 +912,6 @@ do **mesmo recurso** respondam igual.
 ativa; o histórico completo vive em `SprintTask` e é exposto por `/sprints/:id/tasks` e
 `/sprints/:id/progress`.
 
-
 ## Limites e erros
 
 - Strings persistidas em campos Prisma `String` sem `@db.Text`: até 191 caracteres.
@@ -875,21 +932,21 @@ Todas as rotas exigem sessão ativa; mutations exigem CSRF. Leitura por membersh
 ativa VIEWER+, escrita MEMBER+. Recurso ausente/alheio/excluído recebe 404 opaco;
 VIEWER em escrita recebe 403. Não existe execução via JSON simples.
 
-| Método | Endpoint | Resposta / finalidade |
-|---|---|---|
-| GET | `/projects/:projectId/test-cases` | `{items,total,page,limit,summary}` |
-| POST | `/projects/:projectId/test-cases` | 201 `{testCase}`; cria definição e v1 |
-| GET | `/test-cases/:id` | `{testCase}`; definição atual e capabilities |
-| PUT | `/test-cases/:id` | `{testCase}`; atualização parcial com expectedVersion |
-| DELETE | `/test-cases/:id` | 204; exclusão lógica, body vazio |
-| PATCH | `/test-cases/:id/status` | `{testCase}`; `{status,expectedVersion}` |
-| GET | `/test-cases/:id/versions` | `{items,total,page,limit}`; snapshot autocontido |
-| GET | `/test-cases/:id/history` | `{items,nextCursor}`; histórico funcional |
-| GET | `/test-cases/:id/executions` | `{items,nextCursor}`; resumos de execução |
-| POST | `/test-cases/:id/executions` | 201 `{execution}`; multipart atômico |
-| GET | `/test-cases/:id/tested-references` | `{items,limit}`; PRs/Commits importados |
-| GET | `/test-executions/:id` | `{execution}`; versão, resultados e evidências históricas |
-| GET | `/test-evidence/:id/content` | stream privado; attachment, MIME validado, nosniff |
+| Método | Endpoint                            | Resposta / finalidade                                     |
+| ------ | ----------------------------------- | --------------------------------------------------------- |
+| GET    | `/projects/:projectId/test-cases`   | `{items,total,page,limit,summary}`                        |
+| POST   | `/projects/:projectId/test-cases`   | 201 `{testCase}`; cria definição e v1                     |
+| GET    | `/test-cases/:id`                   | `{testCase}`; definição atual e capabilities              |
+| PUT    | `/test-cases/:id`                   | `{testCase}`; atualização parcial com expectedVersion     |
+| DELETE | `/test-cases/:id`                   | 204; exclusão lógica, body vazio                          |
+| PATCH  | `/test-cases/:id/status`            | `{testCase}`; `{status,expectedVersion}`                  |
+| GET    | `/test-cases/:id/versions`          | `{items,total,page,limit}`; snapshot autocontido          |
+| GET    | `/test-cases/:id/history`           | `{items,nextCursor}`; histórico funcional                 |
+| GET    | `/test-cases/:id/executions`        | `{items,nextCursor}`; resumos de execução                 |
+| POST   | `/test-cases/:id/executions`        | 201 `{execution}`; multipart atômico                      |
+| GET    | `/test-cases/:id/tested-references` | `{items,limit}`; PRs/Commits importados                   |
+| GET    | `/test-executions/:id`              | `{execution}`; versão, resultados e evidências históricas |
+| GET    | `/test-evidence/:id/content`        | stream privado; attachment, MIME validado, nosniff        |
 
 ### Definição e validação
 
@@ -951,7 +1008,11 @@ Exatamente um campo textual `payload`, contendo JSON:
   "testedReference": { "type": "PULL_REQUEST", "id": 91 },
   "steps": [
     { "position": 1, "result": "PASS", "observedResult": null },
-    { "position": 2, "result": "BLOCKED", "observedResult": "Ambiente indisponível" }
+    {
+      "position": 2,
+      "result": "BLOCKED",
+      "observedResult": "Ambiente indisponível"
+    }
   ]
 }
 ```
@@ -1101,7 +1162,6 @@ search vazio. Mantém limite S1-07 de 50. Não chama GitHub.
 Permissões e política de ciclos: [Authorization](../security/AUTHORIZATION_MATRIX.md)
 e [Defect history](../data/DEFECT_HISTORY.md). Frontend integrado; homologação visual completa pendente. Ver `docs/deliveries/S1_08_FRONTEND_INTEGRATION_REPORT.md`.
 
-
 ### S1-08 — Extensões de leitura para a interface
 
 GET `/projects/:projectId/defects` acrescenta `correctionTaskCount` (somente o
@@ -1126,7 +1186,6 @@ atualmente disponíveis para navegação. Defeitos excluídos logicamente são o
 
 Não houve alteração de schema, migration, escrita, lifecycle ou autorização.
 
-
 ## S1-09 — Requirement current projection e histórico (Etapa 2)
 
 Novas leituras sob `/api/projects/:projectId/traceability`; contratos de matriz,
@@ -1134,11 +1193,11 @@ summary antigo e grafos permanecem inalterados. Não há endpoint para escrever
 situação. Membership ativa VIEWER+; sessão ausente 401; projeto inacessível ou
 requisito alheio 404 opaco.
 
-| Método | Sufixo | Entrada | Resposta |
-|---|---|---|---|
-| GET | `/requirements` | page=1, limit=20 (máx.100), search, situation, requirementStatus, hasTests, hasOpenDefects, hasTechnicalEvidence | `{projectId,items,summary,filteredSummary,pagination}` |
-| GET | `/requirements/:requirementId/current` | IDs positivos | DTO atual do Requirement |
-| GET | `/requirements/:requirementId/history` | limit=30 (máx.100), cursor opcional | `{items,nextCursor}`; occurredAt DESC/id DESC |
+| Método | Sufixo                                 | Entrada                                                                                                          | Resposta                                               |
+| ------ | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| GET    | `/requirements`                        | page=1, limit=20 (máx.100), search, situation, requirementStatus, hasTests, hasOpenDefects, hasTechnicalEvidence | `{projectId,items,summary,filteredSummary,pagination}` |
+| GET    | `/requirements/:requirementId/current` | IDs positivos                                                                                                    | DTO atual do Requirement                               |
+| GET    | `/requirements/:requirementId/history` | limit=30 (máx.100), cursor opcional                                                                              | `{items,nextCursor}`; occurredAt DESC/id DESC          |
 
 Booleanos aceitam `true`/`false`; `situation` aceita os 11 estados detalhados;
 `requirementStatus` representa exclusivamente o lifecycle macro derivado e aceita

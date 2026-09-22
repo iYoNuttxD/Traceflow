@@ -16,6 +16,10 @@ export const projectCrudService = {
     return projectRepository.findAllProjects(userId);
   },
 
+  async findRecentlyDeletedOwnedProjects(userId) {
+    return projectRepository.findRecentlyDeletedOwnedProjects(userId);
+  },
+
   async getProjectById(projectId) {
     const parsedProjectId = parseProjectId(projectId);
     const project = await projectRepository.findById(parsedProjectId);

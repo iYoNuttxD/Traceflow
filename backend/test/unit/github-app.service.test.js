@@ -611,6 +611,93 @@ describe('autorização e webhooks da GitHub App L1', () => {
     });
   });
 
+  it('reserva repo de projeto excluído e expõe recuperação somente ao OWNER', async () => {
+    const pending = {
+      githubRepositoryId: '501',
+      projectId: 20,
+      project: {
+        id: 20,
+        name: 'Projeto anterior',
+        deletedAt: new Date('2026-09-21T00:00:00.000Z'),
+        deletionScheduledFor: new Date('2026-10-21T00:00:00.000Z'),
+        memberships: [{ id: 1, role: 'OWNER' }]
+      }
+    };
+    mocks.repository.findIntegrationByRepositoryId.mockResolvedValueOnce(pending);
+    await expect(githubAppService.assertRepositoryAvailable('501', null, 7)).rejects.toMatchObject({
+      statusCode: 409,
+      code: 'PROJECT_PENDING_DELETION',
+      details: {
+        pendingProject: {
+          projectId: 20,
+          projectName: 'Projeto anterior',
+          repositoryIdentifier: '501'
+        }
+      }
+    });
+
+    mocks.repository.findIntegrationByRepositoryId.mockResolvedValueOnce({
+      ...pending,
+      project: { ...pending.project, memberships: [{ id: 2, role: 'MEMBER' }] }
+    });
+    await expect(githubAppService.assertRepositoryAvailable('501', null, 8)).rejects.toMatchObject({
+      statusCode: 409,
+      code: 'PROJECT_REPOSITORY_UNAVAILABLE',
+      details: undefined
+    });
+  });
+
+  it('marca repo pendente como recuperável para OWNER e neutro para outro papel', async () => {
+    mocks.repository.findAuthorizedInstallation.mockResolvedValue(authorizedInstallation());
+    mocks.clientFactory.forInstallation.mockResolvedValue({
+      listRepositoryPages: () =>
+        (async function* repositoryPages() {
+          yield [{ githubRepositoryId: '501', fullName: 'org/repo' }];
+        })()
+    });
+    const pendingProject = {
+      id: 20,
+      name: 'Projeto anterior',
+      deletedAt: new Date('2026-09-21T00:00:00.000Z'),
+      deletionScheduledFor: new Date('2026-10-21T00:00:00.000Z')
+    };
+    mocks.repository.findIntegrationsByRepositoryIds.mockResolvedValueOnce([
+      {
+        githubRepositoryId: '501',
+        projectId: 20,
+        project: { ...pendingProject, memberships: [{ id: 1, role: 'OWNER' }] }
+      }
+    ]);
+    await expect(githubAppService.listRepositories(7, 77)).resolves.toEqual({
+      repositories: [
+        expect.objectContaining({
+          availability: 'PENDING_DELETION',
+          selectable: true,
+          connectedProject: null,
+          pendingDeletion: expect.objectContaining({ projectId: 20 })
+        })
+      ]
+    });
+
+    mocks.repository.findIntegrationsByRepositoryIds.mockResolvedValueOnce([
+      {
+        githubRepositoryId: '501',
+        projectId: 20,
+        project: { ...pendingProject, memberships: [{ id: 2, role: 'MEMBER' }] }
+      }
+    ]);
+    await expect(githubAppService.listRepositories(8, 77)).resolves.toEqual({
+      repositories: [
+        expect.objectContaining({
+          availability: 'PENDING_DELETION',
+          selectable: false,
+          connectedProject: null,
+          pendingDeletion: { restricted: true }
+        })
+      ]
+    });
+  });
+
   it('bloqueia troca de repo X por repo Y antes da chamada externa', async () => {
     mocks.repository.findIntegration.mockResolvedValue({
       projectId: 9,

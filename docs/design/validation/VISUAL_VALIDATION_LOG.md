@@ -340,7 +340,6 @@ The following materially changed areas require a new rendered record before they
   filtros recolhíveis, quadro horizontal em containers estreitos, Task Details e histórico individual;
 - legacy Dark-compatible operational surfaces.
 
-
 ### S1-07 — frontend integrado (2026-09-07)
 
 **Status: TECHNICALLY VERIFIED; homologação visual completa pendente.** Checkout
@@ -411,7 +410,6 @@ Evidências e gates: [S1-07 FRONTEND FINAL UX FIX REPORT](../../deliveries/S1_07
 com 230 testes focados, 864 testes completos e cobertura aprovada. Capturas foram
 observadas durante a sessão; este registro não as apresenta como artefatos PNG versionados.
 
-
 ### S1-07 Addendum 3 — Traceability + Evidence Viewer
 
 - **Date:** 2026-09-08.
@@ -461,7 +459,6 @@ recebeu contexto de correção. Um Issue de melhoria do Chrome também apareceu 
 superfície canônica de tarefa; o painel Issues classificou a família como campos sem id/name (dois apontamentos),
 sem page errors/breaking changes. A atribuição individual permanece pendente.
 
-
 ## 2026-09-10 — S1-09 Etapa 4 · Expanded Traceability Graph
 
 **PASS LOCAL — inspeção renderizada.** Chrome 152.0.7977.84/macOS, sessão local autenticada.
@@ -469,17 +466,17 @@ Escopo: canvas de rastreabilidade, oito tipos reais, metadata, grupos, fit/pan e
 Details existentes. Overview, filtros, Requirement Cards e histórico da Etapa 3 preservados.
 Larguras verificadas no DOM, em Light e Dark: 1440, 1280, 768 e 390px.
 
-| Cenário | Light 1440 | Dark 1440 | Light 1280 | Dark 1280 | Light 768 | Dark 768 | Light 390 | Dark 390 |
-|---|---|---|---|---|---|---|---|---|
-| Requirement sem relações | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
-| Legacy Task / PR | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
-| TestCase PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
-| TestCase FAIL / detecção / Defect | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
-| Correction Task | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
-| Retest PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
-| Large grouped (fixture isolado) | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
-| Metadata expandida | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
-| Grupo expandido | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
+| Cenário                           | Light 1440 | Dark 1440 | Light 1280 | Dark 1280 | Light 768 | Dark 768 | Light 390 | Dark 390 |
+| --------------------------------- | ---------- | --------- | ---------- | --------- | --------- | -------- | --------- | -------- |
+| Requirement sem relações          | PASS       | PASS      | PASS       | PASS      | PASS      | PASS     | PASS      | PASS     |
+| Legacy Task / PR                  | PASS       | PASS      | PASS       | PASS      | PASS      | PASS     | PASS      | PASS     |
+| TestCase PASS                     | PASS       | PASS      | PASS       | PASS      | PASS      | PASS     | PASS      | PASS     |
+| TestCase FAIL / detecção / Defect | PASS       | PASS      | PASS       | PASS      | PASS      | PASS     | PASS      | PASS     |
+| Correction Task                   | PASS       | PASS      | PASS       | PASS      | PASS      | PASS     | PASS      | PASS     |
+| Retest PASS                       | PASS       | PASS      | PASS       | PASS      | PASS      | PASS     | PASS      | PASS     |
+| Large grouped (fixture isolado)   | PASS       | PASS      | PASS       | PASS      | PASS      | PASS     | PASS      | PASS     |
+| Metadata expandida                | PASS       | PASS      | PASS       | PASS      | PASS      | PASS     | PASS      | PASS     |
+| Grupo expandido                   | PASS       | PASS      | PASS       | PASS      | PASS      | PASS     | PASS      | PASS     |
 
 REQ-2: vazio. REQ-1: Task/PR/Commit. REQ-3: TestCases PASS/FAIL, detecção e Passo 1,
 Defects aberto/validado, Task de correção e retestes PASS/BLOCKED/FAIL. Os quatro Details reais
@@ -500,17 +497,16 @@ Teclado, foco visível, aria-expanded, resultados textuais e retorno dos Details
 não é certificação WCAG completa. Este registro não substitui QA integrado/CI remoto.
 Ver [relatório A–V](../../deliveries/S1_09_EXPANDED_TRACEABILITY_GRAPH_REPORT.md).
 
-
 ## 2026-09-11 — S1-09 Etapa 5 · Workspace final e targeted corrections
 
 **PASS LOCAL — inspeção renderizada no Chrome/macOS.** Sessão autenticada local no projeto 2; grafo grande obtido de fixture persistida em schema exclusivo de teste e exibido em preview temporário removido ao final.
 
 | Workspace / grafo grande / contexto / Inspector | Light | Dark |
-|---|---|---|
-| 1440×1000 | PASS | PASS |
-| 1280×900 | PASS | PASS |
-| 768×1024 | PASS | PASS |
-| 390×844 | PASS | PASS |
+| ----------------------------------------------- | ----- | ---- |
+| 1440×1000                                       | PASS  | PASS |
+| 1280×900                                        | PASS  | PASS |
+| 768×1024                                        | PASS  | PASS |
+| 390×844                                         | PASS  | PASS |
 
 Requirement Cards, TestCase/Defect overviews e Defect Cards foram comparados com a família Task/TestCase; a cobertura exata por superfície está na seção Q do [relatório final](../../deliveries/S1_09_TRACEABILITY_GRAPH_WORKSPACE_UX_REPORT.md), sem extrapolar a matriz do grafo para toda combinação de catálogo. Cards reais: REQ-4 25%/Em correção; REQ-3 75%/Com falha; REQ-2 Sem dados/Sem rastreabilidade. Summary: 4 total, 2 com defeito, 1 em desenvolvimento. Card aguardando reteste: fixture sintética calculada pela policy, Light/Dark em 390.
 
@@ -563,17 +559,17 @@ Navegação autenticada no Chrome local, projeto 2, sem mutações de dados dura
 a inspeção visual. Esta entrada substitui a aprovação anterior de duas visões
 de esforço; não revalida funcionalidades fora do recorte atual.
 
-| Superfície | Light 1440/1280/768/390 | Dark 1440/1280/768/390 |
-|---|---|---|
+| Superfície                                  | Light 1440/1280/768/390   | Dark 1440/1280/768/390    |
+| ------------------------------------------- | ------------------------- | ------------------------- |
 | Histórico único de esforço, filtros e ações | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
-| Kanban Overview, quatro cantos | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
-| Defect Card, quatro estados reais | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
-| Task Inspector | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
-| PR Inspector | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
-| TestCase Inspector | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
-| Execution Inspector | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
-| Defect Inspector | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
-| Task Details aberto pelo grafo | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
+| Kanban Overview, quatro cantos              | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
+| Defect Card, quatro estados reais           | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
+| Task Inspector                              | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
+| PR Inspector                                | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
+| TestCase Inspector                          | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
+| Execution Inspector                         | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
+| Defect Inspector                            | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
+| Task Details aberto pelo grafo              | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
 
 Task 16 mostra 4h/5h/80% no Inspector, no Details do grafo e no Details canônico.
 A lista real contém DELETED de 3h e a sessão antiga de 4h como Snapshot / Registro
@@ -604,3 +600,33 @@ limites no [relatório](../../deliveries/S1_09_TRACEABILITY_GRAPH_WORKSPACE_UX_R
 Capturas observadas nesta execução, sem pacote PNG versionado. Aba auxiliar
 fechada, viewport restaurado e tema Escuro preservado. Sem QA temporário dentro
 do produto. Não substitui CI remoto, dispositivo físico ou Final Integrated QA.
+
+## 2026-09-21 — Project deletion and 30-day recovery
+
+**PASS LOCAL — inspeção renderizada no Chrome/macOS.** Catálogo, seção de projetos
+excluídos recentemente, recuperação, Zona de perigo e confirmação digitada foram
+observados com frontend/API reais contra schema isolado de teste.
+
+| Superfície                          | Light 1440/1280/768/390   | Dark 1440/1280/768/390    |
+| ----------------------------------- | ------------------------- | ------------------------- |
+| `/projects` e recuperação           | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
+| Zona de perigo                      | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
+| Confirmação digitada                | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
+| Conflito GitHub de OWNER            | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
+| Conflito GitHub neutro de não OWNER | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
+| Confirmação de exclusão definitiva  | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
+
+Nenhum recorte apresentou overflow horizontal da página. Em 390px, a surface
+principal mediu 358px; em 768px, 616px; em 1280/1440px, 928px. O diálogo permaneceu
+em 512px ou na largura disponível. Input recebeu foco inicial, nome divergente
+manteve a ação desabilitada, nome exato habilitou a ação, Tab/Shift+Tab fecharam o
+ciclo, Escape fechou somente o diálogo superior e devolveu foco ao trigger.
+
+A recuperação foi executada na aplicação real e observada no catálogo. Os dois
+projetos temporários foram removidos do schema de teste ao final por conferência
+exata de ID e nome. Os estados raros de conflito GitHub foram renderizados com os
+componentes reais e fixture HTTP efêmero, explicitamente sem persistência; portanto
+comprovam apresentação/responsividade, enquanto autorização e mutations são
+cobertas pela suíte API. Abas auxiliares e servidores temporários foram encerrados.
+Não substitui CI remoto, dispositivo físico ou certificação WCAG integral. Ver o
+[relatório de implementação](../../deliveries/PROJECT_DELETION_RETENTION_IMPLEMENTATION_REPORT.md).

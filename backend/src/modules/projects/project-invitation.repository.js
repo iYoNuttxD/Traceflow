@@ -16,7 +16,10 @@ const invitationSelect = {
 
 export const projectInvitationRepository = {
   findProjectById(projectId) {
-    return prisma.project.findUnique({ where: { id: projectId }, select: { id: true } });
+    return prisma.project.findFirst({
+      where: { id: projectId, deletedAt: null },
+      select: { id: true }
+    });
   },
   createUnlessPending(data) {
     return serializableTransaction(async (tx) => {

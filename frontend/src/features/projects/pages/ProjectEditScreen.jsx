@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useParams } from 'react-router';
+import { useNavigate, useParams } from 'react-router';
 import { membersApi } from '../../members/index.js';
 import {
   BackButton,
@@ -10,7 +10,8 @@ import {
   getErrorRequestId,
   normalizeApiError,
   useAbortableRequest,
-  useCountdown
+  useCountdown,
+  useConfirm
 } from '../../../shared/index.js';
 import { ProjectForm, emptyProjectForm, updateProjectForm } from '../components/ProjectForm.jsx';
 import { useProjectsCatalog } from '../hooks/ProjectsCatalogContext.jsx';
@@ -29,6 +30,8 @@ function toFormData(project) {
 
 export function ProjectEditScreen() {
   const { projectId } = useParams();
+  const navigate = useNavigate();
+  const confirm = useConfirm();
   const { refreshProjects } = useProjectsCatalog();
   const [project, setProject] = useState(null);
   const [loadedProjectId, setLoadedProjectId] = useState(null);
@@ -36,6 +39,7 @@ export function ProjectEditScreen() {
   const [formData, setFormData] = useState(emptyProjectForm);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [pageError, setPageError] = useState(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -125,6 +129,33 @@ export function ProjectEditScreen() {
     }
   }
 
+  async function handleDeleteProject() {
+    if (deleting || submitting) return;
+    const confirmed = await confirm({
+      title: `Excluir ${project.name}?`,
+      description:
+        'O projeto ficará indisponível imediatamente. Os dados serão preservados por 30 dias antes da exclusão definitiva, e um proprietário poderá recuperá-lo nesse período.',
+      confirmationText: project.name,
+      confirmLabel: 'Excluir projeto',
+      destructive: true
+    });
+    if (!confirmed) return;
+
+    setDeleting(true);
+    setError('');
+    try {
+      await projectsApi.requestDeletion(project.id);
+      await refreshProjects();
+      navigate('/projects?projectDeletion=scheduled', { replace: true });
+    } catch (requestError) {
+      const normalized = normalizeApiError(requestError, 'Não foi possível excluir o projeto.');
+      setError(normalized.message);
+      setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   if (loading || String(loadedProjectId) !== String(projectId)) {
     return (
       <main className="page-container project-admin-screen">
@@ -187,6 +218,28 @@ export function ProjectEditScreen() {
           submitting={submitting}
           showRepositoryField={false}
         />
+      </section>
+
+      <section
+        className="project-admin-surface project-danger-zone"
+        aria-labelledby="project-danger-zone-title"
+      >
+        <div>
+          <h2 id="project-danger-zone-title">Zona de perigo</h2>
+          <p>
+            Excluir o projeto o tornará indisponível para a equipe. Os dados serão apagados
+            definitivamente após 30 dias; durante esse período, um proprietário poderá recuperá-lo.
+          </p>
+        </div>
+        <button
+          className="button button-danger"
+          type="button"
+          disabled={deleting || submitting || cooldown > 0}
+          aria-busy={deleting}
+          onClick={() => void handleDeleteProject()}
+        >
+          {deleting ? 'Excluindo...' : 'Excluir projeto'}
+        </button>
       </section>
     </main>
   );

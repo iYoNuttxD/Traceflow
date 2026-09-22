@@ -6,9 +6,13 @@ export function createProjectAuthorizationMiddleware({ service = authorizationSe
     try {
       const method = req.method.toUpperCase();
       const path = req.path.toLowerCase();
-      if (method === 'DELETE' && /^\/projects\/[^/]+$/.test(path)) return next();
       if ((method === 'POST' && path === '/projects') || path.startsWith('/github/')) return next();
       if (method === 'GET' && path === '/projects') return next();
+      if (
+        (method === 'POST' && /^\/projects\/\d+\/restore$/.test(path)) ||
+        (method === 'DELETE' && /^\/projects\/\d+\/permanent$/.test(path))
+      )
+        return next();
       const projectScoped = service.isProjectScoped(path);
       if (!projectScoped) return next();
       const projectId = await service.resolveProjectId(path);

@@ -143,6 +143,8 @@ export function createApp({ logger = defaultLogger, readinessCheck, securityConf
     ],
     rateLimiters.sensitiveMutation
   );
+  app.delete(['/api/projects/:id', '/api/projects/:id/permanent'], rateLimiters.sensitiveMutation);
+  app.post('/api/projects/:id/restore', rateLimiters.sensitiveMutation);
   app.post(
     '/api/account/reactivation/start',
     rateLimiters.sensitiveMutation,

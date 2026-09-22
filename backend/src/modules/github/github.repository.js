@@ -125,9 +125,11 @@ export const githubRepository = {
           select: {
             id: true,
             name: true,
+            deletedAt: true,
+            deletionScheduledFor: true,
             memberships: {
               where: { userId, isActive: true },
-              select: { id: true }
+              select: { id: true, role: true }
             }
           }
         }
@@ -147,9 +149,11 @@ export const githubRepository = {
           select: {
             id: true,
             name: true,
+            deletedAt: true,
+            deletionScheduledFor: true,
             memberships: {
               where: { userId, isActive: true },
-              select: { id: true }
+              select: { id: true, role: true }
             }
           }
         }
@@ -280,7 +284,10 @@ export const githubRepository = {
   },
   requireReconnectForInstallation(githubInstallationId) {
     return prisma.projectGitHubIntegration.updateMany({
-      where: { installation: { githubInstallationId: String(githubInstallationId) } },
+      where: {
+        installation: { githubInstallationId: String(githubInstallationId) },
+        project: { deletedAt: null }
+      },
       data: {
         status: 'RECONNECT_REQUIRED',
         lastSyncStatus: 'BLOQUEADO',
@@ -292,7 +299,8 @@ export const githubRepository = {
     return prisma.projectGitHubIntegration.updateMany({
       where: {
         installation: { githubInstallationId: String(githubInstallationId) },
-        githubRepositoryId: { in: repositoryIds.map(String) }
+        githubRepositoryId: { in: repositoryIds.map(String) },
+        project: { deletedAt: null }
       },
       data: {
         status: 'RECONNECT_REQUIRED',

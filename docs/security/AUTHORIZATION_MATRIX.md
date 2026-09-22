@@ -11,11 +11,13 @@ reduzir enumeração; papel insuficiente retorna `403`. Mutations autenticadas e
 | `GET /api/settings/account/email-change/confirm`, `/api/account/reactivation/confirm`                          |       E |      E |           E |       E |     E | públicos; token hashado, expirável e de uso único                                                              |
 | `GET /api/auth/me`, `csrf`; `POST logout`, `change-password`, `email-verification/resend`; `PATCH username`    |     401 |      E |           E |       E |     E | própria sessão; mutations exigem CSRF                                                                          |
 | `POST /api/projects` e `/projects/from-github`                                                                 |     401 |      E |           E |       E |     E | e-mail verificado; criador vira OWNER                                                                          |
-| `GET /api/projects`                                                                                            |     401 |      L |           L |       L |     L | lista somente memberships ativas                                                                               |
+| `GET /api/projects`                                                                                            |     401 |      L |           L |       L |     L | ativos por membership; `deletedProjects` somente para OWNER histórico/atual e antes do purge                   |
 | `GET /api/projects/:id`                                                                                        |     401 |      L |           L |       L |     L | membership no projeto                                                                                          |
 | `GET /api/projects/:projectId/events`                                                                          |     401 |      L |           L |       L |     L | SSE read-only, membership ativa, query sem credenciais                                                         |
 | `PUT /api/projects/:id`                                                                                        |     401 |    403 |         403 |     403 |     A | configuração do projeto                                                                                        |
-| `DELETE /api/projects/:id`                                                                                     |     401 |    501 |         501 |     501 |   501 | placeholder preservado                                                                                         |
+| `DELETE /api/projects/:id`                                                                                     |     401 |    403 |         403 |     403 |     A | agenda exclusão em 30 dias; sem membership retorna 404; exige CSRF                                             |
+| `POST /api/projects/:id/restore`                                                                               |     401 |    403 |         403 |     403 |     A | somente OWNER preservado; antes do prazo; projeto alheio/expirado retorna 404                                  |
+| `DELETE /api/projects/:id/permanent`                                                                           |     401 |    403 |         403 |     403 |     A | somente projeto já excluído; nome exato; remove banco e agenda/reconcilia storage                              |
 | `GET /api/projects/join/details`; `POST /api/projects/join`                                                    |     401 |      E |           E |       E |     E | conta ACTIVE; identity da sessão; papel MEMBER/VIEWER definido no projeto                                      |
 | `GET /api/projects/:projectId/access-code`                                                                     |     401 |    403 |         403 |     403 |     A | código sensível somente no DTO OWNER                                                                           |
 | `PATCH /api/projects/:projectId/access-code`; `POST .../regenerate`                                            |     401 |    403 |         403 |     403 |     A | e-mail verificado, CSRF e limiter sensível                                                                     |
@@ -58,7 +60,7 @@ reduzir enumeração; papel insuficiente retorna `403`. Mutations autenticadas e
 | `PATCH /api/projects/:projectId/github/sync-settings`                                                          |     401 |    403 |         403 |     403 |     A | OWNER                                                                                                          |
 | Commits, PRs, issues e artifacts: `GET`                                                                        |     401 |      L |           L |       L |     L | mesmo projeto                                                                                                  |
 | Traceability project-scoped: matriz, requisito, tarefa e artefato                                              |     401 |      L |           L |       L |     L | membership ativa e recurso no mesmo projeto                                                                    |
-| S1-09: `GET .../traceability/requirements`, `.../:requirementId/current`, `.../:requirementId/history` | 401 | L | L | L | L | membership ativa; mesmo projeto; IDOR 404 opaco; cursor scoped; sem API de escrita de situation |
+| S1-09: `GET .../traceability/requirements`, `.../:requirementId/current`, `.../:requirementId/history`         |     401 |      L |           L |       L |     L | membership ativa; mesmo projeto; IDOR 404 opaco; cursor scoped; sem API de escrita de situation                |
 | `GET .../traceability/commit-suggestions`                                                                      |     401 |      L |           L |       L |     L | DTO minimizado; mesmo projeto                                                                                  |
 | `POST .../commit-suggestions/scan`, `:id/confirm`, `:id/reject`                                                |     401 |    403 |           E |       E |     E | CSRF, membership ativa e relações no mesmo projeto                                                             |
 | `/api/settings/account`, `/security`, `/privacy`, `/integrations`                                              |     401 |      E |           E |       E |     E | titular; middleware de estado restringe operações e mutations exigem CSRF                                      |
@@ -73,6 +75,10 @@ reduzir enumeração; papel insuficiente retorna `403`. Mutations autenticadas e
 - OWNER administra membros, convites e configuração; MANAGER coordena sync e também escreve domínio; MEMBER escreve tarefas/requisitos; VIEWER é leitura.
 - Respostas a convites são vinculadas ao destinatário, usam token hashado/expirável e recebem limiter de operação sensível; criação combina limiter sensível e de entrega de e-mail.
 - O middleware resolve o projeto por rota direta ou pelo recurso filho antes de avaliar a membership.
+- O mesmo boundary exige `Project.deletedAt = null` para todo acesso normal. Somente as rotas
+  explícitas de restore e exclusão definitiva resolvem o projeto excluído e revalidam no service a
+  membership ativa preservada e o papel OWNER. Assim, recursos filhos de projeto em carência
+  retornam `404` antes de qualquer autorização de domínio.
 - `ProjectMembership` é a única fonte de participação. `ProjectMember` e `POST /api/projects/:projectId/members` foram removidos; o path antigo retorna `404`. `accessCode` é capability de ingresso e nunca aceita identity/role do cliente.
 - Código de acesso nunca concede OWNER/MANAGER. Somente OWNER vê, regenera e configura MEMBER/VIEWER; mudança de configuração não altera memberships existentes.
 - A trilha de auditoria e os direitos do titular não concedem administração de dados pessoais a um
@@ -113,15 +119,15 @@ reduzir enumeração; papel insuficiente retorna `403`. Mutations autenticadas e
 
 ## S1-07 — Casos de teste
 
-| Operação | VIEWER | MEMBER | MANAGER | OWNER |
-|---|---|---|---|---|
-| Listar/detalhar casos | L | L | L | L |
-| Criar/editar definição | 403 | E | E | E |
-| Alterar status | 403 | E | E | E |
-| Excluir logicamente | 403 | E | E | E |
-| Executar/upload multipart | 403 | E | E | E |
-| Versões/histórico/execuções/referências importadas | L | L | L | L |
-| Detalhe de execução/download privado | L | L | L | L |
+| Operação                                           | VIEWER | MEMBER | MANAGER | OWNER |
+| -------------------------------------------------- | ------ | ------ | ------- | ----- |
+| Listar/detalhar casos                              | L      | L      | L       | L     |
+| Criar/editar definição                             | 403    | E      | E       | E     |
+| Alterar status                                     | 403    | E      | E       | E     |
+| Excluir logicamente                                | 403    | E      | E       | E     |
+| Executar/upload multipart                          | 403    | E      | E       | E     |
+| Versões/histórico/execuções/referências importadas | L      | L      | L       | L     |
+| Detalhe de execução/download privado               | L      | L      | L       | L     |
 
 Anônimo: 401. Sem membership ativa no projeto dono: 404 opaco. Toda escrita exige
 CSRF antes do parser multipart. A resolução central inclui TestCase (não excluído),

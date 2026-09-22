@@ -15,6 +15,12 @@ import { logger } from '../../../shared/logger/index.js';
 const projectsInSync = new Set();
 const noProgress = async () => {};
 
+async function assertProjectActive(projectId) {
+  if (!(await projectRepository.isActive(projectId))) {
+    throw new ProjectServiceError('Projeto não encontrado.', 404);
+  }
+}
+
 function linkedRepositoryCoordinates(integration) {
   const [owner, repo, ...extra] = integration?.repositoryFullName?.split('/') || [];
   if (!owner || !repo || extra.length > 0 || repo !== integration.repositoryName) {
@@ -41,6 +47,7 @@ function logStep(event, projectId, step, startedAt, details = {}) {
 async function validateAndRefreshRepository(project, integration, githubClient) {
   const coordinates = linkedRepositoryCoordinates(integration);
   const repository = await githubClient.getRepository(coordinates.owner, coordinates.repo);
+  await assertProjectActive(project.id);
 
   if (
     integration.githubRepositoryId &&
@@ -100,7 +107,12 @@ export async function syncProjectGithubData(projectId, { onProgress = noProgress
     stepStartedAt = Date.now();
     await onProgress({ step: 'BRANCHES', currentBranch: null });
     logStep('started', parsedProjectId, 'branches', stepStartedAt);
-    const branchResult = await syncProjectBranches({ project, repository, githubClient });
+    const branchResult = await syncProjectBranches({
+      project,
+      repository,
+      githubClient,
+      assertActive: () => assertProjectActive(parsedProjectId)
+    });
     await onProgress({ branchCount: branchResult.summary.found });
     logStep('completed', parsedProjectId, 'branches', stepStartedAt, {
       branchCount: branchResult.summary.found
@@ -116,7 +128,8 @@ export async function syncProjectGithubData(projectId, { onProgress = noProgress
       repository,
       branches: branchResult.branches,
       githubClient,
-      onProgress
+      onProgress,
+      assertActive: () => assertProjectActive(parsedProjectId)
     });
     logStep('completed', parsedProjectId, 'commits', stepStartedAt, {
       branchCount: branchResult.summary.active,
@@ -127,7 +140,12 @@ export async function syncProjectGithubData(projectId, { onProgress = noProgress
     stepStartedAt = Date.now();
     await onProgress({ step: 'PULL_REQUESTS', currentBranch: null });
     logStep('started', parsedProjectId, 'pull_requests', stepStartedAt);
-    const pullRequestSummary = await syncProjectPullRequests({ project, repository, githubClient });
+    const pullRequestSummary = await syncProjectPullRequests({
+      project,
+      repository,
+      githubClient,
+      assertActive: () => assertProjectActive(parsedProjectId)
+    });
     await onProgress({
       pullRequestsFound: pullRequestSummary.found,
       pullRequestsCreated: pullRequestSummary.created,
@@ -140,7 +158,12 @@ export async function syncProjectGithubData(projectId, { onProgress = noProgress
     stepStartedAt = Date.now();
     await onProgress({ step: 'ISSUES' });
     logStep('started', parsedProjectId, 'issues', stepStartedAt);
-    const issueSummary = await syncProjectIssues({ project, repository, githubClient });
+    const issueSummary = await syncProjectIssues({
+      project,
+      repository,
+      githubClient,
+      assertActive: () => assertProjectActive(parsedProjectId)
+    });
     await onProgress({
       issuesFound: issueSummary.found,
       issuesCreated: issueSummary.created,
@@ -152,6 +175,7 @@ export async function syncProjectGithubData(projectId, { onProgress = noProgress
 
     stepStartedAt = Date.now();
     await onProgress({ step: 'PERSIST' });
+    await assertProjectActive(parsedProjectId);
     logStep('started', parsedProjectId, 'persist', stepStartedAt);
     const updatedProject = await projectRepository.markGithubSyncSucceeded(
       parsedProjectId,

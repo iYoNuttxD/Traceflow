@@ -6,7 +6,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const apiMock = vi.hoisted(() => ({
   get: vi.fn(),
   post: vi.fn(),
-  put: vi.fn()
+  put: vi.fn(),
+  delete: vi.fn()
 }));
 const invitationsMock = vi.hoisted(() => ({
   list: vi.fn(),
@@ -30,7 +31,10 @@ vi.mock('../../src/features/projects/api/projects.api.js', () => ({
     connectGithubRepository: (projectId, data) =>
       apiMock.put(`/projects/${projectId}/github/integration`, data),
     create: (data) => apiMock.post('/projects', data),
-    createFromGithub: (data) => apiMock.post('/projects/from-github', data)
+    createFromGithub: (data) => apiMock.post('/projects/from-github', data),
+    restore: (projectId) => apiMock.post(`/projects/${projectId}/restore`, {}),
+    purge: (projectId, confirmationName) =>
+      apiMock.delete(`/projects/${projectId}/permanent`, { data: { confirmationName } })
   }
 }));
 vi.mock('../../src/features/invitations/personal-invitations.api.js', () => ({
@@ -38,6 +42,7 @@ vi.mock('../../src/features/invitations/personal-invitations.api.js', () => ({
 }));
 
 import { ProjectsCatalogProvider } from '../../src/features/projects/index.js';
+import { ConfirmProvider } from '../../src/shared/index.js';
 import { ProjectsPage } from '../../src/pages/ProjectsPage.jsx';
 
 const fakeRepository = {
@@ -71,15 +76,18 @@ function ProjectsHarness() {
 function renderPage(initialEntries = ['/projects']) {
   return render(
     <MemoryRouter initialEntries={initialEntries}>
-      <ProjectsCatalogProvider>
-        <ProjectsHarness />
-      </ProjectsCatalogProvider>
+      <ConfirmProvider>
+        <ProjectsCatalogProvider>
+          <ProjectsHarness />
+        </ProjectsCatalogProvider>
+      </ConfirmProvider>
     </MemoryRouter>
   );
 }
 
 function mockInitialRequests({
   projects = [],
+  deletedProjects = [],
   repositories = [fakeRepository],
   installations = [
     {
@@ -91,7 +99,7 @@ function mockInitialRequests({
 } = {}) {
   apiMock.get.mockImplementation((url) => {
     if (url === '/projects') {
-      return Promise.resolve({ data: { projects } });
+      return Promise.resolve({ data: { projects, deletedProjects } });
     }
 
     if (url === '/github/app/installations') {
@@ -314,6 +322,90 @@ describe('ProjectsPage', () => {
     expect(projectLink).toHaveTextContent('usuario-artificial/repositorio-artificial');
     expect(projectLink).toHaveTextContent('Ativo');
     expect(screen.queryByText(/Ver detalhes/)).not.toBeInTheDocument();
+  });
+
+  it('mostra somente projetos recuperáveis e recupera sem expô-los na lista ativa', async () => {
+    const user = userEvent.setup();
+    mockInitialRequests({
+      projects: [],
+      deletedProjects: [
+        {
+          id: 31,
+          name: 'Projeto recuperável',
+          deletionScheduledFor: '2030-10-21T12:00:00.000Z'
+        }
+      ]
+    });
+    apiMock.post.mockResolvedValue({ data: { message: 'Projeto recuperado com sucesso.' } });
+    renderPage();
+
+    expect(await screen.findByText('Projeto recuperável')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'Abrir projeto Projeto recuperável' })
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Recuperar' }));
+    expect(apiMock.post).toHaveBeenCalledWith('/projects/31/restore', {});
+  });
+
+  it('oferece recuperar ou começar do zero para repo pendente sem fechar dois dialogs com Escape', async () => {
+    const user = userEvent.setup();
+    const pendingRepository = {
+      ...fakeRepository,
+      alreadyConnected: true,
+      selectable: true,
+      pendingDeletion: {
+        projectId: 41,
+        projectName: 'Projeto anterior',
+        deletionScheduledFor: '2030-10-21T12:00:00.000Z'
+      }
+    };
+    mockInitialRequests({ projects: [], repositories: [pendingRepository] });
+    apiMock.delete.mockResolvedValue({ data: { message: 'Projeto excluído definitivamente.' } });
+    apiMock.post.mockResolvedValue({ data: { message: 'Projeto criado novamente.' } });
+    renderPage();
+    await screen.findByRole('button', { name: /^Novo projeto/ });
+    await openCreateFlow(user);
+    await user.type(screen.getByLabelText('Área ou equipe responsável *'), 'Equipe nova');
+    await user.selectOptions(
+      screen.getByLabelText('Repositório GitHub *'),
+      pendingRepository.fullName
+    );
+
+    expect(screen.getByText(/Projeto: Projeto anterior/)).toBeInTheDocument();
+    await user.click(
+      screen.getByRole('button', { name: 'Excluir definitivamente e começar do zero' })
+    );
+    expect(
+      screen.getByRole('dialog', { name: 'Começar novamente com este repositório?' })
+    ).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    expect(
+      screen.queryByRole('dialog', { name: 'Começar novamente com este repositório?' })
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Criar projeto' })).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole('button', { name: 'Excluir definitivamente e começar do zero' })
+    );
+    const confirmation = screen.getByRole('dialog', {
+      name: 'Começar novamente com este repositório?'
+    });
+    const destructive = within(confirmation).getByRole('button', {
+      name: 'Excluir definitivamente e começar do zero'
+    });
+    expect(destructive).toBeDisabled();
+    await user.type(within(confirmation).getByRole('textbox'), 'Projeto anterior');
+    await user.click(destructive);
+
+    await waitFor(() =>
+      expect(apiMock.delete).toHaveBeenCalledWith('/projects/41/permanent', {
+        data: { confirmationName: 'Projeto anterior' }
+      })
+    );
+    expect(apiMock.post).toHaveBeenCalledWith(
+      '/projects/from-github',
+      expect.objectContaining({ githubRepositoryId: '501' })
+    );
   });
 
   it('mostra o erro atual quando projetos não carregam', async () => {

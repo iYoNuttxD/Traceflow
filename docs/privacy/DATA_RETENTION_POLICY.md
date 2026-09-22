@@ -2,25 +2,49 @@
 
 Prazos abaixo são defaults de engenharia, não prazos jurídicos definitivos. Produção deve aprová-los e alinhar banco, logs e backups.
 
-| Categoria | Banco/operação | Default | Expurgo/observação |
-|---|---|---:|---|
-| sessão revogada/expirada | MySQL | 30 dias | `e6:cleanup`; sessão ativa não é removida |
-| reset de senha | MySQL | 7 dias | `e6:cleanup` após uso/expiração |
-| verificação de e-mail | MySQL | TTL de 24 horas; retenção de 7 dias por default | `e6:cleanup` após uso/expiração; valor bruto nunca persiste |
-| state da GitHub App | MySQL | TTL de 10 minutos; retenção de 7 dias por default | `e6:cleanup` após uso/expiração; sessão removida também faz cascade |
-| delivery de webhook GitHub | MySQL | 30 dias por default | `e6:cleanup`; guarda somente IDs/event/action, nunca payload integral |
-| metadados/autorização da instalação | MySQL | duração da conexão/conta | anonimização remove autorização do usuário; artifacts do projeto permanecem conforme finalidade histórica |
-| fingerprint de identidade GitHub anonimizada | MySQL | enquanto for necessário impedir reassociação automática | somente HMAC-SHA256 domain-separated; sem FK, login ou GitHub ID bruto; expurgo/rotação depende de decisão jurídica e custódia da chave |
-| convite finalizado | MySQL | 30 dias | `e6:cleanup`; convite ativo preservado |
-| `AuditEvent` | MySQL | 365 dias | `privacy:retention`; usa `retentionUntil` e registra o próprio cleanup |
-| solicitação de privacidade finalizada | MySQL | 365 dias | `COMPLETED`, `CANCELLED` e `REJECTED` seguem retenção; pedido bloqueado por último OWNER termina `REJECTED` e não permanece pendente |
-| exportação temporária | metadata MySQL/resposta sob demanda | 15 minutos para download | sem arquivo público ou persistente; metadata expirada é removida pelo cleanup |
-| conta desativada | MySQL | 30 dias antes de revisão operacional | não é apagada automaticamente; anonimização exige solicitação elegível |
-| conta anonimizada | MySQL | histórico técnico necessário | perfil e referências conhecidas neutralizados; credenciais, tokens, states, identidade e autorizações pessoais removidos; auditoria segue prazo próprio |
-| requisitos, tarefas, movements, histórico RF38 e artifacts | MySQL | ciclo do projeto, sem prazo automático | `TaskHistoryEntry` é histórico funcional; hard delete da Task remove movement/history na transação, mas preserva `AuditEvent` |
-| histórico de Planning e tombstones | `Sprint`, `SprintTask`, `Milestone` | ciclo do projeto, sem expurgo automático novo | excluir Sprint/Marco é lógico; preserva baseline, card mínimo, pontos e corte. IDs históricos não copiam nome/e-mail; dados legados ausentes não são fabricados |
-| vínculos `TaskCommit`, `TaskIssue` e `Task.pullRequestId` | MySQL | ciclo da tarefa/projeto | excluir Task remove joins/FK; Commit, PullRequest e Issue importados são preservados |
-| logs | destino operacional | a definir no deploy, recomendação inicial 30–90 dias | stdout local não implementa política do agregador |
+| Categoria                                                  | Banco/operação                      |                                                           Default | Expurgo/observação                                                                                                                                              |
+| ---------------------------------------------------------- | ----------------------------------- | ----------------------------------------------------------------: | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| sessão revogada/expirada                                   | MySQL                               |                                                           30 dias | `e6:cleanup`; sessão ativa não é removida                                                                                                                       |
+| reset de senha                                             | MySQL                               |                                                            7 dias | `e6:cleanup` após uso/expiração                                                                                                                                 |
+| verificação de e-mail                                      | MySQL                               |                   TTL de 24 horas; retenção de 7 dias por default | `e6:cleanup` após uso/expiração; valor bruto nunca persiste                                                                                                     |
+| state da GitHub App                                        | MySQL                               |                 TTL de 10 minutos; retenção de 7 dias por default | `e6:cleanup` após uso/expiração; sessão removida também faz cascade                                                                                             |
+| delivery de webhook GitHub                                 | MySQL                               |                                               30 dias por default | `e6:cleanup`; guarda somente IDs/event/action, nunca payload integral                                                                                           |
+| metadados/autorização da instalação                        | MySQL                               |                                          duração da conexão/conta | anonimização remove autorização do usuário; artifacts do projeto permanecem conforme finalidade histórica                                                       |
+| fingerprint de identidade GitHub anonimizada               | MySQL                               |           enquanto for necessário impedir reassociação automática | somente HMAC-SHA256 domain-separated; sem FK, login ou GitHub ID bruto; expurgo/rotação depende de decisão jurídica e custódia da chave                         |
+| convite finalizado                                         | MySQL                               |                                                           30 dias | `e6:cleanup`; convite ativo preservado                                                                                                                          |
+| `AuditEvent`                                               | MySQL                               |                                                          365 dias | `privacy:retention`; usa `retentionUntil` e registra o próprio cleanup                                                                                          |
+| solicitação de privacidade finalizada                      | MySQL                               |                                                          365 dias | `COMPLETED`, `CANCELLED` e `REJECTED` seguem retenção; pedido bloqueado por último OWNER termina `REJECTED` e não permanece pendente                            |
+| exportação temporária                                      | metadata MySQL/resposta sob demanda |                                          15 minutos para download | sem arquivo público ou persistente; metadata expirada é removida pelo cleanup                                                                                   |
+| conta desativada                                           | MySQL                               |                              30 dias antes de revisão operacional | não é apagada automaticamente; anonimização exige solicitação elegível                                                                                          |
+| conta anonimizada                                          | MySQL                               |                                      histórico técnico necessário | perfil e referências conhecidas neutralizados; credenciais, tokens, states, identidade e autorizações pessoais removidos; auditoria segue prazo próprio         |
+| requisitos, tarefas, movements, histórico RF38 e artifacts | MySQL                               | ciclo do projeto; projeto excluído tem carência exata de 30 × 24h | `TaskHistoryEntry` é histórico funcional; hard delete da Task remove movement/history na transação, mas preserva `AuditEvent`; purge do Project remove o grafo  |
+| histórico de Planning e tombstones                         | `Sprint`, `SprintTask`, `Milestone` |                     ciclo do projeto, sem expurgo automático novo | excluir Sprint/Marco é lógico; preserva baseline, card mínimo, pontos e corte. IDs históricos não copiam nome/e-mail; dados legados ausentes não são fabricados |
+| vínculos `TaskCommit`, `TaskIssue` e `Task.pullRequestId`  | MySQL                               |                                           ciclo da tarefa/projeto | excluir Task remove joins/FK; Commit, PullRequest e Issue importados são preservados                                                                            |
+| logs                                                       | destino operacional                 |              a definir no deploy, recomendação inicial 30–90 dias | stdout local não implementa política do agregador                                                                                                               |
+
+## Exclusão e recuperação de projeto
+
+A solicitação feita por OWNER torna o projeto imediatamente indisponível, mas preserva todo o seu
+grafo, memberships e bytes privados por exatamente `30 * 24h`, calculadas em UTC a partir de
+`deletedAt`. Convites que ainda estavam pendentes são revogados. Restaurar dentro da carência limpa
+o estado de exclusão e reapresenta os dados preservados; não recria entidades nem reativa convites.
+
+Ao vencer `deletionScheduledFor`, um processor idempotente pode executar o purge definitivo. A
+remoção do banco e a do filesystem não são apresentadas como uma transação distribuída: evidências
+são movidas para staging privado antes do delete relacional, e um journal sem FK registra cada item
+até que a compensação ou remoção física termine. Falhas permanecem para retry nas execuções
+seguintes. O script canônico é `npm run projects:purge`; a operação deve agendá-lo de forma
+recorrente, com monitoramento de falhas e do journal pendente. `projects:purge:dry-run` não altera
+dados.
+
+O purge remove conteúdo colaborativo, histórico funcional, vínculos, memberships, convites,
+integração e artefatos GitHub que pertencem ao projeto. A Installation e suas autorizações não são
+apagadas apenas por esse motivo, pois podem atender outros projetos e têm lifecycle próprio.
+Eventos de auditoria seguem a retenção técnica aplicável e o evento `PROJECT_PURGED` sobrevive com
+`projectId = null` na FK e identificador histórico minimizado em `resourceId`/metadata. Backups,
+réplicas, logs externos e exigências legais continuam dependentes da política operacional e de
+avaliação jurídica; esta implementação não declara apagamento instantâneo nesses meios nem
+conformidade legal absoluta.
 | e-mails técnicos | provedor SMTP | política do provedor | TRACEFLOW não controla mailbox; evitar anexos de exportação |
 | backup | infraestrutura | a definir pelo controlador | expurgo lógico pode persistir até rotação; seguir `docs/runbooks/BACKUP_RESTORE.md`, com acesso, criptografia e descarte seguros |
 

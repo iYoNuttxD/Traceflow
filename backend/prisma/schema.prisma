@@ -129,32 +129,32 @@ enum GitHubOAuthPurpose {
 }
 
 model User {
-  effortHistory TaskEffortHistoryEntry[]
+  effortHistory        TaskEffortHistoryEntry[]
   responsibleDefects   Defect[]
   defectHistory        DefectHistoryEntry[]
-  responsibleTestCases TestCase[]             @relation("TestCaseResponsible")
-  deletedTestCases     TestCase[]             @relation("TestCaseDeleter")
+  responsibleTestCases TestCase[]               @relation("TestCaseResponsible")
+  deletedTestCases     TestCase[]               @relation("TestCaseDeleter")
   testCaseVersions     TestCaseVersion[]
   testCaseHistory      TestCaseHistoryEntry[]
   testExecutions       TestExecution[]
   testEvidence         TestEvidence[]
-  id                   Int                    @id @default(autoincrement())
+  id                   Int                      @id @default(autoincrement())
   name                 String
-  email                String                 @unique
-  username             String                 @unique
-  mustSetUsername      Boolean                @default(false)
+  email                String                   @unique
+  username             String                   @unique
+  mustSetUsername      Boolean                  @default(false)
   passwordHash         String?
-  isActive             Boolean                @default(true)
+  isActive             Boolean                  @default(true)
   emailVerifiedAt      DateTime?
-  mustSetPassword      Boolean                @default(false)
-  sessionVersion       Int                    @default(1)
-  accountStatus        AccountStatus          @default(ACTIVE)
+  mustSetPassword      Boolean                  @default(false)
+  sessionVersion       Int                      @default(1)
+  accountStatus        AccountStatus            @default(ACTIVE)
   deactivatedAt        DateTime?
   usernameChangedAt    DateTime?
   anonymizedAt         DateTime?
   lastLoginAt          DateTime?
-  createdAt            DateTime               @default(now())
-  updatedAt            DateTime               @updatedAt
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
 
   sessions                         Session[]
   passwordResetTokens              PasswordResetToken[]
@@ -183,6 +183,7 @@ model User {
   deletedTaskComments              TaskComment[]                     @relation("TaskCommentDeleter")
   deletedSprints                   Sprint[]                          @relation("SprintDeleter")
   deletedMilestones                Milestone[]                       @relation("MilestoneDeleter")
+  deletedProjects                  Project[]                         @relation("ProjectDeleter")
 
   @@index([accountStatus])
 }
@@ -317,23 +318,28 @@ model ProjectInvitation {
 
 // Entidade central do TRACEFLOW. A identidade GitHub pertence exclusivamente à integração.
 model Project {
-  effortHistory TaskEffortHistoryEntry[]
+  effortHistory                  TaskEffortHistoryEntry[]
   requirementTraceabilityHistory RequirementTraceabilityHistoryEntry[]
-  defects         Defect[]
-  defectHistory   DefectHistoryEntry[]
-  testCases       TestCase[]
-  testExecutions  TestExecution[]
-  testEvidence    TestEvidence[]
-  testCaseHistory TestCaseHistoryEntry[]
-  id              Int                    @id @default(autoincrement())
-  name            String
-  description     String?
-  responsibleTeam String
-  status          String                 @default("ATIVO")
-  accessCode      String                 @unique
-  accessCodeRole  ProjectRole            @default(MEMBER)
-  createdAt       DateTime               @default(now())
-  updatedAt       DateTime               @updatedAt
+  defects                        Defect[]
+  defectHistory                  DefectHistoryEntry[]
+  testCases                      TestCase[]
+  testExecutions                 TestExecution[]
+  testEvidence                   TestEvidence[]
+  testCaseHistory                TestCaseHistoryEntry[]
+  id                             Int                                   @id @default(autoincrement())
+  name                           String
+  description                    String?
+  responsibleTeam                String
+  status                         String                                @default("ATIVO")
+  accessCode                     String                                @unique
+  accessCodeRole                 ProjectRole                           @default(MEMBER)
+  createdAt                      DateTime                              @default(now())
+  updatedAt                      DateTime                              @updatedAt
+  deletedAt                      DateTime?
+  deletionScheduledFor           DateTime?
+  deletedById                    Int?
+  purgeStartedAt                 DateTime?
+  deletedBy                      User?                                 @relation("ProjectDeleter", fields: [deletedById], references: [id], onDelete: SetNull)
 
   requirements           Requirement[]
   tasks                  Task[]
@@ -358,6 +364,27 @@ model Project {
 
   @@index([status])
   @@index([createdAt])
+  @@index([deletedAt])
+  @@index([deletionScheduledFor])
+  @@index([deletedById])
+  @@index([purgeStartedAt])
+}
+
+// Journal operacional sem FK para reconciliar bytes privados quando o purge do
+// banco e a remoção do filesystem não terminam na mesma tentativa.
+model ProjectPurgeStorageCleanup {
+  id         Int      @id @default(autoincrement())
+  projectId  Int
+  storageKey String   @unique @db.VarChar(100)
+  purgeKey   String   @unique @db.VarChar(100)
+  status     String   @default("PENDING") @db.VarChar(24)
+  attempts   Int      @default(0)
+  lastError  String?  @db.VarChar(191)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([projectId, status])
+  @@index([status, updatedAt])
 }
 
 model GitHubInstallation {
@@ -571,16 +598,16 @@ model PersonalDataExport {
 // Requisito funcional ou necessidade cadastrada no projeto.
 model Requirement {
   traceabilityState RequirementTraceabilityState?
-  defects     Defect[]
-  testCases   TestCase[]
-  id          Int        @id @default(autoincrement())
-  projectId   Int
-  title       String
-  description String?
-  type        String     @default("FUNCIONAL")
-  status      String     @default("PLANEJADO")
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  defects           Defect[]
+  testCases         TestCase[]
+  id                Int                           @id @default(autoincrement())
+  projectId         Int
+  title             String
+  description       String?
+  type              String                        @default("FUNCIONAL")
+  status            String                        @default("PLANEJADO")
+  createdAt         DateTime                      @default(now())
+  updatedAt         DateTime                      @updatedAt
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   tasks   Task[]
@@ -591,26 +618,26 @@ model Requirement {
 
 // Unidade de trabalho e elo entre planejamento e implementacao.
 model Task {
-  defectLinks       DefectTask[]
-  testCaseLinks     TestCaseTask[]
-  id                Int            @id @default(autoincrement())
-  projectId         Int
-  requirementId     Int?
-  title             String
-  description       String?
-  priority          String         @default("MEDIA")
-  responsible       String?
-  status            String         @default("A_FAZER")
-  deadline          DateTime?
-  estimatedEffort   Float?
-  actualEffort      Float?
+  defectLinks        DefectTask[]
+  testCaseLinks      TestCaseTask[]
+  id                 Int            @id @default(autoincrement())
+  projectId          Int
+  requirementId      Int?
+  title              String
+  description        String?
+  priority           String         @default("MEDIA")
+  responsible        String?
+  status             String         @default("A_FAZER")
+  deadline           DateTime?
+  estimatedEffort    Float?
+  actualEffort       Float?
   // Esforço lançado antes do S1-06, preservado para continuar somando no derivado.
   legacyActualEffort Float?
-  pullRequestId     Int?
-  responsibleUserId Int?
-  sprintId          Int?
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
+  pullRequestId      Int?
+  responsibleUserId  Int?
+  sprintId           Int?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
 
   project              Project                @relation(fields: [projectId], references: [id])
   requirement          Requirement?           @relation(fields: [requirementId], references: [id])
@@ -1348,45 +1375,47 @@ model DefectHistoryEntry {
 
 // Estado mínimo para comparar observações. Contadores continuam derivados.
 model RequirementTraceabilityState {
-  id Int @id @default(autoincrement())
-  requirementId Int @unique
-  currentSituation String @db.VarChar(32)
-  updatedAt DateTime @updatedAt
-  requirement Requirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  id               Int         @id @default(autoincrement())
+  requirementId    Int         @unique
+  currentSituation String      @db.VarChar(32)
+  updatedAt        DateTime    @updatedAt
+  requirement      Requirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
 }
 
 // requirementId e sourceEntityId são identidades históricas, sem FK ao recurso removível.
 model RequirementTraceabilityHistoryEntry {
-  id Int @id @default(autoincrement())
-  projectId Int
-  requirementId Int
-  fromSituation String? @db.VarChar(32)
-  toSituation String @db.VarChar(32)
-  reason String @db.VarChar(64)
-  sourceEntityType String? @db.VarChar(32)
-  sourceEntityId Int?
-  metadataJson Json?
-  occurredAt DateTime @default(now())
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id               Int      @id @default(autoincrement())
+  projectId        Int
+  requirementId    Int
+  fromSituation    String?  @db.VarChar(32)
+  toSituation      String   @db.VarChar(32)
+  reason           String   @db.VarChar(64)
+  sourceEntityType String?  @db.VarChar(32)
+  sourceEntityId   Int?
+  metadataJson     Json?
+  occurredAt       DateTime @default(now())
+  project          Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
   @@index([projectId, requirementId, occurredAt, id], map: "RequirementTraceabilityHistory_cursor_idx")
 }
 
 // Append-only functional effort audit. Task/session identities survive their deletion.
 model TaskEffortHistoryEntry {
-  id Int @id @default(autoincrement())
-  projectId Int
-  taskId Int
-  sessionId Int
-  eventType String
-  source TaskTimeEntrySource
-  actorUserId Int?
-  previousSeconds Int?
-  newSeconds Int?
+  id                Int                 @id @default(autoincrement())
+  projectId         Int
+  taskId            Int
+  sessionId         Int
+  eventType         String
+  source            TaskTimeEntrySource
+  actorUserId       Int?
+  previousSeconds   Int?
+  newSeconds        Int?
   snapshotStartedAt DateTime
-  snapshotEndedAt DateTime?
-  occurredAt DateTime @default(now())
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  actor User? @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  snapshotEndedAt   DateTime?
+  occurredAt        DateTime            @default(now())
+  project           Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  actor             User?               @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
   @@index([taskId, occurredAt, id])
   @@index([projectId])
   @@index([actorUserId])

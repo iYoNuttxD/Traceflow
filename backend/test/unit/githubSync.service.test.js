@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   githubBranchRepository: { syncObserved: vi.fn(), markSuccessfullySynced: vi.fn() },
   projectRepository: {
     findById: vi.fn(),
+    isActive: vi.fn(),
     updateGithubRepositoryMetadata: vi.fn(),
     markGithubSyncStarted: vi.fn(),
     markGithubSyncSucceeded: vi.fn(),
@@ -99,6 +100,7 @@ describe('githubSyncService com client e persistência substituídos', () => {
       ]
     ]);
     mocks.projectRepository.findById.mockResolvedValue(project);
+    mocks.projectRepository.isActive.mockResolvedValue(true);
     mocks.projectRepository.updateGithubRepositoryMetadata.mockResolvedValue(project);
     mocks.projectRepository.markGithubSyncStarted.mockResolvedValue(project);
     mocks.projectRepository.markGithubSyncSucceeded.mockResolvedValue({

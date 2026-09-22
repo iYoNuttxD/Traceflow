@@ -26,7 +26,10 @@ export class AppError extends Error {
 
     if (this.exposeTechnicalDetails) {
       payload.code = this.code;
-      if (Array.isArray(this.details) && this.details.length > 0) {
+      if (
+        (Array.isArray(this.details) && this.details.length > 0) ||
+        (this.details && typeof this.details === 'object' && !Array.isArray(this.details))
+      ) {
         payload.details = this.details;
       }
       if (requestId) payload.requestId = requestId;

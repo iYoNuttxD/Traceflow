@@ -34,6 +34,11 @@ export const projectGithubService = {
       );
     } catch (error) {
       if (error?.code === 'P2002') {
+        await githubAppService.assertRepositoryAvailable(
+          repository.githubRepositoryId,
+          null,
+          ownerUserId
+        );
         throw new ProjectServiceError(
           'Já existe um projeto vinculado a este repositório GitHub.',
           409

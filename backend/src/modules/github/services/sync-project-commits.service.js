@@ -44,7 +44,8 @@ export async function syncProjectCommits({
   repository,
   branches,
   githubClient,
-  onProgress = noProgress
+  onProgress = noProgress,
+  assertActive = noProgress
 }) {
   const uniqueHashes = new Set();
   const knownCommits = new Map();
@@ -75,6 +76,7 @@ export async function syncProjectCommits({
       unchanged
     });
     await onProgress({ currentBranch: branch.name });
+    await assertActive();
 
     if (unchanged) {
       const persistedCommits = await commitRepository.findByBranchId(branch.id);
@@ -110,6 +112,7 @@ export async function syncProjectCommits({
         repo: repository.name,
         branch: branch.name
       })) {
+        await assertActive();
         const commits = page.map(({ branch: _legacyBranch, ...commit }) => ({
           ...commit,
           projectId: project.id
@@ -137,6 +140,7 @@ export async function syncProjectCommits({
         });
       }
 
+      await assertActive();
       await githubBranchRepository.markSuccessfullySynced(branch.id, branch.headSha);
       processedBranches += 1;
       await onProgress({ processedBranches, currentBranch: null });

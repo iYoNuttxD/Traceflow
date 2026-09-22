@@ -43,9 +43,32 @@ export const projectRepository = {
 
   async findAllProjects(userId) {
     return prisma.project.findMany({
-      ...(userId ? { where: { memberships: { some: { userId, isActive: true } } } } : {}),
+      where: {
+        deletedAt: null,
+        ...(userId ? { memberships: { some: { userId, isActive: true } } } : {})
+      },
       orderBy: { createdAt: 'desc' },
       include: { githubIntegration: true }
+    });
+  },
+
+  findRecentlyDeletedOwnedProjects(userId, now = new Date()) {
+    return prisma.project.findMany({
+      where: {
+        deletedAt: { not: null },
+        deletionScheduledFor: { gt: now },
+        memberships: { some: { userId, role: 'OWNER', isActive: true } }
+      },
+      orderBy: { deletionScheduledFor: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        deletedAt: true,
+        deletionScheduledFor: true,
+        githubIntegration: {
+          select: { githubRepositoryId: true, repositoryFullName: true }
+        }
+      }
     });
   },
 
@@ -57,10 +80,23 @@ export const projectRepository = {
   },
 
   async findById(id) {
+    return prisma.project.findFirst({
+      where: { id, deletedAt: null },
+      include: { githubIntegration: { include: { installation: true } } }
+    });
+  },
+
+  async findByIdIncludingDeleted(id) {
     return prisma.project.findUnique({
       where: { id },
       include: { githubIntegration: { include: { installation: true } } }
     });
+  },
+
+  async isActive(id) {
+    return Boolean(
+      await prisma.project.findFirst({ where: { id, deletedAt: null }, select: { id: true } })
+    );
   },
 
   async updateGithubSyncSettings(id, githubAutoSyncEnabled) {
@@ -79,6 +115,8 @@ export const projectRepository = {
   },
 
   async markGithubSyncStarted(id, attemptedAt) {
+    const active = await this.isActive(id);
+    if (!active) return null;
     return prisma.projectGitHubIntegration.update({
       where: { projectId: id },
       data: {
@@ -89,6 +127,7 @@ export const projectRepository = {
   },
 
   async markGithubSyncSucceeded(id, syncedAt) {
+    if (!(await this.isActive(id))) return null;
     await prisma.projectGitHubIntegration.update({
       where: { projectId: id },
       data: {
@@ -102,6 +141,7 @@ export const projectRepository = {
   },
 
   async markGithubSyncFailed(id, attemptedAt, errorMessage) {
+    if (!(await this.isActive(id))) return null;
     return prisma.projectGitHubIntegration.update({
       where: { projectId: id },
       data: {
