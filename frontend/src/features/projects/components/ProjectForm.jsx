@@ -152,9 +152,7 @@ export function ProjectForm({
                   <option
                     key={normalizedRepository.id}
                     value={normalizedRepository.fullName}
-                    disabled={
-                      !normalizedRepository.selectable && !normalizedRepository.pendingDeletion
-                    }
+                    disabled={!normalizedRepository.selectable}
                   >
                     {normalizedRepository.fullName}
                     {normalizedRepository.defaultBranch

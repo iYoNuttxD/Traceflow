@@ -21,6 +21,8 @@ Prazos abaixo são defaults de engenharia, não prazos jurídicos definitivos. P
 | histórico de Planning e tombstones                         | `Sprint`, `SprintTask`, `Milestone` |                     ciclo do projeto, sem expurgo automático novo | excluir Sprint/Marco é lógico; preserva baseline, card mínimo, pontos e corte. IDs históricos não copiam nome/e-mail; dados legados ausentes não são fabricados |
 | vínculos `TaskCommit`, `TaskIssue` e `Task.pullRequestId`  | MySQL                               |                                           ciclo da tarefa/projeto | excluir Task remove joins/FK; Commit, PullRequest e Issue importados são preservados                                                                            |
 | logs                                                       | destino operacional                 |              a definir no deploy, recomendação inicial 30–90 dias | stdout local não implementa política do agregador                                                                                                               |
+| e-mails técnicos                                           | provedor SMTP                       |                                              política do provedor | TRACEFLOW não controla mailbox; evitar anexos de exportação                                                                                                     |
+| backup                                                     | infraestrutura                      |                                        a definir pelo controlador | expurgo lógico pode persistir até rotação; seguir `docs/runbooks/BACKUP_RESTORE.md`, com acesso, criptografia e descarte seguros                                |
 
 ## Exclusão e recuperação de projeto
 
@@ -45,8 +47,6 @@ Eventos de auditoria seguem a retenção técnica aplicável e o evento `PROJECT
 réplicas, logs externos e exigências legais continuam dependentes da política operacional e de
 avaliação jurídica; esta implementação não declara apagamento instantâneo nesses meios nem
 conformidade legal absoluta.
-| e-mails técnicos | provedor SMTP | política do provedor | TRACEFLOW não controla mailbox; evitar anexos de exportação |
-| backup | infraestrutura | a definir pelo controlador | expurgo lógico pode persistir até rotação; seguir `docs/runbooks/BACKUP_RESTORE.md`, com acesso, criptografia e descarte seguros |
 
 Na E9, sincronização GitHub atualiza ou acrescenta artefatos por identificador externo e não apaga automaticamente itens ausentes em uma execução posterior. Essa preservação protege rastreabilidade e vínculos; uma política de reconciliação destrutiva exigirá decisão específica de retenção e auditoria.
 

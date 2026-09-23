@@ -49,4 +49,18 @@ describe('convite quando SMTP falha', () => {
     expect(result.token).toEqual(expect.any(String));
     expect(mocks.audit.recordOperational).toHaveBeenCalledOnce();
   });
+
+  it('não envia e-mail nem audita convite quando o projeto deixa de estar ativo', async () => {
+    mocks.repository.createUnlessPending.mockResolvedValue({ projectUnavailable: true });
+    await expect(
+      projectInvitationService.create(
+        9,
+        7,
+        { email: 'pessoa@example.invalid', role: 'MEMBER' },
+        'request-2'
+      )
+    ).rejects.toMatchObject({ statusCode: 404 });
+    expect(mocks.email.sendProjectInvitation).not.toHaveBeenCalled();
+    expect(mocks.audit.recordOperational).not.toHaveBeenCalled();
+  });
 });

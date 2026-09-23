@@ -180,6 +180,7 @@ export const projectInvitationService = {
       tokenHash: tokenHash(token),
       expiresAt
     });
+    if (result.projectUnavailable) throw invitationNotFound();
     if (result.alreadyMember) throw alreadyMember();
     if (result.alreadyPending) throw alreadyPending();
 

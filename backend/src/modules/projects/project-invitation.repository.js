@@ -24,6 +24,13 @@ export const projectInvitationRepository = {
   },
   createUnlessPending(data) {
     return serializableTransaction(async (tx) => {
+      if (!(await lockProjectLifecycle(tx, data.projectId))) return { projectUnavailable: true };
+      const project = await tx.project.findUnique({
+        where: { id: data.projectId },
+        select: { deletedAt: true }
+      });
+      if (project.deletedAt) return { projectUnavailable: true };
+
       const activeMembership = await tx.projectMembership.findFirst({
         where: {
           projectId: data.projectId,

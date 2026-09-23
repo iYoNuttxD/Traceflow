@@ -15,13 +15,18 @@ const repository = {
   defaultBranch: 'main'
 };
 
-function ProjectFormHarness({ onSubmit, submitting = false, loadingRepositories = false }) {
+function ProjectFormHarness({
+  onSubmit,
+  submitting = false,
+  loadingRepositories = false,
+  repositories = [repository]
+}) {
   const [formData, setFormData] = useState(emptyProjectForm);
 
   return (
     <ProjectForm
       formData={formData}
-      repositories={[repository]}
+      repositories={repositories}
       loadingRepositories={loadingRepositories}
       onChange={(name, value) => setFormData((current) => ({ ...current, [name]: value }))}
       onRepositoryChange={(fullName) => {
@@ -65,5 +70,26 @@ describe('ProjectForm', () => {
 
     expect(screen.getByLabelText('Repositório GitHub *')).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Salvando...' })).toBeDisabled();
+  });
+
+  it.each([
+    ['normal', { selectable: true, pendingDeletion: null }, false],
+    [
+      'pending deletion de OWNER',
+      { selectable: true, pendingDeletion: { projectId: 2, projectName: 'Antigo' } },
+      false
+    ],
+    [
+      'pending deletion restrito',
+      { selectable: false, pendingDeletion: { restricted: true } },
+      true
+    ],
+    ['vinculado a outro projeto', { selectable: false, alreadyConnected: true }, true]
+  ])('respeita selectable para repo %s', (_name, state, disabled) => {
+    render(<ProjectFormHarness onSubmit={vi.fn()} repositories={[{ ...repository, ...state }]} />);
+    const option = screen.getByRole('option', {
+      name: /usuario-artificial\/repositorio-artificial/
+    });
+    expect(option.disabled).toBe(disabled);
   });
 });

@@ -74,10 +74,7 @@ export const projectRepository = {
   },
 
   async updateProject(id, data) {
-    return prisma.project.update({
-      where: { id },
-      data
-    });
+    return withActiveProjectWrite(id, (tx) => tx.project.update({ where: { id }, data }));
   },
 
   async findById(id) {

@@ -1,6 +1,7 @@
 import { prisma } from '../../database/prismaClient.js';
 import { serializableTransaction } from '../../database/serializable-transaction.js';
 import { auditRepository } from '../audit/audit.repository.js';
+import { withActiveProjectWrite } from './active-project-write.js';
 
 const accessConfigurationSelect = {
   id: true,
@@ -37,19 +38,23 @@ export const projectAccessCodeRepository = {
   },
 
   regenerate(projectId, accessCode) {
-    return prisma.project.update({
-      where: { id: projectId },
-      data: { accessCode },
-      select: accessConfigurationSelect
-    });
+    return withActiveProjectWrite(projectId, (tx) =>
+      tx.project.update({
+        where: { id: projectId },
+        data: { accessCode },
+        select: accessConfigurationSelect
+      })
+    );
   },
 
   updateRole(projectId, accessCodeRole) {
-    return prisma.project.update({
-      where: { id: projectId },
-      data: { accessCodeRole },
-      select: accessConfigurationSelect
-    });
+    return withActiveProjectWrite(projectId, (tx) =>
+      tx.project.update({
+        where: { id: projectId },
+        data: { accessCodeRole },
+        select: accessConfigurationSelect
+      })
+    );
   },
 
   join(accessCode, userId, auditData) {
