@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   projects: {
     get: vi.fn(),
     update: vi.fn(),
+    requestDeletion: vi.fn(),
     getAccessCode: vi.fn(),
     regenerateAccessCode: vi.fn(),
     updateAccessCodeRole: vi.fn()
@@ -95,6 +96,7 @@ function renderEdit() {
     <MemoryRouter initialEntries={['/projects/7/edit']}>
       <Routes>
         <Route path="/projects/:projectId/edit" element={<EditHarness />} />
+        <Route path="/projects" element={<h1>Projetos</h1>} />
       </Routes>
     </MemoryRouter>
   );
@@ -163,6 +165,29 @@ describe('rotas administrativas de projeto', () => {
     );
     expect(await screen.findByText('Projeto atualizado com sucesso.')).toBeInTheDocument();
     expect(mocks.refreshProjects).toHaveBeenCalledOnce();
+  });
+
+  it('exige o nome exato antes de programar a exclusão e sai da rota project-scoped', async () => {
+    const user = userEvent.setup();
+    mocks.projects.requestDeletion.mockResolvedValue({
+      data: { message: 'Projeto programado para exclusão.' }
+    });
+    renderEdit();
+
+    await user.click(await screen.findByRole('button', { name: 'Excluir projeto' }));
+    const dialog = screen.getByRole('dialog', { name: 'Excluir Projeto administrativo?' });
+    const confirmButton = within(dialog).getByRole('button', { name: 'Excluir projeto' });
+    expect(confirmButton).toBeDisabled();
+    const confirmation = within(dialog).getByRole('textbox');
+    await user.type(confirmation, 'Projeto administrativ');
+    expect(confirmButton).toBeDisabled();
+    await user.type(confirmation, 'o');
+    expect(confirmButton).toBeEnabled();
+    await user.click(confirmButton);
+
+    expect(mocks.projects.requestDeletion).toHaveBeenCalledWith(7);
+    expect(mocks.refreshProjects).toHaveBeenCalledOnce();
+    expect(await screen.findByRole('heading', { name: 'Projetos' })).toBeInTheDocument();
   });
 
   it('não apresenta formulário de edição a papel sem permissão', async () => {

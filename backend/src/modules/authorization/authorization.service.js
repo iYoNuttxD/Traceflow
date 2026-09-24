@@ -68,6 +68,7 @@ export const authorizationService = {
     if (/\/access-code(?:\/|$)/.test(path)) return 'OWNER';
     if (['GET', 'HEAD', 'OPTIONS'].includes(method)) return 'VIEWER';
     if (method === 'DELETE' && /\/members\/me$/.test(path)) return 'VIEWER';
+    if (method === 'DELETE' && /^\/projects\/\d+$/.test(path)) return 'OWNER';
     if (method === 'PUT' && /^\/projects\/\d+$/.test(path)) return 'OWNER';
     if (
       /\/members(?:\/|$)|\/invitations(?:\/|$)|\/ownership\/transfer$|\/github\/(?:sync-settings|integration)/.test(

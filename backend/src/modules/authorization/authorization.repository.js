@@ -17,7 +17,9 @@ export const authorizationRepository = {
     return prisma.testEvidence.findUnique({ where: { id }, select: { projectId: true } });
   },
   membership(projectId, userId) {
-    return prisma.projectMembership.findFirst({ where: { projectId, userId, isActive: true } });
+    return prisma.projectMembership.findFirst({
+      where: { projectId, userId, isActive: true, project: { deletedAt: null } }
+    });
   },
   projectForRequirement(id) {
     return prisma.requirement.findUnique({ where: { id }, select: { projectId: true } });

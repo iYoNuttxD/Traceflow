@@ -12,6 +12,7 @@ import {
   joinProjectDetailsQuerySchema,
   projectIdParamsSchema,
   projectProjectIdParamsSchema,
+  permanentProjectDeletionBodySchema,
   updateProjectBodySchema
 } from './project.validation.js';
 import { projectAccessCodeController } from './project-access-code.controller.js';
@@ -166,6 +167,20 @@ router.put(
   validateRequest({ params: projectIdParamsSchema, body: updateProjectBodySchema }),
   projectController.update
 );
-router.delete('/:id', projectController.notImplemented);
+router.post(
+  '/:id/restore',
+  validateRequest({ params: projectIdParamsSchema, body: emptyObject }),
+  projectController.restore
+);
+router.delete(
+  '/:id/permanent',
+  validateRequest({ params: projectIdParamsSchema, body: permanentProjectDeletionBodySchema }),
+  projectController.purge
+);
+router.delete(
+  '/:id',
+  validateRequest({ params: projectIdParamsSchema, body: emptyObject }),
+  projectController.requestDeletion
+);
 
 export default router;

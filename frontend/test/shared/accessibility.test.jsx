@@ -40,7 +40,67 @@ function ConfirmFixture() {
   );
 }
 
+function TypedConfirmFixture() {
+  const confirm = useConfirm();
+  const [result, setResult] = useState('');
+  return (
+    <>
+      <button
+        type="button"
+        onClick={async () =>
+          setResult(
+            (await confirm({
+              title: 'Excluir projeto',
+              description: 'Confirme a exclusão.',
+              confirmationText: 'TraceFlow'
+            }))
+              ? 'confirmado'
+              : 'cancelado'
+          )
+        }
+      >
+        Abrir exclusão
+      </button>
+      <output>{result}</output>
+    </>
+  );
+}
+
 describe('infraestrutura acessível compartilhada', () => {
+  it('usa a primitive C2 no campo de confirmação digitada', async () => {
+    const user = userEvent.setup();
+    render(
+      <ConfirmProvider>
+        <TypedConfirmFixture />
+      </ConfirmProvider>
+    );
+    await user.click(screen.getByRole('button', { name: 'Abrir exclusão' }));
+    const input = screen.getByRole('textbox', { name: /Digite TraceFlow para confirmar/ });
+    expect(input.closest('label')).toHaveClass('field');
+    expect(input).toHaveFocus();
+    expect(screen.getByRole('button', { name: 'Confirmar' })).toBeDisabled();
+  });
+  it('não confirma por Enter no campo, aceita paste e confirma por Space no botão', async () => {
+    const user = userEvent.setup();
+    render(
+      <ConfirmProvider>
+        <TypedConfirmFixture />
+      </ConfirmProvider>
+    );
+    await user.click(screen.getByRole('button', { name: 'Abrir exclusão' }));
+    const input = screen.getByRole('textbox', { name: /Digite TraceFlow para confirmar/ });
+    await user.keyboard('{Enter}');
+    expect(screen.getByRole('dialog', { name: 'Excluir projeto' })).toBeInTheDocument();
+    await user.paste('TraceFlow');
+    expect(input).toHaveValue('TraceFlow');
+    await user.keyboard('{Enter}');
+    expect(screen.getByRole('dialog', { name: 'Excluir projeto' })).toBeInTheDocument();
+    await user.tab();
+    await user.tab();
+    expect(screen.getByRole('button', { name: 'Confirmar' })).toHaveFocus();
+    await user.keyboard(' ');
+    expect(await screen.findByText('confirmado')).toBeInTheDocument();
+  });
   it('distingue loading, erro e acesso proibido semanticamente', () => {
     const { rerender } = render(<LoadingState message="Carregando dados" />);
     expect(screen.getByRole('status')).toHaveTextContent('Carregando dados');

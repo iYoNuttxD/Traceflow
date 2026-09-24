@@ -1,5 +1,6 @@
 // Repository de Issues importadas do GitHub.
 import { prisma } from '../../database/prismaClient.js';
+import { withActiveProjectWrite } from '../projects/active-project-write.js';
 
 function buildIssueUpdate(data) {
   return {
@@ -36,30 +37,23 @@ export const issueRepository = {
       return { created: 0, updated: 0 };
     }
 
-    const existingGithubIds = new Set(
-      await this.findGithubIdsByProjectId(
-        data[0].projectId,
-        data.map(({ githubId }) => githubId)
-      )
-    );
-    const operations = data.map((issue) =>
-      prisma.issue.upsert({
-        where: {
-          projectId_githubId: {
-            projectId: issue.projectId,
-            githubId: issue.githubId
-          }
-        },
-        update: buildIssueUpdate(issue),
-        create: issue
-      })
-    );
-    await prisma.$transaction(operations);
-
-    const updated = data.filter(({ githubId }) => existingGithubIds.has(githubId)).length;
-    const created = data.length - updated;
-
-    return { created, updated };
+    const projectId = data[0].projectId;
+    return withActiveProjectWrite(projectId, async (tx) => {
+      const existing = await tx.issue.findMany({
+        where: { projectId, githubId: { in: data.map(({ githubId }) => githubId) } },
+        select: { githubId: true }
+      });
+      const existingGithubIds = new Set(existing.map(({ githubId }) => githubId));
+      for (const issue of data) {
+        await tx.issue.upsert({
+          where: { projectId_githubId: { projectId, githubId: issue.githubId } },
+          update: buildIssueUpdate(issue),
+          create: issue
+        });
+      }
+      const updated = data.filter(({ githubId }) => existingGithubIds.has(githubId)).length;
+      return { created: data.length - updated, updated };
+    });
   },
 
   async listByProjectId(projectId, filters = {}) {

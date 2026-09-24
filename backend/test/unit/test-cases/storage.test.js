@@ -199,8 +199,34 @@ describe('S1-07 private evidence storage', () => {
   );
   it('abstract storage fails closed', async () => {
     const storage = new TestEvidenceStorage();
-    for (const method of ['begin', 'receive', 'prepare', 'cleanup', 'content'])
+    for (const method of [
+      'begin',
+      'receive',
+      'prepare',
+      'cleanup',
+      'content',
+      'stageForPurge',
+      'restoreFromPurge',
+      'deletePurged'
+    ])
       await expect(storage[method]()).rejects.toMatchObject({ statusCode: 503 });
+  });
+
+  it('stages purge reversibly and removes only explicit evidence keys', async () => {
+    const { storage, directory } = await fixture();
+    const storageKey = '12345678-1234-4234-8234-123456789abc';
+    const purgeKey = 'abcdefab-1234-4234-8234-123456789abc';
+    await writeFile(join(directory, storageKey), png);
+
+    expect(await storage.stageForPurge(storageKey, purgeKey)).toBe('STAGED');
+    expect(await readdir(directory)).toEqual(['.purge']);
+    expect(await storage.restoreFromPurge(storageKey, purgeKey)).toBe(true);
+    expect(await readFile(join(directory, storageKey))).toEqual(png);
+
+    expect(await storage.stageForPurge(storageKey, purgeKey)).toBe('STAGED');
+    await storage.deletePurged(storageKey, purgeKey);
+    expect(await readdir(directory)).toEqual(['.purge']);
+    await storage.deletePurged(storageKey, purgeKey);
   });
 });
 describe('S1-07 real MP4 fixture', () => {

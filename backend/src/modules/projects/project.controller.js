@@ -1,7 +1,7 @@
 import { asyncHandler } from '../../shared/http/index.js';
 import { projectService } from './project.service.js';
 import { auditService } from '../audit/audit.service.js';
-import { publicProject } from './project.schema.js';
+import { publicDeletedProject, publicProject } from './project.schema.js';
 
 const projectFallback = 'Erro interno ao processar projeto.';
 
@@ -26,8 +26,14 @@ export const projectController = {
 
   findAll: asyncHandler(
     async (req, res) => {
-      const projects = await projectService.findAllProjects(req.auth.user.id);
-      return res.json({ projects: projects.map(publicProject) });
+      const [projects, deletedProjects] = await Promise.all([
+        projectService.findAllProjects(req.auth.user.id),
+        projectService.findRecentlyDeletedOwnedProjects(req.auth.user.id)
+      ]);
+      return res.json({
+        projects: projects.map(publicProject),
+        deletedProjects: deletedProjects.map(publicDeletedProject)
+      });
     },
     { fallbackMessage: projectFallback }
   ),
@@ -96,9 +102,44 @@ export const projectController = {
     { fallbackMessage: 'Erro ao atualizar configuração de sincronização GitHub.' }
   ),
 
+  requestDeletion: asyncHandler(
+    async (req, res) => {
+      const project = await projectService.requestDeletion(req.params.id, req.auth.user.id);
+      return res.json({
+        message:
+          'Projeto programado para exclusão. Ele poderá ser recuperado durante os próximos 30 dias.',
+        project
+      });
+    },
+    { fallbackMessage: 'Não foi possível excluir o projeto.' }
+  ),
+
+  restore: asyncHandler(
+    async (req, res) => {
+      const project = await projectService.restore(req.params.id, req.auth.user.id);
+      return res.json({ message: 'Projeto recuperado com sucesso.', project });
+    },
+    { fallbackMessage: 'Não foi possível recuperar o projeto.' }
+  ),
+
+  purge: asyncHandler(
+    async (req, res) => {
+      const result = await projectService.purge(
+        req.params.id,
+        req.auth.user.id,
+        req.body.confirmationName
+      );
+      return res.json({
+        message: 'Projeto excluído definitivamente.',
+        cleanupPending: result.storageFailures > 0
+      });
+    },
+    { fallbackMessage: 'Não foi possível excluir definitivamente o projeto.' }
+  ),
+
   async notImplemented(req, res) {
-    return res.status(501).json({
-      message: 'Endpoint de projeto preparado para desenvolvimento futuro.'
-    });
+    return res
+      .status(501)
+      .json({ message: 'Endpoint de projeto preparado para desenvolvimento futuro.' });
   }
 };

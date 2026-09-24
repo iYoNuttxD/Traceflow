@@ -2,7 +2,13 @@ import { collectGithubPages } from '../github-pagination.js';
 import { githubBranchRepository } from '../github-branch.repository.js';
 import { ProjectServiceError } from '../../projects/project.schema.js';
 
-export async function syncProjectBranches({ project, repository, githubClient, now = new Date() }) {
+export async function syncProjectBranches({
+  project,
+  repository,
+  githubClient,
+  now = new Date(),
+  assertActive = async () => {}
+}) {
   const observed = await collectGithubPages(
     githubClient.listBranchPages({ owner: repository.owner, repo: repository.name })
   );
@@ -18,6 +24,8 @@ export async function syncProjectBranches({ project, repository, githubClient, n
       502
     );
   }
+
+  await assertActive();
 
   const active = await githubBranchRepository.syncObserved(
     project.id,

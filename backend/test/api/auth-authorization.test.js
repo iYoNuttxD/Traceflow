@@ -882,9 +882,9 @@ describe('identidade, sessão, CSRF e autorização E6', () => {
     });
   });
 
-  it('mantém placeholder privado: 401 sem sessão e 501 autenticado', async () => {
+  it('protege a exclusão de projeto e mantém 404 opaco para projeto inexistente', async () => {
     expect((await request(app).delete('/api/projects/1')).status).toBe(401);
     const auth = await register('placeholder@example.invalid');
-    expect((await auth.mutate('delete', '/api/projects/1')).status).toBe(501);
+    expect((await auth.mutate('delete', '/api/projects/1')).status).toBe(404);
   });
 });

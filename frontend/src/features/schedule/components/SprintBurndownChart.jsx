@@ -25,7 +25,10 @@ export function SprintBurndownChart({ burndown }) {
 
   const { days, totalPoints, frozen, cutoffDate } = burndown;
   const ultimo = days.length - 1;
-  const x = (indice) => arredonda(ESQUERDA + (indice * (DIREITA - ESQUERDA)) / ultimo);
+  const x = (indice) =>
+    ultimo === 0
+      ? arredonda((ESQUERDA + DIREITA) / 2)
+      : arredonda(ESQUERDA + (indice * (DIREITA - ESQUERDA)) / ultimo);
   const y = (valor) => arredonda(TOPO + (1 - valor / totalPoints) * (BASE - TOPO));
 
   const ideal = `${x(0)},${y(totalPoints)} ${x(ultimo)},${y(0)}`;
@@ -116,14 +119,18 @@ export function SprintBurndownChart({ burndown }) {
             </text>
           </>
         )}
-        <polyline
-          points={ideal}
-          fill="none"
-          stroke="var(--color-text-muted)"
-          strokeWidth="2"
-          strokeDasharray="6 6"
-        />
-        {real && (
+        {ultimo === 0 ? (
+          <circle cx={x(0)} cy={y(days[0].ideal)} r={RAIO} fill="var(--color-text-muted)" />
+        ) : (
+          <polyline
+            points={ideal}
+            fill="none"
+            stroke="var(--color-text-muted)"
+            strokeWidth="2"
+            strokeDasharray="6 6"
+          />
+        )}
+        {real && ultimo > 0 && (
           <polyline
             points={real}
             fill="none"

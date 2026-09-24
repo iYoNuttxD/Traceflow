@@ -1,22 +1,27 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import './ConfirmDialog.css';
+import { useDialogLayer } from './dialog-stack.js';
 
 const ConfirmContext = createContext(null);
 
 function ConfirmDialog({ dialog, close }) {
   const panelRef = useRef(null);
   const cancelRef = useRef(null);
+  const isTopDialog = useDialogLayer();
 
   useEffect(() => {
-    cancelRef.current?.focus();
+    if (!dialog.confirmationText) cancelRef.current?.focus();
     function onKeyDown(event) {
+      if (event.defaultPrevented || !isTopDialog()) return;
       if (event.key === 'Escape') {
         event.preventDefault();
         close(false);
         return;
       }
       if (event.key !== 'Tab') return;
-      const focusable = [...panelRef.current.querySelectorAll('button:not([disabled])')];
+      const focusable = [
+        ...panelRef.current.querySelectorAll('input:not([disabled]), button:not([disabled])')
+      ];
       if (!focusable.length) return;
       const first = focusable[0];
       const last = focusable.at(-1);
@@ -30,7 +35,7 @@ function ConfirmDialog({ dialog, close }) {
     }
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [close]);
+  }, [close, dialog.confirmationText, isTopDialog]);
 
   return (
     <div
@@ -54,13 +59,40 @@ function ConfirmDialog({ dialog, close }) {
 
 export function ConfirmDialogContent({ dialog, close, cancelRef }) {
   const fallbackRef = useRef(null);
+  const confirmationRef = useRef(null);
+  const [confirmation, setConfirmation] = useState('');
   useEffect(() => {
-    (cancelRef || fallbackRef).current?.focus();
-  }, [cancelRef]);
+    (dialog.confirmationText ? confirmationRef : cancelRef || fallbackRef).current?.focus();
+  }, [cancelRef, dialog.confirmationText]);
+  const confirmed = !dialog.confirmationText || confirmation === dialog.confirmationText;
   return (
     <div className="confirm-dialog-content">
       <h2 id="confirm-dialog-title">{dialog.title}</h2>
       <p id="confirm-dialog-description">{dialog.description}</p>
+      {dialog.details?.length > 0 && (
+        <ul className="confirm-dialog__details">
+          {dialog.details.map((detail) => (
+            <li key={detail}>{detail}</li>
+          ))}
+        </ul>
+      )}
+      {dialog.confirmationText && (
+        <label className="field confirm-dialog__confirmation">
+          <span>
+            {dialog.confirmationLabel || (
+              <>
+                Digite <strong>{dialog.confirmationText}</strong> para confirmar.
+              </>
+            )}
+          </span>
+          <input
+            ref={confirmationRef}
+            value={confirmation}
+            onChange={(event) => setConfirmation(event.target.value)}
+            autoComplete="off"
+          />
+        </label>
+      )}
       <div className="dialog-actions">
         <button
           ref={cancelRef || fallbackRef}
@@ -73,7 +105,7 @@ export function ConfirmDialogContent({ dialog, close, cancelRef }) {
         </button>
         <button
           type="button"
-          disabled={dialog.busy}
+          disabled={dialog.busy || !confirmed}
           className={dialog.destructive ? 'button button-danger' : 'button button-primary'}
           onClick={() => close(true)}
         >
@@ -108,6 +140,9 @@ export function ConfirmProvider({ children }) {
           cancelLabel: options.cancelLabel,
           confirmLabel: options.confirmLabel,
           destructive: options.destructive !== false,
+          confirmationText: options.confirmationText,
+          confirmationLabel: options.confirmationLabel,
+          details: options.details,
           focusAfterConfirmRef: options.focusAfterConfirmRef,
           trigger: document.activeElement,
           resolve

@@ -1,15 +1,53 @@
 .task-form {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-5);
 }
 
 .task-form .field {
   align-content: start;
 }
 
+.task-form-section {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-secondary);
+}
+
+.task-form-section > header h3,
+.task-form-section > header p {
+  margin: 0;
+}
+
+.task-form-section > header h3 {
+  color: var(--color-text-strong);
+  font-size: var(--font-size-3);
+}
+
+.task-form-section > header p {
+  margin-top: var(--space-1);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-2);
+  line-height: var(--line-height-body);
+}
+
+.task-form-section__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.task-form > .form-actions {
+  justify-content: flex-end;
+  padding-top: var(--space-4);
+  border-top: var(--border-width-default) solid var(--color-border-default);
+}
+
 @media (max-width: 560px) {
-  .task-form {
+  .task-form-section__grid {
     grid-template-columns: 1fr;
   }
 }

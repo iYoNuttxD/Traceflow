@@ -1,5 +1,4 @@
 import { ResponsibleCombobox, SearchCombobox, SelectControl } from '../../../shared/index.js';
-import { useEffect, useRef, useState } from 'react';
 import { CommitSuggestionsCard } from './CommitSuggestionsCard.jsx';
 import '../../../shared/styles/traceability-controls.css';
 import './TaskForm.css';
@@ -148,11 +147,6 @@ export function TaskForm({
   onSelectIssue,
   onRemoveIssue
 }) {
-  const [requirementSearch, setRequirementSearch] = useState('');
-  const [pullRequestSearch, setPullRequestSearch] = useState('');
-  const [commitSearch, setCommitSearch] = useState('');
-  const [issueSearch, setIssueSearch] = useState('');
-  const commitSearchInputRef = useRef(null);
   const activeMembers = projectMembers.filter(
     (member) => member.isActive !== false && member.user?.isActive !== false
   );
@@ -161,255 +155,192 @@ export function TaskForm({
   const hasLegacyResponsible = normalizedResponsible && !formData.responsibleUserId;
   const linkedCommitIds = new Set((formData.commitIds || []).map(String));
   const linkedIssueIds = new Set((formData.issueIds || []).map(String));
-  const normalizedRequirementSearch = normalizeText(requirementSearch).toLowerCase();
-  const normalizedPullRequestSearch = normalizeText(pullRequestSearch).toLowerCase();
-  const pullRequestNumericSearch = normalizedPullRequestSearch.replace(/\D/g, '');
-  const normalizedCommitSearch = normalizeText(commitSearch).toLowerCase();
-  const normalizedIssueSearch = normalizeText(issueSearch).toLowerCase();
-  const issueNumericSearch = normalizedIssueSearch.replace(/\D/g, '');
-  const availableRequirements = requirements.filter((requirement) => {
-    if (String(requirement.id) === String(formData.requirementId)) {
-      return false;
-    }
 
-    const matchesTitle = requirement.title?.toLowerCase().includes(normalizedRequirementSearch);
-    const matchesType = requirement.type?.toLowerCase().includes(normalizedRequirementSearch);
-    const matchesStatus = requirement.status?.toLowerCase().includes(normalizedRequirementSearch);
+  async function searchWithFallback(remoteSearch, query, signal, fallback) {
+    const remote = await remoteSearch?.(query, signal);
+    return Array.isArray(remote) ? remote : fallback(query);
+  }
 
-    return Boolean(matchesTitle || matchesType || matchesStatus);
-  });
-  const seenCommitKeys = new Set();
-  const availableCommitResults = commitResults
-    .filter((commit) => {
-      const idKey = `id:${commit.id}`;
-      const hashKey = commit.hash ? `hash:${commit.hash.toLowerCase()}` : null;
-      if (
-        linkedCommitIds.has(String(commit.id)) ||
-        seenCommitKeys.has(idKey) ||
-        (hashKey && seenCommitKeys.has(hashKey))
-      ) {
-        return false;
-      }
-      const matches =
-        commit.hash?.toLowerCase().includes(normalizedCommitSearch) ||
-        commit.shortHash?.toLowerCase().includes(normalizedCommitSearch) ||
-        commit.message?.toLowerCase().includes(normalizedCommitSearch);
-      if (matches) {
-        seenCommitKeys.add(idKey);
-        if (hashKey) seenCommitKeys.add(hashKey);
-      }
-      return Boolean(matches);
-    })
-    .slice(0, 20);
-  const availablePullRequests = pullRequests.filter((pullRequest) => {
-    if (String(pullRequest.id) === String(formData.pullRequestId)) {
-      return false;
-    }
-
-    const matchesNumber =
-      pullRequestNumericSearch && Number(pullRequest.number) === Number(pullRequestNumericSearch);
-    const matchesTitle = pullRequest.title?.toLowerCase().includes(normalizedPullRequestSearch);
-
-    return Boolean(matchesNumber || matchesTitle);
-  });
-  const availableIssueResults = issueResults.filter((issue) => {
-    if (linkedIssueIds.has(String(issue.id))) {
-      return false;
-    }
-
-    const matchesNumber = issueNumericSearch && Number(issue.number) === Number(issueNumericSearch);
-    const matchesTitle = issue.title?.toLowerCase().includes(normalizedIssueSearch);
-
-    return Boolean(matchesNumber || matchesTitle);
-  });
-
-  useEffect(() => {
-    const query = requirementSearch.trim();
-
-    if (query.length < 2 || !onRequirementSearch) {
-      return undefined;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      onRequirementSearch(query);
-    }, 300);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [onRequirementSearch, requirementSearch]);
-
-  useEffect(() => {
-    const query = pullRequestSearch.trim();
-    const hasNumericSearch = /\d/.test(query);
-
-    if ((!hasNumericSearch && query.length < 2) || !onPullRequestSearch) {
-      return undefined;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      onPullRequestSearch(query);
-    }, 300);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [onPullRequestSearch, pullRequestSearch]);
-
-  useEffect(() => {
-    const query = commitSearch.trim();
-
-    if (query.length < 2 || !onCommitSearch) {
-      if (commitSearch !== '') {
-        onCommitSearchClear?.();
-      }
-      return undefined;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      onCommitSearch(query);
-    }, 300);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [commitSearch, onCommitSearch, onCommitSearchClear]);
-
-  useEffect(() => {
-    const query = issueSearch.trim();
-    const hasNumericSearch = /\d/.test(query);
-
-    if ((!hasNumericSearch && query.length < 2) || !onIssueSearch) {
-      return undefined;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      onIssueSearch(query);
-    }, 300);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [issueSearch, onIssueSearch]);
+  const searchRequirements = async (query, signal) =>
+    (
+      await searchWithFallback(onRequirementSearch, query, signal, (value) => {
+        const normalized = normalizeText(value).toLowerCase();
+        return requirements.filter((requirement) =>
+          [requirement.title, requirement.type, requirement.status].some((field) =>
+            field?.toLowerCase().includes(normalized)
+          )
+        );
+      })
+    ).filter((requirement) => String(requirement.id) !== String(formData.requirementId));
+  const searchPullRequests = async (query, signal) =>
+    (
+      await searchWithFallback(onPullRequestSearch, query, signal, (value) => {
+        const normalized = normalizeText(value).toLowerCase();
+        const numeric = normalized.replace(/\D/g, '');
+        return pullRequests.filter(
+          (pullRequest) =>
+            (numeric && Number(pullRequest.number) === Number(numeric)) ||
+            pullRequest.title?.toLowerCase().includes(normalized)
+        );
+      })
+    ).filter((pullRequest) => String(pullRequest.id) !== String(formData.pullRequestId));
+  const searchCommits = async (query, signal) => {
+    const found = await searchWithFallback(onCommitSearch, query, signal, (value) => {
+      const normalized = normalizeText(value).toLowerCase();
+      return commitResults.filter(
+        (commit) =>
+          commit.hash?.toLowerCase().includes(normalized) ||
+          commit.shortHash?.toLowerCase().includes(normalized) ||
+          commit.message?.toLowerCase().includes(normalized)
+      );
+    });
+    const seen = new Set();
+    return found
+      .filter((commit) => {
+        const idKey = `id:${commit.id}`;
+        const hashKey = commit.hash ? `hash:${commit.hash.toLowerCase()}` : null;
+        if (
+          linkedCommitIds.has(String(commit.id)) ||
+          seen.has(idKey) ||
+          (hashKey && seen.has(hashKey))
+        )
+          return false;
+        seen.add(idKey);
+        if (hashKey) seen.add(hashKey);
+        return true;
+      })
+      .slice(0, 20);
+  };
+  const searchIssues = async (query, signal) =>
+    (
+      await searchWithFallback(onIssueSearch, query, signal, (value) => {
+        const normalized = normalizeText(value).toLowerCase();
+        const numeric = normalized.replace(/\D/g, '');
+        return issueResults.filter(
+          (issue) =>
+            (numeric && Number(issue.number) === Number(numeric)) ||
+            issue.title?.toLowerCase().includes(normalized)
+        );
+      })
+    ).filter((issue) => !linkedIssueIds.has(String(issue.id)));
 
   function handleChange(event) {
     onChange(event.target.name, event.target.value);
   }
 
-  function handleSelectPullRequest(pullRequest) {
-    onSelectPullRequest?.(pullRequest);
-    setPullRequestSearch('');
-  }
-
-  function handleSelectRequirement(requirement) {
-    onSelectRequirement?.(requirement);
-    setRequirementSearch('');
-  }
-
-  function handleSelectCommit(commit) {
-    onSelectCommit?.(commit);
-    setCommitSearch('');
-    onCommitSearchClear?.();
-  }
-
-  function handleCommitSearchClear() {
-    setCommitSearch('');
-    onCommitSearchClear?.();
-    commitSearchInputRef.current?.focus();
-  }
-
-  function handleSelectIssue(issue) {
-    onSelectIssue?.(issue);
-    setIssueSearch('');
-  }
-
   return (
     <form className="task-form" onSubmit={onSubmit}>
-      <label className="field field-full">
-        <span>Título da tarefa</span>
-        <input
-          name="title"
-          value={formData.title}
-          onChange={handleChange}
-          required
-          placeholder="Ex.: Implementar cadastro de tarefas"
-        />
-      </label>
+      <section className="task-form-section field-full" aria-labelledby="task-form-info-title">
+        <header>
+          <h3 id="task-form-info-title">Informações</h3>
+          <p>Defina a atividade e a prioridade para o projeto.</p>
+        </header>
+        <div className="task-form-section__grid">
+          <label className="field field-full">
+            <span>Título da tarefa</span>
+            <input
+              name="title"
+              value={formData.title}
+              onChange={handleChange}
+              required
+              placeholder="Ex.: Implementar cadastro de tarefas"
+            />
+          </label>
 
-      <label className="field field-full">
-        <span>Descrição</span>
-        <textarea
-          name="description"
-          value={formData.description}
-          onChange={handleChange}
-          rows="4"
-          placeholder="Descreva o trabalho que deve ser realizado."
-        />
-      </label>
+          <label className="field field-full">
+            <span>Descrição</span>
+            <textarea
+              name="description"
+              value={formData.description}
+              onChange={handleChange}
+              rows="4"
+              placeholder="Descreva o trabalho que deve ser realizado."
+            />
+          </label>
 
-      <label className="field">
-        <span>Prioridade</span>
-        <SelectControl name="priority" value={formData.priority} onChange={handleChange}>
-          <option value="BAIXA">Baixa</option>
-          <option value="MEDIA">Média</option>
-          <option value="ALTA">Alta</option>
-          <option value="CRITICA">Crítica</option>
-        </SelectControl>
-      </label>
-
-      <ResponsibleCombobox
-        members={activeMembers}
-        value={formData.responsibleUserId}
-        onChange={(value) => onChange('responsibleUserId', value)}
-        disabled={!hasMembers || submitting}
-        help={
-          hasLegacyResponsible
-            ? `Responsável legado: ${formData.responsible}. Selecione um responsável para reconciliar.`
-            : !hasMembers
-              ? 'Cadastre membros no projeto para atribuir responsáveis às tarefas.'
-              : undefined
-        }
-      />
-
-      <label className="field">
-        <span>Prazo</span>
-        <input type="date" name="deadline" value={formData.deadline} onChange={handleChange} />
-      </label>
-
-      {/* Sprint encerrada não recebe tarefa (ADR-010 D04) e o backend recusa com
-          409 — só aparece na lista se já for a sprint atual da tarefa, senão a
-          edição de uma tarefa antiga abriria o campo vazio e a devolveria ao
-          backlog sem ninguém ter pedido. */}
-      {composition !== 'correction' && (
-        <SearchCombobox
-          label="Sprint"
-          placeholder="Pesquisar sprint..."
-          minQueryLength={0}
-          openOnFocus={false}
-          options={sprints.filter((sprint) => !['CONCLUIDA', 'CANCELADA'].includes(sprint.status))}
-          selectedOption={
-            sprints.find((sprint) => String(sprint.id) === String(formData.sprintId)) || null
-          }
-          onSelect={(sprint) => onChange('sprintId', String(sprint.id))}
-          onClear={() => onChange('sprintId', '')}
-          help="Sem sprint, a tarefa permanece no backlog."
-          disabled={submitting}
-        />
-      )}
-
-      <label className="field">
-        <span>Esforço estimado (horas)</span>
-        <input
-          type="number"
-          min="0"
-          step="0.5"
-          name="estimatedEffort"
-          value={formData.estimatedEffort}
-          onChange={handleChange}
-          placeholder="Horas"
-        />
-      </label>
-
-      {editing && (
-        <div className="field">
-          <span>Esforço realizado</span>
-          <p className="field-help">
-            Calculado pelo cronômetro e pelos lançamentos manuais na tela de detalhes da tarefa.
-          </p>
+          <label className="field">
+            <span>Prioridade</span>
+            <SelectControl name="priority" value={formData.priority} onChange={handleChange}>
+              <option value="BAIXA">Baixa</option>
+              <option value="MEDIA">Média</option>
+              <option value="ALTA">Alta</option>
+              <option value="CRITICA">Crítica</option>
+            </SelectControl>
+          </label>
         </div>
-      )}
+      </section>
+
+      <section className="task-form-section field-full" aria-labelledby="task-form-plan-title">
+        <header>
+          <h3 id="task-form-plan-title">Planejamento</h3>
+          <p>Organize responsável, prazo, Sprint e estimativa.</p>
+        </header>
+        <div className="task-form-section__grid">
+          <ResponsibleCombobox
+            members={activeMembers}
+            value={formData.responsibleUserId}
+            onChange={(value) => onChange('responsibleUserId', value)}
+            disabled={!hasMembers || submitting}
+            help={
+              hasLegacyResponsible
+                ? `Responsável legado: ${formData.responsible}. Selecione um responsável para reconciliar.`
+                : !hasMembers
+                  ? 'Cadastre membros no projeto para atribuir responsáveis às tarefas.'
+                  : undefined
+            }
+          />
+
+          <label className="field">
+            <span>Prazo</span>
+            <input type="date" name="deadline" value={formData.deadline} onChange={handleChange} />
+          </label>
+
+          {/* Sprint encerrada não recebe tarefa (ADR-010 D04) e o backend recusa com
+              409 — só aparece na lista se já for a sprint atual da tarefa, senão a
+              edição de uma tarefa antiga abriria o campo vazio e a devolveria ao
+              backlog sem ninguém ter pedido. */}
+          {composition !== 'correction' && (
+            <SearchCombobox
+              label="Sprint"
+              placeholder="Pesquisar sprint..."
+              minQueryLength={0}
+              openOnFocus={false}
+              options={sprints.filter(
+                (sprint) => !['CONCLUIDA', 'CANCELADA'].includes(sprint.status)
+              )}
+              selectedOption={
+                sprints.find((sprint) => String(sprint.id) === String(formData.sprintId)) || null
+              }
+              onSelect={(sprint) => onChange('sprintId', String(sprint.id))}
+              onClear={() => onChange('sprintId', '')}
+              help="Sem sprint, a tarefa permanece no backlog."
+              disabled={submitting}
+            />
+          )}
+
+          <label className="field">
+            <span>Esforço estimado (horas)</span>
+            <input
+              type="number"
+              min="0"
+              step="0.5"
+              name="estimatedEffort"
+              value={formData.estimatedEffort}
+              onChange={handleChange}
+              placeholder="Horas"
+            />
+          </label>
+
+          {editing && (
+            <div className="field">
+              <span>Esforço realizado</span>
+              <p className="field-help">
+                Calculado pelo cronômetro e pelos lançamentos manuais na tela de detalhes da tarefa.
+              </p>
+            </div>
+          )}
+        </div>
+      </section>
 
       {composition === 'correction' ? (
         <section className="field-full">{requirementControl}</section>
@@ -428,10 +359,7 @@ export function TaskForm({
                 <button
                   className="traceability-remove-button"
                   type="button"
-                  onClick={() => {
-                    onClearRequirement?.();
-                    setRequirementSearch('');
-                  }}
+                  onClick={onClearRequirement}
                   aria-label="Remover requisito vinculado"
                   title="Remover requisito"
                 >
@@ -439,29 +367,16 @@ export function TaskForm({
                 </button>
               </div>
             ) : null}
-            <input
-              type="search"
-              value={requirementSearch}
-              onChange={(event) => setRequirementSearch(event.target.value)}
+            <SearchCombobox
+              label="Pesquisar requisito"
+              searchContextKey={projectId}
               placeholder="Pesquisar requisito por título..."
+              onSearch={searchRequirements}
+              searchErrorMessage="Não foi possível carregar os requisitos."
+              onSelect={onSelectRequirement}
+              getOptionLabel={formatRequirementLabel}
+              disabled={submitting}
             />
-            {requirementSearch.trim().length >= 2 ? (
-              <div className="traceability-results">
-                {availableRequirements.length === 0 ? (
-                  <p>Nenhum requisito encontrado.</p>
-                ) : (
-                  availableRequirements.map((requirement) => (
-                    <button
-                      key={requirement.id}
-                      type="button"
-                      onClick={() => handleSelectRequirement(requirement)}
-                    >
-                      {formatRequirementLabel(requirement)}
-                    </button>
-                  ))
-                )}
-              </div>
-            ) : null}
           </div>
 
           <div className="traceability-picker">
@@ -472,10 +387,7 @@ export function TaskForm({
                 <button
                   className="traceability-remove-button"
                   type="button"
-                  onClick={() => {
-                    onClearPullRequest?.();
-                    setPullRequestSearch('');
-                  }}
+                  onClick={onClearPullRequest}
                   aria-label="Remover pull request vinculado"
                   title="Remover pull request"
                 >
@@ -483,71 +395,35 @@ export function TaskForm({
                 </button>
               </div>
             ) : null}
-            <input
-              type="search"
-              value={pullRequestSearch}
-              onChange={(event) => setPullRequestSearch(event.target.value)}
+            <SearchCombobox
+              label="Pesquisar pull request"
+              searchContextKey={projectId}
               placeholder="Pesquisar por número ou título do PR..."
+              onSearch={searchPullRequests}
+              searchErrorMessage="Não foi possível carregar os pull requests do projeto."
+              onSelect={onSelectPullRequest}
+              getOptionLabel={formatPullRequestLabel}
+              isQueryValid={(query) => query.length >= 2 || /\d/.test(query)}
+              disabled={submitting}
             />
-            {pullRequestSearch.trim().length >= 2 || /\d/.test(pullRequestSearch) ? (
-              <div className="traceability-results">
-                {availablePullRequests.length === 0 ? (
-                  <p>Nenhum pull request encontrado.</p>
-                ) : (
-                  availablePullRequests.map((pullRequest) => (
-                    <button
-                      key={pullRequest.id}
-                      type="button"
-                      onClick={() => handleSelectPullRequest(pullRequest)}
-                    >
-                      {formatPullRequestLabel(pullRequest)}
-                    </button>
-                  ))
-                )}
-              </div>
-            ) : null}
           </div>
 
           <div className="traceability-picker">
-            <span>Buscar commits do projeto</span>
-            <div className="traceability-search-field">
-              <input
-                ref={commitSearchInputRef}
-                type="search"
-                value={commitSearch}
-                onChange={(event) => setCommitSearch(event.target.value)}
-                placeholder="Pesquisar por SHA ou mensagem..."
-                aria-label="Buscar commits do projeto"
-              />
-              {commitSearch && (
-                <button
-                  className="traceability-search-clear"
-                  type="button"
-                  onClick={handleCommitSearchClear}
-                  aria-label="Limpar busca de commits"
-                  title="Limpar busca"
-                >
-                  ×
-                </button>
-              )}
-            </div>
-            {commitSearch.trim().length >= 2 && (
-              <div className="traceability-results">
-                {availableCommitResults.length === 0 ? (
-                  <p>Nenhum commit encontrado.</p>
-                ) : (
-                  availableCommitResults.map((commit) => (
-                    <button
-                      key={commit.id}
-                      type="button"
-                      onClick={() => handleSelectCommit(commit)}
-                    >
-                      {formatCommitLabel(commit)}
-                    </button>
-                  ))
-                )}
-              </div>
-            )}
+            <SearchCombobox
+              label="Buscar commits do projeto"
+              searchContextKey={projectId}
+              placeholder="Pesquisar por SHA ou mensagem..."
+              onSearch={searchCommits}
+              searchErrorMessage="Não foi possível carregar os commits do projeto."
+              onSelect={(commit) => {
+                onSelectCommit?.(commit);
+                onCommitSearchClear?.();
+              }}
+              getOptionLabel={formatCommitLabel}
+              queryClearLabel="Limpar busca de commits"
+              onQueryClear={onCommitSearchClear}
+              disabled={submitting}
+            />
           </div>
 
           <CommitSuggestionsCard
@@ -601,30 +477,22 @@ export function TaskForm({
                 ))}
               </div>
             )}
-            <input
-              type="search"
-              value={issueSearch}
-              onChange={(event) => setIssueSearch(event.target.value)}
+            <SearchCombobox
+              label="Pesquisar issues"
+              searchContextKey={projectId}
               placeholder="Pesquisar issue por número ou título..."
+              onSearch={searchIssues}
+              searchErrorMessage="Não foi possível carregar as issues do projeto."
+              onSelect={onSelectIssue}
+              getOptionLabel={formatIssueLabel}
+              isQueryValid={(query) => query.length >= 2 || /\d/.test(query)}
+              disabled={submitting}
             />
-            {issueSearch.trim().length >= 2 || /\d/.test(issueSearch) ? (
-              <div className="traceability-results">
-                {availableIssueResults.length === 0 ? (
-                  <p>Nenhuma issue encontrada.</p>
-                ) : (
-                  availableIssueResults.map((issue) => (
-                    <button key={issue.id} type="button" onClick={() => handleSelectIssue(issue)}>
-                      {formatIssueLabel(issue)}
-                    </button>
-                  ))
-                )}
-              </div>
-            ) : null}
           </div>
         </section>
       )}
 
-      <div className="form-actions field-full">
+      <footer className="form-actions field-full">
         {(editing || composition === 'correction') && (
           <button className="button button-secondary" type="button" onClick={onCancel}>
             {composition === 'correction' ? 'Cancelar' : 'Cancelar edição'}
@@ -635,7 +503,7 @@ export function TaskForm({
             ? 'Salvando...'
             : submitLabel || (editing ? 'Salvar alterações' : 'Cadastrar tarefa')}
         </button>
-      </div>
+      </footer>
     </form>
   );
 }

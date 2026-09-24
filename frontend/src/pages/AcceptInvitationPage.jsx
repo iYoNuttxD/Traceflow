@@ -66,7 +66,7 @@ export function AcceptInvitationPage() {
     setRetryAfterSeconds(0);
     try {
       const data = await membersApi.acceptInvitation(token);
-      void refreshProjects();
+      void refreshProjects({ fresh: true });
       navigate(`/projects/${data.membership.projectId}`, { replace: true });
     } catch (cause) {
       showError(cause);

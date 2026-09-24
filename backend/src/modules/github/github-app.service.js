@@ -31,6 +31,18 @@ const repositoryConflict = (connectedProject) =>
     details: connectedProject ? { connectedProject } : undefined,
     exposeTechnicalDetails: true
   });
+const pendingRepositoryConflict = (project) =>
+  new AppError({
+    message: project
+      ? 'Este repositório pertence a um projeto programado para exclusão.'
+      : 'Este repositório já está associado a um projeto indisponível no TraceFlow. Entre em contato com um responsável pelo projeto.',
+    statusCode: 409,
+    code: project
+      ? ERROR_CODES.PROJECT_PENDING_DELETION
+      : ERROR_CODES.PROJECT_REPOSITORY_UNAVAILABLE,
+    details: project ? { pendingProject: project } : undefined,
+    exposeTechnicalDetails: true
+  });
 const repositorySwapConflict = () =>
   new AppError({
     message:
@@ -69,6 +81,10 @@ async function addRepositoryAvailability(repositories, userId, projectId) {
   );
   return repositories.map((repository) => {
     const integration = integrationByRepositoryId.get(String(repository.githubRepositoryId));
+    const pendingDeletion = Boolean(integration?.project?.deletedAt);
+    const ownerMembership = integration?.project?.memberships?.find(
+      (membership) => membership.role === 'OWNER'
+    );
     const connectedToCurrentProject = Boolean(
       integration && projectId && integration.projectId === Number(projectId)
     );
@@ -78,13 +94,25 @@ async function addRepositoryAvailability(repositories, userId, projectId) {
       String(currentIntegration.githubRepositoryId) === String(repository.githubRepositoryId);
     return {
       ...repository,
-      availability: integration ? 'CONNECTED' : 'AVAILABLE',
+      availability: pendingDeletion ? 'PENDING_DELETION' : integration ? 'CONNECTED' : 'AVAILABLE',
       alreadyConnected: Boolean(integration),
       connectedToCurrentProject,
-      selectable: (!integration || connectedToCurrentProject) && preservesCurrentRepository,
-      connectedProject: canViewConnectedProject
-        ? { id: integration.project.id, name: integration.project.name }
-        : null
+      selectable:
+        ((!integration || connectedToCurrentProject) && preservesCurrentRepository) ||
+        (pendingDeletion && Boolean(ownerMembership)),
+      pendingDeletion: pendingDeletion
+        ? ownerMembership
+          ? {
+              projectId: integration.project.id,
+              projectName: integration.project.name,
+              deletionScheduledFor: integration.project.deletionScheduledFor
+            }
+          : { restricted: true }
+        : null,
+      connectedProject:
+        canViewConnectedProject && !pendingDeletion
+          ? { id: integration.project.id, name: integration.project.name }
+          : null
     };
   });
 }
@@ -302,6 +330,21 @@ export const githubAppService = {
       userId
     );
     if (integration && integration.projectId !== Number(projectId)) {
+      if (integration.project?.deletedAt) {
+        const owner = integration.project.memberships?.some(
+          (membership) => membership.role === 'OWNER'
+        );
+        throw pendingRepositoryConflict(
+          owner
+            ? {
+                projectId: integration.project.id,
+                projectName: integration.project.name,
+                deletionScheduledFor: integration.project.deletionScheduledFor,
+                repositoryIdentifier: integration.githubRepositoryId
+              }
+            : null
+        );
+      }
       const connectedProject = integration.project?.memberships?.length
         ? { id: integration.project.id, name: integration.project.name }
         : null;

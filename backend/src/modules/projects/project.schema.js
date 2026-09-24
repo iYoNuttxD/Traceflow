@@ -23,6 +23,12 @@ export function publicProject(project) {
   const { githubIntegration, ...data } = project;
   delete data.accessCode;
   delete data.accessCodeRole;
+  delete data.deletedAt;
+  delete data.deletionScheduledFor;
+  delete data.deletedById;
+  delete data.deletedBy;
+  delete data.purgeStartedAt;
+  delete data.purgeClaimId;
   if (githubIntegration) {
     data.githubIntegration = {
       status: githubIntegration.status,
@@ -41,6 +47,17 @@ export function publicProject(project) {
     };
   }
   return data;
+}
+
+export function publicDeletedProject(project) {
+  return {
+    id: project.id,
+    name: project.name,
+    deletedAt: project.deletedAt,
+    deletionScheduledFor: project.deletionScheduledFor,
+    repositoryIdentifier: project.githubIntegration?.githubRepositoryId || null,
+    repositoryFullName: project.githubIntegration?.repositoryFullName || null
+  };
 }
 
 export function buildEditableProjectData(data, isCreate = false) {

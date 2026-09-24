@@ -686,6 +686,7 @@ describe('evolução, lifecycle e navegação', () => {
     await screen.findByRole('heading', { name: 'Sprint Ativa' });
     await user.click(within(card('Sprint Ativa')).getByRole('button', { name: 'Evolução' }));
     const dialog = await screen.findByRole('dialog', { name: 'Evolução da Sprint Ativa' });
+    expect(within(dialog).getAllByRole('heading', { name: /^Evolução/ })).toHaveLength(1);
     expect(within(dialog).getByText('Tarefas')).toBeInTheDocument();
     expect(within(dialog).getByText('Pontos')).toBeInTheDocument();
     expect(within(dialog).getByText('Progresso')).toBeInTheDocument();

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { TaskCorrectionBadge } from './TaskCorrectionContext.jsx';
 import { KanbanColumn } from './KanbanColumn.jsx';
+import { TaskMoveMenu } from './TaskMoveMenu.jsx';
 import { formatDate, KANBAN_COLUMNS, priorityLabels } from './kanban-display.js';
 import { formatTraceabilityCounts, getBoardTasks, isTaskOverdue } from './kanban-view.js';
 import { buildEffortChip } from './effort-summary.js';
@@ -32,14 +33,16 @@ function KanbanTaskCard({
   sprintName,
   showSprint,
   frozen,
+  canMove,
   onSelect,
   onHistory,
+  onMove,
   onPointerDown,
   onDragStart,
   onDragEnd
 }) {
   const priority = task.priority || (task.isFrozen ? '' : 'MEDIA');
-  const blocked = frozen || moving;
+  const blocked = frozen || moving || !canMove;
   const overdue = isTaskOverdue(task);
   const traceability = formatTraceabilityCounts(task);
   const effort = buildEffortChip(task, now);
@@ -51,6 +54,7 @@ function KanbanTaskCard({
   return (
     <article
       className={`kanban-task ${dragging ? 'kanban-task--dragging' : ''} ${moving ? 'kanban-task--moving' : ''}`.trim()}
+      data-kanban-task-id={task.id}
     >
       <TaskCorrectionBadge task={task} />
       <button
@@ -148,6 +152,7 @@ function KanbanTaskCard({
               {effort.detail && <span className="kanban-task__effort-detail">{effort.detail}</span>}
             </span>
           )}
+          {canMove && !frozen && <TaskMoveMenu task={task} disabled={moving} onMove={onMove} />}
           <button
             type="button"
             className="kanban-task__action"
@@ -173,9 +178,11 @@ export function KanbanBoard({
   selectedSprintIds = [],
   frozenSprintIds = new Set(),
   filteredEmpty = false,
+  canMove = false,
   boardRef,
   onSelectTask,
   onOpenHistory,
+  onMoveTask,
   onTaskPointerDown = () => {},
   onTaskDragStart,
   onTaskDragEnd,
@@ -220,12 +227,18 @@ export function KanbanBoard({
                 count={tasks.length}
                 className={dragOverStatus === column.status ? 'kanban-column--drag-over' : ''}
                 onDragOver={
-                  isFrozen ? undefined : (event) => onColumnDragOver(event, column.status)
+                  isFrozen || !canMove
+                    ? undefined
+                    : (event) => onColumnDragOver(event, column.status)
                 }
                 onDragLeave={
-                  isFrozen ? undefined : (event) => onColumnDragLeave(event, column.status)
+                  isFrozen || !canMove
+                    ? undefined
+                    : (event) => onColumnDragLeave(event, column.status)
                 }
-                onDrop={isFrozen ? undefined : (event) => onColumnDrop(event, column.status)}
+                onDrop={
+                  isFrozen || !canMove ? undefined : (event) => onColumnDrop(event, column.status)
+                }
               >
                 {tasks.length === 0 ? (
                   <p className="kanban-empty">Nenhuma tarefa nesta etapa.</p>
@@ -244,8 +257,10 @@ export function KanbanBoard({
                           task.isFrozen ||
                           (Boolean(task.sprintId) && frozenSprintIds.has(task.sprintId))
                         }
+                        canMove={canMove}
                         onSelect={onSelectTask}
                         onHistory={onOpenHistory}
+                        onMove={onMoveTask}
                         onPointerDown={onTaskPointerDown}
                         onDragStart={onTaskDragStart}
                         onDragEnd={onTaskDragEnd}

@@ -13,7 +13,7 @@ inclusive quando a Task é excluída. O histórico de entradas/saídas continua 
 
 | Campo | Significado e momento de captura |
 | --- | --- |
-| `Sprint.startedAt` | início da execução |
+| `Sprint.startedAt` | início da execução e baseline temporal do burndown; datas nominais anteriores não entram na série real |
 | `Sprint.planningSnapshotAt` | captura bem-sucedida do planejamento; igual a `startedAt` para novos starts |
 | `Sprint.closedAt` | corte terminal persistido, inclusive cancelamento e escopo vazio |
 | `SprintTask.plannedAtStart` | membership no start: `true` presente, `false` ausente, `null` sem snapshot confiável |

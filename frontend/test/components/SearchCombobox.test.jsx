@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { SprintDialog } from '../../src/features/schedule/components/SprintDialog.jsx';
 import { SearchCombobox } from '../../src/shared/components/SearchCombobox.jsx';
 
 const options = [
@@ -35,6 +36,49 @@ describe('SearchCombobox', () => {
     expect(search).toHaveBeenCalledWith('ma', expect.any(AbortSignal));
     expect(screen.getAllByRole('option')).toHaveLength(2);
     expect(fireEvent.mouseDown(screen.getAllByRole('option')[0])).toBe(false);
+  });
+
+  it('não pesquisa novamente só porque o parent recriou onSearch para a mesma consulta', async () => {
+    const search = vi.fn().mockResolvedValue(options);
+    const renderCombobox = () => (
+      <SearchCombobox
+        label="Requisito"
+        onSearch={(query, signal) => search(query, signal)}
+        onSelect={vi.fn()}
+        getOptionLabel={label}
+      />
+    );
+    const { rerender } = render(renderCombobox());
+    const input = screen.getByRole('combobox', { name: 'Requisito' });
+    fireEvent.change(input, { target: { value: 'ab' } });
+    await act(() => vi.advanceTimersByTimeAsync(300));
+    expect(search).toHaveBeenCalledTimes(1);
+
+    rerender(renderCombobox());
+    await act(() => vi.advanceTimersByTimeAsync(300));
+    expect(input).toHaveValue('ab');
+    expect(search).toHaveBeenCalledTimes(1);
+  });
+
+  it('pesquisa novamente quando o contexto muda com a mesma consulta', async () => {
+    const search = vi.fn().mockResolvedValue(options);
+    const renderCombobox = (searchContextKey) => (
+      <SearchCombobox
+        label="Requisito"
+        onSearch={(query, signal) => search(query, signal)}
+        searchContextKey={searchContextKey}
+        onSelect={vi.fn()}
+        getOptionLabel={label}
+      />
+    );
+    const { rerender } = render(renderCombobox(1));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Requisito' }), {
+      target: { value: 'ab' }
+    });
+    await act(() => vi.advanceTimersByTimeAsync(300));
+    rerender(renderCombobox(2));
+    await act(() => vi.advanceTimersByTimeAsync(300));
+    expect(search).toHaveBeenCalledTimes(2);
   });
 
   it('seleciona o resultado ativo com teclado', async () => {
@@ -74,6 +118,43 @@ describe('SearchCombobox', () => {
     fireEvent.keyDown(input, { key: 'ArrowDown' });
     fireEvent.keyDown(input, { key: 'Enter' });
     expect(onSelect).toHaveBeenCalledWith(options[1]);
+  });
+
+  it('mantém a opção ativa visível no scroll interno com setas, Home e End', async () => {
+    const manyOptions = Array.from({ length: 12 }, (_, index) => ({
+      id: index + 1,
+      title: `Opção ${String(index + 1).padStart(2, '0')}`
+    }));
+    render(
+      <SearchCombobox
+        label="Tarefa"
+        options={manyOptions}
+        onSelect={vi.fn()}
+        getOptionLabel={label}
+        isOptionDisabled={(option) => option.id === 6}
+      />
+    );
+
+    const input = screen.getByRole('combobox', { name: 'Tarefa' });
+    fireEvent.change(input, { target: { value: 'op' } });
+    await act(() => vi.advanceTimersByTimeAsync(300));
+    const renderedOptions = screen.getAllByRole('option');
+    const scrollSpies = renderedOptions.map((option) => {
+      option.scrollIntoView = vi.fn();
+      return option.scrollIntoView;
+    });
+
+    fireEvent.keyDown(input, { key: 'End' });
+    expect(scrollSpies.at(-1)).toHaveBeenLastCalledWith({ block: 'nearest', inline: 'nearest' });
+    expect(input).toHaveAttribute('aria-activedescendant', renderedOptions.at(-1).id);
+
+    fireEvent.keyDown(input, { key: 'ArrowUp' });
+    expect(scrollSpies.at(-2)).toHaveBeenLastCalledWith({ block: 'nearest', inline: 'nearest' });
+    fireEvent.keyDown(input, { key: 'Home' });
+    expect(scrollSpies[0]).toHaveBeenLastCalledWith({ block: 'nearest', inline: 'nearest' });
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    expect(scrollSpies[1]).toHaveBeenLastCalledWith({ block: 'nearest', inline: 'nearest' });
+    expect(scrollSpies[5]).not.toHaveBeenCalled();
   });
 
   it('informa resultado vazio', async () => {
@@ -163,9 +244,9 @@ describe('SearchCombobox', () => {
     await act(() => vi.advanceTimersByTimeAsync(300));
     expect(screen.getByRole('option', { name: 'Marco inicial' })).toBeInTheDocument();
   });
-  it('keeps the list anchored inside its field during scroll and resize', async () => {
+  it('portals the list as a fixed overlay and updates its anchor on scroll and resize', async () => {
     render(
-      <section role="dialog">
+      <section>
         <div data-testid="body">
           <SearchCombobox
             label="Referência"
@@ -178,24 +259,112 @@ describe('SearchCombobox', () => {
       </section>
     );
     const input = screen.getByRole('combobox');
+    let triggerRect = {
+      left: 100,
+      right: 340,
+      top: 100,
+      bottom: 144,
+      width: 240,
+      height: 44,
+      x: 100,
+      y: 100,
+      toJSON: () => ({})
+    };
+    vi.spyOn(input, 'getBoundingClientRect').mockImplementation(() => triggerRect);
     fireEvent.click(input);
     await act(() => vi.advanceTimersByTimeAsync(300));
     let list = screen.getByRole('listbox');
-    expect(list.parentElement).toBe(input.parentElement);
-    expect(list.style.position).not.toBe('fixed');
+    expect(list.parentElement).toBe(document.body);
+    expect(list).toHaveStyle({ left: '100px', top: '148px', width: '240px' });
+    expect(list).toHaveAttribute('data-placement', 'below');
     expect(fireEvent.mouseDown(list)).toBe(true);
     expect(fireEvent.mouseDown(screen.getAllByRole('option')[0])).toBe(false);
     fireEvent.scroll(list);
     expect(screen.getByRole('listbox')).toBeInTheDocument();
+    triggerRect = { ...triggerRect, left: 80, right: 320, x: 80 };
     fireEvent.scroll(screen.getByTestId('body'));
-    expect(screen.getByRole('listbox')).toBeInTheDocument();
+    expect(screen.getByRole('listbox')).toHaveStyle({ left: '80px' });
     fireEvent.click(input);
     await act(() => vi.advanceTimersByTimeAsync(300));
+    triggerRect = { ...triggerRect, left: 60, right: 300, x: 60 };
     fireEvent.resize(window);
-    expect(screen.getByRole('listbox')).toBeInTheDocument();
+    expect(screen.getByRole('listbox')).toHaveStyle({ left: '60px' });
     fireEvent.click(input);
     await act(() => vi.advanceTimersByTimeAsync(300));
     fireEvent.pointerDown(document.body);
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+  });
+
+  it('opens above the trigger when the viewport has more space there', async () => {
+    render(
+      <SearchCombobox
+        label="Tarefa relacionada"
+        minQueryLength={0}
+        openOnFocus={false}
+        options={options}
+        onSelect={vi.fn()}
+      />
+    );
+    const input = screen.getByRole('combobox');
+    vi.spyOn(input, 'getBoundingClientRect').mockReturnValue({
+      left: 100,
+      right: 340,
+      top: 750,
+      bottom: 794,
+      width: 240,
+      height: 44,
+      x: 100,
+      y: 750,
+      toJSON: () => ({})
+    });
+    fireEvent.click(input);
+    await act(() => vi.advanceTimersByTimeAsync(300));
+    const list = screen.getByRole('listbox');
+    Object.defineProperty(list, 'scrollHeight', { configurable: true, value: 180 });
+    fireEvent.resize(window);
+    expect(list).toHaveAttribute('data-placement', 'above');
+    expect(Number.parseFloat(list.style.top)).toBeLessThan(750);
+  });
+
+  it('keeps a dialog popover in the modal tree without joining form flow', async () => {
+    render(
+      <div data-testid="backdrop">
+        <section role="dialog">
+          <SearchCombobox
+            label="Responsável"
+            minQueryLength={0}
+            openOnFocus={false}
+            options={options}
+            onSelect={vi.fn()}
+          />
+        </section>
+      </div>
+    );
+    fireEvent.click(screen.getByRole('combobox'));
+    await act(() => vi.advanceTimersByTimeAsync(300));
+    expect(screen.getByRole('listbox').parentElement).toBe(screen.getByRole('dialog'));
+    expect(screen.getByRole('listbox').parentElement).not.toBe(
+      screen.getByRole('combobox').parentElement
+    );
+  });
+
+  it('fecha o popover com Escape sem fechar o diálogo owner', async () => {
+    const onClose = vi.fn();
+    render(
+      <SprintDialog open title="Editar tarefa" onClose={onClose}>
+        <SearchCombobox label="Requisito" options={options} onSelect={vi.fn()} />
+      </SprintDialog>
+    );
+
+    const input = screen.getByRole('combobox', { name: 'Requisito' });
+    fireEvent.change(input, { target: { value: 'ma' } });
+    await act(() => vi.advanceTimersByTimeAsync(300));
+    expect(screen.getByRole('listbox')).toBeInTheDocument();
+
+    fireEvent.keyDown(input, { key: 'Escape' });
+
+    expect(screen.queryByRole('listbox')).toBeNull();
+    expect(screen.getByRole('dialog', { name: 'Editar tarefa' })).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
   });
 });

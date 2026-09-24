@@ -6,7 +6,7 @@
 .trace-help-trigger {
   display: inline-grid;
   place-items: center start;
-  min-width: 28px;
+  min-width: var(--size-touch-target);
   min-height: var(--size-touch-target);
   padding: var(--space-1);
   border: 0;

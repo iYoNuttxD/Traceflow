@@ -14,6 +14,7 @@ export { FormInput } from './components/FormInput.jsx';
 export { PublicPageShell } from './components/PublicPageShell.jsx';
 export { StatusSurface } from './components/StatusSurface.jsx';
 export { TraceFlowIcon } from './components/TraceFlowIcon.jsx';
+export { GithubExternalAction } from './components/GithubExternalAction.jsx';
 export { ContextualErrorPage, GenericErrorPage } from './components/GenericErrorPage.jsx';
 export { useAbortableRequest } from './hooks/useAbortableRequest.js';
 export { useCountdown } from './hooks/useCountdown.js';

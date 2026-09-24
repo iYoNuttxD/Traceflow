@@ -65,3 +65,10 @@ export const accessCodeRoleBodySchema = strictObject({
 export const githubSyncSettingsBodySchema = strictObject({
   githubAutoSyncEnabled: z.boolean({ error: 'githubAutoSyncEnabled deve ser um valor booleano.' })
 });
+
+export const permanentProjectDeletionBodySchema = strictObject({
+  confirmationName: requiredText({
+    field: 'Nome do projeto',
+    message: 'Digite o nome do projeto para confirmar.'
+  })
+});

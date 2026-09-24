@@ -48,6 +48,15 @@ export class TestEvidenceStorage {
   async content() {
     throw unavailable();
   }
+  async stageForPurge() {
+    throw unavailable();
+  }
+  async restoreFromPurge() {
+    throw unavailable();
+  }
+  async deletePurged() {
+    throw unavailable();
+  }
 }
 export class LocalTestEvidenceStorage extends TestEvidenceStorage {
   constructor({
@@ -246,6 +255,79 @@ export class LocalTestEvidenceStorage extends TestEvidenceStorage {
       return handle.createReadStream({ autoClose: true });
     } catch {
       await handle?.close();
+      throw unavailable();
+    }
+  }
+
+  async purgeDirectory(root) {
+    const directory = join(root, '.purge');
+    try {
+      await mkdir(directory, { recursive: true, mode: 0o700 });
+      await noSymlinks(directory);
+      return directory;
+    } catch {
+      throw unavailable();
+    }
+  }
+
+  async stageForPurge(storageKey, purgeKey) {
+    if (!keyPattern.test(storageKey) || !keyPattern.test(purgeKey)) throw unavailable();
+    try {
+      const root = await this.root();
+      const purgeDirectory = await this.purgeDirectory(root);
+      const source = join(root, storageKey);
+      const destination = join(purgeDirectory, purgeKey);
+      try {
+        await rename(source, destination);
+        return 'STAGED';
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+        try {
+          const stat = await lstat(destination);
+          if (!stat.isFile() || stat.isSymbolicLink()) throw unavailable();
+          return 'STAGED';
+        } catch (destinationError) {
+          if (destinationError.code === 'ENOENT') return 'MISSING';
+          throw destinationError;
+        }
+      }
+    } catch (error) {
+      if (error?.statusCode) throw error;
+      throw unavailable();
+    }
+  }
+
+  async restoreFromPurge(storageKey, purgeKey) {
+    if (!keyPattern.test(storageKey) || !keyPattern.test(purgeKey)) throw unavailable();
+    try {
+      const root = await this.root();
+      const purgeDirectory = await this.purgeDirectory(root);
+      try {
+        await rename(join(purgeDirectory, purgeKey), join(root, storageKey));
+        return true;
+      } catch (error) {
+        if (error.code === 'ENOENT') return false;
+        throw error;
+      }
+    } catch (error) {
+      if (error?.statusCode) throw error;
+      throw unavailable();
+    }
+  }
+
+  async deletePurged(storageKey, purgeKey) {
+    if (!keyPattern.test(storageKey) || !keyPattern.test(purgeKey)) throw unavailable();
+    try {
+      const root = await this.root();
+      const purgeDirectory = await this.purgeDirectory(root);
+      for (const path of [join(purgeDirectory, purgeKey), join(root, storageKey)]) {
+        await unlink(path).catch((error) => {
+          if (error.code !== 'ENOENT') throw error;
+        });
+      }
+      return true;
+    } catch (error) {
+      if (error?.statusCode) throw error;
       throw unavailable();
     }
   }

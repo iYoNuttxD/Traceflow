@@ -1,5 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { BackButton, TraceFlowIcon } from '../../../shared/index.js';
+import { useDialogLayer } from '../../../shared/components/dialog-stack.js';
 import './NewProjectDialog.css';
 
 const focusableSelector = [
@@ -28,6 +29,7 @@ export function NewProjectDialog({
   const pendingFocusRef = useRef(null);
   const initialFocusFrameRef = useRef(null);
   const [view, setView] = useState(initialView);
+  const isTopDialog = useDialogLayer(open);
 
   useLayoutEffect(() => {
     if (!open || !pendingFocusRef.current) return;
@@ -59,6 +61,7 @@ export function NewProjectDialog({
     });
 
     function handleKeyDown(event) {
+      if (event.defaultPrevented || !isTopDialog()) return;
       if (event.key === 'Escape') {
         event.preventDefault();
         onClose();
@@ -71,7 +74,10 @@ export function NewProjectDialog({
       if (!focusable.length) return;
       const first = focusable[0];
       const last = focusable.at(-1);
-      if (event.shiftKey && document.activeElement === first) {
+      if (!panelRef.current.contains(document.activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (event.shiftKey && document.activeElement === first) {
         event.preventDefault();
         last.focus();
       } else if (!event.shiftKey && document.activeElement === last) {
@@ -91,7 +97,7 @@ export function NewProjectDialog({
       pendingFocusRef.current = null;
       queueMicrotask(() => triggerRef.current?.focus?.());
     };
-  }, [initialView, onClose, open]);
+  }, [initialView, isTopDialog, onClose, open]);
 
   if (!open) return null;
 

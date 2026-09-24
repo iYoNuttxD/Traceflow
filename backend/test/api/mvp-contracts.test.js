@@ -1233,11 +1233,11 @@ describe('validação HTTP negativa da E4', () => {
   });
 });
 
-describe('baseline dos endpoints 501', () => {
-  it('mantém apenas DELETE Project como placeholder 501 fora da E10', async () => {
+describe('baseline dos endpoints removidos e lifecycle de Project', () => {
+  it('trata DELETE Project inexistente como 404 opaco', async () => {
     const response = await api.delete('/api/projects/1');
-    expect(response.status).toBe(501);
-    expect(response.body).toHaveProperty('message');
+    expect(response.status).toBe(404);
+    expect(response.body).toMatchObject({ code: 'RESOURCE_NOT_FOUND' });
   });
 
   it.each([
@@ -1257,8 +1257,8 @@ describe('baseline dos endpoints 501', () => {
     expect(response.body.code).toBe('ROUTE_NOT_FOUND');
   });
 
-  it('mantém 501 de Project e não restaura placeholder de tarefa', async () => {
-    expect((await api.delete('/api/projects/invalido')).status).toBe(501);
+  it('valida o ID de Project e não restaura placeholder de tarefa', async () => {
+    expect((await api.delete('/api/projects/invalido')).status).toBe(400);
     expect((await api.get('/api/tasks/invalido/traceability')).status).toBe(404);
   });
 });

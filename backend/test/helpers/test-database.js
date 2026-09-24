@@ -51,6 +51,7 @@ export function deployTestMigrations(testDatabaseUrl) {
 
 export async function cleanTestDatabase(prisma) {
   await prisma.$transaction([
+    prisma.projectPurgeStorageCleanup.deleteMany(),
     prisma.defectHistoryEntry.deleteMany(),
     prisma.defectRetest.deleteMany(),
     prisma.defectTask.deleteMany(),

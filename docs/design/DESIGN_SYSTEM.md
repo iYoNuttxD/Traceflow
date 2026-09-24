@@ -659,10 +659,11 @@ controle, nunca à altura variável da linha do formulário.
 Entidades usam `SearchCombobox`; responsáveis usam o adaptador `ResponsibleCombobox`.
 A lista começa fechada e abre por clique, digitação ou teclado. Selecionar, Escape,
 saída de foco ou clique externo fecha a lista. A seleção é explícita; respostas
-obsoletas não substituem o contexto atual. A lista fica abaixo do campo **no fluxo
-normal do container**, com altura limitada e rolagem própria. Não usar portal fixo
-nem lista absoluta sobre ações: o corpo do dialog deve acomodar os resultados sem
-encobrir o rodapé. Rótulos continuam visíveis e placeholders descrevem a pesquisa.
+obsoletas não substituem o contexto atual. A lista abre visualmente abaixo do campo
+como popover fixo, com altura limitada e rolagem própria, sem alterar a altura do
+formulário. O popover usa portal para escapar de recortes, preserva o contexto de
+empilhamento de dialogs, acompanha scroll/resize e abre acima quando não houver espaço
+abaixo. Rótulos continuam visíveis e placeholders descrevem a pesquisa.
 
 Responsáveis elegíveis são filtrados pelo contrato; não exibir o sufixo “ativo” nas
 opções. Um valor histórico já selecionado permanece legível. Obrigatoriedade vem do
@@ -769,3 +770,13 @@ Inspectors reutilizam DetailSurface por seção. Task Details no grafo reutiliza
 conteúdo canônico, incluindo esforço e comentários; sessões permanecem dentro do
 mesmo workspace. Evidência e limites na seção FINAL UI/PARITY CORRECTIONS do
 [relatório da Etapa 5](../deliveries/S1_09_TRACEABILITY_GRAPH_WORKSPACE_UX_REPORT.md).
+
+## E-mails transacionais
+
+Os templates transacionais usam `backend/src/shared/email/email.layout.js` como
+layout único, inspirado na paleta C2 sem importar CSS ou assets do frontend. O HTML
+prioriza tabelas de apresentação, estilos inline, largura máxima de 600px, CTA com
+link real, fallback textual da URL e versão `text` completa. Conteúdo dinâmico é
+escapado, URLs aceitam somente HTTP/HTTPS e datas são apresentadas em `pt-BR` com
+timezone UTC explícito. O preview local é gerado em diretório temporário por
+`npm run email:preview --prefix backend`, sem envio SMTP.

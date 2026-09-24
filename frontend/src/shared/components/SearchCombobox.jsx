@@ -1,5 +1,6 @@
 import './SearchCombobox.css';
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 const defaultLabel = (option) => option?.title || option?.name || String(option?.id || '');
 const EMPTY_OPTIONS = Object.freeze([]);
@@ -16,15 +17,20 @@ export function SearchCombobox({
   error = '',
   help = '',
   minQueryLength = 2,
+  isQueryValid,
   openOnFocus = true,
   getOptionLabel = defaultLabel,
   isOptionDisabled = neverDisabled,
   renderOption,
   onSearch,
+  searchContextKey = null,
   onSelect,
   onClear,
+  queryClearLabel = '',
+  onQueryClear,
   emptyMessage = 'Nenhum resultado encontrado.',
-  loadingMessage = 'Pesquisando...'
+  loadingMessage = 'Pesquisando...',
+  searchErrorMessage = 'Não foi possível concluir a pesquisa.'
 }) {
   const generatedId = useId();
   const inputId = id || `search-combobox-${generatedId}`;
@@ -32,6 +38,8 @@ export function SearchCombobox({
   const errorId = `${inputId}-error`;
   const helpId = `${inputId}-help`;
   const requestRef = useRef(0);
+  const onSearchRef = useRef(onSearch);
+  onSearchRef.current = onSearch;
   const inputRef = useRef(null);
   const fieldRef = useRef(null);
   const listRef = useRef(null);
@@ -41,12 +49,16 @@ export function SearchCombobox({
   const [searchError, setSearchError] = useState('');
   const [activeIndex, setActiveIndex] = useState(-1);
   const [dismissed, setDismissed] = useState(true);
+  const [popoverPosition, setPopoverPosition] = useState(null);
 
   const normalizedOptions = useMemo(() => options || [], [options]);
   const trimmedQuery = query.trim();
-  const hasQuery = trimmedQuery.length >= minQueryLength;
+  const hasQuery = isQueryValid
+    ? isQueryValid(trimmedQuery)
+    : trimmedQuery.length >= minQueryLength;
   const expanded = hasQuery && !dismissed && !disabled && !selectedOption;
   const searchEnabled = hasQuery && !selectedOption && !disabled && (openOnFocus || expanded);
+  const remoteSearch = Boolean(onSearch);
 
   useEffect(() => {
     if (!expanded) return undefined;
@@ -59,6 +71,92 @@ export function SearchCombobox({
     document.addEventListener('pointerdown', outside, true);
     return () => document.removeEventListener('pointerdown', outside, true);
   }, [expanded]);
+
+  useLayoutEffect(() => {
+    if (!expanded) {
+      setPopoverPosition(null);
+      return undefined;
+    }
+
+    const place = () => {
+      const trigger = inputRef.current;
+      const popover = listRef.current;
+      if (!trigger || !popover) return;
+
+      const triggerRect = trigger.getBoundingClientRect();
+      const rootFontSize =
+        Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      const gap = rootFontSize * 0.25;
+      const viewportGutter = rootFontSize * 0.5;
+      const dialogRect = fieldRef.current?.closest('[role="dialog"]')?.getBoundingClientRect();
+      const hasDialogBoundary = dialogRect && dialogRect.width > 0 && dialogRect.height > 0;
+      const boundaryTop = hasDialogBoundary
+        ? Math.max(viewportGutter, dialogRect.top + viewportGutter)
+        : viewportGutter;
+      const boundaryRight = hasDialogBoundary
+        ? Math.min(window.innerWidth - viewportGutter, dialogRect.right - viewportGutter)
+        : window.innerWidth - viewportGutter;
+      const boundaryBottom = hasDialogBoundary
+        ? Math.min(window.innerHeight - viewportGutter, dialogRect.bottom - viewportGutter)
+        : window.innerHeight - viewportGutter;
+      const boundaryLeft = hasDialogBoundary
+        ? Math.max(viewportGutter, dialogRect.left + viewportGutter)
+        : viewportGutter;
+      const preferredMaxHeight = Math.min(rootFontSize * 18, window.innerHeight * 0.4);
+      const contentHeight = Math.min(
+        popover.scrollHeight || rootFontSize * 2.75,
+        preferredMaxHeight
+      );
+      const spaceBelow = Math.max(0, boundaryBottom - triggerRect.bottom - gap);
+      const spaceAbove = Math.max(0, triggerRect.top - gap - boundaryTop);
+      const placement = spaceBelow < contentHeight && spaceAbove > spaceBelow ? 'above' : 'below';
+      const availableHeight = placement === 'above' ? spaceAbove : spaceBelow;
+      const maxHeight = Math.min(preferredMaxHeight, availableHeight);
+      const popoverHeight = Math.min(contentHeight, maxHeight);
+      const maxLeft = Math.max(boundaryLeft, boundaryRight - triggerRect.width);
+      const left = Math.max(boundaryLeft, Math.min(triggerRect.left, maxLeft));
+      const top =
+        placement === 'above'
+          ? Math.max(boundaryTop, triggerRect.top - gap - popoverHeight)
+          : triggerRect.bottom + gap;
+      const nextPosition = {
+        left,
+        top,
+        width: triggerRect.width,
+        maxHeight,
+        placement
+      };
+
+      setPopoverPosition((current) =>
+        current &&
+        current.left === nextPosition.left &&
+        current.top === nextPosition.top &&
+        current.width === nextPosition.width &&
+        current.maxHeight === nextPosition.maxHeight &&
+        current.placement === nextPosition.placement
+          ? current
+          : nextPosition
+      );
+    };
+
+    place();
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    const observer =
+      typeof ResizeObserver === 'undefined'
+        ? null
+        : new ResizeObserver(() => {
+            place();
+          });
+    observer?.observe(inputRef.current);
+    observer?.observe(listRef.current);
+
+    return () => {
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+      observer?.disconnect();
+    };
+  }, [expanded, loading, results, searchError]);
 
   useEffect(() => {
     requestRef.current += 1;
@@ -77,8 +175,8 @@ export function SearchCombobox({
     const timeoutId = window.setTimeout(
       async () => {
         try {
-          const found = onSearch
-            ? await onSearch(trimmedQuery, controller.signal)
+          const found = remoteSearch
+            ? await onSearchRef.current(trimmedQuery, controller.signal)
             : normalizedOptions.filter((option) =>
                 getOptionLabel(option)
                   .toLocaleLowerCase('pt-BR')
@@ -89,14 +187,12 @@ export function SearchCombobox({
         } catch (requestError) {
           if (controller.signal.aborted || request !== requestRef.current) return;
           setResults([]);
-          setSearchError(
-            requestError?.response?.data?.message || 'Não foi possível concluir a pesquisa.'
-          );
+          setSearchError(requestError?.response?.data?.message || searchErrorMessage);
         } finally {
           if (request === requestRef.current && !controller.signal.aborted) setLoading(false);
         }
       },
-      onSearch ? 300 : 0
+      remoteSearch ? 300 : 0
     );
 
     return () => {
@@ -109,10 +205,18 @@ export function SearchCombobox({
     getOptionLabel,
     hasQuery,
     normalizedOptions,
-    onSearch,
+    remoteSearch,
+    searchContextKey,
+    searchErrorMessage,
     selectedOption,
     trimmedQuery
   ]);
+
+  useLayoutEffect(() => {
+    if (!expanded || activeIndex < 0) return;
+    const activeOption = listRef.current?.querySelectorAll('[role="option"]')?.[activeIndex];
+    activeOption?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  }, [activeIndex, expanded, listboxId]);
 
   function choose(option) {
     if (isOptionDisabled(option)) return;
@@ -173,6 +277,17 @@ export function SearchCombobox({
       id={listboxId}
       className="sprint-combobox-results"
       role="listbox"
+      data-placement={popoverPosition?.placement}
+      style={
+        popoverPosition
+          ? {
+              left: popoverPosition.left,
+              top: popoverPosition.top,
+              width: popoverPosition.width,
+              maxHeight: popoverPosition.maxHeight
+            }
+          : { visibility: 'hidden' }
+      }
       onMouseDown={(event) => {
         if (event.target.closest('[role="option"]')) event.preventDefault();
       }}
@@ -278,7 +393,31 @@ export function SearchCombobox({
             onKeyDown={handleKeyDown}
           />
 
-          {expanded && resultsList}
+          {queryClearLabel && query && (
+            <button
+              type="button"
+              className="sprint-combobox-query-clear"
+              aria-label={queryClearLabel}
+              title={queryClearLabel}
+              onClick={() => {
+                requestRef.current += 1;
+                setQuery('');
+                setResults([]);
+                setActiveIndex(-1);
+                setDismissed(true);
+                onQueryClear?.();
+                inputRef.current?.focus();
+              }}
+            >
+              ×
+            </button>
+          )}
+
+          {expanded &&
+            createPortal(
+              resultsList,
+              fieldRef.current?.closest('[role="dialog"]') || document.body
+            )}
         </div>
       )}
 

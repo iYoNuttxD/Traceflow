@@ -1,6 +1,8 @@
 import { useId } from 'react';
-import { TraceFlowIcon, DescriptionSurface } from '../../../shared/index.js';
+import { DescriptionSurface, GithubExternalAction } from '../../../shared/index.js';
 import './TaskDetailsPanel.css';
+
+export { GithubExternalAction };
 
 export function TaskDetailsLayout({ children, aside }) {
   return (
@@ -70,10 +72,13 @@ export function TaskInformation({ details, effortSlot = null }) {
   );
 }
 
-export function TaskTraceabilityGrid({ children, title = 'Rastreabilidade' }) {
+export function TaskTraceabilityGrid({ children, title = 'Rastreabilidade', className = '' }) {
   const titleId = useId();
   return (
-    <section className="task-detail-section task-detail-traceability" aria-labelledby={titleId}>
+    <section
+      className={`task-detail-section task-detail-traceability${className ? ` ${className}` : ''}`}
+      aria-labelledby={titleId}
+    >
       <div className="task-detail-section-heading">
         <h3 id={titleId}>{title}</h3>
       </div>
@@ -100,19 +105,5 @@ export function ArtifactCategory({ label, count, children, footer }) {
       <div className="task-detail-artifact-body">{children}</div>
       {footer && <footer className="task-detail-artifact-footer">{footer}</footer>}
     </article>
-  );
-}
-
-export function GithubExternalAction({ href }) {
-  return (
-    <a
-      className="button button-compact task-detail-external-link"
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-    >
-      Abrir no GitHub
-      <TraceFlowIcon name="externalLink" />
-    </a>
   );
 }

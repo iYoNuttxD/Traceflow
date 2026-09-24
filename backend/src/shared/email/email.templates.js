@@ -1,74 +1,161 @@
-function escapeHtml(value) {
-  return String(value).replace(
-    /[&<>"']/g,
-    (character) =>
-      ({
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#39;'
-      })[character]
-  );
-}
+import { formatEmailDateTime, renderEmailLayout, safeUrl } from './email.layout.js';
 
-function safeUrl(value) {
-  const url = new URL(value);
-  if (!['http:', 'https:'].includes(url.protocol))
-    throw new Error('Unsupported email link protocol.');
-  return escapeHtml(url.toString());
-}
+const roleLabels = Object.freeze({
+  OWNER: 'Proprietário',
+  MANAGER: 'Gerente',
+  MEMBER: 'Membro',
+  VIEWER: 'Visualizador'
+});
+
+const expirationNotice = (expiresAt) => `Este link é válido até ${formatEmailDateTime(expiresAt)}.`;
 
 export function passwordResetTemplate({ resetUrl, expiresAt }) {
-  const link = safeUrl(resetUrl);
+  safeUrl(resetUrl);
+  const expiration = expirationNotice(expiresAt);
   return {
     subject: 'Redefinição de senha do TRACEFLOW',
-    text: `Use este link para redefinir sua senha: ${resetUrl}\nO link expira em ${expiresAt.toISOString()}.`,
-    html: `<p>Use o link abaixo para redefinir sua senha no TRACEFLOW.</p><p><a href="${link}">Redefinir senha</a></p><p>Expira em ${escapeHtml(expiresAt.toISOString())}.</p>`
+    text: [
+      'Redefina sua senha',
+      '',
+      'Recebemos uma solicitação para redefinir a senha da sua conta TraceFlow.',
+      '',
+      `Redefinir senha: ${resetUrl}`,
+      expiration,
+      '',
+      'Se você não solicitou esta alteração, ignore este e-mail.'
+    ].join('\n'),
+    html: renderEmailLayout({
+      title: 'Redefina sua senha',
+      content: ['Recebemos uma solicitação para redefinir a senha da sua conta TraceFlow.'],
+      ctaLabel: 'Redefinir senha',
+      ctaUrl: resetUrl,
+      notice: `${expiration} Se você não solicitou esta alteração, ignore este e-mail.`
+    })
   };
 }
 
 export function invitationTemplate({ invitationUrl, projectName, role, expiresAt }) {
-  const link = safeUrl(invitationUrl);
+  safeUrl(invitationUrl);
+  const expiration = expirationNotice(expiresAt);
+  const roleLabel = roleLabels[role] || role;
   return {
     subject: 'Convite para projeto no TRACEFLOW',
-    text: `Você foi convidado para o projeto ${projectName} como ${role}. Aceite em: ${invitationUrl}\nExpira em ${expiresAt.toISOString()}.`,
-    html: `<p>Você foi convidado para o projeto <strong>${escapeHtml(projectName)}</strong> como ${escapeHtml(role)}.</p><p><a href="${link}">Aceitar convite</a></p><p>Expira em ${escapeHtml(expiresAt.toISOString())}.</p>`
+    text: [
+      'Você recebeu um convite',
+      '',
+      `Projeto: ${projectName}`,
+      `Perfil: ${roleLabel}`,
+      '',
+      `Aceitar convite: ${invitationUrl}`,
+      expiration
+    ].join('\n'),
+    html: renderEmailLayout({
+      title: 'Você recebeu um convite',
+      content: ['Você foi convidado para participar do projeto abaixo.'],
+      details: [
+        { label: 'Projeto', value: projectName },
+        { label: 'Perfil', value: roleLabel }
+      ],
+      ctaLabel: 'Aceitar convite',
+      ctaUrl: invitationUrl,
+      notice: expiration
+    })
   };
 }
 
 export function emailVerificationTemplate({ verificationUrl, expiresAt, name }) {
-  const link = safeUrl(verificationUrl);
-  const safeName = escapeHtml(name);
+  safeUrl(verificationUrl);
+  const expiration = expirationNotice(expiresAt);
   return {
     subject: 'Verifique seu e-mail no TRACEFLOW',
-    text: `Olá, ${name}. Verifique seu e-mail em: ${verificationUrl}\nO link expira em ${expiresAt.toISOString()}.`,
-    html: `<p>Olá, ${safeName}.</p><p>Confirme seu e-mail para liberar ações sensíveis no TRACEFLOW.</p><p><a href="${link}">Verificar e-mail</a></p><p>Expira em ${escapeHtml(expiresAt.toISOString())}.</p>`
+    text: [
+      `Olá, ${name}.`,
+      '',
+      'Confirme seu endereço de e-mail para concluir a configuração da sua conta e acessar os recursos do TraceFlow.',
+      '',
+      `Verificar e-mail: ${verificationUrl}`,
+      expiration
+    ].join('\n'),
+    html: renderEmailLayout({
+      title: 'Confirme seu e-mail',
+      greeting: `Olá, ${name}.`,
+      content: [
+        'Confirme seu endereço de e-mail para concluir a configuração da sua conta e acessar os recursos do TraceFlow.'
+      ],
+      ctaLabel: 'Verificar e-mail',
+      ctaUrl: verificationUrl,
+      notice: expiration
+    })
   };
 }
 
 export function emailChangeConfirmationTemplate({ confirmationUrl, expiresAt, name }) {
-  const link = safeUrl(confirmationUrl);
+  safeUrl(confirmationUrl);
+  const expiration = expirationNotice(expiresAt);
   return {
     subject: 'Confirme seu novo e-mail no TRACEFLOW',
-    text: `Olá, ${name}. Confirme a alteração em: ${confirmationUrl}\nO link expira em ${expiresAt.toISOString()}.`,
-    html: `<p>Olá, ${escapeHtml(name)}.</p><p><a href="${link}">Confirmar novo e-mail</a></p><p>Expira em ${escapeHtml(expiresAt.toISOString())}.</p>`
+    text: [
+      `Olá, ${name}.`,
+      '',
+      'Recebemos uma solicitação para alterar o endereço de e-mail da sua conta.',
+      '',
+      `Confirmar novo e-mail: ${confirmationUrl}`,
+      expiration,
+      '',
+      'Se você não solicitou esta alteração, nenhuma ação é necessária.'
+    ].join('\n'),
+    html: renderEmailLayout({
+      title: 'Confirme seu novo e-mail',
+      greeting: `Olá, ${name}.`,
+      content: ['Recebemos uma solicitação para alterar o endereço de e-mail da sua conta.'],
+      ctaLabel: 'Confirmar novo e-mail',
+      ctaUrl: confirmationUrl,
+      notice: `${expiration} Se você não solicitou esta alteração, nenhuma ação é necessária.`
+    })
   };
 }
 
 export function securityNoticeTemplate({ title, message, name }) {
   return {
     subject: title,
-    text: `Olá, ${name}. ${message}`,
-    html: `<p>Olá, ${escapeHtml(name)}.</p><p>${escapeHtml(message)}</p>`
+    text: [
+      `Olá, ${name}.`,
+      '',
+      message,
+      '',
+      'Se você reconhece esta alteração, nenhuma ação é necessária.',
+      'Caso não reconheça, revise sua conta no TraceFlow.'
+    ].join('\n'),
+    html: renderEmailLayout({
+      title,
+      greeting: `Olá, ${name}.`,
+      content: [message],
+      notice:
+        'Se você reconhece esta alteração, nenhuma ação é necessária. Caso não reconheça, revise sua conta no TraceFlow.'
+    })
   };
 }
 
 export function accountReactivationTemplate({ confirmationUrl, expiresAt, name }) {
-  const link = safeUrl(confirmationUrl);
+  safeUrl(confirmationUrl);
+  const expiration = expirationNotice(expiresAt);
   return {
     subject: 'Reative sua conta TRACEFLOW',
-    text: `Olá, ${name}. Confirme a reativação em: ${confirmationUrl}\nO link expira em ${expiresAt.toISOString()}.`,
-    html: `<p>Olá, ${escapeHtml(name)}.</p><p><a href="${link}">Reativar conta</a></p><p>Expira em ${escapeHtml(expiresAt.toISOString())}.</p>`
+    text: [
+      `Olá, ${name}.`,
+      '',
+      'Recebemos uma solicitação para reativar sua conta TraceFlow.',
+      '',
+      `Reativar conta: ${confirmationUrl}`,
+      expiration
+    ].join('\n'),
+    html: renderEmailLayout({
+      title: 'Reative sua conta',
+      greeting: `Olá, ${name}.`,
+      content: ['Recebemos uma solicitação para reativar sua conta TraceFlow.'],
+      ctaLabel: 'Reativar conta',
+      ctaUrl: confirmationUrl,
+      notice: expiration
+    })
   };
 }

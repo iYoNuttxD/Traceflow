@@ -46,6 +46,20 @@ export const projectsApi = {
     return httpClient.put(`/projects/${projectId}`, data);
   },
 
+  requestDeletion(projectId) {
+    return httpClient.delete(`/projects/${projectId}`, { data: {} });
+  },
+
+  restore(projectId) {
+    return httpClient.post(`/projects/${projectId}/restore`, {});
+  },
+
+  purge(projectId, confirmationName) {
+    return httpClient.delete(`/projects/${projectId}/permanent`, {
+      data: { confirmationName }
+    });
+  },
+
   getAccessCode(projectId) {
     return httpClient.get(`/projects/${projectId}/access-code`);
   },

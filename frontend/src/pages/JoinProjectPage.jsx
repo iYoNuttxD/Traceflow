@@ -91,7 +91,7 @@ export function JoinProjectPage() {
       const response = await membersApi.joinProject({ accessCode: input });
       setJoinedProject(response.project);
       setSuccess(response.message);
-      void refreshProjects();
+      void refreshProjects({ fresh: true });
     } catch (requestError) {
       const normalized = normalizeApiError(requestError, 'Não foi possível entrar no projeto.');
       setError(normalized.message);

@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   githubBranchRepository: { syncObserved: vi.fn(), markSuccessfullySynced: vi.fn() },
   projectRepository: {
     findById: vi.fn(),
+    isActive: vi.fn(),
     updateGithubRepositoryMetadata: vi.fn(),
     markGithubSyncStarted: vi.fn(),
     markGithubSyncSucceeded: vi.fn(),
@@ -99,6 +100,7 @@ describe('githubSyncService com client e persistência substituídos', () => {
       ]
     ]);
     mocks.projectRepository.findById.mockResolvedValue(project);
+    mocks.projectRepository.isActive.mockResolvedValue(true);
     mocks.projectRepository.updateGithubRepositoryMetadata.mockResolvedValue(project);
     mocks.projectRepository.markGithubSyncStarted.mockResolvedValue(project);
     mocks.projectRepository.markGithubSyncSucceeded.mockResolvedValue({
@@ -130,7 +132,7 @@ describe('githubSyncService com client e persistência substituídos', () => {
     mocks.commitRepository.findByProjectIdAndHashes.mockImplementation(async (_projectId, hashes) =>
       hashes.map((hash) => storedCommits.get(hash)).filter(Boolean)
     );
-    mocks.commitRepository.createBranchLinks.mockImplementation(async (items) => ({
+    mocks.commitRepository.createBranchLinks.mockImplementation(async (_projectId, items) => ({
       count: items.length
     }));
     mocks.commitRepository.findByBranchId.mockResolvedValue([]);
@@ -277,7 +279,7 @@ describe('githubSyncService com client e persistência substituídos', () => {
         .map((hash) => ({ id: ids.get(hash), projectId, hash, message: `[${hash}]` }))
     );
     const links = [];
-    mocks.commitRepository.createBranchLinks.mockImplementation(async (items) => {
+    mocks.commitRepository.createBranchLinks.mockImplementation(async (_projectId, items) => {
       links.push(...items);
       return { count: items.length };
     });

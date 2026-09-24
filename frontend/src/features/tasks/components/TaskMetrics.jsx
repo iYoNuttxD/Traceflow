@@ -1,47 +1,40 @@
-import { Card } from '../../../shared/index.js';
 import './TaskMetrics.css';
 
-function CoverageMetric({ title, coverage, emptyDescription, linkedDescription }) {
-  return (
-    <Card title={title}>
-      <strong className="metric-value">{coverage?.coveragePercentage ?? 0}%</strong>
-      <p className="metric-description">
-        {coverage ? linkedDescription(coverage) : emptyDescription}
-      </p>
-    </Card>
-  );
-}
+export function TaskMetrics({ tasks }) {
+  const metrics = [
+    ['Total', tasks.length],
+    ['A fazer', tasks.filter((task) => task.status === 'A_FAZER').length],
+    ['Em andamento', tasks.filter((task) => task.status === 'EM_ANDAMENTO').length],
+    ['Concluídas', tasks.filter((task) => task.status === 'CONCLUIDO').length],
+    [
+      'Com responsável',
+      tasks.filter((task) => task.responsibleUserId || task.responsibleUser || task.responsible)
+        .length
+    ],
+    [
+      'Com estimativa',
+      tasks.filter((task) => task.estimatedEffort !== null && task.estimatedEffort !== undefined)
+        .length
+    ]
+  ];
 
-export function TaskMetrics({ total, pullRequestCoverage, commitCoverage, issueCoverage }) {
   return (
-    <div className="task-summary">
-      <Card title="Total de tarefas cadastradas">
-        <strong className="metric-value">{total}</strong>
-      </Card>
-      <CoverageMetric
-        title="Cobertura com Pull Requests"
-        coverage={pullRequestCoverage}
-        emptyDescription="Percentual de tarefas vinculadas a pull requests."
-        linkedDescription={(value) =>
-          `${value.linkedTasks} de ${value.totalTasks} tarefas possuem PR vinculado.`
-        }
-      />
-      <CoverageMetric
-        title="Cobertura com commits"
-        coverage={commitCoverage}
-        emptyDescription="Percentual de tarefas vinculadas a commits."
-        linkedDescription={(value) =>
-          `${value.linkedTasks} de ${value.totalTasks} tarefas possuem pelo menos um commit vinculado.`
-        }
-      />
-      <CoverageMetric
-        title="Cobertura com issues"
-        coverage={issueCoverage}
-        emptyDescription="Percentual de tarefas vinculadas a issues."
-        linkedDescription={(value) =>
-          `${value.linkedTasks} de ${value.totalTasks} tarefas possuem pelo menos uma issue vinculada.`
-        }
-      />
-    </div>
+    <section className="tasks-overview" aria-labelledby="tasks-summary-title">
+      <header>
+        <div>
+          <span className="eyebrow">Resumo</span>
+          <h2 id="tasks-summary-title">Visão geral das tarefas</h2>
+        </div>
+        <p>Acompanhe a organização atual das atividades do projeto.</p>
+      </header>
+      <dl>
+        {metrics.map(([label, value]) => (
+          <div key={label}>
+            <dt>{label}</dt>
+            <dd>{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   );
 }

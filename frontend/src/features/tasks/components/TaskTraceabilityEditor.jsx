@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback } from 'react';
 import { getProjectCommits, getProjectIssues, getProjectPullRequests } from '../../github/index.js';
 import { requirementsApi } from '../../requirements/index.js';
-import { normalizeApiError, useAbortableRequest } from '../../../shared/index.js';
+import { normalizeApiError, SearchCombobox } from '../../../shared/index.js';
 import {
   linkTaskCommit,
   linkTaskIssue,
@@ -53,110 +53,35 @@ function formatPullRequestLabel(pullRequest) {
   return `#${pullRequest.number} — ${pullRequest.title}`;
 }
 
-function useArtifactSearch({ query, enabled, search, failureMessage }) {
-  const { run, cancel } = useAbortableRequest();
-  const sequenceRef = useRef(0);
-  const [state, setState] = useState({ loading: false, searched: false, error: '', results: [] });
-
-  useEffect(() => {
-    sequenceRef.current += 1;
-    const sequence = sequenceRef.current;
-    if (!enabled) {
-      cancel();
-      setState({ loading: false, searched: false, error: '', results: [] });
-      return undefined;
-    }
-
-    setState({ loading: false, searched: false, error: '', results: [] });
-    const timeoutId = window.setTimeout(async () => {
-      setState({ loading: true, searched: false, error: '', results: [] });
-      try {
-        const results = await run((signal) => search(query.trim(), signal));
-        if (!results || sequence !== sequenceRef.current) return;
-        setState({ loading: false, searched: true, error: '', results });
-      } catch (requestError) {
-        if (sequence !== sequenceRef.current) return;
-        setState({
-          loading: false,
-          searched: true,
-          error: normalizeApiError(requestError, failureMessage).message,
-          results: []
-        });
-      }
-    }, 300);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [cancel, enabled, failureMessage, query, run, search]);
-
-  return state;
-}
-
-function SearchResults({
-  state,
-  emptyMessage,
-  formatLabel,
-  onSelect,
-  excludedIds = new Set(),
-  disabled = false
-}) {
-  const results = state.results.filter((item) => !excludedIds.has(artifactId(item)));
-
-  if (state.loading) return <p role="status">Pesquisando...</p>;
-  if (state.error)
-    return (
-      <p className="field-error" role="alert">
-        {state.error}
-      </p>
-    );
-  if (!state.searched) return null;
-  if (results.length === 0) return <p>{emptyMessage}</p>;
-
-  return results.map((item) => (
-    <button key={item.id} type="button" disabled={disabled} onClick={() => onSelect(item)}>
-      {formatLabel(item)}
-    </button>
-  ));
-}
-
 function ArtifactSearch({
   label,
+  searchContextKey,
   placeholder,
-  query,
-  onQueryChange,
-  state,
+  search,
   emptyMessage,
   formatLabel,
   onSelect,
   excludedIds,
-  inputRef,
+  isQueryValid,
+  failureMessage,
   disabled = false
 }) {
-  const showResults = state.loading || state.searched || Boolean(state.error);
   return (
     <div className="traceability-picker">
-      <label>
-        <span>{label}</span>
-        <input
-          ref={inputRef}
-          type="search"
-          value={query}
-          placeholder={placeholder}
-          disabled={disabled}
-          onChange={(event) => onQueryChange(event.target.value)}
-        />
-      </label>
-      {showResults && (
-        <div className="traceability-results" aria-live="polite">
-          <SearchResults
-            state={state}
-            emptyMessage={emptyMessage}
-            formatLabel={formatLabel}
-            onSelect={onSelect}
-            excludedIds={excludedIds}
-            disabled={disabled}
-          />
-        </div>
-      )}
+      <SearchCombobox
+        label={label}
+        searchContextKey={searchContextKey}
+        placeholder={placeholder}
+        disabled={disabled}
+        emptyMessage={emptyMessage}
+        searchErrorMessage={failureMessage}
+        getOptionLabel={formatLabel}
+        isQueryValid={isQueryValid}
+        onSearch={async (query, signal) =>
+          (await search(query, signal)).filter((item) => !excludedIds.has(artifactId(item)))
+        }
+        onSelect={onSelect}
+      />
     </div>
   );
 }
@@ -283,11 +208,6 @@ export function TaskTraceabilityEditor({
   disabled = false,
   onSuggestionConfirmed
 }) {
-  const [requirementQuery, setRequirementQuery] = useState('');
-  const [pullRequestQuery, setPullRequestQuery] = useState('');
-  const [commitQuery, setCommitQuery] = useState('');
-  const [issueQuery, setIssueQuery] = useState('');
-
   const searchRequirements = useCallback(
     async (query, signal) => {
       const response = await requirementsApi.listByProject(
@@ -321,31 +241,6 @@ export function TaskTraceabilityEditor({
     [projectId]
   );
 
-  const requirementSearch = useArtifactSearch({
-    query: requirementQuery,
-    enabled: !disabled && requirementQuery.trim().length >= 2,
-    search: searchRequirements,
-    failureMessage: 'Não foi possível pesquisar requisitos.'
-  });
-  const pullRequestSearch = useArtifactSearch({
-    query: pullRequestQuery,
-    enabled: !disabled && (pullRequestQuery.trim().length >= 2 || /\d/.test(pullRequestQuery)),
-    search: searchPullRequests,
-    failureMessage: 'Não foi possível pesquisar pull requests.'
-  });
-  const commitSearch = useArtifactSearch({
-    query: commitQuery,
-    enabled: !disabled && commitQuery.trim().length >= 2,
-    search: searchCommits,
-    failureMessage: 'Não foi possível pesquisar commits.'
-  });
-  const issueSearch = useArtifactSearch({
-    query: issueQuery,
-    enabled: !disabled && (issueQuery.trim().length >= 2 || /\d/.test(issueQuery)),
-    search: searchIssues,
-    failureMessage: 'Não foi possível pesquisar issues.'
-  });
-
   function confirmSuggestedCommit(commit) {
     const addCommit = (value) => ({
       ...value,
@@ -378,18 +273,15 @@ export function TaskTraceabilityEditor({
           )}
           <ArtifactSearch
             label="Pesquisar requisito"
+            searchContextKey={projectId}
             placeholder="Pesquisar requisito por título..."
-            query={requirementQuery}
-            onQueryChange={setRequirementQuery}
-            state={requirementSearch}
+            search={searchRequirements}
             emptyMessage="Nenhum requisito encontrado."
+            failureMessage="Não foi possível carregar os requisitos."
             formatLabel={formatRequirementLabel}
             excludedIds={requirementIds}
             disabled={disabled}
-            onSelect={(requirement) => {
-              onDraftChange((current) => ({ ...current, requirement }));
-              setRequirementQuery('');
-            }}
+            onSelect={(requirement) => onDraftChange((current) => ({ ...current, requirement }))}
           />
         </fieldset>
 
@@ -408,18 +300,16 @@ export function TaskTraceabilityEditor({
           )}
           <ArtifactSearch
             label="Pesquisar pull request"
+            searchContextKey={projectId}
             placeholder="Pesquisar por número ou título do PR..."
-            query={pullRequestQuery}
-            onQueryChange={setPullRequestQuery}
-            state={pullRequestSearch}
+            search={searchPullRequests}
             emptyMessage="Nenhum pull request encontrado."
+            failureMessage="Não foi possível carregar os pull requests do projeto."
             formatLabel={formatPullRequestLabel}
             excludedIds={pullRequestIds}
+            isQueryValid={(query) => query.length >= 2 || /\d/.test(query)}
             disabled={disabled}
-            onSelect={(pullRequest) => {
-              onDraftChange((current) => ({ ...current, pullRequest }));
-              setPullRequestQuery('');
-            }}
+            onSelect={(pullRequest) => onDraftChange((current) => ({ ...current, pullRequest }))}
           />
         </fieldset>
 
@@ -450,11 +340,11 @@ export function TaskTraceabilityEditor({
           )}
           <ArtifactSearch
             label="Pesquisar commits"
+            searchContextKey={projectId}
             placeholder="Pesquisar por SHA ou mensagem..."
-            query={commitQuery}
-            onQueryChange={setCommitQuery}
-            state={commitSearch}
+            search={searchCommits}
             emptyMessage="Nenhum commit encontrado."
+            failureMessage="Não foi possível carregar os commits do projeto."
             formatLabel={formatCommitLabel}
             excludedIds={commitIds}
             disabled={disabled}
@@ -463,7 +353,6 @@ export function TaskTraceabilityEditor({
                 ...current,
                 commits: uniqueById([...current.commits, commit])
               }));
-              setCommitQuery('');
             }}
           />
           <CommitSuggestionsCard
@@ -501,20 +390,20 @@ export function TaskTraceabilityEditor({
           )}
           <ArtifactSearch
             label="Pesquisar issues"
+            searchContextKey={projectId}
             placeholder="Pesquisar issue por número ou título..."
-            query={issueQuery}
-            onQueryChange={setIssueQuery}
-            state={issueSearch}
+            search={searchIssues}
             emptyMessage="Nenhuma issue encontrada."
+            failureMessage="Não foi possível carregar as issues do projeto."
             formatLabel={formatIssueLabel}
             excludedIds={issueIds}
+            isQueryValid={(query) => query.length >= 2 || /\d/.test(query)}
             disabled={disabled}
             onSelect={(issue) => {
               onDraftChange((current) => ({
                 ...current,
                 issues: uniqueById([...current.issues, issue])
               }));
-              setIssueQuery('');
             }}
           />
         </fieldset>

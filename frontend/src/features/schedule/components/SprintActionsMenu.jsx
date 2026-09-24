@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import './SprintActionsMenu.css';
 
 const ALTURA_ESTIMADA = 240;
 

@@ -1,13 +1,16 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useParams } from 'react-router';
 import { getProjectArtifacts } from '../index.js';
 import { ProjectSectionNav } from '../../projects/index.js';
+import { CollapsibleFilterPanel } from '../../schedule/index.js';
 import {
   compactParams,
   ContextualErrorPage,
   ErrorState,
   FeedbackRegion,
+  GithubExternalAction,
   LoadingState,
+  SelectControl,
   classifyPageError,
   getErrorRequestId,
   normalizeApiError,
@@ -52,13 +55,15 @@ function getArtifactTypeLabel(type) {
 function getArtifactStatus(artifact) {
   if (artifact.type === 'commit') {
     const branches = artifact.metadata?.branches || [];
-    if (branches.length === 0)
-      return artifact.metadata?.branches?.length
-        ? `Branches: ${artifact.metadata.branches.join(', ')}`
-        : '-';
-    return branches.length <= 2
-      ? `Branches: ${branches.join(', ')}`
-      : `Branches: ${branches[0]} +${branches.length - 1}`;
+    if (branches.length === 0) {
+      return { primary: '-', secondary: 'Branches não informadas', title: '' };
+    }
+    return {
+      primary:
+        branches.length <= 2 ? branches.join(', ') : `${branches[0]} +${branches.length - 1}`,
+      secondary: 'Branches',
+      title: `Branches: ${branches.join(', ')}`
+    };
   }
 
   const number = artifact.metadata?.number ? `#${artifact.metadata.number}` : null;
@@ -69,8 +74,15 @@ function getArtifactStatus(artifact) {
     artifact.metadata?.targetBranch
       ? `${artifact.metadata.sourceBranch} → ${artifact.metadata.targetBranch}`
       : null;
-  const status = number && state ? `${number} - ${state}` : number || state;
-  return [status, flow].filter(Boolean).join(' · ') || '-';
+  return {
+    primary: number && state ? `${number} · ${state}` : number || state || '-',
+    secondary: flow || '',
+    title: [number, state, flow].filter(Boolean).join(' · ')
+  };
+}
+
+function artifactCountLabel(total) {
+  return `${total} ${total === 1 ? 'artefato' : 'artefatos'}`;
 }
 
 function hasActiveFilters(filters) {
@@ -104,6 +116,8 @@ function validateFilters(filters) {
 export function RepositoryInfoScreen() {
   const { projectId } = useParams();
   const { run: runArtifactsRequest, cancel: cancelArtifactsRequest } = useAbortableRequest();
+  const filtersRef = useRef(emptyFilters);
+  const requestSequenceRef = useRef(0);
   const [repositoryData, setRepositoryData] = useState(null);
   const [filters, setFilters] = useState(emptyFilters);
   const [appliedFilters, setAppliedFilters] = useState(emptyFilters);
@@ -114,11 +128,14 @@ export function RepositoryInfoScreen() {
 
   const loadArtifacts = useCallback(
     async (nextFilters = emptyFilters) => {
+      const requestSequence = ++requestSequenceRef.current;
       const validationError = validateFilters(nextFilters);
       if (validationError) {
         cancelArtifactsRequest();
         setLoading(false);
         setError(validationError);
+        setPageError(null);
+        setRetryAfterSeconds(0);
         return;
       }
 
@@ -127,21 +144,16 @@ export function RepositoryInfoScreen() {
       setError('');
       setPageError(null);
       setRetryAfterSeconds(0);
-      let settled = false;
 
       try {
         const data = await runArtifactsRequest((signal) =>
           getProjectArtifacts(projectId, requestParams, { signal })
         );
-        if (!data) {
-          settled = true;
-          return;
-        }
-        settled = true;
+        if (!data || requestSequence !== requestSequenceRef.current) return;
         setRepositoryData(data);
         setAppliedFilters({ ...emptyFilters, ...nextFilters });
       } catch (requestError) {
-        settled = true;
+        if (requestSequence !== requestSequenceRef.current) return;
         setRepositoryData(null);
         const normalized = normalizeApiError(
           requestError,
@@ -151,7 +163,7 @@ export function RepositoryInfoScreen() {
         setPageError(normalized);
         setRetryAfterSeconds(normalized.retryAfterSeconds || 0);
       } finally {
-        if (settled) setLoading(false);
+        if (requestSequence === requestSequenceRef.current) setLoading(false);
       }
     },
     [cancelArtifactsRequest, projectId, runArtifactsRequest]
@@ -162,22 +174,19 @@ export function RepositoryInfoScreen() {
   }, [loadArtifacts]);
 
   function handleFilterChange(name, value) {
-    cancelArtifactsRequest();
-    setLoading(false);
-    setFilters((current) => ({
-      ...current,
+    const nextFilters = {
+      ...filtersRef.current,
       [name]: value
-    }));
+    };
+    filtersRef.current = nextFilters;
+    setFilters(nextFilters);
+    void loadArtifacts(nextFilters);
   }
 
-  async function handleFilterSubmit(event) {
-    event.preventDefault();
-    await loadArtifacts(filters);
-  }
-
-  async function clearFilters() {
+  function clearFilters() {
+    filtersRef.current = emptyFilters;
     setFilters(emptyFilters);
-    await loadArtifacts(emptyFilters);
+    void loadArtifacts(emptyFilters);
   }
 
   const project = repositoryData?.project;
@@ -185,6 +194,7 @@ export function RepositoryInfoScreen() {
   const summary = repositoryData?.summary || {};
   const artifacts = repositoryData?.artifacts || [];
   const showFilteredEmptyState = hasActiveFilters(appliedFilters);
+  const activeFilterCount = Object.values(appliedFilters).filter(Boolean).length;
 
   if (!loading && !repositoryData && pageError) {
     return (
@@ -200,171 +210,237 @@ export function RepositoryInfoScreen() {
 
   return (
     <main className="page-container repository-page">
-      <Link className="back-link" to={`/projects/${projectId}`}>
-        Voltar para o projeto
-      </Link>
-
-      <header className="page-header repository-header">
-        <div>
-          <span className="eyebrow">Projeto #{projectId}</span>
-          <h1>Informações do Repositório</h1>
-          <p>
-            {project
-              ? `Visualize commits, pull requests e issues importados do GitHub para ${project.name}.`
-              : 'Visualize commits, pull requests e issues importados do GitHub para este projeto.'}
-          </p>
-        </div>
-        <ProjectSectionNav projectId={projectId} activeSection="repository" />
-      </header>
-
-      <form className="repository-filters" onSubmit={handleFilterSubmit}>
-        <label className="field">
-          <span>Tipo de artefato</span>
-          <select
-            value={filters.type}
-            onChange={(event) => handleFilterChange('type', event.target.value)}
-          >
-            <option value="">Todos</option>
-            <option value="commit">Commits</option>
-            <option value="pull_request">Pull Requests</option>
-            <option value="issue">Issues</option>
-          </select>
-        </label>
-
-        <label className="field">
-          <span>Branch</span>
-          <select
-            value={filters.branch}
-            onChange={(event) => handleFilterChange('branch', event.target.value)}
-          >
-            <option value="">Todas as branches</option>
-            {(repository.branches || []).map((branch) => (
-              <option key={branch.name} value={branch.name}>
-                {branch.name}
-                {branch.isDefault ? ' — padrão' : ''}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="field">
-          <span>Data inicial</span>
-          <input
-            type="date"
-            value={filters.startDate}
-            onChange={(event) => handleFilterChange('startDate', event.target.value)}
-          />
-        </label>
-
-        <label className="field">
-          <span>Data final</span>
-          <input
-            type="date"
-            value={filters.endDate}
-            onChange={(event) => handleFilterChange('endDate', event.target.value)}
-          />
-        </label>
-
-        <div className="repository-filter-actions">
-          <button className="button button-primary" type="submit" disabled={loading}>
-            Aplicar filtros
-          </button>
-          <button
-            className="button button-secondary"
-            type="button"
-            onClick={clearFilters}
-            disabled={loading}
-          >
-            Limpar filtros
-          </button>
-        </div>
-      </form>
-
-      {filters.type === 'issue' && filters.branch && (
-        <FeedbackRegion info="Issues pertencem ao repositório como um todo; o filtro de branch não se aplica a elas." />
-      )}
-
-      {loading ? (
-        <LoadingState message="Carregando artefatos do repositório..." />
-      ) : error ? (
-        <ErrorState
-          message={error}
-          onRetry={() => loadArtifacts(filters)}
-          retryAfterSeconds={retryAfterSeconds}
-        />
-      ) : (
-        <>
-          <section className="repository-summary">
-            <article className="repository-summary-card">
-              <span>Branches</span>
-              <strong>{repository.branches?.length ?? 0}</strong>
-            </article>
-            <article className="repository-summary-card">
-              <span>Commits</span>
-              <strong>{summary.commits ?? 0}</strong>
-            </article>
-            <article className="repository-summary-card">
-              <span>Pull Requests</span>
-              <strong>{summary.pullRequests ?? 0}</strong>
-            </article>
-            <article className="repository-summary-card">
-              <span>Issues</span>
-              <strong>{summary.issues ?? 0}</strong>
-            </article>
-            <article className="repository-summary-card">
-              <span>Completude</span>
-              <strong>{formatCompleteness(summary.metadataCompletenessPercentage)}</strong>
-            </article>
-          </section>
-
-          {artifacts.length === 0 ? (
-            <p className="repository-empty empty-state">
-              {showFilteredEmptyState
-                ? 'Nenhum artefato encontrado para os filtros selecionados.'
-                : 'Nenhum artefato GitHub foi importado para este projeto.'}
+      <div className="repository-content">
+        <header className="page-header repository-header">
+          <div>
+            <span className="eyebrow">Repositório</span>
+            <h1>Repositório</h1>
+            <p>
+              Consulte os artefatos importados do GitHub para{' '}
+              {project ? `o projeto ${project.name}` : 'este projeto'}.
             </p>
-          ) : (
-            <div className="repository-table-wrapper">
-              <table className="repository-table">
-                <thead>
-                  <tr>
-                    <th>Tipo</th>
-                    <th>Título</th>
-                    <th>Autor</th>
-                    <th>Data</th>
-                    <th>Estado/Número</th>
-                    <th>Link</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {artifacts.map((artifact) => (
-                    <tr key={`${artifact.type}-${artifact.id}`}>
-                      <td data-label="Tipo">
-                        <span className={`repository-badge repository-badge-${artifact.type}`}>
-                          {getArtifactTypeLabel(artifact.type)}
-                        </span>
-                      </td>
-                      <td data-label="Título">{artifact.title || '-'}</td>
-                      <td data-label="Autor">{artifact.author || '-'}</td>
-                      <td data-label="Data">{formatDate(artifact.date)}</td>
-                      <td data-label="Estado/Número">{getArtifactStatus(artifact)}</td>
-                      <td data-label="Link">
-                        {artifact.githubUrl ? (
-                          <a href={artifact.githubUrl} target="_blank" rel="noopener noreferrer">
-                            Abrir no GitHub
-                          </a>
-                        ) : (
-                          '-'
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </>
-      )}
+          </div>
+        </header>
+        <ProjectSectionNav projectId={projectId} activeSection="repository" />
+
+        {!repositoryData && loading ? (
+          <LoadingState message="Carregando artefatos do repositório..." />
+        ) : repositoryData ? (
+          <>
+            <section className="repository-overview" aria-labelledby="repository-summary-title">
+              <header>
+                <div>
+                  <span className="eyebrow">Resumo</span>
+                  <h2 id="repository-summary-title">Visão geral do repositório</h2>
+                </div>
+                <div className="repository-overview__context">
+                  <p>Estado atual dos artefatos importados do GitHub.</p>
+                  {repository.defaultBranch && (
+                    <span>Branch padrão: {repository.defaultBranch}</span>
+                  )}
+                </div>
+              </header>
+              <dl>
+                {[
+                  ['Branches', repository.branches?.length ?? 0],
+                  ['Commits', summary.commits ?? 0],
+                  ['Pull Requests', summary.pullRequests ?? 0],
+                  ['Issues', summary.issues ?? 0],
+                  ['Completude', formatCompleteness(summary.metadataCompletenessPercentage)]
+                ].map(([label, value]) => (
+                  <div key={label}>
+                    <dt>{label}</dt>
+                    <dd>{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+
+            <CollapsibleFilterPanel
+              id="repository-filters"
+              className="repository-filters"
+              title="Filtrar artefatos"
+              resultLabel={artifactCountLabel(summary.total ?? artifacts.length)}
+              activeCount={activeFilterCount}
+            >
+              <div className="repository-filter-form">
+                {activeFilterCount > 0 && (
+                  <div className="planning-filter-panel__actions repository-filter-actions">
+                    <button
+                      className="button button-secondary button-compact"
+                      type="button"
+                      onClick={clearFilters}
+                      disabled={loading}
+                    >
+                      Limpar filtros
+                    </button>
+                  </div>
+                )}
+                <div className="repository-filter-grid">
+                  <label className="repository-filter-field">
+                    <span>Tipo de artefato</span>
+                    <SelectControl
+                      value={filters.type}
+                      onChange={(event) => handleFilterChange('type', event.target.value)}
+                    >
+                      <option value="">Todos</option>
+                      <option value="commit">Commits</option>
+                      <option value="pull_request">Pull Requests</option>
+                      <option value="issue">Issues</option>
+                    </SelectControl>
+                  </label>
+
+                  <label className="repository-filter-field">
+                    <span>Branch</span>
+                    <SelectControl
+                      value={filters.branch}
+                      onChange={(event) => handleFilterChange('branch', event.target.value)}
+                    >
+                      <option value="">Todas as branches</option>
+                      {(repository.branches || []).map((branch) => (
+                        <option key={branch.name} value={branch.name}>
+                          {branch.name}
+                          {branch.isDefault ? ' — padrão' : ''}
+                        </option>
+                      ))}
+                    </SelectControl>
+                  </label>
+
+                  <label className="repository-filter-field">
+                    <span>Data inicial</span>
+                    <input
+                      type="date"
+                      value={filters.startDate}
+                      onChange={(event) => handleFilterChange('startDate', event.target.value)}
+                    />
+                  </label>
+
+                  <label className="repository-filter-field">
+                    <span>Data final</span>
+                    <input
+                      type="date"
+                      value={filters.endDate}
+                      onChange={(event) => handleFilterChange('endDate', event.target.value)}
+                    />
+                  </label>
+                </div>
+
+                {filters.type === 'issue' && filters.branch && (
+                  <FeedbackRegion info="Issues pertencem ao repositório como um todo; o filtro de branch não se aplica a elas." />
+                )}
+              </div>
+            </CollapsibleFilterPanel>
+
+            {loading ? (
+              <LoadingState message="Carregando artefatos do repositório..." />
+            ) : error ? (
+              <ErrorState
+                message={error}
+                onRetry={() => loadArtifacts(filters)}
+                retryAfterSeconds={retryAfterSeconds}
+              />
+            ) : (
+              <section className="repository-catalog" aria-labelledby="repository-catalog-title">
+                <header>
+                  <h2 id="repository-catalog-title">Artefatos do repositório</h2>
+                  <span aria-live="polite">
+                    {artifactCountLabel(summary.total ?? artifacts.length)}
+                    {showFilteredEmptyState ? ' no conjunto filtrado' : ''}
+                  </span>
+                </header>
+
+                {artifacts.length === 0 ? (
+                  <div className="repository-empty-state">
+                    <h3>
+                      {showFilteredEmptyState
+                        ? 'Nenhum artefato encontrado para estes filtros.'
+                        : 'Nenhum artefato importado.'}
+                    </h3>
+                    <p>
+                      {showFilteredEmptyState
+                        ? 'Ajuste os critérios ou limpe os filtros para consultar outros artefatos.'
+                        : 'Os commits, pull requests e issues aparecerão aqui após a sincronização do repositório.'}
+                    </p>
+                    {showFilteredEmptyState && (
+                      <button
+                        type="button"
+                        className="button button-secondary"
+                        onClick={clearFilters}
+                      >
+                        Limpar filtros
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div
+                    className="repository-table-scroll"
+                    tabIndex="0"
+                    role="region"
+                    aria-label="Tabela de artefatos do repositório com rolagem horizontal"
+                  >
+                    <table className="repository-table">
+                      <thead>
+                        <tr>
+                          <th>Tipo</th>
+                          <th>Título</th>
+                          <th>Autor</th>
+                          <th>Data</th>
+                          <th>Estado/Número</th>
+                          <th>Ação</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {artifacts.map((artifact) => {
+                          const status = getArtifactStatus(artifact);
+                          return (
+                            <tr key={`${artifact.type}-${artifact.id}`}>
+                              <td>
+                                <span
+                                  className={`repository-badge repository-badge-${artifact.type}`}
+                                >
+                                  {getArtifactTypeLabel(artifact.type)}
+                                </span>
+                              </td>
+                              <td>
+                                <span
+                                  className="repository-artifact-title"
+                                  title={artifact.title || undefined}
+                                >
+                                  {artifact.title || '-'}
+                                </span>
+                              </td>
+                              <td>{artifact.author || '-'}</td>
+                              <td className="repository-artifact-date">
+                                {formatDate(artifact.date)}
+                              </td>
+                              <td>
+                                <span
+                                  className="repository-artifact-status"
+                                  title={status.title || undefined}
+                                >
+                                  <strong>{status.primary}</strong>
+                                  {status.secondary && <small>{status.secondary}</small>}
+                                </span>
+                              </td>
+                              <td>
+                                {artifact.githubUrl ? (
+                                  <GithubExternalAction href={artifact.githubUrl} />
+                                ) : (
+                                  <span className="repository-artifact-unavailable">—</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
+            )}
+          </>
+        ) : null}
+      </div>
     </main>
   );
 }

@@ -1,13 +1,17 @@
 import { createPortal } from 'react-dom';
+import { lazy, Suspense } from 'react';
 import { SprintDialog } from '../../schedule/index.js';
 import { LoadingState, ErrorState } from '../../../shared/index.js';
-import { TraceabilityFlow } from './TraceabilityFlow.jsx';
 import { SituationBadge } from './RequirementCatalog.jsx';
 import { phaseLabel } from '../model/phase.js';
 import { TraceabilityPhaseTrail } from './TraceabilityPhaseTrail.jsx';
 import { percentageLabel } from '../model/requirement-view.js';
 import { TraceabilityHelp, TraceabilityGuide } from './TraceabilityHelp.jsx';
 import './TraceabilityWorkspace.css';
+
+const TraceabilityFlow = lazy(() =>
+  import('./TraceabilityFlow.jsx').then((module) => ({ default: module.TraceabilityFlow }))
+);
 export function WorkspaceSummary({ projection }) {
   return (
     <div className="trace-workspace-context">
@@ -73,7 +77,11 @@ export function TraceabilityWorkspace({ requirement, graph, onClose, onRetry, re
       <TraceabilityGuide />
       {graph.loading && <LoadingState message="Carregando requisito selecionado..." />}
       {graph.error && <ErrorState message={graph.error.message} onRetry={onRetry} />}
-      {graph.data && <TraceabilityFlow traceability={graph.data} />}
+      {graph.data && (
+        <Suspense fallback={<LoadingState message="Carregando grafo de rastreabilidade..." />}>
+          <TraceabilityFlow traceability={graph.data} />
+        </Suspense>
+      )}
     </SprintDialog>,
     document.body
   );

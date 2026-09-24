@@ -1,6 +1,6 @@
 import { traceabilityMutation } from '../../traceability/requirement-reconciliation.repository.js';
 import { createDefectRepository } from '../../defects/repositories/defect.repository.js';
-import { lockProject } from '../../../database/locks.js';
+import { lockActiveProject } from '../../projects/active-project-write.js';
 import { auditRepository } from '../../audit/audit.repository.js';
 import { Prisma } from '@prisma/client';
 import { createTestExecutionRepository } from './test-execution.repository.js';
@@ -20,7 +20,7 @@ export function createTestCaseRepository(client = prisma) {
   return {
     defects: createDefectRepository(client),
     lockProject(id) {
-      return lockProject(client, id);
+      return lockActiveProject(client, id);
     },
     executions: createTestExecutionRepository(client),
     transaction(work, traceability) {

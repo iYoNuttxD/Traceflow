@@ -177,6 +177,7 @@
 
 .schedule-calendar {
   min-width: 0;
+  height: 100%;
   padding: var(--space-6);
 }
 
@@ -521,6 +522,13 @@
   overflow: hidden;
 }
 
+.schedule-context--bounded {
+  /* O Calendário dimensiona a linha; o Contexto apenas ocupa essa altura. */
+  width: 100%;
+  height: 0;
+  min-height: 100%;
+}
+
 .schedule-context__heading {
   padding: var(--space-5);
   border-bottom: var(--border-width-default) solid var(--color-border-default);
@@ -832,10 +840,18 @@
 @container schedule-page (max-width: 68rem) {
   .schedule-layout {
     grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .schedule-calendar {
+    height: auto;
   }
 
   .schedule-context {
+    height: auto;
+    min-height: 0;
     max-height: min(34rem, 72vh);
+    max-height: min(34rem, 72dvh);
   }
 }
 

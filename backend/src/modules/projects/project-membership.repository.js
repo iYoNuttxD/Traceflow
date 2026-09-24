@@ -1,6 +1,8 @@
 import { prisma } from '../../database/prismaClient.js';
 import { serializableTransaction } from '../../database/serializable-transaction.js';
 import { auditRepository } from '../audit/audit.repository.js';
+import { lockProjectMembership } from './project-lifecycle-lock.js';
+import { lockActiveProject } from './active-project-write.js';
 
 const memberSelect = {
   id: true,
@@ -27,8 +29,10 @@ export const projectMembershipRepository = {
   },
   async updateRoleSafely(projectId, id, role, auditData) {
     return serializableTransaction(async (tx) => {
+      await lockActiveProject(tx, projectId);
       const current = await tx.projectMembership.findFirst({ where: { id, projectId } });
       if (!current) return null;
+      await lockProjectMembership(tx, projectId, current.userId);
       if (current.isActive && current.role === 'OWNER' && role !== 'OWNER') {
         const owners = await tx.projectMembership.count({
           where: { projectId, role: 'OWNER', isActive: true }
@@ -50,8 +54,10 @@ export const projectMembershipRepository = {
   },
   async setActiveSafely(projectId, id, isActive, auditData) {
     return serializableTransaction(async (tx) => {
+      await lockActiveProject(tx, projectId);
       const current = await tx.projectMembership.findFirst({ where: { id, projectId } });
       if (!current) return null;
+      await lockProjectMembership(tx, projectId, current.userId);
       if (!isActive && current.isActive && current.role === 'OWNER') {
         const owners = await tx.projectMembership.count({
           where: { projectId, role: 'OWNER', isActive: true }
@@ -75,6 +81,8 @@ export const projectMembershipRepository = {
   },
   async transferOwnership(projectId, requesterId, targetId, auditData) {
     return serializableTransaction(async (tx) => {
+      await lockActiveProject(tx, projectId);
+      await lockProjectMembership(tx, projectId, requesterId);
       const requester = await tx.projectMembership.findFirst({
         where: { projectId, userId: requesterId, isActive: true, role: 'OWNER' }
       });
@@ -83,6 +91,7 @@ export const projectMembershipRepository = {
         select: memberSelect
       });
       if (!requester || !target) return null;
+      await lockProjectMembership(tx, projectId, target.userId);
       const updated = await tx.projectMembership.update({
         where: { id: target.id },
         data: { role: 'OWNER' },

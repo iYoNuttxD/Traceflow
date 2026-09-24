@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfirmProvider } from '../../src/shared/index.js';
@@ -55,6 +55,45 @@ const response = (overrides = {}) => ({
   pagination: { page: 1, limit: 20, total: 0, totalPages: 0 },
   ...overrides
 });
+
+function historyEntry(id, overrides = {}) {
+  return {
+    id,
+    sessionId: id,
+    eventType: 'CREATED',
+    source: 'MANUAL',
+    actor: { id, name: `Pessoa ${id}` },
+    occurredAt: `2026-09-18T13:${String(id % 60).padStart(2, '0')}:00.000Z`,
+    newSeconds: id,
+    canEdit: false,
+    canDelete: false,
+    ...overrides
+  };
+}
+
+function historyPage(total, page, itemOverrides = {}) {
+  const start = (page - 1) * 50;
+  const count = Math.max(0, Math.min(50, total - start));
+  return {
+    items: Array.from({ length: count }, (_, index) =>
+      historyEntry(start + index + 1, itemOverrides)
+    ),
+    pagination: {
+      page,
+      limit: 50,
+      total,
+      totalPages: total ? Math.ceil(total / 50) : 0
+    }
+  };
+}
+
+function deferred() {
+  let resolve;
+  const promise = new Promise((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
 
 // O mesmo endpoint alimenta o rastreador (sem `page`) e o diálogo (com `page`).
 function mockEntries(trackerResponse, dialogResponse = trackerResponse) {
@@ -279,7 +318,7 @@ describe('TaskEffortTracker', () => {
       response({
         entries: [manual, closedEntry()],
         effort: effort({ completedSeconds: 3 * HOUR + 15 * 60, completedCount: 2 }),
-        pagination: { page: 1, limit: 10, total: 2, totalPages: 1 }
+        pagination: { page: 1, limit: 50, total: 2, totalPages: 1 }
       })
     );
     apiMocks.deleteTaskTimeEntry.mockResolvedValue({
@@ -293,7 +332,7 @@ describe('TaskEffortTracker', () => {
     await waitFor(() =>
       expect(apiMocks.getTaskEffortHistory).toHaveBeenCalledWith(
         42,
-        { page: 1, limit: 10 },
+        { page: 1, limit: 50 },
         expect.objectContaining({ signal: expect.any(AbortSignal) })
       )
     );
@@ -302,10 +341,12 @@ describe('TaskEffortTracker', () => {
     expect(within(list).getByText(/Ana Ribeiro/)).toBeInTheDocument();
     expect(within(list).getByText('manual')).toBeInTheDocument();
     expect(within(list).getByText('cronômetro')).toBeInTheDocument();
-    expect(within(list).getByText('1h45min')).toBeInTheDocument();
-    expect(within(list).getByText('1h30min')).toBeInTheDocument();
-    // Duas sessões não passam do tamanho da página: sem paginação.
-    expect(within(dialog).queryByRole('navigation')).toBeNull();
+    expect(within(list).getByText('1h 45min')).toBeInTheDocument();
+    expect(within(list).getByText('1h 30min')).toBeInTheDocument();
+    const pagination = within(dialog).getByRole('navigation', { name: 'Paginação das sessões' });
+    expect(within(pagination).getByText('Página 1 de 1')).toBeInTheDocument();
+    expect(within(pagination).getByRole('button', { name: 'Anterior' })).toBeDisabled();
+    expect(within(pagination).getByRole('button', { name: 'Próxima' })).toBeDisabled();
 
     const deleteButtons = within(list).getAllByRole('button', { name: /^Excluir sessão/ });
     await user.click(deleteButtons[1]);
@@ -331,13 +372,183 @@ describe('TaskEffortTracker', () => {
     expect(screen.getByText('1 sessão registrada')).toBeInTheDocument();
   });
 
+  it('mantém dez registros em uma lista rolável, preserva segundos e omite o intervalo redundante', async () => {
+    const user = userEvent.setup();
+    mockEntries(response());
+    const durations = [5, 31, 75, 60, 61, 3599, 3600, 3661, 7200, 12];
+    apiMocks.getTaskEffortHistory.mockResolvedValue({
+      items: durations.map((durationSeconds, index) => ({
+        id: index + 1,
+        sessionId: index + 1,
+        eventType: 'CREATED',
+        source: 'TIMER',
+        actor: { id: index + 1, name: `Pessoa ${index + 1}` },
+        occurredAt: `2026-09-18T13:${String(index).padStart(2, '0')}:40.000Z`,
+        snapshotStartedAt: `2026-09-18T13:${String(index).padStart(2, '0')}:00.000Z`,
+        snapshotEndedAt: `2026-09-18T13:${String(index).padStart(2, '0')}:40.000Z`,
+        newSeconds: durationSeconds,
+        canEdit: false,
+        canDelete: false
+      })),
+      pagination: { page: 1, limit: 50, total: 10, totalPages: 1 }
+    });
+
+    renderTracker();
+    const dialog = await openSessions(user);
+    const list = await within(dialog).findByRole('list', { name: 'Sessões registradas' });
+    expect(list).toHaveAttribute('tabindex', '0');
+    expect(within(list).getAllByRole('listitem')).toHaveLength(10);
+    expect(within(list).getByText(/Pessoa 1$/)).toBeInTheDocument();
+    expect(within(list).getByText(/Pessoa 10$/)).toBeInTheDocument();
+    expect(within(list).getByText('5s')).toBeInTheDocument();
+    expect(within(list).getByText('31s')).toBeInTheDocument();
+    expect(within(list).getByText('1min 15s')).toBeInTheDocument();
+    expect(within(list).queryByText(/→/)).toBeNull();
+    expect(within(dialog).getByRole('button', { name: 'Mostrar filtros' })).toBeInTheDocument();
+  });
+
+  it.each([11, 50, 51, 100, 101, 1000])(
+    'carrega somente a primeira página de 50 para um histórico com %i registros',
+    async (total) => {
+      const user = userEvent.setup();
+      mockEntries(response());
+      apiMocks.getTaskEffortHistory.mockResolvedValue(historyPage(total, 1));
+
+      renderTracker();
+      const dialog = await openSessions(user);
+      const list = await within(dialog).findByRole('list', { name: 'Sessões registradas' });
+      expect(within(list).getAllByRole('listitem')).toHaveLength(Math.min(total, 50));
+      expect(apiMocks.getTaskEffortHistory).toHaveBeenCalledTimes(1);
+      expect(apiMocks.getTaskEffortHistory).toHaveBeenCalledWith(
+        42,
+        { page: 1, limit: 50 },
+        expect.objectContaining({ signal: expect.any(AbortSignal) })
+      );
+
+      const pagination = within(dialog).getByRole('navigation', {
+        name: 'Paginação das sessões'
+      });
+      expect(within(pagination).getByText(`Página 1 de ${Math.ceil(total / 50)}`)).toBeVisible();
+      expect(within(pagination).getByRole('button', { name: 'Anterior' })).toBeDisabled();
+      expect(within(pagination).getByRole('button', { name: 'Próxima' })).toHaveProperty(
+        'disabled',
+        total <= 50
+      );
+    }
+  );
+
+  it('navega por 101 registros sem pré-carregar páginas e reinicia o scroll no topo', async () => {
+    const user = userEvent.setup();
+    mockEntries(response());
+    apiMocks.getTaskEffortHistory.mockImplementation((_taskId, params) =>
+      Promise.resolve(historyPage(101, params.page))
+    );
+
+    renderTracker();
+    const dialog = await openSessions(user);
+    let list = await within(dialog).findByRole('list', { name: 'Sessões registradas' });
+    expect(within(list).getAllByRole('listitem')).toHaveLength(50);
+    list.scrollTop = 200;
+
+    await user.click(within(dialog).getByRole('button', { name: 'Próxima' }));
+    expect(await within(dialog).findByText('Página 2 de 3')).toBeVisible();
+    list = within(dialog).getByRole('list', { name: 'Sessões registradas' });
+    expect(within(list).getAllByRole('listitem')).toHaveLength(50);
+    expect(list.scrollTop).toBe(0);
+    expect(within(dialog).getByRole('button', { name: 'Anterior' })).toBeEnabled();
+    expect(within(dialog).getByRole('button', { name: 'Próxima' })).toBeEnabled();
+    expect(apiMocks.getTaskEffortHistory).toHaveBeenCalledTimes(2);
+
+    await user.click(within(dialog).getByRole('button', { name: 'Próxima' }));
+    expect(await within(dialog).findByText('Página 3 de 3')).toBeVisible();
+    list = within(dialog).getByRole('list', { name: 'Sessões registradas' });
+    expect(within(list).getAllByRole('listitem')).toHaveLength(1);
+    expect(within(dialog).getByRole('button', { name: 'Anterior' })).toBeEnabled();
+    expect(within(dialog).getByRole('button', { name: 'Próxima' })).toBeDisabled();
+    expect(apiMocks.getTaskEffortHistory).toHaveBeenCalledTimes(3);
+
+    await user.click(within(dialog).getByRole('button', { name: 'Mostrar filtros' }));
+    await user.selectOptions(within(dialog).getByLabelText('Origem'), 'MANUAL');
+    await user.click(within(dialog).getByRole('button', { name: 'Filtrar' }));
+    expect(await within(dialog).findByText('Página 1 de 3')).toBeVisible();
+    expect(apiMocks.getTaskEffortHistory).toHaveBeenLastCalledWith(
+      42,
+      { page: 1, limit: 50, source: 'MANUAL' },
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    );
+  });
+
+  it('mantém o filtro atual como autoridade quando uma página antiga responde depois', async () => {
+    const user = userEvent.setup();
+    const stalePage = deferred();
+    const currentFilter = deferred();
+    let staleSignal;
+    mockEntries(response());
+    apiMocks.getTaskEffortHistory.mockImplementation((_taskId, params, options) => {
+      if (params.page === 2) {
+        staleSignal = options.signal;
+        return stalePage.promise;
+      }
+      if (params.source === 'MANUAL') return currentFilter.promise;
+      return Promise.resolve(historyPage(51, 1));
+    });
+
+    renderTracker();
+    const dialog = await openSessions(user);
+    await within(dialog).findByText('Página 1 de 2');
+    await user.click(within(dialog).getByRole('button', { name: 'Mostrar filtros' }));
+    await user.selectOptions(within(dialog).getByLabelText('Origem'), 'MANUAL');
+    await user.click(within(dialog).getByRole('button', { name: 'Próxima' }));
+    expect(await within(dialog).findByRole('status')).toHaveTextContent('Carregando sessões');
+    await user.click(within(dialog).getByRole('button', { name: 'Filtrar' }));
+    expect(staleSignal).toBeInstanceOf(AbortSignal);
+    expect(staleSignal.aborted).toBe(true);
+
+    await act(async () => {
+      currentFilter.resolve(
+        historyPage(1, 1, { actor: { id: 500, name: 'Resultado atual' }, source: 'MANUAL' })
+      );
+    });
+    expect(await within(dialog).findByText(/Resultado atual$/)).toBeVisible();
+
+    await act(async () => {
+      stalePage.resolve(
+        historyPage(51, 2, { actor: { id: 600, name: 'Resultado antigo' }, source: 'TIMER' })
+      );
+    });
+    expect(within(dialog).queryByText(/Resultado antigo$/)).toBeNull();
+    expect(within(dialog).getByText('Página 1 de 1')).toBeVisible();
+  });
+
+  it('cancela a leitura pendente ao fechar o diálogo', async () => {
+    const user = userEvent.setup();
+    const pending = deferred();
+    let pendingSignal;
+    mockEntries(response());
+    apiMocks.getTaskEffortHistory.mockImplementation((_taskId, _params, options) => {
+      pendingSignal = options.signal;
+      return pending.promise;
+    });
+
+    renderTracker();
+    const dialog = await openSessions(user);
+    await waitFor(() => expect(pendingSignal).toBeInstanceOf(AbortSignal));
+    await user.click(within(dialog).getByRole('button', { name: /Fechar sessões/ }));
+    expect(pendingSignal.aborted).toBe(true);
+    expect(screen.queryByRole('dialog', { name: /Sessões — #42/ })).toBeNull();
+
+    await act(async () => {
+      pending.resolve(historyPage(0, 1));
+    });
+  });
+
   it('filtra o diálogo por período e origem no servidor', async () => {
     const user = userEvent.setup();
     mockEntries(
       response({ entries: [closedEntry()], effort: effort({ completedCount: 1 }) }),
       response({
         entries: [closedEntry()],
-        pagination: { page: 1, limit: 10, total: 1, totalPages: 1 }
+        pagination: { page: 1, limit: 50, total: 1, totalPages: 1 }
       })
     );
     renderTracker();
@@ -345,18 +556,31 @@ describe('TaskEffortTracker', () => {
     const dialog = await openSessions(user);
     await within(dialog).findByRole('list', { name: 'Sessões registradas' });
 
+    expect(within(dialog).queryByLabelText('Data inicial')).toBeNull();
+    await user.click(within(dialog).getByRole('button', { name: 'Mostrar filtros' }));
     await user.type(within(dialog).getByLabelText('Data inicial'), '2026-09-01');
     await user.type(within(dialog).getByLabelText('Data final'), '2026-09-05');
     await user.selectOptions(within(dialog).getByLabelText('Origem'), 'MANUAL');
+
+    await user.click(within(dialog).getByRole('button', { name: 'Ocultar filtros' }));
+    expect(within(dialog).queryByLabelText('Data inicial')).toBeNull();
+    await user.click(within(dialog).getByRole('button', { name: 'Mostrar filtros' }));
+    expect(within(dialog).getByLabelText('Data inicial')).toHaveValue('2026-09-01');
+    expect(within(dialog).getByLabelText('Data final')).toHaveValue('2026-09-05');
+    expect(within(dialog).getByLabelText('Origem')).toHaveValue('MANUAL');
+
     await user.click(within(dialog).getByRole('button', { name: 'Filtrar' }));
     await waitFor(() =>
       expect(apiMocks.getTaskEffortHistory).toHaveBeenLastCalledWith(
         42,
-        { page: 1, limit: 10, startDate: '2026-09-01', endDate: '2026-09-05', source: 'MANUAL' },
+        { page: 1, limit: 50, startDate: '2026-09-01', endDate: '2026-09-05', source: 'MANUAL' },
         expect.anything()
       )
     );
     expect(within(dialog).getByRole('button', { name: 'Limpar filtros' })).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole('button', { name: 'Ocultar filtros · 3 ativos' })
+    ).toHaveAttribute('aria-expanded', 'true');
   });
 
   it('VIEWER não vê controles de operação, mas consulta o histórico sem excluir', async () => {
@@ -365,7 +589,7 @@ describe('TaskEffortTracker', () => {
       entries: [closedEntry({ canDelete: false, endedBy: ana })],
       effort: effort({ completedSeconds: HOUR, completedCount: 1 }),
       permissions: { canOperate: false, canModerate: false },
-      pagination: { page: 1, limit: 10, total: 1, totalPages: 1 }
+      pagination: { page: 1, limit: 50, total: 1, totalPages: 1 }
     });
     mockEntries(viewerResponse, viewerResponse);
     renderTracker();
@@ -375,7 +599,7 @@ describe('TaskEffortTracker', () => {
 
     const dialog = await openSessions(user);
     const list = await within(dialog).findByRole('list', { name: 'Sessões registradas' });
-    expect(within(list).getByText('1h45min')).toBeInTheDocument();
+    expect(within(list).getByText('1h 45min')).toBeInTheDocument();
     // Mesma pessoa iniciou e parou: sem o sufixo "parado por".
     expect(within(list).getByText(/Ana Ribeiro$/)).toBeInTheDocument();
     expect(within(list).queryByRole('button', { name: /^Excluir sessão/ })).toBeNull();
@@ -444,12 +668,13 @@ describe('TaskEffortTracker', () => {
     expect(within(dialog).queryByRole('button', { name: 'Sessões atuais' })).toBeNull();
     expect(within(dialog).getByText('Entrada de 4h')).toBeVisible();
     expect(within(dialog).getAllByRole('button', { name: /^Excluir sessão/ })).toHaveLength(1);
+    await user.click(within(dialog).getByRole('button', { name: 'Mostrar filtros' }));
     await user.selectOptions(within(dialog).getByLabelText('Evento'), 'DELETED');
     await user.click(within(dialog).getByRole('button', { name: 'Filtrar' }));
     await waitFor(() =>
       expect(apiMocks.getTaskEffortHistory).toHaveBeenLastCalledWith(
         42,
-        { page: 1, limit: 10, eventType: 'DELETED' },
+        { page: 1, limit: 50, eventType: 'DELETED' },
         expect.anything()
       )
     );
@@ -495,13 +720,14 @@ describe('TaskEffortTracker', () => {
     expect(within(dialog).getByText('Snapshot')).toBeVisible();
     expect(within(dialog).getByText('4h')).toBeVisible();
     expect(within(dialog).queryByText('Registrado', { selector: 'span' })).toBeNull();
+    await user.click(within(dialog).getByRole('button', { name: 'Mostrar filtros' }));
     await user.selectOptions(within(dialog).getByLabelText('Origem'), 'MANUAL');
     await user.selectOptions(within(dialog).getByLabelText('Evento'), 'UPDATED');
     await user.click(within(dialog).getByRole('button', { name: 'Filtrar' }));
     await waitFor(() =>
       expect(apiMocks.getTaskEffortHistory).toHaveBeenLastCalledWith(
         42,
-        { page: 1, limit: 10, source: 'MANUAL', eventType: 'UPDATED' },
+        { page: 1, limit: 50, source: 'MANUAL', eventType: 'UPDATED' },
         expect.anything()
       )
     );

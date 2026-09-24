@@ -2,10 +2,12 @@
 import { projectCrudService } from './services/project-crud.service.js';
 import { projectGithubService } from './services/project-github.service.js';
 import { projectAccessCodeService } from './services/project-access-code.service.js';
+import { projectDeletionService } from './services/project-deletion.service.js';
 
 // API pública interna do módulo: agrega os casos de uso consumidos pelo controller.
 export const projectService = {
   ...projectCrudService,
   ...projectAccessCodeService,
-  ...projectGithubService
+  ...projectGithubService,
+  ...projectDeletionService
 };

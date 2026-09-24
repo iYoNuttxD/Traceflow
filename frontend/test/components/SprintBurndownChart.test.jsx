@@ -17,6 +17,24 @@ describe('SprintBurndownChart', () => {
     expect(screen.queryByRole('img')).not.toBeInTheDocument();
   });
 
+  it('representa a sprint iniciada no último dia por pontos, sem coordenadas inválidas', () => {
+    const { container } = render(
+      <SprintBurndownChart
+        burndown={{
+          hasData: true,
+          totalPoints: 5,
+          frozen: true,
+          cutoffDate: '2026-09-15',
+          days: [{ date: '2026-09-15', ideal: 5, remaining: 5 }]
+        }}
+      />
+    );
+    expect(screen.getByRole('img')).toHaveAccessibleName(/Sprint encerrada com 5 de 5/);
+    expect(screen.getByText('15/09')).toBeInTheDocument();
+    expect(container.querySelectorAll('svg circle')).toHaveLength(2);
+    expect(container.querySelector('svg').outerHTML).not.toMatch(/NaN|Infinity/);
+  });
+
   it('o svg é uma imagem nomeada pela nota do dia', () => {
     render(
       <SprintBurndownChart

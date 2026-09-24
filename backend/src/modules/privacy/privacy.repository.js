@@ -69,11 +69,11 @@ export const privacyRepository = {
         await auditRepository.create(startedAuditData, tx);
         const owned = await tx.projectMembership.findMany({
           where: { userId: request.userId, role: 'OWNER', isActive: true },
-          select: { projectId: true, project: { select: { status: true } } }
+          select: { projectId: true, project: { select: { deletedAt: true } } }
         });
         for (const membership of owned) {
           if (
-            membership.project.status !== 'EXCLUIDO' &&
+            membership.project.deletedAt === null &&
             (await tx.projectMembership.count({
               where: { projectId: membership.projectId, role: 'OWNER', isActive: true }
             })) <= 1

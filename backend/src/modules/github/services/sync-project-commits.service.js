@@ -25,6 +25,7 @@ async function persistPage({ commits, branch, knownCommits, projectId }) {
 
   const persistedPage = uniquePageCommits.map(({ hash }) => knownCommits.get(hash)).filter(Boolean);
   const links = await commitRepository.createBranchLinks(
+    projectId,
     persistedPage.map((commit) => ({ commitId: commit.id, branchId: branch.id }))
   );
 
@@ -44,7 +45,8 @@ export async function syncProjectCommits({
   repository,
   branches,
   githubClient,
-  onProgress = noProgress
+  onProgress = noProgress,
+  assertActive = noProgress
 }) {
   const uniqueHashes = new Set();
   const knownCommits = new Map();
@@ -75,6 +77,7 @@ export async function syncProjectCommits({
       unchanged
     });
     await onProgress({ currentBranch: branch.name });
+    await assertActive();
 
     if (unchanged) {
       const persistedCommits = await commitRepository.findByBranchId(branch.id);
@@ -110,6 +113,7 @@ export async function syncProjectCommits({
         repo: repository.name,
         branch: branch.name
       })) {
+        await assertActive();
         const commits = page.map(({ branch: _legacyBranch, ...commit }) => ({
           ...commit,
           projectId: project.id
@@ -137,7 +141,8 @@ export async function syncProjectCommits({
         });
       }
 
-      await githubBranchRepository.markSuccessfullySynced(branch.id, branch.headSha);
+      await assertActive();
+      await githubBranchRepository.markSuccessfullySynced(project.id, branch.id, branch.headSha);
       processedBranches += 1;
       await onProgress({ processedBranches, currentBranch: null });
       logger.info('Sincronização de commits da branch concluída.', {

@@ -1,5 +1,115 @@
 # TRACEFLOW Visual Validation Log
 
+## 2026-09-23 — PR #21 targeted corrections (inspeção parcial)
+
+Chrome real autenticado em `localhost:5173`, projeto local 2, sem mutation de negócio.
+Tarefas, Requisitos e Sprints carregadas foram medidas em Light/Dark ×
+1440/1280/768/390 px: nas 24 células, o título ficou acima da navegação e não houve
+overflow horizontal da página. Capturas de cards, Task Create/Edit, Requisitos/Details,
+Sprint Evolution/burndown e SprintDialog foram inspecionadas em recortes representativos
+de desktop, tablet e mobile nos dois temas. O formulário Task mediu 928/928/736/390 px
+de largura nas quatro larguras de viewport em ambos os temas, com scroll interno.
+
+REQ-8 exibiu `Planejado` no card e no Details. O diálogo `Criar sprint` manteve a
+mesma geometria e estilos em 1440 px Light antes/depois de visitar Requisitos por
+navegação SPA; em 390 px não houve overflow da página. No Kanban, ArrowDown mudou o
+foco entre opções de `Mover tarefa`, Escape devolveu foco ao trigger e Tab fechou o
+menu avançando ao controle seguinte. O burndown congelado foi visto em desktop Light
+e mobile Dark com scroll interno.
+
+Esta é evidência **parcial**: não foram capturados todos os estados em todas as oito
+células. O banco local tinha dois projetos ativos e nenhum pendente; recovery e
+start-over não foram acionados porque isso exigiria exclusão real. A fixture visual
+de 22/09 cobre esses estados sinteticamente, não a sessão autenticada desta rodada.
+Nenhuma surface do diff PR #21 foi promovida a `VISUALLY APPROVED` com esta evidência.
+
+## 2026-09-22 — Project deletion targeted corrections (local fixture)
+
+Chrome local em `127.0.0.1:5179`, com API artificial em memória; nenhum projeto persistido ou
+repositório real foi excluído. Zona de perigo, diálogo de exclusão recuperável, cartão de recuperação,
+conflito de repositório reservado e confirmação de exclusão definitiva foram inspecionados em Light
+e Dark a 1440, 1280, 1024, 768 e 390px. Em cada recorte, o conteúdo esteve presente e não houve
+overflow horizontal da página. Os dois campos de confirmação mediram 45px no navegador, com
+background, borda, raio, padding e focus ring da primitive `field` C2. O diálogo mobile manteve
+ações legíveis e scroll interno. Escape fechou o diálogo e devolveu o foco ao botão acionador;
+Tab permaneceu dentro do diálogo. Os targets principais mediram ao menos 44px.
+
+Na fixture, purge confirmado seguido de falha 503 na criação mostrou sucesso parcial, retirou
+Recuperar e a marcação de repositório programado para exclusão, e ofereceu retry somente da criação.
+A execução foi visual/funcional local com dados sintéticos; não constitui homologação de produção,
+teste cross-browser ou aprovação integral de acessibilidade. O inventário mantém as surfaces como
+`TECHNICALLY VERIFIED`, não `VISUALLY APPROVED`.
+
+## 2026-09-20 — Repository C2 navigation alignment
+
+Chrome real autenticado em `localhost:5173`, projeto local 2. O header, a navegação do projeto e o
+conteúdo foram reinspecionados em Light/Dark a 1440×1000, 1280×1000, 768×1000 e 390×844. Em todos
+os recortes, `ProjectSectionNav` apareceu como irmã imediata abaixo do header, alinhada ao mesmo eixo
+do Resumo, com 24px entre header/navegação e navegação/conteúdo. A aba Repositório permaneceu ativa.
+
+Não houve overflow horizontal da página nem overflow vertical da navegação. O overflow horizontal
+ficou restrito à própria navegação em 1280/768/390 e à tabela nessas mesmas larguras. Os 408
+artefatos, Resumo, filtros recolhíveis e ações externas permaneceram renderizados sem regressão.
+
+## 2026-09-20 — Repository C2 facelift
+
+Chrome real autenticado em `localhost:5173`, projeto local 2. A página de Repositório foi
+reinspecionada em Light/Dark a 1440×1000, 1280×1000, 768×1000 e 390×844, com dados
+persistidos existentes: 4 branches, 388 commits, 20 pull requests, 0 issues, 100% de
+completude e 408 artefatos. Header, navegação do projeto, resumo único, filtros recolhidos e
+expandidos, tabela real, títulos em duas linhas, metadados e ação canônica Abrir no GitHub
+permaneceram legíveis. Não houve overflow horizontal da página; quando necessário, somente a
+navegação e o contêiner da tabela apresentaram rolagem horizontal interna.
+
+No ajuste final, Tipo e Branch passaram a usar `SelectControl`, com 44px, chevron e tokens
+canônicos nos oito recortes. A aplicação automática foi observada com Pull Request e `gt-dev`;
+o contador representou somente a resposta confirmada, “Limpar filtros” apareceu apenas com filtro
+ativo e restaurou os 408 artefatos. A ação externa permaneceu compacta, mas agora apresentou borda,
+surface, raio e foco efetivos; a matriz continuou sem overflow horizontal da página.
+
+Foram operados filtros de tipo, branch e período; a combinação Pull Request + `main` +
+01/06/2026–20/09/2026 preservou 20 resultados. Issue + branch exibiu o aviso contratual e
+produziu o vazio filtrado distinto, seguido de limpeza para os 408 itens. A rota de projeto
+inexistente permitiu observar loading, erro contextual e `Tentar novamente`; o retry reemitiu
+a consulta. O vazio de repositório, validação de datas, cooldown, aborto e latest-wins foram
+verificados por automação direcionada. Nenhuma sincronização, edição ou outra mutação de dados
+foi confirmada.
+
+Dívida de escala preservada e explicitada: o endpoint atual devolve todos os artefatos e a UI
+monta as 408 linhas em uma única resposta. Não existe paginação nesse contrato; este facelift
+não inventou endpoint, limite ou ordenação. A rodada é local e não equivale a CI remoto,
+cross-browser ou certificação integral de acessibilidade.
+
+## 2026-09-20 — Tasks final card action cleanup
+
+Chrome real autenticado em `localhost:5173`, projeto local 2. Os Task Cards foram
+reinspecionados em Light/Dark a 1440×900, 1280×900, 768×1024 e 390×844 após a
+remoção de `Ver detalhes`. Nas oito células, o rodapé exibiu somente o menu `...`
+alinhado à direita, sem espaço residual nem overflow horizontal da página.
+
+Em mobile Light, `Enter` no corpo do TASK-21 abriu o `TaskDetailsPanel` canônico;
+o fechamento por teclado devolveu foco visível ao mesmo card. O menu preservou as
+ações Editar tarefa e Excluir tarefa. VIEWER sem rodapé/menu foi coberto por teste
+direcionado. Nenhuma edição, exclusão ou outra mutação de dados foi confirmada.
+
+## 2026-09-20 — Tasks C2 facelift
+
+Chrome real autenticado em `localhost:5173`, projeto local 2. A página principal foi
+inspecionada em Light/Dark a 1440×900, 1280×900, 768×1024 e 390×844. O grid respondeu
+em 3/2/1 colunas, sem overflow horizontal da página em nenhuma célula. Resumo, filtros
+recolhidos e expandidos, tile Nova tarefa, cards com diferentes status/Sprints/prazos e
+esforços foram observados com dados persistidos existentes.
+
+O dialog Nova tarefa foi inspecionado em Light desktop e Dark mobile, com scroll interno,
+header estável e agrupamentos Informações, Planejamento e Rastreabilidade. TASK-21 abriu
+o `TaskDetailsPanel` canônico em Light desktop, preservando informações, esforço,
+rastreabilidade, qualidade e comentários. Nenhuma criação, edição, exclusão, mudança de
+status ou outra mutação de dados foi confirmada durante a inspeção.
+
+Busca/filtros, menus, VIEWER, retorno de foco, empty states e fluxos de submit foram
+verificados por automação direcionada. Esta evidência é local, não equivale a CI remoto,
+cross-browser, certificação WCAG integral ou homologação de estados raros de erro.
+
 ## 2026-09-10 — S1-09 Etapa 3: Requirement Cards e histórico
 
 Chrome real autenticado em `localhost:5173`, projeto local 2. Light/Dark ×
@@ -270,7 +380,6 @@ The following materially changed areas require a new rendered record before they
   filtros recolhíveis, quadro horizontal em containers estreitos, Task Details e histórico individual;
 - legacy Dark-compatible operational surfaces.
 
-
 ### S1-07 — frontend integrado (2026-09-07)
 
 **Status: TECHNICALLY VERIFIED; homologação visual completa pendente.** Checkout
@@ -341,7 +450,6 @@ Evidências e gates: [S1-07 FRONTEND FINAL UX FIX REPORT](../../deliveries/S1_07
 com 230 testes focados, 864 testes completos e cobertura aprovada. Capturas foram
 observadas durante a sessão; este registro não as apresenta como artefatos PNG versionados.
 
-
 ### S1-07 Addendum 3 — Traceability + Evidence Viewer
 
 - **Date:** 2026-09-08.
@@ -391,7 +499,6 @@ recebeu contexto de correção. Um Issue de melhoria do Chrome também apareceu 
 superfície canônica de tarefa; o painel Issues classificou a família como campos sem id/name (dois apontamentos),
 sem page errors/breaking changes. A atribuição individual permanece pendente.
 
-
 ## 2026-09-10 — S1-09 Etapa 4 · Expanded Traceability Graph
 
 **PASS LOCAL — inspeção renderizada.** Chrome 152.0.7977.84/macOS, sessão local autenticada.
@@ -399,17 +506,17 @@ Escopo: canvas de rastreabilidade, oito tipos reais, metadata, grupos, fit/pan e
 Details existentes. Overview, filtros, Requirement Cards e histórico da Etapa 3 preservados.
 Larguras verificadas no DOM, em Light e Dark: 1440, 1280, 768 e 390px.
 
-| Cenário | Light 1440 | Dark 1440 | Light 1280 | Dark 1280 | Light 768 | Dark 768 | Light 390 | Dark 390 |
-|---|---|---|---|---|---|---|---|---|
-| Requirement sem relações | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
-| Legacy Task / PR | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
-| TestCase PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
-| TestCase FAIL / detecção / Defect | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
-| Correction Task | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
-| Retest PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
-| Large grouped (fixture isolado) | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
-| Metadata expandida | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
-| Grupo expandido | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
+| Cenário                           | Light 1440 | Dark 1440 | Light 1280 | Dark 1280 | Light 768 | Dark 768 | Light 390 | Dark 390 |
+| --------------------------------- | ---------- | --------- | ---------- | --------- | --------- | -------- | --------- | -------- |
+| Requirement sem relações          | PASS       | PASS      | PASS       | PASS      | PASS      | PASS     | PASS      | PASS     |
+| Legacy Task / PR                  | PASS       | PASS      | PASS       | PASS      | PASS      | PASS     | PASS      | PASS     |
+| TestCase PASS                     | PASS       | PASS      | PASS       | PASS      | PASS      | PASS     | PASS      | PASS     |
+| TestCase FAIL / detecção / Defect | PASS       | PASS      | PASS       | PASS      | PASS      | PASS     | PASS      | PASS     |
+| Correction Task                   | PASS       | PASS      | PASS       | PASS      | PASS      | PASS     | PASS      | PASS     |
+| Retest PASS                       | PASS       | PASS      | PASS       | PASS      | PASS      | PASS     | PASS      | PASS     |
+| Large grouped (fixture isolado)   | PASS       | PASS      | PASS       | PASS      | PASS      | PASS     | PASS      | PASS     |
+| Metadata expandida                | PASS       | PASS      | PASS       | PASS      | PASS      | PASS     | PASS      | PASS     |
+| Grupo expandido                   | PASS       | PASS      | PASS       | PASS      | PASS      | PASS     | PASS      | PASS     |
 
 REQ-2: vazio. REQ-1: Task/PR/Commit. REQ-3: TestCases PASS/FAIL, detecção e Passo 1,
 Defects aberto/validado, Task de correção e retestes PASS/BLOCKED/FAIL. Os quatro Details reais
@@ -430,17 +537,16 @@ Teclado, foco visível, aria-expanded, resultados textuais e retorno dos Details
 não é certificação WCAG completa. Este registro não substitui QA integrado/CI remoto.
 Ver [relatório A–V](../../deliveries/S1_09_EXPANDED_TRACEABILITY_GRAPH_REPORT.md).
 
-
 ## 2026-09-11 — S1-09 Etapa 5 · Workspace final e targeted corrections
 
 **PASS LOCAL — inspeção renderizada no Chrome/macOS.** Sessão autenticada local no projeto 2; grafo grande obtido de fixture persistida em schema exclusivo de teste e exibido em preview temporário removido ao final.
 
 | Workspace / grafo grande / contexto / Inspector | Light | Dark |
-|---|---|---|
-| 1440×1000 | PASS | PASS |
-| 1280×900 | PASS | PASS |
-| 768×1024 | PASS | PASS |
-| 390×844 | PASS | PASS |
+| ----------------------------------------------- | ----- | ---- |
+| 1440×1000                                       | PASS  | PASS |
+| 1280×900                                        | PASS  | PASS |
+| 768×1024                                        | PASS  | PASS |
+| 390×844                                         | PASS  | PASS |
 
 Requirement Cards, TestCase/Defect overviews e Defect Cards foram comparados com a família Task/TestCase; a cobertura exata por superfície está na seção Q do [relatório final](../../deliveries/S1_09_TRACEABILITY_GRAPH_WORKSPACE_UX_REPORT.md), sem extrapolar a matriz do grafo para toda combinação de catálogo. Cards reais: REQ-4 25%/Em correção; REQ-3 75%/Com falha; REQ-2 Sem dados/Sem rastreabilidade. Summary: 4 total, 2 com defeito, 1 em desenvolvimento. Card aguardando reteste: fixture sintética calculada pela policy, Light/Dark em 390.
 
@@ -493,17 +599,17 @@ Navegação autenticada no Chrome local, projeto 2, sem mutações de dados dura
 a inspeção visual. Esta entrada substitui a aprovação anterior de duas visões
 de esforço; não revalida funcionalidades fora do recorte atual.
 
-| Superfície | Light 1440/1280/768/390 | Dark 1440/1280/768/390 |
-|---|---|---|
+| Superfície                                  | Light 1440/1280/768/390   | Dark 1440/1280/768/390    |
+| ------------------------------------------- | ------------------------- | ------------------------- |
 | Histórico único de esforço, filtros e ações | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
-| Kanban Overview, quatro cantos | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
-| Defect Card, quatro estados reais | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
-| Task Inspector | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
-| PR Inspector | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
-| TestCase Inspector | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
-| Execution Inspector | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
-| Defect Inspector | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
-| Task Details aberto pelo grafo | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
+| Kanban Overview, quatro cantos              | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
+| Defect Card, quatro estados reais           | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
+| Task Inspector                              | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
+| PR Inspector                                | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
+| TestCase Inspector                          | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
+| Execution Inspector                         | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
+| Defect Inspector                            | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
+| Task Details aberto pelo grafo              | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
 
 Task 16 mostra 4h/5h/80% no Inspector, no Details do grafo e no Details canônico.
 A lista real contém DELETED de 3h e a sessão antiga de 4h como Snapshot / Registro
@@ -534,3 +640,33 @@ limites no [relatório](../../deliveries/S1_09_TRACEABILITY_GRAPH_WORKSPACE_UX_R
 Capturas observadas nesta execução, sem pacote PNG versionado. Aba auxiliar
 fechada, viewport restaurado e tema Escuro preservado. Sem QA temporário dentro
 do produto. Não substitui CI remoto, dispositivo físico ou Final Integrated QA.
+
+## 2026-09-21 — Project deletion and 30-day recovery
+
+**PASS LOCAL — inspeção renderizada no Chrome/macOS.** Catálogo, seção de projetos
+excluídos recentemente, recuperação, Zona de perigo e confirmação digitada foram
+observados com frontend/API reais contra schema isolado de teste.
+
+| Superfície                          | Light 1440/1280/768/390   | Dark 1440/1280/768/390    |
+| ----------------------------------- | ------------------------- | ------------------------- |
+| `/projects` e recuperação           | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
+| Zona de perigo                      | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
+| Confirmação digitada                | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
+| Conflito GitHub de OWNER            | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
+| Conflito GitHub neutro de não OWNER | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
+| Confirmação de exclusão definitiva  | PASS / PASS / PASS / PASS | PASS / PASS / PASS / PASS |
+
+Nenhum recorte apresentou overflow horizontal da página. Em 390px, a surface
+principal mediu 358px; em 768px, 616px; em 1280/1440px, 928px. O diálogo permaneceu
+em 512px ou na largura disponível. Input recebeu foco inicial, nome divergente
+manteve a ação desabilitada, nome exato habilitou a ação, Tab/Shift+Tab fecharam o
+ciclo, Escape fechou somente o diálogo superior e devolveu foco ao trigger.
+
+A recuperação foi executada na aplicação real e observada no catálogo. Os dois
+projetos temporários foram removidos do schema de teste ao final por conferência
+exata de ID e nome. Os estados raros de conflito GitHub foram renderizados com os
+componentes reais e fixture HTTP efêmero, explicitamente sem persistência; portanto
+comprovam apresentação/responsividade, enquanto autorização e mutations são
+cobertas pela suíte API. Abas auxiliares e servidores temporários foram encerrados.
+Não substitui CI remoto, dispositivo físico ou certificação WCAG integral. Ver o
+[relatório de implementação](../../deliveries/PROJECT_DELETION_RETENTION_IMPLEMENTATION_REPORT.md).

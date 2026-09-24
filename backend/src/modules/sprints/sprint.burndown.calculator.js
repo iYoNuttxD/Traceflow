@@ -47,8 +47,16 @@ export function buildSprintBurndown({ sprint, participations = [], cutoff }) {
     days: []
   };
 
-  const days = enumerateDays(sprint.startDate, sprint.endDate);
-  if (days.length < 2) return vazio;
+  const startedAt = toInstant(sprint.startedAt);
+  const seriesStart = startedAt === null ? sprint.startDate : sprint.startedAt;
+  const operational = startedAt !== null || sprint.status !== 'PLANEJADA';
+  const days = enumerateDays(seriesStart, sprint.endDate);
+  // An execution started on/after the nominal end still has a real first day.
+  // Never backdate it to create a second chart point before startedAt.
+  if (startedAt !== null && days.length === 0 && toInstant(sprint.endDate) !== null) {
+    days.push(toUtcDay(startedAt));
+  }
+  if (days.length === 0 || (days.length < 2 && startedAt === null)) return vazio;
 
   const dentro = participations.filter((participation) => participation.removedAt === null);
   const totalPoints = dentro.reduce(
@@ -58,13 +66,15 @@ export function buildSprintBurndown({ sprint, participations = [], cutoff }) {
   if (totalPoints <= 0) return vazio;
 
   const frozen = TERMINAL.includes(sprint.status);
-  const corte = frozen
-    ? (toInstant(sprint.closedAt) ??
-      toInstant(sprint.completedAt) ??
-      toInstant(sprint.updatedAt) ??
-      toInstant(cutoff))
-    : toInstant(cutoff);
-  const diaDoCorte = toUtcDay(new Date(corte));
+  const corte = !operational
+    ? null
+    : frozen
+      ? (toInstant(sprint.closedAt) ??
+        toInstant(sprint.completedAt) ??
+        toInstant(sprint.updatedAt) ??
+        toInstant(cutoff))
+      : toInstant(cutoff);
+  const diaDoCorte = corte === null ? null : toUtcDay(corte);
 
   const queimas = dentro
     .map((participation) => ({
@@ -79,20 +89,21 @@ export function buildSprintBurndown({ sprint, participations = [], cutoff }) {
     totalPoints,
     frozen,
     cutoffDate:
-      diaDoCorte >= days[0] && diaDoCorte <= days[ultimo]
+      diaDoCorte !== null && diaDoCorte >= days[0] && diaDoCorte <= days[ultimo]
         ? iso(diaDoCorte)
-        : diaDoCorte > days[ultimo]
+        : diaDoCorte !== null && diaDoCorte > days[ultimo]
           ? iso(days[ultimo])
           : null,
     days: days.map((day, indice) => {
       const fimDoDia = day + MS_PER_DAY;
-      const medido = day <= diaDoCorte;
+      const medido = diaDoCorte !== null && day <= diaDoCorte;
       const queimado = medido
         ? queimas.reduce((soma, queima) => (queima.at < fimDoDia ? soma + queima.points : soma), 0)
         : 0;
       return {
         date: iso(day),
-        ideal: Math.round(totalPoints * (1 - indice / ultimo) * 10) / 10,
+        ideal:
+          ultimo === 0 ? totalPoints : Math.round(totalPoints * (1 - indice / ultimo) * 10) / 10,
         remaining: medido ? Math.max(0, totalPoints - queimado) : null
       };
     })

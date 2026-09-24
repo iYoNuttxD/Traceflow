@@ -1,6 +1,7 @@
 import { prisma } from '../../database/prismaClient.js';
 import { serializableTransaction } from '../../database/serializable-transaction.js';
 import { auditRepository } from '../audit/audit.repository.js';
+import { withActiveProjectWrite } from './active-project-write.js';
 
 const accessConfigurationSelect = {
   id: true,
@@ -16,15 +17,15 @@ const joinProjectSelect = {
 
 export const projectAccessCodeRepository = {
   findConfiguration(projectId) {
-    return prisma.project.findUnique({
-      where: { id: projectId },
+    return prisma.project.findFirst({
+      where: { id: projectId, deletedAt: null },
       select: accessConfigurationSelect
     });
   },
 
   findByCode(accessCode) {
-    return prisma.project.findUnique({
-      where: { accessCode },
+    return prisma.project.findFirst({
+      where: { accessCode, deletedAt: null },
       select: joinProjectSelect
     });
   },
@@ -37,28 +38,32 @@ export const projectAccessCodeRepository = {
   },
 
   regenerate(projectId, accessCode) {
-    return prisma.project.update({
-      where: { id: projectId },
-      data: { accessCode },
-      select: accessConfigurationSelect
-    });
+    return withActiveProjectWrite(projectId, (tx) =>
+      tx.project.update({
+        where: { id: projectId },
+        data: { accessCode },
+        select: accessConfigurationSelect
+      })
+    );
   },
 
   updateRole(projectId, accessCodeRole) {
-    return prisma.project.update({
-      where: { id: projectId },
-      data: { accessCodeRole },
-      select: accessConfigurationSelect
-    });
+    return withActiveProjectWrite(projectId, (tx) =>
+      tx.project.update({
+        where: { id: projectId },
+        data: { accessCodeRole },
+        select: accessConfigurationSelect
+      })
+    );
   },
 
   join(accessCode, userId, auditData) {
     return serializableTransaction(async (tx) => {
       const project = await tx.project.findUnique({
         where: { accessCode },
-        select: joinProjectSelect
+        select: { ...joinProjectSelect, deletedAt: true }
       });
-      if (!project) return { invalidCode: true };
+      if (!project || project.deletedAt) return { invalidCode: true };
 
       const existing = await tx.projectMembership.findUnique({
         where: { projectId_userId: { projectId: project.id, userId } }

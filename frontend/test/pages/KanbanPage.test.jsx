@@ -191,6 +191,127 @@ describe('KanbanPage E11', () => {
     expect(mocks.kanbanApi.moveTask.mock.calls[0][1]).not.toHaveProperty('projectMemberId');
   });
 
+  it('move a tarefa pelo menu de teclado e devolve foco para o card movido', async () => {
+    const user = userEvent.setup();
+    mocks.kanbanApi.moveTask.mockResolvedValue({
+      data: {
+        message: 'Tarefa movida com sucesso.',
+        task: { ...task, status: 'EM_ANDAMENTO' },
+        movement: { id: 1 }
+      }
+    });
+    mocks.kanbanApi.getBoard.mockResolvedValueOnce({ data: board }).mockResolvedValue({
+      data: {
+        columns: {
+          A_FAZER: [],
+          EM_ANDAMENTO: [{ ...task, status: 'EM_ANDAMENTO' }],
+          CONCLUIDO: []
+        },
+        totals: { A_FAZER: 0, EM_ANDAMENTO: 1, CONCLUIDO: 0, total: 1 }
+      }
+    });
+    renderPage();
+
+    const moveTrigger = await screen.findByRole('button', { name: 'Mover tarefa Tarefa E11' });
+    moveTrigger.focus();
+    await user.keyboard('{Enter}');
+    const moveMenu = screen.getByRole('menu', { name: 'Mover tarefa Tarefa E11' });
+    expect(moveMenu).toBeInTheDocument();
+    expect(moveTrigger).toHaveAttribute('aria-controls', moveMenu.id);
+    await waitFor(() =>
+      expect(screen.getByRole('menuitem', { name: 'Mover para Em Andamento' })).toHaveFocus()
+    );
+    expect(screen.getAllByRole('menuitem')).toEqual(
+      expect.arrayContaining([expect.objectContaining({ tabIndex: -1 })])
+    );
+    await user.keyboard('{End}{Enter}');
+
+    await waitFor(() =>
+      expect(mocks.kanbanApi.moveTask).toHaveBeenCalledWith(7, { toStatus: 'CONCLUIDO' })
+    );
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Mover tarefa Tarefa E11' })).toHaveFocus()
+    );
+  });
+
+  it('fecha o menu de movimento com Tab e avança ao próximo controle', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const trigger = await screen.findByRole('button', { name: 'Mover tarefa Tarefa E11' });
+    trigger.focus();
+    await user.keyboard('{ArrowDown}');
+    await waitFor(() => expect(screen.getAllByRole('menuitem')[0]).toHaveFocus());
+    await user.keyboard('{Tab}');
+    expect(screen.queryByRole('menu', { name: 'Mover tarefa Tarefa E11' })).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'Ver histórico da tarefa Tarefa E11' })
+    ).toHaveFocus();
+  });
+
+  it('não oferece movimento nem dispara mutation para VIEWER', async () => {
+    mocks.membersApi.list.mockResolvedValue({
+      currentMembership: { id: 3, role: 'VIEWER', isActive: true },
+      members: [{ id: 3, userId: 5, isActive: true, user: { id: 5, name: 'Responsável real' } }]
+    });
+    renderPage();
+    const card = await screen.findByRole('button', { name: 'Abrir detalhes de Tarefa E11' });
+    expect(card).toHaveAttribute('draggable', 'false');
+    expect(screen.queryByRole('button', { name: 'Mover tarefa Tarefa E11' })).toBeNull();
+    dragTaskTo('Em Andamento');
+    expect(mocks.kanbanApi.moveTask).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['A_FAZER', 'Em Andamento', 'EM_ANDAMENTO'],
+    ['EM_ANDAMENTO', 'Concluído', 'CONCLUIDO'],
+    ['CONCLUIDO', 'A Fazer', 'A_FAZER']
+  ])('move por teclado de %s para %s', async (fromStatus, targetLabel, toStatus) => {
+    const user = userEvent.setup();
+    const current = { ...task, status: fromStatus };
+    mocks.kanbanApi.getBoard.mockResolvedValue({
+      data: {
+        columns: {
+          A_FAZER: fromStatus === 'A_FAZER' ? [current] : [],
+          EM_ANDAMENTO: fromStatus === 'EM_ANDAMENTO' ? [current] : [],
+          CONCLUIDO: fromStatus === 'CONCLUIDO' ? [current] : []
+        },
+        totals: { A_FAZER: 0, EM_ANDAMENTO: 0, CONCLUIDO: 0, total: 1 }
+      }
+    });
+    mocks.kanbanApi.moveTask.mockResolvedValue({
+      data: { message: 'Tarefa movida com sucesso.', task: { ...current, status: toStatus } }
+    });
+    renderPage();
+    const trigger = await screen.findByRole('button', { name: 'Mover tarefa Tarefa E11' });
+    trigger.focus();
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(screen.getAllByRole('menuitem')[0]).toHaveFocus());
+    const item = screen.getByRole('menuitem', { name: `Mover para ${targetLabel}` });
+    item.focus();
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(mocks.kanbanApi.moveTask).toHaveBeenCalledWith(7, { toStatus }));
+  });
+
+  it('mantém status e foco no card quando o movimento por teclado falha', async () => {
+    const user = userEvent.setup();
+    mocks.kanbanApi.moveTask.mockRejectedValue({
+      response: { status: 500, data: { message: 'Falha ao mover.' } }
+    });
+    renderPage();
+    const trigger = await screen.findByRole('button', { name: 'Mover tarefa Tarefa E11' });
+    trigger.focus();
+    await user.keyboard('{Enter}');
+    const item = screen.getByRole('menuitem', { name: 'Mover para Em Andamento' });
+    item.focus();
+    await user.keyboard('{Enter}');
+
+    expect(await screen.findByText(/problema interno/)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'A Fazer' })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Mover tarefa Tarefa E11' })).toHaveFocus()
+    );
+  });
+
   it.each([
     ['EM_ANDAMENTO', 'Concluído', 'CONCLUIDO'],
     ['CONCLUIDO', 'A Fazer', 'A_FAZER']
@@ -589,6 +710,7 @@ describe('KanbanPage ADR-011', () => {
     expect(screen.getByText('Sprint congelada')).toBeInTheDocument();
     const cartao = screen.getByRole('button', { name: 'Abrir detalhes de Congelada' });
     expect(cartao).toHaveAttribute('draggable', 'false');
+    expect(screen.queryByRole('button', { name: 'Mover tarefa Congelada' })).toBeNull();
 
     await user.click(cartao);
     const dialogo = screen.getByRole('dialog', { name: /#9 Congelada/ });
@@ -663,7 +785,7 @@ describe('KanbanPage ADR-011', () => {
     const title = screen.getByRole('textbox', { name: 'Título da tarefa' });
     expect(title).toHaveFocus();
     expect(screen.queryByRole('button', { name: 'Editar rastreabilidade' })).toBeNull();
-    expect(screen.getByRole('searchbox', { name: 'Pesquisar requisito' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Pesquisar requisito' })).toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: 'Status' })).toBeNull();
     expect(screen.getByText('Altere o status diretamente no quadro.')).toBeInTheDocument();
     await user.clear(title);
@@ -700,8 +822,8 @@ describe('KanbanPage ADR-011', () => {
       screen.getByRole('textbox', { name: 'Título da tarefa' }),
       'Da sprint integrada'
     );
-    await user.type(screen.getByRole('searchbox', { name: 'Pesquisar requisito' }), 'RF');
-    await user.click(await screen.findByRole('button', { name: 'RF integrado' }));
+    await user.type(screen.getByRole('combobox', { name: 'Pesquisar requisito' }), 'RF');
+    await user.click(await screen.findByRole('option', { name: 'RF integrado' }));
     await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
 
     await waitFor(() =>
@@ -839,16 +961,16 @@ describe('KanbanPage ADR-011', () => {
     await user.click(screen.getByRole('button', { name: 'Editar tarefa' }));
 
     expect(screen.queryByRole('button', { name: 'Editar tarefa' })).toBeNull();
-    const requirementSearch = screen.getByRole('searchbox', { name: 'Pesquisar requisito' });
+    const requirementSearch = screen.getByRole('combobox', { name: 'Pesquisar requisito' });
     expect(screen.getByRole('textbox', { name: 'Título da tarefa' })).toHaveFocus();
     await user.type(requirementSearch, 'login');
-    await user.click(await screen.findByRole('button', { name: 'Login seguro' }));
-    await user.type(screen.getByRole('searchbox', { name: 'Pesquisar pull request' }), '17');
-    await user.click(await screen.findByRole('button', { name: '#17 — Implementar login' }));
-    await user.type(screen.getByRole('searchbox', { name: 'Pesquisar commits' }), 'abc');
-    await user.click(await screen.findByRole('button', { name: 'abc1234 — Implementa login' }));
-    await user.type(screen.getByRole('searchbox', { name: 'Pesquisar issues' }), '31');
-    await user.click(await screen.findByRole('button', { name: '#31 — Login pendente' }));
+    await user.click(await screen.findByRole('option', { name: 'Login seguro' }));
+    await user.type(screen.getByRole('combobox', { name: 'Pesquisar pull request' }), '17');
+    await user.click(await screen.findByRole('option', { name: '#17 — Implementar login' }));
+    await user.type(screen.getByRole('combobox', { name: 'Pesquisar commits' }), 'abc');
+    await user.click(await screen.findByRole('option', { name: 'abc1234 — Implementa login' }));
+    await user.type(screen.getByRole('combobox', { name: 'Pesquisar issues' }), '31');
+    await user.click(await screen.findByRole('option', { name: '#31 — Login pendente' }));
 
     await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
     await waitFor(() => expect(mocks.linkTaskRequirement).toHaveBeenCalledWith(8, 81));
@@ -942,12 +1064,12 @@ describe('KanbanPage ADR-011', () => {
     renderPage();
     await user.click(await screen.findByRole('button', { name: 'Abrir detalhes de Da sprint' }));
     await user.click(screen.getByRole('button', { name: 'Editar tarefa' }));
-    const search = screen.getByRole('searchbox', { name: 'Pesquisar requisito' });
+    const search = screen.getByRole('combobox', { name: 'Pesquisar requisito' });
     await user.type(search, 'lo');
     await waitFor(() => expect(mocks.requirementsApi.listByProject).toHaveBeenCalledTimes(1));
     await user.clear(search);
     await user.type(search, 'login');
-    expect(await screen.findByRole('button', { name: 'Login atual' })).toBeInTheDocument();
+    expect(await screen.findByRole('option', { name: 'Login atual' })).toBeInTheDocument();
 
     await act(async () => {
       oldRequest.resolve({ data: { requirements: [{ id: 101, title: 'Resultado antigo' }] } });
@@ -972,10 +1094,10 @@ describe('KanbanPage ADR-011', () => {
     renderPage();
     await user.click(await screen.findByRole('button', { name: 'Abrir detalhes de Da sprint' }));
     await user.click(screen.getByRole('button', { name: 'Editar tarefa' }));
-    await user.type(screen.getByRole('searchbox', { name: 'Pesquisar requisito' }), 'RF');
-    await user.click(await screen.findByRole('button', { name: 'RF confirmado' }));
-    await user.type(screen.getByRole('searchbox', { name: 'Pesquisar pull request' }), '44');
-    await user.click(await screen.findByRole('button', { name: '#44 — PR indisponível' }));
+    await user.type(screen.getByRole('combobox', { name: 'Pesquisar requisito' }), 'RF');
+    await user.click(await screen.findByRole('option', { name: 'RF confirmado' }));
+    await user.type(screen.getByRole('combobox', { name: 'Pesquisar pull request' }), '44');
+    await user.click(await screen.findByRole('option', { name: '#44 — PR indisponível' }));
     await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
 
     expect(
@@ -1001,8 +1123,8 @@ describe('KanbanPage ADR-011', () => {
     await user.click(await screen.findByRole('button', { name: 'Abrir detalhes de Da sprint' }));
     await user.click(screen.getByRole('button', { name: 'Editar tarefa' }));
     await user.type(screen.getByRole('textbox', { name: 'Título da tarefa' }), ' alterada');
-    await user.type(screen.getByRole('searchbox', { name: 'Pesquisar requisito' }), 'RF');
-    await user.click(await screen.findByRole('button', { name: 'RF persistido parcialmente' }));
+    await user.type(screen.getByRole('combobox', { name: 'Pesquisar requisito' }), 'RF');
+    await user.click(await screen.findByRole('option', { name: 'RF persistido parcialmente' }));
     await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
 
     expect(
@@ -1063,7 +1185,7 @@ describe('KanbanPage ADR-011', () => {
     renderPage();
     await user.click(await screen.findByRole('button', { name: 'Abrir detalhes de Da sprint' }));
     await user.click(screen.getByRole('button', { name: 'Editar tarefa' }));
-    await user.type(screen.getByRole('searchbox', { name: 'Pesquisar requisito' }), 'lo');
+    await user.type(screen.getByRole('combobox', { name: 'Pesquisar requisito' }), 'lo');
     await waitFor(() => expect(mocks.requirementsApi.listByProject).toHaveBeenCalledOnce());
     await user.click(screen.getByRole('button', { name: 'Fechar #8 da sprint' }));
     await user.click(screen.getByRole('button', { name: 'Abrir detalhes de Do backlog' }));
@@ -1097,8 +1219,8 @@ describe('KanbanPage ADR-011', () => {
     renderPage();
     await user.click(await screen.findByRole('button', { name: 'Abrir detalhes de Da sprint' }));
     await user.click(screen.getByRole('button', { name: 'Editar tarefa' }));
-    await user.type(screen.getByRole('searchbox', { name: 'Pesquisar requisito' }), 'RF');
-    await user.click(await screen.findByRole('button', { name: 'RF persistido' }));
+    await user.type(screen.getByRole('combobox', { name: 'Pesquisar requisito' }), 'RF');
+    await user.click(await screen.findByRole('option', { name: 'RF persistido' }));
     await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
 
     expect(await screen.findByText('Tarefa atualizada com sucesso.')).toBeInTheDocument();

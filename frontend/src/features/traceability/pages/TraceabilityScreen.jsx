@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useRef, useState } from 'react';
 import { useParams } from 'react-router';
 import { getRequirementTraceability } from '../api/traceability.api.js';
 import {
@@ -13,7 +13,6 @@ import {
 import { ProjectSectionNav } from '../../projects/index.js';
 import { SprintDialog } from '../../schedule/index.js';
 import { useTestCaseScope } from '../../testCases/index.js';
-import { TraceabilityWorkspace } from '../components/TraceabilityWorkspace.jsx';
 import {
   RequirementCard,
   RequirementFilters,
@@ -22,6 +21,12 @@ import {
 import { RequirementHistory } from '../components/RequirementHistory.jsx';
 import { useRequirementCatalog } from '../hooks/useRequirementCatalog.js';
 import './TraceabilityScreen.css';
+
+const TraceabilityWorkspace = lazy(() =>
+  import('../components/TraceabilityWorkspace.jsx').then((module) => ({
+    default: module.TraceabilityWorkspace
+  }))
+);
 
 export function TraceabilityScreen() {
   const { projectId } = useParams();
@@ -154,14 +159,29 @@ function ProjectTraceability({ projectId }) {
         </section>
       </div>
       {selected && (
-        <TraceabilityWorkspace
-          key={selected.id}
-          requirement={selected}
-          graph={graph}
-          onClose={closeWorkspace}
-          onRetry={() => loadGraph(selected)}
-          returnFocusRef={workspaceFocusRef}
-        />
+        <Suspense
+          fallback={
+            <SprintDialog
+              open
+              title={`Rastreabilidade — ${selected.displayId || `REQ-${selected.id}`}`}
+              description={selected.title}
+              className="trace-workspace"
+              onClose={closeWorkspace}
+              returnFocusRef={workspaceFocusRef}
+            >
+              <LoadingState message="Carregando visualização de rastreabilidade..." />
+            </SprintDialog>
+          }
+        >
+          <TraceabilityWorkspace
+            key={selected.id}
+            requirement={selected}
+            graph={graph}
+            onClose={closeWorkspace}
+            onRetry={() => loadGraph(selected)}
+            returnFocusRef={workspaceFocusRef}
+          />
+        </Suspense>
       )}
       <SprintDialog
         open={Boolean(history)}
