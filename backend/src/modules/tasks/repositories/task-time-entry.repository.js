@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../../database/prismaClient.js';
-import { lockProject } from '../../../database/locks.js';
+import { lockActiveProject } from '../../projects/active-project-write.js';
 import { auditRepository } from '../../audit/audit.repository.js';
 
 const actorSelect = { select: { id: true, name: true } };
@@ -32,7 +32,7 @@ const completedWhere = (taskId) => ({ taskId, endedAt: { not: null } });
 // a Task primeiro fechava o ciclo e derrubava o cronômetro com deadlock sempre que
 // uma transição de sprint corria junto.
 async function lockProjectThenTask(tx, projectId, taskId) {
-  if (projectId != null) await lockProject(tx, projectId);
+  if (projectId != null) await lockActiveProject(tx, projectId);
   const rows = await tx.$queryRaw`SELECT id FROM Task WHERE id = ${taskId} FOR UPDATE`;
   return rows.length > 0;
 }

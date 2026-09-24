@@ -38,6 +38,49 @@ describe('SearchCombobox', () => {
     expect(fireEvent.mouseDown(screen.getAllByRole('option')[0])).toBe(false);
   });
 
+  it('não pesquisa novamente só porque o parent recriou onSearch para a mesma consulta', async () => {
+    const search = vi.fn().mockResolvedValue(options);
+    const renderCombobox = () => (
+      <SearchCombobox
+        label="Requisito"
+        onSearch={(query, signal) => search(query, signal)}
+        onSelect={vi.fn()}
+        getOptionLabel={label}
+      />
+    );
+    const { rerender } = render(renderCombobox());
+    const input = screen.getByRole('combobox', { name: 'Requisito' });
+    fireEvent.change(input, { target: { value: 'ab' } });
+    await act(() => vi.advanceTimersByTimeAsync(300));
+    expect(search).toHaveBeenCalledTimes(1);
+
+    rerender(renderCombobox());
+    await act(() => vi.advanceTimersByTimeAsync(300));
+    expect(input).toHaveValue('ab');
+    expect(search).toHaveBeenCalledTimes(1);
+  });
+
+  it('pesquisa novamente quando o contexto muda com a mesma consulta', async () => {
+    const search = vi.fn().mockResolvedValue(options);
+    const renderCombobox = (searchContextKey) => (
+      <SearchCombobox
+        label="Requisito"
+        onSearch={(query, signal) => search(query, signal)}
+        searchContextKey={searchContextKey}
+        onSelect={vi.fn()}
+        getOptionLabel={label}
+      />
+    );
+    const { rerender } = render(renderCombobox(1));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Requisito' }), {
+      target: { value: 'ab' }
+    });
+    await act(() => vi.advanceTimersByTimeAsync(300));
+    rerender(renderCombobox(2));
+    await act(() => vi.advanceTimersByTimeAsync(300));
+    expect(search).toHaveBeenCalledTimes(2);
+  });
+
   it('seleciona o resultado ativo com teclado', async () => {
     const onSelect = vi.fn();
     render(

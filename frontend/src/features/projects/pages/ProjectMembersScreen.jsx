@@ -73,7 +73,7 @@ export function ProjectMembersScreen() {
   }, [loadProject]);
 
   const handleLeftProject = useCallback(() => {
-    void refreshProjects();
+    void refreshProjects({ fresh: true });
     navigate('/projects', { replace: true });
   }, [navigate, refreshProjects]);
 

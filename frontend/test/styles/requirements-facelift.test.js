@@ -3,6 +3,10 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const css = readFileSync(resolve('src/features/requirements/pages/RequirementsScreen.css'), 'utf8');
+const dialogCss = readFileSync(
+  resolve('src/features/schedule/components/SprintDialog.css'),
+  'utf8'
+);
 const source = readFileSync(
   resolve('src/features/requirements/pages/RequirementsScreen.jsx'),
   'utf8'
@@ -58,13 +62,19 @@ describe('Requirements facelift responsivo', () => {
   it('preserva alvos mínimos, foco visível e scroll interno dos dialogs', () => {
     expect(css).toContain('min-height: var(--size-touch-target)');
     expect(css).toContain('.requirement-catalog-card:focus-visible');
-    expect(css).toMatch(/\.sprint-dialog__body \{[\s\S]*?overflow-y: auto/);
+    expect(dialogCss).toMatch(/\.sprint-dialog__body \{[\s\S]*?overflow-y: auto/);
     expect(css).toMatch(
       /\.requirement-information-grid \{\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/
     );
     expect(css).toMatch(
       /@media \(max-width: 720px\)[\s\S]*?\.requirement-details-dialog \.sprint-dialog__header \{\s*flex-wrap: wrap;[\s\S]*?\.requirement-details-dialog \.sprint-dialog__controls \{\s*width: 100%;/
     );
+  });
+
+  it('mantém o layout-base do SprintDialog fora do CSS de Requirements', () => {
+    expect(css).not.toMatch(/(?:^|\n)\.sprint-dialog(?:-backdrop|__body)?\s*\{/);
+    expect(css).not.toMatch(/(?:^|\n)\.sprint-menu(?:-item)?\s*\{/);
+    expect(dialogCss).toContain('.sprint-dialog-backdrop {');
   });
 
   it('usa relation boxes canônicas em uma coluna para Tasks e 2/1 para Qualidade', () => {

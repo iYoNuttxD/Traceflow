@@ -2,6 +2,9 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { KANBAN_COLUMNS } from './kanban-display.js';
 
+const tabbableSelector =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 export function TaskMoveMenu({ task, disabled = false, onMove }) {
   const menuId = useId();
   const [position, setPosition] = useState(null);
@@ -38,11 +41,7 @@ export function TaskMoveMenu({ task, disabled = false, onMove }) {
     };
   }, [open]);
 
-  function toggle() {
-    if (open) {
-      setPosition(null);
-      return;
-    }
+  function openMenu(initialIndex = 0) {
     const rect = triggerRef.current.getBoundingClientRect();
     const estimatedHeight = targets.length * 44 + 8;
     const above = rect.bottom + estimatedHeight > window.innerHeight && rect.top > estimatedHeight;
@@ -50,10 +49,26 @@ export function TaskMoveMenu({ task, disabled = false, onMove }) {
       left: Math.max(8, Math.min(rect.left, window.innerWidth - 224)),
       top: above ? Math.max(8, rect.top - estimatedHeight - 4) : rect.bottom + 4
     });
-    window.requestAnimationFrame(() => itemRefs.current[0]?.focus());
+    window.requestAnimationFrame(() => itemRefs.current[initialIndex]?.focus());
+  }
+
+  function movePastMenu(event) {
+    event.preventDefault();
+    const tabbable = [...document.querySelectorAll(tabbableSelector)].filter(
+      (element) => element.tabIndex >= 0 && !element.closest('[hidden], [inert]')
+    );
+    const triggerIndex = tabbable.indexOf(triggerRef.current);
+    const offset = event.shiftKey ? -1 : 1;
+    const target = tabbable[(triggerIndex + offset + tabbable.length) % tabbable.length];
+    setPosition(null);
+    (target || triggerRef.current)?.focus();
   }
 
   function moveFocus(event) {
+    if (event.key === 'Tab') {
+      movePastMenu(event);
+      return;
+    }
     const items = itemRefs.current.filter(Boolean);
     if (!items.length) return;
     const current = items.indexOf(document.activeElement);
@@ -85,7 +100,12 @@ export function TaskMoveMenu({ task, disabled = false, onMove }) {
         aria-controls={open ? menuId : undefined}
         aria-label={`Mover tarefa ${task.title}`}
         title="Mover tarefa"
-        onClick={toggle}
+        onClick={() => (open ? setPosition(null) : openMenu())}
+        onKeyDown={(event) => {
+          if (open || !['ArrowDown', 'ArrowUp'].includes(event.key)) return;
+          event.preventDefault();
+          openMenu(event.key === 'ArrowUp' ? targets.length - 1 : 0);
+        }}
       >
         <span aria-hidden="true">↔</span>
       </button>
@@ -108,6 +128,7 @@ export function TaskMoveMenu({ task, disabled = false, onMove }) {
                 key={column.status}
                 type="button"
                 role="menuitem"
+                tabIndex={-1}
                 onClick={() => {
                   setPosition(null);
                   void Promise.resolve(onMove(task, column.status, triggerRef.current)).finally(

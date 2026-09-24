@@ -186,6 +186,25 @@ beforeEach(() => {
 });
 
 describe('Requirements facelift', () => {
+  it('mantém requisitos e status macro quando a projection falha', async () => {
+    const user = userEvent.setup();
+    mocks.requirementsApi.listByProject.mockResolvedValue({
+      data: { requirements: [{ ...requirements[0], status: 'CADASTRADO' }] }
+    });
+    mocks.getRequirementsTraceability.mockRejectedValue(new Error('projection indisponível'));
+    mocks.getRequirementTraceability.mockResolvedValue({ ...graph, summary: null });
+    renderPage();
+    const card = await screen.findByRole('article', { name: 'REQ-10 · Login seguro' });
+    expect(within(card).getByText('Planejado')).toBeInTheDocument();
+    expect(
+      screen.getByText(/informações de rastreabilidade não puderam ser carregadas/i)
+    ).toBeInTheDocument();
+    await user.click(card);
+    expect(screen.getByRole('dialog', { name: /REQ-10 · Login seguro/ })).toHaveTextContent(
+      'Planejado'
+    );
+  });
+
   it('organiza resumo, criação e cards com identidade própria de Requirement', async () => {
     renderPage();
     expect(

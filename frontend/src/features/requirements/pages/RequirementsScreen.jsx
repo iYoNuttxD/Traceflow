@@ -30,6 +30,7 @@ import {
 } from '../../../shared/index.js';
 import { ProjectSectionNav } from '../../projects/index.js';
 import { RequirementDetails } from '../components/RequirementDetails.jsx';
+import { macroStatus } from '../requirement-status.js';
 import '../../../shared/styles/traceability-controls.css';
 import './RequirementsScreen.css';
 
@@ -62,12 +63,6 @@ const statusLabels = {
 
 const errorMessage = (error, fallback) => normalizeApiError(error, fallback).message;
 const taskLabel = (task) => `${task.title} — ${statusLabels[task.status] || task.status}`;
-function macroStatus(value) {
-  if (['CADASTRADO', 'APROVADO', 'PENDENTE', 'A_FAZER'].includes(value)) return 'PLANEJADO';
-  if (value === 'EM_ANDAMENTO') return 'EM_IMPLEMENTACAO';
-  if (value === 'VALIDADO') return 'EM_VALIDACAO';
-  return value;
-}
 function toForm(requirement) {
   return {
     title: requirement.title || '',
@@ -309,6 +304,7 @@ export function RequirementsScreen() {
   const [membership, setMembership] = useState(null);
   const [loading, setLoading] = useState(true);
   const [pageError, setPageError] = useState(null);
+  const [projectionWarning, setProjectionWarning] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [filters, setFilters] = useState({ search: '', status: '', type: '' });
@@ -338,18 +334,28 @@ export function RequirementsScreen() {
     const token = scope.begin('page');
     setLoading(true);
     setPageError(null);
+    setProjectionWarning('');
     try {
-      const [projectResponse, requirementsResponse, coverage, projectionItems] = await Promise.all([
-        projectsApi.get(projectId, { signal: token.controller.signal }),
-        requirementsApi.listByProject(projectId, {}, { signal: token.controller.signal }),
-        getRequirementTaskCoverage(projectId, { signal: token.controller.signal }),
-        loadAllProjections(projectId, token.controller.signal)
-      ]);
+      const [[projectResponse, requirementsResponse, coverage], projectionResult] =
+        await Promise.all([
+          Promise.all([
+            projectsApi.get(projectId, { signal: token.controller.signal }),
+            requirementsApi.listByProject(projectId, {}, { signal: token.controller.signal }),
+            getRequirementTaskCoverage(projectId, { signal: token.controller.signal })
+          ]),
+          loadAllProjections(projectId, token.controller.signal).then(
+            (items) => ({ items }),
+            () => ({ failed: true })
+          )
+        ]);
       if (!scope.accepts('page', token)) return;
       setProject(projectResponse.data.project);
       setRequirements(requirementsResponse.data.requirements || []);
       setTaskCoverage(coverage);
-      setProjections(projectionItems);
+      setProjections(projectionResult.items || []);
+      if (projectionResult.failed) {
+        setProjectionWarning('Algumas informações de rastreabilidade não puderam ser carregadas.');
+      }
     } catch (requestError) {
       if (scope.accepts('page', token)) {
         setPageError(
@@ -589,7 +595,11 @@ export function RequirementsScreen() {
           </div>
           <ProjectSectionNav projectId={projectId} activeSection="requirements" />
         </header>
-        <FeedbackRegion error={error} success={success} />
+        <FeedbackRegion
+          error={formOpen ? undefined : error}
+          success={success}
+          warning={projectionWarning}
+        />
         <section className="requirements-overview" aria-labelledby="requirements-summary-title">
           <header>
             <div>

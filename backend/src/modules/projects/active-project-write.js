@@ -1,18 +1,25 @@
 import { prisma } from '../../database/prismaClient.js';
-import { lockProjectLifecycle } from './project-lifecycle-lock.js';
 import { ProjectServiceError } from './project.schema.js';
+
+export async function lockActiveProject(tx, projectId) {
+  // A locking read observes the current row even after an earlier RR snapshot.
+  const rows = await tx.$queryRaw`
+    SELECT id FROM Project WHERE id = ${projectId} AND deletedAt IS NULL FOR UPDATE
+  `;
+  if (!rows.length) throw new ProjectServiceError('Projeto não encontrado.', 404);
+}
 
 // The same Project row lock is used by soft delete. The active check and writes
 // therefore have one commit order, even if a sync fetched GitHub data earlier.
 export function withActiveProjectWrite(projectId, write, { inactiveResult } = {}) {
   return prisma.$transaction(async (tx) => {
-    const exists = await lockProjectLifecycle(tx, projectId);
-    const project = exists
-      ? await tx.project.findUnique({ where: { id: projectId }, select: { deletedAt: true } })
-      : null;
-    if (!project || project.deletedAt) {
-      if (inactiveResult !== undefined) return inactiveResult;
-      throw new ProjectServiceError('Projeto não encontrado.', 404);
+    try {
+      await lockActiveProject(tx, projectId);
+    } catch (error) {
+      if (error instanceof ProjectServiceError && inactiveResult !== undefined) {
+        return inactiveResult;
+      }
+      throw error;
     }
     return write(tx);
   });

@@ -1,6 +1,6 @@
 import { traceabilityMutation } from '../../traceability/requirement-reconciliation.repository.js';
 import { prisma } from '../../../database/prismaClient.js';
-import { lockProject } from '../../../database/locks.js';
+import { lockActiveProject } from '../../projects/active-project-write.js';
 import { auditRepository } from '../../audit/audit.repository.js';
 import { createTaskInTransaction } from '../../tasks/task.repository.js';
 import { reconcileDefect } from './defect-projection.repository.js';
@@ -86,7 +86,7 @@ export function createDefectRepository(client = prisma) {
       );
     },
     lockProject(id) {
-      return lockProject(client, id);
+      return lockActiveProject(client, id);
     },
     async lock(id) {
       await client.$queryRaw`SELECT id FROM Defect WHERE id = ${id} FOR UPDATE`;

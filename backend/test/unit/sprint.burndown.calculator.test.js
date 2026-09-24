@@ -68,6 +68,47 @@ describe('janela e denominador', () => {
     expect(resultado.hasData).toBe(false);
   });
 
+  it('mostra um único dia real quando a sprint inicia no fim nominal da janela', () => {
+    const resultado = buildSprintBurndown({
+      sprint: sprint({
+        startDate: new Date('2026-09-01T00:00:00.000Z'),
+        endDate: new Date('2026-09-15T00:00:00.000Z'),
+        startedAt: new Date('2026-09-15T10:00:00.000Z')
+      }),
+      participations: [participacao({ points: 5 })],
+      cutoff: corte('2026-09-15T18:00:00.000Z')
+    });
+    expect(resultado).toMatchObject({
+      hasData: true,
+      totalPoints: 5,
+      cutoffDate: '2026-09-15',
+      days: [{ date: '2026-09-15', ideal: 5, remaining: 5 }]
+    });
+  });
+
+  it('preserva a série de um dia quando o início tardio é terminal e congelado', () => {
+    const lateSprint = sprint({
+      status: 'CONCLUIDA',
+      startDate: new Date('2026-09-01T00:00:00.000Z'),
+      endDate: new Date('2026-09-15T00:00:00.000Z'),
+      startedAt: new Date('2026-09-15T10:00:00.000Z'),
+      closedAt: new Date('2026-09-15T19:00:00.000Z')
+    });
+    const first = buildSprintBurndown({
+      sprint: lateSprint,
+      participations: [participacao({ points: 5 })],
+      cutoff: corte('2026-09-16T00:00:00.000Z')
+    });
+    const later = buildSprintBurndown({
+      sprint: lateSprint,
+      participations: [participacao({ points: 5 })],
+      cutoff: corte('2026-10-01T00:00:00.000Z')
+    });
+    expect(first).toMatchObject({ frozen: true, cutoffDate: '2026-09-15' });
+    expect(first.days).toEqual([{ date: '2026-09-15', ideal: 5, remaining: 5 }]);
+    expect(later).toEqual(first);
+  });
+
   it('participacao removida sai do denominador', () => {
     const resultado = buildSprintBurndown({
       sprint: sprint(),

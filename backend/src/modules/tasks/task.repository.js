@@ -1,5 +1,5 @@
 import { traceabilityTransaction } from '../traceability/requirement-reconciliation.repository.js';
-import { lockProject } from '../../database/locks.js';
+import { lockActiveProject } from '../projects/active-project-write.js';
 import { AppError } from '../../shared/errors/index.js';
 // Repository do modulo de tarefas. Todo acesso ao banco passa pelo Prisma.
 import { prisma } from '../../database/prismaClient.js';
@@ -277,7 +277,7 @@ export const taskRepository = {
       },
       async (tx) => {
         const owner = await tx.task.findUnique({ where: { id }, select: { projectId: true } });
-        if (owner) await lockProject(tx, owner.projectId);
+        if (owner) await lockActiveProject(tx, owner.projectId);
         if (await tx.defectTask.count({ where: { taskId: id } }))
           throw new AppError({
             message: 'Tarefa vinculada ao histórico de defeitos não pode ser excluída.',

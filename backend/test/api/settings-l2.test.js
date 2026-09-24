@@ -367,6 +367,43 @@ describe('contratos de conta e privacidade L2', () => {
     expect(JSON.stringify(files)).not.toMatch(/Projeto histórico privado|posterior/);
   });
 
+  it('não trata projeto pending deletion como ativo no export nem bloqueia desativação do último OWNER', async () => {
+    const auth = await register('deleted-owner-export@example.invalid');
+    const user = await prisma.user.findUnique({
+      where: { email: 'deleted-owner-export@example.invalid' }
+    });
+    const deletedAt = new Date();
+    const project = await prisma.project.create({
+      data: {
+        name: 'Projeto pendente privado',
+        responsibleTeam: 'Equipe privada',
+        accessCode: 'EXPORT-PENDING-DELETION',
+        deletedAt,
+        deletionScheduledFor: new Date(deletedAt.getTime() + 30 * 86400000),
+        memberships: { create: { userId: user.id, role: 'OWNER' } },
+        requirements: { create: { title: 'Requisito pendente privado' } },
+        tasks: { create: { title: 'Tarefa pendente privada', responsibleUserId: user.id } }
+      }
+    });
+    expect(project.deletedAt).not.toBeNull();
+
+    const exported = await auth
+      .mutate('post', '/api/settings/privacy/export')
+      .buffer(true)
+      .parse(parseBinary)
+      .send({});
+    expect(exported.status).toBe(200);
+    const files = readStoredJsonFiles(exported.body);
+    expect(JSON.stringify(files)).not.toMatch(
+      /Projeto pendente privado|Requisito pendente privado|Tarefa pendente privada/
+    );
+
+    const deactivated = await auth
+      .mutate('post', '/api/settings/account/deactivate')
+      .send({ currentPassword: password, confirmation: true });
+    expect(deactivated.status).toBe(200);
+  });
+
   it('revoga sessões próprias por UUID e encerra todas as outras', async () => {
     const auth = await register('sessions@example.invalid');
     const secondAgent = request.agent(app);

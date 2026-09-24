@@ -1,4 +1,6 @@
 import { Readable } from 'node:stream';
+import { randomUUID } from 'node:crypto';
+import { performance } from 'node:perf_hooks';
 import { access } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
@@ -131,6 +133,114 @@ afterAll(async () => {
 });
 
 describe('Project deletion concorrente com MySQL e storage reais', () => {
+  it('não remove metadata de evidência sem journal de limpeza correspondente', async () => {
+    const { project, user } = await createProjectWithOwner();
+    const file = await addEvidence(project, user);
+    const service = deletionService({ storage });
+    try {
+      await service.requestDeletion(project.id, user.id);
+      const claim = await deletionRepository.claimPurge(project.id, new Date(), {
+        userId: user.id,
+        confirmationName: project.name
+      });
+      expect(claim.outcome).toBe('CLAIMED');
+      await expect(
+        deletionRepository.deleteProjectGraph(project.id, claim.token, {
+          actorType: 'SYSTEM',
+          projectId: project.id,
+          action: 'PROJECT_PURGED',
+          resourceType: 'Project',
+          resourceId: String(project.id),
+          result: 'SUCCESS',
+          retentionUntil: new Date(Date.now() + 86400000)
+        })
+      ).rejects.toThrow(/evidência|journal/i);
+      expect(await prisma.testEvidence.count({ where: { projectId: project.id } })).toBe(1);
+      await access(join(process.env.TEST_EVIDENCE_STORAGE_DIR, file.storageKey));
+    } finally {
+      const purgeKey = randomUUID();
+      await storage.stageForPurge(file.storageKey, purgeKey);
+      await storage.deletePurged(file.storageKey, purgeKey);
+    }
+  });
+
+  it('conclui purge representativo com commits, branches, tasks, histórico e evidência', async () => {
+    const { project, user } = await createProjectWithOwner();
+    const file = await addEvidence(project, user);
+    const branch = await prisma.gitBranch.create({
+      data: { projectId: project.id, name: 'main', lastSeenAt: new Date() }
+    });
+    await prisma.commit.createMany({
+      data: Array.from({ length: 1000 }, (_, index) => ({
+        projectId: project.id,
+        hash: index.toString(16).padStart(40, '0')
+      }))
+    });
+    const commits = await prisma.commit.findMany({
+      where: { projectId: project.id },
+      select: { id: true }
+    });
+    await prisma.commitBranch.createMany({
+      data: commits.map(({ id }) => ({ commitId: id, branchId: branch.id }))
+    });
+    await prisma.task.createMany({
+      data: Array.from({ length: 400 }, (_, index) => ({
+        projectId: project.id,
+        title: `Tarefa de volume ${index}`
+      }))
+    });
+    const tasks = await prisma.task.findMany({
+      where: { projectId: project.id },
+      select: { id: true }
+    });
+    await prisma.taskHistoryEntry.createMany({
+      data: tasks.map(({ id }) => ({
+        projectId: project.id,
+        taskId: id,
+        actorUserId: user.id,
+        field: 'STATUS',
+        fromValue: 'A_FAZER',
+        toValue: 'EM_ANDAMENTO'
+      }))
+    });
+    const service = deletionService({ storage });
+    await service.requestDeletion(project.id, user.id);
+    const started = performance.now();
+    await expect(service.purge(project.id, user.id, project.name)).resolves.toMatchObject({
+      purged: true,
+      storageFailures: 0
+    });
+    const elapsedMs = Math.round(performance.now() - started);
+    console.info(`project-purge-volume: ${elapsedMs} ms, 1001 commits, 400 tasks, 400 history`);
+    expect(await prisma.project.findUnique({ where: { id: project.id } })).toBeNull();
+    await expect(
+      access(join(process.env.TEST_EVIDENCE_STORAGE_DIR, file.storageKey))
+    ).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('mede lote de 100 issues e PRs sem perder guarda de lifecycle', async () => {
+    const { project, user } = await createProjectWithOwner();
+    const { issueRepository } = await import('../../src/modules/issues/issue.repository.js');
+    const { pullRequestRepository } =
+      await import('../../src/modules/pullRequests/pullRequest.repository.js');
+    const rows = Array.from({ length: 100 }, (_, index) => ({
+      projectId: project.id,
+      githubId: String(index + 1),
+      number: index + 1,
+      title: `Artefato ${index + 1}`
+    }));
+    const started = performance.now();
+    expect(await issueRepository.upsertMany(rows)).toEqual({ created: 100, updated: 0 });
+    const issuesMs = Math.round(performance.now() - started);
+    const prsStart = performance.now();
+    expect(await pullRequestRepository.upsertMany(rows)).toEqual({ created: 100, updated: 0 });
+    const prsMs = Math.round(performance.now() - prsStart);
+    console.info(`github-sync-batch: issues=${issuesMs} ms, prs=${prsMs} ms`);
+    await deletionService({ storage }).requestDeletion(project.id, user.id);
+    await expect(issueRepository.upsertMany(rows)).rejects.toMatchObject({ statusCode: 404 });
+    await expect(pullRequestRepository.upsertMany(rows)).rejects.toMatchObject({ statusCode: 404 });
+  });
+
   it.each(['branches', 'commits', 'pull requests', 'issues'])(
     'não persiste %s depois do soft delete confirmado durante sync',
     async (kind) => {

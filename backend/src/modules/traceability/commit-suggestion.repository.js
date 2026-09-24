@@ -1,10 +1,9 @@
-import { lockProject } from '../../database/locks.js';
+import { lockActiveProject, withActiveProjectWrite } from '../projects/active-project-write.js';
 import {
   affectedRequirementIds,
   reconcileRequirements
 } from './requirement-reconciliation.repository.js';
 import { prisma } from '../../database/prismaClient.js';
-import { withActiveProjectWrite } from '../projects/active-project-write.js';
 import { auditRepository } from '../audit/audit.repository.js';
 
 const suggestionSelect = {
@@ -95,7 +94,7 @@ export const commitSuggestionRepository = {
   async confirm({ projectId, suggestionId, userId, reviewedAt, auditEvent }) {
     return prisma.$transaction(
       async (tx) => {
-        await lockProject(tx, projectId);
+        await lockActiveProject(tx, projectId);
         const suggestion = await tx.taskCommitSuggestion.findFirst({
           where: { id: suggestionId, projectId },
           select: {
@@ -156,6 +155,7 @@ export const commitSuggestionRepository = {
 
   async reject({ projectId, suggestionId, userId, reviewedAt, auditEvent }) {
     return prisma.$transaction(async (tx) => {
+      await lockActiveProject(tx, projectId);
       const suggestion = await tx.taskCommitSuggestion.findFirst({
         where: { id: suggestionId, projectId },
         select: {

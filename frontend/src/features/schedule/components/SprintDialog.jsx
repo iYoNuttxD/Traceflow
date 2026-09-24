@@ -4,6 +4,7 @@ import {
   escapeBelongsToExpandedControl,
   useDialogLayer
 } from '../../../shared/components/dialog-stack.js';
+import './SprintDialog.css';
 
 const focusableSelector = [
   'a[href]',

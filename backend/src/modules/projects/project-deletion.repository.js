@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { prisma } from '../../database/prismaClient.js';
 import { auditRepository } from '../audit/audit.repository.js';
+import { AppError, ERROR_CODES } from '../../shared/errors/index.js';
 import { lockProjectLifecycle, lockProjectMembership } from './project-lifecycle-lock.js';
 
 const projectDeletionSelect = {
@@ -293,35 +294,55 @@ export const projectDeletionRepository = {
   },
 
   async deleteProjectGraph(projectId, token, auditData) {
-    return prisma.$transaction(async (tx) => {
-      if (!(await lockProjectLifecycle(tx, projectId))) return false;
-      const project = await tx.project.findUnique({
-        where: { id: projectId },
-        select: { id: true, deletedAt: true, purgeClaimId: true }
-      });
-      if (!project?.deletedAt || project.purgeClaimId !== token) return false;
+    return prisma.$transaction(
+      async (tx) => {
+        if (!(await lockProjectLifecycle(tx, projectId))) return false;
+        const project = await tx.project.findUnique({
+          where: { id: projectId },
+          select: { id: true, deletedAt: true, purgeClaimId: true }
+        });
+        if (!project?.deletedAt || project.purgeClaimId !== token) return false;
 
-      await tx.defectRetest.deleteMany({ where: { defect: { projectId } } });
-      await tx.defectTask.deleteMany({ where: { defect: { projectId } } });
-      await tx.defectHistoryEntry.deleteMany({ where: { projectId } });
-      await tx.defect.deleteMany({ where: { projectId } });
-      await tx.testEvidence.deleteMany({ where: { projectId } });
-      await tx.testExecutionStep.deleteMany({ where: { execution: { projectId } } });
-      await tx.testExecution.deleteMany({ where: { projectId } });
-      await tx.testCaseHistoryEntry.deleteMany({ where: { projectId } });
-      await tx.testCaseVersion.deleteMany({ where: { testCase: { projectId } } });
-      await tx.testCaseTask.deleteMany({ where: { testCase: { projectId } } });
-      await tx.testCaseStep.deleteMany({ where: { testCase: { projectId } } });
-      await tx.testCase.deleteMany({ where: { projectId } });
-      await tx.taskMovement.deleteMany({ where: { projectId } });
-      await tx.task.deleteMany({ where: { projectId } });
-      await auditRepository.create(auditData, tx);
-      await tx.project.delete({ where: { id: projectId } });
-      await tx.projectPurgeStorageCleanup.updateMany({
-        where: { projectId, claimToken: token },
-        data: { status: 'READY' }
-      });
-      return true;
-    });
+        const [evidence, staged] = await Promise.all([
+          tx.testEvidence.findMany({ where: { projectId }, select: { storageKey: true } }),
+          tx.projectPurgeStorageCleanup.findMany({
+            where: { projectId, claimToken: token, status: { in: ['STAGED', 'MISSING'] } },
+            select: { storageKey: true }
+          })
+        ]);
+        const stagedKeys = new Set(staged.map(({ storageKey }) => storageKey));
+        if (evidence.some(({ storageKey }) => !stagedKeys.has(storageKey))) {
+          throw new AppError({
+            message: 'Journal de evidência incompleto; purge pode ser tentado novamente.',
+            statusCode: 409,
+            code: ERROR_CODES.CONFLICT,
+            exposeTechnicalDetails: true
+          });
+        }
+
+        await tx.defectRetest.deleteMany({ where: { defect: { projectId } } });
+        await tx.defectTask.deleteMany({ where: { defect: { projectId } } });
+        await tx.defectHistoryEntry.deleteMany({ where: { projectId } });
+        await tx.defect.deleteMany({ where: { projectId } });
+        await tx.testEvidence.deleteMany({ where: { projectId } });
+        await tx.testExecutionStep.deleteMany({ where: { execution: { projectId } } });
+        await tx.testExecution.deleteMany({ where: { projectId } });
+        await tx.testCaseHistoryEntry.deleteMany({ where: { projectId } });
+        await tx.testCaseVersion.deleteMany({ where: { testCase: { projectId } } });
+        await tx.testCaseTask.deleteMany({ where: { testCase: { projectId } } });
+        await tx.testCaseStep.deleteMany({ where: { testCase: { projectId } } });
+        await tx.testCase.deleteMany({ where: { projectId } });
+        await tx.taskMovement.deleteMany({ where: { projectId } });
+        await tx.task.deleteMany({ where: { projectId } });
+        await auditRepository.create(auditData, tx);
+        await tx.project.delete({ where: { id: projectId } });
+        await tx.projectPurgeStorageCleanup.updateMany({
+          where: { projectId, claimToken: token },
+          data: { status: 'READY' }
+        });
+        return true;
+      },
+      { maxWait: 5000, timeout: 15000 }
+    );
   }
 };

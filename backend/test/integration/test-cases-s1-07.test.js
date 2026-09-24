@@ -132,6 +132,52 @@ async function storedEvidence(
   return { storage, attempt, directory };
 }
 describe('S1-07 persisted definitions', () => {
+  it('compensa bytes preparados quando soft delete e purge vencem o upload', async () => {
+    const f = await fixture();
+    const row = await f.create();
+    await prisma.projectMembership.update({
+      where: { projectId_userId: { projectId: f.project.id, userId: f.user.id } },
+      data: { role: 'OWNER' }
+    });
+    const files = await storedEvidence();
+    const [key] = files.attempt.files.map((item) => item.storageKey);
+    let preparedResolve;
+    let continueResolve;
+    const prepared = new Promise((resolve) => {
+      preparedResolve = resolve;
+    });
+    const resume = new Promise((resolve) => {
+      continueResolve = resolve;
+    });
+    const gatedStorage = Object.create(files.storage);
+    gatedStorage.prepare = async (...args) => {
+      const evidence = await files.storage.prepare(...args);
+      preparedResolve();
+      await resume;
+      return evidence;
+    };
+    const upload = executionFactory({ storage: gatedStorage }).record(
+      row.id,
+      f.payload,
+      files.attempt,
+      f.context
+    );
+    try {
+      await prepared;
+      const { createProjectDeletionService } =
+        await import('../../src/modules/projects/services/project-deletion.service.js');
+      const deletion = createProjectDeletionService({ storage: files.storage });
+      await deletion.requestDeletion(f.project.id, f.user.id);
+      await deletion.purge(f.project.id, f.user.id, f.project.name);
+    } finally {
+      continueResolve();
+    }
+    await expect(upload).rejects.toMatchObject({ statusCode: 404 });
+    expect(await prisma.testEvidence.count({ where: { projectId: f.project.id } })).toBe(0);
+    expect(await prisma.project.findUnique({ where: { id: f.project.id } })).toBeNull();
+    await expect(readFile(join(files.directory, key))).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
   it.each([false, true])(
     'creates complete typed v1, traceability=%s and minimal audit',
     async (links) => {

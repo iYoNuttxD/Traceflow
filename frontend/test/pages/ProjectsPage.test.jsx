@@ -345,6 +345,57 @@ describe('ProjectsPage', () => {
     ).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Recuperar' }));
     expect(apiMock.post).toHaveBeenCalledWith('/projects/31/restore', {});
+    await waitFor(() =>
+      expect(
+        apiMock.get.mock.calls.filter(([url]) => url === '/github/app/repositories')
+      ).toHaveLength(2)
+    );
+  });
+
+  it('reconcilia o catálogo quando outro OWNER já recuperou o projeto', async () => {
+    const user = userEvent.setup();
+    const pendingProject = {
+      id: 31,
+      name: 'Projeto recuperável',
+      deletionScheduledFor: '2030-10-21T12:00:00.000Z'
+    };
+    let recoveredElsewhere = false;
+    mockInitialRequests();
+    apiMock.get.mockImplementation((url) => {
+      if (url === '/projects') {
+        return Promise.resolve({
+          data: {
+            projects: recoveredElsewhere ? [{ id: 31, name: pendingProject.name }] : [],
+            deletedProjects: recoveredElsewhere ? [] : [pendingProject]
+          }
+        });
+      }
+      if (url === '/github/app/installations') {
+        return Promise.resolve({ data: { installations: [] } });
+      }
+      if (url === '/github/app/repositories') {
+        return Promise.resolve({ data: { repositories: [fakeRepository] } });
+      }
+      return Promise.reject(new Error(`URL inesperada: ${url}`));
+    });
+    apiMock.post.mockImplementation(() => {
+      recoveredElsewhere = true;
+      return Promise.reject({
+        response: { status: 409, data: { message: 'Projeto já recuperado.' } }
+      });
+    });
+    renderPage();
+
+    expect(await screen.findByText('Projeto recuperável')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Recuperar' }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Recuperar' })).not.toBeInTheDocument();
+      expect(apiMock.get.mock.calls.filter(([url]) => url === '/projects')).toHaveLength(2);
+      expect(
+        apiMock.get.mock.calls.filter(([url]) => url === '/github/app/repositories')
+      ).toHaveLength(2);
+    });
   });
 
   it('oferece recuperar ou começar do zero para repo pendente sem fechar dois dialogs com Escape', async () => {
@@ -406,6 +457,95 @@ describe('ProjectsPage', () => {
       '/projects/from-github',
       expect.objectContaining({ githubRepositoryId: '501' })
     );
+    await waitFor(() =>
+      expect(
+        apiMock.get.mock.calls.filter(([url]) => url === '/github/app/repositories')
+      ).toHaveLength(2)
+    );
+  });
+
+  it('remove conflito pendente obsoleto quando outro OWNER já fez o purge', async () => {
+    const user = userEvent.setup();
+    const pendingRepository = {
+      ...fakeRepository,
+      alreadyConnected: true,
+      selectable: true,
+      pendingDeletion: {
+        projectId: 41,
+        projectName: 'Projeto anterior',
+        deletionScheduledFor: '2030-10-21T12:00:00.000Z'
+      }
+    };
+    let purgedElsewhere = false;
+    apiMock.get.mockImplementation((url) => {
+      if (url === '/projects') {
+        return Promise.resolve({
+          data: {
+            projects: [],
+            deletedProjects: purgedElsewhere
+              ? []
+              : [
+                  {
+                    id: 41,
+                    name: 'Projeto anterior',
+                    deletionScheduledFor: '2030-10-21T12:00:00.000Z'
+                  }
+                ]
+          }
+        });
+      }
+      if (url === '/github/app/installations') {
+        return Promise.resolve({
+          data: {
+            installations: [{ githubInstallationId: '77', accountLogin: 'usuario-artificial' }]
+          }
+        });
+      }
+      if (url === '/github/app/repositories') {
+        return Promise.resolve({
+          data: { repositories: [purgedElsewhere ? fakeRepository : pendingRepository] }
+        });
+      }
+      return Promise.reject(new Error(`URL inesperada: ${url}`));
+    });
+    apiMock.delete.mockImplementation(() => {
+      purgedElsewhere = true;
+      return Promise.reject({
+        response: { status: 404, data: { message: 'Projeto não encontrado.' } }
+      });
+    });
+    renderPage();
+    await screen.findByRole('button', { name: /^Novo projeto/ });
+    await openCreateFlow(user);
+    await user.type(screen.getByLabelText('Área ou equipe responsável *'), 'Equipe nova');
+    await user.selectOptions(
+      screen.getByLabelText('Repositório GitHub *'),
+      pendingRepository.fullName
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'Excluir definitivamente e começar do zero' })
+    );
+    const confirmation = screen.getByRole('dialog', {
+      name: 'Começar novamente com este repositório?'
+    });
+    await user.type(within(confirmation).getByRole('textbox'), 'Projeto anterior');
+    await user.click(
+      within(confirmation).getByRole('button', {
+        name: 'Excluir definitivamente e começar do zero'
+      })
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Recuperar projeto' })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Excluir definitivamente e começar do zero' })
+      ).not.toBeInTheDocument();
+      expect(apiMock.get.mock.calls.filter(([url]) => url === '/projects')).toHaveLength(2);
+      expect(
+        apiMock.get.mock.calls.filter(([url]) => url === '/github/app/repositories')
+      ).toHaveLength(2);
+    });
+    expect(apiMock.post).not.toHaveBeenCalledWith('/projects/from-github', expect.anything());
   });
 
   it('mantém o purge confirmado quando a criação falha e repete somente o POST', async () => {
@@ -455,6 +595,9 @@ describe('ProjectsPage', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'O projeto anterior foi excluído definitivamente'
+    );
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Tentar criar novamente' })).toHaveFocus()
     );
     expect(screen.queryByRole('button', { name: 'Recuperar projeto' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Recuperar' })).not.toBeInTheDocument();

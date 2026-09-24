@@ -2,7 +2,8 @@ import { buildClosingTaskSnapshot } from '../sprint-task.projection.js';
 import { isTerminalSprintStatus } from '../sprint.schema.js';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../../database/prismaClient.js';
-import { lockMilestone, lockProject } from '../../../database/locks.js';
+import { lockMilestone } from '../../../database/locks.js';
+import { lockActiveProject } from '../../projects/active-project-write.js';
 import { auditRepository } from '../../audit/audit.repository.js';
 
 export const sprintSelect = {
@@ -279,7 +280,7 @@ export const sprintRepository = {
 
   async createWithinProjectLock(projectId, data, auditEvent, validate) {
     return prisma.$transaction(async (tx) => {
-      await lockProject(tx, projectId);
+      await lockActiveProject(tx, projectId);
       const sprints = await tx.sprint.findMany({
         where: { projectId, deletedAt: null },
         select: sprintSelect
@@ -302,7 +303,7 @@ export const sprintRepository = {
 
   async updateWithinProjectLock(id, projectId, data, auditEvent, validate) {
     return prisma.$transaction(async (tx) => {
-      await lockProject(tx, projectId);
+      await lockActiveProject(tx, projectId);
       const travada =
         await tx.$queryRaw`SELECT id FROM Sprint WHERE id = ${id} AND deletedAt IS NULL FOR UPDATE`;
       if (!travada.length) return null;
@@ -328,7 +329,7 @@ export const sprintRepository = {
   async transitionWithinSprintLock(id, projectId, buildChange) {
     return prisma.$transaction(
       async (tx) => {
-        await lockProject(tx, projectId);
+        await lockActiveProject(tx, projectId);
         const lockedSprints = await tx.$queryRaw`
         SELECT id, milestoneId FROM Sprint WHERE projectId = ${projectId} AND deletedAt IS NULL ORDER BY id FOR UPDATE`;
         const locked = lockedSprints.find((item) => Number(item.id) === id);
@@ -464,7 +465,7 @@ export const sprintRepository = {
 
   async softDeleteWithinSprintLock(id, projectId, buildPlan) {
     return prisma.$transaction(async (tx) => {
-      await lockProject(tx, projectId);
+      await lockActiveProject(tx, projectId);
       const locked =
         await tx.$queryRaw`SELECT id FROM Sprint WHERE id = ${id} AND projectId = ${projectId} FOR UPDATE`;
       if (!locked.length) return null;
@@ -504,7 +505,7 @@ export const sprintRepository = {
 
   async mutateScopeWithinSprintLock(sprintId, projectId, requestedTaskIds, buildPlan) {
     return prisma.$transaction(async (tx) => {
-      await lockProject(tx, projectId);
+      await lockActiveProject(tx, projectId);
       const locked =
         await tx.$queryRaw`SELECT id FROM Sprint WHERE id = ${sprintId} AND deletedAt IS NULL FOR UPDATE`;
       if (!locked.length) return null;

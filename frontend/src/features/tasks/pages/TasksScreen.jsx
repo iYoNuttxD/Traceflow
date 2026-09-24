@@ -76,7 +76,6 @@ export function TasksScreen() {
   const [projectMembers, setProjectMembers] = useState([]);
   const [currentMembership, setCurrentMembership] = useState(null);
   const [sprints, setSprints] = useState([]);
-  const [milestones, setMilestones] = useState([]);
   const [filters, setFilters] = useState({ ...EMPTY_FILTERS });
   const [formData, setFormData] = useState(emptyTaskForm);
   const [formOpen, setFormOpen] = useState(false);
@@ -115,8 +114,7 @@ export function TasksScreen() {
           requirementsResponse,
           pullRequestsResponse,
           membersResponse,
-          sprintsResponse,
-          milestonesResponse
+          sprintsResponse
         ] = await Promise.all([
           projectsApi.get(projectId, options),
           tasksApi.list(projectId, {}, options),
@@ -127,10 +125,7 @@ export function TasksScreen() {
             currentMembership: null,
             requestError
           })),
-          scheduleApi.listSprints(projectId, {}, options).catch(() => ({ data: { sprints: [] } })),
-          scheduleApi
-            .listMilestones(projectId, {}, options)
-            .catch(() => ({ data: { milestones: [] } }))
+          scheduleApi.listSprints(projectId, {}, options).catch(() => ({ data: { sprints: [] } }))
         ]);
 
         if (controller.signal.aborted || sequence !== loadSequenceRef.current) return;
@@ -143,7 +138,6 @@ export function TasksScreen() {
         setProjectMembers(membersResponse.members || []);
         setCurrentMembership(membersResponse.currentMembership || null);
         setSprints(sprintsResponse.data.sprints || []);
-        setMilestones(milestonesResponse.data.milestones || []);
         if (membersResponse.requestError) {
           setError(
             getErrorMessage(
@@ -711,7 +705,6 @@ export function TasksScreen() {
             <TaskList
               tasks={filteredTasks}
               sprints={sprints}
-              milestones={milestones}
               deletingTaskId={deletingTaskId}
               canWrite={canWrite}
               filtered={activeFilterCount > 0}

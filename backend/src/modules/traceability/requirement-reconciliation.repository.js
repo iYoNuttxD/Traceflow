@@ -1,5 +1,5 @@
 import { prisma } from '../../database/prismaClient.js';
-import { lockProject } from '../../database/locks.js';
+import { lockActiveProject } from '../projects/active-project-write.js';
 import { loadRequirementProjections } from './requirement-projection.repository.js';
 import { relatedRequirementIds } from './requirement-traceability.policy.js';
 
@@ -76,7 +76,7 @@ export async function reconcileRequirements(
   }
 ) {
   // Same first lock as canonical writers, including when the state does not exist.
-  if (!dryRun) await lockProject(tx, projectId);
+  if (!dryRun) await lockActiveProject(tx, projectId);
   const rows = await loadRequirementProjections(tx, projectId, unique(requirementIds));
   const states = await tx.requirementTraceabilityState.findMany({
     where: { requirementId: { in: rows.map((row) => row.requirement.id) } }
@@ -149,7 +149,7 @@ async function resolveContext(tx, context) {
 export async function traceabilityMutation(tx, context, work) {
   const scope = await resolveContext(tx, context);
   if (!scope.projectId) return work();
-  await lockProject(tx, scope.projectId);
+  await lockActiveProject(tx, scope.projectId);
   const before = await affectedRequirementIds(tx, scope);
   const result = await work();
   if (scope.createdEntity && result?.id) {
@@ -194,7 +194,7 @@ export function reconcileProject(
 ) {
   return client.$transaction(
     async (tx) => {
-      if (!dryRun) await lockProject(tx, projectId);
+      if (!dryRun) await lockActiveProject(tx, projectId);
       const rows = await tx.requirement.findMany({ where: { projectId }, select: { id: true } });
       return reconcileRequirements(tx, {
         projectId,

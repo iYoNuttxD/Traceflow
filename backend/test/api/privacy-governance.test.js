@@ -268,4 +268,49 @@ describe('LR.2 — consolidação das rotas e worker de privacidade', () => {
       })
     ).toBe(0);
   });
+
+  it('anonimiza o último OWNER de projeto pending deletion sem recuperar o projeto', async () => {
+    const auth = await register('pending-owner-privacy@example.invalid');
+    const user = await prisma.user.findUnique({
+      where: { email: 'pending-owner-privacy@example.invalid' }
+    });
+    const deletedAt = new Date();
+    const project = await prisma.project.create({
+      data: {
+        name: 'Projeto aguardando purge',
+        responsibleTeam: 'Equipe',
+        accessCode: 'PRIVACY-PENDING-PROJECT',
+        deletedAt,
+        deletionScheduledFor: new Date(deletedAt.getTime() + 30 * 86400000),
+        memberships: { create: { userId: user.id, role: 'OWNER' } }
+      }
+    });
+    const requested = await auth
+      .mutate('post', '/api/settings/privacy/deletion')
+      .send({ currentPassword: password, confirmation: true });
+    expect(requested.status).toBe(202);
+    await prisma.privacyRequest.update({
+      where: { id: requested.body.request.id },
+      data: { scheduledFor: new Date(Date.now() - 1000) }
+    });
+
+    const { privacyService } = await import('../../src/modules/privacy/privacy.service.js');
+    expect(await privacyService.processDueDeletions({ dryRun: false })).toMatchObject({
+      processed: 1,
+      blocked: 0,
+      failed: 0
+    });
+    expect(await prisma.user.findUnique({ where: { id: user.id } })).toMatchObject({
+      accountStatus: 'ANONYMIZED',
+      isActive: false
+    });
+    expect(await prisma.project.findUnique({ where: { id: project.id } })).toMatchObject({
+      deletedAt: expect.any(Date)
+    });
+    expect(
+      await prisma.projectMembership.findUnique({
+        where: { projectId_userId: { projectId: project.id, userId: user.id } }
+      })
+    ).toMatchObject({ isActive: false });
+  });
 });

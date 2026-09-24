@@ -55,6 +55,7 @@ function formatPullRequestLabel(pullRequest) {
 
 function ArtifactSearch({
   label,
+  searchContextKey,
   placeholder,
   search,
   emptyMessage,
@@ -69,6 +70,7 @@ function ArtifactSearch({
     <div className="traceability-picker">
       <SearchCombobox
         label={label}
+        searchContextKey={searchContextKey}
         placeholder={placeholder}
         disabled={disabled}
         emptyMessage={emptyMessage}
@@ -271,6 +273,7 @@ export function TaskTraceabilityEditor({
           )}
           <ArtifactSearch
             label="Pesquisar requisito"
+            searchContextKey={projectId}
             placeholder="Pesquisar requisito por título..."
             search={searchRequirements}
             emptyMessage="Nenhum requisito encontrado."
@@ -297,6 +300,7 @@ export function TaskTraceabilityEditor({
           )}
           <ArtifactSearch
             label="Pesquisar pull request"
+            searchContextKey={projectId}
             placeholder="Pesquisar por número ou título do PR..."
             search={searchPullRequests}
             emptyMessage="Nenhum pull request encontrado."
@@ -336,6 +340,7 @@ export function TaskTraceabilityEditor({
           )}
           <ArtifactSearch
             label="Pesquisar commits"
+            searchContextKey={projectId}
             placeholder="Pesquisar por SHA ou mensagem..."
             search={searchCommits}
             emptyMessage="Nenhum commit encontrado."
@@ -385,6 +390,7 @@ export function TaskTraceabilityEditor({
           )}
           <ArtifactSearch
             label="Pesquisar issues"
+            searchContextKey={projectId}
             placeholder="Pesquisar issue por número ou título..."
             search={searchIssues}
             emptyMessage="Nenhuma issue encontrada."

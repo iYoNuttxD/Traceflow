@@ -142,6 +142,13 @@ describe('ProjectDeletionService', () => {
     expect(repository.failStorageCleanup).toHaveBeenCalledWith(3, 'claim-a', 'EACCES');
   });
 
+  it('preserves a claim conflict when preparation returns null', async () => {
+    repository.claimPurge.mockResolvedValue({ outcome: 'CLAIMED', token: 'claim-lost' });
+    repository.prepareStorageCleanup.mockResolvedValue(null);
+    await expect(service.purge(12, 7, 'TraceFlow')).rejects.toMatchObject({ statusCode: 409 });
+    expect(repository.releasePurge).toHaveBeenCalledWith(12, 'claim-lost');
+  });
+
   it('uses explicit time for due purge and never sleeps', async () => {
     const now = new Date('2026-10-22T00:00:00.000Z');
     repository.dueProjects.mockResolvedValue([{ id: 12 }]);

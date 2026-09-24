@@ -1,5 +1,28 @@
 # TRACEFLOW Visual Validation Log
 
+## 2026-09-23 — PR #21 targeted corrections (inspeção parcial)
+
+Chrome real autenticado em `localhost:5173`, projeto local 2, sem mutation de negócio.
+Tarefas, Requisitos e Sprints carregadas foram medidas em Light/Dark ×
+1440/1280/768/390 px: nas 24 células, o título ficou acima da navegação e não houve
+overflow horizontal da página. Capturas de cards, Task Create/Edit, Requisitos/Details,
+Sprint Evolution/burndown e SprintDialog foram inspecionadas em recortes representativos
+de desktop, tablet e mobile nos dois temas. O formulário Task mediu 928/928/736/390 px
+de largura nas quatro larguras de viewport em ambos os temas, com scroll interno.
+
+REQ-8 exibiu `Planejado` no card e no Details. O diálogo `Criar sprint` manteve a
+mesma geometria e estilos em 1440 px Light antes/depois de visitar Requisitos por
+navegação SPA; em 390 px não houve overflow da página. No Kanban, ArrowDown mudou o
+foco entre opções de `Mover tarefa`, Escape devolveu foco ao trigger e Tab fechou o
+menu avançando ao controle seguinte. O burndown congelado foi visto em desktop Light
+e mobile Dark com scroll interno.
+
+Esta é evidência **parcial**: não foram capturados todos os estados em todas as oito
+células. O banco local tinha dois projetos ativos e nenhum pendente; recovery e
+start-over não foram acionados porque isso exigiria exclusão real. A fixture visual
+de 22/09 cobre esses estados sinteticamente, não a sessão autenticada desta rodada.
+Nenhuma surface do diff PR #21 foi promovida a `VISUALLY APPROVED` com esta evidência.
+
 ## 2026-09-22 — Project deletion targeted corrections (local fixture)
 
 Chrome local em `127.0.0.1:5179`, com API artificial em memória; nenhum projeto persistido ou

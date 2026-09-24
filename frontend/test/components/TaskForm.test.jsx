@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const suggestionApiMocks = vi.hoisted(() => ({
   getCommitSuggestions: vi.fn(),
@@ -37,6 +37,7 @@ function TaskFormHarness({
 }
 
 describe('TaskForm', () => {
+  afterEach(() => vi.useRealTimers());
   beforeEach(() => {
     vi.clearAllMocks();
     suggestionApiMocks.getCommitSuggestions.mockResolvedValue({
@@ -62,6 +63,27 @@ describe('TaskForm', () => {
     expect(onSubmit).toHaveBeenCalledOnce();
     expect(screen.getByLabelText('Título da tarefa')).toHaveValue('Tarefa artificial');
     expect(screen.getByLabelText('Prioridade')).toHaveValue('ALTA');
+  });
+
+  it.each([
+    ['Pesquisar requisito', 'onRequirementSearch'],
+    ['Pesquisar pull request', 'onPullRequestSearch'],
+    ['Buscar commits do projeto', 'onCommitSearch'],
+    ['Pesquisar issues', 'onIssueSearch']
+  ])('não repete a busca de %s após rerender do formulário', async (label, searchProp) => {
+    vi.useFakeTimers();
+    const search = vi.fn().mockResolvedValue([]);
+    const props = { onSubmit: vi.fn(), [searchProp]: search };
+    const { rerender } = render(<TaskFormHarness {...props} />);
+    const input = screen.getByRole('combobox', { name: label });
+
+    fireEvent.change(input, { target: { value: 'ab' } });
+    await act(() => vi.advanceTimersByTimeAsync(300));
+    expect(search).toHaveBeenCalledTimes(1);
+    rerender(<TaskFormHarness {...props} />);
+    await act(() => vi.advanceTimersByTimeAsync(300));
+    expect(input).toHaveValue('ab');
+    expect(search).toHaveBeenCalledTimes(1);
   });
 
   it('não expõe campo editável de esforço realizado em edição e mantém o submit desabilitado', () => {

@@ -1,7 +1,8 @@
 import { prisma } from '../../database/prismaClient.js';
 import { serializableTransaction } from '../../database/serializable-transaction.js';
 import { auditRepository } from '../audit/audit.repository.js';
-import { lockProjectLifecycle, lockProjectMembership } from './project-lifecycle-lock.js';
+import { lockProjectMembership } from './project-lifecycle-lock.js';
+import { lockActiveProject } from './active-project-write.js';
 
 const memberSelect = {
   id: true,
@@ -28,7 +29,7 @@ export const projectMembershipRepository = {
   },
   async updateRoleSafely(projectId, id, role, auditData) {
     return serializableTransaction(async (tx) => {
-      if (!(await lockProjectLifecycle(tx, projectId))) return null;
+      await lockActiveProject(tx, projectId);
       const current = await tx.projectMembership.findFirst({ where: { id, projectId } });
       if (!current) return null;
       await lockProjectMembership(tx, projectId, current.userId);
@@ -53,7 +54,7 @@ export const projectMembershipRepository = {
   },
   async setActiveSafely(projectId, id, isActive, auditData) {
     return serializableTransaction(async (tx) => {
-      if (!(await lockProjectLifecycle(tx, projectId))) return null;
+      await lockActiveProject(tx, projectId);
       const current = await tx.projectMembership.findFirst({ where: { id, projectId } });
       if (!current) return null;
       await lockProjectMembership(tx, projectId, current.userId);
@@ -80,7 +81,7 @@ export const projectMembershipRepository = {
   },
   async transferOwnership(projectId, requesterId, targetId, auditData) {
     return serializableTransaction(async (tx) => {
-      if (!(await lockProjectLifecycle(tx, projectId))) return null;
+      await lockActiveProject(tx, projectId);
       await lockProjectMembership(tx, projectId, requesterId);
       const requester = await tx.projectMembership.findFirst({
         where: { projectId, userId: requesterId, isActive: true, role: 'OWNER' }

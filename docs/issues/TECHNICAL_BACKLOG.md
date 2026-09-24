@@ -4,7 +4,7 @@ Este backlog substitui TODOs soltos. Não representa implementação iniciada ne
 
 | ID | Pendência | Requisito/impacto | Prioridade | Critério para iniciar |
 |---|---|---|---|---|
-| E15-F01 | Decidir exclusão de projeto e substituir o `501` | retenção, cascatas, auditoria, recovery | ALTA | decisão de produto/jurídica, ADR, backup e migration/testes |
+| E15-F01 | Exclusão recuperável implementada; ativação operacional pendente | carência de 30 dias, restore, purge, repo reservado e journal de storage implementados; scheduler e política de backup de produção ainda não comprovados | ALTA | [ADR-014](../architecture/ADR-014-EXCLUSAO-RECUPERAVEL-DE-PROJETOS.md), migration/testes e [runbook](../runbooks/PROJECT_DELETION_PURGE.md); configurar job externo monitorado e aprovar backup antes de marcar RESOLVIDO |
 | E15-F02 | Decidir eventual retirada do ingresso por `accessCode` | capability adicional ao TCC | BAIXA | decisão de produto; hoje o fluxo é canônico, limitado a MEMBER/VIEWER e sem `ProjectMember` |
 | E15-F06 | Adotar GitHub App/secret manager | blast radius, rotação e quota | RESOLVIDA NA L1 / PARCIAL OPERACIONAL | GitHub App por instalação implementada; secret manager e rotação gerenciada continuam dependentes do ambiente |
 | E15-F07 | Store distribuído para rate limit e lock de sync | produção horizontal/disponibilidade | MÉDIA | arquitetura de implantação e datastore aprovados |

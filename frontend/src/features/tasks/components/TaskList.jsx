@@ -31,64 +31,72 @@ function deadlineView(task) {
 function TaskListItem({ task, sprintName, deleting, canWrite, onOpen, onEdit, onDelete }) {
   const responsible = task.responsibleUser?.name || task.responsible || 'Sem responsável';
   const deadline = deadlineView(task);
+  const openFromCard = (event) => {
+    if (event.target.closest('button, a, [role="menu"]')) return;
+    onOpen(task, event.currentTarget);
+  };
 
   return (
-    <article className="task-catalog-card">
-      <button
-        type="button"
-        className="task-catalog-card__open"
-        aria-label={`Abrir detalhes de TASK-${task.id} · ${task.title}`}
-        onClick={(event) => onOpen(task, event.currentTarget)}
-      >
-        <header className="task-catalog-card__header">
-          <div>
-            <span className="eyebrow">TASK-{task.id}</span>
-            <h3>{task.title}</h3>
-          </div>
-          <span className={`status-badge status-${task.status.toLowerCase()}`}>
-            {statusLabels[task.status] || task.status}
-          </span>
-        </header>
-        <div className="task-catalog-card__body">
-          <span className={`priority-badge priority-${task.priority.toLowerCase()}`}>
-            {priorityLabels[task.priority] || task.priority}
-          </span>
-          <p className="task-catalog-card__description">
-            {task.description || 'Sem descrição cadastrada.'}
-          </p>
-          <dl className="task-catalog-card__metadata">
-            <div className="task-catalog-card__responsible">
-              <dt>Responsável</dt>
-              <dd>
-                <span className="task-catalog-card__avatar" aria-hidden="true">
-                  {initials(responsible)}
-                </span>
-                <span>{responsible}</span>
-              </dd>
-            </div>
-            <div>
-              <dt>Sprint</dt>
-              <dd>{sprintName || 'Backlog'}</dd>
-            </div>
-            <div>
-              <dt>Prazo</dt>
-              <dd className={deadline.tone ? `task-deadline--${deadline.tone}` : undefined}>
-                {deadline.label}
-              </dd>
-            </div>
-          </dl>
-          <dl className="task-catalog-card__effort">
-            <div>
-              <dt>Estimado</dt>
-              <dd>{formatEffortHours(task.estimatedEffort)}</dd>
-            </div>
-            <div>
-              <dt>Realizado</dt>
-              <dd>{formatEffortHours(task.actualEffort)}</dd>
-            </div>
-          </dl>
+    <article
+      className="task-catalog-card"
+      tabIndex={0}
+      aria-label={`Abrir detalhes de TASK-${task.id} · ${task.title}`}
+      onClick={openFromCard}
+      onKeyDown={(event) => {
+        if ((event.key === 'Enter' || event.key === ' ') && event.target === event.currentTarget) {
+          event.preventDefault();
+          onOpen(task, event.currentTarget);
+        }
+      }}
+    >
+      <header className="task-catalog-card__header">
+        <div>
+          <span className="eyebrow">TASK-{task.id}</span>
+          <h3>{task.title}</h3>
         </div>
-      </button>
+        <span className={`status-badge status-${task.status.toLowerCase()}`}>
+          {statusLabels[task.status] || task.status}
+        </span>
+      </header>
+      <div className="task-catalog-card__body">
+        <span className={`priority-badge priority-${task.priority.toLowerCase()}`}>
+          {priorityLabels[task.priority] || task.priority}
+        </span>
+        <p className="task-catalog-card__description">
+          {task.description || 'Sem descrição cadastrada.'}
+        </p>
+        <dl className="task-catalog-card__metadata">
+          <div className="task-catalog-card__responsible">
+            <dt>Responsável</dt>
+            <dd>
+              <span className="task-catalog-card__avatar" aria-hidden="true">
+                {initials(responsible)}
+              </span>
+              <span>{responsible}</span>
+            </dd>
+          </div>
+          <div>
+            <dt>Sprint</dt>
+            <dd>{sprintName || 'Backlog'}</dd>
+          </div>
+          <div>
+            <dt>Prazo</dt>
+            <dd className={deadline.tone ? `task-deadline--${deadline.tone}` : undefined}>
+              {deadline.label}
+            </dd>
+          </div>
+        </dl>
+        <dl className="task-catalog-card__effort">
+          <div>
+            <dt>Estimado</dt>
+            <dd>{formatEffortHours(task.estimatedEffort)}</dd>
+          </div>
+          <div>
+            <dt>Realizado</dt>
+            <dd>{formatEffortHours(task.actualEffort)}</dd>
+          </div>
+        </dl>
+      </div>
       {canWrite && (
         <footer className="task-catalog-card__footer">
           <SprintActionsMenu

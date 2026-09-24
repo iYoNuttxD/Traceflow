@@ -2,6 +2,7 @@ import { SprintDialog } from '../../schedule/index.js';
 import { ArtifactCategory, taskStatusLabels, TaskTraceabilityGrid } from '../../tasks/index.js';
 import { defectSeverities, defectStatuses } from '../../defects/index.js';
 import { DescriptionSurface, EntityRow, ErrorState, LoadingState } from '../../../shared/index.js';
+import { macroStatus } from '../requirement-status.js';
 
 const typeLabels = {
   FUNCIONAL: 'Funcional',
@@ -56,8 +57,8 @@ export function RequirementDetails({
   const defects = nodesOf(graph.data, 'DEFECT');
   const fallbackTasks = requirement.tasks || [];
   const taskCount = fallbackTasks.length;
-  const status = projection?.requirement?.status || requirement.status;
-  const defectCount = graph.data?.summary?.defects.total ?? projection?.defects.total ?? 0;
+  const status = projection?.requirement?.status || macroStatus(requirement.status);
+  const defectCount = graph.data?.summary?.defects?.total ?? projection?.defects?.total ?? 0;
 
   return (
     <SprintDialog

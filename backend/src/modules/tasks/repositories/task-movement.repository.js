@@ -1,7 +1,7 @@
 import { traceabilityTransaction } from '../../traceability/requirement-reconciliation.repository.js';
 import { reconcileTaskDefects } from '../../defects/repositories/defect-projection.repository.js';
 import { prisma } from '../../../database/prismaClient.js';
-import { lockProject } from '../../../database/locks.js';
+import { lockActiveProject } from '../../projects/active-project-write.js';
 import { auditRepository } from '../../audit/audit.repository.js';
 import { taskInclude } from '../task.repository.js';
 
@@ -34,7 +34,7 @@ export const taskMovementRepository = {
         sourceEntityId: task.id
       },
       async (tx) => {
-        await lockProject(tx, task.projectId);
+        await lockActiveProject(tx, task.projectId);
 
         const [antes] = await tx.$queryRaw`
         SELECT sprintId FROM Task WHERE id = ${task.id} AND projectId = ${task.projectId}`;

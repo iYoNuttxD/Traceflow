@@ -123,7 +123,7 @@ export function createProjectDeletionService({
       if (!deleted)
         throw operationalError('Projeto não encontrado.', 404, ERROR_CODES.PROJECT_NOT_FOUND);
     } catch (error) {
-      for (const item of prepared.toReversed()) {
+      for (const item of (prepared ?? []).toReversed()) {
         try {
           await repository.restoreStorageItem(projectId, token, item, storage);
         } catch (restoreError) {

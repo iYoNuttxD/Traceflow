@@ -221,6 +221,9 @@ describe('KanbanPage E11', () => {
     await waitFor(() =>
       expect(screen.getByRole('menuitem', { name: 'Mover para Em Andamento' })).toHaveFocus()
     );
+    expect(screen.getAllByRole('menuitem')).toEqual(
+      expect.arrayContaining([expect.objectContaining({ tabIndex: -1 })])
+    );
     await user.keyboard('{End}{Enter}');
 
     await waitFor(() =>
@@ -229,6 +232,20 @@ describe('KanbanPage E11', () => {
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Mover tarefa Tarefa E11' })).toHaveFocus()
     );
+  });
+
+  it('fecha o menu de movimento com Tab e avança ao próximo controle', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const trigger = await screen.findByRole('button', { name: 'Mover tarefa Tarefa E11' });
+    trigger.focus();
+    await user.keyboard('{ArrowDown}');
+    await waitFor(() => expect(screen.getAllByRole('menuitem')[0]).toHaveFocus());
+    await user.keyboard('{Tab}');
+    expect(screen.queryByRole('menu', { name: 'Mover tarefa Tarefa E11' })).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'Ver histórico da tarefa Tarefa E11' })
+    ).toHaveFocus();
   });
 
   it('não oferece movimento nem dispara mutation para VIEWER', async () => {

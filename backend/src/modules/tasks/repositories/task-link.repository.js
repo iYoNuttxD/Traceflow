@@ -2,6 +2,7 @@ import { traceabilityTransaction } from '../../traceability/requirement-reconcil
 import { prisma } from '../../../database/prismaClient.js';
 import { auditRepository } from '../../audit/audit.repository.js';
 import { taskInclude } from '../task.repository.js';
+import { lockActiveProject } from '../../projects/active-project-write.js';
 
 export const taskLinkRepository = {
   async setRequirement(task, requirementId, auditEvent) {
@@ -29,6 +30,7 @@ export const taskLinkRepository = {
   // e o evento de auditoria no mesmo escopo. Falha em qualquer etapa desfaz tudo.
   async setSprint(task, sprintId, { historyEntry, auditEvent } = {}) {
     return prisma.$transaction(async (tx) => {
+      await lockActiveProject(tx, task.projectId);
       const updated = await tx.task.update({
         where: { id: task.id },
         data: { sprintId },

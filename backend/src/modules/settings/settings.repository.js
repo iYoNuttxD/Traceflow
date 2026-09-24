@@ -20,14 +20,14 @@ const accountSelect = {
 async function soleOwnerProjects(tx, userId) {
   const memberships = await tx.projectMembership.findMany({
     where: { userId, role: 'OWNER', isActive: true },
-    select: { projectId: true, project: { select: { id: true, name: true, status: true } } }
+    select: { projectId: true, project: { select: { id: true, name: true, deletedAt: true } } }
   });
   const blocked = [];
   for (const membership of memberships) {
     const owners = await tx.projectMembership.count({
       where: { projectId: membership.projectId, role: 'OWNER', isActive: true }
     });
-    if (owners <= 1 && membership.project.status !== 'EXCLUIDO') {
+    if (owners <= 1 && membership.project.deletedAt === null) {
       blocked.push({ id: membership.project.id, name: membership.project.name });
     }
   }
@@ -439,7 +439,7 @@ export const settingsRepository = {
           }
         },
         memberships: {
-          where: { isActive: true },
+          where: { isActive: true, project: { deletedAt: null } },
           select: {
             projectId: true,
             role: true,
@@ -472,7 +472,7 @@ export const settingsRepository = {
           where: {
             responsibleUserId: userId,
             deletedAt: null,
-            project: { memberships: { some: { userId, isActive: true } } }
+            project: { deletedAt: null, memberships: { some: { userId, isActive: true } } }
           },
           select: {
             id: true,
@@ -487,7 +487,7 @@ export const settingsRepository = {
         testExecutions: {
           where: {
             executedByUserId: userId,
-            project: { memberships: { some: { userId, isActive: true } } }
+            project: { deletedAt: null, memberships: { some: { userId, isActive: true } } }
           },
           select: {
             id: true,
@@ -502,7 +502,7 @@ export const settingsRepository = {
         testEvidence: {
           where: {
             uploadedByUserId: userId,
-            project: { memberships: { some: { userId, isActive: true } } }
+            project: { deletedAt: null, memberships: { some: { userId, isActive: true } } }
           },
           select: {
             id: true,
@@ -521,7 +521,7 @@ export const settingsRepository = {
           where: {
             responsibleUserId: userId,
             deletedAt: null,
-            project: { memberships: { some: { userId, isActive: true } } }
+            project: { deletedAt: null, memberships: { some: { userId, isActive: true } } }
           },
           select: {
             id: true,
@@ -537,7 +537,7 @@ export const settingsRepository = {
         defectHistory: {
           where: {
             actorUserId: userId,
-            project: { memberships: { some: { userId, isActive: true } } }
+            project: { deletedAt: null, memberships: { some: { userId, isActive: true } } }
           },
           select: {
             id: true,
@@ -550,7 +550,7 @@ export const settingsRepository = {
         effortHistory: {
           where: {
             actorUserId: userId,
-            project: { memberships: { some: { userId, isActive: true } } }
+            project: { deletedAt: null, memberships: { some: { userId, isActive: true } } }
           },
           select: {
             id: true,
@@ -568,7 +568,7 @@ export const settingsRepository = {
         },
         responsibleTasks: {
           where: {
-            project: { memberships: { some: { userId, isActive: true } } }
+            project: { deletedAt: null, memberships: { some: { userId, isActive: true } } }
           },
           select: {
             id: true,
@@ -584,7 +584,7 @@ export const settingsRepository = {
         taskComments: {
           where: {
             deletedAt: null,
-            project: { memberships: { some: { userId, isActive: true } } }
+            project: { deletedAt: null, memberships: { some: { userId, isActive: true } } }
           },
           select: {
             id: true,
@@ -601,7 +601,7 @@ export const settingsRepository = {
         startedTimeEntries: {
           where: {
             endedAt: { not: null },
-            project: { memberships: { some: { userId, isActive: true } } }
+            project: { deletedAt: null, memberships: { some: { userId, isActive: true } } }
           },
           select: {
             id: true,
@@ -687,7 +687,7 @@ export const settingsRepository = {
                 installedAt: true,
                 projectIntegrations: {
                   where: {
-                    project: { memberships: { some: { userId, isActive: true } } }
+                    project: { deletedAt: null, memberships: { some: { userId, isActive: true } } }
                   },
                   select: {
                     repositoryFullName: true,

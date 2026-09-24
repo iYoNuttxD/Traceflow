@@ -100,7 +100,10 @@ describe('apresentação de Tasks e Kanban', () => {
     expect(screen.queryByRole('link', { name: /#15/ })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Editar' })).toBeNull();
     expect(screen.queryByText('Ver detalhes')).toBeNull();
-    const card = screen.getByRole('button', { name: /Abrir detalhes de TASK-7/ });
+    const card = screen.getByRole('article', { name: /Abrir detalhes de TASK-7/ });
+    expect(card.tagName).toBe('ARTICLE');
+    expect(within(card).getByRole('heading', { name: 'Consolidar frontend' })).toBeInTheDocument();
+    expect(within(card).getByText('Responsável').tagName).toBe('DT');
     card.focus();
     await user.keyboard('{Enter}');
     expect(handlers.onOpen).toHaveBeenCalledWith(task, card);

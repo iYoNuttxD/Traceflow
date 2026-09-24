@@ -150,11 +150,12 @@ describe('Tasks C2 facelift', () => {
     expect(filters).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByLabelText('Buscar tarefa')).toBeNull();
     expect(screen.getByRole('button', { name: 'Nova tarefa' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Abrir detalhes de TASK-21/ })).toBeInTheDocument();
+    expect(screen.getByRole('article', { name: /Abrir detalhes de TASK-21/ })).toBeInTheDocument();
     expect(screen.queryByText('Ver detalhes')).toBeNull();
     expect(screen.getByText('A Fazer')).toBeInTheDocument();
     expect(screen.getByText('Daniel Ganz Musse')).toBeInTheDocument();
     expect(screen.getByText('Sprint 3')).toBeInTheDocument();
+    expect(mocks.listMilestones).not.toHaveBeenCalled();
     expect(screen.queryByText('Pull request')).toBeNull();
     expect(screen.queryByText('Commits')).toBeNull();
   });
@@ -200,7 +201,7 @@ describe('Tasks C2 facelift', () => {
     expect(within(dialog).getByLabelText('Título da tarefa')).toHaveValue(task.title);
     await user.click(within(dialog).getByRole('button', { name: 'Fechar editar tarefa' }));
 
-    await user.click(screen.getByRole('button', { name: /Abrir detalhes de TASK-21/ }));
+    await user.click(screen.getByRole('article', { name: /Abrir detalhes de TASK-21/ }));
     expect(screen.getByRole('dialog', { name: 'Detalhes de TASK-21' })).toHaveAttribute(
       'data-can-edit',
       'true'
@@ -220,7 +221,7 @@ describe('Tasks C2 facelift', () => {
     expect(screen.queryByRole('button', { name: 'Nova tarefa' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Mais ações da tarefa TASK-21' })).toBeNull();
     expect(container.querySelector('.task-catalog-card__footer')).toBeNull();
-    await user.click(screen.getByRole('button', { name: /Abrir detalhes de TASK-21/ }));
+    await user.click(screen.getByRole('article', { name: /Abrir detalhes de TASK-21/ }));
     expect(screen.getByRole('dialog', { name: 'Detalhes de TASK-21' })).toHaveAttribute(
       'data-can-edit',
       'false'

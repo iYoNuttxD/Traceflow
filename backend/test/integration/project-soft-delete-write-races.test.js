@@ -10,6 +10,8 @@ let deletionService;
 let accessCodes;
 let invitations;
 let projects;
+let tasks;
+let requirements;
 
 function deferred() {
   let resolve;
@@ -65,6 +67,9 @@ beforeAll(async () => {
     await import('../../src/modules/projects/project-invitation.repository.js'));
   ({ projectRepository: projects } =
     await import('../../src/modules/projects/project.repository.js'));
+  ({ taskRepository: tasks } = await import('../../src/modules/tasks/task.repository.js'));
+  ({ requirementRepository: requirements } =
+    await import('../../src/modules/requirements/requirement.repository.js'));
   await cleanTestDatabase(prisma);
 });
 
@@ -188,5 +193,31 @@ describe('writes de projeto versus soft delete confirmado (MySQL real)', () => {
     expect(
       await prisma.projectMembership.count({ where: { projectId: project.id, userId: joiner.id } })
     ).toBe(0);
+  });
+
+  it('não cria Task depois de uma leitura ativa seguida de soft delete', async () => {
+    const { project, owner } = await fixture();
+    await expect(
+      continueAfterDeletion({
+        project,
+        owner,
+        read: () => projects.findById(project.id),
+        write: () => tasks.createTaskAtomic(project.id, { title: 'Tarefa tardia' })
+      })
+    ).rejects.toMatchObject({ statusCode: 404 });
+    expect(await prisma.task.count({ where: { projectId: project.id } })).toBe(0);
+  });
+
+  it('não cria Requirement depois de uma leitura ativa seguida de soft delete', async () => {
+    const { project, owner } = await fixture();
+    await expect(
+      continueAfterDeletion({
+        project,
+        owner,
+        read: () => projects.findById(project.id),
+        write: () => requirements.createRequirement(project.id, { title: 'Requisito tardio' })
+      })
+    ).rejects.toMatchObject({ statusCode: 404 });
+    expect(await prisma.requirement.count({ where: { projectId: project.id } })).toBe(0);
   });
 });

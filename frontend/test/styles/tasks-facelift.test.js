@@ -39,7 +39,7 @@ describe('Tasks facelift responsivo', () => {
   it('preserva foco, alvos mínimos, dialog rolável e remove o retorno legado', () => {
     expect(screenSource).not.toContain('← Voltar para o projeto');
     expect(screenCss).toContain('min-height: var(--size-touch-target)');
-    expect(listCss).toContain('.task-catalog-card__open:focus-visible');
+    expect(listCss).toContain('.task-catalog-card:focus-visible');
     expect(listCss).toContain('min-height: calc(var(--size-touch-target)');
     expect(listCss).toMatch(/\.task-catalog-card__footer \{[\s\S]*?justify-content: flex-end;/);
     expect(listCss).not.toContain('.task-catalog-card__footer > span');

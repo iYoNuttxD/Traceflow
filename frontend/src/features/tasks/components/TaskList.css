@@ -37,6 +37,7 @@
 .task-catalog-card {
   display: flex;
   flex-direction: column;
+  cursor: pointer;
   transition:
     border-color var(--duration-fast) var(--ease-standard),
     box-shadow var(--duration-fast) var(--ease-standard);
@@ -48,21 +49,7 @@
   box-shadow: var(--shadow-md);
 }
 
-.task-catalog-card__open {
-  display: flex;
-  min-width: 0;
-  flex: 1 1 auto;
-  flex-direction: column;
-  border: 0;
-  padding: 0;
-  color: inherit;
-  background: transparent;
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
-}
-
-.task-catalog-card__open:focus-visible,
+.task-catalog-card:focus-visible,
 .new-task-card:focus-visible {
   outline: var(--focus-ring-width) solid var(--color-focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-width));

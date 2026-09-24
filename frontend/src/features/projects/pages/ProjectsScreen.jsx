@@ -94,6 +94,7 @@ export function ProjectsScreen() {
   const { run: runInstallationsRequest } = useAbortableRequest();
   const operationLock = useRef(false);
   const purgedRepositoriesRef = useRef(new Map());
+  const retryCreateRef = useRef(null);
   const confirm = useConfirm();
   const repositoryStateBelongsToContext =
     String(repositoryRequestState.projectId || '') === String(reconnectProjectId || '');
@@ -102,11 +103,15 @@ export function ProjectsScreen() {
     ? repositoryRequestState.loading
     : true;
   const repositoriesError = repositoryStateBelongsToContext ? repositoryRequestState.error : '';
+  useEffect(() => {
+    if (!newProjectDialogOpen || !purgedRepositoryId || !operationError) return;
+    queueMicrotask(() => retryCreateRef.current?.focus());
+  }, [newProjectDialogOpen, operationError, purgedRepositoryId]);
   const projectsError = projectsRequestError?.message || '';
   const projectsRetryAfterSeconds = projectsRequestError?.retryAfterSeconds || 0;
 
   const loadRepositories = useCallback(
-    () =>
+    ({ fresh = false } = {}) =>
       runRepositoriesRequest(async (signal) => {
         const requestedProjectId = reconnectProjectId || null;
         setRepositoryRequestState((current) => ({
@@ -121,7 +126,8 @@ export function ProjectsScreen() {
 
         try {
           const response = await projectsApi.listAllGithubRepositories(reconnectProjectId, {
-            signal
+            signal,
+            fresh
           });
           if (signal.aborted) return;
           const validRepositories = (response.data.repositories || [])
@@ -315,9 +321,11 @@ export function ProjectsScreen() {
         responsibleTeam: formData.responsibleTeam
       });
       setSuccess(response.data.message);
+      purgedRepositoriesRef.current.delete(formData.selectedRepositoryId);
       setFormData(emptyProjectForm);
       setPurgedRepositoryId(null);
       await refreshProjects({ fresh: true });
+      await loadRepositories({ fresh: true });
       setNewProjectDialogOpen(false);
     } catch (requestError) {
       const pendingProject = requestError.response?.data?.details?.pendingProject;
@@ -409,8 +417,13 @@ export function ProjectsScreen() {
       setPendingRepository(null);
       setFormData(emptyProjectForm);
       await refreshProjects({ mutation: { type: 'RESTORED', projectId } });
+      await loadRepositories({ fresh: true });
       setNewProjectDialogOpen(false);
     } catch (requestError) {
+      if ([404, 409].includes(requestError.response?.status)) {
+        setPendingRepository(null);
+        await Promise.all([refreshProjects({ fresh: true }), loadRepositories({ fresh: true })]);
+      }
       const normalized = normalizeApiError(requestError, 'Não foi possível recuperar o projeto.');
       setOperationError(normalized.message);
       setOperationRetryAfterSeconds(normalized.retryAfterSeconds || 0);
@@ -464,6 +477,10 @@ export function ProjectsScreen() {
       setPurgedRepositoryId(formData.selectedRepositoryId);
       void refreshProjects({ mutation: { type: 'PURGED', projectId: pending.projectId } });
     } catch (requestError) {
+      if ([404, 409].includes(requestError.response?.status)) {
+        setPendingRepository(null);
+        await Promise.all([refreshProjects({ fresh: true }), loadRepositories({ fresh: true })]);
+      }
       const normalized = normalizeApiError(
         requestError,
         'Não foi possível excluir definitivamente o projeto anterior.'
@@ -642,6 +659,7 @@ export function ProjectsScreen() {
             pode tentar criar o novo projeto com este repositório.
           </p>
           <button
+            ref={retryCreateRef}
             className="button button-primary"
             type="button"
             disabled={submitting || operationCooldown > 0}

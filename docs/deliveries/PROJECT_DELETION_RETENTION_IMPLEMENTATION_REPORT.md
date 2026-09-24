@@ -7,7 +7,7 @@ Result: **PROJECT DELETION + 30-DAY RECOVERY — PASS LOCAL**
 
 ## 1. Baseline and scope
 
-The implementation was made directly in `/Users/daniel/Coding/Traceflow` from a clean
+The implementation was made directly in the TraceFlow checkout from a clean
 working tree. Baseline checks recorded the branch, HEAD, status and
 `git diff --check` before changes. No commit, push, merge, rebase, reset or stash was
 performed.

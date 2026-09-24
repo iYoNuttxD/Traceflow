@@ -369,6 +369,7 @@ export function TaskForm({
             ) : null}
             <SearchCombobox
               label="Pesquisar requisito"
+              searchContextKey={projectId}
               placeholder="Pesquisar requisito por título..."
               onSearch={searchRequirements}
               searchErrorMessage="Não foi possível carregar os requisitos."
@@ -396,6 +397,7 @@ export function TaskForm({
             ) : null}
             <SearchCombobox
               label="Pesquisar pull request"
+              searchContextKey={projectId}
               placeholder="Pesquisar por número ou título do PR..."
               onSearch={searchPullRequests}
               searchErrorMessage="Não foi possível carregar os pull requests do projeto."
@@ -409,6 +411,7 @@ export function TaskForm({
           <div className="traceability-picker">
             <SearchCombobox
               label="Buscar commits do projeto"
+              searchContextKey={projectId}
               placeholder="Pesquisar por SHA ou mensagem..."
               onSearch={searchCommits}
               searchErrorMessage="Não foi possível carregar os commits do projeto."
@@ -476,6 +479,7 @@ export function TaskForm({
             )}
             <SearchCombobox
               label="Pesquisar issues"
+              searchContextKey={projectId}
               placeholder="Pesquisar issue por número ou título..."
               onSearch={searchIssues}
               searchErrorMessage="Não foi possível carregar as issues do projeto."

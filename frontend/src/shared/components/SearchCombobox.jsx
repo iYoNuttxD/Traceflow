@@ -23,6 +23,7 @@ export function SearchCombobox({
   isOptionDisabled = neverDisabled,
   renderOption,
   onSearch,
+  searchContextKey = null,
   onSelect,
   onClear,
   queryClearLabel = '',
@@ -37,6 +38,8 @@ export function SearchCombobox({
   const errorId = `${inputId}-error`;
   const helpId = `${inputId}-help`;
   const requestRef = useRef(0);
+  const onSearchRef = useRef(onSearch);
+  onSearchRef.current = onSearch;
   const inputRef = useRef(null);
   const fieldRef = useRef(null);
   const listRef = useRef(null);
@@ -55,6 +58,7 @@ export function SearchCombobox({
     : trimmedQuery.length >= minQueryLength;
   const expanded = hasQuery && !dismissed && !disabled && !selectedOption;
   const searchEnabled = hasQuery && !selectedOption && !disabled && (openOnFocus || expanded);
+  const remoteSearch = Boolean(onSearch);
 
   useEffect(() => {
     if (!expanded) return undefined;
@@ -171,8 +175,8 @@ export function SearchCombobox({
     const timeoutId = window.setTimeout(
       async () => {
         try {
-          const found = onSearch
-            ? await onSearch(trimmedQuery, controller.signal)
+          const found = remoteSearch
+            ? await onSearchRef.current(trimmedQuery, controller.signal)
             : normalizedOptions.filter((option) =>
                 getOptionLabel(option)
                   .toLocaleLowerCase('pt-BR')
@@ -188,7 +192,7 @@ export function SearchCombobox({
           if (request === requestRef.current && !controller.signal.aborted) setLoading(false);
         }
       },
-      onSearch ? 300 : 0
+      remoteSearch ? 300 : 0
     );
 
     return () => {
@@ -201,7 +205,8 @@ export function SearchCombobox({
     getOptionLabel,
     hasQuery,
     normalizedOptions,
-    onSearch,
+    remoteSearch,
+    searchContextKey,
     searchErrorMessage,
     selectedOption,
     trimmedQuery
