@@ -38,7 +38,34 @@ function burnInstant(participation) {
   return null;
 }
 
-export function buildSprintBurndown({ sprint, participations = [], cutoff }) {
+export function buildSprintBurndown({ sprint, participations = [], cutoff, projection }) {
+  if (sprint.burnupCoverageStartedAt) {
+    const historical = projection ?? {
+      state: 'UNAVAILABLE',
+      points: [],
+      limitations: ['BURNUP_HISTORY_NOT_LOADED'],
+      coverage: { truncated: false }
+    };
+    const points = historical.points;
+    const lastKnown = points.findLast((point) => point.scope !== null);
+    return {
+      hasData: points.length > 0,
+      totalPoints: lastKnown?.scope ?? 0,
+      frozen: TERMINAL.includes(sprint.status),
+      cutoffDate: points.findLast((point) => point.remaining !== null)?.date ?? null,
+      days: points.map(({ date, remaining }, index) => ({
+        date,
+        ideal:
+          points.length === 1
+            ? (lastKnown?.scope ?? 0)
+            : Math.round((lastKnown?.scope ?? 0) * (1 - index / (points.length - 1)) * 10) / 10,
+        remaining
+      })),
+      historicalState: historical.state,
+      historicalLimitations: historical.limitations,
+      truncated: historical.coverage.truncated
+    };
+  }
   const vazio = {
     hasData: false,
     totalPoints: 0,

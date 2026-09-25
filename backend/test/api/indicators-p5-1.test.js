@@ -65,14 +65,34 @@ async function setup() {
     expect(response.status).toBe(201);
     return response.body.task;
   };
-  const burnup = async (sprintId) => {
+  const series = async (sprintId) => {
     const response = await agent.get(
       `/api/projects/${projectId}/indicators/sprints?sprintId=${sprintId}`
     );
     expect(response.status).toBe(200);
-    return response.body.indicators.find((item) => item.metricId === 'I46');
+    const find = (id) => response.body.indicators.find((item) => item.metricId === id);
+    return { burndown: find('I45'), burnup: find('I46') };
   };
-  return { agent, mutate, projectId, createSprint, createTask, burnup };
+  const burnup = async (sprintId) => (await series(sprintId)).burnup;
+  return { agent, mutate, projectId, createSprint, createTask, burnup, series };
+}
+
+function expectComparable({ burndown, burnup }) {
+  expect(burndown.definitionVersion).toBe(2);
+  expect(burndown.points.map((row) => row.date)).toEqual(burnup.points.map((row) => row.date));
+  for (let index = 0; index < burnup.points.length; index += 1) {
+    const up = burnup.points[index];
+    const down = burndown.points[index];
+    if (up.scope === null) {
+      expect(down.remaining).toBeNull();
+      continue;
+    }
+    expect(up.scope).toBeGreaterThanOrEqual(0);
+    expect(up.completed).toBeGreaterThanOrEqual(0);
+    expect(down.remaining).toBeGreaterThanOrEqual(0);
+    expect(up.completed).toBeLessThanOrEqual(up.scope);
+    expect(up.scope - up.completed).toBeCloseTo(down.remaining, 9);
+  }
 }
 
 describe('Sprint Burnup P5.1 — persisted API', () => {
@@ -123,6 +143,7 @@ describe('Sprint Burnup P5.1 — persisted API', () => {
     const result = await s.burnup(sprint.id);
     expect(result).toMatchObject({ state: 'AVAILABLE', coverage: { complete: true } });
     expect(result.points[0]).toMatchObject({ scope: 7, completed: 5 });
+    expectComparable(await s.series(sprint.id));
     const events = await prisma.sprintBurnupEvent.findMany({
       where: { sprintId: sprint.id },
       orderBy: { id: 'asc' }
@@ -151,16 +172,27 @@ describe('Sprint Burnup P5.1 — persisted API', () => {
       (await s.mutate('patch', `/api/sprints/${sprint.id}/status`).send({ status: 'CONCLUIDA' }))
         .status
     ).toBe(200);
-    const before = await s.burnup(sprint.id);
-    expect(before.state).toBe('AVAILABLE');
+    const before = await s.series(sprint.id);
+    expect(before.burnup.state).toBe('AVAILABLE');
+    expectComparable(before);
     const eventCount = await prisma.sprintBurnupEvent.count({ where: { sprintId: sprint.id } });
     await s.mutate('put', `/api/tasks/${task.id}`).send({ estimatedEffort: 9 });
-    await prisma.task.update({ where: { id: task.id }, data: { actualEffort: 7 } });
+    expect(
+      (await s.mutate('patch', `/api/tasks/${task.id}/status`).send({ status: 'EM_ANDAMENTO' }))
+        .status
+    ).toBe(409);
+    await prisma.task.update({
+      where: { id: task.id },
+      data: { status: 'EM_ANDAMENTO', actualEffort: 7 }
+    });
     expect((await s.mutate('delete', `/api/tasks/${task.id}`)).status).toBe(200);
-    const after = await s.burnup(sprint.id);
-    expect(after.points).toEqual(before.points);
-    expect(after.coverage).toEqual(before.coverage);
-    expect(after.state).toBe(before.state);
+    const after = await s.series(sprint.id);
+    expect(after.burnup.points).toEqual(before.burnup.points);
+    expect(after.burnup.coverage).toEqual(before.burnup.coverage);
+    expect(after.burnup.state).toBe(before.burnup.state);
+    expect(after.burndown.points).toEqual(before.burndown.points);
+    expect(after.burndown.coverage).toEqual(before.burndown.coverage);
+    expect(after.burndown.state).toBe(before.burndown.state);
     expect(await prisma.sprintBurnupEvent.count({ where: { sprintId: sprint.id } })).toBe(
       eventCount
     );
@@ -203,6 +235,9 @@ describe('Sprint Burnup P5.1 — persisted API', () => {
     });
     expect(partial.points[0].date).toBe(day(0));
     expect(partial.limitations).toContain('BURNUP_COVERAGE_STARTED_MID_SPRINT');
+    const partialSeries = await s.series(old.id);
+    expect(partialSeries.burndown.state).toBe('PARTIAL');
+    expectComparable(partialSeries);
   });
 
   it('preserves an origin Sprint through transfer and later estimate changes in the destination', async () => {
@@ -217,9 +252,10 @@ describe('Sprint Burnup P5.1 — persisted API', () => {
     await s.mutate('patch', `/api/tasks/${task.id}/sprint`).send({ sprintId: origin.id });
     await s.mutate('patch', `/api/sprints/${origin.id}/status`).send({ status: 'EM_ANDAMENTO' });
     await s.mutate('delete', `/api/tasks/${task.id}/sprint`);
-    const before = await s.burnup(origin.id);
-    expect(before.state).toBe('AVAILABLE');
-    expect(before.points[0]).toMatchObject({ scope: 0, completed: 0 });
+    const before = await s.series(origin.id);
+    expect(before.burnup.state).toBe('AVAILABLE');
+    expect(before.burnup.points[0]).toMatchObject({ scope: 0, completed: 0 });
+    expectComparable(before);
     expect(
       (await s.mutate('patch', `/api/sprints/${origin.id}/status`).send({ status: 'CONCLUIDA' }))
         .status
@@ -233,11 +269,13 @@ describe('Sprint Burnup P5.1 — persisted API', () => {
       ).status
     ).toBe(200);
     await s.mutate('put', `/api/tasks/${task.id}`).send({ estimatedEffort: 5 });
-    const originAfter = await s.burnup(origin.id);
-    const destinationAfter = await s.burnup(destination.id);
-    expect(originAfter.points).toEqual(before.points);
-    expect(destinationAfter).toMatchObject({ state: 'AVAILABLE' });
-    expect(destinationAfter.points[0]).toMatchObject({ scope: 5, completed: 0 });
+    const originAfter = await s.series(origin.id);
+    const destinationAfter = await s.series(destination.id);
+    expect(originAfter.burnup.points).toEqual(before.burnup.points);
+    expect(originAfter.burndown.points).toEqual(before.burndown.points);
+    expect(destinationAfter.burnup).toMatchObject({ state: 'AVAILABLE' });
+    expect(destinationAfter.burnup.points[0]).toMatchObject({ scope: 5, completed: 0 });
+    expectComparable(destinationAfter);
     expect(
       await prisma.sprintBurnupEvent.findMany({
         where: { taskKey: task.id, type: 'ESTIMATE_CHANGED' },
@@ -256,6 +294,7 @@ describe('Sprint Burnup P5.1 — persisted API', () => {
     const result = await s.burnup(sprint.id);
     expect(result.state).toBe('AVAILABLE');
     expect(result.points[0]).toMatchObject({ scope: 0, completed: 0 });
+    expectComparable(await s.series(sprint.id));
     const event = await prisma.sprintBurnupEvent.findFirst({
       where: { sprintId: sprint.id, taskKey: task.id, type: 'TASK_REMOVED' }
     });

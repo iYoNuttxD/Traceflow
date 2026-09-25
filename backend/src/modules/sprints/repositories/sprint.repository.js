@@ -136,7 +136,7 @@ async function freezeParticipations(tx, sprint, closedAt) {
   }
 }
 
-async function findBurndownData(client, sprint) {
+async function findBurndownData(client, sprint, includeCompletions = true) {
   const frozen = ['CONCLUIDA', 'CANCELADA'].includes(sprint.status);
   const participations = await client.sprintTask.findMany({
     where: { sprintId: sprint.id },
@@ -147,7 +147,7 @@ async function findBurndownData(client, sprint) {
     orderBy: [{ id: 'asc' }]
   });
   const taskIds = participations
-    .filter((p) => !frozen && p.closedAt === null)
+    .filter((p) => !frozen && includeCompletions && p.closedAt === null)
     .map((p) => p.taskId)
     .filter(Boolean);
   const completions = taskIds.length
@@ -609,7 +609,24 @@ export const sprintRepository = {
   },
 
   async findBurndownDataBySprint(sprint) {
-    return findBurndownData(prisma, sprint);
+    return findBurndownData(prisma, sprint, !sprint.burnupCoverageStartedAt);
+  },
+
+  findHistoricalEventsBySprint(sprintId) {
+    return prisma.sprintBurnupEvent.findMany({
+      where: { sprintId },
+      select: {
+        id: true,
+        taskKey: true,
+        type: true,
+        previousPoints: true,
+        newPoints: true,
+        fromStatus: true,
+        toStatus: true,
+        occurredAt: true
+      },
+      orderBy: [{ occurredAt: 'asc' }, { id: 'asc' }]
+    });
   },
 
   // Linhas de esforço por tarefa (S1-06). Sprint aberta lê a tarefa viva; sprint

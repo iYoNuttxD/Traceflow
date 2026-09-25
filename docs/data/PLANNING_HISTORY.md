@@ -260,3 +260,24 @@ das participações ainda presentes, com `burnupCoverageStartedAt` igual ao inst
 Isso é `PARTIAL` se `startedAt` precede a âncora. Sprint terminal anterior não recebe eventos
 inferidos nem cobertura; permanece `UNAVAILABLE`. A implantação precisa manter as escritas
 operacionais pausadas durante a migration para que âncora e estado corrente sejam coesos.
+
+## Projeção histórica compartilhada — P5.2
+
+Em Sprints com cobertura `SprintBurnupEvent`, Burndown I45 e Burnup I46 usam uma única projeção
+diária do domínio de Sprint. A ordem interna é `occurredAt ASC, id ASC`; cada ponto representa
+o estado no fim do dia UTC. `scope` soma a estimativa das Tasks presentes, `completed` soma a
+estimativa das presentes em `CONCLUIDO`, e `remaining = scope - completed`. O cálculo rejeita
+cadeia contraditória e não clampa valores negativos. Estimativa ausente produz `null` nos três
+valores do bucket, nunca zero presumido.
+
+Concluir transfere a estimativa vigente de `remaining` para `completed`; reabrir faz o inverso;
+reconcluir volta a contar a Task uma única vez. Revisar a estimativa de uma Task aberta altera
+`scope` e `remaining`; se concluída, altera `scope` e `completed`. Entrada/saída de escopo muda
+os três valores conforme estimativa e status no evento. Transferência usa a saída da Sprint de
+origem e a entrada na Sprint de destino; eventos posteriores no destino não alteram a origem.
+Carry-over é contexto da participação, não uma fórmula de pontos diferente.
+
+O corte terminal ignora eventos posteriores e a exclusão física da Task não remove o diário.
+Cobertura iniciada no meio da Sprint só publica pontos a partir da âncora (`PARTIAL`); Sprints
+anteriores sem diário mantêm o Burndown legado e Burnup `UNAVAILABLE`. A linha ideal de I45
+continua uma referência separada, com os pontos disponíveis no recorte coberto.

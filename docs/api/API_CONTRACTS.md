@@ -754,18 +754,22 @@ ao que aconteceu. `remaining` são os pontos que ainda faltavam ao **fim** daque
 nos dias posteriores ao corte: zero diria "nada restante" onde o certo é "esse dia ainda não
 chegou".
 
-Enquanto aberta, o denominador soma `estimatedEffort` das participações não removidas. Depois
-do encerramento usa exclusivamente `SprintTask.pointsAtClose`; tarefa sem estimativa não pesa. Sem pontos ou com janela de menos de dois dias, `hasData` é `false` e `days` vem vazio.
+Para Sprint sem cobertura do diário P5.1, o cálculo legado aberto soma `estimatedEffort` das
+participações não removidas; encerrado usa `SprintTask.pointsAtClose`. Nesse caminho, sem pontos
+ou com janela de menos de dois dias, `hasData` é `false` e `days` vem vazio. Para Sprint coberta,
+`remaining` vem da projeção histórica de eventos, inclusive nos dias anteriores a uma remoção;
+estimativa ausente deixa o bucket `null`. A série inicia na âncora se a cobertura for parcial.
 A série tem teto de **180 dias**: uma janela maior é truncada em silêncio no 180º ponto — teto de
 segurança para payload e tela, não uma regra de domínio (limite documentado pela bateria RF10/RF35
 de 25/08/2026, que congelou o comportamento em teste; ASVS 2.1.3).
 
-Enquanto aberta, o instante em que cada tarefa deixou de pesar vem da primeira `TaskHistoryEntry` de
+No caminho legado aberto, o instante em que cada tarefa deixou de pesar vem da primeira `TaskHistoryEntry` de
 `field: STATUS` para `CONCLUIDO`, **interseccionada com o intervalo da participação** — uma
 conclusão ocorrida enquanto a tarefa estava em outra sprint não queima escopo desta. Tarefa que
 entra já concluída queima na entrada, e não no início da sprint. No encerramento, esse instante
 é persistido em `completedAtClose`, junto com pontos/status; a série terminal independe de
-editar ou excluir a Task e seu histórico. Os pontos do planejamento ficam separados em
+editar ou excluir a Task e seu histórico. Na Sprint coberta, conclusão, reabertura e reconclusão
+seguem o estado de `SprintBurnupEvent` ao fim de cada dia, inclusive após exclusão da Task. Os pontos do planejamento ficam separados em
 `pointsAtPlanning`, capturados apenas para membership presente no start.
 
 Vem embutido no `progress`, e não em endpoint próprio: o painel do Kanban exibe os dois juntos.
@@ -1402,8 +1406,8 @@ I72 conta apenas carry-over no escopo corrente de Sprint não terminal; na termi
 
 I44 adapta `progress.effort` de S1-06 com `value:{estimatedHours,actualHours,differenceHours}`,
 `coverage` e `components:{status,incomplete,differencePercent,usagePercent}`. Snapshot terminal
-incompleto mantém `PARTIAL` e suas limitações; não há nova soma de sessões. I45 adapta sem mudar
-a fórmula os `days` canônicos de burndown, com pontos `{date,ideal,remaining}` e eixo **UTC** do
+incompleto mantém `PARTIAL` e suas limitações; não há nova soma de sessões. I45 adapta os `days`
+do owner canônico de Burndown, com pontos `{date,ideal,remaining}` e eixo **UTC** do
 domínio de Sprint, limitado por ele a 180 dias; no contrato P5, corte pelo teto expõe
 `PARTIAL`/`BURNDOWN_MAX_180_DAYS` e `coverage.truncated`. Sprint planejada não publica série real.
 
@@ -1425,8 +1429,14 @@ ausente ou eventos contraditórios. `NO_DATA` cobre Sprint não iniciada ou univ
 sem Task alguma. O relógio de evento é `SprintBurnupEvent.occurredAt`; empate usa `id`.
 O histórico sobrevive à exclusão física da Task e congela no fechamento da Sprint. A migration
 P5.1 cria âncora corrente para Sprints ativas na implantação; Sprints já encerradas não recebem
-backfill inferido. I45 continua com seu cálculo canônico anterior, que não reconstrói todas as
-reaberturas intermediárias; comparar as duas curvas históricas requer considerar essa limitação.
+backfill inferido. Desde P5.2, I45 tem `definitionVersion:2` e seu owner canônico consome a
+mesma projeção histórica de I46 nas Sprints cobertas. Para cada dia com estimativas conhecidas,
+`I45.remaining + I46.completed = I46.scope`; conclusão, reabertura, reconclusão, revisões de
+estimativa e entradas/saídas de escopo respeitam o estado ao fim do dia UTC. I45 preserva
+`{date,ideal,remaining}`, `coverage` e `limitations`; sua série começa na âncora quando a
+cobertura é parcial e propaga as limitações do diário. Sprints sem cobertura continuam com
+Burndown legado; I46 permanece `UNAVAILABLE`, sem comparação histórica artificial. A linha
+ideal de I45 continua independente do valor real remanescente.
 
 I47 usa somente Sprints `CONCLUIDA` com snapshot terminal íntegro; exclui `CANCELADA`, atual e
 legado incompleto. Seus pontos `{sprintId,sprintName,closedAt,completedPoints}` vêm de

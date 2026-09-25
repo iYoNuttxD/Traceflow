@@ -114,12 +114,14 @@ export const sprintAnalyticsService = {
       };
     }
 
-    const canonical = await sprintProgressService.getSprintIndicatorFacts(selected.id);
+    const canonical = await sprintProgressService.getSprintIndicatorFacts(
+      selected.id,
+      new Date(generatedAt)
+    );
     if (canonical.sprint.projectId !== id) throw resourceNotFoundError('Sprint');
-    const burnupHistory = await sprintAnalyticsRepository.readBurnup(id, selected.id);
-    if (!burnupHistory) throw resourceNotFoundError('Sprint');
     const burnup = buildSprintBurnup({
-      ...burnupHistory,
+      sprint: canonical.sprint,
+      projection: canonical.historicalProjection,
       cutoff: new Date(generatedAt)
     });
     const facts = buildSprintAnalyticsFacts(canonical);
@@ -160,7 +162,7 @@ export const sprintAnalyticsService = {
       nextBurndownDay &&
       sprint.endDate > nextBurndownDay
     );
-    const burndownState = !sprint.startedAt
+    const legacyBurndownState = !sprint.startedAt
       ? 'NO_DATA'
       : !facts.burndown.hasData
         ? terminalLimitations.length
@@ -169,6 +171,11 @@ export const sprintAnalyticsService = {
         : terminalLimitations.length || burndownTruncated
           ? 'PARTIAL'
           : 'AVAILABLE';
+    const historicalBurndownState = facts.burndown.historicalState;
+    const burndownState =
+      historicalBurndownState === 'AVAILABLE' && terminalLimitations.length
+        ? 'PARTIAL'
+        : (historicalBurndownState ?? legacyBurndownState);
     const incomingItems = facts.incoming.map((item) => ({ direction: 'INCOMING', ...item }));
     const outgoingItems = facts.outgoing.map((item) => ({ direction: 'OUTGOING', ...item }));
     const selectedIndicators = [
@@ -261,6 +268,7 @@ export const sprintAnalyticsService = {
         },
         limitations: [
           ...terminalLimitations,
+          ...(facts.burndown.historicalLimitations ?? []),
           ...(!sprint.startedAt ? ['SPRINT_NOT_STARTED'] : []),
           ...(sprint.startedAt && !facts.burndown.hasData ? ['BURNDOWN_DATA_UNAVAILABLE'] : []),
           ...(burndownTruncated ? ['BURNDOWN_MAX_180_DAYS'] : [])

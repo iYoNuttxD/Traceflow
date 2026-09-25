@@ -1,23 +1,27 @@
 import { sprintRepository } from '../repositories/sprint.repository.js';
 import { buildSprintProgress } from '../sprint.progress.calculator.js';
 import { buildSprintBurndown } from '../sprint.burndown.calculator.js';
+import { buildSprintHistoricalProjection } from '../sprint.historical.projection.js';
 import { buildSprintEffort } from '../sprint.effort.calculator.js';
 import { buildSprintHistoricalSummary } from '../sprint.summary.calculator.js';
 import { parseSprintId } from '../sprint.schema.js';
 import { ensureSprintExists } from './sprint-crud.service.js';
 
 export const sprintProgressService = {
-  async getSprintIndicatorFacts(sprintId) {
+  async getSprintIndicatorFacts(sprintId, cutoff = new Date()) {
     const id = parseSprintId(sprintId);
     const sprint = await ensureSprintExists(id);
 
-    const cutoff = new Date();
     const frozen = ['CONCLUIDA', 'CANCELADA'].includes(sprint.status);
-    const [participations, burndownData, effortRows] = await Promise.all([
+    const [participations, burndownData, effortRows, historicalEvents] = await Promise.all([
       sprintRepository.findParticipationsBySprint(id, frozen),
       sprintRepository.findBurndownDataBySprint(sprint),
-      sprintRepository.findEffortRowsBySprint(id, frozen)
+      sprintRepository.findEffortRowsBySprint(id, frozen),
+      sprint.burnupCoverageStartedAt ? sprintRepository.findHistoricalEventsBySprint(id) : []
     ]);
+    const historicalProjection = sprint.burnupCoverageStartedAt
+      ? buildSprintHistoricalProjection({ sprint, events: historicalEvents, cutoff })
+      : null;
 
     const historicalLimitations = [];
     if (sprint.startedAt && !sprint.planningSnapshotAt) {
@@ -40,10 +44,11 @@ export const sprintProgressService = {
       burndown: buildSprintBurndown({
         sprint,
         participations: missingClosingPoints ? [] : burndownData,
-        cutoff
+        cutoff,
+        projection: historicalProjection
       })
     };
-    return { sprint, participations, burndownData, progress };
+    return { sprint, participations, burndownData, progress, historicalProjection };
   },
 
   async getSprintProgress(sprintId) {

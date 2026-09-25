@@ -17,13 +17,13 @@ function define(
     unit,
     temporalType,
     eventClock:
-      id === 'I46'
+      id === 'I45' || id === 'I46'
         ? 'SprintBurnupEvent.occurredAt'
         : temporalType === 'HISTORICAL_SERIES'
           ? 'Sprint.closedAt'
           : null,
     supportedFilters,
-    definitionVersion: id === 'I46' ? 2 : 1,
+    definitionVersion: id === 'I45' || id === 'I46' ? 2 : 1,
     formula,
     sources
   });
@@ -117,8 +117,8 @@ export const SPRINT_ANALYTICS_INDICATORS = Object.freeze({
     'Série diária canônica de trabalho restante.',
     'HOURS',
     'HISTORICAL_SERIES',
-    'Sprint.burndown.days',
-    ['Sprint.progress.burndown']
+    'remaining(t) from Sprint historical projection',
+    ['Sprint.progress.burndown', 'SprintBurnupEvent']
   ),
   I46: define(
     'I46',

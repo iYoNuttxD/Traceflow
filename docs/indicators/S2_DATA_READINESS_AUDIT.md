@@ -142,6 +142,8 @@ Inventário estático P0 do [schema Prisma](../../backend/prisma/schema.prisma).
 
 **Atualização P5.1:** I46 passa a **IMPLEMENTED BACKEND condicional**. `TaskEffortHistoryEntry` registra segundos realizados de sessões e não `estimatedEffort`; `TaskHistoryEntry` tampouco registra estimativa, `SprintTask` colapsa reentradas e hard delete elimina `TaskMovement`. Por isso a migration incremental introduz `SprintBurnupEvent` e `Sprint.burnupCoverageStartedAt`. Sprint nova captura baseline no start e mudanças de entrada/saída, estimativa e status na transação da mutação; uma Sprint ativa anterior recebe apenas âncora do estado no instante da migration (`PARTIAL`), sem datas inventadas. Sprint encerrada anterior segue `UNAVAILABLE`. O diário guarda `taskKey` sem FK para Task e FKs com cascade para Sprint/Project. I46 lê eventos em lote e devolve série somente para cobertura demonstrável; `PARTIAL` também informa `null` de estimativa e teto 180. O risco de performance do P0 permanece sujeito a medição em volume representativo; `EXPLAIN` local pequeno usou `(sprintId,occurredAt,id)`.
 
+**Atualização P5.2:** Em Sprints cobertas, I45 e I46 consomem uma projeção diária única de `SprintBurnupEvent`: `remaining = scope - completed` nos buckets com estimativa conhecida. I45 v2 preserva o owner de Burndown e a forma pública `{date,ideal,remaining}`; reabertura, reconclusão, estimativa, entrada/saída e exclusão não usam mais o ponto atual retroativamente. Cobertura parcial só permite comparação desde a âncora; Sprint anterior sem diário conserva I45 legado e I46 `UNAVAILABLE`. Nenhuma migration, backfill ou índice foi necessário.
+
 ## 7. Dependências e proposta de roadmap futuro
 
 ```text
@@ -151,7 +153,7 @@ Task status + responsabilidade histórica ──> RF17 ──> lead/cycle/throug
 S1-09 projection ──> implementação/coberturas/rastreabilidade atual
 TestExecution + Defect + DefectRetest ──> qualidade de testes e reteste
 SprintTask frozen ──> burndown/effort/velocity
-SprintBurnupEvent + cobertura ──> I46 condicional
+SprintBurnupEvent + cobertura ──> I45/I46 compartilhados nos dias cobertos
 ```
 
 **Sequência após P1:** revisão humana da fundação; P2 Indicator Engine de progresso/atividade/fluxo/Sprint/GitHub; etapa posterior de qualidade, painel e filtros; homologação de fórmulas com amostra e fonte GitHub, desempenho e visual. O roadmap atual S2-04/S2-05 cobre os oito RFs e não foi alterado. Nenhum DPI foi convertido em RF oficial.
