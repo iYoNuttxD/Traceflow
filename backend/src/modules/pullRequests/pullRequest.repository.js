@@ -100,6 +100,10 @@ export const pullRequestRepository = {
           where: { projectId },
           data: { pullRequestLifecycleSyncedAt: completedAt }
         });
+        await tx.projectGitHubIntegration.updateMany({
+          where: { projectId, pullRequestLifecycleCoverageFrom: null },
+          data: { pullRequestLifecycleCoverageFrom: completedAt }
+        });
         return { count };
       },
       { timeout: 120000 }

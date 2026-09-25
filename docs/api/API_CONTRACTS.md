@@ -1284,3 +1284,45 @@ Leitura requer sessão e membership ativa (`VIEWER` ou superior). Projeto exclu�
 ou alheio retorna 404 opaco; ausência de sessão retorna 401. Atividade medida
 não constitui avaliação individual, nota ou ranking. Não há cache persistido,
 dashboard ou indicador de RF18/RF54 nesta etapa.
+
+## S2 P3 — GitHub Analytics e qualidade de PR
+
+`GET /api/projects/:projectId/indicators/github?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&timeZone=America/Sao_Paulo`
+retorna `{projectId,period,indicators:[I04,I06,I09,I10,I11,I12,I13,I14,I15,I16,I17,I18,I73,I74]}`.
+O período usa a política P2 de datas civis inclusivas e instantes UTC `[startInclusive,endExclusive)`;
+datas/fuso inválidos retornam 400. I10/I13/I17/I73 são fotografia atual: cada `period` individual é `null`,
+mesmo quando a query contém período para as outras métricas. Todos os itens mantêm `IndicatorResult`
+e os estados `AVAILABLE`, `NO_DATA`, `PARTIAL`, `STALE`, `UNAVAILABLE`.
+
+I04/RF18: coorte de PRs distintas com `CLOSED.occurredAt` no período; numerador de PRs dessa
+coorte com `REOPENED` posterior ao primeiro CLOSED elegível e anterior a `endExclusive`.
+I06/RF54 reutiliza exatamente I04 e acrescenta `mergedRate` = PRs distintas da mesma coorte
+com merge comprovado / PRs distintas fechadas. `value` de I06 é
+`{reworkRate,mergedRate}`, com `components:{rework,merged}` e N/D da taxa de merge.
+Com denominador zero, taxas `null` e `NO_DATA`; com denominador positivo e numerador zero,
+taxas `0` válidas. Cobertura exige `pullRequestLifecycleCoverageFrom <= startInclusive`
+e `pullRequestLifecycleSyncedAt >= endExclusive`. Se não for comprovada, taxas ficam `null`;
+`coverage:{from,through}` e `PR_LIFECYCLE_PERIOD_NOT_COVERED` explicam o limite.
+O marcador inicial da P3 é prospectivo; eventos legados não tornam a história completa por suposição.
+
+I09 usa `Commit.date` sem restringir branch; I11 usa CLOSED distinto; I12 usa
+`PullRequest.mergedAtGithub`. I15/I16 usam PRs mescladas no período e a mesma amostra
+de `mergedAtGithub-createdAtGithub` em horas. I14 conta Issues atualmente fechadas com
+`closedAtGithub` no período; I18/I74 usam a mesma coorte e a duração
+`closedAtGithub-createdAtGithub` em dias. Esses três itens trazem
+`ISSUE_LIFECYCLE_NOT_COLLECTED`: reaberturas anteriores não são reconstruídas.
+Datas ausentes/invertidas não viram zero; I15/I16/I18/I74 expõem `eligibleCount` e
+`excludedCount` e, quando necessário, `INVALID_OR_MISSING_TIMESTAMPS_EXCLUDED`.
+
+I17 é `kind:LIST`, `value` = número de PRs abertas com idade válida, `items` = top 10
+mais antigas, cada item `{pullRequestId,number,title,age,githubUrl,createdAtGithub}`.
+I73 é a idade média em dias de todas as PRs abertas com data válida; ambos incluem
+contagens de elegíveis/excluídas. Sem fotografia GitHub, valores ficam `null` e
+`UNAVAILABLE`; falha de sync após fotografia preserva valor conhecido com `STALE`
+quando não há limite de cobertura mais forte. `sourceUpdatedAt`, `sourceSyncStatus`,
+`limitations[]` e `asOf` permitem interpretar o corte. Não há eventos brutos,
+autoria, e-mail, token, ranking de pessoas ou cache neste endpoint.
+
+Requer sessão e membership ativa VIEWER+; sem sessão → 401, projeto alheio,
+inexistente ou excluído → 404 opaco. S2-04/S2-05 ainda dependem das próximas
+etapas e da visualização; I19/Reviews permanece fora deste contrato.

@@ -17,5 +17,10 @@ router.get(
   validateRequest({ params: indicatorProjectParamsSchema, query: indicatorPeriodQuerySchema }),
   indicatorsController.activity
 );
+router.get(
+  '/projects/:projectId/indicators/github',
+  validateRequest({ params: indicatorProjectParamsSchema, query: indicatorPeriodQuerySchema }),
+  indicatorsController.github
+);
 
 export default router;

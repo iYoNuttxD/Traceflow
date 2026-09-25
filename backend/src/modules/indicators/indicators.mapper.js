@@ -24,6 +24,11 @@ export function indicatorResult(metricId, projectId, data, asOf) {
     ...(data.distribution ? { distribution: data.distribution } : {}),
     ...(data.people ? { people: data.people } : {}),
     ...(data.unassociated ? { unassociated: data.unassociated } : {}),
-    ...(data.components ? { components: data.components } : {})
+    ...(data.components ? { components: data.components } : {}),
+    ...(data.kind ? { kind: data.kind } : {}),
+    ...(data.items ? { items: data.items } : {}),
+    ...(data.eligibleCount !== undefined ? { eligibleCount: data.eligibleCount } : {}),
+    ...(data.excludedCount !== undefined ? { excludedCount: data.excludedCount } : {}),
+    ...(data.coverage ? { coverage: data.coverage } : {})
   };
 }

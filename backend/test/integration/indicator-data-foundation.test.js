@@ -92,8 +92,15 @@ describe('fundação histórica de indicadores', () => {
     const sync = (project, client) =>
       syncProjectPullRequests({ project, repository, githubClient: client, onProgress });
     expect((await sync(first.project, prClient(pages))).lifecycleEventsCreated).toBe(4);
+    const firstCoverage = (
+      await prisma.projectGitHubIntegration.findUnique({ where: { projectId: first.project.id } })
+    ).pullRequestLifecycleCoverageFrom;
     expect(onProgress).toHaveBeenCalledTimes(3);
     expect((await sync(first.project, prClient(pages))).lifecycleEventsCreated).toBe(0);
+    expect(
+      (await prisma.projectGitHubIntegration.findUnique({ where: { projectId: first.project.id } }))
+        .pullRequestLifecycleCoverageFrom
+    ).toEqual(firstCoverage);
     expect(
       (await sync(first.project, prClient([pages[0], [...pages[1], event(5, 1, 'REOPENED')]])))
         .lifecycleEventsCreated
@@ -130,6 +137,7 @@ describe('fundação histórica de indicadores', () => {
       where: { projectId: project.id }
     });
     expect(before.pullRequestLifecycleSyncedAt).not.toBeNull();
+    expect(before.pullRequestLifecycleCoverageFrom).toEqual(before.pullRequestLifecycleSyncedAt);
     const client = prClient([]);
     client.listPullRequestLifecycleEventPages = async function* () {
       yield [event(2, 1, 'REOPENED')];
@@ -145,6 +153,10 @@ describe('fundação histórica de indicadores', () => {
       (await prisma.projectGitHubIntegration.findUnique({ where: { projectId: project.id } }))
         .pullRequestLifecycleSyncedAt
     ).toEqual(before.pullRequestLifecycleSyncedAt);
+    expect(
+      (await prisma.projectGitHubIntegration.findUnique({ where: { projectId: project.id } }))
+        .pullRequestLifecycleCoverageFrom
+    ).toEqual(before.pullRequestLifecycleCoverageFrom);
   });
 
   it('registra varredura completa mesmo quando não há eventos de PR', async () => {
@@ -162,6 +174,10 @@ describe('fundação histórica de indicadores', () => {
     expect(
       (await prisma.projectGitHubIntegration.findUnique({ where: { projectId: project.id } }))
         .pullRequestLifecycleSyncedAt
+    ).not.toBeNull();
+    expect(
+      (await prisma.projectGitHubIntegration.findUnique({ where: { projectId: project.id } }))
+        .pullRequestLifecycleCoverageFrom
     ).not.toBeNull();
   });
 

@@ -443,6 +443,7 @@ model ProjectGitHubIntegration {
   lastValidatedAt              DateTime?
   lastSyncAt                   DateTime?
   pullRequestLifecycleSyncedAt DateTime?
+  pullRequestLifecycleCoverageFrom DateTime?
   lastSyncStatus               String?
   lastSyncError                String?
   lastSyncAttemptAt            DateTime?
