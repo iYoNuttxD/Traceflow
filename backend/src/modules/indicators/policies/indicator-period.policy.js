@@ -11,6 +11,18 @@ function localDateKey(formatter, instant) {
   return `${parts.year.padStart(4, '0')}-${parts.month}-${parts.day}`;
 }
 
+export function createIndicatorLocalDateKey(timeZone) {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    calendar: 'gregory',
+    numberingSystem: 'latn'
+  });
+  return (instant) => localDateKey(formatter, instant);
+}
+
 // Primeiro instante UTC pertencente ao dia civil no fuso solicitado. A busca
 // lida com dias de 23/25 horas e com transições que ocorrem à meia-noite.
 function startOfCivilDay(dateText, formatter) {

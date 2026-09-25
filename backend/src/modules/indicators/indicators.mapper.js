@@ -27,6 +27,7 @@ export function indicatorResult(metricId, projectId, data, asOf) {
     ...(data.components ? { components: data.components } : {}),
     ...(data.kind ? { kind: data.kind } : {}),
     ...(data.items ? { items: data.items } : {}),
+    ...(data.points ? { points: data.points } : {}),
     ...(data.eligibleCount !== undefined ? { eligibleCount: data.eligibleCount } : {}),
     ...(data.excludedCount !== undefined ? { excludedCount: data.excludedCount } : {}),
     ...(data.coverage ? { coverage: data.coverage } : {})

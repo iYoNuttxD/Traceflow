@@ -1326,3 +1326,48 @@ autoria, e-mail, token, ranking de pessoas ou cache neste endpoint.
 Requer sessão e membership ativa VIEWER+; sem sessão → 401, projeto alheio,
 inexistente ou excluído → 404 opaco. S2-04/S2-05 ainda dependem das próximas
 etapas e da visualização; I19/Reviews permanece fora deste contrato.
+
+## S2 P4 — Flow + Task Analytics
+
+`GET /api/projects/:projectId/indicators/tasks?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&timeZone=America/Sao_Paulo`
+retorna `{projectId,period,indicators:[I20,I21,I22,I23,I24,I25,I26,I27,I28,I29,I30,I31,I32,I33,I34,I35]}`.
+O período é obrigatório, usa datas civis inclusivas e intervalo UTC `[startInclusive,endExclusive)` da policy P2;
+máximo de 366 dias civis. Datas, fuso ou filtros adicionais inválidos retornam 400. `sprintId` e
+`responsibleUserId` não são aceitos nesta rota: usar vínculo corrente em métricas históricas
+atribuiria fatos a outra Sprint/pessoa. Indicadores de fotografia atual I23–I24 e I26–I35 trazem
+`period:null`; os históricos I20–I22/I25 trazem o período normalizado.
+
+I20 é a mediana em dias de `Task.createdAt` até a **primeira** conclusão observável no período;
+I21 usa a primeira entrada em `EM_ANDAMENTO` anterior a essa conclusão. Reentradas posteriores
+não mudam essas durações. Task sem prova da primeira conclusão ou sem início de ciclo não recebe
+zero artificial: `eligibleCount`, `excludedCount`, estado e `limitations[]` mostram a cobertura.
+I22 conta cada Task uma vez quando a última transição anterior ao corte do período a deixa
+`CONCLUIDO` e essa transição ocorreu no período; sua série diária `kind:SERIES` tem pontos
+`{date,value}` no fuso solicitado, inclusive o dia corrente para eventos já observados.
+
+I23 conta `EM_ANDAMENTO` atual. I24 é `kind:LIST`: `value:null` pois não há duração agregada
+definida; `eligibleCount` é o número de Tasks com idade verificável e `items` contém até dez
+Tasks, ordenadas por `agingDuration` decrescente. Cada item expõe `taskId`, `title`,
+`enteredInProgressAt`, `agingDuration` em dias, `deadline` e responsável ativo mínimo quando
+existente. A idade usa a última entrada em andamento ainda vigente. I25 é `kind:SERIES` com
+`{date,todo,inProgress,done}` ao fim de cada dia civil **concluído**, apenas da coorte de Tasks
+sobreviventes com cadeia de movimentos internamente consistente. Seu `value` é `null` e estado
+`PARTIAL` ou `UNAVAILABLE`, nunca estoque histórico integral afirmado; hard delete e baseline
+anterior não são recuperáveis. Sem coorte verificável, `points:[]`.
+Se o fim do período ainda não ocorreu em `asOf`, I20–I22 não afirmam conclusão do intervalo:
+estado `PARTIAL` e `PERIOD_NOT_COMPLETE`; I25 já é parcial ou indisponível.
+
+I26–I30 são contagens atuais: total existente, distribuição canônica, atrasadas (`deadline < asOf`
+e não concluídas), sem `responsibleUserId` e sem estimativa (`null`, diferente de zero). I28 é
+`kind:LIST` com até dez atrasadas mais antigas, embora `value` conte todas. I31 soma estimativas
+conhecidas; I32 soma somente o derivado canônico `Task.actualEffort` de S1-06, sem adicionar
+sessões outra vez. I33 soma `actualEffort-estimatedEffort` apenas nas Tasks comparáveis. I34
+conta/lista até dez Tasks acima da estimativa; I35 conta/lista até dez **concluídas** abaixo da
+estimativa. I31–I35 expõem `coverage` e estado `PARTIAL`/`NO_DATA` conforme ausências de dados.
+Listas de esforço usam `taskId`, título, status, esforço conhecido, diferença e responsável ativo
+mínimo; não são avaliação individual.
+
+Os resultados seguem `IndicatorResult` com `definitionVersion`, `asOf`, `formula`, `sources`,
+`state`, `limitations` e `scope`. Valores zero conhecidos permanecem zero. Consulta requer
+sessão e membership ativa VIEWER+; sem sessão → 401, projeto alheio, inexistente ou excluído →
+404 opaco. Não há painel, cache ou persistência de snapshots nesta etapa. S2-04/S2-05 seguem abertos.

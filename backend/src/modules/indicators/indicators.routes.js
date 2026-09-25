@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { emptyObject, validateRequest } from '../../shared/validation/index.js';
 import { indicatorsController } from './indicators.controller.js';
 import {
+  flowTaskPeriodQuerySchema,
   indicatorPeriodQuerySchema,
   indicatorProjectParamsSchema
 } from './indicators.validation.js';
@@ -21,6 +22,11 @@ router.get(
   '/projects/:projectId/indicators/github',
   validateRequest({ params: indicatorProjectParamsSchema, query: indicatorPeriodQuerySchema }),
   indicatorsController.github
+);
+router.get(
+  '/projects/:projectId/indicators/tasks',
+  validateRequest({ params: indicatorProjectParamsSchema, query: flowTaskPeriodQuerySchema }),
+  indicatorsController.tasks
 );
 
 export default router;

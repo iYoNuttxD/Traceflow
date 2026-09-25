@@ -1,3 +1,5 @@
+import { FLOW_TASK_INDICATORS } from './flow-task.catalog.js';
+
 export const INDICATORS = Object.freeze({
   I01: Object.freeze({
     id: 'I01',
@@ -253,5 +255,6 @@ export const INDICATORS = Object.freeze({
     definitionVersion: 1,
     formula: 'MEAN(closedAtGithub − createdAtGithub)',
     sources: ['Issue.createdAtGithub', 'Issue.closedAtGithub']
-  })
+  }),
+  ...FLOW_TASK_INDICATORS
 });

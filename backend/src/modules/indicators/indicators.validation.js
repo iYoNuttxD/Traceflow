@@ -29,3 +29,17 @@ export const indicatorPeriodQuerySchema = strictObject({
     });
   }
 });
+
+// One point per civil day in I22/I25. Keep the response bounded.
+export const flowTaskPeriodQuerySchema = indicatorPeriodQuerySchema.superRefine(
+  (value, context) => {
+    const days = (Date.parse(value.endDate) - Date.parse(value.startDate)) / 86400000 + 1;
+    if (days > 366) {
+      context.addIssue({
+        code: 'custom',
+        path: ['endDate'],
+        message: 'O período para séries de Tasks deve ter no máximo 366 dias.'
+      });
+    }
+  }
+);

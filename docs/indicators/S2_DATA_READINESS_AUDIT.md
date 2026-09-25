@@ -134,6 +134,8 @@ Inventário estático P0 do [schema Prisma](../../backend/prisma/schema.prisma).
 
 **Risco estimado por ficha (sem benchmark):** `HIGH` para I02–I08, I20–I22, I24–I25, I46, I57 e I66, por dependência histórica, associação/joins ou agregação composta; `MEDIUM` para I15–I19, I31–I35, I44–I45, I47–I52, I58–I65, I67 e I73–I74, por junções, cálculo de duração, snapshots ou policy; `LOW` para as demais fichas calculáveis por contagem/consulta já existente. I68 é `NOT_RECOMMENDED` e seu custo não justifica implementação. Esses níveis são risco de cálculo **e** integridade, não tempos medidos.
 
+**Atualização P4:** I20–I24 e I26–I35 possuem cálculo backend e API. I20/I24 continuam com cobertura histórica parcial quando faltam eventos; `eligibleCount`, `excludedCount` e `limitations` tornam essa lacuna visível. I25 conserva `NEEDS_HISTORY`: a API expõe somente série parcial da coorte sobrevivente com movimentos consistentes, ou `UNAVAILABLE` quando não há coorte comprovável. Nenhuma migração ou backfill P4 recupera Tasks excluídas fisicamente ou prova o estado inicial de todo o projeto. `EXPLAIN` no banco de teste vazio mostrou lookup por projeto para agregados/listas e range scan de `TaskMovement.movedAt` com sort por Task/data; não é evidência de custo em produção. Reavaliar índice composto apenas com volume representativo.
+
 ## 7. Dependências e proposta de roadmap futuro
 
 ```text
