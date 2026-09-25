@@ -50,6 +50,7 @@
     "db:test:validate-lr9": "node scripts/validate-lr9-migration.js",
     "db:test:validate-s2-p1": "node scripts/validate-s2-p1-migration.js",
     "db:test:validate-s2-p3": "node scripts/validate-s2-p3-migration.js",
+    "db:test:validate-s2-p5-1": "node scripts/validate-s2-p5-1-migration.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "s104:dates:dry-run": "node scripts/s104-legacy-schedule-dates.js",

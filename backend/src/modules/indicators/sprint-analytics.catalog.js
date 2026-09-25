@@ -16,9 +16,14 @@ function define(
     description,
     unit,
     temporalType,
-    eventClock: temporalType === 'HISTORICAL_SERIES' ? 'Sprint.closedAt' : null,
+    eventClock:
+      id === 'I46'
+        ? 'SprintBurnupEvent.occurredAt'
+        : temporalType === 'HISTORICAL_SERIES'
+          ? 'Sprint.closedAt'
+          : null,
     supportedFilters,
-    definitionVersion: 1,
+    definitionVersion: id === 'I46' ? 2 : 1,
     formula,
     sources
   });
@@ -122,7 +127,7 @@ export const SPRINT_ANALYTICS_INDICATORS = Object.freeze({
     'HOURS',
     'HISTORICAL_SERIES',
     'scope(t), completed(t)',
-    ['SprintTask', 'TaskHistoryEntry']
+    ['Sprint.burnupCoverageStartedAt', 'SprintBurnupEvent']
   ),
   I47: define(
     'I47',

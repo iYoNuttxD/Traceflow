@@ -77,6 +77,14 @@ enum SprintTaskRemovalReason {
   TAREFA_EXCLUIDA
 }
 
+enum SprintBurnupEventType {
+  BASELINE_TASK
+  TASK_ADDED
+  TASK_REMOVED
+  ESTIMATE_CHANGED
+  STATUS_CHANGED
+}
+
 enum GitHubInstallationStatus {
   PENDING
   ACTIVE
@@ -364,6 +372,7 @@ model Project {
   sprints                    Sprint[]
   milestones                 Milestone[]
   sprintTasks                SprintTask[]
+  sprintBurnupEvents         SprintBurnupEvent[]
 
   @@index([status])
   @@index([createdAt])
@@ -671,34 +680,37 @@ model Task {
 }
 
 model Sprint {
-  id                 Int          @id @default(autoincrement())
-  projectId          Int
-  name               String
+  id                      Int          @id @default(autoincrement())
+  projectId               Int
+  name                    String
   // Generated ALWAYS by SQL migration; never supplied by callers.
-  activeNameKey      String?      @default(dbgenerated())
-  objective          String?      @db.Text
-  startDate          DateTime
-  endDate            DateTime
-  status             SprintStatus @default(PLANEJADA)
-  startedAt          DateTime?
-  completedAt        DateTime?
-  planningSnapshotAt DateTime?
-  closedAt           DateTime?
-  milestoneId        Int?
-  createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @updatedAt
+  activeNameKey           String?      @default(dbgenerated())
+  objective               String?      @db.Text
+  startDate               DateTime
+  endDate                 DateTime
+  status                  SprintStatus @default(PLANEJADA)
+  startedAt               DateTime?
+  completedAt             DateTime?
+  planningSnapshotAt      DateTime?
+  burnupCoverageStartedAt DateTime?
+  closedAt                DateTime?
+  milestoneId             Int?
+  createdAt               DateTime     @default(now())
+  updatedAt               DateTime     @updatedAt
 
   deletedAt   DateTime?
   deletedById Int?
   deletedBy   User?     @relation("SprintDeleter", fields: [deletedById], references: [id], onDelete: SetNull)
 
-  project          Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project          Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
   tasks            Task[]
-  sprintTasks      SprintTask[] @relation("SprintMembership")
-  carriedOverTasks SprintTask[] @relation("SprintCarryOver")
-  milestone        Milestone?   @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  sprintTasks      SprintTask[]        @relation("SprintMembership")
+  burnupEvents     SprintBurnupEvent[]
+  carriedOverTasks SprintTask[]        @relation("SprintCarryOver")
+  milestone        Milestone?          @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
 
   @@unique([projectId, activeNameKey])
+  @@unique([id, projectId])
   @@index([projectId, deletedAt, status])
   @@index([deletedById])
   @@index([projectId, status])
@@ -759,6 +771,28 @@ model SprintTask {
   @@index([taskId, removedAt])
   @@index([carriedFromSprintId])
   @@index([projectId, addedAt])
+}
+
+// Event journal keeps a numeric Task key without a Task FK: physical Task deletion
+// must not erase the Sprint's historical scope and completion curve.
+model SprintBurnupEvent {
+  id             Int                   @id @default(autoincrement())
+  projectId      Int
+  sprintId       Int
+  taskKey        Int
+  type           SprintBurnupEventType
+  previousPoints Float?
+  newPoints      Float?
+  fromStatus     String?
+  toStatus       String?
+  occurredAt     DateTime              @default(now())
+  createdAt      DateTime              @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sprint  Sprint  @relation(fields: [sprintId, projectId], references: [id, projectId], onDelete: Cascade)
+
+  @@index([sprintId, occurredAt, id])
+  @@index([projectId])
 }
 
 // Vinculo de rastreabilidade entre tarefas e commits importados do GitHub.

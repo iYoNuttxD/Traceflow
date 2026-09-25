@@ -1,5 +1,6 @@
 import { resourceNotFoundError } from '../../shared/errors/index.js';
 import { sprintProgressService } from '../sprints/services/sprint-progress.service.js';
+import { buildSprintBurnup } from '../sprints/sprint.burnup.calculator.js';
 import {
   buildSprintAnalyticsFacts,
   buildSprintVelocity
@@ -115,6 +116,12 @@ export const sprintAnalyticsService = {
 
     const canonical = await sprintProgressService.getSprintIndicatorFacts(selected.id);
     if (canonical.sprint.projectId !== id) throw resourceNotFoundError('Sprint');
+    const burnupHistory = await sprintAnalyticsRepository.readBurnup(id, selected.id);
+    if (!burnupHistory) throw resourceNotFoundError('Sprint');
+    const burnup = buildSprintBurnup({
+      ...burnupHistory,
+      cutoff: new Date(generatedAt)
+    });
     const facts = buildSprintAnalyticsFacts(canonical);
     const { sprint } = canonical;
     const sourceUpdatedAt = facts.frozen
@@ -259,14 +266,11 @@ export const sprintAnalyticsService = {
           ...(burndownTruncated ? ['BURNDOWN_MAX_180_DAYS'] : [])
         ]
       }),
-      selectedResult('I46', null, 'UNAVAILABLE', {
+      selectedResult('I46', null, burnup.state, {
         kind: 'SERIES',
-        points: [],
-        limitations: [
-          'INTERMEDIATE_POINT_CHANGES_NOT_RECORDED',
-          'SCOPE_REENTRY_HISTORY_COLLAPSED',
-          ...terminalLimitations
-        ]
+        points: burnup.points,
+        coverage: burnup.coverage,
+        limitations: burnup.limitations
       }),
       selectedResult(
         'I71',

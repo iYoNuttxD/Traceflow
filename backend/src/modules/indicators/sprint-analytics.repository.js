@@ -16,6 +16,33 @@ const sprintSelect = {
 };
 
 export const sprintAnalyticsRepository = {
+  readBurnup(projectId, sprintId) {
+    return prisma.$transaction(
+      async (tx) => {
+        const sprint = await tx.sprint.findFirst({
+          where: { id: sprintId, projectId, deletedAt: null },
+          select: { ...sprintSelect, burnupCoverageStartedAt: true }
+        });
+        if (!sprint) return null;
+        const events = await tx.sprintBurnupEvent.findMany({
+          where: { projectId, sprintId },
+          select: {
+            id: true,
+            taskKey: true,
+            type: true,
+            previousPoints: true,
+            newPoints: true,
+            fromStatus: true,
+            toStatus: true,
+            occurredAt: true
+          },
+          orderBy: [{ occurredAt: 'asc' }, { id: 'asc' }]
+        });
+        return { sprint, events };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead }
+    );
+  },
   readProjectHistory(projectId) {
     return prisma.$transaction(
       async (tx) => {

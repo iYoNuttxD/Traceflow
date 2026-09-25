@@ -4,6 +4,7 @@ import { prisma } from '../../../database/prismaClient.js';
 import { lockActiveProject } from '../../projects/active-project-write.js';
 import { auditRepository } from '../../audit/audit.repository.js';
 import { taskInclude } from '../task.repository.js';
+import { captureBurnupStatus } from '../../sprints/sprint-burnup.events.js';
 
 function movementWhere(projectId, filters = {}) {
   return {
@@ -88,6 +89,12 @@ export const taskMovementRepository = {
           },
           include: { movedByUser: { select: { id: true, name: true } } }
         });
+        await captureBurnupStatus(
+          tx,
+          { ...task, sprintId: sprintAtual },
+          toStatus,
+          movement.movedAt
+        );
         await tx.taskHistoryEntry.create({
           data: {
             projectId: task.projectId,

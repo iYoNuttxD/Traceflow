@@ -60,7 +60,8 @@ Esta matriz é o mapa **indicador → modelos → campos → histórico → conf
 | I10, I13–I14, I17–I18 | `PullRequest`/`Issue.state` e timestamps GitHub. | Fotografia após sync; histórico de reabertura ausente. | Média; stale/fechamento reaberto precisa aviso. |
 | I19 | GitHub Reviews (não modelado). | Não. | Baixa; requer coleta GitHub distinta de RF54. |
 | I31–I35, I44 | `Task.estimatedEffort,actualEffort,legacyActualEffort`; `TaskTimeEntry`, `TaskEffortHistoryEntry`; Sprint `closingTaskSnapshot`. | Histórico S1-09 append-only sem backfill anterior; snapshots terminais podem ser legados. | Alta para atual e terminais novos; parcial para legados. Reusar S1-06. |
-| I36–I47, I71–I72 | `Sprint`, `SprintTask.plannedAtStart,pointsAtPlanning,pointsAtClose,closingTaskSnapshot,closedAt,completedAtClose,addedAt,removedAt,carriedFromSprintId`. | Frozen terminal sim, com `historicalLimitations` explícitas; revisões de pontos intermediárias não garantidas. | Alta para burndown/summary canônicos; baixa para burnup íntegro sem prova adicional. |
+| I36–I45, I47, I71–I72 | `Sprint`, `SprintTask.plannedAtStart,pointsAtPlanning,pointsAtClose,closingTaskSnapshot,closedAt,completedAtClose,addedAt,removedAt,carriedFromSprintId`. | Frozen terminal sim, com `historicalLimitations` explícitas. | Alta para burndown/summary canônicos; limites legados explícitos. |
+| I46 (P5.1) | `Sprint.burnupCoverageStartedAt`, `SprintBurnupEvent.taskKey,type,previousPoints,newPoints,fromStatus,toStatus,occurredAt`. | Íntegro para Sprint iniciada após captura; âncora parcial para Sprint já ativa; terminal anterior sem prova. | Alta condicional à cobertura integral e cadeia consistente; sem backfill inferido. |
 | I48–I52 | `TestCase.currentVersion,deletedAt,status`; `TestExecution.result,executedAt,testCaseVersion`; steps. | Execuções versionadas persistem. | Alta para execuções; saúde atual deve reutilizar última execução da versão atual da projeção S1-09. |
 | I53–I58 | `Defect.status,severity,createdAt,deletedAt`; `DefectHistoryEntry.action,occurredAt`; `DefectRetest`, `TestExecution.result`. | Eventos de validação existem para fluxo novo; legado sem backfill. | Alta para fotografia/retestes novos; parcial para tempo histórico. |
 | I59–I60 | `Defect.requirementId`, `DefectTask.ORIGIN`, Task→Requirement. | Relações atuais; projeção S1-09 deduplica caminhos. | Alta para concentração atual; um Defect pode pertencer a mais de um Requirement. |
@@ -75,9 +76,9 @@ Esta matriz é o mapa **indicador → modelos → campos → histórico → conf
 - TestCase/Requirement: [REQUIREMENT_TRACEABILITY_HISTORY](../data/REQUIREMENT_TRACEABILITY_HISTORY.md) exige última execução da **currentVersion** por `executedAt DESC,id DESC`; `VALIDADO` legado não é validação atual. [readProjectionMetrics](../../backend/src/modules/traceability/requirement-projection-summary.repository.js) já une relações tipadas e deduplica TestCases/Defects por requisito.
 - Projeto/membership: aplicar autorização de membro ativo antes de qualquer agregado, inclusive métricas por responsável; `OWNER` não é papel global. Dados apagados/anônimos não recebem inferência retrospectiva de autoria.
 
-## 4. Prontidão — exatamente um status por indicador
+## 4. Prontidão P0 — fotografia histórica
 
-O status primário de cada ID está no catálogo. Esta distribuição agrupa sem reclassificar o RF inteiro como “entregue”.
+Esta distribuição registra a fotografia P0. O status atual de cada ID está no catálogo e nas atualizações P1–P5.1 abaixo; I46 deixa `NEEDS_HISTORY` no P5.1 somente para Sprints com cobertura integral, sem promover o RF inteiro a “entregue”.
 
 | Status | IDs e justificativa |
 |---|---|
@@ -127,6 +128,7 @@ Inventário estático P0 do [schema Prisma](../../backend/prisma/schema.prisma).
 | Defect por projeto/criação | Índices por estado, severidade, responsável, requisito; sem `(projectId,createdAt)` | LIKELY_NEEDED se volume justificar | LOW/MEDIUM |
 | DefectHistoryEntry por projeto/data | `(projectId,occurredAt)` e `(defectId,occurredAt,id)` | EXISTS | MEDIUM |
 | SprintTask por Sprint/Task | `UNIQUE(sprintId,taskId)`, `(sprintId,removedAt)` | EXISTS | LOW para summary; MEDIUM para burnup |
+| SprintBurnupEvent por Sprint/data/ID (P5.1) | `(sprintId,occurredAt,id)` | EXISTS; EXPLAIN local usa índice | MEDIUM em volume elevado; sem N+1 |
 | Milestone por projeto/prazo | `(projectId,dueDate)` | EXISTS | LOW |
 | `IndicatorSnapshot`/índice genérico | Nenhuma consulta justifica por si | NOT_NEEDED agora | Evitar persistência/cache prematuros |
 
@@ -138,6 +140,8 @@ Inventário estático P0 do [schema Prisma](../../backend/prisma/schema.prisma).
 
 **Atualização P5:** I36–I45, I47, I71 e I72 têm cálculo backend/API, com as limitações de baseline e fechamento legados propagadas pelo owner de Sprint. I47 passou de `DERIVABLE` para `IMPLEMENTED BACKEND`: lê `CONCLUIDA` e `SprintTask` em lote e só publica `completedPoints` de snapshots íntegros; Sprints canceladas, atuais e legadas incompletas não viram velocity. I46 continua `NEEDS_HISTORY` e a API o informa como `UNAVAILABLE`/sem pontos. `SprintTask` preserva baseline, entrada/saída corrente e snapshot terminal, mas revisões intermediárias de estimativa não são garantidas e uma participação reativada reutiliza a linha, perdendo parte da cronologia intermediária. Nenhuma migration ou backfill foi feita no P5.
 
+**Atualização P5.1:** I46 passa a **IMPLEMENTED BACKEND condicional**. `TaskEffortHistoryEntry` registra segundos realizados de sessões e não `estimatedEffort`; `TaskHistoryEntry` tampouco registra estimativa, `SprintTask` colapsa reentradas e hard delete elimina `TaskMovement`. Por isso a migration incremental introduz `SprintBurnupEvent` e `Sprint.burnupCoverageStartedAt`. Sprint nova captura baseline no start e mudanças de entrada/saída, estimativa e status na transação da mutação; uma Sprint ativa anterior recebe apenas âncora do estado no instante da migration (`PARTIAL`), sem datas inventadas. Sprint encerrada anterior segue `UNAVAILABLE`. O diário guarda `taskKey` sem FK para Task e FKs com cascade para Sprint/Project. I46 lê eventos em lote e devolve série somente para cobertura demonstrável; `PARTIAL` também informa `null` de estimativa e teto 180. O risco de performance do P0 permanece sujeito a medição em volume representativo; `EXPLAIN` local pequeno usou `(sprintId,occurredAt,id)`.
+
 ## 7. Dependências e proposta de roadmap futuro
 
 ```text
@@ -146,7 +150,8 @@ GitHub Reviews (opcional) ──> I19, separado da fórmula oficial RF54
 Task status + responsabilidade histórica ──> RF17 ──> lead/cycle/throughput/cumulative flow
 S1-09 projection ──> implementação/coberturas/rastreabilidade atual
 TestExecution + Defect + DefectRetest ──> qualidade de testes e reteste
-SprintTask frozen ──> burndown/effort/velocity e estudo de burnup
+SprintTask frozen ──> burndown/effort/velocity
+SprintBurnupEvent + cobertura ──> I46 condicional
 ```
 
 **Sequência após P1:** revisão humana da fundação; P2 Indicator Engine de progresso/atividade/fluxo/Sprint/GitHub; etapa posterior de qualidade, painel e filtros; homologação de fórmulas com amostra e fonte GitHub, desempenho e visual. O roadmap atual S2-04/S2-05 cobre os oito RFs e não foi alterado. Nenhum DPI foi convertido em RF oficial.

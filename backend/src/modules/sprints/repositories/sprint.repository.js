@@ -5,6 +5,7 @@ import { prisma } from '../../../database/prismaClient.js';
 import { lockMilestone } from '../../../database/locks.js';
 import { lockActiveProject } from '../../projects/active-project-write.js';
 import { auditRepository } from '../../audit/audit.repository.js';
+import { captureBurnupBaseline, captureBurnupScope } from '../sprint-burnup.events.js';
 
 export const sprintSelect = {
   id: true,
@@ -17,6 +18,7 @@ export const sprintSelect = {
   startedAt: true,
   completedAt: true,
   planningSnapshotAt: true,
+  burnupCoverageStartedAt: true,
   closedAt: true,
   milestoneId: true,
   deletedAt: true,
@@ -185,6 +187,7 @@ async function findBurndownData(client, sprint) {
 
 async function applyScopePlan(tx, sprint, plan) {
   const sprintId = sprint.id;
+  await captureBurnupScope(tx, sprint, plan);
   for (const saida of plan.close) {
     await tx.sprintTask.update({
       where: { id: saida.id },
@@ -383,7 +386,9 @@ export const sprintRepository = {
 
         if (data.startedAt) {
           await capturePlanning(tx, id, tasks);
+          await captureBurnupBaseline(tx, atual, tasks, data.startedAt);
           data.planningSnapshotAt = data.startedAt;
+          data.burnupCoverageStartedAt = data.startedAt;
         }
         if (freezeAt) {
           await freezeParticipations(tx, atual, freezeAt);
@@ -534,7 +539,14 @@ export const sprintRepository = {
       const tasks = taskIdsParaTravar.length
         ? await tx.task.findMany({
             where: { id: { in: taskIdsParaTravar } },
-            select: { id: true, projectId: true, sprintId: true, status: true, title: true }
+            select: {
+              id: true,
+              projectId: true,
+              sprintId: true,
+              status: true,
+              title: true,
+              estimatedEffort: true
+            }
           })
         : [];
 

@@ -233,3 +233,30 @@ se não existe vínculo atual, a ação é omitida e a indisponibilidade é exib
 de estar acessível entre leitura e clique, HTTP 404 desabilita a ação e mantém o snapshot.
 O cabeçalho prioriza ID/título e informa o estado no encerramento e seu timestamp. A frase
 sobre visualização individual de Sprints congeladas foi removida, sem texto substituto.
+
+## Fundação histórica do Burnup — P5.1
+
+`SprintTask` continua autoridade do baseline e do fechamento para Planning/RF35. A reentrada
+sobrescreve `addedAt` e `removedAt`, então ela não prova todos os ciclos intermediários. A
+migration `20260925120000_s2_p5_1_sprint_burnup_history` acrescenta somente a fonte de I46:
+`Sprint.burnupCoverageStartedAt` e `SprintBurnupEvent` com `BASELINE_TASK`, `TASK_ADDED`,
+`TASK_REMOVED`, `ESTIMATE_CHANGED` e `STATUS_CHANGED`. Cada evento guarda `taskKey` numérico,
+estimativa anterior/nova quando aplicável, status anterior/novo e `occurredAt`; `(sprintId,
+occurredAt,id)` dá leitura e desempate estáveis. O evento de status é necessário porque a
+exclusão física da Task elimina seus `TaskMovement`. Não altera a autoridade de Kanban nem I45.
+
+Sprint iniciada após a migration fixa cobertura no próprio `startedAt` e registra cada Task
+presente, inclusive estimativa `null` distinta de zero. Entradas/saídas, mudança de estimativa e
+status são acrescentados na transação da mutação, sob lock de Project e Sprint/Task quando
+pertinente. Transferências não reescrevem a origem. Fechamento congela o corte; alterações
+posteriores na Task não acrescentam eventos à Sprint terminal. O evento não tem FK para Task,
+portanto sobrevive à exclusão física; FKs de Sprint e Project com `Cascade` o removem no hard
+purge. Exclusão lógica/restauração do Project preservam o diário.
+`20260925123000_s2_p5_1_burnup_project_scope` acrescenta FK composta
+`(sprintId,projectId) → Sprint(id,projectId)`, impedindo evento cross-project no banco.
+
+Na instalação da migration, uma Sprint já ativa recebe somente uma âncora do estado corrente
+das participações ainda presentes, com `burnupCoverageStartedAt` igual ao instante de captura.
+Isso é `PARTIAL` se `startedAt` precede a âncora. Sprint terminal anterior não recebe eventos
+inferidos nem cobertura; permanece `UNAVAILABLE`. A implantação precisa manter as escritas
+operacionais pausadas durante a migration para que âncora e estado corrente sejam coesos.

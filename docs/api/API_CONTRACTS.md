@@ -1405,9 +1405,28 @@ I44 adapta `progress.effort` de S1-06 com `value:{estimatedHours,actualHours,dif
 incompleto mantém `PARTIAL` e suas limitações; não há nova soma de sessões. I45 adapta sem mudar
 a fórmula os `days` canônicos de burndown, com pontos `{date,ideal,remaining}` e eixo **UTC** do
 domínio de Sprint, limitado por ele a 180 dias; no contrato P5, corte pelo teto expõe
-`PARTIAL`/`BURNDOWN_MAX_180_DAYS` e `coverage.truncated`. Sprint planejada não publica série real. I46
-retorna `kind:SERIES`, `points:[]`, `UNAVAILABLE`: revisões intermediárias de pontos e alguns
-ciclos de saída/reentrada não são preservados de modo suficiente para duas curvas íntegras.
+`PARTIAL`/`BURNDOWN_MAX_180_DAYS` e `coverage.truncated`. Sprint planejada não publica série real.
+
+Desde P5.1, I46 tem `definitionVersion:2`, `kind:SERIES`, `value:null` e pontos
+`{date,scope,completed}` em horas, agrupados pelo dia **UTC**. `scope` soma as estimativas das
+Tasks presentes ao fim do dia; `completed` soma as estimativas das presentes cujo status ao fim
+do dia é `CONCLUIDO`. Reabertura reduz `completed`; reconclusão volta a somar uma vez. Alterar a
+estimativa de uma Task concluída ainda presente atualiza ambas as linhas. Remover uma Task
+concluída reduz ambas. `null` de estimativa não vira zero; dias com universo incompleto têm
+`scope:null` e `completed:null`. Dias futuros após o corte têm ambos `null`.
+
+I46 retorna `coverage:{startedAt,complete,truncated}` e `limitations[]`. `AVAILABLE` exige
+captura desde `Sprint.startedAt`, cadeia consistente e estimativas conhecidas em todos os dias
+medidos. `PARTIAL` indica âncora iniciada no meio da Sprint, estimativa ausente em algum dia ou
+teto de 180 dias (`BURNUP_COVERAGE_STARTED_MID_SPRINT`, `BURNUP_ESTIMATE_UNKNOWN`,
+`BURNUP_MAX_180_DAYS`). Nesse caso a série começa em `coverage.startedAt`; não há pontos
+retroativos. `UNAVAILABLE` mantém `points:[]` para Sprint antiga sem captura, corte terminal
+ausente ou eventos contraditórios. `NO_DATA` cobre Sprint não iniciada ou universo capturado
+sem Task alguma. O relógio de evento é `SprintBurnupEvent.occurredAt`; empate usa `id`.
+O histórico sobrevive à exclusão física da Task e congela no fechamento da Sprint. A migration
+P5.1 cria âncora corrente para Sprints ativas na implantação; Sprints já encerradas não recebem
+backfill inferido. I45 continua com seu cálculo canônico anterior, que não reconstrói todas as
+reaberturas intermediárias; comparar as duas curvas históricas requer considerar essa limitação.
 
 I47 usa somente Sprints `CONCLUIDA` com snapshot terminal íntegro; exclui `CANCELADA`, atual e
 legado incompleto. Seus pontos `{sprintId,sprintName,closedAt,completedPoints}` vêm de
