@@ -29,8 +29,28 @@ export function mapGithubCommit(item) {
     authorName: item.commit?.author?.name ?? null,
     authorEmail: item.commit?.author?.email ?? null,
     authorUsername: item.author?.login ?? null,
+    authorGithubUserId: item.author?.id == null ? null : String(item.author.id),
     date: toDate(item.commit?.author?.date),
     githubUrl: item.html_url ?? null
+  };
+}
+
+export function mapGithubPullRequestLifecycleEvent(item) {
+  if (!item.issue?.pull_request || !['closed', 'reopened', 'merged'].includes(item.event)) {
+    return null;
+  }
+  if (item.id == null || !Number.isInteger(item.issue.number) || !item.created_at) {
+    throw new Error('Evento de lifecycle de Pull Request sem identidade ou data do GitHub.');
+  }
+  const occurredAt = new Date(item.created_at);
+  if (Number.isNaN(occurredAt.getTime())) {
+    throw new Error('Evento de lifecycle de Pull Request com data inválida.');
+  }
+  return {
+    providerEventId: String(item.id),
+    number: item.issue.number,
+    eventType: item.event.toUpperCase(),
+    occurredAt
   };
 }
 

@@ -165,6 +165,7 @@ model User {
   declinedInvitations              ProjectInvitation[]               @relation("InvitationDecliner")
   responsibleTasks                 Task[]
   taskMovements                    TaskMovement[]
+  responsibleMovementSnapshots     TaskMovement[]                    @relation("TaskMovementResponsibleSnapshot")
   taskHistoryEntries               TaskHistoryEntry[]
   startedTimeEntries               TaskTimeEntry[]                   @relation("TaskTimeEntryStarter")
   endedTimeEntries                 TaskTimeEntry[]                   @relation("TaskTimeEntryEnder")
@@ -342,26 +343,27 @@ model Project {
   purgeClaimId                   String?                               @db.VarChar(36)
   deletedBy                      User?                                 @relation("ProjectDeleter", fields: [deletedById], references: [id], onDelete: SetNull)
 
-  requirements           Requirement[]
-  tasks                  Task[]
-  taskMovements          TaskMovement[]
-  taskHistoryEntries     TaskHistoryEntry[]
-  taskComments           TaskComment[]
-  taskTimeEntries        TaskTimeEntry[]
-  commits                Commit[]
-  pullRequests           PullRequest[]
-  issues                 Issue[]
-  memberships            ProjectMembership[]
-  invitations            ProjectInvitation[]
-  auditEvents            AuditEvent[]
-  taskCommitSuggestions  TaskCommitSuggestion[]
-  githubIntegration      ProjectGitHubIntegration?
-  githubConnectionStates GitHubAppConnectionState[]
-  githubBranches         GitBranch[]
-  githubSyncRuns         GitHubSyncRun[]
-  sprints                Sprint[]
-  milestones             Milestone[]
-  sprintTasks            SprintTask[]
+  requirements               Requirement[]
+  tasks                      Task[]
+  taskMovements              TaskMovement[]
+  taskHistoryEntries         TaskHistoryEntry[]
+  taskComments               TaskComment[]
+  taskTimeEntries            TaskTimeEntry[]
+  commits                    Commit[]
+  pullRequests               PullRequest[]
+  pullRequestLifecycleEvents PullRequestLifecycleEvent[]
+  issues                     Issue[]
+  memberships                ProjectMembership[]
+  invitations                ProjectInvitation[]
+  auditEvents                AuditEvent[]
+  taskCommitSuggestions      TaskCommitSuggestion[]
+  githubIntegration          ProjectGitHubIntegration?
+  githubConnectionStates     GitHubAppConnectionState[]
+  githubBranches             GitBranch[]
+  githubSyncRuns             GitHubSyncRun[]
+  sprints                    Sprint[]
+  milestones                 Milestone[]
+  sprintTasks                SprintTask[]
 
   @@index([status])
   @@index([createdAt])
@@ -426,25 +428,26 @@ model GitHubInstallationAuthorization {
 }
 
 model ProjectGitHubIntegration {
-  id                 Int                     @id @default(autoincrement())
-  projectId          Int                     @unique
-  installationId     Int?
-  githubRepositoryId String?                 @unique
-  repositoryName     String?
-  repositoryFullName String?
-  repositoryUrl      String?
-  defaultBranch      String?
-  repositoryPrivate  Boolean?
-  integratedAt       DateTime?
-  autoSyncEnabled    Boolean                 @default(false)
-  status             GitHubIntegrationStatus @default(RECONNECT_REQUIRED)
-  lastValidatedAt    DateTime?
-  lastSyncAt         DateTime?
-  lastSyncStatus     String?
-  lastSyncError      String?
-  lastSyncAttemptAt  DateTime?
-  createdAt          DateTime                @default(now())
-  updatedAt          DateTime                @updatedAt
+  id                           Int                     @id @default(autoincrement())
+  projectId                    Int                     @unique
+  installationId               Int?
+  githubRepositoryId           String?                 @unique
+  repositoryName               String?
+  repositoryFullName           String?
+  repositoryUrl                String?
+  defaultBranch                String?
+  repositoryPrivate            Boolean?
+  integratedAt                 DateTime?
+  autoSyncEnabled              Boolean                 @default(false)
+  status                       GitHubIntegrationStatus @default(RECONNECT_REQUIRED)
+  lastValidatedAt              DateTime?
+  lastSyncAt                   DateTime?
+  pullRequestLifecycleSyncedAt DateTime?
+  lastSyncStatus               String?
+  lastSyncError                String?
+  lastSyncAttemptAt            DateTime?
+  createdAt                    DateTime                @default(now())
+  updatedAt                    DateTime                @updatedAt
 
   project      Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
   installation GitHubInstallation? @relation(fields: [installationId], references: [id], onDelete: SetNull)
@@ -812,22 +815,25 @@ model TaskIssue {
 
 // Historico de movimentacoes do quadro Kanban do RF08.
 model TaskMovement {
-  id            Int      @id @default(autoincrement())
-  projectId     Int
-  taskId        Int
-  fromStatus    String
-  toStatus      String
-  movedBy       String
-  movedByUserId Int?
-  movedAt       DateTime @default(now())
-  sprintId      Int?
-  createdAt     DateTime @default(now())
+  id                        Int      @id @default(autoincrement())
+  projectId                 Int
+  taskId                    Int
+  fromStatus                String
+  toStatus                  String
+  movedBy                   String
+  movedByUserId             Int?
+  responsibleUserIdSnapshot Int?
+  movedAt                   DateTime @default(now())
+  sprintId                  Int?
+  createdAt                 DateTime @default(now())
 
-  project     Project @relation(fields: [projectId], references: [id])
-  task        Task    @relation(fields: [taskId], references: [id])
-  movedByUser User?   @relation(fields: [movedByUserId], references: [id], onDelete: SetNull)
+  project                 Project @relation(fields: [projectId], references: [id])
+  task                    Task    @relation(fields: [taskId], references: [id])
+  movedByUser             User?   @relation(fields: [movedByUserId], references: [id], onDelete: SetNull)
+  responsibleUserSnapshot User?   @relation("TaskMovementResponsibleSnapshot", fields: [responsibleUserIdSnapshot], references: [id], onDelete: SetNull)
 
   @@index([movedByUserId])
+  @@index([responsibleUserIdSnapshot])
   @@index([movedAt])
   @@index([projectId, movedAt])
   @@index([taskId, movedAt])
@@ -919,18 +925,19 @@ model TaskTimeEntry {
 
 // Commit importado do repositorio GitHub vinculado ao projeto.
 model Commit {
-  testExecutions TestExecution[]
-  id             Int             @id @default(autoincrement())
-  hash           String
-  message        String?         @db.Text
-  authorName     String?
-  authorEmail    String?
-  authorUsername String?
-  date           DateTime?
-  githubUrl      String?
-  projectId      Int
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  testExecutions     TestExecution[]
+  id                 Int             @id @default(autoincrement())
+  hash               String
+  message            String?         @db.Text
+  authorName         String?
+  authorEmail        String?
+  authorUsername     String?
+  authorGithubUserId String?
+  date               DateTime?
+  githubUrl          String?
+  projectId          Int
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
 
   project         Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
   taskLinks       TaskCommit[]
@@ -944,22 +951,23 @@ model Commit {
 
 // Branch observada no repositório GitHub do projeto. Registros inativos preservam histórico.
 model GitBranch {
-  id                Int       @id @default(autoincrement())
-  projectId         Int
+  id                   Int       @id @default(autoincrement())
+  projectId            Int
   // A collation case-sensitive desta coluna é aplicada pela migration LR.5.
   // O Prisma não representa collation por campo; o tipo nativo documenta o contrato físico.
-  name              String    @db.VarChar(191)
-  headSha           String?
-  lastSyncedHeadSha String?
-  isDefault         Boolean   @default(false)
-  isActive          Boolean   @default(true)
-  firstSeenAt       DateTime  @default(now())
-  lastSeenAt        DateTime
-  inactiveAt        DateTime?
-  reactivatedAt     DateTime?
-  reactivationCount Int       @default(0)
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  name                 String    @db.VarChar(191)
+  headSha              String?
+  lastSyncedHeadSha    String?
+  lastSyncedGeneration String?   @db.VarChar(36)
+  isDefault            Boolean   @default(false)
+  isActive             Boolean   @default(true)
+  firstSeenAt          DateTime  @default(now())
+  lastSeenAt           DateTime
+  inactiveAt           DateTime?
+  reactivatedAt        DateTime?
+  reactivationCount    Int       @default(0)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   project     Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
   commitLinks CommitBranch[]
@@ -1010,8 +1018,9 @@ model GitHubSyncRun {
 
 // Um commit canônico pode estar contido em várias branches simultaneamente.
 model CommitBranch {
-  commitId Int
-  branchId Int
+  commitId               Int
+  branchId               Int
+  lastObservedGeneration String? @db.VarChar(36)
 
   commit Commit    @relation(fields: [commitId], references: [id], onDelete: Cascade)
   branch GitBranch @relation(fields: [branchId], references: [id], onDelete: Cascade)
@@ -1041,13 +1050,32 @@ model PullRequest {
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  tasks   Task[]
+  project         Project                     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks           Task[]
+  lifecycleEvents PullRequestLifecycleEvent[]
 
   @@unique([projectId, githubId])
   @@unique([projectId, number])
+  @@unique([id, projectId])
   @@index([projectId, createdAtGithub])
   @@index([projectId, updatedAtGithub])
+}
+
+model PullRequestLifecycleEvent {
+  id              Int      @id @default(autoincrement())
+  projectId       Int
+  pullRequestId   Int
+  eventType       String   @db.VarChar(16)
+  occurredAt      DateTime
+  providerEventId String   @db.VarChar(191)
+  createdAt       DateTime @default(now())
+
+  project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  pullRequest PullRequest @relation(fields: [pullRequestId, projectId], references: [id, projectId], onDelete: Cascade)
+
+  @@unique([projectId, providerEventId])
+  @@index([projectId, occurredAt])
+  @@index([pullRequestId, occurredAt])
 }
 
 // Issue importada do repositorio GitHub vinculado ao projeto.

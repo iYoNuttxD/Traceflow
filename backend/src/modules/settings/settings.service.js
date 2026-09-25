@@ -99,6 +99,10 @@ async function buildExportArchive(userId, now) {
     );
   }
   const data = await settingsRepository.exportData(userId);
+  const githubAuthoredCommits = await settingsRepository.exportGithubAuthoredCommits(
+    userId,
+    data.githubIdentity?.githubUserId
+  );
   const projects = data.memberships.map(({ project }) => ({
     id: project.id,
     name: project.name,
@@ -135,6 +139,8 @@ async function buildExportArchive(userId, now) {
     'defect-history.json': data.defectHistory || [],
     'task-effort-history.json': data.effortHistory || [],
     'tasks.json': data.responsibleTasks,
+    'task-responsibility-movements.json': data.responsibleMovementSnapshots || [],
+    'github-authored-commits.json': githubAuthoredCommits,
     'task-comments.json': data.taskComments || [],
     'task-time-entries.json': data.startedTimeEntries || [],
     'sessions.json': data.sessions,

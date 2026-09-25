@@ -11,16 +11,19 @@ export async function lockActiveProject(tx, projectId) {
 
 // The same Project row lock is used by soft delete. The active check and writes
 // therefore have one commit order, even if a sync fetched GitHub data earlier.
-export function withActiveProjectWrite(projectId, write, { inactiveResult } = {}) {
-  return prisma.$transaction(async (tx) => {
-    try {
-      await lockActiveProject(tx, projectId);
-    } catch (error) {
-      if (error instanceof ProjectServiceError && inactiveResult !== undefined) {
-        return inactiveResult;
+export function withActiveProjectWrite(projectId, write, { inactiveResult, timeout } = {}) {
+  return prisma.$transaction(
+    async (tx) => {
+      try {
+        await lockActiveProject(tx, projectId);
+      } catch (error) {
+        if (error instanceof ProjectServiceError && inactiveResult !== undefined) {
+          return inactiveResult;
+        }
+        throw error;
       }
-      throw error;
-    }
-    return write(tx);
-  });
+      return write(tx);
+    },
+    timeout ? { timeout } : undefined
+  );
 }

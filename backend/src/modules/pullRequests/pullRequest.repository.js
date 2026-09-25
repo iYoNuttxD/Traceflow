@@ -67,6 +67,45 @@ export const pullRequestRepository = {
     });
   },
 
+  async appendLifecycleEvents(projectId, events, completedAt = new Date()) {
+    return withActiveProjectWrite(
+      projectId,
+      async (tx) => {
+        const numbers = [...new Set(events.map(({ number }) => number))];
+        const byNumber = new Map();
+        for (let offset = 0; offset < numbers.length; offset += 500) {
+          const pullRequests = await tx.pullRequest.findMany({
+            where: { projectId, number: { in: numbers.slice(offset, offset + 500) } },
+            select: { id: true, number: true }
+          });
+          pullRequests.forEach((pullRequest) => byNumber.set(pullRequest.number, pullRequest.id));
+        }
+        if (byNumber.size !== numbers.length) {
+          throw new Error('Evento de PR sem Pull Request correspondente no projeto.');
+        }
+        let count = 0;
+        for (let offset = 0; offset < events.length; offset += 500) {
+          const batch = events.slice(offset, offset + 500);
+          const result = await tx.pullRequestLifecycleEvent.createMany({
+            data: batch.map(({ number, ...event }) => ({
+              ...event,
+              projectId,
+              pullRequestId: byNumber.get(number)
+            })),
+            skipDuplicates: true
+          });
+          count += result.count;
+        }
+        await tx.projectGitHubIntegration.updateMany({
+          where: { projectId },
+          data: { pullRequestLifecycleSyncedAt: completedAt }
+        });
+        return { count };
+      },
+      { timeout: 120000 }
+    );
+  },
+
   async listByProjectId(projectId, filters = {}) {
     const numericSearch = String(filters.search || '').replace(/\D/g, '');
     const pullRequestNumber = Number(numericSearch);

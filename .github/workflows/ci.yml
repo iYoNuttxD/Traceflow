@@ -143,6 +143,12 @@ jobs:
           TEST_DATABASE_URL: mysql://root:traceflow_root_ci@localhost:3306/traceflow_test
         run: npm run db:test:validate-lr9
 
+      - name: Validate S2 P1 indicator data upgrade
+        working-directory: backend
+        env:
+          TEST_DATABASE_URL: mysql://root:traceflow_root_ci@localhost:3306/traceflow_test
+        run: npm run db:test:validate-s2-p1
+
       - name: Validate destructive migration contract guards
         working-directory: backend
         env:

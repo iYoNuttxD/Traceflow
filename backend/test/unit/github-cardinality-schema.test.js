@@ -6,8 +6,7 @@ describe('cardinalidade GitHub App por repositório', () => {
   it('permite várias integrações por instalação e preserva unicidades de projeto/repositório', () => {
     const schema = readFileSync(resolve('prisma/schema.prisma'), 'utf8');
     const integration = schema.match(/model ProjectGitHubIntegration \{([\s\S]*?)\n\}/)?.[1];
-    expect(integration).toContain('projectId          Int                     @unique');
-    expect(integration).toContain('githubRepositoryId String?');
+    expect(integration).toMatch(/projectId\s+Int\s+@unique/);
     expect(integration).toMatch(/githubRepositoryId\s+String\?\s+@unique/);
     expect(integration).not.toMatch(/installationId\s+Int\?\s+@unique/);
     expect(integration).not.toContain('@@unique([installationId])');

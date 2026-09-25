@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
     requestDeletion: vi.fn(),
     cancelDeletion: vi.fn(),
     exportData: vi.fn(),
+    exportGithubAuthoredCommits: vi.fn(),
     recordExport: vi.fn(),
     listGithubAuthorizations: vi.fn(),
     removeGithubAuthorization: vi.fn()
@@ -82,6 +83,7 @@ describe('configurações de conta L2', () => {
     mocks.repository.account.mockResolvedValue(activeUser);
     mocks.repository.pendingEmailChange.mockResolvedValue(null);
     mocks.repository.findUserByEmail.mockResolvedValue(null);
+    mocks.repository.exportGithubAuthoredCommits.mockResolvedValue([]);
     mocks.auth.verifyPassword.mockResolvedValue(true);
     mocks.auth.hashPassword.mockResolvedValue('argon2-hash');
     mocks.githubAuth.identity.mockResolvedValue(null);

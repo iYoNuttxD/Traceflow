@@ -146,6 +146,7 @@ export async function syncProjectGithubData(projectId, { onProgress = noProgress
       project,
       repository,
       githubClient,
+      onProgress,
       assertActive: () => assertProjectActive(parsedProjectId)
     });
     await onProgress({

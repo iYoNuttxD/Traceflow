@@ -96,3 +96,17 @@ test("bloqueia ausência do upgrade representativo LR.8 para LR.9", () => {
     /Validação de upgrade representativo LR\.8 para LR\.9 ausente/,
   );
 });
+
+test("bloqueia ausência do upgrade representativo S2 P1", () => {
+  assert.throws(
+    () =>
+      validateCi({
+        ...baseline,
+        workflow: baseline.workflow.replace(
+          "npm run db:test:validate-s2-p1",
+          "npm run test",
+        ),
+      }),
+    /Validação de upgrade representativo S2 P1 ausente/,
+  );
+});

@@ -5,7 +5,7 @@ import { logger } from '../../../shared/logger/index.js';
 
 const noProgress = async () => {};
 
-async function persistPage({ commits, branch, knownCommits, projectId }) {
+async function persistPage({ commits, knownCommits, projectId }) {
   const uniquePageCommits = [
     ...new Map(commits.filter(({ hash }) => hash).map((commit) => [commit.hash, commit])).values()
   ];
@@ -14,6 +14,16 @@ async function persistPage({ commits, branch, knownCommits, projectId }) {
     .filter((hash) => !knownCommits.has(hash));
   const existing = await commitRepository.findByProjectIdAndHashes(projectId, unknownHashes);
   existing.forEach((commit) => knownCommits.set(commit.hash, commit));
+
+  await commitRepository.fillGithubAuthorIds(
+    projectId,
+    uniquePageCommits.filter(
+      ({ hash, authorGithubUserId }) =>
+        authorGithubUserId != null &&
+        knownCommits.has(hash) &&
+        knownCommits.get(hash).authorGithubUserId == null
+    )
+  );
 
   const newCommits = uniquePageCommits.filter(({ hash }) => !knownCommits.has(hash));
   const created = await commitRepository.createMany(newCommits);
@@ -24,10 +34,6 @@ async function persistPage({ commits, branch, knownCommits, projectId }) {
   newlyPersisted.forEach((commit) => knownCommits.set(commit.hash, commit));
 
   const persistedPage = uniquePageCommits.map(({ hash }) => knownCommits.get(hash)).filter(Boolean);
-  const links = await commitRepository.createBranchLinks(
-    projectId,
-    persistedPage.map((commit) => ({ commitId: commit.id, branchId: branch.id }))
-  );
 
   if (created.count > 0) {
     const newHashes = new Set(newCommits.map(({ hash }) => hash));
@@ -37,7 +43,7 @@ async function persistPage({ commits, branch, knownCommits, projectId }) {
     );
   }
 
-  return { created: created.count, linksCreated: links.count };
+  return { created: created.count, commitIds: persistedPage.map(({ id }) => id) };
 }
 
 export async function syncProjectCommits({
@@ -65,10 +71,11 @@ export async function syncProjectCommits({
   for (const branch of branches) {
     const branchStartedAt = Date.now();
     const unchanged = Boolean(
-      branch.headSha && branch.lastSyncedHeadSha && branch.headSha === branch.lastSyncedHeadSha
+      branch.headSha && branch.lastSyncedGeneration && branch.lastSyncedHeadSha === branch.headSha
     );
     let branchPages = 0;
     let branchCommits = 0;
+    const observedCommitIds = [];
 
     logger.info('Sincronização de commits da branch iniciada.', {
       event: 'github_branch_sync_started',
@@ -108,10 +115,12 @@ export async function syncProjectCommits({
     }
 
     try {
+      if (!branch.headSha)
+        throw new Error('Branch sem head SHA; varredura completa não comprovável.');
       for await (const page of githubClient.listCommitPages({
         owner: repository.owner,
         repo: repository.name,
-        branch: branch.name
+        branch: branch.headSha
       })) {
         await assertActive();
         const commits = page.map(({ branch: _legacyBranch, ...commit }) => ({
@@ -121,7 +130,6 @@ export async function syncProjectCommits({
         commits.forEach(({ hash }) => uniqueHashes.add(hash));
         const persisted = await persistPage({
           commits,
-          branch,
           knownCommits,
           projectId: project.id
         });
@@ -131,7 +139,7 @@ export async function syncProjectCommits({
         summary.pages += 1;
         summary.foundAcrossBranches += commits.length;
         summary.created += persisted.created;
-        summary.linksCreated += persisted.linksCreated;
+        observedCommitIds.push(...persisted.commitIds);
         await onProgress({
           commitPages: summary.pages,
           commitsFound: uniqueHashes.size,
@@ -142,7 +150,13 @@ export async function syncProjectCommits({
       }
 
       await assertActive();
-      await githubBranchRepository.markSuccessfullySynced(project.id, branch.id, branch.headSha);
+      const links = await githubBranchRepository.reconcileMembership(
+        project.id,
+        branch.id,
+        branch.headSha,
+        observedCommitIds
+      );
+      summary.linksCreated += links.count;
       processedBranches += 1;
       await onProgress({ processedBranches, currentBranch: null });
       logger.info('Sincronização de commits da branch concluída.', {

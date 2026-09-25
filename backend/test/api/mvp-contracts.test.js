@@ -633,6 +633,30 @@ describe('vínculos técnicos', () => {
 });
 
 describe('Kanban e histórico', () => {
+  it('aceita responsável e status na mesma mutation HTTP e congela o estado resultante', async () => {
+    const project = await createProject(prisma);
+    const task = await createTask(prisma, project.id);
+    const responsible = await prisma.user.findFirst({
+      where: { username: 'usuario-e6-artificial' }
+    });
+    const response = await api.patch(`/api/tasks/${task.id}/status`).send({
+      status: 'CONCLUIDO',
+      responsibleUserId: responsible.id
+    });
+    expect(response.status, JSON.stringify(response.body)).toBe(200);
+    expect(response.body.task).toMatchObject({
+      status: 'CONCLUIDO',
+      responsibleUserId: responsible.id
+    });
+    expect(await prisma.taskMovement.findFirst({ where: { taskId: task.id } })).toMatchObject({
+      toStatus: 'CONCLUIDO',
+      responsibleUserIdSnapshot: responsible.id
+    });
+    expect(
+      await prisma.taskHistoryEntry.count({ where: { taskId: task.id, field: 'RESPONSIBLE' } })
+    ).toBe(1);
+  });
+
   it('monta o quadro e persiste tarefa e movimento na mesma operação', async () => {
     const project = await createProject(prisma);
     const task = await createTask(prisma, project.id);

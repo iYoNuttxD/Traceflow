@@ -579,6 +579,19 @@ export const settingsRepository = {
             updatedAt: true
           }
         },
+        responsibleMovementSnapshots: {
+          where: {
+            project: { deletedAt: null, memberships: { some: { userId, isActive: true } } }
+          },
+          select: {
+            id: true,
+            projectId: true,
+            taskId: true,
+            fromStatus: true,
+            toStatus: true,
+            movedAt: true
+          }
+        },
         // Comentário excluído fica fora da exportação: o conteúdo permanece apenas na
         // trilha de auditoria e não é devolvido ao titular como dado corrente.
         taskComments: {
@@ -700,6 +713,17 @@ export const settingsRepository = {
           }
         }
       }
+    });
+  },
+  exportGithubAuthoredCommits(userId, githubUserId) {
+    if (!githubUserId) return [];
+    return prisma.commit.findMany({
+      where: {
+        authorGithubUserId: String(githubUserId),
+        project: { deletedAt: null, memberships: { some: { userId, isActive: true } } }
+      },
+      select: { id: true, projectId: true, hash: true, date: true, githubUrl: true },
+      orderBy: [{ projectId: 'asc' }, { date: 'desc' }]
     });
   },
   async recordExport(userId, now, expiresAt, auditData) {

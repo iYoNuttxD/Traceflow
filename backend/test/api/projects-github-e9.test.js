@@ -52,7 +52,7 @@ async function* pages(...values) {
 }
 
 function createGithubDouble({
-  branches = [[{ name: 'trunk', headSha: null }]],
+  branches = [[{ name: 'trunk', headSha: 'trunk-head' }]],
   commits = [[]],
   pullRequests = [[]],
   issues = [[]]
@@ -63,6 +63,7 @@ function createGithubDouble({
     listBranchPages: vi.fn(() => pages(...branches)),
     listCommitPages: vi.fn(() => pages(...commits)),
     listPullRequestPages: vi.fn(() => pages(...pullRequests)),
+    listPullRequestLifecycleEventPages: vi.fn(() => pages([])),
     listIssuePages: vi.fn(() => pages(...issues))
   };
 }

@@ -28,6 +28,7 @@ const REQUIRED_SCRIPTS = {
     "db:test:validate-lr2-legacy",
     "db:test:validate-lr5",
     "db:test:validate-lr9",
+    "db:test:validate-s2-p1",
     "db:lr5:audit",
   ],
   frontend: ["lint", "format:check", "test", "test:coverage", "build"],
@@ -94,6 +95,11 @@ export function validateCi({ workflow, backendPackage, frontendPackage }) {
     workflow,
     /npm run db:test:validate-lr9/,
     "Validação de upgrade representativo LR.8 para LR.9 ausente.",
+  );
+  requireMatch(
+    workflow,
+    /npm run db:test:validate-s2-p1/,
+    "Validação de upgrade representativo S2 P1 ausente.",
   );
   requireMatch(
     workflow,

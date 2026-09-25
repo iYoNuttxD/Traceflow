@@ -95,7 +95,9 @@ describe('persistência multibranch', () => {
       project,
       repository: { owner: 'owner', name: 'repo' },
       branches,
-      githubClient: client(Object.fromEntries(names.map((name) => [name, ['CASE-SHARED']])))
+      githubClient: client(
+        Object.fromEntries(names.map((_, index) => [`case-${index}`, ['CASE-SHARED']]))
+      )
     });
     expect(summary).toMatchObject({ unique: 1, created: 1, linksCreated: 3 });
 
@@ -156,7 +158,7 @@ describe('persistência multibranch', () => {
       ],
       'main'
     );
-    const githubClient = client({ main: ['A', 'B', 'C'], feature: ['B', 'C', 'D'] });
+    const githubClient = client({ C: ['A', 'B', 'C'], D: ['B', 'C', 'D'] });
     const first = await syncProjectCommits({
       project,
       repository: { owner: 'owner', name: 'repo' },
@@ -192,7 +194,7 @@ describe('persistência multibranch', () => {
       project,
       repository: { owner: 'owner', name: 'repo' },
       branches,
-      githubClient: client({ main: ['A', 'B', 'C', 'D'] })
+      githubClient: client({ D: ['A', 'B', 'C', 'D'] })
     });
 
     const commitD = await prisma.commit.findUnique({
