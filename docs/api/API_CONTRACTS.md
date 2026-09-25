@@ -1240,3 +1240,47 @@ histórico. `Requirement.status` é o macro derivado de situation pela mesma pol
 a cadeia técnica/qualidade completa e independe do status anterior; novas pendências reabrem a cadeia automaticamente.
 Política, exemplo JSON, hooks, migração, inicialização e limite de escala do
 agregado em memória: [Requirement Traceability History](../data/REQUIREMENT_TRACEABILITY_HISTORY.md).
+
+## S2 P2 — Indicator Engine inicial
+
+`GET /api/projects/:projectId/indicators/progress` retorna I01/RF15, sem query de período.
+`GET /api/projects/:projectId/indicators/activity?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&timeZone=America/Sao_Paulo`
+retorna `{projectId,period,indicators:[I02,I03,I05]}`. As três entradas compartilham
+o mesmo corte. Datas civis inicial/final são inclusivas no fuso IANA explícito;
+`period.startInclusive` e `period.endExclusive` são instantes UTC, com fim exclusivo.
+RF16 usa `Commit.date`; RF17 usa `TaskMovement.movedAt`; RF15 é estado atual e rejeita
+filtro temporal. Datas inexistentes, início maior que fim e fuso inválido retornam 400.
+
+Cada `IndicatorResult` expõe `projectId`, `metricId`, `rf`, `definitionVersion:1`,
+`eventClock`, `value`, `unit`, `numerator`, `denominator`, `period`, `scope`, `state`,
+`asOf`, `sourceUpdatedAt`, `sourceSyncStatus`, `formula`, `sources[]` e
+`limitations[]`. Os estados são `AVAILABLE`, `NO_DATA`, `PARTIAL`, `STALE` e
+`UNAVAILABLE`. I01 com zero Tasks retorna `value:null, numerator:0,
+denominator:0, state:NO_DATA`; Tasks existentes com zero concluídas retornam
+`value:0, state:AVAILABLE`. Percentuais têm até duas casas decimais.
+
+I02 e I03 acrescentam `distribution:{total,associated,unassociated,
+unassignedHistoricalCount,people[]}`; cada pessoa é `{userId,displayName,count}`.
+O campo `unassignedHistoricalCount` é significativo em I03. I05 expõe `value` como
+vetor `{completedTasks,commits}`, `people[]` com as duas contagens e
+`unassociated` por dimensão, além de `components` com o estado de cada fonte.
+Se não há fotografia confirmada da `main`, o número de commits é `null`, inclusive
+nas linhas de pessoa. Somente pessoas com fatos aparecem; membership histórica
+não é inferida. As contagens por pessoa exigem membership atual ativa e conta
+resolvível. Nenhum e-mail, login ou GitHub user ID é exposto.
+
+RF16 usa apenas a branch literal `main` e os links da generation confirmada.
+Branch ausente ou sem varredura P1 completa produz `UNAVAILABLE`; sync falho,
+integração desconectada ou head divergente com fotografia anterior produzem
+`STALE`, com último valor conhecido e limitações. Autores não associados geram
+`PARTIAL` quando a fonte está atual; se também há falha de sync, o estado primário
+é `STALE` e a lacuna de associação permanece em `limitations[]`/`distribution`.
+RF17 considera a última movimentação de cada Task antes do fim do período:
+somente uma conclusão nesse intervalo ainda vigente no corte é contada. Snapshot
+de responsável ausente ou pessoa não resolvível gera `PARTIAL`; responsável atual
+da Task nunca substitui o snapshot. Hard delete pode remover histórico anterior.
+
+Leitura requer sessão e membership ativa (`VIEWER` ou superior). Projeto excluído
+ou alheio retorna 404 opaco; ausência de sessão retorna 401. Atividade medida
+não constitui avaliação individual, nota ou ranking. Não há cache persistido,
+dashboard ou indicador de RF18/RF54 nesta etapa.
