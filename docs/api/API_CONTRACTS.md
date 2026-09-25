@@ -1444,3 +1444,48 @@ legado incompleto. Seus pontos `{sprintId,sprintName,closedAt,completedPoints}` 
 `eligibleCount`, `excludedCount`, `coverage:{completedSprints,returnedSprints,truncatedCount,limit}`
 e `VELOCITY_LIMIT_APPLIED` quando mostra apenas as últimas N Sprints. Não há ranking de pessoas,
 PII nova, cache ou gráfico frontend. S2-04/S2-05 seguem abertos.
+
+## S2 P6 — Quality e Traceability Analytics
+
+`GET /api/projects/:projectId/indicators/quality?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&timeZone=America/Sao_Paulo`
+retorna `{projectId,generatedAt,period,indicators:[I48,…,I60]}`. Os três parâmetros são
+obrigatórios; o intervalo usa dias civis inclusivos e limites UTC `[startInclusive,endExclusive)`
+da policy P2 (máximo 366 dias). I48–I51 e I55–I58 usam esse período e incluem `period` em cada
+indicador. I52–I54 e I59–I60 são fotografias atuais e incluem `period:null`, mesmo quando o
+endpoint recebe período. Query adicional ou inválida retorna 400.
+
+I48 conta **execuções**, uma vez cada, por PASS/FAIL/BLOCKED; I49–I51 compartilham essa mesma
+coorte, com `value:null`/`NO_DATA` quando o denominador é zero. I52 considera somente TestCases
+ativos e não excluídos, pela última execução da versão atual (`executedAt DESC,id DESC`), além de
+`NEVER_EXECUTED`. I53 agrupa Defects não excluídos por status e expõe `components.activeDefects`
+para ABERTO+EM_CORRECAO+AGUARDANDO_RETESTE; I54 agrupa por severidade. I55 conta Defects criados
+pelo `createdAt`; I56 conta Defects distintos com evento `VALIDATED` por `occurredAt`. I57 retorna
+mediana em dias de criação até o **primeiro** `VALIDATED`, na coorte desse primeiro evento. I58
+usa somente tentativas `DefectRetest`, pelo `TestExecution.executedAt`, com BLOCKED no denominador.
+I59 e I60 retornam `kind:LIST`, `items` top 10, ordenados por quantidade decrescente e ID crescente:
+I59 deduplica Defect por Requirement direto ou via Task ORIGIN, I60 usa só Task ORIGIN. A soma de
+I59 pode superar o total de Defects do projeto porque um Defect pode pertencer a mais de um
+Requirement.
+
+Defects logicamente excluídos não reaparecem no agregado histórico: I55–I58 trazem `excludedCount`,
+`PARTIAL` ou `UNAVAILABLE` e `limitations` quando a exclusão afeta a cobertura. I56/I57 não
+inventam data de validação para registros `VALIDADO` sem evento: esses registros são excluídos da
+amostra, sinalizados por `LEGACY_VALIDATION_WITHOUT_EVENT_UNDATED` em I56 e pela limitação de
+histórico em I57. Essa exclusão legada não tem coorte temporal verificável. Período futuro ainda
+aberto adiciona `PERIOD_NOT_COMPLETE` aos indicadores históricos.
+
+`GET /api/projects/:projectId/indicators/traceability` retorna
+`{projectId,generatedAt,indicators:[I61,…,I67]}`. Não aceita query e todos os indicadores são
+fotografias atuais (`period:null`). Denominador é o total de Requirements do projeto; vazio resulta
+em `NO_DATA`, e zero numerador com denominador positivo resulta em 0% `AVAILABLE` quando a fonte
+está fresca. I61 mede Requirements com Tasks; I62, evidência técnica via PR/commit; I63, TestCase
+ativo relevante direto ou via Task; I64, Defect ativo direto ou via Task ORIGIN; I65, situação
+canônica `CONCLUIDO`; I66, estágio técnico `implementation.implemented` independentemente de
+falha/Defect atual; I67, média do progresso por Requirement da matriz S1-09, incluindo zero para
+Requirement sem Task. I62/I65/I66 propagam `STALE`, `sourceUpdatedAt`, `sourceSyncStatus` e
+`limitations` de frescor GitHub. I61/I63/I64/I67 permanecem locais.
+
+Ambos exigem sessão e membership ativa VIEWER+; sem sessão retorna 401; projeto alheio,
+inexistente ou excluído retorna 404. O payload não inclui responsável, e-mail, autoria GitHub nem
+ranking de pessoas. I68 não é implementado, por decisão `NOT_RECOMMENDED`. P6 não entrega painel;
+S2-04/S2-05 permanecem abertos.

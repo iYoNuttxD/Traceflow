@@ -144,6 +144,8 @@ Inventário estático P0 do [schema Prisma](../../backend/prisma/schema.prisma).
 
 **Atualização P5.2:** Em Sprints cobertas, I45 e I46 consomem uma projeção diária única de `SprintBurnupEvent`: `remaining = scope - completed` nos buckets com estimativa conhecida. I45 v2 preserva o owner de Burndown e a forma pública `{date,ideal,remaining}`; reabertura, reconclusão, estimativa, entrada/saída e exclusão não usam mais o ponto atual retroativamente. Cobertura parcial só permite comparação desde a âncora; Sprint anterior sem diário conserva I45 legado e I46 `UNAVAILABLE`. Nenhuma migration, backfill ou índice foi necessário.
 
+**Atualização P6:** I48–I67 possuem cálculo backend e os endpoints Quality/Traceability. I52 reaproveita a seleção da versão atual da projeção S1-09; I59 e I61–I67 consomem os agregados da mesma projeção em lotes, sem reconstruir policy. I57 é calculável para Defects com primeiro evento `VALIDATED` confiável, com `eligibleCount` e `excludedCount`; legado `VALIDADO` sem evento continua sem relógio e não recebe backfill. I58 usa a ligação persistida `DefectRetest→TestExecution`, por tentativa, sem inferir reteste de execução comum. I66 usa `implementation.implemented`, preservando implementação técnica mesmo se a qualidade atual piorar. I55–I58 não reexpõem Defects logicamente excluídos, comunicando perda de cobertura com `PARTIAL`/`UNAVAILABLE`. Os estados P0 da tabela acima são fotografia histórica, não status de implementação após P6. I68 segue `NOT_RECOMMENDED`; nenhuma migration ou cache foi adicionada.
+
 ## 7. Dependências e proposta de roadmap futuro
 
 ```text

@@ -3,6 +3,8 @@ import { indicatorsService } from './indicators.service.js';
 import { githubAnalyticsService } from './github-analytics.service.js';
 import { flowTaskService } from './flow-task.service.js';
 import { sprintAnalyticsService } from './sprint-analytics.service.js';
+import { qualityAnalyticsService } from './quality-analytics.service.js';
+import { traceabilityAnalyticsService } from './traceability-analytics.service.js';
 
 export const indicatorsController = {
   progress: asyncHandler(async (req, res) =>
@@ -19,5 +21,11 @@ export const indicatorsController = {
   ),
   sprints: asyncHandler(async (req, res) =>
     res.json(await sprintAnalyticsService.read(req.params.projectId, req.query))
+  ),
+  quality: asyncHandler(async (req, res) =>
+    res.json(await qualityAnalyticsService.read(req.params.projectId, req.query))
+  ),
+  traceability: asyncHandler(async (req, res) =>
+    res.json(await traceabilityAnalyticsService.read(req.params.projectId))
   )
 };

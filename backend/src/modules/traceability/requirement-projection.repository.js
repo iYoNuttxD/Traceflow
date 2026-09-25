@@ -128,6 +128,30 @@ export async function loadRequirementProjections(client, projectId, requirementI
 
 export const PROJECTION_SUMMARY_BATCH_SIZE = 200;
 
+export async function loadProjectRequirementIndicatorRows(client, projectId) {
+  const rows = [];
+  let cursor;
+  for (;;) {
+    const requirements = await client.requirement.findMany({
+      where: { projectId, ...(cursor ? { id: { lt: cursor } } : {}) },
+      select: { id: true, title: true },
+      orderBy: { id: 'desc' },
+      take: PROJECTION_SUMMARY_BATCH_SIZE
+    });
+    if (!requirements.length) break;
+    const metrics = await readProjectionMetrics(
+      client,
+      projectId,
+      requirements.map((row) => row.id)
+    );
+    const byId = new Map(metrics.map((row) => [row.id, row]));
+    rows.push(...requirements.map((row) => projectRequirementSummary(row, byId.get(row.id))));
+    if (requirements.length < PROJECTION_SUMMARY_BATCH_SIZE) break;
+    cursor = requirements.at(-1).id;
+  }
+  return rows;
+}
+
 function accumulateSummary(target, rows) {
   const batch = projectionSummary(rows);
   target.total += batch.total;
@@ -181,6 +205,29 @@ async function readProjectionPage(client, projectId, q) {
 }
 
 export const requirementProjectionRepository = {
+  readIndicatorSummary(projectId) {
+    return prisma.$transaction(
+      async (tx) => {
+        const project = await tx.project.findFirst({
+          where: { id: projectId, deletedAt: null },
+          select: {
+            id: true,
+            githubIntegration: {
+              select: { status: true, lastSyncAt: true, lastSyncStatus: true }
+            }
+          }
+        });
+        if (!project) return null;
+        const branch = await tx.gitBranch.findFirst({
+          where: { projectId, name: 'main', isActive: true },
+          select: { headSha: true, lastSyncedHeadSha: true }
+        });
+        const rows = await loadProjectRequirementIndicatorRows(tx, projectId);
+        return { project, branch, rows };
+      },
+      { isolationLevel: 'RepeatableRead', timeout: 30000 }
+    );
+  },
   readPage(projectId, query) {
     return prisma.$transaction((tx) => readProjectionPage(tx, projectId, query), {
       isolationLevel: 'RepeatableRead'

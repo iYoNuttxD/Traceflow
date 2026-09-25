@@ -1,5 +1,6 @@
 import { FLOW_TASK_INDICATORS } from './flow-task.catalog.js';
 import { SPRINT_ANALYTICS_INDICATORS } from './sprint-analytics.catalog.js';
+import { QUALITY_TRACEABILITY_INDICATORS } from './quality-traceability.catalog.js';
 
 export const INDICATORS = Object.freeze({
   I01: Object.freeze({
@@ -258,5 +259,6 @@ export const INDICATORS = Object.freeze({
     sources: ['Issue.createdAtGithub', 'Issue.closedAtGithub']
   }),
   ...FLOW_TASK_INDICATORS,
-  ...SPRINT_ANALYTICS_INDICATORS
+  ...SPRINT_ANALYTICS_INDICATORS,
+  ...QUALITY_TRACEABILITY_INDICATORS
 });

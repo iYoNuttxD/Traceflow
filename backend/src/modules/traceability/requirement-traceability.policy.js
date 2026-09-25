@@ -1,4 +1,6 @@
 import {
+  buildMatrixSummary,
+  buildMetric,
   buildRequirementMetrics,
   getImplementationStage,
   getImplementationStageFromCounts,
@@ -189,10 +191,12 @@ export function projectRequirement(requirement, testCases = [], defectRows = [])
 // Uses the same classification authorities as the detailed projection, from bounded SQL counts.
 export function projectRequirementSummary(requirement, counts) {
   const n = (key) => Number(counts[key] ?? 0);
+  const tasksTotal = n('tasksTotal');
+  const tasksDone = n('tasksDone');
   const technicalEvidence = n('technicalEvidence') > 0;
   const legacyStage = getImplementationStageFromCounts({
-    tasksTotal: n('tasksTotal'),
-    tasksDone: n('tasksDone'),
+    tasksTotal,
+    tasksDone,
     tasksInProgress: n('tasksInProgress'),
     hasTechnicalEvidence: technicalEvidence
   });
@@ -225,6 +229,13 @@ export function projectRequirementSummary(requirement, counts) {
     },
     validation,
     defects,
+    tasksTotal,
+    progress: buildMetric(tasksDone, tasksTotal),
+    implementation: {
+      legacyStage,
+      implemented: legacyStage === 'IMPLEMENTADO',
+      technicalEvidence
+    },
     evidence: { implementation: technicalEvidence },
     situation
   };
@@ -237,6 +248,25 @@ export function projectionSummary(rows) {
     total: rows.length,
     bySituation,
     withDefect: bySituation.COM_FALHA + bySituation.EM_CORRECAO + bySituation.AGUARDANDO_RETESTE
+  };
+}
+
+export function projectIndicatorCoverage(rows) {
+  const matrix = buildMatrixSummary(
+    rows.map((row) => ({
+      tasksCount: row.tasksTotal,
+      hasTechnicalEvidence: row.evidence.implementation,
+      implementationStatus: row.implementation.legacyStage,
+      progressPercentage: row.progress.percentage ?? 0
+    }))
+  );
+  return {
+    ...matrix,
+    requirementsWithTestCase: rows.filter((row) => row.validation.testCasesTotal > 0).length,
+    requirementsWithActiveDefect: rows.filter(
+      (row) => row.defects.open + row.defects.inCorrection + row.defects.waitingRetest > 0
+    ).length,
+    validatedRequirements: rows.filter((row) => row.situation === 'CONCLUIDO').length
   };
 }
 

@@ -34,5 +34,15 @@ router.get(
   validateRequest({ params: indicatorProjectParamsSchema, query: sprintAnalyticsQuerySchema }),
   indicatorsController.sprints
 );
+router.get(
+  '/projects/:projectId/indicators/quality',
+  validateRequest({ params: indicatorProjectParamsSchema, query: indicatorPeriodQuerySchema }),
+  indicatorsController.quality
+);
+router.get(
+  '/projects/:projectId/indicators/traceability',
+  validateRequest({ params: indicatorProjectParamsSchema, query: emptyObject }),
+  indicatorsController.traceability
+);
 
 export default router;
