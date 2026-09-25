@@ -166,6 +166,12 @@ Ordem é de leitura, não especificação de layout. Widgets `U`/indisponíveis 
 
 **PERSONALIZADO (contrato conceitual):** usuário escolhe entre IDs já publicados, reordena e restaura padrão. Respeita permissão, estado e compatibilidade de filtros da ficha. Sem fórmula, SQL, widget arbitrário ou modelo persistido nesta etapa.
 
+## P7 — Views e filtro executável no Dashboard API
+
+O `dashboard-view.catalog.js` fixa as seções padrão sem alterar fórmulas: GENERAL I01/I23/I28/I61/I66/I53/I45 (sete widgets); GITHUB I02/I04/I06/I09–I18/I73/I74; FLOW I20–I25; SPRINT I36–I47/I71–I72; TASK I26–I35; QUALITY I06/I48–I60; TRACEABILITY I61–I67. I03/I05 continuam disponíveis no catálogo público para seleção futura, sem widget padrão. I19 e I68 não são widgets implementáveis; `FUNNEL` não é candidato para I68.
+
+O filtro temporal RF56 usa o trio completo de datas civis e fuso IANA da D14. Sem trio, indicadores EVENT retornam `PERIOD_REQUIRED` no agregado; `CURRENT_STATE` não recebe período fictício. A resposta publica por indicador `filterCompatibility` (`SUPPORTED`, `NOT_APPLICABLE`, `UNSAFE`) e `appliedFilters`, além dos estados/fonte/relógio originais. `sprintId` é executável somente nas fichas de Sprint que já o suportam; I47 permanece no histórico do projeto. `responsibleUserId` é aceito e validado no contexto do projeto, mas não aplicado onde o service atual não oferece recorte seguro. Em particular, o suporte semântico candidato das fichas I02/I03/I05 e I03/I20–I22 para responsável/Sprint ainda não é filtro executável no Dashboard P7; aparece como `UNSAFE` até existir contrato de fonte que preserve atribuição histórica. A ausência de aplicação é avisada, sem modificar a fórmula. O catálogo público lista apenas filtros executáveis hoje e preserva a compatibilidade/limitação por ficha.
+
 ## Decisões D01–D15 — contrato aprovado para implementação
 
 Cada linha fixa a semântica para P2/P3; aprovação do contrato não significa entrega do cálculo. A [fundação P1](S2_INDICATOR_DATA_FOUNDATION.md) registra quais fatos já são persistidos e quais lacunas históricas permanecem.

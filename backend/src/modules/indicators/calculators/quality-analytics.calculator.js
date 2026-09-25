@@ -8,6 +8,19 @@ function distribution(rows, key, values) {
   return { ...counts, total: Object.values(counts).reduce((sum, value) => sum + value, 0) };
 }
 
+export function calculateDefectStates(rows) {
+  const defects = distribution(rows, 'status', [
+    'ABERTO',
+    'EM_CORRECAO',
+    'AGUARDANDO_RETESTE',
+    'VALIDADO'
+  ]);
+  return {
+    ...defects,
+    active: defects.ABERTO + defects.EM_CORRECAO + defects.AGUARDANDO_RETESTE
+  };
+}
+
 export function calculateQualityFacts(facts) {
   const executions = distribution(facts.executionResults, 'result', ['PASS', 'FAIL', 'BLOCKED']);
   const health = distribution(facts.caseHealth, 'result', [
@@ -16,12 +29,7 @@ export function calculateQualityFacts(facts) {
     'BLOCKED',
     'NEVER_EXECUTED'
   ]);
-  const defects = distribution(facts.defectStates, 'status', [
-    'ABERTO',
-    'EM_CORRECAO',
-    'AGUARDANDO_RETESTE',
-    'VALIDADO'
-  ]);
+  const defects = calculateDefectStates(facts.defectStates);
   const severity = distribution(facts.severities, 'severity', [
     'BAIXA',
     'MEDIA',
@@ -61,10 +69,7 @@ export function calculateQualityFacts(facts) {
       ['PASS', 'FAIL', 'BLOCKED'].map((key) => [key, percentage(executions[key], executions.total)])
     ),
     health,
-    defects: {
-      ...defects,
-      active: defects.ABERTO + defects.EM_CORRECAO + defects.AGUARDANDO_RETESTE
-    },
+    defects,
     severity,
     created: { value: Number(facts.created.visible), excluded: Number(facts.created.excluded) },
     validated: {

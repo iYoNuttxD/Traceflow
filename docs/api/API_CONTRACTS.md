@@ -1489,3 +1489,58 @@ Ambos exigem sessão e membership ativa VIEWER+; sem sessão retorna 401; projet
 inexistente ou excluído retorna 404. O payload não inclui responsável, e-mail, autoria GitHub nem
 ranking de pessoas. I68 não é implementado, por decisão `NOT_RECOMMENDED`. P6 não entrega painel;
 S2-04/S2-05 permanecem abertos.
+
+## S2 P7 — Dashboard Aggregate API e catálogo (RF56 backend)
+
+`GET /api/projects/:projectId/indicators/dashboard` aceita `view` (`GENERAL` por padrão;
+`GITHUB`, `FLOW`, `SPRINT`, `TASK`, `QUALITY`, `TRACEABILITY`), o trio opcional
+`startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&timeZone=IANA`, `sprintId` e
+`responsibleUserId`. Query desconhecida, view/fuso/data inválidos ou período incompleto retornam
+400. FLOW e TASK limitam a leitura de séries a 366 dias civis. O período solicitado é normalizado **uma vez** pela
+policy P2 para `[startInclusive,endExclusive)`; os services temporais recebem esse mesmo corte e
+preservam o `eventClock` de cada indicador. Sem período solicitado, indicadores de evento trazem
+`UNAVAILABLE`, `value:null`, `PERIOD_REQUIRED`; não há default público de 30 dias. Indicadores
+atuais continuam disponíveis e trazem `period:null` mesmo quando um período foi solicitado.
+
+O response contém `dashboardContractVersion:1`, `view`, `viewState`, `generatedAt`,
+`requestedFilters:{period,sprintId,responsibleUserId}`, `context:{project,sprint,responsible}`,
+`freshness:{local,github}`, `sections:[{id,indicators:IndicatorResult[]}]` e `warnings[]`.
+Cada indicador preserva `metricId`, `definitionVersion`, `state`, `asOf`, fórmula, fontes,
+`sourceUpdatedAt`, `sourceSyncStatus`, distribuição/série/lista e limitações do service de origem.
+Acrescenta `filterCompatibility:{period,sprint,responsible}` com `SUPPORTED`, `NOT_APPLICABLE`
+ou `UNSAFE`, e `appliedFilters` booleano para os três filtros. `requestedFilters` nunca implica
+aplicação universal. Filtro `UNSAFE` não altera o cálculo e acrescenta limitação explícita; quando
+nenhum indicador da view usa um filtro solicitado, há warning da view.
+
+As seções são definidas no catálogo de views: GENERAL tem sete indicadores (I01, I23, I28,
+I61, I66, I53, I45); GITHUB agrega I02, I04, I06, I09–I18 e I73–I74; FLOW I20–I25;
+SPRINT I36–I47/I71–I72; TASK I26–I35; QUALITY separa I06 e I48–I60 entre PRs,
+testes, Defects e concentração; TRACEABILITY I61–I67. I19 e I68 não entram nas views.
+I03/I05 permanecem no catálogo público para uma seleção futura, sem widget padrão. Não há
+`PERSONALIZED` ou layout persistido.
+
+`sprintId` precisa apontar para Sprint não excluída do projeto autorizado; uma Sprint alheia
+retorna 404. Sem `sprintId`, o service de Sprint escolhe a única Sprint ativa, se houver; nenhuma
+ou múltiplas preservam os estados/limitações canônicos. I47 é histórico do projeto e não recebe
+`sprintId`. `responsibleUserId` é validado por vínculo de projeto, inclusive inativo para
+referência histórica; sem vínculo retorna 404. O catálogo P0 marca alguns filtros por responsável
+ou Sprint como semanticamente candidatos, mas os services atuais não executam esse recorte de
+forma íntegra. O Dashboard os marca `UNSAFE`/não aplicado em vez de reatribuir história por estado
+atual. RF56 backend cobre o filtro temporal; a experiência visual e filtros adicionais seguros
+continuam para P8/etapas futuras.
+
+Blocos usam os services diretamente, uma chamada por grupo de fonte na request. Ausência de
+dados, `PARTIAL`, `STALE` e `UNAVAILABLE` permanecem estados individuais; `viewState` apenas resume
+a view (`AVAILABLE`, `PARTIAL`, `NO_DATA`, `UNAVAILABLE`). Falha externa operacional conhecida do
+grupo GitHub gera placeholders `SOURCE_UNAVAILABLE` e preserva blocos locais. Erro inesperado
+continua erro HTTP observável. `freshness.github` não é substituído por `generatedAt` local.
+Listas e séries conservam os limites dos endpoints de origem. O service pode executar uma janela
+UTC interna de um único dia para obter somente indicadores atuais de um bloco misto quando não há
+período público; os resultados de evento dessa leitura são descartados e não viram default de
+produto.
+
+`GET /api/projects/:projectId/indicators/catalog` não aceita query. Retorna metadados públicos
+de cada `metricId` implementado: categoria, título, descrição, unidade, temporalidade, relógio,
+filtros executáveis, compatibilidade, candidatos visuais, RF, versão de definição, fonte
+conceitual e views padrão. Não expõe SQL, tokens, identidades GitHub ou I68. Ambos os endpoints
+exigem sessão e membership ativa VIEWER+; sem sessão → 401, projeto alheio/excluído → 404.

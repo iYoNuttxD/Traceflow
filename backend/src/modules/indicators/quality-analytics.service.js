@@ -1,13 +1,33 @@
 import { resourceNotFoundError } from '../../shared/errors/index.js';
-import { calculateQualityFacts } from './calculators/quality-analytics.calculator.js';
+import {
+  calculateDefectStates,
+  calculateQualityFacts
+} from './calculators/quality-analytics.calculator.js';
 import { indicatorResult } from './indicators.mapper.js';
 import { qualityAnalyticsRepository } from './quality-analytics.repository.js';
 import { normalizeIndicatorPeriod } from './policies/indicator-period.policy.js';
 
 export const qualityAnalyticsService = {
-  async read(projectId, query, now = () => new Date()) {
+  async defectStates(projectId, now = () => new Date()) {
     const id = Number(projectId);
-    const period = normalizeIndicatorPeriod(query);
+    const rows = await qualityAnalyticsRepository.readDefectStates(id);
+    if (!rows) throw resourceNotFoundError('Project');
+    const defects = calculateDefectStates(rows);
+    return indicatorResult(
+      'I53',
+      id,
+      {
+        value: defects,
+        state: 'AVAILABLE',
+        distribution: defects,
+        components: { activeDefects: defects.active }
+      },
+      now().toISOString()
+    );
+  },
+  async read(projectId, query, now = () => new Date(), normalizedPeriod = null) {
+    const id = Number(projectId);
+    const period = normalizedPeriod ?? normalizeIndicatorPeriod(query);
     const asOf = now();
     const facts = await qualityAnalyticsRepository.read(id, period);
     if (!facts) throw resourceNotFoundError('Project');

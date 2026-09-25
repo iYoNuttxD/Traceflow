@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { emptyObject, validateRequest } from '../../shared/validation/index.js';
 import { indicatorsController } from './indicators.controller.js';
 import {
+  dashboardQuerySchema,
   flowTaskPeriodQuerySchema,
   indicatorPeriodQuerySchema,
   indicatorProjectParamsSchema,
@@ -43,6 +44,16 @@ router.get(
   '/projects/:projectId/indicators/traceability',
   validateRequest({ params: indicatorProjectParamsSchema, query: emptyObject }),
   indicatorsController.traceability
+);
+router.get(
+  '/projects/:projectId/indicators/dashboard',
+  validateRequest({ params: indicatorProjectParamsSchema, query: dashboardQuerySchema }),
+  indicatorsController.dashboard
+);
+router.get(
+  '/projects/:projectId/indicators/catalog',
+  validateRequest({ params: indicatorProjectParamsSchema, query: emptyObject }),
+  indicatorsController.catalog
 );
 
 export default router;

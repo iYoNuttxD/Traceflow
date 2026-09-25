@@ -37,9 +37,9 @@ export const indicatorsService = {
     );
   },
 
-  async activity(projectId, query) {
+  async activity(projectId, query, normalizedPeriod = null) {
     const id = Number(projectId);
-    const period = normalizeIndicatorPeriod(query);
+    const period = normalizedPeriod ?? normalizeIndicatorPeriod(query);
     const facts = await indicatorsRepository.readActivity(id, period);
     if (!facts) throw resourceNotFoundError('Project');
     const asOf = facts.asOf.toISOString();

@@ -2,7 +2,7 @@ import { prisma } from '../../database/prismaClient.js';
 
 // One consistent read; current aggregates stay in SQL while history is fetched once.
 export const flowTaskRepository = {
-  read(projectId, period, asOf) {
+  read(projectId, period, asOf, { currentSummaryOnly = false } = {}) {
     return prisma.$transaction(
       async (tx) => {
         const project = await tx.project.findFirst({
@@ -38,30 +38,40 @@ export const flowTaskRepository = {
               where: { projectId },
               _count: { _all: true }
             }),
-            tx.task.findMany({
-              where: { projectId },
-              select: {
-                id: true,
-                title: true,
-                status: true,
-                createdAt: true,
-                deadline: true,
-                responsibleUser: {
+            currentSummaryOnly
+              ? []
+              : tx.task.findMany({
+                  where: { projectId },
                   select: {
                     id: true,
-                    name: true,
-                    isActive: true,
-                    accountStatus: true,
-                    anonymizedAt: true
+                    title: true,
+                    status: true,
+                    createdAt: true,
+                    deadline: true,
+                    responsibleUser: {
+                      select: {
+                        id: true,
+                        name: true,
+                        isActive: true,
+                        accountStatus: true,
+                        anonymizedAt: true
+                      }
+                    }
                   }
-                }
-              }
-            }),
-            tx.taskMovement.findMany({
-              where: { projectId, movedAt: { lt: asOf } },
-              orderBy: [{ taskId: 'asc' }, { movedAt: 'asc' }, { id: 'asc' }],
-              select: { id: true, taskId: true, fromStatus: true, toStatus: true, movedAt: true }
-            }),
+                }),
+            currentSummaryOnly
+              ? []
+              : tx.taskMovement.findMany({
+                  where: { projectId, movedAt: { lt: asOf } },
+                  orderBy: [{ taskId: 'asc' }, { movedAt: 'asc' }, { id: 'asc' }],
+                  select: {
+                    id: true,
+                    taskId: true,
+                    fromStatus: true,
+                    toStatus: true,
+                    movedAt: true
+                  }
+                }),
             tx.$queryRaw`
               SELECT t.id, t.title, t.status, t.deadline,
                 u.id AS responsibleUserId, u.name AS responsibleName
@@ -71,7 +81,9 @@ export const flowTaskRepository = {
                 AND t.status <> 'CONCLUIDO'
               ORDER BY t.deadline ASC, t.id ASC LIMIT 10
             `,
-            tx.$queryRaw`
+            currentSummaryOnly
+              ? []
+              : tx.$queryRaw`
               SELECT t.id, t.title, t.status, t.estimatedEffort, t.actualEffort,
                 u.id AS responsibleUserId, u.name AS responsibleName
               FROM Task t LEFT JOIN User u ON u.id = t.responsibleUserId
@@ -80,7 +92,9 @@ export const flowTaskRepository = {
                 AND t.actualEffort IS NOT NULL AND t.actualEffort > t.estimatedEffort
               ORDER BY (t.actualEffort - t.estimatedEffort) DESC, t.id ASC LIMIT 10
             `,
-            tx.$queryRaw`
+            currentSummaryOnly
+              ? []
+              : tx.$queryRaw`
               SELECT t.id, t.title, t.status, t.estimatedEffort, t.actualEffort,
                 u.id AS responsibleUserId, u.name AS responsibleName
               FROM Task t LEFT JOIN User u ON u.id = t.responsibleUserId

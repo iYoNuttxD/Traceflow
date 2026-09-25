@@ -48,9 +48,34 @@ function durationState(sample) {
 }
 
 export const flowTaskService = {
-  async read(projectId, query, now = () => new Date()) {
+  async currentSummary(projectId, now = () => new Date()) {
     const id = Number(projectId);
-    const period = normalizeIndicatorPeriod(query);
+    const asOf = now();
+    const facts = await flowTaskRepository.read(id, null, asOf, { currentSummaryOnly: true });
+    if (!facts) throw resourceNotFoundError('Project');
+    const current = calculateTaskCurrent(facts.aggregate, facts.statuses);
+    const timestamp = asOf.toISOString();
+    return {
+      projectId: id,
+      indicators: [
+        indicatorResult('I23', id, { value: current.wip, state: 'AVAILABLE' }, timestamp),
+        indicatorResult(
+          'I28',
+          id,
+          {
+            value: current.overdue,
+            state: 'AVAILABLE',
+            kind: 'LIST',
+            items: facts.overdue.map((row) => taskItem(row))
+          },
+          timestamp
+        )
+      ]
+    };
+  },
+  async read(projectId, query, now = () => new Date(), normalizedPeriod = null) {
+    const id = Number(projectId);
+    const period = normalizedPeriod ?? normalizeIndicatorPeriod(query);
     const asOf = now();
     const facts = await flowTaskRepository.read(id, period, asOf);
     if (!facts) throw resourceNotFoundError('Project');

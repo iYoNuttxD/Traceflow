@@ -32,9 +32,9 @@ function state(ready, freshness, value, partial = false) {
 }
 
 export const githubAnalyticsService = {
-  async read(projectId, query) {
+  async read(projectId, query, normalizedPeriod = null) {
     const id = Number(projectId);
-    const period = normalizeIndicatorPeriod(query);
+    const period = normalizedPeriod ?? normalizeIndicatorPeriod(query);
     const facts = await githubAnalyticsRepository.read(id, period);
     if (!facts) throw resourceNotFoundError('Project');
     const integration = facts.project.githubIntegration;

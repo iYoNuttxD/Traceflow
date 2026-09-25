@@ -2,6 +2,23 @@ import { prisma } from '../../database/prismaClient.js';
 import { loadProjectRequirementIndicatorRows } from '../traceability/requirement-projection.repository.js';
 
 export const qualityAnalyticsRepository = {
+  readDefectStates(projectId) {
+    return prisma.$transaction(
+      async (tx) => {
+        const project = await tx.project.findFirst({
+          where: { id: projectId, deletedAt: null },
+          select: { id: true }
+        });
+        if (!project) return null;
+        return tx.defect.groupBy({
+          by: ['status'],
+          where: { projectId, deletedAt: null },
+          _count: { _all: true }
+        });
+      },
+      { isolationLevel: 'RepeatableRead' }
+    );
+  },
   read(projectId, period) {
     return prisma.$transaction(
       async (tx) => {
