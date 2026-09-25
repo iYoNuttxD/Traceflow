@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { getProjectGithubSyncStatus, syncProjectGithub } from '../../github/index.js';
 import { membersApi } from '../../members/index.js';
@@ -19,6 +19,10 @@ import { ProjectStatusBadge } from '../components/ProjectStatusBadge.jsx';
 import { MemberAvatarStack } from '../components/MemberAvatarStack.jsx';
 import { projectsApi } from '../api/projects.api.js';
 import './ProjectDetailsScreen.css';
+
+const DashboardPanel = lazy(() =>
+  import('../../indicators/index.js').then((module) => ({ default: module.DashboardPanel }))
+);
 
 function formatDateTime(value) {
   if (!value) return 'Ainda não realizada.';
@@ -119,6 +123,7 @@ export function ProjectDetailsScreen() {
   const [project, setProject] = useState(null);
   const [loadedProjectId, setLoadedProjectId] = useState(null);
   const [activeMembers, setActiveMembers] = useState(null);
+  const [allMembers, setAllMembers] = useState([]);
   const [currentMembership, setCurrentMembership] = useState(null);
   const [loading, setLoading] = useState(true);
   const [githubSyncState, setGithubSyncState] = useState({
@@ -131,6 +136,8 @@ export function ProjectDetailsScreen() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [retryAfterSeconds, setRetryAfterSeconds] = useState(0);
+  const [dashboardRefreshVersion, setDashboardRefreshVersion] = useState(0);
+  const [contextExpanded, setContextExpanded] = useState(false);
   const cooldown = useCountdown(retryAfterSeconds);
   const { run: runProjectLoad } = useAbortableRequest();
   const { run: runProjectRefresh } = useAbortableRequest();
@@ -163,7 +170,9 @@ export function ProjectDetailsScreen() {
         setSuccess('');
         setRetryAfterSeconds(0);
         setActiveMembers(null);
+        setAllMembers([]);
         setCurrentMembership(null);
+        setContextExpanded(false);
         setGithubSyncState({ projectId: id, run: null, status: 'idle' });
         syncLock.current = null;
 
@@ -192,6 +201,7 @@ export function ProjectDetailsScreen() {
               ? (membershipData.members || []).filter((member) => member.isActive)
               : null
           );
+          setAllMembers(membershipData?.members || []);
           setCurrentMembership(membershipData?.currentMembership || null);
           setMembershipError(nextMembershipError);
         } catch (requestError) {
@@ -268,7 +278,12 @@ export function ProjectDetailsScreen() {
             `Sincronização GitHub concluída com sucesso. ${formatSyncSummary(run.summary)}`
           );
           setError('');
-          await refreshProjectDetails();
+          setDashboardRefreshVersion((version) => version + 1);
+          try {
+            await refreshProjectDetails();
+          } catch {
+            setSuccess((message) => `${message} O contexto do projeto não pôde ser atualizado.`);
+          }
         } else if (run.status === 'FAILED') {
           setGithubSyncState({ projectId: requestedProjectId, run, status: 'error' });
           setSuccess('');
@@ -316,11 +331,26 @@ export function ProjectDetailsScreen() {
     try {
       const response = await syncProjectGithub(requestedProjectId);
       if (routeProjectIdRef.current === requestedProjectId) {
+        const completed = response.run?.status === 'SUCCEEDED';
+        const failed = response.run?.status === 'FAILED';
         setGithubSyncState({
           projectId: requestedProjectId,
           run: response.run,
-          status: 'syncing'
+          status: completed ? 'success' : failed ? 'error' : 'syncing'
         });
+        if (completed) {
+          setSuccess(
+            `Sincronização GitHub concluída com sucesso. ${formatSyncSummary(response.run.summary)}`
+          );
+          setDashboardRefreshVersion((version) => version + 1);
+          try {
+            await refreshProjectDetails();
+          } catch {
+            setSuccess((message) => `${message} O contexto do projeto não pôde ser atualizado.`);
+          }
+        } else if (failed) {
+          setError(formatSyncFailure(response.run));
+        }
       }
     } catch (requestError) {
       if (routeProjectIdRef.current === requestedProjectId) {
@@ -460,11 +490,33 @@ export function ProjectDetailsScreen() {
         <header className="project-overview-surface__intro">
           <div>
             <h2 id="project-overview-title">Visão geral</h2>
-            <p>Contexto essencial do projeto, da integração GitHub e da equipe.</p>
+            <p>Contexto do projeto, repositório e equipe.</p>
           </div>
+          <button
+            type="button"
+            className="project-overview-surface__toggle"
+            aria-expanded={contextExpanded}
+            aria-controls="project-overview-context"
+            onClick={() => setContextExpanded((value) => !value)}
+          >
+            {contextExpanded ? 'Recolher contexto' : 'Ver contexto'}
+          </button>
         </header>
 
-        <div className="project-overview-surface__groups">
+        <div className="project-overview-surface__compact">
+          <span>{repositoryName || 'Sem repositório conectado'}</span>
+          <span>{githubSyncDisplay.label}</span>
+          <span>
+            {memberCount === null
+              ? 'Equipe indisponível'
+              : `${memberCount} ${memberCount === 1 ? 'membro ativo' : 'membros ativos'}`}
+          </span>
+        </div>
+
+        <div
+          id="project-overview-context"
+          className={`project-overview-surface__groups${contextExpanded ? ' project-overview-surface__groups--expanded' : ''}`}
+        >
           <section className="project-overview-group">
             <header>
               <TraceFlowIcon name="info" />
@@ -563,11 +615,21 @@ export function ProjectDetailsScreen() {
           </section>
         </div>
 
-        <footer className="project-overview-surface__metadata">
+        <footer
+          className={`project-overview-surface__metadata${contextExpanded ? ' project-overview-surface__metadata--expanded' : ''}`}
+        >
           <span>Criado em {formatDateTime(project.createdAt)}</span>
           <span>Atualizado em {formatDateTime(project.updatedAt)}</span>
         </footer>
       </section>
+      <Suspense fallback={<p role="status">Carregando painel de indicadores...</p>}>
+        <DashboardPanel
+          key={project.id}
+          projectId={project.id}
+          members={allMembers}
+          refreshVersion={dashboardRefreshVersion}
+        />
+      </Suspense>
     </main>
   );
 }

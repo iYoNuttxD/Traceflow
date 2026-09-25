@@ -118,6 +118,14 @@ embutidas na Overview: edição usa `/projects/:projectId/edit`, e membros, conv
 usam `/projects/:projectId/members`. As telas continuam exibindo ações conforme o papel retornado
 pela API; o backend permanece autoritativo para autorização e lifecycle.
 
+P8 mantém essa surface como contexto compacto e carrega `features/indicators/DashboardPanel` sob
+demanda na mesma rota. A feature consulta o catálogo e uma resposta agregada P7 por visão/filtro;
+nenhum widget chama um endpoint de cálculo próprio. O seletor e os filtros serializáveis ficam na
+query string, restauráveis por Back/Forward. Cada consulta usa geração e cancelamento para impedir
+respostas antigas de substituir a visão atual. Gráficos SVG são um chunk separado e recebem os
+pontos do backend sem recalcular indicadores; a tabela expansível preserva os valores para leitura
+textual. Projeto, membros e lista de Sprints continuam sendo dados de contexto e opções de filtro.
+
 Overview, edição e membros usam `BackButton`, primitive shared com destino conhecido, nome acessível
 e touch target. A rota de membros organiza Equipe e Convites em tabs com a mesma primitive visual da
 navegação interna do projeto. Nome, username e perfil são filtrados client-side sobre a lista já

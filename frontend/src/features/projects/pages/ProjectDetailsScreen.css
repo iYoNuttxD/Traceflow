@@ -124,13 +124,18 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-6);
-  padding: var(--space-6) var(--space-8);
+  padding: var(--space-3) var(--space-5);
   border-bottom: var(--border-width-default) solid var(--color-border-default);
 }
 
 .project-overview-surface__intro h2,
 .project-overview-surface__intro p {
   margin: 0;
+}
+
+.project-overview-surface__toggle,
+.project-overview-surface__compact {
+  display: none;
 }
 
 .project-overview-surface__intro h2 {
@@ -140,7 +145,7 @@
 
 .project-overview-surface__intro p {
   max-width: 42.5rem;
-  margin-top: var(--space-2);
+  margin-top: var(--space-1);
   color: var(--color-text-secondary);
   font-size: var(--font-size-2);
   line-height: var(--line-height-body);
@@ -148,12 +153,12 @@
 
 .project-overview-surface__groups {
   display: grid;
-  grid-template-columns: 1.05fr 1.35fr 0.8fr;
+  grid-template-columns: 1fr 1.25fr 0.75fr;
 }
 
 .project-overview-group {
   min-width: 0;
-  padding: var(--space-6) var(--space-8) var(--space-8);
+  padding: var(--space-4) var(--space-5);
 }
 
 .project-overview-group + .project-overview-group {
@@ -164,7 +169,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  margin-bottom: var(--space-5);
+  margin-bottom: var(--space-2);
   color: var(--color-text-secondary);
 }
 
@@ -183,7 +188,7 @@
 
 .project-overview-group dl {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-2);
   margin: 0;
 }
 
@@ -288,7 +293,7 @@
 
 .project-overview-team-summary {
   display: grid;
-  gap: var(--space-3);
+  gap: var(--space-2);
 }
 
 .project-overview-team-count {
@@ -314,7 +319,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2) var(--space-5);
-  padding: var(--space-4) var(--space-8);
+  padding: var(--space-2) var(--space-5);
   border-top: var(--border-width-default) solid var(--color-border-default);
   color: var(--color-text-secondary);
   background: var(--color-surface-secondary);
@@ -348,10 +353,38 @@
 }
 
 @container project-overview-page (max-width: 45rem) {
-  .project-details-screen__header,
-  .project-overview-surface__intro {
+  .project-details-screen__header {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .project-overview-surface__intro {
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .project-overview-surface__toggle {
+    display: inline-flex;
+    min-height: var(--size-touch-target);
+    align-items: center;
+    padding: var(--space-2) var(--space-3);
+    border: var(--border-width-default) solid var(--color-border-strong);
+    border-radius: var(--radius-sm);
+    color: var(--color-accent-text);
+    background: var(--color-surface-secondary);
+    font: inherit;
+    font-size: var(--font-size-2);
+    cursor: pointer;
+  }
+
+  .project-overview-surface__compact {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-3);
+    padding: var(--space-2) var(--space-5);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-1);
+    overflow-wrap: anywhere;
   }
 
   .project-details-screen__title-group {
@@ -364,7 +397,20 @@
   }
 
   .project-overview-surface__groups {
+    display: none;
     grid-template-columns: 1fr;
+  }
+
+  .project-overview-surface__groups--expanded {
+    display: grid;
+  }
+
+  .project-overview-surface__metadata {
+    display: none;
+  }
+
+  .project-overview-surface__metadata--expanded {
+    display: flex;
   }
 
   .project-overview-group + .project-overview-group,

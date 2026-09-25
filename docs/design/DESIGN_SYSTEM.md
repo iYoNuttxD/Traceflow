@@ -648,6 +648,23 @@ correspondente no log e não equivale a certificação WCAG ou cobertura histór
 browsers. Testes automatizados sustentam `TECHNICALLY VERIFIED`, mas não substituem inspeção
 renderizada. `ENVIRONMENT BLOCKED` registra uma limitação objetiva; não é aprovação nem falha visual.
 
+### Indicadores da Visão Geral — P8
+
+`/projects/:projectId` conserva Projeto, GitHub e Equipe em uma surface de contexto, seguida do
+painel analítico. A feature `indicators` usa tabs com `aria-selected`, formulário de período/Sprint/
+responsável e seções com grids de três, duas ou uma coluna conforme a largura útil do container.
+Cada card contém ID, título, estado textual, valor/série/lista/distribuição, horário próprio e ajuda
+expansível com fórmula, fonte, filtros aplicados e limitações. `AVAILABLE`, `NO_DATA`, `PARTIAL`,
+`STALE` e `UNAVAILABLE` são rótulos distintos e não dependem apenas de cor. Informação desconhecida
+permanece ausente; a série não desenha zero para lacuna.
+
+Os gráficos SVG de Sprint/Fluxo usam cores dos tokens existentes, legenda textual, leitura de ponto
+por teclado e tabela de dados expansível. Ajuda e dados tabulares usam `details` nativo e alvo de
+toque de 44px. Os estilos permanecem no boundary `.dashboard-panel`/`.indicator-card`/
+`.dashboard-chart`; não alteram controles de outras features. A inspeção renderizada P8 em fixture
+local está registrada no [log visual](validation/VISUAL_VALIDATION_LOG.md); ela não substitui a
+revisão com API e sessão reais.
+
 
 ## Padronização transversal de controles e Details — S1-08 FIX 02
 

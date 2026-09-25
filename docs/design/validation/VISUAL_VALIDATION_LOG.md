@@ -1,5 +1,33 @@
 # TRACEFLOW Visual Validation Log
 
+## 2026-09-25 — S2 P8 Dashboard na Visão Geral (fixture local)
+
+Chrome em `127.0.0.1:5179/test/visual/p8.html`, renderizando o
+`ProjectDetailsScreen` e a feature `DashboardPanel` reais. O adapter HTTP da fixture entrega
+respostas sintéticas no formato P7 em memória; nenhum banco, conta, GitHub ou API backend real foi
+consultado. Os dados e o shell mínimo da fixture não representam uma sessão autenticada completa.
+
+| Visão/estado | Largura | Tema | Observação renderizada | Resultado |
+| --- | ---: | --- | --- | --- |
+| GENERAL: AVAILABLE, STALE | 1440, 390 | Light/Dark | Contexto, sete widgets, fonte por card, Burndown e filtro visíveis; contexto recolhível em 390 | Sem clipping ou dado falso observado |
+| SPRINT: I45/I46 AVAILABLE | 390 | Light/Dark | Linhas separadas, linha ideal tracejada, legenda e tabela; cards empilhados | Legível; labels do SVG pequenos em 390, tabela textual disponível |
+| SPRINT: I46 PARTIAL | 390 | Dark | Dois pontos históricos `null` não desenhados; aviso de cobertura no card | Sem zero histórico inventado |
+| SPRINT: I46 UNAVAILABLE | 390 | Dark | Mensagem da limitação e nenhum gráfico Burnup | Estado distinto de zero |
+| QUALITY: execuções, saúde atual e concentração | 390 Light; 768 Dark | Light/Dark | Seções separadas e aviso de Defect que aparece em mais de um Requirement | Legível |
+| TRACEABILITY: I61–I67 e I64 NO_DATA | 390 | Light/Dark | Métricas independentes; NO_DATA sem barra de 0% | Legível |
+| GITHUB, FLOW, TASK: AVAILABLE/PARTIAL | 1280 | Dark | Cards, série I22, área I25 e listas inspecionados | Sem clipping ou overflow observado |
+| Help do card e contexto expandido | 390 | Dark | Help absoluto dentro dos 390px; toggle revela Projeto/GitHub/Equipe e metadata | Ações e detalhes preservados |
+
+Matriz de largura após o ajuste de contexto: 1440/1280/768/390 px em Light e Dark;
+`scrollWidth` do documento igual à largura da viewport nas oito células. Grid analítico de
+3/3/2/1 colunas; em 768/390 o contexto começa recolhido e pode ser expandido. O modo Sistema foi
+aberto na fixture com `ThemeProvider` e resolveu para Dark, acompanhando a preferência do sistema
+observada no navegador. Navegação das tabs, ajuda e expansão do contexto foram operadas.
+
+Evidência **local e parcial**: dados sintéticos, sem fluxo autenticado/API P7 real, GitHub externo,
+cross-browser, medição WCAG completa ou todos os estados de erro por viewport. A surface modificada
+permanece `TECHNICALLY VERIFIED` no inventário; esta rodada não a promove a `VISUALLY APPROVED`.
+
 ## 2026-09-23 — PR #21 targeted corrections (inspeção parcial)
 
 Chrome real autenticado em `localhost:5173`, projeto local 2, sem mutation de negócio.
