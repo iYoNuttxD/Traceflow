@@ -1371,3 +1371,47 @@ Os resultados seguem `IndicatorResult` com `definitionVersion`, `asOf`, `formula
 `state`, `limitations` e `scope`. Valores zero conhecidos permanecem zero. Consulta requer
 sessão e membership ativa VIEWER+; sem sessão → 401, projeto alheio, inexistente ou excluído →
 404 opaco. Não há painel, cache ou persistência de snapshots nesta etapa. S2-04/S2-05 seguem abertos.
+
+## S2 P5 — Sprint Analytics
+
+`GET /api/projects/:projectId/indicators/sprints?sprintId=ID&limit=20` retorna
+`{projectId,generatedAt,sprint,indicators:[I36,I37,I38,I39,I40,I41,I42,I43,I44,I45,I46,I71,I72,I47]}`.
+`sprintId` é opcional e deve pertencer ao projeto autorizado; se omitido, somente a única Sprint
+`EM_ANDAMENTO` é selecionada. Nenhuma Sprint ativa produz `sprint:null` e `NO_DATA` nas métricas
+selecionadas; múltiplas ativas produzem `UNAVAILABLE`/`MULTIPLE_ACTIVE_SPRINTS`, sem escolha
+arbitrária. I47 continua sendo histórico **do projeto** nesses casos. Sprint alheia/inexistente,
+projeto alheio/inexistente/excluído → 404 opaco; sem sessão → 401. Leitura VIEWER+.
+
+`limit` controla somente I47, padrão 20, intervalo 1–50. Query é estrita: período externo,
+timezone e demais parâmetros não são aceitos. Cada item usa `IndicatorResult` com `period:null`,
+`scope:{projectId,sprintId}` para a Sprint selecionada e `asOf`/`sourceUpdatedAt`.
+I47 usa `scope:{projectId,cohort:"COMPLETED_SPRINTS"}`; o seu histórico não é filtrado pelo
+`sprintId` selecionado.
+`sourceUpdatedAt` da seleção aberta é `null`, pois `Sprint.updatedAt` não acompanha toda edição
+de Task; `asOf` informa a leitura. Na Sprint terminal, `sourceUpdatedAt` usa o corte congelado.
+
+I36/I39 usam `plannedAtStart` e `pointsAtPlanning` do baseline congelado; Sprint ainda não
+iniciada retorna `NO_DATA`, e baseline legado ausente retorna `UNAVAILABLE`. I37/I38/I40 usam
+participações e status vivos enquanto a Sprint está aberta; terminal usam exclusivamente
+`historicalSummary`/`pointsAtClose`/`exitStatus`. Os valores de pontos são **horas de estimativa**,
+não story points. I41/I42 e I71 adaptam `scopeChange.added/removed` do domínio de Sprint:
+contam inclusão corrente pós-início e remoção corrente do baseline; reentrada pode colapsar
+eventos intermediários (`SCOPE_REENTRY_EVENTS_COLLAPSED`). I43 expõe
+`value:{incoming,outgoing}` e itens de entrada com `fromSprintId` e de saída com `toSprintId`.
+I72 conta apenas carry-over no escopo corrente de Sprint não terminal; na terminal é `NO_DATA`.
+
+I44 adapta `progress.effort` de S1-06 com `value:{estimatedHours,actualHours,differenceHours}`,
+`coverage` e `components:{status,incomplete,differencePercent,usagePercent}`. Snapshot terminal
+incompleto mantém `PARTIAL` e suas limitações; não há nova soma de sessões. I45 adapta sem mudar
+a fórmula os `days` canônicos de burndown, com pontos `{date,ideal,remaining}` e eixo **UTC** do
+domínio de Sprint, limitado por ele a 180 dias; no contrato P5, corte pelo teto expõe
+`PARTIAL`/`BURNDOWN_MAX_180_DAYS` e `coverage.truncated`. Sprint planejada não publica série real. I46
+retorna `kind:SERIES`, `points:[]`, `UNAVAILABLE`: revisões intermediárias de pontos e alguns
+ciclos de saída/reentrada não são preservados de modo suficiente para duas curvas íntegras.
+
+I47 usa somente Sprints `CONCLUIDA` com snapshot terminal íntegro; exclui `CANCELADA`, atual e
+legado incompleto. Seus pontos `{sprintId,sprintName,closedAt,completedPoints}` vêm de
+`buildSprintHistoricalSummary`, ordenados cronologicamente. A resposta informa
+`eligibleCount`, `excludedCount`, `coverage:{completedSprints,returnedSprints,truncatedCount,limit}`
+e `VELOCITY_LIMIT_APPLIED` quando mostra apenas as últimas N Sprints. Não há ranking de pessoas,
+PII nova, cache ou gráfico frontend. S2-04/S2-05 seguem abertos.

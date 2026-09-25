@@ -136,6 +136,8 @@ Inventário estático P0 do [schema Prisma](../../backend/prisma/schema.prisma).
 
 **Atualização P4:** I20–I24 e I26–I35 possuem cálculo backend e API. I20/I24 continuam com cobertura histórica parcial quando faltam eventos; `eligibleCount`, `excludedCount` e `limitations` tornam essa lacuna visível. I25 conserva `NEEDS_HISTORY`: a API expõe somente série parcial da coorte sobrevivente com movimentos consistentes, ou `UNAVAILABLE` quando não há coorte comprovável. Nenhuma migração ou backfill P4 recupera Tasks excluídas fisicamente ou prova o estado inicial de todo o projeto. `EXPLAIN` no banco de teste vazio mostrou lookup por projeto para agregados/listas e range scan de `TaskMovement.movedAt` com sort por Task/data; não é evidência de custo em produção. Reavaliar índice composto apenas com volume representativo.
 
+**Atualização P5:** I36–I45, I47, I71 e I72 têm cálculo backend/API, com as limitações de baseline e fechamento legados propagadas pelo owner de Sprint. I47 passou de `DERIVABLE` para `IMPLEMENTED BACKEND`: lê `CONCLUIDA` e `SprintTask` em lote e só publica `completedPoints` de snapshots íntegros; Sprints canceladas, atuais e legadas incompletas não viram velocity. I46 continua `NEEDS_HISTORY` e a API o informa como `UNAVAILABLE`/sem pontos. `SprintTask` preserva baseline, entrada/saída corrente e snapshot terminal, mas revisões intermediárias de estimativa não são garantidas e uma participação reativada reutiliza a linha, perdendo parte da cronologia intermediária. Nenhuma migration ou backfill foi feita no P5.
+
 ## 7. Dependências e proposta de roadmap futuro
 
 ```text

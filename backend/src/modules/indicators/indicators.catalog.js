@@ -1,4 +1,5 @@
 import { FLOW_TASK_INDICATORS } from './flow-task.catalog.js';
+import { SPRINT_ANALYTICS_INDICATORS } from './sprint-analytics.catalog.js';
 
 export const INDICATORS = Object.freeze({
   I01: Object.freeze({
@@ -256,5 +257,6 @@ export const INDICATORS = Object.freeze({
     formula: 'MEAN(closedAtGithub − createdAtGithub)',
     sources: ['Issue.createdAtGithub', 'Issue.closedAtGithub']
   }),
-  ...FLOW_TASK_INDICATORS
+  ...FLOW_TASK_INDICATORS,
+  ...SPRINT_ANALYTICS_INDICATORS
 });

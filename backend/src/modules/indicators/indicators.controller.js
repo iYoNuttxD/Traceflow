@@ -2,6 +2,7 @@ import { asyncHandler } from '../../shared/http/index.js';
 import { indicatorsService } from './indicators.service.js';
 import { githubAnalyticsService } from './github-analytics.service.js';
 import { flowTaskService } from './flow-task.service.js';
+import { sprintAnalyticsService } from './sprint-analytics.service.js';
 
 export const indicatorsController = {
   progress: asyncHandler(async (req, res) =>
@@ -15,5 +16,8 @@ export const indicatorsController = {
   ),
   tasks: asyncHandler(async (req, res) =>
     res.json(await flowTaskService.read(req.params.projectId, req.query))
+  ),
+  sprints: asyncHandler(async (req, res) =>
+    res.json(await sprintAnalyticsService.read(req.params.projectId, req.query))
   )
 };

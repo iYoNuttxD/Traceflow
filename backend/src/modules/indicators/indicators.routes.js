@@ -4,7 +4,8 @@ import { indicatorsController } from './indicators.controller.js';
 import {
   flowTaskPeriodQuerySchema,
   indicatorPeriodQuerySchema,
-  indicatorProjectParamsSchema
+  indicatorProjectParamsSchema,
+  sprintAnalyticsQuerySchema
 } from './indicators.validation.js';
 
 const router = Router();
@@ -27,6 +28,11 @@ router.get(
   '/projects/:projectId/indicators/tasks',
   validateRequest({ params: indicatorProjectParamsSchema, query: flowTaskPeriodQuerySchema }),
   indicatorsController.tasks
+);
+router.get(
+  '/projects/:projectId/indicators/sprints',
+  validateRequest({ params: indicatorProjectParamsSchema, query: sprintAnalyticsQuerySchema }),
+  indicatorsController.sprints
 );
 
 export default router;

@@ -43,3 +43,10 @@ export const flowTaskPeriodQuerySchema = indicatorPeriodQuerySchema.superRefine(
     }
   }
 );
+
+export const sprintAnalyticsQuerySchema = strictObject({
+  sprintId: positiveInteger('ID da Sprint inválido.').optional(),
+  limit: positiveInteger('limit deve ser inteiro entre 1 e 50.')
+    .refine((value) => value <= 50, 'limit deve ser inteiro entre 1 e 50.')
+    .optional()
+});

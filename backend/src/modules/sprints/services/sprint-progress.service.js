@@ -7,7 +7,7 @@ import { parseSprintId } from '../sprint.schema.js';
 import { ensureSprintExists } from './sprint-crud.service.js';
 
 export const sprintProgressService = {
-  async getSprintProgress(sprintId) {
+  async getSprintIndicatorFacts(sprintId) {
     const id = parseSprintId(sprintId);
     const sprint = await ensureSprintExists(id);
 
@@ -32,7 +32,7 @@ export const sprintProgressService = {
     if (frozen && participations.some((p) => !p.exitStatus)) {
       historicalLimitations.push('LEGACY_CLOSING_STATUS_UNAVAILABLE');
     }
-    return {
+    const progress = {
       historicalSummary: buildSprintHistoricalSummary(sprint, participations),
       historicalLimitations,
       ...buildSprintProgress({ sprint, participations, cutoff }),
@@ -43,5 +43,11 @@ export const sprintProgressService = {
         cutoff
       })
     };
+    return { sprint, participations, burndownData, progress };
+  },
+
+  async getSprintProgress(sprintId) {
+    const { progress } = await sprintProgressService.getSprintIndicatorFacts(sprintId);
+    return progress;
   }
 };
