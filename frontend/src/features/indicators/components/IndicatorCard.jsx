@@ -1,10 +1,11 @@
 import { lazy, Suspense } from 'react';
 import {
   describeLimitation,
+  distributionRows,
   formatDateTime,
-  formatFieldValue,
   formatMetricValue,
-  labelForField,
+  indicatorHelp,
+  indicatorVisualType,
   METRIC_TITLES
 } from '../dashboard-display.js';
 
@@ -18,6 +19,13 @@ const STATE_LABELS = {
   PARTIAL: 'Dados parciais',
   STALE: 'Dados desatualizados',
   UNAVAILABLE: 'Indisponível'
+};
+
+const EMPTY_MESSAGES = {
+  I15: 'Nenhuma PR mesclada elegível no período.',
+  I16: 'Nenhuma PR mesclada elegível no período.',
+  I17: 'Nenhuma PR aberta no momento.',
+  I47: 'Nenhuma Sprint concluída com histórico elegível.'
 };
 
 function safeGithubUrl(value) {
@@ -55,7 +63,7 @@ function IndicatorList({ indicator }) {
             </span>
             <strong>
               {item.defectCount != null
-                ? `${formatMetricValue(item.defectCount)} Defects`
+                ? `${formatMetricValue(item.defectCount)} ${item.defectCount === 1 ? 'defeito' : 'defeitos'}`
                 : item.age != null
                   ? formatMetricValue(item.age, 'DAYS')
                   : item.agingDuration != null
@@ -72,19 +80,19 @@ function IndicatorList({ indicator }) {
 }
 
 function IndicatorDistribution({ indicator }) {
-  const source = indicator.distribution ?? indicator.value;
-  if (!source || typeof source !== 'object' || Array.isArray(source)) return null;
-  const rows = Object.entries(source).filter(([key, value]) => key !== 'total' && value != null);
+  const rows = distributionRows(indicator);
+  const people = indicator.distribution?.people ?? indicator.people ?? [];
+  if (!rows.length && !people.length) return null;
   const magnitude = Math.max(
     1,
-    ...rows.map(([, value]) => (typeof value === 'number' ? Math.abs(value) : 0))
+    ...rows.map(({ value }) => (typeof value === 'number' ? Math.abs(value) : 0))
   );
   return (
     <div className="indicator-card__distribution">
-      {rows.map(([key, value]) => (
+      {rows.map(({ key, label, value, unit }) => (
         <div className="indicator-card__distribution-row" key={key}>
-          <span>{labelForField(key)}</span>
-          <strong>{formatFieldValue(value, key, indicator.unit)}</strong>
+          <span>{label}</span>
+          <strong>{formatMetricValue(value, unit)}</strong>
           {typeof value === 'number' && value >= 0 && (
             <span className="indicator-card__bar" aria-hidden="true">
               <span
@@ -92,6 +100,14 @@ function IndicatorDistribution({ indicator }) {
               />
             </span>
           )}
+        </div>
+      ))}
+      {people.map((person) => (
+        <div className="indicator-card__distribution-row" key={person.userId}>
+          <span>{person.displayName}</span>
+          <strong>
+            {formatMetricValue(person.count ?? person.completedTasks ?? person.commits)}
+          </strong>
         </div>
       ))}
     </div>
@@ -123,10 +139,19 @@ function FilterDetails({ indicator, requestedFilters }) {
   );
 }
 
-export function IndicatorCard({ indicator, metadata, requestedFilters }) {
+export function IndicatorCard({
+  indicator,
+  metadata,
+  requestedFilters,
+  sharedLimitations = [],
+  sharedUnappliedFilters = []
+}) {
   const title = METRIC_TITLES[indicator.metricId] ?? metadata.title;
   const limitations = indicator.limitations ?? [];
+  const individualLimitations = limitations.filter((code) => !sharedLimitations.includes(code));
   const state = STATE_LABELS[indicator.state] ? indicator.state : 'UNKNOWN';
+  const visualType = indicatorVisualType(indicator);
+  const help = indicatorHelp(indicator, metadata);
   const hasValue = ['AVAILABLE', 'PARTIAL', 'STALE'].includes(state);
   const scalar = hasValue && typeof indicator.value === 'number';
   const hasChart = hasValue && indicator.kind === 'SERIES' && indicator.points?.length > 0;
@@ -134,57 +159,35 @@ export function IndicatorCard({ indicator, metadata, requestedFilters }) {
     period: Boolean(requestedFilters.period),
     sprint: requestedFilters.sprintId != null,
     responsible: requestedFilters.responsibleUserId != null
-  }).some(([key, requested]) => requested && !indicator.appliedFilters?.[key]);
+  }).some(
+    ([key, requested]) =>
+      requested && !indicator.appliedFilters?.[key] && !sharedUnappliedFilters.includes(key)
+  );
   const status = STATE_LABELS[state] ?? 'Estado desconhecido';
 
   return (
     <article
-      className={`indicator-card indicator-card--${state.toLowerCase()}${indicator.kind === 'SERIES' ? ' indicator-card--series' : ''}`}
+      className={`indicator-card indicator-card--${state.toLowerCase()} indicator-card--${visualType}`}
       aria-label={title}
     >
       <header className="indicator-card__header">
         <div>
-          <span className="indicator-card__id">{indicator.metricId}</span>
           <h4>{title}</h4>
         </div>
         <details className="indicator-card__help">
-          <summary aria-label={`Informações sobre ${title}`} title="Fórmula, fonte e filtros">
+          <summary aria-label={`Informações sobre ${title}`} title="Entenda este indicador">
             ?
           </summary>
           <div className="indicator-card__help-content">
-            <p>{metadata.description}</p>
-            <p>
-              <strong>Fórmula:</strong> {indicator.formula}
-            </p>
-            <p>
-              <strong>Fonte:</strong> {(indicator.sources ?? []).join(', ') || metadata.source}
-            </p>
-            {indicator.eventClock && (
-              <p>
-                <strong>Relógio:</strong> {indicator.eventClock}
-              </p>
-            )}
-            <p>
-              <strong>Calculado em:</strong> {formatDateTime(indicator.asOf)}
-            </p>
-            {indicator.sourceUpdatedAt && (
-              <p>
-                <strong>Fonte atualizada em:</strong> {formatDateTime(indicator.sourceUpdatedAt)}
-              </p>
-            )}
-            <p>
-              <strong>Versão da definição:</strong> {indicator.definitionVersion}
-            </p>
-            {indicator.rf && (
-              <p>
-                <strong>Requisito:</strong> {indicator.rf}
-              </p>
-            )}
-            <strong>Filtros</strong>
-            <FilterDetails indicator={indicator} requestedFilters={requestedFilters} />
+            <strong>O que mostra</strong>
+            <p>{help.what}</p>
+            <strong>Como é calculado</strong>
+            <p>{help.how}</p>
+            <strong>Como interpretar</strong>
+            <p>{help.meaning}</p>
             {limitations.length > 0 && (
               <>
-                <strong>Limitações</strong>
+                <strong>Limitações dos dados</strong>
                 <ul>
                   {limitations.map((code) => (
                     <li key={code}>{describeLimitation(code)}</li>
@@ -192,35 +195,77 @@ export function IndicatorCard({ indicator, metadata, requestedFilters }) {
                 </ul>
               </>
             )}
+            <details className="indicator-card__technical">
+              <summary>Detalhes técnicos</summary>
+              <p>
+                <strong>Indicador:</strong> {indicator.metricId}
+              </p>
+              <p>
+                <strong>Fórmula:</strong> {indicator.formula}
+              </p>
+              <p>
+                <strong>Fonte:</strong> {(indicator.sources ?? []).join(', ') || metadata.source}
+              </p>
+              {indicator.eventClock && (
+                <p>
+                  <strong>Relógio:</strong> {indicator.eventClock}
+                </p>
+              )}
+              <p>
+                <strong>Calculado em:</strong> {formatDateTime(indicator.asOf)}
+              </p>
+              {indicator.sourceUpdatedAt && (
+                <p>
+                  <strong>Fonte atualizada em:</strong> {formatDateTime(indicator.sourceUpdatedAt)}
+                </p>
+              )}
+              <p>
+                <strong>Versão da definição:</strong> {indicator.definitionVersion}
+              </p>
+              {indicator.rf && (
+                <p>
+                  <strong>Requisito:</strong> {indicator.rf}
+                </p>
+              )}
+              <strong>Filtros</strong>
+              <FilterDetails indicator={indicator} requestedFilters={requestedFilters} />
+            </details>
           </div>
         </details>
       </header>
 
-      <div className="indicator-card__status-line">
-        <span className={`indicator-card__state indicator-card__state--${state.toLowerCase()}`}>
-          {status}
-        </span>
-        {notApplied && (
-          <span
-            className="indicator-card__filter-mark"
-            title="Há filtro solicitado que não se aplica a este indicador"
-            aria-label="Há filtro solicitado não aplicado; consulte as informações do indicador"
-          >
-            ⓘ
-          </span>
-        )}
-      </div>
+      {(state !== 'AVAILABLE' || notApplied) && (
+        <div className="indicator-card__status-line">
+          {state !== 'AVAILABLE' && (
+            <span className={`indicator-card__state indicator-card__state--${state.toLowerCase()}`}>
+              {status}
+            </span>
+          )}
+          {notApplied && (
+            <span
+              className="indicator-card__filter-mark"
+              title="Há filtro solicitado que não se aplica a este indicador"
+              aria-label="Há filtro solicitado não aplicado; consulte as informações do indicador"
+            >
+              ⓘ
+            </span>
+          )}
+        </div>
+      )}
 
       {state === 'NO_DATA' && (
-        <p className="indicator-card__empty">Nenhum dado elegível para este indicador.</p>
-      )}
-      {state === 'UNAVAILABLE' && (
         <p className="indicator-card__empty">
-          {limitations.length
-            ? describeLimitation(limitations[0])
-            : 'Não há dados suficientes para apresentar este indicador.'}
+          {EMPTY_MESSAGES[indicator.metricId] ?? 'Nenhum dado elegível para este indicador.'}
         </p>
       )}
+      {state === 'UNAVAILABLE' &&
+        (individualLimitations.length > 0 || sharedLimitations.length === 0) && (
+          <p className="indicator-card__empty">
+            {individualLimitations.length
+              ? describeLimitation(individualLimitations[0])
+              : 'Não há dados suficientes para apresentar este indicador.'}
+          </p>
+        )}
       {state === 'UNKNOWN' && (
         <p className="indicator-card__empty">
           Não foi possível interpretar o estado deste indicador.
@@ -261,36 +306,26 @@ export function IndicatorCard({ indicator, metadata, requestedFilters }) {
         </div>
       )}
 
-      {['PARTIAL', 'STALE'].includes(state) && (
-        <p className="indicator-card__notice">
-          {state === 'STALE'
-            ? 'Último valor conhecido; confira a atualização da fonte.'
-            : 'O valor considera somente os dados conhecidos.'}{' '}
-          {limitations[0] ? describeLimitation(limitations[0]) : ''}
-        </p>
-      )}
+      {['PARTIAL', 'STALE'].includes(state) &&
+        (state === 'STALE' || individualLimitations.length > 0 || !sharedLimitations.length) && (
+          <p className="indicator-card__notice">
+            {state === 'STALE'
+              ? 'Último valor conhecido; confira a atualização da fonte.'
+              : 'O valor considera somente os dados conhecidos.'}{' '}
+            {individualLimitations[0] ? describeLimitation(individualLimitations[0]) : ''}
+          </p>
+        )}
       {indicator.metricId === 'I59' &&
         limitations.includes('DEFECT_MAY_APPEAR_IN_MULTIPLE_REQUIREMENTS') && (
           <p className="indicator-card__notice">
             {describeLimitation('DEFECT_MAY_APPEAR_IN_MULTIPLE_REQUIREMENTS')}
           </p>
         )}
-      <footer className="indicator-card__footer">
-        <span>
-          {metadata.temporalType === 'HISTORICAL_SERIES'
-            ? 'Série histórica'
-            : indicator.period
-              ? 'No período selecionado'
-              : metadata.temporalType === 'FROZEN'
-                ? 'Sprint no corte'
-                : 'Estado atual'}
-        </span>
-        <span>
-          {indicator.sourceUpdatedAt
-            ? `Fonte: ${formatDateTime(indicator.sourceUpdatedAt)}`
-            : `Atualizado: ${formatDateTime(indicator.asOf)}`}
-        </span>
-      </footer>
+      {state === 'STALE' && indicator.sourceUpdatedAt && (
+        <footer className="indicator-card__footer">
+          Fonte atualizada em {formatDateTime(indicator.sourceUpdatedAt)}
+        </footer>
+      )}
     </article>
   );
 }

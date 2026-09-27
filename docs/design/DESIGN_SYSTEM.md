@@ -665,6 +665,34 @@ toque de 44px. Os estilos permanecem no boundary `.dashboard-panel`/`.indicator-
 local está registrada no [log visual](validation/VISUAL_VALIDATION_LOG.md); ela não substitui a
 revisão com API e sessão reais.
 
+### Indicadores — apresentação P8.2
+
+O Dashboard usa a mesma linguagem da surface Projeto/GitHub/Equipe: cada seção tem um container
+com divisões internas. KPIs ficam em tiles compactos; listas e distribuições crescem pelo conteúdo;
+séries ocupam largura analítica. Geral reúne Panorama e Sprint em foco sem reservar um bloco vazio
+para a futura saúde do projeto. As visões Task e Sprint subdividem as seções P7 apenas para leitura,
+sem mudar a composição ou a resposta do agregado.
+
+As sete tabs, Filtros e o refresh local pertencem à mesma toolbar. Filtros começam recolhidos e
+mostram quantidade e recorte aplicado ao fechar. A seleção serializada continua na URL; fuso IANA
+é enviado com período, sem ocupar a interface principal. Quando a visão não contém recorte temporal
+seguro, os campos de data não aparecem e o painel explica a limitação. Refresh relê o agregado;
+Sincronizar no header continua sendo a operação GitHub.
+
+Um indicador `AVAILABLE` não recebe badge. `PARTIAL`, `STALE`, `NO_DATA` e `UNAVAILABLE` preservam
+nome textual e valor conhecido, quando houver. Limitações comuns aparecem na seção ou na visão;
+ajuda individual mantém todos os códigos auditáveis. O horário de montagem e a fonte GitHub estão
+no contexto da visão; o widget mostra data de fonte individual quando está `STALE`. O texto visível
+usa um presenter por campo/unidade, incluindo contagens I58 sem `%` e plural de defeitos. IDs,
+versão, fonte, filtro e fórmula exata ficam em “Detalhes técnicos” dentro da ajuda.
+
+Séries de um ponto usam resumo histórico, sem eixo de datas duplicadas. Séries com dois ou mais
+pontos mantêm SVG, seleção por cursor/toque/teclado, linha de referência, resumo do ponto e tabela
+de dados expandível. `null` permanece lacuna. A barra, o resumo e a tabela leem os valores da API;
+nenhuma cor ou badge nesta etapa julga a saúde do projeto. A matriz Light/Dark e 1440/1280/768/390
+px com API real está no [log visual](validation/VISUAL_VALIDATION_LOG.md) e no
+[relatório P8.2](../deliveries/S2_P8_2_DASHBOARD_VISUAL_UX_REDESIGN_REPORT.md).
+
 
 ## Padronização transversal de controles e Details — S1-08 FIX 02
 

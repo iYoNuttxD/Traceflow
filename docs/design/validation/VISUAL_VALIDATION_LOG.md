@@ -1,5 +1,42 @@
 # TRACEFLOW Visual Validation Log
 
+## 2026-09-27 — S2 P8.2 Dashboard visual e UX (API local real)
+
+Chrome autenticado em `localhost:5173/projects/2`, consumindo catálogo e agregado P7 reais do
+Project persistido. Antes da edição, a inspeção em 1710 px Dark mostrou filtros permanentemente
+abertos, IDs e badges `Disponível` em todos os cards, seis cards grandes no Panorama, WIP `2` com
+a mesma altura da lista de três Tasks atrasadas, Burndown de um ponto com data repetida nos dois
+extremos do eixo, rodapés/timestamps por card e grandes vazios. O frontend já expunha contagens do
+I58 como percentuais por herdar a unidade do indicador.
+
+Após o redesign, GENERAL foi inspecionada em Dark 1710/390 e Light 1440. GITHUB com período
+01–27/09 mostrou `127` commits observados, `93` na main (`67` associados e `26` não associados),
+limitação de histórico de PR no cabeçalho da seção e filtros recolhíveis com resumo na URL. FLOW
+mostrou I22 (27 pontos) e I25 (26 pontos), crosshair/seleção, resumo do ponto e tabela. SPRINT
+mostrou I45/I46 de um ponto como resumo e I47 de uma Sprint como snapshot. QUALITY em Light 390
+mostrou I58 `33,33%` e distribuição `1/1/1` sem `%`; concentração usa singular/plural de defeito.
+TRACEABILITY em Light 1440/390 mostrou sete dimensões e uma mensagem comum de recorte não aplicado.
+
+| Largura | Dark | Light | Observação |
+| ---: | --- | --- | --- |
+| 1440 px | Sete visões com 7/15/6/14/10/14/7 widgets | Mesmas sete visões | Sem overflow horizontal; seções e toolbar alinhadas |
+| 1280 px | Sete visões | Sete visões | Fluxo cumulativo e listas com larguras distintas; sem overflow horizontal |
+| 768 px | Sete visões | Sete visões | Histórico da Sprint empilhado; tabelas/ajuda acessíveis; sem overflow horizontal |
+| 390 px | Sete visões | Sete visões | Cards em coluna, toolbar rolável, filtros em disclosure; sem overflow horizontal |
+
+Em cada largura, `document.documentElement.scrollWidth` igualou `window.innerWidth` após a resposta
+da visão. Nenhuma das chaves `associated`, `unassociated`, `unassignedHistoricalCount`,
+`unknownCount`, `people` ou `Defects` apareceu no texto visível comum. `AVAILABLE`, `PARTIAL`,
+`NO_DATA` e `UNAVAILABLE` foram vistos na API real; `STALE` permaneceu coberto por teste de
+componente, sem fonte GitHub desatualizada criada artificialmente no banco de desenvolvimento.
+Ajuda, filtro, foco e tabela foram examinados via controles nativos; o refresh local continua
+distinto de Sincronizar. Em 390 px Light, a ajuda de WIP abriu com cálculo em linguagem de uso,
+e “Detalhes técnicos” revelou a fórmula somente após nova ação; o painel permaneceu dentro da
+largura da tela. O tema Escuro original e o override temporário de viewport foram restaurados.
+Uma amostra de contraste calculada sobre cores efetivas do Chrome mediu 5,76:1–18,06:1 em Light
+e 7,26:1–17,61:1 em Dark para cabeçalhos, texto secundário, aviso de período e controle de filtro.
+Não houve auditoria WCAG integral nem validação cross-browser.
+
 ## 2026-09-25 — S2 P8.1 Dashboard com API real e sync GitHub externa (PASS LOCAL)
 
 Chrome autenticado em `localhost:5173/projects/2`, Project persistido de homologação local,

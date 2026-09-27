@@ -7,7 +7,11 @@ import { IndicatorCard } from './components/IndicatorCard.jsx';
 import {
   DASHBOARD_VIEWS,
   dashboardTimeZone,
+  describeLimitation,
+  formatDate,
   formatDateTime,
+  indicatorVisualType,
+  presentationSections,
   SECTION_LABELS,
   VIEW_LABELS
 } from './dashboard-display.js';
@@ -30,6 +34,18 @@ const VIEW_STATES = {
   NO_DATA: 'Ainda não há dados elegíveis',
   UNAVAILABLE: 'Indicadores indisponíveis',
   UNKNOWN: 'Estado da visão desconhecido'
+};
+
+const FILTER_LIMITATION_CODES = {
+  period: ['PERIOD_FILTER_UNSAFE_NOT_APPLIED', 'PERIOD_FILTER_NOT_APPLIED_TO_VIEW'],
+  sprint: ['SPRINT_FILTER_UNSAFE_NOT_APPLIED', 'SPRINT_FILTER_NOT_APPLIED_TO_VIEW'],
+  responsible: ['RESPONSIBLE_FILTER_UNSAFE_NOT_APPLIED', 'RESPONSIBLE_FILTER_NOT_APPLIED_TO_VIEW']
+};
+
+const SHARED_FILTER_NOTICES = {
+  period: 'O filtro de período não foi aplicado aos indicadores desta seção.',
+  sprint: 'O filtro de Sprint não foi aplicado aos indicadores desta seção.',
+  responsible: 'O filtro por responsável não foi aplicado aos indicadores desta seção.'
 };
 
 function querySelection(params) {
@@ -75,6 +91,7 @@ export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) 
   const [sprintState, setSprintState] = useState({ projectId: null, rows: [], error: null });
   const [dashboardState, setDashboardState] = useState({ identity: null, data: null, error: null });
   const [manualRefresh, setManualRefresh] = useState(0);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [catalogRefresh, setCatalogRefresh] = useState(0);
   const dashboardGeneration = useRef(0);
   const catalogGeneration = useRef(0);
@@ -230,6 +247,15 @@ export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) 
     const next = new URLSearchParams(searchParams);
     for (const key of ['startDate', 'endDate', 'timeZone', 'sprintId', 'responsibleUserId'])
       next.delete(key);
+    setDraft({
+      view,
+      startDate: '',
+      endDate: '',
+      timeZone: '',
+      sprintId: '',
+      responsibleUserId: ''
+    });
+    setFilterError('');
     setSearchParams(next);
   }
 
@@ -248,6 +274,33 @@ export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) 
     responsibleUserId: null
   };
   const viewState = VIEW_STATES[dashboard?.viewState] ? dashboard.viewState : 'UNKNOWN';
+  const activeFilterCount =
+    Number(Boolean(startDate && endDate)) +
+    Number(Boolean(sprintId)) +
+    Number(Boolean(responsibleUserId));
+  const selectedSprint = sprints.find((sprint) => String(sprint.id) === sprintId);
+  const selectedMember = members.find((member) => String(member.userId) === responsibleUserId);
+  const viewCatalog = (catalog ?? []).filter((item) => item.views?.includes(view));
+  const periodSupported =
+    viewCatalog.length === 0 ||
+    viewCatalog.some((item) => item.filterCompatibility?.period === 'SUPPORTED');
+  const filterSummary = [
+    startDate && endDate
+      ? `${formatDate(startDate)}–${formatDate(endDate)}${periodSupported ? '' : ' (sem efeito nesta visão)'}`
+      : null,
+    sprintId ? (selectedSprint?.name ?? `Sprint ${sprintId}`) : null,
+    responsibleUserId ? (selectedMember?.user?.name ?? 'Responsável selecionado') : null
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  const loading = !dashboard && !dashboardError;
+  const periodInProgress = dashboard?.sections?.some((section) =>
+    section.indicators.some((indicator) => indicator.limitations?.includes('PERIOD_NOT_COMPLETE'))
+  );
+  const visibleWarnings =
+    dashboard?.warnings?.filter(
+      (warning) => warning.code !== 'PERIOD_FILTER_NOT_APPLIED_TO_VIEW'
+    ) ?? [];
 
   return (
     <section className="dashboard-panel" aria-labelledby="dashboard-panel-title">
@@ -257,63 +310,103 @@ export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) 
           <h2 id="dashboard-panel-title">Indicadores</h2>
           <p>Progresso, entrega e qualidade em um só lugar.</p>
         </div>
-        <button
-          type="button"
-          className="dashboard-panel__refresh"
-          onClick={() => setManualRefresh((value) => value + 1)}
-        >
-          Atualizar indicadores
-        </button>
       </header>
 
-      <div className="dashboard-panel__tabs" role="tablist" aria-label="Visões de indicadores">
-        {DASHBOARD_VIEWS.map(([view, label], index) => (
+      <div className="dashboard-panel__toolbar">
+        <div className="dashboard-panel__tabs" role="tablist" aria-label="Visões de indicadores">
+          {DASHBOARD_VIEWS.map(([view, label], index) => (
+            <button
+              key={view}
+              id={`dashboard-tab-${view.toLowerCase()}`}
+              type="button"
+              role="tab"
+              aria-selected={selection.view === view}
+              aria-controls="dashboard-view-content"
+              tabIndex={selection.view === view ? 0 : -1}
+              onClick={() => selectView(view)}
+              onKeyDown={(event) => handleTabKeyDown(event, index)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="dashboard-panel__toolbar-actions">
           <button
-            key={view}
-            id={`dashboard-tab-${view.toLowerCase()}`}
             type="button"
-            role="tab"
-            aria-selected={selection.view === view}
-            aria-controls="dashboard-view-content"
-            tabIndex={selection.view === view ? 0 : -1}
-            onClick={() => selectView(view)}
-            onKeyDown={(event) => handleTabKeyDown(event, index)}
+            className="dashboard-panel__filter-toggle"
+            aria-expanded={filtersOpen}
+            aria-controls="dashboard-indicator-filters"
+            onClick={() => setFiltersOpen((open) => !open)}
           >
-            {label}
+            Filtros{activeFilterCount ? ` · ${activeFilterCount}` : ''}
           </button>
-        ))}
+          <button
+            type="button"
+            className="dashboard-panel__refresh"
+            aria-label="Atualizar indicadores"
+            title="Atualizar indicadores"
+            disabled={loading}
+            onClick={() => setManualRefresh((value) => value + 1)}
+          >
+            <span
+              aria-hidden="true"
+              className={
+                loading
+                  ? 'dashboard-panel__refresh-icon dashboard-panel__refresh-icon--loading'
+                  : 'dashboard-panel__refresh-icon'
+              }
+            >
+              ↻
+            </span>
+          </button>
+        </div>
       </div>
+      {!filtersOpen && filterSummary && (
+        <p className="dashboard-panel__filter-summary">Recorte: {filterSummary}</p>
+      )}
 
       <form
+        id="dashboard-indicator-filters"
         className="dashboard-panel__filters"
+        hidden={!filtersOpen}
         onSubmit={applyFilters}
         aria-label="Filtros de indicadores"
       >
         <div className="dashboard-panel__filter-heading">
           <strong>Filtros</strong>
-          <span>Período opcional · fuso {draft.timeZone || zone}</span>
+          <span>Escolha um recorte e aplique para atualizar a visão.</span>
         </div>
-        <label>
-          De
-          <input
-            type="date"
-            value={draft.startDate}
-            onChange={(event) =>
-              setDraft((current) => ({ ...current, startDate: event.target.value }))
-            }
-          />
-        </label>
-        <label>
-          Até
-          <input
-            type="date"
-            value={draft.endDate}
-            min={draft.startDate || undefined}
-            onChange={(event) =>
-              setDraft((current) => ({ ...current, endDate: event.target.value }))
-            }
-          />
-        </label>
+        {!periodSupported && viewCatalog.length > 0 && (
+          <p className="dashboard-panel__filter-hint">
+            O período não altera os indicadores desta visão. Recortes já aplicados continuam
+            identificados nos detalhes de cada indicador.
+          </p>
+        )}
+        {periodSupported && (
+          <>
+            <label>
+              De
+              <input
+                type="date"
+                value={draft.startDate}
+                onChange={(event) =>
+                  setDraft((current) => ({ ...current, startDate: event.target.value }))
+                }
+              />
+            </label>
+            <label>
+              Até
+              <input
+                type="date"
+                value={draft.endDate}
+                min={draft.startDate || undefined}
+                onChange={(event) =>
+                  setDraft((current) => ({ ...current, endDate: event.target.value }))
+                }
+              />
+            </label>
+          </>
+        )}
         <label>
           Sprint
           <select
@@ -394,11 +487,13 @@ export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) 
         {dashboard && catalog && !missingMetadata && (
           <>
             <div className="dashboard-panel__overview">
-              <span
-                className={`dashboard-panel__view-state dashboard-panel__view-state--${viewState.toLowerCase()}`}
-              >
-                {VIEW_STATES[viewState]}
-              </span>
+              {viewState !== 'AVAILABLE' && (
+                <span
+                  className={`dashboard-panel__view-state dashboard-panel__view-state--${viewState.toLowerCase()}`}
+                >
+                  {VIEW_STATES[viewState]}
+                </span>
+              )}
               <span>Montado em {formatDateTime(dashboard.generatedAt)}</span>
               {dashboard.context?.sprint && <span>Sprint: {dashboard.context.sprint.name}</span>}
               {dashboard.freshness?.github?.sourceUpdatedAt && (
@@ -407,36 +502,124 @@ export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) 
                 </span>
               )}
             </div>
-            {dashboard.warnings?.length > 0 && (
+            {periodInProgress && (
+              <p className="dashboard-panel__period-note" role="status">
+                Período em andamento. Os indicadores consideram os dados disponíveis até o momento
+                da consulta.
+              </p>
+            )}
+            {visibleWarnings.length > 0 && (
               <div className="dashboard-panel__warnings" role="status">
-                {dashboard.warnings.map((warning, index) => (
+                {visibleWarnings.map((warning, index) => (
                   <p key={`${warning.code}-${index}`}>
                     {WARNING_LABELS[warning.code] ?? 'Há uma limitação nesta visão.'}
                   </p>
                 ))}
               </div>
             )}
-            {dashboard.sections.map((section) => (
-              <section
-                className="dashboard-panel__section"
-                key={section.id}
-                aria-labelledby={`dashboard-section-${section.id}`}
-              >
-                <h3 id={`dashboard-section-${section.id}`}>
-                  {SECTION_LABELS[section.id] ?? section.id}
-                </h3>
-                <div className="dashboard-panel__grid">
-                  {section.indicators.map((indicator) => (
-                    <IndicatorCard
-                      key={indicator.metricId}
-                      indicator={indicator}
-                      metadata={catalogById.get(indicator.metricId)}
-                      requestedFilters={requestedFilters}
-                    />
-                  ))}
-                </div>
-              </section>
-            ))}
+            {presentationSections(view, dashboard.sections)
+              .filter((section) => section.indicators.length)
+              .map((section) => {
+                const counts = new Map();
+                for (const indicator of section.indicators)
+                  for (const code of indicator.limitations ?? [])
+                    counts.set(code, (counts.get(code) ?? 0) + 1);
+                const sharedLimitations = [...counts]
+                  .filter(([, count]) => count > 1)
+                  .map(([code]) => code);
+                const periodPrompt = dashboard.warnings?.some(
+                  (warning) => warning.code === 'PERIOD_REQUIRED_FOR_EVENT_INDICATORS'
+                );
+                const suppressedLimitations = [
+                  ...sharedLimitations,
+                  ...(periodPrompt ? ['PERIOD_REQUIRED'] : []),
+                  ...(periodInProgress ? ['PERIOD_NOT_COMPLETE'] : [])
+                ];
+                const sectionLimitations = sharedLimitations.filter(
+                  (code) => code !== 'PERIOD_REQUIRED' && code !== 'PERIOD_NOT_COMPLETE'
+                );
+                const sharedUnappliedFilters = Object.entries({
+                  period: Boolean(requestedFilters.period),
+                  sprint: requestedFilters.sprintId != null,
+                  responsible: requestedFilters.responsibleUserId != null
+                })
+                  .filter(
+                    ([key, requested]) =>
+                      requested &&
+                      section.indicators.length > 1 &&
+                      section.indicators.every((indicator) => !indicator.appliedFilters?.[key])
+                  )
+                  .map(([key]) => key);
+                const sectionNotices = [
+                  ...sectionLimitations.map((code) =>
+                    code === 'PERIOD_FILTER_UNSAFE_NOT_APPLIED'
+                      ? SHARED_FILTER_NOTICES.period
+                      : describeLimitation(code)
+                  ),
+                  ...sharedUnappliedFilters
+                    .filter(
+                      (key) =>
+                        !sectionLimitations.some((code) =>
+                          FILTER_LIMITATION_CODES[key].includes(code)
+                        )
+                    )
+                    .map((key) => SHARED_FILTER_NOTICES[key])
+                ];
+                const compact = section.indicators.filter((indicator) =>
+                  ['kpi-compact', 'kpi-progress'].includes(indicatorVisualType(indicator))
+                );
+                const detailed = section.indicators.filter(
+                  (indicator) =>
+                    !['kpi-compact', 'kpi-progress'].includes(indicatorVisualType(indicator))
+                );
+                const renderIndicator = (indicator) => (
+                  <IndicatorCard
+                    key={indicator.metricId}
+                    indicator={indicator}
+                    metadata={catalogById.get(indicator.metricId)}
+                    requestedFilters={requestedFilters}
+                    sharedLimitations={suppressedLimitations}
+                    sharedUnappliedFilters={sharedUnappliedFilters}
+                  />
+                );
+                return (
+                  <section
+                    className={`dashboard-panel__section dashboard-panel__section--${section.id}${compact.length === 0 && detailed.length === 1 && detailed[0].kind === 'SERIES' && detailed[0].points?.length === 1 ? ' dashboard-panel__section--snapshot' : ''}`}
+                    key={section.id}
+                    aria-labelledby={`dashboard-section-${section.id}`}
+                  >
+                    <div className="dashboard-panel__section-heading">
+                      <h3 id={`dashboard-section-${section.id}`}>
+                        {SECTION_LABELS[section.id] ?? section.id}
+                      </h3>
+                      {sectionNotices.length > 0 && (
+                        <span>
+                          {sectionLimitations.length > 0
+                            ? 'Dados com limitações'
+                            : 'Recorte não aplicado'}
+                        </span>
+                      )}
+                    </div>
+                    {sectionNotices.length > 0 && (
+                      <div className="dashboard-panel__section-notice">
+                        {[...new Set(sectionNotices)].map((notice) => (
+                          <p key={notice}>{notice}</p>
+                        ))}
+                      </div>
+                    )}
+                    {compact.length > 0 && (
+                      <div className="dashboard-panel__metric-grid">
+                        {compact.map(renderIndicator)}
+                      </div>
+                    )}
+                    {detailed.length > 0 && (
+                      <div className="dashboard-panel__detail-grid">
+                        {detailed.map(renderIndicator)}
+                      </div>
+                    )}
+                  </section>
+                );
+              })}
           </>
         )}
       </div>

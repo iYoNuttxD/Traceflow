@@ -105,6 +105,7 @@ describe('P8 Dashboard na Visão Geral', () => {
         indicators: [
           definition('I23', 'WIP atual'),
           definition('I09', 'Commits no período'),
+          definition('I16', 'Média até merge'),
           definition('I48', 'Execuções por resultado'),
           definition('I25', 'Fluxo cumulativo'),
           definition('I52', 'Saúde dos TestCases'),
@@ -112,6 +113,8 @@ describe('P8 Dashboard na Visão Geral', () => {
           definition('I45', 'Burndown'),
           definition('I46', 'Burnup'),
           definition('I53', 'Defeitos por estado'),
+          definition('I58', 'Sucesso de reteste'),
+          definition('I47', 'Velocity'),
           definition('I61', 'Requirements com Tasks'),
           definition('I62', 'Requirements com evidência técnica'),
           definition('I63', 'Requirements com TestCases'),
@@ -232,6 +235,7 @@ describe('P8 Dashboard na Visão Geral', () => {
     );
     renderPanel();
     await screen.findByRole('article', { name: 'WIP atual' });
+    await user.click(screen.getByRole('button', { name: 'Filtros' }));
     await user.type(screen.getByLabelText('De'), '2026-09-01');
     await user.type(screen.getByLabelText('Até'), '2026-09-20');
     await user.selectOptions(screen.getByLabelText('Sprint'), '3');
@@ -247,7 +251,6 @@ describe('P8 Dashboard na Visão Geral', () => {
     });
     expect(mocks.dashboard.mock.calls[1][1].timeZone).toMatch(/^(UTC|[A-Za-z_]+\/[A-Za-z_/]+)$/);
     const card = await screen.findByRole('article', { name: 'WIP atual' });
-    expect(card).toHaveTextContent('Estado atual');
     expect(card).toHaveTextContent('4');
     expect(within(card).getByLabelText(/filtro solicitado não aplicado/i)).toBeInTheDocument();
     await user.click(within(card).getByText('?'));
@@ -268,6 +271,7 @@ describe('P8 Dashboard na Visão Geral', () => {
     const user = userEvent.setup();
     renderPanel();
     await screen.findByRole('article', { name: 'WIP atual' });
+    await user.click(screen.getByRole('button', { name: 'Filtros' }));
     fireEvent.change(screen.getByLabelText('De'), { target: { value: '2026-09-01' } });
     fireEvent.change(screen.getByLabelText('Até'), { target: { value: '2026-09-20' } });
     await user.click(screen.getByRole('button', { name: 'Aplicar filtros' }));
@@ -299,6 +303,7 @@ describe('P8 Dashboard na Visão Geral', () => {
                 sourceSyncStatus: 'FAILED'
               }),
               metric('I48', null, { state: 'NO_DATA', unit: 'PERCENT' }),
+              metric('I16', null, { state: 'NO_DATA', unit: 'HOURS' }),
               metric('I46', null, {
                 state: 'UNAVAILABLE',
                 kind: 'SERIES',
@@ -329,6 +334,9 @@ describe('P8 Dashboard na Visão Geral', () => {
     expect(screen.getByRole('article', { name: 'Execuções por resultado' })).not.toHaveTextContent(
       '0%'
     );
+    expect(screen.getByRole('article', { name: 'Média até merge' })).toHaveTextContent(
+      'Nenhuma PR mesclada elegível no período.'
+    );
     const burnup = screen.getByRole('article', { name: 'Burnup' });
     expect(burnup.querySelector('svg')).toBeNull();
     expect(burnup).toHaveTextContent('Esta Sprint não possui histórico de Burnup capturado.');
@@ -351,7 +359,7 @@ describe('P8 Dashboard na Visão Geral', () => {
       )
     );
     renderPanel();
-    const card = await screen.findByRole('article', { name: 'Requirements com Tasks' });
+    const card = await screen.findByRole('article', { name: 'Requisitos com Tasks' });
     expect(card).toHaveTextContent('Estado desconhecido');
     expect(card).toHaveTextContent('Não foi possível interpretar o estado deste indicador.');
     expect(card).not.toHaveTextContent('75%');
@@ -398,7 +406,7 @@ describe('P8 Dashboard na Visão Geral', () => {
     expect(burnup).toHaveTextContent('Escopo total');
     expect(burnup).toHaveTextContent('Trabalho concluído');
     expect(burnup).toHaveTextContent('Histórico disponível apenas');
-    expect(within(burnup).getByText('Ver dados do gráfico')).toBeInTheDocument();
+    expect(within(burnup).getByText('Tabela de dados')).toBeInTheDocument();
     const chart = within(burnup).getByRole('img', { name: /Burnup: 2 pontos/ });
     chart.focus();
     fireEvent.keyDown(chart, { key: 'ArrowRight' });
@@ -434,6 +442,37 @@ describe('P8 Dashboard na Visão Geral', () => {
     expect(card).toHaveTextContent(
       'estado inicial anterior ao histórico disponível é desconhecido'
     );
+  });
+
+  it('interrompe áreas de I25 em dias sem histórico, sem preencher a lacuna com zero', async () => {
+    mocks.dashboard.mockResolvedValue(
+      response('FLOW', [
+        {
+          id: 'flow',
+          indicators: [
+            metric('I25', null, {
+              kind: 'SERIES',
+              points: [
+                { date: '2026-09-01', todo: 2, inProgress: 1, done: 0 },
+                { date: '2026-09-02', todo: 1, inProgress: 1, done: 1 },
+                { date: '2026-09-03', todo: null, inProgress: null, done: null },
+                { date: '2026-09-04', todo: 2, inProgress: 2, done: 0 },
+                { date: '2026-09-05', todo: 1, inProgress: 2, done: 1 }
+              ]
+            })
+          ]
+        }
+      ])
+    );
+    renderPanel('/projects/1?view=flow');
+    const card = await screen.findByRole('article', { name: 'Fluxo cumulativo' });
+    await within(card).findByRole('img', { name: /Fluxo cumulativo: 5 pontos/ });
+    const polygons = [...card.querySelectorAll('polygon')];
+    expect(polygons).toHaveLength(6);
+    expect(polygons.every((polygon) => !polygon.getAttribute('points').includes('331,'))).toBe(
+      true
+    );
+    expect(card).toHaveTextContent('—');
   });
 
   it('separa Qualidade por fonte e explica concentração sem somar Defects duplicados', async () => {
@@ -472,11 +511,11 @@ describe('P8 Dashboard na Visão Geral', () => {
     );
     renderPanel('/projects/1?view=quality');
     const executions = await screen.findByRole('article', { name: 'Execuções por resultado' });
-    const health = screen.getByRole('article', { name: 'Saúde dos TestCases' });
+    const health = screen.getByRole('article', { name: 'Estado atual dos casos de teste' });
     expect(executions).toHaveTextContent('Aprovado');
     expect(health).toHaveTextContent('Nunca executado');
-    expect(screen.getByRole('article', { name: 'Defeitos por Requirement' })).toHaveTextContent(
-      'Um Defect pode aparecer em mais de um Requirement'
+    expect(screen.getByRole('article', { name: 'Defeitos por requisito' })).toHaveTextContent(
+      'Um defeito pode aparecer em mais de um requisito'
     );
   });
 
@@ -496,14 +535,49 @@ describe('P8 Dashboard na Visão Geral', () => {
       ])
     );
     renderPanel('/projects/1?view=traceability');
-    expect(
-      await screen.findByRole('article', { name: 'Requirements com Tasks' })
-    ).toHaveTextContent('10%');
+    expect(await screen.findByRole('article', { name: 'Requisitos com Tasks' })).toHaveTextContent(
+      '10%'
+    );
     expect(screen.getAllByRole('progressbar')).toHaveLength(7);
     expect(
-      screen.getByRole('article', { name: 'Progresso médio dos Requirements' })
+      screen.getByRole('article', { name: 'Progresso médio dos requisitos' })
     ).toHaveTextContent('70%');
     expect(screen.queryByText(/funil/i)).not.toBeInTheDocument();
+  });
+
+  it('informa no cabeçalho quando um recorte não se aplica a toda a seção', async () => {
+    mocks.dashboard.mockResolvedValue(
+      response(
+        'TRACEABILITY',
+        [
+          {
+            id: 'coverage',
+            indicators: [
+              metric('I61', 50, { unit: 'PERCENT' }),
+              metric('I62', 25, { unit: 'PERCENT' })
+            ]
+          }
+        ],
+        {
+          requestedFilters: {
+            period: {
+              startDate: '2026-09-01',
+              endDate: '2026-09-20',
+              timeZone: 'America/Sao_Paulo'
+            },
+            sprintId: null,
+            responsibleUserId: null
+          }
+        }
+      )
+    );
+    renderPanel('/projects/1?view=traceability&startDate=2026-09-01&endDate=2026-09-20');
+    const section = await screen.findByRole('region', { name: 'Dimensões de rastreabilidade' });
+    expect(section).toHaveTextContent('Recorte não aplicado');
+    expect(section).toHaveTextContent(
+      'O filtro de período não foi aplicado aos indicadores desta seção.'
+    );
+    expect(within(section).queryByLabelText(/filtro solicitado não aplicado/i)).toBeNull();
   });
 
   it('permite navegar pelas visões com setas e mantém foco no tab selecionado', async () => {
@@ -515,6 +589,102 @@ describe('P8 Dashboard na Visão Geral', () => {
     await user.keyboard('{ArrowRight}');
     expect(screen.getByRole('tab', { name: 'GitHub' })).toHaveFocus();
     expect(screen.getByRole('tab', { name: 'GitHub' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('une views e ações na toolbar, inicia filtros recolhidos e atualiza somente o agregado', async () => {
+    const user = userEvent.setup();
+    renderPanel();
+    await screen.findByRole('article', { name: 'WIP atual' });
+    const toolbar = document.querySelector('.dashboard-panel__toolbar');
+    expect(within(toolbar).getByRole('tablist')).toBeInTheDocument();
+    const filterButton = within(toolbar).getByRole('button', { name: 'Filtros' });
+    expect(filterButton).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('form', { name: 'Filtros de indicadores' })).not.toBeInTheDocument();
+    await user.click(filterButton);
+    expect(filterButton).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('form', { name: 'Filtros de indicadores' })).toBeInTheDocument();
+    await user.click(within(toolbar).getByRole('button', { name: 'Atualizar indicadores' }));
+    await waitFor(() => expect(mocks.dashboard).toHaveBeenCalledTimes(2));
+    expect(mocks.catalog).toHaveBeenCalledOnce();
+  });
+
+  it('mostra contagens de reteste sem sufixo percentual e oculta detalhes técnicos por padrão', async () => {
+    mocks.dashboard.mockResolvedValue(
+      response('QUALITY', [
+        {
+          id: 'defects',
+          indicators: [
+            metric('I58', 33.33, {
+              unit: 'PERCENT',
+              distribution: { PASS: 1, FAIL: 1, BLOCKED: 1, total: 3 },
+              formula: 'PASS / total × 100'
+            })
+          ]
+        }
+      ])
+    );
+    renderPanel('/projects/1?view=quality');
+    const card = await screen.findByRole('article', { name: 'Sucesso de reteste' });
+    expect(card).toHaveTextContent('33,33%');
+    expect(within(card).getByText('Aprovado').parentElement).toHaveTextContent('1');
+    expect(within(card).getByText('Aprovado').parentElement).not.toHaveTextContent('1%');
+    expect(within(card).getByText('Falhou').parentElement).not.toHaveTextContent('1%');
+    expect(within(card).getByText('Bloqueado').parentElement).not.toHaveTextContent('1%');
+    expect(card.querySelector('.indicator-card__id')).toBeNull();
+    expect(card.querySelector('.indicator-card__technical')).not.toHaveAttribute('open');
+  });
+
+  it('explica o cálculo em linguagem de uso e deixa a fórmula da API nos detalhes técnicos', async () => {
+    mocks.dashboard.mockResolvedValue(
+      response('GITHUB', [
+        {
+          id: 'activity',
+          indicators: [metric('I09', 12, { formula: 'COUNT DISTINCT Commit.id no período' })]
+        }
+      ])
+    );
+    const user = userEvent.setup();
+    renderPanel('/projects/1?view=github');
+    const card = await screen.findByRole('article', { name: 'Commits no período' });
+    await user.click(within(card).getByLabelText('Informações sobre Commits no período'));
+    expect(card).toHaveTextContent(
+      'Conta uma vez cada commit observado no projeto durante o período.'
+    );
+    expect(card.querySelector('.indicator-card__technical')).not.toHaveAttribute('open');
+    await user.click(within(card).getByText('Detalhes técnicos'));
+    expect(card.querySelector('.indicator-card__technical')).toHaveAttribute('open');
+    expect(card).toHaveTextContent('COUNT DISTINCT Commit.id no período');
+  });
+
+  it('troca séries de um ponto por resumos compactos sem eixos duplicados', async () => {
+    mocks.dashboard.mockResolvedValue(
+      response('SPRINT', [
+        {
+          id: 'history',
+          indicators: [
+            metric('I45', null, {
+              kind: 'SERIES',
+              unit: 'HOURS',
+              points: [{ date: '2026-09-25', remaining: 18, ideal: 22 }]
+            }),
+            metric('I47', null, {
+              kind: 'SERIES',
+              unit: 'HOURS',
+              points: [{ sprintId: 3, sprintName: 'Sprint 3', completedPoints: 5 }]
+            })
+          ]
+        }
+      ])
+    );
+    renderPanel('/projects/1?view=sprint');
+    const burndown = await screen.findByRole('article', { name: 'Burndown' });
+    expect(burndown).toHaveTextContent('Histórico iniciado em 25 de set.');
+    expect(burndown).toHaveTextContent('18 h');
+    expect(burndown.querySelector('svg')).toBeNull();
+    const velocity = screen.getByRole('article', { name: 'Velocidade das Sprints' });
+    expect(velocity).toHaveTextContent('Última Sprint concluída');
+    expect(velocity).toHaveTextContent('Sprint 3');
+    expect(velocity.querySelector('svg')).toBeNull();
   });
 
   it('restaura a visão ao navegar para trás no histórico da URL', async () => {
