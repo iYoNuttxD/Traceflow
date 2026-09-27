@@ -6,6 +6,7 @@ import {
   dashboardSource
 } from './dashboard-view.catalog.js';
 import { flowTaskService } from './flow-task.service.js';
+import { readHealth } from './health/health.service.js';
 import { githubAnalyticsService } from './github-analytics.service.js';
 import { INDICATORS } from './indicators.catalog.js';
 import { indicatorResult } from './indicators.mapper.js';
@@ -143,7 +144,7 @@ export const dashboardService = {
     const generatedAt = now().toISOString();
     const project = await prisma.project.findFirst({
       where: { id, deletedAt: null },
-      select: { id: true, name: true }
+      select: { id: true, name: true, githubIntegration: { select: { id: true } } }
     });
     if (!project) throw resourceNotFoundError('Project');
     const [requestedSprint, responsible] = await Promise.all([
@@ -224,6 +225,24 @@ export const dashboardService = {
         return decorate(indicator, requestedFilters, selectedSprint);
       })
     }));
+    const health = await readHealth(
+      id,
+      view,
+      period,
+      generatedAt,
+      [...byId.values()],
+      outputSections.flatMap((section) => section.indicators),
+      {
+        sprintApplicable: selectedSprint?.status === 'EM_ANDAMENTO',
+        sprintActive: selectedSprint?.status === 'EM_ANDAMENTO',
+        githubApplicable: project.githubIntegration != null
+      }
+    );
+    for (const section of outputSections)
+      section.indicators = section.indicators.map((indicator) => ({
+        ...indicator,
+        assessment: health.assessments[indicator.metricId]
+      }));
     const indicators = outputSections.flatMap((section) => section.indicators);
     const githubIndicators = indicators.filter((indicator) => indicator.sourceSyncStatus != null);
     const freshness = {
@@ -263,7 +282,7 @@ export const dashboardService = {
       generatedAt,
       requestedFilters,
       context: {
-        project,
+        project: { id: project.id, name: project.name },
         sprint: selectedSprint,
         responsible: responsible?.user.anonymizedAt
           ? { userId: responsible.user.id, displayName: null }
@@ -272,6 +291,7 @@ export const dashboardService = {
             : null
       },
       freshness,
+      ...(view === 'GENERAL' ? { projectHealth: health.projectHealth } : {}),
       sections: outputSections,
       warnings
     };

@@ -1,5 +1,29 @@
 # TRACEFLOW Visual Validation Log
 
+## 2026-09-27 — S2 P8.3 Project Health (API real + fixtures sintéticas)
+
+No Chrome local, `projects/2` autenticado consumiu a API real após o P8.3. A visão Geral exibiu
+`73/100 · Atenção`, cobertura ponderada `69%`, `16 de 20` sinais, cinco dimensões avaliadas e
+Fluxo sem base suficiente. Qualidade e Integração técnica apareceram como críticas; os três
+drivers negativos e positivos foram apresentados com títulos do catálogo e bases numéricas.
+I28 mostrou `Saudável` no próprio card sem esconder o valor bruto `3` nem o estado independente
+do Burndown parcial. Desktop 1440 px Dark não teve overflow horizontal (`scrollWidth=1440`).
+
+A fixture local `frontend/test/visual/p8.html?health=...&theme=...` usa respostas sintéticas,
+sem banco ou rede. HEALTHY (86), ATTENTION (68), CRITICAL (43) e UNASSESSED (`—`, cobertura 42%)
+foram renderizados em **1440 e 390 px, Light e Dark**: 16 combinações verificadas no DOM após
+carga completa, todas com seis linhas dimensionais e `scrollWidth=innerWidth`. Capturas visuais
+foram inspecionadas para HEALTHY 1440/390 Dark, CRITICAL 390 Light, UNASSESSED 390 Dark e ATTENTION
+768 Dark; no tablet, `scrollWidth=768`. Em 390 px, dimensões e drivers empilham, nota/status/
+cobertura permanecem no topo e não há tabela larga. O help do modelo foi aberto visualmente na
+API real e mostrou propósito, limite de cobertura, versão e risco de interpretar a nota como
+desempenho humano. Teste de componente confirma texto, pesos, janela e badge individual.
+
+Esta é validação visual local de composição e responsive, não auditoria WCAG instrumental,
+homologação cross-browser ou prova externa de frescor GitHub. A fixture não valida fórmulas;
+backend unit/API as validam separadamente. Tema original Escuro e viewport temporário foram
+restaurados ao concluir a inspeção.
+
 ## 2026-09-27 — S2 P8.2 Dashboard visual e UX (API local real)
 
 Chrome autenticado em `localhost:5173/projects/2`, consumindo catálogo e agregado P7 reais do

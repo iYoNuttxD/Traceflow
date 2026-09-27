@@ -11,6 +11,11 @@ import '../../src/styles/global.css';
 const query = new URLSearchParams(window.location.search);
 const burnupState = query.get('burnup') ?? 'AVAILABLE';
 const savedTheme = query.get('theme') ?? 'light';
+const healthState = (query.get('health') ?? '').toUpperCase();
+const healthScores = { HEALTHY: 86, ATTENTION: 68, CRITICAL: 43, UNASSESSED: null };
+const healthScore = Object.hasOwn(healthScores, healthState)
+  ? healthScores[healthState]
+  : undefined;
 window.localStorage.setItem('traceflow.theme', savedTheme);
 const date = '2026-09-25T15:00:00Z';
 const titles = {
@@ -239,6 +244,81 @@ const sections = {
     }
   ]
 };
+if (healthScore !== undefined) {
+  sections.GENERAL[0].indicators = sections.GENERAL[0].indicators.map((indicator) =>
+    indicator.metricId === 'I28'
+      ? {
+          ...indicator,
+          assessment: {
+            healthModelVersion: 1,
+            healthRole: 'SCORING_SIGNAL',
+            dimension: 'PLANNING',
+            status: healthState,
+            score: healthScore,
+            reasonCode: healthScore == null ? 'DATA_NO_DATA' : 'TASK_SHARE',
+            basis: healthScore == null ? null : { count: 2, totalTasks: 18 }
+          }
+        }
+      : indicator
+  );
+}
+const healthDimensions = [
+  ['PLANNING', 20],
+  ['FLOW', 20],
+  ['SPRINT', 15],
+  ['QUALITY', 25],
+  ['TRACEABILITY', 15],
+  ['TECHNICAL_INTEGRATION', 5]
+].map(([id, weight], index) => ({
+  id,
+  weight,
+  applicable: true,
+  coverage: healthScore == null ? 40 : 80,
+  score: healthScore == null ? (index < 2 ? 80 : null) : healthScore,
+  status: healthScore == null ? (index < 2 ? 'HEALTHY' : 'UNASSESSED') : healthState,
+  assessedSignals: [],
+  unassessedSignals: []
+}));
+const projectHealth =
+  healthScore === undefined
+    ? undefined
+    : {
+        healthModelVersion: 1,
+        status: healthState,
+        score: healthScore,
+        coverage: healthScore == null ? 42 : 84,
+        assessedDimensions: healthScore == null ? 2 : 6,
+        assessedSignals: healthScore == null ? 8 : 17,
+        applicableSignals: 20,
+        dimensions: healthDimensions,
+        drivers:
+          healthScore == null
+            ? { negative: [], positive: [] }
+            : {
+                negative: [
+                  {
+                    metricId: 'I28',
+                    dimension: 'PLANNING',
+                    status: healthState,
+                    score: healthScore,
+                    impact: 2,
+                    reasonCode: 'TASK_SHARE',
+                    basis: { count: 2, totalTasks: 18 }
+                  }
+                ],
+                positive: [
+                  {
+                    metricId: 'I61',
+                    dimension: 'TRACEABILITY',
+                    status: 'HEALTHY',
+                    score: 100,
+                    impact: 0,
+                    reasonCode: 'DIRECT_PERCENT',
+                    basis: { value: 100 }
+                  }
+                ]
+              }
+      };
 const catalog = Object.entries(titles).map(([metricId, title]) => ({
   metricId,
   title,
@@ -311,6 +391,7 @@ httpClient.defaults.adapter = async (config) => {
       },
       freshness: { local: { generatedAt: date }, github: { sourceUpdatedAt: date } },
       sections: sections[view] ?? sections.GENERAL,
+      ...(view === 'GENERAL' && projectHealth ? { projectHealth } : {}),
       warnings: []
     };
   else throw new Error(`Fixture sem resposta para ${path}`);

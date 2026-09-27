@@ -21,14 +21,30 @@ export function calculateDefectStates(rows) {
   };
 }
 
+export function calculateHealthQualityFacts({ executionResults, caseHealth, retests: retestRows }) {
+  const executions = distribution(executionResults, 'result', ['PASS', 'FAIL', 'BLOCKED']);
+  const health = distribution(caseHealth, 'result', ['PASS', 'FAIL', 'BLOCKED', 'NEVER_EXECUTED']);
+  const retests = distribution(
+    retestRows.filter((row) => Boolean(row.visible)),
+    'result',
+    ['PASS', 'FAIL', 'BLOCKED']
+  );
+  const excludedRetests = retestRows
+    .filter((row) => !row.visible)
+    .reduce((sum, row) => sum + Number(row.total), 0);
+  return {
+    executions,
+    health,
+    retests: {
+      distribution: retests,
+      value: percentage(retests.PASS, retests.total),
+      excludedCount: excludedRetests
+    }
+  };
+}
+
 export function calculateQualityFacts(facts) {
-  const executions = distribution(facts.executionResults, 'result', ['PASS', 'FAIL', 'BLOCKED']);
-  const health = distribution(facts.caseHealth, 'result', [
-    'PASS',
-    'FAIL',
-    'BLOCKED',
-    'NEVER_EXECUTED'
-  ]);
+  const { executions, health, retests } = calculateHealthQualityFacts(facts);
   const defects = calculateDefectStates(facts.defectStates);
   const severity = distribution(facts.severities, 'severity', [
     'BAIXA',
@@ -36,14 +52,6 @@ export function calculateQualityFacts(facts) {
     'ALTA',
     'CRITICA'
   ]);
-  const retests = distribution(
-    facts.retests.filter((row) => Boolean(row.visible)),
-    'result',
-    ['PASS', 'FAIL', 'BLOCKED']
-  );
-  const excludedRetests = facts.retests
-    .filter((row) => !row.visible)
-    .reduce((sum, row) => sum + Number(row.total), 0);
   const visibleValidation = facts.firstValidated.filter((row) => !row.deletedAt);
   const sample = durationSample(visibleValidation, 'createdAt', 'firstValidatedAt', 86400000);
   const deletedValidation = facts.firstValidated.length - visibleValidation.length;
@@ -83,11 +91,7 @@ export function calculateQualityFacts(facts) {
       eligibleCount: sample.eligibleCount,
       excludedCount: correctionExcluded
     },
-    retests: {
-      distribution: retests,
-      value: percentage(retests.PASS, retests.total),
-      excludedCount: excludedRetests
-    },
+    retests,
     requirements,
     originTasks
   };

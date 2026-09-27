@@ -8,6 +8,7 @@ import {
   indicatorVisualType,
   METRIC_TITLES
 } from '../dashboard-display.js';
+import { describeHealthReason, HEALTH_STATUS_LABELS } from '../health-display.js';
 
 const IndicatorChart = lazy(() =>
   import('./IndicatorChart.jsx').then((module) => ({ default: module.IndicatorChart }))
@@ -164,6 +165,8 @@ export function IndicatorCard({
       requested && !indicator.appliedFilters?.[key] && !sharedUnappliedFilters.includes(key)
   );
   const status = STATE_LABELS[state] ?? 'Estado desconhecido';
+  const assessment = indicator.assessment;
+  const healthBadge = ['HEALTHY', 'ATTENTION', 'CRITICAL'].includes(assessment?.status);
 
   return (
     <article
@@ -174,6 +177,13 @@ export function IndicatorCard({
         <div>
           <h4>{title}</h4>
         </div>
+        {healthBadge && (
+          <span
+            className={`indicator-card__health indicator-card__health--${assessment.status.toLowerCase()}`}
+          >
+            {HEALTH_STATUS_LABELS[assessment.status]}
+          </span>
+        )}
         <details className="indicator-card__help">
           <summary aria-label={`Informações sobre ${title}`} title="Entenda este indicador">
             ?
@@ -185,6 +195,17 @@ export function IndicatorCard({
             <p>{help.how}</p>
             <strong>Como interpretar</strong>
             <p>{help.meaning}</p>
+            {assessment && (
+              <>
+                <strong>Saúde atual</strong>
+                <p>
+                  {healthBadge
+                    ? `${HEALTH_STATUS_LABELS[assessment.status]} · ${assessment.score}/100. `
+                    : ''}
+                  {describeHealthReason(assessment, indicator.metricId)}
+                </p>
+              </>
+            )}
             {limitations.length > 0 && (
               <>
                 <strong>Limitações dos dados</strong>

@@ -1544,3 +1544,26 @@ de cada `metricId` implementado: categoria, título, descrição, unidade, tempo
 filtros executáveis, compatibilidade, candidatos visuais, RF, versão de definição, fonte
 conceitual e views padrão. Não expõe SQL, tokens, identidades GitHub ou I68. Ambos os endpoints
 exigem sessão e membership ativa VIEWER+; sem sessão → 401, projeto alheio/excluído → 404.
+
+## S2 P8.3 — Indicator Health e Project Health Model v1
+
+O agregado P7 conserva `dashboardContractVersion:1` e todos os campos originais. Cada resultado em `sections[].indicators[]` acrescenta `assessment`:
+
+```json
+{
+  "healthModelVersion": 1,
+  "healthRole": "SCORING_SIGNAL",
+  "dimension": "PLANNING",
+  "weight": 40,
+  "status": "ATTENTION",
+  "score": 70,
+  "reasonCode": "TASK_SHARE",
+  "basis": { "count": 3, "totalTasks": 10 }
+}
+```
+
+`healthRole` é `SCORING_SIGNAL`, `CONTEXT_ONLY`, `REDUNDANT`, `UNIMPLEMENTED` ou `NOT_RECOMMENDED` no registry; apenas os três primeiros aparecem em indicadores executáveis. `status` é `HEALTHY`, `ATTENTION`, `CRITICAL`, `NEUTRAL` ou `UNASSESSED`. `score:null` significa que a avaliação não pôde ser feita, não zero. `basis` contém somente fatos numéricos ou IDs de métricas; `reasonCode` é uma chave sem texto pessoal. O estado de dados (`AVAILABLE`, `PARTIAL`, `STALE`, `NO_DATA`, `UNAVAILABLE`) permanece independente de `assessment.status`. Metadados do catálogo acrescentam `healthRole`, `healthDimension` (ou `null`) e `healthModelVersion`.
+
+Somente `view=GENERAL` acrescenta `projectHealth` com `healthModelVersion`, `status`, `score`, `coverage` percentual ponderada, `assessedDimensions`, `applicableDimensions`, `assessedSignals`, `applicableSignals`, `dimensions[]`, `drivers:{negative[],positive[]}`, `assessments` por ID, `calculatedAt` e `window:{timeZone,current,previous}` com instantes UTC inclusivo/exclusivo. Cada dimensão publica `id`, `weight`, `applicable`, `coverage`, `score`, `status`, `assessedSignals[]`, `unassessedSignals[]`. Cada driver publica `metricId`, `dimension`, `status`, `score`, `impact`, `reasonCode`, `basis`; máximo três por polaridade. `score:null,status:UNASSESSED` resulta de cobertura <60% ou menos de quatro dimensões avaliadas; não há persistência. Sprint sem seleção ativa e integração GitHub ausente podem ser `NOT_APPLICABLE` e saem do denominador. As demais views apresentam assessments individuais sem recalcular a nota completa.
+
+Eventos da saúde usam o período solicitado recortado em `generatedAt`, ou janela interna dos últimos 30 dias; baseline compara a janela anterior de mesma duração. Esse default **não** muda a regra P7 dos widgets de evento sem filtro: eles continuam com `PERIOD_REQUIRED`. A nota permanece do projeto; `responsibleUserId` não recorta Project Health. Regras, pesos, exclusões e limitações estão em [Project Health Model v1](../indicators/PROJECT_HEALTH_MODEL_V1.md).

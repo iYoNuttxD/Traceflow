@@ -1,0 +1,149 @@
+import {
+  calculateAgeSummary,
+  calculateClosedCohort,
+  calculateDurations
+} from '../calculators/github-analytics.calculator.js';
+import { calculateFlowTaskHistory } from '../calculators/flow-task.calculator.js';
+import { calculateHealthQualityFacts } from '../calculators/quality-analytics.calculator.js';
+import { percentage } from '../calculators/statistics.calculator.js';
+import { createIndicatorLocalDateKey } from '../policies/indicator-period.policy.js';
+import { githubFreshness } from '../policies/indicator-freshness.policy.js';
+
+function durationState(sample) {
+  if (!sample.eligibleCount) return sample.excludedCount ? 'UNAVAILABLE' : 'NO_DATA';
+  return sample.excludedCount ? 'PARTIAL' : 'AVAILABLE';
+}
+
+export function flowHealthIndicators(facts, window, asOf) {
+  const rows = Object.fromEntries(
+    ['current', 'previous'].map((kind) => {
+      const period = window[kind];
+      const result = calculateFlowTaskHistory({
+        tasks: facts.tasks,
+        movements: facts.movements,
+        period,
+        asOf,
+        dateKey: createIndicatorLocalDateKey(period.timeZone)
+      });
+      return [
+        kind,
+        ['lead', 'cycle'].map((name, index) => ({
+          metricId: index ? 'I21' : 'I20',
+          value: result[name].value,
+          state: durationState(result[name]),
+          eligibleCount: result[name].eligibleCount,
+          excludedCount: result[name].excludedCount
+        }))
+      ];
+    })
+  );
+  if (facts.planning) {
+    rows.planning = [
+      ['I26', 'total'],
+      ['I28', 'overdue'],
+      ['I29', 'unassigned'],
+      ['I30', 'withoutEstimate']
+    ].map(([metricId, field]) => ({
+      metricId,
+      value: Number(facts.planning[field]),
+      state: 'AVAILABLE'
+    }));
+  }
+  return rows;
+}
+
+export function qualityHealthIndicators(facts) {
+  const values = calculateHealthQualityFacts(facts);
+  const passRate = percentage(values.executions.PASS, values.executions.total);
+  return [
+    {
+      metricId: 'I49',
+      value: passRate,
+      state: values.executions.total ? 'AVAILABLE' : 'NO_DATA'
+    },
+    {
+      metricId: 'I52',
+      value: values.health,
+      distribution: values.health,
+      state: values.health.total ? 'AVAILABLE' : 'NO_DATA'
+    },
+    {
+      metricId: 'I58',
+      value: values.retests.value,
+      state: values.retests.distribution.total
+        ? values.retests.excludedCount
+          ? 'PARTIAL'
+          : 'AVAILABLE'
+        : values.retests.excludedCount
+          ? 'UNAVAILABLE'
+          : 'NO_DATA'
+    }
+  ];
+}
+
+function durationIndicator(rows, metricId, ready, stale) {
+  const sample = calculateDurations(rows, 'createdAtGithub', 'mergedAtGithub', 3600000);
+  return {
+    metricId,
+    value: ready ? sample.median : null,
+    state: !ready
+      ? 'UNAVAILABLE'
+      : sample.excludedCount && sample.eligibleCount
+        ? 'PARTIAL'
+        : stale
+          ? 'STALE'
+          : sample.median === null
+            ? 'NO_DATA'
+            : 'AVAILABLE',
+    eligibleCount: sample.eligibleCount,
+    excludedCount: sample.excludedCount
+  };
+}
+
+export function githubHealthIndicators(facts, window, includeCurrent) {
+  const integration = facts.project?.githubIntegration;
+  const ready = Boolean(integration?.lastSyncAt);
+  const stale = githubFreshness(integration).stale;
+  const previous = [durationIndicator(facts.previousMerged, 'I15', ready, stale)];
+  if (!includeCurrent) return { current: [], previous };
+  const currentDuration = durationIndicator(facts.currentMerged, 'I15', ready, stale);
+  const covered = Boolean(
+    integration?.pullRequestLifecycleCoverageFrom &&
+    integration?.pullRequestLifecycleSyncedAt &&
+    integration.pullRequestLifecycleCoverageFrom <= window.current.startInclusive &&
+    integration.pullRequestLifecycleSyncedAt >= window.current.endExclusive
+  );
+  const rework = calculateClosedCohort(facts.cohort).rework;
+  const age = calculateAgeSummary(facts.age);
+  const lifecycleState =
+    !ready ||
+    !integration?.pullRequestLifecycleCoverageFrom ||
+    !integration?.pullRequestLifecycleSyncedAt
+      ? 'UNAVAILABLE'
+      : !covered
+        ? 'PARTIAL'
+        : stale
+          ? 'STALE'
+          : rework.value === null
+            ? 'NO_DATA'
+            : 'AVAILABLE';
+  const queueState = !ready ? 'UNAVAILABLE' : stale ? 'STALE' : 'AVAILABLE';
+  const ageState = !ready
+    ? 'UNAVAILABLE'
+    : age.excludedCount && age.eligibleCount
+      ? 'PARTIAL'
+      : stale
+        ? 'STALE'
+        : age.mean === null
+          ? 'NO_DATA'
+          : 'AVAILABLE';
+  return {
+    current: [
+      { metricId: 'I04', value: covered && ready ? rework.value : null, state: lifecycleState },
+      { metricId: 'I10', value: ready ? age.total : null, state: queueState },
+      currentDuration,
+      { metricId: 'I73', value: ready ? age.mean : null, state: ageState }
+    ],
+    previous
+  };
+}

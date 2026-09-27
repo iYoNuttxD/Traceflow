@@ -150,6 +150,196 @@ describe('P8 Dashboard na Visão Geral', () => {
 
   afterEach(() => cleanup());
 
+  it.each([
+    ['HEALTHY', 86, 'Saudável'],
+    ['ATTENTION', 68, 'Atenção'],
+    ['CRITICAL', 43, 'Crítico']
+  ])(
+    'apresenta Project Health %s com cobertura, dimensões e razões da API',
+    async (status, score, label) => {
+      mocks.catalog.mockResolvedValue({
+        data: { indicators: [definition('I28', 'Tasks atrasadas')] }
+      });
+      mocks.dashboard.mockResolvedValue(
+        response(
+          'GENERAL',
+          [
+            {
+              id: 'summary',
+              indicators: [
+                metric('I28', 3, {
+                  assessment: {
+                    healthModelVersion: 1,
+                    healthRole: 'SCORING_SIGNAL',
+                    dimension: 'PLANNING',
+                    status,
+                    score,
+                    reasonCode: 'TASK_SHARE',
+                    basis: { count: 3, totalTasks: 15 }
+                  }
+                })
+              ]
+            }
+          ],
+          {
+            projectHealth: {
+              healthModelVersion: 1,
+              status,
+              score,
+              coverage: 84,
+              assessedDimensions: 5,
+              dimensions: [
+                { id: 'PLANNING', weight: 20, applicable: true, coverage: 100, score, status }
+              ],
+              drivers: {
+                negative: [
+                  {
+                    metricId: 'I28',
+                    dimension: 'PLANNING',
+                    status,
+                    score,
+                    impact: 2,
+                    reasonCode: 'TASK_SHARE',
+                    basis: { count: 3, totalTasks: 15 }
+                  }
+                ],
+                positive: []
+              }
+            }
+          }
+        )
+      );
+      renderPanel();
+      const section = await screen.findByRole('region', { name: 'Saúde do projeto' });
+      expect(section).toHaveTextContent(`${score} / 100`);
+      expect(section).toHaveTextContent(label);
+      expect(section).toHaveTextContent('Cobertura da avaliação: 84%');
+      expect(section).toHaveTextContent('Planejamento');
+      expect(section).toHaveTextContent('3 de 15 Tasks estão atrasadas.');
+      expect(screen.getByRole('article', { name: 'Tasks atrasadas' })).toHaveTextContent(label);
+    }
+  );
+
+  it('mostra ausência de nota sem zero nem badge de saúde em indicador não avaliado', async () => {
+    mocks.catalog.mockResolvedValue({
+      data: { indicators: [definition('I28', 'Tasks atrasadas')] }
+    });
+    mocks.dashboard.mockResolvedValue(
+      response(
+        'GENERAL',
+        [
+          {
+            id: 'summary',
+            indicators: [
+              metric('I28', null, {
+                state: 'NO_DATA',
+                assessment: {
+                  healthModelVersion: 1,
+                  healthRole: 'SCORING_SIGNAL',
+                  dimension: 'PLANNING',
+                  status: 'UNASSESSED',
+                  score: null,
+                  reasonCode: 'DATA_NO_DATA',
+                  basis: null
+                }
+              })
+            ]
+          }
+        ],
+        {
+          projectHealth: {
+            healthModelVersion: 1,
+            status: 'UNASSESSED',
+            score: null,
+            coverage: 42,
+            assessedDimensions: 2,
+            dimensions: [
+              { id: 'PLANNING', applicable: true, coverage: 40, score: null, status: 'UNASSESSED' }
+            ],
+            drivers: { negative: [], positive: [] }
+          }
+        }
+      )
+    );
+    renderPanel();
+    const section = await screen.findByRole('region', { name: 'Saúde do projeto' });
+    expect(section).toHaveTextContent('Dados insuficientes para uma avaliação geral confiável.');
+    expect(section).toHaveTextContent('Cobertura da avaliação: 42%');
+    expect(section).not.toHaveTextContent('0 / 100');
+    expect(
+      screen
+        .getByRole('article', { name: 'Tasks atrasadas' })
+        .querySelector('.indicator-card__health')
+    ).toBeNull();
+  });
+
+  it('explica modelo, peso, cobertura e período na ajuda sem recalcular score no frontend', async () => {
+    mocks.catalog.mockResolvedValue({ data: { indicators: [definition('I23', 'WIP atual')] } });
+    mocks.dashboard.mockResolvedValue(
+      response(
+        'GENERAL',
+        [
+          {
+            id: 'summary',
+            indicators: [
+              metric('I23', 3, {
+                assessment: {
+                  healthModelVersion: 1,
+                  healthRole: 'CONTEXT_ONLY',
+                  dimension: null,
+                  status: 'NEUTRAL',
+                  score: null,
+                  reasonCode: 'CONTEXT_ONLY',
+                  basis: null
+                }
+              })
+            ]
+          }
+        ],
+        {
+          projectHealth: {
+            healthModelVersion: 1,
+            status: 'ATTENTION',
+            score: 68,
+            coverage: 80,
+            assessedDimensions: 4,
+            dimensions: [
+              {
+                id: 'PLANNING',
+                weight: 20,
+                applicable: true,
+                coverage: 70,
+                score: 80,
+                status: 'HEALTHY'
+              }
+            ],
+            window: {
+              current: { startInclusive: '2026-08-26T12:00:00Z', endExclusive: asOf },
+              previous: {
+                startInclusive: '2026-07-27T12:00:00Z',
+                endExclusive: '2026-08-26T12:00:00Z'
+              }
+            },
+            drivers: { negative: [], positive: [] }
+          }
+        }
+      )
+    );
+    const user = userEvent.setup();
+    renderPanel();
+    await screen.findByRole('region', { name: 'Saúde do projeto' });
+    await user.click(screen.getByLabelText('Informações sobre Saúde do projeto'));
+    expect(screen.getByText(/Modelo versão 1/)).toBeInTheDocument();
+    expect(screen.getByText(/Planejamento: peso 20%, cobertura 70%/)).toBeInTheDocument();
+    expect(screen.getByText(/Janela atual:/)).toBeInTheDocument();
+    const card = screen.getByRole('article', { name: 'WIP atual' });
+    expect(card.querySelector('.indicator-card__health')).toBeNull();
+    await user.click(screen.getByLabelText('Informações sobre WIP atual'));
+    expect(
+      screen.getByText('Este indicador é informativo e não compõe a Saúde do Projeto.')
+    ).toBeInTheDocument();
+  });
+
   it('troca Geral → GitHub → Qualidade com uma consulta agregada por visão e sem vazamento', async () => {
     const user = userEvent.setup();
     renderPanel();

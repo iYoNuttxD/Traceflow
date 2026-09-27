@@ -693,6 +693,21 @@ nenhuma cor ou badge nesta etapa julga a saúde do projeto. A matriz Light/Dark 
 px com API real está no [log visual](validation/VISUAL_VALIDATION_LOG.md) e no
 [relatório P8.2](../deliveries/S2_P8_2_DASHBOARD_VISUAL_UX_REDESIGN_REPORT.md).
 
+### Saúde do projeto — P8.3
+
+Na visão Geral, o bloco `project-health` precede Panorama. Usa container C2, nota em destaque,
+status por texto, barra horizontal simples, cobertura secundária, linhas compactas para as seis
+dimensões e até três drivers negativos/positivos. Não usa gauge radial. `UNASSESSED` mostra
+travessão e explicação, nunca `0/100`. Dimensão não aplicável recebe rótulo textual. No mobile,
+dimensões e drivers empilham em uma coluna; score, status e cobertura permanecem no topo.
+
+`HEALTHY`, `ATTENTION` e `CRITICAL` reutilizam os tokens de sucesso, aviso e perigo tanto no
+bloco quanto no badge discreto do indicador. Texto acompanha toda cor. `NEUTRAL` e `UNASSESSED`
+não criam badge no card; a ajuda explica a participação e mantém o estado de dados independente.
+Help do bloco descreve escopo, peso/cobertura, limite da nota e versão. Help do indicador traduz
+`reasonCode`/`basis` recebidos da API; não contém cálculo de score. O modelo canônico está em
+[Project Health Model v1](../indicators/PROJECT_HEALTH_MODEL_V1.md).
+
 
 ## Padronização transversal de controles e Details — S1-08 FIX 02
 

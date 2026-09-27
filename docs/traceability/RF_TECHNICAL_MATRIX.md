@@ -86,6 +86,12 @@ pendente. As linhas S1-08 indicam base técnica, sem declarar entrega completa d
 
 Matriz histórica da E0: [E0_TRACEABILITY_MATRIX.md](../refactoring/E0_TRACEABILITY_MATRIX.md).
 
+**P8.3 / RF55 — capacidade derivada:** Project Health Model v1 acrescenta assessment individual,
+cobertura ponderada, dimensões e drivers explicáveis ao painel consolidado. Não cria novo RF, não
+altera fórmulas oficiais e não avalia pessoas. A validação da capacidade consta do
+[relatório P8.3](../deliveries/S2_P8_3_INDICATOR_PROJECT_HEALTH_REPORT.md); seu estado não
+reclassifica RF15–RF18/RF36/RF54 como completos.
+
 
 ### S1-09 — Etapa 2 (2026-09-10)
 

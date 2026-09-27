@@ -85,6 +85,49 @@ const indicatorMap = (response) =>
   );
 
 describe('P7 aggregate dashboard API', () => {
+  it('P8.3 avalia fatos atuais na GENERAL e TASK sem usar ausência como zero', async () => {
+    const owner = await actor();
+    const p = await project(owner);
+    await prisma.task.createMany({
+      data: [
+        {
+          projectId: p.id,
+          title: 'Artificial overdue',
+          status: 'A_FAZER',
+          deadline: new Date(Date.now() - 86400000)
+        },
+        {
+          projectId: p.id,
+          title: 'Artificial assigned',
+          status: 'A_FAZER',
+          responsibleUserId: owner.id,
+          estimatedEffort: 2
+        }
+      ]
+    });
+    const general = await get(p.id, owner, 'dashboard');
+    expect(general.status, JSON.stringify(general.body)).toBe(200);
+    expect(indicatorMap(general).I28.assessment).toMatchObject({
+      status: 'CRITICAL',
+      score: 50,
+      reasonCode: 'TASK_SHARE',
+      basis: { count: 1, totalTasks: 2 }
+    });
+    expect(
+      general.body.projectHealth.dimensions.find((item) => item.id === 'PLANNING')
+    ).toMatchObject({
+      coverage: 100,
+      score: 50,
+      status: 'CRITICAL'
+    });
+    expect(general.body.projectHealth).toMatchObject({ score: null, status: 'UNASSESSED' });
+    const task = await get(p.id, owner, 'dashboard', '?view=TASK');
+    expect(task.status).toBe(200);
+    expect(task.body.projectHealth).toBeUndefined();
+    expect(indicatorMap(task).I29.assessment).toMatchObject({ score: 50, status: 'CRITICAL' });
+    expect(indicatorMap(task).I30.assessment).toMatchObject({ score: 50, status: 'CRITICAL' });
+  });
+
   it('entrega GENERAL padrão sem período, com estado e filtros honestos', async () => {
     const owner = await actor();
     const p = await project(owner);
@@ -100,6 +143,16 @@ describe('P7 aggregate dashboard API', () => {
     expect(response.body.sections.map((section) => section.id)).toEqual(['summary', 'sprint']);
     expect(response.body.freshness.local.generatedAt).toBe(response.body.generatedAt);
     expect(response.body.freshness.github).toBeNull();
+    expect(response.body.projectHealth).toMatchObject({
+      healthModelVersion: 1,
+      score: null,
+      status: 'UNASSESSED',
+      assessedDimensions: 0,
+      applicableDimensions: 4,
+      calculatedAt: response.body.generatedAt,
+      window: { timeZone: 'UTC' }
+    });
+    expect(response.body.projectHealth.dimensions).toHaveLength(6);
     expect(Object.keys(indicatorMap(response))).toEqual([
       'I01',
       'I23',
@@ -115,6 +168,14 @@ describe('P7 aggregate dashboard API', () => {
       state: 'AVAILABLE'
     });
     expect(indicatorMap(response).I45).toMatchObject({ value: null, state: 'NO_DATA' });
+    expect(indicatorMap(response).I28.assessment).toMatchObject({
+      healthRole: 'SCORING_SIGNAL',
+      dimension: 'PLANNING',
+      score: null,
+      status: 'UNASSESSED'
+    });
+    for (const indicator of Object.values(indicatorMap(response)))
+      expect(indicator.assessment).toMatchObject({ healthModelVersion: 1 });
   });
 
   it('mantém current-state fora do período e aplica a janela nos eventos', async () => {
@@ -181,11 +242,19 @@ describe('P7 aggregate dashboard API', () => {
       limitations: expect.arrayContaining(['PERIOD_REQUIRED'])
     });
     expect(indicatorMap(github).I10).toMatchObject({ period: null });
+    expect(indicatorMap(github).I15.assessment).toMatchObject({
+      status: 'UNASSESSED',
+      score: null
+    });
     expect(indicatorMap(quality).I48).toMatchObject({
       state: 'UNAVAILABLE',
       limitations: expect.arrayContaining(['PERIOD_REQUIRED'])
     });
     expect(indicatorMap(quality).I53).toMatchObject({ period: null, state: 'AVAILABLE' });
+    expect(indicatorMap(quality).I49.assessment).toMatchObject({
+      status: 'UNASSESSED',
+      score: null
+    });
   });
 
   it('compõe as sete views e publica catálogo sem I68 ou metadata privada', async () => {
@@ -215,6 +284,9 @@ describe('P7 aggregate dashboard API', () => {
     );
     expect(catalog.body.indicators.find((item) => item.metricId === 'I45')).toMatchObject({
       definitionVersion: 2,
+      healthRole: 'SCORING_SIGNAL',
+      healthDimension: 'SPRINT',
+      healthModelVersion: 1,
       visualizations: ['LINE'],
       supportedFilters: ['sprintId']
     });

@@ -4,6 +4,7 @@ import { scheduleApi } from '../schedule/index.js';
 import { normalizeApiError } from '../../shared/index.js';
 import { indicatorsApi } from './api/indicators.api.js';
 import { IndicatorCard } from './components/IndicatorCard.jsx';
+import { ProjectHealth } from './components/ProjectHealth.jsx';
 import {
   DASHBOARD_VIEWS,
   dashboardTimeZone,
@@ -516,6 +517,9 @@ export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) 
                   </p>
                 ))}
               </div>
+            )}
+            {view === 'GENERAL' && (
+              <ProjectHealth health={dashboard.projectHealth} catalogById={catalogById} />
             )}
             {presentationSections(view, dashboard.sections)
               .filter((section) => section.indicators.length)

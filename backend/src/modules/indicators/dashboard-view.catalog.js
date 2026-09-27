@@ -1,4 +1,5 @@
 import { INDICATORS } from './indicators.catalog.js';
+import { HEALTH_REGISTRY } from './health/health.registry.js';
 
 const range = (start, end) =>
   Array.from(
@@ -131,6 +132,9 @@ export function publicDashboardCatalog() {
       visualizations: dashboardVisualizations(metricId),
       rf: definition.rf,
       definitionVersion: definition.definitionVersion,
+      healthRole: HEALTH_REGISTRY[metricId].healthRole,
+      healthDimension: HEALTH_REGISTRY[metricId].healthDimension,
+      healthModelVersion: HEALTH_REGISTRY[metricId].healthModelVersion,
       source: PUBLIC_SOURCE[dashboardSource(metricId)],
       views: viewsById.get(metricId) ?? []
     };

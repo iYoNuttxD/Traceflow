@@ -202,3 +202,84 @@ Cada linha fixa a semântica para P2/P3; aprovação do contrato não significa 
 - “Cobertura de implementação” de UC14 precisa ser reconciliada com a policy S1-09; não deriva de volume de commits.
 
 **Regra de duração:** apresentar mediana como padrão para lead/cycle/merge/issue/Defect, média como contexto quando útil (I16), com tamanho da amostra e exclusões. P85/P95 não entram no catálogo inicial: amostra e decisão de usuário ainda não demonstram valor.
+
+## P8.3 — Classificação no Health Model v1
+
+Esta tabela classifica **cada ID do catálogo oficial**. `healthRole` e `healthDimension` não mudam a fórmula, o estado ou a `definitionVersion` do indicador. `healthModelVersion=1` identifica somente o modelo de avaliação. I07/I08 são capacidades; I19/I69/I70 ainda não são indicadores executáveis; I68 permanece não recomendado. O catálogo HTTP publica metadata de saúde apenas para os IDs implementados. Fórmulas, cobertura e limites: [Project Health Model v1](PROJECT_HEALTH_MODEL_V1.md).
+
+| ID | healthRole | healthDimension | healthModelVersion |
+|---|---|---|---:|
+| I01 | `CONTEXT_ONLY` | — | 1 |
+| I02 | `CONTEXT_ONLY` | — | 1 |
+| I03 | `CONTEXT_ONLY` | — | 1 |
+| I04 | `SCORING_SIGNAL` | QUALITY | 1 |
+| I05 | `CONTEXT_ONLY` | — | 1 |
+| I06 | `REDUNDANT` | — | 1 |
+| I07 | `CONTEXT_ONLY` | — | 1 |
+| I08 | `CONTEXT_ONLY` | — | 1 |
+| I09 | `CONTEXT_ONLY` | — | 1 |
+| I10 | `CONTEXT_ONLY` | — | 1 |
+| I11 | `CONTEXT_ONLY` | — | 1 |
+| I12 | `CONTEXT_ONLY` | — | 1 |
+| I13 | `CONTEXT_ONLY` | — | 1 |
+| I14 | `CONTEXT_ONLY` | — | 1 |
+| I15 | `SCORING_SIGNAL` | TECHNICAL_INTEGRATION | 1 |
+| I16 | `REDUNDANT` | — | 1 |
+| I17 | `CONTEXT_ONLY` | — | 1 |
+| I18 | `CONTEXT_ONLY` | — | 1 |
+| I19 | `UNIMPLEMENTED` | — | 1 |
+| I20 | `SCORING_SIGNAL` | FLOW | 1 |
+| I21 | `SCORING_SIGNAL` | FLOW | 1 |
+| I22 | `CONTEXT_ONLY` | — | 1 |
+| I23 | `CONTEXT_ONLY` | — | 1 |
+| I24 | `CONTEXT_ONLY` | — | 1 |
+| I25 | `CONTEXT_ONLY` | — | 1 |
+| I26 | `CONTEXT_ONLY` | — | 1 |
+| I27 | `CONTEXT_ONLY` | — | 1 |
+| I28 | `SCORING_SIGNAL` | PLANNING | 1 |
+| I29 | `SCORING_SIGNAL` | PLANNING | 1 |
+| I30 | `SCORING_SIGNAL` | PLANNING | 1 |
+| I31 | `CONTEXT_ONLY` | — | 1 |
+| I32 | `CONTEXT_ONLY` | — | 1 |
+| I33 | `CONTEXT_ONLY` | — | 1 |
+| I34 | `CONTEXT_ONLY` | — | 1 |
+| I35 | `CONTEXT_ONLY` | — | 1 |
+| I36 | `CONTEXT_ONLY` | — | 1 |
+| I37 | `CONTEXT_ONLY` | — | 1 |
+| I38 | `CONTEXT_ONLY` | — | 1 |
+| I39 | `CONTEXT_ONLY` | — | 1 |
+| I40 | `CONTEXT_ONLY` | — | 1 |
+| I41 | `CONTEXT_ONLY` | — | 1 |
+| I42 | `CONTEXT_ONLY` | — | 1 |
+| I43 | `CONTEXT_ONLY` | — | 1 |
+| I44 | `SCORING_SIGNAL` | SPRINT | 1 |
+| I45 | `SCORING_SIGNAL` | SPRINT | 1 |
+| I46 | `REDUNDANT` | — | 1 |
+| I47 | `CONTEXT_ONLY` | — | 1 |
+| I48 | `CONTEXT_ONLY` | — | 1 |
+| I49 | `SCORING_SIGNAL` | QUALITY | 1 |
+| I50 | `REDUNDANT` | — | 1 |
+| I51 | `REDUNDANT` | — | 1 |
+| I52 | `SCORING_SIGNAL` | QUALITY | 1 |
+| I53 | `CONTEXT_ONLY` | — | 1 |
+| I54 | `CONTEXT_ONLY` | — | 1 |
+| I55 | `CONTEXT_ONLY` | — | 1 |
+| I56 | `CONTEXT_ONLY` | — | 1 |
+| I57 | `CONTEXT_ONLY` | — | 1 |
+| I58 | `SCORING_SIGNAL` | QUALITY | 1 |
+| I59 | `CONTEXT_ONLY` | — | 1 |
+| I60 | `CONTEXT_ONLY` | — | 1 |
+| I61 | `SCORING_SIGNAL` | TRACEABILITY | 1 |
+| I62 | `SCORING_SIGNAL` | TRACEABILITY | 1 |
+| I63 | `SCORING_SIGNAL` | TRACEABILITY | 1 |
+| I64 | `SCORING_SIGNAL` | QUALITY | 1 |
+| I65 | `SCORING_SIGNAL` | TRACEABILITY | 1 |
+| I66 | `SCORING_SIGNAL` | TRACEABILITY | 1 |
+| I67 | `CONTEXT_ONLY` | — | 1 |
+| I68 | `NOT_RECOMMENDED` | — | 1 |
+| I69 | `UNIMPLEMENTED` | — | 1 |
+| I70 | `UNIMPLEMENTED` | — | 1 |
+| I71 | `SCORING_SIGNAL` | SPRINT | 1 |
+| I72 | `CONTEXT_ONLY` | — | 1 |
+| I73 | `SCORING_SIGNAL` | TECHNICAL_INTEGRATION | 1 |
+| I74 | `CONTEXT_ONLY` | — | 1 |
