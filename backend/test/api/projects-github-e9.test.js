@@ -173,6 +173,65 @@ afterAll(async () => {
 });
 
 describe('Projetos e integração GitHub E9', () => {
+  it('atualiza o Dashboard P7 após sync interna confirmada e persistida', async () => {
+    const owner = await register('owner-dashboard-p81@example.invalid');
+    const project = await createIntegratedProject(owner);
+    const dashboardUrl = `/api/projects/${project.id}/indicators/dashboard?view=GITHUB&startDate=2026-09-01&endDate=2026-09-25&timeZone=UTC`;
+    const before = await owner.agent.get(dashboardUrl);
+    expect(before.status).toBe(200);
+    const beforeCommit = before.body.sections
+      .flatMap((section) => section.indicators)
+      .find((indicator) => indicator.metricId === 'I09');
+    expect(beforeCommit).toMatchObject({ value: null, state: 'UNAVAILABLE' });
+
+    githubBoundary.client = createGithubDouble({
+      commits: [
+        [
+          {
+            hash: 'p81-commit',
+            message: 'Fato integrado P8.1',
+            branch: 'trunk',
+            date: new Date('2026-09-20T12:00:00Z')
+          }
+        ]
+      ]
+    });
+    const observed = await startAndWaitForSync(owner, project.id);
+    expect(observed.run.status).toBe('SUCCEEDED');
+    expect(await prisma.commit.count({ where: { projectId: project.id } })).toBe(1);
+
+    const after = await owner.agent.get(dashboardUrl);
+    expect(after.status).toBe(200);
+    const afterCommit = after.body.sections
+      .flatMap((section) => section.indicators)
+      .find((indicator) => indicator.metricId === 'I09');
+    expect(afterCommit).toMatchObject({ value: 1, state: 'AVAILABLE' });
+    expect(afterCommit.sourceUpdatedAt).toBeTruthy();
+    expect(after.body.freshness.github.sourceUpdatedAt).toBeTruthy();
+    expect(after.body.freshness.github.sourceSyncStatus).toBe('SINCRONIZADO');
+
+    const failure = new ExternalServiceError(
+      'Falha de conexão com o GitHub.',
+      500,
+      ERROR_CODES.EXTERNAL_SERVICE_ERROR
+    );
+    githubBoundary.client = createGithubDouble();
+    githubBoundary.client.listPullRequestPages.mockReturnValue(
+      (async function* fail() {
+        throw failure;
+      })()
+    );
+    expect((await startAndWaitForSync(owner, project.id)).run.status).toBe('FAILED');
+    const stale = await owner.agent.get(dashboardUrl);
+    expect(stale.status).toBe(200);
+    const staleCommit = stale.body.sections
+      .flatMap((section) => section.indicators)
+      .find((indicator) => indicator.metricId === 'I09');
+    expect(staleCommit).toMatchObject({ value: 1, state: 'STALE' });
+    expect(staleCommit.sourceUpdatedAt).toBe(afterCommit.sourceUpdatedAt);
+    expect(stale.body.freshness.github.sourceSyncStatus).toBe('FALHA');
+  });
+
   it('conta local sem GitHubIdentity reutiliza a App e sincroniza três projetos', async () => {
     const owner = await register('owner-multiple@example.invalid');
     expect(await prisma.gitHubIdentity.findUnique({ where: { userId: owner.user.id } })).toBeNull();

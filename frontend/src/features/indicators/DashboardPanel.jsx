@@ -28,7 +28,8 @@ const VIEW_STATES = {
   AVAILABLE: 'Indicadores disponíveis',
   PARTIAL: 'Visão com dados parciais',
   NO_DATA: 'Ainda não há dados elegíveis',
-  UNAVAILABLE: 'Indicadores indisponíveis'
+  UNAVAILABLE: 'Indicadores indisponíveis',
+  UNKNOWN: 'Estado da visão desconhecido'
 };
 
 function querySelection(params) {
@@ -246,6 +247,7 @@ export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) 
     sprintId: null,
     responsibleUserId: null
   };
+  const viewState = VIEW_STATES[dashboard?.viewState] ? dashboard.viewState : 'UNKNOWN';
 
   return (
     <section className="dashboard-panel" aria-labelledby="dashboard-panel-title">
@@ -393,9 +395,9 @@ export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) 
           <>
             <div className="dashboard-panel__overview">
               <span
-                className={`dashboard-panel__view-state dashboard-panel__view-state--${dashboard.viewState.toLowerCase()}`}
+                className={`dashboard-panel__view-state dashboard-panel__view-state--${viewState.toLowerCase()}`}
               >
-                {VIEW_STATES[dashboard.viewState] ?? dashboard.viewState}
+                {VIEW_STATES[viewState]}
               </span>
               <span>Montado em {formatDateTime(dashboard.generatedAt)}</span>
               {dashboard.context?.sprint && <span>Sprint: {dashboard.context.sprint.name}</span>}

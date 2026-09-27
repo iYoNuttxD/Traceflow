@@ -268,6 +268,20 @@ describe('P7 aggregate dashboard API', () => {
     expect((await get(p.id, owner, 'catalog')).status).toBe(404);
   });
 
+  it('permite Dashboard e catálogo a cada papel ativo sem expor projeto alheio', async () => {
+    const owner = await actor();
+    const p = await project(owner);
+    for (const role of ['VIEWER', 'MEMBER', 'MANAGER']) {
+      const member = await actor();
+      await prisma.projectMembership.create({
+        data: { projectId: p.id, userId: member.id, role }
+      });
+      expect((await get(p.id, member, 'dashboard')).status).toBe(200);
+      expect((await get(p.id, member, 'catalog')).status).toBe(200);
+    }
+    expect((await get(p.id, owner, 'dashboard')).status).toBe(200);
+  });
+
   it('aplica Sprint apenas aos indicadores compatíveis e valida responsável histórico sem reatribuir fatos', async () => {
     const owner = await actor();
     const p = await project(owner);

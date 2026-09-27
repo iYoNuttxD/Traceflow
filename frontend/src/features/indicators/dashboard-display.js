@@ -67,7 +67,8 @@ export const FIELD_LABELS = {
   scope: 'Escopo total',
   completed: 'Trabalho concluído',
   value: 'Valor',
-  completedPoints: 'Pontos concluídos'
+  completedPoints: 'Pontos concluídos',
+  active: 'Ativos'
 };
 
 export const LIMITATION_LABELS = {
@@ -83,6 +84,12 @@ export const LIMITATION_LABELS = {
   BURNDOWN_MAX_180_DAYS: 'O Burndown está limitado a 180 dias.',
   BURNUP_COVERAGE_STARTED_MID_SPRINT: 'Histórico disponível apenas a partir de parte da Sprint.',
   BURNUP_ESTIMATE_UNKNOWN: 'Parte das estimativas históricas é desconhecida.',
+  BURNUP_HISTORY_NOT_CAPTURED: 'Esta Sprint não possui histórico de Burnup capturado.',
+  BURNUP_HISTORY_NOT_LOADED: 'Não foi possível carregar o histórico de Burnup desta Sprint.',
+  BURNUP_CUTOFF_UNKNOWN: 'Não foi possível determinar o último dia coberto pelo Burnup.',
+  BURNUP_MAX_180_DAYS: 'O Burnup está limitado aos últimos 180 dias.',
+  BURNUP_EVENT_SEQUENCE_INCONSISTENT:
+    'A sequência de eventos históricos do Burnup apresenta inconsistência.',
   CARRY_OVER_REENTRY_HISTORY_MAY_BE_COLLAPSED:
     'Reentradas de tarefas entre Sprints podem estar agrupadas no histórico.',
   SCOPE_REENTRY_EVENTS_COLLAPSED: 'Reentradas no escopo podem estar agrupadas.',

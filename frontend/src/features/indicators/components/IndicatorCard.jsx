@@ -126,7 +126,8 @@ function FilterDetails({ indicator, requestedFilters }) {
 export function IndicatorCard({ indicator, metadata, requestedFilters }) {
   const title = METRIC_TITLES[indicator.metricId] ?? metadata.title;
   const limitations = indicator.limitations ?? [];
-  const hasValue = indicator.state !== 'NO_DATA' && indicator.state !== 'UNAVAILABLE';
+  const state = STATE_LABELS[indicator.state] ? indicator.state : 'UNKNOWN';
+  const hasValue = ['AVAILABLE', 'PARTIAL', 'STALE'].includes(state);
   const scalar = hasValue && typeof indicator.value === 'number';
   const hasChart = hasValue && indicator.kind === 'SERIES' && indicator.points?.length > 0;
   const notApplied = Object.entries({
@@ -134,11 +135,11 @@ export function IndicatorCard({ indicator, metadata, requestedFilters }) {
     sprint: requestedFilters.sprintId != null,
     responsible: requestedFilters.responsibleUserId != null
   }).some(([key, requested]) => requested && !indicator.appliedFilters?.[key]);
-  const status = STATE_LABELS[indicator.state] ?? indicator.state;
+  const status = STATE_LABELS[state] ?? 'Estado desconhecido';
 
   return (
     <article
-      className={`indicator-card indicator-card--${indicator.state.toLowerCase()}${indicator.kind === 'SERIES' ? ' indicator-card--series' : ''}`}
+      className={`indicator-card indicator-card--${state.toLowerCase()}${indicator.kind === 'SERIES' ? ' indicator-card--series' : ''}`}
       aria-label={title}
     >
       <header className="indicator-card__header">
@@ -196,9 +197,7 @@ export function IndicatorCard({ indicator, metadata, requestedFilters }) {
       </header>
 
       <div className="indicator-card__status-line">
-        <span
-          className={`indicator-card__state indicator-card__state--${indicator.state.toLowerCase()}`}
-        >
+        <span className={`indicator-card__state indicator-card__state--${state.toLowerCase()}`}>
           {status}
         </span>
         {notApplied && (
@@ -212,14 +211,19 @@ export function IndicatorCard({ indicator, metadata, requestedFilters }) {
         )}
       </div>
 
-      {indicator.state === 'NO_DATA' && (
+      {state === 'NO_DATA' && (
         <p className="indicator-card__empty">Nenhum dado elegível para este indicador.</p>
       )}
-      {indicator.state === 'UNAVAILABLE' && (
+      {state === 'UNAVAILABLE' && (
         <p className="indicator-card__empty">
           {limitations.length
             ? describeLimitation(limitations[0])
             : 'Não há dados suficientes para apresentar este indicador.'}
+        </p>
+      )}
+      {state === 'UNKNOWN' && (
+        <p className="indicator-card__empty">
+          Não foi possível interpretar o estado deste indicador.
         </p>
       )}
 
@@ -257,9 +261,9 @@ export function IndicatorCard({ indicator, metadata, requestedFilters }) {
         </div>
       )}
 
-      {['PARTIAL', 'STALE'].includes(indicator.state) && (
+      {['PARTIAL', 'STALE'].includes(state) && (
         <p className="indicator-card__notice">
-          {indicator.state === 'STALE'
+          {state === 'STALE'
             ? 'Último valor conhecido; confira a atualização da fonte.'
             : 'O valor considera somente os dados conhecidos.'}{' '}
           {limitations[0] ? describeLimitation(limitations[0]) : ''}

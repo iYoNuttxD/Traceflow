@@ -303,8 +303,16 @@ describe('P8 Dashboard na Visão Geral', () => {
                 state: 'UNAVAILABLE',
                 kind: 'SERIES',
                 points: [],
-                limitations: ['BURNUP_COVERAGE_STARTED_MID_SPRINT']
-              })
+                limitations: ['BURNUP_HISTORY_NOT_CAPTURED']
+              }),
+              metric(
+                'I53',
+                { ABERTO: 1, active: 1, total: 1 },
+                {
+                  kind: 'DISTRIBUTION',
+                  distribution: { ABERTO: 1, active: 1, total: 1 }
+                }
+              )
             ]
           }
         ],
@@ -321,7 +329,33 @@ describe('P8 Dashboard na Visão Geral', () => {
     expect(screen.getByRole('article', { name: 'Execuções por resultado' })).not.toHaveTextContent(
       '0%'
     );
-    expect(screen.getByRole('article', { name: 'Burnup' }).querySelector('svg')).toBeNull();
+    const burnup = screen.getByRole('article', { name: 'Burnup' });
+    expect(burnup.querySelector('svg')).toBeNull();
+    expect(burnup).toHaveTextContent('Esta Sprint não possui histórico de Burnup capturado.');
+    expect(screen.getByRole('article', { name: 'Defeitos por estado' })).toHaveTextContent(
+      'Ativos'
+    );
+  });
+
+  it('não apresenta valor como disponível quando a API envia um estado desconhecido', async () => {
+    mocks.dashboard.mockResolvedValue(
+      response(
+        'GENERAL',
+        [
+          {
+            id: 'summary',
+            indicators: [metric('I61', 75, { state: 'FUTURE_STATE', unit: 'PERCENT' })]
+          }
+        ],
+        { viewState: 'FUTURE_STATE' }
+      )
+    );
+    renderPanel();
+    const card = await screen.findByRole('article', { name: 'Requirements com Tasks' });
+    expect(card).toHaveTextContent('Estado desconhecido');
+    expect(card).toHaveTextContent('Não foi possível interpretar o estado deste indicador.');
+    expect(card).not.toHaveTextContent('75%');
+    expect(screen.getByText('Estado da visão desconhecido')).toBeInTheDocument();
   });
 
   it('mostra Burndown v2 e Burnup com duas séries, respeitando lacunas parciais', async () => {

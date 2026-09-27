@@ -194,8 +194,10 @@
 }
 
 .dashboard-panel__view-state--no_data,
+.dashboard-panel__view-state--unknown,
 .indicator-card__state--no_data,
-.indicator-card__state--unavailable {
+.indicator-card__state--unavailable,
+.indicator-card__state--unknown {
   color: var(--color-neutral-text);
   background: var(--color-neutral-surface);
 }

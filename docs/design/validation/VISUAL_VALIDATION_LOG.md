@@ -1,5 +1,42 @@
 # TRACEFLOW Visual Validation Log
 
+## 2026-09-25 — S2 P8.1 Dashboard com API real e sync GitHub externa (PASS LOCAL)
+
+Chrome autenticado em `localhost:5173/projects/2`, Project persistido de homologação local,
+backend P7 e banco de desenvolvimento reais. Entrada por `/projects` → Project → Visão geral.
+GENERAL, GITHUB, FLOW, SPRINT, TASK, QUALITY e TRACEABILITY foram abertas com respostas do
+agregado real. GENERAL mostrou I01 `46,67%`, WIP `2`, Tasks atrasadas `2`, I61 `100%`, I66 `25%`,
+quatro Defects e I45 parcial, comparados com o service no mesmo banco. Sprint concluída legada
+mostrou I45 com lacunas e I46 indisponível sem gráfico; Sprint em andamento mostrou I45/I46
+parciais. Período de um dia mudou I09 de `298` para `7`; responsável sem recorte seguro mostrou
+aviso e marca por card, sem alterar WIP.
+
+| Largura real | Tema | Visões com dados reais | Observação | Resultado |
+| ---: | --- | --- | --- | --- |
+| 1710 px | Dark | GENERAL, GITHUB, FLOW, SPRINT, TASK, QUALITY, TRACEABILITY | Cards, séries, listas, ajuda e filtros; sem overflow horizontal observado | PASS local |
+| 1710 px | Light | GENERAL, SPRINT, QUALITY, TRACEABILITY | Dados persistidos e estados visíveis; sem overflow horizontal observado | PASS local |
+| 1440/1280 px | Light/Dark | SPRINT | I46 disponível por eventos reais do banco de teste; 14 cards, sem overflow horizontal | PASS local |
+| 768 px | Light/Dark | GENERAL, SPRINT, QUALITY, TRACEABILITY | Respostas reais com 7/14/14/7 cards; sem overflow horizontal | PASS local |
+| 390 px | Light/Dark | GENERAL, SPRINT, QUALITY, TRACEABILITY | Cards com 358 px, sem overflow horizontal; gráfico/tabela I46 real em ambos os temas | PASS local |
+| 390 px | Dark | QUALITY e TRACEABILITY no Project de desenvolvimento | 14 cards Quality com dados persistidos; sete valores não vazios de Traceability; ajuda/foco legíveis | PASS local |
+
+Sync GitHub externa acionada pela UI: run `17` `SUCCEEDED`, um commit novo persistido, freshness
+GitHub `17:55` → `18:54` e nova montagem do Dashboard `18:53` → `18:54`. Hash do histórico
+congelado da Sprint `13` permaneceu igual antes/depois. No banco de teste, login/API reais criaram
+Project, Sprint e Tasks; o domínio capturou seis eventos de Burnup. O frontend autenticado exibiu
+I46 `AVAILABLE`, com 25/09 `7 h` de escopo e `5 h` concluídos, e lacunas `—` nos dias futuros,
+iguais à resposta P7. A fixture foi removida e o banco de teste retornou a zero usuários/Projects/
+eventos de Burnup.
+
+Foram inspecionados screenshots de Light/Dark no desktop e no mobile, incluindo I46 com tabela.
+Uma primeira tentativa de resize atuou na aba errada e foi descartada; a matriz acima foi medida
+após ativar a aba correta. ArrowRight moveu seleção/foco visível de Qualidade para Rastreabilidade;
+o help I61 permaneceu legível em 390 px. O tema Dark original e o override de viewport foram
+restaurados. Não houve auditoria WCAG completa, medição de contraste instrumental, contagem de
+rede pelo DevTools nem validação cross-browser. A evidência da fixture P8 abaixo continua separada
+da API real. A surface foi promovida a `VISUALLY APPROVED` localmente; detalhes no
+[relatório P8.1](../../deliveries/S2_P8_1_REAL_DASHBOARD_HOMOLOGATION_REPORT.md).
+
 ## 2026-09-25 — S2 P8 Dashboard na Visão Geral (fixture local)
 
 Chrome em `127.0.0.1:5179/test/visual/p8.html`, renderizando o

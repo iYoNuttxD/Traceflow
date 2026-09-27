@@ -1,8 +1,10 @@
 # S2 P8 — Dashboard na Visão Geral e RF55
 
-**Resultado local: CHANGES REQUIRED.** O painel está implementado e os gates automatizados locais
-passaram. A inspeção renderizada foi feita em fixture isolada; falta homologar o fluxo autenticado
-contra o backend P7 e dados reais antes de declarar `PASS LOCAL`/RF55 completo.
+**Resultado atualizado após P8.1: PASS LOCAL.** Nesta rodada P8 original, o painel foi implementado
+e os gates automatizados locais passaram, mas a inspeção renderizada usou fixture isolada. O bloqueio
+de sessão autenticada, API P7, dados persistidos e sync GitHub foi encerrado pela
+[homologação P8.1](S2_P8_1_REAL_DASHBOARD_HOMOLOGATION_REPORT.md). As seções abaixo preservam a
+evidência e as limitações observadas no momento do P8.
 
 ## 1. Baseline
 
@@ -196,8 +198,8 @@ Não houve mudança no contrato P7 nem no catálogo canônico de fórmulas.
 
 ## 27. Remaining limitations
 
-- **BLOCKING:** homologar o painel em sessão autenticada com API P7/banco reais e dados
-  representativos, inclusive sync GitHub externo, antes de promover RF55 ou declarar `PASS LOCAL`.
+- **RESOLVIDO EM P8.1:** sessão autenticada, API P7/banco reais, dados representativos,
+  Burnup `AVAILABLE`, matriz responsiva com API real e sync GitHub externa foram homologados.
 - **LIMITATION:** recortes de Sprint/responsável marcados `UNSAFE` pelo P7 continuam sem aplicação. A interface
   comunica isso; não atribui história com base no estado atual.
 - **LIMITATION:** I03/I05, personalização P9 e indicadores adicionais não entram nas views padrão

@@ -144,6 +144,20 @@ describe('Sprint Burnup P5.1 — persisted API', () => {
     expect(result).toMatchObject({ state: 'AVAILABLE', coverage: { complete: true } });
     expect(result.points[0]).toMatchObject({ scope: 7, completed: 5 });
     expectComparable(await s.series(sprint.id));
+    const dashboard = await s.agent.get(
+      `/api/projects/${s.projectId}/indicators/dashboard?view=SPRINT&sprintId=${sprint.id}`
+    );
+    expect(dashboard.status).toBe(200);
+    const displayedBurnup = dashboard.body.sections
+      .flatMap((section) => section.indicators)
+      .find((indicator) => indicator.metricId === 'I46');
+    expect(displayedBurnup).toMatchObject({
+      state: 'AVAILABLE',
+      definitionVersion: 2,
+      points: result.points,
+      coverage: { complete: true },
+      appliedFilters: { sprint: true }
+    });
     const events = await prisma.sprintBurnupEvent.findMany({
       where: { sprintId: sprint.id },
       orderBy: { id: 'asc' }
