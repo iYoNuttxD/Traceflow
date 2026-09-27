@@ -1,4 +1,5 @@
 import { lazy, Suspense } from 'react';
+import { DashboardHelp } from './DashboardHelp.jsx';
 import {
   describeLimitation,
   distributionRows,
@@ -50,7 +51,9 @@ function IndicatorList({ indicator }) {
       {indicator.items.map((item, index) => {
         const url = safeGithubUrl(item.githubUrl);
         return (
-          <li key={item.requirementId ?? item.taskId ?? item.pullRequestId ?? index}>
+          <li
+            key={`${item.requirementId ?? item.taskId ?? item.pullRequestId ?? index}-${item.direction ?? index}`}
+          >
             <span>
               {url ? (
                 <a href={url} target="_blank" rel="noopener noreferrer">
@@ -60,6 +63,15 @@ function IndicatorList({ indicator }) {
                 listLabel(item)
               )}
               {item.displayId && <small>{item.displayId}</small>}
+              {item.direction && (
+                <small>
+                  {item.direction === 'INCOMING'
+                    ? 'Recebida de outra Sprint'
+                    : item.direction === 'OUTGOING'
+                      ? 'Transferida para outra Sprint'
+                      : 'Transferência entre Sprints'}
+                </small>
+              )}
               {item.deadline && <small>Prazo: {formatDateTime(item.deadline)}</small>}
             </span>
             <strong>
@@ -172,87 +184,83 @@ export function IndicatorCard({
     <article
       className={`indicator-card indicator-card--${state.toLowerCase()} indicator-card--${visualType}`}
       aria-label={title}
+      data-metric-id={indicator.metricId}
     >
       <header className="indicator-card__header">
         <div>
           <h4>{title}</h4>
+          {healthBadge && (
+            <span
+              className={`indicator-card__health indicator-card__health--${assessment.status.toLowerCase()}`}
+            >
+              {HEALTH_STATUS_LABELS[assessment.status]}
+            </span>
+          )}
         </div>
-        {healthBadge && (
-          <span
-            className={`indicator-card__health indicator-card__health--${assessment.status.toLowerCase()}`}
-          >
-            {HEALTH_STATUS_LABELS[assessment.status]}
-          </span>
-        )}
-        <details className="indicator-card__help">
-          <summary aria-label={`Informações sobre ${title}`} title="Entenda este indicador">
-            ?
-          </summary>
-          <div className="indicator-card__help-content">
-            <strong>O que mostra</strong>
-            <p>{help.what}</p>
-            <strong>Como é calculado</strong>
-            <p>{help.how}</p>
-            <strong>Como interpretar</strong>
-            <p>{help.meaning}</p>
-            {assessment && (
-              <>
-                <strong>Saúde atual</strong>
-                <p>
-                  {healthBadge
-                    ? `${HEALTH_STATUS_LABELS[assessment.status]} · ${assessment.score}/100. `
-                    : ''}
-                  {describeHealthReason(assessment, indicator.metricId)}
-                </p>
-              </>
+        <DashboardHelp title={title}>
+          <strong>O que mostra</strong>
+          <p>{help.what}</p>
+          <strong>Como é calculado</strong>
+          <p>{help.how}</p>
+          <strong>Como interpretar</strong>
+          <p>{help.meaning}</p>
+          {assessment && (
+            <>
+              <strong>Saúde atual</strong>
+              <p>
+                {healthBadge
+                  ? `${HEALTH_STATUS_LABELS[assessment.status]} · ${assessment.score}/100. `
+                  : ''}
+                {describeHealthReason(assessment, indicator.metricId)}
+              </p>
+            </>
+          )}
+          {limitations.length > 0 && (
+            <>
+              <strong>Limitações dos dados</strong>
+              <ul>
+                {limitations.map((code) => (
+                  <li key={code}>{describeLimitation(code)}</li>
+                ))}
+              </ul>
+            </>
+          )}
+          <details className="indicator-card__technical">
+            <summary>Detalhes técnicos</summary>
+            <p>
+              <strong>Indicador:</strong> {indicator.metricId}
+            </p>
+            <p>
+              <strong>Fórmula:</strong> {indicator.formula}
+            </p>
+            <p>
+              <strong>Fonte:</strong> {(indicator.sources ?? []).join(', ') || metadata.source}
+            </p>
+            {indicator.eventClock && (
+              <p>
+                <strong>Relógio:</strong> {indicator.eventClock}
+              </p>
             )}
-            {limitations.length > 0 && (
-              <>
-                <strong>Limitações dos dados</strong>
-                <ul>
-                  {limitations.map((code) => (
-                    <li key={code}>{describeLimitation(code)}</li>
-                  ))}
-                </ul>
-              </>
+            <p>
+              <strong>Calculado em:</strong> {formatDateTime(indicator.asOf)}
+            </p>
+            {indicator.sourceUpdatedAt && (
+              <p>
+                <strong>Fonte atualizada em:</strong> {formatDateTime(indicator.sourceUpdatedAt)}
+              </p>
             )}
-            <details className="indicator-card__technical">
-              <summary>Detalhes técnicos</summary>
+            <p>
+              <strong>Versão da definição:</strong> {indicator.definitionVersion}
+            </p>
+            {indicator.rf && (
               <p>
-                <strong>Indicador:</strong> {indicator.metricId}
+                <strong>Requisito:</strong> {indicator.rf}
               </p>
-              <p>
-                <strong>Fórmula:</strong> {indicator.formula}
-              </p>
-              <p>
-                <strong>Fonte:</strong> {(indicator.sources ?? []).join(', ') || metadata.source}
-              </p>
-              {indicator.eventClock && (
-                <p>
-                  <strong>Relógio:</strong> {indicator.eventClock}
-                </p>
-              )}
-              <p>
-                <strong>Calculado em:</strong> {formatDateTime(indicator.asOf)}
-              </p>
-              {indicator.sourceUpdatedAt && (
-                <p>
-                  <strong>Fonte atualizada em:</strong> {formatDateTime(indicator.sourceUpdatedAt)}
-                </p>
-              )}
-              <p>
-                <strong>Versão da definição:</strong> {indicator.definitionVersion}
-              </p>
-              {indicator.rf && (
-                <p>
-                  <strong>Requisito:</strong> {indicator.rf}
-                </p>
-              )}
-              <strong>Filtros</strong>
-              <FilterDetails indicator={indicator} requestedFilters={requestedFilters} />
-            </details>
-          </div>
-        </details>
+            )}
+            <strong>Filtros</strong>
+            <FilterDetails indicator={indicator} requestedFilters={requestedFilters} />
+          </details>
+        </DashboardHelp>
       </header>
 
       {(state !== 'AVAILABLE' || notApplied) && (
@@ -297,7 +305,9 @@ export function IndicatorCard({
         <div className="indicator-card__content">
           {scalar && (
             <strong className="indicator-card__value">
-              {formatMetricValue(indicator.value, indicator.unit)}
+              {indicator.metricId === 'I17'
+                ? `${formatMetricValue(indicator.value)} ${indicator.value === 1 ? 'PR aberta' : 'PRs abertas'}`
+                : formatMetricValue(indicator.value, indicator.unit)}
             </strong>
           )}
           {scalar &&
@@ -315,11 +325,15 @@ export function IndicatorCard({
               <IndicatorChart indicator={indicator} title={title} />
             </Suspense>
           )}
+          {indicator.kind === 'SERIES' && !hasChart && (
+            <p className="indicator-card__empty">Ainda não há pontos históricos para exibir.</p>
+          )}
           {indicator.kind === 'LIST' && <IndicatorList indicator={indicator} />}
           {indicator.kind !== 'SERIES' && <IndicatorDistribution indicator={indicator} />}
           {!scalar &&
             !hasChart &&
             indicator.kind !== 'LIST' &&
+            indicator.kind !== 'SERIES' &&
             !indicator.distribution &&
             (indicator.value == null || typeof indicator.value !== 'object') && (
               <span className="indicator-card__value">—</span>

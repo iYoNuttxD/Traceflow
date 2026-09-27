@@ -6,7 +6,7 @@ import { sprintAnalyticsService } from './sprint-analytics.service.js';
 import { qualityAnalyticsService } from './quality-analytics.service.js';
 import { traceabilityAnalyticsService } from './traceability-analytics.service.js';
 import { dashboardService } from './dashboard.service.js';
-import { publicDashboardCatalog } from './dashboard-view.catalog.js';
+import { publicDashboardCatalog, publicDashboardViews } from './dashboard-view.catalog.js';
 
 export const indicatorsController = {
   progress: asyncHandler(async (req, res) =>
@@ -34,6 +34,10 @@ export const indicatorsController = {
     res.json(await dashboardService.read(req.params.projectId, req.query))
   ),
   catalog: asyncHandler(async (req, res) =>
-    res.json({ projectId: Number(req.params.projectId), indicators: publicDashboardCatalog() })
+    res.json({
+      projectId: Number(req.params.projectId),
+      indicators: publicDashboardCatalog(),
+      views: publicDashboardViews()
+    })
   )
 };

@@ -13,6 +13,7 @@ vi.mock('../../src/features/schedule/api/schedule.api.js', () => ({
 }));
 
 import { DashboardPanel } from '../../src/features/indicators/DashboardPanel.jsx';
+import { presentationSections } from '../../src/features/indicators/dashboard-display.js';
 
 const asOf = '2026-09-25T12:00:00.000Z';
 const definition = (metricId, title) => ({
@@ -98,6 +99,28 @@ function renderPanel(url = '/projects/1', props = {}, historyControls = false) {
 }
 
 describe('P8 Dashboard na Visão Geral', () => {
+  it('separa a contagem de PRs abertas da idade em dias de cada item de I17', async () => {
+    mocks.dashboard.mockResolvedValue(
+      response('GITHUB', [
+        {
+          id: 'prs',
+          indicators: [
+            metric('I17', 1, {
+              kind: 'LIST',
+              unit: 'DAYS',
+              items: [{ pullRequestId: 1, title: 'Revisar entrega', age: 1 }]
+            })
+          ]
+        }
+      ])
+    );
+    renderPanel('/projects/1?view=GITHUB');
+    const card = await screen.findByRole('article', { name: 'PRs abertas mais antigas' });
+    expect(within(card).getByText('1 PR aberta')).toBeInTheDocument();
+    expect(within(card).getByText('1 dia')).toBeInTheDocument();
+    expect(within(card).queryByText('1 dias')).not.toBeInTheDocument();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.catalog.mockResolvedValue({
@@ -106,6 +129,7 @@ describe('P8 Dashboard na Visão Geral', () => {
           definition('I23', 'WIP atual'),
           definition('I09', 'Commits no período'),
           definition('I16', 'Média até merge'),
+          definition('I17', 'PRs abertas mais antigas'),
           definition('I48', 'Execuções por resultado'),
           definition('I25', 'Fluxo cumulativo'),
           definition('I52', 'Saúde dos TestCases'),
@@ -149,6 +173,150 @@ describe('P8 Dashboard na Visão Geral', () => {
   });
 
   afterEach(() => cleanup());
+
+  it('P8.4 preserva todos os IDs recebidos ao reagrupar Sprint e Tarefas', () => {
+    for (const [view, id, start, end] of [
+      ['SPRINT', 'planning', 36, 44],
+      ['TASK', 'tasks', 26, 35]
+    ]) {
+      const sections = [
+        {
+          id,
+          indicators: [
+            ...Array.from({ length: end - start + 1 }, (_, i) => metric(`I${start + i}`, 0)),
+            metric('I99', 0)
+          ]
+        },
+        { id: 'additional', indicators: [metric('I98', 0)] }
+      ];
+      expect(
+        presentationSections(view, sections)
+          .flatMap((s) => s.indicators.map((i) => i.metricId))
+          .sort()
+      ).toEqual(sections.flatMap((s) => s.indicators.map((i) => i.metricId)).sort());
+    }
+  });
+
+  it('P8.4 mantém I45/I46/I47 visíveis independentemente do papel no Health', async () => {
+    const ids = ['I45', 'I46', 'I47'];
+    mocks.dashboard.mockResolvedValue(
+      response('SPRINT', [
+        {
+          id: 'history',
+          indicators: ids.map((id, i) =>
+            metric(id, null, {
+              kind: 'SERIES',
+              unit: 'HOURS',
+              points: [
+                {
+                  date: '2026-09-20',
+                  remaining: 10,
+                  ideal: 10,
+                  scope: 10,
+                  completed: 0,
+                  sprintName: 'Sprint A',
+                  completedPoints: 8
+                },
+                {
+                  date: '2026-09-21',
+                  remaining: null,
+                  ideal: 5,
+                  scope: null,
+                  completed: null,
+                  sprintName: 'Sprint B',
+                  completedPoints: 9
+                },
+                {
+                  date: '2026-09-22',
+                  remaining: 4,
+                  ideal: 0,
+                  scope: 10,
+                  completed: 6,
+                  sprintName: 'Sprint C',
+                  completedPoints: 7
+                }
+              ],
+              state: 'PARTIAL',
+              assessment: {
+                healthRole: ['SCORING_SIGNAL', 'REDUNDANT', 'CONTEXT_ONLY'][i],
+                status: 'NEUTRAL',
+                score: null
+              }
+            })
+          )
+        }
+      ])
+    );
+    renderPanel('/projects/1?view=sprint');
+    await screen.findByRole('img', { name: /Velocidade das Sprints/ });
+    expect(
+      [...document.querySelectorAll('[data-metric-id]')].map((el) => el.dataset.metricId)
+    ).toEqual(ids);
+    expect(screen.getAllByRole('img')).toHaveLength(3);
+    expect(
+      document.querySelector('[data-metric-id=I46]').querySelectorAll('svg polyline')
+    ).toHaveLength(0);
+    expect(
+      document.querySelector('[data-metric-id=I46]').querySelectorAll('svg circle').length
+    ).toBeGreaterThan(0);
+  });
+
+  it('P8.4 oferece datas usadas pelo Health mesmo sem widget temporal na Geral', async () => {
+    mocks.catalog.mockResolvedValue({
+      data: {
+        indicators: [
+          {
+            ...definition('I23', 'WIP atual'),
+            views: ['GENERAL'],
+            filterCompatibility: {
+              period: 'NOT_APPLICABLE',
+              sprint: 'UNSAFE',
+              responsible: 'UNSAFE'
+            }
+          }
+        ],
+        views: [
+          {
+            view: 'GENERAL',
+            periodIncludesProjectHealth: true,
+            filterCompatibility: { period: 'SUPPORTED', sprint: 'SUPPORTED', responsible: 'UNSAFE' }
+          }
+        ]
+      }
+    });
+    renderPanel();
+    await screen.findByRole('article', { name: 'WIP atual' });
+    fireEvent.click(screen.getByRole('button', { name: 'Filtros' }));
+    expect(screen.getByLabelText('De')).toBeVisible();
+    expect(screen.getByLabelText('Até')).toBeVisible();
+    expect(screen.getByLabelText('Responsável')).toBeDisabled();
+    expect(screen.getByText(/período também define a janela da saúde/i)).toBeVisible();
+    expect(screen.getByRole('option', { name: 'Sprint 3 · Concluída' })).toBeInTheDocument();
+  });
+
+  it('P8.4 fecha a ajuda com Escape e devolve o foco ao acionador', async () => {
+    const user = userEvent.setup();
+    renderPanel();
+    await screen.findByRole('article', { name: 'WIP atual' });
+    const trigger = screen.getByLabelText('Informações sobre WIP atual');
+    await user.click(trigger);
+    expect(screen.getByRole('dialog', { name: 'Informações sobre WIP atual' })).toBeVisible();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
+  it('P8.4 não apresenta um traço sem explicação para série disponível vazia', async () => {
+    mocks.dashboard.mockResolvedValue(
+      response('SPRINT', [
+        { id: 'history', indicators: [metric('I45', null, { kind: 'SERIES', points: [] })] }
+      ])
+    );
+    renderPanel('/projects/1?view=sprint');
+    const card = await screen.findByRole('article', { name: 'Burndown' });
+    expect(card).toHaveTextContent('Ainda não há pontos históricos para exibir.');
+    expect(card.querySelector('svg')).toBeNull();
+  });
 
   it.each([
     ['HEALTHY', 86, 'Saudável'],
@@ -444,8 +612,12 @@ describe('P8 Dashboard na Visão Geral', () => {
     expect(card).toHaveTextContent('4');
     expect(within(card).getByLabelText(/filtro solicitado não aplicado/i)).toBeInTheDocument();
     await user.click(within(card).getByText('?'));
-    expect(within(card).getByText(/Período: não se aplica/)).toBeInTheDocument();
-    expect(within(card).getByText(/Responsável: não aplicado/)).toBeInTheDocument();
+    expect(
+      within(screen.getByRole('dialog')).getByText(/Período: não se aplica/)
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByRole('dialog')).getByText(/Responsável: não aplicado/)
+    ).toBeInTheDocument();
   });
 
   it('não deixa um filtro anterior sobrescrever o novo filtro', async () => {
@@ -821,7 +993,7 @@ describe('P8 Dashboard na Visão Geral', () => {
     expect(within(card).getByText('Falhou').parentElement).not.toHaveTextContent('1%');
     expect(within(card).getByText('Bloqueado').parentElement).not.toHaveTextContent('1%');
     expect(card.querySelector('.indicator-card__id')).toBeNull();
-    expect(card.querySelector('.indicator-card__technical')).not.toHaveAttribute('open');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('explica o cálculo em linguagem de uso e deixa a fórmula da API nos detalhes técnicos', async () => {
@@ -837,13 +1009,14 @@ describe('P8 Dashboard na Visão Geral', () => {
     renderPanel('/projects/1?view=github');
     const card = await screen.findByRole('article', { name: 'Commits no período' });
     await user.click(within(card).getByLabelText('Informações sobre Commits no período'));
-    expect(card).toHaveTextContent(
+    const help = screen.getByRole('dialog', { name: 'Informações sobre Commits no período' });
+    expect(help).toHaveTextContent(
       'Conta uma vez cada commit observado no projeto durante o período.'
     );
-    expect(card.querySelector('.indicator-card__technical')).not.toHaveAttribute('open');
-    await user.click(within(card).getByText('Detalhes técnicos'));
-    expect(card.querySelector('.indicator-card__technical')).toHaveAttribute('open');
-    expect(card).toHaveTextContent('COUNT DISTINCT Commit.id no período');
+    expect(help.querySelector('.indicator-card__technical')).not.toHaveAttribute('open');
+    await user.click(within(help).getByText('Detalhes técnicos'));
+    expect(help.querySelector('.indicator-card__technical')).toHaveAttribute('open');
+    expect(help).toHaveTextContent('COUNT DISTINCT Commit.id no período');
   });
 
   it('troca séries de um ponto por resumos compactos sem eixos duplicados', async () => {

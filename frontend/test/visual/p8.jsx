@@ -24,6 +24,7 @@ const titles = {
   I04: 'Retrabalho de PRs',
   I06: 'Qualidade das PRs',
   I09: 'Commits',
+  I17: 'PRs abertas mais antigas',
   I20: 'Lead time',
   I21: 'Cycle time',
   I22: 'Throughput',
@@ -79,7 +80,7 @@ const linePoints = [
 ];
 const burnup = base('I46', null, {
   kind: 'SERIES',
-  unit: 'STORY_POINTS',
+  unit: 'HOURS',
   state: burnupState,
   points:
     burnupState === 'UNAVAILABLE'
@@ -118,7 +119,7 @@ const sections = {
     },
     {
       id: 'sprint',
-      indicators: [base('I45', null, { kind: 'SERIES', unit: 'STORY_POINTS', points: linePoints })]
+      indicators: [base('I45', null, { kind: 'SERIES', unit: 'HOURS', points: linePoints }), burnup]
     }
   ],
   GITHUB: [
@@ -127,7 +128,12 @@ const sections = {
       id: 'pullRequests',
       indicators: [
         base('I04', 12, { unit: 'PERCENT', state: 'PARTIAL', limitations: ['GITHUB_SYNC_STALE'] }),
-        base('I06', 80, { unit: 'PERCENT' })
+        base('I06', 80, { unit: 'PERCENT' }),
+        base('I17', 1, {
+          unit: 'DAYS',
+          kind: 'LIST',
+          items: [{ pullRequestId: 1, title: 'Revisão aguardando decisão', age: 1 }]
+        })
       ]
     }
   ],
@@ -161,11 +167,11 @@ const sections = {
     {
       id: 'history',
       indicators: [
-        base('I45', null, { kind: 'SERIES', unit: 'STORY_POINTS', points: linePoints }),
+        base('I45', null, { kind: 'SERIES', unit: 'HOURS', points: linePoints }),
         burnup,
         base('I47', null, {
           kind: 'SERIES',
-          unit: 'STORY_POINTS',
+          unit: 'HOURS',
           points: [
             { sprintId: 1, sprintName: 'Sprint 1', completedPoints: 8 },
             { sprintId: 2, sprintName: 'Sprint 2', completedPoints: 12 }
@@ -366,7 +372,21 @@ httpClient.defaults.adapter = async (config) => {
   else if (path === '/projects/1/github/sync/status') data = { run: null };
   else if (path === '/projects/1/sprints')
     data = { sprints: [{ id: 1, name: 'Sprint 2', status: 'EM_ANDAMENTO' }] };
-  else if (path === '/projects/1/indicators/catalog') data = { indicators: catalog };
+  else if (path === '/projects/1/indicators/catalog')
+    data = {
+      indicators: catalog,
+      views: Object.keys(sections).map((view) => ({
+        view,
+        periodIncludesProjectHealth: view === 'GENERAL',
+        filterCompatibility: {
+          period: ['GENERAL', 'GITHUB', 'FLOW', 'QUALITY'].includes(view)
+            ? 'SUPPORTED'
+            : 'NOT_APPLICABLE',
+          sprint: ['GENERAL', 'SPRINT'].includes(view) ? 'SUPPORTED' : 'NOT_APPLICABLE',
+          responsible: 'UNSAFE'
+        }
+      }))
+    };
   else if (path === '/projects/1/indicators/dashboard')
     data = {
       dashboardContractVersion: 1,

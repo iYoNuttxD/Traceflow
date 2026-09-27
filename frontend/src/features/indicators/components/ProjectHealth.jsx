@@ -1,3 +1,4 @@
+import { DashboardHelp } from './DashboardHelp.jsx';
 import { formatDateTime, METRIC_TITLES } from '../dashboard-display.js';
 import {
   describeHealthReason,
@@ -36,42 +37,39 @@ export function ProjectHealth({ health, catalogById = new Map() }) {
           <span className="dashboard-panel__eyebrow">Visão consolidada</span>
           <h3 id="project-health-heading">Saúde do projeto</h3>
         </div>
-        <details className="project-health__help">
-          <summary aria-label="Informações sobre Saúde do projeto">?</summary>
-          <div>
+        <DashboardHelp title="Saúde do projeto">
+          <p>
+            A Saúde do Projeto combina sinais de planejamento, fluxo, Sprint, qualidade,
+            rastreabilidade e integração técnica. É uma ferramenta de apoio à gestão e depende dos
+            dados disponíveis no TraceFlow.
+          </p>
+          <p>
+            Os sinais elegíveis recebem notas de 0 a 100 conforme regras documentadas. As dimensões
+            têm pesos fixos; a cobertura informa quanto dos dados aplicáveis pôde ser avaliado. Sem
+            cobertura de 60% e quatro dimensões avaliadas, não há nota geral.
+          </p>
+          <p>
+            O índice descreve condições observadas do projeto. Não mede desempenho de pessoas nem
+            garante resultado futuro. Modelo versão {health.healthModelVersion}.
+          </p>
+          <strong>Pesos e cobertura nesta leitura</strong>
+          <ul>
+            {health.dimensions.map((dimension) => (
+              <li key={dimension.id}>
+                {HEALTH_DIMENSION_LABELS[dimension.id] ?? dimension.id}: peso {dimension.weight}%
+                {dimension.applicable ? `, cobertura ${dimension.coverage}%` : ', não aplicável'}.
+              </li>
+            ))}
+          </ul>
+          {health.window && (
             <p>
-              A Saúde do Projeto combina sinais de planejamento, fluxo, Sprint, qualidade,
-              rastreabilidade e integração técnica. É uma ferramenta de apoio à gestão e depende dos
-              dados disponíveis no TraceFlow.
+              Janela atual: {formatDateTime(health.window.current.startInclusive)} até{' '}
+              {formatDateTime(health.window.current.endExclusive)}. Comparação:{' '}
+              {formatDateTime(health.window.previous.startInclusive)} até{' '}
+              {formatDateTime(health.window.previous.endExclusive)}.
             </p>
-            <p>
-              Os sinais elegíveis recebem notas de 0 a 100 conforme regras documentadas. As
-              dimensões têm pesos fixos; a cobertura informa quanto dos dados aplicáveis pôde ser
-              avaliado. Sem cobertura de 60% e quatro dimensões avaliadas, não há nota geral.
-            </p>
-            <p>
-              O índice descreve condições observadas do projeto. Não mede desempenho de pessoas nem
-              garante resultado futuro. Modelo versão {health.healthModelVersion}.
-            </p>
-            <strong>Pesos e cobertura nesta leitura</strong>
-            <ul>
-              {health.dimensions.map((dimension) => (
-                <li key={dimension.id}>
-                  {HEALTH_DIMENSION_LABELS[dimension.id] ?? dimension.id}: peso {dimension.weight}%
-                  {dimension.applicable ? `, cobertura ${dimension.coverage}%` : ', não aplicável'}.
-                </li>
-              ))}
-            </ul>
-            {health.window && (
-              <p>
-                Janela atual: {formatDateTime(health.window.current.startInclusive)} até{' '}
-                {formatDateTime(health.window.current.endExclusive)}. Comparação:{' '}
-                {formatDateTime(health.window.previous.startInclusive)} até{' '}
-                {formatDateTime(health.window.previous.endExclusive)}.
-              </p>
-            )}
-          </div>
-        </details>
+          )}
+        </DashboardHelp>
       </div>
       <div className="project-health__summary">
         <p className="project-health__score">

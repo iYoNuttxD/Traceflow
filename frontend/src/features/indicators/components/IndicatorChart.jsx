@@ -24,7 +24,7 @@ const COLORS = [
   'var(--color-warning-text)',
   'var(--color-success-text)'
 ];
-const LEFT = 42;
+const LEFT = 22;
 const RIGHT = 620;
 const TOP = 20;
 const BOTTOM = 186;
@@ -127,7 +127,7 @@ export function IndicatorChart({ indicator, title }) {
               </thead>
               <tbody>
                 <tr>
-                  <th scope="row">{point.sprintName ?? point.date}</th>
+                  <th scope="row">{point.sprintName ?? formatDate(point.date)}</th>
                   {series.map((item) => (
                     <td key={item.key}>
                       {valid(point[item.key])
@@ -182,12 +182,16 @@ export function IndicatorChart({ indicator, title }) {
   }
 
   return (
-    <figure className="dashboard-chart">
+    <figure className={`dashboard-chart${!stacked && !bars ? ' dashboard-chart--line' : ''}`}>
       <p className="dashboard-chart__hint">
         Passe o cursor, toque ou use as setas para explorar os pontos.
       </p>
+      <div className="dashboard-chart__scale" aria-hidden="true">
+        <span>Escala: 0 a {formatMetricValue(max, indicator.unit)}</span>
+      </div>
       <svg
-        viewBox="0 0 640 218"
+        viewBox="0 0 640 206"
+        preserveAspectRatio="none"
         role="img"
         tabIndex="0"
         aria-label={`${title}: ${description} Use as setas para explorar os pontos.`}
@@ -204,12 +208,6 @@ export function IndicatorChart({ indicator, title }) {
           y2={BOTTOM}
           className="dashboard-chart__crosshair"
         />
-        <text x={LEFT - 8} y={TOP + 5} textAnchor="end" className="dashboard-chart__label">
-          {formatMetricValue(max, indicator.unit)}
-        </text>
-        <text x={LEFT - 8} y={BOTTOM + 5} textAnchor="end" className="dashboard-chart__label">
-          0
-        </text>
         {stacked
           ? stackedAreas(points, series, x, y).map((area) => (
               <polygon
@@ -252,6 +250,7 @@ export function IndicatorChart({ indicator, title }) {
                       fill="none"
                       stroke={COLORS[index]}
                       strokeWidth="3"
+                      vectorEffect="non-scaling-stroke"
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeDasharray={index === 1 ? '7 5' : undefined}
@@ -281,13 +280,11 @@ export function IndicatorChart({ indicator, title }) {
               />
             )
         )}
-        <text x={LEFT} y="208" className="dashboard-chart__label">
-          {points[0].sprintName ?? formatDate(points[0].date)}
-        </text>
-        <text x={RIGHT} y="208" textAnchor="end" className="dashboard-chart__label">
-          {points.at(-1).sprintName ?? formatDate(points.at(-1).date)}
-        </text>
       </svg>
+      <div className="dashboard-chart__range" aria-hidden="true">
+        <span>{points[0].sprintName ?? formatDate(points[0].date)}</span>
+        <span>{points.at(-1).sprintName ?? formatDate(points.at(-1).date)}</span>
+      </div>
       {selectedPoint && (
         <div className="dashboard-chart__tooltip" role="status">
           <strong>{selectedPoint.sprintName ?? formatDate(selectedPoint.date)}</strong>
@@ -324,7 +321,10 @@ export function IndicatorChart({ indicator, title }) {
             <tbody>
               {points.map((point, index) => (
                 <tr key={point.date ?? point.sprintId ?? index}>
-                  <th scope="row">{point.sprintName ?? point.date ?? `Ponto ${index + 1}`}</th>
+                  <th scope="row">
+                    {point.sprintName ??
+                      (point.date ? formatDate(point.date) : `Ponto ${index + 1}`)}
+                  </th>
                   {series.map((item) => (
                     <td key={item.key}>
                       {valid(point[item.key])

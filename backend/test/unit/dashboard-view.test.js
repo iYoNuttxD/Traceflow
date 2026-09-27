@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   DASHBOARD_VIEWS,
   dashboardFilterPolicy,
+  publicDashboardViews,
   publicDashboardCatalog
 } from '../../src/modules/indicators/dashboard-view.catalog.js';
 import { deriveDashboardViewState } from '../../src/modules/indicators/dashboard.service.js';
@@ -24,7 +25,11 @@ describe('P7 dashboard composition and filter contract', () => {
       expect(ids.every((id) => INDICATORS[id])).toBe(true);
       expect(ids).not.toContain('I68');
     }
-    expect(DASHBOARD_VIEWS.GENERAL.flatMap((section) => section.metricIds)).toHaveLength(7);
+    expect(DASHBOARD_VIEWS.GENERAL.flatMap((section) => section.metricIds)).toHaveLength(8);
+    expect(DASHBOARD_VIEWS.GENERAL.find((section) => section.id === 'sprint').metricIds).toEqual([
+      'I45',
+      'I46'
+    ]);
   });
 
   it('deriva compatibilidade de filtros do catálogo executável e marca lacunas seguras', () => {
@@ -35,6 +40,21 @@ describe('P7 dashboard composition and filter contract', () => {
     expect(dashboardFilterPolicy('I47', 'sprint')).toBe('NOT_APPLICABLE');
     expect(dashboardFilterPolicy('I02', 'responsible')).toBe('UNSAFE');
     expect(dashboardFilterPolicy('I03', 'sprint')).toBe('UNSAFE');
+  });
+
+  it('P8.4 publica compatibilidade da visão incluindo o período do Health', () => {
+    const views = publicDashboardViews();
+    expect(views.find((item) => item.view === 'GENERAL')).toMatchObject({
+      periodIncludesProjectHealth: true,
+      filterCompatibility: { period: 'SUPPORTED', sprint: 'SUPPORTED', responsible: 'UNSAFE' }
+    });
+    expect(views.find((item) => item.view === 'SPRINT').filterCompatibility.period).toBe(
+      'NOT_APPLICABLE'
+    );
+    expect(views.find((item) => item.view === 'TRACEABILITY').filterCompatibility.period).toBe(
+      'UNSAFE'
+    );
+    expect(views.every((item) => item.filterCompatibility.responsible !== 'SUPPORTED')).toBe(true);
   });
 
   it('publica metadata para P9 sem transformar I68 em widget', () => {

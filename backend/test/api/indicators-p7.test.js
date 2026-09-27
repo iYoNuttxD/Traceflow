@@ -141,6 +141,19 @@ describe('P7 aggregate dashboard API', () => {
       requestedFilters: { period: null, sprintId: null, responsibleUserId: null }
     });
     expect(response.body.sections.map((section) => section.id)).toEqual(['summary', 'sprint']);
+    const filtered = await get(
+      p.id,
+      owner,
+      'dashboard?startDate=2026-09-01&endDate=2026-09-20&timeZone=America%2FSao_Paulo'
+    );
+    expect(filtered.status).toBe(200);
+    expect(filtered.body.projectHealth.window.current).toEqual({
+      startInclusive: '2026-09-01T03:00:00.000Z',
+      endExclusive: '2026-09-21T03:00:00.000Z'
+    });
+    expect(filtered.body.warnings).not.toContainEqual({
+      code: 'PERIOD_FILTER_NOT_APPLIED_TO_VIEW'
+    });
     expect(response.body.freshness.local.generatedAt).toBe(response.body.generatedAt);
     expect(response.body.freshness.github).toBeNull();
     expect(response.body.projectHealth).toMatchObject({
@@ -160,7 +173,8 @@ describe('P7 aggregate dashboard API', () => {
       'I61',
       'I66',
       'I53',
-      'I45'
+      'I45',
+      'I46'
     ]);
     expect(indicatorMap(response).I23).toMatchObject({
       value: 0,
@@ -279,6 +293,11 @@ describe('P7 aggregate dashboard API', () => {
     }
     const catalog = await get(p.id, owner, 'catalog');
     expect(catalog.status).toBe(200);
+    expect(catalog.body.views).toHaveLength(7);
+    expect(catalog.body.views.find((item) => item.view === 'GENERAL')).toMatchObject({
+      periodIncludesProjectHealth: true,
+      filterCompatibility: { period: 'SUPPORTED', responsible: 'UNSAFE' }
+    });
     expect(catalog.body.indicators).not.toContainEqual(
       expect.objectContaining({ metricId: 'I68' })
     );

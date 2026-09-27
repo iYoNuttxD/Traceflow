@@ -152,11 +152,11 @@ Todas as fichas `F` usam `SprintTask` e snapshots de fechamento, jamais `Task` a
 
 ## Composição inicial das visões futuras
 
-Ordem é de leitura, não especificação de layout. Widgets `U`/indisponíveis exibem explicação ou ficam fora do padrão até dados suficientes. A Visão geral terá **no máximo 7 widgets principais**.
+Ordem é de leitura, não especificação de layout. Widgets `U`/indisponíveis exibem explicação ou ficam fora do padrão até dados suficientes. O limite inicial era sete widgets; **P8.4 autoriza oito na GENERAL**, incluindo I46 junto de I45, além do bloco Project Health v1.
 
 | Visão | Objetivo e pergunta principal | Widgets padrão, na ordem sugerida |
 |---|---|---|
-| GENERAL | Entender o estado do projeto sem confundir atividade com qualidade. | I01 progresso, I23 WIP, I28 atrasadas, I61 requisitos com Tasks, I66 implementação (quando decidido), I53 defeitos ativos, I45 burndown da Sprint corrente (se houver). |
+| GENERAL | Entender o estado do projeto sem confundir atividade com qualidade. | I01 progresso, I23 WIP, I28 atrasadas, I61 requisitos com Tasks, I66 implementação, I53 defeitos ativos, I45 burndown e I46 burnup da Sprint em foco. |
 | GITHUB | Entender atividade e fila técnica. | I02 atividade main, I09 commits, I10 PRs abertas, I12 mescladas, I15 tempo de merge, I17 PRs antigas, I73 idade média, I14 issues fechadas. |
 | FLOW | Identificar gargalos. | I22 throughput, I20 lead time, I21 cycle time, I23 WIP, I24 aging, I25 cumulative flow quando histórico íntegro. |
 | SPRINT | Comparar plano, mudança e entrega. | I36/I38 pontos, I39/I40 Tasks, I41/I42 escopo, I43 carry-over, I44 esforço, I45 burndown, I46 burnup quando validado. |
@@ -168,7 +168,13 @@ Ordem é de leitura, não especificação de layout. Widgets `U`/indisponíveis 
 
 ## P7 — Views e filtro executável no Dashboard API
 
-O `dashboard-view.catalog.js` fixa as seções padrão sem alterar fórmulas: GENERAL I01/I23/I28/I61/I66/I53/I45 (sete widgets); GITHUB I02/I04/I06/I09–I18/I73/I74; FLOW I20–I25; SPRINT I36–I47/I71–I72; TASK I26–I35; QUALITY I06/I48–I60; TRACEABILITY I61–I67. I03/I05 continuam disponíveis no catálogo público para seleção futura, sem widget padrão. I19 e I68 não são widgets implementáveis; `FUNNEL` não é candidato para I68.
+O `dashboard-view.catalog.js` fixa as seções padrão sem alterar fórmulas: GENERAL I01/I23/I28/I61/I66/I53/I45/I46 (oito widgets desde P8.4; sete em P7); GITHUB I02/I04/I06/I09–I18/I73/I74; FLOW I20–I25; SPRINT I36–I47/I71–I72; TASK I26–I35; QUALITY I06/I48–I60; TRACEABILITY I61–I67. I03/I05 continuam disponíveis no catálogo público para seleção futura, sem widget padrão. I19 e I68 não são widgets implementáveis; `FUNNEL` não é candidato para I68.
+
+P8.4 conserva I46 (`REDUNDANT`) e I47 (`CONTEXT_ONLY`) visíveis: os papéis no Health somente
+definem participação no score. A compatibilidade agregada de filtros é publicada pelo catálogo
+de views e inclui a janela temporal de Project Health. O detalhe por indicador continua sendo a
+autoridade para informar o recorte efetivamente aplicado. I17 mantém idade em dias por item;
+seu resumo numérico conta PRs elegíveis, sem herdar a unidade da idade.
 
 O filtro temporal RF56 usa o trio completo de datas civis e fuso IANA da D14. Sem trio, indicadores EVENT retornam `PERIOD_REQUIRED` no agregado; `CURRENT_STATE` não recebe período fictício. A resposta publica por indicador `filterCompatibility` (`SUPPORTED`, `NOT_APPLICABLE`, `UNSAFE`) e `appliedFilters`, além dos estados/fonte/relógio originais. `sprintId` é executável somente nas fichas de Sprint que já o suportam; I47 permanece no histórico do projeto. `responsibleUserId` é aceito e validado no contexto do projeto, mas não aplicado onde o service atual não oferece recorte seguro. Em particular, o suporte semântico candidato das fichas I02/I03/I05 e I03/I20–I22 para responsável/Sprint ainda não é filtro executável no Dashboard P7; aparece como `UNSAFE` até existir contrato de fonte que preserve atribuição histórica. A ausência de aplicação é avisada, sem modificar a fórmula. O catálogo público lista apenas filtros executáveis hoje e preserva a compatibilidade/limitação por ficha.
 

@@ -40,10 +40,16 @@ export function presentationSections(view, sections) {
       ['taskEffort', ['I31', 'I32', 'I33']],
       ['taskAttention', ['I28', 'I34', 'I35']]
     ];
-    return groups.map(([id, ids]) => ({
-      id,
-      indicators: source.indicators.filter((indicator) => ids.includes(indicator.metricId))
-    }));
+    const groupedIds = groups.flatMap(([, ids]) => ids);
+    const remaining = source.indicators.filter((item) => !groupedIds.includes(item.metricId));
+    return [
+      ...groups.map(([id, ids]) => ({
+        id,
+        indicators: source.indicators.filter((item) => ids.includes(item.metricId))
+      })),
+      ...(remaining.length ? [{ ...source, indicators: remaining }] : []),
+      ...sections.filter((section) => section !== source)
+    ];
   }
   if (view === 'SPRINT')
     return sections.flatMap((section) => {
@@ -57,8 +63,8 @@ export function presentationSections(view, sections) {
         },
         {
           id: 'sprintEffort',
-          indicators: section.indicators.filter((indicator) =>
-            ['I41', 'I42', 'I43', 'I44'].includes(indicator.metricId)
+          indicators: section.indicators.filter(
+            (indicator) => !['I36', 'I37', 'I38', 'I39', 'I40'].includes(indicator.metricId)
           )
         }
       ];
@@ -80,6 +86,7 @@ export const METRIC_TITLES = {
   I63: 'Requisitos com casos de teste',
   I64: 'Requisitos com defeitos ativos',
   I65: 'Requisitos concluídos',
+  I66: 'Cobertura de implementação',
   I67: 'Progresso médio dos requisitos'
 };
 
@@ -94,6 +101,9 @@ export const FIELD_LABELS = {
   A_FAZER: 'A fazer',
   EM_ANDAMENTO: 'Em andamento',
   CONCLUIDO: 'Concluído',
+  CONCLUIDA: 'Concluída',
+  PLANEJADA: 'Planejada',
+  CANCELADA: 'Cancelada',
   ABERTO: 'Aberto',
   EM_CORRECAO: 'Em correção',
   AGUARDANDO_RETESTE: 'Aguardando reteste',
@@ -156,7 +166,12 @@ export function distributionRows(indicator) {
 
 export function indicatorVisualType(indicator) {
   if (indicator.kind === 'SERIES') return 'time-series';
-  if (indicator.kind === 'LIST') return 'ranked-list';
+  if (indicator.kind === 'LIST')
+    return indicator.items?.length ||
+      indicator.distribution ||
+      (indicator.value != null && typeof indicator.value === 'object')
+      ? 'ranked-list'
+      : 'kpi-compact';
   if (indicator.distribution || (indicator.value && typeof indicator.value === 'object'))
     return 'distribution';
   if (indicator.unit === 'PERCENT') return 'kpi-progress';
@@ -164,10 +179,10 @@ export function indicatorVisualType(indicator) {
 }
 
 const CALCULATION_COPY = {
-  I02: 'Conta os commits distintos confirmados na branch principal no período e os agrupa por identidade GitHub.',
+  I02: 'Conta os commits distintos confirmados na branch main no período e os agrupa por identidade GitHub.',
   I03: 'Conta as Tasks cuja conclusão ainda era válida no fim do período e as agrupa pelo responsável registrado.',
   I04: 'Divide as PRs fechadas no período que depois reabriram pelo total de PRs fechadas nesse grupo.',
-  I05: 'Apresenta separadamente Tasks concluídas e commits na branch principal por responsável; as unidades não são somadas.',
+  I05: 'Apresenta separadamente Tasks concluídas e commits na branch main por responsável; as unidades não são somadas.',
   I06: 'Apresenta separadamente a taxa de retrabalho e a proporção de PRs mescladas entre as PRs fechadas no período.',
   I09: 'Conta uma vez cada commit observado no projeto durante o período.',
   I10: 'Conta as Pull Requests abertas no último estado sincronizado do GitHub.',
@@ -398,9 +413,9 @@ export const LIMITATION_LABELS = {
   GITHUB_SNAPSHOT_NOT_AVAILABLE: 'Ainda não há dados sincronizados do GitHub.',
   GITHUB_SYNC_FAILED: 'A última sincronização com GitHub falhou.',
   GITHUB_SYNC_STALE: 'Os dados GitHub podem estar desatualizados.',
-  MAIN_BRANCH_NOT_OBSERVED: 'A branch principal ainda não foi observada.',
-  MAIN_HEAD_NOT_RECONCILED: 'O estado atual da branch principal não foi reconciliado.',
-  MAIN_MEMBERSHIP_NOT_CONFIRMED: 'Não foi possível confirmar a presença na branch principal.',
+  MAIN_BRANCH_NOT_OBSERVED: 'A branch main ainda não foi observada.',
+  MAIN_HEAD_NOT_RECONCILED: 'O estado atual da branch main não foi reconciliado.',
+  MAIN_MEMBERSHIP_NOT_CONFIRMED: 'Não foi possível confirmar a presença na branch main.',
   COMMIT_AUTHOR_NOT_ASSOCIATED: 'O autor de alguns commits não está associado a um membro.',
   ISSUE_LIFECYCLE_NOT_COLLECTED: 'O histórico de ciclo de vida das Issues não foi coletado.',
   PR_LIFECYCLE_PERIOD_NOT_COVERED: 'O período não está coberto pelo histórico de Pull Requests.',
@@ -443,7 +458,7 @@ export function formatMetricValue(value, unit) {
   if (typeof value !== 'number' || !Number.isFinite(value)) return '—';
   if (unit === 'PERCENT') return `${formatNumber(value)}%`;
   if (unit === 'HOURS') return `${formatNumber(value)} h`;
-  if (unit === 'DAYS') return `${formatNumber(value)} dias`;
+  if (unit === 'DAYS') return `${formatNumber(value)} ${value === 1 ? 'dia' : 'dias'}`;
   return formatNumber(value);
 }
 

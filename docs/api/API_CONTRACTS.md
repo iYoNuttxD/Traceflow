@@ -1510,10 +1510,12 @@ Cada indicador preserva `metricId`, `definitionVersion`, `state`, `asOf`, fórmu
 Acrescenta `filterCompatibility:{period,sprint,responsible}` com `SUPPORTED`, `NOT_APPLICABLE`
 ou `UNSAFE`, e `appliedFilters` booleano para os três filtros. `requestedFilters` nunca implica
 aplicação universal. Filtro `UNSAFE` não altera o cálculo e acrescenta limitação explícita; quando
-nenhum indicador da view usa um filtro solicitado, há warning da view.
+nenhum indicador da view usa um filtro solicitado, há warning da view. Desde P8.4, a janela de
+Project Health também conta como aplicação do período na GENERAL; os widgets atuais continuam
+com `appliedFilters.period:false` e sua explicação individual.
 
-As seções são definidas no catálogo de views: GENERAL tem sete indicadores (I01, I23, I28,
-I61, I66, I53, I45); GITHUB agrega I02, I04, I06, I09–I18 e I73–I74; FLOW I20–I25;
+As seções são definidas no catálogo de views: GENERAL tem oito indicadores desde P8.4 (I01, I23,
+I28, I61, I66, I53, I45, I46; P7 tinha sete); GITHUB agrega I02, I04, I06, I09–I18 e I73–I74; FLOW I20–I25;
 SPRINT I36–I47/I71–I72; TASK I26–I35; QUALITY separa I06 e I48–I60 entre PRs,
 testes, Defects e concentração; TRACEABILITY I61–I67. I19 e I68 não entram nas views.
 I03/I05 permanecem no catálogo público para uma seleção futura, sem widget padrão. Não há
@@ -1544,6 +1546,17 @@ de cada `metricId` implementado: categoria, título, descrição, unidade, tempo
 filtros executáveis, compatibilidade, candidatos visuais, RF, versão de definição, fonte
 conceitual e views padrão. Não expõe SQL, tokens, identidades GitHub ou I68. Ambos os endpoints
 exigem sessão e membership ativa VIEWER+; sem sessão → 401, projeto alheio/excluído → 404.
+
+Desde P8.4, o catálogo acrescenta `views:[{view,periodIncludesProjectHealth,filterCompatibility}]`.
+Cada compatibilidade de visão usa os mesmos valores `SUPPORTED`, `UNSAFE`, `NOT_APPLICABLE`:
+há suporte se algum widget aplica o filtro, ou se o período define a janela de Health na GENERAL.
+Caso contrário, a presença de um indicador inseguro resulta em `UNSAFE`; os demais casos são
+`NOT_APPLICABLE`. Essa capacidade controla o formulário, sem substituir a aplicação individual.
+Sprint está habilitada em GENERAL/SPRINT; responsável continua sem recorte executável nas visões
+padrão. Seleções históricas na URL permanecem visíveis com explicação e podem ser limpas.
+O acréscimo é compatível com `dashboardContractVersion:1`; fórmulas e Health Model v1 não mudam.
+Em I17, `value` é a contagem de PRs abertas elegíveis; `items[].age` é a idade em dias.
+O presenter deve distinguir essas unidades no resumo e na lista.
 
 ## S2 P8.3 — Indicator Health e Project Health Model v1
 

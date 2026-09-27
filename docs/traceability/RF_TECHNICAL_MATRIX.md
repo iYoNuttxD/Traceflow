@@ -103,3 +103,14 @@ precedência e efeito de correções/retestes no histórico do Requirement.
 Esses incrementos são parciais quanto aos RFs completos: cards, summary visual,
 filtros, histórico visual e grafo ampliado não foram implementados. RF49 e APIs
 legadas preservados. [Contrato e limites](../data/REQUIREMENT_TRACEABILITY_HISTORY.md).
+
+
+**P8.4 / RF55–RF56 — validação integral local:** sete visões reconciliadas contra os 74 IDs;
+GENERAL passa a incluir I46 junto de I45, por exigência desta etapa. Período da Geral também
+controla a janela de Project Health; o catálogo publica compatibilidade por visão sem alterar
+`appliedFilters` individuais. Sprint/Responsável sem fonte segura são explicados; I03/I05 continuam
+fora das views padrão. Snapshot, ajuda, eixos, layout e unidade do resumo I17 foram corrigidos.
+API/sessão/banco de teste e capturas reais Light/Dark foram homologados; regressão frontend/backend
+e gates locais passaram. [Relatório P8.4](../deliveries/S2_P8_4_FULL_DASHBOARD_VALIDATION_REGRESSION_RECOVERY_REPORT.md)
+registra limites de Chromium/zoom de renderer, WCAG, CI remoto e sync GitHub externa. A rodada
+não conclui automaticamente S2-04/S2-05 nem altera RF54 ou Health Model v1.

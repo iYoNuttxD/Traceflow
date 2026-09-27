@@ -659,8 +659,9 @@ expansível com fórmula, fonte, filtros aplicados e limitações. `AVAILABLE`, 
 permanece ausente; a série não desenha zero para lacuna.
 
 Os gráficos SVG de Sprint/Fluxo usam cores dos tokens existentes, legenda textual, leitura de ponto
-por teclado e tabela de dados expansível. Ajuda e dados tabulares usam `details` nativo e alvo de
-toque de 44px. Os estilos permanecem no boundary `.dashboard-panel`/`.indicator-card`/
+por teclado e tabela de dados expansível. Dados tabulares usam `details` nativo; desde P8.4, a
+ajuda usa `DashboardHelp` em portal, dialog não modal nomeado, com Escape e retorno de foco.
+Os acionadores têm alvo de toque de 44px. Os estilos permanecem no boundary `.dashboard-panel`/`.indicator-card`/
 `.dashboard-chart`; não alteram controles de outras features. A inspeção renderizada P8 em fixture
 local está registrada no [log visual](validation/VISUAL_VALIDATION_LOG.md); ela não substitui a
 revisão com API e sessão reais.
@@ -678,6 +679,11 @@ mostram quantidade e recorte aplicado ao fechar. A seleção serializada continu
 é enviado com período, sem ocupar a interface principal. Quando a visão não contém recorte temporal
 seguro, os campos de data não aparecem e o painel explica a limitação. Refresh relê o agregado;
 Sincronizar no header continua sendo a operação GitHub.
+
+P8.4 publica a compatibilidade da visão no catálogo e oferece datas também quando definem a
+janela de Project Health na Geral. Sprint/Responsável sem suporte ficam desabilitados com
+explicação associada; filtros preservados na URL indicam quando não têm efeito. A ausência de
+um widget temporal não autoriza ocultar um filtro usado pelo Health.
 
 Um indicador `AVAILABLE` não recebe badge. `PARTIAL`, `STALE`, `NO_DATA` e `UNAVAILABLE` preservam
 nome textual e valor conhecido, quando houver. Limitações comuns aparecem na seção ou na visão;
@@ -707,6 +713,23 @@ não criam badge no card; a ajuda explica a participação e mantém o estado de
 Help do bloco descreve escopo, peso/cobertura, limite da nota e versão. Help do indicador traduz
 `reasonCode`/`basis` recebidos da API; não contém cálculo de score. O modelo canônico está em
 [Project Health Model v1](../indicators/PROJECT_HEALTH_MODEL_V1.md).
+
+### Recuperação e validação integral — P8.4
+
+Geral exibe I45 e I46 lado a lado quando há largura; Sprint conserva I45/I46/I47 independentemente
+do papel no Health. Linhas de KPIs e detalhes distribuem toda a largura disponível, inclusive a
+última linha e snapshots únicos. O badge de saúde fica abaixo do título, separado do acionador de
+ajuda. O presenter preserva indicadores adicionais recebidos ao reagrupar seções.
+
+Escala e datas dos gráficos usam texto HTML que pode quebrar linha; o SVG dimensiona somente o
+desenho. Séries vazias explicam a ausência de pontos; `null` conserva lacunas. Ajuda fica limitada
+ao viewport, acompanha scroll/resize e usa a camada overlay acima do header móvel, abaixo de
+modais. O dialog fecha por Escape, botão, clique externo ou saída de foco.
+
+Evidências de sete visões, sessão/API/banco de teste reais, Light/Dark, 360–1440 px e teclado estão
+no [relatório P8.4](../deliveries/S2_P8_4_FULL_DASHBOARD_VALIDATION_REGRESSION_RECOVERY_REPORT.md).
+Zoom de renderer e reflow equivalente foram verificados; não constituem teste do menu de zoom
+nativo, certificação WCAG ou homologação de outros motores de navegador.
 
 
 ## Padronização transversal de controles e Details — S1-08 FIX 02

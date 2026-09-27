@@ -12,6 +12,7 @@ import {
   formatDate,
   formatDateTime,
   indicatorVisualType,
+  labelForField,
   presentationSections,
   SECTION_LABELS,
   VIEW_LABELS
@@ -94,6 +95,7 @@ export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) 
   const [manualRefresh, setManualRefresh] = useState(0);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [catalogRefresh, setCatalogRefresh] = useState(0);
+  const [sprintRefresh, setSprintRefresh] = useState(0);
   const dashboardGeneration = useRef(0);
   const catalogGeneration = useRef(0);
   const sprintGeneration = useRef(0);
@@ -113,7 +115,7 @@ export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) 
   useEffect(() => {
     setDraft({ view, startDate, endDate, timeZone, sprintId, responsibleUserId });
     setFilterError('');
-  }, [view, startDate, endDate, timeZone, sprintId, responsibleUserId]);
+  }, [projectId, view, startDate, endDate, timeZone, sprintId, responsibleUserId]);
 
   useEffect(() => {
     const generation = ++catalogGeneration.current;
@@ -122,7 +124,12 @@ export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) 
     void indicatorsApi.catalog(projectId, { signal: controller.signal }).then(
       (response) => {
         if (catalogGeneration.current === generation && !controller.signal.aborted)
-          setCatalogState({ projectId, data: response.data.indicators, error: null });
+          setCatalogState({
+            projectId,
+            data: response.data.indicators,
+            views: response.data.views,
+            error: null
+          });
       },
       (error) => {
         if (catalogGeneration.current === generation && !controller.signal.aborted)
@@ -155,7 +162,7 @@ export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) 
       }
     );
     return () => controller.abort();
-  }, [projectId]);
+  }, [projectId, sprintRefresh]);
 
   useEffect(() => {
     const generation = ++dashboardGeneration.current;
@@ -282,15 +289,30 @@ export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) 
   const selectedSprint = sprints.find((sprint) => String(sprint.id) === sprintId);
   const selectedMember = members.find((member) => String(member.userId) === responsibleUserId);
   const viewCatalog = (catalog ?? []).filter((item) => item.views?.includes(view));
-  const periodSupported =
-    viewCatalog.length === 0 ||
-    viewCatalog.some((item) => item.filterCompatibility?.period === 'SUPPORTED');
+  const viewMetadata =
+    catalogState.projectId === projectId
+      ? catalogState.views?.find((item) => item.view === view)
+      : null;
+  function filterSupported(filter) {
+    if (viewMetadata) return viewMetadata.filterCompatibility[filter] === 'SUPPORTED';
+    return (
+      viewCatalog.length === 0 ||
+      viewCatalog.some((item) => item.filterCompatibility?.[filter] === 'SUPPORTED')
+    );
+  }
+  const periodSupported = filterSupported('period');
+  const sprintSupported = filterSupported('sprint');
+  const responsibleSupported = filterSupported('responsible');
   const filterSummary = [
     startDate && endDate
       ? `${formatDate(startDate)}–${formatDate(endDate)}${periodSupported ? '' : ' (sem efeito nesta visão)'}`
       : null,
-    sprintId ? (selectedSprint?.name ?? `Sprint ${sprintId}`) : null,
-    responsibleUserId ? (selectedMember?.user?.name ?? 'Responsável selecionado') : null
+    sprintId
+      ? `${selectedSprint?.name ?? `Sprint ${sprintId}`}${sprintSupported ? '' : ' (sem efeito nesta visão)'}`
+      : null,
+    responsibleUserId
+      ? `${selectedMember?.user?.name ?? 'Responsável selecionado'}${responsibleSupported ? '' : ' (sem efeito nesta visão)'}`
+      : null
   ]
     .filter(Boolean)
     .join(' · ');
@@ -383,6 +405,12 @@ export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) 
             identificados nos detalhes de cada indicador.
           </p>
         )}
+        {viewMetadata?.periodIncludesProjectHealth && (
+          <p className="dashboard-panel__filter-hint">
+            O período também define a janela da saúde do projeto. Indicadores de estado atual e
+            históricos de Sprint preservam seu próprio recorte.
+          </p>
+        )}
         {periodSupported && (
           <>
             <label>
@@ -412,6 +440,8 @@ export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) 
           Sprint
           <select
             value={draft.sprintId}
+            disabled={!sprintSupported}
+            aria-describedby={!sprintSupported ? 'dashboard-sprint-filter-hint' : undefined}
             onChange={(event) =>
               setDraft((current) => ({ ...current, sprintId: event.target.value }))
             }
@@ -419,7 +449,7 @@ export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) 
             <option value="">Seleção automática</option>
             {sprints.map((sprint) => (
               <option key={sprint.id} value={sprint.id}>
-                {sprint.name} · {sprint.status}
+                {sprint.name} · {labelForField(sprint.status)}
               </option>
             ))}
           </select>
@@ -428,6 +458,10 @@ export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) 
           Responsável
           <select
             value={draft.responsibleUserId}
+            disabled={!responsibleSupported}
+            aria-describedby={
+              !responsibleSupported ? 'dashboard-responsible-filter-hint' : undefined
+            }
             onChange={(event) =>
               setDraft((current) => ({ ...current, responsibleUserId: event.target.value }))
             }
@@ -443,6 +477,17 @@ export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) 
               ))}
           </select>
         </label>
+        {!sprintSupported && (
+          <p id="dashboard-sprint-filter-hint" className="dashboard-panel__filter-hint">
+            Sprint não se aplica a esta visão. O recorte permanece salvo para as visões compatíveis.
+          </p>
+        )}
+        {!responsibleSupported && (
+          <p id="dashboard-responsible-filter-hint" className="dashboard-panel__filter-hint">
+            Esta visão ainda não oferece recorte seguro por responsável. Nenhuma pessoa é usada para
+            filtrar os resultados.
+          </p>
+        )}
         <div className="dashboard-panel__filter-actions">
           <button type="submit">Aplicar filtros</button>
           <button type="button" onClick={clearFilters}>
@@ -454,7 +499,14 @@ export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) 
             {filterError}
           </p>
         )}
-        {sprintState.error && <p className="dashboard-panel__filter-error">{sprintState.error}</p>}
+        {sprintState.projectId === projectId && sprintState.error && (
+          <div className="dashboard-panel__filter-error" role="alert">
+            <p>{sprintState.error}</p>
+            <button type="button" onClick={() => setSprintRefresh((value) => value + 1)}>
+              Recarregar Sprints
+            </button>
+          </div>
+        )}
       </form>
 
       <div
@@ -612,7 +664,15 @@ export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) 
                       </div>
                     )}
                     {compact.length > 0 && (
-                      <div className="dashboard-panel__metric-grid">
+                      <div
+                        className="dashboard-panel__metric-grid"
+                        style={{
+                          '--metric-columns-wide':
+                            compact.length <= 4 ? compact.length : compact.length <= 6 ? 3 : 4,
+                          '--metric-columns-medium': Math.min(compact.length, 3),
+                          '--metric-columns-small': Math.min(compact.length, 2)
+                        }}
+                      >
                         {compact.map(renderIndicator)}
                       </div>
                     )}

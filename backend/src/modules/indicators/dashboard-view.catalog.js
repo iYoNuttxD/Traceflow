@@ -10,7 +10,7 @@ const range = (start, end) =>
 export const DASHBOARD_VIEWS = Object.freeze({
   GENERAL: [
     { id: 'summary', metricIds: ['I01', 'I23', 'I28', 'I61', 'I66', 'I53'] },
-    { id: 'sprint', metricIds: ['I45'] }
+    { id: 'sprint', metricIds: ['I45', 'I46'] }
   ],
   GITHUB: [
     { id: 'activity', metricIds: ['I02', 'I09'] },
@@ -73,6 +73,32 @@ export function dashboardFilterPolicy(metricId, filter) {
   if (filter === 'sprint' && UNSAFE_SPRINT.has(metricId)) return 'UNSAFE';
   if (filter === 'responsible' && UNSAFE_RESPONSIBLE.has(metricId)) return 'UNSAFE';
   return 'NOT_APPLICABLE';
+}
+
+// View controls include the Health window, whose event signals are not all widgets.
+// This metadata never changes the per-indicator application of a filter.
+export function publicDashboardViews() {
+  return Object.entries(DASHBOARD_VIEWS).map(([view, sections]) => {
+    const metricIds = sections.flatMap((section) => section.metricIds);
+    const periodIncludesProjectHealth = view === 'GENERAL';
+    return {
+      view,
+      periodIncludesProjectHealth,
+      filterCompatibility: Object.fromEntries(
+        ['period', 'sprint', 'responsible'].map((filter) => {
+          const policies = metricIds.map((id) => dashboardFilterPolicy(id, filter));
+          return [
+            filter,
+            (filter === 'period' && periodIncludesProjectHealth) || policies.includes('SUPPORTED')
+              ? 'SUPPORTED'
+              : policies.includes('UNSAFE')
+                ? 'UNSAFE'
+                : 'NOT_APPLICABLE'
+          ];
+        })
+      )
+    };
+  });
 }
 
 const SERIES_IDS = new Set(['I22', 'I25', 'I45', 'I46', 'I47']);

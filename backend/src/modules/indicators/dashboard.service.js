@@ -265,7 +265,11 @@ export const dashboardService = {
       indicators.some((indicator) => indicator.limitations.includes('PERIOD_REQUIRED'))
     )
       warnings.push({ code: 'PERIOD_REQUIRED_FOR_EVENT_INDICATORS' });
-    if (period && !indicators.some((indicator) => indicator.appliedFilters.period))
+    if (
+      period &&
+      !health.projectHealth &&
+      !indicators.some((indicator) => indicator.appliedFilters.period)
+    )
       warnings.push({ code: 'PERIOD_FILTER_NOT_APPLIED_TO_VIEW' });
     if (query.sprintId != null && !indicators.some((indicator) => indicator.appliedFilters.sprint))
       warnings.push({ code: 'SPRINT_FILTER_NOT_APPLIED_TO_VIEW' });
