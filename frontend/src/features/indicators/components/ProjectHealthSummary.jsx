@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { TraceFlowIcon } from '../../../shared/index.js';
 import { Link } from 'react-router';
 import { indicatorsApi } from '../api/indicators.api.js';
 import { HEALTH_DIMENSION_LABELS, HEALTH_STATUS_LABELS } from '../health-display.js';
@@ -28,7 +29,7 @@ export function ProjectHealthSummary({ projectId, refreshVersion = 0 }) {
         .map((d) => HEALTH_DIMENSION_LABELS[d.dimension])
         .filter(Boolean)
     )
-  ].slice(0, 3);
+  ].slice(0, 1);
   return (
     <section
       className="project-health-summary"
@@ -36,7 +37,10 @@ export function ProjectHealthSummary({ projectId, refreshVersion = 0 }) {
       aria-busy={!current}
     >
       <header>
-        <h2 id="overview-health-title">Saúde do projeto</h2>
+        <h2 id="overview-health-title">
+          <TraceFlowIcon name="heart" />
+          Saúde do projeto
+        </h2>
         {health && (
           <span
             className={`project-health-summary__status project-health-summary__status--${health.status.toLowerCase()}`}
@@ -74,7 +78,7 @@ export function ProjectHealthSummary({ projectId, refreshVersion = 0 }) {
             />
           )}
           {health.score == null && <p>Dados insuficientes para uma avaliação geral confiável.</p>}
-          {areas.length > 0 && <p>Principais áreas de atenção: {areas.join(' · ')}</p>}
+          {areas.length > 0 && <p>Principal área de atenção: {areas.join(' · ')}</p>}
           <p className="project-health-summary__coverage">
             Cobertura da avaliação: {Math.round(health.coverage)}%
           </p>

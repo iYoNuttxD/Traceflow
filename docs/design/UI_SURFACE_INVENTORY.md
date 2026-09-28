@@ -734,3 +734,20 @@ rodada não alterou dados. Limites e gates no
 
 A validação visual P8.5 tem situação própria no relatório de entrega; resultados
 visuais anteriores não homologam automaticamente a nova composição.
+
+
+## P8.6A — Consistência comercial (2026-09-28)
+
+Esta entrada substitui a composição de filtros e Health descrita na P8.5.
+
+| Superfície | Owner / apresentação vigente | Verificação |
+|---|---|---|
+| PROJECT-OVERVIEW-HEALTH | `ProjectHealthSummary` dentro de `project-overview-surface`, divisor comum, coração neutro, principal atenção e CTA | Contenção/CTA por teste e render real |
+| SUMMARY-PANEL | `SummaryPanel`, tipografia canônica e slot `footer` de metadados | Casos de teste e Indicadores compartilham a primitive |
+| INDICATORS-FILTERS | `CollapsibleFilterPanel`, datas e `SelectControl`; aplicação automática, sem Responsável | Contexto global na URL, clear, categorias, teclado |
+| INDICATORS-LIMITATIONS | Hierarquia view/seção/indicador, deduplicação de códigos, informação secundária | GitHub e filtros sem avisos repetidos |
+| INDICATORS-HELP | `DashboardHelp`, desenho 18px/target 44px, quatro perguntas comerciais | Escape/foco, limites do viewport e conteúdo |
+| INDICATORS-REFERENCE | `IndicatorProgress`, marker semântico e comparação textual | Referência do payload; sem meta fabricada |
+| INDICATORS-CHARTS | `IndicatorChart`; CFD 352px, snapshot compacto, lista orientada pelo conteúdo | Séries reais e regressão de um ponto/sem dados |
+
+Matriz e limites: [relatório P8.6A](../deliveries/S2_P8_6A_UI_CONSISTENCY_COMMERCIAL_UX_REPORT.md).

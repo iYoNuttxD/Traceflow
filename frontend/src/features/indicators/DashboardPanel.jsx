@@ -42,18 +42,6 @@ const VIEW_STATES = {
   UNKNOWN: 'Estado da visão desconhecido'
 };
 
-const FILTER_LIMITATION_CODES = {
-  period: ['PERIOD_FILTER_UNSAFE_NOT_APPLIED', 'PERIOD_FILTER_NOT_APPLIED_TO_VIEW'],
-  sprint: ['SPRINT_FILTER_UNSAFE_NOT_APPLIED', 'SPRINT_FILTER_NOT_APPLIED_TO_VIEW'],
-  responsible: ['RESPONSIBLE_FILTER_UNSAFE_NOT_APPLIED', 'RESPONSIBLE_FILTER_NOT_APPLIED_TO_VIEW']
-};
-
-const SHARED_FILTER_NOTICES = {
-  period: 'O filtro de período não foi aplicado aos indicadores desta seção.',
-  sprint: 'O filtro de Sprint não foi aplicado aos indicadores desta seção.',
-  responsible: 'O filtro por responsável não foi aplicado aos indicadores desta seção.'
-};
-
 function querySelection(params) {
   const rawView = (params.get('view') ?? 'GENERAL').toUpperCase();
   return {
@@ -61,8 +49,7 @@ function querySelection(params) {
     startDate: params.get('startDate') ?? '',
     endDate: params.get('endDate') ?? '',
     timeZone: params.get('timeZone') ?? '',
-    sprintId: params.get('sprintId') ?? '',
-    responsibleUserId: params.get('responsibleUserId') ?? ''
+    sprintId: params.get('sprintId') ?? ''
   };
 }
 
@@ -73,8 +60,7 @@ function filtersForRequest(selection) {
     ...(selection.startDate ? { startDate: selection.startDate } : {}),
     ...(selection.endDate ? { endDate: selection.endDate } : {}),
     ...(selection.timeZone ? { timeZone: selection.timeZone } : {}),
-    ...(selection.sprintId ? { sprintId: selection.sprintId } : {}),
-    ...(selection.responsibleUserId ? { responsibleUserId: selection.responsibleUserId } : {})
+    ...(selection.sprintId ? { sprintId: selection.sprintId } : {})
   };
 }
 
@@ -88,10 +74,10 @@ function LoadingDashboard() {
   );
 }
 
-export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) {
+export function DashboardPanel({ projectId, refreshVersion = 0 }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const selection = querySelection(searchParams);
-  const { view, startDate, endDate, timeZone, sprintId, responsibleUserId } = selection;
+  const { view, startDate, endDate, timeZone, sprintId } = selection;
   const [draft, setDraft] = useState(selection);
   const [filterError, setFilterError] = useState('');
   const [catalogState, setCatalogState] = useState({ projectId: null, data: null, error: null });
@@ -111,15 +97,14 @@ export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) 
     endDate,
     timeZone,
     sprintId,
-    responsibleUserId,
     refreshVersion,
     manualRefresh
   ].join('|');
 
   useEffect(() => {
-    setDraft({ startDate, endDate, timeZone, sprintId, responsibleUserId });
+    setDraft({ startDate, endDate, timeZone, sprintId });
     setFilterError('');
-  }, [projectId, startDate, endDate, timeZone, sprintId, responsibleUserId]);
+  }, [projectId, startDate, endDate, timeZone, sprintId]);
 
   useEffect(() => {
     const generation = ++catalogGeneration.current;
@@ -173,11 +158,9 @@ export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) 
     const controller = new AbortController();
     setDashboardState({ identity, data: null, error: null });
     void indicatorsApi
-      .dashboard(
-        projectId,
-        filtersForRequest({ view, startDate, endDate, timeZone, sprintId, responsibleUserId }),
-        { signal: controller.signal }
-      )
+      .dashboard(projectId, filtersForRequest({ view, startDate, endDate, timeZone, sprintId }), {
+        signal: controller.signal
+      })
       .then(
         (response) => {
           if (dashboardGeneration.current === generation && !controller.signal.aborted)
@@ -200,7 +183,6 @@ export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) 
     endDate,
     timeZone,
     sprintId,
-    responsibleUserId,
     refreshVersion,
     manualRefresh,
     identity
@@ -231,26 +213,30 @@ export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) 
     event.currentTarget.parentElement.querySelectorAll('[role="tab"]')[nextIndex]?.focus();
   }
 
-  function applyFilters(event) {
-    event.preventDefault();
-    if (Boolean(draft.startDate) !== Boolean(draft.endDate)) {
-      setFilterError('Informe as duas datas do período ou deixe ambas vazias.');
-      return;
-    }
-    if (draft.startDate && draft.startDate > draft.endDate) {
-      setFilterError('A data inicial deve ser anterior ou igual à final.');
-      return;
-    }
+  function updateFilter(key, value) {
+    const updated = { ...draft, [key]: value };
+    setDraft(updated);
     const next = new URLSearchParams(searchParams);
-    for (const key of ['startDate', 'endDate', 'timeZone', 'sprintId', 'responsibleUserId'])
-      next.delete(key);
-    if (draft.startDate && draft.endDate) {
-      next.set('startDate', draft.startDate);
-      next.set('endDate', draft.endDate);
-      next.set('timeZone', draft.timeZone || zone);
+    next.delete('responsibleUserId');
+    if (key === 'sprintId') {
+      if (value) next.set('sprintId', value);
+      else next.delete('sprintId');
+    } else {
+      if (Boolean(updated.startDate) !== Boolean(updated.endDate)) {
+        setFilterError('Complete as duas datas para aplicar o período.');
+        return;
+      }
+      if (updated.startDate && updated.startDate > updated.endDate) {
+        setFilterError('A data inicial deve ser anterior ou igual à final.');
+        return;
+      }
+      for (const field of ['startDate', 'endDate', 'timeZone']) next.delete(field);
+      if (updated.startDate && updated.endDate) {
+        next.set('startDate', updated.startDate);
+        next.set('endDate', updated.endDate);
+        next.set('timeZone', updated.timeZone || zone);
+      }
     }
-    if (draft.sprintId) next.set('sprintId', draft.sprintId);
-    if (draft.responsibleUserId) next.set('responsibleUserId', draft.responsibleUserId);
     setFilterError('');
     setSearchParams(next);
   }
@@ -264,8 +250,7 @@ export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) 
       startDate: '',
       endDate: '',
       timeZone: '',
-      sprintId: '',
-      responsibleUserId: ''
+      sprintId: ''
     });
     setFilterError('');
     setSearchParams(next);
@@ -280,27 +265,12 @@ export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) 
   const missingMetadata = dashboard?.sections?.some((section) =>
     section.indicators.some((indicator) => !catalogById.has(indicator.metricId))
   );
-  const requestedFilters = dashboard?.requestedFilters ?? {
-    period: null,
-    sprintId: null,
-    responsibleUserId: null
-  };
   const viewState = VIEW_STATES[dashboard?.viewState] ? dashboard.viewState : 'UNKNOWN';
-  const activeFilterCount =
-    Number(Boolean(startDate && endDate)) +
-    Number(Boolean(sprintId)) +
-    Number(Boolean(responsibleUserId));
+  const activeFilterCount = Number(Boolean(startDate && endDate)) + Number(Boolean(sprintId));
   const selectedSprint = sprints.find((sprint) => String(sprint.id) === sprintId);
-  const selectedMember = members.find((member) => String(member.userId) === responsibleUserId);
-  const responsibleSupported = catalogState.views
-    ? catalogState.views.some((item) => item.filterCompatibility?.responsible === 'SUPPORTED')
-    : (catalog ?? []).some((item) => item.filterCompatibility?.responsible === 'SUPPORTED');
   const filterSummary = [
     startDate && endDate ? `${formatDate(startDate)}–${formatDate(endDate)}` : null,
-    sprintId ? `${selectedSprint?.name ?? `Sprint ${sprintId}`}` : null,
-    responsibleUserId
-      ? `${selectedMember?.user?.name ?? 'Responsável selecionado'}${responsibleSupported ? '' : ' (sem efeito nesta visão)'}`
-      : null
+    sprintId ? `${selectedSprint?.name ?? `Sprint ${sprintId}`}` : null
   ]
     .filter(Boolean)
     .join(' · ');
@@ -309,59 +279,77 @@ export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) 
     section.indicators.some((indicator) => indicator.limitations?.includes('PERIOD_NOT_COMPLETE'))
   );
   const visibleWarnings =
-    dashboard?.warnings?.filter(
-      (warning) => warning.code !== 'PERIOD_FILTER_NOT_APPLIED_TO_VIEW'
-    ) ?? [];
+    dashboard?.warnings?.filter((warning) => !warning.code.includes('FILTER_')) ?? [];
 
   return (
     <section className="dashboard-panel" aria-label="Análise de indicadores">
-      <IndicatorsSummary health={dashboard?.projectHealth} loading={loading} />
+      <IndicatorsSummary
+        health={dashboard?.projectHealth}
+        loading={loading}
+        metadata={
+          dashboard && (
+            <>
+              <span>
+                {viewState !== 'AVAILABLE' ? `${VIEW_STATES[viewState]} · ` : ''}Atualizado em{' '}
+                {formatDateTime(dashboard.generatedAt)}
+              </span>
+              {dashboard.context?.sprint && <span>{dashboard.context.sprint.name}</span>}
+              {dashboard.freshness?.github?.sourceUpdatedAt && (
+                <span>
+                  GitHub atualizado em {formatDateTime(dashboard.freshness.github.sourceUpdatedAt)}
+                </span>
+              )}
+            </>
+          )
+        }
+      />
       <CollapsibleFilterPanel
-        title="Filtrar indicadores"
         activeCount={activeFilterCount}
         resultLabel={filterSummary || 'Todos os dados disponíveis'}
         className="indicator-filters"
       >
-        <form
+        {(activeFilterCount > 0 || draft.startDate || draft.endDate) && (
+          <div className="planning-filter-panel__actions">
+            <button type="button" className="sprint-filters__clear" onClick={clearFilters}>
+              Limpar filtros
+            </button>
+          </div>
+        )}
+        <div
           id="dashboard-indicator-filters"
           className="dashboard-panel__filters"
-          onSubmit={applyFilters}
+          role="group"
           aria-label="Filtros de indicadores"
         >
           <p className="dashboard-panel__filter-hint">
-            O período define a janela de análise e da saúde do projeto. Indicadores de estado atual
-            e histórico de Sprint preservam seu próprio recorte.
+            Alguns indicadores preservam seu próprio recorte. O período também define a janela da
+            saúde do projeto.
           </p>
-          <>
-            <label>
-              De
+          <fieldset className="dashboard-panel__period">
+            <legend>Período</legend>
+            <label className="sprint-filter">
+              <span>De</span>
               <input
                 type="date"
                 value={draft.startDate}
-                onChange={(event) =>
-                  setDraft((current) => ({ ...current, startDate: event.target.value }))
-                }
+                onChange={(event) => updateFilter('startDate', event.target.value)}
               />
             </label>
-            <label>
-              Até
+            <label className="sprint-filter">
+              <span>Até</span>
               <input
                 type="date"
                 value={draft.endDate}
                 min={draft.startDate || undefined}
-                onChange={(event) =>
-                  setDraft((current) => ({ ...current, endDate: event.target.value }))
-                }
+                onChange={(event) => updateFilter('endDate', event.target.value)}
               />
             </label>
-          </>
-          <label>
-            Sprint
+          </fieldset>
+          <label className="sprint-filter">
+            <span>Sprint</span>
             <SelectControl
               value={draft.sprintId}
-              onChange={(event) =>
-                setDraft((current) => ({ ...current, sprintId: event.target.value }))
-              }
+              onChange={(event) => updateFilter('sprintId', event.target.value)}
             >
               <option value="">Seleção automática</option>
               {sprints.map((sprint) => (
@@ -371,41 +359,6 @@ export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) 
               ))}
             </SelectControl>
           </label>
-          <label>
-            Responsável
-            <SelectControl
-              value={draft.responsibleUserId}
-              disabled={!responsibleSupported}
-              aria-describedby={
-                !responsibleSupported ? 'dashboard-responsible-filter-hint' : undefined
-              }
-              onChange={(event) =>
-                setDraft((current) => ({ ...current, responsibleUserId: event.target.value }))
-              }
-            >
-              <option value="">Todos</option>
-              {members
-                .filter((member) => member.userId && member.user?.name)
-                .map((member) => (
-                  <option key={member.id} value={member.userId}>
-                    {member.user.name}
-                    {member.isActive ? '' : ' · inativo'}
-                  </option>
-                ))}
-            </SelectControl>
-          </label>
-          {!responsibleSupported && (
-            <p id="dashboard-responsible-filter-hint" className="dashboard-panel__filter-hint">
-              O recorte por responsável ainda não está disponível com segurança. Nenhuma pessoa é
-              usada para filtrar os resultados.
-            </p>
-          )}
-          <div className="dashboard-panel__filter-actions">
-            <button type="submit">Aplicar filtros</button>
-            <button type="button" onClick={clearFilters}>
-              Limpar
-            </button>
-          </div>
           {filterError && (
             <p role="alert" className="dashboard-panel__filter-error">
               {filterError}
@@ -419,7 +372,7 @@ export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) 
               </button>
             </div>
           )}
-        </form>
+        </div>
       </CollapsibleFilterPanel>
       <div className="dashboard-panel__toolbar">
         <div
@@ -497,22 +450,6 @@ export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) 
         )}
         {dashboard && catalog && !missingMetadata && (
           <>
-            <div className="dashboard-panel__overview">
-              {viewState !== 'AVAILABLE' && (
-                <span
-                  className={`dashboard-panel__view-state dashboard-panel__view-state--${viewState.toLowerCase()}`}
-                >
-                  {VIEW_STATES[viewState]}
-                </span>
-              )}
-              <span>Atualizado em {formatDateTime(dashboard.generatedAt)}</span>
-              {dashboard.context?.sprint && <span>Sprint: {dashboard.context.sprint.name}</span>}
-              {dashboard.freshness?.github?.sourceUpdatedAt && (
-                <span>
-                  GitHub atualizado em {formatDateTime(dashboard.freshness.github.sourceUpdatedAt)}
-                </span>
-              )}
-            </div>
             {periodInProgress && (
               <p className="dashboard-panel__period-note" role="status">
                 Período em andamento. Os indicadores consideram os dados disponíveis até o momento
@@ -536,7 +473,9 @@ export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) 
               .map((section) => {
                 const counts = new Map();
                 for (const indicator of section.indicators)
-                  for (const code of indicator.limitations ?? [])
+                  for (const code of (indicator.limitations ?? []).filter(
+                    (code) => !code.includes('FILTER_')
+                  ))
                     counts.set(code, (counts.get(code) ?? 0) + 1);
                 const sharedLimitations = [...counts]
                   .filter(([, count]) => count > 1)
@@ -546,39 +485,17 @@ export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) 
                 );
                 const suppressedLimitations = [
                   ...sharedLimitations,
+                  ...visibleWarnings.map((warning) => warning.code),
                   ...(periodPrompt ? ['PERIOD_REQUIRED'] : []),
                   ...(periodInProgress ? ['PERIOD_NOT_COMPLETE'] : [])
                 ];
                 const sectionLimitations = sharedLimitations.filter(
-                  (code) => code !== 'PERIOD_REQUIRED' && code !== 'PERIOD_NOT_COMPLETE'
+                  (code) =>
+                    code !== 'PERIOD_REQUIRED' &&
+                    code !== 'PERIOD_NOT_COMPLETE' &&
+                    !visibleWarnings.some((warning) => warning.code === code)
                 );
-                const sharedUnappliedFilters = Object.entries({
-                  period: Boolean(requestedFilters.period),
-                  sprint: requestedFilters.sprintId != null,
-                  responsible: requestedFilters.responsibleUserId != null
-                })
-                  .filter(
-                    ([key, requested]) =>
-                      requested &&
-                      section.indicators.length > 1 &&
-                      section.indicators.every((indicator) => !indicator.appliedFilters?.[key])
-                  )
-                  .map(([key]) => key);
-                const sectionNotices = [
-                  ...sectionLimitations.map((code) =>
-                    code === 'PERIOD_FILTER_UNSAFE_NOT_APPLIED'
-                      ? SHARED_FILTER_NOTICES.period
-                      : describeLimitation(code)
-                  ),
-                  ...sharedUnappliedFilters
-                    .filter(
-                      (key) =>
-                        !sectionLimitations.some((code) =>
-                          FILTER_LIMITATION_CODES[key].includes(code)
-                        )
-                    )
-                    .map((key) => SHARED_FILTER_NOTICES[key])
-                ];
+                const sectionNotices = sectionLimitations.map(describeLimitation);
                 const compact = section.indicators.filter((indicator) =>
                   ['kpi-compact', 'kpi-progress'].includes(indicatorVisualType(indicator))
                 );
@@ -591,9 +508,7 @@ export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) 
                     key={indicator.metricId}
                     indicator={indicator}
                     metadata={catalogById.get(indicator.metricId)}
-                    requestedFilters={requestedFilters}
                     sharedLimitations={suppressedLimitations}
-                    sharedUnappliedFilters={sharedUnappliedFilters}
                   />
                 );
                 return (
@@ -606,13 +521,6 @@ export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) 
                       <h3 id={`dashboard-section-${section.id}`}>
                         {SECTION_LABELS[section.id] ?? 'Indicadores complementares'}
                       </h3>
-                      {sectionNotices.length > 0 && (
-                        <span>
-                          {sectionLimitations.length > 0
-                            ? 'Dados com limitações'
-                            : 'Recorte não aplicado'}
-                        </span>
-                      )}
                     </div>
                     {sectionNotices.length > 0 && (
                       <div className="dashboard-panel__section-notice">

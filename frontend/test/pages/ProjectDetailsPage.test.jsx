@@ -161,6 +161,12 @@ describe('ProjectDetailsPage E9', () => {
     const overviewHeading = await screen.findByRole('heading', { name: 'Visão geral' });
     const overview = overviewHeading.closest('.project-overview-surface');
     expect(overview.querySelectorAll('.project-overview-group')).toHaveLength(3);
+    const health = await within(overview).findByRole('region', { name: 'Saúde do projeto' });
+    expect(within(health).getByRole('link', { name: /Ver indicadores/ })).toHaveAttribute(
+      'href',
+      '/projects/1/indicators'
+    );
+    expect(health.querySelector('[data-icon="heart"]')).toBeInTheDocument();
     for (const heading of ['Projeto', 'GitHub', 'Equipe']) {
       expect(within(overview).getByRole('heading', { name: heading })).toBeInTheDocument();
     }
@@ -372,7 +378,7 @@ describe('ProjectDetailsPage E9', () => {
     expect(
       screen.queryByRole('tablist', { name: 'Visões de indicadores' })
     ).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Filtrar indicadores/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Buscar e filtrar/ })).not.toBeInTheDocument();
     await waitFor(() => expect(mocks.indicatorsApi.dashboard).toHaveBeenCalledOnce());
     await user.click(await screen.findByRole('button', { name: 'Sincronizar' }));
     expect(

@@ -110,36 +110,6 @@ export function IndicatorChart({ indicator, title }) {
             Ainda não há dias suficientes para formar uma tendência.
           </p>
         )}
-        <details className="dashboard-chart__data">
-          <summary>Ver dados</summary>
-          <div className="dashboard-chart__table-wrap">
-            <table>
-              <caption>{title}: dados do gráfico</caption>
-              <thead>
-                <tr>
-                  <th scope="col">{indicator.metricId === 'I47' ? 'Sprint' : 'Data'}</th>
-                  {series.map((item) => (
-                    <th scope="col" key={item.key}>
-                      {item.label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <th scope="row">{point.sprintName ?? formatDate(point.date)}</th>
-                  {series.map((item) => (
-                    <td key={item.key}>
-                      {valid(point[item.key])
-                        ? formatMetricValue(point[item.key], indicator.unit)
-                        : '—'}
-                    </td>
-                  ))}
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </details>
       </figure>
     );
   }
@@ -182,7 +152,9 @@ export function IndicatorChart({ indicator, title }) {
   }
 
   return (
-    <figure className={`dashboard-chart${!stacked && !bars ? ' dashboard-chart--line' : ''}`}>
+    <figure
+      className={`dashboard-chart${stacked ? ' dashboard-chart--cumulative' : ''}${!stacked && !bars ? ' dashboard-chart--line' : ''}`}
+    >
       <p className="dashboard-chart__hint">
         Passe o cursor, toque ou use as setas para explorar os pontos.
       </p>

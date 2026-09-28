@@ -1,7 +1,7 @@
 import { SummaryPanel } from '../../../shared/index.js';
 import { HEALTH_DIMENSION_LABELS, HEALTH_STATUS_LABELS } from '../health-display.js';
 
-export function IndicatorsSummary({ health, loading }) {
+export function IndicatorsSummary({ health, loading, metadata }) {
   const metrics = [
     {
       label: 'Saúde',
@@ -25,6 +25,7 @@ export function IndicatorsSummary({ health, loading }) {
           ? `Cobertura da avaliação: ${Math.round(health.coverage)}%`
           : 'Saúde e principais dimensões do projeto.'
       }
+      footer={metadata}
       metrics={metrics}
       busy={loading}
     />

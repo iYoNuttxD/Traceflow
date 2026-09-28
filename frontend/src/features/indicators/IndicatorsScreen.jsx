@@ -1,25 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router';
 import { ProjectSectionNav, useProjectsCatalog } from '../projects/index.js';
-import { membersApi } from '../members/index.js';
 import { getProjectGithubSyncStatus } from '../github/index.js';
 import { ContextualErrorPage, LoadingState, PAGE_ERROR_TYPES } from '../../shared/index.js';
 import { DashboardPanel } from './DashboardPanel.jsx';
 import './IndicatorsScreen.css';
 
 function ProjectIndicators({ project }) {
-  const [members, setMembers] = useState([]);
   const [refreshVersion, setRefreshVersion] = useState(0);
-  useEffect(() => {
-    const controller = new AbortController();
-    membersApi
-      .list(project.id, { signal: controller.signal })
-      .then((data) => {
-        if (!controller.signal.aborted) setMembers(data.members ?? []);
-      })
-      .catch(() => {});
-    return () => controller.abort();
-  }, [project.id]);
   useEffect(() => {
     const controller = new AbortController();
     let timer;
@@ -54,9 +42,7 @@ function ProjectIndicators({ project }) {
       window.removeEventListener('focus', onFocus);
     };
   }, [project.id]);
-  return (
-    <DashboardPanel projectId={project.id} members={members} refreshVersion={refreshVersion} />
-  );
+  return <DashboardPanel projectId={project.id} refreshVersion={refreshVersion} />;
 }
 
 export function IndicatorsScreen() {

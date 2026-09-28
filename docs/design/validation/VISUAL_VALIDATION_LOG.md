@@ -815,3 +815,17 @@ autorização solicitada conforme as instruções da ferramenta de interface.
 
 Os gates automatizados passaram, mas não substituem a inspeção visual. Detalhes:
 [relatório P8.5](../../deliveries/S2_P8_5_INDICATORS_WORKSPACE_COMMERCIAL_UX_REPORT.md).
+
+
+## 2026-09-28 — P8.6A UI Consistency & Commercial UX Recovery
+
+**PASS LOCAL.** Overview e Geral/Planejamento/GitHub/Fluxo/Sprint/Tarefas/Qualidade/Rastreabilidade renderizados com frontend e API reais, projeto artificial persistido em `traceflow_test`. Chrome via CDP autorizado explicitamente após falhas no controle nativo. Matriz de 126 capturas: Light/Dark × 1440/1280/1024/768/430/390/360 × nove superfícies, sem overflow horizontal ou alertas de erro. Inspeção visual direta das categorias em amostras distribuídas entre as larguras e temas; comparação renderizada com as seis páginas maduras.
+
+Correções após renderização: padding/ícone do Health no mesmo container, regra que sobrescrevia a fonte das abas, largura da barra versus marker e remoção de texto informativo redundante. SummaryPanel de Casos de teste e Indicadores apresentou estilos computados idênticos de fonte, tamanho, peso, letter spacing e padding. Filtro expandido mobile com alvos de 44px; somente datas/Sprint, contexto preservado entre categorias. Ajuda dentro do viewport, Escape e retorno de foco confirmados. Refresh único incluindo Health. CTA da Overview navega para Indicadores.
+
+Burndown/Burnup: cinco pontos reais na Sprint atual e snapshots de um ponto em Sprint encerrada (aproximadamente 194px, sem “Ver dados”). Velocity com duas Sprints; CFD com SVG 352px/área útil aproximada 283px. Referências percentuais com marker e texto; tabela de PR com título longo legível no mobile. Estados vazios e limitações usam apresentação compacta e hierarquia de mensagens.
+
+Matriz automática não equivale à leitura manual de cada pixel das 126 capturas. A inspeção direta é amostral e complementar aos testes; não cobre dispositivo físico, leitor de tela ou sincronização externa GitHub. Registros de origem GitHub são artificiais no banco isolado. O projeto/conta de teste foram removidos após validar o ambiente e conferir ausência de mudança em registros congelados preexistentes. Gates e evidência transitória em `/private/tmp/traceflow-p86-evidence/`, detalhados no [relatório P8.6A](../../deliveries/S2_P8_6A_UI_CONSISTENCY_COMMERCIAL_UX_REPORT.md).
+
+
+Conferência final adicional do projeto local 2, somente leitura no Chrome conectado: Health 73/100, Atenção, cobertura 69%, principal área Qualidade e barra/CTA integrados ao container de Overview. Aba auxiliar fechada; aba original de Defeitos e serviços do usuário preservados. Navegador isolado e servidores temporários encerrados.

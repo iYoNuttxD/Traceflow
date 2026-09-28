@@ -1,5 +1,5 @@
 import { DashboardHelp } from './DashboardHelp.jsx';
-import { formatDateTime, METRIC_TITLES } from '../dashboard-display.js';
+import { METRIC_TITLES } from '../dashboard-display.js';
 import {
   describeHealthReason,
   HEALTH_DIMENSION_LABELS,
@@ -39,36 +39,16 @@ export function ProjectHealth({ health, catalogById = new Map() }) {
         </div>
         <DashboardHelp title="Saúde do projeto">
           <p>
-            A Saúde do Projeto combina sinais de planejamento, fluxo, Sprint, qualidade,
-            rastreabilidade e integração técnica. É uma ferramenta de apoio à gestão e depende dos
-            dados disponíveis no TraceFlow.
+            Resume sinais de planejamento, fluxo, Sprint, qualidade, rastreabilidade e integração.
           </p>
           <p>
-            Os sinais elegíveis recebem notas de 0 a 100 conforme regras documentadas. As dimensões
-            têm pesos fixos; a cobertura informa quanto dos dados aplicáveis pôde ser avaliado. Sem
-            cobertura de 60% e quatro dimensões avaliadas, não há nota geral.
+            <strong>
+              {health.score == null ? 'Não avaliado' : `${Math.round(health.score)}/100`} — {status}
+            </strong>
           </p>
-          <p>
-            O índice descreve condições observadas do projeto. Não mede desempenho de pessoas nem
-            garante resultado futuro.
-          </p>
-          <strong>Pesos e cobertura nesta leitura</strong>
-          <ul>
-            {health.dimensions.map((dimension) => (
-              <li key={dimension.id}>
-                {HEALTH_DIMENSION_LABELS[dimension.id] ?? 'Outra dimensão'}: peso {dimension.weight}
-                %{dimension.applicable ? `, cobertura ${dimension.coverage}%` : ', não aplicável'}.
-              </li>
-            ))}
-          </ul>
-          {health.window && (
-            <p>
-              Janela atual: {formatDateTime(health.window.current.startInclusive)} até{' '}
-              {formatDateTime(health.window.current.endExclusive)}. Comparação:{' '}
-              {formatDateTime(health.window.previous.startInclusive)} até{' '}
-              {formatDateTime(health.window.previous.endExclusive)}.
-            </p>
-          )}
+          <p>A avaliação considera os dados atualmente disponíveis no TraceFlow.</p>
+          <p>Cobertura atual: {Math.round(health.coverage)}%.</p>
+          <p>O índice não mede desempenho de pessoas.</p>
         </DashboardHelp>
       </div>
       <div className="project-health__summary">

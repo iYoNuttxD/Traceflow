@@ -9,7 +9,8 @@ import {
   indicatorVisualType,
   METRIC_TITLES
 } from '../dashboard-display.js';
-import { describeHealthReason, HEALTH_STATUS_LABELS } from '../health-display.js';
+import { IndicatorProgress } from './IndicatorProgress.jsx';
+import { HEALTH_STATUS_LABELS } from '../health-display.js';
 
 const IndicatorChart = lazy(() =>
   import('./IndicatorChart.jsx').then((module) => ({ default: module.IndicatorChart }))
@@ -178,40 +179,11 @@ function IndicatorDistribution({ indicator }) {
   );
 }
 
-function FilterDetails({ indicator, requestedFilters }) {
-  const requested = {
-    period: Boolean(requestedFilters.period),
-    sprint: requestedFilters.sprintId != null,
-    responsible: requestedFilters.responsibleUserId != null
-  };
-  const labels = { period: 'Período', sprint: 'Sprint', responsible: 'Responsável' };
-  return (
-    <ul>
-      {Object.entries(requested).map(([key, active]) => (
-        <li key={key}>
-          {labels[key]}:{' '}
-          {active
-            ? indicator.appliedFilters?.[key]
-              ? 'aplicado'
-              : indicator.filterCompatibility?.[key] === 'UNSAFE'
-                ? 'não aplicado: recorte sem suporte seguro'
-                : 'não se aplica a este indicador'
-            : 'não solicitado'}
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-export function IndicatorCard({
-  indicator,
-  metadata,
-  requestedFilters,
-  sharedLimitations = [],
-  sharedUnappliedFilters = []
-}) {
+export function IndicatorCard({ indicator, metadata, sharedLimitations = [] }) {
   const title = METRIC_TITLES[indicator.metricId] ?? metadata.title;
-  const limitations = indicator.limitations ?? [];
+  const limitations = (indicator.limitations ?? []).filter(
+    (code) => !code.includes('FILTER_') && code !== 'PERIOD_NOT_COMPLETE'
+  );
   const individualLimitations = limitations.filter((code) => !sharedLimitations.includes(code));
   const state = STATE_LABELS[indicator.state] ? indicator.state : 'UNKNOWN';
   const visualType = indicatorVisualType(indicator);
@@ -219,14 +191,6 @@ export function IndicatorCard({
   const hasValue = ['AVAILABLE', 'PARTIAL', 'STALE'].includes(state);
   const scalar = hasValue && typeof indicator.value === 'number';
   const hasChart = hasValue && indicator.kind === 'SERIES' && indicator.points?.length > 0;
-  const notApplied = Object.entries({
-    period: Boolean(requestedFilters.period),
-    sprint: requestedFilters.sprintId != null,
-    responsible: requestedFilters.responsibleUserId != null
-  }).some(
-    ([key, requested]) =>
-      requested && !indicator.appliedFilters?.[key] && !sharedUnappliedFilters.includes(key)
-  );
   const status = STATE_LABELS[state] ?? 'Estado desconhecido';
   const assessment = indicator.assessment;
   const healthBadge = ['HEALTHY', 'ATTENTION', 'CRITICAL'].includes(assessment?.status);
@@ -251,8 +215,6 @@ export function IndicatorCard({
         <DashboardHelp title={title}>
           <strong>O que mostra</strong>
           <p>{help.what}</p>
-          <strong>Como é calculado</strong>
-          <p>{help.how}</p>
           <strong>Valor atual</strong>
           <p>
             {scalar
@@ -264,50 +226,17 @@ export function IndicatorCard({
           <IndicatorReference assessment={assessment} />
           <strong>Como interpretar</strong>
           <p>{help.meaning}</p>
-          {assessment && assessment.status !== 'NEUTRAL' && (
-            <>
-              <strong>Saúde atual</strong>
-              <p>
-                {healthBadge
-                  ? `${HEALTH_STATUS_LABELS[assessment.status]} · ${assessment.score}/100. `
-                  : ''}
-                {describeHealthReason(assessment, indicator.metricId)}
-              </p>
-            </>
-          )}
-          {limitations.length > 0 && (
-            <>
-              <strong>Limitações dos dados</strong>
-              <ul>
-                {limitations.map((code) => (
-                  <li key={code}>{describeLimitation(code)}</li>
-                ))}
-              </ul>
-            </>
-          )}
-          <strong>Filtros nesta leitura</strong>
-          <FilterDetails indicator={indicator} requestedFilters={requestedFilters} />
         </DashboardHelp>
       </header>
 
-      {(state !== 'AVAILABLE' || notApplied) && (
-        <div className="indicator-card__status-line">
-          {state !== 'AVAILABLE' && (
+      {['PARTIAL', 'STALE', 'UNKNOWN'].includes(state) &&
+        (state === 'STALE' || individualLimitations.length > 0 || !sharedLimitations.length) && (
+          <div className="indicator-card__status-line">
             <span className={`indicator-card__state indicator-card__state--${state.toLowerCase()}`}>
               {status}
             </span>
-          )}
-          {notApplied && (
-            <span
-              className="indicator-card__filter-mark"
-              title="Há filtro solicitado que não se aplica a este indicador"
-              aria-label="Há filtro solicitado não aplicado; consulte as informações do indicador"
-            >
-              ⓘ
-            </span>
-          )}
-        </div>
-      )}
+          </div>
+        )}
 
       {state === 'NO_DATA' && (
         <p className="indicator-card__empty">
@@ -341,10 +270,17 @@ export function IndicatorCard({
             indicator.unit === 'PERCENT' &&
             indicator.value >= 0 &&
             indicator.value <= 100 && (
-              <progress
+              <IndicatorProgress
                 value={indicator.value}
-                max="100"
-                aria-label={`${title}: ${formatMetricValue(indicator.value, 'PERCENT')}`}
+                label={title}
+                referenceValue={
+                  ['I62', 'I63', 'I65', 'I66'].includes(indicator.metricId) &&
+                  assessment?.reference?.unit === 'PERCENT'
+                    ? assessment.reference.value
+                    : undefined
+                }
+                referenceLabel={assessment?.reference?.label}
+                health={assessment?.status}
               />
             )}
           <IndicatorReference assessment={assessment} />
@@ -378,12 +314,14 @@ export function IndicatorCard({
             {individualLimitations[0] ? describeLimitation(individualLimitations[0]) : ''}
           </p>
         )}
-      {indicator.metricId === 'I59' &&
-        limitations.includes('DEFECT_MAY_APPEAR_IN_MULTIPLE_REQUIREMENTS') && (
-          <p className="indicator-card__notice">
-            {describeLimitation('DEFECT_MAY_APPEAR_IN_MULTIPLE_REQUIREMENTS')}
-          </p>
-        )}
+      {state === 'AVAILABLE' &&
+        individualLimitations
+          .filter((code) => code === 'DEFECT_MAY_APPEAR_IN_MULTIPLE_REQUIREMENTS')
+          .map((code) => (
+            <p className="indicator-card__notice" key={code}>
+              {describeLimitation(code)}
+            </p>
+          ))}
       {state === 'STALE' && indicator.sourceUpdatedAt && (
         <footer className="indicator-card__footer">
           Fonte atualizada em {formatDateTime(indicator.sourceUpdatedAt)}

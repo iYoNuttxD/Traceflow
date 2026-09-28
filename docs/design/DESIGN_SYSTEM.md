@@ -867,13 +867,12 @@ timezone UTC explícito. O preview local é gerado em diretório temporário por
 ### Workspace de Indicadores — P8.5
 
 A Visão Geral preserva contexto/ações/GitHub/equipe e apenas o resumo de saúde com cobertura,
-áreas de atenção e CTA “Ver indicadores”. Detalhamento, dimensões, drivers, filtros e gráficos
+principal área de atenção e CTA “Ver indicadores”. Detalhamento, dimensões, drivers, filtros e gráficos
 pertencem a `/projects/:projectId/indicators`, integrado à navegação do projeto.
 
 A página segue header/eyebrow/descrição, ProjectSectionNav, resumo canônico, CollapsibleFilterPanel
 único e categorias com internal-tabs. SummaryPanel generaliza o resumo de Casos de teste para
-reutilização; campos usam SelectControl. Período e Sprint pertencem ao workspace inteiro; fontes
-sem recorte por responsável continuam explicitamente limitadas. Tabelas semânticas apresentam
+reutilização; campos usam SelectControl. Período e Sprint pertencem ao workspace inteiro; o controle de responsável fica ausente enquanto não houver recorte funcional. Tabelas semânticas apresentam
 entidades; séries só usam os pontos reais do backend. Ajuda não expõe IDs de indicador, versões,
 campos internos ou RFs, mesmo em disclosure. Referência é identificada como comparação, nunca
 como meta inventada. Revalidação visual P8.5 é necessária antes de nova aprovação.
@@ -884,3 +883,16 @@ não dependem do antigo container de Overview. O resumo usa cinco tiles com queb
 por largura disponível. Listas de entidades usam tabela semântica com cabeçalhos,
 rolagem local focável e somente colunas sustentadas pelo payload (incluindo
 responsável quando fornecido). A referência é secundária ao valor atual.
+
+
+### Consistência de Indicadores — P8.6A
+
+- `ProjectHealthSummary` pertence ao container da Visão Geral, após Projeto/GitHub/Equipe e antes do rodapé de datas. Usa divisor e padding da superfície, coração `TraceFlowIcon` secundário, nota/status/barra, principal área de atenção, cobertura discreta e CTA. Dimensões e drivers ficam em Indicadores.
+- `SummaryPanel` é a primitive de Casos de teste e Indicadores. Seu slot `footer` integra atualização, disponibilidade, Sprint e sincronização sem faixa externa. Labels, valores e detalhes usam a escala canônica; detalhes são descrições semânticas do `dl`.
+- `CollapsibleFilterPanel` e `SelectControl` são os controles reais de filtro. Período e Sprint aplicam automaticamente; um período só é enviado quando completo e válido. Limpar usa a ação canônica. URL mantém o contexto entre categorias. Compatibilidade aparece uma vez no filtro expandido.
+- Limitações compartilhadas ficam no cabeçalho da seção; avisos da view suprimem repetições abaixo. Informação histórica usa texto secundário. Cor de atenção continua reservada ao assessment e a estados que a exigem.
+- Ajuda tem desenho de 18px e alvo de 44px, fechamento compacto, Escape e retorno de foco. Conteúdo: definição, valor, referência e interpretação, sem pesos ou metadados internos.
+- `IndicatorProgress` admite `value`, `referenceValue`, `health` e rótulos acessíveis. Marker tracejado apenas para referências percentuais fornecidas pelo servidor em implementação, evidência técnica, TestCase e validação. A comparação também permanece textual.
+- Grids detalhados alinham pelo início, sem esticar listas. Cumulative Flow com série usa SVG de 352px (área útil aproximada de 283px). Séries de um ponto são resumos de conteúdo, sem tabela redundante; séries vazias não reservam altura de gráfico.
+
+Evidências e limites no [relatório P8.6A](../deliveries/S2_P8_6A_UI_CONSISTENCY_COMMERCIAL_UX_REPORT.md).

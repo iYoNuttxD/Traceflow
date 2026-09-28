@@ -1,6 +1,6 @@
 import './SummaryPanel.css';
 
-export function SummaryPanel({ title, description, label, metrics, busy = false }) {
+export function SummaryPanel({ title, description, label, metrics, footer, busy = false }) {
   return (
     <section className="summary-panel" aria-label={label ?? title} aria-busy={busy}>
       <header className="summary-panel__heading">
@@ -15,10 +15,11 @@ export function SummaryPanel({ title, description, label, metrics, busy = false 
           <div className="summary-panel__metric" key={label}>
             <dt>{label}</dt>
             <dd>{value ?? '—'}</dd>
-            {detail && <small>{detail}</small>}
+            {detail && <dd className="summary-panel__detail">{detail}</dd>}
           </div>
         ))}
       </dl>
+      {footer && <footer className="summary-panel__footer">{footer}</footer>}
     </section>
   );
 }

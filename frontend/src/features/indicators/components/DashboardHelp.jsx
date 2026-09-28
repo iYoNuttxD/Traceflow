@@ -1,4 +1,5 @@
 import { useId, useLayoutEffect, useRef, useState } from 'react';
+import { TraceFlowIcon } from '../../../shared/index.js';
 import { createPortal } from 'react-dom';
 
 /** Feature-owned help: viewport anchored, outside layout/overflow containers. */
@@ -66,7 +67,7 @@ export function DashboardHelp({ title, children }) {
         aria-haspopup="dialog"
         onClick={() => setOpen((value) => !value)}
       >
-        ?
+        <span aria-hidden="true">?</span>
       </button>
       {open &&
         createPortal(
@@ -88,7 +89,7 @@ export function DashboardHelp({ title, children }) {
                   trigger.current?.focus({ preventScroll: true });
                 }}
               >
-                ×
+                <TraceFlowIcon name="close" />
               </button>
             </div>
             {children}

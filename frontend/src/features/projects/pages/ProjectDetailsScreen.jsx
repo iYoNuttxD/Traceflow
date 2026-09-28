@@ -612,6 +612,13 @@ export function ProjectDetailsScreen() {
           </section>
         </div>
 
+        <Suspense fallback={<p role="status">Carregando saúde do projeto...</p>}>
+          <ProjectHealthSummary
+            key={project.id}
+            projectId={project.id}
+            refreshVersion={dashboardRefreshVersion}
+          />
+        </Suspense>
         <footer
           className={`project-overview-surface__metadata${contextExpanded ? ' project-overview-surface__metadata--expanded' : ''}`}
         >
@@ -619,13 +626,6 @@ export function ProjectDetailsScreen() {
           <span>Atualizado em {formatDateTime(project.updatedAt)}</span>
         </footer>
       </section>
-      <Suspense fallback={<p role="status">Carregando saúde do projeto...</p>}>
-        <ProjectHealthSummary
-          key={project.id}
-          projectId={project.id}
-          refreshVersion={dashboardRefreshVersion}
-        />
-      </Suspense>
     </main>
   );
 }

@@ -174,6 +174,77 @@ describe('P8 Dashboard na Visão Geral', () => {
 
   afterEach(() => cleanup());
 
+  it('P8.6A uses the canonical summary and filter and keeps source metadata inside the summary', async () => {
+    mocks.dashboard.mockResolvedValue(
+      response('GENERAL', [{ id: 'summary', indicators: [metric('I23', 3)] }], {
+        freshness: { github: { sourceUpdatedAt: asOf } }
+      })
+    );
+    renderPanel();
+    await screen.findByRole('article', { name: 'WIP atual' });
+    const summary = screen.getByRole('region', { name: 'Visão geral dos indicadores' });
+    expect(summary).toHaveClass('summary-panel');
+    expect(within(summary).getByText(/GitHub atualizado/)).toBeInTheDocument();
+    const filter = screen.getByRole('region', { name: 'Buscar e filtrar' });
+    expect(filter).toHaveClass('planning-filter-panel');
+    fireEvent.click(within(filter).getByRole('button'));
+    expect(within(filter).getByRole('group', { name: 'Período' })).toBeVisible();
+    expect(within(filter).getByLabelText('Sprint')).toBeVisible();
+    expect(within(filter).queryByLabelText('Responsável')).not.toBeInTheDocument();
+  });
+
+  it('P8.6A exposes a backend reference marker with the same accessible percentage', async () => {
+    mocks.dashboard.mockResolvedValue(
+      response('TRACEABILITY', [
+        {
+          id: 'coverage',
+          indicators: [
+            metric('I66', 25, {
+              unit: 'PERCENT',
+              assessment: {
+                status: 'ATTENTION',
+                reference: { value: 46.67, unit: 'PERCENT', label: 'Progresso do projeto' }
+              }
+            })
+          ]
+        }
+      ])
+    );
+    renderPanel('/projects/1?view=traceability');
+    const card = await screen.findByRole('article', { name: 'Cobertura de implementação' });
+    expect(card.querySelector('.indicator-progress__reference')).toHaveStyle({ left: '46.67%' });
+    expect(within(card).getByRole('progressbar')).toHaveAccessibleName(
+      /25%.*Referência: Progresso do projeto, 46,67%/
+    );
+    expect(card).toHaveTextContent('Progresso do projeto: 46,67%');
+  });
+
+  it('P8.6A deduplicates GitHub history limitations at section level', async () => {
+    mocks.dashboard.mockResolvedValue(
+      response('GITHUB', [
+        {
+          id: 'prs',
+          indicators: [
+            metric('I16', null, {
+              state: 'UNAVAILABLE',
+              limitations: ['PR_LIFECYCLE_PERIOD_NOT_COVERED']
+            }),
+            metric('I17', null, {
+              state: 'UNAVAILABLE',
+              limitations: ['PR_LIFECYCLE_PERIOD_NOT_COVERED']
+            })
+          ]
+        }
+      ])
+    );
+    renderPanel('/projects/1?view=github');
+    await screen.findByRole('article', { name: 'Média até merge' });
+    expect(
+      screen.getAllByText('O período não está coberto pelo histórico de Pull Requests.')
+    ).toHaveLength(1);
+    expect(document.querySelectorAll('.indicator-card__notice')).toHaveLength(0);
+  });
+
   it('P8.4 preserva todos os IDs recebidos ao reagrupar Sprint e Tarefas', () => {
     for (const [view, id, start, end] of [
       ['SPRINT', 'planning', 36, 44],
@@ -286,11 +357,11 @@ describe('P8 Dashboard na Visão Geral', () => {
     });
     renderPanel();
     await screen.findByRole('article', { name: 'WIP atual' });
-    fireEvent.click(screen.getByRole('button', { name: /Filtrar indicadores/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Buscar e filtrar/ }));
     expect(screen.getByLabelText('De')).toBeVisible();
     expect(screen.getByLabelText('Até')).toBeVisible();
-    expect(screen.getByLabelText('Responsável')).toBeDisabled();
-    expect(screen.getByText(/período define a janela de análise e da saúde/i)).toBeVisible();
+    expect(screen.queryByLabelText('Responsável')).not.toBeInTheDocument();
+    expect(screen.getByText(/período também define a janela da saúde/i)).toBeVisible();
     expect(screen.getByRole('option', { name: 'Sprint 3 · Concluída' })).toBeInTheDocument();
   });
 
@@ -441,7 +512,7 @@ describe('P8 Dashboard na Visão Geral', () => {
     ).toBeNull();
   });
 
-  it('explica modelo, peso, cobertura e período na ajuda sem recalcular score no frontend', async () => {
+  it('explica saúde sem pesos ou detalhes internos na ajuda', async () => {
     mocks.catalog.mockResolvedValue({ data: { indicators: [definition('I23', 'WIP atual')] } });
     mocks.dashboard.mockResolvedValue(
       response(
@@ -498,8 +569,10 @@ describe('P8 Dashboard na Visão Geral', () => {
     await screen.findByRole('region', { name: 'Saúde do projeto' });
     await user.click(screen.getByLabelText('Informações sobre Saúde do projeto'));
     expect(screen.queryByText(/Modelo versão/)).not.toBeInTheDocument();
-    expect(screen.getByText(/Planejamento: peso 20%, cobertura 70%/)).toBeInTheDocument();
-    expect(screen.getByText(/Janela atual:/)).toBeInTheDocument();
+    expect(screen.getByRole('dialog')).toHaveTextContent('Cobertura atual: 80%');
+    expect(screen.getByRole('dialog')).not.toHaveTextContent(
+      /peso|reasonCode|healthModelVersion|Janela atual/
+    );
     const card = screen.getByRole('article', { name: 'WIP atual' });
     expect(card.querySelector('.indicator-card__health')).toBeNull();
     await user.click(screen.getByLabelText('Informações sobre WIP atual'));
@@ -559,14 +632,14 @@ describe('P8 Dashboard na Visão Geral', () => {
       true
     );
     await screen.findByRole('article', { name: 'WIP atual' });
-    await user.click(screen.getByRole('button', { name: /Filtrar indicadores/ }));
+    await user.click(screen.getByRole('button', { name: /Buscar e filtrar/ }));
     fireEvent.change(screen.getByLabelText('De'), { target: { value: '2026-09-05' } });
     await user.click(screen.getByRole('tab', { name: 'Qualidade' }));
     await screen.findByRole('article', { name: 'Execuções por resultado' });
     expect(screen.getByLabelText('De')).toHaveValue('2026-09-05');
     expect(mocks.dashboard.mock.lastCall[1]).toMatchObject({
       view: 'QUALITY',
-      startDate: '2026-09-01',
+      startDate: '2026-09-05',
       sprintId: '3',
       includeProjectHealth: true
     });
@@ -575,7 +648,7 @@ describe('P8 Dashboard na Visão Geral', () => {
       expect(screen.getByRole('tab', { name: 'Fluxo' })).toHaveAttribute('aria-selected', 'true')
     );
     expect(screen.getByLabelText('Até')).toHaveValue('2026-09-20');
-    await user.click(screen.getByRole('button', { name: 'Limpar' }));
+    await user.click(screen.getByRole('button', { name: 'Limpar filtros' }));
     await waitFor(() =>
       expect(mocks.dashboard.mock.lastCall[1]).toEqual({ view: 'FLOW', includeProjectHealth: true })
     );
@@ -628,7 +701,7 @@ describe('P8 Dashboard na Visão Geral', () => {
     expect(screen.queryByRole('article', { name: 'WIP atual' })).not.toBeInTheDocument();
   });
 
-  it('envia período, Sprint e responsável, mas não afirma que WIP os aplicou', async () => {
+  it('aplica período e Sprint automaticamente sem enviar responsável legado', async () => {
     const user = userEvent.setup();
     mocks.dashboard.mockImplementation(async (_id, filters) =>
       response(
@@ -667,31 +740,26 @@ describe('P8 Dashboard na Visão Geral', () => {
     );
     renderPanel('/projects/1?responsibleUserId=9');
     await screen.findByRole('article', { name: 'WIP atual' });
-    await user.click(screen.getByRole('button', { name: /Filtrar indicadores/ }));
+    await user.click(screen.getByRole('button', { name: /Buscar e filtrar/ }));
     await user.type(screen.getByLabelText('De'), '2026-09-01');
     await user.type(screen.getByLabelText('Até'), '2026-09-20');
     await user.selectOptions(screen.getByLabelText('Sprint'), '3');
-    expect(screen.getByLabelText('Responsável')).toBeDisabled();
-    await user.click(screen.getByRole('button', { name: 'Aplicar filtros' }));
-    await waitFor(() => expect(mocks.dashboard).toHaveBeenCalledTimes(2));
-    expect(mocks.dashboard.mock.calls[1][1]).toMatchObject({
-      view: 'GENERAL',
-      startDate: '2026-09-01',
-      endDate: '2026-09-20',
-      sprintId: '3',
-      responsibleUserId: '9'
-    });
-    expect(mocks.dashboard.mock.calls[1][1].timeZone).toMatch(/^(UTC|[A-Za-z_]+\/[A-Za-z_/]+)$/);
+    expect(screen.queryByLabelText('Responsável')).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(mocks.dashboard.mock.lastCall[1]).toMatchObject({
+        view: 'GENERAL',
+        startDate: '2026-09-01',
+        endDate: '2026-09-20',
+        sprintId: '3'
+      })
+    );
+    expect(mocks.dashboard.mock.lastCall[1]).not.toHaveProperty('responsibleUserId');
+    expect(mocks.dashboard.mock.lastCall[1].timeZone).toMatch(/^(UTC|[A-Za-z_]+\/[A-Za-z_/]+)$/);
     const card = await screen.findByRole('article', { name: 'WIP atual' });
     expect(card).toHaveTextContent('4');
-    expect(within(card).getByLabelText(/filtro solicitado não aplicado/i)).toBeInTheDocument();
-    await user.click(within(card).getByText('?'));
-    expect(
-      within(screen.getByRole('dialog')).getByText(/Período: não se aplica/)
-    ).toBeInTheDocument();
-    expect(
-      within(screen.getByRole('dialog')).getByText(/Responsável: não aplicado/)
-    ).toBeInTheDocument();
+    expect(card.querySelector('.indicator-card__filter-mark')).toBeNull();
+    expect(screen.getAllByText(/Alguns indicadores preservam seu próprio recorte/)).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: 'Aplicar filtros' })).not.toBeInTheDocument();
   });
 
   it('não deixa um filtro anterior sobrescrever o novo filtro', async () => {
@@ -707,13 +775,11 @@ describe('P8 Dashboard na Visão Geral', () => {
     const user = userEvent.setup();
     renderPanel();
     await screen.findByRole('article', { name: 'WIP atual' });
-    await user.click(screen.getByRole('button', { name: /Filtrar indicadores/ }));
+    await user.click(screen.getByRole('button', { name: /Buscar e filtrar/ }));
     fireEvent.change(screen.getByLabelText('De'), { target: { value: '2026-09-01' } });
     fireEvent.change(screen.getByLabelText('Até'), { target: { value: '2026-09-20' } });
-    await user.click(screen.getByRole('button', { name: 'Aplicar filtros' }));
     await waitFor(() => expect(mocks.dashboard).toHaveBeenCalledTimes(2));
     fireEvent.change(screen.getByLabelText('De'), { target: { value: '2026-09-15' } });
-    await user.click(screen.getByRole('button', { name: 'Aplicar filtros' }));
     await waitFor(() => expect(mocks.dashboard).toHaveBeenCalledTimes(3));
     await act(async () =>
       latest.resolve(response('GENERAL', [{ id: 'summary', indicators: [metric('I23', 7)] }]))
@@ -763,7 +829,7 @@ describe('P8 Dashboard na Visão Geral', () => {
     renderPanel();
     const partial = await screen.findByRole('article', { name: 'WIP atual' });
     expect(partial).toHaveTextContent('5');
-    expect(partial).toHaveTextContent('Dados parciais');
+    expect(screen.getByText(/Período em andamento/)).toBeInTheDocument();
     expect(screen.getByRole('article', { name: 'Commits no período' })).toHaveTextContent(
       'Último valor conhecido'
     );
@@ -799,7 +865,7 @@ describe('P8 Dashboard na Visão Geral', () => {
     expect(card).toHaveTextContent('Estado desconhecido');
     expect(card).toHaveTextContent('Não foi possível interpretar o estado deste indicador.');
     expect(card).not.toHaveTextContent('75%');
-    expect(screen.getByText('Estado da visão desconhecido')).toBeInTheDocument();
+    expect(screen.getByText(/Estado da visão desconhecido/)).toBeInTheDocument();
   });
 
   it('mostra Burndown v2 e Burnup com duas séries, respeitando lacunas parciais', async () => {
@@ -875,6 +941,7 @@ describe('P8 Dashboard na Visão Geral', () => {
       await within(card).findByRole('img', { name: /Fluxo cumulativo: 2 pontos/ })
     ).toBeInTheDocument();
     expect(card.querySelectorAll('polygon')).toHaveLength(3);
+    expect(card.querySelector('figure')).toHaveClass('dashboard-chart--cumulative');
     expect(card).toHaveTextContent(
       'estado inicial anterior ao histórico disponível é desconhecido'
     );
@@ -1009,10 +1076,9 @@ describe('P8 Dashboard na Visão Geral', () => {
     );
     renderPanel('/projects/1?view=traceability&startDate=2026-09-01&endDate=2026-09-20');
     const section = await screen.findByRole('region', { name: 'Dimensões de rastreabilidade' });
-    expect(section).toHaveTextContent('Recorte não aplicado');
-    expect(section).toHaveTextContent(
-      'O filtro de período não foi aplicado aos indicadores desta seção.'
-    );
+    expect(section).not.toHaveTextContent('Recorte não aplicado');
+    fireEvent.click(screen.getByRole('button', { name: /Buscar e filtrar/ }));
+    expect(screen.getAllByText(/Alguns indicadores preservam seu próprio recorte/)).toHaveLength(1);
     expect(within(section).queryByLabelText(/filtro solicitado não aplicado/i)).toBeNull();
   });
 
@@ -1036,12 +1102,12 @@ describe('P8 Dashboard na Visão Geral', () => {
     await screen.findByRole('article', { name: 'WIP atual' });
     const toolbar = document.querySelector('.dashboard-panel__toolbar');
     expect(within(toolbar).getByRole('tablist')).toBeInTheDocument();
-    const filterButton = screen.getByRole('button', { name: /Filtrar indicadores/ });
+    const filterButton = screen.getByRole('button', { name: /Buscar e filtrar/ });
     expect(filterButton).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByRole('form', { name: 'Filtros de indicadores' })).not.toBeInTheDocument();
     await user.click(filterButton);
     expect(filterButton).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByRole('form', { name: 'Filtros de indicadores' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Filtros de indicadores' })).toBeInTheDocument();
     await user.click(within(toolbar).getByRole('button', { name: 'Atualizar indicadores' }));
     await waitFor(() => expect(mocks.dashboard).toHaveBeenCalledTimes(2));
     expect(mocks.catalog).toHaveBeenCalledOnce();
@@ -1087,9 +1153,8 @@ describe('P8 Dashboard na Visão Geral', () => {
     const card = await screen.findByRole('article', { name: 'Commits no período' });
     await user.click(within(card).getByLabelText('Informações sobre Commits no período'));
     const help = screen.getByRole('dialog', { name: 'Informações sobre Commits no período' });
-    expect(help).toHaveTextContent(
-      'Conta uma vez cada commit observado no projeto durante o período.'
-    );
+    expect(help).toHaveTextContent('Como interpretar');
+    expect(help).not.toHaveTextContent('Como é calculado');
     expect(help.querySelector('.indicator-card__technical')).toBeNull();
     expect(help).toHaveTextContent('Valor atual');
     expect(help).not.toHaveTextContent(
@@ -1107,6 +1172,11 @@ describe('P8 Dashboard na Visão Geral', () => {
               kind: 'SERIES',
               unit: 'HOURS',
               points: [{ date: '2026-09-25', remaining: 18, ideal: 22 }]
+            }),
+            metric('I46', null, {
+              kind: 'SERIES',
+              unit: 'HOURS',
+              points: [{ date: '2026-09-25', scope: 22, completed: 4 }]
             }),
             metric('I47', null, {
               kind: 'SERIES',
@@ -1126,6 +1196,8 @@ describe('P8 Dashboard na Visão Geral', () => {
     expect(velocity).toHaveTextContent('Última Sprint concluída');
     expect(velocity).toHaveTextContent('Sprint 3');
     expect(velocity.querySelector('svg')).toBeNull();
+    expect(screen.getByRole('article', { name: 'Burnup' })).toHaveTextContent('4 h');
+    expect(screen.queryByText('Ver dados')).not.toBeInTheDocument();
   });
 
   it('restaura a visão ao navegar para trás no histórico da URL', async () => {
