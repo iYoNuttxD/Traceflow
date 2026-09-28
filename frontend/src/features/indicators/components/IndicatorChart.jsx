@@ -111,10 +111,10 @@ export function IndicatorChart({ indicator, title }) {
           </p>
         )}
         <details className="dashboard-chart__data">
-          <summary>Tabela de dados</summary>
+          <summary>Ver dados</summary>
           <div className="dashboard-chart__table-wrap">
             <table>
-              <caption>{title}: valores recebidos da API</caption>
+              <caption>{title}: dados do gráfico</caption>
               <thead>
                 <tr>
                   <th scope="col">{indicator.metricId === 'I47' ? 'Sprint' : 'Data'}</th>
@@ -304,10 +304,10 @@ export function IndicatorChart({ indicator, title }) {
         ))}
       </figcaption>
       <details className="dashboard-chart__data">
-        <summary>Tabela de dados</summary>
+        <summary>Ver dados</summary>
         <div className="dashboard-chart__table-wrap">
           <table>
-            <caption>{title}: valores recebidos da API</caption>
+            <caption>{title}: dados do gráfico</caption>
             <thead>
               <tr>
                 <th scope="col">{bars ? 'Sprint' : 'Data'}</th>

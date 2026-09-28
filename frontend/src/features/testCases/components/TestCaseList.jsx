@@ -1,5 +1,10 @@
 import { CollapsibleFilterPanel, SprintActionsMenu } from '../../schedule/index.js';
-import { SearchCombobox, TraceFlowIcon, ResponsibleCombobox } from '../../../shared/index.js';
+import {
+  SearchCombobox,
+  TraceFlowIcon,
+  ResponsibleCombobox,
+  SummaryPanel
+} from '../../../shared/index.js';
 import { requirementLabel, taskLabel } from '../model/test-cases.js';
 import { Badge, Latest, SelectControl } from './Parts.jsx';
 
@@ -12,23 +17,12 @@ export function TestCaseSummary({ summary }) {
     ['Com falha', summary?.withFailure]
   ];
   return (
-    <section className="sprints-summary" aria-label="Resumo dos casos de teste">
-      <div className="sprints-summary__heading">
-        <div>
-          <span className="eyebrow">Resumo</span>
-          <h2>Visão geral dos casos de teste</h2>
-        </div>
-        <p>Estado atual dos casos e das execuções visualizadas.</p>
-      </div>
-      <dl className="tc-metrics">
-        {metrics.map(([label, value]) => (
-          <div className="sprints-summary__metric" key={label}>
-            <dt>{label}</dt>
-            <dd>{value ?? '—'}</dd>
-          </div>
-        ))}
-      </dl>
-    </section>
+    <SummaryPanel
+      label="Resumo dos casos de teste"
+      title="Visão geral dos casos de teste"
+      description="Estado atual dos casos e das execuções visualizadas."
+      metrics={metrics.map(([label, value]) => ({ label, value }))}
+    />
   );
 }
 export function TestCaseFilters({

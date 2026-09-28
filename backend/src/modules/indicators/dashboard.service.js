@@ -170,7 +170,8 @@ export const dashboardService = {
       responsibleUserId: query.responsibleUserId ?? null
     };
     const sections = DASHBOARD_VIEWS[view];
-    const groups = groupIds(sections);
+    const includeHealth = view === 'GENERAL' || query.includeProjectHealth === true;
+    const groups = groupIds(includeHealth ? [...sections, ...DASHBOARD_VIEWS.GENERAL] : sections);
     let internalPeriod = null;
     const requests = [...groups.entries()].map(async ([group, ids]) => {
       if (!period && group === 'activity') return { group, response: { indicators: [] } };
@@ -227,7 +228,7 @@ export const dashboardService = {
     }));
     const health = await readHealth(
       id,
-      view,
+      includeHealth ? 'GENERAL' : view,
       period,
       generatedAt,
       [...byId.values()],
@@ -295,7 +296,7 @@ export const dashboardService = {
             : null
       },
       freshness,
-      ...(view === 'GENERAL' ? { projectHealth: health.projectHealth } : {}),
+      ...(includeHealth ? { projectHealth: health.projectHealth } : {}),
       sections: outputSections,
       warnings
     };

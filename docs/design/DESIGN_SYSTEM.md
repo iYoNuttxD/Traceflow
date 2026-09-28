@@ -863,3 +863,24 @@ link real, fallback textual da URL e versão `text` completa. Conteúdo dinâmic
 escapado, URLs aceitam somente HTTP/HTTPS e datas são apresentadas em `pt-BR` com
 timezone UTC explícito. O preview local é gerado em diretório temporário por
 `npm run email:preview --prefix backend`, sem envio SMTP.
+
+### Workspace de Indicadores — P8.5
+
+A Visão Geral preserva contexto/ações/GitHub/equipe e apenas o resumo de saúde com cobertura,
+áreas de atenção e CTA “Ver indicadores”. Detalhamento, dimensões, drivers, filtros e gráficos
+pertencem a `/projects/:projectId/indicators`, integrado à navegação do projeto.
+
+A página segue header/eyebrow/descrição, ProjectSectionNav, resumo canônico, CollapsibleFilterPanel
+único e categorias com internal-tabs. SummaryPanel generaliza o resumo de Casos de teste para
+reutilização; campos usam SelectControl. Período e Sprint pertencem ao workspace inteiro; fontes
+sem recorte por responsável continuam explicitamente limitadas. Tabelas semânticas apresentam
+entidades; séries só usam os pontos reais do backend. Ajuda não expõe IDs de indicador, versões,
+campos internos ou RFs, mesmo em disclosure. Referência é identificada como comparação, nunca
+como meta inventada. Revalidação visual P8.5 é necessária antes de nova aprovação.
+
+
+O layout detalhado possui container próprio `indicators-workspace`; seus ajustes
+não dependem do antigo container de Overview. O resumo usa cinco tiles com quebra
+por largura disponível. Listas de entidades usam tabela semântica com cabeçalhos,
+rolagem local focável e somente colunas sustentadas pelo payload (incluindo
+responsável quando fornecido). A referência é secundária ao valor atual.

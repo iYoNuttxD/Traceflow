@@ -17,7 +17,7 @@ function DriverList({ title, drivers, catalogById }) {
             <strong>
               {METRIC_TITLES[driver.metricId] ??
                 catalogById.get(driver.metricId)?.title ??
-                driver.metricId}
+                'Sinal do projeto'}
             </strong>
             <span>{describeHealthReason(driver, driver.metricId)}</span>
           </li>
@@ -50,14 +50,14 @@ export function ProjectHealth({ health, catalogById = new Map() }) {
           </p>
           <p>
             O índice descreve condições observadas do projeto. Não mede desempenho de pessoas nem
-            garante resultado futuro. Modelo versão {health.healthModelVersion}.
+            garante resultado futuro.
           </p>
           <strong>Pesos e cobertura nesta leitura</strong>
           <ul>
             {health.dimensions.map((dimension) => (
               <li key={dimension.id}>
-                {HEALTH_DIMENSION_LABELS[dimension.id] ?? dimension.id}: peso {dimension.weight}%
-                {dimension.applicable ? `, cobertura ${dimension.coverage}%` : ', não aplicável'}.
+                {HEALTH_DIMENSION_LABELS[dimension.id] ?? 'Outra dimensão'}: peso {dimension.weight}
+                %{dimension.applicable ? `, cobertura ${dimension.coverage}%` : ', não aplicável'}.
               </li>
             ))}
           </ul>
@@ -121,9 +121,9 @@ export function ProjectHealth({ health, catalogById = new Map() }) {
       <div className="project-health__dimensions">
         {health.dimensions.map((dimension) => (
           <div key={dimension.id} className="project-health__dimension">
-            <span>{HEALTH_DIMENSION_LABELS[dimension.id] ?? dimension.id}</span>
+            <span>{HEALTH_DIMENSION_LABELS[dimension.id] ?? 'Outra dimensão'}</span>
             <strong>{dimension.score == null ? '—' : Math.round(dimension.score)}</strong>
-            <small>{HEALTH_STATUS_LABELS[dimension.status] ?? dimension.status}</small>
+            <small>{HEALTH_STATUS_LABELS[dimension.status] ?? 'Dados insuficientes'}</small>
           </div>
         ))}
       </div>

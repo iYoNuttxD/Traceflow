@@ -1580,3 +1580,30 @@ O agregado P7 conserva `dashboardContractVersion:1` e todos os campos originais.
 Somente `view=GENERAL` acrescenta `projectHealth` com `healthModelVersion`, `status`, `score`, `coverage` percentual ponderada, `assessedDimensions`, `applicableDimensions`, `assessedSignals`, `applicableSignals`, `dimensions[]`, `drivers:{negative[],positive[]}`, `assessments` por ID, `calculatedAt` e `window:{timeZone,current,previous}` com instantes UTC inclusivo/exclusivo. Cada dimensão publica `id`, `weight`, `applicable`, `coverage`, `score`, `status`, `assessedSignals[]`, `unassessedSignals[]`. Cada driver publica `metricId`, `dimension`, `status`, `score`, `impact`, `reasonCode`, `basis`; máximo três por polaridade. `score:null,status:UNASSESSED` resulta de cobertura <60% ou menos de quatro dimensões avaliadas; não há persistência. Sprint sem seleção ativa e integração GitHub ausente podem ser `NOT_APPLICABLE` e saem do denominador. As demais views apresentam assessments individuais sem recalcular a nota completa.
 
 Eventos da saúde usam o período solicitado recortado em `generatedAt`, ou janela interna dos últimos 30 dias; baseline compara a janela anterior de mesma duração. Esse default **não** muda a regra P7 dos widgets de evento sem filtro: eles continuam com `PERIOD_REQUIRED`. A nota permanece do projeto; `responsibleUserId` não recorta Project Health. Regras, pesos, exclusões e limitações estão em [Project Health Model v1](../indicators/PROJECT_HEALTH_MODEL_V1.md).
+
+## S2 P8.5 — Workspace de Indicadores e referências
+
+Decisão P8.5: `/projects/:projectId` apresenta somente saúde compacta; a análise completa pertence
+à rota autenticada `/projects/:projectId/indicators`. O contexto de filtros é único e persiste na
+query ao trocar categoria. A aplicação individual continua descrita por `appliedFilters`.
+
+O agregado aceita a categoria adicional `PLANNING` (I26/I28/I29/I30/I31/I32/I33/I34) e o parâmetro
+opcional `includeProjectHealth=true|false` (false por padrão). O workspace solicita true para
+receber resumo de saúde e indicadores na mesma resposta/contexto; GENERAL continua incluindo
+saúde sem exigir o parâmetro. Fontes auxiliares são agrupadas e reutilizadas na request, sem
+consulta por widget. Nenhuma fórmula, peso, persistência ou regra de autorização muda.
+
+Assessments avaliáveis podem acrescentar `reference:{type,label,value,unit}` e
+`delta:{value,unit}`. Referências vêm exclusivamente das bases do modelo v1: janela anterior
+comparável, esforço estimado, linha ideal do Burndown, estágio anterior de rastreabilidade ou
+tempo mediano de merge da fila. Delta é assinado; variação relativa usa PERCENT, diferença de
+cobertura usa PERCENTAGE_POINTS, esforço usa HOURS. Sem base segura ambos são null. Esses valores
+não são metas configuradas nem novos thresholds. Estados não avaliáveis não recebem referências.
+Metadados técnicos permanecem na API e documentação; a ajuda do produto apresenta significado,
+valor, referência disponível e interpretação em linguagem de uso.
+
+
+A coerência P8.5 é por projeto, filtros e geração da requisição agregada; não
+representa uma transação SQL única. `generatedAt`/`projectHealth.calculatedAt`
+identificam a composição, enquanto cada indicador preserva o `asOf` da sua fonte.
+Os testes com período fixo conferem dimensões e janela idênticas entre categorias.

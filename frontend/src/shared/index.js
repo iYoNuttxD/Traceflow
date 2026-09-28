@@ -1,4 +1,5 @@
 export { Card } from './components/Card.jsx';
+export { SummaryPanel } from './components/SummaryPanel.jsx';
 export { BackButton } from './components/BackButton.jsx';
 export {
   LoadingState,

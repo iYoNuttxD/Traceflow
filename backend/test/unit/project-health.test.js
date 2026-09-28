@@ -228,3 +228,68 @@ describe('Project Health Model v1', () => {
     );
   });
 });
+
+describe('P8.5 references derived from Model v1', () => {
+  it.each([
+    ['I20', 'DAYS'],
+    ['I21', 'DAYS'],
+    ['I15', 'HOURS']
+  ])('exposes signed project baseline for %s without changing scores', (id, unit) => {
+    const previous = map(row(id, 4, { eligibleCount: 3 }));
+    expect(signal(id, map(row(id, 6, { eligibleCount: 3 })), previous)).toMatchObject({
+      score: 50,
+      reference: { type: 'PROJECT_BASELINE', value: 4, unit },
+      delta: { value: 50, unit: 'PERCENT' }
+    });
+    expect(signal(id, map(row(id, 3, { eligibleCount: 3 })), previous)).toMatchObject({
+      score: 100,
+      delta: { value: -25 }
+    });
+    for (const current of [
+      row(id, 6, { eligibleCount: 2 }),
+      row(id, 6, { eligibleCount: 3, state: 'PARTIAL' })
+    ])
+      expect(signal(id, map(current), previous)).toMatchObject({ reference: null, delta: null });
+    expect(
+      signal(id, map(row(id, 6, { eligibleCount: 3 })), map(row(id, 0, { eligibleCount: 3 })))
+    ).toMatchObject({ reference: null, delta: null });
+  });
+  it('uses existing Sprint, stage and merge bases with correct units', () => {
+    expect(signal('I44', map(row('I44', { estimatedHours: 20, actualHours: 24 })))).toMatchObject({
+      score: 80,
+      reference: { value: 20, unit: 'HOURS' },
+      delta: { value: 4, unit: 'HOURS' }
+    });
+    expect(
+      signal(
+        'I45',
+        map(
+          row('I45', null, {
+            points: [
+              { remaining: 20, ideal: 20 },
+              { remaining: 12, ideal: 10 }
+            ],
+            coverage: { totalPoints: 20 }
+          })
+        )
+      )
+    ).toMatchObject({ score: 90, reference: { value: 10, unit: 'HOURS' }, delta: { value: 2 } });
+    expect(signal('I62', map(row('I62', 60), row('I01', 80)))).toMatchObject({
+      score: 80,
+      reference: { value: 80, unit: 'PERCENT' },
+      delta: { value: -20, unit: 'PERCENTAGE_POINTS' }
+    });
+    expect(
+      signal('I73', map(row('I73', 3), row('I10', 2), row('I15', 48, { eligibleCount: 3 })))
+    ).toMatchObject({
+      score: 50,
+      reference: { value: 2, unit: 'DAYS' },
+      delta: { value: 50, unit: 'PERCENT' }
+    });
+    expect(signal('I47', map(row('I47', null)))).toMatchObject({
+      status: 'NEUTRAL',
+      reference: null,
+      delta: null
+    });
+  });
+});

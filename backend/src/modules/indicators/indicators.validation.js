@@ -53,7 +53,11 @@ export const sprintAnalyticsQuerySchema = strictObject({
 
 export const dashboardQuerySchema = strictObject({
   view: z
-    .enum(['GENERAL', 'GITHUB', 'FLOW', 'SPRINT', 'TASK', 'QUALITY', 'TRACEABILITY'])
+    .enum(['GENERAL', 'PLANNING', 'GITHUB', 'FLOW', 'SPRINT', 'TASK', 'QUALITY', 'TRACEABILITY'])
+    .optional(),
+  includeProjectHealth: z
+    .enum(['true', 'false'])
+    .transform((value) => value === 'true')
     .optional(),
   startDate: dateOnly('Data inicial').optional(),
   endDate: dateOnly('Data final').optional(),

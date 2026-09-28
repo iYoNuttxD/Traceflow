@@ -34,8 +34,8 @@ são declaradas como `PASS`.
 | RF18 | retrabalho: PRs distintas fechadas e reabertas na coorte / PRs distintas fechadas | `GET /api/projects/:projectId/indicators/github` (I04) | indicators / github-analytics | PullRequestLifecycleEvent, ProjectGitHubIntegration.pullRequestLifecycleCoverageFrom | I04 na visão GitHub | indicators-p3 API/unit; fundação P1; upgrade P3; P8.1 GitHub real | PARCIAL — BACKEND E VISUALIZAÇÃO I04 IMPLEMENTADOS; COBERTURA TEMPORAL DE LIFECYCLE AINDA CONDICIONA O RF |
 | RF36 | vetor de Tasks concluídas e commits main por responsável, sem score | `GET /api/projects/:projectId/indicators/activity` (I05) | indicators | fontes RF16/RF17 + membership atual | painel visual pendente | indicators unit/API | PARCIAL — BACKEND IMPLEMENTADO; visualização pendente, sem inferir membership histórica |
 | RF54 | qualidade: I04 e taxa de PRs mescladas da mesma coorte fechada | `GET /api/projects/:projectId/indicators/github` (I06) | indicators / github-analytics | PullRequestLifecycleEvent, PullRequest.mergedAtGithub | I06 nas visões GitHub e Qualidade | indicators-p3 API/unit; fundação P1; P8.1 GitHub real | PARCIAL — BACKEND E VISUALIZAÇÃO I06 IMPLEMENTADOS; COBERTURA TEMPORAL E I19 REVIEWS SEPARADO AINDA EXIGEM AVALIAÇÃO |
-| RF55 | painel consolidado com fonte, estado e horário por indicador | `GET /api/projects/:projectId/indicators/dashboard`, `.../catalog` | dashboard aggregate + services de indicadores | projeções existentes, sem tabela de Dashboard | `ProjectDetailsScreen` → `features/indicators/DashboardPanel`; sete visões e cards | dashboard-view unit; indicators-p7 API; DashboardPanel P8; P8.1 sessão/API/banco reais, I46 AVAILABLE, sync externa e matriz desktop/tablet/mobile Light/Dark | IMPLEMENTADO — PASS LOCAL P8.1; SEM CI REMOTA/CROSS-BROWSER/WCAG INSTRUMENTAL |
-| RF56 | filtro temporal comum sobre indicadores compatíveis | `GET /api/projects/:projectId/indicators/dashboard` | dashboard aggregate + indicator-period.policy | fatos temporais canônicos de cada service | filtros explícitos e compatibilidade por card em `DashboardPanel` | dashboard-view unit; indicators-p7 API/DST; DashboardPanel P8; P8.1 período/Sprint/responsável reais na UI | IMPLEMENTADO — PASS LOCAL P7/P8.1 PARA RECORTES COMPATÍVEIS; RESPONSÁVEL/SPRINT `UNSAFE` EXPLICITADOS |
+| RF55 | painel consolidado com fonte, estado e horário por indicador | `GET /api/projects/:projectId/indicators/dashboard`, `.../catalog` | dashboard aggregate + services de indicadores | projeções existentes, sem tabela de Dashboard | `IndicatorsScreen` → `DashboardPanel` em `/projects/:id/indicators`; oito categorias; Overview com `ProjectHealthSummary` | dashboard-view unit; indicators-p7 API; DashboardPanel P8; P8.1 sessão/API/banco reais, I46 AVAILABLE, sync externa e matriz desktop/tablet/mobile Light/Dark | IMPLEMENTADO — P8.1 HISTÓRICO; P8.5 AUTOMATIZADO PASS, HOMOLOGAÇÃO VISUAL PENDENTE |
+| RF56 | filtro temporal comum sobre indicadores compatíveis | `GET /api/projects/:projectId/indicators/dashboard` | dashboard aggregate + indicator-period.policy | fatos temporais canônicos de cada service | filtro global recolhível em `DashboardPanel`; URL preservada entre oito categorias e compatibilidade por indicador | dashboard-view unit; indicators-p7 API/DST; DashboardPanel P8; P8.1 período/Sprint/responsável reais na UI | IMPLEMENTADO — PASS LOCAL P7/P8.1 PARA RECORTES COMPATÍVEIS; RESPONSÁVEL/SPRINT `UNSAFE` EXPLICITADOS |
 | RF21 | atualizar sync GitHub | `POST .../github/sync` | sync-project-github | Project + artefatos | ProjectDetails | projects-github-e9 | IMPLEMENTADO |
 | RF22 | editar projeto | `PUT /api/projects/:id` | project-crud | Project | ProjectDetails/ProjectForm | mvp-contracts, ProjectDetailsPage | IMPLEMENTADO |
 | RF23 | cadastrar usuário | `POST /api/auth/register`, `POST /api/auth/email-verification/verify` | auth/email | User, Session, EmailVerificationToken | RegisterScreen, VerifyEmailScreen, EmailVerificationBanner | `backend/test/api/auth-authorization.test.js`, `backend/test/unit/identity-policy.test.js`, `frontend/test/pages/AuthForms.test.jsx`, `frontend/test/auth/EmailVerification.test.jsx` | IMPLEMENTADO; SMTP EXTERNO PENDENTE PARA VERIFICAÇÃO REAL |
@@ -114,3 +114,17 @@ API/sessão/banco de teste e capturas reais Light/Dark foram homologados; regres
 e gates locais passaram. [Relatório P8.4](../deliveries/S2_P8_4_FULL_DASHBOARD_VALIDATION_REGRESSION_RECOVERY_REPORT.md)
 registra limites de Chromium/zoom de renderer, WCAG, CI remoto e sync GitHub externa. A rodada
 não conclui automaticamente S2-04/S2-05 nem altera RF54 ou Health Model v1.
+
+
+### P8.5 — Atualização da superfície RF55/RF56
+
+RF55 passa a ter workspace próprio de Indicadores, com saúde completa em Geral e
+resumo compacto na Visão Geral. RF56 reutiliza o disclosure canônico com período,
+Sprint e responsável no mesmo contexto de URL, sem atribuir recortes inseguros.
+A API mantém compatibilidade: a nova categoria `PLANNING` e
+`includeProjectHealth=true` são aditivos. Referências/deltas expõem bases existentes
+do Health Model v1. Testes: `IndicatorsScreen.test.jsx`, `DashboardPanel.test.jsx`,
+`ProjectDetailsPage.test.jsx`, `project-health.test.js`, `indicators-p7.test.js`.
+O veredito específico de P8.5 está em
+[relatório de entrega](../deliveries/S2_P8_5_INDICATORS_WORKSPACE_COMMERCIAL_UX_REPORT.md),
+sem reaproveitar a homologação visual P8.1 como aprovação da nova superfície.

@@ -289,3 +289,33 @@ Esta tabela classifica **cada ID do catálogo oficial**. `healthRole` e `healthD
 | I72 | `CONTEXT_ONLY` | — | 1 |
 | I73 | `SCORING_SIGNAL` | TECHNICAL_INTEGRATION | 1 |
 | I74 | `CONTEXT_ONLY` | — | 1 |
+
+
+## P8.5 — Superfície analítica e Planejamento (2026-09-28)
+
+A superfície detalhada passa a `/projects/:projectId/indicators`. A Visão Geral
+mantém apenas saúde resumida e acesso ao espaço analítico. Nenhuma fórmula, unidade,
+elegibilidade, ID ou papel no Health Model v1 foi redefinido.
+
+| Categoria | Composição / representação |
+|---|---|
+| Geral | Composição P7 preservada: I01, I23, I28, I61, I66, I53, I45 e I46; saúde completa |
+| Planejamento | `planningReadiness`: I26, I28, I29, I30; `planningEffort`: I31, I32, I33, I34 |
+| GitHub, Fluxo, Sprint, Tarefas, Qualidade, Rastreabilidade | IDs P7 preservados; tabelas para entidades e distribuições para contagens |
+
+Planejamento organiza indicadores já implementados de Tasks; não cria métricas.
+I25/I45/I46/I47 continuam visíveis independentemente do papel na pontuação. Séries
+com um ponto são snapshots; dois ou mais pontos elegíveis permitem gráficos. Lead
+Time, Cycle Time e Merge Time continuam escalares: o contrato atual não entrega
+séries históricas desses valores. Não há histórico de Project Health persistido.
+
+`includeProjectHealth=true` permite resumo e análise no mesmo agregado em qualquer
+categoria. Período/Sprint/responsável são um contexto de URL; compatibilidade e
+aplicação continuam decididas por indicador. Responsável permanece indisponível
+na interface enquanto o catálogo não oferecer associação segura.
+
+Referência e delta opcionais do assessment expõem exclusivamente bases existentes:
+período anterior comparável, mediana de merge, estágio anterior de cobertura,
+estimativa da Sprint e linha ideal do Burndown. Não representam metas configuradas.
+A fórmula e os metadados técnicos continuam no contrato e na documentação; a ajuda
+do produto apresenta linguagem de uso. Evidências e limites no relatório P8.5.

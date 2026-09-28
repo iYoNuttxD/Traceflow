@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
+import { IndicatorsSummary } from './components/IndicatorsSummary.jsx';
+import { CollapsibleFilterPanel } from '../schedule/index.js';
+import { SelectControl } from '../../shared/index.js';
+import '../../shared/styles/internal-tabs.css';
 import { scheduleApi } from '../schedule/index.js';
 import { normalizeApiError } from '../../shared/index.js';
 import { indicatorsApi } from './api/indicators.api.js';
@@ -65,6 +69,7 @@ function querySelection(params) {
 function filtersForRequest(selection) {
   return {
     view: selection.view,
+    includeProjectHealth: true,
     ...(selection.startDate ? { startDate: selection.startDate } : {}),
     ...(selection.endDate ? { endDate: selection.endDate } : {}),
     ...(selection.timeZone ? { timeZone: selection.timeZone } : {}),
@@ -93,7 +98,6 @@ export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) 
   const [sprintState, setSprintState] = useState({ projectId: null, rows: [], error: null });
   const [dashboardState, setDashboardState] = useState({ identity: null, data: null, error: null });
   const [manualRefresh, setManualRefresh] = useState(0);
-  const [filtersOpen, setFiltersOpen] = useState(false);
   const [catalogRefresh, setCatalogRefresh] = useState(0);
   const [sprintRefresh, setSprintRefresh] = useState(0);
   const dashboardGeneration = useRef(0);
@@ -113,9 +117,9 @@ export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) 
   ].join('|');
 
   useEffect(() => {
-    setDraft({ view, startDate, endDate, timeZone, sprintId, responsibleUserId });
+    setDraft({ startDate, endDate, timeZone, sprintId, responsibleUserId });
     setFilterError('');
-  }, [projectId, view, startDate, endDate, timeZone, sprintId, responsibleUserId]);
+  }, [projectId, startDate, endDate, timeZone, sprintId, responsibleUserId]);
 
   useEffect(() => {
     const generation = ++catalogGeneration.current;
@@ -288,28 +292,12 @@ export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) 
     Number(Boolean(responsibleUserId));
   const selectedSprint = sprints.find((sprint) => String(sprint.id) === sprintId);
   const selectedMember = members.find((member) => String(member.userId) === responsibleUserId);
-  const viewCatalog = (catalog ?? []).filter((item) => item.views?.includes(view));
-  const viewMetadata =
-    catalogState.projectId === projectId
-      ? catalogState.views?.find((item) => item.view === view)
-      : null;
-  function filterSupported(filter) {
-    if (viewMetadata) return viewMetadata.filterCompatibility[filter] === 'SUPPORTED';
-    return (
-      viewCatalog.length === 0 ||
-      viewCatalog.some((item) => item.filterCompatibility?.[filter] === 'SUPPORTED')
-    );
-  }
-  const periodSupported = filterSupported('period');
-  const sprintSupported = filterSupported('sprint');
-  const responsibleSupported = filterSupported('responsible');
+  const responsibleSupported = catalogState.views
+    ? catalogState.views.some((item) => item.filterCompatibility?.responsible === 'SUPPORTED')
+    : (catalog ?? []).some((item) => item.filterCompatibility?.responsible === 'SUPPORTED');
   const filterSummary = [
-    startDate && endDate
-      ? `${formatDate(startDate)}–${formatDate(endDate)}${periodSupported ? '' : ' (sem efeito nesta visão)'}`
-      : null,
-    sprintId
-      ? `${selectedSprint?.name ?? `Sprint ${sprintId}`}${sprintSupported ? '' : ' (sem efeito nesta visão)'}`
-      : null,
+    startDate && endDate ? `${formatDate(startDate)}–${formatDate(endDate)}` : null,
+    sprintId ? `${selectedSprint?.name ?? `Sprint ${sprintId}`}` : null,
     responsibleUserId
       ? `${selectedMember?.user?.name ?? 'Responsável selecionado'}${responsibleSupported ? '' : ' (sem efeito nesta visão)'}`
       : null
@@ -326,92 +314,24 @@ export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) 
     ) ?? [];
 
   return (
-    <section className="dashboard-panel" aria-labelledby="dashboard-panel-title">
-      <header className="dashboard-panel__header">
-        <div>
-          <p className="dashboard-panel__eyebrow">Acompanhamento do projeto</p>
-          <h2 id="dashboard-panel-title">Indicadores</h2>
-          <p>Progresso, entrega e qualidade em um só lugar.</p>
-        </div>
-      </header>
-
-      <div className="dashboard-panel__toolbar">
-        <div className="dashboard-panel__tabs" role="tablist" aria-label="Visões de indicadores">
-          {DASHBOARD_VIEWS.map(([view, label], index) => (
-            <button
-              key={view}
-              id={`dashboard-tab-${view.toLowerCase()}`}
-              type="button"
-              role="tab"
-              aria-selected={selection.view === view}
-              aria-controls="dashboard-view-content"
-              tabIndex={selection.view === view ? 0 : -1}
-              onClick={() => selectView(view)}
-              onKeyDown={(event) => handleTabKeyDown(event, index)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <div className="dashboard-panel__toolbar-actions">
-          <button
-            type="button"
-            className="dashboard-panel__filter-toggle"
-            aria-expanded={filtersOpen}
-            aria-controls="dashboard-indicator-filters"
-            onClick={() => setFiltersOpen((open) => !open)}
-          >
-            Filtros{activeFilterCount ? ` · ${activeFilterCount}` : ''}
-          </button>
-          <button
-            type="button"
-            className="dashboard-panel__refresh"
-            aria-label="Atualizar indicadores"
-            title="Atualizar indicadores"
-            disabled={loading}
-            onClick={() => setManualRefresh((value) => value + 1)}
-          >
-            <span
-              aria-hidden="true"
-              className={
-                loading
-                  ? 'dashboard-panel__refresh-icon dashboard-panel__refresh-icon--loading'
-                  : 'dashboard-panel__refresh-icon'
-              }
-            >
-              ↻
-            </span>
-          </button>
-        </div>
-      </div>
-      {!filtersOpen && filterSummary && (
-        <p className="dashboard-panel__filter-summary">Recorte: {filterSummary}</p>
-      )}
-
-      <form
-        id="dashboard-indicator-filters"
-        className="dashboard-panel__filters"
-        hidden={!filtersOpen}
-        onSubmit={applyFilters}
-        aria-label="Filtros de indicadores"
+    <section className="dashboard-panel" aria-label="Análise de indicadores">
+      <IndicatorsSummary health={dashboard?.projectHealth} loading={loading} />
+      <CollapsibleFilterPanel
+        title="Filtrar indicadores"
+        activeCount={activeFilterCount}
+        resultLabel={filterSummary || 'Todos os dados disponíveis'}
+        className="indicator-filters"
       >
-        <div className="dashboard-panel__filter-heading">
-          <strong>Filtros</strong>
-          <span>Escolha um recorte e aplique para atualizar a visão.</span>
-        </div>
-        {!periodSupported && viewCatalog.length > 0 && (
+        <form
+          id="dashboard-indicator-filters"
+          className="dashboard-panel__filters"
+          onSubmit={applyFilters}
+          aria-label="Filtros de indicadores"
+        >
           <p className="dashboard-panel__filter-hint">
-            O período não altera os indicadores desta visão. Recortes já aplicados continuam
-            identificados nos detalhes de cada indicador.
+            O período define a janela de análise e da saúde do projeto. Indicadores de estado atual
+            e histórico de Sprint preservam seu próprio recorte.
           </p>
-        )}
-        {viewMetadata?.periodIncludesProjectHealth && (
-          <p className="dashboard-panel__filter-hint">
-            O período também define a janela da saúde do projeto. Indicadores de estado atual e
-            históricos de Sprint preservam seu próprio recorte.
-          </p>
-        )}
-        {periodSupported && (
           <>
             <label>
               De
@@ -435,79 +355,117 @@ export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) 
               />
             </label>
           </>
-        )}
-        <label>
-          Sprint
-          <select
-            value={draft.sprintId}
-            disabled={!sprintSupported}
-            aria-describedby={!sprintSupported ? 'dashboard-sprint-filter-hint' : undefined}
-            onChange={(event) =>
-              setDraft((current) => ({ ...current, sprintId: event.target.value }))
-            }
-          >
-            <option value="">Seleção automática</option>
-            {sprints.map((sprint) => (
-              <option key={sprint.id} value={sprint.id}>
-                {sprint.name} · {labelForField(sprint.status)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Responsável
-          <select
-            value={draft.responsibleUserId}
-            disabled={!responsibleSupported}
-            aria-describedby={
-              !responsibleSupported ? 'dashboard-responsible-filter-hint' : undefined
-            }
-            onChange={(event) =>
-              setDraft((current) => ({ ...current, responsibleUserId: event.target.value }))
-            }
-          >
-            <option value="">Todos</option>
-            {members
-              .filter((member) => member.userId && member.user?.name)
-              .map((member) => (
-                <option key={member.id} value={member.userId}>
-                  {member.user.name}
-                  {member.isActive ? '' : ' · inativo'}
+          <label>
+            Sprint
+            <SelectControl
+              value={draft.sprintId}
+              onChange={(event) =>
+                setDraft((current) => ({ ...current, sprintId: event.target.value }))
+              }
+            >
+              <option value="">Seleção automática</option>
+              {sprints.map((sprint) => (
+                <option key={sprint.id} value={sprint.id}>
+                  {sprint.name} · {labelForField(sprint.status)}
                 </option>
               ))}
-          </select>
-        </label>
-        {!sprintSupported && (
-          <p id="dashboard-sprint-filter-hint" className="dashboard-panel__filter-hint">
-            Sprint não se aplica a esta visão. O recorte permanece salvo para as visões compatíveis.
-          </p>
-        )}
-        {!responsibleSupported && (
-          <p id="dashboard-responsible-filter-hint" className="dashboard-panel__filter-hint">
-            Esta visão ainda não oferece recorte seguro por responsável. Nenhuma pessoa é usada para
-            filtrar os resultados.
-          </p>
-        )}
-        <div className="dashboard-panel__filter-actions">
-          <button type="submit">Aplicar filtros</button>
-          <button type="button" onClick={clearFilters}>
-            Limpar
-          </button>
-        </div>
-        {filterError && (
-          <p role="alert" className="dashboard-panel__filter-error">
-            {filterError}
-          </p>
-        )}
-        {sprintState.projectId === projectId && sprintState.error && (
-          <div className="dashboard-panel__filter-error" role="alert">
-            <p>{sprintState.error}</p>
-            <button type="button" onClick={() => setSprintRefresh((value) => value + 1)}>
-              Recarregar Sprints
+            </SelectControl>
+          </label>
+          <label>
+            Responsável
+            <SelectControl
+              value={draft.responsibleUserId}
+              disabled={!responsibleSupported}
+              aria-describedby={
+                !responsibleSupported ? 'dashboard-responsible-filter-hint' : undefined
+              }
+              onChange={(event) =>
+                setDraft((current) => ({ ...current, responsibleUserId: event.target.value }))
+              }
+            >
+              <option value="">Todos</option>
+              {members
+                .filter((member) => member.userId && member.user?.name)
+                .map((member) => (
+                  <option key={member.id} value={member.userId}>
+                    {member.user.name}
+                    {member.isActive ? '' : ' · inativo'}
+                  </option>
+                ))}
+            </SelectControl>
+          </label>
+          {!responsibleSupported && (
+            <p id="dashboard-responsible-filter-hint" className="dashboard-panel__filter-hint">
+              O recorte por responsável ainda não está disponível com segurança. Nenhuma pessoa é
+              usada para filtrar os resultados.
+            </p>
+          )}
+          <div className="dashboard-panel__filter-actions">
+            <button type="submit">Aplicar filtros</button>
+            <button type="button" onClick={clearFilters}>
+              Limpar
             </button>
           </div>
-        )}
-      </form>
+          {filterError && (
+            <p role="alert" className="dashboard-panel__filter-error">
+              {filterError}
+            </p>
+          )}
+          {sprintState.projectId === projectId && sprintState.error && (
+            <div className="dashboard-panel__filter-error" role="alert">
+              <p>{sprintState.error}</p>
+              <button type="button" onClick={() => setSprintRefresh((value) => value + 1)}>
+                Recarregar Sprints
+              </button>
+            </div>
+          )}
+        </form>
+      </CollapsibleFilterPanel>
+      <div className="dashboard-panel__toolbar">
+        <div
+          className="internal-tabs dashboard-panel__tabs"
+          role="tablist"
+          aria-label="Visões de indicadores"
+        >
+          {DASHBOARD_VIEWS.map(([view, label], index) => (
+            <button
+              className={`internal-tab${selection.view === view ? ' internal-tab--active' : ''}`}
+              key={view}
+              id={`dashboard-tab-${view.toLowerCase()}`}
+              type="button"
+              role="tab"
+              aria-selected={selection.view === view}
+              aria-controls="dashboard-view-content"
+              tabIndex={selection.view === view ? 0 : -1}
+              onClick={() => selectView(view)}
+              onKeyDown={(event) => handleTabKeyDown(event, index)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="dashboard-panel__toolbar-actions">
+          <button
+            type="button"
+            className="dashboard-panel__refresh"
+            aria-label="Atualizar indicadores"
+            title="Atualizar indicadores"
+            disabled={loading}
+            onClick={() => setManualRefresh((value) => value + 1)}
+          >
+            <span
+              aria-hidden="true"
+              className={
+                loading
+                  ? 'dashboard-panel__refresh-icon dashboard-panel__refresh-icon--loading'
+                  : 'dashboard-panel__refresh-icon'
+              }
+            >
+              ↻
+            </span>
+          </button>
+        </div>
+      </div>
 
       <div
         id="dashboard-view-content"
@@ -547,7 +505,7 @@ export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) 
                   {VIEW_STATES[viewState]}
                 </span>
               )}
-              <span>Montado em {formatDateTime(dashboard.generatedAt)}</span>
+              <span>Atualizado em {formatDateTime(dashboard.generatedAt)}</span>
               {dashboard.context?.sprint && <span>Sprint: {dashboard.context.sprint.name}</span>}
               {dashboard.freshness?.github?.sourceUpdatedAt && (
                 <span>
@@ -646,7 +604,7 @@ export function DashboardPanel({ projectId, members = [], refreshVersion = 0 }) 
                   >
                     <div className="dashboard-panel__section-heading">
                       <h3 id={`dashboard-section-${section.id}`}>
-                        {SECTION_LABELS[section.id] ?? section.id}
+                        {SECTION_LABELS[section.id] ?? 'Indicadores complementares'}
                       </h3>
                       {sectionNotices.length > 0 && (
                         <span>

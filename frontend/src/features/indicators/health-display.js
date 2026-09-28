@@ -41,7 +41,7 @@ export function describeHealthReason(assessment, metricId) {
   if (reasonCode === 'INVERSE_PERCENT' || reasonCode === 'DIRECT_PERCENT')
     return `Valor observado: ${number(basis.value)}%.`;
   if (reasonCode === 'CURRENT_TEST_PASS')
-    return `${number(basis.pass)} de ${number(basis.total)} casos ativos têm PASS na versão atual.`;
+    return `${number(basis.pass)} de ${number(basis.total)} casos ativos estão aprovados na versão atual.`;
   if (reasonCode === 'STAGE_GAP')
     return `Cobertura observada de ${number(basis.current)}% frente a ${number(basis.expected)}% no estágio anterior; lacuna de ${number(basis.gapPoints)} pontos percentuais.`;
   if (reasonCode === 'NO_OPEN_PRS') return 'Não há PRs abertas na fila atual.';

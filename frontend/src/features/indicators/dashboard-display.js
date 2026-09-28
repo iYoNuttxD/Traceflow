@@ -1,5 +1,6 @@
 export const DASHBOARD_VIEWS = [
   ['GENERAL', 'Geral'],
+  ['PLANNING', 'Planejamento'],
   ['GITHUB', 'GitHub'],
   ['FLOW', 'Fluxo'],
   ['SPRINT', 'Sprint'],
@@ -12,6 +13,8 @@ export const VIEW_LABELS = Object.fromEntries(DASHBOARD_VIEWS);
 
 export const SECTION_LABELS = {
   summary: 'Panorama',
+  planningReadiness: 'Prontidão do planejamento',
+  planningEffort: 'Estimativa e execução',
   sprint: 'Sprint em foco',
   activity: 'Atividade técnica',
   pullRequests: 'Pull Requests',
@@ -303,7 +306,7 @@ const INTERPRETATION_COPY = {
   I66: 'O percentual mostra quanto do catálogo de requisitos tem implementação marcada.'
 };
 
-export function indicatorHelp(indicator, metadata) {
+export function indicatorHelp(indicator) {
   const specific = {
     I01: {
       what: 'Quanto das Tasks cadastradas já foi concluído.',
@@ -335,8 +338,11 @@ export function indicatorHelp(indicator, metadata) {
   }[indicator.metricId];
   return (
     specific ?? {
-      what: DESCRIPTION_COPY[indicator.metricId] ?? metadata.description,
-      how: CALCULATION_COPY[indicator.metricId] ?? indicator.formula,
+      what:
+        DESCRIPTION_COPY[indicator.metricId] ?? 'Dados registrados para este aspecto do projeto.',
+      how:
+        CALCULATION_COPY[indicator.metricId] ??
+        'Considera os registros elegíveis no contexto selecionado.',
       meaning:
         INTERPRETATION_COPY[indicator.metricId] ??
         (indicator.unit === 'PERCENT'
@@ -456,6 +462,7 @@ export function formatMetricValue(value, unit) {
   if (value === null || value === undefined) return '—';
   if (typeof value === 'boolean') return value ? 'Sim' : 'Não';
   if (typeof value !== 'number' || !Number.isFinite(value)) return '—';
+  if (unit === 'PERCENTAGE_POINTS') return `${formatNumber(value)} p.p.`;
   if (unit === 'PERCENT') return `${formatNumber(value)}%`;
   if (unit === 'HOURS') return `${formatNumber(value)} h`;
   if (unit === 'DAYS') return `${formatNumber(value)} ${value === 1 ? 'dia' : 'dias'}`;
@@ -463,13 +470,11 @@ export function formatMetricValue(value, unit) {
 }
 
 export function labelForField(key) {
-  return FIELD_LABELS[key] ?? key.replace(/([a-z])([A-Z])/g, '$1 $2').replaceAll('_', ' ');
+  return FIELD_LABELS[key] ?? 'Outros registros';
 }
 
 export function describeLimitation(code) {
-  return (
-    LIMITATION_LABELS[code] ?? `Limitação da fonte: ${code.replaceAll('_', ' ').toLowerCase()}.`
-  );
+  return LIMITATION_LABELS[code] ?? 'Parte dos dados possui limitações para esta leitura.';
 }
 
 export function dashboardTimeZone() {

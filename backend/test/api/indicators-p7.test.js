@@ -128,6 +128,49 @@ describe('P7 aggregate dashboard API', () => {
     expect(indicatorMap(task).I30.assessment).toMatchObject({ score: 50, status: 'CRITICAL' });
   });
 
+  it('P8.5 includes full Health in every requested category with one shared context', async () => {
+    const owner = await actor();
+    const p = await project(owner);
+    await prisma.task.create({
+      data: {
+        projectId: p.id,
+        title: 'Assigned estimate',
+        responsibleUserId: owner.id,
+        estimatedEffort: 3
+      }
+    });
+    const general = await get(p.id, owner, 'dashboard', period);
+    for (const view of [
+      'PLANNING',
+      'GITHUB',
+      'FLOW',
+      'SPRINT',
+      'TASK',
+      'QUALITY',
+      'TRACEABILITY'
+    ]) {
+      const response = await get(
+        p.id,
+        owner,
+        'dashboard',
+        `${period}&view=${view}&includeProjectHealth=true`
+      );
+      expect(response.status).toBe(200);
+      expect(response.body.projectHealth.dimensions, view).toEqual(
+        general.body.projectHealth.dimensions
+      );
+      expect(response.body.projectHealth.window).toEqual(general.body.projectHealth.window);
+      expect(response.body.projectHealth.calculatedAt).toBe(response.body.generatedAt);
+      expect(
+        response.body.sections
+          .flatMap((s) => s.indicators)
+          .every((i) => i.projectId === p.id && i.assessment && Number.isFinite(Date.parse(i.asOf)))
+      ).toBe(true);
+      expect(Buffer.byteLength(JSON.stringify(response.body))).toBeLessThan(256 * 1024);
+    }
+    expect((await get(p.id, owner, 'dashboard', '?includeProjectHealth=invalid')).status).toBe(400);
+  });
+
   it('entrega GENERAL padrão sem período, com estado e filtros honestos', async () => {
     const owner = await actor();
     const p = await project(owner);
@@ -271,10 +314,19 @@ describe('P7 aggregate dashboard API', () => {
     });
   });
 
-  it('compõe as sete views e publica catálogo sem I68 ou metadata privada', async () => {
+  it('compõe as oito views e publica catálogo sem I68 ou metadata privada', async () => {
     const owner = await actor();
     const p = await project(owner);
-    for (const view of ['GENERAL', 'GITHUB', 'FLOW', 'SPRINT', 'TASK', 'QUALITY', 'TRACEABILITY']) {
+    for (const view of [
+      'GENERAL',
+      'PLANNING',
+      'GITHUB',
+      'FLOW',
+      'SPRINT',
+      'TASK',
+      'QUALITY',
+      'TRACEABILITY'
+    ]) {
       const response = await get(p.id, owner, 'dashboard', `?view=${view}&${period.slice(1)}`);
       const payloadBytes = Buffer.byteLength(JSON.stringify(response.body));
       expect(response.status, `${view}: ${JSON.stringify(response.body)}`).toBe(200);
@@ -293,7 +345,7 @@ describe('P7 aggregate dashboard API', () => {
     }
     const catalog = await get(p.id, owner, 'catalog');
     expect(catalog.status).toBe(200);
-    expect(catalog.body.views).toHaveLength(7);
+    expect(catalog.body.views).toHaveLength(8);
     expect(catalog.body.views.find((item) => item.view === 'GENERAL')).toMatchObject({
       periodIncludesProjectHealth: true,
       filterCompatibility: { period: 'SUPPORTED', responsible: 'UNSAFE' }

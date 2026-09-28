@@ -194,7 +194,7 @@ describe('ProjectDetailsPage E9', () => {
     const pageHeader = screen.getByRole('heading', { name: 'Projeto E9' }).closest('header');
     expect(within(pageHeader).queryByText('Descrição')).not.toBeInTheDocument();
     const projectNavigation = screen.getByRole('navigation', { name: 'Navegação do projeto' });
-    expect(within(projectNavigation).getAllByRole('link')).toHaveLength(11);
+    expect(within(projectNavigation).getAllByRole('link')).toHaveLength(12);
     expect(within(projectNavigation).getByRole('link', { name: 'Casos de teste' })).toHaveAttribute(
       'href',
       '/projects/1/test-cases'
@@ -364,7 +364,15 @@ describe('ProjectDetailsPage E9', () => {
       .mockResolvedValueOnce({ data: { project } })
       .mockRejectedValueOnce(new Error('refresh offline'));
     renderPage();
-    await screen.findByRole('heading', { name: 'Indicadores' });
+    await screen.findByRole('heading', { name: 'Saúde do projeto' });
+    expect(screen.getByRole('link', { name: /Ver indicadores/ })).toHaveAttribute(
+      'href',
+      '/projects/1/indicators'
+    );
+    expect(
+      screen.queryByRole('tablist', { name: 'Visões de indicadores' })
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Filtrar indicadores/ })).not.toBeInTheDocument();
     await waitFor(() => expect(mocks.indicatorsApi.dashboard).toHaveBeenCalledOnce());
     await user.click(await screen.findByRole('button', { name: 'Sincronizar' }));
     expect(

@@ -719,3 +719,18 @@ Evidência renderizada observada no Chrome local autenticado, sem pacote PNG
 versionado. Mutação de esforço foi validada nos testes; a navegação visual desta
 rodada não alterou dados. Limites e gates no
 [relatório](../deliveries/S1_09_TRACEABILITY_GRAPH_WORKSPACE_UX_REPORT.md#final-uiparity-corrections).
+
+
+## P8.5 — Indicadores e resumo executivo (2026-09-28)
+
+| Superfície | Owner / apresentação vigente | Evidência |
+|---|---|---|
+| PROJECT-OVERVIEW-HEALTH | `ProjectHealthSummary`; nota, estado, cobertura, áreas de atenção e CTA; contexto Projeto/GitHub/Equipe preservado | Testes de Overview e refresh confirmado |
+| INDICATORS-WORKSPACE | `IndicatorsScreen` em `/projects/:projectId/indicators`; header/nav, resumo, filtro, categorias e análise | Rota autorizada, estado ativo, corrida entre projetos |
+| SUMMARY-PANEL | Primitive shared `SummaryPanel`, extraída da linguagem de Casos de teste e usada nas duas páginas | Regressão de Casos de teste e summary de indicadores |
+| INDICATORS-FILTERS | `CollapsibleFilterPanel` canônico + `SelectControl`; recolhido por padrão, datas/Sprint/responsável, URL | Apply/clear, rascunho, Back, persistência entre categorias |
+| INDICATORS-ANALYTICS | `internal-tabs`; oito categorias, health completo em Geral, tabelas nativas e charts lazy | Referências do backend, estados, gráficos e async |
+| INDICATORS-HELP | `DashboardHelp`; explicação, valor, referência e interpretação; sem seção técnica | Escape/foco e ausência de metadados na ajuda |
+
+A validação visual P8.5 tem situação própria no relatório de entrega; resultados
+visuais anteriores não homologam automaticamente a nova composição.

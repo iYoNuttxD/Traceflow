@@ -1,6 +1,9 @@
 .dashboard-panel {
+  display: grid;
+  gap: var(--space-6);
   min-width: 0;
-  margin-top: var(--space-6);
+  container: indicators-workspace / inline-size;
+  margin-top: 0;
   color: var(--color-text-primary);
 }
 
@@ -198,39 +201,24 @@
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-1);
-  border: var(--border-width-default) solid var(--color-border-default);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-secondary);
+  gap: var(--space-3);
 }
-
 .dashboard-panel__tabs {
-  display: flex;
   min-width: 0;
   flex: 1;
-  gap: var(--space-1);
-  overflow-x: auto;
-  scrollbar-width: thin;
 }
-
-.dashboard-panel__tabs button,
 .dashboard-panel__toolbar-actions button {
   min-width: max-content;
   min-height: var(--size-touch-target);
   padding: var(--space-2) var(--space-3);
-  border: var(--border-width-default) solid transparent;
+  border: var(--border-width-default) solid var(--color-border-default);
   border-radius: var(--radius-sm);
-  color: var(--color-text-secondary);
-  background: transparent;
   font-size: var(--font-size-2);
-  font-weight: var(--font-weight-semibold);
   cursor: pointer;
 }
-
-.dashboard-panel__tabs button[aria-selected='true'] {
-  border-color: var(--color-border-default);
-  color: var(--color-accent-text);
+.indicator-filters {
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-lg);
   background: var(--color-surface-primary);
   box-shadow: var(--shadow-sm);
 }
@@ -294,11 +282,8 @@
   flex-wrap: wrap;
   align-items: end;
   gap: var(--space-3);
-  margin-top: var(--space-2);
-  padding: var(--space-4);
-  border: var(--border-width-default) solid var(--color-border-default);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-primary);
+  margin: 0;
+  padding: 0;
 }
 
 .dashboard-panel__filters[hidden] {
@@ -658,16 +643,6 @@
   outline-offset: var(--focus-ring-offset);
 }
 
-.indicator-card__technical {
-  border-top: var(--border-width-default) solid var(--color-border-default);
-  padding-top: var(--space-2);
-}
-.indicator-card__technical summary {
-  min-height: var(--size-touch-target);
-  color: var(--color-accent-text);
-  cursor: pointer;
-}
-
 .indicator-card__status-line {
   justify-content: flex-start;
   align-items: center;
@@ -922,7 +897,7 @@
   outline-offset: var(--focus-ring-offset);
 }
 
-@container project-overview-page (max-width: 64rem) {
+@container indicators-workspace (max-width: 64rem) {
   .dashboard-panel__metric-grid {
     --metric-columns: var(--metric-columns-medium, 3);
   }
@@ -931,7 +906,7 @@
   }
 }
 
-@container project-overview-page (max-width: 42rem) {
+@container indicators-workspace (max-width: 42rem) {
   .dashboard-panel__section--activity:has(> .dashboard-panel__detail-grid) {
     display: block;
   }
@@ -957,7 +932,7 @@
   }
 }
 
-@container project-overview-page (max-width: 30rem) {
+@container indicators-workspace (max-width: 30rem) {
   .dashboard-panel__section-heading {
     align-items: flex-start;
     flex-direction: column;
@@ -979,4 +954,45 @@
 .dashboard-panel__section > :last-child {
   border-radius: 0 0 var(--radius-md) var(--radius-md);
   overflow: clip;
+}
+
+.indicator-card__reference {
+  display: grid;
+  gap: var(--space-1);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-2);
+}
+.indicator-card__table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.indicator-card__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-2);
+  text-align: left;
+}
+.indicator-card__table caption {
+  text-align: left;
+  color: var(--color-text-secondary);
+  padding-block: var(--space-2);
+}
+.indicator-card__table th,
+.indicator-card__table td {
+  padding: var(--space-3);
+  border-bottom: var(--border-width-default) solid var(--color-border-default);
+  vertical-align: top;
+}
+.indicator-card__table thead {
+  color: var(--color-text-secondary);
+  background: var(--color-surface-secondary);
+}
+.indicator-card__table th[scope='row'] {
+  min-width: 10rem;
+  overflow-wrap: anywhere;
+  font-weight: var(--font-weight-medium);
+}
+.indicator-card__table small {
+  display: block;
+  color: var(--color-text-secondary);
 }

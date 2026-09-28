@@ -796,3 +796,22 @@ comprovam apresentação/responsividade, enquanto autorização e mutations são
 cobertas pela suíte API. Abas auxiliares e servidores temporários foram encerrados.
 Não substitui CI remoto, dispositivo físico ou certificação WCAG integral. Ver o
 [relatório de implementação](../../deliveries/PROJECT_DELETION_RETENTION_IMPLEMENTATION_REPORT.md).
+
+## 2026-09-28 — P8.5 Indicators Workspace
+
+**CHANGES REQUIRED — matriz visual incompleta.** Indicadores/Geral, Overview
+compacta, Casos de teste e Defeitos foram observados no Chrome nativo desktop Dark,
+com sessão/API reais e dados persistidos do projeto local 2. A leitura observada
+foi 73/100, cobertura 69%. Ajustados espaçamento da Overview, barra de saúde,
+colunas de tabelas e container responsivo da nova página.
+
+O browser integrado não estava disponível. O fallback nativo apresentou foco e
+valores inconsistentes nos controles de emulação e conteúdo antigo após mudança
+de URL; essas capturas não homologam a matriz. Falta concluir Light/Dark em
+1440/1280/1024/768/430/390/360 para Overview e Geral/Fluxo/Sprint/Qualidade/
+Rastreabilidade, com comparação de Tarefas/Requisitos e verificação de gráficos,
+ajuda, filtros, acessibilidade e overflow. Automação alternativa depende da
+autorização solicitada conforme as instruções da ferramenta de interface.
+
+Os gates automatizados passaram, mas não substituem a inspeção visual. Detalhes:
+[relatório P8.5](../../deliveries/S2_P8_5_INDICATORS_WORKSPACE_COMMERCIAL_UX_REPORT.md).

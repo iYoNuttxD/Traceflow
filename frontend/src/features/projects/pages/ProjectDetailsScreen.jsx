@@ -20,8 +20,8 @@ import { MemberAvatarStack } from '../components/MemberAvatarStack.jsx';
 import { projectsApi } from '../api/projects.api.js';
 import './ProjectDetailsScreen.css';
 
-const DashboardPanel = lazy(() =>
-  import('../../indicators/index.js').then((module) => ({ default: module.DashboardPanel }))
+const ProjectHealthSummary = lazy(() =>
+  import('../../indicators/index.js').then((module) => ({ default: module.ProjectHealthSummary }))
 );
 
 function formatDateTime(value) {
@@ -123,7 +123,6 @@ export function ProjectDetailsScreen() {
   const [project, setProject] = useState(null);
   const [loadedProjectId, setLoadedProjectId] = useState(null);
   const [activeMembers, setActiveMembers] = useState(null);
-  const [allMembers, setAllMembers] = useState([]);
   const [currentMembership, setCurrentMembership] = useState(null);
   const [loading, setLoading] = useState(true);
   const [githubSyncState, setGithubSyncState] = useState({
@@ -170,7 +169,6 @@ export function ProjectDetailsScreen() {
         setSuccess('');
         setRetryAfterSeconds(0);
         setActiveMembers(null);
-        setAllMembers([]);
         setCurrentMembership(null);
         setContextExpanded(false);
         setGithubSyncState({ projectId: id, run: null, status: 'idle' });
@@ -201,7 +199,6 @@ export function ProjectDetailsScreen() {
               ? (membershipData.members || []).filter((member) => member.isActive)
               : null
           );
-          setAllMembers(membershipData?.members || []);
           setCurrentMembership(membershipData?.currentMembership || null);
           setMembershipError(nextMembershipError);
         } catch (requestError) {
@@ -622,11 +619,10 @@ export function ProjectDetailsScreen() {
           <span>Atualizado em {formatDateTime(project.updatedAt)}</span>
         </footer>
       </section>
-      <Suspense fallback={<p role="status">Carregando painel de indicadores...</p>}>
-        <DashboardPanel
+      <Suspense fallback={<p role="status">Carregando saúde do projeto...</p>}>
+        <ProjectHealthSummary
           key={project.id}
           projectId={project.id}
-          members={allMembers}
           refreshVersion={dashboardRefreshVersion}
         />
       </Suspense>

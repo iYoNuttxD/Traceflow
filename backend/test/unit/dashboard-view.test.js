@@ -12,6 +12,7 @@ describe('P7 dashboard composition and filter contract', () => {
   it('mantém IDs estáveis, conhecidos e sem duplicatas em cada view', () => {
     expect(Object.keys(DASHBOARD_VIEWS)).toEqual([
       'GENERAL',
+      'PLANNING',
       'GITHUB',
       'FLOW',
       'SPRINT',

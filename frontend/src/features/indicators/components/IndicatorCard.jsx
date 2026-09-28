@@ -46,36 +46,38 @@ function listLabel(item) {
 
 function IndicatorList({ indicator }) {
   if (!indicator.items?.length) return null;
+  const showResponsible = indicator.items.some((item) => 'responsible' in item);
+  const showDetails = indicator.items.some((item) => item.deadline || item.direction);
+  const showValue = indicator.items.some((item) =>
+    [item.defectCount, item.age, item.agingDuration, item.difference].some((value) => value != null)
+  );
+  const valueLabel = indicator.items.some((item) => item.defectCount != null)
+    ? 'Defeitos'
+    : indicator.items.some((item) => item.difference != null)
+      ? 'Desvio'
+      : 'Idade';
   return (
-    <ol className="indicator-card__list">
-      {indicator.items.map((item, index) => {
-        const url = safeGithubUrl(item.githubUrl);
-        return (
-          <li
-            key={`${item.requirementId ?? item.taskId ?? item.pullRequestId ?? index}-${item.direction ?? index}`}
-          >
-            <span>
-              {url ? (
-                <a href={url} target="_blank" rel="noopener noreferrer">
-                  {listLabel(item)}
-                </a>
-              ) : (
-                listLabel(item)
-              )}
-              {item.displayId && <small>{item.displayId}</small>}
-              {item.direction && (
-                <small>
-                  {item.direction === 'INCOMING'
-                    ? 'Recebida de outra Sprint'
-                    : item.direction === 'OUTGOING'
-                      ? 'Transferida para outra Sprint'
-                      : 'Transferência entre Sprints'}
-                </small>
-              )}
-              {item.deadline && <small>Prazo: {formatDateTime(item.deadline)}</small>}
-            </span>
-            <strong>
-              {item.defectCount != null
+    <div
+      className="indicator-card__table-scroll"
+      tabIndex={0}
+      role="region"
+      aria-label="Lista de registros"
+    >
+      <table className="indicator-card__table">
+        <caption>Registros relacionados</caption>
+        <thead>
+          <tr>
+            <th scope="col">Registro</th>
+            {showResponsible && <th scope="col">Responsável</th>}
+            {showDetails && <th scope="col">Detalhes</th>}
+            {showValue && <th scope="col">{valueLabel}</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {indicator.items.map((item, index) => {
+            const url = safeGithubUrl(item.githubUrl);
+            const value =
+              item.defectCount != null
                 ? `${formatMetricValue(item.defectCount)} ${item.defectCount === 1 ? 'defeito' : 'defeitos'}`
                 : item.age != null
                   ? formatMetricValue(item.age, 'DAYS')
@@ -83,12 +85,61 @@ function IndicatorList({ indicator }) {
                     ? formatMetricValue(item.agingDuration, 'DAYS')
                     : item.difference != null
                       ? formatMetricValue(item.difference, 'HOURS')
-                      : ''}
-            </strong>
-          </li>
-        );
-      })}
-    </ol>
+                      : '—';
+            return (
+              <tr
+                key={`${item.requirementId ?? item.taskId ?? item.pullRequestId ?? index}-${item.direction ?? index}`}
+              >
+                <th scope="row">
+                  {url ? (
+                    <a href={url} target="_blank" rel="noopener noreferrer">
+                      {listLabel(item)}
+                    </a>
+                  ) : (
+                    listLabel(item)
+                  )}
+                  {item.displayId && <small>{item.displayId}</small>}
+                </th>
+                {showResponsible && <td>{item.responsible?.name ?? 'Não informado'}</td>}
+                {showDetails && (
+                  <td>
+                    {item.deadline
+                      ? `Prazo: ${formatDateTime(item.deadline)}`
+                      : item.direction === 'INCOMING'
+                        ? 'Recebida de outra Sprint'
+                        : item.direction === 'OUTGOING'
+                          ? 'Transferida para outra Sprint'
+                          : '—'}
+                  </td>
+                )}
+                {showValue && <td>{value}</td>}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function IndicatorReference({ assessment }) {
+  const { reference, delta } = assessment ?? {};
+  if (!reference) return null;
+  return (
+    <div className="indicator-card__reference">
+      <span>
+        {reference.label}: <strong>{formatMetricValue(reference.value, reference.unit)}</strong>
+      </span>
+      {delta && (
+        <span>
+          Variação:{' '}
+          <strong>
+            {delta.value > 0 ? '+' : ''}
+            {formatMetricValue(delta.value, delta.unit)}
+          </strong>
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -202,9 +253,18 @@ export function IndicatorCard({
           <p>{help.what}</p>
           <strong>Como é calculado</strong>
           <p>{help.how}</p>
+          <strong>Valor atual</strong>
+          <p>
+            {scalar
+              ? formatMetricValue(indicator.value, indicator.unit)
+              : hasValue
+                ? 'Consulte a distribuição ou os registros apresentados no cartão.'
+                : 'Ainda não há valor disponível nesta leitura.'}
+          </p>
+          <IndicatorReference assessment={assessment} />
           <strong>Como interpretar</strong>
           <p>{help.meaning}</p>
-          {assessment && (
+          {assessment && assessment.status !== 'NEUTRAL' && (
             <>
               <strong>Saúde atual</strong>
               <p>
@@ -225,41 +285,8 @@ export function IndicatorCard({
               </ul>
             </>
           )}
-          <details className="indicator-card__technical">
-            <summary>Detalhes técnicos</summary>
-            <p>
-              <strong>Indicador:</strong> {indicator.metricId}
-            </p>
-            <p>
-              <strong>Fórmula:</strong> {indicator.formula}
-            </p>
-            <p>
-              <strong>Fonte:</strong> {(indicator.sources ?? []).join(', ') || metadata.source}
-            </p>
-            {indicator.eventClock && (
-              <p>
-                <strong>Relógio:</strong> {indicator.eventClock}
-              </p>
-            )}
-            <p>
-              <strong>Calculado em:</strong> {formatDateTime(indicator.asOf)}
-            </p>
-            {indicator.sourceUpdatedAt && (
-              <p>
-                <strong>Fonte atualizada em:</strong> {formatDateTime(indicator.sourceUpdatedAt)}
-              </p>
-            )}
-            <p>
-              <strong>Versão da definição:</strong> {indicator.definitionVersion}
-            </p>
-            {indicator.rf && (
-              <p>
-                <strong>Requisito:</strong> {indicator.rf}
-              </p>
-            )}
-            <strong>Filtros</strong>
-            <FilterDetails indicator={indicator} requestedFilters={requestedFilters} />
-          </details>
+          <strong>Filtros nesta leitura</strong>
+          <FilterDetails indicator={indicator} requestedFilters={requestedFilters} />
         </DashboardHelp>
       </header>
 
@@ -320,6 +347,7 @@ export function IndicatorCard({
                 aria-label={`${title}: ${formatMetricValue(indicator.value, 'PERCENT')}`}
               />
             )}
+          <IndicatorReference assessment={assessment} />
           {hasChart && (
             <Suspense fallback={<p role="status">Carregando gráfico...</p>}>
               <IndicatorChart indicator={indicator} title={title} />

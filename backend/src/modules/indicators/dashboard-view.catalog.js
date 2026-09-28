@@ -12,6 +12,10 @@ export const DASHBOARD_VIEWS = Object.freeze({
     { id: 'summary', metricIds: ['I01', 'I23', 'I28', 'I61', 'I66', 'I53'] },
     { id: 'sprint', metricIds: ['I45', 'I46'] }
   ],
+  PLANNING: [
+    { id: 'planningReadiness', metricIds: ['I26', 'I28', 'I29', 'I30'] },
+    { id: 'planningEffort', metricIds: ['I31', 'I32', 'I33', 'I34'] }
+  ],
   GITHUB: [
     { id: 'activity', metricIds: ['I02', 'I09'] },
     {

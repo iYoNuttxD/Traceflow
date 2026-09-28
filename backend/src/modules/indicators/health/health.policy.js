@@ -1,5 +1,6 @@
 import { HEALTH_DIMENSIONS, HEALTH_MODEL_VERSION, HEALTH_REGISTRY } from './health.registry.js';
 import { createIndicatorLocalDateKey } from '../policies/indicator-period.policy.js';
+import { healthReference } from './health.reference.js';
 
 const DAY = 86400000;
 const round = (value) => Math.round(value * 100) / 100;
@@ -106,7 +107,9 @@ export function assessSignal(metricId, current, previous = new Map()) {
       status: 'NEUTRAL',
       score: null,
       reasonCode: entry.healthRole,
-      basis: null
+      basis: null,
+      reference: null,
+      delta: null
     };
 
   const raw = value(current, metricId);
@@ -211,7 +214,8 @@ export function assessSignal(metricId, current, previous = new Map()) {
     reasonCode:
       result?.reasonCode ??
       (raw?.state && raw.state !== 'AVAILABLE' ? `DATA_${raw.state}` : 'INSUFFICIENT_BASIS'),
-    basis: result?.basis ?? null
+    basis: result?.basis ?? null,
+    ...healthReference(metricId, result)
   };
 }
 

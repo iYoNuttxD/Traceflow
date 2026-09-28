@@ -54,10 +54,12 @@ describe('S1-09 final corrections', () => {
       'Casos de teste',
       'Defeitos',
       'Repositório',
-      'Rastreabilidade'
+      'Rastreabilidade',
+      'Indicadores'
     ]);
-    expect(links.at(-1)).toHaveAttribute('href', '/projects/2/traceability');
-    expect(links.at(-1)).toHaveAttribute('aria-current', 'page');
+    expect(links.at(-2)).toHaveAttribute('href', '/projects/2/traceability');
+    expect(links.at(-1)).toHaveAttribute('href', '/projects/2/indicators');
+    expect(links.at(-2)).toHaveAttribute('aria-current', 'page');
   });
   it('shows estimated and realized effort, including overrun, using Task semantics', () => {
     show(task);
