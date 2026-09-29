@@ -790,6 +790,42 @@ describe('P8 Dashboard na Visão Geral', () => {
     expect(screen.getByRole('article', { name: 'WIP atual' })).toHaveTextContent('7');
   });
 
+  it('mantém a Sprint mais recente quando a resposta anterior chega depois', async () => {
+    const old = deferred();
+    const latest = deferred();
+    mocks.sprints.mockResolvedValue({
+      data: {
+        sprints: [
+          { id: 3, name: 'Sprint A' },
+          { id: 4, name: 'Sprint B' }
+        ]
+      }
+    });
+    mocks.dashboard.mockImplementation((_id, filters) => {
+      if (filters.sprintId === '3') return old.promise;
+      if (filters.sprintId === '4') return latest.promise;
+      return Promise.resolve(
+        response('GENERAL', [{ id: 'summary', indicators: [metric('I23', 1)] }])
+      );
+    });
+    const user = userEvent.setup();
+    renderPanel();
+    await screen.findByRole('article', { name: 'WIP atual' });
+    await user.click(screen.getByRole('button', { name: /Buscar e filtrar/ }));
+    await user.selectOptions(screen.getByLabelText('Sprint'), '3');
+    await waitFor(() => expect(mocks.dashboard).toHaveBeenCalledTimes(2));
+    await user.selectOptions(screen.getByLabelText('Sprint'), '4');
+    await waitFor(() => expect(mocks.dashboard).toHaveBeenCalledTimes(3));
+    await act(async () =>
+      latest.resolve(response('GENERAL', [{ id: 'summary', indicators: [metric('I23', 7)] }]))
+    );
+    await act(async () =>
+      old.resolve(response('GENERAL', [{ id: 'summary', indicators: [metric('I23', 99)] }]))
+    );
+    expect(screen.getByLabelText('Sprint')).toHaveValue('4');
+    expect(screen.getByRole('article', { name: 'WIP atual' })).toHaveTextContent('7');
+  });
+
   it('mostra valor parcial/stale, ausência de dados e indisponibilidade sem zero falso', async () => {
     mocks.dashboard.mockResolvedValue(
       response(

@@ -129,11 +129,15 @@ export const flowTaskService = {
     };
     const indicators = [
       historical('I20', flow.lead.value, durationState(flow.lead), {
+        kind: 'SERIES',
+        points: flow.leadPoints,
         eligibleCount: flow.lead.eligibleCount,
         excludedCount: flow.lead.excludedCount,
         limitations: flow.lead.excludedCount ? ['INCOMPLETE_OR_INVALID_COMPLETION_HISTORY'] : []
       }),
       historical('I21', flow.cycle.value, durationState(flow.cycle), {
+        kind: 'SERIES',
+        points: flow.cyclePoints,
         eligibleCount: flow.cycle.eligibleCount,
         excludedCount: flow.cycle.excludedCount,
         limitations: flow.cycle.excludedCount ? ['MISSING_FIRST_IN_PROGRESS_OR_COMPLETION'] : []

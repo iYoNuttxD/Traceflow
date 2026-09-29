@@ -319,3 +319,13 @@ período anterior comparável, mediana de merge, estágio anterior de cobertura,
 estimativa da Sprint e linha ideal do Burndown. Não representam metas configuradas.
 A fórmula e os metadados técnicos continuam no contrato e na documentação; a ajuda
 do produto apresenta linguagem de uso. Evidências e limites no relatório P8.5.
+
+
+### Complemento P8.6B — apresentação temporal de I20/I21
+
+Lead Time e Cycle Time agora oferecem mediana diária e tamanho da amostra por data
+civil de primeira conclusão, além da mediana do período. Utilizam as mesmas Tasks
+sobreviventes e TaskMovements elegíveis do cálculo oficial; lacunas são `null`.
+O enriquecimento artificial é restrito ao projeto de homologação e identificado por
+`[P8.6B]`. Não constitui recuperação de eventos reais antigos. Referências vêm do
+Health Model existente e não são metas. Ver o [relatório P8.6B](../deliveries/S2_P8_6B_ANALYTICS_DATA_ENRICHMENT_REPORT.md).

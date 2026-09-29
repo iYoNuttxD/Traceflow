@@ -1607,3 +1607,21 @@ A coerência P8.5 é por projeto, filtros e geração da requisição agregada; 
 representa uma transação SQL única. `generatedAt`/`projectHealth.calculatedAt`
 identificam a composição, enquanto cada indicador preserva o `asOf` da sua fonte.
 Os testes com período fixo conferem dimensões e janela idênticas entre categorias.
+
+
+### P8.6B — séries diárias de duração
+
+I20 (Lead Time) e I21 (Cycle Time) preservam `value` como mediana de todas as amostras
+elegíveis do período e acrescentam `kind: "SERIES"` e
+`points: [{date, value, eligibleCount}]`. Cada ponto usa a primeira conclusão verificável,
+agrupada pela data civil no `timeZone` solicitado. `value` do ponto é a mediana diária;
+dias sem amostra retornam `null` e contagem zero. Reconclusão não cria uma segunda
+amostra de duração. Não se calcula a mediana do período a partir das medianas diárias.
+
+A referência permanece em `assessment.reference` no contrato existente:
+`{type: "PROJECT_BASELINE", label: "Referência recente", value, unit: "DAYS"}`,
+com `assessment.delta` calculado pelo servidor. O frontend apenas desenha essa linha
+para a mesma unidade e tipo. Referência ausente, amostra insuficiente ou assessment
+parcial não produz linha substituta nem meta. A janela ainda em andamento preserva
+as regras de PARTIAL; uma janela encerrada pode oferecer referência elegível.
+Fórmula, versão da definição, RF, filtros e exclusões anteriores permanecem válidos.

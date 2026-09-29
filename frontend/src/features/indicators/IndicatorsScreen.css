@@ -7,9 +7,6 @@
 .indicators-screen__header {
   margin: 0;
 }
-.indicators-screen__header h1 {
-  font-size: clamp(var(--font-size-6), 3.2vw, var(--font-size-7));
-}
 .indicators-screen__header h1,
 .indicators-screen__header p {
   margin-left: 0;

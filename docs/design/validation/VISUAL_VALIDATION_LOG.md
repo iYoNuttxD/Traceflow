@@ -829,3 +829,53 @@ Matriz automática não equivale à leitura manual de cada pixel das 126 captura
 
 
 Conferência final adicional do projeto local 2, somente leitura no Chrome conectado: Health 73/100, Atenção, cobertura 69%, principal área Qualidade e barra/CTA integrados ao container de Overview. Aba auxiliar fechada; aba original de Defeitos e serviços do usuário preservados. Navegador isolado e servidores temporários encerrados.
+
+
+## 2026-09-28 — S2 P8.6B: dataset representativo e séries
+
+Chrome autenticado, frontend local em 5173 e API real em 3001; projeto artificial 2.
+Todas as categorias em 1440px/dark: Geral, Planejamento, GitHub, Fluxo, Sprint,
+Tarefas, Qualidade, Rastreabilidade. Visão Geral em 1440px/light. Amostras adicionais:
+Tarefas 1280/light e 390/dark; Qualidade 1024/light; Fluxo 768/light e 360/light;
+Sprint 430/light. Não houve overflow horizontal do documento nas amostras estreitas.
+Rolagem horizontal de tabelas permanece contida na região. Legendas de Velocity,
+referências de duração, lacunas e área útil de CFD foram examinadas.
+
+Dados maiores revelaram rankings excessivamente altos e seleção inicial vazia em
+séries esparsas. Corrigidos com altura máxima da região, cabeçalho fixo, indicação de
+ranking parcial e seleção inicial da primeira amostra. Reinspeção após alterações.
+Capturas integrais podem posicionar elementos fixed conforme o offset do viewport;
+a avaliação da composição do conteúdo foi complementada por leitura DOM e captura
+de viewport, sem atribuir esse efeito da captura ao layout da aplicação.
+Evidências locais transitórias: `/private/tmp/traceflow-p86b-evidence/`.
+Fluxo também inspecionado com janela de 30 dias (30 pontos e 30 linhas de dados),
+com lacunas preservadas. Rolagem de ranking por PageDown e header fixo confirmados.
+Detalhes e limites no [relatório](../../deliveries/S2_P8_6B_ANALYTICS_DATA_ENRICHMENT_REPORT.md).
+
+## 2026-09-28 — S2 P8.6C: auditoria final independente
+
+Chrome autenticado, API real 3001/frontend 5173, projeto artificial 2. Matriz nova com
+90 capturas finais: Overview e oito categorias, 1440/1280/1024/768/430/390/360 Light,
+mais 1440/768/390 Dark. Sem overflow horizontal do documento. Inspeção visual direta
+amostral, DOM, teclado e dados complementares; não se afirma revisão de cada pixel.
+
+Encontrada divergência no h1: Indicadores 40px, páginas maduras 48px no mesmo viewport.
+Removida exceção de IndicatorsScreen.css para herdar a tipografia global. Nova leitura
+48px desktop/32px mobile e matriz renderizada após a correção. Summary e filtro usam
+primitives canônicas. 83 tooltips abertos/fechados por teclado em 390px, sem conteúdo
+técnico ou extravasamento; foco restaurado. Tabelas com rolagem horizontal por teclado,
+referências de Flow, Burndown/Burnup de oito pontos e Velocity de quatro Sprints conferidos.
+
+Sync GitHub real SUCCEEDED (run 18); atualização refletida no Summary. Conferência
+independente de Planning/Flow/Sprint/Quality/Traceability e snapshot original preservado.
+Frontend 1280 testes; backend 1459, com cinco skips legados; demais gates aprovados.
+
+**CHANGES REQUIRED:** o Chrome encerrou inesperadamente nas tentativas de zoom nativo.
+125/150/200% não foram comprovados; viewport não substitui zoom. Falta também timeline
+HTTP e medição de render no navegador. Medição de serviço local não foi apresentada
+como latência HTTP. A versão ainda não recebe INDICATORS STABLE BASELINE.
+
+Evidência transitória: `/private/tmp/traceflow-p86c-evidence/`. Capturas full-page possuem
+possíveis deslocamentos de elementos fixed, diferenciados das telas reais por captura
+de viewport. Detalhes, matriz e pendências no
+[relatório P8.6C](../../deliveries/S2_P8_6C_FINAL_INDICATORS_VALIDATION_REPORT.md).

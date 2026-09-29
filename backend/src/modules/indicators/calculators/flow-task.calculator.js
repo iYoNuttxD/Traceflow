@@ -158,7 +158,30 @@ export function calculateFlowTaskHistory({ tasks, movements, period, asOf, dateK
       done: balance.CONCLUIDO
     };
   });
+  // Bucket by the observed first completion day, using the requested civil timezone.
+  // Empty days are absence of a sample, never a zero duration.
+  const trend = (rows) => {
+    const buckets = new Map();
+    for (const row of rows) {
+      const durations = durationSample([row], 'start', 'end', DAY).durations;
+      if (!durations.length) continue;
+      const date = dateKey(row.end);
+      const values = buckets.get(date) ?? [];
+      values.push(durations[0]);
+      buckets.set(date, values);
+    }
+    return eventDays.map((date) => {
+      const values = buckets.get(date) ?? [];
+      return {
+        date,
+        value: values.length ? roundMetric(median(values)) : null,
+        eligibleCount: values.length
+      };
+    });
+  };
   return {
+    leadPoints: trend(leadRows),
+    cyclePoints: trend(cycleRows),
     lead: sample(leadRows, unknownCompletion),
     cycle: sample(cycleRows, unknownCompletion + missingCycleStart),
     throughput: {

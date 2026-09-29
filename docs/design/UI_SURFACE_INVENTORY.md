@@ -751,3 +751,13 @@ Esta entrada substitui a composição de filtros e Health descrita na P8.5.
 | INDICATORS-CHARTS | `IndicatorChart`; CFD 352px, snapshot compacto, lista orientada pelo conteúdo | Séries reais e regressão de um ponto/sem dados |
 
 Matriz e limites: [relatório P8.6A](../deliveries/S2_P8_6A_UI_CONSISTENCY_COMMERCIAL_UX_REPORT.md).
+
+
+### P8.6B — atualização verificada em homologação
+
+`/projects/:projectId/indicators`: Fluxo inclui tendências diárias de Lead/Cycle Time
+com referência do servidor, teclado e tabela de amostras. Tabelas maiores usam
+rolagem interna com cabeçalho fixo e indicam rankings limitados. Sprint foi renderizada
+com duas séries de oito dias e Velocity de quatro Sprints. Todas as oito categorias
+foram reinspecionadas no projeto 2 enriquecido, além da Visão Geral. Matriz, condições
+e limitações no [relatório P8.6B](../deliveries/S2_P8_6B_ANALYTICS_DATA_ENRICHMENT_REPORT.md).

@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { formatDate, formatMetricValue, labelForField } from '../dashboard-display.js';
 
 const SERIES = {
+  I20: [{ key: 'value', label: 'Mediana diária de Lead Time' }],
+  I21: [{ key: 'value', label: 'Mediana diária de Cycle Time' }],
   I22: [{ key: 'value', label: 'Tasks concluídas' }],
   I25: [
     { key: 'todo', label: 'A fazer' },
@@ -79,7 +81,7 @@ function stackedAreas(points, series, x, y) {
 }
 
 export function IndicatorChart({ indicator, title }) {
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [activeIndex, setActiveIndex] = useState(null);
   const points = indicator.points ?? [];
   const series =
     indicator.metricId === 'I47' && indicator.unit === 'HOURS'
@@ -121,11 +123,26 @@ export function IndicatorChart({ indicator, title }) {
         .filter((point) => series.every((item) => valid(point[item.key])))
         .map((point) => series.reduce((sum, item) => sum + point[item.key], 0))
     : points.flatMap((point) => series.map((item) => point[item.key]).filter(valid));
-  const max = Math.max(1, ...values);
+  const candidate = indicator.assessment?.reference;
+  const reference =
+    ['I20', 'I21'].includes(indicator.metricId) &&
+    candidate?.type === 'PROJECT_BASELINE' &&
+    candidate.unit === indicator.unit &&
+    valid(candidate.value) &&
+    candidate.value >= 0
+      ? candidate
+      : null;
+  const max = Math.max(1, ...values, reference?.value ?? 0);
   const x = (index) => LEFT + (index * (RIGHT - LEFT)) / (points.length - 1);
   const y = (value) => BOTTOM - (value / max) * (BOTTOM - TOP);
   const description = `${points.length} pontos. ${series.map((item) => item.label).join(', ')}. Consulte os dados em tabela abaixo.`;
-  const selectedIndex = Math.min(activeIndex, points.length - 1);
+  const firstSample = ['I20', 'I21'].includes(indicator.metricId)
+    ? Math.max(
+        0,
+        points.findIndex((point) => valid(point.value))
+      )
+    : 0;
+  const selectedIndex = Math.min(activeIndex ?? firstSample, points.length - 1);
   const selectedPoint = points[selectedIndex];
 
   function handlePointerMove(event) {
@@ -142,9 +159,9 @@ export function IndicatorChart({ indicator, title }) {
     event.preventDefault();
     setActiveIndex((current) =>
       event.key === 'ArrowRight'
-        ? Math.min(points.length - 1, (current ?? -1) + 1)
+        ? Math.min(points.length - 1, (current ?? firstSample) + 1)
         : event.key === 'ArrowLeft'
-          ? Math.max(0, (current ?? 1) - 1)
+          ? Math.max(0, (current ?? firstSample) - 1)
           : event.key === 'Home'
             ? 0
             : points.length - 1
@@ -180,6 +197,19 @@ export function IndicatorChart({ indicator, title }) {
           y2={BOTTOM}
           className="dashboard-chart__crosshair"
         />
+        {reference && (
+          <line
+            x1={LEFT}
+            x2={RIGHT}
+            y1={y(reference.value)}
+            y2={y(reference.value)}
+            stroke="var(--color-text-secondary)"
+            strokeWidth="2"
+            strokeDasharray="7 5"
+            vectorEffect="non-scaling-stroke"
+            data-reference-line="true"
+          />
+        )}
         {stacked
           ? stackedAreas(points, series, x, y).map((area) => (
               <polygon
@@ -275,6 +305,16 @@ export function IndicatorChart({ indicator, title }) {
           </span>
         ))}
       </figcaption>
+      {reference && (
+        <p className="dashboard-chart__note">
+          {reference.label}: {formatMetricValue(reference.value, reference.unit)}. Linha tracejada.
+        </p>
+      )}
+      {['I20', 'I21'].includes(indicator.metricId) && (
+        <p className="dashboard-chart__note">
+          Mediana das primeiras conclusões de cada dia. Dias sem amostra permanecem em branco.
+        </p>
+      )}
       <details className="dashboard-chart__data">
         <summary>Ver dados</summary>
         <div className="dashboard-chart__table-wrap">
@@ -288,6 +328,7 @@ export function IndicatorChart({ indicator, title }) {
                     {item.label}
                   </th>
                 ))}
+                {['I20', 'I21'].includes(indicator.metricId) && <th scope="col">Amostra</th>}
               </tr>
             </thead>
             <tbody>
@@ -304,6 +345,9 @@ export function IndicatorChart({ indicator, title }) {
                         : '—'}
                     </td>
                   ))}
+                  {['I20', 'I21'].includes(indicator.metricId) && (
+                    <td>{point.eligibleCount ?? '—'}</td>
+                  )}
                 </tr>
               ))}
             </tbody>

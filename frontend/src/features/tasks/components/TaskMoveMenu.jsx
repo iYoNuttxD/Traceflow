@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { KANBAN_COLUMNS } from './kanban-display.js';
 
@@ -11,6 +11,16 @@ export function TaskMoveMenu({ task, disabled = false, onMove }) {
   const triggerRef = useRef(null);
   const menuRef = useRef(null);
   const itemRefs = useRef([]);
+  const [focusRequest, setFocusRequest] = useState(0);
+  const restoredFocusRef = useRef(0);
+  // An API promise can settle before React commits the enabled trigger.
+  // Restore only after both the completion and that DOM update are observable.
+  useLayoutEffect(() => {
+    if (!disabled && focusRequest > restoredFocusRef.current && triggerRef.current?.isConnected) {
+      triggerRef.current.focus();
+      restoredFocusRef.current = focusRequest;
+    }
+  }, [disabled, focusRequest]);
   const open = position !== null;
   const targets = KANBAN_COLUMNS.filter((column) => column.status !== task.status);
 
@@ -133,9 +143,7 @@ export function TaskMoveMenu({ task, disabled = false, onMove }) {
                   setPosition(null);
                   void Promise.resolve(onMove(task, column.status, triggerRef.current)).finally(
                     () => {
-                      window.requestAnimationFrame(() => {
-                        if (triggerRef.current?.isConnected) triggerRef.current.focus();
-                      });
+                      setFocusRequest((current) => current + 1);
                     }
                   );
                 }}

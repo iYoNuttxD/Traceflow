@@ -65,7 +65,13 @@ function IndicatorList({ indicator }) {
       aria-label="Lista de registros"
     >
       <table className="indicator-card__table">
-        <caption>Registros relacionados</caption>
+        <caption>
+          Registros relacionados
+          {['I28', 'I34', 'I35'].includes(indicator.metricId) &&
+          indicator.value > indicator.items.length
+            ? ` · ${indicator.items.length} de ${indicator.value}`
+            : ''}
+        </caption>
         <thead>
           <tr>
             <th scope="col">Registro</th>

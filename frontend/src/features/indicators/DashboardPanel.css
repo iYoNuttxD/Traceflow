@@ -928,7 +928,8 @@
 }
 .indicator-card__table-scroll {
   max-width: 100%;
-  overflow-x: auto;
+  overflow: auto;
+  max-height: 28rem;
 }
 .indicator-card__table {
   width: 100%;
@@ -949,6 +950,12 @@
 }
 .indicator-card__table thead {
   color: var(--color-text-secondary);
+  background: var(--color-surface-secondary);
+}
+.indicator-card__table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   background: var(--color-surface-secondary);
 }
 .indicator-card__table th[scope='row'] {

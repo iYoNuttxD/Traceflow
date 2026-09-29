@@ -896,3 +896,22 @@ responsável quando fornecido). A referência é secundária ao valor atual.
 - Grids detalhados alinham pelo início, sem esticar listas. Cumulative Flow com série usa SVG de 352px (área útil aproximada de 283px). Séries de um ponto são resumos de conteúdo, sem tabela redundante; séries vazias não reservam altura de gráfico.
 
 Evidências e limites no [relatório P8.6A](../deliveries/S2_P8_6A_UI_CONSISTENCY_COMMERCIAL_UX_REPORT.md).
+
+
+### P8.6B — séries com referência e rankings maiores
+
+- `IndicatorChart` apresenta I20/I21 com lacunas preservadas, amostra diária na tabela
+  e primeira amostra disponível selecionada inicialmente. Linha tracejada somente
+  para `PROJECT_BASELINE` fornecida pelo servidor em unidade compatível; o domínio
+  vertical inclui a referência e a legenda textual continua acessível.
+- Regiões de tabelas de indicadores têm altura máxima de 28rem, rolagem interna e
+  cabeçalho fixo. Listas curtas continuam com altura de conteúdo. Rankings de Tasks
+  informam “10 de 11”, por exemplo, quando o backend limita os registros retornados.
+- Não há nova biblioteca de gráficos nem mudança de tokens ou primitives globais.
+
+### P8.6C — herança tipográfica do header de Indicadores
+
+O h1 de Indicadores herda a regra global de página, como Casos de teste, Defeitos e
+Rastreabilidade. Não limitar essa superfície a uma escala própria. Na auditoria local,
+a remoção da exceção de 40px resultou em 48px no desktop e 32px no mobile, conforme a
+regra canônica. SummaryPanel e CollapsibleFilterPanel permanecem compartilhados.

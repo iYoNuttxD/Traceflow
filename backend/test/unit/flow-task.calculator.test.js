@@ -151,3 +151,36 @@ describe('Flow + Task calculators', () => {
     });
   });
 });
+
+it('buckets duration medians by completion day, keeps gaps null and never counts reconclusion twice', () => {
+  const flow = calculateFlowTaskHistory({
+    tasks: [task(1, day(1), 'CONCLUIDO'), task(2, day(2), 'CONCLUIDO')],
+    movements: [
+      move(1, 2, 'A_FAZER', 'EM_ANDAMENTO', 1),
+      move(1, 4, 'EM_ANDAMENTO', 'CONCLUIDO', 2),
+      move(1, 5, 'CONCLUIDO', 'EM_ANDAMENTO', 3),
+      move(1, 6, 'EM_ANDAMENTO', 'CONCLUIDO', 4),
+      move(2, 3, 'A_FAZER', 'EM_ANDAMENTO', 5),
+      move(2, 4, 'EM_ANDAMENTO', 'CONCLUIDO', 6)
+    ],
+    period,
+    asOf,
+    dateKey: (date) => new Date(date.getTime() - 3 * 3600000).toISOString().slice(0, 10)
+  });
+  expect(flow.leadPoints.find((p) => p.date === '2026-09-03')).toEqual({
+    date: '2026-09-03',
+    value: 2.5,
+    eligibleCount: 2
+  });
+  expect(flow.cyclePoints.find((p) => p.date === '2026-09-03')).toEqual({
+    date: '2026-09-03',
+    value: 1.5,
+    eligibleCount: 2
+  });
+  expect(flow.cyclePoints.find((p) => p.date === '2026-09-05')).toEqual({
+    date: '2026-09-05',
+    value: null,
+    eligibleCount: 0
+  });
+  expect(flow.leadPoints.reduce((n, p) => n + p.eligibleCount, 0)).toBe(flow.lead.eligibleCount);
+});
