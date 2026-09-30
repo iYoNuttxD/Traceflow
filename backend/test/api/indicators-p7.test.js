@@ -27,6 +27,7 @@ beforeAll(async () => {
 });
 afterEach(async () => {
   vi.restoreAllMocks();
+  vi.useRealTimers();
   await cleanTestDatabase(prisma);
 });
 afterAll(async () => {
@@ -131,15 +132,138 @@ describe('P7 aggregate dashboard API', () => {
   it('P8.5 includes full Health in every requested category with one shared context', async () => {
     const owner = await actor();
     const p = await project(owner);
-    await prisma.task.create({
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-09-30T12:00:00Z'));
+    // Equal one-day current/previous flow and merge samples: no regression.
+    await prisma.projectGitHubIntegration.create({
       data: {
         projectId: p.id,
-        title: 'Assigned estimate',
-        responsibleUserId: owner.id,
-        estimatedEffort: 3
+        status: 'ACTIVE',
+        lastSyncAt: at(30),
+        lastSyncStatus: 'SINCRONIZADO',
+        pullRequestLifecycleCoverageFrom: new Date('2026-08-01'),
+        pullRequestLifecycleSyncedAt: at(30)
       }
     });
+    const requirement = await prisma.requirement.create({
+      data: { projectId: p.id, title: 'Implemented', status: 'CONCLUIDO' }
+    });
+    const sprint = await prisma.sprint.create({
+      data: {
+        projectId: p.id,
+        name: 'Health sprint',
+        status: 'EM_ANDAMENTO',
+        startDate: at(1),
+        endDate: at(30),
+        startedAt: at(1),
+        planningSnapshotAt: at(1)
+      }
+    });
+    for (const [index, created] of [
+      new Date('2026-08-20T12:00:00Z'),
+      new Date('2026-08-21T12:00:00Z'),
+      new Date('2026-08-22T12:00:00Z'),
+      at(3),
+      at(4),
+      at(5)
+    ].entries()) {
+      const completed = new Date(created.getTime() + 86400000);
+      const pull = await prisma.pullRequest.create({
+        data: {
+          projectId: p.id,
+          githubId: `health-${index}`,
+          number: index + 1,
+          title: 'Merged',
+          state: 'closed',
+          createdAtGithub: created,
+          mergedAtGithub: completed
+        }
+      });
+      await prisma.pullRequestLifecycleEvent.create({
+        data: {
+          projectId: p.id,
+          pullRequestId: pull.id,
+          providerEventId: `health-closed-${index}`,
+          eventType: 'CLOSED',
+          occurredAt: completed
+        }
+      });
+      const task = await prisma.task.create({
+        data: {
+          projectId: p.id,
+          title: `Complete ${index}`,
+          status: 'CONCLUIDO',
+          responsibleUserId: owner.id,
+          estimatedEffort: 3,
+          actualEffort: 3,
+          createdAt: created,
+          requirementId: requirement.id,
+          pullRequestId: pull.id,
+          ...(index >= 3 ? { sprintId: sprint.id } : {})
+        }
+      });
+      await prisma.taskMovement.createMany({
+        data: [
+          {
+            projectId: p.id,
+            taskId: task.id,
+            fromStatus: 'A_FAZER',
+            toStatus: 'EM_ANDAMENTO',
+            movedAt: created,
+            movedBy: 'Health fixture'
+          },
+          {
+            projectId: p.id,
+            taskId: task.id,
+            fromStatus: 'EM_ANDAMENTO',
+            toStatus: 'CONCLUIDO',
+            movedAt: completed,
+            movedBy: 'Health fixture'
+          }
+        ]
+      });
+      if (index >= 3)
+        await prisma.sprintTask.create({
+          data: {
+            projectId: p.id,
+            sprintId: sprint.id,
+            taskId: task.id,
+            taskTitleSnapshot: task.title,
+            addedAt: at(1),
+            plannedAtStart: true,
+            pointsAtPlanning: 3
+          }
+        });
+    }
     const general = await get(p.id, owner, 'dashboard', period);
+    // Five scored dimensions: 20+20+15+15+5 weight. Traceability has
+    // three perfect signals and two missing-test gaps, so 60; (6000+900)/75 = 92.
+    expect(general.body.projectHealth).toMatchObject({
+      score: 92,
+      status: 'HEALTHY',
+      coverage: 83.75,
+      assessedDimensions: 5,
+      applicableDimensions: 6
+    });
+    expect(
+      general.body.projectHealth.dimensions.map(({ id, score, coverage }) => ({
+        id,
+        score,
+        coverage
+      }))
+    ).toEqual([
+      { id: 'PLANNING', score: 100, coverage: 100 },
+      { id: 'FLOW', score: 100, coverage: 100 },
+      { id: 'SPRINT', score: 100, coverage: 100 },
+      { id: 'QUALITY', score: null, coverage: 35 },
+      { id: 'TRACEABILITY', score: 60, coverage: 100 },
+      { id: 'TECHNICAL_INTEGRATION', score: 100, coverage: 100 }
+    ]);
+    expect(general.body.projectHealth.assessments.I04).toMatchObject({
+      score: 100,
+      basis: { value: 0 }
+    });
+
     for (const view of [
       'PLANNING',
       'GITHUB',
@@ -156,6 +280,11 @@ describe('P7 aggregate dashboard API', () => {
         `${period}&view=${view}&includeProjectHealth=true`
       );
       expect(response.status).toBe(200);
+      expect(response.body.projectHealth, view).toMatchObject({
+        score: 92,
+        coverage: 83.75,
+        assessedDimensions: 5
+      });
       expect(response.body.projectHealth.dimensions, view).toEqual(
         general.body.projectHealth.dimensions
       );
@@ -279,6 +408,7 @@ describe('P7 aggregate dashboard API', () => {
     const i = indicatorMap(response);
     expect(i.I23).toMatchObject({ value: 1, period: null, appliedFilters: { period: false } });
     expect(i.I22).toMatchObject({
+      value: 1,
       period: { startDate: '2026-09-01', endDate: '2026-09-19' },
       appliedFilters: { period: true }
     });
@@ -317,6 +447,62 @@ describe('P7 aggregate dashboard API', () => {
   it('compõe as oito views e publica catálogo sem I68 ou metadata privada', async () => {
     const owner = await actor();
     const p = await project(owner);
+    const expectedIds = {
+      GENERAL: ['I01', 'I23', 'I28', 'I61', 'I66', 'I53', 'I45', 'I46'],
+      PLANNING: ['I26', 'I28', 'I29', 'I30', 'I31', 'I32', 'I33', 'I34'],
+      GITHUB: [
+        'I02',
+        'I09',
+        'I04',
+        'I06',
+        'I10',
+        'I11',
+        'I12',
+        'I15',
+        'I16',
+        'I17',
+        'I73',
+        'I13',
+        'I14',
+        'I18',
+        'I74'
+      ],
+      FLOW: ['I20', 'I21', 'I22', 'I23', 'I24', 'I25'],
+      SPRINT: [
+        'I36',
+        'I37',
+        'I38',
+        'I39',
+        'I40',
+        'I41',
+        'I42',
+        'I43',
+        'I44',
+        'I45',
+        'I46',
+        'I47',
+        'I71',
+        'I72'
+      ],
+      TASK: ['I26', 'I27', 'I28', 'I29', 'I30', 'I31', 'I32', 'I33', 'I34', 'I35'],
+      QUALITY: [
+        'I06',
+        'I48',
+        'I49',
+        'I50',
+        'I51',
+        'I52',
+        'I53',
+        'I54',
+        'I55',
+        'I56',
+        'I57',
+        'I58',
+        'I59',
+        'I60'
+      ],
+      TRACEABILITY: ['I61', 'I62', 'I63', 'I64', 'I65', 'I66', 'I67']
+    };
     for (const view of [
       'GENERAL',
       'PLANNING',
@@ -334,7 +520,7 @@ describe('P7 aggregate dashboard API', () => {
       const ids = response.body.sections.flatMap((section) =>
         section.indicators.map((item) => item.metricId)
       );
-      expect(ids.length).toBeGreaterThan(0);
+      expect(ids).toEqual(expectedIds[view]);
       expect(new Set(ids).size).toBe(ids.length);
       expect(ids).not.toContain('I68');
       expect(

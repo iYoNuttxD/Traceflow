@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   sprint: {
@@ -42,6 +42,8 @@ vi.mock('../../src/modules/sprints/repositories/milestone.repository.js', () => 
 
 import { sprintService } from '../../src/modules/sprints/sprint.service.js';
 import { nextPlannedSprint } from '../../src/modules/sprints/services/sprint-status.service.js';
+
+afterEach(() => vi.useRealTimers());
 
 const projectId = 1;
 const baseSprint = {
@@ -248,7 +250,11 @@ describe('ordem das datas', () => {
   it('aceita a janela parcial quando o registro travado a mantem coerente', async () => {
     mocks.sprint.findById.mockResolvedValue(baseSprint);
     lockedSprints = [baseSprint];
-    await expect(sprintService.updateSprint(10, { endDate: '2026-08-20' })).resolves.toBeDefined();
+    await expect(sprintService.updateSprint(10, { endDate: '2026-08-20' })).resolves.toMatchObject({
+      id: 10,
+      startDate: baseSprint.startDate,
+      endDate: new Date('2026-08-20T00:00:00Z')
+    });
   });
 
   it('recusa janela completa invalida sem abrir a transacao', async () => {
@@ -350,7 +356,12 @@ describe('marco da sprint', () => {
     lockedSprints = [baseSprint];
     await expect(
       sprintService.updateSprint(10, { startDate: '2026-08-02', endDate: '2026-08-05' })
-    ).resolves.toBeDefined();
+    ).resolves.toMatchObject({
+      startDate: new Date('2026-08-02T00:00:00Z'),
+      endDate: new Date('2026-08-05T00:00:00Z')
+    });
+    expect(mocks.milestone.findById).not.toHaveBeenCalled();
+    expect(mocks.milestone.findByProject).not.toHaveBeenCalled();
   });
 });
 
@@ -384,13 +395,21 @@ describe('sobreposicao de janelas', () => {
         startDate: '2026-08-15',
         endDate: '2026-08-29'
       })
-    ).resolves.toBeDefined();
+    ).resolves.toMatchObject({
+      projectId,
+      name: 'S2',
+      startDate: new Date('2026-08-15T00:00:00Z'),
+      endDate: new Date('2026-08-29T00:00:00Z')
+    });
   });
 
   it('ignora a propria sprint ao editar', async () => {
     mocks.sprint.findById.mockResolvedValue({ ...baseSprint, id: 99 });
     lockedSprints = [existente];
-    await expect(sprintService.updateSprint(99, { name: 'Renomeada' })).resolves.toBeDefined();
+    await expect(sprintService.updateSprint(99, { name: 'Renomeada' })).resolves.toMatchObject({
+      id: 99,
+      name: 'Renomeada'
+    });
   });
 
   it('rejeita edicao que passa a cruzar outra sprint', async () => {
@@ -410,7 +429,12 @@ describe('sobreposicao de janelas', () => {
         startDate: '2026-08-05',
         endDate: '2026-08-12'
       })
-    ).resolves.toBeDefined();
+    ).resolves.toMatchObject({
+      projectId,
+      name: 'S2',
+      startDate: new Date('2026-08-05T00:00:00Z'),
+      endDate: new Date('2026-08-12T00:00:00Z')
+    });
   });
 });
 
@@ -427,7 +451,7 @@ describe('unicidade de nome', () => {
     ).rejects.toMatchObject({ statusCode: 409, code: 'SPRINT_NAME_IN_USE' });
   });
 
-  it('aceita o mesmo nome em projeto diferente', async () => {
+  it('encaminha o nome e escopo do projeto para a criação', async () => {
     mocks.sprint.findProjectById.mockResolvedValue({ id: 2 });
     mocks.milestone.findById.mockResolvedValue({ id: 7, projectId: 2, title: 'Marco' });
     await expect(
@@ -437,7 +461,13 @@ describe('unicidade de nome', () => {
         startDate: '2026-08-01',
         endDate: '2026-08-14'
       })
-    ).resolves.toBeDefined();
+    ).resolves.toMatchObject({ projectId: 2, name: 'Sprint 1' });
+    expect(mocks.sprint.createWithinProjectLock).toHaveBeenCalledWith(
+      2,
+      expect.objectContaining({ name: 'Sprint 1' }),
+      expect.anything(),
+      expect.any(Function)
+    );
   });
 });
 
@@ -456,7 +486,8 @@ describe('maquina de estados da sprint', () => {
     ['EM_ANDAMENTO', 'CANCELADA']
   ])('permite %s -> %s', async (from, to) => {
     comStatus(from);
-    await expect(sprintService.updateSprintStatus(10, to)).resolves.toBeDefined();
+    await sprintService.updateSprintStatus(10, to);
+    expect(capturedTransition.data.status).toBe(to);
   });
 
   it.each([
@@ -512,7 +543,8 @@ describe('maquina de estados da sprint', () => {
   it('aceita a transicao que so o registro travado permite', async () => {
     mocks.sprint.findById.mockResolvedValue({ ...baseSprint, status: 'PLANEJADA' });
     lockedStatusSprint = { ...baseSprint, status: 'EM_ANDAMENTO' };
-    await expect(sprintService.updateSprintStatus(10, 'CONCLUIDA')).resolves.toBeDefined();
+    await sprintService.updateSprintStatus(10, 'CONCLUIDA');
+    expect(capturedTransition.data.status).toBe('CONCLUIDA');
   });
 
   it('propaga 404 quando o repository nao encontra a linha para travar', async () => {
@@ -541,19 +573,9 @@ describe('maquina de estados da sprint', () => {
       ];
       await expect(sprintService.updateSprintStatus(10, 'EM_ANDAMENTO')).rejects.toMatchObject({
         statusCode: 409,
-        code: 'SPRINT_ALREADY_ACTIVE'
+        code: 'SPRINT_ALREADY_ACTIVE',
+        message: expect.stringContaining('Sprint 2')
       });
-    });
-
-    it('nomeia a sprint que bloqueia', async () => {
-      comStatus('PLANEJADA');
-      lockedSprints = [
-        { ...baseSprint, id: 10, status: 'PLANEJADA' },
-        { ...baseSprint, id: 11, name: 'Sprint 2', status: 'EM_ANDAMENTO' }
-      ];
-      await expect(sprintService.updateSprintStatus(10, 'EM_ANDAMENTO')).rejects.toThrow(
-        /Sprint 2/
-      );
     });
 
     it('aceita iniciar quando so ha sprints planejadas e encerradas', async () => {
@@ -563,18 +585,20 @@ describe('maquina de estados da sprint', () => {
         { ...baseSprint, id: 11, status: 'CONCLUIDA' },
         { ...baseSprint, id: 12, status: 'CANCELADA' }
       ];
-      await expect(sprintService.updateSprintStatus(10, 'EM_ANDAMENTO')).resolves.toBeDefined();
+      await sprintService.updateSprintStatus(10, 'EM_ANDAMENTO');
+      expect(capturedTransition.data.status).toBe('EM_ANDAMENTO');
     });
 
     it('decide pelo retrato travado, e nao pela leitura anterior', async () => {
-      mocks.sprint.findById.mockResolvedValue({ ...baseSprint, status: 'PLANEJADA' });
+      mocks.sprint.findById.mockResolvedValue({ ...baseSprint, status: 'CONCLUIDA' });
       lockedStatusSprint = { ...baseSprint, status: 'PLANEJADA' };
       lockedSprints = [
         { ...baseSprint, id: 10, status: 'PLANEJADA' },
         { ...baseSprint, id: 11, name: 'Sprint 2', status: 'EM_ANDAMENTO' }
       ];
       await expect(sprintService.updateSprintStatus(10, 'EM_ANDAMENTO')).rejects.toMatchObject({
-        code: 'SPRINT_ALREADY_ACTIVE'
+        code: 'SPRINT_ALREADY_ACTIVE',
+        message: expect.stringContaining('Sprint 2')
       });
     });
   });
@@ -593,16 +617,10 @@ describe('maquina de estados da sprint', () => {
         lockedTasks = tarefas;
         const resultado = await sprintService.updateSprintStatus(10, status);
         expect(capturedTransition.backlog.taskIds).toEqual([2, 3]);
+        expect(capturedTransition.backlog.taskIds).not.toContain(1);
         expect(resultado.returnedToBacklog).toBe(2);
       }
     );
-
-    it('nao devolve a tarefa concluida', async () => {
-      comStatus('EM_ANDAMENTO');
-      lockedTasks = tarefas;
-      await sprintService.updateSprintStatus(10, 'CONCLUIDA');
-      expect(capturedTransition.backlog.taskIds).not.toContain(1);
-    });
 
     it('registra historico de sprint para cada devolucao', async () => {
       comStatus('EM_ANDAMENTO');
@@ -1019,7 +1037,7 @@ describe('marcos', () => {
     });
   });
 
-  it('recusa sprintId no corpo, em vez de descarta-lo em silencio', async () => {
+  it('filtra sprintId no mapper do service; validação HTTP estrita ocorre antes', async () => {
     await expect(
       sprintService.createMilestone(projectId, criar({ sprintId: 10 }))
     ).resolves.toMatchObject({ title: 'M' });
@@ -1029,30 +1047,43 @@ describe('marcos', () => {
   it('aceita prazo em qualquer data do projeto', async () => {
     await expect(
       sprintService.createMilestone(projectId, criar({ dueDate: '2027-01-31' }))
-    ).resolves.toBeDefined();
+    ).resolves.toMatchObject({ title: 'M', dueDate: new Date('2027-01-31T00:00:00Z') });
   });
 
   it('alterna o status entre PENDENTE e CONCLUIDO', async () => {
     const milestone = await sprintService.updateMilestoneStatus(1, 'CONCLUIDO');
     expect(milestone.status).toBe('CONCLUIDO');
+    mocks.milestone.findById.mockResolvedValue(marco({ status: 'CONCLUIDO' }));
+    expect((await sprintService.updateMilestoneStatus(1, 'PENDENTE')).status).toBe('PENDENTE');
+    expect(mocks.milestone.updateWithinProjectLock).toHaveBeenLastCalledWith(
+      1,
+      projectId,
+      { status: 'PENDENTE' },
+      expect.anything(),
+      expect.any(Function)
+    );
   });
 
-  it.each(['CONCLUIDA', 'CANCELADA'])(
-    'permite editar o marco com sprint %s no projeto',
-    async (status) => {
-      mocks.sprint.findById.mockResolvedValue({ ...baseSprint, status });
-      await expect(sprintService.updateMilestone(1, { title: 'X' })).resolves.toBeDefined();
-      await expect(sprintService.updateMilestoneStatus(1, 'CONCLUIDO')).resolves.toBeDefined();
-    }
-  );
-
-  it('exclui marco sem sprints', async () => {
-    await expect(sprintService.deleteMilestone(1)).resolves.toEqual({ id: 1 });
+  it('edita marco sem consultar estado das sprints', async () => {
+    await expect(sprintService.updateMilestone(1, { title: 'X' })).resolves.toMatchObject({
+      id: 1,
+      title: 'X'
+    });
+    await expect(sprintService.updateMilestoneStatus(1, 'CONCLUIDO')).resolves.toMatchObject({
+      status: 'CONCLUIDO'
+    });
+    expect(mocks.sprint.findById).not.toHaveBeenCalled();
+    expect(mocks.sprint.findByProject).not.toHaveBeenCalled();
   });
 
-  it('permite exclusão lógica mesmo com Sprints vinculadas', async () => {
-    lockedSprintCount = 3;
+  it('delega exclusão lógica ao repository com escopo e auditoria', async () => {
     await expect(sprintService.deleteMilestone(1)).resolves.toEqual({ id: 1 });
+    expect(mocks.milestone.deleteWithinProjectLock).toHaveBeenCalledWith(
+      1,
+      projectId,
+      expect.anything(),
+      expect.any(Function)
+    );
   });
 
   it('rejeita status fora do enum', async () => {
@@ -1198,7 +1229,10 @@ describe('montagem do cronograma', () => {
   });
 
   it('expoe generatedAt em ISO-8601 UTC', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-30T12:34:56.789Z'));
     const schedule = await sprintService.getSchedule(projectId, {});
+    expect(schedule.generatedAt).toBe('2026-09-30T12:34:56.789Z');
     expect(schedule.generatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
   });
 });
@@ -1208,12 +1242,36 @@ describe('terminal summary batching and carry-over ordering', () => {
     const rows = Array.from({ length: 10 }, (_, id) => ({
       ...baseSprint,
       id: id + 1,
-      status: 'CONCLUIDA'
+      status: 'CONCLUIDA',
+      planningSnapshotAt: new Date('2026-08-01'),
+      completedAt: new Date('2026-08-14')
     }));
     mocks.sprint.findByProject.mockResolvedValue(rows);
-    mocks.sprint.findHistoryBySprints.mockResolvedValue([]);
+    mocks.sprint.findHistoryBySprints.mockResolvedValue(
+      rows
+        .map((row) => ({
+          sprintId: row.id,
+          taskId: row.id * 10,
+          removedAt: null,
+          plannedAtStart: true,
+          pointsAtPlanning: row.id,
+          pointsAtClose: row.id,
+          exitStatus: row.id % 2 ? 'CONCLUIDO' : 'A_FAZER'
+        }))
+        .reverse()
+    );
     const result = await sprintService.findSprintsByProject(projectId);
     expect(result).toHaveLength(10);
+    result.forEach((row) =>
+      expect(row.historicalSummary).toMatchObject({
+        totalTasks: 1,
+        completedTasks: row.id % 2 ? 1 : 0,
+        totalPoints: row.id,
+        completedPoints: row.id % 2 ? row.id : 0,
+        plannedTasks: 1,
+        plannedPoints: row.id
+      })
+    );
     expect(mocks.sprint.findHistoryBySprints).toHaveBeenCalledExactlyOnceWith(
       rows.map((sprint) => sprint.id)
     );

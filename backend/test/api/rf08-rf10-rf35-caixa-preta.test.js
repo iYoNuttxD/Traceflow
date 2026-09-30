@@ -82,6 +82,14 @@ async function criarSprint(ator, projectId, milestoneId, dados = {}) {
     ...dados
   });
   expect(response.status).toBe(201);
+  expect(response.body.sprint.id).toBeTypeOf('number');
+  expect(await prisma.sprint.findUnique({ where: { id: response.body.sprint.id } })).toMatchObject({
+    projectId,
+    milestoneId,
+    name: response.body.sprint.name,
+    startDate: new Date(dados.startDate ?? '2026-09-01'),
+    endDate: new Date(dados.endDate ?? '2026-09-15')
+  });
   return response.body.sprint;
 }
 
@@ -138,13 +146,25 @@ async function sprintCongeladaComTarefa(ator, projectId) {
 }
 
 describe('CP — TE: maquina de estados da sprint (RF10)', () => {
-  it('CP-TE-01 planejada inicia', async () => {
+  it.each([
+    ['CP-TE-01', 'PLANEJADA', 'EM_ANDAMENTO', 200],
+    ['CP-TE-04', 'PLANEJADA', 'CANCELADA', 200],
+    ['CP-TE-06', 'EM_ANDAMENTO', 'CANCELADA', 200],
+    ['CP-TE-07', 'EM_ANDAMENTO', 'PLANEJADA', 409],
+    ['CP-TE-09', 'CANCELADA', 'EM_ANDAMENTO', 409]
+  ])('%s: %s -> %s', async (_case, from, to, status) => {
     const ator = await registrar();
     const projeto = await criarProjeto(ator);
     const marco = await criarMarco(ator, projeto.id);
     const sprint = await criarSprint(ator, projeto.id, marco.id);
-    const corpo = await transicionar(ator, sprint.id, 'EM_ANDAMENTO');
-    expect(corpo.sprint.status).toBe('EM_ANDAMENTO');
+    if (from !== 'PLANEJADA') await transicionar(ator, sprint.id, from);
+    const response = await mudarStatusSprint(ator, sprint.id, to);
+    expect(response.status).toBe(status);
+    if (status === 200) expect(response.body.sprint).toMatchObject({ id: sprint.id, status: to });
+    else expect(response.body.code).toBe('SPRINT_INVALID_TRANSITION');
+    expect(await prisma.sprint.findUnique({ where: { id: sprint.id } })).toMatchObject({
+      status: status === 200 ? to : from
+    });
   });
 
   it('CP-TE-02 segunda sprint ativa e recusada mesmo sem sobreposicao', async () => {
@@ -160,15 +180,6 @@ describe('CP — TE: maquina de estados da sprint (RF10)', () => {
     const resposta = await mudarStatusSprint(ator, segunda.id, 'EM_ANDAMENTO');
     expect(resposta.status).toBe(409);
     expect(resposta.body.code).toBe('SPRINT_ALREADY_ACTIVE');
-  });
-
-  it('CP-TE-04 planejada cancela', async () => {
-    const ator = await registrar();
-    const projeto = await criarProjeto(ator);
-    const marco = await criarMarco(ator, projeto.id);
-    const sprint = await criarSprint(ator, projeto.id, marco.id);
-    const corpo = await transicionar(ator, sprint.id, 'CANCELADA');
-    expect(corpo.sprint.status).toBe('CANCELADA');
   });
 
   it('CP-TE-05 concluir devolve as pendentes ao backlog', async () => {
@@ -191,27 +202,6 @@ describe('CP — TE: maquina de estados da sprint (RF10)', () => {
     expect(noQuadro.find((task) => task.id === t1.id).sprintId).toBe(sprint.id);
   });
 
-  it('CP-TE-06 em andamento cancela', async () => {
-    const ator = await registrar();
-    const projeto = await criarProjeto(ator);
-    const marco = await criarMarco(ator, projeto.id);
-    const sprint = await criarSprint(ator, projeto.id, marco.id);
-    await transicionar(ator, sprint.id, 'EM_ANDAMENTO');
-    const corpo = await transicionar(ator, sprint.id, 'CANCELADA');
-    expect(corpo.sprint.status).toBe('CANCELADA');
-  });
-
-  it('CP-TE-07 em andamento nao volta a planejada', async () => {
-    const ator = await registrar();
-    const projeto = await criarProjeto(ator);
-    const marco = await criarMarco(ator, projeto.id);
-    const sprint = await criarSprint(ator, projeto.id, marco.id);
-    await transicionar(ator, sprint.id, 'EM_ANDAMENTO');
-    const resposta = await mudarStatusSprint(ator, sprint.id, 'PLANEJADA');
-    expect(resposta.status).toBe(409);
-    expect(resposta.body.code).toBe('SPRINT_INVALID_TRANSITION');
-  });
-
   it('CP-TE-08 concluida e terminal para status e edicao', async () => {
     const ator = await registrar();
     const projeto = await criarProjeto(ator);
@@ -222,17 +212,6 @@ describe('CP — TE: maquina de estados da sprint (RF10)', () => {
     const edicao = await ator.mutate('put', `/api/sprints/${sprint.id}`).send({ name: 'Nova' });
     expect(edicao.status).toBe(409);
     expect(edicao.body.code).toBe('SPRINT_LOCKED');
-  });
-
-  it('CP-TE-09 cancelada e terminal', async () => {
-    const ator = await registrar();
-    const projeto = await criarProjeto(ator);
-    const marco = await criarMarco(ator, projeto.id);
-    const sprint = await criarSprint(ator, projeto.id, marco.id);
-    await transicionar(ator, sprint.id, 'CANCELADA');
-    const resposta = await mudarStatusSprint(ator, sprint.id, 'EM_ANDAMENTO');
-    expect(resposta.status).toBe(409);
-    expect(resposta.body.code).toBe('SPRINT_INVALID_TRANSITION');
   });
 
   it('CP-TE-11 concluir a ultima sprint conclui o marco', async () => {
@@ -270,7 +249,15 @@ describe('CP — TD: mover tarefa no quadro (RF08)', () => {
     const ator = await registrar();
     await criarProjeto(ator);
     const resposta = await mover(ator, 999999, 'EM_ANDAMENTO');
-    expect(resposta.status).toBe(404);
+    expect(resposta).toMatchObject({ status: 404, body: { code: 'RESOURCE_NOT_FOUND' } });
+    const outra = await registrar();
+    const projeto = await criarProjeto(outra);
+    const tarefa = await criarTarefa(outra, projeto.id);
+    const hidden = await mover(ator, tarefa.id, 'EM_ANDAMENTO');
+    expect(hidden).toMatchObject({
+      status: 404,
+      body: { code: resposta.body.code, message: resposta.body.message }
+    });
   });
 
   it('CP-TD-02 status invalido lista os permitidos', async () => {
@@ -401,8 +388,9 @@ describe('CP — PE/VL: cadastro e janelas do cronograma (RF10)', () => {
     const projetoB = await criarProjeto(ator);
     const marcoA = await criarMarco(ator, projetoA.id);
     const marcoB = await criarMarco(ator, projetoB.id);
-    await criarSprint(ator, projetoA.id, marcoA.id, { name: 'Sprint Alfa CP' });
-    await criarSprint(ator, projetoB.id, marcoB.id, { name: 'Sprint Alfa CP' });
+    const a = await criarSprint(ator, projetoA.id, marcoA.id, { name: 'Sprint Alfa CP' });
+    const b = await criarSprint(ator, projetoB.id, marcoB.id, { name: 'Sprint Alfa CP' });
+    expect(a.id).not.toBe(b.id);
   });
 
   it('CP-VL-05 duracao zero', async () => {
@@ -467,14 +455,31 @@ describe('CP — PE/VL: cadastro e janelas do cronograma (RF10)', () => {
     });
   });
 
+  it('rejects sprintId at the strict milestone HTTP boundary', async () => {
+    const ator = await registrar();
+    const projeto = await criarProjeto(ator);
+    const response = await ator
+      .mutate('post', `/api/projects/${projeto.id}/milestones`)
+      .send({ title: 'Invalid link', dueDate: '2026-09-01', sprintId: 10 });
+    expect(response).toMatchObject({ status: 400, body: { code: 'VALIDATION_ERROR' } });
+    expect(await prisma.milestone.count({ where: { projectId: projeto.id } })).toBe(0);
+  });
+
   it('CP-PE-10 prazo do marco e livre de janelas', async () => {
     const ator = await registrar();
     const projeto = await criarProjeto(ator);
     const marco = await criarMarco(ator, projeto.id, { dueDate: '2027-05-01' });
+    const sprint = await criarSprint(ator, projeto.id, marco.id);
+    const before = await prisma.sprint.findUnique({ where: { id: sprint.id } });
     const edicao = await ator
       .mutate('put', `/api/milestones/${marco.id}`)
       .send({ dueDate: '2020-01-01' });
     expect(edicao.status).toBe(200);
+    expect(edicao.body.milestone.dueDate).toBe('2020-01-01T00:00:00.000Z');
+    expect(await prisma.milestone.findUnique({ where: { id: marco.id } })).toMatchObject({
+      dueDate: new Date('2020-01-01')
+    });
+    expect(await prisma.sprint.findUnique({ where: { id: sprint.id } })).toEqual(before);
   });
 
   it('CP-PE-11 exclusão lógica de marco preserva a Sprint', async () => {
@@ -548,8 +553,8 @@ describe('CP — PE/VL: cadastro e janelas do cronograma (RF10)', () => {
   it('CP-VL-17 o "to" do cronograma inclui o dia inteiro em UTC', async () => {
     const ator = await registrar();
     const projeto = await criarProjeto(ator);
-    const dentro = await criarTarefa(ator, projeto.id, { deadline: '2026-09-14' });
-    const fora = await criarTarefa(ator, projeto.id, { deadline: '2026-09-15' });
+    const dentro = await criarTarefa(ator, projeto.id, { deadline: '2026-09-14T23:59:59.999Z' });
+    const fora = await criarTarefa(ator, projeto.id, { deadline: '2026-09-15T00:00:00.000Z' });
     const resposta = await ator.agent.get(
       `/api/projects/${projeto.id}/schedule?from=2026-09-10&to=2026-09-14`
     );
@@ -730,6 +735,13 @@ describe('CP — TD: autorizacao nas tres interfaces', () => {
 
   it('CP-TD-25 viewer nao escreve em nenhuma das tres', async () => {
     const { projeto, marco, tarefa, leitura } = await projetoComViewer();
+    const snapshot = async () =>
+      Promise.all([
+        prisma.task.findMany({ where: { projectId: projeto.id } }),
+        prisma.milestone.findMany({ where: { projectId: projeto.id } }),
+        prisma.sprint.findMany({ where: { projectId: projeto.id } })
+      ]);
+    const before = await snapshot();
     expect((await mover(leitura, tarefa.id, 'EM_ANDAMENTO')).status).toBe(403);
     expect(
       (
@@ -748,6 +760,7 @@ describe('CP — TD: autorizacao nas tres interfaces', () => {
           .send({ status: 'CONCLUIDO' })
       ).status
     ).toBe(403);
+    expect(await snapshot()).toEqual(before);
   });
 
   it('CP-TD-26 nao-membro recebe resposta identica a de recurso inexistente', async () => {
@@ -759,12 +772,14 @@ describe('CP — TD: autorizacao nas tres interfaces', () => {
 
     const progressoReal = await externa.agent.get(`/api/sprints/${sprint.id}/progress`);
     const progressoInexistente = await externa.agent.get('/api/sprints/999999/progress');
+    expect(progressoReal).toMatchObject({ status: 404, body: { code: 'RESOURCE_NOT_FOUND' } });
     expect(progressoReal.status).toBe(progressoInexistente.status);
     expect(progressoReal.body.code).toBe(progressoInexistente.body.code);
     expect(progressoReal.body.message).toBe(progressoInexistente.body.message);
 
     const quadroReal = await externa.agent.get(`/api/projects/${projeto.id}/kanban`);
     const quadroInexistente = await externa.agent.get('/api/projects/999999/kanban');
+    expect(quadroReal).toMatchObject({ status: 404, body: { code: 'RESOURCE_NOT_FOUND' } });
     expect(quadroReal.status).toBe(quadroInexistente.status);
     expect(quadroReal.body.message).toBe(quadroInexistente.body.message);
   });

@@ -581,13 +581,51 @@ describe('S1-09 persisted projection and transitions', () => {
     await locked.promise;
     const second = prisma.$transaction(
       async (tx) => {
-        attempted.resolve();
-        return reconcile(tx, scope);
+        const observed = new Proxy(tx, {
+          get(target, property) {
+            if (property !== '$queryRaw') return target[property];
+            return (...args) => {
+              const sql = args[0].join('?');
+              if (/FROM Project/.test(sql)) {
+                expect(sql).toMatch(/deletedAt IS NULL FOR UPDATE/);
+                expect(args[1]).toBe(f.project.id);
+                const pending = target.$queryRaw(...args).then((rows) => rows);
+                attempted.resolve();
+                return pending;
+              }
+              return target.$queryRaw(...args);
+            };
+          }
+        });
+        return reconcile(observed, scope);
       },
       { isolationLevel: 'ReadCommitted' }
     );
-    await attempted.promise;
-    release.resolve();
+    let settled = false;
+    const completion = second.then(
+      (value) => {
+        settled = true;
+        return value;
+      },
+      (error) => {
+        settled = true;
+        throw error;
+      }
+    );
+    try {
+      await Promise.race([
+        attempted.promise,
+        completion.then(() => {
+          throw new Error('Reconciliation finished without attempting the project lock.');
+        })
+      ]);
+      // Arrival is observed at the real SQL boundary, with exact scoped FOR UPDATE.
+      // This pending observation supplements the SQL contract; it is not server telemetry.
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(settled).toBe(false);
+    } finally {
+      release.resolve();
+    }
     const results = await Promise.all([first, second]);
     expect(results.map((r) => r.changes.length).sort()).toEqual([0, 1]);
     await f.state('PLANEJADO');
@@ -802,9 +840,29 @@ describe('S1-09 expanded graph read model', () => {
     try {
       const model = await loadExpandedGraph(queryClient, f.project.id, f.requirement.id);
       const g = formatExpandedGraph(model, { limit: 100 });
-      expect(g.nodes.length).toBeGreaterThan(65);
+      expect(g.nodes).toHaveLength(85);
+      expect(g.edges).toHaveLength(123);
+      const nodeIds = new Set(g.nodes.map((node) => node.id));
+      expect(nodeIds.size).toBe(85);
+      expect(g.edges.every((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target))).toBe(
+        true
+      );
       expect(queries.length).toBeLessThan(60);
       expect(queries.every((q) => !/INSERT|UPDATE|DELETE/.test(q))).toBe(true);
+      const originalQueries = queries.length;
+      for (let index = 0; index < 12; index++)
+        await createTask(prisma, f.project.id, {
+          requirementId: f.requirement.id,
+          title: `Additional graph task ${index}`
+        });
+      queries.length = 0;
+      const larger = formatExpandedGraph(
+        await loadExpandedGraph(queryClient, f.project.id, f.requirement.id),
+        { limit: 100 }
+      );
+      expect(larger.nodes).toHaveLength(97);
+      expect(larger.edges).toHaveLength(135);
+      expect(queries.length).toBe(originalQueries);
       expect(JSON.stringify(g)).not.toMatch(
         /actionSnapshot|storageKey|snapshotJson|observedResult/
       );

@@ -48,6 +48,7 @@ describe('Indicator Engine puro', () => {
 
   it('preserva não associados sem score nem ordenação por produtividade', () => {
     const commits = calculateDistribution([
+      { userId: 9, displayName: 'Zoe', count: 100n },
       { userId: 3, displayName: 'Ana', count: 5n },
       { userId: null, displayName: null, count: 2n }
     ]);
@@ -55,18 +56,43 @@ describe('Indicator Engine puro', () => {
       { userId: 4, displayName: 'Bia', count: 3n },
       { userId: null, displayName: null, count: 1n, unknownHistorical: 1n }
     ]);
-    expect(commits).toMatchObject({ total: 7, associated: 5, unassociated: 2 });
+    expect(commits).toMatchObject({ total: 107, associated: 105, unassociated: 2 });
     expect(tasks).toMatchObject({ total: 4, unassociated: 1, unassignedHistoricalCount: 1 });
     expect(combineActivity(commits, tasks)).toEqual([
       { userId: 3, displayName: 'Ana', completedTasks: 0, commits: 5 },
-      { userId: 4, displayName: 'Bia', completedTasks: 3, commits: 0 }
+      { userId: 4, displayName: 'Bia', completedTasks: 3, commits: 0 },
+      { userId: 9, displayName: 'Zoe', completedTasks: 0, commits: 100 }
     ]);
-    expect(activityState({ state: 'STALE' }, { state: 'AVAILABLE' })).toBe('STALE');
-    expect(activityState({ state: 'PARTIAL' }, { state: 'AVAILABLE' })).toBe('PARTIAL');
-    expect(activityState({ state: 'UNAVAILABLE' }, { state: 'AVAILABLE' })).toBe('PARTIAL');
+    const states = ['AVAILABLE', 'NO_DATA', 'PARTIAL', 'STALE', 'UNAVAILABLE'];
+    const expected = [
+      ['AVAILABLE', 'AVAILABLE', 'PARTIAL', 'STALE', 'PARTIAL'],
+      ['AVAILABLE', 'NO_DATA', 'PARTIAL', 'STALE', 'PARTIAL'],
+      ['PARTIAL', 'PARTIAL', 'PARTIAL', 'PARTIAL', 'PARTIAL'],
+      ['STALE', 'STALE', 'PARTIAL', 'STALE', 'PARTIAL'],
+      ['PARTIAL', 'PARTIAL', 'PARTIAL', 'PARTIAL', 'UNAVAILABLE']
+    ];
+    states.forEach((left, i) =>
+      states.forEach((right, j) => {
+        expect(activityState({ state: left }, { state: right })).toBe(expected[i][j]);
+      })
+    );
   });
 
   it('marca falha/reconexão/head divergente como frescor comprometido sem limiar de idade', () => {
+    expect(
+      githubFreshness(
+        { status: 'RECONNECT_REQUIRED', lastSyncStatus: null, lastSyncAt: null },
+        null
+      )
+    ).toEqual({
+      sourceUpdatedAt: null,
+      sourceSyncStatus: null,
+      stale: true,
+      limitations: ['GITHUB_INTEGRATION_NOT_ACTIVE']
+    });
+    expect(
+      githubFreshness({ status: 'ACTIVE', lastSyncStatus: null, lastSyncAt: null }, null)
+    ).toEqual({ sourceUpdatedAt: null, sourceSyncStatus: null, stale: false, limitations: [] });
     expect(
       githubFreshness(
         { status: 'ACTIVE', lastSyncStatus: 'FALHA', lastSyncAt: new Date() },

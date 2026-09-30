@@ -50,8 +50,28 @@ describe('persistência de metadados da GitHub App', () => {
     await githubRepository.listAuthorizedInstallations(7);
     await githubRepository.findIntegration(9);
     await githubRepository.findIntegrationByRepositoryId('501');
-    await githubRepository.findIntegrationsByRepositoryIds(['501', 502]);
-    await githubRepository.findIntegrationsByRepositoryIds([]);
+    await githubRepository.findIntegrationsByRepositoryIds(['501', 502], 7);
+    expect(await githubRepository.findIntegrationsByRepositoryIds([])).toEqual([]);
+    expect(database.prisma.projectGitHubIntegration.findMany).toHaveBeenCalledTimes(1);
+    expect(database.prisma.gitHubAppConnectionState.findUnique).toHaveBeenCalledWith({
+      where: { tokenHash: 'hash' },
+      include: { user: true, session: true }
+    });
+    expect(database.prisma.gitHubInstallation.findFirst).toHaveBeenCalledWith({
+      where: {
+        githubInstallationId: '77',
+        status: 'ACTIVE',
+        authorizations: { some: { userId: 7 } }
+      }
+    });
+    expect(database.prisma.gitHubInstallation.findMany).toHaveBeenCalledWith({
+      where: { status: 'ACTIVE', authorizations: { some: { userId: 7 } } },
+      orderBy: { accountLogin: 'asc' }
+    });
+    expect(
+      database.prisma.projectGitHubIntegration.findMany.mock.calls[0][0].select.project.select
+        .memberships
+    ).toEqual({ where: { userId: 7, isActive: true }, select: { id: true, role: true } });
 
     expect(database.prisma.gitHubAppConnectionState.create).toHaveBeenCalledWith({
       data: { tokenHash: 'hash' }
@@ -172,11 +192,25 @@ describe('persistência de metadados da GitHub App', () => {
     database.tx.projectGitHubIntegration.findUnique.mockResolvedValue(null);
     database.tx.projectGitHubIntegration.create.mockResolvedValue({ id: 14 });
     await expect(githubRepository.connectProject(9, 12, repository)).resolves.toEqual({ id: 14 });
-    expect(database.tx.projectGitHubIntegration.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ projectId: 9, githubRepositoryId: '501' })
-      })
-    );
+    expect(database.tx.projectGitHubIntegration.create).toHaveBeenCalledWith({
+      data: {
+        projectId: 9,
+        installationId: 12,
+        ...repository,
+        integratedAt: expect.any(Date),
+        status: 'ACTIVE',
+        lastValidatedAt: expect.any(Date),
+        lastSyncStatus: 'PENDENTE',
+        lastSyncError: null
+      }
+    });
+    expect(database.tx.$queryRaw).toHaveBeenCalledOnce();
+    const lock = database.tx.$queryRaw.mock.calls[0];
+    expect(lock[0].join('?')).toMatch(/Project.*deletedAt IS NULL FOR UPDATE/s);
+    expect(lock[1]).toBe(9);
+    expect(database.tx.projectGitHubIntegration.findUnique).toHaveBeenCalledWith({
+      where: { projectId: 9 }
+    });
     expect(database.tx.project.update).not.toHaveBeenCalled();
   });
 
@@ -228,14 +262,55 @@ describe('persistência de metadados da GitHub App', () => {
         attemptCount: 1
       })
     });
-    expect(database.prisma.gitHubInstallation.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { githubInstallationId: '77' } })
-    );
-    expect(database.prisma.projectGitHubIntegration.updateMany).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({ githubRepositoryId: { in: ['501', '502'] } })
-      })
-    );
+    expect(database.prisma.gitHubWebhookDelivery.updateMany).toHaveBeenCalledWith({
+      where: { id: 4, status: 'PROCESSING' },
+      data: {
+        status: 'PROCESSED',
+        processedAt: expect.any(Date),
+        failureStep: null,
+        failureCode: null
+      }
+    });
+    expect(database.prisma.gitHubInstallation.updateMany).toHaveBeenNthCalledWith(1, {
+      where: { githubInstallationId: '77' },
+      data: { status: 'SUSPENDED', suspendedAt: new Date('2030-01-01') }
+    });
+    expect(database.prisma.gitHubInstallation.updateMany).toHaveBeenNthCalledWith(2, {
+      where: { githubInstallationId: '77' },
+      data: { accountId: '700', accountLogin: 'traceflow', accountType: 'Organization' }
+    });
+    expect(database.prisma.gitHubInstallation.upsert).toHaveBeenCalledWith({
+      where: { githubInstallationId: '77' },
+      create: {
+        githubInstallationId: '77',
+        accountId: '700',
+        accountLogin: 'traceflow',
+        accountType: 'Organization',
+        installedAt: expect.any(Date),
+        status: 'PENDING'
+      },
+      update: { accountId: '700', accountLogin: 'traceflow', accountType: 'Organization' }
+    });
+    expect(database.prisma.projectGitHubIntegration.updateMany).toHaveBeenNthCalledWith(1, {
+      where: { installation: { githubInstallationId: '77' }, project: { deletedAt: null } },
+      data: {
+        status: 'RECONNECT_REQUIRED',
+        lastSyncStatus: 'BLOQUEADO',
+        lastSyncError: 'A instalação GitHub não está ativa.'
+      }
+    });
+    expect(database.prisma.projectGitHubIntegration.updateMany).toHaveBeenNthCalledWith(2, {
+      where: {
+        installation: { githubInstallationId: '77' },
+        githubRepositoryId: { in: ['501', '502'] },
+        project: { deletedAt: null }
+      },
+      data: {
+        status: 'RECONNECT_REQUIRED',
+        lastSyncStatus: 'BLOQUEADO',
+        lastSyncError: 'O repositório não está mais acessível pela GitHub App.'
+      }
+    });
   });
 
   it('reivindica delivery falho uma vez e mantém duplicata concorrente idempotente', async () => {
@@ -261,8 +336,21 @@ describe('persistência de metadados da GitHub App', () => {
     });
     expect(database.prisma.gitHubWebhookDelivery.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ deliveryId: 'delivery-retry' }),
-        data: expect.objectContaining({ attemptCount: { increment: 1 } })
+        where: {
+          deliveryId: 'delivery-retry',
+          OR: [
+            { status: 'FAILED' },
+            { status: 'PROCESSING', lastAttemptAt: { lt: new Date('2030-01-01T00:05:00Z') } }
+          ]
+        },
+        data: {
+          status: 'PROCESSING',
+          attemptCount: { increment: 1 },
+          lastAttemptAt: new Date('2030-01-01T00:10:00Z'),
+          processedAt: null,
+          failureStep: null,
+          failureCode: null
+        }
       })
     );
 

@@ -114,11 +114,15 @@ describe('templates transacionais C2', () => {
   it('escapa todo conteúdo dinâmico sem aceitar HTML arbitrário', () => {
     const attack = `<script>alert(1)</script><img src=x onerror="alert(2)">'><`;
     const invitation = invitationTemplate({
-      invitationUrl: 'https://traceflow.test/invite?token=safe',
+      invitationUrl: 'https://traceflow.test/invite?token=safe&label="quoted"',
       projectName: attack,
       role: attack,
       expiresAt
     });
+    expect(invitation.html).toContain(
+      'href="https://traceflow.test/invite?token=safe&amp;label=%22quoted%22"'
+    );
+    expect(invitation.text).toContain('https://traceflow.test/invite?token=safe&label="quoted"');
     const notice = securityNoticeTemplate({ title: attack, message: attack, name: attack });
     for (const html of [invitation.html, notice.html]) {
       expect(html).toContain('&lt;script&gt;');
@@ -140,7 +144,9 @@ describe('templates transacionais C2', () => {
 
   it('preserva HTTP e HTTPS como protocolos permitidos', () => {
     for (const resetUrl of ['http://localhost/reset', 'https://traceflow.test/reset']) {
-      expect(() => passwordResetTemplate({ resetUrl, expiresAt })).not.toThrow();
+      const message = passwordResetTemplate({ resetUrl, expiresAt });
+      expect(message.html).toContain(`href="${resetUrl}"`);
+      expect(message.text).toContain(resetUrl);
     }
   });
 
