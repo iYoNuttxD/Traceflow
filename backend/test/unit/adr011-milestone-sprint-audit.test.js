@@ -25,6 +25,16 @@ const vinculo = (marcoId, sprintId, prazo, titulo = `M${marcoId}`) => ({
 });
 
 describe('relatorio', () => {
+  it('delega ao SQL a seleção determinística por sprint, menor prazo e menor id', async () => {
+    // The reporting fixtures below are already ordered. Assert the actual SQL
+    // boundary independently so their ordering cannot conceal a query regression.
+    const client = clienteFalso([]);
+    await runAdr011MilestoneSprintAudit({ client });
+    const sql = client.$queryRawUnsafe.mock.calls[0][0].replace(/\s+/g, ' ').trim();
+    expect(sql).toMatch(/FROM Milestone m JOIN Sprint s ON s\.id = m\.sprintId/);
+    expect(sql).toMatch(/ORDER BY m\.sprintId ASC, m\.dueDate ASC, m\.id ASC$/);
+  });
+
   it('nao reporta perda quando cada sprint tem no maximo um marco', async () => {
     const relatorio = await runAdr011MilestoneSprintAudit({
       client: clienteFalso([vinculo(1, 10, '2026-08-10'), vinculo(2, 11, '2026-08-20')], {

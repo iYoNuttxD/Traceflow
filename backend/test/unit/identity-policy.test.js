@@ -13,6 +13,17 @@ describe('políticas de identidade L1', () => {
     expect(validateUsername('pessoa válida').valid).toBe(false);
     expect(validateUsername('pessoa_teste').valid).toBe(true);
   });
+  it.each([8, 11, 12, 128, 129])('aplica os limites independentes de tamanho: %i', (length) => {
+    const errors = passwordPolicyErrors('X'.repeat(length));
+    expect(errors).toEqual(
+      length < 12
+        ? ['A senha deve possuir ao menos 12 caracteres.']
+        : length > 128
+          ? ['A senha deve possuir no máximo 128 caracteres.']
+          : []
+    );
+  });
+
   it('aceita Unicode e espaços na senha, mas bloqueia comuns e dados da conta', () => {
     expect(
       passwordPolicyErrors('Frase longa segura 🔐', {

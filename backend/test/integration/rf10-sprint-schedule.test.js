@@ -1,10 +1,16 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { spawnSync } from 'node:child_process';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   cleanTestDatabase,
   configureTestDatabaseEnvironment,
   deployTestMigrations
 } from '../helpers/test-database.js';
 import { createMilestone, createProject, createSprint, createTask } from '../fixtures/factories.js';
+
+vi.mock('node:child_process', async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...actual, spawnSync: vi.fn(actual.spawnSync) };
+});
 
 let prisma;
 let sprintRepository;
@@ -32,8 +38,29 @@ afterAll(async () => {
 });
 
 describe('migration add_sprint_milestone_schedule', () => {
-  it('e idempotente: reaplicar em banco ja migrado nao falha', () => {
-    expect(() => deployTestMigrations(testDatabaseUrl)).not.toThrow();
+  it('e idempotente: executa deploy novamente e preserva dados e histórico', async () => {
+    const project = await createProject(prisma);
+    const milestone = await createMilestone(prisma, project.id);
+    const sprint = await createSprint(prisma, project.id, { milestoneId: milestone.id });
+    const migrationsBefore = await prisma.$queryRawUnsafe(
+      'SELECT migration_name, finished_at, rolled_back_at FROM _prisma_migrations ORDER BY migration_name'
+    );
+    expect(migrationsBefore.length).toBeGreaterThan(0);
+    spawnSync.mockClear();
+    expect(() => deployTestMigrations(testDatabaseUrl, { force: true })).not.toThrow();
+    expect(spawnSync).toHaveBeenCalledTimes(1);
+    expect(spawnSync).toHaveBeenCalledWith(
+      process.execPath,
+      [expect.stringContaining('prisma'), 'migrate', 'deploy'],
+      expect.objectContaining({ env: expect.objectContaining({ DATABASE_URL: testDatabaseUrl }) })
+    );
+    expect(
+      await prisma.$queryRawUnsafe(
+        'SELECT migration_name, finished_at, rolled_back_at FROM _prisma_migrations ORDER BY migration_name'
+      )
+    ).toEqual(migrationsBefore);
+    expect(await prisma.sprint.findUnique({ where: { id: sprint.id } })).toEqual(sprint);
+    expect(await prisma.milestone.findUnique({ where: { id: milestone.id } })).toEqual(milestone);
   });
 
   it('criou as tabelas Sprint e Milestone', async () => {

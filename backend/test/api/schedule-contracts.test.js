@@ -1160,7 +1160,7 @@ describe('isolamento entre projetos (IDOR/BOLA)', () => {
       .send({ sprintId: 999999 });
 
     expect(existente.status).toBe(404);
-    expect(existente.status).toBe(inexistente.status);
+    expect(inexistente.status).toBe(404);
     const semRequestId = ({ requestId: _requestId, ...resto }) => resto;
     expect(semRequestId(existente.body)).toEqual(semRequestId(inexistente.body));
     expect(existente.body.code).toBe('SPRINT_NOT_FOUND');
@@ -1183,7 +1183,7 @@ describe('isolamento entre projetos (IDOR/BOLA)', () => {
       .send({ taskIds: [999999] });
 
     expect(existente.status).toBe(404);
-    expect(existente.status).toBe(inexistente.status);
+    expect(inexistente.status).toBe(404);
     const semRequestId = ({ requestId: _requestId, ...resto }) => resto;
     expect(semRequestId(existente.body)).toEqual(semRequestId(inexistente.body));
     expect(await prisma.task.count({ where: { sprintId: minhaSprint.id } })).toBe(0);
@@ -1321,6 +1321,8 @@ describe('404 indistinguivel entre recurso alheio e inexistente', () => {
     const existente = await owner.agent.get(`/api/sprints/${sprint.id}`);
     const inexistente = await owner.agent.get('/api/sprints/999999');
 
+    expect(existente.status).toBe(404);
+    expect(inexistente.status).toBe(404);
     expect(semRequestId(existente.body)).toEqual(semRequestId(inexistente.body));
     expect(existente.body.code).toBe('RESOURCE_NOT_FOUND');
   });
@@ -1332,6 +1334,8 @@ describe('404 indistinguivel entre recurso alheio e inexistente', () => {
     const existente = await owner.agent.get(`/api/milestones/${marco.id}`);
     const inexistente = await owner.agent.get('/api/milestones/999999');
 
+    expect(existente.status).toBe(404);
+    expect(inexistente.status).toBe(404);
     expect(semRequestId(existente.body)).toEqual(semRequestId(inexistente.body));
     expect(existente.body.code).toBe('RESOURCE_NOT_FOUND');
   });
@@ -1343,6 +1347,8 @@ describe('404 indistinguivel entre recurso alheio e inexistente', () => {
     const existente = await owner.agent.get(`/api/tasks/${task.id}`);
     const inexistente = await owner.agent.get('/api/tasks/999999');
 
+    expect(existente.status).toBe(404);
+    expect(inexistente.status).toBe(404);
     expect(semRequestId(existente.body)).toEqual(semRequestId(inexistente.body));
     expect(existente.body.code).toBe('RESOURCE_NOT_FOUND');
   });
@@ -1356,6 +1362,8 @@ describe('404 indistinguivel entre recurso alheio e inexistente', () => {
     const existente = await owner.agent.get(`/api/requirements/${requisito.id}`);
     const inexistente = await owner.agent.get('/api/requirements/999999');
 
+    expect(existente.status).toBe(404);
+    expect(inexistente.status).toBe(404);
     expect(semRequestId(existente.body)).toEqual(semRequestId(inexistente.body));
   });
 
