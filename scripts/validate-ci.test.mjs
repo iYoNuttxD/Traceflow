@@ -117,6 +117,24 @@ test("bloqueia ausência do upgrade representativo S2 P1", () => {
   );
 });
 
+for (const phase of ["p3", "p5-1"]) {
+  test(`exige execução do upgrade representativo S2 ${phase}`, () => {
+    const command = `npm run db:test:validate-s2-${phase}`;
+    for (const replacement of [
+      "run: echo removed",
+      `run: echo removed # ${command}`,
+      `if: false\n        run: ${command}`,
+    ]) {
+      const workflow = baseline.workflow.replace(`run: ${command}`, replacement);
+      assert.notEqual(workflow, baseline.workflow);
+      assert.throws(
+        () => validateCi({ ...baseline, workflow }),
+        /Gate obrigatório ausente|Step desabilitado/,
+      );
+    }
+  });
+}
+
 test("bloqueia ausência do gate completo de cobertura backend", () => {
   assert.throws(
     () =>
