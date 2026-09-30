@@ -162,16 +162,6 @@ describe('CP — TE: maquina de estados da sprint (RF10)', () => {
     expect(resposta.body.code).toBe('SPRINT_ALREADY_ACTIVE');
   });
 
-  it('CP-TE-03 planejada nao conclui direto', async () => {
-    const ator = await registrar();
-    const projeto = await criarProjeto(ator);
-    const marco = await criarMarco(ator, projeto.id);
-    const sprint = await criarSprint(ator, projeto.id, marco.id);
-    const resposta = await mudarStatusSprint(ator, sprint.id, 'CONCLUIDA');
-    expect(resposta.status).toBe(409);
-    expect(resposta.body.code).toBe('SPRINT_INVALID_TRANSITION');
-  });
-
   it('CP-TE-04 planejada cancela', async () => {
     const ator = await registrar();
     const projeto = await criarProjeto(ator);
@@ -243,17 +233,6 @@ describe('CP — TE: maquina de estados da sprint (RF10)', () => {
     const resposta = await mudarStatusSprint(ator, sprint.id, 'EM_ANDAMENTO');
     expect(resposta.status).toBe(409);
     expect(resposta.body.code).toBe('SPRINT_INVALID_TRANSITION');
-  });
-
-  it('CP-TE-10 sprint é excluída logicamente, preservando o registro', async () => {
-    const ator = await registrar();
-    const projeto = await criarProjeto(ator);
-    const marco = await criarMarco(ator, projeto.id);
-    const sprint = await criarSprint(ator, projeto.id, marco.id);
-    const resposta = await ator.mutate('delete', `/api/sprints/${sprint.id}`);
-    expect(resposta.status).toBe(200);
-    expect(resposta.body.sprint.deletedAt).toBeTruthy();
-    expect(await prisma.sprint.count({ where: { id: sprint.id } })).toBe(1);
   });
 
   it('CP-TE-11 concluir a ultima sprint conclui o marco', async () => {
@@ -414,21 +393,6 @@ describe('CP — PE/VL: cadastro e janelas do cronograma (RF10)', () => {
     });
     expect(resposta.status).toBe(400);
     expect(resposta.body.code).toBe('SPRINT_MILESTONE_PROJECT_MISMATCH');
-  });
-
-  it('CP-PE-03 nome repetido no projeto', async () => {
-    const ator = await registrar();
-    const projeto = await criarProjeto(ator);
-    const marco = await criarMarco(ator, projeto.id);
-    await criarSprint(ator, projeto.id, marco.id, { name: 'Sprint Alfa CP' });
-    const resposta = await postSprint(ator, projeto.id, {
-      name: 'Sprint Alfa CP',
-      startDate: '2026-10-01',
-      endDate: '2026-10-10',
-      milestoneId: marco.id
-    });
-    expect(resposta.status).toBe(409);
-    expect(resposta.body.code).toBe('SPRINT_NAME_IN_USE');
   });
 
   it('CP-PE-04 mesmo nome vale em outro projeto', async () => {

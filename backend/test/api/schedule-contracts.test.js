@@ -121,7 +121,7 @@ describe('contratos de sprint', () => {
       })
     ).toBe(1);
   });
-  it('cria, lista, consulta, edita e exclui logicamente sprint', async () => {
+  it('CP-TE-10 cria, lista, consulta, edita e exclui logicamente sprint', async () => {
     const owner = await register('sprint-crud@example.invalid');
     const project = await createProject(owner);
 
@@ -173,7 +173,7 @@ describe('contratos de sprint', () => {
     expect(list.body.sprints.map((sprint) => sprint.name)).toEqual(['Primeira', 'Segunda']);
   });
 
-  it('rejeita nome duplicado no mesmo projeto com 409 e codigo estavel', async () => {
+  it('CP-PE-03 rejeita nome duplicado no mesmo projeto com 409 e codigo estavel', async () => {
     const owner = await register('sprint-dup@example.invalid');
     const project = await createProject(owner);
     await createSprint(owner, project.id);
@@ -239,7 +239,7 @@ describe('contratos de sprint', () => {
     expect(response.body.code).toBe('SPRINT_DATE_RANGE_INVALID');
   });
 
-  it('aplica a maquina de estados e bloqueia edicao em estado terminal', async () => {
+  it('CP-TE-03 aplica a maquina de estados e bloqueia edicao em estado terminal', async () => {
     const owner = await register('sprint-status@example.invalid');
     const project = await createProject(owner);
     const sprintId = (await createSprint(owner, project.id)).body.sprint.id;

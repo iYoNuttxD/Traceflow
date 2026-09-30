@@ -47,7 +47,10 @@ describe('rotas públicas da GitHub App', () => {
   });
 
   it('entrega os bytes originais ao webhook sem sessão nem CSRF', async () => {
-    const rawBody = Buffer.from('{"action":"created","installation":{"id":77}}');
+    // Whitespace and escaped characters distinguish original bytes from reserialized JSON.
+    const rawBody = Buffer.from(
+      '{  "action": "created",\n  "installation": { "id": 77 }, "label": "caf\\u00e9" }\n'
+    );
     vi.spyOn(githubAppService, 'processWebhook').mockImplementation(
       async ({ rawBody: received }) => {
         expect(Buffer.isBuffer(received)).toBe(true);
@@ -66,6 +69,7 @@ describe('rotas públicas da GitHub App', () => {
 
     expect(response.status).toBe(202);
     expect(response.body).toEqual({ accepted: true, duplicate: false });
+    expect(githubAppService.processWebhook).toHaveBeenCalledOnce();
   });
 
   it('rejeita payload de webhook acima de 1 MiB antes do controller', async () => {
