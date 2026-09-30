@@ -1020,9 +1020,27 @@ describe('P8 Dashboard na Visão Geral', () => {
     await within(card).findByRole('img', { name: /Fluxo cumulativo: 5 pontos/ });
     const polygons = [...card.querySelectorAll('polygon')];
     expect(polygons).toHaveLength(6);
-    expect(polygons.every((polygon) => !polygon.getAttribute('points').includes('331,'))).toBe(
-      true
-    );
+    const spans = polygons.map((polygon) => {
+      const xs = polygon
+        .getAttribute('points')
+        .trim()
+        .split(/\s+/)
+        .map((point) => Number(point.split(',')[0]));
+      return [Math.min(...xs), Math.max(...xs)];
+    });
+    const left = Math.min(...spans.flat()),
+      right = Math.max(...spans.flat());
+    const step = (right - left) / 4;
+    expect(step).toBeGreaterThan(0);
+    // Five equally spaced dates: each polygon must stop before or start after missing day 3.
+    for (const [start, end] of spans) {
+      expect([
+        [left, left + step],
+        [left + 3 * step, right]
+      ]).toContainEqual([start, end]);
+    }
+    expect(spans.filter(([start]) => start === left)).toHaveLength(3);
+    expect(spans.filter(([start]) => start > left)).toHaveLength(3);
     expect(card).toHaveTextContent('—');
   });
 
@@ -1113,6 +1131,20 @@ describe('P8 Dashboard na Visão Geral', () => {
     expect(
       screen.getByRole('article', { name: 'Progresso médio dos requisitos' })
     ).toHaveTextContent('70%');
+    const dimensions = [
+      ['Requisitos com Tasks', 10],
+      ['Requisitos com evidência técnica', 20],
+      ['Requisitos com casos de teste', 30],
+      ['Requisitos com defeitos ativos', 40],
+      ['Requisitos concluídos', 50],
+      ['Cobertura de implementação', 60],
+      ['Progresso médio dos requisitos', 70]
+    ];
+    for (const [name, value] of dimensions) {
+      const card = screen.getByRole('article', { name });
+      expect(card).toHaveTextContent(`${value}%`);
+      expect(within(card).getByRole('progressbar')).toHaveAttribute('value', String(value));
+    }
     expect(screen.queryByText(/funil/i)).not.toBeInTheDocument();
   });
 

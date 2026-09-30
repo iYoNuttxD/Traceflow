@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { parseStylesheet, ruleDeclarations } from '../helpers/css-rules.js';
 
 const source = readFileSync(resolve('src/features/github/pages/RepositoryInfoScreen.jsx'), 'utf8');
 const css = readFileSync(resolve('src/features/github/pages/RepositoryInfoScreen.css'), 'utf8');
@@ -8,6 +9,9 @@ const externalActionCss = readFileSync(
   resolve('src/shared/components/GithubExternalAction.css'),
   'utf8'
 );
+
+const stylesheet = parseStylesheet(css);
+const externalStylesheet = parseStylesheet(externalActionCss);
 
 describe('Repository C2 facelift', () => {
   it('usa as primitives canônicas sem expandir o contrato funcional', () => {
@@ -26,8 +30,14 @@ describe('Repository C2 facelift', () => {
   it('mantém uma tabela real em surface com scroll horizontal contido', () => {
     expect(source).toContain('<table className="repository-table">');
     expect(source).toContain('className="repository-table-scroll"');
-    expect(css).toMatch(/\.repository-table-scroll \{[\s\S]*?overflow-x: auto;/);
-    expect(css).toMatch(/\.repository-table \{[\s\S]*?min-width: 64rem;/);
+    expect(ruleDeclarations(stylesheet, '.repository-table-scroll')).toMatchObject({
+      'overflow-x': 'auto',
+      'max-width': '100%',
+      'overscroll-behavior-inline': 'contain'
+    });
+    expect(ruleDeclarations(stylesheet, '.repository-table')).toMatchObject({
+      'min-width': '64rem'
+    });
     expect(css).not.toMatch(/\.repository-table thead \{[\s\S]*?display: none/);
   });
 
@@ -39,20 +49,30 @@ describe('Repository C2 facelift', () => {
   });
 
   it('limita títulos e preserva foco visível nos controles de overflow e filtros', () => {
-    expect(css).toMatch(/\.repository-artifact-title \{[\s\S]*?-webkit-line-clamp: 2;/);
-    expect(css).toContain('.repository-table-scroll:focus-visible');
-    expect(css).toContain('.repository-filters .planning-filter-panel__toggle:focus-visible');
+    expect(ruleDeclarations(stylesheet, '.repository-artifact-title')).toMatchObject({
+      '-webkit-line-clamp': '2',
+      overflow: 'hidden'
+    });
+    for (const selector of [
+      '.repository-table-scroll:focus-visible',
+      '.repository-filters .planning-filter-panel__toggle:focus-visible'
+    ]) {
+      expect(ruleDeclarations(stylesheet, selector)).toMatchObject({
+        outline: 'var(--focus-ring-width) solid var(--color-focus-ring)'
+      });
+    }
     expect(source).toContain('title={artifact.title || undefined}');
   });
 
   it('mantém a ação externa compacta, delimitada e baseada em tokens', () => {
-    expect(externalActionCss).toContain('.button.task-detail-external-link');
-    expect(externalActionCss).toContain('min-height: var(--size-touch-target)');
-    expect(externalActionCss).toContain(
-      'border: var(--border-width-default) solid var(--color-border-strong)'
+    expect(ruleDeclarations(externalStylesheet, '.button.task-detail-external-link')).toMatchObject(
+      {
+        'min-height': 'var(--size-touch-target)',
+        border: 'var(--border-width-default) solid var(--color-border-strong)',
+        'border-radius': 'var(--radius-sm)',
+        background: 'var(--color-surface-primary)',
+        'text-decoration': 'none'
+      }
     );
-    expect(externalActionCss).toContain('border-radius: var(--radius-sm)');
-    expect(externalActionCss).toContain('background: var(--color-surface-primary)');
-    expect(externalActionCss).toContain('text-decoration: none');
   });
 });

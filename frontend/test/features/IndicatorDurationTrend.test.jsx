@@ -85,9 +85,10 @@ it('discloses a limited ranking without hiding the total count', () => {
       metadata={{ title: 'Tasks abaixo' }}
     />
   );
-  expect(
-    screen.getByRole('table', { name: 'Registros relacionados · 10 de 11' })
-  ).toBeInTheDocument();
+  const table = screen.getByRole('table', { name: 'Registros relacionados · 10 de 11' });
+  expect(within(table).getAllByRole('row')).toHaveLength(11);
+  for (let id = 1; id <= 10; id++) expect(within(table).getByText(`Task ${id}`)).toBeVisible();
+  expect(screen.getByText('11', { selector: 'strong' })).toBeVisible();
   expect(screen.getByRole('region', { name: 'Lista de registros' })).toHaveAttribute(
     'tabindex',
     '0'

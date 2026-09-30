@@ -8,10 +8,7 @@ import {
 } from '../../src/features/traceability/components/RequirementCatalog.jsx';
 import { RequirementHistory } from '../../src/features/traceability/components/RequirementHistory.jsx';
 import { TraceabilityPhaseTrail } from '../../src/features/traceability/components/TraceabilityPhaseTrail.jsx';
-import {
-  situations,
-  overviewMetrics
-} from '../../src/features/traceability/model/requirement-view.js';
+import { overviewMetrics } from '../../src/features/traceability/model/requirement-view.js';
 const api = vi.hoisted(() => ({
   getRequirementsTraceability: vi.fn(),
   getRequirementTraceability: vi.fn(),
@@ -148,19 +145,31 @@ describe('Requirement projections and cards', () => {
         ))}
       </>
     );
-    expect(screen.getByText(/Estado atual dos requisitos/)).toBeInTheDocument();
+    expect(screen.getByText(/Estado atual dos requisitos/).parentElement).toHaveClass(
+      'sprints-summary__heading'
+    );
     expect(overviewMetrics(summary).map((m) => m[1])).toEqual([4, 1, 0, 2, 0]);
     expect(
       screen.getAllByText(/^(Em correção|Com falha)$/, { selector: '.requirement-situation' })
     ).toHaveLength(2);
   });
-  it.each(Object.keys(situations))(
+  it.each([
+    ['SEM_RASTREABILIDADE', 'Sem rastreabilidade'],
+    ['PLANEJADO', 'Planejado'],
+    ['EM_DESENVOLVIMENTO', 'Em desenvolvimento'],
+    ['IMPLEMENTADO', 'Implementado'],
+    ['AGUARDANDO_VALIDACAO', 'Aguardando validação'],
+    ['EM_VALIDACAO', 'Em validação'],
+    ['COM_FALHA', 'Com falha'],
+    ['EM_CORRECAO', 'Em correção'],
+    ['AGUARDANDO_RETESTE', 'Aguardando reteste'],
+    ['VALIDADO', 'Validado'],
+    ['CONCLUIDO', 'Concluído']
+  ])(
     'presents authoritative situation %s independently from status/progress',
-    (situation) => {
+    (situation, label) => {
       render(<RequirementCard item={item(10, situation)} onSelect={vi.fn()} onHistory={vi.fn()} />);
-      expect(
-        screen.getByText(situations[situation][0], { selector: '.requirement-situation' })
-      ).toBeInTheDocument();
+      expect(screen.getByText(label, { selector: '.requirement-situation' })).toBeInTheDocument();
       expect(screen.queryByText(/Status do requisito:/)).not.toBeInTheDocument();
       expect(
         screen.getByRole('list', { name: 'Evolução das fases da rastreabilidade' })
@@ -230,7 +239,7 @@ describe('Traceability catalog', () => {
     expect(trigger).toHaveFocus();
   });
 
-  it('uses projections and preserves graph contract and heading focus', async () => {
+  it('encaminha o contrato expandido e mantém o foco dentro do diálogo', async () => {
     const user = userEvent.setup();
     renderPage();
     await user.click(await screen.findByText('Ver rastreabilidade'));
@@ -242,6 +251,11 @@ describe('Traceability catalog', () => {
       { signal: expect.any(AbortSignal) }
     );
     expect(screen.getByRole('dialog', { name: 'Rastreabilidade — REQ-10' })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByRole('dialog', { name: 'Rastreabilidade — REQ-10' })).toContainElement(
+        document.activeElement
+      )
+    );
   });
   it('presents connection errors without empty state or internal details', async () => {
     api.getRequirementsTraceability.mockRejectedValueOnce({
@@ -464,22 +478,20 @@ describe('Requirement history', () => {
 
 describe('Additional traceability regressions', () => {
   it.each([
-    ['EM_DESENVOLVIMENTO', 'IMPLEMENTADO'],
-    ['IMPLEMENTADO', 'AGUARDANDO_VALIDACAO'],
-    ['EM_VALIDACAO', 'COM_FALHA'],
-    ['COM_FALHA', 'EM_CORRECAO'],
-    ['EM_CORRECAO', 'AGUARDANDO_RETESTE'],
-    ['AGUARDANDO_RETESTE', 'VALIDADO'],
-    ['AGUARDANDO_RETESTE', 'CONCLUIDO']
-  ])('renders historical transition %s to %s', async (from, to) => {
+    [
+      'EM_DESENVOLVIMENTO',
+      'IMPLEMENTADO',
+      'TASK_STATUS_CHANGED',
+      'Em desenvolvimento → Implementado'
+    ],
+    [null, 'PLANEJADO', 'BASELINE_INITIALIZED', 'Situação inicial observada: Planejado']
+  ])('renders independently specified history %s to %s', async (from, to, reason, label) => {
     api.getRequirementSituationHistory.mockResolvedValue({
-      items: [{ ...event(1), fromSituation: from, toSituation: to }],
+      items: [{ ...event(1), reason, fromSituation: from, toSituation: to }],
       nextCursor: null
     });
     render(<RequirementHistory projectId="9" requirementId={10} />);
-    expect(
-      await screen.findByText(`${situations[from][0]} → ${situations[to][0]}`)
-    ).toBeInTheDocument();
+    expect(await screen.findByText(label)).toBeInTheDocument();
   });
   it('rejects search A after search B resolves', async () => {
     const user = userEvent.setup(),

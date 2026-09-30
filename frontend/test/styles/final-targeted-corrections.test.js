@@ -1,20 +1,29 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { parseStylesheet, ruleDeclarations } from '../helpers/css-rules.js';
 
 const read = (path) => readFileSync(resolve(path), 'utf8');
 
 describe('frontend final targeted corrections', () => {
   it('preserva o touch target canônico nos owners compartilhados', () => {
-    expect(read('src/styles/global.css')).toMatch(
-      /\.button(?:[^}]|\n)*min-height:\s*var\(--size-touch-target\)/
-    );
-    expect(read('src/features/traceability/components/TraceabilityHelp.css')).toMatch(
-      /\.trace-help-trigger(?:[^}]|\n)*min-width:\s*var\(--size-touch-target\)/
-    );
-    expect(read('src/features/tasks/components/TaskCorrectionContext.css')).toMatch(
-      /\.task-correction-badge a(?:[^}]|\n)*min-width:\s*var\(--size-touch-target\)/
-    );
+    for (const [path, selector, property] of [
+      ['src/styles/global.css', '.button', 'min-height'],
+      [
+        'src/features/traceability/components/TraceabilityHelp.css',
+        '.trace-help-trigger',
+        'min-width'
+      ],
+      [
+        'src/features/tasks/components/TaskCorrectionContext.css',
+        '.task-correction-badge a',
+        'min-width'
+      ]
+    ]) {
+      expect(ruleDeclarations(parseStylesheet(read(path)), selector)[property]).toBe(
+        'var(--size-touch-target)'
+      );
+    }
   });
 
   it('mantém as dependências do grafo atrás de imports dinâmicos', () => {
