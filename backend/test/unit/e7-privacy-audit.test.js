@@ -47,7 +47,8 @@ describe('E7 auditoria, privacidade e retenção', () => {
     ).toThrow(/AUDIT_RETENTION_DAYS/);
   });
 
-  it('faz dry-run sem apagar e apply idempotente com evento técnico', async () => {
+  it('faz dry-run sem apagar e apply com filtros de retenção e evento técnico', async () => {
+    const now = new Date('2030-02-01T00:00:00.000Z');
     const tx = {
       auditEvent: { deleteMany: vi.fn(), create: vi.fn() },
       privacyRequest: { deleteMany: vi.fn() },
@@ -62,6 +63,7 @@ describe('E7 auditoria, privacidade e retenção', () => {
     expect(
       await runPrivacyRetention({
         client,
+        now,
         apply: false,
         configuration: { auditRetentionDays: 30, privacyRequestRetentionDays: 30 }
       })
@@ -70,10 +72,23 @@ describe('E7 auditoria, privacidade e retenção', () => {
     expect(
       await runPrivacyRetention({
         client,
+        now,
         apply: true,
         configuration: { auditRetentionDays: 30, privacyRequestRetentionDays: 30 }
       })
     ).toMatchObject({ mode: 'apply' });
+    expect(tx.privacyRequest.deleteMany).toHaveBeenCalledExactlyOnceWith({
+      where: {
+        status: { in: ['COMPLETED', 'CANCELLED', 'REJECTED'] },
+        updatedAt: { lt: new Date('2030-01-02T00:00:00.000Z') }
+      }
+    });
+    expect(tx.auditEvent.deleteMany).toHaveBeenCalledExactlyOnceWith({
+      where: { retentionUntil: { lt: now } }
+    });
+    expect(tx.personalDataExport.deleteMany).toHaveBeenCalledExactlyOnceWith({
+      where: { expiresAt: { lt: now } }
+    });
     expect(tx.auditEvent.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ action: 'RETENTION_CLEANUP_EXECUTED' })

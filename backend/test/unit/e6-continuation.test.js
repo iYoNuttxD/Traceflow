@@ -80,10 +80,21 @@ describe('limpeza operacional da E6', () => {
       githubConnectionStateRetentionDays: 7,
       githubWebhookDeliveryRetentionDays: 30
     };
-    expect((await cleanupAuthRecords({ client, configuration })).mode).toBe('dry-run');
+    const now = new Date('2030-02-01T00:00:00.000Z');
+    expect((await cleanupAuthRecords({ client, configuration, now })).mode).toBe('dry-run');
     expect(calls.some(([type]) => type === 'transaction')).toBe(false);
-    expect((await cleanupAuthRecords({ client, configuration, apply: true })).mode).toBe('apply');
-    expect(calls.some(([type]) => type === 'transaction')).toBe(true);
+    expect((await cleanupAuthRecords({ client, configuration, now, apply: true })).mode).toBe(
+      'apply'
+    );
+    expect(calls.find(([type]) => type === 'transaction')[1]).toContainEqual({
+      name: 'session',
+      where: {
+        OR: [
+          { expiresAt: { lt: new Date('2030-01-02T00:00:00.000Z') } },
+          { revokedAt: { lt: new Date('2030-01-02T00:00:00.000Z') } }
+        ]
+      }
+    });
   });
 });
 

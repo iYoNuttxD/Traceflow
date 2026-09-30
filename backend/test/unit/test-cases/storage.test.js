@@ -12,6 +12,7 @@ import {
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Readable } from 'node:stream';
 import { createHash } from 'node:crypto';
 import {
@@ -190,13 +191,46 @@ describe('S1-07 private evidence storage', () => {
     await expect(storage.content(file.storageKey, 1)).rejects.toMatchObject({ statusCode: 503 });
     await storage.cleanup(attempt);
   });
-  it.each([null, 'relative/path', '/Users/daniel/Coding/Traceflow/frontend/public/evidence'])(
+  it.each([null, 'relative/path'])(
     'fails closed with unsafe production config %s',
     async (directory) =>
       await expect(
         new LocalTestEvidenceStorage({ directory, environment: 'production' }).begin()
       ).rejects.toMatchObject({ statusCode: 503 })
   );
+  it('rejects writable evidence storage inside this checkout frontend public directory', async () => {
+    const frontend = await realpath(
+      fileURLToPath(new URL('../../../../frontend/', import.meta.url))
+    );
+    // A real writable fixture makes a missing public-root guard succeed, rather
+    // than hiding behind ENOENT/EACCES from a machine-specific absolute path.
+    const directory = await mkdtemp(join(frontend, 'public-storage-test-'));
+    directories.push(directory);
+    const publicDirectory = join(directory, 'public', 'evidence');
+    await mkdir(publicDirectory, { recursive: true });
+    await writeFile(join(publicDirectory, 'writable-probe'), 'fixture');
+    expect(await readFile(join(publicDirectory, 'writable-probe'), 'utf8')).toBe('fixture');
+    await expect(
+      new LocalTestEvidenceStorage({
+        directory: publicDirectory,
+        environment: 'production'
+      }).begin()
+    ).rejects.toMatchObject({
+      statusCode: 503,
+      code: 'TEST_EVIDENCE_STORAGE_UNAVAILABLE'
+    });
+    expect(await readdir(publicDirectory)).toEqual(['writable-probe']);
+  });
+  it('accepts writable isolated private production storage', async () => {
+    const { directory } = await fixture();
+    const storage = new LocalTestEvidenceStorage({ directory, environment: 'production' });
+    const attempt = await storage.begin();
+    await receive(storage, attempt);
+    const [file] = await storage.prepare(attempt, []);
+    expect(await readFile(join(directory, file.storageKey))).toEqual(png);
+    await storage.cleanup(attempt);
+    expect(await readdir(directory)).toEqual([]);
+  });
   it('abstract storage fails closed', async () => {
     const storage = new TestEvidenceStorage();
     for (const method of [
