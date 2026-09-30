@@ -110,3 +110,39 @@ test("bloqueia ausência do upgrade representativo S2 P1", () => {
     /Validação de upgrade representativo S2 P1 ausente/,
   );
 });
+
+test("bloqueia ausência do gate completo de cobertura backend", () => {
+  assert.throws(
+    () =>
+      validateCi({
+        ...baseline,
+        workflow: baseline.workflow.replace(
+          "run: npm run test:coverage",
+          "run: npm run test:unit",
+        ),
+      }),
+    /exatamente um gate completo de cobertura/,
+  );
+});
+
+test("bloqueia cobertura backend limitada a um subconjunto", () => {
+  const backendPackage = structuredClone(baseline.backendPackage);
+  backendPackage.scripts["test:coverage"] = "vitest run test/unit --coverage";
+  assert.throws(
+    () => validateCi({ ...baseline, backendPackage }),
+    /suíte completa sem filtros/,
+  );
+});
+
+test("bloqueia execução redundante das suítes backend", () => {
+  for (const suite of ["unit", "integration", "coverage"]) {
+    const workflow = baseline.workflow.replace(
+      "run: npm run test:coverage",
+      `run: npm run test:coverage\n      - name: Redundant suite\n        run: npm run test:${suite}`,
+    );
+    assert.throws(
+      () => validateCi({ ...baseline, workflow }),
+      /não deve repetir|exatamente um gate completo/,
+    );
+  }
+});

@@ -138,6 +138,30 @@ export function validateCi({ workflow, backendPackage, frontendPackage }) {
     }
   }
 
+  // Keep the focused scripts available locally, but CI must run the full suite
+  // with coverage rather than execute the same tests a second time.
+  if (backendPackage.scripts["test:coverage"] !== "vitest run --coverage") {
+    throw new Error(
+      "Backend coverage deve executar a suíte completa sem filtros.",
+    );
+  }
+  const backendJob =
+    workflow.match(
+      /^  backend-tests:\n([\s\S]*?)(?=^  [\w-]+:|$(?![\s\S]))/m,
+    )?.[1] || "";
+  const coverageRuns =
+    backendJob.match(/^\s+run: npm run test:coverage\s*$/gm) || [];
+  if (coverageRuns.length !== 1) {
+    throw new Error(
+      "Backend Tests deve executar exatamente um gate completo de cobertura.",
+    );
+  }
+  forbidMatch(
+    backendJob,
+    /run: npm run test:(unit|integration)\b/,
+    "Backend Tests não deve repetir as suítes já executadas pela cobertura.",
+  );
+
   return true;
 }
 
