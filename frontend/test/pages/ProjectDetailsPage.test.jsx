@@ -67,10 +67,12 @@ let navigateDetails;
 
 function deferred() {
   let resolve;
-  const promise = new Promise((resolvePromise) => {
+  let reject;
+  const promise = new Promise((resolvePromise, rejectPromise) => {
     resolve = resolvePromise;
+    reject = rejectPromise;
   });
-  return { promise, resolve };
+  return { promise, resolve, reject };
 }
 
 function DetailsHarness() {
@@ -387,6 +389,45 @@ describe('ProjectDetailsPage E9', () => {
     expect(screen.getByText(/contexto do projeto não pôde ser atualizado/)).toBeInTheDocument();
     await waitFor(() => expect(mocks.indicatorsApi.dashboard).toHaveBeenCalledTimes(2));
   });
+
+  it.each(['mutation', 'poll'])(
+    'ignora falha tardia do refresh de A após sync via %s ao abrir B',
+    async (completion) => {
+      vi.useFakeTimers();
+      const refreshA = deferred();
+      const projectB = { ...project, id: 2, name: 'Projeto B' };
+      const completedRun = { id: 30, status: 'SUCCEEDED', step: 'COMPLETED', summary: null };
+      mocks.api.get
+        .mockResolvedValueOnce({ data: { project } })
+        .mockReturnValueOnce(refreshA.promise)
+        .mockResolvedValue({ data: { project: projectB } });
+      mocks.getProjectGithubSyncStatus
+        .mockResolvedValueOnce({
+          run: completion === 'poll' ? { ...completedRun, status: 'RUNNING' } : null
+        })
+        .mockResolvedValueOnce({ run: completedRun })
+        .mockResolvedValue({ run: null });
+      mocks.syncProjectGithub.mockResolvedValue({ run: completedRun });
+      renderPage();
+      await act(async () => {});
+      if (completion === 'poll') {
+        await act(async () => vi.advanceTimersByTimeAsync(2500));
+      } else {
+        fireEvent.click(screen.getByRole('button', { name: 'Sincronizar' }));
+        await act(async () => {});
+      }
+      expect(mocks.api.get).toHaveBeenCalledTimes(2);
+      expect(screen.getByText(/Sincronização GitHub concluída/)).toBeInTheDocument();
+      await act(async () => navigateDetails('/projects/2'));
+      expect(screen.getByRole('heading', { name: 'Projeto B' })).toBeInTheDocument();
+      await act(async () => refreshA.reject(new Error('refresh A offline')));
+      expect(
+        screen.queryByText(/contexto do projeto não pôde ser atualizado/)
+      ).not.toBeInTheDocument();
+      expect(screen.queryByText(/Sincronização GitHub concluída/)).not.toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Projeto B' })).toBeInTheDocument();
+    }
+  );
 
   it('restaura uma execução ativa após reload e continua o polling', async () => {
     vi.useFakeTimers();

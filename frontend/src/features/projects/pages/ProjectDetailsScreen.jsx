@@ -279,7 +279,9 @@ export function ProjectDetailsScreen() {
           try {
             await refreshProjectDetails();
           } catch {
-            setSuccess((message) => `${message} O contexto do projeto não pôde ser atualizado.`);
+            if (routeProjectIdRef.current === requestedProjectId) {
+              setSuccess((message) => `${message} O contexto do projeto não pôde ser atualizado.`);
+            }
           }
         } else if (run.status === 'FAILED') {
           setGithubSyncState({ projectId: requestedProjectId, run, status: 'error' });
@@ -343,7 +345,9 @@ export function ProjectDetailsScreen() {
           try {
             await refreshProjectDetails();
           } catch {
-            setSuccess((message) => `${message} O contexto do projeto não pôde ser atualizado.`);
+            if (routeProjectIdRef.current === requestedProjectId) {
+              setSuccess((message) => `${message} O contexto do projeto não pôde ser atualizado.`);
+            }
           }
         } else if (failed) {
           setError(formatSyncFailure(response.run));
