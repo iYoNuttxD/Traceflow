@@ -1,3 +1,4 @@
+import { concurrentTransactions } from '../helpers/transaction-arrival-barrier.js';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   cleanTestDatabase,
@@ -211,6 +212,14 @@ describe('Planning FIX-02 core carry-over and terminal presentation', () => {
 
   it('selects the earliest future planned Sprint, ignoring earlier and other-project Sprints', async () => {
     const f = await fixture();
+    f.next = await prisma.sprint.update({
+      where: { id: f.next.id },
+      data: { startDate: new Date(f.first.endDate.getTime() + 86400000) }
+    });
+    const tie = await createSprint(prisma, f.project.id, {
+      startDate: f.next.startDate,
+      endDate: f.next.endDate
+    });
     const later = await createSprint(prisma, f.project.id, {
       startDate: f.next.endDate,
       endDate: new Date(f.next.endDate.getTime() + 86400000)
@@ -224,6 +233,7 @@ describe('Planning FIX-02 core carry-over and terminal presentation', () => {
     await prepare(f);
     expect((await status(f.first, 'CONCLUIDA')).carryOver.destinationSprintId).toBe(f.next.id);
     expect(await prisma.task.count({ where: { sprintId: later.id } })).toBe(0);
+    expect(await prisma.task.count({ where: { sprintId: tie.id } })).toBe(0);
   });
 
   it.each(['CANCELADA', 'CONCLUIDA', 'EM_ANDAMENTO'])(
@@ -309,10 +319,11 @@ describe('Planning FIX-02 core carry-over and terminal presentation', () => {
   it('serializes concurrent closes and refuses a repeated close without duplicated history or membership', async () => {
     const f = await fixture();
     await prepare(f);
-    const results = await Promise.allSettled([
-      status(f.first, 'CONCLUIDA'),
-      status(f.first, 'CONCLUIDA')
-    ]);
+    const results = await concurrentTransactions(
+      prisma,
+      [() => status(f.first, 'CONCLUIDA'), () => status(f.first, 'CONCLUIDA')],
+      { settled: true }
+    );
     expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
     expect(results.find((result) => result.status === 'rejected').reason).toMatchObject({
       code: 'SPRINT_INVALID_TRANSITION'

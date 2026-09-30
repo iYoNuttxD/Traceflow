@@ -104,6 +104,17 @@ describe('migration ja aplicada', () => {
     expect(relatorio.mensagem).toMatch(/migration ja foi aplicada/);
   });
 
+  it.each([
+    "Unknown column 'm.dueDate' in 'field list'",
+    "Unknown column 's.sprintId' in 'field list'",
+    "Table 'Milestone' does not exist",
+    'no such column: unrelated'
+  ])('propaga erro de schema alheio à coluna legada: %s', async (message) => {
+    const error = new Error(message);
+    const client = { $queryRawUnsafe: vi.fn().mockRejectedValue(error) };
+    await expect(runAdr011MilestoneSprintAudit({ client })).rejects.toBe(error);
+  });
+
   it('propaga erro que nao e coluna ausente', async () => {
     const client = {
       $queryRawUnsafe: vi.fn(async () => {

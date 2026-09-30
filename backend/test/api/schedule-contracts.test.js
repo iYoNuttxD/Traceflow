@@ -1,6 +1,7 @@
+import { concurrentTransactions } from '../helpers/transaction-arrival-barrier.js';
 import { startTestServer } from '../helpers/http-server.js';
 import request from 'supertest';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   cleanTestDatabase,
   configureTestDatabaseEnvironment,
@@ -96,7 +97,8 @@ describe('contratos de sprint', () => {
     const task = await createTask(owner, project.id);
     await owner.mutate('patch', `/api/tasks/${task.id}/sprint`).send({ sprintId: first.id });
     await owner.mutate('patch', `/api/sprints/${first.id}/status`).send({ status: 'EM_ANDAMENTO' });
-    const responses = await Promise.all(
+    const responses = await concurrentTransactions(
+      prisma,
       [1, 2].map(() =>
         owner.mutate('patch', `/api/sprints/${first.id}/status`).send({ status: 'CONCLUIDA' })
       )
@@ -309,7 +311,7 @@ describe('contratos de sprint', () => {
     const owner = await register('sprint-race-create@example.invalid');
     const project = await createProject(owner);
 
-    const respostas = await Promise.all([
+    const respostas = await concurrentTransactions(prisma, [
       createSprint(owner, project.id, {
         name: 'A',
         startDate: '2026-08-01',
@@ -333,11 +335,12 @@ describe('contratos de sprint', () => {
     const a = await createTask(owner, project.id, 'A');
     const b = await createTask(owner, project.id, 'B');
 
-    await Promise.all([
+    const responses = await concurrentTransactions(prisma, [
       owner.mutate('put', `/api/sprints/${sprintId}/tasks`).send({ taskIds: [a.id] }),
       owner.mutate('put', `/api/sprints/${sprintId}/tasks`).send({ taskIds: [b.id] })
     ]);
 
+    expect(responses.map(({ status }) => status)).toEqual([200, 200]);
     const finais = (await prisma.task.findMany({ where: { sprintId }, select: { id: true } })).map(
       (task) => task.id
     );
@@ -494,6 +497,10 @@ describe('contratos de marco', () => {
     expect(response.status).toBe(200);
     expect(await prisma.sprint.count({ where: { milestoneId } })).toBe(1);
     expect(await prisma.milestone.count()).toBe(1);
+    expect(
+      (await prisma.milestone.findUnique({ where: { id: milestoneId } })).deletedAt
+    ).toBeInstanceOf(Date);
+    expect((await owner.agent.get(`/api/milestones/${milestoneId}`)).status).toBe(404);
   });
 
   it('recusa sprintId no corpo do marco', async () => {
@@ -503,6 +510,8 @@ describe('contratos de marco', () => {
       .mutate('post', `/api/projects/${project.id}/milestones`)
       .send({ title: 'Entrega', dueDate: '2026-08-10', sprintId: 1 });
     expect(response.status).toBe(400);
+    expect(response.body.code).toBe('VALIDATION_ERROR');
+    expect(await prisma.milestone.count()).toBe(0);
   });
 });
 
@@ -639,9 +648,17 @@ describe('associacao tarefa <-> sprint', () => {
     const sprintId = (await createSprint(owner, projectA.id)).body.sprint.id;
     const task = await createTask(owner, projectB.id);
 
+    const beforeTask = await prisma.task.findUnique({ where: { id: task.id } });
+    const beforeHistory = await prisma.taskHistoryEntry.findMany({ where: { taskId: task.id } });
+    const beforeScope = await prisma.sprintTask.findMany({ where: { taskId: task.id } });
     const response = await owner.mutate('patch', `/api/tasks/${task.id}/sprint`).send({ sprintId });
     expect(response.status).toBe(400);
     expect(response.body.code).toBe('TASK_SPRINT_PROJECT_MISMATCH');
+    expect(await prisma.task.findUnique({ where: { id: task.id } })).toEqual(beforeTask);
+    expect(await prisma.taskHistoryEntry.findMany({ where: { taskId: task.id } })).toEqual(
+      beforeHistory
+    );
+    expect(await prisma.sprintTask.findMany({ where: { taskId: task.id } })).toEqual(beforeScope);
   });
 
   it('recusa esvaziar Sprint concluída e permite exclusão lógica preservando a participação', async () => {
@@ -710,11 +727,19 @@ describe('associacao tarefa <-> sprint', () => {
     const task = await createTask(owner, project.id);
     await owner.mutate('patch', `/api/sprints/${sprintId}/status`).send({ status: 'CANCELADA' });
 
+    const beforeTask = await prisma.task.findUnique({ where: { id: task.id } });
+    const beforeHistory = await prisma.taskHistoryEntry.findMany({ where: { taskId: task.id } });
+    const beforeScope = await prisma.sprintTask.findMany({ where: { taskId: task.id } });
     const response = await owner
       .mutate('put', `/api/sprints/${sprintId}/tasks`)
       .send({ taskIds: [task.id] });
     expect(response.status).toBe(409);
     expect(response.body.code).toBe('SPRINT_SCOPE_LOCKED');
+    expect(await prisma.task.findUnique({ where: { id: task.id } })).toEqual(beforeTask);
+    expect(await prisma.taskHistoryEntry.findMany({ where: { taskId: task.id } })).toEqual(
+      beforeHistory
+    );
+    expect(await prisma.sprintTask.findMany({ where: { taskId: task.id } })).toEqual(beforeScope);
   });
 
   it('bloqueia associacao a sprint terminal', async () => {
@@ -724,9 +749,17 @@ describe('associacao tarefa <-> sprint', () => {
     const task = await createTask(owner, project.id);
     await owner.mutate('patch', `/api/sprints/${sprintId}/status`).send({ status: 'CANCELADA' });
 
+    const beforeTask = await prisma.task.findUnique({ where: { id: task.id } });
+    const beforeHistory = await prisma.taskHistoryEntry.findMany({ where: { taskId: task.id } });
+    const beforeScope = await prisma.sprintTask.findMany({ where: { taskId: task.id } });
     const response = await owner.mutate('patch', `/api/tasks/${task.id}/sprint`).send({ sprintId });
     expect(response.status).toBe(409);
     expect(response.body.code).toBe('SPRINT_SCOPE_LOCKED');
+    expect(await prisma.task.findUnique({ where: { id: task.id } })).toEqual(beforeTask);
+    expect(await prisma.taskHistoryEntry.findMany({ where: { taskId: task.id } })).toEqual(
+      beforeHistory
+    );
+    expect(await prisma.sprintTask.findMany({ where: { taskId: task.id } })).toEqual(beforeScope);
   });
 
   it('substitui o conjunto de forma atomica pelo lado da sprint', async () => {
@@ -741,7 +774,53 @@ describe('associacao tarefa <-> sprint', () => {
       .send({ taskIds: [first.id, second.id] });
     expect(response.status).toBe(200);
     expect(response.body.total).toBe(2);
+    expect(
+      await prisma.task.findMany({
+        where: { sprintId },
+        select: { id: true },
+        orderBy: { id: 'asc' }
+      })
+    ).toEqual([{ id: first.id }, { id: second.id }]);
+    expect(
+      await prisma.sprintTask.findMany({
+        where: { sprintId, removedAt: null },
+        select: { taskId: true },
+        orderBy: { taskId: 'asc' }
+      })
+    ).toEqual([{ taskId: first.id }, { taskId: second.id }]);
     expect(await prisma.taskHistoryEntry.count({ where: { field: 'SPRINT' } })).toBe(2);
+  });
+
+  it('rolls back scope pointers, participation and history after a late audit failure', async () => {
+    const owner = await register('scope-rollback@example.invalid');
+    const project = await createProject(owner);
+    const sprintId = (await createSprint(owner, project.id)).body.sprint.id;
+    const task = await createTask(owner, project.id);
+    const { auditRepository } = await import('../../src/modules/audit/audit.repository.js');
+    const create = auditRepository.create.bind(auditRepository);
+    let observedWrite = false;
+    const spy = vi.spyOn(auditRepository, 'create').mockImplementation(async (event, tx) => {
+      if (event.action === 'SPRINT_TASKS_REPLACED') {
+        observedWrite =
+          (await tx.task.findUnique({ where: { id: task.id } })).sprintId === sprintId;
+        throw new Error('controlled late audit failure');
+      }
+      return create(event, tx);
+    });
+    try {
+      const response = await owner
+        .mutate('put', `/api/sprints/${sprintId}/tasks`)
+        .send({ taskIds: [task.id] });
+      expect(response.status).toBe(500);
+      expect(observedWrite).toBe(true);
+      expect((await prisma.task.findUnique({ where: { id: task.id } })).sprintId).toBeNull();
+      expect(await prisma.sprintTask.count({ where: { sprintId } })).toBe(0);
+      expect(
+        await prisma.taskHistoryEntry.count({ where: { taskId: task.id, field: 'SPRINT' } })
+      ).toBe(0);
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it('preserva a sprint de origem no historico ao mover tarefa entre sprints', async () => {
@@ -803,15 +882,33 @@ describe('associacao tarefa <-> sprint', () => {
     const project = await createProject(owner);
     const sprintId = (await createSprint(owner, project.id)).body.sprint.id;
 
+    await prisma.task.createMany({
+      data: Array.from({ length: 100 }, (_, index) => ({
+        projectId: project.id,
+        title: `Boundary ${index}`
+      }))
+    });
+    const taskIds = (
+      await prisma.task.findMany({
+        where: { projectId: project.id },
+        select: { id: true },
+        orderBy: { id: 'asc' }
+      })
+    ).map(({ id }) => id);
     const duplicated = await owner
       .mutate('put', `/api/sprints/${sprintId}/tasks`)
-      .send({ taskIds: [1, 1] });
-    expect(duplicated.status).toBe(400);
+      .send({ taskIds: [taskIds[0], taskIds[0]] });
+    expect(duplicated).toMatchObject({ status: 400, body: { code: 'VALIDATION_ERROR' } });
 
     const tooMany = await owner
       .mutate('put', `/api/sprints/${sprintId}/tasks`)
-      .send({ taskIds: Array.from({ length: 101 }, (_value, index) => index + 1) });
-    expect(tooMany.status).toBe(400);
+      .send({ taskIds: [...taskIds, 999999] });
+    expect(tooMany).toMatchObject({ status: 400, body: { code: 'VALIDATION_ERROR' } });
+    expect(await prisma.sprintTask.count()).toBe(0);
+    expect(await prisma.taskHistoryEntry.count()).toBe(0);
+    const boundary = await owner.mutate('put', `/api/sprints/${sprintId}/tasks`).send({ taskIds });
+    expect(boundary.status).toBe(200);
+    expect(await prisma.sprintTask.count({ where: { sprintId, removedAt: null } })).toBe(100);
   });
 });
 
@@ -869,13 +966,22 @@ describe('cronograma', () => {
       `/api/projects/${project.id}/schedule?from=2026-09-30&to=2026-09-01`
     );
     expect(response.status).toBe(400);
+    expect(response.body.code).toBe('VALIDATION_ERROR');
+    expect(
+      (await owner.agent.get(`/api/projects/${project.id}/schedule?from=2026-09-01&to=2026-09-01`))
+        .status
+    ).toBe(200);
   });
 
   it('nao devolve calculo de evolucao: isso e RF35', async () => {
     const owner = await register('schedule-no-rf35@example.invalid');
     const project = await createProject(owner);
-    await createSprint(owner, project.id);
-    const body = (await owner.agent.get(`/api/projects/${project.id}/schedule`)).body;
+    const sprint = (await createSprint(owner, project.id)).body.sprint;
+    const response = await owner.agent.get(`/api/projects/${project.id}/schedule`);
+    expect(response.status).toBe(200);
+    const body = response.body;
+    expect(body.sprints).toHaveLength(1);
+    expect(body.sprints[0].id).toBe(sprint.id);
     expect(body.sprints[0]).not.toHaveProperty('progressPercentage');
     expect(body.sprints[0]).not.toHaveProperty('completedCount');
   });
@@ -1007,6 +1113,7 @@ describe('evolucao da sprint (RF35)', () => {
       .get(`/api/sprints/${sprintId}/progress`)
       .query({ inventado: '1' });
     expect(response.status).toBe(400);
+    expect(response.body.code).toBe('VALIDATION_ERROR');
   });
 
   it('exige sessao', async () => {
@@ -1096,6 +1203,13 @@ describe('isolamento entre projetos (IDOR/BOLA)', () => {
     const project = await createProject(owner);
     const sprintId = (await createSprint(owner, project.id)).body.sprint.id;
 
+    const task = await createTask(owner, project.id);
+    expect(
+      (await owner.mutate('patch', `/api/tasks/${task.id}/sprint`).send({ sprintId })).status
+    ).toBe(200);
+    const scopeBefore = await prisma.sprintTask.findMany({ where: { sprintId } });
+    const historyBefore = await prisma.taskHistoryEntry.findMany({ where: { taskId: task.id } });
+    const before = await prisma.sprint.findUnique({ where: { id: sprintId } });
     expect((await stranger.agent.get(`/api/sprints/${sprintId}`)).status).toBe(404);
     expect(
       (await stranger.mutate('put', `/api/sprints/${sprintId}`).send({ name: 'X' })).status
@@ -1112,6 +1226,12 @@ describe('isolamento entre projetos (IDOR/BOLA)', () => {
       (await stranger.mutate('put', `/api/sprints/${sprintId}/tasks`).send({ taskIds: [] })).status
     ).toBe(404);
     expect(await prisma.sprint.count()).toBe(1);
+    expect(await prisma.sprint.findUnique({ where: { id: sprintId } })).toEqual(before);
+    expect(await prisma.sprintTask.findMany({ where: { sprintId } })).toEqual(scopeBefore);
+    expect(await prisma.taskHistoryEntry.findMany({ where: { taskId: task.id } })).toEqual(
+      historyBefore
+    );
+    expect((await prisma.task.findUnique({ where: { id: task.id } })).sprintId).toBe(sprintId);
   });
 
   it('nao membro recebe 404 em marco alheio em todos os metodos', async () => {
@@ -1120,6 +1240,7 @@ describe('isolamento entre projetos (IDOR/BOLA)', () => {
     const project = await createProject(owner);
     const milestoneId = (await createMilestone(owner, project.id)).body.milestone.id;
 
+    const before = await prisma.milestone.findUnique({ where: { id: milestoneId } });
     expect((await stranger.agent.get(`/api/milestones/${milestoneId}`)).status).toBe(404);
     expect(
       (await stranger.mutate('put', `/api/milestones/${milestoneId}`).send({ title: 'X' })).status
@@ -1135,6 +1256,7 @@ describe('isolamento entre projetos (IDOR/BOLA)', () => {
       404
     );
     expect(await prisma.milestone.count()).toBe(1);
+    expect(await prisma.milestone.findUnique({ where: { id: milestoneId } })).toEqual(before);
   });
 
   it('nao membro recebe 404 no cronograma alheio', async () => {
@@ -1230,6 +1352,8 @@ describe('validacao e erros', () => {
       projectId: 999
     });
     expect(response.status).toBe(400);
+    expect(response.body.code).toBe('VALIDATION_ERROR');
+    expect(await prisma.sprint.count()).toBe(0);
   });
 });
 
@@ -1364,6 +1488,10 @@ describe('404 indistinguivel entre recurso alheio e inexistente', () => {
 
     expect(existente.status).toBe(404);
     expect(inexistente.status).toBe(404);
+    expect(semRequestId(existente.body)).toEqual({
+      code: 'RESOURCE_NOT_FOUND',
+      message: 'Recurso não encontrado.'
+    });
     expect(semRequestId(existente.body)).toEqual(semRequestId(inexistente.body));
   });
 
@@ -1432,23 +1560,54 @@ describe('invariante entre participacao e ponteiro', () => {
     const b = await createTask(owner, project.id, 'B');
     const c = await createTask(owner, project.id, 'C');
 
-    await owner.mutate('put', `/api/sprints/${s1}/tasks`).send({ taskIds: [a.id, b.id] });
+    expect(
+      (await owner.mutate('put', `/api/sprints/${s1}/tasks`).send({ taskIds: [a.id, b.id] })).status
+    ).toBe(200);
+    expect(await prisma.task.count({ where: { sprintId: s1 } })).toBe(2);
+    expect(
+      await prisma.task.findMany({
+        where: { projectId: project.id },
+        select: { id: true, sprintId: true },
+        orderBy: { id: 'asc' }
+      })
+    ).toEqual([
+      { id: a.id, sprintId: s1 },
+      { id: b.id, sprintId: s1 },
+      { id: c.id, sprintId: null }
+    ]);
     await verificarInvariante();
 
-    await owner.mutate('patch', `/api/tasks/${c.id}/sprint`).send({ sprintId: s1 });
+    expect(
+      (await owner.mutate('patch', `/api/tasks/${c.id}/sprint`).send({ sprintId: s1 })).status
+    ).toBe(200);
+    expect((await prisma.task.findUnique({ where: { id: c.id } })).sprintId).toBe(s1);
     await verificarInvariante();
 
-    await owner.mutate('delete', `/api/tasks/${b.id}/sprint`).send();
+    expect((await owner.mutate('delete', `/api/tasks/${b.id}/sprint`).send()).status).toBe(200);
+    expect((await prisma.task.findUnique({ where: { id: b.id } })).sprintId).toBeNull();
     await verificarInvariante();
 
-    await owner.mutate('patch', `/api/tasks/${c.id}/sprint`).send({ sprintId: s2 });
+    expect(
+      (await owner.mutate('patch', `/api/tasks/${c.id}/sprint`).send({ sprintId: s2 })).status
+    ).toBe(200);
+    expect((await prisma.task.findUnique({ where: { id: c.id } })).sprintId).toBe(s2);
     await verificarInvariante();
 
-    await owner.mutate('patch', `/api/sprints/${s1}/status`).send({ status: 'EM_ANDAMENTO' });
-    await owner.mutate('patch', `/api/sprints/${s1}/status`).send({ status: 'CONCLUIDA' });
+    expect(
+      (await owner.mutate('patch', `/api/sprints/${s1}/status`).send({ status: 'EM_ANDAMENTO' }))
+        .status
+    ).toBe(200);
+    expect(
+      (await owner.mutate('patch', `/api/sprints/${s1}/status`).send({ status: 'CONCLUIDA' }))
+        .status
+    ).toBe(200);
+    expect((await prisma.sprint.findUnique({ where: { id: s1 } })).status).toBe('CONCLUIDA');
     await verificarInvariante();
 
-    await owner.mutate('patch', `/api/tasks/${a.id}/sprint`).send({ sprintId: s2 });
+    expect(
+      (await owner.mutate('patch', `/api/tasks/${a.id}/sprint`).send({ sprintId: s2 })).status
+    ).toBe(200);
+    expect((await prisma.task.findUnique({ where: { id: a.id } })).sprintId).toBe(s2);
     await verificarInvariante();
 
     const naS1 = await prisma.sprintTask.findFirst({
@@ -1602,7 +1761,8 @@ describe('FIX-03 safe deletion authorization and impact', () => {
         returnedToBacklog: 0
       }
     });
-    const result = await Promise.all(
+    const result = await concurrentTransactions(
+      prisma,
       [1, 2].map(() => owner.mutate('delete', `/api/sprints/${first.id}`).send())
     );
     expect(result.map((r) => r.status).sort()).toEqual([200, 409]);

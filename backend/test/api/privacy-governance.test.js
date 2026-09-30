@@ -71,6 +71,13 @@ describe('LR.2 — consolidação das rotas e worker de privacidade', () => {
     expect((await auth.agent.get('/api/settings/privacy/deletion')).status).toBe(200);
   });
 
+  it('exige sessão na rota canônica de início de reativação', async () => {
+    expect(await request(app).post('/api/account/reactivation/start').send({})).toMatchObject({
+      status: 401,
+      body: { code: 'AUTHENTICATION_REQUIRED' }
+    });
+  });
+
   it('anonimiza conta elegível preservando IDs e removendo credenciais', async () => {
     await register('anonymize@example.invalid');
     const user = await prisma.user.findUnique({ where: { email: 'anonymize@example.invalid' } });

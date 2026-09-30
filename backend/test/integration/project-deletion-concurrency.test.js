@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { access } from 'node:fs/promises';
 import { join } from 'node:path';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   cleanTestDatabase,
   configureTestDatabaseEnvironment,
@@ -213,6 +213,10 @@ describe('Project deletion concorrente com MySQL e storage reais', () => {
     const elapsedMs = Math.round(performance.now() - started);
     console.info(`project-purge-volume: ${elapsedMs} ms, 1001 commits, 400 tasks, 400 history`);
     expect(await prisma.project.findUnique({ where: { id: project.id } })).toBeNull();
+    for (const model of [prisma.commit, prisma.gitBranch, prisma.task])
+      expect(await model.count({ where: { projectId: project.id } })).toBe(0);
+    expect(await prisma.taskHistoryEntry.count()).toBe(0);
+    expect(await prisma.commitBranch.count()).toBe(0);
     await expect(
       access(join(process.env.TEST_EVIDENCE_STORAGE_DIR, file.storageKey))
     ).rejects.toMatchObject({ code: 'ENOENT' });
@@ -235,6 +239,15 @@ describe('Project deletion concorrente com MySQL e storage reais', () => {
     const prsStart = performance.now();
     expect(await pullRequestRepository.upsertMany(rows)).toEqual({ created: 100, updated: 0 });
     const prsMs = Math.round(performance.now() - prsStart);
+    for (const model of [prisma.issue, prisma.pullRequest]) {
+      expect(
+        await model.findMany({
+          where: { projectId: project.id },
+          select: { projectId: true, githubId: true, number: true, title: true },
+          orderBy: { number: 'asc' }
+        })
+      ).toEqual(rows);
+    }
     console.info(`github-sync-batch: issues=${issuesMs} ms, prs=${prsMs} ms`);
     await deletionService({ storage }).requestDeletion(project.id, user.id);
     await expect(issueRepository.upsertMany(rows)).rejects.toMatchObject({ statusCode: 404 });
@@ -365,13 +378,26 @@ describe('Project deletion concorrente com MySQL e storage reais', () => {
         await release.promise;
       });
       await entered.promise;
+      const arrived = deferred();
+      const transaction = prisma.$transaction.bind(prisma);
+      const spy = vi.spyOn(prisma, '$transaction').mockImplementation((work, options) =>
+        transaction(async (tx) => {
+          arrived.resolve();
+          return work(tx);
+        }, options)
+      );
       const mutation =
         operation === 'delete'
           ? service.requestDeletion(project.id, user.id)
           : operation === 'restore'
             ? service.restore(project.id, user.id)
             : service.purge(project.id, user.id, project.name);
-      release.resolve();
+      try {
+        await arrived.promise;
+      } finally {
+        release.resolve();
+        spy.mockRestore();
+      }
       await transition;
       await expect(mutation).rejects.toMatchObject({ statusCode });
       const stored = await prisma.project.findUnique({ where: { id: project.id } });
