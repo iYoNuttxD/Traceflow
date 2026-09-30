@@ -125,7 +125,10 @@ for (const phase of ["p3", "p5-1"]) {
       `run: echo removed # ${command}`,
       `if: false\n        run: ${command}`,
     ]) {
-      const workflow = baseline.workflow.replace(`run: ${command}`, replacement);
+      const workflow = baseline.workflow.replace(
+        `run: ${command}`,
+        replacement,
+      );
       assert.notEqual(workflow, baseline.workflow);
       assert.throws(
         () => validateCi({ ...baseline, workflow }),
