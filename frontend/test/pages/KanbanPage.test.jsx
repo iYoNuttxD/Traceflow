@@ -1075,7 +1075,9 @@ describe('KanbanPage ADR-011', () => {
       oldRequest.resolve({ data: { requirements: [{ id: 101, title: 'Resultado antigo' }] } });
       await Promise.resolve();
     });
-    expect(screen.queryByRole('button', { name: 'Resultado antigo' })).toBeNull();
+    expect(screen.getByRole('listbox')).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Login atual' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'Resultado antigo' })).not.toBeInTheDocument();
   });
 
   it('preserva sucesso parcial sem alegar atomicidade', async () => {

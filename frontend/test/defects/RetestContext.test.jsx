@@ -116,13 +116,28 @@ it('blocks contextual creation for a viewer', async () => {
   expect(await screen.findByText(/não possui permissão/)).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Criar caso' })).toBeDisabled();
 });
-it('rejects a contextual response after project unmount', async () => {
-  const d = deferred();
-  api.members.mockReturnValue(d.promise);
+it('rejects obsolete project membership after the current project has loaded', async () => {
+  const oldMembers = deferred();
+  api.members.mockReturnValueOnce(oldMembers.promise).mockResolvedValueOnce(memberData);
   const view = wrap(<ContextualTestCaseCreate projectId={1} requirement={requirement} />);
-  view.unmount();
-  await act(() => d.resolve(memberData));
-  expect(screen.queryByRole('form')).not.toBeInTheDocument();
+  await waitFor(() => expect(api.members).toHaveBeenCalledOnce());
+  const oldSignal = api.members.mock.calls[0][1].signal;
+  expect(oldSignal.aborted).toBe(false);
+
+  view.rerender(
+    <MemoryRouter>
+      <ContextualTestCaseCreate projectId={2} requirement={requirement} />
+    </MemoryRouter>
+  );
+  await screen.findByLabelText('Título *');
+  expect(api.members).toHaveBeenLastCalledWith(2, expect.objectContaining({ fresh: true }));
+  expect(oldSignal.aborted).toBe(true);
+  expect(screen.getByRole('button', { name: 'Criar caso' })).toBeEnabled();
+
+  // The mock deliberately completes despite abort, so the response guard must also reject it.
+  await act(() => oldMembers.resolve({ ...memberData, currentMembership: { role: 'VIEWER' } }));
+  expect(screen.queryByText(/não possui permissão/)).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Criar caso' })).toBeEnabled();
 });
 it.each(['Enter', ' '])('opens card with %s and isolates footer actions', async (key) => {
   const open = vi.fn(),

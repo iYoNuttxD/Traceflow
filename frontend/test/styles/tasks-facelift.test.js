@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { conditionalRules, parseStylesheet, ruleDeclarations } from '../helpers/css-rules.js';
 
 const screenSource = readFileSync(resolve('src/features/tasks/pages/TasksScreen.jsx'), 'utf8');
 const screenCss = readFileSync(resolve('src/features/tasks/pages/TasksScreen.css'), 'utf8');
@@ -13,14 +14,44 @@ describe('Tasks facelift responsivo', () => {
     expect(screenSource).not.toMatch(/data-theme|prefers-color-scheme/);
   });
 
-  it('mantém grid 3/2/1 guiado pelo container da página', () => {
-    expect(screenCss).toContain('container-name: tasks-page');
-    expect(listCss).toMatch(
-      /\.tasks-list-grid \{[\s\S]*?grid-template-columns: repeat\(3,[\s\S]*?@container tasks-page \(max-width: 68rem\)[\s\S]*?repeat\(2,/
-    );
-    expect(listCss).toMatch(
-      /@container tasks-page \(max-width: 34rem\)[\s\S]*?\.tasks-list-grid \{\s*grid-template-columns: minmax\(0, 1fr\)/
-    );
+  it('mantém display grid na cascata base e declara colunas 3/2/1 por container', () => {
+    const style = document.createElement('style');
+    const grid = document.createElement('div');
+    style.textContent = listCss;
+    grid.className = 'tasks-list-grid';
+    document.head.append(style);
+    document.body.append(grid);
+    try {
+      // jsdom resolves the base cascade, but does not lay out containers or evaluate widths.
+      expect(getComputedStyle(grid).display).toBe('grid');
+      expect(getComputedStyle(grid).gridTemplateColumns).toBe(
+        'repeat(3, minmax(min(100%, 18rem), 1fr))'
+      );
+    } finally {
+      grid.remove();
+      style.remove();
+    }
+
+    expect(
+      ruleDeclarations(parseStylesheet(screenCss), '.tasks-screen.page-container')
+    ).toMatchObject({
+      'container-name': 'tasks-page',
+      'container-type': 'inline-size'
+    });
+    // These are scoped declaration contracts, not browser proof of responsive geometry.
+    const stylesheet = parseStylesheet(listCss);
+    expect(
+      ruleDeclarations(
+        conditionalRules(stylesheet, 'container', 'tasks-page (max-width: 68rem)'),
+        '.tasks-list-grid'
+      )
+    ).toMatchObject({ 'grid-template-columns': 'repeat(2, minmax(0, 1fr))' });
+    expect(
+      ruleDeclarations(
+        conditionalRules(stylesheet, 'container', 'tasks-page (max-width: 34rem)'),
+        '.tasks-list-grid'
+      )
+    ).toMatchObject({ 'grid-template-columns': 'minmax(0, 1fr)' });
   });
 
   it('usa progressive disclosure, card compacto e Details canônico', () => {

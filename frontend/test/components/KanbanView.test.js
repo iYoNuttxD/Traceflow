@@ -107,24 +107,40 @@ describe('kanban-view', () => {
   });
 
   it('combina busca, responsável, prioridade e prazo', () => {
-    const filtered = filterKanbanBoard(board, {
+    const filters = {
       search: 'autenticação',
       responsibleUserId: '5',
       priority: 'ALTA',
       startDate: '2026-09-01',
       endDate: '2026-09-15'
-    });
+    };
+    // Each distractor fails exactly one predicate; search alone cannot select the answer.
+    const candidates = [
+      { ...tasks[0], id: 10, deadline: filters.startDate },
+      { ...tasks[0], id: 11, deadline: filters.endDate },
+      { ...tasks[0], id: 12, description: 'Outra descrição' },
+      { ...tasks[0], id: 13, responsibleUser: { id: 6, name: 'Bia' } },
+      { ...tasks[0], id: 14, priority: 'MEDIA' },
+      { ...tasks[0], id: 15, deadline: '2026-08-31' },
+      { ...tasks[0], id: 16, deadline: '2026-09-16' },
+      { ...tasks[0], id: 17, deadline: null }
+    ];
+    const candidateBoard = { columns: { A_FAZER: candidates, EM_ANDAMENTO: [], CONCLUIDO: [] } };
+    const ids = (activeFilters) =>
+      getBoardTasks(filterKanbanBoard(candidateBoard, activeFilters)).map((task) => task.id);
 
-    expect(getBoardTasks(filtered).map((task) => task.id)).toEqual([1]);
-    expect(
-      countActiveKanbanFilters({
-        search: 'autenticação',
-        responsibleUserId: '5',
-        priority: 'ALTA',
-        startDate: '2026-09-01',
-        endDate: '2026-09-15'
-      })
-    ).toBe(5);
+    expect(ids(filters)).toEqual([10, 11]);
+    for (const [predicate, admittedId] of [
+      ['search', 12],
+      ['responsibleUserId', 13],
+      ['priority', 14],
+      ['startDate', 15],
+      ['endDate', 16]
+    ]) {
+      expect(ids({ ...filters, [predicate]: '' })).toEqual([10, 11, admittedId]);
+    }
+    expect(ids({ ...filters, startDate: '', endDate: '' })).toEqual([10, 11, 15, 16, 17]);
+    expect(countActiveKanbanFilters(filters)).toBe(5);
   });
 
   it('trata atraso pelo prazo próprio e ignora tarefa concluída', () => {
