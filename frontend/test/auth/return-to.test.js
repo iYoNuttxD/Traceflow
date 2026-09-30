@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { describe, expect, it } from 'vitest';
 import { sanitizeInternalReturnTo } from '../../src/features/auth/return-to.js';
 

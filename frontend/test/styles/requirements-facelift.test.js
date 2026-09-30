@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { conditionalRules, parseStylesheet, ruleDeclarations } from '../helpers/css-rules.js';
 
 const css = readFileSync(resolve('src/features/requirements/pages/RequirementsScreen.css'), 'utf8');
 const dialogCss = readFileSync(
@@ -15,6 +16,8 @@ const detailsSource = readFileSync(
   resolve('src/features/requirements/components/RequirementDetails.jsx'),
   'utf8'
 );
+const stylesheet = parseStylesheet(css);
+const dialogStylesheet = parseStylesheet(dialogCss);
 
 describe('Requirements facelift responsivo', () => {
   it('usa tokens semânticos e o mesmo markup para Light/Dark', () => {
@@ -23,24 +26,53 @@ describe('Requirements facelift responsivo', () => {
   });
 
   it('mantém grid 3/2/1 guiado pela largura real do container', () => {
-    expect(css).toContain('container-name: requirements-page');
-    expect(css).toMatch(
-      /\.requirements-grid \{[\s\S]*?grid-template-columns: repeat\(3,[\s\S]*?@container requirements-page \(max-width: 68rem\)[\s\S]*?\.requirements-grid \{\s*grid-template-columns: repeat\(2,/
+    expect(ruleDeclarations(stylesheet, '.requirements-screen.page-container')).toMatchObject({
+      'container-name': 'requirements-page',
+      'container-type': 'inline-size'
+    });
+    expect(ruleDeclarations(stylesheet, '.requirements-grid')).toMatchObject({
+      'grid-template-columns': 'repeat(3, minmax(min(100%, 18rem), 1fr))'
+    });
+    const medium = conditionalRules(
+      stylesheet,
+      'container',
+      'requirements-page (max-width: 68rem)'
     );
-    expect(css).toMatch(
-      /@container requirements-page \(max-width: 34rem\)[\s\S]*?\.requirements-grid,[\s\S]*?grid-template-columns: minmax\(0, 1fr\)/
+    expect(ruleDeclarations(medium, '.requirements-grid')).toMatchObject({
+      'grid-template-columns': 'repeat(2, minmax(0, 1fr))'
+    });
+    const narrow = conditionalRules(
+      stylesheet,
+      'container',
+      'requirements-page (max-width: 34rem)'
     );
-    expect(css).toMatch(
-      /@container requirements-page \(max-width: 34rem\)[\s\S]*?\.requirements-overview dl \{\s*grid-template-columns: repeat\(2,/
-    );
+    expect(
+      ruleDeclarations(
+        narrow,
+        '.requirements-grid, .requirements-filter-grid, .requirement-form, .requirement-information-grid'
+      )
+    ).toMatchObject({ 'grid-template-columns': 'minmax(0, 1fr)' });
+    expect(ruleDeclarations(narrow, '.requirements-overview dl')).toMatchObject({
+      'grid-template-columns': 'repeat(2, minmax(0, 1fr))'
+    });
   });
 
   it('usa progressive disclosure e mantém analytics detalhado fora do card', () => {
     expect(source).toContain('<CollapsibleFilterPanel');
-    expect(css).toMatch(
-      /\.requirements-filters \{[\s\S]*?border: var\(--border-width-default\) solid var\(--color-border-default\);[\s\S]*?border-radius: var\(--radius-lg\);[\s\S]*?background: var\(--color-surface-primary\);/
-    );
-    expect(css).toContain('.requirements-filters .planning-filter-panel__toggle:focus-visible');
+    expect(ruleDeclarations(stylesheet, '.requirements-filters')).toMatchObject({
+      border: 'var(--border-width-default) solid var(--color-border-default)',
+      'border-radius': 'var(--radius-lg)',
+      background: 'var(--color-surface-primary)'
+    });
+    expect(
+      ruleDeclarations(
+        stylesheet,
+        '.requirements-filters .planning-filter-panel__toggle:focus-visible'
+      )
+    ).toMatchObject({
+      outline: 'var(--focus-ring-width) solid var(--color-focus-ring)',
+      'outline-offset': 'var(--focus-ring-offset)'
+    });
     expect(source).toContain('className="new-requirement-card"');
     expect(source).not.toContain('requirement-card-metrics');
     expect(source).not.toContain('Progresso de implementação');
@@ -55,20 +87,44 @@ describe('Requirements facelift responsivo', () => {
   });
 
   it('limita descrição a duas linhas sem altura fixa no card', () => {
-    expect(css).toMatch(/\.requirement-catalog-card__description \{[\s\S]*?-webkit-line-clamp: 2;/);
-    expect(css).not.toMatch(/\.requirement-catalog-card \{[\s\S]*?height:\s*\d+px/);
+    expect(ruleDeclarations(stylesheet, '.requirement-catalog-card__description')).toMatchObject({
+      display: '-webkit-box',
+      '-webkit-box-orient': 'vertical',
+      '-webkit-line-clamp': '2',
+      overflow: 'hidden'
+    });
+    expect(ruleDeclarations(stylesheet, '.requirement-catalog-card').height ?? '').not.toMatch(
+      /\d+px/
+    );
   });
 
   it('preserva alvos mínimos, foco visível e scroll interno dos dialogs', () => {
-    expect(css).toContain('min-height: var(--size-touch-target)');
-    expect(css).toContain('.requirement-catalog-card:focus-visible');
-    expect(dialogCss).toMatch(/\.sprint-dialog__body \{[\s\S]*?overflow-y: auto/);
-    expect(css).toMatch(
-      /\.requirement-information-grid \{\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/
-    );
-    expect(css).toMatch(
-      /@media \(max-width: 720px\)[\s\S]*?\.requirement-details-dialog \.sprint-dialog__header \{\s*flex-wrap: wrap;[\s\S]*?\.requirement-details-dialog \.sprint-dialog__controls \{\s*width: 100%;/
-    );
+    expect(
+      ruleDeclarations(stylesheet, '.requirement-catalog-card__actions .button')
+    ).toMatchObject({
+      'min-height': 'var(--size-touch-target)'
+    });
+    expect(ruleDeclarations(stylesheet, '.requirement-catalog-card:focus-visible')).toMatchObject({
+      outline: 'var(--focus-ring-width) solid var(--color-focus-ring)',
+      'outline-offset': 'var(--focus-ring-offset)'
+    });
+    expect(ruleDeclarations(dialogStylesheet, '.sprint-dialog__body')).toMatchObject({
+      'overflow-y': 'auto'
+    });
+    expect(ruleDeclarations(stylesheet, '.requirement-information-grid')).toMatchObject({
+      'grid-template-columns': 'repeat(2, minmax(0, 1fr))'
+    });
+    const mobile = conditionalRules(stylesheet, 'media', '(max-width: 720px)');
+    expect(
+      ruleDeclarations(mobile, '.requirement-details-dialog .sprint-dialog__header')
+    ).toMatchObject({
+      'flex-wrap': 'wrap'
+    });
+    expect(
+      ruleDeclarations(mobile, '.requirement-details-dialog .sprint-dialog__controls')
+    ).toMatchObject({
+      width: '100%'
+    });
   });
 
   it('mantém o layout-base do SprintDialog fora do CSS de Requirements', () => {
@@ -83,11 +139,16 @@ describe('Requirements facelift responsivo', () => {
     expect(detailsSource).toContain('<TaskTraceabilityGrid title="Qualidade"');
     expect(detailsSource).toContain('label="Casos de teste"');
     expect(detailsSource).toContain('label="Defeitos"');
-    expect(css).toMatch(
-      /\.requirement-task-relations \.task-detail-traceability-grid \{\s*grid-template-columns: minmax\(0, 1fr\);/
-    );
-    expect(css).toMatch(
-      /@media \(max-width: 860px\)[\s\S]*?\.requirement-quality-relations \.task-detail-traceability-grid \{\s*grid-template-columns: minmax\(0, 1fr\);/
-    );
+    expect(
+      ruleDeclarations(stylesheet, '.requirement-task-relations .task-detail-traceability-grid')
+    ).toMatchObject({
+      'grid-template-columns': 'minmax(0, 1fr)'
+    });
+    expect(
+      ruleDeclarations(
+        conditionalRules(stylesheet, 'media', '(max-width: 860px)'),
+        '.requirement-quality-relations .task-detail-traceability-grid'
+      )
+    ).toMatchObject({ 'grid-template-columns': 'minmax(0, 1fr)' });
   });
 });

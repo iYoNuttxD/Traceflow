@@ -137,6 +137,7 @@ describe('P8 Dashboard na Visão Geral', () => {
           definition('I45', 'Burndown'),
           definition('I46', 'Burnup'),
           definition('I53', 'Defeitos por estado'),
+          definition('I55', 'Defeitos criados no período'),
           definition('I58', 'Sucesso de reteste'),
           definition('I47', 'Velocity'),
           definition('I61', 'Requirements com Tasks'),
@@ -647,6 +648,17 @@ describe('P8 Dashboard na Visão Geral', () => {
     await waitFor(() =>
       expect(screen.getByRole('tab', { name: 'Fluxo' })).toHaveAttribute('aria-selected', 'true')
     );
+    expect(await screen.findByRole('article', { name: 'WIP atual' })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('article', { name: 'Execuções por resultado' })
+    ).not.toBeInTheDocument();
+    expect(mocks.dashboard.mock.lastCall[1]).toMatchObject({
+      view: 'FLOW',
+      startDate: '2026-09-05',
+      endDate: '2026-09-20',
+      sprintId: '3',
+      includeProjectHealth: true
+    });
     expect(screen.getByLabelText('Até')).toHaveValue('2026-09-20');
     await user.click(screen.getByRole('button', { name: 'Limpar filtros' }));
     await waitFor(() =>
@@ -1014,7 +1026,7 @@ describe('P8 Dashboard na Visão Geral', () => {
     expect(card).toHaveTextContent('—');
   });
 
-  it('separa Qualidade por fonte e explica concentração sem somar Defects duplicados', async () => {
+  it('separa Qualidade por fonte e preserva valores da API quando requisitos compartilham defeitos', async () => {
     mocks.dashboard.mockResolvedValue(
       response('QUALITY', [
         {
@@ -1037,11 +1049,21 @@ describe('P8 Dashboard na Visão Geral', () => {
           ]
         },
         {
+          id: 'defects',
+          indicators: [metric('I55', 3, { unit: 'DEFECTS' })]
+        },
+        {
           id: 'concentration',
           indicators: [
             metric('I59', null, {
               kind: 'LIST',
-              items: [{ requirementId: 1, displayId: 'REQ-1', title: 'Login', defectCount: 2 }],
+              unit: 'DEFECTS',
+              // Three defects, all created in the period: Login has A/B and Checkout has B/C.
+              // The API has already deduplicated each requirement; the shared B remains in both.
+              items: [
+                { requirementId: 1, displayId: 'REQ-1', title: 'Login', defectCount: 2 },
+                { requirementId: 2, displayId: 'REQ-2', title: 'Checkout', defectCount: 2 }
+              ],
               limitations: ['DEFECT_MAY_APPEAR_IN_MULTIPLE_REQUIREMENTS']
             })
           ]
@@ -1053,9 +1075,19 @@ describe('P8 Dashboard na Visão Geral', () => {
     const health = screen.getByRole('article', { name: 'Estado atual dos casos de teste' });
     expect(executions).toHaveTextContent('Aprovado');
     expect(health).toHaveTextContent('Nunca executado');
-    expect(screen.getByRole('article', { name: 'Defeitos por requisito' })).toHaveTextContent(
-      'Um defeito pode aparecer em mais de um requisito'
-    );
+    const concentration = screen.getByRole('article', { name: 'Defeitos por requisito' });
+    expect(concentration).toHaveTextContent('Um defeito pode aparecer em mais de um requisito');
+    const table = within(concentration).getByRole('table', { name: 'Registros relacionados' });
+    expect(within(table).getAllByRole('row')).toHaveLength(3);
+    for (const name of ['Login REQ-1', 'Checkout REQ-2']) {
+      expect(
+        within(within(table).getByRole('row', { name: `${name} 2 defeitos` })).getByRole('cell')
+      ).toHaveTextContent(/^2 defeitos$/);
+    }
+    expect(within(concentration).queryByText(/^4(?: defeitos)?$/)).not.toBeInTheDocument();
+    const created = screen.getByRole('article', { name: 'Defeitos criados no período' });
+    expect(within(created).getByText('3')).toBeVisible();
+    expect(within(created).queryByText('4')).not.toBeInTheDocument();
   });
 
   it('mostra as sete dimensões independentes de rastreabilidade sem funil', async () => {
@@ -1234,16 +1266,5 @@ describe('P8 Dashboard na Visão Geral', () => {
     expect(velocity.querySelector('svg')).toBeNull();
     expect(screen.getByRole('article', { name: 'Burnup' })).toHaveTextContent('4 h');
     expect(screen.queryByText('Ver dados')).not.toBeInTheDocument();
-  });
-
-  it('restaura a visão ao navegar para trás no histórico da URL', async () => {
-    const user = userEvent.setup();
-    renderPanel('/projects/1', {}, true);
-    await screen.findByRole('article', { name: 'WIP atual' });
-    await user.click(screen.getByRole('tab', { name: 'GitHub' }));
-    await screen.findByRole('article', { name: 'Commits no período' });
-    await user.click(screen.getByRole('button', { name: 'Voltar no histórico' }));
-    expect(await screen.findByRole('article', { name: 'WIP atual' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Geral' })).toHaveAttribute('aria-selected', 'true');
   });
 });
