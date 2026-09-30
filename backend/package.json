@@ -76,11 +76,13 @@
     "@vitest/coverage-v8": "^4.1.10",
     "eslint": "^10.8.0",
     "globals": "^17.8.0",
+    "jszip": "3.10.1",
     "nodemon": "^3.0.0",
     "prettier": "^3.9.6",
     "prisma": "6.12.0",
     "supertest": "^7.2.2",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "yaml": "2.9.1"
   },
   "overrides": {
     "deepmerge-ts": "^8.0.1"
