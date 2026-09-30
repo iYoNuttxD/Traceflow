@@ -35,7 +35,7 @@ export async function readHealth(
   };
   const requests = [];
   if (window && ['GENERAL', 'FLOW'].includes(view))
-    requests.push(['flow', healthRepository.flow(projectId, window, asOf, view === 'GENERAL')]);
+    requests.push(['flow', healthRepository.flow(projectId, asOf, view === 'GENERAL')]);
   else if (view === 'GENERAL')
     requests.push(['planning', healthRepository.planning(projectId, asOf)]);
   if (window && ['GENERAL', 'QUALITY'].includes(view) && !matchesWindow('I49'))

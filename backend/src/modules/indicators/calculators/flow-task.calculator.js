@@ -24,9 +24,17 @@ function sample(rows, unknownCount) {
   };
 }
 
-export function calculateFlowTaskHistory({ tasks, movements, period, asOf, dateKey }) {
+export function calculateFlowTaskHistory({
+  tasks,
+  movements,
+  period,
+  asOf,
+  dateKey,
+  durationsOnly = false
+}) {
   const byTask = new Map();
   for (const movement of movements) {
+    if (movement.movedAt >= asOf) continue;
     const rows = byTask.get(movement.taskId) ?? [];
     rows.push(movement);
     byTask.set(movement.taskId, rows);
@@ -76,6 +84,9 @@ export function calculateFlowTaskHistory({ tasks, movements, period, asOf, dateK
     ) {
       unknownCompletion++;
     }
+
+    // Health needs the same duration samples, without daily series or current-state work.
+    if (durationsOnly) continue;
 
     const latestAtCut = rows.filter((row) => row.movedAt < period.endExclusive).at(-1);
     if (
@@ -139,6 +150,12 @@ export function calculateFlowTaskHistory({ tasks, movements, period, asOf, dateK
     }
   }
 
+  const durations = {
+    lead: sample(leadRows, unknownCompletion),
+    cycle: sample(cycleRows, unknownCompletion + missingCycleStart)
+  };
+  if (durationsOnly) return durations;
+
   aging.sort((a, b) => b.agingDuration - a.agingDuration || a.taskId - b.taskId);
   const today = dateKey(asOf);
   const days = daySequence(period.startDate, period.endDate, today);
@@ -182,8 +199,7 @@ export function calculateFlowTaskHistory({ tasks, movements, period, asOf, dateK
   return {
     leadPoints: trend(leadRows),
     cyclePoints: trend(cycleRows),
-    lead: sample(leadRows, unknownCompletion),
-    cycle: sample(cycleRows, unknownCompletion + missingCycleStart),
+    ...durations,
     throughput: {
       value: throughput,
       excludedCount: unknownCompletion,

@@ -1324,7 +1324,8 @@ I73 é a idade média em dias de todas as PRs abertas com data válida; ambos in
 contagens de elegíveis/excluídas. Sem fotografia GitHub, valores ficam `null` e
 `UNAVAILABLE`; falha de sync após fotografia preserva valor conhecido com `STALE`
 quando não há limite de cobertura mais forte. `sourceUpdatedAt`, `sourceSyncStatus`,
-`limitations[]` e `asOf` permitem interpretar o corte. Não há eventos brutos,
+`limitations[]` e `asOf` permitem interpretar o corte. Limitações específicas da métrica se somam
+às razões de fotografia indisponível, integração inativa ou falha de sync; não as substituem. Não há eventos brutos,
 autoria, e-mail, token, ranking de pessoas ou cache neste endpoint.
 
 Requer sessão e membership ativa VIEWER+; sem sessão → 401, projeto alheio,
@@ -1579,7 +1580,7 @@ O agregado P7 conserva `dashboardContractVersion:1` e todos os campos originais.
 
 Somente `view=GENERAL` acrescenta `projectHealth` com `healthModelVersion`, `status`, `score`, `coverage` percentual ponderada, `assessedDimensions`, `applicableDimensions`, `assessedSignals`, `applicableSignals`, `dimensions[]`, `drivers:{negative[],positive[]}`, `assessments` por ID, `calculatedAt` e `window:{timeZone,current,previous}` com instantes UTC inclusivo/exclusivo. Cada dimensão publica `id`, `weight`, `applicable`, `coverage`, `score`, `status`, `assessedSignals[]`, `unassessedSignals[]`. Cada driver publica `metricId`, `dimension`, `status`, `score`, `impact`, `reasonCode`, `basis`; máximo três por polaridade. `score:null,status:UNASSESSED` resulta de cobertura <60% ou menos de quatro dimensões avaliadas; não há persistência. Sprint sem seleção ativa e integração GitHub ausente podem ser `NOT_APPLICABLE` e saem do denominador. As demais views apresentam assessments individuais sem recalcular a nota completa.
 
-Eventos da saúde usam o período solicitado recortado em `generatedAt`, ou janela interna dos últimos 30 dias; baseline compara a janela anterior de mesma duração. Esse default **não** muda a regra P7 dos widgets de evento sem filtro: eles continuam com `PERIOD_REQUIRED`. A nota permanece do projeto; `responsibleUserId` não recorta Project Health. Regras, pesos, exclusões e limitações estão em [Project Health Model v1](../indicators/PROJECT_HEALTH_MODEL_V1.md).
+Eventos da saúde usam o período solicitado recortado em `generatedAt`, ou janela interna dos últimos 30 dias; baseline compara a janela anterior de mesma duração. Para I20/I21, o histórico observado inclui movimentos anteriores a `generatedAt`, inclusive conclusões posteriores ao fim da janela histórica: essas conclusões conhecidas não viram exclusões por histórico ausente. Somente conclusões dentro de cada janela entram na respectiva amostra; movimentos em ou após `generatedAt` não entram. O resumo de durações da saúde não materializa séries diárias, preservando o contrato de período da GENERAL sem impor um novo limite. Esse default **não** muda a regra P7 dos widgets de evento sem filtro: eles continuam com `PERIOD_REQUIRED`. A nota permanece do projeto; `responsibleUserId` não recorta Project Health. Regras, pesos, exclusões e limitações estão em [Project Health Model v1](../indicators/PROJECT_HEALTH_MODEL_V1.md).
 
 ## S2 P8.5 — Workspace de Indicadores e referências
 

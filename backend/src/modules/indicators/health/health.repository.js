@@ -13,7 +13,7 @@ export const healthRepository = {
     `;
     return rows[0];
   },
-  flow(projectId, window, asOf, includePlanning) {
+  flow(projectId, asOf, includePlanning) {
     return prisma.$transaction(
       async (tx) => {
         const [tasks, movements, planning] = await Promise.all([
@@ -22,7 +22,9 @@ export const healthRepository = {
             select: { id: true, title: true, status: true, createdAt: true, deadline: true }
           }),
           tx.taskMovement.findMany({
-            where: { projectId, movedAt: { lt: window.current.endExclusive } },
+            // Current task statuses require completion facts beyond a historical window.
+            // The observation cutoff still excludes future movements.
+            where: { projectId, movedAt: { lt: asOf } },
             orderBy: [{ taskId: 'asc' }, { movedAt: 'asc' }, { id: 'asc' }],
             select: { id: true, taskId: true, fromStatus: true, toStatus: true, movedAt: true }
           }),
