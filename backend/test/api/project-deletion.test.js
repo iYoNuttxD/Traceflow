@@ -1,5 +1,6 @@
+import { contendProjectLock } from '../helpers/contended-project-lock.js';
 import request from 'supertest';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { startTestServer } from '../helpers/http-server.js';
 import {
   cleanTestDatabase,
@@ -60,7 +61,10 @@ beforeAll(async () => {
   await cleanTestDatabase(prisma);
 });
 
-afterEach(async () => cleanTestDatabase(prisma));
+afterEach(async () => {
+  vi.restoreAllMocks();
+  await cleanTestDatabase(prisma);
+});
 afterAll(async () => {
   await cleanTestDatabase(prisma);
   await prisma.$disconnect();
@@ -213,9 +217,17 @@ describe('exclusão de projeto com retenção de 30 dias', () => {
       where: { id: project.id },
       data: { deletionScheduledFor: new Date(Date.now() - 1) }
     });
+    const tombstone = await prisma.project.findUnique({ where: { id: project.id } });
     expect(
       await owner.mutate('post', `/api/projects/${project.id}/restore`).send({})
     ).toMatchObject({ status: 404 });
+    expect(await prisma.project.findUnique({ where: { id: project.id } })).toEqual(tombstone);
+    await expect(
+      projectDeletionService.restore(project.id, owner.user.id, {
+        now: tombstone.deletionScheduledFor
+      })
+    ).rejects.toMatchObject({ statusCode: 404 });
+    expect(await prisma.project.findUnique({ where: { id: project.id } })).toEqual(tombstone);
   });
 
   it('exige confirmação forte, remove o grafo e libera o repositório', async () => {
@@ -300,20 +312,39 @@ describe('exclusão de projeto com retenção de 30 dias', () => {
   it('serializa deletes concorrentes e restore versus purge sem duplicar efeitos', async () => {
     const owner = await register('project-race-owner@example.invalid');
     const project = await createProject(owner, 'Projeto concorrente');
+    const deleteLock = contendProjectLock(prisma);
     const deletes = await Promise.all([
       owner.mutate('delete', `/api/projects/${project.id}`).send({}),
       owner.mutate('delete', `/api/projects/${project.id}`).send({})
     ]);
+    expect(deleteLock.attempts()).toBe(2);
+    deleteLock.restore();
     expect(deletes.filter(({ status }) => status === 200)).toHaveLength(1);
+    expect(await prisma.project.findUnique({ where: { id: project.id } })).toMatchObject({
+      deletedAt: expect.any(Date),
+      deletionScheduledFor: expect.any(Date)
+    });
+    expect(
+      await prisma.auditEvent.count({
+        where: { projectId: project.id, action: 'PROJECT_DELETE_REQUESTED' }
+      })
+    ).toBe(1);
     expect(deletes.every(({ status }) => [200, 404, 409].includes(status))).toBe(true);
 
+    const restoreLock = contendProjectLock(prisma);
     const outcomes = await Promise.all([
       owner.mutate('post', `/api/projects/${project.id}/restore`).send({}),
       owner
         .mutate('delete', `/api/projects/${project.id}/permanent`)
         .send({ confirmationName: 'Projeto concorrente' })
     ]);
+    expect(restoreLock.attempts()).toBe(2);
+    restoreLock.restore();
     expect(outcomes.filter(({ status }) => status === 200)).toHaveLength(1);
+    const stored = await prisma.project.findUnique({ where: { id: project.id } });
+    if (outcomes[0].status === 200)
+      expect(stored).toMatchObject({ deletedAt: null, deletionScheduledFor: null });
+    else expect(stored).toBeNull();
     expect(outcomes.every(({ status }) => [200, 404, 409].includes(status))).toBe(true);
   });
 });

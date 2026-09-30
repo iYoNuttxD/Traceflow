@@ -29,7 +29,12 @@ describe('rotas públicas da GitHub App', () => {
 
     expect(response.status).toBe(302);
     expect(response.headers.location).toContain('github=connected');
-    expect(githubAppService.completeCallback).toHaveBeenCalledOnce();
+    expect(githubAppService.completeCallback).toHaveBeenCalledExactlyOnceWith({
+      code: 'oauth-code',
+      installationId: '77',
+      setupAction: 'install',
+      state: 'state-artificial-com-mais-de-trinta-caracteres'
+    });
   });
 
   it('redireciona callback ausente ou inválido com erro sanitizado', async () => {

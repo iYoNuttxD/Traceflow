@@ -10,6 +10,13 @@ function execute(status, method, path) {
 describe('política de estado da conta L2', () => {
   it('permite acesso integral somente para conta ativa', () => {
     expect(execute('ACTIVE', 'POST', '/projects')).toBeUndefined();
+    for (const [status, code] of [
+      ['ANONYMIZED', 'ACCOUNT_ANONYMIZED'],
+      [undefined, 'ACCOUNT_DEACTIVATED'],
+      ['UNKNOWN', 'ACCOUNT_DEACTIVATED']
+    ]) {
+      expect(execute(status, 'POST', '/projects')).toMatchObject({ statusCode: 403, code });
+    }
     expect(execute('DEACTIVATED', 'POST', '/projects')).toMatchObject({
       code: 'ACCOUNT_DEACTIVATED',
       statusCode: 403
@@ -19,6 +26,16 @@ describe('política de estado da conta L2', () => {
   it('limita conta desativada a consultar conta e solicitar reativação', () => {
     expect(execute('DEACTIVATED', 'GET', '/settings/account')).toBeUndefined();
     expect(execute('DEACTIVATED', 'POST', '/account/reactivation/start')).toBeUndefined();
+    for (const [method, path] of [
+      ['POST', '/settings/account'],
+      ['GET', '/account/reactivation/start'],
+      ['GET', '/settings/account/extra']
+    ]) {
+      expect(execute('DEACTIVATED', method, path)).toMatchObject({
+        statusCode: 403,
+        code: 'ACCOUNT_DEACTIVATED'
+      });
+    }
   });
 
   it('permite exportar e cancelar durante exclusão pendente, mas bloqueia projetos', () => {

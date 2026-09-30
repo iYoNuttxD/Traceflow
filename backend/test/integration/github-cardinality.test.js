@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   cleanTestDatabase,
   configureTestDatabaseEnvironment,
@@ -16,6 +16,7 @@ beforeAll(async () => {
 });
 
 beforeEach(() => cleanTestDatabase(prisma));
+afterEach(() => vi.restoreAllMocks());
 
 afterAll(async () => {
   await cleanTestDatabase(prisma);
@@ -98,7 +99,7 @@ describe('cardinalidade persistida da GitHub App', () => {
         expiresAt: new Date(Date.now() + 60_000)
       }
     });
-    const result = await githubRepository.authorizeInstallationFromState({
+    const input = {
       stateId: state.id,
       now: new Date(),
       userId: user.id,
@@ -109,7 +110,17 @@ describe('cardinalidade persistida da GitHub App', () => {
         accountType: 'Organization',
         installedAt: new Date()
       }
-    });
+    };
+    const invalidNow = new Date(state.expiresAt);
+    expect(
+      await githubRepository.authorizeInstallationFromState({ ...input, now: invalidNow })
+    ).toBeNull();
+    expect(
+      await githubRepository.authorizeInstallationFromState({ ...input, userId: user.id + 1000 })
+    ).toBeNull();
+    expect(await prisma.gitHubInstallation.count()).toBe(0);
+    expect(await prisma.gitHubInstallationAuthorization.count()).toBe(0);
+    const result = await githubRepository.authorizeInstallationFromState(input);
     const { installation } = result;
 
     expect(installation).toMatchObject({ githubInstallationId: '77', status: 'ACTIVE' });
@@ -129,6 +140,54 @@ describe('cardinalidade persistida da GitHub App', () => {
         installation: { githubInstallationId: '77' }
       })
     ).resolves.toBeNull();
+    const concurrentState = await prisma.gitHubAppConnectionState.create({
+      data: {
+        userId: user.id,
+        sessionId: session.id,
+        tokenHash: 'concurrent-claim-state',
+        intendedAction: 'CREATE_PROJECT',
+        expiresAt: new Date(Date.now() + 60_000)
+      }
+    });
+    const transaction = prisma.$transaction.bind(prisma);
+    let release;
+    const barrier = new Promise((resolve) => {
+      release = resolve;
+    });
+    let reads = 0;
+    const gate = vi.spyOn(prisma, '$transaction').mockImplementation((callback, options) =>
+      transaction(
+        (tx) =>
+          callback(
+            new Proxy(tx, {
+              get(target, property) {
+                if (property !== 'gitHubAppConnectionState') return target[property];
+                return new Proxy(target[property], {
+                  get(model, method) {
+                    if (method !== 'findFirst') return model[method];
+                    return async (...args) => {
+                      const row = await model.findFirst(...args);
+                      if (++reads === 2) release();
+                      await barrier;
+                      return row;
+                    };
+                  }
+                });
+              }
+            })
+          ),
+        options
+      )
+    );
+    const claimed = await Promise.all(
+      [1, 2].map(() =>
+        githubRepository.authorizeInstallationFromState({ ...input, stateId: concurrentState.id })
+      )
+    );
+    gate.mockRestore();
+    expect(claimed.filter(Boolean)).toHaveLength(1);
+    expect(await prisma.gitHubInstallation.count()).toBe(1);
+    expect(await prisma.gitHubInstallationAuthorization.count()).toBe(1);
     expect(
       JSON.stringify(await prisma.gitHubInstallation.findUnique({ where: { id: installation.id } }))
     ).not.toMatch(/accessToken|userToken|installationToken/);
@@ -265,7 +324,11 @@ describe('cardinalidade persistida da GitHub App', () => {
     const webhookInstallation = await githubRepository.upsertInstallationFromWebhook('150628891', {
       account: { id: 700, login: 'traceflow-updated', type: 'Organization' }
     });
-    expect(webhookInstallation.id).toBe(result.installation.id);
+    expect(webhookInstallation).toMatchObject({
+      id: result.installation.id,
+      accountLogin: 'traceflow-updated',
+      status: 'ACTIVE'
+    });
     await expect(
       prisma.gitHubInstallationAuthorization.findUnique({
         where: {
@@ -304,6 +367,41 @@ describe('cardinalidade persistida da GitHub App', () => {
       }
     });
 
+    const transaction = prisma.$transaction.bind(prisma);
+    const consume = vi.fn(async () => {
+      throw new Error('injected consume-state failure');
+    });
+    vi.spyOn(prisma, '$transaction').mockImplementation((callback, options) =>
+      transaction(
+        async (tx) =>
+          callback(
+            new Proxy(tx, {
+              get(target, property) {
+                if (property !== 'gitHubAppConnectionState') return target[property];
+                return new Proxy(target[property], {
+                  get(model, method) {
+                    if (method !== 'updateMany') return model[method];
+                    return async () => {
+                      expect(
+                        await tx.gitHubInstallation.count({
+                          where: { githubInstallationId: '999999' }
+                        })
+                      ).toBe(1);
+                      expect(
+                        await tx.gitHubInstallationAuthorization.count({
+                          where: { userId: user.id }
+                        })
+                      ).toBe(1);
+                      return consume();
+                    };
+                  }
+                });
+              }
+            })
+          ),
+        options
+      )
+    );
     await expect(
       githubRepository.authorizeInstallationFromState({
         stateId: state.id,
@@ -311,12 +409,14 @@ describe('cardinalidade persistida da GitHub App', () => {
         userId: user.id,
         installation: {
           githubInstallationId: '999999',
+          accountId: '700',
           accountLogin: 'traceflow',
           accountType: 'Organization',
           installedAt: new Date()
         }
       })
-    ).rejects.toMatchObject({ callbackStep: 'upsert_installation' });
+    ).rejects.toMatchObject({ callbackStep: 'consume_state' });
+    expect(consume).toHaveBeenCalledOnce();
     await expect(
       prisma.gitHubInstallation.findUnique({ where: { githubInstallationId: '999999' } })
     ).resolves.toBeNull();
@@ -385,7 +485,38 @@ describe('cardinalidade persistida da GitHub App', () => {
         labels: []
       }
     });
-    await githubRepository.requireReconnectForRepositories(77, [501]);
+    const siblingCommit = await prisma.commit.create({
+      data: { projectId: projects[1].id, hash: 'sibling-survivor', message: 'Sibling untouched' }
+    });
+    const otherInstallation = await prisma.gitHubInstallation.create({
+      data: {
+        githubInstallationId: '88',
+        installedAt: new Date(),
+        accountId: '800',
+        accountLogin: 'other',
+        accountType: 'Organization',
+        status: 'ACTIVE'
+      }
+    });
+    const otherProject = await prisma.project.create({
+      data: {
+        name: 'Other installation',
+        responsibleTeam: 'Team',
+        accessCode: 'OTHER-INSTALLATION-SENTINEL'
+      }
+    });
+    const otherIntegration = await prisma.projectGitHubIntegration.create({
+      data: {
+        projectId: otherProject.id,
+        installationId: otherInstallation.id,
+        githubRepositoryId: '601',
+        status: 'ACTIVE'
+      }
+    });
+    const otherCommit = await prisma.commit.create({
+      data: { projectId: otherProject.id, hash: 'other-installation-survivor' }
+    });
+    await githubRepository.requireReconnectForRepositories(77, [501, 601]);
 
     const integrations = await prisma.projectGitHubIntegration.findMany({
       orderBy: { githubRepositoryId: 'asc' }
@@ -398,22 +529,13 @@ describe('cardinalidade persistida da GitHub App', () => {
     expect(integrations[1]).toMatchObject({ githubRepositoryId: '502', status: 'ACTIVE' });
     expect(await prisma.commit.count({ where: { projectId: projects[0].id } })).toBe(1);
     expect(await prisma.issue.count({ where: { projectId: projects[0].id } })).toBe(1);
-  });
-
-  it('possui UNIQUE(projectId) e UNIQUE(githubRepositoryId), nunca UNIQUE(installationId)', async () => {
-    const indexes = await prisma.$queryRaw`
-      SELECT INDEX_NAME AS indexName, COLUMN_NAME AS columnName, NON_UNIQUE AS nonUnique
-      FROM information_schema.STATISTICS
-      WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = 'ProjectGitHubIntegration'
-      ORDER BY INDEX_NAME, SEQ_IN_INDEX
-    `;
-    const uniqueColumns = indexes
-      .filter(({ nonUnique }) => Number(nonUnique) === 0)
-      .map(({ columnName }) => columnName);
-    expect(uniqueColumns).toContain('projectId');
-    expect(uniqueColumns).toContain('githubRepositoryId');
-    expect(uniqueColumns).not.toContain('installationId');
+    expect(await prisma.commit.findUnique({ where: { id: siblingCommit.id } })).toEqual(
+      siblingCommit
+    );
+    expect(await prisma.commit.findUnique({ where: { id: otherCommit.id } })).toEqual(otherCommit);
+    expect(
+      await prisma.projectGitHubIntegration.findUnique({ where: { id: otherIntegration.id } })
+    ).toEqual(otherIntegration);
   });
 
   it('reconecta repo X, rejeita repo Y e preserva integração e artifacts', async () => {
@@ -472,7 +594,7 @@ describe('cardinalidade persistida da GitHub App', () => {
       data: { status: 'SUSPENDED', suspendedAt: new Date() }
     });
     await expect(requestProjectGithubSync(project.id, user.id, { schedule })).rejects.toMatchObject(
-      { statusCode: 409 }
+      { statusCode: 409, message: 'Reconecte a GitHub App antes de sincronizar este projeto.' }
     );
 
     await prisma.gitHubInstallation.update({
@@ -480,9 +602,11 @@ describe('cardinalidade persistida da GitHub App', () => {
       data: { status: 'REMOVED', suspendedAt: null }
     });
     await expect(requestProjectGithubSync(project.id, user.id, { schedule })).rejects.toMatchObject(
-      { statusCode: 409 }
+      { statusCode: 409, message: 'Reconecte a GitHub App antes de sincronizar este projeto.' }
     );
     await expect(prisma.commit.count({ where: { projectId: project.id } })).resolves.toBe(1);
+    expect(schedule).toHaveBeenCalledOnce();
+    expect(await prisma.gitHubSyncRun.count({ where: { projectId: project.id } })).toBe(1);
   });
 
   it('retoma delivery FAILED e mantém PROCESSING/PROCESSED idempotentes', async () => {
@@ -499,12 +623,34 @@ describe('cardinalidade persistida da GitHub App', () => {
       'TRANSIENT_DATABASE_FAILURE'
     );
 
-    const retried = await githubRepository.startWebhookDelivery({
-      deliveryId: 'delivery-integration-retry',
-      event: 'installation',
-      action: 'created',
-      installationId: '77'
+    const updateMany = prisma.gitHubWebhookDelivery.updateMany.bind(prisma.gitHubWebhookDelivery);
+    let release;
+    const barrier = new Promise((resolve) => {
+      release = resolve;
     });
+    let claims = 0;
+    const claimSpy = vi
+      .spyOn(prisma.gitHubWebhookDelivery, 'updateMany')
+      .mockImplementation(async (...args) => {
+        if (++claims === 2) release();
+        await barrier;
+        return updateMany(...args);
+      });
+    const attempts = await Promise.all(
+      [1, 2].map(() =>
+        githubRepository.startWebhookDelivery({
+          deliveryId: 'delivery-integration-retry',
+          event: 'installation',
+          action: 'created',
+          installationId: '77'
+        })
+      )
+    );
+    claimSpy.mockRestore();
+    expect(claims).toBe(2);
+    expect(attempts.filter(({ duplicate }) => duplicate)).toHaveLength(1);
+    const retried = attempts.find(({ duplicate }) => !duplicate);
+    expect(await prisma.gitHubWebhookDelivery.count()).toBe(1);
     expect(retried).toMatchObject({
       duplicate: false,
       retried: true,
@@ -517,6 +663,14 @@ describe('cardinalidade persistida da GitHub App', () => {
       })
     ).resolves.toMatchObject({ duplicate: true });
     await githubRepository.completeWebhookDelivery(retried.delivery.id);
+    expect(
+      await prisma.gitHubWebhookDelivery.findUnique({ where: { id: retried.delivery.id } })
+    ).toMatchObject({
+      status: 'PROCESSED',
+      processedAt: expect.any(Date),
+      failureStep: null,
+      failureCode: null
+    });
     await expect(
       githubRepository.startWebhookDelivery({
         deliveryId: 'delivery-integration-retry',

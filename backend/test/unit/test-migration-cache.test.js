@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -48,6 +48,7 @@ describe('migration deployment per isolated invocation', () => {
     deployOncePerInvocation({ directory: root, databaseUrl, deploy });
     expect(deploy).toHaveBeenCalledOnce();
     expect(readdirSync(root)).toEqual([expect.stringMatching(/^[a-f0-9]{64}$/)]);
+    expect(readFileSync(join(root, readdirSync(root)[0]), 'utf8')).toBe('');
   });
 
   it('deploys for each database and each new invocation, including a filtered run', () => {

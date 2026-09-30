@@ -88,7 +88,7 @@ describe('S1-07 private evidence storage', () => {
     }
   );
   it('does not mistake APNG after large metadata for a permitted static PNG', async () => {
-    const { storage } = await fixture();
+    const { storage, directory } = await fixture();
     const metadata = Buffer.alloc(128 * 1024 + 12);
     metadata.writeUInt32BE(128 * 1024, 0);
     metadata.write('tEXt', 4);
@@ -101,6 +101,7 @@ describe('S1-07 private evidence storage', () => {
     await receive(storage, attempt, bytes, 'animation.png');
     await expect(storage.prepare(attempt, [])).rejects.toMatchObject({ statusCode: 400 });
     await storage.cleanup(attempt);
+    expect(await readdir(directory)).toEqual([]);
   });
   it('stages, validates, hashes persisted bytes and uses a random private key', async () => {
     const { storage, directory } = await fixture();
@@ -143,11 +144,12 @@ describe('S1-07 private evidence storage', () => {
     expect(await readdir(directory)).toEqual([]);
   });
   it('rejects missing step target and cleans it', async () => {
-    const { storage } = await fixture();
+    const { storage, directory } = await fixture();
     const attempt = await storage.begin();
     await receive(storage, attempt, png, 'image.png', 'stepEvidence.3');
     await expect(storage.prepare(attempt, [1])).rejects.toMatchObject({ statusCode: 400 });
     await storage.cleanup(attempt);
+    expect(await readdir(directory)).toEqual([]);
   });
   it.each([
     ['fileBytes', 4, 'evidence'],
@@ -166,12 +168,13 @@ describe('S1-07 private evidence storage', () => {
     ['general', 'evidence'],
     ['files', 'evidence']
   ])('enforces %s quota', async (key, field) => {
-    const { storage } = await fixture({ ...EVIDENCE_DEFAULTS, [key]: 1 });
+    const { storage, directory } = await fixture({ ...EVIDENCE_DEFAULTS, [key]: 1 });
     const attempt = await storage.begin();
     await receive(storage, attempt, png, 'a.png', field);
     await receive(storage, attempt, png, 'b.png', field);
     await expect(storage.prepare(attempt, [1])).rejects.toMatchObject({ statusCode: 413 });
     await storage.cleanup(attempt);
+    expect(await readdir(directory)).toEqual([]);
   });
   it('rejects symlink roots, symlink content, traversal and mismatched persisted size', async () => {
     const { storage, directory } = await fixture();
@@ -251,15 +254,18 @@ describe('S1-07 private evidence storage', () => {
     const storageKey = '12345678-1234-4234-8234-123456789abc';
     const purgeKey = 'abcdefab-1234-4234-8234-123456789abc';
     await writeFile(join(directory, storageKey), png);
+    await writeFile(join(directory, 'unrelated-sentinel'), 'preserved');
 
     expect(await storage.stageForPurge(storageKey, purgeKey)).toBe('STAGED');
-    expect(await readdir(directory)).toEqual(['.purge']);
+    expect((await readdir(directory)).sort()).toEqual(['.purge', 'unrelated-sentinel']);
+    expect(await readFile(join(directory, 'unrelated-sentinel'), 'utf8')).toBe('preserved');
     expect(await storage.restoreFromPurge(storageKey, purgeKey)).toBe(true);
     expect(await readFile(join(directory, storageKey))).toEqual(png);
 
     expect(await storage.stageForPurge(storageKey, purgeKey)).toBe('STAGED');
     await storage.deletePurged(storageKey, purgeKey);
-    expect(await readdir(directory)).toEqual(['.purge']);
+    expect((await readdir(directory)).sort()).toEqual(['.purge', 'unrelated-sentinel']);
+    expect(await readFile(join(directory, 'unrelated-sentinel'), 'utf8')).toBe('preserved');
     await storage.deletePurged(storageKey, purgeKey);
   });
 });
@@ -339,6 +345,10 @@ describe('S1-07 signature and upload policy', () => {
   ])(
     'rejects invalid bytes for %s %s',
     async (bytes, name) =>
-      await expect(validateEvidenceBytes(bytes, name, 'EXECUTION')).rejects.toBeDefined()
+      await expect(validateEvidenceBytes(bytes, name, 'EXECUTION')).rejects.toMatchObject(
+        bytes.length
+          ? { statusCode: 400, code: 'VALIDATION_ERROR' }
+          : { statusCode: 413, code: 'TEST_EVIDENCE_LIMIT_EXCEEDED' }
+      )
   );
 });

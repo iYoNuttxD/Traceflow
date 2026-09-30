@@ -67,11 +67,44 @@ describe('P7 dashboard composition and filter contract', () => {
       visualizations: ['LINE'],
       supportedFilters: ['sprintId']
     });
+    for (const [metricId, source, unit, eventClock, supportedFilters, visualizations] of [
+      ['I01', 'Tasks', 'PERCENT', null, [], ['PROGRESS', 'KPI']],
+      ['I02', 'Tasks e commits GitHub', 'COMMITS', 'Commit.date', ['period'], ['TABLE', 'BAR']],
+      ['I04', 'GitHub', 'PERCENT', 'PullRequestLifecycleEvent.occurredAt', ['period'], ['KPI']],
+      ['I20', 'Tasks e movimentos', 'DAYS', 'TaskMovement.movedAt', ['period'], ['KPI']],
+      ['I36', 'Sprint e histórico', 'HOURS', null, ['sprintId'], ['KPI']],
+      [
+        'I48',
+        'Testes e Defects',
+        'EXECUTIONS',
+        'TestExecution.executedAt',
+        ['period'],
+        ['STACKED_BAR', 'TABLE']
+      ],
+      ['I61', 'Rastreabilidade', 'PERCENT', null, [], ['KPI']]
+    ])
+      expect(catalog.find((item) => item.metricId === metricId)).toMatchObject({
+        source,
+        unit,
+        eventClock,
+        supportedFilters,
+        visualizations,
+        definitionVersion: 1
+      });
     expect(catalog.some((item) => item.metricId === 'I68')).toBe(false);
     expect(catalog.every((item) => item.visualizations.length > 0)).toBe(true);
   });
 
   it('preserva estados individuais e só deriva o estado da view', () => {
+    const metrics = Object.freeze([
+      Object.freeze({ state: 'STALE', value: 2 }),
+      Object.freeze({ state: 'AVAILABLE', value: 1 })
+    ]);
+    expect(deriveDashboardViewState(metrics)).toBe('PARTIAL');
+    expect(metrics).toEqual([
+      { state: 'STALE', value: 2 },
+      { state: 'AVAILABLE', value: 1 }
+    ]);
     expect(deriveDashboardViewState([{ state: 'AVAILABLE', value: 2 }])).toBe('AVAILABLE');
     expect(deriveDashboardViewState([{ state: 'AVAILABLE', value: 0 }])).toBe('NO_DATA');
     expect(deriveDashboardViewState([{ state: 'NO_DATA', value: null }])).toBe('NO_DATA');
