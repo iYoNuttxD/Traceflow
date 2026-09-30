@@ -233,9 +233,20 @@ describe('Traceability catalog', () => {
     renderPage();
     const trigger = await screen.findByRole('button', { name: 'Ver rastreabilidade' });
     await user.click(trigger);
+    // Wait for the lazy workspace, not its replaceable Suspense fallback button.
+    // The graph request remains pending throughout this interaction.
+    await screen.findByText('Carregando requisito selecionado...');
+    const signal = api.getRequirementTraceability.mock.calls[0][3].signal;
+    expect(signal.aborted).toBe(false);
     await user.click(screen.getByRole('button', { name: 'Fechar rastreabilidade — req-10' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(trigger).toHaveFocus();
+    });
+    expect(signal.aborted).toBe(true);
     await settle(pending, graph('antigo'));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.queryByText('antigo')).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
   });
 
