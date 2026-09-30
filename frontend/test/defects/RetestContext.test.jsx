@@ -85,6 +85,8 @@ it('preserves completed wizard and forbids duplicate retry after 409', async () 
   await screen.findByText(/Seu rascunho foi preservado/);
   expect(screen.getByText('Resumo da execução')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Registrar execução' })).toBeDisabled();
+  await user.click(screen.getByRole('button', { name: 'Registrar execução' }));
+  expect(api.record).toHaveBeenCalledTimes(1);
 });
 it('does not accept an old defect read after a successful retest', async () => {
   api.record.mockResolvedValue({ id: 39, displayId: 'EXEC-0039', result: 'PASS' });

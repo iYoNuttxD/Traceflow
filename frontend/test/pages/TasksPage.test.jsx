@@ -4,6 +4,8 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
+  getComments: vi.fn(),
+  createComment: vi.fn(),
   getProject: vi.fn(),
   listTasks: vi.fn(),
   getTask: vi.fn(),
@@ -28,6 +30,15 @@ vi.mock('../../src/features/tasks/api/tasks.api.js', async (importOriginal) => {
       create: mocks.createTask,
       update: mocks.updateTask
     },
+    getTaskTimeEntries: vi.fn().mockResolvedValue({
+      entries: [],
+      running: null,
+      effort: { actualHours: 0 },
+      permissions: { canOperate: false },
+      pagination: {}
+    }),
+    getTaskComments: mocks.getComments,
+    createTaskComment: mocks.createComment,
     deleteTask: mocks.deleteTask
   };
 });
@@ -75,17 +86,14 @@ vi.mock('../../src/features/traceability/api/traceability.api.js', () => ({
   scanCommitSuggestions: vi.fn()
 }));
 
-vi.mock('../../src/features/tasks/components/TaskDetailsPanel.jsx', () => ({
-  TaskDetailsPanel: ({ task, canEdit, onClose }) => (
-    <section role="dialog" aria-label={`Detalhes de TASK-${task.id}`} data-can-edit={canEdit}>
-      <h2>{task.title}</h2>
-      <button type="button" onClick={onClose}>
-        Fechar detalhes
-      </button>
-    </section>
-  )
+vi.mock('../../src/features/testCases/api/test-cases.api.js', () => ({
+  testCasesApi: { list: vi.fn().mockResolvedValue({ items: [], total: 0 }) }
+}));
+vi.mock('../../src/features/defects/api/defects.api.js', () => ({
+  defectsApi: { list: vi.fn().mockResolvedValue({ items: [], total: 0 }) }
 }));
 
+import { TaskDetailsPanel } from '../../src/features/tasks/components/TaskDetailsPanel.jsx';
 import { TasksScreen } from '../../src/features/tasks/pages/TasksScreen.jsx';
 import { ConfirmProvider } from '../../src/shared/index.js';
 
@@ -122,6 +130,12 @@ function renderPage() {
 describe('Tasks C2 facelift', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.getComments.mockResolvedValue({
+      taskId: 21,
+      comments: [],
+      permissions: { canComment: true },
+      pagination: { hasMore: false }
+    });
     mocks.getProject.mockResolvedValue({ data: { project: { id: 9, name: 'TraceFlow' } } });
     mocks.listTasks.mockResolvedValue({ data: { tasks: [task] } });
     mocks.getTask.mockResolvedValue({ data: { task } });
@@ -202,10 +216,15 @@ describe('Tasks C2 facelift', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Fechar editar tarefa' }));
 
     await user.click(screen.getByRole('article', { name: /Abrir detalhes de TASK-21/ }));
-    expect(screen.getByRole('dialog', { name: 'Detalhes de TASK-21' })).toHaveAttribute(
-      'data-can-edit',
-      'true'
+    dialog = screen.getByRole('dialog', { name: '#21 ' + task.title });
+    expect(within(dialog).getByRole('button', { name: 'Editar tarefa' })).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Editar tarefa' }));
+    expect(within(dialog).getByRole('textbox', { name: 'Título da tarefa' })).toHaveValue(
+      task.title
     );
+    await user.click(within(dialog).getByRole('button', { name: 'Cancelar edição' }));
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     await waitFor(() => expect(mocks.getTask).toHaveBeenCalledWith(21, expect.any(Object)));
   });
 
@@ -222,9 +241,48 @@ describe('Tasks C2 facelift', () => {
     expect(screen.queryByRole('button', { name: 'Mais ações da tarefa TASK-21' })).toBeNull();
     expect(container.querySelector('.task-catalog-card__footer')).toBeNull();
     await user.click(screen.getByRole('article', { name: /Abrir detalhes de TASK-21/ }));
-    expect(screen.getByRole('dialog', { name: 'Detalhes de TASK-21' })).toHaveAttribute(
-      'data-can-edit',
-      'false'
-    );
+    const dialog = screen.getByRole('dialog', { name: '#21 ' + task.title });
+    expect(within(dialog).queryByRole('button', { name: 'Editar tarefa' })).not.toBeInTheDocument();
+    expect(
+      within(dialog).queryByRole('button', { name: 'Excluir tarefa' })
+    ).not.toBeInTheDocument();
+    expect(
+      within(dialog).queryByRole('button', { name: 'Criar caso de teste' })
+    ).not.toBeInTheDocument();
   });
+});
+
+it('envia comentário real dentro dos detalhes embedded sem abrir outro modal', async () => {
+  mocks.getComments.mockResolvedValue({
+    taskId: 21,
+    comments: [],
+    permissions: { canComment: true },
+    pagination: { hasMore: false }
+  });
+  mocks.createComment.mockResolvedValue({
+    comment: {
+      id: 81,
+      taskId: 21,
+      content: 'Comentário no workspace',
+      createdAt: '2026-09-01T12:00:00Z',
+      author: { id: 2, name: 'Daniel' },
+      canEdit: true,
+      canDelete: true
+    }
+  });
+  const user = userEvent.setup();
+  render(
+    <MemoryRouter>
+      <ConfirmProvider>
+        <TaskDetailsPanel embedded task={task} projectId={9} onClose={vi.fn()} />
+      </ConfirmProvider>
+    </MemoryRouter>
+  );
+  const input = await screen.findByLabelText('Novo comentário');
+  await user.type(input, 'Comentário no workspace');
+  await user.click(screen.getByRole('button', { name: 'Comentar' }));
+  expect(mocks.createComment).toHaveBeenCalledExactlyOnceWith(21, 'Comentário no workspace');
+  expect(await screen.findByText('Comentário no workspace')).toBeInTheDocument();
+  expect(input).toHaveValue('');
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 });

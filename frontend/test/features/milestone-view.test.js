@@ -114,9 +114,14 @@ describe('progresso e periodo coberto', () => {
   });
 
   it('soma somente pontos ja presentes no DTO do cronograma', () => {
-    const result = summarizeMilestoneSprints(5, [sprint(1, 5)], {
-      1: { tasks: [{ estimatedEffort: 3 }, { estimatedEffort: 5 }] }
-    });
+    const result = summarizeMilestoneSprints(
+      5,
+      [sprint(1, 5, 'PLANEJADA', { tasks: [{ estimatedEffort: 999 }], points: 888 }), sprint(2, 6)],
+      {
+        1: { tasks: [{ estimatedEffort: 3 }, { estimatedEffort: 5 }, { title: 'Sem estimativa' }] },
+        2: { tasks: [{ estimatedEffort: 777 }] }
+      }
+    );
     expect(result.points).toBe(8);
   });
 });
@@ -154,6 +159,15 @@ describe('filterMilestones', () => {
       sprintId: 2
     };
     expect(filterMilestones(milestones, filters, sprints, now).map((item) => item.id)).toEqual([2]);
+    for (const conflict of [
+      { status: 'CONCLUIDO' },
+      { deadlineHealth: 'ATRASADO' },
+      { sprintId: 1 },
+      { dueFrom: '2026-09-11' },
+      { dueTo: '2026-09-08' }
+    ]) {
+      expect(filterMilestones(milestones, { ...filters, ...conflict }, sprints, now)).toEqual([]);
+    }
     expect(hasMilestoneFilters(filters)).toBe(true);
     expect(hasMilestoneFilters(MILESTONE_FILTER_DEFAULTS)).toBe(false);
   });

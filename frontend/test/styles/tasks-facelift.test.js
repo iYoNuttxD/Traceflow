@@ -63,17 +63,31 @@ describe('Tasks facelift responsivo', () => {
     expect(listSource).not.toContain('Ver detalhes');
     expect(listSource).not.toContain('Rastreabilidade');
     expect(listSource).not.toContain('onUnlinkCommit');
-    expect(listCss).toMatch(/\.task-catalog-card__description \{[\s\S]*?-webkit-line-clamp: 2;/);
+    expect(
+      ruleDeclarations(parseStylesheet(listCss), '.task-catalog-card__description')
+    ).toMatchObject({ overflow: 'hidden', '-webkit-line-clamp': '2' });
     expect(listCss).not.toMatch(/\.task-catalog-card \{[\s\S]*?height:\s*\d+px/);
   });
 
   it('preserva foco, alvos mínimos, dialog rolável e remove o retorno legado', () => {
     expect(screenSource).not.toContain('← Voltar para o projeto');
-    expect(screenCss).toContain('min-height: var(--size-touch-target)');
-    expect(listCss).toContain('.task-catalog-card:focus-visible');
-    expect(listCss).toContain('min-height: calc(var(--size-touch-target)');
+    expect(ruleDeclarations(parseStylesheet(screenCss), '.tasks-filters__clear')).toMatchObject({
+      'min-height': 'var(--size-touch-target)'
+    });
+    expect(
+      ruleDeclarations(
+        parseStylesheet(listCss),
+        '.task-catalog-card:focus-visible, .new-task-card:focus-visible'
+      )
+    ).toMatchObject({ outline: 'var(--focus-ring-width) solid var(--color-focus-ring)' });
+    expect(ruleDeclarations(parseStylesheet(listCss), '.task-catalog-card__footer')).toMatchObject({
+      'min-height': 'calc(var(--size-touch-target) + (2 * var(--space-2)))',
+      'justify-content': 'flex-end'
+    });
     expect(listCss).toMatch(/\.task-catalog-card__footer \{[\s\S]*?justify-content: flex-end;/);
     expect(listCss).not.toContain('.task-catalog-card__footer > span');
-    expect(screenCss).toContain('.task-form-dialog .sprint-dialog__body');
+    expect(
+      ruleDeclarations(parseStylesheet(screenCss), '.task-form-dialog .sprint-dialog__body')
+    ).toMatchObject({ 'min-height': '0px' });
   });
 });

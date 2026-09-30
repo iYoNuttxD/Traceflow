@@ -77,6 +77,15 @@ describe('sprint view model', () => {
       taskId: 21
     };
     expect(filterSprints(sprints, filters, scheduleById)).toEqual([sprints[1]]);
+    for (const conflict of [
+      { status: 'PLANEJADA' },
+      { milestoneId: 10 },
+      { taskId: 11 },
+      { startDate: '2026-09-27' },
+      { endDate: '2026-09-14' }
+    ]) {
+      expect(filterSprints(sprints, { ...filters, ...conflict }, scheduleById)).toEqual([]);
+    }
     expect(hasSprintFilters(filters)).toBe(true);
     expect(hasSprintFilters(SPRINT_FILTER_DEFAULTS)).toBe(false);
   });

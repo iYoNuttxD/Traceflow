@@ -118,6 +118,8 @@ describe('estrutura e estados da página', () => {
     mocks.projects.get.mockReturnValueOnce(new Promise(() => {}));
     const first = renderScreen();
     expect(screen.getByText('Carregando marcos...')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Novo marco' })).not.toBeInTheDocument();
+    expect(mocks.schedule.createMilestone).not.toHaveBeenCalled();
     first.unmount();
 
     mocks.projects.get.mockRejectedValueOnce({ response: { status: 403, data: {} } });
@@ -127,7 +129,9 @@ describe('estrutura e estados da página', () => {
 
     mocks.projects.get.mockRejectedValueOnce({ response: { status: 500, data: {} } });
     renderScreen();
-    expect(await screen.findByRole('button', { name: 'Tentar novamente' })).toBeInTheDocument();
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Tentar novamente' }));
+    expect(await screen.findByRole('list', { name: 'Marcos do projeto' })).toBeInTheDocument();
+    expect(mocks.projects.get).toHaveBeenCalledTimes(4);
   });
 
   it('remove o formulario permanente e mantém Novo marco como primeiro item do empty state', async () => {
@@ -268,6 +272,28 @@ describe('busca e filtros', () => {
       screen.queryByRole('heading', { name: 'Fundação do produto', level: 3 })
     ).not.toBeInTheDocument();
     expect(screen.getByText('1 de 2 marcos')).toBeInTheDocument();
+    for (const [label, conflict, restored] of [
+      ['Status', 'PENDENTE', 'CONCLUIDO'],
+      ['Situação do prazo', 'ATRASADO', 'CONCLUIDO']
+    ]) {
+      await user.selectOptions(screen.getByLabelText(label), conflict);
+      expect(
+        screen.queryByRole('heading', { name: 'Release final', level: 3 })
+      ).not.toBeInTheDocument();
+      await user.selectOptions(screen.getByLabelText(label), restored);
+      expect(screen.getByRole('heading', { name: 'Release final', level: 3 })).toBeInTheDocument();
+    }
+    for (const [label, conflict, restored] of [
+      ['Prazo inicial', '2099-11-01', '2099-10-01'],
+      ['Prazo final', '2099-09-01', '2099-10-31']
+    ]) {
+      fireEvent.change(screen.getByLabelText(label), { target: { value: conflict } });
+      expect(
+        screen.queryByRole('heading', { name: 'Release final', level: 3 })
+      ).not.toBeInTheDocument();
+      fireEvent.change(screen.getByLabelText(label), { target: { value: restored } });
+      expect(screen.getByRole('heading', { name: 'Release final', level: 3 })).toBeInTheDocument();
+    }
   });
 });
 
@@ -331,6 +357,11 @@ describe('criação e edição em modal', () => {
       'aria-disabled',
       'true'
     );
+    await user.click(within(dialog).getByRole('option', { name: /Sprint congelada/ }));
+    expect(
+      within(dialog).queryByRole('button', { name: /Remover Sprint congelada/ })
+    ).not.toBeInTheDocument();
+    expect(mocks.schedule.updateSprint).not.toHaveBeenCalled();
   });
 
   it('cria, move a Sprint, fecha o modal e atualiza o grid sem reload manual', async () => {
@@ -491,12 +522,23 @@ describe('menu, autorização e lifecycle', () => {
       data: { milestone: marco({ status: 'PENDENTE' }) }
     });
     renderScreen();
-    const { user, menu } = await openMenu();
+    mocks.schedule.updateMilestoneStatus.mockRejectedValueOnce({
+      response: { status: 400, data: { message: 'Reabertura temporariamente indisponível.' } }
+    });
+    let { user, menu } = await openMenu();
+    await user.click(within(menu).getByRole('menuitem', { name: /Reabrir o marco/ }));
+    expect(await screen.findByText('Reabertura temporariamente indisponível.')).toBeInTheDocument();
+    ({ user, menu } = await openMenu());
     await user.click(within(menu).getByRole('menuitem', { name: /Reabrir o marco/ }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     await waitFor(() =>
       expect(mocks.schedule.updateMilestoneStatus).toHaveBeenCalledWith(5, 'PENDENTE')
     );
+    const reopened = await openMenu();
+    expect(screen.getByText('Marco reaberto com sucesso.')).toBeInTheDocument();
+    expect(
+      within(reopened.menu).queryByRole('menuitem', { name: /Reabrir o marco/ })
+    ).not.toBeInTheDocument();
   });
 
   it('permite exclusão lógica no menu com Sprints e explica a preservação', async () => {

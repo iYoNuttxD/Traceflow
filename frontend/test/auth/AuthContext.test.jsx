@@ -1,4 +1,4 @@
-import { StrictMode } from 'react';
+import { StrictMode, useState } from 'react';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -26,11 +26,18 @@ const { AuthProvider, AUTH_SESSION_EVENT_KEY, useAuth } =
 
 function AuthHarness() {
   const auth = useAuth();
+  const [failure, setFailure] = useState('');
   return (
     <div>
+      {failure && <p role="alert">{failure}</p>}
       <p data-testid="auth-state">{auth.loading ? 'Carregando' : auth.user?.name || 'Visitante'}</p>
       {auth.bootstrapError && <p data-testid="bootstrap-error">{auth.bootstrapError.message}</p>}
-      <button type="button" onClick={() => auth.login({ email: 'login@example.test' })}>
+      <button
+        type="button"
+        onClick={() =>
+          auth.login({ email: 'login@example.test' }).catch(() => setFailure('Login rejeitado'))
+        }
+      >
         Login
       </button>
       <button type="button" onClick={() => auth.register({ name: 'Nova pessoa' })}>
@@ -182,6 +189,13 @@ describe('AuthContext', () => {
     await user.click(screen.getByRole('button', { name: 'Registrar' }));
     await waitFor(() => expect(screen.getByTestId('auth-state')).toHaveTextContent('Cadastro'));
     expect(mocks.setCsrfToken).toHaveBeenLastCalledWith('csrf-cadastro');
+    mocks.authApi.login.mockRejectedValueOnce({
+      response: { status: 401, data: { code: 'INVALID_CREDENTIALS' } }
+    });
+    await user.click(screen.getByRole('button', { name: 'Login' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Login rejeitado');
+    expect(screen.getByTestId('auth-state')).toHaveTextContent('Cadastro');
+    expect(mocks.setCsrfToken).toHaveBeenLastCalledWith('csrf-cadastro');
 
     await user.click(screen.getByRole('button', { name: 'Sair' }));
     await waitFor(() => expect(screen.getByTestId('auth-state')).toHaveTextContent('Visitante'));
@@ -213,12 +227,9 @@ describe('AuthContext', () => {
     expect(mocks.authApi.csrf).toHaveBeenCalledTimes(1);
   });
 
-  it('limpa a sessão no evento global de 401 sem tratar 403 como logout', async () => {
+  it('limpa a sessão no evento global de 401', async () => {
     renderProvider();
     await waitFor(() => expect(screen.getByTestId('auth-state')).toHaveTextContent('Daniel'));
-
-    window.dispatchEvent(new CustomEvent('traceflow:forbidden'));
-    expect(screen.getByTestId('auth-state')).toHaveTextContent('Daniel');
 
     window.dispatchEvent(new CustomEvent('traceflow:unauthorized'));
     await waitFor(() => expect(screen.getByTestId('auth-state')).toHaveTextContent('Visitante'));

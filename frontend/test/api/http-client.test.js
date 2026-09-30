@@ -84,15 +84,21 @@ describe('cliente HTTP compartilhado', () => {
         response: {
           status: 403,
           data: {
-            code: config.url === '/restricted' ? 'ACCOUNT_DELETION_PENDING' : 'FORBIDDEN'
+            code: config.url.slice(1)
           }
         },
         config
       });
-    await expect(client.get('/forbidden')).rejects.toBeTruthy();
+    await expect(client.get('/FORBIDDEN')).rejects.toBeTruthy();
     expect(listener).not.toHaveBeenCalled();
-    await expect(client.get('/restricted')).rejects.toBeTruthy();
-    expect(listener).toHaveBeenCalledOnce();
+    for (const [index, code] of [
+      'ACCOUNT_DELETION_PENDING',
+      'ACCOUNT_DEACTIVATED',
+      'ACCOUNT_ANONYMIZED'
+    ].entries()) {
+      await expect(client.get('/' + code)).rejects.toMatchObject({ response: { data: { code } } });
+      expect(listener).toHaveBeenCalledTimes(index + 1);
+    }
     window.removeEventListener('traceflow:account-restricted', listener);
   });
 
@@ -172,12 +178,33 @@ describe('cliente HTTP compartilhado', () => {
 
   it('não reutiliza GET após a troca de geração da sessão', async () => {
     const client = createHttpClient();
-    client.defaults.adapter = vi.fn(successAdapter);
-
-    await client.get('/settings/account');
+    const pending = [];
+    client.defaults.adapter = vi.fn(
+      (config) => new Promise((resolve) => pending.push({ config, resolve }))
+    );
+    const old = client.get('/settings/account');
+    const oldRejected = expect(old).rejects.toMatchObject({ code: 'ERR_CANCELED' });
+    await vi.waitFor(() => expect(pending).toHaveLength(1));
     resetHttpSessionScope();
-    await client.get('/settings/account');
-
+    expect(pending[0].config.signal.aborted).toBe(true);
+    const current = client.get('/settings/account');
+    await vi.waitFor(() => expect(pending).toHaveLength(2));
+    pending[1].resolve({
+      config: pending[1].config,
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      data: { owner: 'current' }
+    });
+    await expect(current).resolves.toMatchObject({ data: { owner: 'current' } });
+    pending[0].resolve({
+      config: pending[0].config,
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      data: { owner: 'old' }
+    });
+    await oldRejected;
     expect(client.defaults.adapter).toHaveBeenCalledTimes(2);
   });
 

@@ -201,7 +201,7 @@ describe('S1-07 integrated case flows', () => {
     });
     expect(screen.getByRole('article', { name: /^TC-15/ })).toBeInTheDocument();
   });
-  it('uses the project route, real API, server summary and no prototype controls', async () => {
+  it('uses the project route, API boundary, server summary and no prototype controls', async () => {
     await setup();
     expect(screen.getByText(/Estado atual dos casos e das execuções/)).toBeInTheDocument();
     expect(screen.getByLabelText('Navegação global')).toBeInTheDocument();
@@ -222,7 +222,10 @@ describe('S1-07 integrated case flows', () => {
     await user.click(dialog().getByRole('button', { name: 'Criar caso' }));
     expect(dialog().getByLabelText('Título *')).toHaveFocus();
     expect(mocks.api.create).not.toHaveBeenCalled();
-    expect(dialog().queryByRole('option', { name: 'Membro inativo' })).not.toBeInTheDocument();
+    await user.click(dialog().getByRole('combobox', { name: /Responsável/ }));
+    expect(dialog().getByRole('option', { name: /Pessoa QA/ })).toBeInTheDocument();
+    expect(dialog().queryByRole('option', { name: /Membro inativo/ })).not.toBeInTheDocument();
+    await user.keyboard('{Escape}');
     await fillForm();
     await user.click(dialog().getByRole('button', { name: 'Criar caso' }));
     expect(mocks.api.create).not.toHaveBeenCalled();
@@ -368,6 +371,7 @@ describe('S1-07 integrated case flows', () => {
     expect(mocks.api.record).not.toHaveBeenCalled();
   });
   it('keeps observations and files across navigation and records all destinations once', async () => {
+    mocks.api.record.mockResolvedValue({ ...execution, result: 'FAIL' });
     const user = await setup();
     await start(user);
     await context(user);
@@ -393,13 +397,37 @@ describe('S1-07 integrated case flows', () => {
     const body = mocks.api.record.mock.calls[0][1];
     expect([...body.keys()]).toEqual(['payload', 'evidence', 'stepEvidence.3', 'stepEvidence.5']);
     const payload = JSON.parse(body.get('payload'));
-    expect(payload.steps).toHaveLength(5);
+    expect(
+      payload.steps.map(({ position, result, observedResult }) => ({
+        position,
+        result,
+        observedResult
+      }))
+    ).toEqual([
+      { position: 1, result: 'PASS', observedResult: null },
+      { position: 2, result: 'BLOCKED', observedResult: 'Falha observada' },
+      { position: 3, result: 'PASS', observedResult: null },
+      { position: 4, result: 'PASS', observedResult: null },
+      { position: 5, result: 'FAIL', observedResult: 'Falha observada' }
+    ]);
+    expect(
+      ['evidence', 'stepEvidence.3', 'stepEvidence.5'].map((key) => [
+        key,
+        body.get(key).name,
+        body.get(key).type,
+        body.get(key).size
+      ])
+    ).toEqual([
+      ['evidence', 'resultado.json', 'application/json', 2],
+      ['stepEvidence.3', 'passo3.png', 'image/png', 3],
+      ['stepEvidence.5', 'passo5.mp4', 'video/mp4', 5]
+    ]);
     expect(payload.steps[1]).toMatchObject({
       position: 2,
       result: 'BLOCKED',
       observedResult: 'Falha observada'
     });
-    expect(await screen.findByText('EXEC-0038 · Execução registrada: PASS.')).toBeInTheDocument();
+    expect(await screen.findByText('EXEC-0038 · Execução registrada: FAIL.')).toBeInTheDocument();
   });
   it('blocks close/Escape and double submit while recording', async () => {
     const pending = deferred();
@@ -410,6 +438,9 @@ describe('S1-07 integrated case flows', () => {
     await user.keyboard('{Escape}');
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(dialog().getByRole('button', { name: 'Registrar execução' })).toBeDisabled();
+    await user.click(dialog().getByRole('button', { name: 'Registrar execução' }));
+    fireEvent.click(dialog().getByRole('button', { name: 'Registrar execução' }));
+    expect(mocks.api.record).toHaveBeenCalledTimes(1);
     expect(dialog().getByRole('button', { name: /Fechar executar/ })).toBeDisabled();
     await act(async () => pending.resolve(execution));
     expect(mocks.api.record).toHaveBeenCalledTimes(1);

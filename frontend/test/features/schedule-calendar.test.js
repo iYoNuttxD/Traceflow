@@ -60,6 +60,17 @@ describe('schedule calendar date semantics', () => {
   it('preserva o dia local de instantes com hora', () => {
     expect(toIsoDay('2026-09-03T07:45:00')).toBe('2026-09-03');
     expect(toIsoDay('2026-09-30T07:44:00')).toBe('2026-09-30');
+    const previousTimezone = process.env.TZ;
+    try {
+      process.env.TZ = 'America/New_York';
+      expect(toIsoDay('2026-03-08T04:30:00Z')).toBe('2026-03-07');
+      expect(toIsoDay('2026-03-08T07:30:00Z')).toBe('2026-03-08');
+      expect(toIsoDay('2026-09-01T00:30:00+02:00')).toBe('2026-08-31');
+      expect(toIsoDay('2026-09-30T23:30:00-07:00')).toBe('2026-10-01');
+    } finally {
+      if (previousTimezone === undefined) delete process.env.TZ;
+      else process.env.TZ = previousTimezone;
+    }
   });
 
   it('trata fim de Sprint à meia-noite como limite semiaberto', () => {
@@ -120,7 +131,13 @@ describe('getMonthEntities', () => {
       mes: 8,
       sprints: [sprint({ startDate: '2026-08-29T08:00:00', endDate: '2026-10-02T00:00:00' })]
     });
-    expect(result.sprints).toHaveLength(1);
+    expect(result.sprints).toEqual([
+      expect.objectContaining({
+        sprint: expect.objectContaining({ id: 4 }),
+        inicio: '2026-08-29',
+        fim: '2026-10-01'
+      })
+    ]);
   });
 
   it('inclui Marco somente pelo dueDate e não pelo período de sua Sprint', () => {
@@ -205,7 +222,12 @@ describe('getDayEvents', () => {
   it('agrupa semanticamente múltiplos deadlines sem perder eventos', () => {
     const tasks = tasksFrom([sprint({ tasks: [task(), task({ id: 11, title: 'Callback' })] })]);
     const events = getDayEvents({ day: '2026-09-12', ...options(), tasks });
-    expect(events.filter((item) => item.type === 'TASK_DEADLINE')).toHaveLength(2);
+    expect(
+      events
+        .filter((item) => item.type === 'TASK_DEADLINE')
+        .map((item) => item.task.id)
+        .sort()
+    ).toEqual([10, 11]);
   });
 
   it('usa chaves únicas quando início e fim acontecem no mesmo dia', () => {
@@ -231,6 +253,27 @@ describe('getDayEvents', () => {
     });
     expect(events).toHaveLength(2);
     expect(events.every((item) => item.overdue)).toBe(true);
+    for (const [day, status, expected] of [
+      ['2026-09-09', 'CONCLUIDO', false],
+      ['2026-09-11', 'A_FAZER', false]
+    ]) {
+      const controls = getDayEvents({
+        day,
+        sprints: [],
+        milestones: [
+          milestone({
+            dueDate: day + 'T18:00:00',
+            status: status === 'CONCLUIDO' ? 'CONCLUIDO' : 'PENDENTE'
+          })
+        ],
+        tasks: tasksFrom([], [task({ deadline: day + 'T18:00:00', status })]),
+        todayDay: TODAY
+      });
+      expect(controls.map((item) => [item.type, item.overdue])).toEqual([
+        ['MILESTONE_DUE', expected],
+        ['TASK_DEADLINE', expected]
+      ]);
+    }
   });
 });
 
@@ -454,7 +497,14 @@ describe('getUpcomingDeadlines', () => {
         task({ id: index + 1, deadline: `2026-09-${String(index + 11).padStart(2, '0')}T08:00:00` })
       )
     );
-    expect(getUpcomingDeadlines({ tasks, todayDay: TODAY })).toHaveLength(8);
+    expect(
+      getUpcomingDeadlines({ tasks: [...tasks].reverse(), todayDay: TODAY }).map((item) => [
+        item.task.id,
+        item.day
+      ])
+    ).toEqual(
+      Array.from({ length: 8 }, (_, i) => [i + 1, '2026-09-' + String(i + 11).padStart(2, '0')])
+    );
   });
 });
 
@@ -504,8 +554,13 @@ describe('buildMonthGrid', () => {
       ...overrides
     });
 
-  it('produz seis semanas sem semântica ARIA artificial', () => {
-    expect(grid()).toHaveLength(42);
+  it('produz seis semanas com dias únicos e consecutivos', () => {
+    const days = grid().map((cell) => cell.day);
+    const expected = Array.from({ length: 42 }, (_, i) => {
+      const day = new Date(Date.UTC(2026, 7, 30 + i));
+      return day.toISOString().slice(0, 10);
+    });
+    expect(days).toEqual(expected);
   });
 
   it('distingue hoje, seleção e dias de fora do mês', () => {
@@ -531,6 +586,13 @@ describe('buildMonthGrid', () => {
     });
     expect(cells.find((cell) => cell.day === '2026-09-01').sprintSegments).toHaveLength(1);
     expect(cells.find((cell) => cell.day === '2026-09-30').sprintSegments).toHaveLength(1);
+    expect(
+      cells
+        .filter((cell) => cell.inMonth)
+        .map((cell) => [cell.day, cell.sprintSegments.map((segment) => segment.sprint.id)])
+    ).toEqual(
+      Array.from({ length: 30 }, (_, i) => ['2026-09-' + String(i + 1).padStart(2, '0'), [4]])
+    );
   });
 
   it('representa Sprints planejada, ativa, concluída e cancelada como intervalos', () => {

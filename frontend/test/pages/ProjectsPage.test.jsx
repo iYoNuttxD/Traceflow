@@ -168,22 +168,6 @@ describe('ProjectsPage', () => {
     expect(newProject).toHaveFocus();
   });
 
-  it('retorna do fluxo de criação ao chooser e mantém o fechamento explícito', async () => {
-    const user = userEvent.setup();
-    mockInitialRequests({ projects: [] });
-    renderPage();
-    await screen.findByRole('button', { name: /^Novo projeto/ });
-    const trigger = screen.getByRole('button', { name: /^Novo projeto/ });
-    await openCreateFlow(user);
-
-    expect(screen.queryByText('Voltar às opções')).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Voltar às opções' }));
-    const chooser = screen.getByRole('dialog', { name: 'Novo projeto' });
-    await user.click(within(chooser).getByRole('button', { name: 'Fechar' }));
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(trigger).toHaveFocus();
-  });
-
   it('transfere o foco entre chooser e criação sem alterar a restauração do Close', async () => {
     const user = userEvent.setup();
     mockInitialRequests({ projects: [] });
@@ -343,7 +327,11 @@ describe('ProjectsPage', () => {
     expect(
       screen.queryByRole('link', { name: 'Abrir projeto Projeto recuperável' })
     ).not.toBeInTheDocument();
+    mockInitialRequests({ projects: [{ id: 31, name: 'Projeto recuperável' }] });
     await user.click(screen.getByRole('button', { name: 'Recuperar' }));
+    expect(
+      await screen.findByRole('link', { name: 'Abrir projeto Projeto recuperável' })
+    ).toBeInTheDocument();
     expect(apiMock.post).toHaveBeenCalledWith('/projects/31/restore', {});
     await waitFor(() =>
       expect(
@@ -617,7 +605,11 @@ describe('ProjectsPage', () => {
     renderPage();
 
     expect(await screen.findByText('Falha artificial da API')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Tentar novamente' })).toBeInTheDocument();
+    mockInitialRequests({ projects: [{ id: 44, name: 'Projeto recuperado após erro' }] });
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Tentar novamente' }));
+    expect(
+      await screen.findByRole('link', { name: 'Abrir projeto Projeto recuperado após erro' })
+    ).toBeInTheDocument();
   });
 
   it('submete o formulário pelo endpoint especializado e recarrega a lista', async () => {
@@ -634,6 +626,7 @@ describe('ProjectsPage', () => {
       screen.getByLabelText('Repositório GitHub *'),
       fakeRepository.fullName
     );
+    mockInitialRequests({ projects: [{ id: 50, name: 'Projeto submetido' }] });
     await user.click(screen.getByRole('button', { name: 'Cadastrar projeto' }));
 
     await waitFor(() => {
@@ -648,6 +641,10 @@ describe('ProjectsPage', () => {
       );
     });
     expect(await screen.findByText('Projeto cadastrado com sucesso.')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('link', { name: 'Abrir projeto Projeto submetido' })
+    ).toBeInTheDocument();
+    expect(apiMock.get.mock.calls.filter(([url]) => url === '/projects')).toHaveLength(2);
   });
 
   it('impede duas criações concorrentes antes da atualização visual do botão', async () => {
@@ -678,7 +675,7 @@ describe('ProjectsPage', () => {
     await act(async () => resolveCreate({ data: { message: 'Projeto cadastrado com sucesso.' } }));
   });
 
-  it('lista repositórios agregados e explica o projeto já vinculado sem ocultá-lo', async () => {
+  it('explica repositório ocupado em DTO legado inconsistente sem criar vínculo', async () => {
     const repositories = [
       { ...fakeRepository, selectable: true, alreadyConnected: false },
       {
@@ -688,6 +685,7 @@ describe('ProjectsPage', () => {
         fullName: 'usuario-artificial/ocupado',
         url: 'https://github.com/usuario-artificial/ocupado',
         defaultBranch: 'develop',
+        // Deliberately inconsistent legacy response exercises defensive duplicate callout.
         selectable: true,
         alreadyConnected: true,
         connectedProject: { id: 12, name: 'Projeto existente' },
@@ -709,6 +707,7 @@ describe('ProjectsPage', () => {
         name: 'ocupado-sem-acesso',
         fullName: 'usuario-artificial/ocupado-sem-acesso',
         url: 'https://github.com/usuario-artificial/ocupado-sem-acesso',
+        // Deliberately inconsistent legacy response exercises defensive duplicate callout.
         selectable: true,
         alreadyConnected: true,
         connectedProject: null

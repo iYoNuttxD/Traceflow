@@ -245,7 +245,7 @@ describe('Requirements facelift', () => {
     expect(screen.getByText('Nenhum requisito corresponde aos filtros.')).toBeInTheDocument();
   });
 
-  it('remove o formulário da página e cria/edita somente pelo dialog com vínculo atômico', async () => {
+  it('remove o formulário da página e cria/edita pelo dialog com vínculo explícito', async () => {
     const user = userEvent.setup();
     renderPage();
     expect(await screen.findByRole('button', { name: /Novo requisito/ })).toBeInTheDocument();
@@ -265,12 +265,19 @@ describe('Requirements facelift', () => {
     await user.click(screen.getByRole('menuitem', { name: 'Editar REQ-10' }));
     await user.clear(screen.getByLabelText('Título do requisito'));
     await user.type(screen.getByLabelText('Título do requisito'), 'Login atualizado');
+    mocks.requirementsApi.listByProject.mockResolvedValue({
+      data: { requirements: [{ ...requirements[0], title: 'Login atualizado' }, requirements[1]] }
+    });
     await user.click(screen.getByRole('button', { name: 'Salvar requisito' }));
     await waitFor(() => expect(mocks.replaceRequirementTasks).toHaveBeenCalledWith(10, [20]));
     expect(mocks.requirementsApi.update).toHaveBeenCalledWith(
       10,
       expect.objectContaining({ title: 'Login atualizado' })
     );
+    expect(
+      await screen.findByRole('article', { name: 'REQ-10 · Login atualizado' })
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Editar requisito' })).not.toBeInTheDocument();
   });
 
   it('abre Details focado no Requirement e mantém a rastreabilidade como fluxo complementar', async () => {
@@ -444,8 +451,29 @@ describe('Requirements facelift', () => {
     await user.click(await screen.findByRole('button', { name: /Mais ações do requisito REQ-10/ }));
     await user.click(screen.getByRole('menuitem', { name: 'Excluir REQ-10' }));
     const dialog = screen.getByRole('dialog', { name: 'Excluir requisito' });
+    mocks.deleteRequirement.mockRejectedValueOnce({
+      response: { status: 400, data: { message: 'Exclusão não permitida agora.' } }
+    });
     await user.click(within(dialog).getByRole('button', { name: 'Excluir requisito' }));
+    expect(await screen.findByText('Exclusão não permitida agora.')).toBeInTheDocument();
+    expect(screen.getByRole('article', { name: 'REQ-10 · Login seguro' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Mais ações do requisito REQ-10/ }));
+    await user.click(screen.getByRole('menuitem', { name: 'Excluir REQ-10' }));
+    mocks.requirementsApi.listByProject.mockResolvedValue({
+      data: { requirements: [requirements[1]] }
+    });
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Excluir requisito' })).getByRole('button', {
+        name: 'Excluir requisito'
+      })
+    );
     await waitFor(() => expect(mocks.deleteRequirement).toHaveBeenCalledWith(10));
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('article', { name: 'REQ-10 · Login seguro' })
+      ).not.toBeInTheDocument()
+    );
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('não exibe detalhes técnicos quando a carga inicial falha', async () => {
@@ -462,4 +490,21 @@ describe('Requirements facelift', () => {
     expect(document.body.textContent).not.toMatch(/Prisma|\/app\/requirements/);
     expect(screen.getByRole('button', { name: 'Tentar novamente' })).toBeInTheDocument();
   });
+});
+
+it('preserva o formulário quando a definição salva mas o vínculo falha', async () => {
+  const user = userEvent.setup();
+  mocks.replaceRequirementTasks.mockRejectedValueOnce({
+    response: { status: 400, data: { message: 'Vínculo rejeitado.' } }
+  });
+  renderPage();
+  await user.click(await screen.findByRole('button', { name: /Novo requisito/ }));
+  await user.type(screen.getByLabelText('Título do requisito'), 'Definição preservada');
+  await user.click(screen.getByRole('button', { name: 'Salvar requisito' }));
+  expect(await screen.findByText('Vínculo rejeitado.')).toBeInTheDocument();
+  expect(mocks.requirementsApi.create).toHaveBeenCalledTimes(1);
+  expect(mocks.replaceRequirementTasks).toHaveBeenCalledExactlyOnceWith(10, []);
+  expect(screen.getByRole('dialog', { name: 'Novo requisito' })).toBeInTheDocument();
+  expect(screen.getByLabelText('Título do requisito')).toHaveValue('Definição preservada');
+  expect(screen.queryByText('Requisito criado com sucesso.')).not.toBeInTheDocument();
 });
