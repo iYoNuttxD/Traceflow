@@ -1,5 +1,5 @@
 import { MemoryRouter, Route, Routes } from 'react-router';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfirmProvider } from '../../src/shared/index.js';
@@ -519,8 +519,20 @@ describe('Requirements facelift', () => {
     const card = await screen.findByRole('article', { name: 'REQ-10 · Login seguro' });
     await user.click(within(card).getByRole('button', { name: 'Ver rastreabilidade' }));
     expect(screen.getByRole('dialog', { name: 'Rastreabilidade — REQ-10' })).toBeInTheDocument();
-    expect(await screen.findByText('5 entidades visíveis')).toBeInTheDocument();
+    // The dialog can still be the Suspense fallback. First load the real Workspace.
+    await act(() => vi.dynamicImportSettled());
     const workspace = screen.getByRole('dialog', { name: 'Rastreabilidade — REQ-10' });
+    expect(
+      within(workspace).getByRole('list', { name: 'Evolução das fases da rastreabilidade' })
+    ).toBeInTheDocument();
+    // Workspace starts the nested Flow import only after it mounts.
+    await act(() => vi.dynamicImportSettled());
+    expect(
+      within(workspace).getByRole('button', { name: 'Organizar automaticamente' })
+    ).toBeInTheDocument();
+    // Flow then loads ELK. Keep cold imports outside the real-layout query's timeout.
+    await act(() => vi.dynamicImportSettled());
+    expect(await screen.findByText('5 entidades visíveis')).toBeInTheDocument();
     const taskNode = await within(workspace).findByRole('group', {
       name: 'Tarefa TASK-20 — Tarefa artificial'
     });
