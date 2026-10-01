@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfirmProvider } from '../../src/shared/index.js';
 import { AppRoutes } from '../../src/app/routes/AppRoutes.jsx';
 import { ThemeProvider } from '../../src/app/theme/ThemeProvider.jsx';
+import { httpClient } from '../../src/api/http-client.js';
 import {
   testCase,
   listing,
@@ -201,20 +202,70 @@ describe('S1-07 integrated case flows', () => {
     });
     expect(screen.getByRole('article', { name: /^TC-15/ })).toBeInTheDocument();
   });
-  it('uses the project route, API boundary, server summary and no prototype controls', async () => {
-    await setup();
-    expect(screen.getByText(/Estado atual dos casos e das execuções/)).toBeInTheDocument();
-    expect(screen.getByLabelText('Navegação global')).toBeInTheDocument();
-    expect(screen.queryByText('PROTÓTIPO')).not.toBeInTheDocument();
-    expect(screen.queryByText('Controles do protótipo')).not.toBeInTheDocument();
-    expect(
-      within(screen.getByLabelText('Resumo dos casos de teste')).getByText('25')
-    ).toBeInTheDocument();
-    expect(mocks.api.list).toHaveBeenCalledWith(
-      1,
-      expect.objectContaining({ page: 1, limit: 20 }),
-      expect.anything()
+  it('connects the project route through the real API wrapper and Axios with a controlled adapter', async () => {
+    const { testCasesApi } = await vi.importActual(
+      '../../src/features/testCases/api/test-cases.api.js'
     );
+    mocks.api.list.mockImplementation(testCasesApi.list);
+    const originalAdapter = httpClient.defaults.adapter;
+    const transport = vi.fn(async (config) => {
+      expect(config.url).toBe('/projects/1/test-cases');
+      return {
+        data: structuredClone({
+          ...listing,
+          ...(config.params.status ? { items: [], total: 0 } : {})
+        }),
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config
+      };
+    });
+    httpClient.defaults.adapter = transport;
+    try {
+      const user = await setup();
+      expect(screen.getByText(/Estado atual dos casos e das execuções/)).toBeInTheDocument();
+      expect(screen.getByLabelText('Navegação global')).toBeInTheDocument();
+      expect(screen.queryByText('PROTÓTIPO')).not.toBeInTheDocument();
+      expect(screen.queryByText('Controles do protótipo')).not.toBeInTheDocument();
+      expect(transport).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          method: 'get',
+          url: '/projects/1/test-cases',
+          params: { page: 1, limit: 20 },
+          withCredentials: true,
+          signal: expect.any(AbortSignal)
+        })
+      );
+      const expectServerSummary = () => {
+        const summary = within(screen.getByLabelText('Resumo dos casos de teste'));
+        for (const [label, value] of [
+          ['Total', '25'],
+          ['Ativos', '20'],
+          ['Sem rastreabilidade', '4'],
+          ['Nunca executados', '10'],
+          ['Com falha', '3']
+        ]) {
+          expect(
+            within(summary.getByText(label).parentElement).getByRole('definition')
+          ).toHaveTextContent(new RegExp(`^${value}$`));
+        }
+      };
+      expectServerSummary();
+      await user.click(screen.getByRole('button', { name: /Buscar e filtrar/ }));
+      await user.selectOptions(screen.getByLabelText('Status'), 'INATIVO');
+      await waitFor(() => expect(transport).toHaveBeenCalledTimes(2));
+      expect(transport.mock.calls[1][0]).toMatchObject({
+        method: 'get',
+        url: '/projects/1/test-cases',
+        params: { status: 'INATIVO', page: 1, limit: 20 }
+      });
+      expect(await screen.findByText('Nenhum caso corresponde aos filtros.')).toBeInTheDocument();
+      expect(screen.queryByRole('article', { name: /^TC-15/ })).not.toBeInTheDocument();
+      expectServerSummary();
+    } finally {
+      httpClient.defaults.adapter = originalAdapter;
+    }
   });
   it('validates mandatory fields, first-invalid focus, required traceability and active members', async () => {
     const user = await setup();

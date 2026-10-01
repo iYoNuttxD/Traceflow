@@ -2,6 +2,11 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { conditionalRules, parseStylesheet, ruleDeclarations } from '../helpers/css-rules.js';
+import {
+  literalColorDeclarations,
+  themeSpecificRules,
+  unscopedSprintSelectors
+} from '../helpers/style-architecture.js';
 
 const css = readFileSync(resolve('src/features/requirements/pages/RequirementsScreen.css'), 'utf8');
 const dialogCss = readFileSync(
@@ -22,7 +27,9 @@ const dialogStylesheet = parseStylesheet(dialogCss);
 describe('Requirements facelift responsivo', () => {
   it('usa tokens semânticos e o mesmo markup para Light/Dark', () => {
     expect(css).not.toMatch(/#[\da-f]{3,8}\b|rgba?\(|hsla?\(/i);
+    expect(literalColorDeclarations(stylesheet)).toEqual([]);
     expect(source).not.toMatch(/data-theme|prefers-color-scheme/);
+    expect(themeSpecificRules(stylesheet)).toEqual([]);
   });
 
   it('mantém grid 3/2/1 guiado pela largura real do container', () => {
@@ -131,6 +138,31 @@ describe('Requirements facelift responsivo', () => {
     expect(css).not.toMatch(/(?:^|\n)\.sprint-dialog(?:-backdrop|__body)?\s*\{/);
     expect(css).not.toMatch(/(?:^|\n)\.sprint-menu(?:-item)?\s*\{/);
     expect(dialogCss).toContain('.sprint-dialog-backdrop {');
+    expect(unscopedSprintSelectors(stylesheet)).toEqual([]);
+    expect(ruleDeclarations(dialogStylesheet, '.sprint-dialog-backdrop')).toMatchObject({
+      position: 'fixed',
+      'z-index': 'var(--z-modal)'
+    });
+    expect(ruleDeclarations(dialogStylesheet, '.sprint-dialog')).toMatchObject({
+      display: 'flex',
+      'flex-direction': 'column',
+      overflow: 'hidden'
+    });
+    expect(ruleDeclarations(dialogStylesheet, '.sprint-dialog__body')).toMatchObject({
+      'min-height': '0px',
+      'overflow-y': 'auto'
+    });
+    for (const rule of [
+      '  .sprint-dialog__header { display: grid; }',
+      '@media (max-width: 720px) { .sprint-dialog__body { overflow: hidden; } }',
+      '.requirement-details-dialog .sprint-dialog__body, .sprint-dialog__body { padding: 0; }',
+      '.other-feature .sprint-menu-trigger { display: none; }',
+      '.requirements-screen + .sprint-dialog { display: none; }',
+      '.requirement-details-dialog  ~ .sprint-menu { display: none; }',
+      ':is(.requirement-details-dialog, .other-feature) .sprint-dialog { display: grid; }'
+    ]) {
+      expect(unscopedSprintSelectors(parseStylesheet(rule)), rule).not.toEqual([]);
+    }
   });
 
   it('usa relation boxes canônicas em uma coluna para Tasks e 2/1 para Qualidade', () => {

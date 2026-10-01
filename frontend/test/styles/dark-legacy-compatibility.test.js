@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { parseStylesheet } from '../helpers/css-rules.js';
+import { literalColorDeclarations } from '../helpers/style-architecture.js';
 
 const globalCss = readFileSync(resolve('src/styles/global.css'), 'utf8');
 const tokensCss = readFileSync(resolve('src/styles/tokens.css'), 'utf8');
@@ -413,6 +415,42 @@ describe('compatibilidade de conteúdo legado com os temas', () => {
 
     for (const css of semanticOwners) {
       expect(css).not.toMatch(/#[0-9a-f]{3,8}|rgba?\(/i);
+      expect(literalColorDeclarations(parseStylesheet(css))).toEqual([]);
     }
+
+    for (const value of [
+      '#fff',
+      'rgb(10 20 30)',
+      'hsl(240 50% 50%)',
+      'hwb(240 10% 20%)',
+      'lab(50% 20 30)',
+      'lch(50% 30 240)',
+      'oklab(0.5 0.1 0.1)',
+      'oklch(0.5 0.1 240)',
+      'color(display-p3 0.1 0.2 0.3)',
+      'rebeccapurple',
+      'CanvasText',
+      'var(--color-text-primary, red)',
+      'color-mix(in srgb, var(--color-surface-primary), white)'
+    ]) {
+      expect(
+        literalColorDeclarations(
+          parseStylesheet(`@media (min-width: 1px) { .literal-control { color: ${value}; } }`)
+        ),
+        `Literal de cor não detectado: ${value}`
+      ).toEqual([{ selector: '.literal-control', property: 'color', value: expect.any(String) }]);
+    }
+    expect(
+      literalColorDeclarations(
+        parseStylesheet(`/* red #fff */ .token-control {
+          color: var(--color-text-primary);
+          background: color-mix(in srgb, var(--color-surface-primary), transparent);
+          border-color: currentColor;
+          transition: background var(--duration-fast) var(--ease-standard);
+          content: "red";
+          background-image: url("/white.svg");
+        }`)
+      )
+    ).toEqual([]);
   });
 });

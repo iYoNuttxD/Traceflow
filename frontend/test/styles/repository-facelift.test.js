@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parseStylesheet, ruleDeclarations } from '../helpers/css-rules.js';
+import { literalColorDeclarations, themeSpecificRules } from '../helpers/style-architecture.js';
 
 const source = readFileSync(resolve('src/features/github/pages/RepositoryInfoScreen.jsx'), 'utf8');
 const css = readFileSync(resolve('src/features/github/pages/RepositoryInfoScreen.css'), 'utf8');
@@ -43,9 +44,17 @@ describe('Repository C2 facelift', () => {
 
   it('usa tokens e o mesmo markup em Light e Dark', () => {
     expect(css).not.toMatch(/#[\da-f]{3,8}\b|rgba?\(|hsla?\(/i);
+    expect(literalColorDeclarations(stylesheet)).toEqual([]);
     expect(source).not.toMatch(/data-theme|prefers-color-scheme/);
+    expect(themeSpecificRules(stylesheet)).toEqual([]);
     expect(css).toContain('container-name: repository-page');
     expect(css).toContain('@container repository-page (max-width: 36rem)');
+    for (const branch of [
+      '[data-theme="dark"] .repository-page { color: var(--color-text-primary); }',
+      '@media (prefers-color-scheme: dark) { .repository-page { display: grid; } }'
+    ]) {
+      expect(themeSpecificRules(parseStylesheet(branch))).toHaveLength(1);
+    }
   });
 
   it('limita títulos e preserva foco visível nos controles de overflow e filtros', () => {
