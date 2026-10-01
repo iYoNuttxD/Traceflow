@@ -39,7 +39,10 @@ function ProjectFormHarness({
           selectedRepositoryUrl: selected?.url || ''
         }));
       }}
-      onSubmit={onSubmit}
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSubmit(formData);
+      }}
       submitLabel="Cadastrar projeto"
       submitting={submitting}
     />
@@ -49,7 +52,7 @@ function ProjectFormHarness({
 describe('ProjectForm', () => {
   it('preenche os campos e submete usando a validação visual atual', async () => {
     const user = userEvent.setup();
-    const onSubmit = vi.fn((event) => event.preventDefault());
+    const onSubmit = vi.fn();
     render(<ProjectFormHarness onSubmit={onSubmit} />);
 
     expect(screen.getByLabelText('Nome do projeto *')).toBeRequired();
@@ -62,6 +65,14 @@ describe('ProjectForm', () => {
     await user.click(screen.getByRole('button', { name: 'Cadastrar projeto' }));
 
     expect(onSubmit).toHaveBeenCalledOnce();
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Projeto artificial',
+        description: 'Descrição artificial',
+        responsibleTeam: 'Equipe artificial',
+        selectedRepositoryFullName: repository.fullName
+      })
+    );
     expect(screen.getByText(/Repositório selecionado:/)).toHaveTextContent(repository.fullName);
   });
 

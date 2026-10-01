@@ -143,10 +143,14 @@ describe('CommitSuggestionsCard', () => {
 
   it('exibe erro seguro da API', async () => {
     apiMocks.getCommitSuggestions.mockRejectedValue({
-      response: { data: { message: 'Falha artificial.' } }
+      response: {
+        status: 500,
+        data: { message: 'SQL SELECT secret FROM sessions', stack: 'internal-stack' }
+      }
     });
     render(<CommitSuggestionsCard projectId="3" taskId="42" />);
-    expect(await screen.findByRole('alert')).toHaveTextContent('Falha artificial.');
+    expect(await screen.findByRole('alert')).not.toHaveTextContent(/SQL|secret|internal-stack/);
+    expect(screen.getByRole('alert')).not.toBeEmptyDOMElement();
     expect(screen.queryByText('Nenhuma sugestão encontrada.')).not.toBeInTheDocument();
   });
 
@@ -157,7 +161,10 @@ describe('CommitSuggestionsCard', () => {
       name: 'Como funcionam as sugestões de commits'
     });
 
-    await user.click(trigger);
+    await user.tab();
+    expect(trigger).toHaveFocus();
+    await user.keyboard('{Enter}');
+    expect(trigger).toHaveAttribute('aria-describedby', screen.getByRole('tooltip').id);
     expect(screen.getByRole('tooltip')).toHaveTextContent('commits já importados');
     expect(screen.getByRole('tooltip')).toHaveTextContent('[TASK-42]');
     expect(screen.getByRole('tooltip')).toHaveTextContent('não criam vínculos automaticamente');

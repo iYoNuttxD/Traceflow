@@ -44,10 +44,13 @@ npm run db:test:migrate
 npm run db:test:status
 npm run architecture:check
 npm run security:secrets
-npm run test:unit
-npm run test:integration
 npm run test:coverage
 ```
+
+`npm run test:coverage` executa todos os testes unitários, de API e de integração e aplica os
+thresholds versionados. A CI executa essa suíte completa uma única vez. Para feedback local
+focado, use `npm run test:unit`, `npm run test:integration` ou `npm test -- <arquivo>`; esses
+comandos não substituem o gate completo de cobertura.
 
 Não use `prisma migrate reset` no banco de desenvolvimento. Migrations devem ser aditivas/versionadas e devem aplicar do zero no banco isolado.
 

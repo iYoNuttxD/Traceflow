@@ -158,12 +158,29 @@ describe('formatTaskTimeEntry — capacidades por sessão', () => {
     expect(
       formatTaskTimeEntry(entry, { actorUserId: 10, membershipRole: 'VIEWER' }).canDelete
     ).toBe(false);
-    expect(JSON.stringify(formatTaskTimeEntry(entry, {}))).not.toContain('email');
+    for (const [role, actorUserId, canEdit] of [
+      ['MEMBER', 10, true],
+      ['MEMBER', 11, false],
+      ['MANAGER', 99, true],
+      ['OWNER', 99, true],
+      ['VIEWER', 10, false]
+    ]) {
+      expect(formatTaskTimeEntry(entry, { actorUserId, membershipRole: role }).canEdit).toBe(
+        canEdit
+      );
+      expect(
+        formatTaskTimeEntry({ ...entry, endedAt: null }, { actorUserId, membershipRole: role })
+          .canEdit
+      ).toBe(false);
+    }
   });
 
   it('qualquer papel que escreve opera o cronômetro; VIEWER e ausência de papel não', () => {
     expect(canOperateTaskTimer('MEMBER')).toBe(true);
     expect(canOperateTaskTimer('OWNER')).toBe(true);
+    expect(canOperateTaskTimer('MANAGER')).toBe(true);
+    expect(canOperateTaskTimer(null)).toBe(false);
+    expect(canOperateTaskTimer('')).toBe(false);
     expect(canOperateTaskTimer('VIEWER')).toBe(false);
     expect(canOperateTaskTimer(undefined)).toBe(false);
   });

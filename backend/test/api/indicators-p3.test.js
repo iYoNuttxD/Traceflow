@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import request from 'supertest';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { startTestServer } from '../helpers/http-server.js';
 import {
   cleanTestDatabase,
@@ -23,7 +23,10 @@ beforeAll(async () => {
   app = await startTestServer(app);
   await cleanTestDatabase(prisma);
 });
-afterEach(async () => cleanTestDatabase(prisma));
+afterEach(async () => {
+  vi.useRealTimers();
+  await cleanTestDatabase(prisma);
+});
 afterAll(async () => {
   if (prisma) {
     await cleanTestDatabase(prisma);
@@ -202,6 +205,8 @@ describe('GitHub analytics P3 — API', () => {
   });
 
   it('conta commits de qualquer branch, estado atual, durações e exclusões', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-01T00:00:00Z'));
     const owner = await actor();
     const p = await project(owner);
     await prisma.commit.create({ data: { projectId: p.id, hash: 'start', date: at(1) } });
@@ -215,6 +220,8 @@ describe('GitHub analytics P3 — API', () => {
     await pr(p.id, { created: null, merged: at(2) });
     await pr(p.id, { created: at(5), merged: at(4) });
     await pr(p.id, { state: 'open' });
+    await pr(p.id, { state: 'open', created: null });
+    await pr(p.id, { state: 'open', created: new Date('2026-10-02T00:00:00Z') });
     await prisma.issue.create({
       data: {
         projectId: p.id,
@@ -239,7 +246,7 @@ describe('GitHub analytics P3 — API', () => {
     expect(out.status).toBe(200);
     const i = indicators(out);
     expect(i.I09).toMatchObject({ value: 2, state: 'AVAILABLE' });
-    expect(i.I10).toMatchObject({ value: 1, period: null });
+    expect(i.I10).toMatchObject({ value: 3, period: null });
     expect(i.I12.value).toBe(5);
     expect(i.I13).toMatchObject({ value: 1, period: null });
     expect(i.I14).toMatchObject({ value: 1, state: 'PARTIAL' });
@@ -250,7 +257,7 @@ describe('GitHub analytics P3 — API', () => {
     expect(i.I74.value).toBe(3);
     expect(i.I17).toMatchObject({ kind: 'LIST', eligibleCount: 1, period: null });
     expect(i.I17.items).toHaveLength(1);
-    expect(i.I73.value).toBeGreaterThan(0);
+    expect(i.I73).toMatchObject({ value: 30, eligibleCount: 1, excludedCount: 2 });
   });
 
   it('sync falho preserva valor conhecido com STALE; nunca sincronizado fica UNAVAILABLE', async () => {
@@ -271,6 +278,8 @@ describe('GitHub analytics P3 — API', () => {
   });
 
   it('limita a lista das PRs antigas sem limitar a média da fila e isola outro projeto', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-01T00:00:00Z'));
     const owner = await actor();
     const p = await project(owner);
     const other = await project(owner);
@@ -284,7 +293,7 @@ describe('GitHub analytics P3 — API', () => {
     expect(i.I17.items).toHaveLength(10);
     expect(i.I17.items[0].createdAtGithub).toBe(at(1).toISOString());
     expect(i.I17.items[9].createdAtGithub).toBe(at(10).toISOString());
-    expect(i.I73.eligibleCount).toBe(11);
+    expect(i.I73).toMatchObject({ value: 25, eligibleCount: 11, excludedCount: 0 });
   });
 
   it('aplica VIEWER+ e isolamento do projeto, com validação de período', async () => {

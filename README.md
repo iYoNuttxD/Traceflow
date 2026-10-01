@@ -124,8 +124,6 @@ npm run db:test:migrate
 npm run db:test:status
 npm run architecture:check
 npm run security:secrets
-npm run test:unit
-npm run test:integration
 npm run test:coverage
 ```
 

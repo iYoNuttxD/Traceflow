@@ -1,3 +1,4 @@
+import { concurrentTransactions } from '../helpers/transaction-arrival-barrier.js';
 import { startTestServer } from '../helpers/http-server.js';
 import request from 'supertest';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
@@ -119,8 +120,19 @@ describe('identidade, sessão, CSRF e autorização E6', () => {
     expect(sessions.some((session) => session.rememberMe === false)).toBe(true);
     const remembered = sessions.find((session) => session.rememberMe === true);
     const ordinary = sessions.find((session) => session.rememberMe === false);
-    expect(remembered.expiresAt.getTime() - remembered.createdAt.getTime()).toBeGreaterThan(
-      ordinary.expiresAt.getTime() - ordinary.createdAt.getTime()
+    const { env } = await import('../../src/config/env.js');
+    // DB createdAt is assigned just after the application computes expiresAt.
+    for (const [session, ttl] of [
+      [ordinary, env.sessionTtlMs],
+      [remembered, env.persistentSessionTtlMs]
+    ]) {
+      const duration = session.expiresAt.getTime() - session.createdAt.getTime();
+      expect(duration).toBeGreaterThan(ttl - 1000);
+      expect(duration).toBeLessThanOrEqual(ttl);
+    }
+    expect(normal.headers['set-cookie'][0]).toContain(`Max-Age=${env.sessionTtlMs / 1000}`);
+    expect(persistent.headers['set-cookie'][0]).toContain(
+      `Max-Age=${env.persistentSessionTtlMs / 1000}`
     );
   });
 
@@ -189,24 +201,38 @@ describe('identidade, sessão, CSRF e autorização E6', () => {
 
   it('usa erro genérico no login e bloqueia conta desativada', async () => {
     await register('login@example.invalid');
-    expect(
-      (
-        await request(app)
-          .post('/api/auth/login')
-          .send({ identifier: 'login@example.invalid', password: 'errada', rememberMe: false })
-      ).body.message
-    ).toBe('Nome de usuário, e-mail ou senha inválidos.');
+    const wrongPassword = await request(app)
+      .post('/api/auth/login')
+      .send({ identifier: 'login@example.invalid', password: 'errada', rememberMe: false });
+    expect(wrongPassword).toMatchObject({
+      status: 401,
+      body: { message: 'Nome de usuário, e-mail ou senha inválidos.' }
+    });
+    const unknown = await request(app)
+      .post('/api/auth/login')
+      .send({ identifier: 'unknown@example.invalid', password: 'errada', rememberMe: false });
+    expect(unknown).toMatchObject({
+      status: 401,
+      body: { message: 'Nome de usuário, e-mail ou senha inválidos.' }
+    });
     await prisma.user.update({
       where: { email: 'login@example.invalid' },
       data: { isActive: false, accountStatus: 'DEACTIVATED' }
     });
-    const restricted = await request(app)
+    const restrictedAgent = request.agent(app);
+    const restricted = await restrictedAgent
       .post('/api/auth/login')
       .send({ identifier: 'ulogin', password, rememberMe: false });
     expect(restricted).toMatchObject({
       status: 200,
       body: { user: { accountStatus: 'DEACTIVATED' } }
     });
+    const denied = await restrictedAgent
+      .post('/api/projects')
+      .set('X-CSRF-Token', restricted.body.csrfToken)
+      .send(projectBody());
+    expect(denied.status).toBe(403);
+    expect(await prisma.project.count()).toBe(0);
   });
 
   it('exige CSRF e invalida a sessão no logout', async () => {
@@ -285,6 +311,19 @@ describe('identidade, sessão, CSRF e autorização E6', () => {
     expect((await outsider.agent.get('/api/projects')).body.projects).toHaveLength(0);
   });
 
+  it('rolls back Project when its required OWNER membership cannot be created', async () => {
+    const { projectRepository } = await import('../../src/modules/projects/project.repository.js');
+    expect(await prisma.user.findUnique({ where: { id: 999999 } })).toBeNull();
+    await expect(
+      projectRepository.createProject(
+        { name: 'Rollback', responsibleTeam: 'QA', accessCode: 'ROLLBACK-CONTROL' },
+        999999
+      )
+    ).rejects.toMatchObject({ code: 'P2003' });
+    expect(await prisma.project.count()).toBe(0);
+    expect(await prisma.projectMembership.count()).toBe(0);
+  });
+
   it('responde 404 determinístico para perspectivas de projeto inexistente', async () => {
     const user = await register('missing-project@example.invalid');
     const members = await user.agent.get('/api/projects/999999/members');
@@ -340,6 +379,12 @@ describe('identidade, sessão, CSRF e autorização E6', () => {
       ).body.code
     ).toBe('INVITATION_INVALID');
     expect(
+      await prisma.projectMembership.findMany({
+        where: { projectId: project.id },
+        select: { userId: true, role: true }
+      })
+    ).toEqual([{ userId: owner.response.body.user.id, role: 'OWNER' }]);
+    expect(
       (
         await member
           .mutate('post', '/api/projects/invitations/accept')
@@ -353,6 +398,12 @@ describe('identidade, sessão, CSRF e autorização E6', () => {
           .send({ token: created.body.token })
       ).body.code
     ).toBe('INVITATION_ALREADY_USED');
+    expect(
+      await prisma.projectMembership.findMany({
+        where: { projectId: project.id, userId: member.response.body.user.id },
+        select: { userId: true, role: true, isActive: true }
+      })
+    ).toEqual([{ userId: member.response.body.user.id, role: 'MEMBER', isActive: true }]);
   });
 
   it('administra memberships canônicas, minimiza e-mail e impede MEMBER de administrar', async () => {
@@ -442,6 +493,16 @@ describe('identidade, sessão, CSRF e autorização E6', () => {
         })
       ).isActive
     ).toBe(true);
+    expect(
+      await prisma.projectMembership.findFirst({
+        where: { projectId: project.id, userId: owner.response.body.user.id }
+      })
+    ).toMatchObject({ isActive: false });
+    expect(
+      await prisma.projectMembership.count({
+        where: { projectId: project.id, role: 'OWNER', isActive: true }
+      })
+    ).toBe(1);
   });
 
   it('bloqueia convite ativo duplicado e preserva o token anterior', async () => {
@@ -517,7 +578,7 @@ describe('identidade, sessão, CSRF e autorização E6', () => {
     const owner = await register('owner-duplicate-race@example.invalid');
     const project = (await owner.mutate('post', '/api/projects').send(projectBody('Concorrente')))
       .body.project;
-    const responses = await Promise.all([
+    const responses = await concurrentTransactions(prisma, [
       owner
         .mutate('post', `/api/projects/${project.id}/invitations`)
         .send({ email: 'invitee@example.invalid', role: 'MEMBER' }),
@@ -551,13 +612,21 @@ describe('identidade, sessão, CSRF e autorização E6', () => {
       .mutate('post', `/api/projects/${project.id}/invitations`)
       .send({ email: 'invitee@example.invalid', role: 'MEMBER' });
     const invitee = await register('invitee@example.invalid');
-    const responses = await Promise.all([
+    const responses = await concurrentTransactions(prisma, [
       invitee
         .mutate('post', '/api/projects/invitations/accept')
         .send({ token: created.body.token }),
       invitee.mutate('post', '/api/projects/invitations/accept').send({ token: created.body.token })
     ]);
     expect(responses.map(({ status }) => status).sort()).toEqual([200, 409]);
+    expect(responses.find(({ status }) => status === 409).body.code).toBe(
+      'PROJECT_MEMBER_ALREADY_EXISTS'
+    );
+    expect(
+      await prisma.auditEvent.count({
+        where: { projectId: project.id, action: 'PROJECT_INVITATION_ACCEPTED' }
+      })
+    ).toBe(1);
     const inviteeUser = await prisma.user.findUnique({
       where: { email: 'invitee@example.invalid' }
     });
@@ -696,7 +765,7 @@ describe('identidade, sessão, CSRF e autorização E6', () => {
     const secondMembership = await prisma.projectMembership.create({
       data: { projectId: project.id, userId: secondUser.id, role: 'OWNER' }
     });
-    const responses = await Promise.all([
+    const responses = await concurrentTransactions(prisma, [
       firstOwner
         .mutate('patch', `/api/projects/${project.id}/members/${firstMembership.id}`)
         .send({ role: 'MEMBER' }),
@@ -813,7 +882,7 @@ describe('identidade, sessão, CSRF e autorização E6', () => {
   });
 
   it('recuperação é uniforme e token é de uso único', async () => {
-    await register('reset@example.invalid');
+    const original = await register('reset@example.invalid');
     const missing = await request(app)
       .post('/api/auth/forgot-password')
       .send({ email: 'missing@example.invalid' });
@@ -835,6 +904,23 @@ describe('identidade, sessão, CSRF e autorização E6', () => {
           .send({ token: existing.body.testToken, password: 'OutraSenhaSegura123' })
       ).status
     ).toBe(400);
+    expect((await original.agent.get('/api/auth/me')).status).toBe(401);
+    expect(
+      (
+        await request(app)
+          .post('/api/auth/login')
+          .send({ identifier: 'reset@example.invalid', password, rememberMe: false })
+      ).status
+    ).toBe(401);
+    expect(
+      (
+        await request(app).post('/api/auth/login').send({
+          identifier: 'reset@example.invalid',
+          password: 'NovaSenhaSegura123',
+          rememberMe: false
+        })
+      ).status
+    ).toBe(200);
   });
 
   it('devolve mensagens públicas para tokens curtos sem alterar conta ou senha', async () => {
@@ -883,8 +969,14 @@ describe('identidade, sessão, CSRF e autorização E6', () => {
   });
 
   it('protege a exclusão de projeto e mantém 404 opaco para projeto inexistente', async () => {
-    expect((await request(app).delete('/api/projects/1')).status).toBe(401);
+    const owner = await register('delete-owner@example.invalid');
+    const project = (await owner.mutate('post', '/api/projects').send(projectBody())).body.project;
+    const before = await prisma.project.findUnique({ where: { id: project.id } });
+    expect((await request(app).delete(`/api/projects/${project.id}`)).status).toBe(401);
     const auth = await register('placeholder@example.invalid');
-    expect((await auth.mutate('delete', '/api/projects/1')).status).toBe(404);
+    expect((await auth.mutate('delete', `/api/projects/${project.id}`)).status).toBe(404);
+    expect(await prisma.project.findUnique({ where: { id: 999999 } })).toBeNull();
+    expect((await auth.mutate('delete', '/api/projects/999999')).status).toBe(404);
+    expect(await prisma.project.findUnique({ where: { id: project.id } })).toEqual(before);
   });
 });

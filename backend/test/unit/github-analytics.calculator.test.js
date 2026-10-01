@@ -9,12 +9,18 @@ import { median } from '../../src/modules/indicators/calculators/statistics.calc
 
 describe('GitHub analytics calculators', () => {
   it.each([
+    [[], null],
+    [[10, 2, 1], 2],
+    [[100, 2, 1, 3], 2.5],
+    [[3, 1, 3, 3], 3],
     [[1], 1],
     [[1, 3], 2],
     [[1, 2, 10], 2],
     [[1, 2, 3, 100], 2.5]
   ])('computes median for %j', (values, expected) => {
+    const original = [...values];
     expect(median(values)).toBe(expected);
+    expect(values).toEqual(original);
   });
 
   it('distinguishes zero numerator from absent cohort', () => {

@@ -1,4 +1,4 @@
-import { prisma } from '../../database/prismaClient.js';
+import { dashboardRepository } from './dashboard.repository.js';
 import { ExternalServiceError, resourceNotFoundError } from '../../shared/errors/index.js';
 import {
   DASHBOARD_VIEWS,
@@ -142,24 +142,13 @@ export const dashboardService = {
     const id = Number(projectId);
     const view = query.view ?? 'GENERAL';
     const generatedAt = now().toISOString();
-    const project = await prisma.project.findFirst({
-      where: { id, deletedAt: null },
-      select: { id: true, name: true, githubIntegration: { select: { id: true } } }
-    });
+    const project = await dashboardRepository.project(id);
     if (!project) throw resourceNotFoundError('Project');
     const [requestedSprint, responsible] = await Promise.all([
-      query.sprintId == null
-        ? null
-        : prisma.sprint.findFirst({
-            where: { id: query.sprintId, projectId: id, deletedAt: null },
-            select: { id: true, name: true, status: true }
-          }),
+      query.sprintId == null ? null : dashboardRepository.sprint(id, query.sprintId),
       query.responsibleUserId == null
         ? null
-        : prisma.projectMembership.findFirst({
-            where: { projectId: id, userId: query.responsibleUserId },
-            select: { user: { select: { id: true, name: true, anonymizedAt: true } } }
-          })
+        : dashboardRepository.responsible(id, query.responsibleUserId)
     ]);
     if (query.sprintId != null && !requestedSprint) throw resourceNotFoundError('Sprint');
     if (query.responsibleUserId != null && !responsible) throw resourceNotFoundError('User');

@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfirmProvider } from '../../src/shared/index.js';
 import { AppRoutes } from '../../src/app/routes/AppRoutes.jsx';
 import { ThemeProvider } from '../../src/app/theme/ThemeProvider.jsx';
+import { httpClient } from '../../src/api/http-client.js';
 import {
   testCase,
   listing,
@@ -201,20 +202,70 @@ describe('S1-07 integrated case flows', () => {
     });
     expect(screen.getByRole('article', { name: /^TC-15/ })).toBeInTheDocument();
   });
-  it('uses the project route, real API, server summary and no prototype controls', async () => {
-    await setup();
-    expect(screen.getByText(/Estado atual dos casos e das execuções/)).toBeInTheDocument();
-    expect(screen.getByLabelText('Navegação global')).toBeInTheDocument();
-    expect(screen.queryByText('PROTÓTIPO')).not.toBeInTheDocument();
-    expect(screen.queryByText('Controles do protótipo')).not.toBeInTheDocument();
-    expect(
-      within(screen.getByLabelText('Resumo dos casos de teste')).getByText('25')
-    ).toBeInTheDocument();
-    expect(mocks.api.list).toHaveBeenCalledWith(
-      1,
-      expect.objectContaining({ page: 1, limit: 20 }),
-      expect.anything()
+  it('connects the project route through the real API wrapper and Axios with a controlled adapter', async () => {
+    const { testCasesApi } = await vi.importActual(
+      '../../src/features/testCases/api/test-cases.api.js'
     );
+    mocks.api.list.mockImplementation(testCasesApi.list);
+    const originalAdapter = httpClient.defaults.adapter;
+    const transport = vi.fn(async (config) => {
+      expect(config.url).toBe('/projects/1/test-cases');
+      return {
+        data: structuredClone({
+          ...listing,
+          ...(config.params.status ? { items: [], total: 0 } : {})
+        }),
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config
+      };
+    });
+    httpClient.defaults.adapter = transport;
+    try {
+      const user = await setup();
+      expect(screen.getByText(/Estado atual dos casos e das execuções/)).toBeInTheDocument();
+      expect(screen.getByLabelText('Navegação global')).toBeInTheDocument();
+      expect(screen.queryByText('PROTÓTIPO')).not.toBeInTheDocument();
+      expect(screen.queryByText('Controles do protótipo')).not.toBeInTheDocument();
+      expect(transport).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          method: 'get',
+          url: '/projects/1/test-cases',
+          params: { page: 1, limit: 20 },
+          withCredentials: true,
+          signal: expect.any(AbortSignal)
+        })
+      );
+      const expectServerSummary = () => {
+        const summary = within(screen.getByLabelText('Resumo dos casos de teste'));
+        for (const [label, value] of [
+          ['Total', '25'],
+          ['Ativos', '20'],
+          ['Sem rastreabilidade', '4'],
+          ['Nunca executados', '10'],
+          ['Com falha', '3']
+        ]) {
+          expect(
+            within(summary.getByText(label).parentElement).getByRole('definition')
+          ).toHaveTextContent(new RegExp(`^${value}$`));
+        }
+      };
+      expectServerSummary();
+      await user.click(screen.getByRole('button', { name: /Buscar e filtrar/ }));
+      await user.selectOptions(screen.getByLabelText('Status'), 'INATIVO');
+      await waitFor(() => expect(transport).toHaveBeenCalledTimes(2));
+      expect(transport.mock.calls[1][0]).toMatchObject({
+        method: 'get',
+        url: '/projects/1/test-cases',
+        params: { status: 'INATIVO', page: 1, limit: 20 }
+      });
+      expect(await screen.findByText('Nenhum caso corresponde aos filtros.')).toBeInTheDocument();
+      expect(screen.queryByRole('article', { name: /^TC-15/ })).not.toBeInTheDocument();
+      expectServerSummary();
+    } finally {
+      httpClient.defaults.adapter = originalAdapter;
+    }
   });
   it('validates mandatory fields, first-invalid focus, required traceability and active members', async () => {
     const user = await setup();
@@ -222,7 +273,10 @@ describe('S1-07 integrated case flows', () => {
     await user.click(dialog().getByRole('button', { name: 'Criar caso' }));
     expect(dialog().getByLabelText('Título *')).toHaveFocus();
     expect(mocks.api.create).not.toHaveBeenCalled();
-    expect(dialog().queryByRole('option', { name: 'Membro inativo' })).not.toBeInTheDocument();
+    await user.click(dialog().getByRole('combobox', { name: /Responsável/ }));
+    expect(dialog().getByRole('option', { name: /Pessoa QA/ })).toBeInTheDocument();
+    expect(dialog().queryByRole('option', { name: /Membro inativo/ })).not.toBeInTheDocument();
+    await user.keyboard('{Escape}');
     await fillForm();
     await user.click(dialog().getByRole('button', { name: 'Criar caso' }));
     expect(mocks.api.create).not.toHaveBeenCalled();
@@ -368,6 +422,7 @@ describe('S1-07 integrated case flows', () => {
     expect(mocks.api.record).not.toHaveBeenCalled();
   });
   it('keeps observations and files across navigation and records all destinations once', async () => {
+    mocks.api.record.mockResolvedValue({ ...execution, result: 'FAIL' });
     const user = await setup();
     await start(user);
     await context(user);
@@ -393,13 +448,37 @@ describe('S1-07 integrated case flows', () => {
     const body = mocks.api.record.mock.calls[0][1];
     expect([...body.keys()]).toEqual(['payload', 'evidence', 'stepEvidence.3', 'stepEvidence.5']);
     const payload = JSON.parse(body.get('payload'));
-    expect(payload.steps).toHaveLength(5);
+    expect(
+      payload.steps.map(({ position, result, observedResult }) => ({
+        position,
+        result,
+        observedResult
+      }))
+    ).toEqual([
+      { position: 1, result: 'PASS', observedResult: null },
+      { position: 2, result: 'BLOCKED', observedResult: 'Falha observada' },
+      { position: 3, result: 'PASS', observedResult: null },
+      { position: 4, result: 'PASS', observedResult: null },
+      { position: 5, result: 'FAIL', observedResult: 'Falha observada' }
+    ]);
+    expect(
+      ['evidence', 'stepEvidence.3', 'stepEvidence.5'].map((key) => [
+        key,
+        body.get(key).name,
+        body.get(key).type,
+        body.get(key).size
+      ])
+    ).toEqual([
+      ['evidence', 'resultado.json', 'application/json', 2],
+      ['stepEvidence.3', 'passo3.png', 'image/png', 3],
+      ['stepEvidence.5', 'passo5.mp4', 'video/mp4', 5]
+    ]);
     expect(payload.steps[1]).toMatchObject({
       position: 2,
       result: 'BLOCKED',
       observedResult: 'Falha observada'
     });
-    expect(await screen.findByText('EXEC-0038 · Execução registrada: PASS.')).toBeInTheDocument();
+    expect(await screen.findByText('EXEC-0038 · Execução registrada: FAIL.')).toBeInTheDocument();
   });
   it('blocks close/Escape and double submit while recording', async () => {
     const pending = deferred();
@@ -410,6 +489,9 @@ describe('S1-07 integrated case flows', () => {
     await user.keyboard('{Escape}');
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(dialog().getByRole('button', { name: 'Registrar execução' })).toBeDisabled();
+    await user.click(dialog().getByRole('button', { name: 'Registrar execução' }));
+    fireEvent.click(dialog().getByRole('button', { name: 'Registrar execução' }));
+    expect(mocks.api.record).toHaveBeenCalledTimes(1);
     expect(dialog().getByRole('button', { name: /Fechar executar/ })).toBeDisabled();
     await act(async () => pending.resolve(execution));
     expect(mocks.api.record).toHaveBeenCalledTimes(1);

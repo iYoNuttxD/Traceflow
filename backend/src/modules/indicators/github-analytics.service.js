@@ -61,7 +61,7 @@ export const githubAnalyticsService = {
     };
     const baseLimitations = ready ? freshness.limitations : ['GITHUB_SNAPSHOT_NOT_AVAILABLE'];
     const result = (metricId, value, extras = {}) => {
-      const { partial = false, ...publicExtras } = extras;
+      const { partial = false, limitations = [], ...publicExtras } = extras;
       return indicatorResult(
         metricId,
         id,
@@ -70,7 +70,7 @@ export const githubAnalyticsService = {
           state: state(ready, freshness, value, partial),
           period: ['I10', 'I13', 'I17', 'I73'].includes(metricId) ? null : periodDto,
           ...source,
-          limitations: [...baseLimitations, ...(extras.limitations ?? [])],
+          limitations: [...baseLimitations, ...limitations],
           ...publicExtras
         },
         asOf

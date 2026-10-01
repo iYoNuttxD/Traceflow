@@ -6,7 +6,7 @@ import {
   configureTestDatabaseEnvironment,
   deployTestMigrations
 } from '../helpers/test-database.js';
-import { ERROR_CODES, ExternalServiceError } from '../../src/shared/errors/index.js';
+import { AppError, ERROR_CODES, ExternalServiceError } from '../../src/shared/errors/index.js';
 
 const githubBoundary = vi.hoisted(() => ({
   client: null,
@@ -240,14 +240,20 @@ describe('Projetos e integração GitHub E9', () => {
       repositoryFor(9102, 'b'),
       repositoryFor(9103, 'c')
     ];
-    githubBoundary.resolveAuthorizedRepository.mockImplementation(
-      async (_userId, _installationId, repositoryId) => ({
-        installation: githubBoundary.installation,
-        repository: repositories.find(
-          (candidate) => candidate.githubRepositoryId === String(repositoryId)
-        )
-      })
+    const { githubAppService: realService } = await vi.importActual(
+      '../../src/modules/github/github-app.service.js'
     );
+    await prisma.gitHubInstallationAuthorization.create({
+      data: {
+        userId: owner.user.id,
+        installationId: githubBoundary.installation.id,
+        verifiedAt: new Date()
+      }
+    });
+    githubBoundary.resolveAuthorizedRepository.mockImplementation(
+      realService.resolveAuthorizedRepository.bind(realService)
+    );
+    githubBoundary.client.listRepositoryPages.mockImplementation(() => pages(repositories));
 
     const projects = [];
     for (const [index, candidate] of repositories.entries()) {
@@ -300,6 +306,19 @@ describe('Projetos e integração GitHub E9', () => {
       }
     });
 
+    const { githubAppService: realService } = await vi.importActual(
+      '../../src/modules/github/github-app.service.js'
+    );
+    const authorization = await prisma.gitHubInstallationAuthorization.create({
+      data: {
+        userId: owner.user.id,
+        installationId: githubBoundary.installation.id,
+        verifiedAt: new Date()
+      }
+    });
+    githubBoundary.resolveAuthorizedRepository.mockImplementation(
+      realService.resolveAuthorizedRepository.bind(realService)
+    );
     const project = await createIntegratedProject(owner);
     expect(project.githubIntegration.githubRepositoryId).toBe(repository.githubRepositoryId);
 
@@ -309,6 +328,23 @@ describe('Projetos e integração GitHub E9', () => {
     expect(unlinked.status, JSON.stringify(unlinked.body)).toBe(204);
     expect(await prisma.gitHubIdentity.findUnique({ where: { userId: owner.user.id } })).toBeNull();
 
+    const another = repositoryFor(9201, 'after-unlink');
+    githubBoundary.client.listRepositoryPages.mockImplementation(() =>
+      pages([repository, another])
+    );
+    const afterUnlink = await owner.mutate('post', '/api/projects/from-github').send({
+      githubInstallationId: '77',
+      githubRepositoryId: another.githubRepositoryId,
+      name: 'After unlink',
+      responsibleTeam: 'Team'
+    });
+    expect(afterUnlink.status).toBe(201);
+    expect(afterUnlink.body.project.githubIntegration.githubRepositoryId).toBe(
+      another.githubRepositoryId
+    );
+    expect(
+      await prisma.gitHubInstallationAuthorization.findUnique({ where: { id: authorization.id } })
+    ).toEqual(authorization);
     expect((await startAndWaitForSync(owner, project.id)).run.status).toBe('SUCCEEDED');
   });
 
@@ -338,7 +374,7 @@ describe('Projetos e integração GitHub E9', () => {
     });
     expect(
       await prisma.projectMembership.findFirst({ where: { projectId: project.id, role: 'OWNER' } })
-    ).not.toBeNull();
+    ).toMatchObject({ userId: owner.user.id });
 
     const repositoryChange = await owner.mutate('put', `/api/projects/${project.id}`).send({
       githubOwner: 'outro',
@@ -353,12 +389,34 @@ describe('Projetos e integração GitHub E9', () => {
       githubRepositoryId: repository.githubRepositoryId
     });
     expect(duplicate.status).toBe(409);
+    const counts = async () => [
+      await prisma.project.count(),
+      await prisma.projectGitHubIntegration.count(),
+      await prisma.projectMembership.count(),
+      await prisma.auditEvent.count()
+    ];
+    const beforeDenial = await counts();
+    for (const [boundary, statusCode] of [
+      [githubBoundary.resolveAuthorizedRepository, 403],
+      [githubBoundary.assertRepositoryAvailable, 409]
+    ]) {
+      boundary.mockRejectedValueOnce(
+        new AppError({ message: 'Denied fixture', statusCode, code: 'BOUNDARY_DENIED' })
+      );
+      const denied = await owner
+        .mutate('post', '/api/projects/from-github')
+        .send({ githubInstallationId: '77', githubRepositoryId: '9555' });
+      expect(denied.status).toBe(statusCode);
+      expect(await counts()).toEqual(beforeDenial);
+    }
   });
 
   it('preserva autenticação, papéis e isolamento por projeto no sync', async () => {
     const owner = await register('owner-roles@example.invalid');
     const project = await createIntegratedProject(owner);
     expect((await request(app).post(`/api/projects/${project.id}/github/sync`)).status).toBe(401);
+    expect(await prisma.gitHubSyncRun.count()).toBe(0);
+    expect(githubBoundary.client.getRepository).not.toHaveBeenCalled();
 
     for (const role of ['VIEWER', 'MEMBER', 'MANAGER']) {
       const auth = await register(`${role.toLowerCase()}@example.invalid`, role);
@@ -369,6 +427,10 @@ describe('Projetos e integração GitHub E9', () => {
         .mutate('post', `/api/projects/${project.id}/github/sync`)
         .send({});
       expect(response.status).toBe(role === 'MANAGER' ? 202 : 403);
+      if (role !== 'MANAGER') {
+        expect(await prisma.gitHubSyncRun.count()).toBe(0);
+        expect(githubBoundary.client.getRepository).not.toHaveBeenCalled();
+      }
       if (role === 'MANAGER') {
         const observed = await waitForSyncRun(auth, project.id, response.body.run.id);
         expect(observed.run.status).toBe('SUCCEEDED');
@@ -377,10 +439,12 @@ describe('Projetos e integração GitHub E9', () => {
     }
 
     const outsider = await register('outsider-e9@example.invalid');
+    const callsBeforeOutsider = githubBoundary.client.getRepository.mock.calls.length;
     expect(
-      (await outsider.mutate('post', `/api/projects/${project.id + 9999}/github/sync`).send({}))
-        .status
+      (await outsider.mutate('post', `/api/projects/${project.id}/github/sync`).send({})).status
     ).toBe(404);
+    expect(await prisma.gitHubSyncRun.count()).toBe(1);
+    expect(githubBoundary.client.getRepository).toHaveBeenCalledTimes(callsBeforeOutsider);
     expect((await startAndWaitForSync(owner, project.id)).run.status).toBe('SUCCEEDED');
   }, 30000);
 

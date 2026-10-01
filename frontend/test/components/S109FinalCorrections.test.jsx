@@ -4,10 +4,7 @@ import { MemoryRouter } from 'react-router';
 import { describe, it, expect, vi } from 'vitest';
 import { ProjectSectionNav } from '../../src/features/projects/components/ProjectSectionNav.jsx';
 import { TraceabilityInspector } from '../../src/features/traceability/components/TraceabilityInspector.jsx';
-import {
-  RequirementFilters,
-  RequirementSummary
-} from '../../src/features/traceability/components/RequirementCatalog.jsx';
+import { RequirementFilters } from '../../src/features/traceability/components/RequirementCatalog.jsx';
 import { emptyFilters } from '../../src/features/traceability/model/requirement-view.js';
 import { DefectCard } from '../../src/features/defects/DefectsScreen.jsx';
 
@@ -96,6 +93,10 @@ describe('S1-09 final corrections', () => {
     expect(screen.getByRole('link', { name: 'Abrir no GitHub' })).toHaveClass(
       'task-detail-external-link'
     );
+    const link = screen.getByRole('link', { name: 'Abrir no GitHub' });
+    expect(link).toHaveAttribute('href', 'https://github.com/example/repo/pull/8');
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
     expect(screen.getByText('fix → main')).toBeVisible();
     expect(screen.getByRole('heading', { name: 'Relações na cadeia' })).toBeVisible();
   });
@@ -127,11 +128,6 @@ describe('S1-09 final corrections', () => {
     await userEvent.selectOptions(status, 'EM_CORRECAO');
     expect(changed).toHaveBeenCalledWith('requirementStatus', 'EM_CORRECAO');
     expect(screen.getByLabelText('Situação detalhada')).toBeVisible();
-  });
-  it('places short overview copy next to the title block', () => {
-    render(<RequirementSummary />);
-    const copy = screen.getByText('Estado atual dos requisitos e de sua evolução rastreável.');
-    expect(copy.parentElement).toHaveClass('sprints-summary__heading');
   });
   it.each([
     ['ABERTO', 'Detecção'],

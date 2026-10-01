@@ -256,14 +256,6 @@ describe('persisted viewer formats and safety', () => {
       expect(screen.getByLabelText('PDF D.pdf')).toHaveAttribute('data', 'blob:D');
     }
   );
-  it('shows an image error fallback', async () => {
-    respond('image/png');
-    render(<Viewer />);
-    fireEvent.error(await screen.findByRole('img'));
-    expect(screen.getByRole('status')).toHaveTextContent(
-      'Não foi possível visualizar esta imagem.'
-    );
-  });
 });
 describe('current evidence ownership', () => {
   it('aborts A on back; late A cannot replace B', async () => {

@@ -234,6 +234,10 @@ describe('rate limiting', () => {
     const logger = { ...silentLogger, warn: vi.fn() };
     const app = express();
     app.use(express.json());
+    app.use((req, _res, next) => {
+      req.body = { ...req.body, identifier: 'pessoa@example.invalid' };
+      next();
+    });
     const limiters = createRateLimiters({
       logger,
       rateLimitAuthWindowMs: 1000,
@@ -243,12 +247,17 @@ describe('rate limiting', () => {
     app.post('/login', limiters.authentication, (req, res) => res.sendStatus(204));
 
     expect((await request(await startTestServer(app)).options('/login')).status).toBe(204);
-    await request(await startTestServer(app))
-      .post('/login')
-      .send({ identifier: 'pessoa@example.invalid' });
+    expect(
+      (
+        await request(await startTestServer(app))
+          .post('/login')
+          .send({})
+      ).status
+    ).toBe(204);
     const limited = await request(await startTestServer(app))
       .post('/login')
-      .send({ identifier: 'pessoa@example.invalid', token: 'segredo' });
+      .send({ token: 'segredo' });
+    expect(limited.status).toBe(429);
 
     expect(limited.headers['retry-after']).toBeDefined();
     expect(limited.headers.ratelimit).toBeDefined();
@@ -274,6 +283,13 @@ describe('GitHub, SSRF e segredos', () => {
   it('aceita somente URLs HTTPS oficiais esperadas', () => {
     expect(isAllowedGithubUrl('https://github.com/artificial/repository')).toBe(true);
     expect(isAllowedGithubUrl('https://api.github.com/repos/artificial/repository')).toBe(true);
+    for (const url of [
+      'https://github.com.evil.test/repo',
+      'https://user:pass@github.com/repo',
+      'https://github.com:8443/repo',
+      'http://github.com/repo'
+    ])
+      expect(isAllowedGithubUrl(url), url).toBe(false);
   });
 
   it('faz retry limitado de falha transitória sem espera real', async () => {
@@ -312,6 +328,21 @@ describe('GitHub, SSRF e segredos', () => {
   });
 
   it('normaliza timeout e rate limit 403/429 sem carregar token', async () => {
+    const publicError = await executeGithubRequest(
+      vi.fn().mockRejectedValue({
+        code: 'ETIMEDOUT',
+        message: 'token=segredo',
+        response: { headers: { authorization: 'token-real' } }
+      }),
+      { maxRetries: 0 }
+    ).catch((error) => error);
+    expect(publicError).toMatchObject({
+      statusCode: 503,
+      code: ERROR_CODES.EXTERNAL_SERVICE_ERROR
+    });
+    expect(JSON.stringify(publicError)).not.toMatch(/segredo|token-real|authorization/);
+    expect(publicError.toPublic()).not.toHaveProperty('cause');
+    expect(JSON.stringify(publicError.toPublic())).not.toMatch(/segredo|token-real|authorization/);
     expect(isRetryableGithubError({ code: 'ETIMEDOUT' })).toBe(true);
     expect(isRetryableGithubError({ status: 403 })).toBe(false);
     expect(

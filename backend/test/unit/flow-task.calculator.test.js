@@ -111,7 +111,7 @@ describe('Flow + Task calculators', () => {
     expect(flow.throughput.points.find((point) => point.date === '2026-09-07').value).toBe(1);
   });
 
-  it('keeps null and explicit zero effort distinct and preserves unknown statuses', () => {
+  it('maps aggregate effort counts and preserves unknown statuses', () => {
     const current = calculateTaskCurrent(
       {
         total: 4n,

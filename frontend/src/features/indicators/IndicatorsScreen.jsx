@@ -13,11 +13,13 @@ function ProjectIndicators({ project }) {
     let timer;
     let observedRun = null;
     let probeGeneration = 0;
+    let consecutiveFailures = 0;
     async function probe() {
       const generation = ++probeGeneration;
       try {
         const { run } = await getProjectGithubSyncStatus(project.id, { signal: controller.signal });
         if (controller.signal.aborted || generation !== probeGeneration) return;
+        consecutiveFailures = 0;
         if (run && ['QUEUED', 'RUNNING'].includes(run.status)) {
           observedRun = run.id;
           timer = window.setTimeout(probe, 2500);
@@ -26,10 +28,16 @@ function ProjectIndicators({ project }) {
           setRefreshVersion((n) => n + 1);
         }
       } catch {
-        /* A failed status read does not replace the aggregate's data state. */
+        if (controller.signal.aborted || generation !== probeGeneration) return;
+        // Retry transient reads without replacing aggregate data or polling forever offline.
+        if (consecutiveFailures < 3) {
+          timer = window.setTimeout(probe, 2500 * 2 ** consecutiveFailures);
+          consecutiveFailures += 1;
+        }
       }
     }
     function onFocus() {
+      consecutiveFailures = 0;
       setRefreshVersion((n) => n + 1);
       window.clearTimeout(timer);
       void probe();

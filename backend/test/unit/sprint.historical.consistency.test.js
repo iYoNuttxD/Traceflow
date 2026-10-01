@@ -63,7 +63,8 @@ describe('Sprint historical projection shared by I45 and I46', () => {
       }),
       event(7, 1, 'ESTIMATE_CHANGED', 6, { previousPoints: 5, newPoints: 7 })
     ];
-    const { projection } = comparable(sprint(), events);
+    // Reverse equal-time records too: id 8 must be applied after id 7.
+    const { projection } = comparable(sprint(), [...events].reverse());
     expect(projection.state).toBe('AVAILABLE');
     expect(
       projection.points
@@ -135,7 +136,7 @@ describe('Sprint historical projection shared by I45 and I46', () => {
       event(8, 1, 'STATUS_CHANGED', 4, {
         fromStatus: 'CONCLUIDO',
         toStatus: 'EM_ANDAMENTO',
-        occurredAt: at(4, 16)
+        occurredAt: at(4, 15)
       })
     ];
     const { projection } = comparable(sprint(), events);

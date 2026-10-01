@@ -151,6 +151,76 @@ describe('P8.5 Indicators workspace', () => {
     await act(async () => {});
     expect(mocks.dashboard).toHaveBeenCalledTimes(3);
   });
+  it('retries a transient status failure and refreshes once the observed run completes', async () => {
+    vi.useFakeTimers();
+    mocks.sync
+      .mockResolvedValueOnce({ run: { id: 4, status: 'RUNNING' } })
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValue({ run: { id: 4, status: 'SUCCEEDED' } });
+    page();
+    await act(async () => {});
+    await act(async () => vi.advanceTimersByTimeAsync(2500));
+    expect(mocks.dashboard).toHaveBeenCalledOnce();
+    await act(async () => vi.advanceTimersByTimeAsync(2500));
+    expect(mocks.sync).toHaveBeenCalledTimes(3);
+    expect(mocks.dashboard).toHaveBeenCalledTimes(2);
+    await act(async () => vi.advanceTimersByTimeAsync(20000));
+    expect(mocks.sync).toHaveBeenCalledTimes(3);
+  });
+  it('bounds offline retries with backoff and allows focus to restart probing', async () => {
+    vi.useFakeTimers();
+    mocks.sync.mockRejectedValue(new Error('offline'));
+    page();
+    await act(async () => {});
+    for (const delay of [2500, 5000, 10000]) {
+      const calls = mocks.sync.mock.calls.length;
+      await act(async () => vi.advanceTimersByTimeAsync(delay - 1));
+      expect(mocks.sync).toHaveBeenCalledTimes(calls);
+      await act(async () => vi.advanceTimersByTimeAsync(1));
+      expect(mocks.sync).toHaveBeenCalledTimes(calls + 1);
+    }
+    await act(async () => vi.advanceTimersByTimeAsync(60000));
+    expect(mocks.sync).toHaveBeenCalledTimes(4);
+    fireEvent.focus(window);
+    await act(async () => {});
+    expect(mocks.sync).toHaveBeenCalledTimes(5);
+    await act(async () => vi.advanceTimersByTimeAsync(2500));
+    expect(mocks.sync).toHaveBeenCalledTimes(6);
+  });
+  it.each(['focus', 'project', 'unmount'])(
+    'does not retry a failed obsolete probe after %s',
+    async (change) => {
+      vi.useFakeTimers();
+      let rejectOld;
+      mocks.sync.mockReturnValueOnce(
+        new Promise((_, reject) => {
+          rejectOld = reject;
+        })
+      );
+      const view = page();
+      await act(async () => {});
+      const oldSignal = mocks.sync.mock.calls[0][1].signal;
+      if (change === 'focus') fireEvent.focus(window);
+      else if (change === 'project') await act(async () => navigate('/projects/2/indicators'));
+      else view.unmount();
+      await act(async () => {});
+      const currentCalls = mocks.sync.mock.calls.length;
+      await act(async () => rejectOld(new Error('late offline')));
+      await act(async () => vi.advanceTimersByTimeAsync(60000));
+      expect(mocks.sync).toHaveBeenCalledTimes(currentCalls);
+      if (change !== 'focus') expect(oldSignal.aborted).toBe(true);
+    }
+  );
+  it('cancels an already scheduled retry on project navigation', async () => {
+    vi.useFakeTimers();
+    mocks.sync.mockRejectedValueOnce(new Error('offline'));
+    page();
+    await act(async () => {});
+    await act(async () => navigate('/projects/2/indicators'));
+    await act(async () => vi.advanceTimersByTimeAsync(60000));
+    expect(mocks.sync).toHaveBeenCalledTimes(2);
+    expect(mocks.sync.mock.calls[1][0]).toBe(2);
+  });
   it('does not query inaccessible or deleted projects absent from the authorized catalog', async () => {
     mocks.projects.mockReturnValue({ projects: [], loading: false });
     page();

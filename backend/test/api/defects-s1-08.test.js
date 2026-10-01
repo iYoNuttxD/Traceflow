@@ -107,6 +107,8 @@ describe('S1-08 authenticated API', () => {
     const f = await fixture(),
       d = await f.create(),
       base = `/api/defects/${d.id}`;
+    const before = await prisma.defect.findUnique({ where: { id: d.id } });
+    const linksBefore = await prisma.defectTask.findMany();
     await prisma.projectMembership.updateMany({
       where: { userId: f.user.id },
       data: { role: 'VIEWER' }
@@ -130,6 +132,8 @@ describe('S1-08 authenticated API', () => {
       ]
     ])
       expect((await f.mutate(method, path).send(body)).status).toBe(403);
+    expect(await prisma.defect.findUnique({ where: { id: d.id } })).toEqual(before);
+    expect(await prisma.defectTask.findMany()).toEqual(linksBefore);
   });
   it('hides foreign and inactive membership and rejects missing CSRF', async () => {
     const f = await fixture(),

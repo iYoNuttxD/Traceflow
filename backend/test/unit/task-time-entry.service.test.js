@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   repository: {
@@ -22,10 +22,7 @@ vi.mock('../../src/modules/tasks/task.repository.js', () => ({
   taskInclude: {}
 }));
 
-import {
-  MANUAL_ENTRY_MAX_HOURS,
-  taskTimeEntryService
-} from '../../src/modules/tasks/services/task-time-entry.service.js';
+import { taskTimeEntryService } from '../../src/modules/tasks/services/task-time-entry.service.js';
 
 const task = { id: 42, projectId: 7, estimatedEffort: 2 };
 const member = { actorUserId: 10, membershipRole: 'MEMBER', requestId: 'req-1' };
@@ -56,6 +53,8 @@ beforeEach(() => {
   mocks.repository.listCompletedPage.mockResolvedValue([0, []]);
   mocks.repository.summarizeCompleted.mockResolvedValue({ completedSeconds: 0, completedCount: 0 });
 });
+
+afterEach(() => vi.useRealTimers());
 
 describe('taskTimeEntryService — cronômetro', () => {
   it('inicia a sessão com o ator da sessão HTTP, audita e devolve o resumo com a sessão em andamento', async () => {
@@ -158,7 +157,7 @@ describe('taskTimeEntryService — cronômetro', () => {
     });
   });
 
-  it('recusa segunda sessão simultânea com 409 e VIEWER com 403', async () => {
+  it('traduz ALREADY_RUNNING em 409 e impede VIEWER antes de outra escrita', async () => {
     mocks.repository.startAtomic.mockResolvedValue({
       outcome: 'ALREADY_RUNNING',
       entry: storedEntry()
@@ -251,8 +250,31 @@ describe('taskTimeEntryService — lançamento manual', () => {
     expect(result.effort).toMatchObject({ actualHours: 1.5, status: 'PROXIMO_DO_LIMITE' });
   });
 
+  it('accepts the independent 24-hour limit at the current instant', async () => {
+    vi.useFakeTimers();
+    const now = new Date('2026-09-30T12:00:00.000Z');
+    vi.setSystemTime(now);
+    mocks.repository.createManualAtomic.mockResolvedValue({
+      outcome: 'CREATED',
+      entry: storedEntry({ source: 'MANUAL', durationSeconds: 86400 }),
+      running: null,
+      completedSeconds: 86400,
+      completedCount: 1,
+      legacySeconds: 0
+    });
+    await taskTimeEntryService.createManualTaskTimeEntry(
+      42,
+      { hours: 24, occurredAt: now.toISOString() },
+      member
+    );
+    expect(mocks.repository.createManualAtomic).toHaveBeenCalledWith(
+      expect.objectContaining({ durationSeconds: 86400 }),
+      expect.any(Object)
+    );
+  });
+
   it('rejeita horas ausentes, zero, negativas, não numéricas e acima do máximo', async () => {
-    for (const hours of [undefined, '', 0, -1, 'abc', MANUAL_ENTRY_MAX_HOURS + 0.01]) {
+    for (const hours of [undefined, '', 0, -1, 'abc', 24.01]) {
       await expect(
         taskTimeEntryService.createManualTaskTimeEntry(42, { hours }, member)
       ).rejects.toMatchObject({ statusCode: 400 });
@@ -261,13 +283,16 @@ describe('taskTimeEntryService — lançamento manual', () => {
   });
 
   it('rejeita data no futuro e data inválida', async () => {
-    const future = new Date(Date.now() + 60 * 60_000).toISOString();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-30T12:00:00.000Z'));
+    const future = '2026-09-30T12:05:00.001Z';
     await expect(
       taskTimeEntryService.createManualTaskTimeEntry(42, { hours: 1, occurredAt: future }, member)
     ).rejects.toMatchObject({ statusCode: 400 });
     await expect(
       taskTimeEntryService.createManualTaskTimeEntry(42, { hours: 1, occurredAt: 'ontem' }, member)
     ).rejects.toMatchObject({ statusCode: 400 });
+    expect(mocks.repository.createManualAtomic).not.toHaveBeenCalled();
   });
 });
 

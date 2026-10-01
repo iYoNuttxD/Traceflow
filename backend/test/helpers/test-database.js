@@ -1,3 +1,5 @@
+import { inject } from 'vitest';
+import { deployOncePerInvocation } from './test-migration-cache.js';
 import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import dotenv from 'dotenv';
@@ -24,7 +26,18 @@ export function configureTestDatabaseEnvironment() {
   return testDatabaseUrl;
 }
 
-export function deployTestMigrations(testDatabaseUrl) {
+export function deployTestMigrations(testDatabaseUrl, { force = false } = {}) {
+  // Safety validation still runs even when an earlier suite deployed this target.
+  validateTestDatabaseUrl(testDatabaseUrl);
+  return deployOncePerInvocation({
+    directory: inject('testMigrationCache'),
+    databaseUrl: testDatabaseUrl,
+    force,
+    deploy: () => runTestMigrations(testDatabaseUrl)
+  });
+}
+
+function runTestMigrations(testDatabaseUrl) {
   // Invoca o entrypoint JS da CLI com o Node atual: o shim .cmd do Windows não pode
   // ser executado por spawnSync sem shell (EINVAL desde a mitigação CVE-2024-27980).
   const prismaEntry = resolve(process.cwd(), 'node_modules', 'prisma', 'build', 'index.js');

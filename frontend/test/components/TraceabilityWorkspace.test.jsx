@@ -4,12 +4,16 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { ConfirmProvider } from '../../src/shared/index.js';
 import { fixture, node } from '../helpers/expanded-graph.js';
+import { testCase } from '../testCases/fixtures.js';
+import { defect } from '../defects/fixtures.js';
 import { TraceabilityFlow } from '../../src/features/traceability/components/TraceabilityFlow.jsx';
 import { TraceabilityInspector } from '../../src/features/traceability/components/TraceabilityInspector.jsx';
 import { WorkspaceSummary } from '../../src/features/traceability/components/TraceabilityWorkspace.jsx';
 import { TraceabilityHelp } from '../../src/features/traceability/components/TraceabilityHelp.jsx';
 const mocks = vi.hoisted(() => ({
   api: vi.fn(),
+  caseDetail: vi.fn(),
+  defectDetail: vi.fn(),
   realDetails: false,
   task: vi.fn(),
   entries: vi.fn(),
@@ -18,6 +22,12 @@ const mocks = vi.hoisted(() => ({
   props: null,
   center: vi.fn(),
   viewport: vi.fn()
+}));
+vi.mock('../../src/features/testCases/api/test-cases.api.js', () => ({
+  testCasesApi: { detail: mocks.caseDetail }
+}));
+vi.mock('../../src/features/defects/api/defects.api.js', () => ({
+  defectsApi: { detail: mocks.defectDetail }
 }));
 vi.mock('../../src/features/traceability/api/traceability.api.js', () => ({
   getRequirementTraceability: mocks.api
@@ -112,11 +122,12 @@ async function select(name) {
   fireEvent.click(await screen.findByRole('button', { name: `Inspecionar ${name}` }));
 }
 function deferred() {
-  let resolve;
-  const promise = new Promise((r) => {
+  let resolve, reject;
+  const promise = new Promise((r, j) => {
     resolve = r;
+    reject = j;
   });
-  return { promise, resolve };
+  return { promise, resolve, reject };
 }
 beforeEach(() => {
   vi.clearAllMocks();
@@ -254,7 +265,7 @@ describe('Workspace interactions', () => {
     expect(mocks.props.edges.some((e) => e.className.includes('highlight'))).toBe(true);
     expect(mocks.props.nodes).toHaveLength(8);
   });
-  it('never forces microscopic fit and offers native draggable keyboard nodes', async () => {
+  it('configures bounded zoom and draggable nodes; native movement requires browser QA', async () => {
     mount(fixture());
     await ready();
     expect(mocks.props.minZoom).toBeGreaterThanOrEqual(0.2);
@@ -309,7 +320,7 @@ describe('Workspace interactions', () => {
     fireEvent.click(screen.getByText('Carregar mais relações'));
     await screen.findByRole('button', { name: 'Inspecionar Tarefa TASK-89' });
   });
-  it('rejects old layout and page after Requirement switch', async () => {
+  it('rejects old layout after Requirement switch', async () => {
     const old = deferred();
     mocks.layout.mockReturnValueOnce(old.promise);
     const g = fixture();
@@ -329,16 +340,112 @@ describe('Workspace interactions', () => {
     await act(async () => old.resolve({ nodes: [], edges: [], duration: 1 }));
     expect(screen.getByRole('button', { name: 'Inspecionar Requisito REQ-10' })).toBeVisible();
   });
-  it('retains graph and offers contextual paging retry', async () => {
+  it.each(['resolve', 'reject'])(
+    'rejects a stale page %s after Requirement switch',
+    async (outcome) => {
+      const pending = deferred();
+      const g = fixture();
+      g.pagination.totalPages = 2;
+      mocks.api.mockReturnValueOnce(pending.promise);
+      const view = mount(g);
+      await ready();
+      fireEvent.click(screen.getByText('Carregar mais relações'));
+      expect(mocks.api).toHaveBeenCalledWith(
+        1,
+        1,
+        { expanded: true, limit: 100, page: 2 },
+        expect.objectContaining({ signal: expect.any(AbortSignal) })
+      );
+      const next = {
+        ...g,
+        perspective: { id: 10, type: 'REQUIREMENT' },
+        nodes: [node('REQUIREMENT', 10)],
+        edges: [],
+        pagination: { ...g.pagination, totalPages: 1 }
+      };
+      view.rerender(
+        <MemoryRouter>
+          <ConfirmProvider>
+            <TraceabilityFlow traceability={next} />
+          </ConfirmProvider>
+        </MemoryRouter>
+      );
+      await screen.findByRole('button', { name: 'Inspecionar Requisito REQ-10' });
+      await act(async () =>
+        outcome === 'resolve'
+          ? pending.resolve({
+              ...g,
+              nodes: [node('TASK', 88)],
+              edges: [],
+              pagination: { ...g.pagination, page: 2 }
+            })
+          : pending.reject(new Error('Falha antiga'))
+      );
+      expect(screen.getByRole('button', { name: 'Inspecionar Requisito REQ-10' })).toBeVisible();
+      expect(screen.queryByTestId('task:88')).not.toBeInTheDocument();
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(mocks.props.nodes.map((n) => n.id)).toEqual(['requirement:10']);
+    }
+  );
+  it('retains graph and recovers the same page through contextual retry without duplicates', async () => {
     const g = fixture();
     g.pagination.totalPages = 2;
-    mocks.api.mockRejectedValue(new Error('offline'));
+    mocks.api.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({
+      ...g,
+      nodes: [g.nodes[0], node('TASK', 88)],
+      edges: [],
+      pagination: { ...g.pagination, page: 2 }
+    });
     mount(g);
     await ready();
     fireEvent.click(screen.getByText('Carregar mais relações'));
     await screen.findByRole('alert');
     expect(screen.getByRole('button', { name: 'Inspecionar Requisito REQ-1' })).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: /Tentar novamente/i }));
+    await screen.findByRole('button', { name: 'Inspecionar Tarefa TASK-88' });
+    expect(mocks.api).toHaveBeenCalledTimes(2);
+    for (const args of mocks.api.mock.calls)
+      expect(args.slice(0, 3)).toEqual([1, 1, { expanded: true, limit: 100, page: 2 }]);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getAllByTestId('requirement:1')).toHaveLength(1);
+    expect(screen.queryByText('Carregar mais relações')).not.toBeInTheDocument();
   });
+  it.each(['TEST_CASE', 'DEFECT'])(
+    'loads real %s details and returns to its inspector',
+    async (type) => {
+      mocks.realDetails = true;
+      mocks.caseDetail.mockResolvedValue({
+        ...structuredClone(testCase),
+        id: 4,
+        displayId: 'TC-4'
+      });
+      mocks.defectDetail.mockResolvedValue({
+        ...structuredClone(defect),
+        id: 3,
+        displayId: 'DEF-3'
+      });
+      mount(fixture());
+      await ready();
+      await select(type === 'TEST_CASE' ? 'Caso de teste TC-4' : 'Defeito DEF-3');
+      fireEvent.click(screen.getByText('Abrir detalhes'));
+      expect(
+        await screen.findByText(type === 'TEST_CASE' ? 'Cenário de validação' : 'Falha confirmada')
+      ).toBeVisible();
+      expect(
+        screen.getByText(type === 'TEST_CASE' ? 'Conta disponível' : 'Falha observada')
+      ).toBeVisible();
+      const api = type === 'TEST_CASE' ? mocks.caseDetail : mocks.defectDetail;
+      expect(api).toHaveBeenCalledWith(
+        type === 'TEST_CASE' ? 4 : 3,
+        expect.objectContaining({ signal: expect.any(AbortSignal) })
+      );
+      expect(screen.queryByRole('button', { name: /^Editar/ })).not.toBeInTheDocument();
+      fireEvent.click(screen.getByText('← Voltar para o fluxo'));
+      expect(screen.getByRole('complementary')).toHaveAccessibleName(
+        type === 'TEST_CASE' ? 'Inspector de TC-4' : 'Inspector de DEF-3'
+      );
+    }
+  );
   it('restores default collection and closes Inspector', async () => {
     mount(fixture());
     await ready();
@@ -381,25 +488,74 @@ describe('Explainability', () => {
     fireEvent.keyDown(button, { key: 'Escape' });
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
   });
-  it.each(['TASK', 'TEST_CASE', 'TEST_EXECUTION', 'DEFECT', 'PULL_REQUEST', 'COMMIT', 'ISSUE'])(
-    'explains %s with loaded metadata and relations only',
-    (type) => {
-      const g = fixture();
-      const n = g.nodes.find((n) => n.type === type) || {
-        id: `${type}:100`,
+  it.each([
+    ['REQUIREMENT', { status: 'PLANEJADO' }, 'Status', 'Planejado'],
+    ['TASK', { responsible: 'Responsável específico' }, 'Responsável', 'Responsável específico'],
+    ['TEST_CASE', { currentVersion: 7, status: 'ATIVO' }, 'Versão atual', 'v7'],
+    [
+      'TEST_EXECUTION',
+      {
+        result: 'PASS',
+        environment: 'LOCAL',
+        executedByDisplayNameSnapshot: 'Executor histórico',
+        testCaseId: 4,
+        testCaseVersion: 2
+      },
+      'Executor',
+      'Executor histórico'
+    ],
+    [
+      'DEFECT',
+      { currentCorrectionCycle: 3, detectedStep: { executionId: 5, position: 2 } },
+      'Ciclo atual',
+      '3'
+    ],
+    ['PULL_REQUEST', { number: 44, state: 'MERGED' }, 'Estado', 'MERGED'],
+    [
+      'COMMIT',
+      { hash: 'fedcba987654321', authorName: 'Autor original' },
+      'Hash',
+      'fedcba987654321'
+    ],
+    ['ISSUE', { number: 55, authorUsername: 'qa-autor' }, 'Autor', 'qa-autor']
+  ])(
+    'explains %s metadata, navigable relations and empty state in shared surfaces',
+    (type, data, label, expected) => {
+      const n = {
+        id: `subject:${type}`,
         type,
-        data: { id: 100, number: 100, title: 'Artefato' }
+        data: { id: 100, title: 'Artefato específico', ...data }
       };
-      render(
-        <TraceabilityInspector
-          node={n}
-          contract={g}
-          onClose={vi.fn()}
-          onSelect={vi.fn()}
-          onDetails={vi.fn()}
-        />
+      const target = node('TASK', 91, { title: 'Destino independente' });
+      const contract = {
+        nodes: [n, target],
+        edges: [
+          { id: 'known-relation', source: n.id, target: target.id, relationType: 'IMPLEMENTA' }
+        ]
+      };
+      const onSelect = vi.fn();
+      const props = { node: n, contract, onSelect, onClose: vi.fn(), onDetails: vi.fn() };
+      const view = render(<TraceabilityInspector {...props} />);
+      const info = screen.getByRole('region', { name: 'Informações' });
+      expect(info).toHaveClass('detail-surface');
+      expect(within(info).getByText(label).nextElementSibling).toHaveTextContent(expected);
+      expect(screen.getByRole('heading', { name: 'Artefato específico' })).toBeVisible();
+      const relations = screen.getByRole('region', { name: 'Relações na cadeia' });
+      expect(relations).toHaveClass('detail-surface');
+      expect(within(relations).getAllByRole('listitem')).toHaveLength(1);
+      fireEvent.click(
+        within(relations).getByRole('button', { name: 'TASK-91 · Destino independente' })
       );
-      expect(screen.getByRole('complementary')).toHaveTextContent('Relações na cadeia');
+      expect(onSelect).toHaveBeenCalledExactlyOnceWith('task:91');
+      view.rerender(<TraceabilityInspector {...props} contract={{ ...contract, edges: [] }} />);
+      expect(
+        within(screen.getByRole('region', { name: 'Relações na cadeia' })).getByText(
+          'Nenhuma relação carregada.'
+        )
+      ).toBeVisible();
+      expect(
+        screen.queryByRole('button', { name: 'TASK-91 · Destino independente' })
+      ).not.toBeInTheDocument();
       expect(mocks.api).not.toHaveBeenCalled();
     }
   );

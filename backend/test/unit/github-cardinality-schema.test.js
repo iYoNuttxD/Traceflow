@@ -36,13 +36,10 @@ describe('cardinalidade GitHub App por repositório', () => {
 
   it('mantém HMAC sobre raw body e comparação constant-time', () => {
     const service = readFileSync(resolve('src/modules/github/github-app.service.js'), 'utf8');
-    const app = readFileSync(resolve('src/app.js'), 'utf8');
     expect(service).toContain('timingSafeEqual(expected, actual)');
     expect(service).toContain("createHmac('sha256', env.githubAppWebhookSecret).update(rawBody)");
     expect(service).not.toContain('JSON.stringify(req.body)');
-    expect(app.indexOf("express.raw({ type: 'application/json'")).toBeLessThan(
-      app.indexOf('express.json(')
-    );
+    // Middleware ordering is exercised through createApp in github-public-routes.test.js.
   });
 
   it('valida callback apenas por GET /user/installations sem username ou log de token', () => {

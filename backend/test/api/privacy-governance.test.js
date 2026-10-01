@@ -71,12 +71,11 @@ describe('LR.2 — consolidação das rotas e worker de privacidade', () => {
     expect((await auth.agent.get('/api/settings/privacy/deletion')).status).toBe(200);
   });
 
-  it('preserva as rotas públicas específicas de reativação', async () => {
-    const start = await request(app)
-      .post('/api/account/reactivation/start')
-      .send({ email: 'nao-existe@example.invalid' });
-    expect(start.status).not.toBe(404);
-    expect(start.body.code).not.toBe('ROUTE_NOT_FOUND');
+  it('exige sessão na rota canônica de início de reativação', async () => {
+    expect(await request(app).post('/api/account/reactivation/start').send({})).toMatchObject({
+      status: 401,
+      body: { code: 'AUTHENTICATION_REQUIRED' }
+    });
   });
 
   it('anonimiza conta elegível preservando IDs e removendo credenciais', async () => {

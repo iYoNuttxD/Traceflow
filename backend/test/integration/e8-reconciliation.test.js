@@ -9,6 +9,7 @@ import { runE8Reconciliation } from '../../scripts/lib/e8-reconciliation.js';
 import { auditE8Contract, runE8Contract } from '../../scripts/lib/e8-contract.js';
 
 let prisma;
+let migratedLegacyTables;
 const noConsumers = { taskPullRequest: 0, githubArtifact: 0, traceLink: 0 };
 
 async function createLegacyTables() {
@@ -33,6 +34,13 @@ beforeAll(async () => {
   const testDatabaseUrl = configureTestDatabaseEnvironment();
   deployTestMigrations(testDatabaseUrl);
   ({ prisma } = await import('../../src/database/prismaClient.js'));
+  // Observe the migrated schema before any fixture CREATE/DROP can repair it.
+  migratedLegacyTables = await Promise.all(
+    ['TaskPullRequest', 'GithubArtifact', 'TraceLink'].map(async (table) => ({
+      table,
+      exists: await legacyTableExists(prisma, table)
+    }))
+  );
 });
 beforeEach(async () => {
   await cleanTestDatabase(prisma);
@@ -48,11 +56,12 @@ afterAll(async () => {
 });
 
 describe('E8 reconciliação e contract definitivos', () => {
-  it('schema migrado do zero não mantém os três models legados', async () => {
-    await dropLegacyTables();
-    expect(await legacyTableExists(prisma, 'TaskPullRequest')).toBe(false);
-    expect(await legacyTableExists(prisma, 'GithubArtifact')).toBe(false);
-    expect(await legacyTableExists(prisma, 'TraceLink')).toBe(false);
+  it('schema migrado não mantém os três models legados antes das fixtures', () => {
+    expect(migratedLegacyTables).toEqual([
+      { table: 'TaskPullRequest', exists: false },
+      { table: 'GithubArtifact', exists: false },
+      { table: 'TraceLink', exists: false }
+    ]);
   });
 
   it('reconcilia TaskPullRequest singular e permanece idempotente', async () => {

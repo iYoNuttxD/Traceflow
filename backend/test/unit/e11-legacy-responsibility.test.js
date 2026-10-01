@@ -30,7 +30,7 @@ const movement = {
 };
 
 describe('E11 reconciliação de identidades legadas', () => {
-  it('gera mapa local com PII somente no artefato protegido e preserva seleção manual', () => {
+  it('gera conteúdo do mapa local com identidade e preserva seleção manual', () => {
     const mapping = buildTaskMappingFile({
       tasks: [task],
       memberships: [membership],

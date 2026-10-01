@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { describe, expect, it } from 'vitest';
 import { sanitizeInternalReturnTo } from '../../src/features/auth/return-to.js';
 
@@ -24,7 +26,18 @@ describe('returnTo interno', () => {
     '/%2e%2e//evil.com',
     '/%2E%2E//evil.com',
     '/x/..//evil.com',
-    '/x/%2e%2e//evil.com'
+    '/x/%2e%2e//evil.com',
+    '/%2Fevil.com',
+    '/%5Cevil.com',
+    '/%00secret',
+    '/%7Fsecret',
+    '/bad%escape',
+    '/x\nsecret',
+    null,
+    12,
+    {},
+    '',
+    '/' + 'x'.repeat(191)
   ])('rejeita %s', (value) => {
     expect(sanitizeInternalReturnTo(value)).toBe('/projects');
   });

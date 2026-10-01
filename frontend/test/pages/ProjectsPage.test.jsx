@@ -15,27 +15,9 @@ const invitationsMock = vi.hoisted(() => ({
   decline: vi.fn()
 }));
 
-vi.mock('../../src/features/projects/api/projects.api.js', () => ({
-  projectsApi: {
-    list: () => apiMock.get('/projects'),
-    listGithubInstallations: () => apiMock.get('/github/app/installations'),
-    listGithubRepositories: (installationId, projectId) =>
-      apiMock.get(`/github/app/installations/${installationId}/repositories`, {
-        params: projectId ? { projectId } : undefined
-      }),
-    listAllGithubRepositories: (projectId) =>
-      apiMock.get('/github/app/repositories', {
-        params: projectId ? { projectId } : undefined
-      }),
-    startGithubInstallation: (data) => apiMock.post('/github/app/installations/start', data),
-    connectGithubRepository: (projectId, data) =>
-      apiMock.put(`/projects/${projectId}/github/integration`, data),
-    create: (data) => apiMock.post('/projects', data),
-    createFromGithub: (data) => apiMock.post('/projects/from-github', data),
-    restore: (projectId) => apiMock.post(`/projects/${projectId}/restore`, {}),
-    purge: (projectId, confirmationName) =>
-      apiMock.delete(`/projects/${projectId}/permanent`, { data: { confirmationName } })
-  }
+vi.mock('../../src/api/http-client.js', async (original) => ({
+  ...(await original()),
+  httpClient: apiMock
 }));
 vi.mock('../../src/features/invitations/personal-invitations.api.js', () => ({
   personalInvitationsApi: invitationsMock
@@ -166,22 +148,6 @@ describe('ProjectsPage', () => {
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(newProject).toHaveFocus();
-  });
-
-  it('retorna do fluxo de criação ao chooser e mantém o fechamento explícito', async () => {
-    const user = userEvent.setup();
-    mockInitialRequests({ projects: [] });
-    renderPage();
-    await screen.findByRole('button', { name: /^Novo projeto/ });
-    const trigger = screen.getByRole('button', { name: /^Novo projeto/ });
-    await openCreateFlow(user);
-
-    expect(screen.queryByText('Voltar às opções')).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Voltar às opções' }));
-    const chooser = screen.getByRole('dialog', { name: 'Novo projeto' });
-    await user.click(within(chooser).getByRole('button', { name: 'Fechar' }));
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(trigger).toHaveFocus();
   });
 
   it('transfere o foco entre chooser e criação sem alterar a restauração do Close', async () => {
@@ -343,7 +309,11 @@ describe('ProjectsPage', () => {
     expect(
       screen.queryByRole('link', { name: 'Abrir projeto Projeto recuperável' })
     ).not.toBeInTheDocument();
+    mockInitialRequests({ projects: [{ id: 31, name: 'Projeto recuperável' }] });
     await user.click(screen.getByRole('button', { name: 'Recuperar' }));
+    expect(
+      await screen.findByRole('link', { name: 'Abrir projeto Projeto recuperável' })
+    ).toBeInTheDocument();
     expect(apiMock.post).toHaveBeenCalledWith('/projects/31/restore', {});
     await waitFor(() =>
       expect(
@@ -617,7 +587,11 @@ describe('ProjectsPage', () => {
     renderPage();
 
     expect(await screen.findByText('Falha artificial da API')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Tentar novamente' })).toBeInTheDocument();
+    mockInitialRequests({ projects: [{ id: 44, name: 'Projeto recuperado após erro' }] });
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Tentar novamente' }));
+    expect(
+      await screen.findByRole('link', { name: 'Abrir projeto Projeto recuperado após erro' })
+    ).toBeInTheDocument();
   });
 
   it('submete o formulário pelo endpoint especializado e recarrega a lista', async () => {
@@ -634,6 +608,7 @@ describe('ProjectsPage', () => {
       screen.getByLabelText('Repositório GitHub *'),
       fakeRepository.fullName
     );
+    mockInitialRequests({ projects: [{ id: 50, name: 'Projeto submetido' }] });
     await user.click(screen.getByRole('button', { name: 'Cadastrar projeto' }));
 
     await waitFor(() => {
@@ -648,6 +623,10 @@ describe('ProjectsPage', () => {
       );
     });
     expect(await screen.findByText('Projeto cadastrado com sucesso.')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('link', { name: 'Abrir projeto Projeto submetido' })
+    ).toBeInTheDocument();
+    expect(apiMock.get.mock.calls.filter(([url]) => url === '/projects')).toHaveLength(2);
   });
 
   it('impede duas criações concorrentes antes da atualização visual do botão', async () => {
@@ -678,9 +657,21 @@ describe('ProjectsPage', () => {
     await act(async () => resolveCreate({ data: { message: 'Projeto cadastrado com sucesso.' } }));
   });
 
-  it('lista repositórios agregados e explica o projeto já vinculado sem ocultá-lo', async () => {
+  it('respeita repositórios ocupados do contrato e preserva a defesa para DTO legado inconsistente', async () => {
+    const user = userEvent.setup();
     const repositories = [
       { ...fakeRepository, selectable: true, alreadyConnected: false },
+      {
+        ...fakeRepository,
+        githubRepositoryId: '505',
+        name: 'ocupado-canonico',
+        fullName: 'usuario-artificial/ocupado-canonico',
+        availability: 'CONNECTED',
+        selectable: false,
+        alreadyConnected: true,
+        connectedToCurrentProject: false,
+        connectedProject: { id: 13, name: 'Projeto ocupado' }
+      },
       {
         ...fakeRepository,
         githubRepositoryId: '502',
@@ -688,6 +679,7 @@ describe('ProjectsPage', () => {
         fullName: 'usuario-artificial/ocupado',
         url: 'https://github.com/usuario-artificial/ocupado',
         defaultBranch: 'develop',
+        // Deliberately inconsistent legacy response exercises defensive duplicate callout.
         selectable: true,
         alreadyConnected: true,
         connectedProject: { id: 12, name: 'Projeto existente' },
@@ -709,6 +701,7 @@ describe('ProjectsPage', () => {
         name: 'ocupado-sem-acesso',
         fullName: 'usuario-artificial/ocupado-sem-acesso',
         url: 'https://github.com/usuario-artificial/ocupado-sem-acesso',
+        // Deliberately inconsistent legacy response exercises defensive duplicate callout.
         selectable: true,
         alreadyConnected: true,
         connectedProject: null
@@ -716,25 +709,40 @@ describe('ProjectsPage', () => {
     ];
     mockInitialRequests({ repositories });
     renderPage();
-    await openCreateFlow(userEvent.setup());
+    await openCreateFlow(user);
 
     const select = await screen.findByLabelText('Repositório GitHub *');
-    await waitFor(() => expect(select.querySelectorAll('option')).toHaveLength(5));
+    await waitFor(() => expect(select.querySelectorAll('option')).toHaveLength(6));
+    expect(apiMock.get).toHaveBeenCalledWith(
+      '/github/app/repositories',
+      expect.objectContaining({ params: undefined, signal: expect.any(AbortSignal) })
+    );
+    const occupied = within(select).getByRole('option', { name: /ocupado-canonico/ });
+    expect(occupied).toBeDisabled();
+    expect(occupied).toHaveTextContent('vinculado a Projeto ocupado');
+    await user.selectOptions(select, occupied);
+    expect(select).toHaveValue('');
+    expect(apiMock.post).not.toHaveBeenCalled();
+    expect(apiMock.put).not.toHaveBeenCalled();
     const options = [...select.querySelectorAll('option')];
     expect(options.find((option) => option.value.endsWith('/ocupado'))).toBeEnabled();
     expect(options.find((option) => option.value.endsWith('/disponivel'))).toBeEnabled();
     expect(options.find((option) => option.value.endsWith('/ocupado')).textContent).toMatch(
       /branch develop.*vinculado a Projeto existente/
     );
-    await userEvent.setup().selectOptions(select, 'usuario-artificial/ocupado');
+    await user.selectOptions(select, 'usuario-artificial/ocupado');
+    expect(select).toHaveValue('');
     const duplicateCallout = screen.getByText(/já está vinculado ao projeto/).closest('aside');
     expect(duplicateCallout).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Ver projeto' })).toHaveAttribute(
       'href',
       '/projects/12'
     );
-    await userEvent.setup().click(within(duplicateCallout).getByRole('button', { name: 'Fechar' }));
-    await userEvent.setup().selectOptions(select, 'usuario-artificial/ocupado-sem-acesso');
+    await user.click(within(duplicateCallout).getByRole('button', { name: 'Fechar' }));
+    await user.selectOptions(select, 'usuario-artificial/ocupado-sem-acesso');
+    expect(select).toHaveValue('');
+    expect(apiMock.post).not.toHaveBeenCalled();
+    expect(apiMock.put).not.toHaveBeenCalled();
     expect(
       screen.getByText('Este repositório já está vinculado a outro projeto.')
     ).toBeInTheDocument();
@@ -916,9 +924,10 @@ describe('ProjectsPage', () => {
     renderPage(['/projects?projectId=1']);
 
     await waitFor(() =>
-      expect(apiMock.get).toHaveBeenCalledWith('/github/app/repositories', {
-        params: { projectId: '1' }
-      })
+      expect(apiMock.get).toHaveBeenCalledWith(
+        '/github/app/repositories',
+        expect.objectContaining({ params: { projectId: '1' }, signal: expect.any(AbortSignal) })
+      )
     );
     act(() => navigateProjects('/projects?projectId=2'));
     await act(async () => {

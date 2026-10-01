@@ -1,3 +1,4 @@
+import { concurrentTransactions } from '../helpers/transaction-arrival-barrier.js';
 import { startTestServer } from '../helpers/http-server.js';
 import request from 'supertest';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
@@ -204,7 +205,7 @@ describe('L5.1 - código de acesso e convites pessoais', () => {
     const project = await createProject(owner);
     const oldCode = (await prisma.project.findUnique({ where: { id: project.id } })).accessCode;
 
-    const responses = await Promise.all([
+    const responses = await concurrentTransactions(prisma, [
       owner.mutate('post', `/api/projects/${project.id}/access-code/regenerate`).send({}),
       owner.mutate('post', `/api/projects/${project.id}/access-code/regenerate`).send({})
     ]);
@@ -227,6 +228,18 @@ describe('L5.1 - código de acesso e convites pessoais', () => {
     const events = await prisma.auditEvent.findMany({
       where: { action: 'PROJECT_ACCESS_CODE_REGENERATED', projectId: project.id }
     });
+    await register('final-code-join@example.invalid');
+    const newcomer = await prisma.user.findUnique({
+      where: { email: 'final-code-join@example.invalid' }
+    });
+    const { projectAccessCodeService } =
+      await import('../../src/modules/projects/services/project-access-code.service.js');
+    await projectAccessCodeService.join(stored.accessCode, newcomer);
+    expect(
+      await prisma.projectMembership.findUnique({
+        where: { projectId_userId: { projectId: project.id, userId: newcomer.id } }
+      })
+    ).toMatchObject({ role: 'MEMBER', isActive: true });
     expect(events).toHaveLength(2);
     expect(JSON.stringify(events)).not.toContain('TRC-');
   });
@@ -301,7 +314,7 @@ describe('L5.1 - código de acesso e convites pessoais', () => {
       .mutate('post', `/api/projects/${project.id}/invitations`)
       .send({ email: 'invitee-race-mine@example.invalid', role: 'VIEWER' });
 
-    const responses = await Promise.all([
+    const responses = await concurrentTransactions(prisma, [
       invitee
         .mutate('post', `/api/projects/invitations/${created.body.invitation.id}/accept`)
         .send({}),

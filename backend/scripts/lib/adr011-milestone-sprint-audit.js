@@ -15,7 +15,9 @@
 // o Prisma Client ja foi gerado a partir do schema NOVO e nao conhece mais
 // `Milestone.sprintId`.
 
-const COLUNA_AUSENTE = /Unknown column|no such column|does not exist/i;
+// Only the removed legacy FK proves the migration already ran. Other missing
+// columns/tables indicate a broken schema and must remain actionable failures.
+const COLUNA_AUSENTE = /Unknown column ['"`](?:m\.|Milestone\.)?sprintId['"`]/i;
 
 export async function runAdr011MilestoneSprintAudit({ client }) {
   let vinculos;

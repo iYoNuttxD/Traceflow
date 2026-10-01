@@ -1,13 +1,14 @@
 import { MemoryRouter, Route, Routes } from 'react-router';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfirmProvider } from '../../src/shared/index.js';
 
 const mocks = vi.hoisted(() => ({
   projectGet: vi.fn(),
   taskList: vi.fn(),
   memberList: vi.fn(),
+  createTestCase: vi.fn(),
   deleteRequirement: vi.fn(),
   replaceRequirementTasks: vi.fn(),
   requirementsApi: { create: vi.fn(), listByProject: vi.fn(), update: vi.fn() },
@@ -37,20 +38,8 @@ vi.mock('../../src/features/tasks/api/tasks.api.js', () => ({
 vi.mock('../../src/features/members/index.js', () => ({
   membersApi: { list: mocks.memberList }
 }));
-vi.mock('../../src/features/traceability/components/TraceabilityFlow.jsx', () => ({
-  TraceabilityFlow: ({ traceability }) => (
-    <div data-testid="traceability-flow">{traceability.nodes.length} entidades</div>
-  )
-}));
-vi.mock('../../src/features/testCases/components/ContextualTestCaseCreate.jsx', () => ({
-  ContextualTestCaseCreate: ({ requirement, onCreated }) => (
-    <div>
-      <span>Criar teste para REQ-{requirement.id}</span>
-      <button type="button" onClick={() => onCreated({ displayId: 'TC-99' })}>
-        Concluir criação de teste
-      </button>
-    </div>
-  )
+vi.mock('../../src/features/testCases/api/test-cases.api.js', () => ({
+  testCasesApi: { create: mocks.createTestCase }
 }));
 
 import { RequirementsPage } from '../../src/pages/RequirementsPage.jsx';
@@ -105,9 +94,33 @@ function projection(id, overrides = {}) {
 }
 
 const graph = {
+  projectId: 9,
+  perspective: { type: 'REQUIREMENT', id: 10 },
   summary: projection(10),
   pagination: { page: 1, totalPages: 1, scope: 'graphNodes' },
-  edges: [],
+  edges: [
+    {
+      id: 'REQUIREMENT_TASK:requirement:10:task:20',
+      type: 'REQUIREMENT_TASK',
+      relationType: 'IMPLEMENTA',
+      source: 'requirement:10',
+      target: 'task:20'
+    },
+    {
+      id: 'TASK_COMMIT:task:20:commit:30',
+      type: 'TASK_COMMIT',
+      relationType: 'IMPLEMENTADO_EM',
+      source: 'task:20',
+      target: 'commit:30'
+    },
+    {
+      id: 'VERIFICADO_POR:task:20:testCase:40',
+      type: 'VERIFICADO_POR',
+      relationType: 'VERIFICADO_POR',
+      source: 'task:20',
+      target: 'testCase:40'
+    }
+  ],
   nodes: [
     {
       id: 'requirement:10',
@@ -126,7 +139,17 @@ const graph = {
       id: 'testCase:40',
       type: 'TEST_CASE',
       entityId: 40,
-      data: { id: 40, title: 'Autenticar usuário', latestExecution: { result: 'PASS' } }
+      data: {
+        id: 40,
+        title: 'Autenticar usuário',
+        status: 'ATIVO',
+        currentVersion: 1,
+        taskCount: 1,
+        taskLinks: [{ taskId: 20 }],
+        executionCount: 1,
+        defectCount: 0,
+        latestExecution: { id: 41, result: 'PASS' }
+      }
     },
     {
       id: 'defect:50',
@@ -157,7 +180,11 @@ function renderPage(entry = '/projects/9/requirements') {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.projectGet.mockResolvedValue({ data: { project: { id: 9, name: 'Projeto artificial' } } });
-  mocks.memberList.mockResolvedValue({ currentMembership: { role: 'MEMBER' } });
+  mocks.memberList.mockResolvedValue({
+    currentMembership: { role: 'MEMBER' },
+    members: [{ id: 1, isActive: true, user: { id: 7, name: 'Pessoa QA' } }]
+  });
+  mocks.createTestCase.mockResolvedValue({ id: 99, displayId: 'TC-99', requirementId: 10 });
   mocks.requirementsApi.listByProject.mockResolvedValue({ data: { requirements } });
   mocks.getRequirementTaskCoverage.mockResolvedValue({
     totalRequirements: 2,
@@ -183,6 +210,11 @@ beforeEach(() => {
   });
   mocks.deleteRequirement.mockResolvedValue({ message: 'Requisito excluído com sucesso.' });
   mocks.taskList.mockResolvedValue({ data: { tasks: [] } });
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe('Requirements facelift', () => {
@@ -245,7 +277,7 @@ describe('Requirements facelift', () => {
     expect(screen.getByText('Nenhum requisito corresponde aos filtros.')).toBeInTheDocument();
   });
 
-  it('remove o formulário da página e cria/edita somente pelo dialog com vínculo atômico', async () => {
+  it('remove o formulário da página e cria/edita pelo dialog com vínculo explícito', async () => {
     const user = userEvent.setup();
     renderPage();
     expect(await screen.findByRole('button', { name: /Novo requisito/ })).toBeInTheDocument();
@@ -265,12 +297,19 @@ describe('Requirements facelift', () => {
     await user.click(screen.getByRole('menuitem', { name: 'Editar REQ-10' }));
     await user.clear(screen.getByLabelText('Título do requisito'));
     await user.type(screen.getByLabelText('Título do requisito'), 'Login atualizado');
+    mocks.requirementsApi.listByProject.mockResolvedValue({
+      data: { requirements: [{ ...requirements[0], title: 'Login atualizado' }, requirements[1]] }
+    });
     await user.click(screen.getByRole('button', { name: 'Salvar requisito' }));
     await waitFor(() => expect(mocks.replaceRequirementTasks).toHaveBeenCalledWith(10, [20]));
     expect(mocks.requirementsApi.update).toHaveBeenCalledWith(
       10,
       expect.objectContaining({ title: 'Login atualizado' })
     );
+    expect(
+      await screen.findByRole('article', { name: 'REQ-10 · Login atualizado' })
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Editar requisito' })).not.toBeInTheDocument();
   });
 
   it('abre Details focado no Requirement e mantém a rastreabilidade como fluxo complementar', async () => {
@@ -335,9 +374,55 @@ describe('Requirements facelift', () => {
     expect(screen.queryByRole('heading', { name: /Histórico/ })).not.toBeInTheDocument();
     expect(mocks.getRequirementSituationHistory).not.toHaveBeenCalled();
     await user.click(screen.getByRole('button', { name: '+ Criar caso de teste' }));
-    expect(screen.getByText('Criar teste para REQ-10')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Concluir criação de teste' }));
+    const createDialog = screen.getByRole('dialog', { name: 'Criar caso de teste' });
+    expect(await within(createDialog).findByLabelText('Título *')).toHaveFocus();
+    expect(within(createDialog).getByText('REQ-10 · Login seguro')).toBeInTheDocument();
+    expect(within(createDialog).getByText('Nenhuma tarefa selecionada.')).toBeInTheDocument();
+    await user.click(within(createDialog).getByRole('button', { name: 'Criar caso' }));
+    expect(mocks.createTestCase).not.toHaveBeenCalled();
+    for (const [label, value] of [
+      ['Título *', 'Validar login seguro'],
+      ['Pré-condições *', 'Conta ativa'],
+      ['Ação — passo 1 *', 'Entrar no projeto'],
+      ['Resultado esperado — passo 1 *', 'Acesso autorizado'],
+      ['Resultado esperado do caso *', 'Sessão autenticada']
+    ]) {
+      await user.type(within(createDialog).getByLabelText(label), value);
+    }
+    await user.click(within(createDialog).getByRole('combobox', { name: 'Responsável' }));
+    await user.click(within(createDialog).getByRole('option', { name: 'Pessoa QA' }));
+    mocks.getRequirementTraceability.mockResolvedValue({
+      ...graph,
+      nodes: [
+        ...graph.nodes,
+        {
+          id: 'testCase:99',
+          type: 'TEST_CASE',
+          entityId: 99,
+          data: { id: 99, title: 'Validar login seguro', latestExecution: null }
+        }
+      ]
+    });
+    const readsBeforeSave = mocks.getRequirementTraceability.mock.calls.length;
+    await user.click(within(createDialog).getByRole('button', { name: 'Criar caso' }));
+    expect(mocks.createTestCase).toHaveBeenCalledExactlyOnceWith('9', {
+      title: 'Validar login seguro',
+      description: null,
+      status: 'ATIVO',
+      responsibleUserId: 7,
+      requirementId: 10,
+      taskIds: [],
+      preconditions: 'Conta ativa',
+      expectedResult: 'Sessão autenticada',
+      steps: [{ action: 'Entrar no projeto', expectedResult: 'Acesso autorizado' }]
+    });
     expect(await screen.findByText('TC-99 · Caso de teste criado.')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Criar caso de teste' })).not.toBeInTheDocument();
+    const restoredDetails = screen.getByRole('dialog', { name: /REQ-10 · Login seguro/ });
+    expect(
+      await within(restoredDetails).findByRole('link', { name: 'TC-99 · Validar login seguro' })
+    ).toHaveAttribute('href', '/projects/9/test-cases?case=99');
+    expect(mocks.getRequirementTraceability.mock.calls.length).toBeGreaterThan(readsBeforeSave);
   });
 
   it('mantém estados vazios de tarefas, casos de teste e defeitos dentro das relation boxes', async () => {
@@ -413,12 +498,66 @@ describe('Requirements facelift', () => {
   });
 
   it('abre o Workspace existente diretamente pelo card', async () => {
+    // Supply the browser measurement APIs React Flow needs; assertions below cover
+    // graph identity and interaction, not real layout or pixel geometry in jsdom.
+    vi.stubGlobal(
+      'DOMMatrixReadOnly',
+      class {
+        constructor(transform) {
+          this.m22 = Number(/scale\(([^)]+)\)/.exec(transform)?.[1] || 1);
+        }
+      }
+    );
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function () {
+      return parseFloat(this.style.width) || 1024;
+    });
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function () {
+      return parseFloat(this.style.height) || 768;
+    });
     const user = userEvent.setup();
     renderPage();
     const card = await screen.findByRole('article', { name: 'REQ-10 · Login seguro' });
     await user.click(within(card).getByRole('button', { name: 'Ver rastreabilidade' }));
     expect(screen.getByRole('dialog', { name: 'Rastreabilidade — REQ-10' })).toBeInTheDocument();
-    expect(await screen.findByTestId('traceability-flow')).toHaveTextContent('5 entidades');
+    // The dialog can still be the Suspense fallback. First load the real Workspace.
+    await act(() => vi.dynamicImportSettled());
+    const workspace = screen.getByRole('dialog', { name: 'Rastreabilidade — REQ-10' });
+    expect(
+      within(workspace).getByRole('list', { name: 'Evolução das fases da rastreabilidade' })
+    ).toBeInTheDocument();
+    // Workspace starts the nested Flow import only after it mounts.
+    await act(() => vi.dynamicImportSettled());
+    expect(
+      within(workspace).getByRole('button', { name: 'Organizar automaticamente' })
+    ).toBeInTheDocument();
+    // Flow then loads ELK. Keep cold imports outside the real-layout query's timeout.
+    await act(() => vi.dynamicImportSettled());
+    expect(await screen.findByText('5 entidades visíveis')).toBeInTheDocument();
+    const taskNode = await within(workspace).findByRole('group', {
+      name: 'Tarefa TASK-20 — Tarefa artificial'
+    });
+    taskNode.focus();
+    await user.keyboard('{Enter}');
+    const inspector = await within(workspace).findByRole('complementary', {
+      name: 'Inspector de TASK-20'
+    });
+    expect(
+      within(inspector).getByRole('button', { name: 'REQ-10 · Login seguro' })
+    ).toBeInTheDocument();
+    expect(
+      within(inspector).getByRole('button', { name: 'TC-40 · Autenticar usuário' })
+    ).toBeInTheDocument();
+    expect(within(inspector).getByText(/implementado em/)).toBeInTheDocument();
+    await user.click(within(inspector).getByRole('button', { name: 'TC-40 · Autenticar usuário' }));
+    const caseInspector = await within(workspace).findByRole('complementary', {
+      name: 'Inspector de TC-40'
+    });
+    expect(
+      within(caseInspector).getByRole('button', { name: 'TASK-20 · Tarefa artificial' })
+    ).toBeInTheDocument();
+    expect(
+      within(caseInspector).queryByRole('button', { name: 'REQ-10 · Login seguro' })
+    ).not.toBeInTheDocument();
     expect(mocks.getRequirementTraceability).toHaveBeenCalledWith(
       '9',
       10,
@@ -444,8 +583,29 @@ describe('Requirements facelift', () => {
     await user.click(await screen.findByRole('button', { name: /Mais ações do requisito REQ-10/ }));
     await user.click(screen.getByRole('menuitem', { name: 'Excluir REQ-10' }));
     const dialog = screen.getByRole('dialog', { name: 'Excluir requisito' });
+    mocks.deleteRequirement.mockRejectedValueOnce({
+      response: { status: 400, data: { message: 'Exclusão não permitida agora.' } }
+    });
     await user.click(within(dialog).getByRole('button', { name: 'Excluir requisito' }));
+    expect(await screen.findByText('Exclusão não permitida agora.')).toBeInTheDocument();
+    expect(screen.getByRole('article', { name: 'REQ-10 · Login seguro' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Mais ações do requisito REQ-10/ }));
+    await user.click(screen.getByRole('menuitem', { name: 'Excluir REQ-10' }));
+    mocks.requirementsApi.listByProject.mockResolvedValue({
+      data: { requirements: [requirements[1]] }
+    });
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Excluir requisito' })).getByRole('button', {
+        name: 'Excluir requisito'
+      })
+    );
     await waitFor(() => expect(mocks.deleteRequirement).toHaveBeenCalledWith(10));
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('article', { name: 'REQ-10 · Login seguro' })
+      ).not.toBeInTheDocument()
+    );
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('não exibe detalhes técnicos quando a carga inicial falha', async () => {
@@ -462,4 +622,21 @@ describe('Requirements facelift', () => {
     expect(document.body.textContent).not.toMatch(/Prisma|\/app\/requirements/);
     expect(screen.getByRole('button', { name: 'Tentar novamente' })).toBeInTheDocument();
   });
+});
+
+it('preserva o formulário quando a definição salva mas o vínculo falha', async () => {
+  const user = userEvent.setup();
+  mocks.replaceRequirementTasks.mockRejectedValueOnce({
+    response: { status: 400, data: { message: 'Vínculo rejeitado.' } }
+  });
+  renderPage();
+  await user.click(await screen.findByRole('button', { name: /Novo requisito/ }));
+  await user.type(screen.getByLabelText('Título do requisito'), 'Definição preservada');
+  await user.click(screen.getByRole('button', { name: 'Salvar requisito' }));
+  expect(await screen.findByText('Vínculo rejeitado.')).toBeInTheDocument();
+  expect(mocks.requirementsApi.create).toHaveBeenCalledTimes(1);
+  expect(mocks.replaceRequirementTasks).toHaveBeenCalledExactlyOnceWith(10, []);
+  expect(screen.getByRole('dialog', { name: 'Novo requisito' })).toBeInTheDocument();
+  expect(screen.getByLabelText('Título do requisito')).toHaveValue('Definição preservada');
+  expect(screen.queryByText('Requisito criado com sucesso.')).not.toBeInTheDocument();
 });

@@ -1,6 +1,6 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Link, MemoryRouter, Route, Routes } from 'react-router';
+import { Link, MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -20,9 +20,11 @@ const mocks = vi.hoisted(() => ({
     getSprintProgress: vi.fn(),
     refreshMilestones: vi.fn()
   },
-  projects: { get: vi.fn() }
+  projects: { get: vi.fn() },
+  http: { get: vi.fn(), post: vi.fn(), put: vi.fn(), patch: vi.fn(), delete: vi.fn() }
 }));
 
+vi.mock('../../src/api/http-client.js', () => ({ httpClient: mocks.http }));
 vi.mock('../../src/features/schedule/api/schedule.api.js', () => ({ scheduleApi: mocks.schedule }));
 vi.mock('../../src/features/projects/index.js', () => ({
   projectsApi: mocks.projects,
@@ -135,13 +137,23 @@ function setPlanning(sprints = [], scheduleSprints) {
   });
 }
 
+function KanbanDestination() {
+  const location = useLocation();
+  return (
+    <>
+      <p>Quadro do projeto</p>
+      <output data-testid="kanban-search">{location.search}</output>
+    </>
+  );
+}
+
 function renderScreen(initialEntry = '/projects/1/sprints') {
   return render(
     <ConfirmProvider>
       <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
           <Route path="/projects/:projectId/sprints" element={<SprintsScreen />} />
-          <Route path="/projects/:projectId/kanban" element={<p>Quadro do projeto</p>} />
+          <Route path="/projects/:projectId/kanban" element={<KanbanDestination />} />
         </Routes>
       </MemoryRouter>
     </ConfirmProvider>
@@ -464,8 +476,8 @@ describe('criação e edição em dialog', () => {
       expect(mocks.schedule.createSprint).toHaveBeenCalledWith('1', {
         name: 'Sprint Nova',
         objective: 'Entregar login',
-        startDate: expect.any(String),
-        endDate: expect.any(String),
+        startDate: new Date(2027, 0, 1, 9, 0).toISOString(),
+        endDate: new Date(2027, 0, 12, 18, 0).toISOString(),
         milestoneId: 10
       })
     );
@@ -738,6 +750,16 @@ describe('evolução, lifecycle e navegação', () => {
     expect(within(confirm).getByRole('button', { name: 'Cancelar sprint' })).toHaveClass(
       'button-danger'
     );
+    mocks.schedule.updateSprintStatus.mockResolvedValue({
+      data: { sprint: { ...active, status: 'CANCELADA' } }
+    });
+    mocks.schedule.listSprints.mockResolvedValue({
+      data: { total: 1, sprints: [{ ...active, status: 'CANCELADA' }] }
+    });
+    await user.click(within(confirm).getByRole('button', { name: 'Cancelar sprint' }));
+    expect(mocks.schedule.updateSprintStatus).toHaveBeenCalledWith(2, 'CANCELADA');
+    expect(await within(card('Sprint Ativa')).findByText('Cancelada')).toBeVisible();
+    expect(mocks.schedule.removeSprint).not.toHaveBeenCalled();
   });
 
   it('navega ao Kanban com o filtro de sprint já suportado', async () => {
@@ -747,6 +769,7 @@ describe('evolução, lifecycle e navegação', () => {
     const menu = await openMenu(user, 'Sprint Planejada');
     await user.click(within(menu).getByRole('menuitem', { name: /Ver a sprint.*Kanban/ }));
     expect(await screen.findByText('Quadro do projeto')).toBeInTheDocument();
+    expect(screen.getByTestId('kanban-search')).toHaveTextContent('?sprint=1');
   });
 
   it('preserva sucesso da mudança de status se a reconciliação falhar', async () => {
@@ -769,7 +792,10 @@ describe('evolução, lifecycle e navegação', () => {
 describe('contratos e escopo técnico', () => {
   it('expõe exclusão de sprint pela API sem importar internals de Tasks', async () => {
     const actual = await vi.importActual('../../src/features/schedule/api/schedule.api.js');
-    expect(actual.scheduleApi.removeSprint).toBeTypeOf('function');
+    const response = { data: { returnedToBacklog: 2 } };
+    mocks.http.delete.mockResolvedValue(response);
+    expect(await actual.scheduleApi.removeSprint(17)).toBe(response);
+    expect(mocks.http.delete).toHaveBeenCalledExactlyOnceWith('/sprints/17');
 
     const { readdirSync, readFileSync } = await vi.importActual('node:fs');
     const { join } = await vi.importActual('node:path');
@@ -786,20 +812,56 @@ describe('contratos e escopo técnico', () => {
 
   it('mantém as APIs existentes de sprint, marco, tarefas, progresso e cronograma', async () => {
     const actual = await vi.importActual('../../src/features/schedule/api/schedule.api.js');
-    for (const method of [
-      'getSchedule',
-      'listSprints',
-      'listMilestones',
-      'createSprint',
-      'updateSprint',
-      'updateSprintStatus',
-      'listSprintTasks',
-      'listProjectTasks',
-      'getMembership',
-      'replaceSprintTasks',
-      'getSprintProgress'
-    ]) {
-      expect(typeof actual.scheduleApi[method], method).toBe('function');
+    const signal = new AbortController().signal;
+    const response = { data: { marker: 'transport-response' } };
+    for (const method of Object.values(mocks.http)) method.mockResolvedValue(response);
+    const contracts = [
+      [
+        'getSchedule',
+        [9, { page: 2, search: '' }, { signal }],
+        'get',
+        ['/projects/9/schedule', { signal, params: { page: 2 } }]
+      ],
+      [
+        'listSprints',
+        [9, { status: 'PLANEJADA' }, { signal }],
+        'get',
+        ['/projects/9/sprints', { signal, params: { status: 'PLANEJADA' } }]
+      ],
+      [
+        'listMilestones',
+        [9, {}, { signal }],
+        'get',
+        ['/projects/9/milestones', { signal, params: {} }]
+      ],
+      [
+        'createSprint',
+        [9, { name: 'Sprint' }],
+        'post',
+        ['/projects/9/sprints', { name: 'Sprint' }]
+      ],
+      ['updateSprint', [17, { name: 'Renamed' }], 'put', ['/sprints/17', { name: 'Renamed' }]],
+      [
+        'updateSprintStatus',
+        [17, 'CANCELADA'],
+        'patch',
+        ['/sprints/17/status', { status: 'CANCELADA' }]
+      ],
+      ['listSprintTasks', [17, { signal }], 'get', ['/sprints/17/tasks', { signal }]],
+      [
+        'listProjectTasks',
+        [9, { search: 'abc' }, { signal }],
+        'get',
+        ['/projects/9/tasks', { signal, params: { search: 'abc' } }]
+      ],
+      ['getMembership', [9, { signal }], 'get', ['/projects/9/members', { signal }]],
+      ['replaceSprintTasks', [17, [3, 5]], 'put', ['/sprints/17/tasks', { taskIds: [3, 5] }]],
+      ['getSprintProgress', [17, { signal }], 'get', ['/sprints/17/progress', { signal }]]
+    ];
+    for (const [method, args, verb, expected] of contracts) {
+      mocks.http[verb].mockClear();
+      expect(await actual.scheduleApi[method](...args), method).toBe(response);
+      expect(mocks.http[verb], method).toHaveBeenCalledExactlyOnceWith(...expected);
     }
   });
 });

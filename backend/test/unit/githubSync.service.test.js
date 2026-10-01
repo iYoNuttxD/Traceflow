@@ -266,6 +266,10 @@ describe('githubSyncService com client e persistência substituídos', () => {
     await expect(first).resolves.toMatchObject({
       summary: { commits: { foundAcrossBranches: 0 } }
     });
+    github.getRepository.mockResolvedValue(repository);
+    await expect(githubSyncService.syncProjectGithubData(project.id)).resolves.toMatchObject({
+      summary: { commits: { foundAcrossBranches: 0 } }
+    });
   });
 
   it('deduplica commits encontrados em várias branches e cria todos os vínculos', async () => {
@@ -314,7 +318,15 @@ describe('githubSyncService com client e persistência substituídos', () => {
     const result = await githubSyncService.syncProjectGithubData(project.id);
 
     expect(stored).toEqual(new Set(['A', 'B', 'C', 'D']));
-    expect(links).toHaveLength(6);
+    expect(links).toEqual([
+      { branchId: 10, commitId: 1 },
+      { branchId: 10, commitId: 2 },
+      { branchId: 10, commitId: 3 },
+      { branchId: 11, commitId: 2 },
+      { branchId: 11, commitId: 3 },
+      { branchId: 11, commitId: 4 }
+    ]);
+    expect(new Set(links.map(({ branchId, commitId }) => `${branchId}:${commitId}`)).size).toBe(6);
     expect(result.summary.commits).toMatchObject({
       foundAcrossBranches: 6,
       unique: 4,

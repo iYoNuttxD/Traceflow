@@ -1,4 +1,4 @@
-import { createHmac } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -122,7 +122,7 @@ describe('autorização e webhooks da GitHub App L1', () => {
       intendedAction: 'CONNECT_PROJECT'
     });
     expect(stored.tokenHash).not.toBe(state);
-    expect(stored.tokenHash).toHaveLength(64);
+    expect(stored.tokenHash).toBe(createHash('sha256').update(state).digest('hex'));
   });
 
   it('rejeita sessão inicial revogada e instalação forjada sem persistir token temporário', async () => {
@@ -523,11 +523,14 @@ describe('autorização e webhooks da GitHub App L1', () => {
     mocks.repository.listAuthorizedInstallations.mockResolvedValue([authorizedInstallation()]);
     mocks.clientFactory.forInstallation.mockResolvedValue({
       listRepositoryPages: () =>
-        (async function* emptyPages() {
-          yield [];
+        (async function* repositoryPages() {
+          yield [{ githubRepositoryId: '501', fullName: 'local/app-repository' }];
         })()
     });
-    await expect(githubAppService.listAllRepositories(7)).resolves.toEqual({ repositories: [] });
+    await expect(githubAppService.listAllRepositories(7)).resolves.toMatchObject({
+      repositories: [{ githubRepositoryId: '501', fullName: 'local/app-repository' }]
+    });
+    expect(mocks.clientFactory.forInstallation).toHaveBeenCalledExactlyOnceWith('77');
   });
 
   it('lista exatamente os repositórios concedidos à Installation', async () => {
@@ -777,6 +780,9 @@ describe('autorização e webhooks da GitHub App L1', () => {
     );
     expect(mocks.repository.completeWebhookDelivery).toHaveBeenCalledWith(12);
 
+    mocks.repository.requireReconnectForRepositories.mockClear();
+    mocks.repository.refreshInstallationMetadata.mockClear();
+    mocks.repository.completeWebhookDelivery.mockClear();
     mocks.repository.startWebhookDelivery.mockResolvedValueOnce({
       delivery: null,
       duplicate: true,
@@ -790,6 +796,12 @@ describe('autorização e webhooks da GitHub App L1', () => {
         event: 'installation_repositories'
       })
     ).resolves.toEqual({ duplicate: true });
+    expect(mocks.repository.requireReconnectForRepositories).not.toHaveBeenCalled();
+    expect(mocks.repository.refreshInstallationMetadata).not.toHaveBeenCalled();
+    expect(mocks.repository.completeWebhookDelivery).not.toHaveBeenCalled();
+    expect(githubAppService.verifyWebhookSignature(rawBody, `sha256=${'0'.repeat(64)}`)).toBe(
+      false
+    );
     await expect(
       githubAppService.processWebhook({
         rawBody,

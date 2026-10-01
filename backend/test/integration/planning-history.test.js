@@ -102,12 +102,6 @@ describe('F2 — membership no instante do start', () => {
       { taskId: b.id, plannedAtStart: true, pointsAtPlanning: 3 }
     ]);
   });
-  it('B: A e B presentes no start pertencem ao planejamento', async () => {
-    const { sprint, a, b } = await fixture();
-    await scope(sprint, [a, b]);
-    await start(sprint);
-    expect((await progress(sprint)).planned.denominator).toBe(2);
-  });
   it('C: A removida antes e reinserida depois é adição, sem reescrever baseline', async () => {
     const { sprint, a, b } = await fixture();
     await scope(sprint, [a, b]);
@@ -151,6 +145,7 @@ describe('historical snapshot invariants', () => {
     const { sprint, a, b } = await fixture();
     await scope(sprint, [a, b]);
     await start(sprint);
+    expect((await progress(sprint)).planned.denominator).toBe(2);
     const stored = await prisma.sprint.findUnique({ where: { id: sprint.id } });
     expect(stored.planningSnapshotAt).toEqual(stored.startedAt);
     await taskService.updateTask(a.id, { estimatedEffort: 13 }, context());

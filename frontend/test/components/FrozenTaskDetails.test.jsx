@@ -7,6 +7,8 @@ import { TaskDetailsPanel } from '../../src/features/tasks/components/TaskDetail
 import { KanbanBoard } from '../../src/features/tasks/components/KanbanBoard.jsx';
 import { frozenTaskDetailsView } from '../../src/features/tasks/components/frozen-task-details-view.js';
 import { ConfirmProvider } from '../../src/shared/index.js';
+import { httpClient } from '../../src/api/http-client.js';
+import { getTaskTimeEntries } from '../../src/features/tasks/api/tasks.api.js';
 import { TaskComments } from '../../src/features/tasks/components/TaskComments.jsx';
 
 vi.mock('../../src/features/tasks/components/TaskComments.jsx', () => ({
@@ -298,7 +300,7 @@ describe('FIX-04 Frozen Task Details parity', () => {
 });
 
 it('renders complete v2 historical information and artifact cards without current reads or Comments', () => {
-  const request = vi.spyOn(globalThis, 'fetch');
+  const request = vi.spyOn(httpClient, 'get');
   const complete = {
     ...frozen,
     snapshotVersion: 2,
@@ -376,5 +378,6 @@ it('renders complete v2 historical information and artifact cards without curren
   expect(within(dialog).queryByRole('status')).toBeNull();
   expect(TaskComments).not.toHaveBeenCalled();
   expect(request).not.toHaveBeenCalled();
+  expect(getTaskTimeEntries).not.toHaveBeenCalled();
   request.mockRestore();
 });

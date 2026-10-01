@@ -138,10 +138,31 @@ it('creates canonical varied history, freezes normally, and reruns without any w
   expect(cycle.assessment.delta.value).toBeGreaterThan(0);
   const rows = () =>
     prisma.taskMovement.findMany({ where: { projectId: project.id }, orderBy: { id: 'asc' } });
+  const allRows = async () =>
+    Object.fromEntries(
+      await Promise.all(
+        Prisma.dmmf.datamodel.models.map(async ({ name }) => {
+          const model = prisma[name[0].toLowerCase() + name.slice(1)];
+          const records = await model.findMany();
+          return [
+            name,
+            records
+              .map((row) =>
+                JSON.stringify(row, (_, value) =>
+                  typeof value === 'bigint' ? value.toString() : value
+                )
+              )
+              .sort()
+          ];
+        })
+      )
+    );
+  const completeBefore = await allRows();
   const before = fingerprint(await rows());
   const journalBefore = await readFile(options.journalPath, 'utf8');
   const second = await runHomologationSeed(options, { prisma, log: () => {} });
   expect(second.after).toEqual(first.after);
+  expect(await allRows()).toEqual(completeBefore);
   expect(fingerprint(await rows())).toBe(before);
   expect(await readFile(options.journalPath, 'utf8')).toBe(journalBefore);
 }, 60000);

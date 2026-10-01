@@ -6,7 +6,6 @@ import {
 import { calculateFlowTaskHistory } from '../calculators/flow-task.calculator.js';
 import { calculateHealthQualityFacts } from '../calculators/quality-analytics.calculator.js';
 import { percentage } from '../calculators/statistics.calculator.js';
-import { createIndicatorLocalDateKey } from '../policies/indicator-period.policy.js';
 import { githubFreshness } from '../policies/indicator-freshness.policy.js';
 
 function durationState(sample) {
@@ -23,7 +22,7 @@ export function flowHealthIndicators(facts, window, asOf) {
         movements: facts.movements,
         period,
         asOf,
-        dateKey: createIndicatorLocalDateKey(period.timeZone)
+        durationsOnly: true
       });
       return [
         kind,

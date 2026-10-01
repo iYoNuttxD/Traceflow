@@ -90,6 +90,9 @@ describe('LR.1 - autorização project-scoped fail closed', () => {
     const manager = await register('manager-matrix@example.invalid');
     const outsider = await register('outsider-matrix@example.invalid');
     const project = await createProject(owner, 'Matriz adversarial LR1');
+    await prisma.projectGitHubIntegration.create({
+      data: { projectId: project.id, repositoryFullName: 'test/repository', status: 'ACTIVE' }
+    });
 
     for (const [actor, role] of [
       [viewer, 'VIEWER'],
@@ -196,7 +199,7 @@ describe('LR.1 - autorização project-scoped fail closed', () => {
           method: 'patch',
           path: `/api/projects/${project.id}/github/sync-settings`,
           requiredRole: 'OWNER',
-          successStatus: 400,
+          successStatus: 200,
           body: { githubAutoSyncEnabled: variantIndex % 2 === 0 }
         },
         {
