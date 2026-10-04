@@ -1,5 +1,15 @@
 # Registro de risco de dependências
 
+## P8.6E — fechamento da cadeia nodemon — 04/10/2026
+
+**CORRIGIDO por remoção da cadeia:** [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm), HIGH, anteriormente em `nodemon@3.1.14 → chokidar@3.6.0 → braces@3.0.3`. O backend passou a usar `node --watch src/server.js` no script `dev`, com Node 22.23.3. Startup, restart após mudança em módulo importado, readiness com Prisma e shutdown por Ctrl+C foram verificados no comando final `npm run dev`.
+
+`npm ci --offline --no-audit` reproduziu a instalação. O audit completo posterior, incluindo desenvolvimento, confirmou a ausência do advisory e **0 high / 0 critical**. `npm ls nodemon chokidar braces --all` não encontrou nenhum dos três pacotes. O lockfile perdeu 22 entradas exclusivas da cadeia; nenhuma versão mantida foi atualizada. Não houve downgrade, nova dependência, override ou exceção; a política existente permanece intacta.
+
+O `npm audit --json` bruto ainda retorna código 1 por **8 entradas moderate preexistentes**, idênticas ao baseline: `@vitest/coverage-v8@4.1.10`, `@vitest/mocker@4.1.10`, `vitest@4.1.10`, `body-parser@1.20.6`, `express@4.22.2`, `qs@6.15.2`, `ip-address@10.5.0` e `multer@2.3.0`. Não são novos blockers HIGH/CRITICAL e não foram corrigidas nesta rodada restrita. O gate canônico de backend e frontend aprovou sem exceções. Isto não representa audit com zero vulnerabilidades em todas as severidades.
+
+Os blockers de segurança dos relatórios P8.6C/P8.6D estão encerrados. Evidências, limites e gates: [relatório P8.6E](../deliveries/S2_P8_6E_SECURITY_DEPENDENCY_CLOSURE_REPORT.md). Os registros anteriores abaixo preservam os resultados de suas respectivas datas.
+
 ## Revalidação Nodemailer — 09/09/2026
 
 A E6 adotou `nodemailer@9.0.3` conforme os advisories conhecidos naquela etapa. Os quatro advisories abaixo foram publicados posteriormente; esta atualização preserva aquele registro histórico e corrige a dependência para `9.1.1`.

@@ -374,6 +374,8 @@ a avaliação. Arquivos ficam em diretório temporário, não são publicados ou
 
 ## 31. Remaining limitations
 
+**Atualização de segurança — 04/10/2026:** o blocker HIGH descrito abaixo foi encerrado pela [P8.6E — PASS LOCAL](S2_P8_6E_SECURITY_DEPENDENCY_CLOSURE_REPORT.md), com remoção do nodemon e uso do watcher nativo do Node 22. A árvore instalada e o audit completo confirmaram a eliminação da cadeia vulnerável, sem exceção. O veredito original e os limites da inspeção permanecem como registro histórico; esta atualização registra somente o fechamento de segurança.
+
 **HIGH / SECURITY — bloqueia PASS:** o gate canônico reporta
 `GHSA-vfj7-8cjw-p6xm` na cadeia de desenvolvimento nodemon → chokidar → braces 3.0.3.
 O [advisory oficial](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) consultado nesta
