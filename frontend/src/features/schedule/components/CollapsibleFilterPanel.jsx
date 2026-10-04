@@ -1,6 +1,7 @@
 import { useId, useRef, useState } from 'react';
 import { TraceFlowIcon } from '../../../shared/index.js';
 import './CollapsibleFilterPanel.css';
+import { FilterActions } from './FilterActions.jsx';
 
 function activeLabel(total) {
   if (!total) return '0 ativos';
@@ -12,6 +13,9 @@ export function CollapsibleFilterPanel({
   title = 'Buscar e filtrar',
   resultLabel,
   activeCount = 0,
+  onClear,
+  canClear = activeCount > 0,
+  clearDisabled = false,
   className = '',
   children
 }) {
@@ -52,7 +56,12 @@ export function CollapsibleFilterPanel({
       </button>
 
       <div className="planning-filter-panel__body" id={panelId} hidden={!expanded}>
-        {expanded ? children : null}
+        {expanded && (
+          <>
+            {children}
+            <FilterActions onClear={onClear} canClear={canClear} disabled={clearDisabled} />
+          </>
+        )}
       </div>
     </section>
   );

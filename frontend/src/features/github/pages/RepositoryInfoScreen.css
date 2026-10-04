@@ -28,7 +28,6 @@
 }
 
 .repository-overview,
-.repository-filters,
 .repository-catalog {
   min-width: 0;
   overflow: hidden;
@@ -176,10 +175,6 @@
 
 .repository-filter-form > .feedback-region {
   margin: 0;
-}
-
-.repository-filter-actions {
-  margin-bottom: 0;
 }
 
 .repository-catalog > header {

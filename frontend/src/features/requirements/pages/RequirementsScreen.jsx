@@ -634,6 +634,8 @@ export function RequirementsScreen() {
           </dl>
         </section>
         <CollapsibleFilterPanel
+          onClear={() => setFilters({ search: '', status: '', type: '' })}
+          canClear={activeFilters}
           id="requirements-filters"
           className="requirements-filters"
           resultLabel={
@@ -643,17 +645,6 @@ export function RequirementsScreen() {
           }
           activeCount={activeFilterCount}
         >
-          {activeFilters && (
-            <div className="planning-filter-panel__actions">
-              <button
-                type="button"
-                className="sprint-filters__clear"
-                onClick={() => setFilters({ search: '', status: '', type: '' })}
-              >
-                Limpar filtros
-              </button>
-            </div>
-          )}
           <div className="requirements-filter-grid">
             <label className="sprint-filter requirements-search">
               <span>Busca</span>

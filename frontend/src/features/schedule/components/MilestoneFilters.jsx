@@ -23,19 +23,13 @@ export function MilestoneFilters({
 
   return (
     <CollapsibleFilterPanel
+      onClear={onClear}
+      canClear={active}
       id="milestone-filters-controls"
       className="milestone-filters"
       resultLabel={resultLabel}
       activeCount={activeCount}
     >
-      {active && (
-        <div className="planning-filter-panel__actions">
-          <button type="button" className="milestone-filters__clear" onClick={onClear}>
-            Limpar filtros
-          </button>
-        </div>
-      )}
-
       <div className="milestone-filters__controls">
         <label className="milestone-filter milestone-filter--search">
           <span>Pesquisar</span>

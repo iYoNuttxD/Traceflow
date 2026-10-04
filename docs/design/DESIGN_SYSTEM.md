@@ -978,3 +978,33 @@ Evidências e gate pendente no [relatório de hardening P8.6C](../deliveries/S2_
   avisos específicos já cobertos pela seção não reservam espaço adicional.
 
 Evidência, amostras e gate pendente no [relatório P8.6D](../deliveries/S2_P8_6D_FINAL_INDICATORS_POLISH_REPORT.md).
+
+
+### P8.6F — consistência final de filtros e indicadores (2026-10-04)
+
+- `CollapsibleFilterPanel` é o owner da superfície, disclosure, borda, background,
+  radius e padding do filtro. `FilterActions` é o footer compartilhado após os campos,
+  alinhado à direita, com Limpar ghost e Aplicar/Filtrar primary quando o formulário
+  já usa submit explícito. Auto-apply permanece auto-apply; Clear exige filtro aplicado
+  ou draft não vazio. Targets de 44px e focus ring semântico.
+- `ProjectSectionNav` mantém targets de 48px e 12 opções visíveis em 1280/1440 com
+  sidebar expandida. Padding horizontal de 4px em desktop; fonte 12px em 1280–1439
+  e 14px a partir de 1440. Em larguras menores, scroll horizontal permanece acessível.
+  As oito categorias analíticas usam padding horizontal de 12px e target de 48px.
+- Anatomia vigente de `IndicatorHeader`: título e Health/Data State no mesmo grupo
+  flexível, Health primeiro, no máximo dois badges, wrap conforme espaço. Ajuda à
+  direita em target separado de 44px. Esta regra substitui a linha separada de P8.6D.
+- KPIs equivalentes compartilham linhas de título, conteúdo, limitação e atualização
+  usando subgrid; título longo não desalinha os valores da mesma linha. A última linha
+  distribui sua largura entre os KPIs existentes. Mensagem vazia fica junto ao valor.
+- Fluxo apresenta WIP/Throughput em strip compacto e tendência do Throughput em linha
+  própria. Lead/Cycle compartilham cabeçalho, headline, plot, eixos e ação Ver dados;
+  a ausência de referência não desloca o plot. Limitação de Cycle fica abaixo.
+  Aging continua com altura do conteúdo; CFD usa largura total e área de 22rem.
+- Mudanças de escopo usa um container com três células e divisores completos.
+  Carry-over usa a mesma escala de valor das células vizinhas. Distribuições
+  equivalentes de Testes/Defeitos também têm divisores completos.
+- Indicadores preservam De/Até, grupo acessível Período e Sprint; apenas a legenda
+  visual Período foi removida. Draft inválido mantém URL, recorte e contador aplicados.
+
+Evidências e gates: [relatório P8.6F](../deliveries/S2_P8_6F_FINAL_VISUAL_CONSISTENCY_SWEEP_REPORT.md).

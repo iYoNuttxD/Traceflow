@@ -22,6 +22,9 @@ const detailsSource = readFileSync(
   'utf8'
 );
 const stylesheet = parseStylesheet(css);
+const filterStylesheet = parseStylesheet(
+  readFileSync(resolve('src/features/schedule/components/CollapsibleFilterPanel.css'), 'utf8')
+);
 const dialogStylesheet = parseStylesheet(dialogCss);
 
 describe('Requirements facelift responsivo', () => {
@@ -66,16 +69,13 @@ describe('Requirements facelift responsivo', () => {
 
   it('usa progressive disclosure e mantém analytics detalhado fora do card', () => {
     expect(source).toContain('<CollapsibleFilterPanel');
-    expect(ruleDeclarations(stylesheet, '.requirements-filters')).toMatchObject({
+    expect(ruleDeclarations(filterStylesheet, '.planning-filter-panel')).toMatchObject({
       border: 'var(--border-width-default) solid var(--color-border-default)',
       'border-radius': 'var(--radius-lg)',
       background: 'var(--color-surface-primary)'
     });
     expect(
-      ruleDeclarations(
-        stylesheet,
-        '.requirements-filters .planning-filter-panel__toggle:focus-visible'
-      )
+      ruleDeclarations(filterStylesheet, '.planning-filter-panel__toggle:focus-visible')
     ).toMatchObject({
       outline: 'var(--focus-ring-width) solid var(--color-focus-ring)',
       'outline-offset': 'var(--focus-ring-offset)'

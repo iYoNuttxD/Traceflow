@@ -1,5 +1,10 @@
 .planning-filter-panel {
   overflow: visible;
+  min-width: 0;
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-primary);
+  box-shadow: var(--shadow-sm);
 }
 
 .planning-filter-panel__toggle {
@@ -67,14 +72,6 @@
   border-top: var(--border-width-default) solid var(--color-border-default);
 }
 
-.planning-filter-panel__actions {
-  display: flex;
-  min-height: var(--size-touch-target);
-  align-items: center;
-  justify-content: flex-end;
-  margin-bottom: var(--space-3);
-}
-
 @media (max-width: 480px) {
   .planning-filter-panel__toggle {
     align-items: flex-start;
@@ -94,4 +91,9 @@
   .planning-filter-panel__body {
     padding: var(--space-4);
   }
+}
+
+.planning-filter-panel__toggle:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
 }

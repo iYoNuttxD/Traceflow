@@ -234,18 +234,31 @@ function IndicatorDistribution({ indicator }) {
   );
 }
 
-export function IndicatorCard({ indicator, metadata, sharedLimitations = [] }) {
-  const title = METRIC_TITLES[indicator.metricId] ?? metadata.title;
+export function IndicatorCard({
+  indicator,
+  metadata,
+  sharedLimitations = [],
+  presentation,
+  style
+}) {
+  const title =
+    presentation === 'trend'
+      ? 'Throughput no período'
+      : (METRIC_TITLES[indicator.metricId] ?? metadata.title);
   const limitations = presentationLimitations(indicator).filter(
     (code) => !code.includes('FILTER_') && code !== 'PERIOD_NOT_COMPLETE'
   );
   const individualLimitations = limitations.filter((code) => !sharedLimitations.includes(code));
   const state = STATE_LABELS[indicator.state] ? indicator.state : 'UNKNOWN';
-  const visualType = indicatorVisualType(indicator);
+  const visualType = presentation === 'summary' ? 'kpi-compact' : indicatorVisualType(indicator);
   const help = indicatorHelp(indicator, metadata);
   const hasValue = ['AVAILABLE', 'PARTIAL', 'STALE'].includes(state);
   const scalar = hasValue && typeof indicator.value === 'number';
-  const hasChart = hasValue && indicator.kind === 'SERIES' && indicator.points?.length > 0;
+  const hasChart =
+    presentation !== 'summary' &&
+    hasValue &&
+    indicator.kind === 'SERIES' &&
+    indicator.points?.length > 0;
   const status = STATE_LABELS[state] ?? 'Estado desconhecido';
   const dataState = ['PARTIAL', 'STALE', 'UNAVAILABLE', 'UNKNOWN'].includes(state)
     ? { state, label: status }
@@ -261,6 +274,7 @@ export function IndicatorCard({ indicator, metadata, sharedLimitations = [] }) {
       className={`indicator-card indicator-card--${state.toLowerCase()} indicator-card--${visualType}`}
       aria-label={title}
       data-metric-id={indicator.metricId}
+      style={style}
     >
       <IndicatorHeader title={title} assessment={assessment} dataState={dataState}>
         <strong>O que mostra</strong>
@@ -284,7 +298,7 @@ export function IndicatorCard({ indicator, metadata, sharedLimitations = [] }) {
       </IndicatorHeader>
 
       {['NO_DATA', 'UNAVAILABLE'].includes(state) && (
-        <>
+        <div className="indicator-card__content">
           <strong className="indicator-card__value">—</strong>
           {state === 'NO_DATA' && (
             <p className="indicator-card__empty">
@@ -298,7 +312,7 @@ export function IndicatorCard({ indicator, metadata, sharedLimitations = [] }) {
           {state === 'UNAVAILABLE' && individualLimitations.length > 0 && (
             <p className="indicator-card__notice">{describeLimitation(individualLimitations[0])}</p>
           )}
-        </>
+        </div>
       )}
       {state === 'UNKNOWN' && (
         <p className="indicator-card__empty">
@@ -319,7 +333,7 @@ export function IndicatorCard({ indicator, metadata, sharedLimitations = [] }) {
             {scalar && ['I20', 'I21'].includes(indicator.metricId) && (
               <span className="indicator-card__stat-label">Mediana do período</span>
             )}
-            {scalar && (
+            {scalar && presentation !== 'trend' && (
               <strong className="indicator-card__value">
                 {indicator.metricId === 'I17'
                   ? `${formatMetricValue(indicator.value)} ${indicator.value === 1 ? 'PR aberta' : 'PRs abertas'}`
@@ -354,7 +368,7 @@ export function IndicatorCard({ indicator, metadata, sharedLimitations = [] }) {
                 <IndicatorChart indicator={indicator} title={title} />
               </Suspense>
             )}
-            {indicator.kind === 'SERIES' && !hasChart && (
+            {presentation !== 'summary' && indicator.kind === 'SERIES' && !hasChart && (
               <p className="indicator-card__empty">Ainda não há pontos históricos para exibir.</p>
             )}
             {indicator.kind === 'LIST' && <IndicatorList indicator={indicator} title={title} />}

@@ -71,7 +71,14 @@ describe('Tasks facelift responsivo', () => {
 
   it('preserva foco, alvos mínimos, dialog rolável e remove o retorno legado', () => {
     expect(screenSource).not.toContain('← Voltar para o projeto');
-    expect(ruleDeclarations(parseStylesheet(screenCss), '.tasks-filters__clear')).toMatchObject({
+    expect(
+      ruleDeclarations(
+        parseStylesheet(
+          readFileSync(resolve('src/features/schedule/components/FilterActions.css'), 'utf8')
+        ),
+        '.filter-actions__clear'
+      )
+    ).toMatchObject({
       'min-height': 'var(--size-touch-target)'
     });
     expect(

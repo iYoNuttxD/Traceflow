@@ -799,3 +799,22 @@ Oito categorias × sete larguras Light e três Dark: **80 capturas finais**, API
 projeto artificial 2. Sem overflow do documento ou erro na matriz. Inspeção direta
 amostral, não certificação WCAG nem teste touch físico. Gate backend npm audit HIGH
 continua bloqueando PASS; [relatório P8.6D](../deliveries/S2_P8_6D_FINAL_INDICATORS_POLISH_REPORT.md).
+
+
+## P8.6F — superfícies compartilhadas e Indicadores (2026-10-04)
+
+| Superfície | Implementação vigente | Validação desta rodada |
+| --- | --- | --- |
+| FILTER-PANEL / FILTER-ACTIONS | `CollapsibleFilterPanel` possui superfície e footer `FilterActions` | Requisitos, Tarefas, TestCases, Defeitos, Rastreabilidade, Indicadores, Sprints, Marcos, Kanban e Repositório renderizados com API real |
+| FILTER-MANUAL | Histórico da Task e sessões usam `FilterActions`; submit explícito preservado | Draft mostra Clear; Filtrar aplica; Clear restaura; desktop e histórico mobile inspecionados |
+| PROJECT-SECTION-NAV | Doze links sem scroll em 1280/1440; hit-area 48px | clientWidth = scrollWidth: 944/1104px; sidebar expandida |
+| INDICATORS-NAV | Oito tabs, padding de 12px e target de 48px | Sem scroll desktop; teclado Home/Enter, contexto temporal/Sprint preservado |
+| INDICATORS-HEADER | Título + até dois badges inline com wrap; ajuda separada | Health antes de Data State; tooltip mobile, Escape e foco |
+| INDICATORS-KPI | Linhas semânticas compartilhadas e última linha preenchida | Valores alinhados em Geral e sete dimensões de Rastreabilidade |
+| INDICATORS-FLOW | WIP/Throughput compacto; tendência separada; Lead/Cycle alinhados | Delta vertical 0px entre valores, plots e Ver dados; CFD 352px |
+| INDICATORS-SPRINT / QUALITY | Divisores completos de escopo e distribuições equivalentes | 1 adicionada / 0 removidas / 1 saída; escala de valor uniforme |
+| INDICATORS-TABLES | Região focável de até 20rem e caption N de M | Teclado até o fim de tabela de 951px, scroll horizontal mobile |
+| PROJECT-OVERVIEW | Health mínimo integrado; sem alteração nesta rodada | Coração, score, status e barra, conforme hardening P8.6C vigente |
+
+Inspeção real nas sete larguras, com amostras Light/Dark e todas as categorias em
+1440/1280/1024/430. [Relatório P8.6F](../deliveries/S2_P8_6F_FINAL_VISUAL_CONSISTENCY_SWEEP_REPORT.md).

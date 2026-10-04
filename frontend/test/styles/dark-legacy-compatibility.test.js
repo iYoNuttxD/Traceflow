@@ -41,6 +41,10 @@ const repositoryCss = readFileSync(
   resolve('src/features/github/pages/RepositoryInfoScreen.css'),
   'utf8'
 );
+const filterPanelCss = readFileSync(
+  resolve('src/features/schedule/components/CollapsibleFilterPanel.css'),
+  'utf8'
+);
 const settingsCss = readFileSync(resolve('src/features/settings/SettingsLayout.css'), 'utf8');
 const settingsLayout = readFileSync(resolve('src/features/settings/SettingsLayout.jsx'), 'utf8');
 const internalTabsCss = readFileSync(resolve('src/shared/styles/internal-tabs.css'), 'utf8');
@@ -295,10 +299,12 @@ describe('compatibilidade de conteúdo legado com os temas', () => {
       rule(
         repositoryCss,
         `.repository-overview,
-.repository-filters,
 .repository-catalog`
       )
     ).toContain('background: var(--color-surface-primary)');
+    expect(rule(filterPanelCss, '.planning-filter-panel')).toContain(
+      'background: var(--color-surface-primary)'
+    );
   });
 
   it('mantém foreground e background dos principais pares acima de 4.5:1', () => {

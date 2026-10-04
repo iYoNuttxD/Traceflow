@@ -293,6 +293,8 @@ function ProjectDefects({ project }) {
           </dl>
         </section>
         <CollapsibleFilterPanel
+          onClear={clear}
+          canClear={Object.values(state.filters).some(Boolean)}
           className="sprint-filters"
           activeCount={Object.values(state.filters).filter(Boolean).length}
           resultLabel={`${state.catalog.total} defeitos`}
@@ -368,13 +370,6 @@ function ProjectDefects({ project }) {
               />
             ))}
           </div>
-          {Object.values(state.filters).some(Boolean) && (
-            <div className="planning-filter-panel__actions">
-              <button className="sprint-filters__clear" onClick={clear}>
-                Limpar filtros
-              </button>
-            </div>
-          )}
         </CollapsibleFilterPanel>
         {state.loading && <LoadingState message="Carregando defeitos…" />}
         {state.error && (

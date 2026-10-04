@@ -307,6 +307,8 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
         }
       />
       <CollapsibleFilterPanel
+        onClear={clearFilters}
+        canClear={Boolean(activeFilterCount > 0 || draft.startDate || draft.endDate)}
         activeCount={activeFilterCount}
         resultLabel={filterSummary || 'Todos os dados disponíveis'}
         className="indicator-filters"
@@ -317,8 +319,7 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
           role="group"
           aria-label="Filtros de indicadores"
         >
-          <fieldset className="dashboard-panel__period">
-            <legend>Período</legend>
+          <fieldset className="dashboard-panel__period" aria-label="Período">
             <label className="sprint-filter">
               <span>De</span>
               <input
@@ -369,13 +370,6 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
             </div>
           )}
         </div>
-        {(activeFilterCount > 0 || draft.startDate || draft.endDate) && (
-          <div className="planning-filter-panel__actions">
-            <button type="button" className="sprint-filters__clear" onClick={clearFilters}>
-              Limpar filtros
-            </button>
-          </div>
-        )}
       </CollapsibleFilterPanel>
       <div className="dashboard-panel__toolbar">
         <div
@@ -475,11 +469,18 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
               .filter((section) => section.indicators.length)
               .map((section) => {
                 const counts = new Map();
-                for (const indicator of section.indicators)
+                for (const indicator of section.indicators) {
+                  const occurrences =
+                    section.id === 'flow' &&
+                    indicator.metricId === 'I22' &&
+                    indicator.points?.length > 1
+                      ? 2
+                      : 1;
                   for (const code of presentationLimitations(indicator).filter(
                     (code) => !code.includes('FILTER_')
                   ))
-                    counts.set(code, (counts.get(code) ?? 0) + 1);
+                    counts.set(code, (counts.get(code) ?? 0) + occurrences);
+                }
                 const sharedLimitations = [...counts]
                   .filter(([, count]) => count > 1)
                   .map(([code]) => code);
@@ -499,16 +500,25 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
                     !visibleWarnings.some((warning) => warning.code === code)
                 );
                 const sectionNotices = sectionLimitations.map(describeLimitation);
+                const flowSummary =
+                  section.id === 'flow'
+                    ? ['I23', 'I22'].flatMap((id) =>
+                        section.indicators.filter((indicator) => indicator.metricId === id)
+                      )
+                    : null;
                 const compact =
-                  section.id === 'sprintScope'
+                  flowSummary ??
+                  (section.id === 'sprintScope'
                     ? []
                     : section.indicators.filter((indicator) =>
                         ['kpi-compact', 'kpi-progress'].includes(indicatorVisualType(indicator))
-                      );
-                const detailed = section.indicators.filter(
-                  (indicator) =>
-                    section.id === 'sprintScope' ||
-                    !['kpi-compact', 'kpi-progress'].includes(indicatorVisualType(indicator))
+                      ));
+                const detailed = section.indicators.filter((indicator) =>
+                  section.id === 'flow'
+                    ? indicator.metricId !== 'I23' &&
+                      (indicator.metricId !== 'I22' || indicator.points?.length > 1)
+                    : section.id === 'sprintScope' ||
+                      !['kpi-compact', 'kpi-progress'].includes(indicatorVisualType(indicator))
                 );
                 const durations = detailed.filter((indicator) =>
                   ['I20', 'I21'].includes(indicator.metricId)
@@ -521,12 +531,14 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
                         (point) => typeof point.value === 'number' && Number.isFinite(point.value)
                       ).length > 1
                   );
-                const renderIndicator = (indicator) => (
+                const renderIndicator = (indicator, presentation, style) => (
                   <IndicatorCard
                     key={indicator.metricId}
                     indicator={indicator}
                     metadata={catalogById.get(indicator.metricId)}
                     sharedLimitations={suppressedLimitations}
+                    presentation={presentation}
+                    style={style}
                   />
                 );
                 return (
@@ -548,16 +560,23 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
                       </div>
                     )}
                     {compact.length > 0 && (
-                      <div
-                        className="dashboard-panel__metric-grid"
-                        style={{
-                          '--metric-columns-wide':
-                            compact.length <= 4 ? compact.length : compact.length <= 6 ? 3 : 4,
-                          '--metric-columns-medium': Math.min(compact.length, 3),
-                          '--metric-columns-small': Math.min(compact.length, 2)
-                        }}
-                      >
-                        {compact.map(renderIndicator)}
+                      <div className="dashboard-panel__metric-grid">
+                        {compact.map((indicator, index) => {
+                          // Fill the last row evenly at each responsive column count.
+                          const span = (columns) =>
+                            12 /
+                            Math.min(
+                              columns,
+                              compact.length - Math.floor(index / columns) * columns
+                            );
+                          const wideColumns =
+                            compact.length <= 4 ? compact.length : compact.length <= 6 ? 3 : 4;
+                          return renderIndicator(indicator, flowSummary ? 'summary' : undefined, {
+                            '--metric-span-wide': span(wideColumns),
+                            '--metric-span-medium': span(3),
+                            '--metric-span-small': span(2)
+                          });
+                        })}
                       </div>
                     )}
                     {detailed.length > 0 && (
@@ -568,12 +587,19 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
                             role="group"
                             aria-label="Tempos de entrega"
                           >
-                            {durations.map(renderIndicator)}
+                            {durations.map((indicator) => renderIndicator(indicator))}
                           </div>
                         )}
                         {detailed
                           .filter((indicator) => !pairDurations || !durations.includes(indicator))
-                          .map(renderIndicator)}
+                          .map((indicator) =>
+                            renderIndicator(
+                              indicator,
+                              section.id === 'flow' && indicator.metricId === 'I22'
+                                ? 'trend'
+                                : undefined
+                            )
+                          )}
                       </div>
                     )}
                   </section>

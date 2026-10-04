@@ -973,3 +973,54 @@ Evidência transitória: `/private/tmp/traceflow-p86d-20261003/`, `final-*.png`,
 `visual-matrix.json`, `data-audit.json`, `http-flow.json`, `http-all-views.json`,
 `flow-dom-tables.json`, `filter-http.json`, logs e resultados dos gates.
 [Relatório P8.6D](../../deliveries/S2_P8_6D_FINAL_INDICATORS_POLISH_REPORT.md).
+
+
+## 2026-10-04 — P8.6F final visual consistency sweep
+
+Baseline: `daniel-dev`, HEAD `9d3e9dfb65475a21a7ef063a48c2f6567216b470`, árvore
+inicialmente limpa. API real local, Project 2 artificial, 01–30/09/2026 e Sprint A (16).
+Registro inicial de F01–F08 criado antes das edições; ciclo de inspeção/correção
+adicionou F09–F12. Todos encerrados e reinspecionados.
+
+Filtro: superfície/ações centralizadas em `CollapsibleFilterPanel`/`FilterActions`.
+Dez áreas reais e diálogos de histórico/sessões renderizados. Clear ghost no footer,
+Filtrar primary só nos formulários manuais. Draft parcial conservou período, URL,
+contador e Sprint; Clear, colapso, troca de categoria, Back/Forward e refresh reais
+exercitados. Responsável segue ausente em Indicadores; grupo Período só acessível.
+
+ProjectSectionNav: 12 links visíveis, 48px de target, sem scroll em 1440/1280
+(client/scroll 1104/1104 e 944/944). Oito tabs analíticas cabem nos dois desktops.
+Header inline com até dois badges, Health primeiro; ajuda separada de 44px.
+KPIs alinham valores quando título quebra; última linha preenche a seção.
+
+Fluxo: WIP 4 / Throughput 16 em strip; tendência própria; Lead 6 dias / referência 4,5 dias / +33,33%
+e Cycle 1 dia sem referência. Diferença vertical 0px entre valores, plots e Ver dados.
+CFD 352px, seleção por End até 30/09; Aging independente. Sprint: divisores completos
+entre 1 Task adicionada, 0 removidas e 1 saída; gráficos reais de oito buckets e Velocity
+com quatro Sprints. Quality: divisores completos entre distribuições equivalentes.
+GitHub NO_DATA compacto e limitações deduplicadas; referências de Rastreabilidade
+com marker e valores textuais. Tabela mobile rolável por teclado: 951px em 320px,
+End até 630,5px, ArrowRight até 18,5px; nomes longos mantidos.
+
+Sete larguras: 1440/1280/1024/768/430/390/360; amostras Light/Dark obrigatórias em
+1440/768/390. Todas as categorias capturadas em 1440/1280/1024/430, inspeção direta
+amostral dos breakpoints e das primitives. Sidebar expandida/recolhida e drawer.
+Tooltip mobile, Escape/foco, filtro inválido em 360px e tabela de dados do gráfico.
+Nenhum overflow do documento observado. Overview compacto integrado preservado
+conforme a decisão vigente do hardening P8.6C (sem reintroduzir o CTA removido).
+
+Frontend **1.322 PASS**; backend **1.495 PASS**, cinco skips legados. Coverage,
+lint, format, build, Prisma, arquitetura, segredos, política/testes de CI local,
+dependency/security e diffcheck PASS. Segurança: 0 HIGH/CRITICAL, 0 exceções utilizadas,
+sem mudança de política; não equivale a zero achados moderate. Focus/visibility,
+loops e stale responses validados por regressão; não se alega novo Alt+Tab nativo.
+Console final sem novos warnings/erros; erro temporário de HMR corrigido antes da
+reinspeção. Sem certificação WCAG, teste touch físico ou CI hospedada nesta rodada.
+
+**S2 P8.6F FINAL VISUAL CONSISTENCY SWEEP — PASS LOCAL**.
+**INDICATORS FINAL STABLE BASELINE**, limitado à evidência local descrita.
+Sem commit/push, backend, banco, schema, dependências ou P9.
+
+Evidências transitórias: `/private/tmp/traceflow-p86f-20261004/`, capturas
+`before-*`, `final-*`, `proof-flow-desktop.jpg`, matriz, console e logs dos gates.
+[Relatório completo P8.6F](../../deliveries/S2_P8_6F_FINAL_VISUAL_CONSISTENCY_SWEEP_REPORT.md).

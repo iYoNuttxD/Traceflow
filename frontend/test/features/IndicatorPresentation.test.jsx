@@ -15,6 +15,25 @@ function card(overrides = {}) {
   );
 }
 describe('indicator presentation contract', () => {
+  it.each(['HEALTHY', 'ATTENTION', 'CRITICAL'])(
+    'keeps %s before data state beside the title with independent help',
+    (status) => {
+      const { container } = card({ state: 'PARTIAL', assessment: { status } });
+      const titleStatus = container.querySelector('.indicator-card__title-status');
+      expect(titleStatus).toContainElement(
+        screen.getByRole('heading', { name: 'Tasks atrasadas' })
+      );
+      const badges = titleStatus.querySelector('.indicator-card__status-line');
+      expect(badges.children).toHaveLength(2);
+      expect(badges.firstElementChild).toHaveClass(
+        `indicator-card__health--${status.toLowerCase()}`
+      );
+      expect(badges.lastElementChild).toHaveTextContent('Dados parciais');
+      const help = screen.getByRole('button', { name: 'Informações sobre Tasks atrasadas' });
+      expect(titleStatus).not.toContainElement(help);
+      expect(titleStatus.parentElement.lastElementChild).toBe(help);
+    }
+  );
   it.each(['AVAILABLE', 'NO_DATA', 'UNAVAILABLE', 'PARTIAL'])(
     'shares the same heading/help primitive in %s',
     (state) => {

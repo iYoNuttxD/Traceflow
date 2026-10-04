@@ -611,6 +611,8 @@ export function TasksScreen() {
             <TaskMetrics tasks={tasks} />
 
             <CollapsibleFilterPanel
+              onClear={() => setFilters({ ...EMPTY_FILTERS })}
+              canClear={activeFilterCount > 0}
               id="tasks-filters"
               className="tasks-filters"
               resultLabel={
@@ -620,17 +622,6 @@ export function TasksScreen() {
               }
               activeCount={activeFilterCount}
             >
-              {activeFilterCount > 0 && (
-                <div className="planning-filter-panel__actions">
-                  <button
-                    type="button"
-                    className="tasks-filters__clear"
-                    onClick={() => setFilters({ ...EMPTY_FILTERS })}
-                  >
-                    Limpar filtros
-                  </button>
-                </div>
-              )}
               <div className="tasks-filter-grid">
                 <label className="tasks-filter tasks-filter--search">
                   <span>Buscar tarefa</span>

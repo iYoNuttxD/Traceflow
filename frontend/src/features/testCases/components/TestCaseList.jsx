@@ -53,17 +53,12 @@ export function TestCaseFilters({
   );
   return (
     <CollapsibleFilterPanel
+      onClear={onClear}
+      canClear={activeCount > 0}
       className="sprint-filters"
       resultLabel={activeCount ? `${count} de ${total} casos` : `${total} casos`}
       activeCount={activeCount}
     >
-      {activeCount > 0 && (
-        <div className="planning-filter-panel__actions">
-          <button type="button" className="sprint-filters__clear" onClick={onClear}>
-            Limpar filtros
-          </button>
-        </div>
-      )}
       <div className="tc-filter-grid">
         <label className="sprint-filter sprint-filter--search tc-filter-search">
           <span>Pesquisar</span>

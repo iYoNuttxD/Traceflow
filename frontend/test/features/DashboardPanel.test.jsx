@@ -74,9 +74,14 @@ function PanelHarness({ props, historyControls }) {
     <>
       <output aria-label="URL aplicada">{location.search}</output>
       {historyControls && (
-        <button type="button" onClick={() => navigate(-1)}>
-          Voltar no histórico
-        </button>
+        <>
+          <button type="button" onClick={() => navigate(-1)}>
+            Voltar no histórico
+          </button>
+          <button type="button" onClick={() => navigate(1)}>
+            Avançar no histórico
+          </button>
+        </>
       )}
       <DashboardPanel
         projectId={1}
@@ -129,6 +134,7 @@ describe('P8 Dashboard na Visão Geral', () => {
       data: {
         indicators: [
           definition('I23', 'WIP atual'),
+          definition('I22', 'Throughput'),
           ...['I20', 'I21', 'I41', 'I42', 'I43', 'I44'].map((id) => definition(id, id)),
           definition('I09', 'Commits no período'),
           definition('I16', 'Média até merge'),
@@ -662,6 +668,16 @@ describe('P8 Dashboard na Visão Geral', () => {
       includeProjectHealth: true
     });
     expect(screen.getByLabelText('Até')).toHaveValue('2026-09-20');
+    await user.click(screen.getByRole('button', { name: 'Avançar no histórico' }));
+    expect(await screen.findByRole('article', { name: 'Execuções por resultado' })).toBeVisible();
+    expect(mocks.dashboard.mock.lastCall[1]).toMatchObject({
+      view: 'QUALITY',
+      startDate: '2026-09-05',
+      endDate: '2026-09-20',
+      sprintId: '3'
+    });
+    await user.click(screen.getByRole('button', { name: 'Voltar no histórico' }));
+    await screen.findByRole('article', { name: 'WIP atual' });
     await user.click(screen.getByRole('button', { name: 'Limpar filtros' }));
     await waitFor(() =>
       expect(mocks.dashboard.mock.lastCall[1]).toEqual({ view: 'FLOW', includeProjectHealth: true })
@@ -674,6 +690,7 @@ describe('P8 Dashboard na Visão Geral', () => {
     await screen.findByRole('article', { name: 'WIP atual' });
     fireEvent.click(screen.getByRole('button', { name: /Buscar e filtrar/ }));
     const filter = screen.getByRole('region', { name: 'Buscar e filtrar' });
+    expect(within(filter).queryByText('Período')).toBeNull();
     expect(within(filter).queryByRole('button', { name: 'Limpar filtros' })).toBeNull();
     fireEvent.change(screen.getByLabelText('De'), { target: { value: '2026-10-08' } });
     expect(filter).toHaveTextContent('0 ativos');
@@ -697,6 +714,41 @@ describe('P8 Dashboard na Visão Geral', () => {
     expect(screen.queryByRole('alert')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Limpar filtros' })).toBeNull();
     expect(mocks.dashboard).toHaveBeenCalledOnce();
+  });
+
+  it('presents backend WIP and throughput totals in one compact strip and retains the temporal chart', async () => {
+    mocks.dashboard.mockResolvedValue(
+      response('FLOW', [
+        {
+          id: 'flow',
+          indicators: [
+            metric('I23', 4, { kind: 'COUNT' }),
+            metric('I22', 16, {
+              kind: 'SERIES',
+              state: 'PARTIAL',
+              limitations: ['TASK_HISTORY_CHAIN_INCOMPLETE'],
+              points: [
+                { date: '2026-09-01', value: 3 },
+                { date: '2026-09-02', value: 13 }
+              ]
+            }),
+            metric('I21', null, { state: 'UNAVAILABLE', unit: 'DAYS' })
+          ]
+        }
+      ])
+    );
+    renderPanel('/projects/1?view=FLOW');
+    const summary = await screen.findByRole('article', { name: 'Throughput', exact: true });
+    const strip = summary.parentElement;
+    expect(strip).toHaveClass('dashboard-panel__metric-grid');
+    expect(within(strip).getByRole('article', { name: 'WIP atual' })).toHaveTextContent('4');
+    expect(summary).toHaveTextContent('16');
+    expect(within(strip).queryByRole('img')).toBeNull();
+    const trend = screen.getByRole('article', { name: 'Throughput no período' });
+    await within(trend).findByRole('img');
+    expect(within(trend).getByText('Ver dados')).toBeVisible();
+    expect(screen.getAllByText('O histórico de algumas tarefas está incompleto.')).toHaveLength(1);
+    expect(screen.getByRole('article', { name: 'I21' })).toHaveTextContent('Indisponível');
   });
 
   it('preserves invalid date drafts and the applied period when Sprint or category changes', async () => {
@@ -1274,6 +1326,34 @@ describe('P8 Dashboard na Visão Geral', () => {
       expect(within(card).getByRole('progressbar')).toHaveAttribute('value', String(value));
     }
     expect(screen.queryByText(/funil/i)).not.toBeInTheDocument();
+    const cards = dimensions.map(([name]) => screen.getByRole('article', { name }));
+    expect(cards.map((card) => card.style.getPropertyValue('--metric-span-wide'))).toEqual([
+      '3',
+      '3',
+      '3',
+      '3',
+      '4',
+      '4',
+      '4'
+    ]);
+    expect(cards.map((card) => card.style.getPropertyValue('--metric-span-medium'))).toEqual([
+      '4',
+      '4',
+      '4',
+      '4',
+      '4',
+      '4',
+      '12'
+    ]);
+    expect(cards.map((card) => card.style.getPropertyValue('--metric-span-small'))).toEqual([
+      '6',
+      '6',
+      '6',
+      '6',
+      '6',
+      '6',
+      '12'
+    ]);
   });
 
   it('informa no cabeçalho quando um recorte não se aplica a toda a seção', async () => {

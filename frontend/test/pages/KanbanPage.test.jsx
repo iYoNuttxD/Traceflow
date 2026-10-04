@@ -474,7 +474,7 @@ describe('KanbanPage E11', () => {
     expect(within(historyDialog).getByText('Alta')).toBeInTheDocument();
   });
 
-  it('mostra o clear compacto do histórico somente após aplicar filtros', async () => {
+  it('permite limpar o rascunho do histórico e mantém aplicação explícita', async () => {
     const user = userEvent.setup();
     renderPage();
     await user.click(
@@ -486,7 +486,8 @@ describe('KanbanPage E11', () => {
     fireEvent.change(within(historyDialog).getByLabelText('Data inicial'), {
       target: { value: '2026-07-01' }
     });
-    expect(within(historyDialog).queryByRole('button', { name: 'Limpar filtros' })).toBeNull();
+    expect(within(historyDialog).getByRole('button', { name: 'Limpar filtros' })).toBeVisible();
+    expect(mocks.kanbanApi.listTaskHistory).toHaveBeenCalledOnce();
     await user.click(within(historyDialog).getByRole('button', { name: 'Filtrar' }));
 
     await waitFor(() =>
@@ -497,7 +498,8 @@ describe('KanbanPage E11', () => {
       )
     );
     const clear = within(historyDialog).getByRole('button', { name: 'Limpar filtros' });
-    expect(clear).toHaveClass('button-outline');
+    expect(clear).toHaveClass('filter-actions__clear');
+    expect(clear.parentElement).toHaveClass('filter-actions');
     await user.click(clear);
     await waitFor(() =>
       expect(within(historyDialog).queryByRole('button', { name: 'Limpar filtros' })).toBeNull()

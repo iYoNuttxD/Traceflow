@@ -296,7 +296,7 @@ describe('Traceability catalog', () => {
     const user = userEvent.setup(),
       view = renderPage();
     await filters(user);
-    expect(view.container.querySelector('.planning-filter-panel__actions')).toBeNull();
+    expect(view.container.querySelector('.filter-actions')).toBeNull();
     await user.selectOptions(screen.getByLabelText('Situação detalhada'), 'COM_FALHA');
     await waitFor(() =>
       expect(api.getRequirementsTraceability).toHaveBeenLastCalledWith(
@@ -306,9 +306,7 @@ describe('Traceability catalog', () => {
       )
     );
     await user.click(screen.getByText('Limpar filtros'));
-    await waitFor(() =>
-      expect(view.container.querySelector('.planning-filter-panel__actions')).toBeNull()
-    );
+    await waitFor(() => expect(view.container.querySelector('.filter-actions')).toBeNull());
   });
   it.each([
     ['Status', 'requirementStatus', 'CONCLUIDO'],

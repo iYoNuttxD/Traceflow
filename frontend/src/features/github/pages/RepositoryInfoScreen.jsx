@@ -257,6 +257,9 @@ export function RepositoryInfoScreen() {
             </section>
 
             <CollapsibleFilterPanel
+              onClear={clearFilters}
+              canClear={activeFilterCount > 0}
+              clearDisabled={loading}
               id="repository-filters"
               className="repository-filters"
               title="Filtrar artefatos"
@@ -264,18 +267,6 @@ export function RepositoryInfoScreen() {
               activeCount={activeFilterCount}
             >
               <div className="repository-filter-form">
-                {activeFilterCount > 0 && (
-                  <div className="planning-filter-panel__actions repository-filter-actions">
-                    <button
-                      className="button button-secondary button-compact"
-                      type="button"
-                      onClick={clearFilters}
-                      disabled={loading}
-                    >
-                      Limpar filtros
-                    </button>
-                  </div>
-                )}
                 <div className="repository-filter-grid">
                   <label className="repository-filter-field">
                     <span>Tipo de artefato</span>
