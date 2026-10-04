@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { IndicatorsSummary } from './components/IndicatorsSummary.jsx';
 import { CollapsibleFilterPanel } from '../schedule/index.js';
-import { SelectControl } from '../../shared/index.js';
+import { FeedbackRegion, SelectControl } from '../../shared/index.js';
 import '../../shared/styles/internal-tabs.css';
 import { scheduleApi } from '../schedule/index.js';
 import { normalizeApiError } from '../../shared/index.js';
@@ -104,6 +104,16 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
   const catalogGeneration = useRef(0);
   const sprintGeneration = useRef(0);
   const zone = dashboardTimeZone();
+  const feedbackContext = [
+    projectId,
+    view,
+    startDate,
+    endDate,
+    timeZone,
+    sprintId,
+    refreshVersion,
+    manualRefresh
+  ].join('|');
   const identity = [
     projectId,
     view,
@@ -285,6 +295,8 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
 
   const dashboard = dashboardState.identity === identity ? dashboardState.data : null;
   const dashboardError = dashboardState.identity === identity ? dashboardState.error : null;
+  const confirmedSave = savedContext?.context === feedbackContext;
+  const savedMessage = savedContext?.restored ? 'Painel restaurado ao padrão' : 'Painel salvo';
   const catalog = catalogState.projectId === projectId ? catalogState.data : null;
   const catalogError = catalogState.projectId === projectId ? catalogState.error : null;
   const sprints = sprintState.projectId === projectId ? sprintState.rows : [];
@@ -436,7 +448,10 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
                 !catalogState.personalization ||
                 !catalog
               }
-              onClick={() => setEditorContext(projectId)}
+              onClick={() => {
+                setSavedContext(null);
+                setEditorContext(projectId);
+              }}
             >
               Personalizar painel
             </button>
@@ -477,11 +492,6 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
             </button>
           </div>
         )}
-        {savedContext === projectId && view === 'CUSTOM' && (
-          <p role="status">
-            Painel salvo.{dashboardError ? ' Não foi possível atualizar os dados agora.' : ''}
-          </p>
-        )}
         {catalogError && (
           <div className="dashboard-panel__error" role="alert">
             <p>Não foi possível carregar o catálogo de indicadores.</p>
@@ -491,8 +501,8 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
           </div>
         )}
         {dashboardError && (
-          <div className="dashboard-panel__error" role="alert">
-            <p>Não foi possível carregar os indicadores.</p>
+          <div className="dashboard-panel__error" role={confirmedSave ? undefined : 'alert'}>
+            {!confirmedSave && <p>Não foi possível carregar os indicadores.</p>}
             <button type="button" onClick={() => setManualRefresh((value) => value + 1)}>
               Tentar novamente
             </button>
@@ -686,6 +696,17 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
           </>
         )}
       </div>
+      {confirmedSave && view === 'CUSTOM' && (
+        <FeedbackRegion
+          transient
+          success={dashboardError ? undefined : savedMessage}
+          warning={
+            dashboardError
+              ? `${savedMessage}. Não foi possível atualizar os dados agora.`
+              : undefined
+          }
+        />
+      )}
       {view === 'CUSTOM' &&
         editorContext === projectId &&
         preferenceState.preference &&
@@ -699,8 +720,8 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
             onReset={preferenceState.reset}
             returnFocusRef={personalizeRef}
             onClose={closeEditor}
-            onSaved={() => {
-              setSavedContext(projectId);
+            onSaved={({ restored }) => {
+              setSavedContext({ context: feedbackContext, restored });
               closeEditor();
             }}
           />

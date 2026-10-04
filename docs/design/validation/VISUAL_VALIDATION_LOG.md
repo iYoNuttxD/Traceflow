@@ -1116,3 +1116,43 @@ Pendência única: inspeção visual do marcador durante drag. Sem commit/push/P
 Override removido; aba auxiliar fechada e aba original mantida para verificação.
 Evidências transitórias: `/private/tmp/traceflow-p91-20261004/`.
 [Relatório P9.1](../../deliveries/S2_P9_1_PERSONALIZED_DASHBOARD_VISUAL_POLISH_REPORT.md).
+
+## 2026-10-04 — P9.1.1 Feedback de salvamento
+
+Baseline: `daniel-dev`, HEAD `74065e6ede9cd82c35739a7787d20987b178e739`, árvore
+limpa e diffcheck PASS. Node 22.23.3. Auditoria encontrou `FeedbackRegion` como
+primitive canônica inline, sem toast/timing existente. Reutilizada com opção
+transitória de 4s, portal fixo no canto inferior direito, tokens semânticos,
+`role=status`/`aria-live=polite` e timer cancelado no unmount. Sem dependência nova.
+
+Removido o texto permanente de sucesso. Salvar/restaurar exibem um único feedback;
+falha do PUT mantém draft e erro canônico no editor. PUT confirmado seguido de
+falha do GET usa aviso de atualização, conservando a preferência e o retry,
+sem alerta inline duplicado. Contexto antigo não reaparece em outro Project.
+
+Chrome autenticado, API real, Project 2, Meu painel: ordem alterada e salva,
+editor fechado, widgets atualizados, foco devolvido a Personalizar, toast visível
+e desaparecimento automático confirmado. Repetido com restauração ao padrão.
+1440 Dark/Light e 390 Light/Dark inspecionados. Em desktop, toolbar top 589,09px,
+altura 53px e início dos widgets 666,09px antes/durante/depois: deslocamento pelo
+feedback **0px**. Em 390px, toast x=16px, largura 358px, direita=374px; dentro da
+viewport e sem cobrir Personalizar/refresh. Contraste e ícone seguem a primitive.
+Configuração padrão inicial e tema Escuro restaurados; override removido.
+
+86 testes focados PASS, incluindo expiração, cleanup, erro/retry, refresh falho,
+restauração e troca de projeto. Falhas de rede foram verificadas em testes, sem
+alegar reprodução visual de falha real. Frontend full/coverage **1.356 PASS**;
+backend canônico full/coverage **1.549 PASS**, cinco skips legados. Lint/format,
+build, arquitetura, segredos, política/testes de CI local e audit canônico PASS.
+Audit: zero HIGH/CRITICAL e zero exceções utilizadas. Sandbox inicialmente bloqueou
+MySQL/registro npm; gates repetidos com acesso autorizado e aprovados. Diffcheck
+PASS; console da inspeção sem warnings/erros novos. CI hospedada não executada.
+
+Evidências: `/private/tmp/traceflow-p911-20261004/`, `save-1440-dark.jpg`,
+`restore-1440-light.jpg`, `save-390-light.jpg`, `restore-390-dark.jpg`,
+`layout-stability.json`, `browser-evidence.json` e logs/JSON dos gates.
+
+**S2 P9.1.1 SAVE FEEDBACK POLISH — PASS LOCAL**.
+Sem alterações em DnD, layout dos widgets, persistência/API/autorização, filtros,
+Health ou backend. Sem commit/push/P10. Este aceite é restrito ao feedback de
+salvamento; não promove a pendência de inspeção de drag registrada no P9.1.

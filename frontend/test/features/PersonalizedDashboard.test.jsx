@@ -216,7 +216,7 @@ describe.each(mutations)('pending $method preference ownership', (mutation) => {
       await waitFor(() => expect(widgetOrder()).toEqual(mutation.savedWidgets));
       expect(router.state.location.search).toBe('?view=custom');
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-      expect(screen.queryByText('Painel salvo.')).not.toBeInTheDocument();
+      expect(screen.queryByText(/^Painel (salvo|restaurado)/)).not.toBeInTheDocument();
       expect(api.preference).toHaveBeenCalledOnce();
       expect(api.dashboard.mock.calls.at(-1)[1].widgets).toBe(mutation.savedWidgets.join(','));
       expect(api.dashboard).toHaveBeenCalledTimes(completion === 'before Forward' ? 3 : 4);
@@ -279,7 +279,7 @@ describe.each(mutations)('pending $method preference ownership', (mutation) => {
       expect(api.dashboard.mock.calls.at(-1)[1].widgets).toBe(mutation.savedWidgets.join(','));
       expect(screen.getByRole('button', { name: 'Personalizar painel' })).toBeEnabled();
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-      expect(screen.queryByText('Painel salvo.')).not.toBeInTheDocument();
+      expect(screen.queryByText(/^Painel (salvo|restaurado)/)).not.toBeInTheDocument();
     }
   );
 
@@ -302,7 +302,7 @@ describe.each(mutations)('pending $method preference ownership', (mutation) => {
     await waitFor(() => expect(widgetOrder()).toEqual(mutation.savedWidgets));
     expect(api.preference).toHaveBeenCalledTimes(2);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(screen.queryByText('Painel salvo.')).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Painel (salvo|restaurado)/)).not.toBeInTheDocument();
   });
 
   it('keeps the confirmed preference and allows a fresh edit after an abandoned write fails', async () => {
@@ -320,7 +320,7 @@ describe.each(mutations)('pending $method preference ownership', (mutation) => {
     await act(() => pending.reject(new Error('write failed')));
     await waitFor(() => expect(widgetOrder()).toEqual(mutation.initialWidgets));
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-    expect(screen.queryByText('Painel salvo.')).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Painel (salvo|restaurado)/)).not.toBeInTheDocument();
     expect(api.preference).toHaveBeenCalledOnce();
 
     const reopened = await editor();
@@ -355,7 +355,7 @@ describe.each(mutations)('pending $method preference ownership', (mutation) => {
     expect(widgetOrder()).toEqual(['I26']);
     expect(screen.getByRole('dialog', { name: 'Personalizar painel' })).toBe(nextEditor);
     expect(within(nextEditor).getByRole('button', { name: 'Salvar' })).toBeDisabled();
-    expect(screen.queryByText('Painel salvo.')).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Painel (salvo|restaurado)/)).not.toBeInTheDocument();
     expect(api.dashboard).toHaveBeenCalledTimes(dashboardCalls);
   });
 });
@@ -420,6 +420,17 @@ describe('P9 personalized workspace', () => {
       widgets: ['I23', 'I01']
     });
     expect(api.dashboard).toHaveBeenCalledTimes(2);
+    const feedback = screen.getByText('Painel salvo').closest('[role="status"]');
+    expect(feedback).toHaveAttribute('aria-live', 'polite');
+    expect(feedback.closest('.feedback-region--transient')).not.toBeNull();
+    expect(
+      within(screen.getByRole('tabpanel')).queryByText(/Painel salvo/)
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText('Painel salvo.')).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Personalizar painel' })).toHaveFocus()
+    );
     app.unmount();
     mount();
     await waitFor(() => expect(widgetOrder()).toEqual(['I23', 'I01']));
@@ -440,6 +451,12 @@ describe('P9 personalized workspace', () => {
     await waitFor(() => expect(widgetOrder()).toEqual(policy.defaultPreference.widgets));
     expect(api.resetPreference).toHaveBeenCalledOnce();
     expect(api.savePreference).not.toHaveBeenCalled();
+    expect(
+      screen.getByText('Painel restaurado ao padrão').closest('[role="status"]')
+    ).not.toBeNull();
+    expect(
+      within(screen.getByRole('tabpanel')).queryByText(/Painel restaurado/)
+    ).not.toBeInTheDocument();
   });
   it('enforces min/max, no duplicates, category and compact empty search', async () => {
     stored = { ...stored, widgets: metricIds.slice(0, 12) };
@@ -474,12 +491,24 @@ describe('P9 personalized workspace', () => {
     );
     await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('Sua seleção foi mantida');
+    expect(within(dialog).getAllByRole('button', { name: /^Reordenar / })[0]).toHaveAccessibleName(
+      'Reordenar Trabalho em andamento, posição 1 de 2'
+    );
+    expect(document.querySelector('.feedback-region--transient')).toBeNull();
     api.dashboard.mockRejectedValueOnce(new Error('GET failed'));
     await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
     expect(
       await screen.findByText('Painel salvo. Não foi possível atualizar os dados agora.')
     ).toBeInTheDocument();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+    expect(screen.getByRole('alert').closest('.feedback-region--transient')).not.toBeNull();
+    expect(screen.queryByText(/Não foi possível salvar/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Não foi possível carregar os indicadores.')).not.toBeInTheDocument();
+    expect(stored.widgets).toEqual(['I23', 'I01']);
+    await userEvent.click(screen.getByRole('button', { name: 'Tentar novamente', exact: true }));
+    await waitFor(() => expect(widgetOrder()).toEqual(['I23', 'I01']));
+    expect(screen.queryByText(/Painel salvo/)).not.toBeInTheDocument();
   });
   it('prevents concurrent saves, no writes on interactions, focus/visibility do not refetch', async () => {
     const pending = deferred();
@@ -512,6 +541,21 @@ describe('P9 personalized workspace', () => {
     await act(() => old.resolve({ data: { ...stored, widgets: ['I21'] } }));
     expect(api.dashboard.mock.calls.filter(([project]) => project === 1)).toHaveLength(0);
   });
+});
+
+it('clears confirmed feedback on project change and does not replay it when returning', async () => {
+  const { router } = mountHistory();
+  const dialog = await editor();
+  await userEvent.click(
+    within(dialog).getByRole('button', { name: 'Mover Trabalho em andamento para cima' })
+  );
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
+  expect(await screen.findByText('Painel salvo')).toBeInTheDocument();
+  await act(() => router.navigate('/projects/2/indicators?view=custom'));
+  expect(screen.queryByText(/^Painel (salvo|restaurado)/)).not.toBeInTheDocument();
+  await act(() => router.navigate(-1));
+  await waitFor(() => expect(widgetOrder()).toEqual(['I23', 'I01']));
+  expect(screen.queryByText(/^Painel (salvo|restaurado)/)).not.toBeInTheDocument();
 });
 
 describe('P9.1 controls', () => {

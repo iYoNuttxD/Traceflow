@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { SprintDialog } from '../../schedule/index.js';
-import { SelectControl, useConfirm } from '../../../shared/index.js';
+import { FeedbackRegion, SelectControl, useConfirm } from '../../../shared/index.js';
 import { METRIC_TITLES } from '../dashboard-display.js';
 import './PersonalizedDashboard.css';
 
@@ -164,7 +164,7 @@ export function DashboardEditor({
             configurationVersion: policy.defaultPreference.configurationVersion,
             widgets
           });
-      if (alive.current && saved) onSaved();
+      if (alive.current && saved) onSaved({ restored: reset });
     } catch {
       if (alive.current)
         setError(
@@ -349,11 +349,7 @@ export function DashboardEditor({
         <span className="sr-only" role="status" aria-live="polite">
           {announcement}
         </span>
-        {error && (
-          <p role="alert" className="dashboard-panel__filter-error">
-            {error}
-          </p>
-        )}
+        <FeedbackRegion error={error} />
         <footer className="dashboard-editor__footer">
           <button
             type="button"

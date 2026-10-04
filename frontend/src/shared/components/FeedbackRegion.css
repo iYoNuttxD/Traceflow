@@ -15,3 +15,20 @@
   margin-top: 0.25rem;
   font-weight: 750;
 }
+
+.feedback-region--transient {
+  position: fixed;
+  z-index: var(--z-tooltip);
+  inset-inline-end: var(--space-4);
+  bottom: max(var(--space-4), env(safe-area-inset-bottom));
+  width: min(24rem, calc(100vw - 2 * var(--space-4)));
+  border-radius: var(--radius-md);
+  background: var(--color-surface-elevated);
+  box-shadow: var(--shadow-md);
+  pointer-events: none;
+  overflow-wrap: anywhere;
+}
+
+.feedback-region--transient > .message {
+  margin: 0;
+}
