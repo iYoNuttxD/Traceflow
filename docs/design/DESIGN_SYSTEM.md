@@ -1031,3 +1031,23 @@ Evidências e gates: [relatório P8.6F](../deliveries/S2_P8_6F_FINAL_VISUAL_CONS
   e continua como draft até Salvar. Erro de salvamento preserva a seleção.
 
 Contrato e matriz: [Painel pessoal v1](../indicators/PERSONALIZED_DASHBOARD_V1.md).
+
+### P9.1 — toolbar integrada e arraste do painel pessoal (2026-10-04)
+
+Esta composição substitui as duas linhas desktop descritas no P9.
+
+- Meu painel usa tabs à esquerda e ações secundárias à direita, numa única barra
+  com divisor inferior comum. Em 1280–1439px, padding horizontal de 8px, gap de 2px
+  entre tabs e fonte de 13px; targets continuam 48px nas tabs e 44px nas ações.
+  A partir de 1440px, conserva a escala normal. Em áreas menores que 42rem, admite
+  wrap controlado das ações, dentro da mesma composição; tabs têm scroll próprio.
+- Personalizar painel continua exclusivo de Meu painel. Refresh mantém nome/tooltip
+  “Atualizar indicadores” e a mesma atualização conjunta de indicadores/Health.
+- A lista selecionada ganha alça de seis pontos, target 44px, cursor grab e nome
+  acessível com posição. Somente a alça inicia drag nativo; texto e ações da linha
+  conservam suas interações. Linha de origem suavizada e marcador superior/inferior
+  identificam a posição de destino. Drop muda apenas o draft.
+- Teclado: setas para cima/baixo na alça ou botões Mover existentes. Botões continuam
+  disponíveis para toque quando o navegador não oferece drag nativo confiável.
+  Foco acompanha o item após reorder; Save/Cancel, trap e retorno de foco preservados.
+- Não houve troca de overlay, picker, catálogo ou primitives de indicadores.

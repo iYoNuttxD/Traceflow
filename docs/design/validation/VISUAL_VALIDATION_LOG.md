@@ -1078,3 +1078,41 @@ Evidências transitórias: `/private/tmp/traceflow-p9-20261004/`, `final-*.jpg`,
 `editor-*.jpg`, `one-widget-390-light.jpg`, `proof-default-desktop.jpg`, matrizes,
 console, métricas HTTP e logs de gates.
 [Relatório P9](../../deliveries/S2_P9_PERSONALIZED_INDICATORS_DASHBOARD_REPORT.md).
+
+## 2026-10-04 — P9.1 Toolbar e reorder do Meu painel
+
+Baseline `daniel-dev`, HEAD `88c6ef85c9851ad88fe926e9e9c0014a8ebec407`, árvore limpa.
+Node 22.23.3 nos gates. Chrome autenticado, API real, Project 2, período
+01–30/09/2026, Sprint A (16). Escopo limitado à apresentação da toolbar e lista
+selecionada; sem dependências novas ou mudanças de backend/contrato/dados.
+
+Toolbar inspecionada em 1440/1280/1024/768/430/390/360. Em 1440 e 1280, nove tabs
+e ações ficam na mesma linha, sem scroll nas tabs (879/879px e 727/727px).
+Targets 48px/44px. Tablet/mobile mantêm scroll interno das tabs e wrap controlado
+das ações; nenhum overflow do documento. Dark nas sete larguras; Light em
+1440/1280/768/390. Capturas 430/390 repetidas após estabilizar a sidebar.
+
+Nas nove views, Personalizar aparece somente em Meu painel; refresh permanece
+disponível e período/Sprint são preservados. Refresh real atualizou a metadata.
+Editor padrão em desktop/tablet/mobile, Light/Dark; 12 itens em desktop Light e
+mobile Dark. Controles, limite e rodapé rolável utilizáveis. Teclado real na alça
+e botões Mover; foco acompanha reorder, trap Tab/Shift+Tab e retorno ao fechar.
+
+Drag nativo mudou WIP da segunda para primeira posição e Progresso da primeira
+para quarta. Cancelar/reabrir restaurou a ordem inicial. Drafts visuais descartados;
+Save e ausência de requests intermediários comprovados por testes automatizados.
+**MEDIUM / DND:** feedback durante o gesto ainda carece de inspeção verificável.
+Capturas da ferramenta não conseguiram congelar a linha de destino; confirmação
+manual solicitada e ainda pendente. Não se confunde o teste dos atributos CSS com
+evidência visual desse estado. Não há bug confirmado nesse item.
+
+Frontend 1.338 PASS; backend 1.522 PASS e cinco skips legados. Coverage, lint,
+format, build, Prisma, arquitetura, política/testes locais CI e security PASS.
+Zero HIGH/CRITICAL, zero exceções usadas. Console da aba auxiliar sem novos
+warnings/erros. Sem certificação WCAG, touch físico ou novo Alt+Tab nativo.
+
+**S2 P9.1 PERSONALIZED DASHBOARD VISUAL POLISH — CHANGES REQUIRED**.
+Pendência única: inspeção visual do marcador durante drag. Sem commit/push/P10.
+Override removido; aba auxiliar fechada e aba original mantida para verificação.
+Evidências transitórias: `/private/tmp/traceflow-p91-20261004/`.
+[Relatório P9.1](../../deliveries/S2_P9_1_PERSONALIZED_DASHBOARD_VISUAL_POLISH_REPORT.md).

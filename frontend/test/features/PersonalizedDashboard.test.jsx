@@ -150,6 +150,7 @@ describe('P9 personalized workspace', () => {
       sprintId: '7'
     });
     await userEvent.click(screen.getByRole('tab', { name: 'Fluxo' }));
+    expect(screen.queryByRole('button', { name: 'Personalizar painel' })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('tab', { name: 'Meu painel' }));
     await waitFor(() => expect(widgetOrder()).toEqual(['I01', 'I23']));
     expect(api.preference).toHaveBeenCalledTimes(1);
@@ -281,6 +282,112 @@ describe('P9 personalized workspace', () => {
     );
     await act(() => old.resolve({ data: { ...stored, widgets: ['I21'] } }));
     expect(api.dashboard.mock.calls.filter(([project]) => project === 1)).toHaveLength(0);
+  });
+});
+
+describe('P9.1 controls', () => {
+  const transfer = () => ({ setData: vi.fn(), setDragImage: vi.fn() });
+  const handles = (dialog) => within(dialog).getAllByRole('button', { name: /^Reordenar / });
+  const names = (dialog) => handles(dialog).map((handle) => handle.getAttribute('aria-label'));
+
+  it('keeps tabs and actions in one toolbar; refresh changes only the aggregate', async () => {
+    mount();
+    await waitFor(() => expect(widgetOrder()).toEqual(['I01', 'I23']));
+    const toolbar = screen.getByRole('tablist').parentElement;
+    expect(within(toolbar).getByRole('button', { name: 'Personalizar painel' })).toBeVisible();
+    const refresh = within(toolbar).getByRole('button', { name: 'Atualizar indicadores' });
+    expect(refresh).toHaveAttribute('title', 'Atualizar indicadores');
+    await userEvent.click(refresh);
+    await waitFor(() => expect(api.dashboard).toHaveBeenCalledTimes(2));
+    expect(api.catalog).toHaveBeenCalledOnce();
+    expect(api.preference).toHaveBeenCalledOnce();
+    expect(api.savePreference).not.toHaveBeenCalled();
+  });
+
+  it('drags only the handle, shows destination, changes draft without requests and cancels', async () => {
+    mount();
+    const dialog = await editor();
+    const [first, last] = handles(dialog);
+    const dataTransfer = transfer();
+    expect(first).toHaveAttribute('draggable', 'true');
+    expect(first.closest('li')).not.toHaveAttribute('draggable');
+    fireEvent.dragStart(last, { dataTransfer });
+    fireEvent.dragOver(first.closest('li'), { dataTransfer });
+    expect(last.closest('li')).toHaveAttribute('data-dragging', 'true');
+    expect(first.closest('li')).toHaveAttribute('data-drop', 'before');
+    // Hovering does not yet move the draft or load dashboard data.
+    expect(names(dialog)[0]).toMatch(/Progresso atual/);
+    fireEvent.drop(first.closest('li'), { dataTransfer });
+    fireEvent.dragEnd(last, { dataTransfer });
+    expect(names(dialog)).toEqual([
+      'Reordenar Trabalho em andamento, posição 1 de 2',
+      'Reordenar Progresso atual, posição 2 de 2'
+    ]);
+    await waitFor(() => expect(handles(dialog)[0]).toHaveFocus());
+    expect(api.savePreference).not.toHaveBeenCalled();
+    expect(api.dashboard).toHaveBeenCalledOnce();
+    expect(api.preference).toHaveBeenCalledOnce();
+    expect(api.catalog).toHaveBeenCalledOnce();
+    expect(widgetOrder()).toEqual(['I01', 'I23']);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancelar' }));
+    expect(widgetOrder()).toEqual(['I01', 'I23']);
+    expect(names(await editor())[0]).toMatch(/Progresso atual/);
+  });
+
+  it('drops downward at the end and saves exactly one ordered array', async () => {
+    stored = { ...stored, widgets: ['I01', 'I23', 'I21'] };
+    mount();
+    const dialog = await editor();
+    const [first, , last] = handles(dialog);
+    const dataTransfer = transfer();
+    fireEvent.dragStart(first, { dataTransfer });
+    fireEvent.dragOver(last.closest('li'), { dataTransfer });
+    expect(last.closest('li')).toHaveAttribute('data-drop', 'after');
+    fireEvent.drop(last.closest('li'), { dataTransfer });
+    expect(api.savePreference).not.toHaveBeenCalled();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => expect(widgetOrder()).toEqual(['I23', 'I21', 'I01']));
+    expect(api.savePreference).toHaveBeenCalledExactlyOnceWith(1, {
+      configurationVersion: 1,
+      widgets: ['I23', 'I21', 'I01']
+    });
+    expect(api.dashboard).toHaveBeenCalledTimes(2);
+  });
+
+  it('abandons canceled/outside drags and ignores external drops', async () => {
+    mount();
+    const dialog = await editor();
+    const [first, last] = handles(dialog);
+    const dataTransfer = transfer();
+    fireEvent.drop(first.closest('li'), { dataTransfer });
+    fireEvent.dragStart(last, { dataTransfer });
+    fireEvent.dragOver(first.closest('li'), { dataTransfer });
+    fireEvent.dragEnd(last, { dataTransfer });
+    expect(names(dialog)[0]).toMatch(/Progresso atual/);
+    expect(dialog.querySelector('[data-drop]')).not.toBeInTheDocument();
+    expect(dialog.querySelector('[data-dragging]')).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Salvar' })).toBeDisabled();
+    expect(api.savePreference).not.toHaveBeenCalled();
+  });
+
+  it('reorders using arrow keys on handle, preserves focus and bounds, retains tap fallback', async () => {
+    mount();
+    const dialog = await editor();
+    handles(dialog)[1].focus();
+    await userEvent.keyboard('{ArrowUp}');
+    await waitFor(() => expect(handles(dialog)[0]).toHaveFocus());
+    expect(names(dialog)[0]).toMatch(/Trabalho em andamento/);
+    await userEvent.keyboard('{ArrowUp}');
+    expect(names(dialog)[0]).toMatch(/Trabalho em andamento/);
+    await userEvent.keyboard('{ArrowDown}');
+    await waitFor(() => expect(handles(dialog)[1]).toHaveFocus());
+    await userEvent.keyboard('{ArrowDown}');
+    expect(names(dialog)[1]).toMatch(/Trabalho em andamento/);
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Mover Trabalho em andamento para cima' })
+    );
+    expect(names(dialog)[0]).toMatch(/Trabalho em andamento/);
+    expect(api.savePreference).not.toHaveBeenCalled();
   });
 });
 

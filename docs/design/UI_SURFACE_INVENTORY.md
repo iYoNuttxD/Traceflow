@@ -830,3 +830,13 @@ Inspeção real nas sete larguras, com amostras Light/Dark e todas as categorias
 Personalização não altera Health, semântica dos filtros ou widgets canônicos.
 Escopo de persistência é usuário/projeto; a UI não oferece configuração de terceiros.
 [Relatório P9](../deliveries/S2_P9_PERSONALIZED_INDICATORS_DASHBOARD_REPORT.md).
+
+## P9.1 — controles do painel pessoal (2026-10-04)
+
+| Superfície | Apresentação vigente | Interação |
+| --- | --- | --- |
+| PROJECT-INDICATORS-CUSTOM | Tabs e ações na mesma barra desktop; wrap contido em áreas menores | Personalizar só em CUSTOM; refresh canônico |
+| PROJECT-INDICATORS-CUSTOM-EDITOR | Alça de seis pontos em cada linha selecionada; marcador de destino | Drag nativo muda draft; setas/controles acessíveis preservados; Save único |
+
+Complementa o P9 sem alterar propriedade, persistência, filtros, Health ou widgets.
+[Relatório P9.1](../deliveries/S2_P9_1_PERSONALIZED_DASHBOARD_VISUAL_POLISH_REPORT.md).

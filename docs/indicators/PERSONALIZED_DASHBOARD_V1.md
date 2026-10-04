@@ -5,7 +5,8 @@
 P9 acrescenta **Meu painel** em /projects/:projectId/indicators?view=custom. As oito
 views canônicas continuam disponíveis. Personalização altera somente seleção e
 ordem de indicadores aprovados. Sem fórmula, Health customizado, metas, resize,
-layout compartilhado ou drag-and-drop. Ordenação usa controles acessíveis.
+layout compartilhado. Ordenação usa controles acessíveis e, desde P9.1, arraste
+nativo pela alça da linha; ambos modificam apenas o draft até Salvar.
 
 Catálogo executável: backend/src/modules/indicators/personalized-dashboard.catalog.js.
 O catálogo HTTP acrescenta customization por indicador e personalization com
@@ -80,9 +81,9 @@ vizinhos compatíveis; detalhe isolado usa a linha. Listas têm altura de conte�
 rolagem canônica. Séries preservam one-point, NO_DATA, PARTIAL, teclado e tabela.
 Limitações repetidas são promovidas a uma única nota do painel.
 
-Em Meu painel, as nove tabs ocupam uma linha própria e as ações ficam na linha
-seguinte, dentro da largura disponível. Abaixo do desktop, a navegação conserva
-rolagem horizontal e teclado; o documento não ganha overflow horizontal.
+Desde P9.1, Meu painel reúne as nove tabs e as ações na mesma barra desktop.
+Em áreas menores, admite wrap contido e rolagem horizontal das tabs, com teclado;
+o documento não ganha overflow horizontal. O contrato de preferência permanece v1.
 
 ## Matriz de elegibilidade — 74 fichas
 

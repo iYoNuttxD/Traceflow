@@ -43,6 +43,7 @@ export function DashboardEditor({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [announcement, setAnnouncement] = useState('');
+  const [drag, setDrag] = useState(null);
   const selectedListRef = useRef(null);
   const searchRef = useRef(null);
   const inFlight = useRef(false);
@@ -70,20 +71,56 @@ export function DashboardEditor({
       ).includes(searchText(search))
   );
 
-  function move(index, delta) {
+  function reorder(index, destination, focusHandle = false) {
+    if (busy || destination < 0 || destination >= widgets.length || destination === index) return;
     const next = [...widgets];
-    [next[index], next[index + delta]] = [next[index + delta], next[index]];
+    const [moved] = next.splice(index, 1);
+    next.splice(destination, 0, moved);
     setWidgets(next);
     requestAnimationFrame(() => {
-      const row = selectedListRef.current?.children[index + delta];
+      const row = selectedListRef.current?.children[destination];
       const control =
-        delta < 0 ? (index + delta === 0 ? 1 : 0) : index + delta === widgets.length - 1 ? 0 : 1;
-      row?.querySelectorAll('button')[control]?.focus();
+        destination < index
+          ? destination === 0
+            ? 1
+            : 0
+          : destination === widgets.length - 1
+            ? 0
+            : 1;
+      (focusHandle
+        ? row?.querySelector('.dashboard-editor__drag-handle')
+        : row?.querySelectorAll('.dashboard-editor__row-actions button')[control]
+      )?.focus();
     });
     setReset(false);
     setAnnouncement(
-      `${titleOf(byId.get(widgets[index]))}: posição ${index + delta + 1} de ${widgets.length}.`
+      `${titleOf(byId.get(moved))}: posição ${destination + 1} de ${widgets.length}.`
     );
+  }
+  function endDrag() {
+    setDrag(null);
+  }
+  function startDrag(event, id) {
+    if (busy) {
+      event.preventDefault();
+      return;
+    }
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', id);
+    event.dataTransfer.setDragImage(event.currentTarget.closest('li'), 20, 20);
+    setDrag({ sourceId: id, targetId: id });
+  }
+  function dragOver(event, id) {
+    if (!drag || busy) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    if (drag.targetId !== id) setDrag({ ...drag, targetId: id });
+  }
+  function drop(event, id) {
+    if (!drag || busy) return;
+    event.preventDefault();
+    reorder(widgets.indexOf(drag.sourceId), widgets.indexOf(id), true);
+    endDrag();
   }
   function remove(id, index) {
     setWidgets(widgets.filter((item) => item !== id));
@@ -160,18 +197,63 @@ export function DashboardEditor({
                 {widgets.length} de {policy.maxWidgets} indicadores
               </span>
             </div>
+            <p className="dashboard-editor__hint">Arraste pela alça ou use os botões de mover.</p>
+            <span id="dashboard-reorder-help" className="sr-only">
+              Use as setas para cima e para baixo no teclado para mover este indicador.
+            </span>
             <ol ref={selectedListRef} className="dashboard-editor__selected">
               {widgets.map((id, index) => (
-                <li key={id} className="dashboard-editor__selected-row">
-                  <span className="dashboard-editor__position" aria-hidden="true">
-                    {index + 1}
-                  </span>
+                <li
+                  key={id}
+                  className="dashboard-editor__selected-row"
+                  data-dragging={drag?.sourceId === id || undefined}
+                  data-drop={
+                    drag?.targetId === id && drag.sourceId !== id
+                      ? index < widgets.indexOf(drag.sourceId)
+                        ? 'before'
+                        : 'after'
+                      : undefined
+                  }
+                  onDragOver={(event) => dragOver(event, id)}
+                  onDrop={(event) => drop(event, id)}
+                >
+                  <button
+                    type="button"
+                    className="dashboard-editor__drag-handle"
+                    draggable={!busy}
+                    aria-label={`Reordenar ${titleOf(byId.get(id))}, posição ${index + 1} de ${widgets.length}`}
+                    aria-describedby="dashboard-reorder-help"
+                    title="Arrastar para reordenar"
+                    onDragStart={(event) => startDrag(event, id)}
+                    onDragEnd={endDrag}
+                    onKeyDown={(event) => {
+                      if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+                      event.preventDefault();
+                      reorder(index, index + (event.key === 'ArrowUp' ? -1 : 1), true);
+                    }}
+                  >
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 18 18"
+                      aria-hidden="true"
+                      focusable="false"
+                      fill="currentColor"
+                    >
+                      <circle cx="6" cy="4" r="1.4" />
+                      <circle cx="12" cy="4" r="1.4" />
+                      <circle cx="6" cy="9" r="1.4" />
+                      <circle cx="12" cy="9" r="1.4" />
+                      <circle cx="6" cy="14" r="1.4" />
+                      <circle cx="12" cy="14" r="1.4" />
+                    </svg>
+                  </button>
                   <span className="dashboard-editor__name">{titleOf(byId.get(id))}</span>
                   <div className="dashboard-editor__row-actions">
                     <button
                       type="button"
                       disabled={index === 0}
-                      onClick={() => move(index, -1)}
+                      onClick={() => reorder(index, index - 1)}
                       aria-label={`Mover ${titleOf(byId.get(id))} para cima`}
                       title="Mover para cima"
                     >
@@ -180,7 +262,7 @@ export function DashboardEditor({
                     <button
                       type="button"
                       disabled={index === widgets.length - 1}
-                      onClick={() => move(index, 1)}
+                      onClick={() => reorder(index, index + 1)}
                       aria-label={`Mover ${titleOf(byId.get(id))} para baixo`}
                       title="Mover para baixo"
                     >
