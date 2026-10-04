@@ -103,8 +103,22 @@ export function githubHealthIndicators(facts, window, includeCurrent) {
   const integration = facts.project?.githubIntegration;
   const ready = Boolean(integration?.lastSyncAt);
   const stale = githubFreshness(integration).stale;
-  const previous = [durationIndicator(facts.previousMerged, 'I15', ready, stale)];
+  const previous = window ? [durationIndicator(facts.previousMerged, 'I15', ready, stale)] : [];
   if (!includeCurrent) return { current: [], previous };
+  const age = calculateAgeSummary(facts.age);
+  const queueState = !ready ? 'UNAVAILABLE' : stale ? 'STALE' : 'AVAILABLE';
+  const ageState = !ready
+    ? 'UNAVAILABLE'
+    : age.excludedCount && age.eligibleCount
+      ? 'PARTIAL'
+      : stale
+        ? 'STALE'
+        : age.mean === null
+          ? 'NO_DATA'
+          : 'AVAILABLE';
+  const queue = { metricId: 'I10', value: ready ? age.total : null, state: queueState };
+  const queueAge = { metricId: 'I73', value: ready ? age.mean : null, state: ageState };
+  if (!window) return { current: [queue, queueAge], previous };
   const currentDuration = durationIndicator(facts.currentMerged, 'I15', ready, stale);
   const covered = Boolean(
     integration?.pullRequestLifecycleCoverageFrom &&
@@ -113,7 +127,6 @@ export function githubHealthIndicators(facts, window, includeCurrent) {
     integration.pullRequestLifecycleSyncedAt >= window.current.endExclusive
   );
   const rework = calculateClosedCohort(facts.cohort).rework;
-  const age = calculateAgeSummary(facts.age);
   const lifecycleState =
     !ready ||
     !integration?.pullRequestLifecycleCoverageFrom ||
@@ -126,22 +139,12 @@ export function githubHealthIndicators(facts, window, includeCurrent) {
           : rework.value === null
             ? 'NO_DATA'
             : 'AVAILABLE';
-  const queueState = !ready ? 'UNAVAILABLE' : stale ? 'STALE' : 'AVAILABLE';
-  const ageState = !ready
-    ? 'UNAVAILABLE'
-    : age.excludedCount && age.eligibleCount
-      ? 'PARTIAL'
-      : stale
-        ? 'STALE'
-        : age.mean === null
-          ? 'NO_DATA'
-          : 'AVAILABLE';
   return {
     current: [
       { metricId: 'I04', value: covered && ready ? rework.value : null, state: lifecycleState },
-      { metricId: 'I10', value: ready ? age.total : null, state: queueState },
+      queue,
       currentDuration,
-      { metricId: 'I73', value: ready ? age.mean : null, state: ageState }
+      queueAge
     ],
     previous
   };

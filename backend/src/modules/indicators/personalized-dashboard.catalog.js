@@ -95,7 +95,12 @@ const descriptions = {
 };
 
 export function isCustomizable(metricId) {
-  return Boolean(INDICATORS[metricId] && descriptions[metricId] && !excluded.has(metricId));
+  return (
+    typeof metricId === 'string' &&
+    Object.hasOwn(INDICATORS, metricId) &&
+    Object.hasOwn(descriptions, metricId) &&
+    !excluded.has(metricId)
+  );
 }
 
 export function customizationMetadata(metricId) {

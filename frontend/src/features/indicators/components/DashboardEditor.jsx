@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { SprintDialog } from '../../schedule/index.js';
 import { SelectControl, useConfirm } from '../../../shared/index.js';
-import { indicatorsApi } from '../api/indicators.api.js';
 import { METRIC_TITLES } from '../dashboard-display.js';
 import './PersonalizedDashboard.css';
 
@@ -28,10 +27,11 @@ const searchText = (text) =>
     .toLocaleLowerCase('pt-BR');
 
 export function DashboardEditor({
-  projectId,
   preference,
   catalog,
   policy,
+  onSave,
+  onReset,
   onSaved,
   onClose,
   returnFocusRef
@@ -158,13 +158,13 @@ export function DashboardEditor({
     setBusy(true);
     setError('');
     try {
-      const response = reset
-        ? await indicatorsApi.resetPreference(projectId)
-        : await indicatorsApi.savePreference(projectId, {
+      const saved = reset
+        ? await onReset()
+        : await onSave({
             configurationVersion: policy.defaultPreference.configurationVersion,
             widgets
           });
-      if (alive.current) onSaved(response.data);
+      if (alive.current && saved) onSaved();
     } catch {
       if (alive.current)
         setError(

@@ -1,4 +1,4 @@
-import { MemoryRouter } from 'react-router';
+import { createMemoryRouter, MemoryRouter, RouterProvider, useParams } from 'react-router';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -126,10 +126,239 @@ function mount(projectId = 1) {
     </ConfirmProvider>
   );
 }
+function ProjectDashboard() {
+  const { projectId } = useParams();
+  return <DashboardPanel projectId={Number(projectId)} />;
+}
+function mountHistory() {
+  const router = createMemoryRouter(
+    [{ path: '/projects/:projectId/indicators', element: <ProjectDashboard /> }],
+    {
+      initialEntries: ['/projects/1/indicators', '/projects/1/indicators?view=custom'],
+      initialIndex: 1
+    }
+  );
+  const app = render(
+    <ConfirmProvider>
+      <RouterProvider router={router} />
+    </ConfirmProvider>
+  );
+  return { ...app, router };
+}
 async function editor() {
   await userEvent.click(await screen.findByRole('button', { name: 'Personalizar painel' }));
   return screen.findByRole('dialog', { name: 'Personalizar painel' });
 }
+
+const mutations = [
+  {
+    method: 'PUT',
+    apiMethod: 'savePreference',
+    initialWidgets: ['I01', 'I23'],
+    savedWidgets: ['I23', 'I01'],
+    edit: async (dialog) => {
+      await userEvent.click(
+        within(dialog).getByRole('button', { name: 'Mover Trabalho em andamento para cima' })
+      );
+    }
+  },
+  {
+    method: 'DELETE',
+    apiMethod: 'resetPreference',
+    initialWidgets: ['I21'],
+    savedWidgets: policy.defaultPreference.widgets,
+    edit: async (dialog) => {
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Restaurar padrão' }));
+      await userEvent.click(await screen.findByRole('button', { name: 'Restaurar', exact: true }));
+    }
+  }
+];
+
+describe.each(mutations)('pending $method preference ownership', (mutation) => {
+  it.each(['before Forward', 'after Forward'])(
+    'reconciles a confirmed write %s after Back unmounts the editor',
+    async (completion) => {
+      stored = { ...stored, widgets: mutation.initialWidgets, isDefault: false };
+      const pending = deferred();
+      api[mutation.apiMethod].mockReturnValueOnce(pending.promise);
+      const { router } = mountHistory();
+      const dialog = await editor();
+      await mutation.edit(dialog);
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
+      expect(api[mutation.apiMethod]).toHaveBeenCalledOnce();
+
+      await act(() => router.navigate(-1));
+      expect(router.state.location.search).toBe('');
+      expect(screen.getByRole('tab', { name: 'Geral' })).toHaveAttribute('aria-selected', 'true');
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      await waitFor(() => expect(api.dashboard).toHaveBeenCalledTimes(2));
+
+      if (completion === 'after Forward') {
+        await act(() => router.navigate(1));
+        await waitFor(() => expect(widgetOrder()).toEqual(mutation.initialWidgets));
+        expect(screen.getByRole('button', { name: 'Personalizar painel' })).toBeDisabled();
+      }
+
+      stored = {
+        ...stored,
+        widgets: mutation.savedWidgets,
+        isDefault: mutation.method === 'DELETE'
+      };
+      await act(() => pending.resolve({ data: stored }));
+
+      if (completion === 'before Forward') {
+        // Reconciliation does not navigate back, reopen the editor, or load an inactive view.
+        expect(router.state.location.search).toBe('');
+        expect(api.dashboard).toHaveBeenCalledTimes(2);
+        await act(() => router.navigate(1));
+      }
+
+      await waitFor(() => expect(widgetOrder()).toEqual(mutation.savedWidgets));
+      expect(router.state.location.search).toBe('?view=custom');
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(screen.queryByText('Painel salvo.')).not.toBeInTheDocument();
+      expect(api.preference).toHaveBeenCalledOnce();
+      expect(api.dashboard.mock.calls.at(-1)[1].widgets).toBe(mutation.savedWidgets.join(','));
+      expect(api.dashboard).toHaveBeenCalledTimes(completion === 'before Forward' ? 3 : 4);
+      expect(screen.getByRole('button', { name: 'Personalizar painel' })).toBeEnabled();
+
+      const reopened = await editor();
+      expect(
+        within(reopened)
+          .getAllByRole('button', { name: /^Reordenar / })
+          .map((handle) => handle.getAttribute('aria-label'))
+      ).toEqual(
+        mutation.savedWidgets.map(
+          (id, index) =>
+            `Reordenar ${titles[metricIds.indexOf(id)]}, posição ${index + 1} de ${mutation.savedWidgets.length}`
+        )
+      );
+      expect(within(reopened).getByRole('button', { name: 'Salvar' })).toBeDisabled();
+    }
+  );
+
+  it.each(['before returning', 'after returning'])(
+    'reads the confirmed state %s after leaving for another project and returning',
+    async (completion) => {
+      stored = { ...stored, widgets: mutation.initialWidgets, isDefault: false };
+      const pending = deferred();
+      api[mutation.apiMethod].mockReturnValueOnce(pending.promise);
+      const { router } = mountHistory();
+      const dialog = await editor();
+      await mutation.edit(dialog);
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
+
+      await act(() => router.navigate('/projects/2/indicators'));
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: 'Geral' })).toHaveAttribute('aria-selected', 'true');
+      expect(api.preference).toHaveBeenCalledOnce();
+
+      if (completion === 'after returning') {
+        await act(() => router.navigate(-1));
+        expect(router.state.location.pathname).toBe('/projects/1/indicators');
+        expect(screen.getByRole('button', { name: 'Personalizar painel' })).toBeDisabled();
+        expect(api.preference).toHaveBeenCalledOnce();
+      }
+
+      stored = {
+        ...stored,
+        widgets: mutation.savedWidgets,
+        isDefault: mutation.method === 'DELETE'
+      };
+      await act(() => pending.resolve({ data: stored }));
+
+      if (completion === 'before returning') {
+        expect(router.state.location.pathname).toBe('/projects/2/indicators');
+        expect(api.preference).toHaveBeenCalledOnce();
+        await act(() => router.navigate(-1));
+      }
+
+      await waitFor(() => expect(widgetOrder()).toEqual(mutation.savedWidgets));
+      expect(api.preference).toHaveBeenCalledTimes(2);
+      expect(api.preference.mock.calls.every(([id]) => id === 1)).toBe(true);
+      expect(api.dashboard.mock.calls.at(-1)[1].widgets).toBe(mutation.savedWidgets.join(','));
+      expect(screen.getByRole('button', { name: 'Personalizar painel' })).toBeEnabled();
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(screen.queryByText('Painel salvo.')).not.toBeInTheDocument();
+    }
+  );
+
+  it('loads the confirmed preference after the entire owner unmounts and mounts again', async () => {
+    stored = { ...stored, widgets: mutation.initialWidgets, isDefault: false };
+    const pending = deferred();
+    api[mutation.apiMethod].mockReturnValueOnce(pending.promise);
+    const app = mount();
+    const dialog = await editor();
+    await mutation.edit(dialog);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
+    app.unmount();
+    stored = {
+      ...stored,
+      widgets: mutation.savedWidgets,
+      isDefault: mutation.method === 'DELETE'
+    };
+    await act(() => pending.resolve({ data: stored }));
+    mount();
+    await waitFor(() => expect(widgetOrder()).toEqual(mutation.savedWidgets));
+    expect(api.preference).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.queryByText('Painel salvo.')).not.toBeInTheDocument();
+  });
+
+  it('keeps the confirmed preference and allows a fresh edit after an abandoned write fails', async () => {
+    stored = { ...stored, widgets: mutation.initialWidgets, isDefault: false };
+    const pending = deferred();
+    api[mutation.apiMethod].mockReturnValueOnce(pending.promise);
+    const { router } = mountHistory();
+    const dialog = await editor();
+    await mutation.edit(dialog);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
+    await act(() => router.navigate(-1));
+    await act(() => router.navigate(1));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Personalizar painel' })).toBeDisabled();
+    await act(() => pending.reject(new Error('write failed')));
+    await waitFor(() => expect(widgetOrder()).toEqual(mutation.initialWidgets));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByText('Painel salvo.')).not.toBeInTheDocument();
+    expect(api.preference).toHaveBeenCalledOnce();
+
+    const reopened = await editor();
+    await mutation.edit(reopened);
+    await userEvent.click(within(reopened).getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => expect(widgetOrder()).toEqual(mutation.savedWidgets));
+    expect(api[mutation.apiMethod]).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not replace the next project preference or close its editor on an old success', async () => {
+    stored = { ...stored, widgets: mutation.initialWidgets, isDefault: false };
+    const pending = deferred();
+    api[mutation.apiMethod].mockReturnValueOnce(pending.promise);
+    const app = mount();
+    const dialog = await editor();
+    await mutation.edit(dialog);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
+    api.preference.mockResolvedValueOnce({
+      data: { ...stored, widgets: ['I26'], isDefault: false }
+    });
+    app.rerender(
+      <ConfirmProvider>
+        <MemoryRouter>
+          <DashboardPanel projectId={2} />
+        </MemoryRouter>
+      </ConfirmProvider>
+    );
+    await waitFor(() => expect(widgetOrder()).toEqual(['I26']));
+    const nextEditor = await editor();
+    const dashboardCalls = api.dashboard.mock.calls.length;
+    await act(() => pending.resolve({ data: { ...stored, widgets: mutation.savedWidgets } }));
+    expect(widgetOrder()).toEqual(['I26']);
+    expect(screen.getByRole('dialog', { name: 'Personalizar painel' })).toBe(nextEditor);
+    expect(within(nextEditor).getByRole('button', { name: 'Salvar' })).toBeDisabled();
+    expect(screen.queryByText('Painel salvo.')).not.toBeInTheDocument();
+    expect(api.dashboard).toHaveBeenCalledTimes(dashboardCalls);
+  });
+});
 function widgetOrder() {
   return [
     ...screen.getByRole('region', { name: 'Meu painel' }).querySelectorAll('[data-metric-id]')
@@ -389,29 +618,6 @@ describe('P9.1 controls', () => {
     expect(names(dialog)[0]).toMatch(/Trabalho em andamento/);
     expect(api.savePreference).not.toHaveBeenCalled();
   });
-});
-
-it('does not let an old save replace the next project preference', async () => {
-  const old = deferred();
-  const app = mount();
-  const dialog = await editor();
-  api.savePreference.mockReturnValueOnce(old.promise);
-  await userEvent.click(
-    within(dialog).getByRole('button', { name: 'Mover Trabalho em andamento para cima' })
-  );
-  await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
-  api.preference.mockResolvedValue({ data: { ...stored, widgets: ['I26'], isDefault: false } });
-  app.rerender(
-    <ConfirmProvider>
-      <MemoryRouter>
-        <DashboardPanel projectId={2} />
-      </MemoryRouter>
-    </ConfirmProvider>
-  );
-  await waitFor(() => expect(widgetOrder()).toEqual(['I26']));
-  await act(() => old.resolve({ data: { ...stored, widgets: ['I23', 'I01'] } }));
-  expect(widgetOrder()).toEqual(['I26']);
-  expect(screen.queryByText('Painel salvo.')).not.toBeInTheDocument();
 });
 
 it('retries failed preference reads without falling back to a false default', async () => {

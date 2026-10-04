@@ -22,6 +22,21 @@ describe('P9 catalog authority', () => {
     first.widgets.reverse();
     expect(defaultDashboardPreference().widgets).not.toEqual(first.widgets);
   });
+  it.each(['toString', 'constructor', '__proto__', 'hasOwnProperty', 'valueOf'])(
+    'rejects inherited property %s in preference and custom query schemas',
+    (metricId) => {
+      expect(isCustomizable(metricId)).toBe(false);
+      expect(
+        dashboardPreferenceBodySchema.safeParse({
+          configurationVersion: 1,
+          widgets: [metricId]
+        }).success
+      ).toBe(false);
+      expect(dashboardQuerySchema.safeParse({ view: 'CUSTOM', widgets: metricId }).success).toBe(
+        false
+      );
+    }
+  );
   it('approves stable standalone presenters independently of Health role', () => {
     const catalog = publicDashboardCatalog();
     for (const id of ['I02', 'I22', 'I47'])

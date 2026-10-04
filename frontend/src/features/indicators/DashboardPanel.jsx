@@ -430,7 +430,12 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
               type="button"
               className="button button-secondary"
               ref={personalizeRef}
-              disabled={!preferenceState.preference || !catalogState.personalization || !catalog}
+              disabled={
+                preferenceState.saving ||
+                !preferenceState.preference ||
+                !catalogState.personalization ||
+                !catalog
+              }
               onClick={() => setEditorContext(projectId)}
             >
               Personalizar painel
@@ -687,14 +692,14 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
         catalog && (
           <DashboardEditor
             key={projectId}
-            projectId={projectId}
             preference={preferenceState.preference}
             catalog={catalog}
             policy={catalogState.personalization}
+            onSave={preferenceState.save}
+            onReset={preferenceState.reset}
             returnFocusRef={personalizeRef}
             onClose={closeEditor}
-            onSaved={(data) => {
-              preferenceState.accept(data);
+            onSaved={() => {
               setSavedContext(projectId);
               closeEditor();
             }}

@@ -25,6 +25,10 @@ I50/I51 duplicam o universo de I49; I06 contém I04; I16 usa a mesma coorte de I
 
 Sem período solicitado, eventos usam os últimos 30 dias corridos até `generatedAt`. Com período, usam o intervalo solicitado normalizado em fuso IANA e recortado em `generatedAt`; dias futuros não são ausência negativa. O baseline de I20/I21/I15 é o intervalo imediatamente anterior de **mesma duração**, sem sobreposição. Se o corte solicitado começar depois de `generatedAt`, eventos temporais não são pontuáveis. Estado corrente (Tasks, TestCases, Requirements, Sprint, fila de PRs) usa o corte atual e não recebe filtro temporal fictício. `projectHealth.window` publica os dois intervalos UTC.
 
+Quando a janela recortada é vazia, `projectHealth.window` é `null`: leituras canônicas
+de casos de teste e fila de PRs continuam independentes dos widgets selecionados,
+e fontes temporais dos widgets não entram no Health nem em seus assessments.
+
 I20/I21 usam os mesmos critérios de primeira conclusão e primeira entrada em andamento dos
 indicadores de Flow. A leitura de movimentos vai até `generatedAt` exclusivo, mesmo quando o
 período solicitado termina antes: uma conclusão conhecida fora da janela não representa

@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { calculateFlowTaskHistory } from '../../src/modules/indicators/calculators/flow-task.calculator.js';
-import { flowHealthIndicators } from '../../src/modules/indicators/health/health.data.js';
+import {
+  flowHealthIndicators,
+  githubHealthIndicators,
+  qualityHealthIndicators
+} from '../../src/modules/indicators/health/health.data.js';
 import {
   buildProjectHealth,
   healthWindow
@@ -9,7 +13,11 @@ import { healthRepository } from '../../src/modules/indicators/health/health.rep
 
 const database = vi.hoisted(() => ({
   task: { findMany: vi.fn() },
-  taskMovement: { findMany: vi.fn() }
+  taskMovement: { findMany: vi.fn() },
+  testExecution: { groupBy: vi.fn() },
+  project: { findFirst: vi.fn() },
+  pullRequest: { findMany: vi.fn() },
+  $queryRaw: vi.fn()
 }));
 vi.mock('../../src/database/prismaClient.js', () => ({
   prisma: { $transaction: (read) => read(database) }
@@ -126,4 +134,47 @@ describe('health flow facts and duration-only calculation', () => {
     expect(rows.current[0]).toMatchObject({ state: 'AVAILABLE', eligibleCount: 7 });
     expect(rows.previous).toEqual(rows.current);
   });
+});
+
+describe('current Health facts without an event window', () => {
+  it('loads current TestCase results without querying executions or retests', async () => {
+    database.$queryRaw.mockResolvedValueOnce([{ result: 'PASS', total: 1 }]);
+    const facts = await healthRepository.quality(42, null);
+    expect(facts).toEqual({
+      executionResults: [],
+      caseHealth: [{ result: 'PASS', total: 1 }],
+      retests: []
+    });
+    expect(database.testExecution.groupBy).not.toHaveBeenCalled();
+    expect(database.$queryRaw).toHaveBeenCalledOnce();
+    expect(qualityHealthIndicators(facts)).toMatchObject([
+      { metricId: 'I49', value: null, state: 'NO_DATA' },
+      { metricId: 'I52', value: { PASS: 1, total: 1 }, state: 'AVAILABLE' },
+      { metricId: 'I58', value: null, state: 'NO_DATA' }
+    ]);
+  });
+
+  it.each([0, 2])(
+    'loads the current PR queue of %i without temporal merge or lifecycle reads',
+    async (total) => {
+      database.project.findFirst.mockResolvedValueOnce({
+        githubIntegration: {
+          status: 'ACTIVE',
+          lastSyncAt: new Date(),
+          lastSyncStatus: 'SINCRONIZADO'
+        }
+      });
+      database.$queryRaw.mockResolvedValueOnce([{ total, eligible: total, totalDays: total * 2 }]);
+      const facts = await healthRepository.github(42, null, asOf, true);
+      expect(database.pullRequest.findMany).not.toHaveBeenCalled();
+      expect(database.$queryRaw).toHaveBeenCalledOnce();
+      expect(githubHealthIndicators(facts, null, true)).toEqual({
+        current: [
+          { metricId: 'I10', value: total, state: 'AVAILABLE' },
+          { metricId: 'I73', value: total ? 2 : null, state: total ? 'AVAILABLE' : 'NO_DATA' }
+        ],
+        previous: []
+      });
+    }
+  );
 });

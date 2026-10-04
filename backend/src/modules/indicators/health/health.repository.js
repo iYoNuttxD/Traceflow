@@ -1,5 +1,17 @@
 import { prisma } from '../../../database/prismaClient.js';
 
+function readOpenPullRequestAge(tx, projectId, asOf) {
+  return tx.$queryRaw`
+    SELECT COUNT(*) AS total,
+      COALESCE(SUM(CASE WHEN createdAtGithub IS NOT NULL AND createdAtGithub <= ${asOf}
+        THEN 1 ELSE 0 END), 0) AS eligible,
+      COALESCE(SUM(CASE WHEN createdAtGithub IS NOT NULL AND createdAtGithub <= ${asOf}
+        THEN TIMESTAMPDIFF(MICROSECOND, createdAtGithub, ${asOf}) / 86400000000
+        ELSE 0 END), 0) AS totalDays
+    FROM PullRequest WHERE projectId = ${projectId} AND state = 'open'
+  `;
+}
+
 // The Dashboard already established project existence and access. These reads
 // fetch only health facts, with one consistent snapshot per source group.
 export const healthRepository = {
@@ -47,14 +59,16 @@ export const healthRepository = {
     return prisma.$transaction(
       async (tx) => {
         const [executionResults, caseHealth, retests] = await Promise.all([
-          tx.testExecution.groupBy({
-            by: ['result'],
-            where: {
-              projectId,
-              executedAt: { gte: period.startInclusive, lt: period.endExclusive }
-            },
-            _count: { _all: true }
-          }),
+          period
+            ? tx.testExecution.groupBy({
+                by: ['result'],
+                where: {
+                  projectId,
+                  executedAt: { gte: period.startInclusive, lt: period.endExclusive }
+                },
+                _count: { _all: true }
+              })
+            : [],
           tx.$queryRaw`
             SELECT COALESCE(e.result, 'NEVER_EXECUTED') AS result, COUNT(*) AS total
             FROM TestCase c LEFT JOIN TestExecution e ON e.id = (
@@ -66,7 +80,8 @@ export const healthRepository = {
             WHERE c.projectId = ${projectId} AND c.deletedAt IS NULL AND c.status = 'ATIVO'
             GROUP BY e.result
           `,
-          tx.$queryRaw`
+          period
+            ? tx.$queryRaw`
             SELECT e.result, d.deletedAt IS NULL AS visible, COUNT(*) AS total
             FROM DefectRetest r JOIN Defect d ON d.id = r.defectId
               JOIN TestExecution e ON e.id = r.testExecutionId
@@ -75,6 +90,7 @@ export const healthRepository = {
               AND e.executedAt < ${period.endExclusive}
             GROUP BY e.result, visible
           `
+            : []
         ]);
         return { executionResults, caseHealth, retests };
       },
@@ -98,6 +114,10 @@ export const healthRepository = {
             }
           }
         });
+        if (!window) {
+          const ageRows = await readOpenPullRequestAge(tx, projectId, asOf);
+          return { project, age: ageRows[0] };
+        }
         const previousMerged = tx.pullRequest.findMany({
           where: {
             projectId,
@@ -144,15 +164,7 @@ export const healthRepository = {
             ) c
             JOIN PullRequest p ON p.id = c.pullRequestId AND p.projectId = ${projectId}
           `,
-          tx.$queryRaw`
-            SELECT COUNT(*) AS total,
-              COALESCE(SUM(CASE WHEN createdAtGithub IS NOT NULL AND createdAtGithub <= ${asOf}
-                THEN 1 ELSE 0 END), 0) AS eligible,
-              COALESCE(SUM(CASE WHEN createdAtGithub IS NOT NULL AND createdAtGithub <= ${asOf}
-                THEN TIMESTAMPDIFF(MICROSECOND, createdAtGithub, ${asOf}) / 86400000000
-                ELSE 0 END), 0) AS totalDays
-            FROM PullRequest WHERE projectId = ${projectId} AND state = 'open'
-          `,
+          readOpenPullRequestAge(tx, projectId, asOf),
           previousMerged
         ]);
         return {

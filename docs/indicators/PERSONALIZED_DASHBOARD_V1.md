@@ -20,7 +20,9 @@ e qualidade de PR também em Qualidade. Isso não altera sua fonte nem sua fórm
 
 ## Padrão e limites
 
-configurationVersion=1; mínimo 1 e máximo 12 IDs únicos. Padrão:
+configurationVersion=1; mínimo 1 e máximo 12 IDs únicos, pertencentes ao catálogo
+e à lista própria de presenters aprovados. Propriedades herdadas de objetos não
+são IDs válidos, tanto no PUT quanto na query CUSTOM. Padrão:
 I01, I23, I49, I66, I21, I28. Combina progresso, WIP, qualidade, implementação,
 tendência de Cycle Time e tarefas atrasadas. É uma seleção própria, não uma cópia
 independente de Geral. GET sem row e Restaurar padrão usam a mesma função backend.
@@ -64,8 +66,14 @@ direção impossível. Busca não é uma consulta HTTP.
 Draft separado da configuração confirmada. Salvar fica desabilitado sem mudança,
 com menos de 1/mais de 12, ou durante request. Falha mantém draft; sucesso fecha o
 editor e atualiza um agregado. Falha do agregado posterior não desfaz nem rotula o
-PUT confirmado como falha de salvamento. Troca de projeto/view desmonta o editor e
-invalida callbacks antigos. Cancelar/Escape descartam draft e devolvem foco.
+PUT confirmado como falha de salvamento. Troca de view desmonta o editor e invalida
+seus callbacks de UI, mas a preferência confirmada continua sendo reconciliada pelo
+workspace do projeto, inclusive entre Voltar/Avançar do navegador. Enquanto a escrita
+está pendente, reabrir o editor fica bloqueado. Troca de projeto ou desmontagem do
+workspace invalida o contexto anterior, sem aplicar respostas antigas a outro projeto.
+Ao retornar a um projeto no mesmo workspace, sua preferência é relida após qualquer
+escrita anterior ainda pendente, sem reutilizar uma leitura feita antes da confirmação.
+Cancelar/Escape descartam draft e devolvem foco.
 
 Restaurar padrão usa confirmação leve, muda somente draft e continua cancelável.
 Salvar após restore executa DELETE e consome o default retornado. Não há autosave,

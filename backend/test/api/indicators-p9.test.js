@@ -121,6 +121,9 @@ describe('P9 personal preference and custom aggregate', () => {
     config([]),
     config(['I01', 'I01']),
     config(['I99']),
+    ...['toString', 'constructor', '__proto__', 'hasOwnProperty', 'valueOf'].map((id) =>
+      config([id])
+    ),
     config(['I03']),
     config(['I68']),
     { ...config(['I01']), configurationVersion: 2 },
@@ -132,6 +135,19 @@ describe('P9 personal preference and custom aggregate', () => {
     expect((await call(p, user, 'put').send(body)).status).toBe(400);
     expect(await prisma.projectDashboardPreference.count()).toBe(0);
   });
+  it.each(['toString', 'constructor', '__proto__', 'hasOwnProperty', 'valueOf'])(
+    'rejects inherited widget %s without replacing a saved preference',
+    async (metricId) => {
+      const user = await actor();
+      const p = await project(user);
+      const saved = await call(p, user, 'put').send(config(['I21', 'I01']));
+      expect(saved.status).toBe(200);
+      const persisted = await prisma.projectDashboardPreference.findFirst();
+      expect((await call(p, user, 'put').send(config([metricId]))).status).toBe(400);
+      expect(await prisma.projectDashboardPreference.findFirst()).toEqual(persisted);
+      expect((await call(p, user)).body).toEqual(saved.body);
+    }
+  );
   it('enforces authentication, opaque project scope, inactive membership and CSRF', async () => {
     const user = await actor();
     const other = await actor();
@@ -241,6 +257,9 @@ describe('P9 personal preference and custom aggregate', () => {
   it.each([
     'view=CUSTOM',
     'view=CUSTOM&widgets=I68',
+    ...['toString', 'constructor', '__proto__', 'hasOwnProperty', 'valueOf'].map(
+      (id) => `view=CUSTOM&widgets=${id}`
+    ),
     'view=CUSTOM&widgets=I01,I01',
     'view=GENERAL&widgets=I01',
     'view=CUSTOM&widgets=I01&startDate=2024-01-01&endDate=2026-01-01&timeZone=UTC'

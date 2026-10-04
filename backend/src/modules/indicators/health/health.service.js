@@ -8,6 +8,8 @@ import {
 import { assessSignal, buildProjectHealth, healthWindow } from './health.policy.js';
 import { healthRepository } from './health.repository.js';
 
+const TEMPORAL_SIGNALS = new Set(['I04', 'I15', 'I20', 'I21', 'I49', 'I58']);
+
 function add(map, indicators) {
   for (const indicator of indicators) map.set(indicator.metricId, indicator);
 }
@@ -38,13 +40,9 @@ export async function readHealth(
     requests.push(['flow', healthRepository.flow(projectId, asOf, view === 'GENERAL')]);
   else if (view === 'GENERAL')
     requests.push(['planning', healthRepository.planning(projectId, asOf)]);
-  if (window && ['GENERAL', 'QUALITY'].includes(view) && !matchesWindow('I49'))
-    requests.push(['quality', healthRepository.quality(projectId, window.current)]);
-  if (
-    window &&
-    options.githubApplicable &&
-    (view === 'GENERAL' || (view === 'GITHUB' && current.has('I15')))
-  )
+  if (['GENERAL', 'QUALITY'].includes(view) && !matchesWindow('I49'))
+    requests.push(['quality', healthRepository.quality(projectId, window?.current ?? null)]);
+  if (options.githubApplicable && (view === 'GENERAL' || (view === 'GITHUB' && current.has('I15'))))
     requests.push([
       'github',
       healthRepository.github(projectId, window, asOf, !matchesWindow('I15'))
@@ -85,13 +83,23 @@ export async function readHealth(
     } else add(current, kind === 'progress' ? [outcome.value] : outcome.value.indicators);
   }
 
+  // A future-only request has no event window. Widget sources may still contain
+  // events from an internal current-day read, so they cannot supply Health here.
+  if (!window) {
+    for (const metricId of TEMPORAL_SIGNALS) current.delete(metricId);
+    if (!options.githubApplicable) {
+      current.delete('I10');
+      current.delete('I73');
+    }
+  }
   if (!options.sprintActive) current.delete('I45');
   const assessments = Object.fromEntries(
     visibleIndicators.map((indicator) => [
       indicator.metricId,
       assessSignal(
         indicator.metricId,
-        indicator.metricId === 'I45' && !options.sprintActive
+        (!window && TEMPORAL_SIGNALS.has(indicator.metricId)) ||
+          (indicator.metricId === 'I45' && !options.sprintActive)
           ? new Map(current)
           : new Map(current).set(indicator.metricId, indicator),
         previous
