@@ -761,3 +761,24 @@ rolagem interna com cabeçalho fixo e indicam rankings limitados. Sprint foi ren
 com duas séries de oito dias e Velocity de quatro Sprints. Todas as oito categorias
 foram reinspecionadas no projeto 2 enriquecido, além da Visão Geral. Matriz, condições
 e limitações no [relatório P8.6B](../deliveries/S2_P8_6B_ANALYTICS_DATA_ENRICHMENT_REPORT.md).
+
+## P8.6C — hardening visual e de interações (2026-10-03)
+
+Esta entrada substitui o conteúdo de Overview Health, ajuda e listas descrito nas
+rodadas anteriores. Evidência nova, com API real e projeto artificial 2 existente.
+
+| Superfície | Owner / apresentação vigente | Evidência desta rodada |
+|---|---|---|
+| PROJECT-OVERVIEW-HEALTH | `ProjectHealthSummary` integrado; coração, título canônico, nota, status e barra, sem CTA/cobertura/drivers | Render real 69/100; contenção e conteúdo por teste |
+| INDICATORS-FILTERS | `CollapsibleFilterPanel`; Período/Sprint, autoaplicação; sem parágrafo técnico | 7/30 dias, Sprint A/B e contexto preservado entre cinco categorias |
+| INDICATORS-HEADER | Nova primitive `IndicatorHeader`; título/ajuda alinhados, assessment abaixo, ícone 16px/target 44px | Testes de estados e inspeção desktop/mobile |
+| INDICATORS-LISTS | Máximo 20rem, altura de conteúdo, headers fixos, nome acessível e N de M | PageDown real, foco visível, scroll interno de 300px no mobile |
+| INDICATORS-FLOW | Mediana do período versus diária; amostra, lacunas, referência e snapshot com um dia útil | Fatos de 40 Tasks/73 movimentos; 120 linhas de API/tabelas conferidas |
+| INDICATORS-STATES | Ausência compacta, zero preservado; I73 sem PR aberta coerente com Health | Regressão automatizada e render real |
+| INDICATORS-REFRESH | Sem listener de foco; probe inicial, retry limitado e sync confirmada preservados | 199,7s sem novos requests, relato manual e testes de foco/visibilidade/async |
+
+Matriz final: nove superfícies × sete larguras Light, mais nove × três larguras Dark
+(90 capturas). Inspeção direta amostral de todas as superfícies, com DOM/teclado/dados
+complementares. Não equivale a certificação de acessibilidade ou benchmark de produção.
+Segurança do backend bloqueia o veredito global; detalhes no
+[relatório de hardening](../deliveries/S2_P8_6C_INDICATORS_VISUAL_DATA_HARDENING_REPORT.md).

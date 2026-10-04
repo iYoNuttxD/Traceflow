@@ -131,7 +131,7 @@ describe('P8.5 Indicators workspace', () => {
       '/projects/2/indicators'
     );
   });
-  it('refetches indicators and summary together after a confirmed sync and on return to the page', async () => {
+  it('refetches indicators and summary together only after a confirmed sync, never on focus or visibility', async () => {
     vi.useFakeTimers();
     mocks.sync
       .mockResolvedValueOnce({ run: { id: 4, status: 'RUNNING' } })
@@ -147,9 +147,13 @@ describe('P8.5 Indicators workspace', () => {
     expect(screen.getByRole('region', { name: 'Visão geral dos indicadores' })).toHaveTextContent(
       '88 / 100'
     );
+    const probes = mocks.sync.mock.calls.length;
+    fireEvent.blur(window);
     fireEvent.focus(window);
-    await act(async () => {});
-    expect(mocks.dashboard).toHaveBeenCalledTimes(3);
+    fireEvent(document, new Event('visibilitychange'));
+    await act(async () => vi.advanceTimersByTimeAsync(30000));
+    expect(mocks.dashboard).toHaveBeenCalledTimes(2);
+    expect(mocks.sync).toHaveBeenCalledTimes(probes);
   });
   it('retries a transient status failure and refreshes once the observed run completes', async () => {
     vi.useFakeTimers();
@@ -167,7 +171,7 @@ describe('P8.5 Indicators workspace', () => {
     await act(async () => vi.advanceTimersByTimeAsync(20000));
     expect(mocks.sync).toHaveBeenCalledTimes(3);
   });
-  it('bounds offline retries with backoff and allows focus to restart probing', async () => {
+  it('bounds offline retries and does not restart on focus', async () => {
     vi.useFakeTimers();
     mocks.sync.mockRejectedValue(new Error('offline'));
     page();
@@ -183,11 +187,11 @@ describe('P8.5 Indicators workspace', () => {
     expect(mocks.sync).toHaveBeenCalledTimes(4);
     fireEvent.focus(window);
     await act(async () => {});
-    expect(mocks.sync).toHaveBeenCalledTimes(5);
+    expect(mocks.sync).toHaveBeenCalledTimes(4);
     await act(async () => vi.advanceTimersByTimeAsync(2500));
-    expect(mocks.sync).toHaveBeenCalledTimes(6);
+    expect(mocks.sync).toHaveBeenCalledTimes(4);
   });
-  it.each(['focus', 'project', 'unmount'])(
+  it.each(['project', 'unmount'])(
     'does not retry a failed obsolete probe after %s',
     async (change) => {
       vi.useFakeTimers();
@@ -200,15 +204,14 @@ describe('P8.5 Indicators workspace', () => {
       const view = page();
       await act(async () => {});
       const oldSignal = mocks.sync.mock.calls[0][1].signal;
-      if (change === 'focus') fireEvent.focus(window);
-      else if (change === 'project') await act(async () => navigate('/projects/2/indicators'));
+      if (change === 'project') await act(async () => navigate('/projects/2/indicators'));
       else view.unmount();
       await act(async () => {});
       const currentCalls = mocks.sync.mock.calls.length;
       await act(async () => rejectOld(new Error('late offline')));
       await act(async () => vi.advanceTimersByTimeAsync(60000));
       expect(mocks.sync).toHaveBeenCalledTimes(currentCalls);
-      if (change !== 'focus') expect(oldSignal.aborted).toBe(true);
+      expect(oldSignal.aborted).toBe(true);
     }
   );
   it('cancels an already scheduled retry on project navigation', async () => {
@@ -227,7 +230,7 @@ describe('P8.5 Indicators workspace', () => {
     expect(mocks.dashboard).not.toHaveBeenCalled();
     expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
   });
-  it('compact overview keeps only health and the route CTA, with retry and project authority', async () => {
+  it('compact overview keeps only health without coverage, drivers or a CTA, with retry and project authority', async () => {
     mocks.dashboard.mockRejectedValueOnce(new Error('offline')).mockResolvedValue(data(71));
     render(
       <MemoryRouter>
@@ -238,10 +241,8 @@ describe('P8.5 Indicators workspace', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Tentar novamente' }));
     const summary = screen.getByRole('region', { name: 'Saúde do projeto' });
     await waitFor(() => expect(summary).toHaveTextContent('71 / 100'));
-    expect(within(summary).getByRole('link', { name: /Ver indicadores/ })).toHaveAttribute(
-      'href',
-      '/projects/1/indicators'
-    );
+    expect(within(summary).queryByRole('link')).not.toBeInTheDocument();
+    expect(summary).not.toHaveTextContent(/Principal área|Cobertura/);
     expect(within(summary).queryByText('Planejamento')).not.toBeInTheDocument();
     expect(within(summary).queryByRole('tablist')).not.toBeInTheDocument();
   });

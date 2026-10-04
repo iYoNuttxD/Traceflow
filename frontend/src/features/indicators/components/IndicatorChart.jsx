@@ -89,14 +89,25 @@ export function IndicatorChart({ indicator, title }) {
       : SERIES[indicator.metricId];
   if (!series || !points.length) return null;
 
-  if (points.length === 1) {
-    const point = points[0];
+  const duration = ['I20', 'I21'].includes(indicator.metricId);
+  const usefulPoints = points.filter((point) => series.some((item) => valid(point[item.key])));
+  if (!usefulPoints.length)
+    return (
+      <>
+        <strong className="indicator-card__value">—</strong>
+        <p className="indicator-card__empty">Sem amostras no período.</p>
+      </>
+    );
+  if ((duration ? usefulPoints.length : points.length) === 1) {
+    const point = usefulPoints[0];
     return (
       <figure className="dashboard-chart dashboard-chart--snapshot">
         <figcaption className="dashboard-chart__snapshot-title">
           {indicator.metricId === 'I47'
             ? 'Última Sprint concluída'
-            : `Histórico iniciado em ${formatDate(point.date)}`}
+            : duration
+              ? `Amostra em ${formatDate(point.date)}`
+              : `Histórico iniciado em ${formatDate(point.date)}`}
         </figcaption>
         {point.sprintName && <p className="dashboard-chart__sprint-name">{point.sprintName}</p>}
         <dl className="dashboard-chart__snapshot-values">
@@ -107,6 +118,11 @@ export function IndicatorChart({ indicator, title }) {
             </div>
           ))}
         </dl>
+        {duration && (
+          <p className="dashboard-chart__note">
+            {point.eligibleCount} {point.eligibleCount === 1 ? 'Task' : 'Tasks'} na amostra.
+          </p>
+        )}
         {indicator.metricId !== 'I47' && (
           <p className="dashboard-chart__note">
             Ainda não há dias suficientes para formar uma tendência.
@@ -172,11 +188,10 @@ export function IndicatorChart({ indicator, title }) {
     <figure
       className={`dashboard-chart${stacked ? ' dashboard-chart--cumulative' : ''}${!stacked && !bars ? ' dashboard-chart--line' : ''}`}
     >
-      <p className="dashboard-chart__hint">
-        Passe o cursor, toque ou use as setas para explorar os pontos.
-      </p>
-      <div className="dashboard-chart__scale" aria-hidden="true">
-        <span>Escala: 0 a {formatMetricValue(max, indicator.unit)}</span>
+      <p className="sr-only">Passe o cursor, toque ou use as setas para explorar os pontos.</p>
+      <div className="dashboard-chart__scale">
+        <span className="sr-only">Escala: 0 a </span>
+        <span>{formatMetricValue(max, indicator.unit)}</span>
       </div>
       <svg
         viewBox="0 0 640 206"
@@ -290,6 +305,12 @@ export function IndicatorChart({ indicator, title }) {
       {selectedPoint && (
         <div className="dashboard-chart__tooltip" role="status">
           <strong>{selectedPoint.sprintName ?? formatDate(selectedPoint.date)}</strong>
+          {duration && (
+            <span>
+              Amostra: {selectedPoint.eligibleCount ?? 0}{' '}
+              {selectedPoint.eligibleCount === 1 ? 'Task' : 'Tasks'}
+            </span>
+          )}
           {series.map((item) => (
             <span key={item.key}>
               {item.label}: {formatMetricValue(selectedPoint[item.key], indicator.unit)}
@@ -311,13 +332,18 @@ export function IndicatorChart({ indicator, title }) {
         </p>
       )}
       {['I20', 'I21'].includes(indicator.metricId) && (
-        <p className="dashboard-chart__note">
+        <p className="sr-only">
           Mediana das primeiras conclusões de cada dia. Dias sem amostra permanecem em branco.
         </p>
       )}
       <details className="dashboard-chart__data">
         <summary>Ver dados</summary>
-        <div className="dashboard-chart__table-wrap">
+        <div
+          className="dashboard-chart__table-wrap"
+          role="region"
+          aria-label={`Dados de ${title}`}
+          tabIndex={0}
+        >
           <table>
             <caption>{title}: dados do gráfico</caption>
             <thead>
@@ -355,7 +381,7 @@ export function IndicatorChart({ indicator, title }) {
         </div>
       </details>
       {indicator.metricId === 'I25' && (
-        <p className="dashboard-chart__note">
+        <p className="sr-only">
           Área empilhada: {series.map((item) => labelForField(item.key)).join(', ')}.
         </p>
       )}

@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { TraceFlowIcon } from '../../../shared/index.js';
-import { Link } from 'react-router';
 import { indicatorsApi } from '../api/indicators.api.js';
-import { HEALTH_DIMENSION_LABELS, HEALTH_STATUS_LABELS } from '../health-display.js';
+import { HEALTH_STATUS_LABELS } from '../health-display.js';
 import './ProjectHealthSummary.css';
 
 export function ProjectHealthSummary({ projectId, refreshVersion = 0 }) {
@@ -23,13 +22,6 @@ export function ProjectHealthSummary({ projectId, refreshVersion = 0 }) {
   }, [projectId, identity]);
   const current = state?.identity === identity ? state : null;
   const health = current?.health;
-  const areas = [
-    ...new Set(
-      (health?.drivers?.negative ?? [])
-        .map((d) => HEALTH_DIMENSION_LABELS[d.dimension])
-        .filter(Boolean)
-    )
-  ].slice(0, 1);
   return (
     <section
       className="project-health-summary"
@@ -78,17 +70,10 @@ export function ProjectHealthSummary({ projectId, refreshVersion = 0 }) {
             />
           )}
           {health.score == null && <p>Dados insuficientes para uma avaliação geral confiável.</p>}
-          {areas.length > 0 && <p>Principal área de atenção: {areas.join(' · ')}</p>}
-          <p className="project-health-summary__coverage">
-            Cobertura da avaliação: {Math.round(health.coverage)}%
-          </p>
         </>
       ) : (
         <p>A avaliação ainda não está disponível.</p>
       )}
-      <Link className="button button-secondary" to={`/projects/${projectId}/indicators`}>
-        Ver indicadores <span aria-hidden="true">→</span>
-      </Link>
     </section>
   );
 }

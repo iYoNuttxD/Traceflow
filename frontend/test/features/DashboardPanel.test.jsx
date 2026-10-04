@@ -362,7 +362,7 @@ describe('P8 Dashboard na Visão Geral', () => {
     expect(screen.getByLabelText('De')).toBeVisible();
     expect(screen.getByLabelText('Até')).toBeVisible();
     expect(screen.queryByLabelText('Responsável')).not.toBeInTheDocument();
-    expect(screen.getByText(/período também define a janela da saúde/i)).toBeVisible();
+    expect(screen.queryByText(/período também define a janela da saúde/i)).not.toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Sprint 3 · Concluída' })).toBeInTheDocument();
   });
 
@@ -613,9 +613,7 @@ describe('P8 Dashboard na Visão Geral', () => {
     expect(card).toHaveTextContent('6 dias');
     expect(card).toHaveTextContent('Referência recente: 4 dias');
     expect(card).toHaveTextContent('Variação: +50%');
-    expect(screen.getByRole('table', { name: 'Registros relacionados' })).toHaveTextContent(
-      'Revisar entrega'
-    );
+    expect(screen.getByRole('table', { name: /registros/ })).toHaveTextContent('Revisar entrega');
     fireEvent.click(within(card).getByRole('button', { name: /Informações/ }));
     const help = screen.getByRole('dialog');
     expect(help).toHaveTextContent('Valor atual');
@@ -770,7 +768,9 @@ describe('P8 Dashboard na Visão Geral', () => {
     const card = await screen.findByRole('article', { name: 'WIP atual' });
     expect(card).toHaveTextContent('4');
     expect(card.querySelector('.indicator-card__filter-mark')).toBeNull();
-    expect(screen.getAllByText(/Alguns indicadores preservam seu próprio recorte/)).toHaveLength(1);
+    expect(
+      screen.queryByText(/Alguns indicadores preservam seu próprio recorte/)
+    ).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Aplicar filtros' })).not.toBeInTheDocument();
   });
 
@@ -1095,7 +1095,7 @@ describe('P8 Dashboard na Visão Geral', () => {
     expect(health).toHaveTextContent('Nunca executado');
     const concentration = screen.getByRole('article', { name: 'Defeitos por requisito' });
     expect(concentration).toHaveTextContent('Um defeito pode aparecer em mais de um requisito');
-    const table = within(concentration).getByRole('table', { name: 'Registros relacionados' });
+    const table = within(concentration).getByRole('table', { name: /registros/ });
     expect(within(table).getAllByRole('row')).toHaveLength(3);
     for (const name of ['Login REQ-1', 'Checkout REQ-2']) {
       expect(
@@ -1178,7 +1178,9 @@ describe('P8 Dashboard na Visão Geral', () => {
     const section = await screen.findByRole('region', { name: 'Dimensões de rastreabilidade' });
     expect(section).not.toHaveTextContent('Recorte não aplicado');
     fireEvent.click(screen.getByRole('button', { name: /Buscar e filtrar/ }));
-    expect(screen.getAllByText(/Alguns indicadores preservam seu próprio recorte/)).toHaveLength(1);
+    expect(
+      screen.queryByText(/Alguns indicadores preservam seu próprio recorte/)
+    ).not.toBeInTheDocument();
     expect(within(section).queryByLabelText(/filtro solicitado não aplicado/i)).toBeNull();
   });
 

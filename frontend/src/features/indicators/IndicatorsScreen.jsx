@@ -36,18 +36,10 @@ function ProjectIndicators({ project }) {
         }
       }
     }
-    function onFocus() {
-      consecutiveFailures = 0;
-      setRefreshVersion((n) => n + 1);
-      window.clearTimeout(timer);
-      void probe();
-    }
     void probe();
-    window.addEventListener('focus', onFocus);
     return () => {
       controller.abort();
       window.clearTimeout(timer);
-      window.removeEventListener('focus', onFocus);
     };
   }, [project.id]);
   return <DashboardPanel projectId={project.id} refreshVersion={refreshVersion} />;

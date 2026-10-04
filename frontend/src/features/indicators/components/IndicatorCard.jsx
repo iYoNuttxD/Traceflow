@@ -1,7 +1,8 @@
 import { lazy, Suspense } from 'react';
-import { DashboardHelp } from './DashboardHelp.jsx';
+import { IndicatorHeader } from './IndicatorHeader.jsx';
 import {
   describeLimitation,
+  presentationLimitations,
   distributionRows,
   formatDateTime,
   formatMetricValue,
@@ -10,7 +11,7 @@ import {
   METRIC_TITLES
 } from '../dashboard-display.js';
 import { IndicatorProgress } from './IndicatorProgress.jsx';
-import { HEALTH_STATUS_LABELS } from '../health-display.js';
+import { describeHealthReason } from '../health-display.js';
 
 const IndicatorChart = lazy(() =>
   import('./IndicatorChart.jsx').then((module) => ({ default: module.IndicatorChart }))
@@ -28,6 +29,9 @@ const EMPTY_MESSAGES = {
   I15: 'Nenhuma PR mesclada elegível no período.',
   I16: 'Nenhuma PR mesclada elegível no período.',
   I17: 'Nenhuma PR aberta no momento.',
+  I20: 'Nenhuma Task concluída elegível no período.',
+  I21: 'Nenhum ciclo concluído elegível no período.',
+  I24: 'Nenhuma Task em andamento com histórico elegível.',
   I47: 'Nenhuma Sprint concluída com histórico elegível.'
 };
 
@@ -45,7 +49,7 @@ function listLabel(item) {
   return item.title ?? item.sprintName ?? item.displayId ?? `Task ${item.taskId ?? item.id ?? ''}`;
 }
 
-function IndicatorList({ indicator }) {
+function IndicatorList({ indicator, title }) {
   if (!indicator.items?.length) return null;
   const showResponsible = indicator.items.some((item) => 'responsible' in item);
   const showDetails = indicator.items.some((item) => item.deadline || item.direction);
@@ -62,15 +66,15 @@ function IndicatorList({ indicator }) {
       className="indicator-card__table-scroll"
       tabIndex={0}
       role="region"
-      aria-label="Lista de registros"
+      aria-label={`Registros de ${title}`}
     >
       <table className="indicator-card__table">
-        <caption>
-          Registros relacionados
-          {['I28', 'I34', 'I35'].includes(indicator.metricId) &&
-          indicator.value > indicator.items.length
-            ? ` · ${indicator.items.length} de ${indicator.value}`
-            : ''}
+        <caption className="indicator-card__list-count">
+          {indicator.items.length} de{' '}
+          {indicator.kind === 'LIST' && ['I28', 'I34', 'I35', 'I17'].includes(indicator.metricId)
+            ? (indicator.value ?? indicator.items.length)
+            : (indicator.eligibleCount ?? indicator.items.length)}{' '}
+          registros
         </caption>
         <thead>
           <tr>
@@ -187,7 +191,7 @@ function IndicatorDistribution({ indicator }) {
 
 export function IndicatorCard({ indicator, metadata, sharedLimitations = [] }) {
   const title = METRIC_TITLES[indicator.metricId] ?? metadata.title;
-  const limitations = (indicator.limitations ?? []).filter(
+  const limitations = presentationLimitations(indicator).filter(
     (code) => !code.includes('FILTER_') && code !== 'PERIOD_NOT_COMPLETE'
   );
   const individualLimitations = limitations.filter((code) => !sharedLimitations.includes(code));
@@ -199,7 +203,10 @@ export function IndicatorCard({ indicator, metadata, sharedLimitations = [] }) {
   const hasChart = hasValue && indicator.kind === 'SERIES' && indicator.points?.length > 0;
   const status = STATE_LABELS[state] ?? 'Estado desconhecido';
   const assessment = indicator.assessment;
-  const healthBadge = ['HEALTHY', 'ATTENTION', 'CRITICAL'].includes(assessment?.status);
+  const noOpenPrs =
+    indicator.metricId === 'I73' &&
+    assessment?.status === 'HEALTHY' &&
+    assessment?.reasonCode === 'NO_OPEN_PRS';
 
   return (
     <article
@@ -207,36 +214,32 @@ export function IndicatorCard({ indicator, metadata, sharedLimitations = [] }) {
       aria-label={title}
       data-metric-id={indicator.metricId}
     >
-      <header className="indicator-card__header">
-        <div>
-          <h4>{title}</h4>
-          {healthBadge && (
-            <span
-              className={`indicator-card__health indicator-card__health--${assessment.status.toLowerCase()}`}
-            >
-              {HEALTH_STATUS_LABELS[assessment.status]}
-            </span>
-          )}
-        </div>
-        <DashboardHelp title={title}>
-          <strong>O que mostra</strong>
-          <p>{help.what}</p>
-          <strong>Valor atual</strong>
-          <p>
-            {scalar
-              ? formatMetricValue(indicator.value, indicator.unit)
-              : hasValue
-                ? 'Consulte a distribuição ou os registros apresentados no cartão.'
+      <IndicatorHeader title={title} assessment={assessment}>
+        <strong>O que mostra</strong>
+        <p>{help.what}</p>
+        <strong>Valor atual</strong>
+        <p>
+          {scalar
+            ? formatMetricValue(indicator.value, indicator.unit)
+            : hasValue
+              ? 'Consulte a distribuição ou os registros apresentados no cartão.'
+              : noOpenPrs
+                ? 'Nenhuma PR aberta.'
                 : 'Ainda não há valor disponível nesta leitura.'}
-          </p>
-          <IndicatorReference assessment={assessment} />
-          <strong>Como interpretar</strong>
-          <p>{help.meaning}</p>
-        </DashboardHelp>
-      </header>
+        </p>
+        <IndicatorReference assessment={assessment} />
+        <strong>Como interpretar</strong>
+        <p>{help.meaning}</p>
+        {assessment?.reasonCode && assessment?.basis && (
+          <p>{describeHealthReason(assessment, indicator.metricId)}</p>
+        )}
+      </IndicatorHeader>
 
       {['PARTIAL', 'STALE', 'UNKNOWN'].includes(state) &&
-        (state === 'STALE' || individualLimitations.length > 0 || !sharedLimitations.length) && (
+        (state === 'STALE' ||
+          indicator.value == null ||
+          individualLimitations.length > 0 ||
+          !sharedLimitations.length) && (
           <div className="indicator-card__status-line">
             <span className={`indicator-card__state indicator-card__state--${state.toLowerCase()}`}>
               {status}
@@ -244,19 +247,21 @@ export function IndicatorCard({ indicator, metadata, sharedLimitations = [] }) {
           </div>
         )}
 
-      {state === 'NO_DATA' && (
-        <p className="indicator-card__empty">
-          {EMPTY_MESSAGES[indicator.metricId] ?? 'Nenhum dado elegível para este indicador.'}
-        </p>
-      )}
-      {state === 'UNAVAILABLE' &&
-        (individualLimitations.length > 0 || sharedLimitations.length === 0) && (
+      {['NO_DATA', 'UNAVAILABLE'].includes(state) && (
+        <>
+          <strong className="indicator-card__value">—</strong>
           <p className="indicator-card__empty">
-            {individualLimitations.length
-              ? describeLimitation(individualLimitations[0])
-              : 'Não há dados suficientes para apresentar este indicador.'}
+            {noOpenPrs
+              ? 'Nenhuma PR aberta.'
+              : state === 'NO_DATA'
+                ? (EMPTY_MESSAGES[indicator.metricId] ?? 'Nenhum dado elegível neste período.')
+                : 'Indisponível'}
           </p>
-        )}
+          {state === 'UNAVAILABLE' && individualLimitations.length > 0 && (
+            <p className="indicator-card__notice">{describeLimitation(individualLimitations[0])}</p>
+          )}
+        </>
+      )}
       {state === 'UNKNOWN' && (
         <p className="indicator-card__empty">
           Não foi possível interpretar o estado deste indicador.
@@ -265,6 +270,9 @@ export function IndicatorCard({ indicator, metadata, sharedLimitations = [] }) {
 
       {hasValue && (
         <div className="indicator-card__content">
+          {scalar && ['I20', 'I21'].includes(indicator.metricId) && (
+            <span className="indicator-card__stat-label">Mediana do período</span>
+          )}
           {scalar && (
             <strong className="indicator-card__value">
               {indicator.metricId === 'I17'
@@ -298,7 +306,7 @@ export function IndicatorCard({ indicator, metadata, sharedLimitations = [] }) {
           {indicator.kind === 'SERIES' && !hasChart && (
             <p className="indicator-card__empty">Ainda não há pontos históricos para exibir.</p>
           )}
-          {indicator.kind === 'LIST' && <IndicatorList indicator={indicator} />}
+          {indicator.kind === 'LIST' && <IndicatorList indicator={indicator} title={title} />}
           {indicator.kind !== 'SERIES' && <IndicatorDistribution indicator={indicator} />}
           {!scalar &&
             !hasChart &&
@@ -316,7 +324,9 @@ export function IndicatorCard({ indicator, metadata, sharedLimitations = [] }) {
           <p className="indicator-card__notice">
             {state === 'STALE'
               ? 'Último valor conhecido; confira a atualização da fonte.'
-              : 'O valor considera somente os dados conhecidos.'}{' '}
+              : indicator.value == null && !indicator.points?.length && !indicator.items?.length
+                ? 'Sem valor conhecido nesta leitura.'
+                : ''}{' '}
             {individualLimitations[0] ? describeLimitation(individualLimitations[0]) : ''}
           </p>
         )}

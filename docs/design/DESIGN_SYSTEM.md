@@ -870,6 +870,9 @@ A Visão Geral preserva contexto/ações/GitHub/equipe e apenas o resumo de saú
 principal área de atenção e CTA “Ver indicadores”. Detalhamento, dimensões, drivers, filtros e gráficos
 pertencem a `/projects/:projectId/indicators`, integrado à navegação do projeto.
 
+Essa composição de Health é histórica: a revisão P8.6C abaixo substitui cobertura,
+área de atenção e CTA por um resumo mínimo na Visão Geral.
+
 A página segue header/eyebrow/descrição, ProjectSectionNav, resumo canônico, CollapsibleFilterPanel
 único e categorias com internal-tabs. SummaryPanel generaliza o resumo de Casos de teste para
 reutilização; campos usam SelectControl. Período e Sprint pertencem ao workspace inteiro; o controle de responsável fica ausente enquanto não houver recorte funcional. Tabelas semânticas apresentam
@@ -915,3 +918,39 @@ O h1 de Indicadores herda a regra global de página, como Casos de teste, Defeit
 Rastreabilidade. Não limitar essa superfície a uma escala própria. Na auditoria local,
 a remoção da exceção de 40px resultou em 48px no desktop e 32px no mobile, conforme a
 regra canônica. SummaryPanel e CollapsibleFilterPanel permanecem compartilhados.
+
+### P8.6C — correção visual, dados e interações (2026-10-03)
+
+Esta revisão substitui as regras anteriores de conteúdo do Health na Visão Geral,
+texto de compatibilidade no filtro, tamanho do desenho de ajuda e altura de listas.
+
+- `ProjectHealthSummary` continua dentro da superfície Projeto/GitHub/Equipe. Exibe
+  somente coração neutro, título, nota, status e barra. O título compartilha 12px,
+  peso 700, uppercase e letter spacing dos três blocos. Sem CTA, cobertura ou área
+  de atenção; acesso a Indicadores pelo `ProjectSectionNav`.
+- Filtro canônico com Período e Sprint, aplicação automática e resumo curto no
+  disclosure. Sem parágrafo de compatibilidade ou campo Responsável inoperante.
+- `IndicatorHeader` é o owner de título, ajuda e assessment dos widgets. Título e
+  ajuda ficam na mesma linha, com status abaixo. Desenho de ajuda de 16px, alvo de
+  44px, alinhamento central e espaçamento com tokens existentes.
+- A tabela de Tasks atrasadas ocupa linha própria no Panorama. Distribuições não
+  são esticadas pela tabela vizinha. Atividade GitHub usa fluxo vertical de conteúdo.
+- Listas têm máximo de 20rem, altura menor quando cabem, cabeçalhos de coluna fixos,
+  região focável com nome específico e caption “N de M registros”. A tabela de dados
+  dos gráficos também é uma região nomeada, focável e com cabeçalho fixo.
+- Zero disponível continua `0`. Ausência/indisponibilidade mostram `—` e contexto
+  curto. `PARTIAL` sem valor não deixa célula vazia. I73 com assessment factual de
+  ausência de PRs abertas apresenta “Nenhuma PR aberta.” e status saudável.
+- Limitações de esforço conhecidas são agrupadas semanticamente na seção. A
+  informação interna sobre composição de sessões e esforço legado fica fora da UI.
+- Lead/Cycle identificam a mediana do período; a legenda identifica a mediana diária.
+  Um único dia com amostra produz resumo compacto, mesmo em janela com muitos dias
+  vazios. Dois ou mais dias úteis usam marcadores e segmentos somente entre buckets
+  consecutivos. `null` permanece lacuna, zero permanece amostra e outliers permanecem
+  na escala. A referência é fornecida pelo backend, com linha tracejada e texto.
+- Amostra diária aparece na seleção e no resumo compacto. Instruções de teclado e
+  descrição da área empilhada continuam acessíveis sem microcopy permanente.
+- Recuperar foco/visibilidade não invalida Indicadores. Refresh manual e conclusão
+  confirmada de sincronização continuam usando a mesma atualização de dados e Health.
+
+Evidências e gate pendente no [relatório de hardening P8.6C](../deliveries/S2_P8_6C_INDICATORS_VISUAL_DATA_HARDENING_REPORT.md).

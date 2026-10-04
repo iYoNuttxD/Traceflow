@@ -13,6 +13,7 @@ import {
   DASHBOARD_VIEWS,
   dashboardTimeZone,
   describeLimitation,
+  presentationLimitations,
   formatDate,
   formatDateTime,
   indicatorVisualType,
@@ -321,10 +322,6 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
           role="group"
           aria-label="Filtros de indicadores"
         >
-          <p className="dashboard-panel__filter-hint">
-            Alguns indicadores preservam seu próprio recorte. O período também define a janela da
-            saúde do projeto.
-          </p>
           <fieldset className="dashboard-panel__period">
             <legend>Período</legend>
             <label className="sprint-filter">
@@ -473,7 +470,7 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
               .map((section) => {
                 const counts = new Map();
                 for (const indicator of section.indicators)
-                  for (const code of (indicator.limitations ?? []).filter(
+                  for (const code of presentationLimitations(indicator).filter(
                     (code) => !code.includes('FILTER_')
                   ))
                     counts.set(code, (counts.get(code) ?? 0) + 1);

@@ -164,10 +164,7 @@ describe('ProjectDetailsPage E9', () => {
     const overview = overviewHeading.closest('.project-overview-surface');
     expect(overview.querySelectorAll('.project-overview-group')).toHaveLength(3);
     const health = await within(overview).findByRole('region', { name: 'Saúde do projeto' });
-    expect(within(health).getByRole('link', { name: /Ver indicadores/ })).toHaveAttribute(
-      'href',
-      '/projects/1/indicators'
-    );
+    expect(within(health).queryByRole('link')).not.toBeInTheDocument();
     expect(health.querySelector('[data-icon="heart"]')).toBeInTheDocument();
     for (const heading of ['Projeto', 'GitHub', 'Equipe']) {
       expect(within(overview).getByRole('heading', { name: heading })).toBeInTheDocument();
@@ -373,7 +370,7 @@ describe('ProjectDetailsPage E9', () => {
       .mockRejectedValueOnce(new Error('refresh offline'));
     renderPage();
     await screen.findByRole('heading', { name: 'Saúde do projeto' });
-    expect(screen.getByRole('link', { name: /Ver indicadores/ })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Indicadores', exact: true })).toHaveAttribute(
       'href',
       '/projects/1/indicators'
     );

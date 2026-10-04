@@ -23,6 +23,8 @@ vi.mock('../../scripts/lib/e11-legacy-responsibility.js', async (importOriginal)
 }));
 
 it('writes the legacy mapping only to an owner-only directory/file and repairs existing permissions', async () => {
+  // The filesystem-only test must not depend on a developer's .env or suite order.
+  vi.stubEnv('DATABASE_URL', 'mysql://localhost:3306/traceflow_unit_fixture');
   const directory = await mkdtemp(join(tmpdir(), 'traceflow-e11-writer-'));
   const local = join(directory, '.local');
   const path = join(local, 'e11-task-responsibility-mapping.json');
@@ -44,6 +46,7 @@ it('writes the legacy mapping only to an owner-only directory/file and repairs e
     expect((await stat(path)).mode & 0o777).toBe(0o600);
     expect(stdout.mock.calls.map(([line]) => line).join('')).not.toContain('Private legacy name');
   } finally {
+    vi.unstubAllEnvs();
     stdout.mockRestore();
     cwd.mockRestore();
     await rm(directory, { recursive: true, force: true });

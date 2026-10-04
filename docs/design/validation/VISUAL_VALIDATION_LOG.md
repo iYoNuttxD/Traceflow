@@ -879,3 +879,50 @@ Evidência transitória: `/private/tmp/traceflow-p86c-evidence/`. Capturas full-
 possíveis deslocamentos de elementos fixed, diferenciados das telas reais por captura
 de viewport. Detalhes, matriz e pendências no
 [relatório P8.6C](../../deliveries/S2_P8_6C_FINAL_INDICATORS_VALIDATION_REPORT.md).
+
+## 2026-10-03 — S2 P8.6C: correção visual, dados e interações
+
+Rodada nova, posterior à auditoria acima. Chrome autenticado, API local 3001,
+frontend 5173 e projeto artificial 2 do banco de desenvolvimento existente. Sem seed
+ou alteração de fatos nesta rodada. Baseline `938be91ff575b07887ed68b93d7b04a75c6fe761`.
+
+Corrigidos: conteúdo/tipografia do Health na Overview, refetch ao recuperar foco,
+header de indicador, ajuda 16px/target 44px, fluxo do Panorama e atividade GitHub,
+listas com limite de altura e contagem explícita, estados vazios, I73 sem PR aberta,
+limitações de esforço compartilhadas e distinção entre mediana diária/do período.
+Lead/Cycle com um dia amostrado usam resumo compacto; lacunas e outliers preservados.
+
+Após todas as alterações de código e remoção da instrumentação temporária, matriz
+nova de **90 capturas**: Overview e oito categorias em 1440/1280/1024/768/430/390/360
+Light, e 1440/768/390 Dark. Sem overflow horizontal do documento, sem alertas de erro
+ou snapshots de carregamento nessa matriz. Inspeção visual direta de todas as nove
+superfícies em amostras desktop e adicionais mobile/tablet; não se afirma leitura
+manual de cada pixel das 90 capturas. Casos de teste, Rastreabilidade, Defeitos,
+Tarefas, Requisitos e Sprints também renderizados para comparação canônica.
+
+Evidência adicional: tabela mobile rolada 300px por PageDown, cabeçalho de coluna
+sticky e outline visível; tooltip de Lead Time dentro de 390px, Escape e retorno de
+foco; sidebar expandida/recolhida e drawer mobile; snapshot real em 24/09 sem gráfico
+ou “Ver dados” redundante. Contraste textual amostral de Rastreabilidade: mínimo
+5,67:1 Light e 7,13:1 Dark. Não houve teste com leitor de tela/dispositivo físico.
+
+Auditoria independente reconstruiu 40 Tasks/73 movimentos: Lead 6 dias, Cycle 1 dia,
+Throughput 16 e CFD com coorte de 32 Tasks/30 buckets. As 120 linhas das quatro
+tabelas de Flow correspondem à API. Sem modificação das fórmulas ou dos fatos.
+Rede: 199,7s ocioso, sete requests iniciais e nenhum adicional; o usuário informou
+que o refresh não ocorria mais ao retornar. O controle nativo não produziu sequência
+observável blur/focus; essa evidência é composta por relato, contagem e testes, sem
+alegar captura instrumental dessa sequência. Console final: zero warn/error.
+
+Frontend: 1.297 testes; backend: 1.495 aprovados e cinco skips legados. Coverage,
+lint, format, build, Prisma, arquitetura, segredos e política de CI local passaram.
+**CHANGES REQUIRED — HIGH / SECURITY:** audit do backend bloqueado pelo advisory
+`GHSA-vfj7-8cjw-p6xm`, cadeia de desenvolvimento nodemon/chokidar/braces, sem versão
+corrigida publicada na consulta. Não foi criada exceção nem aplicado downgrade.
+Esta rodada não concede INDICATORS STABLE BASELINE.
+
+Evidências transitórias: `/private/tmp/traceflow-p86c-hardening-20261003/`, arquivos
+`final-*.png`, `final-visual-matrix.json`, `data-audit.json`, `facts-api-ui-check.json`
+e logs de gates. Capturas full-page podem deslocar elementos fixed; inspeções de
+viewport foram usadas para distinguir esse efeito de defeitos do layout.
+Relatório: [P8.6C visual/data hardening](../../deliveries/S2_P8_6C_INDICATORS_VISUAL_DATA_HARDENING_REPORT.md).

@@ -37,7 +37,9 @@ describe('duration trends', () => {
         title="Cycle Time"
       />
     );
-    expect(screen.getByText('Escala: 0 a 10 dias')).toBeInTheDocument();
+    expect(
+      screen.getByText('10 dias', { selector: '.dashboard-chart__scale span' })
+    ).toBeInTheDocument();
     rerender(
       <IndicatorChart
         indicator={{
@@ -85,12 +87,55 @@ it('discloses a limited ranking without hiding the total count', () => {
       metadata={{ title: 'Tasks abaixo' }}
     />
   );
-  const table = screen.getByRole('table', { name: 'Registros relacionados · 10 de 11' });
+  const table = screen.getByRole('table', { name: '10 de 11 registros' });
   expect(within(table).getAllByRole('row')).toHaveLength(11);
   for (let id = 1; id <= 10; id++) expect(within(table).getByText(`Task ${id}`)).toBeVisible();
   expect(screen.getByText('11', { selector: 'strong' })).toBeVisible();
-  expect(screen.getByRole('region', { name: 'Lista de registros' })).toHaveAttribute(
+  expect(screen.getByRole('region', { name: 'Registros de Tasks abaixo' })).toHaveAttribute(
     'tabindex',
     '0'
   );
+});
+
+it('renders one useful duration sample compactly even across many empty buckets', () => {
+  const { container } = render(
+    <IndicatorChart
+      title="Lead Time"
+      indicator={{
+        ...indicator,
+        metricId: 'I20',
+        points: [
+          { date: '2026-09-21', value: null, eligibleCount: 0 },
+          { date: '2026-09-22', value: 0, eligibleCount: 1 },
+          { date: '2026-09-23', value: null, eligibleCount: 0 }
+        ]
+      }}
+    />
+  );
+  expect(container.querySelector('svg')).toBeNull();
+  expect(screen.queryByText('Ver dados')).not.toBeInTheDocument();
+  expect(screen.getByText('0 dias')).toBeInTheDocument();
+  expect(screen.getByText('1 Task na amostra.')).toBeInTheDocument();
+});
+it('keeps consecutive samples connected while preserving sparse gaps and the outlier', () => {
+  const { container } = render(
+    <IndicatorChart
+      title="Lead Time"
+      indicator={{
+        ...indicator,
+        metricId: 'I20',
+        points: [
+          { date: '2026-09-21', value: 1, eligibleCount: 1 },
+          { date: '2026-09-22', value: 90, eligibleCount: 1 },
+          { date: '2026-09-23', value: null, eligibleCount: 0 },
+          { date: '2026-09-24', value: 2, eligibleCount: 1 }
+        ]
+      }}
+    />
+  );
+  expect(container.querySelectorAll('polyline')).toHaveLength(1);
+  expect(container.querySelector('polyline').getAttribute('points').split(' ')).toHaveLength(2);
+  expect(
+    screen.getByText('90 dias', { selector: '.dashboard-chart__scale span' })
+  ).toBeInTheDocument();
 });

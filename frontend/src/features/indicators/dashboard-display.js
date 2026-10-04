@@ -40,8 +40,8 @@ export function presentationSections(view, sections) {
     if (!source) return sections;
     const groups = [
       ['taskState', ['I26', 'I27', 'I29', 'I30']],
-      ['taskEffort', ['I31', 'I32', 'I33']],
-      ['taskAttention', ['I28', 'I34', 'I35']]
+      ['taskEffort', ['I31', 'I32', 'I33', 'I34', 'I35']],
+      ['taskAttention', ['I28']]
     ];
     const groupedIds = groups.flatMap(([, ids]) => ids);
     const remaining = source.indicators.filter((item) => !groupedIds.includes(item.metricId));
@@ -254,6 +254,8 @@ const DESCRIPTION_COPY = {
   I12: 'Pull Requests cujo merge foi confirmado pelo GitHub no período.',
   I14: 'Issues atualmente fechadas com data de fechamento no período.',
   I16: 'Tempo médio entre a abertura e o merge das Pull Requests elegíveis.',
+  I20: 'Mediana do tempo decorrido entre a criação e a primeira conclusão das Tasks no período.',
+  I21: 'Mediana do tempo decorrido entre o primeiro andamento e a primeira conclusão das Tasks no período.',
   I25: 'Evolução diária da quantidade observável de Tasks em cada status.',
   I28: 'Tasks ainda não concluídas cujo prazo já passou.',
   I29: 'Tasks que não têm responsável registrado.',
@@ -339,7 +341,9 @@ export function indicatorHelp(indicator) {
   return (
     specific ?? {
       what:
-        DESCRIPTION_COPY[indicator.metricId] ?? 'Dados registrados para este aspecto do projeto.',
+        DESCRIPTION_COPY[indicator.metricId] ??
+        CALCULATION_COPY[indicator.metricId] ??
+        'Dados registrados para este aspecto do projeto.',
       how:
         CALCULATION_COPY[indicator.metricId] ??
         'Considera os registros elegíveis no contexto selecionado.',
@@ -392,6 +396,8 @@ export const LIMITATION_LABELS = {
     'A entrada histórica de algumas tarefas em andamento não pôde ser verificada.',
   MISSING_FIRST_IN_PROGRESS_OR_COMPLETION:
     'Falta o primeiro evento em andamento ou a conclusão de algumas tarefas.',
+  EFFORT_SAMPLE_INCOMPLETE:
+    'Parte das tarefas está sem estimativa ou esforço realizado. Os valores consideram os registros conhecidos.',
   TASK_ESTIMATE_MISSING: 'Algumas tarefas não têm estimativa registrada.',
   TASK_ACTUAL_EFFORT_MISSING: 'Algumas tarefas não têm esforço realizado registrado.',
   COMPLETED_TASK_ACTUAL_EFFORT_MISSING:
@@ -480,4 +486,20 @@ export function describeLimitation(code) {
 export function dashboardTimeZone() {
   const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   return zone && zone.includes('/') ? zone : 'UTC';
+}
+
+const EFFORT_LIMITATIONS = new Set([
+  'TASK_ESTIMATE_MISSING',
+  'TASK_ACTUAL_EFFORT_MISSING',
+  'COMPARISON_SAMPLE_INCOMPLETE',
+  'COMPLETED_TASK_ACTUAL_EFFORT_MISSING'
+]);
+export function presentationLimitations(indicator) {
+  return [
+    ...new Set(
+      (indicator.limitations ?? [])
+        .filter((code) => code !== 'ACTUAL_EFFORT_ALREADY_INCLUDES_SESSIONS_AND_LEGACY')
+        .map((code) => (EFFORT_LIMITATIONS.has(code) ? 'EFFORT_SAMPLE_INCOMPLETE' : code))
+    )
+  ];
 }
