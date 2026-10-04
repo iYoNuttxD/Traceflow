@@ -1,4 +1,9 @@
 import { z } from 'zod';
+import {
+  DASHBOARD_CONFIGURATION_VERSION,
+  DASHBOARD_WIDGET_LIMIT,
+  isCustomizable
+} from './personalized-dashboard.catalog.js';
 import { dateOnly, positiveInteger, strictObject } from '../../shared/validation/index.js';
 
 export const indicatorProjectParamsSchema = strictObject({
@@ -51,9 +56,36 @@ export const sprintAnalyticsQuerySchema = strictObject({
     .optional()
 });
 
+export const dashboardWidgetsSchema = z
+  .array(z.string().refine(isCustomizable, 'Indicador não disponível para personalização.'))
+  .min(1, 'Selecione ao menos um indicador.')
+  .max(DASHBOARD_WIDGET_LIMIT, 'Selecione no máximo 12 indicadores.')
+  .refine((ids) => new Set(ids).size === ids.length, 'Indicadores duplicados não são permitidos.');
+
+export const dashboardPreferenceBodySchema = strictObject({
+  configurationVersion: z.literal(DASHBOARD_CONFIGURATION_VERSION),
+  widgets: dashboardWidgetsSchema
+});
+
 export const dashboardQuerySchema = strictObject({
   view: z
-    .enum(['GENERAL', 'PLANNING', 'GITHUB', 'FLOW', 'SPRINT', 'TASK', 'QUALITY', 'TRACEABILITY'])
+    .enum([
+      'CUSTOM',
+      'GENERAL',
+      'PLANNING',
+      'GITHUB',
+      'FLOW',
+      'SPRINT',
+      'TASK',
+      'QUALITY',
+      'TRACEABILITY'
+    ])
+    .optional(),
+  widgets: z
+    .string()
+    .max(60)
+    .transform((value) => value.split(','))
+    .pipe(dashboardWidgetsSchema)
     .optional(),
   includeProjectHealth: z
     .enum(['true', 'false'])
@@ -65,6 +97,13 @@ export const dashboardQuerySchema = strictObject({
   sprintId: positiveInteger('ID da Sprint inválido.').optional(),
   responsibleUserId: positiveInteger('ID do responsável inválido.').optional()
 }).superRefine((value, context) => {
+  if ((value.view === 'CUSTOM') !== (value.widgets != null)) {
+    context.addIssue({
+      code: 'custom',
+      path: ['widgets'],
+      message: 'A seleção de indicadores é obrigatória e exclusiva da visão Meu painel.'
+    });
+  }
   const supplied = [value.startDate, value.endDate, value.timeZone].filter(
     (item) => item != null
   ).length;
@@ -77,7 +116,7 @@ export const dashboardQuerySchema = strictObject({
     });
     return;
   }
-  const schema = ['FLOW', 'TASK'].includes(value.view)
+  const schema = ['FLOW', 'TASK', 'CUSTOM'].includes(value.view)
     ? flowTaskPeriodQuerySchema
     : indicatorPeriodQuerySchema;
   const result = schema.safeParse({

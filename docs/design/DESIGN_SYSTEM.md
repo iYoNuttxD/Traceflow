@@ -1008,3 +1008,26 @@ Evidência, amostras e gate pendente no [relatório P8.6D](../deliveries/S2_P8_6
   visual Período foi removida. Draft inválido mantém URL, recorte e contador aplicados.
 
 Evidências e gates: [relatório P8.6F](../deliveries/S2_P8_6F_FINAL_VISUAL_CONSISTENCY_SWEEP_REPORT.md).
+
+### P9 — painel pessoal e seleção ordenada (2026-10-04)
+
+- Meu painel reutiliza `IndicatorCard`, summary, filtros, ajuda, referências, tabelas
+  e charts da baseline. Health permanece no summary fixo e não é item removível.
+- A ordem de leitura é a ordem salva. Grupos reúnem apenas widgets adjacentes com
+  tamanho semântico compatível (`compact`, `standard`, `wide`, `full`); sem grid
+  dense ou resize. KPIs usam o subgrid canônico. Um chart isolado ocupa a linha;
+  tabelas/listas conservam altura de conteúdo e região rolável existente.
+- Na view pessoal, nove tabs usam a largura disponível em uma linha própria; ações
+  ficam abaixo, à direita. O container é um grid com coluna `minmax(0, 1fr)`, evitando
+  expansão intrínseca em mobile. Nas demais views, composição anterior preservada.
+- O editor reutiliza `SprintDialog` e confirmação canônica. No mobile, segue a
+  apresentação de diálogo com altura disponível. Lista selecionada compacta, com
+  posição, título, Mover para cima/baixo e Remover; controles de 44px, nomes
+  contextuais e anúncio de posição. Foco acompanha o item e permanece em controle
+  habilitado ao chegar à primeira/última posição.
+- Picker em lista, com busca por nome/descrição e `SelectControl` de categoria.
+  Selecionados e limite de 12 ficam explícitos; sem previews de todos os gráficos.
+  Salvar aplica draft; Cancelar/Escape descartam; Restaurar padrão exige confirmação
+  e continua como draft até Salvar. Erro de salvamento preserva a seleção.
+
+Contrato e matriz: [Painel pessoal v1](../indicators/PERSONALIZED_DASHBOARD_V1.md).

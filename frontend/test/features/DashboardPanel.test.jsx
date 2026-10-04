@@ -3,10 +3,19 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({ dashboard: vi.fn(), catalog: vi.fn(), sprints: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  dashboard: vi.fn(),
+  catalog: vi.fn(),
+  sprints: vi.fn(),
+  preference: vi.fn()
+}));
 
 vi.mock('../../src/features/indicators/api/indicators.api.js', () => ({
-  indicatorsApi: { dashboard: mocks.dashboard, catalog: mocks.catalog }
+  indicatorsApi: {
+    dashboard: mocks.dashboard,
+    catalog: mocks.catalog,
+    preference: mocks.preference
+  }
 }));
 vi.mock('../../src/features/schedule/api/schedule.api.js', () => ({
   scheduleApi: { listSprints: mocks.sprints }
@@ -20,6 +29,7 @@ const definition = (metricId, title) => ({
   metricId,
   title,
   description: title,
+  customization: { customizable: true, sizeClass: 'compact' },
   source: 'Fonte local'
 });
 const metric = (metricId, value, extras = {}) => ({
@@ -129,6 +139,9 @@ describe('P8 Dashboard na Visão Geral', () => {
   });
 
   beforeEach(() => {
+    mocks.preference.mockResolvedValue({
+      data: { configurationVersion: 1, widgets: ['I23'], isDefault: true, updatedAt: null }
+    });
     vi.clearAllMocks();
     mocks.catalog.mockResolvedValue({
       data: {
@@ -1398,6 +1411,8 @@ describe('P8 Dashboard na Visão Geral', () => {
     await screen.findByRole('article', { name: 'WIP atual' });
     const general = screen.getByRole('tab', { name: 'Geral' });
     general.focus();
+    await user.keyboard('{ArrowRight}');
+    expect(screen.getByRole('tab', { name: 'Meu painel' })).toHaveFocus();
     await user.keyboard('{ArrowRight}');
     expect(screen.getByRole('tab', { name: 'Planejamento' })).toHaveFocus();
     expect(screen.getByRole('tab', { name: 'Planejamento' })).toHaveAttribute(

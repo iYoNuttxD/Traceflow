@@ -1,3 +1,4 @@
+import { customizationMetadata } from './personalized-dashboard.catalog.js';
 import { INDICATORS } from './indicators.catalog.js';
 import { HEALTH_REGISTRY } from './health/health.registry.js';
 
@@ -144,6 +145,20 @@ export function publicDashboardCatalog() {
     const definition = INDICATORS[metricId];
     return {
       metricId,
+      customization: {
+        ...customizationMetadata(metricId),
+        categories: [
+          ...new Set([
+            definition.category,
+            ...(viewsById.get(metricId) ?? []).filter((view) =>
+              ['PLANNING', 'QUALITY'].includes(view)
+            )
+          ])
+        ],
+        defaultVisualization: ['I20', 'I21'].includes(metricId)
+          ? 'LINE'
+          : dashboardVisualizations(metricId)[0]
+      },
       category: definition.category,
       title: definition.title,
       description: definition.description,

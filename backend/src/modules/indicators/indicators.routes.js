@@ -3,6 +3,7 @@ import { emptyObject, validateRequest } from '../../shared/validation/index.js';
 import { indicatorsController } from './indicators.controller.js';
 import {
   dashboardQuerySchema,
+  dashboardPreferenceBodySchema,
   flowTaskPeriodQuerySchema,
   indicatorPeriodQuerySchema,
   indicatorProjectParamsSchema,
@@ -10,6 +11,25 @@ import {
 } from './indicators.validation.js';
 
 const router = Router();
+router.get(
+  '/projects/:projectId/indicator-preference',
+  validateRequest({ params: indicatorProjectParamsSchema, query: emptyObject }),
+  indicatorsController.preference
+);
+router.put(
+  '/projects/:projectId/indicator-preference',
+  validateRequest({
+    params: indicatorProjectParamsSchema,
+    query: emptyObject,
+    body: dashboardPreferenceBodySchema
+  }),
+  indicatorsController.savePreference
+);
+router.delete(
+  '/projects/:projectId/indicator-preference',
+  validateRequest({ params: indicatorProjectParamsSchema, query: emptyObject, body: emptyObject }),
+  indicatorsController.resetPreference
+);
 router.get(
   '/projects/:projectId/indicators/progress',
   validateRequest({ params: indicatorProjectParamsSchema, query: emptyObject }),

@@ -158,8 +158,10 @@ export const dashboardService = {
       sprintId: query.sprintId ?? null,
       responsibleUserId: query.responsibleUserId ?? null
     };
-    const sections = DASHBOARD_VIEWS[view];
-    const includeHealth = view === 'GENERAL' || query.includeProjectHealth === true;
+    const sections =
+      view === 'CUSTOM' ? [{ id: 'custom', metricIds: query.widgets }] : DASHBOARD_VIEWS[view];
+    const includeHealth =
+      view === 'CUSTOM' || view === 'GENERAL' || query.includeProjectHealth === true;
     const groups = groupIds(includeHealth ? [...sections, ...DASHBOARD_VIEWS.GENERAL] : sections);
     let internalPeriod = null;
     const requests = [...groups.entries()].map(async ([group, ids]) => {

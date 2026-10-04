@@ -1,0 +1,335 @@
+import { MemoryRouter } from 'react-router';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+const api = vi.hoisted(() => ({
+  dashboard: vi.fn(),
+  catalog: vi.fn(),
+  preference: vi.fn(),
+  savePreference: vi.fn(),
+  resetPreference: vi.fn()
+}));
+vi.mock('../../src/features/indicators/api/indicators.api.js', () => ({ indicatorsApi: api }));
+vi.mock('../../src/features/schedule/api/schedule.api.js', () => ({
+  scheduleApi: {
+    listSprints: () =>
+      Promise.resolve({ data: { sprints: [{ id: 7, name: 'Sprint A', status: 'EM_ANDAMENTO' }] } })
+  }
+}));
+import { DashboardPanel } from '../../src/features/indicators/DashboardPanel.jsx';
+import { ConfirmProvider } from '../../src/shared/components/ConfirmDialog.jsx';
+const policy = {
+  minWidgets: 1,
+  maxWidgets: 12,
+  defaultPreference: {
+    configurationVersion: 1,
+    widgets: ['I01', 'I23'],
+    isDefault: true,
+    updatedAt: null
+  }
+};
+const titles = [
+  'Progresso atual',
+  'Trabalho em andamento',
+  'Tempo de ciclo',
+  'Compromisso',
+  'Total de tarefas',
+  'Taxa de sucesso'
+];
+const metricIds = [
+  'I01',
+  'I23',
+  'I21',
+  'I36',
+  'I26',
+  'I49',
+  'I29',
+  'I30',
+  'I31',
+  'I32',
+  'I33',
+  'I34',
+  'I35'
+];
+const catalog = metricIds.map((metricId, i) => ({
+  metricId,
+  title: titles[i] ?? `Indicador de tarefas ${i}`,
+  category: i < 3 ? 'FLOW' : 'TASK',
+  description: 'Descrição',
+  customization: {
+    customizable: true,
+    description: 'Acompanhe a evolução do projeto.',
+    sizeClass: 'compact'
+  }
+}));
+let stored;
+const deferred = () => {
+  let resolve, reject;
+  const promise = new Promise((a, b) => {
+    resolve = a;
+    reject = b;
+  });
+  return { promise, resolve, reject };
+};
+function aggregate(filters) {
+  return {
+    data: {
+      projectId: 1,
+      view: filters.view,
+      viewState: 'AVAILABLE',
+      generatedAt: new Date().toISOString(),
+      warnings: [],
+      sections: [
+        {
+          id: filters.view === 'CUSTOM' ? 'custom' : 'summary',
+          indicators: (filters.widgets?.split(',') ?? ['I01']).map((metricId) => ({
+            metricId,
+            value: 42,
+            unit: 'TASKS',
+            kind: 'KPI',
+            state: 'AVAILABLE',
+            limitations: []
+          }))
+        }
+      ]
+    }
+  };
+}
+beforeEach(() => {
+  vi.clearAllMocks();
+  stored = structuredClone(policy.defaultPreference);
+  api.catalog.mockResolvedValue({
+    data: { indicators: catalog, views: [], personalization: policy }
+  });
+  api.preference.mockImplementation(() => Promise.resolve({ data: stored }));
+  api.dashboard.mockImplementation((id, filters) => Promise.resolve(aggregate(filters)));
+  api.savePreference.mockImplementation((id, config) => {
+    stored = { ...config, isDefault: false, updatedAt: new Date().toISOString() };
+    return Promise.resolve({ data: stored });
+  });
+  api.resetPreference.mockImplementation(() => {
+    stored = structuredClone(policy.defaultPreference);
+    return Promise.resolve({ data: stored });
+  });
+});
+afterEach(cleanup);
+function mount(projectId = 1) {
+  return render(
+    <ConfirmProvider>
+      <MemoryRouter
+        initialEntries={[
+          '/projects/1/indicators?view=custom&startDate=2026-09-01&endDate=2026-09-30&timeZone=UTC&sprintId=7'
+        ]}
+      >
+        <DashboardPanel projectId={projectId} />
+      </MemoryRouter>
+    </ConfirmProvider>
+  );
+}
+async function editor() {
+  await userEvent.click(await screen.findByRole('button', { name: 'Personalizar painel' }));
+  return screen.findByRole('dialog', { name: 'Personalizar painel' });
+}
+function widgetOrder() {
+  return [
+    ...screen.getByRole('region', { name: 'Meu painel' }).querySelectorAll('[data-metric-id]')
+  ].map((el) => el.dataset.metricId);
+}
+
+describe('P9 personalized workspace', () => {
+  it('loads default without opening editor; sends one aggregate and preserves global filters/view changes', async () => {
+    mount();
+    await waitFor(() => expect(widgetOrder()).toEqual(policy.defaultPreference.widgets));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(api.dashboard).toHaveBeenCalledTimes(1);
+    expect(api.dashboard.mock.calls[0][1]).toMatchObject({
+      view: 'CUSTOM',
+      widgets: 'I01,I23',
+      startDate: '2026-09-01',
+      endDate: '2026-09-30',
+      sprintId: '7'
+    });
+    await userEvent.click(screen.getByRole('tab', { name: 'Fluxo' }));
+    await userEvent.click(screen.getByRole('tab', { name: 'Meu painel' }));
+    await waitFor(() => expect(widgetOrder()).toEqual(['I01', 'I23']));
+    expect(api.preference).toHaveBeenCalledTimes(1);
+    expect(api.dashboard.mock.calls.at(-1)[1].sprintId).toBe('7');
+  });
+  it('searches friendly text/categories; add/remove/reorder are drafts; cancel returns focus', async () => {
+    mount();
+    const dialog = await editor();
+    await waitFor(() => expect(within(dialog).getByRole('searchbox')).toHaveFocus());
+    await userEvent.type(within(dialog).getByRole('searchbox'), 'tempo');
+    expect(within(dialog).getByRole('button', { name: 'Adicionar: Tempo de ciclo' })).toBeEnabled();
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Adicionar: Tempo de ciclo' })
+    );
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Mover Tempo de ciclo para cima' })
+    );
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Remover Progresso atual do painel' })
+    );
+    expect(api.savePreference).not.toHaveBeenCalled();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancelar' }));
+    expect(widgetOrder()).toEqual(['I01', 'I23']);
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Personalizar painel' })).toHaveFocus()
+    );
+  });
+  it('saves exact order once, reloads aggregate, persists after remount', async () => {
+    const app = mount();
+    const dialog = await editor();
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Mover Trabalho em andamento para cima' })
+    );
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => expect(widgetOrder()).toEqual(['I23', 'I01']));
+    expect(api.savePreference).toHaveBeenCalledExactlyOnceWith(1, {
+      configurationVersion: 1,
+      widgets: ['I23', 'I01']
+    });
+    expect(api.dashboard).toHaveBeenCalledTimes(2);
+    app.unmount();
+    mount();
+    await waitFor(() => expect(widgetOrder()).toEqual(['I23', 'I01']));
+  });
+  it('restores only the draft until Save, DELETE returns backend default', async () => {
+    stored = { ...stored, widgets: ['I21'], isDefault: false };
+    mount();
+    let dialog = await editor();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Restaurar padrão' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Restaurar', exact: true }));
+    expect(api.resetPreference).not.toHaveBeenCalled();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancelar' }));
+    expect(widgetOrder()).toEqual(['I21']);
+    dialog = await editor();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Restaurar padrão' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Restaurar', exact: true }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => expect(widgetOrder()).toEqual(policy.defaultPreference.widgets));
+    expect(api.resetPreference).toHaveBeenCalledOnce();
+    expect(api.savePreference).not.toHaveBeenCalled();
+  });
+  it('enforces min/max, no duplicates, category and compact empty search', async () => {
+    stored = { ...stored, widgets: metricIds.slice(0, 12) };
+    mount();
+    const dialog = await editor();
+    expect(within(dialog).getByText('12 de 12 indicadores')).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole('button', { name: 'Adicionar: Indicador de tarefas 12' })
+    ).toBeDisabled();
+    expect(
+      within(dialog).getByRole('button', { name: 'Selecionado: Progresso atual' })
+    ).toBeDisabled();
+    await userEvent.selectOptions(
+      within(dialog).getByRole('combobox', { name: 'Categoria' }),
+      'FLOW'
+    );
+    expect(
+      within(dialog).queryByRole('button', { name: 'Selecionado: Total de tarefas' })
+    ).not.toBeInTheDocument();
+    await userEvent.type(within(dialog).getByRole('searchbox'), 'inexistente');
+    expect(within(dialog).getByText('Nenhum indicador encontrado.')).toBeInTheDocument();
+    for (const button of within(dialog).getAllByRole('button', { name: /^Remover/ }))
+      await userEvent.click(button);
+    expect(within(dialog).getByRole('button', { name: 'Salvar' })).toBeDisabled();
+  });
+  it('keeps draft on write failure and separates confirmed save from aggregate failure', async () => {
+    mount();
+    const dialog = await editor();
+    api.savePreference.mockRejectedValueOnce(new Error('offline'));
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Mover Trabalho em andamento para cima' })
+    );
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Sua seleção foi mantida');
+    api.dashboard.mockRejectedValueOnce(new Error('GET failed'));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
+    expect(
+      await screen.findByText('Painel salvo. Não foi possível atualizar os dados agora.')
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+  it('prevents concurrent saves, no writes on interactions, focus/visibility do not refetch', async () => {
+    const pending = deferred();
+    mount();
+    const dialog = await editor();
+    api.savePreference.mockReturnValueOnce(pending.promise);
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Mover Trabalho em andamento para cima' })
+    );
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
+    fireEvent.submit(dialog.querySelector('form'));
+    expect(api.savePreference).toHaveBeenCalledOnce();
+    fireEvent(window, new Event('focus'));
+    fireEvent(document, new Event('visibilitychange'));
+    expect(api.dashboard).toHaveBeenCalledTimes(1);
+    expect(api.preference).toHaveBeenCalledTimes(1);
+    await act(() => pending.resolve({ data: { ...stored, widgets: ['I23', 'I01'] } }));
+  });
+  it('discards an old project preference response and closes draft on project switch', async () => {
+    const old = deferred();
+    api.preference.mockReturnValueOnce(old.promise);
+    const app = mount();
+    app.rerender(
+      <ConfirmProvider>
+        <MemoryRouter>
+          <DashboardPanel projectId={2} />
+        </MemoryRouter>
+      </ConfirmProvider>
+    );
+    await act(() => old.resolve({ data: { ...stored, widgets: ['I21'] } }));
+    expect(api.dashboard.mock.calls.filter(([project]) => project === 1)).toHaveLength(0);
+  });
+});
+
+it('does not let an old save replace the next project preference', async () => {
+  const old = deferred();
+  const app = mount();
+  const dialog = await editor();
+  api.savePreference.mockReturnValueOnce(old.promise);
+  await userEvent.click(
+    within(dialog).getByRole('button', { name: 'Mover Trabalho em andamento para cima' })
+  );
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
+  api.preference.mockResolvedValue({ data: { ...stored, widgets: ['I26'], isDefault: false } });
+  app.rerender(
+    <ConfirmProvider>
+      <MemoryRouter>
+        <DashboardPanel projectId={2} />
+      </MemoryRouter>
+    </ConfirmProvider>
+  );
+  await waitFor(() => expect(widgetOrder()).toEqual(['I26']));
+  await act(() => old.resolve({ data: { ...stored, widgets: ['I23', 'I01'] } }));
+  expect(widgetOrder()).toEqual(['I26']);
+  expect(screen.queryByText('Painel salvo.')).not.toBeInTheDocument();
+});
+
+it('retries failed preference reads without falling back to a false default', async () => {
+  api.preference.mockRejectedValueOnce(new Error('offline'));
+  mount();
+  expect(await screen.findByText('Não foi possível carregar seu painel.')).toBeInTheDocument();
+  expect(api.dashboard).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole('button', { name: 'Tentar novamente' }));
+  await waitFor(() => expect(widgetOrder()).toEqual(policy.defaultPreference.widgets));
+});
+
+it('preserves focus at reorder boundaries and traps Tab inside the canonical dialog', async () => {
+  mount();
+  const dialog = await editor();
+  await userEvent.click(
+    within(dialog).getByRole('button', { name: 'Mover Trabalho em andamento para cima' })
+  );
+  await waitFor(() =>
+    expect(
+      within(dialog).getByRole('button', { name: 'Mover Trabalho em andamento para baixo' })
+    ).toHaveFocus()
+  );
+  within(dialog).getByRole('button', { name: 'Salvar' }).focus();
+  await userEvent.keyboard('{Tab}');
+  expect(within(dialog).getByRole('button', { name: 'Fechar personalizar painel' })).toHaveFocus();
+  await userEvent.keyboard('{Shift>}{Tab}{/Shift}');
+  expect(within(dialog).getByRole('button', { name: 'Salvar' })).toHaveFocus();
+});

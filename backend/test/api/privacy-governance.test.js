@@ -91,6 +91,14 @@ describe('LR.2 — consolidação das rotas e worker de privacidade', () => {
     await prisma.projectMembership.create({
       data: { projectId: project.id, userId: user.id, role: 'MEMBER' }
     });
+    await prisma.projectDashboardPreference.create({
+      data: {
+        projectId: project.id,
+        userId: user.id,
+        configurationVersion: 1,
+        configuration: { widgets: ['I01'] }
+      }
+    });
     const installation = await prisma.gitHubInstallation.create({
       data: {
         githubInstallationId: '787878',
@@ -199,6 +207,7 @@ describe('LR.2 — consolidação das rotas e worker de privacidade', () => {
     expect(await prisma.pullRequest.findUnique({ where: { id: pullRequest.id } })).toMatchObject({
       authorUsername: anonymized.username
     });
+    expect(await prisma.projectDashboardPreference.count({ where: { userId: user.id } })).toBe(0);
     expect(await prisma.issue.findUnique({ where: { id: issue.id } })).toMatchObject({
       authorUsername: anonymized.username,
       assigneeUsername: anonymized.username

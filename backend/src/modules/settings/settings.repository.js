@@ -430,6 +430,18 @@ export const settingsRepository = {
       select: {
         ...accountSelect,
         lastLoginAt: true,
+        dashboardPreferences: {
+          where: {
+            project: { deletedAt: null, memberships: { some: { userId, isActive: true } } }
+          },
+          select: {
+            projectId: true,
+            configurationVersion: true,
+            configuration: true,
+            createdAt: true,
+            updatedAt: true
+          }
+        },
         githubIdentity: {
           select: {
             githubUserId: true,

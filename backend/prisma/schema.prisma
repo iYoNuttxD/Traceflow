@@ -137,32 +137,33 @@ enum GitHubOAuthPurpose {
 }
 
 model User {
+  dashboardPreferences ProjectDashboardPreference[]
   effortHistory        TaskEffortHistoryEntry[]
   responsibleDefects   Defect[]
   defectHistory        DefectHistoryEntry[]
-  responsibleTestCases TestCase[]               @relation("TestCaseResponsible")
-  deletedTestCases     TestCase[]               @relation("TestCaseDeleter")
+  responsibleTestCases TestCase[]                   @relation("TestCaseResponsible")
+  deletedTestCases     TestCase[]                   @relation("TestCaseDeleter")
   testCaseVersions     TestCaseVersion[]
   testCaseHistory      TestCaseHistoryEntry[]
   testExecutions       TestExecution[]
   testEvidence         TestEvidence[]
-  id                   Int                      @id @default(autoincrement())
+  id                   Int                          @id @default(autoincrement())
   name                 String
-  email                String                   @unique
-  username             String                   @unique
-  mustSetUsername      Boolean                  @default(false)
+  email                String                       @unique
+  username             String                       @unique
+  mustSetUsername      Boolean                      @default(false)
   passwordHash         String?
-  isActive             Boolean                  @default(true)
+  isActive             Boolean                      @default(true)
   emailVerifiedAt      DateTime?
-  mustSetPassword      Boolean                  @default(false)
-  sessionVersion       Int                      @default(1)
-  accountStatus        AccountStatus            @default(ACTIVE)
+  mustSetPassword      Boolean                      @default(false)
+  sessionVersion       Int                          @default(1)
+  accountStatus        AccountStatus                @default(ACTIVE)
   deactivatedAt        DateTime?
   usernameChangedAt    DateTime?
   anonymizedAt         DateTime?
   lastLoginAt          DateTime?
-  createdAt            DateTime                 @default(now())
-  updatedAt            DateTime                 @updatedAt
+  createdAt            DateTime                     @default(now())
+  updatedAt            DateTime                     @updatedAt
 
   sessions                         Session[]
   passwordResetTokens              PasswordResetToken[]
@@ -327,6 +328,7 @@ model ProjectInvitation {
 
 // Entidade central do TRACEFLOW. A identidade GitHub pertence exclusivamente à integração.
 model Project {
+  dashboardPreferences           ProjectDashboardPreference[]
   effortHistory                  TaskEffortHistoryEntry[]
   requirementTraceabilityHistory RequirementTraceabilityHistoryEntry[]
   defects                        Defect[]
@@ -386,17 +388,17 @@ model Project {
 // Journal operacional sem FK para reconciliar bytes privados quando o purge do
 // banco e a remoção do filesystem não terminam na mesma tentativa.
 model ProjectPurgeStorageCleanup {
-  id         Int      @id @default(autoincrement())
+  id         Int       @id @default(autoincrement())
   projectId  Int
-  storageKey String   @unique @db.VarChar(100)
-  purgeKey   String   @unique @db.VarChar(100)
-  status     String   @default("PENDING") @db.VarChar(24)
-  claimToken String?  @db.VarChar(36)
+  storageKey String    @unique @db.VarChar(100)
+  purgeKey   String    @unique @db.VarChar(100)
+  status     String    @default("PENDING") @db.VarChar(24)
+  claimToken String?   @db.VarChar(36)
   claimedAt  DateTime?
-  attempts   Int      @default(0)
-  lastError  String?  @db.VarChar(191)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  attempts   Int       @default(0)
+  lastError  String?   @db.VarChar(191)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   @@index([projectId, status])
   @@index([status, updatedAt])
@@ -437,27 +439,27 @@ model GitHubInstallationAuthorization {
 }
 
 model ProjectGitHubIntegration {
-  id                           Int                     @id @default(autoincrement())
-  projectId                    Int                     @unique
-  installationId               Int?
-  githubRepositoryId           String?                 @unique
-  repositoryName               String?
-  repositoryFullName           String?
-  repositoryUrl                String?
-  defaultBranch                String?
-  repositoryPrivate            Boolean?
-  integratedAt                 DateTime?
-  autoSyncEnabled              Boolean                 @default(false)
-  status                       GitHubIntegrationStatus @default(RECONNECT_REQUIRED)
-  lastValidatedAt              DateTime?
-  lastSyncAt                   DateTime?
-  pullRequestLifecycleSyncedAt DateTime?
+  id                               Int                     @id @default(autoincrement())
+  projectId                        Int                     @unique
+  installationId                   Int?
+  githubRepositoryId               String?                 @unique
+  repositoryName                   String?
+  repositoryFullName               String?
+  repositoryUrl                    String?
+  defaultBranch                    String?
+  repositoryPrivate                Boolean?
+  integratedAt                     DateTime?
+  autoSyncEnabled                  Boolean                 @default(false)
+  status                           GitHubIntegrationStatus @default(RECONNECT_REQUIRED)
+  lastValidatedAt                  DateTime?
+  lastSyncAt                       DateTime?
+  pullRequestLifecycleSyncedAt     DateTime?
   pullRequestLifecycleCoverageFrom DateTime?
-  lastSyncStatus               String?
-  lastSyncError                String?
-  lastSyncAttemptAt            DateTime?
-  createdAt                    DateTime                @default(now())
-  updatedAt                    DateTime                @updatedAt
+  lastSyncStatus                   String?
+  lastSyncError                    String?
+  lastSyncAttemptAt                DateTime?
+  createdAt                        DateTime                @default(now())
+  updatedAt                        DateTime                @updatedAt
 
   project      Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
   installation GitHubInstallation? @relation(fields: [installationId], references: [id], onDelete: SetNull)
@@ -1487,4 +1489,20 @@ model TaskEffortHistoryEntry {
   @@index([taskId, occurredAt, id])
   @@index([projectId])
   @@index([actorUserId])
+}
+
+// Personal presentation only; retained during project recovery, purged with its owner.
+model ProjectDashboardPreference {
+  id                   Int      @id @default(autoincrement())
+  projectId            Int
+  userId               Int
+  configurationVersion Int
+  configuration        Json
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  project              Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([userId])
 }

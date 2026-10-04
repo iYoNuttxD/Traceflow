@@ -126,6 +126,7 @@ async function buildExportArchive(userId, now) {
       createdAt: data.createdAt,
       updatedAt: data.updatedAt
     },
+    'indicator-preferences.json': data.dashboardPreferences || [],
     'memberships.json': data.memberships.map(({ project, ...membership }) => ({
       ...membership,
       project: { id: project.id, name: project.name, status: project.status }

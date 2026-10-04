@@ -93,7 +93,7 @@ describe('P8.5 Indicators workspace', () => {
         '84 / 100'
       )
     );
-    expect(screen.getAllByRole('tab')).toHaveLength(8);
+    expect(screen.getAllByRole('tab')).toHaveLength(9);
     expect(screen.getByRole('button', { name: /Buscar e filtrar/ })).toHaveAttribute(
       'aria-expanded',
       'false'

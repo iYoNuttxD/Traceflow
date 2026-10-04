@@ -1,5 +1,6 @@
 export const DASHBOARD_VIEWS = [
   ['GENERAL', 'Geral'],
+  ['CUSTOM', 'Meu painel'],
   ['PLANNING', 'Planejamento'],
   ['GITHUB', 'GitHub'],
   ['FLOW', 'Fluxo'],

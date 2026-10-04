@@ -1024,3 +1024,57 @@ Sem commit/push, backend, banco, schema, dependências ou P9.
 Evidências transitórias: `/private/tmp/traceflow-p86f-20261004/`, capturas
 `before-*`, `final-*`, `proof-flow-desktop.jpg`, matriz, console e logs dos gates.
 [Relatório completo P8.6F](../../deliveries/S2_P8_6F_FINAL_VISUAL_CONSISTENCY_SWEEP_REPORT.md).
+
+## 2026-10-04 — P9 Meu painel
+
+Baseline `daniel-dev`, HEAD `ad7d01ce0ae689176b6a64dc06a7044c97f708d9`, árvore limpa.
+Chrome autenticado, API real, Project 2 artificial existente. Período 01–30/09/2026,
+America/Sao_Paulo, Sprint A (16). P9 adiciona seleção/ordem com persistência própria;
+summary, filtros, Health, métricas e presenters canônicos são reutilizados.
+
+Inspeção: padrão com seis widgets, painel com um e 12, editor desktop/mobile,
+busca, resultado vazio, categoria, máximo, add/remove/reorder, Save/Cancel/reset.
+Padrão restaurado e reload conferido ao encerrar. Editor não abre automaticamente.
+Teclado real: foco inicial, reorder até extremidade, Enter no disclosure Ver dados,
+Escape/Cancel com retorno de foco e confirmação de reset. Cenários de erro/races
+complementados por testes automatizados, sem simular falhas como evidência real.
+
+Achados corrigidos: chart isolado com meia largura, desalinhamento de KPIs,
+foco em controle que se tornava disabled, nona tab disputando espaço com ações e
+overflow mobile após Save. Layout final usa grupos adjacentes por tamanho semântico
+e toolbar contida por grid; ordem DOM acompanha ordem salva. Matriz repetida após
+a última correção: 1440/1280/1024/768/430/390/360, sem overflow do documento.
+Tabs 1104/1104px e 944/944px em desktop; abaixo disso, scroll interno acessível.
+
+Light/Dark em 1440 e 390, amostras tablet 768 e modo System inspecionados. Editor
+com 12 selecionados permanece utilizável em mobile; labels e ações não se cortam.
+Tema Escuro restaurado e override de viewport removido ao final.
+
+Dados reais: Progresso 70%, WIP 4, Pass Rate 36,67%, cobertura de implementação
+25% com referência 70% e delta −45 p.p.; Health 70/100 e cobertura 81% iguais em
+Geral/Meu painel. Cycle com oito dias observados; Burndown/Burnup oito pontos,
+Velocity quatro Sprints, Throughput/CFD 30 pontos. CFD conserva 352px; tabela
+Burndown mobile aberta por teclado; Tasks atrasadas com nomes longos; PRs abertas
+mais antigas NO_DATA compacto; Cycle/CFD PARTIAL sem substituir ausência por zero.
+
+Rede real: preferência 17,93ms/167B; catálogo 14,16ms/51.594B; agregado 12 widgets
+46,21ms/36.169B. Aproximadamente 203s sem novos requests analíticos durante
+interações que não alteram filtros/dados. Save um PUT + um agregado; reset um
+DELETE + um agregado; sem request por widget ou por reorder. HMR durante edição
+foi separado da observação. Retorno à view com chart pronto: 131ms incluindo
+automação/rede/DOM, não paint isolado. Instrumentação temporária removida.
+Focus/visibility sem refetch comprovado por regressão, sem alegar Alt+Tab nativo.
+Console final sem warnings/erros.
+
+Backend 1.522 PASS (cinco skips legados), frontend 1.333 PASS. Coverage, lint,
+format, build, Prisma, migrations dev/test, arquitetura, segredos, política/testes
+de CI local e audit canônico passaram. Zero HIGH/CRITICAL, zero exceções usadas;
+nenhuma dependência adicionada. Gates locais não equivalem a CI hospedada.
+
+**S2 P9 PERSONALIZED INDICATORS DASHBOARD — PASS LOCAL**.
+Sem commit/push ou P10. Sem certificação WCAG, leitor de tela dedicado ou touch físico.
+
+Evidências transitórias: `/private/tmp/traceflow-p9-20261004/`, `final-*.jpg`,
+`editor-*.jpg`, `one-widget-390-light.jpg`, `proof-default-desktop.jpg`, matrizes,
+console, métricas HTTP e logs de gates.
+[Relatório P9](../../deliveries/S2_P9_PERSONALIZED_INDICATORS_DASHBOARD_REPORT.md).

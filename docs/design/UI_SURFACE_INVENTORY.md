@@ -818,3 +818,15 @@ continua bloqueando PASS; [relatório P8.6D](../deliveries/S2_P8_6D_FINAL_INDICA
 
 Inspeção real nas sete larguras, com amostras Light/Dark e todas as categorias em
 1440/1280/1024/430. [Relatório P8.6F](../deliveries/S2_P8_6F_FINAL_VISUAL_CONSISTENCY_SWEEP_REPORT.md).
+
+## P9 — Meu painel (2026-10-04)
+
+| Superfície | Owner / comportamento | Evidência local |
+| --- | --- | --- |
+| PROJECT-INDICATORS-CUSTOM | `DashboardPanel` + `CustomDashboard`; `?view=custom`, mesmo summary/filtro/presenters; 1–12 widgets na ordem pessoal | API real: padrão, um widget, 12, charts, tabela, NO_DATA/PARTIAL; sete larguras |
+| PROJECT-INDICATORS-CUSTOM-EDITOR | `DashboardEditor` dentro de `SprintDialog`; busca/categoria, lista ordenada, draft, Save/Cancel/reset | Teclado, foco, limite, pesquisa vazia, Planejamento/Fluxo/Sprint, Light/Dark/System |
+| INDICATORS-NAV | Nove tabs; Meu painel após Geral; ações em linha própria somente na view pessoal | 1440: 1104/1104px; 1280: 944/944px; scroll interno acessível abaixo disso |
+
+Personalização não altera Health, semântica dos filtros ou widgets canônicos.
+Escopo de persistência é usuário/projeto; a UI não oferece configuração de terceiros.
+[Relatório P9](../deliveries/S2_P9_PERSONALIZED_INDICATORS_DASHBOARD_REPORT.md).

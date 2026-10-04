@@ -1626,3 +1626,90 @@ para a mesma unidade e tipo. Referência ausente, amostra insuficiente ou assess
 parcial não produz linha substituta nem meta. A janela ainda em andamento preserva
 as regras de PARTIAL; uma janela encerrada pode oferecer referência elegível.
 Fórmula, versão da definição, RF, filtros e exclusões anteriores permanecem válidos.
+
+## P9 — preferências pessoais de Indicadores
+
+Esta extensão acrescenta persistência de apresentação ao contrato agregado anterior.
+Não permite alterar fórmulas, referências, Health ou filtros por widget.
+
+### Preferência por usuário e projeto
+
+| Método e rota | Comportamento | Resposta |
+| --- | --- | --- |
+| `GET /api/projects/:projectId/indicator-preference` | Lê a preferência da sessão; ausência não cria registro | 200 com configuração persistida ou default |
+| `PUT /api/projects/:projectId/indicator-preference` | Valida e faz upsert do par projeto/usuário | 200 com configuração confirmada |
+| `DELETE /api/projects/:projectId/indicator-preference` | Remove somente a preferência do ator; idempotente | 200 com default |
+
+Body PUT estrito:
+
+```json
+{
+  "configurationVersion": 1,
+  "widgets": ["I01", "I23", "I49", "I66", "I21", "I28"]
+}
+```
+
+Resposta sem configuração persistida (GET ou DELETE):
+
+```json
+{
+  "configurationVersion": 1,
+  "widgets": ["I01", "I23", "I49", "I66", "I21", "I28"],
+  "isDefault": true,
+  "updatedAt": null
+}
+```
+
+Uma row persistida retorna `isDefault: false` e `updatedAt` ISO-8601. A posição no
+array determina a ordem; não existem propriedades de dimensão/posição livre.
+Mínimo 1, máximo 12, IDs únicos, conhecidos e elegíveis. Versão diferente de 1,
+ID proibido, campos extras (inclusive `userId`), shape inválido ou query inesperada
+são rejeitados com 400 pelo envelope de validação existente. DELETE aceita body
+vazio; GET/PUT/DELETE não possuem query de usuário.
+
+Autorização usa sessão e membership ativa: VIEWER, MEMBER, MANAGER e OWNER podem
+ler/escrever somente a própria preferência. `userId` é derivado de `req.auth`.
+401 sem autenticação; 404 opaco para projeto alheio, excluído ou membership inativa.
+PUT/DELETE exigem o CSRF canônico. A transação revalida projeto, membership e conta
+ativa sob locks de projeto/membership, protegendo a concorrência com exclusão.
+
+Soft delete torna a preferência inacessível; restore a preserva; hard purge e
+exclusão física de User usam FK cascade. Anonimização da conta remove preferências
+após desativar memberships. O export pessoal de privacidade inclui
+`indicator-preferences.json` apenas com rows do ator em projetos ainda acessíveis.
+Isso não constitui exportação analítica do painel.
+
+### Catálogo e agregado CUSTOM
+
+`GET /api/projects/:projectId/indicators/catalog` mantém as oito views estáticas e
+acrescenta `personalization: {defaultPreference, minWidgets: 1, maxWidgets: 12}`.
+Cada indicador ganha `customization` com `customizable`, `reason`, `defaultSelected`,
+`sizeClass`, `description`, `defaultVisualization` e `categories`. As categorias
+incluem a original e os agrupamentos canônicos Planejamento/Qualidade aplicáveis.
+Não confundir elegibilidade com `healthRole`; `CONTEXT_ONLY` pode ser selecionável.
+
+Exemplo de agregado:
+
+```http
+GET /api/projects/2/indicators/dashboard?view=CUSTOM&widgets=I23,I21,I45&startDate=2026-09-01&endDate=2026-09-30&timeZone=America%2FSao_Paulo&sprintId=16
+```
+
+`widgets` é obrigatório e exclusivo de `view=CUSTOM`: lista de IDs separados por
+vírgula, validada pelas mesmas regras do PUT. Sem espaços, duplicatas ou IDs extras.
+Período usa o trio startDate/endDate/timeZone e limite de 366 dias em CUSTOM.
+Filtros inválidos continuam retornando 400; Sprint deve pertencer ao projeto.
+
+Resposta mantém o envelope do dashboard, `view: "CUSTOM"` e uma seção `custom`,
+com indicadores exatamente na ordem solicitada. Os source services são invocados
+por grupo, sem HTTP interno. Health completo sempre acompanha CUSTOM, inclusive
+quando `includeProjectHealth=false` é enviado: seleção pessoal nunca reduz seus
+sinais. Resultados preservam assessments, references, Data State, limitações e
+`appliedFilters`/`filterCompatibility` originais. WIP conserva estado atual, Cycle
+Time usa período e Burndown usa Sprint. Ausência de período ou Sprint conserva a
+indisponibilidade canônica em vez de fabricar dados.
+
+A query informa a seleção para este agregado; GET do dashboard não altera a
+preferência persistida. O frontend obtém a preferência, solicita um agregado e
+refaz esse agregado após Save/reset. Não há endpoint nem request por widget.
+
+Matriz completa e decisões: [Painel pessoal v1](../indicators/PERSONALIZED_DASHBOARD_V1.md).

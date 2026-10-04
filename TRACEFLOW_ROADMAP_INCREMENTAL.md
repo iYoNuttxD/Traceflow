@@ -519,6 +519,19 @@ Transformar os dados rastreáveis em comunicação proativa, indicadores explic�
 - [ ] testar filtros, dados ausentes, cálculo e autorização;
 - [ ] documentar métricas e atualizar matriz RF.
 
+**Marco incremental P9 — 2026-10-04:**
+
+- [x] Meu painel: seleção de 1–12 indicadores aprovados, ordem por teclado e
+  preferência por usuário/projeto; default e restore com autoridade backend.
+- [x] API agregada CUSTOM, isolamento/autorização, migration incremental e
+  lifecycle; filtros, fórmulas e Health canônicos preservados.
+- [x] Gates locais completos e inspeção visual com API real, sete larguras,
+  Light/Dark/System. **S2 P9 PERSONALIZED INDICATORS DASHBOARD — PASS LOCAL**.
+
+Detalhes e limites de evidência no
+[relatório P9](docs/deliveries/S2_P9_PERSONALIZED_INDICATORS_DASHBOARD_REPORT.md).
+Registro limitado ao P9; P10 não iniciado.
+
 ### S2-06 - Gerar relatórios resumidos do projeto
 
 **Requisito:** RF37.  

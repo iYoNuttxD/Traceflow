@@ -329,3 +329,16 @@ sobreviventes e TaskMovements elegíveis do cálculo oficial; lacunas são `null
 O enriquecimento artificial é restrito ao projeto de homologação e identificado por
 `[P8.6B]`. Não constitui recuperação de eventos reais antigos. Referências vêm do
 Health Model existente e não são metas. Ver o [relatório P8.6B](../deliveries/S2_P8_6B_ANALYTICS_DATA_ENRICHMENT_REPORT.md).
+## Extensão P9 — elegibilidade de apresentação
+
+O catálogo de personalização e sua matriz de 74 fichas estão documentados em
+[PERSONALIZED_DASHBOARD_V1.md](PERSONALIZED_DASHBOARD_V1.md). São 66 indicadores
+selecionáveis, com descrição curta, categorias de navegação, tamanho semântico,
+visualização e filtros suportados. A autoridade executável fica em
+`personalized-dashboard.catalog.js`; o endpoint de catálogo expõe a metadata.
+
+I03/I05 aguardam homologação standalone; I07/I08 são capacidades, não widgets;
+I19/I69/I70 seguem não implementados e I68 não recomendado. Papel `CONTEXT_ONLY`
+no Health não impede personalização. Nenhuma fórmula, fonte, assessment ou
+referência foi alterada pelo P9. Health é calculado integralmente mesmo quando
+somente um widget é escolhido.

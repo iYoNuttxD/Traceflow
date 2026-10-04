@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { IndicatorsSummary } from './components/IndicatorsSummary.jsx';
 import { CollapsibleFilterPanel } from '../schedule/index.js';
@@ -22,6 +22,9 @@ import {
   SECTION_LABELS,
   VIEW_LABELS
 } from './dashboard-display.js';
+import { useDashboardPreference } from './useDashboardPreference.js';
+import { DashboardEditor } from './components/DashboardEditor.jsx';
+import { CustomDashboard } from './components/CustomDashboard.jsx';
 import './DashboardPanel.css';
 
 const WARNING_LABELS = {
@@ -79,6 +82,16 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const selection = querySelection(searchParams);
   const { view, startDate, endDate, timeZone, sprintId } = selection;
+  const preferenceState = useDashboardPreference(projectId, view === 'CUSTOM');
+  const widgets = view === 'CUSTOM' ? (preferenceState.preference?.widgets.join(',') ?? '') : '';
+  const [editorContext, setEditorContext] = useState(null);
+  const [savedContext, setSavedContext] = useState(null);
+  const personalizeRef = useRef(null);
+  const closeEditor = useCallback(() => setEditorContext(null), []);
+  useEffect(() => {
+    setEditorContext(null);
+    setSavedContext(null);
+  }, [projectId, view]);
   const [draft, setDraft] = useState(selection);
   const [filterError, setFilterError] = useState('');
   const [catalogState, setCatalogState] = useState({ projectId: null, data: null, error: null });
@@ -94,6 +107,7 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
   const identity = [
     projectId,
     view,
+    widgets,
     startDate,
     endDate,
     timeZone,
@@ -118,6 +132,7 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
             projectId,
             data: response.data.indicators,
             views: response.data.views,
+            personalization: response.data.personalization,
             error: null
           });
       },
@@ -155,13 +170,21 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
   }, [projectId, sprintRefresh]);
 
   useEffect(() => {
+    if (view === 'CUSTOM' && !widgets) return;
     const generation = ++dashboardGeneration.current;
     const controller = new AbortController();
     setDashboardState({ identity, data: null, error: null });
     void indicatorsApi
-      .dashboard(projectId, filtersForRequest({ view, startDate, endDate, timeZone, sprintId }), {
-        signal: controller.signal
-      })
+      .dashboard(
+        projectId,
+        {
+          ...filtersForRequest({ view, startDate, endDate, timeZone, sprintId }),
+          ...(view === 'CUSTOM' ? { widgets } : {})
+        },
+        {
+          signal: controller.signal
+        }
+      )
       .then(
         (response) => {
           if (dashboardGeneration.current === generation && !controller.signal.aborted)
@@ -186,7 +209,8 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
     sprintId,
     refreshVersion,
     manualRefresh,
-    identity
+    identity,
+    widgets
   ]);
 
   function selectView(view) {
@@ -266,7 +290,11 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
   const sprints = sprintState.projectId === projectId ? sprintState.rows : [];
   const catalogById = new Map((catalog ?? []).map((item) => [item.metricId, item]));
   const missingMetadata = dashboard?.sections?.some((section) =>
-    section.indicators.some((indicator) => !catalogById.has(indicator.metricId))
+    section.indicators.some(
+      (indicator) =>
+        !catalogById.has(indicator.metricId) ||
+        (view === 'CUSTOM' && !catalogById.get(indicator.metricId)?.customization?.customizable)
+    )
   );
   const viewState = VIEW_STATES[dashboard?.viewState] ? dashboard.viewState : 'UNKNOWN';
   const activeFilterCount = Number(Boolean(startDate && endDate)) + Number(Boolean(sprintId));
@@ -371,7 +399,9 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
           )}
         </div>
       </CollapsibleFilterPanel>
-      <div className="dashboard-panel__toolbar">
+      <div
+        className={`dashboard-panel__toolbar${view === 'CUSTOM' ? ' dashboard-panel__toolbar--custom' : ''}`}
+      >
         <div
           className="internal-tabs dashboard-panel__tabs"
           role="tablist"
@@ -395,6 +425,17 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
           ))}
         </div>
         <div className="dashboard-panel__toolbar-actions">
+          {view === 'CUSTOM' && (
+            <button
+              type="button"
+              className="button button-secondary"
+              ref={personalizeRef}
+              disabled={!preferenceState.preference || !catalogState.personalization || !catalog}
+              onClick={() => setEditorContext(projectId)}
+            >
+              Personalizar painel
+            </button>
+          )}
           <button
             type="button"
             className="dashboard-panel__refresh"
@@ -423,6 +464,19 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
         aria-labelledby={`dashboard-tab-${selection.view.toLowerCase()}`}
         className="dashboard-panel__body"
       >
+        {view === 'CUSTOM' && preferenceState.error && (
+          <div role="alert" className="dashboard-panel__error">
+            <p>Não foi possível carregar seu painel.</p>
+            <button type="button" onClick={preferenceState.retry}>
+              Tentar novamente
+            </button>
+          </div>
+        )}
+        {savedContext === projectId && view === 'CUSTOM' && (
+          <p role="status">
+            Painel salvo.{dashboardError ? ' Não foi possível atualizar os dados agora.' : ''}
+          </p>
+        )}
         {catalogError && (
           <div className="dashboard-panel__error" role="alert">
             <p>Não foi possível carregar o catálogo de indicadores.</p>
@@ -439,7 +493,10 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
             </button>
           </div>
         )}
-        {!catalogError && !dashboardError && (!dashboard || !catalog) && <LoadingDashboard />}
+        {!catalogError &&
+          !dashboardError &&
+          !(view === 'CUSTOM' && preferenceState.error) &&
+          (!dashboard || !catalog) && <LoadingDashboard />}
         {dashboard && catalog && missingMetadata && (
           <p role="alert">
             O catálogo não corresponde aos indicadores desta visão. Atualize a página.
@@ -465,149 +522,184 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
             {view === 'GENERAL' && (
               <ProjectHealth health={dashboard.projectHealth} catalogById={catalogById} />
             )}
-            {presentationSections(view, dashboard.sections)
-              .filter((section) => section.indicators.length)
-              .map((section) => {
-                const counts = new Map();
-                for (const indicator of section.indicators) {
-                  const occurrences =
-                    section.id === 'flow' &&
-                    indicator.metricId === 'I22' &&
-                    indicator.points?.length > 1
-                      ? 2
-                      : 1;
-                  for (const code of presentationLimitations(indicator).filter(
-                    (code) => !code.includes('FILTER_')
-                  ))
-                    counts.set(code, (counts.get(code) ?? 0) + occurrences);
-                }
-                const sharedLimitations = [...counts]
-                  .filter(([, count]) => count > 1)
-                  .map(([code]) => code);
-                const periodPrompt = dashboard.warnings?.some(
-                  (warning) => warning.code === 'PERIOD_REQUIRED_FOR_EVENT_INDICATORS'
-                );
-                const suppressedLimitations = [
-                  ...sharedLimitations,
-                  ...visibleWarnings.map((warning) => warning.code),
-                  ...(periodPrompt ? ['PERIOD_REQUIRED'] : []),
-                  ...(periodInProgress ? ['PERIOD_NOT_COMPLETE'] : [])
-                ];
-                const sectionLimitations = sharedLimitations.filter(
-                  (code) =>
-                    code !== 'PERIOD_REQUIRED' &&
-                    code !== 'PERIOD_NOT_COMPLETE' &&
-                    !visibleWarnings.some((warning) => warning.code === code)
-                );
-                const sectionNotices = sectionLimitations.map(describeLimitation);
-                const flowSummary =
-                  section.id === 'flow'
-                    ? ['I23', 'I22'].flatMap((id) =>
-                        section.indicators.filter((indicator) => indicator.metricId === id)
-                      )
-                    : null;
-                const compact =
-                  flowSummary ??
-                  (section.id === 'sprintScope'
-                    ? []
-                    : section.indicators.filter((indicator) =>
-                        ['kpi-compact', 'kpi-progress'].includes(indicatorVisualType(indicator))
-                      ));
-                const detailed = section.indicators.filter((indicator) =>
-                  section.id === 'flow'
-                    ? indicator.metricId !== 'I23' &&
-                      (indicator.metricId !== 'I22' || indicator.points?.length > 1)
-                    : section.id === 'sprintScope' ||
-                      !['kpi-compact', 'kpi-progress'].includes(indicatorVisualType(indicator))
-                );
-                const durations = detailed.filter((indicator) =>
-                  ['I20', 'I21'].includes(indicator.metricId)
-                );
-                const pairDurations =
-                  durations.length === 2 &&
-                  durations.every(
-                    (indicator) =>
-                      indicator.points?.filter(
-                        (point) => typeof point.value === 'number' && Number.isFinite(point.value)
-                      ).length > 1
+            {view === 'CUSTOM' ? (
+              <CustomDashboard
+                indicators={dashboard.sections.flatMap((section) => section.indicators)}
+                catalogById={catalogById}
+                suppressedLimitations={[
+                  ...(dashboard.warnings?.some(
+                    (warning) => warning.code === 'PERIOD_REQUIRED_FOR_EVENT_INDICATORS'
+                  )
+                    ? ['PERIOD_REQUIRED']
+                    : []),
+                  ...(periodInProgress ? ['PERIOD_NOT_COMPLETE'] : []),
+                  ...visibleWarnings.map((warning) => warning.code)
+                ]}
+              />
+            ) : (
+              presentationSections(view, dashboard.sections)
+                .filter((section) => section.indicators.length)
+                .map((section) => {
+                  const counts = new Map();
+                  for (const indicator of section.indicators) {
+                    const occurrences =
+                      section.id === 'flow' &&
+                      indicator.metricId === 'I22' &&
+                      indicator.points?.length > 1
+                        ? 2
+                        : 1;
+                    for (const code of presentationLimitations(indicator).filter(
+                      (code) => !code.includes('FILTER_')
+                    ))
+                      counts.set(code, (counts.get(code) ?? 0) + occurrences);
+                  }
+                  const sharedLimitations = [...counts]
+                    .filter(([, count]) => count > 1)
+                    .map(([code]) => code);
+                  const periodPrompt = dashboard.warnings?.some(
+                    (warning) => warning.code === 'PERIOD_REQUIRED_FOR_EVENT_INDICATORS'
                   );
-                const renderIndicator = (indicator, presentation, style) => (
-                  <IndicatorCard
-                    key={indicator.metricId}
-                    indicator={indicator}
-                    metadata={catalogById.get(indicator.metricId)}
-                    sharedLimitations={suppressedLimitations}
-                    presentation={presentation}
-                    style={style}
-                  />
-                );
-                return (
-                  <section
-                    className={`dashboard-panel__section dashboard-panel__section--${section.id}${compact.length === 0 && detailed.length === 1 && detailed[0].kind === 'SERIES' && detailed[0].points?.length === 1 ? ' dashboard-panel__section--snapshot' : ''}`}
-                    key={section.id}
-                    aria-labelledby={`dashboard-section-${section.id}`}
-                  >
-                    <div className="dashboard-panel__section-heading">
-                      <h3 id={`dashboard-section-${section.id}`}>
-                        {SECTION_LABELS[section.id] ?? 'Indicadores complementares'}
-                      </h3>
-                    </div>
-                    {sectionNotices.length > 0 && (
-                      <div className="dashboard-panel__section-notice">
-                        {[...new Set(sectionNotices)].map((notice) => (
-                          <p key={notice}>{notice}</p>
-                        ))}
+                  const suppressedLimitations = [
+                    ...sharedLimitations,
+                    ...visibleWarnings.map((warning) => warning.code),
+                    ...(periodPrompt ? ['PERIOD_REQUIRED'] : []),
+                    ...(periodInProgress ? ['PERIOD_NOT_COMPLETE'] : [])
+                  ];
+                  const sectionLimitations = sharedLimitations.filter(
+                    (code) =>
+                      code !== 'PERIOD_REQUIRED' &&
+                      code !== 'PERIOD_NOT_COMPLETE' &&
+                      !visibleWarnings.some((warning) => warning.code === code)
+                  );
+                  const sectionNotices = sectionLimitations.map(describeLimitation);
+                  const flowSummary =
+                    section.id === 'flow'
+                      ? ['I23', 'I22'].flatMap((id) =>
+                          section.indicators.filter((indicator) => indicator.metricId === id)
+                        )
+                      : null;
+                  const compact =
+                    flowSummary ??
+                    (section.id === 'sprintScope'
+                      ? []
+                      : section.indicators.filter((indicator) =>
+                          ['kpi-compact', 'kpi-progress'].includes(indicatorVisualType(indicator))
+                        ));
+                  const detailed = section.indicators.filter((indicator) =>
+                    section.id === 'flow'
+                      ? indicator.metricId !== 'I23' &&
+                        (indicator.metricId !== 'I22' || indicator.points?.length > 1)
+                      : section.id === 'sprintScope' ||
+                        !['kpi-compact', 'kpi-progress'].includes(indicatorVisualType(indicator))
+                  );
+                  const durations = detailed.filter((indicator) =>
+                    ['I20', 'I21'].includes(indicator.metricId)
+                  );
+                  const pairDurations =
+                    durations.length === 2 &&
+                    durations.every(
+                      (indicator) =>
+                        indicator.points?.filter(
+                          (point) => typeof point.value === 'number' && Number.isFinite(point.value)
+                        ).length > 1
+                    );
+                  const renderIndicator = (indicator, presentation, style) => (
+                    <IndicatorCard
+                      key={indicator.metricId}
+                      indicator={indicator}
+                      metadata={catalogById.get(indicator.metricId)}
+                      sharedLimitations={suppressedLimitations}
+                      presentation={presentation}
+                      style={style}
+                    />
+                  );
+                  return (
+                    <section
+                      className={`dashboard-panel__section dashboard-panel__section--${section.id}${compact.length === 0 && detailed.length === 1 && detailed[0].kind === 'SERIES' && detailed[0].points?.length === 1 ? ' dashboard-panel__section--snapshot' : ''}`}
+                      key={section.id}
+                      aria-labelledby={`dashboard-section-${section.id}`}
+                    >
+                      <div className="dashboard-panel__section-heading">
+                        <h3 id={`dashboard-section-${section.id}`}>
+                          {SECTION_LABELS[section.id] ?? 'Indicadores complementares'}
+                        </h3>
                       </div>
-                    )}
-                    {compact.length > 0 && (
-                      <div className="dashboard-panel__metric-grid">
-                        {compact.map((indicator, index) => {
-                          // Fill the last row evenly at each responsive column count.
-                          const span = (columns) =>
-                            12 /
-                            Math.min(
-                              columns,
-                              compact.length - Math.floor(index / columns) * columns
-                            );
-                          const wideColumns =
-                            compact.length <= 4 ? compact.length : compact.length <= 6 ? 3 : 4;
-                          return renderIndicator(indicator, flowSummary ? 'summary' : undefined, {
-                            '--metric-span-wide': span(wideColumns),
-                            '--metric-span-medium': span(3),
-                            '--metric-span-small': span(2)
-                          });
-                        })}
-                      </div>
-                    )}
-                    {detailed.length > 0 && (
-                      <div className="dashboard-panel__detail-grid">
-                        {pairDurations && (
-                          <div
-                            className="dashboard-panel__duration-pair"
-                            role="group"
-                            aria-label="Tempos de entrega"
-                          >
-                            {durations.map((indicator) => renderIndicator(indicator))}
-                          </div>
-                        )}
-                        {detailed
-                          .filter((indicator) => !pairDurations || !durations.includes(indicator))
-                          .map((indicator) =>
-                            renderIndicator(
-                              indicator,
-                              section.id === 'flow' && indicator.metricId === 'I22'
-                                ? 'trend'
-                                : undefined
-                            )
+                      {sectionNotices.length > 0 && (
+                        <div className="dashboard-panel__section-notice">
+                          {[...new Set(sectionNotices)].map((notice) => (
+                            <p key={notice}>{notice}</p>
+                          ))}
+                        </div>
+                      )}
+                      {compact.length > 0 && (
+                        <div className="dashboard-panel__metric-grid">
+                          {compact.map((indicator, index) => {
+                            // Fill the last row evenly at each responsive column count.
+                            const span = (columns) =>
+                              12 /
+                              Math.min(
+                                columns,
+                                compact.length - Math.floor(index / columns) * columns
+                              );
+                            const wideColumns =
+                              compact.length <= 4 ? compact.length : compact.length <= 6 ? 3 : 4;
+                            return renderIndicator(indicator, flowSummary ? 'summary' : undefined, {
+                              '--metric-span-wide': span(wideColumns),
+                              '--metric-span-medium': span(3),
+                              '--metric-span-small': span(2)
+                            });
+                          })}
+                        </div>
+                      )}
+                      {detailed.length > 0 && (
+                        <div className="dashboard-panel__detail-grid">
+                          {pairDurations && (
+                            <div
+                              className="dashboard-panel__duration-pair"
+                              role="group"
+                              aria-label="Tempos de entrega"
+                            >
+                              {durations.map((indicator) => renderIndicator(indicator))}
+                            </div>
                           )}
-                      </div>
-                    )}
-                  </section>
-                );
-              })}
+                          {detailed
+                            .filter((indicator) => !pairDurations || !durations.includes(indicator))
+                            .map((indicator) =>
+                              renderIndicator(
+                                indicator,
+                                section.id === 'flow' && indicator.metricId === 'I22'
+                                  ? 'trend'
+                                  : undefined
+                              )
+                            )}
+                        </div>
+                      )}
+                    </section>
+                  );
+                })
+            )}
           </>
         )}
       </div>
+      {view === 'CUSTOM' &&
+        editorContext === projectId &&
+        preferenceState.preference &&
+        catalog && (
+          <DashboardEditor
+            key={projectId}
+            projectId={projectId}
+            preference={preferenceState.preference}
+            catalog={catalog}
+            policy={catalogState.personalization}
+            returnFocusRef={personalizeRef}
+            onClose={closeEditor}
+            onSaved={(data) => {
+              preferenceState.accept(data);
+              setSavedContext(projectId);
+              closeEditor();
+            }}
+          />
+        )}
     </section>
   );
 }
