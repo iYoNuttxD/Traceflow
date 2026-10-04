@@ -16,7 +16,7 @@
 
 Criação de projeto e membership OWNER são uma transação. Listagem de projetos é filtrada por membership. O ator de `TaskMovement` vem do usuário da sessão. A LR.2 removeu `ProjectMember` e `TaskMovement.projectMemberId` do schema/runtime; `TaskMovement.movedBy` permanece somente como snapshot histórico e nunca é prova de identidade.
 
-O único endpoint `501` restante é `DELETE /api/projects/:id`: sem sessão retorna `401`; autenticado continua `501`. O middleware não implementa a exclusão.
+A restrição histórica `501` de `DELETE /api/projects/:id` foi substituída pelo ADR-014: OWNER pode excluir logicamente e restaurar durante a carência. O middleware exige sessão e papel contextual; projeto indisponível/alheio mantém `404` opaco. Consulte [ADR-014](ADR-014-EXCLUSAO-RECUPERAVEL-DE-PROJETOS.md) e a matriz vigente de autorização.
 
 ## Consequências e lacunas
 

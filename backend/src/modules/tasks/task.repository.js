@@ -241,7 +241,7 @@ export const taskRepository = {
     return links.map((link) => link.issue);
   },
 
-  async updateTaskAtomic(id, data, { historyEntries, auditEvent, previousRequirementId }) {
+  async updateTaskAtomic(id, data, { buildHistory, auditEvent, previousRequirementId }) {
     return traceabilityTransaction(
       {
         taskIds: [id],
@@ -251,7 +251,6 @@ export const taskRepository = {
         sourceEntityId: id
       },
       async (tx) => {
-        let previous = null;
         if (Object.hasOwn(data, 'estimatedEffort')) {
           const pointer = await tx.task.findUnique({
             where: { id },
@@ -260,13 +259,14 @@ export const taskRepository = {
           if (pointer?.sprintId) {
             await tx.$queryRaw`SELECT id FROM Sprint WHERE id = ${pointer.sprintId} AND projectId = ${pointer.projectId} FOR UPDATE`;
           }
-          await tx.$queryRaw`SELECT id FROM Task WHERE id = ${id} FOR UPDATE`;
-          previous = await tx.task.findUnique({
-            where: { id },
-            select: { id: true, projectId: true, sprintId: true, estimatedEffort: true }
-          });
         }
-        if (previous) await captureBurnupEstimate(tx, previous, data.estimatedEffort, new Date());
+        await tx.$queryRaw`SELECT id FROM Task WHERE id = ${id} FOR UPDATE`;
+        // History describes the committed predecessor, not an editor's stale preflight.
+        const previous = await tx.task.findUniqueOrThrow({ where: { id } });
+        const historyEntries = buildHistory(previous);
+        if (Object.hasOwn(data, 'estimatedEffort')) {
+          await captureBurnupEstimate(tx, previous, data.estimatedEffort, new Date());
+        }
         const task = await tx.task.update({ where: { id }, data, include: taskInclude });
         if (historyEntries.length) {
           await tx.taskHistoryEntry.createMany({

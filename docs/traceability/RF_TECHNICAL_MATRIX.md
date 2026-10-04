@@ -3,8 +3,10 @@
 `IMPLEMENTADO` significa fluxo presente e protegido pela suíte; `PARCIAL` indica apenas parte do RF;
 `NÃO IMPLEMENTADO` não deve ser inferido de campos isolados. GitHub OAuth é identidade de
 autenticação; GitHub App/Installation é a autoridade de repositórios e artefatos. Homologações
-externas de SMTP, GitHub, webhook e browser permanecem distintas da cobertura automatizada e não
-são declaradas como `PASS`.
+externas permanecem distintas da cobertura automatizada. A sync GitHub e a inspeção
+com sessão/API reais foram executadas no P10; isso não homologa SMTP, OAuth novo ou
+webhooks de produção. As evidências e limitações atuais estão no
+[relatório P10](../deliveries/S2_P10_FINAL_CODE_REVIEW_RELEASE_READINESS_REPORT.md).
 
 ## Decisões vigentes de identidade e acesso
 
@@ -28,14 +30,14 @@ são declaradas como `PASS`.
 | RF11 | Task–Commit | `GET/POST/DELETE /tasks/:id/commits` | task-commit | TaskCommit | TaskForm, Task Details e Rastreabilidade; sem indicador agregado na Tasks Page | mvp-contracts, RF41 | IMPLEMENTADO |
 | RF35 | evolução por sprint | `GET /sprints/:id/progress` | sprint-progress; `sprint.progress.calculator` e `sprint.burndown.calculator` (puros) | **SprintTask** (`exitStatus`, `addedAfterStart`, `carriedFromSprintId`, `removedAt`, `closedAt`), Sprint.startedAt/completedAt | SprintProgressPanel, SprintBurndownChart, SprintList | sprint.progress.calculator, sprint.burndown.calculator, sprint.service, schedule-contracts, rf10-sprint-schedule, rf10-rf35-bateria, SprintsScreen, SprintBurndownChart | IMPLEMENTADO |
 | RF12 | Task–Issue | `GET/POST/DELETE /tasks/:id/issues` | task-issue | TaskIssue | TaskForm, Task Details e Rastreabilidade; sem indicador agregado na Tasks Page | mvp-contracts | IMPLEMENTADO |
-| RF15 | progresso atual: Tasks CONCLUIDO / total | `GET /api/projects/:projectId/indicators/progress` | indicators | Task.status | I01 na Visão Geral | `backend/test/unit/indicators.test.js`, `backend/test/api/indicators-p2.test.js`; P8.1 valor real na UI | PARCIAL — BACKEND E VISUALIZAÇÃO I01 IMPLEMENTADOS; AVALIAÇÃO INTEGRAL DO RF/S2-04 PENDENTE |
-| RF16 | commits distintos da main literal por responsável/período | `GET /api/projects/:projectId/indicators/activity` (I02) | indicators | Commit, CommitBranch, GitBranch, GitHubIdentity | I02 na visão GitHub; recorte por responsável explícito conforme P7 | indicators unit/API; fundação P1; P8.1 GitHub real | PARCIAL — BACKEND E VISUALIZAÇÃO I02 IMPLEMENTADOS; RECORTE SEGURO POR RESPONSÁVEL E COBERTURA GITHUB CONDICIONAM O RF |
+| RF15 | progresso atual: Tasks CONCLUIDO / total | `GET /api/projects/:projectId/indicators/progress` | indicators | Task.status | I01 em Indicadores / Geral e Meu painel | `backend/test/unit/indicators.test.js`, `backend/test/api/indicators-p2.test.js`; P8.1 valor real na UI | PARCIAL — BACKEND E VISUALIZAÇÃO I01 IMPLEMENTADOS; AVALIAÇÃO INTEGRAL DO RF/S2-04 PENDENTE |
+| RF16 | commits distintos da main literal por responsável/período | `GET /api/projects/:projectId/indicators/activity` (I02) | indicators | Commit, CommitBranch, GitBranch, GitHubIdentity | I02 na visão GitHub e elegível no Meu painel; sem controle global de responsável inoperante | indicators unit/API; fundação P1; P8.1 GitHub real | PARCIAL — BACKEND E VISUALIZAÇÃO I02 IMPLEMENTADOS; RECORTE SEGURO POR RESPONSÁVEL E COBERTURA GITHUB CONDICIONAM O RF |
 | RF17 | Tasks distintas com conclusão vigente por responsável/período | `GET /api/projects/:projectId/indicators/activity` (I03) | indicators | TaskMovement.responsibleUserIdSnapshot | painel visual pendente | indicators unit/API; fundação P1 | PARCIAL — BACKEND IMPLEMENTADO; legado sem snapshot e visualização pendente |
 | RF18 | retrabalho: PRs distintas fechadas e reabertas na coorte / PRs distintas fechadas | `GET /api/projects/:projectId/indicators/github` (I04) | indicators / github-analytics | PullRequestLifecycleEvent, ProjectGitHubIntegration.pullRequestLifecycleCoverageFrom | I04 na visão GitHub | indicators-p3 API/unit; fundação P1; upgrade P3; P8.1 GitHub real | PARCIAL — BACKEND E VISUALIZAÇÃO I04 IMPLEMENTADOS; COBERTURA TEMPORAL DE LIFECYCLE AINDA CONDICIONA O RF |
 | RF36 | vetor de Tasks concluídas e commits main por responsável, sem score | `GET /api/projects/:projectId/indicators/activity` (I05) | indicators | fontes RF16/RF17 + membership atual | painel visual pendente | indicators unit/API | PARCIAL — BACKEND IMPLEMENTADO; visualização pendente, sem inferir membership histórica |
 | RF54 | qualidade: I04 e taxa de PRs mescladas da mesma coorte fechada | `GET /api/projects/:projectId/indicators/github` (I06) | indicators / github-analytics | PullRequestLifecycleEvent, PullRequest.mergedAtGithub | I06 nas visões GitHub e Qualidade | indicators-p3 API/unit; fundação P1; P8.1 GitHub real | PARCIAL — BACKEND E VISUALIZAÇÃO I06 IMPLEMENTADOS; COBERTURA TEMPORAL E I19 REVIEWS SEPARADO AINDA EXIGEM AVALIAÇÃO |
-| RF55 | painel consolidado com fonte, estado e horário por indicador | `GET /api/projects/:projectId/indicators/dashboard`, `.../catalog` | dashboard aggregate + services de indicadores | projeções existentes, sem tabela de Dashboard | `IndicatorsScreen` → `DashboardPanel` em `/projects/:id/indicators`; oito categorias; Overview com `ProjectHealthSummary` | dashboard-view unit; indicators-p7 API; DashboardPanel P8; P8.1 sessão/API/banco reais, I46 AVAILABLE, sync externa e matriz desktop/tablet/mobile Light/Dark | IMPLEMENTADO — P8.1 HISTÓRICO; P8.5 AUTOMATIZADO PASS, HOMOLOGAÇÃO VISUAL PENDENTE |
-| RF56 | filtro temporal comum sobre indicadores compatíveis | `GET /api/projects/:projectId/indicators/dashboard` | dashboard aggregate + indicator-period.policy | fatos temporais canônicos de cada service | filtro global recolhível em `DashboardPanel`; URL preservada entre oito categorias e compatibilidade por indicador | dashboard-view unit; indicators-p7 API/DST; DashboardPanel P8; P8.1 período/Sprint/responsável reais na UI | IMPLEMENTADO — PASS LOCAL P7/P8.1 PARA RECORTES COMPATÍVEIS; RESPONSÁVEL/SPRINT `UNSAFE` EXPLICITADOS |
+| RF55 | painel consolidado com fonte, estado e horário por indicador | `GET /api/projects/:projectId/indicators/dashboard`, `.../catalog` | dashboard aggregate + services de indicadores | projeções existentes, sem tabela de Dashboard | `IndicatorsScreen` → `DashboardPanel` em `/projects/:id/indicators`; oito categorias; Overview com `ProjectHealthSummary` | dashboard-view unit; indicators-p7 API; DashboardPanel P8; P8.1 sessão/API/banco reais, I46 AVAILABLE, sync externa e matriz desktop/tablet/mobile Light/Dark | IMPLEMENTADO LOCALMENTE — workspace P8.6 e Meu painel P9; auditoria independente e limites no P10 |
+| RF56 | filtro temporal comum sobre indicadores compatíveis | `GET /api/projects/:projectId/indicators/dashboard` | dashboard aggregate + indicator-period.policy | fatos temporais canônicos de cada service | filtro global recolhível em `DashboardPanel`; URL preservada entre oito categorias e Meu painel; De/Até/Sprint, aplicação automática e compatibilidade por indicador | dashboard-view unit; indicators-p7 API/DST; DashboardPanel P8; P8.1 período/Sprint/responsável reais na UI | IMPLEMENTADO PARA RECORTES COMPATÍVEIS — período e Sprint conforme fonte; responsável sem controle na UI enquanto não houver aplicação segura |
 | RF21 | atualizar sync GitHub | `POST .../github/sync` | sync-project-github | Project + artefatos | ProjectDetails | projects-github-e9 | IMPLEMENTADO |
 | RF22 | editar projeto | `PUT /api/projects/:id` | project-crud | Project | ProjectDetails/ProjectForm | mvp-contracts, ProjectDetailsPage | IMPLEMENTADO |
 | RF23 | cadastrar usuário | `POST /api/auth/register`, `POST /api/auth/email-verification/verify` | auth/email | User, Session, EmailVerificationToken | RegisterScreen, VerifyEmailScreen, EmailVerificationBanner | `backend/test/api/auth-authorization.test.js`, `backend/test/unit/identity-policy.test.js`, `frontend/test/pages/AuthForms.test.jsx`, `frontend/test/auth/EmailVerification.test.jsx` | IMPLEMENTADO; SMTP EXTERNO PENDENTE PARA VERIFICAÇÃO REAL |
@@ -60,10 +62,10 @@ são declaradas como `PASS`.
 | RF42 | casos de teste persistidos, versões, execução e evidências | `/projects/:id/test-cases`, `/test-cases/:id`, `/test-executions/:id`, `/test-evidence/:id/content` | test-case, test-execution | TestCase, TestCaseStep, TestCaseVersion, TestCaseHistoryEntry, TestExecution, TestExecutionStep, TestEvidence | `TestCasesPage` / `features/testCases`, CRUD, execução, histórico e download reais | `test/unit/test-cases`, `test/integration/test-cases-s1-07.test.js`, `test/api/test-cases-s1-07.test.js`, `frontend/test/testCases` | IMPLEMENTADO LOCALMENTE — testes e smoke; CI e homologação visual completa pendentes |
 | RF43 | base técnica de relações tipadas de casos de teste | CRUD de TestCase | test-case | TestCaseTask e TestCase.requirementId | seletores e vínculos persistidos em Casos de teste | integração S1-07, isolamento e versões | PARCIAL — relações backend/frontend S1-07; sem declarar RF completo |
 | RF62 | base técnica TestCase–Task/Requirement | CRUD de TestCase | test-case | TestCaseTask e TestCase.requirementId | seletores e vínculos persistidos em Casos de teste | integração S1-07 | PARCIAL — relações backend/frontend S1-07; sem declarar RF completo |
-| RF44 | rastreabilidade consolidada de testes por Requirement | `GET .../traceability/requirements`, `.../:id/current`, `.../:id/history` | traceability projection/policy/reconciliation | relações tipadas + RequirementTraceabilityState/HistoryEntry | cards/histórico novos pendentes | unit requirement-traceability; integração/API s109-traceability | PARCIAL — BACKEND IMPLEMENTADO; FRONTEND PENDENTE; S1-09 aberta |
+| RF44 | rastreabilidade consolidada de testes por Requirement | `GET .../traceability/requirements`, `.../:id/current`, `.../:id/history` | traceability projection/policy/reconciliation | relações tipadas + RequirementTraceabilityState/HistoryEntry | RequirementCatalog, RequirementDetails e TraceabilityWorkspace, com situação/histórico canônicos | unit requirement-traceability; integração/API s109-traceability; frontend requirement/traceability | PARCIAL — BACKEND E FRONTEND PRESENTES; não promove S1-09 integralmente por esta auditoria |
 | RF45 | defeitos com detecção FAIL, correções e reteste | `/projects/:id/defects`, `/defects/:id` e execução contextual | defects / testCases / tasks | Defect, DefectTask, DefectRetest, DefectHistoryEntry | DefectsScreen / DefectFlow | unit/defects, integração/API S1-08 e frontend/test/defects | PARCIAL — backend e frontend integrados; matriz visual completa pendente |
 | RF46 | histórico e acompanhamento de defeitos | `/defects/:id/history`, `/defects/:id/retests` | defects | ciclos, execução e projeção persistida | DefectDetails / DefectHistory | integração/API S1-08 e frontend/test/defects | PARCIAL — histórico integrado; não declara RF completo |
-| RF63 | rastreabilidade de defeitos | criação/edição/candidatos Defect | defects | requisito singular, ORIGIN Tasks e versão executada | DefectForm / DefectDetails / criação contextual TestCase | herança histórica e isolamento S1-08 | PARCIAL — relações navegáveis; consolidação backend S1-09 implementada, frontend ampliado pendente |
+| RF63 | rastreabilidade de defeitos | criação/edição/candidatos Defect | defects | requisito singular, ORIGIN Tasks e versão executada | DefectForm / DefectDetails / criação contextual TestCase | herança histórica e isolamento S1-08 | PARCIAL — relações navegáveis e projeção S1-09 consumidas no frontend; conclusão integral do RF requer avaliação separada |
 | RF64 | relação entre correção e teste | correções e execução contextual | defects / testCases / tasks | CORRECTION Tasks, ciclos e DefectRetest | CorrectionManager / TestExecutionWizard / TaskCorrectionContext | projeção, concorrência e reteste S1-08 | PARCIAL — fluxo integrado; frozen correction metadata ausente e homologação pendente |
 
 S1-08 acrescenta ao RF42 a obrigação backend de requisito ou Task na criação e
@@ -120,7 +122,9 @@ não conclui automaticamente S2-04/S2-05 nem altera RF54 ou Health Model v1.
 
 RF55 passa a ter workspace próprio de Indicadores, com saúde completa em Geral e
 resumo compacto na Visão Geral. RF56 reutiliza o disclosure canônico com período,
-Sprint e responsável no mesmo contexto de URL, sem atribuir recortes inseguros.
+Sprint e responsável no mesmo contexto de URL naquela etapa. Desde P8.6C, a UI
+expõe apenas De/Até e Sprint; a infraestrutura de responsável continua na API sem
+aplicação silenciosa de recortes inseguros.
 A API mantém compatibilidade: a nova categoria `PLANNING` e
 `includeProjectHealth=true` são aditivos. Referências/deltas expõem bases existentes
 do Health Model v1. Testes: `IndicatorsScreen.test.jsx`, `DashboardPanel.test.jsx`,
@@ -128,3 +132,19 @@ do Health Model v1. Testes: `IndicatorsScreen.test.jsx`, `DashboardPanel.test.js
 O veredito específico de P8.5 está em
 [relatório de entrega](../deliveries/S2_P8_5_INDICATORS_WORKSPACE_COMMERCIAL_UX_REPORT.md),
 sem reaproveitar a homologação visual P8.1 como aprovação da nova superfície.
+
+### P10 — evidência atual, sem promoção automática de escopo
+
+- RF15/I01, RF16/I02, RF18/I04, RF54/I06, RF55 e RF56 foram revisados em código,
+  API e UI real. RF17/I03 e RF36/I05 continuam com backend testado e sem presenter
+  standalone aprovado. Reviews GitHub/I19 continuam ausentes; taxa de merge não
+  passa a significar aprovação de review.
+- O painel consolidado possui oito categorias mais Meu painel. A preferência
+  `ProjectDashboardPreference` é individual por usuário/projeto e não altera Health.
+- A Visão Geral segue a decisão final P8.6C: coração, título, nota, status e barra
+  dentro do container existente, sem CTA/cobertura/drivers.
+- P10 revalidou o fluxo artificial Requirement → Task → TestCase → FAIL → Defect
+  → correção → reteste PASS/VALIDADO, além da sync real do repositório existente.
+  Isso não altera o texto oficial dos RFs nem conclui S2-04/S2-05 como um todo.
+- Registros P2–P8.5 acima preservam a cronologia de entrega. Seu uso de “pendente”
+  deve ser lido no contexto da etapa, prevalecendo os contratos e evidências atuais.

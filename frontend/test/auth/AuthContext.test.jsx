@@ -297,4 +297,56 @@ describe('AuthContext', () => {
 
     expect(screen.getByTestId('auth-state')).toHaveTextContent('Daniel');
   });
+
+  it('não restaura identidade ou CSRF de um refresh anterior ao logout', async () => {
+    const user = userEvent.setup();
+    renderProvider();
+    await waitFor(() => expect(screen.getByTestId('auth-state')).toHaveTextContent('Daniel'));
+    let resolveMe;
+    mocks.authApi.me.mockImplementationOnce(() => new Promise((resolve) => (resolveMe = resolve)));
+    await user.click(screen.getByRole('button', { name: 'Atualizar duas vezes' }));
+    await user.click(screen.getByRole('button', { name: 'Sair' }));
+    expect(screen.getByTestId('auth-state')).toHaveTextContent('Visitante');
+    const csrfCalls = mocks.authApi.csrf.mock.calls.length;
+    await act(async () => resolveMe({ data: { user: { id: 1, name: 'Sessão antiga' } } }));
+    expect(screen.getByTestId('auth-state')).toHaveTextContent('Visitante');
+    expect(mocks.authApi.csrf).toHaveBeenCalledTimes(csrfCalls);
+    expect(mocks.setCsrfToken).toHaveBeenLastCalledWith();
+  });
+
+  it('abre um refresh novo para autenticação entre abas mesmo com um refresh antigo pendente', async () => {
+    const user = userEvent.setup();
+    renderProvider();
+    await waitFor(() => expect(screen.getByTestId('auth-state')).toHaveTextContent('Daniel'));
+    let resolveOld;
+    mocks.authApi.me.mockImplementationOnce(() => new Promise((resolve) => (resolveOld = resolve)));
+    await user.click(screen.getByRole('button', { name: 'Atualizar duas vezes' }));
+    mocks.authApi.me.mockResolvedValueOnce({ data: { user: { id: 8, name: 'Sessão atual' } } });
+    mocks.authApi.csrf.mockResolvedValueOnce({ data: { csrfToken: 'csrf-atual' } });
+    await act(async () => {
+      window.dispatchEvent(
+        new StorageEvent('storage', {
+          key: AUTH_SESSION_EVENT_KEY,
+          newValue: JSON.stringify({ type: 'authenticated' })
+        })
+      );
+    });
+    expect(screen.getByTestId('auth-state')).toHaveTextContent('Sessão atual');
+    await act(async () => resolveOld({ data: { user: { id: 1, name: 'Sessão antiga' } } }));
+    expect(screen.getByTestId('auth-state')).toHaveTextContent('Sessão atual');
+    expect(mocks.setCsrfToken).toHaveBeenLastCalledWith('csrf-atual');
+  });
+
+  it('não publica CSRF quando o provider desmonta durante o bootstrap', async () => {
+    let resolveMe;
+    mocks.authApi.me
+      .mockReset()
+      .mockImplementationOnce(() => new Promise((resolve) => (resolveMe = resolve)));
+    const view = renderProvider();
+    await waitFor(() => expect(resolveMe).toBeTypeOf('function'));
+    view.unmount();
+    await act(async () => resolveMe({ data: { user: { id: 1, name: 'Sessão antiga' } } }));
+    expect(mocks.authApi.csrf).not.toHaveBeenCalled();
+    expect(mocks.setCsrfToken).not.toHaveBeenCalled();
+  });
 });

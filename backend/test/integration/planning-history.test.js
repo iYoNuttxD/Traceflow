@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   cleanTestDatabase,
   configureTestDatabaseEnvironment,
@@ -10,6 +10,7 @@ let prisma;
 let sprintService;
 let taskService;
 let taskKanbanService;
+let taskRepository;
 let actorUserId;
 beforeAll(async () => {
   deployTestMigrations(configureTestDatabaseEnvironment());
@@ -18,9 +19,13 @@ beforeAll(async () => {
   ({ taskCrudService: taskService } =
     await import('../../src/modules/tasks/services/task-crud.service.js'));
   ({ taskKanbanService } = await import('../../src/modules/tasks/services/task-kanban.service.js'));
+  ({ taskRepository } = await import('../../src/modules/tasks/task.repository.js'));
   await cleanTestDatabase(prisma);
 });
-afterEach(() => cleanTestDatabase(prisma));
+afterEach(async () => {
+  vi.restoreAllMocks();
+  await cleanTestDatabase(prisma);
+});
 afterAll(async () => {
   await prisma.$disconnect();
 });
@@ -55,6 +60,35 @@ const start = (sprint) => sprintService.updateSprintStatus(sprint.id, 'EM_ANDAME
 const close = (sprint, status = 'CONCLUIDA') =>
   sprintService.updateSprintStatus(sprint.id, status, context());
 const progress = (sprint) => sprintService.getSprintProgress(sprint.id);
+
+describe('Task history under concurrent edits', () => {
+  it.each(['BAIXA', 'MEDIA'])(
+    'records the committed predecessor when changing to %s',
+    async (priority) => {
+      const { a } = await fixture();
+      const findTask = taskRepository.findTaskById.bind(taskRepository);
+      // Another real domain mutation commits after the first editor's preflight.
+      // Only scheduling is controlled; both histories and writes use MySQL.
+      vi.spyOn(taskRepository, 'findTaskById').mockImplementationOnce(async (...args) => {
+        const stale = await findTask(...args);
+        await taskService.updateTask(a.id, { priority: 'ALTA' }, context());
+        return stale;
+      });
+      await taskService.updateTask(a.id, { priority }, context());
+      expect(await prisma.task.findUnique({ where: { id: a.id } })).toMatchObject({ priority });
+      const history = await prisma.taskHistoryEntry.findMany({
+        where: { taskId: a.id, field: 'PRIORITY' },
+        orderBy: { id: 'asc' }
+      });
+      expect(
+        history.map(({ fromValue, toValue, actorUserId: actor }) => ({ fromValue, toValue, actor }))
+      ).toEqual([
+        { fromValue: 'MEDIA', toValue: 'ALTA', actor: actorUserId },
+        { fromValue: 'ALTA', toValue: priority, actor: actorUserId }
+      ]);
+    }
+  );
+});
 
 describe('F1 — evolução encerrada e Task mutável', () => {
   it.each([13, 1])('mantém corte, pontos, série e métricas depois de 5 → %s', async (effort) => {

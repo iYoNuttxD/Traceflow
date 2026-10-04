@@ -248,7 +248,7 @@ function ProjectDefects({ project }) {
     state.clear();
   };
   return (
-    <div className="page-container sprints-screen tc-screen defects-screen">
+    <main className="page-container sprints-screen tc-screen defects-screen">
       <div inert={dialog ? true : undefined}>
         <header className="page-header sprints-screen__header">
           <div>
@@ -443,7 +443,7 @@ function ProjectDefects({ project }) {
           }}
         />
       )}
-    </div>
+    </main>
   );
 }
 export function DefectsScreen() {

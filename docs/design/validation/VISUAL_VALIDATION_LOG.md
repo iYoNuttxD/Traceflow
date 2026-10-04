@@ -1156,3 +1156,65 @@ Evidências: `/private/tmp/traceflow-p911-20261004/`, `save-1440-dark.jpg`,
 Sem alterações em DnD, layout dos widgets, persistência/API/autorização, filtros,
 Health ou backend. Sem commit/push/P10. Este aceite é restrito ao feedback de
 salvamento; não promove a pendência de inspeção de drag registrada no P9.1.
+
+## 2026-10-04 — P10 revisão final independente (API e banco reais)
+
+Baseline `daniel-dev` @ `279e17fbeadabb1cfbc3885bb49a4fe1cc746c60`, árvore inicialmente
+limpa. A inspeção desta rodada utilizou Chrome autenticado, Project 2 artificial,
+MySQL de desenvolvimento e servidores QA Node 22 nas portas 5174/3002. Nenhuma
+aprovação visual anterior foi reutilizada como evidência do estado final.
+
+Correções visuais comprovadas: Casos de teste e Defeitos receberam o landmark
+`main` ausente (dois testes vermelhos antes, verdes depois); estados GitHub brutos
+foram traduzidos no grafo/inspector, Task e repositório, sem inferir merge. As telas
+foram recarregadas após essas alterações. Não houve redesign nem mudança de Health.
+
+| Largura | Amostra visual real | Tema |
+| ---: | --- | --- |
+| 1440 | Projects, Overview, Requirements, Sprints, Marcos, Cronograma, Tasks/Kanban, TestCases, Defects, Repository, Traceability, nove views de Indicadores e editor | Dark; Overview, Geral e toast também Light |
+| 1280 | Fluxo: séries, listas e tabela | Light |
+| 1024 | Fluxo e composição responsiva | Dark |
+| 768 | Sprint: Burndown, Burnup e Velocity com histórico real | Light / Dark |
+| 430 | Tasks e detalhe com título longo | Light |
+| 390 | TestCases/Defects após correção, editor e toast; drawer/foco | Dark; amostra Light de navegação |
+| 360 | Indicadores / Requirements | Dark / Light |
+
+Sem overflow horizontal global nas amostras medidas. Tabelas/grafo mantêm rolagem
+interna intencional. Sidebar expandida/recolhida e drawer foram exercidos; System
+acompanhou o tema do sistema. Zoom nativo Chrome confirmado em **100%, 125%, 150%
+e 200%** (1710/1368/1140/855 CSS px, DPR 2/2,5/3/4). A 200%, ações do editor ficaram
+entre y=324,95 e 369,95 na viewport de 411 px, acessíveis por teclado; filtros
+continuaram utilizáveis. Zoom 100%, tema Escuro e viewport sem override restaurados.
+
+Fluxos reais: navegação a partir de sessão autenticada; Requirement/Task/Sprint;
+movimento no Kanban por teclado; sync GitHub run 19 concluída; TestCase → FAIL →
+Defect → Task de correção → reteste PASS/VALIDADO; cadeia de 16 entidades do REQ-4;
+filtros e categorias de indicadores; personalização/salvamento/reload; exclusão
+lógica/404/recuperação do Project 13 artificial e vazio. O projeto foi deixado
+restaurado. Fatos artificiais de QA foram preservados no banco de desenvolvimento.
+
+Meu painel: draft, adicionar/remover, reorder por teclado, Cancelar, Salvar,
+persistência após reload e toast transitório foram inspecionados. Ordem inicial
+restabelecida. O usuário confirmou nesta rodada **“Sim, marcador e reordenação
+corretos”** para o gesto de arraste, sem sobreposição; essa confirmação fecha a
+pendência visual do marcador registrada no P9.1. Não é uma captura automatizada
+do gesto. Touch físico não foi testado; os botões mantêm a alternativa sem drag.
+
+Rede final: **635,09 s ocioso sem novos requests**, e ida/volta entre abas nativas
+sem refetch de indicadores/preferência. Não se confunde esse teste com novo Cmd+Tab
+entre aplicativos. Console da sessão final: zero warnings/errors. Medições locais,
+oracles de dados, limites de escala e gates estão no
+[relatório P10](../../deliveries/S2_P10_FINAL_CODE_REVIEW_RELEASE_READINESS_REPORT.md).
+
+Evidências locais em `/private/tmp/traceflow-p10-20261004/`: `native-zoom.json`,
+`idle-result.json`, `focus-result.json`, `console-final.json`, `http-observed.jsonl`
+e capturas em `visual/`, incluindo `custom-toast-1440-light.png`,
+`testcases-390-dark.png`, `defects-390-dark.png`, `flow-1280-light.png`,
+`sprint-768-light.png`, `requirements-360-light.png`, `editor-native-200-light.png`,
+`traceability-chain-final-dark.png` e `project-restored-1440-dark.png`.
+
+**S2 P10 FINAL CODE REVIEW & RELEASE READINESS — PASS LOCAL.** Backend 1.562 PASS
+e cinco skips legados; frontend 1.366 PASS; audit completo zero nos dois pacotes.
+Sem certificação WCAG, leitor de tela dedicado, touch físico, cross-browser, CI
+remota ou deploy. Risco MEDIUM de escala em Tasks documentado; nenhum HIGH/BLOCKING
+remanescente conhecido. Sem commit/push; próxima etapa depende de revisão humana.

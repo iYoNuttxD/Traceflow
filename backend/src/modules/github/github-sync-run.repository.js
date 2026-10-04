@@ -2,6 +2,14 @@ import { prisma } from '../../database/prismaClient.js';
 
 const activeStatuses = ['QUEUED', 'RUNNING'];
 
+async function updateOwnedRun(id, data) {
+  const result = await prisma.gitHubSyncRun.updateMany({
+    where: { id, status: 'RUNNING', activeProjectId: { not: null } },
+    data
+  });
+  return result.count === 1;
+}
+
 export const githubSyncRunRepository = {
   create(projectId, requestedByUserId) {
     return prisma.gitHubSyncRun.create({
@@ -45,54 +53,47 @@ export const githubSyncRunRepository = {
   },
 
   updateProgress(id, data, now = new Date()) {
-    return prisma.gitHubSyncRun.update({
-      where: { id },
-      data: { ...data, heartbeatAt: now }
-    });
+    return updateOwnedRun(id, { ...data, heartbeatAt: now });
   },
 
-  succeed(id, summary, finishedAt, durationMs) {
-    return prisma.gitHubSyncRun.update({
-      where: { id },
-      data: {
-        status: 'SUCCEEDED',
-        step: 'COMPLETED',
-        activeProjectId: null,
-        currentBranch: null,
-        heartbeatAt: finishedAt,
-        finishedAt,
-        durationMs,
-        branchCount: summary.branches?.found ?? 0,
-        processedBranches: summary.branches?.active ?? 0,
-        commitsFound: summary.commits?.found ?? 0,
-        commitsObserved: summary.commits?.foundAcrossBranches ?? 0,
-        commitsCreated: summary.commits?.created ?? 0,
-        commitLinksCreated: summary.commits?.linksCreated ?? 0,
-        pullRequestsFound: summary.pullRequests?.found ?? 0,
-        pullRequestsCreated: summary.pullRequests?.created ?? 0,
-        pullRequestsUpdated: summary.pullRequests?.updated ?? 0,
-        issuesFound: summary.issues?.found ?? 0,
-        issuesCreated: summary.issues?.created ?? 0,
-        issuesUpdated: summary.issues?.updated ?? 0,
-        errorCode: null,
-        errorMessage: null
-      }
+  async succeed(id, summary, finishedAt, durationMs) {
+    const changed = await updateOwnedRun(id, {
+      status: 'SUCCEEDED',
+      step: 'COMPLETED',
+      activeProjectId: null,
+      currentBranch: null,
+      heartbeatAt: finishedAt,
+      finishedAt,
+      durationMs,
+      branchCount: summary.branches?.found ?? 0,
+      processedBranches: summary.branches?.active ?? 0,
+      commitsFound: summary.commits?.found ?? 0,
+      commitsObserved: summary.commits?.foundAcrossBranches ?? 0,
+      commitsCreated: summary.commits?.created ?? 0,
+      commitLinksCreated: summary.commits?.linksCreated ?? 0,
+      pullRequestsFound: summary.pullRequests?.found ?? 0,
+      pullRequestsCreated: summary.pullRequests?.created ?? 0,
+      pullRequestsUpdated: summary.pullRequests?.updated ?? 0,
+      issuesFound: summary.issues?.found ?? 0,
+      issuesCreated: summary.issues?.created ?? 0,
+      issuesUpdated: summary.issues?.updated ?? 0,
+      errorCode: null,
+      errorMessage: null
     });
+    return changed ? this.findById(id) : null;
   },
 
-  fail(id, { errorCode, errorMessage, finishedAt, durationMs }) {
-    return prisma.gitHubSyncRun.update({
-      where: { id },
-      data: {
-        status: 'FAILED',
-        activeProjectId: null,
-        heartbeatAt: finishedAt,
-        finishedAt,
-        durationMs,
-        errorCode,
-        errorMessage
-      }
+  async fail(id, { errorCode, errorMessage, finishedAt, durationMs }) {
+    const changed = await updateOwnedRun(id, {
+      status: 'FAILED',
+      activeProjectId: null,
+      heartbeatAt: finishedAt,
+      finishedAt,
+      durationMs,
+      errorCode,
+      errorMessage
     });
+    return changed ? this.findById(id) : null;
   },
 
   expireIfStillStale(id, projectId, cutoff, now = new Date()) {

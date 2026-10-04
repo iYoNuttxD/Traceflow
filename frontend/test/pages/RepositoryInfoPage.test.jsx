@@ -384,7 +384,7 @@ describe('RepositoryInfoPage RF06', () => {
       within(commitRow).getByText('feature/login, main').closest('.repository-artifact-status')
     ).toHaveAttribute('title', 'Branches: feature/login, main');
     const pullRequestRow = screen.getByText('Login').closest('tr');
-    expect(within(pullRequestRow).getByText('#2 · open')).toBeInTheDocument();
+    expect(within(pullRequestRow).getByText('#2 · Aberto')).toBeInTheDocument();
     expect(within(pullRequestRow).getByText('feature/login → main')).toBeInTheDocument();
   });
 

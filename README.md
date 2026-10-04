@@ -6,7 +6,7 @@ TRACEFLOW é uma aplicação web para relacionar requisitos, tarefas e evidênci
 Requirement → Task → Commit | PullRequest | Issue
 ```
 
-O produto atual inclui projetos e memberships, autenticação por sessão, integração GitHub, requisitos, tarefas, Kanban, histórico, rastreabilidade, sugestões revisáveis `[TASK-<ID>]`, auditoria e operações de privacidade. O [catálogo da API](docs/api/API_CONTRACTS.md) e a [matriz RF–código–teste](docs/traceability/RF_TECHNICAL_MATRIX.md) distinguem o que está implementado do trabalho futuro.
+O produto atual inclui projetos e memberships, autenticação por sessão, integração GitHub, requisitos, Sprints e marcos, tarefas/Kanban/esforço, casos de teste e defeitos, rastreabilidade, indicadores/Health, painel pessoal, sugestões revisáveis `[TASK-<ID>]`, auditoria e operações de privacidade. O [catálogo da API](docs/api/API_CONTRACTS.md) e a [matriz RF–código–teste](docs/traceability/RF_TECHNICAL_MATRIX.md) distinguem o que está implementado do trabalho futuro.
 
 ## Arquitetura
 
@@ -163,11 +163,11 @@ Evidências: [ASVS](docs/security/ASVS_BASELINE.md), [threat model](docs/securit
 
 ## Limitações conhecidas
 
-- `DELETE /api/projects/:id` permanece `501`; não existe política homologada de exclusão de projeto.
+- `DELETE /api/projects/:id` executa exclusão lógica por OWNER, com restauração durante 30 × 24h. O purge definitivo exige job externo e storage consistente; veja o [runbook](docs/runbooks/PROJECT_DELETION_PURGE.md).
 - `Project.accessCode` permanece como capability atual; o link de ingresso é derivado e não persistido.
 - `Task.responsible` e `TaskMovement.movedBy` permanecem como snapshots históricos, sem valor de identidade ou autorização.
-- O rate limiter e a trava de sincronização são por processo; produção horizontal exige store/lock distribuído.
-- Secret manager, store/lock distribuído e configuração operacional real da GitHub App/SMTP não são fornecidos pelo repositório.
+- O rate limiter usa memória por processo. A sincronização possui claim persistido por projeto e proteção contra retomada de workers expirados; a execução do worker continua no processo da API, sem fila externa durável. Produção horizontal exige validação operacional e store distribuído para rate limiting.
+- Secret manager, store distribuído de rate limiting, fila durável e configuração operacional real da GitHub App/SMTP não são fornecidos pelo repositório.
 - TLS, headers do host da SPA, backups agendados, observabilidade e branch protection dependem do ambiente operacional.
 - Não há SBOM/proveniência automatizada, E2E em navegador ou gate automatizado de licenças.
 
@@ -176,7 +176,7 @@ Evidências: [ASVS](docs/security/ASVS_BASELINE.md), [threat model](docs/securit
 ```text
 backend/src/modules/       domínios e camadas da API
 backend/src/shared/        infraestrutura transversal
-backend/prisma/            schema e 40 migrations
+backend/prisma/            schema e migrations versionadas
 frontend/src/features/     domínios da SPA
 frontend/src/shared/       UI, hooks e serviços compartilhados
 docs/architecture/         arquitetura e ADRs

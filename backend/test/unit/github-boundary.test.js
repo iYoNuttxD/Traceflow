@@ -161,6 +161,43 @@ describe('fronteira GitHub App da L1', () => {
     expect(request).toHaveBeenCalledWith('GET /user/emails', { per_page: 100 });
   });
 
+  it.each(['login', 'installation'])(
+    'encerra troca OAuth %s que não responde no prazo configurado',
+    async (flow) => {
+      let timedOut = false;
+      const provider = createGithubAppCredentialProvider({
+        environment: {
+          githubAppConfigured: true,
+          githubAppClientId: 'client-id',
+          githubAppClientSecret: 'client-secret',
+          githubRequestTimeoutMs: 20
+        },
+        fetchImpl: (_url, { signal }) => {
+          if (!signal) return Promise.reject(new Error('request has no deadline'));
+          return new Promise((_resolve, reject) => {
+            signal.addEventListener(
+              'abort',
+              () => {
+                timedOut = true;
+                reject(signal.reason);
+              },
+              { once: true }
+            );
+          });
+        }
+      });
+      const operation =
+        flow === 'login'
+          ? provider.exchangeLoginUserCode({ code: 'code', codeVerifier: 'verifier' })
+          : provider.exchangeInstallationUserCode('code');
+      await expect(operation).rejects.toMatchObject({
+        code: 'GITHUB_AUTH_FAILED',
+        statusCode: 503
+      });
+      expect(timedOut).toBe(true);
+    }
+  );
+
   it('pagina todas as instalações e encontra dados disponíveis somente em página posterior', async () => {
     const firstPage = Array.from({ length: 100 }, (_, index) => ({
       id: index + 1,

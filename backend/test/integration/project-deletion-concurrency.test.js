@@ -272,14 +272,19 @@ describe('Project deletion concorrente com MySQL e storage reais', () => {
             })
           : null;
       let checks = 0;
+      let branchesRead = false;
       const assertActive = async () => {
         expect(await projectRepository.isActive(project.id)).toBe(true);
         checks += 1;
-        if (kind !== 'commits' || checks === 2) await service.requestDeletion(project.id, user.id);
+        // Delete after the final pre-write check, including the new per-page
+        // lease heartbeats. The repository must still reject the raced write.
+        if ((kind !== 'branches' || branchesRead) && (kind !== 'commits' || checks === 2))
+          await service.requestDeletion(project.id, user.id);
       };
       const githubClient = {
         async *listBranchPages() {
           yield [{ name: 'main', headSha: 'new-head' }];
+          branchesRead = true;
         },
         async *listCommitPages() {
           yield [{ hash: 'b'.repeat(40), message: 'new commit' }];

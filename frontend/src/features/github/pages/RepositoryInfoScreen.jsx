@@ -13,6 +13,7 @@ import {
   SelectControl,
   classifyPageError,
   getErrorRequestId,
+  githubStateLabel,
   normalizeApiError,
   useAbortableRequest
 } from '../../../shared/index.js';
@@ -67,7 +68,7 @@ function getArtifactStatus(artifact) {
   }
 
   const number = artifact.metadata?.number ? `#${artifact.metadata.number}` : null;
-  const state = artifact.metadata?.state || null;
+  const state = artifact.metadata?.state ? githubStateLabel(artifact.metadata.state) : null;
   const flow =
     artifact.type === 'pull_request' &&
     artifact.metadata?.sourceBranch &&

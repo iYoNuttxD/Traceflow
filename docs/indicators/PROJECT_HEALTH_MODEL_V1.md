@@ -78,11 +78,11 @@ Cada sinal pontuado pode fornecer `reasonCode` e `basis` com apenas números/IDs
 
 ## 8. Aplicabilidade, filtros e frescor
 
-O health é uma leitura do projeto autorizado; filtro por responsável nunca restringe a nota. O filtro de Sprint seleciona a Sprint dos indicadores canônicos, quando fornecido. O período afeta apenas sinais de evento. GitHub sem sync confiável reduz cobertura; não há penalidade automática por ausência ou stale. O modelo usa services agregados existentes, sem consulta por sinal, sem cache persistido e sem alteração do schema. A view GENERAL lê fontes auxiliares por grupo e dois baselines apenas para Flow e GitHub; outras views não recalculam o Project Health completo.
+O health é uma leitura do projeto autorizado; filtro por responsável nunca restringe a nota. O filtro de Sprint seleciona a Sprint dos indicadores canônicos, quando fornecido. O período afeta apenas sinais de evento. GitHub sem sync confiável reduz cobertura; não há penalidade automática por ausência ou stale. O modelo usa services agregados existentes, sem consulta por sinal, sem cache persistido e sem alteração do schema. GENERAL, CUSTOM e as views solicitadas com `includeProjectHealth=true` leem as fontes auxiliares por grupo e dois baselines apenas para Flow e GitHub. CUSTOM avalia a saúde completa independentemente dos widgets selecionados; as demais views sem a opção não incluem Project Health.
 
 ## 9. Contrato e evolução
 
-`GET /indicators/catalog` adiciona `healthRole`, `healthDimension` e `healthModelVersion` a cada indicador executável. `GET /indicators/dashboard` adiciona `assessment` a cada resultado; GENERAL adiciona `projectHealth`. `healthModelVersion` permite evolução sem mudar a definição dos indicadores nem reinterpretar scores antigos, que não são persistidos nesta versão. Os campos detalhados estão em [API Contracts](../api/API_CONTRACTS.md).
+`GET /indicators/catalog` adiciona `healthRole`, `healthDimension` e `healthModelVersion` a cada indicador executável. `GET /indicators/dashboard` adiciona `assessment` a cada resultado; GENERAL e CUSTOM adicionam `projectHealth`; nas demais views, o campo é solicitado por `includeProjectHealth=true`. `healthModelVersion` permite evolução sem mudar a definição dos indicadores nem reinterpretar scores antigos, que não são persistidos nesta versão. Os campos detalhados estão em [API Contracts](../api/API_CONTRACTS.md).
 
 ## 10. Pontos para validação acadêmica
 

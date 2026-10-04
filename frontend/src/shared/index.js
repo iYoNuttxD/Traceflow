@@ -29,6 +29,7 @@ export {
   resolveErrorPageContext
 } from './services/page-error.js';
 export { compactParams } from './utils/compact-params.js';
+export { githubStateLabel } from './utils/github-state-label.js';
 
 export { SearchCombobox } from './components/SearchCombobox.jsx';
 export { EntityRow } from './components/EntityRow.jsx';

@@ -1,5 +1,24 @@
 # Registro de risco de dependências
 
+## P10 — encerramento dos moderates remanescentes — 04/10/2026
+
+**CORRIGIDO e revalidado:** o audit completo final de backend e frontend, incluindo
+desenvolvimento, retornou **0 vulnerabilidades em todas as severidades**. O gate
+canônico passou sem exceções. Os números das seções anteriores são históricos.
+
+| Cadeia afetada na baseline | Advisory | Correção validada |
+| --- | --- | --- |
+| Vitest / coverage / mocker `4.1.10`, nos dois projetos | [GHSA-82fw-gwwq-j7x9](https://github.com/advisories/GHSA-82fw-gwwq-j7x9) | Família Vitest `4.1.11` |
+| Multer `2.3.0` | [GHSA-3pph-fpjx-jg34](https://github.com/advisories/GHSA-3pph-fpjx-jg34) | Multer `2.4.0` |
+| Express / body-parser / qs `6.15.2` | [GHSA-x5fp-wj9c-mxmx](https://github.com/advisories/GHSA-x5fp-wj9c-mxmx), [GHSA-4mjr-xmp4-gh2g](https://github.com/advisories/GHSA-4mjr-xmp4-gh2g) | Express `4.22.3`, body-parser `1.20.8`, qs `6.16.0` |
+| ip-address `10.5.0` | [GHSA-rpw4-54j3-4h4q](https://github.com/advisories/GHSA-rpw4-54j3-4h4q), [GHSA-2vr4-cq9g-pvrc](https://github.com/advisories/GHSA-2vr4-cq9g-pvrc), [GHSA-j6r3-76f7-8jcv](https://github.com/advisories/GHSA-j6r3-76f7-8jcv), [GHSA-h3mg-xc3c-68pw](https://github.com/advisories/GHSA-h3mg-xc3c-68pw) | ip-address `10.7.3` |
+
+Atualizações limitadas às cadeias afetadas, com remoção de cinco transitivas
+exclusivas do Multer antigo. Sem downgrade, override, waiver ou mudança da policy.
+`npm ci` reproduziu ambos os lockfiles com Node 22 e npm 10.9.9; as suítes completas
+e o build foram reexecutados. Evidências e limites da revisão constam no
+[relatório P10](../deliveries/S2_P10_FINAL_CODE_REVIEW_RELEASE_READINESS_REPORT.md).
+
 ## P8.6E — fechamento da cadeia nodemon — 04/10/2026
 
 **CORRIGIDO por remoção da cadeia:** [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm), HIGH, anteriormente em `nodemon@3.1.14 → chokidar@3.6.0 → braces@3.0.3`. O backend passou a usar `node --watch src/server.js` no script `dev`, com Node 22.23.3. Startup, restart após mudança em módulo importado, readiness com Prisma e shutdown por Ctrl+C foram verificados no comando final `npm run dev`.

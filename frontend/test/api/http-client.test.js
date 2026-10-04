@@ -15,6 +15,34 @@ describe('cliente HTTP compartilhado', () => {
     setCsrfToken();
   });
 
+  it.each([
+    [401, 'AUTHENTICATION_REQUIRED', 'traceflow:unauthorized'],
+    [403, 'ACCOUNT_DEACTIVATED', 'traceflow:account-restricted']
+  ])('não aplica erro %i de mutation antiga à sessão atual', async (status, code, eventName) => {
+    const client = createHttpClient();
+    const listener = vi.fn();
+    window.addEventListener(eventName, listener);
+    let rejectRequest;
+    client.defaults.adapter = vi.fn(
+      (config) =>
+        new Promise((resolve, reject) => {
+          rejectRequest = () => reject({ config, response: { status, data: { code } } });
+        })
+    );
+    try {
+      const old = client.post('/projects/1/tasks', {});
+      const rejected = expect(old).rejects.toMatchObject({ response: { status } });
+      await vi.waitFor(() => expect(client.defaults.adapter).toHaveBeenCalledOnce());
+      resetHttpSessionScope();
+      setCsrfToken('current-session-csrf');
+      rejectRequest();
+      await rejected;
+      expect(listener).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener(eventName, listener);
+    }
+  });
+
   it('configura timeout, credenciais e CSRF somente em mutações', async () => {
     const client = createHttpClient({ baseURL: '/api', timeout: 4321 });
     client.defaults.adapter = successAdapter;

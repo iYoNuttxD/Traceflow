@@ -1,6 +1,17 @@
-# S2 — Catálogo canônico de indicadores (P0–P3)
+# S2 — Catálogo canônico de indicadores
 
-**Base P0/P1:** `daniel-dev` @ `54ea185e42bc95d07c0ade91b89ace6f64375b99`, 2026-09-24. **Estado atual:** D01–D15 aprovadas; P1 acrescentou fatos históricos, P2 implementou I01/I02/I03/I05 e P3 implementou no backend I04/I06/I09–I18/I73/I74, sem painel. A [auditoria de prontidão](S2_DATA_READINESS_AUDIT.md) e a [fundação P1](S2_INDICATOR_DATA_FOUNDATION.md) registram evidências e limites. Fontes funcionais: TCC Somativa 2, cap. 1, 2 (métricas), 3.2.6 (Quadros 343–350), UC14; [roadmap](../../TRACEFLOW_ROADMAP_INCREMENTAL.md) S2-04/S2-05.
+**Leitura vigente — P10, 04/10/2026:** este documento preserva as fichas e decisões
+incrementais de P0 em diante. Menções a visualização futura e prontidão nas fichas
+iniciais representam aquela etapa; as extensões posteriores prevalecem. O runtime
+atual oferece oito categorias e Meu painel, com seleção de indicadores autorizada
+pelo [contrato P9](PERSONALIZED_DASHBOARD_V1.md). I03/I05 continuam sem presenter
+standalone homologado; I19/I69/I70 não estão implementados; I68 permanece excluído.
+A fonte executável de elegibilidade é `personalized-dashboard.catalog.js`; a
+[matriz RF](../traceability/RF_TECHNICAL_MATRIX.md) distingue capacidade implementada
+de conclusão integral do requisito. A auditoria independente e suas limitações estão
+no [relatório P10](../deliveries/S2_P10_FINAL_CODE_REVIEW_RELEASE_READINESS_REPORT.md).
+
+**Base P0/P1:** `daniel-dev` @ `54ea185e42bc95d07c0ade91b89ace6f64375b99`, 2026-09-24. **Estado na etapa P3:** D01–D15 aprovadas; P1 acrescentou fatos históricos, P2 implementou I01/I02/I03/I05 e P3 implementou no backend I04/I06/I09–I18/I73/I74, sem painel. A [auditoria de prontidão](S2_DATA_READINESS_AUDIT.md) e a [fundação P1](S2_INDICATOR_DATA_FOUNDATION.md) registram evidências e limites. Fontes funcionais: TCC Somativa 2, cap. 1, 2 (métricas), 3.2.6 (Quadros 343–350), UC14; [roadmap](../../TRACEFLOW_ROADMAP_INCREMENTAL.md) S2-04/S2-05.
 
 ## Como ler cada ficha
 

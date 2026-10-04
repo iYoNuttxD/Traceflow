@@ -510,7 +510,7 @@ describe('Explainability', () => {
       'Ciclo atual',
       '3'
     ],
-    ['PULL_REQUEST', { number: 44, state: 'MERGED' }, 'Estado', 'MERGED'],
+    ['PULL_REQUEST', { number: 44, state: 'MERGED' }, 'Estado', 'Mesclado'],
     [
       'COMMIT',
       { hash: 'fedcba987654321', authorName: 'Autor original' },

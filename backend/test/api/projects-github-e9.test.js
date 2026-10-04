@@ -670,6 +670,97 @@ describe('Projetos e integração GitHub E9', () => {
     });
   });
 
+  it.each(['success', 'failure'])(
+    'não permite que um worker expirado publique artefatos ou status ao retomar (%s)',
+    async (providerResult) => {
+      const owner = await register('owner-expired-worker@example.invalid');
+      const project = await createIntegratedProject(owner);
+      const {
+        executeGithubSyncRun,
+        getProjectGithubSyncStatus,
+        requestProjectGithubSync,
+        GITHUB_SYNC_STALE_AFTER_MS
+      } = await import('../../src/modules/github/services/github-sync-run.service.js');
+      const { githubSyncRunRepository } =
+        await import('../../src/modules/github/github-sync-run.repository.js');
+      const { projectRepository } =
+        await import('../../src/modules/projects/project.repository.js');
+      let providerEntered;
+      let releaseProvider;
+      const entered = new Promise((resolve) => {
+        providerEntered = resolve;
+      });
+      const gate = new Promise((resolve) => {
+        releaseProvider = resolve;
+      });
+      githubBoundary.client = createGithubDouble({ commits: [[{ hash: 'obsolete-worker' }]] });
+      githubBoundary.client.getRepository.mockImplementation(async () => {
+        providerEntered();
+        await gate;
+        if (providerResult === 'failure') throw new Error('delayed provider failure');
+        return repository;
+      });
+      const old = await requestProjectGithubSync(project.id, owner.user.id, { schedule: vi.fn() });
+      const work = executeGithubSyncRun(old.id);
+      try {
+        await entered;
+        const future = new Date(Date.now() + GITHUB_SYNC_STALE_AFTER_MS + 1000);
+        expect(await getProjectGithubSyncStatus(project.id, { now: future })).toMatchObject({
+          id: old.id,
+          status: 'FAILED',
+          error: { code: 'GITHUB_SYNC_STALE' }
+        });
+        const replacement = await requestProjectGithubSync(project.id, owner.user.id, {
+          schedule: vi.fn(),
+          now: future
+        });
+        await githubSyncRunRepository.claim(replacement.id, future);
+        await projectRepository.markGithubSyncStarted(project.id, future);
+        releaseProvider();
+        await work;
+        expect(await githubSyncRunRepository.findById(old.id)).toMatchObject({
+          status: 'FAILED',
+          errorCode: 'GITHUB_SYNC_STALE'
+        });
+        expect(await githubSyncRunRepository.findById(replacement.id)).toMatchObject({
+          status: 'RUNNING',
+          activeProjectId: project.id
+        });
+        expect(await prisma.commit.count({ where: { projectId: project.id } })).toBe(0);
+        expect(
+          await prisma.projectGitHubIntegration.findUnique({
+            where: { projectId: project.id }
+          })
+        ).toMatchObject({ lastSyncStatus: 'SINCRONIZANDO' });
+        expect(
+          await prisma.auditEvent.count({
+            where: {
+              projectId: project.id,
+              action: 'GITHUB_SYNC_SUCCEEDED'
+            }
+          })
+        ).toBe(0);
+        const expired = await githubSyncRunRepository.findById(old.id);
+        expect(await githubSyncRunRepository.updateProgress(old.id, { commitsCreated: 999 })).toBe(
+          false
+        );
+        expect(await githubSyncRunRepository.succeed(old.id, {}, future, 1000)).toBeNull();
+        expect(
+          await githubSyncRunRepository.fail(old.id, {
+            errorCode: 'DELAYED_FAILURE',
+            errorMessage: 'late',
+            finishedAt: future,
+            durationMs: 1000
+          })
+        ).toBeNull();
+        expect(await githubSyncRunRepository.findById(old.id)).toEqual(expired);
+      } finally {
+        releaseProvider();
+        await work;
+      }
+    }
+  );
+
   it('mantém lote persistido, último sucesso e auditoria quando uma coleção posterior falha', async () => {
     const owner = await register('owner-partial@example.invalid');
     const project = await createIntegratedProject(owner);

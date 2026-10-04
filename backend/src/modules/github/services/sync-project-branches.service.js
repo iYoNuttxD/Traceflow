@@ -1,4 +1,3 @@
-import { collectGithubPages } from '../github-pagination.js';
 import { githubBranchRepository } from '../github-branch.repository.js';
 import { ProjectServiceError } from '../../projects/project.schema.js';
 
@@ -9,9 +8,14 @@ export async function syncProjectBranches({
   now = new Date(),
   assertActive = async () => {}
 }) {
-  const observed = await collectGithubPages(
-    githubClient.listBranchPages({ owner: repository.owner, repo: repository.name })
-  );
+  const observed = [];
+  for await (const page of githubClient.listBranchPages({
+    owner: repository.owner,
+    repo: repository.name
+  })) {
+    await assertActive();
+    observed.push(...page);
+  }
   const unique = [
     ...new Map(
       observed.filter((branch) => branch.name).map((branch) => [branch.name, branch])

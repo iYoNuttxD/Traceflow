@@ -530,7 +530,11 @@ Transformar os dados rastreáveis em comunicação proativa, indicadores explic�
 
 Detalhes e limites de evidência no
 [relatório P9](docs/deliveries/S2_P9_PERSONALIZED_INDICATORS_DASHBOARD_REPORT.md).
-Registro limitado ao P9; P10 não iniciado.
+Registro limitado ao P9. A revisão independente P10 foi executada posteriormente;
+resultados, correções e pendências estão no
+[relatório P10](docs/deliveries/S2_P10_FINAL_CODE_REVIEW_RELEASE_READINESS_REPORT.md).
+Essa auditoria não conclui automaticamente S2-04/S2-05 nem os cartões de PDF,
+notificações, OCI ou validação acadêmica.
 
 ### S2-06 - Gerar relatórios resumidos do projeto
 
