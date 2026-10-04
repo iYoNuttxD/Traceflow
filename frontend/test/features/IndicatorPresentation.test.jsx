@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { IndicatorCard } from '../../src/features/indicators/components/IndicatorCard.jsx';
 const item = {
@@ -107,4 +107,88 @@ describe('indicator presentation contract', () => {
     expect(screen.getByText('12')).toBeVisible();
     expect(screen.queryByText(/Parte das tarefas/)).not.toBeInTheDocument();
   });
+});
+
+it.each(['COUNT', 'LIST', 'SERIES'])(
+  'owns Health and Data State in the canonical header for %s',
+  (kind) => {
+    const { container } = card({
+      kind,
+      state: 'PARTIAL',
+      value: 4,
+      assessment: { status: 'ATTENTION' }
+    });
+    const header = container.querySelector('.indicator-card__header');
+    expect(within(header).getByText('Atenção')).toBeVisible();
+    expect(within(header).getByText('Dados parciais')).toBeVisible();
+    expect(within(header).getByRole('button')).toHaveAccessibleName(
+      'Informações sobre Tasks atrasadas'
+    );
+    expect(container.querySelector('.indicator-card__headline')).toHaveTextContent('4');
+  }
+);
+
+it('separates commit association from people and renders each responsible proportionally', () => {
+  card({
+    metricId: 'I02',
+    kind: 'DISTRIBUTION',
+    value: null,
+    distribution: {
+      associated: 93,
+      unassociated: 26,
+      unknown: 0,
+      people: [
+        { userId: 1, displayName: 'Daniel', count: 67 },
+        { userId: 2, displayName: 'João', count: 18 },
+        { userId: 3, displayName: 'Gabriel', count: 8 }
+      ]
+    }
+  });
+  const association = screen.getByRole('region', { name: 'Associação' });
+  const people = screen.getByRole('region', { name: 'Por responsável' });
+  expect(association).not.toHaveTextContent('Daniel');
+  expect(people).not.toHaveTextContent('Associados');
+  const bars = people.querySelectorAll('.indicator-card__bar > span');
+  expect(bars).toHaveLength(3);
+  expect(bars[0]).toHaveStyle({ width: '100%' });
+  expect(parseFloat(bars[1].style.width)).toBeCloseTo((18 / 67) * 100);
+  expect(parseFloat(bars[2].style.width)).toBeCloseTo((8 / 67) * 100);
+});
+
+it('shows an explicit empty people group without manufacturing a person', () => {
+  card({
+    metricId: 'I02',
+    kind: 'DISTRIBUTION',
+    value: null,
+    distribution: { associated: 0, unassociated: 4, people: [] }
+  });
+  expect(screen.getByRole('region', { name: 'Por responsável' })).toHaveTextContent(
+    'Nenhum responsável associado neste período.'
+  );
+});
+
+it('puts carry-over direction counts before details without mixing in bars', () => {
+  const { container } = card({
+    metricId: 'I43',
+    kind: 'LIST',
+    value: { incoming: 2, outgoing: 1 },
+    items: [{ taskId: 3, title: 'Task transferida', direction: 'OUTGOING' }]
+  });
+  const headline = container.querySelector('.indicator-card__headline');
+  const table = screen.getByRole('table');
+  expect(headline).toHaveTextContent('2 entradas · 1 saída');
+  expect(headline.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(container.querySelector('.indicator-card__bar')).toBeNull();
+  expect(table).toHaveTextContent('Transferida para outra Sprint');
+});
+
+it.each(['LIST', 'SERIES'])('shows a dash for partial %s without observations', (kind) => {
+  const { container } = card({ kind, state: 'PARTIAL', value: null, points: [], items: [] });
+  expect(container.querySelector('.indicator-card__headline')).toHaveTextContent('—');
+  expect(container.querySelector('.indicator-card__header')).toHaveTextContent('Dados parciais');
+  expect(screen.queryByText('0')).toBeNull();
+});
+it('does not reserve an empty notice paragraph for an otherwise populated partial result', () => {
+  const { container } = card({ state: 'PARTIAL', value: 4 });
+  expect(container.querySelector('.indicator-card__notice')).toBeNull();
 });

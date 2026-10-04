@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { IndicatorCard } from '../../src/features/indicators/components/IndicatorCard.jsx';
 import { IndicatorChart } from '../../src/features/indicators/components/IndicatorChart.jsx';
 
@@ -67,7 +67,7 @@ it('selects the first observed duration instead of opening on a missing day', ()
   );
   expect(within(screen.getByRole('status')).getByText(/6 dias/)).toBeInTheDocument();
   fireEvent.keyDown(screen.getByRole('img'), { key: 'ArrowLeft' });
-  expect(within(screen.getByRole('status')).getByText(/—/)).toBeInTheDocument();
+  expect(within(screen.getByRole('status')).getByText(/6 dias/)).toBeInTheDocument();
 });
 it('discloses a limited ranking without hiding the total count', () => {
   render(
@@ -138,4 +138,65 @@ it('keeps consecutive samples connected while preserving sparse gaps and the out
   expect(
     screen.getByText('90 dias', { selector: '.dashboard-chart__scale span' })
   ).toBeInTheDocument();
+});
+
+it('skips leading, middle and trailing gaps with every navigation key, retaining real zero', () => {
+  const points = [null, 0, null, 7, null].map((value, i) => ({
+    date: `2026-09-${21 + i}`,
+    value,
+    eligibleCount: value === null ? 0 : 1
+  }));
+  const { rerender } = render(
+    <IndicatorChart indicator={{ ...indicator, points }} title="Cycle Time" />
+  );
+  const chart = screen.getByRole('img');
+  const selected = screen.getByRole('status');
+  expect(chart).toHaveAccessibleName(/2 dias com amostra/);
+  for (const [key, value] of [
+    ['Home', 0],
+    ['ArrowLeft', 0],
+    ['ArrowRight', 7],
+    ['ArrowRight', 7],
+    ['End', 7],
+    ['ArrowLeft', 0]
+  ]) {
+    fireEvent.keyDown(chart, { key });
+    expect(selected).toHaveTextContent(`${value} dias`);
+    expect(selected).not.toHaveTextContent('Amostra: 0');
+  }
+  fireEvent.keyDown(chart, { key: 'End' });
+  // A replacement response can turn the old active index into a gap.
+  rerender(
+    <IndicatorChart
+      indicator={{
+        ...indicator,
+        points: points.map((p, i) => ({ ...p, value: i === 1 ? 2 : i === 2 ? 3 : null }))
+      }}
+      title="Cycle Time"
+    />
+  );
+  expect(selected).toHaveTextContent('2 dias');
+});
+
+it('ignores a pointer over an empty day and selects an observed zero', () => {
+  const points = [0, null, 7].map((value, i) => ({
+    date: `2026-09-${22 + i}`,
+    value,
+    eligibleCount: value === null ? 0 : 1
+  }));
+  render(<IndicatorChart indicator={{ ...indicator, points }} title="Cycle Time" />);
+  const chart = screen.getByRole('img');
+  const rect = vi.spyOn(chart, 'getBoundingClientRect').mockReturnValue({ left: 0, width: 640 });
+  const pointer = (x) => {
+    const event = new Event('pointermove', { bubbles: true });
+    Object.defineProperty(event, 'clientX', { value: x });
+    fireEvent(chart, event);
+  };
+  pointer(640);
+  expect(screen.getByRole('status')).toHaveTextContent('7 dias');
+  pointer(320);
+  expect(screen.getByRole('status')).toHaveTextContent('7 dias');
+  pointer(0);
+  expect(screen.getByRole('status')).toHaveTextContent('0 dias');
+  rect.mockRestore();
 });

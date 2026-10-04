@@ -103,9 +103,9 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
   ].join('|');
 
   useEffect(() => {
-    setDraft({ startDate, endDate, timeZone, sprintId });
+    setDraft({ startDate, endDate, timeZone });
     setFilterError('');
-  }, [projectId, startDate, endDate, timeZone, sprintId]);
+  }, [projectId, startDate, endDate, timeZone]);
 
   useEffect(() => {
     const generation = ++catalogGeneration.current;
@@ -215,14 +215,16 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
   }
 
   function updateFilter(key, value) {
-    const updated = { ...draft, [key]: value };
-    setDraft(updated);
     const next = new URLSearchParams(searchParams);
     next.delete('responsibleUserId');
     if (key === 'sprintId') {
       if (value) next.set('sprintId', value);
       else next.delete('sprintId');
+      setSearchParams(next);
+      return;
     } else {
+      const updated = { ...draft, [key]: value };
+      setDraft(updated);
       if (Boolean(updated.startDate) !== Boolean(updated.endDate)) {
         setFilterError('Complete as duas datas para aplicar o período.');
         return;
@@ -309,13 +311,6 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
         resultLabel={filterSummary || 'Todos os dados disponíveis'}
         className="indicator-filters"
       >
-        {(activeFilterCount > 0 || draft.startDate || draft.endDate) && (
-          <div className="planning-filter-panel__actions">
-            <button type="button" className="sprint-filters__clear" onClick={clearFilters}>
-              Limpar filtros
-            </button>
-          </div>
-        )}
         <div
           id="dashboard-indicator-filters"
           className="dashboard-panel__filters"
@@ -329,6 +324,8 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
               <input
                 type="date"
                 value={draft.startDate}
+                aria-invalid={Boolean(filterError)}
+                aria-describedby={filterError ? 'indicator-period-error' : undefined}
                 onChange={(event) => updateFilter('startDate', event.target.value)}
               />
             </label>
@@ -337,15 +334,22 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
               <input
                 type="date"
                 value={draft.endDate}
+                aria-invalid={Boolean(filterError)}
+                aria-describedby={filterError ? 'indicator-period-error' : undefined}
                 min={draft.startDate || undefined}
                 onChange={(event) => updateFilter('endDate', event.target.value)}
               />
             </label>
+            {filterError && (
+              <p id="indicator-period-error" role="alert" className="dashboard-panel__filter-error">
+                {filterError}
+              </p>
+            )}
           </fieldset>
           <label className="sprint-filter">
             <span>Sprint</span>
             <SelectControl
-              value={draft.sprintId}
+              value={sprintId}
               onChange={(event) => updateFilter('sprintId', event.target.value)}
             >
               <option value="">Seleção automática</option>
@@ -356,11 +360,6 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
               ))}
             </SelectControl>
           </label>
-          {filterError && (
-            <p role="alert" className="dashboard-panel__filter-error">
-              {filterError}
-            </p>
-          )}
           {sprintState.projectId === projectId && sprintState.error && (
             <div className="dashboard-panel__filter-error" role="alert">
               <p>{sprintState.error}</p>
@@ -370,6 +369,13 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
             </div>
           )}
         </div>
+        {(activeFilterCount > 0 || draft.startDate || draft.endDate) && (
+          <div className="planning-filter-panel__actions">
+            <button type="button" className="sprint-filters__clear" onClick={clearFilters}>
+              Limpar filtros
+            </button>
+          </div>
+        )}
       </CollapsibleFilterPanel>
       <div className="dashboard-panel__toolbar">
         <div
@@ -493,13 +499,28 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
                     !visibleWarnings.some((warning) => warning.code === code)
                 );
                 const sectionNotices = sectionLimitations.map(describeLimitation);
-                const compact = section.indicators.filter((indicator) =>
-                  ['kpi-compact', 'kpi-progress'].includes(indicatorVisualType(indicator))
-                );
+                const compact =
+                  section.id === 'sprintScope'
+                    ? []
+                    : section.indicators.filter((indicator) =>
+                        ['kpi-compact', 'kpi-progress'].includes(indicatorVisualType(indicator))
+                      );
                 const detailed = section.indicators.filter(
                   (indicator) =>
+                    section.id === 'sprintScope' ||
                     !['kpi-compact', 'kpi-progress'].includes(indicatorVisualType(indicator))
                 );
+                const durations = detailed.filter((indicator) =>
+                  ['I20', 'I21'].includes(indicator.metricId)
+                );
+                const pairDurations =
+                  durations.length === 2 &&
+                  durations.every(
+                    (indicator) =>
+                      indicator.points?.filter(
+                        (point) => typeof point.value === 'number' && Number.isFinite(point.value)
+                      ).length > 1
+                  );
                 const renderIndicator = (indicator) => (
                   <IndicatorCard
                     key={indicator.metricId}
@@ -541,7 +562,18 @@ export function DashboardPanel({ projectId, refreshVersion = 0 }) {
                     )}
                     {detailed.length > 0 && (
                       <div className="dashboard-panel__detail-grid">
-                        {detailed.map(renderIndicator)}
+                        {pairDurations && (
+                          <div
+                            className="dashboard-panel__duration-pair"
+                            role="group"
+                            aria-label="Tempos de entrega"
+                          >
+                            {durations.map(renderIndicator)}
+                          </div>
+                        )}
+                        {detailed
+                          .filter((indicator) => !pairDurations || !durations.includes(indicator))
+                          .map(renderIndicator)}
                       </div>
                     )}
                   </section>

@@ -954,3 +954,27 @@ texto de compatibilidade no filtro, tamanho do desenho de ajuda e altura de list
   confirmada de sincronização continuam usando a mesma atualização de dados e Health.
 
 Evidências e gate pendente no [relatório de hardening P8.6C](../deliveries/S2_P8_6C_INDICATORS_VISUAL_DATA_HARDENING_REPORT.md).
+
+
+### P8.6D — anatomia, Flow e filtros aplicados (2026-10-03)
+
+- `IndicatorHeader` centraliza título, ajuda, Health e Data State. Estado abaixo do
+  título; `.indicator-card__headline` reúne contexto/valor/referência, seguido por
+  `.indicator-card__visualization`. Ausência de informação não cria slot invisível.
+- Lead/Cycle com duas ou mais observações compartilham linhas de subgrid no desktop.
+  Em área de conteúdo até 56rem empilham, com altura orientada pelo conteúdo.
+  Teclado e pointer selecionam somente dias com amostra; `null` segue lacuna, zero
+  real continua selecionável. Descrição acessível informa dias com amostra.
+- Commits separam Associação e Por responsável em grupos nomeados, com barras
+  normalizadas dentro de cada grupo e contagens textuais. Grupos alinham pelo topo.
+- Sprint reúne adições/remoções/carry-over em Mudanças de escopo; esforço em seção
+  própria. Carry-over apresenta entradas/saídas antes dos registros, sem barras.
+- Datas editadas são draft até formar intervalo válido. URL, resumo e active count
+  refletem apenas filtros aplicados. Sprint/categoria preservam draft e período.
+  Erro fica junto às datas, associado por ARIA. Limpar aparece no fim do painel
+  expandido somente com draft ou filtro aplicado; oculto quando pristine.
+- Tabelas conservam limite de 20rem, caption N de M e região rolável focável.
+  PARTIAL sem observação mostra `—`, inclusive LIST/SERIES. Parágrafos vazios e
+  avisos específicos já cobertos pela seção não reservam espaço adicional.
+
+Evidência, amostras e gate pendente no [relatório P8.6D](../deliveries/S2_P8_6D_FINAL_INDICATORS_POLISH_REPORT.md).

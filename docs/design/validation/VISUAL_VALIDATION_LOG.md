@@ -926,3 +926,50 @@ Evidências transitórias: `/private/tmp/traceflow-p86c-hardening-20261003/`, ar
 e logs de gates. Capturas full-page podem deslocar elementos fixed; inspeções de
 viewport foram usadas para distinguir esse efeito de defeitos do layout.
 Relatório: [P8.6C visual/data hardening](../../deliveries/S2_P8_6C_INDICATORS_VISUAL_DATA_HARDENING_REPORT.md).
+
+
+## 2026-10-03 — S2 P8.6D: polimento final e auditoria de Flow
+
+Baseline limpa `daniel-dev`, HEAD `f6d9e2946993f9fc852d87e897719bebe7aa8976`.
+Chrome autenticado, frontend 5173/API 3001, Project 2 artificial existente. Leitura
+readonly de 40 Tasks/73 movimentos; nenhuma alteração de fatos, schema ou seed.
+
+Causas corrigidas: Data State fora do header, Flow com 45px de desalinhamento,
+seleção de gaps, associação/pessoas misturadas, escopo/esforço agrupados por tipo
+visual e effect de Sprint que descartava draft inválido. Correções adicionais de
+traço em PARTIAL vazio e parágrafos sem conteúdo, após revisão renderizada.
+
+Nova matriz final pós-correções/reload: **80 capturas**, oito categorias em
+1440/1280/1024/768/430/390/360 Light e 1440/768/390 Dark. Sem overflow horizontal
+do documento ou alertas de erro. Inspeção direta amostral das oito views desktop e
+mobile, mais breakpoints intermediários/Dark. Não equivale a inspeção manual de
+cada pixel, leitor de tela físico ou certificação de acessibilidade.
+
+Lead/Cycle: top dos SVGs em 1107,98px para ambos em 1440/1280; stack em larguras
+menores. CFD mantém SVG 352px. Task 3 outlier preservado; Task 9 sem início excluída
+do Cycle. Medianas 6/1 dias, coortes 15/14, série diária com 9/8 dias úteis. Sessenta
+linhas de tabela correspondem ao HTTP e ao cálculo independente. End no Cycle
+seleciona 25/09, duas Tasks, 3,15 dias; nenhum gap gera tooltip com amostra zero.
+
+Commits: 133 total compacto, 93 na main; associação e responsáveis separados.
+Sprint: escopo 1/0/1 saída, esforço 24/20/−4h, Burndown/Burnup oito pontos e Velocity
+quatro Sprints. Tabelas limitadas a 320px, total 10 de 11 preservado; teclado moveu
+scroll mobile até 895px, com foco visível. Ajuda mobile 358px dentro de viewport
+390px, Enter/Escape e retorno de foco. Filtro inválido manteve 0 ativos/URL sem
+período/nenhum request; erro junto às datas e Clear no fim do painel.
+
+Rede instrumentada temporariamente: uma consulta agregada por categoria, nenhuma
+por widget, nove respostas mantidas na observação ociosa posterior. HTTP aquecido
+11–17ms / 25.031–33.872 bytes; não é benchmark de produção. Console sem warn/error.
+Focus/visibility e races reexecutados por testes, sem alegar novo Alt+Tab nativo.
+
+Frontend **1.312 testes**; backend **1.495** e cinco skips legados; coverage, lint,
+format, build, Prisma, arquitetura, segredos e política de CI local passaram.
+**CHANGES REQUIRED — HIGH / REGRESSION (gate de segurança)**: advisory herdado
+GHSA-vfj7-8cjw-p6xm na cadeia dev nodemon/chokidar/braces, sem versão corrigida
+listada. Audit frontend passou; backend falhou. Sem exceção/downgrade/P9/commit/push.
+
+Evidência transitória: `/private/tmp/traceflow-p86d-20261003/`, `final-*.png`,
+`visual-matrix.json`, `data-audit.json`, `http-flow.json`, `http-all-views.json`,
+`flow-dom-tables.json`, `filter-http.json`, logs e resultados dos gates.
+[Relatório P8.6D](../../deliveries/S2_P8_6D_FINAL_INDICATORS_POLISH_REPORT.md).

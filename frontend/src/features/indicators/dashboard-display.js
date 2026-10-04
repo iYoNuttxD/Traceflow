@@ -22,7 +22,7 @@ export const SECTION_LABELS = {
   flow: 'Fluxo de trabalho',
   planning: 'Plano e entrega',
   history: 'Histórico',
-  scope: 'Mudanças de escopo',
+  scope: 'Continuidade da Sprint',
   tasks: 'Tarefas',
   tests: 'Testes',
   defects: 'Defeitos',
@@ -31,7 +31,8 @@ export const SECTION_LABELS = {
   taskState: 'Estado do trabalho',
   taskEffort: 'Esforço',
   taskAttention: 'Atenção',
-  sprintEffort: 'Escopo e esforço'
+  sprintScope: 'Mudanças de escopo',
+  sprintEffort: 'Esforço da Sprint'
 };
 
 export function presentationSections(view, sections) {
@@ -65,9 +66,16 @@ export function presentationSections(view, sections) {
           )
         },
         {
+          id: 'sprintScope',
+          indicators: ['I41', 'I42', 'I43'].flatMap((id) =>
+            section.indicators.filter((indicator) => indicator.metricId === id)
+          )
+        },
+        {
           id: 'sprintEffort',
           indicators: section.indicators.filter(
-            (indicator) => !['I36', 'I37', 'I38', 'I39', 'I40'].includes(indicator.metricId)
+            (indicator) =>
+              !['I36', 'I37', 'I38', 'I39', 'I40', 'I41', 'I42', 'I43'].includes(indicator.metricId)
           )
         }
       ];

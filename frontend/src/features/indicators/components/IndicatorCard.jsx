@@ -154,29 +154,74 @@ function IndicatorReference({ assessment }) {
   );
 }
 
-function IndicatorDistribution({ indicator }) {
-  const rows = distributionRows(indicator);
-  const people = indicator.distribution?.people ?? indicator.people ?? [];
-  if (!rows.length && !people.length) return null;
+function DistributionRows({ rows }) {
   const magnitude = Math.max(
     1,
     ...rows.map(({ value }) => (typeof value === 'number' ? Math.abs(value) : 0))
   );
+  return rows.map(({ key, label, value, unit }) => (
+    <div className="indicator-card__distribution-row" key={key}>
+      <span>{label}</span>
+      <strong>{formatMetricValue(value, unit)}</strong>
+      {typeof value === 'number' && value >= 0 && (
+        <span className="indicator-card__bar" aria-hidden="true">
+          <span style={{ width: `${Math.max(0, Math.min(100, (value / magnitude) * 100))}%` }} />
+        </span>
+      )}
+    </div>
+  ));
+}
+
+function CommitDistribution({ rows, people }) {
+  return (
+    <div className="indicator-card__distribution-groups">
+      <section aria-label="Associação" className="indicator-card__distribution">
+        <h5>Associação</h5>
+        <DistributionRows rows={rows} />
+      </section>
+      <section aria-label="Por responsável" className="indicator-card__distribution">
+        <h5>Por responsável</h5>
+        {people.length ? (
+          <DistributionRows
+            rows={people.map((person) => ({
+              key: person.userId,
+              label: person.displayName,
+              value: person.count ?? person.commits
+            }))}
+          />
+        ) : (
+          <p className="indicator-card__empty">Nenhum responsável associado neste período.</p>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function CarryOverSummary({ value }) {
+  if (!value || typeof value !== 'object') return null;
+  const incoming = value.incoming ?? 0;
+  const outgoing = value.outgoing ?? 0;
+  const text = [
+    incoming > 0 ? `${incoming} ${incoming === 1 ? 'entrada' : 'entradas'}` : '',
+    outgoing > 0 ? `${outgoing} ${outgoing === 1 ? 'saída' : 'saídas'}` : ''
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  return (
+    <strong className="indicator-card__value indicator-card__value--scope">
+      {text || '0 transferências'}
+    </strong>
+  );
+}
+
+function IndicatorDistribution({ indicator }) {
+  const rows = distributionRows(indicator);
+  const people = indicator.distribution?.people ?? indicator.people ?? [];
+  if (!rows.length && !people.length) return null;
+  if (indicator.metricId === 'I02') return <CommitDistribution rows={rows} people={people} />;
   return (
     <div className="indicator-card__distribution">
-      {rows.map(({ key, label, value, unit }) => (
-        <div className="indicator-card__distribution-row" key={key}>
-          <span>{label}</span>
-          <strong>{formatMetricValue(value, unit)}</strong>
-          {typeof value === 'number' && value >= 0 && (
-            <span className="indicator-card__bar" aria-hidden="true">
-              <span
-                style={{ width: `${Math.max(0, Math.min(100, (value / magnitude) * 100))}%` }}
-              />
-            </span>
-          )}
-        </div>
-      ))}
+      <DistributionRows rows={rows} />
       {people.map((person) => (
         <div className="indicator-card__distribution-row" key={person.userId}>
           <span>{person.displayName}</span>
@@ -202,6 +247,9 @@ export function IndicatorCard({ indicator, metadata, sharedLimitations = [] }) {
   const scalar = hasValue && typeof indicator.value === 'number';
   const hasChart = hasValue && indicator.kind === 'SERIES' && indicator.points?.length > 0;
   const status = STATE_LABELS[state] ?? 'Estado desconhecido';
+  const dataState = ['PARTIAL', 'STALE', 'UNAVAILABLE', 'UNKNOWN'].includes(state)
+    ? { state, label: status }
+    : null;
   const assessment = indicator.assessment;
   const noOpenPrs =
     indicator.metricId === 'I73' &&
@@ -214,7 +262,7 @@ export function IndicatorCard({ indicator, metadata, sharedLimitations = [] }) {
       aria-label={title}
       data-metric-id={indicator.metricId}
     >
-      <IndicatorHeader title={title} assessment={assessment}>
+      <IndicatorHeader title={title} assessment={assessment} dataState={dataState}>
         <strong>O que mostra</strong>
         <p>{help.what}</p>
         <strong>Valor atual</strong>
@@ -235,28 +283,18 @@ export function IndicatorCard({ indicator, metadata, sharedLimitations = [] }) {
         )}
       </IndicatorHeader>
 
-      {['PARTIAL', 'STALE', 'UNKNOWN'].includes(state) &&
-        (state === 'STALE' ||
-          indicator.value == null ||
-          individualLimitations.length > 0 ||
-          !sharedLimitations.length) && (
-          <div className="indicator-card__status-line">
-            <span className={`indicator-card__state indicator-card__state--${state.toLowerCase()}`}>
-              {status}
-            </span>
-          </div>
-        )}
-
       {['NO_DATA', 'UNAVAILABLE'].includes(state) && (
         <>
           <strong className="indicator-card__value">—</strong>
-          <p className="indicator-card__empty">
-            {noOpenPrs
-              ? 'Nenhuma PR aberta.'
-              : state === 'NO_DATA'
-                ? (EMPTY_MESSAGES[indicator.metricId] ?? 'Nenhum dado elegível neste período.')
-                : 'Indisponível'}
-          </p>
+          {state === 'NO_DATA' && (
+            <p className="indicator-card__empty">
+              {noOpenPrs
+                ? 'Nenhuma PR aberta.'
+                : state === 'NO_DATA'
+                  ? (EMPTY_MESSAGES[indicator.metricId] ?? 'Nenhum dado elegível neste período.')
+                  : 'Indisponível'}
+            </p>
+          )}
           {state === 'UNAVAILABLE' && individualLimitations.length > 0 && (
             <p className="indicator-card__notice">{describeLimitation(individualLimitations[0])}</p>
           )}
@@ -270,57 +308,70 @@ export function IndicatorCard({ indicator, metadata, sharedLimitations = [] }) {
 
       {hasValue && (
         <div className="indicator-card__content">
-          {scalar && ['I20', 'I21'].includes(indicator.metricId) && (
-            <span className="indicator-card__stat-label">Mediana do período</span>
-          )}
-          {scalar && (
-            <strong className="indicator-card__value">
-              {indicator.metricId === 'I17'
-                ? `${formatMetricValue(indicator.value)} ${indicator.value === 1 ? 'PR aberta' : 'PRs abertas'}`
-                : formatMetricValue(indicator.value, indicator.unit)}
-            </strong>
-          )}
-          {scalar &&
-            indicator.unit === 'PERCENT' &&
-            indicator.value >= 0 &&
-            indicator.value <= 100 && (
-              <IndicatorProgress
-                value={indicator.value}
-                label={title}
-                referenceValue={
-                  ['I62', 'I63', 'I65', 'I66'].includes(indicator.metricId) &&
-                  assessment?.reference?.unit === 'PERCENT'
-                    ? assessment.reference.value
-                    : undefined
-                }
-                referenceLabel={assessment?.reference?.label}
-                health={assessment?.status}
-              />
+          <div className="indicator-card__headline">
+            {!scalar &&
+              !hasChart &&
+              !indicator.items?.length &&
+              !indicator.distribution &&
+              (indicator.value == null || typeof indicator.value !== 'object') && (
+                <span className="indicator-card__value">—</span>
+              )}
+            {scalar && ['I20', 'I21'].includes(indicator.metricId) && (
+              <span className="indicator-card__stat-label">Mediana do período</span>
             )}
-          <IndicatorReference assessment={assessment} />
-          {hasChart && (
-            <Suspense fallback={<p role="status">Carregando gráfico...</p>}>
-              <IndicatorChart indicator={indicator} title={title} />
-            </Suspense>
-          )}
-          {indicator.kind === 'SERIES' && !hasChart && (
-            <p className="indicator-card__empty">Ainda não há pontos históricos para exibir.</p>
-          )}
-          {indicator.kind === 'LIST' && <IndicatorList indicator={indicator} title={title} />}
-          {indicator.kind !== 'SERIES' && <IndicatorDistribution indicator={indicator} />}
-          {!scalar &&
-            !hasChart &&
-            indicator.kind !== 'LIST' &&
-            indicator.kind !== 'SERIES' &&
-            !indicator.distribution &&
-            (indicator.value == null || typeof indicator.value !== 'object') && (
-              <span className="indicator-card__value">—</span>
+            {scalar && (
+              <strong className="indicator-card__value">
+                {indicator.metricId === 'I17'
+                  ? `${formatMetricValue(indicator.value)} ${indicator.value === 1 ? 'PR aberta' : 'PRs abertas'}`
+                  : ['I41', 'I42'].includes(indicator.metricId)
+                    ? `${formatMetricValue(indicator.value)} ${indicator.value === 1 ? 'Task' : 'Tasks'}`
+                    : formatMetricValue(indicator.value, indicator.unit)}
+              </strong>
             )}
+            {scalar &&
+              indicator.unit === 'PERCENT' &&
+              indicator.value >= 0 &&
+              indicator.value <= 100 && (
+                <IndicatorProgress
+                  value={indicator.value}
+                  label={title}
+                  referenceValue={
+                    ['I62', 'I63', 'I65', 'I66'].includes(indicator.metricId) &&
+                    assessment?.reference?.unit === 'PERCENT'
+                      ? assessment.reference.value
+                      : undefined
+                  }
+                  referenceLabel={assessment?.reference?.label}
+                  health={assessment?.status}
+                />
+              )}
+            {indicator.metricId === 'I43' && <CarryOverSummary value={indicator.value} />}
+            {indicator.metricId !== 'I44' && <IndicatorReference assessment={assessment} />}
+          </div>
+          <div className="indicator-card__visualization">
+            {hasChart && (
+              <Suspense fallback={<p role="status">Carregando gráfico...</p>}>
+                <IndicatorChart indicator={indicator} title={title} />
+              </Suspense>
+            )}
+            {indicator.kind === 'SERIES' && !hasChart && (
+              <p className="indicator-card__empty">Ainda não há pontos históricos para exibir.</p>
+            )}
+            {indicator.kind === 'LIST' && <IndicatorList indicator={indicator} title={title} />}
+            {indicator.kind !== 'SERIES' && indicator.metricId !== 'I43' && (
+              <IndicatorDistribution indicator={indicator} />
+            )}
+          </div>
         </div>
       )}
 
       {['PARTIAL', 'STALE'].includes(state) &&
-        (state === 'STALE' || individualLimitations.length > 0 || !sharedLimitations.length) && (
+        (state === 'STALE' ||
+          individualLimitations.length > 0 ||
+          (!sharedLimitations.length &&
+            indicator.value == null &&
+            !indicator.points?.length &&
+            !indicator.items?.length)) && (
           <p className="indicator-card__notice">
             {state === 'STALE'
               ? 'Último valor conhecido; confira a atualização da fonte.'

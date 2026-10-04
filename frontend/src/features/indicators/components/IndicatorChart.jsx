@@ -151,36 +151,34 @@ export function IndicatorChart({ indicator, title }) {
   const max = Math.max(1, ...values, reference?.value ?? 0);
   const x = (index) => LEFT + (index * (RIGHT - LEFT)) / (points.length - 1);
   const y = (value) => BOTTOM - (value / max) * (BOTTOM - TOP);
-  const description = `${points.length} pontos. ${series.map((item) => item.label).join(', ')}. Consulte os dados em tabela abaixo.`;
-  const firstSample = ['I20', 'I21'].includes(indicator.metricId)
-    ? Math.max(
-        0,
-        points.findIndex((point) => valid(point.value))
-      )
-    : 0;
-  const selectedIndex = Math.min(activeIndex ?? firstSample, points.length - 1);
+  const description = `${duration ? `${usefulPoints.length} dias com amostra` : `${points.length} pontos`}. ${series.map((item) => item.label).join(', ')}. Consulte os dados em tabela abaixo.`;
+  const selectable = points.flatMap((point, index) =>
+    !duration || valid(point.value) ? [index] : []
+  );
+  const selectedIndex = selectable.includes(activeIndex) ? activeIndex : selectable[0];
   const selectedPoint = points[selectedIndex];
 
   function handlePointerMove(event) {
     const box = event.currentTarget.getBoundingClientRect();
     const svgX = ((event.clientX - box.left) / box.width) * 640;
     const ratio = (svgX - LEFT) / (RIGHT - LEFT);
-    setActiveIndex(
-      Math.max(0, Math.min(points.length - 1, Math.round(ratio * (points.length - 1))))
-    );
+    const index = Math.max(0, Math.min(points.length - 1, Math.round(ratio * (points.length - 1))));
+    // An empty calendar bucket is a gap, never an interactive observation.
+    if (selectable.includes(index)) setActiveIndex(index);
   }
 
   function handleKeyDown(event) {
     if (!['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(event.key)) return;
     event.preventDefault();
-    setActiveIndex((current) =>
+    const current = selectable.indexOf(selectedIndex);
+    setActiveIndex(
       event.key === 'ArrowRight'
-        ? Math.min(points.length - 1, (current ?? firstSample) + 1)
+        ? selectable[Math.min(selectable.length - 1, current + 1)]
         : event.key === 'ArrowLeft'
-          ? Math.max(0, (current ?? firstSample) - 1)
+          ? selectable[Math.max(0, current - 1)]
           : event.key === 'Home'
-            ? 0
-            : points.length - 1
+            ? selectable[0]
+            : selectable.at(-1)
     );
   }
 

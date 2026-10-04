@@ -1,4 +1,4 @@
-import { MemoryRouter, Route, Routes, useNavigate } from 'react-router';
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -69,8 +69,10 @@ function deferred() {
 
 function PanelHarness({ props, historyControls }) {
   const navigate = useNavigate();
+  const location = useLocation();
   return (
     <>
+      <output aria-label="URL aplicada">{location.search}</output>
       {historyControls && (
         <button type="button" onClick={() => navigate(-1)}>
           Voltar no histórico
@@ -127,6 +129,7 @@ describe('P8 Dashboard na Visão Geral', () => {
       data: {
         indicators: [
           definition('I23', 'WIP atual'),
+          ...['I20', 'I21', 'I41', 'I42', 'I43', 'I44'].map((id) => definition(id, id)),
           definition('I09', 'Commits no período'),
           definition('I16', 'Média até merge'),
           definition('I17', 'PRs abertas mais antigas'),
@@ -339,6 +342,7 @@ describe('P8 Dashboard na Visão Geral', () => {
         indicators: [
           {
             ...definition('I23', 'WIP atual'),
+            ...['I20', 'I21', 'I41', 'I42', 'I43', 'I44'].map((id) => definition(id, id)),
             views: ['GENERAL'],
             filterCompatibility: {
               period: 'NOT_APPLICABLE',
@@ -663,6 +667,130 @@ describe('P8 Dashboard na Visão Geral', () => {
       expect(mocks.dashboard.mock.lastCall[1]).toEqual({ view: 'FLOW', includeProjectHealth: true })
     );
     expect(screen.getByLabelText('De')).toHaveValue('');
+  });
+
+  it('keeps incomplete and reversed date drafts out of applied filters and URL', async () => {
+    renderPanel();
+    await screen.findByRole('article', { name: 'WIP atual' });
+    fireEvent.click(screen.getByRole('button', { name: /Buscar e filtrar/ }));
+    const filter = screen.getByRole('region', { name: 'Buscar e filtrar' });
+    expect(within(filter).queryByRole('button', { name: 'Limpar filtros' })).toBeNull();
+    fireEvent.change(screen.getByLabelText('De'), { target: { value: '2026-10-08' } });
+    expect(filter).toHaveTextContent('0 ativos');
+    expect(filter).toHaveTextContent('Todos os dados disponíveis');
+    expect(screen.getByLabelText('URL aplicada')).toHaveTextContent(/^$/);
+    expect(screen.getByLabelText('De')).toHaveAccessibleDescription(
+      'Complete as duas datas para aplicar o período.'
+    );
+    expect(screen.getByRole('group', { name: 'Período' })).toContainElement(
+      screen.getByRole('alert')
+    );
+    fireEvent.change(screen.getByLabelText('Até'), { target: { value: '2026-10-01' } });
+    expect(screen.getByLabelText('De')).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'A data inicial deve ser anterior ou igual à final.'
+    );
+    expect(mocks.dashboard).toHaveBeenCalledOnce();
+    expect(screen.getByLabelText('URL aplicada')).toHaveTextContent(/^$/);
+    fireEvent.click(screen.getByRole('button', { name: 'Limpar filtros' }));
+    expect(screen.getByLabelText('De')).toHaveValue('');
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Limpar filtros' })).toBeNull();
+    expect(mocks.dashboard).toHaveBeenCalledOnce();
+  });
+
+  it('preserves invalid date drafts and the applied period when Sprint or category changes', async () => {
+    renderPanel('/projects/1?startDate=2026-09-01&endDate=2026-09-30');
+    await screen.findByRole('article', { name: 'WIP atual' });
+    fireEvent.click(screen.getByRole('button', { name: /Buscar e filtrar/ }));
+    fireEvent.change(screen.getByLabelText('De'), { target: { value: '2026-10-08' } });
+    fireEvent.change(screen.getByLabelText('Sprint'), { target: { value: '3' } });
+    await waitFor(() => expect(mocks.dashboard).toHaveBeenCalledTimes(2));
+    expect(mocks.dashboard.mock.lastCall[1]).toMatchObject({
+      startDate: '2026-09-01',
+      endDate: '2026-09-30',
+      sprintId: '3'
+    });
+    expect(screen.getByLabelText('URL aplicada')).not.toHaveTextContent('2026-10-08');
+    expect(screen.getByLabelText('De')).toHaveValue('2026-10-08');
+    expect(screen.getByRole('alert')).toBeVisible();
+    fireEvent.click(screen.getByRole('tab', { name: 'Qualidade' }));
+    await screen.findByRole('article', { name: 'Execuções por resultado' });
+    expect(screen.getByLabelText('De')).toHaveValue('2026-10-08');
+    expect(screen.getByRole('alert')).toBeVisible();
+    expect(screen.getByRole('region', { name: 'Buscar e filtrar' })).toHaveTextContent(
+      '2 filtros ativos'
+    );
+  });
+
+  it('groups equivalent duration charts into shared semantic layout rows', async () => {
+    mocks.dashboard.mockResolvedValue(
+      response('FLOW', [
+        {
+          id: 'flow',
+          indicators: ['I20', 'I21'].map((id, index) =>
+            metric(id, 6, {
+              unit: 'DAYS',
+              kind: 'SERIES',
+              state: index ? 'PARTIAL' : 'AVAILABLE',
+              points: [
+                { date: '2026-09-01', value: 4 },
+                { date: '2026-09-02', value: 6 }
+              ],
+              assessment: index
+                ? null
+                : {
+                    status: 'ATTENTION',
+                    reference: { label: 'Referência recente', value: 4, unit: 'DAYS' }
+                  }
+            })
+          )
+        }
+      ])
+    );
+    renderPanel('/projects/1?view=FLOW');
+    const pair = await screen.findByRole('group', { name: 'Tempos de entrega' });
+    await within(pair).findAllByRole('img');
+    expect(within(pair).getAllByRole('article')).toHaveLength(2);
+    for (const article of within(pair).getAllByRole('article')) {
+      expect(article.querySelector('.indicator-card__headline')).toHaveTextContent(
+        'Mediana do período'
+      );
+      expect(article.querySelector('.indicator-card__visualization svg')).toBeInTheDocument();
+    }
+  });
+
+  it('groups Sprint additions, removals and carry-over separately from effort', async () => {
+    mocks.dashboard.mockResolvedValue(
+      response('SPRINT', [
+        {
+          id: 'planning',
+          indicators: [
+            metric('I41', 1),
+            metric('I42', 0),
+            metric('I43', { incoming: 0, outgoing: 1 }, { kind: 'LIST' }),
+            metric(
+              'I44',
+              { estimatedHours: 24, actualHours: 20, differenceHours: -4 },
+              { kind: 'DISTRIBUTION' }
+            )
+          ]
+        }
+      ])
+    );
+    renderPanel('/projects/1?view=SPRINT');
+    const scope = await screen.findByRole('region', { name: 'Mudanças de escopo' });
+    expect(
+      [...scope.querySelectorAll('[data-metric-id]')].map((el) => el.dataset.metricId)
+    ).toEqual(['I41', 'I42', 'I43']);
+    expect(scope).toHaveTextContent('1 Task');
+    expect(scope).toHaveTextContent('0 Tasks');
+    expect(scope).toHaveTextContent('1 saída');
+    expect(
+      screen
+        .getByRole('region', { name: 'Esforço da Sprint' })
+        .querySelector('[data-metric-id=I44]')
+    ).toBeInTheDocument();
   });
 
   it('troca Geral → GitHub → Qualidade com uma consulta agregada por visão e sem vazamento', async () => {

@@ -782,3 +782,20 @@ Matriz final: nove superfícies × sete larguras Light, mais nove × três largu
 complementares. Não equivale a certificação de acessibilidade ou benchmark de produção.
 Segurança do backend bloqueia o veredito global; detalhes no
 [relatório de hardening](../deliveries/S2_P8_6C_INDICATORS_VISUAL_DATA_HARDENING_REPORT.md).
+
+
+## P8.6D — polimento final e comprovação de Flow (2026-10-03)
+
+| Superfície | Comportamento vigente | Evidência nova |
+|---|---|---|
+| INDICATORS-HEADER | Título/ajuda e linha compartilhada Health/Data State; headline antes da visualização | Testes COUNT/LIST/SERIES, estados vazios e render real |
+| INDICATORS-FLOW | Par Lead/Cycle com subgrid; somente observações selecionáveis | Top de ambos 1107,98px em desktop; 15/14 Tasks; 60 linhas HTTP/UI conferidas |
+| INDICATORS-GITHUB | Associação separada de Por responsável; barras nos dois grupos | API 93 na main, 67 associados / 26 não associados; fixture com três pessoas |
+| INDICATORS-SPRINT | Mudanças de escopo I41/I42/I43; Esforço I44 separado | 1 adicionada / 0 removidas / 1 saída; 24h / 20h / −4h |
+| INDICATORS-FILTERS | Draft separado do período aplicado; Sprint preserva ambos; erro local; Limpar condicional ao fim | Nenhum request/URL para datas incompletas/invertidas; testes de histórico e races |
+| INDICATORS-LISTS | Máximo 20rem e N de M, sem mudança da primitive | 10 de 11 registros; scroll real de 895px, foco e deslocamento horizontal mobile |
+
+Oito categorias × sete larguras Light e três Dark: **80 capturas finais**, API real,
+projeto artificial 2. Sem overflow do documento ou erro na matriz. Inspeção direta
+amostral, não certificação WCAG nem teste touch físico. Gate backend npm audit HIGH
+continua bloqueando PASS; [relatório P8.6D](../deliveries/S2_P8_6D_FINAL_INDICATORS_POLISH_REPORT.md).

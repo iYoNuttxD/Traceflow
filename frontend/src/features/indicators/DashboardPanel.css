@@ -942,6 +942,7 @@
   flex: 2 1 20rem;
   min-width: 0;
   gap: var(--space-3);
+  flex-wrap: wrap;
   margin: 0;
   padding: 0;
   border: 0;
@@ -1018,6 +1019,91 @@
 .indicator-card__content {
   display: grid;
   gap: var(--space-3);
+}
+.indicator-card__headline,
+.indicator-card__visualization {
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.indicator-card__headline:empty,
+.indicator-card__visualization:empty {
+  display: none;
+}
+.indicator-card__header :is(.indicator-card__health, .indicator-card__state) {
+  min-height: 1.5rem;
+  padding: var(--space-1) var(--space-2);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  line-height: var(--line-height-body);
+}
+.indicator-filters .planning-filter-panel__actions {
+  margin: var(--space-3) 0 0;
+}
+.dashboard-panel__duration-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  flex: 1 1 100%;
+  min-width: 0;
+}
+.dashboard-panel__duration-pair > .indicator-card {
+  display: grid;
+  grid-template-rows: subgrid;
+  grid-row: span 4;
+  row-gap: var(--space-3);
+}
+.dashboard-panel__duration-pair .indicator-card__content {
+  display: contents;
+}
+.dashboard-panel__duration-pair .indicator-card__header {
+  grid-row: 1;
+  align-content: start;
+}
+.dashboard-panel__duration-pair .indicator-card__headline {
+  grid-row: 2;
+}
+.dashboard-panel__duration-pair .indicator-card__visualization {
+  grid-row: 3;
+}
+.dashboard-panel__duration-pair .indicator-card__notice {
+  grid-row: 4;
+}
+.indicator-card__distribution-groups {
+  display: grid;
+  align-items: start;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-5);
+}
+.indicator-card__distribution h5 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-2);
+  color: var(--color-text-secondary);
+}
+.dashboard-panel__section--sprintScope .indicator-card {
+  flex-basis: 18rem;
+}
+.indicator-card__value--scope {
+  font-size: var(--font-size-5);
+}
+@container indicators-workspace (max-width: 56rem) {
+  .dashboard-panel__duration-pair {
+    display: flex;
+    flex-direction: column;
+  }
+  .dashboard-panel__duration-pair > .indicator-card {
+    display: flex;
+    flex: none;
+    width: 100%;
+  }
+  .dashboard-panel__duration-pair .indicator-card__content {
+    display: grid;
+  }
+}
+@container indicators-workspace (max-width: 34rem) {
+  .indicator-card__distribution-groups {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 .indicator-card__stat-label {
   color: var(--color-text-secondary);
