@@ -151,6 +151,43 @@ describe('Tasks C2 facelift', () => {
     mocks.listPullRequests.mockResolvedValue({ pullRequests: [] });
   });
 
+  it.each([0, 1])('mantém o card de criação no primeiro slot com %i tarefas', async (count) => {
+    const user = userEvent.setup();
+    mocks.listTasks.mockResolvedValue({ data: { tasks: count ? [task] : [] } });
+    renderPage();
+
+    const create = await screen.findByRole('button', { name: 'Nova tarefa' });
+    const items = within(screen.getByRole('list')).getAllByRole('listitem');
+    expect(items).toHaveLength(count + 1);
+    expect(within(items[0]).getByRole('button', { name: 'Nova tarefa' })).toBe(create);
+    expect(screen.queryByText('Nenhuma tarefa cadastrada.')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '+ Nova tarefa' })).not.toBeInTheDocument();
+    if (count) {
+      expect(
+        within(items[1]).getByRole('article', { name: /Abrir detalhes de TASK-21/ })
+      ).toBeVisible();
+    } else {
+      await user.click(create);
+      expect(screen.getByRole('dialog', { name: 'Nova tarefa' })).toBeVisible();
+    }
+  });
+
+  it.each(['VIEWER', null])(
+    'mantém catálogo vazio somente para consulta com papel %s',
+    async (role) => {
+      mocks.listTasks.mockResolvedValue({ data: { tasks: [] } });
+      mocks.listMembers.mockResolvedValue({
+        currentMembership: role ? { role } : null,
+        members: []
+      });
+      renderPage();
+
+      expect(await screen.findByText('Nenhuma tarefa cadastrada.')).toBeVisible();
+      expect(screen.queryByRole('button', { name: /Nova tarefa/ })).not.toBeInTheDocument();
+      expect(screen.getByText('Seu perfil possui acesso somente para consulta.')).toBeVisible();
+    }
+  );
+
   it('substitui o layout legado por resumo, filtros recolhidos e catálogo operacional', async () => {
     renderPage();
 
@@ -191,6 +228,9 @@ describe('Tasks C2 facelift', () => {
 
     await user.type(screen.getByLabelText('Buscar tarefa'), 'TASK-999');
     expect(screen.getByText('Nenhuma tarefa corresponde aos filtros.')).toBeInTheDocument();
+    expect(
+      within(screen.getByRole('list')).getByRole('button', { name: 'Nova tarefa' })
+    ).toBeVisible();
     expect(screen.getByText('0 de 1 tarefas')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Limpar filtros' }));
     expect(screen.getByText('Preparar roteiro da demonstração')).toBeInTheDocument();

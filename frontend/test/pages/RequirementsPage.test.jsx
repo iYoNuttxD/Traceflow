@@ -218,6 +218,54 @@ afterEach(() => {
 });
 
 describe('Requirements facelift', () => {
+  it.each([0, 1])('mantém o card de criação no primeiro slot com %i requisitos', async (count) => {
+    const user = userEvent.setup();
+    mocks.requirementsApi.listByProject.mockResolvedValue({
+      data: { requirements: requirements.slice(0, count) }
+    });
+    mocks.getRequirementsTraceability.mockResolvedValue({
+      items: requirements.slice(0, count).map((item) => projection(item.id)),
+      pagination: { page: 1, totalPages: 1, total: count }
+    });
+    mocks.getRequirementTaskCoverage.mockResolvedValue({
+      totalRequirements: count,
+      linkedRequirements: count,
+      coveragePercentage: count ? 100 : 0
+    });
+    renderPage();
+
+    const create = await screen.findByRole('button', { name: /^Novo requisito/ });
+    const items = within(screen.getByRole('list')).getAllByRole('listitem');
+    expect(items).toHaveLength(count + 1);
+    expect(within(items[0]).getByRole('button', { name: /^Novo requisito/ })).toBe(create);
+    expect(screen.queryByText('Nenhum requisito cadastrado.')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '+ Novo requisito' })).not.toBeInTheDocument();
+    if (count) {
+      expect(
+        within(items[1]).getByRole('article', { name: 'REQ-10 · Login seguro' })
+      ).toBeVisible();
+    } else {
+      await user.click(create);
+      expect(screen.getByRole('dialog', { name: 'Novo requisito' })).toBeVisible();
+    }
+  });
+
+  it.each(['VIEWER', null])(
+    'mantém catálogo vazio somente para consulta com papel %s',
+    async (role) => {
+      mocks.requirementsApi.listByProject.mockResolvedValue({ data: { requirements: [] } });
+      mocks.memberList.mockResolvedValue({
+        currentMembership: role ? { role } : null,
+        members: []
+      });
+      renderPage();
+
+      expect(await screen.findByText('Nenhum requisito cadastrado.')).toBeVisible();
+      expect(screen.queryByRole('button', { name: /Novo requisito/ })).not.toBeInTheDocument();
+      expect(screen.getByText('Seu perfil possui acesso somente para consulta.')).toBeVisible();
+    }
+  );
+
   it('mantém requisitos e status macro quando a projection falha', async () => {
     const user = userEvent.setup();
     mocks.requirementsApi.listByProject.mockResolvedValue({
@@ -275,6 +323,9 @@ describe('Requirements facelift', () => {
     ).not.toBeInTheDocument();
     await user.selectOptions(screen.getByLabelText('Tipo'), 'NAO_FUNCIONAL');
     expect(screen.getByText('Nenhum requisito corresponde aos filtros.')).toBeInTheDocument();
+    expect(
+      within(screen.getByRole('list')).getByRole('button', { name: /^Novo requisito/ })
+    ).toBeVisible();
   });
 
   it('remove o formulário da página e cria/edita pelo dialog com vínculo explícito', async () => {

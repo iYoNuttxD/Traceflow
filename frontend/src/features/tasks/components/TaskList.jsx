@@ -156,7 +156,7 @@ export function TaskList({
       <header>
         <h2 id="tasks-list-title">Tarefas do projeto</h2>
       </header>
-      {tasks.length ? (
+      {(tasks.length > 0 || canWrite) && (
         <div className="tasks-list-grid" role="list">
           {canWrite && (
             <div role="listitem">
@@ -177,20 +177,17 @@ export function TaskList({
             </div>
           ))}
         </div>
-      ) : filtered ? (
+      )}
+      {tasks.length === 0 && filtered && (
         <div className="tasks-empty-state">
           <h3>Nenhuma tarefa corresponde aos filtros.</h3>
           <p>Ajuste a busca ou limpe os filtros para ver outras tarefas.</p>
         </div>
-      ) : (
+      )}
+      {tasks.length === 0 && !filtered && !canWrite && (
         <div className="tasks-empty-state">
           <h3>Nenhuma tarefa cadastrada.</h3>
-          <p>Cadastre a primeira atividade para começar a organizar o trabalho do projeto.</p>
-          {canWrite && (
-            <button type="button" className="button button-primary" onClick={onCreate}>
-              + Nova tarefa
-            </button>
-          )}
+          <p>Seu perfil possui acesso somente para consulta.</p>
         </div>
       )}
     </section>

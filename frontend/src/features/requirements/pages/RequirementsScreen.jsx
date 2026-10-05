@@ -694,7 +694,7 @@ export function RequirementsScreen() {
           <header>
             <h2 id="requirements-list-title">Requisitos do projeto</h2>
           </header>
-          {filtered.length ? (
+          {(filtered.length > 0 || canWrite) && (
             <div className="requirements-grid" role="list">
               {canWrite && (
                 <div role="listitem">
@@ -716,26 +716,19 @@ export function RequirementsScreen() {
                 </div>
               ))}
             </div>
-          ) : activeFilters ? (
+          )}
+          {filtered.length === 0 && activeFilters && (
             <EmptyState
               title="Nenhum requisito corresponde aos filtros."
               description="Ajuste a busca ou limpe os filtros para ver outros requisitos."
             />
-          ) : (
+          )}
+          {filtered.length === 0 && !activeFilters && !canWrite && (
             <div className="requirements-empty">
               <EmptyState
                 title="Nenhum requisito cadastrado."
-                description="Cadastre o primeiro requisito para começar a estruturar o planejamento e a rastreabilidade do projeto."
+                description="Seu perfil possui acesso somente para consulta."
               />
-              {canWrite && (
-                <button
-                  type="button"
-                  className="button button-primary"
-                  onClick={(event) => openForm(null, event.currentTarget)}
-                >
-                  + Novo requisito
-                </button>
-              )}
             </div>
           )}
         </section>

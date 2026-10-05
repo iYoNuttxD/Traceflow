@@ -1218,3 +1218,41 @@ e cinco skips legados; frontend 1.366 PASS; audit completo zero nos dois pacotes
 Sem certificação WCAG, leitor de tela dedicado, touch físico, cross-browser, CI
 remota ou deploy. Risco MEDIUM de escala em Tasks documentado; nenhum HIGH/BLOCKING
 remanescente conhecido. Sem commit/push; próxima etapa depende de revisão humana.
+
+## 2026-10-05 — Hotfix: cards de criação nas coleções vazias
+
+Baseline `daniel-dev` @ `e8a8efd1177f3cf45ad9e93fc7ccb5645e2b82f5`, árvore limpa,
+Node 22.23.3. Requisitos e Tarefas reutilizam `NewRequirementCard`/`NewTaskCard` e
+a grid atual mesmo com zero itens, quando a membership permite criar. VIEWER e
+permissão desconhecida recebem somente o estado de consulta. Avisos de filtros
+sem resultado permanecem; nenhum card, CSS ou fluxo de criação foi redesenhado.
+
+Chrome autenticado em `localhost:5173`, API real existente: Project 13 possui
+zero Requirements/Tasks; Project 2 possui 13 Requirements e 42 Tasks. Um resultado
+real foi isolado por busca (`REQ-13` / `TASK-47`); a resposta com exatamente um
+registro sem filtro também está coberta nos testes de página. Nenhum dado de
+domínio foi criado/alterado para esta inspeção.
+
+| Estado inspecionado nas duas páginas | Viewports | Temas | Resultado |
+| --- | --- | --- | --- |
+| Coleção vazia real | 1440, 768, 390 | Light / Dark | Um único card de criação no primeiro slot; sem empty alternativo |
+| Um resultado real filtrado | 1440 | Light | Card de criação + um card de registro |
+| Coleção preenchida real | 1440 | Light | Card de criação + 13 Requirements / 42 Tasks |
+
+Sem overflow horizontal nas amostras: `scrollWidth = innerWidth`. Gap canônico
+20px; card vazio com 185,5px de altura intrínseca e grid responsiva original.
+Abrir/fechar os dois dialogs de criação funcionou sem salvar. Uma captura mobile
+feita durante a transição da sidebar foi descartada e refeita após estabilização.
+Console final sem warnings/errors; tema Escuro e viewport original restaurados.
+
+26 testes focados PASS, com oito novos casos (zero/um item e VIEWER/permissão
+desconhecida nas duas páginas); seis falharam antes da correção. Frontend full e
+coverage: **1.374 PASS / 112 arquivos**, lint, format e build PASS. Coverage:
+85,77% statements / 80,29% branches / 81,57% functions / 88,24% lines. Backend não
+alterado; policy frontend de CONTRIBUTING executada. Diffcheck PASS.
+
+Evidências locais: `/private/tmp/traceflow-empty-cards-20261005/`, capturas
+`requirements-empty-{1440,768,390}-{light,dark}.png` e equivalentes `tasks-empty-*`,
+`requirements-one-1440-light.png`, `tasks-one-1440-light.png`, `visual-observations.json`,
+`focused-before.log`, `focused-after.log`, logs dos gates e `console.json`.
+**EMPTY STATE CREATION CARD CONSISTENCY — PASS LOCAL**. Sem commit/push.
