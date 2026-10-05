@@ -648,13 +648,33 @@ correspondente no log e não equivale a certificação WCAG ou cobertura histór
 browsers. Testes automatizados sustentam `TECHNICALLY VERIFIED`, mas não substituem inspeção
 renderizada. `ENVIRONMENT BLOCKED` registra uma limitação objetiva; não é aprovação nem falha visual.
 
+### RF55 — ajuda em duas camadas (PR23-FIX-02, 2026-10-05)
+
+Regra vigente para os indicadores, inclusive Meu painel: a ajuda principal mantém o que mostra,
+valor, referência e interpretação. Ao final, `Detalhes do cálculo` é um botão secundário de 44px,
+fechado por padrão, com `aria-expanded`/`aria-controls`, Enter/Space e conteúdo na mesma ajuda
+`DashboardHelp`. Não cria modal adicional nem altera o layout do card. Escape/close retornam foco;
+o portal continua limitado ao viewport e rolável no mobile.
+
+O disclosure identifica **Cálculo**, **Fonte** e **horário/frescor**. A expressão vem de `formula`
+do resultado backend; o presenter central traduz vocabulário e fontes, sem reconstruir fórmulas
+por ID. GitHub mostra `sourceUpdatedAt` como “Fonte atualizada” ou, em STALE, “Última atualização
+da fonte”. Métricas locais mostram `asOf` como “Calculado com dados até”. Clock ausente/inválido
+ou fonte indisponível não recebe data fictícia. NO_DATA mantém ausência de valor; um corte de
+consulta local conhecido pode ser identificado sem alegar existência de registros.
+
+IDs de indicador, RFs, versões, códigos de motivo, campos de banco e pesos continuam internos,
+inclusive nessa camada. Esta decisão substitui tanto a exibição técnica ampla do P8/P8.2 quanto
+a exclusão de fórmula/fonte/horário da ajuda comercial P8.5/P8.6. Não altera Health ou cálculos.
+
 ### Indicadores da Visão Geral — P8
 
 `/projects/:projectId` conserva Projeto, GitHub e Equipe em uma surface de contexto, seguida do
 painel analítico. A feature `indicators` usa tabs com `aria-selected`, formulário de período/Sprint/
 responsável e seções com grids de três, duas ou uma coluna conforme a largura útil do container.
-Cada card contém ID, título, estado textual, valor/série/lista/distribuição, horário próprio e ajuda
-expansível com fórmula, fonte, filtros aplicados e limitações. `AVAILABLE`, `NO_DATA`, `PARTIAL`,
+Esta anatomia P8 é histórica, substituída pelo workspace P8.5/P8.6 e pela ajuda RF55 em duas
+camadas da seção RF55. O card atual contém título, estado e valor/série/lista/distribuição;
+fórmula, fonte e horário ficam sob demanda, sem IDs ou campos internos. `AVAILABLE`, `NO_DATA`, `PARTIAL`,
 `STALE` e `UNAVAILABLE` são rótulos distintos e não dependem apenas de cor. Informação desconhecida
 permanece ausente; a série não desenha zero para lacuna.
 
@@ -687,10 +707,11 @@ um widget temporal não autoriza ocultar um filtro usado pelo Health.
 
 Um indicador `AVAILABLE` não recebe badge. `PARTIAL`, `STALE`, `NO_DATA` e `UNAVAILABLE` preservam
 nome textual e valor conhecido, quando houver. Limitações comuns aparecem na seção ou na visão;
-ajuda individual mantém todos os códigos auditáveis. O horário de montagem e a fonte GitHub estão
+ajuda individual explica as limitações em linguagem de uso, sem códigos internos. O horário de montagem e a fonte GitHub estão
 no contexto da visão; o widget mostra data de fonte individual quando está `STALE`. O texto visível
-usa um presenter por campo/unidade, incluindo contagens I58 sem `%` e plural de defeitos. IDs,
-versão, fonte, filtro e fórmula exata ficam em “Detalhes técnicos” dentro da ajuda.
+usa um presenter por campo/unidade, incluindo contagens I58 sem `%` e plural de defeitos. IDs e
+versões permanecem internos. A regra antiga de “Detalhes técnicos” foi substituída pelo
+disclosure “Detalhes do cálculo” de PR23-FIX-02, definido na seção RF55.
 
 Séries de um ponto usam resumo histórico, sem eixo de datas duplicadas. Séries com dois ou mais
 pontos mantêm SVG, seleção por cursor/toque/teclado, linha de referência, resumo do ponto e tabela
@@ -710,7 +731,8 @@ dimensões e drivers empilham em uma coluna; score, status e cobertura permanece
 `HEALTHY`, `ATTENTION` e `CRITICAL` reutilizam os tokens de sucesso, aviso e perigo tanto no
 bloco quanto no badge discreto do indicador. Texto acompanha toda cor. `NEUTRAL` e `UNASSESSED`
 não criam badge no card; a ajuda explica a participação e mantém o estado de dados independente.
-Help do bloco descreve escopo, peso/cobertura, limite da nota e versão. Help do indicador traduz
+Na anatomia histórica P8.3, o help incluía peso e versão; a ajuda comercial P8.6 substitui essa
+regra e mantém escopo, cobertura e limite da nota, sem pesos/versões internos. Help do indicador traduz
 `reasonCode`/`basis` recebidos da API; não contém cálculo de score. O modelo canônico está em
 [Project Health Model v1](../indicators/PROJECT_HEALTH_MODEL_V1.md).
 
@@ -726,8 +748,10 @@ desenho. Séries vazias explicam a ausência de pontos; `null` conserva lacunas.
 ao viewport, acompanha scroll/resize e usa a camada overlay acima do header móvel, abaixo de
 modais. O dialog fecha por Escape, botão, clique externo ou saída de foco.
 
-Evidências de sete visões, sessão/API/banco de teste reais, Light/Dark, 360–1440 px e teclado estão
-no [relatório P8.4](../deliveries/S2_P8_4_FULL_DASHBOARD_VALIDATION_REGRESSION_RECOVERY_REPORT.md).
+O [relatório P8.4](../deliveries/S2_P8_4_FULL_DASHBOARD_VALIDATION_REGRESSION_RECOVERY_REPORT.md)
+preserva as observações declaradas na época. Retificação PR23-FIX-02: o pacote binário citado
+não está no repositório nem foi localizado com origem comprovável; a rodada histórica conserva
+`TECHNICALLY VERIFIED`, sem promoção visual canônica. Evidência posterior não prova a P8.4.
 Zoom de renderer e reflow equivalente foram verificados; não constituem teste do menu de zoom
 nativo, certificação WCAG ou homologação de outros motores de navegador.
 
@@ -877,7 +901,9 @@ A página segue header/eyebrow/descrição, ProjectSectionNav, resumo canônico,
 único e categorias com internal-tabs. SummaryPanel generaliza o resumo de Casos de teste para
 reutilização; campos usam SelectControl. Período e Sprint pertencem ao workspace inteiro; o controle de responsável fica ausente enquanto não houver recorte funcional. Tabelas semânticas apresentam
 entidades; séries só usam os pontos reais do backend. Ajuda não expõe IDs de indicador, versões,
-campos internos ou RFs, mesmo em disclosure. Referência é identificada como comparação, nunca
+campos internos ou RFs, mesmo em disclosure. A exclusão anterior de fórmula/fonte/horário foi
+substituída pela regra da seção RF55; esses três itens são auditáveis em linguagem de uso.
+Referência é identificada como comparação, nunca
 como meta inventada. Revalidação visual P8.5 é necessária antes de nova aprovação.
 
 
@@ -894,7 +920,7 @@ responsável quando fornecido). A referência é secundária ao valor atual.
 - `SummaryPanel` é a primitive de Casos de teste e Indicadores. Seu slot `footer` integra atualização, disponibilidade, Sprint e sincronização sem faixa externa. Labels, valores e detalhes usam a escala canônica; detalhes são descrições semânticas do `dl`.
 - `CollapsibleFilterPanel` e `SelectControl` são os controles reais de filtro. Período e Sprint aplicam automaticamente; um período só é enviado quando completo e válido. Limpar usa a ação canônica. URL mantém o contexto entre categorias. Compatibilidade aparece uma vez no filtro expandido.
 - Limitações compartilhadas ficam no cabeçalho da seção; avisos da view suprimem repetições abaixo. Informação histórica usa texto secundário. Cor de atenção continua reservada ao assessment e a estados que a exigem.
-- Ajuda tem desenho de 18px e alvo de 44px, fechamento compacto, Escape e retorno de foco. Conteúdo: definição, valor, referência e interpretação, sem pesos ou metadados internos.
+- Ajuda tem desenho de 18px e alvo de 44px, fechamento compacto, Escape e retorno de foco. Camada principal: definição, valor, referência e interpretação, sem pesos ou metadados internos. Fórmula, fonte e horário seguem a camada secundária definida na seção RF55.
 - `IndicatorProgress` admite `value`, `referenceValue`, `health` e rótulos acessíveis. Marker tracejado apenas para referências percentuais fornecidas pelo servidor em implementação, evidência técnica, TestCase e validação. A comparação também permanece textual.
 - Grids detalhados alinham pelo início, sem esticar listas. Cumulative Flow com série usa SVG de 352px (área útil aproximada de 283px). Séries de um ponto são resumos de conteúdo, sem tabela redundante; séries vazias não reservam altura de gráfico.
 

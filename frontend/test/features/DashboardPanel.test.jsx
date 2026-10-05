@@ -1464,12 +1464,18 @@ describe('P8 Dashboard na Visão Geral', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('explica o cálculo em linguagem de uso sem metadata técnica nem fórmula interna', async () => {
+  it('mantém ajuda comercial e revela fórmula, fonte e frescor somente sob demanda', async () => {
     mocks.dashboard.mockResolvedValue(
       response('GITHUB', [
         {
           id: 'activity',
-          indicators: [metric('I09', 12, { formula: 'COUNT DISTINCT Commit.id no período' })]
+          indicators: [
+            metric('I09', 12, {
+              formula: 'COUNT DISTINCT Commit.id no período',
+              sources: ['Commit.date'],
+              sourceUpdatedAt: '2026-09-20T12:00:00Z'
+            })
+          ]
         }
       ])
     );
@@ -1479,12 +1485,91 @@ describe('P8 Dashboard na Visão Geral', () => {
     await user.click(within(card).getByLabelText('Informações sobre Commits no período'));
     const help = screen.getByRole('dialog', { name: 'Informações sobre Commits no período' });
     expect(help).toHaveTextContent('Como interpretar');
-    expect(help).not.toHaveTextContent('Como é calculado');
-    expect(help.querySelector('.indicator-card__technical')).toBeNull();
+    const disclosure = within(help).getByRole('button', { name: 'Detalhes do cálculo' });
+    expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+    expect(within(help).queryByText('Cálculo')).not.toBeVisible();
+    disclosure.focus();
+    await user.keyboard('{Enter}');
+    expect(disclosure).toHaveAttribute('aria-expanded', 'true');
+    expect(document.getElementById(disclosure.getAttribute('aria-controls'))).toBeVisible();
+    expect(help).toHaveTextContent('Contagem distinta de commits no período');
+    expect(help).toHaveTextContent('Commits sincronizados do GitHub');
+    expect(help).toHaveTextContent('Fonte atualizada');
+    expect(help).toHaveTextContent('20/09/2026');
+    await user.keyboard(' ');
+    expect(disclosure).toHaveAttribute('aria-expanded', 'false');
     expect(help).toHaveTextContent('Valor atual');
     expect(help).not.toHaveTextContent(
       /I09|definitionVersion|reasonCode|healthModelVersion|TaskMovement|RF15|Commit.id/
     );
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(within(card).getByLabelText('Informações sobre Commits no período')).toHaveFocus();
+  });
+
+  it.each(['AVAILABLE', 'PARTIAL', 'NO_DATA', 'UNAVAILABLE'])(
+    'oferece cálculo e fonte local no estado %s sem fabricar dado',
+    async (state) => {
+      mocks.dashboard.mockResolvedValue(
+        response('GENERAL', [
+          {
+            id: 'summary',
+            indicators: [
+              metric('I23', state === 'AVAILABLE' ? 2 : null, {
+                state,
+                formula: 'COUNT Task.status=EM_ANDAMENTO',
+                sources: ['Task.status'],
+                limitations: state === 'PARTIAL' ? ['TASK_ESTIMATE_MISSING'] : []
+              })
+            ]
+          }
+        ])
+      );
+      const user = userEvent.setup();
+      renderPanel();
+      const card = await screen.findByRole('article', { name: 'WIP atual' });
+      await user.click(within(card).getByRole('button', { name: 'Informações sobre WIP atual' }));
+      const help = screen.getByRole('dialog');
+      await user.click(within(help).getByRole('button', { name: 'Detalhes do cálculo' }));
+      expect(help).toHaveTextContent('Contagem de tarefas com status=em andamento');
+      expect(help).toHaveTextContent('Tarefas do projeto');
+      expect(help).toHaveTextContent('Calculado com dados até');
+      if (state === 'UNAVAILABLE') expect(help).toHaveTextContent('Indisponível no momento.');
+      else expect(help).toHaveTextContent('25/09/2026');
+      if (state === 'NO_DATA') {
+        expect(card).toHaveTextContent('—');
+        expect(help).toHaveTextContent('Ainda não há valor disponível');
+      }
+      if (state === 'PARTIAL') expect(card).toHaveTextContent('Dados parciais');
+    }
+  );
+
+  it('identifica fonte desatualizada sem usar o horário de composição como frescor', async () => {
+    mocks.dashboard.mockResolvedValue(
+      response('GITHUB', [
+        {
+          id: 'activity',
+          indicators: [
+            metric('I09', 12, {
+              state: 'STALE',
+              sources: ['Commit.date'],
+              formula: 'COUNT DISTINCT Commit.id no período',
+              sourceUpdatedAt: '2026-09-20T12:00:00Z'
+            })
+          ]
+        }
+      ])
+    );
+    const user = userEvent.setup();
+    renderPanel('/projects/1?view=github');
+    const card = await screen.findByRole('article', { name: 'Commits no período' });
+    expect(card).toHaveTextContent('Dados desatualizados');
+    await user.click(within(card).getByRole('button', { name: /Informações sobre/ }));
+    const help = screen.getByRole('dialog');
+    await user.click(within(help).getByRole('button', { name: 'Detalhes do cálculo' }));
+    expect(help).toHaveTextContent('Última atualização da fonte');
+    expect(help).toHaveTextContent('20/09/2026');
+    expect(help).not.toHaveTextContent('25/09/2026');
   });
 
   it('troca séries de um ponto por resumos compactos sem eixos duplicados', async () => {

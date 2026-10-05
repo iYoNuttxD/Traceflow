@@ -328,8 +328,11 @@ na interface enquanto o catálogo não oferecer associação segura.
 Referência e delta opcionais do assessment expõem exclusivamente bases existentes:
 período anterior comparável, mediana de merge, estágio anterior de cobertura,
 estimativa da Sprint e linha ideal do Burndown. Não representam metas configuradas.
-A fórmula e os metadados técnicos continuam no contrato e na documentação; a ajuda
-do produto apresenta linguagem de uso. Evidências e limites no relatório P8.5.
+A fórmula permanece definida pelo backend/catalog. A ajuda principal do produto apresenta
+linguagem de uso; desde PR23-FIX-02, “Detalhes do cálculo” oferece fórmula, fontes com nomes
+semânticos e horário/frescor sob demanda. O frontend traduz termos, sem registry alternativo
+de fórmulas. Fontes GitHub usam `sourceUpdatedAt`; locais usam `asOf`, sem fabricar relógio,
+valor ou histórico. Essa regra substitui a exclusão desses itens da ajuda P8.5.
 
 
 ### Complemento P8.6B — apresentação temporal de I20/I21

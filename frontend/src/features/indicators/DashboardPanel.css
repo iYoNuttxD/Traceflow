@@ -593,6 +593,29 @@
 .dashboard-help__content p {
   margin: var(--space-1) 0 var(--space-3);
 }
+.dashboard-help__calculation {
+  border-top: var(--border-width-default) solid var(--color-border-default);
+  margin-top: var(--space-3);
+  padding-top: var(--space-1);
+}
+.dashboard-help__calculation > button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: var(--size-touch-target);
+  padding: var(--space-2) 0;
+  border: 0;
+  color: var(--color-text-secondary);
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.dashboard-help__calculation > div {
+  padding-top: var(--space-2);
+}
 .dashboard-help__content ul {
   margin: var(--space-1) 0 var(--space-3);
   padding-left: var(--space-5);

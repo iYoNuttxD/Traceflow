@@ -1296,3 +1296,62 @@ build, Prisma, architecture, local CI e audits completos PASS. Zero HIGH/CRITICA
 [Relatório e limites](../../deliveries/PR23_FIX_01_SPRINT_ANALYTICS_INTEGRITY_REPORT.md).
 **PR23-FIX-01 SPRINT ANALYTICS INTEGRITY — PASS LOCAL**. Sem commit/push.
 Não promove achados de outros clusters da PR23 nem certifica CI remota.
+
+## 2026-10-05 — Retificação histórica da P8.4 (PR23-FIX-02)
+
+A P8.4 declarou validação visual na época, porém o pacote binário citado em
+`evidence/s2-p8-4` não foi versionado. Na baseline FIX-02, `git ls-files
+docs/design/validation` listava somente este log; a pasta citada não existia e
+`git log --all -- <pasta>` não retornava histórico. A busca por nomes P8.4 em
+`/private/tmp` não encontrou originais de origem comprovável.
+
+Sem recuperação confiável, o status canônico histórico permanece **TECHNICALLY
+VERIFIED**, sem promoção visual. `VISUALLY APPROVED LOCAL` foi removido das duas
+linhas afetadas do inventário por não pertencer à taxonomia. O relatório original
+foi preservado com nota de retificação; suas declarações anteriores não são
+aprovação vigente. P8.6F/P10 mantêm observações próprias, que não provam a P8.4.
+As imagens FIX-02 abaixo são atuais e não substituem evidência original ausente.
+
+## 2026-10-05 — PR23-FIX-02: ajuda RF55 em duas camadas
+
+Baseline `daniel-dev` @ `3cc88159339008fc5cdfc0dfe19e5b01b6b60d85`, árvore inicial
+limpa. UI comercial preservada; `Detalhes do cálculo` fechado por padrão revela
+fórmula recebida da API, fonte em linguagem de uso e corte/frescor por indicador.
+IDs, versões, raw fields e pesos internos não foram restaurados na experiência.
+
+Chrome autenticado com API real local, Project 2 existente, período 01–30/09/2026,
+America/Sao_Paulo e Sprint ativa automática. Sem mock do produto, seed, escrita de
+domínio ou sync externa. Inspeção pós-correção:
+
+| Superfície / ajuda | 1440×900 Light/Dark | 390×844 Light/Dark | Dados observados |
+| --- | --- | --- | --- |
+| Geral / Progresso | PASS | PASS | 69,05%, cálculo local |
+| GitHub / Commits | PASS | PASS | 152, fonte atualizada em 04/10/2026, 23:39 |
+| Fluxo / Cycle Time | PASS | PASS | 1 dia, PARTIAL e histórico local |
+| Sprint / Burndown | PASS | PASS | PARTIAL, fatos históricos preservados |
+| Qualidade / Taxa de sucesso | PASS | PASS | 36,67%, execuções dos casos de teste |
+| Rastreabilidade / Implementação | PASS | PASS | Fonte de evidência técnica e clock GitHub |
+
+Tablet 768×1024 Light: GitHub e Fluxo; NO_DATA no Project 13 existente consultado
+somente para leitura; UNAVAILABLE no GitHub sem período. Sem zero fabricado ou
+timestamp global usado como atualização de fonte indisponível. STALE somente em
+teste, com data anterior e label próprio; não se envelheceu artificialmente o banco.
+
+Help de 400px desktop/tablet e 358px mobile, margens ≥16px, disclosure com target
+44px e rolagem interna até a data. Texto legível, camada comercial simples e
+fechamento acessível. Enter/Space cobertos por teste; Enter/Escape e retorno de foco
+também conferidos no runtime. Clique em viewport móvel funciona sem hover; não
+equivale a touch físico. Sem overflow horizontal observado. Capturas prematuras
+de rolagem foram substituídas por frames finais. Console capturado: zero warnings/errors.
+Tema Escuro, sidebar expandida e viewport original restaurados; aba temporária fechada.
+
+Status canônico **VISUALLY APPROVED**, restrito à ajuda atual na matriz acima.
+Pacote próprio no repositório: [capturas e observações](evidence/pr23-fix-02/README.md).
+Não promove o estado histórico P8.4 ou outras superfícies por inferência.
+
+84 testes focados PASS; frontend full/coverage **1.398 PASS**, backend regressão
+canônica **1.574 PASS** e cinco skips legados. Lint, format, build, Prisma,
+architecture, local CI, secrets, audits e diffcheck PASS; zero HIGH/CRITICAL.
+[Relatório e limites](../../deliveries/PR23_FIX_02_RF55_TRANSPARENCY_EVIDENCE_ALIGNMENT_REPORT.md).
+Sem certificação WCAG, leitor de tela, touch físico ou CI remota. Artefatos no
+working tree para revisão/versionamento, sem commit/push.

@@ -535,6 +535,14 @@ e texto, sem redesign. O Visual Validation Log recebeu evidência P10 própria.
 
 ## 50. RF alignment
 
+**Retificação PR23-FIX-02 (2026-10-05), limitada a RF55/evidência:** o help comercial
+revalidado no P10 não oferecia fórmula/fonte/horário individual sob demanda; esse critério
+RF55 é corrigido e validado na FIX-02, sem herdar a aprovação genérica abaixo.
+A P8.4 permanece contexto histórico com status canônico `TECHNICALLY VERIFIED`, pois seu
+pacote binário não está versionado nem foi recuperado com origem comprovável. A evidência
+P10 no log é própria daquela rodada, não substitui a evidência original P8.4. As demais
+conclusões deste relatório não são modificadas por esta nota.
+
 RF15/I01, RF16/I02, RF18/I04, RF54/I06, RF55/RF56 foram revalidados. RF17/I03 e
 RF36/I05 têm backend testado e presenter standalone ainda pendente; não foram
 promovidos a completos. RF54 conserva a distinção merge/review. I19, I69 e I70 não

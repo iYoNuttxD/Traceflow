@@ -1,5 +1,12 @@
 # S2 P8.4 — Validação integral e recuperação do Dashboard
 
+> **Retificação PR23-FIX-02 — 2026-10-05:** o pacote binário citado em §36 não está
+> versionado, não possui histórico Git nesse caminho e não foi encontrado localmente com
+> origem comprovável. O texto abaixo preserva a declaração feita na época, mas seu PASS
+> visual não constitui aprovação canônica. Status histórico corrigido: **TECHNICALLY VERIFIED**.
+> O Visual Validation Log registra essa ausência; validações posteriores pertencem às suas
+> próprias rodadas e não comprovam retroativamente a P8.4.
+
 **S2 P8.4 FULL DASHBOARD VALIDATION & REGRESSION RECOVERY — PASS LOCAL**
 
 ## Resumo executivo

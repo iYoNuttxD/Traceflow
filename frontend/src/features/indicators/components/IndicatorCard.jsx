@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useId, useState } from 'react';
 import { IndicatorHeader } from './IndicatorHeader.jsx';
 import {
   describeLimitation,
@@ -12,6 +12,37 @@ import {
 } from '../dashboard-display.js';
 import { IndicatorProgress } from './IndicatorProgress.jsx';
 import { describeHealthReason } from '../health-display.js';
+import { indicatorAuditDetails } from '../indicator-audit-display.js';
+
+function IndicatorCalculationDetails({ indicator, metadata }) {
+  const [expanded, setExpanded] = useState(false);
+  const id = useId();
+  const details = indicatorAuditDetails(indicator, metadata);
+  return (
+    <div className="dashboard-help__calculation">
+      <button
+        type="button"
+        aria-expanded={expanded}
+        aria-controls={id}
+        onClick={() => setExpanded((value) => !value)}
+      >
+        Detalhes do cálculo <span aria-hidden="true">{expanded ? '⌄' : '›'}</span>
+      </button>
+      <div id={id} hidden={!expanded}>
+        <strong>Cálculo</strong>
+        <p>{details.formula}</p>
+        <strong>Fonte</strong>
+        <p>
+          {details.sources.length
+            ? details.sources.join(' · ')
+            : (metadata?.source ?? 'Indisponível no momento.')}
+        </p>
+        <strong>{details.clockLabel}</strong>
+        <p>{details.clock}</p>
+      </div>
+    </div>
+  );
+}
 
 const IndicatorChart = lazy(() =>
   import('./IndicatorChart.jsx').then((module) => ({ default: module.IndicatorChart }))
@@ -295,6 +326,7 @@ export function IndicatorCard({
         {assessment?.reasonCode && assessment?.basis && (
           <p>{describeHealthReason(assessment, indicator.metricId)}</p>
         )}
+        <IndicatorCalculationDetails indicator={indicator} metadata={metadata} />
       </IndicatorHeader>
 
       {['NO_DATA', 'UNAVAILABLE'].includes(state) && (
