@@ -1,3 +1,4 @@
+import { closingSprintEstimate } from '../sprint.estimate.calculator.js';
 import { buildClosingTaskSnapshot } from '../sprint-task.projection.js';
 import { isTerminalSprintStatus } from '../sprint.schema.js';
 import { Prisma } from '@prisma/client';
@@ -64,12 +65,12 @@ async function capturePlanning(tx, sprintId, tasks) {
   for (const task of tasks) {
     await tx.sprintTask.updateMany({
       where: { sprintId, taskId: task.id, removedAt: null },
-      data: { plannedAtStart: true, pointsAtPlanning: task.estimatedEffort ?? 0 }
+      data: { plannedAtStart: true, pointsAtPlanning: task.estimatedEffort }
     });
   }
 }
 
-async function freezeParticipations(tx, sprint, closedAt) {
+async function freezeParticipations(tx, sprint, closedAt, continuation) {
   const tasks = await tx.task.findMany({
     where: { sprintId: sprint.id },
     select: {
@@ -130,7 +131,12 @@ async function freezeParticipations(tx, sprint, closedAt) {
         exitStatus: participation.currentStatus,
         pointsAtClose: participation.points,
         completedAtClose: participation.completedAt,
-        closingTaskSnapshot: buildClosingTaskSnapshot(byId.get(participation.taskId))
+        closingTaskSnapshot: buildClosingTaskSnapshot(
+          byId.get(participation.taskId),
+          continuation && participation.currentStatus !== 'CONCLUIDO'
+            ? { toSprintId: continuation.destination.id, at: closedAt.toISOString() }
+            : null
+        )
       }
     });
   }
@@ -174,7 +180,10 @@ async function findBurndownData(client, sprint, includeCompletions = true) {
     return {
       id: p.id,
       taskId: p.taskId,
-      points: frozen || p.closedAt !== null ? p.pointsAtClose : (p.task?.estimatedEffort ?? 0),
+      points:
+        frozen || p.closedAt !== null
+          ? closingSprintEstimate(p)
+          : (p.task?.estimatedEffort ?? null),
       addedAt: p.addedAt,
       removedAt: p.removedAt,
       closedAt: p.closedAt,
@@ -278,6 +287,13 @@ export const sprintRepository = {
     return prisma.sprintTask.findMany({
       where: { sprintId: { in: sprintIds } },
       select: sprintTaskSelect
+    });
+  },
+
+  findBaselineEventsBySprints(sprintIds) {
+    return prisma.sprintBurnupEvent.findMany({
+      where: { sprintId: { in: sprintIds }, type: 'BASELINE_TASK' },
+      select: { sprintId: true, type: true, newPoints: true, occurredAt: true }
     });
   },
 
@@ -391,7 +407,7 @@ export const sprintRepository = {
           data.burnupCoverageStartedAt = data.startedAt;
         }
         if (freezeAt) {
-          await freezeParticipations(tx, atual, freezeAt);
+          await freezeParticipations(tx, atual, freezeAt, continuation);
           data.closedAt = freezeAt;
         }
         const sprint = await tx.sprint.update({ where: { id }, data, select: sprintSelect });
@@ -582,18 +598,23 @@ export const sprintRepository = {
         select: { ...sprintTaskSelect, ...(frozen ? {} : { task: { select: { status: true } } }) },
         orderBy: [{ taskId: 'asc' }]
       }),
-      prisma.sprintTask.findMany({
-        where: { carriedFromSprintId: sprintId },
-        select: { taskId: true, sprintId: true }
-      })
+      ...(frozen
+        ? []
+        : [
+            prisma.sprintTask.findMany({
+              where: { carriedFromSprintId: sprintId },
+              select: { taskId: true, sprintId: true }
+            })
+          ])
     ]);
 
     const movedTo = new Map(
-      continuations.map((continuation) => [continuation.taskId, continuation.sprintId])
+      (continuations ?? []).map((continuation) => [continuation.taskId, continuation.sprintId])
     );
     return participations.map((participation) => ({
       pointsAtPlanning: participation.pointsAtPlanning,
       pointsAtClose: participation.pointsAtClose,
+      closingTaskSnapshot: participation.closingTaskSnapshot,
       taskId: participation.taskId,
       taskTitleSnapshot: participation.taskTitleSnapshot,
       addedAt: participation.addedAt,
@@ -604,7 +625,14 @@ export const sprintRepository = {
       removalReason: participation.removalReason,
       exitStatus: participation.exitStatus,
       currentStatus: frozen || participation.closedAt ? null : (participation.task?.status ?? null),
-      movedToSprintId: movedTo.get(participation.taskId) ?? null
+      carryOverKnown:
+        !frozen ||
+        (participation.closingTaskSnapshot?.version === 4 &&
+          Object.hasOwn(participation.closingTaskSnapshot, 'outgoingCarryOver')),
+      movedToSprintId: frozen
+        ? (participation.closingTaskSnapshot?.outgoingCarryOver?.toSprintId ?? null)
+        : (movedTo.get(participation.taskId) ?? null),
+      carriedAt: frozen ? (participation.closingTaskSnapshot?.outgoingCarryOver?.at ?? null) : null
     }));
   },
 
@@ -683,7 +711,13 @@ export const sprintRepository = {
         },
         orderBy: [{ id: 'asc' }]
       });
-      return { sprint, participations };
+      const events = frozen
+        ? await tx.sprintBurnupEvent.findMany({
+            where: { sprintId, type: 'BASELINE_TASK' },
+            select: { type: true, newPoints: true, occurredAt: true }
+          })
+        : [];
+      return { sprint, participations, events };
     });
   },
 

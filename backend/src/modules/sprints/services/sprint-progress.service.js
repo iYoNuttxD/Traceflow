@@ -23,32 +23,44 @@ export const sprintProgressService = {
       ? buildSprintHistoricalProjection({ sprint, events: historicalEvents, cutoff })
       : null;
 
-    const historicalLimitations = [];
+    const historicalSummary = buildSprintHistoricalSummary(
+      sprint,
+      participations,
+      historicalEvents
+    );
+    const historicalLimitations = [...(historicalSummary?.historicalLimitations ?? [])];
     if (sprint.startedAt && !sprint.planningSnapshotAt) {
       historicalLimitations.push('LEGACY_PLANNING_SNAPSHOT_UNAVAILABLE');
     }
-    const missingClosingPoints =
-      frozen && burndownData.some((p) => p.removedAt === null && p.points === null);
-    if (missingClosingPoints) historicalLimitations.push('LEGACY_CLOSING_POINTS_UNAVAILABLE');
     if (frozen && !sprint.closedAt && !sprint.completedAt) {
       historicalLimitations.push('LEGACY_CLOSING_CUTOFF_UNAVAILABLE');
     }
     if (frozen && participations.some((p) => !p.exitStatus)) {
       historicalLimitations.push('LEGACY_CLOSING_STATUS_UNAVAILABLE');
     }
+    if (frozen && participations.some((p) => p.removedAt === null && !p.carryOverKnown)) {
+      historicalLimitations.push('UNKNOWN_LEGACY_CARRY_OVER');
+    }
     const progress = {
-      historicalSummary: buildSprintHistoricalSummary(sprint, participations),
-      historicalLimitations,
+      historicalSummary,
+      historicalLimitations: [...new Set(historicalLimitations)],
       ...buildSprintProgress({ sprint, participations, cutoff }),
       effort: buildSprintEffort(effortRows),
       burndown: buildSprintBurndown({
         sprint,
-        participations: missingClosingPoints ? [] : burndownData,
+        participations: burndownData,
         cutoff,
         projection: historicalProjection
       })
     };
-    return { sprint, participations, burndownData, progress, historicalProjection };
+    return {
+      sprint,
+      participations,
+      burndownData,
+      progress,
+      historicalProjection,
+      historicalEvents
+    };
   },
 
   async getSprintProgress(sprintId) {

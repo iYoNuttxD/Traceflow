@@ -95,7 +95,11 @@ export function IndicatorChart({ indicator, title }) {
     return (
       <>
         <strong className="indicator-card__value">—</strong>
-        <p className="indicator-card__empty">Sem amostras no período.</p>
+        <p className="indicator-card__empty">
+          {['I45', 'I46'].includes(indicator.metricId) && indicator.state === 'PARTIAL'
+            ? 'Não é possível calcular completamente a série porque parte das tarefas não possui estimativa ou o histórico está incompleto.'
+            : 'Sem amostras no período.'}
+        </p>
       </>
     );
   if ((duration ? usefulPoints.length : points.length) === 1) {
@@ -148,7 +152,11 @@ export function IndicatorChart({ indicator, title }) {
     candidate.value >= 0
       ? candidate
       : null;
-  const max = Math.max(1, ...values, reference?.value ?? 0);
+  const historicalMax =
+    indicator.metricId === 'I45' && valid(indicator.coverage?.chartMax)
+      ? indicator.coverage.chartMax
+      : 0;
+  const max = Math.max(1, ...values, reference?.value ?? 0, historicalMax);
   const x = (index) => LEFT + (index * (RIGHT - LEFT)) / (points.length - 1);
   const y = (value) => BOTTOM - (value / max) * (BOTTOM - TOP);
   const description = `${duration ? `${usefulPoints.length} dias com amostra` : `${points.length} pontos`}. ${series.map((item) => item.label).join(', ')}. Consulte os dados em tabela abaixo.`;

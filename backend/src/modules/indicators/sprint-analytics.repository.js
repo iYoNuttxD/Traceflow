@@ -10,6 +10,7 @@ const sprintSelect = {
   endDate: true,
   startedAt: true,
   planningSnapshotAt: true,
+  burnupCoverageStartedAt: true,
   completedAt: true,
   closedAt: true,
   updatedAt: true
@@ -41,11 +42,18 @@ export const sprintAnalyticsRepository = {
                 plannedAtStart: true,
                 pointsAtPlanning: true,
                 pointsAtClose: true,
+                closingTaskSnapshot: true,
                 exitStatus: true
               }
             })
           : [];
-        return { sprints, closingParticipations };
+        const baselineEvents = completedIds.length
+          ? await tx.sprintBurnupEvent.findMany({
+              where: { projectId, sprintId: { in: completedIds }, type: 'BASELINE_TASK' },
+              select: { sprintId: true, type: true, newPoints: true, occurredAt: true }
+            })
+          : [];
+        return { sprints, closingParticipations, baselineEvents };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead }
     );

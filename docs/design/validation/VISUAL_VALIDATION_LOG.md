@@ -1256,3 +1256,43 @@ Evidências locais: `/private/tmp/traceflow-empty-cards-20261005/`, capturas
 `requirements-one-1440-light.png`, `tasks-one-1440-light.png`, `visual-observations.json`,
 `focused-before.log`, `focused-after.log`, logs dos gates e `console.json`.
 **EMPTY STATE CREATION CARD CONSISTENCY — PASS LOCAL**. Sem commit/push.
+
+
+## 2026-10-05 — PR23-FIX-01: integridade de Sprint Analytics
+
+Baseline `daniel-dev` @ `62690ecc355e6221050b09f400384600a86e1a67`, árvore inicial
+limpa, Node 22.23.3. Sem redesign. Estimativa ausente é desconhecida; subtotal e
+cobertura são explícitos. Linha ideal coberta usa baseline integral inicial e dias
+nominais; escala contém valores históricos. I43 terminal novo lê saída congelada
+no JSON v4, sem depender de memberships vivos.
+
+Chrome autenticado, API real de desenvolvimento (QA 5174/3002), Project 2 artificial,
+nenhuma escrita de domínio no desenvolvimento. Desktop **1440×1000 Light/Dark**:
+
+| Superfície / cenário | Verificação pós-correção |
+| --- | --- |
+| Sprints — summary/cards/evolução da Sprint 15 ativa | Estimativa ausente: `—`, Dados parciais; sem `null pts`, zero fabricado ou “a Sprint ainda não começou” no Burndown |
+| Sprints — evolução da Sprint 17 concluída | 28h no encerramento, baseline ideal 24h, escala 28h, curva/legenda legíveis e congeladas |
+| Indicadores/Sprint — Sprint 15 | I36 37h parcial/I37 39h parcial; I45/I46 desconhecidos com copy parcial, sem falsa ausência de amostras |
+| Indicadores/Sprint — Sprint 17 | Burndown/Burnup de oito buckets, Velocity com três elegíveis e uma exclusão; ideal não cresce para escopo final |
+| Carry-over legado | Desconhecimento explícito, sem inventar destino a partir de dados vivos |
+
+Teclado no Burndown agregado: dia 25/08 com restante 24h e ideal 20,6h; escala 28h.
+Inspeção DOM sem atributos SVG NaN/Infinity e sem overflow horizontal. Console final
+zero warnings/errors. Uma captura escura obtida ainda em loading foi descartada e
+refeita após aguardar o conteúdo. Tema Escuro e viewport original restaurados;
+servidores de QA encerrados, servidores existentes preservados.
+
+Evidências locais: `/private/tmp/traceflow-pr23-fix01-20261005/`,
+`sprint-partial-{light,dark}.jpg`, `sprint-closed-{light,dark}.jpg`,
+`indicators-partial-{light,dark}.jpg`, `indicators-closed-{light,dark}.jpg`,
+`console-final.json` e `runtime-data.json`. Snapshot v4/carry-over após S→D→E→D
+foi comprovado por API/integration no schema isolado, sem reescrever snapshots
+legados do projeto de desenvolvimento.
+
+336 testes focados backend e 54 frontend PASS. Full: **1.574 backend PASS**
+(cinco skips legados pré-LR.2), **1.386 frontend PASS**; coverage, lint, format,
+build, Prisma, architecture, local CI e audits completos PASS. Zero HIGH/CRITICAL.
+[Relatório e limites](../../deliveries/PR23_FIX_01_SPRINT_ANALYTICS_INTEGRITY_REPORT.md).
+**PR23-FIX-01 SPRINT ANALYTICS INTEGRITY — PASS LOCAL**. Sem commit/push.
+Não promove achados de outros clusters da PR23 nem certifica CI remota.

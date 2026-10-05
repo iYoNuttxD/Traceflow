@@ -840,3 +840,15 @@ Escopo de persistência é usuário/projeto; a UI não oferece configuração de
 
 Complementa o P9 sem alterar propriedade, persistência, filtros, Health ou widgets.
 [Relatório P9.1](../deliveries/S2_P9_1_PERSONALIZED_DASHBOARD_VISUAL_POLISH_REPORT.md).
+
+
+## PR23-FIX-01 — integridade de Sprint Analytics (2026-10-05)
+
+| Superfície | Apresentação corrigida | Evidência desta rodada |
+| --- | --- | --- |
+| SPRINT-PROGRESS / BURNDOWN | Estado parcial para estimativa desconhecida; SVG defensivo; linha ideal diária do backend e escala histórica | Sprint 15 parcial e Sprint 17 congelada, API real, desktop Light/Dark; sem NaN/Infinity |
+| SPRINT-CARDS / SUMMARY | Total desconhecido como `—`, progresso incompleto como Dados parciais; sem `null pts` nem zero presumido | Listagem e evolução pós-correção; regressões live/frozen |
+| INDICATORS-SPRINT | I45/I46 com buckets desconhecidos exibem dado parcial; escala I45 vem de `coverage.chartMax`; carry-over legado explicita desconhecimento | Burndown/Burnup de oito dias e Velocity com três elegíveis; teclado no gráfico |
+
+Sem mudanças de grid, CSS, filtros ou Health. Não substitui a homologação de outras
+superfícies. [Relatório PR23-FIX-01](../deliveries/PR23_FIX_01_SPRINT_ANALYTICS_INTEGRITY_REPORT.md).

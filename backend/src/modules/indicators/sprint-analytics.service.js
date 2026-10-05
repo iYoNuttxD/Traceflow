@@ -67,7 +67,12 @@ export const sprintAnalyticsService = {
     const selectedScope = { projectId: id, ...(selected ? { sprintId: selected.id } : {}) };
     const result = (metricId, value, state, extras = {}, scope = selectedScope) =>
       indicatorResult(metricId, id, { value, state, scope, ...extras }, generatedAt);
-    const velocity = buildSprintVelocity(history.sprints, history.closingParticipations, limit);
+    const velocity = buildSprintVelocity(
+      history.sprints,
+      history.closingParticipations,
+      limit,
+      history.baselineEvents
+    );
     const velocityState = velocity.eligibleCount
       ? velocity.excludedCount
         ? 'PARTIAL'
@@ -137,7 +142,13 @@ export const sprintAnalyticsService = {
         ? ['LEGACY_PLANNING_SNAPSHOT_UNAVAILABLE']
         : ['SPRINT_NOT_STARTED'];
     const planningMissingState = sprint.startedAt ? 'UNAVAILABLE' : 'NO_DATA';
-    const terminalLimitations = facts.frozen ? facts.historicalLimitations : [];
+    const terminalLimitations = facts.frozen
+      ? facts.historicalLimitations.filter((code) => code !== 'UNKNOWN_LEGACY_CARRY_OVER')
+      : [];
+    const estimateLimits = (coverage) => [
+      ...(coverage?.unknownEstimateCount ? ['TASK_ESTIMATE_MISSING'] : []),
+      ...(coverage?.legacyUnknown ? ['LEGACY_PLANNING_ESTIMATE_UNKNOWN'] : [])
+    ];
     const scopeState = !sprint.startedAt
       ? 'NO_DATA'
       : facts.planningKnown
@@ -182,20 +193,41 @@ export const sprintAnalyticsService = {
       selectedResult(
         'I36',
         facts.plannedPoints,
-        stateForValue(facts.plannedPoints, planningMissingState, scopeLimitations),
-        { limitations: planningLimitations }
+        stateForValue(facts.plannedPoints, facts.planningKnown ? 'PARTIAL' : planningMissingState, [
+          ...scopeLimitations,
+          ...estimateLimits(facts.estimateCoverage.planned)
+        ]),
+        {
+          limitations: [...planningLimitations, ...estimateLimits(facts.estimateCoverage.planned)],
+          coverage: facts.estimateCoverage.planned
+        }
       ),
       selectedResult(
         'I37',
         facts.currentPoints,
-        stateForValue(facts.currentPoints, 'UNAVAILABLE', terminalLimitations),
-        { limitations: terminalLimitations }
+        stateForValue(facts.currentPoints, 'PARTIAL', [
+          ...terminalLimitations,
+          ...estimateLimits(facts.estimateCoverage.current)
+        ]),
+        {
+          limitations: [...terminalLimitations, ...estimateLimits(facts.estimateCoverage.current)],
+          coverage: facts.estimateCoverage.current
+        }
       ),
       selectedResult(
         'I38',
         facts.deliveredPoints,
-        stateForValue(facts.deliveredPoints, 'UNAVAILABLE', terminalLimitations),
-        { limitations: terminalLimitations }
+        stateForValue(facts.deliveredPoints, 'PARTIAL', [
+          ...terminalLimitations,
+          ...estimateLimits(facts.estimateCoverage.delivered)
+        ]),
+        {
+          limitations: [
+            ...terminalLimitations,
+            ...estimateLimits(facts.estimateCoverage.delivered)
+          ],
+          coverage: facts.estimateCoverage.delivered
+        }
       ),
       selectedResult(
         'I39',
@@ -221,12 +253,19 @@ export const sprintAnalyticsService = {
       }),
       selectedResult(
         'I43',
-        { incoming: facts.incoming.length, outgoing: facts.outgoing.length },
-        'AVAILABLE',
+        {
+          incoming: facts.incoming.length,
+          outgoing: facts.carryOverKnown ? facts.outgoing.length : null
+        },
+        facts.carryOverKnown ? 'AVAILABLE' : 'PARTIAL',
         {
           kind: 'LIST',
           items: [...incomingItems, ...outgoingItems],
-          limitations: ['CARRY_OVER_REENTRY_HISTORY_MAY_BE_COLLAPSED']
+          limitations: facts.carryOverKnown
+            ? facts.frozen
+              ? []
+              : ['CARRY_OVER_REENTRY_HISTORY_MAY_BE_COLLAPSED']
+            : ['UNKNOWN_LEGACY_CARRY_OVER']
         }
       ),
       selectedResult(
@@ -259,9 +298,11 @@ export const sprintAnalyticsService = {
       ),
       selectedResult('I45', null, burndownState, {
         kind: 'SERIES',
-        points: hasRealBurndown ? facts.burndown.days : [],
+        points: sprint.startedAt ? facts.burndown.days : [],
         coverage: {
-          totalPoints: hasRealBurndown ? facts.burndown.totalPoints : null,
+          totalPoints: facts.burndown.totalPoints,
+          chartMax: facts.burndown.chartMax,
+          idealBaseline: facts.burndown.idealBaseline,
           frozen: facts.burndown.frozen,
           cutoffDate: facts.burndown.cutoffDate,
           truncated: burndownTruncated

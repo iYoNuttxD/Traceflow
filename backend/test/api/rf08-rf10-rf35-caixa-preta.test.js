@@ -693,7 +693,7 @@ describe('CP — PE/VL/TE: evolucao por sprint (RF35)', () => {
       expect(medido.burndown).toMatchObject({
         hasData: true,
         totalPoints: 8,
-        days: [{ date: '2026-10-15', ideal: 8, remaining: 8 }]
+        days: [{ date: '2026-10-15', ideal: 0, remaining: 8 }]
       });
 
       const semPontos = await criarSprint(ator, projeto.id, marco.id, {

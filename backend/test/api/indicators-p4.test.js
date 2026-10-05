@@ -91,6 +91,16 @@ function indicators(response) {
 }
 
 describe('Flow + Task analytics P4 — API', () => {
+  it('I31 distingue tarefas sem estimativa de uma coleção sem tarefas', async () => {
+    const owner = await actor();
+    const p = await project(owner);
+    expect(indicators(await get(p.id, owner)).I31).toMatchObject({ state: 'NO_DATA', value: null });
+    await task(p.id, { estimatedEffort: null });
+    const estimate = indicators(await get(p.id, owner)).I31;
+    expect(estimate).toMatchObject({ state: 'PARTIAL', value: null });
+    expect(estimate.limitations).toContain('TASK_ESTIMATE_MISSING');
+  });
+
   it('expõe os 16 indicadores, primeira conclusão, throughput vigente, aging e flow parcial', async () => {
     const owner = await actor();
     const p = await project(owner);

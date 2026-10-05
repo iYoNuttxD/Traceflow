@@ -20,6 +20,58 @@ function progress(overrides = {}) {
 }
 
 describe('Sprint analytics facts', () => {
+  it('publishes only the known subtotal with estimate coverage and excludes incomplete velocity', () => {
+    const sprint = {
+      id: 1,
+      status: 'EM_ANDAMENTO',
+      startedAt: at(1),
+      planningSnapshotAt: at(1),
+      burnupCoverageStartedAt: at(1)
+    };
+    const rows = [8, 4, null].map((points, index) => ({
+      taskId: index + 1,
+      plannedAtStart: true,
+      pointsAtPlanning: points,
+      removedAt: null
+    }));
+    const facts = buildSprintAnalyticsFacts({
+      sprint,
+      participations: rows,
+      historicalEvents: rows.map((row) => ({
+        type: 'BASELINE_TASK',
+        newPoints: row.pointsAtPlanning
+      })),
+      burndownData: rows.map((row) => ({
+        ...row,
+        points: row.pointsAtPlanning,
+        currentStatus: 'CONCLUIDO'
+      })),
+      progress: progress()
+    });
+    expect(facts).toMatchObject({
+      plannedPoints: 12,
+      currentPoints: 12,
+      deliveredPoints: 12,
+      estimateCoverage: {
+        planned: { unknownEstimateCount: 1 },
+        current: { unknownEstimateCount: 1 },
+        delivered: { unknownEstimateCount: 1 }
+      }
+    });
+    expect(
+      buildSprintVelocity(
+        [{ ...sprint, name: 'Incompleta', status: 'CONCLUIDA', closedAt: at(5) }],
+        rows.map((row) => ({
+          ...row,
+          sprintId: 1,
+          pointsAtClose: row.pointsAtPlanning,
+          exitStatus: 'CONCLUIDO',
+          closingTaskSnapshot: { version: 4, estimatedEffort: row.pointsAtPlanning }
+        })),
+        20
+      )
+    ).toMatchObject({ points: [], eligibleCount: 0, excludedCount: 1 });
+  });
   it('keeps the initial baseline separate from current scope and delivered points', () => {
     const sprint = { status: 'EM_ANDAMENTO', startedAt: at(1), planningSnapshotAt: at(1) };
     const participations = [

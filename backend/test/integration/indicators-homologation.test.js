@@ -108,7 +108,8 @@ it('creates canonical varied history, freezes normally, and reruns without any w
   );
   expect(metric.I45.points.length).toBeGreaterThanOrEqual(7);
   expect(metric.I46.points.length).toBeGreaterThanOrEqual(7);
-  expect(metric.I47.points.length).toBe(3);
+  expect(metric.I47).toMatchObject({ state: 'PARTIAL', eligibleCount: 2, excludedCount: 1 });
+  expect(metric.I47.points).toHaveLength(2);
   const flow = await dashboardService.read(project.id, {
     view: 'FLOW',
     startDate: '2026-09-15',

@@ -361,6 +361,32 @@ Project → Sprint → Tasks, preserva SprintTask/snapshots e devolve ponteiros 
 com histórico SPRINT e ator. Não conclui, cancela, reabre ou transfere automaticamente.
 Consultas atuais excluem tombstones; leituras históricas são explícitas.
 
+### D-B — Estimativa ausente = desconhecida (PR23-FIX-01)
+
+`estimatedEffort=null` significa dado não informado; `0` significa valor explicitamente
+conhecido, quando permitido pelo domínio. Ausência nunca se transforma semanticamente em
+zero hora. Agregados publicam o subtotal conhecido acompanhado de cobertura e `PARTIAL`;
+quando há Tasks mas nenhuma estimativa conhecida, o valor é `null`. Coleção vazia é distinta.
+
+O baseline planejado usa os eventos `BASELINE_TASK` capturados no start quando a cobertura
+começa em `startedAt`; estes preservam `null` versus zero. Sem esse diário, valores positivos
+de `pointsAtPlanning` continuam conhecidos, mas zero legado é ambíguo e recebe limitação.
+No fechamento, snapshots v3+ têm estimativa nullable explícita; snapshots anteriores com
+zero não provam que o trabalho foi estimado como zero. Não há backfill por suposição.
+
+I45/I46 mantêm a projeção compartilhada. A linha ideal de I45 usa o escopo do baseline
+integral capturado, distribuído na janela nominal, terminando em zero no último dia nominal.
+Mudanças de escopo não recalculam esse baseline. Cobertura tardia não prova o escopo inicial:
+a linha ideal fica ausente, com limitação explícita. A escala inclui o maior escopo,
+remanescente ou valor ideal publicado; `hasData` exige escala positiva e curva finita.
+
+O snapshot existente `closingTaskSnapshot` passa a v4, acrescentando
+`outgoingCarryOver: {toSprintId,at} | null`. O fato é capturado antes da transferência, na
+mesma transação de fechamento. I43 terminal lê esse fato, inclusive após exclusão da Task;
+não consulta memberships vivos do destino. Sem v4, destino/quantidade de saída são
+historicamente desconhecidos (`UNKNOWN_LEGACY_CARRY_OVER`), sem backfill inferido.
+Não há novo schema, tabela ou migration. O trabalho continua, mas o passado não é reescrito.
+
 ## Consequências
 
 ### Positivas

@@ -218,7 +218,9 @@ export const flowTaskService = {
           ? current.withEstimate < current.total
             ? 'PARTIAL'
             : 'AVAILABLE'
-          : 'NO_DATA',
+          : current.total
+            ? 'PARTIAL'
+            : 'NO_DATA',
         {
           coverage: estimateCoverage,
           limitations: current.withEstimate < current.total ? ['TASK_ESTIMATE_MISSING'] : []

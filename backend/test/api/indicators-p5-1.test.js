@@ -96,6 +96,110 @@ function expectComparable({ burndown, burnup }) {
 }
 
 describe('Sprint Burnup P5.1 — persisted API', () => {
+  it('keeps missing estimates unknown through start, aggregate and terminal snapshots', async () => {
+    const s = await setup();
+    const sprint = await s.createSprint();
+    const first = await s.createTask('Conhecida', 4);
+    const missing = await s.createTask('Desconhecida', null);
+    for (const task of [first, missing])
+      await s.mutate('patch', `/api/tasks/${task.id}/sprint`).send({ sprintId: sprint.id });
+    expect(
+      (await s.mutate('patch', `/api/sprints/${sprint.id}/status`).send({ status: 'EM_ANDAMENTO' }))
+        .status
+    ).toBe(200);
+    const read = async () => {
+      const response = await s.agent.get(
+        `/api/projects/${s.projectId}/indicators/sprints?sprintId=${sprint.id}`
+      );
+      expect(response.status).toBe(200);
+      return Object.fromEntries(response.body.indicators.map((item) => [item.metricId, item]));
+    };
+    const active = await read();
+    for (const id of ['I36', 'I37'])
+      expect(active[id]).toMatchObject({
+        value: 4,
+        state: 'PARTIAL',
+        coverage: { unknownEstimateCount: 1 }
+      });
+    expect(active.I44).toMatchObject({ state: 'PARTIAL', components: { incomplete: true } });
+    expect(active.I45).toMatchObject({
+      state: 'PARTIAL',
+      coverage: { totalPoints: null, chartMax: 0 }
+    });
+    expect(active.I45.limitations).not.toContain('SPRINT_NOT_STARTED');
+    const progress = await s.agent.get(`/api/sprints/${sprint.id}/progress`);
+    expect(progress.status).toBe(200);
+    expect(progress.body.burndown).toMatchObject({
+      hasData: false,
+      totalPoints: null,
+      chartMax: 0
+    });
+    expect(JSON.stringify(progress.body)).not.toMatch(/NaN|Infinity/);
+    const planning = await prisma.sprintTask.findFirst({
+      where: { sprintId: sprint.id, taskId: missing.id }
+    });
+    expect(planning.pointsAtPlanning).toBeNull();
+    expect(
+      (await s.mutate('patch', `/api/sprints/${sprint.id}/status`).send({ status: 'CONCLUIDA' }))
+        .status
+    ).toBe(200);
+    const closed = await read();
+    expect(closed.I37).toMatchObject({ value: 4, state: 'PARTIAL' });
+    expect(closed.I47).toMatchObject({ points: [], excludedCount: 1 });
+    const frozen = await prisma.sprintTask.findFirst({
+      where: { sprintId: sprint.id, taskId: missing.id }
+    });
+    expect(frozen).toMatchObject({
+      pointsAtClose: null,
+      closingTaskSnapshot: { version: 4, estimatedEffort: null, outgoingCarryOver: null }
+    });
+    await s.mutate('put', `/api/tasks/${missing.id}`).send({ estimatedEffort: 8 });
+    expect((await read()).I37.value).toBe(4);
+  });
+
+  it.each(['add', 'remove'])(
+    'preserves initial ideal and historical scale after scope %s',
+    async (mode) => {
+      const s = await setup();
+      const sprint = await s.createSprint();
+      const first = await s.createTask('Primeira 20h', 20);
+      const second = await s.createTask('Segunda 20h', 20);
+      await s.mutate('patch', `/api/tasks/${first.id}/sprint`).send({ sprintId: sprint.id });
+      if (mode === 'remove')
+        await s.mutate('patch', `/api/tasks/${second.id}/sprint`).send({ sprintId: sprint.id });
+      await s.mutate('patch', `/api/sprints/${sprint.id}/status`).send({ status: 'EM_ANDAMENTO' });
+      if (mode === 'add')
+        await s.mutate('patch', `/api/tasks/${second.id}/sprint`).send({ sprintId: sprint.id });
+      else await s.mutate('delete', `/api/tasks/${second.id}/sprint`);
+      // Controlled dates in the isolated test DB; values and event types come from the real domain.
+      const baselineAt = new Date(`${day(-1)}T00:00:00Z`);
+      await prisma.sprint.update({
+        where: { id: sprint.id },
+        data: {
+          startedAt: baselineAt,
+          planningSnapshotAt: baselineAt,
+          burnupCoverageStartedAt: baselineAt
+        }
+      });
+      await prisma.sprintBurnupEvent.updateMany({
+        where: { sprintId: sprint.id, type: 'BASELINE_TASK' },
+        data: { occurredAt: baselineAt }
+      });
+      const result = await s.series(sprint.id);
+      expectComparable(result);
+      expect(result.burndown.coverage).toMatchObject({
+        totalPoints: mode === 'add' ? 20 : 40,
+        chartMax: 40
+      });
+      expect(result.burndown.points[0]).toMatchObject({
+        ideal: mode === 'add' ? 20 : 40,
+        remaining: mode === 'add' ? 20 : 40
+      });
+      expect(result.burndown.points[1].remaining).toBe(mode === 'add' ? 40 : 20);
+      expect(result.burndown.points.at(-1).ideal).toBe(0);
+    }
+  );
+
   it('captures baseline, estimate, completion, reopening and scope reentry atomically', async () => {
     const s = await setup();
     const sprint = await s.createSprint();

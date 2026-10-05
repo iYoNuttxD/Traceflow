@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
     findById: vi.fn(),
     findByProject: vi.fn(),
     findHistoryBySprints: vi.fn(),
+    findBaselineEventsBySprints: vi.fn(),
     createWithinProjectLock: vi.fn(),
     updateWithinProjectLock: vi.fn(),
     transitionWithinSprintLock: vi.fn(),
@@ -70,6 +71,7 @@ let capturedPlan = null;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.sprint.findBaselineEventsBySprints.mockResolvedValue([]);
   lockedSprints = [];
   lockedStatusSprint = null;
   lockedTasks = [];

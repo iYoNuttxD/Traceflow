@@ -1,4 +1,5 @@
 const DAY = 86400000;
+import { summarizeSprintEstimates } from './sprint.estimate.calculator.js';
 const MAX_DAYS = 180;
 const TERMINAL = new Set(['CONCLUIDA', 'CANCELADA']);
 
@@ -41,6 +42,16 @@ export function buildSprintHistoricalProjection({ sprint, events = [], cutoff = 
   const dayCount = Math.min(MAX_DAYS, Math.max(1, Math.ceil((nominalEnd - firstDay) / DAY)));
   const truncated = nominalEnd > firstDay + dayCount * DAY;
   const complete = instant(coverageStartedAt) <= instant(sprint.startedAt);
+  const baseline = complete
+    ? summarizeSprintEstimates(
+        events
+          .filter(
+            (event) =>
+              event.type === 'BASELINE_TASK' && instant(event.occurredAt) <= instant(cutoff)
+          )
+          .map((event) => event.newPoints)
+      )
+    : null;
   const closedAt = instant(sprint.closedAt ?? sprint.completedAt);
   const measuredUntil = TERMINAL.has(sprint.status) ? closedAt : instant(cutoff);
   if (measuredUntil == null) return empty('UNAVAILABLE', ['BURNUP_CUTOFF_UNKNOWN']);
@@ -129,6 +140,10 @@ export function buildSprintHistoricalProjection({ sprint, events = [], cutoff = 
           ? 'PARTIAL'
           : 'AVAILABLE',
     points: inconsistent || !hadUniverse ? [] : points,
+    baseline:
+      baseline && !inconsistent
+        ? { ...baseline, scope: baseline.unknownEstimateCount ? null : baseline.value }
+        : null,
     coverage: {
       startedAt: coverageStartedAt.toISOString(),
       complete,

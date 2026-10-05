@@ -1053,8 +1053,9 @@ describe('evolucao da sprint (RF35)', () => {
     expect(depois.planned).toEqual(antes.planned);
     expect(depois.current).toEqual(antes.current);
     expect(depois.cutoff).toBe(antes.cutoff);
+    expect(depois.carryOver).toEqual(antes.carryOver);
     expect(depois.carryOver).toEqual([
-      { taskId: arrastada.id, toSprintId: s2, exitStatus: 'A_FAZER', at: null }
+      { taskId: arrastada.id, toSprintId: s2, exitStatus: 'A_FAZER', at: antes.cutoff }
     ]);
 
     const seguinte = (await owner.agent.get(`/api/sprints/${s2}/progress`)).body;

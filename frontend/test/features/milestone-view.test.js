@@ -113,12 +113,35 @@ describe('progresso e periodo coberto', () => {
     expect(milestoneCoveredPeriod(9, [])).toBeNull();
   });
 
+  it('não transforma estimativa ausente em um total completo de pontos', () => {
+    const result = summarizeMilestoneSprints(5, [sprint(1, 5, 'PLANEJADA')], {
+      1: { tasks: [{ estimatedEffort: 3 }, { estimatedEffort: null }] }
+    });
+    expect(result.points).toBeNull();
+  });
+
+  it('não apresenta subtotal congelado parcial como esforço total completo do marco', () => {
+    const result = summarizeMilestoneSprints(5, [
+      sprint(1, 5, 'CONCLUIDA', {
+        historicalSummary: {
+          totalTasks: 2,
+          completedTasks: 1,
+          totalPoints: 4,
+          completedPoints: 4,
+          percentage: null,
+          estimateCoverage: { current: { unknownEstimateCount: 1 } }
+        }
+      })
+    ]);
+    expect(result.points).toBeNull();
+  });
+
   it('soma somente pontos ja presentes no DTO do cronograma', () => {
     const result = summarizeMilestoneSprints(
       5,
       [sprint(1, 5, 'PLANEJADA', { tasks: [{ estimatedEffort: 999 }], points: 888 }), sprint(2, 6)],
       {
-        1: { tasks: [{ estimatedEffort: 3 }, { estimatedEffort: 5 }, { title: 'Sem estimativa' }] },
+        1: { tasks: [{ estimatedEffort: 3 }, { estimatedEffort: 5 }] },
         2: { tasks: [{ estimatedEffort: 777 }] }
       }
     );

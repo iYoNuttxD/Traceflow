@@ -651,12 +651,17 @@ estimatedEffort,responsibleUserId,sprintId`) e `isFrozen=false`.
   `{id,number,title,state,labels,githubUrl}`. Arrays vazios indicam ausência de vínculos.
   Datas históricas são ISO UTC. O nome de exibição não inclui e-mail ou dados de perfil.
   URLs capturadas permitem ações externas; nenhum artefato atual é consultado para renderizar.
-- Snapshot v3 (novos encerramentos): acrescenta `estimatedEffort` ao próprio snapshot. `pointsAtClose`
-  representa ausência de estimativa e estimativa zero com o mesmo `0`, então o card congelado passa a
+- Snapshot v3: acrescenta `estimatedEffort` ao próprio snapshot. `pointsAtClose` legado
+  podia representar ausência e zero com o mesmo `0`, então o card congelado passa a
   ler a estimativa do snapshot, preservando `null`. Sem isso, tarefa encerrada sem planejamento
   aparecia como limite de zero hora e o detalhe acusava estouro de um teto nunca definido.
   Em v1/v2 a estimativa continua vindo de `pointsAtClose`, com `0` publicado como `null` e a
   limitação `LEGACY_CLOSING_TASK_ESTIMATE_UNAVAILABLE` declarada na sprint.
+- Snapshot v4 (novos encerramentos, PR23-FIX-01): preserva estimativa nullable e acrescenta
+  `outgoingCarryOver:{toSprintId,at}|null`. `pointsAtClose` novo também preserva `null`.
+  O fato de saída é persistido na mesma transação de fechamento, sem depender de memberships
+  vivos do destino. Snapshot anterior não prova quantidade/destino de saída: I43 publica
+  `outgoing:null`, `PARTIAL` e `UNKNOWN_LEGACY_CARRY_OVER`. Não há backfill inferido.
 - V1 permanece parcial: `snapshotVersion=1`, sem os novos campos, e limitação
   `LEGACY_CLOSING_TASK_DETAILS_PARTIAL`. JSON ausente usa `snapshotVersion=null`.
   Comments não integram nenhuma versão. O snapshot é capturado atomicamente antes do carry-over;
@@ -759,6 +764,14 @@ participações não removidas; encerrado usa `SprintTask.pointsAtClose`. Nesse 
 ou com janela de menos de dois dias, `hasData` é `false` e `days` vem vazio. Para Sprint coberta,
 `remaining` vem da projeção histórica de eventos, inclusive nos dias anteriores a uma remoção;
 estimativa ausente deixa o bucket `null`. A série inicia na âncora se a cobertura for parcial.
+No diário, `totalPoints`/`idealBaseline` são o escopo do baseline integral capturado, não o
+último escopo. A linha ideal segue os dias nominais (`startDate` até `endDate` exclusivo),
+mesmo com início real tardio. Sem escopo inicial conhecido, `ideal=null` e
+`BURNDOWN_BASELINE_UNAVAILABLE`; não se reinicia a referência no começo da cobertura.
+`chartMax` abrange o maior escopo, remanescente e ideal finitos do histórico exibido.
+`hasData=true` exige `chartMax>0` e ao menos uma curva numericamente válida. Sem estimativa
+no caminho legado, `totalPoints=null`, `hasData=false` e estado parcial. A UI nunca divide
+por zero; Sprint iniciada com dados desconhecidos não é apresentada como não iniciada.
 A série tem teto de **180 dias**: uma janela maior é truncada em silêncio no 180º ponto — teto de
 segurança para payload e tela, não uma regra de domínio (limite documentado pela bateria RF10/RF35
 de 25/08/2026, que congelou o comportamento em teste; ASVS 2.1.3).
@@ -831,8 +844,13 @@ cortes persistidos, incluindo participações cuja Task foi excluída:
 `percentage` preserva a fórmula visual de progresso por pontos: arredondamento inteiro de
 `completedPoints / totalPoints * 100`; sem pontos é `null`. Os blocos `planned`/`current`
 do RF35 continuam contando Tasks e arredondando a duas casas; são métricas distintas.
-`plannedPoints` usa `pointsAtPlanning`; `totalPoints`/`completedPoints` usam `pointsAtClose`
-e `exitStatus`. A listagem lê participações em lote, sem uma consulta `/progress` por Sprint.
+`plannedPoints` usa o baseline durável `BASELINE_TASK` quando integral, ou pontos positivos
+de `pointsAtPlanning` no legado limitado; `totalPoints`/`completedPoints` usam a estimativa
+nullable do snapshot v3+ (pontos positivos legados) e `exitStatus`. `estimateCoverage` publica
+`planned/current/delivered`, cada qual com `{value,tasks,knownEstimateCount,unknownEstimateCount}`;
+`planned` inclui `legacyUnknown`. O valor é subtotal conhecido; todo universo não vazio sem
+estimativas conhecidas fica `null`. Porcentagem com cobertura incompleta fica `null`.
+A listagem lê participações e eventos de baseline em lote, sem `/progress` por Sprint.
 
 Campo histórico desconhecido é `null`, acompanhado pelos códigos de `historicalLimitations`
 já documentados. Nenhum campo usa Task atual como fallback. A UI mostra `—` e a limitação;
@@ -1369,6 +1387,9 @@ conhecidas; I32 soma somente o derivado canônico `Task.actualEffort` de S1-06, 
 sessões outra vez. I33 soma `actualEffort-estimatedEffort` apenas nas Tasks comparáveis. I34
 conta/lista até dez Tasks acima da estimativa; I35 conta/lista até dez **concluídas** abaixo da
 estimativa. I31–I35 expõem `coverage` e estado `PARTIAL`/`NO_DATA` conforme ausências de dados.
+Em I31, Tasks existentes sem qualquer estimativa produzem `PARTIAL`, `value:null` e
+`TASK_ESTIMATE_MISSING`; `NO_DATA` é reservado à coleção vazia. Subtotal conhecido nunca
+finge que as estimativas desconhecidas representam zero.
 Listas de esforço usam `taskId`, título, status, esforço conhecido, diferença e responsável ativo
 mínimo; não são avaliação individual.
 
@@ -1399,18 +1420,27 @@ I36/I39 usam `plannedAtStart` e `pointsAtPlanning` do baseline congelado; Sprint
 iniciada retorna `NO_DATA`, e baseline legado ausente retorna `UNAVAILABLE`. I37/I38/I40 usam
 participações e status vivos enquanto a Sprint está aberta; terminal usam exclusivamente
 `historicalSummary`/`pointsAtClose`/`exitStatus`. Os valores de pontos são **horas de estimativa**,
-não story points. I41/I42 e I71 adaptam `scopeChange.added/removed` do domínio de Sprint:
+não story points. I36–I38 expõem cobertura de estimativas e subtotal conhecido, com
+`PARTIAL`/`TASK_ESTIMATE_MISSING` quando incompleto. Zero legado sem prova é desconhecido
+(`LEGACY_PLANNING_ESTIMATE_UNKNOWN`); não é reinterpretado como zero explícito.
+I41/I42 e I71 adaptam `scopeChange.added/removed` do domínio de Sprint:
 contam inclusão corrente pós-início e remoção corrente do baseline; reentrada pode colapsar
 eventos intermediários (`SCOPE_REENTRY_EVENTS_COLLAPSED`). I43 expõe
 `value:{incoming,outgoing}` e itens de entrada com `fromSprintId` e de saída com `toSprintId`.
+Na terminal, saída e instante vêm de `closingTaskSnapshot` v4, inclusive o ID capturado
+após exclusão da Task. Movimentos S→D→E→D não alteram I43(S). Legado sem v4 tem
+`outgoing:null`, `PARTIAL` e `UNKNOWN_LEGACY_CARRY_OVER`; nenhum destino vivo serve de fallback.
 I72 conta apenas carry-over no escopo corrente de Sprint não terminal; na terminal é `NO_DATA`.
 
 I44 adapta `progress.effort` de S1-06 com `value:{estimatedHours,actualHours,differenceHours}`,
 `coverage` e `components:{status,incomplete,differencePercent,usagePercent}`. Snapshot terminal
-incompleto mantém `PARTIAL` e suas limitações; não há nova soma de sessões. I45 adapta os `days`
+incompleto mantém `PARTIAL` e suas limitações; isso inclui estimativa ausente tanto viva
+como congelada. Comparações que exigem total completo ficam nulas; não há nova soma de sessões. I45 adapta os `days`
 do owner canônico de Burndown, com pontos `{date,ideal,remaining}` e eixo **UTC** do
 domínio de Sprint, limitado por ele a 180 dias; no contrato P5, corte pelo teto expõe
 `PARTIAL`/`BURNDOWN_MAX_180_DAYS` e `coverage.truncated`. Sprint planejada não publica série real.
+I45 `coverage` inclui `totalPoints`, `idealBaseline` e `chartMax`; os dois primeiros podem
+ser nulos. Buckets desconhecidos permanecem na resposta mesmo quando `hasData=false`.
 
 Desde P5.1, I46 tem `definitionVersion:2`, `kind:SERIES`, `value:null` e pontos
 `{date,scope,completed}` em horas, agrupados pelo dia **UTC**. `scope` soma as estimativas das
@@ -1437,10 +1467,14 @@ estimativa e entradas/saídas de escopo respeitam o estado ao fim do dia UTC. I4
 `{date,ideal,remaining}`, `coverage` e `limitations`; sua série começa na âncora quando a
 cobertura é parcial e propaga as limitações do diário. Sprints sem cobertura continuam com
 Burndown legado; I46 permanece `UNAVAILABLE`, sem comparação histórica artificial. A linha
-ideal de I45 continua independente do valor real remanescente.
+ideal de I45 conserva o baseline inicial integral, distribuído nos dias nominais. A escala
+usa todo o histórico; cobertura tardia/baseline desconhecido não recebe linha ideal inventada.
 
 I47 usa somente Sprints `CONCLUIDA` com snapshot terminal íntegro; exclui `CANCELADA`, atual e
-legado incompleto. Seus pontos `{sprintId,sprintName,closedAt,completedPoints}` vêm de
+legado incompleto ou qualquer cobertura planejada/terminal de estimativas incompleta.
+Não usa entrega desconhecida como zero; quantidade conhecida de Tasks não torna esforço conhecido.
+Sem Sprints concluídas é `NO_DATA`; somente excluídas é `UNAVAILABLE`; elegíveis junto a
+excluídas é `PARTIAL`. Seus pontos `{sprintId,sprintName,closedAt,completedPoints}` vêm de
 `buildSprintHistoricalSummary`, ordenados cronologicamente. A resposta informa
 `eligibleCount`, `excludedCount`, `coverage:{completedSprints,returnedSprints,truncatedCount,limit}`
 e `VELOCITY_LIMIT_APPLIED` quando mostra apenas as últimas N Sprints. Não há ranking de pessoas,

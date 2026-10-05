@@ -13,15 +13,15 @@ inclusive quando a Task é excluída. O histórico de entradas/saídas continua 
 
 | Campo | Significado e momento de captura |
 | --- | --- |
-| `Sprint.startedAt` | início da execução e baseline temporal do burndown; datas nominais anteriores não entram na série real |
+| `Sprint.startedAt` | início da execução/captura; datas nominais anteriores não entram na série real; a referência ideal usa a janela nominal |
 | `Sprint.planningSnapshotAt` | captura bem-sucedida do planejamento; igual a `startedAt` para novos starts |
 | `Sprint.closedAt` | corte terminal persistido, inclusive cancelamento e escopo vazio |
 | `SprintTask.plannedAtStart` | membership no start: `true` presente, `false` ausente, `null` sem snapshot confiável |
-| `SprintTask.pointsAtPlanning` | esforço no start da Task presente; zero quando sem estimativa; `null` se não planejada ou desconhecido |
-| `SprintTask.pointsAtClose` | esforço da participação ativa no encerramento; zero quando sem estimativa; `null` indica ausência de snapshot |
+| `SprintTask.pointsAtPlanning` | estimativa no start da Task presente; `null` quando ausente/não planejada; zero legado é ambíguo sem evento de baseline |
+| `SprintTask.pointsAtClose` | estimativa nullable da participação ativa no encerramento; v3+ distingue ausência de zero via snapshot; zero anterior é ambíguo |
 | `SprintTask.completedAtClose` | primeira conclusão dentro do intervalo da participação, capturada no encerramento; `null` quando não houve evento |
 | `SprintTask.exitStatus`, `closedAt` | status observado e instante de congelamento da participação, já existentes |
-| `SprintTask.closingTaskSnapshot` | JSON nullable v1 do card no encerramento: ID, título, prioridade, responsável ID, deadline e contagens de rastreabilidade; sem descrição, nome, e-mail ou conteúdo de artefato |
+| `SprintTask.closingTaskSnapshot` | JSON versionado do encerramento; v3 preserva estimativa nullable; v4 congela também `outgoingCarryOver`; detalhes v2+ descritos abaixo |
 | `Sprint.deletedAt/deletedById`, `Milestone.deletedAt/deletedById` | tombstone e ator da exclusão lógica; não são evento de conclusão |
 | `SprintTask.addedAt` | entrada do intervalo atual; reentrada atualiza este instante |
 | `SprintTask.addedAfterStart` | projeção compatível da classificação; não é autoridade do baseline |
@@ -40,8 +40,8 @@ snapshot. Não há lógica de snapshot no controller.
 Enquanto aberta, a Sprint mantém métricas operacionais calculadas com esforço/status corrente.
 O planejamento permanece separado. Depois do encerramento, a evolução não consulta esforço ou
 status da Task nem seu histórico de conclusão; usa os campos persistidos da participação.
-Exclusão posterior da Task não apaga a série nem os pontos. A informação de continuidade para
-outra Sprint pode continuar aparecendo em `carryOver`, sem mudar os números congelados.
+Exclusão posterior da Task não apaga a série nem os pontos. A continuidade de saída em `carryOver` também é congelada no snapshot v4; movimentos
+posteriores entre destinos não alteram quantidade, destino, ID capturado ou instante da origem.
 
 ## Continuidade operacional e apresentação terminal — FIX-02
 
@@ -97,9 +97,9 @@ antigas reutilizavam o primeiro `addedAt` e apagavam `removedAt`.
 - Sem snapshot de baseline, a compatibilidade usa a participação antiga e a saída conhecida
   (remoção anterior ao start não conta), acompanhadas de
   `LEGACY_PLANNING_SNAPSHOT_UNAVAILABLE`. É aproximação explicitamente limitada.
-- Sem pontos de encerramento, o burndown terminal retorna `hasData=false`, `days=[]` e
-  `LEGACY_CLOSING_POINTS_UNAVAILABLE`; `totalPoints=0` é o valor neutro do bloco sem dados,
-  não prova de esforço histórico zero. Não utiliza esforço atual como fallback.
+- Sem estimativas de encerramento conhecidas, o Burndown legado retorna `hasData=false`,
+  `days=[]`, `totalPoints=null` e limitação de estimativa/legado. Não utiliza esforço atual
+  como fallback. A série coberta preserva buckets desconhecidos como `null`.
 - Status terminal ausente não usa status atual; é sinalizado por
   `LEGACY_CLOSING_STATUS_UNAVAILABLE`. Contagens que dependem desses dados não constituem
   reconstrução histórica completa.
@@ -280,4 +280,40 @@ Carry-over é contexto da participação, não uma fórmula de pontos diferente.
 O corte terminal ignora eventos posteriores e a exclusão física da Task não remove o diário.
 Cobertura iniciada no meio da Sprint só publica pontos a partir da âncora (`PARTIAL`); Sprints
 anteriores sem diário mantêm o Burndown legado e Burnup `UNAVAILABLE`. A linha ideal de I45
-continua uma referência separada, com os pontos disponíveis no recorte coberto.
+usa somente o escopo do baseline integral capturado; cobertura tardia não fornece essa referência.
+
+
+## Integridade de estimativas, linha ideal e carry-over — PR23-FIX-01
+
+Decisão canônica [D-B do ADR-010](../architecture/ADR-010-SPRINT-DOMAIN-CORRECTIONS.md#d-b--estimativa-ausente--desconhecida-pr23-fix-01):
+`null ≠ 0`. Para estimativas `8h + 4h + null`, o subtotal conhecido é `12h`, com uma
+estimativa desconhecida e estado `PARTIAL`. Nenhuma estimativa conhecida em universo não
+vazio resulta em `null`, não em zero. I31/I36–I38/I44 seguem essa semântica; porcentagens de
+esforço que exigem total completo ficam indisponíveis. I47 exclui amostras terminais com
+estimativas incompletas, sem transformar entrega desconhecida em velocity zero.
+
+`BASELINE_TASK.newPoints` conserva o valor original nullable. Baseline integral exige
+`burnupCoverageStartedAt=startedAt`; o subtotal planejado nas leituras terminal/listagem/
+cronograma/velocity usa esses eventos em lote. Sem prova integral, zero legado não é
+interpretado como zero explícito. Snapshots v3+ conservam `estimatedEffort=null`; novos
+`pointsAtPlanning` e `pointsAtClose` também preservam `null`. Não há backfill neste fix.
+
+A linha ideal coberta usa o escopo inicial conhecido, não o último escopo. A janela nominal
+vem de `startDate` até o último dia de `endDate` exclusivo. Início real tardio não reinicia
+esse relógio e truncar a série em 180 dias não antecipa seu final ideal. Cobertura iniciada
+no meio ou baseline com estimativa ausente deixa `ideal=null` e publica
+`BURNDOWN_BASELINE_UNAVAILABLE`. O passado não recebe pontos interpolados.
+
+`chartMax` considera todos os valores finitos de escopo, remanescente e ideal no histórico.
+Assim, adicionar escopo não reescreve a referência anterior e remover escopo não corta os
+valores antigos. `hasData=true` exige `chartMax>0` e pelo menos uma curva finita; buckets
+nulos continuam explícitos. As duas UIs são defensivas contra `NaN`/`Infinity`.
+O caminho sem diário continua uma aproximação legada, sem reconstrução de mudanças de
+escopo; não possui a precisão de I45/I46 cobertos.
+
+`closingTaskSnapshot.version=4` acrescenta `outgoingCarryOver:{toSprintId,at}|null` no
+mesmo fechamento transacional. Sem destino (backlog), concluída ou cancelamento sem
+transferência, o fato é `null`. I43 terminal ignora memberships vivos; após S→D→E→D e
+exclusão física da Task, seus itens mantêm o ID capturado e o instante de fechamento.
+Snapshots antigos não recebem destino inferido: I43 publica `outgoing:null`, `PARTIAL` e
+`UNKNOWN_LEGACY_CARRY_OVER`. Nenhum DDL/migration foi necessário; o owner é o JSON existente.

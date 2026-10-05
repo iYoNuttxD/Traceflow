@@ -94,7 +94,13 @@ export function SprintProgressPanel({
         <Metrica
           titulo="Progresso"
           valor={
-            resumo.unavailable ? '—' : resumo.percent === null ? 'Sem pontos' : `${resumo.percent}%`
+            resumo.estimateIncomplete
+              ? 'Dados parciais'
+              : resumo.unavailable
+                ? '—'
+                : resumo.percent === null
+                  ? 'Sem pontos'
+                  : `${resumo.percent}%`
           }
         >
           {resumo.percent !== null && (

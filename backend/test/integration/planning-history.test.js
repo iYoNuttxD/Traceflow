@@ -190,10 +190,10 @@ describe('historical snapshot invariants', () => {
     );
     const open = await progress(sprint);
     expect(open.current).toMatchObject({ numerator: 1, denominator: 2, percentage: 50 });
-    expect(open.burndown.totalPoints).toBe(16);
+    expect(open.burndown).toMatchObject({ totalPoints: 8, chartMax: 16 });
     await close(sprint);
     const frozen = await progress(sprint);
-    expect(frozen.burndown.totalPoints).toBe(16);
+    expect(frozen.burndown).toMatchObject({ totalPoints: 8, chartMax: 16 });
     expect(frozen.historicalLimitations).toEqual([]);
     const planned = await prisma.sprintTask.findUnique({
       where: { sprintId_taskId: { sprintId: sprint.id, taskId: a.id } }
@@ -259,7 +259,7 @@ describe('historical snapshot invariants', () => {
         'LEGACY_CLOSING_STATUS_UNAVAILABLE'
       ])
     );
-    expect(legacy.burndown).toMatchObject({ hasData: false, totalPoints: 0, days: [] });
+    expect(legacy.burndown).toMatchObject({ hasData: false, totalPoints: null, days: [] });
     await prisma.task.update({
       where: { id: a.id },
       data: { estimatedEffort: 13, status: 'CONCLUIDO' }

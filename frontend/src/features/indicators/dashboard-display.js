@@ -377,6 +377,10 @@ export const LIMITATION_LABELS = {
   BURNDOWN_DATA_UNAVAILABLE: 'Não há histórico suficiente para desenhar o Burndown.',
   BURNDOWN_MAX_180_DAYS: 'O Burndown está limitado a 180 dias.',
   BURNUP_COVERAGE_STARTED_MID_SPRINT: 'Histórico disponível apenas a partir de parte da Sprint.',
+  LEGACY_PLANNING_ESTIMATE_UNKNOWN:
+    'Parte das estimativas iniciais não foi registrada de forma distinguível.',
+  UNKNOWN_LEGACY_CARRY_OVER: 'O destino de continuidade não foi congelado neste histórico.',
+  BURNDOWN_BASELINE_UNAVAILABLE: 'A referência inicial não está disponível; ela não é presumida.',
   BURNUP_ESTIMATE_UNKNOWN: 'Parte das estimativas históricas é desconhecida.',
   BURNUP_HISTORY_NOT_CAPTURED: 'Esta Sprint não possui histórico de Burnup capturado.',
   BURNUP_HISTORY_NOT_LOADED: 'Não foi possível carregar o histórico de Burnup desta Sprint.',

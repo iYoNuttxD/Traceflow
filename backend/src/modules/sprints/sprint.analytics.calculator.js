@@ -1,11 +1,17 @@
 import { buildSprintHistoricalSummary } from './sprint.summary.calculator.js';
 import { isTerminalSprintStatus } from './sprint.schema.js';
 
-const sum = (rows, field) => rows.reduce((total, row) => total + Number(row[field] ?? 0), 0);
+import { planningSprintEstimates, summarizeSprintEstimates } from './sprint.estimate.calculator.js';
 
 // Adapter facts for Indicators; the established Progress, Effort and Burndown
 // calculators remain the only owners of those calculations.
-export function buildSprintAnalyticsFacts({ sprint, participations, burndownData, progress }) {
+export function buildSprintAnalyticsFacts({
+  sprint,
+  participations,
+  burndownData,
+  progress,
+  historicalEvents = []
+}) {
   const frozen = isTerminalSprintStatus(sprint.status);
   const planningKnown = Boolean(sprint.startedAt && sprint.planningSnapshotAt);
   const planned = participations.filter((row) => row.plannedAtStart === true);
@@ -14,29 +20,35 @@ export function buildSprintAnalyticsFacts({ sprint, participations, burndownData
   const incoming = participations
     .filter((row) => row.removedAt === null && row.carriedFromSprintId != null)
     .map((row) => ({
-      taskId: row.taskId,
+      taskId: frozen ? (row.closingTaskSnapshot?.id ?? row.taskId) : row.taskId,
       title: row.taskTitleSnapshot,
       fromSprintId: row.carriedFromSprintId
     }))
     .sort((a, b) => (a.taskId ?? 0) - (b.taskId ?? 0));
   const outgoing = progress.carryOver.map((row) => ({ ...row }));
+  const planningEstimates = frozen
+    ? summary?.estimateCoverage?.planned
+    : planningSprintEstimates(sprint, participations, historicalEvents);
+  const currentEstimates = frozen
+    ? summary?.estimateCoverage?.current
+    : summarizeSprintEstimates(activePoints.map((row) => row.points));
+  const deliveredEstimates = frozen
+    ? summary?.estimateCoverage?.delivered
+    : summarizeSprintEstimates(
+        activePoints.filter((row) => row.currentStatus === 'CONCLUIDO').map((row) => row.points)
+      );
   const plannedPoints = frozen
     ? (summary?.plannedPoints ?? null)
-    : planningKnown && planned.every((row) => row.pointsAtPlanning != null)
-      ? sum(planned, 'pointsAtPlanning')
+    : planningKnown
+      ? planningEstimates.value
       : null;
   const plannedTasks = frozen
     ? (summary?.plannedTasks ?? null)
     : planningKnown
       ? planned.length
       : null;
-  const currentPoints = frozen ? (summary?.totalPoints ?? null) : sum(activePoints, 'points');
-  const deliveredPoints = frozen
-    ? (summary?.completedPoints ?? null)
-    : sum(
-        activePoints.filter((row) => row.currentStatus === 'CONCLUIDO'),
-        'points'
-      );
+  const currentPoints = frozen ? (summary?.totalPoints ?? null) : currentEstimates.value;
+  const deliveredPoints = frozen ? (summary?.completedPoints ?? null) : deliveredEstimates.value;
   const deliveredTasks = frozen ? (summary?.completedTasks ?? null) : progress.current.numerator;
   return {
     frozen,
@@ -46,6 +58,12 @@ export function buildSprintAnalyticsFacts({ sprint, participations, burndownData
     currentPoints,
     deliveredPoints,
     deliveredTasks,
+    estimateCoverage: {
+      planned: planningEstimates,
+      current: currentEstimates,
+      delivered: deliveredEstimates
+    },
+    carryOverKnown: !progress.historicalLimitations.includes('UNKNOWN_LEGACY_CARRY_OVER'),
     added: progress.scopeChange.added,
     removed: progress.scopeChange.removed,
     incoming,
@@ -58,18 +76,27 @@ export function buildSprintAnalyticsFacts({ sprint, participations, burndownData
   };
 }
 
-export function buildSprintVelocity(sprints, closingParticipations, limit) {
+export function buildSprintVelocity(sprints, closingParticipations, limit, baselineEvents = []) {
   const bySprint = new Map();
   for (const row of closingParticipations) {
     const rows = bySprint.get(row.sprintId) ?? [];
     rows.push(row);
     bySprint.set(row.sprintId, rows);
   }
+  const eventsBySprint = new Map();
+  for (const event of baselineEvents) {
+    if (!eventsBySprint.has(event.sprintId)) eventsBySprint.set(event.sprintId, []);
+    eventsBySprint.get(event.sprintId).push(event);
+  }
   const eligible = [];
   let excludedCount = 0;
   for (const sprint of sprints) {
     if (sprint.status !== 'CONCLUIDA') continue;
-    const summary = buildSprintHistoricalSummary(sprint, bySprint.get(sprint.id) ?? []);
+    const summary = buildSprintHistoricalSummary(
+      sprint,
+      bySprint.get(sprint.id) ?? [],
+      eventsBySprint.get(sprint.id)
+    );
     if (summary.historicalLimitations.length || summary.completedPoints === null) {
       excludedCount++;
       continue;
