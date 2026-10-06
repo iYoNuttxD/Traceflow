@@ -47,7 +47,11 @@ export const indicatorsController = {
     res.json(await traceabilityAnalyticsService.read(req.params.projectId))
   ),
   dashboard: asyncHandler(async (req, res) =>
-    res.json(await dashboardService.read(req.params.projectId, req.query))
+    res.json(
+      await dashboardService.read(req.params.projectId, req.query, undefined, {
+        requestId: req.requestId
+      })
+    )
   ),
   catalog: asyncHandler(async (req, res) =>
     res.json({

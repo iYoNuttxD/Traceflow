@@ -10,14 +10,16 @@ export function ProjectHealthSummary({ projectId, refreshVersion = 0 }) {
   const identity = `${projectId}|${refreshVersion}|${attempt}`;
   useEffect(() => {
     const controller = new AbortController();
-    indicatorsApi.dashboard(projectId, { view: 'GENERAL' }, { signal: controller.signal }).then(
-      ({ data }) => {
-        if (!controller.signal.aborted) setState({ identity, health: data.projectHealth });
-      },
-      () => {
-        if (!controller.signal.aborted) setState({ identity, error: true });
-      }
-    );
+    indicatorsApi
+      .dashboard(projectId, { view: 'GENERAL', healthOnly: true }, { signal: controller.signal })
+      .then(
+        ({ data }) => {
+          if (!controller.signal.aborted) setState({ identity, health: data.projectHealth });
+        },
+        () => {
+          if (!controller.signal.aborted) setState({ identity, error: true });
+        }
+      );
     return () => controller.abort();
   }, [projectId, identity]);
   const current = state?.identity === identity ? state : null;

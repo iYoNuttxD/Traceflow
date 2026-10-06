@@ -1,3 +1,4 @@
+import { TASK_HISTORY_IDS } from './dashboard-read.plan.js';
 import { resourceNotFoundError } from '../../shared/errors/index.js';
 import { calculateFlowTaskHistory } from './calculators/flow-task.calculator.js';
 import { calculateTaskCurrent } from './calculators/task-current.calculator.js';
@@ -70,28 +71,63 @@ export const flowTaskService = {
             state: 'AVAILABLE',
             kind: 'LIST',
             scope: { projectId: id, timeZone },
-            items: facts.overdue.map((row) => taskItem(row))
+            items: (facts.overdue ?? []).map((row) => taskItem(row))
           },
           timestamp
         )
       ]
     };
   },
-  async read(projectId, query, now = () => new Date(), normalizedPeriod = null) {
+  async read(projectId, query, now = () => new Date(), normalizedPeriod = null, options = {}) {
     const id = Number(projectId);
     const period = normalizedPeriod ?? normalizeIndicatorPeriod(query);
     const asOf = now();
     const timeZone = query.timeZone ?? period.timeZone ?? 'UTC';
-    const facts = await flowTaskRepository.read(id, period, asOf, { timeZone });
+    const ids = options.requestedIds;
+    const context = options.readContext;
+    const needsHistory = !ids || ids.some((metricId) => TASK_HISTORY_IDS.has(metricId));
+    const needsCurrent = !ids || ids.some((metricId) => !TASK_HISTORY_IDS.has(metricId));
+    const readCurrent = () =>
+      flowTaskRepository.read(id, period, asOf, {
+        timeZone,
+        currentSummaryOnly: true,
+        requestedIds: context?.taskIds ?? ids
+      });
+    const readHistory = () =>
+      flowTaskRepository.read(id, period, asOf, {
+        timeZone,
+        historyOnly: true,
+        requestedIds: context?.historyIds ?? ids
+      });
+    const facts = context
+      ? {
+          ...(needsCurrent ? await context.read('taskCurrent', readCurrent) : {}),
+          ...(needsHistory
+            ? (({ tasks, movements }) => ({ tasks, movements }))(
+                await context.read('taskHistory', readHistory)
+              )
+            : {})
+        }
+      : await flowTaskRepository.read(id, period, asOf, { timeZone });
     if (!facts) throw resourceNotFoundError('Project');
-    const current = calculateTaskCurrent(facts.aggregate, facts.statuses);
-    const flow = calculateFlowTaskHistory({
-      tasks: facts.tasks,
-      movements: facts.movements,
-      period,
-      asOf,
-      dateKey: createIndicatorLocalDateKey(period.timeZone)
-    });
+    const current = calculateTaskCurrent(facts.aggregate ?? {}, facts.statuses ?? []);
+    const calculateHistory = () =>
+      calculateFlowTaskHistory({
+        tasks: facts.tasks,
+        movements: facts.movements,
+        period,
+        asOf,
+        dateKey: createIndicatorLocalDateKey(period.timeZone),
+        requestedIds: context ? ids : null
+      });
+    const flow = needsHistory
+      ? context
+        ? context.calculate(
+            `flow:${period.startInclusive.toISOString()}:${period.endExclusive.toISOString()}`,
+            calculateHistory
+          )
+        : calculateHistory()
+      : null;
     const periodDto = publicPeriod(period);
     const timestamp = asOf.toISOString();
     const periodIncomplete = period.endExclusive > asOf;
@@ -132,179 +168,198 @@ export const flowTaskService = {
       tasksWithActual: current.withActual,
       comparableTasks: current.comparable
     };
-    const indicators = [
-      historical('I20', flow.lead.value, durationState(flow.lead), {
-        kind: 'SERIES',
-        points: flow.leadPoints,
-        eligibleCount: flow.lead.eligibleCount,
-        excludedCount: flow.lead.excludedCount,
-        limitations: flow.lead.excludedCount ? ['INCOMPLETE_OR_INVALID_COMPLETION_HISTORY'] : []
-      }),
-      historical('I21', flow.cycle.value, durationState(flow.cycle), {
-        kind: 'SERIES',
-        points: flow.cyclePoints,
-        eligibleCount: flow.cycle.eligibleCount,
-        excludedCount: flow.cycle.excludedCount,
-        limitations: flow.cycle.excludedCount ? ['MISSING_FIRST_IN_PROGRESS_OR_COMPLETION'] : []
-      }),
-      historical(
-        'I22',
-        flow.throughput.value,
-        flow.throughput.excludedCount ? 'PARTIAL' : 'AVAILABLE',
-        {
+    const definitions = [
+      () =>
+        historical('I20', flow.lead.value, durationState(flow.lead), {
           kind: 'SERIES',
-          points: flow.throughput.points,
-          excludedCount: flow.throughput.excludedCount,
-          limitations: flow.throughput.excludedCount ? ['UNOBSERVED_COMPLETION_HISTORY'] : []
-        }
-      ),
-      currentResult('I23', current.wip),
-      currentResult(
-        'I24',
-        null,
-        flow.aging.value
-          ? flow.aging.excludedCount
-            ? 'PARTIAL'
-            : 'AVAILABLE'
-          : flow.aging.excludedCount
-            ? 'UNAVAILABLE'
-            : 'NO_DATA',
-        {
-          kind: 'LIST',
-          items: flow.aging.items,
-          eligibleCount: flow.aging.value,
-          excludedCount: flow.aging.excludedCount,
-          limitations: flow.aging.excludedCount ? ['WIP_ENTRY_HISTORY_NOT_VERIFIABLE'] : []
-        }
-      ),
-      historical(
-        'I25',
-        null,
-        flow.cumulative.eligibleCount && flow.cumulative.points.length ? 'PARTIAL' : 'UNAVAILABLE',
-        {
+          points: flow.leadPoints,
+          eligibleCount: flow.lead.eligibleCount,
+          excludedCount: flow.lead.excludedCount,
+          limitations: flow.lead.excludedCount ? ['INCOMPLETE_OR_INVALID_COMPLETION_HISTORY'] : []
+        }),
+      () =>
+        historical('I21', flow.cycle.value, durationState(flow.cycle), {
           kind: 'SERIES',
-          points: flow.cumulative.eligibleCount ? flow.cumulative.points : [],
-          eligibleCount: flow.cumulative.eligibleCount,
-          excludedCount: flow.cumulative.excludedCount,
-          scope: { projectId: id, cohort: 'OBSERVED_SURVIVING_TASKS' },
-          limitations: [
-            'INITIAL_STATE_NOT_GLOBALLY_PROVEN',
-            ...(flow.cumulative.excludedCount ? ['TASK_HISTORY_CHAIN_INCOMPLETE'] : []),
-            ...(!flow.cumulative.points.length ? ['NO_COMPLETED_CIVIL_DAYS'] : [])
-          ]
-        }
-      ),
-      currentResult('I26', current.total, 'AVAILABLE', {
-        limitations: ['HARD_DELETED_TASKS_EXCLUDED']
-      }),
-      currentResult(
-        'I27',
-        {
-          A_FAZER: current.statuses.A_FAZER,
-          EM_ANDAMENTO: current.statuses.EM_ANDAMENTO,
-          CONCLUIDO: current.statuses.CONCLUIDO
-        },
-        current.statuses.unknownCount ? 'PARTIAL' : 'AVAILABLE',
-        {
-          distribution: current.statuses,
-          limitations: current.statuses.unknownCount ? ['UNKNOWN_TASK_STATUS_EXCLUDED'] : []
-        }
-      ),
-      currentResult('I28', current.overdue, 'AVAILABLE', {
-        kind: 'LIST',
-        scope: { projectId: id, timeZone },
-        items: facts.overdue.map((row) => taskItem(row))
-      }),
-      currentResult('I29', current.unassigned),
-      currentResult('I30', current.withoutEstimate),
-      currentResult(
-        'I31',
-        current.estimatedHours,
-        current.withEstimate
-          ? current.withEstimate < current.total
+          points: flow.cyclePoints,
+          eligibleCount: flow.cycle.eligibleCount,
+          excludedCount: flow.cycle.excludedCount,
+          limitations: flow.cycle.excludedCount ? ['MISSING_FIRST_IN_PROGRESS_OR_COMPLETION'] : []
+        }),
+      () =>
+        historical(
+          'I22',
+          flow.throughput.value,
+          flow.throughput.excludedCount ? 'PARTIAL' : 'AVAILABLE',
+          {
+            kind: 'SERIES',
+            points: flow.throughput.points,
+            excludedCount: flow.throughput.excludedCount,
+            limitations: flow.throughput.excludedCount ? ['UNOBSERVED_COMPLETION_HISTORY'] : []
+          }
+        ),
+      () => currentResult('I23', current.wip),
+      () =>
+        currentResult(
+          'I24',
+          null,
+          flow.aging.value
+            ? flow.aging.excludedCount
+              ? 'PARTIAL'
+              : 'AVAILABLE'
+            : flow.aging.excludedCount
+              ? 'UNAVAILABLE'
+              : 'NO_DATA',
+          {
+            kind: 'LIST',
+            items: flow.aging.items,
+            eligibleCount: flow.aging.value,
+            excludedCount: flow.aging.excludedCount,
+            limitations: flow.aging.excludedCount ? ['WIP_ENTRY_HISTORY_NOT_VERIFIABLE'] : []
+          }
+        ),
+      () =>
+        historical(
+          'I25',
+          null,
+          flow.cumulative.eligibleCount && flow.cumulative.points.length
             ? 'PARTIAL'
-            : 'AVAILABLE'
-          : current.total
-            ? 'PARTIAL'
-            : 'NO_DATA',
-        {
-          coverage: estimateCoverage,
-          limitations: current.withEstimate < current.total ? ['TASK_ESTIMATE_MISSING'] : []
-        }
-      ),
-      currentResult(
-        'I32',
-        current.actualHours,
-        current.withActual
-          ? current.withActual < current.total
-            ? 'PARTIAL'
-            : 'AVAILABLE'
-          : 'NO_DATA',
-        {
-          coverage: actualCoverage,
-          limitations: [
-            ...(current.withActual < current.total ? ['TASK_ACTUAL_EFFORT_MISSING'] : []),
-            'ACTUAL_EFFORT_ALREADY_INCLUDES_SESSIONS_AND_LEGACY'
-          ]
-        }
-      ),
-      currentResult(
-        'I33',
-        current.differenceHours,
-        current.comparable
-          ? current.comparable < current.withEstimate
-            ? 'PARTIAL'
-            : 'AVAILABLE'
-          : 'NO_DATA',
-        {
-          coverage: comparableCoverage,
-          limitations:
-            current.comparable < current.withEstimate ? ['COMPARISON_SAMPLE_INCOMPLETE'] : []
-        }
-      ),
-      currentResult(
-        'I34',
-        current.above,
-        current.comparable
-          ? current.comparable < current.withEstimate
-            ? 'PARTIAL'
-            : 'AVAILABLE'
-          : 'NO_DATA',
-        {
-          kind: 'LIST',
-          items: facts.above.map((row) =>
-            taskItem(row, (item) => Number(item.actualEffort) - Number(item.estimatedEffort))
-          ),
-          coverage: comparableCoverage,
-          limitations:
-            current.comparable < current.withEstimate ? ['COMPARISON_SAMPLE_INCOMPLETE'] : []
-        }
-      ),
-      currentResult(
-        'I35',
-        current.below,
-        current.completedComparable
-          ? current.completedComparable < current.completedWithEstimate
-            ? 'PARTIAL'
-            : 'AVAILABLE'
-          : 'NO_DATA',
-        {
-          kind: 'LIST',
-          items: facts.below.map((row) =>
-            taskItem(row, (item) => Number(item.estimatedEffort) - Number(item.actualEffort))
-          ),
-          coverage: {
-            ...comparableCoverage,
-            completedComparableTasks: current.completedComparable,
-            completedTasksWithEstimate: current.completedWithEstimate
+            : 'UNAVAILABLE',
+          {
+            kind: 'SERIES',
+            points: flow.cumulative.eligibleCount ? flow.cumulative.points : [],
+            eligibleCount: flow.cumulative.eligibleCount,
+            excludedCount: flow.cumulative.excludedCount,
+            scope: { projectId: id, cohort: 'OBSERVED_SURVIVING_TASKS' },
+            limitations: [
+              'INITIAL_STATE_NOT_GLOBALLY_PROVEN',
+              ...(flow.cumulative.excludedCount ? ['TASK_HISTORY_CHAIN_INCOMPLETE'] : []),
+              ...(!flow.cumulative.points.length ? ['NO_COMPLETED_CIVIL_DAYS'] : [])
+            ]
+          }
+        ),
+      () =>
+        currentResult('I26', current.total, 'AVAILABLE', {
+          limitations: ['HARD_DELETED_TASKS_EXCLUDED']
+        }),
+      () =>
+        currentResult(
+          'I27',
+          {
+            A_FAZER: current.statuses.A_FAZER,
+            EM_ANDAMENTO: current.statuses.EM_ANDAMENTO,
+            CONCLUIDO: current.statuses.CONCLUIDO
           },
-          limitations:
-            current.completedComparable < current.completedWithEstimate
-              ? ['COMPLETED_TASK_ACTUAL_EFFORT_MISSING']
-              : []
-        }
-      )
+          current.statuses.unknownCount ? 'PARTIAL' : 'AVAILABLE',
+          {
+            distribution: current.statuses,
+            limitations: current.statuses.unknownCount ? ['UNKNOWN_TASK_STATUS_EXCLUDED'] : []
+          }
+        ),
+      () =>
+        currentResult('I28', current.overdue, 'AVAILABLE', {
+          kind: 'LIST',
+          scope: { projectId: id, timeZone },
+          items: (facts.overdue ?? []).map((row) => taskItem(row))
+        }),
+      () => currentResult('I29', current.unassigned),
+      () => currentResult('I30', current.withoutEstimate),
+      () =>
+        currentResult(
+          'I31',
+          current.estimatedHours,
+          current.withEstimate
+            ? current.withEstimate < current.total
+              ? 'PARTIAL'
+              : 'AVAILABLE'
+            : current.total
+              ? 'PARTIAL'
+              : 'NO_DATA',
+          {
+            coverage: estimateCoverage,
+            limitations: current.withEstimate < current.total ? ['TASK_ESTIMATE_MISSING'] : []
+          }
+        ),
+      () =>
+        currentResult(
+          'I32',
+          current.actualHours,
+          current.withActual
+            ? current.withActual < current.total
+              ? 'PARTIAL'
+              : 'AVAILABLE'
+            : 'NO_DATA',
+          {
+            coverage: actualCoverage,
+            limitations: [
+              ...(current.withActual < current.total ? ['TASK_ACTUAL_EFFORT_MISSING'] : []),
+              'ACTUAL_EFFORT_ALREADY_INCLUDES_SESSIONS_AND_LEGACY'
+            ]
+          }
+        ),
+      () =>
+        currentResult(
+          'I33',
+          current.differenceHours,
+          current.comparable
+            ? current.comparable < current.withEstimate
+              ? 'PARTIAL'
+              : 'AVAILABLE'
+            : 'NO_DATA',
+          {
+            coverage: comparableCoverage,
+            limitations:
+              current.comparable < current.withEstimate ? ['COMPARISON_SAMPLE_INCOMPLETE'] : []
+          }
+        ),
+      () =>
+        currentResult(
+          'I34',
+          current.above,
+          current.comparable
+            ? current.comparable < current.withEstimate
+              ? 'PARTIAL'
+              : 'AVAILABLE'
+            : 'NO_DATA',
+          {
+            kind: 'LIST',
+            items: (facts.above ?? []).map((row) =>
+              taskItem(row, (item) => Number(item.actualEffort) - Number(item.estimatedEffort))
+            ),
+            coverage: comparableCoverage,
+            limitations:
+              current.comparable < current.withEstimate ? ['COMPARISON_SAMPLE_INCOMPLETE'] : []
+          }
+        ),
+      () =>
+        currentResult(
+          'I35',
+          current.below,
+          current.completedComparable
+            ? current.completedComparable < current.completedWithEstimate
+              ? 'PARTIAL'
+              : 'AVAILABLE'
+            : 'NO_DATA',
+          {
+            kind: 'LIST',
+            items: (facts.below ?? []).map((row) =>
+              taskItem(row, (item) => Number(item.estimatedEffort) - Number(item.actualEffort))
+            ),
+            coverage: {
+              ...comparableCoverage,
+              completedComparableTasks: current.completedComparable,
+              completedTasksWithEstimate: current.completedWithEstimate
+            },
+            limitations:
+              current.completedComparable < current.completedWithEstimate
+                ? ['COMPLETED_TASK_ACTUAL_EFFORT_MISSING']
+                : []
+          }
+        )
     ];
+    const allIds = Array.from({ length: 16 }, (_, index) => `I${20 + index}`);
+    const indicators = definitions.flatMap((create, index) =>
+      !ids || ids.includes(allIds[index]) ? [create()] : []
+    );
     return { projectId: id, period: periodDto, indicators };
   }
 };

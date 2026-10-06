@@ -1,3 +1,6 @@
+import { flowTaskRepository } from '../flow-task.repository.js';
+import { qualityAnalyticsRepository } from '../quality-analytics.repository.js';
+import { createIndicatorReadContext } from '../indicator-read-context.js';
 import { indicatorsService } from '../indicators.service.js';
 import { traceabilityAnalyticsService } from '../traceability-analytics.service.js';
 import {
@@ -36,29 +39,118 @@ export async function readHealth(
       metricPeriod?.endExclusive === window.current.endExclusive.toISOString()
     );
   };
+  const context = options.readContext;
+  const failures = context ?? createIndicatorReadContext({ asOf, timeZone });
+  const read = (key, load) => (context ? context.read(key, load) : load());
   const requests = [];
   if (window && ['GENERAL', 'FLOW'].includes(view))
-    requests.push(['flow', healthRepository.flow(projectId, asOf, view === 'GENERAL', timeZone)]);
-  else if (view === 'GENERAL')
-    requests.push(['planning', healthRepository.planning(projectId, asOf, timeZone)]);
-  if (['GENERAL', 'QUALITY'].includes(view) && !matchesWindow('I49'))
-    requests.push(['quality', healthRepository.quality(projectId, window?.current ?? null)]);
+    requests.push([
+      'flow',
+      context
+        ? read('taskHistory', () =>
+            flowTaskRepository.read(projectId, null, asOf, {
+              historyOnly: true,
+              timeZone,
+              requestedIds: context.historyIds
+            })
+          )
+        : healthRepository.flow(projectId, asOf, view === 'GENERAL', timeZone)
+    ]);
+  if (
+    view === 'GENERAL' &&
+    (!context ? !window : !['I26', 'I28', 'I29', 'I30'].every((id) => current.has(id)))
+  )
+    requests.push([
+      'planning',
+      context
+        ? read('taskCurrent', () =>
+            flowTaskRepository.read(projectId, null, asOf, {
+              currentSummaryOnly: true,
+              timeZone,
+              requestedIds: context.taskIds
+            })
+          ).then((facts) => facts.aggregate)
+        : healthRepository.planning(projectId, asOf, timeZone)
+    ]);
+  if (
+    ['GENERAL', 'QUALITY'].includes(view) &&
+    (!matchesWindow('I49') || (context && !current.has('I58')))
+  ) {
+    const qualityPeriod = window?.current ?? null;
+    const key = qualityPeriod
+      ? `quality:${qualityPeriod.startInclusive.toISOString()}:${qualityPeriod.endExclusive.toISOString()}`
+      : 'quality:current';
+    requests.push([
+      'quality',
+      read(key, async () => {
+        const shared = await context?.existingRead('qualityCaseHealth');
+        return qualityPeriod && context
+          ? qualityAnalyticsRepository.read(projectId, qualityPeriod, {
+              requestedIds: ['I49', 'I52', 'I58'],
+              sharedProjection: true,
+              sharedCaseHealth: shared?.caseHealth
+            })
+          : shared
+            ? healthRepository.quality(projectId, qualityPeriod, {
+                sharedCaseHealth: shared.caseHealth
+              })
+            : healthRepository.quality(projectId, qualityPeriod);
+      })
+    ]);
+  }
   if (options.githubApplicable && (view === 'GENERAL' || (view === 'GITHUB' && current.has('I15'))))
     requests.push([
       'github',
-      healthRepository.github(projectId, window, asOf, !matchesWindow('I15'))
+      read('githubHealth', async () =>
+        healthRepository.github(
+          projectId,
+          window,
+          asOf,
+          !matchesWindow('I15'),
+          await context?.existingRead('githubViewFacts')
+        )
+      )
     ]);
   if (view === 'TRACEABILITY' || (view === 'GENERAL' && !current.has('I01')))
-    requests.push(['progress', indicatorsService.progress(projectId)]);
+    requests.push(['progress', indicatorsService.progress(projectId, context)]);
   if (view === 'QUALITY')
-    requests.push(['traceability', traceabilityAnalyticsService.read(projectId)]);
+    requests.push([
+      'traceability',
+      traceabilityAnalyticsService.read(projectId, () => asOf, context)
+    ]);
 
   const settled = await Promise.allSettled(requests.map(([, request]) => request));
   for (const [position, outcome] of settled.entries()) {
     const [kind] = requests[position];
-    if (outcome.status === 'rejected') throw outcome.reason;
+    if (outcome.status === 'rejected') {
+      const source =
+        kind === 'flow'
+          ? 'taskHistory'
+          : kind === 'planning' || kind === 'progress'
+            ? 'tasks'
+            : kind;
+      failures.unavailable(outcome.reason, source);
+      const affected = {
+        flow: ['I20', 'I21'],
+        planning: ['I26', 'I28', 'I29', 'I30'],
+        quality: ['I49', ...(!current.has('I52') ? ['I52'] : []), 'I58'],
+        github: ['I04', 'I10', 'I15', 'I73'],
+        progress: ['I01'],
+        traceability: ['I61', 'I62', 'I63', 'I64', 'I65', 'I66']
+      }[kind];
+      add(
+        current,
+        affected.map((metricId) => ({
+          metricId,
+          value: null,
+          state: 'UNAVAILABLE',
+          limitations: ['SOURCE_UNAVAILABLE']
+        }))
+      );
+      continue;
+    }
     if (kind === 'flow') {
-      const rows = flowHealthIndicators(outcome.value, window, asOf);
+      const rows = flowHealthIndicators(outcome.value, window, asOf, context);
       add(current, rows.current);
       add(previous, rows.previous);
       add(current, rows.planning ?? []);
@@ -124,6 +216,7 @@ export async function readHealth(
     : null;
   return {
     assessments,
+    warnings: failures.warnings(),
     projectHealth: projectHealth
       ? { ...projectHealth, window: publicWindow, calculatedAt: generatedAt }
       : null

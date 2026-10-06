@@ -23,11 +23,13 @@ export const indicatorsRepository = {
         });
         return { counts, asOf: new Date() };
       },
-      { isolationLevel: 'RepeatableRead' }
+      { isolationLevel: 'RepeatableRead', maxWait: 2000, timeout: 5000 }
     );
   },
 
-  readActivity(projectId, period) {
+  readActivity(projectId, period, requestedIds = null) {
+    const needsTasks = !requestedIds || requestedIds.some((id) => ['I03', 'I05'].includes(id));
+    const needsCommits = !requestedIds || requestedIds.some((id) => ['I02', 'I05'].includes(id));
     return prisma.$transaction(
       async (tx) => {
         const project = await tx.project.findFirst({
@@ -35,17 +37,19 @@ export const indicatorsRepository = {
           select: projectSelect
         });
         if (!project) return null;
-        const branch = await tx.gitBranch.findFirst({
-          where: { projectId, name: 'main', isActive: true },
-          select: {
-            id: true,
-            name: true,
-            headSha: true,
-            lastSyncedHeadSha: true,
-            lastSyncedGeneration: true,
-            lastSeenAt: true
-          }
-        });
+        const branch = needsCommits
+          ? await tx.gitBranch.findFirst({
+              where: { projectId, name: 'main', isActive: true },
+              select: {
+                id: true,
+                name: true,
+                headSha: true,
+                lastSyncedHeadSha: true,
+                lastSyncedGeneration: true,
+                lastSeenAt: true
+              }
+            })
+          : null;
         const validBranch = branch?.name === 'main' ? branch : null;
         const commitRows =
           validBranch?.lastSyncedHeadSha && validBranch.lastSyncedGeneration
@@ -67,7 +71,8 @@ export const indicatorsRepository = {
           GROUP BY u.id, u.name
         `
             : null;
-        const taskRows = await tx.$queryRaw`
+        const taskRows = needsTasks
+          ? await tx.$queryRaw`
         SELECT u.id AS userId, u.name AS displayName,
                (m.responsibleUserIdSnapshot IS NULL) AS unknownHistorical,
                COUNT(*) AS count
@@ -89,10 +94,11 @@ export const indicatorsRepository = {
                 OR (later.movedAt = m.movedAt AND later.id > m.id))
           )
         GROUP BY u.id, u.name, (m.responsibleUserIdSnapshot IS NULL)
-      `;
+      `
+          : [];
         return { project, branch: validBranch, commitRows, taskRows, asOf: new Date() };
       },
-      { isolationLevel: 'RepeatableRead' }
+      { isolationLevel: 'RepeatableRead', maxWait: 2000, timeout: 5000 }
     );
   }
 };

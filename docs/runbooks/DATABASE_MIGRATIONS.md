@@ -8,6 +8,15 @@
 - Em testes, `TEST_DATABASE_URL` deve conter `test` e ser diferente de `DATABASE_URL`.
 - Faça backup verificado antes de alteração destrutiva.
 
+Testes e benchmarks não podem limpar o banco de desenvolvimento. Com `NODE_ENV=test`,
+o cliente Prisma exige um datasource explícito de testes na construção. A limpeza global de
+fixtures verifica o schema da conexão dentro da mesma transação das exclusões; alterar somente
+variáveis de ambiente não é prova de que um cliente já inicializado mudou de banco.
+Em uma máquina com dados de desenvolvimento, executar os gates com credencial exclusiva do
+schema de testes, sem permissões sobre desenvolvimento; não usar `root` nas suítes. Verificar
+o schema efetivo e a recusa de acesso a desenvolvimento antes da execução. Configurações de
+teste não devem herdar uma `DATABASE_URL` com credenciais privilegiadas.
+
 ## Desenvolvimento e teste
 
 ```bash

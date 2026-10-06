@@ -236,7 +236,11 @@ describe('P9 personal preference and custom aggregate', () => {
     );
     expect(result.status, JSON.stringify(result.body)).toBe(200);
     expect(ids(result)).toEqual(['I23', 'I21', 'I45']);
-    expect(read).toHaveBeenCalledTimes(1);
+    expect(read).toHaveBeenCalledTimes(2);
+    expect(read.mock.calls.map((call) => call[4].requestedIds)).toContainEqual(['I21']);
+    expect(
+      read.mock.calls.every((call) => call[4].readContext === read.mock.calls[0][4].readContext)
+    ).toBe(true);
     const [wip, cycle, burndown] = result.body.sections[0].indicators;
     expect(wip).toMatchObject({
       value: 1,

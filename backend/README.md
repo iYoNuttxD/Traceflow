@@ -68,6 +68,15 @@ npm run test:coverage
 
 Integração/API usa MySQL real indicado por `TEST_DATABASE_URL`. A cobertura mínima global é 85% statements, 70% branches, 85% functions e 87% lines.
 
+Com `NODE_ENV=test`, o Prisma exige `TEST_DATABASE_URL` validada e fixa esse datasource na
+construção, mesmo se um repository for importado antes dos hooks da suíte. Não há fallback
+para o banco de desenvolvimento. A limpeza de testes confere `SELECT DATABASE()` na mesma
+transação das exclusões e recusa qualquer schema diferente do alvo de testes.
+
+O ensaio `scripts/benchmark-indicators.js` exige `--apply`, banco local de testes e confirmação
+da conexão efetiva. Sua limpeza valida IDs e ownership da execução antes de remover somente
+as fixtures daquele ensaio.
+
 ## Operação
 
 - `npm start`: execução de produção do processo Express;

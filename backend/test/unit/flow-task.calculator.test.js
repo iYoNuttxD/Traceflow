@@ -35,6 +35,27 @@ const move = (taskId, date, fromStatus, toStatus, id) => ({
 });
 
 describe('Flow + Task calculators', () => {
+  it('selective duration calculation keeps the canonical sample and skips unrelated series', () => {
+    const facts = {
+      tasks: [task(1, day(1), 'CONCLUIDO')],
+      movements: [
+        move(1, 2, 'A_FAZER', 'EM_ANDAMENTO', 1),
+        move(1, 4, 'EM_ANDAMENTO', 'CONCLUIDO', 2)
+      ],
+      period,
+      asOf,
+      dateKey
+    };
+    const full = calculateFlowTaskHistory(facts);
+    const selected = calculateFlowTaskHistory({ ...facts, requestedIds: ['I21'] });
+    expect(selected.cycle).toEqual(full.cycle);
+    expect(selected.cyclePoints).toEqual(full.cyclePoints);
+    expect(selected.lead).toEqual(full.lead);
+    expect(selected.leadPoints).toEqual([]);
+    expect(selected.throughput.points).toEqual([]);
+    expect(selected.cumulative.points).toEqual([]);
+    expect(selected.aging.items).toEqual([]);
+  });
   it('keeps I20/I21/I22/I25 in the São Paulo day when completion crosses UTC midnight', () => {
     const localPeriod = normalizeIndicatorPeriod({
       startDate: '2026-10-05',

@@ -225,7 +225,7 @@ export const requirementProjectionRepository = {
         const rows = await loadProjectRequirementIndicatorRows(tx, projectId);
         return { project, branch, rows };
       },
-      { isolationLevel: 'RepeatableRead', timeout: 30000 }
+      { isolationLevel: 'RepeatableRead', maxWait: 2000, timeout: 30000 }
     );
   },
   readPage(projectId, query) {

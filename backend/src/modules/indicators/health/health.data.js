@@ -14,17 +14,24 @@ function durationState(sample) {
   return sample.excludedCount ? 'PARTIAL' : 'AVAILABLE';
 }
 
-export function flowHealthIndicators(facts, window, asOf) {
+export function flowHealthIndicators(facts, window, asOf, context = null) {
   const rows = Object.fromEntries(
     ['current', 'previous'].map((kind) => {
       const period = window[kind];
-      const result = calculateFlowTaskHistory({
-        tasks: facts.tasks,
-        movements: facts.movements,
-        period,
-        asOf,
-        durationsOnly: true
-      });
+      const calculate = () =>
+        calculateFlowTaskHistory({
+          tasks: facts.tasks,
+          movements: facts.movements,
+          period,
+          asOf,
+          durationsOnly: true
+        });
+      const result = context
+        ? context.calculate(
+            `flow:${period.startInclusive.toISOString()}:${period.endExclusive.toISOString()}`,
+            calculate
+          )
+        : calculate();
       return [
         kind,
         ['lead', 'cycle'].map((name, index) => ({

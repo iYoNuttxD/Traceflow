@@ -43,11 +43,13 @@ function sprintDto(sprint) {
 }
 
 export const sprintAnalyticsService = {
-  async read(projectId, query) {
+  async read(projectId, query, requestedIds = null) {
     const id = Number(projectId);
     const limit = query.limit ?? LIMIT_DEFAULT;
     const generatedAt = new Date().toISOString();
-    const history = await sprintAnalyticsRepository.readProjectHistory(id);
+    const history = await sprintAnalyticsRepository.readProjectHistory(id, {
+      includeVelocity: !requestedIds || requestedIds.includes('I47')
+    });
     if (!history) throw resourceNotFoundError('Project');
 
     let selected = null;
@@ -105,7 +107,9 @@ export const sprintAnalyticsService = {
 
     if (!selected) {
       const state = selectionLimitation === 'NO_ACTIVE_SPRINT' ? 'NO_DATA' : 'UNAVAILABLE';
-      const indicators = SELECTED_IDS.map((metricId) =>
+      const indicators = SELECTED_IDS.filter(
+        (metricId) => !requestedIds || requestedIds.includes(metricId)
+      ).map((metricId) =>
         result(metricId, null, state, {
           limitations: [selectionLimitation],
           ...(['I45', 'I46'].includes(metricId) ? { kind: 'SERIES', points: [] } : {})
@@ -115,9 +119,20 @@ export const sprintAnalyticsService = {
         projectId: id,
         generatedAt,
         sprint: null,
-        indicators: [...indicators, velocityResult]
+        indicators: [
+          ...indicators,
+          ...(!requestedIds || requestedIds.includes('I47') ? [velocityResult] : [])
+        ]
       };
     }
+
+    if (requestedIds?.every((id) => id === 'I47'))
+      return {
+        projectId: id,
+        generatedAt,
+        sprint: sprintDto(selected),
+        indicators: [velocityResult]
+      };
 
     const canonical = await sprintProgressService.getSprintIndicatorFacts(
       selected.id,
@@ -348,7 +363,9 @@ export const sprintAnalyticsService = {
       projectId: id,
       generatedAt,
       sprint: sprintDto(sprint),
-      indicators: [...selectedIndicators, velocityResult]
+      indicators: [...selectedIndicators, velocityResult].filter(
+        (row) => !requestedIds || requestedIds.includes(row.metricId)
+      )
     };
   }
 };

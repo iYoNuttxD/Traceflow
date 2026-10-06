@@ -33,10 +33,18 @@ function state(ready, freshness, value, partial = false) {
 }
 
 export const githubAnalyticsService = {
-  async read(projectId, query, normalizedPeriod = null) {
+  async read(projectId, query, normalizedPeriod = null, requestedIds = null, context = null) {
     const id = Number(projectId);
     const period = normalizedPeriod ?? normalizeIndicatorPeriod(query);
-    const facts = await githubAnalyticsRepository.read(id, period);
+    const facts = context
+      ? (
+          await context.read('githubViewFacts', async () => ({
+            facts: await githubAnalyticsRepository.read(id, period, requestedIds, context.asOf),
+            period,
+            requestedIds
+          }))
+        ).facts
+      : await githubAnalyticsRepository.read(id, period, requestedIds);
     if (!facts) throw resourceNotFoundError('Project');
     const integration = facts.project.githubIntegration;
     const ready = Boolean(integration?.lastSyncAt);
@@ -181,6 +189,12 @@ export const githubAnalyticsService = {
       }),
       duration('I74', issueDurations, 'mean', issueLimitations)
     ];
-    return { projectId: id, period: periodDto, indicators };
+    return {
+      projectId: id,
+      period: periodDto,
+      indicators: requestedIds
+        ? indicators.filter((row) => requestedIds.includes(row.metricId))
+        : indicators
+    };
   }
 };

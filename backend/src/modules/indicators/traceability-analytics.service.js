@@ -6,11 +6,14 @@ import { githubFreshness } from './policies/indicator-freshness.policy.js';
 import { percentage } from './calculators/statistics.calculator.js';
 
 export const traceabilityAnalyticsService = {
-  async read(projectId, now = () => new Date()) {
+  async read(projectId, now = () => new Date(), context = null) {
     const id = Number(projectId);
-    const facts = await requirementProjectionRepository.readIndicatorSummary(id);
+    const load = () => requirementProjectionRepository.readIndicatorSummary(id);
+    const facts = await (context ? context.read('requirementProjection', load) : load());
     if (!facts) throw resourceNotFoundError('Project');
-    const summary = projectIndicatorCoverage(facts.rows);
+    const summary = context
+      ? context.calculate('requirementCoverage', () => projectIndicatorCoverage(facts.rows))
+      : projectIndicatorCoverage(facts.rows);
     const denominator = summary.totalRequirements;
     const timestamp = now().toISOString();
     const freshness = githubFreshness(facts.project.githubIntegration, facts.branch);

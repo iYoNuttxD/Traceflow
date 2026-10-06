@@ -56,10 +56,10 @@ export const healthRepository = {
         ]);
         return { tasks, movements, planning: planning?.[0] ?? null };
       },
-      { isolationLevel: 'RepeatableRead', timeout: 30000 }
+      { isolationLevel: 'RepeatableRead', maxWait: 2000, timeout: 30000 }
     );
   },
-  quality(projectId, period) {
+  quality(projectId, period, { sharedCaseHealth } = {}) {
     return prisma.$transaction(
       async (tx) => {
         const [executionResults, caseHealth, retests] = await Promise.all([
@@ -73,7 +73,8 @@ export const healthRepository = {
                 _count: { _all: true }
               })
             : [],
-          tx.$queryRaw`
+          sharedCaseHealth ??
+            tx.$queryRaw`
             SELECT COALESCE(e.result, 'NEVER_EXECUTED') AS result, COUNT(*) AS total
             FROM TestCase c LEFT JOIN TestExecution e ON e.id = (
               SELECT x.id FROM TestExecution x
@@ -98,29 +99,43 @@ export const healthRepository = {
         ]);
         return { executionResults, caseHealth, retests };
       },
-      { isolationLevel: 'RepeatableRead', timeout: 30000 }
+      { isolationLevel: 'RepeatableRead', maxWait: 2000, timeout: 30000 }
     );
   },
-  github(projectId, window, asOf, includeCurrent) {
+  github(projectId, window, asOf, includeCurrent, shared = null) {
+    const sharedFacts = shared?.facts;
+    const has = (...ids) =>
+      Boolean(
+        sharedFacts && (!shared.requestedIds || ids.some((id) => shared.requestedIds.includes(id)))
+      );
+    const samePeriod = Boolean(
+      window &&
+      shared?.period.startInclusive.getTime() === window.current.startInclusive.getTime() &&
+      shared?.period.endExclusive.getTime() === window.current.endExclusive.getTime()
+    );
+    const sharedAge =
+      has('I17', 'I73') && sharedFacts.asOf.getTime() === asOf.getTime() ? sharedFacts.age : null;
     return prisma.$transaction(
       async (tx) => {
-        const project = await tx.project.findFirst({
-          where: { id: projectId, deletedAt: null },
-          select: {
-            githubIntegration: {
-              select: {
-                status: true,
-                lastSyncAt: true,
-                lastSyncStatus: true,
-                pullRequestLifecycleCoverageFrom: true,
-                pullRequestLifecycleSyncedAt: true
+        const project =
+          sharedFacts?.project ??
+          (await tx.project.findFirst({
+            where: { id: projectId, deletedAt: null },
+            select: {
+              githubIntegration: {
+                select: {
+                  status: true,
+                  lastSyncAt: true,
+                  lastSyncStatus: true,
+                  pullRequestLifecycleCoverageFrom: true,
+                  pullRequestLifecycleSyncedAt: true
+                }
               }
             }
-          }
-        });
+          }));
         if (!window) {
-          const ageRows = await readOpenPullRequestAge(tx, projectId, asOf);
-          return { project, age: ageRows[0] };
+          const age = sharedAge ?? (await readOpenPullRequestAge(tx, projectId, asOf))[0];
+          return { project, age };
         }
         const previousMerged = tx.pullRequest.findMany({
           where: {
@@ -136,17 +151,21 @@ export const healthRepository = {
         const cohort = lifecycleCohort(window.current, project?.githubIntegration);
         const cohortPeriod = cohort.period ?? { startInclusive: asOf, endExclusive: asOf };
         const [currentMerged, cohortRows, ageRows, prior] = await Promise.all([
-          tx.pullRequest.findMany({
-            where: {
-              projectId,
-              mergedAtGithub: {
-                gte: window.current.startInclusive,
-                lt: window.current.endExclusive
-              }
-            },
-            select: { id: true, createdAtGithub: true, mergedAtGithub: true }
-          }),
-          tx.$queryRaw`
+          samePeriod && has('I12', 'I15', 'I16')
+            ? sharedFacts.mergedPrs
+            : tx.pullRequest.findMany({
+                where: {
+                  projectId,
+                  mergedAtGithub: {
+                    gte: window.current.startInclusive,
+                    lt: window.current.endExclusive
+                  }
+                },
+                select: { id: true, createdAtGithub: true, mergedAtGithub: true }
+              }),
+          samePeriod && has('I04', 'I06', 'I11')
+            ? [sharedFacts.cohort]
+            : tx.$queryRaw`
             SELECT COUNT(*) AS closedCount,
               COALESCE(SUM(CASE WHEN EXISTS (
                 SELECT 1 FROM PullRequestLifecycleEvent r
@@ -170,7 +189,7 @@ export const healthRepository = {
             ) c
             JOIN PullRequest p ON p.id = c.pullRequestId AND p.projectId = ${projectId}
           `,
-          readOpenPullRequestAge(tx, projectId, asOf),
+          sharedAge ? [sharedAge] : readOpenPullRequestAge(tx, projectId, asOf),
           previousMerged
         ]);
         return {
@@ -181,7 +200,7 @@ export const healthRepository = {
           age: ageRows[0]
         };
       },
-      { isolationLevel: 'RepeatableRead', timeout: 30000 }
+      { isolationLevel: 'RepeatableRead', maxWait: 2000, timeout: 30000 }
     );
   }
 };

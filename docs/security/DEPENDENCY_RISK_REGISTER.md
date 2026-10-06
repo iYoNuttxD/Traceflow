@@ -1,5 +1,21 @@
 # Registro de risco de dependências
 
+## PR23-FIX-04 — patches transitivos do gate final — 06/10/2026
+
+O audit corrente encontrou advisories publicados após a baseline anterior. Foram aplicados
+somente os patches compatíveis das transitivas afetadas; manifests, dependências diretas e
+policy de exceções não mudaram.
+
+| Origem | Advisory | Patch validado |
+| --- | --- | --- |
+| Express → `proxy-addr@2.0.7`, backend | [GHSA-jqcg-44mw-7w3h](https://github.com/advisories/GHSA-jqcg-44mw-7w3h), CRITICAL | `2.0.8` |
+| `source-map-js@1.2.1`, backend/frontend | [GHSA-68fv-2mgg-jv7q](https://github.com/advisories/GHSA-68fv-2mgg-jv7q), HIGH | `1.2.2` |
+
+**CORRIGIDO:** `npm audit --json` completo e gate canônico confirmaram **0 vulnerabilidades**
+nos dois projetos, incluindo desenvolvimento, sem nova exceção, override, downgrade ou
+`--omit=dev`. A regressão final e o impacto mínimo dos lockfiles constam no
+[relatório PR23-FIX-04](../deliveries/PR23_FIX_04_DASHBOARD_PERFORMANCE_FAILURE_ISOLATION_REPORT.md).
+
 ## P10 — encerramento dos moderates remanescentes — 04/10/2026
 
 **CORRIGIDO e revalidado:** o audit completo final de backend e frontend, incluindo

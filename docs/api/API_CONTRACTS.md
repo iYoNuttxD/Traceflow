@@ -1594,15 +1594,47 @@ forma íntegra. O Dashboard os marca `UNSAFE`/não aplicado em vez de reatribuir
 atual. RF56 backend cobre o filtro temporal; a experiência visual e filtros adicionais seguros
 continuam para P8/etapas futuras.
 
-Blocos usam os services diretamente, uma chamada por grupo de fonte na request. Ausência de
-dados, `PARTIAL`, `STALE` e `UNAVAILABLE` permanecem estados individuais; `viewState` apenas resume
-a view (`AVAILABLE`, `PARTIAL`, `NO_DATA`, `UNAVAILABLE`). Falha externa operacional conhecida do
-grupo GitHub gera placeholders `SOURCE_UNAVAILABLE` e preserva blocos locais. Erro inesperado
-continua erro HTTP observável. `freshness.github` não é substituído por `generatedAt` local.
-Listas e séries conservam os limites dos endpoints de origem. O service pode executar uma janela
-UTC interna de um único dia para obter somente indicadores atuais de um bloco misto quando não há
-período público; os resultados de evento dessa leitura são descartados e não viram default de
-produto.
+Desde PR23-FIX-04, os IDs solicitados e os sinais aplicáveis de Health determinam as leituras.
+Indicadores atuais de Tasks usam agregados e listas limitadas; não materializam Tasks nem
+TaskMovement quando o histórico não é necessário. Indicadores `PERIOD_REQUIRED` não provocam
+leitura temporal de widgets sem período. Aging WIP continua sendo um indicador atual dependente
+de histórico; Health mantém sua janela própria de avaliação, sem criar um período público.
+Uma janela UTC interna de um dia ainda pode fornecer o contrato dos services de indicadores
+atuais, mas não autoriza leitura dos indicadores de evento não solicitados.
+
+O contexto pertence a uma única request: compartilha Promises de leitura, inclusive rejeições,
+e cálculos intermediários equivalentes entre widgets e Health. Não há cache global nem retry.
+Há no máximo dois loaders de fontes simultâneos por request. Cada capability conserva o snapshot
+`RepeatableRead` necessário; não se promete um snapshot transacional único entre todas as fontes.
+Quality/I59 e Traceability compartilham a projeção de Requirements; falha dessa projeção não
+indisponibiliza os dados independentes de execuções e Defects.
+Quality/I52 compartilha o mesmo estado atual dos Casos de teste com Health, inclusive quando
+os períodos de execuções/retests diferem. A união de IDs temporais só é usada com limites de
+período equivalentes; sem período público, não se consultam execuções da janela de fallback
+para depois descartá-las. Falha posterior na leitura temporal não invalida I52 já conhecido.
+
+O snapshot GitHub já lido pela view pode fornecer coorte/merge samples de período equivalente
+e idade de PRs no mesmo asOf ao Health; janelas diferentes continuam exigindo fatos distintos.
+O snapshot da janela anterior não é substituído pelo da janela atual.
+
+Ausência de dados, `PARTIAL`, `STALE` e `UNAVAILABLE` permanecem estados individuais; `viewState`
+resume os widgets da view (`AVAILABLE`, `PARTIAL`, `NO_DATA`, `UNAVAILABLE`). Falha operacional
+`ExternalServiceError`, erro Prisma real `P2024`/`P2034`, ou `P2028` de aquisição/expiração/timeout
+de transação, degrada somente seus consumidores com `UNAVAILABLE`, `value:null`, limitação
+`SOURCE_UNAVAILABLE` e warning `{code:'SOURCE_UNAVAILABLE',source}`. O log interno inclui fonte,
+código e requestId, sem publicar detalhes de infraestrutura. `P2028` de uso inválido da API de
+transação, `TypeError`, erros de validação/domínio e erros desconhecidos continuam observáveis
+como erro global. Falhas isoláveis no read path de Health deixam sinais não avaliados e reduzem
+coverage conforme o modelo vigente; nunca fabricam score zero. Leituras rejeitadas não são
+reexecutadas dentro da request.
+
+`healthOnly=true` é opcional e exclusivo de `view=GENERAL`; outras views retornam 400. Mantém
+autorização, filtros, janela e regras de `projectHealth`, com `sections:[]`, sem calcular widgets
+extras da GENERAL. `viewState:NO_DATA` resume essa coleção vazia, não o estado de Health; a
+Visão Geral consome `projectHealth`. Não há novo endpoint. `freshness.github` continua derivado
+dos widgets presentes e não é substituído por `generatedAt`. A avaliação de freshness dentro de
+Health permanece independente dessa apresentação. Listas e séries conservam os limites dos
+endpoints de origem.
 
 `GET /api/projects/:projectId/indicators/catalog` não aceita query. Retorna metadados públicos
 de cada `metricId` implementado: categoria, título, descrição, unidade, temporalidade, relógio,

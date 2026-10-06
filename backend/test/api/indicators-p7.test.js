@@ -776,6 +776,14 @@ describe('P7 aggregate dashboard API', () => {
   it('isola falha externa esperada, mas não oculta erro operacional local', async () => {
     const owner = await actor();
     const p = await project(owner);
+    await prisma.projectGitHubIntegration.create({
+      data: {
+        projectId: p.id,
+        status: 'ACTIVE',
+        lastSyncAt: new Date(),
+        lastSyncStatus: 'SINCRONIZADO'
+      }
+    });
     vi.spyOn(githubAnalyticsService, 'read').mockRejectedValueOnce(
       new ExternalServiceError('GitHub unavailable')
     );

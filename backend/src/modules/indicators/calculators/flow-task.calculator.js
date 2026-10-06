@@ -30,8 +30,10 @@ export function calculateFlowTaskHistory({
   period,
   asOf,
   dateKey,
-  durationsOnly = false
+  durationsOnly = false,
+  requestedIds = null
 }) {
+  const needs = (id) => !requestedIds || requestedIds.includes(id);
   const byTask = new Map();
   for (const movement of movements) {
     if (movement.movedAt >= asOf) continue;
@@ -88,7 +90,9 @@ export function calculateFlowTaskHistory({
     // Health needs the same duration samples, without daily series or current-state work.
     if (durationsOnly) continue;
 
-    const latestAtCut = rows.filter((row) => row.movedAt < period.endExclusive).at(-1);
+    const latestAtCut = needs('I22')
+      ? rows.filter((row) => row.movedAt < period.endExclusive).at(-1)
+      : null;
     if (
       latestAtCut?.toStatus === 'CONCLUIDO' &&
       latestAtCut.fromStatus !== 'CONCLUIDO' &&
@@ -99,7 +103,7 @@ export function calculateFlowTaskHistory({
       throughputByDay.set(day, (throughputByDay.get(day) ?? 0) + 1);
     }
 
-    if (task.status === 'EM_ANDAMENTO') {
+    if (needs('I24') && task.status === 'EM_ANDAMENTO') {
       const latest = rows.at(-1);
       if (latest?.toStatus === 'EM_ANDAMENTO' && latest.movedAt >= task.createdAt) {
         aging.push({
@@ -120,6 +124,7 @@ export function calculateFlowTaskHistory({
 
     // Cumulative flow is an explicitly partial cohort of surviving Tasks with
     // an observed, internally consistent movement chain and initial state.
+    if (!needs('I25')) continue;
     const first = rows[0];
     let valid = Boolean(
       first &&
@@ -165,7 +170,7 @@ export function calculateFlowTaskHistory({
     if (date >= period.startDate) continue;
     for (const status of STATUS) balance[status] += delta[status];
   }
-  const cumulativePoints = days.map((date) => {
+  const cumulativePoints = (needs('I25') ? days : []).map((date) => {
     const delta = flowDeltas.get(date);
     if (delta) for (const status of STATUS) balance[status] += delta[status];
     return {
@@ -197,13 +202,16 @@ export function calculateFlowTaskHistory({
     });
   };
   return {
-    leadPoints: trend(leadRows),
-    cyclePoints: trend(cycleRows),
+    leadPoints: needs('I20') ? trend(leadRows) : [],
+    cyclePoints: needs('I21') ? trend(cycleRows) : [],
     ...durations,
     throughput: {
       value: throughput,
       excludedCount: unknownCompletion,
-      points: eventDays.map((date) => ({ date, value: throughputByDay.get(date) ?? 0 }))
+      points: (needs('I22') ? eventDays : []).map((date) => ({
+        date,
+        value: throughputByDay.get(date) ?? 0
+      }))
     },
     aging: { value: aging.length, excludedCount: agingExcluded, items: aging.slice(0, 10) },
     cumulative: {

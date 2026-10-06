@@ -238,6 +238,11 @@ describe('P8.5 Indicators workspace', () => {
       </MemoryRouter>
     );
     expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível carregar');
+    expect(mocks.dashboard).toHaveBeenCalledWith(
+      1,
+      { view: 'GENERAL', healthOnly: true },
+      { signal: expect.any(AbortSignal) }
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Tentar novamente' }));
     const summary = screen.getByRole('region', { name: 'Saúde do projeto' });
     await waitFor(() => expect(summary).toHaveTextContent('71 / 100'));

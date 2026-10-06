@@ -56,16 +56,7 @@ export function calculateQualityFacts(facts) {
   const sample = durationSample(visibleValidation, 'createdAt', 'firstValidatedAt', 86400000);
   const deletedValidation = facts.firstValidated.length - visibleValidation.length;
   const correctionExcluded = sample.excludedCount + deletedValidation + facts.legacyValidated;
-  const requirements = facts.requirementRows
-    .filter((row) => row.defects.total > 0)
-    .sort((a, b) => b.defects.total - a.defects.total || a.requirement.id - b.requirement.id)
-    .slice(0, 10)
-    .map((row) => ({
-      requirementId: row.requirement.id,
-      displayId: row.requirement.displayId,
-      title: row.requirement.title,
-      defectCount: row.defects.total
-    }));
+  const requirements = calculateRequirementConcentration(facts.requirementRows);
   const originTasks = facts.originTasks.map((row) => ({
     taskId: Number(row.taskId),
     title: row.title,
@@ -95,4 +86,17 @@ export function calculateQualityFacts(facts) {
     requirements,
     originTasks
   };
+}
+
+export function calculateRequirementConcentration(rows) {
+  return rows
+    .filter((row) => row.defects.total > 0)
+    .sort((a, b) => b.defects.total - a.defects.total || a.requirement.id - b.requirement.id)
+    .slice(0, 10)
+    .map((row) => ({
+      requirementId: row.requirement.id,
+      displayId: row.requirement.displayId,
+      title: row.requirement.title,
+      defectCount: row.defects.total
+    }));
 }

@@ -5,6 +5,7 @@ import {
   combineActivity
 } from './calculators/responsibility-activity.calculator.js';
 import { indicatorResult } from './indicators.mapper.js';
+import { flowTaskRepository } from './flow-task.repository.js';
 import { indicatorsRepository } from './indicators.repository.js';
 import { githubFreshness } from './policies/indicator-freshness.policy.js';
 import { normalizeIndicatorPeriod } from './policies/indicator-period.policy.js';
@@ -21,8 +22,19 @@ function publicPeriod(period) {
 }
 
 export const indicatorsService = {
-  async progress(projectId) {
-    const facts = await indicatorsRepository.readProgress(Number(projectId));
+  async progress(projectId, context = null) {
+    const current = context
+      ? await context.read('taskCurrent', () =>
+          flowTaskRepository.read(Number(projectId), null, context.asOf, {
+            currentSummaryOnly: true,
+            timeZone: context.timeZone,
+            requestedIds: context.taskIds
+          })
+        )
+      : null;
+    const facts = context
+      ? current && { counts: current.statuses, asOf: current.asOf }
+      : await indicatorsRepository.readProgress(Number(projectId));
     if (!facts) throw resourceNotFoundError('Project');
     const total = facts.counts.reduce((sum, row) => sum + row._count._all, 0);
     const completed = facts.counts.find((row) => row.status === 'CONCLUIDO')?._count._all ?? 0;
@@ -37,10 +49,10 @@ export const indicatorsService = {
     );
   },
 
-  async activity(projectId, query, normalizedPeriod = null) {
+  async activity(projectId, query, normalizedPeriod = null, requestedIds = null) {
     const id = Number(projectId);
     const period = normalizedPeriod ?? normalizeIndicatorPeriod(query);
-    const facts = await indicatorsRepository.readActivity(id, period);
+    const facts = await indicatorsRepository.readActivity(id, period, requestedIds);
     if (!facts) throw resourceNotFoundError('Project');
     const asOf = facts.asOf.toISOString();
     const periodDto = publicPeriod(period);
@@ -124,6 +136,12 @@ export const indicatorsService = {
       },
       asOf
     );
-    return { projectId: id, period: periodDto, indicators: [commitResult, taskResult, activity] };
+    return {
+      projectId: id,
+      period: periodDto,
+      indicators: [commitResult, taskResult, activity].filter(
+        (indicator) => !requestedIds || requestedIds.includes(indicator.metricId)
+      )
+    };
   }
 };

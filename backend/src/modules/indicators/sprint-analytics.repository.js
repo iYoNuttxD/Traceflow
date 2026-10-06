@@ -17,7 +17,7 @@ const sprintSelect = {
 };
 
 export const sprintAnalyticsRepository = {
-  readProjectHistory(projectId) {
+  readProjectHistory(projectId, { includeVelocity = true } = {}) {
     return prisma.$transaction(
       async (tx) => {
         const project = await tx.project.findFirst({
@@ -30,9 +30,9 @@ export const sprintAnalyticsRepository = {
           select: sprintSelect,
           orderBy: [{ id: 'asc' }]
         });
-        const completedIds = sprints
-          .filter((sprint) => sprint.status === 'CONCLUIDA')
-          .map((sprint) => sprint.id);
+        const completedIds = includeVelocity
+          ? sprints.filter((sprint) => sprint.status === 'CONCLUIDA').map((sprint) => sprint.id)
+          : [];
         const closingParticipations = completedIds.length
           ? await tx.sprintTask.findMany({
               where: { projectId, sprintId: { in: completedIds } },
@@ -55,7 +55,11 @@ export const sprintAnalyticsRepository = {
           : [];
         return { sprints, closingParticipations, baselineEvents };
       },
-      { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead }
+      {
+        isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead,
+        maxWait: 2000,
+        timeout: 5000
+      }
     );
   }
 };

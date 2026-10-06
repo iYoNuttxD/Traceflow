@@ -87,6 +87,10 @@ export const dashboardQuerySchema = strictObject({
     .transform((value) => value.split(','))
     .pipe(dashboardWidgetsSchema)
     .optional(),
+  healthOnly: z
+    .enum(['true', 'false'])
+    .transform((value) => value === 'true')
+    .optional(),
   includeProjectHealth: z
     .enum(['true', 'false'])
     .transform((value) => value === 'true')
@@ -97,6 +101,12 @@ export const dashboardQuerySchema = strictObject({
   sprintId: positiveInteger('ID da Sprint inválido.').optional(),
   responsibleUserId: positiveInteger('ID do responsável inválido.').optional()
 }).superRefine((value, context) => {
+  if (value.healthOnly && value.view && value.view !== 'GENERAL')
+    context.addIssue({
+      code: 'custom',
+      path: ['healthOnly'],
+      message: 'Health summary requires GENERAL.'
+    });
   if ((value.view === 'CUSTOM') !== (value.widgets != null)) {
     context.addIssue({
       code: 'custom',

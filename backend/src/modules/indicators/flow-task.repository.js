@@ -7,8 +7,14 @@ export const flowTaskRepository = {
     projectId,
     period,
     asOf,
-    { currentSummaryOnly = false, timeZone = period?.timeZone ?? 'UTC' } = {}
+    {
+      currentSummaryOnly = false,
+      historyOnly = false,
+      requestedIds = null,
+      timeZone = period?.timeZone ?? 'UTC'
+    } = {}
   ) {
+    const needs = (id) => requestedIds == null || requestedIds.includes(id);
     const deadlineCutoff = taskDeadlineCutoff(asOf, timeZone);
     return prisma.$transaction(
       async (tx) => {
@@ -19,7 +25,9 @@ export const flowTaskRepository = {
         if (!project) return null;
         const [aggregateRows, statuses, tasks, movements, overdue, above, below] =
           await Promise.all([
-            tx.$queryRaw`
+            historyOnly
+              ? [{ total: 0 }]
+              : tx.$queryRaw`
               SELECT COUNT(*) AS total,
                 COALESCE(SUM(status = 'EM_ANDAMENTO'), 0) AS wip,
                 COALESCE(SUM(deadline < ${deadlineCutoff} AND status <> 'CONCLUIDO'), 0) AS overdue,
@@ -40,30 +48,34 @@ export const flowTaskRepository = {
                   AND actualEffort IS NOT NULL AND actualEffort < estimatedEffort), 0) AS below
               FROM Task WHERE projectId = ${projectId}
             `,
-            tx.task.groupBy({
-              by: ['status'],
-              where: { projectId },
-              _count: { _all: true }
-            }),
+            historyOnly || (requestedIds && !needs('I27') && !needs('I01'))
+              ? []
+              : tx.task.groupBy({
+                  by: ['status'],
+                  where: { projectId },
+                  _count: { _all: true }
+                }),
             currentSummaryOnly
               ? []
               : tx.task.findMany({
                   where: { projectId },
                   select: {
                     id: true,
-                    title: true,
+                    title: needs('I24'),
                     status: true,
                     createdAt: true,
-                    deadline: true,
-                    responsibleUser: {
-                      select: {
-                        id: true,
-                        name: true,
-                        isActive: true,
-                        accountStatus: true,
-                        anonymizedAt: true
-                      }
-                    }
+                    deadline: needs('I24'),
+                    responsibleUser: needs('I24')
+                      ? {
+                          select: {
+                            id: true,
+                            name: true,
+                            isActive: true,
+                            accountStatus: true,
+                            anonymizedAt: true
+                          }
+                        }
+                      : false
                   }
                 }),
             currentSummaryOnly
@@ -79,7 +91,9 @@ export const flowTaskRepository = {
                     movedAt: true
                   }
                 }),
-            tx.$queryRaw`
+            historyOnly || !needs('I28')
+              ? []
+              : tx.$queryRaw`
               SELECT t.id, t.title, t.status, t.deadline,
                 u.id AS responsibleUserId, u.name AS responsibleName
               FROM Task t LEFT JOIN User u ON u.id = t.responsibleUserId
@@ -88,7 +102,7 @@ export const flowTaskRepository = {
                 AND t.status <> 'CONCLUIDO'
               ORDER BY t.deadline ASC, t.id ASC LIMIT 10
             `,
-            currentSummaryOnly
+            historyOnly || (currentSummaryOnly && requestedIds == null) || !needs('I34')
               ? []
               : tx.$queryRaw`
               SELECT t.id, t.title, t.status, t.estimatedEffort, t.actualEffort,
@@ -99,7 +113,7 @@ export const flowTaskRepository = {
                 AND t.actualEffort IS NOT NULL AND t.actualEffort > t.estimatedEffort
               ORDER BY (t.actualEffort - t.estimatedEffort) DESC, t.id ASC LIMIT 10
             `,
-            currentSummaryOnly
+            historyOnly || (currentSummaryOnly && requestedIds == null) || !needs('I35')
               ? []
               : tx.$queryRaw`
               SELECT t.id, t.title, t.status, t.estimatedEffort, t.actualEffort,
@@ -123,7 +137,7 @@ export const flowTaskRepository = {
           below
         };
       },
-      { isolationLevel: 'RepeatableRead', timeout: 30000 }
+      { isolationLevel: 'RepeatableRead', maxWait: 2000, timeout: 30000 }
     );
   }
 };

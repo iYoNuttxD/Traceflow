@@ -1,5 +1,7 @@
+import { createIndicatorReadContext } from './indicator-read-context.js';
+import { planDashboardReads } from './dashboard-read.plan.js';
 import { dashboardRepository } from './dashboard.repository.js';
-import { ExternalServiceError, resourceNotFoundError } from '../../shared/errors/index.js';
+import { resourceNotFoundError } from '../../shared/errors/index.js';
 import {
   DASHBOARD_VIEWS,
   dashboardFilterPolicy,
@@ -7,6 +9,7 @@ import {
 } from './dashboard-view.catalog.js';
 import { flowTaskService } from './flow-task.service.js';
 import { readHealth } from './health/health.service.js';
+import { healthWindow } from './health/health.policy.js';
 import { githubAnalyticsService } from './github-analytics.service.js';
 import { INDICATORS } from './indicators.catalog.js';
 import { indicatorResult } from './indicators.mapper.js';
@@ -17,6 +20,7 @@ import { sprintAnalyticsService } from './sprint-analytics.service.js';
 import { traceabilityAnalyticsService } from './traceability-analytics.service.js';
 
 const CURRENT_WITHOUT_PERIOD = Object.freeze({
+  taskHistory: new Set(['I24']),
   github: new Set(['I10', 'I13', 'I17', 'I73']),
   tasks: new Set(['I23', 'I24', ...Array.from({ length: 10 }, (_, index) => `I${26 + index}`)]),
   quality: new Set(['I52', 'I53', 'I54', 'I59', 'I60'])
@@ -100,50 +104,59 @@ function decorate(indicator, requested, sprint) {
   };
 }
 
-function groupIds(sections) {
-  const groups = new Map();
-  for (const metricId of sections.flatMap((section) => section.metricIds)) {
-    const group = dashboardSource(metricId);
-    const ids = groups.get(group) ?? new Set();
-    ids.add(metricId);
-    groups.set(group, ids);
-  }
-  return groups;
-}
-
-async function readGroup(group, projectId, query, period, servicePeriod, ids) {
+async function readGroup(group, projectId, query, period, servicePeriod, ids, context) {
   const periodQuery = servicePeriod ?? query;
   switch (group) {
     case 'progress':
-      return { indicators: [await indicatorsService.progress(projectId)] };
+      return { indicators: [await indicatorsService.progress(projectId, context)] };
     case 'activity':
-      return period ? indicatorsService.activity(projectId, query, period) : { indicators: [] };
+      return period
+        ? context.read('activity', () =>
+            indicatorsService.activity(projectId, query, period, [...ids])
+          )
+        : { indicators: [] };
     case 'github':
-      return githubAnalyticsService.read(projectId, periodQuery, servicePeriod);
+      return githubAnalyticsService.read(projectId, periodQuery, servicePeriod, [...ids], context);
     case 'tasks':
-      if (ids.size === 2 && ids.has('I23') && ids.has('I28'))
-        return flowTaskService.currentSummary(projectId, () => new Date(), query.timeZone ?? 'UTC');
+    case 'taskHistory':
       return flowTaskService.read(
         projectId,
         { ...periodQuery, timeZone: query.timeZone ?? periodQuery.timeZone },
-        () => new Date(),
-        servicePeriod
+        () => context.asOf,
+        servicePeriod,
+        { requestedIds: [...ids], readContext: context }
       );
     case 'sprints':
-      return sprintAnalyticsService.read(projectId, { sprintId: query.sprintId });
+      return context.read('sprints', () =>
+        sprintAnalyticsService.read(projectId, { sprintId: query.sprintId }, [...ids])
+      );
+    case 'qualityProjection':
+      return qualityAnalyticsService.requirementConcentration(projectId, context);
     case 'quality':
       if (ids.size === 1 && ids.has('I53'))
-        return { indicators: [await qualityAnalyticsService.defectStates(projectId)] };
-      return qualityAnalyticsService.read(projectId, periodQuery, () => new Date(), servicePeriod);
+        return {
+          indicators: [
+            await context.read('defectStates', () =>
+              qualityAnalyticsService.defectStates(projectId)
+            )
+          ]
+        };
+      return qualityAnalyticsService.read(
+        projectId,
+        periodQuery,
+        () => context.asOf,
+        servicePeriod,
+        { requestedIds: [...ids], readContext: context }
+      );
     case 'traceability':
-      return traceabilityAnalyticsService.read(projectId);
+      return traceabilityAnalyticsService.read(projectId, () => context.asOf, context);
     default:
       throw new Error(`Unknown dashboard source: ${group}`);
   }
 }
 
 export const dashboardService = {
-  async read(projectId, query, now = () => new Date()) {
+  async read(projectId, query, now = () => new Date(), requestOptions = {}) {
     const id = Number(projectId);
     const view = query.view ?? 'GENERAL';
     const generatedAt = now().toISOString();
@@ -163,11 +176,39 @@ export const dashboardService = {
       sprintId: query.sprintId ?? null,
       responsibleUserId: query.responsibleUserId ?? null
     };
-    const sections =
-      view === 'CUSTOM' ? [{ id: 'custom', metricIds: query.widgets }] : DASHBOARD_VIEWS[view];
+    const sections = query.healthOnly
+      ? []
+      : view === 'CUSTOM'
+        ? [{ id: 'custom', metricIds: query.widgets }]
+        : DASHBOARD_VIEWS[view];
     const includeHealth =
       view === 'CUSTOM' || view === 'GENERAL' || query.includeProjectHealth === true;
-    const groups = groupIds(includeHealth ? [...sections, ...DASHBOARD_VIEWS.GENERAL] : sections);
+    const groups = planDashboardReads(sections, {
+      period,
+      includeHealth,
+      githubApplicable: project.githubIntegration != null,
+      sprintApplicable: !requestedSprint || requestedSprint.status === 'EM_ANDAMENTO'
+    });
+    const context = createIndicatorReadContext({
+      asOf: new Date(generatedAt),
+      timeZone: query.timeZone ?? 'UTC',
+      taskIds: [
+        ...new Set([
+          ...(groups.get('tasks') ?? []),
+          ...(includeHealth || view === 'TRACEABILITY' ? ['I01'] : [])
+        ])
+      ],
+      historyIds: [...(groups.get('taskHistory') ?? [])],
+      qualityIds: [
+        ...new Set([
+          ...(groups.get('quality') ?? []),
+          ...(includeHealth ? ['I49', 'I52', 'I58'] : [])
+        ])
+      ],
+      healthPeriod:
+        healthWindow(period, new Date(generatedAt), query.timeZone ?? 'UTC')?.current ?? null,
+      requestId: requestOptions.requestId
+    });
     let internalPeriod = null;
     const requests = [...groups.entries()].map(async ([group, ids]) => {
       if (!period && group === 'activity') return { group, response: { indicators: [] } };
@@ -180,9 +221,7 @@ export const dashboardService = {
       const needsRequestedPeriod = [...ids].some((metricId) =>
         INDICATORS[metricId].supportedFilters.includes('period')
       );
-      const isCurrentSummary =
-        (group === 'tasks' && ids.size === 2 && ids.has('I23') && ids.has('I28')) ||
-        (group === 'quality' && ids.size === 1 && ids.has('I53'));
+      const isCurrentSummary = group === 'quality' && ids.size === 1 && ids.has('I53');
       const servicePeriod = isCurrentSummary
         ? null
         : period && needsRequestedPeriod
@@ -190,7 +229,10 @@ export const dashboardService = {
           : CURRENT_WITHOUT_PERIOD[group]
             ? (internalPeriod ??= currentOnlyPeriod(new Date(generatedAt)))
             : null;
-      return { group, response: await readGroup(group, id, query, period, servicePeriod, ids) };
+      return {
+        group,
+        response: await readGroup(group, id, query, period, servicePeriod, ids, context)
+      };
     });
     const settled = await Promise.allSettled(requests);
     const byId = new Map();
@@ -199,12 +241,7 @@ export const dashboardService = {
     for (const [index, outcome] of settled.entries()) {
       const group = [...groups.keys()][index];
       if (outcome.status === 'rejected') {
-        if (
-          !(outcome.reason instanceof ExternalServiceError) ||
-          !['github', 'activity'].includes(group)
-        )
-          throw outcome.reason;
-        warnings.push({ code: 'SOURCE_UNAVAILABLE', source: group });
+        context.unavailable(outcome.reason, group);
         continue;
       }
       const response = outcome.value.response;
@@ -238,7 +275,8 @@ export const dashboardService = {
         sprintApplicable: selectedSprint?.status === 'EM_ANDAMENTO',
         sprintActive: selectedSprint?.status === 'EM_ANDAMENTO',
         githubApplicable: project.githubIntegration != null,
-        timeZone: query.timeZone ?? 'UTC'
+        timeZone: query.timeZone ?? 'UTC',
+        readContext: context
       }
     );
     for (const section of outputSections)
@@ -246,6 +284,7 @@ export const dashboardService = {
         ...indicator,
         assessment: health.assessments[indicator.metricId]
       }));
+    warnings.push(...context.warnings());
     const indicators = outputSections.flatMap((section) => section.indicators);
     const githubIndicators = indicators.filter((indicator) => indicator.sourceSyncStatus != null);
     const freshness = {
