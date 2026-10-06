@@ -656,9 +656,10 @@ fechado por padrão, com `aria-expanded`/`aria-controls`, Enter/Space e conteúd
 `DashboardHelp`. Não cria modal adicional nem altera o layout do card. Escape/close retornam foco;
 o portal continua limitado ao viewport e rolável no mobile.
 
-O disclosure identifica **Cálculo**, **Fonte** e **horário/frescor**. A expressão vem de `formula`
-do resultado backend; o presenter central traduz vocabulário e fontes, sem reconstruir fórmulas
-por ID. GitHub mostra `sourceUpdatedAt` como “Fonte atualizada” ou, em STALE, “Última atualização
+O disclosure identifica **Como é calculado**, **Fonte** e **horário/frescor**. A regra vem de
+`formula` no catálogo backend, conferida contra repository/service/calculator/policy na
+PR23-FIX-02.1. O frontend apresenta a regra recebida; traduz somente nomes de fontes. Não
+mantém registry de fórmulas ou substituições por ID. GitHub mostra `sourceUpdatedAt` como “Fonte atualizada” ou, em STALE, “Última atualização
 da fonte”. Métricas locais mostram `asOf` como “Calculado com dados até”. Clock ausente/inválido
 ou fonte indisponível não recebe data fictícia. NO_DATA mantém ausência de valor; um corte de
 consulta local conhecido pode ser identificado sem alegar existência de registros.
@@ -666,6 +667,20 @@ consulta local conhecido pode ser identificado sem alegar existência de registr
 IDs de indicador, RFs, versões, códigos de motivo, campos de banco e pesos continuam internos,
 inclusive nessa camada. Esta decisão substitui tanto a exibição técnica ampla do P8/P8.2 quanto
 a exclusão de fórmula/fonte/horário da ajuda comercial P8.5/P8.6. Não altera Health ou cálculos.
+
+#### Padrão de redação e wrap do cálculo (PR23-FIX-02.1)
+
+Regras de cálculo usam linguagem de domínio: Tarefas, Requisitos, Pull Requests, Commits,
+Defeitos, Casos de teste e Sprints. Percentuais identificam numerador e denominador e usam
+`(Numerador ÷ Denominador) × 100`; contagens, somas, médias e medianas usam frases claras.
+Eventos iniciais/finais, recorte, elegibilidade e exclusões relevantes devem corresponder à
+implementação. Não apresentar pseudocódigo, abreviações de banco ou nomes internos.
+
+A regra tem bloco próprio com tokens de surface, borda e padding, fonte proporcional e largura
+orientada pelo conteúdo. A expressão inteira pode quebrar; somente grupos pequenos como
+`requisitos) × 100` e `÷ Total` permanecem juntos. Não usar código, monospace ou `nowrap` na regra
+inteira. Regras longas e fontes continuam acessíveis pela rolagem da ajuda existente, sem novo modal.
+[Auditoria por indicador e evidência](../deliveries/PR23_FIX_02_1_INDICATOR_FORMULA_AUDIT_PRESENTATION_REPORT.md).
 
 ### Indicadores da Visão Geral — P8
 

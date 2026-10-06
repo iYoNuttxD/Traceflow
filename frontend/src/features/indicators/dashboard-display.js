@@ -190,7 +190,7 @@ export function indicatorVisualType(indicator) {
   return 'kpi-compact';
 }
 
-const CALCULATION_COPY = {
+const SUMMARY_COPY = {
   I02: 'Conta os commits distintos confirmados na branch main no período e os agrupa por identidade GitHub.',
   I03: 'Conta as Tasks cuja conclusão ainda era válida no fim do período e as agrupa pelo responsável registrado.',
   I04: 'Divide as PRs fechadas no período que depois reabriram pelo total de PRs fechadas nesse grupo.',
@@ -204,7 +204,7 @@ const CALCULATION_COPY = {
   I14: 'Conta as Issues atualmente fechadas cuja data de fechamento está no período.',
   I15: 'Calcula a mediana do tempo entre abertura e merge das Pull Requests elegíveis.',
   I16: 'Calcula a média do tempo entre abertura e merge das Pull Requests elegíveis.',
-  I17: 'Ordena as Pull Requests abertas por tempo desde a criação e mostra as dez mais antigas.',
+  I17: 'Total de Pull Requests abertas com data válida e lista das dez mais antigas.',
   I18: 'Calcula a mediana do tempo entre abertura e fechamento das Issues elegíveis.',
   I20: 'Calcula a mediana do tempo entre criação e primeira conclusão verificável de cada Task elegível.',
   I21: 'Calcula a mediana do tempo entre a primeira entrada em andamento e a primeira conclusão de cada Task elegível.',
@@ -222,13 +222,13 @@ const CALCULATION_COPY = {
   I33: 'Soma a diferença entre esforço realizado e estimado nas Tasks que têm ambos os valores.',
   I34: 'Conta as Tasks cujo esforço realizado supera a estimativa registrada.',
   I35: 'Conta as Tasks concluídas cujo esforço realizado ficou abaixo da estimativa registrada.',
-  I36: 'Soma os pontos preservados para as Tasks planejadas no início da Sprint.',
-  I37: 'Soma os pontos das participações que ainda integram a Sprint.',
-  I38: 'Soma os pontos das participações concluídas na Sprint.',
+  I36: 'Esforço estimado conhecido das tarefas no planejamento inicial preservado da Sprint.',
+  I37: 'Esforço estimado conhecido das tarefas que integram o escopo da Sprint.',
+  I38: 'Esforço estimado conhecido das tarefas concluídas no escopo da Sprint.',
   I39: 'Conta as Tasks que estavam planejadas no início da Sprint.',
   I40: 'Conta as Tasks concluídas no estado preservado para o corte da Sprint.',
-  I41: 'Conta as entradas de Tasks no escopo da Sprint após o planejamento inicial.',
-  I42: 'Conta as saídas de Tasks do escopo da Sprint após o planejamento inicial.',
+  I41: 'Tarefas fora do planejamento inicial que ainda pertencem ao escopo da Sprint.',
+  I42: 'Tarefas do planejamento inicial que foram removidas do escopo da Sprint.',
   I43: 'Apresenta separadamente quantas Tasks entraram e saíram da Sprint.',
   I44: 'Compara o esforço estimado e realizado registrado na Sprint.',
   I48: 'Agrupa as execuções de teste por resultado aprovado, falho ou bloqueado.',
@@ -248,10 +248,10 @@ const CALCULATION_COPY = {
   I63: 'Divide os requisitos com caso de teste ativo relevante pelo total de requisitos.',
   I64: 'Divide os requisitos com defeito ativo relevante pelo total de requisitos.',
   I65: 'Divide os requisitos concluídos pelo total de requisitos.',
-  I66: 'Divide os requisitos com implementação marcada pelo total de requisitos.',
+  I66: 'Requisitos com todas as tarefas concluídas e evidência técnica vinculada.',
   I67: 'Calcula a média do percentual de progresso de cada requisito.',
-  I71: 'Apresenta separadamente as entradas e saídas de escopo registradas na Sprint.',
-  I72: 'Conta as participações atuais de Tasks transferidas de uma Sprint anterior.',
+  I71: 'Tarefas adicionadas fora do planejamento inicial que permanecem no escopo e tarefas planejadas removidas.',
+  I72: 'Tarefas recebidas de outra Sprint que permanecem no escopo, incluindo as concluídas.',
   I73: 'Calcula a média do tempo desde a criação das Pull Requests que continuam abertas.',
   I74: 'Calcula a média do tempo entre abertura e fechamento das Issues elegíveis.'
 };
@@ -285,7 +285,7 @@ const DESCRIPTION_COPY = {
   I63: 'Parcela dos requisitos com caso de teste ativo relevante.',
   I64: 'Parcela dos requisitos com defeito ativo relevante.',
   I65: 'Parcela dos requisitos concluídos.',
-  I66: 'Parcela dos requisitos com implementação marcada.',
+  I66: 'Parcela dos requisitos com tarefas concluídas e evidência técnica vinculada.',
   I67: 'Média do progresso registrado em cada requisito.',
   I74: 'Tempo médio entre abertura e fechamento das Issues elegíveis.'
 };
@@ -314,36 +314,31 @@ const INTERPRETATION_COPY = {
   I63: 'O percentual mostra quanto do catálogo de requisitos possui caso de teste ativo relevante.',
   I64: 'O percentual mostra quanto do catálogo de requisitos possui defeito ativo relevante.',
   I65: 'O percentual mostra quanto do catálogo de requisitos está concluído.',
-  I66: 'O percentual mostra quanto do catálogo de requisitos tem implementação marcada.'
+  I66: 'O percentual mostra quanto do catálogo de requisitos atingiu a implementação técnica, independentemente da validação de qualidade.'
 };
 
 export function indicatorHelp(indicator) {
   const specific = {
     I01: {
       what: 'Quanto das Tasks cadastradas já foi concluído.',
-      how: 'Tasks concluídas ÷ total de Tasks × 100.',
       meaning: 'O percentual mostra a parcela do trabalho registrado que já foi finalizada.'
     },
     I45: {
       what: 'Como o trabalho restante da Sprint mudou nos dias cobertos pelo histórico.',
-      how: 'O restante e a linha ideal são calculados pela fonte da Sprint para cada dia coberto.',
       meaning:
         'A distância entre as linhas ajuda a comparar o restante registrado com a referência ideal.'
     },
     I46: {
       what: 'Como o escopo total e o trabalho concluído evoluíram na Sprint.',
-      how: 'A fonte registra os valores históricos de escopo e conclusão por dia coberto.',
       meaning:
         'As duas linhas permitem ver mudanças de escopo junto à entrega; lacunas não representam zero.'
     },
     I47: {
       what: 'Trabalho concluído nas Sprints encerradas com registro elegível.',
-      how: 'Usa os valores preservados no fechamento de cada Sprint elegível.',
       meaning: 'As barras mostram a variação entre Sprints, sem comparar desempenho individual.'
     },
     I58: {
       what: 'Parcela dos retestes executados que foi aprovada.',
-      how: 'Retestes aprovados ÷ retestes aprovados, falhos e bloqueados × 100.',
       meaning: 'O percentual é uma proporção; a distribuição abaixo mostra quantidades de retestes.'
     }
   }[indicator.metricId];
@@ -351,11 +346,8 @@ export function indicatorHelp(indicator) {
     specific ?? {
       what:
         DESCRIPTION_COPY[indicator.metricId] ??
-        CALCULATION_COPY[indicator.metricId] ??
+        SUMMARY_COPY[indicator.metricId] ??
         'Dados registrados para este aspecto do projeto.',
-      how:
-        CALCULATION_COPY[indicator.metricId] ??
-        'Considera os registros elegíveis no contexto selecionado.',
       meaning:
         INTERPRETATION_COPY[indicator.metricId] ??
         (indicator.unit === 'PERCENT'

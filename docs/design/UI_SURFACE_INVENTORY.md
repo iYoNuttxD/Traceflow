@@ -863,3 +863,13 @@ superfícies. [Relatório PR23-FIX-01](../deliveries/PR23_FIX_01_SPRINT_ANALYTIC
 Validação atual restrita à ajuda RF55, sem promoção global do workspace ou uso de
 imagens atuais como evidência retroativa. A inclusão desta nota não adiciona novos
 IDs ao censo. [Relatório FIX-02](../deliveries/PR23_FIX_02_RF55_TRANSPARENCY_EVIDENCE_ALIGNMENT_REPORT.md).
+
+## PR23-FIX-02.1 — regras auditadas sob demanda (2026-10-05)
+
+| Surface existente | Validation status atual | Evidência desta mudança |
+| --- | --- | --- |
+| INDICATORS-HELP — comercial/auditável | VISUALLY APPROVED | Label Como é calculado; metadata backend auditada, fonte/clock preservados; sete famílias + Meu painel, 1440/390 Light/Dark, tablet 768 em amostra. [Log](validation/VISUAL_VALIDATION_LOG.md#2026-10-05--pr23-fix-021-auditoria-e-apresentação-das-regras), [capturas](validation/evidence/pr23-fix-02-1/README.md) |
+
+Revalidação restrita à regra/fonte/horário e seu wrapping. Não cria surface, altera
+censo, redesenha workspace ou promove estado histórico P8.4. Evidência FIX-02 continua
+histórica; a apresentação atual das regras usa o pacote FIX-02.1.

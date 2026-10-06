@@ -14,6 +14,24 @@ import { IndicatorProgress } from './IndicatorProgress.jsx';
 import { describeHealthReason } from '../health-display.js';
 import { indicatorAuditDetails } from '../indicator-audit-display.js';
 
+function CalculationRule({ text }) {
+  // Keep small mathematical groups together; the full rule still wraps naturally.
+  const groups = text.split(/(\S+\s+×\s+100|[÷−]\s+\S+)/g);
+  return (
+    <p className="dashboard-help__rule">
+      {groups.map((group, index) =>
+        index % 2 === 1 ? (
+          <span className="dashboard-help__rule-group" key={index}>
+            {group}
+          </span>
+        ) : (
+          group
+        )
+      )}
+    </p>
+  );
+}
+
 function IndicatorCalculationDetails({ indicator, metadata }) {
   const [expanded, setExpanded] = useState(false);
   const id = useId();
@@ -29,8 +47,8 @@ function IndicatorCalculationDetails({ indicator, metadata }) {
         Detalhes do cálculo <span aria-hidden="true">{expanded ? '⌄' : '›'}</span>
       </button>
       <div id={id} hidden={!expanded}>
-        <strong>Cálculo</strong>
-        <p>{details.formula}</p>
+        <strong>Como é calculado</strong>
+        <CalculationRule text={details.formula} />
         <strong>Fonte</strong>
         <p>
           {details.sources.length

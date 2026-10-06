@@ -27,7 +27,7 @@ export const QUALITY_TRACEABILITY_INDICATORS = Object.freeze({
     'EXECUTIONS',
     'EVENT',
     'TestExecution.executedAt',
-    'COUNT(TestExecution) por PASS, FAIL, BLOCKED',
+    'Quantidade de execuções de casos de teste realizadas no período, separadas em aprovadas, com falha e bloqueadas.',
     ['TestExecution.result', 'TestExecution.executedAt']
   ),
   I49: quality(
@@ -36,7 +36,7 @@ export const QUALITY_TRACEABILITY_INDICATORS = Object.freeze({
     'PERCENT',
     'EVENT',
     'TestExecution.executedAt',
-    'PASS / (PASS + FAIL + BLOCKED) × 100',
+    '(Execuções aprovadas ÷ Total de execuções aprovadas, com falha ou bloqueadas no período) × 100',
     ['TestExecution.result', 'TestExecution.executedAt']
   ),
   I50: quality(
@@ -45,7 +45,7 @@ export const QUALITY_TRACEABILITY_INDICATORS = Object.freeze({
     'PERCENT',
     'EVENT',
     'TestExecution.executedAt',
-    'FAIL / (PASS + FAIL + BLOCKED) × 100',
+    '(Execuções com falha ÷ Total de execuções aprovadas, com falha ou bloqueadas no período) × 100',
     ['TestExecution.result', 'TestExecution.executedAt']
   ),
   I51: quality(
@@ -54,7 +54,7 @@ export const QUALITY_TRACEABILITY_INDICATORS = Object.freeze({
     'PERCENT',
     'EVENT',
     'TestExecution.executedAt',
-    'BLOCKED / (PASS + FAIL + BLOCKED) × 100',
+    '(Execuções bloqueadas ÷ Total de execuções aprovadas, com falha ou bloqueadas no período) × 100',
     ['TestExecution.result', 'TestExecution.executedAt']
   ),
   I52: quality(
@@ -63,7 +63,7 @@ export const QUALITY_TRACEABILITY_INDICATORS = Object.freeze({
     'TEST_CASES',
     'CURRENT_STATE',
     null,
-    'última execução da currentVersion por TestCase ativo',
+    'Quantidade de casos de teste ativos e não excluídos por resultado da última execução de sua versão atual. Casos sem execução dessa versão são classificados como nunca executados.',
     ['TestCase.currentVersion', 'TestExecution']
   ),
   I53: quality(
@@ -72,7 +72,7 @@ export const QUALITY_TRACEABILITY_INDICATORS = Object.freeze({
     'DEFECTS',
     'CURRENT_STATE',
     null,
-    'COUNT(Defect não excluído) por status',
+    'Quantidade de defeitos não excluídos por estado atual. O total de ativos reúne “Aberto”, “Em correção” e “Aguardando reteste”.',
     ['Defect.status', 'Defect.deletedAt']
   ),
   I54: quality(
@@ -81,7 +81,7 @@ export const QUALITY_TRACEABILITY_INDICATORS = Object.freeze({
     'DEFECTS',
     'CURRENT_STATE',
     null,
-    'COUNT(Defect não excluído) por severity',
+    'Quantidade de defeitos não excluídos por severidade: baixa, média, alta e crítica.',
     ['Defect.severity', 'Defect.deletedAt']
   ),
   I55: quality(
@@ -90,7 +90,7 @@ export const QUALITY_TRACEABILITY_INDICATORS = Object.freeze({
     'DEFECTS',
     'EVENT',
     'Defect.createdAt',
-    'COUNT(Defect não excluído criado no período)',
+    'Quantidade de defeitos não excluídos criados no período.',
     ['Defect.createdAt', 'Defect.deletedAt']
   ),
   I56: quality(
@@ -99,7 +99,7 @@ export const QUALITY_TRACEABILITY_INDICATORS = Object.freeze({
     'DEFECTS',
     'EVENT',
     'DefectHistoryEntry.occurredAt',
-    'COUNT(DISTINCT defectId) com VALIDATED no período',
+    'Quantidade de defeitos distintos e não excluídos com uma validação registrada no período. Cada defeito é contado uma vez, mesmo com múltiplas validações.',
     ['DefectHistoryEntry.action', 'DefectHistoryEntry.occurredAt']
   ),
   I57: quality(
@@ -108,7 +108,7 @@ export const QUALITY_TRACEABILITY_INDICATORS = Object.freeze({
     'DAYS',
     'EVENT',
     'primeiro DefectHistoryEntry.VALIDATED.occurredAt',
-    'MEDIAN(primeiro VALIDATED.occurredAt − Defect.createdAt)',
+    'Mediana do tempo entre a criação do defeito e sua primeira validação registrada, em dias corridos. Considera primeiras validações ocorridas no período, com datas válidas, de defeitos não excluídos.',
     ['Defect.createdAt', 'DefectHistoryEntry']
   ),
   I58: quality(
@@ -117,7 +117,7 @@ export const QUALITY_TRACEABILITY_INDICATORS = Object.freeze({
     'PERCENT',
     'EVENT',
     'TestExecution.executedAt',
-    'retestes PASS / (PASS + FAIL + BLOCKED) × 100',
+    '(Tentativas de reteste aprovadas ÷ Total de tentativas aprovadas, com falha ou bloqueadas no período) × 100. Inclui todos os ciclos de correção de defeitos não excluídos.',
     ['DefectRetest', 'TestExecution.result']
   ),
   I59: quality(
@@ -126,7 +126,7 @@ export const QUALITY_TRACEABILITY_INDICATORS = Object.freeze({
     'DEFECTS',
     'CURRENT_STATE',
     null,
-    'Defects distintos diretos ou via Task ORIGIN por Requirement',
+    'Quantidade de defeitos distintos e não excluídos ligados a cada requisito, diretamente ou por tarefas de origem. A lista mostra até dez requisitos com mais defeitos; o mesmo defeito pode aparecer em requisitos diferentes.',
     ['S1-09 defect_links']
   ),
   I60: quality(
@@ -135,49 +135,49 @@ export const QUALITY_TRACEABILITY_INDICATORS = Object.freeze({
     'DEFECTS',
     'CURRENT_STATE',
     null,
-    'Defects distintos por Task ORIGIN',
+    'Quantidade de defeitos distintos e não excluídos por tarefa de origem. A lista mostra até dez tarefas com mais defeitos; vínculos de correção não entram.',
     ['DefectTask.relationType', 'Defect.deletedAt']
   ),
   I61: traceability(
     'I61',
     'Requirements com Tasks',
-    'Requirements com Task / total Requirements × 100',
+    '(Requisitos com ao menos uma tarefa vinculada ÷ Total de requisitos) × 100',
     ['S1-09 projectIndicatorCoverage']
   ),
   I62: traceability(
     'I62',
     'Requirements com evidência técnica',
-    'Requirements com PR/commit via Task / total Requirements × 100',
+    '(Requisitos com ao menos um Commit ou Pull Request vinculado por uma tarefa ÷ Total de requisitos) × 100',
     ['S1-09 technicalEvidence']
   ),
   I63: traceability(
     'I63',
     'Requirements com TestCase',
-    'Requirements com TestCase ativo relevante / total Requirements × 100',
+    '(Requisitos com ao menos um caso de teste ativo e não excluído vinculado diretamente ou por uma tarefa ÷ Total de requisitos) × 100',
     ['S1-09 case_links']
   ),
   I64: traceability(
     'I64',
     'Requirements com Defect ativo',
-    'Requirements com Defect ativo relevante / total Requirements × 100',
+    '(Requisitos com ao menos um defeito ativo ligado diretamente ou por uma tarefa de origem ÷ Total de requisitos) × 100. Defeitos excluídos ou validados não são ativos.',
     ['S1-09 defect_links']
   ),
   I65: traceability(
     'I65',
     'Requirements validados',
-    'Requirements com situation CONCLUIDO / total Requirements × 100',
+    '(Requisitos implementados com ao menos um caso de teste ativo relevante, todos os casos ativos relevantes aprovados na versão atual e nenhum defeito ativo ÷ Total de requisitos) × 100',
     ['S1-09 situation']
   ),
   I66: traceability(
     'I66',
     'Cobertura de implementação',
-    'Requirements com implementation.implemented / total Requirements × 100',
+    '(Requisitos com todas as tarefas concluídas e ao menos um Commit ou Pull Request vinculado a uma delas ÷ Total de requisitos) × 100. Falhas em testes e defeitos não apagam essa implementação técnica.',
     ['S1-09 implementation']
   ),
   I67: traceability(
     'I67',
     'Progresso médio por Requirement',
-    'média do percentual de progresso de cada Requirement',
+    'Média dos percentuais de tarefas concluídas de cada requisito, com o mesmo peso para todos os requisitos. Requisitos sem tarefas contribuem com zero.',
     ['S1-09 buildMatrixSummary.averageProgress']
   )
 });

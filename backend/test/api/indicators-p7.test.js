@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { INDICATORS } from '../../src/modules/indicators/indicators.catalog.js';
 import request from 'supertest';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ExternalServiceError } from '../../src/shared/errors/index.js';
@@ -523,6 +524,13 @@ describe('P7 aggregate dashboard API', () => {
       expect(ids).toEqual(expectedIds[view]);
       expect(new Set(ids).size).toBe(ids.length);
       expect(ids).not.toContain('I68');
+      for (const metric of response.body.sections.flatMap((section) => section.indicators)) {
+        expect(metric.formula, `${view}: ${metric.metricId}`).toBe(
+          INDICATORS[metric.metricId].formula
+        );
+        expect(metric.sources).toEqual(INDICATORS[metric.metricId].sources);
+        expect(Number.isFinite(Date.parse(metric.asOf))).toBe(true);
+      }
       expect(
         response.body.sections.every((section) =>
           section.indicators.every((item) => item.definitionVersion)

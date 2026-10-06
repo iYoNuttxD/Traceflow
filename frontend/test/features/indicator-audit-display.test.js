@@ -6,13 +6,14 @@ import {
 import { INDICATORS } from '../../../backend/src/modules/indicators/indicators.catalog.js';
 
 describe('RF55 metadata presentation', () => {
-  it('translates the API-owned expressions without a frontend formula registry', () => {
+  it('presents every API-owned rule unchanged without a frontend formula registry', () => {
     for (const definition of Object.values(INDICATORS)) {
       const details = indicatorAuditDetails({
         ...definition,
         state: 'AVAILABLE',
         asOf: '2026-10-05T12:00:00Z'
       });
+      expect(details.formula).toBe(definition.formula);
       expect(details.formula).not.toMatch(
         /\b(?:I\d\d|RF\d+|[A-Za-z]+\.[A-Za-z]+|[a-z]+[A-Z][a-z]+|[A-Z]+_[A-Z]+|COUNT|SUM|MEDIAN|MEAN|Task|Tasks|Defect|Requirement|TestCase)\b/
       );
@@ -21,18 +22,17 @@ describe('RF55 metadata presentation', () => {
     }
   });
   it('presents the supplied formula rather than choosing one by metric ID', () => {
-    expect(presentFormula('PASS / (PASS + FAIL) × 100')).toBe(
-      'aprovadas / (aprovadas + falhas) × 100'
-    );
-    expect(presentFormula('MEDIAN(primeira conclusão − Task.createdAt)')).toBe(
-      'Mediana(primeira conclusão − criação da tarefa)'
+    const supplied = '(Execuções aprovadas ÷ Total de execuções) × 100';
+    expect(presentFormula(supplied)).toBe(supplied);
+    expect(presentFormula('  Quantidade de tarefas em andamento.  ')).toBe(
+      'Quantidade de tarefas em andamento.'
     );
   });
   it('never substitutes asOf for missing external freshness, including NO_DATA', () => {
     const details = indicatorAuditDetails({
       state: 'NO_DATA',
       sources: ['PullRequest.state'],
-      formula: 'COUNT PullRequest.state=open',
+      formula: INDICATORS.I10.formula,
       sourceUpdatedAt: null,
       asOf: '2026-10-05T12:00:00Z'
     });

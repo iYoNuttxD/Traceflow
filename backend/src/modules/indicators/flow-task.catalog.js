@@ -34,7 +34,7 @@ export const FLOW_TASK_INDICATORS = Object.freeze({
     'DAYS',
     'EVENT',
     'TaskMovement.movedAt',
-    'MEDIAN(primeira conclusão − Task.createdAt)',
+    'Mediana do tempo entre a criação e a primeira conclusão verificável das tarefas concluídas pela primeira vez no período, em dias corridos. A série mostra a mediana dessas durações em cada dia.',
     ['Task.createdAt', 'TaskMovement']
   ),
   I21: define(
@@ -45,7 +45,7 @@ export const FLOW_TASK_INDICATORS = Object.freeze({
     'DAYS',
     'EVENT',
     'TaskMovement.movedAt',
-    'MEDIAN(primeira conclusão − primeira entrada EM_ANDAMENTO)',
+    'Mediana do tempo entre a primeira entrada em “Em andamento” e a primeira conclusão verificável das tarefas concluídas pela primeira vez no período, em dias corridos. Reentradas não reiniciam o relógio; a série mostra a mediana diária.',
     ['TaskMovement']
   ),
   I22: define(
@@ -56,7 +56,7 @@ export const FLOW_TASK_INDICATORS = Object.freeze({
     'TASKS',
     'EVENT',
     'TaskMovement.movedAt',
-    'COUNT DISTINCT Task da última conclusão vigente no corte',
+    'Quantidade de tarefas distintas cuja última movimentação até o fim do período é uma conclusão ocorrida no período. Cada tarefa é contada uma vez e agrupada pelo dia dessa conclusão.',
     ['TaskMovement']
   ),
   I23: define(
@@ -67,7 +67,7 @@ export const FLOW_TASK_INDICATORS = Object.freeze({
     'TASKS',
     'CURRENT_STATE',
     null,
-    'COUNT Task.status=EM_ANDAMENTO',
+    'Quantidade de tarefas atualmente em andamento.',
     ['Task.status']
   ),
   I24: define(
@@ -78,7 +78,7 @@ export const FLOW_TASK_INDICATORS = Object.freeze({
     'DAYS',
     'CURRENT_STATE',
     null,
-    'asOf − última entrada EM_ANDAMENTO ainda vigente',
+    'Tempo desde a última entrada registrada em “Em andamento” até a consulta, em dias, para tarefas que continuam nesse estado. A lista mostra até dez das mais antigas com histórico verificável.',
     ['Task.status', 'TaskMovement']
   ),
   I25: define(
@@ -89,7 +89,7 @@ export const FLOW_TASK_INDICATORS = Object.freeze({
     'TASKS',
     'HISTORICAL_SERIES',
     'Task.createdAt + TaskMovement.movedAt',
-    'estoque observado por status ao fim de cada dia civil',
+    'Quantidade de tarefas por status ao fim de cada dia completo no fuso escolhido. Considera somente tarefas ainda existentes com sequência de movimentações verificável.',
     ['Task.createdAt', 'TaskMovement']
   ),
   I26: define(
@@ -100,7 +100,7 @@ export const FLOW_TASK_INDICATORS = Object.freeze({
     'TASKS',
     'CURRENT_STATE',
     null,
-    'COUNT Task.id',
+    'Quantidade de tarefas existentes no projeto.',
     ['Task']
   ),
   I27: define(
@@ -111,7 +111,7 @@ export const FLOW_TASK_INDICATORS = Object.freeze({
     'TASKS',
     'CURRENT_STATE',
     null,
-    'COUNT Task.id GROUP BY status',
+    'Quantidade de tarefas existentes em cada status: “A fazer”, “Em andamento” e “Concluído”.',
     ['Task.status']
   ),
   I28: define(
@@ -122,7 +122,7 @@ export const FLOW_TASK_INDICATORS = Object.freeze({
     'TASKS',
     'CURRENT_STATE',
     null,
-    'COUNT deadline < asOf AND status != CONCLUIDO',
+    'Quantidade de tarefas não concluídas cujo prazo é anterior ao instante da consulta. A lista mostra até dez tarefas, começando pelos prazos mais antigos.',
     ['Task.deadline', 'Task.status']
   ),
   I29: define(
@@ -133,7 +133,7 @@ export const FLOW_TASK_INDICATORS = Object.freeze({
     'TASKS',
     'CURRENT_STATE',
     null,
-    'COUNT responsibleUserId IS NULL',
+    'Quantidade de tarefas sem responsável registrado.',
     ['Task.responsibleUserId']
   ),
   I30: define(
@@ -144,7 +144,7 @@ export const FLOW_TASK_INDICATORS = Object.freeze({
     'TASKS',
     'CURRENT_STATE',
     null,
-    'COUNT estimatedEffort IS NULL',
+    'Quantidade de tarefas sem estimativa de esforço informada. Uma estimativa registrada como zero não é considerada ausente.',
     ['Task.estimatedEffort']
   ),
   I31: define(
@@ -155,7 +155,7 @@ export const FLOW_TASK_INDICATORS = Object.freeze({
     'HOURS',
     'CURRENT_STATE',
     null,
-    'SUM estimatedEffort não nulo',
+    'Soma das estimativas de esforço conhecidas das tarefas, em horas. Tarefas sem estimativa não entram no subtotal e tornam o resultado parcial.',
     ['Task.estimatedEffort']
   ),
   I32: define(
@@ -166,7 +166,7 @@ export const FLOW_TASK_INDICATORS = Object.freeze({
     'HOURS',
     'CURRENT_STATE',
     null,
-    'SUM Task.actualEffort não nulo',
+    'Soma do esforço realizado conhecido das tarefas, em horas. Usa o total já consolidado de sessões e registros anteriores, sem somá-los novamente.',
     ['Task.actualEffort']
   ),
   I33: define(
@@ -177,7 +177,7 @@ export const FLOW_TASK_INDICATORS = Object.freeze({
     'HOURS',
     'CURRENT_STATE',
     null,
-    'SUM(actualEffort − estimatedEffort) nas Tasks comparáveis',
+    'Soma de (Esforço realizado − Esforço estimado), em horas, somente nas tarefas com os dois valores conhecidos.',
     ['Task.estimatedEffort', 'Task.actualEffort']
   ),
   I34: define(
@@ -188,7 +188,7 @@ export const FLOW_TASK_INDICATORS = Object.freeze({
     'TASKS',
     'CURRENT_STATE',
     null,
-    'COUNT actualEffort > estimatedEffort nas Tasks comparáveis',
+    'Quantidade de tarefas com esforço realizado maior que a estimativa, considerando somente valores conhecidos. A lista mostra até dez dos maiores excessos.',
     ['Task.estimatedEffort', 'Task.actualEffort']
   ),
   I35: define(
@@ -199,7 +199,7 @@ export const FLOW_TASK_INDICATORS = Object.freeze({
     'TASKS',
     'CURRENT_STATE',
     null,
-    'COUNT CONCLUIDO AND actualEffort < estimatedEffort',
+    'Quantidade de tarefas concluídas com esforço realizado menor que a estimativa, considerando somente valores conhecidos. A lista mostra até dez das maiores diferenças.',
     ['Task.status', 'Task.estimatedEffort', 'Task.actualEffort']
   )
 });

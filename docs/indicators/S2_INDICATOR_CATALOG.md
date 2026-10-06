@@ -66,7 +66,7 @@ Todas as linhas desta seção são **DERIVED PRODUCT INDICATOR**: campo `RF rela
 | **I14 Issues fechadas no período** — Quantas foram encerradas? | `closedAtGithub` no intervalo / —; issues. | `Issue.closedAtGithub`; fechamento atual; E; `S/N/N`; GE. | **IMPLEMENTED BACKEND**; reabertura elimina histórico; BAR. |
 | **I15 Mediana até merge** — Quanto demora uma PR típica a integrar? | Mediana de `mergedAtGithub-createdAtGithub` / PRs mescladas elegíveis; horas. | `PullRequest` datas; merge; E; `S/N/N`; GR. | **IMPLEMENTED BACKEND**; excluir durações inválidas com contagem de exclusões; KPI/LINE. |
 | **I16 Média até merge** — Qual tempo médio, inclusive cauda longa? | Soma das durações / PRs mescladas elegíveis; horas. | Mesma fonte I15; merge; E; `S/N/N`; GR. | **IMPLEMENTED BACKEND**; mostrar junto à mediana, sem esconder outliers; KPI. |
-| **I17 Idade de PR aberta** — Há PRs envelhecendo sem decisão? | `asOf-createdAtGithub` por PR aberta; D=—; dias. | `PullRequest.state,createdAtGithub`; agora/sync; C; `N/N/N`; GE. | **IMPLEMENTED BACKEND**; top antigas em RANKED_LIST; mediana da fila pode ser calculada da mesma amostra. |
+| **I17 Idade de PR aberta** — Há PRs envelhecendo sem decisão? | `asOf-createdAtGithub` por PR aberta; D=—; dias. | `PullRequest.state,createdAtGithub`; agora/sync; C; `N/N/N`; GE. | **IMPLEMENTED BACKEND**; `value` conta todas as PRs abertas com idade válida; até dez antigas em RANKED_LIST; I73 usa a mesma amostra completa para a média. |
 | **I18 Mediana até fechamento de Issue** — Quanto leva a encerrar uma issue? | Mediana de `closedAtGithub-createdAtGithub` / issues fechadas elegíveis; dias. | `Issue` datas; fechamento; E; `S/N/N`; GR. | **IMPLEMENTED BACKEND**; fechamento corrente pode omitir ciclos anteriores; KPI/LINE. |
 | **I19 Aprovações GitHub Review** — Que PRs receberam parecer formal? | Reviews APPROVED / reviews elegíveis; `%`. | GitHub Reviews ainda não coletadas; submissão de review; E; `S/N/N`; GR. | **NEEDS_GITHUB_DATA**; indicador futuro separado de RF54; não inferir de merge; KPI. |
 | **I73 Idade média de PR aberta** — Em média, há quanto tempo a fila atual espera? | Soma de `asOf-createdAtGithub` / PRs abertas elegíveis; dias. | `PullRequest.state,createdAtGithub`; corte/sync; C; `N/N/N`; GR. | **IMPLEMENTED BACKEND**; interpretar com I17, pois poucas PRs antigas distorcem a média; KPI futuro. |
@@ -148,7 +148,7 @@ Todas as fichas `F` usam `SprintTask` e snapshots de fechamento, jamais `Task` a
 | **I63 Requirements com TestCase** — Onde existe verificação vinculada? | Requisitos com caso relevante ativo direto/via Task / requisitos; `%`. | S1-09 `case_links`; leitura; C; `U/N/N`; LR. | **IMPLEMENTED BACKEND**; deduplicar caso/requisito; KPI. |
 | **I64 Requirements com Defect** — Onde há falhas rastreadas? | Requisitos com defeito ativo direto/via ORIGIN / requisitos; `%`. | S1-09 `defect_links`; leitura; C; `U/N/N`; LR. | **IMPLEMENTED BACKEND**; diagnóstico, não “cobertura boa”; KPI/TABLE. |
 | **I65 Requirements validados** — Que parte satisfaz a condição atual de conclusão? | Situação atual `CONCLUIDO` / requisitos; `%`. | Projeção S1-09, não `Requirement.status` legado; leitura; C; `U/N/N`; LR. | **IMPLEMENTED BACKEND**; `VALIDADO` histórico não é aprovação atual; KPI. |
-| **I66 Cobertura de implementação** — Quanto do escopo atingiu estágio técnico implementado? | Requisitos com `implementation.implemented` na policy S1-09 / requisitos; `%`. | `requirement-projection`/policy; leitura; C; `U/N/N`; LR. | **IMPLEMENTED BACKEND**; D11: policy deriva de `legacyStage=IMPLEMENTADO`; estados de qualidade não apagam implementação; nunca commits/requisitos; KPI. |
+| **I66 Cobertura de implementação** — Quanto do escopo atingiu estágio técnico implementado? | Requisitos com todas as Tasks concluídas e ≥1 Commit/PR vinculado a uma delas / requisitos; `%`. | `requirement-projection`/policy; leitura; C; `U/N/N`; LR. | **IMPLEMENTED BACKEND**; D11: policy deriva de `legacyStage=IMPLEMENTADO`; estados de qualidade não apagam implementação; nunca commits/requisitos; KPI. |
 | **I67 Progresso médio por Requirement** — Como avançam as Tasks vinculadas aos requisitos? | Soma dos progressos por requisito / total requisitos; `%`. | `requirements-matrix.summary.averageProgress`; leitura; C; `U/N/N`; LR. | **IMPLEMENTED BACKEND**; zero por requisito sem Task é regra existente, distinta de I01; KPI. |
 | **I68 Funil cumulativo completo** — Todos os níveis representam subconjuntos sucessivos? | Requisitos → com Tasks → evidência → TestCases → validados; contagens. | Projeção S1-09; leitura; C; `U/N/N`; QP. | **NOT_RECOMMENDED**: evidência e TestCase são dimensões independentes, logo barras podem aumentar. Visual alternativo para as dimensões: BAR, nunca FUNNEL. |
 
@@ -159,7 +159,7 @@ Todas as fichas `F` usam `SprintTask` e snapshots de fechamento, jamais `Task` a
 | **I69 Marcos próximos do prazo** — O que vence na janela de atenção? | Marcos não concluídos com `dueDate ∈ [asOf,asOf+horizonte]` / —; marcos. | `Milestone.status,dueDate,deletedAt`; leitura; C; `N/N/N`; LC. | **DERIVABLE**; horizonte configurado no produto (ex. 14 dias) é decisão, não RF; RANKED_LIST. |
 | **I70 Marcos vencidos** — Que prazo de marco já passou? | Marcos não concluídos com `dueDate<asOf` / —; marcos. | `Milestone`; leitura; C; `N/N/N`; LC. | **DERIVABLE**; fuso de exibição explícito; KPI/TABLE. |
 | **I71 Sprint com mudança de escopo** — O plano mudou depois do início? | `scopeChange.added/removed` / —; Tasks. | `/sprints/:id/progress`; eventos/snapshot; F; `N/S/N`; FS. | **IMPLEMENTED BACKEND**; mostrar ambas as direções, sem score de “saúde”; TABLE. |
-| **I72 Carry-over atual** — Que pendências chegaram à Sprint corrente? | Participações correntes com `carriedFromSprintId` / —; Tasks. | `SprintTask`; leitura; C; `N/S/N`; FS. | **IMPLEMENTED BACKEND**; não alterar origem congelada; TABLE. |
+| **I72 Carry-over atual** — Que tarefas recebidas de outra Sprint permanecem no escopo corrente? | Participações correntes com `carriedFromSprintId` / —; Tasks. | `SprintTask`; leitura; C; `N/S/N`; FS. | **IMPLEMENTED BACKEND**; inclui Tasks já concluídas no escopo corrente; terminal é NO_DATA; não alterar origem congelada; TABLE. |
 
 ## Composição inicial das visões futuras
 
@@ -330,8 +330,9 @@ período anterior comparável, mediana de merge, estágio anterior de cobertura,
 estimativa da Sprint e linha ideal do Burndown. Não representam metas configuradas.
 A fórmula permanece definida pelo backend/catalog. A ajuda principal do produto apresenta
 linguagem de uso; desde PR23-FIX-02, “Detalhes do cálculo” oferece fórmula, fontes com nomes
-semânticos e horário/frescor sob demanda. O frontend traduz termos, sem registry alternativo
-de fórmulas. Fontes GitHub usam `sourceUpdatedAt`; locais usam `asOf`, sem fabricar relógio,
+semânticos e horário/frescor sob demanda. Desde PR23-FIX-02.1, o backend fornece `formula` em
+linguagem de domínio; o frontend apresenta a regra sem tradução ou registry alternativo de
+fórmulas e traduz somente fontes. Fontes GitHub usam `sourceUpdatedAt`; locais usam `asOf`, sem fabricar relógio,
 valor ou histórico. Essa regra substitui a exclusão desses itens da ajuda P8.5.
 
 
@@ -356,3 +357,20 @@ I19/I69/I70 seguem não implementados e I68 não recomendado. Papel `CONTEXT_ONL
 no Health não impede personalização. Nenhuma fórmula, fonte, assessment ou
 referência foi alterada pelo P9. Health é calculado integralmente mesmo quando
 somente um widget é escolhido.
+
+## PR23-FIX-02.1 — auditoria das regras apresentadas
+
+HEAD auditado `ebf60a9a4a2841e55ca911a84878555e12c73d9c`: 74 IDs oficiais, 68 definições
+implementadas com `formula`/`sources`, 66 IDs distintos nas oito views padrão e 66 personalizáveis.
+I03/I05 são publicados na API/catalog, mas não têm presenter isolado aprovado. I07/I08 são
+capacidades; I19/I69/I70 não estão implementados; I68 é não recomendado.
+
+Os 68 textos foram comparados individualmente com leitura persistida, service, calculator/policy
+e decisão vigente. A autoridade de apresentação continua sendo os quatro catalogs backend,
+transportada por `IndicatorResult`, inclusive com ausência de valor. A UI usa a label única
+**Como é calculado**, sem nomes internos; percentuais usam `÷` e `×`. Nenhum algoritmo foi
+alterado para adequar o texto. As fichas técnicas acima preservam notação de implementação para
+rastreabilidade; a redação efetivamente apresentada e os fatos conferidos estão na
+[matriz completa da auditoria](../deliveries/PR23_FIX_02_1_INDICATOR_FORMULA_AUDIT_PRESENTATION_REPORT.md#6-indicator-by-indicator-audit-summary).
+A divergência acadêmica RF54 já registrada em TCC_ALIGNMENT_NOTE permanece explícita; a regra
+vigente P3 conserva a coorte fechada RF18 e não é redefinida por esta revisão de apresentação.

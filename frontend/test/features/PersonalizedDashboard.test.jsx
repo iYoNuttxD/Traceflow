@@ -1,6 +1,7 @@
 import { createMemoryRouter, MemoryRouter, RouterProvider, useParams } from 'react-router';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { INDICATORS } from '../../../backend/src/modules/indicators/indicators.catalog.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const api = vi.hoisted(() => ({
   dashboard: vi.fn(),
@@ -84,6 +85,9 @@ function aggregate(filters) {
           id: filters.view === 'CUSTOM' ? 'custom' : 'summary',
           indicators: (filters.widgets?.split(',') ?? ['I01']).map((metricId) => ({
             metricId,
+            formula: INDICATORS[metricId].formula,
+            sources: INDICATORS[metricId].sources,
+            asOf: '2026-10-05T12:00:00Z',
             value: 42,
             unit: 'TASKS',
             kind: 'KPI',
@@ -689,4 +693,26 @@ it('preserves focus at reorder boundaries and traps Tab inside the canonical dia
   expect(within(dialog).getByRole('button', { name: 'Fechar personalizar painel' })).toHaveFocus();
   await userEvent.keyboard('{Shift>}{Tab}{/Shift}');
   expect(within(dialog).getByRole('button', { name: 'Salvar' })).toHaveFocus();
+});
+
+it('reuses catalog calculation details in Meu painel without displaying them permanently', async () => {
+  const user = userEvent.setup();
+  mount();
+  const trigger = await screen.findByRole('button', { name: /Informações sobre Progresso atual/ });
+  await user.click(trigger);
+  const help = screen.getByRole('dialog');
+  const disclosure = within(help).getByRole('button', { name: 'Detalhes do cálculo' });
+  expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+  expect(within(help).getByText('Como é calculado')).not.toBeVisible();
+  await user.click(disclosure);
+  expect(help).toHaveTextContent(INDICATORS.I01.formula);
+  expect(help).toHaveTextContent('Tarefas do projeto');
+  expect(help).toHaveTextContent('Calculado com dados até');
+  expect(help).toHaveTextContent('05/10/2026');
+  expect(help.querySelector('.dashboard-help__rule-group')).toHaveTextContent('÷ Total');
+  expect(
+    [...help.querySelectorAll('.dashboard-help__rule-group')].some((group) =>
+      group.textContent.includes('× 100')
+    )
+  ).toBe(true);
 });

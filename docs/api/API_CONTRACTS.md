@@ -1638,11 +1638,14 @@ cobertura usa PERCENTAGE_POINTS, esforço usa HOURS. Sem base segura ambos são 
 não são metas configuradas nem novos thresholds. Estados não avaliáveis não recebem referências.
 Metadados internos permanecem na API e documentação. A camada principal da ajuda apresenta
 significado, valor, referência e interpretação. Desde PR23-FIX-02, “Detalhes do cálculo”, fechado
-por padrão, apresenta `formula` traduzida semanticamente sem redefinir o cálculo, `sources[]`
+por padrão, apresenta `formula` em linguagem de domínio fornecida pelo catálogo backend (auditada
+na PR23-FIX-02.1), sem tradução ou registry paralelo de fórmulas no frontend, `sources[]`
 com nomes de uso e horário por indicador: `sourceUpdatedAt` para fontes GitHub, `asOf` para fontes
 locais. `generatedAt` nunca substitui frescor externo. Sem clock válido ou fonte `UNAVAILABLE`,
 o detalhe informa indisponibilidade; `NO_DATA` não cria valor e pode identificar o corte da
-consulta local efetivamente realizada. Contrato/payload, fórmulas e Health permanecem inalterados.
+consulta local efetivamente realizada. `formula` é metadata de apresentação da regra efetiva,
+não expressão executável: sua redação foi normalizada na PR23-FIX-02.1 sem alterar algoritmos,
+N/D, unidades, clocks, estados, `definitionVersion`, schema do contrato ou Health.
 
 
 A coerência P8.5 é por projeto, filtros e geração da requisição agregada; não

@@ -469,11 +469,14 @@
   align-content: start;
   padding-bottom: var(--space-2);
 }
-.dashboard-panel__metric-grid :is(.indicator-card__content, .indicator-card > .indicator-card__value) {
+.dashboard-panel__metric-grid
+  :is(.indicator-card__content, .indicator-card > .indicator-card__value) {
   grid-row: 2;
   align-content: start;
 }
-.dashboard-panel__metric-grid > .indicator-card > :is(.indicator-card__notice, .indicator-card__empty) {
+.dashboard-panel__metric-grid
+  > .indicator-card
+  > :is(.indicator-card__notice, .indicator-card__empty) {
   grid-row: 3;
   padding-top: var(--space-2);
 }
@@ -615,6 +618,19 @@
 }
 .dashboard-help__calculation > div {
   padding-top: var(--space-2);
+}
+.dashboard-help__rule {
+  width: fit-content;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: var(--space-3);
+  border: var(--border-width-default) solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-secondary);
+  overflow-wrap: anywhere;
+}
+.dashboard-help__rule-group {
+  white-space: nowrap;
 }
 .dashboard-help__content ul {
   margin: var(--space-1) 0 var(--space-3);

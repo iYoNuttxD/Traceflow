@@ -1355,3 +1355,38 @@ architecture, local CI, secrets, audits e diffcheck PASS; zero HIGH/CRITICAL.
 [Relatório e limites](../../deliveries/PR23_FIX_02_RF55_TRANSPARENCY_EVIDENCE_ALIGNMENT_REPORT.md).
 Sem certificação WCAG, leitor de tela, touch físico ou CI remota. Artefatos no
 working tree para revisão/versionamento, sem commit/push.
+
+## 2026-10-05 — PR23-FIX-02.1 auditoria e apresentação das regras
+
+Regras conferidas contra persistência/service/calculator/policy, não apenas textos
+anteriores: **68 auditadas, 66 expostas e 66 personalizáveis**. Autoridade de cálculo
+apresentada no catálogo backend; frontend não traduz fórmulas nem mantém registry
+paralelo. Label única **Como é calculado**, linguagem de domínio, `÷`/`×`, bloco com
+tokens e wrap natural; grupos pequenos impedem `× 100` órfão. I66 não alega marcação
+manual; I17 distingue total/lista; I72 inclui recebidas já concluídas no escopo.
+
+API real do Project 2, Chrome autenticado, setembro/2026. Inspecionados Geral,
+GitHub, Fluxo, Sprint, Tarefas, Qualidade e Rastreabilidade, mais Meu painel. 1440
+Light/Dark, 390 Light/Dark e tablet 768×1024, em amostras identificadas na
+[matriz de capturas próprias](evidence/pr23-fix-02-1/README.md). Fórmulas percentuais,
+contagens, somas, diferenças, medianas/tempos e regras históricas legíveis; grupos
+matemáticos e popover sem overflow horizontal nas amostras. Regras curtas não usam
+largura excessiva; I45/I66 longas continuam acessíveis por scroll. Clock local `asOf`
+e GitHub `sourceUpdatedAt` preservados; zero warn/error no console capturado.
+
+Disclosure fechado por padrão, clique sem hover na viewport móvel, Space/Enter,
+Escape e retorno de foco conferidos. Sem reflow de widgets. AVAILABLE/PARTIAL reais;
+STALE/NO_DATA/UNAVAILABLE testados em componente/mapper, sem manipulação do banco.
+Não prova touch físico, leitor de tela ou conformidade WCAG completa.
+
+Status canônico **VISUALLY APPROVED**, restrito à ajuda/regras e matriz desta rodada.
+Algoritmos, Health, persistência e filtros intactos. Nenhuma aprovação retroativa
+P8.4. Tema Escuro, sidebar expandida e viewport original restaurados; aba temporária
+fechada. Artefatos novos no working tree, sem commit/push.
+
+83 testes focados frontend, 71 unit focados backend (incluem quatro novos), 76 APIs
+focadas; frontend full/coverage **1.400 PASS**, backend full/coverage **1.578 PASS**
+(cinco skips legados). Lint/format/build, Prisma, architecture, local CI, secrets,
+security/audits e diffcheck PASS; zero vulnerabilidades. A divergência acadêmica RF54
+já registrada continua explícita, com a regra executável P3 preservada.
+[Relatório e limites](../../deliveries/PR23_FIX_02_1_INDICATOR_FORMULA_AUDIT_PRESENTATION_REPORT.md).

@@ -200,3 +200,11 @@ continua ausente e não poderá sustentar promoção retroativa.
 
 HIGHs desta rodada encerrados no escopo local registrado. Sem commit/push ou FIX-03.
 Sugestão: `fix: restore indicator auditability and align visual evidence`.
+
+### Complemento posterior — PR23-FIX-02.1
+
+A ajuda em duas camadas permanece. A revisão posterior conferiu os 68 cálculos
+contra suas implementações e normalizou `formula` na autoridade backend, substituindo
+a tradução de termos do presenter descrita neste relatório histórico. Label vigente
+**Como é calculado**; clocks, Data States e RF55 preservados. Evidência atual em
+[PR23-FIX-02.1](PR23_FIX_02_1_INDICATOR_FORMULA_AUDIT_PRESENTATION_REPORT.md).

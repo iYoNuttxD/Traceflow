@@ -22,6 +22,7 @@ vi.mock('../../src/features/schedule/api/schedule.api.js', () => ({
 }));
 
 import { DashboardPanel } from '../../src/features/indicators/DashboardPanel.jsx';
+import { INDICATORS } from '../../../backend/src/modules/indicators/indicators.catalog.js';
 import { presentationSections } from '../../src/features/indicators/dashboard-display.js';
 
 const asOf = '2026-09-25T12:00:00.000Z';
@@ -1471,7 +1472,7 @@ describe('P8 Dashboard na Visão Geral', () => {
           id: 'activity',
           indicators: [
             metric('I09', 12, {
-              formula: 'COUNT DISTINCT Commit.id no período',
+              formula: INDICATORS.I09.formula,
               sources: ['Commit.date'],
               sourceUpdatedAt: '2026-09-20T12:00:00Z'
             })
@@ -1487,12 +1488,12 @@ describe('P8 Dashboard na Visão Geral', () => {
     expect(help).toHaveTextContent('Como interpretar');
     const disclosure = within(help).getByRole('button', { name: 'Detalhes do cálculo' });
     expect(disclosure).toHaveAttribute('aria-expanded', 'false');
-    expect(within(help).queryByText('Cálculo')).not.toBeVisible();
+    expect(within(help).queryByText('Como é calculado')).not.toBeVisible();
     disclosure.focus();
     await user.keyboard('{Enter}');
     expect(disclosure).toHaveAttribute('aria-expanded', 'true');
     expect(document.getElementById(disclosure.getAttribute('aria-controls'))).toBeVisible();
-    expect(help).toHaveTextContent('Contagem distinta de commits no período');
+    expect(help).toHaveTextContent(INDICATORS.I09.formula);
     expect(help).toHaveTextContent('Commits sincronizados do GitHub');
     expect(help).toHaveTextContent('Fonte atualizada');
     expect(help).toHaveTextContent('20/09/2026');
@@ -1517,7 +1518,7 @@ describe('P8 Dashboard na Visão Geral', () => {
             indicators: [
               metric('I23', state === 'AVAILABLE' ? 2 : null, {
                 state,
-                formula: 'COUNT Task.status=EM_ANDAMENTO',
+                formula: INDICATORS.I23.formula,
                 sources: ['Task.status'],
                 limitations: state === 'PARTIAL' ? ['TASK_ESTIMATE_MISSING'] : []
               })
@@ -1531,7 +1532,7 @@ describe('P8 Dashboard na Visão Geral', () => {
       await user.click(within(card).getByRole('button', { name: 'Informações sobre WIP atual' }));
       const help = screen.getByRole('dialog');
       await user.click(within(help).getByRole('button', { name: 'Detalhes do cálculo' }));
-      expect(help).toHaveTextContent('Contagem de tarefas com status=em andamento');
+      expect(help).toHaveTextContent(INDICATORS.I23.formula);
       expect(help).toHaveTextContent('Tarefas do projeto');
       expect(help).toHaveTextContent('Calculado com dados até');
       if (state === 'UNAVAILABLE') expect(help).toHaveTextContent('Indisponível no momento.');
@@ -1544,6 +1545,39 @@ describe('P8 Dashboard na Visão Geral', () => {
     }
   );
 
+  it('mantém a regra de implementação auditável e os grupos matemáticos legíveis', async () => {
+    mocks.dashboard.mockResolvedValue(
+      response('TRACEABILITY', [
+        {
+          id: 'coverage',
+          indicators: [
+            metric('I66', 25, {
+              formula: INDICATORS.I66.formula,
+              sources: INDICATORS.I66.sources,
+              sourceUpdatedAt: '2026-09-20T12:00:00Z'
+            })
+          ]
+        }
+      ])
+    );
+    const user = userEvent.setup();
+    renderPanel('/projects/1?view=traceability');
+    const card = await screen.findByRole('article', { name: 'Cobertura de implementação' });
+    await user.click(within(card).getByRole('button', { name: /Informações sobre/ }));
+    const help = screen.getByRole('dialog');
+    expect(help).not.toHaveTextContent('implementação marcada');
+    expect(help).toHaveTextContent('tarefas concluídas e evidência técnica vinculada');
+    await user.click(within(help).getByRole('button', { name: 'Detalhes do cálculo' }));
+    expect(help).toHaveTextContent(INDICATORS.I66.formula);
+    expect(help).toHaveTextContent('Tarefas e evidências técnicas dos requisitos');
+    expect(help.querySelector('.dashboard-help__rule')).toHaveTextContent('÷ Total de requisitos');
+    const mathGroups = [...help.querySelectorAll('.dashboard-help__rule-group')].map(
+      (group) => group.textContent
+    );
+    expect(mathGroups).toContain('requisitos) × 100');
+    expect(mathGroups).toContain('÷ Total');
+  });
+
   it('identifica fonte desatualizada sem usar o horário de composição como frescor', async () => {
     mocks.dashboard.mockResolvedValue(
       response('GITHUB', [
@@ -1553,7 +1587,7 @@ describe('P8 Dashboard na Visão Geral', () => {
             metric('I09', 12, {
               state: 'STALE',
               sources: ['Commit.date'],
-              formula: 'COUNT DISTINCT Commit.id no período',
+              formula: INDICATORS.I09.formula,
               sourceUpdatedAt: '2026-09-20T12:00:00Z'
             })
           ]
