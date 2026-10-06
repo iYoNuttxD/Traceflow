@@ -1,4 +1,5 @@
 import { prisma } from '../../database/prismaClient.js';
+import { lifecycleCohort } from './policies/pr-cohort.policy.js';
 
 // One consistent snapshot, with set-based aggregates and bounded public list.
 export const githubAnalyticsRepository = {
@@ -22,6 +23,10 @@ export const githubAnalyticsRepository = {
         });
         if (!project) return null;
         const asOf = new Date();
+        const cohortPeriod = lifecycleCohort(period, project.githubIntegration).period ?? {
+          startInclusive: asOf,
+          endExclusive: asOf
+        };
         const [commits, openPrs, openIssues, mergedPrs, closedIssues, cohort, ageRows, oldestPrs] =
           await Promise.all([
             tx.commit.count({
@@ -50,20 +55,20 @@ export const githubAnalyticsRepository = {
                   SELECT 1 FROM PullRequestLifecycleEvent r
                   WHERE r.projectId = ${projectId} AND r.pullRequestId = c.pullRequestId
                     AND r.eventType = 'REOPENED' AND r.occurredAt > c.firstClosed
-                    AND r.occurredAt < ${period.endExclusive}
+                    AND r.occurredAt < ${cohortPeriod.endExclusive}
                 ) THEN 1 ELSE 0 END), 0) AS reopenedCount,
                 COALESCE(SUM(CASE WHEN EXISTS (
                   SELECT 1 FROM PullRequestLifecycleEvent m
                   WHERE m.projectId = ${projectId} AND m.pullRequestId = c.pullRequestId
-                    AND m.eventType = 'MERGED' AND m.occurredAt < ${period.endExclusive}
-                ) OR p.mergedAtGithub IS NOT NULL AND p.mergedAtGithub < ${period.endExclusive}
+                    AND m.eventType = 'MERGED' AND m.occurredAt < ${cohortPeriod.endExclusive}
+                ) OR p.mergedAtGithub IS NOT NULL AND p.mergedAtGithub < ${cohortPeriod.endExclusive}
                   THEN 1 ELSE 0 END), 0) AS mergedCount
               FROM (
                 SELECT pullRequestId, MIN(occurredAt) AS firstClosed
                 FROM PullRequestLifecycleEvent
                 WHERE projectId = ${projectId} AND eventType = 'CLOSED'
-                  AND occurredAt >= ${period.startInclusive}
-                  AND occurredAt < ${period.endExclusive}
+                  AND occurredAt >= ${cohortPeriod.startInclusive}
+                  AND occurredAt < ${cohortPeriod.endExclusive}
                 GROUP BY pullRequestId
               ) c
               JOIN PullRequest p ON p.id = c.pullRequestId AND p.projectId = ${projectId}

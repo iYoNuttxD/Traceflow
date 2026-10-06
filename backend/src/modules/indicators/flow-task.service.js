@@ -48,10 +48,13 @@ function durationState(sample) {
 }
 
 export const flowTaskService = {
-  async currentSummary(projectId, now = () => new Date()) {
+  async currentSummary(projectId, now = () => new Date(), timeZone = 'UTC') {
     const id = Number(projectId);
     const asOf = now();
-    const facts = await flowTaskRepository.read(id, null, asOf, { currentSummaryOnly: true });
+    const facts = await flowTaskRepository.read(id, null, asOf, {
+      currentSummaryOnly: true,
+      timeZone
+    });
     if (!facts) throw resourceNotFoundError('Project');
     const current = calculateTaskCurrent(facts.aggregate, facts.statuses);
     const timestamp = asOf.toISOString();
@@ -66,6 +69,7 @@ export const flowTaskService = {
             value: current.overdue,
             state: 'AVAILABLE',
             kind: 'LIST',
+            scope: { projectId: id, timeZone },
             items: facts.overdue.map((row) => taskItem(row))
           },
           timestamp
@@ -77,7 +81,8 @@ export const flowTaskService = {
     const id = Number(projectId);
     const period = normalizedPeriod ?? normalizeIndicatorPeriod(query);
     const asOf = now();
-    const facts = await flowTaskRepository.read(id, period, asOf);
+    const timeZone = query.timeZone ?? period.timeZone ?? 'UTC';
+    const facts = await flowTaskRepository.read(id, period, asOf, { timeZone });
     if (!facts) throw resourceNotFoundError('Project');
     const current = calculateTaskCurrent(facts.aggregate, facts.statuses);
     const flow = calculateFlowTaskHistory({
@@ -207,6 +212,7 @@ export const flowTaskService = {
       ),
       currentResult('I28', current.overdue, 'AVAILABLE', {
         kind: 'LIST',
+        scope: { projectId: id, timeZone },
         items: facts.overdue.map((row) => taskItem(row))
       }),
       currentResult('I29', current.unassigned),

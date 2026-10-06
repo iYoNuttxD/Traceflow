@@ -402,6 +402,29 @@ describe('P8 Dashboard na Visão Geral', () => {
     expect(trigger).toHaveFocus();
   });
 
+  it('apresenta prazo de Task como data civil, sem horário ou deslocamento do dia', async () => {
+    mocks.catalog.mockResolvedValue({
+      data: { indicators: [definition('I28', 'Tasks atrasadas')] }
+    });
+    mocks.dashboard.mockResolvedValue(
+      response('GENERAL', [
+        {
+          id: 'summary',
+          indicators: [
+            metric('I28', 1, {
+              kind: 'LIST',
+              items: [{ taskId: 1, title: 'Prazo civil', deadline: '2026-10-05T00:00:00.000Z' }]
+            })
+          ]
+        }
+      ])
+    );
+    renderPanel();
+    const card = await screen.findByRole('article', { name: 'Tasks atrasadas' });
+    expect(card).toHaveTextContent('Prazo: 05/10/2026');
+    expect(card).not.toHaveTextContent('21:00');
+  });
+
   it('P8.4 não apresenta um traço sem explicação para série disponível vazia', async () => {
     mocks.dashboard.mockResolvedValue(
       response('SPRINT', [

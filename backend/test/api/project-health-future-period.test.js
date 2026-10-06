@@ -144,26 +144,26 @@ describe('Project Health with an entirely future period', () => {
     expect(general.projectHealth).toMatchObject({
       score: null,
       status: 'UNASSESSED',
-      coverage: 41.25,
+      coverage: 58.46,
       calculatedAt: asOf.toISOString(),
       window: null,
       assessments: {
         I52: { score: 100, status: 'HEALTHY', basis: { pass: 1, total: 1 } }
       }
     });
-    // Without GitHub, I62/I65/I66 are stale and I63 lacks its I66 basis.
-    // Coverage is (20 planning + 3 traceability + 10 quality) / 80 = 41.25%.
+    // Without GitHub, technical signals and I63's technical comparison are inapplicable.
+    // Coverage is (20 planning + 15 traceability + 25 * (40/85)) / 80 = 58.46%.
     expect(general.projectHealth.dimensions).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ id: 'PLANNING', coverage: 100 }),
         expect.objectContaining({
           id: 'TRACEABILITY',
-          coverage: 20,
+          coverage: 100,
           assessedSignals: ['I61']
         }),
         expect.objectContaining({
           id: 'QUALITY',
-          coverage: 40,
+          coverage: 47.06,
           assessedSignals: ['I52', 'I64']
         })
       ])

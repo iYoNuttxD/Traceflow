@@ -104,11 +104,15 @@ export const dashboardQuerySchema = strictObject({
       message: 'A seleção de indicadores é obrigatória e exclusiva da visão Meu painel.'
     });
   }
-  const supplied = [value.startDate, value.endDate, value.timeZone].filter(
-    (item) => item != null
-  ).length;
-  if (supplied === 0) return;
-  if (supplied !== 3) {
+  if (value.timeZone != null) {
+    try {
+      new Intl.DateTimeFormat('en', { timeZone: value.timeZone });
+    } catch {
+      context.addIssue({ code: 'custom', path: ['timeZone'], message: 'Fuso IANA inválido.' });
+    }
+  }
+  if (value.startDate == null && value.endDate == null) return;
+  if (value.startDate == null || value.endDate == null || value.timeZone == null) {
     context.addIssue({
       code: 'custom',
       path: ['startDate'],

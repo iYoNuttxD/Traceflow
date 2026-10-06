@@ -15,15 +15,22 @@ export const traceabilityAnalyticsService = {
     const timestamp = now().toISOString();
     const freshness = githubFreshness(facts.project.githubIntegration, facts.branch);
     const result = (metricId, numerator, options = {}) => {
+      const notConfigured = options.githubDependent && !facts.project.githubIntegration;
       const stale = options.githubDependent && freshness.stale && denominator > 0;
       return indicatorResult(
         metricId,
         id,
         {
-          value: denominator ? percentage(numerator, denominator) : null,
-          numerator,
+          value: denominator && !notConfigured ? percentage(numerator, denominator) : null,
+          numerator: notConfigured ? null : numerator,
           denominator,
-          state: denominator ? (stale ? 'STALE' : 'AVAILABLE') : 'NO_DATA',
+          state: notConfigured
+            ? 'UNAVAILABLE'
+            : denominator
+              ? stale
+                ? 'STALE'
+                : 'AVAILABLE'
+              : 'NO_DATA',
           ...(options.githubDependent
             ? {
                 sourceUpdatedAt: freshness.sourceUpdatedAt?.toISOString() ?? null,

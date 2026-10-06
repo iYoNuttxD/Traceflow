@@ -6,6 +6,12 @@ const DAY = 86400000;
 const round = (value) => Math.round(value * 100) / 100;
 const clamp = (value) => Math.max(0, Math.min(100, value));
 const valid = (value) => typeof value === 'number' && Number.isFinite(value);
+// I63 is locally measurable, but its Health comparison requires GitHub-based I66.
+const GITHUB_HEALTH_SIGNALS = new Set(['I04', 'I15', 'I73', 'I62', 'I63', 'I65', 'I66']);
+
+export function signalApplicable(metricId, options = {}) {
+  return !(options.githubApplicable === false && GITHUB_HEALTH_SIGNALS.has(metricId));
+}
 
 export function healthStatus(score) {
   if (score == null) return 'UNASSESSED';
@@ -14,7 +20,7 @@ export function healthStatus(score) {
   return 'CRITICAL';
 }
 
-export function healthWindow(requested, asOf) {
+export function healthWindow(requested, asOf, timeZone = requested?.timeZone ?? 'UTC') {
   const end = new Date(
     Math.min(requested?.endExclusive?.getTime() ?? asOf.getTime(), asOf.getTime())
   );
@@ -22,11 +28,11 @@ export function healthWindow(requested, asOf) {
   if (end <= start) return null;
   const duration = end.getTime() - start.getTime();
   const previousStart = new Date(start.getTime() - duration);
-  const localDate = createIndicatorLocalDateKey(requested?.timeZone ?? 'UTC');
+  const localDate = createIndicatorLocalDateKey(timeZone);
   const make = (from, until) => ({
     startDate: localDate(from),
     endDate: localDate(new Date(until.getTime() - 1)),
-    timeZone: requested?.timeZone ?? 'UTC',
+    timeZone,
     startInclusive: from,
     endExclusive: until
   });
@@ -96,7 +102,7 @@ function gap(map, id, expectedId) {
   });
 }
 
-export function assessSignal(metricId, current, previous = new Map()) {
+export function assessSignal(metricId, current, previous = new Map(), options = {}) {
   const entry = HEALTH_REGISTRY[metricId];
   if (!entry) throw new Error(`Unclassified health metric: ${metricId}`);
   if (entry.healthRole !== 'SCORING_SIGNAL')
@@ -112,6 +118,19 @@ export function assessSignal(metricId, current, previous = new Map()) {
       delta: null
     };
 
+  if (!signalApplicable(metricId, options))
+    return {
+      healthModelVersion: HEALTH_MODEL_VERSION,
+      healthRole: entry.healthRole,
+      dimension: entry.healthDimension,
+      weight: entry.weight,
+      status: 'UNASSESSED',
+      score: null,
+      reasonCode: 'GITHUB_NOT_CONFIGURED',
+      basis: null,
+      reference: null,
+      delta: null
+    };
   const raw = value(current, metricId);
   let result = null;
   if (['I28', 'I29', 'I30'].includes(metricId)) {
@@ -214,21 +233,39 @@ export function assessSignal(metricId, current, previous = new Map()) {
     reasonCode:
       result?.reasonCode ??
       (raw?.state && raw.state !== 'AVAILABLE' ? `DATA_${raw.state}` : 'INSUFFICIENT_BASIS'),
-    basis: result?.basis ?? null,
+    basis: result?.basis
+      ? {
+          ...result.basis,
+          ...(metricId === 'I04'
+            ? {
+                cohortStartInclusive: raw.period?.startInclusive ?? null,
+                cohortEndExclusive: raw.period?.endExclusive ?? null,
+                closedPullRequests: raw.denominator ?? null,
+                reopenedPullRequests: raw.numerator ?? null
+              }
+            : {})
+        }
+      : null,
     ...healthReference(metricId, result)
   };
 }
 
 export function buildProjectHealth(current, previous = new Map(), options = {}) {
   const assessments = Object.fromEntries(
-    Object.keys(HEALTH_REGISTRY).map((id) => [id, assessSignal(id, current, previous)])
+    Object.keys(HEALTH_REGISTRY).map((id) => [id, assessSignal(id, current, previous, options)])
   );
   const dimensions = Object.entries(HEALTH_DIMENSIONS).map(([id, definition]) => {
     const applicable = !(
       (id === 'SPRINT' && options.sprintApplicable === false) ||
       (id === 'TECHNICAL_INTEGRATION' && options.githubApplicable === false)
     );
-    const signals = Object.keys(definition.signals);
+    const signals = Object.keys(definition.signals).filter((metricId) =>
+      signalApplicable(metricId, options)
+    );
+    const applicableSignalWeight = signals.reduce(
+      (sum, metricId) => sum + definition.signals[metricId],
+      0
+    );
     const assessedWeight = applicable
       ? signals.reduce(
           (sum, metricId) =>
@@ -236,9 +273,12 @@ export function buildProjectHealth(current, previous = new Map(), options = {}) 
           0
         )
       : 0;
-    const coverage = applicable ? round(assessedWeight) : null;
+    const coverage =
+      applicable && applicableSignalWeight
+        ? round((assessedWeight / applicableSignalWeight) * 100)
+        : null;
     const score =
-      applicable && assessedWeight >= 50
+      applicable && coverage >= 50
         ? round(
             signals.reduce(
               (sum, metricId) =>
@@ -283,7 +323,11 @@ export function buildProjectHealth(current, previous = new Map(), options = {}) 
   const applicableSignals = dimensions.reduce(
     (sum, dimension) =>
       sum +
-      (dimension.applicable ? Object.keys(HEALTH_DIMENSIONS[dimension.id].signals).length : 0),
+      (dimension.applicable
+        ? Object.keys(HEALTH_DIMENSIONS[dimension.id].signals).filter((metricId) =>
+            signalApplicable(metricId, options)
+          ).length
+        : 0),
     0
   );
   const assessedSignals = dimensions.reduce(

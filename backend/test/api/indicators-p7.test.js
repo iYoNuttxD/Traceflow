@@ -309,7 +309,7 @@ describe('P7 aggregate dashboard API', () => {
     expect(response.body).toMatchObject({
       projectId: p.id,
       view: 'GENERAL',
-      viewState: 'NO_DATA',
+      viewState: 'PARTIAL',
       dashboardContractVersion: 1,
       requestedFilters: { period: null, sprintId: null, responsibleUserId: null }
     });
@@ -420,6 +420,14 @@ describe('P7 aggregate dashboard API', () => {
   it('exige período apenas para eventos e preserva métricas atuais em blocos mistos', async () => {
     const owner = await actor();
     const p = await project(owner);
+    await prisma.projectGitHubIntegration.create({
+      data: {
+        projectId: p.id,
+        status: 'ACTIVE',
+        lastSyncStatus: 'SINCRONIZADO',
+        lastSyncAt: new Date()
+      }
+    });
     const github = await get(p.id, owner, 'dashboard', '?view=GITHUB');
     const quality = await get(p.id, owner, 'dashboard', '?view=QUALITY');
     expect(github.status).toBe(200);

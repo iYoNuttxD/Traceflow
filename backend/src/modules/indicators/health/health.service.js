@@ -24,7 +24,8 @@ export async function readHealth(
   options
 ) {
   const asOf = new Date(generatedAt);
-  const window = healthWindow(period, asOf);
+  const timeZone = options.timeZone ?? period?.timeZone ?? 'UTC';
+  const window = healthWindow(period, asOf, timeZone);
   const current = new Map(sourceIndicators.map((indicator) => [indicator.metricId, indicator]));
   const previous = new Map();
   const matchesWindow = (metricId) => {
@@ -37,9 +38,9 @@ export async function readHealth(
   };
   const requests = [];
   if (window && ['GENERAL', 'FLOW'].includes(view))
-    requests.push(['flow', healthRepository.flow(projectId, asOf, view === 'GENERAL')]);
+    requests.push(['flow', healthRepository.flow(projectId, asOf, view === 'GENERAL', timeZone)]);
   else if (view === 'GENERAL')
-    requests.push(['planning', healthRepository.planning(projectId, asOf)]);
+    requests.push(['planning', healthRepository.planning(projectId, asOf, timeZone)]);
   if (['GENERAL', 'QUALITY'].includes(view) && !matchesWindow('I49'))
     requests.push(['quality', healthRepository.quality(projectId, window?.current ?? null)]);
   if (options.githubApplicable && (view === 'GENERAL' || (view === 'GITHUB' && current.has('I15'))))
@@ -102,7 +103,8 @@ export async function readHealth(
           (indicator.metricId === 'I45' && !options.sprintActive)
           ? new Map(current)
           : new Map(current).set(indicator.metricId, indicator),
-        previous
+        previous,
+        options
       )
     ])
   );

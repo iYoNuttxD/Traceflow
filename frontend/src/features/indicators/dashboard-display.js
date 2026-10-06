@@ -427,6 +427,7 @@ export const LIMITATION_LABELS = {
   PERIOD_FILTER_NOT_APPLIED_TO_VIEW: 'O filtro de período não se aplica a esta visão.',
   COMPARISON_SAMPLE_INCOMPLETE: 'A amostra disponível para comparação está incompleta.',
   GITHUB_INTEGRATION_NOT_ACTIVE: 'A integração com GitHub não está ativa neste projeto.',
+  GITHUB_NOT_CONFIGURED: 'Este projeto não possui integração GitHub configurada.',
   GITHUB_SNAPSHOT_NOT_AVAILABLE: 'Ainda não há dados sincronizados do GitHub.',
   GITHUB_SYNC_FAILED: 'A última sincronização com GitHub falhou.',
   GITHUB_SYNC_STALE: 'Os dados GitHub podem estar desatualizados.',
@@ -436,6 +437,8 @@ export const LIMITATION_LABELS = {
   COMMIT_AUTHOR_NOT_ASSOCIATED: 'O autor de alguns commits não está associado a um membro.',
   ISSUE_LIFECYCLE_NOT_COLLECTED: 'O histórico de ciclo de vida das Issues não foi coletado.',
   PR_LIFECYCLE_PERIOD_NOT_COVERED: 'O período não está coberto pelo histórico de Pull Requests.',
+  PR_COHORT_CUT_AT_LAST_SYNC:
+    'O período observado termina no último sync confirmado do histórico de Pull Requests.',
   SOFT_DELETED_DEFECTS_EXCLUDED: 'Defects excluídos foram retirados do cálculo.',
   VALIDATION_HISTORY_INCOMPLETE_OR_INVALID:
     'O histórico de validação de alguns TestCases está incompleto ou inválido.',
@@ -456,6 +459,13 @@ export function formatDateTime(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return 'Não informada';
   return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(date);
+}
+
+export function formatCivilDate(value) {
+  if (!value) return 'Não informada';
+  const date = new Date(`${String(value).slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return 'Não informada';
+  return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeZone: 'UTC' }).format(date);
 }
 
 export function formatDate(value) {

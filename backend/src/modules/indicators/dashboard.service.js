@@ -122,8 +122,13 @@ async function readGroup(group, projectId, query, period, servicePeriod, ids) {
       return githubAnalyticsService.read(projectId, periodQuery, servicePeriod);
     case 'tasks':
       if (ids.size === 2 && ids.has('I23') && ids.has('I28'))
-        return flowTaskService.currentSummary(projectId);
-      return flowTaskService.read(projectId, periodQuery, () => new Date(), servicePeriod);
+        return flowTaskService.currentSummary(projectId, () => new Date(), query.timeZone ?? 'UTC');
+      return flowTaskService.read(
+        projectId,
+        { ...periodQuery, timeZone: query.timeZone ?? periodQuery.timeZone },
+        () => new Date(),
+        servicePeriod
+      );
     case 'sprints':
       return sprintAnalyticsService.read(projectId, { sprintId: query.sprintId });
     case 'quality':
@@ -211,9 +216,14 @@ export const dashboardService = {
       indicators: section.metricIds.map((metricId) => {
         const fromSource = byId.get(metricId);
         const requiresPeriod = !period && INDICATORS[metricId].supportedFilters.includes('period');
-        const indicator = requiresPeriod
-          ? placeholder(metricId, id, generatedAt, 'PERIOD_REQUIRED')
-          : (fromSource ?? placeholder(metricId, id, generatedAt, 'SOURCE_UNAVAILABLE'));
+        const notConfigured =
+          !project.githubIntegration &&
+          (dashboardSource(metricId) === 'github' || metricId === 'I02');
+        const indicator = notConfigured
+          ? placeholder(metricId, id, generatedAt, 'GITHUB_NOT_CONFIGURED')
+          : requiresPeriod
+            ? placeholder(metricId, id, generatedAt, 'PERIOD_REQUIRED')
+            : (fromSource ?? placeholder(metricId, id, generatedAt, 'SOURCE_UNAVAILABLE'));
         return decorate(indicator, requestedFilters, selectedSprint);
       })
     }));
@@ -227,7 +237,8 @@ export const dashboardService = {
       {
         sprintApplicable: selectedSprint?.status === 'EM_ANDAMENTO',
         sprintActive: selectedSprint?.status === 'EM_ANDAMENTO',
-        githubApplicable: project.githubIntegration != null
+        githubApplicable: project.githubIntegration != null,
+        timeZone: query.timeZone ?? 'UTC'
       }
     );
     for (const section of outputSections)

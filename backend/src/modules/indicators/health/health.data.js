@@ -7,6 +7,7 @@ import { calculateFlowTaskHistory } from '../calculators/flow-task.calculator.js
 import { calculateHealthQualityFacts } from '../calculators/quality-analytics.calculator.js';
 import { percentage } from '../calculators/statistics.calculator.js';
 import { githubFreshness } from '../policies/indicator-freshness.policy.js';
+import { lifecycleCohort } from '../policies/pr-cohort.policy.js';
 
 function durationState(sample) {
   if (!sample.eligibleCount) return sample.excludedCount ? 'UNAVAILABLE' : 'NO_DATA';
@@ -120,12 +121,8 @@ export function githubHealthIndicators(facts, window, includeCurrent) {
   const queueAge = { metricId: 'I73', value: ready ? age.mean : null, state: ageState };
   if (!window) return { current: [queue, queueAge], previous };
   const currentDuration = durationIndicator(facts.currentMerged, 'I15', ready, stale);
-  const covered = Boolean(
-    integration?.pullRequestLifecycleCoverageFrom &&
-    integration?.pullRequestLifecycleSyncedAt &&
-    integration.pullRequestLifecycleCoverageFrom <= window.current.startInclusive &&
-    integration.pullRequestLifecycleSyncedAt >= window.current.endExclusive
-  );
+  const cohortWindow = lifecycleCohort(window.current, integration);
+  const covered = cohortWindow.complete;
   const rework = calculateClosedCohort(facts.cohort).rework;
   const lifecycleState =
     !ready ||
@@ -141,7 +138,25 @@ export function githubHealthIndicators(facts, window, includeCurrent) {
             : 'AVAILABLE';
   return {
     current: [
-      { metricId: 'I04', value: covered && ready ? rework.value : null, state: lifecycleState },
+      {
+        metricId: 'I04',
+        value: covered && ready ? rework.value : null,
+        state: lifecycleState,
+        numerator: covered && ready ? rework.numerator : null,
+        denominator: covered && ready ? rework.denominator : null,
+        period: cohortWindow.period
+          ? {
+              startInclusive: cohortWindow.period.startInclusive.toISOString(),
+              endExclusive: cohortWindow.period.endExclusive.toISOString(),
+              timeZone: cohortWindow.period.timeZone
+            }
+          : null,
+        sourceUpdatedAt: integration?.lastSyncAt?.toISOString() ?? null,
+        coverage: cohortWindow.coverage,
+        limitations: !integration
+          ? ['GITHUB_NOT_CONFIGURED']
+          : [...githubFreshness(integration).limitations, ...cohortWindow.limitations]
+      },
       queue,
       currentDuration,
       queueAge

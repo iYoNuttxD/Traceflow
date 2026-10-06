@@ -20,6 +20,8 @@ const number = (value) =>
 
 export function describeHealthReason(assessment, metricId) {
   const { reasonCode, basis } = assessment ?? {};
+  if (reasonCode === 'GITHUB_NOT_CONFIGURED')
+    return 'A avaliação depende de uma integração GitHub configurada.';
   if (reasonCode === 'TASK_SHARE')
     return `${number(basis.count)} de ${number(basis.totalTasks)} Tasks ${
       metricId === 'I28'

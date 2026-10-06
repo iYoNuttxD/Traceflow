@@ -1,4 +1,6 @@
 import { prisma } from '../../../database/prismaClient.js';
+import { taskDeadlineCutoff } from '../policies/task-deadline.policy.js';
+import { lifecycleCohort } from '../policies/pr-cohort.policy.js';
 
 function readOpenPullRequestAge(tx, projectId, asOf) {
   return tx.$queryRaw`
@@ -15,17 +17,19 @@ function readOpenPullRequestAge(tx, projectId, asOf) {
 // The Dashboard already established project existence and access. These reads
 // fetch only health facts, with one consistent snapshot per source group.
 export const healthRepository = {
-  async planning(projectId, asOf) {
+  async planning(projectId, asOf, timeZone = 'UTC') {
+    const deadlineCutoff = taskDeadlineCutoff(asOf, timeZone);
     const rows = await prisma.$queryRaw`
       SELECT COUNT(*) AS total,
-        COALESCE(SUM(deadline < ${asOf} AND status <> 'CONCLUIDO'), 0) AS overdue,
+        COALESCE(SUM(deadline < ${deadlineCutoff} AND status <> 'CONCLUIDO'), 0) AS overdue,
         COALESCE(SUM(responsibleUserId IS NULL), 0) AS unassigned,
         COALESCE(SUM(estimatedEffort IS NULL), 0) AS withoutEstimate
       FROM Task WHERE projectId = ${projectId}
     `;
     return rows[0];
   },
-  flow(projectId, asOf, includePlanning) {
+  flow(projectId, asOf, includePlanning, timeZone = 'UTC') {
+    const deadlineCutoff = taskDeadlineCutoff(asOf, timeZone);
     return prisma.$transaction(
       async (tx) => {
         const [tasks, movements, planning] = await Promise.all([
@@ -43,7 +47,7 @@ export const healthRepository = {
           includePlanning
             ? tx.$queryRaw`
               SELECT COUNT(*) AS total,
-                COALESCE(SUM(deadline < ${asOf} AND status <> 'CONCLUIDO'), 0) AS overdue,
+                COALESCE(SUM(deadline < ${deadlineCutoff} AND status <> 'CONCLUIDO'), 0) AS overdue,
                 COALESCE(SUM(responsibleUserId IS NULL), 0) AS unassigned,
                 COALESCE(SUM(estimatedEffort IS NULL), 0) AS withoutEstimate
               FROM Task WHERE projectId = ${projectId}
@@ -129,6 +133,8 @@ export const healthRepository = {
           select: { id: true, createdAtGithub: true, mergedAtGithub: true }
         });
         if (!includeCurrent) return { project, previousMerged: await previousMerged };
+        const cohort = lifecycleCohort(window.current, project?.githubIntegration);
+        const cohortPeriod = cohort.period ?? { startInclusive: asOf, endExclusive: asOf };
         const [currentMerged, cohortRows, ageRows, prior] = await Promise.all([
           tx.pullRequest.findMany({
             where: {
@@ -146,20 +152,20 @@ export const healthRepository = {
                 SELECT 1 FROM PullRequestLifecycleEvent r
                 WHERE r.projectId = ${projectId} AND r.pullRequestId = c.pullRequestId
                   AND r.eventType = 'REOPENED' AND r.occurredAt > c.firstClosed
-                  AND r.occurredAt < ${window.current.endExclusive}
+                  AND r.occurredAt < ${cohortPeriod.endExclusive}
               ) THEN 1 ELSE 0 END), 0) AS reopenedCount,
               COALESCE(SUM(CASE WHEN EXISTS (
                 SELECT 1 FROM PullRequestLifecycleEvent m
                 WHERE m.projectId = ${projectId} AND m.pullRequestId = c.pullRequestId
-                  AND m.eventType = 'MERGED' AND m.occurredAt < ${window.current.endExclusive}
-              ) OR p.mergedAtGithub IS NOT NULL AND p.mergedAtGithub < ${window.current.endExclusive}
+                  AND m.eventType = 'MERGED' AND m.occurredAt < ${cohortPeriod.endExclusive}
+              ) OR p.mergedAtGithub IS NOT NULL AND p.mergedAtGithub < ${cohortPeriod.endExclusive}
                 THEN 1 ELSE 0 END), 0) AS mergedCount
             FROM (
               SELECT pullRequestId, MIN(occurredAt) AS firstClosed
               FROM PullRequestLifecycleEvent
               WHERE projectId = ${projectId} AND eventType = 'CLOSED'
-                AND occurredAt >= ${window.current.startInclusive}
-                AND occurredAt < ${window.current.endExclusive}
+                AND occurredAt >= ${cohortPeriod.startInclusive}
+                AND occurredAt < ${cohortPeriod.endExclusive}
               GROUP BY pullRequestId
             ) c
             JOIN PullRequest p ON p.id = c.pullRequestId AND p.projectId = ${projectId}

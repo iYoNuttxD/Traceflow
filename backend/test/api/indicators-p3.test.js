@@ -158,7 +158,7 @@ describe('GitHub analytics P3 — API', () => {
       coverage: { from: at(1).toISOString(), through: '2026-10-01T00:00:00.000Z' },
       limitations: []
     });
-    expect(i.I04.formula).toContain('Pull Requests distintas fechadas no período');
+    expect(i.I04.formula).toContain('Pull Requests distintas fechadas nesse período');
     expect(i.I04.sources).toContain('PullRequestLifecycleEvent');
     expect(i.I04.asOf).toBeTruthy();
     expect(i.I06).toMatchObject({

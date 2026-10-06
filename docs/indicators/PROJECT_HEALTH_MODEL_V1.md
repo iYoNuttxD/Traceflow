@@ -25,6 +25,8 @@ I50/I51 duplicam o universo de I49; I06 contém I04; I16 usa a mesma coorte de I
 
 Sem período solicitado, eventos usam os últimos 30 dias corridos até `generatedAt`. Com período, usam o intervalo solicitado normalizado em fuso IANA e recortado em `generatedAt`; dias futuros não são ausência negativa. O baseline de I20/I21/I15 é o intervalo imediatamente anterior de **mesma duração**, sem sobreposição. Se o corte solicitado começar depois de `generatedAt`, eventos temporais não são pontuáveis. Estado corrente (Tasks, TestCases, Requirements, Sprint, fila de PRs) usa o corte atual e não recebe filtro temporal fictício. `projectHealth.window` publica os dois intervalos UTC.
 
+I04 limita a coorte ao último sync de lifecycle confirmado, mesmo quando a janela termina em `generatedAt`. Um sync anterior à request não invalida uma coorte conhecida: exige-se cobertura desde o início solicitado e intervalo positivo. `basis` publica os limites efetivos e as quantidades de PRs fechadas/reabertas; eventos posteriores ao sync não entram. Cobertura inicial ausente continua parcial; denominador zero continua sem avaliação. O corte da coorte não muda o baseline de I15 nem a janela geral publicada.
+
 Quando a janela recortada é vazia, `projectHealth.window` é `null`: leituras canônicas
 de casos de teste e fila de PRs continuam independentes dos widgets selecionados,
 e fontes temporais dos widgets não entram no Health nem em seus assessments.
@@ -59,9 +61,11 @@ As fórmulas abaixo produzem uma nota limitada a `[0,100]`, arredondada a duas c
 | I15 | Comparação de mediana de tempo até merge com período anterior, regra e amostra de I20/I21. |
 | I73 | Se I10=0 disponível, 100 mesmo que idade bruta seja `NO_DATA`. Se I10>0, comparar idade média aberta (dias convertidos em horas) à mediana I15 atual, com ≥3 merges elegíveis e baseline >0; regressão percentual reduz a nota. |
 
+I28 interpreta `Task.deadline` como data civil: só conta prazo anterior ao dia de `generatedAt` no fuso da requisição. Usa a mesma fronteira civil da leitura de Tasks e o contrato de Kanban; prazo de hoje não é atraso. Sem período, o agregado também aceita `timeZone` IANA; cliente envia o fuso do navegador e API sem fuso usa UTC.
+
 ## 5. Estados de dados e avaliação
 
-Somente `AVAILABLE` participa por padrão. `PARTIAL`, `STALE`, `NO_DATA` e `UNAVAILABLE` produzem `UNASSESSED`, `score:null` e reduzem cobertura. A única exceção explícita é I73 com **I10 disponível e igual a zero**, prova factual de fila vazia. Falta de dependência, denominador zero, período futuro ou amostra insuficiente também geram `UNASSESSED`. Métrica `CONTEXT_ONLY`, `REDUNDANT`, `UNIMPLEMENTED` ou `NOT_RECOMMENDED` recebe `NEUTRAL` e não afeta cobertura. Estado dos dados e status de saúde são campos separados; `STALE` nunca se torna uma nota baixa.
+Somente `AVAILABLE` participa por padrão. `PARTIAL`, `STALE`, `NO_DATA` e `UNAVAILABLE` produzem `UNASSESSED`, `score:null` e reduzem cobertura dos sinais aplicáveis. A única exceção explícita de pontuação é I73 com **I10 disponível e igual a zero**, prova factual de fila vazia. Falta de dependência, denominador zero, período futuro ou amostra insuficiente também geram `UNASSESSED`. Métrica `CONTEXT_ONLY`, `REDUNDANT`, `UNIMPLEMENTED` ou `NOT_RECOMMENDED` recebe `NEUTRAL` e não afeta cobertura. Estado dos dados e status de saúde são campos separados; `STALE` nunca se torna uma nota baixa.
 
 Status pontuado: `HEALTHY` para ≥80; `ATTENTION` para ≥60 e <80; `CRITICAL` para <60. `UNASSESSED` e `NEUTRAL` não têm nota.
 
@@ -69,16 +73,20 @@ Status pontuado: `HEALTHY` para ≥80; `ATTENTION` para ≥60 e <80; `CRITICAL` 
 
 Em cada dimensão aplicável, `coverage = soma dos pesos dos sinais pontuados / soma dos pesos aplicáveis ×100`. A nota dimensional só existe com cobertura ≥50%, sendo média dos sinais pontuados ponderada pelos respectivos pesos. O peso dos sinais ausentes não é redistribuído no registro de cobertura. Sem Sprint ativa selecionada, Sprint é `NOT_APPLICABLE` no índice do projeto; uma Sprint terminal escolhida continua visível nos widgets, mas não transforma seu burndown histórico em saúde corrente. Sem integração GitHub configurada, Integração técnica é `NOT_APPLICABLE`. Dimensões não aplicáveis saem do denominador de cobertura do projeto.
 
+Sem `githubIntegration`, os sinais I04/I15/I73/I62/I63/I65/I66 têm `UNASSESSED`, `score:null` e `GITHUB_NOT_CONFIGURED`, e saem do denominador de **sinais aplicáveis**. I63 mede casos de teste localmente, mas seu assessment compara com I66, dependente de GitHub. Qualidade mantém os sinais locais (peso aplicável 85); Rastreabilidade mantém I61 (peso aplicável 20). Pesos do registry, thresholds e mínimo de quatro dimensões permanecem iguais. Não aplicável não reduz cobertura como uma falha de coleta de uma fonte configurada, nem assegura uma nota sem base local suficiente.
+
 `projectCoverage = Σ(dimensionWeight × dimensionCoverage) / Σ(dimensionWeight aplicável)`.
 Nota geral existe somente com cobertura ≥60% **e** pelo menos quatro dimensões com nota. A média geral usa `dimensionWeight × dimensionCoverage` como peso efetivo das dimensões pontuadas. A resposta publica cobertura, número de sinais e dimensões aplicáveis/pontuados, motivos estruturados, `calculatedAt` e janelas com fuso. Sem base suficiente, `score:null,status:UNASSESSED`.
 
 ## 7. Drivers e explicação
 
-Cada sinal pontuado pode fornecer `reasonCode` e `basis` com apenas números/IDs de métricas, sem nomes, emails ou identificadores pessoais. Impacto negativo é `dimensionWeight × signalWeight × (100 − score)` na escala percentual do projeto. Até três sinais com score <80 e maior impacto aparecem como pontos de atenção; até três com score ≥80 e menor perda aparecem como positivos. A UI traduz as razões, sem calcular notas. Um driver não substitui a decomposição por dimensões.
+Cada sinal pontuado pode fornecer `reasonCode` e `basis` com números/IDs de métricas e limites temporais da coorte, sem nomes, emails ou identificadores pessoais. I04 acrescenta `cohortStartInclusive`, `cohortEndExclusive`, `closedPullRequests` e `reopenedPullRequests`. Impacto negativo é `dimensionWeight × signalWeight × (100 − score)` na escala percentual do projeto. Até três sinais com score <80 e maior impacto aparecem como pontos de atenção; até três com score ≥80 e menor perda aparecem como positivos. A UI traduz as razões, sem calcular notas. Um driver não substitui a decomposição por dimensões.
 
 ## 8. Aplicabilidade, filtros e frescor
 
 O health é uma leitura do projeto autorizado; filtro por responsável nunca restringe a nota. O filtro de Sprint seleciona a Sprint dos indicadores canônicos, quando fornecido. O período afeta apenas sinais de evento. GitHub sem sync confiável reduz cobertura; não há penalidade automática por ausência ou stale. O modelo usa services agregados existentes, sem consulta por sinal, sem cache persistido e sem alteração do schema. GENERAL, CUSTOM e as views solicitadas com `includeProjectHealth=true` leem as fontes auxiliares por grupo e dois baselines apenas para Flow e GitHub. CUSTOM avalia a saúde completa independentemente dos widgets selecionados; as demais views sem a opção não incluem Project Health.
+
+Ausência de configuração e STALE são distintos. Com integração configurada, a policy vigente usa falha de sync, integração inativa ou divergência da main; idade isolada do sync não define STALE. Completude do lifecycle até o último sync é avaliada separadamente desse frescor. Uma coorte calculável pode ter fonte STALE e, nesse caso, não pontua no Health.
 
 ## 9. Contrato e evolução
 

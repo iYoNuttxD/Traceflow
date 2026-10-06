@@ -5,6 +5,7 @@ import {
   presentationLimitations,
   distributionRows,
   formatDateTime,
+  formatCivilDate,
   formatMetricValue,
   indicatorHelp,
   indicatorVisualType,
@@ -164,7 +165,7 @@ function IndicatorList({ indicator, title }) {
                 {showDetails && (
                   <td>
                     {item.deadline
-                      ? `Prazo: ${formatDateTime(item.deadline)}`
+                      ? `Prazo: ${formatCivilDate(item.deadline)}`
                       : item.direction === 'INCOMING'
                         ? 'Recebida de outra Sprint'
                         : item.direction === 'OUTGOING'

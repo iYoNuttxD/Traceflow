@@ -148,7 +148,7 @@ describe('Project Health Model v1', () => {
     expect(inactiveSprint.drivers.negative).toEqual([]);
   });
 
-  it('calcula a nota geral ponderada exata com quatro dimensões elegíveis', () => {
+  it('calcula notas exatas preservando pesos e removendo apenas sinais não aplicáveis', () => {
     const current = map(
       row('I01', 80),
       row('I26', 10),
@@ -177,16 +177,36 @@ describe('Project Health Model v1', () => {
       100,
       80,
       null,
-      74,
-      79,
+      71.18,
+      100,
       null
     ]);
     expect(result).toMatchObject({
-      score: 82.94,
+      score: 85.99,
       status: 'HEALTHY',
       coverage: 100,
       assessedDimensions: 4,
       applicableDimensions: 4
+    });
+    // Quality: (25*70 + 20*60 + 20*80 + 20*75) / 85, with I04 inapplicable.
+    // With GitHub configured, the original signal weights and scores remain intact.
+    const integrated = buildProjectHealth(current, previous, {
+      sprintApplicable: false,
+      githubApplicable: true
+    });
+    expect(integrated.dimensions.map((dimension) => dimension.score)).toEqual([
+      100,
+      80,
+      null,
+      74,
+      79,
+      null
+    ]);
+    expect(integrated).toMatchObject({
+      score: 82.94,
+      coverage: 94.12,
+      assessedDimensions: 4,
+      applicableDimensions: 5
     });
   });
 

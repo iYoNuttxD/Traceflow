@@ -10,6 +10,7 @@ import { indicatorResult } from './indicators.mapper.js';
 import { githubFreshness } from './policies/indicator-freshness.policy.js';
 import { normalizeIndicatorPeriod } from './policies/indicator-period.policy.js';
 import { activityState } from './policies/indicator-state.policy.js';
+import { lifecycleCohort } from './policies/pr-cohort.policy.js';
 
 const DAY = 86400000;
 const HOUR = 3600000;
@@ -44,22 +45,19 @@ export const githubAnalyticsService = {
     const periodDto = publicPeriod(period);
     const coverageFrom = integration?.pullRequestLifecycleCoverageFrom ?? null;
     const coverageThrough = integration?.pullRequestLifecycleSyncedAt ?? null;
-    const covered = Boolean(
-      coverageFrom &&
-      coverageThrough &&
-      coverageFrom <= period.startInclusive &&
-      coverageThrough >= period.endExclusive
-    );
-    const coverage = {
-      from: coverageFrom?.toISOString() ?? null,
-      through: coverageThrough?.toISOString() ?? null
-    };
-    const lifecycleLimitations = covered ? [] : ['PR_LIFECYCLE_PERIOD_NOT_COVERED'];
+    const cohortWindow = lifecycleCohort(period, integration);
+    const covered = cohortWindow.complete;
+    const coverage = cohortWindow.coverage;
+    const lifecycleLimitations = cohortWindow.limitations;
     const source = {
       sourceUpdatedAt: freshness.sourceUpdatedAt?.toISOString() ?? null,
       sourceSyncStatus: freshness.sourceSyncStatus
     };
-    const baseLimitations = ready ? freshness.limitations : ['GITHUB_SNAPSHOT_NOT_AVAILABLE'];
+    const baseLimitations = !integration
+      ? freshness.limitations
+      : ready
+        ? freshness.limitations
+        : ['GITHUB_SNAPSHOT_NOT_AVAILABLE'];
     const result = (metricId, value, extras = {}) => {
       const { partial = false, limitations = [], ...publicExtras } = extras;
       return indicatorResult(
@@ -90,7 +88,7 @@ export const githubAnalyticsService = {
         {
           value: covered && ready ? value : null,
           state: lifecycleState === 'AVAILABLE' && value === null ? 'NO_DATA' : lifecycleState,
-          period: periodDto,
+          period: cohortWindow.period ? publicPeriod(cohortWindow.period) : periodDto,
           ...source,
           coverage,
           limitations: [...baseLimitations, ...lifecycleLimitations],

@@ -1,4 +1,11 @@
 export function githubFreshness(integration, branch) {
+  if (!integration)
+    return {
+      sourceUpdatedAt: null,
+      sourceSyncStatus: null,
+      stale: false,
+      limitations: ['GITHUB_NOT_CONFIGURED']
+    };
   const sourceUpdatedAt = integration?.lastSyncAt ?? null;
   const sourceSyncStatus = integration?.lastSyncStatus ?? null;
   const limitations = [];

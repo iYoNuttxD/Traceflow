@@ -3,6 +3,7 @@ import { SprintActionsMenu } from '../../schedule/index.js';
 import { formatDate, formatEffortHours, priorityLabels, statusLabels } from './kanban-display.js';
 import '../styles/task-cards.css';
 import './TaskList.css';
+import { isTaskOverdue } from './kanban-view.js';
 
 function initials(value) {
   const words = String(value || '')
@@ -19,7 +20,7 @@ function deadlineView(task) {
   today.setHours(0, 0, 0, 0);
   const days = Math.ceil((deadline - today) / 86400000);
 
-  if (task.status !== 'CONCLUIDO' && days < 0) {
+  if (isTaskOverdue(task)) {
     return { label: `Atrasada · ${formatDate(task.deadline)}`, tone: 'overdue' };
   }
   if (task.status !== 'CONCLUIDO' && days <= 7) {

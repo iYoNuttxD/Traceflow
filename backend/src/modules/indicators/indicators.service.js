@@ -64,7 +64,9 @@ export const indicatorsService = {
     );
 
     const hasConfirmedMain = Boolean(
-      facts.branch?.lastSyncedGeneration && facts.branch?.lastSyncedHeadSha
+      facts.project.githubIntegration &&
+      facts.branch?.lastSyncedGeneration &&
+      facts.branch?.lastSyncedHeadSha
     );
     const commits = calculateDistribution(facts.commitRows ?? []);
     const freshness = githubFreshness(facts.project.githubIntegration, facts.branch);

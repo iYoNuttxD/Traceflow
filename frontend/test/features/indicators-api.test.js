@@ -40,4 +40,11 @@ describe('P8 indicators API client', () => {
     indicatorsApi.catalog(4);
     expect(get).toHaveBeenCalledWith('/projects/4/indicators/catalog', {});
   });
+  it('sends the browser timezone for current deadlines even without an event filter', () => {
+    indicatorsApi.dashboard(4, { view: 'GENERAL' });
+    expect(get.mock.lastCall[1].params).toEqual({
+      view: 'GENERAL',
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+    });
+  });
 });

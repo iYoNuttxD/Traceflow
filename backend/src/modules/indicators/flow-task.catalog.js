@@ -122,7 +122,7 @@ export const FLOW_TASK_INDICATORS = Object.freeze({
     'TASKS',
     'CURRENT_STATE',
     null,
-    'Quantidade de tarefas não concluídas cujo prazo é anterior ao instante da consulta. A lista mostra até dez tarefas, começando pelos prazos mais antigos.',
+    'Quantidade de tarefas não concluídas cujo prazo civil é anterior ao dia atual no fuso aplicado. A lista mostra até dez tarefas, começando pelos prazos mais antigos.',
     ['Task.deadline', 'Task.status']
   ),
   I29: define(

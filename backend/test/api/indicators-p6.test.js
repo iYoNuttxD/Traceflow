@@ -300,6 +300,15 @@ describe('P6 Quality and Traceability analytics API', () => {
       where: { id: origin.id },
       data: { status: 'CONCLUIDO', pullRequestId: pr.id }
     });
+    // Technical projection assertions require a configured GitHub source.
+    await prisma.projectGitHubIntegration.create({
+      data: {
+        projectId: p.id,
+        status: 'ACTIVE',
+        lastSyncAt: at(20),
+        lastSyncStatus: 'SINCRONIZADO'
+      }
+    });
     const trace = indicators(await get(p.id, owner, 'traceability'));
     expect(trace.I61).toMatchObject({
       numerator: 2,

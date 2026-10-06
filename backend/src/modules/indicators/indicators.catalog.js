@@ -60,7 +60,7 @@ export const INDICATORS = Object.freeze({
     supportedFilters: ['period'],
     definitionVersion: 1,
     formula:
-      '(Pull Requests distintas reabertas após seu primeiro fechamento no período ÷ Pull Requests distintas fechadas no período) × 100. Somente reaberturas anteriores ao fim do período são consideradas.',
+      '(Pull Requests distintas reabertas após seu primeiro fechamento no período observado ÷ Pull Requests distintas fechadas nesse período) × 100. O corte não ultrapassa o último sync confirmado do histórico; reaberturas posteriores não entram.',
     sources: ['PullRequestLifecycleEvent']
   }),
   I05: Object.freeze({
@@ -90,7 +90,7 @@ export const INDICATORS = Object.freeze({
     supportedFilters: ['period'],
     definitionVersion: 1,
     formula:
-      'Duas taxas para as Pull Requests distintas fechadas no período: (Pull Requests reabertas após o primeiro fechamento ÷ Total de Pull Requests fechadas) × 100 e (Pull Requests mescladas até o fim do período ÷ Total de Pull Requests fechadas) × 100. As taxas não são somadas.',
+      'Duas taxas para as Pull Requests distintas fechadas no período observado: (Pull Requests reabertas após o primeiro fechamento ÷ Total de Pull Requests fechadas) × 100 e (Pull Requests mescladas até o corte observado ÷ Total de Pull Requests fechadas) × 100. O corte não ultrapassa o último sync confirmado do histórico. As taxas não são somadas.',
     sources: ['I04', 'PullRequestLifecycleEvent', 'PullRequest.mergedAtGithub']
   }),
   I09: Object.freeze({

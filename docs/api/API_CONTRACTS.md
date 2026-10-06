@@ -1277,7 +1277,12 @@ Cada `IndicatorResult` expõe `projectId`, `metricId`, `rf`, `definitionVersion:
 `eventClock`, `value`, `unit`, `numerator`, `denominator`, `period`, `scope`, `state`,
 `asOf`, `sourceUpdatedAt`, `sourceSyncStatus`, `formula`, `sources[]` e
 `limitations[]`. Os estados são `AVAILABLE`, `NO_DATA`, `PARTIAL`, `STALE` e
-`UNAVAILABLE`. I01 com zero Tasks retorna `value:null, numerator:0,
+`UNAVAILABLE`. Sem `githubIntegration`, fontes exclusivamente GitHub retornam
+`UNAVAILABLE`, `GITHUB_NOT_CONFIGURED`, valor e `sourceUpdatedAt:null`; ausência de configuração
+não é STALE nem zero. I03 permanece local; I05 preserva Tasks e marca seu componente de commits
+indisponível. Com integração existente, a policy mantém falha de sync, integração inativa e
+divergência de main como razões de frescor; idade isolada não define STALE.
+I01 com zero Tasks retorna `value:null, numerator:0,
 denominator:0, state:NO_DATA`; Tasks existentes com zero concluídas retornam
 `value:0, state:AVAILABLE`. Percentuais têm até duas casas decimais.
 
@@ -1322,9 +1327,14 @@ I06/RF54 reutiliza exatamente I04 e acrescenta `mergedRate` = PRs distintas da m
 com merge comprovado / PRs distintas fechadas. `value` de I06 é
 `{reworkRate,mergedRate}`, com `components:{rework,merged}` e N/D da taxa de merge.
 Com denominador zero, taxas `null` e `NO_DATA`; com denominador positivo e numerador zero,
-taxas `0` válidas. Cobertura exige `pullRequestLifecycleCoverageFrom <= startInclusive`
-e `pullRequestLifecycleSyncedAt >= endExclusive`. Se não for comprovada, taxas ficam `null`;
-`coverage:{from,through}` e `PR_LIFECYCLE_PERIOD_NOT_COVERED` explicam o limite.
+taxas `0` válidas. Desde PR23-FIX-03, I04/I06/I11 cortam a coorte em
+`min(endExclusive solicitado, pullRequestLifecycleSyncedAt)` e publicam esse intervalo no
+`period` individual, com `PR_COHORT_CUT_AT_LAST_SYNC` quando houver corte. Cobertura completa
+exige `pullRequestLifecycleCoverageFrom <= startInclusive solicitado` e intervalo positivo.
+Um sync recente anterior ao `asOf` não torna a coorte parcial por si só. O `period` do envelope
+continua sendo o solicitado; fatos de fechamento, reabertura e merge posteriores ao corte não
+entram. Se o início não for coberto, taxas ficam `null` e PARTIAL; marcadores ausentes são
+UNAVAILABLE. `coverage:{from,through}` e `PR_LIFECYCLE_PERIOD_NOT_COVERED` explicam o limite.
 O marcador inicial da P3 é prospectivo; eventos legados não tornam a história completa por suposição.
 
 I09 usa `Commit.date` sem restringir branch; I11 usa CLOSED distinto; I12 usa
@@ -1380,8 +1390,9 @@ anterior não são recuperáveis. Sem coorte verificável, `points:[]`.
 Se o fim do período ainda não ocorreu em `asOf`, I20–I22 não afirmam conclusão do intervalo:
 estado `PARTIAL` e `PERIOD_NOT_COMPLETE`; I25 já é parcial ou indisponível.
 
-I26–I30 são contagens atuais: total existente, distribuição canônica, atrasadas (`deadline < asOf`
-e não concluídas), sem `responsibleUserId` e sem estimativa (`null`, diferente de zero). I28 é
+I26–I30 são contagens atuais: total existente, distribuição canônica, atrasadas (prazo civil
+anterior ao dia atual no fuso aplicado e status não concluído), sem `responsibleUserId` e sem
+estimativa (`null`, diferente de zero). I28 publica o fuso em `scope.timeZone` e é
 `kind:LIST` com até dez atrasadas mais antigas, embora `value` conte todas. I31 soma estimativas
 conhecidas; I32 soma somente o derivado canônico `Task.actualEffort` de S1-06, sem adicionar
 sessões outra vez. I33 soma `actualEffort-estimatedEffort` apenas nas Tasks comparáveis. I34
@@ -1392,6 +1403,13 @@ Em I31, Tasks existentes sem qualquer estimativa produzem `PARTIAL`, `value:null
 finge que as estimativas desconhecidas representam zero.
 Listas de esforço usam `taskId`, título, status, esforço conhecido, diferença e responsável ativo
 mínimo; não são avaliação individual.
+
+`Task.deadline` representa `YYYY-MM-DD`, não um instante de vencimento. A parte UTC de data
+persistida representa esse dia civil; a comparação usa o dia de `asOf` no fuso IANA da
+requisição, sem depender do fuso do servidor/SQL. Prazo de hoje não está atrasado; somente
+`dia local > prazo`. A serialização ISO existente é preservada para compatibilidade; não há
+normalização artificial para 23:59:59. Kanban e resumo de Tasks usam o mesmo contrato civil no
+fuso do navegador, inclusive a referência histórica do snapshot para cards congelados.
 
 Os resultados seguem `IndicatorResult` com `definitionVersion`, `asOf`, `formula`, `sources`,
 `state`, `limitations` e `scope`. Valores zero conhecidos permanecem zero. Consulta requer
@@ -1520,6 +1538,11 @@ falha/Defect atual; I67, média do progresso por Requirement da matriz S1-09, in
 Requirement sem Task. I62/I65/I66 propagam `STALE`, `sourceUpdatedAt`, `sourceSyncStatus` e
 `limitations` de frescor GitHub. I61/I63/I64/I67 permanecem locais.
 
+Sem integração GitHub, I62/I65/I66 são `UNAVAILABLE`, `value:null`, `numerator:null`,
+`GITHUB_NOT_CONFIGURED`, relógio externo nulo e denominador local conhecido. I61/I63/I64/I67
+continuam calculáveis: I63 depende dos Casos de teste locais, não do provider. Seu assessment
+de Health, porém, exige a referência técnica I66 e não se aplica nesse cenário.
+
 Ambos exigem sessão e membership ativa VIEWER+; sem sessão retorna 401; projeto alheio,
 inexistente ou excluído retorna 404. O payload não inclui responsável, e-mail, autoria GitHub nem
 ranking de pessoas. I68 não é implementado, por decisão `NOT_RECOMMENDED`. P6 não entrega painel;
@@ -1530,12 +1553,17 @@ S2-04/S2-05 permanecem abertos.
 `GET /api/projects/:projectId/indicators/dashboard` aceita `view` (`GENERAL` por padrão;
 `GITHUB`, `FLOW`, `SPRINT`, `TASK`, `QUALITY`, `TRACEABILITY`), o trio opcional
 `startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&timeZone=IANA`, `sprintId` e
-`responsibleUserId`. Query desconhecida, view/fuso/data inválidos ou período incompleto retornam
+`responsibleUserId`. Desde PR23-FIX-03, `timeZone=IANA` também pode ser informado **sem datas**
+para o dia civil de I28/Health; não cria filtro de evento. Datas inicial/final continuam pareadas
+e exigem fuso. Sem datas e sem fuso, a API usa UTC; o cliente TraceFlow envia o fuso do navegador.
+Query desconhecida, view/fuso/data inválidos ou período incompleto retornam
 400. FLOW e TASK limitam a leitura de séries a 366 dias civis. O período solicitado é normalizado **uma vez** pela
 policy P2 para `[startInclusive,endExclusive)`; os services temporais recebem esse mesmo corte e
-preservam o `eventClock` de cada indicador. Sem período solicitado, indicadores de evento trazem
+preservam o `eventClock` de cada indicador. Sem período solicitado, indicadores de evento em fontes configuradas trazem
 `UNAVAILABLE`, `value:null`, `PERIOD_REQUIRED`; não há default público de 30 dias. Indicadores
 atuais continuam disponíveis e trazem `period:null` mesmo quando um período foi solicitado.
+Fontes exclusivamente GitHub sem integração priorizam `GITHUB_NOT_CONFIGURED`, pois informar
+período não torna essa fonte aplicável.
 
 O response contém `dashboardContractVersion:1`, `view`, `viewState`, `generatedAt`,
 `requestedFilters:{period,sprintId,responsibleUserId}`, `context:{project,sprint,responsible}`,
@@ -1610,13 +1638,21 @@ O agregado P7 conserva `dashboardContractVersion:1` e todos os campos originais.
 }
 ```
 
-`healthRole` é `SCORING_SIGNAL`, `CONTEXT_ONLY`, `REDUNDANT`, `UNIMPLEMENTED` ou `NOT_RECOMMENDED` no registry; apenas os três primeiros aparecem em indicadores executáveis. `status` é `HEALTHY`, `ATTENTION`, `CRITICAL`, `NEUTRAL` ou `UNASSESSED`. `score:null` significa que a avaliação não pôde ser feita, não zero. `basis` contém somente fatos numéricos ou IDs de métricas; `reasonCode` é uma chave sem texto pessoal. O estado de dados (`AVAILABLE`, `PARTIAL`, `STALE`, `NO_DATA`, `UNAVAILABLE`) permanece independente de `assessment.status`. Metadados do catálogo acrescentam `healthRole`, `healthDimension` (ou `null`) e `healthModelVersion`.
+`healthRole` é `SCORING_SIGNAL`, `CONTEXT_ONLY`, `REDUNDANT`, `UNIMPLEMENTED` ou `NOT_RECOMMENDED` no registry; apenas os três primeiros aparecem em indicadores executáveis. `status` é `HEALTHY`, `ATTENTION`, `CRITICAL`, `NEUTRAL` ou `UNASSESSED`. `score:null` significa que a avaliação não pôde ser feita, não zero. `basis` contém fatos numéricos, IDs de métricas e limites temporais da coorte, sem texto pessoal; I04 acrescenta `cohortStartInclusive`, `cohortEndExclusive`, `closedPullRequests`, `reopenedPullRequests`. `reasonCode` é uma chave sem texto pessoal. O estado de dados (`AVAILABLE`, `PARTIAL`, `STALE`, `NO_DATA`, `UNAVAILABLE`) permanece independente de `assessment.status`. Metadados do catálogo acrescentam `healthRole`, `healthDimension` (ou `null`) e `healthModelVersion`.
 
 Na versão vigente, `view=GENERAL` e `view=CUSTOM` sempre acrescentam `projectHealth`;
 as demais views o incluem quando `includeProjectHealth=true` (extensões P8.5/P9).
 O objeto contém `healthModelVersion`, `status`, `score`, `coverage` percentual ponderada, `assessedDimensions`, `applicableDimensions`, `assessedSignals`, `applicableSignals`, `dimensions[]`, `drivers:{negative[],positive[]}`, `assessments` por ID, `calculatedAt` e `window:{timeZone,current,previous}` com instantes UTC inclusivo/exclusivo. Cada dimensão publica `id`, `weight`, `applicable`, `coverage`, `score`, `status`, `assessedSignals[]`, `unassessedSignals[]`. Cada driver publica `metricId`, `dimension`, `status`, `score`, `impact`, `reasonCode`, `basis`; máximo três por polaridade. `score:null,status:UNASSESSED` resulta de cobertura <60% ou menos de quatro dimensões avaliadas; não há persistência. Sprint sem seleção ativa e integração GitHub ausente podem ser `NOT_APPLICABLE` e saem do denominador. Sem inclusão de Health, as demais views apresentam apenas assessments individuais.
 
-Eventos da saúde usam o período solicitado recortado em `generatedAt`, ou janela interna dos últimos 30 dias; baseline compara a janela anterior de mesma duração. Para I20/I21, o histórico observado inclui movimentos anteriores a `generatedAt`, inclusive conclusões posteriores ao fim da janela histórica: essas conclusões conhecidas não viram exclusões por histórico ausente. Somente conclusões dentro de cada janela entram na respectiva amostra; movimentos em ou após `generatedAt` não entram. O resumo de durações da saúde não materializa séries diárias, preservando o contrato de período da GENERAL sem impor um novo limite. Esse default **não** muda a regra P7 dos widgets de evento sem filtro: eles continuam com `PERIOD_REQUIRED`. A nota permanece do projeto; `responsibleUserId` não recorta Project Health. Regras, pesos, exclusões e limitações estão em [Project Health Model v1](../indicators/PROJECT_HEALTH_MODEL_V1.md).
+Ausência de integração também exclui I04/I15/I73/I62/I63/I65/I66 do denominador de sinais
+aplicáveis; seus assessments são `UNASSESSED`, `score:null`, `GITHUB_NOT_CONFIGURED`.
+As métricas locais continuam disponíveis. Pesos, thresholds e mínimo de quatro dimensões não
+mudam. I04 usa o mesmo corte confirmado de lifecycle do endpoint GitHub, inclusive na janela
+interna de 30 dias: sync cinco minutos antes de `generatedAt` permite avaliação com coorte
+completa e denominador positivo. Freshness é independente; fonte STALE não pontua mesmo com
+valor historicamente calculável. Idade isolada do sync não define STALE nesta policy.
+
+Eventos da saúde usam o período solicitado recortado em `generatedAt`, ou janela interna dos últimos 30 dias; baseline compara a janela anterior de mesma duração. Para I20/I21, o histórico observado inclui movimentos anteriores a `generatedAt`, inclusive conclusões posteriores ao fim da janela histórica: essas conclusões conhecidas não viram exclusões por histórico ausente. Somente conclusões dentro de cada janela entram na respectiva amostra; movimentos em ou após `generatedAt` não entram. O resumo de durações da saúde não materializa séries diárias, preservando o contrato de período da GENERAL sem impor um novo limite. Esse default **não** muda a regra P7 dos widgets de evento sem filtro em fontes configuradas: eles continuam com `PERIOD_REQUIRED`. A nota permanece do projeto; `responsibleUserId` não recorta Project Health. Regras, pesos, exclusões e limitações estão em [Project Health Model v1](../indicators/PROJECT_HEALTH_MODEL_V1.md).
 
 ## S2 P8.5 — Workspace de Indicadores e referências
 

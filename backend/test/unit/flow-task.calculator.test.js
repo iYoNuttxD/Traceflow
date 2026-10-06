@@ -4,6 +4,10 @@ import {
   taskStatusDistribution
 } from '../../src/modules/indicators/calculators/flow-task.calculator.js';
 import { calculateTaskCurrent } from '../../src/modules/indicators/calculators/task-current.calculator.js';
+import {
+  createIndicatorLocalDateKey,
+  normalizeIndicatorPeriod
+} from '../../src/modules/indicators/policies/indicator-period.policy.js';
 
 const day = (number) => new Date(`2026-09-${String(number).padStart(2, '0')}T00:00:00Z`);
 const period = {
@@ -31,6 +35,51 @@ const move = (taskId, date, fromStatus, toStatus, id) => ({
 });
 
 describe('Flow + Task calculators', () => {
+  it('keeps I20/I21/I22/I25 in the São Paulo day when completion crosses UTC midnight', () => {
+    const localPeriod = normalizeIndicatorPeriod({
+      startDate: '2026-10-05',
+      endDate: '2026-10-06',
+      timeZone: 'America/Sao_Paulo'
+    });
+    const flow = calculateFlowTaskHistory({
+      tasks: [task(1, new Date('2026-10-05T23:00:00Z'), 'CONCLUIDO')],
+      movements: [
+        {
+          id: 1,
+          taskId: 1,
+          fromStatus: 'A_FAZER',
+          toStatus: 'EM_ANDAMENTO',
+          movedAt: new Date('2026-10-06T00:00:00Z')
+        },
+        {
+          id: 2,
+          taskId: 1,
+          fromStatus: 'EM_ANDAMENTO',
+          toStatus: 'CONCLUIDO',
+          movedAt: new Date('2026-10-06T02:00:00Z')
+        }
+      ],
+      period: localPeriod,
+      asOf: new Date('2026-10-07T03:00:00Z'),
+      dateKey: createIndicatorLocalDateKey(localPeriod.timeZone)
+    });
+    expect(flow.leadPoints[0]).toMatchObject({ date: '2026-10-05', eligibleCount: 1, value: 0.13 });
+    expect(flow.cyclePoints[0]).toMatchObject({
+      date: '2026-10-05',
+      eligibleCount: 1,
+      value: 0.08
+    });
+    expect(flow.throughput.points).toEqual([
+      { date: '2026-10-05', value: 1 },
+      { date: '2026-10-06', value: 0 }
+    ]);
+    expect(flow.cumulative.points[0]).toEqual({
+      date: '2026-10-05',
+      todo: 0,
+      inProgress: 0,
+      done: 1
+    });
+  });
   it('uses first completion for lead/cycle, final eligible completion for throughput and last entry for aging', () => {
     const tasks = [
       task(1, day(1), 'CONCLUIDO'),

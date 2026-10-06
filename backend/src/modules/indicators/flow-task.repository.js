@@ -1,8 +1,15 @@
 import { prisma } from '../../database/prismaClient.js';
+import { taskDeadlineCutoff } from './policies/task-deadline.policy.js';
 
 // One consistent read; current aggregates stay in SQL while history is fetched once.
 export const flowTaskRepository = {
-  read(projectId, period, asOf, { currentSummaryOnly = false } = {}) {
+  read(
+    projectId,
+    period,
+    asOf,
+    { currentSummaryOnly = false, timeZone = period?.timeZone ?? 'UTC' } = {}
+  ) {
+    const deadlineCutoff = taskDeadlineCutoff(asOf, timeZone);
     return prisma.$transaction(
       async (tx) => {
         const project = await tx.project.findFirst({
@@ -15,7 +22,7 @@ export const flowTaskRepository = {
             tx.$queryRaw`
               SELECT COUNT(*) AS total,
                 COALESCE(SUM(status = 'EM_ANDAMENTO'), 0) AS wip,
-                COALESCE(SUM(deadline < ${asOf} AND status <> 'CONCLUIDO'), 0) AS overdue,
+                COALESCE(SUM(deadline < ${deadlineCutoff} AND status <> 'CONCLUIDO'), 0) AS overdue,
                 COALESCE(SUM(responsibleUserId IS NULL), 0) AS unassigned,
                 COALESCE(SUM(estimatedEffort IS NULL), 0) AS withoutEstimate,
                 COUNT(estimatedEffort) AS withEstimate,
@@ -77,7 +84,7 @@ export const flowTaskRepository = {
                 u.id AS responsibleUserId, u.name AS responsibleName
               FROM Task t LEFT JOIN User u ON u.id = t.responsibleUserId
                 AND u.isActive = TRUE AND u.accountStatus = 'ACTIVE' AND u.anonymizedAt IS NULL
-              WHERE t.projectId = ${projectId} AND t.deadline < ${asOf}
+              WHERE t.projectId = ${projectId} AND t.deadline < ${deadlineCutoff}
                 AND t.status <> 'CONCLUIDO'
               ORDER BY t.deadline ASC, t.id ASC LIMIT 10
             `,
