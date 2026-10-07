@@ -26,7 +26,10 @@ const allowedMetadata = new Set([
   'scheduledFor',
   // S1-06: origem (TIMER/MANUAL) e duração da sessão de tempo; técnicos, sem PII.
   'source',
-  'durationSeconds'
+  'durationSeconds',
+  'alertType',
+  'created',
+  'resolved'
 ]);
 
 export function minimizeAuditMetadata(metadata) {

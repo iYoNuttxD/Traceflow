@@ -185,6 +185,11 @@ export function createApp({ logger = defaultLogger, readinessCheck, securityConf
     createSensitiveAttemptLogger({ logger, event: 'github_sync' }),
     rateLimiters.sync
   );
+  app.post(
+    '/api/projects/:projectId/traceability/alerts/reconcile',
+    createSensitiveAttemptLogger({ logger, event: 'traceability_alerts_reconcile' }),
+    rateLimiters.alertReconcile
+  );
   app.use('/api', csrf);
   app.use('/api', requireAccountState);
   app.use('/api', createProjectAuthorizationMiddleware());

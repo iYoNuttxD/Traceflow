@@ -89,5 +89,7 @@ export const ERROR_CODES = Object.freeze({
   // Inversao Marco <-> Sprint (ADR-011). Os codigos que falavam de "sprint do
   // marco" sairam junto com a regra: o vinculo agora e declarado pela sprint.
   SPRINT_MILESTONE_PROJECT_MISMATCH: 'SPRINT_MILESTONE_PROJECT_MISMATCH',
-  SPRINT_ALREADY_ACTIVE: 'SPRINT_ALREADY_ACTIVE'
+  SPRINT_ALREADY_ACTIVE: 'SPRINT_ALREADY_ACTIVE',
+  TRACEABILITY_ALERT_NOT_FOUND: 'TRACEABILITY_ALERT_NOT_FOUND',
+  TRACEABILITY_ALERT_NOT_OPEN: 'TRACEABILITY_ALERT_NOT_OPEN'
 });

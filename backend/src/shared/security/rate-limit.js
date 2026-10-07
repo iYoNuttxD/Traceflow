@@ -136,6 +136,12 @@ export function createRateLimiters(config = {}) {
       windowMs: value(config, 'rateLimitSensitiveWindowMs', legacyWindow),
       limit: Math.max(1, Math.min(5, value(config, 'rateLimitSensitiveMax', legacySensitiveMax))),
       keyGenerator: (req) => `${authenticatedKey(req)}:project:${req.params.projectId || 'unknown'}`
+    }),
+    alertReconcile: make({
+      scope: 'traceability-alerts-reconcile',
+      windowMs: value(config, 'rateLimitSensitiveWindowMs', legacyWindow),
+      limit: Math.max(1, Math.min(5, value(config, 'rateLimitSensitiveMax', legacySensitiveMax))),
+      keyGenerator: (req) => `${authenticatedKey(req)}:project:${req.params.projectId || 'unknown'}`
     })
   });
 }

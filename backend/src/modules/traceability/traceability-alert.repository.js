@@ -1,4 +1,5 @@
 import { prisma } from '../../database/prismaClient.js';
+import { auditRepository } from '../audit/audit.repository.js';
 import { lockActiveProject } from '../projects/active-project-write.js';
 import { ProjectServiceError } from '../projects/project.schema.js';
 import {
@@ -253,7 +254,176 @@ export async function reconcileTraceabilityAlerts(
   return { created, resolved, kept };
 }
 
+const alertInclude = {
+  task: { select: { id: true, title: true, status: true } },
+  pullRequest: { select: { id: true, number: true, title: true, githubUrl: true } },
+  issue: { select: { id: true, number: true, title: true, githubUrl: true } },
+  dismissedBy: { select: { id: true, name: true } }
+};
+
+const alertDetailInclude = {
+  ...alertInclude,
+  task: {
+    select: {
+      id: true,
+      title: true,
+      status: true,
+      requirementId: true,
+      responsibleUser: { select: { id: true, name: true } },
+      pullRequest: { select: { id: true, number: true, title: true, githubUrl: true } },
+      _count: {
+        select: {
+          issueLinks: true,
+          commitSuggestions: { where: { status: 'PENDING' } }
+        }
+      }
+    }
+  },
+  pullRequest: {
+    select: {
+      id: true,
+      number: true,
+      title: true,
+      githubUrl: true,
+      sourceBranch: true,
+      targetBranch: true,
+      mergedAtGithub: true
+    }
+  },
+  issue: {
+    select: {
+      id: true,
+      number: true,
+      title: true,
+      githubUrl: true,
+      state: true,
+      closedAtGithub: true
+    }
+  }
+};
+
+const alertOrder = [{ detectedAt: 'desc' }, { id: 'desc' }];
+
 export const traceabilityAlertRepository = {
+  async list(projectId, { status, type, skip, take }) {
+    const where = { projectId, status, ...(type ? { type } : {}) };
+    const [total, alerts] = await prisma.$transaction([
+      prisma.traceabilityAlert.count({ where }),
+      prisma.traceabilityAlert.findMany({
+        where,
+        include: alertInclude,
+        orderBy: alertOrder,
+        skip,
+        take
+      })
+    ]);
+    return { total, alerts };
+  },
+
+  async summary(projectId) {
+    const [open, dismissed, integration] = await prisma.$transaction([
+      prisma.traceabilityAlert.groupBy({
+        by: ['type'],
+        where: { projectId, status: 'OPEN' },
+        _count: { _all: true },
+        orderBy: { type: 'asc' }
+      }),
+      prisma.traceabilityAlert.count({ where: { projectId, status: 'DISMISSED' } }),
+      prisma.projectGitHubIntegration.findUnique({ where: { projectId }, select: { id: true } })
+    ]);
+    return { open, dismissed, integrationExists: Boolean(integration) };
+  },
+
+  findById(projectId, alertId) {
+    return prisma.traceabilityAlert.findFirst({
+      where: { id: alertId, projectId },
+      select: { id: true, type: true, status: true }
+    });
+  },
+
+  findDetail(projectId, alertId) {
+    return prisma.traceabilityAlert.findFirst({
+      where: { id: alertId, projectId },
+      include: alertDetailInclude
+    });
+  },
+
+  async findMembershipRole(projectId, userId) {
+    const membership = await prisma.projectMembership.findFirst({
+      where: { projectId, userId, isActive: true, project: { deletedAt: null } },
+      select: { role: true }
+    });
+    return membership?.role ?? null;
+  },
+
+  dismiss({ projectId, alertId, userId, reason, now, auditEvent }) {
+    return prisma.$transaction(
+      async (tx) => {
+        await lockActiveProject(tx, projectId);
+        const current = await tx.traceabilityAlert.findFirst({
+          where: { id: alertId, projectId },
+          select: { id: true, status: true }
+        });
+        if (!current) return { outcome: 'NOT_FOUND' };
+        if (current.status === 'DISMISSED')
+          return {
+            outcome: 'UNCHANGED',
+            alert: await tx.traceabilityAlert.findUnique({
+              where: { id: alertId },
+              include: alertInclude
+            })
+          };
+        if (current.status !== 'OPEN') return { outcome: 'INVALID_STATUS' };
+        await tx.traceabilityAlert.updateMany({
+          where: { id: alertId, projectId, status: 'OPEN' },
+          data: {
+            status: 'DISMISSED',
+            dismissedAt: now,
+            dismissedByUserId: userId,
+            dismissalReason: reason
+          }
+        });
+        await auditRepository.create(auditEvent, tx);
+        return {
+          outcome: 'UPDATED',
+          alert: await tx.traceabilityAlert.findUnique({
+            where: { id: alertId },
+            include: alertInclude
+          })
+        };
+      },
+      { isolationLevel: 'ReadCommitted', timeout: 15000 }
+    );
+  },
+
+  async listUnlinkedTasks(projectId, { status, skip, take }) {
+    const where = {
+      projectId,
+      pullRequestId: null,
+      commitLinks: { none: {} },
+      issueLinks: { none: {} },
+      ...(status ? { status } : {})
+    };
+    const [total, tasks] = await prisma.$transaction([
+      prisma.task.count({ where }),
+      prisma.task.findMany({
+        where,
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          updatedAt: true,
+          requirementId: true,
+          responsibleUser: { select: { id: true, name: true } }
+        },
+        orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+        skip,
+        take
+      })
+    ]);
+    return { total, tasks };
+  },
+
   reconcileProject(projectId, { dryRun, now = new Date() }, client = prisma) {
     return client.$transaction(
       (tx) => reconcileTraceabilityAlerts(tx, { projectId, full: true, dryRun, now }),

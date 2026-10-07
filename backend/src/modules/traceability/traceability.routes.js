@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { validateRequest } from '../../shared/validation/index.js';
 import { traceabilityController } from './traceability.controller.js';
+import { traceabilityAlertController } from './traceability-alert.controller.js';
 import {
   expandedGraphQuerySchema,
   requirementProjectionQuerySchema,
@@ -8,14 +9,54 @@ import {
   commitSuggestionParamsSchema,
   commitSuggestionQuerySchema,
   emptyCommitSuggestionBodySchema,
+  traceabilityAlertDismissBodySchema,
+  traceabilityAlertParamsSchema,
+  traceabilityAlertQuerySchema,
   traceabilityArtifactParamsSchema,
   traceabilityPaginationQuerySchema,
   traceabilityProjectParamsSchema,
   traceabilityRequirementParamsSchema,
-  traceabilityTaskParamsSchema
+  traceabilityTaskParamsSchema,
+  unlinkedTasksQuerySchema
 } from './traceability.validation.js';
 
 const router = Router();
+router.get(
+  '/projects/:projectId/traceability/alerts',
+  validateRequest({ params: traceabilityProjectParamsSchema, query: traceabilityAlertQuerySchema }),
+  traceabilityAlertController.list
+);
+router.get(
+  '/projects/:projectId/traceability/alerts/summary',
+  validateRequest({ params: traceabilityProjectParamsSchema }),
+  traceabilityAlertController.summary
+);
+router.post(
+  '/projects/:projectId/traceability/alerts/reconcile',
+  validateRequest({
+    params: traceabilityProjectParamsSchema,
+    body: emptyCommitSuggestionBodySchema
+  }),
+  traceabilityAlertController.reconcile
+);
+router.get(
+  '/projects/:projectId/traceability/alerts/:alertId',
+  validateRequest({ params: traceabilityAlertParamsSchema }),
+  traceabilityAlertController.get
+);
+router.post(
+  '/projects/:projectId/traceability/alerts/:alertId/dismiss',
+  validateRequest({
+    params: traceabilityAlertParamsSchema,
+    body: traceabilityAlertDismissBodySchema
+  }),
+  traceabilityAlertController.dismiss
+);
+router.get(
+  '/projects/:projectId/traceability/tasks-without-technical-links',
+  validateRequest({ params: traceabilityProjectParamsSchema, query: unlinkedTasksQuerySchema }),
+  traceabilityAlertController.listUnlinkedTasks
+);
 router.get(
   '/projects/:projectId/traceability/requirements',
   validateRequest({
