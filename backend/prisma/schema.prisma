@@ -51,6 +51,28 @@ enum TaskCommitSuggestionStatus {
   REJECTED
 }
 
+enum TraceabilityAlertType {
+  TASK_CONCLUDED_WITHOUT_COMMIT
+  PULL_REQUEST_MERGED_WITHOUT_TASK
+  ISSUE_CLOSED_WITHOUT_TASK
+}
+
+enum TraceabilityAlertStatus {
+  OPEN
+  DISMISSED
+  RESOLVED
+}
+
+enum TraceabilityAlertResolution {
+  COMMIT_LINKED
+  TASK_REOPENED
+  TASK_DELETED
+  PULL_REQUEST_LINKED
+  ISSUE_LINKED
+  ISSUE_REOPENED
+  RULE_NO_LONGER_APPLIES
+}
+
 enum TaskHistoryField {
   STATUS
   DEADLINE
@@ -172,6 +194,7 @@ model User {
   privacyRequests                  PrivacyRequest[]
   personalDataExports              PersonalDataExport[]
   reviewedTaskCommitSuggestions    TaskCommitSuggestion[]            @relation("TaskCommitSuggestionReviewer")
+  dismissedTraceabilityAlerts      TraceabilityAlert[]               @relation("TraceabilityAlertDismisser")
   githubInstallationAuthorizations GitHubInstallationAuthorization[]
   githubAppConnectionStates        GitHubAppConnectionState[]
   githubIdentity                   GitHubIdentity?
@@ -355,6 +378,7 @@ model Project {
   invitations            ProjectInvitation[]
   auditEvents            AuditEvent[]
   taskCommitSuggestions  TaskCommitSuggestion[]
+  traceabilityAlerts     TraceabilityAlert[]
   githubIntegration      ProjectGitHubIntegration?
   githubConnectionStates GitHubAppConnectionState[]
   githubBranches         GitBranch[]
@@ -656,6 +680,7 @@ model Task {
   commitLinks          TaskCommit[]
   commitSuggestions    TaskCommitSuggestion[]
   issueLinks           TaskIssue[]
+  traceabilityAlerts   TraceabilityAlert[]
   responsibleUser      User?                  @relation(fields: [responsibleUserId], references: [id], onDelete: SetNull)
 
   @@index([pullRequestId])
@@ -794,6 +819,42 @@ model TaskCommitSuggestion {
   @@index([commitId])
   @@index([taskId])
   @@index([reviewedByUserId])
+}
+
+model TraceabilityAlert {
+  id                Int                          @id @default(autoincrement())
+  projectId         Int
+  type              TraceabilityAlertType
+  status            TraceabilityAlertStatus      @default(OPEN)
+  dedupeKey         String                       @db.VarChar(64)
+  activeKey         String?                      @default(dbgenerated()) @db.VarChar(64)
+  taskId            Int?
+  pullRequestId     Int?
+  issueId           Int?
+  subjectCode       String                       @db.VarChar(32)
+  subjectTitle      String                       @db.VarChar(191)
+  occurredAt        DateTime?
+  detectedAt        DateTime                     @default(now())
+  resolvedAt        DateTime?
+  resolutionReason  TraceabilityAlertResolution?
+  dismissedAt       DateTime?
+  dismissedByUserId Int?
+  dismissalReason   String?                      @db.VarChar(500)
+  createdAt         DateTime                     @default(now())
+  updatedAt         DateTime                     @updatedAt
+
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task        Task?        @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  pullRequest PullRequest? @relation(fields: [pullRequestId], references: [id], onDelete: SetNull)
+  issue       Issue?       @relation(fields: [issueId], references: [id], onDelete: SetNull)
+  dismissedBy User?        @relation("TraceabilityAlertDismisser", fields: [dismissedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, activeKey])
+  @@index([projectId, status, type, detectedAt])
+  @@index([taskId])
+  @@index([pullRequestId])
+  @@index([issueId])
+  @@index([dismissedByUserId])
 }
 
 // Vinculo de rastreabilidade entre tarefas e issues importadas do GitHub.
@@ -1041,8 +1102,9 @@ model PullRequest {
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  tasks   Task[]
+  project            Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks              Task[]
+  traceabilityAlerts TraceabilityAlert[]
 
   @@unique([projectId, githubId])
   @@unique([projectId, number])
@@ -1070,8 +1132,9 @@ model Issue {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  taskLinks TaskIssue[]
+  project            Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  taskLinks          TaskIssue[]
+  traceabilityAlerts TraceabilityAlert[]
 
   @@unique([projectId, githubId])
   @@unique([projectId, number])
